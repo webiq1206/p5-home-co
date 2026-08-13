@@ -1,0 +1,3 @@
+module.exports=[33290,a=>{"use strict";var b=a.i(7997);a.s(["default",0,function({children:a}){return(0,b.jsx)("html",{lang:"en",children:(0,b.jsx)("body",{children:a})})},"metadata",0,{title:"P5 Home Co | Four Expert Home-Service Companies",description:"P5 Home Co is the parent company behind Boise Construction Co, Boise Remodeling Co, Boise Cabinet Co, and Boise Handyman Co, serving Idaho's Treasure Valley.",icons:{icon:"/favicon.svg",shortcut:"/favicon.svg"}}])},70864,function(a){a.n(a.i(33290))}];
+
+//# sourceMappingURL=app_layout_tsx_2144vk_._.js.map
