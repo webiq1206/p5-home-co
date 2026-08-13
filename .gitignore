@@ -40,3 +40,23 @@ next-env.d.ts
 /.sites-runtime/
 /outputs/
 /work/
+
+# Replit pnpm-workspace scaffold.
+# This is a single-package Next.js App Router site, not a pnpm workspace.
+# Replit's tooling has previously generated the paths below and committed
+# them here, which broke the production build and required excluding them
+# from tsconfig.json. Ignoring them means that if the tooling recreates
+# them in the workspace, they stay out of the repository.
+/lib/
+/artifacts/
+/scripts/
+/pnpm-lock.yaml
+/pnpm-workspace.yaml
+/tsconfig.base.json
+/.npmrc
+
+# Keep only the marker that tells Replit the scaffold already ran, so it
+# does not re-apply it. The rest of this folder is a duplicate copy of the
+# project and must not be tracked.
+/.migration-backup/*
+!/.migration-backup/.scaffold-applied

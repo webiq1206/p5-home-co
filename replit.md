@@ -1,45 +1,80 @@
-# [Project name]
+# P5 Home Co
 
-_Replace the heading above with the project's name, and this line with one sentence describing what this app does for users._
+Marketing website for P5 Home Co, the operating parent company behind
+Boise Construction Co, Boise Remodeling Co, Boise Cabinet Co, and Boise
+Handyman Co, serving Idaho's Treasure Valley.
 
-## Run & Operate
+This is an approved, finished site. Treat the current visual design and
+responsive behavior as the source of truth. See `CLAUDE.md` for the full
+project instructions.
 
-- `pnpm --filter @workspace/api-server run dev` — run the API server (port 5000)
-- `pnpm run typecheck` — full typecheck across all packages
-- `pnpm run build` — typecheck + build all packages
-- `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
-- `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
-- Required env: `DATABASE_URL` — Postgres connection string
+## Do not do these things
+
+These have all happened before and each one broke the project. Please
+read this section before making changes.
+
+- **Do not convert this to Vite**, or to any other framework or bundler.
+  It is Next.js and must stay Next.js. Do not add a `vite.config.*`, a
+  root `index.html`, or a `src/main.tsx` entry point.
+- **Do not re-apply the pnpm workspace scaffold.** This is a single
+  package, not a workspace. Do not create `lib/`, `artifacts/`,
+  `scripts/`, `pnpm-workspace.yaml`, `pnpm-lock.yaml`, or
+  `tsconfig.base.json`. Adding them breaks `npm run build`, because
+  TypeScript picks up scaffold files whose dependencies are not
+  installed. The marker at `.migration-backup/.scaffold-applied` records
+  that the migration already ran; leave it in place.
+- **Do not install with pnpm.** Use npm. `package-lock.json` pins exact
+  versions and is authoritative.
+- **Do not change dependency versions.** Next.js is pinned at 16.3.0.
+- **Do not edit `app/page.tsx`, `app/layout.tsx`, `app/globals.css`, or
+  anything in `public/`.** The design, copy, imagery, brand logos, and
+  the three-step project matcher are approved and final.
+- **Do not overwrite `CLAUDE.md` or delete `README.md`.** `CLAUDE.md`
+  holds the project instructions and has previously been replaced with a
+  single `@AGENTS.md` pointer, destroying them.
+- **Do not commit `.next/`.** It is build output and is gitignored.
 
 ## Stack
 
-- pnpm workspaces, Node.js 24, TypeScript 5.9
-- API: Express 5
-- DB: PostgreSQL + Drizzle ORM
-- Validation: Zod (`zod/v4`), `drizzle-zod`
-- API codegen: Orval (from OpenAPI spec)
-- Build: esbuild (CJS bundle)
+- Next.js 16.3.0, App Router, React 19.2.6, TypeScript 5.9.3
+- No database, no API server, no backend. Every route is static.
+- Local fonts and self-hosted imagery, no external asset dependencies.
+
+## Run and operate
+
+- `npm install` — install dependencies
+- `npm run dev` — local development
+- `npm run lint` — ESLint
+- `npm run build` — production build
+- `npm run start` — serve the production build
+
+Run `npm run lint` and `npm run build` before considering any change
+complete.
 
 ## Where things live
 
-_Populate as you build — short repo map plus pointers to the source-of-truth file for DB schema, API contracts, theme files, etc._
+- `app/page.tsx` — the entire page structure and the project matcher
+- `app/globals.css` — the complete visual system and responsive rules
+- `app/layout.tsx` — metadata and the application shell
+- `public/images/` — production photography
+- `public/brands/` — the four Boise company logos
+- `public/fonts/` — local display and body fonts
 
-## Architecture decisions
+## Deployment
 
-_Populate as you build — non-obvious choices a reader couldn't infer from the code (3-5 bullets)._
+Deployment is configured in `.replit` as an autoscale target:
 
-## Product
+- build: `npm run build`
+- run: `npm run start -- -H 0.0.0.0 -p ${PORT:-3000}`
 
-_Describe the high-level user-facing capabilities of this app once they exist._
-
-## User preferences
-
-_Populate as you build — explicit user instructions worth remembering across sessions._
+Both commands are required. An earlier config set the deployment target
+without a run command, which made publishing fail with "Could not find
+run command".
 
 ## Gotchas
 
-_Populate as you build — sharp edges, "always run X before Y" rules._
-
-## Pointers
-
-- See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and package details
+- Boise Handyman Co intentionally has no website yet. Its calls to action
+  point at the phone number `(208) 477-1169` and it is labeled
+  "Launching soon". This is deliberate, not an oversight.
+- The other three companies link to `https://boiseconstruction.co`,
+  `https://boiseremodeling.co`, and `https://boisecabinet.co`.
