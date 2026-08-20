@@ -27,11 +27,16 @@ Run `npm run build`, followed by `npm run start`.
 
 The website is already complete. Claude Code should preserve the layout, spacing, typography, color system, imagery, copy, company URLs, telephone links, responsive rules, and matcher logic unless you request a specific change.
 
-All four company calls to action point to their live websites:
+The five companies appear in this order, which is deliberate:
 
-* `https://boiseconstruction.co`
-* `https://boiseremodeling.co`
-* `https://boisecabinet.co`
-* `https://boisehandyman.co`
+1. `https://boiseconstruction.co`
+2. `https://boiseremodeling.co`
+3. `https://boiseadu.co` (not built yet, launching soon)
+4. `https://boisehandyman.co`
+5. `https://boisecabinet.co`
+
+Boise ADU Co has no website yet, so its calls to action use the telephone
+number and it is labelled "Launching soon". Its panel uses a designed
+plate rather than a photograph, because no ADU photography exists yet.
 
 The footer telephone link `(208) 477-1169` is the general P5 Home Co number.

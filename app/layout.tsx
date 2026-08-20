@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { citiesServed, companies, siteUrl } from "./site";
 
-const title = "P5 Home Co | Four Expert Home-Service Companies";
+const title = "P5 Home Co | Five Specialized Home-Service Companies";
 const description =
-  "P5 Home Co is the parent company behind Boise Construction Co, Boise Remodeling Co, Boise Cabinet Co, and Boise Handyman Co, serving Idaho's Treasure Valley.";
+  "P5 Home Co is the parent company behind Boise Construction Co, Boise Remodeling Co, Boise ADU Co, Boise Handyman Co, and Boise Cabinet Co, serving Idaho's Treasure Valley.";
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
@@ -61,7 +61,7 @@ const schema = {
       alternateName: "P5 Home Company",
       url: siteUrl,
       description,
-      slogan: "One home. Four specialized teams.",
+      slogan: "One home. Five specialized teams.",
       foundingDate: "2020",
       telephone: "+1-208-477-1169",
       image: `${siteUrl}/images/p5-og.jpg`,
@@ -86,7 +86,7 @@ const schema = {
           },
         })),
       ],
-      // The premise of the site: four specialist companies under one parent.
+      // The premise of the site: five specialist companies under one parent.
       subOrganization: companies.map((company) => ({
         "@type": "Organization",
         "@id": `${company.url}/#organization`,
@@ -98,6 +98,7 @@ const schema = {
       knowsAbout: [
         "Custom home building",
         "Design-build remodeling",
+        "Accessory dwelling units",
         "Custom cabinetry",
         "Home repair and maintenance",
       ],

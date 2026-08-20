@@ -57,7 +57,7 @@ complete.
 - `app/globals.css` — the complete visual system and responsive rules
 - `app/layout.tsx` — metadata and the application shell
 - `public/images/` — production photography
-- `public/brands/` — the four Boise company logos
+- `public/brands/` — the Boise company logos
 - `public/fonts/` — local display and body fonts
 
 ## Deployment
@@ -80,6 +80,9 @@ run command".
   a telephone link labeled "Launching soon".
 - The footer telephone link `(208) 477-1169` is the general P5 Home Co
   number and is not specific to Boise Handyman Co.
-- Boise Handyman Co is the only company without a logo SVG in
-  `public/brands/`. Its panel renders a text wordmark instead. This is
-  intentional until a logo asset exists.
+- Boise Handyman Co and Boise ADU Co have no logo SVG in
+  `public/brands/`. Handyman renders a text wordmark and ADU renders a
+  typographic plate. Replace both when the artwork is supplied.
+- `public/favicon.svg` is placeholder artwork, not the P5 monogram, and
+  the header mark is redrawn rather than the supplied outlined SVG. Both
+  need the official files from the brand kit.

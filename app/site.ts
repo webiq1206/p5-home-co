@@ -17,16 +17,22 @@ export const companies = [
       "Design-build remodeling for kitchens, bathrooms, whole-home renovations, additions, and ADUs.",
   },
   {
-    name: "Boise Cabinet Co",
-    url: "https://boisecabinet.co",
+    name: "Boise ADU Co",
+    url: "https://boiseadu.co",
     description:
-      "Custom frameless cabinetry, including kitchen cabinets, bathroom vanities, built-ins, and whole-home cabinetry.",
+      "Accessory dwelling units, including detached ADUs, garage conversions, basement and interior units, and feasibility and permitting. Launching soon.",
   },
   {
     name: "Boise Handyman Co",
     url: "https://boisehandyman.co",
     description:
       "Home repair and maintenance, including drywall and trim repair, mounting and installation, and deck and exterior repair.",
+  },
+  {
+    name: "Boise Cabinet Co",
+    url: "https://boisecabinet.co",
+    description:
+      "Custom frameless cabinetry, including kitchen cabinets, bathroom vanities, built-ins, and whole-home cabinetry.",
   },
 ] as const;
 

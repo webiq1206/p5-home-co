@@ -1,10 +1,10 @@
 # P5 Home Co
 
-> P5 Home Co is the operating parent company behind four specialized
+> P5 Home Co is the operating parent company behind five specialized
 > home-service companies serving Boise and the Treasure Valley in Idaho:
-> Boise Construction Co, Boise Remodeling Co, Boise Cabinet Co, and Boise
-> Handyman Co. It is an operating family of companies, not a directory or
-> a referral network.
+> Boise Construction Co, Boise Remodeling Co, Boise ADU Co, Boise Handyman
+> Co, and Boise Cabinet Co. It is an operating family of companies, not a
+> directory or a referral network.
 
 ## What P5 Home Co is
 
@@ -17,7 +17,7 @@ handoff when a project needs more than one specialty.
 
 Established 2020. Bonded and insured. Serving Ada and Canyon counties.
 
-## The four companies
+## The five companies
 
 - [Boise Construction Co](https://boiseconstruction.co): New home
   building. Custom homes, semi-custom homes, building on your own lot,
@@ -27,12 +27,16 @@ Established 2020. Bonded and insured. Serving Ada and Canyon counties.
   remodeling. Kitchen remodeling, bathroom remodeling, whole-home
   remodeling, additions, and ADUs, managed under one roof with a written
   scope and coordinated permits.
-- [Boise Cabinet Co](https://boisecabinet.co): Custom cabinetry. Premium
-  frameless kitchen cabinetry, bathroom vanities, built-ins and storage,
-  and whole-home cabinetry, designed, built, and installed.
+- Boise ADU Co (boiseadu.co, launching soon): Accessory dwelling units.
+  Detached ADUs, garage conversions, basement and interior units, and
+  feasibility and permitting. The website is not live yet; enquiries go
+  to (208) 477-1169.
 - [Boise Handyman Co](https://boisehandyman.co): Home repair and
   maintenance. Drywall and trim repair, TV and fixture mounting, deck and
   exterior repair, and general home maintenance.
+- [Boise Cabinet Co](https://boisecabinet.co): Custom cabinetry. Premium
+  frameless kitchen cabinetry, bathroom vanities, built-ins and storage,
+  and whole-home cabinetry, designed, built, and installed.
 
 ## Which company handles which project
 
@@ -40,10 +44,12 @@ Established 2020. Bonded and insured. Serving Ada and Canyon counties.
   Construction Co.
 - Renovating, adding on to, or changing how an existing home works:
   Boise Remodeling Co.
-- Cabinetry, vanities, built-ins, and coordinated storage: Boise Cabinet
-  Co.
+- Adding a guest suite, rental unit, or multigenerational living space on
+  land you already own: Boise ADU Co.
 - Repairs, installations, finish work, and smaller home projects: Boise
   Handyman Co.
+- Cabinetry, vanities, built-ins, and coordinated storage: Boise Cabinet
+  Co.
 
 A single project can involve more than one company. A complete kitchen
 transformation, for example, runs through Boise Remodeling Co for layout,
@@ -62,5 +68,5 @@ Telephone: (208) 477-1169
 
 ## Key pages
 
-- [P5 Home Co](https://p5homeco.com): The parent company, the four
+- [P5 Home Co](https://p5homeco.com): The parent company, the five
   companies, the shared operating standard, and the service area.
