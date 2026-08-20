@@ -78,3 +78,8 @@ export const faqs = [
     a: "Yes. The P5 companies are bonded and insured, have worked across the Treasure Valley since 2020, and handle permits in-house where a project requires them.",
   },
 ] as const;
+
+// GA4 measurement ID for the "P5 Home Co" property (551 / 550935991) in the
+// "Websites (BRC, BCC, REC, ASOS)" account. Measurement IDs are public by
+// design, so this is not a secret and does not belong in an env var.
+export const gaMeasurementId = "G-K4PK6PMZP9";

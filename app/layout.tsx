@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
+import Script from "next/script";
 import "./globals.css";
-import { citiesServed, companies, faqs, siteUrl } from "./site";
+import { citiesServed, companies, faqs, gaMeasurementId, siteUrl } from "./site";
 
 const title = "P5 Home Co | Five Specialized Home-Service Companies";
 const description =
@@ -161,6 +162,22 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(schema) }}
         />
+        {/* Analytics runs in production only, so local development never
+            reports into the property. */}
+        {process.env.NODE_ENV === "production" && (
+          <>
+            <Script
+              src={`https://www.googletagmanager.com/gtag/js?id=${gaMeasurementId}`}
+              strategy="afterInteractive"
+            />
+            <Script id="ga4-init" strategy="afterInteractive">
+              {`window.dataLayer = window.dataLayer || [];
+function gtag(){dataLayer.push(arguments);}
+gtag('js', new Date());
+gtag('config', '${gaMeasurementId}');`}
+            </Script>
+          </>
+        )}
         {children}
       </body>
     </html>

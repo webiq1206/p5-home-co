@@ -75,6 +75,24 @@ Both commands are required. An earlier config set the deployment target
 without a run command, which made publishing fail with "Could not find
 run command".
 
+## Analytics
+
+GA4 property "P5 Home Co" (550935991) in the "Websites (BRC, BCC, REC,
+ASOS)" account (396104300). Measurement ID `G-K4PK6PMZP9`, set in
+`app/site.ts`. The tag loads in production only, so `npm run dev` never
+reports into the property.
+
+Custom events, all fired through `app/analytics.ts`:
+
+- `matcher_open` — the project matcher was opened
+- `matcher_result` — a match was reached (params: company, project)
+- `company_click` — click through to a company site (params: company, location)
+- `phone_click` — a telephone link was tapped (params: company, location)
+
+`company_click` and `phone_click` are the real conversions and should be
+marked as key events in GA once GA has processed them. GA cannot star an
+event it has not yet seen, and processing takes up to 24 hours.
+
 ## Gotchas
 
 - There are five companies, and the order on the page is deliberate:
