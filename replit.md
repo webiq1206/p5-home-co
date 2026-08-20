@@ -89,3 +89,10 @@ run command".
 - Favicons are the supplied set (.ico, 16, 32, apple-touch, android-chrome).
   The old placeholder favicon.svg was generic blue art and is deleted.
 - Still missing: ADU photography. Its panel uses a designed plate.
+- Fonts are the licensed brand families, just renamed: `p5-serif.woff2`
+  is Cormorant Garamond and `p5-sans.woff2` is Manrope, both variable.
+  Confirmed by reading the name tables. Do not "fix" the filenames.
+- Photography was reviewed against the Drive and deliberately left as is.
+  The Social Assets photo sets are generic stock, which the brand guide
+  rules out, and the Cabinet Pics are unstyled job-site documentation.
+  Neither is marketing grade.

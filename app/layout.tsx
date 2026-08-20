@@ -1,10 +1,17 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { citiesServed, companies, siteUrl } from "./site";
 
 const title = "P5 Home Co | Five Specialized Home-Service Companies";
 const description =
   "P5 Home Co is the parent company behind Boise Construction Co, Boise Remodeling Co, Boise ADU Co, Boise Handyman Co, and Boise Cabinet Co, serving Idaho's Treasure Valley.";
+
+export const viewport: Viewport = {
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#FBFAF6" },
+    { media: "(prefers-color-scheme: dark)", color: "#17211C" },
+  ],
+};
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
@@ -19,7 +26,9 @@ export const metadata: Metadata = {
     ],
     shortcut: "/favicon.ico",
     apple: "/apple-touch-icon.png",
+    other: [{ rel: "mask-icon", url: "/safari-pinned-tab.svg", color: "#20231F" }],
   },
+  manifest: "/site.webmanifest",
   openGraph: {
     type: "website",
     siteName: "P5 Home Co",
@@ -138,6 +147,10 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html lang="en">
       <body>
+        {/* Next preloads the hero and the logo marks on its own, but not the
+            fonts, and the hero headline is set in the display serif. */}
+        <link rel="preload" as="font" type="font/woff2" href="/fonts/p5-serif.woff2" crossOrigin="anonymous" />
+        <link rel="preload" as="font" type="font/woff2" href="/fonts/p5-sans.woff2" crossOrigin="anonymous" />
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(schema) }}
