@@ -40,7 +40,7 @@ img { display: block; width: 100%; }
 .eyebrow { display: flex; align-items: center; gap: 12px; margin: 0 0 27px; color: #6c756e; font-size: 10px; font-weight: 700; letter-spacing: .19em; line-height: 1.2; text-transform: uppercase; }
 .eyebrow::before { width: 28px; height: 1px; background: currentColor; content: ""; }
 .eyebrow-light { color: rgba(255,255,255,.66); }
-.arrow { display: inline-block; font-size: 17px; font-weight: 400; line-height: 1; transition: transform 180ms ease; }
+.arrow { display: inline-block; flex: 0 0 22px; width: 22px; height: 15px; overflow: visible; stroke: currentColor; stroke-width: 1.25; stroke-linecap: square; stroke-linejoin: miter; transition: transform 180ms ease; }
 a:hover .arrow, a:focus-visible .arrow, button:hover .arrow, button:focus-visible .arrow { transform: translateX(4px); }
 a:hover .arrow-diagonal, a:focus-visible .arrow-diagonal { transform: translate(3px,-3px); }
 .text-link { display: inline-flex; align-items: center; gap: 18px; padding: 0 0 8px; border: 0; border-bottom: 1px solid currentColor; background: none; font-size: 11px; font-weight: 700; }
@@ -226,7 +226,8 @@ a:hover .arrow-diagonal, a:focus-visible .arrow-diagonal { transform: translate(
 .matcher-choices button:last-child:nth-child(odd) { grid-column: 1/-1; }
 .matcher-choices button > span { align-self: start; color: var(--bronze); font-size: 8px; font-weight: 700; }
 .matcher-choices strong { font-family: "P5 Serif", Georgia, serif; font-size: 21px; font-weight: 600; line-height: 1.2; }
-.matcher-previous { align-self: flex-start; margin: 0 0 27px; padding: 0; border: 0; color: #737a73; background: none; font-size: 9px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.matcher-previous { display: inline-flex; align-items: center; gap: 9px; align-self: flex-start; margin: 0 0 27px; padding: 0; border: 0; color: #737a73; background: none; font-size: 9px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.matcher-previous .arrow { flex-basis: 16px; width: 16px; height: 12px; }
 .matcher-result { display: flex; flex-direction: column; align-items: flex-start; }
 .matcher-result .result-overline { margin: 6px 0 15px; color: var(--bronze); font-size: 9px; font-weight: 750; letter-spacing: .13em; text-transform: uppercase; }
 .matcher-result > p:not(.eyebrow) { max-width: 650px; margin: 23px 0 0; color: #636a63; font-size: 14px; line-height: 1.85; }
