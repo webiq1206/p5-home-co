@@ -27,10 +27,11 @@ Run `npm run build`, followed by `npm run start`.
 
 The website is already complete. Claude Code should preserve the layout, spacing, typography, color system, imagery, copy, company URLs, telephone links, responsive rules, and matcher logic unless you request a specific change.
 
-Boise Handyman Co currently uses the phone number `(208) 477-1169` because its full company website is marked as launching soon.
-
-The other company calls to action point to:
+All four company calls to action point to their live websites:
 
 * `https://boiseconstruction.co`
 * `https://boiseremodeling.co`
 * `https://boisecabinet.co`
+* `https://boisehandyman.co`
+
+The footer telephone link `(208) 477-1169` is the general P5 Home Co number.

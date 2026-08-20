@@ -73,8 +73,13 @@ run command".
 
 ## Gotchas
 
-- Boise Handyman Co intentionally has no website yet. Its calls to action
-  point at the phone number `(208) 477-1169` and it is labeled
-  "Launching soon". This is deliberate, not an oversight.
-- The other three companies link to `https://boiseconstruction.co`,
-  `https://boiseremodeling.co`, and `https://boisecabinet.co`.
+- All four companies now have live websites and each links to its own:
+  `https://boiseconstruction.co`, `https://boiseremodeling.co`,
+  `https://boisecabinet.co`, and `https://boisehandyman.co`. Boise
+  Handyman Co launched on 2026-08-20; before that it was intentionally
+  a telephone link labeled "Launching soon".
+- The footer telephone link `(208) 477-1169` is the general P5 Home Co
+  number and is not specific to Boise Handyman Co.
+- Boise Handyman Co is the only company without a logo SVG in
+  `public/brands/`. Its panel renders a text wordmark instead. This is
+  intentional until a logo asset exists.
