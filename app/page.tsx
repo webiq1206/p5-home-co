@@ -18,10 +18,15 @@ const companyDetails: Record<CompanyKey, { name: string; reason: string; url: st
 
 const Arrow = ({ diagonal = false }: { diagonal?: boolean }) => <span aria-hidden="true" className={diagonal ? "arrow arrow-diagonal" : "arrow"}>{diagonal ? "↗" : "→"}</span>;
 
-const Wordmark = ({ light = false }: { light?: boolean }) => (
-  <a className={`wordmark ${light ? "wordmark-light" : ""}`} href="#top" aria-label="P5 Home Co, back to top">
-    <img className="p5-lockup" src={light ? "/brands/p5-home-co-lockup-light.svg" : "/brands/p5-home-co-lockup-dark.svg"} alt="" aria-hidden="true" />
-    <img className="p5-icon" src={light ? "/brands/p5-home-co-icon-light.svg" : "/brands/p5-home-co-icon-dark.svg"} alt="" aria-hidden="true" />
+const HeaderWordmark = () => (
+  <a className="wordmark" href="#top" aria-label="P5 Home Co, back to top">
+    <img className="p5-header-logo" src="/images/p5-home-co-logo-light-transparent.png" alt="P5 Home Co — The Home Company" />
+  </a>
+);
+
+const FooterWordmark = () => (
+  <a className="wordmark" href="#top" aria-label="P5 Home Co, back to top">
+    <img className="p5-footer-logo" src="/images/p5-home-co-logo-transparent.png" alt="P5 Home Co — The Home Company" />
   </a>
 );
 
@@ -42,7 +47,7 @@ export default function Home() {
     <main id="top">
       <header className={`site-header ${scrolled ? "site-header-scrolled" : ""}`}>
         <div className="nav-shell">
-          <Wordmark light={!scrolled && !menuOpen} />
+          <HeaderWordmark />
           <nav className="desktop-nav" aria-label="Primary navigation"><a href="#companies">Our companies</a><a href="#p5-standard">The P5 standard</a><a href="#about">About</a><a href="#service-area">Service area</a></nav>
           <button className="nav-cta" type="button" onClick={openMatcher}>Find your team <Arrow /></button>
           <button className={`menu-button ${menuOpen ? "menu-button-open" : ""}`} type="button" onClick={() => setMenuOpen((value) => !value)} aria-expanded={menuOpen} aria-controls="mobile-menu" aria-label={menuOpen ? "Close menu" : "Open menu"}><span /><span /></button>
@@ -78,7 +83,7 @@ export default function Home() {
 
       <section className="final-cta"><img src="/images/p5-closing-v2.webp" alt="Warm Treasure Valley home at blue hour" loading="lazy" decoding="async" /><div className="final-cta-shade" /><div className="content-shell final-cta-content"><p className="eyebrow eyebrow-light">Start with the need, not the company</p><h2>Tell us what you are planning.<br />We will point you to the right team.</h2><button className="button button-light" type="button" onClick={openMatcher}>Find my P5 company <Arrow /></button></div></section>
 
-      <footer className="site-footer"><div className="content-shell"><div className="footer-main"><div className="footer-brand"><Wordmark light /><p>Five specialized home-service companies. One shared standard for the Treasure Valley.</p><a className="footer-phone" href="tel:+12084771169" onClick={() => track("phone_click", { location: "footer" })}>(208) 477-1169</a></div><div className="footer-links"><div><h3>Our companies</h3><External href="https://boiseconstruction.co">Boise Construction Co</External><External href="https://boiseremodeling.co">Boise Remodeling Co</External><span className="footer-soon">Boise ADU Co <small>Launching soon</small></span><External href="https://boisehandyman.co">Boise Handyman Co</External><External href="https://boisecabinet.co">Boise Cabinet Co</External></div><div><h3>Explore</h3><a href="#about">About P5 Home Co</a><a href="#p5-standard">The P5 standard</a><a href="#service-area">Service area</a><a href="#faq">Common questions</a><button type="button" onClick={openMatcher}>Find your team</button></div></div></div><div className="footer-bottom"><span>© 2026 P5 Home Co. All rights reserved.</span><span>Boise and the Treasure Valley, Idaho</span></div></div></footer>
+      <footer className="site-footer"><div className="content-shell"><div className="footer-main"><div className="footer-brand"><FooterWordmark /><p>Five specialized home-service companies. One shared standard for the Treasure Valley.</p><a className="footer-phone" href="tel:+12084771169" onClick={() => track("phone_click", { location: "footer" })}>(208) 477-1169</a></div><div className="footer-links"><div><h3>Our companies</h3><External href="https://boiseconstruction.co">Boise Construction Co</External><External href="https://boiseremodeling.co">Boise Remodeling Co</External><span className="footer-soon">Boise ADU Co <small>Launching soon</small></span><External href="https://boisehandyman.co">Boise Handyman Co</External><External href="https://boisecabinet.co">Boise Cabinet Co</External></div><div><h3>Explore</h3><a href="#about">About P5 Home Co</a><a href="#p5-standard">The P5 standard</a><a href="#service-area">Service area</a><a href="#faq">Common questions</a><button type="button" onClick={openMatcher}>Find your team</button></div></div></div><div className="footer-bottom"><span>© 2026 P5 Home Co. All rights reserved.</span><span>Boise and the Treasure Valley, Idaho</span></div></div></footer>
       {matcherOpen && <ProjectMatcher onClose={() => setMatcherOpen(false)} />}
     </main>
   );
@@ -135,7 +140,7 @@ function ProjectMatcher({ onClose }: { onClose: () => void }) {
   useEffect(() => {
     if (company && project) track("matcher_result", { company, project });
   }, [company, project]);
-  return <div className="matcher" role="dialog" aria-modal="true" aria-labelledby="matcher-title"><button className="matcher-backdrop" type="button" tabIndex={-1} aria-label="Close company matcher" onClick={onClose} /><div className="matcher-panel" ref={panelRef}><div className="matcher-header"><Wordmark /><div className="matcher-progress"><span>0{step}</span><i><b style={{ width: `${step * 33.333}%` }} /></i><span>03</span></div><button className="matcher-close" type="button" onClick={onClose} aria-label="Close company matcher">×</button></div><div className="matcher-body">
+  return <div className="matcher" role="dialog" aria-modal="true" aria-labelledby="matcher-title"><button className="matcher-backdrop" type="button" tabIndex={-1} aria-label="Close company matcher" onClick={onClose} /><div className="matcher-panel" ref={panelRef}><div className="matcher-header"><HeaderWordmark /><div className="matcher-progress"><span>0{step}</span><i><b style={{ width: `${step * 33.333}%` }} /></i><span>03</span></div><button className="matcher-close" type="button" onClick={onClose} aria-label="Close company matcher">×</button></div><div className="matcher-body">
     {!company && <><p className="eyebrow">Step 1 · Your goal</p><h2 id="matcher-title" tabIndex={-1}>What does your home need?</h2><p className="matcher-intro">Choose the closest match. We will narrow it down from there.</p><div className="matcher-choices">{(Object.keys(companyDetails) as CompanyKey[]).map((key, index) => <button key={key} type="button" onClick={() => setCompany(key)}><span>0{index + 1}</span><strong>{companyDetails[key].label}</strong><Arrow /></button>)}</div></>}
     {company && !project && detail && <><button className="matcher-previous" type="button" onClick={() => setCompany(null)}>← Back</button><p className="eyebrow">Step 2 · Project type</p><h2 id="matcher-title" tabIndex={-1}>Tell us a little more.</h2><p className="matcher-intro">Which option best describes the work?</p><div className="matcher-choices">{detail.options.map((option, index) => <button key={option} type="button" onClick={() => setProject(option)}><span>0{index + 1}</span><strong>{option}</strong><Arrow /></button>)}</div></>}
     {company && project && detail && <div className={`matcher-result matcher-result-${company}`}><button className="matcher-previous" type="button" onClick={() => setProject(null)}>← Back</button><p className="eyebrow">Your P5 match</p><span className="result-overline">Recommended for · {project}</span><h2 id="matcher-title" tabIndex={-1}>{detail.name}</h2><p>{detail.reason}</p><div className="result-actions"><a className="button button-dark" href={detail.url} target={detail.url.startsWith("http") ? "_blank" : undefined} rel={detail.url.startsWith("http") ? "noreferrer" : undefined} onClick={() => track(detail.url.startsWith("http") ? "company_click" : "phone_click", { company, location: "matcher" })}>{detail.cta} <Arrow diagonal={detail.url.startsWith("http")} /></a><button className="text-link" type="button" onClick={() => { onClose(); document.getElementById(company)?.scrollIntoView({ behavior: "smooth" }); }}>See why it fits <Arrow /></button></div><small>No form. No obligation. You are choosing where to continue.</small></div>}
