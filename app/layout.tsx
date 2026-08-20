@@ -11,7 +11,15 @@ export const metadata: Metadata = {
   title,
   description,
   alternates: { canonical: "/" },
-  icons: { icon: "/favicon.svg", shortcut: "/favicon.svg" },
+  icons: {
+    icon: [
+      { url: "/favicon.ico", sizes: "any" },
+      { url: "/favicon-16x16.png", type: "image/png", sizes: "16x16" },
+      { url: "/favicon-32x32.png", type: "image/png", sizes: "32x32" },
+    ],
+    shortcut: "/favicon.ico",
+    apple: "/apple-touch-icon.png",
+  },
   openGraph: {
     type: "website",
     siteName: "P5 Home Co",
@@ -65,7 +73,7 @@ const schema = {
       foundingDate: "2020",
       telephone: "+1-208-477-1169",
       image: `${siteUrl}/images/p5-og.jpg`,
-      logo: { "@type": "ImageObject", url: `${siteUrl}/favicon.svg` },
+      logo: { "@type": "ImageObject", url: `${siteUrl}/android-chrome-512x512.png` },
       address: {
         "@type": "PostalAddress",
         addressLocality: "Boise",

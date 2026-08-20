@@ -39,4 +39,8 @@ Boise ADU Co has no website yet, so its calls to action use the telephone
 number and it is labelled "Launching soon". Its panel uses a designed
 plate rather than a photograph, because no ADU photography exists yet.
 
+All logo artwork in `public/brands` is the supplied brand-kit artwork.
+The header uses the P5 horizontal lockup and swaps to the icon mark below
+560px, per the 200px minimum width in the brand guide.
+
 The footer telephone link `(208) 477-1169` is the general P5 Home Co number.

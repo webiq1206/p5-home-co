@@ -80,9 +80,12 @@ run command".
   a telephone link labeled "Launching soon".
 - The footer telephone link `(208) 477-1169` is the general P5 Home Co
   number and is not specific to Boise Handyman Co.
-- Boise Handyman Co and Boise ADU Co have no logo SVG in
-  `public/brands/`. Handyman renders a text wordmark and ADU renders a
-  typographic plate. Replace both when the artwork is supplied.
-- `public/favicon.svg` is placeholder artwork, not the P5 monogram, and
-  the header mark is redrawn rather than the supplied outlined SVG. Both
-  need the official files from the brand kit.
+- All five companies now use their supplied wordmark artwork from the
+  brand kit. Use the `-dark` file (charcoal ink) on light panels and the
+  plain file (bone ink) on dark panels.
+- The header uses the supplied P5 horizontal lockup, not redrawn paths.
+  Below 560px it swaps to the icon mark, because the lockup has a 200px
+  minimum width in the brand guide. Do not rebuild either from live text.
+- Favicons are the supplied set (.ico, 16, 32, apple-touch, android-chrome).
+  The old placeholder favicon.svg was generic blue art and is deleted.
+- Still missing: ADU photography. Its panel uses a designed plate.
