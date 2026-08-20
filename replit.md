@@ -59,6 +59,10 @@ complete.
 - `public/images/` — production photography
 - `public/brands/` — the Boise company logos
 - `public/fonts/` — local display and body fonts
+- `app/site.ts` — the five companies, the cities served, and the FAQ.
+  The FAQ section and the FAQPage schema both read from here, so the
+  structured data cannot drift from the visible copy. Edit questions
+  there, never in one place only.
 
 ## Deployment
 

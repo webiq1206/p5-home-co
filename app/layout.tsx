@@ -1,6 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
-import { citiesServed, companies, siteUrl } from "./site";
+import { citiesServed, companies, faqs, siteUrl } from "./site";
 
 const title = "P5 Home Co | Five Specialized Home-Service Companies";
 const description =
@@ -130,7 +130,7 @@ const schema = {
       inLanguage: "en-US",
     },
     {
-      "@type": "WebPage",
+      "@type": ["WebPage", "FAQPage"],
       "@id": `${siteUrl}/#webpage`,
       url: siteUrl,
       name: title,
@@ -139,6 +139,12 @@ const schema = {
       about: { "@id": `${siteUrl}/#organization` },
       primaryImageOfPage: `${siteUrl}/images/p5-og.jpg`,
       inLanguage: "en-US",
+      // Rendered verbatim in the FAQ section from the same source.
+      mainEntity: faqs.map((item) => ({
+        "@type": "Question",
+        name: item.q,
+        acceptedAnswer: { "@type": "Answer", text: item.a },
+      })),
     },
   ],
 };

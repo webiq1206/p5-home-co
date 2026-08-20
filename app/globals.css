@@ -94,7 +94,7 @@ a:hover .arrow-diagonal, a:focus-visible .arrow-diagonal { transform: translate(
 
 .manifesto { background: var(--paper); }
 .manifesto-layout { display: grid; grid-template-columns: 1.35fr .65fr; gap: 12vw; align-items: start; }
-.manifesto h2, .companies h2, .standard h2, .handoff h2, .service-area h2, .final-cta h2 { margin: 0; font-family: "P5 Serif", Georgia, serif; font-weight: 400; letter-spacing: -.047em; line-height: .98; }
+.manifesto h2, .companies h2, .standard h2, .handoff h2, .service-area h2, .faq h2, .final-cta h2 { margin: 0; font-family: "P5 Serif", Georgia, serif; font-weight: 400; letter-spacing: -.047em; line-height: .98; }
 .manifesto h2 { max-width: 850px; font-size: clamp(58px,6.3vw,95px); }
 .manifesto-copy { max-width: 460px; padding-top: 8px; }
 .manifesto-copy p { margin: 0 0 20px; color: #676d66; font-size: 13px; line-height: 1.9; }
@@ -186,6 +186,19 @@ a:hover .arrow-diagonal, a:focus-visible .arrow-diagonal { transform: translate(
 .area-list { display: grid; grid-template-columns: 1fr 1fr; border-top: 1px solid var(--line); border-left: 1px solid var(--line); }
 .area-list span { padding: 17px 22px; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); font-family: "P5 Serif", Georgia, serif; font-size: 25px; font-weight: 500; }
 
+.faq { background: var(--paper); }
+.faq-layout { display: grid; grid-template-columns: .9fr 1.1fr; gap: 11vw; align-items: start; }
+.faq h2 { max-width: 650px; font-size: clamp(58px,6vw,90px); }
+.faq-intro { max-width: 430px; margin: 30px 0 0; color: #676d66; font-size: 13px; line-height: 1.9; }
+.faq-list { border-top: 1px solid var(--line); }
+.faq-item { border-bottom: 1px solid var(--line); }
+.faq-item summary { display: flex; align-items: center; justify-content: space-between; gap: 30px; padding: 27px 0; font-family: "P5 Serif", Georgia, serif; font-size: 22px; font-weight: 600; line-height: 1.3; list-style: none; cursor: pointer; transition: color 180ms ease; }
+.faq-item summary::-webkit-details-marker { display: none; }
+.faq-item summary:hover, .faq-item summary:focus-visible { color: var(--bronze); }
+.faq-item summary::after { flex: 0 0 auto; width: 13px; height: 13px; background-image: linear-gradient(var(--bronze),var(--bronze)), linear-gradient(var(--bronze),var(--bronze)); background-position: center, center; background-repeat: no-repeat; background-size: 13px 1px, 1px 13px; content: ""; transition: background-size 200ms ease; }
+.faq-item[open] summary::after { background-size: 13px 1px, 1px 0; }
+.faq-item p { max-width: 640px; margin: -4px 0 29px; color: #676d66; font-size: 13px; line-height: 1.9; }
+
 .final-cta { position: relative; min-height: 630px; overflow: hidden; color: #fff; background: var(--forest); }
 .final-cta > img, .final-cta-shade { position: absolute; inset: 0; height: 100%; }
 .final-cta > img { object-fit: cover; object-position: center; }
@@ -271,7 +284,7 @@ a:hover .arrow-diagonal, a:focus-visible .arrow-diagonal { transform: translate(
   .trust-grid { grid-template-columns:1fr 1fr; }
   .trust-grid div:nth-child(2) { border-right:0; }
   .trust-grid div:nth-child(-n+2) { border-bottom:1px solid var(--line); }
-  .manifesto-layout,.companies-heading,.standard-heading,.handoff-layout,.service-area-grid,.footer-main { grid-template-columns:1fr; }
+  .manifesto-layout,.companies-heading,.standard-heading,.handoff-layout,.service-area-grid,.faq-layout,.footer-main { grid-template-columns:1fr; }
   .manifesto-layout,.companies-heading,.standard-heading { gap:42px; }
   .manifesto-copy { max-width:600px; }
   .company-index,.standard-grid { grid-template-columns:1fr 1fr; }
@@ -283,7 +296,7 @@ a:hover .arrow-diagonal, a:focus-visible .arrow-diagonal { transform: translate(
   .standard-heading > p { max-width:600px; }
   .process-proof { grid-template-columns:1fr; }
   .process-proof ul { grid-template-columns:1fr 1fr; }
-  .handoff-layout,.service-area-grid { gap:65px; }
+  .handoff-layout,.service-area-grid,.faq-layout { gap:65px; }
   .footer-main { gap:65px; }
   .matcher { padding:16px; }
   .matcher-panel { min-height:600px; max-height:calc(100svh - 32px); }
@@ -303,7 +316,8 @@ a:hover .arrow-diagonal, a:focus-visible .arrow-diagonal { transform: translate(
   .trust-grid div { min-height:92px; padding:20px 16px; }
   .trust-grid div:first-child { border-left:0; }
   .trust-grid strong { font-size:20px; }
-  .manifesto h2,.companies h2,.standard h2,.handoff h2,.service-area h2,.final-cta h2 { font-size:47px; }
+  .manifesto h2,.companies h2,.standard h2,.handoff h2,.service-area h2,.faq h2,.final-cta h2 { font-size:47px; }
+  .faq-item summary { font-size:19px; gap:20px; }
   .company-index,.standard-grid { grid-template-columns:1fr; }
   .company-index a:last-child { grid-column:auto; }
   .matcher-choices button:last-child:nth-child(odd) { grid-column:auto; }

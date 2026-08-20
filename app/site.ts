@@ -48,3 +48,33 @@ export const citiesServed = [
   "Middleton",
   "Caldwell",
 ] as const;
+
+// One source of truth for the FAQ. The section and the FAQPage schema both
+// read from here, so the structured data can never claim something the page
+// does not say. Every answer restates a fact already on the page.
+export const faqs = [
+  {
+    q: "Is P5 Home Co a contractor or a referral service?",
+    a: "P5 Home Co is an operating family of companies, not a directory or a referral network. Each of the five companies has its own craft and team, and does the work itself, under one shared standard for scopes, communication, and accountability.",
+  },
+  {
+    q: "Which P5 company should I start with?",
+    a: "Start with the project rather than the company. New homes go to Boise Construction Co, renovations to Boise Remodeling Co, accessory dwellings to Boise ADU Co, repairs and installations to Boise Handyman Co, and cabinetry to Boise Cabinet Co. The three-step matcher on this page will point you to the right one.",
+  },
+  {
+    q: "What if my project needs more than one company?",
+    a: "P5 routes the work between companies without sending you back to the start. A complete kitchen runs through Boise Remodeling Co for layout, permits, demolition, and construction, Boise Cabinet Co for cabinet design and installation, and Boise Handyman Co for final mounting and punch-list items.",
+  },
+  {
+    q: "Which areas do the P5 companies serve?",
+    a: "P5 companies serve homeowners across Ada and Canyon counties in Idaho's Treasure Valley, including Boise, Meridian, Eagle, Nampa, Kuna, Star, Middleton, and Caldwell.",
+  },
+  {
+    q: "What happens before the work begins?",
+    a: "You get planning guidance and written scope details, so you understand the work before it starts. You will know who owns the next step and who to contact, and decisions, schedule changes, and budget impacts are raised early and documented clearly.",
+  },
+  {
+    q: "Are the P5 companies bonded and insured?",
+    a: "Yes. The P5 companies are bonded and insured, have worked across the Treasure Valley since 2020, and handle permits in-house where a project requires them.",
+  },
+] as const;
