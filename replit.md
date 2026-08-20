@@ -103,10 +103,9 @@ event it has not yet seen, and processing takes up to 24 hours.
   Handyman Co launched on 2026-08-20; before that it was intentionally a
   telephone link labelled "Launching soon".
 - Boise ADU Co (`https://boiseadu.co`) is not built yet and the domain
-  does not resolve. Its calls to action use the telephone number, it is
-  labelled "Launching soon", and its panel renders a designed plate
-  instead of a photograph because no ADU photography exists. Link it to
-  the site only once the domain is live.
+  does not resolve. Its calls to action use the telephone number and it
+  is labelled "Launching soon". Link it to the site only once the domain
+  is live.
 - The footer telephone link `(208) 477-1169` is the general P5 Home Co
   number and is not specific to Boise Handyman Co.
 - All five companies now use their supplied wordmark artwork from the
@@ -117,7 +116,6 @@ event it has not yet seen, and processing takes up to 24 hours.
   minimum width in the brand guide. Do not rebuild either from live text.
 - Favicons are the supplied set (.ico, 16, 32, apple-touch, android-chrome).
   The old placeholder favicon.svg was generic blue art and is deleted.
-- Still missing: ADU photography. Its panel uses a designed plate.
 - Fonts are the licensed brand families, just renamed: `p5-serif.woff2`
   is Cormorant Garamond and `p5-sans.woff2` is Manrope, both variable.
   Confirmed by reading the name tables. Do not "fix" the filenames.
@@ -125,3 +123,11 @@ event it has not yet seen, and processing takes up to 24 hours.
   The Social Assets photo sets are generic stock, which the brand guide
   rules out, and the Cabinet Pics are unstyled job-site documentation.
   Neither is marketing grade.
+- `p5-adu.webp` was supplied separately and is AI generated, per the
+  source filename. It shows no obvious artifacts and no people, so it
+  clears the brand guide's photography bar, but it does not document a
+  real completed project. The alt text describes what is in frame and
+  deliberately does not claim it is a P5 build. Replace it if a real ADU
+  is ever photographed.
+- All five panel photographs are 1672x941 or 1536x1024 WebP, roughly
+  64 to 190 KB. Match that when adding more.

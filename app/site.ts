@@ -6,30 +6,35 @@ export const siteUrl = "https://p5homeco.com";
 export const companies = [
   {
     name: "Boise Construction Co",
+    image: "/images/p5-construction-v2.webp",
     url: "https://boiseconstruction.co",
     description:
       "Custom and semi-custom home building, including design, engineering, permitting, and ground-up construction.",
   },
   {
     name: "Boise Remodeling Co",
+    image: "/images/p5-remodel.webp",
     url: "https://boiseremodeling.co",
     description:
       "Design-build remodeling for kitchens, bathrooms, whole-home renovations, additions, and ADUs.",
   },
   {
     name: "Boise ADU Co",
+    image: "/images/p5-adu.webp",
     url: "https://boiseadu.co",
     description:
       "Accessory dwelling units, including detached ADUs, garage conversions, basement and interior units, and feasibility and permitting. Launching soon.",
   },
   {
     name: "Boise Handyman Co",
+    image: "/images/p5-handyman.webp",
     url: "https://boisehandyman.co",
     description:
       "Home repair and maintenance, including drywall and trim repair, mounting and installation, and deck and exterior repair.",
   },
   {
     name: "Boise Cabinet Co",
+    image: "/images/p5-cabinet.webp",
     url: "https://boisecabinet.co",
     description:
       "Custom frameless cabinetry, including kitchen cabinets, bathroom vanities, built-ins, and whole-home cabinetry.",

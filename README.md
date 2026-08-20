@@ -36,8 +36,7 @@ The five companies appear in this order, which is deliberate:
 5. `https://boisecabinet.co`
 
 Boise ADU Co has no website yet, so its calls to action use the telephone
-number and it is labelled "Launching soon". Its panel uses a designed
-plate rather than a photograph, because no ADU photography exists yet.
+number and it is labelled "Launching soon".
 
 All logo artwork in `public/brands` is the supplied brand-kit artwork.
 The header uses the P5 horizontal lockup and swaps to the icon mark below

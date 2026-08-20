@@ -111,6 +111,7 @@ const schema = {
         name: company.name,
         url: company.url,
         description: company.description,
+        image: `${siteUrl}${company.image}`,
         parentOrganization: { "@id": `${siteUrl}/#organization` },
       })),
       knowsAbout: [

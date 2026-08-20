@@ -146,14 +146,6 @@ a:hover .arrow-diagonal, a:focus-visible .arrow-diagonal { transform: translate(
 .brand-adu { --brand-accent:#cc929a; --brand-muted:#66635d; --brand-line:rgba(32,35,31,.15); --brand-topline:#77746e; color:var(--ink); background:#f1ede4; }
 .brand-handyman { --brand-accent:#cb633b; --brand-muted:rgba(255,255,255,.62); --brand-line:rgba(255,255,255,.17); --brand-topline:rgba(255,255,255,.5); color:#fff; background:#3b403e; }
 
-.brand-plate { display: grid; place-items: center; background: var(--forest); }
-.brand-plate::after { display: none; }
-.plate-mark { display: flex; flex-direction: column; align-items: center; color: #fff; text-align: center; }
-.plate-mark span { color: rgba(255,255,255,.5); font-size: 11px; font-weight: 700; letter-spacing: .34em; text-indent: .34em; text-transform: uppercase; }
-.plate-mark strong { margin-top: 14px; font-family: "P5 Serif", Georgia, serif; font-size: clamp(76px,8vw,116px); font-weight: 400; letter-spacing: .04em; line-height: 1; }
-.plate-mark i { width: 78px; height: 1px; margin: 26px 0 20px; background: var(--brand-accent); }
-.plate-mark small { color: rgba(255,255,255,.62); font-size: 9px; font-weight: 700; letter-spacing: .26em; text-indent: .26em; text-transform: uppercase; }
-
 .standard { color: #fff; background: var(--forest); }
 .standard-heading { display: grid; grid-template-columns: 1.25fr .5fr; gap: 11vw; align-items: end; }
 .standard h2 { max-width: 880px; font-size: clamp(58px,6.4vw,96px); }
