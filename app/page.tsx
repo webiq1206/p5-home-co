@@ -2,7 +2,7 @@
 
 /* eslint-disable @next/next/no-img-element */
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 type CompanyKey = "construction" | "remodeling" | "adu" | "handyman" | "cabinetry";
 
@@ -92,12 +92,44 @@ function External({ href, children }: { href: string; children: React.ReactNode 
 function ProjectMatcher({ onClose }: { onClose: () => void }) {
   const [company, setCompany] = useState<CompanyKey | null>(null);
   const [project, setProject] = useState<string | null>(null);
-  useEffect(() => { const onKey = (event: KeyboardEvent) => { if (event.key === "Escape") onClose(); }; window.addEventListener("keydown", onKey); return () => window.removeEventListener("keydown", onKey); }, [onClose]);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const restoreRef = useRef<HTMLElement | null>(null);
+
+  // The dialog declares aria-modal, so the background must genuinely be
+  // unreachable: move focus in, keep Tab inside, and hand focus back on close.
+  useEffect(() => {
+    restoreRef.current = document.activeElement as HTMLElement | null;
+    const focusable = () =>
+      Array.from(
+        panelRef.current?.querySelectorAll<HTMLElement>('a[href], button:not([tabindex="-1"]), [tabindex]:not([tabindex="-1"])') ?? []
+      ).filter((el) => el.offsetParent !== null);
+    focusable()[0]?.focus();
+
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") { onClose(); return; }
+      if (event.key !== "Tab") return;
+      const list = focusable();
+      if (!list.length) return;
+      const first = list[0];
+      const last = list[list.length - 1];
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      restoreRef.current?.focus?.();
+    };
+  }, [onClose]);
   const detail = company ? companyDetails[company] : null;
   const step = project ? 3 : company ? 2 : 1;
-  return <div className="matcher" role="dialog" aria-modal="true" aria-labelledby="matcher-title"><button className="matcher-backdrop" type="button" aria-label="Close company matcher" onClick={onClose} /><div className="matcher-panel"><div className="matcher-header"><Wordmark /><div className="matcher-progress"><span>0{step}</span><i><b style={{ width: `${step * 33.333}%` }} /></i><span>03</span></div><button className="matcher-close" type="button" onClick={onClose} aria-label="Close company matcher">×</button></div><div className="matcher-body">
-    {!company && <><p className="eyebrow">Step 1 · Your goal</p><h2 id="matcher-title">What does your home need?</h2><p className="matcher-intro">Choose the closest match. We will narrow it down from there.</p><div className="matcher-choices">{(Object.keys(companyDetails) as CompanyKey[]).map((key, index) => <button key={key} type="button" onClick={() => setCompany(key)}><span>0{index + 1}</span><strong>{companyDetails[key].label}</strong><Arrow /></button>)}</div></>}
-    {company && !project && detail && <><button className="matcher-previous" type="button" onClick={() => setCompany(null)}>← Back</button><p className="eyebrow">Step 2 · Project type</p><h2 id="matcher-title">Tell us a little more.</h2><p className="matcher-intro">Which option best describes the work?</p><div className="matcher-choices">{detail.options.map((option, index) => <button key={option} type="button" onClick={() => setProject(option)}><span>0{index + 1}</span><strong>{option}</strong><Arrow /></button>)}</div></>}
-    {company && project && detail && <div className={`matcher-result matcher-result-${company}`}><button className="matcher-previous" type="button" onClick={() => setProject(null)}>← Back</button><p className="eyebrow">Your P5 match</p><span className="result-overline">Recommended for · {project}</span><h2 id="matcher-title">{detail.name}</h2><p>{detail.reason}</p><div className="result-actions"><a className="button button-dark" href={detail.url} target={detail.url.startsWith("http") ? "_blank" : undefined} rel={detail.url.startsWith("http") ? "noreferrer" : undefined}>{detail.cta} <Arrow diagonal={detail.url.startsWith("http")} /></a><button className="text-link" type="button" onClick={() => { onClose(); document.getElementById(company)?.scrollIntoView({ behavior: "smooth" }); }}>See why it fits <Arrow /></button></div><small>No form. No obligation. You are choosing where to continue.</small></div>}
+
+  useEffect(() => {
+    panelRef.current?.querySelector<HTMLElement>("#matcher-title")?.focus();
+  }, [step]);
+  return <div className="matcher" role="dialog" aria-modal="true" aria-labelledby="matcher-title"><button className="matcher-backdrop" type="button" tabIndex={-1} aria-label="Close company matcher" onClick={onClose} /><div className="matcher-panel" ref={panelRef}><div className="matcher-header"><Wordmark /><div className="matcher-progress"><span>0{step}</span><i><b style={{ width: `${step * 33.333}%` }} /></i><span>03</span></div><button className="matcher-close" type="button" onClick={onClose} aria-label="Close company matcher">×</button></div><div className="matcher-body">
+    {!company && <><p className="eyebrow">Step 1 · Your goal</p><h2 id="matcher-title" tabIndex={-1}>What does your home need?</h2><p className="matcher-intro">Choose the closest match. We will narrow it down from there.</p><div className="matcher-choices">{(Object.keys(companyDetails) as CompanyKey[]).map((key, index) => <button key={key} type="button" onClick={() => setCompany(key)}><span>0{index + 1}</span><strong>{companyDetails[key].label}</strong><Arrow /></button>)}</div></>}
+    {company && !project && detail && <><button className="matcher-previous" type="button" onClick={() => setCompany(null)}>← Back</button><p className="eyebrow">Step 2 · Project type</p><h2 id="matcher-title" tabIndex={-1}>Tell us a little more.</h2><p className="matcher-intro">Which option best describes the work?</p><div className="matcher-choices">{detail.options.map((option, index) => <button key={option} type="button" onClick={() => setProject(option)}><span>0{index + 1}</span><strong>{option}</strong><Arrow /></button>)}</div></>}
+    {company && project && detail && <div className={`matcher-result matcher-result-${company}`}><button className="matcher-previous" type="button" onClick={() => setProject(null)}>← Back</button><p className="eyebrow">Your P5 match</p><span className="result-overline">Recommended for · {project}</span><h2 id="matcher-title" tabIndex={-1}>{detail.name}</h2><p>{detail.reason}</p><div className="result-actions"><a className="button button-dark" href={detail.url} target={detail.url.startsWith("http") ? "_blank" : undefined} rel={detail.url.startsWith("http") ? "noreferrer" : undefined}>{detail.cta} <Arrow diagonal={detail.url.startsWith("http")} /></a><button className="text-link" type="button" onClick={() => { onClose(); document.getElementById(company)?.scrollIntoView({ behavior: "smooth" }); }}>See why it fits <Arrow /></button></div><small>No form. No obligation. You are choosing where to continue.</small></div>}
   </div></div></div>;
 }

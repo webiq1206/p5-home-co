@@ -73,11 +73,18 @@ run command".
 
 ## Gotchas
 
-- All four companies now have live websites and each links to its own:
+- There are five companies, and the order on the page is deliberate:
+  Construction, Remodeling, ADU, Handyman, Cabinet. Do not reorder them.
+- Four of the five link to their own live site:
   `https://boiseconstruction.co`, `https://boiseremodeling.co`,
-  `https://boisecabinet.co`, and `https://boisehandyman.co`. Boise
-  Handyman Co launched on 2026-08-20; before that it was intentionally
-  a telephone link labeled "Launching soon".
+  `https://boisehandyman.co`, and `https://boisecabinet.co`. Boise
+  Handyman Co launched on 2026-08-20; before that it was intentionally a
+  telephone link labelled "Launching soon".
+- Boise ADU Co (`https://boiseadu.co`) is not built yet and the domain
+  does not resolve. Its calls to action use the telephone number, it is
+  labelled "Launching soon", and its panel renders a designed plate
+  instead of a photograph because no ADU photography exists. Link it to
+  the site only once the domain is live.
 - The footer telephone link `(208) 477-1169` is the general P5 Home Co
   number and is not specific to Boise Handyman Co.
 - All five companies now use their supplied wordmark artwork from the
