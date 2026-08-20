@@ -89,9 +89,19 @@ Custom events, all fired through `app/analytics.ts`:
 - `company_click` — click through to a company site (params: company, location)
 - `phone_click` — a telephone link was tapped (params: company, location)
 
-`company_click` and `phone_click` are the real conversions and should be
-marked as key events in GA once GA has processed them. GA cannot star an
-event it has not yet seen, and processing takes up to 24 hours.
+`company_click` and `phone_click` are the real conversions and are
+marked as key events in GA, with no default monetary value and counted
+once per event.
+
+They were registered through Admin, Events, Create event, using the
+"Create with code" mode, which declares an event by name for code that
+is already firing it. That is the way to mark a key event before GA has
+processed the event; the star on the Key events tab only works for
+events GA has already seen, and processing takes up to 24 hours.
+
+If you rename an event in `app/analytics.ts`, the GA declaration will no
+longer match and the conversion silently stops counting. Rename in both
+places.
 
 ## Gotchas
 
