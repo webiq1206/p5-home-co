@@ -146,10 +146,10 @@ a:hover .arrow-diagonal, a:focus-visible .arrow-diagonal { transform: translate(
 .brand-proof span { display: grid; width: 19px; height: 19px; place-items: center; border: 1px solid var(--brand-accent); border-radius: 50%; color: var(--brand-accent); font-size: 9px; }
 .brand-link { display: flex; align-items: center; justify-content: space-between; width: 100%; max-width: 330px; margin-top: 35px; padding: 15px 0; border-bottom: 1px solid currentColor; font-size: 10px; font-weight: 800; }
 .launch-note { margin-top: 10px; color: var(--brand-muted); font-size: 8px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
-.brand-construction { --brand-accent:#c59a72; --brand-muted:rgba(255,255,255,.61); --brand-line:rgba(255,255,255,.17); --brand-topline:rgba(255,255,255,.5); color:#fff; background:#202822; }
-.brand-remodeling { --brand-accent:#6f887b; --brand-muted:#646962; --brand-line:rgba(32,35,31,.15); --brand-topline:#777d76; color:var(--ink); background:#e7e3d8; }
-.brand-cabinetry { --brand-accent:#a47955; --brand-muted:#66635d; --brand-line:rgba(32,35,31,.15); --brand-topline:#77746e; color:var(--ink); background:#f2eee5; }
-.brand-handyman { --brand-accent:#d0a060; --brand-muted:rgba(255,255,255,.62); --brand-line:rgba(255,255,255,.17); --brand-topline:rgba(255,255,255,.5); color:#fff; background:#3b403e; }
+.brand-construction { --brand-accent:#d09a5c; --brand-muted:rgba(255,255,255,.61); --brand-line:rgba(255,255,255,.17); --brand-topline:rgba(255,255,255,.5); color:#fff; background:#202822; }
+.brand-remodeling { --brand-accent:#9aa098; --brand-muted:#646962; --brand-line:rgba(32,35,31,.15); --brand-topline:#777d76; color:var(--ink); background:#e7e3d8; }
+.brand-cabinetry { --brand-accent:#7aaaaa; --brand-muted:#66635d; --brand-line:rgba(32,35,31,.15); --brand-topline:#77746e; color:var(--ink); background:#f2eee5; }
+.brand-handyman { --brand-accent:#cb633b; --brand-muted:rgba(255,255,255,.62); --brand-line:rgba(255,255,255,.17); --brand-topline:rgba(255,255,255,.5); color:#fff; background:#3b403e; }
 
 .standard { color: #fff; background: var(--forest); }
 .standard-heading { display: grid; grid-template-columns: 1.25fr .5fr; gap: 11vw; align-items: end; }
