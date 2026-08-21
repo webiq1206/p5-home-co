@@ -15,6 +15,8 @@ export const dynamic = "force-dynamic";
 
 const ERRORS: Record<string, string> = {
   unconfigured: "Sign-in is not configured yet. An administrator needs to add the Google credentials.",
+  callbackurl:
+    "The app cannot work out its own public address. An administrator needs to set GOOGLE_OAUTH_REDIRECT_URI.",
   cancelled: "Sign-in was cancelled.",
   invalid: "That sign-in link was incomplete. Try again.",
   state: "That sign-in attempt expired. Try again.",

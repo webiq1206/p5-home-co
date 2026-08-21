@@ -31,12 +31,20 @@ export async function GET(request: Request): Promise<NextResponse> {
   const state = randomBytes(24).toString("base64url");
   const nonce = randomBytes(24).toString("base64url");
 
-  const target = buildAuthorizeUrl({
-    clientId: process.env.GOOGLE_CLIENT_ID as string,
-    redirectUri: redirectUriFor(request.url),
-    state,
-    nonce,
-  });
+  let target: string;
+  try {
+    target = buildAuthorizeUrl({
+      clientId: process.env.GOOGLE_CLIENT_ID as string,
+      redirectUri: redirectUriFor(request),
+      state,
+      nonce,
+    });
+  } catch (error) {
+    // Cannot work out the public callback URL. Say so on the login page
+    // rather than sending the user to Google for an opaque mismatch error.
+    console.error("[auth]", (error as Error).message);
+    return NextResponse.redirect(new URL("/admin/login?error=callbackurl", request.url));
+  }
 
   const response = NextResponse.redirect(target);
   const secure = new URL(request.url).protocol === "https:";

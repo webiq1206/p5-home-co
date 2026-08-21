@@ -131,3 +131,70 @@ test("the authorize URL carries state, nonce, and only identity scopes", () => {
   // No mail or calendar access: sign-in should not be able to read anything.
   assert.ok(!scopes.some((s) => /gmail|calendar|drive/.test(s)));
 });
+
+// --- Redirect URI behind a proxy -------------------------------------------
+
+import { redirectUriFor } from "../app/lib/google-auth.ts";
+
+function req(url: string, headers: Record<string, string> = {}): Request {
+  return new Request(url, { headers });
+}
+
+test("the public host is taken from forwarding headers, not the bind address", () => {
+  // The bug this guards: on Replit the server binds to 0.0.0.0:3000, so
+  // request.url yields https://0.0.0.0:3000 — a redirect_uri Google rejects
+  // and which points nowhere. Only the forwarded headers carry the real host.
+  delete process.env.GOOGLE_OAUTH_REDIRECT_URI;
+  assert.equal(
+    redirectUriFor(
+      req("https://0.0.0.0:3000/api/auth/google", {
+        "x-forwarded-host": "p5homeco.com",
+        "x-forwarded-proto": "https",
+      }),
+    ),
+    "https://p5homeco.com/api/auth/google/callback",
+  );
+});
+
+test("a comma-joined forwarded header uses the first hop", () => {
+  delete process.env.GOOGLE_OAUTH_REDIRECT_URI;
+  assert.equal(
+    redirectUriFor(
+      req("https://0.0.0.0:3000/api/auth/google", {
+        "x-forwarded-host": "p5homeco.com, internal.replit",
+        "x-forwarded-proto": "https, http",
+      }),
+    ),
+    "https://p5homeco.com/api/auth/google/callback",
+  );
+});
+
+test("a bind address throws with the fix, rather than leaking a useless URI", () => {
+  // Producing https://0.0.0.0:3000/... would earn an opaque redirect_uri
+  // mismatch from Google. Failing here names the actual remedy.
+  delete process.env.GOOGLE_OAUTH_REDIRECT_URI;
+  for (const host of ["0.0.0.0:3000", "127.0.0.1:3000"]) {
+    assert.throws(
+      () => redirectUriFor(req(`http://${host}/api/auth/google`, { host })),
+      /GOOGLE_OAUTH_REDIRECT_URI/,
+      `${host} should refuse to guess`,
+    );
+  }
+});
+
+test("localhost still works for local development", () => {
+  delete process.env.GOOGLE_OAUTH_REDIRECT_URI;
+  assert.equal(
+    redirectUriFor(req("http://localhost:3000/api/auth/google", { host: "localhost:3000" })),
+    "http://localhost:3000/api/auth/google/callback",
+  );
+});
+
+test("an explicit override wins over everything, since Google matches exactly", () => {
+  process.env.GOOGLE_OAUTH_REDIRECT_URI = "https://p5homeco.com/api/auth/google/callback";
+  assert.equal(
+    redirectUriFor(req("https://0.0.0.0:3000/x", { "x-forwarded-host": "attacker.example" })),
+    "https://p5homeco.com/api/auth/google/callback",
+  );
+  delete process.env.GOOGLE_OAUTH_REDIRECT_URI;
+});

@@ -72,7 +72,7 @@ export async function GET(request: Request): Promise<NextResponse> {
         code,
         client_id: process.env.GOOGLE_CLIENT_ID as string,
         client_secret: process.env.GOOGLE_CLIENT_SECRET as string,
-        redirect_uri: redirectUriFor(request.url),
+        redirect_uri: redirectUriFor(request),
         grant_type: "authorization_code",
       }),
     });

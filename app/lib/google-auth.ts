@@ -38,14 +38,51 @@ export function isGoogleConfigured(): boolean {
 /**
  * The redirect URI Google will send the browser back to.
  *
- * Derived from the incoming request so the same build works on the Replit URL
- * and the live domain, but an explicit env var wins when set, because Google
- * requires an exact match against the registered value.
+ * Behind a proxy, request.url is the *internal* address the server is bound
+ * to -- on Replit that is https://0.0.0.0:3000, which Google rejects and which
+ * points nowhere. The public host only survives in the forwarding headers, so
+ * those are read first.
+ *
+ * GOOGLE_OAUTH_REDIRECT_URI overrides everything, because Google matches this
+ * value exactly against the registered one and an operator may need the last
+ * word. Setting it is the reliable option; the header path is the convenience
+ * that keeps one build working on both the Replit URL and the live domain.
+ *
+ * x-forwarded-host is attacker-controllable in principle. It is safe enough
+ * here because Google validates the result against its own allowlist: a forged
+ * host produces a redirect_uri Google refuses, rather than one it honours.
  */
-export function redirectUriFor(requestUrl: string): string {
+export function redirectUriFor(request: Request): string {
   const override = process.env.GOOGLE_OAUTH_REDIRECT_URI;
   if (override) return override;
-  return new URL("/api/auth/google/callback", new URL(requestUrl).origin).toString();
+
+  const forwardedHost = request.headers.get("x-forwarded-host");
+  const forwardedProto = request.headers.get("x-forwarded-proto");
+  if (forwardedHost) {
+    const proto = forwardedProto?.split(",")[0].trim() || "https";
+    return `${proto}://${forwardedHost.split(",")[0].trim()}/api/auth/google/callback`;
+  }
+
+  const host = request.headers.get("host");
+  if (host && !isBindAddress(host)) {
+    const proto = host.startsWith("localhost") ? "http" : "https";
+    return `${proto}://${host}/api/auth/google/callback`;
+  }
+
+  // Everything left is the address the process is bound to, which is not
+  // reachable from a browser. Guessing would produce a redirect_uri Google
+  // rejects with an opaque mismatch error, so fail here with the actual fix
+  // instead.
+  throw new Error(
+    "Cannot determine the public URL for the OAuth callback. " +
+      "Set GOOGLE_OAUTH_REDIRECT_URI to the exact value registered with Google, " +
+      "for example https://p5homeco.com/api/auth/google/callback",
+  );
+}
+
+/** Addresses a server binds to, which no browser can be redirected to. */
+function isBindAddress(host: string): boolean {
+  return /^(0\.0\.0\.0|127\.0\.0\.1|\[::\]|\[::1\])/.test(host);
 }
 
 /** Domain part of an email, lowercased. Null when it is not an address. */
