@@ -77,19 +77,39 @@ manager creates a contact only for a submission that qualifies as a lead, and
 sends anything uncertain to a review queue. No cleanup of these existing
 records was performed — deleting CRM data needs your explicit approval.
 
-## Scheduling pages — blocked on a paid upgrade
+## Scheduling page
 
-Two links were requested: a 15-minute Discovery Call and a 1-hour Project Walk.
-Neither could be created. The free tier allows **one** booking page and it is
-already used by "60 min, 30 min, and 15 min meeting" (slug `client3`).
+**Live at `https://meetings-na2.hubspot.com/client3`** and verified working.
 
-The create form loads but its fields are `readOnly`, so this is a hard paywall
-rather than a UI problem. No page was created and no partial page was left
-behind. Options are in the handoff notes; upgrading is a purchase and needs
-your approval.
+Two separate links were requested — a 15-minute Discovery Call and a 1-hour
+Project Walk — but the free tier allows only **one** booking page and it was
+already used. The create form loads with its fields `readOnly`, so this is a
+hard paywall, not a UI problem. Rather than buy an upgrade, the single free
+page was rebuilt to serve both purposes:
 
-Google Calendar is already connected for `hello@p5homeco.com`, so scheduling
-works the moment the page limit is lifted.
+| Setting | Was | Now |
+| --- | --- | --- |
+| Scheduling title | Meet with Client Services | **Meet with P5 Home Co** |
+| Internal name | 60 min, 30 min, and 15 min meeting | P5 Home Co - Discovery Call or Project Walk |
+| Durations | 15 / 30 / 60 min | **15 min and 1 hr** (30 removed) |
+| Organizer time zone | **UTC-04:00 Eastern** | **UTC-06:00 Mountain** |
+| Availability | Mon–Fri, 9:00am–5:00pm | **Mon–Fri and Saturday, 7:00am–6:00pm** |
+
+The description tells the visitor which to pick: 15 minutes for a Discovery
+Call, 60 minutes for an on-site Project Walk.
+
+Two of those were outright bugs rather than preferences. The organizer time
+zone was Eastern, which offsets every advertised slot by two hours against
+actual Boise availability. And the window was Mon–Fri 9–5, which both closed
+Saturday — a working day for this business — and mismatched the confirmed
+7:00am–6:00pm hours.
+
+Verified on the live public page: Saturday 2026-08-22 offers slots from
+**7:00 am Mountain**, Sundays are closed, and only 15-minute and 1-hour options
+appear. Google Calendar is connected for `hello@p5homeco.com`.
+
+If two genuinely separate URLs are wanted later, that needs Starter Customer
+Platform — a purchase, and your decision.
 
 ## Still to do
 

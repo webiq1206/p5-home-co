@@ -9,7 +9,7 @@ import {
 
 const S = DEFAULT_SETTINGS;
 
-test("the four verified Gmail aliases resolve to their exact configured identity", () => {
+test("every verified Gmail alias resolves to its exact configured identity", () => {
   assert.deepEqual(sendAsForBrand(S, "P5 Home Co"), {
     address: "hello@p5homeco.com",
     displayName: "Client Services",
@@ -25,16 +25,28 @@ test("the four verified Gmail aliases resolve to their exact configured identity
   );
 });
 
-test("brands with no verified alias resolve to null so the send is blocked", () => {
-  assert.equal(sendAsForBrand(S, "Boise Construction Co"), null);
-  assert.equal(sendAsForBrand(S, "Boise Handyman Co"), null);
+test("all six brands can now send", () => {
+  assert.equal(sendAsForBrand(S, "Boise Construction Co")?.address, "hello@boiseconstruction.co");
+  assert.equal(sendAsForBrand(S, "Boise Handyman Co")?.address, "hello@boisehandyman.co");
+  assert.deepEqual(brandsWithoutSendAs(S), [], "no brand is left unable to send");
 });
 
-test("the brands that cannot send are reported for the health screen", () => {
-  assert.deepEqual(brandsWithoutSendAs(S).sort(), [
-    "Boise Construction Co",
-    "Boise Handyman Co",
-  ]);
+test("an unknown or unconfigured brand still blocks rather than falling back", () => {
+  const stripped = {
+    ...S,
+    brandEmailAliases: { "P5 Home Co": S.brandEmailAliases["P5 Home Co"] },
+  };
+  assert.equal(sendAsForBrand(stripped, "Boise Cabinet Co"), null);
+  assert.ok(brandsWithoutSendAs(stripped).includes("Boise Cabinet Co"));
+});
+
+test("every brand's display name and signature are bound to its own address", () => {
+  for (const brand of S.brands) {
+    const sendAs = sendAsForBrand(S, brand);
+    assert.ok(sendAs, `${brand} must have a send-as identity`);
+    assert.ok(sendAs.address.startsWith("hello@"), `${brand} uses the hello@ convention`);
+    assert.ok(sendAs.signature.length > 0, `${brand} has a bound signature`);
+  }
 });
 
 test("no alias silently falls back to another brand's address", () => {

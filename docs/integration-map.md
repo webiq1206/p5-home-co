@@ -9,8 +9,8 @@ something checked directly.
 | **PostgreSQL** | Connected | Replit "Development Database", 20GB. No production database exists yet. |
 | **Watchdog** | Built, unscheduled | Autoscale cannot run it; needs an external scheduler |
 | **Meta / Facebook** | Located, not wired | Ad account `956415147420695` ("P5 Home Co") under business `2628466967549947` ("P5 Co"), ACTIVE and queryable. Lead forms are not mapped to brands. |
-| **HubSpot** | Not connected | No authorized session available. Nothing was created or changed. |
-| **Gmail** | Blocked | The connected mailbox is `jb@timberandlove.com`, not `hello@p5homeco.com`. |
+| **HubSpot** | Connected | Portal 247066159. Timezone, company info, 8-stage pipeline, and the scheduling page configured. Free tier: 2 seats, 1 pipeline, 1 booking page. |
+| **Gmail** | Verified | `hello@p5homeco.com` inventoried. All six brands now have a verified send-from alias bound to its own signature. |
 | **Handoff** | Planned | Deliberately disconnected. `handoffIntegrationEnabled = false`. |
 | **QuickBooks** | Planned | Deliberately disconnected. `quickBooksIntegrationEnabled = false`. |
 

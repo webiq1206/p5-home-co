@@ -93,14 +93,16 @@ export const DEFAULT_SETTINGS: LeadManagerSettings = {
   serviceAreasVerified: false,
   brands: BRANDS,
   // Verified in the hello@p5homeco.com Gmail account on 2026-08-21. Display
-  // names and trailing periods are reproduced exactly as configured.
+  // names and trailing periods are reproduced exactly as configured, and each
+  // address is bound to its own brand signature in Gmail's signature defaults.
   //
-  // Boise Construction Co and Boise Handyman Co are deliberately absent. Both
-  // have a signature prepared in Gmail, but neither has a verified send-from
-  // alias, so there is no address to send as. They must stay absent until the
-  // aliases are added and verified; a missing entry blocks the send, which is
-  // the safe failure. Guessing an address here would mail clients from an
-  // unverified sender and risk it being rejected or spoofed.
+  // All six brands can send. Construction and Handyman were added on the same
+  // day: every brand domain is already a verified Workspace user-alias domain
+  // of p5homeco.com with Gmail activated, so Google accepted both without an
+  // emailed verification code.
+  //
+  // A brand missing from this map still blocks the send rather than falling
+  // back, which is what protects a client from hearing from the wrong company.
   brandEmailAliases: {
     "P5 Home Co": {
       address: "hello@p5homeco.com",
@@ -118,6 +120,18 @@ export const DEFAULT_SETTINGS: LeadManagerSettings = {
       address: "hello@boisecabinet.co",
       displayName: "Boise Cabinet Co.",
       signature: "Boise Cabinet Co.",
+      verifiedOn: "2026-08-21",
+    },
+    "Boise Construction Co": {
+      address: "hello@boiseconstruction.co",
+      displayName: "Boise Construction Co",
+      signature: "Boise Construction Co",
+      verifiedOn: "2026-08-21",
+    },
+    "Boise Handyman Co": {
+      address: "hello@boisehandyman.co",
+      displayName: "Boise Handyman Co.",
+      signature: "Boise Handyman Co.",
       verifiedOn: "2026-08-21",
     },
     "Boise Remodeling Co": {
