@@ -1,55 +1,58 @@
 # Google Workspace email map
 
-**Status: not established. Deliberately empty.**
+**Status: verified 2026-08-21 against the live `hello@p5homeco.com` account.**
 
-## What this file is for
+## The account
 
-A verified mapping from each P5 brand to the exact send-from address, display
-name, reply-to address, and signature it uses, plus whether each address is a
-true alias, a group, a routed address, or a separate mailbox.
+`hello@p5homeco.com` — display name **Client Services**, Workspace mailbox
+"P5 Home Co Mail". This is the central inbox and the default send-from address.
 
-## Why it is empty
+**Reply behaviour: "Reply from the same address the message was sent to"** is
+selected. This is the correct setting and must not be changed — it is what
+keeps a reply on a brand thread going out as that brand.
 
-The brief is explicit that this must be built from verified configuration and
-not guessed. The verification was attempted and failed on access, not on
-effort: the reachable Gmail account is `jb@timberandlove.com`, not
-`hello@p5homeco.com`.
+## Verified send-from aliases
 
-Recording a plausible-looking map here would be worse than recording nothing.
-Every outbound email decision reads from it, so a wrong row means a client
-receives mail from the wrong company.
+All four are verified in Gmail (each offers "make default", none is flagged
+unverified).
 
-## Candidate domains, unverified
+| Brand | Send-from address | Display name | Signature | Alias exists |
+| --- | --- | --- | --- | --- |
+| P5 Home Co | `hello@p5homeco.com` | Client Services | P5 Home Co | Yes (default) |
+| Boise ADU Co | `hello@boiseadu.co` | Boise ADU Co. | Boise ADU Co. | Yes |
+| Boise Cabinet Co | `hello@boisecabinet.co` | Boise Cabinet Co. | Boise Cabinet Co. | Yes |
+| Boise Remodeling Co | `hello@boiseremodeling.co` | Boise Remodeling Co. | Boise Remodeling Co. | Yes |
+| **Boise Construction Co** | **none** | — | Boise Construction Co | **No** |
+| **Boise Handyman Co** | **none** | — | Boise Handyman Co. | **No** |
 
-From the brief, pending confirmation against actual Workspace configuration:
+Recorded in code at `app/lib/leads/settings.ts` (`brandEmailAliases`) and
+covered by `tests/aliases.test.ts`.
 
-| Brand | Expected domain | Verified? |
-| --- | --- | --- |
-| P5 Home Co | `@p5homeco.com` | No |
-| Boise Construction Co | `@boiseconstruction.co` | No |
-| Boise Remodeling Co | `@boiseremodel.co` **or** `@boiseremodeling.co` | No — the brief and the live site disagree |
-| Boise Handyman Co | `@boisehandyman.co` | No |
-| Boise ADU Co | `@boiseadu.co` | No — domain does not resolve yet |
-| Boise Cabinet Co | `@boisecabinet.co` | No |
+## Two findings that need action
 
-Note the remodeling discrepancy: the brief lists `boiseremodel.co` while
-`app/site.ts` links to `https://boiseremodeling.co`. Confirm which is correct
-before either is used to send mail.
+**1. The remodeling domain in the brief is wrong.** The brief lists
+`@boiseremodel.co`. The verified alias is **`hello@boiseremodeling.co`**, which
+matches the domain the live website links to. The verified value is what the
+code uses.
 
-## How the application behaves meanwhile
+**2. Two brands have a signature but no address.** Gmail holds six signatures —
+including "Boise Construction Co" and "Boise Handyman Co." — but only four
+send-from aliases exist. Someone prepared those signatures and the aliases were
+never added.
 
-`settings.brandEmailAliases` is empty. Any send path must treat a missing alias
-as a hard stop and surface a clear administrator action. It must never fall
-back to another brand's address.
+Until an alias exists for `boiseconstruction.co` and `boisehandyman.co`, the
+system **cannot send as those two brands**, and `sendAsForBrand()` returns null
+so the send is blocked with an administrator action. That is deliberate:
+mailing a construction client from `hello@p5homeco.com` misrepresents which
+company they are dealing with, and an unverified sender is likely to be
+rejected or treated as spoofed.
 
-## To unblock
+To fix, in Gmail → Settings → Accounts → "Send mail as" → Add another email
+address, for each of the two brands, then complete Google's verification. Once
+verified, add them to `brandEmailAliases`.
 
-1. Grant access to the `hello@p5homeco.com` Workspace account.
-2. Inventory each address: send-from, domain, display name, reply-to,
-   signature, verification status, and whether it is an alias, group, routed
-   address, or mailbox.
-3. Confirm which addresses actually deliver into the central inbox.
-4. Record the verified result in this file and in settings.
+## What was not changed
 
-Existing configuration must be preserved. No aliases, routing, signatures,
-display names, DNS, SPF, DKIM, DMARC, users, groups, or forwarding were changed.
+No aliases were added, removed, or edited. No routing, signatures, display
+names, reply-to values, DNS, SPF, DKIM, DMARC, users, groups, or forwarding
+were modified. The inventory was read-only.

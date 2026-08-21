@@ -13,6 +13,19 @@ import { BRANDS, type Brand } from "./types.ts";
 
 export type AfterHoursBehavior = "queue_only" | "queue_and_acknowledge";
 
+/**
+ * A verified Gmail "Send mail as" identity, inventoried from the
+ * hello@p5homeco.com Workspace account rather than assumed.
+ */
+export type BrandSendAs = {
+  address: string;
+  displayName: string;
+  /** Name of the Gmail signature bound to this brand. */
+  signature: string;
+  /** Date the alias was confirmed present and verified in Gmail. */
+  verifiedOn: string;
+};
+
 export type LeadManagerSettings = {
   business: {
     name: string;
@@ -39,11 +52,13 @@ export type LeadManagerSettings = {
   serviceAreasVerified: boolean;
   brands: readonly Brand[];
   /**
-   * Verified send-from address per brand. Empty until the real Google
-   * Workspace configuration is inventoried; an unverified alias must block
-   * the send rather than silently fall back to the wrong brand.
+   * Verified send-from identity per brand.
+   *
+   * A brand missing from this map has no verified Gmail alias, and a send for
+   * it must be blocked with a clear administrator action rather than falling
+   * back to another brand's address.
    */
-  brandEmailAliases: Partial<Record<Brand, string>>;
+  brandEmailAliases: Partial<Record<Brand, BrandSendAs>>;
   lostReasons: string[];
   projectTypes: string[];
   /** Client-facing automation stays off until explicitly approved. */
@@ -77,7 +92,41 @@ export const DEFAULT_SETTINGS: LeadManagerSettings = {
   serviceAreas: [...citiesServed],
   serviceAreasVerified: false,
   brands: BRANDS,
-  brandEmailAliases: {},
+  // Verified in the hello@p5homeco.com Gmail account on 2026-08-21. Display
+  // names and trailing periods are reproduced exactly as configured.
+  //
+  // Boise Construction Co and Boise Handyman Co are deliberately absent. Both
+  // have a signature prepared in Gmail, but neither has a verified send-from
+  // alias, so there is no address to send as. They must stay absent until the
+  // aliases are added and verified; a missing entry blocks the send, which is
+  // the safe failure. Guessing an address here would mail clients from an
+  // unverified sender and risk it being rejected or spoofed.
+  brandEmailAliases: {
+    "P5 Home Co": {
+      address: "hello@p5homeco.com",
+      displayName: "Client Services",
+      signature: "P5 Home Co",
+      verifiedOn: "2026-08-21",
+    },
+    "Boise ADU Co": {
+      address: "hello@boiseadu.co",
+      displayName: "Boise ADU Co.",
+      signature: "Boise ADU Co.",
+      verifiedOn: "2026-08-21",
+    },
+    "Boise Cabinet Co": {
+      address: "hello@boisecabinet.co",
+      displayName: "Boise Cabinet Co.",
+      signature: "Boise Cabinet Co.",
+      verifiedOn: "2026-08-21",
+    },
+    "Boise Remodeling Co": {
+      address: "hello@boiseremodeling.co",
+      displayName: "Boise Remodeling Co.",
+      signature: "Boise Remodeling Co.",
+      verifiedOn: "2026-08-21",
+    },
+  },
   lostReasons: [
     "Price",
     "Timeline",
@@ -194,4 +243,24 @@ export async function saveSettings(
   );
 
   return next;
+}
+
+/**
+ * Resolve the verified send-from identity for a brand.
+ *
+ * Returns null when the brand has no verified alias. Callers must treat null
+ * as a hard stop and surface an administrator action: sending a client an
+ * email from the wrong company is worse than not sending it, and an
+ * unverified sender is likely to be rejected or treated as spoofed.
+ */
+export function sendAsForBrand(
+  settings: LeadManagerSettings,
+  brand: Brand,
+): BrandSendAs | null {
+  return settings.brandEmailAliases[brand] ?? null;
+}
+
+/** Brands that cannot currently send, for the integration-health screen. */
+export function brandsWithoutSendAs(settings: LeadManagerSettings): Brand[] {
+  return settings.brands.filter((brand) => !settings.brandEmailAliases[brand]);
 }

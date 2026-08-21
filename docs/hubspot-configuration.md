@@ -1,66 +1,101 @@
 # HubSpot configuration
 
-**Status: not configured. No changes were made to any HubSpot account.**
+**Portal 247066159** (`app-na2.hubspot.com`). Configured through the browser on
+2026-08-21.
 
-Authorization could not be completed in this session, so nothing was inspected,
-created, or altered. This file records the intended configuration so it can be
-applied in one pass once access exists.
+## Plan and limits — read this before planning anything else
 
-## Intended data model
+The portal is on the **free tier**, and three limits shape the whole design:
 
-- **Contacts** for people, **Deals** for individual project opportunities,
-  **Companies** only for genuine commercial clients.
-- One person may hold several deals. **Brand lives on the deal**, never only on
-  the contact — the application already enforces this, and brand is part of the
-  duplicate key.
-- Reuse HubSpot's default properties before creating custom ones.
+| Limit | Value | Consequence |
+| --- | --- | --- |
+| Users | **2 seats** (1 used) | Employees use the P5 admin panel, not HubSpot |
+| Deal pipelines | **1 of 1 used** | One shared pipeline for all brands — which is the intended design anyway |
+| Booking pages | **1, already used** | Cannot create more scheduling links without upgrading |
 
-## Shared pipeline
+The seat limit is exactly why the admin panel owns employee access while
+HubSpot holds CRM data. **Confirm with HubSpot that this is acceptable under
+their terms before production launch**, since the panel reads and writes CRM
+data on behalf of people who do not hold seats.
 
-One pipeline for all brands, filtered by brand in views:
+## Existing users
 
-New Lead → Contacting → Appointment Scheduled → Estimate in Progress →
-Estimate Sent → Decision Pending → Closed Won / Closed Lost
+One active user: **Client Services `hello@p5homeco.com`**, Super Admin, created
+2026-08-16. This is the same mailbox that owns the Gmail aliases.
 
-## Deal naming
+## Changes made
 
-`Last Name | Brand | Project Type | City` — already implemented in
-`app/lib/leads/normalize.ts` and covered by tests.
+| Setting | Was | Now |
+| --- | --- | --- |
+| Time zone | UTC-04:00 Eastern | **UTC-06:00 Boise** |
+| Company name | *(empty)* | P5 Home Co |
+| Industry | Real Estate | Construction |
 
-## Property values
+The timezone change was confirmed through HubSpot's warning dialog. It affects
+how reports are calculated; with **0 deals** in the portal at the time, there
+was no historical reporting to distort. Account name (`P5 Home Co`) and company
+domain (`p5homeco.com`) were already correct and were left alone.
 
-**Brand:** P5 Home Co, Boise Construction Co, Boise Remodeling Co,
-Boise Handyman Co, Boise ADU Co, Boise Cabinet Co.
+## Deal pipeline
 
-**Lead Source:** Facebook Lead Ad, Organic Website, Google Business Profile,
-Direct Email, Phone, Referral, Manual Entry, Paid Search, Social Media, Other.
+The default "Sales Pipeline" (internal id `default`) was reconfigured in place
+to the P5 stages. All stages had 0 deals, so nothing was migrated or lost.
 
-These match `app/lib/leads/types.ts` exactly. Keep them in step; changing a
-stored value is a migration, not an edit.
+| # | Stage | Internal stage ID | Probability |
+| --- | --- | --- | --- |
+| 1 | New Lead | `appointmentscheduled` | 20% |
+| 2 | Contacting | `qualifiedtobuy` | 40% |
+| 3 | Appointment Scheduled | `presentationscheduled` | 60% |
+| 4 | Estimate in Progress | `decisionmakerboughtin` | 80% |
+| 5 | Estimate Sent | `contractsent` | 90% |
+| 6 | Decision Pending | `4182226638` | 20% |
+| 7 | Closed Won | `closedwon` | Won (100%) |
+| 8 | Closed Lost | `closedlost` | Lost (0%) |
 
-## Handoff and QuickBooks properties
+**The internal stage IDs do not match the visible labels.** HubSpot keeps the
+original id when a default stage is renamed, so "New Lead" is stored as
+`appointmentscheduled`. This is invisible to users but matters a great deal to
+code: **any integration must map by stage ID, never by label**, and must use
+this table rather than inferring the id from the name.
 
-Create them as optional and clearly labelled manual and unverified. They must
-stay empty until the corresponding feature flag is enabled.
+`Decision Pending` is the one genuinely new stage and carries a numeric id. Its
+probability is still the 20% default and should be raised to roughly 90% before
+forecasting is used, since it sits between Estimate Sent and Closed Won.
 
-## Ownership of automation
+## Existing contacts — a real data-quality problem
 
-The P5 rules engine is the automation authority. If any native HubSpot workflow
-is retained, it must be documented, made idempotent, and verified unable to
-duplicate a P5 task or alert. Two systems creating tasks for the same condition
-is the failure this design exists to avoid.
+The portal holds roughly 16 contacts, all owned by Client Services and all
+created by Gmail sync from `hello@p5homeco.com`. They are **vendors and SaaS
+senders, not leads**: Google, Houzz, Yelp, Ahrefs, Resend, HubSpot onboarding,
+plus a few genuine business contacts.
 
-## Open question: licensing
+Under Contacts → Setup, **"Assign unowned contacts to email sender" is on**,
+which is how routine correspondence became CRM contacts.
 
-The brief anticipates two HubSpot seats (a lead coordinator, and a manager or
-owner) while the admin panel is used by more employees. Whether that is
-acceptable under HubSpot's terms needs confirming **before production launch**,
-since the panel reads and writes CRM data on behalf of people who do not hold
-seats. This is a question for HubSpot, not a technical blocker.
+This is precisely the failure the intake design guards against: the lead
+manager creates a contact only for a submission that qualifies as a lead, and
+sends anything uncertain to a review queue. No cleanup of these existing
+records was performed — deleting CRM data needs your explicit approval.
 
-## Service areas
+## Scheduling pages — blocked on a paid upgrade
 
-Do not enter service areas until reconciled. `app/site.ts` lists eight cities
-(Boise, Meridian, Eagle, Nampa, Kuna, Star, Middleton, Caldwell) while the
-Google Business Profile appears to list nine. `serviceAreasVerified` is `false`
-until the owner confirms.
+Two links were requested: a 15-minute Discovery Call and a 1-hour Project Walk.
+Neither could be created. The free tier allows **one** booking page and it is
+already used by "60 min, 30 min, and 15 min meeting" (slug `client3`).
+
+The create form loads but its fields are `readOnly`, so this is a hard paywall
+rather than a UI problem. No page was created and no partial page was left
+behind. Options are in the handoff notes; upgrading is a purchase and needs
+your approval.
+
+Google Calendar is already connected for `hello@p5homeco.com`, so scheduling
+works the moment the page limit is lifted.
+
+## Still to do
+
+- Custom properties: P5 Brand, Lead Source, Project Type, SLA fields, and the
+  Handoff/QuickBooks placeholders
+- Saved views and the dashboard
+- A private app for API access
+- Service areas — still 8 confirmed on the website versus 9 implied by the
+  Google Business Profile
