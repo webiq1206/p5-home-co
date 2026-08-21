@@ -118,9 +118,17 @@ places.
   is live.
 - The footer telephone link `(208) 477-1169` is the general P5 Home Co
   number and is not specific to Boise Handyman Co.
-- All five companies now use their supplied wordmark artwork from the
-  brand kit. Use the `-dark` file (charcoal ink) on light panels and the
-  plain file (bone ink) on dark panels.
+- All five companies use the plain **wordmark** from the brand kit, the
+  horizontal lockup, not the stacked `wordmark-full`. The full lockup
+  adds a tagline and "Treasure Valley - Idaho" underneath, which is
+  illegible at panel size. Take these from `svg/wordmark/`, never
+  `svg/wordmark-full/`. Use the `-dark` file (charcoal ink) on light
+  panels and the plain file (bone ink) on dark panels.
+- The wordmarks all share a 159.96 viewBox height but differ in length,
+  6.16:1 for ADU up to 11.04:1 for Construction. `.brand-logo` therefore
+  fixes the height and lets width follow, so the lettering is optically
+  identical on every panel. Do not put them in a fixed-width box with
+  object-fit, which would shrink the long ones and break the family.
 - The header uses the supplied P5 horizontal lockup, not redrawn paths.
   Below 560px it swaps to the icon mark, because the lockup has a 200px
   minimum width in the brand guide. Do not rebuild either from live text.
