@@ -149,11 +149,46 @@ was taken.
 The token lives in `.env.local` locally and must also be set as `HUBSPOT_TOKEN`
 in Replit Secrets for the deployed app. It is not in source control.
 
+## Saved views
+
+**Created: New Leads Not Contacted** — filter `First Contact Attempt Date is
+unknown`. Verified saved, and it confirmed the new properties are selectable in
+view filters (they appear under the "P5 Lead Manager" group).
+
+The remaining twelve are specified below rather than built. There is no public
+API for CRM index saved views, so each one is roughly a dozen UI interactions:
+new view, rename, open advanced filters, pick property, pick operator, pick
+value, save. Building all twelve is around 150 interactions for views that are
+currently empty, because the portal holds zero deals and the app is not yet
+syncing. They are quick to add once real deals exist and the filters can be
+sanity-checked against actual data.
+
+To create one: Deals → **+** next to the view tabs → Table → click the view
+tab → Rename → Advanced filters → Add filter → Save.
+
+| View | Filter |
+| --- | --- |
+| New Leads Not Contacted | First Contact Attempt Date **is unknown** ✅ done |
+| Needs Attention | SLA Status **is any of** Breached, Due soon |
+| Overdue Tasks | Next Action Date **is before** today AND Deal Stage **is none of** Closed Won, Closed Lost |
+| Open Deals Without a Next Activity | Next Action **is unknown** AND Deal Stage **is none of** Closed Won, Closed Lost |
+| Unassigned Deals | Deal owner **is unknown** |
+| Appointments This Week | Appointment Date **is between** this week |
+| Estimates in Progress | Deal Stage **is** Estimate in Progress |
+| Estimates Sent Awaiting Follow-Up | Deal Stage **is** Estimate Sent AND Last Activity Date **is more than** 3 days ago |
+| Decision Pending | Deal Stage **is** Decision Pending |
+| Stale Deals | Last Activity Date **is more than** 3 days ago AND Deal Stage **is none of** Closed Won, Closed Lost |
+| Closed Won This Month | Deal Stage **is** Closed Won AND Close Date **is** this month |
+| Closed Lost Missing a Reason | Deal Stage **is** Closed Lost AND Closed Lost Reason **is unknown** |
+| One per brand (×6) | P5 Brand **is** *(each of the six)* |
+
+The stale thresholds mirror `settings.staleDealAfterHours` (72 hours). If that
+setting changes, these views need changing too -- they are HubSpot's own copy
+of the rule, not a read of the P5 one.
+
 ## Still to do
 
-- **Saved views and the dashboard.** There is no public API for CRM index saved
-  views, so these are UI work. `/crm/v3/lists/search` exists but Lists are a
-  different feature and need `crm.lists.read`, which was not granted.
+- The twelve saved views above, and the dashboard.
 - Service areas — still 8 confirmed on the website versus 9 implied by the
   Google Business Profile
 - Contact-side properties, if inbound email classification needs them
