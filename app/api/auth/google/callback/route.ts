@@ -22,13 +22,16 @@ import {
   isRejection,
   redirectUriFor,
 } from "../../../../lib/google-auth.ts";
+import { appUrl } from "../../../../lib/public-url.ts";
 import type { Role } from "../../../../lib/leads/types.ts";
 import { OAUTH_NONCE_COOKIE, OAUTH_STATE_COOKIE } from "../route.ts";
 
 export const dynamic = "force-dynamic";
 
 function back(request: Request, error: string): NextResponse {
-  const url = new URL("/admin/login", request.url);
+  // appUrl, not request.url: behind a proxy the latter is the bind address,
+  // so the browser would be sent to https://0.0.0.0:3000 and dead-end.
+  const url = new URL(appUrl(request, "/admin/login"));
   url.searchParams.set("error", error);
   const response = NextResponse.redirect(url);
   // Whatever happened, the one-shot cookies are spent.
@@ -115,11 +118,11 @@ export async function GET(request: Request): Promise<NextResponse> {
     [Number(account.id), String(account.id)],
   ).catch(() => undefined);
 
-  const response = NextResponse.redirect(new URL("/admin", request.url));
+  const response = NextResponse.redirect(appUrl(request, "/admin"));
   response.cookies.set(SESSION_COOKIE, token, {
     httpOnly: true,
     sameSite: "lax",
-    secure: new URL(request.url).protocol === "https:",
+    secure: appUrl(request, "/").startsWith("https:"),
     path: "/",
     expires: expiresAt,
   });

@@ -15,6 +15,7 @@ import {
   isGoogleConfigured,
   redirectUriFor,
 } from "../../../lib/google-auth.ts";
+import { appUrl } from "../../../lib/public-url.ts";
 
 export const dynamic = "force-dynamic";
 
@@ -25,7 +26,7 @@ export async function GET(request: Request): Promise<NextResponse> {
   if (!isGoogleConfigured()) {
     // The login page already says this; anyone reaching the route directly
     // deserves the same answer rather than a stack trace.
-    return NextResponse.redirect(new URL("/admin/login?error=unconfigured", request.url));
+    return NextResponse.redirect(appUrl(request, "/admin/login?error=unconfigured"));
   }
 
   const state = randomBytes(24).toString("base64url");
@@ -43,11 +44,11 @@ export async function GET(request: Request): Promise<NextResponse> {
     // Cannot work out the public callback URL. Say so on the login page
     // rather than sending the user to Google for an opaque mismatch error.
     console.error("[auth]", (error as Error).message);
-    return NextResponse.redirect(new URL("/admin/login?error=callbackurl", request.url));
+    return NextResponse.redirect(appUrl(request, "/admin/login?error=callbackurl"));
   }
 
   const response = NextResponse.redirect(target);
-  const secure = new URL(request.url).protocol === "https:";
+  const secure = appUrl(request, "/").startsWith("https:");
   const options = {
     httpOnly: true,
     sameSite: "lax" as const,

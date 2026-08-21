@@ -15,6 +15,8 @@
  * simply by signing in, which is not the same as being given access.
  */
 
+import { publicOrigin } from "./public-url.ts";
+
 /** Domains whose users may sign in, assuming they are also in app_user. */
 export const APPROVED_SIGN_IN_DOMAINS = [
   "p5homeco.com",
@@ -53,36 +55,11 @@ export function isGoogleConfigured(): boolean {
  * host produces a redirect_uri Google refuses, rather than one it honours.
  */
 export function redirectUriFor(request: Request): string {
+  // Google matches this against its registered value exactly, so an explicit
+  // setting always wins over anything inferred from the request.
   const override = process.env.GOOGLE_OAUTH_REDIRECT_URI;
   if (override) return override;
-
-  const forwardedHost = request.headers.get("x-forwarded-host");
-  const forwardedProto = request.headers.get("x-forwarded-proto");
-  if (forwardedHost) {
-    const proto = forwardedProto?.split(",")[0].trim() || "https";
-    return `${proto}://${forwardedHost.split(",")[0].trim()}/api/auth/google/callback`;
-  }
-
-  const host = request.headers.get("host");
-  if (host && !isBindAddress(host)) {
-    const proto = host.startsWith("localhost") ? "http" : "https";
-    return `${proto}://${host}/api/auth/google/callback`;
-  }
-
-  // Everything left is the address the process is bound to, which is not
-  // reachable from a browser. Guessing would produce a redirect_uri Google
-  // rejects with an opaque mismatch error, so fail here with the actual fix
-  // instead.
-  throw new Error(
-    "Cannot determine the public URL for the OAuth callback. " +
-      "Set GOOGLE_OAUTH_REDIRECT_URI to the exact value registered with Google, " +
-      "for example https://p5homeco.com/api/auth/google/callback",
-  );
-}
-
-/** Addresses a server binds to, which no browser can be redirected to. */
-function isBindAddress(host: string): boolean {
-  return /^(0\.0\.0\.0|127\.0\.0\.1|\[::\]|\[::1\])/.test(host);
+  return `${publicOrigin(request)}/api/auth/google/callback`;
 }
 
 /** Domain part of an email, lowercased. Null when it is not an address. */
