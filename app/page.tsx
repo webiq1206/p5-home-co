@@ -24,13 +24,13 @@ const Arrow = ({ diagonal = false, reverse = false }: { diagonal?: boolean; reve
 
 const HeaderWordmark = () => (
   <a className="wordmark" href="#top" aria-label="P5 Home Co, back to top">
-    <img className="p5-header-logo" src="/images/p5-home-co-logo-light-transparent.png" alt="P5 Home Co — The Home Company" />
+    <img className="p5-header-logo" src="/brands/p5-home-co-lockup-dark.svg" alt="P5 Home Co — The Home Company" />
   </a>
 );
 
 const FooterWordmark = () => (
   <a className="wordmark" href="#top" aria-label="P5 Home Co, back to top">
-    <img className="p5-footer-logo" src="/images/p5-home-co-logo-transparent.png" alt="P5 Home Co — The Home Company" />
+    <img className="p5-footer-logo" src="/brands/p5-home-co-lockup-light.svg" alt="P5 Home Co — The Home Company" />
   </a>
 );
 
@@ -61,7 +61,7 @@ export default function Home() {
 
       <section className="hero" aria-labelledby="hero-heading">
         <img className="hero-image" src="/images/p5-hero.webp" alt="Contemporary Treasure Valley home at sunrise" fetchPriority="high" decoding="async" /><div className="hero-shade" /><div className="hero-grain" />
-        <div className="hero-content content-shell"><div className="hero-copy"><p className="eyebrow eyebrow-light">The P5 Home Co family of companies</p><h1 id="hero-heading">The home specialists<br className="hero-h1-break" />Boise trusts.<br />Five specialized teams.</h1><p className="hero-lede">Build it. Remodel it. Expand it. Care for it. Finish it. P5 brings every chapter of homeownership under one trusted family of specialized Treasure Valley companies.</p><div className="hero-actions"><button className="button button-light" type="button" onClick={openMatcher}>Find the right team <Arrow /></button><a className="text-link text-link-light" href="#companies">Meet the companies <Arrow /></a></div></div><div className="hero-side-note"><span>Serving</span><strong>Boise and the<br />Treasure Valley</strong></div></div>
+        <div className="hero-content content-shell"><div className="hero-copy"><p className="eyebrow eyebrow-light">The P5 Home Co family of companies</p><h1 id="hero-heading">The home specialists{" "}<br className="hero-h1-break" />Boise trusts.<br />Five specialized teams.</h1><p className="hero-lede">Build it. Remodel it. Expand it. Care for it. Finish it. P5 brings every chapter of homeownership under one trusted family of specialized Treasure Valley companies.</p><div className="hero-actions"><button className="button button-light" type="button" onClick={openMatcher}>Find the right team <Arrow /></button><a className="text-link text-link-light" href="#companies">Meet the companies <Arrow /></a></div></div><div className="hero-side-note"><span>Serving</span><strong>Boise and the<br />Treasure Valley</strong></div></div>
         <a className="scroll-cue" href="#about" aria-label="Explore P5 Home Co"><span>Explore</span><i /></a>
       </section>
 
