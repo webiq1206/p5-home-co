@@ -39,6 +39,23 @@ export type LeadManagerSettings = {
   firstResponseTargetMinutes: number;
   /** Business hours a deal may sit with no activity before it is stale. */
   staleDealAfterHours: number;
+  /**
+   * Hard ceiling on an unanswered lead, in WALL-CLOCK hours.
+   *
+   * Separate from the business-minute SLA on purpose. Business hours pause
+   * overnight and on Sundays, so a Saturday-evening lead can sit for a day and
+   * a half while still looking "on track". This is the promise that nothing
+   * goes unanswered for longer than this, whatever the calendar says.
+   */
+  absoluteResponseCeilingHours: number;
+  /**
+   * How long a missed promise may run before it escalates, in business
+   * minutes past the committed next-action date.
+   *
+   * "I'll call Tuesday" that does not happen is the second way a lead dies
+   * quietly, and until now it was flagged but never escalated.
+   */
+  overdueActionEscalation: EscalationThresholds;
   /** Minutes an alert stays quiet after notifying, to stop repeat pings. */
   alertCooldownMinutes: number;
   afterHoursBehavior: AfterHoursBehavior;
@@ -87,6 +104,12 @@ export const DEFAULT_SETTINGS: LeadManagerSettings = {
   escalation: DEFAULT_ESCALATION,
   firstResponseTargetMinutes: 5,
   staleDealAfterHours: 72,
+  // Eight wall-clock hours: nothing unanswered longer than this, ever.
+  absoluteResponseCeilingHours: 8,
+  // A promised follow-up escalates on the same ladder as a new lead, just on
+  // a slower clock: an hour late notifies the owner, four hours the manager,
+  // eight hours is Critical.
+  overdueActionEscalation: { owner: 60, ownerManager: 240, critical: 480, administrator: 960 },
   alertCooldownMinutes: 30,
   afterHoursBehavior: "queue_only",
   serviceAreas: [...citiesServed],

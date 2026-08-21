@@ -175,6 +175,25 @@ export function evaluateDeal(
           `${responseMinutes === 1 ? "minute" : "minutes"} since it arrived.`,
       });
     }
+
+    // The hard ceiling, measured in wall-clock hours rather than business
+    // ones. Business time pauses overnight and on Sundays, so a lead that
+    // arrived on Saturday evening can sit for a day and a half and still
+    // look "on track". This is the rule that says: never, whatever the
+    // calendar is doing.
+    const wallClockHours = (now.getTime() - deal.receivedAt.getTime()) / HOUR_MS;
+    if (wallClockHours >= settings.absoluteResponseCeilingHours) {
+      const whole = Math.floor(wallClockHours);
+      findings.push({
+        kind: "response_ceiling_breached",
+        tier: "administrator",
+        reason:
+          `Still no contact after ${whole} hours. This is past the ` +
+          `${settings.absoluteResponseCeilingHours}-hour limit and needs someone now.`,
+      });
+      escalationTier = "administrator";
+      slaStatus = "breached";
+    }
   }
 
   // ---- Ownership ---------------------------------------------------------
@@ -194,11 +213,24 @@ export function evaluateDeal(
       reason: "This deal has no next action. Set one.",
     });
   } else if (deal.nextActionAt.getTime() < now.getTime()) {
+    // How late the promise is, in business minutes -- someone is not at fault
+    // for a commitment that came due overnight.
+    const lateBy = businessMinutesBetween(deal.nextActionAt, now, calendar);
+    const promiseTier = escalationTierFor(lateBy, settings.overdueActionEscalation);
     findings.push({
       kind: "next_action_overdue",
-      tier: "none",
-      reason: `Next action is overdue: ${deal.nextAction}.`,
+      tier: promiseTier,
+      reason:
+        lateBy > 0
+          ? `Promised follow-up is ${lateBy} business ${lateBy === 1 ? "minute" : "minutes"} ` +
+            `late: ${deal.nextAction}.`
+          : `Next action is due now: ${deal.nextAction}.`,
     });
+    // A missed promise counts toward the deal's overall urgency, so a badly
+    // overdue follow-up reaches the board's Critical group like anything else.
+    if (promiseTier === "critical" || promiseTier === "administrator") {
+      escalationTier = promiseTier;
+    }
   }
 
   // ---- Stage-specific rules ---------------------------------------------
@@ -307,6 +339,7 @@ function headlineFor(
   bucket: AttentionBucket,
 ): string | null {
   const priority = [
+    "response_ceiling_breached",
     "sla_breach",
     "missing_owner",
     "next_action_overdue",

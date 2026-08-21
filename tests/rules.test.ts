@@ -94,9 +94,11 @@ test("an after-hours lead is scheduled, not overdue, and does not escalate", () 
   assert.equal(e.findings.filter((f) => f.kind === "sla_breach").length, 0);
 });
 
-test("an after-hours lead becomes due once business hours resume", () => {
+test("a weekend lead left until Monday hits the wall-clock ceiling, not a mild tier", () => {
+  // This is the case business hours alone get wrong. Saturday 8pm to Monday
+  // 7:10am is only ten business minutes, which would read as barely late --
+  // but it is 35 real hours, and the customer has been waiting all of them.
   const saturdayEvening = boise(2026, 8, 22, 20);
-  // Monday 7:10am: ten business minutes have elapsed since opening.
   const mondayMorning = boise(2026, 8, 24, 7, 10);
   const e = evaluateDeal(
     deal({ receivedAt: saturdayEvening, lastActivityAt: saturdayEvening }),
@@ -104,7 +106,9 @@ test("an after-hours lead becomes due once business hours resume", () => {
     mondayMorning,
   );
   assert.equal(e.slaStatus, "breached");
-  assert.equal(e.escalationTier, "owner");
+  assert.equal(e.escalationTier, "administrator", "35 hours unanswered is not an owner-level nudge");
+  assert.ok(e.findings.some((f) => f.kind === "response_ceiling_breached"));
+  assert.equal(e.bucket, "critical");
 });
 
 // --- Ownership and next actions --------------------------------------------
@@ -228,4 +232,96 @@ test("the deferred integrations never produce a finding", () => {
   assert.ok(!/handoff|quickbooks/i.test(kinds), `unexpected deferred-integration finding: ${kinds}`);
   assert.equal(S.featureFlags.handoffIntegrationEnabled, false);
   assert.equal(S.featureFlags.quickBooksIntegrationEnabled, false);
+});
+
+// --- The accountability rules ----------------------------------------------
+
+test("nothing goes unanswered past the wall-clock ceiling, whatever the calendar says", () => {
+  const sundayMorning = boise(2026, 8, 23, 8); // Sunday: zero business minutes
+  const eightHoursLater = new Date(sundayMorning.getTime() + 8 * 60 * 60_000);
+  const e = evaluateDeal(
+    deal({ receivedAt: sundayMorning, lastActivityAt: sundayMorning, nextActionAt: null, nextAction: null }),
+    S,
+    eightHoursLater,
+  );
+  // Business hours alone would call this "after hours" and stay silent.
+  assert.ok(
+    e.findings.some((f) => f.kind === "response_ceiling_breached"),
+    "eight real hours unanswered must raise the ceiling alert even on a Sunday",
+  );
+  assert.equal(e.escalationTier, "administrator");
+  assert.equal(e.bucket, "critical");
+});
+
+test("just under the ceiling stays quiet, so the alarm means something", () => {
+  const sundayMorning = boise(2026, 8, 23, 8);
+  const almost = new Date(sundayMorning.getTime() + 7.5 * 60 * 60_000);
+  const e = evaluateDeal(
+    deal({ receivedAt: sundayMorning, lastActivityAt: sundayMorning, nextActionAt: null, nextAction: null }),
+    S,
+    almost,
+  );
+  assert.ok(!e.findings.some((f) => f.kind === "response_ceiling_breached"));
+});
+
+test("the ceiling stops applying once somebody has actually responded", () => {
+  const friday = boise(2026, 8, 21, 8);
+  const answered = new Date(friday.getTime() + 4 * 60_000);
+  const muchLater = new Date(friday.getTime() + 30 * 60 * 60_000);
+  const e = evaluateDeal(
+    deal({ receivedAt: friday, firstAttemptAt: answered, stage: "Contacting", lastActivityAt: answered,
+           nextActionAt: new Date(muchLater.getTime() + 60 * 60_000) }),
+    S,
+    muchLater,
+  );
+  assert.ok(!e.findings.some((f) => f.kind === "response_ceiling_breached"),
+    "the ceiling is about first response, not about the deal forever");
+});
+
+test("a broken promise escalates instead of sitting silently as a flag", () => {
+  const friday10 = boise(2026, 8, 21, 10);
+  const promised = boise(2026, 8, 21, 11);
+  const base = deal({ receivedAt: friday10, firstAttemptAt: friday10, stage: "Contacting",
+                      lastActivityAt: friday10, nextAction: "Call Maria back", nextActionAt: promised });
+
+  // An hour late: the owner hears about it.
+  let e = evaluateDeal(base, S, boise(2026, 8, 21, 12));
+  let f = e.findings.find((x) => x.kind === "next_action_overdue");
+  assert.equal(f?.tier, "owner");
+  assert.match(f?.reason ?? "", /Call Maria back/);
+
+  // Four hours late: the manager does too.
+  e = evaluateDeal(base, S, boise(2026, 8, 21, 15));
+  assert.equal(e.findings.find((x) => x.kind === "next_action_overdue")?.tier, "owner_manager");
+
+  // Eight business hours late: Critical, and it reaches the top of the board.
+  e = evaluateDeal(base, S, boise(2026, 8, 22, 12));
+  assert.equal(e.findings.find((x) => x.kind === "next_action_overdue")?.tier, "critical");
+  assert.equal(e.bucket, "critical", "a badly broken promise belongs with the emergencies");
+});
+
+test("a promise that came due overnight is not counted as hours late", () => {
+  // Committed for 5:55pm Friday, now 7:05am Saturday. Only ten business
+  // minutes have passed; nobody was at fault for the hours in between.
+  const e = evaluateDeal(
+    deal({
+      receivedAt: boise(2026, 8, 21, 10), firstAttemptAt: boise(2026, 8, 21, 10),
+      stage: "Contacting", lastActivityAt: boise(2026, 8, 21, 10),
+      nextAction: "Send the quote", nextActionAt: boise(2026, 8, 21, 17, 55),
+    }),
+    S,
+    boise(2026, 8, 22, 7, 5),
+  );
+  const f = e.findings.find((x) => x.kind === "next_action_overdue");
+  assert.equal(f?.tier, "none", "ten business minutes late is not an escalation");
+});
+
+test("the ceiling headline outranks everything, so the worst case reads first", () => {
+  const sunday = boise(2026, 8, 23, 8);
+  const e = evaluateDeal(
+    deal({ receivedAt: sunday, lastActivityAt: sunday, ownerUserId: null, nextAction: null, nextActionAt: null }),
+    S,
+    new Date(sunday.getTime() + 10 * 60 * 60_000),
+  );
+  assert.match(e.headline ?? "", /past the 8-hour limit/);
 });
