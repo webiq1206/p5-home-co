@@ -132,6 +132,9 @@ places.
 - The header uses the supplied P5 horizontal lockup, not redrawn paths.
   Below 560px it swaps to the icon mark, because the lockup has a 200px
   minimum width in the brand guide. Do not rebuild either from live text.
+  Both use the full-colour artwork so the bronze numeral survives the
+  swap; the one-colour icon variants drop it and made the mark look
+  different on phones.
 - Favicons are the supplied set (.ico, 16, 32, apple-touch, android-chrome).
   The old placeholder favicon.svg was generic blue art and is deleted.
 - Fonts are the licensed brand families, just renamed: `p5-serif.woff2`
