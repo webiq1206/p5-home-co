@@ -67,6 +67,7 @@ a:hover .arrow-diagonal, a:focus-visible .arrow-diagonal { transform: translate(
 .menu-button-open span:first-child { transform: translateY(4px) rotate(45deg); }
 .menu-button-open span:last-child { transform: translateY(-4px) rotate(-45deg); }
 .mobile-menu { display: none; }
+.hero-h1-break { display: none; }
 
 .hero { position: relative; min-height: 820px; height: 100svh; max-height: 1020px; overflow: hidden; color: #fff; background: var(--forest); }
 .hero-image, .hero-shade, .hero-grain { position: absolute; inset: 0; height: 100%; }
@@ -304,7 +305,8 @@ a:hover .arrow-diagonal, a:focus-visible .arrow-diagonal { transform: translate(
   .p5-header-logo { height:42px; }
   .hero { min-height:700px; }
   .hero-content { padding-bottom:50px; }
-  .hero h1 { font-size:clamp(56px,17.2vw,82px); }
+  .hero h1 { font-size:clamp(32px,9vw,46px); }
+  .hero-h1-break { display:inline; }
   .hero-lede { font-size:12px; line-height:1.75; }
   .hero-actions { align-items:flex-start; flex-direction:column; gap:22px; margin-top:29px; }
   .hero-actions .button { width:100%; }
