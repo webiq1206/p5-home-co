@@ -1,0 +1,98 @@
+/*
+ * Admin panel styles.
+ *
+ * Deliberately separate from globals.css, which is the approved marketing
+ * design and must not change. Colour tokens are inherited from :root there.
+ * This is a working tool: dense, legible, and usable one-handed on a phone,
+ * where most of these actions actually happen.
+ */
+
+.admin-body { min-height: 100dvh; background: var(--bone); }
+
+.admin-bar {
+  position: sticky; top: 0; z-index: 50;
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  padding: 14px 20px;
+  background: var(--forest); color: #fff;
+}
+.admin-bar a, .admin-bar button { color: inherit; }
+.admin-brand { display: flex; align-items: baseline; gap: 10px; font-weight: 750; letter-spacing: .02em; }
+.admin-brand small { opacity: .6; font-size: 11px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; }
+.admin-who { font-size: 12px; opacity: .75; }
+
+.admin-main { width: min(100% - 32px, 1180px); margin: 0 auto; padding: 24px 0 96px; }
+
+.admin-h1 { margin: 8px 0 4px; font-family: "P5 Serif", serif; font-size: clamp(28px, 6vw, 40px); font-weight: 500; line-height: 1.1; }
+.admin-sub { margin: 0 0 24px; color: var(--ink-2); font-size: 14px; }
+
+/* Summary strip ---------------------------------------------------------- */
+.admin-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin: 0 0 28px; }
+.admin-stat { padding: 14px 16px; border: 1px solid var(--line); background: var(--paper); }
+.admin-stat b { display: block; font-family: "P5 Serif", serif; font-size: 30px; font-weight: 500; line-height: 1.1; }
+.admin-stat span { color: var(--ink-2); font-size: 11px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
+.admin-stat-alarm b { color: #9a2f2f; }
+
+/* Buckets ---------------------------------------------------------------- */
+.admin-bucket { margin: 0 0 34px; }
+.admin-bucket-head { display: flex; align-items: center; gap: 12px; margin: 0 0 14px; }
+.admin-bucket-head h2 { margin: 0; font-size: 12px; font-weight: 750; letter-spacing: .16em; text-transform: uppercase; }
+.admin-bucket-count { padding: 2px 9px; border-radius: 999px; background: var(--cream); font-size: 11px; font-weight: 700; }
+.admin-bucket-critical .admin-bucket-head h2 { color: #9a2f2f; }
+.admin-bucket-critical .admin-bucket-count { background: #f6dede; color: #9a2f2f; }
+
+.admin-cards { display: grid; gap: 12px; }
+
+/* Lead card -------------------------------------------------------------- */
+.lead-card { padding: 16px; border: 1px solid var(--line); border-left: 3px solid var(--sage); background: var(--paper); }
+.lead-card-critical { border-left-color: #9a2f2f; }
+.lead-card-warn { border-left-color: var(--bronze); }
+
+.lead-top { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px; }
+.lead-name { margin: 0; font-family: "P5 Serif", serif; font-size: 21px; font-weight: 500; line-height: 1.2; }
+.lead-age { color: var(--ink-2); font-size: 12px; white-space: nowrap; }
+
+.lead-tags { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 0; }
+.lead-tag { padding: 3px 9px; border: 1px solid var(--line); background: var(--bone); font-size: 11px; font-weight: 650; }
+.lead-tag-brand { border-color: var(--moss); color: var(--moss); }
+
+.lead-why { margin: 12px 0 0; padding: 10px 12px; border-left: 2px solid var(--bronze); background: var(--bone); font-size: 14px; font-weight: 600; }
+.lead-why-critical { border-left-color: #9a2f2f; color: #7d2626; background: #fbeeee; }
+
+.lead-meta { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px 18px; margin: 12px 0 0; font-size: 13px; }
+.lead-meta div { color: var(--ink-2); }
+.lead-meta b { display: block; color: var(--ink); font-size: 11px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
+
+/* Actions ---------------------------------------------------------------- */
+.lead-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 14px 0 0; }
+.lead-action {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-height: 46px; min-width: 46px; padding: 0 16px;
+  border: 1px solid var(--ink); background: transparent;
+  font-size: 12px; font-weight: 700;
+  transition: background 160ms ease, color 160ms ease;
+}
+.lead-action:hover, .lead-action:focus-visible { color: #fff; background: var(--ink); }
+.lead-action-primary { color: #fff; background: var(--moss); border-color: var(--moss); }
+.lead-action-primary:hover, .lead-action-primary:focus-visible { color: var(--moss); background: transparent; }
+
+/* States ----------------------------------------------------------------- */
+.admin-empty { padding: 48px 24px; border: 1px dashed var(--line); background: var(--paper); text-align: center; }
+.admin-empty h2 { margin: 0 0 6px; font-family: "P5 Serif", serif; font-size: 24px; font-weight: 500; }
+.admin-empty p { margin: 0; color: var(--ink-2); font-size: 14px; }
+
+.admin-notice { margin: 0 0 22px; padding: 14px 16px; border: 1px solid var(--bronze); background: #fdf6ee; font-size: 14px; }
+.admin-notice strong { display: block; margin: 0 0 4px; }
+.admin-notice-error { border-color: #9a2f2f; background: #fbeeee; }
+
+/* Sign in ---------------------------------------------------------------- */
+.admin-login { display: grid; place-items: center; min-height: 100dvh; padding: 24px; background: var(--forest); }
+.admin-login-card { width: min(100%, 420px); padding: 34px 30px; background: var(--paper); }
+.admin-login-card h1 { margin: 0 0 6px; font-family: "P5 Serif", serif; font-size: 30px; font-weight: 500; }
+.admin-login-card p { margin: 0 0 22px; color: var(--ink-2); font-size: 14px; }
+.admin-login-card .lead-action { width: 100%; }
+
+@media (min-width: 760px) {
+  .admin-main { padding-top: 34px; }
+  .admin-cards { gap: 14px; }
+  .lead-card { padding: 20px 22px; }
+}

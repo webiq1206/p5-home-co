@@ -16,11 +16,16 @@ const aiCrawlers = [
   "CCBot",
 ];
 
+// The lead manager and its endpoints are staff-only and hold client contact
+// details. They carry noindex headers as well; this keeps them out of the
+// crawl in the first place.
+const privatePaths = ["/admin", "/api/"];
+
 export default function robots(): MetadataRoute.Robots {
   return {
     rules: [
-      { userAgent: "*", allow: "/" },
-      ...aiCrawlers.map((userAgent) => ({ userAgent, allow: "/" })),
+      { userAgent: "*", allow: "/", disallow: privatePaths },
+      ...aiCrawlers.map((userAgent) => ({ userAgent, allow: "/", disallow: privatePaths })),
     ],
     sitemap: `${siteUrl}/sitemap.xml`,
     host: siteUrl,
