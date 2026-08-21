@@ -96,3 +96,48 @@
   .admin-cards { gap: 14px; }
   .lead-card { padding: 20px 22px; }
 }
+
+/* Lead detail and the outcome form ---------------------------------------- */
+.lead-meta-wide { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); margin: 20px 0 0; }
+
+.lead-summary { margin: 20px 0 0; padding: 14px 16px; border-left: 2px solid var(--sage); background: var(--paper); }
+.lead-summary b { display: block; margin: 0 0 6px; font-size: 11px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
+.lead-summary p { margin: 0; font-size: 15px; }
+
+.lead-panel { margin: 30px 0 0; padding: 20px; border: 1px solid var(--line); background: var(--paper); }
+.lead-panel h2 { margin: 0 0 16px; font-size: 12px; font-weight: 750; letter-spacing: .16em; text-transform: uppercase; }
+
+.lead-form { display: grid; gap: 14px; }
+.lead-field { display: grid; gap: 6px; }
+.lead-field > span { font-size: 12px; font-weight: 700; letter-spacing: .06em; }
+.lead-field > span small { color: var(--ink-2); font-weight: 500; letter-spacing: 0; text-transform: none; }
+/* 16px minimum: anything smaller makes iOS Safari zoom on focus, which throws
+   the layout around every time someone taps a field. */
+.lead-field input, .lead-field select, .lead-field textarea {
+  width: 100%; min-height: 46px; padding: 10px 12px;
+  border: 1px solid var(--line); background: var(--bone);
+  color: var(--ink); font-family: inherit; font-size: 16px;
+}
+.lead-field textarea { min-height: 68px; resize: vertical; }
+.lead-field input:focus-visible, .lead-field select:focus-visible, .lead-field textarea:focus-visible {
+  border-color: var(--moss); outline: 2px solid var(--sage); outline-offset: 1px;
+}
+
+.lead-error { color: #9a2f2f; font-size: 13px; font-style: normal; }
+.lead-error-block { margin: 0; padding: 10px 12px; background: #fbeeee; }
+.lead-ok { margin: 0; padding: 10px 12px; border-left: 2px solid var(--moss); background: var(--bone); font-size: 14px; font-weight: 600; }
+.lead-note { margin: 0; color: var(--ink-2); font-size: 14px; }
+
+.lead-form button[disabled] { opacity: .6; cursor: progress; }
+
+.lead-timeline { margin: 0; padding: 0; list-style: none; display: grid; gap: 14px; }
+.lead-timeline li { padding: 12px 14px; border-left: 2px solid var(--cream); background: var(--bone); }
+.lead-timeline-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; }
+.lead-timeline-head strong { font-size: 14px; }
+.lead-timeline-head span { color: var(--ink-2); font-size: 12px; }
+.lead-timeline p { margin: 6px 0; font-size: 14px; }
+.lead-timeline small { color: var(--ink-2); font-size: 12px; }
+
+/* The whole card is the target on the board, so a tap anywhere opens it. */
+.lead-card-link { display: block; color: inherit; }
+.lead-card-link:hover .lead-name, .lead-card-link:focus-visible .lead-name { text-decoration: underline; }
