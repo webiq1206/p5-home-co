@@ -13,7 +13,8 @@
     "test": "node --experimental-strip-types --test --test-concurrency=1 tests/*.test.ts",
     "hubspot:setup": "node --experimental-strip-types --env-file-if-exists=.env.local tools/hubspot-setup.ts",
     "db:migrate": "node --experimental-strip-types --env-file-if-exists=.env.local tools/migrate.ts",
-    "flags": "node --experimental-strip-types --env-file-if-exists=.env.local tools/flags.ts"
+    "flags": "node --experimental-strip-types --env-file-if-exists=.env.local tools/flags.ts",
+    "notify:test": "node --experimental-strip-types --env-file-if-exists=.env.local tools/notify-test.ts"
   },
   "dependencies": {
     "next": "16.3.0",
