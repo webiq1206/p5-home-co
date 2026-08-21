@@ -111,11 +111,49 @@ appear. Google Calendar is connected for `hello@p5homeco.com`.
 If two genuinely separate URLs are wanted later, that needs Starter Customer
 Platform — a purchase, and your decision.
 
+## Deal properties — created
+
+28 custom properties created via `npm run hubspot:setup`, all in the
+**P5 Lead Manager** group, verified present in HubSpot. Re-running the script
+skips all 28, so it is safe to run again.
+
+Eight HubSpot defaults are **reused rather than duplicated**, and the script
+prints whether each was found: `dealname`, `amount`, `dealstage`, `pipeline`,
+`closedate`, `hubspot_owner_id`, `description`, `closed_lost_reason`.
+
+Enumerations mirror `app/lib/leads/types.ts` exactly, verified after creation:
+
+- **p5_brand** — the six brands
+- **p5_lead_source** — the ten sources
+- **p5_project_type** — the twenty project types
+- **p5_sla_status** — On track, Due soon, Breached, Met, After hours, Not applicable
+- **p5_service_area** — the eight approved cities
+
+Datetime properties (`p5_sla_deadline`, `p5_first_attempt_at`,
+`p5_first_two_way_at`, `p5_next_action_at`, `p5_appointment_at`) take epoch
+milliseconds. Handoff and proposal fields are labelled "(manual)" and described
+as MANUAL AND UNVERIFIED, because nothing validates them while that
+integration is off.
+
+## API access
+
+A **Service Key** named "P5 Lead Manager" provides API access, with seven
+least-privilege scopes: `crm.objects.{contacts,deals}.read/write`,
+`crm.objects.owners.read`, `crm.schemas.deals.read/write`. The sensitive and
+highly-sensitive variants were deliberately not granted.
+
+HubSpot now steers new integrations to Service Keys rather than legacy private
+apps, which "won't receive new API scopes or features", so the supported path
+was taken.
+
+The token lives in `.env.local` locally and must also be set as `HUBSPOT_TOKEN`
+in Replit Secrets for the deployed app. It is not in source control.
+
 ## Still to do
 
-- Custom properties: P5 Brand, Lead Source, Project Type, SLA fields, and the
-  Handoff/QuickBooks placeholders
-- Saved views and the dashboard
-- A private app for API access
+- **Saved views and the dashboard.** There is no public API for CRM index saved
+  views, so these are UI work. `/crm/v3/lists/search` exists but Lists are a
+  different feature and need `crm.lists.read`, which was not granted.
 - Service areas — still 8 confirmed on the website versus 9 implied by the
   Google Business Profile
+- Contact-side properties, if inbound email classification needs them
