@@ -29,6 +29,9 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+# ...but the example file holds variable NAMES ONLY and must be tracked,
+# so anyone setting the project up knows what to provide.
+!.env.example
 
 # vercel
 .vercel
