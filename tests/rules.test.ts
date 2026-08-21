@@ -286,7 +286,7 @@ test("a broken promise escalates instead of sitting silently as a flag", () => {
 
   // An hour late: the owner hears about it.
   let e = evaluateDeal(base, S, boise(2026, 8, 21, 12));
-  let f = e.findings.find((x) => x.kind === "next_action_overdue");
+  const f = e.findings.find((x) => x.kind === "next_action_overdue");
   assert.equal(f?.tier, "owner");
   assert.match(f?.reason ?? "", /Call Maria back/);
 

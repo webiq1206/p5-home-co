@@ -17,12 +17,14 @@
   },
   "dependencies": {
     "next": "16.3.0",
+    "nodemailer": "^9.0.5",
     "pg": "^8.23.0",
     "react": "19.2.6",
     "react-dom": "19.2.6"
   },
   "devDependencies": {
     "@types/node": "22.19.19",
+    "@types/nodemailer": "^8.0.1",
     "@types/pg": "^8.23.1",
     "@types/react": "19.2.14",
     "@types/react-dom": "19.2.3",

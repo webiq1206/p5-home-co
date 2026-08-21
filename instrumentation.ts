@@ -50,7 +50,9 @@ export async function register(): Promise<void> {
         summary.alertsRaised > 0 ||
         summary.alertsResolved > 0 ||
         summary.hubspotSynced > 0 ||
-        summary.hubspotFailed > 0
+        summary.hubspotFailed > 0 ||
+        summary.notificationsSent > 0 ||
+        summary.notificationsFailed > 0
       ) {
         console.log("[watchdog]", JSON.stringify(summary));
       }

@@ -10,6 +10,7 @@
 import { randomUUID } from "node:crypto";
 
 import { isUniqueViolation, query, transaction } from "../db.ts";
+import { dispatchNotifications } from "../notifications/dispatch.ts";
 import { syncPendingDeals } from "../integrations/hubspot.ts";
 import { evaluateDeal, type DealEvaluation, type DealSnapshot } from "./rules.ts";
 import { loadSettings, type LeadManagerSettings } from "./settings.ts";
@@ -25,6 +26,9 @@ export type WatchdogSummary = {
   /** HubSpot deals pushed this pass. Zero when the integration is off. */
   hubspotSynced: number;
   hubspotFailed: number;
+  /** Alert emails sent this pass. */
+  notificationsSent: number;
+  notificationsFailed: number;
   error?: string;
 };
 
@@ -221,6 +225,8 @@ export async function runWatchdog(now: Date = new Date()): Promise<WatchdogSumma
       slaUpdates: 0,
       hubspotSynced: 0,
       hubspotFailed: 0,
+      notificationsSent: 0,
+      notificationsFailed: 0,
     };
   }
 
@@ -258,6 +264,11 @@ export async function runWatchdog(now: Date = new Date()): Promise<WatchdogSumma
     // syncPendingDeals is a no-op while the flag is off or the token absent.
     const hubspot = await syncPendingDeals();
 
+    // Tell people. Last, because raising the alert correctly matters more
+    // than delivering it quickly, and a mail outage must not stop the rules
+    // engine from doing its job.
+    const notified = await dispatchNotifications(now);
+
     await query(
       `UPDATE job_run
           SET finished_at = now(), status = 'succeeded',
@@ -284,6 +295,8 @@ export async function runWatchdog(now: Date = new Date()): Promise<WatchdogSumma
       slaUpdates,
       hubspotSynced: hubspot.synced,
       hubspotFailed: hubspot.failed,
+      notificationsSent: notified.sent,
+      notificationsFailed: notified.failed,
     };
   } catch (error) {
     const message = (error as Error).message;
@@ -308,6 +321,8 @@ export async function runWatchdog(now: Date = new Date()): Promise<WatchdogSumma
       slaUpdates,
       hubspotSynced: 0,
       hubspotFailed: 0,
+      notificationsSent: 0,
+      notificationsFailed: 0,
       error: message,
     };
   } finally {
