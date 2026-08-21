@@ -159,6 +159,30 @@ describe("watchdog", { skip: TEST_DB ? false : "TEST_DATABASE_URL not set" }, ()
     assert.deepEqual(offenders, [], "Handoff and QuickBooks must stay silent while disabled");
   });
 
+  test("HubSpot sync is a silent no-op while the feature flag is off", async () => {
+    // No HUBSPOT_TOKEN is set in tests and hubspotIntegrationEnabled defaults
+    // to false. The watchdog must complete normally and report zero, rather
+    // than erroring or quietly claiming a sync happened.
+    const summary = await runWatchdog(at31());
+    assert.equal(summary.status, "succeeded");
+    assert.equal(summary.hubspotSynced, 0);
+    assert.equal(summary.hubspotFailed, 0);
+
+    // Nothing should have been marked synced, and no failure recorded.
+    const deals = await query<{ integration_sync_status: string; last_integration_error: string | null }>(
+      "SELECT integration_sync_status, last_integration_error FROM deal",
+    );
+    for (const d of deals) {
+      assert.equal(d.integration_sync_status, "pending", "stays pending, not falsely synced");
+      assert.equal(d.last_integration_error, null, "a disabled integration is not an error");
+    }
+
+    const health = await query<{ n: number }>(
+      "SELECT count(*)::int AS n FROM integration_health WHERE name = 'hubspot'",
+    );
+    assert.equal(health[0].n, 0, "a disabled integration must not report health at all");
+  });
+
   test("a lead still inside its response window raises nothing at all", async () => {
     const summary = await runWatchdog(new Date(received.getTime() + 60_000));
     assert.equal(summary.alertsRaised, 0, "the watchdog stays silent when nothing is wrong");

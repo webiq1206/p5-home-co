@@ -10,6 +10,7 @@
 import { randomUUID } from "node:crypto";
 
 import { isUniqueViolation, query, transaction } from "../db.ts";
+import { syncPendingDeals } from "../integrations/hubspot.ts";
 import { evaluateDeal, type DealEvaluation, type DealSnapshot } from "./rules.ts";
 import { loadSettings, type LeadManagerSettings } from "./settings.ts";
 import type { DealStage } from "./types.ts";
@@ -21,6 +22,9 @@ export type WatchdogSummary = {
   alertsRaised: number;
   alertsResolved: number;
   slaUpdates: number;
+  /** HubSpot deals pushed this pass. Zero when the integration is off. */
+  hubspotSynced: number;
+  hubspotFailed: number;
   error?: string;
 };
 
@@ -215,6 +219,8 @@ export async function runWatchdog(now: Date = new Date()): Promise<WatchdogSumma
       alertsRaised: 0,
       alertsResolved: 0,
       slaUpdates: 0,
+      hubspotSynced: 0,
+      hubspotFailed: 0,
     };
   }
 
@@ -246,6 +252,12 @@ export async function runWatchdog(now: Date = new Date()): Promise<WatchdogSumma
       slaUpdates += counts.slaUpdated;
     }
 
+    // Push anything pending or previously failed. Deliberately after the
+    // rules pass, so a HubSpot outage can never delay alerting -- and
+    // deliberately inside the try, so its failures land in job_run too.
+    // syncPendingDeals is a no-op while the flag is off or the token absent.
+    const hubspot = await syncPendingDeals();
+
     await query(
       `UPDATE job_run
           SET finished_at = now(), status = 'succeeded',
@@ -263,7 +275,16 @@ export async function runWatchdog(now: Date = new Date()): Promise<WatchdogSumma
       [dealsProcessed],
     );
 
-    return { jobRunId, status: "succeeded", dealsProcessed, alertsRaised, alertsResolved, slaUpdates };
+    return {
+      jobRunId,
+      status: "succeeded",
+      dealsProcessed,
+      alertsRaised,
+      alertsResolved,
+      slaUpdates,
+      hubspotSynced: hubspot.synced,
+      hubspotFailed: hubspot.failed,
+    };
   } catch (error) {
     const message = (error as Error).message;
     await query(
@@ -285,6 +306,8 @@ export async function runWatchdog(now: Date = new Date()): Promise<WatchdogSumma
       alertsRaised,
       alertsResolved,
       slaUpdates,
+      hubspotSynced: 0,
+      hubspotFailed: 0,
       error: message,
     };
   } finally {
