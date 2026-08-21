@@ -75,6 +75,7 @@ type DealRow = {
   snoozed_until: string | null;
   closed_lost_reason: string | null;
   last_activity_at: string | null;
+  client_waiting_since: string | null;
   sla_status: string;
   escalation_tier: string;
 };
@@ -94,6 +95,7 @@ function toSnapshot(row: DealRow): DealSnapshot {
     snoozedUntil: date(row.snoozed_until),
     closedLostReason: row.closed_lost_reason,
     lastActivityAt: date(row.last_activity_at),
+    clientWaitingSince: date(row.client_waiting_since),
   };
 }
 
@@ -108,7 +110,11 @@ async function loadDeals(): Promise<DealRow[]> {
     `SELECT d.id, d.stage, d.owner_user_id, d.received_at, d.first_attempt_at,
             d.first_two_way_at, d.next_action, d.next_action_at, d.appointment_at,
             d.snoozed_until, d.closed_lost_reason, d.sla_status, d.escalation_tier,
-            (SELECT max(a.occurred_at) FROM activity a WHERE a.deal_id = d.id) AS last_activity_at
+            (SELECT max(a.occurred_at) FROM activity a WHERE a.deal_id = d.id) AS last_activity_at,
+            (SELECT CASE WHEN a.direction = 'inbound' THEN a.occurred_at END
+               FROM activity a
+              WHERE a.deal_id = d.id AND a.direction IS NOT NULL
+              ORDER BY a.occurred_at DESC LIMIT 1) AS client_waiting_since
        FROM deal d
       WHERE d.stage NOT IN ('Closed Won','Closed Lost')
          OR d.closed_at > now() - interval '7 days'`,

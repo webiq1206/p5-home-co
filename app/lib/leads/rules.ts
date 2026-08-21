@@ -35,6 +35,11 @@ export type DealSnapshot = {
   snoozedUntil: Date | null;
   closedLostReason: string | null;
   lastActivityAt: Date | null;
+  /**
+   * When the customer last wrote to us with no reply since, or null if the
+   * ball is not in our court. Set by the Gmail poller.
+   */
+  clientWaitingSince: Date | null;
 };
 
 /** Where a lead appears on the Needs Your Attention screen. */
@@ -196,6 +201,48 @@ export function evaluateDeal(
     }
   }
 
+  // ---- The customer is waiting on a reply ---------------------------------
+  // Deliberately checked for open deals at any stage, including ones with a
+  // perfectly good next action dated next week. That is exactly the case the
+  // board otherwise shows as healthy while somebody waits.
+  if (deal.clientWaitingSince) {
+    const waitedBusiness = businessMinutesBetween(deal.clientWaitingSince, now, calendar);
+    const replyTier = escalationTierFor(waitedBusiness, settings.clientReplyEscalation);
+
+    // The ceiling here counts BUSINESS hours, unlike the one on a brand-new
+    // lead which counts wall-clock hours. The two cases genuinely differ.
+    //
+    // A new enquiry is hot: someone is shopping, and eight real hours of
+    // silence loses them whatever the clock says. A reply on an existing
+    // conversation is not that. Counting wall-clock there would page somebody
+    // at 2am about a message sent five minutes before closing -- which nobody
+    // could have answered, and which is exactly how an alarm gets muted.
+    const ceilingMinutes = settings.clientReplyCeilingHours * 60;
+
+    if (waitedBusiness >= ceilingMinutes) {
+      const hours = Math.floor(waitedBusiness / 60);
+      findings.push({
+        kind: "client_reply_unanswered",
+        tier: "administrator",
+        reason:
+          `The customer replied ${hours} working ${hours === 1 ? "hour" : "hours"} ago ` +
+          `and nobody has answered. Past the ${settings.clientReplyCeilingHours}-hour limit.`,
+      });
+      escalationTier = "administrator";
+    } else if (replyTier !== "none") {
+      findings.push({
+        kind: "client_reply_unanswered",
+        tier: replyTier,
+        reason:
+          `The customer is waiting on a reply — ${waitedBusiness} business ` +
+          `${waitedBusiness === 1 ? "minute" : "minutes"} since they wrote.`,
+      });
+      if (replyTier === "critical" || replyTier === "administrator") {
+        escalationTier = replyTier;
+      }
+    }
+  }
+
   // ---- Ownership ---------------------------------------------------------
   if (deal.ownerUserId === null) {
     findings.push({
@@ -340,6 +387,7 @@ function headlineFor(
 ): string | null {
   const priority = [
     "response_ceiling_breached",
+    "client_reply_unanswered",
     "sla_breach",
     "missing_owner",
     "next_action_overdue",

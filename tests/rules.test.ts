@@ -29,6 +29,7 @@ function deal(overrides: Partial<DealSnapshot> = {}): DealSnapshot {
     snoozedUntil: null,
     closedLostReason: null,
     lastActivityAt: FRIDAY_10AM,
+    clientWaitingSince: null,
     ...overrides,
   };
 }
@@ -324,4 +325,94 @@ test("the ceiling headline outranks everything, so the worst case reads first", 
     new Date(sunday.getTime() + 10 * 60 * 60_000),
   );
   assert.match(e.headline ?? "", /past the 8-hour limit/);
+});
+
+// --- The customer is waiting on a reply ------------------------------------
+
+test("a customer left waiting is caught even when the deal looks perfectly healthy", () => {
+  // This is the failure the board could not see: owner assigned, sensible
+  // stage, next action dated next week — and a customer sitting unanswered.
+  const replied = boise(2026, 8, 21, 9);
+  const e = evaluateDeal(
+    deal({
+      stage: "Estimate Sent",
+      firstAttemptAt: boise(2026, 8, 20, 9),
+      lastActivityAt: replied,
+      nextAction: "Follow up on the quote",
+      nextActionAt: boise(2026, 8, 28, 9), // days away, so nothing else complains
+      clientWaitingSince: replied,
+    }),
+    S,
+    boise(2026, 8, 21, 11),
+  );
+  const f = e.findings.find((x) => x.kind === "client_reply_unanswered");
+  assert.ok(f, "an unanswered customer reply must be flagged");
+  assert.match(f.reason, /waiting on a reply/);
+});
+
+test("the reply ladder climbs 30 / 120 / 240 business minutes", () => {
+  const replied = boise(2026, 8, 21, 9);
+  const at = (h: number, m = 0) =>
+    evaluateDeal(
+      deal({ stage: "Contacting", firstAttemptAt: boise(2026, 8, 20, 9),
+             lastActivityAt: replied, nextActionAt: boise(2026, 8, 28, 9),
+             clientWaitingSince: replied }),
+      S, boise(2026, 8, 21, h, m),
+    ).findings.find((x) => x.kind === "client_reply_unanswered")?.tier;
+
+  assert.equal(at(9, 15), undefined, "fifteen minutes is not yet a problem");
+  assert.equal(at(9, 45), "owner");
+  assert.equal(at(11, 15), "owner_manager");
+  assert.equal(at(13, 15), "critical");
+});
+
+test("an unanswered reply past the ceiling goes to administrators", () => {
+  // 8am Friday to 5pm Friday is nine business hours, past the eight-hour
+  // ceiling, and every one of those hours was a working hour.
+  const replied = boise(2026, 8, 21, 8);
+  const e = evaluateDeal(
+    deal({ stage: "Estimate Sent", firstAttemptAt: boise(2026, 8, 20, 9),
+           lastActivityAt: replied, nextActionAt: boise(2026, 8, 28, 9),
+           clientWaitingSince: replied }),
+    S,
+    boise(2026, 8, 21, 17),
+  );
+  const f = e.findings.find((x) => x.kind === "client_reply_unanswered");
+  assert.equal(f?.tier, "administrator");
+  assert.match(f?.reason ?? "", /Past the 8-hour limit/);
+  assert.equal(e.bucket, "critical");
+});
+
+test("once we reply the flag clears, because nobody is waiting", () => {
+  const e = evaluateDeal(
+    deal({ stage: "Estimate Sent", firstAttemptAt: boise(2026, 8, 20, 9),
+           lastActivityAt: boise(2026, 8, 21, 10), nextActionAt: boise(2026, 8, 28, 9),
+           clientWaitingSince: null }),
+    S, boise(2026, 8, 21, 16),
+  );
+  assert.ok(!e.findings.some((x) => x.kind === "client_reply_unanswered"));
+});
+
+test("a waiting customer outranks other findings in the headline", () => {
+  const replied = boise(2026, 8, 21, 8);
+  const e = evaluateDeal(
+    deal({ stage: "Estimate Sent", firstAttemptAt: boise(2026, 8, 20, 9),
+           lastActivityAt: replied, nextAction: null, nextActionAt: null,
+           clientWaitingSince: replied }),
+    S, boise(2026, 8, 21, 12),
+  );
+  assert.match(e.headline ?? "", /waiting on a reply|customer replied/);
+});
+
+test("a message sent minutes before closing does not page anyone overnight", () => {
+  // Written at 5:55pm Friday, now 7:05am Saturday: thirteen wall-clock hours,
+  // but only ten business minutes, and nobody could have answered in between.
+  const e = evaluateDeal(
+    deal({ stage: "Contacting", firstAttemptAt: boise(2026, 8, 20, 9),
+           lastActivityAt: boise(2026, 8, 21, 17, 55), nextActionAt: boise(2026, 8, 28, 9),
+           clientWaitingSince: boise(2026, 8, 21, 17, 55) }),
+    S, boise(2026, 8, 22, 7, 5),
+  );
+  assert.ok(!e.findings.some((x) => x.kind === "client_reply_unanswered"),
+    "ten business minutes is not an escalation");
 });

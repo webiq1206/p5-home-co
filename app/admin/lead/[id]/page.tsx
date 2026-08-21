@@ -53,6 +53,7 @@ type Row = {
   email: string | null;
   phone: string | null;
   last_activity_at: string | null;
+  client_waiting_since: string | null;
 };
 
 type ActivityRow = {
@@ -81,7 +82,11 @@ export default async function LeadDetail({ params }: { params: Promise<{ id: str
   const rows = await query<Row>(
     `SELECT d.*, c.first_name, c.last_name, c.email, c.phone,
             u.full_name AS owner_name,
-            (SELECT max(a.occurred_at) FROM activity a WHERE a.deal_id = d.id) AS last_activity_at
+            (SELECT max(a.occurred_at) FROM activity a WHERE a.deal_id = d.id) AS last_activity_at,
+            (SELECT CASE WHEN a.direction = 'inbound' THEN a.occurred_at END
+               FROM activity a
+              WHERE a.deal_id = d.id AND a.direction IS NOT NULL
+              ORDER BY a.occurred_at DESC LIMIT 1) AS client_waiting_since
        FROM deal d
        JOIN contact c ON c.id = d.contact_id
        LEFT JOIN app_user u ON u.id = d.owner_user_id
@@ -114,6 +119,7 @@ export default async function LeadDetail({ params }: { params: Promise<{ id: str
     snoozedUntil: d(row.snoozed_until),
     closedLostReason: row.closed_lost_reason,
     lastActivityAt: d(row.last_activity_at),
+    clientWaitingSince: d(row.client_waiting_since),
   };
   const evaluation = evaluateDeal(snapshot, settings, now);
 

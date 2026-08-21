@@ -56,6 +56,25 @@ export type LeadManagerSettings = {
    * quietly, and until now it was flagged but never escalated.
    */
   overdueActionEscalation: EscalationThresholds;
+  /**
+   * How long a customer may wait for a reply once they have written to us,
+   * in business minutes, before it escalates.
+   *
+   * A different failure from a slow first response: the deal already has an
+   * owner, a stage and a next action, so nothing on the board looks wrong
+   * while the customer sits unanswered.
+   */
+  clientReplyEscalation: EscalationThresholds;
+  /**
+   * Ceiling on an unanswered customer reply, in BUSINESS hours.
+   *
+   * Business rather than wall-clock, unlike the ceiling on a brand-new lead.
+   * A new enquiry is someone shopping right now, and eight real hours of
+   * silence loses them. A reply on an existing thread is not that, and
+   * counting wall-clock would raise an administrator alert at 2am over a
+   * message sent five minutes before closing.
+   */
+  clientReplyCeilingHours: number;
   /** Minutes an alert stays quiet after notifying, to stop repeat pings. */
   alertCooldownMinutes: number;
   afterHoursBehavior: AfterHoursBehavior;
@@ -110,6 +129,10 @@ export const DEFAULT_SETTINGS: LeadManagerSettings = {
   // a slower clock: an hour late notifies the owner, four hours the manager,
   // eight hours is Critical.
   overdueActionEscalation: { owner: 60, ownerManager: 240, critical: 480, administrator: 960 },
+  // A customer who has written in expects a faster answer than a follow-up
+  // task we set ourselves, so this ladder is tighter than the overdue one.
+  clientReplyEscalation: { owner: 30, ownerManager: 120, critical: 240, administrator: 480 },
+  clientReplyCeilingHours: 8,
   alertCooldownMinutes: 30,
   afterHoursBehavior: "queue_only",
   serviceAreas: [...citiesServed],
