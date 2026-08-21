@@ -7,6 +7,7 @@
  * email, and they are big enough to hit one-handed.
  */
 
+import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { getSessionUser } from "../lib/auth.ts";
@@ -46,10 +47,12 @@ function Card({ card, timeZone, now }: { card: LeadCard; timeZone: string; now: 
     <article
       className={`lead-card${critical ? " lead-card-critical" : warn ? " lead-card-warn" : ""}`}
     >
-      <div className="lead-top">
-        <h3 className="lead-name">{card.clientName}</h3>
-        <span className="lead-age">Inquired {timeAgo(card.receivedAt, now)}</span>
-      </div>
+      <Link href={`/admin/lead/${card.dealId}`} className="lead-card-link">
+        <div className="lead-top">
+          <h3 className="lead-name">{card.clientName}</h3>
+          <span className="lead-age">Inquired {timeAgo(card.receivedAt, now)}</span>
+        </div>
+      </Link>
 
       <div className="lead-tags">
         <span className="lead-tag lead-tag-brand">{card.brand}</span>
@@ -118,6 +121,9 @@ function Card({ card, timeZone, now }: { card: LeadCard; timeZone: string; now: 
             Email
           </a>
         )}
+        <Link className="lead-action" href={`/admin/lead/${card.dealId}`}>
+          Log outcome
+        </Link>
       </div>
     </article>
   );
