@@ -264,7 +264,7 @@ a:hover .arrow-diagonal, a:focus-visible .arrow-diagonal { transform: translate(
   .nav-shell { display:flex; justify-content:space-between; height:68px; }
   .desktop-nav,.nav-cta { display:none; }
   .menu-button { display:block; }
-  .wordmark { padding-left:4px; }
+  .wordmark { padding-left:10px; }
   .mobile-menu { position:fixed; z-index:99; top:68px; right:0; bottom:0; left:0; display:block; overflow:hidden; color:#fff; background:var(--moss); visibility:hidden; opacity:0; transform:translateY(-10px); transition:opacity 180ms ease,transform 180ms ease,visibility 180ms ease; }
   .mobile-menu-open { visibility:visible; opacity:1; transform:translateY(0); }
   .mobile-menu-inner { width:min(100% - 38px,1380px); margin:0 auto; padding:45px 0; }
