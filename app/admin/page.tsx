@@ -11,7 +11,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { getSessionUser } from "../lib/auth.ts";
-import { isDatabaseConfigured } from "../lib/db.ts";
+import { checkDatabase } from "../lib/db.ts";
 import { seesAllLeads } from "../lib/leads/permissions.ts";
 import {
   boiseTime,
@@ -30,6 +30,11 @@ function SetupNotice({ title, body }: { title: string; body: string }) {
         <strong>{title}</strong>
         {body}
       </div>
+      <p className="lead-note">
+        Nothing is broken in the app itself. Until this is resolved the panel
+        cannot show leads, but no lead is lost: intake refuses submissions with
+        a clear message rather than accepting one it cannot store.
+      </p>
     </main>
   );
 }
@@ -130,13 +135,11 @@ function Card({ card, timeZone, now }: { card: LeadCard; timeZone: string; now: 
 }
 
 export default async function AdminHome() {
-  if (!isDatabaseConfigured()) {
-    return (
-      <SetupNotice
-        title="No database is configured."
-        body="Set DATABASE_URL in your host's secrets and apply migrations/001_init.sql, then reload this page."
-      />
-    );
+  // Diagnose before doing anything else, so a setup problem explains itself
+  // rather than surfacing as an unexplained 500 further down.
+  const health = await checkDatabase();
+  if (!health.ok) {
+    return <SetupNotice title={health.problem} body={health.detail} />;
   }
 
   const user = await getSessionUser();

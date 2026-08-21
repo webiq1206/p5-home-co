@@ -98,6 +98,69 @@ export async function transaction<T>(fn: (client: PoolClient) => Promise<T>): Pr
   }
 }
 
+/**
+ * Check the database is actually reachable and migrated.
+ *
+ * Returns a diagnosis rather than throwing, so the admin panel can explain
+ * itself instead of rendering a bare 500. A connection string that exists but
+ * points somewhere unreachable is the failure most likely to be met during
+ * setup, and "ENOTFOUND helium" on screen is worth far more to whoever is
+ * fixing it than a blank error page.
+ */
+export async function checkDatabase(): Promise<
+  { ok: true } | { ok: false; problem: string; detail: string }
+> {
+  if (!isDatabaseConfigured()) {
+    return {
+      ok: false,
+      problem: "No database is configured.",
+      detail: "DATABASE_URL is not set in this environment.",
+    };
+  }
+
+  try {
+    await query("SELECT 1");
+  } catch (error) {
+    const message = (error as Error).message;
+    const code = (error as { code?: string }).code;
+
+    if (code === "ENOTFOUND" || /getaddrinfo/.test(message)) {
+      const host = message.replace(/^.*ENOTFOUND\s*/, "").trim();
+      return {
+        ok: false,
+        problem: `The database host "${host}" cannot be resolved from here.`,
+        detail:
+          "This usually means DATABASE_URL holds an internal hostname that only " +
+          "works inside the development workspace. The deployment needs the " +
+          "external connection string for the same database.",
+      };
+    }
+    if (code === "ECONNREFUSED") {
+      return { ok: false, problem: "The database refused the connection.", detail: message };
+    }
+    if (/password|authentication/i.test(message)) {
+      return { ok: false, problem: "The database rejected these credentials.", detail: message };
+    }
+    return { ok: false, problem: "Could not reach the database.", detail: message };
+  }
+
+  try {
+    await query("SELECT 1 FROM app_user LIMIT 1");
+  } catch (error) {
+    const message = (error as Error).message;
+    if (/relation .* does not exist/i.test(message)) {
+      return {
+        ok: false,
+        problem: "The database is reachable but has no schema.",
+        detail: "Run: npm run db:migrate -- --seed-admin you@p5homeco.com \"Your Name\"",
+      };
+    }
+    return { ok: false, problem: "The schema is not usable.", detail: message };
+  }
+
+  return { ok: true };
+}
+
 /** Postgres unique-violation code, used to turn a race into a clean dedupe. */
 export const UNIQUE_VIOLATION = "23505";
 
