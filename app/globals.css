@@ -202,6 +202,10 @@ a:hover .arrow-diagonal, a:focus-visible .arrow-diagonal { transform: translate(
 .footer-main { display: grid; grid-template-columns: 1fr 1fr; gap: 100px; padding-bottom: 70px; }
 .footer-brand p { max-width: 360px; margin: 30px 0 20px; color: rgba(255,255,255,.45); font-size: 12px; line-height: 1.8; }
 .footer-phone { display: inline-block; padding-bottom: 5px; border-bottom: 1px solid rgba(255,255,255,.5); font-family: "P5 Serif", Georgia, serif; font-size: 22px; }
+.footer-email { display: inline-block; margin-top: 12px; color: rgba(255,255,255,.55); font-size: 12px; }
+.footer-email:hover { color: #fff; }
+.footer-save-contact { display: none; align-items: center; gap: 9px; margin-top: 22px; padding: 12px 20px; border: 1px solid rgba(255,255,255,.28); color: rgba(255,255,255,.75); font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; transition: color 180ms ease, border-color 180ms ease; }
+.footer-save-contact:hover { color: #fff; border-color: rgba(255,255,255,.6); }
 .footer-links { display: grid; grid-template-columns: 1.35fr .8fr; gap: 70px; }
 .footer-links h3 { margin: 0 0 20px; color: rgba(255,255,255,.34); font-size: 8px; font-weight: 700; letter-spacing: .17em; text-transform: uppercase; }
 .footer-links a, .footer-links button, .footer-soon { display: flex; align-items: center; justify-content: space-between; width: 100%; min-height: 40px; padding: 0; border: 0; border-bottom: 1px solid rgba(255,255,255,.11); color: rgba(255,255,255,.68); background: none; font-size: 10px; text-align: left; }
@@ -259,8 +263,7 @@ a:hover .arrow-diagonal, a:focus-visible .arrow-diagonal { transform: translate(
   .nav-shell { display:flex; justify-content:space-between; height:68px; }
   .desktop-nav,.nav-cta { display:none; }
   .menu-button { display:block; }
-  .site-header:has(.mobile-menu-open) { color:#fff; background:var(--moss); }
-  .mobile-menu { position:fixed; top:68px; right:0; bottom:0; left:0; display:block; overflow:hidden; color:#fff; background:var(--moss); visibility:hidden; opacity:0; transform:translateY(-10px); transition:opacity 180ms ease,transform 180ms ease,visibility 180ms ease; }
+  .mobile-menu { position:fixed; z-index:99; top:68px; right:0; bottom:0; left:0; display:block; overflow:hidden; color:#fff; background:var(--moss); visibility:hidden; opacity:0; transform:translateY(-10px); transition:opacity 180ms ease,transform 180ms ease,visibility 180ms ease; }
   .mobile-menu-open { visibility:visible; opacity:1; transform:translateY(0); }
   .mobile-menu-inner { width:min(100% - 38px,1380px); margin:0 auto; padding:45px 0; }
   .mobile-menu-inner > p { color:rgba(255,255,255,.38); font-size:8px; font-weight:700; letter-spacing:.18em; text-transform:uppercase; }
@@ -290,6 +293,7 @@ a:hover .arrow-diagonal, a:focus-visible .arrow-diagonal { transform: translate(
   .process-proof ul { grid-template-columns:1fr 1fr; }
   .handoff-layout,.service-area-grid,.faq-layout { gap:65px; }
   .footer-main { gap:65px; }
+  .footer-save-contact { display:inline-flex; }
   .matcher { padding:16px; }
   .matcher-panel { min-height:600px; max-height:calc(100svh - 32px); }
 }
