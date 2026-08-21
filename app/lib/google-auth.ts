@@ -160,3 +160,19 @@ export function buildAuthorizeUrl(options: {
   url.searchParams.set("prompt", "select_account");
   return url.toString();
 }
+
+/**
+ * The account allowed to bootstrap itself as the first administrator.
+ *
+ * Chicken-and-egg: access requires a row in app_user, but nobody can create
+ * that row through the panel until somebody can sign in. Running SQL by hand
+ * solves it only if you can reach the right database, which is exactly what is
+ * awkward on a managed host.
+ *
+ * So one named account may create itself, and only while the system has no
+ * active administrator at all. After that the door is shut and access is
+ * granted the normal way.
+ */
+export function initialAdminEmail(): string {
+  return (process.env.INITIAL_ADMIN_EMAIL ?? "hello@p5homeco.com").toLowerCase();
+}

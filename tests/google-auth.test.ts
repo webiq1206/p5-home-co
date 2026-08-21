@@ -198,3 +198,26 @@ test("an explicit override wins over everything, since Google matches exactly", 
   );
   delete process.env.GOOGLE_OAUTH_REDIRECT_URI;
 });
+
+// --- First-administrator bootstrap -----------------------------------------
+
+import { initialAdminEmail } from "../app/lib/google-auth.ts";
+
+test("the bootstrap account defaults to hello@p5homeco.com", () => {
+  delete process.env.INITIAL_ADMIN_EMAIL;
+  assert.equal(initialAdminEmail(), "hello@p5homeco.com");
+});
+
+test("the bootstrap account can be overridden, and is compared lowercased", () => {
+  process.env.INITIAL_ADMIN_EMAIL = "Owner@P5HomeCo.com";
+  assert.equal(initialAdminEmail(), "owner@p5homeco.com");
+  delete process.env.INITIAL_ADMIN_EMAIL;
+});
+
+test("the bootstrap account must still be on an approved domain", () => {
+  // Bootstrapping does not bypass the domain check: the callback runs
+  // checkIdentity before it ever considers creating an account.
+  process.env.INITIAL_ADMIN_EMAIL = "someone@gmail.com";
+  assert.equal(isApprovedDomain(initialAdminEmail()), false);
+  delete process.env.INITIAL_ADMIN_EMAIL;
+});

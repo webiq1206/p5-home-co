@@ -18,6 +18,7 @@ import {
   checkIdentity,
   decodeIdToken,
   GOOGLE_TOKEN_URL,
+  initialAdminEmail,
   isGoogleConfigured,
   isRejection,
   redirectUriFor,
@@ -103,7 +104,38 @@ export async function GET(request: Request): Promise<NextResponse> {
     "SELECT id, is_active, role FROM app_user WHERE lower(email) = $1",
     [identity.email],
   );
-  const account = rows[0];
+  let account = rows[0];
+
+  // Bootstrap. The very first administrator cannot be added through a panel
+  // nobody can sign into, so one named account may create itself -- but only
+  // while no active administrator exists anywhere. The domain check above has
+  // already passed, and the INSERT is guarded by the same condition it was
+  // tested against, so two simultaneous first sign-ins cannot both win.
+  if (!account && identity.email === initialAdminEmail()) {
+    const created = await query<{ id: string }>(
+      `INSERT INTO app_user (email, full_name, role)
+       SELECT $1, $2, 'administrator'
+        WHERE NOT EXISTS (
+          SELECT 1 FROM app_user WHERE role = 'administrator' AND is_active
+        )
+       RETURNING id`,
+      [identity.email, identity.name ?? "Administrator"],
+    );
+    if (created.length) {
+      console.log(`[auth] bootstrapped first administrator: ${identity.email}`);
+      await query(
+        `INSERT INTO audit_log (user_id, record_type, record_id, action, new_value, action_source, integration_source)
+         VALUES ($1,'app_user',$2,'bootstrapped_first_administrator',$3::jsonb,'admin_ui','google')`,
+        [
+          Number(created[0].id),
+          created[0].id,
+          JSON.stringify({ email: identity.email, reason: "no active administrator existed" }),
+        ],
+      ).catch(() => undefined);
+      account = { id: created[0].id, is_active: true, role: "administrator" };
+    }
+  }
+
   if (!account) return back(request, "notinvited");
   if (!account.is_active) return back(request, "disabled");
 
