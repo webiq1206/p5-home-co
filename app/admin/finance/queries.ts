@@ -193,9 +193,10 @@ export async function registryBoard() {
 export async function ownerBoard() {
   const owners = await query<{
     id: string; label: string; ownership_pct: string; distribution_pct: string;
-    weekly_compensation: string;
+    voting_pct: string; weekly_compensation: string; effective_from: string;
   }>(
-    `SELECT id, label, ownership_pct, distribution_pct, weekly_compensation
+    `SELECT id, label, ownership_pct, distribution_pct, voting_pct,
+            weekly_compensation, effective_from::text
      FROM owner_record WHERE effective_to IS NULL ORDER BY id`,
   );
   const reimbursements = await query<{
