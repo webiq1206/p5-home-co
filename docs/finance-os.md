@@ -44,13 +44,58 @@ Generate a token key:
    **Connect QuickBooks**. The callback stores encrypted tokens and runs the
    first sync.
 
+### Intuit production keys
+
+Development keys only reach sandbox companies, so a real company file needs
+production keys. Intuit gates those behind an app-details step (verified email,
+name, phone, business address) and a compliance questionnaire, and it requires
+publicly reachable URLs. The pages exist for exactly this reason:
+
+| Intuit field | Value |
+|---|---|
+| Host domain | `p5homeco.com` |
+| Launch URL | `https://p5homeco.com/admin/finance` |
+| Connect/Reconnect URL | `https://p5homeco.com/admin/finance/health` |
+| Disconnect URL | `https://p5homeco.com/legal/quickbooks-disconnect` |
+| End-user licence agreement | `https://p5homeco.com/legal/terms` |
+| Privacy policy | `https://p5homeco.com/legal/privacy` |
+| Redirect URI | `https://p5homeco.com/api/qbo/callback` |
+
 ## Scheduling
 
-Point the existing scheduler at `POST /api/jobs/finance` once per day
-(Bearer `WATCHDOG_SECRET`). The job syncs QBO, rescans attention items,
-persists the Money Run on Wednesdays (preliminary) and Fridays (final), and
-stores the daily trend snapshot. Every step reports independently; failures
-surface in Health and as critical attention items - never silently.
+The daily job runs **in-process**, like the watchdog: `instrumentation.ts`
+starts a timer that wakes every quarter hour and asks the database whether
+today's pass has already run. Nothing external has to be configured, and there
+is no scheduler that can quietly stop calling.
+
+The decision lives in `app/lib/finance/schedule.ts` and is a pure function, so
+the awkward cases are tested rather than hoped for: a restart at 3am must not
+run the day's job early, a restart at 9am must still run it, a pass that
+succeeded must not run twice, and a pass that failed gets one retry rather than
+leaving a Wednesday Money Run unbuilt. "Today" is measured in the business
+timezone, not the server's UTC, so the job fires at 6am Mountain in both
+January and August.
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `FINANCE_JOB_IN_PROCESS` | on in production | `false` disables the timer |
+| `FINANCE_JOB_HOUR` | `6` | hour the pass is due, 0-23 |
+| `FINANCE_JOB_TIMEZONE` | `America/Boise` | timezone "today" is measured in |
+| `FINANCE_JOB_INTERVAL_MS` | 15 min | how often the timer checks |
+| `FINANCE_JOB_RETRY_MINUTES` | `60` | wait before retrying a failed pass |
+
+Every pass is recorded in `job_run` under `finance_daily`, with the failing
+step details in `error` when a pass is partial.
+
+`POST /api/jobs/finance` (Bearer `WATCHDOG_SECRET`) remains, because an
+external scheduler is still the right answer on a host that scales to zero,
+and because triggering a pass by hand is worth keeping. Both paths write the
+same `job_run` rows.
+
+The job syncs QBO, rescans attention items, persists the Money Run on
+Wednesdays (preliminary) and Fridays (final), and stores the daily trend
+snapshot. Every step reports independently; failures surface in Health and as
+critical attention items - never silently.
 
 ## Design rules carried from the spec
 
