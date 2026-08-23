@@ -10,6 +10,7 @@ import { faq } from "./content/faq.ts";
 import { future } from "./content/future.ts";
 import { glossary } from "./content/glossary.ts";
 import { howP5Works } from "./content/how-p5-works.ts";
+import { lifecycle } from "./content/lifecycle.ts";
 import { hubspot } from "./content/hubspot.ts";
 import { procedures } from "./content/procedures.ts";
 import { quickbooks } from "./content/quickbooks.ts";
@@ -23,6 +24,7 @@ export type { Article, SectionId };
 
 export const ALL_ARTICLES: Article[] = [
   ...howP5Works,
+  ...lifecycle,
   ...quickbooks,
   ...dataQuality,
   ...hubspot,
