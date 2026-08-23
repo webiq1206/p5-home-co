@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import Script from "next/script";
+import HubSpotScript from "./HubSpotScript";
 import "./globals.css";
 import { citiesServed, companies, faqs, gaMeasurementId, siteUrl } from "./site";
 
@@ -179,6 +180,7 @@ gtag('config', '${gaMeasurementId}');`}
             </Script>
           </>
         )}
+        {process.env.NODE_ENV === "production" && <HubSpotScript />}
         {children}
       </body>
     </html>
