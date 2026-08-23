@@ -1,0 +1,89 @@
+/* Legal pages: terms, privacy, and the QuickBooks disconnect instructions.
+   Deliberately plain - these are documents, not marketing. They borrow the
+   site's tokens and typefaces so they read as part of P5 Home Co, and nothing
+   else. */
+
+.legal-page {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 64px 24px 96px;
+}
+
+.legal-back {
+  display: inline-block;
+  margin-bottom: 40px;
+  color: var(--ink-2);
+  font-size: 14px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-decoration: none;
+}
+.legal-back:hover { color: var(--bronze); }
+
+.legal-page h1 {
+  margin: 0 0 8px;
+  font-family: "P5 Serif", Georgia, serif;
+  font-size: clamp(38px, 5vw, 56px);
+  font-weight: 400;
+  letter-spacing: -0.04em;
+  line-height: 1.02;
+}
+
+.legal-updated {
+  margin: 0 0 40px;
+  color: var(--ink-2);
+  font-size: 14px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.legal-page h2 {
+  margin: 44px 0 12px;
+  font-family: "P5 Serif", Georgia, serif;
+  font-size: 26px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+
+.legal-page h3 {
+  margin: 28px 0 8px;
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.legal-page p,
+.legal-page li {
+  color: var(--ink-2);
+  font-size: 16px;
+  line-height: 1.7;
+}
+
+.legal-page ul { padding-left: 22px; }
+.legal-page li { margin-bottom: 8px; }
+
+.legal-page a { color: var(--bronze); }
+
+.legal-lead {
+  color: var(--ink);
+  font-family: "P5 Serif", Georgia, serif;
+  font-size: 21px;
+  line-height: 1.45;
+}
+
+/* Used where a point matters enough that a reader skimming must not miss it,
+   such as what disconnecting actually does. */
+.legal-callout {
+  margin: 28px 0;
+  padding: 20px 24px;
+  border-left: 3px solid var(--sage);
+  background: var(--bone);
+}
+.legal-callout p:last-child { margin-bottom: 0; }
+
+.legal-contact {
+  margin-top: 56px;
+  padding-top: 28px;
+  border-top: 1px solid var(--line);
+}
+.legal-contact p { margin: 4px 0; }
