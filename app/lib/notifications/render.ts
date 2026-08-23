@@ -89,7 +89,7 @@ export function renderBundle(bundle: Bundle, baseUrl: string, now: Date): Messag
       `  ${l.link}`,
       "",
     ]),
-    "Open the board: " + `${baseUrl}/admin`,
+    "Open the board: " + `${baseUrl}/admin/lead-manager`,
     "",
     "You are getting this because the lead is assigned to you or you cover escalations.",
   ].join("\n");

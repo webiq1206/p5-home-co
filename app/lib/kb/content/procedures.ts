@@ -18,7 +18,7 @@ export const procedures: Article[] = [
       {
         t: "steps",
         items: [
-          "Open the admin panel. You land on Needs Your Attention.",
+          "Open the admin panel and choose Lead Manager from the menu at the top. That is the Needs Your Attention board. (The panel opens on the dashboard, which summarises the same board.)",
           "Start at the top - the first card is the most urgent.",
           "Tap Call, Text, or Email on the card and reach out. You have 5 business minutes from arrival, and the card tells you how long they have waited.",
           "Log what happened: pick the outcome that matches (spoke, left voicemail, emailed...).",

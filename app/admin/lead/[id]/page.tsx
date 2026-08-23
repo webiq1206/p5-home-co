@@ -140,7 +140,7 @@ export default async function LeadDetail({ params }: { params: Promise<{ id: str
   return (
     <>
       <header className="admin-bar">
-        <Link href="/admin" className="admin-brand">
+        <Link href="/admin/lead-manager" className="admin-brand">
           ← <small>Needs your attention</small>
         </Link>
         <span className="admin-who">{user.fullName}</span>

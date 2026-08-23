@@ -176,6 +176,7 @@ export async function logOutcomeAction(
   });
 
   revalidatePath("/admin");
+  revalidatePath("/admin/lead-manager");
   revalidatePath(`/admin/lead/${dealId}`);
   return { ok: true, message: `Logged: ${outcome}.` };
 }
@@ -219,6 +220,7 @@ export async function assignLeadAction(
   });
 
   revalidatePath("/admin");
+  revalidatePath("/admin/lead-manager");
   revalidatePath(`/admin/lead/${dealId}`);
   return { ok: true, message: ownerUserId ? "Reassigned." : "Unassigned." };
 }
@@ -259,6 +261,7 @@ export async function setNextActionAction(
   });
 
   revalidatePath("/admin");
+  revalidatePath("/admin/lead-manager");
   revalidatePath(`/admin/lead/${dealId}`);
   return { ok: true, message: "Next action set." };
 }
@@ -297,6 +300,7 @@ export async function snoozeLeadAction(
   });
 
   revalidatePath("/admin");
+  revalidatePath("/admin/lead-manager");
   revalidatePath(`/admin/lead/${dealId}`);
   return { ok: true, message: "Snoozed." };
 }

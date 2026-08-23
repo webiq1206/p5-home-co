@@ -172,3 +172,35 @@ export function isUniqueViolation(error: unknown): boolean {
     (error as { code?: string }).code === UNIQUE_VIOLATION
   );
 }
+
+/**
+ * True when the error is Postgres 42P01 - a query naming a table that does not
+ * exist. In practice that means a migration has not been applied yet, not that
+ * anything is broken in the code.
+ */
+export function isMissingRelation(error: unknown): boolean {
+  if (typeof error !== "object" || error === null) return false;
+  const code = (error as { code?: string }).code;
+  if (code === "42P01") return true;
+  return /relation .* does not exist/i.test((error as Error).message ?? "");
+}
+
+/**
+ * Turn an error thrown by a page query into something a person can act on.
+ *
+ * checkDatabase only proves migration 001 ran, so a panel section added by a
+ * later migration can still meet a missing table on a partially migrated
+ * database. That must read as "run the migrations", not as a bare 500.
+ */
+export function describeSchemaError(error: unknown): { problem: string; detail: string } {
+  const message = (error as Error)?.message ?? String(error);
+  if (isMissingRelation(error)) {
+    const table = /relation "([^"]+)"/i.exec(message)?.[1] ?? "a table this page needs";
+    return {
+      problem: `The database is missing ${table}.`,
+      detail:
+        "A migration has not been applied to this database yet. Run: npm run db:migrate",
+    };
+  }
+  return { problem: "This section could not read its data.", detail: message };
+}

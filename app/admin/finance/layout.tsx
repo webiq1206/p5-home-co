@@ -4,12 +4,17 @@
  * Finance is visible to administrators and managers only. Enforcement is
  * server-side here - every page under /admin/finance renders through this
  * layout - and each server action re-checks on its own (defense in depth).
+ *
+ * Two tiers of navigation: the shared section menu (AdminChrome) for moving
+ * between the dashboard, leads, finance and the Knowledge Center, then the
+ * finance sub-nav below it for the pages inside this section.
  */
 
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { getSessionUser } from "../../lib/auth.ts";
+import AdminChrome from "../AdminChrome.tsx";
 import "./finance.css";
 
 const NAV: { href: string; label: string }[] = [
@@ -39,24 +44,13 @@ export default async function FinanceLayout({
 
   return (
     <>
-      <header className="admin-bar">
-        <div className="admin-brand">
-          P5 Finance <small>Financial Operating System</small>
-        </div>
-        <span className="admin-who">{user.fullName}</span>
-      </header>
-      <nav className="fin-nav" aria-label="Finance sections">
+      <AdminChrome user={user} active="finance" subtitle="Financial Operating System" />
+      <nav className="fin-nav" aria-label="Finance pages">
         {NAV.map((item) => (
           <Link key={item.href} href={item.href} className="fin-nav-link">
             {item.label}
           </Link>
         ))}
-        <Link href="/admin/kb" className="fin-nav-link fin-nav-back">
-          Knowledge Center →
-        </Link>
-        <Link href="/admin" className="fin-nav-link">
-          Leads →
-        </Link>
       </nav>
       {children}
     </>
