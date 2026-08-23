@@ -127,7 +127,9 @@ export async function vendorPortalData(vendorId: number): Promise<VendorPortalDa
   return {
     displayName: vendor.display_name,
     complianceStatus: vendor.compliance_status,
-    paymentHold: vendor.payment_hold,
+    // The hold banner covers BOTH manual holds and compliance-driven holds,
+    // matching the per-bill statuses (found by the end-to-end sweep).
+    paymentHold: vendor.payment_hold || vendor.compliance_status === "Payment Hold",
     docs: docs.map((d) => ({
       docType: d.doc_type,
       status: d.status,
