@@ -110,3 +110,20 @@
   .fin-nav-link, .fin-subnav-link { white-space: nowrap; }
   .fin-nav-back { margin-left: 0; }
 }
+
+/* A single data-quality finding: the problem, then why it matters, then the
+   fix. Set apart from body text so a list of them stays scannable. */
+.fin-finding {
+  border-left: 3px solid var(--line, #d8d8d8);
+  padding: 0.35rem 0 0.35rem 0.9rem;
+  margin: 1rem 0;
+}
+
+.fin-finding h3 {
+  margin: 0 0 0.35rem;
+  font-size: 1rem;
+}
+
+.fin-finding p {
+  margin: 0 0 0.4rem;
+}

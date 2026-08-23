@@ -14,6 +14,7 @@ import { getSessionUser, type SessionUser } from "../../lib/auth.ts";
 import { query, queryOne } from "../../lib/db.ts";
 import { runFinanceDaily } from "../../lib/finance/jobs.ts";
 import { runQboSync } from "../../lib/finance/qbo/sync.ts";
+import { runQboAudit } from "../../lib/finance/qbo/audit-scan.ts";
 import { buildMoneyRun, persistMoneyRun } from "../../lib/finance/money-run.ts";
 import {
   loadFinanceSettings,
@@ -254,6 +255,29 @@ export async function syncNow(): Promise<void> {
   await audit(user.id, "qbo_sync_manual", "qbo_sync_run", result.status, null, result.counts, null);
   revalidatePath("/admin/finance");
   revalidatePath("/admin/finance/health");
+}
+
+/**
+ * Run the QuickBooks data-quality inspection on demand (S214).
+ *
+ * The same pass the daily job runs, so a person who has just fixed something
+ * can confirm it cleared rather than waiting until tomorrow morning to find out.
+ */
+export async function runQboAuditNow(): Promise<void> {
+  const user = await requireFinanceUser();
+  const settings = await loadFinanceSettings();
+  const result = await runQboAudit(settings, "manual");
+  await audit(
+    user.id,
+    "qbo_audit_manual",
+    "qbo_audit_run",
+    String(result.counts.total),
+    null,
+    { counts: result.counts, opened: result.opened, resolved: result.resolved },
+    null,
+  );
+  revalidatePath("/admin/finance");
+  revalidatePath("/admin/finance/data-quality");
 }
 
 export async function runDailyNow(): Promise<void> {

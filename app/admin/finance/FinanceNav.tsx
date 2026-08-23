@@ -23,6 +23,7 @@ export const SECTIONS: Section[] = [
     items: [
       { href: "/admin/finance", label: "Needs your attention" },
       { href: "/admin/finance/daily-report", label: "Daily snapshot" },
+      { href: "/admin/finance/data-quality", label: "QuickBooks check" },
     ],
   },
   {
