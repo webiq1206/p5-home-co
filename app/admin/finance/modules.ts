@@ -17,7 +17,7 @@ import {
   type AgingSummary,
   type ForecastWeek,
 } from "../../lib/finance/aging.ts";
-import { projectFunding, roundMoney } from "../../lib/finance/engines.ts";
+import { backlog, forecastIsStale, projectFunding, roundMoney } from "../../lib/finance/engines.ts";
 import {
   cashPosition,
   openBills,
@@ -25,6 +25,7 @@ import {
   type OpenTxn,
 } from "../../lib/finance/reporting.ts";
 import { loadFinanceSettings } from "../../lib/finance/settings.ts";
+import { wipRow, wipTotals } from "../../lib/finance/wip.ts";
 
 // ---------------------------------------------------------------------------
 // Customers & AR
@@ -542,4 +543,165 @@ export async function debtBoard(): Promise<{ debts: DebtRow[]; totalBalance: num
     debts,
     totalBalance: roundMoney(debts.reduce((s, d) => s + d.currentBalance, 0)),
   };
+}
+
+// ---------------------------------------------------------------------------
+// Reports
+// ---------------------------------------------------------------------------
+
+export type WipScheduleRow = {
+  p5Id: string;
+  name: string;
+  division: string;
+  revisedContract: number;
+  costToDate: number;
+  projectedFinalCost: number;
+  percentComplete: number;
+  earnedRevenue: number;
+  billedToDate: number;
+  overbilled: number;
+  underbilled: number;
+  projectedGrossProfit: number;
+  projectedGrossMarginPct: number;
+  /** True when the ETC behind these numbers is stale enough to distrust. */
+  forecastStale: boolean;
+};
+
+export async function wipSchedule(): Promise<{
+  rows: WipScheduleRow[];
+  totals: ReturnType<typeof wipTotals>;
+  backlogValue: number;
+  staleCount: number;
+}> {
+  const settings = await loadFinanceSettings();
+  const projects = await query<{
+    id: string; p5_id: string; name: string; division: string;
+    contract_amount: string; approved_change_orders: string;
+    etc_amount: string; etc_updated_at: Date | null; qbo_customer_id: string | null;
+  }>(
+    `SELECT id, p5_id, name, division, contract_amount, approved_change_orders,
+            etc_amount, etc_updated_at, qbo_customer_id
+       FROM p5_project
+      WHERE status NOT IN ('cancelled')
+      ORDER BY p5_id`,
+  );
+
+  const rows: WipScheduleRow[] = [];
+  const computed: ReturnType<typeof wipRow>[] = [];
+
+  for (const p of projects) {
+    let costToDate = 0;
+    let billedToDate = 0;
+    if (p.qbo_customer_id) {
+      const [costs, billed] = await Promise.all([
+        query<{ total: string | null }>(
+          `SELECT SUM(total) AS total FROM qbo_txn
+            WHERE txn_type IN ('Bill','Purchase') AND customer_qbo_id = $1`,
+          [p.qbo_customer_id],
+        ),
+        query<{ total: string | null }>(
+          `SELECT SUM(total) AS total FROM qbo_txn
+            WHERE txn_type = 'Invoice' AND customer_qbo_id = $1`,
+          [p.qbo_customer_id],
+        ),
+      ]);
+      costToDate = Number(costs[0]?.total ?? 0);
+      billedToDate = Number(billed[0]?.total ?? 0);
+    }
+
+    const row = wipRow({
+      revisedContract:
+        Number(p.contract_amount ?? 0) + Number(p.approved_change_orders ?? 0),
+      costToDate,
+      estimateToComplete: Number(p.etc_amount ?? 0),
+      billedToDate,
+    });
+    computed.push(row);
+
+    const stale = forecastIsStale(
+      p.etc_updated_at ? new Date(p.etc_updated_at) : null,
+      new Date(),
+      settings,
+    );
+
+    rows.push({
+      p5Id: p.p5_id,
+      name: p.name,
+      division: p.division,
+      ...row,
+      forecastStale: stale,
+    });
+  }
+
+  return {
+    rows,
+    totals: wipTotals(computed),
+    backlogValue: backlog(
+      computed.map((r) => ({
+        revisedContract: r.revisedContract,
+        earnedToDate: r.earnedRevenue,
+      })),
+    ),
+    staleCount: rows.filter((r) => r.forecastStale).length,
+  };
+}
+
+export type ScheduledReportStatus = {
+  name: string;
+  cadence: string;
+  lastRun: string | null;
+  status: string;
+  detail: string;
+};
+
+/** What the scheduler has actually produced, rather than what it should. */
+export async function scheduledReportStatus(): Promise<ScheduledReportStatus[]> {
+  const [dailyJob, moneyRuns, snapshot] = await Promise.all([
+    query<{ started_at: Date; status: string; error: string | null }>(
+      `SELECT started_at, status, error FROM job_run
+        WHERE job_name = 'finance_daily' ORDER BY started_at DESC LIMIT 1`,
+    ),
+    query<{ kind: string; covers_date: string; created_at: Date }>(
+      `SELECT kind, covers_date::text, created_at FROM money_run
+        ORDER BY created_at DESC LIMIT 5`,
+    ),
+    query<{ covers_date: string }>(
+      `SELECT covers_date::text FROM finance_snapshot ORDER BY covers_date DESC LIMIT 1`,
+    ),
+  ]);
+
+  const daily = dailyJob[0];
+  const prelim = moneyRuns.find((m) => m.kind === "preliminary");
+  const final = moneyRuns.find((m) => m.kind === "final");
+
+  return [
+    {
+      name: "Daily finance pass",
+      cadence: "Daily, 6am Mountain",
+      lastRun: daily ? new Date(daily.started_at).toLocaleString() : null,
+      status: daily?.status ?? "never run",
+      detail: daily?.error ?? "Sync, attention scan, Money Run, snapshot, daily report.",
+    },
+    {
+      name: "Preliminary Money Run",
+      cadence: "Wednesdays",
+      lastRun: prelim ? new Date(prelim.created_at).toLocaleString() : null,
+      status: prelim ? "recorded" : "never run",
+      detail: prelim ? `Covers ${prelim.covers_date}.` : "Produced by the Wednesday pass.",
+    },
+    {
+      name: "Final Money Run",
+      cadence: "Fridays",
+      lastRun: final ? new Date(final.created_at).toLocaleString() : null,
+      status: final ? "recorded" : "never run",
+      detail: final ? `Covers ${final.covers_date}.` : "Produced by the Friday pass.",
+    },
+    {
+      name: "Daily trend snapshot",
+      cadence: "Daily",
+      lastRun: snapshot[0]?.covers_date ?? null,
+      status: snapshot.length ? "recorded" : "never run",
+      detail: "Feeds trend comparisons in the daily report.",
+    },
+  ];
 }

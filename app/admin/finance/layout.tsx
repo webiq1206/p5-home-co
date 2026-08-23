@@ -30,6 +30,7 @@ const NAV: { href: string; label: string }[] = [
   { href: "/admin/finance/subcontracts", label: "Subcontracts" },
   { href: "/admin/finance/assets", label: "Assets & Debt" },
   { href: "/admin/finance/tax", label: "Tax Center" },
+  { href: "/admin/finance/reports", label: "Reports" },
   { href: "/admin/finance/draws", label: "Draws" },
   { href: "/admin/finance/registries", label: "Registries" },
   { href: "/admin/finance/owners", label: "Owners" },
@@ -64,6 +65,11 @@ export default async function FinanceLayout({
           software they govern rather than only by direct URL. */}
       <footer className="fin-legal">
         <span>P5 Home Co. LLC</span>
+        {/* Intuit asks that an app give users a way to reach support from
+            inside it, rather than only on a marketing page. */}
+        <a href="mailto:accounting@p5homeco.com?subject=P5%20Finance%20support">
+          Need help?
+        </a>
         <Link href="/legal/terms">Terms of Use</Link>
         <Link href="/legal/privacy">Privacy Policy</Link>
         <Link href="/legal/quickbooks-disconnect">Disconnecting QuickBooks</Link>

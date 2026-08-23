@@ -43,13 +43,19 @@ export async function qboRequest<T>(
     if (res.ok) return (await res.json()) as T;
 
     const body = await res.text();
+    // Intuit stamps every response with a transaction id. It is the handle
+    // their support team asks for first, and it is worthless if we only learn
+    // of a failure from a stack trace that never captured it.
+    const tid = res.headers.get("intuit_tid") ?? res.headers.get("intuit-tid");
+    const trace = tid ? ` [intuit_tid ${tid}]` : "";
+
     // 429 and 5xx are retryable; anything else is a real error to surface.
     if (res.status === 429 || res.status >= 500) {
-      lastError = new Error(`QBO ${res.status}: ${body.slice(0, 200)}`);
+      lastError = new Error(`QBO ${res.status}${trace}: ${body.slice(0, 200)}`);
       await sleep(500 * 2 ** attempt);
       continue;
     }
-    throw new Error(`QBO ${res.status} on ${path}: ${body.slice(0, 500)}`);
+    throw new Error(`QBO ${res.status} on ${path}${trace}: ${body.slice(0, 500)}`);
   }
   throw lastError ?? new Error("QBO request failed.");
 }
