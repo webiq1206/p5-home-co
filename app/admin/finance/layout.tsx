@@ -27,6 +27,8 @@ const NAV: { href: string; label: string }[] = [
   { href: "/admin/finance/customers", label: "Customers & AR" },
   { href: "/admin/finance/vendors", label: "Vendors" },
   { href: "/admin/finance/bills", label: "Bills & Payments" },
+  { href: "/admin/finance/subcontracts", label: "Subcontracts" },
+  { href: "/admin/finance/assets", label: "Assets & Debt" },
   { href: "/admin/finance/tax", label: "Tax Center" },
   { href: "/admin/finance/draws", label: "Draws" },
   { href: "/admin/finance/registries", label: "Registries" },
