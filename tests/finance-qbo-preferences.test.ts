@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 
 import {
   REQUIRED_PREFERENCES,
+  UI_VERIFIED,
   checkPreferences,
   readPreference,
 } from "../app/lib/finance/qbo/preferences.ts";
@@ -119,7 +120,8 @@ test("only settings that are not confirmed on come back", () => {
 });
 
 test("an empty payload reports every setting as unknown, not as broken", () => {
-  const findings = checkPreferences({});
+  // No attestations, so this tests the reading alone.
+  const findings = checkPreferences({}, "2026-08-24", {});
   assert.equal(findings.length, REQUIRED_PREFERENCES.length);
   assert.ok(findings.every((f) => f.state === "unknown"));
 });
@@ -136,4 +138,77 @@ test("every required setting says where to find it and why it matters", () => {
 test("preference keys are unique", () => {
   const keys = REQUIRED_PREFERENCES.map((c) => c.key);
   assert.equal(new Set(keys).size, keys.length);
+});
+
+// ---------------------------------------------------------------------------
+// Attestations: for the settings QuickBooks genuinely will not report.
+// ---------------------------------------------------------------------------
+
+test("a person's confirmation closes a setting the API cannot report", () => {
+  // Otherwise these nag every morning forever, and a permanently unfixable
+  // item is how the whole list gets ignored.
+  const findings = checkPreferences({}, "2026-08-24", {
+    projects_on: { verifiedOn: "2026-08-23", state: "on", verifiedBy: "someone" },
+  });
+  assert.ok(!findings.some((f) => f.key === "projects_on"));
+});
+
+test("a live reading beats an attestation, in both directions", () => {
+  // Somebody's memory of looking in August must not override QuickBooks
+  // saying "off" this morning.
+  const findings = checkPreferences(
+    { ProjectsPrefs: { isProjectsEnabled: false } },
+    "2026-08-24",
+    { projects_on: { verifiedOn: "2026-08-23", state: "on", verifiedBy: "someone" } },
+  );
+  const projects = findings.find((f) => f.key === "projects_on");
+  assert.equal(projects?.state, "off");
+  assert.equal(projects?.attestation, undefined, "a live reading is not an attestation");
+});
+
+test("an attestation someone confirmed as OFF stays a finding", () => {
+  const findings = checkPreferences({}, "2026-08-24", {
+    projects_on: { verifiedOn: "2026-08-23", state: "off", verifiedBy: "someone" },
+  });
+  const projects = findings.find((f) => f.key === "projects_on");
+  assert.equal(projects?.state, "off");
+  assert.equal(projects?.attestation?.state, "off");
+});
+
+test("an attestation goes stale and has to be renewed", () => {
+  // Evidence that somebody looked on a day is not a permanent truth.
+  const findings = checkPreferences({}, "2028-01-01", {
+    projects_on: { verifiedOn: "2026-08-23", state: "on", verifiedBy: "someone" },
+  });
+  const projects = findings.find((f) => f.key === "projects_on");
+  assert.equal(projects?.state, "unknown", "an expired attestation is worth no more than none");
+  assert.equal(projects?.attestation?.expired, true);
+});
+
+test("the attestation records who looked and when, not just the answer", () => {
+  const findings = checkPreferences({}, "2026-08-24", {
+    projects_on: { verifiedOn: "2026-08-23", state: "off", verifiedBy: "accounting@p5homeco.com" },
+  });
+  const projects = findings.find((f) => f.key === "projects_on");
+  assert.equal(projects?.attestation?.verifiedBy, "accounting@p5homeco.com");
+  assert.equal(projects?.attestation?.verifiedOn, "2026-08-23");
+  assert.equal(projects?.foundAt, null, "an attestation has no API path");
+});
+
+test("every attestation names a setting that actually exists", () => {
+  // An attestation for a key no check uses is silently dead, and the setting
+  // it was meant to cover goes unwatched - which is how this was found.
+  const keys = new Set(REQUIRED_PREFERENCES.map((c) => c.key));
+  for (const key of Object.keys(UI_VERIFIED)) {
+    assert.ok(keys.has(key), `UI_VERIFIED has ${key}, which is not a required preference`);
+  }
+});
+
+test("attestations are only for settings the API cannot report", () => {
+  // If QuickBooks can answer, we should ask it rather than trust a memory.
+  for (const key of Object.keys(UI_VERIFIED)) {
+    const check = REQUIRED_PREFERENCES.find((c) => c.key === key);
+    assert.ok(check, key);
+    assert.ok(check.paths.length > 0, `${key}: still needs a candidate path to try first`);
+  }
 });

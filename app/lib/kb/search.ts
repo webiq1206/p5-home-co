@@ -154,9 +154,36 @@ type IndexedArticle = {
 
 const FIELD_WEIGHTS = { title: 6, keywords: 5, summary: 3, heading: 3, body: 1 };
 
+/**
+ * How many times one word in the body may count toward a score.
+ *
+ * Without a ceiling, length wins. A long reference article that happens to say
+ * "vendor" forty times outranks the short article that is actually ABOUT
+ * vendors, purely by repetition - and the longest article in the section
+ * quietly becomes the answer to everything.
+ *
+ * Title, summary, headings and keywords are deliberately not capped: those are
+ * short and hand-chosen, so repetition there is a real signal.
+ */
+const BODY_TOKEN_CAP = 4;
+
 function addTokens(weights: Map<string, number>, text: string, weight: number): void {
   for (const token of tokenize(text)) {
     weights.set(token, (weights.get(token) ?? 0) + weight);
+  }
+}
+
+/** Body tokens, counted per article and capped before they are weighted. */
+function addBodyTokens(weights: Map<string, number>, texts: string[]): void {
+  const counts = new Map<string, number>();
+  for (const text of texts) {
+    for (const token of tokenize(text)) {
+      counts.set(token, (counts.get(token) ?? 0) + 1);
+    }
+  }
+  for (const [token, count] of counts) {
+    const capped = Math.min(count, BODY_TOKEN_CAP) * FIELD_WEIGHTS.body;
+    weights.set(token, (weights.get(token) ?? 0) + capped);
   }
 }
 
@@ -167,11 +194,16 @@ export function buildIndex(articles: Article[]): IndexedArticle[] {
     addTokens(weights, article.summary, FIELD_WEIGHTS.summary);
     for (const kw of article.keywords ?? []) addTokens(weights, kw, FIELD_WEIGHTS.keywords);
     const blockTexts: string[] = [];
+    const bodyTexts: string[] = [];
     for (const block of article.blocks) {
       const text = blockText(block);
       blockTexts.push(text);
-      addTokens(weights, text, block.t === "h" ? FIELD_WEIGHTS.heading : FIELD_WEIGHTS.body);
+      // Headings stay uncapped - an author writing a heading is naming the
+      // subject, not repeating a word in passing.
+      if (block.t === "h") addTokens(weights, text, FIELD_WEIGHTS.heading);
+      else bodyTexts.push(text);
     }
+    addBodyTokens(weights, bodyTexts);
     return { article, weights, blockTexts };
   });
 }

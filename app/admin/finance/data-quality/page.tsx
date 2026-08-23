@@ -289,6 +289,19 @@ export default async function DataQualityPage() {
                             Cannot see it
                           </span>
                         )}
+                        {/* An attestation is evidence somebody looked on a
+                            day, not a live reading. Saying which it is keeps
+                            the two from being confused. */}
+                        {f.attestation && (
+                          <>
+                            <br />
+                            <span className="fin-footnote">
+                              {f.attestation.expired
+                                ? `Last confirmed ${f.attestation.verifiedOn} by ${f.attestation.verifiedBy} - too long ago to rely on. Please look again.`
+                                : `Confirmed by ${f.attestation.verifiedBy} on ${f.attestation.verifiedOn}.`}
+                            </span>
+                          </>
+                        )}
                       </td>
                       <td>{f.consequence}</td>
                       <td>{f.path}</td>

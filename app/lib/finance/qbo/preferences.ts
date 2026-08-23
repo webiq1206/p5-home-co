@@ -127,6 +127,21 @@ export const REQUIRED_PREFERENCES: PreferenceCheck[] = [
     paths: ["VendorAndPurchasesPrefs.BillableExpenseTracking"],
   },
   {
+    key: "duplicate_bill_warning",
+    label: "Warn me if I enter a bill number that's already been used for that vendor",
+    // Verified in the tenant 2026-08-23: this sits under Advanced, apart from
+    // the rest of the bill settings, which is why it is easy to miss.
+    path: "Settings > Advanced > Other preferences",
+    severity: "urgent",
+    plain:
+      "Warns when a vendor's invoice number has already been entered, which is the moment right before a bill gets paid twice.",
+    consequence:
+      "Nothing stops the same vendor invoice being typed in twice, and on payment day the second copy is indistinguishable from a real bill.",
+    // QuickBooks does not report this one through its API at all, so it relies
+    // on a person confirming it. See UI_VERIFIED.
+    paths: ["OtherPrefs.WarnDuplicateBillNumber"],
+  },
+  {
     key: "default_bill_terms",
     label: "Default bill payment terms",
     path: "Settings > Expenses > Bills and expenses",
@@ -187,10 +202,71 @@ export const REQUIRED_PREFERENCES: PreferenceCheck[] = [
 
 export type QboPreferences = Record<string, unknown>;
 
+/**
+ * Settings confirmed by a person looking at QuickBooks directly.
+ *
+ * QuickBooks genuinely does not expose some of these through its API - whether
+ * Projects is on, whether purchase orders are enabled, whether the duplicate
+ * bill number warning is set. Those would otherwise report "cannot see it"
+ * every morning forever, and a permanent unfixable item on an alert list is
+ * how the whole list gets ignored.
+ *
+ * So a person can attest to one instead. The date is the point: an attestation
+ * is evidence that somebody looked ON A DAY, not a permanent truth, and it goes
+ * stale like anything else. Nothing here is written by code - adding an entry
+ * means a human opened the settings page and read the value.
+ */
+export type UiVerification = {
+  /** ISO date somebody looked at the setting in QuickBooks. */
+  verifiedOn: string;
+  /** What they saw. */
+  state: "on" | "off";
+  /** Who looked. */
+  verifiedBy: string;
+};
+
+/**
+ * Verified in the P5 tenant on 2026-08-23 by walking the settings pages.
+ *
+ * Only the settings QuickBooks will not report through its API belong here. If
+ * the API can answer, the API wins - a live reading always beats a memory of
+ * one.
+ */
+export const UI_VERIFIED: Record<string, UiVerification> = {
+  projects_on: { verifiedOn: "2026-08-23", state: "on", verifiedBy: "accounting@p5homeco.com" },
+  purchase_orders_on: { verifiedOn: "2026-08-23", state: "on", verifiedBy: "accounting@p5homeco.com" },
+  duplicate_bill_warning: {
+    verifiedOn: "2026-08-23",
+    state: "on",
+    verifiedBy: "accounting@p5homeco.com",
+  },
+  billable_expense_tracking: {
+    verifiedOn: "2026-08-23",
+    state: "on",
+    verifiedBy: "accounting@p5homeco.com",
+  },
+};
+
+/** An attestation older than this is treated as expired and asked for again. */
+export const VERIFICATION_VALID_DAYS = 180;
+
+function daysBetween(fromIso: string, toIso: string): number {
+  const from = new Date(`${fromIso}T00:00:00Z`).getTime();
+  const to = new Date(`${toIso}T00:00:00Z`).getTime();
+  if (Number.isNaN(from) || Number.isNaN(to)) return Number.POSITIVE_INFINITY;
+  return Math.floor((to - from) / 86_400_000);
+}
+
 export type PreferenceFinding = Omit<PreferenceCheck, "paths" | "kind"> & {
   state: PreferenceState;
   /** Which path the value came from, so a wrong mapping can be corrected. */
   foundAt: string | null;
+  /**
+   * Set when the state came from a person looking rather than from the API.
+   * Carried through so the page can say who looked and when, instead of
+   * presenting an attestation as though it were a live reading.
+   */
+  attestation?: UiVerification & { expired: boolean };
 };
 
 /** Walks a dotted path, returning undefined rather than throwing on a gap. */
@@ -238,21 +314,36 @@ export function readPreference(
  * change a setting, one to confirm what we cannot see. They are reported
  * differently so nobody is sent to fix something that was never broken.
  */
-export function checkPreferences(prefs: QboPreferences): PreferenceFinding[] {
+export function checkPreferences(
+  prefs: QboPreferences,
+  today = new Date().toISOString().slice(0, 10),
+  verifications: Record<string, UiVerification> = UI_VERIFIED,
+): PreferenceFinding[] {
   return REQUIRED_PREFERENCES.map((check) => {
-    const { state, foundAt } = readPreference(prefs, check);
+    const live = readPreference(prefs, check);
+
     // `paths` and `kind` are how the value was located; they are noise to
     // everyone downstream, so they do not travel with the finding.
-    return {
+    const base = {
       key: check.key,
       label: check.label,
       path: check.path,
       severity: check.severity,
       plain: check.plain,
       consequence: check.consequence,
-      state,
-      foundAt,
     };
+
+    // A live reading always beats an attestation. Somebody's memory of looking
+    // in August does not override QuickBooks saying "off" this morning.
+    if (live.state !== "unknown") return { ...base, ...live };
+
+    const attested = verifications[check.key];
+    if (!attested) return { ...base, ...live };
+
+    const expired = daysBetween(attested.verifiedOn, today) > VERIFICATION_VALID_DAYS;
+    // An expired attestation is worth no more than none at all.
+    const state: PreferenceState = expired ? "unknown" : attested.state;
+    return { ...base, state, foundAt: null, attestation: { ...attested, expired } };
   }).filter((f) => f.state !== "on");
 }
 

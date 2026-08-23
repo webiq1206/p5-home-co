@@ -370,7 +370,10 @@ export const RULES = {
     entity: "bill",
     severity: "urgent",
     enforcement: "qbo_setting",
-    qboSetting: "Settings > Expenses > Bills and expenses > Warn if duplicate bill number is used",
+    // Verified in the tenant 2026-08-23: this lives under Advanced, not
+    // Expenses where the rest of the bill settings are.
+    qboSetting:
+      "Settings > Advanced > Other preferences > Warn me if I enter a bill number that's already been used for that vendor",
     plain: "The vendor sent us one invoice, and it has been typed into QuickBooks twice.",
     consequence:
       "This is how a company pays the same bill twice. The job also carries double the cost, so its profit looks worse than it really is.",
