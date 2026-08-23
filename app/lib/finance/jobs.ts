@@ -17,6 +17,7 @@ import { runAttentionScan } from "./attention.ts";
 import { buildMoneyRun, persistMoneyRun } from "./money-run.ts";
 import { isQboConnected } from "./qbo/oauth.ts";
 import { runQboSync } from "./qbo/sync.ts";
+import { processPendingWebhookEvents } from "./qbo/webhook.ts";
 import { loadFinanceSettings } from "./settings.ts";
 
 export type FinanceJobSummary = {
@@ -48,6 +49,24 @@ export async function runFinanceDaily(
     }
   } catch (error) {
     steps.push({ name: "qbo_sync", ok: false, detail: (error as Error).message });
+  }
+
+  // 1b. Webhook backlog: the scheduled reconciliation fallback (S155). Any
+  // event the post-response pass missed gets processed here.
+  try {
+    if (await isQboConnected()) {
+      const wh = await processPendingWebhookEvents();
+      steps.push({
+        name: "webhook_backlog",
+        ok: wh.failed === 0,
+        detail:
+          wh.processed === 0 && wh.failed === 0
+            ? "No pending webhook events."
+            : `Processed ${wh.processed}, failed ${wh.failed}.`,
+      });
+    }
+  } catch (error) {
+    steps.push({ name: "webhook_backlog", ok: false, detail: (error as Error).message });
   }
 
   // 2. Attention scan.

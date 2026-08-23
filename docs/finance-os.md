@@ -29,6 +29,7 @@ attention items, forecasts and audit history. It is never a second ledger.
 | `QBO_TOKEN_KEY` | 32 bytes base64; AES-256-GCM key for tokens at rest |
 | `QBO_ENV` | `production` (default) or `sandbox` |
 | `WATCHDOG_SECRET` | already used by the watchdog; also authenticates `/api/jobs/finance` |
+| `QBO_WEBHOOK_VERIFIER` | verifier token from the Intuit developer portal (Webhooks) |
 
 Generate a token key:
 `node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"`
@@ -86,10 +87,21 @@ recorded in portal_submission and surface as attention items until reviewed
 to the AP intake email (S100); e-signature of waivers stays with the
 attorney-approved process (S206).
 
+## Webhooks (S155)
+
+Register `https://<host>/api/qbo/webhook` in the Intuit developer portal and
+set `QBO_WEBHOOK_VERIFIER`. Deliveries are HMAC-verified against the raw
+body (timing-safe compare) before anything touches the database; unverified
+requests are 401s. Events persist to qbo_webhook_event - one pending row per
+entity so bursts coalesce - then the changed entities are refetched after the
+response is sent. The daily job re-processes anything still pending, which is
+the scheduled reconciliation fallback the spec requires alongside webhooks
+and the daily full sync. Deletes and merges remove read-model rows; replays
+are harmless because every write is the same idempotent upsert the bulk sync
+uses. Webhook health reports separately as 'quickbooks-webhooks'.
+
 ## Not yet built (deliberately)
 
-- QBO webhooks (S155 uses daily + on-demand sync; webhook signature plumbing
-  can be added without changing the read model).
 - Lender draw packages (S77), Idaho disclosure document generation (S78-80):
   need the attorney-approved templates first (S206).
 - Write-paths into QBO (invoice/bill creation from P5): the current module is
