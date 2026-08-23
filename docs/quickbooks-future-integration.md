@@ -36,3 +36,12 @@ HubSpot deals directly into QuickBooks.
 
 The intended architecture is **Handoff → QuickBooks**. A second path from the
 CRM into accounting would produce duplicate customers and invoices.
+
+---
+
+**Update (2026-08-22):** the owner commissioned the full P5 Financial Operating
+System, superseding the "planned, read-only" scope above. The integration now
+lives in `app/lib/finance/` with the feature documented in `docs/finance-os.md`.
+The architectural principles of this document survive unchanged: QuickBooks is
+the accounting system of record, the P5 side never becomes a second ledger, and
+no duplicate customer/invoice path is created.

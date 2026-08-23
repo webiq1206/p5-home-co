@@ -1,0 +1,169 @@
+/**
+ * Intuit OAuth2 for QuickBooks Online (S201).
+ *
+ * Configuration (environment):
+ *   QBO_CLIENT_ID / QBO_CLIENT_SECRET  - from the Intuit developer app
+ *   QBO_ENV                            - 'production' (default) or 'sandbox'
+ *   QBO_TOKEN_KEY                      - see crypto.ts
+ *
+ * Tokens are stored AES-encrypted in qbo_connection (single row). Access
+ * tokens live ~1 hour and refresh tokens ~100 days; getFreshAccessToken
+ * refreshes transparently and persists the rotated refresh token, because
+ * Intuit rotates it on every refresh and the old one dies.
+ */
+
+import { randomBytes } from "node:crypto";
+
+import { query, queryOne } from "../../db.ts";
+import { decryptSecret, encryptSecret } from "../crypto.ts";
+
+const AUTH_URL = "https://appcenter.intuit.com/connect/oauth2";
+const TOKEN_URL = "https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer";
+const SCOPE = "com.intuit.quickbooks.accounting";
+
+export function isQboConfigured(): boolean {
+  return Boolean(process.env.QBO_CLIENT_ID && process.env.QBO_CLIENT_SECRET);
+}
+
+export function qboApiHost(): string {
+  return process.env.QBO_ENV === "sandbox"
+    ? "https://sandbox-quickbooks.api.intuit.com"
+    : "https://quickbooks.api.intuit.com";
+}
+
+function clientCredentials(): { id: string; secret: string } {
+  const id = process.env.QBO_CLIENT_ID;
+  const secret = process.env.QBO_CLIENT_SECRET;
+  if (!id || !secret) {
+    throw new Error("QBO_CLIENT_ID / QBO_CLIENT_SECRET are not set.");
+  }
+  return { id, secret };
+}
+
+/** Build the Intuit consent URL. State is returned for cookie storage. */
+export function buildAuthorizeUrl(redirectUri: string): { url: string; state: string } {
+  const { id } = clientCredentials();
+  const state = randomBytes(16).toString("base64url");
+  const params = new URLSearchParams({
+    client_id: id,
+    response_type: "code",
+    scope: SCOPE,
+    redirect_uri: redirectUri,
+    state,
+  });
+  return { url: `${AUTH_URL}?${params}`, state };
+}
+
+type TokenResponse = {
+  access_token: string;
+  refresh_token: string;
+  expires_in: number;               // seconds
+  x_refresh_token_expires_in: number;
+};
+
+async function tokenRequest(body: URLSearchParams): Promise<TokenResponse> {
+  const { id, secret } = clientCredentials();
+  const res = await fetch(TOKEN_URL, {
+    method: "POST",
+    headers: {
+      Authorization: `Basic ${Buffer.from(`${id}:${secret}`).toString("base64")}`,
+      "Content-Type": "application/x-www-form-urlencoded",
+      Accept: "application/json",
+    },
+    body,
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Intuit token endpoint ${res.status}: ${text.slice(0, 300)}`);
+  }
+  return (await res.json()) as TokenResponse;
+}
+
+async function persistTokens(
+  realmId: string,
+  tokens: TokenResponse,
+  connectedBy: number | null,
+): Promise<void> {
+  const now = Date.now();
+  await query(
+    `INSERT INTO qbo_connection
+       (id, realm_id, access_cipher, refresh_cipher, access_expires_at, refresh_expires_at, connected_by)
+     VALUES (1, $1, $2, $3, $4, $5, $6)
+     ON CONFLICT (id) DO UPDATE SET
+       realm_id = EXCLUDED.realm_id,
+       access_cipher = EXCLUDED.access_cipher,
+       refresh_cipher = EXCLUDED.refresh_cipher,
+       access_expires_at = EXCLUDED.access_expires_at,
+       refresh_expires_at = EXCLUDED.refresh_expires_at,
+       updated_at = now()`,
+    [
+      realmId,
+      encryptSecret(tokens.access_token),
+      encryptSecret(tokens.refresh_token),
+      new Date(now + tokens.expires_in * 1000),
+      new Date(now + tokens.x_refresh_token_expires_in * 1000),
+      connectedBy,
+    ],
+  );
+}
+
+/** OAuth callback: exchange the authorization code and store the connection. */
+export async function completeConnection(
+  code: string,
+  realmId: string,
+  redirectUri: string,
+  connectedBy: number | null,
+): Promise<void> {
+  const tokens = await tokenRequest(
+    new URLSearchParams({
+      grant_type: "authorization_code",
+      code,
+      redirect_uri: redirectUri,
+    }),
+  );
+  await persistTokens(realmId, tokens, connectedBy);
+}
+
+export type QboConnection = { realmId: string; accessToken: string };
+
+/**
+ * Return a valid access token, refreshing when within 2 minutes of expiry.
+ * Returns null when no connection exists - callers surface "not connected"
+ * rather than crashing (integration stays 'planned'/'not_connected').
+ */
+export async function getFreshAccessToken(): Promise<QboConnection | null> {
+  const row = await queryOne<{
+    realm_id: string;
+    access_cipher: string;
+    refresh_cipher: string;
+    access_expires_at: Date;
+    refresh_expires_at: Date;
+  }>("SELECT * FROM qbo_connection WHERE id = 1");
+  if (!row) return null;
+
+  if (new Date(row.refresh_expires_at).getTime() < Date.now()) {
+    throw new Error(
+      "QuickBooks refresh token has expired; an administrator must reconnect.",
+    );
+  }
+
+  if (new Date(row.access_expires_at).getTime() > Date.now() + 120_000) {
+    return { realmId: row.realm_id, accessToken: decryptSecret(row.access_cipher) };
+  }
+
+  const tokens = await tokenRequest(
+    new URLSearchParams({
+      grant_type: "refresh_token",
+      refresh_token: decryptSecret(row.refresh_cipher),
+    }),
+  );
+  await persistTokens(row.realm_id, tokens, null);
+  return { realmId: row.realm_id, accessToken: tokens.access_token };
+}
+
+export async function isQboConnected(): Promise<boolean> {
+  const row = await queryOne<{ refresh_expires_at: Date }>(
+    "SELECT refresh_expires_at FROM qbo_connection WHERE id = 1",
+  );
+  return Boolean(row && new Date(row.refresh_expires_at).getTime() > Date.now());
+}

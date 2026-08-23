@@ -1,0 +1,53 @@
+/*
+ * Finance section styles. Extends the admin vocabulary in admin.css; colour
+ * tokens come from the approved marketing :root. Same rules as the lead
+ * manager: dense, legible, one-handed on a phone (S148).
+ */
+
+.fin-nav {
+  position: sticky; top: 0; z-index: 40;
+  display: flex; flex-wrap: wrap; gap: 2px;
+  padding: 6px 14px;
+  background: var(--paper); border-bottom: 1px solid var(--line);
+}
+.fin-nav-link {
+  padding: 8px 12px;
+  font-size: 12px; font-weight: 700; letter-spacing: .06em;
+  color: var(--ink-2);
+}
+.fin-nav-link:hover, .fin-nav-link:focus-visible { color: var(--ink); background: var(--bone); }
+.fin-nav-back { margin-left: auto; }
+
+/* Money tables ----------------------------------------------------------- */
+.fin-table { width: 100%; border-collapse: collapse; background: var(--paper); border: 1px solid var(--line); }
+.fin-table th {
+  padding: 10px 12px; border-bottom: 1px solid var(--line);
+  text-align: left; font-size: 11px; font-weight: 750; letter-spacing: .1em; text-transform: uppercase;
+}
+.fin-table td { padding: 10px 12px; border-bottom: 1px solid var(--line); font-size: 14px; }
+.fin-table tr:last-child td { border-bottom: 0; }
+.fin-num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.fin-table-wrap { overflow-x: auto; }
+
+/* Severity + status chips ------------------------------------------------- */
+.fin-chip { display: inline-block; padding: 3px 9px; border: 1px solid var(--line); background: var(--bone); font-size: 11px; font-weight: 700; }
+.fin-chip-critical { border-color: #9a2f2f; background: #f6dede; color: #9a2f2f; }
+.fin-chip-urgent   { border-color: #b4622a; background: #f9e9dc; color: #8a4a1e; }
+.fin-chip-warning  { border-color: var(--bronze); background: #fdf6ee; }
+.fin-chip-info     { border-color: var(--sage); }
+.fin-chip-green    { border-color: var(--moss); color: var(--moss); }
+
+/* Headline numbers (S213) ------------------------------------------------- */
+.fin-hero { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; margin: 0 0 26px; }
+.fin-hero .admin-stat b { font-size: 24px; }
+.fin-negative b { color: #9a2f2f; }
+.fin-provisional { border-style: dashed; }
+
+.fin-section { margin: 0 0 30px; }
+.fin-section > h2 { margin: 0 0 12px; font-size: 12px; font-weight: 750; letter-spacing: .16em; text-transform: uppercase; }
+.fin-footnote { margin: 8px 0 0; color: var(--ink-2); font-size: 12px; }
+
+/* Inline forms ------------------------------------------------------------ */
+.fin-inline-form { display: flex; flex-wrap: wrap; gap: 8px; align-items: end; }
+.fin-inline-form .lead-field { min-width: 140px; }
+.fin-inline-form button { min-height: 46px; }
