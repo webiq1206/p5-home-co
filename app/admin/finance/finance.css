@@ -68,3 +68,45 @@
 }
 .fin-legal a { color: var(--ink-2); text-decoration: underline; text-underline-offset: 3px; }
 .fin-legal a:hover { color: var(--bronze); }
+
+/* Two-tier navigation ------------------------------------------------------
+   The top row is where you are going; the second row is what is inside it.
+   The current section is marked so the second row never looks orphaned. */
+.fin-nav-current {
+  color: var(--ink);
+  box-shadow: inset 0 -2px 0 var(--moss);
+}
+.fin-nav-current:hover { background: transparent; }
+
+.fin-subnav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  padding: 8px 14px;
+  background: var(--bone);
+  border-bottom: 1px solid var(--line);
+}
+.fin-subnav-link {
+  padding: 6px 12px;
+  border-radius: 999px;
+  color: var(--ink-2);
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-decoration: none;
+}
+.fin-subnav-link:hover,
+.fin-subnav-link:focus-visible { color: var(--ink); background: var(--paper); }
+.fin-subnav-current {
+  background: var(--moss);
+  color: var(--paper);
+}
+.fin-subnav-current:hover { background: var(--moss); color: var(--paper); }
+
+@media (max-width: 640px) {
+  /* On a phone the section row scrolls rather than wrapping into three lines. */
+  .fin-nav, .fin-subnav { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+  .fin-nav::-webkit-scrollbar, .fin-subnav::-webkit-scrollbar { display: none; }
+  .fin-nav-link, .fin-subnav-link { white-space: nowrap; }
+  .fin-nav-back { margin-left: 0; }
+}

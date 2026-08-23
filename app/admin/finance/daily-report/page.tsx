@@ -5,6 +5,7 @@
  */
 
 import { checkDatabase, describeSchemaError, query } from "../../../lib/db.ts";
+import { isQboConnected } from "../../../lib/finance/qbo/oauth.ts";
 import {
   diffReports,
   loadPreviousReport,
@@ -78,6 +79,16 @@ export default async function DailyReportPage() {
   const previous = report ? await loadPreviousReport(report.coversDate) : null;
   const changes = report ? diffReports(previous, report) : [];
 
+  // A stored report keeps whatever was true when it was generated - that is the
+  // point, so the emailed copy and this page can never disagree. But a report
+  // that says "QuickBooks is not connected" while the connection is live reads
+  // as a broken integration rather than an old snapshot, so say which it is.
+  const connectedNow = await isQboConnected();
+  const reportSaysDisconnected = Boolean(
+    report?.limitations?.some((line) => line.includes("QuickBooks is not connected")),
+  );
+  const staleOnConnection = connectedNow && reportSaysDisconnected;
+
   return (
     <main className="admin-main">
       <h1 className="admin-h1">Daily financial snapshot</h1>
@@ -91,6 +102,15 @@ export default async function DailyReportPage() {
           Generate &amp; send now
         </button>
       </form>
+
+      {staleOnConnection && (
+        <div className="admin-notice">
+          <strong>This report predates the QuickBooks connection</strong>
+          It was generated while QuickBooks was still disconnected, so it carries no
+          financial figures. The connection is live now — regenerate above for current
+          numbers, or wait for tomorrow&rsquo;s scheduled pass.
+        </div>
+      )}
 
       {!report ? (
         <div className="admin-empty">
