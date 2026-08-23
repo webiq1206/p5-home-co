@@ -11,6 +11,31 @@ import { createHash } from "node:crypto";
 export type QboRef = { value: string; name?: string };
 
 /**
+ * What makes each write unique in P5's own terms.
+ *
+ * These feed idempotencyKey, so they are the duplicate defence. Every one is
+ * derived from durable P5 row ids and reference numbers - never a clock, a
+ * sequence, or anything a caller could regenerate differently on retry.
+ */
+export const naturalKeys = {
+  customer: (p5CustomerId: number | string): string => `customer:${p5CustomerId}`,
+  project: (p5ProjectId: number | string): string => `project:${p5ProjectId}`,
+  vendor: (p5VendorId: number | string): string => `vendor:${p5VendorId}`,
+  /** A draw is unique per project; re-submitting draw 3 must not bill twice. */
+  invoice: (p5ProjectId: number | string, drawNumber: number | string): string =>
+    `invoice:project:${p5ProjectId}:draw:${drawNumber}`,
+  /** A commitment is unique per project, vendor and P5 reference. */
+  purchaseOrder: (
+    p5ProjectId: number | string,
+    p5VendorId: number | string,
+    reference: string,
+  ): string => `po:project:${p5ProjectId}:vendor:${p5VendorId}:ref:${reference}`,
+  /** A vendor's own invoice number is the thing that must never post twice. */
+  bill: (p5VendorId: number | string, vendorInvoiceNumber: string): string =>
+    `bill:vendor:${p5VendorId}:ref:${vendorInvoiceNumber}`,
+};
+
+/**
  * The duplicate guard.
  *
  * Deterministic from the logical intent, never from a clock or a random value:

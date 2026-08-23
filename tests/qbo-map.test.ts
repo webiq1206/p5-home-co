@@ -8,6 +8,7 @@ import {
   invoicePayload,
   purchaseOrderPayload,
   vendorPayload,
+  naturalKeys,
   withUpdateEnvelope,
 } from "../app/lib/finance/qbo/map.ts";
 
@@ -183,4 +184,38 @@ test("updates carry the concurrency token so a stale write fails loudly", () => 
   assert.equal(envelope.SyncToken, "3");
   assert.equal(envelope.sparse, true);
   assert.equal(envelope.DisplayName, "Renamed");
+});
+
+// ---------------------------------------------------------------------------
+// Natural keys: what actually stops a duplicate bill becoming a duplicate
+// payment. Kept pure so this can be tested without a database.
+// ---------------------------------------------------------------------------
+
+test("a vendor invoice number keys the bill, so re-posting it is caught", () => {
+  const first = naturalKeys.bill(7, "INV-1042");
+  assert.equal(first, naturalKeys.bill(7, "INV-1042"));
+  // A different vendor with the same invoice number is a different bill.
+  assert.notEqual(first, naturalKeys.bill(8, "INV-1042"));
+  assert.notEqual(first, naturalKeys.bill(7, "INV-1043"));
+});
+
+test("a draw is keyed per project, so draw 3 cannot bill the client twice", () => {
+  assert.equal(naturalKeys.invoice(12, 3), naturalKeys.invoice(12, 3));
+  assert.notEqual(naturalKeys.invoice(12, 3), naturalKeys.invoice(12, 4));
+  assert.notEqual(naturalKeys.invoice(12, 3), naturalKeys.invoice(13, 3));
+});
+
+test("a commitment is unique per project, vendor and reference", () => {
+  const key = naturalKeys.purchaseOrder(12, 7, "PO-1");
+  assert.equal(key, naturalKeys.purchaseOrder(12, 7, "PO-1"));
+  assert.notEqual(key, naturalKeys.purchaseOrder(12, 7, "PO-2"));
+  assert.notEqual(key, naturalKeys.purchaseOrder(12, 8, "PO-1"));
+  assert.notEqual(key, naturalKeys.purchaseOrder(13, 7, "PO-1"));
+});
+
+test("name records key off the P5 row id, not the display name", () => {
+  // Renaming a vendor must not let a second QuickBooks record be created.
+  assert.equal(naturalKeys.vendor(7), naturalKeys.vendor("7"));
+  assert.notEqual(naturalKeys.vendor(7), naturalKeys.project(7));
+  assert.notEqual(naturalKeys.vendor(7), naturalKeys.customer(7));
 });

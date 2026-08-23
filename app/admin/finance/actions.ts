@@ -275,3 +275,67 @@ export async function saveMoneyRunNow(formData: FormData): Promise<void> {
     null, { safeCash: run.safeCash.safeCashAvailable, required: run.required.total }, null);
   revalidatePath("/admin/finance/money-run");
 }
+
+// ---------------------------------------------------------------------------
+// Writing to QuickBooks (owner decision 2026-08-23)
+//
+// Administrators only: creating records in the company's books is a higher bar
+// than reading them, and it is the action that can duplicate money if misused.
+// The write layer's intent ledger makes a repeat click harmless, so these
+// deliberately do not add their own guard rail on top of it.
+// ---------------------------------------------------------------------------
+
+async function requireAdministrator(): Promise<SessionUser> {
+  const user = await getSessionUser();
+  if (!user || user.role !== "administrator") {
+    throw new Error("Writing to QuickBooks requires an administrator session.");
+  }
+  return user;
+}
+
+export async function createVendorInQuickBooks(formData: FormData): Promise<void> {
+  const user = await requireAdministrator();
+  const vendorId = Number(formData.get("vendorId"));
+  if (!Number.isFinite(vendorId)) throw new Error("A vendor is required.");
+
+  const { ensureVendorInQbo } = await import("../../lib/finance/qbo/operations.ts");
+  const result = await ensureVendorInQbo(vendorId, { requestedBy: user.id });
+
+  await audit(
+    user.id,
+    result.created ? "qbo_vendor_created" : "qbo_vendor_linked",
+    "vendor",
+    String(vendorId),
+    null,
+    { qboId: result.qboId },
+    null,
+  );
+  revalidatePath("/admin/finance/vendors");
+}
+
+export async function createProjectInQuickBooks(formData: FormData): Promise<void> {
+  const user = await requireAdministrator();
+  const projectId = Number(formData.get("projectId"));
+  const parentCustomerQboId = String(formData.get("parentCustomerQboId") ?? "").trim();
+  if (!Number.isFinite(projectId)) throw new Error("A project is required.");
+  if (!parentCustomerQboId) {
+    throw new Error("Choose the client this project belongs to; QuickBooks projects are sub-customers.");
+  }
+
+  const { ensureProjectInQbo } = await import("../../lib/finance/qbo/operations.ts");
+  const result = await ensureProjectInQbo(projectId, {
+    parentCustomerQboId,
+    requestedBy: user.id,
+  });
+
+  await audit(
+    user.id,
+    result.created ? "qbo_project_created" : "qbo_project_linked",
+    "project",
+    String(projectId),
+    null,
+    { qboId: result.qboId, parentCustomerQboId },
+    null,
+  );
+  revalidatePath("/admin/finance/projects");
+}
