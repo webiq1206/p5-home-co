@@ -17,9 +17,57 @@ import { randomBytes } from "node:crypto";
 import { query, queryOne } from "../../db.ts";
 import { decryptSecret, encryptSecret } from "../crypto.ts";
 
-const AUTH_URL = "https://appcenter.intuit.com/connect/oauth2";
-const TOKEN_URL = "https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer";
+/**
+ * Endpoints come from Intuit's discovery document, which is what they ask apps
+ * to do so a moved endpoint does not break every integration at once. The
+ * constants below are the fallback for when discovery is unreachable - stale
+ * endpoints beat no endpoints, and a connection attempt that fails because we
+ * could not fetch a JSON document would be a poor trade.
+ */
+const DISCOVERY_URL_PRODUCTION =
+  "https://developer.api.intuit.com/.well-known/openid_configuration";
+const DISCOVERY_URL_SANDBOX =
+  "https://developer.api.intuit.com/.well-known/openid_sandbox_configuration";
+
+const FALLBACK_AUTH_URL = "https://appcenter.intuit.com/connect/oauth2";
+const FALLBACK_TOKEN_URL = "https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer";
 const SCOPE = "com.intuit.quickbooks.accounting";
+
+type Endpoints = { authorize: string; token: string };
+
+/** Cached for the process lifetime; these change on the order of years. */
+let discovered: Endpoints | null = null;
+
+async function endpoints(): Promise<Endpoints> {
+  if (discovered) return discovered;
+
+  const url =
+    process.env.QBO_ENV === "sandbox" ? DISCOVERY_URL_SANDBOX : DISCOVERY_URL_PRODUCTION;
+  try {
+    const res = await fetch(url, { headers: { Accept: "application/json" } });
+    if (res.ok) {
+      const doc = (await res.json()) as {
+        authorization_endpoint?: string;
+        token_endpoint?: string;
+      };
+      if (doc.authorization_endpoint && doc.token_endpoint) {
+        discovered = {
+          authorize: doc.authorization_endpoint,
+          token: doc.token_endpoint,
+        };
+        return discovered;
+      }
+    }
+    console.warn(`[qbo-oauth] discovery returned ${res.status}; using known endpoints.`);
+  } catch (error) {
+    console.warn(
+      `[qbo-oauth] discovery unreachable (${(error as Error).message}); using known endpoints.`,
+    );
+  }
+  // Deliberately not cached: a transient outage should not pin the fallback
+  // for the life of the process.
+  return { authorize: FALLBACK_AUTH_URL, token: FALLBACK_TOKEN_URL };
+}
 
 export function isQboConfigured(): boolean {
   return Boolean(process.env.QBO_CLIENT_ID && process.env.QBO_CLIENT_SECRET);
@@ -41,8 +89,11 @@ function clientCredentials(): { id: string; secret: string } {
 }
 
 /** Build the Intuit consent URL. State is returned for cookie storage. */
-export function buildAuthorizeUrl(redirectUri: string): { url: string; state: string } {
+export async function buildAuthorizeUrl(
+  redirectUri: string,
+): Promise<{ url: string; state: string }> {
   const { id } = clientCredentials();
+  const { authorize } = await endpoints();
   const state = randomBytes(16).toString("base64url");
   const params = new URLSearchParams({
     client_id: id,
@@ -51,7 +102,7 @@ export function buildAuthorizeUrl(redirectUri: string): { url: string; state: st
     redirect_uri: redirectUri,
     state,
   });
-  return { url: `${AUTH_URL}?${params}`, state };
+  return { url: `${authorize}?${params}`, state };
 }
 
 type TokenResponse = {
@@ -63,7 +114,8 @@ type TokenResponse = {
 
 async function tokenRequest(body: URLSearchParams): Promise<TokenResponse> {
   const { id, secret } = clientCredentials();
-  const res = await fetch(TOKEN_URL, {
+  const { token } = await endpoints();
+  const res = await fetch(token, {
     method: "POST",
     headers: {
       Authorization: `Basic ${Buffer.from(`${id}:${secret}`).toString("base64")}`,

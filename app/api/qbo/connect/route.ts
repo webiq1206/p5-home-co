@@ -32,7 +32,7 @@ export async function GET(request: Request): Promise<NextResponse> {
   }
 
   const redirectUri = appUrl(request, "/api/qbo/callback");
-  const { url, state } = buildAuthorizeUrl(redirectUri);
+  const { url, state } = await buildAuthorizeUrl(redirectUri);
 
   const store = await cookies();
   store.set("qbo_oauth_state", state, {
