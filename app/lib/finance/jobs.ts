@@ -16,6 +16,7 @@ import { query } from "../db.ts";
 import { runKbDriftScan } from "../kb/drift.ts";
 import { activeTransport } from "../notifications/transport.ts";
 import { runAttentionScan } from "./attention.ts";
+import { runQboAudit } from "./qbo/audit-scan.ts";
 import {
   assembleDailyReport,
   diffReports,
@@ -84,6 +85,29 @@ export async function runFinanceDaily(
     steps.push({ name: "attention_scan", ok: true, detail: `${open} open item(s).` });
   } catch (error) {
     steps.push({ name: "attention_scan", ok: false, detail: (error as Error).message });
+  }
+
+  // 2b. QuickBooks data-quality inspection (S214).
+  //
+  // Runs after the sync so it judges today's data, and after the attention scan
+  // so both feed the same queue before the daily report reads it. Findings land
+  // in attention_item, so a setup problem reaches the Today page and the 6am
+  // email by the same route as everything else that needs a person.
+  try {
+    if (await isQboConnected()) {
+      const audit = await runQboAudit(settings, "daily");
+      steps.push({
+        name: "qbo_audit",
+        ok: true,
+        detail:
+          `${audit.counts.total} finding(s): ${audit.counts.critical} critical, ` +
+          `${audit.counts.urgent} urgent. ${audit.opened} new, ${audit.resolved} fixed since yesterday.`,
+      });
+    } else {
+      steps.push({ name: "qbo_audit", ok: true, detail: "Skipped: QuickBooks not connected." });
+    }
+  } catch (error) {
+    steps.push({ name: "qbo_audit", ok: false, detail: (error as Error).message });
   }
 
   // 3. Money run cadence (S143): Wed=preliminary, Fri=final.

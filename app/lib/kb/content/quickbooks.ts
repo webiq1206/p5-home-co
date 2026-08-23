@@ -373,6 +373,48 @@ export const quickbooks: Article[] = [
         text:
           "A vendor is anyone we pay: subcontractors, suppliers, rental companies. Vendors live in QuickBooks; their compliance paperwork (W-9, insurance certificates, lien waivers) is tracked in the P5 panel under Finance > Vendors.",
       },
+      { t: "h", text: "\"Vendor\" or \"contractor\"? There is only one record" },
+      {
+        t: "p",
+        text:
+          "This trips people up constantly, so it is worth being exact: QuickBooks has ONE record type, the vendor. The \"Contractors\" area is not a second kind of record - it is a filtered view of the vendors you have marked \"Track payments for 1099\". Adding someone as a contractor creates a vendor; the only thing that differs is whether that checkbox is ticked.",
+      },
+      {
+        t: "callout",
+        kind: "automatic",
+        title: "The rule at P5",
+        text:
+          "Every subcontractor is created as a VENDOR. Whether they also appear under Contractors is decided by their W-9, not by how they were added.",
+      },
+      {
+        t: "p",
+        text:
+          "The 1099 flag follows the tax classification on the W-9. Individuals, sole proprietors, partnerships, and LLCs taxed as either of those are tracked for 1099. C-corporations and S-corporations are not, with narrow exceptions such as legal services. That is why the flag stays OFF until the W-9 is actually on file - guessing it produces either a missing 1099 or one filed for a company that should never have received it.",
+      },
+      {
+        t: "table",
+        headers: ["What the W-9 says", "Track for 1099?", "Effect"],
+        rows: [
+          ["Individual / sole proprietor", "Yes", "Appears under Contractors; counts toward the 1099 threshold"],
+          ["Partnership", "Yes", "Same"],
+          ["LLC taxed as sole prop or partnership", "Yes", "Same"],
+          ["LLC taxed as C-corp or S-corp", "No", "Vendor only; payments are not 1099-reportable"],
+          ["C-corporation / S-corporation", "No", "Vendor only (attorneys are the usual exception)"],
+          ["No W-9 yet", "Leave unset", "Vendor is on payment hold until the W-9 arrives"],
+        ],
+      },
+      {
+        t: "callout",
+        kind: "warning",
+        title: "Do not tick the box to be safe",
+        text:
+          "Flagging a corporation for 1099 is not harmless caution - it puts a filing obligation on a payment that never had one, and the Tax Center will keep listing them as reportable. Set it from the W-9 or leave it alone.",
+      },
+      {
+        t: "p",
+        text:
+          "The Tax Center (Finance > Company > Tax center) lists every vendor paid this year, whether a W-9 is on file, and who has crossed the reporting threshold without one. That list is the year-end 1099 worklist, and chasing a W-9 in January is far harder than collecting it before the first payment.",
+      },
       { t: "h", text: "Creating a vendor (without creating a duplicate)" },
       {
         t: "steps",

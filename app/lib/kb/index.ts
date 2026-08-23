@@ -4,6 +4,7 @@
  */
 
 import { automations } from "./content/automations.ts";
+import { dataQuality } from "./content/data-quality.ts";
 import { faq } from "./content/faq.ts";
 import { future } from "./content/future.ts";
 import { glossary } from "./content/glossary.ts";
@@ -22,6 +23,7 @@ export type { Article, SectionId };
 export const ALL_ARTICLES: Article[] = [
   ...howP5Works,
   ...quickbooks,
+  ...dataQuality,
   ...hubspot,
   ...workflows,
   ...procedures,
