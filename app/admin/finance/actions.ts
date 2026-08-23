@@ -411,3 +411,95 @@ export async function addDebtInstrument(formData: FormData): Promise<void> {
     null, { kind, currentBalance }, null);
   revalidatePath("/admin/finance/assets");
 }
+
+// ---------------------------------------------------------------------------
+// Owners (S193)
+//
+// Ownership is effective-dated rather than edited in place. Changing a split
+// closes the current row and opens a new one, so last quarter's distribution
+// can still be explained by the percentages that were in force at the time.
+// Overwriting would silently rewrite history that money was moved on.
+// ---------------------------------------------------------------------------
+
+export async function addOwner(formData: FormData): Promise<void> {
+  const user = await requireAdministrator();
+  const label = String(formData.get("label") ?? "").trim();
+  const ownership = Number(formData.get("ownershipPct") ?? 0);
+  const distribution = Number(formData.get("distributionPct") ?? 0);
+  const voting = Number(formData.get("votingPct") ?? 0);
+  const weekly = Number(formData.get("weeklyCompensation") ?? 0);
+
+  if (!label) throw new Error("An owner name is required.");
+  for (const [name, value] of [
+    ["Ownership", ownership],
+    ["Distribution", distribution],
+    ["Voting", voting],
+  ] as const) {
+    if (!Number.isFinite(value) || value < 0 || value > 100) {
+      throw new Error(`${name} must be between 0 and 100.`);
+    }
+  }
+
+  await query(
+    `INSERT INTO owner_record
+       (label, ownership_pct, distribution_pct, voting_pct, weekly_compensation)
+     VALUES ($1,$2,$3,$4,$5)`,
+    [label, ownership, distribution, voting, weekly],
+  );
+  await audit(user.id, "owner_create", "owner_record", label, null,
+    { ownership, distribution, voting, weekly }, null);
+  revalidatePath("/admin/finance/owners");
+}
+
+export async function reviseOwner(formData: FormData): Promise<void> {
+  const user = await requireAdministrator();
+  const ownerId = Number(formData.get("ownerId"));
+  const ownership = Number(formData.get("ownershipPct") ?? 0);
+  const distribution = Number(formData.get("distributionPct") ?? 0);
+  const voting = Number(formData.get("votingPct") ?? 0);
+  const weekly = Number(formData.get("weeklyCompensation") ?? 0);
+  const reason = String(formData.get("reason") ?? "").trim();
+
+  if (!Number.isFinite(ownerId)) throw new Error("An owner is required.");
+  if (!reason) {
+    throw new Error("A reason is required: an ownership change is a legal event, not a typo fix.");
+  }
+
+  const current = await queryOne<{
+    label: string; ownership_pct: string; distribution_pct: string;
+    voting_pct: string; weekly_compensation: string;
+  }>(
+    `SELECT label, ownership_pct, distribution_pct, voting_pct, weekly_compensation
+       FROM owner_record WHERE id = $1 AND effective_to IS NULL`,
+    [ownerId],
+  );
+  if (!current) throw new Error("That owner record is not the current one.");
+
+  // Close the old row today and open the new one, so history stays intact.
+  await query(
+    `UPDATE owner_record SET effective_to = CURRENT_DATE WHERE id = $1`,
+    [ownerId],
+  );
+  await query(
+    `INSERT INTO owner_record
+       (label, ownership_pct, distribution_pct, voting_pct, weekly_compensation, effective_from)
+     VALUES ($1,$2,$3,$4,$5, CURRENT_DATE)`,
+    [current.label, ownership, distribution, voting, weekly],
+  );
+
+  await audit(
+    user.id,
+    "owner_revise",
+    "owner_record",
+    current.label,
+    {
+      ownership: Number(current.ownership_pct),
+      distribution: Number(current.distribution_pct),
+      voting: Number(current.voting_pct),
+      weekly: Number(current.weekly_compensation),
+    },
+    { ownership, distribution, voting, weekly },
+    reason,
+  );
+  revalidatePath("/admin/finance/owners");
+}
