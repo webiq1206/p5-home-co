@@ -489,6 +489,75 @@ async function scanUnassignedBills(): Promise<void> {
 
 // ---------------------------------------------------------------------------
 
+/**
+ * Vehicle registrations and scheduled debt payments (S131-S138).
+ *
+ * Both are dates that cost real money when missed and that nothing else in the
+ * system watches. An expired registration is already a problem, so it escalates
+ * rather than staying a reminder.
+ */
+async function scanAssetsAndDebt(today: Date): Promise<void> {
+  const vehicles = await query<{
+    id: string; name: string; plate: string | null; registration_expires: string;
+  }>(
+    `SELECT id, name, plate, registration_expires::text
+       FROM fixed_asset
+      WHERE active AND registration_expires IS NOT NULL`,
+  );
+  const regKeys: string[] = [];
+  for (const v of vehicles) {
+    const days = daysUntil(today, new Date(v.registration_expires));
+    if (days > 45) continue;
+    const key = `asset_registration:${v.id}`;
+    regKeys.push(key);
+    await upsert({
+      kind: "asset_registration",
+      subjectKey: key,
+      severity: days < 0 ? "critical" : days <= 14 ? "urgent" : "warning",
+      title:
+        days < 0
+          ? `${v.name} registration expired ${Math.abs(days)} days ago`
+          : `${v.name} registration expires in ${days} day${days === 1 ? "" : "s"}`,
+      detail: v.plate
+        ? `Plate ${v.plate}. Driving on an expired registration is a citation and an insurance problem.`
+        : "Driving on an expired registration is a citation and an insurance problem.",
+      dueOn: v.registration_expires,
+      recommendedAction: days < 0 ? "Renew immediately and keep the vehicle off the road until it is current." : "Renew the registration.",
+    });
+  }
+  await resolveStale("asset_registration", regKeys);
+
+  const debts = await query<{
+    id: string; lender: string; scheduled_payment: string | null; next_payment_on: string;
+  }>(
+    `SELECT id, lender, scheduled_payment, next_payment_on::text
+       FROM debt_instrument
+      WHERE active AND next_payment_on IS NOT NULL`,
+  );
+  const debtKeys: string[] = [];
+  for (const d of debts) {
+    const days = daysUntil(today, new Date(d.next_payment_on));
+    if (days > 10) continue;
+    const key = `debt_payment:${d.id}`;
+    debtKeys.push(key);
+    await upsert({
+      kind: "debt_payment",
+      subjectKey: key,
+      severity: days < 0 ? "critical" : "warning",
+      title:
+        days < 0
+          ? `${d.lender} payment was due ${Math.abs(days)} days ago`
+          : `${d.lender} payment due in ${days} day${days === 1 ? "" : "s"}`,
+      detail:
+        "Record the payment split between principal and interest; booking it wholly as expense overstates cost and never reduces the liability.",
+      amount: d.scheduled_payment === null ? null : Number(d.scheduled_payment),
+      dueOn: d.next_payment_on,
+      recommendedAction: "Confirm the payment is scheduled and posted with the correct split.",
+    });
+  }
+  await resolveStale("debt_payment", debtKeys);
+}
+
 export async function runAttentionScan(settings: FinanceSettings): Promise<number> {
   const today = new Date();
   await scanVendorDocuments(today, settings);
@@ -502,6 +571,7 @@ export async function runAttentionScan(settings: FinanceSettings): Promise<numbe
   await scanStuckDraws(today);
   await scanMissingBudgets();
   await scanUnassignedBills();
+  await scanAssetsAndDebt(today);
   const row = await query<{ n: string }>(
     `SELECT COUNT(*)::text AS n FROM attention_item WHERE resolved_at IS NULL`,
   );

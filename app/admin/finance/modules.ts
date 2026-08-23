@@ -390,3 +390,156 @@ export async function fundingBoard(): Promise<FundingRow[]> {
   const rank = { red: 0, yellow: 1, green: 2 } as const;
   return rows.sort((a, b) => rank[a.status] - rank[b.status]);
 }
+
+// ---------------------------------------------------------------------------
+// Subcontracts
+// ---------------------------------------------------------------------------
+
+export type SubcontractRow = {
+  id: number;
+  reference: string;
+  scope: string;
+  projectLabel: string;
+  vendorName: string;
+  vendorOnHold: boolean;
+  originalAmount: number;
+  approvedChanges: number;
+  revisedAmount: number;
+  retainagePct: number;
+  status: string;
+  executedOn: string | null;
+};
+
+export async function subcontractBoard(): Promise<SubcontractRow[]> {
+  const rows = await query<{
+    id: string; reference: string; scope: string; status: string;
+    original_amount: string; approved_changes: string; retainage_pct: string;
+    executed_on: string | null; p5_id: string; project_name: string;
+    vendor_name: string; payment_hold: boolean; compliance_status: string;
+  }>(
+    `SELECT s.id, s.reference, s.scope, s.status, s.original_amount,
+            s.approved_changes, s.retainage_pct, s.executed_on::text,
+            p.p5_id, p.name AS project_name,
+            v.display_name AS vendor_name, v.payment_hold, v.compliance_status
+       FROM subcontract s
+       JOIN p5_project p ON p.id = s.project_id
+       JOIN vendor_profile v ON v.id = s.vendor_id
+      ORDER BY p.p5_id, s.reference`,
+  );
+  return rows.map((r) => {
+    const original = Number(r.original_amount ?? 0);
+    const changes = Number(r.approved_changes ?? 0);
+    return {
+      id: Number(r.id),
+      reference: r.reference,
+      scope: r.scope,
+      projectLabel: `${r.p5_id} · ${r.project_name}`,
+      vendorName: r.vendor_name,
+      vendorOnHold: r.payment_hold || r.compliance_status === "Payment Hold",
+      originalAmount: roundMoney(original),
+      approvedChanges: roundMoney(changes),
+      revisedAmount: roundMoney(original + changes),
+      retainagePct: Number(r.retainage_pct ?? 0),
+      status: r.status,
+      executedOn: r.executed_on,
+    };
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Assets, vehicles and debt
+// ---------------------------------------------------------------------------
+
+export type AssetRow = {
+  id: number;
+  name: string;
+  category: string;
+  cost: number;
+  acquiredOn: string | null;
+  plate: string | null;
+  registrationExpires: string | null;
+  /** Negative means already expired. */
+  registrationDays: number | null;
+  depreciationMethod: string | null;
+};
+
+export type DebtRow = {
+  id: number;
+  lender: string;
+  kind: string;
+  currentBalance: number;
+  interestRate: number | null;
+  scheduledPayment: number | null;
+  nextPaymentOn: string | null;
+  maturityOn: string | null;
+  securedBy: string | null;
+};
+
+export async function assetBoard(): Promise<{
+  assets: AssetRow[];
+  totalCost: number;
+  expiringRegistrations: number;
+}> {
+  const rows = await query<{
+    id: string; name: string; category: string; cost: string;
+    acquired_on: string | null; plate: string | null;
+    registration_expires: string | null; depreciation_method: string | null;
+    reg_days: string | null;
+  }>(
+    `SELECT id, name, category, cost, acquired_on::text, plate,
+            registration_expires::text, depreciation_method,
+            (registration_expires - CURRENT_DATE) AS reg_days
+       FROM fixed_asset WHERE active ORDER BY category, name`,
+  );
+  const assets = rows.map((r) => ({
+    id: Number(r.id),
+    name: r.name,
+    category: r.category,
+    cost: roundMoney(Number(r.cost ?? 0)),
+    acquiredOn: r.acquired_on,
+    plate: r.plate,
+    registrationExpires: r.registration_expires,
+    registrationDays: r.reg_days === null ? null : Number(r.reg_days),
+    depreciationMethod: r.depreciation_method,
+  }));
+  return {
+    assets,
+    totalCost: roundMoney(assets.reduce((s, a) => s + a.cost, 0)),
+    expiringRegistrations: assets.filter(
+      (a) => a.registrationDays !== null && a.registrationDays <= 45,
+    ).length,
+  };
+}
+
+export async function debtBoard(): Promise<{ debts: DebtRow[]; totalBalance: number }> {
+  const rows = await query<{
+    id: string; lender: string; kind: string; current_balance: string;
+    interest_rate: string | null; scheduled_payment: string | null;
+    next_payment_on: string | null; maturity_on: string | null;
+    secured_by: string | null;
+  }>(
+    `SELECT d.id, d.lender, d.kind, d.current_balance, d.interest_rate,
+            d.scheduled_payment, d.next_payment_on::text, d.maturity_on::text,
+            a.name AS secured_by
+       FROM debt_instrument d
+       LEFT JOIN fixed_asset a ON a.id = d.secured_by_asset_id
+      WHERE d.active
+      ORDER BY d.next_payment_on NULLS LAST`,
+  );
+  const debts = rows.map((r) => ({
+    id: Number(r.id),
+    lender: r.lender,
+    kind: r.kind,
+    currentBalance: roundMoney(Number(r.current_balance ?? 0)),
+    interestRate: r.interest_rate === null ? null : Number(r.interest_rate),
+    scheduledPayment:
+      r.scheduled_payment === null ? null : roundMoney(Number(r.scheduled_payment)),
+    nextPaymentOn: r.next_payment_on,
+    maturityOn: r.maturity_on,
+    securedBy: r.secured_by,
+  }));
+  return {
+    debts,
+    totalBalance: roundMoney(debts.reduce((s, d) => s + d.currentBalance, 0)),
+  };
+}

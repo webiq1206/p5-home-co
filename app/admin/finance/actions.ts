@@ -339,3 +339,75 @@ export async function createProjectInQuickBooks(formData: FormData): Promise<voi
   );
   revalidatePath("/admin/finance/projects");
 }
+
+// ---------------------------------------------------------------------------
+// Subcontracts, assets and debt (S91-S98, S131-S138)
+// ---------------------------------------------------------------------------
+
+export async function addSubcontract(formData: FormData): Promise<void> {
+  const user = await requireFinanceUser();
+  const projectId = Number(formData.get("projectId"));
+  const vendorId = Number(formData.get("vendorId"));
+  const reference = String(formData.get("reference") ?? "").trim();
+  const scope = String(formData.get("scope") ?? "").trim();
+  const amount = Number(formData.get("originalAmount") ?? 0);
+  const retainage = Number(formData.get("retainagePct") ?? 0);
+
+  if (!Number.isFinite(projectId) || !Number.isFinite(vendorId)) {
+    throw new Error("A project and a vendor are both required.");
+  }
+  if (!reference || !scope) {
+    throw new Error("A reference and a scope are required; a subcontract without scope cannot be checked against an invoice.");
+  }
+
+  await query(
+    `INSERT INTO subcontract (project_id, vendor_id, reference, scope, original_amount, retainage_pct)
+     VALUES ($1,$2,$3,$4,$5,$6)`,
+    [projectId, vendorId, reference, scope, amount, retainage],
+  );
+  await audit(user.id, "subcontract_create", "subcontract", `${projectId}:${reference}`,
+    null, { vendorId, amount, retainage }, null);
+  revalidatePath("/admin/finance/subcontracts");
+}
+
+export async function addFixedAsset(formData: FormData): Promise<void> {
+  const user = await requireFinanceUser();
+  const name = String(formData.get("name") ?? "").trim();
+  const category = String(formData.get("category") ?? "other");
+  const cost = Number(formData.get("cost") ?? 0);
+  const acquiredOn = String(formData.get("acquiredOn") ?? "") || null;
+  const plate = String(formData.get("plate") ?? "").trim() || null;
+  const registrationExpires = String(formData.get("registrationExpires") ?? "") || null;
+
+  if (!name) throw new Error("An asset name is required.");
+
+  await query(
+    `INSERT INTO fixed_asset (name, category, cost, acquired_on, plate, registration_expires)
+     VALUES ($1,$2,$3,$4,$5,$6)`,
+    [name, category, cost, acquiredOn, plate, registrationExpires],
+  );
+  await audit(user.id, "asset_create", "fixed_asset", name, null, { category, cost }, null);
+  revalidatePath("/admin/finance/assets");
+}
+
+export async function addDebtInstrument(formData: FormData): Promise<void> {
+  const user = await requireFinanceUser();
+  const lender = String(formData.get("lender") ?? "").trim();
+  const kind = String(formData.get("kind") ?? "loan");
+  const currentBalance = Number(formData.get("currentBalance") ?? 0);
+  const scheduledPayment = Number(formData.get("scheduledPayment") ?? 0) || null;
+  const nextPaymentOn = String(formData.get("nextPaymentOn") ?? "") || null;
+  const interestRate = Number(formData.get("interestRate") ?? 0) || null;
+
+  if (!lender) throw new Error("A lender is required.");
+
+  await query(
+    `INSERT INTO debt_instrument
+       (lender, kind, current_balance, scheduled_payment, next_payment_on, interest_rate)
+     VALUES ($1,$2,$3,$4,$5,$6)`,
+    [lender, kind, currentBalance, scheduledPayment, nextPaymentOn, interestRate],
+  );
+  await audit(user.id, "debt_create", "debt_instrument", lender,
+    null, { kind, currentBalance }, null);
+  revalidatePath("/admin/finance/assets");
+}
