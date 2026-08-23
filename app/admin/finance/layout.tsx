@@ -14,6 +14,7 @@ import "./finance.css";
 
 const NAV: { href: string; label: string }[] = [
   { href: "/admin/finance", label: "Attention" },
+  { href: "/admin/finance/daily-report", label: "Daily Report" },
   { href: "/admin/finance/money-run", label: "Money Run" },
   { href: "/admin/finance/projects", label: "Projects" },
   { href: "/admin/finance/vendors", label: "Vendors" },
@@ -50,7 +51,10 @@ export default async function FinanceLayout({
             {item.label}
           </Link>
         ))}
-        <Link href="/admin" className="fin-nav-link fin-nav-back">
+        <Link href="/admin/kb" className="fin-nav-link fin-nav-back">
+          Knowledge Center →
+        </Link>
+        <Link href="/admin" className="fin-nav-link">
           Leads →
         </Link>
       </nav>

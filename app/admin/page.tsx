@@ -156,8 +156,18 @@ export default async function AdminHome() {
         <span className="admin-brand">
           P5 <small>Lead manager</small>
         </span>
-        <span className="admin-who">
-          {user.fullName} · {user.role.replace(/_/g, " ")}
+        <span style={{ display: "flex", gap: 16, alignItems: "baseline" }}>
+          <Link href="/admin/kb" style={{ fontSize: 12, fontWeight: 700 }}>
+            Knowledge Center
+          </Link>
+          {(user.role === "administrator" || user.role === "manager") && (
+            <Link href="/admin/finance" style={{ fontSize: 12, fontWeight: 700 }}>
+              Finance
+            </Link>
+          )}
+          <span className="admin-who">
+            {user.fullName} · {user.role.replace(/_/g, " ")}
+          </span>
         </span>
       </header>
 

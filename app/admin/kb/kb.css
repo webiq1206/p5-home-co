@@ -1,0 +1,143 @@
+/*
+ * Knowledge Center styles. Extends the admin vocabulary in admin.css;
+ * colour tokens come from the approved marketing :root. Reading-first:
+ * generous line-height, a measure that stays comfortable on a phone, and
+ * callouts you can tell apart without color vision.
+ */
+
+.kb-nav {
+  position: sticky; top: 0; z-index: 40;
+  display: flex; flex-wrap: wrap; gap: 2px; align-items: center;
+  padding: 6px 14px;
+  background: var(--paper); border-bottom: 1px solid var(--line);
+}
+.kb-nav-link { padding: 8px 12px; font-size: 12px; font-weight: 700; letter-spacing: .06em; color: var(--ink-2); }
+.kb-nav-link:hover, .kb-nav-link:focus-visible { color: var(--ink); background: var(--bone); }
+.kb-nav-right { margin-left: auto; display: flex; gap: 2px; }
+
+.kb-main { width: min(100% - 32px, 860px); margin: 0 auto; padding: 24px 0 96px; }
+.kb-wide { width: min(100% - 32px, 1180px); }
+
+/* Search + ask forms ------------------------------------------------------ */
+.kb-search-form { display: flex; gap: 8px; margin: 0 0 10px; }
+.kb-search-form input {
+  flex: 1; min-height: 48px; padding: 10px 14px;
+  border: 1px solid var(--line); background: var(--paper);
+  color: var(--ink); font-family: inherit; font-size: 16px;
+}
+.kb-search-form input:focus-visible { border-color: var(--moss); outline: 2px solid var(--sage); outline-offset: 1px; }
+.kb-search-form button { min-height: 48px; }
+.kb-form-hint { margin: 0 0 24px; color: var(--ink-2); font-size: 13px; }
+
+/* Section grid ------------------------------------------------------------ */
+.kb-sections { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
+.kb-section-card {
+  display: block; padding: 16px; min-height: 108px;
+  border: 1px solid var(--line); border-left: 3px solid var(--sage);
+  background: var(--paper); color: inherit;
+}
+.kb-section-card:hover, .kb-section-card:focus-visible { border-left-color: var(--moss); background: var(--bone); }
+.kb-section-card h2 { margin: 0 0 6px; font-family: "P5 Serif", serif; font-size: 19px; font-weight: 500; }
+.kb-section-card p { margin: 0 0 8px; color: var(--ink-2); font-size: 13px; line-height: 1.45; }
+.kb-section-card small { color: var(--ink-2); font-size: 11px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
+
+/* Article lists ----------------------------------------------------------- */
+.kb-article-list { display: grid; gap: 10px; margin: 14px 0 0; }
+.kb-article-row { display: block; padding: 14px 16px; border: 1px solid var(--line); background: var(--paper); color: inherit; }
+.kb-article-row:hover, .kb-article-row:focus-visible { background: var(--bone); }
+.kb-article-row h3 { margin: 0 0 4px; font-size: 16px; font-weight: 650; }
+.kb-article-row p { margin: 0; color: var(--ink-2); font-size: 13px; line-height: 1.5; }
+.kb-article-row .kb-snippet { margin-top: 6px; padding-left: 10px; border-left: 2px solid var(--cream); font-style: italic; }
+
+/* Article page ------------------------------------------------------------ */
+.kb-article { font-size: 15px; line-height: 1.65; }
+.kb-article > p { margin: 0 0 16px; }
+.kb-crumbs { margin: 0 0 6px; font-size: 12px; color: var(--ink-2); }
+.kb-crumbs a { color: var(--moss); font-weight: 650; }
+.kb-verified { display: inline-flex; align-items: center; gap: 6px; margin: 0 0 22px; padding: 4px 10px; background: var(--cream); font-size: 12px; color: var(--ink-2); }
+.kb-flagged { margin: 0 0 22px; padding: 14px 16px; border: 1px solid #b4622a; background: #f9e9dc; font-size: 14px; }
+.kb-flagged strong { display: block; margin: 0 0 4px; color: #8a4a1e; }
+
+.kb-h2 { margin: 30px 0 12px; font-family: "P5 Serif", serif; font-size: 23px; font-weight: 500; line-height: 1.2; }
+
+.kb-steps { margin: 0 0 18px; padding: 0 0 0 0; counter-reset: kbstep; list-style: none; display: grid; gap: 8px; }
+.kb-steps li { position: relative; padding: 10px 12px 10px 46px; background: var(--paper); border: 1px solid var(--line); }
+.kb-steps li::before {
+  counter-increment: kbstep; content: counter(kbstep);
+  position: absolute; left: 12px; top: 10px;
+  width: 24px; height: 24px; display: grid; place-items: center;
+  background: var(--forest); color: #fff; font-size: 12px; font-weight: 700; border-radius: 999px;
+}
+.kb-list { margin: 0 0 18px; padding-left: 22px; display: grid; gap: 6px; }
+
+/* Callouts ---------------------------------------------------------------- */
+.kb-callout { margin: 0 0 18px; padding: 12px 14px; border: 1px solid var(--line); border-left-width: 4px; background: var(--paper); font-size: 14px; line-height: 1.55; }
+/* The tag sits on its own line: run inline with the sentence and the
+   marker reads as part of the prose instead of labelling it. */
+.kb-callout b.kb-callout-tag { display: table; margin: 0 0 7px; padding: 2px 8px; font-size: 10px; font-weight: 750; letter-spacing: .12em; text-transform: uppercase; }
+.kb-callout strong.kb-callout-title { display: block; margin: 0 0 4px; }
+.kb-callout-automatic { border-left-color: var(--moss); }
+.kb-callout-automatic .kb-callout-tag { background: #e7efe3; color: #233029; }
+.kb-callout-action { border-left-color: var(--forest); background: var(--bone); }
+.kb-callout-action .kb-callout-tag { background: var(--forest); color: #fff; }
+.kb-callout-review { border-left-color: var(--bronze); }
+.kb-callout-review .kb-callout-tag { background: #fdf6ee; color: #8a4a1e; border: 1px solid var(--bronze); }
+.kb-callout-warning { border-left-color: #9a2f2f; background: #fbf1f1; }
+.kb-callout-warning .kb-callout-tag { background: #9a2f2f; color: #fff; }
+.kb-callout-info { border-left-color: var(--sage); }
+.kb-callout-info .kb-callout-tag { background: var(--cream); color: var(--ink-2); }
+
+/* Tables ------------------------------------------------------------------ */
+.kb-table-wrap { margin: 0 0 18px; overflow-x: auto; border: 1px solid var(--line); }
+.kb-table { width: 100%; border-collapse: collapse; background: var(--paper); font-size: 13.5px; }
+.kb-table th { padding: 9px 12px; border-bottom: 1px solid var(--line); background: var(--bone); text-align: left; font-size: 11px; font-weight: 750; letter-spacing: .08em; text-transform: uppercase; }
+.kb-table td { padding: 9px 12px; border-bottom: 1px solid var(--line); vertical-align: top; line-height: 1.5; }
+.kb-table tr:last-child td { border-bottom: 0; }
+
+/* Flow diagrams ----------------------------------------------------------- */
+.kb-flow { margin: 0 0 22px; }
+.kb-flow-title { margin: 0 0 10px; font-size: 12px; font-weight: 750; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-2); }
+.kb-flow-step { position: relative; padding: 12px 14px; border: 1px solid var(--line); border-left: 4px solid var(--sage); background: var(--paper); }
+.kb-flow-step + .kb-flow-step { margin-top: 26px; }
+.kb-flow-step + .kb-flow-step::before {
+  content: "\2193"; position: absolute; top: -24px; left: 18px;
+  font-size: 16px; color: var(--ink-2);
+}
+.kb-flow-auto { border-left-color: var(--moss); }
+.kb-flow-review { border-left-color: var(--bronze); }
+.kb-flow-label { display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline; font-size: 14.5px; font-weight: 700; }
+.kb-flow-kind { padding: 2px 7px; font-size: 10px; font-weight: 750; letter-spacing: .1em; text-transform: uppercase; background: var(--cream); color: var(--ink-2); }
+.kb-flow-step.kb-flow-auto .kb-flow-kind { background: #e7efe3; color: #233029; }
+.kb-flow-step.kb-flow-review .kb-flow-kind { background: #fdf6ee; color: #8a4a1e; }
+.kb-flow-detail { margin: 5px 0 0; font-size: 13.5px; color: var(--ink-2); line-height: 1.5; }
+
+/* FAQ + terms -------------------------------------------------------------- */
+.kb-faq { margin: 0 0 18px; display: grid; gap: 10px; }
+.kb-faq details { border: 1px solid var(--line); background: var(--paper); }
+.kb-faq summary { padding: 12px 14px; font-size: 14.5px; font-weight: 650; cursor: pointer; list-style-position: inside; }
+.kb-faq summary:hover { background: var(--bone); }
+.kb-faq div { padding: 0 14px 12px; font-size: 14px; color: var(--ink-2); line-height: 1.55; }
+
+.kb-terms { margin: 0 0 18px; display: grid; gap: 0; border: 1px solid var(--line); background: var(--paper); }
+.kb-terms > div { padding: 10px 14px; border-bottom: 1px solid var(--line); }
+.kb-terms > div:last-child { border-bottom: 0; }
+.kb-terms dt { font-size: 14px; font-weight: 700; }
+.kb-terms dd { margin: 3px 0 0; font-size: 13.5px; color: var(--ink-2); line-height: 1.5; }
+
+/* Link blocks -------------------------------------------------------------- */
+.kb-links { margin: 0 0 18px; padding: 12px 14px; border: 1px dashed var(--line); background: var(--bone); }
+.kb-links b { display: block; margin: 0 0 8px; font-size: 11px; font-weight: 750; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-2); }
+.kb-links a { display: block; padding: 4px 0; color: var(--moss); font-size: 14px; font-weight: 650; }
+.kb-links a:hover, .kb-links a:focus-visible { text-decoration: underline; }
+
+/* Ask P5 ------------------------------------------------------------------- */
+.kb-answer { margin: 0 0 22px; padding: 18px; border: 1px solid var(--line); border-left: 4px solid var(--moss); background: var(--paper); }
+.kb-answer p { margin: 0 0 12px; font-size: 15px; line-height: 1.6; }
+.kb-unknown { border-left-color: var(--bronze); }
+.kb-prev-next { display: flex; justify-content: space-between; gap: 12px; margin: 34px 0 0; padding-top: 18px; border-top: 1px solid var(--line); font-size: 13.5px; }
+.kb-prev-next a { color: var(--moss); font-weight: 650; max-width: 48%; }
+
+@media (min-width: 760px) {
+  .kb-main { padding-top: 34px; }
+  .kb-article { font-size: 15.5px; }
+}

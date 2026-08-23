@@ -416,3 +416,38 @@ export async function syncPendingDeals(limit = 25): Promise<{
 
   return { attempted: rows.length, synced, failed, skipped: 0 };
 }
+
+// ---------------------------------------------------------------------------
+// Read-only configuration lookups for the Knowledge Center drift check.
+// ---------------------------------------------------------------------------
+
+export type LivePipelineStage = { id: string; label: string; displayOrder: number };
+
+/**
+ * The live deal pipeline's stages, or null when no token is configured.
+ *
+ * Null (not an error): drift checks report "unverifiable" rather than
+ * failing, because a missing token is a deployment state, not config drift.
+ */
+export async function fetchDealPipelineStages(
+  pipelineId = "default",
+): Promise<LivePipelineStage[] | null> {
+  if (!token()) return null;
+  const res = await call<{ stages: { id: string; label: string; displayOrder: number }[] }>(
+    `/crm/v3/pipelines/deals/${pipelineId}`,
+    { method: "GET" },
+  );
+  return res.stages
+    .map((s) => ({ id: s.id, label: s.label, displayOrder: s.displayOrder }))
+    .sort((a, b) => a.displayOrder - b.displayOrder);
+}
+
+/** Names of all deal properties, or null when no token is configured. */
+export async function fetchDealPropertyNames(): Promise<Set<string> | null> {
+  if (!token()) return null;
+  const res = await call<{ results: { name: string }[] }>(
+    "/crm/v3/properties/deals",
+    { method: "GET" },
+  );
+  return new Set(res.results.map((r) => r.name));
+}

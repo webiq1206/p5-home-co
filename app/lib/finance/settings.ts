@@ -56,6 +56,13 @@ export type FinanceSettings = {
   /** S140: count invoices due within this many days as high-confidence inflow
    *  only when not disputed; uncertain AR is never cash (S139). */
   highConfidenceArDays: number;
+  /** Daily financial report email (S148-style mobile summary). */
+  dailyReport: {
+    enabled: boolean;
+    recipients: string[];
+    /** Send even when QBO is disconnected (the report then says so plainly). */
+    sendWhenNotConnected: boolean;
+  };
   /** S122: distribution cadence. */
   distributionCadence: "project-close" | "monthly" | "quarterly" | "ad-hoc";
   /** S121: policy holdbacks applied before the distribution pool. */
@@ -95,6 +102,11 @@ export const DEFAULT_FINANCE_SETTINGS: FinanceSettings = {
   form1099Threshold: 600,
   arReminderDays: [-3, 0, 1, 7],
   highConfidenceArDays: 7,
+  dailyReport: {
+    enabled: true,
+    recipients: ["accounting@p5homeco.com"],
+    sendWhenNotConnected: true,
+  },
   distributionCadence: "quarterly",
   distributionPolicy: {
     warrantyReservePctOfRevenue: 0.01,
