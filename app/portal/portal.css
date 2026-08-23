@@ -1,0 +1,19 @@
+/* Portal-specific touches on top of the admin vocabulary. */
+
+.portal-bar {
+  position: sticky; top: 0; z-index: 50;
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  padding: 14px 20px;
+  background: var(--forest); color: #fff;
+}
+.portal-bar form { margin: 0; }
+.portal-bar button {
+  border: 1px solid rgba(255,255,255,.4); background: transparent; color: #fff;
+  padding: 8px 14px; font-size: 12px; font-weight: 700; cursor: pointer;
+}
+.portal-bar button:hover { background: rgba(255,255,255,.12); }
+
+.portal-note {
+  margin: 0 0 22px; padding: 12px 14px;
+  border-left: 2px solid var(--sage); background: var(--paper); font-size: 14px;
+}

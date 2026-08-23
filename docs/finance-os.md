@@ -63,10 +63,31 @@ surface in Health and as critical attention items - never silently.
   (S135).
 - All engine math runs in integer cents; rounding happens once at output.
 
+## Portals (S151-S152)
+
+External vendors and clients sign in at **/portal** with one-time emailed
+links (15-minute, single-use, hash-stored) that exchange for a 30-day portal
+session in its own cookie - no passwords ever exist for external users.
+Administrators invite contacts from **/admin/finance/portal**; disabling a
+contact ends their live sessions immediately.
+
+Scoping is structural: every query filters by the contact's vendor_id or
+project_id in SQL, and the pages render only what the pure projection layer
+(`app/lib/portal/views.ts`) returns. A unit test walks the client projection
+against a forbidden-key list (cost, budget, margin, vendor, contingency...) so
+a leak fails the build, not a review. Vendors see their own compliance
+documents, payment statuses, lien-waiver requests and awarded projects - never
+other vendors or P5 margin. Clients see contract + approved change orders,
+invoices, payments and balance - revenue side only.
+
+Vendor submissions (invoice references, waiver confirmations, questions) are
+recorded in portal_submission and surface as attention items until reviewed
+(S99: nothing important lives only in an inbox). Invoice files themselves go
+to the AP intake email (S100); e-signature of waivers stays with the
+attorney-approved process (S206).
+
 ## Not yet built (deliberately)
 
-- Vendor and client portals (S151-152): external, non-employee auth surface;
-  schema anticipates them (lien_waiver, vendor_document rows are portal-ready).
 - QBO webhooks (S155 uses daily + on-demand sync; webhook signature plumbing
   can be added without changing the read model).
 - Lender draw packages (S77), Idaho disclosure document generation (S78-80):

@@ -364,6 +364,34 @@ async function scanPendingDecisions(settings: FinanceSettings): Promise<void> {
   await resolveStale("decision_pending", keys);
 }
 
+async function scanPortalSubmissions(): Promise<void> {
+  const rows = await query<{
+    id: string; kind: string; reference: string | null; contact_name: string; scope: string | null;
+  }>(
+    `SELECT s.id, s.kind, s.reference, c.full_name AS contact_name,
+            v.display_name AS scope
+     FROM portal_submission s
+     JOIN portal_contact c ON c.id = s.contact_id
+     LEFT JOIN vendor_profile v ON v.id = c.vendor_id
+     WHERE s.reviewed_at IS NULL`,
+  );
+  const keys: string[] = [];
+  for (const r of rows) {
+    const key = `submission:${r.id}`;
+    keys.push(key);
+    await upsert({
+      kind: "portal_submission",
+      subjectKey: key,
+      severity: "warning",
+      title: `Portal: ${r.scope ?? r.contact_name} sent a ${r.kind.replaceAll("_", " ")}${r.reference ? ` (${r.reference})` : ""}`,
+      detail: "A vendor submitted something through the portal; nothing important lives only in an inbox (S99).",
+      entityUrl: "/admin/finance/portal",
+      recommendedAction: "Review it on the Portal page.",
+    });
+  }
+  await resolveStale("portal_submission", keys);
+}
+
 // ---------------------------------------------------------------------------
 
 export async function runAttentionScan(settings: FinanceSettings): Promise<number> {
@@ -375,6 +403,7 @@ export async function runAttentionScan(settings: FinanceSettings): Promise<numbe
   await scanStaleForecasts(today, settings);
   await scanIntegrationHealth();
   await scanPendingDecisions(settings);
+  await scanPortalSubmissions();
   const row = await query<{ n: string }>(
     `SELECT COUNT(*)::text AS n FROM attention_item WHERE resolved_at IS NULL`,
   );
