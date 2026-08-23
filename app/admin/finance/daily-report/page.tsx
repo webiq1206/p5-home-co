@@ -4,7 +4,7 @@
  * from the same stored payload, so they can never disagree.
  */
 
-import { checkDatabase, query } from "../../../lib/db.ts";
+import { checkDatabase, describeSchemaError, query } from "../../../lib/db.ts";
 import {
   diffReports,
   loadPreviousReport,
@@ -40,16 +40,39 @@ export default async function DailyReportPage() {
     );
   }
 
-  const rows = await query<{
+  // checkDatabase only proves the first migration ran, so this table can still
+  // be missing on a database that has not had every migration applied. That
+  // has to read as "run the migrations", not as a blank error page.
+  type Row = {
     covers_date: string;
     payload: DailyReport;
     emailed_to: string[] | null;
     email_status: string | null;
     created_at: Date;
-  }>(
-    `SELECT covers_date::text, payload, emailed_to, email_status, created_at
-     FROM daily_report ORDER BY covers_date DESC LIMIT 15`,
-  );
+  };
+  let rows: Row[];
+  try {
+    rows = await query<Row>(
+      `SELECT covers_date::text, payload, emailed_to, email_status, created_at
+       FROM daily_report ORDER BY covers_date DESC LIMIT 15`,
+    );
+  } catch (error) {
+    const problem = describeSchemaError(error);
+    return (
+      <main className="admin-main">
+        <h1 className="admin-h1">Daily financial snapshot</h1>
+        <div className="admin-notice admin-notice-error">
+          <strong>{problem.problem}</strong>
+          {problem.detail}
+        </div>
+        <p className="lead-note">
+          No report data has been lost. The daily job stores each report by
+          date, so once this is fixed the history is still there.
+        </p>
+      </main>
+    );
+  }
+
   const latest = rows[0] ?? null;
   const report = latest?.payload ?? null;
   const previous = report ? await loadPreviousReport(report.coversDate) : null;
@@ -87,20 +110,20 @@ export default async function DailyReportPage() {
               : ""}
           </p>
 
-          {report.limitations.length > 0 && (
+          {(report.limitations ?? []).length > 0 && (
             <div className="admin-notice">
               <strong>Data notes</strong>
-              {report.limitations.join(" ")}
+              {(report.limitations ?? []).join(" ")}
             </div>
           )}
 
           <div className="fin-section">
             <h2>Needs your attention</h2>
-            {report.attention.items.length === 0 ? (
+            {(report.attention?.items ?? []).length === 0 ? (
               <p className="lead-ok">No significant financial issues requiring attention.</p>
             ) : (
               <div className="admin-cards">
-                {report.attention.items.map((item, i) => (
+                {(report.attention?.items ?? []).map((item, i) => (
                   <article
                     key={i}
                     className={
@@ -231,11 +254,11 @@ export default async function DailyReportPage() {
 
           <div className="fin-section">
             <h2>Active projects</h2>
-            {report.projects.length === 0 ? (
+            {(report.projects ?? []).length === 0 ? (
               <p className="lead-note">No active projects.</p>
             ) : (
               <div className="admin-cards">
-                {report.projects.map((p) => (
+                {(report.projects ?? []).map((p) => (
                   <article key={p.p5Id} className="lead-card">
                     <div className="lead-top">
                       <h3 className="lead-name" style={{ fontSize: 18 }}>
@@ -301,9 +324,9 @@ export default async function DailyReportPage() {
                       </div>
                     </div>
                     <p className="lead-why" style={{ marginTop: 12 }}>
-                      {p.healthReasons.join("; ")}
+                      {(p.healthReasons ?? []).join("; ")}
                     </p>
-                    {p.problems.map((problem) => (
+                    {(p.problems ?? []).map((problem) => (
                       <p key={problem} className="lead-error lead-error-block" style={{ marginTop: 8 }}>
                         Data: {problem}
                       </p>
@@ -316,7 +339,7 @@ export default async function DailyReportPage() {
 
           <div className="fin-section">
             <h2>Upcoming (14 days)</h2>
-            {report.upcoming.length === 0 ? (
+            {(report.upcoming ?? []).length === 0 ? (
               <p className="lead-note">Nothing due in the next 14 days.</p>
             ) : (
               <div className="fin-table-wrap">
@@ -330,7 +353,7 @@ export default async function DailyReportPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {report.upcoming.slice(0, 12).map((u, i) => (
+                    {(report.upcoming ?? []).slice(0, 12).map((u, i) => (
                       <tr key={i}>
                         <td>{u.dueDate ?? "no date"}</td>
                         <td>{u.kind === "bill" ? "Pay bill" : "Expect payment"}</td>

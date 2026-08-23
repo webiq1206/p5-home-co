@@ -4,7 +4,9 @@ One page. This is everything you need.
 
 ## The five steps
 
-1. **Open Needs Your Attention.** It is the screen you land on.
+1. **Open Lead Manager** from the menu at the top of the panel. That is the
+   Needs Your Attention board. (The panel opens on a dashboard that summarises
+   it, alongside the company's finances.)
 2. **Start at the top.** The first lead is the most urgent one.
 3. **Do the recommended action.** Tap Call, Text, or Email.
 4. **Log what happened.** Pick the outcome that matches.

@@ -141,3 +141,170 @@
 /* The whole card is the target on the board, so a tap anywhere opens it. */
 .lead-card-link { display: block; color: inherit; }
 .lead-card-link:hover .lead-name, .lead-card-link:focus-visible .lead-name { text-decoration: underline; }
+
+/* ==========================================================================
+   Shared chrome: the brand bar's right-hand side and the section menu.
+   ========================================================================== */
+
+.admin-bar-right { display: flex; align-items: center; gap: 14px; }
+.admin-signout {
+  padding: 0; border: 0; background: none;
+  color: #fff; font-size: 12px; opacity: .7;
+  text-decoration: underline; text-underline-offset: 3px;
+}
+.admin-signout:hover, .admin-signout:focus-visible { opacity: 1; }
+
+.admin-nav {
+  /* Deliberately not sticky. The brand bar above it already sticks, and a
+     second sticky strip at the same offset would simply hide behind it -
+     while eating a third of a phone screen when the links wrap. */
+  display: flex; flex-wrap: wrap; gap: 2px;
+  padding: 6px 14px;
+  background: var(--paper); border-bottom: 1px solid var(--line);
+}
+.admin-nav-link {
+  padding: 9px 13px;
+  color: var(--ink-2);
+  font-size: 12px; font-weight: 700; letter-spacing: .06em;
+  border-bottom: 2px solid transparent;
+}
+.admin-nav-link:hover, .admin-nav-link:focus-visible { color: var(--ink); background: var(--bone); }
+.admin-nav-link-active { color: var(--ink); border-bottom-color: var(--moss); }
+
+/* ==========================================================================
+   Dashboard
+   ========================================================================== */
+
+/* Headline tiles --------------------------------------------------------- */
+.dash-tiles {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(148px, 1fr));
+  gap: 10px; margin: 0 0 34px;
+}
+.dash-tile {
+  display: block; padding: 14px 16px;
+  border: 1px solid var(--line); border-top: 3px solid var(--sage);
+  background: var(--paper);
+}
+.dash-tile b {
+  display: block;
+  font-family: "P5 Serif", serif; font-size: 28px; font-weight: 500; line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+.dash-tile span {
+  display: block; margin-top: 6px;
+  color: var(--ink-2); font-size: 11px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase;
+}
+.dash-tile small { display: block; margin-top: 5px; color: var(--ink-2); font-size: 12px; }
+.dash-tile-alarm { border-top-color: #9a2f2f; }
+.dash-tile-alarm b { color: #9a2f2f; }
+.dash-tile-good { border-top-color: #3f6b4f; }
+.dash-tile-muted { border-top-color: var(--cream); }
+.dash-tile-muted b { color: var(--ink-2); }
+.dash-tile-link { color: inherit; transition: background 160ms ease; }
+.dash-tile-link:hover, .dash-tile-link:focus-visible { background: var(--bone); }
+
+/* Sections and panels ---------------------------------------------------- */
+.dash-section { margin: 0 0 40px; }
+.dash-section-head {
+  margin: 0 0 14px;
+  font-size: 12px; font-weight: 750; letter-spacing: .16em; text-transform: uppercase;
+}
+.dash-grid { display: grid; gap: 12px; }
+
+.dash-panel { padding: 18px 20px; border: 1px solid var(--line); background: var(--paper); }
+.dash-panel-head {
+  display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 10px;
+}
+.dash-panel-head h3 {
+  margin: 0;
+  font-family: "P5 Serif", serif; font-size: 19px; font-weight: 500; line-height: 1.2;
+}
+.dash-panel-link { font-size: 11px; font-weight: 700; letter-spacing: .06em; color: var(--moss); white-space: nowrap; }
+.dash-panel-link:hover, .dash-panel-link:focus-visible { text-decoration: underline; }
+.dash-panel-hint { margin: 6px 0 16px; color: var(--ink-2); font-size: 13px; line-height: 1.5; }
+.dash-panel-hint + * { margin-top: 0; }
+
+.dash-empty {
+  margin: 0; padding: 18px 0;
+  color: var(--ink-2); font-size: 13px; font-style: italic;
+}
+.dash-foot { margin: 14px 0 0; color: var(--ink-2); font-size: 12px; line-height: 1.5; }
+
+/* Horizontal bars -------------------------------------------------------- */
+.dash-bars { display: grid; gap: 12px; margin: 0; padding: 0; list-style: none; }
+.dash-bar-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.dash-bar-label { font-size: 13px; font-weight: 650; }
+.dash-bar-label small { display: block; color: var(--ink-2); font-size: 11px; font-weight: 500; }
+.dash-bar-value { font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.dash-bar-track { height: 8px; margin-top: 6px; background: var(--bone); }
+.dash-bar-fill { height: 100%; }
+
+/* Columns over time ------------------------------------------------------ */
+.dash-columns { display: flex; align-items: flex-end; gap: 4px; }
+.dash-column { flex: 1 1 0; display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 0; }
+.dash-column-value { color: var(--ink-2); font-size: 10px; font-weight: 700; height: 13px; }
+.dash-column-track { display: flex; align-items: flex-end; width: 100%; height: var(--dash-col-h, 120px); }
+.dash-column-fill { width: 100%; min-height: 2px; }
+.dash-column-label { color: var(--ink-2); font-size: 10px; letter-spacing: .02em; white-space: nowrap; }
+
+/* Stacked bar + legend --------------------------------------------------- */
+.dash-stack { display: flex; height: 14px; overflow: hidden; background: var(--bone); }
+.dash-stack-part { height: 100%; }
+.dash-legend { display: grid; gap: 7px; margin: 14px 0 0; padding: 0; list-style: none; }
+.dash-legend li { display: flex; align-items: center; gap: 9px; font-size: 13px; }
+.dash-swatch { flex: 0 0 10px; width: 10px; height: 10px; }
+.dash-legend-label { flex: 1 1 auto; color: var(--ink-2); }
+.dash-legend-value { font-weight: 700; font-variant-numeric: tabular-nums; }
+
+/* Trend line ------------------------------------------------------------- */
+.dash-trend-svg { display: block; width: 100%; overflow: visible; }
+.dash-trend-axis {
+  display: flex; justify-content: space-between; margin-top: 6px;
+  color: var(--ink-2); font-size: 11px;
+}
+
+/* Short lists inside a panel (worst projects, and similar) ---------------- */
+.dash-list { display: grid; gap: 10px; margin: 16px 0 0; padding: 0; list-style: none; }
+.dash-list li {
+  display: grid; grid-template-columns: auto 1fr; gap: 4px 10px; align-items: center;
+  padding: 10px 12px; background: var(--bone);
+}
+.dash-list-main { font-size: 13px; font-weight: 650; }
+.dash-list-note { grid-column: 1 / -1; color: var(--ink-2); font-size: 12px; }
+
+/* The menu --------------------------------------------------------------- */
+.dash-menu { display: grid; gap: 12px; }
+.dash-menu-group { padding: 18px 20px; border: 1px solid var(--line); background: var(--paper); }
+.dash-menu-group h3 {
+  margin: 0 0 4px;
+  font-family: "P5 Serif", serif; font-size: 19px; font-weight: 500;
+}
+.dash-menu-group p { margin: 0 0 12px; color: var(--ink-2); font-size: 13px; line-height: 1.5; }
+.dash-menu-group ul { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.dash-menu-group li a {
+  display: inline-flex; align-items: center; min-height: 38px; padding: 0 12px;
+  border: 1px solid var(--line); background: var(--bone);
+  font-size: 12px; font-weight: 650;
+  transition: color 160ms ease, background 160ms ease;
+}
+.dash-menu-group li a:hover, .dash-menu-group li a:focus-visible { color: #fff; background: var(--moss); border-color: var(--moss); }
+
+/* Data notes ------------------------------------------------------------- */
+.dash-notes {
+  display: grid; gap: 8px; margin: 0; padding: 16px 20px 16px 38px;
+  border-left: 2px solid var(--bronze); background: var(--paper);
+  color: var(--ink-2); font-size: 13px; line-height: 1.55;
+}
+
+@media (min-width: 760px) {
+  .dash-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+  .dash-panel-wide { grid-column: 1 / -1; }
+  .dash-menu { grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+  .dash-tiles { gap: 12px; }
+}
+
+/* Overflow guards.
+   A grid item's min-content can otherwise stretch its track wider than the
+   screen - a fourteen-column chart did exactly that at phone width, pushing
+   every panel beside it off the edge. */
+.dash-panel, .dash-grid > *, .dash-columns { min-width: 0; }

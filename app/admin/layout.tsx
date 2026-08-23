@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./admin.css";
 
 export const metadata: Metadata = {
-  title: "P5 Lead Manager",
+  title: "P5 Operations",
   // The admin panel must never be indexed.
   robots: { index: false, follow: false, nocache: true },
 };
