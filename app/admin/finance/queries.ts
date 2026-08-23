@@ -66,6 +66,8 @@ export type VendorRow = {
   paymentHold: boolean;
   paymentHoldReason: string | null;
   openBalance: number;
+  /** False means the vendor exists only in P5 and cannot be paid yet. */
+  inQuickBooks: boolean;
   docs: { docType: string; status: string; expiresOn: string | null }[];
 };
 
@@ -73,10 +75,10 @@ export async function vendorBoard(): Promise<VendorRow[]> {
   const vendors = await query<{
     id: string; display_name: string; vendor_type: string;
     compliance_status: string; payment_hold: boolean; payment_hold_reason: string | null;
-    balance: string | null;
+    balance: string | null; qbo_vendor_id: string | null;
   }>(
     `SELECT p.id, p.display_name, p.vendor_type, p.compliance_status,
-            p.payment_hold, p.payment_hold_reason, v.balance
+            p.payment_hold, p.payment_hold_reason, p.qbo_vendor_id, v.balance
      FROM vendor_profile p
      LEFT JOIN qbo_vendor v ON v.qbo_id = p.qbo_vendor_id
      WHERE p.active
@@ -102,6 +104,7 @@ export async function vendorBoard(): Promise<VendorRow[]> {
     paymentHold: v.payment_hold,
     paymentHoldReason: v.payment_hold_reason,
     openBalance: Number(v.balance ?? 0),
+    inQuickBooks: Boolean(v.qbo_vendor_id),
     docs: byVendor.get(v.id) ?? [],
   }));
 }
@@ -226,5 +229,17 @@ export async function healthBoard() {
   const connection = await queryOne<{ realm_id: string; refresh_expires_at: Date }>(
     `SELECT realm_id, refresh_expires_at FROM qbo_connection WHERE id = 1`,
   );
-  return { integrations, syncRuns, connection };
+  // Writes that never resolved. 'needs_review' is the dangerous one: a record
+  // may or may not exist in QuickBooks, so retrying blindly could duplicate
+  // money. These must never be invisible (S176).
+  const writeConflicts = await query<{
+    id: string; entity: string; operation: string; status: string;
+    last_error: string | null; created_at: Date; attempts: number;
+  }>(
+    `SELECT id, entity, operation, status, last_error, created_at, attempts
+       FROM qbo_write_intent
+      WHERE status IN ('needs_review','failed')
+      ORDER BY created_at DESC LIMIT 25`,
+  );
+  return { integrations, syncRuns, connection, writeConflicts };
 }

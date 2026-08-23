@@ -29,7 +29,7 @@ export default async function HealthPage() {
   }
 
   const user = await getSessionUser();
-  const [{ integrations, syncRuns, connection }, configured, connected] =
+  const [{ integrations, syncRuns, connection, writeConflicts }, configured, connected] =
     await Promise.all([healthBoard(), isQboConfigured(), isQboConnected()]);
 
   return (
@@ -137,6 +137,57 @@ export default async function HealthPage() {
             </tbody>
           </table>
         </div>
+      </section>
+
+      <section className="fin-section">
+        <h2>QuickBooks write conflicts</h2>
+        {writeConflicts.length === 0 ? (
+          <p className="fin-footnote">
+            Every write to QuickBooks has resolved. Nothing is stuck.
+          </p>
+        ) : (
+          <>
+            <div className="admin-notice admin-notice-error">
+              <strong>
+                {writeConflicts.length} write{writeConflicts.length === 1 ? "" : "s"} did not
+                resolve
+              </strong>
+              A write marked <em>needs review</em> may or may not have reached QuickBooks.
+              Check the company file before retrying — retrying blindly is how one bill
+              becomes two payments.
+            </div>
+            <div className="fin-table-wrap">
+              <table className="fin-table">
+                <thead>
+                  <tr>
+                    <th>Raised</th><th>Record</th><th>Status</th><th>Tries</th><th>Error</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {writeConflicts.map((w) => (
+                    <tr key={w.id}>
+                      <td>{new Date(w.created_at).toLocaleString()}</td>
+                      <td>{w.entity} ({w.operation})</td>
+                      <td>
+                        <span
+                          className={`fin-chip ${
+                            w.status === "needs_review"
+                              ? "fin-chip-critical"
+                              : "fin-chip-warning"
+                          }`}
+                        >
+                          {w.status === "needs_review" ? "needs review" : w.status}
+                        </span>
+                      </td>
+                      <td>{w.attempts}</td>
+                      <td>{w.last_error ?? "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
       </section>
     </main>
   );

@@ -3,7 +3,11 @@
  */
 
 import { checkDatabase } from "../../../lib/db.ts";
-import { setVendorDocument, setVendorHold } from "../actions.ts";
+import {
+  createVendorInQuickBooks,
+  setVendorDocument,
+  setVendorHold,
+} from "../actions.ts";
 import { money, vendorBoard } from "../queries.ts";
 
 export const dynamic = "force-dynamic";
@@ -84,7 +88,21 @@ export default async function VendorsPage() {
                 {v.paymentHold && (
                   <span className="fin-chip fin-chip-critical">MANUAL HOLD</span>
                 )}
+                {!v.inQuickBooks && (
+                  <span className="fin-chip fin-chip-warning">NOT IN QUICKBOOKS</span>
+                )}
               </div>
+              {!v.inQuickBooks && (
+                /* A vendor who exists only in P5 cannot be paid, because there
+                   is nothing in the books to bill against. Creating them is
+                   idempotent - a second click returns the same record. */
+                <form action={createVendorInQuickBooks} style={{ marginTop: 10 }}>
+                  <input type="hidden" name="vendorId" value={v.id} />
+                  <button className="lead-action" type="submit">
+                    Create in QuickBooks
+                  </button>
+                </form>
+              )}
               {v.paymentHold && v.paymentHoldReason && (
                 <p className="lead-why lead-why-critical">Hold reason: {v.paymentHoldReason}</p>
               )}
