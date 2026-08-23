@@ -13,7 +13,16 @@
  */
 
 import { query } from "../db.ts";
+import { runKbDriftScan } from "../kb/drift.ts";
+import { activeTransport } from "../notifications/transport.ts";
 import { runAttentionScan } from "./attention.ts";
+import {
+  assembleDailyReport,
+  diffReports,
+  loadPreviousReport,
+  persistReport,
+} from "./daily-report.ts";
+import { renderDailyReport } from "./daily-report-render.ts";
 import { buildMoneyRun, persistMoneyRun } from "./money-run.ts";
 import { isQboConnected } from "./qbo/oauth.ts";
 import { runQboSync } from "./qbo/sync.ts";
@@ -111,9 +120,90 @@ export async function runFinanceDaily(
     steps.push({ name: "money_run", ok: false, detail: (error as Error).message });
   }
 
+  // 5. Documentation drift: compare live configuration against what the
+  // Knowledge Center documents; flag pages and raise attention on mismatch.
+  try {
+    const drift = await runKbDriftScan(today);
+    const drifted = drift.checks.filter((c) => c.status === "drift");
+    steps.push({
+      name: "kb_drift",
+      ok: true,
+      detail: drifted.length
+        ? `${drifted.length} check(s) drifted: ${drifted.map((c) => c.key).join(", ")}. Pages flagged.`
+        : `All checks passed; ${drift.verifiedArticles} article(s) re-verified.`,
+    });
+  } catch (error) {
+    steps.push({ name: "kb_drift", ok: false, detail: (error as Error).message });
+  }
+
+  // 6. Daily financial report: assemble, persist, diff against yesterday,
+  // and email. Persisting before sending means a send failure never loses
+  // the report - it is still in the panel, and the status says what failed.
+  try {
+    const summary = await runDailyReportStep(today);
+    steps.push({ name: "daily_report", ok: summary.ok, detail: summary.detail });
+  } catch (error) {
+    steps.push({ name: "daily_report", ok: false, detail: (error as Error).message });
+  }
+
   const failed = steps.filter((s) => !s.ok).length;
   return {
     status: failed === 0 ? "succeeded" : failed === steps.length ? "failed" : "partial",
     steps,
+  };
+}
+
+/**
+ * Build, persist, and send the daily report. Exported so the admin panel's
+ * "generate and send now" action runs exactly what the scheduler runs.
+ */
+export async function runDailyReportStep(
+  today: Date = new Date(),
+): Promise<{ ok: boolean; detail: string }> {
+  const settings = await loadFinanceSettings();
+  const report = await assembleDailyReport(settings, today);
+  const previous = await loadPreviousReport(report.coversDate);
+  await persistReport(report, null, null);
+
+  if (!settings.dailyReport.enabled) {
+    await persistReport(report, [], "disabled");
+    return { ok: true, detail: "Report generated; email disabled in settings." };
+  }
+  if (!report.qboConnected && !settings.dailyReport.sendWhenNotConnected) {
+    await persistReport(report, [], "skipped: QBO not connected");
+    return { ok: true, detail: "Report generated; send skipped (QuickBooks not connected)." };
+  }
+  const recipients = settings.dailyReport.recipients.filter((r) => r.includes("@"));
+  if (recipients.length === 0) {
+    await persistReport(report, [], "no recipients");
+    return { ok: true, detail: "Report generated; no recipients configured." };
+  }
+
+  const changes = diffReports(previous, report);
+  const base = (process.env.APP_BASE_URL ?? "https://p5homeco.com").replace(/\/+$/, "");
+  const message = renderDailyReport(report, changes, base);
+
+  const transport = activeTransport();
+  const failures: string[] = [];
+  for (const to of recipients) {
+    const result = await transport.send(to, message);
+    if (!result.ok) failures.push(`${to}: ${result.error}`);
+  }
+
+  const status =
+    failures.length === 0
+      ? transport.name === "console"
+        ? "logged (SMTP not configured)"
+        : `sent via ${transport.name}`
+      : `failed: ${failures.join("; ")}`;
+  await persistReport(report, recipients, status);
+
+  if (failures.length) return { ok: false, detail: `Email failed - ${failures.join("; ")}` };
+  return {
+    ok: true,
+    detail:
+      transport.name === "console"
+        ? "Report generated and logged; SMTP is not configured, so no email was sent."
+        : `Report emailed to ${recipients.join(", ")}.`,
   };
 }

@@ -17,6 +17,7 @@ attention items, forecasts and audit history. It is never a second ledger.
 | Needs Your Attention scanner | `app/lib/finance/attention.ts` | S149, S200 |
 | Weekly Money Run assembly + history | `app/lib/finance/money-run.ts` | S139-143, S195 |
 | Daily job orchestration | `app/lib/finance/jobs.ts` | S143, S176 |
+| Daily financial report | `app/lib/finance/daily-report*.ts` | see `docs/knowledge-center.md` |
 | Admin UI (role-gated) | `app/admin/finance/*` | S147-150, S168 |
 | Schema (20 tables) | `migrations/003_finance.sql` | S8, S154, S174 |
 | Engine + state-machine tests | `tests/finance-*.test.ts` | S204 |
@@ -118,6 +119,16 @@ print-ready at /admin/finance/draws/[id]/package, and **freezes as a JSONB
 snapshot at submission** so the record of what the lender received never
 changes afterwards. Draws sitting submitted for 14+ days surface as urgent
 attention items.
+
+## Daily report and Knowledge Center
+
+The daily job also assembles the daily financial snapshot (emailed to
+accounting, viewable at /admin/finance/daily-report) and runs the
+documentation drift scan. Both are documented in
+`docs/knowledge-center.md`. Two attention scanners were added alongside them:
+`project_missing_budget` (an active project with no budget makes remaining
+budget uncomputable) and `bill_unassigned` (an open bill with no project is
+either miscoded or deliberate overhead - either way a person decides).
 
 ## Not yet built (deliberately)
 

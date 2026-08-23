@@ -428,6 +428,65 @@ async function scanStuckDraws(today: Date): Promise<void> {
   await resolveStale("draw_stuck", keys);
 }
 
+async function scanMissingBudgets(): Promise<void> {
+  // An active project with no budget makes every downstream number
+  // uncomputable - remaining budget, budget used, variance. Surface it as
+  // data hygiene rather than letting the daily report quietly show "n/a".
+  const rows = await query<{ id: string; p5_id: string; name: string }>(
+    `SELECT id, p5_id, name FROM p5_project
+     WHERE status = 'Active' AND current_budget <= 0`,
+  );
+  const keys: string[] = [];
+  for (const r of rows) {
+    const key = `project:${r.id}:budget`;
+    keys.push(key);
+    await upsert({
+      kind: "project_missing_budget",
+      subjectKey: key,
+      severity: "warning",
+      title: `No budget set: ${r.p5_id} ${r.name}`,
+      detail:
+        "This active project has no current budget, so remaining budget and budget-used cannot be computed (S46). The daily report shows it as a data problem until fixed.",
+      entityUrl: "/admin/finance/projects",
+      recommendedAction: "Enter the project's budget on Finance > Projects.",
+    });
+  }
+  await resolveStale("project_missing_budget", keys);
+}
+
+async function scanUnassignedBills(): Promise<void> {
+  // Project costs must name their project (S23). A bill with no customer
+  // (project) reference either is true overhead - fine, but deliberate - or
+  // it is a miscoded project cost eroding some project's real margin.
+  const rows = await query<{
+    qbo_id: string;
+    doc_number: string | null;
+    total: string | null;
+    display_name: string | null;
+  }>(
+    `SELECT t.qbo_id, t.doc_number, t.total, v.display_name
+     FROM qbo_txn t LEFT JOIN qbo_vendor v ON v.qbo_id = t.vendor_qbo_id
+     WHERE t.txn_type = 'Bill' AND t.customer_qbo_id IS NULL
+       AND COALESCE(t.balance, 0) > 0`,
+  );
+  const keys: string[] = [];
+  for (const r of rows) {
+    const key = `bill:${r.qbo_id}`;
+    keys.push(key);
+    await upsert({
+      kind: "bill_unassigned",
+      subjectKey: key,
+      severity: "warning",
+      title: `Bill ${r.doc_number ?? r.qbo_id}${r.display_name ? ` from ${r.display_name}` : ""} has no project`,
+      detail:
+        "This open bill is not assigned to any project. If it is a project cost, it is currently missing from that project's numbers; if it is overhead, confirm it deliberately.",
+      amount: r.total ? Number(r.total) : null,
+      recommendedAction: "Open the bill in QuickBooks and assign the project, or confirm it is overhead.",
+    });
+  }
+  await resolveStale("bill_unassigned", keys);
+}
+
 // ---------------------------------------------------------------------------
 
 export async function runAttentionScan(settings: FinanceSettings): Promise<number> {
@@ -441,6 +500,8 @@ export async function runAttentionScan(settings: FinanceSettings): Promise<numbe
   await scanPendingDecisions(settings);
   await scanPortalSubmissions();
   await scanStuckDraws(today);
+  await scanMissingBudgets();
+  await scanUnassignedBills();
   const row = await query<{ n: string }>(
     `SELECT COUNT(*)::text AS n FROM attention_item WHERE resolved_at IS NULL`,
   );
