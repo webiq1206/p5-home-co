@@ -60,6 +60,7 @@ export const SECTIONS: Section[] = [
     items: [
       { href: "/admin/finance/vendors", label: "Vendors & compliance" },
       { href: "/admin/finance/subcontracts", label: "Subcontracts" },
+      { href: "/admin/finance/contracts", label: "Contracts & documents" },
     ],
   },
   {

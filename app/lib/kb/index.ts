@@ -4,6 +4,7 @@
  */
 
 import { automations } from "./content/automations.ts";
+import { contracts } from "./content/contracts.ts";
 import { dataQuality } from "./content/data-quality.ts";
 import { faq } from "./content/faq.ts";
 import { future } from "./content/future.ts";
@@ -27,6 +28,7 @@ export const ALL_ARTICLES: Article[] = [
   ...hubspot,
   ...workflows,
   ...procedures,
+  ...contracts,
   ...automations,
   ...reporting,
   ...troubleshooting,
