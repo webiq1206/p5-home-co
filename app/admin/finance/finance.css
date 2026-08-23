@@ -127,3 +127,15 @@
 .fin-finding p {
   margin: 0 0 0.4rem;
 }
+
+/* Raw payloads shown for verification. Scrolls on its own so a long dump
+   never forces the page itself sideways. */
+.fin-pre {
+  overflow-x: auto;
+  max-height: 24rem;
+  font-size: 0.8rem;
+  line-height: 1.45;
+  background: var(--surface-2, #f6f6f4);
+  padding: 0.75rem;
+  border-radius: 4px;
+}

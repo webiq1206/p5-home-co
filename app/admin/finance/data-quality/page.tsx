@@ -23,6 +23,13 @@ import {
   qboEnforceableRules,
   type AuditSeverity,
 } from "../../../lib/finance/qbo/audit-rules.ts";
+import {
+  REQUIRED_PREFERENCES,
+  checkPreferences,
+  fetchPreferences,
+  type PreferenceFinding,
+  type QboPreferences,
+} from "../../../lib/finance/qbo/preferences.ts";
 import { runQboAuditNow } from "../actions.ts";
 
 export const dynamic = "force-dynamic";
@@ -83,6 +90,21 @@ export default async function DataQualityPage() {
       [ruleCodes],
     ),
   ]);
+
+  // The company settings, read live. Deliberately not fatal: a settings read
+  // that fails must not take down the findings list, which is the part of this
+  // page somebody came here to act on.
+  let prefs: QboPreferences | null = null;
+  let prefFindings: PreferenceFinding[] = [];
+  let prefsError: string | null = null;
+  if (connected) {
+    try {
+      prefs = await fetchPreferences();
+      prefFindings = checkPreferences(prefs);
+    } catch (error) {
+      prefsError = error instanceof Error ? error.message : String(error);
+    }
+  }
 
   const byRule = new Map(allRules().map((r) => [r.code, r]));
   const grouped = new Map<AuditSeverity, OpenFinding[]>();
@@ -212,6 +234,93 @@ export default async function DataQualityPage() {
           </section>
         );
       })}
+
+      {/* ------------------------------------------------------------------ */}
+      {/* Company settings                                                    */}
+      {/* ------------------------------------------------------------------ */}
+      <section className="fin-section">
+        <h2>Company settings QuickBooks should be enforcing</h2>
+        <p>
+          Some of the rules above only work because a setting in QuickBooks is
+          switched on. Rather than keep a checklist that slowly stops being
+          true, these are read back from QuickBooks itself.
+        </p>
+
+        {!connected ? (
+          <p className="fin-footnote">
+            Cannot be read while QuickBooks is disconnected.
+          </p>
+        ) : prefsError ? (
+          <div className="admin-notice">
+            <strong>Could not read the company settings</strong>
+            {prefsError}
+          </div>
+        ) : prefFindings.length === 0 ? (
+          <div className="lead-ok">
+            All {REQUIRED_PREFERENCES.length} required settings are confirmed on.
+          </div>
+        ) : (
+          <>
+            <div className="fin-table-wrap">
+              <table className="fin-table">
+                <thead>
+                  <tr>
+                    <th>Setting</th>
+                    <th>State</th>
+                    <th>Why it matters</th>
+                    <th>Where it lives</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {prefFindings.map((f) => (
+                    <tr key={f.key}>
+                      <td>
+                        <strong>{f.label}</strong>
+                        <br />
+                        <span className="fin-footnote">{f.plain}</span>
+                      </td>
+                      <td>
+                        {f.state === "off" ? (
+                          <span className={`fin-chip fin-chip-${f.severity}`}>
+                            Switched off
+                          </span>
+                        ) : (
+                          <span className="fin-chip fin-chip-info">
+                            Cannot see it
+                          </span>
+                        )}
+                      </td>
+                      <td>{f.consequence}</td>
+                      <td>{f.path}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <p className="fin-footnote">
+              <strong>&quot;Cannot see it&quot; is not the same as &quot;switched
+              off&quot;.</strong>{" "}
+              QuickBooks does not report every setting through its interface for
+              other software, and the field names differ between editions. A
+              setting shown that way needs a person to look once and confirm it,
+              not a change to the company file. Assuming it was off would raise
+              the same false alarm every morning, which is how an alert list
+              becomes one people stop reading.
+            </p>
+          </>
+        )}
+
+        {/* The settings payload exactly as QuickBooks returned it. This is
+            here so the field mapping above can be corrected against reality
+            rather than against documentation - the fastest way to turn a
+            "cannot see it" into a real check. */}
+        {connected && prefs && (
+          <details>
+            <summary>What QuickBooks actually returned</summary>
+            <pre className="fin-pre">{JSON.stringify(prefs, null, 2)}</pre>
+          </details>
+        )}
+      </section>
 
       {/* ------------------------------------------------------------------ */}
       {/* The rulebook                                                        */}
