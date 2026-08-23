@@ -100,9 +100,29 @@ and the daily full sync. Deletes and merges remove read-model rows; replays
 are harmless because every write is the same idempotent upsert the bulk sync
 uses. Webhook health reports separately as 'quickbooks-webhooks'.
 
+## Lender draws (S77)
+
+Projects funded by a construction loan get a lender configuration (contact,
+loan number, approved budget, and which requirements this lender enforces:
+inspection, lien waivers, invoices, photos) and a numbered draw sequence at
+**/admin/finance/draws**. The lifecycle is draft -> submitted -> approved ->
+funded, with rejection reworkable; funded is terminal.
+
+Submission is gated the same way payments are: the readiness evaluation names
+every unmet lender requirement, and the amount cannot exceed the remaining
+approved loan budget (approved budget minus prior funded draws). The draw
+package - pay application summary, invoice schedule, vendor schedule with
+billed/committed amounts, lien waiver register, draw history - assembles
+automatically from the QBO read model and project registry, renders
+print-ready at /admin/finance/draws/[id]/package, and **freezes as a JSONB
+snapshot at submission** so the record of what the lender received never
+changes afterwards. Draws sitting submitted for 14+ days surface as urgent
+attention items.
+
 ## Not yet built (deliberately)
 
-- Lender draw packages (S77), Idaho disclosure document generation (S78-80):
-  need the attorney-approved templates first (S206).
+- Idaho disclosure document generation (S78-80): templates are sourced (IHBA
+  Forms 1 and 2, in the owner's build/legal folder) and await attorney
+  approval (S206) before automation.
 - Write-paths into QBO (invoice/bill creation from P5): the current module is
   read-and-orchestrate by design; money movement stays in QBO/Bill Pay.

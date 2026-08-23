@@ -392,6 +392,42 @@ async function scanPortalSubmissions(): Promise<void> {
   await resolveStale("portal_submission", keys);
 }
 
+async function scanStuckDraws(today: Date): Promise<void> {
+  // A submitted draw the lender has sat on for 14+ days is money the project
+  // is waiting for - it needs a phone call, not patience (S77, S57).
+  const rows = await query<{
+    id: string; draw_number: number; amount_requested: string;
+    submitted_at: Date; p5_id: string; name: string; lender_name: string;
+  }>(
+    `SELECT d.id, d.draw_number, d.amount_requested, d.submitted_at,
+            p.p5_id, p.name, l.lender_name
+     FROM lender_draw d
+     JOIN p5_project p ON p.id = d.project_id
+     JOIN project_lender l ON l.project_id = d.project_id
+     WHERE d.status = 'submitted' AND d.submitted_at < $1`,
+    [new Date(today.getTime() - 14 * 86_400_000)],
+  );
+  const keys: string[] = [];
+  for (const r of rows) {
+    const days = Math.floor(
+      (today.getTime() - new Date(r.submitted_at).getTime()) / 86_400_000,
+    );
+    const key = `draw:${r.id}`;
+    keys.push(key);
+    await upsert({
+      kind: "draw_stuck",
+      subjectKey: key,
+      severity: "urgent",
+      title: `Draw #${r.draw_number} on ${r.p5_id} pending with ${r.lender_name} for ${days} days`,
+      detail: "A submitted lender draw has had no decision; the project is waiting on this funding (S77).",
+      amount: Number(r.amount_requested),
+      entityUrl: "/admin/finance/draws",
+      recommendedAction: "Call the lender contact and get a status.",
+    });
+  }
+  await resolveStale("draw_stuck", keys);
+}
+
 // ---------------------------------------------------------------------------
 
 export async function runAttentionScan(settings: FinanceSettings): Promise<number> {
@@ -404,6 +440,7 @@ export async function runAttentionScan(settings: FinanceSettings): Promise<numbe
   await scanIntegrationHealth();
   await scanPendingDecisions(settings);
   await scanPortalSubmissions();
+  await scanStuckDraws(today);
   const row = await query<{ n: string }>(
     `SELECT COUNT(*)::text AS n FROM attention_item WHERE resolved_at IS NULL`,
   );

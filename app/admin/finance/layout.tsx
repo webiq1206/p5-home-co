@@ -17,6 +17,7 @@ const NAV: { href: string; label: string }[] = [
   { href: "/admin/finance/money-run", label: "Money Run" },
   { href: "/admin/finance/projects", label: "Projects" },
   { href: "/admin/finance/vendors", label: "Vendors" },
+  { href: "/admin/finance/draws", label: "Draws" },
   { href: "/admin/finance/registries", label: "Registries" },
   { href: "/admin/finance/owners", label: "Owners" },
   { href: "/admin/finance/portal", label: "Portal" },
