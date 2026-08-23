@@ -4,6 +4,8 @@
  * the attention queue.
  */
 
+import Link from "next/link";
+
 import { getSessionUser } from "../../../lib/auth.ts";
 import { checkDatabase } from "../../../lib/db.ts";
 import { isQboConfigured, isQboConnected } from "../../../lib/finance/qbo/oauth.ts";
@@ -65,6 +67,13 @@ export default async function HealthPage() {
             </form>
           )}
         </div>
+        {/* Disconnecting is deliberately a link to the public instructions
+            rather than a button here: it is done from inside QuickBooks, and
+            what happens to already-synced records is worth reading first. */}
+        <p className="fin-footnote">
+          <Link href="/legal/quickbooks-disconnect">How to disconnect QuickBooks</Link>{" "}
+          - both routes out, and what happens to records already synced.
+        </p>
       </section>
 
       <section className="fin-section">
