@@ -59,6 +59,14 @@ export default async function FinanceLayout({
         </Link>
       </nav>
       {children}
+      {/* The documents Intuit requires an app to publish, reachable from the
+          software they govern rather than only by direct URL. */}
+      <footer className="fin-legal">
+        <span>P5 Home Co. LLC</span>
+        <Link href="/legal/terms">Terms of Use</Link>
+        <Link href="/legal/privacy">Privacy Policy</Link>
+        <Link href="/legal/quickbooks-disconnect">Disconnecting QuickBooks</Link>
+      </footer>
     </>
   );
 }
