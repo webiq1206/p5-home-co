@@ -121,6 +121,20 @@ export default async function FundingPage() {
                 </div>
               </div>
 
+              {/* Everything P5 has not recorded was passed to the calculation
+                  as zero, and a zero only ever makes this number smaller. So
+                  the gap has to be stated on the same screen as the figure -
+                  a recommendation that looks precise gets treated as precise. */}
+              {p.unrecorded.length > 0 && (
+                <p className="lead-why">
+                  <strong>This is a minimum, not the full requirement.</strong>{" "}
+                  The calculation counts open purchase orders only. Not counted,
+                  because P5 has not recorded them: {p.unrecorded.join("; ")}.
+                  The real amount needed is higher than {money(p.recommendedDraw)},
+                  and the difference is money P5 fronts.
+                </p>
+              )}
+
               {p.contractStructureReview && (
                 <p className="lead-why lead-why-critical">
                   The funding this project needs exceeds what the contract still permits

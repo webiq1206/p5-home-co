@@ -31,7 +31,9 @@ export default async function SubcontractsPage() {
     subcontractBoard(),
     query<{ id: string; p5_id: string; name: string }>(
       `SELECT id, p5_id, name FROM p5_project
-        WHERE status NOT IN ('closed','cancelled') ORDER BY p5_id`,
+        -- Capitalised to match the CHECK constraint on p5_project. Lowercase
+        -- matched nothing, so finished jobs stayed selectable here.
+        WHERE status NOT IN ('Closed','Cancelled') ORDER BY p5_id`,
     ),
     query<{ id: string; display_name: string }>(
       `SELECT id, display_name FROM vendor_profile WHERE active ORDER BY display_name`,

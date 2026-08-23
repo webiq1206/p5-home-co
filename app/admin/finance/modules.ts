@@ -298,9 +298,18 @@ export type FundingRow = {
   nearTermRequirement: number;
   recommendedDraw: number;
   contractStructureReview: boolean;
+  /**
+   * Requirement components P5 has not recorded, which were therefore passed to
+   * the engine as zero.
+   *
+   * Non-empty means the recommended draw is a FLOOR, not the answer. An
+   * unrecorded cost does not make the number obviously wrong - it makes it
+   * plausibly too low, and P5 fronts the difference without noticing.
+   */
+  unrecorded: string[];
 };
 
-export async function fundingBoard(): Promise<FundingRow[]> {
+export async function fundingBoard(today = new Date()): Promise<FundingRow[]> {
   const settings = await loadFinanceSettings();
   const projects = await query<{
     id: string;
@@ -311,11 +320,19 @@ export async function fundingBoard(): Promise<FundingRow[]> {
     approved_change_orders: string;
     funding_buffer: string;
     retainage_pct: string;
+    status: string;
+    etc_amount: string;
+    etc_updated_at: string | null;
   }>(
+    // Status values are capitalised by the CHECK constraint on p5_project
+    // ('Closed', 'Cancelled'). Comparing against lowercase matched nothing, so
+    // this filter silently did not filter and finished jobs kept appearing
+    // here with a recommended draw against them.
     `SELECT id, p5_id, name, qbo_customer_id, contract_amount,
-            approved_change_orders, funding_buffer, retainage_pct
+            approved_change_orders, funding_buffer, retainage_pct,
+            status, etc_amount, etc_updated_at::text
        FROM p5_project
-      WHERE status NOT IN ('closed','cancelled')
+      WHERE status NOT IN ('Closed','Cancelled')
       ORDER BY p5_id`,
   );
 
@@ -353,6 +370,29 @@ export async function fundingBoard(): Promise<FundingRow[]> {
     const revisedContract =
       Number(p.contract_amount ?? 0) + Number(p.approved_change_orders ?? 0);
 
+    // Which components of the requirement P5 has actually recorded.
+    //
+    // This matters more than it looks. Everything not recorded is passed as
+    // zero, and a zero makes the recommended draw SMALLER - so an unrecorded
+    // cost does not produce an obviously wrong number, it produces a
+    // plausible number that is too low. P5 then under-requests and quietly
+    // finances the difference, which is the exact failure the funding board
+    // exists to prevent.
+    //
+    // The fix is not to guess the missing pieces into the number. It is to say
+    // which pieces are missing, so the recommendation is read as the floor it
+    // actually is.
+    const unrecorded: string[] = [];
+    if (!p.qbo_customer_id) unrecorded.push("no QuickBooks link, so no cash history at all");
+    unrecorded.push("planned purchases not yet committed");
+    unrecorded.push("expected labour");
+    const etcStale =
+      !p.etc_updated_at ||
+      forecastIsStale(new Date(p.etc_updated_at), today, settings);
+    if (Number(p.etc_amount ?? 0) > 0 && etcStale) {
+      unrecorded.push("cost-to-complete forecast is stale");
+    }
+
     const funding = projectFunding({
       clearedClientPayments: collected,
       clearedProjectOutflows: consumed,
@@ -364,6 +404,10 @@ export async function fundingBoard(): Promise<FundingRow[]> {
       plannedUncommittedPurchases: 0,
       expectedLabor: 0,
       otherKnownOutflows: 0,
+      // Deliberately still zero. etc_amount is the estimate to complete the
+      // WHOLE remaining job, not the part falling inside the funding horizon,
+      // and prorating it without a project end date would trade understating
+      // the draw for overstating it. It is disclosed above instead.
       etcInHorizonNotCommitted: 0,
       requiredProjectBuffer: Number(p.funding_buffer ?? 0),
       desiredPostDrawBuffer:
@@ -384,6 +428,7 @@ export async function fundingBoard(): Promise<FundingRow[]> {
       nearTermRequirement: funding.nearTermRequirement,
       recommendedDraw: funding.recommendedDraw,
       contractStructureReview: funding.contractStructureReview,
+      unrecorded,
     });
   }
 
@@ -582,7 +627,10 @@ export async function wipSchedule(): Promise<{
     `SELECT id, p5_id, name, division, contract_amount, approved_change_orders,
             etc_amount, etc_updated_at, qbo_customer_id
        FROM p5_project
-      WHERE status NOT IN ('cancelled')
+      -- Capitalised to match the CHECK constraint. Lowercase matched nothing,
+      -- so cancelled jobs were being included in the WIP schedule - which is
+      -- an input to the financial statements, not just a screen.
+      WHERE status NOT IN ('Cancelled')
       ORDER BY p5_id`,
   );
 
