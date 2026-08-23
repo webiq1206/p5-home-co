@@ -1,5 +1,6 @@
 import type { MetadataRoute } from "next";
-import { siteUrl } from "./site";
+import { siteUrl } from "./site.ts";
+import { PRIVATE_PREFIXES } from "./lib/privacy.ts";
 
 // Major AI answer engines are named explicitly rather than left to the
 // wildcard rule. A cautious crawler can back off when its access is
@@ -16,10 +17,11 @@ const aiCrawlers = [
   "CCBot",
 ];
 
-// The lead manager and its endpoints are staff-only and hold client contact
-// details. They carry noindex headers as well; this keeps them out of the
-// crawl in the first place.
-const privatePaths = ["/admin", "/api/"];
+// Staff-only areas hold client contact details and named-customer portals.
+// They carry noindex headers as well; this keeps them out of the crawl in the
+// first place. The list lives in app/lib/privacy.ts so robots.txt and the
+// X-Robots-Tag header cannot drift apart, and a test fails if they do.
+const privatePaths = PRIVATE_PREFIXES.map((p) => (p === "/api" ? "/api/" : p));
 
 export default function robots(): MetadataRoute.Robots {
   return {
