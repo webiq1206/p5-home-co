@@ -32,16 +32,28 @@
  * worse problem than re-minting one when you want to run this.
  */
 
-import { before, describe, test } from "node:test";
+import { after, before, describe, test } from "node:test";
 import assert from "node:assert/strict";
 
 import { REQUIRED_PREFERENCES, readPreference } from "../app/lib/finance/qbo/preferences.ts";
 import { auditQbo, type AuditSnapshot, type CustomerRecord, type TxnRecord, type VendorRecord } from "../app/lib/finance/qbo/audit.ts";
+import { closeLiveConnection, resolveLiveConnection } from "./helpers/live-connection.ts";
 
-const TOKEN = process.env.QBO_LIVE_ACCESS_TOKEN;
-const REALM = process.env.QBO_LIVE_REALM_ID;
 const HOST = "https://quickbooks.api.intuit.com";
 
+// Resolved at module load because describe()'s skip reason is evaluated
+// synchronously. An expired refresh token becomes a skip REASON rather than a
+// crash, so the message reaches whoever ran the suite instead of a stack trace.
+let connection: Awaited<ReturnType<typeof resolveLiveConnection>> = null;
+let unavailable = "QuickBooks credentials not available";
+try {
+  connection = await resolveLiveConnection();
+} catch (error) {
+  unavailable = (error as Error).message;
+}
+
+const TOKEN = connection?.accessToken;
+const REALM = connection?.realmId;
 const configured = Boolean(TOKEN && REALM);
 
 /**
@@ -92,8 +104,19 @@ async function queryAll<T>(entity: string, where = ""): Promise<T[]> {
 
 describe(
   "live P5 company (read-only)",
-  { skip: configured ? false : "QBO_LIVE_ACCESS_TOKEN / QBO_LIVE_REALM_ID not set" },
+  { skip: configured ? false : unavailable },
   () => {
+    after(async () => {
+      await closeLiveConnection();
+    });
+
+    test("reports where the credential came from", () => {
+      // A run against the wrong company because of a stale environment
+      // variable should be obvious in the output, not inferred afterwards.
+      console.log("[live] credential source:", connection?.source, "realm:", REALM);
+      assert.ok(connection);
+    });
+
     // ---------------------------------------------------------------------
     // Configuration: the things a sandbox could never tell us.
     // ---------------------------------------------------------------------

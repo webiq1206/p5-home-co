@@ -39,20 +39,31 @@
  *
  * ============================== SETUP ==============================
  *
- *   QBO_LIVE_ACCESS_TOKEN            Current token for the P5 company
+ *   Credentials come from the app's own stored connection when DATABASE_URL
  *   QBO_LIVE_REALM_ID                The P5 realm id
  *   QBO_LIVE_ALLOW_ESTIMATE_PROBE    Exactly: yes-write-to-the-real-books
  *   QBO_LIVE_PROBE_CUSTOMER_ID       Optional. Which customer to use; the
  *                                    first active one otherwise.
  */
 
-import { describe, test } from "node:test";
+import { after, describe, test } from "node:test";
 import assert from "node:assert/strict";
 
 import { invoicePayload, requestId } from "../app/lib/finance/qbo/map.ts";
+import { closeLiveConnection, resolveLiveConnection } from "./helpers/live-connection.ts";
 
-const TOKEN = process.env.QBO_LIVE_ACCESS_TOKEN;
-const REALM = process.env.QBO_LIVE_REALM_ID;
+// Resolved at load, because describe()'s skip reason is evaluated
+// synchronously. Prefers the app's own stored connection over a pasted token.
+let connection: Awaited<ReturnType<typeof resolveLiveConnection>> = null;
+let unavailable = "QuickBooks credentials not available";
+try {
+  connection = await resolveLiveConnection();
+} catch (error) {
+  unavailable = (error as Error).message;
+}
+
+const TOKEN = connection?.accessToken;
+const REALM = connection?.realmId;
 const OPT_IN = process.env.QBO_LIVE_ALLOW_ESTIMATE_PROBE;
 const CUSTOMER_OVERRIDE = process.env.QBO_LIVE_PROBE_CUSTOMER_ID;
 const HOST = "https://quickbooks.api.intuit.com";
@@ -116,9 +127,15 @@ describe(
   {
     skip: enabled
       ? false
-      : `disabled - set QBO_LIVE_ALLOW_ESTIMATE_PROBE=${OPT_IN_PHRASE} plus a live token`,
+      : OPT_IN === OPT_IN_PHRASE
+        ? unavailable
+        : `disabled - opt in with QBO_LIVE_ALLOW_ESTIMATE_PROBE=${OPT_IN_PHRASE}`,
   },
   () => {
+    after(async () => {
+      await closeLiveConnection();
+    });
+
     test("the write path works against P5's real customers and items", async () => {
       // Tagged with the clock so a leftover from a crashed run is findable and
       // obviously not a real document.
