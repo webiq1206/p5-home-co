@@ -29,6 +29,17 @@ export type ReviewState =
   | "unreviewed"
   /** Sent to counsel, no answer yet. */
   | "in_review"
+  /**
+   * The owner has read these and chosen to use them without waiting for
+   * counsel. Issuing is unblocked, and the register still shows that no
+   * attorney reviewed them.
+   *
+   * This state exists because the alternative was to record "approved" - which
+   * would have been false, and would have outlived the conversation where the
+   * decision was made. Whoever reads the register in a year, possibly during a
+   * dispute, sees what actually happened.
+   */
+  | "owner_accepted"
   /** Counsel approved this version. Safe to issue. */
   | "approved";
 
@@ -44,6 +55,15 @@ export type TemplateField = {
   help?: string;
   /** Where the value comes from automatically, when it does. */
   source?: string;
+  /**
+   * A value that is the same on every contract: P5's own registration number,
+   * its insurance minimums, its standard terms.
+   *
+   * These are not dynamic data and should never print as a blank for somebody
+   * to fill in. A blank invites a different answer each time, and the one time
+   * it is typed wrong is the time it matters.
+   */
+  defaultValue?: string | number;
 };
 
 export type Clause = {
@@ -94,9 +114,11 @@ export type DocumentTemplate = {
   purpose: string;
   category: "subcontractor" | "client" | "change" | "waiver" | "disclosure";
   reviewState: ReviewState;
-  /** Set by a person when counsel approves. Never set by code. */
+  /** Set by a person when counsel approves, or when the owner accepts. */
   reviewedOn?: string;
   reviewedBy?: string;
+  /** Why it was accepted without counsel, where that is what happened. */
+  acceptanceNote?: string;
   /**
    * The statute this document exists to satisfy, when there is one. Recorded
    * because a document required by law has to be re-checked when the law

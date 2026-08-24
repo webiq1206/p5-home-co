@@ -133,6 +133,11 @@ export function watermarkFor(template: DocumentTemplate): string | null {
   switch (template.reviewState) {
     case "approved":
       return null;
+    case "owner_accepted":
+      // No alarming watermark: the owner has decided to use it, and a customer
+      // contract stamped DRAFT would be worse than useless. The register, not
+      // the page, is where the absence of review is recorded.
+      return null;
     case "in_review":
       return "DRAFT - WITH COUNSEL FOR REVIEW. Not to be signed or issued.";
     case "unreviewed":
@@ -155,6 +160,14 @@ export function canIssue(template: DocumentTemplate): {
       reason: `Approved by counsel${
         template.reviewedOn ? ` on ${template.reviewedOn}` : ""
       }.`,
+    };
+  }
+  if (template.reviewState === "owner_accepted") {
+    return {
+      allowed: true,
+      reason:
+        `Accepted for use by the owner${template.reviewedOn ? ` on ${template.reviewedOn}` : ""}` +
+        `, without attorney review. ${template.acceptanceNote ?? ""}`.trim(),
     };
   }
   return {
@@ -188,6 +201,8 @@ export function renderBlank(template: DocumentTemplate): RenderedDocument {
 
   const blankFor = (field: TemplateField | undefined): string => {
     if (!field) return "____________";
+    // A standing P5 fact or policy figure is printed, not left blank.
+    if (field.defaultValue !== undefined) return String(field.defaultValue);
     // Money and dates get a shorter rule than a scope description.
     const width =
       field.kind === "money" || field.kind === "date" || field.kind === "number" ? 18 : 34;

@@ -13,6 +13,7 @@ import {
   getTemplate,
   masterSubcontractorAgreement,
   missingFields,
+  renderBlank,
   renderDocument,
   unconditionalFinalWaiver,
   unconditionalProgressWaiver,
@@ -135,15 +136,33 @@ test("a negative change order renders as a credit rather than as a mistake", () 
 test("an unreviewed template is watermarked on the document itself", () => {
   // On the document, not in the interface: the document is what gets emailed,
   // printed and signed, and by then whatever the screen said is long gone.
-  const doc = renderDocument(masterSubcontractorAgreement, completeValues());
+  const unreviewed = { ...masterSubcontractorAgreement, reviewState: "unreviewed" as const };
+  const doc = renderDocument(unreviewed, completeValues());
   assert.ok(doc.draftWatermark);
   assert.match(doc.draftWatermark, /NOT REVIEWED BY AN ATTORNEY/);
 });
 
+test("an owner-accepted template carries no draft watermark", () => {
+  // The owner decided to use these. A live customer contract stamped DRAFT
+  // would be worse than useless, so the absence of review is recorded in the
+  // register rather than on the page.
+  const doc = renderDocument(masterSubcontractorAgreement, completeValues());
+  assert.equal(doc.draftWatermark, null);
+});
+
 test("an unreviewed template cannot be issued, and the refusal explains why", () => {
-  const verdict = canIssue(masterSubcontractorAgreement);
+  const verdict = canIssue({ ...masterSubcontractorAgreement, reviewState: "unreviewed" });
   assert.equal(verdict.allowed, false);
   assert.ok(verdict.reason.length > 40, "a bare no teaches nobody anything");
+});
+
+test("owner acceptance unblocks issuing WITHOUT claiming an attorney reviewed it", () => {
+  // The whole point of the state. Recording "approved" would have been false,
+  // and would have outlived the conversation where the decision was made.
+  const verdict = canIssue(masterSubcontractorAgreement);
+  assert.equal(verdict.allowed, true);
+  assert.match(verdict.reason, /without attorney review/i);
+  assert.doesNotMatch(verdict.reason, /approved by counsel/i);
 });
 
 test("only a counsel-approved template may be issued", () => {
@@ -156,14 +175,40 @@ test("only a counsel-approved template may be issued", () => {
   assert.match(renderDocument(inReview, completeValues(changeOrder)).draftWatermark!, /Not to be signed/);
 });
 
-test("every template currently ships unreviewed, and says so", () => {
-  // If this ever fails, it is because somebody marked a template approved.
-  // That is a real event: it means counsel signed off, and the reviewer and
-  // date must be recorded alongside it.
-  for (const template of awaitingReview()) {
-    assert.notEqual(template.reviewState, "approved");
+test("no template claims counsel approved it, because none has", () => {
+  // The invariant that survives the owner deciding to use these. If it ever
+  // fails it should be because an attorney actually signed off, and the
+  // reviewer and date are recorded alongside.
+  for (const template of ALL_TEMPLATES) {
+    assert.notEqual(
+      template.reviewState,
+      "approved",
+      `${template.key} claims attorney approval`,
+    );
   }
   assert.equal(awaitingReview().length, ALL_TEMPLATES.length);
+});
+
+test("every accepted template records who accepted it, when, and that counsel did not", () => {
+  for (const t of ALL_TEMPLATES) {
+    if (t.reviewState !== "owner_accepted") continue;
+    assert.ok(t.reviewedBy, `${t.key}: acceptance must name a person`);
+    assert.match(t.reviewedOn ?? "", /^\d{4}-\d{2}-\d{2}$/, `${t.key}: needs a date`);
+    assert.match(
+      t.acceptanceNote ?? "",
+      /no attorney has reviewed/i,
+      `${t.key}: the note must say review did not happen`,
+    );
+  }
+});
+
+test("standing values are printed, not left as blanks to retype", () => {
+  // P5's own terms do not change per customer. A blank invites a different
+  // answer each time, and the one time it is typed wrong is the time it counts.
+  const doc = renderBlank(masterSubcontractorAgreement);
+  const body = doc.clauses.map((c) => c.body).join(" ");
+  assert.match(body, /within 30 days/, "the standing payment term should be printed");
+  assert.ok(!body.includes("[Payment days"), "it should not be a labelled blank");
 });
 
 // ---------------------------------------------------------------------------

@@ -259,8 +259,9 @@ test("lifecycle: the work order carries the master agreement onto the job", () =
 
   assert.match(doc.clauses[0].body, /Master Subcontractor Agreement/);
   assert.match(doc.title, /SC-001/);
-  // Unreviewed by counsel, so it says so on its own face.
-  assert.match(doc.draftWatermark ?? "", /NOT REVIEWED BY AN ATTORNEY/);
+  // Accepted by the owner pending review, so no draft watermark on the page.
+  // That no attorney reviewed it is recorded in the register instead.
+  assert.equal(doc.draftWatermark, null);
 });
 
 test("lifecycle: a subcontract under way with no signature and no PO raises both problems", () => {

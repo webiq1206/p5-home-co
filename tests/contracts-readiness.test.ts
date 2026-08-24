@@ -25,6 +25,19 @@ const residentialJob = {
   idahoDisclosureDeliveredOn: "2026-08-20",
 };
 
+test("an owner-accepted contract can be sent without attorney approval", () => {
+  // The owner decided to use these. The gate lets them through and says why.
+  const r = preSendChecklist({
+    template: clientAgreement, // owner_accepted
+    values: filled(),
+    attachedExhibits: ["Exhibit A", "Exhibit C"],
+    project: residentialJob,
+  });
+  assert.equal(r.canSend, true, summariseReadiness(r));
+  const check = r.checks.find((c) => c.code === "attorney_review");
+  assert.match(check!.fix, /without attorney review/i);
+});
+
 test("a complete, reviewed contract with its exhibits can be sent", () => {
   const r = preSendChecklist({
     template: { ...clientAgreement, reviewState: "approved" },
@@ -36,8 +49,10 @@ test("a complete, reviewed contract with its exhibits can be sent", () => {
 });
 
 test("an unreviewed contract cannot be sent, however complete it is", () => {
+  // Forced back to unreviewed: P5's own templates are owner-accepted now, and
+  // this test is about the gate, not about their current state.
   const r = preSendChecklist({
-    template: clientAgreement, // unreviewed
+    template: { ...clientAgreement, reviewState: "unreviewed" },
     values: filled(),
     attachedExhibits: ["Exhibit A", "Exhibit C"],
     project: residentialJob,

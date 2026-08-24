@@ -21,6 +21,7 @@ import path from "node:path";
 import { ALL_TEMPLATES, getTemplate } from "../app/lib/contracts/index.ts";
 import { renderBlank, toPdfDocument } from "../app/lib/contracts/render.ts";
 import { buildPdf } from "../app/lib/contracts/pdf.ts";
+import { unsetStandingValues } from "../app/lib/contracts/standing.ts";
 
 /**
  * Documents that must travel together in one QuickBooks template.
@@ -75,12 +76,31 @@ async function main(): Promise<void> {
   }
 
   console.log(`\n${written.length} PDF(s) written to ${dir}`);
-  const unreviewed = ALL_TEMPLATES.filter((t) => t.reviewState !== "approved").length;
-  if (unreviewed > 0) {
+  const accepted = ALL_TEMPLATES.filter((t) => t.reviewState === "owner_accepted").length;
+  const stillDraft = ALL_TEMPLATES.filter((t) => t.reviewState === "unreviewed").length;
+
+  if (accepted > 0) {
     console.log(
-      `\n${unreviewed} of ${ALL_TEMPLATES.length} templates are NOT attorney-reviewed.\n` +
-        `Every page of those PDFs carries that warning. Do not send them to a\n` +
-        `customer or subcontractor until counsel has been through them.`,
+      `\n${accepted} of ${ALL_TEMPLATES.length} templates are ACCEPTED BY THE OWNER for use,\n` +
+        `pending attorney review. No attorney has reviewed them.\n` +
+        `They carry no draft watermark - a live customer contract stamped DRAFT\n` +
+        `would be worse than useless - so the absence of review is recorded in\n` +
+        `the register instead of on the page.`,
+    );
+  }
+  if (stillDraft > 0) {
+    console.log(
+      `\n${stillDraft} template(s) are still unreviewed and unaccepted. Those DO carry\n` +
+        `the draft watermark and should not be sent.`,
+    );
+  }
+
+  const unset = unsetStandingValues();
+  if (unset.length > 0) {
+    console.log(
+      `\nStanding values nobody has set yet, so they still print as blanks:\n` +
+        `  ${unset.join(", ")}\n` +
+        `Each is one decision that removes a blank from every future document.`,
     );
   }
 }

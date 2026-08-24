@@ -152,7 +152,11 @@ function waiver(spec: {
     title: spec.title,
     purpose: spec.purpose,
     category: "waiver",
-    reviewState: "unreviewed",
+    reviewState: "owner_accepted",
+  reviewedOn: "2026-08-24",
+  reviewedBy: "Jared Brost (owner)",
+  acceptanceNote:
+    "Accepted for use pending attorney review. No attorney has reviewed this template.",
     // A waiver that does not name the property may not attach to it.
     projectSpecific: true,
     statute: "Idaho Code Title 45, Chapter 5 (mechanics' and materialmen's liens)",

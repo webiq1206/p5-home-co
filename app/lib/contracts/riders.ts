@@ -58,7 +58,11 @@ export const newBuildRider: DocumentTemplate = {
   purpose:
     "Attaches to the Residential Construction Agreement for a new home on a bare or cleared lot.",
   category: "client",
-  reviewState: "unreviewed",
+  reviewState: "owner_accepted",
+  reviewedOn: "2026-08-24",
+  reviewedBy: "Jared Brost (owner)",
+  acceptanceNote:
+    "Accepted for use pending attorney review. No attorney has reviewed this template.",
   projectSpecific: true,
   fields: [
     ...linkFields,
@@ -138,7 +142,11 @@ export const remodelRider: DocumentTemplate = {
   purpose:
     "Attaches to the Residential Construction Agreement for work on an existing structure, usually while the owner is living in it.",
   category: "client",
-  reviewState: "unreviewed",
+  reviewState: "owner_accepted",
+  reviewedOn: "2026-08-24",
+  reviewedBy: "Jared Brost (owner)",
+  acceptanceNote:
+    "Accepted for use pending attorney review. No attorney has reviewed this template.",
   projectSpecific: true,
   fields: [
     ...linkFields,
@@ -223,7 +231,11 @@ export const aduRider: DocumentTemplate = {
   purpose:
     "Attaches to the Residential Construction Agreement for an accessory dwelling unit on a lot with an existing home.",
   category: "client",
-  reviewState: "unreviewed",
+  reviewState: "owner_accepted",
+  reviewedOn: "2026-08-24",
+  reviewedBy: "Jared Brost (owner)",
+  acceptanceNote:
+    "Accepted for use pending attorney review. No attorney has reviewed this template.",
   projectSpecific: true,
   fields: [
     ...linkFields,
@@ -296,7 +308,11 @@ export const designBuildRider: DocumentTemplate = {
   purpose:
     "Attaches where P5 performs design as well as construction. Sets the design phase, what is delivered, who owns the drawings, and what happens if the owner does not proceed to build.",
   category: "client",
-  reviewState: "unreviewed",
+  reviewState: "owner_accepted",
+  reviewedOn: "2026-08-24",
+  reviewedBy: "Jared Brost (owner)",
+  acceptanceNote:
+    "Accepted for use pending attorney review. No attorney has reviewed this template.",
   projectSpecific: true,
   fields: [
     ...linkFields,

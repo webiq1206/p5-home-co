@@ -13,6 +13,7 @@
  * subcontractor sends back a redline.
  */
 
+import { P5_STANDING } from "./standing.ts";
 import type { DocumentTemplate } from "./types.ts";
 
 // ---------------------------------------------------------------------------
@@ -25,7 +26,11 @@ export const masterSubcontractorAgreement: DocumentTemplate = {
   purpose:
     "Signed once by each subcontractor, before their first job. Sets insurance, payment, indemnity and lien terms for every job that follows.",
   category: "subcontractor",
-  reviewState: "unreviewed",
+  reviewState: "owner_accepted",
+  reviewedOn: "2026-08-24",
+  reviewedBy: "Jared Brost (owner)",
+  acceptanceNote:
+    "Accepted for use pending attorney review. No attorney has reviewed this template.",
   // Signed once per subcontractor, so it is deliberately NOT tied to a job.
   projectSpecific: false,
   statute:
@@ -36,11 +41,11 @@ export const masterSubcontractorAgreement: DocumentTemplate = {
     { key: "sub_registration", label: "Idaho contractor registration number", kind: "text", required: true, help: "Idaho requires registration to perform most construction work. No number, no work." },
     { key: "effective_date", label: "Effective date", kind: "date", required: true },
     { key: "retainage_pct", label: "Retainage percentage", kind: "number", required: true, help: "Held back from each payment until final completion.", source: "Finance settings" },
-    { key: "payment_days", label: "Payment days after approved invoice", kind: "number", required: true },
+    { key: "payment_days", label: "Payment days after approved invoice", kind: "number", required: true, defaultValue: P5_STANDING.subcontractorPaymentDays, help: "Standing P5 term, not per subcontractor." },
     { key: "gl_limit", label: "General liability minimum, each occurrence", kind: "money", required: true },
     { key: "auto_limit", label: "Commercial auto minimum", kind: "money", required: true },
     { key: "wc_note", label: "Workers' compensation requirement", kind: "multiline", required: false },
-    { key: "warranty_months", label: "Warranty period, months", kind: "number", required: true },
+    { key: "warranty_months", label: "Warranty period, months", kind: "number", required: true, defaultValue: P5_STANDING.constructionWarrantyMonths, help: "Standing P5 term." },
   ],
   clauses: [
     {
@@ -206,7 +211,11 @@ export const subcontractWorkOrder: DocumentTemplate = {
   purpose:
     "One page per job. Names the scope, price and schedule; every other term comes from the Master Subcontractor Agreement.",
   category: "subcontractor",
-  reviewState: "unreviewed",
+  reviewState: "owner_accepted",
+  reviewedOn: "2026-08-24",
+  reviewedBy: "Jared Brost (owner)",
+  acceptanceNote:
+    "Accepted for use pending attorney review. No attorney has reviewed this template.",
   projectSpecific: true,
   exhibits: [
     {
@@ -300,7 +309,11 @@ export const clientConstructionAgreement: DocumentTemplate = {
   purpose:
     "The agreement between P5 and the homeowner. Covers scope, price, payment schedule, changes and warranty.",
   category: "client",
-  reviewState: "unreviewed",
+  reviewState: "owner_accepted",
+  reviewedOn: "2026-08-24",
+  reviewedBy: "Jared Brost (owner)",
+  acceptanceNote:
+    "Accepted for use pending attorney review. No attorney has reviewed this template.",
   projectSpecific: true,
   exhibits: [
     {
@@ -340,7 +353,7 @@ export const clientConstructionAgreement: DocumentTemplate = {
     { key: "payment_schedule", label: "Payment schedule", kind: "multiline", required: true, help: "Each milestone and the amount due at it." },
     { key: "start_date", label: "Estimated start", kind: "date", required: true },
     { key: "completion_date", label: "Estimated substantial completion", kind: "date", required: true },
-    { key: "warranty_months", label: "Warranty period, months", kind: "number", required: true },
+    { key: "warranty_months", label: "Warranty period, months", kind: "number", required: true, defaultValue: P5_STANDING.constructionWarrantyMonths, help: "Standing P5 term." },
     { key: "allowances", label: "Allowances", kind: "multiline", required: false, help: "Budget placeholders for selections not yet made. Overruns are billed as changes." },
   ],
   clauses: [
@@ -471,7 +484,11 @@ export const changeOrder: DocumentTemplate = {
   purpose:
     "Records a change to scope, price or schedule. Signed before the changed work is performed. Used on both sides, with customers and with subcontractors.",
   category: "change",
-  reviewState: "unreviewed",
+  reviewState: "owner_accepted",
+  reviewedOn: "2026-08-24",
+  reviewedBy: "Jared Brost (owner)",
+  acceptanceNote:
+    "Accepted for use pending attorney review. No attorney has reviewed this template.",
   projectSpecific: true,
   exhibits: [
     {
@@ -566,7 +583,11 @@ export const idahoResidentialDisclosure: DocumentTemplate = {
   purpose:
     "Delivered to a residential owner BEFORE work begins, as Idaho Code § 45-525 requires. Explains lien rights and how to protect against them.",
   category: "disclosure",
-  reviewState: "unreviewed",
+  reviewState: "owner_accepted",
+  reviewedOn: "2026-08-24",
+  reviewedBy: "Jared Brost (owner)",
+  acceptanceNote:
+    "Accepted for use pending attorney review. No attorney has reviewed this template.",
   statute: "Idaho Code § 45-525",
   fields: [
     { key: "customer_name", label: "Owner name", kind: "text", required: true, source: "Customer record" },

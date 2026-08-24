@@ -31,7 +31,11 @@ export const handymanAgreement: DocumentTemplate = {
   purpose:
     "Short-duration repair and maintenance work, for a homeowner, a commercial client, or a realtor ordering repairs during a sale.",
   category: "client",
-  reviewState: "unreviewed",
+  reviewState: "owner_accepted",
+  reviewedOn: "2026-08-24",
+  reviewedBy: "Jared Brost (owner)",
+  acceptanceNote:
+    "Accepted for use pending attorney review. No attorney has reviewed this template.",
   projectSpecific: true,
   statute: "Idaho Code Title 54, Chapter 52 (contractor registration); Idaho Code 45-525 where the work is residential and above the threshold",
   exhibits: [
@@ -173,7 +177,11 @@ export const cabinetAgreement: DocumentTemplate = {
   purpose:
     "Standalone cabinet work sold as Boise Cabinet Co, to a homeowner or a commercial client. P5 supplies and installs; supply-only is not offered.",
   category: "client",
-  reviewState: "unreviewed",
+  reviewState: "owner_accepted",
+  reviewedOn: "2026-08-24",
+  reviewedBy: "Jared Brost (owner)",
+  acceptanceNote:
+    "Accepted for use pending attorney review. No attorney has reviewed this template.",
   projectSpecific: true,
   statute: "Idaho Code Title 54, Chapter 52; Idaho Code 45-525 where residential and above the threshold",
   exhibits: [

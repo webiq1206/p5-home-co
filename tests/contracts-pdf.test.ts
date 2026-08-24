@@ -29,8 +29,9 @@ test("every template produces a structurally valid PDF", () => {
 });
 
 test("an unreviewed template prints the warning on every page", () => {
-  const template = ALL_TEMPLATES.find((t) => t.reviewState === "unreviewed");
-  assert.ok(template);
+  // Built from a live template forced back to unreviewed, so this keeps
+  // testing the watermark even now that P5's own templates are accepted.
+  const template = { ...ALL_TEMPLATES[0], reviewState: "unreviewed" as const };
   const pdf = decode(buildPdf(toPdfDocument(renderBlank(template))));
   const pages = [...pdf.matchAll(/\/Type \/Page[^s]/g)].length;
   const warnings = [...pdf.matchAll(/NOT REVIEWED BY AN ATTORNEY/g)].length;
