@@ -7,6 +7,7 @@
 
 import { agreements } from "./agreements.ts";
 import { lienWaivers } from "./lien-waivers.ts";
+import { standaloneAgreements } from "./standalone.ts";
 import type { DocumentTemplate } from "./types.ts";
 
 export * from "./types.ts";
@@ -14,8 +15,13 @@ export * from "./render.ts";
 export * from "./lien-waivers.ts";
 export * from "./agreements.ts";
 export * from "./readiness.ts";
+export * from "./standalone.ts";
 
-export const ALL_TEMPLATES: DocumentTemplate[] = [...agreements, ...lienWaivers];
+export const ALL_TEMPLATES: DocumentTemplate[] = [
+  ...agreements,
+  ...standaloneAgreements,
+  ...lienWaivers,
+];
 
 const BY_KEY = new Map(ALL_TEMPLATES.map((t) => [t.key, t]));
 
