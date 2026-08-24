@@ -63,3 +63,6 @@ next-env.d.ts
 # project and must not be tracked.
 /.migration-backup/*
 !/.migration-backup/.scaffold-applied
+
+# Sandbox refresh token, rotated on every use by Intuit. Never committed.
+.qbo-sandbox-token
