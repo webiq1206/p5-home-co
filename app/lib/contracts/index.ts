@@ -8,6 +8,7 @@
 import { agreements } from "./agreements.ts";
 import { lienWaivers } from "./lien-waivers.ts";
 import { standaloneAgreements } from "./standalone.ts";
+import { riders } from "./riders.ts";
 import type { DocumentTemplate } from "./types.ts";
 
 export * from "./types.ts";
@@ -16,9 +17,11 @@ export * from "./lien-waivers.ts";
 export * from "./agreements.ts";
 export * from "./readiness.ts";
 export * from "./standalone.ts";
+export * from "./riders.ts";
 
 export const ALL_TEMPLATES: DocumentTemplate[] = [
   ...agreements,
+  ...riders,
   ...standaloneAgreements,
   ...lienWaivers,
 ];
