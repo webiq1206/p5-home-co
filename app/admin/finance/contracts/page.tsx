@@ -123,6 +123,42 @@ export default function ContractsPage() {
                     </ul>
                   )}
 
+                  {/* What the pre-send gate will check. Shown on the template
+                      itself, so the requirement is known before somebody is
+                      halfway through preparing a contract and discovers it. */}
+                  {(template.exhibits?.length ?? 0) > 0 && (
+                    <>
+                      <h4>Before this can be sent</h4>
+                      <ul>
+                        {template.exhibits!.map((ex) => (
+                          <li key={ex.label}>
+                            <strong>
+                              {ex.label}: {ex.name}
+                            </strong>{" "}
+                            {ex.required ? (
+                              <span className="fin-chip fin-chip-urgent">
+                                blocks sending
+                              </span>
+                            ) : (
+                              <span className="fin-chip fin-chip-info">
+                                you will be asked
+                              </span>
+                            )}
+                            <br />
+                            <span className="fin-footnote">{ex.purpose}</span>
+                          </li>
+                        ))}
+                      </ul>
+                      <p className="fin-footnote">
+                        A required exhibit stops the send. An optional one only
+                        asks, and is answered either by attaching it or by
+                        confirming there is none for this job. A gate that blocks
+                        on things legitimately absent gets clicked through on
+                        reflex, and then it stops being a gate.
+                      </p>
+                    </>
+                  )}
+
                   <details>
                     <summary>
                       What has to be filled in (

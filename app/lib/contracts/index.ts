@@ -13,6 +13,7 @@ export * from "./types.ts";
 export * from "./render.ts";
 export * from "./lien-waivers.ts";
 export * from "./agreements.ts";
+export * from "./readiness.ts";
 
 export const ALL_TEMPLATES: DocumentTemplate[] = [...agreements, ...lienWaivers];
 
