@@ -66,3 +66,6 @@ next-env.d.ts
 
 # Sandbox refresh token, rotated on every use by Intuit. Never committed.
 .qbo-sandbox-token
+
+# Generated contract PDFs. Rebuilt from the templates with: npm run contracts:pdf
+build/contracts/

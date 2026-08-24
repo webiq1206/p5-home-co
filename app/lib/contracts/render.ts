@@ -165,3 +165,86 @@ export function canIssue(template: DocumentTemplate): {
         : "No attorney has reviewed this template. It decides who pays when something goes wrong, so it needs a lawyer before it is used on a real job.",
   };
 }
+
+// ---------------------------------------------------------------------------
+// Blank documents, for QuickBooks contract templates (S222)
+// ---------------------------------------------------------------------------
+
+/**
+ * Render a template with every field left blank.
+ *
+ * QuickBooks is explicit that a contract template "doesn't include any
+ * prefilled customer information" - the template is the same document for every
+ * customer, and QuickBooks places fill and signature fields over it at send
+ * time. So this is the opposite of renderDocument: instead of refusing when a
+ * required value is missing, every value is deliberately absent.
+ *
+ * Each blank is sized roughly to its content and labelled underneath, because
+ * an unlabelled run of underscores on a signed contract is how the wrong number
+ * ends up in the wrong space.
+ */
+export function renderBlank(template: DocumentTemplate): RenderedDocument {
+  const byKey = new Map(template.fields.map((f) => [f.key, f]));
+
+  const blankFor = (field: TemplateField | undefined): string => {
+    if (!field) return "____________";
+    // Money and dates get a shorter rule than a scope description.
+    const width =
+      field.kind === "money" || field.kind === "date" || field.kind === "number" ? 18 : 34;
+    return `${"_".repeat(width)} [${field.label}]`;
+  };
+
+  const substitute = (body: string): string =>
+    body.replace(MARKER, (_whole, key: string) => blankFor(byKey.get(key)));
+
+  return {
+    template,
+    title: substitute(template.title),
+    clauses: template.clauses.map((c) => ({ heading: c.heading, body: substitute(c.body) })),
+    signatures: template.signatures.map((s) => ({ role: s.role, name: null })),
+    draftWatermark: watermarkFor(template),
+  };
+}
+
+/**
+ * Turn a rendered document into the block list the PDF writer takes.
+ *
+ * Issuing notes are included on the page for a reason: the person filling this
+ * in is often not the person who decided how it works, and a note that lives
+ * only in the admin panel is a note they will never see.
+ */
+export function toPdfDocument(doc: RenderedDocument): {
+  title: string;
+  blocks: import("./pdf.ts").PdfBlock[];
+  watermark: string | null;
+  footer: string;
+} {
+  const blocks: import("./pdf.ts").PdfBlock[] = [];
+
+  for (const clause of doc.clauses) {
+    blocks.push({ kind: "heading", text: clause.heading });
+    blocks.push({ kind: "body", text: clause.body });
+    blocks.push({ kind: "spacer" });
+  }
+
+  blocks.push({ kind: "spacer" });
+  blocks.push({ kind: "heading", text: "Signatures" });
+  for (const sig of doc.signatures) {
+    blocks.push({ kind: "signature", role: sig.name ? `${sig.role}: ${sig.name}` : sig.role });
+  }
+
+  if (doc.template.issuingNotes?.length) {
+    blocks.push({ kind: "spacer" });
+    blocks.push({ kind: "heading", text: "Notes for whoever issues this" });
+    for (const note of doc.template.issuingNotes) {
+      blocks.push({ kind: "body", text: `- ${note}` });
+    }
+  }
+
+  return {
+    title: doc.title,
+    blocks,
+    watermark: doc.draftWatermark,
+    footer: "P5 Home Co. LLC",
+  };
+}

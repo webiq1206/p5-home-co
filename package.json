@@ -14,7 +14,8 @@
     "hubspot:setup": "node --experimental-strip-types --env-file-if-exists=.env.local tools/hubspot-setup.ts",
     "db:migrate": "node --experimental-strip-types --env-file-if-exists=.env.local tools/migrate.ts",
     "flags": "node --experimental-strip-types --env-file-if-exists=.env.local tools/flags.ts",
-    "notify:test": "node --experimental-strip-types --env-file-if-exists=.env.local tools/notify-test.ts"
+    "notify:test": "node --experimental-strip-types --env-file-if-exists=.env.local tools/notify-test.ts",
+    "contracts:pdf": "node --experimental-strip-types tools/contracts-pdf.ts"
   },
   "dependencies": {
     "next": "16.3.0",
