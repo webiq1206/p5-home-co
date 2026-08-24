@@ -9,10 +9,10 @@
  *     during a sale. Who pays, and what happens if the sale falls through, is
  *     the question a construction contract never has to ask.
  *
- *   - Cabinet work sold standalone is a supply-and-install sale. Where P5 only
- *     supplies, it is closer to a goods contract: risk of loss passes on
- *     delivery, the warranty is largely the manufacturer's, and measurement
- *     responsibility decides who pays when a door does not fit.
+ *   - Cabinet work sold standalone is a supply-AND-install sale, not a
+ *     construction project. P5 does not sell product for others to fit. The
+ *     warranty is largely the manufacturer's, and measurement responsibility
+ *     decides who pays when a door does not fit.
  *
  * Both can be sold to a homeowner OR a commercial client, which is why neither
  * assumes the Idaho residential disclosure applies. That decision is made per
@@ -171,11 +171,11 @@ export const cabinetAgreement: DocumentTemplate = {
   key: "cabinet_supply_install_agreement",
   title: "Cabinet Supply and Installation Agreement",
   purpose:
-    "Standalone cabinet work sold as Boise Cabinet Co, to a homeowner or a commercial client, supplied only or supplied and installed.",
+    "Standalone cabinet work sold as Boise Cabinet Co, to a homeowner or a commercial client. P5 supplies and installs; supply-only is not offered.",
   category: "client",
   reviewState: "unreviewed",
   projectSpecific: true,
-  statute: "Idaho Code Title 54, Chapter 52; Idaho Code 45-525 where residential and above the threshold; Idaho's Uniform Commercial Code where product is supplied without installation",
+  statute: "Idaho Code Title 54, Chapter 52; Idaho Code 45-525 where residential and above the threshold",
   exhibits: [
     {
       label: "Exhibit A",
@@ -199,7 +199,6 @@ export const cabinetAgreement: DocumentTemplate = {
     { key: "job_reference", label: "Job reference", kind: "text", required: true, source: "Project P5 number" },
     { key: "agreement_date", label: "Agreement date", kind: "date", required: true },
     { key: "p5_registration", label: "P5 Idaho registration number", kind: "text", required: true },
-    { key: "supply_scope", label: "Supply or supply and install", kind: "text", required: true, help: "This changes what P5 is responsible for. Say which plainly." },
     { key: "product_description", label: "Product", kind: "multiline", required: true, help: "Line, door style, finish, box construction, hardware." },
     { key: "exclusions", label: "Not included", kind: "multiline", required: false, help: "Countertops, appliances, plumbing disconnect and reconnect, electrical, flooring, and painting are common exclusions." },
     { key: "contract_amount", label: "Contract price", kind: "money", required: true },
@@ -221,12 +220,11 @@ export const cabinetAgreement: DocumentTemplate = {
     {
       heading: "2. What P5 is providing",
       body:
-        "Scope: {{supply_scope}}\n\nProduct:\n{{product_description}}\n\nNot included: {{exclusions}}\n\n" +
-        "Where this Agreement is for SUPPLY ONLY, P5 is responsible for delivering the product described and " +
-        "is not responsible for installation, fit, or any work by others. Where it is for SUPPLY AND " +
-        "INSTALLATION, P5 is responsible for both.",
+        "P5 will supply AND install the following:\n\n{{product_description}}\n\n" +
+        "Not included: {{exclusions}}\n\n" +
+        "Anything not listed above is excluded. P5 is responsible for both the product and its installation.",
       rationale:
-        "Supply-only and installed work are different obligations and the difference is routinely blurred. Stating which one this is decides who is responsible when something does not fit.",
+        "P5 supplies and installs; it does not sell product for somebody else to fit. Saying so removes the argument about whether a fit problem is a product problem or an installation problem, because it is P5's either way.",
       loadBearing: true,
     },
     {
@@ -259,17 +257,19 @@ export const cabinetAgreement: DocumentTemplate = {
       body:
         "Estimated lead time is {{lead_time_weeks}} weeks from the later of order release and receipt of " +
         "final approved drawings. Lead times are estimates given by the manufacturer and are not guaranteed.\n\n" +
-        "Client will provide a dry, secure, climate-appropriate space for delivery. Risk of loss or damage " +
-        "passes to Client on delivery to the address above, except where P5 is installing, in which case it " +
-        "passes on completion of installation.",
+        "Client will provide a dry, secure, climate-appropriate space for storage on site where the product " +
+        "arrives before installation begins. Risk of loss or damage passes to Client on completion of " +
+        "installation.\n\n" +
+        "Where Client requires the product to be delivered and stored on site before P5 is ready to install, " +
+        "Client is responsible for protecting it from damage, moisture and theft from the point of delivery.",
       rationale:
-        "Risk of loss has to be stated or it defaults to rules neither party expects. Splitting it by supply-only versus installed matches who actually has custody of the product.",
+        "Risk of loss has to be stated or it defaults to rules neither party expects. It stays with P5 until installation is finished, because P5 controls the product until then - except where the client insists on early delivery, which moves custody to them.",
       loadBearing: true,
     },
     {
-      heading: "6. Site readiness, where P5 installs",
+      heading: "6. Site readiness",
       body:
-        "Where P5 is installing, Client is responsible for the space being ready: walls square and finished " +
+        "Client is responsible for the space being ready before installation: walls square and finished " +
         "to the extent the drawings assume, flooring complete where it runs under the cabinets, and services " +
         "roughed in at the locations shown. P5 will notify Client if the space is not ready and may reschedule.\n\n" +
         "Additional visits caused by the space not being ready are chargeable.",
@@ -316,7 +316,6 @@ export const cabinetAgreement: DocumentTemplate = {
     { role: "Client", nameField: "client_name" },
   ],
   issuingNotes: [
-    "Say plainly whether this is supply only or supply and installation. It changes what P5 is responsible for throughout.",
     "Record who took the final measurements. It is the answer to the most expensive question on a cabinet job.",
     "Attach the drawings. They are what the client is actually buying.",
     "Confirm the order release date in writing - it is what makes the non-refundable deposit defensible.",
