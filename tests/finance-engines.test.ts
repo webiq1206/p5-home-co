@@ -8,6 +8,7 @@ import {
   forecastToComplete,
   marginHealth,
   overheadForecast,
+  projectManagementFee,
   projectFunding,
   recommendedTaxReserveContribution,
   safeCash,
@@ -289,4 +290,34 @@ test("settings merge: overrides one nested field without losing siblings", () =>
   assert.equal(merged.taxReserve.rate, 0.25);
   assert.equal(merged.taxReserve.rateConfirmedByCpa, false);
   assert.equal(merged.marginBands.yellowBelow, 2);
+});
+
+// ---------------------------------------------------------------------------
+// Project-management fee (owner policy): 15% of contract by default
+// ---------------------------------------------------------------------------
+
+test("PM fee: required amount is the configured percentage of contract", () => {
+  const fee = projectManagementFee(200_000, S);
+  assert.equal(fee.required, 30_000); // 15% of 200k
+  assert.equal(fee.meetsRequirement, null); // unknown until we see the estimate
+  assert.equal(fee.shortfall, 0);
+});
+
+test("PM fee: an estimate that includes enough meets the requirement", () => {
+  const fee = projectManagementFee(200_000, S, 30_000);
+  assert.equal(fee.meetsRequirement, true);
+  assert.equal(fee.shortfall, 0);
+});
+
+test("PM fee: an estimate that includes too little reports the shortfall", () => {
+  const fee = projectManagementFee(200_000, S, 18_000);
+  assert.equal(fee.meetsRequirement, false);
+  assert.equal(fee.shortfall, 12_000);
+});
+
+test("PM fee: percentage is configurable and a zero/negative contract is safe", () => {
+  const at20 = mergeFinanceSettings(S, { projectManagement: { pctOfContract: 0.2 } });
+  assert.equal(projectManagementFee(100_000, at20).required, 20_000);
+  assert.equal(projectManagementFee(0, S).required, 0);
+  assert.equal(projectManagementFee(-5000, S).required, 0);
 });

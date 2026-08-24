@@ -84,6 +84,45 @@ export function marginHealth(
   return "green";
 }
 
+// ---------------------------------------------------------------------------
+// Project-management fee (owner policy).
+//
+// Every project must carry enough labor and supervision to cover the team that
+// runs it. That is expressed as a project-management fee equal to a fraction of
+// contract value. The QBO estimate is authored by hand, so this function is the
+// single source of the required amount: the estimating rule quotes it, any
+// report can show it, and a check can compare it against what an estimate
+// actually includes.
+// ---------------------------------------------------------------------------
+
+export type PmFeeCheck = {
+  /** Dollar amount the estimate should include for project management. */
+  required: number;
+  /** True/false once we know what the estimate included; null when unknown. */
+  meetsRequirement: boolean | null;
+  /** How far short, 0 when met or unknown. */
+  shortfall: number;
+};
+
+export function projectManagementFee(
+  contractValue: number,
+  settings: FinanceSettings,
+  includedPmAmount: number | null = null,
+): PmFeeCheck {
+  const raw = Math.max(0, contractValue) * settings.projectManagement.pctOfContract;
+  const required = Math.round(raw * 100) / 100;
+  if (includedPmAmount === null) {
+    return { required, meetsRequirement: null, shortfall: 0 };
+  }
+  // A cent of tolerance so rounding never reports a met fee as short.
+  const meets = includedPmAmount + 0.01 >= required;
+  return {
+    required,
+    meetsRequirement: meets,
+    shortfall: meets ? 0 : Math.round((required - includedPmAmount) * 100) / 100,
+  };
+}
+
 /** S49: forecast freshness. */
 export function forecastIsStale(
   etcUpdatedAt: Date | null,

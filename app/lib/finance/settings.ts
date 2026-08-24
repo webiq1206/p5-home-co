@@ -71,6 +71,24 @@ export type FinanceSettings = {
     overheadContributionPctOfGp: number;
     retainedEarningsPctOfGp: number;
   };
+  /** Owner policy: every project must carry enough labor/supervision to cover
+   *  the team running it, expressed as a project-management fee that is a
+   *  fraction of contract value. Enforced at estimate time (the QuickBooks
+   *  estimate is authored by hand today, so this is the estimating rule and the
+   *  computed target, not a hard block P5 can apply to a QBO line). */
+  projectManagement: {
+    pctOfContract: number;
+    requiredOnEstimates: boolean;
+  };
+  /** S89: automatically email the subcontractor when a required document is
+   *  missing or expiring, on the complianceReminderDays ladder. The internal
+   *  attention queue always fires; this controls the outbound sub-facing email. */
+  vendorDocumentReminders: {
+    enabled: boolean;
+    /** Where a sub replies with the updated document. Null falls back to the
+     *  SMTP from-address, so a reply always reaches accounting. */
+    replyToEmail: string | null;
+  };
 };
 
 export const DEFAULT_FINANCE_SETTINGS: FinanceSettings = {
@@ -112,6 +130,14 @@ export const DEFAULT_FINANCE_SETTINGS: FinanceSettings = {
     warrantyReservePctOfRevenue: 0.01,
     overheadContributionPctOfGp: 0.1,
     retainedEarningsPctOfGp: 0.1,
+  },
+  projectManagement: {
+    pctOfContract: 0.15,
+    requiredOnEstimates: true,
+  },
+  vendorDocumentReminders: {
+    enabled: true,
+    replyToEmail: "accounting@p5homeco.com",
   },
 };
 

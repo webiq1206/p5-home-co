@@ -57,8 +57,16 @@ export const procedures: Article[] = [
           "Add the phases this job needs from the P5 taxonomy (for example Site Work, Framing, Plumbing - or the CAB codes for a standalone cabinet job).",
           "Set the profit margin goal (default 45%).",
           "Build the estimate on the project: one line per piece of work, each with its phase and item, entering our cost and the customer price per line.",
+          "Include the project-management fee line: enough labor and supervision to cover our team running the job, at the percentage of contract set in Finance > Settings (currently 15%). Every project carries this; it is how the team that runs the work gets paid.",
           "IMPORTANT: when picking the project on any form, click it in the dropdown so it is actually committed - typing the name without selecting it silently disables Save.",
         ],
+      },
+      {
+        t: "callout",
+        kind: "action",
+        title: "Project-management fee is not optional",
+        text:
+          "Every estimate must carry a project-management fee equal to the percentage of contract set in Finance > Settings (currently 15%). It funds the team that manages and runs the project. On a $200,000 job that is $30,000. If an estimate does not include it, add it before the estimate goes out.",
       },
       { t: "h", text: "In the P5 panel (Finance > Projects)" },
       {
@@ -240,6 +248,112 @@ export const procedures: Article[] = [
         kind: "info",
         text:
           "HubSpot seats are not involved: employees do not get HubSpot logins (the free plan has 2 seats). The panel is the working surface.",
+      },
+    ],
+  },
+  {
+    slug: "win-a-handoff-bid",
+    section: "procedures",
+    title: "Turn a won Handoff bid into a QuickBooks project and signed contracts",
+    summary:
+      "The exact steps when a client accepts a Handoff estimate: get the numbers into QuickBooks, create the customer and project, and send the right contracts for signature.",
+    lastVerified: "2026-08-24",
+    keywords: [
+      "handoff",
+      "won bid",
+      "accepted estimate",
+      "estimate",
+      "bid",
+      "new project intake",
+      "start a job",
+      "client said yes",
+      "move forward",
+      "send contracts",
+      "closed won",
+    ],
+    blocks: [
+      {
+        t: "p",
+        text:
+          "This is what to do the moment a client accepts a Handoff estimate and wants to move forward. It covers getting the exact bid into QuickBooks, creating the customer and project, and sending the contracts.",
+      },
+      {
+        t: "callout",
+        kind: "warning",
+        title: "Handoff and QuickBooks are not connected",
+        text:
+          "By the owner's decision, Handoff is standalone for now. Nothing pushes a Handoff estimate into QuickBooks automatically; the numbers are re-keyed by hand using the steps below. When that connection is built, this page changes in the same edit.",
+      },
+      { t: "h", text: "1. Confirm the winning numbers in Handoff" },
+      {
+        t: "steps",
+        items: [
+          "Open the accepted estimate in Handoff and mark it won there, so Handoff stays the source of truth for what the client agreed to.",
+          "Note the final contract total and the line-by-line breakdown you will re-enter: scope, quantities, our cost, and the customer price.",
+          "Confirm the project address, because every project-related contract must carry it.",
+        ],
+      },
+      { t: "h", text: "2. Create or confirm the customer in QuickBooks" },
+      {
+        t: "steps",
+        items: [
+          "Search Customers first. Create the customer only if they truly do not already exist, so you never split one client across two records.",
+          "Enter their name, billing address, email, and phone.",
+        ],
+      },
+      { t: "h", text: "3. Create the project and key the estimate" },
+      {
+        t: "steps",
+        items: [
+          "On the customer, choose New project. Name it \"P5-YYYY-#### - short address / job\" using the next P5 project number.",
+          "Add the phases this job needs from the P5 taxonomy (for example Site Work, Framing, Plumbing, or the CAB codes for a standalone cabinet job).",
+          "Set the profit margin goal (default 45%).",
+          "Re-enter the Handoff estimate on the project: one line per piece of work, each with its phase and item, with our cost and the customer price. The totals should match the Handoff estimate the client accepted.",
+          "Add the project-management fee line at the percentage of contract set in Finance > Settings (currently 15%). Every project carries it; it funds the team that runs the job.",
+          "Click the project in the dropdown so it is committed before saving; typing the name without selecting it silently disables Save.",
+        ],
+      },
+      {
+        t: "callout",
+        kind: "action",
+        title: "Cross-check before you send anything",
+        text:
+          "The QuickBooks estimate total, minus the project-management fee, should reconcile to what Handoff shows the client accepted. If they do not match, find out why before contracts go out; a contract built on the wrong number is worse than a slow one.",
+      },
+      { t: "h", text: "4. Register the project in the P5 panel" },
+      {
+        t: "steps",
+        items: [
+          "In Finance > Projects, register the project with the same P5 number and name.",
+          "Set the brand (division), project type, and contract type (build-only or design-build).",
+          "Enter the contract amount and the original budget (the estimate's cost total), plus contingency if budgeted.",
+          "Link the QuickBooks customer record so money flows into the project card automatically.",
+          "Set the status honestly: Contract Pending until signed, Deposit Pending until the deposit clears, then Active.",
+        ],
+      },
+      { t: "h", text: "5. Send the contracts from QuickBooks" },
+      {
+        t: "steps",
+        items: [
+          "Open Sales > Contracts > Contract templates in QuickBooks. Contracts are sent from there, not from the P5 panel.",
+          "Pick the client agreement that matches the job: new construction, remodel, or ADU (each pairs with its rider), or the standalone handyman or cabinet agreement.",
+          "For a design-build job, include the design-build rider so the design fee and its credit are on paper.",
+          "Fill the project address and the accepted figures, and attach the plan set for signature when the job has one.",
+          "Send it for e-signature to the client, and collect every required signer.",
+        ],
+      },
+      {
+        t: "callout",
+        kind: "warning",
+        title: "Residential Idaho disclosure and attorney review",
+        text:
+          "Residential projects need the Idaho disclosure delivered before work begins; it is bundled into the client agreement packet so it signs together. Note that the contract templates are owner-accepted pending attorney review, not yet counsel-approved. If a job is unusual, ask the owner before sending.",
+      },
+      {
+        t: "callout",
+        kind: "info",
+        text:
+          "Why re-key at all: keeping Handoff standalone means one clear source for what the client agreed to and one clear source for the books, with a deliberate human cross-check between them. When the volume justifies it, this becomes an automated import and this page is rewritten to match.",
       },
     ],
   },

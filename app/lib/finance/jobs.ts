@@ -16,6 +16,7 @@ import { query } from "../db.ts";
 import { runKbDriftScan } from "../kb/drift.ts";
 import { activeTransport } from "../notifications/transport.ts";
 import { runAttentionScan } from "./attention.ts";
+import { sendDueVendorDocumentReminders } from "./vendor-reminders.ts";
 import { runQboAudit } from "./qbo/audit-scan.ts";
 import {
   assembleDailyReport,
@@ -85,6 +86,24 @@ export async function runFinanceDaily(
     steps.push({ name: "attention_scan", ok: true, detail: `${open} open item(s).` });
   } catch (error) {
     steps.push({ name: "attention_scan", ok: false, detail: (error as Error).message });
+  }
+
+  // 2a. Subcontractor document reminders (S89). Runs after the scan so it sees
+  // the same document state, and emails the sub directly on the reminder ladder.
+  // A send failure is reported, never swallowed.
+  try {
+    const r = await sendDueVendorDocumentReminders(settings, today);
+    steps.push({
+      name: "vendor_doc_reminders",
+      ok: r.failures.length === 0,
+      detail: settings.vendorDocumentReminders.enabled
+        ? `${r.sent} emailed, ${r.alreadySent} already current-cycle, ` +
+          `${r.skippedNoContact} with no portal contact` +
+          (r.failures.length ? `; failed: ${r.failures.join("; ")}` : ".")
+        : "Disabled in settings; no reminders sent.",
+    });
+  } catch (error) {
+    steps.push({ name: "vendor_doc_reminders", ok: false, detail: (error as Error).message });
   }
 
   // 2b. QuickBooks data-quality inspection (S214).
