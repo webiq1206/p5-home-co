@@ -4,7 +4,17 @@ modules = ["nodejs-24", "python-base-3.13"]
 router = "application"
 deploymentTarget = "gce"
 build = "npm run build"
-run = "npm run start -- -H 0.0.0.0 -p ${PORT:-3000}"
+# Migrations run at BOOT rather than at build, because the build environment
+# does not carry the production DATABASE_URL - which is why the schema fell
+# behind the code and /admin/finance/data-quality started returning a 500.
+#
+# Safe to run every time: the migrator records each file in schema_migration
+# and skips it afterwards, and the SQL uses IF NOT EXISTS throughout.
+#
+# Deliberately `&&`. If a migration fails the app does NOT start, which is the
+# correct outcome - a running app on a half-applied schema serves wrong numbers
+# quietly, and quiet wrong numbers are worse than a site that is plainly down.
+run = "npm run db:migrate && npm run start -- -H 0.0.0.0 -p ${PORT:-3000}"
 
 [workflows]
 runButton = "Project"

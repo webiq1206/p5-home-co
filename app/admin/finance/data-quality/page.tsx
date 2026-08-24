@@ -13,7 +13,7 @@
 import Link from "next/link";
 
 import { getSessionUser } from "../../../lib/auth.ts";
-import { checkDatabase, query } from "../../../lib/db.ts";
+import { checkDatabase, describeSchemaError, query } from "../../../lib/db.ts";
 import { isQboConnected } from "../../../lib/finance/qbo/oauth.ts";
 import { lastAuditRun } from "../../../lib/finance/qbo/audit-scan.ts";
 import {
@@ -77,19 +77,48 @@ export default async function DataQualityPage() {
   }
 
   const ruleCodes = allRules().map((r) => r.code);
-  const [user, connected, lastRun, findings] = await Promise.all([
-    getSessionUser(),
-    isQboConnected(),
-    lastAuditRun(),
-    query<OpenFinding>(
-      `SELECT id::text, kind, severity, title, detail, amount, entity_url,
-              recommended_action, created_at::text
-       FROM attention_item
-       WHERE resolved_at IS NULL AND kind = ANY($1::text[])
-       ORDER BY created_at DESC`,
-      [ruleCodes],
-    ),
-  ]);
+
+  // checkDatabase above only proves migration 001 ran. This page needs 010,
+  // and code reaches production ahead of schema often enough that a bare 500
+  // here is a real failure mode - it tells whoever hit it nothing at all.
+  let lastRun: Awaited<ReturnType<typeof lastAuditRun>> = null;
+  let findings: OpenFinding[] = [];
+  let schemaProblem: { problem: string; detail: string } | null = null;
+
+  const [user, connected] = await Promise.all([getSessionUser(), isQboConnected()]);
+
+  try {
+    [lastRun, findings] = await Promise.all([
+      lastAuditRun(),
+      query<OpenFinding>(
+        `SELECT id::text, kind, severity, title, detail, amount, entity_url,
+                recommended_action, created_at::text
+         FROM attention_item
+         WHERE resolved_at IS NULL AND kind = ANY($1::text[])
+         ORDER BY created_at DESC`,
+        [ruleCodes],
+      ),
+    ]);
+  } catch (error) {
+    schemaProblem = describeSchemaError(error);
+  }
+
+  if (schemaProblem) {
+    return (
+      <main className="admin-main">
+        <h1 className="admin-h1">QuickBooks data quality</h1>
+        <div className="admin-notice admin-notice-error">
+          <strong>{schemaProblem.problem}</strong>
+          {schemaProblem.detail}
+        </div>
+        <p className="fin-footnote">
+          The rulebook below does not need the database, so it is still readable
+          while this is fixed.
+        </p>
+        <RuleBook />
+      </main>
+    );
+  }
 
   // The company settings, read live. Deliberately not fatal: a settings read
   // that fails must not take down the findings list, which is the part of this
@@ -338,7 +367,19 @@ export default async function DataQualityPage() {
       {/* ------------------------------------------------------------------ */}
       {/* The rulebook                                                        */}
       {/* ------------------------------------------------------------------ */}
-      <section className="fin-section">
+      <RuleBook />
+    </main>
+  );
+}
+
+
+/**
+ * The rulebook. Pure data, no database - which is why it renders even when the
+ * schema is behind the code, and why it lives in its own component.
+ */
+function RuleBook() {
+  return (
+    <section className="fin-section">
         <h2>What gets checked, and who enforces it</h2>
         <p>
           {allRules().length} rules run every morning. The distinction below
@@ -415,6 +456,5 @@ export default async function DataQualityPage() {
           both cost customer trust, not just money.
         </p>
       </section>
-    </main>
   );
 }
