@@ -4,7 +4,17 @@
  * Nothing here is generic QuickBooks advice; where P5 differs, P5 wins.
  */
 
+import { PHASES, type ProjectKind } from "../../finance/phases.ts";
 import type { Article } from "../types.ts";
+
+/** Plain names for the project kinds, used by the generated phase table. */
+const KIND_LABEL: Record<ProjectKind, string> = {
+  new_build: "New build",
+  remodel: "Remodel",
+  adu: "ADU",
+  handyman: "Handyman",
+  cabinet: "Cabinet",
+};
 
 export const quickbooks: Article[] = [
   {
@@ -205,30 +215,24 @@ export const quickbooks: Article[] = [
       },
       { t: "h", text: "The phase taxonomy" },
       {
+        t: "p",
+        text:
+          "The table below is generated from the phase registry the system actually uses, so it cannot drift from it. Three families, and the split matters: design is billed separately from build and credited against it on design-build work, which only works if design costs sit somewhere of their own.",
+      },
+      {
         t: "table",
-        headers: ["Range", "Phase family", "Examples"],
-        rows: [
-          [
-            "01-*",
-            "Plan",
-            "Home Inspection, Hazardous Material Testing, As-Builts, Schematic Architecture",
-          ],
-          [
-            "02-*",
-            "Design",
-            "Architecture Design Development, Engineering, MEP Schematic, Plan Approvals",
-          ],
-          [
-            "03-*",
-            "Build",
-            "Site Work, Foundation, Framing, HVAC, Electrical, Plumbing, Drywall, Flooring, Cabinetry/Countertops, Punch/Final Clean",
-          ],
-          [
-            "CAB-*",
-            "Cabinet (Boise Cabinet Co standalone jobs only)",
-            "Design/Measure, Cabinet Product, Freight, Delivery, Installation, Countertops, Field Modifications",
-          ],
-        ],
+        headers: ["Code", "Family", "Phase", "Used on"],
+        rows: PHASES.map((phase) => [
+          phase.code,
+          phase.family,
+          phase.name,
+          phase.appliesTo.map((k) => KIND_LABEL[k]).join(", "),
+        ]),
+      },
+      {
+        t: "p",
+        text:
+          "Build phases are numbered in the order the work happens and zero padded, so they sort into build order in any report that sorts by code. A project starts with the phases its kind uses and adds any others it needs: a remodel opens with dust containment and demolition, a new build with excavation and neither of those.",
       },
       {
         t: "callout",
