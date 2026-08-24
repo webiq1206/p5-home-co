@@ -212,3 +212,82 @@ test("attestations are only for settings the API cannot report", () => {
     assert.ok(check.paths.length > 0, `${key}: still needs a candidate path to try first`);
   }
 });
+
+// ---------------------------------------------------------------------------
+// Against the real payload, captured from the P5 company on 2026-08-23.
+// Both bugs this fixture caught were fallback paths pointing at a DIFFERENT
+// setting that happened to resolve.
+// ---------------------------------------------------------------------------
+
+/** Trimmed to the keys these checks read. Real values, real shapes. */
+const LIVE_PAYLOAD = {
+  AccountingInfoPrefs: {
+    UseAccountNumbers: true,
+    TrackDepartments: false, // locations/departments - NOT projects
+    ClassTrackingPerTxn: false,
+    ClassTrackingPerTxnLine: true,
+    FirstMonthOfFiscalYear: "January",
+    CustomerTerminology: "Customers",
+  },
+  VendorAndPurchasesPrefs: {
+    TrackingByCustomer: true,
+    BillableExpenseTracking: true,
+    DefaultTerms: { value: "1000000004", name: "Net 30" },
+    // Present whether or not purchase orders are enabled.
+    POCustomField: [{ CustomField: [{ Name: "PurchasePrefs.UsePurchaseCustom1", BooleanValue: true }] }],
+  },
+  SalesFormsPrefs: {},
+  OtherPrefs: {},
+};
+
+test("no candidate path resolves through a field that is a different setting", () => {
+  // The rule the two 2026-08-23 bugs broke. A proxy is worse than an honest
+  // unknown in both directions: one cries wolf daily, the other quietly ticks
+  // a box nobody rechecks.
+  const banned = [
+    ["AccountingInfoPrefs.TrackDepartments", "locations/departments, not projects"],
+    ["VendorAndPurchasesPrefs.POCustomField", "exists whether or not purchase orders are on"],
+    ["AccountingInfoPrefs.ClassTrackingPerTxn", "class tracking, not a feature toggle"],
+  ] as const;
+
+  for (const check of REQUIRED_PREFERENCES) {
+    for (const [path, why] of banned) {
+      assert.ok(
+        !check.paths.includes(path),
+        `${check.key} uses ${path} as a candidate, but that is ${why}`,
+      );
+    }
+  }
+});
+
+test("Projects reports unknown against the real payload, never 'switched off'", () => {
+  // QuickBooks does not expose Projects here at all. Reporting it off raised a
+  // CRITICAL finding every morning for a setting that was demonstrably on.
+  const { state } = readPreference(LIVE_PAYLOAD, byKey("projects_on"));
+  assert.equal(state, "unknown", "must be unknown, so the attestation answers it");
+});
+
+test("purchase orders report unknown against the real payload, never a false pass", () => {
+  const { state } = readPreference(LIVE_PAYLOAD, byKey("purchase_orders_on"));
+  assert.equal(state, "unknown", "a green tick nobody rechecks is worse than an alarm");
+});
+
+test("the settings that ARE reported read correctly from the real payload", () => {
+  for (const [key, expected] of [
+    ["account_numbers", "on"],
+    ["track_expenses_by_customer", "on"],
+    ["billable_expense_tracking", "on"],
+    ["default_bill_terms", "on"], // Net 30, set 2026-08-23
+    ["close_the_books", "unknown"], // no BookCloseDate on this file
+  ] as const) {
+    assert.equal(readPreference(LIVE_PAYLOAD, byKey(key)).state, expected, key);
+  }
+});
+
+test("against the real payload plus attestations, nothing reports as switched off", () => {
+  // The end state that matters: after the fixes, the live company produces no
+  // false alarms and no false passes.
+  const findings = checkPreferences(LIVE_PAYLOAD, "2026-08-24");
+  const off = findings.filter((f) => f.state === "off").map((f) => f.key);
+  assert.deepEqual(off, [], "no setting should report as off on this company");
+});

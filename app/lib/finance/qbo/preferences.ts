@@ -57,6 +57,21 @@ export type PreferenceCheck = {
    * More than one because the field name differs across QuickBooks editions.
    * The first path that yields a value wins; if none does, the setting is
    * `unknown` rather than assumed off.
+   *
+   * EVERY CANDIDATE MUST BE THE SETTING ITSELF, NEVER A PROXY FOR IT.
+   *
+   * This is not a style note. Both mapping bugs found on 2026-08-23 were
+   * proxies added as fallbacks:
+   *
+   *   - TrackDepartments stood in for Projects. It is a different feature,
+   *     read false, and produced a critical alarm every morning claiming
+   *     Projects was off while it was on.
+   *   - POCustomField stood in for "purchase orders enabled". It is an array
+   *     that exists regardless, so it always read as on - a false pass, which
+   *     is worse, because an alarm gets investigated and a green tick does not.
+   *
+   * An honest `unknown`, answered once by a person, beats a confident guess in
+   * both directions. If the real field is not in the payload, say so.
    */
   paths: string[];
   /**
@@ -84,11 +99,17 @@ export const REQUIRED_PREFERENCES: PreferenceCheck[] = [
       "Turns on jobs. Without it, every job has to be faked as a separate customer, and the customer's own record stops adding up.",
     consequence:
       "No job profitability exists at all. Costs and income cannot be grouped by job, which is the single number this whole system exists to produce.",
-    paths: [
-      "ProjectsPrefs.isProjectsEnabled",
-      "OtherPrefs.ProjectsEnabled",
-      "AccountingInfoPrefs.TrackDepartments",
-    ],
+    // Verified against the live payload 2026-08-23: QuickBooks does not
+    // report Projects through the Preferences endpoint at all - there is no
+    // ProjectsPrefs key. So this resolves to unknown and is answered by the
+    // attestation in UI_VERIFIED.
+    //
+    // AccountingInfoPrefs.TrackDepartments was here as a fallback and had to
+    // be removed: it is locations/departments, a different feature entirely,
+    // and it reads false on this file. The result was a CRITICAL alarm every
+    // morning saying Projects was off while it was demonstrably on. See the
+    // note on `paths` about proxies.
+    paths: ["ProjectsPrefs.isProjectsEnabled", "OtherPrefs.ProjectsEnabled"],
   },
   {
     key: "track_expenses_by_customer",
@@ -113,7 +134,16 @@ export const REQUIRED_PREFERENCES: PreferenceCheck[] = [
       "Lets us write down an agreed price with a vendor before the work happens, rather than finding out what it cost when the bill arrives.",
     consequence:
       "Subcontractor commitments cannot be recorded, so a job's remaining budget always looks bigger than it is and the same money can be promised twice.",
-    paths: ["VendorAndPurchasesPrefs.POCustomField", "ExpensePrefs.UsePurchaseOrder"],
+    // Verified against the live payload 2026-08-23: not reported either, so
+    // this is answered by the attestation in UI_VERIFIED.
+    //
+    // VendorAndPurchasesPrefs.POCustomField was here and had to be removed. It
+    // is an array of custom-field definitions that exists whether or not
+    // purchase orders are switched on, so it resolved to "on" unconditionally
+    // - a FALSE PASS, which is worse than the false alarm above: an alarm gets
+    // investigated, whereas a setting wrongly reported as verified is never
+    // looked at again.
+    paths: ["VendorAndPurchasesPrefs.UsePurchaseOrder"],
   },
   {
     key: "billable_expense_tracking",
