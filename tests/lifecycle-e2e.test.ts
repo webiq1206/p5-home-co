@@ -399,6 +399,10 @@ test("lifecycle: billing past the contract is critical UNTIL the change order is
 test("lifecycle: the change order document states price AND schedule effect", () => {
   const doc = renderDocument(changeOrder, {
     change_order_number: "CO-001",
+    // A change order has to name the agreement it amends, or the chain from
+    // contract to change is unprovable a year later.
+    original_agreement_title: "Residential Construction Agreement",
+    original_agreement_date: "2026-08-15",
     job_reference: JOB.p5Id,
     property_address: "12 Meander Ln, Boise ID",
     counterparty_name: JOB.customer,

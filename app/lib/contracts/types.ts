@@ -63,6 +63,29 @@ export type Clause = {
   loadBearing?: boolean;
 };
 
+/**
+ * A document that rides along with the contract in the same signing packet.
+ *
+ * Plan sets, subcontractor bids and spec sheets are job-specific, so they can
+ * never live in a reusable template - they are attached when the contract is
+ * created. Declaring them here is what makes a missing one VISIBLE: the exhibit
+ * list prints on the document itself, so a contract sent without its plan set
+ * shows an exhibit that is not there rather than looking complete.
+ *
+ * That matters because the plan set is what actually defines the scope. Getting
+ * it signed alongside the agreement is what turns "that is not what we agreed"
+ * into "here is the drawing you initialled".
+ */
+export type Exhibit = {
+  /** Exhibit A, B, C... assigned in order. */
+  label: string;
+  name: string;
+  /** Whether the contract may be sent without it. */
+  required: boolean;
+  /** Why it is attached, in the preparer's terms. */
+  purpose: string;
+};
+
 export type DocumentTemplate = {
   /** Stable key. Used in vendor_document and audit trails, so never rename. */
   key: string;
@@ -82,6 +105,19 @@ export type DocumentTemplate = {
   statute?: string;
   fields: TemplateField[];
   clauses: Clause[];
+  /**
+   * Documents attached to this one at send time, never part of the template.
+   * QuickBooks allows up to five documents in one signing packet.
+   */
+  exhibits?: Exhibit[];
+  /**
+   * True when this document concerns a specific job.
+   *
+   * Every project document must carry the property address - it is what ties
+   * the paperwork to the land, and a lien waiver or change order without it may
+   * not attach to the property it was meant to cover. Enforced by test.
+   */
+  projectSpecific?: boolean;
   /** Lines the signatories sign on. */
   signatures: { role: string; nameField?: string }[];
   /** Shown to the person issuing it, above the document. */

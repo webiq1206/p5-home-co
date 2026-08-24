@@ -227,6 +227,27 @@ export function toPdfDocument(doc: RenderedDocument): {
     blocks.push({ kind: "spacer" });
   }
 
+  // Exhibits print BEFORE the signatures, so anyone about to sign sees what is
+  // supposed to be attached. A missing plan set then shows as an exhibit that
+  // is not there, rather than the packet simply looking complete.
+  if (doc.template.exhibits?.length) {
+    blocks.push({ kind: "spacer" });
+    blocks.push({ kind: "heading", text: "Exhibits attached to and forming part of this agreement" });
+    for (const ex of doc.template.exhibits) {
+      blocks.push({
+        kind: "body",
+        text: `${ex.label}: ${ex.name}${ex.required ? " (REQUIRED)" : " (if applicable)"}
+${ex.purpose}`,
+      });
+    }
+    blocks.push({
+      kind: "body",
+      text:
+        "Each exhibit listed above is incorporated into this agreement by reference. " +
+        "Where an exhibit is marked REQUIRED, this agreement is incomplete without it.",
+    });
+  }
+
   blocks.push({ kind: "spacer" });
   blocks.push({ kind: "heading", text: "Signatures" });
   for (const sig of doc.signatures) {

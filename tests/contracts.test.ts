@@ -280,3 +280,70 @@ test("the work order inherits from the master agreement rather than restating it
   assert.doesNotMatch(headings, /Indemnity|Insurance/);
   assert.match(workOrder.clauses[0].body, /Master Subcontractor Agreement/);
 });
+
+// ---------------------------------------------------------------------------
+// Rules set by the owner, 2026-08-24. Each one is here because a document that
+// breaks it fails in a way nobody notices until it matters.
+// ---------------------------------------------------------------------------
+
+test("every project document carries the property address", () => {
+  // The address is what ties the paperwork to the land. A lien waiver or change
+  // order that does not name the property may not attach to it at all.
+  for (const t of ALL_TEMPLATES) {
+    if (!t.projectSpecific) continue;
+    const address = t.fields.find((f) => f.key === "property_address");
+    assert.ok(address, `${t.key}: project documents must have a property_address field`);
+    assert.ok(address.required, `${t.key}: the property address cannot be optional`);
+    const body = t.clauses.map((c) => c.body).join(" ");
+    assert.match(body, /{{property_address}}/, `${t.key}: address is never printed`);
+  }
+});
+
+test("a document signed once per party is not marked project specific", () => {
+  // The master agreement covers every future job, so tying it to one address
+  // would be wrong - and would force a new signature per job, which is exactly
+  // what splitting it into master plus work order exists to avoid.
+  const master = getTemplate("master_subcontractor_agreement");
+  assert.equal(master?.projectSpecific, false);
+  assert.ok(!master?.fields.some((f) => f.key === "property_address"));
+});
+
+test("no contract text contains an em dash or en dash", () => {
+  // Owner's instruction. They also have no glyph in the PDF base font, so any
+  // that slipped through would be silently substituted at render time.
+  for (const t of ALL_TEMPLATES) {
+    const text = [t.title, t.purpose, ...t.clauses.flatMap((c) => [c.heading, c.body])].join(" ");
+    assert.doesNotMatch(text, /[–—]/, `${t.key}: contains an em or en dash`);
+    for (const ex of t.exhibits ?? []) {
+      assert.doesNotMatch(`${ex.name} ${ex.purpose}`, /[–—]/, `${t.key}: exhibit text`);
+    }
+    for (const note of t.issuingNotes ?? []) {
+      assert.doesNotMatch(note, /[–—]/, `${t.key}: issuing note`);
+    }
+  }
+});
+
+test("the documents that take job-specific attachments declare them", () => {
+  // Plan sets and subcontractor bids cannot live in a reusable template, so the
+  // only way a preparer knows to attach one is the exhibit list on the page.
+  const client = getTemplate("client_construction_agreement");
+  const planSet = client?.exhibits?.find((e) => /plan set/i.test(e.name));
+  assert.ok(planSet, "the client agreement must expect a plan set");
+  assert.ok(planSet.required, "the plan set defines the scope; it is not optional");
+
+  const workOrder = getTemplate("subcontract_work_order");
+  assert.ok(
+    workOrder?.exhibits?.some((e) => /bid|proposal/i.test(e.name)),
+    "the work order must allow the subcontractor's bid to be attached",
+  );
+});
+
+test("every exhibit says whether it is required and why it is there", () => {
+  for (const t of ALL_TEMPLATES) {
+    for (const ex of t.exhibits ?? []) {
+      assert.match(ex.label, /^Exhibit [A-Z]$/, `${t.key}: ${ex.label}`);
+      assert.ok(ex.purpose.length > 40, `${t.key}/${ex.label}: purpose is too thin`);
+      assert.equal(typeof ex.required, "boolean");
+    }
+  }
+});

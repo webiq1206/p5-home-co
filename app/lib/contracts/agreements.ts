@@ -26,6 +26,8 @@ export const masterSubcontractorAgreement: DocumentTemplate = {
     "Signed once by each subcontractor, before their first job. Sets insurance, payment, indemnity and lien terms for every job that follows.",
   category: "subcontractor",
   reviewState: "unreviewed",
+  // Signed once per subcontractor, so it is deliberately NOT tied to a job.
+  projectSpecific: false,
   statute:
     "Idaho Code Title 54, Chapter 52 (contractor registration); Title 45, Chapter 5 (liens); Title 72 (workers' compensation)",
   fields: [
@@ -205,6 +207,16 @@ export const subcontractWorkOrder: DocumentTemplate = {
     "One page per job. Names the scope, price and schedule; every other term comes from the Master Subcontractor Agreement.",
   category: "subcontractor",
   reviewState: "unreviewed",
+  projectSpecific: true,
+  exhibits: [
+    {
+      label: "Exhibit A",
+      name: "Subcontractor's bid or proposal",
+      required: false,
+      purpose:
+        "Attach the bid the price came from and have it initialled. When a subcontractor later says the scope meant something else, the document they wrote is the answer.",
+    },
+  ],
   fields: [
     { key: "work_order_number", label: "Work order number", kind: "text", required: true, source: "Subcontract reference" },
     { key: "sub_legal_name", label: "Subcontractor", kind: "text", required: true, source: "Vendor record" },
@@ -289,6 +301,30 @@ export const clientConstructionAgreement: DocumentTemplate = {
     "The agreement between P5 and the homeowner. Covers scope, price, payment schedule, changes and warranty.",
   category: "client",
   reviewState: "unreviewed",
+  projectSpecific: true,
+  exhibits: [
+    {
+      label: "Exhibit A",
+      name: "Plan set and drawings",
+      required: true,
+      purpose:
+        "The plan set is what actually defines the scope. Initialled alongside this agreement, it turns a later dispute about what was agreed into a question of reading the drawing the customer signed.",
+    },
+    {
+      label: "Exhibit B",
+      name: "Allowance schedule",
+      required: false,
+      purpose:
+        "Every allowance, its amount and what it covers. Allowance overruns are one of the two most common residential disputes, and a written schedule makes the overrun arithmetic rather than argument.",
+    },
+    {
+      label: "Exhibit C",
+      name: "Payment schedule",
+      required: true,
+      purpose:
+        "What the customer pays and when. Front loaded enough that P5 is funded ahead of the work rather than financing it.",
+    },
+  ],
   statute:
     "Idaho Code § 45-525 (residential disclosure); Title 54, Chapter 52 (contractor registration)",
   fields: [
@@ -433,11 +469,23 @@ export const changeOrder: DocumentTemplate = {
   key: "change_order",
   title: "Change Order {{change_order_number}}",
   purpose:
-    "Records a change to scope, price or schedule. Signed before the changed work is performed.",
+    "Records a change to scope, price or schedule. Signed before the changed work is performed. Used on both sides, with customers and with subcontractors.",
   category: "change",
   reviewState: "unreviewed",
+  projectSpecific: true,
+  exhibits: [
+    {
+      label: "Exhibit A",
+      name: "Supporting pricing, drawings or photographs",
+      required: false,
+      purpose:
+        "Where the number came from. A change order priced with no backup is the one a customer questions hardest, usually months later when nobody remembers the detail.",
+    },
+  ],
   fields: [
     { key: "change_order_number", label: "Change order number", kind: "text", required: true },
+    { key: "original_agreement_date", label: "Date of the agreement being changed", kind: "date", required: true, help: "The client agreement or subcontract this change amends. A change order that does not say what it changes is hard to enforce and easy to dispute." },
+    { key: "original_agreement_title", label: "Title of the agreement being changed", kind: "text", required: true, help: "For example: Residential Construction Agreement, or Subcontract Work Order SC-001." },
     { key: "job_reference", label: "Job", kind: "text", required: true, source: "Project P5 number" },
     { key: "property_address", label: "Property address", kind: "text", required: true, source: "Project record" },
     { key: "counterparty_name", label: "Other party", kind: "text", required: true, help: "The customer, or the subcontractor, depending on which side this change is on." },

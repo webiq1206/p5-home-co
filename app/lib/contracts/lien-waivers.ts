@@ -56,6 +56,22 @@ const claimant: TemplateField[] = [
     required: true,
     source: "Project P5 number",
   },
+  {
+    key: "subcontract_reference",
+    label: "Subcontract / work order reference",
+    kind: "text",
+    required: true,
+    help: "The work order this payment is made under, for example SC-001. It is what ties the waiver to the scope and the agreed price.",
+    source: "Subcontract record",
+  },
+  {
+    key: "master_agreement_date",
+    label: "Master Subcontractor Agreement dated",
+    kind: "date",
+    required: false,
+    help: "Leave blank for a supplier with no master agreement.",
+    source: "Vendor record",
+  },
 ];
 
 const signature = [
@@ -137,6 +153,8 @@ function waiver(spec: {
     purpose: spec.purpose,
     category: "waiver",
     reviewState: "unreviewed",
+    // A waiver that does not name the property may not attach to it.
+    projectSpecific: true,
     statute: "Idaho Code Title 45, Chapter 5 (mechanics' and materialmen's liens)",
     fields: [
       ...claimant,
