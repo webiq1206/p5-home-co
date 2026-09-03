@@ -1,34 +1,18 @@
 import type { MetadataRoute } from "next";
-import { siteUrl } from "./site.ts";
+import { getIndexableEntries } from "./siteUrls.ts";
 
+/**
+ * Rendered from app/siteUrls.ts - the same list the HTML sitemap page uses, so
+ * the two cannot drift. Each entry carries its own frequency and priority: the
+ * homepage is the one page meant to win traffic; the legal documents are listed
+ * because they have to be publicly reachable, not to rank.
+ */
 export default function sitemap(): MetadataRoute.Sitemap {
   const lastModified = new Date();
-  return [
-    {
-      url: siteUrl,
-      lastModified,
-      changeFrequency: "monthly",
-      priority: 1,
-    },
-    // The legal documents are listed because they have to be publicly
-    // reachable, not because they are meant to win traffic.
-    {
-      url: `${siteUrl}/legal/terms`,
-      lastModified,
-      changeFrequency: "yearly",
-      priority: 0.2,
-    },
-    {
-      url: `${siteUrl}/legal/privacy`,
-      lastModified,
-      changeFrequency: "yearly",
-      priority: 0.2,
-    },
-    {
-      url: `${siteUrl}/legal/quickbooks-disconnect`,
-      lastModified,
-      changeFrequency: "yearly",
-      priority: 0.1,
-    },
-  ];
+  return getIndexableEntries().map((e) => ({
+    url: e.url,
+    lastModified,
+    changeFrequency: e.changeFrequency,
+    priority: e.priority,
+  }));
 }
