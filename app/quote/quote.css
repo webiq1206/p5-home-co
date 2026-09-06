@@ -1,0 +1,736 @@
+/*
+ * Quote landing pages.
+ *
+ * Scoped under .quote-page (plus the two fixed elements) so nothing here can
+ * reach the approved homepage. Colours, type, and the button treatment come
+ * from the tokens in globals.css, so the page reads as P5 without restating
+ * the palette.
+ */
+
+.quote-page {
+  background: var(--paper);
+  color: var(--ink);
+}
+
+.quote-shell {
+  position: relative;
+  z-index: 1;
+  width: min(1180px, 100% - 40px);
+  margin: 0 auto;
+}
+
+/* --- Skip link -------------------------------------------------------------- */
+
+.quote-skip {
+  position: absolute;
+  left: -9999px;
+  z-index: 300;
+  padding: 12px 18px;
+  background: var(--ink);
+  color: #fff;
+  font-family: "P5 Sans", system-ui, sans-serif;
+  font-size: 13px;
+  font-weight: 750;
+}
+
+.quote-skip:focus {
+  left: 12px;
+  top: 12px;
+}
+
+/* --- Header ---------------------------------------------------------------- */
+
+.quote-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  width: min(1180px, 100% - 40px);
+  margin: 0 auto;
+  padding: 18px 0;
+}
+
+.quote-wordmark img {
+  display: block;
+  width: auto;
+  height: 32px;
+}
+
+.quote-header-phone {
+  color: var(--ink);
+  font-size: 15px;
+  font-weight: 750;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.quote-header-phone:hover,
+.quote-header-phone:focus-visible {
+  color: var(--bronze);
+}
+
+/* --- Hero ------------------------------------------------------------------ */
+
+.quote-hero {
+  position: relative;
+  isolation: isolate;
+  padding: 40px 0 48px;
+  color: #fff;
+  background: var(--forest);
+  overflow: hidden;
+}
+
+.quote-hero-img {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Dark enough for AA contrast on white text, light enough to read the room. */
+.quote-hero-veil {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background: linear-gradient(
+    180deg,
+    rgba(23, 33, 28, 0.94) 0%,
+    rgba(23, 33, 28, 0.86) 45%,
+    rgba(23, 33, 28, 0.92) 100%
+  );
+}
+
+.quote-hero-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 28px;
+  align-items: start;
+}
+
+.quote-eyebrow {
+  margin: 0 0 14px;
+  color: var(--bronze);
+  font-size: 10px;
+  font-weight: 750;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.quote-page h1 {
+  margin: 0 0 16px;
+  font-family: "P5 Serif", Georgia, serif;
+  font-size: clamp(31px, 5.4vw, 50px);
+  font-weight: 500;
+  line-height: 1.08;
+  letter-spacing: -0.01em;
+  text-wrap: balance;
+}
+
+.quote-lead {
+  max-width: 56ch;
+  margin: 0 0 22px;
+  color: rgba(255, 255, 255, 0.86);
+  font-size: 16px;
+  line-height: 1.62;
+}
+
+.quote-covers {
+  display: grid;
+  gap: 0;
+  margin: 0 0 22px;
+  padding: 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.2);
+  list-style: none;
+}
+
+.quote-covers li {
+  position: relative;
+  padding: 11px 0 11px 22px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+  color: rgba(255, 255, 255, 0.88);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.quote-covers li::before {
+  position: absolute;
+  top: 17px;
+  left: 2px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--bronze);
+  content: "";
+}
+
+.quote-hero-call {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 14px;
+}
+
+.quote-hero-call a {
+  color: #fff;
+  font-weight: 750;
+  text-underline-offset: 3px;
+}
+
+/* --- Form panel ------------------------------------------------------------ */
+
+.quote-form-panel {
+  padding: 24px 20px 22px;
+  border: 1px solid rgba(32, 35, 31, 0.14);
+  background: var(--paper);
+  color: var(--ink);
+  box-shadow: 0 22px 50px rgba(11, 16, 13, 0.32);
+}
+
+.quote-form-panel h2 {
+  margin: 0 0 16px;
+  color: var(--ink);
+  font-family: "P5 Serif", Georgia, serif;
+  font-size: 24px;
+  font-weight: 500;
+  line-height: 1.2;
+}
+
+.quote-form-panel h2:focus-visible {
+  outline: 2px solid var(--bronze);
+  outline-offset: 4px;
+}
+
+.quote-field {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 14px;
+}
+
+.quote-row {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0 14px;
+}
+
+.quote-field label {
+  margin-bottom: 6px;
+  font-size: 11px;
+  font-weight: 750;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.quote-field input,
+.quote-field select,
+.quote-field textarea {
+  width: 100%;
+  padding: 13px;
+  border: 1px solid rgba(32, 35, 31, 0.22);
+  border-radius: 0;
+  background: #fff;
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 16px; /* 16px stops iOS Safari zooming the page on focus. */
+  line-height: 1.45;
+  transition: border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.quote-field textarea {
+  min-height: 100px;
+  resize: vertical;
+}
+
+.quote-field input:focus-visible,
+.quote-field select:focus-visible,
+.quote-field textarea:focus-visible {
+  border-color: var(--ink);
+  box-shadow: 0 0 0 3px rgba(172, 125, 85, 0.3);
+  outline: none;
+}
+
+.quote-field input[aria-invalid="true"] {
+  border-color: #a4462f;
+}
+
+.quote-hint {
+  margin: -4px 0 16px;
+  color: #646962;
+  font-size: 12px;
+}
+
+.quote-error,
+.quote-form-error {
+  margin: 6px 0 0;
+  color: #a4462f;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.quote-form-error {
+  margin: 14px 0 0;
+  padding: 11px 13px;
+  border-left: 3px solid #a4462f;
+  background: rgba(164, 70, 47, 0.08);
+}
+
+/* Off-screen rather than display:none: a bot reading the DOM still finds it. */
+.quote-trap {
+  position: absolute;
+  left: -9999px;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+}
+
+.quote-submit {
+  width: 100%;
+  margin: 2px 0 0;
+  cursor: pointer;
+  font-family: inherit;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.quote-submit[disabled] {
+  cursor: progress;
+  opacity: 0.62;
+}
+
+.quote-more {
+  margin-top: 14px;
+  border-top: 1px solid var(--line);
+}
+
+.quote-more summary {
+  padding: 13px 0 2px;
+  color: var(--ink);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 750;
+  letter-spacing: 0.06em;
+}
+
+.quote-more summary:focus-visible {
+  outline: 2px solid var(--bronze);
+  outline-offset: 3px;
+}
+
+.quote-more-inner {
+  padding-top: 14px;
+}
+
+.quote-form-note {
+  margin: 16px 0 0;
+  color: #646962;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.quote-form-note a {
+  color: var(--ink);
+  font-weight: 700;
+}
+
+/* --- Sections --------------------------------------------------------------- */
+
+.quote-page h2 {
+  margin: 0 0 14px;
+  font-family: "P5 Serif", Georgia, serif;
+  font-size: clamp(23px, 3.2vw, 32px);
+  font-weight: 500;
+  line-height: 1.15;
+  text-wrap: balance;
+}
+
+.quote-section-lead {
+  max-width: 62ch;
+  margin: 0 0 26px;
+  font-size: 15px;
+  line-height: 1.65;
+}
+
+.quote-section-lead a {
+  color: inherit;
+  font-weight: 700;
+}
+
+/* --- Proof ------------------------------------------------------------------ */
+
+.quote-proof {
+  padding: 54px 0;
+  border-bottom: 1px solid var(--line);
+  background: var(--bone);
+}
+
+.quote-proof-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0;
+  margin: 22px 0 0;
+  padding: 0;
+  border-top: 1px solid var(--line);
+  list-style: none;
+}
+
+.quote-proof-grid li {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 17px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.quote-proof-grid b {
+  font-size: 14px;
+  font-weight: 750;
+}
+
+.quote-proof-grid span {
+  max-width: 46ch;
+  color: #646962;
+  font-size: 13.5px;
+  line-height: 1.6;
+}
+
+/* --- Testimonials (rendered only when there are real ones) ------------------- */
+
+.quote-voices {
+  padding: 54px 0;
+}
+
+.quote-voice-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 22px;
+  margin: 22px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.quote-voice-grid li {
+  padding: 22px;
+  border: 1px solid var(--line);
+  background: var(--bone);
+}
+
+.quote-voice-grid blockquote {
+  margin: 0 0 14px;
+  font-family: "P5 Serif", Georgia, serif;
+  font-size: 18px;
+  line-height: 1.5;
+}
+
+.quote-voice-who {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  margin: 0;
+  font-size: 12.5px;
+}
+
+.quote-voice-who span {
+  color: #646962;
+}
+
+/* --- Steps ------------------------------------------------------------------ */
+
+.quote-steps {
+  padding: 54px 0;
+}
+
+.quote-step-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0;
+  margin: 22px 0 0;
+  padding: 0;
+  border-top: 1px solid var(--line);
+  list-style: none;
+}
+
+.quote-step-grid li {
+  padding: 22px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.quote-step-grid b {
+  display: block;
+  margin-bottom: 9px;
+  color: var(--bronze);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+}
+
+.quote-step-grid h3 {
+  margin: 0 0 7px;
+  font-size: 16px;
+  font-weight: 750;
+}
+
+.quote-step-grid p {
+  max-width: 46ch;
+  margin: 0;
+  color: #646962;
+  font-size: 14px;
+  line-height: 1.65;
+}
+
+/* --- Other services ---------------------------------------------------------- */
+
+.quote-others {
+  padding: 54px 0;
+  color: #fff;
+  background: var(--moss);
+}
+
+.quote-others h2 {
+  color: #fff;
+}
+
+.quote-other-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0;
+  margin: 22px 0 26px;
+  padding: 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.17);
+  list-style: none;
+}
+
+.quote-other-grid li {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.17);
+}
+
+.quote-other-grid a {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  align-items: baseline;
+  padding: 16px 4px;
+  color: #fff;
+  text-decoration: none;
+  transition: background 160ms ease, padding-left 160ms ease;
+}
+
+.quote-other-grid a:hover,
+.quote-other-grid a:focus-visible {
+  padding-left: 12px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.quote-other-grid b {
+  font-size: 15px;
+  font-weight: 750;
+}
+
+.quote-other-grid span {
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 12px;
+  letter-spacing: 0.05em;
+}
+
+.quote-others-note {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.quote-others-note a {
+  color: #fff;
+}
+
+/* --- FAQ --------------------------------------------------------------------- */
+
+.quote-faq {
+  padding: 54px 0;
+}
+
+.quote-faq dl {
+  margin: 22px 0 0;
+  border-top: 1px solid var(--line);
+}
+
+.quote-faq dt {
+  padding: 21px 0 8px;
+  font-size: 16.5px;
+  font-weight: 750;
+}
+
+.quote-faq dd {
+  max-width: 68ch;
+  margin: 0;
+  padding: 0 0 21px;
+  border-bottom: 1px solid var(--line);
+  color: #646962;
+  font-size: 15px;
+  line-height: 1.7;
+}
+
+/* --- Footer ------------------------------------------------------------------ */
+
+.quote-footer {
+  padding: 42px 0 96px;
+  color: #fff;
+  background: var(--forest);
+}
+
+.quote-footer p {
+  max-width: 62ch;
+  margin: 0 0 12px;
+  color: rgba(255, 255, 255, 0.66);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.quote-footer-brand {
+  color: #fff !important;
+  font-family: "P5 Serif", Georgia, serif;
+  font-size: 22px;
+}
+
+.quote-footer-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 26px;
+  max-width: none !important;
+  margin-top: 16px;
+}
+
+.quote-footer-links a {
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+  text-underline-offset: 3px;
+}
+
+.quote-footer-bottom {
+  margin: 20px 0 0;
+  font-size: 12px;
+}
+
+/* --- Sticky call bar (small screens only) ------------------------------------ */
+
+.quote-callbar {
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 150;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  align-items: center;
+  padding: 11px 16px calc(11px + env(safe-area-inset-bottom, 0px));
+  background: var(--bronze);
+  color: #fff;
+  box-shadow: 0 -6px 22px rgba(11, 16, 13, 0.22);
+  font-weight: 750;
+  text-align: center;
+  text-decoration: none;
+}
+
+.quote-callbar span {
+  font-size: 16px;
+  letter-spacing: 0.02em;
+}
+
+.quote-callbar small {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  opacity: 0.9;
+  text-transform: uppercase;
+}
+
+.quote-callbar:focus-visible {
+  outline: 3px solid var(--ink);
+  outline-offset: -3px;
+}
+
+/* --- Thanks ------------------------------------------------------------------- */
+
+.quote-thanks-body {
+  padding: 56px 0 80px;
+}
+
+.quote-thanks .quote-footer-links a {
+  color: var(--ink);
+}
+
+.quote-thanks-steps {
+  max-width: 62ch;
+  margin: 20px 0 26px;
+  padding-left: 20px;
+  color: #646962;
+  font-size: 15px;
+  line-height: 1.8;
+}
+
+.quote-thanks-urgent {
+  max-width: 62ch;
+  padding: 16px 18px;
+  border-left: 3px solid var(--bronze);
+  background: var(--bone);
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+/* --- Wider screens ------------------------------------------------------------ */
+
+@media (min-width: 720px) {
+  .quote-row {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .quote-form-panel {
+    padding: 30px 28px 26px;
+  }
+
+  .quote-proof-grid,
+  .quote-step-grid {
+    grid-template-columns: repeat(3, 1fr);
+    column-gap: 30px;
+  }
+
+  .quote-other-grid {
+    grid-template-columns: repeat(2, 1fr);
+    column-gap: 30px;
+  }
+
+  .quote-voice-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .quote-footer {
+    padding-bottom: 42px;
+  }
+
+  /* The bar exists because a phone header scrolls away. A desktop one does not. */
+  .quote-callbar {
+    display: none;
+  }
+}
+
+@media (min-width: 1020px) {
+  .quote-hero {
+    padding: 60px 0 76px;
+  }
+
+  .quote-hero-grid {
+    grid-template-columns: 1.05fr 0.95fr;
+    gap: 56px;
+  }
+
+  .quote-covers {
+    grid-template-columns: 1fr 1fr;
+    column-gap: 26px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .quote-page *,
+  .quote-callbar {
+    transition: none !important;
+  }
+}
