@@ -7,10 +7,14 @@
  * engine needs to read is server-rendered around it. It posts to the existing
  * public endpoint at /api/leads/intake, so this page adds a front door to the
  * lead manager rather than a second, parallel way of capturing leads.
+ *
+ * Contact fields come first and the project detail is explicitly optional.
+ * On a cold ad click every extra field that looks mandatory costs a lead, and
+ * the server only needs a name and one way to reply.
  */
 
 import { useRouter } from "next/navigation";
-import { useId, useState } from "react";
+import { useId, useRef, useState } from "react";
 
 import { track } from "../analytics";
 import {
@@ -22,7 +26,9 @@ import {
   type QuoteFormValues,
 } from "./options";
 
-const EMPTY: QuoteFormValues = { name: "", phone: "", email: "", city: "", project: "", summary: "" };
+function emptyValues(defaultProject: string): QuoteFormValues {
+  return { name: "", phone: "", email: "", city: "", project: defaultProject, summary: "" };
+}
 
 /** Field errors the server can send back, mapped onto our field names. */
 function mapServerErrors(errors: unknown): QuoteFieldErrors {
@@ -39,15 +45,33 @@ function mapServerErrors(errors: unknown): QuoteFieldErrors {
   return mapped;
 }
 
-export default function QuoteForm() {
+export default function QuoteForm({ defaultProject = "" }: { defaultProject?: string }) {
   const router = useRouter();
   const uid = useId();
-  const [values, setValues] = useState<QuoteFormValues>(EMPTY);
+  const [values, setValues] = useState<QuoteFormValues>(() => emptyValues(defaultProject));
   const [errors, setErrors] = useState<QuoteFieldErrors>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   // Bots fill every field they find. A real person never sees this one.
   const [trap, setTrap] = useState("");
+
+  const nameRef = useRef<HTMLInputElement>(null);
+  const phoneRef = useRef<HTMLInputElement>(null);
+  const emailRef = useRef<HTMLInputElement>(null);
+  /**
+   * Fires once, so drop-off between starting and sending is measurable.
+   *
+   * Hung off the form's onFocus rather than each field's onChange: focus
+   * bubbles from every input, select, and textarea, so one handler covers the
+   * whole form and nothing reads a ref during render.
+   */
+  const started = useRef(false);
+
+  function noteStart() {
+    if (started.current) return;
+    started.current = true;
+    track("form_start", { form: "quote_landing_page", project: defaultProject || "generic" });
+  }
 
   const field = (key: keyof QuoteFormValues) => ({
     id: uid + "-" + key,
@@ -57,6 +81,13 @@ export default function QuoteForm() {
       setValues((v) => ({ ...v, [key]: e.target.value }));
     },
   });
+
+  /** Send the visitor to the first thing they need to fix, not just announce it. */
+  function focusFirstError(found: QuoteFieldErrors) {
+    if (found.name) nameRef.current?.focus();
+    else if (found.contact || found.phone) phoneRef.current?.focus();
+    else if (found.email) emailRef.current?.focus();
+  }
 
   async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -71,7 +102,10 @@ export default function QuoteForm() {
 
     const found = validateQuoteForm(values);
     setErrors(found);
-    if (Object.keys(found).length > 0) return;
+    if (Object.keys(found).length > 0) {
+      focusFirstError(found);
+      return;
+    }
 
     setSubmitting(true);
     try {
@@ -98,6 +132,7 @@ export default function QuoteForm() {
       if (Object.keys(fieldErrors).length > 0) {
         setErrors(fieldErrors);
         setFormError("Please check the highlighted fields and send it again.");
+        focusFirstError(fieldErrors);
       } else {
         setFormError(
           typeof payload.error === "string"
@@ -119,18 +154,14 @@ export default function QuoteForm() {
     errors[key] ? uid + "-" + key + "-error" : undefined;
 
   return (
-    <form className="quote-form" onSubmit={onSubmit} noValidate>
-      <p className="quote-form-intro">
-        Every field except your name and one way to reach you is optional. The more you tell us, the
-        more useful the first call is.
-      </p>
-
+    <form className="quote-form" onSubmit={onSubmit} onFocus={noteStart} noValidate>
       <div className="quote-field">
         <label htmlFor={uid + "-name"}>
           Your name <span aria-hidden="true">*</span>
         </label>
         <input
           {...field("name")}
+          ref={nameRef}
           type="text"
           autoComplete="name"
           required
@@ -150,6 +181,7 @@ export default function QuoteForm() {
           <label htmlFor={uid + "-phone"}>Phone</label>
           <input
             {...field("phone")}
+            ref={phoneRef}
             type="tel"
             inputMode="tel"
             autoComplete="tel"
@@ -166,6 +198,7 @@ export default function QuoteForm() {
           <label htmlFor={uid + "-email"}>Email</label>
           <input
             {...field("email")}
+            ref={emailRef}
             type="email"
             autoComplete="email"
             aria-invalid={errors.email ? true : undefined}
@@ -179,45 +212,56 @@ export default function QuoteForm() {
         </div>
       </div>
 
+      <p className="quote-hint">Either one is enough — whichever you would rather we used.</p>
+
       {errors.contact && (
         <p className="quote-error" role="alert">
           {errors.contact}
         </p>
       )}
 
-      <div className="quote-row">
-        <div className="quote-field">
-          <label htmlFor={uid + "-project"}>What can we help with?</label>
-          <select {...field("project")}>
-            <option value="">Select a project</option>
-            {PROJECT_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.value}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="quote-field">
-          <label htmlFor={uid + "-city"}>Where is the property?</label>
-          <select {...field("city")}>
-            <option value="">Select a city</option>
-            {QUOTE_CITIES.map((city) => (
-              <option key={city} value={city}>
-                {city}
-              </option>
-            ))}
-          </select>
-        </div>
-      </div>
+      <button className="button button-dark quote-submit" type="submit" disabled={submitting}>
+        {submitting ? "Sending your request..." : "Request my free quote"}
+      </button>
 
-      <div className="quote-field">
-        <label htmlFor={uid + "-summary"}>Tell us about the project</label>
-        <textarea
-          {...field("summary")}
-          rows={4}
-          placeholder="Rough scope, timing, and anything already decided."
-        />
-      </div>
+      <details className="quote-more">
+        <summary>Add project details (optional)</summary>
+        <div className="quote-more-inner">
+          <div className="quote-row">
+            <div className="quote-field">
+              <label htmlFor={uid + "-project"}>What can we help with?</label>
+              <select {...field("project")}>
+                <option value="">Select a project</option>
+                {PROJECT_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.value}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="quote-field">
+              <label htmlFor={uid + "-city"}>Where is the property?</label>
+              <select {...field("city")}>
+                <option value="">Select a city</option>
+                {QUOTE_CITIES.map((city) => (
+                  <option key={city} value={city}>
+                    {city}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div className="quote-field">
+            <label htmlFor={uid + "-summary"}>Tell us about the project</label>
+            <textarea
+              {...field("summary")}
+              rows={4}
+              placeholder="Rough scope, timing, and anything already decided."
+            />
+          </div>
+        </div>
+      </details>
 
       {/* Honeypot. Hidden from people, off the tab order, hidden from screen readers. */}
       <div className="quote-trap" aria-hidden="true">
@@ -238,10 +282,6 @@ export default function QuoteForm() {
           {formError}
         </p>
       )}
-
-      <button className="button button-dark quote-submit" type="submit" disabled={submitting}>
-        {submitting ? "Sending your request..." : "Request my free quote"}
-      </button>
 
       <p className="quote-form-note">
         No cost and no obligation. We use your details to answer this enquiry and nothing else - see

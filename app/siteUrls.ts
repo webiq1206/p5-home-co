@@ -9,6 +9,7 @@
  * its domain does not resolve yet (see replit.md); link it only once live.
  */
 import { companies, siteUrl } from "./site.ts";
+import { QUOTE_SERVICES } from "./quote/services.ts";
 
 type ChangeFrequency = "always" | "hourly" | "daily" | "weekly" | "monthly" | "yearly" | "never";
 
@@ -33,6 +34,16 @@ export const ownPages: SiteUrlEntry[] = [
   { href: "/#service-area", label: "Service area" },
   { href: "/#faq", label: "Common questions" },
   { href: "/sitemap", label: "Site map", changeFrequency: "monthly", priority: 0.3 },
+  /**
+   * One quote page per service, generated from the same list the routes are
+   * generated from, so a new service cannot ship missing from the sitemaps.
+   */
+  ...QUOTE_SERVICES.map((s) => ({
+    href: `/quote/${s.slug}`,
+    label: `${s.label} quote`,
+    changeFrequency: "monthly" as ChangeFrequency,
+    priority: 0.8,
+  })),
 ];
 
 /**
