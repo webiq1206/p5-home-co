@@ -1,0 +1,504 @@
+/*
+ * Quote landing page.
+ *
+ * Scoped under .quote-page so nothing here can reach the approved homepage.
+ * Colours, type, and the button treatment come from the tokens in
+ * globals.css, so the page reads as P5 without restating the palette.
+ */
+
+.quote-page {
+  background: var(--paper);
+  color: var(--ink);
+}
+
+.quote-shell {
+  width: min(1180px, 100% - 40px);
+  margin: 0 auto;
+}
+
+/* --- Header ---------------------------------------------------------------- */
+
+.quote-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  width: min(1180px, 100% - 40px);
+  margin: 0 auto;
+  padding: 20px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.quote-wordmark img {
+  display: block;
+  width: auto;
+  height: 34px;
+}
+
+.quote-header-phone {
+  color: var(--ink);
+  font-size: 15px;
+  font-weight: 750;
+  letter-spacing: 0.01em;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.quote-header-phone:hover,
+.quote-header-phone:focus-visible {
+  color: var(--bronze);
+}
+
+/* --- Hero ------------------------------------------------------------------ */
+
+.quote-hero {
+  padding: 48px 0 64px;
+  background: var(--bone);
+  border-bottom: 1px solid var(--line);
+}
+
+.quote-hero-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 40px;
+  align-items: start;
+}
+
+.quote-eyebrow {
+  margin: 0 0 18px;
+  color: var(--bronze);
+  font-size: 10px;
+  font-weight: 750;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.quote-page h1 {
+  margin: 0 0 20px;
+  font-family: "P5 Serif", Georgia, serif;
+  font-size: clamp(34px, 6vw, 54px);
+  font-weight: 500;
+  line-height: 1.08;
+  letter-spacing: -0.01em;
+}
+
+.quote-lead {
+  max-width: 58ch;
+  margin: 0 0 28px;
+  font-size: 17px;
+  line-height: 1.6;
+}
+
+.quote-trust {
+  display: grid;
+  gap: 0;
+  margin: 0 0 24px;
+  padding: 0;
+  border-top: 1px solid var(--line);
+  list-style: none;
+}
+
+.quote-trust li {
+  position: relative;
+  padding: 12px 0 12px 22px;
+  border-bottom: 1px solid var(--line);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.quote-trust li::before {
+  position: absolute;
+  top: 18px;
+  left: 2px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--bronze);
+  content: "";
+}
+
+.quote-hero-call {
+  margin: 0;
+  font-size: 15px;
+}
+
+.quote-hero-call a,
+.quote-thanks-urgent a {
+  color: var(--ink);
+  font-weight: 750;
+  text-underline-offset: 3px;
+}
+
+/* --- Form panel ------------------------------------------------------------ */
+
+.quote-form-panel {
+  padding: 28px 22px 26px;
+  border: 1px solid var(--line);
+  background: #fff;
+  box-shadow: 0 18px 40px rgba(32, 35, 31, 0.07);
+}
+
+.quote-form-panel h2 {
+  margin: 0 0 6px;
+  font-family: "P5 Serif", Georgia, serif;
+  font-size: 26px;
+  font-weight: 500;
+  line-height: 1.2;
+}
+
+.quote-form-intro {
+  margin: 0 0 22px;
+  color: #646962;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.quote-field {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 16px;
+}
+
+.quote-row {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0 16px;
+}
+
+.quote-field label {
+  margin-bottom: 6px;
+  font-size: 11px;
+  font-weight: 750;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.quote-field input,
+.quote-field select,
+.quote-field textarea {
+  width: 100%;
+  padding: 12px 13px;
+  border: 1px solid var(--line);
+  border-radius: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 16px; /* 16px stops iOS Safari zooming the page on focus. */
+  line-height: 1.45;
+  transition: border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.quote-field textarea {
+  min-height: 104px;
+  resize: vertical;
+}
+
+.quote-field input:focus-visible,
+.quote-field select:focus-visible,
+.quote-field textarea:focus-visible {
+  border-color: var(--ink);
+  box-shadow: 0 0 0 3px rgba(172, 125, 85, 0.28);
+  outline: none;
+}
+
+.quote-field input[aria-invalid="true"] {
+  border-color: #a4462f;
+}
+
+.quote-error,
+.quote-form-error {
+  margin: 6px 0 0;
+  color: #a4462f;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.quote-form-error {
+  margin: 4px 0 14px;
+  padding: 11px 13px;
+  border-left: 3px solid #a4462f;
+  background: rgba(164, 70, 47, 0.07);
+}
+
+/* Off-screen rather than display:none: a bot reading the DOM still finds it. */
+.quote-trap {
+  position: absolute;
+  left: -9999px;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+}
+
+.quote-submit {
+  width: 100%;
+  margin-top: 6px;
+  cursor: pointer;
+  font-family: inherit;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.quote-submit[disabled] {
+  cursor: progress;
+  opacity: 0.62;
+}
+
+.quote-form-note {
+  margin: 16px 0 0;
+  color: #646962;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.quote-form-note a {
+  color: var(--ink);
+  font-weight: 700;
+}
+
+/* --- Steps ----------------------------------------------------------------- */
+
+.quote-steps {
+  padding: 64px 0;
+}
+
+.quote-page h2 {
+  margin: 0 0 14px;
+  font-family: "P5 Serif", Georgia, serif;
+  font-size: clamp(24px, 3.4vw, 34px);
+  font-weight: 500;
+  line-height: 1.15;
+}
+
+.quote-section-lead {
+  max-width: 62ch;
+  margin: 0 0 30px;
+  font-size: 15px;
+  line-height: 1.65;
+}
+
+.quote-section-lead a {
+  color: var(--ink);
+  font-weight: 700;
+}
+
+.quote-step-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0;
+  margin: 26px 0 0;
+  padding: 0;
+  border-top: 1px solid var(--line);
+  list-style: none;
+  counter-reset: none;
+}
+
+.quote-step-grid li {
+  padding: 24px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.quote-step-grid b {
+  display: block;
+  margin-bottom: 10px;
+  color: var(--bronze);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+}
+
+.quote-step-grid h3,
+.quote-company-list h3 {
+  margin: 0 0 8px;
+  font-size: 16px;
+  font-weight: 750;
+}
+
+.quote-step-grid p,
+.quote-company-list p {
+  max-width: 46ch;
+  margin: 0;
+  color: #646962;
+  font-size: 14px;
+  line-height: 1.65;
+}
+
+/* --- Companies -------------------------------------------------------------- */
+
+.quote-companies {
+  padding: 64px 0;
+  color: #fff;
+  background: var(--moss);
+}
+
+.quote-companies h2,
+.quote-companies .quote-section-lead {
+  color: #fff;
+}
+
+.quote-companies .quote-section-lead a {
+  color: #fff;
+}
+
+.quote-company-list {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.17);
+  list-style: none;
+}
+
+.quote-company-list li {
+  padding: 22px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.17);
+}
+
+.quote-company-list h3 {
+  color: #fff;
+}
+
+.quote-company-list p {
+  color: rgba(255, 255, 255, 0.66);
+}
+
+/* --- FAQ -------------------------------------------------------------------- */
+
+.quote-faq {
+  padding: 64px 0;
+}
+
+.quote-faq dl {
+  margin: 26px 0 0;
+  border-top: 1px solid var(--line);
+}
+
+.quote-faq dt {
+  padding: 22px 0 8px;
+  font-size: 17px;
+  font-weight: 750;
+}
+
+.quote-faq dd {
+  max-width: 68ch;
+  margin: 0;
+  padding: 0 0 22px;
+  border-bottom: 1px solid var(--line);
+  color: #646962;
+  font-size: 15px;
+  line-height: 1.7;
+}
+
+/* --- Footer ----------------------------------------------------------------- */
+
+.quote-footer {
+  padding: 44px 0;
+  color: #fff;
+  background: var(--forest);
+}
+
+.quote-footer p {
+  max-width: 62ch;
+  margin: 0 0 12px;
+  color: rgba(255, 255, 255, 0.66);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.quote-footer-brand {
+  color: #fff !important;
+  font-family: "P5 Serif", Georgia, serif;
+  font-size: 22px;
+}
+
+.quote-footer-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 26px;
+  max-width: none !important;
+  margin-top: 18px;
+}
+
+.quote-footer-links a {
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+  text-underline-offset: 3px;
+}
+
+.quote-footer-bottom {
+  margin: 22px 0 0;
+  font-size: 12px;
+}
+
+/* --- Thanks ----------------------------------------------------------------- */
+
+.quote-thanks-body {
+  padding: 64px 0 88px;
+}
+
+.quote-thanks .quote-footer-links a {
+  color: var(--ink);
+}
+
+.quote-thanks-steps {
+  max-width: 62ch;
+  margin: 20px 0 28px;
+  padding-left: 20px;
+  color: #646962;
+  font-size: 15px;
+  line-height: 1.8;
+}
+
+.quote-thanks-urgent {
+  max-width: 62ch;
+  padding: 16px 18px;
+  border-left: 3px solid var(--bronze);
+  background: var(--bone);
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+/* --- Wider screens ----------------------------------------------------------- */
+
+@media (min-width: 720px) {
+  .quote-row {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .quote-form-panel {
+    padding: 34px 32px 30px;
+  }
+
+  .quote-step-grid,
+  .quote-company-list {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0 30px;
+  }
+
+  .quote-company-list {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (min-width: 1020px) {
+  .quote-hero {
+    padding: 72px 0 88px;
+  }
+
+  .quote-hero-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 64px;
+  }
+
+  .quote-trust {
+    grid-template-columns: 1fr 1fr;
+    column-gap: 26px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .quote-page * {
+    transition: none !important;
+  }
+}

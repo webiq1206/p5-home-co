@@ -26,6 +26,7 @@ export interface SiteUrlEntry {
 
 export const ownPages: SiteUrlEntry[] = [
   { href: "/", label: "Home", changeFrequency: "monthly", priority: 1 },
+  { href: "/quote", label: "Request a quote", changeFrequency: "monthly", priority: 0.9 },
   { href: "/#companies", label: "Our companies" },
   { href: "/#p5-standard", label: "The P5 standard" },
   { href: "/#about", label: "About P5 Home Co" },
