@@ -55,14 +55,15 @@ complete.
 
 - `app/page.tsx` — the entire page structure and the project matcher
 - `app/globals.css` — the complete visual system and responsive rules
-- `app/layout.tsx` — metadata and the application shell
+- `app/layout.tsx` — metadata, site-wide schema, and the application shell
+- `app/structuredData.ts` — site-wide entities plus homepage-only WebPage and FAQ schema
 - `public/images/` — production photography
 - `public/brands/` — the Boise company logos
 - `public/fonts/` — local display and body fonts
-- `app/site.ts` — the five companies, the cities served, and the FAQ.
-  The FAQ section and the FAQPage schema both read from here, so the
-  structured data cannot drift from the visible copy. Edit questions
-  there, never in one place only.
+- `app/site.ts` — the five companies, the cities served, and the homepage FAQ.
+  The visible FAQ and homepage-only FAQPage schema both read from here, so
+  the copy cannot drift and the homepage FAQ is not repeated on quote routes.
+  Edit questions there, never in one place only.
 
 ## Deployment
 
