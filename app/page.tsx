@@ -5,6 +5,7 @@
 import { useEffect, useRef, useState } from "react";
 import { citiesServed, faqs } from "./site";
 import { track } from "./analytics";
+import { homePageSchema, serializeJsonLd } from "./structuredData";
 
 type CompanyKey = "construction" | "remodeling" | "adu" | "handyman" | "cabinetry";
 
@@ -49,6 +50,10 @@ export default function Home() {
 
   return (
     <main id="top">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: serializeJsonLd(homePageSchema) }}
+      />
       <header className={`site-header ${scrolled ? "site-header-scrolled" : ""}`}>
         <div className="nav-shell">
           <HeaderWordmark />
