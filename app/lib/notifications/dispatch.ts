@@ -82,7 +82,7 @@ export async function dispatchNotifications(now: Date = new Date()): Promise<Dis
        JOIN deal d ON d.id = a.deal_id
        JOIN contact c ON c.id = d.contact_id
        LEFT JOIN app_user u ON u.id = d.owner_user_id AND u.is_active
-      WHERE a.resolved_at IS NULL
+      WHERE a.resolved_at IS NULL AND a.acknowledged_at IS NULL
       ORDER BY a.raised_at ASC
       LIMIT 200`,
   );

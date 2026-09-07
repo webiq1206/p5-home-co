@@ -12,6 +12,9 @@ import { randomUUID } from "node:crypto";
 import { isUniqueViolation, query, transaction } from "../db.ts";
 import { dispatchNotifications } from "../notifications/dispatch.ts";
 import { syncPendingDeals } from "../integrations/hubspot.ts";
+import { syncHubSpotAlertTasks } from "../integrations/hubspot-tasks.ts";
+import { pullHubSpotLeadActions } from "../integrations/hubspot-operations.ts";
+import { reconcileIncidents } from "../notifications/incidents.ts";
 import { evaluateDeal, type DealEvaluation, type DealSnapshot } from "./rules.ts";
 import { loadSettings, type LeadManagerSettings } from "./settings.ts";
 import type { DealStage } from "./types.ts";
@@ -29,6 +32,9 @@ export type WatchdogSummary = {
   /** Alert emails sent this pass. */
   notificationsSent: number;
   notificationsFailed: number;
+  hubspotTasksCreated: number;
+  hubspotTasksCompleted: number;
+  hubspotTasksFailed: number;
   error?: string;
 };
 
@@ -110,7 +116,8 @@ async function loadDeals(): Promise<DealRow[]> {
     `SELECT d.id, d.stage, d.owner_user_id, d.received_at, d.first_attempt_at,
             d.first_two_way_at, d.next_action, d.next_action_at, d.appointment_at,
             d.snoozed_until, d.closed_lost_reason, d.sla_status, d.escalation_tier,
-            (SELECT max(a.occurred_at) FROM activity a WHERE a.deal_id = d.id) AS last_activity_at,
+            GREATEST(d.first_attempt_at,d.first_two_way_at,
+              (SELECT max(a.occurred_at) FROM activity a WHERE a.deal_id = d.id)) AS last_activity_at,
             (SELECT CASE WHEN a.direction = 'inbound' THEN a.occurred_at END
                FROM activity a
               WHERE a.deal_id = d.id AND a.direction IS NOT NULL
@@ -233,6 +240,9 @@ export async function runWatchdog(now: Date = new Date()): Promise<WatchdogSumma
       hubspotFailed: 0,
       notificationsSent: 0,
       notificationsFailed: 0,
+      hubspotTasksCreated: 0,
+      hubspotTasksCompleted: 0,
+      hubspotTasksFailed: 0,
     };
   }
 
@@ -249,6 +259,7 @@ export async function runWatchdog(now: Date = new Date()): Promise<WatchdogSumma
 
   try {
     const settings = await loadSettings();
+    await pullHubSpotLeadActions(now);
     const rows = await loadDeals();
 
     for (const row of rows) {
@@ -258,6 +269,7 @@ export async function runWatchdog(now: Date = new Date()): Promise<WatchdogSumma
         { slaStatus: row.sla_status, escalationTier: row.escalation_tier },
         settings,
       );
+      await reconcileIncidents(evaluation, toSnapshot(row));
       dealsProcessed += 1;
       alertsRaised += counts.raised;
       alertsResolved += counts.resolved;
@@ -269,6 +281,7 @@ export async function runWatchdog(now: Date = new Date()): Promise<WatchdogSumma
     // deliberately inside the try, so its failures land in job_run too.
     // syncPendingDeals is a no-op while the flag is off or the token absent.
     const hubspot = await syncPendingDeals();
+    const tasks = await syncHubSpotAlertTasks(now);
 
     // Tell people. Last, because raising the alert correctly matters more
     // than delivering it quickly, and a mail outage must not stop the rules
@@ -303,6 +316,9 @@ export async function runWatchdog(now: Date = new Date()): Promise<WatchdogSumma
       hubspotFailed: hubspot.failed,
       notificationsSent: notified.sent,
       notificationsFailed: notified.failed,
+      hubspotTasksCreated: tasks.created,
+      hubspotTasksCompleted: tasks.completed,
+      hubspotTasksFailed: tasks.failed,
     };
   } catch (error) {
     const message = (error as Error).message;
@@ -329,6 +345,9 @@ export async function runWatchdog(now: Date = new Date()): Promise<WatchdogSumma
       hubspotFailed: 0,
       notificationsSent: 0,
       notificationsFailed: 0,
+      hubspotTasksCreated: 0,
+      hubspotTasksCompleted: 0,
+      hubspotTasksFailed: 0,
       error: message,
     };
   } finally {

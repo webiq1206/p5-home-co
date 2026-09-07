@@ -82,6 +82,9 @@ async function startWatchdog(): Promise<void> {
         summary.alertsResolved > 0 ||
         summary.hubspotSynced > 0 ||
         summary.hubspotFailed > 0 ||
+        summary.hubspotTasksCreated > 0 ||
+        summary.hubspotTasksCompleted > 0 ||
+        summary.hubspotTasksFailed > 0 ||
         summary.notificationsSent > 0 ||
         summary.notificationsFailed > 0
       ) {
