@@ -38,5 +38,5 @@ export function middleware(request: NextRequest) {
 export const config = {
   // Static assets and the crawler-facing files are deliberately excluded:
   // robots.txt and sitemap.xml must stay fetchable and cacheable.
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|robots.txt|sitemap.xml).*)"],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|robots.txt|sitemap.xml|[a-f0-9]{32}\\.txt).*)"],
 };

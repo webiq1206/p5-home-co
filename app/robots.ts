@@ -15,6 +15,7 @@ const searchCrawlers = [
   "Googlebot-Image",
   "Googlebot-News",
   "Bingbot",
+  "MicrosoftPreview",
   "Slurp",
   "DuckDuckBot",
   "YandexBot",

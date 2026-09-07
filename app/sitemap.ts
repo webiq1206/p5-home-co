@@ -8,10 +8,8 @@ import { getIndexableEntries } from "./siteUrls.ts";
  * because they have to be publicly reachable, not to rank.
  */
 export default function sitemap(): MetadataRoute.Sitemap {
-  const lastModified = new Date();
   return getIndexableEntries().map((e) => ({
     url: e.url,
-    lastModified,
     changeFrequency: e.changeFrequency,
     priority: e.priority,
   }));
