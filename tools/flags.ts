@@ -10,12 +10,13 @@
  */
 
 import { Client } from "pg";
+import { DEFAULT_SETTINGS } from "../app/lib/leads/settings.ts";
 
 const SETTINGS_KEY = "lead_manager";
 
 /** Flags this tool may change, and what each one actually switches on. */
 const MANAGEABLE: Record<string, string> = {
-  hubspot: "hubspotIntegrationEnabled — sync contacts and deals to HubSpot",
+  hubspot: "hubspotIntegrationEnabled - sync contacts, deals, manager actions and lead tasks",
   gmail: "gmailIntegrationEnabled — reserved; no Gmail code exists yet",
   facebook: "facebookIntegrationEnabled — reserved; no Facebook code exists yet",
 };
@@ -114,10 +115,11 @@ async function main(): Promise<void> {
     );
     const flags = stored.rows[0]?.value?.featureFlags ?? {};
 
-    console.log("Current flags (unset means the code default, which is false):");
+    console.log("Effective flags (stored overrides take precedence over code defaults):");
     for (const [name, description] of Object.entries(MANAGEABLE)) {
       const key = FLAG_KEYS[name];
-      const state = flags[key] === true ? "ON " : "off";
+      const enabled = flags[key] ?? DEFAULT_SETTINGS.featureFlags[key as keyof typeof DEFAULT_SETTINGS.featureFlags];
+      const state = enabled ? "ON " : "off";
       console.log(`  ${state}  ${description}`);
     }
     for (const [name, key] of Object.entries(DEFERRED)) {
