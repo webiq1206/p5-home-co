@@ -63,6 +63,12 @@ function baseUrl(): string {
 }
 
 export async function dispatchNotifications(now: Date = new Date()): Promise<DispatchSummary> {
+  // Incident containment: lead escalations belong in the manager's task queue.
+  // Keep evaluation and CRM sync running without repeatedly emailing the inbox.
+  // This gate affects only this dispatcher, never client confirmations or finance.
+  if (process.env.P5_LEAD_ALERT_EMAILS_ENABLED !== "true") {
+    return { considered: 0, sent: 0, suppressed: 0, failed: 0, transport: "disabled" };
+  }
   const settings = await loadSettings();
   const transport = activeTransport();
 
