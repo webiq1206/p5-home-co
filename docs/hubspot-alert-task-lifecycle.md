@@ -3,6 +3,8 @@
 ## Status
 
 Implemented and tested in source. Not deployed or enabled in production.
+The user explicitly requested GitHub-only implementation and will pull and
+publish the merged work. No further hosting changes are part of this workflow.
 The email incident containment is a separate, already merged change in PR 19.
 It needs publishing after the hosting provider's existing database review.
 
@@ -51,9 +53,11 @@ task write and completion round-trip have not been performed.
 ## Required rollout work
 
 1. Apply migration 013 through the normal reviewed deployment workflow.
-2. Enable the existing database-backed `hubspotIntegrationEnabled` flag after
-   deployment and validate task creation against a legitimate actionable lead.
-   The current production token is configured, but the effective flag is off.
+2. The source default for `hubspotIntegrationEnabled` is now on, as explicitly
+   requested. The existing runtime token is still required, and an explicit
+   stored off override remains respected. The last production check found no
+   settings row, so deployment of this default will enable its sync. Validate
+   task creation against a legitimate actionable lead after publishing.
 3. Connect all child-site lead sources to P5 intake. Source inspection found
    forwarding to separate child dashboards, with no verified bridge to P5's
    `/api/leads/intake`. Production currently contains one P5 deal and zero

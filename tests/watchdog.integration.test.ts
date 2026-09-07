@@ -160,8 +160,11 @@ describe("watchdog", { skip: TEST_DB ? false : "TEST_DATABASE_URL not set" }, ()
   });
 
   test("HubSpot sync is a silent no-op while the feature flag is off", async () => {
-    // No HUBSPOT_TOKEN is set in tests and hubspotIntegrationEnabled defaults
-    // to false. The watchdog must complete normally and report zero, rather
+    await query(
+      `INSERT INTO setting (key,value) VALUES ('lead_manager','{"featureFlags":{"hubspotIntegrationEnabled":false}}'::jsonb)
+       ON CONFLICT (key) DO UPDATE SET value=EXCLUDED.value`,
+    );
+    // The explicit off override must complete normally and report zero, rather
     // than erroring or quietly claiming a sync happened.
     const summary = await runWatchdog(at31());
     assert.equal(summary.status, "succeeded");
