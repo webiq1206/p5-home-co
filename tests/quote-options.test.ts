@@ -134,9 +134,9 @@ test("client validation never rejects an enquiry the server would accept", () =>
 
 // --- Payload ----------------------------------------------------------------
 
-test("the payload attributes the lead to paid search and names the form", () => {
+test("the payload defaults to organic website and names the form", () => {
   const payload = buildIntakePayload(base);
-  assert.equal(payload.source, "Paid Search");
+  assert.equal(payload.source, "Organic Website");
   assert.equal(payload.form, "Quote Landing Page");
   assert.equal(payload.brand, "Boise Remodeling Co");
   assert.equal(payload.city, "Meridian");
@@ -156,21 +156,23 @@ test("'somewhere else' is not sent as a city, because it is not one", () => {
   assert.equal("city" in payload, false);
 });
 
-test("the Google click id and utm parameters are carried through", () => {
-  const search = new URLSearchParams(
-    "gclid=EAIaIQ123&utm_source=google&utm_medium=cpc&utm_campaign=treasure-valley-remodel",
-  );
-  const payload = buildIntakePayload(base, search);
-  assert.equal(payload.sourceDetail, "gclid:EAIaIQ123");
+test("the Google click id and UTM parameters are carried through", () => {
+  const payload = buildIntakePayload(base, {
+    gclid: "EAIaIQ123",
+    utm_source: "google",
+    utm_medium: "cpc",
+    utm_campaign: "treasure-valley-remodel",
+  });
+  assert.equal(payload.gclid, "EAIaIQ123");
   assert.equal(payload.utm_source, "google");
   assert.equal(payload.utm_medium, "cpc");
-  assert.equal(payload.campaign, "treasure-valley-remodel");
+  assert.equal(payload.utm_campaign, "treasure-valley-remodel");
 });
 
 test("a visitor arriving with no tracking parameters still submits cleanly", () => {
-  const payload = buildIntakePayload(base, new URLSearchParams(""));
-  assert.equal("sourceDetail" in payload, false);
-  assert.equal(payload.source, "Paid Search");
+  const payload = buildIntakePayload(base, {});
+  assert.equal("gclid" in payload, false);
+  assert.equal(payload.source, "Organic Website");
 });
 
 test("values are trimmed so stored leads are not padded with whitespace", () => {

@@ -2,7 +2,14 @@ import type { Metadata, Viewport } from "next";
 import Script from "next/script";
 import HubSpotScript from "./HubSpotScript";
 import "./globals.css";
-import { citiesServed, companies, faqs, gaMeasurementId, siteUrl } from "./site";
+import {
+  citiesServed,
+  companies,
+  faqs,
+  gaMeasurementId,
+  googleAdsDestinationId,
+  siteUrl,
+} from "./site";
 
 const title = "P5 Home Co | Five Specialized Home-Service Companies";
 const description =
@@ -176,7 +183,8 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
               {`window.dataLayer = window.dataLayer || [];
 function gtag(){dataLayer.push(arguments);}
 gtag('js', new Date());
-gtag('config', '${gaMeasurementId}');`}
+gtag('config', '${gaMeasurementId}');
+gtag('config', '${googleAdsDestinationId}');`}
             </Script>
           </>
         )}

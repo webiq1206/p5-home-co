@@ -137,6 +137,14 @@ test("null fields are omitted entirely, so a sync cannot blank a human's entry",
   assert.ok(Object.values(p).every((v) => v !== ""), "no empty-string values");
 });
 
+test("attribution maps only to verified dedicated HubSpot fields", () => {
+  const input = deal({ attribution: { gclid: "click-id", utm_campaign: "spring" } });
+  const p = dealProperties(input, new Set(["p5_gclid"]));
+  assert.equal(p.p5_gclid, "click-id");
+  assert.ok(!("p5_utm_campaign" in p));
+  assert.ok(!("gclid" in p));
+});
+
 test("datetimes are epoch milliseconds, which is what HubSpot expects", () => {
   const p = dealProperties(deal());
   assert.equal(p.p5_sla_deadline, String(new Date("2026-08-21T16:05:00Z").getTime()));

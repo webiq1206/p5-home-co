@@ -24,13 +24,13 @@ const Arrow = ({ diagonal = false, reverse = false }: { diagonal?: boolean; reve
 
 const HeaderWordmark = () => (
   <a className="wordmark" href="#top" aria-label="P5 Home Co, back to top">
-    <img className="p5-header-logo" src="/brands/p5-home-co-lockup-dark.svg" alt="P5 Home Co — The Home Company" />
+    <img className="p5-header-logo" src="/brands/p5-home-co-lockup-dark.svg" alt="P5 Home Co, The Home Company" />
   </a>
 );
 
 const FooterWordmark = () => (
   <a className="wordmark" href="#top" aria-label="P5 Home Co, back to top">
-    <img className="p5-footer-logo" src="/brands/p5-home-co-lockup-light.svg" alt="P5 Home Co — The Home Company" />
+    <img className="p5-footer-logo" src="/brands/p5-home-co-lockup-light.svg" alt="P5 Home Co, The Home Company" />
   </a>
 );
 

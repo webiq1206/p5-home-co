@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { siteUrl } from "../site.ts";
 import { childSites, legalPages, ownPages } from "../siteUrls.ts";
 
@@ -21,10 +22,10 @@ export default function SitemapPage() {
     <>
       <header className="site-header">
         <div className="content-shell site-header-inner">
-          <a className="wordmark" href="/" aria-label="P5 Home Co, back to the homepage">
+          <Link className="wordmark" href="/" aria-label="P5 Home Co, back to the homepage">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img className="p5-header-logo" src="/brands/p5-home-co-lockup-dark.svg" alt="P5 Home Co — The Home Company" />
-          </a>
+            <img className="p5-header-logo" src="/brands/p5-home-co-lockup-dark.svg" alt="P5 Home Co, The Home Company" />
+          </Link>
         </div>
       </header>
       <main className="content-shell" style={{ padding: "72px 0 96px", maxWidth: 820 }}>
@@ -38,7 +39,7 @@ export default function SitemapPage() {
           <h2 id="sitemap-pages" className="eyebrow">This site</h2>
           <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "grid", gap: 10 }}>
             {ownPages.map((p) => (
-              <li key={p.href}><a href={p.href} style={{ color: "var(--ink)", borderBottom: "1px solid var(--line)" }}>{p.label}</a></li>
+              <li key={p.href}><Link href={p.href} style={{ color: "var(--ink)", borderBottom: "1px solid var(--line)" }}>{p.label}</Link></li>
             ))}
           </ul>
         </section>
@@ -47,7 +48,7 @@ export default function SitemapPage() {
           <h2 id="sitemap-legal" className="eyebrow">Legal</h2>
           <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "grid", gap: 10 }}>
             {legalPages.map((p) => (
-              <li key={p.href}><a href={p.href} style={{ color: "var(--ink)", borderBottom: "1px solid var(--line)" }}>{p.label}</a></li>
+              <li key={p.href}><Link href={p.href} style={{ color: "var(--ink)", borderBottom: "1px solid var(--line)" }}>{p.label}</Link></li>
             ))}
           </ul>
         </section>
@@ -68,7 +69,7 @@ export default function SitemapPage() {
       <footer className="site-footer">
         <div className="content-shell footer-bottom">
           <span>© {new Date().getFullYear()} P5 Home Co. All rights reserved.</span>
-          <span><a href="/" style={{ color: "inherit" }}>Home</a></span>
+          <span><Link href="/" style={{ color: "inherit" }}>Home</Link></span>
         </div>
       </footer>
     </>

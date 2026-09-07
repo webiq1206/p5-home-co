@@ -12,6 +12,8 @@
  */
 
 import { BRANDS, type Brand } from "../lib/leads/types.ts";
+import { inferLeadSource, type Attribution } from "./attribution.ts";
+import { QUOTE_SERVICES } from "./services.ts";
 
 export interface ProjectOption {
   /** Sent to the intake endpoint as projectType, and shown in the select. */
@@ -110,20 +112,17 @@ export function isValidQuoteForm(values: QuoteFormValues): boolean {
 /**
  * The body posted to /api/leads/intake.
  *
- * `source` is always Paid Search because this page exists as the Google Ads
- * destination; organic visitors are rare enough here that mislabelling a few
- * costs less than mislabelling the ad spend. Google auto-tags ad clicks with a
- * gclid, so that is carried as the source detail and any utm_* parameters are
- * passed straight through - the endpoint collects them from the body.
+ * Acquisition is derived from actual click identifiers and UTMs, never from
+ * the page a visitor happened to use. The context contains no form data.
  */
 export function buildIntakePayload(
   values: QuoteFormValues,
-  search?: URLSearchParams,
+  attribution: Attribution = {},
 ): Record<string, string> {
   const payload: Record<string, string> = {
     name: values.name.trim(),
     brand: brandForProject(values.project),
-    source: "Paid Search",
+    source: inferLeadSource(attribution),
     form: "Quote Landing Page",
   };
 
@@ -133,17 +132,13 @@ export function buildIntakePayload(
   if (email) payload.email = email;
   if (phone) payload.phone = phone;
   if (values.project) payload.projectType = values.project;
+  const service = QUOTE_SERVICES.find((entry) => entry.project === values.project);
+  if (service) payload.service = service.slug;
   if (values.city && !values.city.startsWith("Somewhere else")) payload.city = values.city;
   if (summary) payload.summary = summary;
 
-  if (search) {
-    const gclid = search.get("gclid");
-    if (gclid) payload.sourceDetail = `gclid:${gclid}`;
-    const campaign = search.get("utm_campaign");
-    if (campaign) payload.campaign = campaign;
-    for (const [key, value] of search.entries()) {
-      if (/^utm_/i.test(key) && value) payload[key.toLowerCase()] = value;
-    }
+  for (const [key, value] of Object.entries(attribution)) {
+    if (value) payload[key] = value;
   }
 
   return payload;

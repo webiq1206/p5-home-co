@@ -115,6 +115,8 @@ export type DealSyncInput = {
   originalForm: string | null;
   originalCampaign: string | null;
   closedLostReason: string | null;
+  /** Stored campaign context. Sent only to verified P5 properties. */
+  attribution?: Record<string, string> | null;
 };
 
 /**
@@ -124,7 +126,10 @@ export type DealSyncInput = {
  * treats "" as "clear this field", so sending every key on every sync would
  * erase anything a person had typed in HubSpot that P5 does not track.
  */
-export function dealProperties(d: DealSyncInput): Record<string, string> {
+export function dealProperties(
+  d: DealSyncInput,
+  availableProperties?: ReadonlySet<string>,
+): Record<string, string> {
   const raw: Record<string, string | undefined> = {
     dealname: d.name,
     pipeline: PIPELINE_ID,
@@ -162,6 +167,26 @@ export function dealProperties(d: DealSyncInput): Record<string, string> {
   const out: Record<string, string> = {};
   for (const [k, v] of Object.entries(raw)) {
     if (v !== undefined && v !== "") out[k] = v;
+  }
+  const attributionFields: Record<string, string> = {
+    gclid: "p5_gclid",
+    gbraid: "p5_gbraid",
+    wbraid: "p5_wbraid",
+    utm_source: "p5_utm_source",
+    utm_medium: "p5_utm_medium",
+    utm_campaign: "p5_utm_campaign",
+    utm_term: "p5_utm_term",
+    utm_content: "p5_utm_content",
+    landing_page: "p5_landing_page",
+    referrer: "p5_referrer",
+    service: "p5_service",
+  };
+  for (const [key, property] of Object.entries(attributionFields)) {
+    const value = d.attribution?.[key];
+    // Never guess that a custom field exists: an absent/unwritable property
+    // would fail the entire CRM sync. A caller may omit the set to map no
+    // optional attribution fields at all.
+    if (value && availableProperties?.has(property)) out[property] = value;
   }
   return out;
 }

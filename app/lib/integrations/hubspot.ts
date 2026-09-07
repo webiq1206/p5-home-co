@@ -26,6 +26,10 @@ import {
 } from "./hubspot-map.ts";
 
 const API = "https://api.hubapi.com";
+const HUBSPOT_ATTRIBUTION_FIELDS = [
+  "p5_gclid", "p5_gbraid", "p5_wbraid", "p5_utm_source", "p5_utm_medium",
+  "p5_utm_campaign", "p5_utm_term", "p5_utm_content", "p5_landing_page", "p5_referrer", "p5_service",
+] as const;
 
 /** HubSpot's documented burst allowance leaves room for a short backoff. */
 const MAX_ATTEMPTS = 4;
@@ -185,11 +189,12 @@ async function upsertDeal(
   input: DealSyncInput,
   knownId: string | null,
   p5DealId: number,
+  availableProperties: ReadonlySet<string> | undefined,
 ): Promise<string> {
   // The P5 deal id is the idempotency key, so a replayed sync updates the
   // same HubSpot deal instead of creating a second one.
   const externalId = input.externalLeadId ?? `p5-deal-${p5DealId}`;
-  const properties = { ...dealProperties(input), p5_external_lead_id: externalId };
+  const properties = { ...dealProperties(input, availableProperties), p5_external_lead_id: externalId };
 
   const id = knownId ?? (await findDealByExternalId(externalId));
 
@@ -244,6 +249,7 @@ type DealRow = {
   original_form: string | null;
   original_campaign: string | null;
   closed_lost_reason: string | null;
+  utm: Record<string, string> | null;
   hubspot_deal_id: string | null;
   first_name: string | null;
   last_name: string | null;
@@ -286,6 +292,9 @@ export async function syncDealToHubSpot(dealId: number): Promise<SyncOutcome> {
   );
   if (!rows.length) return { status: "failed", error: `Deal ${dealId} not found.` };
   const row = rows[0];
+  // Attribution fields are optional. A token without schema-read permission or
+  // a portal where setup has not created them still syncs the operational lead.
+  const propertyNames = await fetchDealPropertyNames().catch(() => null);
 
   try {
     const contactId = await upsertContact(
@@ -326,9 +335,11 @@ export async function syncDealToHubSpot(dealId: number): Promise<SyncOutcome> {
         originalForm: row.original_form,
         originalCampaign: row.original_campaign,
         closedLostReason: row.closed_lost_reason,
+        attribution: row.utm,
       },
       row.hubspot_deal_id,
       dealId,
+      propertyNames ?? undefined,
     );
 
     await associate(hubspotDealId, contactId);
@@ -339,6 +350,15 @@ export async function syncDealToHubSpot(dealId: number): Promise<SyncOutcome> {
         WHERE id = $1`,
       [dealId, hubspotDealId],
     );
+    const attributionUnavailable = !propertyNames ||
+      !HUBSPOT_ATTRIBUTION_FIELDS.some((field) => propertyNames.has(field));
+    if (row.utm && Object.keys(row.utm).length && attributionUnavailable) {
+      await query(
+        `INSERT INTO audit_log (record_type, record_id, action, new_value, action_source, integration_source, succeeded, error)
+         VALUES ('deal',$1,'hubspot_attribution_deferred',$2::jsonb,'integration','hubspot',FALSE,$3)`,
+        [String(dealId), JSON.stringify({ attributionKeys: Object.keys(row.utm) }), "HubSpot attribution properties are unavailable or could not be verified."],
+      );
+    }
     await query("UPDATE contact SET hubspot_contact_id = $2 WHERE id = $1", [
       row.contact_id,
       contactId,

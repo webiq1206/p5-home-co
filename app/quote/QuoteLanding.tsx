@@ -41,7 +41,7 @@ export default function QuoteLanding({ service }: { service: QuoteService | null
 
         <header className="quote-header">
           <Link className="quote-wordmark" href="/" aria-label="P5 Home Co, home">
-            <img src="/brands/p5-home-co-lockup-dark.svg" alt="P5 Home Co — The Home Company" />
+            <img src="/brands/p5-home-co-lockup-dark.svg" alt="P5 Home Co, The Home Company" />
           </Link>
           <a
             className="quote-header-phone"

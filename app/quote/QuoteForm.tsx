@@ -14,9 +14,11 @@
  */
 
 import { useRouter } from "next/navigation";
-import { useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 
-import { track } from "../analytics";
+import { track, trackAcceptedInquiry } from "../analytics";
+import { captureAttribution } from "./attribution";
+import { isNewAcceptedInquiry } from "./conversion.ts";
 import {
   PROJECT_OPTIONS,
   QUOTE_CITIES,
@@ -66,6 +68,11 @@ export default function QuoteForm({ defaultProject = "" }: { defaultProject?: st
    * whole form and nothing reads a ref during render.
    */
   const started = useRef(false);
+  const accepted = useRef(false);
+
+  useEffect(() => {
+    captureAttribution();
+  }, []);
 
   function noteStart() {
     if (started.current) return;
@@ -94,9 +101,9 @@ export default function QuoteForm({ defaultProject = "" }: { defaultProject?: st
     if (submitting) return;
     setFormError(null);
 
-    // Silently accept the bot so it does not retry, and never call the API.
+    // Do not show a confirmation for a honeypot submission: no inquiry exists.
     if (trap.trim()) {
-      router.push("/quote/thanks");
+      setFormError("We could not accept that request. Please call (208) 477-1169 if you need help.");
       return;
     }
 
@@ -109,25 +116,32 @@ export default function QuoteForm({ defaultProject = "" }: { defaultProject?: st
 
     setSubmitting(true);
     try {
-      const search =
-        typeof window === "undefined" ? undefined : new URLSearchParams(window.location.search);
       const response = await fetch("/api/leads/intake", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(buildIntakePayload(values, search)),
+        body: JSON.stringify({ ...buildIntakePayload(values, captureAttribution()), website_url: trap }),
       });
 
-      if (response.ok) {
-        track("generate_lead", {
-          form: "quote_landing_page",
-          project: values.project || "unspecified",
-        });
+      const body: unknown = await response.json().catch(() => null);
+      const payload = (body ?? {}) as { accepted?: unknown; errors?: unknown; error?: unknown };
+      // 201 is the server's only proof that this callback created a nonspam
+      // inquiry. Duplicates and every other response deliberately do not fire.
+      if (isNewAcceptedInquiry(response.status, payload, accepted.current)) {
+        accepted.current = true;
+        trackAcceptedInquiry();
+        try {
+          sessionStorage.setItem("p5.quote-accepted", "1");
+        } catch {
+          // The navigation remains truthful; storage only improves direct-page copy.
+        }
         router.push("/quote/thanks");
         return;
       }
 
-      const body: unknown = await response.json().catch(() => null);
-      const payload = (body ?? {}) as { errors?: unknown; error?: unknown };
+      if (response.ok) {
+        setFormError("We already have this enquiry. Please call (208) 477-1169 if anything has changed.");
+        return;
+      }
       const fieldErrors = mapServerErrors(payload.errors);
       if (Object.keys(fieldErrors).length > 0) {
         setErrors(fieldErrors);
@@ -143,7 +157,7 @@ export default function QuoteForm({ defaultProject = "" }: { defaultProject?: st
     } catch {
       // A network failure must never look like a captured lead.
       setFormError(
-        "That did not reach us - please check your connection, or call (208) 477-1169 and we will take the details over the phone.",
+        "That did not reach us. Please check your connection, or call (208) 477-1169 and we will take the details over the phone.",
       );
     } finally {
       setSubmitting(false);
@@ -212,7 +226,7 @@ export default function QuoteForm({ defaultProject = "" }: { defaultProject?: st
         </div>
       </div>
 
-      <p className="quote-hint">Either one is enough — whichever you would rather we used.</p>
+      <p className="quote-hint">Either one is enough; whichever you would rather we used.</p>
 
       {errors.contact && (
         <p className="quote-error" role="alert">
@@ -284,7 +298,7 @@ export default function QuoteForm({ defaultProject = "" }: { defaultProject?: st
       )}
 
       <p className="quote-form-note">
-        No cost and no obligation. We use your details to answer this enquiry and nothing else - see
+        No cost and no obligation. We use your details to answer this enquiry and nothing else; see
         our <a href="/legal/privacy">privacy policy</a>. Prefer to talk?{" "}
         <a href="tel:+12084771169" onClick={() => track("phone_click", { location: "quote_form" })}>
           (208) 477-1169
