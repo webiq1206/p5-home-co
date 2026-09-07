@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useSyncExternalStore } from "react";
+import TrackedPhoneLink from "./TrackedPhoneLink";
 
 function subscribe(): () => void {
   return () => {};
@@ -24,7 +25,8 @@ export default function ThanksMessage() {
         <p className="quote-eyebrow">Request a quote</p>
         <h1>Ready to tell us about your project?</h1>
         <p className="quote-lead">
-          Use our <Link href="/quote">quote request form</Link>, or call (208) 477-1169 to speak with the team.
+          Use our <Link href="/quote">quote request form</Link>, or{" "}
+          <TrackedPhoneLink location="quote_thanks_direct">call (208) 477-1169</TrackedPhoneLink> to speak with the team.
         </p>
       </>
     );
@@ -45,7 +47,8 @@ export default function ThanksMessage() {
         <li>You receive a written scope setting out what is included, what is not, and the cost.</li>
       </ol>
       <p className="quote-thanks-urgent">
-        Need it sooner, or remembered something important? <a href="tel:+12084771169">Call (208) 477-1169</a>{" "}
+        Need it sooner, or remembered something important?{" "}
+        <TrackedPhoneLink location="quote_thanks_accepted">Call (208) 477-1169</TrackedPhoneLink>{" "}
         or email <a href="mailto:hello@p5homeco.com">hello@p5homeco.com</a> and reference your name.
       </p>
     </>
