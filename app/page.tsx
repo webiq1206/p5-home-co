@@ -3,7 +3,7 @@
 /* eslint-disable @next/next/no-img-element */
 
 import { useEffect, useRef, useState } from "react";
-import { faqs } from "./site";
+import { citiesServed, faqs } from "./site";
 import { track } from "./analytics";
 
 type CompanyKey = "construction" | "remodeling" | "adu" | "handyman" | "cabinetry";
@@ -81,7 +81,7 @@ export default function Home() {
 
       <section className="handoff section-pad"><div className="content-shell handoff-layout"><div><p className="eyebrow">Connected when it matters</p><h2>One project can need more than one expert.</h2></div><div className="handoff-example"><span className="handoff-kicker">Example · A complete kitchen transformation</span><Handoff number="01" company="Boise Remodeling Co">Layout, permits, demolition, and construction</Handoff><Handoff number="02" company="Boise Cabinet Co">Cabinet design, fabrication, and installation</Handoff><Handoff number="03" company="Boise Handyman Co">Final mounting, finish work, and punch-list items</Handoff></div></div></section>
 
-      <section id="service-area" className="service-area section-pad"><div className="content-shell service-area-grid"><div><p className="eyebrow">Our home is the Treasure Valley</p><h2>Local teams.<br />Valley-wide reach.</h2><p className="service-area-copy">P5 companies serve homeowners across Ada and Canyon counties, with practical knowledge of local homes, permitting offices, building conditions, and communities.</p><button className="text-link" type="button" onClick={openMatcher}>Choose your company <Arrow /></button></div><div className="area-list" aria-label="Cities served"><span>Boise</span><span>Meridian</span><span>Eagle</span><span>Nampa</span><span>Kuna</span><span>Star</span><span>Middleton</span><span>Caldwell</span></div></div></section>
+      <section id="service-area" className="service-area section-pad"><div className="content-shell service-area-grid"><div><p className="eyebrow">Our home is the Treasure Valley</p><h2>Local teams.<br />Valley-wide reach.</h2><p className="service-area-copy">P5 companies serve homeowners across Ada and Canyon counties, with practical knowledge of local homes, permitting offices, building conditions, and communities.</p><button className="text-link" type="button" onClick={openMatcher}>Choose your company <Arrow /></button></div><div className="area-list" aria-label="Cities served">{citiesServed.map((city) => <span key={city}>{city}</span>)}</div></div></section>
 
       <section id="faq" className="faq section-pad" aria-labelledby="faq-heading"><div className="content-shell faq-layout"><div><p className="eyebrow">Common questions</p><h2 id="faq-heading">Answers before<br />you commit.</h2><p className="faq-intro">If your question is not here, the matcher will still point you to the right company, and that company can answer the specifics of your project.</p></div><div className="faq-list">{faqs.map((item) => <details className="faq-item" key={item.q}><summary>{item.q}</summary><p>{item.a}</p></details>)}</div></div></section>
 

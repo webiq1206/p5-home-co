@@ -41,8 +41,10 @@ export const companies = [
   },
 ] as const;
 
-// Cities named on the page. Kept in sync with the service-area section so
-// the structured data never claims coverage the page does not state.
+// The nine cities P5 takes work in, confirmed by the owner 2026-09-05.
+// The service-area section on the homepage renders from this list rather
+// than repeating it, so the visible page and the structured data cannot
+// drift apart - which is exactly how Garden City went missing before.
 export const citiesServed = [
   "Boise",
   "Meridian",
@@ -52,6 +54,7 @@ export const citiesServed = [
   "Star",
   "Middleton",
   "Caldwell",
+  "Garden City",
 ] as const;
 
 // One source of truth for the FAQ. The section and the FAQPage schema both
@@ -72,7 +75,7 @@ export const faqs = [
   },
   {
     q: "Which areas do the P5 companies serve?",
-    a: "P5 companies serve homeowners across Ada and Canyon counties in Idaho's Treasure Valley, including Boise, Meridian, Eagle, Nampa, Kuna, Star, Middleton, and Caldwell.",
+    a: "P5 companies serve homeowners across Ada and Canyon counties in Idaho's Treasure Valley, including Boise, Meridian, Eagle, Nampa, Kuna, Star, Middleton, Caldwell, and Garden City.",
   },
   {
     q: "What happens before the work begins?",
