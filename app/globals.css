@@ -178,7 +178,7 @@ a:hover .arrow-diagonal, a:focus-visible .arrow-diagonal { transform: translate(
 .service-area-grid { display: grid; grid-template-columns: .9fr 1.1fr; gap: 11vw; align-items: end; }
 .service-area h2 { font-size: clamp(58px,6vw,90px); }
 .service-area-copy { max-width: 510px; margin: 30px 0; color: #676d66; font-size: 13px; line-height: 1.9; }
-.area-list { display: grid; grid-template-columns: 1fr 1fr; border-top: 1px solid var(--line); border-left: 1px solid var(--line); }
+.area-list { display: grid; grid-template-columns: repeat(3, 1fr); border-top: 1px solid var(--line); border-left: 1px solid var(--line); }
 .area-list span { padding: 17px 22px; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); font-family: "P5 Serif", Georgia, serif; font-size: 25px; font-weight: 500; }
 
 .faq { background: var(--paper); }
@@ -245,11 +245,11 @@ a:hover .arrow-diagonal, a:focus-visible .arrow-diagonal { transform: translate(
 .matcher-result > small { margin-top: 14px; color: #6d746d; font-size: 11px; }
 
 /* HTML sitemap page: sits under the fixed header, in the site's own type. */
-.sitemap-main { max-width: 820px; padding: 150px 0 96px; }
+.sitemap-main { padding: 150px 0 96px; }
 .sitemap-title { margin: 0 0 18px; font-family: "P5 Serif", Georgia, serif; font-size: clamp(38px,4.5vw,60px); font-weight: 400; letter-spacing: -.03em; line-height: 1.05; }
 .sitemap-lede { max-width: 620px; margin: 0 0 48px; color: var(--ink-2); }
 .sitemap-section { margin-bottom: 44px; }
-.sitemap-list { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; }
+.sitemap-list { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px 36px; margin: 0; padding: 0; list-style: none; }
 .sitemap-list a { display: inline-flex; min-height: 40px; align-items: center; border-bottom: 1px solid var(--line); color: var(--ink); }
 .sitemap-list a:hover { border-bottom-color: var(--ink); }
 .sitemap-soon { min-height: 40px; display: flex; align-items: center; color: var(--ink-2); }
@@ -274,6 +274,7 @@ a:hover .arrow-diagonal, a:focus-visible .arrow-diagonal { transform: translate(
 }
 
 @media (max-width:820px) {
+  .sitemap-list { grid-template-columns: 1fr 1fr; }
   html { scroll-padding-top:68px; }
   .content-shell,.nav-shell,.site-header-inner { width:min(100% - 38px,1380px); }
   .section-pad { padding:92px 0; }
@@ -317,6 +318,7 @@ a:hover .arrow-diagonal, a:focus-visible .arrow-diagonal { transform: translate(
 }
 
 @media (max-width:560px) {
+  .sitemap-list { grid-template-columns: 1fr; }
   .content-shell,.nav-shell,.mobile-menu-inner { width:calc(100% - 32px); }
   .p5-header-logo { display:none; }
   .p5-header-icon { display:block; height:40px; }
@@ -334,6 +336,8 @@ a:hover .arrow-diagonal, a:focus-visible .arrow-diagonal { transform: translate(
   .faq-item summary { font-size:19px; gap:20px; }
   .company-index,.standard-grid { grid-template-columns:1fr; }
   .company-index a:last-child { grid-column:auto; }
+  .area-list { grid-template-columns:1fr 1fr; }
+  .area-list span:last-child:nth-child(odd) { grid-column:1/-1; }
   .matcher-choices button:last-child:nth-child(odd) { grid-column:auto; }
   .company-index a { min-height:135px; }
   .brand-image-wrap { min-height:410px; height:110vw; }

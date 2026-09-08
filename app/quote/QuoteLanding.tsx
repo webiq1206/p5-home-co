@@ -167,6 +167,14 @@ export default function QuoteLanding({ service }: { service: QuoteService | null
                   </Link>
                 </li>
               ))}
+              {!service && (
+                <li key="something-else">
+                  <a href="#quote-form-heading">
+                    <b>Something else</b>
+                    <span>Describe it and we route it</span>
+                  </a>
+                </li>
+              )}
             </ul>
             <p className="quote-section-lead quote-others-note">
               P5 Home Co is an operating family of five companies, not a directory or a referral
