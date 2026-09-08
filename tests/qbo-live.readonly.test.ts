@@ -22,14 +22,15 @@
  *
  * ============================= SETUP ================================
  *
- * Skipped unless both are set:
+ * Skipped unless the explicit opt-in and credentials are available:
  *
- *   QBO_LIVE_ACCESS_TOKEN   A current access token for the P5 company.
- *   QBO_LIVE_REALM_ID       The P5 realm id.
+ *   QBO_LIVE_READONLY_TESTS Exactly: yes-read-from-the-real-books
+ *   QBO_LIVE_ACCESS_TOKEN   Optional current access token for the P5 company.
+ *   QBO_LIVE_REALM_ID       Optional P5 realm id.
  *
- * Access tokens last one hour. That is deliberate rather than inconvenient:
- * a long-lived credential for the real books sitting in a shell profile is a
- * worse problem than re-minting one when you want to run this.
+ * When explicitly enabled, credentials may instead come from the app's stored
+ * QuickBooks connection. Requiring a separate opt-in keeps changing bookkeeping
+ * conditions from turning an application build into a live accounting audit.
  */
 
 import { after, before, describe, test } from "node:test";
@@ -44,12 +45,16 @@ const HOST = "https://quickbooks.api.intuit.com";
 // Resolved at module load because describe()'s skip reason is evaluated
 // synchronously. An expired refresh token becomes a skip REASON rather than a
 // crash, so the message reaches whoever ran the suite instead of a stack trace.
+const OPT_IN_PHRASE = "yes-read-from-the-real-books";
+const optedIn = process.env.QBO_LIVE_READONLY_TESTS === OPT_IN_PHRASE;
 let connection: Awaited<ReturnType<typeof resolveLiveConnection>> = null;
-let unavailable = "QuickBooks credentials not available";
-try {
-  connection = await resolveLiveConnection();
-} catch (error) {
-  unavailable = (error as Error).message;
+let unavailable = `set QBO_LIVE_READONLY_TESTS=${OPT_IN_PHRASE} to run the live audit`;
+if (optedIn) {
+  try {
+    connection = await resolveLiveConnection();
+  } catch (error) {
+    unavailable = (error as Error).message;
+  }
 }
 
 const TOKEN = connection?.accessToken;
