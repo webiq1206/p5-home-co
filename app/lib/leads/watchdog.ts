@@ -12,6 +12,7 @@ import { randomUUID } from "node:crypto";
 import { isUniqueViolation, query, transaction } from "../db.ts";
 import { dispatchNotifications } from "../notifications/dispatch.ts";
 import { syncPendingDeals } from "../integrations/hubspot.ts";
+import { sweepAbandonedSessions } from "./estimatorSessions.ts";
 import { evaluateDeal, type DealEvaluation, type DealSnapshot } from "./rules.ts";
 import { loadSettings, type LeadManagerSettings } from "./settings.ts";
 import type { DealStage } from "./types.ts";
@@ -274,6 +275,17 @@ export async function runWatchdog(now: Date = new Date()): Promise<WatchdogSumma
     // than delivering it quickly, and a mail outage must not stop the rules
     // engine from doing its job.
     const notified = await dispatchNotifications(now);
+
+    // Abandoned quote-form sessions ride the same five-minute tick, so the
+    // partial-completion summaries need no scheduler of their own. Failures
+    // are recorded on the session row and retried next pass; they never stop
+    // the watchdog.
+    try {
+      const swept = await sweepAbandonedSessions({ now, limit: 25 });
+      if (swept.sent || swept.failed) console.info("[watchdog] abandonment sweep", swept);
+    } catch (error) {
+      console.error("[watchdog] abandonment sweep failed", error instanceof Error ? error.message : error);
+    }
 
     await query(
       `UPDATE job_run

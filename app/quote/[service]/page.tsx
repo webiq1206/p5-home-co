@@ -55,7 +55,15 @@ export async function generateMetadata({
       description: service.metaDescription,
       images: [`${siteUrl}${service.image}`],
     },
-    robots: { index: true, follow: true },
+    /**
+     * Paid-search landing variants. Each child company already owns the
+     * indexable service page for this intent on its own domain (for example
+     * boiseremodeling.co/services/kitchen-remodel), and two P5 pages competing
+     * for "kitchen remodel Boise" would split that signal. These stay
+     * crawlable and followed so the links out carry, but do not index. The
+     * generic /quote page is the one indexable quote destination.
+     */
+    robots: { index: false, follow: true },
   };
 }
 

@@ -41,7 +41,7 @@ export const QUOTE_SERVICES: readonly QuoteService[] = [
     lead: "Tell us about your kitchen and Boise Remodeling Co puts together a written quote covering layout, cabinetry, surfaces, and the trades in between. Free, no obligation, and priced as one scope rather than a stack of separate bids you have to reconcile yourself.",
     metaTitle: "Kitchen Remodel Quote, Boise & Meridian | P5 Home Co",
     metaDescription:
-      "Free kitchen remodeling quotes across Boise, Meridian, Eagle, and the Treasure Valley. One written scope covering layout, cabinetry, and every trade. No obligation.",
+      "Free kitchen remodeling quotes across Boise, Meridian, Eagle, and the Treasure Valley. One written scope covering layout, cabinetry, and every trade.",
     image: "/images/p5-remodel.webp",
     imageAlt: "A renovated kitchen interior with custom cabinetry and an island.",
     project: "Kitchen remodel",
@@ -59,7 +59,7 @@ export const QUOTE_SERVICES: readonly QuoteService[] = [
     lead: "Send us the bathroom you want changed and Boise Remodeling Co returns a written quote covering demolition, waterproofing, tile, fixtures, and finish work. Free, no obligation, and scoped so you can see exactly what is and is not included before you commit.",
     metaTitle: "Bathroom Remodel Quote, Boise & Meridian | P5 Home Co",
     metaDescription:
-      "Free bathroom remodeling quotes across Boise, Meridian, Eagle, and the Treasure Valley. Written scopes covering tile, fixtures, and waterproofing. No obligation.",
+      "Free bathroom remodeling quotes across Boise, Meridian, Eagle, and the Treasure Valley. Written scopes covering tile, fixtures, and waterproofing.",
     image: "/images/p5-remodel.webp",
     imageAlt: "A remodeled bathroom interior with tiled surfaces and modern fixtures.",
     project: "Bathroom remodel",
@@ -113,7 +113,7 @@ export const QUOTE_SERVICES: readonly QuoteService[] = [
     lead: "Accessory dwelling units turn on what your lot and your city will allow, so Boise ADU Co starts with feasibility and then prices the build. Free, no obligation, covering detached units, garage conversions, and basement or interior conversions.",
     metaTitle: "ADU & Garage Conversion Quote, Boise | P5 Home Co",
     metaDescription:
-      "Free ADU quotes across the Treasure Valley: detached units, garage conversions, and basement conversions. Feasibility and permitting first, then a written price.",
+      "Free ADU quotes across the Treasure Valley: detached units, garage conversions, and basement conversions, with feasibility and permits handled by one P5 team.",
     image: "/images/p5-adu.webp",
     imageAlt: "A detached accessory dwelling unit beside a main house.",
     project: "Accessory dwelling unit (ADU)",
@@ -149,7 +149,7 @@ export const QUOTE_SERVICES: readonly QuoteService[] = [
     lead: "Boise Handyman Co takes the jobs that are too small for a general contractor and too skilled for a weekend. Send a list and get one written price. Free, no obligation, covering repairs, mounting, installation, and multi-item home lists.",
     metaTitle: "Handyman & Home Repair Quote, Boise | P5 Home Co",
     metaDescription:
-      "Free handyman and home repair quotes across the Treasure Valley. Drywall and trim repair, mounting, installation, deck and exterior work. Send a list, get one price.",
+      "Free handyman and home repair quotes across the Treasure Valley. Drywall and trim repair, mounting, installation, deck and exterior work.",
     image: "/images/p5-handyman.webp",
     imageAlt: "A tradesperson carrying out finish carpentry work in a home.",
     project: "Home repairs or handyman work",

@@ -86,11 +86,8 @@ Telephone: (208) 477-1169
 - [Request a quote](https://p5homeco.com/quote): Free, no-obligation
   quote requests for remodeling, new home construction, ADUs, cabinetry,
   and home repair anywhere in the Treasure Valley.
-- Quote pages by service, each covering that trade specifically:
-  [kitchen remodeling](https://p5homeco.com/quote/kitchen-remodel),
-  [bathroom remodeling](https://p5homeco.com/quote/bathroom-remodel),
-  [home additions](https://p5homeco.com/quote/home-addition),
-  [custom homes](https://p5homeco.com/quote/custom-home),
-  [ADUs and garage conversions](https://p5homeco.com/quote/adu),
-  [custom cabinetry](https://p5homeco.com/quote/custom-cabinets), and
-  [home repairs](https://p5homeco.com/quote/handyman).
+- The seven service-specific quote pages (/quote/kitchen-remodel and so on) are
+  paid-search landing variants of the same form and are not indexed; use
+  https://p5homeco.com/quote as the canonical request page.
+
+Last updated: 2026-09-08.

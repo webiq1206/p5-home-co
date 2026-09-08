@@ -5,7 +5,6 @@ import "./globals.css";
 import {
   citiesServed,
   companies,
-  faqs,
   gaMeasurementId,
   googleAdsDestinationId,
   siteUrl,
@@ -13,7 +12,7 @@ import {
 
 const title = "P5 Home Co | Five Specialized Home-Service Companies";
 const description =
-  "P5 Home Co is the parent company behind Boise Construction Co, Boise Remodeling Co, Boise ADU Co, Boise Handyman Co, and Boise Cabinet Co, serving Idaho's Treasure Valley.";
+  "The parent company behind Boise Construction Co, Boise Remodeling Co, Boise ADU Co, Boise Handyman Co, and Boise Cabinet Co in Idaho's Treasure Valley.";
 
 export const viewport: Viewport = {
   themeColor: [
@@ -73,6 +72,9 @@ export const metadata: Metadata = {
   },
 };
 
+// Site-wide nodes only: the homepage adds its own WebPage + FAQPage in
+// app/page.tsx, so quote and legal pages do not carry FAQ markup for
+// questions that are not on them.
 // Every claim below is stated on the page itself. Nothing is asserted here
 // that a visitor cannot also read, which is what keeps the structured data
 // valid. Note there is no streetAddress and no aggregateRating, because
@@ -138,23 +140,6 @@ const schema = {
       description,
       publisher: { "@id": `${siteUrl}/#organization` },
       inLanguage: "en-US",
-    },
-    {
-      "@type": ["WebPage", "FAQPage"],
-      "@id": `${siteUrl}/#webpage`,
-      url: siteUrl,
-      name: title,
-      description,
-      isPartOf: { "@id": `${siteUrl}/#website` },
-      about: { "@id": `${siteUrl}/#organization` },
-      primaryImageOfPage: `${siteUrl}/images/p5-og.jpg`,
-      inLanguage: "en-US",
-      // Rendered verbatim in the FAQ section from the same source.
-      mainEntity: faqs.map((item) => ({
-        "@type": "Question",
-        name: item.q,
-        acceptedAnswer: { "@type": "Answer", text: item.a },
-      })),
     },
   ],
 };

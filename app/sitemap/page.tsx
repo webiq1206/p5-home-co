@@ -28,39 +28,37 @@ export default function SitemapPage() {
           </Link>
         </div>
       </header>
-      <main className="content-shell" style={{ padding: "72px 0 96px", maxWidth: 820 }}>
+      <main className="content-shell sitemap-main">
         <p className="eyebrow">Site map</p>
-        <h1 style={{ fontFamily: '"P5 Serif", Georgia, serif', fontWeight: 400, letterSpacing: "-.03em", lineHeight: 1.05, fontSize: "clamp(38px,4.5vw,60px)", margin: "0 0 18px" }}>
-          Everything on this site, in one place.
-        </h1>
-        <p style={{ color: "var(--ink-2)", maxWidth: 620, margin: "0 0 48px" }}>{DESCRIPTION}</p>
+        <h1 className="sitemap-title">Everything on this site, in one place.</h1>
+        <p className="sitemap-lede">{DESCRIPTION}</p>
 
-        <section aria-labelledby="sitemap-pages" style={{ marginBottom: 44 }}>
+        <section className="sitemap-section" aria-labelledby="sitemap-pages">
           <h2 id="sitemap-pages" className="eyebrow">This site</h2>
-          <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "grid", gap: 10 }}>
+          <ul className="sitemap-list">
             {ownPages.map((p) => (
-              <li key={p.href}><Link href={p.href} style={{ color: "var(--ink)", borderBottom: "1px solid var(--line)" }}>{p.label}</Link></li>
+              <li key={p.href}><Link href={p.href}>{p.label}</Link></li>
             ))}
           </ul>
         </section>
 
-        <section aria-labelledby="sitemap-legal" style={{ marginBottom: 44 }}>
+        <section className="sitemap-section" aria-labelledby="sitemap-legal">
           <h2 id="sitemap-legal" className="eyebrow">Legal</h2>
-          <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "grid", gap: 10 }}>
+          <ul className="sitemap-list">
             {legalPages.map((p) => (
-              <li key={p.href}><Link href={p.href} style={{ color: "var(--ink)", borderBottom: "1px solid var(--line)" }}>{p.label}</Link></li>
+              <li key={p.href}><Link href={p.href}>{p.label}</Link></li>
             ))}
           </ul>
         </section>
 
-        <section aria-labelledby="sitemap-companies">
+        <section className="sitemap-section" aria-labelledby="sitemap-companies">
           <h2 id="sitemap-companies" className="eyebrow">Our five companies</h2>
-          <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "grid", gap: 10 }}>
+          <ul className="sitemap-list">
             {childSites.map((c) =>
               c.comingSoon ? (
-                <li key={c.href} style={{ color: "var(--ink-2)" }}>{c.label} <small>(launching soon)</small></li>
+                <li key={c.href} className="sitemap-soon">{c.label} <small>(launching soon)</small></li>
               ) : (
-                <li key={c.href}><a href={c.href} style={{ color: "var(--ink)", borderBottom: "1px solid var(--line)" }}>{c.label}</a></li>
+                <li key={c.href}><a href={c.href}>{c.label}</a></li>
               ),
             )}
           </ul>
@@ -69,7 +67,7 @@ export default function SitemapPage() {
       <footer className="site-footer">
         <div className="content-shell footer-bottom">
           <span>© {new Date().getFullYear()} P5 Home Co. All rights reserved.</span>
-          <span><Link href="/" style={{ color: "inherit" }}>Home</Link></span>
+          <span><Link href="/">Home</Link></span>
         </div>
       </footer>
     </>

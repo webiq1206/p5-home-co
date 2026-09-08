@@ -734,3 +734,27 @@
     transition: none !important;
   }
 }
+
+/* ── Leave prompt (docs/estimator-recovery.md) ─────────────────────────── */
+.recovery { width: min(100% - 32px, 520px); max-height: calc(100svh - 32px); margin: auto; padding: 0; border: 1px solid var(--line); border-radius: 0; color: var(--ink); background: var(--paper); box-shadow: 0 35px 100px rgba(0,0,0,.34); }
+.recovery::backdrop { background: rgba(10,15,12,.72); backdrop-filter: blur(6px); }
+.recovery-panel { padding: 30px 28px 26px; }
+.recovery h2 { margin: 0 0 12px; font-family: "P5 Serif", Georgia, serif; font-size: clamp(26px, 3vw, 34px); font-weight: 400; letter-spacing: -.03em; line-height: 1.05; }
+.recovery-lede { margin: 0 0 22px; color: var(--ink-2); font-size: 14px; line-height: 1.65; }
+.recovery-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.recovery-actions .button { width: 100%; min-height: 52px; padding: 0 14px; gap: 12px; font-size: 11px; }
+.recovery-form { margin-top: 22px; padding-top: 20px; border-top: 1px solid var(--line); }
+.recovery-form .eyebrow { margin-bottom: 12px; }
+.recovery-row { display: grid; grid-template-columns: 1fr auto; gap: 8px; }
+.recovery-form input { width: 100%; min-height: 50px; padding: 0 14px; border: 1px solid rgba(32,35,31,.3); border-radius: 0; background: #fff; color: var(--ink); font: inherit; font-size: 16px; }
+.recovery-form input + input, .recovery-form .recovery-row + input { margin-top: 8px; }
+.recovery-form input:focus-visible { outline: 2px solid var(--bronze); outline-offset: 2px; }
+.recovery-form .button { min-height: 50px; padding: 0 18px; gap: 10px; }
+.recovery-footer { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px; margin-top: 22px; }
+.recovery-footer .text-link { padding-bottom: 4px; font-size: 11px; }
+.visually-hidden { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); border: 0; white-space: nowrap; }
+@media (max-width: 560px) {
+  .recovery-panel { padding: 24px 18px 20px; }
+  .recovery-row { grid-template-columns: 1fr; }
+  .recovery-footer { flex-direction: column-reverse; align-items: flex-start; }
+}

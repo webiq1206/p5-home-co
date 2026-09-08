@@ -14,7 +14,7 @@ import "./quote.css";
 
 const title = "Request a Free Home Project Quote | P5 Home Co";
 const description =
-  "Get a free, no-obligation quote for a remodel, custom home, ADU, cabinetry, or repair anywhere in Idaho's Treasure Valley. One form reaches the right P5 specialist team.";
+  "Get a free, no-obligation quote for a remodel, custom home, ADU, cabinetry, or repair in Idaho's Treasure Valley. One form reaches the right P5 team.";
 
 export const metadata: Metadata = {
   title,

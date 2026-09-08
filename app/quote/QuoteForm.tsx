@@ -17,6 +17,9 @@ import { useRouter } from "next/navigation";
 import { useEffect, useId, useRef, useState } from "react";
 
 import { track, trackAcceptedInquiry } from "../analytics";
+import { AbandonmentPrompt } from "./AbandonmentPrompt.tsx";
+import { useAbandonmentRecovery } from "./useAbandonmentRecovery.ts";
+import { markEstimatorCompleted, reportEstimatorProgress } from "./estimatorSession.ts";
 import { captureAttribution } from "./attribution";
 import { isNewAcceptedInquiry } from "./conversion.ts";
 import {
@@ -74,11 +77,33 @@ export default function QuoteForm({ defaultProject = "" }: { defaultProject?: st
     captureAttribution();
   }, []);
 
+  const [engaged, setEngaged] = useState(false);
+  const [acceptedState, setAcceptedState] = useState(false);
   function noteStart() {
     if (started.current) return;
     started.current = true;
+    setEngaged(true);
     track("form_start", { form: "quote_landing_page", project: defaultProject || "generic" });
   }
+
+  // Partial-completion tracking (docs/estimator-recovery.md): where the visitor
+  // is, never what they typed. Field names only; values stay in the browser.
+  const filledCount = (["name", "phone", "email", "project", "city", "summary"] as const).filter((k) => String(values[k] ?? "").trim().length > 0).length;
+  const errorKeys = Object.keys(errors).sort().join(",");
+  useEffect(() => {
+    if (!engaged) return;
+    reportEstimatorProgress({
+      flow: "quote",
+      currentStep: filledCount ? "filling" : "form",
+      currentStepIndex: filledCount ? 1 : 0,
+      totalSteps: 2,
+      lastCompletedStep: filledCount ? "form" : undefined,
+      selections: { project: values.project || defaultProject || null, city: values.city || null, fields_filled: filledCount },
+      validationErrors: errorKeys ? errorKeys.split(",") : [],
+    });
+  }, [engaged, filledCount, values.project, values.city, errorKeys, defaultProject]);
+
+  const recovery = useAbandonmentRecovery({ armed: engaged && !acceptedState, ignoreWithin: [".quote-form", ".recovery"] });
 
   const field = (key: keyof QuoteFormValues) => ({
     id: uid + "-" + key,
@@ -128,6 +153,8 @@ export default function QuoteForm({ defaultProject = "" }: { defaultProject?: st
       // inquiry. Duplicates and every other response deliberately do not fire.
       if (isNewAcceptedInquiry(response.status, payload, accepted.current)) {
         accepted.current = true;
+        setAcceptedState(true);
+        markEstimatorCompleted("quote");
         trackAcceptedInquiry();
         try {
           sessionStorage.setItem("p5.quote-accepted", "1");
@@ -168,6 +195,14 @@ export default function QuoteForm({ defaultProject = "" }: { defaultProject?: st
     errors[key] ? uid + "-" + key + "-error" : undefined;
 
   return (
+    <>
+    <AbandonmentPrompt
+      open={recovery.open}
+      method={recovery.method}
+      leaving={recovery.method === "navigation" || recovery.method === "exit_control"}
+      onStay={recovery.stay}
+      onContinue={recovery.proceed}
+    />
     <form className="quote-form" onSubmit={onSubmit} onFocus={noteStart} noValidate>
       <div className="quote-field">
         <label htmlFor={uid + "-name"}>
@@ -306,5 +341,6 @@ export default function QuoteForm({ defaultProject = "" }: { defaultProject?: st
         .
       </p>
     </form>
+    </>
   );
 }

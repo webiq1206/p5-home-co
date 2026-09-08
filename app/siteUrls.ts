@@ -36,13 +36,15 @@ export const ownPages: SiteUrlEntry[] = [
   { href: "/sitemap", label: "Site map", changeFrequency: "monthly", priority: 0.3 },
   /**
    * One quote page per service, generated from the same list the routes are
-   * generated from, so a new service cannot ship missing from the sitemaps.
+   * generated from, so a new service cannot ship missing from the HTML sitemap.
+   * They carry no changeFrequency/priority on purpose: they are noindex paid
+   * landing variants (see app/quote/[service]/page.tsx), so getIndexableEntries
+   * leaves them out of sitemap.xml, where a noindex URL would only contradict
+   * the page.
    */
   ...QUOTE_SERVICES.map((s) => ({
     href: `/quote/${s.slug}`,
     label: `${s.label} quote`,
-    changeFrequency: "monthly" as ChangeFrequency,
-    priority: 0.8,
   })),
 ];
 

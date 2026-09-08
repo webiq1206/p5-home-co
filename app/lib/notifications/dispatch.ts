@@ -47,7 +47,7 @@ type AlertRow = {
   owner_user_id: string | null;
 };
 
-async function peopleWithRole(roles: string[]): Promise<Recipient[]> {
+export async function peopleWithRole(roles: string[]): Promise<Recipient[]> {
   const rows = await query<{ id: string; email: string; full_name: string }>(
     `SELECT id, email, full_name FROM app_user
       WHERE is_active AND role = ANY($1::text[])
