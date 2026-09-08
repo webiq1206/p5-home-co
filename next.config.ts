@@ -2,6 +2,18 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   allowedDevOrigins: process.env.REPLIT_DEV_DOMAIN ? [process.env.REPLIT_DEV_DOMAIN] : [],
+  async redirects() {
+    return [
+      // www.p5homeco.com answers 200 with the same content as the apex host.
+      // One host keeps crawlers and analytics on a single set of URLs.
+      {
+        source: "/:path*",
+        has: [{ type: "host", value: "www.p5homeco.com" }],
+        destination: "https://p5homeco.com/:path*",
+        permanent: true,
+      },
+    ];
+  },
 };
 
 export default nextConfig;

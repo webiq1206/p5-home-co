@@ -654,6 +654,12 @@
   padding: 56px 0 80px;
 }
 
+/* The thanks page sits on the light ground; the shared lead paragraph is
+   otherwise set for the dark quote hero and disappeared here. */
+.quote-thanks .quote-lead {
+  color: #646962;
+}
+
 .quote-thanks .quote-footer-links a {
   color: var(--ink);
 }
