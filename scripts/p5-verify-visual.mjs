@@ -5,7 +5,7 @@ await fs.mkdir(out,{recursive:true});
 const browser=await chromium.launch({headless:true});
 const widths=[320,390,430,768,1024,1440,1920];
 const parent=process.env.P5_PARENT==='1';
-const routes=parent?['/','/quote','/sitemap','/legal/terms','/legal/privacy','/legal/quickbooks-disconnect']:['/','/services','/about','/contact','/testimonials'];
+const routes=parent?['/','/quote','/sitemap','/legal/terms','/legal/privacy','/legal/quickbooks-disconnect','/quote/adu','/quote/bathroom-remodel','/quote/custom-cabinets','/quote/custom-home','/quote/handyman','/quote/home-addition','/quote/kitchen-remodel']:['/','/services','/about','/contact','/testimonials'];
 const results=[];
 let failed=false;
 function check(ok,message){if(!ok)throw new Error(message);}
@@ -19,8 +19,13 @@ try {
     const response=await page.goto('http://127.0.0.1:5000'+route,{waitUntil:'networkidle'});
     check(response.status()<400,route+' status '+response.status());
     await page.evaluate(async()=>{await document.fonts.ready; for(let y=0;y<document.documentElement.scrollHeight;y+=650){window.scrollTo({top:y,behavior:'instant'});await new Promise(r=>setTimeout(r,70));}});
-    await page.waitForTimeout(700);
-    const geometry=await page.evaluate(()=>({width:innerWidth,scrollWidth:document.documentElement.scrollWidth,broken:[...document.images].filter(i=>!i.complete||!i.naturalWidth).map(i=>i.currentSrc)}));
+    await page.evaluate(async()=>{
+      const images=[...document.images].filter(i=>i.getClientRects().length);
+      for(const image of images)image.loading='eager';
+      await Promise.race([Promise.allSettled(images.map(i=>i.decode())),new Promise(r=>setTimeout(r,15000))]);
+    });
+    await page.waitForTimeout(900);
+    const geometry=await page.evaluate(()=>({width:innerWidth,scrollWidth:document.documentElement.scrollWidth,broken:[...document.images].filter(i=>i.getClientRects().length&&(!i.complete||!i.naturalWidth)).map(i=>i.currentSrc||i.src)}));
     check(geometry.scrollWidth<=geometry.width+1,'Horizontal overflow '+JSON.stringify(geometry));
     check(!geometry.broken.length,'Broken images '+geometry.broken.join(','));
     check(!errors.length,'Browser errors '+errors.join(','));
@@ -29,6 +34,23 @@ try {
     results.push({width,route,ok:true,geometry});
    }catch(e){failed=true;results.push({width,route,ok:false,error:String(e)});}
    page.off('pageerror',handler);
+  }
+  if(parent && width<1024) {
+   try {
+    await page.setViewportSize({width,height:568});
+    await page.goto('http://127.0.0.1:5000/',{waitUntil:'networkidle'});
+    await page.getByRole('button',{name:'Open menu',exact:true}).click();
+    const menu=page.getByRole('dialog',{name:'Site menu'});
+    const button=menu.getByRole('button',{name:'Find your team'});
+    await button.scrollIntoViewIfNeeded();
+    const rect=await button.boundingBox();check(rect.y>=68&&rect.y+rect.height<=568,'Menu CTA fits short screen');
+    await page.screenshot({path:`${out}/${width}-short-menu.jpg`});
+    await button.click();
+    check(await page.locator('.matcher').isVisible(),'Matcher opens');
+    await page.screenshot({path:`${out}/${width}-matcher.jpg`});
+    await page.keyboard.press('Escape');check(!await page.locator('.matcher').isVisible(),'Matcher Escape dismissal');
+    results.push({width,route:'short-menu-and-matcher',ok:true});
+   }catch(e){failed=true;results.push({width,route:'short-menu-and-matcher',ok:false,error:String(e)});}
   }
   if(!parent) {
    try {
