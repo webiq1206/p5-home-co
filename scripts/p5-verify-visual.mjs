@@ -55,6 +55,12 @@ try {
     await button.click();
     check(await page.locator('.matcher').isVisible(),'Matcher opens');
     await page.waitForTimeout(300);
+    const panelBox=await page.locator('.matcher-panel').boundingBox();
+    check(panelBox.y>=0 && panelBox.y+panelBox.height<=569,'Matcher panel exceeds short viewport');
+    const lastChoice=page.locator('.matcher-choices button').last();
+    await lastChoice.scrollIntoViewIfNeeded();
+    const choiceBox=await lastChoice.boundingBox();
+    check(choiceBox.y>=0 && choiceBox.y+choiceBox.height<=569,'Last matcher choice is off screen');
     await page.screenshot({path:`${out}/${width}-matcher.jpg`});
     await page.keyboard.press('Escape');check(!await page.locator('.matcher').isVisible(),'Matcher Escape dismissal');
     results.push({width,route:'short-menu-and-matcher',ok:true});
