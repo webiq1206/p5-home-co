@@ -31,7 +31,7 @@ Successful targeted post-fix runs:
 | Repository | Successful run | Scope |
 | --- | --- | --- |
 | P5 Home Co | https://github.com/webiq1206/p5-home-co/actions/runs/34360777940 | 95 checks, including seven widths, quote entries, and short-screen navigation/matcher interaction |
-| Boise Handyman Co | https://github.com/webiq1206/Boise-Handyman-Co/actions/runs/34361770956 | 42 route/component results, including mouse, touch, keyboard, balanced grid and keyboard-accessible table containment |
+| Boise Handyman Co | https://github.com/webiq1206/Boise-Handyman-Co/actions/runs/34364036154 | 42 route/component results after final branded image changes, including mouse, touch, keyboard, balanced grid and keyboard-accessible table containment |
 | Boise Remodeling Co | https://github.com/webiq1206/boise-remodeling-co/actions/runs/34359997664 | 63 route/component results after major layout, slider and inspiration changes |
 | Boise Cabinet Co | https://github.com/webiq1206/Boise-Cabinet-Co/actions/runs/34360004845 | 77 route/component results after major shared layout/slider changes |
 | Boise Construction Co | https://github.com/webiq1206/Boise-Construction-Co/actions/runs/34360011281 | 42 route/component results after major shared layout/slider changes |
