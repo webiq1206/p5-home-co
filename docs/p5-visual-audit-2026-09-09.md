@@ -1,83 +1,71 @@
-# P5 website visual audit and implementation handoff
+# P5 website audit: verified release and remaining sign-off
+Date: September 9, 2026.
 
-Date: September 9, 2026. Changes are prepared in the five existing GitHub repositories for pulling into Replit and republishing. No Replit agent or Replit credits were used.
+The changes below are committed to the five existing GitHub repositories for pulling into Replit. No Replit agents or credits were used. **The entire master prompt is not certified complete.** Automated coverage and reviewed sections are recorded separately from the remaining manual and live checks.
 
-## Changes delivered
+## Changes delivered across the family
 
-- Shared before-and-after components now support primary mouse dragging, horizontal touch dragging while preserving vertical page scrolling, keyboard arrows and Home/End, accessible value text, and handles that remain inside the image boundary. A real touch-event regression involving implicit pointer capture was reproduced and fixed across all four service brands. P5 Home Co has no comparison slider.
-- Remodeling's 20 unverified image comparisons were replaced with clearly labeled design inspiration. Their photographs did not reliably establish matching properties and camera positions. The functioning comparison component remains available for future verified pairs. Gallery, featured sections, landing pages, metadata, and image sitemap now reflect the inspiration presentation.
-- Opaque mobile CTA and estimator action backgrounds replace translucent or unsupported background utilities where needed. Existing safe-area spacing is preserved. Already opaque Cabinet controls remain intact.
-- Four-card desktop groups use balanced two-by-two layouts. Content cannot remain invisible because a decorative scroll-reveal animation failed. Reduced-motion behavior is preserved.
-- Wide article tables scroll within keyboard-accessible regions rather than widening small phone pages. The issue was found on four Remodeling cost articles and the shared fix was applied to all four service sites.
-- Handyman's missing Garden City card image now has a valid service-relevant fallback. A broken Remodeling ROI guide link was corrected.
-- P5 Home Co mobile navigation and matcher close controls have 44-pixel targets; short-screen menus scroll; small-screen supporting text is larger and more readable.
-- New optimized representative imagery replaces weak or incorrectly branded worker images: three Handyman images, one Construction image, and four Cabinet images. Cabinet responsive variants use the same reviewed source at every size. Updated alt text describes the visible scene. Unsupported "Real completed" assertions were removed from Cabinet's generated blog alt-text source.
-- Remodeling's offline assistant verification now mocks the upstream service instead of making a live Anthropic request with a dummy key. Its 63 assertions passed.
+- Repaired the shared comparison component on the four service sites: mouse dragging, horizontal touch dragging, vertical page scrolling, keyboard arrows and Home/End, accessible values, and bounded handles. A touch pointer-capture regression was reproduced and corrected.
+- Replaced Remodeling's 20 unverified comparisons with labeled design inspiration because the images did not establish matching properties and camera positions. Cabinet's six concepts likewise do not use comparison sliders. Verified customer pairs can use the repaired component when supplied.
+- Added opaque mobile CTA/action backgrounds, retained safe-area spacing, and suppressed fixed bottom actions around visible forms. P5's quote call bar also has an opaque background and visible keyboard focus.
+- Balanced four-card groups, prevented decorative reveal failures from hiding content, and contained wide article tables in keyboard-accessible scrolling regions.
+- Fixed Handyman's missing Garden City image and a broken Remodeling ROI link.
+- Replaced weak or incorrectly branded worker imagery with optimized representative scenes: three Handyman, one Construction, and four Cabinet images. P5 quote entries now use appropriate bathroom, addition and branded trade imagery.
+- Improved P5 mobile navigation, tap targets, short-screen menu scrolling, hero height, supporting text and contrast.
+- Corrected stale address-autocomplete responses on all four service sites. Late responses cannot reopen a dismissed menu or overwrite newer suggestions.
+- Centered the service guide presentation on Construction, Remodeling and Handyman. Handyman estimate choices use one column below 480 pixels.
+- Kept compact navigation below 1280 pixels on Construction, Remodeling and Handyman to prevent crowded laptop headers and wrapped phone numbers. Cabinet already used that breakpoint. Menu close controls have 44-pixel targets.
+- Strengthened about/contact photo-caption contrast on all four service sites.
 
-## Browser coverage and evidence
+## Cabinet catalog and imagery follow-up
 
-Actual Chromium rendering ran through Playwright in GitHub Actions after this session's interactive browser services proved unavailable. Screenshots were downloaded and visually inspected.
+- Shaker pages show Shaker cabinetry and four clear profile illustrations. Room and article catalog strips use the same accurate profile illustrations.
+- Concept gallery images now show the described mudroom, wet bar, outdoor kitchen and built-in cabinetry. Captions describe visible features, including removal of the pictured-linen-tower assertion.
+- The vertical partition card and accessory hero show upright dividers for trays and cutting boards. The shared mapping also corrects references in the catalog/PDF.
+- Room previews start with up to three different cabinet types rather than six size variants of one type. Filtering and the full range remain available.
+- Empty gallery/review placeholders are removed from room and city pages. Matching content renders when available; concept-only galleries say design inspiration.
+- All 13 room image families stay within their consistent optimized variants on high-DPI displays instead of switching to a different legacy original. Gallery concepts use the reviewed 1080-pixel images at every size.
 
-The initial public sitemap sweep rendered 654 URLs at seven widths: 320, 390, 430, 768, 1024, 1440, and 1920 pixels. That produced 4,578 full-page captures. Breakdown: P5 6 URLs, Construction 161, Remodeling 201, Handyman 150, Cabinet 136. All initial page responses were HTTP 200 with no recorded page exceptions or HTTP failures. The sweep detected four small-screen table overflow cases and 28 instances of one broken Handyman image across four pages and seven widths. These defects were addressed.
+## Production build and browser evidence
 
-An additional 52 linked pages/downloads outside the sitemap were checked: 51 responded successfully and the one broken ROI guide link was corrected. Seven P5 quote entry routes discovered outside the sitemap were then included in its browser verification.
+All five repositories have successful production builds for their application changes. Service-site runs include repository prebuild checks. Existing build settings sometimes skip separate TypeScript/lint checks; a build pass is not presented as an independent typecheck/lint pass.
 
-Manual visual review covered all five homepages, representative service/city/content templates, changed sections, the image inventory contact sheets, and full-size questionable/replacement worker images. This was not a manual pixel-by-pixel inspection of every one of the 4,578 captures.
-
-Initial full sweep: https://github.com/webiq1206/Boise-Handyman-Co/actions/runs/34357605727
-
-Successful targeted post-fix runs:
-
-| Repository | Successful run | Scope |
+| Site | Browser evidence | Results |
 | --- | --- | --- |
-| P5 Home Co | https://github.com/webiq1206/p5-home-co/actions/runs/34360777940 | 95 checks, including seven widths, quote entries, and short-screen navigation/matcher interaction |
-| Boise Handyman Co | https://github.com/webiq1206/Boise-Handyman-Co/actions/runs/34364036154 | 42 route/component results after final branded image changes, including mouse, touch, keyboard, balanced grid and keyboard-accessible table containment |
-| Boise Remodeling Co | https://github.com/webiq1206/boise-remodeling-co/actions/runs/34359997664 | 63 route/component results after major layout, slider and inspiration changes |
-| Boise Cabinet Co | https://github.com/webiq1206/Boise-Cabinet-Co/actions/runs/34360004845 | 77 route/component results after major shared layout/slider changes |
-| Boise Construction Co | https://github.com/webiq1206/Boise-Construction-Co/actions/runs/34360011281 | 42 route/component results after major shared layout/slider changes |
+| P5 Home Co | [Production browser run](https://github.com/webiq1206/p5-home-co/actions/runs/34378298857) | 95 passed: seven widths, quote variants, short-screen navigation/matcher and form/call-bar separation. A later focus-outline color adjustment passed a local production build. |
+| Construction | [Latest release run](https://github.com/webiq1206/Boise-Construction-Co/actions/runs/34388150809) | 42 passed: seven widths, routes/components, laptop menu, slider and grid checks. |
+| Handyman | [Latest release run](https://github.com/webiq1206/Boise-Handyman-Co/actions/runs/34388146036) | 42 passed: seven widths, routes/components, laptop menu, slider and grid checks. |
+| Remodeling | [Latest release run](https://github.com/webiq1206/boise-remodeling-co/actions/runs/34388157210) | 91 passed: seven widths, routes/components, laptop menu, slider, inspiration and table checks. |
+| Cabinet | [Latest release run](https://github.com/webiq1206/Boise-Cabinet-Co/actions/runs/34389473805) | 119 passed: seven widths, catalog/core routes, room and city pages, cabinet range expansion/reset, slider/grid checks and final responsive imagery. |
 
-## Build status and remaining verification limits
+Private-repository Chromium runners are working again. Private source stayed in its own repositories.
 
-All five sites have successful production builds. Construction, Remodeling and Cabinet also completed fresh local `npm run build` runs after their final image/path changes. The last Cabinet follow-up changes only descriptive alt text. Existing repository build configuration skips independent TypeScript/lint checks, so production build success is not presented as a separate lint/typecheck pass.
+Additional evidence:
 
-The latest three private-repository Actions attempts ended before a runner started, with no job steps or logs. This prevented a final browser rerun of their last table, copy and imagery adjustments. The cause was not available from the connector. Earlier successful browser runs and final local production builds are recorded separately above. The shared table implementation was additionally tested in the working public Handyman browser run.
+- The [initial sitemap sweep](https://github.com/webiq1206/Boise-Handyman-Co/actions/runs/34357605727) rendered 654 URLs at 320, 390, 430, 768, 1024, 1440 and 1920 pixels, producing 4,578 captures. Its four small-screen table overflow cases and repeated instances of one broken Handyman image were corrected.
+- The [later live sweep](https://github.com/webiq1206/Boise-Handyman-Co/actions/runs/34375634821), combined with Cabinet's recovered 130 records at 430 pixels and the [remaining six-page rerun](https://github.com/webiq1206/Boise-Handyman-Co/actions/runs/34386500460), contains 3,129 successful renders for Construction, Handyman and Cabinet across seven widths. Those records have no page exceptions, failed HTTP responses or document-level overflow. This historical sweep does not verify code committed afterward.
+- Fifty-two linked pages/downloads outside the sitemap were checked; the one broken ROI link was fixed. P5's seven real quote-service entry routes were included in its separate browser suite.
+- Seventy live navigation/form results passed across the [per-site form run](https://github.com/webiq1206/Boise-Handyman-Co/actions/runs/34377228647) and [Construction response-contract rerun](https://github.com/webiq1206/Boise-Handyman-Co/actions/runs/34377946251). Validation, simulated failure, value preservation, retry and confirmation were tested with intercepted API responses. No real inquiries or emails were sent.
+- [Cabinet catalog controls passed at seven widths](https://github.com/webiq1206/Boise-Handyman-Co/actions/runs/34379437129): PDF readiness, page navigation, zoom, thumbnails, opening/closing search and scroll mode. Full search-result relevance was not certified.
+- Handyman's [address/estimate follow-up run](https://github.com/webiq1206/Boise-Handyman-Co/actions/runs/34379488574) passed 35 results, including stale-response dismissal, keyboard selection and estimate category advancement.
+- Forty-seven image URLs flagged before lazy loading completed were downloaded and decoded successfully; they were timing flags, not confirmed broken images.
+- All 13 Cabinet room image families were also checked at 320-pixel and high-DPI requested widths for consistent variant selection.
 
-Screen sizes were emulated in Chromium; physical iOS/Android browser controls and native device safe areas were not tested. Live form delivery into email/CRM was not submitted. Existing image provenance and exact geographic location cannot be independently certified for every legacy asset. Generated replacements are representative scenes and must not be relabeled as specific completed customer jobs or actual employee portraits.
+## Manual review and remaining limits
 
-## Publishing
+Screenshots were downloaded and visually inspected, including all five homepages, representative service/content templates, changed sections, replacement worker images at full size, Cabinet's catalog/core pages, all 13 Cabinet room pages, all eight Cabinet city pages, resources, warranty and legal pages. Replacement concept images and their responsive variants were reviewed.
 
-Pull the updated `main` branch in each matching Replit project, then republish. The public production domains do not receive these GitHub changes until that step. After publishing, check the mobile bottom CTA, navigation, form entry, and the changed galleries on the live domains. The audit workflow and browser script are retained in each repository for repeatable verification.
+This is **not an exhaustive manual inspection of every section of every route at every width**. That requirement remains outstanding. The following also remain unverified:
 
-## Follow-up work and status, September 9, 2026
+- Final public deployments after the latest Git commits.
+- Actual email/CRM delivery from live form submissions.
+- Native physical-device browser controls and safe areas beyond Chromium emulation.
+- Independent provenance, exact geographic location and customer attribution of every legacy image, and verified customer before/after pairs.
 
-This section supersedes the earlier publishing and final-verification status above. The entire master prompt is **not yet certified complete**.
+## Publishing and final live check
 
-### Additional changes pushed to main
+Pull the latest `main` in **each of the five matching Replit projects**, then republish. Commits were made after the user's initial publication began.
 
-- P5 quote entries now use bathroom, home-addition and branded trade imagery appropriate to the selected service. P5's mobile hero height, supporting text sizes and contrast were improved.
-- Late address autocomplete responses cannot reopen a dismissed menu or overwrite newer suggestions. The fix is applied to all four service sites; the shared component passed blur, Escape, out-of-order response and keyboard-selection regressions.
-- Fixed mobile navigation actions step aside while an on-page form is visible. P5's quote call bar likewise disappears around the form, uses an opaque dark background, and has a visible keyboard-focus outline. Cabinet's remaining guided-flow and portal bottom bars now have solid backgrounds.
-- The long-form guide index sits above centered service-page copy on Construction, Remodeling and Handyman.
-- Handyman estimate job choices use one column below 480 pixels so long labels have adequate room.
+The last successful live marker check still showed older code on P5, Remodeling and Handyman: P5 lacked the new quote-image markers, Remodeling retained old comparison/CTA markers, and Handyman lacked the small-screen estimate layout marker. Construction and Cabinet also need the newer release changes from this continuation.
 
-### Follow-up verification
-
-All five repositories completed production builds after the follow-up code changes. Repository prebuild checks were included. These are build results, not a claim of independent lint/typecheck coverage when repository configuration skips those checks.
-
-- P5: [95 final production-browser results passed](https://github.com/webiq1206/p5-home-co/actions/runs/34378298857), including all seven widths, quote variants, short-screen menus/matcher, and form/call-bar separation. A subsequent focus-outline color adjustment also passed a local production build.
-- Handyman: [35 final browser results passed](https://github.com/webiq1206/Boise-Handyman-Co/actions/runs/34379488574), covering the shared address race regression, centered guide layouts, estimate category readability/automatic advancement, and form/bar separation.
-- All five sites: 70 live navigation and form results passed across the [successful per-site results in this run](https://github.com/webiq1206/Boise-Handyman-Co/actions/runs/34377228647) and the [corrected Construction response-contract rerun](https://github.com/webiq1206/Boise-Handyman-Co/actions/runs/34377946251). Form validation, simulated server failure, preservation of entered values, retry, and confirmation were checked. API responses were intercepted; no real inquiries or confirmation emails were sent.
-- Cabinet: [catalog controls passed at all seven widths](https://github.com/webiq1206/Boise-Handyman-Co/actions/runs/34379437129): PDF readiness, page navigation, zoom, thumbnails, opening/closing search, and scroll mode. This does not claim full search-result relevance or every product configuration was tested.
-- The [post-publication route sweep](https://github.com/webiq1206/Boise-Handyman-Co/actions/runs/34375634821) produced reviewed machine results for 2,993 page renders: Construction 161 routes at seven widths; Handyman 150 at seven widths; Cabinet 136 at six widths. These records contain no page exceptions, failed HTTP responses, or document-level horizontal overflow. Cabinet's 430-pixel job was still running at handoff.
-- Forty-seven unique image URLs recorded before lazy loading finished were downloaded and decoded successfully. They were loading-timing flags, not confirmed broken images.
-- Four guessed P5 quote paths in the live sweep were invalid test inputs and excluded. The retained audit script now uses the seven real service slugs and explicitly waits for image decoding. P5's separate 95-result suite covered the real routes.
-
-### Still outstanding
-
-- Remodeling's publication gate failed at every width. A fresh fetch still showed `bg-background/97` and the old comparison presentation. The Replit project must pull the updated `main` before republishing.
-- All five final deployments need to be checked after the latest commits in this follow-up. The earlier live sweep cannot verify code committed afterward.
-- Manual review has expanded to additional service, resource, quote, catalog and estimator captures, but it still does not cover every section of every route at every width.
-- End-to-end live email/CRM delivery and the origin/location/customer attribution of every legacy image remain unverified. No verified customer comparison pairs have been supplied. The experimental generated bathroom comparison was not shipped because exact alignment was not established.
-- Screen sizes were emulated in Chromium. Native physical-device browser controls and safe areas were not directly tested.
-
-Pull `main` again in **each** matching Replit project, then republish. The follow-up commits were made after the user's initial republishing began. No Replit agents or credits were used.
+After the updated deployments are visible, verify navigation, mobile actions, form entry, imagery and galleries on the public domains. Do not describe this report or the automated capture counts as a full master-prompt sign-off.
