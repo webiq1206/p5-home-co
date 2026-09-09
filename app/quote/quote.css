@@ -645,7 +645,7 @@
 }
 
 .quote-callbar:focus-visible {
-  outline: 3px solid var(--ink);
+  outline: 3px solid #fff;
   outline-offset: -3px;
 }
 
