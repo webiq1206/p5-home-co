@@ -622,7 +622,8 @@
   gap: 2px;
   align-items: center;
   padding: 11px 16px calc(11px + env(safe-area-inset-bottom, 0px));
-  background: var(--bronze);
+  background: #203129;
+  border-top: 1px solid var(--bronze);
   color: #fff;
   box-shadow: 0 -6px 22px rgba(11, 16, 13, 0.22);
   font-weight: 750;

@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import QuoteForm from "./QuoteForm";
+import QuoteCallBar from "./QuoteCallBar";
 import { PROOF_POINTS, TESTIMONIALS } from "./proof";
 import { faqsFor, schemaFor, STEPS } from "./schema";
 import { QUOTE_SERVICES, type QuoteService } from "./services";
@@ -216,16 +217,7 @@ export default function QuoteLanding({ service }: { service: QuoteService | null
         </footer>
       </main>
 
-      {/* Calls convert better than forms for this trade, and on a phone the
-          header scrolls away. This does not. */}
-      <a
-        className="quote-callbar"
-        href="tel:+12084771169"
-        aria-label="Call P5 Home Co on 2 0 8, 4 7 7, 1 1 6 9"
-      >
-        <span>Call (208) 477-1169</span>
-        <small>Free quote · no obligation</small>
-      </a>
+      <QuoteCallBar />
     </>
   );
 }

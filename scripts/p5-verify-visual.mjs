@@ -30,6 +30,13 @@ try {
     check(!geometry.broken.length,'Broken images '+geometry.broken.join(','));
     check(!errors.length,'Browser errors '+errors.join(','));
     await page.evaluate(()=>window.scrollTo({top:0,behavior:'instant'}));
+    if(parent && route.startsWith('/quote') && width<768){
+      await page.locator('.quote-form-panel').scrollIntoViewIfNeeded();await page.waitForTimeout(150);
+      check(!await page.locator('.quote-callbar').isVisible(),'Call bar overlaps quote form');
+      await page.locator('.quote-footer').scrollIntoViewIfNeeded();await page.waitForTimeout(150);
+      check(await page.locator('.quote-callbar').isVisible(),'Call bar does not return below form');
+      await page.evaluate(()=>window.scrollTo({top:0,behavior:'instant'}));await page.waitForTimeout(150);
+    }
     await page.screenshot({path:`${out}/${width}-${route.replaceAll('/','_')||'home'}.jpg`,fullPage:true,type:'jpeg',quality:70});
     results.push({width,route,ok:true,geometry});
    }catch(e){failed=true;results.push({width,route,ok:false,error:String(e)});}
