@@ -18,7 +18,7 @@
   text-transform: uppercase;
   text-decoration: none;
 }
-.legal-back:hover { color: var(--bronze); }
+.legal-back:hover { color: var(--bronze-ink); }
 
 .legal-page h1 {
   margin: 0 0 8px;
@@ -62,7 +62,8 @@
 .legal-page ul { padding-left: 22px; }
 .legal-page li { margin-bottom: 8px; }
 
-.legal-page a { color: var(--bronze); }
+.legal-page a { color: var(--bronze-ink); text-decoration: underline; text-underline-offset: 3px; }
+.legal-page .legal-back { min-height: 44px; display: inline-flex; align-items: center; text-decoration: none; }
 
 .legal-lead {
   color: var(--ink);

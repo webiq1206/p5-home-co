@@ -1,7 +1,7 @@
 name: P5 final build and browser verification
 on:
   push:
-    branches: [codex/p5-live-final]
+    branches: [codex/p5-final-contrast]
 permissions:
   contents: read
 jobs:
