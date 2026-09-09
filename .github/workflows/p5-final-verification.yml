@@ -1,0 +1,37 @@
+name: P5 final build and browser verification
+on:
+  push:
+    branches: [codex/p5-final-verification]
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    container: mcr.microsoft.com/playwright:v1.60.0-noble
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm ci --no-audit --no-fund
+      - run: npm install --no-save --package-lock=false @playwright/test@1.60.0
+      - name: Production build and repository gates
+        run: npm run build
+      - name: Start and verify production server
+        env:
+          P5_PARENT: "1"
+        run: |
+          npx next start -p 5000 > /tmp/p5-server.log 2>&1 &
+          node -e 'const u="http://127.0.0.1:5000";let n=0;const t=setInterval(async()=>{try{await fetch(u);clearInterval(t)}catch{if(++n>60){clearInterval(t);process.exit(1)}}},1000)'
+          node scripts/p5-verify-visual.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: p5-final-verification
+          path: |
+            p5-verification
+            /tmp/p5-server.log
+          retention-days: 7
