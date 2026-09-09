@@ -27,7 +27,7 @@ export const companies = [
   },
   {
     name: "Boise Handyman Co",
-    image: "/images/p5-handyman.webp",
+    image: "/images/p5-handyman-branded-v2.webp",
     url: "https://boisehandyman.co",
     description:
       "Home repair and maintenance, including drywall and trim repair, mounting and installation, and deck and exterior repair.",

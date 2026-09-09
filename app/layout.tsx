@@ -15,6 +15,7 @@ const description =
   "The parent company behind Boise Construction Co, Boise Remodeling Co, Boise ADU Co, Boise Handyman Co, and Boise Cabinet Co in Idaho's Treasure Valley.";
 
 export const viewport: Viewport = {
+  viewportFit: "cover",
   themeColor: [
     { media: "(prefers-color-scheme: light)", color: "#FBFAF6" },
     { media: "(prefers-color-scheme: dark)", color: "#17211C" },

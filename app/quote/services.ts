@@ -150,7 +150,7 @@ export const QUOTE_SERVICES: readonly QuoteService[] = [
     metaTitle: "Handyman & Home Repair Quote, Boise | P5 Home Co",
     metaDescription:
       "Free handyman and home repair quotes across the Treasure Valley. Drywall and trim repair, mounting, installation, deck and exterior work.",
-    image: "/images/p5-handyman.webp",
+    image: "/images/p5-handyman-branded-v2.webp",
     imageAlt: "A tradesperson carrying out finish carpentry work in a home.",
     project: "Home repairs or handyman work",
     brand: "Boise Handyman Co",

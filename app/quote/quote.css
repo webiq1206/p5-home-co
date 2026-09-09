@@ -570,7 +570,7 @@
 /* --- Footer ------------------------------------------------------------------ */
 
 .quote-footer {
-  padding: 42px 0 96px;
+  padding: 42px 0 calc(104px + env(safe-area-inset-bottom, 0px));
   color: #fff;
   background: var(--forest);
 }
@@ -622,7 +622,7 @@
   gap: 2px;
   align-items: center;
   padding: 11px 16px calc(11px + env(safe-area-inset-bottom, 0px));
-  background: var(--bronze);
+  background: var(--forest);
   color: #fff;
   box-shadow: 0 -6px 22px rgba(11, 16, 13, 0.22);
   font-weight: 750;
@@ -636,10 +636,10 @@
 }
 
 .quote-callbar small {
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.1em;
-  opacity: 0.9;
+  opacity: 1;
   text-transform: uppercase;
 }
 
@@ -790,3 +790,12 @@
     max-width: none;
   }
 }
+
+
+/* Keep short phone dialogs scrollable and quote controls readable. */
+.recovery { overflow-y: auto; overscroll-behavior: contain; }
+.quote-eyebrow, .quote-field label, .quote-step-grid b { font-size: 12px; }
+.quote-hint, .quote-form-note, .quote-more summary { font-size: 14px; }
+.quote-other-grid span { color: rgba(255,255,255,.8); font-size: 14px; }
+.recovery-actions .button { font-size: 13px; padding: 12px; }
+@media (max-width: 380px) { .recovery-actions { grid-template-columns: 1fr; } }
