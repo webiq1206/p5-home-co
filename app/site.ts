@@ -6,7 +6,7 @@ export const siteUrl = "https://p5homeco.com";
 export const companies = [
   {
     name: "Boise Construction Co",
-    image: "/images/p5-construction-v2.webp",
+    image: "/images/p5-construction-branded.webp",
     url: "https://boiseconstruction.co",
     description:
       "Custom and semi-custom home building, including design, engineering, permitting, and ground-up construction.",
@@ -27,7 +27,7 @@ export const companies = [
   },
   {
     name: "Boise Handyman Co",
-    image: "/images/p5-handyman.webp",
+    image: "/images/p5-handyman-branded.webp",
     url: "https://boisehandyman.co",
     description:
       "Home repair and maintenance, including drywall and trim repair, mounting and installation, and deck and exterior repair.",

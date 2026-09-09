@@ -375,3 +375,16 @@ a:hover .arrow-diagonal, a:focus-visible .arrow-diagonal { transform: translate(
 .manifesto-copy p:not(.lead-copy), .companies-heading > p, .standard-heading > p { font-size: 15px; }
 .mobile-menu-inner > p { font-size: 11px; color: rgba(255,255,255,.75); }
 .matcher-previous { min-height: 44px; }
+
+/* Reviewed at 320px: keep service details readable and avoid an empty hero. */
+.brand-content > p, .standard-grid p { font-size: 14px; }
+.standard-grid p { color: rgba(255,255,255,.75); }
+.service-list li, .brand-proof, .process-proof li { font-size: 12px; }
+.brand-link, .button, .text-link, .footer-links a, .footer-links button { font-size: 13px; }
+.brand-construction, .brand-handyman { --brand-muted: rgba(255,255,255,.78); }
+@media (max-width:560px) {
+  .hero { height:auto; min-height:min(700px,100svh); }
+  .hero-content { height:auto; min-height:min(700px,100svh); padding-top:130px; }
+  .standard-grid article { min-height:0; padding:28px 24px; }
+  .standard-grid h3 { margin-top:32px; }
+}
