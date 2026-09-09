@@ -54,6 +54,7 @@ try {
     await page.screenshot({path:`${out}/${width}-short-menu.jpg`});
     await button.click();
     check(await page.locator('.matcher').isVisible(),'Matcher opens');
+    await page.waitForTimeout(300);
     await page.screenshot({path:`${out}/${width}-matcher.jpg`});
     await page.keyboard.press('Escape');check(!await page.locator('.matcher').isVisible(),'Matcher Escape dismissal');
     results.push({width,route:'short-menu-and-matcher',ok:true});

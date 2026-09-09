@@ -148,7 +148,7 @@ a:hover .arrow-diagonal, a:focus-visible .arrow-diagonal { transform: translate(
 .brand-remodeling { --brand-accent:#9aa098; --brand-muted:#646962; --brand-line:rgba(32,35,31,.15); --brand-topline:#777d76; color:var(--ink); background:#e7e3d8; }
 .brand-cabinetry { --brand-accent:#7aaaaa; --brand-muted:#66635d; --brand-line:rgba(32,35,31,.15); --brand-topline:#77746e; color:var(--ink); background:#f2eee5; }
 .brand-adu { --brand-accent:#cc929a; --brand-muted:#66635d; --brand-line:rgba(32,35,31,.15); --brand-topline:#77746e; color:var(--ink); background:#f1ede4; }
-.brand-handyman { --brand-accent:#cb633b; --brand-muted:rgba(255,255,255,.62); --brand-line:rgba(255,255,255,.17); --brand-topline:rgba(255,255,255,.5); color:#fff; background:#3b403e; }
+.brand-handyman { --brand-accent:#8faec4; --brand-muted:rgba(255,255,255,.62); --brand-line:rgba(255,255,255,.17); --brand-topline:rgba(255,255,255,.5); color:#fff; background:#3b403e; }
 
 .standard { color: #fff; background: var(--forest); }
 .standard-heading { display: grid; grid-template-columns: 1.25fr .5fr; gap: 11vw; align-items: end; }
