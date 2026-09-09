@@ -47,3 +47,37 @@ Screen sizes were emulated in Chromium; physical iOS/Android browser controls an
 ## Publishing
 
 Pull the updated `main` branch in each matching Replit project, then republish. The public production domains do not receive these GitHub changes until that step. After publishing, check the mobile bottom CTA, navigation, form entry, and the changed galleries on the live domains. The audit workflow and browser script are retained in each repository for repeatable verification.
+
+## Follow-up work and status, September 9, 2026
+
+This section supersedes the earlier publishing and final-verification status above. The entire master prompt is **not yet certified complete**.
+
+### Additional changes pushed to main
+
+- P5 quote entries now use bathroom, home-addition and branded trade imagery appropriate to the selected service. P5's mobile hero height, supporting text sizes and contrast were improved.
+- Late address autocomplete responses cannot reopen a dismissed menu or overwrite newer suggestions. The fix is applied to all four service sites; the shared component passed blur, Escape, out-of-order response and keyboard-selection regressions.
+- Fixed mobile navigation actions step aside while an on-page form is visible. P5's quote call bar likewise disappears around the form, uses an opaque dark background, and has a visible keyboard-focus outline. Cabinet's remaining guided-flow and portal bottom bars now have solid backgrounds.
+- The long-form guide index sits above centered service-page copy on Construction, Remodeling and Handyman.
+- Handyman estimate job choices use one column below 480 pixels so long labels have adequate room.
+
+### Follow-up verification
+
+All five repositories completed production builds after the follow-up code changes. Repository prebuild checks were included. These are build results, not a claim of independent lint/typecheck coverage when repository configuration skips those checks.
+
+- P5: [95 final production-browser results passed](https://github.com/webiq1206/p5-home-co/actions/runs/34378298857), including all seven widths, quote variants, short-screen menus/matcher, and form/call-bar separation. A subsequent focus-outline color adjustment also passed a local production build.
+- Handyman: [35 final browser results passed](https://github.com/webiq1206/Boise-Handyman-Co/actions/runs/34379488574), covering the shared address race regression, centered guide layouts, estimate category readability/automatic advancement, and form/bar separation.
+- All five sites: 70 live navigation and form results passed across the [successful per-site results in this run](https://github.com/webiq1206/Boise-Handyman-Co/actions/runs/34377228647) and the [corrected Construction response-contract rerun](https://github.com/webiq1206/Boise-Handyman-Co/actions/runs/34377946251). Form validation, simulated server failure, preservation of entered values, retry, and confirmation were checked. API responses were intercepted; no real inquiries or confirmation emails were sent.
+- Cabinet: [catalog controls passed at all seven widths](https://github.com/webiq1206/Boise-Handyman-Co/actions/runs/34379437129): PDF readiness, page navigation, zoom, thumbnails, opening/closing search, and scroll mode. This does not claim full search-result relevance or every product configuration was tested.
+- The [post-publication route sweep](https://github.com/webiq1206/Boise-Handyman-Co/actions/runs/34375634821) produced reviewed machine results for 2,993 page renders: Construction 161 routes at seven widths; Handyman 150 at seven widths; Cabinet 136 at six widths. These records contain no page exceptions, failed HTTP responses, or document-level horizontal overflow. Cabinet's 430-pixel job was still running at handoff.
+- Forty-seven unique image URLs recorded before lazy loading finished were downloaded and decoded successfully. They were loading-timing flags, not confirmed broken images.
+- Four guessed P5 quote paths in the live sweep were invalid test inputs and excluded. The retained audit script now uses the seven real service slugs and explicitly waits for image decoding. P5's separate 95-result suite covered the real routes.
+
+### Still outstanding
+
+- Remodeling's publication gate failed at every width. A fresh fetch still showed `bg-background/97` and the old comparison presentation. The Replit project must pull the updated `main` before republishing.
+- All five final deployments need to be checked after the latest commits in this follow-up. The earlier live sweep cannot verify code committed afterward.
+- Manual review has expanded to additional service, resource, quote, catalog and estimator captures, but it still does not cover every section of every route at every width.
+- End-to-end live email/CRM delivery and the origin/location/customer attribution of every legacy image remain unverified. No verified customer comparison pairs have been supplied. The experimental generated bathroom comparison was not shipped because exact alignment was not established.
+- Screen sizes were emulated in Chromium. Native physical-device browser controls and safe areas were not directly tested.
+
+Pull `main` again in **each** matching Replit project, then republish. The follow-up commits were made after the user's initial republishing began. No Replit agents or credits were used.
