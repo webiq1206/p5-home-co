@@ -97,8 +97,8 @@ export function P5Estimator({defaultService=brand.defaultService}:{defaultServic
   };
   if(!draft)return <div className={styles.root} role="status">Loading your saved project...</div>;
   const fields=[...new Set<ScopeField>(["service",...Object.keys(draft.answers) as ScopeField[],...(draft.extraction?.facts.map(f=>f.field)||[]),...requiredScopeQuestions(draft.answers),"location","urgency",...(extra?[extra]:[])])];
-  return <section className={styles.root} data-p5-estimator style={{"--p5-accent":brand.accent} as React.CSSProperties}>
-    <div className={styles.intro}><p className={styles.eyebrow}>{brand.name}</p><h1 ref={heading} tabIndex={-1}>{result?"Your project summary":"Tell us what you have in mind"}</h1><p>Start with a description, add your documents, or answer a few questions. Bring what you know; you can leave unknown details blank.</p></div>
+  return <div role="region" aria-label="Project estimator" className={styles.root} data-p5-estimator style={{"--p5-accent":brand.accent} as React.CSSProperties}>
+    <div className={styles.intro}><p className={styles.eyebrow}>{brand.name}</p><h1 ref={heading} tabIndex={-1}>{result?"Your project summary":"Tell us what you have in mind"}</h1><p>{result?"Your project details are saved. Review the summary and recommended next step below.":"Start with a description, add your documents, or answer a few questions. Bring what you know; you can leave unknown details blank."}</p></div>
     {!result&&<ol className={styles.progress} aria-label="Estimator progress">{["Your scope","Review details","Get your result"].map((label,index)=><li key={label} aria-current={draft.step===index?"step":undefined}><button type="button" disabled={index>draft.step||Boolean(busy)} onClick={()=>go(index)}>{index+1}. {label}</button></li>)}</ol>}
     {result?<div className={styles.result}>
       <h2>{result.range?`${result.range.low.toLocaleString("en-US",{style:"currency",currency:"USD",maximumFractionDigits:0})} to ${result.range.high.toLocaleString("en-US",{style:"currency",currency:"USD",maximumFractionDigits:0})}`:"Your scope is ready for pricing review"}</h2>
@@ -133,5 +133,5 @@ export function P5Estimator({defaultService=brand.defaultService}:{defaultServic
       </>}
     </fieldset></form>}
     {busy&&<p className={styles.notice} role="status" aria-live="polite">{busy}</p>}{error&&<p className={styles.error} role="alert">{error}</p>}{status&&<p className={styles.hint} role="status">{status}</p>}
-  </section>;
+  </div>;
 }
