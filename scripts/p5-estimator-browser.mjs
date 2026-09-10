@@ -37,6 +37,7 @@ for(const width of [320,390,430,768,1024,1440,1920]){
  try{
   await page.goto(base+'/estimate/p5-preview',{waitUntil:'domcontentloaded'});
   const estimator=page.locator('[data-p5-estimator]');await estimator.getByLabel('Describe your project',{exact:true}).waitFor();
+  const topInset=await estimator.evaluate(el=>el.querySelector('p').getBoundingClientRect().top-el.getBoundingClientRect().top);assert.ok(topInset<=60,`Estimator inherited marketing hero spacing: ${topInset}px`);
   await estimator.getByRole('button',{name:'Describe it by voice',exact:true}).click();
   assert.match(await page.locator('#p5-scope').inputValue(),/three interior doors/);
   await page.locator('#p5-scope').fill('Repair three interior doors. '+('A-long-project-note-with-no-spaces'.repeat(100)));
