@@ -15,3 +15,10 @@ async function fileDb(){return new Promise<IDBDatabase>((resolve,reject)=>{const
 export async function cacheFiles(draftId:string,files:File[]){const db=await fileDb();await new Promise<void>((resolve,reject)=>{const tx=db.transaction("files","readwrite");for(const file of files)tx.objectStore("files").put({id:`${draftId}:${file.name}:${file.size}:${file.lastModified}`,draftId,file});tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error);});db.close();}
 export async function loadCachedFiles(draftId:string):Promise<File[]>{const db=await fileDb();const files=await new Promise<File[]>((resolve,reject)=>{const r=db.transaction("files","readonly").objectStore("files").getAll();r.onsuccess=()=>resolve(r.result.filter(x=>x.draftId===draftId).map(x=>x.file));r.onerror=()=>reject(r.error);});db.close();return files;}
 export async function clearCachedFiles(draftId:string){const db=await fileDb();await new Promise<void>((resolve,reject)=>{const tx=db.transaction("files","readwrite");const store=tx.objectStore("files");const r=store.openCursor();r.onsuccess=()=>{const cursor=r.result;if(cursor){if(cursor.value.draftId===draftId)cursor.delete();cursor.continue();}};tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error);});db.close();}
+
+/** Validate an acknowledged save before reading the revision or clearing local files. */
+export function requireDraftReceipt(data:unknown):{revision:number;answers:ScopeAnswers;extraction:ScopeExtraction|null;uploads:any[];[key:string]:any}{
+  const d=(data as any)?.draft;
+  if(!d||!Number.isInteger(d.revision)||d.revision<1||!Array.isArray(d.uploads)||!d.answers)throw new Error('Your project save was not confirmed. Your text and files are still here. Please retry.');
+  return d;
+}

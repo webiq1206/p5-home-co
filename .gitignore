@@ -82,3 +82,5 @@ build/contracts/
 !/scripts/p5-admin-pricing-browser.mjs
 !/scripts/test-p5-workflow.mts
 !/scripts/p5-estimator-browser.mjs
+
+!/scripts/test-p5-receipt.mts

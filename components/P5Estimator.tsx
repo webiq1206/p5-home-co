@@ -2,7 +2,7 @@
 import {useEffect,useRef,useState} from "react";
 import {ESTIMATOR_BRAND as brand} from "@/lib/p5/brand";
 import {SCOPE_FIELDS,SCOPE_TEXT_LIMIT,SCOPE_FILE_LIMIT,SCOPE_BATCH_LIMIT,mergeScopeFacts,requiredScopeQuestions,validateAnswer,type ScopeField,type ScopeAnswers,type ScopeConflict} from "@/lib/p5/scope";
-import {loadBrowserDraft,newBrowserDraft,persistBrowserDraft,draftHeaders,cacheFiles,loadCachedFiles,clearCachedFiles,type BrowserDraft} from "@/lib/p5/browserDraft";
+import {loadBrowserDraft,newBrowserDraft,persistBrowserDraft,draftHeaders,cacheFiles,loadCachedFiles,clearCachedFiles,requireDraftReceipt,type BrowserDraft} from "@/lib/p5/browserDraft";
 import styles from "./P5Estimator.module.css";
 const labels:Record<string,string>={handyman:"Home repairs",re10:"RE-10 repairs","cabinet-product":"Cabinets, product only","cabinet-install":"Cabinets with installation",kitchen:"Kitchen remodel",bathroom:"Bathroom remodel","whole-home":"Whole-home remodel",addition:"Home addition",adu:"ADU","new-construction":"New home","change-order":"Change order",rush:"Rush work"};
 const accept=".pdf,.jpg,.jpeg,.png,.webp,.gif,.heic,.heif,.txt,.csv,.json,.xlsx,.xls,.ods,.docx,.doc";
@@ -35,7 +35,8 @@ export function P5Estimator({defaultService=brand.defaultService}:{defaultServic
       const d=current.current;if(!d)throw new Error("Project is still loading.");
       const response=await fetch("/api/p5-estimator/draft",{method:"PUT",headers:{...draftHeaders(d),"Content-Type":"application/json"},body:JSON.stringify({text:d.text,answers:d.answers,contact:d.contact,revision:d.revision,reviewed})});
       const data=await response.json();if(!response.ok)throw new Error(data.error||"Your work could not be saved. Please retry.");
-      const next={...current.current!,revision:data.draft.revision,extraction:data.draft.extraction};current.current=next;setDraft(next);persistBrowserDraft(next);return data.draft;
+      const saved=requireDraftReceipt(data);
+      const next={...current.current!,revision:saved.revision,extraction:saved.extraction};current.current=next;setDraft(next);persistBrowserDraft(next);return saved;
     });saveQueue.current=operation;return operation;
   };
   useEffect(()=>{
@@ -50,9 +51,10 @@ export function P5Estimator({defaultService=brand.defaultService}:{defaultServic
       await persistServer();const d=current.current!;const form=new FormData();form.set("text",d.text);form.set("analyze",String(runAnalysis));for(const file of files)form.append("files",file);
       const response=await fetch("/api/p5-estimator/scope",{method:"POST",headers:draftHeaders(d),body:form});const data=await response.json();
       if(!response.ok)throw new Error(data.error||"We could not analyze this scope. Your work is saved.");
+      const saved=requireDraftReceipt(data);
       const merged=data.analysis?mergeScopeFacts(current.current!.answers,data.analysis.extraction):{answers:d.answers,conflicts:[]};
-      const next={...current.current!,revision:data.draft.revision,extraction:data.analysis?.extraction||d.extraction,answers:merged.answers,conflicts:merged.conflicts,step:1};
-      current.current=next;setDraft(next);persistBrowserDraft(next);setConflicts(merged.conflicts);setStoredFiles(data.draft.uploads.map((f:any)=>f.name));
+      const next={...current.current!,revision:saved.revision,extraction:data.analysis?.extraction||d.extraction,answers:merged.answers,conflicts:merged.conflicts,step:1};
+      current.current=next;setDraft(next);persistBrowserDraft(next);setConflicts(merged.conflicts);setStoredFiles(saved.uploads.map((f:any)=>f.name));
       setFiles([]);await clearCachedFiles(d.id);setStatus("Review the extracted details and correct anything that needs changing.");
     }catch(e){setError(e instanceof Error?e.message:"Scope review failed. Your work is intact.");}finally{setBusy("");}
   }
