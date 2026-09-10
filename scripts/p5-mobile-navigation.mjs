@@ -3,6 +3,10 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 const parent=process.env.P5_PARENT==='1';
 const browser=await chromium.launch();
+const extraRoutes=[];
+if(await fs.stat('components/re10/Re10Wizard.tsx').catch(()=>null))extraRoutes.push('/re-10-repairs-boise');
+if(await fs.stat('components/plans/PlansWizard.tsx').catch(()=>null))extraRoutes.push('/remodel-plans-boise');
+if(await fs.stat('components/design-studio/DesignWizard.tsx').catch(()=>null))extraRoutes.push('/design-studio');
 const results=[];await fs.mkdir('p5-verification',{recursive:true});
 try {
  for(const width of [320,390,768,1024,1440]){
@@ -10,7 +14,7 @@ try {
   const page=await context.newPage();
   await context.route('**/api/estimator-session',r=>r.fulfill({json:{ok:true}}));
   await context.route('**/api/meta-capi',r=>r.fulfill({json:{ok:true}}));
-  for(const route of parent?['/quote']:['/estimate','/']){
+  for(const route of parent?['/quote']:['/estimate','/',...extraRoutes]){
    await page.goto(`http://127.0.0.1:5000${route}`,{waitUntil:'networkidle'});
    const option=page.locator('[data-scope-estimate-option]').first();
    await option.waitFor();await option.scrollIntoViewIfNeeded();
