@@ -90,10 +90,10 @@ export function P5Estimator({defaultService=brand.defaultService}:{defaultServic
   }
   const field=(key:ScopeField)=>{
     const definition=SCOPE_FIELDS[key];const value=draft?.answers[key]||"";const id=`p5-${key}`;
-    return <label key={key} htmlFor={id} className={styles.field}><span>{definition.label}</span>{definition.kind==="choice"?
+    return <div key={key} className={styles.field}><label htmlFor={id}>{definition.label}</label>{definition.kind==="choice"?
       <select id={id} aria-label={definition.label} value={value} onChange={e=>answer(key,e.target.value)}><option value="">Not sure yet</option>{definition.options.filter(v=>key!=="service"||(brand.services as readonly string[]).includes(v)).map(v=><option key={v} value={v}>{labels[v]||v.replaceAll("-"," ")}</option>)}</select>:
       definition.kind==="number"?<input id={id} inputMode="decimal" value={value} onChange={e=>answer(key,e.target.value)} placeholder="Leave blank if unknown"/>:
-      <textarea id={id} rows={key==="address"||key==="location"?2:3} value={value} onChange={e=>answer(key,e.target.value)} maxLength={4000}/>}</label>;
+      <textarea id={id} rows={key==="address"||key==="location"?2:3} value={value} onChange={e=>answer(key,e.target.value)} maxLength={4000}/>}</div>;
   };
   if(!draft)return <div className={styles.root} role="status">Loading your saved project...</div>;
   const fields=[...new Set<ScopeField>(["service",...Object.keys(draft.answers) as ScopeField[],...(draft.extraction?.facts.map(f=>f.field)||[]),...requiredScopeQuestions(draft.answers),"location","urgency",...(extra?[extra]:[])])];
