@@ -59,8 +59,22 @@ export async function processOutbox(options:{draftId?:string;limit?:number}={}){
   }
   // A worker that died after a send is ambiguous. Resend's key permits a safe
   // retry within 23 hours; CRM/SMTP must be reconciled by an administrator.
-  await query(`UPDATE p5_estimator_outbox SET status=CASE WHEN destination<>'crm' AND $1::boolean AND created_at>now()-interval '23 hours' THEN 'retry' ELSE 'needs-review' END,
-    locked_until=NULL,last_error='Delivery worker interrupted; acknowledgement requires reconciliation'
-    WHERE status='sending' AND locked_until<now()`,[EMAIL_SUPPORTS_IDEMPOTENCY]);
+  const interrupted=await query("SELECT id FROM p5_estimator_outbox WHERE status='sending' AND locked_until<now() LIMIT 1");
+  if(interrupted.length){
+    // Queue the notification in the same statement as recovery: a worker must
+    // not leave an ambiguous delivery in review without notifying staff.
+    const recipients=await adminRecipients();
+    if(!recipients.length)throw new Error("No administrator is configured for interrupted delivery alerts");
+    await query(`WITH recovered AS (
+      UPDATE p5_estimator_outbox SET status=CASE WHEN destination<>'crm' AND $1::boolean AND attempts<6 AND created_at>now()-interval '23 hours' THEN 'retry' ELSE 'needs-review' END,
+        locked_until=NULL,last_error='Delivery worker interrupted; acknowledgement requires reconciliation'
+      WHERE status='sending' AND locked_until<now() RETURNING id,draft_id,revision,destination
+    ) INSERT INTO p5_estimator_outbox(id,draft_id,revision,destination,payload)
+      SELECT gen_random_uuid(),r.draft_id,r.revision,'alert:'||a.email,
+        jsonb_build_object('error','Delivery worker interrupted; inspect and reconcile the saved delivery record.','failedDestination',r.destination)
+      FROM recovered r CROSS JOIN jsonb_array_elements_text($2::jsonb) a(email)
+      WHERE r.destination NOT LIKE 'alert:%'
+      ON CONFLICT(draft_id,revision,destination) DO NOTHING`,[EMAIL_SUPPORTS_IDEMPOTENCY,JSON.stringify(recipients)]);
+  }
   return results;
 }

@@ -81,6 +81,24 @@ try{
  assert.ok(alertMail);assert.equal(alertMail.attachments.length,0);
  const publicRecord=await store.readDraft(id,key);assert.equal(publicRecord.internal_estimate,undefined);
  await assert.rejects(store.saveDraft(id,key,'test',payload,2));
+ // Recover a worker that died after sending: no duplicate CRM call, and an
+ // administrator alert must survive atomically with the review state.
+ const interruptedId=randomUUID(),interruptedKey=randomBytes(32).toString('hex');
+ await store.saveDraft(interruptedId,interruptedKey,'test',payload,0);
+ await outbox.enqueueSubmission(interruptedId,1,{...record,draftId:interruptedId});
+ await db.query("UPDATE p5_estimator_outbox SET status='sent' WHERE draft_id=$1",[interruptedId]);
+ await db.query("UPDATE p5_estimator_outbox SET status='sending',attempts=6,locked_until=now()-interval '1 minute' WHERE draft_id=$1 AND destination IN ('crm','customer:customer@example.invalid')",[interruptedId]);
+ const beforeRecovery=transport.attempts.length;
+ await outbox.processOutbox({draftId:interruptedId});
+ assert.equal(transport.attempts.length,beforeRecovery);
+ const recovered=await db.query('SELECT destination,status FROM p5_estimator_outbox WHERE draft_id=$1',[interruptedId]);
+ assert.equal(recovered.find((r:any)=>r.destination==='crm').status,'needs-review');
+ assert.equal(recovered.find((r:any)=>r.destination==='customer:customer@example.invalid').status,'needs-review');
+ assert.equal(recovered.filter((r:any)=>r.destination==='alert:admin@example.invalid').length,1);
+ await outbox.processOutbox({draftId:interruptedId});
+ assert.equal(transport.attempts.length,beforeRecovery+1);
+ await outbox.processOutbox({draftId:interruptedId});
+ assert.equal(transport.attempts.length,beforeRecovery+1);
  const manual=await module('manualReview');
  const costBook=await module('costBook');
  const unresolvedScope={text:'TEST scope',answers:{service:'kitchen'},extraction:{summary:'TEST scope',facts:[],conflicts:[],missingInformation:[],reviewNotes:['HEIC attachment requires manual review']},uploads:[],reviewedAt:today,corrections:[]};
@@ -122,6 +140,6 @@ try{
  await outbox.processOutbox({draftId:id});
  assert.ok((await outbox.deliveryStatus(id)).every((d:any)=>d.status==='sent'));
  await db.database.close();
- await writeFile('p5-verification/workflow-results.json',JSON.stringify({passed:true,scope:'Isolated database, synthetic pricing fixtures, simulated delivery and CRM. No live email or CRM request was made.',checks:['PDF generation','high-confidence extraction','conflict preservation','low-confidence review','optional address','invalid upload','XLSX extraction','draft authorization','optimistic concurrency','upload deduplication','atomic submission','outbox deduplication','customer delivery retry','CRM ambiguity review','administrator alert','confidential result separation','manual cost review','authenticated distinct owner approvals','stale forecast approval rejection','changed scope approval rejection','atomic reviewed publication','revision history','CRM update duplicate guard','delivery reconciliation audit','unresolved document review blocks pricing','submitted urgency cannot silently lower margin']},null,2));
+ await writeFile('p5-verification/workflow-results.json',JSON.stringify({passed:true,scope:'Isolated database, synthetic pricing fixtures, simulated delivery and CRM. No live email or CRM request was made.',checks:['PDF generation','high-confidence extraction','conflict preservation','low-confidence review','optional address','invalid upload','XLSX extraction','draft authorization','optimistic concurrency','upload deduplication','atomic submission','outbox deduplication','customer delivery retry','CRM ambiguity review','administrator alert','confidential result separation','manual cost review','authenticated distinct owner approvals','stale forecast approval rejection','changed scope approval rejection','atomic reviewed publication','revision history','CRM update duplicate guard','delivery reconciliation audit','unresolved document review blocks pricing','submitted urgency cannot silently lower margin','interrupted delivery alert and retry ceiling']},null,2));
  console.log('P5 workflow checks passed (isolated database; simulated external services).');
 }finally{await rm(runtime,{recursive:true,force:true});}
