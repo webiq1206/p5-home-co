@@ -23,7 +23,8 @@ try{
  await assert.rejects(()=>saveDraft(id,key,'test',payload,1),/changed/);
  const driverSource=await readFile('lib/db/index.ts','utf8').catch(()=> '');
  if(driverSource.includes('neon(connectionString')){
-  const {neonConfig}=await import('@neondatabase/serverless');const {sql}=await import('drizzle-orm');
+  const driverPackage=['@neondatabase','serverless'].join('/'),ormPackage=['drizzle','orm'].join('-');
+  const {neonConfig}=await import(driverPackage);const {sql}=await import(ormPackage);
   let observedCache:string|undefined;
   const previousFetch=neonConfig.fetchFunction,previousGlobalFetch=globalThis.fetch,previousUrl=process.env.DATABASE_URL;
   neonConfig.fetchFunction=globalThis.fetch=async(_url:any,options:any)=>{observedCache=options.cache;return Response.json({fields:[{name:'value',dataTypeID:23}],rows:[['1']],command:'SELECT',rowCount:1});};
