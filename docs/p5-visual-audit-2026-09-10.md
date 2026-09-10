@@ -65,3 +65,10 @@ Verified production source: `ade01cf088d73087d1d93e459137e079fd1d800f`. [Product
 The final P5 merge also preserves the separately merged notification, tracked-phone-link, and structured-data updates. No database migration or live CRM operation was executed by this visual audit.
 
 The repository's `scripts/p5-visual-routes.json` records the route inventory. `p5-visual-review.mjs` captures routes, checks image loading, document overflow, browser errors, and internal link status. `p5-component-review.mjs` checks the shared interactive layouts. Cabinet additionally runs its catalog and product search scripts. GitHub Actions captures are retained for 14 days; this document and the route verification table preserve the durable summary.
+
+
+## Subsequent main integration
+
+Main advanced to `9c2ad83680f57613b6e522fe0d0729885fe14771` during final verification, preserving this audit and adding the separately developed scope-intake entry point. Its product files match the tested `3f216530188deb1cbe92f873abdc5101e2b5425c` tree; the differences are audit documents only.
+
+The updated [production visual workflow](https://github.com/webiq1206/p5-home-co/actions/runs/34516151391) passed all 117 recorded route/viewport checks. The updated [estimator and navigation workflow](https://github.com/webiq1206/p5-home-co/actions/runs/34516151295) also passed. The new `/estimate/scope` route is covered by the seven-width estimator scenarios, separately from the 13-route marketing inventory. Updated quote-page captures were manually reviewed on phone, tablet, and desktop layouts. The CSV and interaction JSON now reference this newer tested product tree.
