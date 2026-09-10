@@ -1,0 +1,43 @@
+name: P5 visual review and production verification
+on:
+  push:
+    branches: [codex/p5-visual-review-20260910, codex/p5-visual-final-20260910]
+permissions:
+  contents: read
+concurrency:
+  group: p5-visual-review-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    container: mcr.microsoft.com/playwright:v1.60.0-noble
+    env:
+      P5_PARENT: "1"
+      TZ: UTC
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm ci --no-audit --no-fund
+      - run: npm install --no-save --package-lock=false @playwright/test@1.60.0
+      - name: Production build and required repository gates
+        run: npm run build
+      - name: Start the production server
+        run: |
+          npx next start -p 5000 > /tmp/p5-review-server.log 2>&1 &
+          node -e 'let n=0;const t=setInterval(async()=>{try{const r=await fetch("http://127.0.0.1:5000");if(r.ok){clearInterval(t);return}}catch{}if(++n>90){clearInterval(t);process.exit(1)}},1000)'
+      - name: Capture every recorded public route at nine widths
+        run: node scripts/p5-visual-review.mjs > /tmp/p5-review-summary.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: p5-visual-review
+          path: |
+            p5-visual-review
+            /tmp/p5-review-server.log
+            /tmp/p5-review-summary.json
+          retention-days: 14
