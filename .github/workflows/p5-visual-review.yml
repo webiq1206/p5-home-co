@@ -1,7 +1,7 @@
 name: P5 visual review and production verification
 on:
   push:
-    branches: [codex/p5-visual-review-20260910]
+    branches: [codex/p5-visual-review-20260910, codex/p5-visual-final-20260910, codex/p5-complete-main-20260910]
 permissions:
   contents: read
 concurrency:
