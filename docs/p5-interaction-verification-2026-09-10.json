@@ -1,0 +1,566 @@
+{
+  "source_commit": "3f216530188deb1cbe92f873abdc5101e2b5425c",
+  "workflow_run": 34516151391,
+  "links": {
+    "checked": 15,
+    "failures": []
+  },
+  "estimator": {
+    "externalServices": "simulated",
+    "results": [
+      {
+        "width": 320,
+        "passed": true,
+        "capturePosition": {
+          "scrollY": 0,
+          "headers": [
+            {
+              "top": 24,
+              "bottom": 144,
+              "position": "static"
+            }
+          ],
+          "contentTop": 188
+        },
+        "checks": [
+          "speech API simulation",
+          "typed scope",
+          "upload failure and IndexedDB recovery",
+          "extraction review",
+          "optional location",
+          "long mobile content",
+          "viewport resizing",
+          "back navigation",
+          "contact preservation",
+          "submission restoration",
+          "single submission",
+          "no page errors",
+          "item quantities and unit pricing",
+          "item privacy",
+          "result overflow"
+        ]
+      },
+      {
+        "width": 390,
+        "passed": true,
+        "capturePosition": {
+          "scrollY": 0,
+          "headers": [
+            {
+              "top": 24,
+              "bottom": 80,
+              "position": "static"
+            }
+          ],
+          "contentTop": 124
+        },
+        "checks": [
+          "speech API simulation",
+          "typed scope",
+          "upload failure and IndexedDB recovery",
+          "extraction review",
+          "optional location",
+          "long mobile content",
+          "viewport resizing",
+          "back navigation",
+          "contact preservation",
+          "submission restoration",
+          "single submission",
+          "no page errors",
+          "item quantities and unit pricing",
+          "item privacy",
+          "result overflow"
+        ]
+      },
+      {
+        "width": 430,
+        "passed": true,
+        "capturePosition": {
+          "scrollY": 0,
+          "headers": [
+            {
+              "top": 24,
+              "bottom": 80,
+              "position": "static"
+            }
+          ],
+          "contentTop": 124
+        },
+        "checks": [
+          "speech API simulation",
+          "typed scope",
+          "upload failure and IndexedDB recovery",
+          "extraction review",
+          "optional location",
+          "long mobile content",
+          "viewport resizing",
+          "back navigation",
+          "contact preservation",
+          "submission restoration",
+          "single submission",
+          "no page errors",
+          "item quantities and unit pricing",
+          "item privacy",
+          "result overflow"
+        ]
+      },
+      {
+        "width": 768,
+        "passed": true,
+        "capturePosition": {
+          "scrollY": 0,
+          "headers": [
+            {
+              "top": 24,
+              "bottom": 80,
+              "position": "static"
+            }
+          ],
+          "contentTop": 124
+        },
+        "checks": [
+          "speech API simulation",
+          "typed scope",
+          "upload failure and IndexedDB recovery",
+          "extraction review",
+          "optional location",
+          "long mobile content",
+          "viewport resizing",
+          "back navigation",
+          "contact preservation",
+          "submission restoration",
+          "single submission",
+          "no page errors",
+          "item quantities and unit pricing",
+          "item privacy",
+          "result overflow"
+        ]
+      },
+      {
+        "width": 1024,
+        "passed": true,
+        "capturePosition": {
+          "scrollY": 0,
+          "headers": [
+            {
+              "top": 24,
+              "bottom": 80,
+              "position": "static"
+            }
+          ],
+          "contentTop": 124
+        },
+        "checks": [
+          "speech API simulation",
+          "typed scope",
+          "upload failure and IndexedDB recovery",
+          "extraction review",
+          "optional location",
+          "long mobile content",
+          "viewport resizing",
+          "back navigation",
+          "contact preservation",
+          "submission restoration",
+          "single submission",
+          "no page errors",
+          "item quantities and unit pricing",
+          "item privacy",
+          "result overflow"
+        ]
+      },
+      {
+        "width": 1440,
+        "passed": true,
+        "capturePosition": {
+          "scrollY": 0,
+          "headers": [
+            {
+              "top": 24,
+              "bottom": 80,
+              "position": "static"
+            }
+          ],
+          "contentTop": 124
+        },
+        "checks": [
+          "speech API simulation",
+          "typed scope",
+          "upload failure and IndexedDB recovery",
+          "extraction review",
+          "optional location",
+          "long mobile content",
+          "viewport resizing",
+          "back navigation",
+          "contact preservation",
+          "submission restoration",
+          "single submission",
+          "no page errors",
+          "item quantities and unit pricing",
+          "item privacy",
+          "result overflow"
+        ]
+      },
+      {
+        "width": 1920,
+        "passed": true,
+        "capturePosition": {
+          "scrollY": 0,
+          "headers": [
+            {
+              "top": 24,
+              "bottom": 80,
+              "position": "static"
+            }
+          ],
+          "contentTop": 124
+        },
+        "checks": [
+          "speech API simulation",
+          "typed scope",
+          "upload failure and IndexedDB recovery",
+          "extraction review",
+          "optional location",
+          "long mobile content",
+          "viewport resizing",
+          "back navigation",
+          "contact preservation",
+          "submission restoration",
+          "single submission",
+          "no page errors",
+          "item quantities and unit pricing",
+          "item privacy",
+          "result overflow"
+        ]
+      }
+    ]
+  },
+  "estimator_workflow_run": 34516151295,
+  "merged_main": "9c2ad83680f57613b6e522fe0d0729885fe14771",
+  "mobile_navigation": [
+    {
+      "width": 320,
+      "route": "/quote",
+      "passed": true
+    },
+    {
+      "width": 390,
+      "route": "/quote",
+      "passed": true
+    },
+    {
+      "width": 768,
+      "route": "/quote",
+      "passed": true
+    },
+    {
+      "width": 1024,
+      "route": "/quote",
+      "passed": true
+    },
+    {
+      "width": 1440,
+      "route": "/quote",
+      "passed": true
+    }
+  ],
+  "latest_route_source_commit": "67d8a1e4f82c67a4f1744807f6d534ef8227fdbc",
+  "latest_route_workflow_run": 34517940578,
+  "latest_routes": 126,
+  "latest_scope_browser": {
+    "externalServices": "simulated",
+    "results": [
+      {
+        "width": 320,
+        "passed": true,
+        "capturePosition": {
+          "scrollY": 0,
+          "headers": [
+            {
+              "top": 24,
+              "bottom": 144,
+              "position": "static"
+            }
+          ],
+          "contentTop": 188
+        },
+        "checks": [
+          "speech API simulation",
+          "typed scope",
+          "upload failure and IndexedDB recovery",
+          "extraction review",
+          "optional location",
+          "long mobile content",
+          "viewport resizing",
+          "back navigation",
+          "contact preservation",
+          "submission restoration",
+          "single submission",
+          "no page errors",
+          "item quantities and unit pricing",
+          "item privacy",
+          "result overflow"
+        ]
+      },
+      {
+        "width": 390,
+        "passed": true,
+        "capturePosition": {
+          "scrollY": 0,
+          "headers": [
+            {
+              "top": 24,
+              "bottom": 80,
+              "position": "static"
+            }
+          ],
+          "contentTop": 124
+        },
+        "checks": [
+          "speech API simulation",
+          "typed scope",
+          "upload failure and IndexedDB recovery",
+          "extraction review",
+          "optional location",
+          "long mobile content",
+          "viewport resizing",
+          "back navigation",
+          "contact preservation",
+          "submission restoration",
+          "single submission",
+          "no page errors",
+          "item quantities and unit pricing",
+          "item privacy",
+          "result overflow"
+        ]
+      },
+      {
+        "width": 430,
+        "passed": true,
+        "capturePosition": {
+          "scrollY": 0,
+          "headers": [
+            {
+              "top": 24,
+              "bottom": 80,
+              "position": "static"
+            }
+          ],
+          "contentTop": 124
+        },
+        "checks": [
+          "speech API simulation",
+          "typed scope",
+          "upload failure and IndexedDB recovery",
+          "extraction review",
+          "optional location",
+          "long mobile content",
+          "viewport resizing",
+          "back navigation",
+          "contact preservation",
+          "submission restoration",
+          "single submission",
+          "no page errors",
+          "item quantities and unit pricing",
+          "item privacy",
+          "result overflow"
+        ]
+      },
+      {
+        "width": 600,
+        "passed": true,
+        "capturePosition": {
+          "scrollY": 0,
+          "headers": [
+            {
+              "top": 24,
+              "bottom": 80,
+              "position": "static"
+            }
+          ],
+          "contentTop": 124
+        },
+        "checks": [
+          "speech API simulation",
+          "typed scope",
+          "upload failure and IndexedDB recovery",
+          "extraction review",
+          "optional location",
+          "long mobile content",
+          "viewport resizing",
+          "back navigation",
+          "contact preservation",
+          "submission restoration",
+          "single submission",
+          "no page errors",
+          "item quantities and unit pricing",
+          "item privacy",
+          "result overflow"
+        ]
+      },
+      {
+        "width": 768,
+        "passed": true,
+        "capturePosition": {
+          "scrollY": 0,
+          "headers": [
+            {
+              "top": 24,
+              "bottom": 80,
+              "position": "static"
+            }
+          ],
+          "contentTop": 124
+        },
+        "checks": [
+          "speech API simulation",
+          "typed scope",
+          "upload failure and IndexedDB recovery",
+          "extraction review",
+          "optional location",
+          "long mobile content",
+          "viewport resizing",
+          "back navigation",
+          "contact preservation",
+          "submission restoration",
+          "single submission",
+          "no page errors",
+          "item quantities and unit pricing",
+          "item privacy",
+          "result overflow"
+        ]
+      },
+      {
+        "width": 1024,
+        "passed": true,
+        "capturePosition": {
+          "scrollY": 0,
+          "headers": [
+            {
+              "top": 24,
+              "bottom": 80,
+              "position": "static"
+            }
+          ],
+          "contentTop": 124
+        },
+        "checks": [
+          "speech API simulation",
+          "typed scope",
+          "upload failure and IndexedDB recovery",
+          "extraction review",
+          "optional location",
+          "long mobile content",
+          "viewport resizing",
+          "back navigation",
+          "contact preservation",
+          "submission restoration",
+          "single submission",
+          "no page errors",
+          "item quantities and unit pricing",
+          "item privacy",
+          "result overflow"
+        ]
+      },
+      {
+        "width": 1366,
+        "passed": true,
+        "capturePosition": {
+          "scrollY": 0,
+          "headers": [
+            {
+              "top": 24,
+              "bottom": 80,
+              "position": "static"
+            }
+          ],
+          "contentTop": 124
+        },
+        "checks": [
+          "speech API simulation",
+          "typed scope",
+          "upload failure and IndexedDB recovery",
+          "extraction review",
+          "optional location",
+          "long mobile content",
+          "viewport resizing",
+          "back navigation",
+          "contact preservation",
+          "submission restoration",
+          "single submission",
+          "no page errors",
+          "item quantities and unit pricing",
+          "item privacy",
+          "result overflow"
+        ]
+      },
+      {
+        "width": 1440,
+        "passed": true,
+        "capturePosition": {
+          "scrollY": 0,
+          "headers": [
+            {
+              "top": 24,
+              "bottom": 80,
+              "position": "static"
+            }
+          ],
+          "contentTop": 124
+        },
+        "checks": [
+          "speech API simulation",
+          "typed scope",
+          "upload failure and IndexedDB recovery",
+          "extraction review",
+          "optional location",
+          "long mobile content",
+          "viewport resizing",
+          "back navigation",
+          "contact preservation",
+          "submission restoration",
+          "single submission",
+          "no page errors",
+          "item quantities and unit pricing",
+          "item privacy",
+          "result overflow"
+        ]
+      },
+      {
+        "width": 1920,
+        "passed": true,
+        "capturePosition": {
+          "scrollY": 0,
+          "headers": [
+            {
+              "top": 24,
+              "bottom": 80,
+              "position": "static"
+            }
+          ],
+          "contentTop": 124
+        },
+        "checks": [
+          "speech API simulation",
+          "typed scope",
+          "upload failure and IndexedDB recovery",
+          "extraction review",
+          "optional location",
+          "long mobile content",
+          "viewport resizing",
+          "back navigation",
+          "contact preservation",
+          "submission restoration",
+          "single submission",
+          "no page errors",
+          "item quantities and unit pricing",
+          "item privacy",
+          "result overflow"
+        ]
+      }
+    ]
+  },
+  "latest_links": {
+    "checked": 15,
+    "failures": []
+  }
+}

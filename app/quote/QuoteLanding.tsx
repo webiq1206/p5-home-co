@@ -1,3 +1,4 @@
+import { ScopeEstimateOption } from "@/components/ScopeEstimateOption";
 import Link from "next/link";
 
 import QuoteForm from "./QuoteForm";
@@ -101,6 +102,7 @@ export default function QuoteLanding({ service }: { service: QuoteService | null
                   ? `Get your ${service.label.toLowerCase()} quote`
                   : "Tell us about your project"}
               </h2>
+              <ScopeEstimateOption />
               <QuoteForm defaultProject={service ? service.project : ""} />
             </div>
           </div>

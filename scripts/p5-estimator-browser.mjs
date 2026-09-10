@@ -22,7 +22,7 @@ async function settleAtTop(page){
 
 // These tests exercise the rendered browser interface. External services are
 // simulated; test-p5-workflow.mts separately checks real SQL and queue behavior.
-for(const width of [320,390,430,768,1024,1440,1920]){
+for(const width of [320,390,430,600,768,1024,1366,1440,1920]){
  const context=await browser.newContext({viewport:{width,height:900},hasTouch:width<768});
  await context.addInitScript(()=>{
   window.SpeechRecognition=class{start(){this.onresult?.({resultIndex:0,results:[Object.assign([{transcript:'Repair three interior doors.'}],{isFinal:true})]});this.onend?.();}stop(){this.onend?.();}};
@@ -51,7 +51,7 @@ for(const width of [320,390,430,768,1024,1440,1920]){
   return send({error:'Unknown test endpoint'},404);
  });
  try{
-  await page.goto(base+'/estimate/p5-preview',{waitUntil:'domcontentloaded'});
+  await page.goto(base+'/estimate/scope',{waitUntil:'domcontentloaded'});
   const estimator=page.locator('[data-p5-estimator]');await estimator.getByLabel('Describe your project',{exact:true}).waitFor();
   const topInset=await estimator.evaluate(el=>el.querySelector('p').getBoundingClientRect().top-el.getBoundingClientRect().top);assert.ok(topInset<=60,`Estimator inherited marketing hero spacing: ${topInset}px`);
   await estimator.getByRole('button',{name:'Describe it by voice',exact:true}).click();
