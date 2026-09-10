@@ -4,7 +4,8 @@ import { PDFDocument,rgb,type PDFPage,type PDFFont } from "pdf-lib";
 import fontkit from "@pdf-lib/fontkit";
 import { ESTIMATOR_BRAND as brand } from "./brand";
 type PublicResult={status:string;range:{low:number;high:number}|null;summary:string;includedCategories:string[];allowances:unknown[];assumptions:string[];exclusions:string[];factors:string[];nextStep:string;message:string;disclaimer:string};
-type Block={title?:string;text?:string;rows?:[string,string][]};
+type Block={title?:string;text?:string;rows?:[string,string][];compact?:boolean};
+const label=(value:string)=>value.replace(/([a-z])([A-Z])/g,"$1 $2").replaceAll("-"," ").replace(/^./,c=>c.toUpperCase());
 const money=(n:number)=>new Intl.NumberFormat("en-US",{style:"currency",currency:"USD",maximumFractionDigits:0}).format(n);
 function printable(value:unknown):string {
   if(value==null)return "Not supplied";
@@ -53,7 +54,7 @@ async function render(kind:"customer"|"administrative",id:string,blocks:Block[])
   for(const block of blocks){
     ensure(60);if(block.title){draw(block.title,16,true);y-=6;}
     if(block.text)draw(block.text);
-    for(const [label,value]of block.rows||[]){ensure(38);draw(label,10.5);draw(value,10.5);y-=6;}
+    for(const [name,value]of block.rows||[]){if(block.compact){ensure(22);draw(`${name}: ${value}`);y-=4;}else{ensure(38);draw(name,10.5);draw(value,10.5);y-=6;}}
     y-=10;
   }
   const pages=doc.getPages();
@@ -80,9 +81,29 @@ export function customerPdf(id:string,result:PublicResult){
   ];return render("customer",id,blocks);
 }
 export function administrativePdf(id:string,record:Record<string,unknown>){
+  const number=(value:unknown)=>typeof value==="number"?new Intl.NumberFormat("en-US",{style:"currency",currency:"USD",minimumFractionDigits:2,maximumFractionDigits:2}).format(value):"Not available";
+  const percent=(value:unknown)=>typeof value==="number"?`${(value*100).toFixed(2)}%`:"Not available";
+  const allocations=record.allocationDollars as Record<string,number>|undefined;
+  const range=record.planningRange as {low:number;high:number}|undefined;
   const blocks:Block[]=[{title:"Review status",text:record.publishable===true?"Planning range passed the arithmetic controls. Review all flagged assumptions before a firm proposal.":"Pricing is withheld pending the missing cost, scope or financial review identified below."}];
-  const skip=new Set(["lines","scope","costBookSnapshot","financeSnapshot"]);
-  blocks.push({title:"Financial breakdown and controls",rows:Object.entries(record).filter(([k])=>!skip.has(k)).map(([k,v])=>[k,printable(v)])});
+  if(typeof record.riskAdjustedDirectCost==="number")blocks.push({title:"Price and revenue allocation",compact:true,rows:[
+    ["Recommended contract price",number(record.contractPrice)],
+    ["Customer planning range",record.publishable===true&&range?`${money(range.low)} to ${money(range.high)}`:"Withheld pending review"],
+    ["Direct project cost",number(record.directCost)],
+    ["Project contingency",`${number(record.contingency)} (${percent(record.contingencyRate)} of direct cost)`],
+    ["Risk-adjusted direct cost",number(record.riskAdjustedDirectCost)],
+    ["Nick project allocation",number(allocations?.nick)],
+    ["Jared project allocation",number(allocations?.jared)],
+    ["Social media allocation",number(allocations?.social)],
+    ["Company overhead allocation",number(allocations?.overhead)],
+    ["Operating profit after allocations",`${number(record.operatingProfit)} (${percent(record.targetOperatingProfit)} of revenue)`],
+    ["Selected pricing divisor",String(record.divisor)],
+  ]});
+  if(record.directByCategory)blocks.push({title:"Direct project costs by category",compact:true,rows:Object.entries(record.directByCategory as Record<string,number>).map(([key,value])=>[label(key),number(value)])});
+  if(record.warnings)blocks.push({title:"Pricing warnings and required review",text:printable(record.warnings)});
+  if(record.matrix)blocks.push({title:"Service margin policy and recommended contract method",text:printable(record.matrix)});
+  const skip=new Set(["lines","scope","costBookSnapshot","financeSnapshot","warnings","matrix","directByCategory"]);
+  blocks.push({title:"Complete calculation trace",text:"Amounts in the summary are displayed to cents. The stored estimate and trace preserve calculation precision.",rows:Object.entries(record).filter(([k])=>!skip.has(k)).map(([k,v])=>[label(k),printable(v)])});
   if(record.lines)blocks.push({title:"Direct-cost lines and source evidence",text:printable(record.lines)});
   if(record.scope)blocks.push({title:"Submitted scope, uploads, extraction and corrections",text:printable(record.scope)});
   if(record.financeSnapshot)blocks.push({title:"Financial policy snapshot",text:printable(record.financeSnapshot)});

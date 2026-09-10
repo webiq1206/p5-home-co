@@ -224,7 +224,7 @@ export function customerEstimate(estimate: P5Estimate, summary: string) {
     status: estimate.publishable ? "planning-range" as const : "review-required" as const,
     range: estimate.publishable ? estimate.planningRange : null,
     summary,
-    includedCategories: [...new Set(estimate.lines.map(l => l.category))],
+    includedCategories: [...new Set(estimate.lines.map(l => ({materials:"Materials", "field-labor":"Construction and installation labor", "owner-production":"Construction and installation labor",subcontractors:"Trade contractor work", "permits-inspections":"Permits and inspections", "engineering-design":"Engineering and design", "equipment-rentals":"Project equipment",disposal:"Disposal", "travel-mobilization":"Project travel and mobilization", "protection-cleanup":"Site protection and cleanup", "project-supervision":"Project supervision",closeout:"Closeout and punch work", "other-direct":"Other specified project work"})[l.category]))],
     allowances: estimate.allowances.map(a => ({
       description: a.description,
       amount: estimate.publishable ? Math.round(a.directAmount * (1 + estimate.contingencyRate) / estimate.divisor) : null,

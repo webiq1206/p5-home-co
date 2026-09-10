@@ -16,7 +16,7 @@ export async function postScope(request:Request){
     const incoming=[];const known=new Set(draft.uploads.map(f=>f.sha256));
     for(const file of files){
       if(!(file instanceof File))throw new DraftError("Invalid file.");
-      const verified=verifyUpload(file.name,Buffer.from(await file.arrayBuffer()));
+      let verified;try{verified=verifyUpload(file.name,Buffer.from(await file.arrayBuffer()));}catch(error){throw new DraftError(error instanceof Error?error.message:"Invalid upload.");}
       const digest=createHash("sha256").update(verified.data).digest("hex");
       if(!known.has(digest)){known.add(digest);incoming.push(verified);}
     }

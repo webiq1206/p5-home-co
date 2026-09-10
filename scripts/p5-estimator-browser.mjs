@@ -11,7 +11,7 @@ for(const width of [320,390,430,768,1024,1440,1920]){
  await context.addInitScript(()=>{
   window.SpeechRecognition=class{start(){this.onresult?.({resultIndex:0,results:[Object.assign([{transcript:'Repair three interior doors.'}],{isFinal:true})]});this.onend?.();}stop(){this.onend?.();}};
  });
- const page=await context.newPage();const errors=[];page.on('pageerror',error=>errors.push(error.message));
+ const page=await context.newPage();page.setDefaultTimeout(10000);page.setDefaultNavigationTimeout(30000);const errors=[];page.on('pageerror',error=>errors.push(error.message));
  let saved=null;let failUpload=true;let submissionCount=0;
  await context.route('**/api/p5-estimator/**',async route=>{
   const request=route.request();const endpoint=new URL(request.url()).pathname.split('/').at(-1);

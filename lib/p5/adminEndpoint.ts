@@ -13,6 +13,7 @@ export async function getAdminEstimates(request:Request){try{
   if(id){const [row]=await query("SELECT id,brand,revision,status,payload,internal_estimate,customer_estimate,updated_at FROM p5_estimator_drafts WHERE id=$1",[validId(id)]);
     if(!row)throw new DraftError("Estimate not found.",404);
     if(url.searchParams.get("pdf")){const customer=url.searchParams.get("pdf")==="customer";
+      if(customer&&!row.customer_estimate)throw new DraftError("This draft has no submitted customer summary yet.",409);
       const data=customer?await customerPdf(id,row.customer_estimate):await administrativePdf(id,row.internal_estimate||{scope:row.payload});
       return new Response(data as BodyInit,{headers:{"Content-Type":"application/pdf","Content-Disposition":`attachment; filename="${pdfFilename(id,customer?"customer":"administrative")}"`,"Cache-Control":"no-store"}});}
     const uploads=await query("SELECT id,name,mime_type,size_bytes,sha256 FROM p5_estimator_files WHERE draft_id=$1",[id]);
