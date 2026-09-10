@@ -21,7 +21,14 @@ export function priceReviewedScope(scope:ReviewedScope,configuration:EstimatorCo
   const missingInformation=[...(scope.extraction?.missingInformation||[])];
   const lines:DirectCostLine[]=[];
   for(const rule of book.rules){
-    if(rule.when&&scope.answers[rule.when.field]!==rule.when.equals)continue;
+    if(rule.when){
+      const answer=scope.answers[rule.when.field];
+      if(!answer?.trim()){
+        missingInformation.push(`Missing cost condition: ${rule.when.field} for ${rule.description}`);
+        continue;
+      }
+      if(answer!==rule.when.equals)continue;
+    }
     const value=rule.quantity.field?scope.answers[rule.quantity.field]:undefined;
     if(rule.quantity.field&&!value?.trim()){missingInformation.push(`Missing quantity: ${rule.quantity.field} for ${rule.description}`);continue;}
     const quantity=(rule.quantity.field?Number(value!.replaceAll(",","")):rule.quantity.fixed??NaN)*rule.quantity.factor;
@@ -45,7 +52,7 @@ export function priceReviewedScope(scope:ReviewedScope,configuration:EstimatorCo
   if(scope.uploads.length&&!scope.extraction){estimate.publishable=false;estimate.warnings.push({code:"uploads-unreviewed",severity:"block",message:"Supporting uploads have not been analyzed. Review them before publishing a price."});}
   if(scope.extraction?.reviewNotes.length){estimate.publishable=false;estimate.warnings.push({code:"scope-review-required",severity:"block",message:"Resolve document and scope review notes, including unsupported uploads, before publishing a price."});}
   // A dropped high-cost quantity cannot quietly become an exclusion.
-  if(missingInformation.some(x=>x.startsWith("Missing quantity:"))){estimate.publishable=false;estimate.warnings.push({code:"quantity-missing",severity:"block",message:"One or more cost-book quantities are missing."});}
+  if(missingInformation.some(x=>x.startsWith("Missing quantity:")||x.startsWith("Missing cost condition:"))){estimate.publishable=false;estimate.warnings.push({code:"quantity-missing",severity:"block",message:"One or more cost-book quantities or scope conditions are missing."});}
   if(scope.answers.allowances){estimate.publishable=false;estimate.warnings.push({code:"allowance-review-required",severity:"block",message:"Convert the submitted allowances into itemized, linked cost allowances before publishing a price."});}
   return {internal:{...estimate,scope,costBookSnapshot:book},customer:customerEstimate(estimate,summary)};
 }

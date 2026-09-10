@@ -114,6 +114,13 @@ try{
  const unresolvedScope={text:'TEST scope',answers:{service:'kitchen'},extraction:{summary:'TEST scope',facts:[],conflicts:[],missingInformation:[],reviewNotes:['HEIC attachment requires manual review']},uploads:[],reviewedAt:today,corrections:[]};
  const unreviewed=costBook.priceReviewedScope(unresolvedScope,{finance,costBooks:[{service:'kitchen',rules:pricing.lines.map((l:any)=>({...l,quantity:{fixed:l.quantity,factor:1}})),coverage:pricing.coverage,assumptions:[],exclusions:[],verifiedScope:'TEST ONLY',reviewedAt:today}]});
  assert.equal(unreviewed.customer.range,null);assert.ok(unreviewed.internal.warnings.some((w:any)=>w.code==='scope-review-required'));
+ const conditionalBook={service:'kitchen',rules:[...pricing.lines.map((l:any)=>({...l,quantity:{fixed:l.quantity,factor:1}})),{...pricing.lines[0],id:'conditional-trade',when:{field:'structural',equals:'yes'},quantity:{fixed:1,factor:1}}],coverage:pricing.coverage,assumptions:[],exclusions:[],verifiedScope:'TEST ONLY',reviewedAt:today};
+ const conditionalScope={...unresolvedScope,extraction:{...unresolvedScope.extraction,reviewNotes:[]}};
+ const unknownCondition=costBook.priceReviewedScope(conditionalScope,{finance,costBooks:[conditionalBook]});
+ assert.equal(unknownCondition.customer.range,null);
+ assert.ok(unknownCondition.internal.missingInformation.some((v:string)=>v.startsWith('Missing cost condition:')));
+ const knownCondition=costBook.priceReviewedScope({...conditionalScope,answers:{service:'kitchen',structural:'no'}},{finance,costBooks:[conditionalBook]});
+ assert.ok(knownCondition.customer.range);
  const urgentId=randomUUID(),urgentKey=randomBytes(32).toString('hex');
  await store.saveDraft(urgentId,urgentKey,'test',{...payload,answers:{service:brand.services[0],urgency:'emergency'}},0);
  await db.query("INSERT INTO p5_estimator_policy(id,payload,updated_by) VALUES('current',$1::jsonb,'fixture')",[JSON.stringify({finance,costBooks:[]})]);
@@ -150,6 +157,6 @@ try{
  await outbox.processOutbox({draftId:id});
  assert.ok((await outbox.deliveryStatus(id)).every((d:any)=>d.status==='sent'));
  await db.database.close();
- await writeFile('p5-verification/workflow-results.json',JSON.stringify({passed:true,scope:'Isolated database, synthetic pricing fixtures, simulated delivery and CRM. No live email or CRM request was made.',checks:['PDF generation','high-confidence extraction','conflict preservation','low-confidence review','optional address','invalid upload','XLSX extraction','draft authorization','optimistic concurrency','upload deduplication','atomic submission','outbox deduplication','customer delivery retry','CRM ambiguity review','administrator alert','confidential result separation','manual cost review','authenticated distinct owner approvals','stale forecast approval rejection','changed scope approval rejection','atomic reviewed publication','revision history','CRM update duplicate guard','delivery reconciliation audit','unresolved document review blocks pricing','submitted urgency cannot silently lower margin','interrupted delivery alert and retry ceiling','acknowledged CRM record linkage']},null,2));
+ await writeFile('p5-verification/workflow-results.json',JSON.stringify({passed:true,scope:'Isolated database, synthetic pricing fixtures, simulated delivery and CRM. No live email or CRM request was made.',checks:['PDF generation','high-confidence extraction','conflict preservation','low-confidence review','optional address','invalid upload','XLSX extraction','draft authorization','optimistic concurrency','upload deduplication','atomic submission','outbox deduplication','customer delivery retry','CRM ambiguity review','administrator alert','confidential result separation','manual cost review','authenticated distinct owner approvals','stale forecast approval rejection','changed scope approval rejection','atomic reviewed publication','revision history','CRM update duplicate guard','delivery reconciliation audit','unresolved document review blocks pricing','submitted urgency cannot silently lower margin','missing conditional cost answers block pricing','interrupted delivery alert and retry ceiling','acknowledged CRM record linkage']},null,2));
  console.log('P5 workflow checks passed (isolated database; simulated external services).');
 }finally{await rm(runtime,{recursive:true,force:true});}
