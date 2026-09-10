@@ -99,6 +99,16 @@ try{
  assert.equal(transport.attempts.length,beforeRecovery+1);
  await outbox.processOutbox({draftId:interruptedId});
  assert.equal(transport.attempts.length,beforeRecovery+1);
+ const crmRecords=await module('crmRecords');
+ assert.equal((await crmRecords.linkedEstimatorRecords(42)).length,0);
+ await db.query("UPDATE p5_estimator_outbox SET status='sent',provider_id='42' WHERE draft_id=$1 AND destination='crm'",[interruptedId]);
+ const linked=await crmRecords.linkedEstimatorRecords(42);
+ assert.equal(linked.length,1);assert.equal(linked[0].id,interruptedId);
+ assert.equal(linked[0].payload,undefined);assert.equal(linked[0].internal_estimate,undefined);
+ assert.equal((await crmRecords.linkedEstimatorRecords(43)).length,0);
+ await assert.rejects(crmRecords.linkedEstimatorRecords(-1));
+ await db.query("UPDATE p5_estimator_outbox SET status='needs-review' WHERE draft_id=$1 AND destination='crm'",[interruptedId]);
+ assert.equal((await crmRecords.linkedEstimatorRecords(42)).length,0);
  const manual=await module('manualReview');
  const costBook=await module('costBook');
  const unresolvedScope={text:'TEST scope',answers:{service:'kitchen'},extraction:{summary:'TEST scope',facts:[],conflicts:[],missingInformation:[],reviewNotes:['HEIC attachment requires manual review']},uploads:[],reviewedAt:today,corrections:[]};
@@ -140,6 +150,6 @@ try{
  await outbox.processOutbox({draftId:id});
  assert.ok((await outbox.deliveryStatus(id)).every((d:any)=>d.status==='sent'));
  await db.database.close();
- await writeFile('p5-verification/workflow-results.json',JSON.stringify({passed:true,scope:'Isolated database, synthetic pricing fixtures, simulated delivery and CRM. No live email or CRM request was made.',checks:['PDF generation','high-confidence extraction','conflict preservation','low-confidence review','optional address','invalid upload','XLSX extraction','draft authorization','optimistic concurrency','upload deduplication','atomic submission','outbox deduplication','customer delivery retry','CRM ambiguity review','administrator alert','confidential result separation','manual cost review','authenticated distinct owner approvals','stale forecast approval rejection','changed scope approval rejection','atomic reviewed publication','revision history','CRM update duplicate guard','delivery reconciliation audit','unresolved document review blocks pricing','submitted urgency cannot silently lower margin','interrupted delivery alert and retry ceiling']},null,2));
+ await writeFile('p5-verification/workflow-results.json',JSON.stringify({passed:true,scope:'Isolated database, synthetic pricing fixtures, simulated delivery and CRM. No live email or CRM request was made.',checks:['PDF generation','high-confidence extraction','conflict preservation','low-confidence review','optional address','invalid upload','XLSX extraction','draft authorization','optimistic concurrency','upload deduplication','atomic submission','outbox deduplication','customer delivery retry','CRM ambiguity review','administrator alert','confidential result separation','manual cost review','authenticated distinct owner approvals','stale forecast approval rejection','changed scope approval rejection','atomic reviewed publication','revision history','CRM update duplicate guard','delivery reconciliation audit','unresolved document review blocks pricing','submitted urgency cannot silently lower margin','interrupted delivery alert and retry ceiling','acknowledged CRM record linkage']},null,2));
  console.log('P5 workflow checks passed (isolated database; simulated external services).');
 }finally{await rm(runtime,{recursive:true,force:true});}
