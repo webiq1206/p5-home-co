@@ -5,6 +5,8 @@ await mkdir('p5-verification',{recursive:true});
 const browser=await chromium.launch();const results=[];
 const base=process.env.P5_TEST_BASE_URL||'http://127.0.0.1:5000';
 async function settleAtTop(page){
+ await page.waitForLoadState('load');
+ await page.evaluate(async()=>{await document.fonts.ready;history.scrollRestoration='manual';});
  await page.evaluate(()=>{if(document.activeElement instanceof HTMLElement)document.activeElement.blur();document.documentElement.style.scrollBehavior='auto';});
  // Complete the wizard's scheduled focus/scroll before framing a screenshot.
  for(let attempt=0;attempt<5;attempt++){
@@ -91,8 +93,11 @@ for(const width of [320,390,430,768,1024,1440,1920]){
   await estimator.getByText('Patch drywall around three doors',{exact:true}).waitFor();
   const resultOverflow=await page.evaluate(()=>document.documentElement.scrollWidth-innerWidth);assert.ok(resultOverflow<=1,'Line items overflow the viewport');
   const publicText=await estimator.innerText();assert.ok(!/overheadRecovery|operatingProfit|unitCost/.test(publicText),'Internal item pricing leaked');
-  await settleAtTop(page);await page.screenshot({path:`p5-verification/${width}-result.png`,fullPage:true});
-  results.push({width,passed:true,checks:['speech API simulation','typed scope','upload failure and IndexedDB recovery','extraction review','optional location','long mobile content','viewport resizing','back navigation','contact preservation','submission restoration','single submission','no page errors','item quantities and unit pricing','item privacy','result overflow']});
+  await settleAtTop(page);await page.screenshot({path:`p5-verification/${width}-result.png`,fullPage:true,animations:'disabled'});
+  await settleAtTop(page);await page.screenshot({path:`p5-verification/${width}-result-viewport.png`,fullPage:false,animations:'disabled'});
+  const capturePosition=await page.evaluate(()=>({scrollY:window.scrollY,headers:[...document.querySelectorAll('header')].map(el=>({top:el.getBoundingClientRect().top,bottom:el.getBoundingClientRect().bottom,position:getComputedStyle(el).position})),contentTop:document.querySelector('[data-p5-estimator]').getBoundingClientRect().top}));
+  assert.ok(Math.abs(capturePosition.scrollY)<1,'The page scrolled during result capture');
+  results.push({width,passed:true,capturePosition,checks:['speech API simulation','typed scope','upload failure and IndexedDB recovery','extraction review','optional location','long mobile content','viewport resizing','back navigation','contact preservation','submission restoration','single submission','no page errors','item quantities and unit pricing','item privacy','result overflow']});
  }catch(error){results.push({width,passed:false,error:String(error),pageErrors:errors});await page.screenshot({path:`p5-verification/${width}-failure.png`,fullPage:true}).catch(()=>{});}
  await context.close();
 }
