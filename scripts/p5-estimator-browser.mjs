@@ -25,11 +25,11 @@ async function mock(context,{interruptions=false,scenario='full'}={}){
   }
   if(endpoint==='scope'){
    state.scopeCalls++;if(state.failUpload){state.failUpload=false;return send({error:'Synthetic upload interruption. Your saved work is intact.'},503);}
-   const desired=scenario==='manual'?{service,taskList:state.saved.answers.taskList||'Repair three interior doors',...(service.startsWith('cabinet-')?{cabinetRoom:'kitchen',cabinetBaseLf:'20',cabinetUpperLf:'0'}:{})}:fullAnswers;
+   const desired=scenario==='unavailable'?{}:scenario==='manual'?{service,taskList:state.saved.answers.taskList||'Repair three interior doors',...(service.startsWith('cabinet-')?{cabinetRoom:'kitchen',cabinetBaseLf:'20',cabinetUpperLf:'0'}:{})}:fullAnswers;
    const extraction={summary:'Synthetic project',facts:Object.entries(desired).map(([field,value])=>({field,value,confidence:.98,source:'scope.txt',evidence:value})),conflicts:scenario==='conflict'?[{field:'taskList',values:['Repair three doors','Replace three doors'],explanation:'The documents disagree. Which work should be included?'}]:[],missingInformation:[],reviewNotes:[],clarifications:[]};
    const merged=reconcileScope(state.saved.answers,extraction,state.saved.wizard?.resolutions||{});
    state.saved={...state.saved,revision:state.saved.revision+1,answers:merged.answers,uploads:scenario==='manual'?[]:[{id:'test-upload',name:'scope.txt',size:30,type:'text/plain',sha256:'test',status:'stored'}],extraction};
-   return send({draft:state.saved,analysis:{extraction},conflicts:merged.conflicts,pricedFields:[]});
+   return send({draft:state.saved,analysis:{extraction},conflicts:merged.conflicts,pricedFields:[],warning:scenario==='unavailable'?'Your files are saved, but automatic reading could not finish. Retry or add the key details.':''});
   }
   if(endpoint==='submit'){
    const duplicate=state.saved?.status==='submitted';if(!duplicate)state.submissions++;
@@ -66,13 +66,13 @@ for(const width of [320,390,430,768,1024,1440,1920]){
  }catch(error){results.push({width,passed:false,error:String(error),pageErrors:errors});await capture(page,`${width}-failure`).catch(()=>{});}await context.close();
 }
 // Project-specific missing questions and a single conflicting fact.
-for(const scenario of ['manual','conflict']){
+for(const scenario of ['manual','conflict','unavailable']){
  const context=await browser.newContext({viewport:{width:390,height:844}});await mock(context,{scenario});const page=await context.newPage();
  try{
   await page.goto(base+'/estimate/p5-preview');const est=page.locator('[data-p5-estimator]');
   if(scenario==='conflict')await est.getByLabel('Tell us about your project',{exact:true}).fill('Two documents disagree about door repairs.');
   await est.getByRole('button',{name:'Continue',exact:true}).click();
-  if(scenario==='manual'){
+  if(scenario!=='conflict'){
    await est.getByLabel('Project type',{exact:true}).selectOption(service);await est.getByRole('button',{name:'Continue',exact:true}).click();await page.waitForFunction(()=>!document.querySelector('[data-p5-estimator][aria-busy=true]'));
    // Answer only this project's material questions; unknown numeric details remain explicit.
    for(let i=0;i<8&&await est.getByRole('region',{name:'Project question'}).count();i++){
