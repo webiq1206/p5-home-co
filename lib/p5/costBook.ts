@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { calculateP5Estimate,customerEstimate,UNCONFIGURED_FINANCE,COST_CATEGORIES,SERVICE_MATRIX,type FinancePolicy,type DirectCostLine,type ScopeCoverage,type PricingInput,type Service,type RiskFactor } from "./pricing.ts";
+import { calculateP5Estimate,customerEstimate,DEFAULT_FINANCE,POLICY_VERSION,COST_CATEGORIES,SERVICE_MATRIX,type FinancePolicy,type DirectCostLine,type ScopeCoverage,type PricingInput,type Service,type RiskFactor } from "./pricing.ts";
 import { scopeText,type ReviewedScope,type ScopeField } from "./scope.ts";
 export interface CostRule extends Omit<DirectCostLine,"quantity"|"quantitySource"> {
   quantity: { field?: ScopeField; factor: number; fixed?: number };
@@ -7,16 +7,16 @@ export interface CostRule extends Omit<DirectCostLine,"quantity"|"quantitySource
 }
 export interface ServiceCostBook {service:Service;rules:CostRule[];coverage:ScopeCoverage[];assumptions:string[];exclusions:string[];verifiedScope:string;reviewedAt:string}
 export interface EstimatorConfiguration { finance:FinancePolicy;costBooks:ServiceCostBook[] }
-export const EMPTY_CONFIGURATION:EstimatorConfiguration={finance:UNCONFIGURED_FINANCE,costBooks:[]};
+export const EMPTY_CONFIGURATION:EstimatorConfiguration={finance:DEFAULT_FINANCE,costBooks:[]};
 export function priceReviewedScope(scope:ReviewedScope,configuration:EstimatorConfiguration,now=new Date()) {
   const service=scope.answers.service as Service;
   if(!Object.hasOwn(SERVICE_MATRIX,service))throw new Error("Choose a valid project type.");
   const book=configuration.costBooks.find(book=>book.service===service);
   const summary=scopeText(scope);
-  const revision=createHash("sha256").update(JSON.stringify({scope,configuration})).digest("hex");
+  const revision=createHash("sha256").update(JSON.stringify({policyVersion:POLICY_VERSION,scope,configuration})).digest("hex");
   if(!book)return {
     internal:{revision,scope,missingInformation:["A current, approved direct-cost book is required for this service."],pricingWarnings:["cost-book-missing"],financeSnapshot:configuration.finance},
-    customer:{status:"review-required",range:null,summary,includedCategories:[],categoryRanges:[],allowances:[],assumptions:[],exclusions:[],factors:[],nextStep:SERVICE_MATRIX[service].method,message:"We have your project details. A specialist needs to confirm current costs before we can provide a reliable planning range.",disclaimer:"Preliminary project information only. This is not a bid, quote, offer or guaranteed price."},
+    customer:{status:"review-required",range:null,summary,includedCategories:[],categoryRanges:[],lineItems:[],allowances:[],assumptions:[],exclusions:[],factors:[],nextStep:SERVICE_MATRIX[service].method,message:"We have your project details. A specialist needs to confirm current costs before we can provide a reliable planning range.",disclaimer:"Preliminary project information only. This is not a bid, quote, offer or guaranteed price."},
   };
   const missingInformation=[...(scope.extraction?.missingInformation||[])];
   const lines:DirectCostLine[]=[];

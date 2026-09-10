@@ -31,6 +31,8 @@ export function validateConfiguration(raw:any):EstimatorConfiguration{
   if(typeof f.annualOverhead!=="number"||!Number.isFinite(f.annualOverhead)||f.annualOverhead<420000)throw new DraftError("The official annual overhead budget is at least $420,000.");
   if(f.annualRevenue!==null&&(typeof f.annualRevenue!=="number"||!Number.isFinite(f.annualRevenue)||f.annualRevenue<=0))throw new DraftError("Enter a positive conservative annual revenue forecast.");
   if(typeof f.forecastSource!=="string"||f.forecastSource.length>4000)throw new DraftError("Document the forecast source.");
+  // Validate the next review date, which the authenticated save assigns below.
+  try{const allocation=companyAllocation({...f,reviewedAt:new Date().toISOString()});const blocking=allocation.warnings.find(w=>w.severity==="block");if(blocking)throw new Error(blocking.message);}catch(e){throw new DraftError(e instanceof Error?e.message:"Invalid overhead recovery policy.");}
   const services=new Set();
   for(const book of raw.costBooks){
     if(!Object.hasOwn(SERVICE_MATRIX,book.service)||services.has(book.service)||!Array.isArray(book.rules)||book.rules.length>1000||!Array.isArray(book.coverage)||!Array.isArray(book.assumptions)||!Array.isArray(book.exclusions)||typeof book.verifiedScope!=="string"||!book.verifiedScope.trim())throw new DraftError("Each cost book needs a unique service, rules, coverage, assumptions, exclusions and verified scope.");

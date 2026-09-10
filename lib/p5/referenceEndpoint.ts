@@ -2,9 +2,9 @@ import {requireEstimatorAdmin} from "./adminAuth";
 import {query} from "./database";
 import {DraftError} from "./store";
 import {protectRequest,limitedBody,json,failed} from "./http";
-import {validateReferences,compareReference,validateComparisonLine,type ComparableSelection} from "./references.ts";
+import {validateReferences,compareReference,validateComparisonLine,referenceDirectCostBudget,type ComparableSelection} from "./references.ts";
 import {calculateP5Estimate} from "./pricing.ts";
-import {ensureReviewSchema} from "./manualReview";
+import {ensureReviewSchema,currentReview} from "./manualReview";
 
 async function schema(){
   await ensureReviewSchema();
@@ -32,18 +32,15 @@ export async function postReferenceCheck(request:Request){try{
   const body=JSON.parse(new TextDecoder().decode(await limitedBody(request,16000)));
   const [set]=await query("SELECT version,records FROM p5_estimator_reference_sets ORDER BY version DESC LIMIT 1");
   if(!set||set.version!==body.referenceVersion)throw new DraftError("Reload the latest pricing references.",409);
-  const [review]=await query("SELECT * FROM p5_estimator_reviews WHERE id=$1",[body.reviewId]);
-  if(!review)throw new DraftError("Save a project cost review before comparing prices.",409);
-  const [draft]=await query("SELECT revision FROM p5_estimator_drafts WHERE id=$1",[review.draft_id]);
-  if(draft?.revision!==review.source_revision)throw new DraftError("Save a new review for the current project revision.",409);
+  const {review}=await currentReview(body.reviewId);
   const selection=body.selection as ComparableSelection;
   const reference=validateReferences(set.records).find(r=>r.id===selection?.referenceId);
   if(!reference)throw new DraftError("Choose a saved reference.");
   const estimate=calculateP5Estimate(review.input,review.finance);
   const line=estimate.lines.find(l=>l.id===selection.costLineId);
   if(!line)throw new DraftError("Choose a cost line from the saved review.");
-  const customerLinePrice=line.cost*(1+estimate.contingencyRate)/estimate.divisor;
-  let result;try{validateComparisonLine(selection,line);result=compareReference(reference,selection,customerLinePrice);}catch(e){throw new DraftError(e instanceof Error?e.message:"Invalid comparison.");}
+  const customerLinePrice=line.sellingAmount;
+  let result;try{validateComparisonLine(selection,line);result={...compareReference(reference,selection,customerLinePrice),directCostBudget:referenceDirectCostBudget(selection.adjustedCustomerUnitPrice,estimate.allocations.total,estimate.targetOperatingProfit,estimate.contingencyRate),reviewedDirectUnitCost:line.unitCost};}catch(e){throw new DraftError(e instanceof Error?e.message:"Invalid comparison.");}
   await query("INSERT INTO p5_estimator_reference_checks(draft_id,review_id,reference_version,selection,result,actor_id) VALUES($1,$2,$3,$4::jsonb,$5::jsonb,$6)",[review.draft_id,review.id,set.version,JSON.stringify(selection),JSON.stringify(result),actor.id]);
   return json(result);
 }catch(e){return failed(e);}}

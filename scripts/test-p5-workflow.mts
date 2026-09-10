@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import {mkdtemp,readFile,writeFile,cp,mkdir,rm} from 'node:fs/promises';
-import {randomUUID,randomBytes} from 'node:crypto';
+import {randomUUID,randomBytes,createHash} from 'node:crypto';
 import path from 'node:path';
 import {pathToFileURL} from 'node:url';
 import {PDFDocument} from 'pdf-lib';
@@ -141,7 +141,17 @@ try{
  assert.equal((await referenceApi.putReferences(request('PUT',referencePayload))).status,409);
  const comparison={referenceVersion:1,reviewId:review.reviewId,selection:{referenceId:reference.id,costLineId:'trade',quantity:1,unit:'LS',adjustedCustomerUnitPrice:100000,scopeConfirmed:true,locationConfirmed:true,dateConfirmed:true,rationale:'TEST ONLY: verified equivalent complete scope, date, location and package units.'}};
  assert.equal((await referenceApi.postReferenceCheck(request('POST',{...comparison,selection:{...comparison.selection,quantity:2}}))).status,400);
- assert.equal((await referenceApi.postReferenceCheck(request('POST',comparison))).status,200);
+ const comparisonResponse=await referenceApi.postReferenceCheck(request('POST',comparison));assert.equal(comparisonResponse.status,200);
+ const compared=await comparisonResponse.json();assert.ok(Math.abs(compared.directCostBudget.maximumDirectUnitCost-100000*review.estimate.divisor/(1+review.estimate.contingencyRate))<1e-7);
+ const adminApi=await module('adminEndpoint');
+ assert.doesNotThrow(()=>adminApi.validateConfiguration({finance:{annualOverhead:420000,annualRevenue:null,forecastSource:'',reviewedAt:null,approvedBy:[]},costBooks:[]}));
+ assert.throws(()=>adminApi.validateConfiguration({finance:{...finance,overheadRate:.08},costBooks:[]}));
+ assert.throws(()=>adminApi.validateConfiguration({finance:{...finance,overheadRate:.175},costBooks:[]}));
+ const sorted=(v:any):any=>Array.isArray(v)?v.map(sorted):v&&typeof v==='object'?Object.fromEntries(Object.keys(v).sort().filter(k=>v[k]!==undefined).map(k=>[k,sorted(v[k])])):v;
+ const oldId=createHash('sha256').update(JSON.stringify(sorted({id,revision:2,input:{...manualInput,revision:undefined},finance,notes}))).digest('hex');
+ await db.query('INSERT INTO p5_estimator_reviews(id,draft_id,source_revision,input,finance,notes,actor_id) VALUES($1,$2,2,$3::jsonb,$4::jsonb,$5,$6)',[oldId,id,JSON.stringify({...manualInput,revision:oldId}),JSON.stringify(finance),notes,actor.id]);
+ await assert.rejects(manual.currentReview(oldId),/pricing policy changed/);
+ assert.equal((await referenceApi.postReferenceCheck(request('POST',{...comparison,reviewId:oldId}))).status,409);
  assert.equal((await db.query('SELECT * FROM p5_estimator_reference_checks')).length,1);
  assert.equal((await db.query('SELECT * FROM p5_estimator_reference_sets')).length,1);
  assert.equal(review.estimate.publishable,false);
@@ -154,6 +164,7 @@ try{
  assert.equal(review.estimate.publishable,true);
  await db.query("UPDATE p5_estimator_policy SET payload=$1::jsonb WHERE id='current'",[JSON.stringify({finance:{...finance,annualRevenue:5500000},costBooks:[]})]);
  await assert.rejects(manual.publishManualReview({reviewId:review.reviewId,confirmed:true},actor));
+ assert.equal((await referenceApi.postReferenceCheck(request('POST',comparison))).status,409);
  await db.query("UPDATE p5_estimator_policy SET payload=$1::jsonb WHERE id='current'",[JSON.stringify({finance,costBooks:[]})]);
  const changed=await manual.saveManualReview({id,expectedRevision:2,input:{...manualInput,scopeSummary:'Changed TEST scope'},notes},actor);
  assert.equal(changed.estimate.publishable,false);
@@ -171,6 +182,6 @@ try{
  await outbox.processOutbox({draftId:id});
  assert.ok((await outbox.deliveryStatus(id)).every((d:any)=>d.status==='sent'));
  await db.database.close();
- await writeFile('p5-verification/workflow-results.json',JSON.stringify({passed:true,scope:'Isolated database, synthetic pricing fixtures, simulated delivery and CRM. No live email or CRM request was made.',checks:['PDF generation','high-confidence extraction','conflict preservation','low-confidence review','optional address','invalid upload','XLSX extraction','draft authorization','optimistic concurrency','upload deduplication','atomic submission','outbox deduplication','customer delivery retry','CRM ambiguity review','administrator alert','confidential result separation','manual cost review','authenticated distinct owner approvals','stale forecast approval rejection','changed scope approval rejection','atomic reviewed publication','revision history','CRM update duplicate guard','delivery reconciliation audit','unresolved document review blocks pricing','submitted urgency cannot silently lower margin','missing conditional cost answers block pricing','interrupted delivery alert and retry ceiling','acknowledged CRM record linkage','private reference authorization','versioned reference import','stale reference import rejected','comparison tied to reviewed quantity and units','saved reference comparison audit']},null,2));
+ await writeFile('p5-verification/workflow-results.json',JSON.stringify({passed:true,scope:'Isolated database, synthetic pricing fixtures, simulated delivery and CRM. No live email or CRM request was made.',checks:['PDF generation','high-confidence extraction','conflict preservation','low-confidence review','optional address','invalid upload','XLSX extraction','draft authorization','optimistic concurrency','upload deduplication','atomic submission','outbox deduplication','customer delivery retry','CRM ambiguity review','administrator alert','confidential result separation','manual cost review','authenticated distinct owner approvals','stale forecast approval rejection','changed scope approval rejection','atomic reviewed publication','revision history','CRM update duplicate guard','delivery reconciliation audit','unresolved document review blocks pricing','submitted urgency cannot silently lower margin','missing conditional cost answers block pricing','interrupted delivery alert and retry ceiling','acknowledged CRM record linkage','private reference authorization','versioned reference import','stale reference import rejected','comparison tied to reviewed quantity and units','saved reference comparison audit','approved initial overhead without forecast','legacy policy approval invalidation','stale pricing comparison rejection','reference direct-cost ceilings']},null,2));
  console.log('P5 workflow checks passed (isolated database; simulated external services).');
 }finally{await rm(runtime,{recursive:true,force:true});}

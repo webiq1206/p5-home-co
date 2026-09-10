@@ -79,5 +79,6 @@ build/contracts/
 !/lib/p5/
 !/scripts/
 /scripts/*
+!/scripts/p5-admin-pricing-browser.mjs
 !/scripts/test-p5-workflow.mts
 !/scripts/p5-estimator-browser.mjs

@@ -44,7 +44,7 @@ for(const width of [320,390,430,768,1024,1440,1920]){
   if(endpoint==='submit'){
    const duplicate=saved?.status==='submitted';if(!duplicate)submissionCount++;
    saved={...saved,status:'submitted'};
-   return send({accepted:!duplicate,duplicate,result:{status:'preliminary',range:{low:1000,high:1800},categoryRanges:[{category:'Drywall',low:400,high:700},{category:'Painting',low:600,high:1100}],summary:'Repair three interior doors.',includedCategories:[],allowances:[],assumptions:[],exclusions:[],factors:[],nextStep:'Schedule a scope review.',message:'A specialist will confirm the scope and current costs.',disclaimer:'This is not a bid, quote, offer or guaranteed price.'},delivery:[{channel:'customer',status:'retry'},{channel:'admin',status:'sent'},{channel:'crm',status:'needs-review'}]});
+   return send({accepted:!duplicate,duplicate,result:{status:'preliminary',range:{low:1000,high:1800},categoryRanges:[{category:'Drywall',low:400,high:700},{category:'Painting',low:600,high:1100}],lineItems:[{id:'drywall',category:'Drywall',description:'Patch drywall around three doors',quantity:3,unit:'EA',low:400,high:700,unitLow:400/3,unitHigh:700/3},{id:'paint',category:'Painting',description:'Prepare and paint repaired door openings',quantity:3,unit:'EA',low:600,high:1100,unitLow:200,unitHigh:1100/3}],summary:'Repair three interior doors.',includedCategories:[],allowances:[],assumptions:[],exclusions:[],factors:[],nextStep:'Schedule a scope review.',message:'A specialist will confirm the scope and current costs.',disclaimer:'This is not a bid, quote, offer or guaranteed price.'},delivery:[{channel:'customer',status:'retry'},{channel:'admin',status:'sent'},{channel:'crm',status:'needs-review'}]});
   }
   return send({error:'Unknown test endpoint'},404);
  });
@@ -87,8 +87,12 @@ for(const width of [320,390,430,768,1024,1440,1920]){
   await page.reload({waitUntil:'domcontentloaded'});await estimator.getByText('Schedule a scope review.',{exact:true}).waitFor();
   assert.equal(submissionCount,1);assert.equal(errors.length,0,errors.join('; '));
   for(const overlay of await page.locator('[data-mobile-nav-bar], [data-assistant-launcher]').all())assert.equal(await overlay.isVisible(),false,'A floating site CTA overlaps the estimator');
+  await estimator.getByText('View items and unit pricing',{exact:true}).click();
+  await estimator.getByText('Patch drywall around three doors',{exact:true}).waitFor();
+  const resultOverflow=await page.evaluate(()=>document.documentElement.scrollWidth-innerWidth);assert.ok(resultOverflow<=1,'Line items overflow the viewport');
+  const publicText=await estimator.innerText();assert.ok(!/overheadRecovery|operatingProfit|unitCost/.test(publicText),'Internal item pricing leaked');
   await settleAtTop(page);await page.screenshot({path:`p5-verification/${width}-result.png`,fullPage:true});
-  results.push({width,passed:true,checks:['speech API simulation','typed scope','upload failure and IndexedDB recovery','extraction review','optional location','long mobile content','viewport resizing','back navigation','contact preservation','submission restoration','single submission','no page errors']});
+  results.push({width,passed:true,checks:['speech API simulation','typed scope','upload failure and IndexedDB recovery','extraction review','optional location','long mobile content','viewport resizing','back navigation','contact preservation','submission restoration','single submission','no page errors','item quantities and unit pricing','item privacy','result overflow']});
  }catch(error){results.push({width,passed:false,error:String(error),pageErrors:errors});await page.screenshot({path:`p5-verification/${width}-failure.png`,fullPage:true}).catch(()=>{});}
  await context.close();
 }

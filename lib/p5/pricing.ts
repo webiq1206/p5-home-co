@@ -1,14 +1,15 @@
 import {tradeForLine,apportionAmount,type TradeCategory} from "./trades.ts";
 /** Internal policy. Import only from server entry points, never client components. */
-export const POLICY_VERSION = "p5-2026-09-10";
+export const POLICY_VERSION = "p5-2026-09-10-unified-overhead";
+export const STANDARD_OVERHEAD_RATE = .20;
 export const SERVICE_MATRIX = {
   handyman: { target: .25, floor: .20, stretch: .30, contingency: [.03, .05], method: "Flat-rate menu or fixed-price package" },
   re10: { target: .25, floor: .20, stretch: .30, contingency: [.03, .05], method: "Flat-rate menu or fixed-price package" },
-  "cabinet-product": { target: .15, floor: .12, stretch: .20, contingency: [.03, .05], method: "Quoted product price with design and delivery separated" },
+  "cabinet-product": { target: .20, floor: .12, stretch: .25, contingency: [.03, .05], method: "Quoted product price with design and delivery separated" },
   "cabinet-install": { target: .20, floor: .15, stretch: .25, contingency: [.03, .05], method: "Fixed price after measurement and supplier confirmation" },
   kitchen: { target: .20, floor: .15, stretch: .25, contingency: [.07, .10], method: "Paid planning followed by fixed price or guaranteed maximum price" },
   bathroom: { target: .20, floor: .15, stretch: .25, contingency: [.07, .10], method: "Paid planning followed by fixed price or guaranteed maximum price" },
-  "whole-home": { target: .18, floor: .15, stretch: .22, contingency: [.08, .12], method: "Paid preconstruction followed by a guaranteed maximum price" },
+  "whole-home": { target: .20, floor: .15, stretch: .25, contingency: [.08, .12], method: "Paid preconstruction followed by a guaranteed maximum price" },
   addition: { target: .15, floor: .12, stretch: .20, contingency: [.05, .08], method: "Paid preconstruction followed by a guaranteed maximum price" },
   adu: { target: .15, floor: .12, stretch: .20, contingency: [.05, .08], method: "Paid preconstruction followed by a guaranteed maximum price" },
   "new-construction": { target: .15, floor: .10, stretch: .20, contingency: [.03, .05], method: "Paid preconstruction followed by a guaranteed maximum price or controlled cost-plus agreement" },
@@ -23,16 +24,22 @@ export type RiskFactor = typeof RISK_FACTORS[number];
 export type PricingWarning = { code: string; message: string; severity: "review" | "block" };
 export interface FinancePolicy {
   annualOverhead: number;
-  /** A documented conservative forecast, never the marketing sales goal. */
+  /** Optional quarterly forecast. Its absence does not undo the approved 20% rate. */
   annualRevenue: number | null;
   forecastSource: string;
   reviewedAt: string | null;
   approvedBy: string[];
+  overheadRate?: number;
+  /** Actual earned-revenue evidence is needed to lower the standard rate. */
+  reducedRateReview?: { annualizedEarnedRevenue:number; annualizedOverhead:number; source:string; reviewedAt:string };
 }
-export const UNCONFIGURED_FINANCE: FinancePolicy = {
+export const DEFAULT_FINANCE: FinancePolicy = {
   annualOverhead: 420000, annualRevenue: null, forecastSource: "",
-  reviewedAt: null, approvedBy: [],
+  overheadRate: STANDARD_OVERHEAD_RATE, reviewedAt: "2026-09-10",
+  approvedBy: ["Jared Brost: unified overhead instruction, September 10, 2026"],
 };
+/** Backward-compatible import name. The overhead policy is now approved. */
+export const UNCONFIGURED_FINANCE = DEFAULT_FINANCE;
 export interface CostEvidence {
   basis: "written-quote" | "payroll" | "market-replacement" | "approved-cost-book" | "planning-assumption";
   reference: string;
@@ -56,6 +63,8 @@ export interface DirectCostLine {
   labor?: LoadedLabor; landed?: LandedMaterial;
   /** A source reference ties quantity to the reviewed scope or drawing. */
   quantitySource: string;
+  /** Owner salary in the annual overhead budget cannot also be a direct charge. */
+  ownerLaborTreatment?: "additional-project-labor" | "included-in-overhead";
 }
 export interface Allowance {
   id: string; description: string; directAmount: number; costLineIds: string[];
@@ -94,15 +103,26 @@ export function landedUnitCost(material: LandedMaterial): number {
 export function companyAllocation(policy: FinancePolicy, now = new Date()) {
   finite(policy.annualOverhead, "Annual overhead", true);
   const warnings: PricingWarning[] = [];
+  if(policy.annualOverhead<420000)warnings.push({code:"overhead-budget-understated",severity:"block",message:"The official annual overhead budget is $420,000. Advertising appears once within that budget."});
   let requiredOverhead: number | null = null;
-  if (policy.annualRevenue === null) warnings.push({ code: "forecast-missing", severity: "block", message: "A conservative 12-month revenue forecast is required. The $2.4 million marketing goal is not a forecast." });
+  if (policy.annualRevenue === null) warnings.push({ code: "forecast-missing", severity: "review", message: "Using the approved overhead recovery rate. Add a conservative earned-revenue forecast at the quarterly review. The $2.4 million sales goal is not recorded as a forecast." });
   else requiredOverhead = policy.annualOverhead / finite(policy.annualRevenue, "Annual revenue", true);
   const reviewed = policy.reviewedAt ? dateValue(policy.reviewedAt) : NaN;
-  if (!Number.isFinite(reviewed) || reviewed > now.getTime() || now.getTime() - reviewed > 92 * 86400000) warnings.push({ code: "overhead-review-due", severity: "block", message: "The quarterly overhead and revenue forecast review is missing or overdue." });
-  if (!policy.forecastSource.trim()) warnings.push({ code: "forecast-source-missing", severity: "block", message: "Document the basis of the conservative forecast." });
-  const overhead = Math.max(.08, requiredOverhead ?? .08);
-  if (overhead > .08) warnings.push({ code: "overhead-increased", severity: "review", message: "The forecast requires an overhead allocation above the standard 8%. The operating-profit target has been preserved." });
-  return { nick: .05, jared: .05, social: .02, overhead, requiredOverhead, total: .12 + overhead, warnings };
+  if(reviewed>now.getTime())warnings.push({code:"overhead-review-invalid",severity:"block",message:"The overhead review date cannot be in the future."});
+  else if (!Number.isFinite(reviewed) || now.getTime() - reviewed > 92 * 86400000) warnings.push({ code: "overhead-review-due", severity: "review", message: "The quarterly overhead review is due. The approved rate and any higher known forecast requirement remain in effect." });
+  if (policy.annualRevenue!==null&&!policy.forecastSource.trim()) warnings.push({ code: "forecast-source-missing", severity: "review", message: "Document the basis of the quarterly earned-revenue forecast." });
+  let approvedRate=policy.overheadRate??STANDARD_OVERHEAD_RATE;
+  finite(approvedRate,"Approved overhead recovery rate",true);
+  if(approvedRate<.175||approvedRate>=1)throw new Error("Overhead recovery must be at least 17.5% and below 100%.");
+  if(approvedRate<STANDARD_OVERHEAD_RATE){
+    const review=policy.reducedRateReview;
+    const reviewDate=review?dateValue(review.reviewedAt):NaN;
+    const supported=review&&Number.isFinite(review.annualizedEarnedRevenue)&&review.annualizedEarnedRevenue>=2400000&&Number.isFinite(review.annualizedOverhead)&&review.annualizedOverhead>0&&review.annualizedOverhead<=420000&&typeof review.source==="string"&&review.source.trim().length>=20&&Number.isFinite(reviewDate)&&reviewDate<=now.getTime()&&now.getTime()-reviewDate<=92*86400000&&review.annualizedOverhead/review.annualizedEarnedRevenue<=approvedRate;
+    if(!supported){approvedRate=STANDARD_OVERHEAD_RATE;warnings.push({code:"reduced-overhead-unverified",severity:"block",message:"A rate below 20% requires a current documented review showing consistent earned revenue of at least $200,000/month and overhead at or below $35,000/month. The calculation retains 20%."});}
+  }
+  const overhead = Math.max(approvedRate, requiredOverhead ?? approvedRate);
+  if (overhead > approvedRate) warnings.push({ code: "overhead-increased", severity: "review", message: "The conservative forecast requires more overhead recovery than the approved standard rate. The operating-profit target has been preserved." });
+  return { model:"unified-overhead" as const, approvedRate, overhead, requiredOverhead, total: overhead, warnings };
 }
 export function priceFromRiskAdjustedCost(cost: number, allocation: number, operatingProfit: number): number {
   finite(cost, "Risk-adjusted direct cost"); finite(allocation, "Company allocation"); finite(operatingProfit, "Operating profit");
@@ -163,8 +183,9 @@ export function calculateP5Estimate(input: PricingInput, finance: FinancePolicy,
       if (dateValue(evidence.validUntil) < now.getTime() || dateValue(evidence.verifiedAt) > now.getTime()) warn("cost-evidence-expired", `${line.id}: refresh the cost evidence before presenting a range.`, "block");
       if (evidence.basis === "planning-assumption") warn("unverified-direct-cost", `${line.id}: this planning assumption needs current cost confirmation.`, "block");
       if (line.category === "subcontractors" && evidence.basis !== "written-quote") warn("written-sub-quote-required", `${line.id}: obtain a current written subcontractor price.`, "block");
-      if (line.category === "owner-production" && (evidence.basis !== "market-replacement" || line.unit !== "hour")) warn("owner-production-cost-required", `${line.id}: owner physical work must use separate market replacement hourly cost.`, "block");
+      if (line.category === "owner-production" && (evidence.basis !== "market-replacement" || line.unit !== "hour")) warn("owner-production-cost-required", `${line.id}: additional owner production requires a supported hourly replacement cost.`, "block");
     }
+    if(line.category==="owner-production"&&line.ownerLaborTreatment!=="additional-project-labor")warn("owner-salary-double-count",`${line.id}: both owner salaries are already in overhead. Include only additional project labor outside those salaries, and document that treatment.`,"block");
     directByCategory[line.category] += cost;
     return { ...line, trade, cost };
   });
@@ -191,8 +212,16 @@ export function calculateP5Estimate(input: PricingInput, finance: FinancePolicy,
   const riskAdjustedDirectCost = directCost + contingency;
   const divisor = 1 - allocations.total - margin;
   const contractPrice = priceFromRiskAdjustedCost(riskAdjustedDirectCost, allocations.total, margin);
-  const allocationDollars = { nick: contractPrice * allocations.nick, jared: contractPrice * allocations.jared, social: contractPrice * allocations.social, overhead: contractPrice * allocations.overhead };
+  const allocationDollars = { overhead: contractPrice * allocations.overhead };
   const operatingProfit = contractPrice * margin;
+  const pricedLines=lines.map(line=>{
+    const lineContingency=line.cost*contingencyRate;
+    const riskAdjustedCost=line.cost+lineContingency;
+    const sellingAmount=riskAdjustedCost/divisor;
+    const overheadRecovery=sellingAmount*allocations.overhead;
+    const operatingProfit=sellingAmount*margin;
+    return {...line,contingency:lineContingency,riskAdjustedCost,overheadRecovery,operatingProfit,sellingAmount,sellingUnitPrice:sellingAmount/line.quantity};
+  });
   const width = Math.min(.5, (input.uncertainty === "high" ? .30 : input.uncertainty === "medium" ? .20 : .10) + riskCount * .015);
   const step = contractPrice >= 100000 ? 1000 : contractPrice >= 10000 ? 100 : contractPrice >= 1000 ? 25 : 5;
   // The low endpoint cannot cut known direct costs below the approved floor.
@@ -209,7 +238,7 @@ export function calculateP5Estimate(input: PricingInput, finance: FinancePolicy,
   for (const a of input.manualAdjustments ?? []) if (!ids.has(a.costLineId) || !a.reason.trim()) throw new Error("Every manual adjustment needs a valid cost line and written reason");
   return {
     policyVersion: POLICY_VERSION, revision: input.revision, evaluatedAt: now.toISOString(),
-    service, requestedService: input.service, matrix, lines, coverage: input.coverage,
+    service, requestedService: input.service, matrix, lines:pricedLines, coverage: input.coverage,
     directByCategory, directCost, contingencyRate, contingency, riskAdjustedDirectCost,
     allocations, allocationDollars, targetOperatingProfit: margin, operatingProfit, divisor,
     contractPrice, planningRange, assumptions: input.assumptions, allowances: input.allowances,
@@ -227,15 +256,17 @@ export const PLANNING_DISCLAIMER = "Preliminary planning information only. This 
 /** Explicit projection keeps internal calculations out of API, email and PDF output. */
 export function customerEstimate(estimate: P5Estimate, summary: string) {
   const trades=[...new Set(estimate.lines.map(l=>tradeForLine(l)))];
-  const weights=trades.map(trade=>sum(estimate.lines.filter(l=>tradeForLine(l)===trade).map(l=>l.cost)));
+  const weights=estimate.lines.map(line=>line.cost);
   const lows=apportionAmount(estimate.planningRange.low,weights), increases=apportionAmount(estimate.planningRange.high-estimate.planningRange.low,weights);
   const highs=lows.map((low,i)=>low+increases[i]);
+  const lineItems=estimate.publishable?estimate.lines.map((line,i)=>({id:line.id,category:tradeForLine(line),description:line.description,quantity:line.quantity,unit:line.unit,low:lows[i],high:highs[i],unitLow:lows[i]/line.quantity,unitHigh:highs[i]/line.quantity})):[];
   return {
     status: estimate.publishable ? "planning-range" as const : "review-required" as const,
     range: estimate.publishable ? estimate.planningRange : null,
     summary,
     includedCategories: trades,
-    categoryRanges: estimate.publishable ? trades.map((category,i)=>({category,low:lows[i],high:highs[i]})) : [],
+    categoryRanges: estimate.publishable ? trades.map(category=>({category,low:sum(lineItems.filter(line=>line.category===category).map(line=>line.low)),high:sum(lineItems.filter(line=>line.category===category).map(line=>line.high))})) : [],
+    lineItems,
     allowances: estimate.allowances.map(a => ({
       description: a.description,
       amount: estimate.publishable ? Math.round(a.directAmount * (1 + estimate.contingencyRate) / estimate.divisor) : null,

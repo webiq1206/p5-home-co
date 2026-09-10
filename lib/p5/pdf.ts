@@ -3,10 +3,11 @@ import path from "node:path";
 import { PDFDocument,rgb,type PDFPage,type PDFFont } from "pdf-lib";
 import fontkit from "@pdf-lib/fontkit";
 import { ESTIMATOR_BRAND as brand } from "./brand";
-type PublicResult={status:string;range:{low:number;high:number}|null;summary:string;includedCategories:string[];categoryRanges?:{category:string;low:number;high:number}[];allowances:unknown[];assumptions:string[];exclusions:string[];factors:string[];nextStep:string;message:string;disclaimer:string};
+type PublicResult={status:string;range:{low:number;high:number}|null;summary:string;includedCategories:string[];categoryRanges?:{category:string;low:number;high:number}[];lineItems?:{id:string;category:string;description:string;quantity:number;unit:string;low:number;high:number;unitLow:number;unitHigh:number}[];allowances:unknown[];assumptions:string[];exclusions:string[];factors:string[];nextStep:string;message:string;disclaimer:string};
 type Block={title?:string;text?:string;rows?:[string,string][];compact?:boolean};
 const label=(value:string)=>value.replace(/([a-z])([A-Z])/g,"$1 $2").replaceAll("-"," ").replace(/^./,c=>c.toUpperCase());
 const money=(n:number)=>new Intl.NumberFormat("en-US",{style:"currency",currency:"USD",maximumFractionDigits:0}).format(n);
+const unitMoney=(n:number)=>new Intl.NumberFormat("en-US",{style:"currency",currency:"USD",minimumFractionDigits:2,maximumFractionDigits:2}).format(n);
 function printable(value:unknown):string {
   if(value==null)return "Not supplied";
   if(typeof value==="string")return value;
@@ -74,7 +75,8 @@ export function customerPdf(id:string,result:PublicResult){
     {title:result.range?`${money(result.range.low)} to ${money(result.range.high)}`:"Scope received for pricing review",text:result.message},
     {title:"Your project",text:result.summary},
     ...(!result.categoryRanges?.length?[{title:"Major included categories",text:result.includedCategories.length?result.includedCategories.map(x=>x.replaceAll("-"," ")).join("\n"):"To be confirmed during scope review."}]:[]),
-    ...(result.categoryRanges?.length?[{title:"Planning range by trade",compact:true,rows:result.categoryRanges.map(x=>[x.category,`${money(x.low)} to ${money(x.high)}`] as [string,string])}]:[]),
+    ...(!result.lineItems?.length&&result.categoryRanges?.length?[{title:"Planning range by trade",compact:true,rows:result.categoryRanges.map(x=>[x.category,`${money(x.low)} to ${money(x.high)}`] as [string,string])}]:[]),
+    ...(result.lineItems?.length?[{title:"Included items by trade",compact:true,rows:result.lineItems.map(x=>[`${x.category}: ${x.description}`,`${x.quantity.toLocaleString("en-US")} ${x.unit}; ${unitMoney(x.unitLow)} to ${unitMoney(x.unitHigh)} per ${x.unit}; item ${money(x.low)} to ${money(x.high)}`] as [string,string])}]:[]),
     ...(result.allowances.length?[{title:"Allowances",text:printable(result.allowances)}]:[]),
     ...(result.exclusions.length?[{title:"Exclusions",text:result.exclusions.join("\n")}]:[]),
     ...(result.assumptions.length?[{title:"Planning assumptions",text:result.assumptions.join("\n")}]:[]),
@@ -87,6 +89,7 @@ export function administrativePdf(id:string,record:Record<string,unknown>){
   const number=(value:unknown)=>typeof value==="number"?new Intl.NumberFormat("en-US",{style:"currency",currency:"USD",minimumFractionDigits:2,maximumFractionDigits:2}).format(value):"Not available";
   const percent=(value:unknown)=>typeof value==="number"?`${(value*100).toFixed(2)}%`:"Not available";
   const allocations=record.allocationDollars as Record<string,number>|undefined;
+  const legacyAllocations=Boolean(allocations&&["nick","jared","social"].some(key=>allocations[key]>0));
   const range=record.planningRange as {low:number;high:number}|undefined;
   const blocks:Block[]=[{title:"Review status",text:record.publishable===true?"Planning range passed the arithmetic controls. Review all flagged assumptions before a firm proposal.":"Pricing is withheld pending the missing cost, scope or financial review identified below."}];
   if(typeof record.riskAdjustedDirectCost==="number")blocks.push({title:"Price and revenue allocation",compact:true,rows:[
@@ -95,13 +98,12 @@ export function administrativePdf(id:string,record:Record<string,unknown>){
     ["Direct project cost",number(record.directCost)],
     ["Project contingency",`${number(record.contingency)} (${percent(record.contingencyRate)} of direct cost)`],
     ["Risk-adjusted direct cost",number(record.riskAdjustedDirectCost)],
-    ["Nick project allocation",number(allocations?.nick)],
-    ["Jared project allocation",number(allocations?.jared)],
-    ["Social media allocation",number(allocations?.social)],
-    ["Company overhead allocation",number(allocations?.overhead)],
-    ["Operating profit after allocations",`${number(record.operatingProfit)} (${percent(record.targetOperatingProfit)} of revenue)`],
+    ...(legacyAllocations?[["Historical Nick allocation",number(allocations?.nick)],["Historical Jared allocation",number(allocations?.jared)],["Historical social media allocation",number(allocations?.social)]] as [string,string][]:[]),
+    [legacyAllocations?"Historical overhead allocation":"Complete overhead recovery",number(allocations?.overhead)],
+    ["Operating profit after overhead",`${number(record.operatingProfit)} (${percent(record.targetOperatingProfit)} of revenue)`],
     ["Selected pricing divisor",String(record.divisor)],
   ]});
+  if(!legacyAllocations&&allocations)blocks.push({text:"Overhead includes both owner salaries, payroll burden, advertising, social media and the remaining company budget. These costs are recovered once within the item prices. Additional project labor is counted only when it is outside that overhead-funded payroll."});
   if(record.directByCategory)blocks.push({title:"Direct project costs by category",compact:true,rows:Object.entries(record.directByCategory as Record<string,number>).map(([key,value])=>[label(key),number(value)])});
   if(record.warnings)blocks.push({title:"Pricing warnings and required review",text:printable(record.warnings)});
   if(record.matrix)blocks.push({title:"Service margin policy and recommended contract method",text:printable(record.matrix)});

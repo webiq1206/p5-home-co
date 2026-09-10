@@ -48,3 +48,9 @@ export function compareReference(reference:PriceReference,selection:ComparableSe
   return {referenceId:reference.id,costLineId:selection.costLineId,comparablePrice,customerLinePrice,ratio,status:ratio<.85?"below-reference":ratio>1.25?"above-reference":"within-review-band",rationale:selection.rationale,
     note:"Comparison only. No source selling price is added to direct costs, and profit is not reduced automatically."};
 }
+/** A target cost ceiling derived from a comparable selling price, not a supplier quote. */
+export function referenceDirectCostBudget(customerUnitPrice:number,overheadRate:number,profitMargin:number,contingencyRate:number){
+  if(!Number.isFinite(customerUnitPrice)||customerUnitPrice<=0||![overheadRate,profitMargin,contingencyRate].every(n=>Number.isFinite(n)&&n>=0)||overheadRate+profitMargin>=1)throw new Error("Invalid reference cost-budget inputs.");
+  const divisor=1-overheadRate-profitMargin;
+  return {maximumDirectUnitCost:customerUnitPrice*divisor/(1+contingencyRate),customerUnitPrice,overheadRate,profitMargin,contingencyRate,divisor,note:"Cost ceiling at the reviewed selling price. This is not an observed supplier, subcontractor or payroll cost. Confirm the actual cost before adding it to a direct-cost book."};
+}

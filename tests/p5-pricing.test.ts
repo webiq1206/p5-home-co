@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {tradeForLine,apportionAmount} from "../lib/p5/trades.ts";
-import {validateReferences,compareReference,type PriceReference} from "../lib/p5/references.ts";
+import {validateReferences,compareReference,referenceDirectCostBudget,type PriceReference} from "../lib/p5/references.ts";
 import {combineScopeExtractions,mergeScopeFacts} from "../lib/p5/scope.ts";
 import {analyzeScope} from "../lib/p5/extraction.ts";
 import {PDFDocument} from "pdf-lib";
@@ -24,18 +24,16 @@ test("authoritative $60,000 / .60 example and seven divisors", () => {
   for (const [margin, divisor] of [[.10,.70],[.12,.68],[.15,.65],[.18,.62],[.20,.60],[.25,.55],[.30,.50]]) near(priceFromRiskAdjustedCost(60000,.20,margin),60000/divisor);
 });
 for (const [service, target, floor, stretch] of [
-  ["handyman",.25,.20,.30],["re10",.25,.20,.30],["cabinet-product",.15,.12,.20],
+  ["handyman",.25,.20,.30],["re10",.25,.20,.30],["cabinet-product",.20,.12,.25],
   ["cabinet-install",.20,.15,.25],["kitchen",.20,.15,.25],["bathroom",.20,.15,.25],
-  ["whole-home",.18,.15,.22],["addition",.15,.12,.20],["adu",.15,.12,.20],
+  ["whole-home",.20,.15,.25],["addition",.15,.12,.20],["adu",.15,.12,.20],
   ["new-construction",.15,.10,.20],["change-order",.25,.20,.30],["rush",.25,.20,.30],
 ] as const) test(`${service}: exact service target, floor, stretch and allocation reconciliation`, () => {
   const result = calculateP5Estimate(input(service), finance, [], now);
   near(result.targetOperatingProfit,target); near(result.matrix.floor,floor); near(result.matrix.stretch,stretch);
   near(result.contractPrice, result.riskAdjustedDirectCost/(1-.20-target));
-  near(result.allocationDollars.nick, result.contractPrice*.05);
-  near(result.allocationDollars.jared,result.contractPrice*.05);
-  near(result.allocationDollars.social,result.contractPrice*.02);
-  near(result.allocationDollars.overhead,result.contractPrice*.08);
+  assert.deepEqual(Object.keys(result.allocationDollars),["overhead"]);
+  near(result.allocationDollars.overhead,result.contractPrice*.20);
   near(result.operatingProfit,result.contractPrice*target);near(result.reconciliation,0);
   assert.equal(result.publishable,true);
   assert.ok(1-result.allocations.total-result.riskAdjustedDirectCost/result.planningRange.low >= floor-1e-10);
@@ -44,16 +42,28 @@ test("contingency is in direct cost before applying the formula", () => {
   const result = calculateP5Estimate({...input(),contingencyRate:.10},finance,[],now);
   near(result.contingency,6000);near(result.riskAdjustedDirectCost,66000);near(result.contractPrice,110000);
 });
-test("overhead immediately rises with the actual conservative forecast; profit stays intact", () => {
-  const policy = {...finance,annualRevenue:2400000};
-  const rates = companyAllocation(policy,now); near(rates.overhead,.175);near(rates.total,.295);
-  const result = calculateP5Estimate(input(),policy,[],now);near(result.divisor,.505);near(result.targetOperatingProfit,.20);
-});
-test("missing or stale forecast cannot produce a customer range", () => {
-  for (const policy of [UNCONFIGURED_FINANCE,{...finance,reviewedAt:"2026-05-01"},{...finance,reviewedAt:"2027-01-01"},{...finance,forecastSource:""}]) {
-    const result = calculateP5Estimate(input(),policy,[],now);assert.equal(result.publishable,false);
-    assert.equal(customerEstimate(result,"Test").range,null);
+test("the budget is recovered once and only increases above the approved standard", () => {
+  for(const [revenue,required] of [[1400000,.30],[2000000,.21],[2100000,.20],[2400000,.175],[3000000,.14],[4000000,.105],[5000000,.084]]){
+    const policy={...finance,annualRevenue:revenue};
+    const rates=companyAllocation(policy,now);near(rates.requiredOverhead!,required);near(rates.total,Math.max(.20,required));near(rates.overhead,rates.total);
+    const result=calculateP5Estimate(input(),policy,[],now);near(result.divisor,1-Math.max(.20,required)-.20);near(result.targetOperatingProfit,.20);
   }
+});
+test("the approved initial rate works without a forecast and keeps overdue reviews visible", () => {
+  for (const policy of [UNCONFIGURED_FINANCE,{...finance,reviewedAt:"2026-05-01"},{...finance,forecastSource:""}]) {
+    const result = calculateP5Estimate(input(),policy,[],now);assert.equal(result.publishable,true);
+    assert.ok(customerEstimate(result,"Test").range);near(result.allocations.total,.20);assert.ok(result.requiresAdminReview);
+  }
+  const future=calculateP5Estimate(input(),{...finance,reviewedAt:"2027-01-01"},[],now);assert.equal(future.publishable,false);
+  const staleHigher=companyAllocation({...finance,annualRevenue:1400000,reviewedAt:"2026-01-01"},now);near(staleHigher.total,.30);
+});
+test("17.5 percent requires earned-revenue evidence instead of just a sales goal",()=>{
+  const reduced={...finance,annualRevenue:2400000,overheadRate:.175};
+  const blocked=calculateP5Estimate(input(),reduced,[],now);assert.equal(blocked.publishable,false);near(blocked.allocations.total,.20);
+  const evidence={annualizedEarnedRevenue:2400000,annualizedOverhead:420000,source:"TEST ONLY: consistent earned revenue and complete overhead for the reviewed period",reviewedAt:"2026-09-01"};
+  const approved=calculateP5Estimate(input(),{...reduced,reducedRateReview:evidence},[],now);assert.equal(approved.publishable,true);near(approved.allocations.total,.175);near(approved.divisor,.625);
+  for(const changed of [{...evidence,annualizedEarnedRevenue:2200000},{...evidence,annualizedOverhead:430000},{...evidence,reviewedAt:"2026-01-01"},{...evidence,source:""}])assert.equal(calculateP5Estimate(input(),{...reduced,reducedRateReview:changed},[],now).publishable,false);
+  assert.equal(calculateP5Estimate(input(),{...finance,annualOverhead:360000},[],now).publishable,false);
 });
 test("invalid arithmetic and impossible overhead cannot produce totals", () => {
   for (const n of [-1,NaN,Infinity]) assert.throws(()=>priceFromRiskAdjustedCost(n,.20,.20));
@@ -122,10 +132,31 @@ test("customer categories use trades and reconcile both endpoints without exposi
   assert.deepEqual(customer.includedCategories,["Painting","Drywall","Flooring"]);
   assert.equal(customer.categoryRanges.reduce((n,c)=>n+c.low,0),customer.range!.low);
   assert.equal(customer.categoryRanges.reduce((n,c)=>n+c.high,0),customer.range!.high);
-  assert.equal(customerEstimate(calculateP5Estimate(i,UNCONFIGURED_FINANCE,[],now),"Scope").categoryRanges.length,0);
+  const incomplete={...i,coverage:[]};assert.equal(customerEstimate(calculateP5Estimate(incomplete,UNCONFIGURED_FINANCE,[],now),"Scope").categoryRanges.length,0);
   assert.equal(tradeForLine({description:"Mini split installation"}),"Heating & Cooling");
   assert.throws(()=>tradeForLine({description:"Painting",trade:"Unknown"}));
   assert.deepEqual(apportionAmount(10,[1,1,1]),[4,3,3]);
+});
+test("every item recovers overhead and profit once, with exact customer reconciliation",()=>{
+  const i=input();i.lines=[{...i.lines[0],id:"a",trade:"Painting",quantity:33.33,unit:"SF",unitCost:12.3456},{...i.lines[0],id:"b",trade:"Painting",quantity:7,unitCost:81.07},{...i.lines[0],id:"c",trade:"Drywall",quantity:1234,unit:"SF",unitCost:2.031}];
+  const result=calculateP5Estimate(i,UNCONFIGURED_FINANCE,[],now),customer=customerEstimate(result,"Test items");
+  let overhead=0,profit=0,selling=0;
+  for(const line of result.lines){near(line.cost+line.contingency+line.overheadRecovery+line.operatingProfit,line.sellingAmount);near(line.sellingUnitPrice*line.quantity,line.sellingAmount);overhead+=line.overheadRecovery;profit+=line.operatingProfit;selling+=line.sellingAmount;}
+  near(overhead,result.allocationDollars.overhead);near(profit,result.operatingProfit);near(selling,result.contractPrice);
+  for(const endpoint of ["low","high"] as const){assert.equal(customer.lineItems.reduce((s,l)=>s+l[endpoint],0),customer.range![endpoint]);for(const category of customer.categoryRanges)assert.equal(customer.lineItems.filter(l=>l.category===category.category).reduce((s,l)=>s+l[endpoint],0),category[endpoint]);}
+  for(const line of customer.lineItems){for(const key of ["unitCost","cost","contingency","overheadRecovery","operatingProfit","evidence"])assert.equal(key in line,false);near(line.unitLow*line.quantity,line.low);near(line.unitHigh*line.quantity,line.high);}
+});
+test("owner salaries in overhead cannot be charged again as production wages",()=>{
+  const i=input();i.lines=[{...i.lines[0],category:"owner-production",quantity:20,unit:"hour",unitCost:60,evidence:{basis:"market-replacement",reference:"TEST ONLY additional replacement labor outside the salaried budget",verifiedAt:"2026-09-01",validUntil:"2026-10-01"}}];
+  i.coverage=COST_CATEGORIES.map(category=>({category,status:category==="owner-production"?"included":"not-applicable",reason:"TEST ONLY verified applicable coverage"}));
+  assert.equal(calculateP5Estimate(i,finance,[],now).publishable,false);
+  i.lines[0].ownerLaborTreatment="included-in-overhead";assert.equal(calculateP5Estimate(i,finance,[],now).publishable,false);
+  i.lines[0].ownerLaborTreatment="additional-project-labor";assert.equal(calculateP5Estimate(i,finance,[],now).publishable,true);
+});
+test("historical unit prices produce cost ceilings without being treated as net cost",()=>{
+  const budget=referenceDirectCostBudget(100,.20,.20,.10);near(budget.maximumDirectUnitCost,60/1.10);
+  near(budget.maximumDirectUnitCost*1.10/.60,100);assert.match(budget.note,/not an observed/);
+  assert.throws(()=>referenceDirectCostBudget(100,.80,.20,.10));assert.throws(()=>referenceDirectCostBudget(-1,.20,.20,.10));
 });
 test("selling prices and unknown bases cannot pass as direct costs",()=>{
   for(const basis of ["customer-price","unknown"] as const){const i=input();i.lines[0].priceBasis=basis;const r=calculateP5Estimate(i,finance,[],now);assert.equal(r.publishable,false);assert.ok(r.warnings.some(w=>w.code==="selling-price-as-cost"));}

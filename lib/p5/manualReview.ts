@@ -2,7 +2,7 @@ import {createHash,randomUUID} from "node:crypto";
 import {query} from "./database";
 import {DraftError,ensureSchema} from "./store";
 import {EMPTY_CONFIGURATION} from "./costBook";
-import {calculateP5Estimate,customerEstimate,type PricingInput,type OwnerApproval} from "./pricing.ts";
+import {calculateP5Estimate,customerEstimate,POLICY_VERSION,type PricingInput,type OwnerApproval} from "./pricing.ts";
 import {adminRecipients} from "./deliveryAdapter";
 import {ESTIMATOR_BRAND as brand} from "./brand";
 
@@ -17,7 +17,7 @@ export async function ensureReviewSchema(){
   await query(`CREATE TABLE IF NOT EXISTS p5_estimator_delivery_reviews(id uuid PRIMARY KEY,delivery_id uuid NOT NULL REFERENCES p5_estimator_outbox(id),actor_id text NOT NULL,decision text NOT NULL,evidence text NOT NULL,created_at timestamptz NOT NULL DEFAULT now())`);
 }
 function canonical(value:any):any {if(Array.isArray(value))return value.map(canonical);if(value&&typeof value==="object")return Object.fromEntries(Object.keys(value).sort().filter(k=>value[k]!==undefined).map(k=>[k,canonical(value[k])]));return value;}
-function fingerprint(id:string,revision:number,input:PricingInput,finance:unknown,notes:string){return createHash("sha256").update(JSON.stringify(canonical({id,revision,input:{...input,revision:undefined},finance,notes}))).digest("hex");}
+function fingerprint(id:string,revision:number,input:PricingInput,finance:unknown,notes:string){return createHash("sha256").update(JSON.stringify(canonical({policyVersion:POLICY_VERSION,id,revision,input:{...input,revision:undefined},finance,notes}))).digest("hex");}
 async function approvalsFor(revision:string):Promise<OwnerApproval[]>{
   return (await query("SELECT id,owner,reason,approved_at FROM p5_estimator_approvals WHERE revision=$1",[revision])).map(a=>({owner:a.owner,recordId:a.id,writtenReason:a.reason,approvedAt:new Date(a.approved_at).toISOString(),estimateRevision:revision}));
 }
@@ -39,12 +39,12 @@ export async function saveManualReview(body:any,actor:Actor){
   await query("INSERT INTO p5_estimator_reviews(id,draft_id,source_revision,input,finance,notes,actor_id) VALUES($1,$2,$3,$4::jsonb,$5::jsonb,$6,$7) ON CONFLICT(id) DO NOTHING",[id,draft.id,draft.revision,JSON.stringify(input),JSON.stringify(finance),body.notes.trim(),actor.id]);
   return {reviewId:id,estimate};
 }
-async function currentReview(id:string){
+export async function currentReview(id:string){
   const [review]=await query("SELECT * FROM p5_estimator_reviews WHERE id=$1",[id]);if(!review)throw new DraftError("Saved review not found.",404);
   const [draft]=await query("SELECT * FROM p5_estimator_drafts WHERE id=$1",[review.draft_id]);
   const [policy]=await query("SELECT payload FROM p5_estimator_policy WHERE id='current'");
   const finance=policy?.payload?.finance||EMPTY_CONFIGURATION.finance;
-  if(!draft||draft.revision!==review.source_revision||fingerprint(draft.id,draft.revision,review.input,finance,review.notes)!==review.id)throw new DraftError("The project or financial forecast changed. Save and approve a new review.",409);
+  if(!draft||draft.revision!==review.source_revision||fingerprint(draft.id,draft.revision,review.input,finance,review.notes)!==review.id)throw new DraftError("The project or pricing policy changed. Save and approve a new review.",409);
   return {review,draft,finance};
 }
 export async function approveManualReview(body:any,actor:Actor){

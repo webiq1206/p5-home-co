@@ -27,3 +27,5 @@
 .root{background:#233029;color:#fbfaf6}.root h1,.root h2,.root h3{font-family:"P5 Serif",Georgia,serif;font-weight:400}
 
 .tradeRanges{margin:16px 0}.tradeRanges>div{display:flex;justify-content:space-between;gap:16px;padding:12px 0;border-bottom:1px solid #65706a;flex-wrap:wrap}.tradeRanges dt{font-weight:600}.tradeRanges dd{margin:0;font-variant-numeric:tabular-nums}
+
+.itemRanges{margin:0}.itemRanges>div{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr));gap:12px;padding:16px 0;border-bottom:1px solid #65706a}.itemRanges dt span,.itemRanges dd span{display:block}.itemRanges dt span{font-size:13px;margin-top:4px}.itemRanges dd{margin:0;font-variant-numeric:tabular-nums}.itemRanges dd strong{display:block;margin-top:5px}

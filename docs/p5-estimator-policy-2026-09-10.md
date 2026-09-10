@@ -1,5 +1,7 @@
 # P5 estimator policy implementation and audit
 
+The September 10 unified-overhead clarification supersedes the earlier financial allocation and forecast gate. See [the current policy](p5-unified-overhead-policy-2026-09-10.md).
+
 ## Release status
 
 This branch is a review build, not a completed rollout. The new workflow is at
@@ -19,17 +21,9 @@ between older planning examples and the current service-specific policy.
 The salary and marketing documents' $200,000 monthly/$2.4 million annual sales
 goal is not evidence of a conservative 12-month revenue forecast.
 
-Official overhead is $420,000 annually. The 8% overhead allocation covers that
-amount only at revenue of at least $5.25 million. A hypothetical $2.4 million
-conservative forecast would require 17.5% overhead and 29.5% total company
-allocation. At a 20% operating-profit target the divisor would then be 0.505.
-That hypothetical value is not configured as production policy.
+Official overhead is $420,000 annually, including owner salaries, social support and advertising counted once. The current policy uses one approved 20% recovery rate. It works without another initial forecast. Quarterly conservative earned-revenue forecasts can raise that rate when needed. The sales goal alone does not lower it.
 
-The current salary plan does not supply verified employee production burdens or
-current market replacement costs for owners' physical field work. Existing
-modeled selling prices cannot be relabeled as current supplier or subcontractor
-costs. Current written cost evidence is required before activating automatic
-prices.
+Historical customer prices support unit comparisons and direct-cost budget ceilings. They are kept separate from independently verified supplier, subcontractor and payroll costs.
 
 ## Existing estimator inventory
 
@@ -68,8 +62,9 @@ county, general area or no location can continue, with site/jurisdiction caveats
 
 ## Setup required before production activation
 
-1. Supply the conservative next-12-month revenue forecast, its basis and current
-   overhead review. Enter it in the administrator policy, not a browser constant.
+1. The initial 20% complete overhead rate is approved. Add the conservative
+   earned-revenue forecast and its source during quarterly reviews. Its absence
+   no longer blocks an otherwise supported planning range.
 2. Supply current net supplier prices and landed components, current written trade
    quotes, payroll/insurance burdens, owner production replacement rates and
    service-specific scope coverage. Populate reviewed cost books with expiry dates.

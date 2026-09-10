@@ -33,6 +33,7 @@ jobs:
           npx next start -p 5000 > /tmp/p5-estimator-server.log 2>&1 &
           node -e 'const u="http://127.0.0.1:5000/estimate/p5-preview";let n=0;const t=setInterval(async()=>{try{const r=await fetch(u);if(r.ok){clearInterval(t)}}catch{}if(++n>90){clearInterval(t);process.exit(1)}},1000)'
           node scripts/p5-estimator-browser.mjs
+          node scripts/p5-admin-pricing-browser.mjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:
