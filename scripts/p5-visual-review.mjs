@@ -27,8 +27,9 @@ try {
    page.on('pageerror',onError);page.on('console',onConsole);
    const rec={width,route};
    try{
-    const response=await page.goto(origin+route,{waitUntil:'networkidle',timeout:45000});
+    const response=await page.goto(origin+route,{waitUntil:'domcontentloaded',timeout:45000});
     assert(response&&response.status()<400,'HTTP '+response?.status());
+    await page.locator('main').first().waitFor({state:'visible'});
     await page.evaluate(async()=>{await document.fonts.ready;for(let y=0;y<document.documentElement.scrollHeight;y+=750){window.scrollTo({top:y,behavior:'instant'});await new Promise(r=>setTimeout(r,35));}});
     // Expand all article bodies so hidden lower sections also receive coverage.
     await page.locator('article details:not([open]) > summary').evaluateAll(els=>els.forEach(el=>el.click()));
@@ -52,6 +53,17 @@ try {
     const file=`${width}-${route.replaceAll('/','_')||'home'}.jpg`;
     await page.screenshot({path:`${out}/${file}`,fullPage:true,type:'jpeg',quality:55,timeout:30000});
     rec.screenshot=file;rec.ok=true;
+    if(route==='/'&&parent&&width<=820){
+     const menu=page.getByRole('button',{name:'Open menu',exact:true});
+     await menu.click();
+     const drawer=page.getByRole('dialog',{name:'Site menu'});
+     await drawer.waitFor({state:'visible'});
+     await page.keyboard.press('Escape');await drawer.waitFor({state:'hidden'});
+     await menu.click();await drawer.waitFor({state:'visible'});
+     await page.setViewportSize({width:1024,height:900});await drawer.waitFor({state:'hidden'});
+     assert(await page.evaluate(()=>getComputedStyle(document.body).overflow!=='hidden'),'Scroll remains locked after resizing');
+     await page.setViewportSize({width,height:900});
+    }
     if(route==='/'&&!parent){
      const spacing=await page.locator('h1.ed-display').evaluate(e=>getComputedStyle(e).marginBottom);
      assert.equal(spacing,'32px','Hero margin overridden');
