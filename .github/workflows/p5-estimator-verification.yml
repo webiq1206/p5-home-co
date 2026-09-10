@@ -1,7 +1,7 @@
 name: P5 estimator policy and workflow verification
 on:
   push:
-    branches: [codex/p5-estimator-policy-20260910]
+    branches: [main, codex/p5-estimator-policy-20260910, codex/p5-merge-all-20260910]
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -42,3 +42,36 @@ jobs:
             p5-verification
             /tmp/p5-estimator-server.log
           retention-days: 14
+
+  lead-integrations:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: p5_test
+          POSTGRES_PASSWORD: isolated_ci_only
+          POSTGRES_DB: p5_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U p5_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql://p5_test:isolated_ci_only@127.0.0.1:5432/p5_test?sslmode=disable
+      TEST_DATABASE_URL: postgresql://p5_test:isolated_ci_only@127.0.0.1:5432/p5_test?sslmode=disable
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm ci --no-audit --no-fund
+      - name: Apply migrations to isolated PostgreSQL
+        run: node tools/migrate.ts
+      - name: Verify watchdog and HubSpot task lifecycle with intercepted transports
+        run: node --test --test-concurrency=1 tests/watchdog.integration.test.ts tests/hubspot-tasks.integration.test.ts
