@@ -42,7 +42,7 @@ export function P5Estimator({defaultService=brand.defaultService}:{defaultServic
     if(!draft||!draft.contact.email||busy||result)return;
     const timer=setTimeout(()=>{persistServer().then(()=>setStatus("Project saved.")).catch(()=>setStatus("Saved on this device. Server save will retry when connected."));},1800);
     return()=>clearTimeout(timer);
-  },[draft?.text,JSON.stringify(draft?.answers),JSON.stringify(draft?.contact)]);
+  },[draft?.text,JSON.stringify(draft?.answers),JSON.stringify(draft?.contact),busy,Boolean(result)]);
   const go=(step:number)=>{recognition.current?.stop();change({step});setError("");requestAnimationFrame(()=>{heading.current?.focus({preventScroll:true});heading.current?.scrollIntoView({block:"start"});});};
   async function analyze(runAnalysis=true){
     recognition.current?.stop();setBusy("Reading your scope and documents...");setError("");
