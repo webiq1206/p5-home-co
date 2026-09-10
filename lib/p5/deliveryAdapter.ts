@@ -20,5 +20,6 @@ export async function syncCrm(record:any,key:string){
     propertyAddress:record.scope.answers.address||null,propertyCity:record.scope.answers.location||null,
     summary:record.customer.summary,externalLeadId:key,originalForm:"p5-estimator",originalCampaign:null,utm:null,receivedAt:new Date()},await loadSettings());
   if(result.status==="rejected")throw new Error("CRM rejected the estimate lead");
+  if(!Number.isInteger(result.dealId)||result.dealId<=0)throw new Error("CRM duplicate acknowledgement has no resolved lead identifier; reconcile before retrying");
   return String(result.dealId);
 }

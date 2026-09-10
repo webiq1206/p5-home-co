@@ -43,6 +43,7 @@ export function priceReviewedScope(scope:ReviewedScope,configuration:EstimatorCo
   };
   const estimate=calculateP5Estimate(input,configuration.finance,[],now);
   if(scope.uploads.length&&!scope.extraction){estimate.publishable=false;estimate.warnings.push({code:"uploads-unreviewed",severity:"block",message:"Supporting uploads have not been analyzed. Review them before publishing a price."});}
+  if(scope.extraction?.reviewNotes.length){estimate.publishable=false;estimate.warnings.push({code:"scope-review-required",severity:"block",message:"Resolve document and scope review notes, including unsupported uploads, before publishing a price."});}
   // A dropped high-cost quantity cannot quietly become an exclusion.
   if(missingInformation.some(x=>x.startsWith("Missing quantity:"))){estimate.publishable=false;estimate.warnings.push({code:"quantity-missing",severity:"block",message:"One or more cost-book quantities are missing."});}
   if(scope.answers.allowances){estimate.publishable=false;estimate.warnings.push({code:"allowance-review-required",severity:"block",message:"Convert the submitted allowances into itemized, linked cost allowances before publishing a price."});}

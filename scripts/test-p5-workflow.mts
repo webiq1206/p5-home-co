@@ -82,7 +82,15 @@ try{
  const publicRecord=await store.readDraft(id,key);assert.equal(publicRecord.internal_estimate,undefined);
  await assert.rejects(store.saveDraft(id,key,'test',payload,2));
  const manual=await module('manualReview');
+ const costBook=await module('costBook');
+ const unresolvedScope={text:'TEST scope',answers:{service:'kitchen'},extraction:{summary:'TEST scope',facts:[],conflicts:[],missingInformation:[],reviewNotes:['HEIC attachment requires manual review']},uploads:[],reviewedAt:today,corrections:[]};
+ const unreviewed=costBook.priceReviewedScope(unresolvedScope,{finance,costBooks:[{service:'kitchen',rules:pricing.lines.map((l:any)=>({...l,quantity:{fixed:l.quantity,factor:1}})),coverage:pricing.coverage,assumptions:[],exclusions:[],verifiedScope:'TEST ONLY',reviewedAt:today}]});
+ assert.equal(unreviewed.customer.range,null);assert.ok(unreviewed.internal.warnings.some((w:any)=>w.code==='scope-review-required'));
+ const urgentId=randomUUID(),urgentKey=randomBytes(32).toString('hex');
+ await store.saveDraft(urgentId,urgentKey,'test',{...payload,answers:{service:brand.services[0],urgency:'emergency'}},0);
  await db.query("INSERT INTO p5_estimator_policy(id,payload,updated_by) VALUES('current',$1::jsonb,'fixture')",[JSON.stringify({finance,costBooks:[]})]);
+ const urgencyReview=await manual.saveManualReview({id:urgentId,expectedRevision:1,input:{...pricing,service:brand.services[0],urgency:'standard'},notes:'TEST ONLY: complete urgent project cost and scope review.'},{id:'fixture-admin',email:'admin@example.invalid'});
+ assert.equal(urgencyReview.estimate.service,'rush');assert.ok(urgencyReview.estimate.targetOperatingProfit>=.25);
  const manualInput={...pricing,service:brand.services[0],revision:'server-assigned',targetMargin:.01};
  const notes='TEST ONLY: verified uploaded scope, cost evidence, exclusions, allowances and all risk dispositions.';
  const actor={id:'fixture-admin',email:'admin@example.invalid'};
@@ -114,6 +122,6 @@ try{
  await outbox.processOutbox({draftId:id});
  assert.ok((await outbox.deliveryStatus(id)).every((d:any)=>d.status==='sent'));
  await db.database.close();
- await writeFile('p5-verification/workflow-results.json',JSON.stringify({passed:true,scope:'Isolated database, synthetic pricing fixtures, simulated delivery and CRM. No live email or CRM request was made.',checks:['PDF generation','high-confidence extraction','conflict preservation','low-confidence review','optional address','invalid upload','XLSX extraction','draft authorization','optimistic concurrency','upload deduplication','atomic submission','outbox deduplication','customer delivery retry','CRM ambiguity review','administrator alert','confidential result separation','manual cost review','authenticated distinct owner approvals','stale forecast approval rejection','changed scope approval rejection','atomic reviewed publication','revision history','CRM update duplicate guard','delivery reconciliation audit']},null,2));
+ await writeFile('p5-verification/workflow-results.json',JSON.stringify({passed:true,scope:'Isolated database, synthetic pricing fixtures, simulated delivery and CRM. No live email or CRM request was made.',checks:['PDF generation','high-confidence extraction','conflict preservation','low-confidence review','optional address','invalid upload','XLSX extraction','draft authorization','optimistic concurrency','upload deduplication','atomic submission','outbox deduplication','customer delivery retry','CRM ambiguity review','administrator alert','confidential result separation','manual cost review','authenticated distinct owner approvals','stale forecast approval rejection','changed scope approval rejection','atomic reviewed publication','revision history','CRM update duplicate guard','delivery reconciliation audit','unresolved document review blocks pricing','submitted urgency cannot silently lower margin']},null,2));
  console.log('P5 workflow checks passed (isolated database; simulated external services).');
 }finally{await rm(runtime,{recursive:true,force:true});}

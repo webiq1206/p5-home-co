@@ -29,7 +29,10 @@ export async function saveManualReview(body:any,actor:Actor){
   if(!(brand.services as readonly string[]).includes(body.input?.service))throw new DraftError("Choose a service offered by this company.");
   const [policy]=await query("SELECT payload FROM p5_estimator_policy WHERE id='current'");
   const finance=policy?.payload?.finance||EMPTY_CONFIGURATION.finance;
-  const input={...body.input} as PricingInput;const id=fingerprint(draft.id,draft.revision,input,finance,body.notes.trim());input.revision=id;
+  const input={...body.input} as PricingInput;
+  const declaredUrgency=draft.payload.answers?.urgency;
+  if(declaredUrgency==="emergency"||declaredUrgency==="priority"&&input.urgency!=="emergency")input.urgency=declaredUrgency;
+  const id=fingerprint(draft.id,draft.revision,input,finance,body.notes.trim());input.revision=id;
   const estimate=calculate(input,finance,await approvalsFor(id));
   await query("INSERT INTO p5_estimator_reviews(id,draft_id,source_revision,input,finance,notes,actor_id) VALUES($1,$2,$3,$4::jsonb,$5::jsonb,$6,$7) ON CONFLICT(id) DO NOTHING",[id,draft.id,draft.revision,JSON.stringify(input),JSON.stringify(finance),body.notes.trim(),actor.id]);
   return {reviewId:id,estimate};
