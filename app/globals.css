@@ -391,3 +391,15 @@ a:hover .arrow-diagonal, a:focus-visible .arrow-diagonal { transform: translate(
 }
 
 .matcher-choices button:hover > span, .matcher-choices button:focus-visible > span { color: #d3ae89; }
+
+/* Keep image descriptions legible over light and dark photographs. */
+.image-caption {
+  width: fit-content;
+  max-width: calc(100% - 48px);
+  padding: 8px 12px;
+  background: rgb(20 25 23 / 0.9);
+  color: #fff;
+  font-size: 11px;
+  line-height: 1.5;
+  letter-spacing: .08em;
+}
