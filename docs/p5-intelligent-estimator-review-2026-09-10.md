@@ -15,7 +15,7 @@ The repair disables fetch caching for the HTTP database driver, returns the
 acknowledged INSERT/UPDATE row, and validates browser receipts before using
 revision or clearing pending files. Isolated SQL reproduces the stale-read failure;
 an intercepted actual Neon driver verifies `cache: no-store` reaches fetch.
-Production deployment is needed to verify this diagnosis against the live system.
+The focused repair passed all five full CI pipelines and was merged into main in every repository. Production deployment is needed to verify the repair against the live system.
 
 ## Draft behavior
 
@@ -51,6 +51,16 @@ workflow tests, missing/conflicting input cases and brand entry-route checks.
 Only completed passing CI runs on the published commit are evidence of a pass.
 A physical microphone, OS keyboard, real model interpretation, production email,
 CRM attachments and deployment have not been verified by these tests.
+
+## Additional live upload findings
+
+A synthetic PDF upload on Cabinet completed against the real production analyzer.
+It correctly extracted the specified 20 LF base and 15 LF upper cabinet quantities.
+P5 Home accepted the draft but scope analysis returned 503 with the specific
+unconfigured-analysis error. Construction, Remodeling and Handyman were blocked
+by their deployed invalid draft receipt. No estimate submission or customer delivery
+was requested in these live checks. This is one real PDF trial, not a full model
+accuracy or full file-format acceptance benchmark.
 
 ## Remaining release requirements
 

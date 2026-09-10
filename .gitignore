@@ -86,3 +86,5 @@ build/contracts/
 !/scripts/dev.mjs
 !/scripts/test-p5-upload.mts
 /app/p5-qa-check/
+
+!/scripts/test-p5-receipt.mts

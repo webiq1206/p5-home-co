@@ -25,6 +25,7 @@ jobs:
       - name: Isolated persistence, delivery failure and PDF checks
         run: |
           node --import tsx scripts/test-p5-workflow.mts
+          node --import tsx scripts/test-p5-receipt.mts
           node --import tsx scripts/test-p5-upload.mts
           node --import tsx --test tests/p5-adaptive.test.ts
       - name: TypeScript verification
