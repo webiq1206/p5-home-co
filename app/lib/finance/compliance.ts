@@ -66,9 +66,9 @@ function startOfDay(d: Date): Date {
 }
 
 export function daysUntil(today: Date, target: Date): number {
-  return Math.floor(
-    (startOfDay(target).getTime() - startOfDay(today).getTime()) / 86_400_000,
-  );
+  // Calendar days remain whole across 23-hour and 25-hour daylight-saving days.
+  const calendarDay=(d:Date)=>Date.UTC(d.getFullYear(),d.getMonth(),d.getDate());
+  return Math.round((calendarDay(target)-calendarDay(today))/86_400_000);
 }
 
 // ---------------------------------------------------------------------------

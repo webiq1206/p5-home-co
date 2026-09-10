@@ -1,0 +1,30 @@
+export const ESTIMATOR_BRAND = {
+  "id": "p5",
+  "name": "P5 Home Co",
+  "domain": "p5homeco.com",
+  "accent": "#D0B496",
+  "services": [
+    "handyman",
+    "re10",
+    "cabinet-product",
+    "cabinet-install",
+    "kitchen",
+    "bathroom",
+    "whole-home",
+    "addition",
+    "adu",
+    "new-construction",
+    "change-order",
+    "rush"
+  ],
+  "defaultService": "",
+  "email": "hello@p5homeco.com",
+  "phone": "(208) 477-1169",
+  "ink": "#2C302F",
+  "paper": "#F7F5F3",
+  "logo": "/images/p5-home-co-logo-light-transparent.png",
+  "font": "/fonts/p5-estimator-sans.ttf",
+  "headingFont": "/fonts/p5-estimator-serif.ttf",
+  "consultationPath": "/quote",
+  "crmUrl": "https://leads.p5homeco.com/api/external/leads"
+} as const;
