@@ -22,7 +22,7 @@ async function settleAtTop(page){
 
 // These tests exercise the rendered browser interface. External services are
 // simulated; test-p5-workflow.mts separately checks real SQL and queue behavior.
-for(const width of [320,390,430,768,1024,1440,1920]){
+for(const width of [320,390,430,600,768,1024,1366,1440,1920]){
  const context=await browser.newContext({viewport:{width,height:900},hasTouch:width<768});
  await context.addInitScript(()=>{
   window.SpeechRecognition=class{start(){this.onresult?.({resultIndex:0,results:[Object.assign([{transcript:'Repair three interior doors.'}],{isFinal:true})]});this.onend?.();}stop(){this.onend?.();}};
