@@ -1,3 +1,4 @@
+import {tradeForLine,apportionAmount,type TradeCategory} from "./trades.ts";
 /** Internal policy. Import only from server entry points, never client components. */
 export const POLICY_VERSION = "p5-2026-09-10";
 export const SERVICE_MATRIX = {
@@ -47,6 +48,9 @@ export interface LandedMaterial {
   waste: number; storage: number; handling: number;
 }
 export interface DirectCostLine {
+  trade?: TradeCategory;
+  /** Historical selling prices are comparison evidence, never direct cost. */
+  priceBasis?: "direct-cost" | "customer-price" | "unknown";
   id: string; category: CostCategory; description: string; quantity: number; unit: string;
   unitCost: number; evidence: CostEvidence;
   labor?: LoadedLabor; landed?: LandedMaterial;
@@ -137,6 +141,8 @@ export function calculateP5Estimate(input: PricingInput, finance: FinancePolicy,
   const ids = new Set<string>();
   const directByCategory = Object.fromEntries(COST_CATEGORIES.map(c => [c, 0])) as Record<CostCategory, number>;
   const lines = input.lines.map(line => {
+    const trade=tradeForLine(line);
+    if(line.priceBasis && line.priceBasis!=="direct-cost") warn("selling-price-as-cost", `${line.id}: confirm current direct cost. Do not apply P5 allocations or profit to a customer selling price or an unknown price basis.`, "block");
     if (!line.id.trim() || ids.has(line.id)) throw new Error("Blank or duplicated direct-cost line id");
     ids.add(line.id);
     if (!(COST_CATEGORIES as readonly string[]).includes(line.category)) throw new Error("Unknown direct-cost category");
@@ -160,7 +166,7 @@ export function calculateP5Estimate(input: PricingInput, finance: FinancePolicy,
       if (line.category === "owner-production" && (evidence.basis !== "market-replacement" || line.unit !== "hour")) warn("owner-production-cost-required", `${line.id}: owner physical work must use separate market replacement hourly cost.`, "block");
     }
     directByCategory[line.category] += cost;
-    return { ...line, cost };
+    return { ...line, trade, cost };
   });
   const coverageIds = new Set<string>();
   for (const c of input.coverage) { if (!(COST_CATEGORIES as readonly string[]).includes(c.category) || !["included","missing","not-applicable"].includes(c.status) || typeof c.reason!=="string") throw new Error("Invalid scope coverage"); if (coverageIds.has(c.category)) throw new Error("Duplicate scope coverage category"); coverageIds.add(c.category); }
@@ -220,11 +226,16 @@ export type P5Estimate = ReturnType<typeof calculateP5Estimate>;
 export const PLANNING_DISCLAIMER = "Preliminary planning information only. This is not a bid, quote, offer or guaranteed price. A site or plan review, confirmed scope, current supplier and trade pricing, and written agreement are required before work proceeds.";
 /** Explicit projection keeps internal calculations out of API, email and PDF output. */
 export function customerEstimate(estimate: P5Estimate, summary: string) {
+  const trades=[...new Set(estimate.lines.map(l=>tradeForLine(l)))];
+  const weights=trades.map(trade=>sum(estimate.lines.filter(l=>tradeForLine(l)===trade).map(l=>l.cost)));
+  const lows=apportionAmount(estimate.planningRange.low,weights), increases=apportionAmount(estimate.planningRange.high-estimate.planningRange.low,weights);
+  const highs=lows.map((low,i)=>low+increases[i]);
   return {
     status: estimate.publishable ? "planning-range" as const : "review-required" as const,
     range: estimate.publishable ? estimate.planningRange : null,
     summary,
-    includedCategories: [...new Set(estimate.lines.map(l => ({materials:"Materials", "field-labor":"Construction and installation labor", "owner-production":"Construction and installation labor",subcontractors:"Trade contractor work", "permits-inspections":"Permits and inspections", "engineering-design":"Engineering and design", "equipment-rentals":"Project equipment",disposal:"Disposal", "travel-mobilization":"Project travel and mobilization", "protection-cleanup":"Site protection and cleanup", "project-supervision":"Project supervision",closeout:"Closeout and punch work", "other-direct":"Other specified project work"})[l.category]))],
+    includedCategories: trades,
+    categoryRanges: estimate.publishable ? trades.map((category,i)=>({category,low:lows[i],high:highs[i]})) : [],
     allowances: estimate.allowances.map(a => ({
       description: a.description,
       amount: estimate.publishable ? Math.round(a.directAmount * (1 + estimate.contingencyRate) / estimate.divisor) : null,

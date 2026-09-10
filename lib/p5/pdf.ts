@@ -3,7 +3,7 @@ import path from "node:path";
 import { PDFDocument,rgb,type PDFPage,type PDFFont } from "pdf-lib";
 import fontkit from "@pdf-lib/fontkit";
 import { ESTIMATOR_BRAND as brand } from "./brand";
-type PublicResult={status:string;range:{low:number;high:number}|null;summary:string;includedCategories:string[];allowances:unknown[];assumptions:string[];exclusions:string[];factors:string[];nextStep:string;message:string;disclaimer:string};
+type PublicResult={status:string;range:{low:number;high:number}|null;summary:string;includedCategories:string[];categoryRanges?:{category:string;low:number;high:number}[];allowances:unknown[];assumptions:string[];exclusions:string[];factors:string[];nextStep:string;message:string;disclaimer:string};
 type Block={title?:string;text?:string;rows?:[string,string][];compact?:boolean};
 const label=(value:string)=>value.replace(/([a-z])([A-Z])/g,"$1 $2").replaceAll("-"," ").replace(/^./,c=>c.toUpperCase());
 const money=(n:number)=>new Intl.NumberFormat("en-US",{style:"currency",currency:"USD",maximumFractionDigits:0}).format(n);
@@ -72,6 +72,7 @@ export function customerPdf(id:string,result:PublicResult){
     {title:result.range?`${money(result.range.low)} to ${money(result.range.high)}`:"Scope received for pricing review",text:result.message},
     {title:"Your project",text:result.summary},
     {title:"Major included categories",text:result.includedCategories.length?result.includedCategories.map(x=>x.replaceAll("-"," ")).join("\n"):"To be confirmed during scope review."},
+    ...(result.categoryRanges?.length?[{title:"Planning range by trade",compact:true,rows:result.categoryRanges.map(x=>[x.category,`${money(x.low)} to ${money(x.high)}`] as [string,string])}]:[]),
     ...(result.allowances.length?[{title:"Allowances",text:printable(result.allowances)}]:[]),
     ...(result.exclusions.length?[{title:"Exclusions",text:result.exclusions.join("\n")}]:[]),
     ...(result.assumptions.length?[{title:"Planning assumptions",text:result.assumptions.join("\n")}]:[]),

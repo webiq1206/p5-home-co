@@ -9,6 +9,8 @@ import {ESTIMATOR_BRAND as brand} from "./brand";
 type Actor={id:string;email:string};
 export async function ensureReviewSchema(){
   await ensureSchema();
+  await query(`CREATE TABLE IF NOT EXISTS p5_estimator_reference_sets(version integer PRIMARY KEY,records jsonb NOT NULL,actor_id text NOT NULL,notes text NOT NULL,created_at timestamptz NOT NULL DEFAULT now())`);
+  await query(`CREATE TABLE IF NOT EXISTS p5_estimator_reference_checks(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),draft_id uuid NOT NULL,review_id text NOT NULL,reference_version integer NOT NULL,selection jsonb NOT NULL,result jsonb NOT NULL,actor_id text NOT NULL,created_at timestamptz NOT NULL DEFAULT now())`);
   await query(`CREATE TABLE IF NOT EXISTS p5_estimator_reviews (id text PRIMARY KEY,draft_id uuid NOT NULL REFERENCES p5_estimator_drafts(id),source_revision integer NOT NULL,input jsonb NOT NULL,finance jsonb NOT NULL,notes text NOT NULL,actor_id text NOT NULL,created_at timestamptz NOT NULL DEFAULT now())`);
   await query(`CREATE TABLE IF NOT EXISTS p5_estimator_approvals(id uuid PRIMARY KEY,revision text NOT NULL,owner text NOT NULL,actor_id text NOT NULL,reason text NOT NULL,approved_at timestamptz NOT NULL DEFAULT now(),UNIQUE(revision,owner))`);
   await query(`CREATE TABLE IF NOT EXISTS p5_estimator_history(draft_id uuid NOT NULL REFERENCES p5_estimator_drafts(id),revision integer NOT NULL,record jsonb NOT NULL,created_at timestamptz NOT NULL DEFAULT now(),PRIMARY KEY(draft_id,revision))`);

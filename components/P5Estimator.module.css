@@ -25,3 +25,5 @@
 @media(prefers-reduced-motion:reduce){.root *{scroll-behavior:auto!important}}
 
 .root{background:#233029;color:#fbfaf6}.root h1,.root h2,.root h3{font-family:"P5 Serif",Georgia,serif;font-weight:400}
+
+.tradeRanges{margin:16px 0}.tradeRanges>div{display:flex;justify-content:space-between;gap:16px;padding:12px 0;border-bottom:1px solid #65706a;flex-wrap:wrap}.tradeRanges dt{font-weight:600}.tradeRanges dd{margin:0;font-variant-numeric:tabular-nums}

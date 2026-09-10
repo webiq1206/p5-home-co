@@ -49,6 +49,7 @@ try{
  await cp(path.join(root,'lib/p5'),runtime,{recursive:true});
  await writeFile(path.join(runtime,'database.ts'),`import {PGlite} from '@electric-sql/pglite'; export const database=new PGlite(); export async function query(statement:string,values:unknown[]=[]){return (await database.query(statement,values)).rows as any[];}`);
  await writeFile(path.join(runtime,'deliveryAdapter.ts'),`export const EMAIL_SUPPORTS_IDEMPOTENCY=true; export const attempts:any[]=[]; export const delivered=new Map(); export const failures=new Set<string>(); export async function adminRecipients(){return ['admin@example.invalid'];} export async function sendEmail(input:any){attempts.push(input);if(failures.has(input.to))throw new Error('Synthetic transport failure');if(!delivered.has(input.key))delivered.set(input.key,input);return 'test-'+input.key;} export async function syncCrm(record:any,key:string){attempts.push({crm:key,record});if(failures.has('crm'))throw new Error('Synthetic CRM outage');if(!delivered.has(key))delivered.set(key,record);return 'test-lead-'+key;}`);
+ await writeFile(path.join(runtime,'adminAuth.ts'),`import {DraftError} from './store';export let enabled=true;export function disable(){enabled=false;}export function enable(){enabled=true;}export async function requireEstimatorAdmin(){if(!enabled)throw new DraftError('Administrator sign-in is required.',403);return {id:'fixture-admin',email:'admin@example.invalid'};}`);
  const module=(name:string)=>import(pathToFileURL(path.join(runtime,name+'.ts')).href);
  const store=await module('store');const outbox=await module('outbox');const db=await module('database');const transport=await module('deliveryAdapter');
  const id=randomUUID(),key=randomBytes(32).toString('hex');
@@ -130,6 +131,19 @@ try{
  const notes='TEST ONLY: verified uploaded scope, cost evidence, exclusions, allowances and all risk dispositions.';
  const actor={id:'fixture-admin',email:'admin@example.invalid'};
  let review=await manual.saveManualReview({id,expectedRevision:2,input:manualInput,notes},actor);
+ const referenceApi=await module('referenceEndpoint'),auth=await module('adminAuth');
+ const request=(method:string,body:any)=>new Request('https://example.invalid/api/admin/p5-estimators/references',{method,headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+ auth.disable();assert.equal((await referenceApi.getReferences()).status,403);auth.enable();
+ assert.equal((await (await referenceApi.getReferences()).json()).version,0);
+ const reference={id:'synthetic-reference',source:'SYNTHETIC ONLY',sourceDate:today,page:1,trade:'Other Project Work',description:'Identical synthetic complete trade scope',quantity:1,unit:'LS',unitPrice:100000,extendedPrice:100000,priceBasis:'customer-price',commercialStatus:'base',location:'Synthetic',conditions:'Identical test scope',warnings:[]};
+ const referencePayload={version:0,references:[reference],notes:'TEST ONLY: verified selling-price basis, identical scope, location, date and units.'};
+ assert.equal((await referenceApi.putReferences(request('PUT',referencePayload))).status,200);
+ assert.equal((await referenceApi.putReferences(request('PUT',referencePayload))).status,409);
+ const comparison={referenceVersion:1,reviewId:review.reviewId,selection:{referenceId:reference.id,costLineId:'trade',quantity:1,unit:'LS',adjustedCustomerUnitPrice:100000,scopeConfirmed:true,locationConfirmed:true,dateConfirmed:true,rationale:'TEST ONLY: verified equivalent complete scope, date, location and package units.'}};
+ assert.equal((await referenceApi.postReferenceCheck(request('POST',{...comparison,selection:{...comparison.selection,quantity:2}}))).status,400);
+ assert.equal((await referenceApi.postReferenceCheck(request('POST',comparison))).status,200);
+ assert.equal((await db.query('SELECT * FROM p5_estimator_reference_checks')).length,1);
+ assert.equal((await db.query('SELECT * FROM p5_estimator_reference_sets')).length,1);
  assert.equal(review.estimate.publishable,false);
  await assert.rejects(manual.publishManualReview({reviewId:review.reviewId,confirmed:true},actor));
  process.env.P5_OWNER_NICK_EMAIL='nick@example.invalid';process.env.P5_OWNER_JARED_EMAIL='jared@example.invalid';
@@ -157,6 +171,6 @@ try{
  await outbox.processOutbox({draftId:id});
  assert.ok((await outbox.deliveryStatus(id)).every((d:any)=>d.status==='sent'));
  await db.database.close();
- await writeFile('p5-verification/workflow-results.json',JSON.stringify({passed:true,scope:'Isolated database, synthetic pricing fixtures, simulated delivery and CRM. No live email or CRM request was made.',checks:['PDF generation','high-confidence extraction','conflict preservation','low-confidence review','optional address','invalid upload','XLSX extraction','draft authorization','optimistic concurrency','upload deduplication','atomic submission','outbox deduplication','customer delivery retry','CRM ambiguity review','administrator alert','confidential result separation','manual cost review','authenticated distinct owner approvals','stale forecast approval rejection','changed scope approval rejection','atomic reviewed publication','revision history','CRM update duplicate guard','delivery reconciliation audit','unresolved document review blocks pricing','submitted urgency cannot silently lower margin','missing conditional cost answers block pricing','interrupted delivery alert and retry ceiling','acknowledged CRM record linkage']},null,2));
+ await writeFile('p5-verification/workflow-results.json',JSON.stringify({passed:true,scope:'Isolated database, synthetic pricing fixtures, simulated delivery and CRM. No live email or CRM request was made.',checks:['PDF generation','high-confidence extraction','conflict preservation','low-confidence review','optional address','invalid upload','XLSX extraction','draft authorization','optimistic concurrency','upload deduplication','atomic submission','outbox deduplication','customer delivery retry','CRM ambiguity review','administrator alert','confidential result separation','manual cost review','authenticated distinct owner approvals','stale forecast approval rejection','changed scope approval rejection','atomic reviewed publication','revision history','CRM update duplicate guard','delivery reconciliation audit','unresolved document review blocks pricing','submitted urgency cannot silently lower margin','missing conditional cost answers block pricing','interrupted delivery alert and retry ceiling','acknowledged CRM record linkage','private reference authorization','versioned reference import','stale reference import rejected','comparison tied to reviewed quantity and units','saved reference comparison audit']},null,2));
  console.log('P5 workflow checks passed (isolated database; simulated external services).');
 }finally{await rm(runtime,{recursive:true,force:true});}

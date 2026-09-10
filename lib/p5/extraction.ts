@@ -1,4 +1,5 @@
-import { SCOPE_FIELDS, SCOPE_BATCH_LIMIT, SCOPE_TEXT_LIMIT, validateExtraction, type ScopeAnswers, type ScopeExtraction } from "./scope.ts";
+import { SCOPE_FIELDS, SCOPE_BATCH_LIMIT, SCOPE_TEXT_LIMIT, validateExtraction,combineScopeExtractions, type ScopeAnswers, type ScopeExtraction } from "./scope.ts";
+import {PDFDocument} from "pdf-lib";
 export interface AnalysisFile { name: string; type: string; data: Buffer }
 export interface AnalysisResult { extraction: ScopeExtraction; provider: string; model: string; analyzedAt: string }
 const objectSchema = (properties: Record<string, unknown>) => ({ type: "object", properties, required: Object.keys(properties), additionalProperties: false });
@@ -9,7 +10,7 @@ export const EXTRACTION_JSON_SCHEMA = objectSchema({
   conflicts: { type: "array", items: objectSchema({ field: { type: "string", enum: Object.keys(SCOPE_FIELDS) }, values: strings, explanation: string }) },
   missingInformation: strings, reviewNotes: strings,
 });
-export async function analyzeScope(text: string, files: AnalysisFile[], previous: ScopeAnswers, request = fetch): Promise<AnalysisResult> {
+async function analyzeBatch(text: string, files: AnalysisFile[], previous: ScopeAnswers, request = fetch): Promise<AnalysisResult> {
   if (!process.env.ANTHROPIC_API_KEY) throw new Error("analysis-unconfigured");
   if (text.length > SCOPE_TEXT_LIMIT || files.reduce((n,f) => n + f.data.length,0) > SCOPE_BATCH_LIMIT) throw new Error("analysis-too-large");
   const content: Record<string, unknown>[] = [];
@@ -17,7 +18,7 @@ export async function analyzeScope(text: string, files: AnalysisFile[], previous
     content.push({ type: "text", text: `Source filename: ${file.name}` });
     if (file.type === "application/pdf") content.push({ type: "document", source: { type: "base64", media_type: "application/pdf", data: file.data.toString("base64") } });
     else if (["image/jpeg","image/png","image/webp","image/gif"].includes(file.type)) content.push({ type: "image", source: { type: "base64", media_type: file.type, data: file.data.toString("base64") } });
-    else if (["text/plain","text/csv","application/json"].includes(file.type)) content.push({ type: "text", text: file.data.toString("utf8").slice(0,120000) });
+    else if (["text/plain","text/csv","application/json"].includes(file.type)) content.push({ type: "text", text: file.data.toString("utf8") });
     else throw new Error("document-needs-conversion");
   }
   content.push({ type: "text", text: JSON.stringify({ submittedScope: text, previousAnswers: previous }) });
@@ -36,4 +37,33 @@ export async function analyzeScope(text: string, files: AnalysisFile[], previous
   const resultText = body.content?.find((part: {type:string}) => part.type === "text")?.text;
   if (typeof resultText !== "string") throw new Error("analysis-empty");
   return { extraction: validateExtraction(JSON.parse(resultText)), provider: "Anthropic", model, analyzedAt: new Date().toISOString() };
+}
+/** Read every page. A failed page is preserved as a blocking review note. */
+export async function analyzeScope(text:string,files:AnalysisFile[],previous:ScopeAnswers,request=fetch):Promise<AnalysisResult>{
+  if(!process.env.ANTHROPIC_API_KEY)throw new Error("analysis-unconfigured");
+  if(text.length>SCOPE_TEXT_LIMIT||files.reduce((n,f)=>n+f.data.length,0)>SCOPE_BATCH_LIMIT)throw new Error("analysis-too-large");
+  const units:AnalysisFile[][]=[];
+  for(const file of files){
+    if(file.type!=="application/pdf"){if(["text/plain","text/csv","application/json"].includes(file.type)&&file.data.toString("utf8").length>120000)throw new Error(`${file.name}: text exceeds the automatic review limit. Supply the relevant sections or request manual review.`);units.push([file]);continue;}
+    let source;try{source=await PDFDocument.load(file.data);}catch{throw new Error(`Unreadable or encrypted PDF: ${file.name}. Supply an unlocked copy.`);}
+    if(!source.getPageCount()||source.getPageCount()>250)throw new Error("Use PDFs with 1 to 250 pages.");
+    for(let page=0;page<source.getPageCount();page++){
+      const part=await PDFDocument.create();const [copied]=await part.copyPages(source,[page]);part.addPage(copied);
+      units.push([{...file,name:`${file.name} (page ${page+1} of ${source.getPageCount()})`,data:Buffer.from(await part.save())}]);
+    }
+  }
+  if(units.length>300)throw new Error("The combined documents exceed 300 pages. Send the relevant project sheets.");
+  if(!units.length)return analyzeBatch(text,[],previous,request);
+  const parts:ScopeExtraction[]=new Array(units.length);let position=0;let last:AnalysisResult|undefined;
+  const failed:string[]=[];
+  // Bounded concurrency prevents one large plan set from flooding the provider.
+  await Promise.all(Array.from({length:Math.min(3,units.length)},async()=>{
+    while(position<units.length){const index=position++;const unit=units[index];
+      try{const value=await analyzeBatch(text,unit,previous,request);parts[index]=value.extraction;last=value;}
+      catch(error){failed.push(`${unit[0].name}: automatic read failed. Review this page before publishing a price.`);}
+    }
+  }));
+  if(!last)throw new Error("analysis-failed");
+  const extraction=combineScopeExtractions(parts.filter(Boolean));extraction.reviewNotes.push(...failed);
+  return {...last,extraction,analyzedAt:new Date().toISOString()};
 }

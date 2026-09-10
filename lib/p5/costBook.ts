@@ -16,7 +16,7 @@ export function priceReviewedScope(scope:ReviewedScope,configuration:EstimatorCo
   const revision=createHash("sha256").update(JSON.stringify({scope,configuration})).digest("hex");
   if(!book)return {
     internal:{revision,scope,missingInformation:["A current, approved direct-cost book is required for this service."],pricingWarnings:["cost-book-missing"],financeSnapshot:configuration.finance},
-    customer:{status:"review-required",range:null,summary,includedCategories:[],allowances:[],assumptions:[],exclusions:[],factors:[],nextStep:SERVICE_MATRIX[service].method,message:"We have your project details. A specialist needs to confirm current costs before we can provide a reliable planning range.",disclaimer:"Preliminary project information only. This is not a bid, quote, offer or guaranteed price."},
+    customer:{status:"review-required",range:null,summary,includedCategories:[],categoryRanges:[],allowances:[],assumptions:[],exclusions:[],factors:[],nextStep:SERVICE_MATRIX[service].method,message:"We have your project details. A specialist needs to confirm current costs before we can provide a reliable planning range.",disclaimer:"Preliminary project information only. This is not a bid, quote, offer or guaranteed price."},
   };
   const missingInformation=[...(scope.extraction?.missingInformation||[])];
   const lines:DirectCostLine[]=[];

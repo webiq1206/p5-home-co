@@ -82,14 +82,23 @@ export function validateExtraction(raw: unknown): ScopeExtraction {
   // Independent conflict detection: never let a model overwrite two different measurements.
   for (const field of Object.keys(SCOPE_FIELDS) as ScopeField[]) {
     const values = [...new Set(facts.filter(f => f.field === field).map(f => f.value.trim()))];
-    if (values.length > 1 && !conflicts.some(c => c.field === field)) conflicts.push({ field, values, explanation: "The supplied information contains different values. Please confirm the intended scope." });
+    if (values.length > 1 && SCOPE_FIELDS[field].kind !== "text" && !conflicts.some(c => c.field === field)) conflicts.push({ field, values, explanation: "The supplied information contains different values. Please confirm the intended scope." });
   }
   return { summary: r.summary, facts, conflicts, missingInformation: strings(r.missingInformation, 50), reviewNotes: strings(r.reviewNotes, 50) };
 }
 export function mergeScopeFacts(current: ScopeAnswers, extraction: ScopeExtraction) {
   const answers = { ...current }; const conflicts = [...extraction.conflicts];
+  const textFields=new Set<ScopeField>();
   for (const fact of extraction.facts) {
     if (fact.confidence < .85 || conflicts.some(c => c.field === fact.field)) continue;
+    if(SCOPE_FIELDS[fact.field].kind==="text"){
+      if(textFields.has(fact.field))continue;textFields.add(fact.field);
+      const values=[...new Set([current[fact.field]?.trim(),...extraction.facts.filter(f=>f.field===fact.field&&f.confidence>=.85).map(f=>f.value.trim())].filter(Boolean))];
+      const combined=values.join("\n");
+      if(combined.length<=4000)answers[fact.field]=combined;
+      else conflicts.push({field:fact.field,values:[current[fact.field]||""].filter(Boolean),explanation:"This trade scope exceeds one answer. Review the full source details and enter a concise summary without omitting priced work."});
+      continue;
+    }
     const existing = answers[fact.field]?.trim();
     if (existing && existing !== fact.value.trim()) {
       conflicts.push({ field: fact.field, values: [existing, fact.value], explanation: "Your previous answer differs from the submitted scope. Choose which is correct." });
@@ -98,6 +107,22 @@ export function mergeScopeFacts(current: ScopeAnswers, extraction: ScopeExtracti
     answers[fact.field] = fact.value;
   }
   return { answers, conflicts };
+}
+/** Merge page reads without losing distinct measurements or additive trade scope. */
+export function combineScopeExtractions(parts:ScopeExtraction[]):ScopeExtraction {
+  const merged:ScopeExtraction={summary:[...new Set(parts.map(p=>p.summary).filter(Boolean))].join("\n"),facts:[],conflicts:parts.flatMap(p=>p.conflicts),missingInformation:[...new Set(parts.flatMap(p=>p.missingInformation))],reviewNotes:[...new Set(parts.flatMap(p=>p.reviewNotes))]};
+  const seen=new Set<string>();
+  for(const fact of parts.flatMap(p=>p.facts)){
+    const key=JSON.stringify([fact.field,fact.value.trim(),fact.source,fact.evidence]);
+    if(!seen.has(key)){seen.add(key);merged.facts.push(fact);}
+  }
+  for(const field of Object.keys(SCOPE_FIELDS) as ScopeField[]){
+    const values=[...new Set(merged.facts.filter(f=>f.field===field).map(f=>f.value.trim()))];
+    if(values.length>1&&SCOPE_FIELDS[field].kind!=="text"&&!merged.conflicts.some(c=>c.field===field))merged.conflicts.push({field,values,explanation:"Different document pages state different values. Confirm the intended project information."});
+  }
+  // Missing questions from one page may be answered on another.
+  merged.missingInformation=merged.missingInformation.filter(note=>!merged.facts.some(f=>f.confidence>=.85&&note.trim().toLowerCase()===SCOPE_FIELDS[f.field].label.toLowerCase()));
+  return merged;
 }
 export function requiredScopeQuestions(answers: ScopeAnswers): ScopeField[] {
   if (!answers.service) return ["service"];

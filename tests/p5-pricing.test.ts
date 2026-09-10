@@ -1,5 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import {tradeForLine,apportionAmount} from "../lib/p5/trades.ts";
+import {validateReferences,compareReference,type PriceReference} from "../lib/p5/references.ts";
+import {combineScopeExtractions,mergeScopeFacts} from "../lib/p5/scope.ts";
+import {analyzeScope} from "../lib/p5/extraction.ts";
+import {PDFDocument} from "pdf-lib";
 import { COST_CATEGORIES, SERVICE_MATRIX, UNCONFIGURED_FINANCE, allowanceAdjustment, calculateP5Estimate, companyAllocation, customerEstimate, landedUnitCost, loadedHourlyCost, priceFromRiskAdjustedCost, type FinancePolicy, type PricingInput, type Service } from "../lib/p5/pricing.ts";
 
 const now = new Date("2026-09-10T12:00:00Z");
@@ -110,4 +115,44 @@ test("customer projection excludes internal rates, evidence, approvals and dolla
   const r=calculateP5Estimate(input(),finance,[],now);const p=customerEstimate(r,"Kitchen");
   for (const key of ["divisor","operatingProfit","allocationDollars","financeSnapshot","ownerApprovals","lines","directCost","targetOperatingProfit"]) assert.equal(key in p,false);
   assert.match(p.disclaimer,/not a bid, quote, offer or guaranteed price/);
+});
+test("customer categories use trades and reconcile both endpoints without exposing costs",()=>{
+  const i=input();i.lines=[{...i.lines[0],id:"paint",description:"Painting",trade:"Painting",unitCost:15000},{...i.lines[0],id:"drywall",description:"Drywall",trade:"Drywall",unitCost:25000},{...i.lines[0],id:"floor",description:"Flooring",trade:"Flooring",unitCost:20000}];
+  const result=calculateP5Estimate(i,finance,[],now),customer=customerEstimate(result,"Reviewed scope");
+  assert.deepEqual(customer.includedCategories,["Painting","Drywall","Flooring"]);
+  assert.equal(customer.categoryRanges.reduce((n,c)=>n+c.low,0),customer.range!.low);
+  assert.equal(customer.categoryRanges.reduce((n,c)=>n+c.high,0),customer.range!.high);
+  assert.equal(customerEstimate(calculateP5Estimate(i,UNCONFIGURED_FINANCE,[],now),"Scope").categoryRanges.length,0);
+  assert.equal(tradeForLine({description:"Mini split installation"}),"Heating & Cooling");
+  assert.throws(()=>tradeForLine({description:"Painting",trade:"Unknown"}));
+  assert.deepEqual(apportionAmount(10,[1,1,1]),[4,3,3]);
+});
+test("selling prices and unknown bases cannot pass as direct costs",()=>{
+  for(const basis of ["customer-price","unknown"] as const){const i=input();i.lines[0].priceBasis=basis;const r=calculateP5Estimate(i,finance,[],now);assert.equal(r.publishable,false);assert.ok(r.warnings.some(w=>w.code==="selling-price-as-cost"));}
+});
+test("historical comparisons require compatible base scope and never apply a second markup",()=>{
+  const reference:PriceReference={id:"test-ref",source:"Synthetic reference",sourceDate:"2026-09-01",page:1,trade:"Painting",description:"Defined paint scope",quantity:100,unit:"SF",unitPrice:4,extendedPrice:400,priceBasis:"customer-price",commercialStatus:"base",location:"Synthetic location",conditions:"Synthetic scope",warnings:[]};
+  const selection={referenceId:reference.id,costLineId:"paint",quantity:200,unit:"SF",adjustedCustomerUnitPrice:4.5,scopeConfirmed:true,locationConfirmed:true,dateConfirmed:true,rationale:"Synthetic scope matches after documented finish and date adjustments."};
+  const result=compareReference(reference,selection,700);assert.equal(result.comparablePrice,900);assert.equal(result.status,"below-reference");
+  for(const variant of [{...reference,commercialStatus:"optional"},{...reference,priceBasis:"unknown"},{...reference,warnings:["Unit is unclear"]},{...reference,quantity:0}])assert.throws(()=>compareReference(variant as PriceReference,selection,700));
+  assert.throws(()=>compareReference(reference,{...selection,unit:"LF"},700));
+  assert.throws(()=>compareReference(reference,{...selection,dateConfirmed:false},700));
+  assert.throws(()=>validateReferences([reference,reference]));
+  assert.ok(validateReferences([{...reference,extendedPrice:500}])[0].warnings.length);
+});
+test("page merging preserves additive trade scope and conflicting measurements",()=>{
+  const part=(field:string,value:string,source:string)=>({summary:"Scope",facts:[{field:field as "plumbing"|"sqft",value,source,evidence:value,confidence:.99}],conflicts:[],missingInformation:[],reviewNotes:[]});
+  const combined=combineScopeExtractions([part("plumbing","Install sink","Page 1"),part("plumbing","Replace supply lines","Page 2"),part("sqft","200","Page 1"),part("sqft","300","Page 2")]);
+  const merged=mergeScopeFacts({},combined);
+  assert.match(merged.answers.plumbing!,/Install sink\nReplace supply lines/);
+  assert.equal(merged.answers.sqft,undefined);assert.ok(merged.conflicts.some(c=>c.field==="sqft"));
+});
+test("PDF analysis accounts for every page and holds failed pages for review",async()=>{
+  const old=process.env.ANTHROPIC_API_KEY;process.env.ANTHROPIC_API_KEY="synthetic-not-a-real-key";
+  try{
+    const doc=await PDFDocument.create();for(let i=0;i<3;i++)doc.addPage();const calls:string[]=[];
+    const transport:typeof fetch=async(_url,options)=>{const body=JSON.parse(String(options?.body));const name=body.messages[0].content.find((x:{text?:string})=>x.text?.startsWith("Source filename:")).text;calls.push(name);if(name.includes("page 2 "))return new Response("failure",{status:503});return Response.json({stop_reason:"end_turn",content:[{type:"text",text:JSON.stringify({summary:"Synthetic page scope",facts:[{field:"plumbing",value:name.includes("page 1 ")?"Install sink":"Replace supply lines",confidence:.99,source:name,evidence:"Synthetic stated scope"}],conflicts:[],missingInformation:[],reviewNotes:[]})}]});};
+    const result=await analyzeScope("Synthetic scope",[{name:"synthetic.pdf",type:"application/pdf",data:Buffer.from(await doc.save())}],{},transport);
+    assert.equal(calls.length,3);assert.equal(result.extraction.facts.length,2);assert.match(result.extraction.reviewNotes.join(" "),/page 2 of 3/);
+  }finally{if(old===undefined)delete process.env.ANTHROPIC_API_KEY;else process.env.ANTHROPIC_API_KEY=old;}
 });

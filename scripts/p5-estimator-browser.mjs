@@ -30,7 +30,7 @@ for(const width of [320,390,430,768,1024,1440,1920]){
   if(endpoint==='submit'){
    const duplicate=saved?.status==='submitted';if(!duplicate)submissionCount++;
    saved={...saved,status:'submitted'};
-   return send({accepted:!duplicate,duplicate,result:{status:'review-required',range:null,summary:'Repair three interior doors.',includedCategories:[],allowances:[],assumptions:[],exclusions:[],factors:[],nextStep:'Schedule a scope review.',message:'A specialist will confirm the scope and current costs.',disclaimer:'This is not a bid, quote, offer or guaranteed price.'},delivery:[{channel:'customer',status:'retry'},{channel:'admin',status:'sent'},{channel:'crm',status:'needs-review'}]});
+   return send({accepted:!duplicate,duplicate,result:{status:'preliminary',range:{low:1000,high:1800},categoryRanges:[{category:'Drywall',low:400,high:700},{category:'Painting',low:600,high:1100}],summary:'Repair three interior doors.',includedCategories:[],allowances:[],assumptions:[],exclusions:[],factors:[],nextStep:'Schedule a scope review.',message:'A specialist will confirm the scope and current costs.',disclaimer:'This is not a bid, quote, offer or guaranteed price.'},delivery:[{channel:'customer',status:'retry'},{channel:'admin',status:'sent'},{channel:'crm',status:'needs-review'}]});
   }
   return send({error:'Unknown test endpoint'},404);
  });
@@ -54,6 +54,7 @@ for(const width of [320,390,430,768,1024,1440,1920]){
   if(!await service.inputValue()){const value=await service.locator('option').evaluateAll(options=>options.map(o=>o.value).find(Boolean));await service.selectOption(value);}
   const location=estimator.getByLabel('City, ZIP code, county or general location',{exact:true});
   await location.fill('');
+  const knownDetails=estimator.getByText('Review or edit details already provided',{exact:true});await knownDetails.click();
   const task=estimator.getByLabel('Tasks and quantities',{exact:true});assert.match(await task.inputValue(),/three interior doors/);
   await task.fill('Repair three interior doors. '+('Long-unbroken-material-specification'.repeat(90)));
   await task.focus();await page.setViewportSize({width,height:500});
@@ -66,6 +67,8 @@ for(const width of [320,390,430,768,1024,1440,1920]){
   await estimator.getByRole('button',{name:'Continue',exact:true}).click();assert.equal(await page.locator('#p5-contact-email').inputValue(),'customer@example.invalid');
   await estimator.getByRole('checkbox').check();await estimator.getByRole('button',{name:'Get my project summary',exact:true}).click();
   await estimator.getByText('Schedule a scope review.',{exact:true}).waitFor();
+  await estimator.getByRole('region',{name:'Planning range by trade'}).waitFor();
+  assert.ok(!(await estimator.innerText()).includes('operatingProfit'));
   await page.waitForTimeout(2100);assert.equal(postSubmissionSaves,0,'An autosave ran after the submission was accepted');
   await page.reload({waitUntil:'domcontentloaded'});await estimator.getByText('Schedule a scope review.',{exact:true}).waitFor();
   assert.equal(submissionCount,1);assert.equal(errors.length,0,errors.join('; '));
