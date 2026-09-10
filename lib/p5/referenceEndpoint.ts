@@ -3,7 +3,8 @@ import {query} from "./database";
 import {DraftError} from "./store";
 import {protectRequest,limitedBody,json,failed} from "./http";
 import {validateReferences,compareReference,validateComparisonLine,referenceDirectCostBudget,type ComparableSelection} from "./references.ts";
-import {calculateP5Estimate} from "./pricing.ts";
+import {calculateP5Estimate,companyAllocation} from "./pricing.ts";
+import {EMPTY_CONFIGURATION} from "./costBook";
 import {ensureReviewSchema,currentReview} from "./manualReview";
 
 async function schema(){
@@ -14,7 +15,9 @@ async function schema(){
 export async function getReferences(){try{
   await requireEstimatorAdmin();await schema();
   const [row]=await query("SELECT version,records,notes,created_at FROM p5_estimator_reference_sets ORDER BY version DESC LIMIT 1");
-  return json(row||{version:0,records:[],notes:""});
+  const [policy]=await query("SELECT payload FROM p5_estimator_policy WHERE id='current'");
+  const allocation=companyAllocation(policy?.payload?.finance||EMPTY_CONFIGURATION.finance);
+  return json({...(row||{version:0,records:[],notes:""}),overheadRate:allocation.total});
 }catch(e){return failed(e);}}
 export async function putReferences(request:Request){try{
   protectRequest(request);const actor=await requireEstimatorAdmin();await schema();

@@ -134,7 +134,7 @@ try{
  const referenceApi=await module('referenceEndpoint'),auth=await module('adminAuth');
  const request=(method:string,body:any)=>new Request('https://example.invalid/api/admin/p5-estimators/references',{method,headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
  auth.disable();assert.equal((await referenceApi.getReferences()).status,403);auth.enable();
- assert.equal((await (await referenceApi.getReferences()).json()).version,0);
+ const initialReferences=await (await referenceApi.getReferences()).json();assert.equal(initialReferences.version,0);assert.equal(initialReferences.overheadRate,.20);
  const reference={id:'synthetic-reference',source:'SYNTHETIC ONLY',sourceDate:today,page:1,trade:'Other Project Work',description:'Identical synthetic complete trade scope',quantity:1,unit:'LS',unitPrice:100000,extendedPrice:100000,priceBasis:'customer-price',commercialStatus:'base',location:'Synthetic',conditions:'Identical test scope',warnings:[]};
  const referencePayload={version:0,references:[reference],notes:'TEST ONLY: verified selling-price basis, identical scope, location, date and units.'};
  assert.equal((await referenceApi.putReferences(request('PUT',referencePayload))).status,200);

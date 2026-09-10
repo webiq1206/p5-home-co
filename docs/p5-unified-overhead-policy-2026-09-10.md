@@ -68,7 +68,13 @@ cannot also appear as a direct labor charge.
 
 Historical examples inform individual units and scope comparisons. They are not
 evidence that every printed amount is a current supplier or payroll cost.
-An authenticated comparison now also returns the direct-cost ceiling supported
+The private reference browser shows supported unit-cost budgets at 15%, 20%, 25%
+and 30% profit scenarios using the current overhead rate, before a project review
+is created. Those budgets include room for project contingency. Scenario rows do
+not override the selected service's profit safeguards. Flagged or unknown-basis
+items do not receive a cost-budget conversion.
+
+An authenticated project comparison also returns the direct-cost ceiling supported
 by the selected comparable selling price:
 
 Direct unit cost ceiling = comparable selling unit price *
