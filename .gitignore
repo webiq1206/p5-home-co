@@ -69,3 +69,15 @@ next-env.d.ts
 
 # Generated contract PDFs. Rebuilt from the templates with: npm run contracts:pdf
 build/contracts/
+
+# Estimator test outputs
+/p5-verification/
+
+# P5 estimator source and verification scripts are application code.
+!/lib/
+/lib/*
+!/lib/p5/
+!/scripts/
+/scripts/*
+!/scripts/test-p5-workflow.mts
+!/scripts/p5-estimator-browser.mjs
