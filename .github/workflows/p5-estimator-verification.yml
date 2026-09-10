@@ -1,7 +1,7 @@
 name: P5 estimator policy and workflow verification
 on:
   push:
-    branches: [main, codex/p5-estimator-policy-20260910, codex/p5-merge-all-20260910, codex/p5-complete-main-20260910]
+    branches: [codex/p5-intelligent-wizard-20260910, codex/p5-upload-receipt-fix-20260910, main, codex/p5-estimator-policy-20260910, codex/p5-merge-all-20260910, codex/p5-complete-main-20260910]
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -23,7 +23,9 @@ jobs:
       - name: Financial policy regression tests
         run: node --import tsx --test tests/p5-pricing.test.ts
       - name: Isolated persistence, delivery failure and PDF checks
-        run: node --import tsx scripts/test-p5-workflow.mts
+        run: |
+          node --import tsx scripts/test-p5-workflow.mts
+          node --import tsx scripts/test-p5-receipt.mts
       - name: TypeScript verification
         run: npx tsc --noEmit
       - name: Production build and existing repository gates
