@@ -41,6 +41,7 @@ jobs:
           name: p5-visual-review
           path: |
             p5-visual-review
+            p5-verification
             /tmp/p5-review-server.log
             /tmp/p5-review-summary.json
           retention-days: 14
