@@ -15,7 +15,9 @@ try {
   await context.route('**/api/estimator-session',r=>r.fulfill({json:{ok:true}}));
   await context.route('**/api/meta-capi',r=>r.fulfill({json:{ok:true}}));
   for(const route of parent?['/quote']:['/estimate','/',...extraRoutes]){
-   await page.goto(`http://127.0.0.1:5000${route}`,{waitUntil:'networkidle'});
+   console.log(`Checking estimator navigation at ${width}px on ${route}`);
+   await page.goto(`http://127.0.0.1:5000${route}`,{waitUntil:'load'});
+   if(route==='/')await page.locator('#calculator').scrollIntoViewIfNeeded();
    const option=page.locator('[data-scope-estimate-option]').first();
    await option.waitFor();await option.scrollIntoViewIfNeeded();
    assert.equal(await option.locator('a').getAttribute('href'),'/estimate/scope');
@@ -40,7 +42,7 @@ try {
     }
    }
    await option.scrollIntoViewIfNeeded();
-   await page.screenshot({path:`p5-verification/navigation-${width}-${route==='/'?'home':'estimate'}.png`});
+   await page.screenshot({path:`p5-verification/navigation-${width}-${route==='/'?'home':route.replaceAll('/','_')}.png`});
    await option.locator('a').click();await page.waitForURL('**/estimate/scope');
    await page.locator('#p5-files').waitFor();
    assert.ok(await page.locator('textarea').count());
