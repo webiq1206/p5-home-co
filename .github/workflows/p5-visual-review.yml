@@ -23,6 +23,7 @@ jobs:
         with:
           node-version: 24
       - run: npm ci --no-audit --no-fund
+      - run: npm install --no-save --package-lock=false @playwright/test@1.60.0
       - name: Production build and required repository gates
         run: npm run build
       - name: Start the production server
