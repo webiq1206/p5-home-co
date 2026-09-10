@@ -6,6 +6,7 @@ export class DraftError extends Error { status: number; constructor(message: str
 export interface Draft {
   id: string; revision: number; status: "draft" | "submitted"; updatedAt: string;
   text: string; answers: ScopeAnswers; extraction: ScopeExtraction | null;
+  wizard?: {skipped: (keyof ScopeAnswers)[]; resolutions: ScopeAnswers; sourceVersion?:string};
   reviewed: ReviewedScope | null; uploads: ScopeUpload[];
   contact: { name: string; email: string; phone: string }; brand: string;
 }
@@ -39,7 +40,7 @@ async function rowFor(id: string, key: string) {
 export async function readDraft(id: string,key: string): Promise<Draft|null> {
   const row=await rowFor(id,key);if(!row)return null;
   const files=await query("SELECT id,name,mime_type,size_bytes,sha256 FROM p5_estimator_files WHERE draft_id=$1 ORDER BY created_at",[id]);
-  return {id,revision:row.revision,status:row.status,updatedAt:new Date(row.updated_at).toISOString(),brand:row.brand,
+  return {id,revision:Number(row.revision),status:row.status,updatedAt:new Date(row.updated_at).toISOString(),brand:row.brand,
     text:"",answers:{},extraction:null,reviewed:null,contact:{name:"",email:"",phone:""},...row.payload,
     uploads:files.map(f=>({id:f.id,name:f.name,type:f.mime_type,size:f.size_bytes,sha256:f.sha256,status:"stored"})),
   };
@@ -49,10 +50,14 @@ export async function saveDraft(id: string,key: string,brand: string,payload: Om
   if(existing?.status==="submitted")throw new DraftError("This submission is already saved. Start a new revision to change the scope.",409);
   if(existing && existing.revision!==expectedRevision)throw new DraftError("This draft changed in another tab. Reload the saved version before overwriting it.",409);
   let result;
-  if(!existing)result=await query("INSERT INTO p5_estimator_drafts(id,key_hash,brand,payload,revision) VALUES($1,$2,$3,$4::jsonb,1) ON CONFLICT DO NOTHING RETURNING id",[id,hash(key),brand,JSON.stringify(payload)]);
-  else result=await query("UPDATE p5_estimator_drafts SET payload=$1::jsonb,revision=revision+1,updated_at=now() WHERE id=$2 AND revision=$3 AND status='draft' RETURNING id",[JSON.stringify(payload),id,expectedRevision]);
+  if(!existing)result=await query("INSERT INTO p5_estimator_drafts(id,key_hash,brand,payload,revision) VALUES($1,$2,$3,$4::jsonb,1) ON CONFLICT DO NOTHING RETURNING *",[id,hash(key),brand,JSON.stringify(payload)]);
+  else result=await query("UPDATE p5_estimator_drafts SET payload=$1::jsonb,revision=revision+1,updated_at=now() WHERE id=$2 AND revision=$3 AND status='draft' RETURNING *",[JSON.stringify(payload),id,expectedRevision]);
   if(!result.length)throw new DraftError("The draft changed while saving. Reload before retrying.",409);
-  return (await readDraft(id,key))!;
+  // Return the acknowledged write itself. A second read is not a write receipt.
+  const row=result[0];
+  if(!row || !Number.isInteger(Number(row.revision)))throw new DraftError("Your project could not be saved. Please retry; your information is still on this device.",503);
+  const files=await query("SELECT id,name,mime_type,size_bytes,sha256 FROM p5_estimator_files WHERE draft_id=$1 ORDER BY created_at",[id]);
+  return {...payload,id,brand,revision:Number(row.revision),status:row.status,updatedAt:new Date(row.updated_at).toISOString(),uploads:files.map(f=>({id:f.id,name:f.name,type:f.mime_type,size:f.size_bytes,sha256:f.sha256,status:"stored" as const}))};
 }
 export async function saveUpload(id:string,key:string,file:{name:string;type:string;data:Buffer}):Promise<ScopeUpload> {
   const draft=await rowFor(id,key);if(!draft)throw new DraftError("Save the draft before uploading.",404);

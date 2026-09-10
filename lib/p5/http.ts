@@ -21,6 +21,6 @@ export function failed(error:unknown){
   if(error instanceof DraftError)return json({error:error.message},error.status);
   console.error("[p5-estimator]",error instanceof Error?error.message:"request failed");
   const code=error instanceof Error?error.message:"";
-  const message=code==="analysis-unconfigured"?"Automatic scope review is temporarily unavailable. Your saved work is intact; continue manually or try again later.":code==="analysis-busy"?"Scope review is busy. Your work is saved. Please try again shortly.":"We could not finish this step. Your existing work is intact. Please try again.";
+  const message=code==="analysis-unconfigured"?"Automatic scope review is temporarily unavailable. Your saved work is intact; add what you know below or retry the document review.":code==="analysis-busy"?"Scope review is busy. Your work is saved. Please try again shortly.":"We could not finish this step. Your existing work is intact. Please try again.";
   return json({error:message},503);
 }

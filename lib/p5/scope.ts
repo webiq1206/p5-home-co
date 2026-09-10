@@ -34,6 +34,13 @@ export const SCOPE_FIELDS = {
   urgency: { label: "Timing", kind: "choice", options: ["standard", "priority", "emergency"] },
   complexity: { label: "Project complexity", kind: "choice", options: ["standard", "complex"] },
   phasing: { label: "Project phasing", kind: "text" },
+  flooringSqft: { label: "Flooring area in square feet", kind: "number" },
+  tileSqft: { label: "Tile area in square feet", kind: "number" },
+  countertopSqft: { label: "Countertop area in square feet", kind: "number" },
+  demolitionSqft: { label: "Demolition area in square feet", kind: "number" },
+  fixtureCount: { label: "Number of fixtures", kind: "number" },
+  laborHours: { label: "Estimated labor hours", kind: "number" },
+  installation: { label: "Installation work and responsibilities", kind: "text" },
   taskList: { label: "Tasks and quantities", kind: "text" },
   otherDetails: { label: "Other scope details", kind: "text" },
 } as const;
@@ -41,10 +48,11 @@ export type ScopeField = keyof typeof SCOPE_FIELDS;
 export type ScopeAnswers = Partial<Record<ScopeField, string>>;
 export interface ExtractedFact { field: ScopeField; value: string; confidence: number; source: string; evidence: string }
 export interface ScopeConflict { field: ScopeField; values: string[]; explanation: string }
-export interface ScopeExtraction { summary: string; facts: ExtractedFact[]; conflicts: ScopeConflict[]; missingInformation: string[]; reviewNotes: string[] }
+export interface ScopeExtraction { summary: string; facts: ExtractedFact[]; conflicts: ScopeConflict[]; missingInformation: string[]; reviewNotes: string[]; clarifications?: {field:ScopeField;question:string;reason:string}[] }
 export interface ScopeUpload { id: string; name: string; type: string; size: number; sha256: string; status: "stored" | "failed" }
 export interface ReviewedScope {
   text: string; answers: ScopeAnswers; extraction: ScopeExtraction | null; uploads: ScopeUpload[];
+  uncertainFields?: ScopeField[];
   reviewedAt: string; corrections: { field: ScopeField; previous: string; value: string }[];
 }
 export const SCOPE_TEXT_LIMIT = 24000;
@@ -85,7 +93,11 @@ export function validateExtraction(raw: unknown): ScopeExtraction {
     const values = [...new Set(facts.filter(f => f.field === field).map(f => f.value.trim()))];
     if (values.length > 1 && SCOPE_FIELDS[field].kind !== "text" && !conflicts.some(c => c.field === field)) conflicts.push({ field, values, explanation: "The supplied information contains different values. Please confirm the intended scope." });
   }
-  return { summary: r.summary, facts, conflicts, missingInformation: strings(r.missingInformation, 50), reviewNotes: strings(r.reviewNotes, 50) };
+  const clarifications=Array.isArray(r.clarifications)?r.clarifications.slice(0,20).map((q:any)=>{
+    if(!q||!Object.hasOwn(SCOPE_FIELDS,q.field)||typeof q.question!=="string"||q.question.length>500||typeof q.reason!=="string"||q.reason.length>1000)throw new Error("Invalid clarification");
+    return {field:q.field as ScopeField,question:q.question,reason:q.reason};
+  }):[];
+  return { summary: r.summary, facts, conflicts,clarifications, missingInformation: strings(r.missingInformation, 50), reviewNotes: strings(r.reviewNotes, 50) };
 }
 export function mergeScopeFacts(current: ScopeAnswers, extraction: ScopeExtraction) {
   const answers = { ...current }; const conflicts = [...extraction.conflicts];
@@ -95,7 +107,7 @@ export function mergeScopeFacts(current: ScopeAnswers, extraction: ScopeExtracti
     if(SCOPE_FIELDS[fact.field].kind==="text"){
       if(textFields.has(fact.field))continue;textFields.add(fact.field);
       const values=[...new Set([current[fact.field]?.trim(),...extraction.facts.filter(f=>f.field===fact.field&&f.confidence>=.85).map(f=>f.value.trim())].filter(Boolean))];
-      const combined=values.join("\n");
+      const combined=[...new Set(values.flatMap(value=>value!.split("\n")).map(value=>value.trim()).filter(Boolean))].join("\n");
       if(combined.length<=4000)answers[fact.field]=combined;
       else conflicts.push({field:fact.field,values:[current[fact.field]||""].filter(Boolean),explanation:"This trade scope exceeds one answer. Review the full source details and enter a concise summary without omitting priced work."});
       continue;
@@ -112,6 +124,7 @@ export function mergeScopeFacts(current: ScopeAnswers, extraction: ScopeExtracti
 /** Merge page reads without losing distinct measurements or additive trade scope. */
 export function combineScopeExtractions(parts:ScopeExtraction[]):ScopeExtraction {
   const merged:ScopeExtraction={summary:[...new Set(parts.map(p=>p.summary).filter(Boolean))].join("\n"),facts:[],conflicts:parts.flatMap(p=>p.conflicts),missingInformation:[...new Set(parts.flatMap(p=>p.missingInformation))],reviewNotes:[...new Set(parts.flatMap(p=>p.reviewNotes))]};
+  merged.clarifications=parts.flatMap(p=>p.clarifications||[]).filter((q,i,a)=>a.findIndex(v=>v.field===q.field)===i);
   const seen=new Set<string>();
   for(const fact of parts.flatMap(p=>p.facts)){
     const key=JSON.stringify([fact.field,fact.value.trim(),fact.source,fact.evidence]);

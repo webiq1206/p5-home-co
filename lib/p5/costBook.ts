@@ -1,3 +1,4 @@
+import {scopeAssumptions,deriveScopeAnswers} from "./adaptive";
 import { createHash } from "node:crypto";
 import { calculateP5Estimate,customerEstimate,DEFAULT_FINANCE,POLICY_VERSION,COST_CATEGORIES,SERVICE_MATRIX,type FinancePolicy,type DirectCostLine,type ScopeCoverage,type PricingInput,type Service,type RiskFactor } from "./pricing.ts";
 import { scopeText,type ReviewedScope,type ScopeField } from "./scope.ts";
@@ -9,6 +10,7 @@ export interface ServiceCostBook {service:Service;rules:CostRule[];coverage:Scop
 export interface EstimatorConfiguration { finance:FinancePolicy;costBooks:ServiceCostBook[] }
 export const EMPTY_CONFIGURATION:EstimatorConfiguration={finance:DEFAULT_FINANCE,costBooks:[]};
 export function priceReviewedScope(scope:ReviewedScope,configuration:EstimatorConfiguration,now=new Date()) {
+  scope={...scope,answers:deriveScopeAnswers(scope.answers)};
   const service=scope.answers.service as Service;
   if(!Object.hasOwn(SERVICE_MATRIX,service))throw new Error("Choose a valid project type.");
   const book=configuration.costBooks.find(book=>book.service===service);
@@ -45,7 +47,7 @@ export function priceReviewedScope(scope:ReviewedScope,configuration:EstimatorCo
   const input:PricingInput={service,revision,scopeSummary:summary,lines,coverage:book.coverage,risks,
     locationProvided:Boolean(scope.answers.location||scope.answers.address),urgency:scope.answers.urgency as PricingInput["urgency"],complexity:scope.answers.complexity as PricingInput["complexity"],
     uncertainty:missingInformation.length||scope.extraction?.reviewNotes.length?"high":"medium",
-    assumptions:book.assumptions,exclusions:[...book.exclusions,...(scope.answers.exclusions?[scope.answers.exclusions]:[])],
+    assumptions:[...book.assumptions,...scopeAssumptions(scope.answers,scope.uncertainFields)],exclusions:[...book.exclusions,...(scope.answers.exclusions?[scope.answers.exclusions]:[])],
     missingInformation,allowances:[],
   };
   const estimate=calculateP5Estimate(input,configuration.finance,[],now);
