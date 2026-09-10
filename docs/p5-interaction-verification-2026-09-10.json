@@ -1,8 +1,8 @@
 {
-  "source_commit": "ade01cf088d73087d1d93e459137e079fd1d800f",
-  "workflow_run": 34512633625,
+  "source_commit": "3f216530188deb1cbe92f873abdc5101e2b5425c",
+  "workflow_run": 34516151391,
   "links": {
-    "checked": 14,
+    "checked": 15,
     "failures": []
   },
   "estimator": {
@@ -233,5 +233,34 @@
         ]
       }
     ]
-  }
+  },
+  "estimator_workflow_run": 34516151295,
+  "merged_main": "9c2ad83680f57613b6e522fe0d0729885fe14771",
+  "mobile_navigation": [
+    {
+      "width": 320,
+      "route": "/quote",
+      "passed": true
+    },
+    {
+      "width": 390,
+      "route": "/quote",
+      "passed": true
+    },
+    {
+      "width": 768,
+      "route": "/quote",
+      "passed": true
+    },
+    {
+      "width": 1024,
+      "route": "/quote",
+      "passed": true
+    },
+    {
+      "width": 1440,
+      "route": "/quote",
+      "passed": true
+    }
+  ]
 }
