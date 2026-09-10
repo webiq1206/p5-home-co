@@ -44,7 +44,12 @@ at or below $35,000/month. The sales goal alone does not authorize a reduction.
 
 Ordinary work now uses the clarified 20% standard, including product-only cabinets
 and whole-home remodeling. Existing minimum floors and both-owner exception
-controls remain. Risk can raise a target within its service range. Any above-stretch
+controls remain. Explicitly complex scope uses a 25% target and 30% stretch,
+including large construction. Its existing service approval floor is preserved.
+The complexity choice can be extracted, reviewed or entered manually; it is not
+a required extra question for ordinary projects. A saved complex scope cannot be
+silently changed to a lower default during manual review. Risk can raise a target
+within its applicable range. Any above-stretch
 manual selection is flagged for review.
 
 ## Line-item treatment
@@ -92,7 +97,7 @@ approvals created under the old allocation policy cannot authorize a new result.
 Reference comparisons also reject stale financial or project reviews. Historical
 PDFs preserve their earlier allocation labels instead of rewriting saved amounts.
 
-Verification includes 36 financial tests, real isolated SQL persistence with
+Verification includes 37 financial tests, real isolated SQL persistence with
 simulated delivery, reference cost-budget and legacy-review rejection checks,
 TypeScript, normal builds, customer browser interactions at seven widths and
 isolated administrator-component checks at the same widths. Only completed runs

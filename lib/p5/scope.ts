@@ -32,6 +32,7 @@ export const SCOPE_FIELDS = {
   utilities: { label: "Utilities and connections", kind: "text" },
   schedule: { label: "Requested schedule", kind: "text" },
   urgency: { label: "Timing", kind: "choice", options: ["standard", "priority", "emergency"] },
+  complexity: { label: "Project complexity", kind: "choice", options: ["standard", "complex"] },
   phasing: { label: "Project phasing", kind: "text" },
   taskList: { label: "Tasks and quantities", kind: "text" },
   otherDetails: { label: "Other scope details", kind: "text" },

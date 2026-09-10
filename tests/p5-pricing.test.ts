@@ -187,3 +187,12 @@ test("PDF analysis accounts for every page and holds failed pages for review",as
     assert.equal(calls.length,3);assert.equal(result.extraction.facts.length,2);assert.match(result.extraction.reviewNotes.join(" "),/page 2 of 3/);
   }finally{if(old===undefined)delete process.env.ANTHROPIC_API_KEY;else process.env.ANTHROPIC_API_KEY=old;}
 });
+
+test("explicit complex scope uses the approved higher target without reducing service safeguards",()=>{
+  for(const service of ["kitchen","cabinet-product","whole-home","addition","adu","new-construction"] as const){
+    const complex=calculateP5Estimate({...input(service),complexity:"complex"},finance,[],now);
+    near(complex.targetOperatingProfit,.25);near(complex.matrix.stretch,.30);near(complex.matrix.floor,SERVICE_MATRIX[service].floor);near(complex.allocations.total,.20);near(complex.reconciliation,0);
+    const risk=calculateP5Estimate({...input(service),complexity:"complex",risks:["hidden-conditions","limited-access","difficult-sequencing","incomplete-plans"]},finance,[],now);assert.ok(risk.targetOperatingProfit>=.25&&risk.targetOperatingProfit<=.30);
+  }
+  assert.throws(()=>calculateP5Estimate({...input(),complexity:"invalid" as any},finance,[],now));
+});

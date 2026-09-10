@@ -32,6 +32,7 @@ export async function saveManualReview(body:any,actor:Actor){
   const [policy]=await query("SELECT payload FROM p5_estimator_policy WHERE id='current'");
   const finance=policy?.payload?.finance||EMPTY_CONFIGURATION.finance;
   const input={...body.input} as PricingInput;
+  if(draft.payload.answers?.complexity==="complex")input.complexity="complex";
   const declaredUrgency=draft.payload.answers?.urgency;
   if(declaredUrgency==="emergency"||declaredUrgency==="priority"&&input.urgency!=="emergency")input.urgency=declaredUrgency;
   const id=fingerprint(draft.id,draft.revision,input,finance,body.notes.trim());input.revision=id;

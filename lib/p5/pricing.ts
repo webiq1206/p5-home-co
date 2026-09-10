@@ -83,6 +83,7 @@ export interface PricingInput {
   exclusions: string[]; missingInformation: string[]; allowances: Allowance[];
   uncertainty: "low" | "medium" | "high"; locationProvided: boolean;
   urgency?: "standard" | "priority" | "emergency";
+  complexity?: "standard" | "complex";
   targetMargin?: number; contingencyRate?: number;
   manualAdjustments?: { reason: string; costLineId: string }[];
   /** Benchmarks are administrator-maintained checks, never a pricing input. */
@@ -142,7 +143,9 @@ export function calculateP5Estimate(input: PricingInput, finance: FinancePolicy,
   if (!Object.hasOwn(SERVICE_MATRIX,input.service)) throw new Error("Unknown service");
   if (!input.lines.length) throw new Error("At least one direct-cost line is required");
   const service = input.service === "change-order" ? input.service : input.urgency && input.urgency !== "standard" ? "rush" : input.service;
-  const matrix = SERVICE_MATRIX[service];
+  if(input.complexity!==undefined&&!["standard","complex"].includes(input.complexity))throw new Error("Unknown project complexity");
+  const baseMatrix = SERVICE_MATRIX[service];
+  const matrix = input.complexity==="complex"?{...baseMatrix,target:Math.max(.25,baseMatrix.target),stretch:.30}:baseMatrix;
   const riskSet = new Set(input.risks);
   for (const risk of riskSet) if (!(RISK_FACTORS as readonly string[]).includes(risk)) throw new Error("Unknown risk factor");
   if (!input.locationProvided) { riskSet.add("jurisdiction-uncertain"); warn("location-unknown", "Jurisdiction, utilities, access, soil, slope and permits require review. Obtain the exact address before a site visit or firm proposal."); }

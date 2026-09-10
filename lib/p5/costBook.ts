@@ -43,7 +43,7 @@ export function priceReviewedScope(scope:ReviewedScope,configuration:EstimatorCo
   if(!scope.answers.site&&["new-construction","addition","adu"].includes(service))risks.push("soil-slope");
   if(scope.extraction?.reviewNotes.length)risks.push("incomplete-plans");
   const input:PricingInput={service,revision,scopeSummary:summary,lines,coverage:book.coverage,risks,
-    locationProvided:Boolean(scope.answers.location||scope.answers.address),urgency:scope.answers.urgency as PricingInput["urgency"],
+    locationProvided:Boolean(scope.answers.location||scope.answers.address),urgency:scope.answers.urgency as PricingInput["urgency"],complexity:scope.answers.complexity as PricingInput["complexity"],
     uncertainty:missingInformation.length||scope.extraction?.reviewNotes.length?"high":"medium",
     assumptions:book.assumptions,exclusions:[...book.exclusions,...(scope.answers.exclusions?[scope.answers.exclusions]:[])],
     missingInformation,allowances:[],
