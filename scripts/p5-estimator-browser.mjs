@@ -34,7 +34,7 @@ for(const width of [320,390,430,768,1024,1440,1920]){
   return send({error:'Unknown test endpoint'},404);
  });
  try{
-  await page.goto(base+'/estimate/p5-preview',{waitUntil:'networkidle'});
+  await page.goto(base+'/estimate/p5-preview',{waitUntil:'domcontentloaded'});
   const estimator=page.locator('[data-p5-estimator]');await estimator.getByLabel('Describe your project',{exact:true}).waitFor();
   await estimator.getByRole('button',{name:'Describe it by voice',exact:true}).click();
   assert.match(await page.locator('#p5-scope').inputValue(),/three interior doors/);
@@ -42,7 +42,7 @@ for(const width of [320,390,430,768,1024,1440,1920]){
   await page.locator('#p5-files').setInputFiles({name:'scope.txt',mimeType:'text/plain',buffer:Buffer.from('Repair three interior doors.')});
   await estimator.getByRole('button',{name:'Review my scope',exact:true}).click();
   await estimator.getByRole('alert').filter({hasText:'Synthetic upload interruption'}).waitFor();
-  await page.reload({waitUntil:'networkidle'});
+  await page.reload({waitUntil:'domcontentloaded'});
   await estimator.getByRole('button',{name:'Remove scope.txt'}).waitFor();
   assert.match(await page.locator('#p5-scope').inputValue(),/long-project-note/);
   await estimator.screenshot({path:`p5-verification/${width}-scope.png`});
@@ -64,7 +64,7 @@ for(const width of [320,390,430,768,1024,1440,1920]){
   await estimator.getByRole('button',{name:'Continue',exact:true}).click();assert.equal(await page.locator('#p5-contact-email').inputValue(),'customer@example.invalid');
   await estimator.getByRole('checkbox').check();await estimator.getByRole('button',{name:'Get my project summary',exact:true}).click();
   await estimator.getByText('Schedule a scope review.',{exact:true}).waitFor();
-  await page.reload({waitUntil:'networkidle'});await estimator.getByText('Schedule a scope review.',{exact:true}).waitFor();
+  await page.reload({waitUntil:'domcontentloaded'});await estimator.getByText('Schedule a scope review.',{exact:true}).waitFor();
   assert.equal(submissionCount,1);assert.equal(errors.length,0,errors.join('; '));
   await estimator.screenshot({path:`p5-verification/${width}-result.png`});
   results.push({width,passed:true,checks:['speech API simulation','typed scope','upload failure and IndexedDB recovery','extraction review','optional location','long mobile content','viewport resizing','back navigation','contact preservation','submission restoration','single submission','no page errors']});
