@@ -8,6 +8,7 @@
 
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
+import {linkedEstimatorRecords} from "../../../../lib/p5/crmRecords";
 
 import { getSessionUser } from "../../../lib/auth.ts";
 import { isDatabaseConfigured, query } from "../../../lib/db.ts";
@@ -101,6 +102,9 @@ export default async function LeadDetail({ params }: { params: Promise<{ id: str
   if (!seesAllLeads(user.role) && Number(row.owner_user_id) !== user.id) {
     notFound();
   }
+
+  // Internal cost records remain limited to estimator administrators.
+  const estimatorRecords = user.role === "administrator" ? await linkedEstimatorRecords(dealId) : [];
 
   const settings = await loadSettings();
   const now = new Date();
@@ -208,6 +212,20 @@ export default async function LeadDetail({ params }: { params: Promise<{ id: str
             <b>What they asked for</b>
             <p>{row.summary}</p>
           </div>
+        )}
+
+        {estimatorRecords.length > 0 && (
+          <section className="lead-panel">
+            <h2>Project estimates</h2>
+            <p>Open the saved scope, uploaded documents, pricing review, PDFs and delivery history.</p>
+            <ul>{estimatorRecords.map(record => (
+              <li key={record.id} style={{overflowWrap:"anywhere",padding:"8px 0"}}>
+                <Link href={`/admin/p5-estimators?id=${record.id}`} className="lead-action">
+                  {record.brand} · Estimate {String(record.id).slice(0,8)} · linked revision {record.revision}
+                </Link>
+              </li>
+            ))}</ul>
+          </section>
         )}
 
         {can(user.role, "log_outcome") ? (
