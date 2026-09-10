@@ -1,0 +1,237 @@
+{
+  "source_commit": "ade01cf088d73087d1d93e459137e079fd1d800f",
+  "workflow_run": 34512633625,
+  "links": {
+    "checked": 14,
+    "failures": []
+  },
+  "estimator": {
+    "externalServices": "simulated",
+    "results": [
+      {
+        "width": 320,
+        "passed": true,
+        "capturePosition": {
+          "scrollY": 0,
+          "headers": [
+            {
+              "top": 24,
+              "bottom": 144,
+              "position": "static"
+            }
+          ],
+          "contentTop": 188
+        },
+        "checks": [
+          "speech API simulation",
+          "typed scope",
+          "upload failure and IndexedDB recovery",
+          "extraction review",
+          "optional location",
+          "long mobile content",
+          "viewport resizing",
+          "back navigation",
+          "contact preservation",
+          "submission restoration",
+          "single submission",
+          "no page errors",
+          "item quantities and unit pricing",
+          "item privacy",
+          "result overflow"
+        ]
+      },
+      {
+        "width": 390,
+        "passed": true,
+        "capturePosition": {
+          "scrollY": 0,
+          "headers": [
+            {
+              "top": 24,
+              "bottom": 80,
+              "position": "static"
+            }
+          ],
+          "contentTop": 124
+        },
+        "checks": [
+          "speech API simulation",
+          "typed scope",
+          "upload failure and IndexedDB recovery",
+          "extraction review",
+          "optional location",
+          "long mobile content",
+          "viewport resizing",
+          "back navigation",
+          "contact preservation",
+          "submission restoration",
+          "single submission",
+          "no page errors",
+          "item quantities and unit pricing",
+          "item privacy",
+          "result overflow"
+        ]
+      },
+      {
+        "width": 430,
+        "passed": true,
+        "capturePosition": {
+          "scrollY": 0,
+          "headers": [
+            {
+              "top": 24,
+              "bottom": 80,
+              "position": "static"
+            }
+          ],
+          "contentTop": 124
+        },
+        "checks": [
+          "speech API simulation",
+          "typed scope",
+          "upload failure and IndexedDB recovery",
+          "extraction review",
+          "optional location",
+          "long mobile content",
+          "viewport resizing",
+          "back navigation",
+          "contact preservation",
+          "submission restoration",
+          "single submission",
+          "no page errors",
+          "item quantities and unit pricing",
+          "item privacy",
+          "result overflow"
+        ]
+      },
+      {
+        "width": 768,
+        "passed": true,
+        "capturePosition": {
+          "scrollY": 0,
+          "headers": [
+            {
+              "top": 24,
+              "bottom": 80,
+              "position": "static"
+            }
+          ],
+          "contentTop": 124
+        },
+        "checks": [
+          "speech API simulation",
+          "typed scope",
+          "upload failure and IndexedDB recovery",
+          "extraction review",
+          "optional location",
+          "long mobile content",
+          "viewport resizing",
+          "back navigation",
+          "contact preservation",
+          "submission restoration",
+          "single submission",
+          "no page errors",
+          "item quantities and unit pricing",
+          "item privacy",
+          "result overflow"
+        ]
+      },
+      {
+        "width": 1024,
+        "passed": true,
+        "capturePosition": {
+          "scrollY": 0,
+          "headers": [
+            {
+              "top": 24,
+              "bottom": 80,
+              "position": "static"
+            }
+          ],
+          "contentTop": 124
+        },
+        "checks": [
+          "speech API simulation",
+          "typed scope",
+          "upload failure and IndexedDB recovery",
+          "extraction review",
+          "optional location",
+          "long mobile content",
+          "viewport resizing",
+          "back navigation",
+          "contact preservation",
+          "submission restoration",
+          "single submission",
+          "no page errors",
+          "item quantities and unit pricing",
+          "item privacy",
+          "result overflow"
+        ]
+      },
+      {
+        "width": 1440,
+        "passed": true,
+        "capturePosition": {
+          "scrollY": 0,
+          "headers": [
+            {
+              "top": 24,
+              "bottom": 80,
+              "position": "static"
+            }
+          ],
+          "contentTop": 124
+        },
+        "checks": [
+          "speech API simulation",
+          "typed scope",
+          "upload failure and IndexedDB recovery",
+          "extraction review",
+          "optional location",
+          "long mobile content",
+          "viewport resizing",
+          "back navigation",
+          "contact preservation",
+          "submission restoration",
+          "single submission",
+          "no page errors",
+          "item quantities and unit pricing",
+          "item privacy",
+          "result overflow"
+        ]
+      },
+      {
+        "width": 1920,
+        "passed": true,
+        "capturePosition": {
+          "scrollY": 0,
+          "headers": [
+            {
+              "top": 24,
+              "bottom": 80,
+              "position": "static"
+            }
+          ],
+          "contentTop": 124
+        },
+        "checks": [
+          "speech API simulation",
+          "typed scope",
+          "upload failure and IndexedDB recovery",
+          "extraction review",
+          "optional location",
+          "long mobile content",
+          "viewport resizing",
+          "back navigation",
+          "contact preservation",
+          "submission restoration",
+          "single submission",
+          "no page errors",
+          "item quantities and unit pricing",
+          "item privacy",
+          "result overflow"
+        ]
+      }
+    ]
+  }
+}
