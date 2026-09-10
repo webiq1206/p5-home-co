@@ -39,20 +39,22 @@ async function render(kind:"customer"|"administrative",id:string,blocks:Block[])
   const ink=hex(brand.ink);const accent=hex(brand.accent);const paper=hex(brand.paper);
   let page:PDFPage;let y=0;
   const newPage=()=>{
-    page=doc.addPage([612,792]);page.drawRectangle({x:0,y:680,width:612,height:112,color:ink});
-    const scale=Math.min(220/logo.width,40/logo.height);page.drawImage(logo,{x:44,y:727,width:logo.width*scale,height:logo.height*scale});
-    page.drawText(kind==="administrative"?"CONFIDENTIAL - INTERNAL ESTIMATE":"PRELIMINARY PROJECT PLANNING",{x:44,y:700,size:10,font,color:paper});
+    page=doc.addPage([612,792]);page.drawRectangle({x:0,y:680,width:612,height:112,color:paper});
+    const scale=Math.min(260/logo.width,54/logo.height);page.drawImage(logo,{x:44,y:718,width:logo.width*scale,height:logo.height*scale});
+    page.drawText(kind==="administrative"?"CONFIDENTIAL - INTERNAL ESTIMATE":"PRELIMINARY PROJECT PLANNING",{x:44,y:697,size:10,font,color:ink});
     page.drawRectangle({x:44,y:680,width:524,height:3,color:accent});y=650;
   };
   const ensure=(height:number)=>{if(y-height<65)newPage();};
   const draw=(text:string,size=10.5,isHeading=false)=>{
     const chosen=isHeading?heading:font;
-    for(const line of wrap(text,chosen,size,524)){ensure(size*1.35);if(line)page.drawText(line,{x:44,y,size,font:chosen,color:ink});y-=size*1.35;}
+    const lines=wrap(text,chosen,size,524);
+    for(const [index,line] of lines.entries()){ensure(size*1.35*(index===0?Math.min(2,lines.length):lines.length-index===2?2:1));if(line)page.drawText(line,{x:44,y,size,font:chosen,color:ink});y-=size*1.35;}
   };
   newPage();draw(kind==="administrative"?"Administrative estimate record":"Your project planning summary",23,true);y-=8;
   draw(`Reference ${id} | ${new Date().toISOString().slice(0,10)}`,9);y-=12;
   for(const block of blocks){
-    ensure(60);if(block.title){draw(block.title,16,true);y-=6;}
+    const blockHeight=(block.title?wrap(block.title,heading,16,524).length*21.6+6:0)+(block.text?wrap(block.text,font,10.5,524).length*14.175:0)+(block.rows||[]).reduce((n,[name,value])=>n+(block.compact?wrap(`${name}: ${value}`,font,10.5,524).length*14.175+4:(wrap(name,font,10.5,524).length+wrap(value,font,10.5,524).length)*14.175+6),0)+10;
+    ensure(blockHeight<=180?blockHeight:60);if(block.title){draw(block.title,16,true);y-=6;}
     if(block.text)draw(block.text);
     for(const [name,value]of block.rows||[]){if(block.compact){ensure(22);draw(`${name}: ${value}`);y-=4;}else{ensure(38);draw(name,10.5);draw(value,10.5);y-=6;}}
     y-=10;
@@ -71,7 +73,7 @@ export function customerPdf(id:string,result:PublicResult){
   const blocks:Block[]=[
     {title:result.range?`${money(result.range.low)} to ${money(result.range.high)}`:"Scope received for pricing review",text:result.message},
     {title:"Your project",text:result.summary},
-    {title:"Major included categories",text:result.includedCategories.length?result.includedCategories.map(x=>x.replaceAll("-"," ")).join("\n"):"To be confirmed during scope review."},
+    ...(!result.categoryRanges?.length?[{title:"Major included categories",text:result.includedCategories.length?result.includedCategories.map(x=>x.replaceAll("-"," ")).join("\n"):"To be confirmed during scope review."}]:[]),
     ...(result.categoryRanges?.length?[{title:"Planning range by trade",compact:true,rows:result.categoryRanges.map(x=>[x.category,`${money(x.low)} to ${money(x.high)}`] as [string,string])}]:[]),
     ...(result.allowances.length?[{title:"Allowances",text:printable(result.allowances)}]:[]),
     ...(result.exclusions.length?[{title:"Exclusions",text:result.exclusions.join("\n")}]:[]),

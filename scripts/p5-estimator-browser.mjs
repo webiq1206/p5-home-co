@@ -5,9 +5,15 @@ await mkdir('p5-verification',{recursive:true});
 const browser=await chromium.launch();const results=[];
 const base=process.env.P5_TEST_BASE_URL||'http://127.0.0.1:5000';
 async function settleAtTop(page){
- await page.evaluate(()=>{if(document.activeElement instanceof HTMLElement)document.activeElement.blur();document.documentElement.style.scrollBehavior='auto';window.scrollTo({top:0,behavior:'instant'});});
- await page.waitForFunction(()=>window.scrollY<1);
- await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
+ await page.evaluate(()=>{if(document.activeElement instanceof HTMLElement)document.activeElement.blur();document.documentElement.style.scrollBehavior='auto';});
+ // Complete the wizard's scheduled focus/scroll before framing a screenshot.
+ for(let attempt=0;attempt<5;attempt++){
+  await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
+  await page.evaluate(()=>window.scrollTo({top:0,behavior:'instant'}));
+  await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
+  if(await page.evaluate(()=>Math.abs(window.scrollY)<1))break;
+ }
+ assert.ok(await page.evaluate(()=>Math.abs(window.scrollY)<1),'Screenshot framing could not reach the top');
  const position=await page.evaluate(()=>{const header=document.querySelector('header'),estimator=document.querySelector('[data-p5-estimator]');return {headerBottom:header?.getBoundingClientRect().bottom||0,contentTop:estimator?.getBoundingClientRect().top||0};});
  assert.ok(position.headerBottom<=position.contentTop+1,`Site header overlaps estimator at page top: ${JSON.stringify(position)}`);
 }

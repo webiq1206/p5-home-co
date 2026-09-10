@@ -27,7 +27,7 @@ const internal=calculateP5Estimate(pricing,finance,[],now);
 const customer=customerEstimate(internal,pricing.scopeSummary);
 const fixtureId=randomUUID();
 for(const [kind,bytes] of [['customer',await customerPdf(fixtureId,customer)],['administrative',await administrativePdf(fixtureId,{...internal,scope:{text:'TEST ONLY. '+('Long scope with room, dimensions, allowances and source evidence. '.repeat(120)),uploads:[{name:'A'.repeat(250)+'.pdf'}]}})]] as const){
- const doc=await PDFDocument.load(bytes);assert.ok(doc.getPageCount()>=1);
+ const doc=await PDFDocument.load(bytes);assert.ok(doc.getPageCount()>=1);if(kind==="customer")assert.equal(doc.getPageCount(),1,"A short planning summary and its complete disclaimer should fit on one page.");
  for(const page of doc.getPages()){assert.equal(page.getWidth(),612);assert.equal(page.getHeight(),792);}
  await writeFile(`p5-verification/${kind}.pdf`,bytes);
 }
