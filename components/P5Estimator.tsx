@@ -43,7 +43,7 @@ export function P5Estimator({defaultService=brand.defaultService}:{defaultServic
     const timer=setTimeout(()=>{persistServer().then(()=>setStatus("Project saved.")).catch(()=>setStatus("Saved on this device. Server save will retry when connected."));},1800);
     return()=>clearTimeout(timer);
   },[draft?.text,JSON.stringify(draft?.answers),JSON.stringify(draft?.contact)]);
-  const go=(step:number)=>{recognition.current?.stop();change({step});setError("");requestAnimationFrame(()=>heading.current?.focus());};
+  const go=(step:number)=>{recognition.current?.stop();change({step});setError("");requestAnimationFrame(()=>{heading.current?.focus({preventScroll:true});heading.current?.scrollIntoView({block:"start"});});};
   async function analyze(runAnalysis=true){
     setBusy("Reading your scope and documents...");setError("");
     try{
@@ -91,7 +91,7 @@ export function P5Estimator({defaultService=brand.defaultService}:{defaultServic
   const field=(key:ScopeField)=>{
     const definition=SCOPE_FIELDS[key];const value=draft?.answers[key]||"";const id=`p5-${key}`;
     return <label key={key} htmlFor={id} className={styles.field}><span>{definition.label}</span>{definition.kind==="choice"?
-      <select id={id} value={value} onChange={e=>answer(key,e.target.value)}><option value="">Not sure yet</option>{definition.options.filter(v=>key!=="service"||(brand.services as readonly string[]).includes(v)).map(v=><option key={v} value={v}>{labels[v]||v.replaceAll("-"," ")}</option>)}</select>:
+      <select id={id} aria-label={definition.label} value={value} onChange={e=>answer(key,e.target.value)}><option value="">Not sure yet</option>{definition.options.filter(v=>key!=="service"||(brand.services as readonly string[]).includes(v)).map(v=><option key={v} value={v}>{labels[v]||v.replaceAll("-"," ")}</option>)}</select>:
       definition.kind==="number"?<input id={id} inputMode="decimal" value={value} onChange={e=>answer(key,e.target.value)} placeholder="Leave blank if unknown"/>:
       <textarea id={id} rows={key==="address"||key==="location"?2:3} value={value} onChange={e=>answer(key,e.target.value)} maxLength={4000}/>}</label>;
   };
@@ -106,7 +106,7 @@ export function P5Estimator({defaultService=brand.defaultService}:{defaultServic
       {[["Included categories",result.includedCategories],["Assumptions",result.assumptions],["Exclusions",result.exclusions],["Factors that may change the range",result.factors]].map(([title,items]:any)=>items?.length?<div key={title}><h3>{title}</h3><ul>{items.map((item:string)=><li key={item}>{item.replaceAll("-"," ")}</li>)}</ul></div>:null)}
       {result.allowances?.length>0&&<div><h3>Allowances</h3>{result.allowances.map((a:any,i:number)=><div key={i}><p><strong>{a.description}</strong>{a.amount!==null?`: $${a.amount.toLocaleString("en-US")}`:" (to be confirmed)"}</p><p>{a.includes.join(", ")}</p><p>{["tax","freight","delivery","installation","waste"].map(k=>`${k}: ${a[`${k}Included`]?"included":"excluded"}`).join("; ")}</p><p>Selection deadline: {a.selectionDeadline}. {a.adjustment}</p></div>)}</div>}
       <button type="button" onClick={downloadPdf} disabled={Boolean(busy)}>Download your project summary</button><h3>Recommended next step</h3><p>{result.nextStep}</p><p>{result.disclaimer}</p>
-      <p role="status">{delivery.every(d=>d.status==="sent")?"Your summary was sent and the team has your record.":"Your project is saved. Some deliveries are pending or need team review. Please do not submit the same project again."}</p>
+      <p role="status">{delivery.length>0&&delivery.every(d=>d.status==="sent")?"Your summary was sent and the team has your record.":"Your project is saved. Some deliveries are pending or need team review. Please do not submit the same project again."}</p>
       <a className={styles.primary} href={brand.consultationPath}>Schedule a consultation</a><a className={styles.secondary} href="tel:+12084771169">Call {brand.phone}</a>
       <button type="button" onClick={()=>{const next=newBrowserDraft(defaultService);current.current=next;setDraft(next);persistBrowserDraft(next);setResult(null);setStoredFiles([]);setFiles([]);setConflicts([]);setConfirmed(false);}}>Start another project</button>
     </div>:<form onSubmit={submit} noValidate>
