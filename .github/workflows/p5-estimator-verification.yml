@@ -1,7 +1,7 @@
 name: P5 estimator policy and workflow verification
 on:
   push:
-    branches: [codex/p5-estimator-policy-20260910]
+    branches: [main, codex/p5-estimator-policy-20260910, codex/p5-merge-all-20260910, codex/p5-complete-main-20260910]
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -32,6 +32,7 @@ jobs:
         run: |
           npx next start -p 5000 > /tmp/p5-estimator-server.log 2>&1 &
           node -e 'const u="http://127.0.0.1:5000/estimate/p5-preview";let n=0;const t=setInterval(async()=>{try{const r=await fetch(u);if(r.ok){clearInterval(t)}}catch{}if(++n>90){clearInterval(t);process.exit(1)}},1000)'
+          P5_PARENT=1 node scripts/p5-mobile-navigation.mjs
           node scripts/p5-estimator-browser.mjs
           node scripts/p5-admin-pricing-browser.mjs
       - uses: actions/upload-artifact@v4
@@ -42,3 +43,36 @@ jobs:
             p5-verification
             /tmp/p5-estimator-server.log
           retention-days: 14
+
+  lead-integrations:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: p5_test
+          POSTGRES_PASSWORD: isolated_ci_only
+          POSTGRES_DB: p5_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U p5_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql://p5_test:isolated_ci_only@127.0.0.1:5432/p5_test?sslmode=disable
+      TEST_DATABASE_URL: postgresql://p5_test:isolated_ci_only@127.0.0.1:5432/p5_test?sslmode=disable
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm ci --no-audit --no-fund
+      - name: Apply migrations to isolated PostgreSQL
+        run: node tools/migrate.ts
+      - name: Verify watchdog and HubSpot task lifecycle with intercepted transports
+        run: node --test --test-concurrency=1 tests/watchdog.integration.test.ts tests/hubspot-tasks.integration.test.ts

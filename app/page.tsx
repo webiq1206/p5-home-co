@@ -4,8 +4,9 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { citiesServed, faqs, siteUrl } from "./site";
+import { citiesServed, faqs } from "./site";
 import { track } from "./analytics";
+import { homePageSchema, serializeJsonLd } from "./structuredData";
 
 type CompanyKey = "construction" | "remodeling" | "adu" | "handyman" | "cabinetry";
 
@@ -79,26 +80,12 @@ export default function Home() {
   }, []);
   const openMatcher = () => { setMenuOpen(false); setMatcherOpen(true); track("matcher_open"); };
 
-  // The homepage's own WebPage + FAQPage nodes. The FAQ items are rendered
-  // verbatim in the #faq section below from the same `faqs` source, which is
-  // what keeps FAQPage markup valid; the Organization and WebSite nodes are
-  // site-wide and live in app/layout.tsx.
-  const pageSchema = {
-    "@context": "https://schema.org",
-    "@type": ["WebPage", "FAQPage"],
-    "@id": `${siteUrl}/#webpage`,
-    url: siteUrl,
-    name: "P5 Home Co | Five Specialized Home-Service Companies",
-    isPartOf: { "@id": `${siteUrl}/#website` },
-    about: { "@id": `${siteUrl}/#organization` },
-    primaryImageOfPage: `${siteUrl}/images/p5-og.jpg`,
-    inLanguage: "en-US",
-    mainEntity: faqs.map((item) => ({ "@type": "Question", name: item.q, acceptedAnswer: { "@type": "Answer", text: item.a } })),
-  };
-
   return (
     <main id="top">
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(pageSchema) }} />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: serializeJsonLd(homePageSchema) }}
+      />
       <header className={`site-header ${scrolled ? "site-header-scrolled" : ""}`}>
         <div className="nav-shell">
           <HeaderWordmark />

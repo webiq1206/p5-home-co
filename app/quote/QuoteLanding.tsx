@@ -1,3 +1,4 @@
+import { ScopeEstimateOption } from "@/components/ScopeEstimateOption";
 import Link from "next/link";
 
 import QuoteForm from "./QuoteForm";
@@ -5,6 +6,8 @@ import QuoteCallBar from "./QuoteCallBar";
 import { PROOF_POINTS, TESTIMONIALS } from "./proof";
 import { faqsFor, schemaFor, STEPS } from "./schema";
 import { QUOTE_SERVICES, type QuoteService } from "./services";
+import { serializeJsonLd } from "../structuredData";
+import TrackedPhoneLink from "./TrackedPhoneLink";
 
 /* eslint-disable @next/next/no-img-element */
 
@@ -37,20 +40,20 @@ export default function QuoteLanding({ service }: { service: QuoteService | null
       <main className="quote-page" id="top">
         <script
           type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(schemaFor(service)) }}
+          dangerouslySetInnerHTML={{ __html: serializeJsonLd(schemaFor(service)) }}
         />
 
         <header className="quote-header">
           <Link className="quote-wordmark" href="/" aria-label="P5 Home Co, home">
             <img src="/brands/p5-home-co-lockup-dark.svg" alt="P5 Home Co, The Home Company" />
           </Link>
-          <a
+          <TrackedPhoneLink
             className="quote-header-phone"
-            href="tel:+12084771169"
-            aria-label="Call P5 Home Co on 2 0 8, 4 7 7, 1 1 6 9"
+            location="quote_header"
+            ariaLabel="Call P5 Home Co on 2 0 8, 4 7 7, 1 1 6 9"
           >
             (208) 477-1169
-          </a>
+          </TrackedPhoneLink>
         </header>
 
         <section className="quote-hero">
@@ -88,7 +91,8 @@ export default function QuoteLanding({ service }: { service: QuoteService | null
               )}
 
               <p className="quote-hero-call">
-                Prefer to talk it through? <a href="tel:+12084771169">Call (208) 477-1169</a>
+                Prefer to talk it through?{" "}
+                <TrackedPhoneLink location="quote_hero">Call (208) 477-1169</TrackedPhoneLink>
               </p>
             </div>
 
@@ -98,6 +102,7 @@ export default function QuoteLanding({ service }: { service: QuoteService | null
                   ? `Get your ${service.label.toLowerCase()} quote`
                   : "Tell us about your project"}
               </h2>
+              <ScopeEstimateOption />
               <QuoteForm defaultProject={service ? service.project : ""} />
             </div>
           </div>

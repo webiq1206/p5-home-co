@@ -230,7 +230,9 @@ export const DEFAULT_SETTINGS: LeadManagerSettings = {
     handoffIntegrationEnabled: false,
     quickBooksIntegrationEnabled: false,
     // These turn on only once their credentials are verified end to end.
-    hubspotIntegrationEnabled: false,
+    // Requested for all P5 website leads. The runtime still requires its app
+    // token, and a stored operator override can explicitly pause the sync.
+    hubspotIntegrationEnabled: true,
     gmailIntegrationEnabled: false,
     facebookIntegrationEnabled: false,
   },
