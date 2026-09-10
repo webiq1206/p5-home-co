@@ -4,6 +4,14 @@ import assert from 'node:assert/strict';
 await mkdir('p5-verification',{recursive:true});
 const browser=await chromium.launch();const results=[];
 const base=process.env.P5_TEST_BASE_URL||'http://127.0.0.1:5000';
+async function settleAtTop(page){
+ await page.evaluate(()=>{if(document.activeElement instanceof HTMLElement)document.activeElement.blur();document.documentElement.style.scrollBehavior='auto';window.scrollTo({top:0,behavior:'instant'});});
+ await page.waitForFunction(()=>window.scrollY<1);
+ await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
+ const position=await page.evaluate(()=>{const header=document.querySelector('header'),estimator=document.querySelector('[data-p5-estimator]');return {headerBottom:header?.getBoundingClientRect().bottom||0,contentTop:estimator?.getBoundingClientRect().top||0};});
+ assert.ok(position.headerBottom<=position.contentTop+1,`Site header overlaps estimator at page top: ${JSON.stringify(position)}`);
+}
+
 // These tests exercise the rendered browser interface. External services are
 // simulated; test-p5-workflow.mts separately checks real SQL and queue behavior.
 for(const width of [320,390,430,768,1024,1440,1920]){
@@ -47,7 +55,7 @@ for(const width of [320,390,430,768,1024,1440,1920]){
   await page.reload({waitUntil:'domcontentloaded'});
   await estimator.getByRole('button',{name:'Remove scope.txt'}).waitFor();
   assert.match(await page.locator('#p5-scope').inputValue(),/long-project-note/);
-  await page.evaluate(()=>window.scrollTo({top:0,behavior:"instant"}));await page.screenshot({path:`p5-verification/${width}-scope.png`,fullPage:true});
+  await settleAtTop(page);await page.screenshot({path:`p5-verification/${width}-scope.png`,fullPage:true});
   await estimator.getByRole('button',{name:'Review my scope',exact:true}).click();
   await estimator.getByRole('heading',{name:'Review your project details',exact:true}).waitFor();
   const service=estimator.getByLabel('Project type',{exact:true});
@@ -60,7 +68,7 @@ for(const width of [320,390,430,768,1024,1440,1920]){
   await task.focus();await page.setViewportSize({width,height:500});
   assert.match(await task.inputValue(),/three interior doors/);await page.setViewportSize({width,height:900});
   const overflow=await page.evaluate(()=>({page:document.documentElement.scrollWidth,width:innerWidth}));assert.ok(overflow.page<=overflow.width+1,JSON.stringify(overflow));
-  await page.evaluate(()=>window.scrollTo({top:0,behavior:"instant"}));await page.screenshot({path:`p5-verification/${width}-review.png`,fullPage:true});
+  await settleAtTop(page);await page.screenshot({path:`p5-verification/${width}-review.png`,fullPage:true});
   await estimator.getByRole('button',{name:'Continue',exact:true}).click();
   await page.locator('#p5-contact-name').fill('Synthetic Test');await page.locator('#p5-contact-email').fill('customer@example.invalid');
   await estimator.getByRole('button',{name:'Back and edit',exact:true}).click();assert.match(await task.inputValue(),/Long-unbroken/);
@@ -73,7 +81,7 @@ for(const width of [320,390,430,768,1024,1440,1920]){
   await page.reload({waitUntil:'domcontentloaded'});await estimator.getByText('Schedule a scope review.',{exact:true}).waitFor();
   assert.equal(submissionCount,1);assert.equal(errors.length,0,errors.join('; '));
   for(const overlay of await page.locator('[data-mobile-nav-bar], [data-assistant-launcher]').all())assert.equal(await overlay.isVisible(),false,'A floating site CTA overlaps the estimator');
-  await page.evaluate(()=>window.scrollTo({top:0,behavior:"instant"}));await page.screenshot({path:`p5-verification/${width}-result.png`,fullPage:true});
+  await settleAtTop(page);await page.screenshot({path:`p5-verification/${width}-result.png`,fullPage:true});
   results.push({width,passed:true,checks:['speech API simulation','typed scope','upload failure and IndexedDB recovery','extraction review','optional location','long mobile content','viewport resizing','back navigation','contact preservation','submission restoration','single submission','no page errors']});
  }catch(error){results.push({width,passed:false,error:String(error),pageErrors:errors});await page.screenshot({path:`p5-verification/${width}-failure.png`,fullPage:true}).catch(()=>{});}
  await context.close();
