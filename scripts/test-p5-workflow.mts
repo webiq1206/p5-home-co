@@ -9,6 +9,7 @@ import {COST_CATEGORIES,calculateP5Estimate,customerEstimate} from '../lib/p5/pr
 import {mergeScopeFacts,requiredScopeQuestions,validateExtraction,validateAnswer} from '../lib/p5/scope.ts';
 import {verifyUpload,prepareAnalysisFiles} from '../lib/p5/documents.ts';
 import ExcelJS from 'exceljs';
+import {ESTIMATOR_BRAND as brand} from '../lib/p5/brand.ts';
 
 // All contacts, prices and forecasts in this script are synthetic test fixtures.
 // Production modules are copied without changing their logic. Only database and
@@ -80,7 +81,39 @@ try{
  assert.ok(alertMail);assert.equal(alertMail.attachments.length,0);
  const publicRecord=await store.readDraft(id,key);assert.equal(publicRecord.internal_estimate,undefined);
  await assert.rejects(store.saveDraft(id,key,'test',payload,2));
+ const manual=await module('manualReview');
+ await db.query("INSERT INTO p5_estimator_policy(id,payload,updated_by) VALUES('current',$1::jsonb,'fixture')",[JSON.stringify({finance,costBooks:[]})]);
+ const manualInput={...pricing,service:brand.services[0],revision:'server-assigned',targetMargin:.01};
+ const notes='TEST ONLY: verified uploaded scope, cost evidence, exclusions, allowances and all risk dispositions.';
+ const actor={id:'fixture-admin',email:'admin@example.invalid'};
+ let review=await manual.saveManualReview({id,expectedRevision:2,input:manualInput,notes},actor);
+ assert.equal(review.estimate.publishable,false);
+ await assert.rejects(manual.publishManualReview({reviewId:review.reviewId,confirmed:true},actor));
+ process.env.P5_OWNER_NICK_EMAIL='nick@example.invalid';process.env.P5_OWNER_JARED_EMAIL='jared@example.invalid';
+ const exception={reviewId:review.reviewId,exception:'repeatable-scope',reason:'TEST ONLY: documented repeatable scope and verified supplier advantage for the exact revision.'};
+ await assert.rejects(manual.approveManualReview(exception,actor));
+ await manual.approveManualReview(exception,{id:'nick-fixture',email:'nick@example.invalid'});
+ review=await manual.approveManualReview(exception,{id:'jared-fixture',email:'jared@example.invalid'});
+ assert.equal(review.estimate.publishable,true);
+ await db.query("UPDATE p5_estimator_policy SET payload=$1::jsonb WHERE id='current'",[JSON.stringify({finance:{...finance,annualRevenue:5500000},costBooks:[]})]);
+ await assert.rejects(manual.publishManualReview({reviewId:review.reviewId,confirmed:true},actor));
+ await db.query("UPDATE p5_estimator_policy SET payload=$1::jsonb WHERE id='current'",[JSON.stringify({finance,costBooks:[]})]);
+ const changed=await manual.saveManualReview({id,expectedRevision:2,input:{...manualInput,scopeSummary:'Changed TEST scope'},notes},actor);
+ assert.equal(changed.estimate.publishable,false);
+ const published=await Promise.allSettled([manual.publishManualReview({reviewId:review.reviewId,confirmed:true},actor),manual.publishManualReview({reviewId:review.reviewId,confirmed:true},actor)]);
+ assert.equal(published.filter(r=>r.status==='fulfilled').length,1);
+ assert.equal((await store.readDraft(id,key)).revision,3);
+ assert.equal((await db.query('SELECT * FROM p5_estimator_history')).length,1);
+ const revisedJobs=await db.query('SELECT * FROM p5_estimator_outbox WHERE revision=3');
+ assert.equal(revisedJobs.length,3);assert.equal(revisedJobs.find((r:any)=>r.destination==='crm').status,'needs-review');
+ const crmJob=revisedJobs.find((r:any)=>r.destination==='crm');
+ await manual.reconcileDelivery({deliveryId:crmJob.id,decision:'confirmed-sent',providerId:'fixture-existing-lead',evidence:'TEST ONLY: checked the CRM record and attached the updated scope, upload links and financial revision.'},actor);
+ assert.equal((await db.query('SELECT * FROM p5_estimator_delivery_reviews')).length,1);
+ await assert.rejects(manual.reconcileDelivery({deliveryId:crmJob.id,decision:'confirmed-not-sent',evidence:'TEST ONLY: repeated action must fail the atomic status check.'},actor));
+ await assert.rejects(manual.publishManualReview({reviewId:review.reviewId,confirmed:true},actor));
+ await outbox.processOutbox({draftId:id});
+ assert.ok((await outbox.deliveryStatus(id)).every((d:any)=>d.status==='sent'));
  await db.database.close();
- await writeFile('p5-verification/workflow-results.json',JSON.stringify({passed:true,scope:'Isolated database, synthetic pricing fixtures, simulated delivery and CRM. No live email or CRM request was made.',checks:['PDF generation','high-confidence extraction','conflict preservation','low-confidence review','optional address','invalid upload','XLSX extraction','draft authorization','optimistic concurrency','upload deduplication','atomic submission','outbox deduplication','customer delivery retry','CRM ambiguity review','administrator alert','confidential result separation']},null,2));
+ await writeFile('p5-verification/workflow-results.json',JSON.stringify({passed:true,scope:'Isolated database, synthetic pricing fixtures, simulated delivery and CRM. No live email or CRM request was made.',checks:['PDF generation','high-confidence extraction','conflict preservation','low-confidence review','optional address','invalid upload','XLSX extraction','draft authorization','optimistic concurrency','upload deduplication','atomic submission','outbox deduplication','customer delivery retry','CRM ambiguity review','administrator alert','confidential result separation','manual cost review','authenticated distinct owner approvals','stale forecast approval rejection','changed scope approval rejection','atomic reviewed publication','revision history','CRM update duplicate guard','delivery reconciliation audit']},null,2));
  console.log('P5 workflow checks passed (isolated database; simulated external services).');
 }finally{await rm(runtime,{recursive:true,force:true});}

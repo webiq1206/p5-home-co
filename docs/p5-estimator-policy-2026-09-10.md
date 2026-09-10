@@ -41,7 +41,8 @@ prices.
 | Handyman | `/estimate`, estimate lead, quote calculate/update, assistant, RE-10 analyze/estimate | Modeled customer hourly/menu rates and urgency adjustments are not a verified direct-cost build-up |
 | Cabinet | `/estimate`, `/api/estimate/calculate`, consultation and assistant chat | Installed-price bands and product multipliers; product-only needs a distinct cost and profit treatment; consultation accepts client estimate data |
 
-The Construction address requirement is removed in this branch. City, ZIP,
+The Construction address requirement was committed separately to main as
+`a897b820a16189c48a9795c687bc9d67ab270f5b` after its 14 browser cases passed. City, ZIP,
 county, general area or no location can continue, with site/jurisdiction caveats.
 
 ## Implemented on the review route
@@ -72,9 +73,12 @@ county, general area or no location can continue, with site/jurisdiction caveats
 2. Supply current net supplier prices and landed components, current written trade
    quotes, payroll/insurance burdens, owner production replacement rates and
    service-specific scope coverage. Populate reviewed cost books with expiry dates.
-3. Complete per-project manual cost adjustment and allowance review interfaces;
-   the current administrator API evaluates itemized costs and records approvals,
-   but does not yet publish a revised customer estimate from that review.
+3. Use the administrator cost-review editor to supply complete project-specific
+   lines, allowance treatment, evidence, adjustments and review notes. Reviewed
+   publication saves revision history and queues separate PDFs. Both-owner
+   approvals bind to the project, costs, review notes and financial snapshot;
+   changed scope or policy invalidates approval. An existing CRM record must be
+   updated and reconciled, rather than creating a duplicate lead.
 4. Verify each existing estimator, RE-10, plans and assistant route against the
    new cost book, then migrate those entry points together. The preview is not a
    silent replacement for any existing form.
@@ -112,7 +116,17 @@ screenshots, PDFs and machine-readable results. Only completed successful runs
 and inspected artifacts count as verification; merely adding a workflow does not.
 
 Remaining requirements include current-cost calibration and benchmark evidence,
-all legacy path migration, project-specific allowance/change-order publication,
+all legacy path migration, live administrator publication checks,
 complete CRM attachment linkage, live integration failure drills, actual voice
 and document-model trials, and physical device checks. The work must remain open
 until these are verified.
+
+## Verified review-build results
+
+All five normal production builds and seven-width customer preview runs passed
+before the final administrator handoff changes. The isolated SQL workflow also
+verifies saved manual cost reviews, both-owner approval enforcement, stale
+financial snapshot rejection, changed-scope approval invalidation, concurrent
+publication, revision history and audited delivery reconciliation. CI rechecks
+the final branch commits. These are synthetic financial and transport tests,
+not confirmation of actual P5 rates or live integration credentials.

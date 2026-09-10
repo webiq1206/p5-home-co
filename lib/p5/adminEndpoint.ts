@@ -1,23 +1,24 @@
-import {createHash,randomUUID,timingSafeEqual} from "node:crypto";
+import {timingSafeEqual} from "node:crypto";
 import {requireEstimatorAdmin} from "./adminAuth";
 import {query} from "./database";
 import {ensureSchema,DraftError} from "./store";
 import {EMPTY_CONFIGURATION,type EstimatorConfiguration} from "./costBook";
-import {companyAllocation,calculateP5Estimate,SERVICE_MATRIX,COST_CATEGORIES,type PricingInput,type OwnerApproval} from "./pricing.ts";
+import {companyAllocation,SERVICE_MATRIX,COST_CATEGORIES} from "./pricing.ts";
 import {processOutbox} from "./outbox";
+import {ensureReviewSchema,saveManualReview,approveManualReview,publishManualReview,reconcileDelivery} from "./manualReview";
 import {administrativePdf,customerPdf,pdfFilename} from "./pdf";
 import {protectRequest,limitedBody,json,failed} from "./http";
 function validId(id:string){if(!/^[a-f0-9-]{36}$/.test(id))throw new DraftError("Invalid record id.");return id;}
 export async function getAdminEstimates(request:Request){try{
-  await requireEstimatorAdmin();await ensureSchema();const url=new URL(request.url);const id=url.searchParams.get("id");
+  await requireEstimatorAdmin();await ensureReviewSchema();const url=new URL(request.url);const id=url.searchParams.get("id");
   if(id){const [row]=await query("SELECT id,brand,revision,status,payload,internal_estimate,customer_estimate,updated_at FROM p5_estimator_drafts WHERE id=$1",[validId(id)]);
     if(!row)throw new DraftError("Estimate not found.",404);
     if(url.searchParams.get("pdf")){const customer=url.searchParams.get("pdf")==="customer";
       if(customer&&!row.customer_estimate)throw new DraftError("This draft has no submitted customer summary yet.",409);
-      const data=customer?await customerPdf(id,row.customer_estimate):await administrativePdf(id,row.internal_estimate||{scope:row.payload});
+      const data=customer?await customerPdf(id,row.customer_estimate):await administrativePdf(id,{...row.internal_estimate,contact:row.payload.contact,scope:row.internal_estimate?.scope||row.payload});
       return new Response(data as BodyInit,{headers:{"Content-Type":"application/pdf","Content-Disposition":`attachment; filename="${pdfFilename(id,customer?"customer":"administrative")}"`,"Cache-Control":"no-store"}});}
     const uploads=await query("SELECT id,name,mime_type,size_bytes,sha256 FROM p5_estimator_files WHERE draft_id=$1",[id]);
-    const deliveries=await query("SELECT id,destination,status,attempts,provider_id,last_error,created_at,sent_at FROM p5_estimator_outbox WHERE draft_id=$1",[id]);return json({estimate:row,uploads,deliveries});}
+    const deliveries=await query("SELECT id,destination,status,attempts,provider_id,last_error,created_at,sent_at FROM p5_estimator_outbox WHERE draft_id=$1",[id]);const reviews=await query("SELECT id,source_revision,input,notes,actor_id,created_at FROM p5_estimator_reviews WHERE draft_id=$1 ORDER BY created_at DESC",[id]);const history=await query("SELECT revision,record,created_at FROM p5_estimator_history WHERE draft_id=$1 ORDER BY revision DESC",[id]);const reconciliation=await query("SELECT r.* FROM p5_estimator_delivery_reviews r JOIN p5_estimator_outbox o ON r.delivery_id=o.id WHERE o.draft_id=$1 ORDER BY r.created_at",[id]);return json({estimate:row,uploads,deliveries,reviews,history,reconciliation});}
   const [policy]=await query("SELECT payload,version,updated_by,updated_at FROM p5_estimator_policy WHERE id='current'");
   const drafts=await query("SELECT id,brand,status,revision,payload->'contact' AS contact,payload->'answers'->>'service' AS service,updated_at FROM p5_estimator_drafts ORDER BY updated_at DESC LIMIT 100");
   const delivery=await query("SELECT status,count(*)::integer AS count FROM p5_estimator_outbox GROUP BY status");
@@ -51,22 +52,14 @@ export async function putAdminPolicy(request:Request){try{
 export async function postAdminAction(request:Request){try{
   protectRequest(request);const actor=await requireEstimatorAdmin();await ensureSchema();const body=JSON.parse(new TextDecoder().decode(await limitedBody(request,2000000)));
   if(body.action==="process-delivery")return json({results:await processOutbox({draftId:body.id?validId(body.id):undefined})});
-  if(body.action==="evaluate"||body.action==="approve"){
-    const [policy]=await query("SELECT payload FROM p5_estimator_policy WHERE id='current'");const finance=policy?.payload?.finance||EMPTY_CONFIGURATION.finance;
-    const input=body.input as PricingInput;const revision=createHash("sha256").update(JSON.stringify({...input,revision:undefined,finance})).digest("hex");
-    input.revision=revision;
-    await query("CREATE TABLE IF NOT EXISTS p5_estimator_approvals(id uuid PRIMARY KEY,revision text NOT NULL,owner text NOT NULL,actor_id text NOT NULL,reason text NOT NULL,approved_at timestamptz NOT NULL DEFAULT now(),UNIQUE(revision,owner))");
-    if(body.action==="approve"){
-      const owner=actor.email===process.env.P5_OWNER_NICK_EMAIL?.toLowerCase()?"Nick":actor.email===process.env.P5_OWNER_JARED_EMAIL?.toLowerCase()?"Jared":null;
-      if(!owner)throw new DraftError("This account is not configured as a P5 owner.",403);
-      if(typeof body.reason!=="string"||body.reason.trim().length<30||body.reason.length>4000)throw new DraftError("Record the verified strategic value, low risk, repeatable scope, supplier advantage or credible pipeline benefit.");
-      if(!["strategic-value","low-risk","repeatable-scope","supplier-pricing","pipeline-benefit"].includes(body.exception))throw new DraftError("Choose a valid documented exception. Competitive pressure alone is insufficient.");
-      await query("INSERT INTO p5_estimator_approvals(id,revision,owner,actor_id,reason) VALUES($1,$2,$3,$4,$5) ON CONFLICT(revision,owner) DO NOTHING",[randomUUID(),revision,owner,actor.id,`${body.exception}: ${body.reason}`]);
-    }
-    const rows=await query("SELECT id,owner,reason,approved_at FROM p5_estimator_approvals WHERE revision=$1",[revision]);
-    const approvals:OwnerApproval[]=rows.map(a=>({owner:a.owner,recordId:a.id,writtenReason:a.reason,approvedAt:new Date(a.approved_at).toISOString(),estimateRevision:revision}));
-    return json({estimate:calculateP5Estimate(input,finance,approvals)});
+  if(body.action==="save-review")return json(await saveManualReview({...body,id:validId(body.id)},actor));
+  if(body.action==="approve-review")return json(await approveManualReview(body,actor));
+  if(body.action==="publish-review"){
+    const result=await publishManualReview(body,actor);
+    await processOutbox({limit:12}).catch(()=>undefined);
+    return json(result);
   }
+  if(body.action==="reconcile-delivery")return json(await reconcileDelivery({...body,deliveryId:validId(body.deliveryId)},actor));
   throw new DraftError("Unknown administrator action.");
 }catch(error){return failed(error);}}
 export async function getAdminUpload(request:Request){try{

@@ -45,12 +45,12 @@ export function P5Estimator({defaultService=brand.defaultService}:{defaultServic
   },[draft?.text,JSON.stringify(draft?.answers),JSON.stringify(draft?.contact)]);
   const go=(step:number)=>{recognition.current?.stop();change({step});setError("");requestAnimationFrame(()=>{heading.current?.focus({preventScroll:true});heading.current?.scrollIntoView({block:"start"});});};
   async function analyze(runAnalysis=true){
-    setBusy("Reading your scope and documents...");setError("");
+    recognition.current?.stop();setBusy("Reading your scope and documents...");setError("");
     try{
       await persistServer();const d=current.current!;const form=new FormData();form.set("text",d.text);form.set("analyze",String(runAnalysis));for(const file of files)form.append("files",file);
       const response=await fetch("/api/p5-estimator/scope",{method:"POST",headers:draftHeaders(d),body:form});const data=await response.json();
       if(!response.ok)throw new Error(data.error||"We could not analyze this scope. Your work is saved.");
-      const merged=data.analysis?mergeScopeFacts(d.answers,data.analysis.extraction):{answers:d.answers,conflicts:[]};
+      const merged=data.analysis?mergeScopeFacts(current.current!.answers,data.analysis.extraction):{answers:d.answers,conflicts:[]};
       const next={...current.current!,revision:data.draft.revision,extraction:data.analysis?.extraction||d.extraction,answers:merged.answers,conflicts:merged.conflicts,step:1};
       current.current=next;setDraft(next);persistBrowserDraft(next);setConflicts(merged.conflicts);setStoredFiles(data.draft.uploads.map((f:any)=>f.name));
       setFiles([]);await clearCachedFiles(d.id);setStatus("Review the extracted details and correct anything that needs changing.");
@@ -109,7 +109,7 @@ export function P5Estimator({defaultService=brand.defaultService}:{defaultServic
       <p role="status">{delivery.length>0&&delivery.every(d=>d.status==="sent")?"Your summary was sent and the team has your record.":"Your project is saved. Some deliveries are pending or need team review. Please do not submit the same project again."}</p>
       <a className={styles.primary} href={brand.consultationPath}>Schedule a consultation</a><a className={styles.secondary} href="tel:+12084771169">Call {brand.phone}</a>
       <button type="button" onClick={()=>{const next=newBrowserDraft(defaultService);current.current=next;setDraft(next);persistBrowserDraft(next);setResult(null);setStoredFiles([]);setFiles([]);setConflicts([]);setConfirmed(false);}}>Start another project</button>
-    </div>:<form onSubmit={submit} noValidate>
+    </div>:<form onSubmit={submit} noValidate><fieldset disabled={Boolean(busy)} style={{border:0,padding:0,margin:0,minWidth:0}}>
       {draft.step===0?<>
         <label className={styles.field} htmlFor="p5-scope"><span>Describe your project</span><textarea id="p5-scope" rows={6} maxLength={SCOPE_TEXT_LIMIT} value={draft.text} onChange={e=>change({text:e.target.value})} placeholder="Paste a scope, list repairs, or describe the rooms, size, finishes and timing you have in mind."/></label>
         <div className={styles.actions}>{speechAvailable?<button type="button" onClick={speak} aria-pressed={listening}>{listening?"Stop dictation":"Describe it by voice"}</button>:<p className={styles.hint}>You can also use the microphone on your phone's keyboard to dictate your scope.</p>}</div>
@@ -131,7 +131,7 @@ export function P5Estimator({defaultService=brand.defaultService}:{defaultServic
         <label className={styles.check}><input type="checkbox" checked={confirmed} onChange={e=>setConfirmed(e.target.checked)}/><span>I reviewed these project details. I understand this is preliminary planning information, not a bid, quote, offer or guaranteed price.</span></label>
         <div className={styles.actions}><button type="button" onClick={()=>go(1)} disabled={Boolean(busy)}>Back and edit</button><button className={styles.primary} type="submit" disabled={Boolean(busy)}>Get my project summary</button></div>
       </>}
-    </form>}
+    </fieldset></form>}
     {busy&&<p className={styles.notice} role="status" aria-live="polite">{busy}</p>}{error&&<p className={styles.error} role="alert">{error}</p>}{status&&<p className={styles.hint} role="status">{status}</p>}
   </section>;
 }

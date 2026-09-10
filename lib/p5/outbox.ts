@@ -20,7 +20,7 @@ export async function enqueueSubmission(id:string,revision:number,record:any){
   return rows.length>0;
 }
 export async function deliveryStatus(id:string){
-  return (await query("SELECT destination,status,attempts,last_error,provider_id FROM p5_estimator_outbox WHERE draft_id=$1 ORDER BY created_at",[id])).map(row=>({channel:String(row.destination).split(":")[0],status:row.status}));
+  return (await query("SELECT destination,status,attempts,last_error,provider_id FROM p5_estimator_outbox WHERE draft_id=$1 AND revision=(SELECT revision FROM p5_estimator_drafts WHERE id=$1) ORDER BY created_at",[id])).map(row=>({channel:String(row.destination).split(":")[0],status:row.status}));
 }
 export async function processOutbox(options:{draftId?:string;limit?:number}={}){
   await ensureSchema();const limit=Math.min(30,Math.max(1,options.limit||10));
@@ -38,7 +38,7 @@ export async function processOutbox(options:{draftId?:string;limit?:number}={}){
       if(destination==="crm")providerId=await syncCrm(record,key);
       else {
         const [kind,...address]=destination.split(":");const admin=kind==="admin";const alert=kind==="alert";
-        const attachments=alert?[]:[{filename:pdfFilename(row.draft_id,admin?"administrative":"customer"),content:admin?await administrativePdf(row.draft_id,record.internal):await customerPdf(row.draft_id,record.customer)}];
+        const attachments=alert?[]:[{filename:pdfFilename(row.draft_id,admin?"administrative":"customer"),content:admin?await administrativePdf(row.draft_id,{...record.internal,contact:record.contact,brand:record.brand,estimator:record.estimator}):await customerPdf(row.draft_id,record.customer)}];
         const range=record.customer?.range;
         const text=alert?`Estimate ${row.draft_id} needs delivery review. ${record.error}\nOpen https://${brand.domain}/admin/p5-estimators to inspect the saved record. Do not resubmit the lead to retry delivery.`:
           `${brand.name}\n${admin?"Confidential internal estimate record":"Your preliminary project summary"}\nReference: ${row.draft_id}\n\n${range?`Planning range: $${range.low.toLocaleString("en-US")} to $${range.high.toLocaleString("en-US")}`:"Scope received for pricing review"}\n\n${record.customer.summary}\n\n${record.customer.message}\n${record.customer.nextStep}\n\n${record.customer.disclaimer}\n\n${brand.phone}\nhttps://${brand.domain}${brand.consultationPath}\n\n${admin?"The attached administrative PDF contains the complete internal breakdown, sources and pricing warnings. Do not send it to the customer.":"Your project summary is attached as a PDF."}`;
