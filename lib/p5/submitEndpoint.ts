@@ -1,6 +1,7 @@
 import { query } from "./database";
 import { draftCredentials,readDraft,DraftError } from "./store";
-import { EMPTY_CONFIGURATION,priceReviewedScope,type EstimatorConfiguration } from "./costBook";
+import { EMPTY_CONFIGURATION,type EstimatorConfiguration } from "./costBook";
+import {priceCompleteScope} from "./scopePricing";
 import { enqueueSubmission,deliveryStatus,processOutbox } from "./outbox";
 import { protectRequest,json,failed,limitedBody } from "./http";
 import { ESTIMATOR_BRAND as brand } from "./brand";
@@ -20,7 +21,7 @@ export async function postSubmission(request:Request){
     if(draft.contact.phone&&draft.contact.phone.replace(/\D/g,"").length<10)throw new DraftError("Enter a valid phone number or leave it blank.");
     const [policy]=await query("SELECT payload FROM p5_estimator_policy WHERE id='current'");
     const configuration=(policy?.payload||EMPTY_CONFIGURATION) as EstimatorConfiguration;
-    const priced=priceReviewedScope(draft.reviewed,configuration);
+    const priced=await priceCompleteScope(draft.reviewed,configuration);
     const record={draftId:id,revision:draft.revision,brand:brand.name,estimator:"p5-policy",contact:draft.contact,scope:draft.reviewed,...priced};
     const accepted=await enqueueSubmission(id,draft.revision,record);
     // Persistence is acknowledged separately from delivery. A transport failure

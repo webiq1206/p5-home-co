@@ -41,7 +41,7 @@ export const DEFAULT_FINANCE: FinancePolicy = {
 /** Backward-compatible import name. The overhead policy is now approved. */
 export const UNCONFIGURED_FINANCE = DEFAULT_FINANCE;
 export interface CostEvidence {
-  basis: "written-quote" | "payroll" | "market-replacement" | "approved-cost-book" | "planning-assumption" | "owner-estimating-schedule";
+  basis: "written-quote" | "payroll" | "market-replacement" | "approved-cost-book" | "planning-assumption" | "owner-estimating-schedule" | "sourced-market-average";
   reference: string;
   verifiedAt: string;
   validUntil: string;
@@ -56,7 +56,7 @@ export interface LandedMaterial {
 }
 export interface DirectCostLine {
   /** A modeled cost budget is not an observed invoice or payroll record. */
-  estimatingBasis?:'owner-average-cost'|'historical-cost-budget';
+  estimatingBasis?:'owner-average-cost'|'historical-cost-budget'|'sourced-market-average';
   trade?: TradeCategory;
   /** Historical selling prices are comparison evidence, never direct cost. */
   priceBasis?: "direct-cost" | "customer-price" | "unknown";
@@ -168,7 +168,8 @@ export function calculateP5Estimate(input: PricingInput, finance: FinancePolicy,
   const directByCategory = Object.fromEntries(COST_CATEGORIES.map(c => [c, 0])) as Record<CostCategory, number>;
   const lines = input.lines.map(line => {
     const trade=tradeForLine(line);
-    const modeled=input.estimatePurpose==='preliminary'&&line.evidence?.basis==='owner-estimating-schedule'&&['owner-average-cost','historical-cost-budget'].includes(line.estimatingBasis||'');
+    const modeled=input.estimatePurpose==='preliminary'&&((line.evidence?.basis==='owner-estimating-schedule'&&['owner-average-cost','historical-cost-budget'].includes(line.estimatingBasis||''))||(line.evidence?.basis==='sourced-market-average'&&line.estimatingBasis==='sourced-market-average'));
+    if(line.evidence?.basis==='sourced-market-average'&&!modeled)warn('market-average-preliminary-only',`${line.id}: sourced averages require current quotes before a firm proposal.`,'block');
     if(line.evidence?.basis==='owner-estimating-schedule'&&!modeled)warn('estimating-purpose-required',`${line.id}: owner estimating rates are restricted to the configured preliminary model.`,'block');
     if(line.priceBasis && line.priceBasis!=="direct-cost") warn("selling-price-as-cost", `${line.id}: confirm current direct cost. Do not apply P5 allocations or profit to a customer selling price or an unknown price basis.`, "block");
     if (!line.id.trim() || ids.has(line.id)) throw new Error("Blank or duplicated direct-cost line id");
@@ -247,7 +248,7 @@ export function calculateP5Estimate(input: PricingInput, finance: FinancePolicy,
   return {
     policyVersion: POLICY_VERSION, revision: input.revision, evaluatedAt: now.toISOString(),
     estimatePurpose: input.estimatePurpose||'verified-cost-review',
-    currentCostsConfirmed: !lines.some(line=>line.evidence.basis==='owner-estimating-schedule'),
+    currentCostsConfirmed: !lines.some(line=>['owner-estimating-schedule','sourced-market-average'].includes(line.evidence.basis)),
     service, requestedService: input.service, matrix, lines:pricedLines, coverage: input.coverage,
     directByCategory, directCost, contingencyRate, contingency, riskAdjustedDirectCost,
     allocations, allocationDollars, targetOperatingProfit: margin, operatingProfit, divisor,
