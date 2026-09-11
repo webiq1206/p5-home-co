@@ -134,8 +134,8 @@ function publicProviderError(error: unknown): Error {
   return new Error(`analysis-provider-failed:${error.provider}${status}${error.message ? `: ${error.message}` : ""}`);
 }
 
-async function analyzeBatch(text: string, files: AnalysisFile[], previous: ScopeAnswers, request: RequestFunction = fetch, timeoutMs = 120000, absoluteDeadline = Date.now() + timeoutMs): Promise<AnalysisResult> {
-  if (text.length > SCOPE_TEXT_LIMIT || files.reduce((n, f) => n + f.data.length, 0) > SCOPE_BATCH_LIMIT) throw new Error("analysis-too-large");
+export async function analyzeBatch(text: string, files: AnalysisFile[], previous: ScopeAnswers, request: RequestFunction = fetch, timeoutMs = 120000, absoluteDeadline = Date.now() + timeoutMs): Promise<AnalysisResult> {
+  if (text.length > SCOPE_TEXT_LIMIT || files.reduce((n, f) => n + f.data.length, 0) > 22*1024*1024) throw new Error("analysis-too-large");
   const configured = providers();
   if (!configured.length) throw new Error("analysis-unconfigured");
   let last: unknown;

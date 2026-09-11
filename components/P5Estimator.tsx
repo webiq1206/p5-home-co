@@ -1,19 +1,20 @@
 "use client";
 import {useEffect,useId,useRef,useState} from 'react';
 import {ESTIMATOR_BRAND as brand} from '@/lib/p5/brand';
-import {SCOPE_FIELDS,SCOPE_TEXT_LIMIT,SCOPE_FILE_LIMIT,SCOPE_BATCH_LIMIT,type ScopeField,type ScopeAnswers,type ScopeUpload} from '@/lib/p5/scope';
+import {SCOPE_FIELDS,SCOPE_TEXT_LIMIT,SCOPE_FILE_LIMIT,SCOPE_BATCH_LIMIT,SCOPE_FILE_COUNT,SCOPE_UPLOAD_HELP,type ScopeField,type ScopeAnswers,type ScopeUpload} from '@/lib/p5/scope';
 import {deriveScopeAnswers,reconcileScope,scopeQuestions,scopeAssumptions,validateScopeAnswer,type ScopeQuestion} from '@/lib/p5/adaptive';
 import {loadBrowserDraft,newBrowserDraft,persistBrowserDraft,draftHeaders,cacheFiles,loadCachedFiles,clearCachedFiles,requireDraftReceipt,type BrowserDraft} from '@/lib/p5/browserDraft';
 import {mergeProjectSource,type ProjectSource} from '@/lib/p5/projectSource';
 import {resumeWizardDraft} from '@/lib/p5/wizardResume';
 import {snapshotProjectFile} from '@/lib/p5/fileSnapshot';
+import {transferLargeFiles} from '@/lib/p5/resumableTransfer';
 import {transferProjectFiles} from '@/lib/p5/uploadTransfer';
 import styles from './P5Estimator.module.css';
 import {reportProgress,trackScopeEvent} from '@/lib/p5/progress';
 const textAnswers=(a:ScopeAnswers)=>JSON.stringify(Object.entries(a).filter(([k,v])=>SCOPE_FIELDS[k as ScopeField].kind==='text'&&v?.trim()).sort(([a],[b])=>a.localeCompare(b)));
 const labels:Record<string,string>={handyman:'Home repairs',re10:'Inspection and RE-10 repairs','cabinet-product':'Cabinets, supply only','cabinet-install':'Cabinets with installation',kitchen:'Kitchen remodel',bathroom:'Bathroom remodel','whole-home':'Whole-home remodel',addition:'Home addition',adu:'ADU','new-construction':'New home','change-order':'Change order',rush:'Rush work',refresh:'Simple refresh','mid-range':'Standard finishes','high-end':'Premium finishes',luxury:'Custom luxury finishes'};
 const scopeExample=(brand.id as string)==='cabinet'?'For example: Painted Shaker kitchen cabinets, 20 ft of base and 15 ft of uppers. Include installation.':(brand.id as string)==='construction'?'For example: Build a 2,500 sq ft home with an 800 sq ft garage. Our plans are attached.':(brand.id as string)==='handyman'?'For example: Fix three sticking doors, replace two faucets and repair damaged drywall.':'For example: Remodel our 8 × 10 ft bathroom. Keep the layout, replace the shower, tile and vanity.';
-const accept='.pdf,.jpg,.jpeg,.png,.webp,.gif,.heic,.heif,.txt,.csv,.json,.xlsx,.xls,.ods,.docx,.doc';
+const accept='.pdf,.jpg,.jpeg,.png,.webp,.gif,.heic,.heif,.tif,.tiff,.avif,.txt,.csv,.json,.xlsx,.xls,.ods,.docx,.doc';
 type Recognition={continuous:boolean;interimResults:boolean;lang:string;onresult:((event:any)=>void)|null;onerror:((event:any)=>void)|null;onend:(()=>void)|null;start:()=>void;stop:()=>void};
 export function P5Estimator({defaultService='',headingAs='h1',projectSource}:{defaultService?:string;headingAs?:'h1'|'h2';projectSource?:ProjectSource}){
   const [draft,setDraft]=useState<BrowserDraft|null>(null);const current=useRef<BrowserDraft|null>(null);
@@ -89,7 +90,7 @@ export function P5Estimator({defaultService='',headingAs='h1',projectSource}:{de
     if(parsed.origin!==window.location.origin&&!url.startsWith('data:image/')&&!url.startsWith('blob:'))throw new Error('The design photo cannot be imported from this address. Please add it using Add files.');
     const response=await fetch(url,{signal:AbortSignal.timeout(30000)});if(!response.ok)throw new Error('Your design photo could not be read. Please retry or add the photo using Add files.');
     const blob=await response.blob();const ext:Record<string,string>={'image/jpeg':'jpg','image/png':'png','image/webp':'webp','image/gif':'gif','image/heic':'heic','image/heif':'heif'};
-    if(!ext[blob.type]||blob.size>SCOPE_FILE_LIMIT)throw new Error('Use Add files to provide a supported design photo up to 10 MB.');
+    if(!ext[blob.type]||blob.size>SCOPE_FILE_LIMIT)throw new Error('Use Add files to provide a supported design photo up to 250 MB.');
     const digest=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',await blob.arrayBuffer()))).map(b=>b.toString(16).padStart(2,'0')).join('').slice(0,16);
     const name=`design-photo-${digest}.${ext[blob.type]}`;
     if(!filesRef.current.some(f=>f.name===name)&&!current.current?.uploads?.some(f=>f.name===name)){
@@ -101,20 +102,29 @@ export function P5Estimator({defaultService='',headingAs='h1',projectSource}:{de
     await ensureSourcePhoto();
     setBusy('Saving your project...');await save();const d=current.current!;const pending=[...filesRef.current];
     if(pending.length){
-      setBusy('Uploading your files...');setUploadPercent(0);const upload=new FormData();upload.set('analyze','false');for(const f of pending)upload.append('files',new Blob([await f.arrayBuffer()],{type:f.type}),f.name);
-      const receipt=requireDraftReceipt(await transferProjectFiles(upload,draftHeaders(d),setUploadPercent));
+      setBusy('Uploading your files...');setUploadPercent(0);
+      const large=pending.some(f=>f.size>10*1024*1024)||pending.reduce((n,f)=>n+f.size,0)>22*1024*1024;
+      let uploaded:unknown;
+      if(large)uploaded=await transferLargeFiles(pending,draftHeaders(d),setUploadPercent);
+      else{const upload=new FormData();upload.set('analyze','false');for(const f of pending)upload.append('files',new Blob([await f.arrayBuffer()],{type:f.type}),f.name);uploaded=await transferProjectFiles(upload,draftHeaders(d),setUploadPercent);}
+      const receipt=requireDraftReceipt(uploaded);
       for(const f of pending){const digest=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',await f.arrayBuffer()))).map(b=>b.toString(16).padStart(2,'0')).join('');if(!receipt.uploads.some(stored=>stored.sha256===digest))throw new Error(`${f.name}: upload was not confirmed. Please retry.`);}
       apply({...current.current!,uploads:receipt.uploads,revision:receipt.revision});filesRef.current=[];setFiles([]);await clearCachedFiles(d.id).catch(()=>undefined);setUploadPercent(null);setStatus('Files uploaded and saved.');
     }
-    setBusy('Reading your documents and project details...');const form=new FormData();form.set('text',d.text);
-    const response=await fetch('/api/p5-estimator/scope',{method:'POST',headers:draftHeaders(d),body:form,signal:AbortSignal.timeout(200000)});const data=await response.json();
-    if(!response.ok)throw new Error(data.error||'Your files could not be processed. They are still here. Please retry.');const saved=requireDraftReceipt(data);
+    setBusy('Reading your documents and project details...');const form=new FormData();form.set('text',d.text);form.set('resumable','true');form.set('retry',d.analysisWarning?'true':'false');
+    let data:any;
+    do{
+    const response=await fetch('/api/p5-estimator/scope',{method:'POST',headers:draftHeaders(d),body:form,signal:AbortSignal.timeout(200000)});data=await response.json();form.set('retry','false');
+    if(!response.ok)throw new Error(data.error||'Your files could not be processed. They are still here. Please retry.');
+    if(data.pending){setBusy(data.progress||'Reading your project...');await new Promise(r=>setTimeout(r,500));}
+    }while(data.pending);
+    const saved=requireDraftReceipt(data);
     const next={...current.current!,...saved,key:d.key,step:1,updatedAt:Date.now(),dirty:false,conflicts:data.conflicts||[],pricedFields:data.pricedFields||[],analysisWarning:data.warning||"",sourceImageUrl:projectSource?.imageUrl,analyzedText:d.text,analyzedAnswers:textAnswers(saved.answers)} as BrowserDraft;
     apply(next);setWarning(data.warning||'');if(pending.length)trackScopeEvent(d.uploads?.length?'additionalDocuments':'documentUploaded',saved.answers.service);trackScopeEvent(data.warning?'analysisFailed':'analysisCompleted',saved.answers.service);filesRef.current=[];setFiles([]);
     try{await clearCachedFiles(d.id);}catch{setStatus('Files are uploaded. Local file cleanup will retry later.');}
     setStatus(data.warning?'Files uploaded. Some details still need review.':'Project details saved. We will only ask about what is missing.');showQuestions(next);
   }
-  const needsAnalysis=()=>{const d=current.current;return Boolean(d&&(projectSource?.imageUrl&&d.sourceImageUrl!==projectSource.imageUrl||filesRef.current.length||d.text.trim()&&d.text!==d.analyzedText||textAnswers(d.answers)!=='[]'&&textAnswers(d.answers)!==d.analyzedAnswers));};
+  const needsAnalysis=()=>{const d=current.current;return Boolean(d&&(d.analysisWarning||projectSource?.imageUrl&&d.sourceImageUrl!==projectSource.imageUrl||filesRef.current.length||d.text.trim()&&d.text!==d.analyzedText||textAnswers(d.answers)!=='[]'&&textAnswers(d.answers)!==d.analyzedAnswers));};
   const begin=()=>run('Reading your project...',async()=>{
     if(needsAnalysis()||(current.current?.uploads?.length&&!current.current.extraction))await analyze();
     else{await save();showQuestions(current.current!);}
@@ -124,11 +134,11 @@ export function P5Estimator({defaultService='',headingAs='h1',projectSource}:{de
     const incoming=Array.from(selected);const next=[...filesRef.current];
     for(const f of incoming){if(!accept.split(',').includes('.'+f.name.split('.').pop()?.toLowerCase())){setError(`${f.name}: use a supported document or photo format.`);return;}if(!next.some(v=>v.name===f.name&&v.size===f.size&&v.lastModified===f.lastModified))next.push(f);}
     const uploaded=current.current.uploads||[];
-    if(next.length+uploaded.length>12||next.some(f=>!f.size||f.size>SCOPE_FILE_LIMIT)||next.reduce((n,f)=>n+f.size,0)+uploaded.reduce((n,f)=>n+f.size,0)>SCOPE_BATCH_LIMIT){setError('Use up to 12 files, 10 MB each and 22 MB total.');return;}
+    if(next.length+uploaded.length>SCOPE_FILE_COUNT||next.some(f=>!f.size||f.size>SCOPE_FILE_LIMIT)||next.reduce((n,f)=>n+f.size,0)+uploaded.reduce((n,f)=>n+f.size,0)>SCOPE_BATCH_LIMIT){setError(SCOPE_UPLOAD_HELP);return;}
     let copied:File[];setPreparingFiles(true);
-    try{copied=await Promise.all(next.map(f=>filesRef.current.includes(f)?f:snapshotProjectFile(f)));}catch(error){setPreparingFiles(false);setError(error instanceof Error?error.message:'The selected file could not be read. Please select it again.');return;}
+    try{copied=[];for(const file of next)copied.push(filesRef.current.includes(file)||file.size>10*1024*1024?file:await snapshotProjectFile(file));}catch(error){setPreparingFiles(false);setError(error instanceof Error?error.message:'The selected file could not be read. Please select it again.');return;}
     filesRef.current=copied;setFiles(copied);setError('');setConfirmed(false);
-    try{await cacheFiles(current.current.id,copied);setStatus('Files ready. Continue to read them with your project details.');}catch{setStatus('Files are ready in this tab. Device storage is unavailable; keep this tab open until upload completes.');}finally{setPreparingFiles(false);}
+    try{if(copied.reduce((n,f)=>n+f.size,0)>22*1024*1024)throw new Error('Large files stay in this tab until upload.');await cacheFiles(current.current.id,copied);setStatus('Files ready. Continue to read them with your project details.');}catch{setStatus('Files are ready in this tab. Device storage is unavailable; keep this tab open until upload completes.');}finally{setPreparingFiles(false);}
   }
   function speak(){
     if(listening){recognition.current?.stop();return;}const Constructor=(window as any).SpeechRecognition||(window as any).webkitSpeechRecognition;if(!Constructor)return;
@@ -161,7 +171,7 @@ export function P5Estimator({defaultService='',headingAs='h1',projectSource}:{de
   const projectInput=<>
     <div className={styles.field}><label htmlFor={`${id}-scope`}>Tell us about your project</label><textarea id={`${id}-scope`} rows={4} maxLength={SCOPE_TEXT_LIMIT} value={draft.text} onChange={e=>change({text:e.target.value})} placeholder={projectSource?"Add any other work, installation needs or project notes.":scopeExample}/></div>
     <div className={styles.inputTools} onDragEnter={e=>e.preventDefault()} onDragOver={e=>e.preventDefault()} onDragLeave={e=>e.preventDefault()} onDrop={e=>{e.preventDefault();void addFiles(e.dataTransfer.files);}}>{speechAvailable?<button type="button" onClick={speak} aria-pressed={listening}>{listening?'Stop dictation':'Use microphone'}</button>:<span className={styles.hint}>You can use your keyboard microphone to dictate.</span>}<label className={styles.attach} htmlFor={`${id}-files`}><span aria-hidden="true">↑</span><span><strong>Upload plans, photos or documents</strong><small>Choose files or drag them here</small></span><input id={`${id}-files`} type="file" accept={accept} multiple aria-label="Upload plans, photos or documents" onChange={e=>{const input=e.currentTarget;const selected=Array.from(input.files||[]);void addFiles(selected).then(()=>{input.value='';});}}/></label></div>
-    <p className={styles.hint}>Plans, photos, PDFs, Word or spreadsheets. Up to 12 files, 10 MB each, 22 MB total.</p>
+    <p className={styles.hint}>Plans, photos, PDFs, Word or spreadsheets. {SCOPE_UPLOAD_HELP}</p>
     {Boolean(files.length||draft.uploads?.length)&&<ul className={styles.files}>{draft.uploads?.map(f=><li key={f.id}><span>{f.name}</span><span className={styles.hint}>Uploaded</span></li>)}{files.map((f,i)=><li key={`${f.name}-${i}`}><span>{f.name}<small>Ready to upload</small></span><button type="button" aria-label={`Remove ${f.name}`} onClick={async()=>{const next=filesRef.current.filter((_,index)=>i!==index);filesRef.current=next;setFiles(next);try{await cacheFiles(draft.id,next);}catch{setStatus('File removed from this session. Local storage could not be updated.');}}}>Remove</button></li>)}</ul>}
   </>;
   const known=Object.keys(draft.answers).filter(k=>draft.answers[k as ScopeField]?.trim()) as ScopeField[];

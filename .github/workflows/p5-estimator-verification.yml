@@ -27,6 +27,7 @@ jobs:
           node --import tsx scripts/test-p5-workflow.mts
           node --import tsx scripts/test-p5-receipt.mts
           node --import tsx scripts/test-p5-upload.mts
+          node --import tsx scripts/test-p5-resumable.mts
           node --import tsx --test tests/p5-adaptive.test.ts tests/p5-provider.test.ts tests/p5-wizard-resume.test.ts tests/p5-extraction-values.test.ts tests/p5-multipart.test.ts tests/p5-object-storage.test.ts tests/p5-file-snapshot.test.ts tests/p5-upload-transfer.test.ts
       - name: TypeScript verification
         run: npx tsc --noEmit

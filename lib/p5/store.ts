@@ -22,6 +22,7 @@ export function ensureSchema(): Promise<void> {
       `ALTER TABLE p5_estimator_files ADD COLUMN IF NOT EXISTS storage_key text`,
       `CREATE TABLE IF NOT EXISTS p5_estimator_outbox (id uuid PRIMARY KEY, draft_id uuid NOT NULL REFERENCES p5_estimator_drafts(id), revision integer NOT NULL, destination text NOT NULL, payload jsonb NOT NULL, status text NOT NULL DEFAULT 'pending', attempts integer NOT NULL DEFAULT 0, provider_id text, last_error text, locked_until timestamptz, next_attempt_at timestamptz NOT NULL DEFAULT now(), created_at timestamptz NOT NULL DEFAULT now(), sent_at timestamptz, UNIQUE(draft_id, revision, destination))`,
       `CREATE INDEX IF NOT EXISTS p5_estimator_outbox_due ON p5_estimator_outbox(status,next_attempt_at)`,
+      `CREATE TABLE IF NOT EXISTS p5_estimator_work (draft_id uuid NOT NULL REFERENCES p5_estimator_drafts(id), work_key text NOT NULL, payload jsonb NOT NULL DEFAULT '{}', lease_token text, lease_until timestamptz, updated_at timestamptz NOT NULL DEFAULT now(), PRIMARY KEY(draft_id,work_key))`,
       `CREATE TABLE IF NOT EXISTS p5_estimator_policy (id text PRIMARY KEY, version integer NOT NULL DEFAULT 1, payload jsonb NOT NULL, updated_by text NOT NULL, updated_at timestamptz NOT NULL DEFAULT now())`,
     ]) await query(statement);
   })().catch(error => {schemaReady=null;throw error;});

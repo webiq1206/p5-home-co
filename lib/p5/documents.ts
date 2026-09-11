@@ -1,3 +1,4 @@
+import {prepareImages} from "./imagePreparation";
 import ExcelJS from "exceljs";
 import mammoth from "mammoth";
 import type { AnalysisFile } from "./extraction.ts";
@@ -8,11 +9,11 @@ const TYPES: Record<string,string> = {
   xlsx:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
   docx:"application/vnd.openxmlformats-officedocument.wordprocessingml.document",
   xls:"application/vnd.ms-excel",ods:"application/vnd.oasis.opendocument.spreadsheet",
-  doc:"application/msword",heic:"image/heic",heif:"image/heif",
+  doc:"application/msword",heic:"image/heic",heif:"image/heif",tif:"image/tiff",tiff:"image/tiff",avif:"image/avif",
 };
 export const ACCEPT_SCOPE_FILES = Object.keys(TYPES).map(ext=>`.${ext}`).join(",");
 export function verifyUpload(name: string, data: Buffer): AnalysisFile {
-  if (!data.length || data.length > SCOPE_FILE_LIMIT) throw new Error("Files must be nonempty and no larger than 10 MB each.");
+  if (!data.length || data.length > SCOPE_FILE_LIMIT) throw new Error("Files must be nonempty and no larger than 250 MB each.");
   const safeName=name.replace(/[\u0000-\u001f/\\]/g,"_").slice(0,180);
   const extension=safeName.split(".").pop()?.toLowerCase()||"";const type=TYPES[extension];
   if(!type)throw new Error("Use a PDF, photo, Word document, spreadsheet or text file.");
@@ -45,7 +46,8 @@ export async function prepareAnalysisFiles(files:AnalysisFile[]) {
   const readable:AnalysisFile[]=[];const manualReview:string[]=[];
   for(const file of files){
     try{
-    if(file.type==="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"){
+    if(["image/heic","image/heif","image/tiff","image/avif"].includes(file.type)||(file.type.startsWith("image/")&&file.data.length>16*1024*1024)){readable.push(...await prepareImages(file));
+    }else if(file.type==="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"){
       const workbook=new ExcelJS.Workbook();await workbook.xlsx.load(file.data as any);
       const parts:string[]=[];let cells=0;
       workbook.eachSheet(sheet=>{parts.push(`Worksheet: ${sheet.name}`);sheet.eachRow((row,rowNumber)=>{
@@ -58,7 +60,7 @@ export async function prepareAnalysisFiles(files:AnalysisFile[]) {
       const result=await mammoth.extractRawText({buffer:file.data});
       if(result.value.length>120000)throw new Error("Document text is too large. Upload the relevant scope pages.");
       readable.push({...file,type:"text/plain",data:Buffer.from(result.value)});
-    }else if(["application/msword","application/vnd.ms-excel","application/vnd.oasis.opendocument.spreadsheet","image/heic","image/heif"].includes(file.type))manualReview.push(`${file.name}: saved for manual review. Export as PDF, XLSX, DOCX, JPEG or PNG for automatic extraction.`);
+    }else if(["application/msword","application/vnd.ms-excel","application/vnd.oasis.opendocument.spreadsheet"].includes(file.type))manualReview.push(`${file.name}: saved for manual review. Export as PDF, XLSX, DOCX, JPEG or PNG for automatic extraction.`);
     else readable.push(file);
     }catch(error){manualReview.push(`${file.name}: could not read this file automatically. ${error instanceof Error?error.message:"Export a fresh PDF copy."}`);}
   }

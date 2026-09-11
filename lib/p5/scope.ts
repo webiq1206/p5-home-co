@@ -61,8 +61,11 @@ export interface ReviewedScope {
   reviewedAt: string; corrections: { field: ScopeField; previous: string; value: string }[];
 }
 export const SCOPE_TEXT_LIMIT = 24000;
-export const SCOPE_FILE_LIMIT = 10 * 1024 * 1024;
-export const SCOPE_BATCH_LIMIT = 22 * 1024 * 1024;
+export const SCOPE_FILE_LIMIT = 250 * 1024 * 1024;
+export const SCOPE_BATCH_LIMIT = 1024 * 1024 * 1024;
+export const SCOPE_FILE_COUNT = 50;
+export const SCOPE_CHUNK_SIZE = 4 * 1024 * 1024;
+export const SCOPE_UPLOAD_HELP = "Up to 50 files, 250 MB each and 1 GB total. Large uploads resume after interruptions.";
 export function validateAnswer(field: ScopeField, value: string): string | null {
   if (!Object.hasOwn(SCOPE_FIELDS,field)) return "Unknown field";
   if (typeof value !== "string" || value.length > 4000) return "Please shorten this answer to 4,000 characters.";
