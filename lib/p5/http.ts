@@ -1,9 +1,16 @@
 import { ESTIMATOR_BRAND } from "./brand";
 import { DraftError } from "./store";
 const buckets=new Map<string,{count:number;until:number}>();
+function configuredOrigins() {
+  const values=[`https://${ESTIMATOR_BRAND.domain}`,process.env.APP_BASE_URL,process.env.REPLIT_DEV_DOMAIN];
+  return new Set(values.flatMap(value=>{
+    if(!value)return [];
+    try{return [new URL(value.includes("://")?value:`https://${value}`).origin];}catch{return [];}
+  }));
+}
 export function protectRequest(request:Request,limit=60) {
   const origin=request.headers.get("origin");const url=new URL(request.url);
-  if(origin && origin!==url.origin && origin!==`https://${ESTIMATOR_BRAND.domain}`)throw new DraftError("Request origin is not allowed.",403);
+  if(origin && origin!==url.origin && !configuredOrigins().has(origin))throw new DraftError("Request origin is not allowed.",403);
   const key=`${url.pathname}:${request.method}:${(request.headers.get("x-forwarded-for")||"unknown").split(",")[0]}`;const now=Date.now();
   if(buckets.size>10000)for(const [k,v]of buckets)if(v.until<now)buckets.delete(k);
   const b=buckets.get(key);if(!b||b.until<now)buckets.set(key,{count:1,until:now+600000});

@@ -87,6 +87,54 @@ export function validateExtraction(raw: unknown): ScopeExtraction {
   }
   return { summary: r.summary, facts, conflicts, missingInformation: strings(r.missingInformation, 50), reviewNotes: strings(r.reviewNotes, 50) };
 }
+const IMAGE_SOURCE = /\.(?:jpe?g|png|webp|gif|heic|heif)(?:\b|[),])/i;
+const EXPLICIT_URGENCY = /\b(?:standard|normal timing|not urgent|priority|prioritized|emergency|urgent|rush|asap|same[- ]day|immediately)\b/i;
+const INFERRED_URGENCY = /\b(?:assum(?:e|ed|ption)|unless|future planned|lead time|no (?:rush|urgency|priority|emergency)|not stated|not specified|without (?:rush|urgency|priority|emergency))\b/i;
+const DERIVED_MEASUREMENT = /\b(?:calculat(?:e|ed|ion)|deriv(?:e|ed|ation)|multipl(?:y|ied|ication))\b|[×*=]|\b\d+(?:\.\d+)?\s*(?:ft|feet)\s+(?:by|x)\s+\d/i;
+const NUMERIC_EVIDENCE:Partial<Record<ScopeField,RegExp>>={
+  sqft:/\b(?:project|room|floor|home|addition|area)\b.{0,60}\b(?:square feet|square foot|sq\.?\s*ft|sf)\b|\b(?:square feet|square foot|sq\.?\s*ft|sf)\b.{0,60}\b(?:project|room|floor|home|addition|area)\b/i,
+  length:/\b(?:length|long)\b/i,width:/\b(?:width|wide)\b/i,rooms:/\brooms?\b/i,bathrooms:/\bbathrooms?\b/i,stories:/\b(?:stories|story)\b/i,
+  cabinetBaseLf:/\b(?:base|lower)\b.{0,40}\b(?:linear feet|linear foot|lf)\b|\b(?:linear feet|linear foot|lf)\b.{0,40}\b(?:base|lower)\b/i,
+  cabinetUpperLf:/\b(?:upper|wall)\b.{0,40}\b(?:linear feet|linear foot|lf)\b|\b(?:linear feet|linear foot|lf)\b.{0,40}\b(?:upper|wall)\b/i,
+};
+/** Keep model interpretation available for review without turning it into a pricing input. */
+export function protectPricingFacts(extraction: ScopeExtraction): ScopeExtraction {
+  const facts: ExtractedFact[] = [];
+  const reviewNotes = [...extraction.reviewNotes];
+  let heldPhotoFacts = 0;
+  let heldUrgency = false;
+  let heldDerivedMeasurement = false;
+  for (const fact of extraction.facts) {
+    if (IMAGE_SOURCE.test(fact.source)) {
+      heldPhotoFacts++;
+      reviewNotes.push(`Unconfirmed photo observation — ${SCOPE_FIELDS[fact.field].label}: ${fact.value}. Confirm from written scope before pricing.`);
+      continue;
+    }
+    if (fact.field === "urgency" && (!EXPLICIT_URGENCY.test(fact.evidence)||INFERRED_URGENCY.test(fact.evidence))) {
+      heldUrgency = true;
+      reviewNotes.push(`Unconfirmed timing assumption — ${fact.value}. The supplied scope did not explicitly state urgency, so this is not a pricing fact.`);
+      continue;
+    }
+    const numericEvidence=NUMERIC_EVIDENCE[fact.field];
+    if(numericEvidence&&(!numericEvidence.test(fact.evidence)||DERIVED_MEASUREMENT.test(fact.evidence))){
+      heldDerivedMeasurement=true;
+      reviewNotes.push(`Unconfirmed derived measurement — ${SCOPE_FIELDS[fact.field].label}: ${fact.value}. The source evidence does not explicitly label this measurement, so it is not a pricing fact.`);
+      continue;
+    }
+    facts.push(fact);
+  }
+  const missingInformation = [...new Set(extraction.missingInformation)];
+  if (heldPhotoFacts && !missingInformation.some(note => /confirm.*(?:photo|finish|material)/i.test(note))) {
+    missingInformation.push("Confirm any material or finish shown only in photos if it affects the priced scope.");
+  }
+  if (heldUrgency && !missingInformation.some(note => /confirm.*(?:urgency|timing|schedule)/i.test(note))) {
+    missingInformation.push("Confirm only if the project requires priority, emergency or other nonstandard scheduling.");
+  }
+  if(heldDerivedMeasurement&&!missingInformation.some(note=>/confirm.*(?:project area|measurement)/i.test(note))){
+    missingInformation.push("Confirm the project area or other material measurement from the written scope before pricing.");
+  }
+  return {...extraction, facts, missingInformation, reviewNotes: [...new Set(reviewNotes)]};
+}
 export function mergeScopeFacts(current: ScopeAnswers, extraction: ScopeExtraction) {
   const answers = { ...current }; const conflicts = [...extraction.conflicts];
   const textFields=new Set<ScopeField>();

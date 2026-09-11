@@ -1,4 +1,4 @@
-import { SCOPE_FIELDS, SCOPE_BATCH_LIMIT, SCOPE_TEXT_LIMIT, validateExtraction,combineScopeExtractions, type ScopeAnswers, type ScopeExtraction } from "./scope.ts";
+import { SCOPE_FIELDS, SCOPE_BATCH_LIMIT, SCOPE_TEXT_LIMIT, validateExtraction,combineScopeExtractions,protectPricingFacts, type ScopeAnswers, type ScopeExtraction } from "./scope.ts";
 import {PDFDocument} from "pdf-lib";
 export interface AnalysisFile { name: string; type: string; data: Buffer }
 export interface AnalysisResult { extraction: ScopeExtraction; provider: string; model: string; analyzedAt: string }
@@ -54,7 +54,7 @@ export async function analyzeScope(text:string,files:AnalysisFile[],previous:Sco
     }
   }
   if(units.length>300)throw new Error("The combined documents exceed 300 pages. Send the relevant project sheets.");
-  if(!units.length)return analyzeBatch(text,[],previous,request);
+  if(!units.length){const result=await analyzeBatch(text,[],previous,request);return {...result,extraction:protectPricingFacts(result.extraction)};}
   const parts:ScopeExtraction[]=new Array(units.length);let position=0;let last:AnalysisResult|undefined;
   const failed:string[]=[];
   // Bounded concurrency prevents one large plan set from flooding the provider.
@@ -66,5 +66,5 @@ export async function analyzeScope(text:string,files:AnalysisFile[],previous:Sco
   }));
   if(!last)throw new Error("analysis-failed");
   const extraction=combineScopeExtractions(parts.filter(Boolean));extraction.reviewNotes.push(...failed);
-  return {...last,extraction,analyzedAt:new Date().toISOString()};
+  return {...last,extraction:protectPricingFacts(extraction),analyzedAt:new Date().toISOString()};
 }
