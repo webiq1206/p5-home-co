@@ -6,7 +6,7 @@ import type {ReviewedScope} from './scope';
 import type {EstimatorConfiguration} from './costBook';
 
 export async function priceSavedScope(id:string,scope:ReviewedScope,configuration:EstimatorConfiguration){
- const signature={text:scope.text,answers:scope.answers,extraction:scope.extraction,uploads:scope.uploads,uncertainFields:scope.uncertainFields,configuration};
+ const signature={pricingDate:new Date().toISOString().slice(0,10),text:scope.text,answers:scope.answers,extraction:scope.extraction,uploads:scope.uploads,uncertainFields:scope.uncertainFields,configuration};
  const workKey='pricing-v2-'+createHash('sha256').update(JSON.stringify(signature)).digest('hex');
  const claimed=await claimWork(id,workKey,{replies:[]},290);
  if(!claimed)throw new PricingPending('Your pricing check is already running. Waiting for its saved result...',10000);
