@@ -104,3 +104,12 @@ test('model follow-ups must match a required field and its answer type',()=>{
  assert.equal(q.length,1);assert.match(q[0].reason,/number of fixtures/i);
  assert.doesNotMatch(q[0].reason,/which fixtures/i);
 });
+
+// A narrower edited scope must not inherit auto-extracted work from the old scope.
+test("reanalysis replaces source facts while preserving visitor corrections",async()=>{
+ const {manualScopeAnswers}=await import("../lib/p5/adaptive.ts");
+ const previous={summary:"Old scope",facts:[{field:"demolition" as const,value:"Remove flooring",confidence:.98,source:"scope.pdf",evidence:"Remove flooring"},{field:"sqft" as const,value:"80",confidence:.98,source:"scope.pdf",evidence:"80 square feet"}],conflicts:[],missingInformation:[],reviewNotes:[]};
+ assert.deepEqual(manualScopeAnswers({demolition:"Remove flooring",sqft:"80",location:"Eagle"},previous),{location:"Eagle"});
+ assert.equal(manualScopeAnswers({demolition:"Only remove vanity",sqft:"80"},previous).demolition,"Only remove vanity");
+ assert.equal(manualScopeAnswers({sqft:"80"},previous,{sqft:"80"}).sqft,"80");
+});

@@ -1,4 +1,4 @@
-import {reconcileScope,scopeQuestions} from "./adaptive";
+import {reconcileScope,scopeQuestions,manualScopeAnswers} from "./adaptive";
 import {costQuestionFields} from "./questionPolicy";
 import {createHash} from "node:crypto";
 import { analyzeScope } from "./extraction.ts";
@@ -30,11 +30,12 @@ export async function postScope(request:Request){
     const stored=await readUploads(id,key);if(stored.reduce((n,f)=>n+f.data.length,0)>SCOPE_BATCH_LIMIT)throw new DraftError("Use up to 22 MB of supporting documents per estimate.",413);
     const version=createHash("sha256").update(JSON.stringify([text,stored.map(f=>createHash("sha256").update(f.data).digest("hex"))])).digest("hex");
     const resolutions=draft.wizard?.sourceVersion===version?draft.wizard.resolutions:{};
+    const visitorAnswers=manualScopeAnswers(draft.answers,draft.extraction,draft.wizard?.resolutions);
     let analysis=null;let warning="";
     try{
       const {readable,manualReview}=await prepareAnalysisFiles(stored);
       if(!text.trim()&&!readable.length&&!Object.values(draft.answers).some(v=>v?.trim()))throw new Error(manualReview.join(" ")||"Add a project description or a document.");
-      analysis=await analyzeScope(text,readable,draft.answers);
+      analysis=await analyzeScope(text,readable,visitorAnswers);
       analysis.extraction.reviewNotes.push(...manualReview);
       const unread=analysis.extraction.reviewNotes.filter(note=>/saved for manual review|could not read|automatic read failed/.test(note));
       if(unread.length)warning="Some files need review before pricing. "+unread.join(" ");
@@ -43,7 +44,7 @@ export async function postScope(request:Request){
       warning="Your files are saved, but automatic reading could not finish. You can retry without uploading again, or add the key details below. Unread documents will need review before pricing.";
     }
     const extraction=analysis?.extraction||draft.extraction;
-    const merged=analysis?reconcileScope(draft.answers,analysis.extraction,resolutions):{answers:draft.answers,conflicts:[]};
+    const merged=analysis?reconcileScope(visitorAnswers,analysis.extraction,resolutions):{answers:draft.answers,conflicts:[]};
     const wizard={skipped:draft.wizard?.skipped||[],resolutions,sourceVersion:analysis?version:draft.wizard?.sourceVersion};
     // Partial analysis is visible and prevents unread documents from being priced.
     const safeExtraction=warning?{summary:extraction?.summary||text,facts:extraction?.facts||[],conflicts:extraction?.conflicts||[],missingInformation:extraction?.missingInformation||[],reviewNotes:[...new Set([...(extraction?.reviewNotes||[]),warning])]}:extraction;

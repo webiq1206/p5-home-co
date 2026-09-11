@@ -5,6 +5,16 @@ export function sameAnswer(field:ScopeField,a:string,b:string){
   if(SCOPE_FIELDS[field].kind==='number')return Number(a.replaceAll(',',''))===Number(b.replaceAll(',',''));
   return a.trim().toLowerCase()===b.trim().toLowerCase();
 }
+/** Re-read source-derived values from the current documents; keep actual visitor answers. */
+export function manualScopeAnswers(current:ScopeAnswers,previous:ScopeExtraction|null,resolutions:ScopeAnswers={}){
+  if(!previous)return {...current};
+  const extracted=deriveScopeAnswers(mergeScopeFacts({},previous).answers);
+  const answers={...current};
+  for(const key of Object.keys(extracted) as ScopeField[]){
+    if(!resolutions[key]&&current[key]!==undefined&&sameAnswer(key,current[key]!,extracted[key]!))delete answers[key];
+  }
+  return answers;
+}
 /** Only arithmetic on explicit dimensions. Photos never supply an assumed scale. */
 export function deriveScopeAnswers(input:ScopeAnswers){
   const answers={...input};
