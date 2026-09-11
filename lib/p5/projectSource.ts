@@ -1,5 +1,5 @@
 import type {BrowserDraft} from './browserDraft';
-import {SCOPE_FIELDS,type ScopeAnswers,type ScopeField} from './scope';
+import {SCOPE_FIELDS,type ScopeAnswers,type ScopeField} from './scope.ts';
 export interface ProjectSource {id:string;answers:ScopeAnswers;imageUrl?:string}
 /** Carry a designer's selections without replacing later visitor corrections or other projects. */
 export function mergeProjectSource(draft:BrowserDraft,source:ProjectSource):BrowserDraft{
