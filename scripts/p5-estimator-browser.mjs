@@ -69,7 +69,7 @@ for(const width of [320,390,430,768,1024,1440,1920]){
   // A manual text edit is analyzed once before an estimate can be confirmed.
   await estimator.getByRole('checkbox').check();await Promise.all([page.waitForResponse('**/api/p5-estimator/scope'),estimator.getByRole('button',{name:'Get my estimate',exact:true}).click()]);await page.waitForFunction(()=>!document.querySelector('[data-p5-estimator][aria-busy=true]'));assert.ok(state.scopeCalls>calls);
   await overflow(page);await capture(page,`${width}-review`);await estimator.getByRole('checkbox').check();await estimator.getByRole('button',{name:'Get my estimate',exact:true}).click();await estimator.getByText('Schedule a scope review.',{exact:true}).waitFor();
-  await estimator.getByText('View items and unit pricing',{exact:true}).click();await estimator.getByText('Repair three interior doors',{exact:true}).waitFor();await overflow(page);
+  await estimator.getByRole('heading',{name:'Carpentry',exact:true}).waitFor();await estimator.getByText('Repair three interior doors',{exact:true}).waitFor();await overflow(page);
   assert.ok(!/overheadRecovery|operatingProfit|unitCost/.test(await estimator.innerText()));await capture(page,`${width}-result`);
   await page.waitForTimeout(2100);assert.equal(state.postSubmissionSaves,0);await page.reload();await estimator.getByText('Schedule a scope review.',{exact:true}).waitFor();assert.equal(state.submissions,1);assert.deepEqual(errors,[]);
   results.push({width,passed:true,checks:['null receipt preserves files','speech API simulation','typed and uploaded mixed input','failed upload and reload recovery','known facts skipped','back and contact preservation','manual text reanalysis','line-item privacy','single submission','result restoration','overflow']});

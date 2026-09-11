@@ -7,7 +7,7 @@ test('Legacy summaries retain values, use readable quantities and group scope wi
  const sections=summarySections(result.summary);
  assert.deepEqual(sections[0].rows,[['Project type','New construction'],['Project area in square feet','4,500']]);
  const breakdown=estimateSections(result).find(s=>s.title==='Plumbing'&&s.text);
- assert.equal(breakdown?.rows?.length,1);assert.ok(breakdown?.rows?.[0][1].includes('$100 to $200 total'));
+ assert.equal(breakdown?.rows?.length,2);assert.ok(breakdown?.rows?.[1][1].includes('$100 to $200 total'));
  assert.ok(JSON.stringify(sections).includes('Land and financing.'));
 });
 test('Formatted customer emails escape scope HTML and never include internal finance',()=>{

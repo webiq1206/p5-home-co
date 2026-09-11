@@ -34,7 +34,10 @@ export function estimateSections(result:any):EstimateSection[]{
    bullets:[...new Set<string>(tasks.filter(x=>(x.category||suggestedTrade(x.description))===category).map(x=>x.description))],
    rows:lines.filter(x=>x.category===category).map(x=>[x.description,`${Number(x.quantity).toLocaleString('en-US')} ${x.unit} • ${money(x.low)} to ${money(x.high)} total • ${Number(x.unitLow).toLocaleString('en-US',{style:'currency',currency:'USD'})} to ${Number(x.unitHigh).toLocaleString('en-US',{style:'currency',currency:'USD'})} / ${x.unit}`])};
  });
- if(breakdown.length)sections.push({title:result.range?'Included scope by category':'Requested scope by category',text:'Category and item ranges are parts of the overall range, not additional charges. Where several tasks share an assembly, its price is shown once.'},...breakdown);
+ if(breakdown.length){
+  sections.splice(sections[0]?.title==='Project at a glance'?1:0,0,{title:result.range?'Included scope by category':'Requested scope by category',text:result.range?'Category and item ranges are parts of the overall range, not additional charges. Where several tasks share an assembly, its price is shown once.':'Scope details are organized below. Pricing coverage still requires review.'});
+  for(const category of breakdown){const existing=sections.find(s=>s.title===category.title);if(existing){existing.text=category.text;existing.rows=[...(existing.rows||[]),...(category.rows||[])];existing.bullets=category.bullets;}else sections.push(category);}
+ }
  for(const [title,key] of [['Allowances','allowances'],['Planning assumptions','assumptions'],['Exclusions','exclusions'],['Factors that may change the range','factors']]){
   const values=result[key]||[];if(!values.length)continue;
   sections.push({title,bullets:values.map((x:any)=>typeof x==='string'?x:`${x.description}${x.amount!=null?`: ${money(x.amount)} included`:': selection to confirm'}. Includes ${(x.includes||[]).join(', ')}. ${['tax','freight','delivery','installation','waste'].map(k=>`${k}: ${x[k+'Included']?'included':'excluded'}`).join('; ')}. Selection deadline: ${x.selectionDeadline}. ${x.adjustment}`)});

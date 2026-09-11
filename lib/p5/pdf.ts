@@ -58,7 +58,8 @@ async function render(kind:"customer"|"administrative",id:string,blocks:Block[])
   draw(`Reference ${id} | ${new Date().toISOString().slice(0,10)}`,9);y-=12;
   for(const block of blocks){
     const blockHeight=(block.title?wrap(block.title,heading,16,524).length*21.6+6:0)+(block.text?wrap(block.text,font,10.5,524).length*14.175:0)+(block.rows||[]).reduce((n,[name,value])=>n+(block.compact?wrap(`${name}: ${value}`,font,10.5,524).length*14.175+4:(wrap(name,font,10.5,524).length+wrap(value,font,10.5,524).length)*14.175+6),0)+10;
-    ensure(compact?42:blockHeight<=180?blockHeight:60);if(block.title){page.drawLine({start:{x:44,y:y+8},end:{x:568,y:y+8},color:accent,thickness:.7});y-=compact?2:8;draw(block.title,compact?13:16,true);y-=compact?3:6;}
+    const keepHeight=blockHeight+55+(block.bullets||[]).reduce((n,b)=>n+wrap(b,font,10.5,524).length*14.175+8,0);
+    ensure(compact?42:keepHeight<=500?keepHeight:120);if(block.title){page.drawLine({start:{x:44,y:y+8},end:{x:568,y:y+8},color:accent,thickness:.7});y-=compact?2:8;draw(block.title,compact?13:16,true);y-=compact?3:6;}
     if(block.text){draw(block.text);y-=compact?3:8;}
     for(const bullet of block.bullets||[]){ensure(36);draw(`• ${bullet}`);y-=compact?3:8;}
     for(const [name,value]of block.rows||[]){if(block.compact||(compact&&value.length<160)){ensure(22);draw(`${name}: ${value}`);y-=4;}else{ensure(60);draw(name,11,true);y-=4;const parts=scopeBullets(value);for(const part of parts){draw(parts.length>1?`• ${part}`:part);y-=4;}y-=8;}}
