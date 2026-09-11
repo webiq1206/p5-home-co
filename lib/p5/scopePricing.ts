@@ -62,7 +62,7 @@ export const requestPricing:PricingRequest=async(instructions,input,search,remai
     const anthropic=process.env.ANTHROPIC_API_KEY;
     if(!anthropic)throw new Error('pricing-provider-unavailable');
     const headers={'Content-Type':'application/json','x-api-key':anthropic,'anthropic-version':'2023-06-01'};
-    const response=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',signal:AbortSignal.timeout(Math.min(search?150000:180000,remainingMs)),headers,body:JSON.stringify({model:search?(process.env.P5_PRICING_RESEARCH_MODEL||'claude-sonnet-5'):(process.env.P5_PRICING_MODEL||'claude-sonnet-5'),max_tokens:14000,system:instructions,messages:[{role:'user',content:JSON.stringify(input)}],...(search?{tools:[{type:'web_search_20250305',name:'web_search',max_uses:3}]}:{output_config:{format:{type:'json_schema',schema:instructions===INVENTORY?inventoryJson:instructions===MAP?mappingJson:auditJson}}})})});
+    const response=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',signal:AbortSignal.timeout(Math.min(search?150000:180000,remainingMs)),headers,body:JSON.stringify({model:search?(process.env.P5_PRICING_RESEARCH_MODEL||'claude-sonnet-5'):(process.env.P5_PRICING_MODEL||'claude-sonnet-5'),max_tokens:14000,system:instructions,messages:[{role:'user',content:JSON.stringify(input)}],...(search?{tools:[{type:'web_search_20250305',name:'web_search',max_uses:3}]}:{output_config:{format:{type:'json_schema',schema:instructions===normalizeResearch?marketJson:instructions===INVENTORY?inventoryJson:instructions===MAP?mappingJson:auditJson}}})})});
     if(!response.ok)throw new Error('pricing-provider-unavailable');
     const body=await response.json();
     if(body.stop_reason!=='end_turn')throw new Error('pricing-check-incomplete');
@@ -171,7 +171,14 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
     let marketOffset=0;
     for(let start=0;start<gaps.length;start+=3){
       const gapBatch=gaps.slice(start,start+3);
-      const researched=await request(RESEARCH,{date:now.toISOString().slice(0,10),region:scope.answers.location||'Boise / Treasure Valley, Idaho',tasks:gapBatch.map(t=>({id:t.id,description:t.researchDescription,quantityEvidence:t.evidence,alreadyCovered:t.existingLineIds.map(id=>lines.find(l=>l.id===id)).filter(Boolean)}))},true,deadline-Date.now());
+      let researched=await request(RESEARCH,{date:now.toISOString().slice(0,10),region:scope.answers.location||'Boise / Treasure Valley, Idaho',tasks:gapBatch.map(t=>({id:t.id,description:t.researchDescription,quantityEvidence:t.evidence,alreadyCovered:t.existingLineIds.map(id=>lines.find(l=>l.id===id)).filter(Boolean)}))},true,deadline-Date.now());
+      // JSON syntax alone does not ensure the research schema is valid. Save a
+      // separate formatting stage for valid JSON with arrays/objects in string
+      // fields, retaining the original report and tool-returned source URLs.
+      if(!marketSchema.safeParse(researched.value).success){
+        const normalized=await request(normalizeResearch,{requested:{tasks:gapBatch.map(t=>({id:t.id,description:t.researchDescription,quantityEvidence:t.evidence}))},report:researched.sourceReport||JSON.stringify(researched.value),sourceUrls:researched.sourceUrls},false,deadline-Date.now());
+        researched={...researched,value:marketSchema.parse(normalized.value)};
+      }
       research.push(researched);
       const market=marketResolution(researched.value,researched.sourceUrls,gapBatch,now,marketOffset);
       marketOffset+=market.rules.length;

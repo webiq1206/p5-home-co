@@ -139,3 +139,14 @@ test('Research batches retain unique rule IDs and all source evidence',async()=>
  },now);
  assert.equal(searches,3);assert.ok(result.customer.range);
 });
+
+test('Valid JSON research with incompatible field types gets a saved constrained normalization stage',async()=>{
+ let calls=0;let formatting=0;
+ const inputs:unknown[]=[{tasks:[task,extra].map(({id,description,evidence})=>({id,description,evidence})),issues:[]},{tasks:[task,extra],issues:[]},{...researched,rates:[{...researched.rates[0],includes:['overlay material'],excludes:[]}],issues:[{message:'Formatting fixture only'}]},researched,{coveredTaskIds:['cabinets','overlay'],issues:[]}];
+ const result=await priceCompleteScope(scope,config,async(instructions,input,search)=>{
+  calls++;
+  if(calls===4){formatting++;assert.equal(search,false);assert.ok(instructions.startsWith('Convert the supplied research report'));assert.deepEqual((input as any).sourceUrls,urls);assert.ok((input as any).report.includes('overlay material'));}
+  return {value:inputs.shift(),sourceUrls:search?urls:[]};
+ },now);
+ assert.equal(formatting,1);assert.ok(result.customer.range);assert.ok(JSON.stringify(result.internal.scopePricing.research).includes(urls[0]));
+});
