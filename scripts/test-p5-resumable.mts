@@ -38,5 +38,24 @@ try{
  assert.equal(intent.cabinetIntent('Supply only vanity cabinet, no installation',['cabinet-install','cabinet-product']),'cabinet-product');
  assert.equal(intent.cabinetIntent('Supply and install cabinet, or supply only',['cabinet-install','cabinet-product']),undefined,'ambiguous instructions still require confirmation');
  const fixed=intent.applyCabinetIntent('Supply and install one vanity cabinet',['cabinet-install','cabinet-product'],{service:'cabinet-product'},{summary:'',facts:[],conflicts:[{field:'service',values:['cabinet-product','cabinet-install'],explanation:'Old default'}],missingInformation:[],reviewNotes:[]});assert.equal(fixed.answers.service,'cabinet-install');assert.equal(fixed.extraction.conflicts.length,0);
+ const scopeApi=await mod('scopeEndpoint');const nativeFetch=globalThis.fetch;
+ let middleFails=true;const sectionCalls=new Map<string,number>();
+ globalThis.fetch=async(url:any,options:any)=>{
+   const payload=JSON.parse(options.body),name=payload.messages[0].content[0].text;
+   sectionCalls.set(name,(sectionCalls.get(name)||0)+1);
+   if(middleFails&&name.includes('9 to 16'))return new Response('fixture outage',{status:503});
+   return provider(url,options);
+ };
+ const form=new FormData();form.set('text','Partial section retry fixture');form.set('resumable','true');
+ const analyze=async()=>{const response=await scopeApi.postScope(new Request('https://test.local/api/p5-estimator/scope',{method:'POST',headers,body:form}));assert.equal(response.status,200);return response.json();};
+ let response:any;let turns=0;do{response=await analyze();assert.ok(++turns<10);}while(response.pending);
+ assert.match(response.warning,/automatic reading could not finish/,'failed sections must expose the retry control');
+ assert.ok(response.draft.extraction.reviewNotes.some((note:string)=>note.includes('9 to 16')));
+ const completedBefore=[...sectionCalls].filter(([name])=>!name.includes('9 to 16'));
+ middleFails=false;form.set('retry','true');response=await analyze();form.set('retry','false');
+ turns=0;while(response.pending){response=await analyze();assert.ok(++turns<10);}
+ assert.equal(response.warning,'');assert.deepEqual(response.draft.extraction.reviewNotes,[]);
+ for(const [name,count] of completedBefore)assert.equal(sectionCalls.get(name),count,'completed sections must not be billed again');
+ globalThis.fetch=nativeFetch;
  await db.database.close();console.log('Passed: 25 MB resumable upload, corrupted-segment rejection, retry deduplication, authorization, full byte comparison, cleanup, 17-page checkpointed analysis, failed-section retry, Cabinet intent. Real isolated SQL/PDF; storage and AI simulated.');
 }finally{delete process.env.P5_OBJECT_STORAGE_ENABLED;delete process.env.ANTHROPIC_API_KEY;await rm(dir,{recursive:true,force:true});}

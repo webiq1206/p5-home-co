@@ -48,6 +48,7 @@ export async function prepareAnalysisFiles(files:AnalysisFile[]) {
     try{
     if(["image/heic","image/heif","image/tiff","image/avif"].includes(file.type)||(file.type.startsWith("image/")&&file.data.length>16*1024*1024)){readable.push(...await prepareImages(file));
     }else if(file.type==="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"){
+      checkOfficeArchive(file.data);
       const workbook=new ExcelJS.Workbook();await workbook.xlsx.load(file.data as any);
       const parts:string[]=[];let cells=0;
       workbook.eachSheet(sheet=>{parts.push(`Worksheet: ${sheet.name}`);sheet.eachRow((row,rowNumber)=>{
@@ -57,6 +58,7 @@ export async function prepareAnalysisFiles(files:AnalysisFile[]) {
       const text=parts.join("\n");if(text.length>120000)throw new Error("Spreadsheet text is too large. Upload the relevant scope sheets.");
       readable.push({...file,type:"text/plain",data:Buffer.from(text)});
     }else if(file.type==="application/vnd.openxmlformats-officedocument.wordprocessingml.document"){
+      checkOfficeArchive(file.data);
       const result=await mammoth.extractRawText({buffer:file.data});
       if(result.value.length>120000)throw new Error("Document text is too large. Upload the relevant scope pages.");
       readable.push({...file,type:"text/plain",data:Buffer.from(result.value)});
