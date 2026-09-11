@@ -21,7 +21,7 @@ test('Cabinet supply and installation use distinct scope and preserve the overhe
 });
 test('Missing cabinet measurements are blocked; a real zero stays zero',()=>{const config=createPlanningConfiguration(catalog);const missing=priceReviewedScope(scope({service:'cabinet-product',cabinetBaseLf:'10'}),config,now);assert.equal(missing.customer.range,null);const zero=priceReviewedScope(scope({service:'cabinet-product',cabinetBaseLf:'0',cabinetUpperLf:'10',cabinetTallLf:'0'}),config,now);assert.ok(zero.customer.range);});
 test('Supplied fixtures are not purchased twice and explicit task counts determine hours',()=>{
- const config=createPlanningConfiguration(catalog);const review=scope({service:'handyman',taskList:'Replace two toilets',ownerSupplied:'Both toilets',location:'Boise'});
+ const config=createPlanningConfiguration(catalog);const review=scope({service:'handyman',taskList:'Replace two toilets',ownerSupplied:'TOILETS supplied by owner',location:'Boise'});
  const result=priceReviewedScope(review,config,now);const internal=result.internal as any;assert.ok(result.customer.range);assert.equal(internal.lines.find((r:any)=>r.id.startsWith('REF-PLUMBING-HOUR')).quantity,4);assert.ok(!internal.lines.some((r:any)=>r.id.startsWith('REF-TOILET')));
 });
 test('Unknown specialist work and expired planning catalogs cannot produce misleading partial ranges',()=>{
@@ -30,3 +30,11 @@ test('Unknown specialist work and expired planning catalogs cannot produce misle
 });
 test('Question policy requests all relevant quantities in a combined task list',()=>{const fields=planningQuestionFields({service:'handyman',taskList:'Paint walls, install flooring and tile, replace baseboards'});for(const field of ['sqft','flooringSqft','tileSqft','trimLf'])assert.ok(fields.includes(field as any));});
 test('The catalog rejects duplicate contingency, owner-management salary and zero-price placeholders',()=>{for(const code of ['03-23-04','L-03-00','03-24-99'])assert.throws(()=>createPlanningConfiguration({...catalog,rates:[...catalog.rates,{...catalog.rates[0],code}]}));});
+
+test('Supplied countertops keep installation costs; retained countertops omit both',()=>{
+ const extra=['03-17-02-M','03-17-02-L'].map(code=>({...catalog.rates[0],code,type:(code.endsWith('-M')?'Material':'Labor') as 'Material'|'Labor'}));
+ const c={...catalog,rates:[...catalog.rates,...extra]};const book=createPlanningConfiguration(c).costBooks.find(b=>b.service==='kitchen')!;
+ const answers={service:'kitchen',taskList:'Install countertops',sqft:'100',countertopSqft:'50',ownerSupplied:'COUNTERTOPS provided'};
+ const supplied=materializePlanningBook(book,c,scope(answers),now);assert.ok(supplied.book.rules.some(r=>r.id.startsWith('03-17-02-L')));assert.ok(!supplied.book.rules.some(r=>r.id.startsWith('03-17-02-M')));
+ const retained=materializePlanningBook(book,c,scope({...answers,ownerSupplied:'',exclusions:'COUNTERTOPS'}),now);assert.ok(!retained.book.rules.some(r=>r.id.startsWith('03-17-02')));
+});

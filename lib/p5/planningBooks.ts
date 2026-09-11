@@ -62,8 +62,8 @@ export function materializePlanningBook(book:ServiceCostBook,catalog:PlanningCat
    estimatingBasis:r.basis,quantitySource:note} as CostRule);
  };
  const pair=(code:string,q:number,note:string,material=true,labor=true)=>{if(material)add(`${code}-M`,q,note);if(labor)add(`${code}-L`,q,note);};
- const unchanged=(re:RegExp)=>Boolean(a.exclusions&&re.test(a.exclusions))||new RegExp(`(?:retain|keep|reuse|no new|do not replace)\\s+(?:the\\s+)?(?:existing\\s+)?(?:${re.source})|(?:${re.source}).{0,20}(?:remain|stay|retained|reused)`,'i').test(text);
- const retained=(re:RegExp)=>Boolean(a.ownerSupplied&&re.test(a.ownerSupplied))||unchanged(re);
+ const unchanged=(re:RegExp)=>Boolean(a.exclusions&&re.test(a.exclusions.toLowerCase()))||new RegExp(`(?:retain|keep|reuse|no new|do not replace)\\s+(?:the\\s+)?(?:existing\\s+)?(?:${re.source})|(?:${re.source}).{0,20}(?:remain|stay|retained|reused)`,'i').test(text);
+ const retained=(re:RegExp)=>Boolean(a.ownerSupplied&&re.test(a.ownerSupplied.toLowerCase()))||unchanged(re);
  const count=(noun:string,defaultCount=1)=>{const normalized=text.replace(/\b(one|two|three|four|five|six|seven|eight|nine|ten)\b/g,w=>String(['one','two','three','four','five','six','seven','eight','nine','ten'].indexOf(w)+1));const match=normalized.match(new RegExp(`\\b(\\d+)\\s+(?:new\\s+|existing\\s+)?(?:${noun})`,'i'));return match?Number(match[1]):defaultCount;};
  const elapsed=(fallback:number)=>{const n=fieldNumber(a,'projectMonths');if(n!==undefined)return n;assumptions.push(`Temporary site facilities: ${fallback} month(s) for budgeting; adjust to the confirmed schedule.`);return fallback;};
  const cabinet=(fallbackBase:number|undefined,fallbackUpper:number|undefined)=>{
@@ -135,7 +135,7 @@ export function materializePlanningBook(book:ServiceCostBook,catalog:PlanningCat
    if(full||/permit/.test(text))add('03-01-01',service==='bathroom'?.25:service==='kitchen'?.4:1,'Proportional source permit budget, reconciled with local requirements.','permits-inspections');
   }
   finishes(area,full);
-  if((full||/countertop/.test(text))&&!retained(/countertop/)){const sf=quantity('countertopSqft',service==='bathroom'?10:service==='kitchen'?50:Math.max(30,area*.02));pair('03-17-02',sf/2.083333333333333,'Countertop SF converted to LF using a disclosed 25-inch depth.');assumptions.push('Countertops use a 25-inch modeled depth to convert the source LF rate; islands and specialty edges need a supplier takeoff.');}
+  if((full||/countertop/.test(text))&&!unchanged(/countertop/)){const sf=quantity('countertopSqft',service==='bathroom'?10:service==='kitchen'?50:Math.max(30,area*.02));pair('03-17-02',sf/2.083333333333333,'Countertop SF converted to LF using a disclosed 25-inch depth.',!retained(/countertop/));assumptions.push('Countertops use a 25-inch modeled depth to convert the source LF rate; islands and specialty edges need a supplier takeoff.');}
   if((service==='bathroom'&&full)||/shower glass/.test(text))pair('03-19-06',1,'One shower-glass enclosure allowance.');
   if(full){pair('03-18-02',area*.35,'Trim allowance of 0.35 LF per SF of project area.');pair('03-23-01',area,'Closeout and touch-up allowance.');add('03-23-02',area,'Final clean allowance.','closeout');}
   const months=elapsed(build?Math.max(4,Math.ceil(area/600)):service==='bathroom'?1:service==='kitchen'?2:3);
