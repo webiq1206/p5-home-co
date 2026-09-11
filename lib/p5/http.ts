@@ -1,9 +1,17 @@
 import { ESTIMATOR_BRAND } from "./brand";
 import { DraftError } from "./store";
 const buckets=new Map<string,{count:number;until:number}>();
+function configuredOrigins() {
+  const values=[`https://${ESTIMATOR_BRAND.domain}`,`https://www.${ESTIMATOR_BRAND.domain}`,process.env.APP_BASE_URL,process.env.REPLIT_DEV_DOMAIN];
+  return new Set(values.flatMap(value=>{
+    if(!value)return [];
+    try{return [new URL(value.includes("://")?value:`https://${value}`).origin];}catch{return [];}
+  }));
+}
 export function protectRequest(request:Request,limit=60) {
   const origin=request.headers.get("origin");const url=new URL(request.url);
-  if(origin && origin!==url.origin && origin!==`https://${ESTIMATOR_BRAND.domain}`)throw new DraftError("Request origin is not allowed.",403);
+  const localPreview=process.env.NODE_ENV==="development" && origin==="http://terminal.local:4173";
+  if(origin && !localPreview && origin!==url.origin && !configuredOrigins().has(origin))throw new DraftError("Request origin is not allowed.",403);
   const key=`${url.pathname}:${request.method}:${(request.headers.get("x-forwarded-for")||"unknown").split(",")[0]}`;const now=Date.now();
   if(buckets.size>10000)for(const [k,v]of buckets)if(v.until<now)buckets.delete(k);
   const b=buckets.get(key);if(!b||b.until<now)buckets.set(key,{count:1,until:now+600000});
@@ -21,6 +29,6 @@ export function failed(error:unknown){
   if(error instanceof DraftError)return json({error:error.message},error.status);
   console.error("[p5-estimator]",error instanceof Error?error.message:"request failed");
   const code=error instanceof Error?error.message:"";
-  const message=code==="analysis-unconfigured"?"Automatic scope review is temporarily unavailable. Your saved work is intact; add what you know below or retry the document review.":code==="analysis-busy"?"Scope review is busy. Your work is saved. Please try again shortly.":"We could not finish this step. Your existing work is intact. Please try again.";
+  const message=code==="analysis-unconfigured"?"Automatic scope review is temporarily unavailable. Your saved work is intact; continue manually or try again later.":code==="analysis-busy"?"Scope review is busy. Your work is saved. Please try again shortly.":"We could not finish this step. Your existing work is intact. Please try again.";
   return json({error:message},503);
 }

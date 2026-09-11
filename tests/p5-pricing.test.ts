@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {tradeForLine,apportionAmount} from "../lib/p5/trades.ts";
 import {validateReferences,compareReference,referenceDirectCostBudget,type PriceReference} from "../lib/p5/references.ts";
-import {combineScopeExtractions,mergeScopeFacts} from "../lib/p5/scope.ts";
+import {combineScopeExtractions,mergeScopeFacts,protectPricingFacts} from "../lib/p5/scope.ts";
 import {analyzeScope} from "../lib/p5/extraction.ts";
 import {PDFDocument} from "pdf-lib";
 import { COST_CATEGORIES, SERVICE_MATRIX, UNCONFIGURED_FINANCE, allowanceAdjustment, calculateP5Estimate, companyAllocation, customerEstimate, landedUnitCost, loadedHourlyCost, priceFromRiskAdjustedCost, type FinancePolicy, type PricingInput, type Service } from "../lib/p5/pricing.ts";
@@ -178,13 +178,42 @@ test("page merging preserves additive trade scope and conflicting measurements",
   assert.match(merged.answers.plumbing!,/Install sink\nReplace supply lines/);
   assert.equal(merged.answers.sqft,undefined);assert.ok(merged.conflicts.some(c=>c.field==="sqft"));
 });
+test("photo interpretations and inferred urgency never become confirmed pricing facts",()=>{
+  const protectedExtraction=protectPricingFacts({summary:"Scope",facts:[
+    {field:"finish",value:"high-end",confidence:.99,source:"kitchen.webp",evidence:"The room appears high-end"},
+    {field:"materials",value:"White oak cabinets",confidence:.99,source:"kitchen.jpg",evidence:"Wood grain appears consistent with white oak"},
+    {field:"urgency",value:"standard",confidence:.99,source:"typed scope",evidence:"Target start November 2026 — future planned start with no rush language."},
+    {field:"width",value:"12",confidence:.99,source:"plans.pdf page 1",evidence:"Room width: 12 ft"},
+  ],conflicts:[],missingInformation:[],reviewNotes:[]});
+  assert.deepEqual(protectedExtraction.facts.map(f=>f.field),["width"]);
+  assert.equal(mergeScopeFacts({},protectedExtraction).answers.width,"12");
+  assert.equal(mergeScopeFacts({},protectedExtraction).answers.finish,undefined);
+  assert.equal(mergeScopeFacts({},protectedExtraction).answers.urgency,undefined);
+  assert.match(protectedExtraction.reviewNotes.join(" "),/Unconfirmed photo observation/);
+  assert.match(protectedExtraction.reviewNotes.join(" "),/Unconfirmed timing assumption/);
+  assert.ok(protectedExtraction.missingInformation.length<=2);
+});
+test("explicit written urgency remains eligible for pricing",()=>{
+  const extraction=protectPricingFacts({summary:"Scope",facts:[{field:"urgency",value:"priority",confidence:.99,source:"typed scope",evidence:"This is priority work and needs an urgent start"}],conflicts:[],missingInformation:[],reviewNotes:[]});
+  assert.equal(mergeScopeFacts({},extraction).answers.urgency,"priority");
+});
+test("derived or misclassified areas remain review notes instead of pricing measurements",()=>{
+  const extraction=protectPricingFacts({summary:"Scope",facts:[
+    {field:"sqft",value:"180",confidence:.99,source:"plans.pdf",evidence:"Room width: 12 ft × Room length: 15 ft = 180 sq ft (explicit dimensions multiplied)"},
+    {field:"sqft",value:"42",confidence:.99,source:"scope.xlsx",evidence:"Countertop: 42 square feet"},
+    {field:"sqft",value:"225",confidence:.99,source:"scope.pdf",evidence:"Project area: 225 square feet"},
+  ],conflicts:[],missingInformation:[],reviewNotes:[]});
+  assert.deepEqual(extraction.facts.map(f=>f.value),["225"]);
+  assert.match(extraction.reviewNotes.join(" "),/Unconfirmed derived measurement/);
+  assert.equal(extraction.missingInformation.filter(note=>/project area|measurement/i.test(note)).length,1);
+});
 test("PDF analysis accounts for every page and holds failed pages for review",async()=>{
   const old=process.env.ANTHROPIC_API_KEY;process.env.ANTHROPIC_API_KEY="synthetic-not-a-real-key";
   try{
-    const doc=await PDFDocument.create();for(let i=0;i<3;i++)doc.addPage();const calls:string[]=[];
-    const transport:typeof fetch=async(_url,options)=>{const body=JSON.parse(String(options?.body));const name=body.messages[0].content.find((x:{text?:string})=>x.text?.startsWith("Source filename:")).text;calls.push(name);if(name.includes("page 2 "))return new Response("failure",{status:503});return Response.json({stop_reason:"end_turn",content:[{type:"text",text:JSON.stringify({summary:"Synthetic page scope",facts:[{field:"plumbing",value:name.includes("page 1 ")?"Install sink":"Replace supply lines",confidence:.99,source:name,evidence:"Synthetic stated scope"}],conflicts:[],missingInformation:[],reviewNotes:[]})}]});};
+    const doc=await PDFDocument.create();for(let i=0;i<17;i++)doc.addPage();const calls:string[]=[];
+    const transport:typeof fetch=async(_url,options)=>{const body=JSON.parse(String(options?.body));const name=body.messages[0].content.find((x:{text?:string})=>x.text?.startsWith("Source filename:")).text;calls.push(name);if(name.includes("pages 9 to 16 "))return new Response("failure",{status:503});return Response.json({stop_reason:"end_turn",content:[{type:"text",text:JSON.stringify({summary:"Synthetic page scope",facts:[{field:"plumbing",value:name.includes("pages 1 to 8 ")?"Install sink":"Replace supply lines",confidence:.99,source:name,evidence:"Synthetic stated scope"}],conflicts:[],missingInformation:[],reviewNotes:[]})}]});};
     const result=await analyzeScope("Synthetic scope",[{name:"synthetic.pdf",type:"application/pdf",data:Buffer.from(await doc.save())}],{},transport);
-    assert.equal(calls.length,3);assert.equal(result.extraction.facts.length,2);assert.match(result.extraction.reviewNotes.join(" "),/page 2 of 3/);
+    assert.equal(calls.length,3);assert.equal(result.extraction.facts.length,2);assert.match(result.extraction.reviewNotes.join(" "),/pages 9 to 16 of 17/);
   }finally{if(old===undefined)delete process.env.ANTHROPIC_API_KEY;else process.env.ANTHROPIC_API_KEY=old;}
 });
 

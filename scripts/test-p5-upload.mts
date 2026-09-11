@@ -23,7 +23,10 @@ try{
  const workbook=new ExcelJS.Workbook();workbook.addWorksheet('Bathroom').addRows([['Material','Quantity'],['Porcelain tile',80]]);const xlsx=await workbook.xlsx.writeBuffer();
  const upload=async(files:{name:string;type:string;data:Uint8Array|string}[],text='Bathroom remodel: remove old tile and vanity')=>{const form=new FormData();form.set('text',text);for(const f of files)form.append('files',new File([f.data as any],f.name,{type:f.type}));return scopeApi.postScope(new Request('http://test.local/api/p5-estimator/scope',{method:'POST',headers,body:form}));};
  response=await upload([{name:'plan.pdf',type:'application/pdf',data:pdfBytes},{name:'scope.xlsx',type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',data:new Uint8Array(xlsx as ArrayBuffer)},{name:'scope.csv',type:'text/csv',data:'Item,Quantity\nTile,80'}]);
- assert.equal(response.status,200);body=await response.json();assert.equal(body.draft.uploads.length,3);assert.equal(body.draft.answers.sqft,'80');assert.equal(body.draft.answers.materials,'Porcelain tile');assert.equal(body.questions.length,0);assert.equal(calls.length,4);assert.ok(calls.some(c=>JSON.stringify(c).includes('Worksheet: Bathroom')));
+ assert.equal(response.status,200);body=await response.json();assert.equal(body.draft.uploads.length,3);assert.equal(body.draft.answers.sqft,'80');assert.equal(body.draft.answers.materials,'Porcelain tile');assert.equal(body.questions.length,0);assert.equal(calls.length,3);assert.ok(calls.some(c=>JSON.stringify(c).includes('Worksheet: Bathroom')));
+ const pdfCall=calls.find(c=>c.messages[0].content.some((v:any)=>v.type==='document'));
+ const sentPdf=pdfCall.messages[0].content.find((v:any)=>v.type==='document');
+ assert.equal((await PDFDocument.load(Buffer.from(sentPdf.source.data,'base64'))).getPageCount(),2,'adjacent scope pages must reach the model together');
  // Reupload is deduplicated, back navigation persists answers and files.
  response=await upload([{name:'plan.pdf',type:'application/pdf',data:pdfBytes}]);body=await response.json();assert.equal(body.draft.uploads.length,3);
  const restored=await store.readDraft(id,key);assert.equal(restored.answers.sqft,'80');assert.equal(restored.uploads.length,3);

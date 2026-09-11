@@ -31,6 +31,7 @@ const builds=['addition','adu','new-construction'];
 export function materialScopeFields(answers:ScopeAnswers,pricedFields:ScopeField[]=[]):ScopeField[]{
   const service=answers.service;
   const required=requiredScopeQuestions(answers);
+  if(service&&builds.includes(service)&&answers.garageIncluded==='yes'&&!answers.garageSqft?.trim())required.push('garageSqft');
   if(service&&[...remodels,...builds].includes(service)){
     if(!answers.materials&&!answers.finish)required.push('finish');
     // One description captures the work, including retained and changed items.
@@ -45,8 +46,8 @@ export function scopeQuestions(input:ScopeAnswers,extraction:ScopeExtraction|nul
   const uncertain=(extraction?.facts||[]).filter(f=>f.confidence<.85&&f.confidence>=.4&&!answers[f.field]?.trim()&&(relevant.has(f.field)||SCOPE_FIELDS[f.field].kind==='number'));
   const questions:ScopeQuestion[]=conflicts.map(c=>({field:c.field,label:SCOPE_FIELDS[c.field].label,reason:c.explanation,values:c.values,conflict:true}));
   for(const fact of uncertain)if(!questions.some(q=>q.field===fact.field)&&!skipped.includes(fact.field))questions.push({field:fact.field,label:SCOPE_FIELDS[fact.field].label,reason:`We found “${fact.value}” in ${fact.source}. Is that correct?`,values:[fact.value]});
-  for(const q of extraction?.clarifications||[])if(!answers[q.field]?.trim()&&!skipped.includes(q.field)&&!questions.some(x=>x.field===q.field))questions.push({field:q.field,label:SCOPE_FIELDS[q.field].label,reason:q.question});
-  for(const field of relevant)if(!answers[field]?.trim()&&!questions.some(q=>q.field===field)&&!skipped.includes(field))questions.push({field,label:SCOPE_FIELDS[field].label,reason:field==='service'?'What would you like help with?':field==='taskList'?'What work should be included? A short list with quantities is enough.':field==='sqft'?'About how large is the area being worked on?':field==='finish'?'This helps us allow for the materials you have in mind.':'This detail affects the work and its cost.'});
+  for(const q of extraction?.clarifications||[])if(!(q.field==='finish'&&answers.materials)&&!(['address','location','schedule','urgency'].includes(q.field)&&!pricedFields.includes(q.field))&&!answers[q.field]?.trim()&&!skipped.includes(q.field)&&!questions.some(x=>x.field===q.field))questions.push({field:q.field,label:SCOPE_FIELDS[q.field].label,reason:q.question});
+  for(const field of relevant)if(!answers[field]?.trim()&&!questions.some(q=>q.field===field)&&!skipped.includes(field))questions.push({field,label:SCOPE_FIELDS[field].label,reason:field==='service'?'What would you like help with?':field==='taskList'?'What work should be included? A short list with quantities is enough.':field==='sqft'?(builds.includes(answers.service||'')?'About how many square feet of living space are included? Keep garage and outdoor areas separate.':'About how large is the area being worked on?'):field==='finish'?'This helps us allow for the materials you have in mind.':'This detail affects the work and its cost.'});
   return questions;
 }
 export function validateScopeAnswer(field:ScopeField,value:string){

@@ -1,5 +1,5 @@
 import {SCOPE_FIELDS,validateAnswer,type ScopeAnswers,type ScopeExtraction,type ScopeConflict,type ScopeField,type ScopeUpload} from './scope.ts';
-export interface BrowserDraft {id:string;key:string;revision:number;text:string;answers:ScopeAnswers;extraction:ScopeExtraction|null;contact:{name:string;email:string;phone:string};step:number;updatedAt:number;conflicts?:ScopeConflict[];uploads?:ScopeUpload[];wizard?:{skipped:ScopeField[];resolutions:ScopeAnswers;sourceVersion?:string};analysisWarning?:string;analyzedText?:string;analyzedAnswers?:string;dirty?:boolean;pricedFields?:ScopeField[]}
+export interface BrowserDraft {namespace?:string;sourceImageUrl?:string;projectSource?:{id:string;answers:ScopeAnswers;imageUrl?:string};id:string;key:string;revision:number;text:string;answers:ScopeAnswers;extraction:ScopeExtraction|null;contact:{name:string;email:string;phone:string};step:number;updatedAt:number;conflicts?:ScopeConflict[];uploads?:ScopeUpload[];wizard?:{skipped:ScopeField[];resolutions:ScopeAnswers;sourceVersion?:string};analysisWarning?:string;analyzedText?:string;analyzedAnswers?:string;dirty?:boolean;pricedFields?:ScopeField[]}
 const storageKey='p5-project-draft-v2';
 export function newBrowserDraft(defaultService:string):BrowserDraft {
   const bytes=new Uint8Array(32);crypto.getRandomValues(bytes);
@@ -8,11 +8,11 @@ export function newBrowserDraft(defaultService:string):BrowserDraft {
   const uuid=hex.slice(0,8)+'-'+hex.slice(8,12)+'-'+hex.slice(12,16)+'-'+hex.slice(16,20)+'-'+hex.slice(20);
   return {id:uuid,key:Array.from(bytes,b=>b.toString(16).padStart(2,'0')).join(''),revision:0,text:'',answers:defaultService?{service:defaultService}:{},extraction:null,contact:{name:'',email:'',phone:''},step:0,updatedAt:Date.now(),wizard:{skipped:[],resolutions:{}}};
 }
-export function loadBrowserDraft(defaultService:string):BrowserDraft {
-  try{const d=JSON.parse(localStorage.getItem(storageKey)||'null');if(d&&typeof d.id==='string'&&/^[a-f0-9-]{36}$/i.test(d.id)&&/^[a-f0-9]{64}$/.test(d.key)&&Number.isInteger(d.revision)&&d.revision>=0&&typeof d.text==='string'&&d.answers&&d.contact&&['name','email','phone'].every(k=>typeof d.contact[k]==='string')&&Object.entries(d.answers).every(([k,v])=>Object.hasOwn(SCOPE_FIELDS,k)&&typeof v==='string'&&!validateAnswer(k as ScopeField,v)))return {...d,step:Math.min(2,Math.max(0,Number(d.step)||0)),wizard:d.wizard||{skipped:[],resolutions:{}}};}catch{}
-  return newBrowserDraft(defaultService);
+export function loadBrowserDraft(defaultService:string,namespace?:string):BrowserDraft {
+  try{const d=JSON.parse(localStorage.getItem(namespace?`${storageKey}:${namespace}`:storageKey)||'null');if(d&&typeof d.id==='string'&&/^[a-f0-9-]{36}$/i.test(d.id)&&/^[a-f0-9]{64}$/.test(d.key)&&Number.isInteger(d.revision)&&d.revision>=0&&typeof d.text==='string'&&d.answers&&d.contact&&['name','email','phone'].every(k=>typeof d.contact[k]==='string')&&Object.entries(d.answers).every(([k,v])=>Object.hasOwn(SCOPE_FIELDS,k)&&typeof v==='string'&&!validateAnswer(k as ScopeField,v)))return {...d,step:Math.min(2,Math.max(0,Number(d.step)||0)),wizard:d.wizard||{skipped:[],resolutions:{}}};}catch{}
+  return {...newBrowserDraft(defaultService),namespace};
 }
-export function persistBrowserDraft(draft:BrowserDraft){try{localStorage.setItem(storageKey,JSON.stringify({...draft,updatedAt:Date.now()}));return true;}catch{return false;}}
+export function persistBrowserDraft(draft:BrowserDraft){try{localStorage.setItem(draft.namespace?`${storageKey}:${draft.namespace}`:storageKey,JSON.stringify({...draft,updatedAt:Date.now()}));return true;}catch{return false;}}
 export function draftHeaders(draft:BrowserDraft){return {'x-p5-draft-id':draft.id,'x-p5-draft-key':draft.key};}
 /** Validate the server receipt before reading its revision or clearing local files. */
 export function requireDraftReceipt(data:unknown):{revision:number;answers:ScopeAnswers;extraction:ScopeExtraction|null;uploads:ScopeUpload[];[key:string]:any}{

@@ -44,3 +44,45 @@ test('unrelated remodeling questions never appear for repairs',()=>{
  assert.deepEqual(scopeQuestions({service:'handyman',taskList:'Repair three doors'},null),[]);
  assert.ok(validateScopeAnswer('sqft','0'));assert.equal(validateScopeAnswer('cabinetUpperLf','0'),null);
 });
+
+test('model confidence cannot promote inferred or unscaled visual details into pricing facts',()=>{
+ const raw=extracted({service:'bathroom',sqft:'80',finish:'luxury',urgency:'emergency'});
+ raw.facts=raw.facts.map(f=>({...f,basis:f.field==='service'?'stated':f.field==='urgency'?'inferred':'visual'}));
+ const e=validateExtraction(raw); const merged=reconcileScope({},e);
+ assert.equal(merged.answers.service,'bathroom');
+ assert.equal(merged.answers.sqft,undefined);
+ assert.equal(merged.answers.finish,undefined);
+ assert.equal(merged.answers.urgency,undefined);
+ const questions=scopeQuestions(merged.answers,e);
+ assert.equal(questions.some(q=>q.field==='urgency'),false);
+ assert.equal(questions.find(q=>q.field==='sqft')?.values,undefined);
+});
+test('explicit calculated measurements retain their evidence and skip repeat questions',()=>{
+ const raw=extracted({service:'bathroom',sqft:'80',materials:'Porcelain tile',demolition:'Remove old fixtures'});
+ raw.facts=raw.facts.map(f=>({...f,basis:f.field==='sqft'?'calculated':'stated'}));
+ const e=validateExtraction(raw), merged=reconcileScope({},e);
+ assert.equal(merged.answers.sqft,'80');assert.deepEqual(scopeQuestions(merged.answers,e),[]);
+});
+
+test('discarded image-scale guesses do not create a conflict with explicit measurements',()=>{
+ const raw=extracted({sqft:'80'});
+ raw.facts.push({field:'sqft',value:'150',confidence:.99,source:'photo.png',evidence:'Looks like 150 square feet',basis:'visual'});
+ const e=validateExtraction(raw);const m=reconcileScope({},e);
+ assert.equal(m.answers.sqft,'80');assert.deepEqual(m.conflicts,[]);
+});
+
+import {mergeProjectSource} from '../lib/p5/projectSource.ts';
+test('designer handoff retains existing notes, contact, files and visitor corrections',()=>{
+ const draft:any={id:'fixture',namespace:'cabinet-design',answers:{cabinetBaseLf:'20'},text:'Keep existing flooring',contact:{name:'Test',email:'test@example.com'},uploads:[{id:'plan'}],revision:4,projectSource:{id:'cabinet-design',answers:{cabinetBaseLf:'20'}}};
+ const next=mergeProjectSource(draft,{id:'cabinet-design',answers:{cabinetBaseLf:'25',cabinetUpperLf:'12'}});
+ assert.equal(next.answers.cabinetBaseLf,'25');assert.equal(next.text,draft.text);assert.deepEqual(next.contact,draft.contact);assert.deepEqual(next.uploads,draft.uploads);assert.equal(next.revision,4);
+ const edited=mergeProjectSource({...next,answers:{...next.answers,cabinetBaseLf:'30'}},{id:'cabinet-design',answers:{cabinetBaseLf:'28',cabinetUpperLf:'12'}});
+ assert.equal(edited.answers.cabinetBaseLf,'30');assert.equal(edited.conflicts?.length,1);
+});
+test('living area and garage stay separate and known specifications do not generate optional questions',()=>{
+ const a={service:'new-construction',sqft:'2500',garageIncluded:'yes',materials:'Paint grade Shaker, engineered wood',taskList:'Residence and attached garage'};
+ const e=extracted({});e.clarifications=[{field:'finish',question:'What finish level?',reason:'materials'},{field:'location',question:'Where?',reason:'jurisdiction'}];
+ assert.deepEqual(scopeQuestions(a,e).map(q=>q.field),['garageSqft']);
+ assert.deepEqual(scopeQuestions({...a,garageSqft:'800'},e),[]);
+ assert.equal(deriveScopeAnswers({...a,garageSqft:'800'}).sqft,'2500');
+});

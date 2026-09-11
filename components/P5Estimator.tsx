@@ -4,13 +4,14 @@ import {ESTIMATOR_BRAND as brand} from '@/lib/p5/brand';
 import {SCOPE_FIELDS,SCOPE_TEXT_LIMIT,SCOPE_FILE_LIMIT,SCOPE_BATCH_LIMIT,type ScopeField,type ScopeAnswers,type ScopeUpload} from '@/lib/p5/scope';
 import {deriveScopeAnswers,reconcileScope,scopeQuestions,scopeAssumptions,validateScopeAnswer,type ScopeQuestion} from '@/lib/p5/adaptive';
 import {loadBrowserDraft,newBrowserDraft,persistBrowserDraft,draftHeaders,cacheFiles,loadCachedFiles,clearCachedFiles,requireDraftReceipt,type BrowserDraft} from '@/lib/p5/browserDraft';
+import {mergeProjectSource,type ProjectSource} from '@/lib/p5/projectSource';
 import styles from './P5Estimator.module.css';
 import {reportProgress,trackScopeEvent} from '@/lib/p5/progress';
 const textAnswers=(a:ScopeAnswers)=>JSON.stringify(Object.entries(a).filter(([k,v])=>SCOPE_FIELDS[k as ScopeField].kind==='text'&&v?.trim()).sort(([a],[b])=>a.localeCompare(b)));
 const labels:Record<string,string>={handyman:'Home repairs',re10:'Inspection and RE-10 repairs','cabinet-product':'Cabinets, supply only','cabinet-install':'Cabinets with installation',kitchen:'Kitchen remodel',bathroom:'Bathroom remodel','whole-home':'Whole-home remodel',addition:'Home addition',adu:'ADU','new-construction':'New home','change-order':'Change order',rush:'Rush work',refresh:'Simple refresh','mid-range':'Standard finishes','high-end':'Premium finishes',luxury:'Custom luxury finishes'};
 const accept='.pdf,.jpg,.jpeg,.png,.webp,.gif,.heic,.heif,.txt,.csv,.json,.xlsx,.xls,.ods,.docx,.doc';
 type Recognition={continuous:boolean;interimResults:boolean;lang:string;onresult:((event:any)=>void)|null;onerror:((event:any)=>void)|null;onend:(()=>void)|null;start:()=>void;stop:()=>void};
-export function P5Estimator({defaultService='',headingAs='h1'}:{defaultService?:string;headingAs?:'h1'|'h2'}){
+export function P5Estimator({defaultService='',headingAs='h1',projectSource}:{defaultService?:string;headingAs?:'h1'|'h2';projectSource?:ProjectSource}){
   const [draft,setDraft]=useState<BrowserDraft|null>(null);const current=useRef<BrowserDraft|null>(null);
   const [files,setFiles]=useState<File[]>([]);const filesRef=useRef<File[]>([]);
   const [busy,setBusy]=useState('');const busyRef=useRef(false);const [error,setError]=useState('');const [warning,setWarning]=useState('');const [status,setStatus]=useState('');
@@ -32,7 +33,7 @@ export function P5Estimator({defaultService='',headingAs='h1'}:{defaultService?:
     change({answers,conflicts:(d.conflicts||[]).filter(c=>c.field!==key),wizard:{...d.wizard,skipped:(d.wizard?.skipped||[]).filter(k=>k!==key),resolutions:{...d.wizard?.resolutions,[key]:value}}});
   };
   useEffect(()=>{
-    mounted.current=true;const d=loadBrowserDraft(defaultService);apply(d);setWarning(d.analysisWarning||d.extraction?.reviewNotes.find(n=>n.startsWith("Your files are saved, but"))||"");setActive(questions(d)[0]||null);
+    mounted.current=true;const loaded=loadBrowserDraft(defaultService,projectSource?.id);const d=projectSource?mergeProjectSource(loaded,projectSource):loaded;apply(d);setWarning(d.analysisWarning||d.extraction?.reviewNotes.find(n=>n.startsWith("Your files are saved, but"))||"");setActive(questions(d)[0]||null);
     setSpeechAvailable(Boolean((window as any).SpeechRecognition||(window as any).webkitSpeechRecognition));
     loadCachedFiles(d.id).then(f=>{if(mounted.current&&current.current?.id===d.id){filesRef.current=f;setFiles(f);}}).catch(()=>setStatus('File recovery is unavailable. Keep this page open while uploading.'));
     if(d.revision>0)fetch('/api/p5-estimator/draft',{headers:draftHeaders(d),cache:'no-store'}).then(r=>r.ok?r.json():null).then(async data=>{
@@ -49,7 +50,8 @@ export function P5Estimator({defaultService='',headingAs='h1'}:{defaultService?:
     const preventFileNavigation=(event:DragEvent)=>{if(event.dataTransfer?.types.includes('Files'))event.preventDefault();};
     window.addEventListener("drop",preventFileNavigation);window.addEventListener("dragover",preventFileNavigation);
     return()=>{mounted.current=false;recognition.current?.stop();window.removeEventListener("drop",preventFileNavigation);window.removeEventListener("dragover",preventFileNavigation);};
-  },[defaultService]);
+  },[defaultService,projectSource?.id]);
+  useEffect(()=>{if(projectSource&&current.current){const next=mergeProjectSource(current.current,projectSource);if(next!==current.current){apply(next);setActive(questions(next)[0]||null);setConfirmed(false);}}},[JSON.stringify(projectSource)]);
   useEffect(()=>{
     if(!draft)return;
     const engaged=Boolean(draft.text||files.length||Object.keys(draft.answers).length);
@@ -63,7 +65,7 @@ export function P5Estimator({defaultService='',headingAs='h1'}:{defaultService?:
     const data=await response.json();if(!response.ok)throw new Error(data.error||'Your project could not be saved. Please retry.');const saved=requireDraftReceipt(data);
     if(current.current?.id!==d.id)return saved;
     const unchanged=current.current.updatedAt===d.updatedAt;
-    apply({...current.current,revision:saved.revision,extraction:saved.extraction,uploads:saved.uploads,pricedFields:data.pricedFields||[],...(unchanged?{answers:saved.answers,wizard:saved.wizard,conflicts:data.conflicts||current.current.conflicts||[],dirty:false}:{})});
+    apply({...current.current,revision:saved.revision,extraction:saved.extraction,uploads:saved.uploads,pricedFields:data.pricedFields||[],...(unchanged?{answers:saved.answers,wizard:saved.wizard,conflicts:[...(data.conflicts||[]),...(current.current.conflicts||[]).filter(c=>!data.conflicts?.some((v:any)=>v.field===c.field))],dirty:false}:{})});
     return saved;
   }
   useEffect(()=>{
@@ -75,21 +77,36 @@ export function P5Estimator({defaultService='',headingAs='h1'}:{defaultService?:
     if(busyRef.current)return;busyRef.current=true;setBusy(label);setError('');recognition.current?.stop();
     try{await serialized(operation);}catch(e){setError(e instanceof Error?e.message:'This step could not finish. Your work is still here.');}finally{busyRef.current=false;setBusy('');}
   }
+  async function ensureSourcePhoto(){
+    const url=projectSource?.imageUrl;if(!url||current.current?.sourceImageUrl===url)return;
+    const parsed=new URL(url,window.location.origin);
+    if(parsed.origin!==window.location.origin&&!url.startsWith('data:image/')&&!url.startsWith('blob:'))throw new Error('The design photo cannot be imported from this address. Please add it using Add files.');
+    const response=await fetch(url,{signal:AbortSignal.timeout(30000)});if(!response.ok)throw new Error('Your design photo could not be read. Please retry or add the photo using Add files.');
+    const blob=await response.blob();const ext:Record<string,string>={'image/jpeg':'jpg','image/png':'png','image/webp':'webp','image/gif':'gif','image/heic':'heic','image/heif':'heif'};
+    if(!ext[blob.type]||blob.size>SCOPE_FILE_LIMIT)throw new Error('Use Add files to provide a supported design photo up to 10 MB.');
+    const digest=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',await blob.arrayBuffer()))).map(b=>b.toString(16).padStart(2,'0')).join('').slice(0,16);
+    const name=`design-photo-${digest}.${ext[blob.type]}`;
+    if(!filesRef.current.some(f=>f.name===name)&&!current.current?.uploads?.some(f=>f.name===name)){
+      await addFiles([new File([blob],name,{type:blob.type,lastModified:0})]);
+      if(!filesRef.current.some(f=>f.name===name))throw new Error('The design photo was not added. Check the file limits and retry.');
+    }
+  }
   async function analyze(){
+    await ensureSourcePhoto();
     await save();const d=current.current!;const pending=[...filesRef.current];const form=new FormData();form.set('text',d.text);for(const f of pending)form.append('files',f);
     const response=await fetch('/api/p5-estimator/scope',{method:'POST',headers:draftHeaders(d),body:form});const data=await response.json();
     if(!response.ok)throw new Error(data.error||'Your files could not be processed. They are still here. Please retry.');const saved=requireDraftReceipt(data);
-    const next={...current.current!,...saved,key:d.key,step:1,updatedAt:Date.now(),dirty:false,conflicts:data.conflicts||[],pricedFields:data.pricedFields||[],analysisWarning:data.warning||"",analyzedText:d.text,analyzedAnswers:textAnswers(saved.answers)} as BrowserDraft;
+    const next={...current.current!,...saved,key:d.key,step:1,updatedAt:Date.now(),dirty:false,conflicts:data.conflicts||[],pricedFields:data.pricedFields||[],analysisWarning:data.warning||"",sourceImageUrl:projectSource?.imageUrl,analyzedText:d.text,analyzedAnswers:textAnswers(saved.answers)} as BrowserDraft;
     apply(next);setWarning(data.warning||'');if(pending.length)trackScopeEvent(d.uploads?.length?'additionalDocuments':'documentUploaded',saved.answers.service);trackScopeEvent(data.warning?'analysisFailed':'analysisCompleted',saved.answers.service);filesRef.current=[];setFiles([]);
     try{await clearCachedFiles(d.id);}catch{setStatus('Files are uploaded. Local file cleanup will retry later.');}
     setStatus(data.warning?'Files uploaded. Some details still need review.':'Project details saved. We will only ask about what is missing.');showQuestions(next);
   }
-  const needsAnalysis=()=>{const d=current.current;return Boolean(d&&(filesRef.current.length||d.text.trim()&&d.text!==d.analyzedText||textAnswers(d.answers)!=='[]'&&textAnswers(d.answers)!==d.analyzedAnswers));};
+  const needsAnalysis=()=>{const d=current.current;return Boolean(d&&(projectSource?.imageUrl&&d.sourceImageUrl!==projectSource.imageUrl||filesRef.current.length||d.text.trim()&&d.text!==d.analyzedText||textAnswers(d.answers)!=='[]'&&textAnswers(d.answers)!==d.analyzedAnswers));};
   const begin=()=>run('Reading your project...',async()=>{
     if(needsAnalysis()||(current.current?.uploads?.length&&!current.current.extraction))await analyze();
     else{await save();showQuestions(current.current!);}
   });
-  async function addFiles(selected:FileList|null){
+  async function addFiles(selected:FileList|File[]|null){
     if(!selected||!current.current)return;
     const incoming=Array.from(selected);const next=[...filesRef.current];
     for(const f of incoming){if(!accept.split(',').includes('.'+f.name.split('.').pop()?.toLowerCase())){setError(`${f.name}: use a supported document or photo format.`);return;}if(!next.some(v=>v.name===f.name&&v.size===f.size&&v.lastModified===f.lastModified))next.push(f);}
@@ -145,7 +162,7 @@ export function P5Estimator({defaultService='',headingAs='h1'}:{defaultService?:
       <button type="button" onClick={downloadPdf} disabled={Boolean(busy)}>Download your project summary</button><h3>Recommended next step</h3><p>{result.nextStep}</p><p>{result.disclaimer}</p>
       <p role="status">{delivery.length>0&&delivery.every(d=>d.status==="sent")?"Your summary was sent and the team has your record.":"Your project is saved. Some deliveries are pending or need team review. Please do not submit the same project again."}</p>
       <a className={styles.primary} href={brand.consultationPath} onClick={()=>trackScopeEvent("onsiteRequested",draft.answers.service)}>Schedule a consultation</a><a className={styles.secondary} href="tel:+12084771169">Call {brand.phone}</a>
-      <button type="button" onClick={()=>{const next=newBrowserDraft(defaultService);apply(next);started.current=false;setResult(null);filesRef.current=[];setFiles([]);setConfirmed(false);setActive(null);setWarning("");setStatus("");}}>Start another project</button>
+      <button type="button" onClick={()=>{const next={...newBrowserDraft(defaultService),namespace:draft.namespace};apply(next);started.current=false;setResult(null);filesRef.current=[];setFiles([]);setConfirmed(false);setActive(null);setWarning("");setStatus("");}}>Start another project</button>
     </div>:<form onSubmit={submit} noValidate><fieldset disabled={Boolean(busy)} className={styles.formBody}>
       {draft.step===0?<>{projectInput}<div className={styles.actions}><button className={styles.primary} type="button" onClick={begin}>Continue</button></div><p className={styles.hint}>Nothing to upload? Continue and we’ll help you describe the project.</p></>:<>
         {draft.step===1&&active?<section className={styles.question} aria-label="Project question"><p className={styles.questionReason}>{active.reason}</p>{active.values?.length?<div className={styles.choices}>{active.values.map(value=><button type="button" key={value} onClick={()=>answer(active.field,value)} aria-pressed={draft.answers[active.field]===value}>{labels[value]||value}</button>)}</div>:null}{active.values?.length?<details><summary>Use a different answer</summary>{field(active.field)}</details>:field(active.field)}<div className={styles.actions}><button className={styles.primary} type="button" onClick={()=>advance()}>Continue</button>{active.field!=='service'&&!active.conflict&&<button type="button" onClick={()=>advance(true)}>Not sure yet</button>}</div></section>:<>

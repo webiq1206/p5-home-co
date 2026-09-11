@@ -4,6 +4,11 @@ export const SCOPE_FIELDS = {
   location: { label: "City, ZIP code, county or general location", kind: "text" },
   address: { label: "Property address (optional)", kind: "text" },
   sqft: { label: "Project area in square feet", kind: "number" },
+  garageIncluded: { label: "Garage in this project", kind: "choice", options: ["yes", "no"] },
+  garageSqft: { label: "Garage area in square feet", kind: "number" },
+  coveredOutdoorSqft: { label: "Covered outdoor area in square feet", kind: "number" },
+  cabinetTallLf: { label: "Tall cabinet run in linear feet", kind: "number" },
+  cabinetConstruction: { label: "Cabinet construction and hardware specification", kind: "text" },
   length: { label: "Length in feet", kind: "number" },
   width: { label: "Width in feet", kind: "number" },
   rooms: { label: "Number of rooms", kind: "number" },
@@ -46,7 +51,7 @@ export const SCOPE_FIELDS = {
 } as const;
 export type ScopeField = keyof typeof SCOPE_FIELDS;
 export type ScopeAnswers = Partial<Record<ScopeField, string>>;
-export interface ExtractedFact { field: ScopeField; value: string; confidence: number; source: string; evidence: string }
+export interface ExtractedFact { field: ScopeField; value: string; confidence: number; source: string; evidence: string; basis?: "stated" | "calculated" | "visual" | "inferred" }
 export interface ScopeConflict { field: ScopeField; values: string[]; explanation: string }
 export interface ScopeExtraction { summary: string; facts: ExtractedFact[]; conflicts: ScopeConflict[]; missingInformation: string[]; reviewNotes: string[]; clarifications?: {field:ScopeField;question:string;reason:string}[] }
 export interface ScopeUpload { id: string; name: string; type: string; size: number; sha256: string; status: "stored" | "failed" }
@@ -80,7 +85,12 @@ export function validateExtraction(raw: unknown): ScopeExtraction {
     if (!item || typeof item !== "object") throw new Error("Invalid fact");
     const f = item as Record<string, unknown>;
     if (typeof f.field !== "string" || !Object.hasOwn(SCOPE_FIELDS,f.field) || typeof f.value !== "string" || !f.value.trim() || validateAnswer(f.field as ScopeField, f.value) || typeof f.confidence !== "number" || !Number.isFinite(f.confidence) || f.confidence < 0 || f.confidence > 1 || typeof f.source !== "string" || !f.source.trim() || f.source.length > 500 || typeof f.evidence !== "string" || !f.evidence.trim() || f.evidence.length > 4000) throw new Error("Invalid extracted fact");
-    return f as unknown as ExtractedFact;
+    if (f.basis !== undefined && !["stated", "calculated", "visual", "inferred"].includes(String(f.basis))) throw new Error("Invalid fact basis");
+    // A model's confidence is not evidence that an assumption was supplied by the user.
+    let confidence = f.confidence;
+    if (f.basis === "inferred") confidence = Math.min(confidence, .2);
+    if (f.basis === "visual") confidence = Math.min(confidence, SCOPE_FIELDS[f.field as ScopeField].kind === "number" ? 0 : .6);
+    return { ...f, confidence } as unknown as ExtractedFact;
   });
   const conflicts = r.conflicts.map((item: unknown): ScopeConflict => {
     if (!item || typeof item !== "object") throw new Error("Invalid conflict");
@@ -90,7 +100,7 @@ export function validateExtraction(raw: unknown): ScopeExtraction {
   });
   // Independent conflict detection: never let a model overwrite two different measurements.
   for (const field of Object.keys(SCOPE_FIELDS) as ScopeField[]) {
-    const values = [...new Set(facts.filter(f => f.field === field).map(f => f.value.trim()))];
+    const values = [...new Set(facts.filter(f => f.field === field && f.confidence >= .4).map(f => f.value.trim()))];
     if (values.length > 1 && SCOPE_FIELDS[field].kind !== "text" && !conflicts.some(c => c.field === field)) conflicts.push({ field, values, explanation: "The supplied information contains different values. Please confirm the intended scope." });
   }
   const clarifications=Array.isArray(r.clarifications)?r.clarifications.slice(0,20).map((q:any)=>{
@@ -98,6 +108,54 @@ export function validateExtraction(raw: unknown): ScopeExtraction {
     return {field:q.field as ScopeField,question:q.question,reason:q.reason};
   }):[];
   return { summary: r.summary, facts, conflicts,clarifications, missingInformation: strings(r.missingInformation, 50), reviewNotes: strings(r.reviewNotes, 50) };
+}
+const IMAGE_SOURCE = /\.(?:jpe?g|png|webp|gif|heic|heif)(?:\b|[),])/i;
+const EXPLICIT_URGENCY = /\b(?:standard|normal timing|not urgent|priority|prioritized|emergency|urgent|rush|asap|same[- ]day|immediately)\b/i;
+const INFERRED_URGENCY = /\b(?:assum(?:e|ed|ption)|unless|future planned|lead time|no (?:rush|urgency|priority|emergency)|not stated|not specified|without (?:rush|urgency|priority|emergency))\b/i;
+const DERIVED_MEASUREMENT = /\b(?:calculat(?:e|ed|ion)|deriv(?:e|ed|ation)|multipl(?:y|ied|ication))\b|[×*=]|\b\d+(?:\.\d+)?\s*(?:ft|feet)\s+(?:by|x)\s+\d/i;
+const NUMERIC_EVIDENCE:Partial<Record<ScopeField,RegExp>>={
+  sqft:/\b(?:project|room|floor|home|addition|area)\b.{0,60}\b(?:square feet|square foot|sq\.?\s*ft|sf)\b|\b(?:square feet|square foot|sq\.?\s*ft|sf)\b.{0,60}\b(?:project|room|floor|home|addition|area)\b/i,
+  length:/\b(?:length|long)\b/i,width:/\b(?:width|wide)\b/i,rooms:/\brooms?\b/i,bathrooms:/\bbathrooms?\b/i,stories:/\b(?:stories|story)\b/i,
+  cabinetBaseLf:/\b(?:base|lower)\b.{0,40}\b(?:linear feet|linear foot|lf)\b|\b(?:linear feet|linear foot|lf)\b.{0,40}\b(?:base|lower)\b/i,
+  cabinetUpperLf:/\b(?:upper|wall)\b.{0,40}\b(?:linear feet|linear foot|lf)\b|\b(?:linear feet|linear foot|lf)\b.{0,40}\b(?:upper|wall)\b/i,
+};
+/** Keep model interpretation available for review without turning it into a pricing input. */
+export function protectPricingFacts(extraction: ScopeExtraction): ScopeExtraction {
+  const facts: ExtractedFact[] = [];
+  const reviewNotes = [...extraction.reviewNotes];
+  let heldPhotoFacts = 0;
+  let heldUrgency = false;
+  let heldDerivedMeasurement = false;
+  for (const fact of extraction.facts) {
+    if (IMAGE_SOURCE.test(fact.source)) {
+      heldPhotoFacts++;
+      reviewNotes.push(`Unconfirmed photo observation — ${SCOPE_FIELDS[fact.field].label}: ${fact.value}. Confirm from written scope before pricing.`);
+      continue;
+    }
+    if (fact.field === "urgency" && (!EXPLICIT_URGENCY.test(fact.evidence)||INFERRED_URGENCY.test(fact.evidence))) {
+      heldUrgency = true;
+      reviewNotes.push(`Unconfirmed timing assumption — ${fact.value}. The supplied scope did not explicitly state urgency, so this is not a pricing fact.`);
+      continue;
+    }
+    const numericEvidence=NUMERIC_EVIDENCE[fact.field];
+    if(numericEvidence&&(!numericEvidence.test(fact.evidence)||DERIVED_MEASUREMENT.test(fact.evidence))){
+      heldDerivedMeasurement=true;
+      reviewNotes.push(`Unconfirmed derived measurement — ${SCOPE_FIELDS[fact.field].label}: ${fact.value}. The source evidence does not explicitly label this measurement, so it is not a pricing fact.`);
+      continue;
+    }
+    facts.push(fact);
+  }
+  const missingInformation = [...new Set(extraction.missingInformation)];
+  if (heldPhotoFacts && !missingInformation.some(note => /confirm.*(?:photo|finish|material)/i.test(note))) {
+    missingInformation.push("Confirm any material or finish shown only in photos if it affects the priced scope.");
+  }
+  if (heldUrgency && !missingInformation.some(note => /confirm.*(?:urgency|timing|schedule)/i.test(note))) {
+    missingInformation.push("Confirm only if the project requires priority, emergency or other nonstandard scheduling.");
+  }
+  if(heldDerivedMeasurement&&!missingInformation.some(note=>/confirm.*(?:project area|measurement)/i.test(note))){
+    missingInformation.push("Confirm the project area or other material measurement from the written scope before pricing.");
+  }
+  return {...extraction, facts, missingInformation, reviewNotes: [...new Set(reviewNotes)]};
 }
 export function mergeScopeFacts(current: ScopeAnswers, extraction: ScopeExtraction) {
   const answers = { ...current }; const conflicts = [...extraction.conflicts];
@@ -131,7 +189,7 @@ export function combineScopeExtractions(parts:ScopeExtraction[]):ScopeExtraction
     if(!seen.has(key)){seen.add(key);merged.facts.push(fact);}
   }
   for(const field of Object.keys(SCOPE_FIELDS) as ScopeField[]){
-    const values=[...new Set(merged.facts.filter(f=>f.field===field).map(f=>f.value.trim()))];
+    const values=[...new Set(merged.facts.filter(f=>f.field===field&&f.confidence>=.4).map(f=>f.value.trim()))];
     if(values.length>1&&SCOPE_FIELDS[field].kind!=="text"&&!merged.conflicts.some(c=>c.field===field))merged.conflicts.push({field,values,explanation:"Different document pages state different values. Confirm the intended project information."});
   }
   // Missing questions from one page may be answered on another.

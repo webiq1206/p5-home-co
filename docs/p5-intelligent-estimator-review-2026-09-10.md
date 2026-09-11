@@ -80,3 +80,58 @@ accuracy or full file-format acceptance benchmark.
 Legacy DOC/XLS/ODS/HEIC/HEIF files are retained for manual review. Automatic
 conversion is not implemented for those formats; PDF/DOCX/XLSX/JPEG/PNG export
 provides the supported automatic route. Exact image dimensions are never invented.
+
+## Direct implementation follow-up, September 11
+
+The user requires Codex to implement and test directly, with no further Replit
+update prompts. Direct repository changes remove the image-caption overlays and
+add extraction evidence categories. Inferred assumptions cannot auto-populate
+pricing fields, and unscaled visual guesses cannot populate measurements or create
+conflicts against explicitly stated dimensions. Extraction uses its own model
+configuration rather than inheriting an unrelated assistant model setting.
+
+Direct live synthetic PDF checks still show P5 Home analysis unavailable (the PDF
+is confirmed retained on reload), invalid draft receipts on Construction,
+Remodeling and Handyman, and a successful Cabinet PDF read of 20 LF base and 15 LF
+upper cabinets. These are deployed-code findings, not passes of the draft changes.
+The local workspace has neither analysis credentials nor a production database
+connection. Real-provider validation of the new source is therefore still pending.
+The whole estimator migration remains incomplete until remaining designer/legacy
+pricing integration, approved cost books, and live acceptance are completed.
+
+## Reconciled implementation and real document check, September 11
+
+All five stopped Replit main branches were merged into the direct implementation
+branch. No DROP, TRUNCATE, production overwrite, or destructive migration was
+added or executed. The existing development schema parity fixes are preserved.
+
+The OpenAI fallback requested 24,000 output tokens from gpt-4o-mini, whose
+published maximum is 16,384. The request now uses 12,000. Replit/OpenAI and
+Anthropic transports retain bounded fallback, safe error messages and stored files.
+
+The supplied four-page, number-redacted construction scope was uploaded directly
+to every live site. P5 stored the file but analysis returned 503. Construction,
+Remodeling and Handyman returned invalid null draft receipts before upload.
+Cabinet retained the file and returned only partial analysis: page one failed,
+and the separate page readers falsely reported sibling pages as missing. This
+is a failed acceptance check, not a production pass. The new implementation
+keeps short PDFs whole and chunks longer sets into at most eight-page sections,
+with an explicit instruction that sibling sections are processed separately.
+The regression covers all four pages together and a failed middle section of
+a seventeen-page document. Provider responses are simulated in local tests.
+
+Living area, garage area and covered outdoor areas are distinct pricing fields.
+The wizard skips optional location/scheduling follow-ups and finish-level questions
+when material specifications are already available. Cabinet designer selections,
+actual placed base/wall module quantities, notes and photos now feed the shared
+estimator in a separate persisted project. Designer changes preserve corrections
+and produce a targeted conflict instead of silently replacing visitor answers.
+The Cabinet chat carries user descriptions and reference photos to the same
+estimator; its retired calculation endpoint returns 410 and no competing price.
+Its human handoff still carries the conversation, without unreviewed price data.
+
+Release gates still require current approved cost books, real provider validation
+of the new source, real delivery verification and deployment. The local preview
+has no database connection or provider credentials; its real submit failure is
+recorded and cannot be called an end-to-end pass. Physical microphone/OS permission
+tests and automatic legacy DOC/XLS/ODS/HEIC conversion remain unverified or absent.
