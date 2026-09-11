@@ -63,14 +63,14 @@ test('Invalid catalog references and zero-quantity output never release a range'
  }
 });
 test('Anthropic-only configuration supports JSON and real tool-source extraction',async()=>{
- const names=['OPENAI_API_KEY','AI_INTEGRATIONS_OPENAI_API_KEY','AI_INTEGRATIONS_OPENAI_BASE_URL','ANTHROPIC_API_KEY'];
+ const names=['OPENAI_API_KEY','AI_INTEGRATIONS_OPENAI_API_KEY','AI_INTEGRATIONS_OPENAI_BASE_URL','ANTHROPIC_API_KEY','P5_PRICING_MODEL','P5_PRICING_RESEARCH_MODEL'];
  const saved=names.map(n=>process.env[n]);const oldFetch=globalThis.fetch;
  try{
   for(const n of names)delete process.env[n];process.env.ANTHROPIC_API_KEY='synthetic-test-key';
   let search=false;
   globalThis.fetch=async(url,init)=>{
    assert.equal(url,'https://api.anthropic.com/v1/messages');
-   const input=JSON.parse(String(init?.body));search=Boolean(input.tools);
+   const input=JSON.parse(String(init?.body));search=Boolean(input.tools);assert.equal(input.model,'claude-sonnet-5');
    return Response.json({stop_reason:'end_turn',content:search?[{type:'text',text:'Searching now.'},{type:'web_search_tool_result',content:urls.map(url=>({type:'web_search_result',url}))},{type:'text',text:JSON.stringify(researched)}]:[{type:'text',text:'{"coveredTaskIds":["cabinets"],"issues":[]}'}]});
   };
   assert.deepEqual((await requestPricing('JSON',{},false,1000)).value,{coveredTaskIds:['cabinets'],issues:[]});
