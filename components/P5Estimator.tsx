@@ -126,9 +126,9 @@ export function P5Estimator({defaultService='',headingAs='h1',projectSource}:{de
     const uploaded=current.current.uploads||[];
     if(next.length+uploaded.length>12||next.some(f=>!f.size||f.size>SCOPE_FILE_LIMIT)||next.reduce((n,f)=>n+f.size,0)+uploaded.reduce((n,f)=>n+f.size,0)>SCOPE_BATCH_LIMIT){setError('Use up to 12 files, 10 MB each and 22 MB total.');return;}
     let copied:File[];setPreparingFiles(true);
-    try{copied=await Promise.all(next.map(f=>filesRef.current.includes(f)?f:snapshotProjectFile(f)));}catch(error){setError(error instanceof Error?error.message:'The selected file could not be read. Please select it again.');return;}finally{setPreparingFiles(false);}
+    try{copied=await Promise.all(next.map(f=>filesRef.current.includes(f)?f:snapshotProjectFile(f)));}catch(error){setPreparingFiles(false);setError(error instanceof Error?error.message:'The selected file could not be read. Please select it again.');return;}
     filesRef.current=copied;setFiles(copied);setError('');setConfirmed(false);
-    try{await cacheFiles(current.current.id,copied);setStatus('Files ready. Continue to read them with your project details.');}catch{setStatus('Files are ready in this tab. Device storage is unavailable; keep this tab open until upload completes.');}
+    try{await cacheFiles(current.current.id,copied);setStatus('Files ready. Continue to read them with your project details.');}catch{setStatus('Files are ready in this tab. Device storage is unavailable; keep this tab open until upload completes.');}finally{setPreparingFiles(false);}
   }
   function speak(){
     if(listening){recognition.current?.stop();return;}const Constructor=(window as any).SpeechRecognition||(window as any).webkitSpeechRecognition;if(!Constructor)return;
