@@ -101,7 +101,7 @@ export function P5Estimator({defaultService='',headingAs='h1',projectSource}:{de
     await ensureSourcePhoto();
     setBusy('Saving your project...');await save();const d=current.current!;const pending=[...filesRef.current];
     if(pending.length){
-      setBusy('Uploading your files...');setUploadPercent(0);const upload=new FormData();upload.set('analyze','false');for(const f of pending)upload.append('files',f);
+      setBusy('Uploading your files...');setUploadPercent(0);const upload=new FormData();upload.set('analyze','false');for(const f of pending)upload.append('files',new Blob([await f.arrayBuffer()],{type:f.type}),f.name);
       const receipt=requireDraftReceipt(await transferProjectFiles(upload,draftHeaders(d),setUploadPercent));
       for(const f of pending){const digest=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',await f.arrayBuffer()))).map(b=>b.toString(16).padStart(2,'0')).join('');if(!receipt.uploads.some(stored=>stored.sha256===digest))throw new Error(`${f.name}: upload was not confirmed. Please retry.`);}
       apply({...current.current!,uploads:receipt.uploads,revision:receipt.revision});filesRef.current=[];setFiles([]);await clearCachedFiles(d.id).catch(()=>undefined);setUploadPercent(null);setStatus('Files uploaded and saved.');
