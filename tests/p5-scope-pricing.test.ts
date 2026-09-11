@@ -16,7 +16,7 @@ const extra={id:'overlay',description:'Protective overlay',evidence:'ten feet',e
 const source=(url:string,low:number,high:number)=>({url,low,high,publishedAt:'2026-09-01',region:'Idaho',excerpt:`Material price ${low} to ${high} dollars per linear foot.`});
 const urls=['https://supplier-a.example/pricing','https://supplier-b.example/pricing'];
 const researched={rates:[{taskId:'overlay',description:'Protective overlay',unit:'LF',quantity:10,quantityEvidence:'Ten feet requested',basis:'material-purchase',includes:'overlay material',excludes:'',sources:[source(urls[0],10,20),source(urls[1],20,30)]}],issues:[]};
-const replies=(values:unknown[]):PricingRequest=>async()=>({value:values.shift(),sourceUrls:urls});
+const replies=(values:unknown[]):PricingRequest=>{const first=values[0] as {tasks:typeof task[]};const queue=[{tasks:first.tasks.map(({id,description,evidence})=>({id,description,evidence})),issues:[]},...values];return async()=>({value:queue.shift(),sourceUrls:urls});};
 test('Provider failure cannot publish the otherwise available partial range',async()=>{
  assert.ok(base.customer.range);
  const r=await priceCompleteScope(scope,config,async()=>{throw new Error('offline')},now);
@@ -108,4 +108,34 @@ test('A researched specialist takeoff resolves the generic small-job hold only a
  assert.ok(priced.customer.range);
  const failed=await priceCompleteScope(specialist,config,replies([{tasks:[labor,extra],issues:[]},researched,{coveredTaskIds:['prep'],issues:['Specialist scope remains incomplete']}]),now);
  assert.equal(failed.customer.range,null);
+});
+
+test('Large scope maps bounded batches and audits every original task together',async()=>{
+ const tasks=Array.from({length:14},(_,i)=>({...task,id:`task-${i}`,description:`Assembly component ${i}`}));
+ let calls=0;
+ const request:PricingRequest=async(_instructions,input)=>{
+  const data=input as any;calls++;
+  if(calls===1)return {value:{tasks:tasks.map(({id,description,evidence})=>({id,description,evidence})),issues:[]},sourceUrls:[]};
+  if(data.taskBatch){assert.ok(data.taskBatch.length<=6);assert.equal(data.priorMappedTasks.length,(calls-2)*6);return {value:{tasks:data.taskBatch.map((t:any)=>({...task,...t})),issues:[]},sourceUrls:[]};}
+  assert.equal(data.tasks.length,14);return {value:{coveredTaskIds:tasks.map(t=>t.id),issues:[]},sourceUrls:[]};
+ };
+ const result=await priceCompleteScope(scope,config,request,now);
+ assert.equal(calls,5);assert.ok(result.customer.range);assert.equal(result.customer.scopeTasks.length,14);
+});
+test('A missing or substituted batch task never releases a partial total',async()=>{
+ let calls=0;
+ const result=await priceCompleteScope(scope,config,async()=>({value:++calls===1?{tasks:[{id:task.id,description:task.description,evidence:task.evidence}],issues:[]}:{tasks:[{...task,id:'substituted'}],issues:[]},sourceUrls:[]}),now);
+ assert.equal(result.customer.range,null);assert.equal(calls,2);
+});
+test('Research batches retain unique rule IDs and all source evidence',async()=>{
+ const tasks=Array.from({length:7},(_,i)=>({...extra,id:`gap-${i}`}));let calls=0;let searches=0;
+ const result=await priceCompleteScope(scope,config,async(_instructions,input,search)=>{
+  const data=input as any;calls++;
+  if(calls===1)return {value:{tasks:tasks.map(({id,description,evidence})=>({id,description,evidence})),issues:[]},sourceUrls:[]};
+  if(data.taskBatch)return {value:{tasks:data.taskBatch.map((t:any)=>({...extra,...t})),issues:[]},sourceUrls:[]};
+  if(search){searches++;assert.ok(data.tasks.length<=3);return {value:{rates:data.tasks.map((t:any)=>({...researched.rates[0],taskId:t.id})),issues:[]},sourceUrls:urls};}
+  assert.equal(data.research.length,3);assert.equal(new Set(data.additionalRules.map((r:any)=>r.id)).size,7);
+  return {value:{coveredTaskIds:tasks.map(t=>t.id),issues:[]},sourceUrls:[]};
+ },now);
+ assert.equal(searches,3);assert.ok(result.customer.range);
 });

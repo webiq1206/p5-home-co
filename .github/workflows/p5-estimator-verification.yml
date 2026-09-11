@@ -1,7 +1,7 @@
 name: P5 estimator policy and workflow verification
 on:
   push:
-    branches: [fix/pricing-latency,fix/readable-estimates,fix/complete-scope-pricing, codex/activate-cost-books-20260911, codex/finalize-estimators-20260911, codex/p5-upload-receipt-fix-20260910, codex/p5-intelligent-wizard-20260910, main, codex/p5-estimator-policy-20260910, codex/p5-merge-all-20260910, codex/p5-complete-main-20260910]
+    branches: [fix/pricing-batches,fix/pricing-latency,fix/readable-estimates,fix/complete-scope-pricing, codex/activate-cost-books-20260911, codex/finalize-estimators-20260911, codex/p5-upload-receipt-fix-20260910, codex/p5-intelligent-wizard-20260910, main, codex/p5-estimator-policy-20260910, codex/p5-merge-all-20260910, codex/p5-complete-main-20260910]
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
