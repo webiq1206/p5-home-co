@@ -1,5 +1,7 @@
 import { createHash, randomUUID, timingSafeEqual } from "node:crypto";
 import { query } from "./database";
+import { storeObject, readStoredBytes } from "./objectStorage";
+import { ESTIMATOR_BRAND } from "./brand";
 import type { ReviewedScope, ScopeAnswers, ScopeExtraction, ScopeUpload } from "./scope.ts";
 const hash = (value: string | Buffer) => createHash("sha256").update(value).digest("hex");
 export class DraftError extends Error { status: number; constructor(message: string, status = 400) { super(message); this.status=status; } }
@@ -16,6 +18,8 @@ export function ensureSchema(): Promise<void> {
     for (const statement of [
       `CREATE TABLE IF NOT EXISTS p5_estimator_drafts (id uuid PRIMARY KEY, key_hash text NOT NULL, brand text NOT NULL, revision integer NOT NULL DEFAULT 0, status text NOT NULL DEFAULT 'draft', payload jsonb NOT NULL DEFAULT '{}', internal_estimate jsonb, customer_estimate jsonb, submitted_at timestamptz, updated_at timestamptz NOT NULL DEFAULT now(), created_at timestamptz NOT NULL DEFAULT now())`,
       `CREATE TABLE IF NOT EXISTS p5_estimator_files (id uuid PRIMARY KEY, draft_id uuid NOT NULL REFERENCES p5_estimator_drafts(id), name text NOT NULL, mime_type text NOT NULL, size_bytes integer NOT NULL, sha256 text NOT NULL, data_base64 text NOT NULL, created_at timestamptz NOT NULL DEFAULT now(), UNIQUE(draft_id, sha256))`,
+      `ALTER TABLE p5_estimator_files ADD COLUMN IF NOT EXISTS storage_bucket text`,
+      `ALTER TABLE p5_estimator_files ADD COLUMN IF NOT EXISTS storage_key text`,
       `CREATE TABLE IF NOT EXISTS p5_estimator_outbox (id uuid PRIMARY KEY, draft_id uuid NOT NULL REFERENCES p5_estimator_drafts(id), revision integer NOT NULL, destination text NOT NULL, payload jsonb NOT NULL, status text NOT NULL DEFAULT 'pending', attempts integer NOT NULL DEFAULT 0, provider_id text, last_error text, locked_until timestamptz, next_attempt_at timestamptz NOT NULL DEFAULT now(), created_at timestamptz NOT NULL DEFAULT now(), sent_at timestamptz, UNIQUE(draft_id, revision, destination))`,
       `CREATE INDEX IF NOT EXISTS p5_estimator_outbox_due ON p5_estimator_outbox(status,next_attempt_at)`,
       `CREATE TABLE IF NOT EXISTS p5_estimator_policy (id text PRIMARY KEY, version integer NOT NULL DEFAULT 1, payload jsonb NOT NULL, updated_by text NOT NULL, updated_at timestamptz NOT NULL DEFAULT now())`,
@@ -65,12 +69,15 @@ export async function saveUpload(id:string,key:string,file:{name:string;type:str
   const digest=hash(file.data);
   const duplicate=await query("SELECT id,name,mime_type,size_bytes,sha256 FROM p5_estimator_files WHERE draft_id=$1 AND sha256=$2",[id,digest]);
   const fileId=duplicate[0]?.id||randomUUID();
-  if(!duplicate.length)await query("INSERT INTO p5_estimator_files(id,draft_id,name,mime_type,size_bytes,sha256,data_base64) VALUES($1,$2,$3,$4,$5,$6,$7) ON CONFLICT(draft_id,sha256) DO NOTHING",[fileId,id,file.name,file.type,file.data.length,digest,file.data.toString("base64")]);
+  if(!duplicate.length){
+    const location=await storeObject(ESTIMATOR_BRAND.domain,id,file.data);
+    await query("INSERT INTO p5_estimator_files(id,draft_id,name,mime_type,size_bytes,sha256,data_base64,storage_bucket,storage_key) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) ON CONFLICT(draft_id,sha256) DO NOTHING",[fileId,id,file.name,file.type,file.data.length,digest,location?"":file.data.toString("base64"),location?.bucketId||null,location?.objectKey||null]);
+  }
   const [stored]=await query("SELECT id,name,mime_type,size_bytes,sha256 FROM p5_estimator_files WHERE draft_id=$1 AND sha256=$2",[id,digest]);
   return {id:stored.id,name:stored.name,type:stored.mime_type,size:stored.size_bytes,sha256:stored.sha256,status:"stored"};
 }
 export async function readUploads(id:string,key:string) {
   if(!await rowFor(id,key))throw new DraftError("Draft not found",404);
-  const rows=await query("SELECT id,name,mime_type,data_base64 FROM p5_estimator_files WHERE draft_id=$1 ORDER BY created_at",[id]);
-  return rows.map(row=>({id:row.id as string,name:row.name as string,type:row.mime_type as string,data:Buffer.from(row.data_base64,"base64")}));
+  const rows=await query("SELECT id,name,mime_type,data_base64,storage_bucket,storage_key,sha256,size_bytes FROM p5_estimator_files WHERE draft_id=$1 ORDER BY created_at",[id]);
+  return Promise.all(rows.map(async row=>({id:row.id as string,name:row.name as string,type:row.mime_type as string,data:await readStoredBytes(row)})));
 }

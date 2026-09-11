@@ -1,4 +1,5 @@
 import {timingSafeEqual} from "node:crypto";
+import {readStoredBytes} from "./objectStorage";
 import {requireEstimatorAdmin} from "./adminAuth";
 import {query} from "./database";
 import {ensureSchema,DraftError} from "./store";
@@ -66,8 +67,8 @@ export async function postAdminAction(request:Request){try{
 }catch(error){return failed(error);}}
 export async function getAdminUpload(request:Request){try{
   await requireEstimatorAdmin();await ensureSchema();const id=validId(new URL(request.url).searchParams.get("id")||"");
-  const [file]=await query("SELECT name,mime_type,data_base64 FROM p5_estimator_files WHERE id=$1",[id]);if(!file)throw new DraftError("File not found.",404);
-  return new Response(Buffer.from(file.data_base64,"base64") as BodyInit,{headers:{"Content-Type":file.mime_type,"Content-Disposition":`attachment; filename="${String(file.name).replace(/[^a-zA-Z0-9._-]/g,"_")}"`,"Cache-Control":"no-store","X-Content-Type-Options":"nosniff"}});
+  const [file]=await query("SELECT name,mime_type,data_base64,storage_bucket,storage_key,sha256,size_bytes FROM p5_estimator_files WHERE id=$1",[id]);if(!file)throw new DraftError("File not found.",404);
+  return new Response(await readStoredBytes(file) as BodyInit,{headers:{"Content-Type":file.mime_type,"Content-Disposition":`attachment; filename="${String(file.name).replace(/[^a-zA-Z0-9._-]/g,"_")}"`,"Cache-Control":"no-store","X-Content-Type-Options":"nosniff"}});
 }catch(error){return failed(error);}}
 export async function runDeliveryCron(request:Request){try{
   const expected=process.env.CRON_SECRET;if(!expected)throw new DraftError("Delivery scheduler is not configured.",503);
