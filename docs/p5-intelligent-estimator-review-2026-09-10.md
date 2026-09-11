@@ -135,3 +135,17 @@ of the new source, real delivery verification and deployment. The local preview
 has no database connection or provider credentials; its real submit failure is
 recorded and cannot be called an end-to-end pass. Physical microphone/OS permission
 tests and automatic legacy DOC/XLS/ODS/HEIC conversion remain unverified or absent.
+
+### Final interaction refinements
+
+Project examples now match each brand. Imported designer details appear before
+additional input; optional AR/layout tools follow the estimate instead of burying
+it. Appliance openings are excluded from cabinet-run takeoffs. Cabinet's designer
+is intentionally disabled by its existing public feature flag. CI explicitly
+enables it for coverage; production availability is not changed. A direct local
+walkthrough reached the shared input with all six design details retained. The
+cloud browser cannot render its WebGL scene, so AR/3D is not a verified pass.
+
+The reconciled P5 main lockfile failed clean installation due to missing/inconsistent
+transitive @emnapi entries; it was regenerated without lifecycle scripts. P5's
+native full suite subsequently passed 664 tests with one database-dependent skip.
