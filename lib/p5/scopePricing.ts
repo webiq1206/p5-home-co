@@ -38,8 +38,22 @@ export const requestPricing:PricingRequest=async(instructions,input,search,remai
   const integrated=Boolean(process.env.AI_INTEGRATIONS_OPENAI_API_KEY&&process.env.AI_INTEGRATIONS_OPENAI_BASE_URL);
   const key=integrated?process.env.AI_INTEGRATIONS_OPENAI_API_KEY:process.env.OPENAI_API_KEY;
   const endpoint=(integrated?process.env.AI_INTEGRATIONS_OPENAI_BASE_URL:process.env.OPENAI_BASE_URL||'https://api.openai.com/v1')?.replace(/\/+$/,'');
-  if(!key||!endpoint)throw new Error('pricing-provider-unavailable');
   if(remainingMs<1000)throw new Error('pricing-check-timeout');
+  if(!key||!endpoint){
+    const anthropic=process.env.ANTHROPIC_API_KEY;
+    if(!anthropic)throw new Error('pricing-provider-unavailable');
+    const response=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',signal:AbortSignal.timeout(Math.min(55000,remainingMs)),headers:{'Content-Type':'application/json','x-api-key':anthropic,'anthropic-version':'2023-06-01'},body:JSON.stringify({model:/^claude/.test(process.env.P5_SCOPE_MODEL||'')?process.env.P5_SCOPE_MODEL:'claude-opus-5',max_tokens:14000,system:instructions,messages:[{role:'user',content:JSON.stringify(input)}],...(search?{tools:[{type:'web_search_20250305',name:'web_search',max_uses:6}]}:{})})});
+    if(!response.ok)throw new Error('pricing-provider-unavailable');
+    const body=await response.json();
+    if(body.stop_reason!=='end_turn')throw new Error('pricing-check-incomplete');
+    const content=body.content||[];
+    const sourceUrls:string[]=content.filter((p:any)=>p.type==='web_search_tool_result'&&Array.isArray(p.content)).flatMap((p:any)=>p.content.filter((s:any)=>s.type==='web_search_result').map((s:any)=>s.url));
+    // Ignore pre-search narration, preserving all final answer text blocks.
+    const lastTool=content.reduce((last:number,p:any,i:number)=>p.type==='web_search_tool_result'?i:last,-1);
+    const raw=content.slice(lastTool+1).filter((p:any)=>p.type==='text').map((p:any)=>p.text).join('');
+    if(search&&!sourceUrls.length)throw new Error('pricing-search-unavailable');
+    return {value:JSON.parse(raw.replace(/^\s*```(?:json)?\s*/,'').replace(/\s*```\s*$/,'')),sourceUrls};
+  }
   const response=await fetch(`${endpoint}/responses`,{method:'POST',signal:AbortSignal.timeout(Math.min(55000,remainingMs)),headers:{'Content-Type':'application/json',Authorization:`Bearer ${key}`},body:JSON.stringify({model:process.env.P5_SCOPE_OPENAI_MODEL||'gpt-4.1',instructions,input:JSON.stringify(input),max_output_tokens:14000,store:false,...(search?{tools:[{type:'web_search'}],tool_choice:'required',include:['web_search_call.action.sources']}:{text:{format:{type:'json_object'}}})})});
   if(!response.ok)throw new Error('pricing-provider-unavailable');
   const body=await response.json();
@@ -47,6 +61,7 @@ export const requestPricing:PricingRequest=async(instructions,input,search,remai
   const parts=(body.output||[]).flatMap((o:any)=>o.content||[]);
   const raw=parts.filter((p:any)=>p.type==='output_text').map((p:any)=>p.text).join('\n');
   const sourceUrls:string[]=[...(body.output||[]).filter((o:any)=>o.type==='web_search_call').flatMap((o:any)=>(o.action?.sources||[]).map((s:any)=>s.url)),...parts.flatMap((p:any)=>(p.annotations||[]).filter((a:any)=>a.type==='url_citation').map((a:any)=>a.url))];
+  if(search&&!sourceUrls.length)throw new Error('pricing-search-unavailable');
   return {value:JSON.parse(raw.replace(/^\s*```(?:json)?\s*/,'').replace(/\s*```\s*$/,'')),sourceUrls};
 };
 
