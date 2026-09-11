@@ -20,8 +20,9 @@ const {query}=await import('../lib/p5/database.ts');const {ensureSchema}=await i
 await query('CREATE TABLE IF NOT EXISTS p5_estimator_policy_imports (id text PRIMARY KEY, prior_payload jsonb, imported_payload jsonb NOT NULL, actor text NOT NULL, created_at timestamptz NOT NULL DEFAULT now())');
 const [prior]=await query("SELECT payload,version FROM p5_estimator_policy WHERE id='current'");
 const configuration={...prepared,finance:prior?.payload?.finance||prepared.finance,costBooks:prepared.costBooks.map(book=>prior?.payload?.costBooks?.find((old:any)=>old.service===book.service&&old.mode!=='owner-planning')||book)};
-const id=createHash('sha256').update(JSON.stringify({brand:ESTIMATOR_BRAND.id,configuration})).digest('hex');
-if(JSON.stringify(prior?.payload)===JSON.stringify(configuration)){console.log(JSON.stringify({stored:true,unchanged:true,version:prior.version,catalogRates:catalog.rates.length,services:configuration.costBooks.map(b=>b.service)}));process.exit(0);}
+const canonical=(value:any):string=>JSON.stringify(value===undefined?null:Array.isArray(value)?value.map(item=>JSON.parse(canonical(item))):value&&typeof value==='object'?Object.fromEntries(Object.keys(value).sort().map(key=>[key,JSON.parse(canonical(value[key]))])):value);
+const id=createHash('sha256').update(canonical({brand:ESTIMATOR_BRAND.id,configuration})).digest('hex');
+if(canonical(prior?.payload)===canonical(configuration)){console.log(JSON.stringify({stored:true,unchanged:true,version:prior.version,catalogRates:catalog.rates.length,services:configuration.costBooks.map(b=>b.service)}));process.exit(0);}
 // One SQL statement provides compare-and-swap plus an immutable recovery snapshot.
 const result=await query(`WITH saved AS (
  INSERT INTO p5_estimator_policy(id,payload,updated_by) SELECT 'current',$1::jsonb,$2 WHERE $3=0
