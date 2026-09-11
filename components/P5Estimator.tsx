@@ -6,6 +6,8 @@ import {deriveScopeAnswers,reconcileScope,scopeQuestions,scopeAssumptions,valida
 import {loadBrowserDraft,newBrowserDraft,persistBrowserDraft,draftHeaders,cacheFiles,loadCachedFiles,clearCachedFiles,requireDraftReceipt,type BrowserDraft} from '@/lib/p5/browserDraft';
 import {mergeProjectSource,type ProjectSource} from '@/lib/p5/projectSource';
 import {resumeWizardDraft} from '@/lib/p5/wizardResume';
+import {snapshotProjectFile} from '@/lib/p5/fileSnapshot';
+import {transferProjectFiles} from '@/lib/p5/uploadTransfer';
 import styles from './P5Estimator.module.css';
 import {reportProgress,trackScopeEvent} from '@/lib/p5/progress';
 const textAnswers=(a:ScopeAnswers)=>JSON.stringify(Object.entries(a).filter(([k,v])=>SCOPE_FIELDS[k as ScopeField].kind==='text'&&v?.trim()).sort(([a],[b])=>a.localeCompare(b)));
@@ -17,6 +19,7 @@ export function P5Estimator({defaultService='',headingAs='h1',projectSource}:{de
   const [draft,setDraft]=useState<BrowserDraft|null>(null);const current=useRef<BrowserDraft|null>(null);
   const [files,setFiles]=useState<File[]>([]);const filesRef=useRef<File[]>([]);
   const [busy,setBusy]=useState('');const busyRef=useRef(false);const [error,setError]=useState('');const [warning,setWarning]=useState('');const [status,setStatus]=useState('');
+  const [uploadPercent,setUploadPercent]=useState<number|null>(null);const [preparingFiles,setPreparingFiles]=useState(false);
   const started=useRef(false);
   const [listening,setListening]=useState(false);const [speechAvailable,setSpeechAvailable]=useState(false);const recognition=useRef<Recognition|null>(null);
   const [result,setResult]=useState<any>(null);const [delivery,setDelivery]=useState<any[]>([]);const [confirmed,setConfirmed]=useState(false);
@@ -78,7 +81,7 @@ export function P5Estimator({defaultService='',headingAs='h1',projectSource}:{de
   },[draft?.text,JSON.stringify(draft?.answers),JSON.stringify(draft?.contact),busy,Boolean(result)]);
   async function run(label:string,operation:()=>Promise<void>){
     if(busyRef.current)return;busyRef.current=true;setBusy(label);setError('');recognition.current?.stop();
-    try{await serialized(operation);}catch(e){setError(e instanceof Error?e.message:'This step could not finish. Your work is still here.');}finally{busyRef.current=false;setBusy('');}
+    try{await serialized(operation);}catch(e){setError(e instanceof TypeError?'The connection was interrupted. Your saved details are intact. Keep this tab open and retry.':e instanceof Error?e.message:'This step could not finish. Your work is still here.');}finally{busyRef.current=false;setBusy('');setUploadPercent(null);}
   }
   async function ensureSourcePhoto(){
     const url=projectSource?.imageUrl;if(!url||current.current?.sourceImageUrl===url)return;
@@ -96,8 +99,15 @@ export function P5Estimator({defaultService='',headingAs='h1',projectSource}:{de
   }
   async function analyze(){
     await ensureSourcePhoto();
-    await save();const d=current.current!;const pending=[...filesRef.current];const form=new FormData();form.set('text',d.text);for(const f of pending)form.append('files',f);
-    const response=await fetch('/api/p5-estimator/scope',{method:'POST',headers:draftHeaders(d),body:form});const data=await response.json();
+    setBusy('Saving your project...');await save();const d=current.current!;const pending=[...filesRef.current];
+    if(pending.length){
+      setBusy('Uploading your files...');setUploadPercent(0);const upload=new FormData();upload.set('analyze','false');for(const f of pending)upload.append('files',f);
+      const receipt=requireDraftReceipt(await transferProjectFiles(upload,draftHeaders(d),setUploadPercent));
+      for(const f of pending){const digest=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',await f.arrayBuffer()))).map(b=>b.toString(16).padStart(2,'0')).join('');if(!receipt.uploads.some(stored=>stored.sha256===digest))throw new Error(`${f.name}: upload was not confirmed. Please retry.`);}
+      apply({...current.current!,uploads:receipt.uploads,revision:receipt.revision});filesRef.current=[];setFiles([]);await clearCachedFiles(d.id).catch(()=>undefined);setUploadPercent(null);setStatus('Files uploaded and saved.');
+    }
+    setBusy('Reading your documents and project details...');const form=new FormData();form.set('text',d.text);
+    const response=await fetch('/api/p5-estimator/scope',{method:'POST',headers:draftHeaders(d),body:form,signal:AbortSignal.timeout(200000)});const data=await response.json();
     if(!response.ok)throw new Error(data.error||'Your files could not be processed. They are still here. Please retry.');const saved=requireDraftReceipt(data);
     const next={...current.current!,...saved,key:d.key,step:1,updatedAt:Date.now(),dirty:false,conflicts:data.conflicts||[],pricedFields:data.pricedFields||[],analysisWarning:data.warning||"",sourceImageUrl:projectSource?.imageUrl,analyzedText:d.text,analyzedAnswers:textAnswers(saved.answers)} as BrowserDraft;
     apply(next);setWarning(data.warning||'');if(pending.length)trackScopeEvent(d.uploads?.length?'additionalDocuments':'documentUploaded',saved.answers.service);trackScopeEvent(data.warning?'analysisFailed':'analysisCompleted',saved.answers.service);filesRef.current=[];setFiles([]);
@@ -115,8 +125,10 @@ export function P5Estimator({defaultService='',headingAs='h1',projectSource}:{de
     for(const f of incoming){if(!accept.split(',').includes('.'+f.name.split('.').pop()?.toLowerCase())){setError(`${f.name}: use a supported document or photo format.`);return;}if(!next.some(v=>v.name===f.name&&v.size===f.size&&v.lastModified===f.lastModified))next.push(f);}
     const uploaded=current.current.uploads||[];
     if(next.length+uploaded.length>12||next.some(f=>!f.size||f.size>SCOPE_FILE_LIMIT)||next.reduce((n,f)=>n+f.size,0)+uploaded.reduce((n,f)=>n+f.size,0)>SCOPE_BATCH_LIMIT){setError('Use up to 12 files, 10 MB each and 22 MB total.');return;}
-    filesRef.current=next;setFiles(next);setError('');setConfirmed(false);
-    try{await cacheFiles(current.current.id,next);setStatus('Files ready. Continue to read them with your project details.');}catch{setStatus('Keep this page open until the upload finishes.');}
+    let copied:File[];setPreparingFiles(true);
+    try{copied=await Promise.all(next.map(f=>filesRef.current.includes(f)?f:snapshotProjectFile(f)));}catch(error){setError(error instanceof Error?error.message:'The selected file could not be read. Please select it again.');return;}finally{setPreparingFiles(false);}
+    filesRef.current=copied;setFiles(copied);setError('');setConfirmed(false);
+    try{await cacheFiles(current.current.id,copied);setStatus('Files ready. Continue to read them with your project details.');}catch{setStatus('Files are ready in this tab. Device storage is unavailable; keep this tab open until upload completes.');}
   }
   function speak(){
     if(listening){recognition.current?.stop();return;}const Constructor=(window as any).SpeechRecognition||(window as any).webkitSpeechRecognition;if(!Constructor)return;
@@ -148,7 +160,7 @@ export function P5Estimator({defaultService='',headingAs='h1',projectSource}:{de
   if(!draft)return <div className={styles.root} role="status">Loading your project...</div>;
   const projectInput=<>
     <div className={styles.field}><label htmlFor={`${id}-scope`}>Tell us about your project</label><textarea id={`${id}-scope`} rows={4} maxLength={SCOPE_TEXT_LIMIT} value={draft.text} onChange={e=>change({text:e.target.value})} placeholder={projectSource?"Add any other work, installation needs or project notes.":scopeExample}/></div>
-    <div className={styles.inputTools} onDragEnter={e=>e.preventDefault()} onDragOver={e=>e.preventDefault()} onDragLeave={e=>e.preventDefault()} onDrop={e=>{e.preventDefault();void addFiles(e.dataTransfer.files);}}>{speechAvailable?<button type="button" onClick={speak} aria-pressed={listening}>{listening?'Stop dictation':'Use microphone'}</button>:<span className={styles.hint}>You can use your keyboard microphone to dictate.</span>}<label className={styles.attach} htmlFor={`${id}-files`}>Add files<input id={`${id}-files`} type="file" accept={accept} multiple onChange={e=>{void addFiles(e.target.files);e.target.value='';}}/></label></div>
+    <div className={styles.inputTools} onDragEnter={e=>e.preventDefault()} onDragOver={e=>e.preventDefault()} onDragLeave={e=>e.preventDefault()} onDrop={e=>{e.preventDefault();void addFiles(e.dataTransfer.files);}}>{speechAvailable?<button type="button" onClick={speak} aria-pressed={listening}>{listening?'Stop dictation':'Use microphone'}</button>:<span className={styles.hint}>You can use your keyboard microphone to dictate.</span>}<label className={styles.attach} htmlFor={`${id}-files`}><span aria-hidden="true">↑</span><span><strong>Upload plans, photos or documents</strong><small>Choose files or drag them here</small></span><input id={`${id}-files`} type="file" accept={accept} multiple aria-label="Upload plans, photos or documents" onChange={e=>{const input=e.currentTarget;const selected=Array.from(input.files||[]);void addFiles(selected).then(()=>{input.value='';});}}/></label></div>
     <p className={styles.hint}>Plans, photos, PDFs, Word or spreadsheets. Up to 12 files, 10 MB each, 22 MB total.</p>
     {Boolean(files.length||draft.uploads?.length)&&<ul className={styles.files}>{draft.uploads?.map(f=><li key={f.id}><span>{f.name}</span><span className={styles.hint}>Uploaded</span></li>)}{files.map((f,i)=><li key={`${f.name}-${i}`}><span>{f.name}<small>Ready to upload</small></span><button type="button" aria-label={`Remove ${f.name}`} onClick={async()=>{const next=filesRef.current.filter((_,index)=>i!==index);filesRef.current=next;setFiles(next);try{await cacheFiles(draft.id,next);}catch{setStatus('File removed from this session. Local storage could not be updated.');}}}>Remove</button></li>)}</ul>}
   </>;
@@ -166,7 +178,7 @@ export function P5Estimator({defaultService='',headingAs='h1',projectSource}:{de
       <p role="status">{delivery.length>0&&delivery.every(d=>d.status==="sent")?"Your summary was sent and the team has your record.":"Your project is saved. Some deliveries are pending or need team review. Please do not submit the same project again."}</p>
       <a className={styles.primary} href={brand.consultationPath} onClick={()=>trackScopeEvent("onsiteRequested",draft.answers.service)}>Schedule a consultation</a><a className={styles.secondary} href="tel:+12084771169">Call {brand.phone}</a>
       <button type="button" onClick={()=>{const next={...newBrowserDraft(defaultService),namespace:draft.namespace};apply(next);started.current=false;setResult(null);filesRef.current=[];setFiles([]);setConfirmed(false);setActive(null);setWarning("");setStatus("");}}>Start another project</button>
-    </div>:<form onSubmit={submit} noValidate><fieldset disabled={Boolean(busy)} className={styles.formBody}>
+    </div>:<form onSubmit={submit} noValidate><fieldset disabled={Boolean(busy)||preparingFiles} className={styles.formBody}>
       {draft.step===0?<>{projectSource&&review}{projectInput}<div className={styles.actions}><button className={styles.primary} type="button" onClick={begin}>Continue</button></div><p className={styles.hint}>Add what you know, or continue and we’ll help with the rest.</p></>:<>
         {draft.step===1&&active?<section className={styles.question} aria-label="Project question"><p className={styles.questionReason}>{active.reason}</p>{active.values?.length?<div className={styles.choices}>{active.values.map(value=><button type="button" key={value} onClick={()=>answer(active.field,value)} aria-pressed={draft.answers[active.field]===value}>{labels[value]||value}</button>)}</div>:null}{active.values?.length?<details><summary>Use a different answer</summary>{field(active.field)}</details>:field(active.field)}<div className={styles.actions}><button className={styles.primary} type="button" onClick={()=>advance()}>Continue</button>{active.field!=='service'&&!active.conflict&&<button type="button" onClick={()=>advance(true)}>Not sure yet</button>}</div></section>:<>
           <div className={styles.fields}>{([['name','Your name','text'],['email','Email','email'],['phone','Phone (optional)','tel']] as const).map(([key,label,type])=><label className={styles.field} key={key} htmlFor={`${id}-contact-${key}`}><span>{label}</span><input id={`${id}-contact-${key}`} type={type} autoComplete={key} value={draft.contact[key]} onChange={e=>change({contact:{...draft.contact,[key]:e.target.value}})} maxLength={key==='name'?120:key==='email'?200:40}/></label>)}</div>
@@ -182,6 +194,6 @@ export function P5Estimator({defaultService='',headingAs='h1',projectSource}:{de
         <button className={styles.back} type="button" onClick={()=>{change({step:0});setError('');focus();}}>Back to my project</button>
       </>}
     </fieldset></form>}
-    {busy&&<p className={styles.notice} role="status" aria-live="polite">{busy}</p>}{error&&<p className={styles.error} role="alert">{error}</p>}{status&&<p className={styles.hint} role="status">{status}</p>}
+    {(busy||preparingFiles)&&<div className={styles.loadingOverlay}><div className={styles.loadingCard} role="status" aria-live="polite"><span className={styles.spinner} aria-hidden="true"/><h2>{preparingFiles?'Preparing your files...':busy}</h2>{uploadPercent!==null?<><progress max={100} value={uploadPercent} aria-label="File upload progress"/><p>{uploadPercent}% transferred. Waiting for confirmation before marking files saved.</p></>:<p>{preparingFiles?'Checking that every selected file can be read.':busy.includes('Reading')?'Finding project details, measurements and specifications. Large documents take longer.':'Please keep this tab open. Your project details stay with this estimate.'}</p>}</div></div>}{error&&<p className={styles.error} role="alert">{error}</p>}{status&&!busy&&!preparingFiles&&<p className={styles.hint} role="status">{status}</p>}
   </div>;
 }

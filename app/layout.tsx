@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import Script from "next/script";
 import HubSpotScript from "./HubSpotScript";
+import MobileActionBar from "@/components/MobileActionBar";
 import "./globals.css";
 import { gaMeasurementId, googleAdsDestinationId, siteUrl } from "./site";
 import { serializeJsonLd, siteDescription, siteSchema, siteTitle } from "./structuredData";
@@ -97,6 +98,7 @@ gtag('config', '${googleAdsDestinationId}');`}
         )}
         {process.env.NODE_ENV === "production" && <HubSpotScript />}
         {children}
+        <MobileActionBar />
       </body>
     </html>
   );
