@@ -22,7 +22,7 @@ async function analyzeBatch(text: string, files: AnalysisFile[], previous: Scope
     else throw new Error("document-needs-conversion");
   }
   content.push({ type: "text", text: JSON.stringify({ submittedScope: text, previousAnswers: previous }) });
-  const model = process.env.P5_SCOPE_MODEL || process.env.ASSISTANT_MODEL || "claude-opus-5";
+  const model = process.env.P5_SCOPE_MODEL || process.env.ASSISTANT_MODEL || "claude-sonnet-4-6";
   const response = await request("https://api.anthropic.com/v1/messages", {
     method: "POST", signal: AbortSignal.timeout(timeoutMs),
     headers: { "Content-Type":"application/json", "anthropic-version":"2023-06-01", "x-api-key":process.env.ANTHROPIC_API_KEY },

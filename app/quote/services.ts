@@ -61,7 +61,7 @@ export const QUOTE_SERVICES: readonly QuoteService[] = [
     metaDescription:
       "Free bathroom remodeling quotes across Boise, Meridian, Eagle, and the Treasure Valley. Written scopes covering tile, fixtures, and waterproofing.",
     image: "/images/p5-bathroom.webp",
-    imageAlt: "Bathroom design inspiration with a glass shower, freestanding tub, and wood vanity.",
+    imageAlt: "Bathroom with a glass shower, freestanding tub, and wood vanity.",
     project: "Bathroom remodel",
     brand: "Boise Remodeling Co",
     covers: [
@@ -79,7 +79,7 @@ export const QUOTE_SERVICES: readonly QuoteService[] = [
     metaDescription:
       "Free home addition quotes across the Treasure Valley. One written scope covering foundation, framing, roof tie-in, mechanicals, and permits. No obligation.",
     image: "/images/p5-addition.webp",
-    imageAlt: "Living room addition inspiration with a vaulted ceiling and stone fireplace.",
+    imageAlt: "Living room addition with a vaulted ceiling and stone fireplace.",
     project: "Home addition",
     brand: "Boise Remodeling Co",
     covers: [
@@ -97,7 +97,7 @@ export const QUOTE_SERVICES: readonly QuoteService[] = [
     metaDescription:
       "Free custom home building quotes across Ada and Canyon counties. Land evaluation, plans, engineering, permitting, and construction under one accountable team.",
     image: "/images/p5-construction-branded.webp",
-    imageAlt: "Representative framing work with Boise Construction Co branding.",
+    imageAlt: "Timber framing at a home construction site with Boise Construction Co branding.",
     project: "New custom home",
     brand: "Boise Construction Co",
     covers: [
@@ -115,7 +115,7 @@ export const QUOTE_SERVICES: readonly QuoteService[] = [
     metaDescription:
       "Free ADU quotes across the Treasure Valley: detached units, garage conversions, and basement conversions, with feasibility and permits handled by one P5 team.",
     image: "/images/p5-adu.webp",
-    imageAlt: "Detached ADU design inspiration with a covered entry and landscaped yard.",
+    imageAlt: "Detached ADU with a covered entry and landscaped yard.",
     project: "Accessory dwelling unit (ADU)",
     brand: "Boise ADU Co",
     covers: [
@@ -151,7 +151,7 @@ export const QUOTE_SERVICES: readonly QuoteService[] = [
     metaDescription:
       "Free handyman and home repair quotes across the Treasure Valley. Drywall and trim repair, mounting, installation, deck and exterior work.",
     image: "/images/p5-handyman-branded.webp",
-    imageAlt: "Representative trim installation with Boise Handyman Co branding.",
+    imageAlt: "Trim installation in progress with Boise Handyman Co branding.",
     project: "Home repairs or handyman work",
     brand: "Boise Handyman Co",
     covers: [

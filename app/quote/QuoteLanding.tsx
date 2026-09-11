@@ -28,7 +28,7 @@ export default function QuoteLanding({ service }: { service: QuoteService | null
   const heroImage = service ? service.image : "/images/p5-hero.webp";
   const heroAlt = service
     ? service.imageAlt
-    : "Representative home exterior in the style the P5 companies build and remodel.";
+    : "Contemporary Treasure Valley home exterior.";
   const others = QUOTE_SERVICES.filter((s) => !service || s.slug !== service.slug);
 
   return (

@@ -127,7 +127,6 @@ a:hover .arrow-diagonal, a:focus-visible .arrow-diagonal { transform: translate(
 .brand-image-wrap::after { position: absolute; inset: 0; background: linear-gradient(180deg,transparent 64%,rgba(18,20,17,.57)); content: ""; pointer-events: none; }
 .brand-image-wrap img { height: 100%; object-fit: cover; transition: transform 850ms cubic-bezier(.2,.65,.2,1); }
 .brand-panel:hover .brand-image-wrap img { transform: scale(1.022); }
-.image-caption { position: absolute; z-index: 2; right: 35px; bottom: 27px; left: 35px; color: rgba(255,255,255,.72); font-size: 8px; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; }
 .brand-content { display: flex; flex-direction: column; justify-content: center; padding: 60px clamp(48px,5.5vw,92px); }
 .brand-topline { display: flex; align-items: center; justify-content: space-between; padding-bottom: 19px; border-bottom: 1px solid var(--brand-line); color: var(--brand-topline); font-size: 8px; font-weight: 700; letter-spacing: .17em; text-transform: uppercase; }
 .brand-logo { width: auto; height: 34px; max-width: 100%; margin: 45px 0 0; object-fit: contain; object-position: left center; }
@@ -392,14 +391,3 @@ a:hover .arrow-diagonal, a:focus-visible .arrow-diagonal { transform: translate(
 
 .matcher-choices button:hover > span, .matcher-choices button:focus-visible > span { color: #d3ae89; }
 
-/* Keep image descriptions legible over light and dark photographs. */
-.image-caption {
-  width: fit-content;
-  max-width: calc(100% - 48px);
-  padding: 8px 12px;
-  background: rgb(20 25 23 / 0.9);
-  color: #fff;
-  font-size: 11px;
-  line-height: 1.5;
-  letter-spacing: .08em;
-}
