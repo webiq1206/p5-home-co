@@ -41,7 +41,7 @@ export const DEFAULT_FINANCE: FinancePolicy = {
 /** Backward-compatible import name. The overhead policy is now approved. */
 export const UNCONFIGURED_FINANCE = DEFAULT_FINANCE;
 export interface CostEvidence {
-  basis: "written-quote" | "payroll" | "market-replacement" | "approved-cost-book" | "planning-assumption";
+  basis: "written-quote" | "payroll" | "market-replacement" | "approved-cost-book" | "planning-assumption" | "owner-estimating-schedule";
   reference: string;
   verifiedAt: string;
   validUntil: string;
@@ -55,6 +55,8 @@ export interface LandedMaterial {
   waste: number; storage: number; handling: number;
 }
 export interface DirectCostLine {
+  /** A modeled cost budget is not an observed invoice or payroll record. */
+  estimatingBasis?:'owner-average-cost'|'historical-cost-budget';
   trade?: TradeCategory;
   /** Historical selling prices are comparison evidence, never direct cost. */
   priceBasis?: "direct-cost" | "customer-price" | "unknown";
@@ -78,6 +80,7 @@ export interface OwnerApproval {
   approvedAt: string; estimateRevision: string;
 }
 export interface PricingInput {
+  estimatePurpose?:'preliminary';
   service: Service; revision: string; scopeSummary: string; lines: DirectCostLine[];
   coverage: ScopeCoverage[]; risks: RiskFactor[]; assumptions: string[];
   exclusions: string[]; missingInformation: string[]; allowances: Allowance[];
@@ -165,6 +168,8 @@ export function calculateP5Estimate(input: PricingInput, finance: FinancePolicy,
   const directByCategory = Object.fromEntries(COST_CATEGORIES.map(c => [c, 0])) as Record<CostCategory, number>;
   const lines = input.lines.map(line => {
     const trade=tradeForLine(line);
+    const modeled=input.estimatePurpose==='preliminary'&&line.evidence?.basis==='owner-estimating-schedule'&&['owner-average-cost','historical-cost-budget'].includes(line.estimatingBasis||'');
+    if(line.evidence?.basis==='owner-estimating-schedule'&&!modeled)warn('estimating-purpose-required',`${line.id}: owner estimating rates are restricted to the configured preliminary model.`,'block');
     if(line.priceBasis && line.priceBasis!=="direct-cost") warn("selling-price-as-cost", `${line.id}: confirm current direct cost. Do not apply P5 allocations or profit to a customer selling price or an unknown price basis.`, "block");
     if (!line.id.trim() || ids.has(line.id)) throw new Error("Blank or duplicated direct-cost line id");
     ids.add(line.id);
@@ -173,11 +178,11 @@ export function calculateP5Estimate(input: PricingInput, finance: FinancePolicy,
     finite(line.quantity, "Quantity", true); finite(line.unitCost, "Unit cost", true);
     const cost = line.quantity * line.unitCost; finite(cost, "Extended cost", true);
     if (line.category === "materials") {
-      if (!line.landed) warn("landed-cost-missing", `${line.id}: net cost, tax, freight, delivery, waste, storage and handling must be itemized.`, "block");
+      if (!line.landed) warn("landed-cost-missing", `${line.id}: net cost, tax, freight, delivery, waste, storage and handling must be itemized before a firm proposal.`, modeled?"review":"block");
       else if (Math.abs(landedUnitCost(line.landed) - line.unitCost) > 1e-8) throw new Error(`${line.id}: landed cost does not match unit cost`);
     }
     if (line.category === "field-labor") {
-      if (!line.labor || line.unit !== "hour") warn("loaded-labor-missing", `${line.id}: employee production hours require all burden components.`, "block");
+      if (!line.labor || line.unit !== "hour") warn("loaded-labor-missing", `${line.id}: this labor budget needs actual production hours and burden components before a firm proposal.`, modeled?"review":"block");
       else if (Math.abs(loadedHourlyCost(line.labor) - line.unitCost) > 1e-8) throw new Error(`${line.id}: loaded hourly cost does not match unit cost`);
     }
     const evidence = line.evidence;
@@ -185,7 +190,7 @@ export function calculateP5Estimate(input: PricingInput, finance: FinancePolicy,
     else {
       if (dateValue(evidence.validUntil) < now.getTime() || dateValue(evidence.verifiedAt) > now.getTime()) warn("cost-evidence-expired", `${line.id}: refresh the cost evidence before presenting a range.`, "block");
       if (evidence.basis === "planning-assumption") warn("unverified-direct-cost", `${line.id}: this planning assumption needs current cost confirmation.`, "block");
-      if (line.category === "subcontractors" && evidence.basis !== "written-quote") warn("written-sub-quote-required", `${line.id}: obtain a current written subcontractor price.`, "block");
+      if (line.category === "subcontractors" && evidence.basis !== "written-quote") warn("written-sub-quote-required", `${line.id}: obtain a current written subcontractor price before a firm proposal.`, modeled?"review":"block");
       if (line.category === "owner-production" && (evidence.basis !== "market-replacement" || line.unit !== "hour")) warn("owner-production-cost-required", `${line.id}: additional owner production requires a supported hourly replacement cost.`, "block");
     }
     if(line.category==="owner-production"&&line.ownerLaborTreatment!=="additional-project-labor")warn("owner-salary-double-count",`${line.id}: both owner salaries are already in overhead. Include only additional project labor outside those salaries, and document that treatment.`,"block");
@@ -241,6 +246,8 @@ export function calculateP5Estimate(input: PricingInput, finance: FinancePolicy,
   for (const a of input.manualAdjustments ?? []) if (!ids.has(a.costLineId) || !a.reason.trim()) throw new Error("Every manual adjustment needs a valid cost line and written reason");
   return {
     policyVersion: POLICY_VERSION, revision: input.revision, evaluatedAt: now.toISOString(),
+    estimatePurpose: input.estimatePurpose||'verified-cost-review',
+    currentCostsConfirmed: !lines.some(line=>line.evidence.basis==='owner-estimating-schedule'),
     service, requestedService: input.service, matrix, lines:pricedLines, coverage: input.coverage,
     directByCategory, directCost, contingencyRate, contingency, riskAdjustedDirectCost,
     allocations, allocationDollars, targetOperatingProfit: margin, operatingProfit, divisor,

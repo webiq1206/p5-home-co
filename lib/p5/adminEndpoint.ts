@@ -4,6 +4,7 @@ import {requireEstimatorAdmin} from "./adminAuth";
 import {query} from "./database";
 import {ensureSchema,DraftError} from "./store";
 import {EMPTY_CONFIGURATION,type EstimatorConfiguration} from "./costBook";
+import {validatePlanningCatalog} from './planningBooks.ts';
 import {companyAllocation,SERVICE_MATRIX,COST_CATEGORIES} from "./pricing.ts";
 import {processOutbox} from "./outbox";
 import {ensureReviewSchema,saveManualReview,approveManualReview,publishManualReview,reconcileDelivery} from "./manualReview";
@@ -35,7 +36,9 @@ export function validateConfiguration(raw:any):EstimatorConfiguration{
   // Validate the next review date, which the authenticated save assigns below.
   try{const allocation=companyAllocation({...f,reviewedAt:new Date().toISOString()});const blocking=allocation.warnings.find(w=>w.severity==="block");if(blocking)throw new Error(blocking.message);}catch(e){throw new DraftError(e instanceof Error?e.message:"Invalid overhead recovery policy.");}
   const services=new Set();
+  if(raw.planningCatalog)try{validatePlanningCatalog(raw.planningCatalog);}catch(error){throw new DraftError(error instanceof Error?error.message:'Invalid planning catalog.');}
   for(const book of raw.costBooks){
+    if(book.mode!==undefined&&(book.mode!=='owner-planning'||!raw.planningCatalog))throw new DraftError('Owner planning books require a valid private source catalog.');
     if(!Object.hasOwn(SERVICE_MATRIX,book.service)||services.has(book.service)||!Array.isArray(book.rules)||book.rules.length>1000||!Array.isArray(book.coverage)||!Array.isArray(book.assumptions)||!Array.isArray(book.exclusions)||typeof book.verifiedScope!=="string"||!book.verifiedScope.trim())throw new DraftError("Each cost book needs a unique service, rules, coverage, assumptions, exclusions and verified scope.");
     services.add(book.service);const ids=new Set();
     for(const rule of book.rules){if(typeof rule.id!=="string"||!rule.id.trim()||ids.has(rule.id)||!(COST_CATEGORIES as readonly string[]).includes(rule.category)||!rule.evidence||typeof rule.quantity?.factor!=="number"||!Number.isFinite(rule.quantity.factor)||rule.quantity.factor<=0||typeof rule.unitCost!=="number"||!Number.isFinite(rule.unitCost)||rule.unitCost<=0)throw new DraftError("Invalid or duplicate cost-book rule.");ids.add(rule.id);}
