@@ -50,7 +50,7 @@ export const requestPricing:PricingRequest=async(instructions,input,search,remai
   const key=integrated?process.env.AI_INTEGRATIONS_OPENAI_API_KEY:process.env.OPENAI_API_KEY;
   const endpoint=(integrated?process.env.AI_INTEGRATIONS_OPENAI_BASE_URL:process.env.OPENAI_BASE_URL||'https://api.openai.com/v1')?.replace(/\/+$/,'');
   if(remainingMs<1000)throw new Error('pricing-check-timeout');
-  if(!key||!endpoint){
+  if(process.env.ANTHROPIC_API_KEY||!key||!endpoint){
     const anthropic=process.env.ANTHROPIC_API_KEY;
     if(!anthropic)throw new Error('pricing-provider-unavailable');
     const headers={'Content-Type':'application/json','x-api-key':anthropic,'anthropic-version':'2023-06-01'};
@@ -75,7 +75,7 @@ export const requestPricing:PricingRequest=async(instructions,input,search,remai
       return {value:parseJson((body.content||[]).filter((p:any)=>p.type==='text').map((p:any)=>p.text).join('')),sourceUrls,sourceReport:raw};
     }
   }
-  const response=await fetch(`${endpoint}/responses`,{method:'POST',signal:AbortSignal.timeout(Math.min(search?120000:60000,remainingMs)),headers:{'Content-Type':'application/json',Authorization:`Bearer ${key}`},body:JSON.stringify({model:process.env.P5_SCOPE_OPENAI_MODEL||'gpt-4.1',instructions,input:JSON.stringify(input),max_output_tokens:14000,store:false,...(search?{tools:[{type:'web_search'}],tool_choice:'required',include:['web_search_call.action.sources']}:{text:{format:{type:'json_object'}}})})});
+  const response=await fetch(`${endpoint}/responses`,{method:'POST',signal:AbortSignal.timeout(Math.min(search?120000:60000,remainingMs)),headers:{'Content-Type':'application/json',Authorization:`Bearer ${key}`},body:JSON.stringify({model:process.env.P5_SCOPE_OPENAI_MODEL||'gpt-4.1',instructions,input:'Return JSON only.\n'+JSON.stringify(input),max_output_tokens:14000,store:false,...(search?{tools:[{type:'web_search'}],tool_choice:'required',include:['web_search_call.action.sources']}:{text:{format:{type:'json_object'}}})})});
   if(!response.ok)throw new Error('pricing-provider-unavailable');
   const body=await response.json();
   if(body.status!=='completed')throw new Error('pricing-check-incomplete');
