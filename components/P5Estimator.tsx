@@ -5,6 +5,7 @@ import {SCOPE_FIELDS,SCOPE_TEXT_LIMIT,SCOPE_FILE_LIMIT,SCOPE_BATCH_LIMIT,type Sc
 import {deriveScopeAnswers,reconcileScope,scopeQuestions,scopeAssumptions,validateScopeAnswer,type ScopeQuestion} from '@/lib/p5/adaptive';
 import {loadBrowserDraft,newBrowserDraft,persistBrowserDraft,draftHeaders,cacheFiles,loadCachedFiles,clearCachedFiles,requireDraftReceipt,type BrowserDraft} from '@/lib/p5/browserDraft';
 import {mergeProjectSource,type ProjectSource} from '@/lib/p5/projectSource';
+import {resumeWizardDraft} from '@/lib/p5/wizardResume';
 import styles from './P5Estimator.module.css';
 import {reportProgress,trackScopeEvent} from '@/lib/p5/progress';
 const textAnswers=(a:ScopeAnswers)=>JSON.stringify(Object.entries(a).filter(([k,v])=>SCOPE_FIELDS[k as ScopeField].kind==='text'&&v?.trim()).sort(([a],[b])=>a.localeCompare(b)));
@@ -24,6 +25,7 @@ export function P5Estimator({defaultService='',headingAs='h1',projectSource}:{de
   const apply=(next:BrowserDraft)=>{current.current=next;setDraft(next);if(!persistBrowserDraft(next))setStatus('Keep this page open. This browser cannot save your work on this device.');};
   const change=(update:Partial<BrowserDraft>)=>{if(!current.current)return;apply({...current.current,...update,dirty:true,updatedAt:Date.now()});setConfirmed(false);};
   const questions=(d:BrowserDraft)=>scopeQuestions(d.answers,d.extraction,d.conflicts||[],d.wizard?.skipped||[],d.pricedFields||[]);
+  const resume=(d:BrowserDraft)=>{const next=questions(d)[0]||null;setActive(next);apply(resumeWizardDraft(d,Boolean(next)));};
   const focus=()=>requestAnimationFrame(()=>{heading.current?.focus({preventScroll:true});heading.current?.scrollIntoView({block:'start',behavior:'auto'});});
   const showQuestions=(d:BrowserDraft)=>{const next=questions(d)[0]||null;setActive(next);if(!next){trackScopeEvent('repairsConfirmed',d.answers.service);trackScopeEvent('contactViewed',d.answers.service);}apply({...d,step:next?1:2});setInputOpen(false);setConfirmed(false);focus();};
   const answer=(key:ScopeField,value:string)=>{
@@ -34,7 +36,7 @@ export function P5Estimator({defaultService='',headingAs='h1',projectSource}:{de
     change({answers,conflicts:(d.conflicts||[]).filter(c=>c.field!==key),wizard:{...d.wizard,skipped:(d.wizard?.skipped||[]).filter(k=>k!==key),resolutions:{...d.wizard?.resolutions,[key]:value}}});
   };
   useEffect(()=>{
-    mounted.current=true;const loaded=loadBrowserDraft(defaultService,projectSource?.id);const d=projectSource?mergeProjectSource(loaded,projectSource):loaded;apply(d);setWarning(d.analysisWarning||d.extraction?.reviewNotes.find(n=>n.startsWith("Your files are saved, but"))||"");setActive(questions(d)[0]||null);
+    mounted.current=true;const loaded=loadBrowserDraft(defaultService,projectSource?.id);const d=projectSource?mergeProjectSource(loaded,projectSource):loaded;resume(d);setWarning(d.analysisWarning||d.extraction?.reviewNotes.find(n=>n.startsWith("Your files are saved, but"))||"");
     setSpeechAvailable(Boolean((window as any).SpeechRecognition||(window as any).webkitSpeechRecognition));
     loadCachedFiles(d.id).then(f=>{if(mounted.current&&current.current?.id===d.id){filesRef.current=f;setFiles(f);}}).catch(()=>setStatus('File recovery is unavailable. Keep this page open while uploading.'));
     if(d.revision>0)fetch('/api/p5-estimator/draft',{headers:draftHeaders(d),cache:'no-store'}).then(r=>r.ok?r.json():null).then(async data=>{
@@ -45,14 +47,14 @@ export function P5Estimator({defaultService='',headingAs='h1',projectSource}:{de
         if(value.result&&mounted.current){setResult(value.result);setDelivery(value.delivery||[]);}return;
       }
       // Never overwrite edits made while recovery was in flight or unsaved offline work.
-      if(!d.dirty&&current.current.updatedAt===d.updatedAt&&saved.revision>=d.revision){const restored={...d,...saved,key:d.key,step:d.step,updatedAt:d.updatedAt} as BrowserDraft;apply(restored);setActive(questions(restored)[0]||null);}
+      if(!d.dirty&&current.current.updatedAt===d.updatedAt&&saved.revision>=d.revision){const restored={...d,...saved,key:d.key,step:d.step,updatedAt:d.updatedAt} as BrowserDraft;resume(restored);}
       else apply({...current.current,uploads:saved.uploads});
     }).catch(()=>setStatus('Your saved answers are available on this device. Reconnect to save online.'));
     const preventFileNavigation=(event:DragEvent)=>{if(event.dataTransfer?.types.includes('Files'))event.preventDefault();};
     window.addEventListener("drop",preventFileNavigation);window.addEventListener("dragover",preventFileNavigation);
     return()=>{mounted.current=false;recognition.current?.stop();window.removeEventListener("drop",preventFileNavigation);window.removeEventListener("dragover",preventFileNavigation);};
   },[defaultService,projectSource?.id]);
-  useEffect(()=>{if(projectSource&&current.current){const next=mergeProjectSource(current.current,projectSource);if(next!==current.current){apply(next);setActive(questions(next)[0]||null);setConfirmed(false);}}},[JSON.stringify(projectSource)]);
+  useEffect(()=>{if(projectSource&&current.current){const next=mergeProjectSource(current.current,projectSource);if(next!==current.current){resume(next);setConfirmed(false);}}},[JSON.stringify(projectSource)]);
   useEffect(()=>{
     if(!draft)return;
     const engaged=Boolean(draft.text||files.length||Object.keys(draft.answers).length);

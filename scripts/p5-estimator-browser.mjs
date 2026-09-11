@@ -52,6 +52,10 @@ for(const width of [320,390,430,768,1024,1440,1920]){
   await estimator.getByRole('button',{name:'Continue',exact:true}).click();await estimator.getByRole('alert').filter({hasText:'Synthetic upload interruption'}).waitFor();
   await page.reload();await estimator.getByRole('button',{name:'Remove scope.txt'}).waitFor();assert.match(await description.inputValue(),/LongUnbrokenProjectSpecification/);await overflow(page);await capture(page,`${width}-scope`);
   await estimator.getByRole('button',{name:'Continue',exact:true}).click();await estimator.getByRole('heading',{name:'Your project is ready to review',exact:true}).waitFor();assert.equal(await estimator.getByRole('region',{name:'Project question'}).count(),0,'Known facts were asked again');
+  // Reproduce an older saved question step after all its questions become known.
+  await page.evaluate(()=>{const key='p5-project-draft-v2';const draft=JSON.parse(localStorage.getItem(key));draft.step=1;localStorage.setItem(key,JSON.stringify(draft));});
+  await page.reload();await estimator.getByRole('button',{name:'Get my estimate',exact:true}).waitFor();await estimator.getByRole('checkbox').waitFor();
+  assert.equal(await estimator.getByRole('region',{name:'Project question'}).count(),0,'Restored known facts were asked again');
   await estimator.getByLabel('Your name',{exact:true}).fill('Synthetic Test');await estimator.getByLabel('Email',{exact:true}).fill('customer@example.invalid');
   await estimator.getByRole('button',{name:'Back to my project',exact:true}).click();await estimator.getByText('Uploaded',{exact:true}).waitFor();assert.match(await description.inputValue(),/LongUnbroken/);
   const calls=state.scopeCalls;await estimator.getByRole('button',{name:'Continue',exact:true}).click();await estimator.getByLabel('Email',{exact:true}).waitFor();assert.equal(await estimator.getByLabel('Email',{exact:true}).inputValue(),'customer@example.invalid');assert.equal(state.scopeCalls,calls,'Going back unnecessarily repeated analysis');
