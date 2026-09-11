@@ -98,3 +98,14 @@ test('Allowance notes release a range only after complete scope coverage passes 
  assert.equal(unclear.customer.range,null);
  assert.equal(unclear.customer.scopeTasks[0].description,'Cabinet supply');
 });
+test('A researched specialist takeoff resolves the generic small-job hold only after verification',async()=>{
+ const specialist={...scope,text:'Concrete protective overlay, ten linear feet.',answers:{service:'handyman',laborHours:'2',location:'Boise'}};
+ const initial=priceReviewedScope(specialist,config,now);
+ assert.equal(initial.customer.range,null);
+ const initialIds=(initial.internal as any).lines.map((l:any)=>l.id);
+ const labor={...task,id:'prep',description:'Preparation labor',existingLineIds:initialIds};
+ const priced=await priceCompleteScope(specialist,config,replies([{tasks:[labor,extra],issues:[]},researched,{coveredTaskIds:['prep','overlay'],issues:[]}]),now);
+ assert.ok(priced.customer.range);
+ const failed=await priceCompleteScope(specialist,config,replies([{tasks:[labor,extra],issues:[]},researched,{coveredTaskIds:['prep'],issues:['Specialist scope remains incomplete']}]),now);
+ assert.equal(failed.customer.range,null);
+});

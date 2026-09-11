@@ -164,7 +164,7 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
     // timeout, unsupported search, invalid output or inadequate source evidence.
     resolution.issues.push('Complete scope pricing could not be verified. An estimator must resolve the remaining work before a total is released.');
   }
-  resolution.allowancesCovered=Boolean(auditTrail.verification)&&resolution.issues.length===0;
+  resolution.completeScopeVerified=Boolean(auditTrail.verification)&&resolution.issues.length===0;
   resolution.issues=[...new Set(resolution.issues)];auditTrail.issues=resolution.issues;
   const priced=priceReviewedScope(scope,configuration,now,resolution);
   return {...priced,customer:{...priced.customer,scopeTasks:(auditTrail.tasks as {description:string}[]).map(t=>({description:t.description,category:suggestedTrade(t.description)}))},internal:{...priced.internal,scopePricing:auditTrail}};
