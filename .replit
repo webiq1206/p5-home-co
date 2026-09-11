@@ -52,4 +52,4 @@ channel = "stable-25_05"
 P5_SCOPE_MODEL = "claude-sonnet-4-6"
 
 [objectStorage]
-defaultBucketID = "replit-objstore-6eac0da6-d7d6-4a2a-af08-4be890dbafa1"
+defaultBucketID = "replit-objstore-e9db8636-edc4-4b85-b5c7-3746dd3afbe7"
