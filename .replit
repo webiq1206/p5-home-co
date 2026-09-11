@@ -45,3 +45,8 @@ expertMode = true
 
 [nix]
 channel = "stable-25_05"
+
+[userenv]
+
+[userenv.production]
+P5_SCOPE_MODEL = "claude-sonnet-4-6"
