@@ -10,13 +10,14 @@ export interface CostRule extends Omit<DirectCostLine,"quantity"|"quantitySource
 export interface ServiceCostBook {service:Service;mode?:'owner-planning';rules:CostRule[];coverage:ScopeCoverage[];assumptions:string[];exclusions:string[];verifiedScope:string;reviewedAt:string}
 export interface EstimatorConfiguration { finance:FinancePolicy;costBooks:ServiceCostBook[];planningCatalog?:PlanningCatalog }
 export const EMPTY_CONFIGURATION:EstimatorConfiguration={finance:DEFAULT_FINANCE,costBooks:[]};
-export function priceReviewedScope(scope:ReviewedScope,configuration:EstimatorConfiguration,now=new Date()) {
+export interface ScopePriceResolution { rules:CostRule[]; assumptions:string[]; issues:string[] }
+export function priceReviewedScope(scope:ReviewedScope,configuration:EstimatorConfiguration,now=new Date(),resolution?:ScopePriceResolution) {
   scope={...scope,answers:deriveScopeAnswers(scope.answers)};
   const service=scope.answers.service as Service;
   if(!Object.hasOwn(SERVICE_MATRIX,service))throw new Error("Choose a valid project type.");
   let book=configuration.costBooks.find(book=>book.service===service);
   const summary=scopeText(scope);
-  const revision=createHash("sha256").update(JSON.stringify({policyVersion:POLICY_VERSION,scope,configuration})).digest("hex");
+  const revision=createHash("sha256").update(JSON.stringify({policyVersion:POLICY_VERSION,scope,configuration,resolution})).digest("hex");
   if(!book)return {
     internal:{revision,scope,missingInformation:["A current, approved direct-cost book is required for this service."],pricingWarnings:["cost-book-missing"],financeSnapshot:configuration.finance},
     customer:{status:"review-required",range:null,summary,includedCategories:[],categoryRanges:[],lineItems:[],allowances:[],assumptions:[],exclusions:[],factors:[],nextStep:SERVICE_MATRIX[service].method,message:"We have your project details. A specialist needs to confirm current costs before we can provide a reliable planning range.",disclaimer:"Preliminary project information only. This is not a bid, quote, offer or guaranteed price."},
@@ -27,6 +28,10 @@ export function priceReviewedScope(scope:ReviewedScope,configuration:EstimatorCo
     const modeled=materializePlanningBook(book,configuration.planningCatalog,scope,now);book=modeled.book;missingInformation.push(...modeled.missing);
   }
   const lines:DirectCostLine[]=[];
+  if(resolution){
+    book={...book,rules:[...book.rules,...resolution.rules],assumptions:[...book.assumptions,...resolution.assumptions],coverage:book.coverage.map(c=>resolution.rules.some(r=>r.category===c.category)?{...c,status:'included' as const,reason:'Itemized scope pricing includes this category.'}:c)};
+    missingInformation.push(...resolution.issues);
+  }
   for(const rule of book.rules){
     if(rule.when){
       const answer=scope.answers[rule.when.field];
@@ -56,6 +61,7 @@ export function priceReviewedScope(scope:ReviewedScope,configuration:EstimatorCo
     missingInformation,allowances:[],
   };
   const estimate=calculateP5Estimate(input,configuration.finance,[],now);
+  if(resolution?.issues.length){estimate.publishable=false;estimate.warnings.push({code:'scope-pricing-incomplete',severity:'block',message:'Every requested task must have supported pricing before a total can be shown.'});}
   if(missingInformation.some(x=>x.startsWith('Missing cost rate:')||x.includes('catalog quarterly review'))){estimate.publishable=false;estimate.warnings.push({code:'planning-catalog-incomplete',severity:'block',message:'The planning catalog needs the recorded missing rate or scheduled review.'});}
   if(scope.uploads.length&&!scope.extraction){estimate.publishable=false;estimate.warnings.push({code:"uploads-unreviewed",severity:"block",message:"Supporting uploads have not been analyzed. Review them before publishing a price."});}
   if(scope.extraction?.reviewNotes.length){estimate.publishable=false;estimate.warnings.push({code:"scope-review-required",severity:"block",message:"Resolve document and scope review notes, including unsupported uploads, before publishing a price."});}
