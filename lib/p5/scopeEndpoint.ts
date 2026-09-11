@@ -11,7 +11,7 @@ import { failed,json,limitedBody,protectRequest } from "./http";
 import { ESTIMATOR_BRAND } from "./brand";
 export async function postScope(request:Request){
   try{
-    protectRequest(request,1000);const {id,key}=draftCredentials(request);const draft=await readDraft(id,key);
+    protectRequest(request,1000);const {id,key}=draftCredentials(request);let draft=await readDraft(id,key);
     if(!draft)throw new DraftError("Save your draft before analyzing.",404);
     const bytes=await limitedBody(request,24*1024*1024);
     const form=await new Response(bytes as BodyInit,{headers:{"Content-Type":request.headers.get("content-type")||""}}).formData();
@@ -28,6 +28,7 @@ export async function postScope(request:Request){
     if(incoming.length+draft.uploads.length>SCOPE_FILE_COUNT)throw new DraftError(SCOPE_UPLOAD_HELP);
     if(incoming.reduce((n,f)=>n+f.data.length,0)+draft.uploads.reduce((n,f)=>n+f.size,0)>SCOPE_BATCH_LIMIT)throw new DraftError(SCOPE_UPLOAD_HELP,413);
     for(const file of incoming)await saveUpload(id,key,file);
+    if(incoming.length){draft=await readDraft(id,key);if(!draft)throw new DraftError("Saved project could not be restored. Please retry.",503);}
     if(form.get("analyze")==="false")return json({draft:await readDraft(id,key),analysis:null});
     const checkpointed=form.get("resumable")==="true"&&process.env.P5_OBJECT_STORAGE_ENABLED==="true";
     const stored=checkpointed?[]:await readUploads(id,key);if(stored.reduce((n,f)=>n+f.data.length,0)>SCOPE_BATCH_LIMIT)throw new DraftError(SCOPE_UPLOAD_HELP,413);
@@ -46,7 +47,7 @@ export async function postScope(request:Request){
       analysis=await analyzeScope(text,readable,visitorAnswers);
       analysis.extraction.reviewNotes.push(...manualReview);
       }
-      const unread=analysis.extraction.reviewNotes.filter(note=>/saved for manual review|could not read|automatic read failed/.test(note));
+      const unread=analysis.extraction.reviewNotes.filter(note=>/saved for manual review|could not read|automatic read failed|automatic reading could not finish|unread section requires review/.test(note));
       if(unread.length)warning="Some files need review before pricing. "+unread.join(" ");
     }catch(error){
       console.error("[p5-scope-analysis]",error instanceof Error?error.message:"analysis failed");

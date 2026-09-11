@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  outputFileTracingIncludes: { "/api/p5-estimator/*": ["./node_modules/heic-convert/**/*", "./node_modules/heic-decode/**/*", "./node_modules/libheif-js/**/*", "./node_modules/jpeg-js/**/*", "./node_modules/pngjs/**/*"] },
   allowedDevOrigins: ["terminal.local", ...(process.env.REPLIT_DEV_DOMAIN ? [process.env.REPLIT_DEV_DOMAIN] : [])],
   async redirects() {
     return [
