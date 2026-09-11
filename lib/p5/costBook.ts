@@ -10,7 +10,7 @@ export interface CostRule extends Omit<DirectCostLine,"quantity"|"quantitySource
 export interface ServiceCostBook {service:Service;mode?:'owner-planning';rules:CostRule[];coverage:ScopeCoverage[];assumptions:string[];exclusions:string[];verifiedScope:string;reviewedAt:string}
 export interface EstimatorConfiguration { finance:FinancePolicy;costBooks:ServiceCostBook[];planningCatalog?:PlanningCatalog }
 export const EMPTY_CONFIGURATION:EstimatorConfiguration={finance:DEFAULT_FINANCE,costBooks:[]};
-export interface ScopePriceResolution { rules:CostRule[]; assumptions:string[]; issues:string[];removeLineIds?:string[];removeExclusions?:string[] }
+export interface ScopePriceResolution { rules:CostRule[]; assumptions:string[]; issues:string[];removeLineIds?:string[];removeExclusions?:string[];completeScopeVerified?:boolean }
 export function priceReviewedScope(scope:ReviewedScope,configuration:EstimatorConfiguration,now=new Date(),resolution?:ScopePriceResolution) {
   scope={...scope,answers:deriveScopeAnswers(scope.answers)};
   const service=scope.answers.service as Service;
@@ -25,7 +25,7 @@ export function priceReviewedScope(scope:ReviewedScope,configuration:EstimatorCo
   const missingInformation=[...(scope.extraction?.missingInformation||[])];
   if(book.mode==='owner-planning'){
     if(!configuration.planningCatalog)throw new Error('The owner planning catalog has not been imported.');
-    const modeled=materializePlanningBook(book,configuration.planningCatalog,scope,now);book=modeled.book;missingInformation.push(...modeled.missing);
+    const modeled=materializePlanningBook(book,configuration.planningCatalog,scope,now);book=modeled.book;missingInformation.push(...modeled.missing.filter(issue=>!(resolution?.completeScopeVerified&&resolution.rules.length>0&&issue==='Missing quantity: specialist trade takeoff for the additional work in this task list')));
   }
   const lines:DirectCostLine[]=[];
   if(resolution){
@@ -67,6 +67,6 @@ export function priceReviewedScope(scope:ReviewedScope,configuration:EstimatorCo
   if(scope.extraction?.reviewNotes.length){estimate.publishable=false;estimate.warnings.push({code:"scope-review-required",severity:"block",message:"Resolve document and scope review notes, including unsupported uploads, before publishing a price."});}
   // A dropped high-cost quantity cannot quietly become an exclusion.
   if(missingInformation.some(x=>x.startsWith("Missing quantity:")||x.startsWith("Missing cost condition:"))){estimate.publishable=false;estimate.warnings.push({code:"quantity-missing",severity:"block",message:"One or more cost-book quantities or scope conditions are missing."});}
-  if(scope.answers.allowances){estimate.publishable=false;estimate.warnings.push({code:"allowance-review-required",severity:"block",message:"Convert the submitted allowances into itemized, linked cost allowances before publishing a price."});}
+  if(scope.answers.allowances&&!resolution?.completeScopeVerified){estimate.publishable=false;estimate.warnings.push({code:"allowance-review-required",severity:"block",message:"Convert the submitted allowances into itemized, linked cost allowances before publishing a price."});}
   return {internal:{...estimate,scope,costBookSnapshot:book},customer:customerEstimate(estimate,summary)};
 }

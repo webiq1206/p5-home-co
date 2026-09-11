@@ -4,7 +4,9 @@ import { PDFDocument,rgb,type PDFPage,type PDFFont } from "pdf-lib";
 import fontkit from "@pdf-lib/fontkit";
 import { ESTIMATOR_BRAND as brand } from "./brand";
 type PublicResult={status:string;range:{low:number;high:number}|null;summary:string;includedCategories:string[];categoryRanges?:{category:string;low:number;high:number}[];lineItems?:{id:string;category:string;description:string;quantity:number;unit:string;low:number;high:number;unitLow:number;unitHigh:number}[];allowances:unknown[];assumptions:string[];exclusions:string[];factors:string[];nextStep:string;message:string;disclaimer:string};
-type Block={title?:string;text?:string;rows?:[string,string][];compact?:boolean};
+type Block={title?:string;text?:string;rows?:[string,string][];bullets?:string[];compact?:boolean};
+import {estimateSections,scopeBullets} from './presentation';
+import {scopeText} from './scope';
 const label=(value:string)=>value.replace(/([a-z])([A-Z])/g,"$1 $2").replaceAll("-"," ").replace(/^./,c=>c.toUpperCase());
 const money=(n:number)=>new Intl.NumberFormat("en-US",{style:"currency",currency:"USD",maximumFractionDigits:0}).format(n);
 const unitMoney=(n:number)=>new Intl.NumberFormat("en-US",{style:"currency",currency:"USD",minimumFractionDigits:2,maximumFractionDigits:2}).format(n);
@@ -31,6 +33,7 @@ function wrap(text:string,font:PDFFont,size:number,width:number):string[]{
 }
 async function render(kind:"customer"|"administrative",id:string,blocks:Block[]){
   const doc=await PDFDocument.create();doc.registerFontkit(fontkit);
+  const compact=kind==="customer"&&JSON.stringify(blocks).length<3000;
   const asset=(p:string)=>readFile(path.join(process.cwd(),"public",p));
   // Missing brand assets fail delivery and stay in the outbox; no placeholder logos.
   const font=await doc.embedFont(await asset(brand.font),{subset:true});
@@ -38,7 +41,7 @@ async function render(kind:"customer"|"administrative",id:string,blocks:Block[])
   const logo=await doc.embedPng(await asset(brand.logo));
   const hex=(h:string)=>rgb(parseInt(h.slice(1,3),16)/255,parseInt(h.slice(3,5),16)/255,parseInt(h.slice(5,7),16)/255);
   const ink=hex(brand.ink);const accent=hex(brand.accent);const paper=hex(brand.paper);
-  let page:PDFPage;let y=0;
+  let page!:PDFPage;let y=0;
   const newPage=()=>{
     page=doc.addPage([612,792]);page.drawRectangle({x:0,y:680,width:612,height:112,color:paper});
     const scale=Math.min(260/logo.width,54/logo.height);page.drawImage(logo,{x:44,y:718,width:logo.width*scale,height:logo.height*scale});
@@ -55,10 +58,12 @@ async function render(kind:"customer"|"administrative",id:string,blocks:Block[])
   draw(`Reference ${id} | ${new Date().toISOString().slice(0,10)}`,9);y-=12;
   for(const block of blocks){
     const blockHeight=(block.title?wrap(block.title,heading,16,524).length*21.6+6:0)+(block.text?wrap(block.text,font,10.5,524).length*14.175:0)+(block.rows||[]).reduce((n,[name,value])=>n+(block.compact?wrap(`${name}: ${value}`,font,10.5,524).length*14.175+4:(wrap(name,font,10.5,524).length+wrap(value,font,10.5,524).length)*14.175+6),0)+10;
-    ensure(blockHeight<=180?blockHeight:60);if(block.title){draw(block.title,16,true);y-=6;}
-    if(block.text)draw(block.text);
-    for(const [name,value]of block.rows||[]){if(block.compact){ensure(22);draw(`${name}: ${value}`);y-=4;}else{ensure(38);draw(name,10.5);draw(value,10.5);y-=6;}}
-    y-=10;
+    const keepHeight=blockHeight+55+(block.bullets||[]).reduce((n,b)=>n+wrap(b,font,10.5,524).length*14.175+8,0);
+    ensure(compact?42:keepHeight<=500?keepHeight:120);if(block.title){page.drawLine({start:{x:44,y:y+8},end:{x:568,y:y+8},color:accent,thickness:.7});y-=compact?2:8;draw(block.title,compact?13:16,true);y-=compact?3:6;}
+    if(block.text){draw(block.text);y-=compact?3:8;}
+    for(const bullet of block.bullets||[]){ensure(36);draw(`• ${bullet}`);y-=compact?3:8;}
+    for(const [name,value]of block.rows||[]){if(block.compact||(compact&&value.length<160)){ensure(22);draw(`${name}: ${value}`);y-=4;}else{ensure(60);draw(name,11,true);y-=4;const parts=scopeBullets(value);for(const part of parts){draw(parts.length>1?`• ${part}`:part);y-=4;}y-=8;}}
+    y-=compact?5:10;
   }
   const pages=doc.getPages();
   pages.forEach((p,index)=>{
@@ -73,14 +78,7 @@ async function render(kind:"customer"|"administrative",id:string,blocks:Block[])
 export function customerPdf(id:string,result:PublicResult){
   const blocks:Block[]=[
     {title:result.range?`${money(result.range.low)} to ${money(result.range.high)}`:"Scope received for pricing review",text:result.message},
-    {title:"Your project",text:result.summary},
-    ...(!result.categoryRanges?.length?[{title:"Major included categories",text:result.includedCategories.length?result.includedCategories.map(x=>x.replaceAll("-"," ")).join("\n"):"To be confirmed during scope review."}]:[]),
-    ...(!result.lineItems?.length&&result.categoryRanges?.length?[{title:"Planning range by trade",compact:true,rows:result.categoryRanges.map(x=>[x.category,`${money(x.low)} to ${money(x.high)}`] as [string,string])}]:[]),
-    ...(result.lineItems?.length?[{title:"Included items by trade",compact:true,rows:result.lineItems.map(x=>[`${x.category}: ${x.description}`,`${x.quantity.toLocaleString("en-US")} ${x.unit}; ${unitMoney(x.unitLow)} to ${unitMoney(x.unitHigh)} per ${x.unit}; item ${money(x.low)} to ${money(x.high)}`] as [string,string])}]:[]),
-    ...(result.allowances.length?[{title:"Allowances",text:printable(result.allowances)}]:[]),
-    ...(result.exclusions.length?[{title:"Exclusions",text:result.exclusions.join("\n")}]:[]),
-    ...(result.assumptions.length?[{title:"Planning assumptions",text:result.assumptions.join("\n")}]:[]),
-    ...(result.factors.length?[{title:"Factors that may change the range",text:result.factors.join("\n")}]:[]),
+    ...estimateSections(result),
     {title:"Recommended next step",text:`${result.nextStep}\nSchedule a consultation: https://${brand.domain}${brand.consultationPath}\n${brand.phone} | ${brand.email}`},
     {title:"Planning disclaimer",text:result.disclaimer},
   ];return render("customer",id,blocks);
@@ -105,14 +103,18 @@ export function administrativePdf(id:string,record:Record<string,unknown>){
   ]});
   if(!legacyAllocations&&allocations)blocks.push({text:"Overhead includes both owner salaries, payroll burden, advertising, social media and the remaining company budget. These costs are recovered once within the item prices. Additional project labor is counted only when it is outside that overhead-funded payroll."});
   if(record.directByCategory)blocks.push({title:"Direct project costs by category",compact:true,rows:Object.entries(record.directByCategory as Record<string,number>).map(([key,value])=>[label(key),number(value)])});
-  if(record.warnings)blocks.push({title:"Pricing warnings and required review",text:printable(record.warnings)});
+  if(Array.isArray(record.warnings)&&record.warnings.length)blocks.push({title:"Pricing warnings and required review",bullets:record.warnings.map((w:any)=>`${label(w.severity||"Review")}: ${w.message||printable(w)}`)});
   if(record.matrix)blocks.push({title:"Service margin policy and recommended contract method",text:printable(record.matrix)});
-  const skip=new Set(["lines","scope","costBookSnapshot","financeSnapshot","warnings","matrix","directByCategory"]);
+  const skip=new Set(["lines","scope","costBookSnapshot","financeSnapshot","warnings","matrix","directByCategory","scopePricing"]);
   blocks.push({title:"Complete calculation trace",text:"Amounts in the summary are displayed to cents. The stored estimate and trace preserve calculation precision.",rows:Object.entries(record).filter(([k])=>!skip.has(k)).map(([k,v])=>[label(k),printable(v)])});
-  if(record.lines)blocks.push({title:"Direct-cost lines and source evidence",text:printable(record.lines)});
-  if(record.scope)blocks.push({title:"Submitted scope, uploads, extraction and corrections",text:printable(record.scope)});
-  if(record.financeSnapshot)blocks.push({title:"Financial policy snapshot",text:printable(record.financeSnapshot)});
-  if(record.costBookSnapshot)blocks.push({title:"Cost-book snapshot",text:printable(record.costBookSnapshot)});
+  if(Array.isArray(record.lines)){
+    const categories=[...new Set(record.lines.map((l:any)=>l.trade||label(l.category)))];
+    for(const category of categories)blocks.push({title:`Direct costs: ${category}`,rows:record.lines.filter((l:any)=>(l.trade||label(l.category))===category).map((l:any)=>[l.description,`${l.quantity} ${l.unit} at ${number(l.unitCost)} = ${number(l.cost)}\nQuantity: ${l.quantitySource}\nSource: ${printable(l.evidence)}`])});
+  }
+  if(record.scope){const scope=record.scope as any;blocks.push({title:'Submitted project scope'},...estimateSections({summary:scopeText({...scope,answers:scope.answers||{}})}));}
+  if(record.scopePricing){const audit=record.scopePricing as any;blocks.push({title:'Scope coverage audit',bullets:(audit.tasks||[]).map((t:any)=>`${t.description} - ${audit.verification?.coveredTaskIds?.includes(t.id)?'Coverage verified':'Review required'}`)}, {title:'Unresolved pricing issues',bullets:audit.issues||[]});}
+  if(record.financeSnapshot)blocks.push({title:"Financial policy snapshot",rows:Object.entries(record.financeSnapshot as object).map(([k,v])=>[label(k),printable(v)])});
+  if(record.costBookSnapshot){const book=record.costBookSnapshot as any;blocks.push({title:"Cost-book scope and assumptions",text:book.verifiedScope,bullets:book.assumptions||[]},{title:"Cost-book exclusions",bullets:book.exclusions||[]});}
   return render("administrative",id,blocks);
 }
 export function pdfFilename(id:string,kind:"customer"|"administrative"){return `${brand.id}-estimate-${id}-${kind}.pdf`;}

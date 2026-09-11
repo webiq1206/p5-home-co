@@ -89,3 +89,23 @@ test('Anthropic-only configuration supports JSON and real tool-source extraction
   await assert.rejects(()=>requestPricing('JSON',{},true,1000),/search-unavailable/);
  }finally{globalThis.fetch=oldFetch;names.forEach((n,i)=>{if(saved[i]===undefined)delete process.env[n];else process.env[n]=saved[i]});}
 });
+test('Allowance notes release a range only after complete scope coverage passes the independent audit',async()=>{
+ const withNotes={...scope,answers:{...scope.answers,allowances:'Cabinet selections are included in the material supply budget.'}};
+ assert.equal(priceReviewedScope(withNotes,config,now).customer.range,null);
+ const okay=await priceCompleteScope(withNotes,config,replies([{tasks:[task],issues:[]},{coveredTaskIds:['cabinets'],issues:[]}]),now);
+ assert.ok(okay.customer.range);
+ const unclear=await priceCompleteScope(withNotes,config,replies([{tasks:[task],issues:[]},{coveredTaskIds:[],issues:['Delivery and tax treatment is unresolved']}]),now);
+ assert.equal(unclear.customer.range,null);
+ assert.equal(unclear.customer.scopeTasks[0].description,'Cabinet supply');
+});
+test('A researched specialist takeoff resolves the generic small-job hold only after verification',async()=>{
+ const specialist={...scope,text:'Concrete protective overlay, ten linear feet.',answers:{service:'handyman',laborHours:'2',location:'Boise'}};
+ const initial=priceReviewedScope(specialist,config,now);
+ assert.equal(initial.customer.range,null);
+ const initialIds=(initial.internal as any).lines.map((l:any)=>l.id);
+ const labor={...task,id:'prep',description:'Preparation labor',existingLineIds:initialIds};
+ const priced=await priceCompleteScope(specialist,config,replies([{tasks:[labor,extra],issues:[]},researched,{coveredTaskIds:['prep','overlay'],issues:[]}]),now);
+ assert.ok(priced.customer.range);
+ const failed=await priceCompleteScope(specialist,config,replies([{tasks:[labor,extra],issues:[]},researched,{coveredTaskIds:['prep'],issues:['Specialist scope remains incomplete']}]),now);
+ assert.equal(failed.customer.range,null);
+});
