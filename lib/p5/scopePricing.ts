@@ -42,7 +42,7 @@ export const requestPricing:PricingRequest=async(instructions,input,search,remai
   if(!key||!endpoint){
     const anthropic=process.env.ANTHROPIC_API_KEY;
     if(!anthropic)throw new Error('pricing-provider-unavailable');
-    const response=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',signal:AbortSignal.timeout(Math.min(55000,remainingMs)),headers:{'Content-Type':'application/json','x-api-key':anthropic,'anthropic-version':'2023-06-01'},body:JSON.stringify({model:/^claude/.test(process.env.P5_SCOPE_MODEL||'')?process.env.P5_SCOPE_MODEL:'claude-opus-5',max_tokens:14000,system:instructions,messages:[{role:'user',content:JSON.stringify(input)}],...(search?{tools:[{type:'web_search_20250305',name:'web_search',max_uses:6}]}:{})})});
+    const response=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',signal:AbortSignal.timeout(Math.min(search?120000:60000,remainingMs)),headers:{'Content-Type':'application/json','x-api-key':anthropic,'anthropic-version':'2023-06-01'},body:JSON.stringify({model:/^claude/.test(process.env.P5_SCOPE_MODEL||'')?process.env.P5_SCOPE_MODEL:'claude-opus-5',max_tokens:14000,system:instructions,messages:[{role:'user',content:JSON.stringify(input)}],...(search?{tools:[{type:'web_search_20250305',name:'web_search',max_uses:6}]}:{})})});
     if(!response.ok)throw new Error('pricing-provider-unavailable');
     const body=await response.json();
     if(body.stop_reason!=='end_turn')throw new Error('pricing-check-incomplete');
@@ -54,7 +54,7 @@ export const requestPricing:PricingRequest=async(instructions,input,search,remai
     if(search&&!sourceUrls.length)throw new Error('pricing-search-unavailable');
     return {value:JSON.parse(raw.replace(/^\s*```(?:json)?\s*/,'').replace(/\s*```\s*$/,'')),sourceUrls};
   }
-  const response=await fetch(`${endpoint}/responses`,{method:'POST',signal:AbortSignal.timeout(Math.min(55000,remainingMs)),headers:{'Content-Type':'application/json',Authorization:`Bearer ${key}`},body:JSON.stringify({model:process.env.P5_SCOPE_OPENAI_MODEL||'gpt-4.1',instructions,input:JSON.stringify(input),max_output_tokens:14000,store:false,...(search?{tools:[{type:'web_search'}],tool_choice:'required',include:['web_search_call.action.sources']}:{text:{format:{type:'json_object'}}})})});
+  const response=await fetch(`${endpoint}/responses`,{method:'POST',signal:AbortSignal.timeout(Math.min(search?120000:60000,remainingMs)),headers:{'Content-Type':'application/json',Authorization:`Bearer ${key}`},body:JSON.stringify({model:process.env.P5_SCOPE_OPENAI_MODEL||'gpt-4.1',instructions,input:JSON.stringify(input),max_output_tokens:14000,store:false,...(search?{tools:[{type:'web_search'}],tool_choice:'required',include:['web_search_call.action.sources']}:{text:{format:{type:'json_object'}}})})});
   if(!response.ok)throw new Error('pricing-provider-unavailable');
   const body=await response.json();
   if(body.status!=='completed')throw new Error('pricing-check-incomplete');
@@ -110,7 +110,7 @@ export function marketResolution(raw:unknown,urls:string[],tasks:Mapping['tasks'
 export async function priceCompleteScope(scope:ReviewedScope,configuration:EstimatorConfiguration,request:PricingRequest=requestPricing,now=new Date()){
   const base=priceReviewedScope(scope,configuration,now);
   const resolution:ScopePriceResolution={rules:[],assumptions:[],issues:[]};
-  const deadline=Date.now()+145000;
+  const deadline=Date.now()+255000;
   const original={text:scope.text,answers:scope.answers,extraction:scope.extraction};
   const auditTrail:{version:string;scopeHash:string;tasks:unknown[];research:unknown;verification:unknown;issues:string[]}={version:'complete-scope-v1',scopeHash:createHash('sha256').update(JSON.stringify({scope,configuration})).digest('hex'),tasks:[],research:null,verification:null,issues:[]};
   try{
