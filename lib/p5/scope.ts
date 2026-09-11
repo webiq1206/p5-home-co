@@ -69,6 +69,7 @@ export function validateAnswer(field: ScopeField, value: string): string | null 
   if (!value.trim()) return null;
   const definition = SCOPE_FIELDS[field];
   if (definition.kind === "number") {
+    if (!/^(?:(?:\d+|\d{1,3}(?:,\d{3})+)(?:\.\d+)?|\.\d+)$/.test(value.trim())) return "Enter a valid nonnegative number.";
     const number = Number(value.replaceAll(",", ""));
     if (!Number.isFinite(number) || number < 0 || number > 1000000) return "Enter a valid nonnegative number.";
     if (["rooms", "bathrooms", "stories"].includes(field) && !Number.isInteger(number)) return "Enter a whole number.";
@@ -81,22 +82,30 @@ export function validateExtraction(raw: unknown): ScopeExtraction {
   const r = raw as Record<string, unknown>;
   const strings = (value: unknown, max: number) => { if (!Array.isArray(value) || value.length > max || value.some(x => typeof x !== "string" || x.length > 4000)) throw new Error("Invalid analysis notes");return value as string[]; };
   if (typeof r.summary !== "string" || r.summary.length > 8000 || !Array.isArray(r.facts) || r.facts.length > 150 || !Array.isArray(r.conflicts) || r.conflicts.length > 50) throw new Error("Invalid scope analysis");
-  const facts = r.facts.map((item: unknown): ExtractedFact => {
+  const unreadValues: string[] = [];
+  const facts = r.facts.flatMap((item: unknown): ExtractedFact[] => {
     if (!item || typeof item !== "object") throw new Error("Invalid fact");
     const f = item as Record<string, unknown>;
+    if (typeof f.field === "string" && Object.hasOwn(SCOPE_FIELDS,f.field) && SCOPE_FIELDS[f.field as ScopeField].kind === "number" && typeof f.value === "string" && validateAnswer(f.field as ScopeField,f.value)) {
+      unreadValues.push(`Confirm ${SCOPE_FIELDS[f.field as ScopeField].label.toLowerCase()} if no other source supplies a readable value.`);
+      return [];
+    }
     if (typeof f.field !== "string" || !Object.hasOwn(SCOPE_FIELDS,f.field) || typeof f.value !== "string" || !f.value.trim() || validateAnswer(f.field as ScopeField, f.value) || typeof f.confidence !== "number" || !Number.isFinite(f.confidence) || f.confidence < 0 || f.confidence > 1 || typeof f.source !== "string" || !f.source.trim() || f.source.length > 500 || typeof f.evidence !== "string" || !f.evidence.trim() || f.evidence.length > 4000) throw new Error("Invalid extracted fact");
     if (f.basis !== undefined && !["stated", "calculated", "visual", "inferred"].includes(String(f.basis))) throw new Error("Invalid fact basis");
     // A model's confidence is not evidence that an assumption was supplied by the user.
     let confidence = f.confidence;
     if (f.basis === "inferred") confidence = Math.min(confidence, .2);
     if (f.basis === "visual") confidence = Math.min(confidence, SCOPE_FIELDS[f.field as ScopeField].kind === "number" ? 0 : .6);
-    return { ...f, confidence } as unknown as ExtractedFact;
+    const value=SCOPE_FIELDS[f.field as ScopeField].kind === "number" ? String(Number(f.value.replaceAll(",", ""))) : f.value.trim();
+    return [{ ...f, value, confidence } as unknown as ExtractedFact];
   });
   const conflicts = r.conflicts.map((item: unknown): ScopeConflict => {
     if (!item || typeof item !== "object") throw new Error("Invalid conflict");
     const c = item as Record<string, unknown>;
     if (typeof c.field !== "string" || !Object.hasOwn(SCOPE_FIELDS,c.field) || typeof c.explanation !== "string" || c.explanation.length > 4000) throw new Error("Invalid conflict");
-    return { field: c.field as ScopeField, values: strings(c.values, 10), explanation: c.explanation };
+    const field=c.field as ScopeField;
+    const values=[...new Set(strings(c.values,10).filter(v=>v.trim()&&!validateAnswer(field,v)).map(v=>SCOPE_FIELDS[field].kind === "number" ? String(Number(v.replaceAll(",", ""))) : v.trim()))];
+    return { field, values, explanation: c.explanation };
   });
   // Independent conflict detection: never let a model overwrite two different measurements.
   for (const field of Object.keys(SCOPE_FIELDS) as ScopeField[]) {
@@ -107,7 +116,7 @@ export function validateExtraction(raw: unknown): ScopeExtraction {
     if(!q||!Object.hasOwn(SCOPE_FIELDS,q.field)||typeof q.question!=="string"||q.question.length>500||typeof q.reason!=="string"||q.reason.length>1000)throw new Error("Invalid clarification");
     return {field:q.field as ScopeField,question:q.question,reason:q.reason};
   }):[];
-  return { summary: r.summary, facts, conflicts,clarifications, missingInformation: strings(r.missingInformation, 50), reviewNotes: strings(r.reviewNotes, 50) };
+  return { summary: r.summary, facts, conflicts,clarifications, missingInformation: [...strings(r.missingInformation, 50),...unreadValues], reviewNotes: strings(r.reviewNotes, 50) };
 }
 const IMAGE_SOURCE = /\.(?:jpe?g|png|webp|gif|heic|heif)(?:\b|[),])/i;
 const EXPLICIT_URGENCY = /\b(?:standard|normal timing|not urgent|priority|prioritized|emergency|urgent|rush|asap|same[- ]day|immediately)\b/i;
