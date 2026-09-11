@@ -2,6 +2,7 @@ import { query } from "./database";
 import { draftCredentials,readDraft,DraftError } from "./store";
 import { EMPTY_CONFIGURATION,type EstimatorConfiguration } from "./costBook";
 import {priceSavedScope} from "./pricingWork";
+import {SCOPE_FIELDS} from "./scope";
 import {PricingPending} from "./pricingProgress";
 import { enqueueSubmission,deliveryStatus,processOutbox } from "./outbox";
 import { protectRequest,json,failed,limitedBody } from "./http";
@@ -23,6 +24,15 @@ export async function postSubmission(request:Request){
     const [policy]=await query("SELECT payload FROM p5_estimator_policy WHERE id='current'");
     const configuration=(policy?.payload||EMPTY_CONFIGURATION) as EstimatorConfiguration;
     const priced=await priceSavedScope(id,draft.reviewed,configuration);
+    if(!priced.customer.range){
+      // Keep incomplete pricing available to the authenticated admin, but do
+      // not submit it or create customer-email/CRM delivery records.
+      const retained=await query("UPDATE p5_estimator_drafts SET internal_estimate=$2 WHERE id=$1 AND revision=$3 AND status='draft' RETURNING id",[id,JSON.stringify(priced.internal),draft.revision]);
+      if(!retained.length)throw new DraftError("Your project changed during pricing. Save the latest details and retry.",409);
+      const missing=('missingInformation' in priced.internal?priced.internal.missingInformation:[])||[];
+      const labels=Object.entries(SCOPE_FIELDS).filter(([key])=>missing.some((item:string)=>item.startsWith(`Missing quantity: ${key}`)||item.startsWith(`Missing cost condition: ${key}`))).map(([,field])=>field.label);
+      return json({pricingReviewRequired:true,error:`Your project is saved and remains editable. ${labels.length?`Please confirm: ${labels.slice(0,5).join('; ')}.`:'Some scope items still need verified quantities or cost evidence.'} A complete price range is required before the estimate can be finalized and emailed.`},422);
+    }
     const record={draftId:id,revision:draft.revision,brand:brand.name,estimator:"p5-policy",contact:draft.contact,scope:draft.reviewed,...priced};
     const accepted=await enqueueSubmission(id,draft.revision,record);
     // Persistence is acknowledged separately from delivery. A transport failure
