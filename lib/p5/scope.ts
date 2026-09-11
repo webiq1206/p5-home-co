@@ -4,6 +4,11 @@ export const SCOPE_FIELDS = {
   location: { label: "City, ZIP code, county or general location", kind: "text" },
   address: { label: "Property address (optional)", kind: "text" },
   sqft: { label: "Project area in square feet", kind: "number" },
+  garageIncluded: { label: "Garage in this project", kind: "choice", options: ["yes", "no"] },
+  garageSqft: { label: "Garage area in square feet", kind: "number" },
+  coveredOutdoorSqft: { label: "Covered outdoor area in square feet", kind: "number" },
+  cabinetTallLf: { label: "Tall cabinet run in linear feet", kind: "number" },
+  cabinetConstruction: { label: "Cabinet construction and hardware specification", kind: "text" },
   length: { label: "Length in feet", kind: "number" },
   width: { label: "Width in feet", kind: "number" },
   rooms: { label: "Number of rooms", kind: "number" },
@@ -34,17 +39,25 @@ export const SCOPE_FIELDS = {
   urgency: { label: "Timing", kind: "choice", options: ["standard", "priority", "emergency"] },
   complexity: { label: "Project complexity", kind: "choice", options: ["standard", "complex"] },
   phasing: { label: "Project phasing", kind: "text" },
+  flooringSqft: { label: "Flooring area in square feet", kind: "number" },
+  tileSqft: { label: "Tile area in square feet", kind: "number" },
+  countertopSqft: { label: "Countertop area in square feet", kind: "number" },
+  demolitionSqft: { label: "Demolition area in square feet", kind: "number" },
+  fixtureCount: { label: "Number of fixtures", kind: "number" },
+  laborHours: { label: "Estimated labor hours", kind: "number" },
+  installation: { label: "Installation work and responsibilities", kind: "text" },
   taskList: { label: "Tasks and quantities", kind: "text" },
   otherDetails: { label: "Other scope details", kind: "text" },
 } as const;
 export type ScopeField = keyof typeof SCOPE_FIELDS;
 export type ScopeAnswers = Partial<Record<ScopeField, string>>;
-export interface ExtractedFact { field: ScopeField; value: string; confidence: number; source: string; evidence: string }
+export interface ExtractedFact { field: ScopeField; value: string; confidence: number; source: string; evidence: string; basis?: "stated" | "calculated" | "visual" | "inferred" }
 export interface ScopeConflict { field: ScopeField; values: string[]; explanation: string }
-export interface ScopeExtraction { summary: string; facts: ExtractedFact[]; conflicts: ScopeConflict[]; missingInformation: string[]; reviewNotes: string[] }
+export interface ScopeExtraction { summary: string; facts: ExtractedFact[]; conflicts: ScopeConflict[]; missingInformation: string[]; reviewNotes: string[]; clarifications?: {field:ScopeField;question:string;reason:string}[] }
 export interface ScopeUpload { id: string; name: string; type: string; size: number; sha256: string; status: "stored" | "failed" }
 export interface ReviewedScope {
   text: string; answers: ScopeAnswers; extraction: ScopeExtraction | null; uploads: ScopeUpload[];
+  uncertainFields?: ScopeField[];
   reviewedAt: string; corrections: { field: ScopeField; previous: string; value: string }[];
 }
 export const SCOPE_TEXT_LIMIT = 24000;
@@ -72,7 +85,12 @@ export function validateExtraction(raw: unknown): ScopeExtraction {
     if (!item || typeof item !== "object") throw new Error("Invalid fact");
     const f = item as Record<string, unknown>;
     if (typeof f.field !== "string" || !Object.hasOwn(SCOPE_FIELDS,f.field) || typeof f.value !== "string" || !f.value.trim() || validateAnswer(f.field as ScopeField, f.value) || typeof f.confidence !== "number" || !Number.isFinite(f.confidence) || f.confidence < 0 || f.confidence > 1 || typeof f.source !== "string" || !f.source.trim() || f.source.length > 500 || typeof f.evidence !== "string" || !f.evidence.trim() || f.evidence.length > 4000) throw new Error("Invalid extracted fact");
-    return f as unknown as ExtractedFact;
+    if (f.basis !== undefined && !["stated", "calculated", "visual", "inferred"].includes(String(f.basis))) throw new Error("Invalid fact basis");
+    // A model's confidence is not evidence that an assumption was supplied by the user.
+    let confidence = f.confidence;
+    if (f.basis === "inferred") confidence = Math.min(confidence, .2);
+    if (f.basis === "visual") confidence = Math.min(confidence, SCOPE_FIELDS[f.field as ScopeField].kind === "number" ? 0 : .6);
+    return { ...f, confidence } as unknown as ExtractedFact;
   });
   const conflicts = r.conflicts.map((item: unknown): ScopeConflict => {
     if (!item || typeof item !== "object") throw new Error("Invalid conflict");
@@ -82,10 +100,14 @@ export function validateExtraction(raw: unknown): ScopeExtraction {
   });
   // Independent conflict detection: never let a model overwrite two different measurements.
   for (const field of Object.keys(SCOPE_FIELDS) as ScopeField[]) {
-    const values = [...new Set(facts.filter(f => f.field === field).map(f => f.value.trim()))];
+    const values = [...new Set(facts.filter(f => f.field === field && f.confidence >= .4).map(f => f.value.trim()))];
     if (values.length > 1 && SCOPE_FIELDS[field].kind !== "text" && !conflicts.some(c => c.field === field)) conflicts.push({ field, values, explanation: "The supplied information contains different values. Please confirm the intended scope." });
   }
-  return { summary: r.summary, facts, conflicts, missingInformation: strings(r.missingInformation, 50), reviewNotes: strings(r.reviewNotes, 50) };
+  const clarifications=Array.isArray(r.clarifications)?r.clarifications.slice(0,20).map((q:any)=>{
+    if(!q||!Object.hasOwn(SCOPE_FIELDS,q.field)||typeof q.question!=="string"||q.question.length>500||typeof q.reason!=="string"||q.reason.length>1000)throw new Error("Invalid clarification");
+    return {field:q.field as ScopeField,question:q.question,reason:q.reason};
+  }):[];
+  return { summary: r.summary, facts, conflicts,clarifications, missingInformation: strings(r.missingInformation, 50), reviewNotes: strings(r.reviewNotes, 50) };
 }
 const IMAGE_SOURCE = /\.(?:jpe?g|png|webp|gif|heic|heif)(?:\b|[),])/i;
 const EXPLICIT_URGENCY = /\b(?:standard|normal timing|not urgent|priority|prioritized|emergency|urgent|rush|asap|same[- ]day|immediately)\b/i;
@@ -143,7 +165,7 @@ export function mergeScopeFacts(current: ScopeAnswers, extraction: ScopeExtracti
     if(SCOPE_FIELDS[fact.field].kind==="text"){
       if(textFields.has(fact.field))continue;textFields.add(fact.field);
       const values=[...new Set([current[fact.field]?.trim(),...extraction.facts.filter(f=>f.field===fact.field&&f.confidence>=.85).map(f=>f.value.trim())].filter(Boolean))];
-      const combined=values.join("\n");
+      const combined=[...new Set(values.flatMap(value=>value!.split("\n")).map(value=>value.trim()).filter(Boolean))].join("\n");
       if(combined.length<=4000)answers[fact.field]=combined;
       else conflicts.push({field:fact.field,values:[current[fact.field]||""].filter(Boolean),explanation:"This trade scope exceeds one answer. Review the full source details and enter a concise summary without omitting priced work."});
       continue;
@@ -160,13 +182,14 @@ export function mergeScopeFacts(current: ScopeAnswers, extraction: ScopeExtracti
 /** Merge page reads without losing distinct measurements or additive trade scope. */
 export function combineScopeExtractions(parts:ScopeExtraction[]):ScopeExtraction {
   const merged:ScopeExtraction={summary:[...new Set(parts.map(p=>p.summary).filter(Boolean))].join("\n"),facts:[],conflicts:parts.flatMap(p=>p.conflicts),missingInformation:[...new Set(parts.flatMap(p=>p.missingInformation))],reviewNotes:[...new Set(parts.flatMap(p=>p.reviewNotes))]};
+  merged.clarifications=parts.flatMap(p=>p.clarifications||[]).filter((q,i,a)=>a.findIndex(v=>v.field===q.field)===i);
   const seen=new Set<string>();
   for(const fact of parts.flatMap(p=>p.facts)){
     const key=JSON.stringify([fact.field,fact.value.trim(),fact.source,fact.evidence]);
     if(!seen.has(key)){seen.add(key);merged.facts.push(fact);}
   }
   for(const field of Object.keys(SCOPE_FIELDS) as ScopeField[]){
-    const values=[...new Set(merged.facts.filter(f=>f.field===field).map(f=>f.value.trim()))];
+    const values=[...new Set(merged.facts.filter(f=>f.field===field&&f.confidence>=.4).map(f=>f.value.trim()))];
     if(values.length>1&&SCOPE_FIELDS[field].kind!=="text"&&!merged.conflicts.some(c=>c.field===field))merged.conflicts.push({field,values,explanation:"Different document pages state different values. Confirm the intended project information."});
   }
   // Missing questions from one page may be answered on another.

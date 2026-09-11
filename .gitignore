@@ -83,4 +83,8 @@ build/contracts/
 !/scripts/test-p5-workflow.mts
 !/scripts/p5-estimator-browser.mjs
 
+!/scripts/dev.mjs
+!/scripts/test-p5-upload.mts
+/app/p5-qa-check/
+
 !/scripts/test-p5-receipt.mts

@@ -44,6 +44,7 @@ export function checkOfficeArchive(data:Buffer) {
 export async function prepareAnalysisFiles(files:AnalysisFile[]) {
   const readable:AnalysisFile[]=[];const manualReview:string[]=[];
   for(const file of files){
+    try{
     if(file.type==="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"){
       const workbook=new ExcelJS.Workbook();await workbook.xlsx.load(file.data as any);
       const parts:string[]=[];let cells=0;
@@ -59,6 +60,7 @@ export async function prepareAnalysisFiles(files:AnalysisFile[]) {
       readable.push({...file,type:"text/plain",data:Buffer.from(result.value)});
     }else if(["application/msword","application/vnd.ms-excel","application/vnd.oasis.opendocument.spreadsheet","image/heic","image/heif"].includes(file.type))manualReview.push(`${file.name}: saved for manual review. Export as PDF, XLSX, DOCX, JPEG or PNG for automatic extraction.`);
     else readable.push(file);
+    }catch(error){manualReview.push(`${file.name}: could not read this file automatically. ${error instanceof Error?error.message:"Export a fresh PDF copy."}`);}
   }
   return {readable,manualReview};
 }

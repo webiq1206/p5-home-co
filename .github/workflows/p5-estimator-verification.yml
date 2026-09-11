@@ -1,7 +1,7 @@
 name: P5 estimator policy and workflow verification
 on:
   push:
-    branches: [codex/p5-intelligent-wizard-20260910, codex/p5-upload-receipt-fix-20260910, main, codex/p5-estimator-policy-20260910, codex/p5-merge-all-20260910, codex/p5-complete-main-20260910]
+    branches: [codex/p5-upload-receipt-fix-20260910, codex/p5-intelligent-wizard-20260910, main, codex/p5-estimator-policy-20260910, codex/p5-merge-all-20260910, codex/p5-complete-main-20260910]
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -26,6 +26,8 @@ jobs:
         run: |
           node --import tsx scripts/test-p5-workflow.mts
           node --import tsx scripts/test-p5-receipt.mts
+          node --import tsx scripts/test-p5-upload.mts
+          node --import tsx --test tests/p5-adaptive.test.ts tests/p5-provider.test.ts
       - name: TypeScript verification
         run: npx tsc --noEmit
       - name: Production build and existing repository gates
@@ -35,7 +37,7 @@ jobs:
           npx next start -p 5000 > /tmp/p5-estimator-server.log 2>&1 &
           node -e 'const u="http://127.0.0.1:5000/estimate/p5-preview";let n=0;const t=setInterval(async()=>{try{const r=await fetch(u);if(r.ok){clearInterval(t)}}catch{}if(++n>90){clearInterval(t);process.exit(1)}},1000)'
           P5_PARENT=1 node scripts/p5-mobile-navigation.mjs
-          node scripts/p5-estimator-browser.mjs
+          node --import tsx scripts/p5-estimator-browser.mjs
           node scripts/p5-admin-pricing-browser.mjs
       - uses: actions/upload-artifact@v4
         if: always()

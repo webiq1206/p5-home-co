@@ -1,8 +1,7 @@
-import { ScopeEstimateOption } from "@/components/ScopeEstimateOption";
 import Link from "next/link";
 
-import QuoteForm from "./QuoteForm";
-import QuoteCallBar from "./QuoteCallBar";
+import {P5Estimator} from "@/components/P5Estimator";
+
 import { PROOF_POINTS, TESTIMONIALS } from "./proof";
 import { faqsFor, schemaFor, STEPS } from "./schema";
 import { QUOTE_SERVICES, type QuoteService } from "./services";
@@ -56,6 +55,8 @@ export default function QuoteLanding({ service }: { service: QuoteService | null
           </TrackedPhoneLink>
         </header>
 
+        <section id="quote-form-heading" style={{padding:"12px 0 36px",scrollMarginTop:100}}><P5Estimator headingAs="h1" defaultService={({"kitchen-remodel":"kitchen","bathroom-remodel":"bathroom","home-addition":"addition","adu":"adu","custom-home":"new-construction","new-construction":"new-construction","custom-cabinets":"cabinet-install","handyman":"handyman","re-10":"re10"} as Record<string,string>)[service?.slug||""]||""} /></section>
+
         <section className="quote-hero">
           <img
             className="quote-hero-img"
@@ -68,14 +69,14 @@ export default function QuoteLanding({ service }: { service: QuoteService | null
           />
           <div className="quote-hero-veil" aria-hidden="true" />
 
-          <div className="quote-shell quote-hero-grid">
+          <div className="quote-shell quote-hero-grid" style={{gridTemplateColumns:"minmax(0,1fr)"}}>
             <div className="quote-hero-copy">
               <p className="quote-eyebrow">
                 {service
                   ? `${service.label} · Treasure Valley`
                   : "Free quote · Treasure Valley, Idaho"}
               </p>
-              <h1>{service ? service.h1 : "Request a free quote for your home project"}</h1>
+              <h2>{service ? service.h1 : "A specialist team for your home project"}</h2>
               <p className="quote-lead">
                 {service
                   ? service.lead
@@ -96,15 +97,7 @@ export default function QuoteLanding({ service }: { service: QuoteService | null
               </p>
             </div>
 
-            <div className="quote-form-panel">
-              <h2 id="quote-form-heading" tabIndex={-1}>
-                {service
-                  ? `Get your ${service.label.toLowerCase()} quote`
-                  : "Tell us about your project"}
-              </h2>
-              <ScopeEstimateOption />
-              <QuoteForm defaultProject={service ? service.project : ""} />
-            </div>
+
           </div>
         </section>
 
@@ -222,7 +215,7 @@ export default function QuoteLanding({ service }: { service: QuoteService | null
         </footer>
       </main>
 
-      <QuoteCallBar />
+      
     </>
   );
 }

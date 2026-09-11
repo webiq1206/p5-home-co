@@ -210,10 +210,10 @@ test("derived or misclassified areas remain review notes instead of pricing meas
 test("PDF analysis accounts for every page and holds failed pages for review",async()=>{
   const old=process.env.ANTHROPIC_API_KEY;process.env.ANTHROPIC_API_KEY="synthetic-not-a-real-key";
   try{
-    const doc=await PDFDocument.create();for(let i=0;i<3;i++)doc.addPage();const calls:string[]=[];
-    const transport:typeof fetch=async(_url,options)=>{const body=JSON.parse(String(options?.body));const name=body.messages[0].content.find((x:{text?:string})=>x.text?.startsWith("Source filename:")).text;calls.push(name);if(name.includes("page 2 "))return new Response("failure",{status:503});return Response.json({stop_reason:"end_turn",content:[{type:"text",text:JSON.stringify({summary:"Synthetic page scope",facts:[{field:"plumbing",value:name.includes("page 1 ")?"Install sink":"Replace supply lines",confidence:.99,source:name,evidence:"Synthetic stated scope"}],conflicts:[],missingInformation:[],reviewNotes:[]})}]});};
+    const doc=await PDFDocument.create();for(let i=0;i<17;i++)doc.addPage();const calls:string[]=[];
+    const transport:typeof fetch=async(_url,options)=>{const body=JSON.parse(String(options?.body));const name=body.messages[0].content.find((x:{text?:string})=>x.text?.startsWith("Source filename:")).text;calls.push(name);if(name.includes("pages 9 to 16 "))return new Response("failure",{status:503});return Response.json({stop_reason:"end_turn",content:[{type:"text",text:JSON.stringify({summary:"Synthetic page scope",facts:[{field:"plumbing",value:name.includes("pages 1 to 8 ")?"Install sink":"Replace supply lines",confidence:.99,source:name,evidence:"Synthetic stated scope"}],conflicts:[],missingInformation:[],reviewNotes:[]})}]});};
     const result=await analyzeScope("Synthetic scope",[{name:"synthetic.pdf",type:"application/pdf",data:Buffer.from(await doc.save())}],{},transport);
-    assert.equal(calls.length,3);assert.equal(result.extraction.facts.length,2);assert.match(result.extraction.reviewNotes.join(" "),/page 2 of 3/);
+    assert.equal(calls.length,3);assert.equal(result.extraction.facts.length,2);assert.match(result.extraction.reviewNotes.join(" "),/pages 9 to 16 of 17/);
   }finally{if(old===undefined)delete process.env.ANTHROPIC_API_KEY;else process.env.ANTHROPIC_API_KEY=old;}
 });
 
