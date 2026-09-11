@@ -95,3 +95,12 @@ test('uncertain quantities are asked only when required by pricing',()=>{
  assert.equal(q.length,1);assert.equal(q[0].field,'flooringSqft');
  assert.ok(q[0].reason.includes(q[0].label));
 });
+
+test('model follow-ups must match a required field and its answer type',()=>{
+ const a={service:'bathroom',length:'8',width:'10',materials:'Porcelain',demolition:'Remove tile'};
+ const e=extracted({});e.clarifications=[{field:'fixtureCount',question:'Which fixtures and who supplies them?',reason:'Scope'}];
+ assert.deepEqual(scopeQuestions(a,e),[]);
+ const q=scopeQuestions(a,e,[],[],['fixtureCount']);
+ assert.equal(q.length,1);assert.match(q[0].reason,/number of fixtures/i);
+ assert.doesNotMatch(q[0].reason,/which fixtures/i);
+});
