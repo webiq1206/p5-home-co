@@ -47,6 +47,15 @@ test('Independent audit blocks missed original work or duplicate assembly charge
  const r=await priceCompleteScope(scope,config,replies([{tasks:[task],issues:[]},{coveredTaskIds:['cabinets'],issues:['Original overlay task omitted from inventory']}]),now);
  assert.equal(r.customer.range,null);
 });
+test('Incorrect assembly lines can be replaced without charging both, but cannot remain coverage references',async()=>{
+ const old=ids[0];
+ const corrected={...task,existingLineIds:ids.filter((id:string)=>id!==old),additions:[{code:'03-17-01-M',quantity:12,quantityEvidence:'Corrected synthetic twelve-foot takeoff'}]};
+ const mapping={tasks:[corrected],issues:[],replacements:[{lineId:old,reason:'Incorrect synthetic takeoff'}],removeExclusions:[]};
+ const r=await priceCompleteScope(scope,config,replies([mapping,{coveredTaskIds:['cabinets'],issues:[]}]),now);
+ assert.ok(r.customer.range);assert.ok(!(r.internal as any).lines.some((l:any)=>l.id===old));assert.equal((r.internal as any).lines.find((l:any)=>l.id==='scope-1').quantity,12);
+ const invalid=await priceCompleteScope(scope,config,replies([{...mapping,tasks:[task]},{coveredTaskIds:['cabinets'],issues:[]}]),now);
+ assert.equal(invalid.customer.range,null);
+});
 test('Invalid catalog references and zero-quantity output never release a range',async()=>{
  for(const a of [{code:'missing',quantity:10,quantityEvidence:'ten feet'},{code:'03-15-02-M',quantity:0,quantityEvidence:'ten feet'}]){
   const r=await priceCompleteScope(scope,config,replies([{tasks:[task,{...extra,researchDescription:'',additions:[a]}],issues:[]},{coveredTaskIds:['cabinets','overlay'],issues:[]}]),now);

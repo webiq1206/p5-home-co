@@ -10,7 +10,7 @@ export interface CostRule extends Omit<DirectCostLine,"quantity"|"quantitySource
 export interface ServiceCostBook {service:Service;mode?:'owner-planning';rules:CostRule[];coverage:ScopeCoverage[];assumptions:string[];exclusions:string[];verifiedScope:string;reviewedAt:string}
 export interface EstimatorConfiguration { finance:FinancePolicy;costBooks:ServiceCostBook[];planningCatalog?:PlanningCatalog }
 export const EMPTY_CONFIGURATION:EstimatorConfiguration={finance:DEFAULT_FINANCE,costBooks:[]};
-export interface ScopePriceResolution { rules:CostRule[]; assumptions:string[]; issues:string[] }
+export interface ScopePriceResolution { rules:CostRule[]; assumptions:string[]; issues:string[];removeLineIds?:string[];removeExclusions?:string[] }
 export function priceReviewedScope(scope:ReviewedScope,configuration:EstimatorConfiguration,now=new Date(),resolution?:ScopePriceResolution) {
   scope={...scope,answers:deriveScopeAnswers(scope.answers)};
   const service=scope.answers.service as Service;
@@ -29,7 +29,7 @@ export function priceReviewedScope(scope:ReviewedScope,configuration:EstimatorCo
   }
   const lines:DirectCostLine[]=[];
   if(resolution){
-    book={...book,rules:[...book.rules,...resolution.rules],assumptions:[...book.assumptions,...resolution.assumptions],coverage:book.coverage.map(c=>resolution.rules.some(r=>r.category===c.category)?{...c,status:'included' as const,reason:'Itemized scope pricing includes this category.'}:c)};
+    book={...book,rules:[...book.rules.filter(r=>!resolution.removeLineIds?.includes(r.id)),...resolution.rules],exclusions:book.exclusions.filter(e=>!resolution.removeExclusions?.includes(e)),assumptions:[...book.assumptions,...resolution.assumptions],coverage:book.coverage.map(c=>resolution.rules.some(r=>r.category===c.category)?{...c,status:'included' as const,reason:'Itemized scope pricing includes this category.'}:c)};
     missingInformation.push(...resolution.issues);
   }
   for(const rule of book.rules){
