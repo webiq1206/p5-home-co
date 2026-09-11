@@ -73,7 +73,7 @@ for(const width of [320,390,430,768,1024,1440,1920]){
   assert.ok(!/overheadRecovery|operatingProfit|unitCost/.test(await estimator.innerText()));await capture(page,`${width}-result`);
   await page.waitForTimeout(2100);assert.equal(state.postSubmissionSaves,0);await page.reload();await estimator.getByText('Schedule a scope review.',{exact:true}).waitFor();assert.equal(state.submissions,1);assert.deepEqual(errors,[]);
   results.push({width,passed:true,checks:['null receipt preserves files','speech API simulation','typed and uploaded mixed input','failed upload and reload recovery','known facts skipped','back and contact preservation','manual text reanalysis','line-item privacy','single submission','result restoration','overflow']});
- }catch(error){results.push({width,passed:false,error:String(error),pageErrors:errors});await capture(page,`${width}-failure`).catch(()=>{});}await context.close();
+ }catch(error){results.push({width,passed:false,error:String(error),pageErrors:errors,visibleAlerts:await page.getByRole('alert').allTextContents(),visibleStatus:await page.getByRole('status').allTextContents()});await capture(page,`${width}-failure`).catch(()=>{});}await context.close();
 }
 // Project-specific missing questions and a single conflicting fact.
 for(const scenario of ['manual','conflict','unavailable']){
