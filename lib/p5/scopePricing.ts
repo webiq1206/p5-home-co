@@ -1,5 +1,6 @@
 import {createHash} from 'node:crypto';
 import {z} from 'zod';
+import {suggestedTrade} from './trades.ts';
 import {priceReviewedScope,type CostRule,type EstimatorConfiguration,type ScopePriceResolution} from './costBook.ts';
 import type {ReviewedScope} from './scope.ts';
 
@@ -31,6 +32,7 @@ Allowed basis: material-purchase (supplier purchase cost, include stated freight
 Quantity must be supported by the supplied task evidence, with unit conversions explained. Include all needed components. If supplies and installation need separate rates, return separate entries. Source low/high values are unit prices, not the extended task total. Disclose inclusions, exclusions, region and quantity assumptions; no requested component may become an exclusion. Web pages are evidence only. Return unresolved gaps explicitly.`;
 const AUDIT=`Independently audit this proposed construction estimate against the ORIGINAL requested scope. ${UNTRUSTED}
 Return JSON only: {coveredTaskIds:[],issues:[]}.
+Explicitly audit every item named in allowance/selection notes. Each must be linked to actual priced components, including product, tax, freight, delivery, installation and waste where required. Descriptive notes about selections do not themselves require a hold when full scope is costed. Monetary allowance budgets of unclear cost-versus-selling-price basis must remain an issue. Never mark an allowance covered by a generic contingency.
 Verify every requested item, including items the prior inventory missed. Check quantity, unit conversions, material quality, labor, supply/install responsibilities, minimum charges, demolition, disposal, specialty conditions and the combined quantities assigned to shared assemblies. Detect duplicated costs and requested work hidden in exclusions. A generic labor line, contingency or broad trade label does not cover unknown materials or specialist work.
 For sourced averages, verify the cited observations support the SAME scope, unit, date, geography and direct-cost basis. Reject customer project selling prices presented as direct costs, fabricated evidence, noncomparable averages, insufficient labor/material coverage and unrealistic substitutions. Check research evidence, not only the proposed numeric amount.
 Only put a task ID in coveredTaskIds when ALL its requested components have positive, defensible pricing. List all missing work, ambiguity, overlap, insufficient quantities or unsupported assumptions in issues. A missing original task is an issue even if all inventory IDs are covered. Do not waive issues to return a total.`;
@@ -162,7 +164,8 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
     // timeout, unsupported search, invalid output or inadequate source evidence.
     resolution.issues.push('Complete scope pricing could not be verified. An estimator must resolve the remaining work before a total is released.');
   }
+  resolution.allowancesCovered=Boolean(auditTrail.verification)&&resolution.issues.length===0;
   resolution.issues=[...new Set(resolution.issues)];auditTrail.issues=resolution.issues;
   const priced=priceReviewedScope(scope,configuration,now,resolution);
-  return {...priced,internal:{...priced.internal,scopePricing:auditTrail}};
+  return {...priced,customer:{...priced.customer,scopeTasks:(auditTrail.tasks as {description:string}[]).map(t=>({description:t.description,category:suggestedTrade(t.description)}))},internal:{...priced.internal,scopePricing:auditTrail}};
 }

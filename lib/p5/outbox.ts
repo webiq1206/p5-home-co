@@ -1,3 +1,4 @@
+import {estimateEmail} from './estimateEmail';
 import { randomUUID,createHash } from "node:crypto";
 import { query } from "./database";
 import { ensureSchema } from "./store";
@@ -39,10 +40,8 @@ export async function processOutbox(options:{draftId?:string;limit?:number}={}){
       else {
         const [kind,...address]=destination.split(":");const admin=kind==="admin";const alert=kind==="alert";
         const attachments=alert?[]:[{filename:pdfFilename(row.draft_id,admin?"administrative":"customer"),content:admin?await administrativePdf(row.draft_id,{...record.internal,contact:record.contact,brand:record.brand,estimator:record.estimator}):await customerPdf(row.draft_id,record.customer)}];
-        const range=record.customer?.range;
-        const text=alert?`Estimate ${row.draft_id} needs delivery review. ${record.error}\nOpen https://${brand.domain}/admin/p5-estimators to inspect the saved record. Do not resubmit the lead to retry delivery.`:
-          `${brand.name}\n${admin?"Confidential internal estimate record":"Your preliminary project summary"}\nReference: ${row.draft_id}\n\n${range?`Planning range: $${range.low.toLocaleString("en-US")} to $${range.high.toLocaleString("en-US")}`:"Scope received for pricing review"}\n\n${record.customer.summary}\n\n${record.customer.message}\n${record.customer.nextStep}\n\n${record.customer.disclaimer}\n\n${brand.phone}\nhttps://${brand.domain}${brand.consultationPath}\n\n${admin?"The attached administrative PDF contains the complete internal breakdown, sources and pricing warnings. Do not send it to the customer.":"Your project summary is attached as a PDF."}`;
-        providerId=await sendEmail({to:address.join(":"),subject:`${brand.name}: ${alert?"estimate delivery needs attention":admin?"internal estimate record":"your project planning summary"} ${String(row.draft_id).slice(0,8)}`,text,attachments,key});
+        const formatted=alert?{text:`Estimate ${row.draft_id} needs delivery review. ${record.error}\nOpen https://${brand.domain}/admin/p5-estimators to inspect the saved record. Do not resubmit the lead to retry delivery.`,html:undefined}:estimateEmail(row.draft_id,record,admin);
+        providerId=await sendEmail({to:address.join(":"),subject:`${brand.name}: ${alert?"estimate delivery needs attention":admin?"internal estimate record":"your project planning summary"} ${String(row.draft_id).slice(0,8)}`,...formatted,attachments,key});
       }
       await query("UPDATE p5_estimator_outbox SET status='sent',provider_id=$1,sent_at=now(),locked_until=NULL,last_error=NULL WHERE id=$2 AND status='sending'",[providerId,row.id]);
       results.push({id:row.id,status:"sent"});

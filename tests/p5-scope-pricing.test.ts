@@ -89,3 +89,12 @@ test('Anthropic-only configuration supports JSON and real tool-source extraction
   await assert.rejects(()=>requestPricing('JSON',{},true,1000),/search-unavailable/);
  }finally{globalThis.fetch=oldFetch;names.forEach((n,i)=>{if(saved[i]===undefined)delete process.env[n];else process.env[n]=saved[i]});}
 });
+test('Allowance notes release a range only after complete scope coverage passes the independent audit',async()=>{
+ const withNotes={...scope,answers:{...scope.answers,allowances:'Cabinet selections are included in the material supply budget.'}};
+ assert.equal(priceReviewedScope(withNotes,config,now).customer.range,null);
+ const okay=await priceCompleteScope(withNotes,config,replies([{tasks:[task],issues:[]},{coveredTaskIds:['cabinets'],issues:[]}]),now);
+ assert.ok(okay.customer.range);
+ const unclear=await priceCompleteScope(withNotes,config,replies([{tasks:[task],issues:[]},{coveredTaskIds:[],issues:['Delivery and tax treatment is unresolved']}]),now);
+ assert.equal(unclear.customer.range,null);
+ assert.equal(unclear.customer.scopeTasks[0].description,'Cabinet supply');
+});
