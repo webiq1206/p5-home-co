@@ -45,6 +45,8 @@ export const SCOPE_FIELDS = {
   demolitionSqft: { label: "Demolition area in square feet", kind: "number" },
   fixtureCount: { label: "Number of fixtures", kind: "number" },
   laborHours: { label: "Estimated labor hours", kind: "number" },
+  trimLf: { label: "Trim or baseboard length in feet", kind: "number" },
+  projectMonths: { label: "Estimated construction duration in months", kind: "number" },
   installation: { label: "Installation work and responsibilities", kind: "text" },
   taskList: { label: "Tasks and quantities", kind: "text" },
   otherDetails: { label: "Other scope details", kind: "text" },
