@@ -138,18 +138,18 @@ export function protectPricingFacts(extraction: ScopeExtraction): ScopeExtractio
   for (const fact of extraction.facts) {
     if (IMAGE_SOURCE.test(fact.source)) {
       heldPhotoFacts++;
-      reviewNotes.push(`Unconfirmed photo observation — ${SCOPE_FIELDS[fact.field].label}: ${fact.value}. Confirm from written scope before pricing.`);
+      reviewNotes.push(`Unconfirmed photo observation - ${SCOPE_FIELDS[fact.field].label}: ${fact.value}. Confirm from written scope before pricing.`);
       continue;
     }
     if (fact.field === "urgency" && (!EXPLICIT_URGENCY.test(fact.evidence)||INFERRED_URGENCY.test(fact.evidence))) {
       heldUrgency = true;
-      reviewNotes.push(`Unconfirmed timing assumption — ${fact.value}. The supplied scope did not explicitly state urgency, so this is not a pricing fact.`);
+      reviewNotes.push(`Unconfirmed timing assumption - ${fact.value}. The supplied scope did not explicitly state urgency, so this is not a pricing fact.`);
       continue;
     }
     const numericEvidence=NUMERIC_EVIDENCE[fact.field];
     if(numericEvidence&&(!numericEvidence.test(fact.evidence)||DERIVED_MEASUREMENT.test(fact.evidence))){
       heldDerivedMeasurement=true;
-      reviewNotes.push(`Unconfirmed derived measurement — ${SCOPE_FIELDS[fact.field].label}: ${fact.value}. The source evidence does not explicitly label this measurement, so it is not a pricing fact.`);
+      reviewNotes.push(`Unconfirmed derived measurement - ${SCOPE_FIELDS[fact.field].label}: ${fact.value}. The source evidence does not explicitly label this measurement, so it is not a pricing fact.`);
       continue;
     }
     facts.push(fact);
