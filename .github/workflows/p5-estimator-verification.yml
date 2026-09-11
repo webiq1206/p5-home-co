@@ -21,9 +21,10 @@ jobs:
           node-version: 24
       - run: npm ci --no-audit --no-fund
       - name: Financial policy regression tests
-        run: node --import tsx --test tests/p5-pricing.test.ts tests/p5-planning-books.test.ts tests/p5-scope-pricing.test.ts tests/p5-presentation.test.ts
+        run: node --import tsx --test tests/p5-pricing.test.ts tests/p5-planning-books.test.ts tests/p5-scope-pricing.test.ts tests/p5-presentation.test.ts tests/p5-submit-progress.test.ts
       - name: Isolated persistence, delivery failure and PDF checks
         run: |
+          node --import tsx scripts/test-p5-pricing-work.mts
           node --import tsx scripts/test-p5-workflow.mts
           node --import tsx scripts/test-p5-receipt.mts
           node --import tsx scripts/test-p5-upload.mts
