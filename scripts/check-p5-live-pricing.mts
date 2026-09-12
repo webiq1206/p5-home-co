@@ -15,7 +15,7 @@ async function main(){
  const [policy]=await query("SELECT payload FROM p5_estimator_policy WHERE id='current'");
  assert.ok(policy?.payload?.planningCatalog?.rates?.length,'The approved catalog must be populated');
  const configuration=policy.payload as EstimatorConfiguration,before=fingerprint(configuration),reports:any[]=[];
- const services=brand.services as readonly string[],cabinet=brand.id==='cabinet';
+ const services=brand.services as readonly string[],cabinet=String(brand.id)==='cabinet';
  const baseService=services.includes('handyman')?'handyman':services.includes('kitchen')?'kitchen':services[0];
  const selected=process.env.P5_LIVE_PRICING_SCENARIO||'both';assert.ok(['both','mapping','missing'].includes(selected));
  for(const scenario of ['mapping','missing'].filter(s=>selected==='both'||s===selected)){
