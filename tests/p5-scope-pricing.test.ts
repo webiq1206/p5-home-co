@@ -58,7 +58,7 @@ test('Sourced averages add missing costs, retain sources, and preserve financial
 });
 test('Regional unit-cost benchmarks reject incompatible units, responsibility and supplier offers',()=>{
  const priced=marketResolution(researched,urls,[extra],now).rules[0];assert.equal(priced.unitCost,20);assert.equal(priced.quantity.fixed,10);
- const aliases=structuredClone(researched);aliases.rates[0].sources[0].unit='linear feet';assert.equal(marketResolution(aliases,urls,[extra],now).rules[0].unitCost,20);
+ const aliases=structuredClone(researched);aliases.rates[0].sources[0].unit='per linear foot';aliases.rates[0].sources[1].unit='linear-ft';assert.equal(marketResolution(aliases,urls,[extra],now).rules[0].unitCost,20);
  for(const change of [{unit:'hour'},{costBasis:'subcontractor-installed'},{sourceType:'supplier'}]){
   const wrong=structuredClone(researched);Object.assign(wrong.rates[0].sources[0],change);assert.throws(()=>marketResolution(wrong,urls,[extra],now));
  }
@@ -237,4 +237,11 @@ test('Undated independent guide averages retain retrieval date and freshness lim
  assert.equal(rate.evidence.provenance?.status,'estimated');assert.equal(rate.evidence.provenance?.location,'Boise');
  assert.equal(rate.evidence.provenance?.sources[0].date,'2026-09-11');assert.equal(rate.evidence.provenance?.sources[0].dateBasis,'retrieved');
  assert.match(rate.evidence.reference,/retrieved 2026-09-11/);assert.match(result.assumptions[0],/United States.*national-guide/);assert.match(result.assumptions[0],/freshness requires verification/);
+});
+
+test('Preliminary regional benchmark verification notes persist without becoming unpriced work',async()=>{
+ const note='Disclosed national benchmark; confirm the standard profile and current local cost before purchase.';
+ const research={...researched,notes:[note]};
+ const r=await priceCompleteScope(scope,config,replies([{tasks:[task,extra],issues:[]},research,{coveredTaskIds:['cabinets','overlay'],issues:[],notes:[note]}]),now);
+ assert.ok(r.customer.range);assert.ok(r.customer.assumptions.includes(note));assert.equal(r.internal.scopePricing.issues.length,0);
 });
