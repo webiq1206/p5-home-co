@@ -1,7 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {instructionPrompts} from '../lib/p5/clarifications.ts';
-import {resolveInstructionAnswer} from '../lib/p5/clarificationAnswer.ts';
+import {tsImport} from 'tsx/esm/api';
+import {pathToFileURL} from 'node:url';
+const resolver=()=>tsImport('../lib/p5/clarificationAnswer.ts',pathToFileURL(`${process.cwd()}/tests/p5-clarifications.test.ts`).href) as Promise<typeof import('../lib/p5/clarificationAnswer.ts')>;
 import {emptyInstructions} from '../lib/p5/instructions.ts';
 import {scopeQuestions} from '../lib/p5/adaptive.ts';
 import type {ScopeExtraction} from '../lib/p5/scope.ts';
@@ -16,6 +18,7 @@ test('legacy company-fit questions use the service picker instead of an instruct
   const q=scopeQuestions({},e);assert.equal(q.some(q=>q.instructionId),false);assert.ok(q.find(q=>q.field==='service')?.values?.length);
 });
 test('clarification updates instructions without sending documents or changing page coverage',async()=>{
+  const {resolveInstructionAnswer}=await resolver();
   process.env.OPENAI_API_KEY='synthetic';delete process.env.AI_INTEGRATIONS_OPENAI_API_KEY;
   const e=scope();const id=instructionPrompts(e,{})[0].id;let calls=0;
   const request:typeof fetch=async(_url,options)=>{
@@ -33,6 +36,7 @@ test('clarification updates instructions without sending documents or changing p
   }finally{delete process.env.OPENAI_API_KEY;}
 });
 test('invalid or stale clarification cannot replace the server extraction',async()=>{
+  const {resolveInstructionAnswer}=await resolver();
   await assert.rejects(resolveInstructionAnswer(scope(),{},{id:'forged',answer:'yes'}),/question has changed/);
   await assert.rejects(resolveInstructionAnswer(scope(),{},{id:'x',answer:''}),/Enter an answer/);
 });

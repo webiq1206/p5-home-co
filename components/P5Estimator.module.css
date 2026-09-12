@@ -61,3 +61,5 @@
 .processingMeter progress{appearance:none;border:0;border-radius:20px;overflow:hidden;background:#ffffff25}
 .processingMeter progress::-webkit-progress-bar{background:#ffffff25;border-radius:20px}.processingMeter progress::-webkit-progress-value{background:var(--p5-accent);border-radius:20px;transition:width .25s}.processingMeter progress::-moz-progress-bar{background:var(--p5-accent);border-radius:20px}
 @media(max-width:580px){.actions .primary{flex:1 1 100%;width:100%}.root .question h2{font-size:22px}.choices{grid-template-columns:1fr}.loadingCard .processingActivity{margin-top:14px}}
+
+.inputTools[data-dragging=true] .attach{outline:3px solid var(--p5-accent);outline-offset:3px;background:#46584e}
