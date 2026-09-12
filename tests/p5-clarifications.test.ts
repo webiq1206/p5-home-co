@@ -1,9 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {instructionPrompts} from '../lib/p5/clarifications.ts';
-import {tsImport} from 'tsx/esm/api';
+import {require as tsxRequire} from 'tsx/cjs/api';
 import {pathToFileURL} from 'node:url';
-const resolver=()=>tsImport('../lib/p5/clarificationAnswer.ts',pathToFileURL(`${process.cwd()}/tests/p5-clarifications.test.ts`).href) as Promise<typeof import('../lib/p5/clarificationAnswer.ts')>;
+const resolver=()=>tsxRequire('../lib/p5/clarificationAnswer.ts',pathToFileURL(`${process.cwd()}/tests/p5-clarifications.test.ts`).href) as typeof import('../lib/p5/clarificationAnswer.ts');
 import {emptyInstructions} from '../lib/p5/instructions.ts';
 import {scopeQuestions} from '../lib/p5/adaptive.ts';
 import type {ScopeExtraction} from '../lib/p5/scope.ts';
