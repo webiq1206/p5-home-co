@@ -44,7 +44,7 @@ export async function* analysisSegments(file:AnalysisFile,startPage=0):AsyncGene
   }
 }
 type Unit={name:string;type:string;object:string;pages?:AnalysisFile['pages'];detailViews?:boolean;detailRegions?:AnalysisFile['detailRegions'];result?:AnalysisResult;attempts?:number;rateLimitRetries?:number;error?:string;retryAt?:number;active?:boolean};
-type Job={prepared:number;units:Unit[];notes:string[];textDone?:AnalysisResult;textPrepared?:boolean;cursor?:number;expected?:{source:string;page:number}[];progress?:string;processing?:ProcessingStatus;concurrency?:number;cooldownUntil?:number};
+type Job={prepared:number;units:Unit[];notes:string[];textDone?:AnalysisResult;textPrepared?:boolean;cursor?:number;expected?:{source:string;page:number}[];progress?:string;processing?:ProcessingStatus;concurrency?:number;cooldownUntil?:number;modelStartedAt?:string;modelCompletedAt?:string};
 export function analysisWorkKey(draft:Draft,text:string,answers:ScopeAnswers){
   return `analysis:v7:${createHash('sha256').update(JSON.stringify([text,answers,draft.uploads.map(f=>[f.id,f.sha256])])).digest('hex')}`;
 }
@@ -138,7 +138,10 @@ export async function advanceAnalysis(draft:Draft,text:string,answers:ScopeAnswe
         try{
           const saved=await client.downloadAsBytes(unit.object);
           if(!saved.ok)throw new DraftError('A prepared document section could not be read. Retry to resume.',503);
-          unit.result=await analyzeBatch(text.length>48000?'The complete typed scope is processed in saved sections; use the interpreted scope instructions.':text,[{name:unit.name,type:unit.type,data:saved.value[0],pages:unit.pages,detailViews:unit.detailViews,detailRegions:unit.detailRegions}],context,request,120000);delete unit.error;delete unit.retryAt;
+          job.modelStartedAt||=new Date().toISOString();await checkpoint();
+          try{unit.result=await analyzeBatch(text.length>48000?'The complete typed scope is processed in saved sections; use the interpreted scope instructions.':text,[{name:unit.name,type:unit.type,data:saved.value[0],pages:unit.pages,detailViews:unit.detailViews,detailRegions:unit.detailRegions}],context,request,120000);}
+          finally{job.modelCompletedAt=new Date().toISOString();await checkpoint();}
+          delete unit.error;delete unit.retryAt;
         }catch(error){
           unit.error=`${unit.name}: automatic reading could not finish. Review this section before pricing.`;
           if(error instanceof AnalysisBusyError){
@@ -161,7 +164,9 @@ export async function advanceAnalysis(draft:Draft,text:string,answers:ScopeAnswe
       job.progress='Reviewing your typed project scope.';
       job.processing={phase:'cross-referencing',message:job.progress,readPages:0,totalPages:0,readSections:0,totalSections:0,currentItems:[],updatedAt:new Date().toISOString()};
       await writeWork(draft.id,workKey,lease.token,job);
-      job.textDone=await analyzeBatch(text,[],answers,request,120000);await checkpoint();
+      job.modelStartedAt||=new Date().toISOString();await checkpoint();
+      try{job.textDone=await analyzeBatch(text,[],answers,request,120000);}
+      finally{job.modelCompletedAt=new Date().toISOString();await checkpoint();}
     }
     const results=job.units.flatMap(u=>u.result?[u.result]:[]);if(job.textDone)results.push(job.textDone);
     const last=results[results.length-1];
@@ -172,6 +177,6 @@ export async function advanceAnalysis(draft:Draft,text:string,answers:ScopeAnswe
     extraction.reviewNotes.push(...job.notes,...job.units.filter(u=>!u.result).map(u=>u.error||`${u.name}: unread section requires review before pricing.`));
     extraction.reviewNotes.push(...(extraction.documentCoverage?.pages.filter(p=>p.status!=='read').map(p=>`${p.source}, page ${p.page}: ${p.status}. ${p.notes.join(' ')}`)||[]));
     extraction.reviewNotes=[...new Set(extraction.reviewNotes)];
-    return {pending:false as const,version,analysis:{...last,extraction,analyzedAt:new Date().toISOString()}};
+    return {pending:false as const,version,analysis:{...last,extraction,analyzedAt:new Date().toISOString()},timing:{modelStartedAt:job.modelStartedAt,modelCompletedAt:job.modelCompletedAt}};
   }finally{await releaseWork(draft.id,workKey,lease.token);}
 }

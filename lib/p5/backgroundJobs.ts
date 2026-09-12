@@ -7,7 +7,7 @@ import type {EstimatorConfiguration} from './costBook';
 import type {ProcessingStatus} from './processingStatus';
 
 type Input={kind:'analysis';draft:Draft;text:string;answers:ScopeAnswers}|{kind:'pricing';draft:Draft;configuration:EstimatorConfiguration};
-type Job={input:Input;state:'queued'|'running'|'complete'|'failed';progress:string;attempts:number;result?:any;retryAt?:number;retryUnits?:boolean;createdAt:string;processing?:ProcessingStatus;lastError?:string;lastErrorDetail?:string};
+type Job={input:Input;state:'queued'|'running'|'complete'|'failed';progress:string;attempts:number;result?:any;retryAt?:number;retryUnits?:boolean;createdAt:string;startedAt?:string;completedAt?:string;processing?:ProcessingStatus;lastError?:string;lastErrorDetail?:string;jobId?:string};
 const runtime=globalThis as typeof globalThis & {p5JobTimer?:ReturnType<typeof setInterval>;p5JobsRunning?:boolean};
 function safeWorkerError(error:unknown,input:Input){
   const value=error instanceof Error?`${error.name} ${error.message}`.toLowerCase():'';
@@ -39,7 +39,7 @@ export async function queuedJob(input:Input,retry=false){
   if(retry){
     const lease=await claimWork(input.draft.id,key,initial,30);
     if(lease){const previous=lease.payload as Job;try{
-      if(previous.state==='failed'||previous.state==='complete'&&input.kind==='analysis'&&previous.result?.analysis?.extraction?.reviewNotes?.length){previous.state='queued';previous.attempts=0;previous.retryAt=0;previous.retryUnits=true;previous.createdAt=new Date().toISOString();delete previous.result;delete previous.lastError;delete previous.lastErrorDetail;delete previous.processing;}
+      if(previous.state==='failed'||previous.state==='complete'&&input.kind==='analysis'&&previous.result?.analysis?.extraction?.reviewNotes?.length){previous.state='queued';previous.attempts=0;previous.retryAt=0;previous.retryUnits=true;previous.createdAt=new Date().toISOString();delete previous.startedAt;delete previous.completedAt;delete previous.result;delete previous.lastError;delete previous.lastErrorDetail;delete previous.processing;}
       await writeWork(input.draft.id,key,lease.token,previous);
     }finally{await releaseWork(input.draft.id,key,lease.token);}}
   }
@@ -54,7 +54,7 @@ export async function queuedJob(input:Input,retry=false){
     if(detail?.processing&&!staleEmptyProgress){job.processing={...detail.processing,startedAt:job.createdAt};job.progress=job.processing!.message;}
   }
   if(job.state==='failed'||job.retryAt&&job.retryAt>Date.now())job.processing={...job.processing,phase:'retrying',message:job.progress,startedAt:job.createdAt,updatedAt:new Date().toISOString()};
-  return job;
+  return {...job,jobId:key};
 }
 export function startEstimatorWorker(){
   if(runtime.p5JobTimer||!process.env.DATABASE_URL)return;
@@ -72,16 +72,16 @@ export async function drainEstimatorJobs(){
       const job=lease.payload as Job;
       try{
         if(job.retryAt&&job.retryAt>Date.now())return;
-        job.state='running';await writeWork(row.draft_id,row.work_key,lease.token,job);
+        job.state='running';job.startedAt||=new Date().toISOString();await writeWork(row.draft_id,row.work_key,lease.token,job);
         if(job.input.kind==='analysis'){
           const {advanceAnalysis}=await import('./analysisWork');
           const step=await advanceAnalysis(job.input.draft,job.input.text,job.input.answers,fetch,job.retryUnits);job.retryUnits=false;
           if(step.pending){job.progress=step.progress;job.retryAt=Date.now()+(step.retryAfterMs||0);more=true;}
-          else{job.result=step;job.state='complete';job.progress='Document processing finished. Review the page coverage and any unreadable content.';}
+          else{job.result=step;job.state='complete';job.completedAt=new Date().toISOString();delete job.retryAt;job.progress='Document processing finished. Review the page coverage and any unreadable content.';}
         }else{
           const {priceSavedScope}=await import('./pricingWork');
           const {PricingPending}=await import('./pricingProgress');
-          try{job.result=await priceSavedScope(job.input.draft.id,job.input.draft.reviewed!,job.input.configuration,new Date(job.createdAt));job.state='complete';job.progress='Pricing calculation saved.';}
+          try{job.result=await priceSavedScope(job.input.draft.id,job.input.draft.reviewed!,job.input.configuration,new Date(job.createdAt));job.state='complete';job.completedAt=new Date().toISOString();job.progress='Pricing calculation saved.';}
           catch(error){if(!(error instanceof PricingPending))throw error;if(!error.retryAfterMs)throw error;job.progress=error.message;job.retryAt=Date.now()+error.retryAfterMs;more=true;}
         }
         job.attempts=0;delete job.lastError;delete job.lastErrorDetail;
