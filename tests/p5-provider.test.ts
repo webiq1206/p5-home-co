@@ -5,9 +5,26 @@ import {analyzeScope,analyzeBatch,AnalysisBusyError,anthropicExtractionSchema} f
 import {validateExtraction} from '../lib/p5/scope.ts';
 const variables=['OPENAI_API_KEY','OPENAI_BASE_URL','AI_INTEGRATIONS_OPENAI_API_KEY','AI_INTEGRATIONS_OPENAI_BASE_URL','ANTHROPIC_API_KEY'];
 const extraction={summary:'Fixture scope',facts:[],conflicts:[],missingInformation:[],reviewNotes:[],clarifications:[]};
+test('failed preparation and empty files never reach a paid provider',async()=>{
+ let calls=0;const request=async()=>{calls++;throw new Error('Provider must not be called');};
+ for(const file of [{name:'empty.pdf',type:'application/pdf',data:Buffer.alloc(0)},{name:'failed.pdf',type:'application/pdf',data:Buffer.from('partial'),preparationError:'PRIVATE renderer error'}]){
+  await assert.rejects(analyzeBatch('',[file],{},request),error=>String(error).includes('analysis-file-preparation-failed')&&!String(error).includes('PRIVATE'));
+ }
+ assert.equal(calls,0);
+});
 test('the smaller fallback grammar retains strict local vocabulary validation',()=>{
  const schema=anthropicExtractionSchema();assert.equal(schema.properties.facts.items.properties.field.enum,undefined);assert.equal(schema.additionalProperties,false);
  assert.throws(()=>validateExtraction({...extraction,facts:[{field:'unapproved_field',value:'PRIVATE',source:'PRIVATE',evidence:'PRIVATE',confidence:1}]}),error=>/Invalid extracted fact/.test(String(error))&&!String(error).includes('PRIVATE'));
+});
+test('detail view evidence stays bound to its known original page without clearing unreadability',async()=>{
+ const before=Object.fromEntries(variables.map(k=>[k,process.env[k]]));for(const k of variables)delete process.env[k];process.env.OPENAI_API_KEY='fixture-only';
+ try{
+  const result=await analyzeBatch('First-floor trim only',[{name:'plans.pdf (original page 5; detail views)',type:'application/pdf',data:Buffer.from('synthetic provider input'),pages:[{source:'plans.pdf',page:5}],detailViews:true}],{},async(_url,options)=>{
+   assert.match(String(options?.body),/Internal PDF view numbers are NOT original page numbers/);
+   return Response.json({status:'completed',output:[{content:[{type:'output_text',text:JSON.stringify({...extraction,pages:[{source:'plans.pdf',page:2,sheet:'A005',revision:'1',status:'partial',notes:['A dimension in this crop is unreadable.']}],takeoffs:[{id:'T5',description:'Trim mark T-5',building:'Alpha',floor:'First',component:'trim',quantity:124,unit:'LF',basis:'stated',evidence:'T-5: 124 LF',sources:[{source:'plans.pdf',page:2,sheet:'A005',revision:'1'}],supersedes:[],issues:[]}]})}]}]});
+  });
+  assert.equal(result.extraction.takeoffs?.[0].sources[0].page,5);assert.equal(result.extraction.documentCoverage?.pages[0].page,5);assert.equal(result.extraction.documentCoverage?.complete,false);assert.equal(result.extraction.documentCoverage?.pages[0].status,'partial');
+ }finally{for(const k of variables){if(before[k]===undefined)delete process.env[k];else process.env[k]=before[k];}}
 });
 test('a fallback failure cannot hide the primary provider cooldown',async()=>{
  const before=Object.fromEntries(variables.map(k=>[k,process.env[k]]));for(const k of variables)delete process.env[k];process.env.OPENAI_API_KEY='fixture-only';process.env.ANTHROPIC_API_KEY='fixture-only';

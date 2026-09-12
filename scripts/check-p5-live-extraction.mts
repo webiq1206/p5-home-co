@@ -40,6 +40,7 @@ const diagnosticFetch:typeof fetch=async(url,init)=>{
 };
 await Promise.all(Array.from({length:analysisConcurrency()},async()=>{
  while(position<units.length){const index=position++,unit=units[index],start=performance.now();
+  if(unit.preparationError||unit.data.length===0){errors.push(`${unit.name}: document preparation failed; provider inference was not attempted.`);continue;}
   for(let attempt=0;attempt<8;attempt++){
    while(cooldownUntil>Date.now())await new Promise(r=>setTimeout(r,Math.min(1000,cooldownUntil-Date.now())));
    try{const result=await analyzeBatch(instructions,[unit],{estimatingInstructions:instructions,service:'handyman'},diagnosticFetch,120000);results[index]=result.extraction;timings.push({pages:unit.pages?.map(p=>p.page),milliseconds:Math.round(performance.now()-start),provider:result.provider,model:result.model,attempts:attempt+1});break;}

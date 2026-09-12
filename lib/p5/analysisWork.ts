@@ -20,10 +20,13 @@ export async function* analysisSegments(file:AnalysisFile,startPage=0):AsyncGene
   if(file.type==='application/pdf'){
     const document=await PDFDocument.load(file.data);const count=document.getPageCount();
     if(!count||count>2000)throw new Error('This PDF needs between 1 and 2,000 pages.');
+    // Do not re-open a complete high-resolution plan set for every sheet.
+    // Render one isolated source page while retaining its original identity.
+    const detailPage=async function*(index:number){const single=await PDFDocument.create();single.addPage((await single.copyPages(document,[index]))[0]);yield* drawingDetails({...file,data:Buffer.from(await single.save())},index+1,1);};
     const large=(i:number)=>{const p=document.getPage(i);return p.getWidth()>1200||p.getHeight()>1200;};
     for(let start=startPage;start<count;){
       if(large(start)){
-        try{yield* drawingDetails(file,start+1);}catch(error){yield {...file,data:Buffer.alloc(0),pages:[{source:file.name,page:start+1}],nextPage:start+1,preparationError:`Page ${start+1}: detail rendering failed. ${error instanceof Error?error.message:'Review the original drawing.'}`};}
+        try{yield* detailPage(start);}catch(error){yield {...file,data:Buffer.alloc(0),pages:[{source:file.name,page:start+1}],nextPage:start+1,preparationError:`Page ${start+1}: detail rendering failed. ${error instanceof Error?error.message:'Review the original drawing.'}`};}
         start++;continue;
       }
       let pages=Math.min(8,count-start),data:Buffer;
@@ -35,7 +38,7 @@ export async function* analysisSegments(file:AnalysisFile,startPage=0):AsyncGene
         if(pages===1)break;
         pages=Math.max(1,Math.floor(pages/2));
       }
-      if(data.length>UNIT_BYTES){try{yield* drawingDetails(file,start+1);}catch(error){yield {...file,data:Buffer.alloc(0),pages:[{source:file.name,page:start+1}],preparationError:`Page ${start+1}: could not prepare its high-resolution content. ${error instanceof Error?error.message:''}`,nextPage:start+1};}}
+      if(data.length>UNIT_BYTES){try{yield* detailPage(start);}catch(error){yield {...file,data:Buffer.alloc(0),pages:[{source:file.name,page:start+1}],preparationError:`Page ${start+1}: could not prepare its high-resolution content. ${error instanceof Error?error.message:''}`,nextPage:start+1};}}
       else yield {...file,name:count<=8?file.name:`${file.name} (pages ${start+1} to ${start+pages} of ${count})`,pages:Array.from({length:pages},(_,i)=>({source:file.name,page:start+i+1})),data,nextPage:start+pages};start+=pages;
     }
   }else if(['text/plain','text/csv','application/json'].includes(file.type)){
@@ -46,10 +49,10 @@ export async function* analysisSegments(file:AnalysisFile,startPage=0):AsyncGene
     yield file;
   }
 }
-type Unit={name:string;type:string;object:string;pages?:AnalysisFile['pages'];result?:AnalysisResult;attempts?:number;rateLimitRetries?:number;error?:string;retryAt?:number;active?:boolean};
+type Unit={name:string;type:string;object:string;pages?:AnalysisFile['pages'];detailViews?:boolean;result?:AnalysisResult;attempts?:number;rateLimitRetries?:number;error?:string;retryAt?:number;active?:boolean};
 type Job={prepared:number;units:Unit[];notes:string[];textDone?:AnalysisResult;textPrepared?:boolean;cursor?:number;expected?:{source:string;page:number}[];progress?:string;processing?:ProcessingStatus;concurrency?:number;cooldownUntil?:number};
 export function analysisWorkKey(draft:Draft,text:string,answers:ScopeAnswers){
-  return `analysis:v4:${createHash('sha256').update(JSON.stringify([text,answers,draft.uploads.map(f=>[f.id,f.sha256])])).digest('hex')}`;
+  return `analysis:v5:${createHash('sha256').update(JSON.stringify([text,answers,draft.uploads.map(f=>[f.id,f.sha256])])).digest('hex')}`;
 }
 /** Each request checkpoints work before returning. Reloading resumes the same source fingerprint. */
 export async function advanceAnalysis(draft:Draft,text:string,answers:ScopeAnswers,request=fetch,retryFailed=false){
@@ -102,7 +105,7 @@ export async function advanceAnalysis(draft:Draft,text:string,answers:ScopeAnswe
             if(segment.preparationError){job.units.push({name:segment.name,type:segment.type,object:'',pages:segment.pages,error:segment.preparationError,attempts:2});job.cursor=segment.nextPage;await checkpoint();continue;}
             const saved=await client.uploadFromBytes(object,segment.data,{compress:false});
             if(!saved.ok)throw new DraftError('Document preparation was interrupted. Retry to resume.',503);
-            job.units.push({name:segment.name,type:segment.type,object,pages:segment.pages});
+            job.units.push({name:segment.name,type:segment.type,object,pages:segment.pages,detailViews:segment.detailViews});
             if(segment.nextPage!==undefined){job.cursor=segment.nextPage;await checkpoint();if(Date.now()-preparedAt>20000)return {pending:true as const,progress:`Prepared through page ${job.cursor} of ${file.name}. Preparation is checkpointed.`};}
           }
         }catch(error){if(error instanceof DraftError)throw error;job.notes.push(`${file.name}: ${error instanceof Error?error.message:'Could not read this file.'} Review the original before pricing.`);}
@@ -126,7 +129,7 @@ export async function advanceAnalysis(draft:Draft,text:string,answers:ScopeAnswe
         try{
           const saved=await client.downloadAsBytes(unit.object);
           if(!saved.ok)throw new DraftError('A prepared document section could not be read. Retry to resume.',503);
-          unit.result=await analyzeBatch(text.length>48000?'The complete typed scope is processed in saved sections; use the interpreted scope instructions.':text,[{name:unit.name,type:unit.type,data:saved.value[0],pages:unit.pages}],context,request,120000);delete unit.error;delete unit.retryAt;
+          unit.result=await analyzeBatch(text.length>48000?'The complete typed scope is processed in saved sections; use the interpreted scope instructions.':text,[{name:unit.name,type:unit.type,data:saved.value[0],pages:unit.pages,detailViews:unit.detailViews}],context,request,120000);delete unit.error;delete unit.retryAt;
         }catch(error){
           unit.error=`${unit.name}: automatic reading could not finish. Review this section before pricing.`;
           if(error instanceof AnalysisBusyError){

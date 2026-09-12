@@ -1,5 +1,5 @@
 import { query } from "./database";
-import { draftCredentials,readDraft,DraftError } from "./store";
+import { draftCredentials,readDraft,DraftError,requireEstimateContact } from "./store";
 import { EMPTY_CONFIGURATION,type EstimatorConfiguration } from "./costBook";
 import {priceSavedScope} from "./pricingWork";
 import {queuedJob} from './backgroundJobs';
@@ -12,6 +12,7 @@ export async function postSubmission(request:Request){
   try{
     protectRequest(request,1000);const {id,key}=draftCredentials(request);const draft=await readDraft(id,key);
     if(!draft)throw new DraftError("Draft not found.",404);
+    requireEstimateContact(draft.contact);
     if(draft.status==="submitted"){
       const [row]=await query("SELECT customer_estimate FROM p5_estimator_drafts WHERE id=$1",[id]);
       return json({accepted:false,duplicate:true,id,result:row.customer_estimate,delivery:await deliveryStatus(id)});
@@ -20,8 +21,6 @@ export async function postSubmission(request:Request){
     if(body.revision!==draft.revision)throw new DraftError("Save the latest scope before submitting.",409);
     if(!(brand.services as readonly string[]).includes(String(draft.answers.service)))throw new DraftError("Choose a service offered by this company.");
     if(!draft.reviewed)throw new DraftError("Review and confirm the extracted scope before submitting.");
-    if(draft.contact.name.length<2||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(draft.contact.email))throw new DraftError("Enter your name and a valid email address.");
-    if(draft.contact.phone&&draft.contact.phone.replace(/\D/g,"").length<10)throw new DraftError("Enter a valid phone number or leave it blank.");
     const [policy]=await query("SELECT payload FROM p5_estimator_policy WHERE id='current'");
     const configuration=(policy?.payload||EMPTY_CONFIGURATION) as EstimatorConfiguration;
     const job=body.background===true?await queuedJob({kind:'pricing',draft,configuration},body.retry===true):null;

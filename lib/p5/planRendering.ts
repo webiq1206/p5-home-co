@@ -8,13 +8,13 @@ import type {AnalysisFile} from './extraction';
  * Detail tiles overlap so edge labels remain legible. They are observations of
  * ONE original page, never additional physical quantities or extra plan pages.
  */
-export async function* drawingDetails(file:AnalysisFile,pageNumber:number):AsyncGenerator<AnalysisFile>{
+export async function* drawingDetails(file:AnalysisFile,pageNumber:number,dataPageNumber=pageNumber):AsyncGenerator<AnalysisFile>{
   const {getDocument}=await import('pdfjs-dist/legacy/build/pdf.mjs');
   const assets=path.dirname(createRequire(path.join(process.cwd(),'package.json')).resolve('pdfjs-dist/package.json'));
   const task=getDocument({data:new Uint8Array(file.data),useSystemFonts:true,standardFontDataUrl:path.join(assets,'standard_fonts/'),cMapUrl:path.join(assets,'cmaps/'),cMapPacked:true,wasmUrl:path.join(assets,'wasm/')});
   const document=await task.promise;
   try{
-    const page=await document.getPage(pageNumber),viewport=page.getViewport({scale:3});
+    const page=await document.getPage(dataPageNumber),viewport=page.getViewport({scale:3});
     const edge=1500,step=1380;
     // Decode and render ordinary architectural sheets once. Re-rendering the
     // entire PDF image for every crop is needlessly slow for scanned plans.
@@ -41,7 +41,7 @@ export async function* drawingDetails(file:AnalysisFile,pageNumber:number):Async
       if(tiles%6===0||tiles===count){
         const data=Buffer.from(await part.save());
         if(data.length>16*1024*1024)throw new Error(`Page ${pageNumber} detail images exceed the safe analysis request size.`);
-        yield {name:`${file.name} (original page ${pageNumber}; ${overview?'whole-sheet context first, then ':''}detail tiles ${first} to ${tiles} of ${count}, row-major ${columns} columns; overlapping regions, do not count twice)`,type:'application/pdf',data,pages:[{source:file.name,page:pageNumber}],nextPage:tiles===count?pageNumber:undefined};
+        yield {name:`${file.name} (original page ${pageNumber}; ${overview?'whole-sheet context first, then ':''}detail tiles ${first} to ${tiles} of ${count}, row-major ${columns} columns; overlapping regions, do not count twice)`,type:'application/pdf',data,pages:[{source:file.name,page:pageNumber}],detailViews:true,nextPage:tiles===count?pageNumber:undefined};
         part=await newPart();first=tiles+1;
       }
     }

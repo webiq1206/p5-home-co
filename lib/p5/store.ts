@@ -12,6 +12,11 @@ export interface Draft {
   reviewed: ReviewedScope | null; uploads: ScopeUpload[];
   contact: { name: string; email: string; phone: string }; brand: string;
 }
+/** Contact must already be saved before any customer estimate is released. */
+export function requireEstimateContact(contact:Draft['contact']) {
+  if(typeof contact?.name!=='string'||contact.name.trim().length<2||typeof contact?.email!=='string'||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contact.email.trim()))throw new DraftError('Enter your name and a valid email address.');
+  if(contact.phone&&contact.phone.replace(/\D/g,'').length<10)throw new DraftError('Enter a valid phone number or leave it blank.');
+}
 let schemaReady: Promise<void> | null = null;
 export function ensureSchema(): Promise<void> {
   if (!schemaReady) schemaReady = (async () => {

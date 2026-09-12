@@ -36,6 +36,22 @@ try{
  // run for an incomplete quote, and the saved draft must remain editable.
  await writeFile(path.join(dir,'outbox.ts'),`export async function enqueueSubmission(){throw new Error('An incomplete quote reached delivery');}export async function deliveryStatus(){return [];}export async function processOutbox(){throw new Error('An incomplete quote reached transport');}`);
  const {postSubmission}=await load('submitEndpoint');const {ESTIMATOR_BRAND}=await load('brand');
+ const {getCustomerPdf}=await load('customerPdfEndpoint');
+ const beforeContactCalls=provider.calls.length;
+ for(const contact of [{name:'',email:'customer@example.invalid',phone:''},{name:'Test Customer',email:'',phone:''},{name:'Test Customer',email:'not-an-email',phone:''},{name:'  ',email:'customer@example.invalid',phone:''}]){
+  const contactId=randomUUID(),contactKey=randomBytes(32).toString('hex');
+  const contactDraft=await saveDraft(contactId,contactKey,'test',{text:'Synthetic contact gate',answers:{service:ESTIMATOR_BRAND.services[0]},extraction:null,reviewed:{...scope,answers:{service:ESTIMATOR_BRAND.services[0]}},contact},0);
+  const headers={'x-p5-draft-id':contactId,'x-p5-draft-key':contactKey,'Content-Type':'application/json'};
+  const call=()=>postSubmission(new Request('https://example.test/api/p5-estimator/submit',{method:'POST',headers,body:JSON.stringify({revision:contactDraft.revision,background:true})}));
+  const blocked=await call();assert.equal(blocked.status,400);assert.equal((await blocked.json()).result,undefined);
+  assert.equal((await getCustomerPdf(new Request('https://example.test/api/p5-estimator/pdf',{headers}))).status,404);
+  // Even an old/inconsistent submitted record must not bypass contact capture.
+  await db.query("UPDATE p5_estimator_drafts SET status='submitted', customer_estimate=$2 WHERE id=$1",[contactId,JSON.stringify({range:{low:100,high:150}})]);
+  assert.equal((await call()).status,400);
+  assert.equal((await getCustomerPdf(new Request('https://example.test/api/p5-estimator/pdf',{headers}))).status,400);
+ }
+ assert.equal(provider.calls.length,beforeContactCalls,'Missing contact must not begin pricing or provider calls');
+ assert.equal((await db.query('SELECT * FROM p5_estimator_outbox')).length,0,'Missing contact must not enqueue email or CRM');
  const blockedId=randomUUID(),blockedKey=randomBytes(32).toString('hex');
  const reviewed={...scope,answers:{service:ESTIMATOR_BRAND.services[0]},reviewedAt:new Date().toISOString(),corrections:[]};
  const blockedDraft=await saveDraft(blockedId,blockedKey,'test',{text:reviewed.text,answers:reviewed.answers,extraction:null,reviewed,contact:{name:'Test Customer',email:'customer@example.invalid',phone:''}},0);
