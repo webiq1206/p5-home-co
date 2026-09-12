@@ -7,8 +7,19 @@ import type {EstimatorConfiguration} from './costBook';
 import type {ProcessingStatus} from './processingStatus';
 
 type Input={kind:'analysis';draft:Draft;text:string;answers:ScopeAnswers}|{kind:'pricing';draft:Draft;configuration:EstimatorConfiguration};
-type Job={input:Input;state:'queued'|'running'|'complete'|'failed';progress:string;attempts:number;result?:any;retryAt?:number;retryUnits?:boolean;createdAt:string;processing?:ProcessingStatus};
+type Job={input:Input;state:'queued'|'running'|'complete'|'failed';progress:string;attempts:number;result?:any;retryAt?:number;retryUnits?:boolean;createdAt:string;processing?:ProcessingStatus;lastError?:string};
 const runtime=globalThis as typeof globalThis & {p5JobTimer?:ReturnType<typeof setInterval>;p5JobsRunning?:boolean};
+function safeWorkerError(error:unknown,input:Input){
+  const value=error instanceof Error?`${error.name} ${error.message}`.toLowerCase():'';
+  if(/429|rate.?limit|capacity|busy/.test(value))return 'provider-rate-limited';
+  if(/abort|deadline|time.?out|time-budget/.test(value))return 'provider-timeout';
+  if(/unconfigured|api.?key|credential|unauthorized|forbidden|\b401\b|\b403\b/.test(value))return 'provider-configuration';
+  if(/invalid (json|extraction|output)|structured|validation|schema|page-reference/.test(value))return 'provider-response-invalid';
+  if(/provider|fetch failed|network|socket|connection/.test(value))return 'provider-request-failed';
+  if(/storage|bucket|prepared document|saved project file|upload|download/.test(value))return 'storage-unavailable';
+  if(/lease|another tab|database|query|sql/.test(value))return 'database-contention';
+  return input.kind==='analysis'?'analysis-runtime-failed':'pricing-runtime-failed';
+}
 export async function bootEstimatorWorker(){
   if(!process.env.DATABASE_URL||process.env.NEXT_PHASE==='phase-production-build')return;
   try{await (await import('./store')).ensureSchema();startEstimatorWorker();}
@@ -24,7 +35,7 @@ export async function queuedJob(input:Input,retry=false){
   if(retry){
     const lease=await claimWork(input.draft.id,key,initial,30);
     if(lease){const previous=lease.payload as Job;try{
-      if(previous.state==='failed'||previous.state==='complete'&&input.kind==='analysis'&&previous.result?.analysis?.extraction?.reviewNotes?.length){previous.state='queued';previous.attempts=0;previous.retryAt=0;previous.retryUnits=true;delete previous.result;}
+      if(previous.state==='failed'||previous.state==='complete'&&input.kind==='analysis'&&previous.result?.analysis?.extraction?.reviewNotes?.length){previous.state='queued';previous.attempts=0;previous.retryAt=0;previous.retryUnits=true;delete previous.result;delete previous.lastError;}
       await writeWork(input.draft.id,key,lease.token,previous);
     }finally{await releaseWork(input.draft.id,key,lease.token);}}
   }
@@ -67,10 +78,13 @@ export async function drainEstimatorJobs(){
           try{job.result=await priceSavedScope(job.input.draft.id,job.input.draft.reviewed!,job.input.configuration,new Date(job.createdAt));job.state='complete';job.progress='Pricing calculation saved.';}
           catch(error){if(!(error instanceof PricingPending))throw error;if(!error.retryAfterMs)throw error;job.progress=error.message;job.retryAt=Date.now()+error.retryAfterMs;more=true;}
         }
-        job.attempts=0;
-      }catch{
+        job.attempts=0;delete job.lastError;
+      }catch(error){
+        job.lastError=safeWorkerError(error,job.input);
+        console.error(`[p5-worker] ${job.input.kind} attempt ${job.attempts+1} failed: ${job.lastError}`);
         job.attempts++;job.retryAt=Date.now()+Math.min(60000,job.attempts*10000);
-        job.state=job.attempts>=3?'failed':'queued';
+        const maxAttempts=job.input.kind==='analysis'&&!job.input.draft.uploads.length?5:3;
+        job.state=job.attempts>=maxAttempts?'failed':'queued';
         job.progress=job.state==='failed'?'Processing paused after repeated failures. Completed work is saved. Use Retry to resume.':'An interrupted processing step will retry automatically; completed work is saved.';
       }finally{await writeWork(row.draft_id,row.work_key,lease.token,job);await releaseWork(row.draft_id,row.work_key,lease.token);}
     }));
