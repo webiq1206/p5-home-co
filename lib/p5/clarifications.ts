@@ -1,4 +1,5 @@
 import type {ScopeAnswers,ScopeExtraction} from './scope.ts';
+import {alternativeOptions} from './quantityReconciliation.ts';
 
 export interface InstructionAnswer {id:string;question:string;answer:string}
 export interface InstructionPrompt {id:string;question:string;detail?:string;values?:string[]}
@@ -29,18 +30,11 @@ export function instructionPrompts(extraction:ScopeExtraction|null,answers:Scope
       const question=full.length<=240?full:'What should we include for this part of your project?';
       const values=/labor.only/i.test(full)&&/materials.only/i.test(full)?['Labor only','Materials only','Labor and materials']:
         /include or exclude|include.*or.*exclude/i.test(full)?['Include it','Exclude it']:
-        (awaitAlternativeOptions(full));
+        alternativeOptions(full,extraction?.takeoffs||[]);
       result.push({id,question,...(question!==full?{detail:full}:{}),values});
     }
   }
   return result;
-}
-function awaitAlternativeOptions(question:string){
-  const match=question.match(/\(([^()]{2,55}?)\s+or\s+([^()]{2,55}?)\)/i)||question.match(/(?:choose|select|use|include|be|:)\s+([^?;:,]{2,55}?)\s+or\s+([^?;:,]{2,55}?)(?:\?|$)/i);
-  if(!match)return undefined;
-  const clean=(value:string)=>value.replace(/^(?:the|a|an)\s+/i,'').replace(/\s+/g,' ').trim();
-  const values=[clean(match[1]),clean(match[2])];
-  return values.every(value=>value.length>=2&&value.length<=55)?values:undefined;
 }
 
 /** Answers remain scope data for the pricing audit, with original pages intact. */

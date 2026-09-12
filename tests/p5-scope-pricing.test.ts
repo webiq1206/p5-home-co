@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {priceCompleteScope,marketResolution,requestPricing,type PricingRequest} from '../lib/p5/scopePricing.ts';
 import {priceReviewedScope} from '../lib/p5/costBook.ts';
-import {pricingExtraction} from '../lib/p5/quantityReconciliation.ts';
+import {pricingExtraction,reconcileAdditiveQuantities} from '../lib/p5/quantityReconciliation.ts';
 import {combineScopeExtractions,protectPricingFacts,validateExtraction} from '../lib/p5/scope.ts';
 import {createPlanningConfiguration,PLANNING_MODEL_VERSION,type PlanningCatalog} from '../lib/p5/planningBooks.ts';
 import type {ReviewedScope} from '../lib/p5/scope.ts';
@@ -93,6 +93,17 @@ test('driveway trade hours add to 40 without adding the repeated total',()=>{
  const summaryOnly=combineScopeExtractions([{summary:'Summary only',facts:[],conflicts:[],missingInformation:[],reviewNotes:[],takeoffs:[repeated]}]);
  assert.equal(summaryOnly.facts.some(f=>f.field==='laborHours'),false);
  assert.deepEqual(pricingExtraction(summaryOnly)?.takeoffs,[]);
+});
+test('partial labor and genuine same-work conflicts cannot become a confirmed aggregate',()=>{
+  const base:any={summary:'Known labor subtotal',facts:[{field:'laborHours',value:'10',confidence:.99,source:'scope.pdf',evidence:'Known work only',basis:'calculated'}],conflicts:[],missingInformation:[],reviewNotes:[],clarifications:[],instructions:emptyInstructions(),takeoffs:[
+    {id:'known','description':'Known installation labor',building:'Main',floor:'1',component:'Installation',quantity:10,unit:'hours',basis:'stated',evidence:'10 hours',sources:[{source:'scope.pdf',page:1,sheet:'P1',revision:''}],supersedes:[],issues:[]},
+    {id:'unknown','description':'Unmeasured fabrication labor',building:'Main',floor:'1',component:'Fabrication',quantity:null,unit:'hours',basis:'unknown',evidence:'Labor required but not measured',sources:[{source:'scope.pdf',page:2,sheet:'P2',revision:''}],supersedes:[],issues:['Quantity not stated']},
+  ]};
+  assert.equal(reconcileAdditiveQuantities(base).facts.some((fact:any)=>fact.field==='laborHours'),false);
+  const conflicted={...base,takeoffs:[base.takeoffs[0]],conflicts:[{field:'laborHours',values:['10','12'],sources:['scope.pdf'],reason:'Two quantities describe the same installation work'}]};
+  const result=reconcileAdditiveQuantities(conflicted);
+  assert.equal(result.facts.some((fact:any)=>fact.field==='laborHours'),false);
+  assert.equal(result.conflicts.length,1);
 });
 test('bench-top length cannot become base-cabinet length and unknown tall length is not zero',()=>{
  const raw:any={summary:'Cabinets',facts:[{field:'cabinetBaseLf',value:'13.3',confidence:.99,source:'cabinet.pdf',evidence:'Bench top length 13.3 LF',basis:'stated'},{field:'cabinetTallLf',value:'0',confidence:.99,source:'cabinet.pdf',evidence:'Tall cabinet length was not documented',basis:'inferred'}],conflicts:[],missingInformation:[],reviewNotes:[],clarifications:[],instructions:{inclusions:[],exclusions:[],responsibilities:[],buildings:[],floors:[],separateBuildings:false,laborOnly:false,materialsOnly:false,questions:[]},pages:[],takeoffs:[]};
