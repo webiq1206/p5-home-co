@@ -61,6 +61,19 @@ function safeProviderMessage(value: unknown): string {
     .slice(0, 240);
 }
 
+function safeValidationReason(error: unknown): string {
+  const message=error instanceof Error?error.message:'';
+  if(/^Invalid takeoff evidence$/.test(message))return 'invalid-takeoff-evidence';
+  if(/^Invalid takeoff /.test(message))return 'invalid-takeoff';
+  if(/^Invalid extracted fact /.test(message))return 'invalid-fact';
+  if(/^Invalid fact(?: basis)?$/.test(message))return 'invalid-fact';
+  if(/^Invalid conflict$/.test(message))return 'invalid-conflict';
+  if(/^Invalid clarification$/.test(message))return 'invalid-clarification';
+  if(/^Invalid (?:scope analysis|analysis notes)$/.test(message))return 'invalid-analysis-shape';
+  if(/^Invalid (?:instructions|page)/.test(message))return 'invalid-analysis-shape';
+  return 'invalid-analysis-shape';
+}
+
 function providers(): Provider[] {
   const result: Provider[] = [];
   const integrated = Boolean(process.env.AI_INTEGRATIONS_OPENAI_API_KEY && process.env.AI_INTEGRATIONS_OPENAI_BASE_URL);
@@ -123,7 +136,7 @@ async function analyzeWithOpenAI(provider: Provider, text: string, files: Analys
   try {
     return { extraction: validateExtraction(JSON.parse(resultText)), provider: provider.kind, model: body.model || provider.model, analyzedAt: new Date().toISOString() };
   } catch (error) {
-    throw errorForProvider(provider, response.status, error instanceof Error ? error.message : "provider returned invalid extraction");
+    throw errorForProvider(provider, response.status, `provider returned invalid extraction:${safeValidationReason(error)}`);
   }
 }
 
@@ -157,7 +170,7 @@ async function analyzeWithAnthropic(provider: Provider, text: string, files: Ana
   try {
     return { extraction: validateExtraction(records.length?records[0].input:JSON.parse(resultText)), provider: provider.kind, model: body.model||provider.model, analyzedAt: new Date().toISOString() };
   } catch (error) {
-    throw errorForProvider(provider, response.status, error instanceof Error ? error.message : "provider returned invalid extraction");
+    throw errorForProvider(provider, response.status, `provider returned invalid extraction:${safeValidationReason(error)}`);
   }
 }
 
