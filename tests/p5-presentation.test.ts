@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {summarySections,estimateSections} from '../lib/p5/presentation.ts';
 import {estimateEmail} from '../lib/p5/estimateEmail.ts';
+import {suggestedTrade} from '../lib/p5/trades.ts';
 const result={summary:'Project type: new-construction\nProject area in square feet: 4500\nPlumbing work: Supply fixtures. Install connections.\nExcluded work: Land and financing.',includedCategories:['Plumbing'],range:{low:100,high:200},lineItems:[{id:'p',category:'Plumbing',description:'Fixture installation',quantity:2,unit:'EA',low:100,high:200,unitLow:50,unitHigh:100}],categoryRanges:[{category:'Plumbing',low:100,high:200}],assumptions:[],exclusions:['Land'],allowances:[],factors:[],message:'Review your estimate.',nextStep:'Consultation',disclaimer:'Preliminary only.'};
 test('Legacy summaries retain values, use readable quantities and group scope without inventing prices',()=>{
  const sections=summarySections(result.summary);
@@ -16,4 +17,11 @@ test('Formatted customer emails escape scope HTML and never include internal fin
  assert.ok(customer.html.includes('<h2'));assert.ok(customer.html.includes('&lt;script&gt;'));
  assert.ok(!customer.html.includes('<script>'));assert.ok(!customer.html.includes('98,765'));
  assert.ok(admin.html.includes('98,765'));assert.ok(customer.text.includes('PLUMBING'));
+});
+test('Specialty cabinet products and paint-grade trim retain the correct trade',()=>{
+ assert.equal(suggestedTrade('Wood cabinet pullout product with door-mount hardware'),'Cabinets');
+ assert.equal(suggestedTrade('Install paint-grade base moulding and baseboard trim'),'Trim & Finish Carpentry');
+ assert.equal(suggestedTrade('Paint the cabinets'),'Painting');
+ assert.equal(suggestedTrade('Replace heating ductwork'),'Heating & Cooling');
+ assert.equal(suggestedTrade('Supply an exterior entry door'),'Windows & Doors');
 });

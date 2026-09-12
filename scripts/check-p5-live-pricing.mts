@@ -18,6 +18,7 @@ async function main(){
  const services=brand.services as readonly string[],cabinet=String(brand.id)==='cabinet';
  const baseService=services.includes('handyman')?'handyman':services.includes('kitchen')?'kitchen':services[0];
  const selected=process.env.P5_LIVE_PRICING_SCENARIO||'both';assert.ok(['both','mapping','missing'].includes(selected));
+ await mkdir('p5-verification',{recursive:true});
  for(const scenario of ['mapping','missing'].filter(s=>selected==='both'||s===selected)){
   const missing=scenario==='missing';
   const text=missing?'Supply one complete dual-bin 35-quart soft-close wood pullout waste-container insert sized for an 18-inch base cabinet. Supply the insert and its mounting hardware only; no cabinet box, door or installation labor. Pickup in Boise, Idaho.':cabinet?'Install 20 linear feet of owner-supplied, assembled paint-grade Shaker base cabinets on the first floor of Building Alpha. Installation labor only, including normal leveling, fastening and adjustment.':'Fit and fasten 100 linear feet of paint-grade interior base moulding on the first floor of Building Alpha. Baseboard installation labor only. Owner supplies all materials.';
@@ -28,11 +29,12 @@ async function main(){
   // the research path. The owner's saved185-rate catalog remains untouched.
   if(missing)config.planningCatalog!.rates=config.planningCatalog!.rates.filter(rate=>rate.type!=='Material');
   const stages:any[]=[];const request:PricingRequest=async(instructions,input,search,remaining)=>{
-   const start=performance.now();try{const result=await requestPricing(instructions,input,search,remaining);stages.push({search,milliseconds:Math.round(performance.now()-start),sourceUrls:result.sourceUrls});return result;}catch(error){stages.push({search,milliseconds:Math.round(performance.now()-start),error:error instanceof Error?error.message:'failed'});throw error;}
+   const start=performance.now();try{const result=await requestPricing(instructions,input,search,remaining);stages.push({search,milliseconds:Math.round(performance.now()-start),sourceUrls:result.sourceUrls,value:result.value});return result;}catch(error){stages.push({search,milliseconds:Math.round(performance.now()-start),error:error instanceof Error?error.message:'failed'});throw error;}finally{await writeFile(`p5-verification/live-pricing-${scenario}-stages.json`,JSON.stringify(stages,null,2));}
   };
   const start=performance.now();const result=await priceCompleteScope(scope,config,request);const internal=result.internal as any;
   const issues=internal.scopePricing?.issues||[];const lines=internal.lines||[];
   reports.push({scenario,scope,elapsedMs:Math.round(performance.now()-start),stages,result,passed:Boolean(result.customer.range)&&lines.length>0&&lines.every((line:any)=>line.quantity>0&&line.cost>0)&&issues.length===0});
+  await writeFile(`p5-verification/live-pricing-${scenario}-report.json`,JSON.stringify(reports.at(-1),null,2));
  }
  const [after]=await query("SELECT payload FROM p5_estimator_policy WHERE id='current'");
  const report={synthetic:true,brand:brand.id,approvedRateCount:configuration.planningCatalog!.rates.length,approvedConfigurationUnchanged:before===fingerprint(after.payload),businessWrites:0,reports};

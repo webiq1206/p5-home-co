@@ -32,6 +32,20 @@ test('Semantic mapping uses the existing cost amount without inventing a rate',a
  assert.ok(r.customer.range);assert.equal((r.internal as any).lines.find((l:any)=>l.id==='scope-1').unitCost,100);
  assert.notEqual(r.internal.revision,base.internal.revision);
 });
+test('Scope facts use notes and earlier model issues require an explicit evidenced resolution',async()=>{
+ const note='Owner supplies the materials; only installation labor is requested.';
+ const mapping={tasks:[task],issues:[note],notes:['No additional cabinet runs requested.']};
+ const verified={coveredTaskIds:[task.id],issues:[],resolvedIssues:[{issue:note,reason:'The supplied positive cabinet line covers the requested task; this statement records the scope boundary.',lineIds:[ids[0]]}]};
+ const r=await priceCompleteScope(scope,config,replies([mapping,verified]),now);
+ assert.ok(r.customer.range);assert.ok((r.internal as any).assumptions.includes(mapping.notes[0]));
+ assert.ok((r.internal as any).assumptions.some((n:string)=>n.includes(note)));
+ for(const lineIds of [['invented-line'],[]]){
+  const invalid=await priceCompleteScope(scope,config,replies([mapping,{...verified,resolvedIssues:[{...verified.resolvedIssues[0],lineIds}]}]),now);
+  assert.equal(invalid.customer.range,null,'A resolved issue must reference actual positive priced components');
+ }
+ const unaddressed=await priceCompleteScope(scope,config,replies([mapping,{coveredTaskIds:[task.id],issues:[]}]),now);
+ assert.equal(unaddressed.customer.range,null,'A clean audit cannot silently discard an earlier unresolved issue');
+});
 test('Sourced averages add missing costs, retain sources, and preserve financial reconciliation',async()=>{
  const r=await priceCompleteScope(scope,config,replies([{tasks:[task,extra],issues:[]},researched,{coveredTaskIds:['cabinets','overlay'],issues:[]}]),now);
  assert.ok(r.customer.range);assert.equal((r.internal as any).lines.find((l:any)=>l.id==='market-1').cost,200);
