@@ -3,6 +3,8 @@ import {createHash} from 'node:crypto';
 import {mkdir,writeFile,readFile} from 'node:fs/promises';
 import assert from 'node:assert/strict';
 import {scopeQuestions,reconcileScope} from '../lib/p5/adaptive.ts';
+import {instructionPrompts} from '../lib/p5/clarifications.ts';
+import {emptyInstructions} from '../lib/p5/instructions.ts';
 import {ESTIMATOR_BRAND as brand} from '../lib/p5/brand.ts';
 const base=process.env.P5_TEST_BASE_URL||'http://127.0.0.1:5000';
 await mkdir('p5-verification',{recursive:true});
@@ -13,7 +15,7 @@ const result={status:'preliminary',range:{low:1000,high:1800},categoryRanges:[{c
 async function mock(context,{interruptions=false,scenario='full'}={}){
  // Keep synthetic estimator sessions out of production analytics and isolate third-party network failures.
  await context.route(/^https:\/\/([a-z0-9-]+\.)*clarity\.ms\//, route=>route.fulfill({status:200,contentType:'application/javascript',body:''}));
- const state={saved:null,nullReceipt:interruptions,failUpload:interruptions,submissions:0,postSubmissionSaves:0,scopeCalls:0,pricingPolls:0,readStage:1,finishReading:false,pricingStage:'mapping'};
+ const state={saved:null,nullReceipt:interruptions,failUpload:interruptions,submissions:0,postSubmissionSaves:0,scopeCalls:0,pricingPolls:0,readStage:1,finishReading:false,pricingStage:'mapping',failClarification:scenario==='instructions'};
  await context.addInitScript(()=>{window.SpeechRecognition=class{start(){this.onresult?.({resultIndex:0,results:[Object.assign([{transcript:'Repair three interior doors.'}],{isFinal:true})]});this.onend?.();}stop(){this.onend?.();}};});
  await context.route('**/api/p5-estimator/**',async route=>{
   const request=route.request();const endpoint=new URL(request.url()).pathname.split('/').at(-1);
@@ -22,7 +24,12 @@ async function mock(context,{interruptions=false,scenario='full'}={}){
    if(request.method()==='GET')return send({draft:state.saved});
    if(state.nullReceipt){state.nullReceipt=false;return send({draft:null});}
    if(state.saved?.status==='submitted'){state.postSubmissionSaves++;return send({error:'Already submitted'},409);}
-   const input=request.postDataJSON();const old=state.saved;state.saved={...old,...input,revision:(old?.revision||0)+1,status:'draft',extraction:old?.extraction||null,uploads:old?.uploads||[]};
+   const input=request.postDataJSON();const old=state.saved;
+   if(input.clarification){
+    if(state.failClarification){state.failClarification=false;return send({error:'Temporary answer-save interruption. Please retry.'},503);}
+    const prompt=instructionPrompts(old.extraction,old.answers).find(q=>q.id===input.clarification.id);
+    old.extraction={...old.extraction,instructions:{...old.extraction.instructions,questions:old.extraction.instructions.questions.filter(q=>q!==(prompt.detail||prompt.question))}};
+   }state.saved={...old,...input,revision:(old?.revision||0)+1,status:'draft',extraction:old?.extraction||null,uploads:old?.uploads||[]};
    const conflicts=state.saved.extraction?reconcileScope(state.saved.answers,state.saved.extraction,state.saved.wizard?.resolutions).conflicts:[];
    return send({draft:state.saved,conflicts,pricedFields:[],questions:scopeQuestions(state.saved.answers,state.saved.extraction,conflicts,state.saved.wizard?.skipped)});
   }
@@ -36,6 +43,7 @@ async function mock(context,{interruptions=false,scenario='full'}={}){
    if(scenario==='progress'&&!state.finishReading)return send({pending:true,progress:'Reading original plan pages',processing:{phase:'reading',message:'Reading the next eight original pages.',readPages:state.readStage*8,totalPages:256,readSections:state.readStage,totalSections:32,currentItems:['Plans.pdf (pages '+(state.readStage*8+1)+' to '+(state.readStage*8+8)+')'],updatedAt:new Date().toISOString()}});
    const desired=scenario==='unavailable'?{}:scenario==='manual'?{service,taskList:state.saved.answers.taskList||'Repair three interior doors',...(service.startsWith('cabinet-')?{cabinetRoom:'kitchen',cabinetBaseLf:'20',cabinetUpperLf:'0'}:{})}:fullAnswers;
    const extraction={summary:'Synthetic project',facts:Object.entries(desired).map(([field,value])=>({field,value,confidence:.98,source:'scope.txt',evidence:value})),conflicts:scenario==='conflict'?[{field:'taskList',values:['Repair three doors','Replace three doors'],explanation:'The documents disagree. Which work should be included?'}]:[],missingInformation:[],reviewNotes:[],clarifications:[]};
+   if(scenario==='instructions')extraction.instructions={...emptyInstructions(),questions:['Labor only or materials only?','Should we include or exclude painting?']};
    const merged=reconcileScope(state.saved.answers,extraction,state.saved.wizard?.resolutions||{});
    state.saved={...state.saved,revision:state.saved.revision+1,answers:merged.answers,uploads:scenario==='manual'?[]:[{id:'test-upload',name:'scope.txt',size:30,type:'text/plain',sha256:'test',status:'stored'}],extraction};
    return send({draft:state.saved,analysis:{extraction},conflicts:merged.conflicts,pricedFields:[],warning:scenario==='unavailable'?'Your files are saved, but automatic reading could not finish. Retry or add the key details.':''});
@@ -56,9 +64,9 @@ for(const width of [320,390,430,768,1024,1440,1920]){
  const page=await context.newPage();page.setDefaultTimeout(15000);const errors=[];page.on('pageerror',e=>errors.push(e.message));
  try{
   await page.goto(base+'/estimate/p5-preview');const estimator=page.locator('[data-p5-estimator]');const description=estimator.getByLabel('Tell us about your project',{exact:true});await description.waitFor();
-  await estimator.getByRole('button',{name:'Use microphone',exact:true}).click();assert.match(await description.inputValue(),/three interior doors/);
+  assert.equal(await estimator.locator('input[type=file]').count(),1);assert.equal(await estimator.locator('textarea').count(),1);assert.equal(await estimator.getByRole('button',{name:'Use microphone',exact:true}).count(),0);
   await description.fill('Repair three interior doors. '+('LongUnbrokenProjectSpecification'.repeat(90)));
-  await estimator.getByLabel('Upload plans, photos or documents',{exact:true}).setInputFiles({name:'scope.txt',mimeType:'text/plain',buffer:Buffer.from('Repair three interior doors.')});
+  await estimator.getByLabel('Upload project files',{exact:true}).setInputFiles({name:'scope.txt',mimeType:'text/plain',buffer:Buffer.from('Repair three interior doors.')});
   await estimator.getByRole('button',{name:'Continue',exact:true}).click();await estimator.getByRole('alert').filter({hasText:'Your project save was not confirmed'}).waitFor();
   await estimator.getByRole('button',{name:'Continue',exact:true}).click();await estimator.getByRole('alert').filter({hasText:'Synthetic upload interruption'}).waitFor();
   await page.reload();await estimator.getByRole('button',{name:'Remove scope.txt'}).waitFor();assert.match(await description.inputValue(),/LongUnbrokenProjectSpecification/);await overflow(page);await capture(page,`${width}-scope`);
@@ -77,9 +85,28 @@ for(const width of [320,390,430,768,1024,1440,1920]){
   await estimator.getByRole('heading',{name:'Carpentry',exact:true}).waitFor();await estimator.getByText('Repair three interior doors',{exact:true}).waitFor();await overflow(page);
   assert.ok(!/overheadRecovery|operatingProfit|unitCost/.test(await estimator.innerText()));await capture(page,`${width}-result`);
   await page.waitForTimeout(2100);assert.equal(state.postSubmissionSaves,0);await page.reload();await estimator.getByText('Schedule a scope review.',{exact:true}).waitFor();assert.equal(state.submissions,1);assert.deepEqual(errors,[]);
-  results.push({width,passed:true,checks:['null receipt preserves files','speech API simulation','typed and uploaded mixed input','failed upload and reload recovery','known facts skipped','back and contact preservation','manual text reanalysis','line-item privacy','single submission','result restoration','overflow']});
+  results.push({width,passed:true,checks:['null receipt preserves files','single input and native keyboard dictation','typed and uploaded mixed input','failed upload and reload recovery','known facts skipped','back and contact preservation','manual text reanalysis','line-item privacy','single submission','result restoration','overflow']});
  }catch(error){results.push({width,passed:false,error:String(error),pageErrors:errors});await capture(page,`${width}-failure`).catch(()=>{});}await context.close();
 }
+// Reproduce two clarification questions, a failed save, same-answer retry and reload.
+for(const width of [390,1440]){
+ const context=await browser.newContext({viewport:{width,height:900}});const state=await mock(context,{scenario:'instructions'});const page=await context.newPage();
+ try{
+  await page.goto(base+'/estimate/p5-preview');const est=page.locator('[data-p5-estimator]');
+  await est.getByLabel('Tell us about your project',{exact:true}).fill('Price the trim package.');await est.getByRole('button',{name:'Continue',exact:true}).click();
+  const question=est.getByRole('region',{name:'Project question'});await question.getByText('Labor only or materials only?',{exact:true}).waitFor();
+  assert.equal(await est.getByText('Should we include or exclude painting?',{exact:true}).count(),0,'Only one question is rendered');
+  await question.getByRole('button',{name:'Labor only',exact:true}).click();await question.getByRole('button',{name:'Continue',exact:true}).click();
+  await est.getByRole('alert').filter({hasText:'Temporary answer-save interruption'}).waitFor();assert.equal(await question.getByLabel('Your answer',{exact:true}).inputValue(),'Labor only');
+  await question.getByRole('button',{name:'Continue',exact:true}).click();await question.getByText('Should we include or exclude painting?',{exact:true}).waitFor();
+  assert.equal(await question.getByLabel('Your answer',{exact:true}).inputValue(),'','The next question starts with a fresh answer');
+  await page.reload();await question.getByText('Should we include or exclude painting?',{exact:true}).waitFor();
+  await question.getByRole('button',{name:'Exclude it',exact:true}).click();await capture(page,`${width}-clarification`);await question.getByRole('button',{name:'Continue',exact:true}).click();
+  await est.getByLabel('Your name',{exact:true}).waitFor();assert.equal(state.scopeCalls,1,'Clarification answers never reread documents');await overflow(page);
+  results.push({scenario:'sequential-instructions',width,passed:true});
+ }catch(error){results.push({scenario:'sequential-instructions',width,passed:false,error:String(error)});await capture(page,`${width}-instructions-failure`).catch(()=>{});}await context.close();
+}
+
 // Project-specific missing questions and a single conflicting fact.
 for(const scenario of ['manual','conflict','unavailable']){
  const context=await browser.newContext({viewport:{width:390,height:844}});await mock(context,{scenario});const page=await context.newPage();
@@ -88,7 +115,7 @@ for(const scenario of ['manual','conflict','unavailable']){
   if(scenario==='conflict')await est.getByLabel('Tell us about your project',{exact:true}).fill('Two documents disagree about door repairs.');
   await est.getByRole('button',{name:'Continue',exact:true}).click();
   if(scenario!=='conflict'){
-   await est.getByLabel('Project type',{exact:true}).selectOption(service);await est.getByRole('button',{name:'Continue',exact:true}).click();await page.waitForFunction(()=>!document.querySelector('[data-p5-estimator][aria-busy=true]'));
+   await est.getByRole('region',{name:'Project question'}).getByRole('button',{name:service==='handyman'?'Home repairs':service==='cabinet-install'?'Cabinets with installation':service==='new-construction'?'New home':'Bathroom remodel',exact:true}).click();await est.getByRole('button',{name:'Continue',exact:true}).click();await page.waitForFunction(()=>!document.querySelector('[data-p5-estimator][aria-busy=true]'));
    // Answer only this project's material questions; unknown numeric details remain explicit.
    for(let i=0;i<8&&await est.getByRole('region',{name:'Project question'}).count();i++){
     const q=est.getByRole('region',{name:'Project question'});const text=q.locator('textarea');

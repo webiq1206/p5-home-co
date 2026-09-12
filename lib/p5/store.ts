@@ -8,7 +8,7 @@ export class DraftError extends Error { status: number; constructor(message: str
 export interface Draft {
   id: string; revision: number; status: "draft" | "submitted"; updatedAt: string;
   text: string; answers: ScopeAnswers; extraction: ScopeExtraction | null;
-  wizard?: {skipped: (keyof ScopeAnswers)[]; resolutions: ScopeAnswers; sourceVersion?:string};
+  wizard?: {skipped: (keyof ScopeAnswers)[]; resolutions: ScopeAnswers; sourceVersion?:string;instructionAnswers?:import('./clarifications').InstructionAnswer[]} ;
   reviewed: ReviewedScope | null; uploads: ScopeUpload[];
   contact: { name: string; email: string; phone: string }; brand: string;
 }

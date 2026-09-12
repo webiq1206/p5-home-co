@@ -17,8 +17,8 @@ try{
    if(route==='/')await page.locator('#calculator').first().scrollIntoViewIfNeeded();
    const estimator=page.locator('[data-p5-estimator]').first();await estimator.waitFor();
    const input=estimator.getByLabel('Tell us about your project',{exact:true});await input.waitFor().catch(async error=>{console.log('Navigation failure',width,route,await page.locator('body').innerText());await page.screenshot({path:'p5-verification/navigation-failure.png',fullPage:true});throw error;});
-   assert.equal(await estimator.getByLabel('Upload plans, photos or documents',{exact:true}).count(),1);
-   assert.equal(await estimator.getByLabel('Upload estimating instructions',{exact:true}).count(),1);
+   assert.equal(await estimator.getByLabel('Upload project files',{exact:true}).count(),1);
+   assert.equal(await estimator.getByLabel('Upload estimating instructions',{exact:true}).count(),0);
    assert.equal(await estimator.locator('[data-scope-estimate-option]').count(),0,'A separate scope workflow was reintroduced');
    await input.fill('Synthetic navigation check. '+('LongUnbrokenMaterialSpecification'.repeat(60)));
    const next=estimator.getByRole('button',{name:'Continue',exact:true});await next.scrollIntoViewIfNeeded();
