@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {acceptAnalysisJob,analysisRetryDelay,elapsedLabel,pricingActivity} from '../lib/p5/processingStatus.ts';
+import {elapsedLabel,pricingActivity} from '../lib/p5/processingStatus.ts';
 import {completeSubmission} from '../lib/p5/submitProgress.ts';
 test('Live status reports actual provider operations without exposing private rates',()=>{
   const input={taskBatch:[{description:'First-floor trim',unitCost:85}],financialConfig:{profit:0.2}};
@@ -19,11 +19,4 @@ test('Submission polling forwards structured status and never fabricates progres
   let calls=0;const seen:unknown[]=[];
   await completeSubmission(async()=>++calls===1?Response.json({pending:true,message:processing.message,processing},{status:202}):Response.json({result:{range:{low:10,high:20}}}),(message,status)=>seen.push({message,status}),async()=>{});
   assert.deepEqual(seen,[{message:processing.message,status:processing}]);
-});
-test('Analysis polling follows server timing and cannot apply a different completed job',()=>{
-  assert.equal(analysisRetryDelay(250),500);assert.equal(analysisRetryDelay(2000),2000);assert.equal(analysisRetryDelay(60000),15000);assert.equal(analysisRetryDelay(undefined),1000);
-  assert.equal(acceptAnalysisJob(undefined,'job-a'),'job-a');assert.equal(acceptAnalysisJob('job-a','job-a'),'job-a');
-  assert.throws(()=>acceptAnalysisJob('job-a','job-b'),/saved project changed/);
-  assert.throws(()=>acceptAnalysisJob(undefined,undefined,true),/could not be matched/);
-  assert.throws(()=>acceptAnalysisJob('job-a',undefined),/could not be matched/);
 });

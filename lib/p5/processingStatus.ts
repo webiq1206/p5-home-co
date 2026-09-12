@@ -26,12 +26,3 @@ export function elapsedLabel(seconds:number){
   const total=Math.max(0,Math.floor(seconds));
   return total<60?`${total}s elapsed`:`${Math.floor(total/60)}m ${String(total%60).padStart(2,'0')}s elapsed`;
 }
-export function analysisRetryDelay(value:unknown){
-  const delay=Number(value);
-  return Math.max(500,Math.min(15000,Number.isFinite(delay)&&delay>0?delay:1000));
-}
-export function acceptAnalysisJob(current:string|undefined,incoming:unknown,required=false){
-  if(typeof incoming!=='string'||!incoming){if(required||current)throw new Error('The saved analysis could not be matched to this project. Your inputs are intact; retry to resume.');return current;}
-  if(current&&current!==incoming)throw new Error('Your saved project changed while it was being read. Your inputs are intact; retry to analyze the latest version.');
-  return incoming;
-}
