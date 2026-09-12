@@ -25,7 +25,7 @@ export function P5Estimator({defaultService='',headingAs='h1',projectSource}:{de
   const [files,setFiles]=useState<File[]>([]);const filesRef=useRef<File[]>([]);
   const [busy,setBusy]=useState('');const busyRef=useRef(false);const [error,setError]=useState('');const [warning,setWarning]=useState('');const [status,setStatus]=useState('');
   const [uploadPercent,setUploadPercent]=useState<number|null>(null);const [preparingFiles,setPreparingFiles]=useState(false);const [dragging,setDragging]=useState(false);
-  const [processing,setProcessing]=useState<ProcessingStatus|null>(null);
+  const [processing,setProcessing]=useState<ProcessingStatus|null>(null);const [keyboardOpen,setKeyboardOpen]=useState(false);
   const started=useRef(false);
   const [clarificationReply,setClarificationReply]=useState('');
   const [result,setResult]=useState<any>(null);const [delivery,setDelivery]=useState<any[]>([]);const [confirmed,setConfirmed]=useState(false);
@@ -64,6 +64,12 @@ export function P5Estimator({defaultService='',headingAs='h1',projectSource}:{de
     window.addEventListener("drop",preventFileNavigation);window.addEventListener("dragover",preventFileNavigation);
     return()=>{mounted.current=false;window.removeEventListener("drop",preventFileNavigation);window.removeEventListener("dragover",preventFileNavigation);};
   },[defaultService,projectSource?.id]);
+  useEffect(()=>{
+    const viewport=window.visualViewport;if(!viewport)return;
+    const update=()=>setKeyboardOpen(window.innerHeight-viewport.height>140);
+    update();viewport.addEventListener('resize',update);viewport.addEventListener('scroll',update);
+    return()=>{viewport.removeEventListener('resize',update);viewport.removeEventListener('scroll',update);};
+  },[]);
   useEffect(()=>{if(projectSource&&current.current){const next=mergeProjectSource(current.current,projectSource);if(next!==current.current){resume(next);setConfirmed(false);}}},[JSON.stringify(projectSource)]);
   useEffect(()=>{
     if(!draft)return;
@@ -162,12 +168,12 @@ export function P5Estimator({defaultService='',headingAs='h1',projectSource}:{de
   async function downloadPdf(){await run('Preparing your PDF...',async()=>{const response=await fetch('/api/p5-estimator/pdf',{headers:draftHeaders(current.current!)});if(!response.ok)throw new Error('The PDF could not be downloaded. Your submission is saved; please retry.');const url=URL.createObjectURL(await response.blob());const link=document.createElement('a');link.href=url;link.download=`${brand.id}-project-summary.pdf`;link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);});}
   async function submit(event:React.FormEvent){
     event.preventDefault();if(draft?.step!==2){await begin();return;}
-    if(needsAnalysis()){await begin();return;}
     if(!confirmed){setError('Please confirm your project details before continuing.');return;}
     const d=current.current!;
     if(questions(d).length){showQuestions(d);return;}
     for(const [key,value]of Object.entries(d.answers)){const issue=validateScopeAnswer(key as ScopeField,value!);if(issue){setEditField(key as ScopeField);setError(`${SCOPE_FIELDS[key as ScopeField].label}: ${issue}`);return;}}
     if(d.contact.name.trim().length<2||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(d.contact.email)){setError('Enter your name and a valid email address.');return;}
+    if(needsAnalysis()){await begin();return;}
     await run('Preparing your estimate...',async()=>{trackScopeEvent('contactSubmitted',d.answers.service);const saved=await save(true);let retry=true;const data=await completeSubmission(()=>{const shouldRetry=retry;retry=false;return fetch('/api/p5-estimator/submit',{method:'POST',headers:{...draftHeaders(current.current!),'Content-Type':'application/json'},body:JSON.stringify({revision:saved.revision,background:true,retry:shouldRetry})});},(message,detail)=>{setBusy(message);setProcessing(detail||null);});setResult(data.result);setDelivery(data.delivery||[]);if(data.result?.range)trackScopeEvent('estimateGenerated',d.answers.service);if(data.delivery?.some((v:any)=>v.channel==='customer'&&v.status==='sent'))trackScopeEvent('estimateEmailed',d.answers.service);setStatus('');focus();});
   }
   const reply=(value:string)=>{setClarificationReply(value);if(active?.instructionId)change({pendingReply:{id:active.instructionId,answer:value}});};
@@ -182,7 +188,7 @@ export function P5Estimator({defaultService='',headingAs='h1',projectSource}:{de
   </>;
   const known=Object.keys(draft.answers).filter(k=>draft.answers[k as ScopeField]?.trim()) as ScopeField[];
   const review=<details className={styles.known} open={knownOpen}><summary onClick={e=>{e.preventDefault();setKnownOpen(v=>!v);}}>{known.length?`${known.length} project details saved`:'Project details'}</summary><dl>{known.map(k=><div key={k}><dt>{SCOPE_FIELDS[k].label}</dt><dd>{labels[draft.answers[k]!]||draft.answers[k]} <button type="button" aria-label={`Edit ${SCOPE_FIELDS[k].label}`} onClick={()=>setEditField(k)}>Edit</button></dd></div>)}</dl>{editField&&<div>{field(editField)}<button type="button" onClick={()=>{const issue=validateScopeAnswer(editField,draft.answers[editField]||'');if(issue){setError(issue);return;}setEditField('');}}>Done</button></div>}</details>;
-  return <div role="region" aria-label="Project estimator" className={styles.root} data-p5-estimator aria-busy={Boolean(busy)} style={{'--p5-accent':brand.accent} as React.CSSProperties}>
+  return <div role="region" aria-label="Project estimator" className={styles.root} data-p5-estimator data-step={draft.step} data-keyboard-open={keyboardOpen||undefined} aria-busy={Boolean(busy)} style={{'--p5-accent':brand.accent} as React.CSSProperties}>
     <div className={styles.intro}><p className={styles.eyebrow}>{brand.name} · Project estimator</p><Heading ref={heading} tabIndex={-1}>{result?'Your project summary':draft.step===0?(projectSource?'Your design is ready to estimate':'What would you like to do?'):draft.step===1?'A little more about your project':'Your project is ready to review'}</Heading><p>{result?'Review your estimate and the next step below.':draft.step===0?(projectSource?'Your design selections are included. Add anything else, then continue.':'Tell us or show us. We’ll ask only for the details we still need.'):draft.step===1?'We’ve saved what you provided. Let’s fill in the remaining details.':'Check your details and tell us where to send your estimate.'}</p></div>
     {!result&&<ol className={styles.progress} aria-label="Estimator progress">{['Your project','A few details','Your estimate'].map((label,index)=><li key={label} aria-current={draft.step===index?'step':undefined}><span>{index+1}. {label}</span></li>)}</ol>}
     {result?<div className={styles.result}>
@@ -192,7 +198,7 @@ export function P5Estimator({defaultService='',headingAs='h1',projectSource}:{de
       <p role="status">{delivery.length>0&&delivery.every(d=>d.status==="sent")?"Your summary was sent and the team has your record.":"Your project is saved. Some deliveries are pending or need team review. Please do not submit the same project again."}</p>
       <a className={styles.primary} href={brand.consultationPath} onClick={()=>trackScopeEvent("onsiteRequested",draft.answers.service)}>Schedule a consultation</a><a className={styles.secondary} href="tel:+12084771169">Call {brand.phone}</a>
       <button type="button" onClick={()=>{const next={...newBrowserDraft(defaultService),namespace:draft.namespace};apply(next);started.current=false;setResult(null);filesRef.current=[];setFiles([]);setConfirmed(false);setActive(null);setWarning("");setStatus("");}}>Start another project</button>
-    </div>:<form onSubmit={submit} noValidate><fieldset disabled={Boolean(busy)||preparingFiles} className={styles.formBody}>
+    </div>:<form onSubmit={submit} noValidate onFocusCapture={event=>{const target=event.target;if(target instanceof HTMLTextAreaElement||target instanceof HTMLSelectElement||target instanceof HTMLInputElement&&!['checkbox','radio','button','submit','file'].includes(target.type))setKeyboardOpen(true);}} onBlurCapture={()=>setTimeout(()=>{const target=document.activeElement;setKeyboardOpen(Boolean(target instanceof HTMLTextAreaElement||target instanceof HTMLSelectElement||target instanceof HTMLInputElement&&!['checkbox','radio','button','submit','file'].includes(target.type)));},0)}><fieldset disabled={Boolean(busy)||preparingFiles} className={styles.formBody}>
       {draft.step===0?<>{projectSource&&review}{projectInput}<div className={styles.actions}><button className={styles.primary} type="button" onClick={begin}>Continue <span aria-hidden="true">→</span></button></div><p className={styles.hint}>Add what you know, or continue and we’ll help with the rest.</p></>:<>
         {draft.step===1&&active?<section key={active.instructionId||active.field} className={styles.question} aria-label="Project question"><p className={styles.eyebrow}>One detail at a time</p><h2>{active.label}</h2><p className={styles.questionReason}>{active.reason}</p>{active.detail&&<details><summary>Question context</summary><p>{active.detail}</p></details>}{active.values?.length?<div className={styles.choices} role="group" aria-label="Suggested answers">{active.values.map(value=><button type="button" key={value} onClick={()=>active.instructionId?reply(value):answer(active.field,value)} aria-pressed={(active.instructionId?clarificationReply:draft.answers[active.field])===value}>{labels[value]||value.replaceAll('-',' ')}</button>)}</div>:null}{active.instructionId?<div className={styles.field}><label htmlFor={`${id}-reply`}>Your answer</label><textarea id={`${id}-reply`} rows={3} value={clarificationReply} onChange={e=>reply(e.target.value)} placeholder="Choose an option above or type your answer."/></div>:active.values?.length?<details><summary>Use a different answer</summary>{field(active.field)}</details>:field(active.field)}<div className={styles.actions}><button className={styles.primary} type="button" onClick={()=>advance()}>Continue <span aria-hidden="true">→</span></button>{active.field!=='service'&&!active.conflict&&!active.instructionId&&<button type="button" onClick={()=>advance(true)}>Not sure yet</button>}</div></section>:<>
           <p className={styles.hint}>Your name and email are required to view your estimate. Phone is optional.</p>
@@ -205,7 +211,10 @@ export function P5Estimator({defaultService='',headingAs='h1',projectSource}:{de
           {draft.extraction?.instructions&&<P5EstimateDetails result={{instructions:draft.extraction.instructions,documentCoverage:draft.extraction.documentCoverage}}/>}
           {scopeAssumptions(draft.answers,draft.wizard?.skipped).length>0&&<details><summary>Assumptions and details to confirm</summary><ul>{scopeAssumptions(draft.answers,draft.wizard?.skipped).map(note=><li key={note}>{note}</li>)}</ul></details>}
           <label className={styles.check}><input type="checkbox" checked={confirmed} onChange={e=>setConfirmed(e.target.checked)}/><span>These details reflect my project. I understand this is a preliminary estimate, subject to confirmed scope, selections and site conditions.</span></label>
-          <div className={styles.actions}><button className={styles.primary} type="submit">Get my estimate</button></div>
+           <div className={`${styles.actions} ${styles.finalInlineAction}`}><button className={styles.primary} type="submit">Get my estimate</button></div>
+           <div className={styles.stickySubmit} aria-label="Estimate action">
+             <button className={styles.primary} type="submit">Get my estimate</button>
+           </div>
         </>}
         <button className={styles.back} type="button" onClick={()=>{change({step:0});setError('');focus();}}>Back to my project</button>
       </>}

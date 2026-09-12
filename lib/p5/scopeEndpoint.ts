@@ -8,6 +8,7 @@ import { analyzeScope } from "./extraction.ts";
 import { prepareAnalysisFiles,verifyUpload } from "./documents";
 import { SCOPE_BATCH_LIMIT,SCOPE_TEXT_LIMIT,SCOPE_FILE_COUNT,SCOPE_UPLOAD_HELP } from "./scope.ts";
 import { draftCredentials,readDraft,readUploads,saveUpload,saveDraft,DraftError } from "./store";
+import { removeInstructionAnswerBlocks } from "./clarifications";
 import { failed,json,limitedBody,protectRequest } from "./http";
 import { ESTIMATOR_BRAND } from "./brand";
 export async function postScope(request:Request){
@@ -33,22 +34,32 @@ export async function postScope(request:Request){
     if(form.get("analyze")==="false")return json({draft:await readDraft(id,key),analysis:null});
     const checkpointed=form.get("resumable")==="true"&&process.env.P5_OBJECT_STORAGE_ENABLED==="true";
     const stored=checkpointed?[]:await readUploads(id,key);if(stored.reduce((n,f)=>n+f.data.length,0)>SCOPE_BATCH_LIMIT)throw new DraftError(SCOPE_UPLOAD_HELP,413);
-    const version=createHash("sha256").update(JSON.stringify([text,draft.uploads.map(f=>f.sha256)])).digest("hex");
-    const resolutions=draft.wizard?.sourceVersion===version?draft.wizard.resolutions:{};
-    const visitorAnswers=applyCabinetIntent(text,ESTIMATOR_BRAND.services,manualScopeAnswers(draft.answers,draft.extraction,draft.wizard?.resolutions)).answers;
+    const priorInstructionAnswers=draft.wizard?.instructionAnswers||[];
+    const cleanedText=removeInstructionAnswerBlocks(text,priorInstructionAnswers);
+    const cleanedInstructions=removeInstructionAnswerBlocks(draft.answers.estimatingInstructions||"",priorInstructionAnswers);
+    const uploadVersion=draft.uploads.map(f=>f.sha256);
+    const version=createHash("sha256").update(JSON.stringify([cleanedText,cleanedInstructions,uploadVersion])).digest("hex");
+    const legacyVersion=createHash("sha256").update(JSON.stringify([text,uploadVersion])).digest("hex");
+     const sourceMatches=draft.wizard?.sourceVersion===version||(cleanedInstructions===""&&draft.wizard?.sourceVersion===legacyVersion);
+     const sourceChanged=Boolean(draft.wizard?.sourceVersion&&!sourceMatches);
+     const resolutions=sourceMatches?draft.wizard?.resolutions||{}:{};
+     const instructionAnswers=sourceChanged?[]:draft.wizard?.instructionAnswers||[];
+     const sourceAnswers={...draft.answers};
+     if(sourceAnswers.estimatingInstructions)sourceAnswers.estimatingInstructions=cleanedInstructions;
+     const visitorAnswers=applyCabinetIntent(cleanedText,ESTIMATOR_BRAND.services,manualScopeAnswers(sourceAnswers,draft.extraction,sourceChanged?{}:draft.wizard?.resolutions)).answers;
     let analysis=null;let warning="";
     try{
       if(checkpointed){
         const background=form.get('background')==='true';
-        const job=background?await queuedJob({kind:'analysis',draft,text,answers:visitorAnswers},form.get('retry')==='true'):null;
+        const job=background?await queuedJob({kind:'analysis',draft,text:cleanedText,answers:visitorAnswers},form.get('retry')==='true'):null;
         if(job&&job.state!=='complete')return json({pending:job.state!=='failed',progress:job.progress,processing:job.processing,...(job.state==='failed'?{error:job.progress}:{})},job.state==='failed'?503:200);
-        const step=job?job.result:await advanceAnalysis(draft,text,visitorAnswers,fetch,form.get("retry")==="true");
+        const step=job?job.result:await advanceAnalysis(draft,cleanedText,visitorAnswers,fetch,form.get("retry")==="true");
         if(step.pending)return json(step);
         analysis=step.analysis;
       }else{
       const {readable,manualReview}=await prepareAnalysisFiles(stored);
-      if(!text.trim()&&!readable.length&&!Object.values(draft.answers).some(v=>v?.trim()))throw new Error(manualReview.join(" ")||"Add a project description or a document.");
-      analysis=await analyzeScope(text,readable,visitorAnswers);
+      if(!cleanedText.trim()&&!readable.length&&!Object.values(draft.answers).some(v=>v?.trim()))throw new Error(manualReview.join(" ")||"Add a project description or a document.");
+      analysis=await analyzeScope(cleanedText,readable,visitorAnswers);
       analysis.extraction.reviewNotes.push(...manualReview);
       }
       const unread=analysis.extraction.reviewNotes.filter((note:string)=>/saved for manual review|could not read|automatic read failed|automatic reading could not finish|unread section requires review|unreadable|partial/.test(note));
@@ -57,13 +68,13 @@ export async function postScope(request:Request){
       console.error("[p5-scope-analysis]",error instanceof Error?error.message:"analysis failed");
       warning="Your files are saved, but automatic reading could not finish. You can retry without uploading again, or add the key details below. Unread documents will need review before pricing.";
     }
-    if(analysis)analysis.extraction=applyCabinetIntent(text,ESTIMATOR_BRAND.services,visitorAnswers,analysis.extraction).extraction!;
+    if(analysis)analysis.extraction=applyCabinetIntent(cleanedText,ESTIMATOR_BRAND.services,visitorAnswers,analysis.extraction).extraction!;
     const extraction=analysis?.extraction||draft.extraction;
     const merged=analysis?reconcileScope(visitorAnswers,analysis.extraction,resolutions):{answers:draft.answers,conflicts:[]};
-    const wizard={instructionAnswers:draft.wizard?.instructionAnswers||[],skipped:draft.wizard?.skipped||[],resolutions,sourceVersion:analysis?version:draft.wizard?.sourceVersion};
+     const wizard={instructionAnswers,skipped:draft.wizard?.skipped||[],resolutions,sourceVersion:analysis?version:draft.wizard?.sourceVersion};
     // Partial analysis is visible and prevents unread documents from being priced.
-    const safeExtraction=warning?{...extraction,summary:extraction?.summary||text,facts:extraction?.facts||[],conflicts:extraction?.conflicts||[],missingInformation:extraction?.missingInformation||[],reviewNotes:[...new Set([...(extraction?.reviewNotes||[]),warning])]}:extraction;
-    const saved=await saveDraft(id,key,ESTIMATOR_BRAND.id,{text,answers:merged.answers,extraction:safeExtraction,reviewed:null,contact:draft.contact,wizard},draft.revision);
+    const safeExtraction=warning?{...extraction,summary:extraction?.summary||cleanedText,facts:extraction?.facts||[],conflicts:extraction?.conflicts||[],missingInformation:extraction?.missingInformation||[],reviewNotes:[...new Set([...(extraction?.reviewNotes||[]),warning])]}:extraction;
+    const saved=await saveDraft(id,key,ESTIMATOR_BRAND.id,{text:cleanedText,answers:merged.answers,extraction:safeExtraction,reviewed:null,contact:draft.contact,wizard},draft.revision);
     if(requested.some(digest=>!saved.uploads.some(file=>file.sha256===digest)))throw new DraftError("Some files could not be confirmed. Please retry; duplicate files will not be added twice.",503);
     const pricedFields=await costQuestionFields(saved.answers);
     return json({draft:saved,analysis,warning,conflicts:merged.conflicts,pricedFields,questions:scopeQuestions(saved.answers,safeExtraction,merged.conflicts,wizard.skipped,pricedFields)});
