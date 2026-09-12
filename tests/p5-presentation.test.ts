@@ -22,6 +22,9 @@ test('Specialty cabinet products and paint-grade trim retain the correct trade',
  assert.equal(suggestedTrade('Wood cabinet pullout product with door-mount hardware'),'Cabinets');
  assert.equal(suggestedTrade('Install paint-grade base moulding and baseboard trim'),'Trim & Finish Carpentry');
  assert.equal(suggestedTrade('Paint the cabinets'),'Painting');
+ assert.equal(suggestedTrade('Standard paint-grade solid wood crown moulding, material supply only (no installation labor, no painting/finishing, no cabinet casework), for kitchen cabinet trim use'),'Trim & Finish Carpentry');
+ assert.equal(suggestedTrade('Paint the crown moulding'),'Painting');
+ assert.equal(suggestedTrade('Install crown moulding without painting'),'Trim & Finish Carpentry');
  assert.equal(suggestedTrade('Replace heating ductwork'),'Heating & Cooling');
  assert.equal(suggestedTrade('Supply an exterior entry door'),'Windows & Doors');
 });

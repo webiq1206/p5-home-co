@@ -18,7 +18,8 @@ const patterns: [TradeCategory, RegExp][] = [
   ["Concrete", /concrete|rebar|formwork|epoxy|polyaspartic|tuxedo.*flake/i],
   ["Roofing", /roof|shingle|flashing|gutter/i],
   ["Siding", /siding|stucco|exterior cladding/i],
-  ["Painting", /\b(?:painting|repainting|refinishing)\b|\b(?:paint|prime|refinish)\s+(?:the\s+)?(?:walls?|ceilings?|cabinets?|trim|baseboards?)\b/i],
+  ["Painting", /\b(?:painting|repainting|refinishing)\b|\b(?:paint|prime|refinish)\s+(?:the\s+)?(?:walls?|ceilings?|cabinets?|trim|baseboards?|crown|mou?ldings?)\b/i],
+  ["Trim & Finish Carpentry", /\bcrown\b|\bbaseboards?\b|\bmou?ldings?\b/i],
   ["Cabinets", /cabinet|vanit|built.?ins?|bookshelf/i],
   ["Windows & Doors", /window|\bdoors?\b|glazing/i],
   ["Plumbing", /plumb|faucet|toilet|water heater|sewer|septic|\bwell\b/i],
@@ -38,7 +39,9 @@ const patterns: [TradeCategory, RegExp][] = [
 ];
 /** A suggested trade never changes quantity, rate, commercial status or cost type. */
 export function suggestedTrade(description: string): TradeCategory {
-  return patterns.find(([, pattern]) => pattern.test(description))?.[0] ?? "Other Project Work";
+  // Explicit exclusions describe what is NOT supplied and must not select its trade.
+  const included = description.replace(/\b(?:no|without|exclud(?:e|es|ed|ing))\s+[^,;()\n]*/gi, ' ');
+  return patterns.find(([, pattern]) => pattern.test(included))?.[0] ?? "Other Project Work";
 }
 export function tradeForLine(line: { trade?: string; description: string }): TradeCategory {
   if (line.trade !== undefined) {
