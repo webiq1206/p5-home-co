@@ -50,3 +50,14 @@
 .processingActivity li{margin:6px 0}
 .loadingCard .processingFootnote{font-size:12px;line-height:1.6;color:#c4d3ca;margin-top:22px}
 @media(max-width:580px){.loadingOverlay{padding:12px}.root .loadingCard{max-height:calc(100dvh - 24px);padding:24px 18px!important}.processingActivity ul,.processingActivity ol{font-size:13px}}
+
+/* A primary action must look enabled on every brand, including the neutral palette. */
+.root .primary{min-height:54px;padding:15px 24px;gap:14px;background:#f7f5f3;color:#17251e;border:2px solid #fff;font-size:17px;font-weight:700;box-shadow:0 3px 0 #ffffff24}
+.root .primary:hover{background:#fff;box-shadow:0 4px 14px #0003}.root .primary:active{transform:translateY(1px)}
+.root .primary:disabled{background:#69736d;color:#fff;border-color:#69736d;box-shadow:none}
+.actions .primary{min-width:180px}.choices{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,190px),1fr))}.choices button{min-height:52px;text-align:left;justify-content:flex-start}
+.choices button[aria-pressed=true]{background:#f7f5f3;color:#17251e;border:2px solid #fff;font-weight:600}
+.questionReason{font-size:18px;max-width:62ch!important}.root .question h2{font-family:inherit;font-size:24px;margin-top:6px}.question .eyebrow{margin-top:0}
+.processingMeter progress{appearance:none;border:0;border-radius:20px;overflow:hidden;background:#ffffff25}
+.processingMeter progress::-webkit-progress-bar{background:#ffffff25;border-radius:20px}.processingMeter progress::-webkit-progress-value{background:var(--p5-accent);border-radius:20px;transition:width .25s}.processingMeter progress::-moz-progress-bar{background:var(--p5-accent);border-radius:20px}
+@media(max-width:580px){.actions .primary{flex:1 1 100%;width:100%}.root .question h2{font-size:22px}.choices{grid-template-columns:1fr}.loadingCard .processingActivity{margin-top:14px}}

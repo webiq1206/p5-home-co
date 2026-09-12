@@ -14,13 +14,12 @@ import {snapshotProjectFile} from '@/lib/p5/fileSnapshot';
 import {transferLargeFiles} from '@/lib/p5/resumableTransfer';
 import {transferProjectFiles} from '@/lib/p5/uploadTransfer';
 import styles from './P5Estimator.module.css';
-import {INSTRUCTION_FILE_PREFIX} from '@/lib/p5/instructions';
 import {reportProgress,trackScopeEvent} from '@/lib/p5/progress';
 const textAnswers=(a:ScopeAnswers)=>JSON.stringify(Object.entries(a).filter(([k,v])=>SCOPE_FIELDS[k as ScopeField].kind==='text'&&v?.trim()).sort(([a],[b])=>a.localeCompare(b)));
 const labels:Record<string,string>={handyman:'Home repairs',re10:'Inspection and RE-10 repairs','cabinet-product':'Cabinets, supply only','cabinet-install':'Cabinets with installation',kitchen:'Kitchen remodel',bathroom:'Bathroom remodel','whole-home':'Whole-home remodel',addition:'Home addition',adu:'ADU','new-construction':'New home','change-order':'Change order',rush:'Rush work',refresh:'Simple refresh','mid-range':'Standard finishes','high-end':'Premium finishes',luxury:'Custom luxury finishes'};
 const scopeExample=(brand.id as string)==='cabinet'?'For example: Painted Shaker kitchen cabinets, 20 ft of base and 15 ft of uppers. Include installation.':(brand.id as string)==='construction'?'For example: Build a 2,500 sq ft home with an 800 sq ft garage. Our plans are attached.':(brand.id as string)==='handyman'?'For example: Fix three sticking doors, replace two faucets and repair damaged drywall.':'For example: Remodel our 8 × 10 ft bathroom. Keep the layout, replace the shower, tile and vanity.';
 const accept='.pdf,.jpg,.jpeg,.png,.webp,.gif,.heic,.heif,.tif,.tiff,.avif,.txt,.csv,.json,.xlsx,.xls,.ods,.docx,.doc';
-type Recognition={continuous:boolean;interimResults:boolean;lang:string;onresult:((event:any)=>void)|null;onerror:((event:any)=>void)|null;onend:(()=>void)|null;start:()=>void;stop:()=>void};
+
 export function P5Estimator({defaultService='',headingAs='h1',projectSource}:{defaultService?:string;headingAs?:'h1'|'h2';projectSource?:ProjectSource}){
   const [draft,setDraft]=useState<BrowserDraft|null>(null);const current=useRef<BrowserDraft|null>(null);
   const [files,setFiles]=useState<File[]>([]);const filesRef=useRef<File[]>([]);
@@ -28,7 +27,7 @@ export function P5Estimator({defaultService='',headingAs='h1',projectSource}:{de
   const [uploadPercent,setUploadPercent]=useState<number|null>(null);const [preparingFiles,setPreparingFiles]=useState(false);
   const [processing,setProcessing]=useState<ProcessingStatus|null>(null);
   const started=useRef(false);
-  const [listening,setListening]=useState(false);const [speechAvailable,setSpeechAvailable]=useState(false);const recognition=useRef<Recognition|null>(null);
+  const [clarificationReply,setClarificationReply]=useState('');
   const [result,setResult]=useState<any>(null);const [delivery,setDelivery]=useState<any[]>([]);const [confirmed,setConfirmed]=useState(false);
   const [active,setActive]=useState<ScopeQuestion|null>(null);const [inputOpen,setInputOpen]=useState(false);const [knownOpen,setKnownOpen]=useState(false);const [editField,setEditField]=useState<ScopeField|''>('');
   const queue=useRef<Promise<unknown>>(Promise.resolve());const heading=useRef<HTMLHeadingElement>(null);const mounted=useRef(false);const id=useId();const Heading=headingAs;
@@ -36,7 +35,7 @@ export function P5Estimator({defaultService='',headingAs='h1',projectSource}:{de
   const change=(update:Partial<BrowserDraft>)=>{if(!current.current)return;apply({...current.current,...update,dirty:true,updatedAt:Date.now()});setConfirmed(false);};
   const changeContact=(key:keyof BrowserDraft['contact'],value:string)=>{const latest=current.current;if(latest)change({contact:{...latest.contact,[key]:value}});};
   const questions=(d:BrowserDraft)=>scopeQuestions(d.answers,d.extraction,d.conflicts||[],d.wizard?.skipped||[],d.pricedFields||[]);
-  const resume=(d:BrowserDraft)=>{const next=questions(d)[0]||null;setActive(next);apply(resumeWizardDraft(d,Boolean(next)));};
+  const resume=(d:BrowserDraft)=>{const next=questions(d)[0]||null;setActive(next);setClarificationReply(d.pendingReply?.id===next?.instructionId?d.pendingReply?.answer||'':'');apply(resumeWizardDraft(d,Boolean(next)));};
   const focus=()=>requestAnimationFrame(()=>{heading.current?.focus({preventScroll:true});heading.current?.scrollIntoView({block:'start',behavior:'instant'});});
   const showQuestions=(d:BrowserDraft)=>{const next=questions(d)[0]||null;setActive(next);if(!next){trackScopeEvent('repairsConfirmed',d.answers.service);trackScopeEvent('contactViewed',d.answers.service);}apply({...d,step:next?1:2});setInputOpen(false);setConfirmed(false);focus();};
   const answer=(key:ScopeField,value:string)=>{
@@ -48,7 +47,7 @@ export function P5Estimator({defaultService='',headingAs='h1',projectSource}:{de
   };
   useEffect(()=>{
     mounted.current=true;const loaded=loadBrowserDraft(defaultService,projectSource?.id);const d=projectSource?mergeProjectSource(loaded,projectSource):loaded;resume(d);setWarning(d.analysisWarning||d.extraction?.reviewNotes.find(n=>n.startsWith("Your files are saved, but"))||"");
-    setSpeechAvailable(Boolean((window as any).SpeechRecognition||(window as any).webkitSpeechRecognition));
+
     loadCachedFiles(d.id).then(f=>{if(mounted.current&&current.current?.id===d.id){filesRef.current=f;setFiles(f);}}).catch(()=>setStatus('File recovery is unavailable. Keep this page open while uploading.'));
     if(d.revision>0)fetch('/api/p5-estimator/draft',{headers:draftHeaders(d),cache:'no-store'}).then(r=>r.ok?r.json():null).then(async data=>{
       if(!mounted.current||!data?.draft||current.current?.id!==d.id)return;
@@ -63,7 +62,7 @@ export function P5Estimator({defaultService='',headingAs='h1',projectSource}:{de
     }).catch(()=>setStatus('Your saved answers are available on this device. Reconnect to save online.'));
     const preventFileNavigation=(event:DragEvent)=>{if(event.dataTransfer?.types.includes('Files'))event.preventDefault();};
     window.addEventListener("drop",preventFileNavigation);window.addEventListener("dragover",preventFileNavigation);
-    return()=>{mounted.current=false;recognition.current?.stop();window.removeEventListener("drop",preventFileNavigation);window.removeEventListener("dragover",preventFileNavigation);};
+    return()=>{mounted.current=false;window.removeEventListener("drop",preventFileNavigation);window.removeEventListener("dragover",preventFileNavigation);};
   },[defaultService,projectSource?.id]);
   useEffect(()=>{if(projectSource&&current.current){const next=mergeProjectSource(current.current,projectSource);if(next!==current.current){resume(next);setConfirmed(false);}}},[JSON.stringify(projectSource)]);
   useEffect(()=>{
@@ -73,9 +72,9 @@ export function P5Estimator({defaultService='',headingAs='h1',projectSource}:{de
     if(engaged)reportProgress(draft,result?'completed':'active');
   },[draft?.step,JSON.stringify(draft?.answers),Boolean(draft?.text),files.length,Boolean(result)]);
   const serialized=<T,>(operation:()=>Promise<T>):Promise<T>=>{const task=queue.current.catch(()=>undefined).then(operation);queue.current=task;return task;};
-  async function save(reviewed=false){
+  async function save(reviewed=false,clarification?:{id:string;answer:string}){
     const d=current.current;if(!d)throw new Error('Your project is still loading.');
-    const response=await fetch('/api/p5-estimator/draft',{method:'PUT',headers:{...draftHeaders(d),'Content-Type':'application/json'},body:JSON.stringify({text:d.text,answers:d.answers,contact:d.contact,revision:d.revision,wizard:d.wizard,reviewed})});
+    const response=await fetch('/api/p5-estimator/draft',{method:'PUT',headers:{...draftHeaders(d),'Content-Type':'application/json'},body:JSON.stringify({text:d.text,answers:d.answers,contact:d.contact,revision:d.revision,wizard:d.wizard,reviewed,clarification})});
     const data=await response.json();if(!response.ok)throw new Error(data.error||'Your project could not be saved. Please retry.');const saved=requireDraftReceipt(data);
     if(current.current?.id!==d.id)return saved;
     const unchanged=current.current.updatedAt===d.updatedAt;
@@ -88,7 +87,7 @@ export function P5Estimator({defaultService='',headingAs='h1',projectSource}:{de
     return()=>clearTimeout(timer);
   },[draft?.text,JSON.stringify(draft?.answers),JSON.stringify(draft?.contact),busy,Boolean(result)]);
   async function run(label:string,operation:()=>Promise<void>){
-    if(busyRef.current)return;busyRef.current=true;setBusy(label);setProcessing(null);setError('');recognition.current?.stop();
+    if(busyRef.current)return;busyRef.current=true;setBusy(label);setProcessing(null);setError('');
     try{await serialized(operation);}catch(e){setError(e instanceof TypeError?'The connection was interrupted. Your saved details are intact. Keep this tab open and retry.':e instanceof Error?e.message:'This step could not finish. Your work is still here.');}finally{busyRef.current=false;setBusy('');setUploadPercent(null);setProcessing(null);}
   }
   async function ensureSourcePhoto(){
@@ -123,7 +122,7 @@ export function P5Estimator({defaultService='',headingAs='h1',projectSource}:{de
     do{
     const response=await fetch('/api/p5-estimator/scope',{method:'POST',headers:draftHeaders(d),body:form,signal:AbortSignal.timeout(200000)});data=await response.json();form.set('retry','false');
     if(!response.ok)throw new Error(data.error||'Your files could not be processed. They are still here. Please retry.');
-    if(data.pending){setBusy(data.progress||'Reading your project...');setProcessing(data.processing||null);await new Promise(r=>setTimeout(r,2000));}
+    if(data.pending){setBusy(data.progress||'Reading your project...');if(data.processing)setProcessing(data.processing);await new Promise(r=>setTimeout(r,1000));}
     }while(data.pending);
     const saved=requireDraftReceipt(data);
     const next={...current.current!,...saved,key:d.key,step:1,updatedAt:Date.now(),dirty:false,conflicts:data.conflicts||[],pricedFields:data.pricedFields||[],analysisWarning:data.warning||"",sourceImageUrl:projectSource?.imageUrl,analyzedText:d.text,analyzedAnswers:textAnswers(saved.answers)} as BrowserDraft;
@@ -147,19 +146,18 @@ export function P5Estimator({defaultService='',headingAs='h1',projectSource}:{de
     filesRef.current=copied;setFiles(copied);setError('');setConfirmed(false);
     try{if(copied.reduce((n,f)=>n+f.size,0)>22*1024*1024)throw new Error('Large files stay in this tab until upload.');await cacheFiles(current.current.id,copied);setStatus('Files ready. Continue to read them with your project details.');}catch{setStatus('Files are ready in this tab. Device storage is unavailable; keep this tab open until upload completes.');}finally{setPreparingFiles(false);}
   }
-  function speak(){
-    if(listening){recognition.current?.stop();return;}const Constructor=(window as any).SpeechRecognition||(window as any).webkitSpeechRecognition;if(!Constructor)return;
-    const r:Recognition=new Constructor();recognition.current=r;r.continuous=true;r.interimResults=false;r.lang='en-US';
-    r.onresult=(event:any)=>{let text='';for(let i=event.resultIndex;i<event.results.length;i++)if(event.results[i].isFinal)text+=event.results[i][0].transcript+' ';if(text)change({text:`${current.current?.text||''} ${text}`.trim()});};
-    r.onerror=()=>{setListening(false);setError("Microphone input is unavailable. You can type, upload, or use your keyboard's dictation button.");};r.onend=()=>setListening(false);
-    try{setListening(true);r.start();}catch{setListening(false);setError('The microphone could not start. You can still type or add files.');}
-  }
   async function advance(skip=false){
     if(!current.current)return;
+    if(active?.instructionId){
+      if(!clarificationReply.trim()){setError('Add an answer or select an option.');return;}
+      const reply={id:active.instructionId,answer:clarificationReply};
+      await run('Saving your answer...',async()=>{await save(false,reply);const saved=current.current!;apply({...saved,analyzedAnswers:textAnswers(saved.answers)});setClarificationReply('');apply({...current.current!,pendingReply:undefined});showQuestions(current.current!);});
+      return;
+    }
     if(active?.conflict&&!current.current.wizard?.resolutions[active.field]){setError('Choose the detail to use, or enter a correction.');return;}
     if(active){const value=current.current.answers[active.field]||'';const issue=validateScopeAnswer(active.field,value);if(!skip&&(issue||!value.trim())){setError(issue||'Add this detail, or choose Not sure yet.');return;}
       if(skip){if(active.field==='service'||active.conflict)return;const d=current.current;change({wizard:{...d.wizard,resolutions:d.wizard?.resolutions||{},skipped:[...new Set([...(d.wizard?.skipped||[]),active.field])]}});}}
-    await run('Updating your project...',async()=>{if(needsAnalysis())await analyze();else{await save();showQuestions(current.current!);}});
+    await run('Saving your answer...',async()=>{await save();const saved=current.current!;apply({...saved,analyzedAnswers:textAnswers(saved.answers)});showQuestions(current.current!);});
   }
   async function downloadPdf(){await run('Preparing your PDF...',async()=>{const response=await fetch('/api/p5-estimator/pdf',{headers:draftHeaders(current.current!)});if(!response.ok)throw new Error('The PDF could not be downloaded. Your submission is saved; please retry.');const url=URL.createObjectURL(await response.blob());const link=document.createElement('a');link.href=url;link.download=`${brand.id}-project-summary.pdf`;link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);});}
   async function submit(event:React.FormEvent){
@@ -172,14 +170,14 @@ export function P5Estimator({defaultService='',headingAs='h1',projectSource}:{de
     if(d.contact.name.trim().length<2||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(d.contact.email)){setError('Enter your name and a valid email address.');return;}
     await run('Preparing your estimate...',async()=>{trackScopeEvent('contactSubmitted',d.answers.service);const saved=await save(true);let retry=true;const data=await completeSubmission(()=>{const shouldRetry=retry;retry=false;return fetch('/api/p5-estimator/submit',{method:'POST',headers:{...draftHeaders(current.current!),'Content-Type':'application/json'},body:JSON.stringify({revision:saved.revision,background:true,retry:shouldRetry})});},(message,detail)=>{setBusy(message);setProcessing(detail||null);});setResult(data.result);setDelivery(data.delivery||[]);if(data.result?.range)trackScopeEvent('estimateGenerated',d.answers.service);if(data.delivery?.some((v:any)=>v.channel==='customer'&&v.status==='sent'))trackScopeEvent('estimateEmailed',d.answers.service);setStatus('');focus();});
   }
+  const reply=(value:string)=>{setClarificationReply(value);if(active?.instructionId)change({pendingReply:{id:active.instructionId,answer:value}});};
   const field=(key:ScopeField)=>{const definition=SCOPE_FIELDS[key];const value=draft?.answers[key]||'';const fieldId=`${id}-${key}`;
     return <div key={key} className={styles.field}><label htmlFor={fieldId}>{definition.label}</label>{definition.kind==='choice'?<select id={fieldId} value={value} onChange={e=>answer(key,e.target.value)}><option value="">Choose an answer</option>{definition.options.filter(v=>key!=='service'||(brand.services as readonly string[]).includes(v)).map(v=><option key={v} value={v}>{key==='cabinetRoom'?v.replaceAll('-',' '):labels[v]||v.replaceAll('-',' ')}</option>)}</select>:definition.kind==='number'?<input id={fieldId} inputMode="decimal" value={value} onChange={e=>answer(key,e.target.value)} placeholder="Approximate is fine"/>:<textarea id={fieldId} rows={3} value={value} onChange={e=>answer(key,e.target.value)} />}</div>;};
   if(!draft)return <div className={styles.root} role="status">Loading your project...</div>;
   const projectInput=<>
-    <div className={styles.field}><label htmlFor={`${id}-instructions`}>Custom estimating instructions</label><textarea id={`${id}-instructions`} rows={6} value={draft.answers.estimatingInstructions||''} onChange={e=>answer('estimatingInstructions',e.target.value)} placeholder={'Price only the trim package.\nExclude all plumbing.\nLabor only; owner supplies materials.\nFirst floor only.\nSeparate prices for each building.'}/><p className={styles.hint}>Add every inclusion, exclusion and responsibility. You can also upload a detailed instruction document below. We will show the interpreted scope for your review.</p><label className={styles.attach} htmlFor={`${id}-instruction-files`}>Upload estimating instructions<input id={`${id}-instruction-files`} type="file" accept=".pdf,.txt,.docx" multiple onChange={e=>{const selected=Array.from(e.currentTarget.files||[]).map(f=>new File([f],INSTRUCTION_FILE_PREFIX+f.name,{type:f.type,lastModified:f.lastModified}));void addFiles(selected);e.currentTarget.value='';}}/></label></div>
-    <div className={styles.field}><label htmlFor={`${id}-scope`}>Tell us about your project</label><textarea id={`${id}-scope`} rows={4}  value={draft.text} onChange={e=>change({text:e.target.value})} placeholder={projectSource?"Add any other work, installation needs or project notes.":scopeExample}/></div>
-    <div className={styles.inputTools} onDragEnter={e=>e.preventDefault()} onDragOver={e=>e.preventDefault()} onDragLeave={e=>e.preventDefault()} onDrop={e=>{e.preventDefault();void addFiles(e.dataTransfer.files);}}>{speechAvailable?<button type="button" onClick={speak} aria-pressed={listening}>{listening?'Stop dictation':'Use microphone'}</button>:<span className={styles.hint}>You can use your keyboard microphone to dictate.</span>}<label className={styles.attach} htmlFor={`${id}-files`}><span aria-hidden="true">↑</span><span><strong>Upload plans, photos or documents</strong><small>Choose files or drag them here</small></span><input id={`${id}-files`} type="file" accept={accept} multiple aria-label="Upload plans, photos or documents" onChange={e=>{const input=e.currentTarget;const selected=Array.from(input.files||[]);void addFiles(selected).then(()=>{input.value='';});}}/></label></div>
-    <p className={styles.hint}>Plans, photos, PDFs, Word or spreadsheets. {SCOPE_UPLOAD_HELP}</p>
+    <div className={styles.field}><label htmlFor={`${id}-scope`}>Tell us about your project</label><textarea id={`${id}-scope`} rows={6} value={[draft.text,draft.answers.estimatingInstructions].filter(Boolean).join('\n\n')} onChange={e=>{const d=current.current!;change({text:e.target.value,answers:{...d.answers,estimatingInstructions:''},wizard:{...d.wizard,skipped:d.wizard?.skipped||[],resolutions:{...d.wizard?.resolutions,estimatingInstructions:''}}});}} placeholder={`${scopeExample}\nInclude any notes, instructions, inclusions or exclusions.`}/><p className={styles.hint}>Type everything here, or use your keyboard’s dictation. Include what to price, what to leave out and who supplies materials.</p></div>
+    <div className={styles.inputTools} onDragEnter={e=>e.preventDefault()} onDragOver={e=>e.preventDefault()} onDrop={e=>{e.preventDefault();void addFiles(e.dataTransfer.files);}}><label className={styles.attach} htmlFor={`${id}-files`}><span aria-hidden="true">↑</span><span><strong>Upload project files</strong><small>Scopes, blueprints, plans, notes, photos and more</small></span><input id={`${id}-files`} type="file" accept={accept} multiple aria-label="Upload project files" onChange={e=>{const input=e.currentTarget;const selected=Array.from(input.files||[]);void addFiles(selected).then(()=>{input.value='';});}}/></label></div>
+    <p className={styles.hint}>Choose files or drag them here. PDFs, images, Word, spreadsheets and text. {SCOPE_UPLOAD_HELP}</p>
     {Boolean(files.length||draft.uploads?.length)&&<ul className={styles.files}>{draft.uploads?.map(f=><li key={f.id}><span>{f.name}</span><span className={styles.hint}>Uploaded</span></li>)}{files.map((f,i)=><li key={`${f.name}-${i}`}><span>{f.name}<small>Ready to upload</small></span><button type="button" aria-label={`Remove ${f.name}`} onClick={async()=>{const next=filesRef.current.filter((_,index)=>i!==index);filesRef.current=next;setFiles(next);try{await cacheFiles(draft.id,next);}catch{setStatus('File removed from this session. Local storage could not be updated.');}}}>Remove</button></li>)}</ul>}
   </>;
   const known=Object.keys(draft.answers).filter(k=>draft.answers[k as ScopeField]?.trim()) as ScopeField[];
@@ -195,13 +193,13 @@ export function P5Estimator({defaultService='',headingAs='h1',projectSource}:{de
       <a className={styles.primary} href={brand.consultationPath} onClick={()=>trackScopeEvent("onsiteRequested",draft.answers.service)}>Schedule a consultation</a><a className={styles.secondary} href="tel:+12084771169">Call {brand.phone}</a>
       <button type="button" onClick={()=>{const next={...newBrowserDraft(defaultService),namespace:draft.namespace};apply(next);started.current=false;setResult(null);filesRef.current=[];setFiles([]);setConfirmed(false);setActive(null);setWarning("");setStatus("");}}>Start another project</button>
     </div>:<form onSubmit={submit} noValidate><fieldset disabled={Boolean(busy)||preparingFiles} className={styles.formBody}>
-      {draft.step===0?<>{projectSource&&review}{projectInput}<div className={styles.actions}><button className={styles.primary} type="button" onClick={begin}>Continue</button></div><p className={styles.hint}>Add what you know, or continue and we’ll help with the rest.</p></>:<>
-        {draft.step===1&&active?<section className={styles.question} aria-label="Project question"><h2>{active.label}</h2><p className={styles.questionReason}>{active.reason}</p>{active.values?.length?<div className={styles.choices}>{active.values.map(value=><button type="button" key={value} onClick={()=>answer(active.field,value)} aria-pressed={draft.answers[active.field]===value}>{labels[value]||value}</button>)}</div>:null}{active.values?.length?<details><summary>Use a different answer</summary>{field(active.field)}</details>:field(active.field)}<div className={styles.actions}><button className={styles.primary} type="button" onClick={()=>advance()}>Continue</button>{active.field!=='service'&&!active.conflict&&<button type="button" onClick={()=>advance(true)}>Not sure yet</button>}</div></section>:<>
+      {draft.step===0?<>{projectSource&&review}{projectInput}<div className={styles.actions}><button className={styles.primary} type="button" onClick={begin}>Continue <span aria-hidden="true">→</span></button></div><p className={styles.hint}>Add what you know, or continue and we’ll help with the rest.</p></>:<>
+        {draft.step===1&&active?<section key={active.instructionId||active.field} className={styles.question} aria-label="Project question"><p className={styles.eyebrow}>One detail at a time</p><h2>{active.label}</h2><p className={styles.questionReason}>{active.reason}</p>{active.detail&&<details><summary>Question context</summary><p>{active.detail}</p></details>}{active.values?.length?<div className={styles.choices} role="group" aria-label="Suggested answers">{active.values.map(value=><button type="button" key={value} onClick={()=>active.instructionId?reply(value):answer(active.field,value)} aria-pressed={(active.instructionId?clarificationReply:draft.answers[active.field])===value}>{labels[value]||value.replaceAll('-',' ')}</button>)}</div>:null}{active.instructionId?<div className={styles.field}><label htmlFor={`${id}-reply`}>Your answer</label><textarea id={`${id}-reply`} rows={3} value={clarificationReply} onChange={e=>reply(e.target.value)} placeholder="Choose an option above or type your answer."/></div>:active.values?.length?<details><summary>Use a different answer</summary>{field(active.field)}</details>:field(active.field)}<div className={styles.actions}><button className={styles.primary} type="button" onClick={()=>advance()}>Continue <span aria-hidden="true">→</span></button>{active.field!=='service'&&!active.conflict&&!active.instructionId&&<button type="button" onClick={()=>advance(true)}>Not sure yet</button>}</div></section>:<>
           <p className={styles.hint}>Your name and email are required to view your estimate. Phone is optional.</p>
           <div className={styles.fields}>{([['name','Your name','text'],['email','Email','email'],['phone','Phone (optional)','tel']] as const).map(([key,label,type])=><label className={styles.field} key={key} htmlFor={`${id}-contact-${key}`}><span>{label}</span><input id={`${id}-contact-${key}`} type={type} autoComplete={key} required={key!=='phone'} value={draft.contact[key]} onChange={e=>changeContact(key,e.target.value)} maxLength={key==='name'?120:key==='email'?200:40}/></label>)}</div>
         </>}
         {review}
-        <details open={inputOpen} onToggle={e=>setInputOpen(e.currentTarget.open)}><summary>Add or edit project information</summary>{projectInput}<button type="button" onClick={begin}>Update project</button></details>
+        <details open={inputOpen} onToggle={e=>setInputOpen(e.currentTarget.open)}><summary>Add or edit project information</summary>{inputOpen&&<>{projectInput}<button className={styles.primary} type="button" onClick={begin}>Update project</button></>}</details>
         {warning&&<div className={styles.notice}><p>{warning}</p><button type="button" onClick={()=>run('Reading your saved documents...',analyze)}>Retry document reading</button></div>}
         {draft.step===2&&<>
           {draft.extraction?.instructions&&<P5EstimateDetails result={{instructions:draft.extraction.instructions,documentCoverage:draft.extraction.documentCoverage}}/>}

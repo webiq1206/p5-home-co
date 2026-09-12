@@ -37,13 +37,13 @@ try{
    counts.set(name,(counts.get(name)||0)+1);active++;peak=Math.max(peak,active);
    try{
      await new Promise(r=>setTimeout(r,15));
-     if(name.includes('9 to 16')&&counts.get(name)===1)return new Response('temporary failure',{status:503});
+     if(name.includes('page 9 of')&&counts.get(name)===1)return new Response('temporary failure',{status:503});
      return Response.json({stop_reason:'end_turn',content:[{type:'text',text:JSON.stringify({summary:'One bathroom',facts:[{field:'sqft',value:'80',confidence:.99,source:'large-plan.pdf',evidence:'80 square feet',basis:'stated'}],conflicts:[],missingInformation:[],reviewNotes:[],clarifications:[],pages:manifest.map((p:any)=>({...p,sheet:`A${p.page}`,revision:p.page===256?'FINAL':'',status:'read',notes:[]})),takeoffs:[]})}]});
    }finally{active--;}
  };
  const draft=await store.readDraft(id,key);let step:any;let n=0;
  do{step=await work.advanceAnalysis(draft,'Bathroom remodel',{},provider);assert.ok(++n<80);}while(step.pending);
- assert.equal(step.analysis.extraction.facts[0].value,'80');assert.equal(counts.size,32,'all 256 pages must be processed');assert.equal([...counts.values()].filter(n=>n===2).length,1,'only the failed section is retried');assert.ok([...counts.values()].every(n=>n===1||n===2));
+ assert.equal(step.analysis.extraction.facts[0].value,'80');assert.equal(counts.size,256,'all 256 pages must be processed');assert.equal([...counts.values()].filter(n=>n===2).length,1,'only the failed section is retried');assert.ok([...counts.values()].every(n=>n===1||n===2));
  assert.equal(step.analysis.extraction.documentCoverage.complete,true);assert.equal(step.analysis.extraction.documentCoverage.expectedPages,256);
  assert.deepEqual(step.analysis.extraction.documentCoverage.pages.map((p:any)=>p.page),Array.from({length:256},(_,i)=>i+1));
  assert.equal(step.analysis.extraction.documentCoverage.pages[255].revision,'FINAL');assert.equal(peak,6,'independent sections use bounded parallel processing');
@@ -57,15 +57,15 @@ try{
  globalThis.fetch=async(url:any,options:any)=>{
    const payload=JSON.parse(options.body),name=payload.messages[0].content[0].text;
    sectionCalls.set(name,(sectionCalls.get(name)||0)+1);
-   if(middleFails&&name.includes('9 to 16'))return new Response('fixture outage',{status:503});
+   if(middleFails&&name.includes('page 9 of'))return new Response('fixture outage',{status:503});
    return provider(url,options);
  };
  const form=new FormData();form.set('text','Partial section retry fixture');form.set('resumable','true');
  const analyze=async()=>{const response=await scopeApi.postScope(new Request('https://test.local/api/p5-estimator/scope',{method:'POST',headers,body:form}));assert.equal(response.status,200);return response.json();};
  let response:any;let turns=0;do{response=await analyze();assert.ok(++turns<80);}while(response.pending);
  assert.match(response.warning,/automatic reading could not finish/,'failed sections must expose the retry control');
- assert.ok(response.draft.extraction.reviewNotes.some((note:string)=>note.includes('9 to 16')));
- const completedBefore=[...sectionCalls].filter(([name])=>!name.includes('9 to 16'));
+ assert.ok(response.draft.extraction.reviewNotes.some((note:string)=>note.includes('page 9 of')));
+ const completedBefore=[...sectionCalls].filter(([name])=>!name.includes('page 9 of'));
  middleFails=false;form.set('retry','true');response=await analyze();form.set('retry','false');
  turns=0;while(response.pending){response=await analyze();assert.ok(++turns<80);}
  assert.equal(response.warning,'');assert.deepEqual(response.draft.extraction.reviewNotes,[]);
