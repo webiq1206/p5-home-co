@@ -16,6 +16,8 @@ test('legacy paragraphs become distinct, concise questions and exact duplicates 
 test('legacy company-fit questions use the service picker instead of an instruction loop',()=>{
   const e=scope();e.instructions!.questions=['Does the submitted scope require residential remodel work?','Which of the following services does your requested estimate cover?'];
   const q=scopeQuestions({},e);assert.equal(q.some(q=>q.instructionId),false);assert.ok(q.find(q=>q.field==='service')?.values?.length);
+  e.instructions!.questions=['Which of the following services does your estimate cover? Should we include or exclude painting?'];
+  assert.deepEqual(instructionPrompts(e,{}).map(q=>q.question),['Should we include or exclude painting?']);
 });
 test('clarification updates instructions without sending documents or changing page coverage',async()=>{
   const {resolveInstructionAnswer}=await resolver();

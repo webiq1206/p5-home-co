@@ -9,10 +9,10 @@ const serviceQuestion=(text:string)=>/which .*services|what .*remodel.*service|c
 export function instructionPrompts(extraction:ScopeExtraction|null,answers:ScopeAnswers):InstructionPrompt[]{
   const result:InstructionPrompt[]=[];
   for(const raw of extraction?.instructions?.questions||[]){
-    // Service selection has its own typed question and supported choices.
-    if(serviceQuestion(raw))continue;
     for(const part of raw.match(/[^?]+\??/g)||[]){
       const full=part.replace(/\s+/g,' ').trim();if(!full)continue;
+      // Filter each question separately so a legacy paragraph cannot lose a real scope decision.
+      if(serviceQuestion(full))continue;
       const id=questionKey(full);
       if(result.some(q=>q.id===id))continue;
       const question=full.length<=240?full:'What should we include for this part of your project?';
