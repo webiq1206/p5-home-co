@@ -6,6 +6,7 @@ import {analysisSegments} from '../lib/p5/analysisWork';
 import {combineScopeExtractions} from '../lib/p5/scope';
 import {analysisConcurrency} from '../lib/p5/analysisProgress';
 import {combineCoverage} from '../lib/p5/documentLedger';
+import {createCanvas} from '@napi-rs/canvas';
 
 // Explicitly opt-in paid provider test. Synthetic plans only. This calls the
 // configured extraction service but never creates drafts, rates, leads or mail.
@@ -16,12 +17,16 @@ if(selectedProvider==='anthropic'){for(const key of ['OPENAI_API_KEY','AI_INTEGR
 if(selectedProvider==='openai')delete process.env.ANTHROPIC_API_KEY;
 const count=Number(process.env.P5_LIVE_TEST_PAGES||256);
 assert.ok(Number.isInteger(count)&&count>=8&&count<=256);
+const scanned=process.env.P5_LIVE_TEST_SCANNED==='true';
+const totalStarted=performance.now();
+const canvas=scanned?createCanvas(7776,5184):null;
 const instructions='Price only first-floor trim installation labor for Building Alpha. Exclude all plumbing and second-floor work. The owner supplies every material. Retain each unique trim mark and its printed linear feet. Treat repeated marks as the same physical item.';
 const pdf=await PDFDocument.create();
 for(let i=0;i<count;i++){
- const p=pdf.addPage([612,792]);
+ const p=pdf.addPage(scanned?[2592,1728]:[612,792]);
  const lines=[`SYNTHETIC VALIDATION PLAN / A${String(i+1).padStart(3,'0')} / REV 1`,`BUILDING ALPHA / FIRST FLOOR`,`TRIM MARK T-${i+1}: ${120+i} LF, INSTALLATION LABOR ONLY`,`DO NOT COUNT THIS MARK MORE THAN ONCE.`,`PLUMBING P-${i+1}: 1 FAUCET (EXCLUDED FROM REQUESTED TRIM SCOPE)`,`SECOND FLOOR S-${i+1}: 500 LF TRIM (EXCLUDED)`,`OWNER SUPPLIES ALL MATERIALS.`,`Sheet ${i+1} of ${count}`];
- lines.forEach((line,j)=>p.drawText(line,{x:36,y:744-j*36,size:11}));
+ if(canvas){const context=canvas.getContext('2d');context.fillStyle='white';context.fillRect(0,0,canvas.width,canvas.height);context.fillStyle='black';context.font='33px sans-serif';lines.forEach((line,j)=>context.fillText(line,108,144+j*108));context.font='24px sans-serif';context.fillText(`BOTTOM-RIGHT SHEET CHECK ${i+1}`,canvas.width-700,canvas.height-120);const scan=await pdf.embedJpg(canvas.toBuffer('image/jpeg',95));p.drawImage(scan,{x:0,y:0,width:2592,height:1728});}
+ else lines.forEach((line,j)=>p.drawText(line,{x:36,y:744-j*36,size:11}));
 }
 const data=Buffer.from(await pdf.save());const units:AnalysisFile[]=[];
 for await(const unit of analysisSegments({name:'synthetic-validation-plans.pdf',type:'application/pdf',data}))units.push(unit);
@@ -43,11 +48,13 @@ await Promise.all(Array.from({length:analysisConcurrency()},async()=>{
  }
 }));
 const extraction=combineScopeExtractions(results.filter(Boolean));
-extraction.documentCoverage=combineCoverage(results.filter(Boolean).flatMap(r=>r.documentCoverage?[r.documentCoverage]:[]),units.flatMap(u=>u.pages||[]));
+const expected=[...new Map(units.flatMap(u=>u.pages||[]).map(p=>[JSON.stringify(p),p])).values()];
+const coverageParts=units.map((unit,i)=>results[i]?.documentCoverage||{pages:(unit.pages||[]).map(p=>({...p,sheet:'',revision:'',status:'unreadable' as const,notes:['This detail section failed processing.']})),expectedPages:unit.pages?.length||0,complete:false});
+extraction.documentCoverage=combineCoverage(coverageParts,expected);
 const takeoffs=extraction.takeoffs||[];
 const quantityCoverage=Array.from({length:count},(_,i)=>({page:i+1,quantity:120+i,present:takeoffs.some(t=>t.quantity===120+i&&t.sources.some(s=>s.page===i+1))}));
 const unexpectedTakeoffs=takeoffs.filter(t=>/plumb|faucet|second floor/i.test(t.description+' '+t.component+' '+t.floor));
-const report={synthetic:true,externalWrites:'Only authorized provider inference; no business database writes or deliveries.',pages:count,elapsedMs:Math.round(performance.now()-started),timings,errors,providerErrors,pageCoverage:extraction.documentCoverage,quantityCoverage,unexpectedTakeoffs,instructions:extraction.instructions,reviewNotes:extraction.reviewNotes,takeoffs};
+const report={synthetic:true,scanned,externalWrites:'Only authorized provider inference; no business database writes or deliveries.',pages:count,preparedSections:units.length,preparationMs:Math.round(started-totalStarted),elapsedMs:Math.round(performance.now()-started),totalMs:Math.round(performance.now()-totalStarted),timings,errors,providerErrors,pageCoverage:extraction.documentCoverage,quantityCoverage,unexpectedTakeoffs,instructions:extraction.instructions,reviewNotes:extraction.reviewNotes,takeoffs};
 await mkdir('p5-verification',{recursive:true});await writeFile('p5-verification/live-extraction-report.json',JSON.stringify(report,null,2));
 console.log(JSON.stringify({pages:count,read:extraction.documentCoverage?.pages.filter(p=>p.status==='read').length,quantitiesFound:quantityCoverage.filter(p=>p.present).length,unexpectedTakeoffs:unexpectedTakeoffs.length,errors:errors.length,elapsedMs:report.elapsedMs,report:'p5-verification/live-extraction-report.json'}));
 assert.equal(errors.length,0);assert.equal(extraction.documentCoverage?.expectedPages,count);assert.equal(extraction.documentCoverage?.complete,true);

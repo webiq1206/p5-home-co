@@ -42,7 +42,7 @@ test('provider fallback retains the request and failed provider bodies never esc
  try{
   const urls:string[]=[];const result=await analyzeScope('Retain the selected cabinet doors',[],{cabinetBaseLf:'20'},async(url,options)=>{
    urls.push(String(url));if(url.toString().includes('openai'))return Response.json({error:{message:'PRIVATE DOCUMENT CONTENT'}},{status:503});
-   assert.match(String(options?.body),/cabinetBaseLf/);return Response.json({stop_reason:'end_turn',content:[{type:'text',text:JSON.stringify(extraction)}]});
+   const body=JSON.parse(String(options?.body));assert.match(String(options?.body),/cabinetBaseLf/);assert.equal(body.output_config,undefined);assert.equal(body.tool_choice.name,'record_scope_analysis');assert.equal(body.tools[0].strict,undefined);return Response.json({stop_reason:'tool_use',content:[{type:'tool_use',name:'record_scope_analysis',input:extraction}]});
   });assert.equal(result.provider,'Anthropic');assert.equal(urls.length,2);
   delete process.env.ANTHROPIC_API_KEY;
   await assert.rejects(analyzeScope('scope',[],{},async()=>Response.json({error:{message:'PRIVATE DOCUMENT CONTENT'}},{status:400})),error=>!String(error).includes('PRIVATE DOCUMENT'));

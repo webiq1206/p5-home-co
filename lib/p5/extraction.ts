@@ -43,7 +43,8 @@ class ProviderError extends Error {
   }
 }
 export class AnalysisBusyError extends Error {
-  constructor(readonly retryAfterMs=30000){super('analysis-busy');}
+  readonly retryAfterMs:number;
+  constructor(retryAfterMs=30000){super('analysis-busy');this.retryAfterMs=retryAfterMs;}
 }
 
 function safeProviderMessage(value: unknown): string {
@@ -133,16 +134,21 @@ async function analyzeWithAnthropic(provider: Provider, text: string, files: Ana
   const response = await request(`${provider.endpoint}/messages`, {
     method: "POST", signal: AbortSignal.timeout(timeoutMs),
     headers: { "Content-Type": "application/json", "anthropic-version": "2023-06-01", "x-api-key": provider.key },
-    body: JSON.stringify({ model: provider.model, max_tokens: 16000, system: EXTRACTION_SYSTEM+'\n'+DOCUMENT_POLICY, messages: [{ role: "user", content }], output_config: { format: { type: "json_schema", schema: anthropicExtractionSchema() } } }),
+    // This formatting-only tool never executes code or an external action.
+    // Local schema/evidence validation remains mandatory; avoiding compiled
+    // output grammars prevents rejection of the full, nested page ledger.
+    body: JSON.stringify({ model: provider.model, max_tokens: 16000, system: EXTRACTION_SYSTEM+'\n'+DOCUMENT_POLICY+' Return the final structured record through record_scope_analysis. It is only an output format, not an external action.', messages: [{ role: "user", content }], tools:[{name:'record_scope_analysis',description:'Return the complete extracted scope, interpreted instructions, original-page coverage and evidence-linked takeoffs. This output record performs no actions and changes no data. Do not omit unreadable pages or excluded-scope instructions.',input_schema:anthropicExtractionSchema()}],tool_choice:{type:'tool',name:'record_scope_analysis',disable_parallel_tool_use:true} }),
   });
   if (!response.ok) throw await responseError(provider, response);
   let body: any;
   try { body = await response.json(); } catch { throw errorForProvider(provider, response.status, "provider returned invalid JSON"); }
-  if (body.stop_reason !== "end_turn") throw errorForProvider(provider, response.status, body.stop_reason || "analysis-incomplete");
+  if (!['end_turn','tool_use'].includes(body.stop_reason)) throw errorForProvider(provider, response.status, body.stop_reason || "analysis-incomplete");
+  const records=body.content?.filter((part:any)=>part.type==='tool_use'&&part.name==='record_scope_analysis')||[];
+  if(body.stop_reason==='tool_use'&&records.length!==1)throw errorForProvider(provider,response.status,'provider returned an invalid output record');
   const resultText = body.content?.find((part: { type: string }) => part.type === "text")?.text;
-  if (typeof resultText !== "string") throw errorForProvider(provider, response.status, "provider returned no structured text");
+  if (!records.length&&typeof resultText !== "string") throw errorForProvider(provider, response.status, "provider returned no structured text");
   try {
-    return { extraction: validateExtraction(JSON.parse(resultText)), provider: provider.kind, model: provider.model, analyzedAt: new Date().toISOString() };
+    return { extraction: validateExtraction(records.length?records[0].input:JSON.parse(resultText)), provider: provider.kind, model: body.model||provider.model, analyzedAt: new Date().toISOString() };
   } catch (error) {
     throw errorForProvider(provider, response.status, error instanceof Error ? error.message : "provider returned invalid extraction");
   }
