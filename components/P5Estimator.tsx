@@ -37,7 +37,7 @@ export function P5Estimator({defaultService='',headingAs='h1',projectSource}:{de
   const changeContact=(key:keyof BrowserDraft['contact'],value:string)=>{const latest=current.current;if(latest)change({contact:{...latest.contact,[key]:value}});};
   const questions=(d:BrowserDraft)=>scopeQuestions(d.answers,d.extraction,d.conflicts||[],d.wizard?.skipped||[],d.pricedFields||[]);
   const resume=(d:BrowserDraft)=>{const next=questions(d)[0]||null;setActive(next);apply(resumeWizardDraft(d,Boolean(next)));};
-  const focus=()=>requestAnimationFrame(()=>{heading.current?.focus({preventScroll:true});heading.current?.scrollIntoView({block:'start',behavior:'auto'});});
+  const focus=()=>requestAnimationFrame(()=>{heading.current?.focus({preventScroll:true});heading.current?.scrollIntoView({block:'start',behavior:'instant'});});
   const showQuestions=(d:BrowserDraft)=>{const next=questions(d)[0]||null;setActive(next);if(!next){trackScopeEvent('repairsConfirmed',d.answers.service);trackScopeEvent('contactViewed',d.answers.service);}apply({...d,step:next?1:2});setInputOpen(false);setConfirmed(false);focus();};
   const answer=(key:ScopeField,value:string)=>{
     const d=current.current;if(!d)return;
