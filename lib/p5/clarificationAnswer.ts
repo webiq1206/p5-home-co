@@ -2,7 +2,7 @@ import {analyzeBatch} from './extraction';
 import {clarificationContext,instructionPrompts,questionKey,type InstructionAnswer} from './clarifications';
 import {DraftError} from './store';
 import {SCOPE_TEXT_LIMIT,type ScopeAnswers,type ScopeExtraction} from './scope';
-import {applyQuantityClarification} from './quantityReconciliation';
+import {alternativeOptions,alternativeSelection,applyQuantityClarification} from './quantityReconciliation';
 
 export async function resolveInstructionAnswer(extraction:ScopeExtraction|null,answers:ScopeAnswers,raw:unknown,prior:InstructionAnswer[]=[],request=fetch){
   const value=raw as {id?:unknown;answer?:unknown};
@@ -34,12 +34,18 @@ export async function resolveInstructionAnswer(extraction:ScopeExtraction|null,a
   instructions.questions=instructions.questions.flatMap(rawQuestion=>rawQuestion.match(/[^?]+\??/g)||[]).filter(rawQuestion=>questionKey(rawQuestion)!==prompt.id);
   // Preserve other unanswered questions even if a provider omitted them.
   instructions.questions=[...new Set([...prompts.slice(1).map(q=>q.detail||q.question),...instructions.questions])];
+   const options=alternativeOptions(question,extraction.takeoffs||[]);
+   if(options?.length&&!alternativeSelection(options,answer)){
+     instructions.questions=[question,...instructions.questions];
+   }
   const record={id:prompt.id,question,answer};
   const combined=[answers.estimatingInstructions,`Question: ${question}\nAnswer: ${answer}`].filter(Boolean).join('\n\n');
   if(combined.length>SCOPE_TEXT_LIMIT)throw new DraftError('Upload the additional scope notes as a document to preserve them in full.');
    const updated=applyQuantityClarification({...extraction,instructions},question,answer);
    const priorLabor=extraction.facts.find(f=>f.field==='laborHours')?.value;
    const nextLabor=updated.facts.find(f=>f.field==='laborHours')?.value;
-   const synchronized=nextLabor&&nextLabor!==priorLabor&&(!answers.laborHours||answers.laborHours===priorLabor)?{...answers,laborHours:nextLabor}:answers;
+   let synchronized=answers;
+   if(nextLabor&&nextLabor!==priorLabor&&(!answers.laborHours||answers.laborHours===priorLabor))synchronized={...answers,laborHours:nextLabor};
+   else if(!nextLabor&&priorLabor&&answers.laborHours===priorLabor){const {laborHours:_removed,...remaining}=answers;synchronized=remaining;}
    return {extraction:updated,answers:{...synchronized,estimatingInstructions:combined},history:[...prior,record]};
 }

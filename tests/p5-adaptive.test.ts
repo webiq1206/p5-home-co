@@ -117,4 +117,6 @@ test('explicit replacement creates a clean project without mutating the old reco
   const old:any={id:'11111111-1111-4111-8111-111111111111',key:'a'.repeat(64),revision:7,text:'Old bathroom',answers:{service:'bathroom',sqft:'80',exclusions:'No painting'},extraction:extracted({service:'bathroom',sqft:'80'}),contact:{name:'Test Visitor',email:'test@example.com',phone:''},uploads:[{id:'old-plan'}],step:2,updatedAt:1,namespace:'estimate',wizard:{skipped:['finish'],resolutions:{service:'bathroom'},sourceVersion:'old',instructionAnswers:[{id:'old',question:'Old?',answer:'Yes'}]}};
   const snapshot=structuredClone(old);const next=replacementBrowserDraft(old);
   assert.notEqual(next.id,old.id);assert.notEqual(next.key,old.key);assert.deepEqual(next.answers,{});assert.equal(next.extraction,null);assert.equal(next.uploads,undefined);assert.deepEqual(next.wizard,{skipped:[],resolutions:{}});assert.deepEqual(next.contact,old.contact);assert.deepEqual(old,snapshot);
+  const again=replacementBrowserDraft(next);
+  assert.notEqual(again.id,next.id);assert.notEqual(again.key,next.key);assert.deepEqual(again.answers,{});assert.equal(again.text,'');assert.equal(again.extraction,null);assert.deepEqual(again.wizard,{skipped:[],resolutions:{}});
 });
