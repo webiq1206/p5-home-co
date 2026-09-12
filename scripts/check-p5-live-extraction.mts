@@ -10,6 +10,10 @@ import {combineCoverage} from '../lib/p5/documentLedger';
 // Explicitly opt-in paid provider test. Synthetic plans only. This calls the
 // configured extraction service but never creates drafts, rates, leads or mail.
 if(process.env.P5_RUN_LIVE_EXTRACTION!=='true')throw new Error('Set P5_RUN_LIVE_EXTRACTION=true only for an authorized real-provider verification.');
+const selectedProvider=process.env.P5_LIVE_TEST_PROVIDER||'configured';
+assert.ok(['configured','openai','anthropic'].includes(selectedProvider));
+if(selectedProvider==='anthropic'){for(const key of ['OPENAI_API_KEY','AI_INTEGRATIONS_OPENAI_API_KEY'])delete process.env[key];}
+if(selectedProvider==='openai')delete process.env.ANTHROPIC_API_KEY;
 const count=Number(process.env.P5_LIVE_TEST_PAGES||256);
 assert.ok(Number.isInteger(count)&&count>=8&&count<=256);
 const instructions='Price only first-floor trim installation labor for Building Alpha. Exclude all plumbing and second-floor work. The owner supplies every material. Retain each unique trim mark and its printed linear feet. Treat repeated marks as the same physical item.';

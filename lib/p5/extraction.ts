@@ -23,6 +23,14 @@ export const EXTRACTION_JSON_SCHEMA = objectSchema({
   pages:{type:'array',items:objectSchema({source:string,page:{type:'integer'},sheet:string,revision:string,status:{type:'string',enum:['read','unreadable','partial']},notes:strings})},
   takeoffs:{type:'array',items:objectSchema({id:string,description:string,building:string,floor:string,component:string,quantity:{type:['number','null']},unit:string,basis:{type:'string',enum:['stated','calculated','uncertain']},evidence:string,sources:{type:'array',items:objectSchema({source:string,page:{type:'integer'},sheet:string,revision:string})},supersedes:strings,issues:strings})},
 });
+// Repeating the large field enum inside three nested arrays can exceed the
+// fallback provider's grammar compiler limit. The vocabulary stays in the
+// system prompt and the exact same local validator still enforces every field.
+export function anthropicExtractionSchema(){
+  const schema=JSON.parse(JSON.stringify(EXTRACTION_JSON_SCHEMA));
+  for(const name of ['facts','conflicts','clarifications'])schema.properties[name].items.properties.field={type:'string',description:'Use one exact field identifier from the supplied field vocabulary.'};
+  return schema;
+}
 
 const DOCUMENT_POLICY=`${INSTRUCTION_POLICY} PAGE COVERAGE: Review every supplied page, including scans, drawing details, schedules, specifications, revision clouds and notes. The supplied page manifest gives original source filenames and page numbers; return exactly one pages record per manifest entry. Do not call an unreadable or partially legible sheet read. Identify the affected content and conflicting or absent dimensions. Never infer scale from display size. Retain every distinct work component in takeoffs, with explicit building/floor, source pages, quantity unit and arithmetic. Use a stable physical identity (room/element/mark plus component) for id so plans and schedules referencing the same work are not counted twice. A repeated detail is not another physical instance. Use null quantity and uncertain basis when measurement is unsupported; preserve the item for an explicitly estimated allowance later. Record exact superseded references as source:sheet:revision only when the drawing explicitly establishes supersession. Do not infer the controlling revision from upload order. Cross-reference schedules, dimensions, material notes and assemblies. An empty page must still have a read record noting that it is blank. No sample-based analysis or silent truncation. Return empty pages/takeoffs for text without page references.`;
 
@@ -125,7 +133,7 @@ async function analyzeWithAnthropic(provider: Provider, text: string, files: Ana
   const response = await request(`${provider.endpoint}/messages`, {
     method: "POST", signal: AbortSignal.timeout(timeoutMs),
     headers: { "Content-Type": "application/json", "anthropic-version": "2023-06-01", "x-api-key": provider.key },
-    body: JSON.stringify({ model: provider.model, max_tokens: 16000, system: EXTRACTION_SYSTEM+'\n'+DOCUMENT_POLICY, messages: [{ role: "user", content }], output_config: { format: { type: "json_schema", schema: EXTRACTION_JSON_SCHEMA } } }),
+    body: JSON.stringify({ model: provider.model, max_tokens: 16000, system: EXTRACTION_SYSTEM+'\n'+DOCUMENT_POLICY, messages: [{ role: "user", content }], output_config: { format: { type: "json_schema", schema: anthropicExtractionSchema() } } }),
   });
   if (!response.ok) throw await responseError(provider, response);
   let body: any;

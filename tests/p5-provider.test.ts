@@ -1,9 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {PDFDocument} from 'pdf-lib';
-import {analyzeScope,analyzeBatch,AnalysisBusyError} from '../lib/p5/extraction.ts';
+import {analyzeScope,analyzeBatch,AnalysisBusyError,anthropicExtractionSchema} from '../lib/p5/extraction.ts';
+import {validateExtraction} from '../lib/p5/scope.ts';
 const variables=['OPENAI_API_KEY','OPENAI_BASE_URL','AI_INTEGRATIONS_OPENAI_API_KEY','AI_INTEGRATIONS_OPENAI_BASE_URL','ANTHROPIC_API_KEY'];
 const extraction={summary:'Fixture scope',facts:[],conflicts:[],missingInformation:[],reviewNotes:[],clarifications:[]};
+test('the smaller fallback grammar retains strict local vocabulary validation',()=>{
+ const schema=anthropicExtractionSchema();assert.equal(schema.properties.facts.items.properties.field.enum,undefined);assert.equal(schema.additionalProperties,false);
+ assert.throws(()=>validateExtraction({...extraction,facts:[{field:'unapproved_field',value:'PRIVATE',source:'PRIVATE',evidence:'PRIVATE',confidence:1}]}),error=>/Invalid extracted fact/.test(String(error))&&!String(error).includes('PRIVATE'));
+});
 test('a fallback failure cannot hide the primary provider cooldown',async()=>{
  const before=Object.fromEntries(variables.map(k=>[k,process.env[k]]));for(const k of variables)delete process.env[k];process.env.OPENAI_API_KEY='fixture-only';process.env.ANTHROPIC_API_KEY='fixture-only';
  try{
