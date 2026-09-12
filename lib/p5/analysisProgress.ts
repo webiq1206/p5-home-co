@@ -17,7 +17,7 @@ export function analysisProgress(units:ProgressUnit[],expected?:{source:string;p
   const readPages=coverage.pages.filter(p=>p.status==='read').length;
   const readSections=units.filter(u=>u.result).length;
   return {readPages,totalPages:coverage.expectedPages,readSections,totalSections:units.length,
-    message:`Read ${readPages} of ${coverage.expectedPages} original pages; ${readSections} of ${units.length} sections processed. Checking drawings, schedules and scope.`};
+    message:coverage.expectedPages?`Read ${readPages} of ${coverage.expectedPages} pages. Checking drawings, schedules and scope.`:`Read ${readSections} of ${units.length} document sections.`};
 }
 
 /** Bounded parallelism, never a sampling/page-count limit. */

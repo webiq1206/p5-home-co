@@ -29,17 +29,11 @@ export async function* analysisSegments(file:AnalysisFile,startPage=0):AsyncGene
         try{yield* detailPage(start);}catch(error){yield {...file,data:Buffer.alloc(0),pages:[{source:file.name,page:start+1}],nextPage:start+1,preparationError:`Page ${start+1}: detail rendering failed. ${error instanceof Error?error.message:'Review the original drawing.'}`};}
         start++;continue;
       }
-      let pages=Math.min(8,count-start),data:Buffer;
-      while(pages>1&&Array.from({length:pages},(_,i)=>start+i).some(large))pages--;
-      while(true){
-        const part=await PDFDocument.create();for(const p of await part.copyPages(document,Array.from({length:pages},(_,i)=>start+i)))part.addPage(p);
-        data=Buffer.from(await part.save());
-        if(data.length<=UNIT_BYTES)break;
-        if(pages===1)break;
-        pages=Math.max(1,Math.floor(pages/2));
-      }
+      const part=await PDFDocument.create();part.addPage((await part.copyPages(document,[start]))[0]);
+      const data=Buffer.from(await part.save());
       if(data.length>UNIT_BYTES){try{yield* detailPage(start);}catch(error){yield {...file,data:Buffer.alloc(0),pages:[{source:file.name,page:start+1}],preparationError:`Page ${start+1}: could not prepare its high-resolution content. ${error instanceof Error?error.message:''}`,nextPage:start+1};}}
-      else yield {...file,name:count<=8?file.name:`${file.name} (pages ${start+1} to ${start+pages} of ${count})`,pages:Array.from({length:pages},(_,i)=>({source:file.name,page:start+i+1})),data,nextPage:start+pages};start+=pages;
+      else yield {...file,name:`${file.name} (page ${start+1} of ${count})`,pages:[{source:file.name,page:start+1}],data,nextPage:start+1};
+      start++;
     }
   }else if(['text/plain','text/csv','application/json'].includes(file.type)){
     const text=file.data.toString('utf8');
@@ -52,7 +46,7 @@ export async function* analysisSegments(file:AnalysisFile,startPage=0):AsyncGene
 type Unit={name:string;type:string;object:string;pages?:AnalysisFile['pages'];detailViews?:boolean;detailRegions?:AnalysisFile['detailRegions'];result?:AnalysisResult;attempts?:number;rateLimitRetries?:number;error?:string;retryAt?:number;active?:boolean};
 type Job={prepared:number;units:Unit[];notes:string[];textDone?:AnalysisResult;textPrepared?:boolean;cursor?:number;expected?:{source:string;page:number}[];progress?:string;processing?:ProcessingStatus;concurrency?:number;cooldownUntil?:number};
 export function analysisWorkKey(draft:Draft,text:string,answers:ScopeAnswers){
-  return `analysis:v6:${createHash('sha256').update(JSON.stringify([text,answers,draft.uploads.map(f=>[f.id,f.sha256])])).digest('hex')}`;
+  return `analysis:v7:${createHash('sha256').update(JSON.stringify([text,answers,draft.uploads.map(f=>[f.id,f.sha256])])).digest('hex')}`;
 }
 /** Each request checkpoints work before returning. Reloading resumes the same source fingerprint. */
 export async function advanceAnalysis(draft:Draft,text:string,answers:ScopeAnswers,request=fetch,retryFailed=false){
@@ -68,7 +62,7 @@ export async function advanceAnalysis(draft:Draft,text:string,answers:ScopeAnswe
   const checkpoint=()=>{saving=saving.then(()=>{
     const progress=analysisProgress(job.units,job.expected);
     const active=job.units.filter(u=>u.active);
-    const phase=job.prepared<draft.uploads.length?'preparing':active.some(u=>isInstructionFile(u.name))?'instructions':progress.readSections===progress.totalSections?'cross-referencing':'reading';
+    const phase=!active.length&&job.prepared<draft.uploads.length?'preparing':active.some(u=>isInstructionFile(u.name))?'instructions':progress.readSections===progress.totalSections?'cross-referencing':'reading';
     job.progress=phase==='preparing'?`Preparing file ${Math.min(job.prepared+1,draft.uploads.length)} of ${draft.uploads.length}. ${job.units.length} sections saved for reading.`:progress.message;
     job.processing={...progress,phase,message:job.progress,currentItems:active.slice(0,3).map(u=>u.name),updatedAt:new Date().toISOString()};
     return writeWork(draft.id,workKey,lease.token,job);
@@ -86,7 +80,7 @@ export async function advanceAnalysis(draft:Draft,text:string,answers:ScopeAnswe
       }
       job.textPrepared=true;await checkpoint();
     }
-    if(job.prepared<draft.uploads.length){
+    if(job.prepared<draft.uploads.length&&!job.units.some(u=>!u.result&&(u.attempts||0)<2)){
       const upload=draft.uploads[job.prepared];
       const [row]=await query('SELECT name,mime_type,data_base64,storage_bucket,storage_key,sha256,size_bytes FROM p5_estimator_files WHERE draft_id=$1 AND id=$2',[draft.id,upload.id]);
       if(!row)throw new DraftError('A saved project file could not be located. Please retry.',503);
@@ -106,7 +100,7 @@ export async function advanceAnalysis(draft:Draft,text:string,answers:ScopeAnswe
             const saved=await client.uploadFromBytes(object,segment.data,{compress:false});
             if(!saved.ok)throw new DraftError('Document preparation was interrupted. Retry to resume.',503);
             job.units.push({name:segment.name,type:segment.type,object,pages:segment.pages,detailViews:segment.detailViews,detailRegions:segment.detailRegions});
-            if(segment.nextPage!==undefined){job.cursor=segment.nextPage;await checkpoint();if(Date.now()-preparedAt>20000)return {pending:true as const,progress:`Prepared through page ${job.cursor} of ${file.name}. Preparation is checkpointed.`};}
+            if(segment.nextPage!==undefined){job.cursor=segment.nextPage;await checkpoint();if(Date.now()-preparedAt>4000||job.units.filter(u=>!u.result&&(u.attempts||0)<2).length>=analysisConcurrency()*2)return {pending:true as const,progress:`Prepared through page ${job.cursor} of ${file.name}. Preparation is checkpointed.`};}
           }
         }catch(error){if(error instanceof DraftError)throw error;job.notes.push(`${file.name}: ${error instanceof Error?error.message:'Could not read this file.'} Review the original before pricing.`);}
       }
@@ -117,12 +111,14 @@ export async function advanceAnalysis(draft:Draft,text:string,answers:ScopeAnswe
     const instructionPending=instructionUnits.some(u=>!u.result&&(u.attempts||0)<2);
     const waiting=(instructionPending?instructionUnits:job.units).filter(u=>!u.result&&(u.attempts||0)<2);
     if(waiting.length&&job.cooldownUntil&&job.cooldownUntil>Date.now())return {pending:true as const,progress:'The document reader reached its temporary capacity. Completed pages are saved; automatically resuming after its requested pause.',retryAfterMs:job.cooldownUntil-Date.now()};
-    const pending=waiting.filter(u=>!u.retryAt||u.retryAt<=Date.now()).slice(0,job.concurrency||analysisConcurrency());
+    const pending=waiting.filter(u=>!u.retryAt||u.retryAt<=Date.now());
     if(waiting.length&&!pending.length)return {pending:true as const,progress:'The document reader is temporarily busy. Completed pages are saved; retrying shortly.',retryAfterMs:Math.max(1000,Math.min(...waiting.map(u=>u.retryAt||Date.now()))-Date.now())};
     if(pending.length){
-      for(const unit of pending)unit.active=true;
-      await checkpoint();
-      await Promise.all(pending.map(async unit=>{
+      // Keep slots busy as individual pages finish. A slow page does not hold up the next one.
+      const deadline=Date.now()+25000;let position=0;
+      await Promise.all(Array.from({length:Math.min(pending.length,job.concurrency||analysisConcurrency())},async()=>{
+        while(position<pending.length&&Date.now()<deadline&&!(job.cooldownUntil&&job.cooldownUntil>Date.now())){
+        const unit=pending[position++];unit.active=true;await checkpoint();
         unit.attempts=(unit.attempts||0)+1;
         const context={...answers};if((context.estimatingInstructions?.length||0)>48000)delete context.estimatingInstructions;
         if(instructionUnits.some(u=>u.result?.extraction.instructions))context.estimatingInstructions=[context.estimatingInstructions,JSON.stringify(mergeInstructions(instructionUnits.flatMap(u=>u.result?.extraction.instructions?[u.result.extraction.instructions]:[])))].filter(Boolean).join('\n');
@@ -142,10 +138,12 @@ export async function advanceAnalysis(draft:Draft,text:string,answers:ScopeAnswe
           }
         }
         unit.active=false;await checkpoint();
+        }
       }));
       await checkpoint();
       return {pending:true as const,progress:analysisProgress(job.units,job.expected).message};
     }
+    if(job.prepared<draft.uploads.length)return {pending:true as const,progress:analysisProgress(job.units,job.expected).message};
     if(!job.units.some(u=>u.result)&&!job.textDone){
       job.textDone=await analyzeBatch(text,[],answers,request,120000);await checkpoint();
     }

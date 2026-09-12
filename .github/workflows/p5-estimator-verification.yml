@@ -1,7 +1,7 @@
 name: P5 estimator policy and workflow verification
 on:
   push:
-    branches: [release/estimator-overhaul-20260912,wip/estimator-overhaul-20260912,fix/research-format,fix/pricing-batches,fix/pricing-latency,fix/readable-estimates,fix/complete-scope-pricing, codex/activate-cost-books-20260911, codex/finalize-estimators-20260911, codex/p5-upload-receipt-fix-20260910, codex/p5-intelligent-wizard-20260910, main, codex/p5-estimator-policy-20260910, codex/p5-merge-all-20260910, codex/p5-complete-main-20260910]
+    branches: [fix/estimator-flow-20260913,release/estimator-overhaul-20260912,wip/estimator-overhaul-20260912,fix/research-format,fix/pricing-batches,fix/pricing-latency,fix/readable-estimates,fix/complete-scope-pricing, codex/activate-cost-books-20260911, codex/finalize-estimators-20260911, codex/p5-upload-receipt-fix-20260910, codex/p5-intelligent-wizard-20260910, main, codex/p5-estimator-policy-20260910, codex/p5-merge-all-20260910, codex/p5-complete-main-20260910]
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -31,7 +31,7 @@ jobs:
           node --import tsx scripts/test-p5-upload.mts
           node --import tsx scripts/test-p5-resumable.mts
           node --import tsx scripts/test-p5-plan-rendering.mts
-          node --import tsx --test tests/p5-adaptive.test.ts tests/p5-provider.test.ts tests/p5-wizard-resume.test.ts tests/p5-extraction-values.test.ts tests/p5-multipart.test.ts tests/p5-object-storage.test.ts tests/p5-file-snapshot.test.ts tests/p5-upload-transfer.test.ts
+          node --import tsx --test tests/p5-adaptive.test.ts tests/p5-clarifications.test.ts tests/p5-provider.test.ts tests/p5-wizard-resume.test.ts tests/p5-extraction-values.test.ts tests/p5-multipart.test.ts tests/p5-object-storage.test.ts tests/p5-file-snapshot.test.ts tests/p5-upload-transfer.test.ts
       - name: TypeScript verification
         run: npx tsc --noEmit
       - name: Production build and existing repository gates

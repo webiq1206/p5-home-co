@@ -1,3 +1,5 @@
+import {instructionPrompts} from './clarifications';
+import {resolveInstructionAnswer} from './clarificationAnswer';
 import {deriveScopeAnswers,reconcileScope,scopeQuestions} from "./adaptive";
 import {costQuestionFields} from "./questionPolicy";
 import { ESTIMATOR_BRAND } from "./brand";
@@ -19,17 +21,24 @@ export async function putDraft(request:Request){
     protectRequest(request);const {id,key}=draftCredentials(request);
     const raw=JSON.parse(new TextDecoder().decode(await limitedBody(request,24*1024*1024)));
     if(typeof raw.text!=="string"||raw.text.length>SCOPE_TEXT_LIMIT||!Number.isInteger(raw.revision)||raw.revision<0)throw new DraftError("Invalid draft.");
-    const answers=deriveScopeAnswers(parseAnswers(raw.answers));const existing=await readDraft(id,key);
+    let answers=deriveScopeAnswers(parseAnswers(raw.answers));const existing=await readDraft(id,key);
     const skipped=Array.isArray(raw.wizard?.skipped)?raw.wizard.skipped.filter((k:unknown)=>typeof k==="string"&&Object.hasOwn(SCOPE_FIELDS,k)&&k!=="service"):[];
     const resolutions=parseAnswers(raw.wizard?.resolutions||{});
-    const wizard={skipped,resolutions,sourceVersion:existing?.wizard?.sourceVersion};
+    const wizard={skipped,resolutions,sourceVersion:existing?.wizard?.sourceVersion,instructionAnswers:existing?.wizard?.instructionAnswers||[]};
     // Provider extraction is immutable to public clients. Corrections live in answers.
-    const extraction=existing?.extraction||null;
+    let extraction=existing?.extraction||null;
+    if(raw.clarification){
+      if(!existing||raw.revision!==existing.revision)throw new DraftError('Your project changed in another tab. Refresh to continue.',409);
+      const resolved=await resolveInstructionAnswer(extraction,answers,raw.clarification,wizard.instructionAnswers);
+      extraction=resolved.extraction;answers=resolved.answers;wizard.instructionAnswers=resolved.history;
+      wizard.resolutions.estimatingInstructions=answers.estimatingInstructions;
+    }
+    if(extraction?.instructions)extraction={...extraction,instructions:{...extraction.instructions,questions:instructionPrompts(extraction,answers).map(q=>q.detail||q.question)}};
     const contact={name:String(raw.contact?.name||"").trim(),email:String(raw.contact?.email||"").trim().toLowerCase(),phone:String(raw.contact?.phone||"").trim()};
     if(contact.name.length>120||contact.email.length>200||contact.phone.length>40)throw new DraftError("Contact details are too long.");
     let reviewed:ReviewedScope|null=null;
     if(raw.reviewed===true){
-      if(extraction?.instructions?.questions.length)throw new DraftError(extraction.instructions.questions[0]+' Update your instructions and analyze again.');
+      if(extraction?.instructions?.questions.length)throw new DraftError('Answer the remaining scope question before continuing.');
       const unresolved=extraction?reconcileScope(answers,extraction,resolutions).conflicts:[];
       if(unresolved.length)throw new DraftError(`Confirm ${SCOPE_FIELDS[unresolved[0].field].label} before submitting.`);
       for(const conflict of extraction?.conflicts||[])if(!answers[conflict.field]?.trim())throw new DraftError(`Resolve ${SCOPE_FIELDS[conflict.field].label} before submitting.`);
