@@ -8,6 +8,10 @@ export function newBrowserDraft(defaultService:string):BrowserDraft {
   const uuid=hex.slice(0,8)+'-'+hex.slice(8,12)+'-'+hex.slice(12,16)+'-'+hex.slice(16,20)+'-'+hex.slice(20);
   return {id:uuid,key:Array.from(bytes,b=>b.toString(16).padStart(2,'0')).join(''),revision:0,text:'',answers:defaultService?{service:defaultService}:{},extraction:null,contact:{name:'',email:'',phone:''},step:0,updatedAt:Date.now(),wizard:{skipped:[],resolutions:{}}};
 }
+/** A separate project gets a separate credential pair. The prior object and server draft stay untouched. */
+export function replacementBrowserDraft(previous:BrowserDraft):BrowserDraft {
+  return {...newBrowserDraft(''),namespace:previous.namespace,contact:{...previous.contact}};
+}
 export function loadBrowserDraft(defaultService:string,namespace?:string):BrowserDraft {
   try{const d=JSON.parse(localStorage.getItem(namespace?`${storageKey}:${namespace}`:storageKey)||'null');if(d&&typeof d.id==='string'&&/^[a-f0-9-]{36}$/i.test(d.id)&&/^[a-f0-9]{64}$/.test(d.key)&&Number.isInteger(d.revision)&&d.revision>=0&&typeof d.text==='string'&&d.answers&&d.contact&&['name','email','phone'].every(k=>typeof d.contact[k]==='string')&&Object.entries(d.answers).every(([k,v])=>Object.hasOwn(SCOPE_FIELDS,k)&&typeof v==='string'&&!validateAnswer(k as ScopeField,v)))return {...d,step:Math.min(2,Math.max(0,Number(d.step)||0)),wizard:d.wizard||{skipped:[],resolutions:{}}};}catch{}
   return {...newBrowserDraft(defaultService),namespace};

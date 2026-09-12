@@ -2,6 +2,7 @@ import {analyzeBatch} from './extraction';
 import {clarificationContext,instructionPrompts,questionKey,type InstructionAnswer} from './clarifications';
 import {DraftError} from './store';
 import {SCOPE_TEXT_LIMIT,type ScopeAnswers,type ScopeExtraction} from './scope';
+import {applyQuantityClarification} from './quantityReconciliation';
 
 export async function resolveInstructionAnswer(extraction:ScopeExtraction|null,answers:ScopeAnswers,raw:unknown,prior:InstructionAnswer[]=[],request=fetch){
   const value=raw as {id?:unknown;answer?:unknown};
@@ -36,5 +37,9 @@ export async function resolveInstructionAnswer(extraction:ScopeExtraction|null,a
   const record={id:prompt.id,question,answer};
   const combined=[answers.estimatingInstructions,`Question: ${question}\nAnswer: ${answer}`].filter(Boolean).join('\n\n');
   if(combined.length>SCOPE_TEXT_LIMIT)throw new DraftError('Upload the additional scope notes as a document to preserve them in full.');
-  return {extraction:{...extraction,instructions},answers:{...answers,estimatingInstructions:combined},history:[...prior,record]};
+   const updated=applyQuantityClarification({...extraction,instructions},question,answer);
+   const priorLabor=extraction.facts.find(f=>f.field==='laborHours')?.value;
+   const nextLabor=updated.facts.find(f=>f.field==='laborHours')?.value;
+   const synchronized=nextLabor&&nextLabor!==priorLabor&&(!answers.laborHours||answers.laborHours===priorLabor)?{...answers,laborHours:nextLabor}:answers;
+   return {extraction:updated,answers:{...synchronized,estimatingInstructions:combined},history:[...prior,record]};
 }

@@ -68,3 +68,32 @@ test('invalid or stale clarification cannot replace the server extraction',async
   await assert.rejects(resolveInstructionAnswer(scope(),{},{id:'forged',answer:'yes'}),/question has changed/);
   await assert.rejects(resolveInstructionAnswer(scope(),{},{id:'x',answer:''}),/Enter an answer/);
 });
+test('document alternatives become short options and selected cabinet labor reconciles to 14 hours',async()=>{
+  const {resolveInstructionAnswer}=await resolver();process.env.OPENAI_API_KEY='synthetic';delete process.env.AI_INTEGRATIONS_OPENAI_API_KEY;
+  const e=scope();e.instructions!.questions=['Should the matching bench top be painted or butcher block?'];
+  const source=(page:number)=>[{source:'cabinet-estimate.pdf',page,sheet:`P${page}`,revision:''}];
+  e.takeoffs=[
+    {id:'base-assembly',description:'Base cabinet assembly',building:'Main',floor:'1',component:'assembly labor',quantity:2,unit:'hours',basis:'stated',evidence:'Base assembly 2 hours',sources:source(1),supersedes:[],issues:[]},
+    {id:'installation',description:'Cabinet installation',building:'Main',floor:'1',component:'installation labor',quantity:8,unit:'hours',basis:'stated',evidence:'Installation 8 hours',sources:source(1),supersedes:[],issues:[]},
+    {id:'painted-top',description:'Painted matching bench top',building:'Main',floor:'1',component:'painted top labor',quantity:4,unit:'hours',basis:'stated',evidence:'Painted top adds 4 hours',sources:source(2),supersedes:[],issues:['Selection required']},
+    {id:'butcher-top',description:'Butcher block bench top',building:'Main',floor:'1',component:'butcher block top labor',quantity:5,unit:'hours',basis:'stated',evidence:'Butcher block option adds 5 hours',sources:source(2),supersedes:[],issues:['Selection required']},
+  ];
+  const prompt=instructionPrompts(e,{})[0];assert.deepEqual(prompt.values,['painted','butcher block']);
+  const request:typeof fetch=async()=>Response.json({status:'completed',output:[{content:[{type:'output_text',text:JSON.stringify({summary:'',facts:[],conflicts:[],reviewNotes:[],missingInformation:[],clarifications:[],instructions:{...e.instructions,questions:[]},pages:[],takeoffs:[]})}]}]});
+  try{
+    const result=await resolveInstructionAnswer(e,{service:'cabinet-install'},{id:prompt.id,answer:'painted'},[],request);
+    assert.equal(result.extraction?.facts.find(f=>f.field==='laborHours')?.value,'14');
+    assert.equal(result.answers.laborHours,'14');
+    assert.match(result.extraction?.takeoffs?.find(t=>t.id==='painted-top')?.issues.join(' ')||'',/Selected alternative/);
+    assert.match(result.extraction?.takeoffs?.find(t=>t.id==='butcher-top')?.issues.join(' ')||'',/Unselected alternative/);
+    assert.equal(result.extraction?.documentCoverage,e.documentCoverage);
+    const manual=await resolveInstructionAnswer(e,{service:'cabinet-install',laborHours:'12'},{id:prompt.id,answer:'painted'},[],request);
+    assert.equal(manual.answers.laborHours,'12');
+  }finally{delete process.env.OPENAI_API_KEY;}
+});
+test('internal payload labels are removed from every visitor question surface',()=>{
+  const e=scope();e.instructions!.questions=['Does previousAnswers include painting?'];
+  e.clarifications=[{field:'materials',question:'Confirm savedProjectDetails and projectDescription materials.',reason:'Internal'}];
+  const questions=scopeQuestions({service:'bathroom',sqft:'80',demolition:'Remove tile'},e,[],[],['materials']);
+  assert.equal(questions.some(q=>/previousAnswers|savedProjectDetails|projectDescription/.test(`${q.reason} ${q.detail||''}`)),false);
+});

@@ -1,5 +1,6 @@
 import {mergeInstructions,validateInstructions,type ScopeInstructions} from './instructions.ts';
 import {readPageRecords,readTakeoffs,reconcileTakeoffs,combineCoverage} from './documentLedger.ts';
+import {reconcileAdditiveQuantities} from './quantityReconciliation.ts';
 /** Public scope vocabulary. No internal prices or financial policy belongs here. */
 export const SCOPE_FIELDS = {
   estimatingInstructions: {label: "Custom estimating instructions", kind: "text"},
@@ -132,7 +133,7 @@ export function validateExtraction(raw: unknown): ScopeExtraction {
     return {field:q.field as ScopeField,question:q.question,reason:q.reason};
   }):[];
   const pages=r.pages?readPageRecords(r.pages):[];
-  return { summary: r.summary, facts, conflicts,clarifications, ...(r.instructions?{instructions:validateInstructions(r.instructions)}:{}), ...(r.pages?{documentCoverage:{pages,expectedPages:pages.length,complete:pages.every(p=>p.status==='read')}}:{}),...(r.takeoffs?{takeoffs:readTakeoffs(r.takeoffs)}:{}), missingInformation: [...strings(r.missingInformation, 50),...unreadValues], reviewNotes: strings(r.reviewNotes, 50) };
+  return reconcileAdditiveQuantities({ summary: r.summary, facts, conflicts,clarifications, ...(r.instructions?{instructions:validateInstructions(r.instructions)}:{}), ...(r.pages?{documentCoverage:{pages,expectedPages:pages.length,complete:pages.every(p=>p.status==='read')}}:{}),...(r.takeoffs?{takeoffs:readTakeoffs(r.takeoffs)}:{}), missingInformation: [...strings(r.missingInformation, 50),...unreadValues], reviewNotes: strings(r.reviewNotes, 50) });
 }
 const IMAGE_SOURCE = /\.(?:jpe?g|png|webp|gif|heic|heif)(?:\b|[),])/i;
 const EXPLICIT_URGENCY = /\b(?:standard|normal timing|not urgent|priority|prioritized|emergency|urgent|rush|asap|same[- ]day|immediately)\b/i;
@@ -152,6 +153,11 @@ export function protectPricingFacts(extraction: ScopeExtraction): ScopeExtractio
   let heldUrgency = false;
   let heldDerivedMeasurement = false;
   for (const fact of extraction.facts) {
+    if(fact.field==='cabinetTallLf'&&Number(fact.value)===0&&!/\b(?:no|none|zero|0)\b.{0,35}\b(?:tall|pantry|utility)\b|\b(?:tall|pantry|utility)\b.{0,35}\b(?:no|none|zero|0)\b/i.test(fact.evidence)){
+      heldDerivedMeasurement=true;
+      reviewNotes.push('Unconfirmed cabinet measurement - tall cabinet length is unknown, not zero.');
+      continue;
+    }
     if (IMAGE_SOURCE.test(fact.source)) {
       heldPhotoFacts++;
       reviewNotes.push(`Unconfirmed photo observation - ${SCOPE_FIELDS[fact.field].label}: ${fact.value}. Confirm from written scope before pricing.`);
@@ -224,7 +230,7 @@ export function combineScopeExtractions(parts:ScopeExtraction[]):ScopeExtraction
   }
   // Missing questions from one page may be answered on another.
   merged.missingInformation=merged.missingInformation.filter(note=>!merged.facts.some(f=>f.confidence>=.85&&note.trim().toLowerCase()===SCOPE_FIELDS[f.field].label.toLowerCase()));
-  return merged;
+  return reconcileAdditiveQuantities(merged);
 }
 export function requiredScopeQuestions(answers: ScopeAnswers): ScopeField[] {
   if (!answers.service) return ["service"];

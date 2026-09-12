@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {deriveScopeAnswers,reconcileScope,scopeQuestions,scopeAssumptions,validateScopeAnswer} from '../lib/p5/adaptive.ts';
-import {requireDraftReceipt} from '../lib/p5/browserDraft.ts';
+import {replacementBrowserDraft,requireDraftReceipt} from '../lib/p5/browserDraft.ts';
 import {validateExtraction,type ScopeAnswers,type ScopeExtraction} from '../lib/p5/scope.ts';
 const extracted=(answers:ScopeAnswers,confidence=.98):ScopeExtraction=>({summary:'Synthetic scope',facts:Object.entries(answers).map(([field,value])=>({field:field as keyof ScopeAnswers,value:value!,confidence,source:'scope.pdf',evidence:value!})),conflicts:[],reviewNotes:[],missingInformation:[]});
 test('observed HTTP 200 null draft never advances or clears uploads',()=>{
@@ -112,4 +112,9 @@ test("reanalysis replaces source facts while preserving visitor corrections",asy
  assert.deepEqual(manualScopeAnswers({demolition:"Remove flooring",sqft:"80",location:"Eagle"},previous),{location:"Eagle"});
  assert.equal(manualScopeAnswers({demolition:"Only remove vanity",sqft:"80"},previous).demolition,"Only remove vanity");
  assert.equal(manualScopeAnswers({sqft:"80"},previous,{sqft:"80"}).sqft,"80");
+});
+test('explicit replacement creates a clean project without mutating the old record',()=>{
+  const old:any={id:'11111111-1111-4111-8111-111111111111',key:'a'.repeat(64),revision:7,text:'Old bathroom',answers:{service:'bathroom',sqft:'80',exclusions:'No painting'},extraction:extracted({service:'bathroom',sqft:'80'}),contact:{name:'Test Visitor',email:'test@example.com',phone:''},uploads:[{id:'old-plan'}],step:2,updatedAt:1,namespace:'estimate',wizard:{skipped:['finish'],resolutions:{service:'bathroom'},sourceVersion:'old',instructionAnswers:[{id:'old',question:'Old?',answer:'Yes'}]}};
+  const snapshot=structuredClone(old);const next=replacementBrowserDraft(old);
+  assert.notEqual(next.id,old.id);assert.notEqual(next.key,old.key);assert.deepEqual(next.answers,{});assert.equal(next.extraction,null);assert.equal(next.uploads,undefined);assert.deepEqual(next.wizard,{skipped:[],resolutions:{}});assert.deepEqual(next.contact,old.contact);assert.deepEqual(old,snapshot);
 });

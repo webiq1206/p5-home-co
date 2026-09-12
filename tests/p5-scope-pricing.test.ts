@@ -2,6 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {priceCompleteScope,marketResolution,requestPricing,type PricingRequest} from '../lib/p5/scopePricing.ts';
 import {priceReviewedScope} from '../lib/p5/costBook.ts';
+import {pricingExtraction} from '../lib/p5/quantityReconciliation.ts';
+import {combineScopeExtractions,protectPricingFacts,validateExtraction} from '../lib/p5/scope.ts';
 import {createPlanningConfiguration,PLANNING_MODEL_VERSION,type PlanningCatalog} from '../lib/p5/planningBooks.ts';
 import type {ReviewedScope} from '../lib/p5/scope.ts';
 import {emptyInstructions} from '../lib/p5/instructions.ts';
@@ -80,6 +82,22 @@ test('Incomplete document coverage cannot release a customer range even without 
  const missingLedger=priceReviewedScope({...incomplete,extraction:{...incomplete.extraction!,documentCoverage:undefined}},config,now);
  assert.equal(missingLedger.customer.range,null);
  assert.ok((missingLedger.internal as any).warnings.some((warning:any)=>warning.code==='document-coverage-incomplete'));
+});
+test('driveway trade hours add to 40 without adding the repeated total',()=>{
+ const takeoff=(id:string,description:string,quantity:number,page:number)=>({id,description,building:'Site',floor:'Exterior',component:id,quantity,unit:'hours',basis:'stated' as const,evidence:`${description}: ${quantity} hours`,sources:[{source:'Concrete Driveway 20x60.pdf',page,sheet:`P${page}`,revision:''}],supersedes:[],issues:[]});
+ const repeated={...takeoff('page-summary','Page labor summary',40,2),issues:['Summary total - do not add']};
+ const extraction=combineScopeExtractions([{summary:'1,200 SF driveway',facts:[],conflicts:[],missingInformation:[],reviewNotes:[],takeoffs:[takeoff('excavation','Excavation labor',16,1)]},{summary:'Concrete placement',facts:[],conflicts:[],missingInformation:[],reviewNotes:[],takeoffs:[takeoff('concrete','Concrete labor',24,2),repeated]}]);
+ assert.equal(extraction.facts.find(f=>f.field==='laborHours')?.value,'40');
+ assert.deepEqual(extraction.takeoffs?.filter(t=>t.id!=='page-summary').map(t=>[t.description,t.quantity,t.sources[0].page]),[['Excavation labor',16,1],['Concrete labor',24,2]]);
+ assert.deepEqual(pricingExtraction(extraction)?.takeoffs?.map(t=>t.id),['excavation','concrete']);
+ const summaryOnly=combineScopeExtractions([{summary:'Summary only',facts:[],conflicts:[],missingInformation:[],reviewNotes:[],takeoffs:[repeated]}]);
+ assert.equal(summaryOnly.facts.some(f=>f.field==='laborHours'),false);
+ assert.deepEqual(pricingExtraction(summaryOnly)?.takeoffs,[]);
+});
+test('bench-top length cannot become base-cabinet length and unknown tall length is not zero',()=>{
+ const raw:any={summary:'Cabinets',facts:[{field:'cabinetBaseLf',value:'13.3',confidence:.99,source:'cabinet.pdf',evidence:'Bench top length 13.3 LF',basis:'stated'},{field:'cabinetTallLf',value:'0',confidence:.99,source:'cabinet.pdf',evidence:'Tall cabinet length was not documented',basis:'inferred'}],conflicts:[],missingInformation:[],reviewNotes:[],clarifications:[],instructions:{inclusions:[],exclusions:[],responsibilities:[],buildings:[],floors:[],separateBuildings:false,laborOnly:false,materialsOnly:false,questions:[]},pages:[],takeoffs:[]};
+ const protectedScope=protectPricingFacts(validateExtraction(raw));
+ assert.equal(protectedScope.facts.some(f=>f.field==='cabinetBaseLf'||f.field==='cabinetTallLf'),false);
 });
 test('Uncited, stale, duplicate-source, reversed and selling-price evidence is rejected',()=>{
  assert.throws(()=>marketResolution(researched,[],[extra],now));
