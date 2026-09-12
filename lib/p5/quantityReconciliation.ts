@@ -17,6 +17,8 @@ const cleanOption=(value:string)=>value
 export function alternativeOptions(question:string,takeoffs:Takeoff[]=[]){
   const match=question.match(/\(([^()]{2,55}?)\s+or\s+([^()]{2,55}?)\)/i)||question.match(/(?:choose|select|use|include|be|:)\s+([^?;:,]{2,55}?)\s+or\s+([^?;:,]{2,55}?)(?:\?|$)/i);
   const clean=(value:string)=>value.replace(/^(?:the|a|an)\s+/i,'').replace(/\s+/g,' ').trim();
+  const listed=question.match(/:\s*([^?;]+?)(?:\?|$)/)?.[1].split(',').flatMap((value,index,all)=>index===all.length-1?value.split(/\s+or\s+/i):[value]).map(value=>clean(value.replace(/^(?:and|or)\s+/i,''))).filter(Boolean);
+  if(listed&&listed.length>=3&&listed.length<=8&&listed.every(value=>value.length>=2&&value.length<=55))return listed;
   if(match){
     const values=[clean(match[1]),clean(match[2])];
     if(values.every(value=>value.length>=2&&value.length<=55))return values;

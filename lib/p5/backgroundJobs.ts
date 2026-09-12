@@ -7,7 +7,7 @@ import type {EstimatorConfiguration} from './costBook';
 import type {ProcessingStatus} from './processingStatus';
 
 type Input={kind:'analysis';draft:Draft;text:string;answers:ScopeAnswers}|{kind:'pricing';draft:Draft;configuration:EstimatorConfiguration};
-type Job={input:Input;state:'queued'|'running'|'complete'|'failed';progress:string;attempts:number;result?:any;retryAt?:number;retryUnits?:boolean;createdAt:string;startedAt?:string;completedAt?:string;processing?:ProcessingStatus;lastError?:string;lastErrorDetail?:string;jobId?:string};
+type Job={input:Input;state:'queued'|'running'|'complete'|'failed';progress:string;attempts:number;result?:any;retryAt?:number;retryUnits?:boolean;createdAt:string;startedAt?:string;completedAt?:string;processing?:ProcessingStatus;lastError?:string;lastErrorDetail?:string};
 const runtime=globalThis as typeof globalThis & {p5JobTimer?:ReturnType<typeof setInterval>;p5JobsRunning?:boolean};
 function safeWorkerError(error:unknown,input:Input){
   const value=error instanceof Error?`${error.name} ${error.message}`.toLowerCase():'';
@@ -54,7 +54,7 @@ export async function queuedJob(input:Input,retry=false){
     if(detail?.processing&&!staleEmptyProgress){job.processing={...detail.processing,startedAt:job.createdAt};job.progress=job.processing!.message;}
   }
   if(job.state==='failed'||job.retryAt&&job.retryAt>Date.now())job.processing={...job.processing,phase:'retrying',message:job.progress,startedAt:job.createdAt,updatedAt:new Date().toISOString()};
-  return {...job,jobId:key};
+  return job;
 }
 export function startEstimatorWorker(){
   if(runtime.p5JobTimer||!process.env.DATABASE_URL)return;

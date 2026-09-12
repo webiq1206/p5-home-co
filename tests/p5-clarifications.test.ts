@@ -94,7 +94,7 @@ test('document alternatives become short options and selected cabinet labor reco
 });
 test('generic live cabinet question draws four retained choices and excludes every unselected top',async()=>{
   const {resolveInstructionAnswer}=await resolver();process.env.OPENAI_API_KEY='synthetic';delete process.env.AI_INTEGRATIONS_OPENAI_API_KEY;
-  const e=scope();e.instructions!.questions=['Which bench top option should be included in the estimate?'];
+  const e=scope();e.instructions!.questions=['Which single bench top option should be included: butcher block, painted MDF/wood, laminate, or quartz?'];
   e.facts=[{field:'laborHours',value:'10',confidence:.99,source:'cabinet-estimate.pdf',evidence:'Known base and installation subtotal',basis:'calculated'}];
   const source=(page:number)=>[{source:'cabinet-estimate.pdf',page,sheet:`P${page}`,revision:''}];
   const takeoff=(id:string,description:string,quantity:number,unit:string,page:number,issues:string[]=[])=>({id,description,building:'Main',floor:'1',component:description,quantity,unit,basis:'stated' as const,evidence:`${description}: ${quantity} ${unit}`,sources:source(page),supersedes:[],issues});
@@ -111,11 +111,11 @@ test('generic live cabinet question draws four retained choices and excludes eve
     takeoff('quartz-material','ALTERNATE: quartz bench top - material',13.3,'LF',2,['Selection required']),
   ];
   const prompt=instructionPrompts(e,{})[0];
-  assert.deepEqual(prompt.values,['butcher block bench top','matching painted MDF/wood bench top','laminate bench top','quartz bench top']);
+  assert.deepEqual(prompt.values,['butcher block','painted MDF/wood','laminate','quartz']);
   const request:typeof fetch=async()=>Response.json({status:'completed',output:[{content:[{type:'output_text',text:JSON.stringify({summary:'',facts:[],conflicts:[],reviewNotes:[],missingInformation:[],clarifications:[],instructions:{...e.instructions,questions:[]},pages:[],takeoffs:[]})}]}]});
-  const answer='Option 2: matching painted MDF/wood bench top only. Exclude butcher block, laminate and quartz alternatives. Include the two cabinet units and 9 knobs/pulls. Assembly 2 hours + cabinet installation 8 hours + selected top fabrication/install 4 hours = 14 labor hours.';
+  const answer='Option 2: painted MDF/wood only. Exclude butcher block, laminate and quartz alternatives. Include the two cabinet units and 9 knobs/pulls. Assembly 2 hours + cabinet installation 8 hours + selected top fabrication/install 4 hours = 14 total labor hours.';
   try{
-    const result=await resolveInstructionAnswer(e,{service:'cabinet-install'},{id:prompt.id,answer},[],request);
+    const result=await resolveInstructionAnswer(e,{service:'cabinet-install',laborHours:'10'},{id:prompt.id,answer},[],request);
     assert.equal(result.extraction?.facts.find(f=>f.field==='laborHours')?.value,'14');
     assert.equal(result.answers.laborHours,'14');
     assert.equal(result.extraction?.documentCoverage,e.documentCoverage);

@@ -2,7 +2,7 @@
 import {completeSubmission} from '@/lib/p5/submitProgress';
 import P5EstimateDetails from './P5EstimateDetails';
 import P5ProcessingStatus from './P5ProcessingStatus';
-import {acceptAnalysisJob,analysisRetryDelay,type ProcessingStatus} from '@/lib/p5/processingStatus';
+import type {ProcessingStatus} from '@/lib/p5/processingStatus';
 import {useEffect,useId,useRef,useState} from 'react';
 import {ESTIMATOR_BRAND as brand} from '@/lib/p5/brand';
 import {SCOPE_FIELDS,SCOPE_TEXT_LIMIT,SCOPE_FILE_LIMIT,SCOPE_BATCH_LIMIT,SCOPE_FILE_COUNT,SCOPE_UPLOAD_HELP,type ScopeField,type ScopeAnswers,type ScopeUpload} from '@/lib/p5/scope';
@@ -124,15 +124,12 @@ export function P5Estimator({defaultService='',headingAs='h1',projectSource}:{de
       apply({...current.current!,uploads:receipt.uploads,revision:receipt.revision});filesRef.current=[];setFiles([]);await clearCachedFiles(uploadDraft.id).catch(()=>undefined);setUploadPercent(null);setStatus('Files uploaded and saved.');
     }
     const d=current.current!;setBusy('Reading your documents and project details...');const form=new FormData();form.set('text',d.text);form.set('resumable','true');form.set('background','true');form.set('retry','true');
-    let data:any;let jobId:string|undefined;const deadline=Date.now()+8*60*1000;
+    let data:any;
     do{
-    const remaining=deadline-Date.now();if(remaining<=0)throw new Error('Document reading is taking longer than expected. Your saved inputs and completed work are intact; retry to resume.');
-    const response=await fetch('/api/p5-estimator/scope',{method:'POST',headers:draftHeaders(d),body:form,signal:AbortSignal.timeout(Math.min(200000,remaining))});data=await response.json();form.set('retry','false');
+    const response=await fetch('/api/p5-estimator/scope',{method:'POST',headers:draftHeaders(d),body:form,signal:AbortSignal.timeout(200000)});data=await response.json();form.set('retry','false');
     if(!response.ok)throw new Error(data.error||'Your files could not be processed. They are still here. Please retry.');
-    jobId=acceptAnalysisJob(jobId,data.jobId,Boolean(data.pending));
-    if(data.pending){if(Date.now()>=deadline)throw new Error('Document reading is taking longer than expected. Your saved inputs and completed work are intact; retry to resume.');setBusy(data.progress||'Reading your project...');if(data.processing)setProcessing(data.processing);await new Promise(r=>setTimeout(r,analysisRetryDelay(data.retryAfterMs)));}
+    if(data.pending){setBusy(data.progress||'Reading your project...');if(data.processing)setProcessing(data.processing);await new Promise(r=>setTimeout(r,1000));}
     }while(data.pending);
-    if(current.current?.id!==d.id)throw new Error('A different project is now open. The completed analysis was not applied to it.');
     const saved=requireDraftReceipt(data);
     const next={...current.current!,...saved,key:d.key,step:1,updatedAt:Date.now(),dirty:false,conflicts:data.conflicts||[],pricedFields:data.pricedFields||[],analysisWarning:data.warning||"",sourceImageUrl:projectSource?.imageUrl,analyzedText:d.text,analyzedAnswers:textAnswers(saved.answers)} as BrowserDraft;
     apply(next);setWarning(data.warning||'');if(pending.length)trackScopeEvent(d.uploads?.length?'additionalDocuments':'documentUploaded',saved.answers.service);trackScopeEvent(data.warning?'analysisFailed':'analysisCompleted',saved.answers.service);filesRef.current=[];setFiles([]);
