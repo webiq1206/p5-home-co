@@ -73,6 +73,13 @@ function safeValidationReason(error: unknown): string {
   if(/^Invalid (?:instructions|page)/.test(message))return 'invalid-analysis-shape';
   return 'invalid-analysis-shape';
 }
+function strictToolRecord(input:unknown){
+  if(input&&typeof input==='object'&&!Array.isArray(input)){
+    const record=input as Record<string,unknown>;
+    if(Object.keys(record).length===1&&record.parameters&&typeof record.parameters==='object'&&!Array.isArray(record.parameters))return record.parameters;
+  }
+  return input;
+}
 
 function providers(): Provider[] {
   const result: Provider[] = [];
@@ -168,7 +175,7 @@ async function analyzeWithAnthropic(provider: Provider, text: string, files: Ana
   const resultText = body.content?.find((part: { type: string }) => part.type === "text")?.text;
   if (!records.length&&typeof resultText !== "string") throw errorForProvider(provider, response.status, "provider returned no structured text");
   try {
-    return { extraction: validateExtraction(records.length?records[0].input:JSON.parse(resultText)), provider: provider.kind, model: body.model||provider.model, analyzedAt: new Date().toISOString() };
+    return { extraction: validateExtraction(records.length?strictToolRecord(records[0].input):JSON.parse(resultText)), provider: provider.kind, model: body.model||provider.model, analyzedAt: new Date().toISOString() };
   } catch (error) {
     throw errorForProvider(provider, response.status, `provider returned invalid extraction:${safeValidationReason(error)}`);
   }
