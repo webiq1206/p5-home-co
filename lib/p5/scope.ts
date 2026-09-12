@@ -100,13 +100,18 @@ export function validateExtraction(raw: unknown): ScopeExtraction {
       unreadValues.push(`Confirm ${SCOPE_FIELDS[f.field as ScopeField].label.toLowerCase()} if no other source supplies a readable value.`);
       return [];
     }
-    if (typeof f.field !== "string" || !Object.hasOwn(SCOPE_FIELDS,f.field) || typeof f.value !== "string" || !f.value.trim() || validateAnswer(f.field as ScopeField, f.value) || typeof f.confidence !== "number" || !Number.isFinite(f.confidence) || f.confidence < 0 || f.confidence > 1 || typeof f.source !== "string" || !f.source.trim() || f.source.length > 500 || typeof f.evidence !== "string" || !f.evidence.trim() || f.evidence.length > 4000) throw new Error("Invalid extracted fact");
+    const knownField=typeof f.field==='string'&&Object.hasOwn(SCOPE_FIELDS,f.field);
+    const invalid=!knownField?'field':typeof f.value!=='string'||!f.value.trim()?'empty value':validateAnswer(f.field as ScopeField,f.value)?'value format':typeof f.confidence!=='number'||!Number.isFinite(f.confidence)||f.confidence<0||f.confidence>1?'confidence':typeof f.source!=='string'||!f.source.trim()||f.source.length>500?'source':typeof f.evidence!=='string'||!f.evidence.trim()||f.evidence.length>4000?'evidence':'';
+    if(invalid)throw new Error(`Invalid extracted fact (${knownField?f.field:'unknown field'}: ${invalid})`);
+    // The validation above narrows these at runtime. Never include the supplied
+    // value, source text or evidence in an error log.
+    const fact=f as typeof f & {field:ScopeField;value:string;confidence:number};
     if (f.basis !== undefined && !["stated", "calculated", "visual", "inferred"].includes(String(f.basis))) throw new Error("Invalid fact basis");
     // A model's confidence is not evidence that an assumption was supplied by the user.
-    let confidence = f.confidence;
+    let confidence = fact.confidence;
     if (f.basis === "inferred") confidence = Math.min(confidence, .2);
     if (f.basis === "visual") confidence = Math.min(confidence, SCOPE_FIELDS[f.field as ScopeField].kind === "number" ? 0 : .6);
-    const value=SCOPE_FIELDS[f.field as ScopeField].kind === "number" ? String(Number(f.value.replaceAll(",", ""))) : f.value.trim();
+    const value=SCOPE_FIELDS[f.field as ScopeField].kind === "number" ? String(Number(fact.value.replaceAll(",", ""))) : fact.value.trim();
     return [{ ...f, value, confidence } as unknown as ExtractedFact];
   });
   const conflicts = r.conflicts.map((item: unknown): ScopeConflict => {

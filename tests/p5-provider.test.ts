@@ -1,9 +1,25 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {PDFDocument} from 'pdf-lib';
-import {analyzeScope} from '../lib/p5/extraction.ts';
+import {analyzeScope,analyzeBatch,AnalysisBusyError} from '../lib/p5/extraction.ts';
 const variables=['OPENAI_API_KEY','OPENAI_BASE_URL','AI_INTEGRATIONS_OPENAI_API_KEY','AI_INTEGRATIONS_OPENAI_BASE_URL','ANTHROPIC_API_KEY'];
 const extraction={summary:'Fixture scope',facts:[],conflicts:[],missingInformation:[],reviewNotes:[],clarifications:[]};
+test('a fallback failure cannot hide the primary provider cooldown',async()=>{
+ const before=Object.fromEntries(variables.map(k=>[k,process.env[k]]));for(const k of variables)delete process.env[k];process.env.OPENAI_API_KEY='fixture-only';process.env.ANTHROPIC_API_KEY='fixture-only';
+ try{
+  let calls=0;
+  await assert.rejects(analyzeBatch('Synthetic trim',[],{},async()=>{calls++;return Response.json({error:{message:'PRIVATE SOURCE MUST NOT ESCAPE'}},{status:calls===1?429:400,headers:calls===1?{'retry-after':'47'}:{}});}),error=>error instanceof AnalysisBusyError&&error.retryAfterMs===47000&&!String(error).includes('PRIVATE'));
+  assert.equal(calls,2);
+ }finally{for(const k of variables){if(before[k]===undefined)delete process.env[k];else process.env[k]=before[k];}}
+});
+test('missing page reports are incomplete even when all returned pages say read',async()=>{
+ const before=Object.fromEntries(variables.map(k=>[k,process.env[k]]));for(const k of variables)delete process.env[k];process.env.OPENAI_API_KEY='fixture-only';
+ try{
+  const pdf=await PDFDocument.create();pdf.addPage();pdf.addPage();
+  const result=await analyzeBatch('',[{name:'plans.pdf',type:'application/pdf',data:Buffer.from(await pdf.save()),pages:[{source:'plans.pdf',page:1},{source:'plans.pdf',page:2}]}],{},async()=>Response.json({status:'completed',output:[{content:[{type:'output_text',text:JSON.stringify({...extraction,pages:[{source:'plans.pdf',page:1,sheet:'',revision:'',status:'read',notes:[]}]})}]}]}));
+  assert.equal(result.extraction.documentCoverage?.complete,false);assert.equal(result.extraction.documentCoverage?.expectedPages,2);assert.equal(result.extraction.documentCoverage?.pages[1].status,'unreadable');
+ }finally{for(const k of variables){if(before[k]===undefined)delete process.env[k];else process.env[k]=before[k];}}
+});
 test('configured OpenAI reads all four scope pages together within its token limit',async()=>{
  const before=Object.fromEntries(variables.map(k=>[k,process.env[k]]));for(const k of variables)delete process.env[k];process.env.OPENAI_API_KEY='fixture-only';
  try{

@@ -1,7 +1,7 @@
 import {createHash} from 'node:crypto';
 import {PDFDocument} from 'pdf-lib';
 import {Client} from '@replit/object-storage';
-import {analyzeBatch,type AnalysisFile,type AnalysisResult} from './extraction';
+import {analyzeBatch,AnalysisBusyError,type AnalysisFile,type AnalysisResult} from './extraction';
 import {prepareAnalysisFiles} from './documents';
 import {combineScopeExtractions,type ScopeAnswers,type ScopeExtraction} from './scope';
 import {query} from './database';
@@ -46,8 +46,8 @@ export async function* analysisSegments(file:AnalysisFile,startPage=0):AsyncGene
     yield file;
   }
 }
-type Unit={name:string;type:string;object:string;pages?:AnalysisFile['pages'];result?:AnalysisResult;attempts?:number;error?:string;retryAt?:number;active?:boolean};
-type Job={prepared:number;units:Unit[];notes:string[];textDone?:AnalysisResult;textPrepared?:boolean;cursor?:number;expected?:{source:string;page:number}[];progress?:string;processing?:ProcessingStatus};
+type Unit={name:string;type:string;object:string;pages?:AnalysisFile['pages'];result?:AnalysisResult;attempts?:number;rateLimitRetries?:number;error?:string;retryAt?:number;active?:boolean};
+type Job={prepared:number;units:Unit[];notes:string[];textDone?:AnalysisResult;textPrepared?:boolean;cursor?:number;expected?:{source:string;page:number}[];progress?:string;processing?:ProcessingStatus;concurrency?:number;cooldownUntil?:number};
 export function analysisWorkKey(draft:Draft,text:string,answers:ScopeAnswers){
   return `analysis:v4:${createHash('sha256').update(JSON.stringify([text,answers,draft.uploads.map(f=>[f.id,f.sha256])])).digest('hex')}`;
 }
@@ -58,7 +58,7 @@ export async function advanceAnalysis(draft:Draft,text:string,answers:ScopeAnswe
   const lease=await claimWork(draft.id,workKey,{prepared:0,units:[],notes:[]},300);
   if(!lease)return {pending:true as const,progress:'Your document review is already running. Saved progress will appear shortly.'};
   const job=lease.payload as Job;
-  if(retryFailed)for(const unit of job.units)if(unit.object&&(!unit.result||unit.result.extraction.documentCoverage?.complete===false)){unit.attempts=0;delete unit.error;delete unit.result;delete unit.retryAt;}
+  if(retryFailed)for(const unit of job.units)if(unit.object&&(!unit.result||unit.result.extraction.documentCoverage?.complete===false)){unit.attempts=0;unit.rateLimitRetries=0;delete unit.error;delete unit.result;delete unit.retryAt;}
   // Serialize writes from concurrent readers so a late database response cannot
   // overwrite a more recent completed section.
   let saving=Promise.resolve();
@@ -113,7 +113,8 @@ export async function advanceAnalysis(draft:Draft,text:string,answers:ScopeAnswe
     const instructionUnits=job.units.filter(u=>isInstructionFile(u.name));
     const instructionPending=instructionUnits.some(u=>!u.result&&(u.attempts||0)<2);
     const waiting=(instructionPending?instructionUnits:job.units).filter(u=>!u.result&&(u.attempts||0)<2);
-    const pending=waiting.filter(u=>!u.retryAt||u.retryAt<=Date.now()).slice(0,analysisConcurrency());
+    if(waiting.length&&job.cooldownUntil&&job.cooldownUntil>Date.now())return {pending:true as const,progress:'The document reader reached its temporary capacity. Completed pages are saved; automatically resuming after its requested pause.',retryAfterMs:job.cooldownUntil-Date.now()};
+    const pending=waiting.filter(u=>!u.retryAt||u.retryAt<=Date.now()).slice(0,job.concurrency||analysisConcurrency());
     if(waiting.length&&!pending.length)return {pending:true as const,progress:'The document reader is temporarily busy. Completed pages are saved; retrying shortly.',retryAfterMs:Math.max(1000,Math.min(...waiting.map(u=>u.retryAt||Date.now()))-Date.now())};
     if(pending.length){
       for(const unit of pending)unit.active=true;
@@ -128,7 +129,14 @@ export async function advanceAnalysis(draft:Draft,text:string,answers:ScopeAnswe
           unit.result=await analyzeBatch(text.length>48000?'The complete typed scope is processed in saved sections; use the interpreted scope instructions.':text,[{name:unit.name,type:unit.type,data:saved.value[0],pages:unit.pages}],context,request,120000);delete unit.error;delete unit.retryAt;
         }catch(error){
           unit.error=`${unit.name}: automatic reading could not finish. Review this section before pricing.`;
-          if(error instanceof Error&&error.message==='analysis-busy')unit.retryAt=Date.now()+10000;
+          if(error instanceof AnalysisBusyError){
+            unit.rateLimitRetries=(unit.rateLimitRetries||0)+1;
+            if(unit.rateLimitRetries<8)unit.attempts=Math.max(0,(unit.attempts||1)-1);
+            else unit.attempts=2;
+            unit.retryAt=Date.now()+Math.max(error.retryAfterMs,Math.min(120000,10000*2**(unit.rateLimitRetries-1)));
+            job.cooldownUntil=Math.max(job.cooldownUntil||0,unit.retryAt);
+            job.concurrency=Math.max(1,Math.floor((job.concurrency||analysisConcurrency())/2));
+          }
         }
         unit.active=false;await checkpoint();
       }));
