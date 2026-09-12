@@ -145,6 +145,9 @@ export async function advanceAnalysis(draft:Draft,text:string,answers:ScopeAnswe
     }
     if(job.prepared<draft.uploads.length)return {pending:true as const,progress:analysisProgress(job.units,job.expected).message};
     if(!job.units.some(u=>u.result)&&!job.textDone){
+      job.progress='Reviewing your typed project scope.';
+      job.processing={phase:'cross-referencing',message:job.progress,readPages:0,totalPages:0,readSections:0,totalSections:0,currentItems:[],updatedAt:new Date().toISOString()};
+      await writeWork(draft.id,workKey,lease.token,job);
       job.textDone=await analyzeBatch(text,[],answers,request,120000);await checkpoint();
     }
     const results=job.units.flatMap(u=>u.result?[u.result]:[]);if(job.textDone)results.push(job.textDone);

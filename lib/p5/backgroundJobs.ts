@@ -42,10 +42,12 @@ export async function queuedJob(input:Input,retry=false){
   const [row]=await query('SELECT payload FROM p5_estimator_work WHERE draft_id=$1 AND work_key=$2',[input.draft.id,key]);
   startEstimatorWorker();void drainEstimatorJobs();
   const job=row.payload as Job;
-  if(job.state!=='complete'){
+  if(job.state!=='complete'&&job.state!=='failed'){
     const workKey=input.kind==='analysis'?(await import('./analysisWork')).analysisWorkKey(input.draft,input.text,input.answers):(await import('./pricingWork')).pricingWorkKey(input.draft.reviewed!,input.configuration,new Date(job.createdAt));
     const [detail]=await query("SELECT payload->'processing' AS processing FROM p5_estimator_work WHERE draft_id=$1 AND work_key=$2",[input.draft.id,workKey]);
-    if(detail?.processing){job.processing={...detail.processing,startedAt:job.createdAt};job.progress=job.processing!.message;}
+    const textOnly=input.kind==='analysis'&&!input.draft.uploads.length;
+    const staleEmptyProgress=textOnly&&detail?.processing?.totalPages===0&&detail.processing.totalSections===0&&detail.processing.message==='Read 0 of 0 document sections.';
+    if(detail?.processing&&!staleEmptyProgress){job.processing={...detail.processing,startedAt:job.createdAt};job.progress=job.processing!.message;}
   }
   if(job.state==='failed'||job.retryAt&&job.retryAt>Date.now())job.processing={...job.processing,phase:'retrying',message:job.progress,startedAt:job.createdAt,updatedAt:new Date().toISOString()};
   return job;

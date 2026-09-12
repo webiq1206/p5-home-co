@@ -117,7 +117,7 @@ export function P5Estimator({defaultService='',headingAs='h1',projectSource}:{de
       for(const f of pending){const digest=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',await f.arrayBuffer()))).map(b=>b.toString(16).padStart(2,'0')).join('');if(!receipt.uploads.some(stored=>stored.sha256===digest))throw new Error(`${f.name}: upload was not confirmed. Please retry.`);}
       apply({...current.current!,uploads:receipt.uploads,revision:receipt.revision});filesRef.current=[];setFiles([]);await clearCachedFiles(d.id).catch(()=>undefined);setUploadPercent(null);setStatus('Files uploaded and saved.');
     }
-    setBusy('Reading your documents and project details...');const form=new FormData();form.set('text',d.text);form.set('resumable','true');form.set('background','true');form.set('retry',d.analysisWarning?'true':'false');
+    setBusy('Reading your documents and project details...');const form=new FormData();form.set('text',d.text);form.set('resumable','true');form.set('background','true');form.set('retry','true');
     let data:any;
     do{
     const response=await fetch('/api/p5-estimator/scope',{method:'POST',headers:draftHeaders(d),body:form,signal:AbortSignal.timeout(200000)});data=await response.json();form.set('retry','false');
