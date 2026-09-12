@@ -72,12 +72,25 @@ export async function advanceAnalysis(draft:Draft,text:string,answers:ScopeAnswe
       // Long typed instructions are read in full before plan sections. No silent
       // clipping to fit one provider request, and no instruction-count cap.
       const sources=[{name:'ESTIMATING-INSTRUCTIONS--Typed estimating instructions.txt',value:answers.estimatingInstructions||''},{name:'ESTIMATING-INSTRUCTIONS--Typed project scope.txt',value:text}];
-      for(const source of sources.filter(s=>s.value.length>48000))for(let start=0;start<source.value.length;start+=48000){
-        const object=`analysis/${ESTIMATOR_BRAND.domain}/${draft.id}/${version}/${job.units.length}`;
-        const stored=await client.uploadFromBytes(object,Buffer.from(source.value.slice(start,start+48000)),{compress:false});
-        if(!stored.ok)throw new DraftError('Instruction preparation was interrupted. Retry to resume.',503);
-        job.units.push({name:`${source.name} (section ${Math.floor(start/48000)+1})`,type:'text/plain',object});
+      const sections=sources.filter(s=>s.value.length>48000).flatMap(source=>Array.from({length:Math.ceil(source.value.length/48000)},(_,index)=>({
+        name:`${source.name} (section ${index+1})`,
+        data:Buffer.from(source.value.slice(index*48000,(index+1)*48000)),
+      })));
+      const existing=new Set(job.units.map(unit=>unit.name));
+      const missing=sections.map((section,index)=>({...section,index})).filter(section=>!existing.has(section.name));
+      const concurrency=Math.min(4,analysisConcurrency());
+      for(let start=0;start<missing.length;start+=concurrency){
+        const batch=missing.slice(start,start+concurrency);
+        const stored=await Promise.all(batch.map(section=>{
+          const object=`analysis/${ESTIMATOR_BRAND.domain}/${draft.id}/${version}/typed-${section.index}`;
+          return client.uploadFromBytes(object,section.data,{compress:false}).then(result=>({result,object,name:section.name}));
+        }));
+        job.units.push(...stored.filter(item=>item.result.ok).map(item=>({name:item.name,type:'text/plain',object:item.object})));
+        await checkpoint();
+        if(stored.some(item=>!item.result.ok))throw new DraftError('Instruction preparation was interrupted. Retry to resume.',503);
       }
+      const byName=new Map(job.units.map(unit=>[unit.name,unit]));
+      job.units=sections.map(section=>byName.get(section.name)).filter((unit):unit is Unit=>Boolean(unit));
       job.textPrepared=true;await checkpoint();
     }
     if(job.prepared<draft.uploads.length&&!job.units.some(u=>!u.result&&(u.attempts||0)<2)){

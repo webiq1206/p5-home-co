@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {instructionPrompts} from '../lib/p5/clarifications.ts';
+import {instructionPrompts,removeInstructionAnswerBlocks} from '../lib/p5/clarifications.ts';
 import {require as tsxRequire} from 'tsx/cjs/api';
 import {pathToFileURL} from 'node:url';
 const resolver=()=>tsxRequire('../lib/p5/clarificationAnswer.ts',pathToFileURL(`${process.cwd()}/tests/p5-clarifications.test.ts`).href) as typeof import('../lib/p5/clarificationAnswer.ts');
@@ -36,6 +36,32 @@ test('clarification updates instructions without sending documents or changing p
     const repeated=await resolveInstructionAnswer(result.extraction,result.answers,{id,answer:'Labor only'},result.history,request);
     assert.equal(calls,1);assert.equal(repeated.history.length,1);assert.match(result.answers.estimatingInstructions||'',/Answer: Labor only/);
   }finally{delete process.env.OPENAI_API_KEY;}
+});
+test('only the current first instruction prompt can be answered',async()=>{
+  const {resolveInstructionAnswer}=await resolver();
+  const e=scope();const prompts=instructionPrompts(e,{});
+  await assert.rejects(resolveInstructionAnswer(e,{},{
+    id:prompts[1].id,answer:'Exclude it'
+  }),/question has changed/);
+});
+test('a provider-retained answered prompt is removed without losing unrelated prompts',async()=>{
+  const {resolveInstructionAnswer}=await resolver();
+  process.env.OPENAI_API_KEY='synthetic';delete process.env.AI_INTEGRATIONS_OPENAI_API_KEY;
+  const e=scope();const prompts=instructionPrompts(e,{});let calls=0;
+  const request:typeof fetch=async(_url,options)=>{
+    calls++;const body=JSON.parse(String(options?.body));assert.equal(body.input[0].content.some((c:any)=>c.type==='input_file'||c.type==='input_image'),false);
+    const output={summary:'',facts:[],conflicts:[],reviewNotes:[],missingInformation:[],clarifications:[],instructions:{...e.instructions,questions:[e.instructions!.questions[0],e.instructions!.questions[1]]},pages:[],takeoffs:[]};
+    return Response.json({status:'completed',output:[{content:[{type:'output_text',text:JSON.stringify(output)}]}]});
+  };
+  try{
+    const result=await resolveInstructionAnswer(e,{},{id:prompts[0].id,answer:'Labor only'},[],request);
+    assert.equal(calls,1);
+    assert.deepEqual(instructionPrompts(result.extraction,result.answers).map(q=>q.question),['Should we include or exclude painting?']);
+  }finally{delete process.env.OPENAI_API_KEY;}
+});
+test('source clarification blocks can be removed without removing visitor scope notes',()=>{
+  const history=[{id:'labor',question:'Labor only or materials only?',answer:'Labor only'}];
+  assert.equal(removeInstructionAnswerBlocks('Keep first-floor trim.\n\nQuestion: Labor only or materials only?\nAnswer: Labor only',history),'Keep first-floor trim.');
 });
 test('invalid or stale clarification cannot replace the server extraction',async()=>{
   const {resolveInstructionAnswer}=await resolver();

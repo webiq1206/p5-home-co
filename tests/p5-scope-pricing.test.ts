@@ -68,6 +68,19 @@ test('An incomplete scope price is not misreported as a missing quantity',()=>{
  const r=priceReviewedScope(scope,config,now,{replaceBase:true,rules:[],assumptions:[],issues:['Supplier research could not complete.']});
  assert.deepEqual(r.internal.pricingWarnings,['scope-pricing-incomplete']);assert.ok(!r.customer.message.includes('missing quantities'));assert.equal(r.customer.range,null);
 });
+test('Incomplete document coverage cannot release a customer range even without review notes',()=>{
+ const upload={id:'synthetic-upload',name:'synthetic.pdf',size:100,sha256:'a'.repeat(64),type:'application/pdf',status:'stored' as const};
+ const incomplete:ReviewedScope={...scope,uploads:[upload],extraction:{summary:'Synthetic partial review',facts:[],conflicts:[],missingInformation:[],reviewNotes:[],documentCoverage:{expectedPages:2,complete:false,pages:[
+  {source:'synthetic.pdf',page:1,sheet:'A1',revision:'',status:'read',notes:[]},
+  {source:'synthetic.pdf',page:2,sheet:'A2',revision:'',status:'unreadable',notes:['Synthetic read failure']},
+ ]}}};
+ const result=priceReviewedScope(incomplete,config,now);
+ assert.equal(result.customer.range,null);
+ assert.ok((result.internal as any).warnings.some((warning:any)=>warning.code==='document-coverage-incomplete'));
+ const missingLedger=priceReviewedScope({...incomplete,extraction:{...incomplete.extraction!,documentCoverage:undefined}},config,now);
+ assert.equal(missingLedger.customer.range,null);
+ assert.ok((missingLedger.internal as any).warnings.some((warning:any)=>warning.code==='document-coverage-incomplete'));
+});
 test('Uncited, stale, duplicate-source, reversed and selling-price evidence is rejected',()=>{
  assert.throws(()=>marketResolution(researched,[],[extra],now));
  for(const change of [()=>{const r=structuredClone(researched);r.rates[0].sources[1].url=urls[0];return r},()=>{const r=structuredClone(researched);r.rates[0].sources[0].publishedAt='2020-01-01';return r},()=>{const r=structuredClone(researched);r.rates[0].sources[0].high=1;return r},()=>({...researched,rates:[{...researched.rates[0],basis:'customer-selling-price'}]})])assert.throws(()=>marketResolution(change(),urls,[extra],now));

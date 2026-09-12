@@ -63,3 +63,21 @@
 @media(max-width:580px){.actions .primary{flex:1 1 100%;width:100%}.root .question h2{font-size:22px}.choices{grid-template-columns:1fr}.loadingCard .processingActivity{margin-top:14px}}
 
 .inputTools[data-dragging=true] .attach{outline:3px solid var(--p5-accent);outline-offset:3px;background:#46584e}
+
+/* The review action follows the thumb on touch phones, while remaining part of
+   the form so it uses the exact same submit/validation path as the in-flow action. */
+.stickySubmit{display:none}
+@media(max-width:768px) and (pointer:coarse){
+  .root[data-step="2"] .finalInlineAction{display:none}
+  .root[data-step="2"]{scroll-padding-bottom:calc(100px + env(safe-area-inset-bottom,0px))}
+  .root[data-step="2"] .formBody{padding-bottom:calc(104px + env(safe-area-inset-bottom,0px))}
+  .root[data-step="2"] .stickySubmit{
+    display:block;position:fixed;z-index:20;left:0;right:0;bottom:0;
+    padding:10px 18px calc(10px + env(safe-area-inset-bottom,0px));
+    background:#2c302ff2;border-top:1px solid #78827c;
+    box-shadow:0 -8px 22px #17251e38;
+  }
+  .root[data-step="2"] .stickySubmit .primary{width:100%;min-height:52px}
+  .root[data-step="2"][data-keyboard-open="true"] .stickySubmit{display:none}
+  .root[data-step="2"][data-keyboard-open="true"] .formBody{padding-bottom:0}
+}
