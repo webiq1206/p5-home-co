@@ -32,7 +32,7 @@ export function anthropicExtractionSchema(){
   return schema;
 }
 
-const DOCUMENT_POLICY=`${INSTRUCTION_POLICY} PAGE COVERAGE: Review every supplied page, including scans, drawing details, schedules, specifications, revision clouds and notes. The supplied page manifest gives original source filenames and page numbers; return exactly one pages record per manifest entry. Do not call an unreadable or partially legible sheet read. Identify the affected content and conflicting or absent dimensions. Never infer scale from display size. Retain every distinct work component in takeoffs, with explicit building/floor, source pages, quantity unit and arithmetic. Use a stable physical identity (room/element/mark plus component) for id so plans and schedules referencing the same work are not counted twice. A repeated detail is not another physical instance. Use null quantity and uncertain basis when measurement is unsupported; preserve the item for an explicitly estimated allowance later. Record exact superseded references as source:sheet:revision only when the drawing explicitly establishes supersession. Do not infer the controlling revision from upload order. Cross-reference schedules, dimensions, material notes and assemblies. An empty page must still have a read record noting that it is blank. No sample-based analysis or silent truncation. Return empty pages/takeoffs for text without page references.`;
+const DOCUMENT_POLICY=`${INSTRUCTION_POLICY} PAGE COVERAGE: Review every supplied page, including scans, drawing details, schedules, specifications, revision clouds and notes. The supplied page manifest gives original source filenames and page numbers; return exactly one pages record per manifest entry. Do not call an unreadable or partially legible sheet read. Identify the affected content and conflicting or absent dimensions. Never infer scale from display size. Retain every distinct work component in takeoffs, with explicit building/floor, source pages, quantity unit and arithmetic. Separate additive trade labor quantities are distinct takeoffs, not conflicting values: 16 excavation hours plus 24 concrete hours means 40 total hours while retaining both trade records. A total, subtotal, alternative, or repeated page mention is not another physical component; mark summary totals and unselected or unresolved alternatives in issues so they are never added again. Use a stable physical identity (room/element/mark plus component) for id so plans and schedules referencing the same work are not counted twice. A repeated detail is not another physical instance. Use null quantity and uncertain basis when measurement is unsupported; never encode unknown cabinet length as zero. Preserve the item for an explicitly estimated allowance later. Record exact superseded references as source:sheet:revision only when the drawing explicitly establishes supersession. Do not infer the controlling revision from upload order. Cross-reference schedules, dimensions, material notes and assemblies. An empty page must still have a read record noting that it is blank. No sample-based analysis or silent truncation. Return empty pages/takeoffs for text without page references.`;
 
 function detailViewContext(file:AnalysisFile):string|null {
   if(!file.detailViews||file.pages?.length!==1)return null;
@@ -113,7 +113,7 @@ function asInputContent(files: AnalysisFile[], text: string, previous: ScopeAnsw
     else if (["text/plain", "text/csv", "application/json"].includes(file.type)) content.push({ type: "input_text", text: file.data.toString("utf8") });
     else throw new Error("document-needs-conversion");
   }
-  content.push({ type: "input_text", text: JSON.stringify({ submittedScope: text, previousAnswers: previous }) });
+  content.push({ type: "input_text", text: JSON.stringify({ projectDescription: text, savedProjectDetails: previous }) });
   return content;
 }
 
@@ -150,7 +150,7 @@ async function analyzeWithAnthropic(provider: Provider, text: string, files: Ana
     else if (["text/plain", "text/csv", "application/json"].includes(file.type)) content.push({ type: "text", text: file.data.toString("utf8") });
     else throw new Error("document-needs-conversion");
   }
-  content.push({ type: "text", text: JSON.stringify({ submittedScope: text, previousAnswers: previous }) });
+  content.push({ type: "text", text: JSON.stringify({ projectDescription: text, savedProjectDetails: previous }) });
   const response = await request(`${provider.endpoint}/messages`, {
     method: "POST", signal: AbortSignal.timeout(timeoutMs),
     headers: { "Content-Type": "application/json", "anthropic-version": "2023-06-01", "x-api-key": provider.key },

@@ -7,7 +7,7 @@ import {useEffect,useId,useRef,useState} from 'react';
 import {ESTIMATOR_BRAND as brand} from '@/lib/p5/brand';
 import {SCOPE_FIELDS,SCOPE_TEXT_LIMIT,SCOPE_FILE_LIMIT,SCOPE_BATCH_LIMIT,SCOPE_FILE_COUNT,SCOPE_UPLOAD_HELP,type ScopeField,type ScopeAnswers,type ScopeUpload} from '@/lib/p5/scope';
 import {deriveScopeAnswers,reconcileScope,scopeQuestions,scopeAssumptions,validateScopeAnswer,type ScopeQuestion} from '@/lib/p5/adaptive';
-import {loadBrowserDraft,newBrowserDraft,persistBrowserDraft,draftHeaders,cacheFiles,loadCachedFiles,clearCachedFiles,requireDraftReceipt,type BrowserDraft} from '@/lib/p5/browserDraft';
+import {loadBrowserDraft,newBrowserDraft,replacementBrowserDraft,persistBrowserDraft,draftHeaders,cacheFiles,loadCachedFiles,clearCachedFiles,requireDraftReceipt,type BrowserDraft} from '@/lib/p5/browserDraft';
 import {mergeProjectSource,type ProjectSource} from '@/lib/p5/projectSource';
 import {resumeWizardDraft} from '@/lib/p5/wizardResume';
 import {snapshotProjectFile} from '@/lib/p5/fileSnapshot';
@@ -88,7 +88,7 @@ export function P5Estimator({defaultService='',headingAs='h1',projectSource}:{de
     return saved;
   }
   useEffect(()=>{
-    if(!draft?.contact.email||busy||result)return;
+    if(!draft?.contact.email||busy||result||draft.step===0)return;
     const timer=setTimeout(()=>{if(!busyRef.current)void serialized(()=>save()).then(()=>setStatus('Project saved.')).catch(()=>setStatus('Saved on this device. We will retry saving when connected.'));},1800);
     return()=>clearTimeout(timer);
   },[draft?.text,JSON.stringify(draft?.answers),JSON.stringify(draft?.contact),busy,Boolean(result)]);
@@ -152,6 +152,11 @@ export function P5Estimator({defaultService='',headingAs='h1',projectSource}:{de
     filesRef.current=copied;setFiles(copied);setError('');setConfirmed(false);
     try{if(copied.reduce((n,f)=>n+f.size,0)>22*1024*1024)throw new Error('Large files stay in this tab until upload.');await cacheFiles(current.current.id,copied);setStatus('Files ready. Continue to read them with your project details.');}catch{setStatus('Files are ready in this tab. Device storage is unavailable; keep this tab open until upload completes.');}finally{setPreparingFiles(false);}
   }
+  async function startSeparateProject(){
+    const prior=current.current;if(!prior)return;
+    const next=replacementBrowserDraft(prior);
+    filesRef.current=[];apply(next);setFiles([]);setResult(null);setDelivery([]);setConfirmed(false);setActive(null);setClarificationReply('');setWarning('');setError('');setStatus('New project started. Your earlier project remains saved separately.');started.current=false;focus();
+  }
   async function advance(skip=false){
     if(!current.current)return;
     if(active?.instructionId){
@@ -181,6 +186,7 @@ export function P5Estimator({defaultService='',headingAs='h1',projectSource}:{de
     return <div key={key} className={styles.field}><label htmlFor={fieldId}>{definition.label}</label>{definition.kind==='choice'?<select id={fieldId} value={value} onChange={e=>answer(key,e.target.value)}><option value="">Choose an answer</option>{definition.options.filter(v=>key!=='service'||(brand.services as readonly string[]).includes(v)).map(v=><option key={v} value={v}>{key==='cabinetRoom'?v.replaceAll('-',' '):labels[v]||v.replaceAll('-',' ')}</option>)}</select>:definition.kind==='number'?<input id={fieldId} inputMode="decimal" value={value} onChange={e=>answer(key,e.target.value)} placeholder="Approximate is fine"/>:<textarea id={fieldId} rows={3} value={value} onChange={e=>answer(key,e.target.value)} />}</div>;};
   if(!draft)return <div className={styles.root} role="status">Loading your project...</div>;
   const projectInput=<>
+    {Boolean(draft.revision||draft.extraction||draft.uploads?.length)&&<div className={styles.notice}><p>Do these details describe a different job?</p><button type="button" onClick={()=>void startSeparateProject()}>Start a separate new project</button><p className={styles.hint}>This clears the current project details and uploaded-file list. Your earlier saved project is not changed.</p></div>}
     <div className={styles.field}><label htmlFor={`${id}-scope`}>Tell us about your project</label><textarea id={`${id}-scope`} rows={6} value={[draft.text,draft.answers.estimatingInstructions].filter(Boolean).join('\n\n')} onChange={e=>{const d=current.current!;change({text:e.target.value,answers:{...d.answers,estimatingInstructions:''},wizard:{...d.wizard,skipped:d.wizard?.skipped||[],resolutions:{...d.wizard?.resolutions,estimatingInstructions:''}}});}} placeholder={`${scopeExample}\nInclude any notes, instructions, inclusions or exclusions.`}/><p className={styles.hint}>Type everything here, or use your keyboard’s dictation. Include what to price, what to leave out and who supplies materials.</p></div>
     <div className={styles.inputTools} data-dragging={dragging} onDragEnter={e=>{e.preventDefault();setDragging(true);}} onDragOver={e=>e.preventDefault()} onDragLeave={e=>{if(!e.currentTarget.contains(e.relatedTarget as Node|null))setDragging(false);}} onDrop={e=>{e.preventDefault();setDragging(false);void addFiles(e.dataTransfer.files);}}><label className={styles.attach} htmlFor={`${id}-files`}><span aria-hidden="true">↑</span><span><strong>Upload project files</strong><small>Scopes, blueprints, plans, notes, photos and more</small></span><input id={`${id}-files`} type="file" accept={accept} multiple aria-label="Upload project files" onChange={e=>{const input=e.currentTarget;const selected=Array.from(input.files||[]);void addFiles(selected).then(()=>{input.value='';});}}/></label></div>
     <p className={styles.hint}>Choose files or drag them here. PDFs, images, Word, spreadsheets and text. {SCOPE_UPLOAD_HELP}</p>
