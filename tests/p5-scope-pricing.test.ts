@@ -33,7 +33,7 @@ test('Semantic mapping uses the existing cost amount without inventing a rate',a
  assert.notEqual(r.internal.revision,base.internal.revision);
 });
 test('Scope facts use notes and earlier model issues require an explicit evidenced resolution',async()=>{
- const note='Owner supplies the materials; only installation labor is requested.';
+ const note='The cabinetry quantity is explicitly stated in the reviewed scope.';
  const mapping={tasks:[task],issues:[note],notes:['No additional cabinet runs requested.']};
  const verified={coveredTaskIds:[task.id],issues:[],resolvedIssues:[{issue:note,reason:'The supplied positive cabinet line covers the requested task; this statement records the scope boundary.',lineIds:[ids[0]]}]};
  const r=await priceCompleteScope(scope,config,replies([mapping,verified]),now);
@@ -92,6 +92,11 @@ test('Anthropic-only configuration supports JSON and real tool-source extraction
   process.env.OPENAI_API_KEY='synthetic-openai-key';
   assert.deepEqual((await requestPricing('JSON',{},false,1000)).value,{coveredTaskIds:['cabinets'],issues:[]});
   const r=await requestPricing('JSON',{},true,1000);assert.ok(search);assert.deepEqual(r.sourceUrls,urls);assert.deepEqual(r.value,researched);
+  globalThis.fetch=async(_url,init)=>{
+   const input=JSON.parse(String(init?.body));assert.ok(input.tools.some((t:any)=>t.name==='web_fetch'&&t.max_uses>0));
+   return Response.json({stop_reason:'end_turn',content:[{type:'text',text:'Opening supplier evidence.'},{type:'web_fetch_tool_result',content:{type:'web_fetch_result',url:urls[0],content:{type:'document',source:{type:'text',data:'Synthetic product price.'}}}},{type:'text',text:JSON.stringify(researched)}]});
+  };
+  const fetched=await requestPricing('JSON',{},true,1000);assert.deepEqual(fetched.sourceUrls,[urls[0]]);assert.deepEqual(fetched.value,researched);
   let calls=0;
   globalThis.fetch=async(_url,init)=>{
    calls++;const body=JSON.parse(String(init?.body));
