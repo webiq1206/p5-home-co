@@ -85,9 +85,11 @@ test('Incomplete document coverage cannot release a customer range even without 
 });
 test('driveway trade hours add to 40 without adding the repeated total',()=>{
  const takeoff=(id:string,description:string,quantity:number,page:number)=>({id,description,building:'Site',floor:'Exterior',component:id,quantity,unit:'hours',basis:'stated' as const,evidence:`${description}: ${quantity} hours`,sources:[{source:'Concrete Driveway 20x60.pdf',page,sheet:`P${page}`,revision:''}],supersedes:[],issues:[]});
+  const fact=(value:string,page:number,trade:string)=>({field:'laborHours' as const,value,confidence:.99,source:'Concrete Driveway 20x60.pdf',evidence:`Page ${page}: ${trade} labor ${value} hours`,basis:'stated' as const});
  const repeated={...takeoff('page-summary','Page labor summary',40,2),issues:['Summary total - do not add']};
- const extraction=combineScopeExtractions([{summary:'1,200 SF driveway',facts:[],conflicts:[],missingInformation:[],reviewNotes:[],takeoffs:[takeoff('excavation','Excavation labor',16,1)]},{summary:'Concrete placement',facts:[],conflicts:[],missingInformation:[],reviewNotes:[],takeoffs:[takeoff('concrete','Concrete labor',24,2),repeated]}]);
+  const extraction=combineScopeExtractions([{summary:'1,200 SF driveway',facts:[fact('16',1,'excavation')],conflicts:[],missingInformation:[],reviewNotes:[],takeoffs:[takeoff('excavation','Excavation labor',16,1)]},{summary:'Concrete placement',facts:[fact('24',2,'concrete')],conflicts:[],missingInformation:[],reviewNotes:[],takeoffs:[takeoff('concrete','Concrete labor',24,2),repeated]}]);
  assert.equal(extraction.facts.find(f=>f.field==='laborHours')?.value,'40');
+  assert.equal(extraction.conflicts.some(c=>c.field==='laborHours'),false);
  assert.deepEqual(extraction.takeoffs?.filter(t=>t.id!=='page-summary').map(t=>[t.description,t.quantity,t.sources[0].page]),[['Excavation labor',16,1],['Concrete labor',24,2]]);
  assert.deepEqual(pricingExtraction(extraction)?.takeoffs?.map(t=>t.id),['excavation','concrete']);
  const summaryOnly=combineScopeExtractions([{summary:'Summary only',facts:[],conflicts:[],missingInformation:[],reviewNotes:[],takeoffs:[repeated]}]);
@@ -104,6 +106,26 @@ test('partial labor and genuine same-work conflicts cannot become a confirmed ag
   const result=reconcileAdditiveQuantities(conflicted);
   assert.equal(result.facts.some((fact:any)=>fact.field==='laborHours'),false);
   assert.equal(result.conflicts.length,1);
+  const sameWork={...base,takeoffs:[
+    {...base.takeoffs[0],id:'installation-a',quantity:16,evidence:'Page 1 installation labor 16 hours'},
+    {...base.takeoffs[0],id:'installation-b',quantity:24,evidence:'Page 2 installation labor 24 hours',sources:[{...base.takeoffs[0].sources[0],page:2}]},
+  ],conflicts:[{field:'laborHours',values:['16','24'],explanation:'Different document pages state different values.'}]};
+  const sameWorkResult=reconcileAdditiveQuantities(sameWork);
+  assert.equal(sameWorkResult.facts.some((fact:any)=>fact.field==='laborHours'),false);
+  assert.equal(sameWorkResult.conflicts.length,1);
+  const grading=(id:string,description:string,quantity:number,page:number)=>({...base.takeoffs[0],id,description,component:description,quantity,evidence:`Page ${page}: ${description} ${quantity} hours`,sources:[{...base.takeoffs[0].sources[0],page}]});
+  const gradingResult=combineScopeExtractions([
+    {...base,facts:[{field:'laborHours',value:'16',confidence:.99,source:'scope.pdf',evidence:'Page 1: site grading 16 hours',basis:'stated'}],takeoffs:[grading('grading','Site grading',16,1)]},
+    {...base,facts:[{field:'laborHours',value:'24',confidence:.99,source:'scope.pdf',evidence:'Page 2: earthwork leveling 24 hours',basis:'stated'}],takeoffs:[grading('earthwork','Earthwork leveling',24,2)]},
+  ] as any);
+  assert.equal(gradingResult.facts.some((fact:any)=>fact.field==='laborHours'),false);
+  assert.equal(gradingResult.conflicts.some((conflict:any)=>conflict.field==='laborHours'),true);
+  const duplicateIdentity=combineScopeExtractions([
+    {...base,facts:[{field:'laborHours',value:'16',confidence:.99,source:'scope.pdf',evidence:'Page 1: cabinet refinishing 16 hours',basis:'stated'}],takeoffs:[grading('cabinet-finish-1','Cabinet refinishing',16,1)]},
+    {...base,facts:[{field:'laborHours',value:'24',confidence:.99,source:'scope.pdf',evidence:'Page 2: painting casework 24 hours',basis:'stated'}],takeoffs:[grading('cabinet-finish-1','Painting casework',24,2)]},
+  ] as any);
+  assert.equal(duplicateIdentity.facts.some((fact:any)=>fact.field==='laborHours'),false);
+  assert.equal(duplicateIdentity.conflicts.some((conflict:any)=>conflict.field==='laborHours'),true);
 });
 test('bench-top length cannot become base-cabinet length and unknown tall length is not zero',()=>{
  const raw:any={summary:'Cabinets',facts:[{field:'cabinetBaseLf',value:'13.3',confidence:.99,source:'cabinet.pdf',evidence:'Bench top length 13.3 LF',basis:'stated'},{field:'cabinetTallLf',value:'0',confidence:.99,source:'cabinet.pdf',evidence:'Tall cabinet length was not documented',basis:'inferred'}],conflicts:[],missingInformation:[],reviewNotes:[],clarifications:[],instructions:{inclusions:[],exclusions:[],responsibilities:[],buildings:[],floors:[],separateBuildings:false,laborOnly:false,materialsOnly:false,questions:[]},pages:[],takeoffs:[]};

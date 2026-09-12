@@ -58,7 +58,7 @@ export const SCOPE_FIELDS = {
 export type ScopeField = keyof typeof SCOPE_FIELDS;
 export type ScopeAnswers = Partial<Record<ScopeField, string>>;
 export interface ExtractedFact { field: ScopeField; value: string; confidence: number; source: string; evidence: string; basis?: "stated" | "calculated" | "visual" | "inferred" }
-export interface ScopeConflict { field: ScopeField; values: string[]; explanation: string }
+export interface ScopeConflict { field: ScopeField; values: string[]; explanation: string; provenance?:'merged-independent-facts' }
 export interface ScopeExtraction { summary: string; facts: ExtractedFact[]; conflicts: ScopeConflict[]; missingInformation: string[]; reviewNotes: string[]; clarifications?: {field:ScopeField;question:string;reason:string}[]; instructions?:ScopeInstructions; documentCoverage?:import('./documentLedger.ts').DocumentCoverage; takeoffs?:import('./documentLedger.ts').Takeoff[] }
 export interface ScopeUpload { id: string; name: string; type: string; size: number; sha256: string; status: "stored" | "failed" }
 export interface ReviewedScope {
@@ -226,7 +226,7 @@ export function combineScopeExtractions(parts:ScopeExtraction[]):ScopeExtraction
   }
   for(const field of Object.keys(SCOPE_FIELDS) as ScopeField[]){
     const values=[...new Set(merged.facts.filter(f=>f.field===field&&f.confidence>=.4).map(f=>f.value.trim()))];
-    if(values.length>1&&SCOPE_FIELDS[field].kind!=="text"&&!merged.conflicts.some(c=>c.field===field))merged.conflicts.push({field,values,explanation:"Different document pages state different values. Confirm the intended project information."});
+    if(values.length>1&&SCOPE_FIELDS[field].kind!=="text"&&!merged.conflicts.some(c=>c.field===field))merged.conflicts.push({field,values,explanation:"Different document pages state different values. Confirm the intended project information.",provenance:'merged-independent-facts'});
   }
   // Missing questions from one page may be answered on another.
   merged.missingInformation=merged.missingInformation.filter(note=>!merged.facts.some(f=>f.confidence>=.85&&note.trim().toLowerCase()===SCOPE_FIELDS[f.field].label.toLowerCase()));

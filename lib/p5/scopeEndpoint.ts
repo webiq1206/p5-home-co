@@ -47,14 +47,16 @@ export async function postScope(request:Request){
      const sourceAnswers={...draft.answers};
      if(sourceAnswers.estimatingInstructions)sourceAnswers.estimatingInstructions=cleanedInstructions;
      const visitorAnswers=applyCabinetIntent(cleanedText,ESTIMATOR_BRAND.services,manualScopeAnswers(sourceAnswers,draft.extraction,sourceChanged?{}:draft.wizard?.resolutions)).answers;
-    let analysis=null;let warning="";
+    let analysis=null;let warning="";let jobTiming:Record<string,unknown>|undefined;let jobId:string|undefined;
     try{
       if(checkpointed){
         const background=form.get('background')==='true';
         const job=background?await queuedJob({kind:'analysis',draft,text:cleanedText,answers:visitorAnswers},form.get('retry')==='true'):null;
-        if(job&&job.state!=='complete')return json({pending:job.state!=='failed',progress:job.progress,processing:job.processing,...(job.state==='failed'?{error:job.progress}:{})},job.state==='failed'?503:200);
+        jobId=job?.jobId;
+        if(job&&job.state!=='complete')return json({pending:job.state!=='failed',jobId,progress:job.progress,processing:job.processing,retryAfterMs:Math.max(500,Math.min(15000,(job.retryAt||Date.now()+1000)-Date.now())),timing:{queuedAt:job.createdAt,workerStartedAt:job.startedAt},...(job.state==='failed'?{error:job.progress}:{})},job.state==='failed'?503:200);
         const step=job?job.result:await advanceAnalysis(draft,cleanedText,visitorAnswers,fetch,form.get("retry")==="true");
         if(step.pending)return json(step);
+        if(job)jobTiming={queuedAt:job.createdAt,workerStartedAt:job.startedAt,modelStartedAt:step.timing?.modelStartedAt,modelCompletedAt:step.timing?.modelCompletedAt,completedAt:job.completedAt};
         analysis=step.analysis;
       }else{
       const {readable,manualReview}=await prepareAnalysisFiles(stored);
@@ -77,6 +79,6 @@ export async function postScope(request:Request){
     const saved=await saveDraft(id,key,ESTIMATOR_BRAND.id,{text:cleanedText,answers:merged.answers,extraction:safeExtraction,reviewed:null,contact:draft.contact,wizard},draft.revision);
     if(requested.some(digest=>!saved.uploads.some(file=>file.sha256===digest)))throw new DraftError("Some files could not be confirmed. Please retry; duplicate files will not be added twice.",503);
     const pricedFields=await costQuestionFields(saved.answers);
-    return json({draft:saved,analysis,warning,conflicts:merged.conflicts,pricedFields,questions:scopeQuestions(saved.answers,safeExtraction,merged.conflicts,wizard.skipped,pricedFields)});
+    return json({draft:saved,analysis,warning,jobId,timing:jobTiming,conflicts:merged.conflicts,pricedFields,questions:scopeQuestions(saved.answers,safeExtraction,merged.conflicts,wizard.skipped,pricedFields)});
   }catch(error){return failed(error);}
 }

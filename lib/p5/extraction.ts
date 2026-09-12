@@ -31,6 +31,17 @@ export function anthropicExtractionSchema(){
   for(const name of ['facts','conflicts','clarifications'])schema.properties[name].items.properties.field={type:'string',description:'Use one exact field identifier from the supplied field vocabulary.'};
   return schema;
 }
+function extractionSchema(files:AnalysisFile[],anthropic=false){
+  const schema=anthropic?anthropicExtractionSchema():JSON.parse(JSON.stringify(EXTRACTION_JSON_SCHEMA));
+  if(!files.length){schema.properties.pages.maxItems=0;schema.properties.takeoffs.maxItems=0;}
+  return schema;
+}
+function validatedProviderExtraction(raw:unknown,files:AnalysisFile[]){
+  const extraction=validateExtraction(raw);
+  const suppliedPages=files.some(file=>Boolean(file.pages?.length));
+  if(!suppliedPages&&((extraction.takeoffs?.length||0)||(extraction.documentCoverage?.pages.length||0)))throw new Error('Invalid takeoff evidence');
+  return extraction;
+}
 
 const DOCUMENT_POLICY=`${INSTRUCTION_POLICY} PAGE COVERAGE: Review every supplied page, including scans, drawing details, schedules, specifications, revision clouds and notes. The supplied page manifest gives original source filenames and page numbers; return exactly one pages record per manifest entry. Do not call an unreadable or partially legible sheet read. Identify the affected content and conflicting or absent dimensions. Never infer scale from display size. Retain every distinct work component in takeoffs, with explicit building/floor, source pages, quantity unit and arithmetic. Separate additive trade labor quantities are distinct takeoffs, not conflicting values: 16 excavation hours plus 24 concrete hours means 40 total hours while retaining both trade records. A total, subtotal, alternative, or repeated page mention is not another physical component; mark summary totals and unselected or unresolved alternatives in issues so they are never added again. Use a stable physical identity (room/element/mark plus component) for id so plans and schedules referencing the same work are not counted twice. A repeated detail is not another physical instance. Use null quantity and uncertain basis when measurement is unsupported; never encode unknown cabinet length as zero. Preserve the item for an explicitly estimated allowance later. Record exact superseded references as source:sheet:revision only when the drawing explicitly establishes supersession. Do not infer the controlling revision from upload order. Cross-reference schedules, dimensions, material notes and assemblies. An empty page must still have a read record noting that it is blank. No sample-based analysis or silent truncation. Return empty pages/takeoffs for text without page references.`;
 
@@ -131,7 +142,7 @@ async function analyzeWithOpenAI(provider: Provider, text: string, files: Analys
     body: JSON.stringify({
       model: provider.model, instructions: EXTRACTION_SYSTEM+'\n'+DOCUMENT_POLICY, max_output_tokens: 16000,
       input: [{ role: "user", content: asInputContent(files, text, previous) }],
-      text: { format: { type: "json_schema", name: "p5_scope_extraction", strict: true, schema: EXTRACTION_JSON_SCHEMA } },
+      text: { format: { type: "json_schema", name: "p5_scope_extraction", strict: true, schema: extractionSchema(files) } },
     }),
   });
   if (!response.ok) throw await responseError(provider, response);
@@ -141,7 +152,7 @@ async function analyzeWithOpenAI(provider: Provider, text: string, files: Analys
   const resultText = body.output?.flatMap((item: any) => item.content || []).find((part: any) => part.type === "output_text")?.text;
   if (typeof resultText !== "string") throw errorForProvider(provider, response.status, "provider returned no structured text");
   try {
-    return { extraction: validateExtraction(JSON.parse(resultText)), provider: provider.kind, model: body.model || provider.model, analyzedAt: new Date().toISOString() };
+    return { extraction: validatedProviderExtraction(JSON.parse(resultText),files), provider: provider.kind, model: body.model || provider.model, analyzedAt: new Date().toISOString() };
   } catch (error) {
     throw errorForProvider(provider, response.status, `provider returned invalid extraction:${safeValidationReason(error)}`);
   }
@@ -164,7 +175,7 @@ async function analyzeWithAnthropic(provider: Provider, text: string, files: Ana
     // This formatting-only tool never executes code or an external action.
     // Local schema/evidence validation remains mandatory; avoiding compiled
     // output grammars prevents rejection of the full, nested page ledger.
-    body: JSON.stringify({ model: provider.model, max_tokens: 16000, system: EXTRACTION_SYSTEM+'\n'+DOCUMENT_POLICY+' Return the final structured record through record_scope_analysis. It is only an output format, not an external action.', messages: [{ role: "user", content }], tools:[{name:'record_scope_analysis',description:'Return the complete extracted scope, interpreted instructions, original-page coverage and evidence-linked takeoffs. This output record performs no actions and changes no data. Do not omit unreadable pages or excluded-scope instructions.',input_schema:anthropicExtractionSchema()}],tool_choice:{type:'tool',name:'record_scope_analysis',disable_parallel_tool_use:true} }),
+    body: JSON.stringify({ model: provider.model, max_tokens: 16000, system: EXTRACTION_SYSTEM+'\n'+DOCUMENT_POLICY+' Return the final structured record through record_scope_analysis. It is only an output format, not an external action.', messages: [{ role: "user", content }], tools:[{name:'record_scope_analysis',description:'Return the complete extracted scope, interpreted instructions, original-page coverage and evidence-linked takeoffs. This output record performs no actions and changes no data. Do not omit unreadable pages or excluded-scope instructions.',input_schema:extractionSchema(files,true)}],tool_choice:{type:'tool',name:'record_scope_analysis',disable_parallel_tool_use:true} }),
   });
   if (!response.ok) throw await responseError(provider, response);
   let body: any;
@@ -175,7 +186,7 @@ async function analyzeWithAnthropic(provider: Provider, text: string, files: Ana
   const resultText = body.content?.find((part: { type: string }) => part.type === "text")?.text;
   if (!records.length&&typeof resultText !== "string") throw errorForProvider(provider, response.status, "provider returned no structured text");
   try {
-    return { extraction: validateExtraction(records.length?strictToolRecord(records[0].input):JSON.parse(resultText)), provider: provider.kind, model: body.model||provider.model, analyzedAt: new Date().toISOString() };
+    return { extraction: validatedProviderExtraction(records.length?strictToolRecord(records[0].input):JSON.parse(resultText),files), provider: provider.kind, model: body.model||provider.model, analyzedAt: new Date().toISOString() };
   } catch (error) {
     throw errorForProvider(provider, response.status, `provider returned invalid extraction:${safeValidationReason(error)}`);
   }
