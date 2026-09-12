@@ -1,5 +1,8 @@
+import {mergeInstructions,validateInstructions,type ScopeInstructions} from './instructions.ts';
+import {readPageRecords,readTakeoffs,reconcileTakeoffs,combineCoverage} from './documentLedger.ts';
 /** Public scope vocabulary. No internal prices or financial policy belongs here. */
 export const SCOPE_FIELDS = {
+  estimatingInstructions: {label: "Custom estimating instructions", kind: "text"},
   service: { label: "Project type", kind: "choice", options: ["handyman", "re10", "cabinet-product", "cabinet-install", "kitchen", "bathroom", "whole-home", "addition", "adu", "new-construction", "change-order", "rush"] },
   location: { label: "City, ZIP code, county or general location", kind: "text" },
   address: { label: "Property address (optional)", kind: "text" },
@@ -55,14 +58,16 @@ export type ScopeField = keyof typeof SCOPE_FIELDS;
 export type ScopeAnswers = Partial<Record<ScopeField, string>>;
 export interface ExtractedFact { field: ScopeField; value: string; confidence: number; source: string; evidence: string; basis?: "stated" | "calculated" | "visual" | "inferred" }
 export interface ScopeConflict { field: ScopeField; values: string[]; explanation: string }
-export interface ScopeExtraction { summary: string; facts: ExtractedFact[]; conflicts: ScopeConflict[]; missingInformation: string[]; reviewNotes: string[]; clarifications?: {field:ScopeField;question:string;reason:string}[] }
+export interface ScopeExtraction { summary: string; facts: ExtractedFact[]; conflicts: ScopeConflict[]; missingInformation: string[]; reviewNotes: string[]; clarifications?: {field:ScopeField;question:string;reason:string}[]; instructions?:ScopeInstructions; documentCoverage?:import('./documentLedger.ts').DocumentCoverage; takeoffs?:import('./documentLedger.ts').Takeoff[] }
 export interface ScopeUpload { id: string; name: string; type: string; size: number; sha256: string; status: "stored" | "failed" }
 export interface ReviewedScope {
   text: string; answers: ScopeAnswers; extraction: ScopeExtraction | null; uploads: ScopeUpload[];
   uncertainFields?: ScopeField[];
   reviewedAt: string; corrections: { field: ScopeField; previous: string; value: string }[];
 }
-export const SCOPE_TEXT_LIMIT = 24000;
+// Transport safety, not a textarea or instruction-count limit. Larger sources
+// use the resumable document upload and are processed in full sections.
+export const SCOPE_TEXT_LIMIT = 8 * 1024 * 1024;
 export const SCOPE_FILE_LIMIT = 250 * 1024 * 1024;
 export const SCOPE_BATCH_LIMIT = 1024 * 1024 * 1024;
 export const SCOPE_FILE_COUNT = 50;
@@ -70,7 +75,7 @@ export const SCOPE_CHUNK_SIZE = 4 * 1024 * 1024;
 export const SCOPE_UPLOAD_HELP = "Up to 50 files, 250 MB each and 1 GB total. Large uploads resume after interruptions.";
 export function validateAnswer(field: ScopeField, value: string): string | null {
   if (!Object.hasOwn(SCOPE_FIELDS,field)) return "Unknown field";
-  if (typeof value !== "string" || value.length > 4000) return "Please shorten this answer to 4,000 characters.";
+  if (typeof value !== "string" || value.length > SCOPE_TEXT_LIMIT) return "This text exceeds the request transport size. Upload it as an instruction document; do not shorten or omit instructions.";
   if (!value.trim()) return null;
   const definition = SCOPE_FIELDS[field];
   if (definition.kind === "number") {
@@ -95,13 +100,18 @@ export function validateExtraction(raw: unknown): ScopeExtraction {
       unreadValues.push(`Confirm ${SCOPE_FIELDS[f.field as ScopeField].label.toLowerCase()} if no other source supplies a readable value.`);
       return [];
     }
-    if (typeof f.field !== "string" || !Object.hasOwn(SCOPE_FIELDS,f.field) || typeof f.value !== "string" || !f.value.trim() || validateAnswer(f.field as ScopeField, f.value) || typeof f.confidence !== "number" || !Number.isFinite(f.confidence) || f.confidence < 0 || f.confidence > 1 || typeof f.source !== "string" || !f.source.trim() || f.source.length > 500 || typeof f.evidence !== "string" || !f.evidence.trim() || f.evidence.length > 4000) throw new Error("Invalid extracted fact");
+    const knownField=typeof f.field==='string'&&Object.hasOwn(SCOPE_FIELDS,f.field);
+    const invalid=!knownField?'field':typeof f.value!=='string'||!f.value.trim()?'empty value':validateAnswer(f.field as ScopeField,f.value)?'value format':typeof f.confidence!=='number'||!Number.isFinite(f.confidence)||f.confidence<0||f.confidence>1?'confidence':typeof f.source!=='string'||!f.source.trim()||f.source.length>500?'source':typeof f.evidence!=='string'||!f.evidence.trim()||f.evidence.length>4000?'evidence':'';
+    if(invalid)throw new Error(`Invalid extracted fact (${knownField?f.field:'unknown field'}: ${invalid})`);
+    // The validation above narrows these at runtime. Never include the supplied
+    // value, source text or evidence in an error log.
+    const fact=f as typeof f & {field:ScopeField;value:string;confidence:number};
     if (f.basis !== undefined && !["stated", "calculated", "visual", "inferred"].includes(String(f.basis))) throw new Error("Invalid fact basis");
     // A model's confidence is not evidence that an assumption was supplied by the user.
-    let confidence = f.confidence;
+    let confidence = fact.confidence;
     if (f.basis === "inferred") confidence = Math.min(confidence, .2);
     if (f.basis === "visual") confidence = Math.min(confidence, SCOPE_FIELDS[f.field as ScopeField].kind === "number" ? 0 : .6);
-    const value=SCOPE_FIELDS[f.field as ScopeField].kind === "number" ? String(Number(f.value.replaceAll(",", ""))) : f.value.trim();
+    const value=SCOPE_FIELDS[f.field as ScopeField].kind === "number" ? String(Number(fact.value.replaceAll(",", ""))) : fact.value.trim();
     return [{ ...f, value, confidence } as unknown as ExtractedFact];
   });
   const conflicts = r.conflicts.map((item: unknown): ScopeConflict => {
@@ -117,11 +127,12 @@ export function validateExtraction(raw: unknown): ScopeExtraction {
     const values = [...new Set(facts.filter(f => f.field === field && f.confidence >= .4).map(f => f.value.trim()))];
     if (values.length > 1 && SCOPE_FIELDS[field].kind !== "text" && !conflicts.some(c => c.field === field)) conflicts.push({ field, values, explanation: "The supplied information contains different values. Please confirm the intended scope." });
   }
-  const clarifications=Array.isArray(r.clarifications)?r.clarifications.slice(0,20).map((q:any)=>{
+  const clarifications=Array.isArray(r.clarifications)?r.clarifications.map((q:any)=>{
     if(!q||!Object.hasOwn(SCOPE_FIELDS,q.field)||typeof q.question!=="string"||q.question.length>500||typeof q.reason!=="string"||q.reason.length>1000)throw new Error("Invalid clarification");
     return {field:q.field as ScopeField,question:q.question,reason:q.reason};
   }):[];
-  return { summary: r.summary, facts, conflicts,clarifications, missingInformation: [...strings(r.missingInformation, 50),...unreadValues], reviewNotes: strings(r.reviewNotes, 50) };
+  const pages=r.pages?readPageRecords(r.pages):[];
+  return { summary: r.summary, facts, conflicts,clarifications, ...(r.instructions?{instructions:validateInstructions(r.instructions)}:{}), ...(r.pages?{documentCoverage:{pages,expectedPages:pages.length,complete:pages.every(p=>p.status==='read')}}:{}),...(r.takeoffs?{takeoffs:readTakeoffs(r.takeoffs)}:{}), missingInformation: [...strings(r.missingInformation, 50),...unreadValues], reviewNotes: strings(r.reviewNotes, 50) };
 }
 const IMAGE_SOURCE = /\.(?:jpe?g|png|webp|gif|heic|heif)(?:\b|[),])/i;
 const EXPLICIT_URGENCY = /\b(?:standard|normal timing|not urgent|priority|prioritized|emergency|urgent|rush|asap|same[- ]day|immediately)\b/i;
@@ -180,7 +191,7 @@ export function mergeScopeFacts(current: ScopeAnswers, extraction: ScopeExtracti
       if(textFields.has(fact.field))continue;textFields.add(fact.field);
       const values=[...new Set([current[fact.field]?.trim(),...extraction.facts.filter(f=>f.field===fact.field&&f.confidence>=.85).map(f=>f.value.trim())].filter(Boolean))];
       const combined=[...new Set(values.flatMap(value=>value!.split("\n")).map(value=>value.trim()).filter(Boolean))].join("\n");
-      if(combined.length<=4000)answers[fact.field]=combined;
+      if(combined.length<=SCOPE_TEXT_LIMIT)answers[fact.field]=combined;
       else conflicts.push({field:fact.field,values:[current[fact.field]||""].filter(Boolean),explanation:"This trade scope exceeds one answer. Review the full source details and enter a concise summary without omitting priced work."});
       continue;
     }
@@ -196,6 +207,11 @@ export function mergeScopeFacts(current: ScopeAnswers, extraction: ScopeExtracti
 /** Merge page reads without losing distinct measurements or additive trade scope. */
 export function combineScopeExtractions(parts:ScopeExtraction[]):ScopeExtraction {
   const merged:ScopeExtraction={summary:[...new Set(parts.map(p=>p.summary).filter(Boolean))].join("\n"),facts:[],conflicts:parts.flatMap(p=>p.conflicts),missingInformation:[...new Set(parts.flatMap(p=>p.missingInformation))],reviewNotes:[...new Set(parts.flatMap(p=>p.reviewNotes))]};
+  if(parts.some(p=>p.instructions))merged.instructions=mergeInstructions(parts.flatMap(p=>p.instructions?[p.instructions]:[]));
+  const coverage=parts.flatMap(p=>p.documentCoverage?[p.documentCoverage]:[]);
+  if(coverage.length)merged.documentCoverage=combineCoverage(coverage);
+  const takeoffs=reconcileTakeoffs(parts.flatMap(p=>p.takeoffs||[]));
+  if(takeoffs.items.length){merged.takeoffs=takeoffs.items;merged.missingInformation.push(...takeoffs.issues);}
   merged.clarifications=parts.flatMap(p=>p.clarifications||[]).filter((q,i,a)=>a.findIndex(v=>v.field===q.field)===i);
   const seen=new Set<string>();
   for(const fact of parts.flatMap(p=>p.facts)){

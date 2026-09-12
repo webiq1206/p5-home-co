@@ -88,3 +88,7 @@ build/contracts/
 /app/p5-qa-check/
 
 !/scripts/test-p5-receipt.mts
+!/scripts/test-p5-background.mts
+!/scripts/test-p5-plan-rendering.mts
+!/scripts/check-p5-live-extraction.mts
+!/scripts/preview-p5-progress.mts

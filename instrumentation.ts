@@ -49,6 +49,7 @@ function schedulingIsPossible(label: string): boolean {
 }
 
 export async function register(): Promise<void> {
+  if(process.env.NEXT_RUNTIME==='nodejs'&&process.env.NODE_ENV==='production')void import('./lib/p5/backgroundJobs').then(m=>m.bootEstimatorWorker()).catch(()=>console.error('[p5-worker] Startup deferred; estimator requests can resume saved work.'));
   await startWatchdog();
   await startFinanceDaily();
 }
