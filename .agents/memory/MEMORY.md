@@ -1,3 +1,4 @@
 - [Live accounting audits](live-accounting-audits.md) — production QuickBooks audits require explicit opt-in and must not gate ordinary application builds.
 - [Durable policy activation](durable-policy-activation.md) — activate estimator policy through managed database writes or the authenticated app workflow, not shell-side mutations.
 - [Estimator worker diagnostics](estimator-worker-diagnostics.md) — persist and log only allowlisted failure categories; raw exceptions may contain customer data or credentials.
+- [GitHub synchronization](github-synchronization.md) — advance GitHub from its own reviewed parent without force, then merge locally to retain Replit-only history.
