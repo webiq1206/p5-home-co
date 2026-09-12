@@ -1,3 +1,4 @@
+import {explicitLaborTotal} from './explicitLabor.ts';
 import {analyzeBatch} from './extraction';
 import {clarificationContext,instructionPrompts,questionKey,type InstructionAnswer} from './clarifications';
 import {DraftError} from './store';
@@ -26,6 +27,8 @@ export async function resolveInstructionAnswer(extraction:ScopeExtraction|null,a
     throw new DraftError('This question has changed. Refresh your saved project to continue.',409);
   }
   const question=prompt.detail||prompt.question;
+  let statedTotal:string|undefined;
+  try{statedTotal=explicitLaborTotal(answer);}catch(error){throw new DraftError((error as Error).message);}
   const result=await analyzeBatch(clarificationContext(extraction,question,answer),[],answers,request,60000);
   if(!result.extraction.instructions)throw new DraftError('Your answer is still here. We could not save its scope update. Please retry.',503);
   const instructions={...result.extraction.instructions};
@@ -41,11 +44,18 @@ export async function resolveInstructionAnswer(extraction:ScopeExtraction|null,a
   const record={id:prompt.id,question,answer};
   const combined=[answers.estimatingInstructions,`Question: ${question}\nAnswer: ${answer}`].filter(Boolean).join('\n\n');
   if(combined.length>SCOPE_TEXT_LIMIT)throw new DraftError('Upload the additional scope notes as a document to preserve them in full.');
-   const updated=applyQuantityClarification({...extraction,instructions},question,answer);
+   let updated=applyQuantityClarification({...extraction,instructions},question,answer);
+   // Text-only scopes have no takeoff ledger. Preserve the visitor's explicit
+   // complete total instead of carrying an earlier partial source subtotal.
+   const applyTextTotal=statedTotal!==undefined&&!updated.takeoffs?.length&&!updated.conflicts.some(c=>c.field==='laborHours');
+   if(applyTextTotal){
+     updated={...updated,facts:[...updated.facts.filter(f=>f.field!=='laborHours'),{field:'laborHours',value:statedTotal!,confidence:1,source:'clarification answer',evidence:`Visitor confirmed ${statedTotal} total labor hours in the saved clarification answer.`,basis:'stated'}]};
+   }
    const priorLabor=extraction.facts.find(f=>f.field==='laborHours')?.value;
    const nextLabor=updated.facts.find(f=>f.field==='laborHours')?.value;
    let synchronized=answers;
-   if(nextLabor&&nextLabor!==priorLabor&&(!answers.laborHours||answers.laborHours===priorLabor))synchronized={...answers,laborHours:nextLabor};
+   if(applyTextTotal)synchronized={...answers,laborHours:statedTotal};
+   else if(nextLabor&&nextLabor!==priorLabor&&(!answers.laborHours||answers.laborHours===priorLabor))synchronized={...answers,laborHours:nextLabor};
    else if(!nextLabor&&priorLabor&&answers.laborHours===priorLabor){const {laborHours:_removed,...remaining}=answers;synchronized=remaining;}
    return {extraction:updated,answers:{...synchronized,estimatingInstructions:combined},history:[...prior,record]};
 }
