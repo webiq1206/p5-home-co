@@ -30,6 +30,19 @@ for(let i=0;i<count;i++){
 }
 const data=Buffer.from(await pdf.save());const units:AnalysisFile[]=[];
 for await(const unit of analysisSegments({name:'synthetic-validation-plans.pdf',type:'application/pdf',data}))units.push(unit);
+if(scanned)for(let page=1;page<=count;page++){
+ const parts=units.filter(unit=>unit.pages?.[0]?.page===page),last=parts.at(-1)?.detailRegions;
+ assert.ok(last,`Page ${page} must retain its inspected-region manifest`);
+ assert.equal(last.inspectedTiles,last.columns*last.rows);
+ const accounted=new Set([...parts.flatMap(unit=>unit.detailRegions?.tiles||[]),...last.blankTiles]);
+ assert.deepEqual([...accounted].sort((a,b)=>a-b),Array.from({length:last.columns*last.rows},(_,i)=>i+1),`Every region of page ${page} must be inspected, including empty areas`);
+}
+if(process.env.P5_LIVE_TEST_PREPARE_ONLY==='true'){
+ await mkdir('p5-verification/scanned-inputs',{recursive:true});await writeFile('p5-verification/scanned-inputs/source.pdf',data);
+ for(const [i,unit]of units.entries())await writeFile(`p5-verification/scanned-inputs/section-${i+1}.pdf`,unit.data);
+ await writeFile('p5-verification/scanned-inputs/manifest.json',JSON.stringify(units.map(({data,...manifest})=>manifest),null,2));
+ console.log(JSON.stringify({pages:count,sections:units.length,preparationMs:Math.round(performance.now()-totalStarted),providerCalls:0}));process.exit(0);
+}
 let position=0,cooldownUntil=0;const results:any[]=[],timings:any[]=[],errors:string[]=[],providerErrors:any[]=[];const started=performance.now();
 const diagnosticFetch:typeof fetch=async(url,init)=>{
  const response=await fetch(url,init);
@@ -55,7 +68,8 @@ extraction.documentCoverage=combineCoverage(coverageParts,expected);
 const takeoffs=extraction.takeoffs||[];
 const quantityCoverage=Array.from({length:count},(_,i)=>({page:i+1,quantity:120+i,present:takeoffs.some(t=>t.quantity===120+i&&t.sources.some(s=>s.page===i+1))}));
 const unexpectedTakeoffs=takeoffs.filter(t=>/plumb|faucet|second floor/i.test(t.description+' '+t.component+' '+t.floor));
-const report={synthetic:true,scanned,externalWrites:'Only authorized provider inference; no business database writes or deliveries.',pages:count,preparedSections:units.length,preparationMs:Math.round(started-totalStarted),elapsedMs:Math.round(performance.now()-started),totalMs:Math.round(performance.now()-totalStarted),timings,errors,providerErrors,pageCoverage:extraction.documentCoverage,quantityCoverage,unexpectedTakeoffs,instructions:extraction.instructions,reviewNotes:extraction.reviewNotes,takeoffs};
+const sectionCoverage=units.map(({data,...manifest},i)=>({...manifest,coverage:results[i]?.documentCoverage}));
+const report={synthetic:true,scanned,externalWrites:'Only authorized provider inference; no business database writes or deliveries.',pages:count,preparedSections:units.length,sectionCoverage,preparationMs:Math.round(started-totalStarted),elapsedMs:Math.round(performance.now()-started),totalMs:Math.round(performance.now()-totalStarted),timings,errors,providerErrors,pageCoverage:extraction.documentCoverage,quantityCoverage,unexpectedTakeoffs,instructions:extraction.instructions,reviewNotes:extraction.reviewNotes,takeoffs};
 await mkdir('p5-verification',{recursive:true});await writeFile('p5-verification/live-extraction-report.json',JSON.stringify(report,null,2));
 console.log(JSON.stringify({pages:count,read:extraction.documentCoverage?.pages.filter(p=>p.status==='read').length,quantitiesFound:quantityCoverage.filter(p=>p.present).length,unexpectedTakeoffs:unexpectedTakeoffs.length,errors:errors.length,elapsedMs:report.elapsedMs,report:'p5-verification/live-extraction-report.json'}));
 assert.equal(errors.length,0);assert.equal(extraction.documentCoverage?.expectedPages,count);assert.equal(extraction.documentCoverage?.complete,true);

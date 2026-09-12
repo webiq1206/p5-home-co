@@ -49,10 +49,10 @@ export async function* analysisSegments(file:AnalysisFile,startPage=0):AsyncGene
     yield file;
   }
 }
-type Unit={name:string;type:string;object:string;pages?:AnalysisFile['pages'];detailViews?:boolean;result?:AnalysisResult;attempts?:number;rateLimitRetries?:number;error?:string;retryAt?:number;active?:boolean};
+type Unit={name:string;type:string;object:string;pages?:AnalysisFile['pages'];detailViews?:boolean;detailRegions?:AnalysisFile['detailRegions'];result?:AnalysisResult;attempts?:number;rateLimitRetries?:number;error?:string;retryAt?:number;active?:boolean};
 type Job={prepared:number;units:Unit[];notes:string[];textDone?:AnalysisResult;textPrepared?:boolean;cursor?:number;expected?:{source:string;page:number}[];progress?:string;processing?:ProcessingStatus;concurrency?:number;cooldownUntil?:number};
 export function analysisWorkKey(draft:Draft,text:string,answers:ScopeAnswers){
-  return `analysis:v5:${createHash('sha256').update(JSON.stringify([text,answers,draft.uploads.map(f=>[f.id,f.sha256])])).digest('hex')}`;
+  return `analysis:v6:${createHash('sha256').update(JSON.stringify([text,answers,draft.uploads.map(f=>[f.id,f.sha256])])).digest('hex')}`;
 }
 /** Each request checkpoints work before returning. Reloading resumes the same source fingerprint. */
 export async function advanceAnalysis(draft:Draft,text:string,answers:ScopeAnswers,request=fetch,retryFailed=false){
@@ -105,7 +105,7 @@ export async function advanceAnalysis(draft:Draft,text:string,answers:ScopeAnswe
             if(segment.preparationError){job.units.push({name:segment.name,type:segment.type,object:'',pages:segment.pages,error:segment.preparationError,attempts:2});job.cursor=segment.nextPage;await checkpoint();continue;}
             const saved=await client.uploadFromBytes(object,segment.data,{compress:false});
             if(!saved.ok)throw new DraftError('Document preparation was interrupted. Retry to resume.',503);
-            job.units.push({name:segment.name,type:segment.type,object,pages:segment.pages,detailViews:segment.detailViews});
+            job.units.push({name:segment.name,type:segment.type,object,pages:segment.pages,detailViews:segment.detailViews,detailRegions:segment.detailRegions});
             if(segment.nextPage!==undefined){job.cursor=segment.nextPage;await checkpoint();if(Date.now()-preparedAt>20000)return {pending:true as const,progress:`Prepared through page ${job.cursor} of ${file.name}. Preparation is checkpointed.`};}
           }
         }catch(error){if(error instanceof DraftError)throw error;job.notes.push(`${file.name}: ${error instanceof Error?error.message:'Could not read this file.'} Review the original before pricing.`);}
@@ -129,7 +129,7 @@ export async function advanceAnalysis(draft:Draft,text:string,answers:ScopeAnswe
         try{
           const saved=await client.downloadAsBytes(unit.object);
           if(!saved.ok)throw new DraftError('A prepared document section could not be read. Retry to resume.',503);
-          unit.result=await analyzeBatch(text.length>48000?'The complete typed scope is processed in saved sections; use the interpreted scope instructions.':text,[{name:unit.name,type:unit.type,data:saved.value[0],pages:unit.pages,detailViews:unit.detailViews}],context,request,120000);delete unit.error;delete unit.retryAt;
+          unit.result=await analyzeBatch(text.length>48000?'The complete typed scope is processed in saved sections; use the interpreted scope instructions.':text,[{name:unit.name,type:unit.type,data:saved.value[0],pages:unit.pages,detailViews:unit.detailViews,detailRegions:unit.detailRegions}],context,request,120000);delete unit.error;delete unit.retryAt;
         }catch(error){
           unit.error=`${unit.name}: automatic reading could not finish. Review this section before pricing.`;
           if(error instanceof AnalysisBusyError){

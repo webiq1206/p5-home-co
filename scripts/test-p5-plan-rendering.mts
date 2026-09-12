@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import {mkdir,writeFile} from 'node:fs/promises';
 import {createCanvas} from '@napi-rs/canvas';
 import {PDFDocument} from 'pdf-lib';
-import {drawingDetails} from '../lib/p5/planRendering';
+import {drawingDetails,entirelyWhite} from '../lib/p5/planRendering';
 
 // Real scanned-format drawing, not a text-layer-only fixture. AI/OCR is not
 // called by this test; it verifies full-sheet coverage, readable raster output
@@ -26,11 +26,22 @@ const data=Buffer.from(await source.save());await writeFile(`${output}/scanned-d
 const combined=await PDFDocument.create();let sections=0,tiles=0,lastCursor:number|undefined;const started=performance.now();
 for await(const unit of drawingDetails({name:'scanned-drawing.pdf',type:'application/pdf',data},1)){
   sections++;assert.ok(unit.data.length<16*1024*1024);assert.deepEqual(unit.pages,[{source:'scanned-drawing.pdf',page:1}]);
-  const pdf=await PDFDocument.load(unit.data);tiles+=pdf.getPageCount()-1;
-  assert.ok(unit.name.includes('whole-sheet context first'));
+  const pdf=await PDFDocument.load(unit.data);tiles+=pdf.getPageCount();
+  assert.equal(pdf.getPageCount(),unit.detailRegions?.tiles.length);
+  assert.equal(unit.detailRegions?.columns,6);assert.equal(unit.detailRegions?.rows,4);
   for(const p of await combined.copyPages(pdf,pdf.getPageIndices()))combined.addPage(p);
   lastCursor=unit.nextPage;
 }
 assert.equal(tiles,24);assert.equal(sections,4);assert.equal(lastCursor,1);
+assert.equal(entirelyWhite(new Uint8Array([255,255,255,255])),true);
+for(const marked of [[254,255,255,255],[255,255,255,254],[255,0,255,255]])assert.equal(entirelyWhite(new Uint8Array(marked)),false,'Even one faint or transparent pixel must remain for review');
 await writeFile(`${output}/detail-views.pdf`,await combined.save());
 console.log(`PASS: 36 x 24 inch scanned sheet, ${tiles} overlapping detail views in ${sections} requests, all regions covered, original-page identity retained. Rendering ${(performance.now()-started).toFixed(0)} ms. No AI calls; inspect first and last views for visual QA.`);
+const sparse=await PDFDocument.create();sparse.addPage([800,800]).drawRectangle({x:20,y:770,width:1,height:1});
+const sparseUnits=[];
+for await(const unit of drawingDetails({name:'sparse.pdf',type:'application/pdf',data:Buffer.from(await sparse.save())},1))sparseUnits.push(unit);
+assert.equal(sparseUnits.length,1);assert.equal(sparseUnits[0].nextPage,1,'Trailing blank regions must retain the final page checkpoint');
+const regions=sparseUnits[0].detailRegions!;
+assert.equal(regions.inspectedTiles,4);assert.deepEqual(regions.tiles,[1]);assert.deepEqual(regions.blankTiles,[2,3,4]);
+assert.deepEqual([...regions.tiles,...regions.blankTiles].sort((a,b)=>a-b),[1,2,3,4],'Every sparse-sheet region must have explicit inspection evidence');
+console.log('PASS: a one-point mark is retained; all blank regions are pixel-inspected and the final page checkpoint is saved.');
