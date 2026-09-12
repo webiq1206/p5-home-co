@@ -156,3 +156,35 @@ test('internal payload labels are removed from every visitor question surface',(
   const questions=scopeQuestions({service:'bathroom',sqft:'80',demolition:'Remove tile'},e,[],[],['materials']);
   assert.equal(questions.some(q=>/previousAnswers|savedProjectDetails|projectDescription/.test(`${q.reason} ${q.detail||''}`)),false);
 });
+
+test('the actual text-only production question replaces its partial 10-hour fact with the visitor-confirmed 14-hour total',async()=>{
+  const {resolveInstructionAnswer}=await resolver();
+  process.env.OPENAI_API_KEY='synthetic';delete process.env.AI_INTEGRATIONS_OPENAI_API_KEY;
+  const e=scope();e.documentCoverage={expectedPages:0,complete:true,pages:[]};e.takeoffs=[];
+  e.instructions!.questions=['Which one of the four mutually exclusive bench top options should be included in the estimate?'];
+  e.facts=[{field:'laborHours',value:'10',confidence:.85,source:'typed scope',basis:'calculated',evidence:'Assembly labor 2 hours + cabinet installation labor 8 hours = 10 hours. Excludes bench top labor, which varies by unselected option (2–5 hours).'}];
+  const id=instructionPrompts(e,{})[0].id;
+  const answer='Option 2 only: include matching painted MDF/wood; exclude butcher block, laminate, and quartz; include two cabinet units and 9 knobs/pulls; assembly 2 hours + installation 8 hours + selected top 4 hours = 14 total labor hours.';
+  let calls=0;
+  const request:typeof fetch=async()=>{
+    calls++;
+    return Response.json({status:'completed',output:[{content:[{type:'output_text',text:JSON.stringify({summary:'',facts:[],conflicts:[],reviewNotes:[],missingInformation:[],clarifications:[],instructions:{...e.instructions,inclusions:['Matching painted MDF/wood','Total labor 14 hours (2 assembly + 8 installation + 4 selected bench top)'],exclusions:['Butcher block','Laminate','Quartz'],questions:[]},pages:[],takeoffs:[]})}]}]});
+  };
+  try{
+    const result=await resolveInstructionAnswer(e,{service:'cabinet-install',laborHours:'10'},{id,answer},[],request);
+    assert.equal(result.answers.laborHours,'14');
+    assert.equal(result.extraction?.facts.find(f=>f.field==='laborHours')?.value,'14');
+    assert.equal(result.extraction?.facts.find(f=>f.field==='laborHours')?.source,'clarification answer');
+    assert.equal(result.extraction?.takeoffs,e.takeoffs);
+    assert.equal(result.extraction?.documentCoverage,e.documentCoverage);
+    assert.equal(instructionPrompts(result.extraction,result.answers).length,0);
+    const repeated=await resolveInstructionAnswer(result.extraction,result.answers,{id,answer},result.history,request);
+    assert.equal(repeated.answers.laborHours,'14');assert.equal(calls,1);
+    const manual=await resolveInstructionAnswer(e,{service:'cabinet-install',laborHours:'12'},{id,answer:'Matching painted MDF/wood only.'},[],request);
+    assert.equal(manual.answers.laborHours,'12');
+    const conflicted={...e,conflicts:[{field:'laborHours' as const,values:['16','18'],explanation:'The same installation work has two conflicting quantities.'}]};
+    const unresolved=await resolveInstructionAnswer(conflicted,{service:'cabinet-install',laborHours:'10'},{id,answer},[],request);
+    assert.deepEqual(unresolved.extraction?.conflicts,conflicted.conflicts);
+    assert.notEqual(unresolved.answers.laborHours,'14');
+  }finally{delete process.env.OPENAI_API_KEY;}
+});
