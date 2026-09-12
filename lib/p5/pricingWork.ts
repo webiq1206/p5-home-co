@@ -9,7 +9,7 @@ import {pricingActivity,type ProcessingStatus} from './processingStatus';
 
 export function pricingWorkKey(scope:ReviewedScope,configuration:EstimatorConfiguration,pricingAt:Date){
  const signature={pricingDate:pricingAt.toISOString().slice(0,10),text:scope.text,answers:scope.answers,extraction:scope.extraction,uploads:scope.uploads,uncertainFields:scope.uncertainFields,configuration};
- return 'pricing-v6-'+createHash('sha256').update(JSON.stringify(signature)).digest('hex');
+ return 'pricing-v8-'+createHash('sha256').update(JSON.stringify(signature)).digest('hex');
 }
 export async function priceSavedScope(id:string,scope:ReviewedScope,configuration:EstimatorConfiguration,pricingAt=new Date()){
  const workKey=pricingWorkKey(scope,configuration,pricingAt);

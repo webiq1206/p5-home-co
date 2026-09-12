@@ -31,7 +31,7 @@ try{
  assert.equal(JSON.stringify(rule),original,'Saving regional evidence must not mutate approved input costs or scope');
  assert.equal((await regional.readRegionalRates('Boise, Idaho',new Date('2026-09-12'))).length,0,'Another location cannot inherit this allowance without new evidence');
  assert.equal((await regional.readRegionalRates('Emmett, Idaho',new Date('2100-01-01'))).length,0,'Expired evidence must not be reused');
- const [savedRate]=await db.query("SELECT payload FROM p5_estimator_work WHERE work_key LIKE 'regional-rate-v1-%'");assert.equal(savedRate.payload.status,'estimated');assert.equal(savedRate.payload.rate.evidence.provenance.sources[0].dateBasis,'retrieved');
+ const [savedRate]=await db.query("SELECT payload FROM p5_estimator_work WHERE work_key LIKE 'regional-rate-v2-%'");assert.equal(savedRate.payload.status,'estimated');assert.equal(savedRate.payload.rate.evidence.provenance.sources[0].dateBasis,'retrieved');
  // Exercise the real submission route against isolated SQL. No transport may
  // run for an incomplete quote, and the saved draft must remain editable.
  await writeFile(path.join(dir,'outbox.ts'),`export async function enqueueSubmission(){throw new Error('An incomplete quote reached delivery');}export async function deliveryStatus(){return [];}export async function processOutbox(){throw new Error('An incomplete quote reached transport');}`);
