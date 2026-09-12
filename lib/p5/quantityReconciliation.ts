@@ -9,7 +9,7 @@ const matches=(item:Takeoff,value:string)=>{const text=corpus(item);const tokens
 
 /** Short buttons only when the source question itself presents two alternatives. */
 export function alternativeOptions(question:string){
-  const match=question.match(/(?:choose|select|use|include|be|:)\s+([^?;:,]{2,55}?)\s+or\s+([^?;:,]{2,55}?)(?:\?|$)/i);
+  const match=question.match(/\(([^()]{2,55}?)\s+or\s+([^()]{2,55}?)\)/i)||question.match(/(?:choose|select|use|include|be|:)\s+([^?;:,]{2,55}?)\s+or\s+([^?;:,]{2,55}?)(?:\?|$)/i);
   if(!match)return undefined;
   const clean=(value:string)=>value.replace(/^(?:the|a|an)\s+/i,'').replace(/\s+/g,' ').trim();
   const values=[clean(match[1]),clean(match[2])];
