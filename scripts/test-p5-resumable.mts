@@ -15,7 +15,7 @@ try{
  process.env.P5_OBJECT_STORAGE_ENABLED='true';process.env.ANTHROPIC_API_KEY='synthetic';
  const id=randomUUID(),key=randomBytes(32).toString('hex'),headers={'x-p5-draft-id':id,'x-p5-draft-key':key};
  await store.saveDraft(id,key,'synthetic',{text:'Bathroom remodel',answers:{},extraction:null,reviewed:null,contact:{name:'',email:'',phone:''}},0);
- const pdf=await PDFDocument.create();for(let i=0;i<17;i++)pdf.addPage();
+ const pdf=await PDFDocument.create();for(let i=0;i<256;i++){const page=pdf.addPage();page.drawText(`SHEET ${i+1} OF 256${i===255?' FINAL REVISION: INCLUDE TRIM PACKAGE':''}`,{x:40,y:700,size:12});}
  const bytes=Buffer.concat([Buffer.from(await pdf.save()),Buffer.alloc(25*1024*1024,32)]),digest=createHash('sha256').update(bytes).digest('hex');
  const call=(action:string,body:BodyInit,extra='',h=headers)=>api.postUpload(new Request(`https://test.local/api/p5-estimator/upload?action=${action}&sha256=${digest}${extra}`,{method:'POST',headers:h,body}));
  let res=await call('start',JSON.stringify({name:'large-plan.pdf',size:bytes.length}));assert.equal(res.status,200);let result=await res.json();const chunkSize=result.chunkSize;
@@ -29,10 +29,24 @@ try{
  res=await call('finish','');assert.equal(res.status,200);result=await res.json();assert.equal(result.draft.uploads[0].sha256,digest);assert.equal(result.draft.uploads[0].size,bytes.length);
  assert.equal((await store.readUploads(id,key))[0].data.equals(bytes),true);assert.equal([...fixture.objects.keys()].some((k:string)=>k.startsWith('transfers/')),false);
  assert.equal((await call('finish','')).status,200);assert.equal((await store.readDraft(id,key)).uploads.length,1);
- const counts=new Map<string,number>();const provider=async(_url:any,options:any)=>{const payload=JSON.parse(options.body),name=payload.messages[0].content[0].text;counts.set(name,(counts.get(name)||0)+1);if(name.includes('9 to 16')&&counts.get(name)===1)return new Response('temporary failure',{status:503});return Response.json({stop_reason:'end_turn',content:[{type:'text',text:JSON.stringify({summary:'One bathroom',facts:[{field:'sqft',value:'80',confidence:.99,source:'large-plan.pdf',evidence:'80 square feet',basis:'stated'}],conflicts:[],missingInformation:[],reviewNotes:[],clarifications:[]})}]});};
+ let active=0,peak=0;const counts=new Map<string,number>();const provider=async(_url:any,options:any)=>{
+   const payload=JSON.parse(options.body),name=payload.messages[0].content[0].text;
+   const manifest=JSON.parse(name.split('Original page manifest: ')[1]);
+   const submitted=await PDFDocument.load(Buffer.from(payload.messages[0].content[1].source.data,'base64'));
+   assert.equal(submitted.getPageCount(),manifest.length,'every manifest page must actually reach the provider');
+   counts.set(name,(counts.get(name)||0)+1);active++;peak=Math.max(peak,active);
+   try{
+     await new Promise(r=>setTimeout(r,15));
+     if(name.includes('9 to 16')&&counts.get(name)===1)return new Response('temporary failure',{status:503});
+     return Response.json({stop_reason:'end_turn',content:[{type:'text',text:JSON.stringify({summary:'One bathroom',facts:[{field:'sqft',value:'80',confidence:.99,source:'large-plan.pdf',evidence:'80 square feet',basis:'stated'}],conflicts:[],missingInformation:[],reviewNotes:[],clarifications:[],pages:manifest.map((p:any)=>({...p,sheet:`A${p.page}`,revision:p.page===256?'FINAL':'',status:'read',notes:[]})),takeoffs:[]})}]});
+   }finally{active--;}
+ };
  const draft=await store.readDraft(id,key);let step:any;let n=0;
- do{step=await work.advanceAnalysis(draft,'Bathroom remodel',{},provider);assert.ok(++n<10);}while(step.pending);
- assert.equal(step.analysis.extraction.facts[0].value,'80');assert.equal(counts.size,3,'all 17 pages must be processed');assert.deepEqual([...counts.values()].sort(),[1,1,2],'only the failed section is retried');
+ do{step=await work.advanceAnalysis(draft,'Bathroom remodel',{},provider);assert.ok(++n<80);}while(step.pending);
+ assert.equal(step.analysis.extraction.facts[0].value,'80');assert.equal(counts.size,32,'all 256 pages must be processed');assert.equal([...counts.values()].filter(n=>n===2).length,1,'only the failed section is retried');assert.ok([...counts.values()].every(n=>n===1||n===2));
+ assert.equal(step.analysis.extraction.documentCoverage.complete,true);assert.equal(step.analysis.extraction.documentCoverage.expectedPages,256);
+ assert.deepEqual(step.analysis.extraction.documentCoverage.pages.map((p:any)=>p.page),Array.from({length:256},(_,i)=>i+1));
+ assert.equal(step.analysis.extraction.documentCoverage.pages[255].revision,'FINAL');assert.equal(peak,6,'independent sections use bounded parallel processing');
  const calls=[...counts.values()].reduce((a,b)=>a+b,0);await work.advanceAnalysis(draft,'Bathroom remodel',{},provider);assert.equal([...counts.values()].reduce((a,b)=>a+b,0),calls,'completed analysis survives another request');
  assert.equal(intent.cabinetIntent('Supply and install one bathroom vanity cabinet',['cabinet-install','cabinet-product']),'cabinet-install');
  assert.equal(intent.cabinetIntent('Supply only vanity cabinet, no installation',['cabinet-install','cabinet-product']),'cabinet-product');
@@ -48,14 +62,14 @@ try{
  };
  const form=new FormData();form.set('text','Partial section retry fixture');form.set('resumable','true');
  const analyze=async()=>{const response=await scopeApi.postScope(new Request('https://test.local/api/p5-estimator/scope',{method:'POST',headers,body:form}));assert.equal(response.status,200);return response.json();};
- let response:any;let turns=0;do{response=await analyze();assert.ok(++turns<10);}while(response.pending);
+ let response:any;let turns=0;do{response=await analyze();assert.ok(++turns<80);}while(response.pending);
  assert.match(response.warning,/automatic reading could not finish/,'failed sections must expose the retry control');
  assert.ok(response.draft.extraction.reviewNotes.some((note:string)=>note.includes('9 to 16')));
  const completedBefore=[...sectionCalls].filter(([name])=>!name.includes('9 to 16'));
  middleFails=false;form.set('retry','true');response=await analyze();form.set('retry','false');
- turns=0;while(response.pending){response=await analyze();assert.ok(++turns<10);}
+ turns=0;while(response.pending){response=await analyze();assert.ok(++turns<80);}
  assert.equal(response.warning,'');assert.deepEqual(response.draft.extraction.reviewNotes,[]);
  for(const [name,count] of completedBefore)assert.equal(sectionCalls.get(name),count,'completed sections must not be billed again');
  globalThis.fetch=nativeFetch;
- await db.database.close();console.log('Passed: 25 MB resumable upload, corrupted-segment rejection, retry deduplication, authorization, full byte comparison, cleanup, 17-page checkpointed analysis, failed-section retry, Cabinet intent. Real isolated SQL/PDF; storage and AI simulated.');
+ await db.database.close();console.log('Passed: 25 MB resumable upload, corrupted-segment rejection, retry deduplication, authorization, full byte comparison, cleanup, all 256 pages and final revision, six concurrent readers, failed-section retry, Cabinet intent. Real isolated SQL/PDF; storage and AI simulated, not an OCR accuracy benchmark.');
 }finally{delete process.env.P5_OBJECT_STORAGE_ENABLED;delete process.env.ANTHROPIC_API_KEY;await rm(dir,{recursive:true,force:true});}

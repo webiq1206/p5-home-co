@@ -4,13 +4,14 @@ import { calculateP5Estimate,customerEstimate,DEFAULT_FINANCE,POLICY_VERSION,COS
 import { scopeText,type ReviewedScope,type ScopeField } from "./scope.ts";
 import {materializePlanningBook,type PlanningCatalog} from './planningBooks.ts';
 export interface CostRule extends Omit<DirectCostLine,"quantity"|"quantitySource"> {
+  scopeTaskId?:string;
   quantity: { field?: ScopeField; factor: number; fixed?: number };
   when?: {field:ScopeField;equals:string};
 }
 export interface ServiceCostBook {service:Service;mode?:'owner-planning';rules:CostRule[];coverage:ScopeCoverage[];assumptions:string[];exclusions:string[];verifiedScope:string;reviewedAt:string}
-export interface EstimatorConfiguration { finance:FinancePolicy;costBooks:ServiceCostBook[];planningCatalog?:PlanningCatalog }
+export interface EstimatorConfiguration { finance:FinancePolicy;costBooks:ServiceCostBook[];planningCatalog?:PlanningCatalog;regionalRates?:CostRule[] }
 export const EMPTY_CONFIGURATION:EstimatorConfiguration={finance:DEFAULT_FINANCE,costBooks:[]};
-export interface ScopePriceResolution { rules:CostRule[]; assumptions:string[]; issues:string[];removeLineIds?:string[];removeExclusions?:string[];completeScopeVerified?:boolean }
+export interface ScopePriceResolution { rules:CostRule[]; assumptions:string[]; issues:string[];removeLineIds?:string[];removeExclusions?:string[];completeScopeVerified?:boolean;replaceBase?:boolean }
 export function priceReviewedScope(scope:ReviewedScope,configuration:EstimatorConfiguration,now=new Date(),resolution?:ScopePriceResolution) {
   scope={...scope,answers:deriveScopeAnswers(scope.answers)};
   const service=scope.answers.service as Service;
@@ -23,9 +24,10 @@ export function priceReviewedScope(scope:ReviewedScope,configuration:EstimatorCo
     customer:{status:"review-required",range:null,summary,includedCategories:[],categoryRanges:[],lineItems:[],allowances:[],assumptions:[],exclusions:[],factors:[],nextStep:SERVICE_MATRIX[service].method,message:"We have your project details. A specialist needs to confirm current costs before we can provide a reliable planning range.",disclaimer:"Preliminary project information only. This is not a bid, quote, offer or guaranteed price."},
   };
   const missingInformation=[...(scope.extraction?.missingInformation||[])];
-  if(book.mode==='owner-planning'){
+  if(resolution?.replaceBase)book={...book,rules:[],exclusions:[],assumptions:[],coverage:COST_CATEGORIES.map(category=>({category,status:'not-applicable' as const,reason:'Only the explicitly requested scope is priced; see itemized scope.'}))};
+  else if(book.mode==='owner-planning'){
     if(!configuration.planningCatalog)throw new Error('The owner planning catalog has not been imported.');
-    const modeled=materializePlanningBook(book,configuration.planningCatalog,scope,now);book=modeled.book;missingInformation.push(...modeled.missing.filter(issue=>!(resolution?.completeScopeVerified&&resolution.rules.length>0&&issue==='Missing quantity: specialist trade takeoff for the additional work in this task list')));
+    const modeled=materializePlanningBook(book,configuration.planningCatalog,scope,now);book=modeled.book;missingInformation.push(...(resolution?.completeScopeVerified?[]:modeled.missing));
   }
   const lines:DirectCostLine[]=[];
   if(resolution){
@@ -45,7 +47,7 @@ export function priceReviewedScope(scope:ReviewedScope,configuration:EstimatorCo
     if(rule.quantity.field&&!value?.trim()){missingInformation.push(`Missing quantity: ${rule.quantity.field} for ${rule.description}`);continue;}
     const quantity=(rule.quantity.field?Number(value!.replaceAll(",","")):rule.quantity.fixed??NaN)*rule.quantity.factor;
     if(!Number.isFinite(quantity)||quantity<0)throw new Error("Invalid cost-book quantity rule");
-    if(quantity===0)continue;
+    if(quantity===0){missingInformation.push(`Missing quantity: ${rule.description} has a zero quantity; confirm exclusion or provide an allowance.`);continue;}
     const {when,quantity:quantityRule,...cost}=rule;
     lines.push({...cost,quantity,quantitySource:rule.quantity.field?`Reviewed ${rule.quantity.field}: ${value}; quantity factor ${rule.quantity.factor}`:`Approved fixed scope: ${book.verifiedScope}; ${rule.description}`});
   }

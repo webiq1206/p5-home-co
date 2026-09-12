@@ -17,7 +17,7 @@ export function parseAnswers(raw:unknown):ScopeAnswers {
 export async function putDraft(request:Request){
   try{
     protectRequest(request);const {id,key}=draftCredentials(request);
-    const raw=JSON.parse(new TextDecoder().decode(await limitedBody(request,240000)));
+    const raw=JSON.parse(new TextDecoder().decode(await limitedBody(request,24*1024*1024)));
     if(typeof raw.text!=="string"||raw.text.length>SCOPE_TEXT_LIMIT||!Number.isInteger(raw.revision)||raw.revision<0)throw new DraftError("Invalid draft.");
     const answers=deriveScopeAnswers(parseAnswers(raw.answers));const existing=await readDraft(id,key);
     const skipped=Array.isArray(raw.wizard?.skipped)?raw.wizard.skipped.filter((k:unknown)=>typeof k==="string"&&Object.hasOwn(SCOPE_FIELDS,k)&&k!=="service"):[];
@@ -29,6 +29,7 @@ export async function putDraft(request:Request){
     if(contact.name.length>120||contact.email.length>200||contact.phone.length>40)throw new DraftError("Contact details are too long.");
     let reviewed:ReviewedScope|null=null;
     if(raw.reviewed===true){
+      if(extraction?.instructions?.questions.length)throw new DraftError(extraction.instructions.questions[0]+' Update your instructions and analyze again.');
       const unresolved=extraction?reconcileScope(answers,extraction,resolutions).conflicts:[];
       if(unresolved.length)throw new DraftError(`Confirm ${SCOPE_FIELDS[unresolved[0].field].label} before submitting.`);
       for(const conflict of extraction?.conflicts||[])if(!answers[conflict.field]?.trim())throw new DraftError(`Resolve ${SCOPE_FIELDS[conflict.field].label} before submitting.`);

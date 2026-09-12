@@ -1,5 +1,6 @@
 import {applyCabinetIntent} from "./projectIntent";
 import {advanceAnalysis} from "./analysisWork";
+import {queuedJob} from './backgroundJobs';
 import {reconcileScope,scopeQuestions,manualScopeAnswers} from "./adaptive";
 import {costQuestionFields} from "./questionPolicy";
 import {createHash} from "node:crypto";
@@ -15,7 +16,7 @@ export async function postScope(request:Request){
     if(!draft)throw new DraftError("Save your draft before analyzing.",404);
     const bytes=await limitedBody(request,24*1024*1024);
     const form=await new Response(bytes as BodyInit,{headers:{"Content-Type":request.headers.get("content-type")||""}}).formData();
-    const text=String(form.get("text")??draft.text);if(text.length>SCOPE_TEXT_LIMIT)throw new DraftError("Please shorten the scope to 24,000 characters.");
+    const text=String(form.get("text")??draft.text);if(text.length>SCOPE_TEXT_LIMIT)throw new DraftError("Upload this scope as a document so every section can be processed.");
     const files=form.getAll("files");if(files.length>SCOPE_FILE_COUNT)throw new DraftError(SCOPE_UPLOAD_HELP);
     const requested:string[]=[];const incoming=[];const known=new Set(draft.uploads.map(f=>f.sha256));
     for(const file of files){
@@ -38,7 +39,10 @@ export async function postScope(request:Request){
     let analysis=null;let warning="";
     try{
       if(checkpointed){
-        const step=await advanceAnalysis(draft,text,visitorAnswers,fetch,form.get("retry")==="true");
+        const background=form.get('background')==='true';
+        const job=background?await queuedJob({kind:'analysis',draft,text,answers:visitorAnswers},form.get('retry')==='true'):null;
+        if(job&&job.state!=='complete')return json({pending:job.state!=='failed',progress:job.progress,processing:job.processing,...(job.state==='failed'?{error:job.progress}:{})},job.state==='failed'?503:200);
+        const step=job?job.result:await advanceAnalysis(draft,text,visitorAnswers,fetch,form.get("retry")==="true");
         if(step.pending)return json(step);
         analysis=step.analysis;
       }else{
@@ -47,7 +51,7 @@ export async function postScope(request:Request){
       analysis=await analyzeScope(text,readable,visitorAnswers);
       analysis.extraction.reviewNotes.push(...manualReview);
       }
-      const unread=analysis.extraction.reviewNotes.filter(note=>/saved for manual review|could not read|automatic read failed|automatic reading could not finish|unread section requires review/.test(note));
+      const unread=analysis.extraction.reviewNotes.filter((note:string)=>/saved for manual review|could not read|automatic read failed|automatic reading could not finish|unread section requires review|unreadable|partial/.test(note));
       if(unread.length)warning="Some files need review before pricing. "+unread.join(" ");
     }catch(error){
       console.error("[p5-scope-analysis]",error instanceof Error?error.message:"analysis failed");
@@ -58,7 +62,7 @@ export async function postScope(request:Request){
     const merged=analysis?reconcileScope(visitorAnswers,analysis.extraction,resolutions):{answers:draft.answers,conflicts:[]};
     const wizard={skipped:draft.wizard?.skipped||[],resolutions,sourceVersion:analysis?version:draft.wizard?.sourceVersion};
     // Partial analysis is visible and prevents unread documents from being priced.
-    const safeExtraction=warning?{summary:extraction?.summary||text,facts:extraction?.facts||[],conflicts:extraction?.conflicts||[],missingInformation:extraction?.missingInformation||[],reviewNotes:[...new Set([...(extraction?.reviewNotes||[]),warning])]}:extraction;
+    const safeExtraction=warning?{...extraction,summary:extraction?.summary||text,facts:extraction?.facts||[],conflicts:extraction?.conflicts||[],missingInformation:extraction?.missingInformation||[],reviewNotes:[...new Set([...(extraction?.reviewNotes||[]),warning])]}:extraction;
     const saved=await saveDraft(id,key,ESTIMATOR_BRAND.id,{text,answers:merged.answers,extraction:safeExtraction,reviewed:null,contact:draft.contact,wizard},draft.revision);
     if(requested.some(digest=>!saved.uploads.some(file=>file.sha256===digest)))throw new DraftError("Some files could not be confirmed. Please retry; duplicate files will not be added twice.",503);
     const pricedFields=await costQuestionFields(saved.answers);

@@ -4,6 +4,7 @@ import {priceCompleteScope,marketResolution,requestPricing,type PricingRequest} 
 import {priceReviewedScope} from '../lib/p5/costBook.ts';
 import {createPlanningConfiguration,PLANNING_MODEL_VERSION,type PlanningCatalog} from '../lib/p5/planningBooks.ts';
 import type {ReviewedScope} from '../lib/p5/scope.ts';
+import {emptyInstructions} from '../lib/p5/instructions.ts';
 const date='2026-09-11T00:00:00.000Z',now=new Date(date);
 const codes=['03-17-01-M','03-17-01-L','03-19-02-M','03-15-02-M','03-15-02-L','03-16-01-M','03-16-01-L','03-14-01-M','03-14-01-L','03-04-01','03-04-02','03-04-03','03-05-02-M','03-05-02-L','REF-GENERAL-HOUR','REF-PLUMBING-HOUR','REF-ELECTRICAL-HOUR'];
 const catalog:PlanningCatalog={version:PLANNING_MODEL_VERSION,source:'Synthetic fixture',authorizedBy:'Test only',importedAt:date,rates:codes.map(code=>({code,description:'Synthetic work',type:code.endsWith('-M')?'Material':'Labor',unit:code.includes('HOUR')?'HR':'LF',amount:100,source:'Synthetic fixture',basis:'owner-average-cost'}))};
@@ -149,4 +150,45 @@ test('Valid JSON research with incompatible field types gets a saved constrained
   return {value:inputs.shift(),sourceUrls:search?urls:[]};
  },now);
  assert.equal(formatting,1);assert.ok(result.customer.range);assert.ok(JSON.stringify(result.internal.scopePricing.research).includes(urls[0]));
+});
+
+test('An audit finding is repaired with a labeled quantity allowance, then audited again',async()=>{
+ const unresolved={...extra,researchDescription:''};
+ const allowed={...unresolved,additions:[{code:'03-15-02-M',quantity:10,quantityRange:{low:8,high:15},quantityEvidence:'ALLOWANCE: Budget ten feet based on the cabinet run; confirm eight to fifteen feet before ordering.'}]};
+ const priced=await priceCompleteScope(scope,config,replies([
+   {tasks:[task,unresolved],issues:[]},
+   {coveredTaskIds:['cabinets'],issues:['Overlay quantity and cost missing']},
+   {tasks:[task,allowed],issues:[]},
+   {coveredTaskIds:['cabinets','overlay'],issues:[]},
+ ]),now);
+ assert.ok(priced.customer.range);const line=priced.customer.lineItems.find(l=>l.id==='repair-scope-1');
+ assert.equal(line?.pricingStatus,'estimated-allowance');assert.deepEqual(line?.quantityRange,{low:8,high:15});
+ assert.ok(Math.abs((priced.internal as any).reconciliation)<1e-8);assert.ok(priced.customer.verificationItems.some(i=>i.includes('ALLOWANCE:')));
+});
+test('Trim-only and labor-only instructions replace whole-project defaults and reject material charges',async()=>{
+ const instructions={...emptyInstructions(),inclusions:['First-floor trim only'],exclusions:['All plumbing'],floors:['1'],laborOnly:true};
+ const restricted={...scope,text:'Price only first-floor trim labor. Owner supplies all materials. Exclude plumbing.',answers:{...scope.answers,estimatingInstructions:'Price only first-floor trim labor. Exclude plumbing.'},extraction:{summary:'Trim labor',facts:[],conflicts:[],missingInformation:[],reviewNotes:[],instructions}};
+ const trim={id:'trim',description:'First-floor trim installation labor',evidence:'Requested trim only',existingLineIds:[],additions:[{code:'REF-GENERAL-HOUR',quantity:8,quantityEvidence:'ALLOWANCE: Eight installation hours based on the trim package, confirm six to twelve.',quantityRange:{low:6,high:12},floor:'1',building:'Main'}],researchDescription:'',issues:[]};
+ const priced=await priceCompleteScope(restricted,config,replies([{tasks:[trim],issues:[]},{coveredTaskIds:['trim'],issues:[]}]),now);
+ assert.ok(priced.customer.range);assert.equal((priced.internal as any).lines.length,1);assert.equal((priced.internal as any).lines[0].category,'field-labor');assert.equal(priced.customer.lineItems[0].floor,'1');
+ const wrong={...trim,additions:[{...trim.additions[0],code:'03-15-02-M'}]};
+ const refused=await priceCompleteScope(restricted,config,replies([{tasks:[wrong],issues:[]},{coveredTaskIds:['trim'],issues:[]}]),now);
+ assert.equal(refused.customer.range,null);assert.ok(refused.internal.scopePricing.issues.some(i=>i.includes('labor-only')));
+});
+test('Separate building prices require every component to be assigned to a building',async()=>{
+ const instructions={...emptyInstructions(),separateBuildings:true,buildings:['Main','ADU'],materialsOnly:true};
+ const restricted={...scope,answers:{...scope.answers,estimatingInstructions:'Separate cabinet supply for Main and ADU'},extraction:{summary:'Separate cabinet supply',facts:[],conflicts:[],missingInformation:[],reviewNotes:[],instructions}};
+ const tasks=['Main','ADU'].map((building,i)=>({id:building,description:building+' cabinet material',evidence:'Ten feet per building',existingLineIds:[],additions:[{code:'03-15-02-M',quantity:10,quantityEvidence:'Ten feet requested',building}],researchDescription:'',issues:[]}));
+ const priced=await priceCompleteScope(restricted,config,replies([{tasks,issues:[]},{coveredTaskIds:['Main','ADU'],issues:[]}]),now);
+ assert.ok(priced.customer.range);assert.deepEqual(priced.customer.lineItems.map(l=>l.building),['Main','ADU']);
+ assert.equal(priced.customer.lineItems.reduce((n,l)=>n+l.low,0),priced.customer.range.low);assert.equal(priced.customer.lineItems.reduce((n,l)=>n+l.high,0),priced.customer.range.high);
+ const missing=tasks.map(t=>({...t,additions:t.additions.map(a=>({...a,building:undefined}))}));
+ const held=await priceCompleteScope(restricted,config,replies([{tasks:missing,issues:[]},{coveredTaskIds:['Main','ADU'],issues:[]}]),now);assert.equal(held.customer.range,null);
+});
+test('An undated actual supplier offering records retrieval date without inventing a publication date',()=>{
+ const single={...researched,rates:[{...researched.rates[0],sources:[{...source(urls[0],10,20),publishedAt:'',dateBasis:'retrieved',sourceType:'supplier'}]}]};
+ const rate=marketResolution(single,urls,[extra],now,0,'Boise').rules[0];
+ assert.equal(rate.evidence.provenance?.status,'estimated');assert.equal(rate.evidence.provenance?.location,'Boise');
+ assert.equal(rate.evidence.provenance?.sources[0].date,'2026-09-11');assert.equal(rate.evidence.provenance?.sources[0].dateBasis,'retrieved');
+ assert.match(rate.evidence.reference,/retrieved 2026-09-11/);
 });

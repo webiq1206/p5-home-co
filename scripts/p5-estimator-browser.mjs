@@ -11,7 +11,9 @@ const service=brand.services.includes('bathroom')?'bathroom':brand.services.incl
 const fullAnswers={service,taskList:'Complete the specified work. Repair three interior doors.',...(service.startsWith('cabinet-')?{cabinetRoom:'kitchen',cabinetBaseLf:'20',cabinetUpperLf:'0'}:service==='handyman'?{}:{sqft:'80',materials:'Porcelain tile',demolition:'Remove old finishes'})};
 const result={status:'preliminary',range:{low:1000,high:1800},categoryRanges:[{category:'Carpentry',low:1000,high:1800}],lineItems:[{id:'repair',category:'Carpentry',description:'Repair three interior doors',quantity:3,unit:'EA',low:1000,high:1800,unitLow:1000/3,unitHigh:600}],summary:'Synthetic fixture scope.',includedCategories:[],allowances:[],assumptions:[],exclusions:[],factors:[],nextStep:'Schedule a scope review.',message:'Synthetic planning range.',disclaimer:'This is not a bid, quote, offer or guaranteed price.'};
 async function mock(context,{interruptions=false,scenario='full'}={}){
- const state={saved:null,nullReceipt:interruptions,failUpload:interruptions,submissions:0,postSubmissionSaves:0,scopeCalls:0};
+ // Keep synthetic estimator sessions out of production analytics and isolate third-party network failures.
+ await context.route(/^https:\/\/([a-z0-9-]+\.)*clarity\.ms\//, route=>route.fulfill({status:200,contentType:'application/javascript',body:''}));
+ const state={saved:null,nullReceipt:interruptions,failUpload:interruptions,submissions:0,postSubmissionSaves:0,scopeCalls:0,pricingPolls:0};
  await context.addInitScript(()=>{window.SpeechRecognition=class{start(){this.onresult?.({resultIndex:0,results:[Object.assign([{transcript:'Repair three interior doors.'}],{isFinal:true})]});this.onend?.();}stop(){this.onend?.();}};});
  await context.route('**/api/p5-estimator/**',async route=>{
   const request=route.request();const endpoint=new URL(request.url()).pathname.split('/').at(-1);
@@ -31,6 +33,7 @@ async function mock(context,{interruptions=false,scenario='full'}={}){
     const files=await Promise.all(form.getAll('files').map(async file=>({id:'test-upload',name:file.name,size:file.size,type:file.type,sha256:createHash('sha256').update(Buffer.from(await file.arrayBuffer())).digest('hex'),status:'stored'})));
     state.saved={...state.saved,uploads:files};return send({draft:state.saved,analysis:null});
    }
+   if(scenario==='progress'&&state.scopeCalls<3)return send({pending:true,progress:'Reading original plan pages',processing:{phase:'reading',message:'Reading the next eight original pages.',readPages:state.scopeCalls*8,totalPages:256,readSections:state.scopeCalls,totalSections:32,currentItems:['Plans.pdf (pages '+(state.scopeCalls*8+1)+' to '+(state.scopeCalls*8+8)+')'],updatedAt:new Date().toISOString()}});
    const desired=scenario==='unavailable'?{}:scenario==='manual'?{service,taskList:state.saved.answers.taskList||'Repair three interior doors',...(service.startsWith('cabinet-')?{cabinetRoom:'kitchen',cabinetBaseLf:'20',cabinetUpperLf:'0'}:{})}:fullAnswers;
    const extraction={summary:'Synthetic project',facts:Object.entries(desired).map(([field,value])=>({field,value,confidence:.98,source:'scope.txt',evidence:value})),conflicts:scenario==='conflict'?[{field:'taskList',values:['Repair three doors','Replace three doors'],explanation:'The documents disagree. Which work should be included?'}]:[],missingInformation:[],reviewNotes:[],clarifications:[]};
    const merged=reconcileScope(state.saved.answers,extraction,state.saved.wizard?.resolutions||{});
@@ -38,6 +41,7 @@ async function mock(context,{interruptions=false,scenario='full'}={}){
    return send({draft:state.saved,analysis:{extraction},conflicts:merged.conflicts,pricedFields:[],warning:scenario==='unavailable'?'Your files are saved, but automatic reading could not finish. Retry or add the key details.':''});
   }
   if(endpoint==='submit'){
+   if(scenario==='progress'&&++state.pricingPolls<3){const phase=state.pricingPolls===1?'mapping':'research';return send({pending:true,message:'Checking the requested scope.',processing:{phase,message:phase==='mapping'?'Matching the trim package to established rates.':'Checking published cost evidence for the trim package.',currentItems:['First-floor trim package'],updatedAt:new Date().toISOString()},retryAfterMs:2000},202);}
    const duplicate=state.saved?.status==='submitted';if(!duplicate)state.submissions++;
    state.saved={...state.saved,status:'submitted'};return send({accepted:!duplicate,duplicate,result,delivery:[{channel:'customer',status:'retry'},{channel:'admin',status:'sent'},{channel:'crm',status:'needs-review'}]});
   }
@@ -53,7 +57,7 @@ for(const width of [320,390,430,768,1024,1440,1920]){
   await page.goto(base+'/estimate/p5-preview');const estimator=page.locator('[data-p5-estimator]');const description=estimator.getByLabel('Tell us about your project',{exact:true});await description.waitFor();
   await estimator.getByRole('button',{name:'Use microphone',exact:true}).click();assert.match(await description.inputValue(),/three interior doors/);
   await description.fill('Repair three interior doors. '+('LongUnbrokenProjectSpecification'.repeat(90)));
-  await estimator.locator('input[type=file]').setInputFiles({name:'scope.txt',mimeType:'text/plain',buffer:Buffer.from('Repair three interior doors.')});
+  await estimator.getByLabel('Upload plans, photos or documents',{exact:true}).setInputFiles({name:'scope.txt',mimeType:'text/plain',buffer:Buffer.from('Repair three interior doors.')});
   await estimator.getByRole('button',{name:'Continue',exact:true}).click();await estimator.getByRole('alert').filter({hasText:'Your project save was not confirmed'}).waitFor();
   await estimator.getByRole('button',{name:'Continue',exact:true}).click();await estimator.getByRole('alert').filter({hasText:'Synthetic upload interruption'}).waitFor();
   await page.reload();await estimator.getByRole('button',{name:'Remove scope.txt'}).waitFor();assert.match(await description.inputValue(),/LongUnbrokenProjectSpecification/);await overflow(page);await capture(page,`${width}-scope`);
@@ -97,6 +101,24 @@ for(const scenario of ['manual','conflict','unavailable']){
   }
   await est.getByRole('heading',{name:'Your project is ready to review',exact:true}).waitFor();await overflow(page);results.push({scenario,passed:true});
  }catch(error){results.push({scenario,passed:false,error:String(error)});await capture(page,`${scenario}-failure`).catch(()=>{});}await context.close();
+}
+for(const width of [320,390,1440]){
+ const context=await browser.newContext({viewport:{width,height:900}});await mock(context,{scenario:'progress'});const page=await context.newPage();
+ try{
+  await page.goto(base+'/estimate/p5-preview');const est=page.locator('[data-p5-estimator]');
+  await est.getByLabel('Tell us about your project',{exact:true}).fill('Synthetic progress test: repair three interior doors.');
+  await est.getByRole('button',{name:'Continue',exact:true}).click();
+  await page.getByText('8 of 256 original pages read',{exact:true}).waitFor();
+  assert.equal(await page.getByRole('progressbar',{name:'Original pages fully read'}).getAttribute('value'),'8');
+  await page.getByRole('heading',{name:'Working on',exact:true}).waitFor();await overflow(page);await capture(page,`${width}-live-reading`);
+  await page.getByText('16 of 256 original pages read',{exact:true}).waitFor();
+  await est.getByLabel('Your name',{exact:true}).fill('Synthetic Test');await est.getByLabel('Email',{exact:true}).fill('customer@example.invalid');
+  await est.getByRole('checkbox').check();await est.getByRole('button',{name:'Get my estimate',exact:true}).click();
+  await page.getByRole('heading',{name:'Matching your scope to the cost book',exact:true}).waitFor();
+  assert.equal(await page.getByRole('progressbar',{name:'Original pages fully read'}).count(),0,'Document progress must not become a fabricated pricing percentage');
+  await page.getByRole('heading',{name:'Researching missing local rates',exact:true}).waitFor();await overflow(page);await capture(page,`${width}-live-pricing`);
+  await est.getByText('Schedule a scope review.',{exact:true}).waitFor();results.push({width,scenario:'live-progress',passed:true});
+ }catch(error){results.push({width,scenario:'live-progress',passed:false,error:String(error)});await capture(page,`${width}-progress-failure`).catch(()=>{});}await context.close();
 }
 const paths=brand.id==='p5'?['/estimate','/estimate/scope','/quote',...['kitchen-remodel','bathroom-remodel','home-addition','adu','custom-home','custom-cabinets','handyman'].map(s=>'/quote/'+s)]:['/estimate','/estimate/scope','/#calculator',...(brand.services.includes('re10')?['/re-10-repairs-boise']:[]),...(brand.id==='remodeling'?['/remodel-plans-boise']:[])];
 for(const width of [390,768,1440])for(const path of paths){

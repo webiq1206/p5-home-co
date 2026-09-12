@@ -55,12 +55,11 @@ export async function prepareAnalysisFiles(files:AnalysisFile[]) {
         const values:string[]=[];row.eachCell((cell,column)=>{if(++cells>20000)throw new Error("Spreadsheet exceeds 20,000 populated cells. Upload the relevant sheets.");values.push(`${column}: ${cell.text}${cell.formula ? ` [formula: ${cell.formula}; cached result: ${String(cell.result ?? "not supplied")}]` : ""}`);});
         parts.push(`Row ${rowNumber}: ${values.join(" | ")}`);
       });});
-      const text=parts.join("\n");if(text.length>120000)throw new Error("Spreadsheet text is too large. Upload the relevant scope sheets.");
+      const text=parts.join("\n");
       readable.push({...file,type:"text/plain",data:Buffer.from(text)});
     }else if(file.type==="application/vnd.openxmlformats-officedocument.wordprocessingml.document"){
       checkOfficeArchive(file.data);
       const result=await mammoth.extractRawText({buffer:file.data});
-      if(result.value.length>120000)throw new Error("Document text is too large. Upload the relevant scope pages.");
       readable.push({...file,type:"text/plain",data:Buffer.from(result.value)});
     }else if(["application/msword","application/vnd.ms-excel","application/vnd.oasis.opendocument.spreadsheet"].includes(file.type))manualReview.push(`${file.name}: saved for manual review. Export as PDF, XLSX, DOCX, JPEG or PNG for automatic extraction.`);
     else readable.push(file);
