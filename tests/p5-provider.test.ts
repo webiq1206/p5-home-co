@@ -65,3 +65,10 @@ test('provider fallback retains the request and failed provider bodies never esc
   await assert.rejects(analyzeScope('scope',[],{},async()=>Response.json({error:{message:'PRIVATE DOCUMENT CONTENT'}},{status:400})),error=>!String(error).includes('PRIVATE DOCUMENT'));
  }finally{for(const k of variables){if(before[k]===undefined)delete process.env[k];else process.env[k]=before[k];}}
 });
+test('invalid provider output is classified without retaining extracted values',async()=>{
+ const before=Object.fromEntries(variables.map(k=>[k,process.env[k]]));for(const k of variables)delete process.env[k];process.env.ANTHROPIC_API_KEY='fixture-only';
+ try{
+  const invalid={...extraction,takeoffs:[{id:'T1',description:'PRIVATE VANITY',building:'',floor:'',component:'cabinet',quantity:1,unit:'EA',basis:'stated',evidence:'',sources:[],supersedes:[],issues:[]}]};
+  await assert.rejects(analyzeBatch('PRIVATE PROJECT',[],{},async()=>Response.json({stop_reason:'tool_use',content:[{type:'tool_use',name:'record_scope_analysis',input:invalid}]})),error=>String(error).includes('invalid-takeoff-evidence')&&!String(error).includes('PRIVATE'));
+ }finally{for(const k of variables){if(before[k]===undefined)delete process.env[k];else process.env[k]=before[k];}}
+});

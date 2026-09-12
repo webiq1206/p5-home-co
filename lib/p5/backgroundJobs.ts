@@ -7,7 +7,7 @@ import type {EstimatorConfiguration} from './costBook';
 import type {ProcessingStatus} from './processingStatus';
 
 type Input={kind:'analysis';draft:Draft;text:string;answers:ScopeAnswers}|{kind:'pricing';draft:Draft;configuration:EstimatorConfiguration};
-type Job={input:Input;state:'queued'|'running'|'complete'|'failed';progress:string;attempts:number;result?:any;retryAt?:number;retryUnits?:boolean;createdAt:string;processing?:ProcessingStatus;lastError?:string};
+type Job={input:Input;state:'queued'|'running'|'complete'|'failed';progress:string;attempts:number;result?:any;retryAt?:number;retryUnits?:boolean;createdAt:string;processing?:ProcessingStatus;lastError?:string;lastErrorDetail?:string};
 const runtime=globalThis as typeof globalThis & {p5JobTimer?:ReturnType<typeof setInterval>;p5JobsRunning?:boolean};
 function safeWorkerError(error:unknown,input:Input){
   const value=error instanceof Error?`${error.name} ${error.message}`.toLowerCase():'';
@@ -19,6 +19,10 @@ function safeWorkerError(error:unknown,input:Input){
   if(/storage|bucket|prepared document|saved project file|upload|download/.test(value))return 'storage-unavailable';
   if(/lease|another tab|database|query|sql/.test(value))return 'database-contention';
   return input.kind==='analysis'?'analysis-runtime-failed':'pricing-runtime-failed';
+}
+function safeWorkerErrorDetail(error:unknown){
+  const value=error instanceof Error?error.message:'';
+  return value.match(/provider returned invalid extraction:(invalid-(?:takeoff-evidence|takeoff|fact|conflict|clarification|analysis-shape))/)?.[1];
 }
 export async function bootEstimatorWorker(){
   if(!process.env.DATABASE_URL||process.env.NEXT_PHASE==='phase-production-build')return;
@@ -35,7 +39,7 @@ export async function queuedJob(input:Input,retry=false){
   if(retry){
     const lease=await claimWork(input.draft.id,key,initial,30);
     if(lease){const previous=lease.payload as Job;try{
-      if(previous.state==='failed'||previous.state==='complete'&&input.kind==='analysis'&&previous.result?.analysis?.extraction?.reviewNotes?.length){previous.state='queued';previous.attempts=0;previous.retryAt=0;previous.retryUnits=true;delete previous.result;delete previous.lastError;}
+      if(previous.state==='failed'||previous.state==='complete'&&input.kind==='analysis'&&previous.result?.analysis?.extraction?.reviewNotes?.length){previous.state='queued';previous.attempts=0;previous.retryAt=0;previous.retryUnits=true;previous.createdAt=new Date().toISOString();delete previous.result;delete previous.lastError;delete previous.lastErrorDetail;delete previous.processing;}
       await writeWork(input.draft.id,key,lease.token,previous);
     }finally{await releaseWork(input.draft.id,key,lease.token);}}
   }
@@ -80,10 +84,11 @@ export async function drainEstimatorJobs(){
           try{job.result=await priceSavedScope(job.input.draft.id,job.input.draft.reviewed!,job.input.configuration,new Date(job.createdAt));job.state='complete';job.progress='Pricing calculation saved.';}
           catch(error){if(!(error instanceof PricingPending))throw error;if(!error.retryAfterMs)throw error;job.progress=error.message;job.retryAt=Date.now()+error.retryAfterMs;more=true;}
         }
-        job.attempts=0;delete job.lastError;
+        job.attempts=0;delete job.lastError;delete job.lastErrorDetail;
       }catch(error){
         job.lastError=safeWorkerError(error,job.input);
-        console.error(`[p5-worker] ${job.input.kind} attempt ${job.attempts+1} failed: ${job.lastError}`);
+        job.lastErrorDetail=safeWorkerErrorDetail(error);
+        console.error(`[p5-worker] ${job.input.kind} attempt ${job.attempts+1} failed: ${job.lastError}${job.lastErrorDetail?` (${job.lastErrorDetail})`:''}`);
         job.attempts++;job.retryAt=Date.now()+Math.min(60000,job.attempts*10000);
         const maxAttempts=job.input.kind==='analysis'&&!job.input.draft.uploads.length?5:3;
         job.state=job.attempts>=maxAttempts?'failed':'queued';
