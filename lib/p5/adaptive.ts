@@ -90,3 +90,14 @@ export function scopeAssumptions(answers:ScopeAnswers,skipped:ScopeField[]=[]){
   for(const k of skipped)if(!answers[k])notes.push(`${SCOPE_FIELDS[k].label}: not yet known; requires an allowance or pricing review.`);
   return notes;
 }
+
+/** Resolve company scope before asking technical questions for another service. */
+export function scopeQuestionsForBrand(...args:Parameters<typeof scopeQuestions>):ScopeQuestion[]{
+ const service=args[0].service;
+ if(service&&!(ESTIMATOR_BRAND.services as readonly string[]).includes(service))return [{
+  field:'service',label:'Project type',reason:`Which part of this project should ${ESTIMATOR_BRAND.name} estimate?`,
+  values:[...ESTIMATOR_BRAND.services],
+  detail:'Choose the work you want this company to handle. Your complete project description and documents are retained.',
+ }];
+ return scopeQuestions(...args);
+}

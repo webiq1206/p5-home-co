@@ -1,6 +1,6 @@
 import {instructionPrompts} from './clarifications';
 import {resolveInstructionAnswer} from './clarificationAnswer';
-import {deriveScopeAnswers,reconcileScope,scopeQuestions} from "./adaptive";
+import {deriveScopeAnswers,reconcileScope,scopeQuestionsForBrand as scopeQuestions} from "./adaptive";
 import {costQuestionFields} from "./questionPolicy";
 import { ESTIMATOR_BRAND } from "./brand";
 import { draftCredentials, readDraft, saveDraft, DraftError } from "./store";
