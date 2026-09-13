@@ -1,3 +1,4 @@
+import {SERVER_BUDGET_MS,PROCESSING_PAUSED,remainingBudget} from './processingBudget';
 import {createHash} from 'node:crypto';
 import {query} from './database';
 import {claimWork,writeWork,releaseWork} from './workStore';
@@ -39,13 +40,14 @@ export async function queuedJob(input:Input,retry=false){
   if(retry){
     const lease=await claimWork(input.draft.id,key,initial,30);
     if(lease){const previous=lease.payload as Job;try{
-      if(previous.state==='failed'||previous.state==='complete'&&input.kind==='analysis'&&previous.result?.analysis?.extraction?.reviewNotes?.length){previous.state='queued';previous.attempts=0;previous.retryAt=0;previous.retryUnits=true;previous.createdAt=new Date().toISOString();delete previous.startedAt;delete previous.completedAt;delete previous.result;delete previous.lastError;delete previous.lastErrorDetail;delete previous.processing;}
+      if(previous.state!=='complete'&&Date.now()-Date.parse(previous.createdAt)>=SERVER_BUDGET_MS||previous.state==='failed'||previous.state==='complete'&&input.kind==='analysis'&&previous.result?.analysis?.extraction?.reviewNotes?.length){previous.state='queued';previous.attempts=0;previous.retryAt=0;previous.retryUnits=true;previous.createdAt=new Date().toISOString();delete previous.startedAt;delete previous.completedAt;delete previous.result;delete previous.lastError;delete previous.lastErrorDetail;delete previous.processing;}
       await writeWork(input.draft.id,key,lease.token,previous);
     }finally{await releaseWork(input.draft.id,key,lease.token);}}
   }
   const [row]=await query('SELECT payload FROM p5_estimator_work WHERE draft_id=$1 AND work_key=$2',[input.draft.id,key]);
   startEstimatorWorker();void drainEstimatorJobs();
   const job=row.payload as Job;
+  if(job.state!=='complete'&&Date.now()-Date.parse(job.createdAt)>=SERVER_BUDGET_MS){job.state='failed';job.progress=PROCESSING_PAUSED;}
   if(job.state!=='complete'&&job.state!=='failed'){
     const workKey=input.kind==='analysis'?(await import('./analysisWork')).analysisWorkKey(input.draft,input.text,input.answers):(await import('./pricingWork')).pricingWorkKey(input.draft.reviewed!,input.configuration,new Date(job.createdAt));
     const [detail]=await query("SELECT payload->'processing' AS processing FROM p5_estimator_work WHERE draft_id=$1 AND work_key=$2",[input.draft.id,workKey]);
@@ -71,17 +73,19 @@ export async function drainEstimatorJobs(){
       const lease=await claimWork(row.draft_id,row.work_key,{},600);if(!lease)return;
       const job=lease.payload as Job;
       try{
+        const deadline=Date.parse(job.createdAt)+SERVER_BUDGET_MS;
+        remainingBudget(deadline);
         if(job.retryAt&&job.retryAt>Date.now())return;
         job.state='running';job.startedAt||=new Date().toISOString();await writeWork(row.draft_id,row.work_key,lease.token,job);
         if(job.input.kind==='analysis'){
           const {advanceAnalysis}=await import('./analysisWork');
-          const step=await advanceAnalysis(job.input.draft,job.input.text,job.input.answers,fetch,job.retryUnits);job.retryUnits=false;
+          const step=await advanceAnalysis(job.input.draft,job.input.text,job.input.answers,fetch,job.retryUnits,deadline);job.retryUnits=false;
           if(step.pending){job.progress=step.progress;job.retryAt=Date.now()+(step.retryAfterMs||0);more=true;}
           else{job.result=step;job.state='complete';job.completedAt=new Date().toISOString();delete job.retryAt;job.progress='Document processing finished. Review the page coverage and any unreadable content.';}
         }else{
           const {priceSavedScope}=await import('./pricingWork');
           const {PricingPending}=await import('./pricingProgress');
-          try{job.result=await priceSavedScope(job.input.draft.id,job.input.draft.reviewed!,job.input.configuration,new Date(job.createdAt));job.state='complete';job.completedAt=new Date().toISOString();job.progress='Pricing calculation saved.';}
+          try{job.result=await priceSavedScope(job.input.draft.id,job.input.draft.reviewed!,job.input.configuration,new Date(job.createdAt),deadline);job.state='complete';job.completedAt=new Date().toISOString();job.progress='Pricing calculation saved.';}
           catch(error){if(!(error instanceof PricingPending))throw error;if(!error.retryAfterMs)throw error;job.progress=error.message;job.retryAt=Date.now()+error.retryAfterMs;more=true;}
         }
         job.attempts=0;delete job.lastError;delete job.lastErrorDetail;
@@ -93,7 +97,7 @@ export async function drainEstimatorJobs(){
         const maxAttempts=job.input.kind==='analysis'&&!job.input.draft.uploads.length?5:3;
         job.state=job.attempts>=maxAttempts?'failed':'queued';
         job.progress=job.state==='failed'?'Processing paused after repeated failures. Completed work is saved. Use Retry to resume.':'An interrupted processing step will retry automatically; completed work is saved.';
-      }finally{await writeWork(row.draft_id,row.work_key,lease.token,job);await releaseWork(row.draft_id,row.work_key,lease.token);}
+      }finally{if(job.state!=='complete'&&Date.now()-Date.parse(job.createdAt)>=SERVER_BUDGET_MS){job.state='failed';job.progress=PROCESSING_PAUSED;delete job.retryAt;}await writeWork(row.draft_id,row.work_key,lease.token,job);await releaseWork(row.draft_id,row.work_key,lease.token);}
     }));
   }catch{console.error('[p5-worker] Queue temporarily unavailable; persisted jobs will resume.');}
   finally{runtime.p5JobsRunning=false;if(more){const timer=setTimeout(()=>{void drainEstimatorJobs();},1000);timer.unref?.();}}

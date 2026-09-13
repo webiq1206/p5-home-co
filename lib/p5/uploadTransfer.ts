@@ -1,9 +1,14 @@
+import {CLIENT_BUDGET_MS,remainingBudget,ProcessingDeadlineError} from './processingBudget.ts';
 import {encodeProjectUpload} from './multipart.ts';
 /** Upload separately from model analysis so a confirmed file survives analysis failures. */
-export async function transferProjectFiles(form:FormData,headers:Record<string,string>,progress:(percent:number)=>void):Promise<unknown>{
+export async function transferProjectFiles(form:FormData,headers:Record<string,string>,progress:(percent:number)=>void,signal?:AbortSignal,deadline=Date.now()+CLIENT_BUDGET_MS):Promise<unknown>{
   const encoded=await encodeProjectUpload(form);
   return new Promise((resolve,reject)=>{
-    const request=new XMLHttpRequest();request.open('POST','/api/p5-estimator/scope');request.timeout=120000;
+    const request=new XMLHttpRequest();request.open('POST','/api/p5-estimator/scope');request.timeout=remainingBudget(deadline);
+    const abort=()=>request.abort();
+    if(signal?.aborted){reject(new ProcessingDeadlineError());return;}
+    signal?.addEventListener("abort",abort,{once:true});
+    request.onloadend=()=>signal?.removeEventListener("abort",abort);
     for(const [key,value]of Object.entries(headers))request.setRequestHeader(key,value);
     request.setRequestHeader('Content-Type',encoded.contentType);
     request.upload.onprogress=event=>{if(event.lengthComputable)progress(Math.min(99,Math.round(event.loaded/event.total*100)));};

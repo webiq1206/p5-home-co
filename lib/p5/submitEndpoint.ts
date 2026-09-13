@@ -8,7 +8,7 @@ import {PricingPending} from "./pricingProgress";
 import { enqueueSubmission,deliveryStatus,processOutbox } from "./outbox";
 import { protectRequest,json,failed,limitedBody } from "./http";
 import { ESTIMATOR_BRAND as brand } from "./brand";
-export async function postSubmission(request:Request){
+export async function postSubmission(request:Request,schedule?:(task:()=>Promise<void>)=>void){
   try{
     protectRequest(request,1000);const {id,key}=draftCredentials(request);const draft=await readDraft(id,key);
     if(!draft)throw new DraftError("Draft not found.",404);
@@ -39,7 +39,8 @@ export async function postSubmission(request:Request){
     const accepted=await enqueueSubmission(id,draft.revision,record);
     // Persistence is acknowledged separately from delivery. A transport failure
     // never erases the submission or tells a visitor to create a duplicate.
-    await processOutbox({draftId:id,limit:12}).catch(()=>undefined);
+    const deliver=async()=>{await processOutbox({draftId:id,limit:12}).catch(()=>undefined);};
+    if(schedule)schedule(deliver);else await deliver();
     return json({accepted,duplicate:!accepted,id,result:priced.customer,delivery:await deliveryStatus(id)});
   }catch(error){if(error instanceof PricingPending)return error.retryAfterMs===0?json({error:error.message},503):json({pending:true,message:error.message,retryAfterMs:error.retryAfterMs},202);return failed(error);}
 }

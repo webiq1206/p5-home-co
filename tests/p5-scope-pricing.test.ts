@@ -227,11 +227,11 @@ test('Large scope maps bounded batches and audits every original task together',
  const request:PricingRequest=async(_instructions,input)=>{
   const data=input as any;calls++;
   if(calls===1)return {value:{tasks:tasks.map(({id,description,evidence})=>({id,description,evidence})),issues:[]},sourceUrls:[]};
-  if(data.taskBatch){assert.ok(data.taskBatch.length<=6);assert.equal(data.priorMappedTasks.length,(calls-2)*6);return {value:{tasks:data.taskBatch.map((t:any)=>({...task,...t})),issues:[]},sourceUrls:[]};}
+  if(data.taskBatch){assert.ok(data.taskBatch.length<=12);assert.equal(data.priorMappedTasks.length,(calls-2)*12);return {value:{tasks:data.taskBatch.map((t:any)=>({...task,...t})),issues:[]},sourceUrls:[]};}
   assert.equal(data.tasks.length,14);return {value:{coveredTaskIds:tasks.map(t=>t.id),issues:[]},sourceUrls:[]};
  };
  const result=await priceCompleteScope(scope,config,request,now);
- assert.equal(calls,5);assert.ok(result.customer.range);assert.equal(result.customer.scopeTasks.length,14);
+ assert.equal(calls,4);assert.ok(result.customer.range);assert.equal(result.customer.scopeTasks.length,14);
 });
 test('A missing or substituted batch task never releases a partial total',async()=>{
  let calls=0;

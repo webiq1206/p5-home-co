@@ -1,3 +1,4 @@
+import {SERVER_BUDGET_MS,remainingBudget,ProcessingDeadlineError} from './processingBudget';
 import {createHash} from 'node:crypto';
 import {PDFDocument} from 'pdf-lib';
 import {Client} from '@replit/object-storage';
@@ -29,11 +30,17 @@ export async function* analysisSegments(file:AnalysisFile,startPage=0):AsyncGene
         try{yield* detailPage(start);}catch(error){yield {...file,data:Buffer.alloc(0),pages:[{source:file.name,page:start+1}],nextPage:start+1,preparationError:`Page ${start+1}: detail rendering failed. ${error instanceof Error?error.message:'Review the original drawing.'}`};}
         start++;continue;
       }
-      const part=await PDFDocument.create();part.addPage((await part.copyPages(document,[start]))[0]);
-      const data=Buffer.from(await part.save());
+      // Adjacent ordinary pages share context and one provider request. Large
+      // drawings retain their full-resolution detail path and source identity.
+      let end=start+1;
+      while(end<count&&end<start+4&&!large(end))end++;
+      let part=await PDFDocument.create();
+      for(const page of await part.copyPages(document,Array.from({length:end-start},(_,i)=>start+i)))part.addPage(page);
+      let data=Buffer.from(await part.save());
+      if(data.length>UNIT_BYTES&&end>start+1){end=start+1;part=await PDFDocument.create();part.addPage((await part.copyPages(document,[start]))[0]);data=Buffer.from(await part.save());}
       if(data.length>UNIT_BYTES){try{yield* detailPage(start);}catch(error){yield {...file,data:Buffer.alloc(0),pages:[{source:file.name,page:start+1}],preparationError:`Page ${start+1}: could not prepare its high-resolution content. ${error instanceof Error?error.message:''}`,nextPage:start+1};}}
-      else yield {...file,name:`${file.name} (page ${start+1} of ${count})`,pages:[{source:file.name,page:start+1}],data,nextPage:start+1};
-      start++;
+      else yield {...file,name:`${file.name} (pages ${start+1} to ${end} of ${count})`,pages:Array.from({length:end-start},(_,i)=>({source:file.name,page:start+i+1})),data,nextPage:end};
+      start=end;
     }
   }else if(['text/plain','text/csv','application/json'].includes(file.type)){
     const text=file.data.toString('utf8');
@@ -49,12 +56,14 @@ export function analysisWorkKey(draft:Draft,text:string,answers:ScopeAnswers){
   return `analysis:v7:${createHash('sha256').update(JSON.stringify([text,answers,draft.uploads.map(f=>[f.id,f.sha256])])).digest('hex')}`;
 }
 /** Each request checkpoints work before returning. Reloading resumes the same source fingerprint. */
-export async function advanceAnalysis(draft:Draft,text:string,answers:ScopeAnswers,request=fetch,retryFailed=false){
+export async function advanceAnalysis(draft:Draft,text:string,answers:ScopeAnswers,request=fetch,retryFailed=false,absoluteDeadline=Date.now()+SERVER_BUDGET_MS){
+  remainingBudget(absoluteDeadline);
   const version=createHash('sha256').update(JSON.stringify([text,answers,draft.uploads.map(f=>[f.id,f.sha256])])).digest('hex');
   const workKey=analysisWorkKey(draft,text,answers),bucketId=ESTIMATOR_BUCKETS[ESTIMATOR_BRAND.domain],client=new Client({bucketId});
   const lease=await claimWork(draft.id,workKey,{prepared:0,units:[],notes:[]},300);
   if(!lease)return {pending:true as const,progress:'Your document review is already running. Saved progress will appear shortly.'};
   const job=lease.payload as Job;
+  if(retryFailed)delete job.cooldownUntil;
   if(retryFailed)for(const unit of job.units)if(unit.object&&(!unit.result||unit.result.extraction.documentCoverage?.complete===false)){unit.attempts=0;unit.rateLimitRetries=0;delete unit.error;delete unit.result;delete unit.retryAt;}
   // Serialize writes from concurrent readers so a late database response cannot
   // overwrite a more recent completed section.
@@ -108,6 +117,7 @@ export async function advanceAnalysis(draft:Draft,text:string,answers:ScopeAnswe
       for(const converted of readable){
         try{
           for await(const segment of analysisSegments(converted,job.cursor||0)){
+            remainingBudget(absoluteDeadline);
             const object=`analysis/${ESTIMATOR_BRAND.domain}/${draft.id}/${version}/${job.units.length}`;
             if(segment.preparationError){job.units.push({name:segment.name,type:segment.type,object:'',pages:segment.pages,error:segment.preparationError,attempts:2});job.cursor=segment.nextPage;await checkpoint();continue;}
             const saved=await client.uploadFromBytes(object,segment.data,{compress:false});
@@ -115,7 +125,7 @@ export async function advanceAnalysis(draft:Draft,text:string,answers:ScopeAnswe
             job.units.push({name:segment.name,type:segment.type,object,pages:segment.pages,detailViews:segment.detailViews,detailRegions:segment.detailRegions});
             if(segment.nextPage!==undefined){job.cursor=segment.nextPage;await checkpoint();if(Date.now()-preparedAt>4000||job.units.filter(u=>!u.result&&(u.attempts||0)<2).length>=analysisConcurrency()*2)return {pending:true as const,progress:`Prepared through page ${job.cursor} of ${file.name}. Preparation is checkpointed.`};}
           }
-        }catch(error){if(error instanceof DraftError)throw error;job.notes.push(`${file.name}: ${error instanceof Error?error.message:'Could not read this file.'} Review the original before pricing.`);}
+        }catch(error){if(error instanceof DraftError||error instanceof ProcessingDeadlineError)throw error;job.notes.push(`${file.name}: ${error instanceof Error?error.message:'Could not read this file.'} Review the original before pricing.`);}
       }
       job.prepared++;job.cursor=0;await checkpoint();
       return {pending:true as const,progress:`Prepared ${job.prepared} of ${draft.uploads.length} files. ${job.units.length} document sections ready to read.`};
@@ -128,7 +138,7 @@ export async function advanceAnalysis(draft:Draft,text:string,answers:ScopeAnswe
     if(waiting.length&&!pending.length)return {pending:true as const,progress:'The document reader is temporarily busy. Completed pages are saved; retrying shortly.',retryAfterMs:Math.max(1000,Math.min(...waiting.map(u=>u.retryAt||Date.now()))-Date.now())};
     if(pending.length){
       // Keep slots busy as individual pages finish. A slow page does not hold up the next one.
-      const deadline=Date.now()+25000;let position=0;
+      const deadline=Math.min(absoluteDeadline,Date.now()+25_000);let position=0;
       await Promise.all(Array.from({length:Math.min(pending.length,job.concurrency||analysisConcurrency())},async()=>{
         while(position<pending.length&&Date.now()<deadline&&!(job.cooldownUntil&&job.cooldownUntil>Date.now())){
         const unit=pending[position++];unit.active=true;await checkpoint();
@@ -139,7 +149,7 @@ export async function advanceAnalysis(draft:Draft,text:string,answers:ScopeAnswe
           const saved=await client.downloadAsBytes(unit.object);
           if(!saved.ok)throw new DraftError('A prepared document section could not be read. Retry to resume.',503);
           job.modelStartedAt||=new Date().toISOString();await checkpoint();
-          try{unit.result=await analyzeBatch(text.length>48000?'The complete typed scope is processed in saved sections; use the interpreted scope instructions.':text,[{name:unit.name,type:unit.type,data:saved.value[0],pages:unit.pages,detailViews:unit.detailViews,detailRegions:unit.detailRegions}],context,request,120000);}
+          try{unit.result=await analyzeBatch(text.length>48000?'The complete typed scope is processed in saved sections; use the interpreted scope instructions.':text,[{name:unit.name,type:unit.type,data:saved.value[0],pages:unit.pages,detailViews:unit.detailViews,detailRegions:unit.detailRegions}],context,request,28_000,absoluteDeadline);}
           finally{job.modelCompletedAt=new Date().toISOString();await checkpoint();}
           delete unit.error;delete unit.retryAt;
         }catch(error){
@@ -154,18 +164,19 @@ export async function advanceAnalysis(draft:Draft,text:string,answers:ScopeAnswe
           }
         }
         unit.active=false;await checkpoint();
+        remainingBudget(absoluteDeadline);
         }
       }));
       await checkpoint();
       return {pending:true as const,progress:analysisProgress(job.units,job.expected).message};
     }
     if(job.prepared<draft.uploads.length)return {pending:true as const,progress:analysisProgress(job.units,job.expected).message};
-    if(!job.units.some(u=>u.result)&&!job.textDone){
+    if(!job.units.length&&!draft.uploads.length&&!job.textDone){
       job.progress='Reviewing your typed project scope.';
       job.processing={phase:'cross-referencing',message:job.progress,readPages:0,totalPages:0,readSections:0,totalSections:0,currentItems:[],updatedAt:new Date().toISOString()};
       await writeWork(draft.id,workKey,lease.token,job);
       job.modelStartedAt||=new Date().toISOString();await checkpoint();
-      try{job.textDone=await analyzeBatch(text,[],answers,request,120000);}
+      try{job.textDone=await analyzeBatch(text,[],answers,request,28_000,absoluteDeadline);}
       finally{job.modelCompletedAt=new Date().toISOString();await checkpoint();}
     }
     const results=job.units.flatMap(u=>u.result?[u.result]:[]);if(job.textDone)results.push(job.textDone);

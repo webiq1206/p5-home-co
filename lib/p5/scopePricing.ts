@@ -1,3 +1,5 @@
+import {retainedScopeInventory} from './scopeInventory';
+import {SERVER_BUDGET_MS,ProcessingDeadlineError,fetchWithinDeadline} from './processingBudget';
 import {createHash} from 'node:crypto';
 import {z} from 'zod';
 import {PricingPending} from './pricingProgress.ts';
@@ -70,6 +72,8 @@ const parseJson=(raw:string)=>JSON.parse(raw.replace(/^\s*```(?:json)?\s*/,'').r
 
 export const requestPricing:PricingRequest=async(instructions,input,search,remainingMs)=>{
   const started=Date.now();
+  remainingMs=Math.min(remainingMs,SERVER_BUDGET_MS);
+  const boundedFetch:typeof fetch=(input,init)=>fetchWithinDeadline(fetch,input,init||{},started+remainingMs);
   const integrated=Boolean(process.env.AI_INTEGRATIONS_OPENAI_API_KEY&&process.env.AI_INTEGRATIONS_OPENAI_BASE_URL);
   const key=integrated?process.env.AI_INTEGRATIONS_OPENAI_API_KEY:process.env.OPENAI_API_KEY;
   const endpoint=(integrated?process.env.AI_INTEGRATIONS_OPENAI_BASE_URL:process.env.OPENAI_BASE_URL||'https://api.openai.com/v1')?.replace(/\/+$/,'');
@@ -83,7 +87,7 @@ export const requestPricing:PricingRequest=async(instructions,input,search,remai
     const content:any[]=[];
     for(let continuation=0;;continuation++){
       const left=remainingMs-(Date.now()-started);if(left<=0)throw new Error('pricing-check-timeout');
-      const response=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',signal:AbortSignal.timeout(Math.min(180000,left)),headers,body:JSON.stringify({...requestBody,messages})});
+      const response=await boundedFetch('https://api.anthropic.com/v1/messages',{method:'POST',signal:AbortSignal.timeout(Math.min(180000,left)),headers,body:JSON.stringify({...requestBody,messages})});
       if(!response.ok)throw new Error('pricing-provider-unavailable');
       const body=await response.json();content.push(...(body.content||[]));
       if(body.stop_reason==='end_turn')break;
@@ -104,13 +108,13 @@ export const requestPricing:PricingRequest=async(instructions,input,search,remai
       // Search citations cannot be combined with strict JSON output. Normalize
       // the retrieved report in a separate constrained, tool-free request.
       const left=remainingMs-(Date.now()-started);if(left<1000)throw new Error('pricing-check-timeout');
-      const normalized=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',signal:AbortSignal.timeout(Math.min(60000,left)),headers,body:JSON.stringify({model:process.env.P5_PRICING_RESEARCH_MODEL||'claude-sonnet-5',max_tokens:12000,system:normalizeResearch,messages:[{role:'user',content:JSON.stringify({requested:input,report:raw,sourceUrls})}],output_config:{format:{type:'json_schema',schema:marketJson}}})});
+      const normalized=await boundedFetch('https://api.anthropic.com/v1/messages',{method:'POST',signal:AbortSignal.timeout(Math.min(60000,left)),headers,body:JSON.stringify({model:process.env.P5_PRICING_RESEARCH_MODEL||'claude-sonnet-5',max_tokens:12000,system:normalizeResearch,messages:[{role:'user',content:JSON.stringify({requested:input,report:raw,sourceUrls})}],output_config:{format:{type:'json_schema',schema:marketJson}}})});
       if(!normalized.ok)throw new Error('pricing-research-format-unavailable');
       const body=await normalized.json();if(body.stop_reason!=='end_turn')throw new Error(`pricing-check-incomplete:${body.stop_reason||'unknown'}`);
       return {value:parseJson((body.content||[]).filter((p:any)=>p.type==='text').map((p:any)=>p.text).join('')),sourceUrls,sourceReport:raw};
     }
   }
-  const response=await fetch(`${endpoint}/responses`,{method:'POST',signal:AbortSignal.timeout(Math.min(search?150000:180000,remainingMs)),headers:{'Content-Type':'application/json',Authorization:`Bearer ${key}`},body:JSON.stringify({model:process.env.P5_SCOPE_OPENAI_MODEL||'gpt-4.1',instructions,input:'Return JSON only.\n'+JSON.stringify(input),max_output_tokens:14000,store:false,...(search?{tools:[{type:'web_search'}],tool_choice:'required',include:['web_search_call.action.sources']}:{text:{format:{type:'json_object'}}})})});
+  const response=await boundedFetch(`${endpoint}/responses`,{method:'POST',signal:AbortSignal.timeout(Math.min(search?150000:180000,remainingMs)),headers:{'Content-Type':'application/json',Authorization:`Bearer ${key}`},body:JSON.stringify({model:process.env.P5_SCOPE_OPENAI_MODEL||'gpt-4.1',instructions,input:'Return JSON only.\n'+JSON.stringify(input),max_output_tokens:14000,store:false,...(search?{tools:[{type:'web_search'}],tool_choice:'required',include:['web_search_call.action.sources']}:{text:{format:{type:'json_object'}}})})});
   if(!response.ok)throw new Error('pricing-provider-unavailable');
   const body=await response.json();
   if(body.status!=='completed')throw new Error('pricing-check-incomplete');
@@ -185,11 +189,11 @@ export function marketResolution(raw:unknown,urls:string[],tasks:Mapping['tasks'
   return result;
 }
 
-export async function priceCompleteScope(scope:ReviewedScope,configuration:EstimatorConfiguration,request:PricingRequest=requestPricing,now=new Date()){
+export async function priceCompleteScope(scope:ReviewedScope,configuration:EstimatorConfiguration,request:PricingRequest=requestPricing,now=new Date(),absoluteDeadline=Date.now()+SERVER_BUDGET_MS){
   const replaceBase=hasRestrictedScope(scope.answers,scope.extraction?.instructions);
   const resolution:ScopePriceResolution={rules:[],assumptions:[],issues:[],replaceBase};
   const base=priceReviewedScope(scope,configuration,now,replaceBase?resolution:undefined);
-  const deadline=Date.now()+255000;
+  const deadline=Math.min(absoluteDeadline,Date.now()+SERVER_BUDGET_MS);
   const pricingScope={...scope,extraction:pricingExtraction(scope.extraction)};
   const original={text:pricingScope.text,answers:pricingScope.answers,extraction:pricingScope.extraction};
   const sourceParts=pricingSourceParts(pricingScope);
@@ -199,7 +203,8 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
     const lines=existingLines(base);
     const inventory:z.infer<typeof inventorySchema>={tasks:[],issues:[],notes:[]};
     for(const [index,part] of sourceParts.entries()){
-      const inventoried=await request(INVENTORY,{original:part,priorTaskDescriptions:inventory.tasks.map(t=>({id:t.id,description:t.description,evidence:t.evidence}))},false,deadline-Date.now());
+      const retained=sourceParts.length===1?retainedScopeInventory(scope):null;
+      const inventoried=retained?{value:retained,sourceUrls:[]}:await request(INVENTORY,{original:part,priorTaskDescriptions:inventory.tasks.map(t=>({id:t.id,description:t.description,evidence:t.evidence}))},false,deadline-Date.now());
       const section=inventorySchema.parse(inventoried.value);inventory.issues.push(...section.issues);inventory.notes.push(...section.notes);
       for(const item of section.tasks){
         const previous=inventory.tasks.find(t=>taskSources.get(t.id)!==index&&t.id.endsWith(`:${item.id}`)&&t.description===item.description&&t.evidence===item.evidence);if(previous)continue;
@@ -208,8 +213,8 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
     }
     if(new Set(inventory.tasks.map(t=>t.id)).size!==inventory.tasks.length)throw new Error('Duplicate inventory task');
     const mapping:Mapping={tasks:[],issues:[...inventory.issues],notes:[...inventory.notes],replacements:[],removeExclusions:[]};
-    for(let start=0;start<inventory.tasks.length;start+=6){
-      const taskBatch=inventory.tasks.slice(start,start+6);
+    for(let start=0;start<inventory.tasks.length;start+=12){
+      const taskBatch=inventory.tasks.slice(start,start+12);
       const mapped=await request(MAP,{original:sourceParts.length===1?original:{sections:[...new Set(taskBatch.map(t=>taskSources.get(t.id)!))].map(i=>sourceParts[i])},taskBatch,priorMappedTasks:mapping.tasks,priorReplacements:mapping.replacements,existingLines:lines.map(({id,description,quantity,unit,unitCost,category,trade,quantitySource})=>({id,description,quantity,unit,unitCost,category,trade,quantitySource})),defaultExclusions:base.customer.exclusions,date:now.toISOString(),catalogImportedAt:configuration.planningCatalog?.importedAt,regionalRates:configuration.regionalRates,catalog:(configuration.planningCatalog?.rates||[]).map(({code,description,type,unit,amount,basis})=>({code,description,type,unit,amount,basis}))},false,deadline-Date.now());
       const batch=mappingSchema.parse(mapped.value);
       if(batch.tasks.length!==taskBatch.length||new Set(batch.tasks.map(t=>t.id)).size!==taskBatch.length||batch.tasks.some(t=>!taskBatch.some(expected=>expected.id===t.id)))throw new Error('Incomplete mapping batch');
@@ -272,8 +277,8 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
       const beforeRepair=priceReviewedScope(scope,configuration,now,resolution);
       const pricedComponents=existingLines(beforeRepair);
       const fixes:Mapping={tasks:[],issues:[],notes:[],replacements:[],removeExclusions:[]};
-      for(let start=0;start<mapping.tasks.length;start+=6){
-        const taskBatch=mapping.tasks.slice(start,start+6);
+      for(let start=0;start<mapping.tasks.length;start+=12){
+        const taskBatch=mapping.tasks.slice(start,start+12);
         const repaired=await request(MAP,{original:sourceParts.length===1?original:{sections:[...new Set(taskBatch.map(t=>taskSources.get(t.id)!))].map(i=>sourceParts[i])},taskBatch:taskBatch.map(({id,description,evidence})=>({id,description,evidence})),pricingIssues:priorIssues,repairInstruction:'Resolve the audit findings with measured costs or item-specific allowances. Existing components already contain prior additions. Reference them instead of charging again; explicitly replace wrong or incomplete components. An unknown dimension may use an evidenced modeled quantity range, never an invented measurement.',priorMappedTasks:fixes.tasks,priorReplacements:fixes.replacements,existingLines:pricedComponents,defaultExclusions:beforeRepair.customer.exclusions,catalog:configuration.planningCatalog?.rates||[],regionalRates:configuration.regionalRates,date:now.toISOString()},false,deadline-Date.now());
         const batch=mappingSchema.parse(repaired.value);
         if(batch.tasks.length!==taskBatch.length||new Set(batch.tasks.map(t=>t.id)).size!==taskBatch.length||batch.tasks.some(t=>!taskBatch.some(expected=>expected.id===t.id)))throw new Error('Incomplete repair batch');
@@ -318,7 +323,7 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
     if(scope.extraction?.instructions?.separateBuildings&&allLines.some(l=>!l.building))resolution.issues.push('Assign every priced component to a building before presenting separate building prices.');
     for(const t of mapping.tasks)if(!audit.coveredTaskIds.includes(t.id))resolution.issues.push(`${t.description}: full pricing coverage has not been verified.`);
   }catch(error){
-    if(error instanceof PricingPending)throw error;
+    if(error instanceof PricingPending||error instanceof ProcessingDeadlineError)throw error;
     // Preserve the lead, but never expose a partial total on provider failure,
     // timeout, unsupported search, invalid output or inadequate source evidence.
     resolution.issues.push('Complete scope pricing could not be verified. An estimator must resolve the remaining work before a total is released.');

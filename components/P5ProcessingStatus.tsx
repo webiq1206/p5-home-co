@@ -1,30 +1,27 @@
 'use client';
 import {useEffect,useState} from 'react';
-import {elapsedLabel,processingTitles,type ProcessingStatus} from '@/lib/p5/processingStatus';
+import {processingTitles,type ProcessingStatus} from '@/lib/p5/processingStatus';
 import styles from './P5Estimator.module.css';
 
-export default function P5ProcessingStatus({message,processing,uploadPercent}:{message:string;processing?:ProcessingStatus|null;uploadPercent:number|null}){
+export default function P5ProcessingStatus({message,processing,uploadPercent,onPause}:{message:string;processing?:ProcessingStatus|null;uploadPercent:number|null;onPause?:()=>void}){
   const [started]=useState(Date.now);
   const [clock,setClock]=useState(Date.now);
-  const [updates,setUpdates]=useState<string[]>([]);
   useEffect(()=>{const timer=setInterval(()=>setClock(Date.now()),1000);return()=>clearInterval(timer);},[]);
-  const current=processing?.message||message;
-  useEffect(()=>{setUpdates(prior=>prior.at(-1)===current?prior:[...prior,current].slice(-3));},[current]);
-  const reportedStart=processing?.startedAt?Date.parse(processing.startedAt):started;
-  const elapsed=Math.max(0,(clock-(Number.isFinite(reportedStart)?reportedStart:started))/1000);
-  const hasPages=Boolean(processing?.totalPages&&processing.totalPages>0);
-  const title=uploadPercent!==null?'Uploading your files':processing?processingTitles[processing.phase]:message;
-  return <div className={styles.loadingOverlay}><section className={styles.loadingCard} aria-label="Estimate processing progress">
-    <span className={styles.spinner} aria-hidden="true"/>
-    <div role="status" aria-live="polite" aria-atomic="true"><h2>{title}</h2><p className={styles.processingMessage}>{current!==title?current:'Your saved project is being processed.'}</p></div>
-    <p className={styles.processingElapsed}>{elapsedLabel(elapsed)}</p>
-    {uploadPercent!==null?<div className={styles.processingMeter}><progress max={100} value={uploadPercent} aria-label="File upload progress"/><p>{uploadPercent}% transferred. Files are marked saved only after confirmation.</p></div>:hasPages?<div className={styles.processingMeter}>
-      <progress max={processing!.totalPages} value={processing!.readPages||0} aria-label="Original pages fully read"/>
-      <p><strong>{processing!.readPages||0} of {processing!.totalPages} original pages read</strong></p>
-      <p>Document-reading progress, not overall estimate completion.</p>
-    </div>:null}
-    {Boolean(processing?.currentItems?.length)&&<div className={styles.processingActivity}><h3>Working on</h3><ul>{processing!.currentItems!.map((item,i)=><li key={i}>{item}</li>)}</ul></div>}
-    {updates.length>1&&<div className={styles.processingActivity}><h3>Recent updates</h3><ol>{updates.slice(0,-1).reverse().map((item,i)=><li key={i}>{item}</li>)}</ol></div>}
-    <p className={styles.processingFootnote}>Keep this page open for your estimate. Completed work is saved. Detailed drawings and rate research can take longer.</p>
-  </section></div>;
+  const elapsed=Math.max(0,Math.floor((clock-started)/1000));
+  const total=processing?.totalPages||0;
+  const read=Math.min(total,processing?.readPages||0);
+  const uploading=uploadPercent!==null;
+  const title=uploading?'Saving your files':processing?.phase==='reading'&&!total?'Understanding your project':processing?processingTitles[processing.phase]:message.replace(/\.+$/,'');
+  const item=processing?.currentItems?.[0];
+  const detail=uploading?'Keep this tab open until your files are saved.':total&&read<total?'Checking dimensions, notes and included work.':processing?.phase==='retrying'?'Your progress is saved while the connection recovers.':'Checking your scope so we only ask for missing details.';
+  return <section className={styles.loadingCard} aria-label="Estimate processing progress" data-testid="p5-processing">
+    <div className={styles.processingHeader}><span className={styles.spinner} aria-hidden="true"/><span className={styles.eyebrow}>Working on your project</span><span className={styles.processingElapsed} aria-label="Elapsed time">{elapsed}s</span></div>
+    <div role="status" aria-live="polite" aria-atomic="true"><h2>{title}</h2><p className={styles.processingMessage}>{detail}</p></div>
+    {(uploading||total>0)&&<div className={styles.processingMeter}>
+      <div className={styles.processingCount}><strong>{uploading?`${uploadPercent}% uploaded`:`${read} of ${total} pages checked`}</strong><span>{uploading?'Upload':read===total?'Pages checked':'Document review'}</span></div>
+      <progress max={uploading?100:total} value={uploading?uploadPercent:read} aria-label={uploading?'File upload progress':'Original pages fully read'}/>
+    </div>}
+    {item&&<p className={styles.processingFile} title={item}>{item}</p>}
+    <div className={styles.processingFooter}><span>Completed checks are saved.</span>{onPause&&<button type="button" onClick={onPause}>Back to project</button>}</div>
+  </section>;
 }

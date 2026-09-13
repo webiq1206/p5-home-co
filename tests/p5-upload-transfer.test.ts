@@ -6,7 +6,7 @@ test('upload progress stays below complete until the server receipt arrives',asy
   const old=globalThis.XMLHttpRequest;let instance:any;
   class Transport{upload:any={};status=200;responseText='{"draft":{"revision":1}}';timeout=0;onload:any;open(){}setRequestHeader(){}send(){instance=this;}}
   Object.assign(globalThis,{XMLHttpRequest:Transport});
-  try{const values:number[]=[];const result=transferProjectFiles(new FormData(),{},value=>values.push(value));await new Promise(resolve=>setTimeout(resolve,0));instance.upload.onprogress({lengthComputable:true,loaded:10,total:10});assert.deepEqual(values,[99]);instance.onload();assert.deepEqual(await result,{draft:{revision:1}});assert.equal(instance.timeout,120000);}finally{Object.assign(globalThis,{XMLHttpRequest:old});}
+  try{const values:number[]=[];const result=transferProjectFiles(new FormData(),{},value=>values.push(value));await new Promise(resolve=>setTimeout(resolve,0));instance.upload.onprogress({lengthComputable:true,loaded:10,total:10});assert.deepEqual(values,[99]);instance.onload();assert.deepEqual(await result,{draft:{revision:1}});assert.ok(instance.timeout>0&&instance.timeout<=58000);}finally{Object.assign(globalThis,{XMLHttpRequest:old});}
 });
 test('failed uploads retain a clear retryable error',async()=>{
   const old=globalThis.XMLHttpRequest;let instance:any;
