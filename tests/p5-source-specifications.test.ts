@@ -21,17 +21,23 @@ test('a checked PDF gets one bounded correction instead of accepting invented sp
  const file={name:'redacted.pdf',type:'application/pdf',data:Buffer.from(await pdf.save()),pages:[{source:'redacted.pdf',page:1}]};
  assert.deepEqual((await readSpecificationSource([file]))?.gaps,['siding','drywall']);
  const vars=['OPENAI_API_KEY','OPENAI_BASE_URL','AI_INTEGRATIONS_OPENAI_API_KEY','AI_INTEGRATIONS_OPENAI_BASE_URL','ANTHROPIC_API_KEY'];
- const before=Object.fromEntries(vars.map(k=>[k,process.env[k]]));for(const k of vars)delete process.env[k];process.env.OPENAI_API_KEY='fixture-only';
+ const before=Object.fromEntries(vars.map(k=>[k,process.env[k]]));for(const k of vars)delete process.env[k];process.env.OPENAI_API_KEY='fixture-only';process.env.ANTHROPIC_API_KEY='fixture-fallback';
  try{
   let calls=0;
   const result=await analyzeBatch('',[file],{},async(_url,init)=>{
-   calls++;const body=JSON.parse(String(init?.body));assert.match(body.instructions,/LOCAL SOURCE CHECK/);
+   calls++;assert.match(String(_url),/responses$/);const body=JSON.parse(String(init?.body));assert.match(body.instructions,/LOCAL SOURCE CHECK/);assert.match(body.instructions,/nativePdfText/);
    if(calls===2)assert.match(body.instructions,/preceding response incorrectly supplied/);
    return Response.json({status:'completed',output:[{content:[{type:'output_text',text:JSON.stringify({...empty,summary:calls===1?'T1-11 siding; Level 5 finishing excluded.':'Board-and-batten siding is an option. Premium finishing is excluded; its numbered level is unspecified.',pages:[{source:'redacted.pdf',page:1,sheet:'',revision:'',status:'read',notes:[]}],takeoffs:[]})}]}]});
   });
   assert.equal(calls,2);assert.equal(result.extraction.documentCoverage?.complete,true);
   assert.doesNotMatch(result.extraction.summary,/T1-11|Level 5/);
  }finally{for(const k of vars){if(before[k]===undefined)delete process.env[k];else process.env[k]=before[k];}}
+});
+test('blank roof, insulation and electrical ratings cannot become assumed code defaults',()=>{
+ const source=specificationSource('Roofing includes -year architectural shingles. Insulation targets R- blown attic, R- exterior walls and R- crawl floor. Provide -amp-class service with two -amp garage panels.');
+ assert.deepEqual(unsupportedSpecifications({...empty,summary:'30-year roofing; R-49 attic, R-21 walls and R-19 crawl; 400-amp service and two 200-amp panels.'},source),['30-year','R-49','R-21','R-19','400-amp','200-amp']);
+ assert.deepEqual(unsupportedSpecifications({...empty,summary:'Architectural shingles; attic, wall and crawl insulation; two garage panels. Ratings are unspecified.'},source),[]);
+ assert.deepEqual(unsupportedSpecifications({...empty,summary:'R-49 attic'}, {...source,text:source.text+' Visitor confirmed R-49 attic.'}),[]);
 });
 test('included cabinet locations do not become a single-room choice for whole-project services',()=>{
  const service=ESTIMATOR_BRAND.services.find(value=>!value.startsWith('cabinet-'));

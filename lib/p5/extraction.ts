@@ -223,7 +223,7 @@ export async function analyzeBatch(text: string, files: AnalysisFile[], previous
       const result = provider.kind === "OpenAI"
         ? await analyzeWithOpenAI(provider, text, files, previous, boundedRequest, providerTimeout,sourceInstruction)
         : await analyzeWithAnthropic(provider, text, files, previous, boundedRequest, providerTimeout,sourceInstruction);
-      const unsupported=unsupportedSpecifications(result.extraction,source);
+      const unsupported=unsupportedSpecifications(result.extraction,source?{...source,text:source.text+'\n'+text+'\n'+JSON.stringify(previous)}:null);
       if(unsupported.length)throw new UnsupportedSpecificationError(unsupported);
       const expected=files.flatMap(f=>f.pages||[]);
       // Each prepared detail batch is physically derived from exactly one
@@ -246,7 +246,8 @@ export async function analyzeBatch(text: string, files: AnalysisFile[], previous
       if(error instanceof ProcessingDeadlineError&&Date.now()>=absoluteDeadline)throw error;
       if(error instanceof UnsupportedSpecificationError&&!sourceRepair&&absoluteDeadline-Date.now()>1000){
         sourceRepair=true;sourceInstruction=specificationHint(source)+' The preceding response incorrectly supplied '+error.specifications.join(', ')+'. Those complete designations are absent from the source. Re-read the supplied pages and keep the missing designations unspecified.';
-        if(providerIndex===configured.length-1)configured.push(provider);
+        // Keep semantic correction on the same provider and original deadline.
+        configured.splice(providerIndex+1,0,provider);
       }
       last = error;
       if(error instanceof ProviderError&&error.status===429)busy=error;
