@@ -1,7 +1,19 @@
 import type {ScopeAnswers,ScopeConflict,ScopeExtraction,ScopeField} from './scope.ts';
 
+/** Quantities belong to saved fields, so an answer never needs a second AI pass. */
+export function cabinetQuestionField(text:string):ScopeField|undefined{
+ if(!/\bcabinet\w*\b/i.test(text))return;
+ if(/\b(?:lengths?|measurements?|dimensions?|linear|LF)\b/i.test(text)){
+  if(/\b(?:base|lower)\b/i.test(text))return 'cabinetBaseLf';
+  if(/\b(?:upper|wall)\b/i.test(text))return 'cabinetUpperLf';
+  if(/\btall\b/i.test(text))return 'cabinetTallLf';
+ }
+ if(/\brooms?\b/i.test(text))return 'cabinetRoom';
+}
+
 /** Separate independent requests without splitting a list of answer choices. */
 export function atomicInstructionQuestions(text:string,answers:ScopeAnswers={},conflicts:ScopeConflict[]=[]):string[]{
+ if(/\bcabinet\w*\s+(?:lengths?|measurements?|dimensions?)\b/i.test(text)&&!/\b(?:base|lower|upper|wall|tall)\b/i.test(text))text=text.replace(/\bcabinet\w*\s+(?:lengths?|measurements?|dimensions?)\b/i,'base cabinet linear feet, upper cabinet linear feet, tall cabinet linear feet');
  const topics:{pattern:RegExp;question:string;field?:ScopeField}[]=[
   {pattern:/\bbase\b.{0,30}\b(?:linear\s+(?:footage|feet)|length|LF)\b/i,question:'How many linear feet of base cabinets are included?',field:'cabinetBaseLf'},
   {pattern:/\b(?:upper|wall)\s+cabinet\w*\b.{0,30}\b(?:linear\s+(?:footage|feet)|length|LF)\b/i,question:'How many linear feet of wall cabinets are included?',field:'cabinetUpperLf'},
