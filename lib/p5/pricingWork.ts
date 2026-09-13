@@ -1,4 +1,4 @@
-import {SERVER_BUDGET_MS,remainingBudget,withinDeadline,ProcessingDeadlineError} from './processingBudget.ts';
+import {SERVER_BUDGET_MS,remainingBudget,withinDeadline,ProcessingDeadlineError,isProcessingDeadline} from './processingBudget.ts';
 import {createHash} from 'node:crypto';
 import {claimWork,writeWork,releaseWork,renewWork} from './workStore.ts';
 import {priceCompleteScope,requestPricing,type PricingReply,type PricingRequest,PRICING_STAGE_MAX_MS} from './scopePricing.ts';
@@ -43,7 +43,7 @@ export async function priceSavedScope(id:string,scope:ReviewedScope,configuratio
   const elapsed=()=>((Date.now()-started)/1000).toFixed(1);
   try{reply=await withinDeadline(()=>requestPricing(instructions,input,search,allowance),started+allowance);}
   catch(error){
-   if(error instanceof ProcessingDeadlineError){console.error(`[p5-pricing] ${phase} stage exceeded its ${Math.round(allowance/1000)}s allowance after ${elapsed()}s`);throw new PricingStageTimeout();}
+   if(isProcessingDeadline(error)){console.error(`[p5-pricing] ${phase} stage exceeded its ${Math.round(allowance/1000)}s allowance after ${elapsed()}s`);throw new PricingStageTimeout();}
    // A failed published-cost search is not a reason to stop pricing: the caller may use a labeled planning average instead.
    if(search){console.error(`[p5-pricing] research failed after ${elapsed()}s: ${error instanceof Error?error.message:String(error)}`);throw new PricingStageTimeout(error instanceof Error?error.message:'pricing-search-unavailable');}
    payload.failures=(payload.failures||0)+1;await persist();
@@ -51,7 +51,7 @@ export async function priceSavedScope(id:string,scope:ReviewedScope,configuratio
    console.error(`[p5-pricing] ${phase} failed after ${elapsed()}s (attempt ${payload.failures}): ${error instanceof Error?error.message:String(error)}`);
    throw new PricingPending('The pricing provider needs another attempt. Your completed pricing steps are saved. Please retry to continue.',payload.failures>=2?0:4000);
   }
-  console.log(`[p5-pricing] ${phase} finished in ${elapsed()}s`);
+  console.error(`[p5-pricing] ${phase} finished in ${elapsed()}s`);
   payload.failures=0;payload.replies[key]=reply;
   await persist();
   return reply;

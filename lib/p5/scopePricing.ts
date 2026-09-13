@@ -1,8 +1,8 @@
 import {retainedScopeInventory} from './scopeInventory.ts';
-import {SERVER_BUDGET_MS,ProcessingDeadlineError,fetchWithinDeadline} from './processingBudget.ts';
+import {SERVER_BUDGET_MS,ProcessingDeadlineError,fetchWithinDeadline,isProcessingDeadline} from './processingBudget.ts';
 import {createHash} from 'node:crypto';
 import {z} from 'zod';
-import {PricingPending,PricingStageTimeout} from './pricingProgress.ts';
+import {PricingPending,PricingStageTimeout,isPricingPending,isPricingStageTimeout} from './pricingProgress.ts';
 import {suggestedTrade} from './trades.ts';
 import {priceReviewedScope,type CostRule,type EstimatorConfiguration,type ScopePriceResolution} from './costBook.ts';
 import type {ReviewedScope} from './scope.ts';
@@ -435,8 +435,8 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
         const market=marketResolution(researched.value,researched.sourceUrls,gapBatch,now,offset,region,scope);
         return {replies,resolution:market,modelIssues:marketSchema.parse(researched.value).issues};
       }catch(error){
-        if(error instanceof PricingPending||error instanceof ProcessingDeadlineError)throw error;
-        researchFailure=error instanceof PricingStageTimeout?'published cost research did not finish within its time allowance':error instanceof Error?error.message:'invalid source';
+        if(isPricingPending(error)||isProcessingDeadline(error))throw error;
+        researchFailure=isPricingStageTimeout(error)?'published cost research did not finish within its time allowance':error instanceof Error?error.message:'invalid source';
       }
       const planned=await request(PLANNING_AVERAGE,{date:now.toISOString().slice(0,10),region,tasks:tasksInput,...(priorIssues?{priorIssues}:{})},false,deadline-Date.now());
       replies.push(planned);
@@ -538,7 +538,7 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
     if(pricingExtraction?.instructions?.separateBuildings&&allLines.some(l=>!l.building))resolution.issues.push('Assign every priced component to a building before presenting separate building prices.');
     for(const t of mapping.tasks)if(!audit.coveredTaskIds.includes(t.id))resolution.issues.push(`${t.description}: full pricing coverage has not been verified.`);
   }catch(error){
-    if(error instanceof PricingPending||error instanceof ProcessingDeadlineError)throw error;
+    if(isPricingPending(error)||isProcessingDeadline(error))throw error;
     // Preserve the lead, but never expose a partial total on provider failure,
     // timeout, unsupported search, invalid output or inadequate source evidence.
     resolution.issues.push('Complete scope pricing could not be verified. An estimator must resolve the remaining work before a total is released.');

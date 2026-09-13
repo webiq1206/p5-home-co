@@ -9,7 +9,18 @@ export const questionKey=(text:string)=>text.toLowerCase().replace(/[^a-z0-9]+/g
 const serviceQuestion=(text:string)=>/which .*services|what .*remodel.*service|company.s scope|typical .*services|offered.*services|services.*offered|residential remodel|boise .*estimate|requested subset/i.test(text);
 const RESPONSIBILITY_CHOICES=['Labor only','Materials only','Labor and materials'] as const;
 
-const questionParts=(raw:string)=>raw.match(/[^?]+\??/g)||[];
+/** Split a stored paragraph into questions. A trailing statement such as
+ * "This affects repair cost." is context for the question before it, not a
+ * question of its own, so it rides along as detail instead of becoming a card. */
+const questionParts=(raw:string)=>{
+  const parts=(raw.match(/[^?]+\??/g)||[]).map(part=>part.trim()).filter(Boolean);
+  const merged:string[]=[];
+  for(const part of parts){
+    if(!part.endsWith('?')&&merged.length)merged[merged.length-1]+=' '+part;
+    else merged.push(part);
+  }
+  return merged;
+};
 const normalizeQuestionPart=(part:string)=>part.replace(/\s+/g,' ').trim();
 
 /** One question per card, including older extractions that stored paragraphs. */
@@ -24,7 +35,9 @@ export function instructionPrompts(extraction:ScopeExtraction|null,answers:Scope
       if(field&&answers[field]?.trim()&&!extraction?.conflicts.some(conflict=>conflict.field===field))continue;
       const id=questionKey(full);
       if(result.some(q=>q.id===id))continue;
-      const question=full.length<=240?full:'What should we include for this part of your project?';
+      const trailing=full.match(/^(.*\?)\s+([^?]+)$/);
+      const asked=trailing?trailing[1].trim():full;
+      const question=asked.length<=240?asked:'What should we include for this part of your project?';
       const values=/labor.only/i.test(full)&&/materials.only/i.test(full)?['Labor only','Materials only','Labor and materials']:
         /include or exclude|include.*or.*exclude/i.test(full)?['Include it','Exclude it']:undefined;
        // A retained-document choice card is built from extraction evidence,
@@ -33,7 +46,7 @@ export function instructionPrompts(extraction:ScopeExtraction|null,answers:Scope
        const retainedValues=isBenchTopClarificationQuestion(full)
          ?(extraction?retainedBenchTopChoices(extraction):[]).map(retainedChoiceValue)
          :undefined;
-       result.push({id,question,...(field?{field}:{}),...(question!==full?{detail:full}:{}),values:/^Who should install the /i.test(full)?['Include installation in this estimate','Owner handles installation']:retainedValues?.length?retainedValues:values?.length?values:textBenchTopChoices(extraction,full)});
+       result.push({id,question,...(field?{field}:{}),...(question!==asked?{detail:full}:trailing?{detail:trailing[2].trim()}:{}),values:/^Who should install the /i.test(full)?['Include installation in this estimate','Owner handles installation']:retainedValues?.length?retainedValues:values?.length?values:textBenchTopChoices(extraction,full)});
     }
   }
   return result;

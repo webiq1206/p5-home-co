@@ -1,4 +1,4 @@
-import {ProcessingDeadlineError,PROCESSING_PAUSED} from './processingBudget.ts';
+import {ProcessingDeadlineError,PROCESSING_PAUSED,isProcessingDeadline} from './processingBudget.ts';
 import {applyCabinetIntent} from "./projectIntent.ts";
 import {advanceAnalysis} from "./analysisWork.ts";
 import {queuedJob} from './backgroundJobs.ts';
@@ -99,7 +99,7 @@ export async function postScope(request:Request){
       const unread=analysis.extraction.reviewNotes.filter((note:string)=>/saved for manual review|could not read|automatic read failed|automatic reading could not finish|unread section requires review|unreadable|partial/.test(note));
       if(unread.length)warning="Some files need review before pricing. "+unread.join(" ");
     }catch(error){
-      if(error instanceof ProcessingDeadlineError)throw new DraftError(PROCESSING_PAUSED,503);
+      if(isProcessingDeadline(error))throw new DraftError(PROCESSING_PAUSED,503);
       console.error("[p5-scope-analysis]",error instanceof Error?error.message:"analysis failed");
       warning="Your files are saved, but automatic reading could not finish. You can retry without uploading again, or add the key details below. Unread documents will need review before pricing.";
     }

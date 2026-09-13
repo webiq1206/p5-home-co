@@ -15,6 +15,11 @@ export const PROCESSING_PAUSED = 'We could not verify everything within 60 secon
 export class ProcessingDeadlineError extends Error {
   constructor() { super(PROCESSING_PAUSED); this.name = 'ProcessingDeadlineError'; }
 }
+/** Deadline errors can cross a dynamically imported chunk, where instanceof
+ * sees a different class copy; match on the name as well. */
+export function isProcessingDeadline(error: unknown): error is ProcessingDeadlineError {
+  return error instanceof ProcessingDeadlineError || (typeof error === 'object' && error !== null && (error as { name?: unknown }).name === 'ProcessingDeadlineError');
+}
 export function remainingBudget(deadline: number, now = Date.now()): number {
   const remaining = Math.floor(deadline - now);
   if (!Number.isFinite(remaining) || remaining <= 0) throw new ProcessingDeadlineError();
@@ -45,7 +50,7 @@ export async function fetchWithinDeadline(request: typeof fetch, input: Paramete
       return new Response(bytes.byteLength ? bytes : null, { status: response.status, statusText: response.statusText, headers: response.headers });
     }, deadline);
   } catch (error) {
-    if (Date.now() >= deadline || controller.signal.reason instanceof ProcessingDeadlineError) throw new ProcessingDeadlineError();
+    if (Date.now() >= deadline || isProcessingDeadline(controller.signal.reason)) throw new ProcessingDeadlineError();
     throw error;
   } finally {
     clearTimeout(timer);

@@ -1,6 +1,6 @@
 import {groundSourceResponsibilities} from './sourceResponsibilities.ts';
 import {readSpecificationSource,specificationHint,unsupportedSpecifications,UnsupportedSpecificationError,retainUnspecifiedRatings} from './sourceSpecificationGuard.ts';
-import {SERVER_BUDGET_MS,ProcessingDeadlineError,fetchWithinDeadline,withinDeadline} from './processingBudget.ts';
+import {SERVER_BUDGET_MS,ProcessingDeadlineError,fetchWithinDeadline,withinDeadline,isProcessingDeadline} from './processingBudget.ts';
 import {ESTIMATOR_BRAND} from "./brand.ts";
 import { SCOPE_FIELDS, SCOPE_BATCH_LIMIT, SCOPE_TEXT_LIMIT, validateExtraction, combineScopeExtractions, type ScopeAnswers, type ScopeExtraction } from "./scope.ts";
 import { PDFDocument } from "pdf-lib";
@@ -223,12 +223,12 @@ export async function analyzeBatch(text: string, files: AnalysisFile[], previous
       return result;
     });
     try{
-      const winner=await Promise.any(attempts.map((attempt,index)=>attempt.catch(error=>{if(error instanceof ProcessingDeadlineError&&Date.now()>=absoluteDeadline)throw error;last=error;if(error instanceof ProviderError&&error.status===429)busy=error;console.error(`[p5-analysis] ${configured[index].kind} text read failed (${error instanceof ProviderError?error.status??'no status':'no status'}: ${safeProviderMessage(error instanceof Error?error.message:error)}).`);throw error;})));
+      const winner=await Promise.any(attempts.map((attempt,index)=>attempt.catch(error=>{if(isProcessingDeadline(error)&&Date.now()>=absoluteDeadline)throw error;last=error;if(error instanceof ProviderError&&error.status===429)busy=error;console.error(`[p5-analysis] ${configured[index].kind} text read failed (${error instanceof ProviderError?error.status??'no status':'no status'}: ${safeProviderMessage(error instanceof Error?error.message:error)}).`);throw error;})));
       for(const controller of controllers)controller.abort();
       return winner;
     }catch(error){
       for(const controller of controllers)controller.abort();
-      if(error instanceof ProcessingDeadlineError)throw error;
+      if(isProcessingDeadline(error))throw error;
       throw publicProviderError(busy||last);
     }
   }
@@ -266,7 +266,7 @@ export async function analyzeBatch(text: string, files: AnalysisFile[], previous
       }
       return result;
     } catch (error) {
-      if(error instanceof ProcessingDeadlineError&&Date.now()>=absoluteDeadline)throw error;
+      if(isProcessingDeadline(error)&&Date.now()>=absoluteDeadline)throw error;
       if(error instanceof UnsupportedSpecificationError&&!sourceRepair&&absoluteDeadline-Date.now()>1000){
         sourceRepair=true;sourceInstruction=specificationHint(source)+' The preceding response incorrectly supplied '+error.specifications.join(', ')+'. Those claims are absent from the source. Re-read the supplied pages, omit unsupported work, and keep missing designations unspecified. Clearing, excavation and haul-off do not establish demolition work.';
         // Keep semantic correction on the same provider and original deadline.

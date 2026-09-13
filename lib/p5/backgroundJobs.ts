@@ -1,4 +1,5 @@
-import {SERVER_BUDGET_MS,BACKGROUND_JOB_LIMIT_MS,PRICING_PASS_MS,PROCESSING_PAUSED,ProcessingDeadlineError,remainingBudget} from './processingBudget.ts';
+import {SERVER_BUDGET_MS,BACKGROUND_JOB_LIMIT_MS,PRICING_PASS_MS,PROCESSING_PAUSED,ProcessingDeadlineError,remainingBudget,isProcessingDeadline} from './processingBudget.ts';
+import {isPricingPending} from './pricingProgress.ts';
 import {createHash} from 'node:crypto';
 import {query} from './database.ts';
 import {claimWork,writeWork,releaseWork,renewWork} from './workStore.ts';
@@ -123,13 +124,12 @@ async function runPass(draftId:string,workKey:string):Promise<number|null>{
       else{job.result=step;job.state='complete';job.progress='Document processing finished. Review the page coverage and any unreadable content.';}
     }else{
       const {priceSavedScope}=await import('./pricingWork.ts');
-      const {PricingPending}=await import('./pricingProgress.ts');
       try{job.result=await priceSavedScope(job.input.draft.id,job.input.draft.reviewed!,job.input.configuration,new Date(job.createdAt),deadline);job.state='complete';job.progress='Pricing calculation saved.';}
-      catch(error){if(!(error instanceof PricingPending))throw error;if(!error.retryAfterMs)throw error;job.progress=error.message;job.retryAt=Date.now()+error.retryAfterMs;again=error.retryAfterMs;}
+      catch(error){if(!(isPricingPending(error)))throw error;if(!error.retryAfterMs)throw error;job.progress=error.message;job.retryAt=Date.now()+error.retryAfterMs;again=error.retryAfterMs;}
     }
     job.attempts=0;
   }catch(error){
-    if(error instanceof ProcessingDeadlineError&&!jobExpired(job)){
+    if(isProcessingDeadline(error)&&!jobExpired(job)){
       // The pass ran out of time, not the work. Saved stages resume on the next pass.
       job.progress='Continuing where the previous step stopped. Completed work is saved.';job.retryAt=Date.now()+250;again=250;
     }else{

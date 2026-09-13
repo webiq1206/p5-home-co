@@ -1,5 +1,5 @@
 "use client";
-import {CLIENT_BUDGET_MS,ProcessingDeadlineError,remainingBudget,withinDeadline,fetchWithinDeadline} from '@/lib/p5/processingBudget';
+import {CLIENT_BUDGET_MS,ProcessingDeadlineError,remainingBudget,withinDeadline,fetchWithinDeadline,isProcessingDeadline} from '@/lib/p5/processingBudget';
 import {completeSubmission} from '@/lib/p5/submitProgress';
 import P5EstimateDetails from './P5EstimateDetails';
 import P5ProcessingStatus from './P5ProcessingStatus';
@@ -127,8 +127,8 @@ export function P5Estimator({defaultService='',headingAs='h1',projectSource}:{de
     catch(e){
       const userPaused=budget.controller.signal.aborted&&Date.now()<budget.deadline;
       if(userPaused)setStatus('Your progress is saved. Continue whenever you are ready.');
-      else if(e instanceof ProcessingDeadlineError&&kind)setPaused({kind,processing:lastProcessing.current});
-      else setError(e instanceof ProcessingDeadlineError?'This is taking longer than expected. Your completed work is saved; continue to pick up where it stopped.':e instanceof TypeError?'The connection was interrupted. Your saved details are intact. Keep this tab open and retry.':e instanceof Error?e.message:'This step could not finish. Your work is still here.');
+      else if(isProcessingDeadline(e)&&kind)setPaused({kind,processing:lastProcessing.current});
+      else setError(isProcessingDeadline(e)?'This is taking longer than expected. Your completed work is saved; continue to pick up where it stopped.':e instanceof TypeError?'The connection was interrupted. Your saved details are intact. Keep this tab open and retry.':e instanceof Error?e.message:'This step could not finish. Your work is still here.');
     }
     finally{budget.controller.abort();if(operationBudget.current===budget)operationBudget.current=null;busyRef.current=false;setBusy('');setUploadPercent(null);setProcessing(null);}
   }

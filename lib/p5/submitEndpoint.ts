@@ -4,7 +4,7 @@ import { EMPTY_CONFIGURATION,type EstimatorConfiguration } from "./costBook.ts";
 import {priceSavedScope} from "./pricingWork.ts";
 import {queuedJob} from './backgroundJobs.ts';
 import {missingScopeFields} from "./missingFields.ts";
-import {PricingPending} from "./pricingProgress.ts";
+import {PricingPending,isPricingPending} from './pricingProgress.ts';
 import { enqueueSubmission,deliveryStatus,processOutbox } from "./outbox.ts";
 import { protectRequest,json,failed,limitedBody } from "./http.ts";
 import { ESTIMATOR_BRAND as brand } from "./brand.ts";
@@ -44,5 +44,5 @@ export async function postSubmission(request:Request,schedule?:(task:()=>Promise
     const deliver=async()=>{await processOutbox({draftId:id,limit:12}).catch(()=>undefined);};
     if(schedule)schedule(deliver);else await deliver();
     return json({accepted,duplicate:!accepted,id,result:priced.customer,delivery:await deliveryStatus(id)});
-  }catch(error){if(error instanceof PricingPending)return error.retryAfterMs===0?json({error:error.message},503):json({pending:true,message:error.message,retryAfterMs:error.retryAfterMs},202);return failed(error);}
+  }catch(error){if(isPricingPending(error))return error.retryAfterMs===0?json({error:error.message},503):json({pending:true,message:error.message,retryAfterMs:error.retryAfterMs},202);return failed(error);}
 }

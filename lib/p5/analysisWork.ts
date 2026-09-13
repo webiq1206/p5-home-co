@@ -1,4 +1,4 @@
-import {SERVER_BUDGET_MS,remainingBudget,ProcessingDeadlineError} from './processingBudget.ts';
+import {SERVER_BUDGET_MS,remainingBudget,ProcessingDeadlineError,isProcessingDeadline} from './processingBudget.ts';
 import {createHash} from 'node:crypto';
 import {PDFDocument} from 'pdf-lib';
 import {Client} from '@replit/object-storage';
@@ -80,7 +80,7 @@ export async function advanceAnalysis(draft:Draft,text:string,answers:ScopeAnswe
             job.units.push({name:segment.name,type:segment.type,object,pages:segment.pages,detailViews:segment.detailViews,detailRegions:segment.detailRegions});
             if(segment.nextPage!==undefined){job.cursor=segment.nextPage;await checkpoint();if(Date.now()-preparedAt>4000||job.units.filter(u=>!u.result&&(u.attempts||0)<2).length>=analysisConcurrency()*2)return {pending:true as const,progress:`Prepared through page ${job.cursor} of ${file.name}. Preparation is checkpointed.`};}
           }
-        }catch(error){if(error instanceof DraftError||error instanceof ProcessingDeadlineError)throw error;job.notes.push(`${file.name}: ${error instanceof Error?error.message:'Could not read this file.'} Review the original before pricing.`);}
+        }catch(error){if(error instanceof DraftError||isProcessingDeadline(error))throw error;job.notes.push(`${file.name}: ${error instanceof Error?error.message:'Could not read this file.'} Review the original before pricing.`);}
       }
       job.prepared++;job.cursor=0;await checkpoint();
       return {pending:true as const,progress:`Prepared ${job.prepared} of ${draft.uploads.length} files. ${job.units.length} document sections ready to read.`};
