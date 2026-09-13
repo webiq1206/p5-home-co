@@ -97,7 +97,7 @@ export const requestPricing:PricingRequest=async(instructions,input,search,remai
     for(let continuation=0;;continuation++){
       const left=remainingMs-(Date.now()-started);if(left<=0)throw new Error('pricing-check-timeout');
       const response=await boundedFetch('https://api.anthropic.com/v1/messages',{method:'POST',signal:AbortSignal.timeout(Math.min(180000,left)),headers,body:JSON.stringify({...requestBody,messages})});
-      if(!response.ok)throw new Error('pricing-provider-unavailable');
+      if(!response.ok){const detail=await response.text().catch(()=>'');throw new Error(`pricing-provider-unavailable:${response.status}:${detail.replace(/\s+/g,' ').slice(0,300)}`);}
       const body=await response.json();content.push(...(body.content||[]));
       if(body.stop_reason==='end_turn')break;
       if(search&&body.stop_reason==='pause_turn'&&continuation<2){

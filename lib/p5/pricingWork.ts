@@ -41,7 +41,9 @@ export async function priceSavedScope(id:string,scope:ReviewedScope,configuratio
    // A failed published-cost search is not a reason to stop pricing: the caller may use a labeled planning average instead.
    if(search)throw new PricingStageTimeout(error instanceof Error?error.message:'pricing-search-unavailable');
    payload.failures=(payload.failures||0)+1;await persist();
-   throw new PricingPending('The pricing provider needs another attempt. Your completed pricing steps are saved. Please retry to continue.',payload.failures>=2?0:10000);
+   // The failure is logged with its stage so a live host can be diagnosed from its deployment logs.
+   console.error(`[p5-pricing] ${payload.processing?.phase||'stage'} failed (attempt ${payload.failures}): ${error instanceof Error?error.message:String(error)}`);
+   throw new PricingPending('The pricing provider needs another attempt. Your completed pricing steps are saved. Please retry to continue.',payload.failures>=2?0:4000);
   }
   payload.failures=0;payload.replies[key]=reply;
   await persist();
