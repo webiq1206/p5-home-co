@@ -99,5 +99,12 @@ export function scopeQuestionsForBrand(...args:Parameters<typeof scopeQuestions>
   values:[...ESTIMATOR_BRAND.services],
   detail:'Choose the work you want this company to handle. Your complete project description and documents are retained.',
  }];
+ // Different cabinet locations in a whole project are additive scope.
+ if(service&&!service.startsWith('cabinet-')){
+  const next=[...args] as Parameters<typeof scopeQuestions>;
+  next[2]=(args[2]||[]).filter(conflict=>conflict.field!=='cabinetRoom');
+  if(args[1])next[1]={...args[1],conflicts:args[1].conflicts.filter(conflict=>conflict.field!=='cabinetRoom')};
+  return scopeQuestions(...next).filter(question=>question.field!=='cabinetRoom');
+ }
  return scopeQuestions(...args);
 }

@@ -1,4 +1,5 @@
-import {SERVER_BUDGET_MS,ProcessingDeadlineError,fetchWithinDeadline} from './processingBudget.ts';
+import {readSpecificationSource,specificationHint,unsupportedSpecifications,UnsupportedSpecificationError} from './sourceSpecificationGuard.ts';
+import {SERVER_BUDGET_MS,ProcessingDeadlineError,fetchWithinDeadline,withinDeadline} from './processingBudget.ts';
 import {ESTIMATOR_BRAND} from "./brand.ts";
 import { SCOPE_FIELDS, SCOPE_BATCH_LIMIT, SCOPE_TEXT_LIMIT, validateExtraction, combineScopeExtractions, type ScopeAnswers, type ScopeExtraction } from "./scope.ts";
 import { PDFDocument } from "pdf-lib";
@@ -137,12 +138,12 @@ function asInputContent(files: AnalysisFile[], text: string, previous: ScopeAnsw
   return content;
 }
 
-async function analyzeWithOpenAI(provider: Provider, text: string, files: AnalysisFile[], previous: ScopeAnswers, request: RequestFunction, timeoutMs: number): Promise<AnalysisResult> {
+async function analyzeWithOpenAI(provider: Provider, text: string, files: AnalysisFile[], previous: ScopeAnswers, request: RequestFunction, timeoutMs: number,sourceInstruction=""): Promise<AnalysisResult> {
   const response = await request(`${provider.endpoint}/responses`, {
     method: "POST", signal: AbortSignal.timeout(timeoutMs),
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${provider.key}` },
     body: JSON.stringify({
-      model: provider.model, instructions: EXTRACTION_SYSTEM+'\n'+DOCUMENT_POLICY, max_output_tokens: 16000,
+      model: provider.model, instructions: EXTRACTION_SYSTEM+'\n'+DOCUMENT_POLICY+'\n'+sourceInstruction, max_output_tokens: 16000,
       input: [{ role: "user", content: asInputContent(files, text, previous) }],
       text: { format: { type: "json_schema", name: "p5_scope_extraction", strict: true, schema: extractionSchema(files) } },
     }),
@@ -160,7 +161,7 @@ async function analyzeWithOpenAI(provider: Provider, text: string, files: Analys
   }
 }
 
-async function analyzeWithAnthropic(provider: Provider, text: string, files: AnalysisFile[], previous: ScopeAnswers, request: RequestFunction, timeoutMs: number): Promise<AnalysisResult> {
+async function analyzeWithAnthropic(provider: Provider, text: string, files: AnalysisFile[], previous: ScopeAnswers, request: RequestFunction, timeoutMs: number,sourceInstruction=""): Promise<AnalysisResult> {
   const content: Record<string, unknown>[] = [];
   for (const file of files) {
     content.push({ type: "text", text: `Source filename: ${file.name}\nOriginal page manifest: ${JSON.stringify(file.pages||[])}` });
@@ -177,7 +178,7 @@ async function analyzeWithAnthropic(provider: Provider, text: string, files: Ana
     // This formatting-only tool never executes code or an external action.
     // Local schema/evidence validation remains mandatory; avoiding compiled
     // output grammars prevents rejection of the full, nested page ledger.
-    body: JSON.stringify({ model: provider.model, max_tokens: 16000, system: EXTRACTION_SYSTEM+'\n'+DOCUMENT_POLICY+' Return the final structured record through record_scope_analysis. It is only an output format, not an external action.', messages: [{ role: "user", content }], tools:[{name:'record_scope_analysis',description:'Return the complete extracted scope, interpreted instructions, original-page coverage and evidence-linked takeoffs. This output record performs no actions and changes no data. Do not omit unreadable pages or excluded-scope instructions.',input_schema:extractionSchema(files,true)}],tool_choice:{type:'tool',name:'record_scope_analysis',disable_parallel_tool_use:true} }),
+    body: JSON.stringify({ model: provider.model, max_tokens: 16000, system: EXTRACTION_SYSTEM+'\n'+DOCUMENT_POLICY+'\n'+sourceInstruction+' Return the final structured record through record_scope_analysis. It is only an output format, not an external action.', messages: [{ role: "user", content }], tools:[{name:'record_scope_analysis',description:'Return the complete extracted scope, interpreted instructions, original-page coverage and evidence-linked takeoffs. This output record performs no actions and changes no data. Do not omit unreadable pages or excluded-scope instructions.',input_schema:extractionSchema(files,true)}],tool_choice:{type:'tool',name:'record_scope_analysis',disable_parallel_tool_use:true} }),
   });
   if (!response.ok) throw await responseError(provider, response);
   let body: any;
@@ -209,6 +210,8 @@ export async function analyzeBatch(text: string, files: AnalysisFile[], previous
   absoluteDeadline=Math.min(absoluteDeadline,Date.now()+SERVER_BUDGET_MS);
   const configured = providers();
   if (!configured.length) throw new Error("analysis-unconfigured");
+  const source=await withinDeadline(()=>readSpecificationSource(files),Math.min(absoluteDeadline,Date.now()+5000)).catch(()=>null);
+  let sourceInstruction=specificationHint(source),sourceRepair=false;
   let last: unknown;let busy:ProviderError|undefined;
   for (const [providerIndex, provider] of configured.entries()) {
     const remaining = absoluteDeadline - Date.now();
@@ -218,8 +221,10 @@ export async function analyzeBatch(text: string, files: AnalysisFile[], previous
     const boundedRequest:RequestFunction=(input,init)=>fetchWithinDeadline(request,input,init||{},providerDeadline);
     try {
       const result = provider.kind === "OpenAI"
-        ? await analyzeWithOpenAI(provider, text, files, previous, boundedRequest, providerTimeout)
-        : await analyzeWithAnthropic(provider, text, files, previous, boundedRequest, providerTimeout);
+        ? await analyzeWithOpenAI(provider, text, files, previous, boundedRequest, providerTimeout,sourceInstruction)
+        : await analyzeWithAnthropic(provider, text, files, previous, boundedRequest, providerTimeout,sourceInstruction);
+      const unsupported=unsupportedSpecifications(result.extraction,source);
+      if(unsupported.length)throw new UnsupportedSpecificationError(unsupported);
       const expected=files.flatMap(f=>f.pages||[]);
       // Each prepared detail batch is physically derived from exactly one
       // source page. Bind its evidence to that known page, not provider-local
@@ -239,6 +244,10 @@ export async function analyzeBatch(text: string, files: AnalysisFile[], previous
       return result;
     } catch (error) {
       if(error instanceof ProcessingDeadlineError&&Date.now()>=absoluteDeadline)throw error;
+      if(error instanceof UnsupportedSpecificationError&&!sourceRepair&&absoluteDeadline-Date.now()>1000){
+        sourceRepair=true;sourceInstruction=specificationHint(source)+' The preceding response incorrectly supplied '+error.specifications.join(', ')+'. Those complete designations are absent from the source. Re-read the supplied pages and keep the missing designations unspecified.';
+        if(providerIndex===configured.length-1)configured.push(provider);
+      }
       last = error;
       if(error instanceof ProviderError&&error.status===429)busy=error;
       // An authorized integration can be unavailable or point at an endpoint

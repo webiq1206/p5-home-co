@@ -1,3 +1,4 @@
+import {atomicInstructionQuestions,textBenchTopChoices} from './atomicQuestions.ts';
 import type {ScopeAnswers,ScopeExtraction} from './scope.ts';
 import {alternativeOptions} from './quantityReconciliation.ts';
 
@@ -21,7 +22,7 @@ const serviceQuestion=(text:string)=>/which .*services|what .*remodel.*service|c
 export function instructionPrompts(extraction:ScopeExtraction|null,answers:ScopeAnswers):InstructionPrompt[]{
   const result:InstructionPrompt[]=[];
   for(const raw of extraction?.instructions?.questions||[]){
-    for(const part of raw.match(/[^?]+\??/g)||[]){
+    for(const part of (raw.match(/[^?]+\??/g)||[]).flatMap(part=>atomicInstructionQuestions(part,answers,extraction?.conflicts))){
       const full=visitorQuestionText(part.replace(/\s+/g,' ').trim());if(!full)continue;
       // Filter each question separately so a legacy paragraph cannot lose a real scope decision.
       if(serviceQuestion(full))continue;
@@ -31,7 +32,7 @@ export function instructionPrompts(extraction:ScopeExtraction|null,answers:Scope
       const values=/labor.only/i.test(full)&&/materials.only/i.test(full)?['Labor only','Materials only','Labor and materials']:
         /include or exclude|include.*or.*exclude/i.test(full)?['Include it','Exclude it']:
         alternativeOptions(full,extraction?.takeoffs||[]);
-      result.push({id,question,...(question!==full?{detail:full}:{}),values});
+      result.push({id,question,...(question!==full?{detail:full}:{}),values:values?.length?values:textBenchTopChoices(extraction,full)});
     }
   }
   return result;
