@@ -1,5 +1,5 @@
 import {CLIENT_BUDGET_MS,remainingBudget,withinDeadline} from './processingBudget.ts';
-import type {ProcessingStatus} from './processingStatus';
+import type {ProcessingStatus} from './processingStatus.ts';
 /** Continue server-saved pricing stages without creating a second submission.
  * A rejected submission keeps the server's structured reply on the error so
  * the interface can link the visitor to exactly what is missing. */

@@ -1,4 +1,4 @@
-import {prepareImages} from "./imagePreparation";
+import {prepareImages} from "./imagePreparation.ts";
 import ExcelJS from "exceljs";
 import mammoth from "mammoth";
 import type { AnalysisFile } from "./extraction.ts";

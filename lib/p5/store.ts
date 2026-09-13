@@ -1,14 +1,14 @@
 import { createHash, randomUUID, timingSafeEqual } from "node:crypto";
-import { query } from "./database";
-import { storeObject, readStoredBytes } from "./objectStorage";
-import { ESTIMATOR_BRAND } from "./brand";
+import { query } from "./database.ts";
+import { storeObject, readStoredBytes } from "./objectStorage.ts";
+import { ESTIMATOR_BRAND } from "./brand.ts";
 import type { ReviewedScope, ScopeAnswers, ScopeExtraction, ScopeUpload } from "./scope.ts";
 const hash = (value: string | Buffer) => createHash("sha256").update(value).digest("hex");
 export class DraftError extends Error { status: number; constructor(message: string, status = 400) { super(message); this.status=status; } }
 export interface Draft {
   id: string; revision: number; status: "draft" | "submitted"; updatedAt: string;
   text: string; answers: ScopeAnswers; extraction: ScopeExtraction | null;
-  wizard?: {skipped: (keyof ScopeAnswers)[]; resolutions: ScopeAnswers; sourceVersion?:string;instructionAnswers?:import('./clarifications').InstructionAnswer[]} ;
+  wizard?: {skipped: (keyof ScopeAnswers)[]; resolutions: ScopeAnswers; sourceVersion?:string;instructionAnswers?:import('./clarifications.ts').InstructionAnswer[]} ;
   /** Fingerprint of the source text used for the current extraction. */
   analyzedFingerprint?: string;
   analyzedAnswers?: string;

@@ -95,3 +95,26 @@ test('a slow or unavailable web search falls back to a labeled planning average 
   assert.ok((r.internal as any).warnings.some((w:any)=>w.code==='planning-average-preliminary'&&w.severity==='review'));
   assert.ok(!JSON.stringify(r.customer).includes('unitCost'));
 });
+
+test('a typed scope is read by every configured provider at once and the first valid result wins',async()=>{
+  const {analyzeBatch}=await import('../lib/p5/extraction.ts');
+  const saved={openai:process.env.OPENAI_API_KEY,anthropic:process.env.ANTHROPIC_API_KEY,integrated:process.env.AI_INTEGRATIONS_OPENAI_API_KEY};
+  process.env.OPENAI_API_KEY='fixture';process.env.ANTHROPIC_API_KEY='fixture';delete process.env.AI_INTEGRATIONS_OPENAI_API_KEY;
+  const record={summary:'Bathroom remodel',facts:[{field:'service',value:'bathroom',confidence:.95,source:'typed scope',evidence:'bathroom remodel',basis:'stated'}],conflicts:[],missingInformation:[],reviewNotes:[],clarifications:[],instructions:{inclusions:[],exclusions:[],responsibilities:[],buildings:[],floors:[],separateBuildings:false,laborOnly:false,materialsOnly:false,questions:[]},pages:[],takeoffs:[]};
+  const calls:string[]=[];
+  const request:typeof fetch=async(input,init)=>{
+    const url=String(input);calls.push(url);
+    if(url.includes('/responses')){await new Promise((_,reject)=>{init?.signal?.addEventListener('abort',()=>reject(new Error('aborted')));setTimeout(()=>reject(new Error('aborted')),1500);});throw new Error('unreachable');}
+    await new Promise(r=>setTimeout(r,20));
+    return Response.json({stop_reason:'tool_use',model:'claude-sonnet-5',content:[{type:'tool_use',name:'record_scope_analysis',input:record}]});
+  };
+  const started=Date.now();
+  try{
+    const result=await analyzeBatch('Remodel the bathroom.',[],{},request,5000,Date.now()+5000);
+    assert.equal(result.provider,'Anthropic');assert.equal(result.extraction.facts[0].value,'bathroom');
+    assert.ok(Date.now()-started<1000,'the slow primary provider must not delay a valid fallback result');
+    assert.ok(calls.some(url=>url.includes('/responses'))&&calls.some(url=>url.includes('/messages')),'both providers are asked');
+  }finally{
+    for(const [key,value] of [['OPENAI_API_KEY',saved.openai],['ANTHROPIC_API_KEY',saved.anthropic],['AI_INTEGRATIONS_OPENAI_API_KEY',saved.integrated]] as const){if(value===undefined)delete process.env[key];else process.env[key]=value;}
+  }
+});

@@ -1,12 +1,12 @@
-import {instructionPrompts} from './clarifications';
-import {resolveInstructionAnswer} from './clarificationAnswer';
-import {deriveScopeAnswers,reconcileScope,scopeQuestionsForBrand as scopeQuestions} from "./adaptive";
-import {costQuestionFields} from "./questionPolicy";
-import { ESTIMATOR_BRAND } from "./brand";
-import { draftCredentials, readDraft, saveDraft, DraftError } from "./store";
+import {instructionPrompts} from './clarifications.ts';
+import {resolveInstructionAnswer} from './clarificationAnswer.ts';
+import {deriveScopeAnswers,reconcileScope,scopeQuestionsForBrand as scopeQuestions} from "./adaptive.ts";
+import {costQuestionFields} from "./questionPolicy.ts";
+import { ESTIMATOR_BRAND } from "./brand.ts";
+import { draftCredentials, readDraft, saveDraft, DraftError } from "./store.ts";
 import { SCOPE_FIELDS, SCOPE_TEXT_LIMIT, validateAnswer, validateExtraction, type ScopeAnswers, type ReviewedScope } from "./scope.ts";
 import {answersForEditedScope,answersForReplacedScope,normalizeScopeText,scopeFingerprint,scopeTextChanged} from './scopeReplacement.ts';
-import { failed,json,limitedBody,protectRequest } from "./http";
+import { failed,json,limitedBody,protectRequest } from "./http.ts";
 
 function stable(value:unknown):string{return JSON.stringify(value,(key,item)=>item&&typeof item==="object"&&!Array.isArray(item)?Object.fromEntries(Object.entries(item).sort(([a],[b])=>a.localeCompare(b))):item);}
 function withoutInstructions(answers:ScopeAnswers){const copy={...answers};delete copy.estimatingInstructions;return copy;}

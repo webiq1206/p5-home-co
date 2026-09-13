@@ -1,8 +1,8 @@
-import {analyzeBatch} from './extraction';
-import {clarificationContext,exactResponsibilityChoice,instructionPrompts,isResponsibilityPrompt,questionKey,removeInstructionPrompt,type InstructionAnswer} from './clarifications';
-import {applyRetainedBenchTopAnswer,isBenchTopClarificationQuestion,reconcileClarificationTakeoffs} from './retainedClarification';
-import {DraftError} from './store';
-import {SCOPE_TEXT_LIMIT,type ScopeAnswers,type ScopeExtraction} from './scope';
+import {analyzeBatch} from './extraction.ts';
+import {clarificationContext,exactResponsibilityChoice,instructionPrompts,isResponsibilityPrompt,questionKey,removeInstructionPrompt,type InstructionAnswer} from './clarifications.ts';
+import {applyRetainedBenchTopAnswer,isBenchTopClarificationQuestion,reconcileClarificationTakeoffs} from './retainedClarification.ts';
+import {DraftError} from './store.ts';
+import {SCOPE_TEXT_LIMIT,type ScopeAnswers,type ScopeExtraction} from './scope.ts';
 
 export async function resolveInstructionAnswer(extraction:ScopeExtraction|null,answers:ScopeAnswers,raw:unknown,prior:InstructionAnswer[]=[],request=fetch){
   const value=raw as {id?:unknown;answer?:unknown};

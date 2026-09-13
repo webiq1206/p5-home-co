@@ -1,4 +1,4 @@
-import {ESTIMATOR_BRAND} from './brand';
+import {ESTIMATOR_BRAND} from './brand.ts';
 
 /**
  * Visual theme for the estimator card. Each site keeps its own palette: the

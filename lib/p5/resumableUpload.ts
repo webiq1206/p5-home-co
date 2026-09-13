@@ -1,14 +1,14 @@
 import {createHash,randomUUID} from 'node:crypto';
 import {Readable} from 'node:stream';
 import {Client} from '@replit/object-storage';
-import {query} from './database';
-import {draftCredentials,readDraft,DraftError} from './store';
-import {ESTIMATOR_BRAND} from './brand';
-import {ESTIMATOR_BUCKETS,uploadObjectKey} from './objectStorage';
-import {SCOPE_FILE_LIMIT,SCOPE_BATCH_LIMIT,SCOPE_FILE_COUNT,SCOPE_CHUNK_SIZE,SCOPE_UPLOAD_HELP} from './scope';
-import {verifyUpload} from './documents';
-import {protectRequest,limitedBody,failed,json} from './http';
-import {claimWork,releaseWork} from './workStore';
+import {query} from './database.ts';
+import {draftCredentials,readDraft,DraftError} from './store.ts';
+import {ESTIMATOR_BRAND} from './brand.ts';
+import {ESTIMATOR_BUCKETS,uploadObjectKey} from './objectStorage.ts';
+import {SCOPE_FILE_LIMIT,SCOPE_BATCH_LIMIT,SCOPE_FILE_COUNT,SCOPE_CHUNK_SIZE,SCOPE_UPLOAD_HELP} from './scope.ts';
+import {verifyUpload} from './documents.ts';
+import {protectRequest,limitedBody,failed,json} from './http.ts';
+import {claimWork,releaseWork} from './workStore.ts';
 
 const sha=(data:Buffer)=>createHash('sha256').update(data).digest('hex');
 type Transfer={name:string;size:number;digest:string;chunks:Record<string,string>;complete?:boolean};

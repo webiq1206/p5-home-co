@@ -31,8 +31,9 @@ try{
    await background.drainEstimatorJobs();
  }
  const [failed]=await db.query("SELECT payload FROM p5_estimator_work WHERE work_key LIKE 'background-v1-%' AND payload->>'state'='failed'");assert.ok(failed);assert.match(failed.payload.progress,/Completed work is saved/);
- reader.failure(false);await background.queuedJob(interrupted,true);await new Promise(r=>setTimeout(r,120));
- for(let n=0;n<5;n++)await background.drainEstimatorJobs();
+ reader.failure(false);await background.queuedJob(interrupted,true);
+ // The queue drains itself after a retry; give the worker a bounded moment to finish both saved stages.
+ for(let n=0;n<40;n++){await new Promise(r=>setTimeout(r,60));await background.drainEstimatorJobs();const pending=await db.query("SELECT 1 FROM p5_estimator_work WHERE work_key LIKE 'background-v1-%' AND payload->>'state'<>'complete'");if(!pending.length)break;}
  assert.equal((await db.query("SELECT * FROM p5_estimator_work WHERE work_key LIKE 'background-v1-%' AND payload->>'state'<>'complete'")).length,0);
  assert.equal((await db.query('SELECT * FROM p5_estimator_outbox')).length,0,'processing alone never sends customer messages');
  assert.equal((await db.query('SELECT * FROM p5_estimator_work WHERE lease_token IS NOT NULL')).length,0);

@@ -1,10 +1,10 @@
 import {createHash,randomUUID} from "node:crypto";
-import {query} from "./database";
-import {DraftError,ensureSchema} from "./store";
-import {EMPTY_CONFIGURATION} from "./costBook";
+import {query} from "./database.ts";
+import {DraftError,ensureSchema} from "./store.ts";
+import {EMPTY_CONFIGURATION} from "./costBook.ts";
 import {calculateP5Estimate,customerEstimate,POLICY_VERSION,type PricingInput,type OwnerApproval} from "./pricing.ts";
-import {adminRecipients} from "./deliveryAdapter";
-import {ESTIMATOR_BRAND as brand} from "./brand";
+import {adminRecipients} from "./deliveryAdapter.ts";
+import {ESTIMATOR_BRAND as brand} from "./brand.ts";
 
 type Actor={id:string;email:string};
 export async function ensureReviewSchema(){

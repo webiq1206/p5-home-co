@@ -1,7 +1,7 @@
-import {draftCredentials,readDraft,DraftError,requireEstimateContact} from './store';
-import {query} from './database';
-import {customerPdf,pdfFilename} from './pdf';
-import {failed,protectRequest} from './http';
+import {draftCredentials,readDraft,DraftError,requireEstimateContact} from './store.ts';
+import {query} from './database.ts';
+import {customerPdf,pdfFilename} from './pdf.ts';
+import {failed,protectRequest} from './http.ts';
 export async function getCustomerPdf(request:Request){
   try{
     protectRequest(request);const {id,key}=draftCredentials(request);

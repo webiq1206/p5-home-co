@@ -1,7 +1,7 @@
 import {Worker} from 'node:worker_threads';
 import {join} from 'node:path';
 import sharp from 'sharp';
-import type {AnalysisFile} from './extraction';
+import type {AnalysisFile} from './extraction.ts';
 async function convertHeic(bytes:Buffer):Promise<Buffer[]>{
   return new Promise((resolve,reject)=>{
     const worker=new Worker(`const {parentPort,workerData}=require('node:worker_threads');const convert=require(workerData.modulePath);(async()=>{const images=await convert.all({buffer:Buffer.from(workerData.bytes),format:'JPEG',quality:.96});if(images.length>50)throw Error('This image collection contains more than 50 images.');const output=[];for(const image of images)output.push(await image.convert());parentPort.postMessage(output);})().catch(error=>{throw error;});`,{eval:true,workerData:{bytes,modulePath:join(process.cwd(),"node_modules/heic-convert")},resourceLimits:{maxOldGenerationSizeMb:384}});

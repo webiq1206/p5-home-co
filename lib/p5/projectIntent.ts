@@ -1,4 +1,4 @@
-import type {ScopeAnswers,ScopeExtraction} from './scope';
+import type {ScopeAnswers,ScopeExtraction} from './scope.ts';
 /** An explicit current request wins over the Cabinet page's historical supply-only default. */
 export function cabinetIntent(text:string,services:readonly string[]):'cabinet-install'|'cabinet-product'|undefined{
   if(!services.includes('cabinet-install')||!services.includes('cabinet-product')||!/\b(?:cabinets?|vanity)\b/i.test(text))return;

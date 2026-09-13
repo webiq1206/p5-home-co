@@ -1,4 +1,4 @@
-import {query} from './database';
+import {query} from './database.ts';
 import {SCOPE_FIELDS,type ScopeAnswers,type ScopeField} from './scope.ts';
 import {planningQuestionFields} from './planningBooks.ts';
 

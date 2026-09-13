@@ -1,11 +1,11 @@
-import {requireEstimatorAdmin} from "./adminAuth";
-import {query} from "./database";
-import {DraftError} from "./store";
-import {protectRequest,limitedBody,json,failed} from "./http";
+import {requireEstimatorAdmin} from "./adminAuth.ts";
+import {query} from "./database.ts";
+import {DraftError} from "./store.ts";
+import {protectRequest,limitedBody,json,failed} from "./http.ts";
 import {validateReferences,compareReference,validateComparisonLine,referenceDirectCostBudget,type ComparableSelection} from "./references.ts";
 import {calculateP5Estimate,companyAllocation} from "./pricing.ts";
-import {EMPTY_CONFIGURATION} from "./costBook";
-import {ensureReviewSchema,currentReview} from "./manualReview";
+import {EMPTY_CONFIGURATION} from "./costBook.ts";
+import {ensureReviewSchema,currentReview} from "./manualReview.ts";
 
 async function schema(){
   await ensureReviewSchema();

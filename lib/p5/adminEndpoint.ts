@@ -1,15 +1,15 @@
 import {timingSafeEqual} from "node:crypto";
-import {readStoredBytes} from "./objectStorage";
-import {requireEstimatorAdmin} from "./adminAuth";
-import {query} from "./database";
-import {ensureSchema,DraftError} from "./store";
-import {EMPTY_CONFIGURATION,type EstimatorConfiguration} from "./costBook";
+import {readStoredBytes} from "./objectStorage.ts";
+import {requireEstimatorAdmin} from "./adminAuth.ts";
+import {query} from "./database.ts";
+import {ensureSchema,DraftError} from "./store.ts";
+import {EMPTY_CONFIGURATION,type EstimatorConfiguration} from "./costBook.ts";
 import {validatePlanningCatalog} from './planningBooks.ts';
 import {companyAllocation,SERVICE_MATRIX,COST_CATEGORIES} from "./pricing.ts";
-import {processOutbox} from "./outbox";
-import {ensureReviewSchema,saveManualReview,approveManualReview,publishManualReview,reconcileDelivery} from "./manualReview";
-import {administrativePdf,customerPdf,pdfFilename} from "./pdf";
-import {protectRequest,limitedBody,json,failed} from "./http";
+import {processOutbox} from "./outbox.ts";
+import {ensureReviewSchema,saveManualReview,approveManualReview,publishManualReview,reconcileDelivery} from "./manualReview.ts";
+import {administrativePdf,customerPdf,pdfFilename} from "./pdf.ts";
+import {protectRequest,limitedBody,json,failed} from "./http.ts";
 function validId(id:string){if(!/^[a-f0-9-]{36}$/.test(id))throw new DraftError("Invalid record id.");return id;}
 export async function getAdminEstimates(request:Request){try{
   await requireEstimatorAdmin();await ensureReviewSchema();const url=new URL(request.url);const id=url.searchParams.get("id");

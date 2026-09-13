@@ -1,10 +1,10 @@
-import {estimateEmail} from './estimateEmail';
+import {estimateEmail} from './estimateEmail.ts';
 import { randomUUID,createHash } from "node:crypto";
-import { query } from "./database";
-import { ensureSchema } from "./store";
-import { adminRecipients,sendEmail,syncCrm,EMAIL_SUPPORTS_IDEMPOTENCY } from "./deliveryAdapter";
-import { customerPdf,administrativePdf,pdfFilename } from "./pdf";
-import { ESTIMATOR_BRAND as brand } from "./brand";
+import { query } from "./database.ts";
+import { ensureSchema } from "./store.ts";
+import { adminRecipients,sendEmail,syncCrm,EMAIL_SUPPORTS_IDEMPOTENCY } from "./deliveryAdapter.ts";
+import { customerPdf,administrativePdf,pdfFilename } from "./pdf.ts";
+import { ESTIMATOR_BRAND as brand } from "./brand.ts";
 export async function enqueueSubmission(id:string,revision:number,record:any){
   const recipients=await adminRecipients();if(!recipients.length)throw new Error("No estimate administrator is configured");
   const jobs=[...recipients.map(email=>({id:randomUUID(),destination:`admin:${email}`,payload:record})),

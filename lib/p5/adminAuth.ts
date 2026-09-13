@@ -1,5 +1,5 @@
 import {getSessionUser} from "../../app/lib/auth.ts";
-import {DraftError} from "./store";
+import {DraftError} from "./store.ts";
 export async function requireEstimatorAdmin(){
   const user=await getSessionUser();
   if(!user||user.role!=="administrator")throw new DraftError("Administrator sign-in is required.",403);

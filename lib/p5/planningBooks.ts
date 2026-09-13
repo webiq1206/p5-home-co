@@ -1,6 +1,6 @@
 import {COST_CATEGORIES,DEFAULT_FINANCE,SERVICE_MATRIX,type CostCategory,type Service} from './pricing.ts';
 import {SCOPE_FIELDS,type ScopeAnswers,type ScopeField,type ReviewedScope} from './scope.ts';
-import type {CostRule,EstimatorConfiguration,ServiceCostBook} from './costBook';
+import type {CostRule,EstimatorConfiguration,ServiceCostBook} from './costBook.ts';
 
 /** Private owner data lives in the policy database, never in the public bundle. */
 export interface PlanningRate {code:string;description:string;type:'Material'|'Labor'|'Subcontractor'|'Equipment'|'Other';unit:string;amount:number;source:string;basis:'owner-average-cost'|'historical-cost-budget'}

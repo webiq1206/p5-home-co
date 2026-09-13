@@ -192,6 +192,30 @@ export async function analyzeBatch(text: string, files: AnalysisFile[], previous
   const source=await withinDeadline(()=>readSpecificationSource(files),Math.min(absoluteDeadline,Date.now()+5000)).catch(()=>null);
   let sourceInstruction=specificationHint(source),sourceRepair=false;
   let last: unknown;let busy:ProviderError|undefined;
+  if(!files.length&&configured.length>1&&process.env.P5_TEXT_RACE!=='false'){
+    // A typed scope is cheap to read twice and expensive to wait on. Every
+    // configured provider reads it at once; the first valid result wins and
+    // the rest are abandoned. Document sections keep the sequential path.
+    const controllers=configured.map(()=>new AbortController());
+    const attempts=configured.map(async(provider,index)=>{
+      const providerTimeout=Math.min(timeoutMs,absoluteDeadline-Date.now(),SERVER_BUDGET_MS);
+      const providerDeadline=Date.now()+providerTimeout;
+      const boundedRequest:RequestFunction=(input,init)=>fetchWithinDeadline(request,input,{...(init||{}),signal:controllers[index].signal},providerDeadline);
+      const result=provider.kind==='OpenAI'?await analyzeWithOpenAI(provider,text,files,previous,boundedRequest,providerTimeout,sourceInstruction):await analyzeWithAnthropic(provider,text,files,previous,boundedRequest,providerTimeout,sourceInstruction);
+      result.extraction=retainUnspecifiedRatings(result.extraction,null);
+      result.extraction=groundSourceResponsibilities(result.extraction,undefined,text,previous);
+      return result;
+    });
+    try{
+      const winner=await Promise.any(attempts.map((attempt,index)=>attempt.catch(error=>{if(error instanceof ProcessingDeadlineError&&Date.now()>=absoluteDeadline)throw error;last=error;if(error instanceof ProviderError&&error.status===429)busy=error;console.error(`[p5-analysis] ${configured[index].kind} text read failed (${error instanceof ProviderError?error.status??'no status':'no status'}: ${safeProviderMessage(error instanceof Error?error.message:error)}).`);throw error;})));
+      for(const controller of controllers)controller.abort();
+      return winner;
+    }catch(error){
+      for(const controller of controllers)controller.abort();
+      if(error instanceof ProcessingDeadlineError)throw error;
+      throw publicProviderError(busy||last);
+    }
+  }
   for (const [providerIndex, provider] of configured.entries()) {
     const remaining = absoluteDeadline - Date.now();
     if (remaining < 1000) throw new Error("analysis-time-budget");

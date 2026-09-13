@@ -1,6 +1,6 @@
 import {createHash} from 'node:crypto';
-import {query} from './database';
-import type {CostRule} from './costBook';
+import {query} from './database.ts';
+import type {CostRule} from './costBook.ts';
 export const rateLocation=(value:string)=>value.trim().toLowerCase().replace(/\s+/g,' ')||'boise / treasure valley, idaho';
 /** Estimated rate library is separate from the owner's verified/approved book.
  * Reuse requires current evidence AND the same locality; scope/unit compatibility

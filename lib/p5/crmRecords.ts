@@ -1,5 +1,5 @@
-import {query} from "./database";
-import {ensureSchema} from "./store";
+import {query} from "./database.ts";
+import {ensureSchema} from "./store.ts";
 
 /** Resolve only acknowledged links. Failed or ambiguous sends are not CRM records. */
 export async function linkedEstimatorRecords(dealId:number){

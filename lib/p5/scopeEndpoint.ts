@@ -1,17 +1,17 @@
 import {ProcessingDeadlineError,PROCESSING_PAUSED} from './processingBudget.ts';
-import {applyCabinetIntent} from "./projectIntent";
-import {advanceAnalysis} from "./analysisWork";
-import {queuedJob} from './backgroundJobs';
-import {manualScopeAnswers,reconcileScope,scopeQuestionsForBrand as scopeQuestions} from "./adaptive";
-import {costQuestionFields} from "./questionPolicy";
+import {applyCabinetIntent} from "./projectIntent.ts";
+import {advanceAnalysis} from "./analysisWork.ts";
+import {queuedJob} from './backgroundJobs.ts';
+import {manualScopeAnswers,reconcileScope,scopeQuestionsForBrand as scopeQuestions} from "./adaptive.ts";
+import {costQuestionFields} from "./questionPolicy.ts";
 import {createHash} from "node:crypto";
 import { analyzeScope } from "./extraction.ts";
-import { prepareAnalysisFiles,verifyUpload } from "./documents";
+import { prepareAnalysisFiles,verifyUpload } from "./documents.ts";
 import { SCOPE_BATCH_LIMIT,SCOPE_TEXT_LIMIT,SCOPE_FILE_COUNT,SCOPE_UPLOAD_HELP,SCOPE_FIELDS } from "./scope.ts";
-import { draftCredentials,readDraft,readUploads,saveUpload,saveDraft,DraftError } from "./store";
+import { draftCredentials,readDraft,readUploads,saveUpload,saveDraft,DraftError } from "./store.ts";
 import {answersForEditedScope,normalizeScopeText,scopeFingerprint,scopeTextChanged,sourceSnapshot,sourceSnapshotsEqual} from "./scopeReplacement.ts";
-import { failed,json,limitedBody,protectRequest } from "./http";
-import { ESTIMATOR_BRAND } from "./brand";
+import { failed,json,limitedBody,protectRequest } from "./http.ts";
+import { ESTIMATOR_BRAND } from "./brand.ts";
 
 /** Guard multipart analysis/upload requests before they can mutate files. */
 export function guardScopeRequestRevision(storedRevision:number,requestedRevision:unknown,storedText:string,incomingText:string){

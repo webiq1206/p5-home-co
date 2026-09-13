@@ -2,7 +2,7 @@ import {PDFDocument} from 'pdf-lib';
 import {createCanvas,type Canvas} from '@napi-rs/canvas';
 import {createRequire} from 'node:module';
 import path from 'node:path';
-import type {AnalysisFile} from './extraction';
+import type {AnalysisFile} from './extraction.ts';
 
 /** Exact pixel inspection only. Any nonwhite pixel, including a faint mark,
  * keeps the region for AI review. No content-detection threshold or sampling. */

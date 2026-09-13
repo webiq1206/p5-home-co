@@ -1,5 +1,5 @@
-import {SCOPE_CHUNK_SIZE} from './scope';
-import {requireDraftReceipt} from './browserDraft';
+import {SCOPE_CHUNK_SIZE} from './scope.ts';
+import {requireDraftReceipt} from './browserDraft.ts';
 const digest=async(data:ArrayBuffer)=>Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',data)),b=>b.toString(16).padStart(2,'0')).join('');
 /** Retry only unacknowledged segments. Receipts and checksums are verified before clearing local files. */
 export async function transferLargeFiles(files:File[],headers:Record<string,string>,progress:(percent:number)=>void,request=fetch){

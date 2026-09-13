@@ -37,7 +37,7 @@ export function P5Estimator({defaultService='',headingAs='h1',projectSource}:{de
   const [busy,setBusy]=useState('');const busyRef=useRef(false);const [error,setError]=useState('');const [warning,setWarning]=useState('');const [status,setStatus]=useState('');
   const [uploadPercent,setUploadPercent]=useState<number|null>(null);const [preparingFiles,setPreparingFiles]=useState(false);const [dragging,setDragging]=useState(false);
   const [processing,setProcessing]=useState<ProcessingStatus|null>(null);const lastProcessing=useRef<ProcessingStatus|null>(null);
-  const [paused,setPaused]=useState<Paused|null>(null);
+  const [paused,setPaused]=useState<Paused|null>(null);const resuming=useRef(false);
   const [missingFields,setMissingFields]=useState<MissingField[]>([]);
   const started=useRef(false);
   const [clarificationReply,setClarificationReply]=useState('');
@@ -128,6 +128,36 @@ export function P5Estimator({defaultService='',headingAs='h1',projectSource}:{de
     }
     finally{budget.controller.abort();if(operationBudget.current===budget)operationBudget.current=null;busyRef.current=false;setBusy('');setUploadPercent(null);setProcessing(null);}
   }
+  useEffect(()=>{
+    if(!paused||busy)return;
+    let cancelled=false;
+    const kind=paused.kind;
+    const tick=async()=>{
+      const d=current.current;if(!d||cancelled)return;
+      try{
+        if(kind==='pricing'){
+          const response=await fetch('/api/p5-estimator/submit',{method:'POST',headers:{...draftHeaders(d),'Content-Type':'application/json'},body:JSON.stringify({revision:d.revision,background:true,retry:false})});
+          const data=await response.json();if(cancelled)return;
+          if(response.status===202&&data.pending){if(data.processing)setPaused(p=>p&&p.kind===kind?{...p,processing:data.processing}:p);return;}
+          setPaused(null);
+          if(!response.ok){if(data.pricingReviewRequired)setMissingFields(Array.isArray(data.missingFields)?data.missingFields.filter((f:any)=>f&&typeof f.field==='string'&&Object.hasOwn(SCOPE_FIELDS,f.field)).map((f:any)=>({field:f.field as ScopeField,label:String(f.label||SCOPE_FIELDS[f.field as ScopeField].label)})):[]);setError(data.error||'Your estimate could not be completed. Your saved work is intact; please retry.');return;}
+          if(data.result){setResult(data.result);setDelivery(data.delivery||[]);if(data.result?.range)trackScopeEvent('estimateGenerated',d.answers.service);setStatus('');focus();}
+        }else{
+          const form=new FormData();form.set('text',d.text);form.set('scopeFingerprint',scopeFingerprint(d.text));form.set('revision',String(d.revision));form.set('resumable','true');form.set('background','true');form.set('retry','false');
+          const response=await fetch('/api/p5-estimator/scope',{method:'POST',headers:draftHeaders(d),body:form});
+          const data=await response.json();if(cancelled)return;
+          if(data.pending){if(Number.isInteger(data.draftRevision)&&data.draftRevision!==d.revision)apply({...d,revision:data.draftRevision});if(data.processing)setPaused(p=>p&&p.kind===kind?{...p,processing:data.processing}:p);return;}
+          setPaused(null);
+          if(!response.ok){setError(data.error||'Your files could not be processed. They are still here. Please retry.');return;}
+          // The reading finished. Re-enter the normal flow; the saved job answers immediately.
+          resuming.current=true;void begin();
+        }
+      }catch{/* transient; the next tick retries */}
+    };
+    const timer=setInterval(()=>{void tick();},4000);void tick();
+    return()=>{cancelled=true;clearInterval(timer);};
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[paused?.kind,busy]);
   const track=(detail:ProcessingStatus|null|undefined)=>{if(detail){lastProcessing.current=detail;setProcessing(detail);}};
   async function ensureSourcePhoto(){
     const url=projectSource&&!current.current?.sourceDetached?projectSource.imageUrl:undefined;if(!url||current.current?.sourceImageUrl===url)return;
@@ -164,7 +194,7 @@ export function P5Estimator({defaultService='',headingAs='h1',projectSource}:{de
       for(const f of pending){const digest=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',await f.arrayBuffer()))).map(b=>b.toString(16).padStart(2,'0')).join('');if(!receipt.uploads.some(stored=>stored.sha256===digest))throw new Error(`${f.name}: upload was not confirmed. Please retry.`);}
       apply({...current.current!,uploads:receipt.uploads,revision:receipt.revision});filesRef.current=[];setFiles([]);await clearCachedFiles(d.id).catch(()=>undefined);setUploadPercent(null);setStatus('Files uploaded and saved.');
     }
-    setBusy('Reading your documents and project details...');const form=new FormData();form.set('text',d.text);form.set('scopeFingerprint',scopeFingerprint(d.text));form.set('revision',String(current.current!.revision));form.set('resumable','true');form.set('background','true');form.set('retry',paused?'false':'true');
+    setBusy('Reading your documents and project details...');const form=new FormData();form.set('text',d.text);form.set('scopeFingerprint',scopeFingerprint(d.text));form.set('revision',String(current.current!.revision));form.set('resumable','true');form.set('background','true');form.set('retry',resuming.current?'false':'true');resuming.current=false;
     let data:any;
     do{
       requireCurrentSource();
@@ -241,7 +271,7 @@ export function P5Estimator({defaultService='',headingAs='h1',projectSource}:{de
     await run('Preparing your estimate...',async()=>{
       trackScopeEvent('contactSubmitted',d.answers.service);const budget=operationBudget.current!;const saved=await save(true);
       const checkSubmission=()=>{if(operationBudget.current!==budget)throw new ProcessingDeadlineError();checkOperation();};
-      let retry=!paused;
+      let retry=!resuming.current;resuming.current=false;
       let data:any;
       try{
         data=await completeSubmission(()=>{checkSubmission();const shouldRetry=retry;retry=false;return operationFetch('/api/p5-estimator/submit',{method:'POST',headers:{...draftHeaders(current.current!),'Content-Type':'application/json'},body:JSON.stringify({revision:saved.revision,background:true,retry:shouldRetry})});},(message,detail)=>{checkSubmission();setBusy(message);track(detail);},undefined,budget.deadline);
@@ -253,7 +283,7 @@ export function P5Estimator({defaultService='',headingAs='h1',projectSource}:{de
       checkSubmission();setResult(data.result);setDelivery(data.delivery||[]);if(data.result?.range)trackScopeEvent('estimateGenerated',d.answers.service);if(data.delivery?.some((v:any)=>v.channel==='customer'&&v.status==='sent'))trackScopeEvent('estimateEmailed',d.answers.service);setStatus('');focus();
     },'pricing');
   }
-  const continuePaused=()=>{const kind=paused?.kind;setPaused(null);if(kind==='pricing'){const form=document.getElementById(`${id}-form`) as HTMLFormElement|null;if(form)form.requestSubmit();else void begin();}else void begin();};
+  const continuePaused=()=>{const kind=paused?.kind;setPaused(null);resuming.current=true;if(kind==='pricing'){const form=document.getElementById(`${id}-form`) as HTMLFormElement|null;if(form)form.requestSubmit();else void begin();}else void begin();};
   const reply=(value:string)=>{setClarificationReply(value);if(active?.instructionId)change({pendingReply:{id:active.instructionId,answer:value}});};
   const changeProjectText=(text:string)=>{
     const d=current.current;if(!d)return;
@@ -335,7 +365,7 @@ export function P5Estimator({defaultService='',headingAs='h1',projectSource}:{de
   </>;
   const pausedCard=paused&&<section className={styles.notice} role="status" aria-live="polite">
     <h3>{paused.kind==='analysis'?'Still reading your project':'Still preparing your estimate'}</h3>
-    <p>{paused.processing?.totalPages?`${Math.min(paused.processing.totalPages,paused.processing.readPages||0)} of ${paused.processing.totalPages} pages are checked so far. `:''}This is taking longer than the usual minute. Your completed work is saved and processing continues in the background, so nothing is lost.</p>
+    <p>{paused.processing?.totalPages?`${Math.min(paused.processing.totalPages,paused.processing.readPages||0)} of ${paused.processing.totalPages} pages are checked so far. `:''}This is taking longer than the usual minute. Your completed work is saved and processing continues in the background; this page checks every few seconds and will show the result as soon as it is ready.</p>
     <div className={styles.actions}><button type="button" className={styles.primary} onClick={continuePaused}>Keep going</button><button type="button" className={styles.ghost} onClick={()=>setPaused(null)}>Come back later</button></div>
   </section>;
   const alertCard=error&&<div id={submitErrorId} className={styles.alert} role="alert" aria-live="assertive">

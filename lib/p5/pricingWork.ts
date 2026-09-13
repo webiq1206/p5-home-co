@@ -1,12 +1,12 @@
 import {SERVER_BUDGET_MS,remainingBudget,withinDeadline,ProcessingDeadlineError} from './processingBudget.ts';
 import {createHash} from 'node:crypto';
-import {claimWork,writeWork,releaseWork} from './workStore';
-import {priceCompleteScope,requestPricing,type PricingReply,type PricingRequest} from './scopePricing';
-import {PricingPending,PricingStageTimeout} from './pricingProgress';
-import type {ReviewedScope} from './scope';
-import type {EstimatorConfiguration} from './costBook';
-import {readRegionalRates,saveRegionalRates} from './regionalRates';
-import {pricingActivity,type ProcessingStatus} from './processingStatus';
+import {claimWork,writeWork,releaseWork} from './workStore.ts';
+import {priceCompleteScope,requestPricing,type PricingReply,type PricingRequest} from './scopePricing.ts';
+import {PricingPending,PricingStageTimeout} from './pricingProgress.ts';
+import type {ReviewedScope} from './scope.ts';
+import type {EstimatorConfiguration} from './costBook.ts';
+import {readRegionalRates,saveRegionalRates} from './regionalRates.ts';
+import {pricingActivity,type ProcessingStatus} from './processingStatus.ts';
 
 export function pricingWorkKey(scope:ReviewedScope,configuration:EstimatorConfiguration,pricingAt:Date){
  const signature={pricingDate:pricingAt.toISOString().slice(0,10),text:scope.text,answers:scope.answers,extraction:scope.extraction,uploads:scope.uploads,uncertainFields:scope.uncertainFields,configuration};

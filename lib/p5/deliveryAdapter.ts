@@ -2,7 +2,7 @@ import {createTransport} from "nodemailer";
 import {peopleWithRole} from "../../app/lib/notifications/dispatch.ts";
 import {ingestLead} from "../../app/lib/leads/intake.ts";
 import {loadSettings} from "../../app/lib/leads/settings.ts";
-import {ESTIMATOR_BRAND as brand} from "./brand";
+import {ESTIMATOR_BRAND as brand} from "./brand.ts";
 export async function adminRecipients(){return [...new Set((await peopleWithRole(["administrator"])).map(p=>p.email))];}
 export const EMAIL_SUPPORTS_IDEMPOTENCY=false;
 export async function sendEmail(input:{to:string;subject:string;text:string;html?:string;attachments:{filename:string;content:Buffer}[];key:string}){

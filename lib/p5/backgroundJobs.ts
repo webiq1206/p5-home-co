@@ -1,11 +1,11 @@
-import {SERVER_BUDGET_MS,BACKGROUND_JOB_LIMIT_MS,PROCESSING_PAUSED,ProcessingDeadlineError,remainingBudget} from './processingBudget.ts';
+import {SERVER_BUDGET_MS,BACKGROUND_JOB_LIMIT_MS,PRICING_PASS_MS,PROCESSING_PAUSED,ProcessingDeadlineError,remainingBudget} from './processingBudget.ts';
 import {createHash} from 'node:crypto';
-import {query} from './database';
-import {claimWork,writeWork,releaseWork} from './workStore';
-import type {Draft} from './store';
-import type {ScopeAnswers} from './scope';
-import type {EstimatorConfiguration} from './costBook';
-import type {ProcessingStatus} from './processingStatus';
+import {query} from './database.ts';
+import {claimWork,writeWork,releaseWork} from './workStore.ts';
+import type {Draft} from './store.ts';
+import type {ScopeAnswers} from './scope.ts';
+import type {EstimatorConfiguration} from './costBook.ts';
+import type {ProcessingStatus} from './processingStatus.ts';
 
 type Input={kind:'analysis';draft:Draft;text:string;answers:ScopeAnswers}|{kind:'pricing';draft:Draft;configuration:EstimatorConfiguration};
 type Job={input:Input;state:'queued'|'running'|'complete'|'failed';progress:string;attempts:number;result?:any;retryAt?:number;retryUnits?:boolean;createdAt:string;processing?:ProcessingStatus};
@@ -14,7 +14,7 @@ const JOBS_PER_PASS=6;
 const jobExpired=(job:Job)=>Date.now()-Date.parse(job.createdAt)>=BACKGROUND_JOB_LIMIT_MS;
 export async function bootEstimatorWorker(){
   if(!process.env.DATABASE_URL||process.env.NEXT_PHASE==='phase-production-build')return;
-  try{await (await import('./store')).ensureSchema();startEstimatorWorker();}
+  try{await (await import('./store.ts')).ensureSchema();startEstimatorWorker();}
   catch{console.error('[p5-worker] Startup database unavailable. The next estimator request will retry initialization.');}
 }
 /** Durable inputs/results live in SQL. Timers only wake work; a process restart
@@ -40,7 +40,7 @@ export async function queuedJob(input:Input,retry=false){
   const job=row.payload as Job;
   if(job.state!=='complete'&&job.state!=='failed'&&jobExpired(job)){job.state='failed';job.progress=PROCESSING_PAUSED;}
   if(job.state!=='complete'&&job.state!=='failed'){
-    const workKey=input.kind==='analysis'?(await import('./analysisWork')).analysisWorkKey(input.draft,input.text,input.answers):(await import('./pricingWork')).pricingWorkKey(input.draft.reviewed!,input.configuration,new Date(job.createdAt));
+    const workKey=input.kind==='analysis'?(await import('./analysisWork.ts')).analysisWorkKey(input.draft,input.text,input.answers):(await import('./pricingWork.ts')).pricingWorkKey(input.draft.reviewed!,input.configuration,new Date(job.createdAt));
     const [detail]=await query("SELECT payload->'processing' AS processing FROM p5_estimator_work WHERE draft_id=$1 AND work_key=$2",[input.draft.id,workKey]);
     if(detail?.processing){job.processing={...detail.processing,startedAt:job.createdAt};job.progress=job.processing!.message;}
   }
@@ -65,18 +65,18 @@ export async function drainEstimatorJobs(){
       try{
         // Each pass is bounded so progress is checkpointed and visible within
         // a browser wait; the job itself continues until it completes.
-        const deadline=Math.min(Date.now()+SERVER_BUDGET_MS,Date.parse(job.createdAt)+BACKGROUND_JOB_LIMIT_MS);
+        const deadline=Math.min(Date.now()+(job.input.kind==='pricing'?PRICING_PASS_MS:SERVER_BUDGET_MS),Date.parse(job.createdAt)+BACKGROUND_JOB_LIMIT_MS);
         remainingBudget(deadline);
         if(job.retryAt&&job.retryAt>Date.now())return;
         job.state='running';await writeWork(row.draft_id,row.work_key,lease.token,job);
         if(job.input.kind==='analysis'){
-          const {advanceAnalysis}=await import('./analysisWork');
+          const {advanceAnalysis}=await import('./analysisWork.ts');
           const step=await advanceAnalysis(job.input.draft,job.input.text,job.input.answers,fetch,job.retryUnits,deadline);job.retryUnits=false;
           if(step.pending){job.progress=step.progress;job.retryAt=Date.now()+(step.retryAfterMs||0);more=true;}
           else{job.result=step;job.state='complete';job.progress='Document processing finished. Review the page coverage and any unreadable content.';}
         }else{
-          const {priceSavedScope}=await import('./pricingWork');
-          const {PricingPending}=await import('./pricingProgress');
+          const {priceSavedScope}=await import('./pricingWork.ts');
+          const {PricingPending}=await import('./pricingProgress.ts');
           try{job.result=await priceSavedScope(job.input.draft.id,job.input.draft.reviewed!,job.input.configuration,new Date(job.createdAt),deadline);job.state='complete';job.progress='Pricing calculation saved.';}
           catch(error){if(!(error instanceof PricingPending))throw error;if(!error.retryAfterMs)throw error;job.progress=error.message;job.retryAt=Date.now()+error.retryAfterMs;more=true;}
         }

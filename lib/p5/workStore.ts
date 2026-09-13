@@ -1,6 +1,6 @@
 import {randomUUID} from 'node:crypto';
-import {query} from './database';
-import {DraftError} from './store';
+import {query} from './database.ts';
+import {DraftError} from './store.ts';
 
 /** Short database leases serialize retries across autoscale instances. No background process is required. */
 export async function claimWork(draftId:string,workKey:string,initial:unknown,seconds=180){
