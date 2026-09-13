@@ -19,7 +19,12 @@ test('Cabinet supply and installation use distinct scope and preserve the overhe
  assert.equal(i.allocations.overhead,.2);assert.equal(i.targetOperatingProfit,.2);
  const publicData=JSON.stringify(installed.customer);assert.ok(!publicData.includes('Synthetic unit-cost fixture'));assert.ok(!publicData.includes('unitCost'));assert.ok(!publicData.includes('overheadRecovery'));
 });
-test('Missing cabinet measurements are blocked; a real zero stays zero',()=>{const config=createPlanningConfiguration(catalog);const missing=priceReviewedScope(scope({service:'cabinet-product',cabinetBaseLf:'10'}),config,now);assert.equal(missing.customer.range,null);const zero=priceReviewedScope(scope({service:'cabinet-product',cabinetBaseLf:'0',cabinetUpperLf:'10',cabinetTallLf:'0'}),config,now);assert.ok(zero.customer.range);});
+test('Missing cabinet measurements are blocked; a real zero stays zero',()=>{const config=createPlanningConfiguration(catalog);const missing=priceReviewedScope(scope({service:'cabinet-product',cabinetBaseLf:'10'}),config,now);assert.equal(missing.customer.range,null);const missingTall=priceReviewedScope(scope({service:'cabinet-product',cabinetBaseLf:'10',cabinetUpperLf:'0'}),config,now);assert.equal(missingTall.customer.range,null);const zero=priceReviewedScope(scope({service:'cabinet-product',cabinetBaseLf:'0',cabinetUpperLf:'10',cabinetTallLf:'0'}),config,now);assert.ok(zero.customer.range);});
+test('Small-job cabinet scope does not silently treat an unanswered tall run as zero',()=>{
+ const config=createPlanningConfiguration(catalog);
+ const result=priceReviewedScope(scope({service:'handyman',taskList:'Replace cabinets',cabinetBaseLf:'10',cabinetUpperLf:'0'}),config,now);
+ assert.equal(result.customer.range,null);
+});
 test('Supplied fixtures are not purchased twice and explicit task counts determine hours',()=>{
  const config=createPlanningConfiguration(catalog);const review=scope({service:'handyman',taskList:'Replace two toilets',ownerSupplied:'TOILETS supplied by owner',location:'Boise'});
  const result=priceReviewedScope(review,config,now);const internal=result.internal as any;assert.ok(result.customer.range);assert.equal(internal.lines.find((r:any)=>r.id.startsWith('REF-PLUMBING-HOUR')).quantity,4);assert.ok(!internal.lines.some((r:any)=>r.id.startsWith('REF-TOILET')));

@@ -1,22 +1,26 @@
 import {SCOPE_FIELDS,validateAnswer,type ScopeAnswers,type ScopeExtraction,type ScopeConflict,type ScopeField,type ScopeUpload} from './scope.ts';
-export interface BrowserDraft {pendingReply?:{id:string;answer:string};namespace?:string;sourceImageUrl?:string;projectSource?:{id:string;answers:ScopeAnswers;imageUrl?:string};id:string;key:string;revision:number;text:string;answers:ScopeAnswers;extraction:ScopeExtraction|null;contact:{name:string;email:string;phone:string};step:number;updatedAt:number;conflicts?:ScopeConflict[];uploads?:ScopeUpload[];wizard?:{skipped:ScopeField[];resolutions:ScopeAnswers;sourceVersion?:string;instructionAnswers?:import('./clarifications').InstructionAnswer[]} ;analysisWarning?:string;analyzedText?:string;analyzedAnswers?:string;dirty?:boolean;pricedFields?:ScopeField[]}
+export interface BrowserDraft {pendingReply?:{id:string;answer:string};namespace?:string;sourceImageUrl?:string;/** Set when an explicit replacement must not reattach route-provided design data. */sourceDetached?:boolean;projectSource?:{id:string;answers:ScopeAnswers;imageUrl?:string};id:string;key:string;revision:number;text:string;answers:ScopeAnswers;extraction:ScopeExtraction|null;contact:{name:string;email:string;phone:string};step:number;updatedAt:number;conflicts?:ScopeConflict[];uploads?:ScopeUpload[];wizard?:{skipped:ScopeField[];resolutions:ScopeAnswers;sourceVersion?:string;instructionAnswers?:import('./clarifications').InstructionAnswer[]} ;analysisWarning?:string;analyzedText?:string;analyzedAnswers?:string;analyzedFingerprint?:string;scopeFingerprint?:string;dirty?:boolean;pricedFields?:ScopeField[]}
 const storageKey='p5-project-draft-v2';
+export const BROWSER_DRAFT_RECOVERY_KEY=`${storageKey}:recovery-v1`;
+
+export interface BrowserDraftRecovery {
+  key: string;
+  archivedAt: number;
+  draft: BrowserDraft;
+}
 export function newBrowserDraft(defaultService:string):BrowserDraft {
   const bytes=new Uint8Array(32);crypto.getRandomValues(bytes);
   const uuidBytes=crypto.getRandomValues(new Uint8Array(16));uuidBytes[6]=(uuidBytes[6]&15)|64;uuidBytes[8]=(uuidBytes[8]&63)|128;
   const hex=Array.from(uuidBytes,b=>b.toString(16).padStart(2,'0')).join('');
   const uuid=hex.slice(0,8)+'-'+hex.slice(8,12)+'-'+hex.slice(12,16)+'-'+hex.slice(16,20)+'-'+hex.slice(20);
-  return {id:uuid,key:Array.from(bytes,b=>b.toString(16).padStart(2,'0')).join(''),revision:0,text:'',answers:defaultService?{service:defaultService}:{},extraction:null,contact:{name:'',email:'',phone:''},step:0,updatedAt:Date.now(),wizard:{skipped:[],resolutions:{}}};
-}
-/** A separate project gets a separate credential pair. The prior object and server draft stay untouched. */
-export function replacementBrowserDraft(previous:BrowserDraft):BrowserDraft {
-  return {...newBrowserDraft(''),namespace:previous.namespace,contact:{...previous.contact}};
+  return {id:uuid,key:Array.from(bytes,b=>b.toString(16).padStart(2,'0')).join(''),revision:0,text:'',answers:defaultService?{service:defaultService}:{},extraction:null,contact:{name:'',email:'',phone:''},step:0,updatedAt:Date.now(),wizard:{skipped:[],resolutions:{}},uploads:[]};
 }
 export function loadBrowserDraft(defaultService:string,namespace?:string):BrowserDraft {
   try{const d=JSON.parse(localStorage.getItem(namespace?`${storageKey}:${namespace}`:storageKey)||'null');if(d&&typeof d.id==='string'&&/^[a-f0-9-]{36}$/i.test(d.id)&&/^[a-f0-9]{64}$/.test(d.key)&&Number.isInteger(d.revision)&&d.revision>=0&&typeof d.text==='string'&&d.answers&&d.contact&&['name','email','phone'].every(k=>typeof d.contact[k]==='string')&&Object.entries(d.answers).every(([k,v])=>Object.hasOwn(SCOPE_FIELDS,k)&&typeof v==='string'&&!validateAnswer(k as ScopeField,v)))return {...d,step:Math.min(2,Math.max(0,Number(d.step)||0)),wizard:d.wizard||{skipped:[],resolutions:{}}};}catch{}
   return {...newBrowserDraft(defaultService),namespace};
 }
-export function persistBrowserDraft(draft:BrowserDraft){try{localStorage.setItem(draft.namespace?`${storageKey}:${draft.namespace}`:storageKey,JSON.stringify({...draft,updatedAt:Date.now()}));return true;}catch{return false;}}
+function browserStorage():Storage|null{try{return typeof localStorage==='undefined'?null:localStorage;}catch{return null;}}
+export function persistBrowserDraft(draft:BrowserDraft){try{const storage=browserStorage();if(!storage)return false;storage.setItem(draft.namespace?`${storageKey}:${draft.namespace}`:storageKey,JSON.stringify({...draft,updatedAt:Date.now()}));return true;}catch{return false;}}
 export function draftHeaders(draft:BrowserDraft){return {'x-p5-draft-id':draft.id,'x-p5-draft-key':draft.key};}
 /** Validate the server receipt before reading its revision or clearing local files. */
 export function requireDraftReceipt(data:unknown):{revision:number;answers:ScopeAnswers;extraction:ScopeExtraction|null;uploads:ScopeUpload[];[key:string]:any}{
@@ -33,3 +37,50 @@ export async function cacheFiles(draftId:string,files:File[]){
 }
 export async function loadCachedFiles(draftId:string):Promise<File[]>{const db=await fileDb();try{return await new Promise<File[]>((resolve,reject)=>{const r=db.transaction('files','readonly').objectStore('files').getAll();r.onsuccess=()=>{try{resolve(r.result.filter(x=>x.draftId===draftId).map(x=>x.bytes instanceof ArrayBuffer?new File([x.bytes],x.name,{type:x.type,lastModified:x.lastModified}):x.file).filter((file):file is File=>file instanceof File));}catch(error){reject(error);}};r.onerror=()=>reject(r.error);});}finally{db.close();}}
 export async function clearCachedFiles(draftId:string){await cacheFiles(draftId,[]);}
+
+/** Save a recoverable copy before starting an explicitly new project. */
+export function archiveBrowserDraft(draft:BrowserDraft):BrowserDraftRecovery|null{
+  try{
+    const storage=browserStorage();if(!storage)return null;
+    const previous=JSON.parse(storage.getItem(BROWSER_DRAFT_RECOVERY_KEY)||'[]');
+    const records:Array<BrowserDraftRecovery>=Array.isArray(previous)?previous.filter(item=>item&&typeof item.key==='string'&&item.draft):[];
+    const snapshot=JSON.stringify(draft);
+    const identical=records.find(item=>item.draft.id===draft.id&&JSON.stringify(item.draft)===snapshot);
+    if(identical)return identical;
+    const key=records.some(item=>item.key===draft.id)?`${draft.id}:${crypto.randomUUID()}`:draft.id;
+    const record={key,archivedAt:Date.now(),draft:JSON.parse(snapshot) as BrowserDraft};
+    // Never silently evict a visitor's recovery. If storage is full, fail closed.
+    const next=[record,...records];
+    storage.setItem(BROWSER_DRAFT_RECOVERY_KEY,JSON.stringify(next));
+    return record;
+  }catch{return null;}
+}
+
+export function listBrowserDraftRecoveries(namespace?:string):BrowserDraftRecovery[]{
+  try{
+    const storage=browserStorage();if(!storage)return [];
+    const records=JSON.parse(storage.getItem(BROWSER_DRAFT_RECOVERY_KEY)||'[]');
+    if(!Array.isArray(records))return [];
+    return records.filter((item):item is BrowserDraftRecovery=>Boolean(item&&typeof item.key==='string'&&item.draft&&(!namespace||item.draft.namespace===namespace)));
+  }catch{return [];}
+}
+
+/** Read a recovery without changing the active draft or touching cached files. */
+export function restoreBrowserDraft(recovery:string|BrowserDraftRecovery):BrowserDraft|null{
+  const record=typeof recovery==='string'?listBrowserDraftRecoveries().find(item=>item.key===recovery):recovery;
+  return record?.draft?JSON.parse(JSON.stringify(record.draft)) as BrowserDraft:null;
+}
+
+/**
+ * Start a distinct project. The previous local draft remains in localStorage
+ * recovery and its IndexedDB files remain under its old id for restoration.
+ */
+export function replaceBrowserDraft(current:BrowserDraft,defaultService=''): {draft:BrowserDraft;recovery:BrowserDraftRecovery|null}{
+  const recovery=archiveBrowserDraft(current);
+  if(!recovery)throw new Error('Your original project could not be archived. The new project was not started; your saved project is still here.');
+  // A deliberate replacement is a blank project, not a new instance of the
+  // current route's defaults. In particular, do not resurrect a bathroom
+  // service or a design source when the component mounts again.
+  void defaultService;
+  return {draft:{...newBrowserDraft(''),namespace:current.namespace,sourceDetached:true},recovery};
+}

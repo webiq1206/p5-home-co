@@ -3,6 +3,8 @@ import {useEffect,useState} from 'react';
 import {processingTitles,type ProcessingStatus} from '@/lib/p5/processingStatus';
 import styles from './P5Estimator.module.css';
 
+/** Inline progress card. Shows completed work honestly: pages checked, the
+ * current stage and elapsed time. Never an invented percentage. */
 export default function P5ProcessingStatus({message,processing,uploadPercent,onPause}:{message:string;processing?:ProcessingStatus|null;uploadPercent:number|null;onPause?:()=>void}){
   const [started]=useState(Date.now);
   const [clock,setClock]=useState(Date.now);
@@ -13,8 +15,8 @@ export default function P5ProcessingStatus({message,processing,uploadPercent,onP
   const uploading=uploadPercent!==null;
   const title=uploading?'Saving your files':processing?.phase==='reading'&&!total?'Understanding your project':processing?processingTitles[processing.phase]:message.replace(/\.+$/,'');
   const item=processing?.currentItems?.[0];
-  const detail=uploading?'Keep this tab open until your files are saved.':total&&read<total?'Checking dimensions, notes and included work.':processing?.phase==='retrying'?'Your progress is saved while the connection recovers.':'Checking your scope so we only ask for missing details.';
-  return <section className={styles.loadingCard} aria-label="Estimate processing progress" data-testid="p5-processing">
+  const detail=uploading?'Keep this tab open until your files are saved.':total&&read<total?'Checking dimensions, notes and included work on each page.':processing?.phase==='retrying'?'Your progress is saved while the connection recovers.':processing?.message||'Checking your scope so we only ask about what is missing.';
+  return <section className={styles.processing} aria-label="Estimate processing progress" data-testid="p5-processing">
     <div className={styles.processingHeader}><span className={styles.spinner} aria-hidden="true"/><span className={styles.eyebrow}>Working on your project</span><span className={styles.processingElapsed} aria-label="Elapsed time">{elapsed}s</span></div>
     <div role="status" aria-live="polite" aria-atomic="true"><h2>{title}</h2><p className={styles.processingMessage}>{detail}</p></div>
     {(uploading||total>0)&&<div className={styles.processingMeter}>
@@ -22,6 +24,6 @@ export default function P5ProcessingStatus({message,processing,uploadPercent,onP
       <progress max={uploading?100:total} value={uploading?uploadPercent:read} aria-label={uploading?'File upload progress':'Original pages fully read'}/>
     </div>}
     {item&&<p className={styles.processingFile} title={item}>{item}</p>}
-    <div className={styles.processingFooter}><span>Completed checks are saved.</span>{onPause&&<button type="button" onClick={onPause}>Back to project</button>}</div>
+    <div className={styles.processingFooter}><span>Completed checks are saved. You can come back to this page later.</span>{onPause&&<button type="button" className={styles.iconButton} onClick={onPause}>Back to project</button>}</div>
   </section>;
 }

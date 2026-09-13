@@ -3,11 +3,12 @@ import { draftCredentials,readDraft,DraftError,requireEstimateContact } from "./
 import { EMPTY_CONFIGURATION,type EstimatorConfiguration } from "./costBook";
 import {priceSavedScope} from "./pricingWork";
 import {queuedJob} from './backgroundJobs';
-import {SCOPE_FIELDS} from "./scope";
+import {missingScopeFields} from "./missingFields";
 import {PricingPending} from "./pricingProgress";
 import { enqueueSubmission,deliveryStatus,processOutbox } from "./outbox";
 import { protectRequest,json,failed,limitedBody } from "./http";
 import { ESTIMATOR_BRAND as brand } from "./brand";
+
 export async function postSubmission(request:Request,schedule?:(task:()=>Promise<void>)=>void){
   try{
     protectRequest(request,1000);const {id,key}=draftCredentials(request);const draft=await readDraft(id,key);
@@ -32,8 +33,9 @@ export async function postSubmission(request:Request,schedule?:(task:()=>Promise
       const retained=await query("UPDATE p5_estimator_drafts SET internal_estimate=$2 WHERE id=$1 AND revision=$3 AND status='draft' RETURNING id",[id,JSON.stringify(priced.internal),draft.revision]);
       if(!retained.length)throw new DraftError("Your project changed during pricing. Save the latest details and retry.",409);
       const missing=('missingInformation' in priced.internal?priced.internal.missingInformation:[])||[];
-      const labels=Object.entries(SCOPE_FIELDS).filter(([key])=>missing.some((item:string)=>item.startsWith(`Missing quantity: ${key}`)||item.startsWith(`Missing cost condition: ${key}`))).map(([,field])=>field.label);
-      return json({pricingReviewRequired:true,error:`Your project is saved and remains editable. ${labels.length?`Please confirm: ${labels.slice(0,5).join('; ')}.`:'Some scope items still need verified quantities or cost evidence.'} A complete price range is required before the estimate can be finalized and emailed.`},422);
+      const missingFields=missingScopeFields(missing);
+      const labels=missingFields.map(item=>item.label);
+      return json({pricingReviewRequired:true,missingFields,error:`Your project is saved and remains editable. ${labels.length?`Please confirm: ${labels.slice(0,5).join('; ')}.`:'Some scope items still need verified quantities or cost evidence.'} A complete price range is required before the estimate can be finalized and emailed.`},422);
     }
     const record={draftId:id,revision:draft.revision,brand:brand.name,estimator:"p5-policy",contact:draft.contact,scope:draft.reviewed,...priced};
     const accepted=await enqueueSubmission(id,draft.revision,record);

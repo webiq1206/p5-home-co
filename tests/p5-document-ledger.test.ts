@@ -21,8 +21,8 @@ test('Missing or duplicate page reports never claim completion',()=>{
   assert.equal(coverageFor([page],[{...read,status:'partial'}]).complete,false);
 });
 test('Parallelism is bounded without limiting total plan pages',()=>{
-  assert.equal(analysisConcurrency('6'),6);assert.equal(analysisConcurrency('999'),8);
-  assert.equal(analysisConcurrency('-1'),6);assert.equal(analysisConcurrency('invalid'),6);
+  assert.equal(analysisConcurrency('6'),6);assert.equal(analysisConcurrency('999'),24);
+  assert.equal(analysisConcurrency('-1'),12);assert.equal(analysisConcurrency('invalid'),12);
 });
 const takeoff:Takeoff={id:'door-D1',description:'Door D1',building:'Main',floor:'1',component:'door',quantity:1,unit:'EA',basis:'stated',evidence:'Door schedule D1',sources:[{...page,sheet:'A101',revision:'1'}],supersedes:[],issues:[]};
 test('Plans and schedules do not double count physical work; conflicts remain visible',()=>{

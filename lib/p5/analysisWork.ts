@@ -19,7 +19,7 @@ export {analysisSegments} from './analysisSegments.ts';
 import {analysisSegments} from './analysisSegments.ts';
 
 type Unit={name:string;type:string;object:string;pages?:AnalysisFile['pages'];detailViews?:boolean;detailRegions?:AnalysisFile['detailRegions'];result?:AnalysisResult;attempts?:number;rateLimitRetries?:number;error?:string;retryAt?:number;active?:boolean};
-type Job={prepared:number;units:Unit[];notes:string[];textDone?:AnalysisResult;textPrepared?:boolean;cursor?:number;expected?:{source:string;page:number}[];progress?:string;processing?:ProcessingStatus;concurrency?:number;cooldownUntil?:number;modelStartedAt?:string;modelCompletedAt?:string};
+type Job={prepared:number;units:Unit[];notes:string[];textDone?:AnalysisResult;textPrepared?:boolean;cursor?:number;expected?:{source:string;page:number}[];progress?:string;processing?:ProcessingStatus;concurrency?:number;cooldownUntil?:number};
 export function analysisWorkKey(draft:Draft,text:string,answers:ScopeAnswers){
   return `analysis:v7:${createHash('sha256').update(JSON.stringify([text,answers,draft.uploads.map(f=>[f.id,f.sha256])])).digest('hex')}`;
 }
@@ -49,25 +49,12 @@ export async function advanceAnalysis(draft:Draft,text:string,answers:ScopeAnswe
       // Long typed instructions are read in full before plan sections. No silent
       // clipping to fit one provider request, and no instruction-count cap.
       const sources=[{name:'ESTIMATING-INSTRUCTIONS--Typed estimating instructions.txt',value:answers.estimatingInstructions||''},{name:'ESTIMATING-INSTRUCTIONS--Typed project scope.txt',value:text}];
-      const sections=sources.filter(s=>s.value.length>48000).flatMap(source=>Array.from({length:Math.ceil(source.value.length/48000)},(_,index)=>({
-        name:`${source.name} (section ${index+1})`,
-        data:Buffer.from(source.value.slice(index*48000,(index+1)*48000)),
-      })));
-      const existing=new Set(job.units.map(unit=>unit.name));
-      const missing=sections.map((section,index)=>({...section,index})).filter(section=>!existing.has(section.name));
-      const concurrency=Math.min(4,analysisConcurrency());
-      for(let start=0;start<missing.length;start+=concurrency){
-        const batch=missing.slice(start,start+concurrency);
-        const stored=await Promise.all(batch.map(section=>{
-          const object=`analysis/${ESTIMATOR_BRAND.domain}/${draft.id}/${version}/typed-${section.index}`;
-          return client.uploadFromBytes(object,section.data,{compress:false}).then(result=>({result,object,name:section.name}));
-        }));
-        job.units.push(...stored.filter(item=>item.result.ok).map(item=>({name:item.name,type:'text/plain',object:item.object})));
-        await checkpoint();
-        if(stored.some(item=>!item.result.ok))throw new DraftError('Instruction preparation was interrupted. Retry to resume.',503);
+      for(const source of sources.filter(s=>s.value.length>48000))for(let start=0;start<source.value.length;start+=48000){
+        const object=`analysis/${ESTIMATOR_BRAND.domain}/${draft.id}/${version}/${job.units.length}`;
+        const stored=await client.uploadFromBytes(object,Buffer.from(source.value.slice(start,start+48000)),{compress:false});
+        if(!stored.ok)throw new DraftError('Instruction preparation was interrupted. Retry to resume.',503);
+        job.units.push({name:`${source.name} (section ${Math.floor(start/48000)+1})`,type:'text/plain',object});
       }
-      const byName=new Map(job.units.map(unit=>[unit.name,unit]));
-      job.units=sections.map(section=>byName.get(section.name)).filter((unit):unit is Unit=>Boolean(unit));
       job.textPrepared=true;await checkpoint();
     }
     if(job.prepared<draft.uploads.length&&!job.units.some(u=>!u.result&&(u.attempts||0)<2)){
@@ -106,7 +93,7 @@ export async function advanceAnalysis(draft:Draft,text:string,answers:ScopeAnswe
     if(waiting.length&&!pending.length)return {pending:true as const,progress:'The document reader is temporarily busy. Completed pages are saved; retrying shortly.',retryAfterMs:Math.max(1000,Math.min(...waiting.map(u=>u.retryAt||Date.now()))-Date.now())};
     if(pending.length){
       // Keep slots busy as individual pages finish. A slow page does not hold up the next one.
-      const deadline=Math.min(absoluteDeadline,Date.now()+25_000);let position=0;
+      const deadline=Math.min(absoluteDeadline,Date.now()+45_000);let position=0;
       await Promise.all(Array.from({length:Math.min(pending.length,job.concurrency||analysisConcurrency())},async()=>{
         while(position<pending.length&&Date.now()<deadline&&!(job.cooldownUntil&&job.cooldownUntil>Date.now())){
         const unit=pending[position++];unit.active=true;await checkpoint();
@@ -116,10 +103,7 @@ export async function advanceAnalysis(draft:Draft,text:string,answers:ScopeAnswe
         try{
           const saved=await client.downloadAsBytes(unit.object);
           if(!saved.ok)throw new DraftError('A prepared document section could not be read. Retry to resume.',503);
-          job.modelStartedAt||=new Date().toISOString();await checkpoint();
-          try{unit.result=await analyzeBatch(text.length>48000?'The complete typed scope is processed in saved sections; use the interpreted scope instructions.':text,[{name:unit.name,type:unit.type,data:saved.value[0],pages:unit.pages,detailViews:unit.detailViews,detailRegions:unit.detailRegions}],context,request,28_000,absoluteDeadline);}
-          finally{job.modelCompletedAt=new Date().toISOString();await checkpoint();}
-          delete unit.error;delete unit.retryAt;
+          unit.result=await analyzeBatch(text.length>48000?'The complete typed scope is processed in saved sections; use the interpreted scope instructions.':text,[{name:unit.name,type:unit.type,data:saved.value[0],pages:unit.pages,detailViews:unit.detailViews,detailRegions:unit.detailRegions}],context,request,28_000,absoluteDeadline);delete unit.error;delete unit.retryAt;
         }catch(error){
           unit.error=`${unit.name}: automatic reading could not finish. Review this section before pricing.`;
           if(error instanceof AnalysisBusyError){
@@ -140,12 +124,7 @@ export async function advanceAnalysis(draft:Draft,text:string,answers:ScopeAnswe
     }
     if(job.prepared<draft.uploads.length)return {pending:true as const,progress:analysisProgress(job.units,job.expected).message};
     if(!job.units.length&&!draft.uploads.length&&!job.textDone){
-      job.progress='Reviewing your typed project scope.';
-      job.processing={phase:'cross-referencing',message:job.progress,readPages:0,totalPages:0,readSections:0,totalSections:0,currentItems:[],updatedAt:new Date().toISOString()};
-      await writeWork(draft.id,workKey,lease.token,job);
-      job.modelStartedAt||=new Date().toISOString();await checkpoint();
-      try{job.textDone=await analyzeBatch(text,[],answers,request,28_000,absoluteDeadline);}
-      finally{job.modelCompletedAt=new Date().toISOString();await checkpoint();}
+      job.textDone=await analyzeBatch(text,[],answers,request,28_000,absoluteDeadline);await checkpoint();
     }
     const results=job.units.flatMap(u=>u.result?[u.result]:[]);if(job.textDone)results.push(job.textDone);
     const last=results[results.length-1];
@@ -156,6 +135,6 @@ export async function advanceAnalysis(draft:Draft,text:string,answers:ScopeAnswe
     extraction.reviewNotes.push(...job.notes,...job.units.filter(u=>!u.result).map(u=>u.error||`${u.name}: unread section requires review before pricing.`));
     extraction.reviewNotes.push(...(extraction.documentCoverage?.pages.filter(p=>p.status!=='read').map(p=>`${p.source}, page ${p.page}: ${p.status}. ${p.notes.join(' ')}`)||[]));
     extraction.reviewNotes=[...new Set(extraction.reviewNotes)];
-    return {pending:false as const,version,analysis:{...last,extraction,analyzedAt:new Date().toISOString()},timing:{modelStartedAt:job.modelStartedAt,modelCompletedAt:job.modelCompletedAt}};
+    return {pending:false as const,version,analysis:{...last,extraction,analyzedAt:new Date().toISOString()}};
   }finally{await releaseWork(draft.id,workKey,lease.token);}
 }

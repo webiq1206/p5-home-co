@@ -9,6 +9,9 @@ export interface Draft {
   id: string; revision: number; status: "draft" | "submitted"; updatedAt: string;
   text: string; answers: ScopeAnswers; extraction: ScopeExtraction | null;
   wizard?: {skipped: (keyof ScopeAnswers)[]; resolutions: ScopeAnswers; sourceVersion?:string;instructionAnswers?:import('./clarifications').InstructionAnswer[]} ;
+  /** Fingerprint of the source text used for the current extraction. */
+  analyzedFingerprint?: string;
+  analyzedAnswers?: string;
   reviewed: ReviewedScope | null; uploads: ScopeUpload[];
   contact: { name: string; email: string; phone: string }; brand: string;
 }

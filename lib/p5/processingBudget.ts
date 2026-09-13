@@ -3,6 +3,9 @@
 export const PROCESSING_LIMIT_MS = 60_000;
 export const SERVER_BUDGET_MS = 54_000;
 export const CLIENT_BUDGET_MS = 58_000;
+/** Durable background work may outlive one browser wait. It continues in the
+ * queue while the visitor is shown honest progress and a way to keep going. */
+export const BACKGROUND_JOB_LIMIT_MS = 20 * 60_000;
 export const PROCESSING_PAUSED = 'We could not verify everything within 60 seconds. Your completed work is saved. Resume the check to continue where it stopped.';
 
 export class ProcessingDeadlineError extends Error {

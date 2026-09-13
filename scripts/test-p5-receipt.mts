@@ -25,14 +25,16 @@ try{
  if(driverSource.includes('neon(connectionString')){
   const driverPackage=['@neondatabase','serverless'].join('/'),ormPackage=['drizzle','orm'].join('-');
   const {neonConfig}=await import(driverPackage);const {sql}=await import(ormPackage);
-  let observedCache:string|undefined;
+  let observedCache:string|undefined;let emptyResult=false;let rejectResult=false;
   const previousFetch=neonConfig.fetchFunction,previousGlobalFetch=globalThis.fetch,previousUrl=process.env.DATABASE_URL;
-  neonConfig.fetchFunction=globalThis.fetch=async(_url:any,options:any)=>{observedCache=options.cache;return Response.json({fields:[{name:'value',dataTypeID:23}],rows:[['1']],command:'SELECT',rowCount:1});};
+  neonConfig.fetchFunction=globalThis.fetch=async(_url:any,options:any)=>{observedCache=options.cache;if(rejectResult)return Response.json({message:'synthetic database error'},{status:400});return Response.json(emptyResult?{fields:null,rows:null,command:'SELECT',rowCount:0}:{fields:[{name:'value',dataTypeID:23}],rows:[['1']],command:'SELECT',rowCount:1});};
   process.env.DATABASE_URL='postgresql://synthetic:synthetic@fixture.neon.tech/fixture';
   try{
    await writeFile(path.join(dir,'driver.ts'),driverSource.replace('import * as schema from "@/shared/schema";', 'const schema={};'));
    const actual=await import(pathToFileURL(path.join(dir,'driver.ts')).href);
    await actual.db.execute(sql.raw('SELECT 1 AS value'));assert.equal(observedCache,'no-store','Draft database requests must bypass Next fetch caching');
+   emptyResult=true;const empty=await actual.db.execute(sql.raw('SELECT 1 WHERE false'));assert.deepEqual(Array.isArray(empty)?empty:empty.rows,[],'Confirmed zero-row proxy results must not crash Neon processing');
+   rejectResult=true;await assert.rejects(()=>actual.db.execute(sql.raw('SELECT 1')),'Database failures must remain failures');
   }finally{neonConfig.fetchFunction=previousFetch;globalThis.fetch=previousGlobalFetch;if(previousUrl===undefined)delete process.env.DATABASE_URL;else process.env.DATABASE_URL=previousUrl;}
  }
  await db.database.close();console.log('PASS: acknowledged INSERT/UPDATE receipts, stale-read regression, null/malformed browser receipts, optimistic revisions. Real isolated SQL; no external delivery.');

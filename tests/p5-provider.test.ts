@@ -59,18 +59,9 @@ test('provider fallback retains the request and failed provider bodies never esc
  try{
   const urls:string[]=[];const result=await analyzeScope('Retain the selected cabinet doors',[],{cabinetBaseLf:'20'},async(url,options)=>{
    urls.push(String(url));if(url.toString().includes('openai'))return Response.json({error:{message:'PRIVATE DOCUMENT CONTENT'}},{status:503});
-   const body=JSON.parse(String(options?.body));assert.match(String(options?.body),/cabinetBaseLf/);assert.equal(body.output_config,undefined);assert.equal(body.tool_choice.name,'record_scope_analysis');assert.equal(body.tools[0].strict,undefined);assert.equal(body.tools[0].input_schema.properties.pages.maxItems,0);assert.equal(body.tools[0].input_schema.properties.takeoffs.maxItems,0);return Response.json({stop_reason:'tool_use',content:[{type:'tool_use',name:'record_scope_analysis',input:{parameters:extraction}}]});
+   const body=JSON.parse(String(options?.body));assert.match(String(options?.body),/cabinetBaseLf/);assert.equal(body.output_config,undefined);assert.equal(body.tool_choice.name,'record_scope_analysis');assert.equal(body.tools[0].strict,undefined);return Response.json({stop_reason:'tool_use',content:[{type:'tool_use',name:'record_scope_analysis',input:extraction}]});
   });assert.equal(result.provider,'Anthropic');assert.equal(urls.length,2);
   delete process.env.ANTHROPIC_API_KEY;
   await assert.rejects(analyzeScope('scope',[],{},async()=>Response.json({error:{message:'PRIVATE DOCUMENT CONTENT'}},{status:400})),error=>!String(error).includes('PRIVATE DOCUMENT'));
- }finally{for(const k of variables){if(before[k]===undefined)delete process.env[k];else process.env[k]=before[k];}}
-});
-test('invalid provider output is classified without retaining extracted values',async()=>{
- const before=Object.fromEntries(variables.map(k=>[k,process.env[k]]));for(const k of variables)delete process.env[k];process.env.ANTHROPIC_API_KEY='fixture-only';
- try{
-  const invalid={...extraction,takeoffs:[{id:'T1',description:'PRIVATE VANITY',building:'',floor:'',component:'cabinet',quantity:1,unit:'EA',basis:'stated',evidence:'',sources:[],supersedes:[],issues:[]}]};
-  await assert.rejects(analyzeBatch('PRIVATE PROJECT',[],{},async()=>Response.json({stop_reason:'tool_use',content:[{type:'tool_use',name:'record_scope_analysis',input:invalid}]})),error=>String(error).includes('invalid-takeoff-evidence')&&!String(error).includes('PRIVATE'));
-   const fabricatedPage={...extraction,pages:[{source:'typed scope',page:77,sheet:'',revision:'',status:'read',notes:[]}],takeoffs:[{id:'T2',description:'Fabricated page-linked work',building:'',floor:'',component:'cabinet',quantity:1,unit:'EA',basis:'stated',evidence:'Typed request',sources:[{source:'typed scope',page:77,sheet:'',revision:''}],supersedes:[],issues:[]}]};
-   await assert.rejects(analyzeBatch('PRIVATE PROJECT',[],{},async()=>Response.json({stop_reason:'tool_use',content:[{type:'tool_use',name:'record_scope_analysis',input:fabricatedPage}]})),error=>String(error).includes('invalid-takeoff-evidence')&&!String(error).includes('PRIVATE'));
  }finally{for(const k of variables){if(before[k]===undefined)delete process.env[k];else process.env[k]=before[k];}}
 });

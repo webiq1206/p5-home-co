@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {deriveScopeAnswers,reconcileScope,scopeQuestions,scopeAssumptions,validateScopeAnswer} from '../lib/p5/adaptive.ts';
-import {replacementBrowserDraft,requireDraftReceipt} from '../lib/p5/browserDraft.ts';
+import {requireDraftReceipt} from '../lib/p5/browserDraft.ts';
 import {validateExtraction,type ScopeAnswers,type ScopeExtraction} from '../lib/p5/scope.ts';
 const extracted=(answers:ScopeAnswers,confidence=.98):ScopeExtraction=>({summary:'Synthetic scope',facts:Object.entries(answers).map(([field,value])=>({field:field as keyof ScopeAnswers,value:value!,confidence,source:'scope.pdf',evidence:value!})),conflicts:[],reviewNotes:[],missingInformation:[]});
 test('observed HTTP 200 null draft never advances or clears uploads',()=>{
@@ -56,6 +56,21 @@ test('model confidence cannot promote inferred or unscaled visual details into p
  const questions=scopeQuestions(merged.answers,e);
  assert.equal(questions.some(q=>q.field==='urgency'),false);
  assert.equal(questions.find(q=>q.field==='sqft')?.values,undefined);
+});
+test('reconciliation does not accept a high-confidence inferred fact or one side of an unlisted conflict',()=>{
+ const inferred=extracted({service:'bathroom',sqft:'80',materials:'Porcelain',demolition:'Remove tile'});
+ inferred.facts=inferred.facts.map(f=>f.field==='sqft'?{...f,basis:'inferred' as const}:{...f});
+ const held=reconcileScope({},inferred);
+ assert.equal(held.answers.sqft,undefined);
+ assert.equal(scopeQuestions(held.answers,inferred).find(q=>q.field==='sqft')?.values,undefined);
+
+ const duplicate=extracted({service:'bathroom',materials:'Porcelain',demolition:'Remove tile'});
+ duplicate.facts.push({field:'sqft',value:'80',confidence:.99,source:'scope.pdf',evidence:'80 square feet',basis:'stated'});
+ duplicate.facts.push({field:'sqft',value:'100',confidence:.99,source:'scope.pdf',evidence:'100 square feet',basis:'stated'});
+ const conflicted=reconcileScope({},duplicate);
+ assert.equal(conflicted.answers.sqft,undefined);
+ assert.equal(conflicted.conflicts.filter(c=>c.field==='sqft').length,1);
+ assert.equal(scopeQuestions(conflicted.answers,duplicate,conflicted.conflicts)[0].field,'sqft');
 });
 test('explicit calculated measurements retain their evidence and skip repeat questions',()=>{
  const raw=extracted({service:'bathroom',sqft:'80',materials:'Porcelain tile',demolition:'Remove old fixtures'});
@@ -112,11 +127,4 @@ test("reanalysis replaces source facts while preserving visitor corrections",asy
  assert.deepEqual(manualScopeAnswers({demolition:"Remove flooring",sqft:"80",location:"Eagle"},previous),{location:"Eagle"});
  assert.equal(manualScopeAnswers({demolition:"Only remove vanity",sqft:"80"},previous).demolition,"Only remove vanity");
  assert.equal(manualScopeAnswers({sqft:"80"},previous,{sqft:"80"}).sqft,"80");
-});
-test('explicit replacement creates a clean project without mutating the old record',()=>{
-  const old:any={id:'11111111-1111-4111-8111-111111111111',key:'a'.repeat(64),revision:7,text:'Old bathroom',answers:{service:'bathroom',sqft:'80',exclusions:'No painting'},extraction:extracted({service:'bathroom',sqft:'80'}),contact:{name:'Test Visitor',email:'test@example.com',phone:''},uploads:[{id:'old-plan'}],step:2,updatedAt:1,namespace:'estimate',wizard:{skipped:['finish'],resolutions:{service:'bathroom'},sourceVersion:'old',instructionAnswers:[{id:'old',question:'Old?',answer:'Yes'}]}};
-  const snapshot=structuredClone(old);const next=replacementBrowserDraft(old);
-  assert.notEqual(next.id,old.id);assert.notEqual(next.key,old.key);assert.deepEqual(next.answers,{});assert.equal(next.extraction,null);assert.equal(next.uploads,undefined);assert.deepEqual(next.wizard,{skipped:[],resolutions:{}});assert.deepEqual(next.contact,old.contact);assert.deepEqual(old,snapshot);
-  const again=replacementBrowserDraft(next);
-  assert.notEqual(again.id,next.id);assert.notEqual(again.key,next.key);assert.deepEqual(again.answers,{});assert.equal(again.text,'');assert.equal(again.extraction,null);assert.deepEqual(again.wizard,{skipped:[],resolutions:{}});
 });

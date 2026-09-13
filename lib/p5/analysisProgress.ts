@@ -22,6 +22,6 @@ export function analysisProgress(units:ProgressUnit[],expected?:{source:string;p
 
 /** Bounded parallelism, never a sampling/page-count limit. */
 export function analysisConcurrency(value=process.env.P5_ANALYSIS_CONCURRENCY){
-  const requested=Number(value||6);
-  return Number.isInteger(requested)&&requested>=1?Math.min(requested,8):6;
+  const requested=Number(value||12);
+  return Number.isInteger(requested)&&requested>=1?Math.min(requested,24):12;
 }

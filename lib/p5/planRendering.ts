@@ -17,8 +17,8 @@ export function entirelyWhite(pixels:Uint8ClampedArray|Uint8Array):boolean {
  * Blank regions retain explicit pixel-inspection evidence in the manifest. */
 export async function* drawingDetails(file:AnalysisFile,pageNumber:number,dataPageNumber=pageNumber):AsyncGenerator<AnalysisFile>{
   const {getDocument}=await import('pdfjs-dist/legacy/build/pdf.mjs');
-  const assets=path.dirname(createRequire(path.join(process.cwd(),'package.json')).resolve('pdfjs-dist/package.json'));
-  const task=getDocument({data:new Uint8Array(file.data),useSystemFonts:true,standardFontDataUrl:path.join(assets,'standard_fonts/'),cMapUrl:path.join(assets,'cmaps/'),cMapPacked:true,wasmUrl:path.join(assets,'wasm/')});
+  const assets=path.dirname(createRequire(path.join(process.cwd(),'package.json')).resolve('pdfjs-dist/package.json')).split(path.sep).join('/');
+  const task=getDocument({data:new Uint8Array(file.data),useSystemFonts:true,standardFontDataUrl:`${assets}/standard_fonts/`,cMapUrl:`${assets}/cmaps/`,cMapPacked:true,wasmUrl:`${assets}/wasm/`});
   const document=await task.promise;
   let full:Canvas|null=null;
   try{

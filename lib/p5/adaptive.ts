@@ -1,4 +1,4 @@
-import {instructionPrompts,visitorQuestionText} from './clarifications.ts';
+import {instructionPrompts} from './clarifications.ts';
 import {ESTIMATOR_BRAND} from './brand.ts';
 import {SCOPE_FIELDS,mergeScopeFacts,requiredScopeQuestions,validateAnswer,type ScopeAnswers,type ScopeField,type ScopeExtraction,type ScopeConflict} from './scope.ts';
 
@@ -26,8 +26,20 @@ export function deriveScopeAnswers(input:ScopeAnswers){
   }
   return answers;
 }
+/** A source fact may suppress a question only after local validation, with
+ * enough confidence to price it and without an unresolved field conflict.
+ * validateExtraction normally performs the same evidence/basis gating before
+ * this function is reached; keeping the guard here protects direct callers. */
+function isValidatedSuppliedFact(fact:ScopeExtraction['facts'][number],conflicts:ScopeConflict[]){
+  return Number.isFinite(fact.confidence)&&fact.confidence>=.85
+    &&Boolean(fact.value?.trim())
+    &&fact.basis!=='visual'&&fact.basis!=='inferred'
+    &&!validateAnswer(fact.field,fact.value)
+    &&!conflicts.some(conflict=>conflict.field===fact.field);
+}
 export function reconcileScope(current:ScopeAnswers,extraction:ScopeExtraction,resolutions:ScopeAnswers={}){
-  const normalized={...extraction,facts:extraction.facts.map(f=>({...f,value:current[f.field]&&sameAnswer(f.field,current[f.field]!,f.value)?current[f.field]!:f.value})),conflicts:extraction.conflicts.filter(c=>!resolutions[c.field]||!sameAnswer(c.field,resolutions[c.field]!,current[c.field]||''))};
+  const unresolvedConflicts=extraction.conflicts.filter(c=>!resolutions[c.field]||!sameAnswer(c.field,resolutions[c.field]!,current[c.field]||''));
+  const normalized={...extraction,facts:extraction.facts.filter(f=>isValidatedSuppliedFact(f,unresolvedConflicts)).map(f=>({...f,value:current[f.field]&&sameAnswer(f.field,current[f.field]!,f.value)?current[f.field]!:f.value})),conflicts:unresolvedConflicts};
   const resolvedFacts=normalized.facts.filter(f=>!resolutions[f.field]||!sameAnswer(f.field,resolutions[f.field]!,current[f.field]||''));
   const merged=mergeScopeFacts(current,{...normalized,facts:resolvedFacts});
   const answers=deriveScopeAnswers(merged.answers);
@@ -36,6 +48,10 @@ export function reconcileScope(current:ScopeAnswers,extraction:ScopeExtraction,r
     const calculated=deriveScopeAnswers({...current,sqft:''}).sqft;
     if(calculated&&!sameAnswer('sqft',current.sqft,calculated)&&!resolutions.sqft)conflicts.push({field:'sqft',values:[current.sqft,calculated],explanation:'The stated area differs from length multiplied by width. Which area is being estimated?'});
   }
+  // mergeScopeFacts detects duplicate high-confidence values while merging.
+  // Do not leave its first value in answers when no visitor answer exists:
+  // that would make a conflict look resolved on the next question pass.
+  for(const conflict of conflicts)if(!current[conflict.field]?.trim())delete answers[conflict.field];
   return {answers,conflicts};
 }
 const remodels=['kitchen','bathroom','whole-home'];
@@ -64,6 +80,19 @@ const detailQuestions:Partial<Record<ScopeField,string>>={
  bathrooms:'How many bathrooms are included?',
  stories:'How many stories are included?',
 };
+/** Everyday wording for one missing detail. Shared by the question flow and the missing-detail links shown after Get my estimate. */
+export function questionReason(field:ScopeField,answers:ScopeAnswers):string{
+  const service=answers.service||"";
+  if(field==="service")return "What would you like help with?";
+  if(field==="taskList")return "What work should be included? A short list with quantities is enough.";
+  if(field==="sqft")return builds.includes(service)?"About how many square feet of living space are included? Keep garage and outdoor areas separate.":"About how large is the area being worked on?";
+  if(field==="finish")return "What finish level would you like?";
+  return detailQuestions[field]||`What should we use for ${SCOPE_FIELDS[field].label.toLowerCase()}?`;
+}
+export function questionForField(field:ScopeField,answers:ScopeAnswers):ScopeQuestion{
+  const definition=SCOPE_FIELDS[field];
+  return {field,label:definition.label,reason:questionReason(field,answers),...(definition.kind==="choice"?{values:definition.options.filter(v=>field!=="service"||(ESTIMATOR_BRAND.services as readonly string[]).includes(v))}:{})};
+}
 export function scopeQuestions(input:ScopeAnswers,extraction:ScopeExtraction|null,conflicts:ScopeConflict[]=[],skipped:ScopeField[]=[],pricedFields:ScopeField[]=[]):ScopeQuestion[]{
   const answers=deriveScopeAnswers(input);
   const relevant=new Set<ScopeField>(['service',...materialScopeFields(answers,pricedFields),...pricedFields]);
@@ -72,9 +101,9 @@ export function scopeQuestions(input:ScopeAnswers,extraction:ScopeExtraction|nul
   const questions:ScopeQuestion[]=conflicts.map(c=>({field:c.field,label:SCOPE_FIELDS[c.field].label,reason:c.explanation,values:c.values,conflict:true}));
   questions.unshift(...instructionPrompts(extraction,answers).map(q=>({field:q.field||'estimatingInstructions' as const,label:q.field?SCOPE_FIELDS[q.field].label:'One scope detail',reason:q.question,detail:q.detail,values:q.values,...(!q.field?{instructionId:q.id}:{})})));
   for(const fact of uncertain)if(!questions.some(q=>q.field===fact.field)&&!skipped.includes(fact.field))questions.push({field:fact.field,label:SCOPE_FIELDS[fact.field].label,reason:`${SCOPE_FIELDS[fact.field].label}: we found “${fact.value}” in ${fact.source}. Is that correct?`,values:[fact.value]});
-  for(const q of extraction?.clarifications||[])if(relevant.has(q.field)&&!(q.field==='finish'&&answers.materials)&&!(['address','location','schedule','urgency'].includes(q.field)&&!pricedFields.includes(q.field))&&!answers[q.field]?.trim()&&!skipped.includes(q.field)&&!questions.some(x=>x.field===q.field))questions.push({field:q.field,label:SCOPE_FIELDS[q.field].label,reason:SCOPE_FIELDS[q.field].kind==='number'?`Please confirm ${SCOPE_FIELDS[q.field].label.toLowerCase()}. Approximate is fine.`:visitorQuestionText(q.question)});
+  for(const q of extraction?.clarifications||[])if(relevant.has(q.field)&&!(q.field==='finish'&&answers.materials)&&!(['address','location','schedule','urgency'].includes(q.field)&&!pricedFields.includes(q.field))&&!answers[q.field]?.trim()&&!skipped.includes(q.field)&&!questions.some(x=>x.field===q.field))questions.push({field:q.field,label:SCOPE_FIELDS[q.field].label,reason:SCOPE_FIELDS[q.field].kind==='number'?`Please confirm ${SCOPE_FIELDS[q.field].label.toLowerCase()}. Approximate is fine.`:q.question});
   for(const field of relevant)if(!answers[field]?.trim()&&!questions.some(q=>q.field===field)&&!skipped.includes(field))questions.push({field,label:SCOPE_FIELDS[field].label,reason:field==='service'?'What would you like help with?':field==='taskList'?'What work should be included? A short list with quantities is enough.':field==='sqft'?(builds.includes(answers.service||'')?'About how many square feet of living space are included? Keep garage and outdoor areas separate.':'About how large is the area being worked on?'):field==='finish'?'What finish level would you like?':detailQuestions[field]||`What should we use for ${SCOPE_FIELDS[field].label.toLowerCase()}?`});
-  return questions.map(q=>{const definition=SCOPE_FIELDS[q.field];const reason=visitorQuestionText(q.reason);const detail=q.detail?visitorQuestionText(q.detail):undefined;return {...q,reason,...(detail?{detail}:{}),...(!q.values?.length&&definition.kind==='choice'?{values:definition.options.filter(v=>q.field!=='service'||(ESTIMATOR_BRAND.services as readonly string[]).includes(v))}:{}),...(reason.length>240?{reason:`Please confirm ${q.label.toLowerCase()}.`,detail:reason}:{})};});
+  return questions.map(q=>{const definition=SCOPE_FIELDS[q.field];return {...q,...(!q.values?.length&&definition.kind==='choice'?{values:definition.options.filter(v=>q.field!=='service'||(ESTIMATOR_BRAND.services as readonly string[]).includes(v))}:{}),...(q.reason.length>240?{reason:`Please confirm ${q.label.toLowerCase()}.`,detail:q.reason}:{})};});
 }
 export function validateScopeAnswer(field:ScopeField,value:string){
   const error=validateAnswer(field,value);if(error)return error;

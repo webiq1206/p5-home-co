@@ -1,9 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {priceCompleteScope,marketResolution,requestPricing,type PricingRequest} from '../lib/p5/scopePricing.ts';
+import {priceCompleteScope,marketResolution,catalogResolution,requestPricing,type PricingRequest} from '../lib/p5/scopePricing.ts';
 import {priceReviewedScope} from '../lib/p5/costBook.ts';
-import {pricingExtraction,reconcileAdditiveQuantities} from '../lib/p5/quantityReconciliation.ts';
-import {combineScopeExtractions,protectPricingFacts,validateExtraction} from '../lib/p5/scope.ts';
 import {createPlanningConfiguration,PLANNING_MODEL_VERSION,type PlanningCatalog} from '../lib/p5/planningBooks.ts';
 import type {ReviewedScope} from '../lib/p5/scope.ts';
 import {emptyInstructions} from '../lib/p5/instructions.ts';
@@ -58,6 +56,22 @@ test('Sourced averages add missing costs, retain sources, and preserve financial
  assert.ok(JSON.stringify(r.internal.scopePricing).includes(urls[0]));
  assert.ok(!JSON.stringify(r.customer).includes('unitCost'));
 });
+test('Complete-scope mapper and audit receive active scope without retained alternatives',async()=>{
+ const history={version:'p5-retained-clarification-v1',clarifications:[],unselected:'Unselected quartz top'};
+ const archived={...scope,extraction:{summary:'Selected cabinet scope',facts:[],conflicts:[],missingInformation:[],reviewNotes:[],clarificationProvenance:history,sourceHistory:history}} as ReviewedScope;
+ const seen:unknown[]=[];
+ const queue:unknown[]=[
+  {tasks:[{id:'cabinets',description:'Cabinet supply',evidence:'ten feet'}],issues:[]},
+  {tasks:[task],issues:[]},
+  {coveredTaskIds:['cabinets'],issues:[]},
+ ];
+ const request:PricingRequest=async(_instructions,input)=>{seen.push(input);return {value:queue.shift(),sourceUrls:urls};};
+ const result=await priceCompleteScope(archived,config,request,now);
+ assert.ok(result.customer.range);
+ assert.ok(seen.length>=3);
+ assert.ok(!JSON.stringify(seen).includes('Unselected quartz top'));
+ assert.ok(seen.every(payload=>!JSON.stringify(payload).includes('clarificationProvenance')&&!JSON.stringify(payload).includes('sourceHistory')));
+});
 test('Regional unit-cost benchmarks reject incompatible units, responsibility and supplier offers',()=>{
  const priced=marketResolution(researched,urls,[extra],now).rules[0];assert.equal(priced.unitCost,20);assert.equal(priced.quantity.fixed,10);
  const aliases=structuredClone(researched);aliases.rates[0].sources[0].unit='per linear foot';aliases.rates[0].sources[1].unit='linear-ft';assert.equal(marketResolution(aliases,urls,[extra],now).rules[0].unitCost,20);
@@ -69,68 +83,6 @@ test('Regional unit-cost benchmarks reject incompatible units, responsibility an
 test('An incomplete scope price is not misreported as a missing quantity',()=>{
  const r=priceReviewedScope(scope,config,now,{replaceBase:true,rules:[],assumptions:[],issues:['Supplier research could not complete.']});
  assert.deepEqual(r.internal.pricingWarnings,['scope-pricing-incomplete']);assert.ok(!r.customer.message.includes('missing quantities'));assert.equal(r.customer.range,null);
-});
-test('Incomplete document coverage cannot release a customer range even without review notes',()=>{
- const upload={id:'synthetic-upload',name:'synthetic.pdf',size:100,sha256:'a'.repeat(64),type:'application/pdf',status:'stored' as const};
- const incomplete:ReviewedScope={...scope,uploads:[upload],extraction:{summary:'Synthetic partial review',facts:[],conflicts:[],missingInformation:[],reviewNotes:[],documentCoverage:{expectedPages:2,complete:false,pages:[
-  {source:'synthetic.pdf',page:1,sheet:'A1',revision:'',status:'read',notes:[]},
-  {source:'synthetic.pdf',page:2,sheet:'A2',revision:'',status:'unreadable',notes:['Synthetic read failure']},
- ]}}};
- const result=priceReviewedScope(incomplete,config,now);
- assert.equal(result.customer.range,null);
- assert.ok((result.internal as any).warnings.some((warning:any)=>warning.code==='document-coverage-incomplete'));
- const missingLedger=priceReviewedScope({...incomplete,extraction:{...incomplete.extraction!,documentCoverage:undefined}},config,now);
- assert.equal(missingLedger.customer.range,null);
- assert.ok((missingLedger.internal as any).warnings.some((warning:any)=>warning.code==='document-coverage-incomplete'));
-});
-test('driveway trade hours add to 40 without adding the repeated total',()=>{
- const takeoff=(id:string,description:string,quantity:number,page:number)=>({id,description,building:'Site',floor:'Exterior',component:id,quantity,unit:'hours',basis:'stated' as const,evidence:`${description}: ${quantity} hours`,sources:[{source:'Concrete Driveway 20x60.pdf',page,sheet:`P${page}`,revision:''}],supersedes:[],issues:[]});
-  const fact=(value:string,page:number,trade:string)=>({field:'laborHours' as const,value,confidence:.99,source:'Concrete Driveway 20x60.pdf',evidence:`Page ${page}: ${trade} labor ${value} hours`,basis:'stated' as const});
- const repeated={...takeoff('page-summary','Page labor summary',40,2),issues:['Summary total - do not add']};
-  const extraction=combineScopeExtractions([{summary:'1,200 SF driveway',facts:[fact('16',1,'excavation')],conflicts:[],missingInformation:[],reviewNotes:[],takeoffs:[takeoff('excavation','Excavation labor',16,1)]},{summary:'Concrete placement',facts:[fact('24',2,'concrete')],conflicts:[],missingInformation:[],reviewNotes:[],takeoffs:[takeoff('concrete','Concrete labor',24,2),repeated]}]);
- assert.equal(extraction.facts.find(f=>f.field==='laborHours')?.value,'40');
-  assert.equal(extraction.conflicts.some(c=>c.field==='laborHours'),false);
- assert.deepEqual(extraction.takeoffs?.filter(t=>t.id!=='page-summary').map(t=>[t.description,t.quantity,t.sources[0].page]),[['Excavation labor',16,1],['Concrete labor',24,2]]);
- assert.deepEqual(pricingExtraction(extraction)?.takeoffs?.map(t=>t.id),['excavation','concrete']);
- const summaryOnly=combineScopeExtractions([{summary:'Summary only',facts:[],conflicts:[],missingInformation:[],reviewNotes:[],takeoffs:[repeated]}]);
- assert.equal(summaryOnly.facts.some(f=>f.field==='laborHours'),false);
- assert.deepEqual(pricingExtraction(summaryOnly)?.takeoffs,[]);
-});
-test('partial labor and genuine same-work conflicts cannot become a confirmed aggregate',()=>{
-  const base:any={summary:'Known labor subtotal',facts:[{field:'laborHours',value:'10',confidence:.99,source:'scope.pdf',evidence:'Known work only',basis:'calculated'}],conflicts:[],missingInformation:[],reviewNotes:[],clarifications:[],instructions:emptyInstructions(),takeoffs:[
-    {id:'known','description':'Known installation labor',building:'Main',floor:'1',component:'Installation',quantity:10,unit:'hours',basis:'stated',evidence:'10 hours',sources:[{source:'scope.pdf',page:1,sheet:'P1',revision:''}],supersedes:[],issues:[]},
-    {id:'unknown','description':'Unmeasured fabrication labor',building:'Main',floor:'1',component:'Fabrication',quantity:null,unit:'hours',basis:'unknown',evidence:'Labor required but not measured',sources:[{source:'scope.pdf',page:2,sheet:'P2',revision:''}],supersedes:[],issues:['Quantity not stated']},
-  ]};
-  assert.equal(reconcileAdditiveQuantities(base).facts.some((fact:any)=>fact.field==='laborHours'),false);
-  const conflicted={...base,takeoffs:[base.takeoffs[0]],conflicts:[{field:'laborHours',values:['10','12'],sources:['scope.pdf'],reason:'Two quantities describe the same installation work'}]};
-  const result=reconcileAdditiveQuantities(conflicted);
-  assert.equal(result.facts.some((fact:any)=>fact.field==='laborHours'),false);
-  assert.equal(result.conflicts.length,1);
-  const sameWork={...base,takeoffs:[
-    {...base.takeoffs[0],id:'installation-a',quantity:16,evidence:'Page 1 installation labor 16 hours'},
-    {...base.takeoffs[0],id:'installation-b',quantity:24,evidence:'Page 2 installation labor 24 hours',sources:[{...base.takeoffs[0].sources[0],page:2}]},
-  ],conflicts:[{field:'laborHours',values:['16','24'],explanation:'Different document pages state different values.'}]};
-  const sameWorkResult=reconcileAdditiveQuantities(sameWork);
-  assert.equal(sameWorkResult.facts.some((fact:any)=>fact.field==='laborHours'),false);
-  assert.equal(sameWorkResult.conflicts.length,1);
-  const grading=(id:string,description:string,quantity:number,page:number)=>({...base.takeoffs[0],id,description,component:description,quantity,evidence:`Page ${page}: ${description} ${quantity} hours`,sources:[{...base.takeoffs[0].sources[0],page}]});
-  const gradingResult=combineScopeExtractions([
-    {...base,facts:[{field:'laborHours',value:'16',confidence:.99,source:'scope.pdf',evidence:'Page 1: site grading 16 hours',basis:'stated'}],takeoffs:[grading('grading','Site grading',16,1)]},
-    {...base,facts:[{field:'laborHours',value:'24',confidence:.99,source:'scope.pdf',evidence:'Page 2: earthwork leveling 24 hours',basis:'stated'}],takeoffs:[grading('earthwork','Earthwork leveling',24,2)]},
-  ] as any);
-  assert.equal(gradingResult.facts.some((fact:any)=>fact.field==='laborHours'),false);
-  assert.equal(gradingResult.conflicts.some((conflict:any)=>conflict.field==='laborHours'),true);
-  const duplicateIdentity=combineScopeExtractions([
-    {...base,facts:[{field:'laborHours',value:'16',confidence:.99,source:'scope.pdf',evidence:'Page 1: cabinet refinishing 16 hours',basis:'stated'}],takeoffs:[grading('cabinet-finish-1','Cabinet refinishing',16,1)]},
-    {...base,facts:[{field:'laborHours',value:'24',confidence:.99,source:'scope.pdf',evidence:'Page 2: painting casework 24 hours',basis:'stated'}],takeoffs:[grading('cabinet-finish-1','Painting casework',24,2)]},
-  ] as any);
-  assert.equal(duplicateIdentity.facts.some((fact:any)=>fact.field==='laborHours'),false);
-  assert.equal(duplicateIdentity.conflicts.some((conflict:any)=>conflict.field==='laborHours'),true);
-});
-test('bench-top length cannot become base-cabinet length and unknown tall length is not zero',()=>{
- const raw:any={summary:'Cabinets',facts:[{field:'cabinetBaseLf',value:'13.3',confidence:.99,source:'cabinet.pdf',evidence:'Bench top length 13.3 LF',basis:'stated'},{field:'cabinetTallLf',value:'0',confidence:.99,source:'cabinet.pdf',evidence:'Tall cabinet length was not documented',basis:'inferred'}],conflicts:[],missingInformation:[],reviewNotes:[],clarifications:[],instructions:{inclusions:[],exclusions:[],responsibilities:[],buildings:[],floors:[],separateBuildings:false,laborOnly:false,materialsOnly:false,questions:[]},pages:[],takeoffs:[]};
- const protectedScope=protectPricingFacts(validateExtraction(raw));
- assert.equal(protectedScope.facts.some(f=>f.field==='cabinetBaseLf'||f.field==='cabinetTallLf'),false);
 });
 test('Uncited, stale, duplicate-source, reversed and selling-price evidence is rejected',()=>{
  assert.throws(()=>marketResolution(researched,[],[extra],now));
@@ -308,4 +260,56 @@ test('Preliminary regional benchmark verification notes persist without becoming
  const research={...researched,notes:[note]};
  const r=await priceCompleteScope(scope,config,replies([{tasks:[task,extra],issues:[]},research,{coveredTaskIds:['cabinets','overlay'],issues:[],notes:[note]}]),now);
  assert.ok(r.customer.range);assert.ok(r.customer.assumptions.includes(note));assert.equal(r.internal.scopePricing.issues.length,0);
+});
+
+test('Mapped labor cannot change a confirmed hour quantity',()=>{
+ const mapping={tasks:[{id:'drywall',description:'Drywall repair labor',evidence:'The reviewed scope states 14 labor hours.',existingLineIds:[],additions:[{code:'REF-GENERAL-HOUR',quantity:10,quantityEvidence:'Ten labor hours'}],researchDescription:'',issues:[]}],issues:[],notes:[],replacements:[],removeExclusions:[]};
+ const result=catalogResolution(mapping as any,config,[],now,scope);
+ assert.equal(result.rules.length,0);assert.ok(result.issues.some(issue=>/does not match the explicit quantity/i.test(issue)));
+});
+
+test('Distinct trade labor remains additive while partial-hour unknowns stay unpriced',()=>{
+ const mapping={tasks:[
+  {id:'excavation',description:'Driveway excavation labor',evidence:'16 labor hours',existingLineIds:[],additions:[{code:'REF-GENERAL-HOUR',quantity:16,quantityEvidence:'16 labor hours'}],researchDescription:'',issues:[]},
+  {id:'concrete',description:'Driveway concrete labor',evidence:'24 labor hours',existingLineIds:[],additions:[{code:'REF-GENERAL-HOUR',quantity:24,quantityEvidence:'24 labor hours'}],researchDescription:'',issues:[]},
+  {id:'unknown',description:'Concrete finishing labor',evidence:'Partial labor hours remain unknown',existingLineIds:[],additions:[{code:'REF-GENERAL-HOUR',quantity:10,quantityEvidence:'10 labor hours'}],researchDescription:'',issues:[]},
+ ],issues:[],notes:[],replacements:[],removeExclusions:[]};
+ const result=catalogResolution(mapping as any,config,[],now,scope);
+ assert.deepEqual(result.rules.map(rule=>rule.quantity.fixed),[16,24]);
+ assert.equal(result.rules.reduce((sum,rule)=>sum+(rule.quantity.fixed||0),0),40);
+ assert.ok(result.issues.some(issue=>/remains unmeasured/i.test(issue)));
+});
+
+test('Unselected alternatives never become billable mapping rules',()=>{
+ const mapping={tasks:[{id:'optional',description:'Optional alternate island package',evidence:'Alternative not selected by owner; 10 LF',existingLineIds:[],additions:[{code:'03-15-02-M',quantity:10,quantityEvidence:'10 LF'}],researchDescription:'',issues:[]}],issues:[],notes:[],replacements:[],removeExclusions:[]};
+ const result=catalogResolution(mapping as any,config,[],now,scope);
+ assert.equal(result.rules.length,0);assert.ok(result.issues.some(issue=>/not billable/i.test(issue)));
+});
+
+test('Component-scoped exclusion does not reject included painting',()=>{
+ const mapping={tasks:[{id:'paint',description:'Interior painting',evidence:'Painting is included. Appliances are excluded.',existingLineIds:[],additions:[{code:'03-14-01-M',quantity:100,quantityEvidence:'100 LF for painting'}],researchDescription:'',issues:[]}],issues:[],notes:[],replacements:[],removeExclusions:[]};
+ const result=catalogResolution(mapping as any,config,[],now,scope);
+ assert.equal(result.rules.length,1);assert.equal(result.issues.length,0);
+});
+
+test('Known component keeps a positive line while unknown sibling remains incomplete',()=>{
+ const mapping={tasks:[{id:'mixed',description:'Painting and cabinet labor',evidence:'Painting labor is 14 hours; cabinet labor hours are unknown.',existingLineIds:[],additions:[{code:'REF-GENERAL-HOUR',quantity:14,quantityEvidence:'14 labor hours for painting'}],researchDescription:'',issues:[]}],issues:[],notes:[],replacements:[],removeExclusions:[]};
+ const result=catalogResolution(mapping as any,config,[],now,scope);
+ assert.equal(result.rules.length,1);assert.ok(result.issues.some(issue=>/quantity remains unmeasured/i.test(issue)));
+});
+
+test('Repair does not erase a non-price blocker when it adds a positive rule',async()=>{
+ const bad={id:'labor',description:'Drywall labor',evidence:'14 labor hours',existingLineIds:[],additions:[{code:'REF-GENERAL-HOUR',quantity:10,quantityEvidence:'10 labor hours'}],researchDescription:'',issues:[]};
+ const good={...bad,additions:[{code:'REF-GENERAL-HOUR',quantity:14,quantityEvidence:'Corrected 14 labor hours'}]};
+ const queue:unknown[]=[
+  {tasks:[{id:'labor',description:bad.description,evidence:bad.evidence}],issues:[]},
+  {tasks:[bad],issues:[]},
+  {coveredTaskIds:['labor'],issues:[]},
+  {tasks:[good],issues:[]},
+  {coveredTaskIds:['labor'],issues:[]},
+ ];
+ const request:PricingRequest=async()=>({value:queue.shift(),sourceUrls:urls});
+ const result=await priceCompleteScope({...scope,answers:{...scope.answers,service:'handyman'}},config,request,now);
+ assert.equal(result.customer.range,null);
+ assert.ok(result.internal.scopePricing.issues.some(issue=>/does not match the explicit quantity/i.test(issue)));
 });

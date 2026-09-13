@@ -1,6 +1,6 @@
 import {chromium,webkit} from '@playwright/test';
 import {createHash} from 'node:crypto';
-import {mkdir,writeFile,readFile} from 'node:fs/promises';
+import {mkdir,writeFile} from 'node:fs/promises';
 import assert from 'node:assert/strict';
 import {scopeQuestions,reconcileScope} from '../lib/p5/adaptive.ts';
 import {instructionPrompts} from '../lib/p5/clarifications.ts';
@@ -10,12 +10,14 @@ const base=process.env.P5_TEST_BASE_URL||'http://127.0.0.1:5000';
 await mkdir('p5-verification',{recursive:true});
 const browser=await (process.env.P5_TEST_BROWSER==='webkit'?webkit:chromium).launch();const results=[];
 const service=brand.services.includes('bathroom')?'bathroom':brand.services.includes('handyman')?'handyman':brand.services.includes('cabinet-install')?'cabinet-install':'new-construction';
+const serviceLabel=service==='handyman'?'Home repairs':service==='cabinet-install'?'Cabinets with installation':service==='new-construction'?'New home':'Bathroom remodel';
 const fullAnswers={service,taskList:'Complete the specified work. Repair three interior doors.',...(service.startsWith('cabinet-')?{cabinetRoom:'kitchen',cabinetBaseLf:'20',cabinetUpperLf:'0'}:service==='handyman'?{}:{sqft:'80',materials:'Porcelain tile',demolition:'Remove old finishes'})};
-const result={status:'preliminary',range:{low:1000,high:1800},categoryRanges:[{category:'Carpentry',low:1000,high:1800}],lineItems:[{id:'repair',category:'Carpentry',description:'Repair three interior doors',quantity:3,unit:'EA',low:1000,high:1800,unitLow:1000/3,unitHigh:600}],summary:'Synthetic fixture scope.',includedCategories:[],allowances:[],assumptions:[],exclusions:[],factors:[],nextStep:'Schedule a scope review.',message:'Synthetic planning range.',disclaimer:'This is not a bid, quote, offer or guaranteed price.'};
+const result={status:'preliminary',range:{low:1000,high:1800},categoryRanges:[{category:'Carpentry',low:1000,high:1800}],lineItems:[{id:'repair',category:'Carpentry',description:'Repair three interior doors',quantity:3,unit:'EA',low:1000,high:1800,unitLow:1000/3,unitHigh:600,pricingStatus:'owner-planning-rate'}],scopeTasks:[{description:'Repair three interior doors',category:'Carpentry'}],summary:'Synthetic fixture scope.',includedCategories:['Carpentry'],allowances:[],assumptions:['Doors are standard interior slabs.'],exclusions:['Painting is excluded.'],factors:[],nextStep:'Schedule a scope review.',message:'Synthetic planning range.',disclaimer:'This is not a bid, quote, offer or guaranteed price.'};
 async function mock(context,{interruptions=false,scenario='full'}={}){
  // Keep synthetic estimator sessions out of production analytics and isolate third-party network failures.
- await context.route(/^https:\/\/([a-z0-9-]+\.)*(?:clarity\.ms|hs-scripts\.com|hscollectedforms\.net)\//, route=>route.fulfill({status:200,contentType:'application/javascript',body:''}));
- const state={saved:null,nullReceipt:interruptions,failUpload:interruptions,submissions:0,postSubmissionSaves:0,scopeCalls:0,pricingPolls:0,readStage:1,finishReading:false,pricingStage:'mapping',failClarification:scenario==='instructions'};
+ await context.route(/^https:\/\/([a-z0-9-]+\.)*clarity\.ms\//, route=>route.fulfill({status:200,contentType:'application/javascript',body:''}));
+ await context.route('**/api/estimator-session',route=>route.fulfill({status:200,contentType:'application/json',body:'{}'}));
+ const state={saved:null,nullReceipt:interruptions,failUpload:interruptions,submissions:0,postSubmissionSaves:0,scopeCalls:0,pricingPolls:0,readStage:1,finishReading:false,pricingStage:'mapping',failClarification:scenario==='instructions',holdPricing:scenario==='missing'};
  await context.addInitScript(()=>{window.SpeechRecognition=class{start(){this.onresult?.({resultIndex:0,results:[Object.assign([{transcript:'Repair three interior doors.'}],{isFinal:true})]});this.onend?.();}stop(){this.onend?.();}};});
  await context.route('**/api/p5-estimator/**',async route=>{
   const request=route.request();const endpoint=new URL(request.url()).pathname.split('/').at(-1);
@@ -51,6 +53,7 @@ async function mock(context,{interruptions=false,scenario='full'}={}){
   if(endpoint==='submit'){
    state.pricingPolls++;
    if(scenario==='progress'&&state.pricingStage!=='done'){const phase=state.pricingStage;return send({pending:true,message:'Checking the requested scope.',processing:{phase,message:phase==='mapping'?'Matching the trim package to established rates.':'Checking published cost evidence for the trim package.',currentItems:['First-floor trim package'],updatedAt:new Date().toISOString()},retryAfterMs:2000},202);}
+   if(state.holdPricing&&!state.saved?.answers?.trimLf){return send({pricingReviewRequired:true,missingFields:[{field:'trimLf',label:'Trim or baseboard length in feet'}],error:'Your project is saved and remains editable. Please confirm: Trim or baseboard length in feet. A complete price range is required before the estimate can be finalized and emailed.'},422);}
    const duplicate=state.saved?.status==='submitted';if(!duplicate)state.submissions++;
    state.saved={...state.saved,status:'submitted'};return send({accepted:!duplicate,duplicate,result,delivery:[{channel:'customer',status:'retry'},{channel:'admin',status:'sent'},{channel:'crm',status:'needs-review'}]});
   }
@@ -58,34 +61,46 @@ async function mock(context,{interruptions=false,scenario='full'}={}){
  });return state;
 }
 async function overflow(page){assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'Horizontal page overflow');}
+async function noPinnedControls(estimator){assert.ok(await estimator.evaluate(root=>[...root.querySelectorAll('button,a')].every(el=>{for(let p=el;p&&p!==document.body;p=p.parentElement)if(['fixed','sticky'].includes(getComputedStyle(p).position))return false;return true;})),'An estimator control is pinned over content');}
 async function capture(page,name){await page.evaluate(async()=>{await document.fonts.ready;document.documentElement.style.scrollBehavior='auto';if(document.activeElement instanceof HTMLElement)document.activeElement.blur();window.scrollTo(0,0);});await page.screenshot({path:`p5-verification/${name}.png`,fullPage:true,animations:'disabled'});}
+async function settled(page){await page.waitForFunction(()=>!document.querySelector('[data-p5-estimator][aria-busy=true]'));}
 for(const width of [320,390,430,768,1024,1440,1920]){
  const context=await browser.newContext({viewport:{width,height:900},hasTouch:width<768});const state=await mock(context,{interruptions:true});
  const page=await context.newPage();page.setDefaultTimeout(15000);const errors=[];page.on('pageerror',e=>errors.push(e.message));
  try{
   await page.goto(base+'/estimate/p5-preview');const estimator=page.locator('[data-p5-estimator]');const description=estimator.getByLabel('Tell us about your project',{exact:true});await description.waitFor();
-  assert.equal(await estimator.locator('input[type=file]').count(),1);assert.equal(await estimator.locator('textarea').count(),1);assert.equal(await estimator.getByRole('button',{name:'Use microphone',exact:true}).count(),0);
+  assert.equal(await estimator.locator('input[type=file]').count(),1);assert.equal(await estimator.locator('textarea').count(),1);
+  // Talk to text appends the final transcript; typing remains available.
+  await estimator.getByRole('button',{name:'Talk instead',exact:true}).click();assert.match(await description.inputValue(),/Repair three interior doors\./);
   await description.fill('Repair three interior doors. '+('LongUnbrokenProjectSpecification'.repeat(90)));
   await estimator.getByLabel('Upload project files',{exact:true}).setInputFiles({name:'scope.txt',mimeType:'text/plain',buffer:Buffer.from('Repair three interior doors.')});
   await estimator.getByRole('button',{name:'Continue',exact:true}).click();await estimator.getByRole('alert').filter({hasText:'Your project save was not confirmed'}).waitFor();
   await estimator.getByRole('button',{name:'Continue',exact:true}).click();await estimator.getByRole('alert').filter({hasText:'Synthetic upload interruption'}).waitFor();
   await page.reload();await estimator.getByRole('button',{name:'Remove scope.txt'}).waitFor();assert.match(await description.inputValue(),/LongUnbrokenProjectSpecification/);await overflow(page);await capture(page,`${width}-scope`);
-  await estimator.getByRole('button',{name:'Continue',exact:true}).click();await estimator.getByRole('heading',{name:'Your project is ready to review',exact:true}).waitFor();assert.equal(await estimator.getByRole('region',{name:'Project question'}).count(),0,'Known facts were asked again');
+  await estimator.getByRole('button',{name:'Continue',exact:true}).click();await estimator.getByRole('heading',{name:'Review your project',exact:true}).waitFor();assert.equal(await estimator.getByRole('region',{name:'Project question'}).count(),0,'Known facts were asked again');
+  // The primary action sits above the detailed scope, beside the summary.
+  const action=estimator.getByRole('button',{name:'Get my estimate',exact:true});
+  assert.ok(await action.evaluate(el=>el.getBoundingClientRect().top<document.querySelector('[data-p5-estimator] input[type=checkbox]').getBoundingClientRect().top),'Get my estimate must appear above the details');
+  await noPinnedControls(estimator);
   // Reproduce an older saved question step after all its questions become known.
   await page.evaluate(()=>{const key='p5-project-draft-v2';const draft=JSON.parse(localStorage.getItem(key));draft.step=1;localStorage.setItem(key,JSON.stringify(draft));});
   await page.reload();await estimator.getByRole('button',{name:'Get my estimate',exact:true}).waitFor();await estimator.getByRole('checkbox').waitFor();
   assert.equal(await estimator.getByRole('region',{name:'Project question'}).count(),0,'Restored known facts were asked again');
   await estimator.getByLabel('Your name',{exact:true}).fill('Synthetic Test');await estimator.getByLabel('Email',{exact:true}).fill('customer@example.invalid');
-  await estimator.getByRole('button',{name:'Back to my project',exact:true}).click();await estimator.getByText('Uploaded',{exact:true}).waitFor();assert.match(await description.inputValue(),/LongUnbroken/);
+  await estimator.getByRole('button',{name:'Back to my project',exact:true}).click();await estimator.getByText('Uploaded and saved',{exact:true}).waitFor();assert.match(await description.inputValue(),/LongUnbroken/);
   const calls=state.scopeCalls;await estimator.getByRole('button',{name:'Continue',exact:true}).click();await estimator.getByLabel('Email',{exact:true}).waitFor();assert.equal(await estimator.getByLabel('Email',{exact:true}).inputValue(),'customer@example.invalid');assert.equal(state.scopeCalls,calls,'Going back unnecessarily repeated analysis');
-  await estimator.getByText(/project details saved/).click();await estimator.getByRole('button',{name:'Edit Tasks and quantities',exact:true}).click();const tasks=estimator.getByLabel('Tasks and quantities',{exact:true});await tasks.fill(fullAnswers.taskList+' '+('LongMaterialSpecification'.repeat(80)));await page.setViewportSize({width,height:500});await overflow(page);await page.setViewportSize({width,height:900});await estimator.getByRole('button',{name:'Done',exact:true}).click();
-  // A manual text edit is analyzed once before an estimate can be confirmed.
-  await estimator.getByRole('checkbox').check();await Promise.all([page.waitForResponse('**/api/p5-estimator/scope'),estimator.getByRole('button',{name:'Get my estimate',exact:true}).click()]);await page.waitForFunction(()=>!document.querySelector('[data-p5-estimator][aria-busy=true]'));assert.ok(state.scopeCalls>calls);
+  // Details are grouped in accordions; editing one detail re-reads the scope before pricing.
+  const details=estimator.locator('details',{hasText:'Additional scope details'}).first();if(!(await details.evaluate(el=>el.open)))await details.locator('summary').first().click();
+  await estimator.getByRole('button',{name:'Edit Tasks and quantities',exact:true}).click();const tasks=estimator.getByLabel('Tasks and quantities',{exact:true});await tasks.fill(fullAnswers.taskList+' '+('LongMaterialSpecification'.repeat(80)));await page.setViewportSize({width,height:500});await overflow(page);await page.setViewportSize({width,height:900});await estimator.getByRole('button',{name:'Done',exact:true}).click();
+  await estimator.getByRole('checkbox').check();await Promise.all([page.waitForResponse('**/api/p5-estimator/scope'),estimator.getByRole('button',{name:'Get my estimate',exact:true}).click()]);await settled(page);assert.ok(state.scopeCalls>calls);
   await overflow(page);await capture(page,`${width}-review`);await estimator.getByRole('checkbox').check();await estimator.getByRole('button',{name:'Get my estimate',exact:true}).click();await estimator.getByText('Schedule a scope review.',{exact:true}).waitFor();
-  await estimator.getByRole('heading',{name:'Carpentry',exact:true}).waitFor();await estimator.getByText('Repair three interior doors',{exact:true}).waitFor();await overflow(page);
-  assert.ok(!/overheadRecovery|operatingProfit|unitCost/.test(await estimator.innerText()));await capture(page,`${width}-result`);
+  // The result is organized into category accordions with subtotals and labeled exclusions.
+  const carpentry=estimator.locator('details',{hasText:'Carpentry'}).first();await carpentry.waitFor();assert.match(await carpentry.locator('summary').innerText(),/\$1,000 to \$1,800/);
+  if(!(await carpentry.evaluate(el=>el.open)))await carpentry.locator('summary').click();await estimator.getByText('Repair three interior doors',{exact:true}).first().waitFor();
+  const exclusions=estimator.locator('details',{hasText:'Exclusions'}).first();await exclusions.waitFor();assert.match(await exclusions.locator('summary').innerText(),/excluded/i);
+  await overflow(page);assert.ok(!/overheadRecovery|operatingProfit|unitCost/.test(await estimator.innerText()));await capture(page,`${width}-result`);
   await page.waitForTimeout(2100);assert.equal(state.postSubmissionSaves,0);await page.reload();await estimator.getByText('Schedule a scope review.',{exact:true}).waitFor();assert.equal(state.submissions,1);assert.deepEqual(errors,[]);
-  results.push({width,passed:true,checks:['null receipt preserves files','single input and native keyboard dictation','typed and uploaded mixed input','failed upload and reload recovery','known facts skipped','back and contact preservation','manual text reanalysis','line-item privacy','single submission','result restoration','overflow']});
+  results.push({width,passed:true,checks:['null receipt preserves files','talk to text','typed and uploaded mixed input','failed upload and reload recovery','known facts skipped','primary action above details','no pinned controls','back and contact preservation','manual text reanalysis','category accordions','line-item privacy','single submission','result restoration','overflow']});
  }catch(error){results.push({width,passed:false,error:String(error),pageErrors:errors});await capture(page,`${width}-failure`).catch(()=>{});}await context.close();
 }
 // Reproduce two clarification questions, a failed save, same-answer retry and reload.
@@ -106,29 +121,50 @@ for(const width of [390,1440]){
   results.push({scenario:'sequential-instructions',width,passed:true});
  }catch(error){results.push({scenario:'sequential-instructions',width,passed:false,error:String(error)});await capture(page,`${width}-instructions-failure`).catch(()=>{});}await context.close();
 }
-
 // Project-specific missing questions and a single conflicting fact.
 for(const scenario of ['manual','conflict','unavailable']){
  const context=await browser.newContext({viewport:{width:390,height:844}});await mock(context,{scenario});const page=await context.newPage();
  try{
   await page.goto(base+'/estimate/p5-preview');const est=page.locator('[data-p5-estimator]');
   if(scenario==='conflict')await est.getByLabel('Tell us about your project',{exact:true}).fill('Two documents disagree about door repairs.');
+  else await est.getByLabel('Tell us about your project',{exact:true}).fill('Repair three interior doors.');
   await est.getByRole('button',{name:'Continue',exact:true}).click();
   if(scenario!=='conflict'){
-   await est.getByRole('region',{name:'Project question'}).getByRole('button',{name:service==='handyman'?'Home repairs':service==='cabinet-install'?'Cabinets with installation':service==='new-construction'?'New home':'Bathroom remodel',exact:true}).click();await est.getByRole('button',{name:'Continue',exact:true}).click();await page.waitForFunction(()=>!document.querySelector('[data-p5-estimator][aria-busy=true]'));
-   // Answer only this project's material questions; unknown numeric details remain explicit.
-   for(let i=0;i<8&&await est.getByRole('region',{name:'Project question'}).count();i++){
-    const q=est.getByRole('region',{name:'Project question'});const text=q.locator('textarea');
-    if(await text.count()){await text.fill('Repair three interior doors');await q.getByRole('button',{name:'Continue',exact:true}).click();}
+   await settled(page);
+   // Answer the service choice if asked, then only this project material questions; unknown numeric details remain explicit.
+   for(let i=0;i<10&&await est.getByRole('region',{name:'Project question'}).count();i++){
+    const q=est.getByRole('region',{name:'Project question'});const text=q.locator('textarea');const choice=q.getByRole('button',{name:serviceLabel,exact:true});
+    if(await choice.count()){await choice.click();await q.getByRole('button',{name:'Continue',exact:true}).click();}
+    else if(await text.count()){await text.fill('Repair three interior doors');await q.getByRole('button',{name:'Continue',exact:true}).click();}
     else if(await q.getByRole('button',{name:'Not sure yet',exact:true}).count())await q.getByRole('button',{name:'Not sure yet',exact:true}).click();
     else throw new Error('Unexpected required section');
-    await page.waitForFunction(()=>!document.querySelector('[data-p5-estimator][aria-busy=true]'));
+    await settled(page);
    }
   }else{
    await est.getByText('The documents disagree. Which work should be included?',{exact:true}).waitFor();await est.getByRole('button',{name:'Replace three doors',exact:true}).click();await est.getByRole('button',{name:'Continue',exact:true}).click();
   }
-  await est.getByRole('heading',{name:'Your project is ready to review',exact:true}).waitFor();await overflow(page);results.push({scenario,passed:true});
+  await est.getByRole('heading',{name:'Review your project',exact:true}).waitFor();await overflow(page);results.push({scenario,passed:true});
  }catch(error){results.push({scenario,passed:false,error:String(error)});await capture(page,`${scenario}-failure`).catch(()=>{});}await context.close();
+}
+// Missing information after Get my estimate links straight to the missing field, keeps progress, and completes.
+for(const width of [390,1440]){
+ const context=await browser.newContext({viewport:{width,height:900}});const state=await mock(context,{scenario:'missing'});const page=await context.newPage();
+ try{
+  await page.goto(base+'/estimate/p5-preview');const est=page.locator('[data-p5-estimator]');
+  await est.getByLabel('Tell us about your project',{exact:true}).fill('Install new baseboard trim.');await est.getByRole('button',{name:'Continue',exact:true}).click();
+  await est.getByRole('heading',{name:'Review your project',exact:true}).waitFor();
+  await est.getByLabel('Your name',{exact:true}).fill('Synthetic Test');await est.getByLabel('Email',{exact:true}).fill('customer@example.invalid');await est.getByRole('checkbox').check();
+  await est.getByRole('button',{name:'Get my estimate',exact:true}).click();
+  const alert=est.getByRole('alert');await alert.getByText('A few more details are needed',{exact:true}).waitFor();
+  await alert.getByRole('button',{name:/Trim or baseboard length in feet/}).click();
+  const question=est.getByRole('region',{name:'Project question'});await question.getByText('What should we use for trim or baseboard length in feet?',{exact:true}).waitFor();
+  await question.getByLabel('Trim or baseboard length in feet',{exact:true}).fill('120');await question.getByRole('button',{name:'Continue',exact:true}).click();await settled(page);
+  await est.getByRole('heading',{name:'Review your project',exact:true}).waitFor();
+  assert.equal(await est.getByLabel('Email',{exact:true}).inputValue(),'customer@example.invalid','Contact details survive the detour');
+  await est.getByRole('checkbox').check();await est.getByRole('button',{name:'Get my estimate',exact:true}).click();await est.getByText('Schedule a scope review.',{exact:true}).waitFor();
+  assert.equal(state.submissions,1);await capture(page,`${width}-missing-recovered`);
+  results.push({scenario:'missing-information',width,passed:true});
+ }catch(error){results.push({scenario:'missing-information',width,passed:false,error:String(error)});await capture(page,`${width}-missing-failure`).catch(()=>{});}await context.close();
 }
 for(const width of [320,390,1440]){
  const context=await browser.newContext({viewport:{width,height:900}});const progressState=await mock(context,{scenario:'progress'});const page=await context.newPage();
@@ -136,17 +172,17 @@ for(const width of [320,390,1440]){
   await page.goto(base+'/estimate/p5-preview');const est=page.locator('[data-p5-estimator]');
   await est.getByLabel('Tell us about your project',{exact:true}).fill('Synthetic progress test: repair three interior doors.');
   await est.getByRole('button',{name:'Continue',exact:true}).click();
-  await page.getByText('8 of 256 original pages read',{exact:true}).waitFor();
+  await page.getByText('8 of 256 pages checked',{exact:true}).waitFor();
   assert.equal(await page.getByRole('progressbar',{name:'Original pages fully read'}).getAttribute('value'),'8');
-  await page.getByRole('heading',{name:'Working on',exact:true}).waitFor();await overflow(page);await capture(page,`${width}-live-reading`);
+  await page.getByRole('heading',{name:'Reading your plans',exact:true}).waitFor();await overflow(page);await capture(page,`${width}-live-reading`);
   progressState.readStage=2;
-  await page.getByText('16 of 256 original pages read',{exact:true}).waitFor();
+  await page.getByText('16 of 256 pages checked',{exact:true}).waitFor();
   progressState.finishReading=true;
   await est.getByLabel('Your name',{exact:true}).waitFor();
   assert.equal(await est.getByRole('button',{name:'Download your project summary',exact:true}).count(),0,'No PDF before contact capture');
   assert.equal(await est.getByText('Schedule a scope review.',{exact:true}).count(),0,'No estimate result before contact capture');
   await est.getByRole('checkbox').check();await est.getByRole('button',{name:'Get my estimate',exact:true}).click();
-  await est.getByRole('alert').filter({hasText:'Enter your name and a valid email address.'}).waitFor();
+  await est.getByRole('alert').filter({hasText:'Enter your name and a valid email address'}).waitFor();
   assert.equal(progressState.pricingPolls,0);assert.equal(progressState.submissions,0,'Contact is required before an estimate can be revealed');
   await est.getByLabel('Your name',{exact:true}).fill('Synthetic Test');await est.getByLabel('Email',{exact:true}).fill('customer@example.invalid');
   await est.getByRole('checkbox').check();

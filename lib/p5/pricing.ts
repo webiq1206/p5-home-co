@@ -42,7 +42,7 @@ export const DEFAULT_FINANCE: FinancePolicy = {
 export const UNCONFIGURED_FINANCE = DEFAULT_FINANCE;
 export interface CostEvidence {
   provenance?:{status:'estimated'|'verified';location:string;retrievedAt:string;assumptions:string[];sources:{url:string;date:string;dateBasis?:'published'|'retrieved';region:string;low:number;high:number}[]};
-  basis: "written-quote" | "payroll" | "market-replacement" | "approved-cost-book" | "planning-assumption" | "owner-estimating-schedule" | "sourced-market-average";
+  basis: "written-quote" | "payroll" | "market-replacement" | "approved-cost-book" | "planning-assumption" | "owner-estimating-schedule" | "sourced-market-average" | "regional-planning-average";
   reference: string;
   verifiedAt: string;
   validUntil: string;
@@ -62,7 +62,7 @@ export interface DirectCostLine {
   unitCostRange?:{low:number;high:number};
   quantityRange?:{low:number;high:number};
   /** A modeled cost budget is not an observed invoice or payroll record. */
-  estimatingBasis?:'owner-average-cost'|'historical-cost-budget'|'sourced-market-average';
+  estimatingBasis?:'owner-average-cost'|'historical-cost-budget'|'sourced-market-average'|'regional-planning-average';
   trade?: TradeCategory;
   /** Historical selling prices are comparison evidence, never direct cost. */
   priceBasis?: "direct-cost" | "customer-price" | "unknown";
@@ -174,7 +174,8 @@ export function calculateP5Estimate(input: PricingInput, finance: FinancePolicy,
   const directByCategory = Object.fromEntries(COST_CATEGORIES.map(c => [c, 0])) as Record<CostCategory, number>;
   const lines = input.lines.map(line => {
     const trade=tradeForLine(line);
-    const modeled=input.estimatePurpose==='preliminary'&&((line.evidence?.basis==='owner-estimating-schedule'&&['owner-average-cost','historical-cost-budget'].includes(line.estimatingBasis||''))||(line.evidence?.basis==='sourced-market-average'&&line.estimatingBasis==='sourced-market-average'));
+    const modeled=input.estimatePurpose==='preliminary'&&((line.evidence?.basis==='owner-estimating-schedule'&&['owner-average-cost','historical-cost-budget'].includes(line.estimatingBasis||''))||(line.evidence?.basis==='sourced-market-average'&&line.estimatingBasis==='sourced-market-average')||(line.evidence?.basis==='regional-planning-average'&&line.estimatingBasis==='regional-planning-average'));
+    if(line.evidence?.basis==='regional-planning-average')warn(modeled?'planning-average-preliminary':'planning-average-preliminary-only',`${line.id}: regional planning average, not verified local pricing. Confirm current local rates before a firm proposal.`,modeled?'review':'block');
     if(line.evidence?.basis==='sourced-market-average'&&!modeled)warn('market-average-preliminary-only',`${line.id}: sourced averages require current quotes before a firm proposal.`,'block');
     if(line.evidence?.basis==='owner-estimating-schedule'&&!modeled)warn('estimating-purpose-required',`${line.id}: owner estimating rates are restricted to the configured preliminary model.`,'block');
     if(line.priceBasis && line.priceBasis!=="direct-cost") warn("selling-price-as-cost", `${line.id}: confirm current direct cost. Do not apply P5 allocations or profit to a customer selling price or an unknown price basis.`, "block");
@@ -262,7 +263,7 @@ export function calculateP5Estimate(input: PricingInput, finance: FinancePolicy,
   return {
     policyVersion: POLICY_VERSION, revision: input.revision, evaluatedAt: now.toISOString(),
     estimatePurpose: input.estimatePurpose||'verified-cost-review',
-    currentCostsConfirmed: !lines.some(line=>['owner-estimating-schedule','sourced-market-average'].includes(line.evidence.basis)),
+    currentCostsConfirmed: !lines.some(line=>['owner-estimating-schedule','sourced-market-average','regional-planning-average'].includes(line.evidence.basis)),
     service, requestedService: input.service, matrix, lines:pricedLines, coverage: input.coverage,
     directByCategory, directCost, contingencyRate, contingency, riskAdjustedDirectCost,
     allocations, allocationDollars, targetOperatingProfit: margin, operatingProfit, divisor,
@@ -288,7 +289,7 @@ export function customerEstimate(estimate: P5Estimate, summary: string) {
   const highWeights=estimate.lines.some(l=>l.unitCostRange||l.quantityRange)?estimate.lines.map((line,i)=>Math.max(0,(line.quantityRange?.high??line.quantity)*(line.unitCostRange?.high??line.unitCost)*(1+estimate.contingencyRate)/estimate.divisor-lows[i])):weights;
   const increases=apportionAmount(estimate.planningRange.high-estimate.planningRange.low,highWeights.some(n=>n>0)?highWeights:weights);
   const highs=lows.map((low,i)=>low+increases[i]);
-  const lineItems=estimate.publishable?estimate.lines.map((line,i)=>({id:line.id,category:tradeForLine(line),description:line.description,quantity:line.quantity,unit:line.unit,low:lows[i],high:highs[i],unitLow:lows[i]/line.quantity,unitHigh:highs[i]/line.quantity,...(line.building?{building:line.building}:{}),...(line.floor?{floor:line.floor}:{}),...(line.quantityRange?{quantityRange:line.quantityRange}:{}),pricingStatus:line.allowance||line.estimatingBasis==='sourced-market-average'?'estimated-allowance':line.evidence.basis==='owner-estimating-schedule'?'owner-planning-rate':'verified-cost',...(line.allowance||line.estimatingBasis==='sourced-market-average'||line.evidence.basis==='owner-estimating-schedule'?{verification:'Confirm quantities, selections and current supplier/trade pricing before a firm proposal.'}:{}),...(line.evidence.provenance?{rateLocation:line.evidence.provenance.location,rateDate:line.evidence.provenance.retrievedAt,rateSources:line.evidence.provenance.sources.map(s=>s.url)}:{})})):[];
+  const lineItems=estimate.publishable?estimate.lines.map((line,i)=>({id:line.id,category:tradeForLine(line),description:line.description,quantity:line.quantity,unit:line.unit,low:lows[i],high:highs[i],unitLow:lows[i]/line.quantity,unitHigh:highs[i]/line.quantity,...(line.building?{building:line.building}:{}),...(line.floor?{floor:line.floor}:{}),...(line.quantityRange?{quantityRange:line.quantityRange}:{}),pricingStatus:line.allowance||line.estimatingBasis==='sourced-market-average'||line.estimatingBasis==='regional-planning-average'?'estimated-allowance':line.evidence.basis==='owner-estimating-schedule'?'owner-planning-rate':'verified-cost',...(line.estimatingBasis==='regional-planning-average'?{verification:'Regional planning average, not verified local pricing. Confirm current local rates, quantities and selections before a firm proposal.'}:line.allowance||line.estimatingBasis==='sourced-market-average'||line.evidence.basis==='owner-estimating-schedule'?{verification:'Confirm quantities, selections and current supplier/trade pricing before a firm proposal.'}:{}),...(line.evidence.provenance?{rateLocation:line.evidence.provenance.location,rateDate:line.evidence.provenance.retrievedAt,rateSources:line.evidence.provenance.sources.map(s=>s.url)}:{})})):[];
   return {
     status: estimate.publishable ? "planning-range" as const : "review-required" as const,
     range: estimate.publishable ? estimate.planningRange : null,

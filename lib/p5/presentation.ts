@@ -6,7 +6,7 @@ export const readable=(s:string)=>s.replace(/([a-z])([A-Z])/g,'$1 $2').replace(/
 // Preserve original wording, numbers and exclusions. Never split decimal values or URLs.
 export const scopeBullets=(s:string)=>s.split(/\n+|(?<=[.!?])\s+(?=[A-Z])/).map(x=>x.trim().replace(/^[•*]\s*/, '')).filter(Boolean);
 const overview=new Set(['service','location','address','sqft','garageSqft','coveredOutdoorSqft','rooms','bathrooms','stories','schedule','urgency','complexity','finish']);
-const categories:Record<string,string>={site:'Site & utilities',utilities:'Site & utilities',access:'Site & utilities',demolition:'Demolition',structural:'Structure',mechanical:'Heating & Cooling',plumbing:'Plumbing',electrical:'Electrical',appliances:'Appliances',permits:'Permits & design',engineering:'Permits & design',materials:'Materials & finishes',fixtures:'Fixtures & finishes',allowances:'Allowances & selections',exclusions:'Excluded work',ownerSupplied:'Owner responsibilities',alternates:'Alternates'};
+export const FIELD_CATEGORY_TITLES:Record<string,string>={site:'Site & utilities',utilities:'Site & utilities',access:'Site & utilities',demolition:'Demolition',structural:'Structure',mechanical:'Heating & Cooling',plumbing:'Plumbing',electrical:'Electrical',appliances:'Appliances',permits:'Permits & design',engineering:'Permits & design',materials:'Materials & finishes',fixtures:'Fixtures & finishes',allowances:'Allowances & selections',exclusions:'Excluded work',ownerSupplied:'Owner responsibilities',alternates:'Alternates'};
 function itemPriceText(item:any){
  const quantity=`${Number(item.quantity).toLocaleString('en-US')} ${item.unit}${item.quantityRange?` modeled allowance (${item.quantityRange.low.toLocaleString('en-US')} to ${item.quantityRange.high.toLocaleString('en-US')} ${item.unit} to verify)`:''}`;
  const total=`${money(item.low)} to ${money(item.high)} total`;
@@ -24,7 +24,7 @@ export function summarySections(summary:string):EstimateSection[]{
   const [key,definition]=entry;let value=line.slice(definition.label.length+2);
   if(definition.kind==='number'&&/^\d[\d,.]*$/.test(value))value=Number(value.replaceAll(',','')).toLocaleString('en-US');
   if(definition.kind==='choice')value=readable(value);
-  const title=overview.has(key)?'Project at a glance':categories[key]||'Additional scope details';
+  const title=overview.has(key)?'Project at a glance':FIELD_CATEGORY_TITLES[key]||'Additional scope details';
   const rows=groups.get(title)||[];active=[definition.label,value];rows.push(active);groups.set(title,rows);
  }
  const sections:EstimateSection[]=[];
@@ -65,4 +65,21 @@ export function estimateSections(result:any):EstimateSection[]{
   sections.push({title,bullets:values.map((x:any)=>typeof x==='string'?x:`${x.description}${x.amount!=null?`: ${money(x.amount)} included`:': selection to confirm'}. Includes ${(x.includes||[]).join(', ')}. ${['tax','freight','delivery','installation','waste'].map(k=>`${k}: ${x[k+'Included']?'included':'excluded'}`).join('; ')}. Selection deadline: ${x.selectionDeadline}. ${x.adjustment}`)});
  }
  return sections;
+}
+
+/** Review-screen grouping for a scope field. */
+export function fieldCategory(field:string):string{
+ return overview.has(field)?"Project at a glance":FIELD_CATEGORY_TITLES[field]||"Additional scope details";
+}
+export interface CategoryLine {id:string;label:string;quantity:number;unit:string;quantityRange?:{low:number;high:number};low:number;high:number;unitLow:number;unitHigh:number;status:string;verification?:string;rateLocation?:string;rateDate?:string}
+export interface CategoryBreakdown {category:string;low?:number;high?:number;tasks:string[];items:CategoryLine[]}
+/** Structured category accordions for the customer result. Same data as estimateSections, without prose. */
+export function categoryBreakdown(result:any):CategoryBreakdown[]{
+ const lines:any[]=result?.lineItems||[],tasks:any[]=result?.scopeTasks||[];
+ const categories=[...new Set<string>([...(result?.includedCategories||[]),...lines.map(x=>x.category),...tasks.map(x=>x.category||suggestedTrade(x.description))])];
+ return categories.map(category=>{
+  const range=result?.categoryRanges?.find((x:any)=>x.category===category);
+  const items:CategoryLine[]=lines.filter(x=>x.category===category).map(x=>({id:String(x.id),label:[x.building,x.floor?`Floor ${x.floor}`:"",x.description].filter(Boolean).join(" / "),quantity:Number(x.quantity),unit:String(x.unit),...(x.quantityRange?{quantityRange:x.quantityRange}:{}),low:Number(x.low),high:Number(x.high),unitLow:Number(x.unitLow),unitHigh:Number(x.unitHigh),status:String(x.pricingStatus||"verified-cost"),...(x.verification?{verification:x.verification}:{}),...(x.rateLocation?{rateLocation:x.rateLocation}:{}),...(x.rateDate?{rateDate:String(x.rateDate).slice(0,10)}:{})}));
+  return {category,...(range?{low:range.low,high:range.high}:{}),tasks:[...new Set<string>(tasks.filter(x=>(x.category||suggestedTrade(x.description))===category).map(x=>x.description))],items};
+ });
 }

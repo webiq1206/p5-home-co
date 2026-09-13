@@ -18,10 +18,14 @@ export function priceReviewedScope(scope:ReviewedScope,configuration:EstimatorCo
   if(!Object.hasOwn(SERVICE_MATRIX,service))throw new Error("Choose a valid project type.");
   let book=configuration.costBooks.find(book=>book.service===service);
   const summary=scopeText(scope);
+  const explicitExclusions=[...new Set([
+    ...(scope.extraction?.instructions?.exclusions||[]),
+    ...(scope.answers.exclusions?[scope.answers.exclusions]:[]),
+  ].filter(Boolean))];
   const revision=createHash("sha256").update(JSON.stringify({policyVersion:POLICY_VERSION,scope,configuration,resolution})).digest("hex");
   if(!book)return {
     internal:{revision,scope,missingInformation:["A current, approved direct-cost book is required for this service."],pricingWarnings:["cost-book-missing"],financeSnapshot:configuration.finance},
-    customer:{status:"review-required",range:null,summary,includedCategories:[],categoryRanges:[],lineItems:[],allowances:[],assumptions:[],exclusions:[],factors:[],nextStep:SERVICE_MATRIX[service].method,message:"We have your project details. A specialist needs to confirm current costs before we can provide a reliable planning range.",disclaimer:"Preliminary project information only. This is not a bid, quote, offer or guaranteed price."},
+    customer:{status:"review-required",range:null,summary,includedCategories:[],categoryRanges:[],lineItems:[],allowances:[],assumptions:[],exclusions:explicitExclusions,factors:[],nextStep:SERVICE_MATRIX[service].method,message:"We have your project details. A specialist needs to confirm current costs before we can provide a reliable planning range.",disclaimer:"Preliminary project information only. This is not a bid, quote, offer or guaranteed price."},
   };
   const missingInformation=[...(scope.extraction?.missingInformation||[])];
   if(resolution?.replaceBase)book={...book,rules:[],exclusions:[],assumptions:[],coverage:COST_CATEGORIES.map(category=>({category,status:'not-applicable' as const,reason:'Only the explicitly requested scope is priced; see itemized scope.'}))};
@@ -51,7 +55,7 @@ export function priceReviewedScope(scope:ReviewedScope,configuration:EstimatorCo
     const {when,quantity:quantityRule,...cost}=rule;
     lines.push({...cost,quantity,quantitySource:rule.quantity.field?`Reviewed ${rule.quantity.field}: ${value}; quantity factor ${rule.quantity.factor}`:`Approved fixed scope: ${book.verifiedScope}; ${rule.description}`});
   }
-  if(!lines.length)return {internal:{revision,scope,missingInformation,pricingWarnings:[resolution?.issues.length?'scope-pricing-incomplete':'quantities-missing'],costBookSnapshot:book},customer:{status:'review-required',range:null,summary,includedCategories:[],categoryRanges:[],lineItems:[],allowances:[],assumptions:book.assumptions,exclusions:book.exclusions,factors:[],nextStep:SERVICE_MATRIX[service].method,message:resolution?.issues.length?'Your scope is saved. Pricing is not complete yet. Review the items requiring verification or retry pricing research.': 'We have your scope. Confirm the missing quantities to calculate the planning range.',disclaimer:'Preliminary project information only. This is not a bid, quote, offer or guaranteed price.'}};
+  if(!lines.length)return {internal:{revision,scope,missingInformation,pricingWarnings:[resolution?.issues.length?'scope-pricing-incomplete':'quantities-missing'],costBookSnapshot:book},customer:{status:'review-required',range:null,summary,includedCategories:[],categoryRanges:[],lineItems:[],allowances:[],assumptions:book.assumptions,exclusions:[...new Set([...book.exclusions,...explicitExclusions])],factors:[],nextStep:SERVICE_MATRIX[service].method,message:resolution?.issues.length?'Your scope is saved. Pricing is not complete yet. Review the items requiring verification or retry pricing research.': 'We have your scope. Confirm the missing quantities to calculate the planning range.',disclaimer:'Preliminary project information only. This is not a bid, quote, offer or guaranteed price.'}};
   const risks:RiskFactor[]=[];
   if(!scope.answers.utilities&&["new-construction","addition","adu"].includes(service))risks.push("unknown-utilities");
   if(!scope.answers.site&&["new-construction","addition","adu"].includes(service))risks.push("soil-slope");
@@ -59,14 +63,13 @@ export function priceReviewedScope(scope:ReviewedScope,configuration:EstimatorCo
   const input:PricingInput={service,revision,scopeSummary:summary,lines,coverage:book.coverage,risks,estimatePurpose:book.mode==='owner-planning'?'preliminary':undefined,
     locationProvided:Boolean(scope.answers.location||scope.answers.address),urgency:scope.answers.urgency as PricingInput["urgency"],complexity:scope.answers.complexity as PricingInput["complexity"],
     uncertainty:missingInformation.length||scope.extraction?.reviewNotes.length?"high":"medium",
-    assumptions:[...book.assumptions,...scopeAssumptions(scope.answers,scope.uncertainFields)],exclusions:[...book.exclusions,...(scope.answers.exclusions?[scope.answers.exclusions]:[])],
+    assumptions:[...book.assumptions,...scopeAssumptions(scope.answers,scope.uncertainFields)],exclusions:[...new Set([...book.exclusions,...explicitExclusions])],
     missingInformation,allowances:[],
   };
   const estimate=calculateP5Estimate(input,configuration.finance,[],now);
   if(resolution?.issues.length){estimate.publishable=false;estimate.warnings.push({code:'scope-pricing-incomplete',severity:'block',message:'Every requested task must have supported pricing before a total can be shown.'});}
   if(missingInformation.some(x=>x.startsWith('Missing cost rate:')||x.includes('catalog quarterly review'))){estimate.publishable=false;estimate.warnings.push({code:'planning-catalog-incomplete',severity:'block',message:'The planning catalog needs the recorded missing rate or scheduled review.'});}
   if(scope.uploads.length&&!scope.extraction){estimate.publishable=false;estimate.warnings.push({code:"uploads-unreviewed",severity:"block",message:"Supporting uploads have not been analyzed. Review them before publishing a price."});}
-  if(scope.uploads.length&&scope.extraction?.documentCoverage?.complete!==true){estimate.publishable=false;estimate.warnings.push({code:"document-coverage-incomplete",severity:"block",message:"Every uploaded page must have an explicit completed review record before publishing a price."});}
   if(scope.extraction?.reviewNotes.length){estimate.publishable=false;estimate.warnings.push({code:"scope-review-required",severity:"block",message:"Resolve document and scope review notes, including unsupported uploads, before publishing a price."});}
   // A dropped high-cost quantity cannot quietly become an exclusion.
   if(missingInformation.some(x=>x.startsWith("Missing quantity:")||x.startsWith("Missing cost condition:"))){estimate.publishable=false;estimate.warnings.push({code:"quantity-missing",severity:"block",message:"One or more cost-book quantities or scope conditions are missing."});}

@@ -35,6 +35,7 @@ export function planningQuestionFields(a:ScopeAnswers):ScopeField[]{
  const fields:ScopeField[]=[];
  if(BUILDS.has(a.service||'')){fields.push('sqft','garageIncluded');if(a.garageIncluded==='yes')fields.push('garageSqft');}
  else if(a.service?.startsWith('cabinet-'))fields.push('cabinetBaseLf','cabinetUpperLf','cabinetTallLf');
+ else if(/\b(?:cabinet|vanit(?:y|ies))\b/i.test([a.taskList,a.otherDetails].filter(Boolean).join(' ')))fields.push('cabinetBaseLf','cabinetUpperLf','cabinetTallLf');
  else if(SMALL.has(a.service||'')){
   const text=[a.taskList,a.otherDetails].join(' ').toLowerCase();
   if(/paint|drywall/.test(text))fields.push('sqft');
@@ -66,8 +67,12 @@ export function materializePlanningBook(book:ServiceCostBook,catalog:PlanningCat
  const retained=(re:RegExp)=>Boolean(a.ownerSupplied&&re.test(a.ownerSupplied.toLowerCase()))||unchanged(re);
  const count=(noun:string,defaultCount=1)=>{const normalized=text.replace(/\b(one|two|three|four|five|six|seven|eight|nine|ten)\b/g,w=>String(['one','two','three','four','five','six','seven','eight','nine','ten'].indexOf(w)+1));const match=normalized.match(new RegExp(`\\b(\\d+)\\s+(?:new\\s+|existing\\s+)?(?:${noun})`,'i'));return match?Number(match[1]):defaultCount;};
  const elapsed=(fallback:number)=>{const n=fieldNumber(a,'projectMonths');if(n!==undefined)return n;assumptions.push(`Temporary site facilities: ${fallback} month(s) for budgeting; adjust to the confirmed schedule.`);return fallback;};
- const cabinet=(fallbackBase:number|undefined,fallbackUpper:number|undefined)=>{
-  const base=quantity('cabinetBaseLf',fallbackBase),upper=quantity('cabinetUpperLf',fallbackUpper),tall=quantity('cabinetTallLf',0);
+ const cabinet=(fallbackBase:number|undefined,fallbackUpper:number|undefined,fallbackTall?:number)=>{
+  const base=quantity('cabinetBaseLf',fallbackBase),upper=quantity('cabinetUpperLf',fallbackUpper);
+  // Cabinet-service scope requires an explicit tall-unit answer. A missing
+  // answer is not equivalent to no tall units; only a stated zero (or an
+  // explicitly modeled fallback for a non-cabinet repair) may contribute 0.
+  const tall=quantity('cabinetTallLf',fallbackTall);
   // Tall units use a disclosed 2x base-run budget, not a false measured run.
   const run=base+upper+tall*2;if(tall)assumptions.push('Tall cabinetry carries twice the base-run unit budget; supplier design will replace this allowance.');
   const supply=service==='cabinet-product';const material=!retained(/cabinet/);const labor=!supply&&!unchanged(/cabinet/);
