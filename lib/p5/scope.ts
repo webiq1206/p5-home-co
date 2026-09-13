@@ -59,7 +59,7 @@ export type ScopeField = keyof typeof SCOPE_FIELDS;
 export type ScopeAnswers = Partial<Record<ScopeField, string>>;
 export interface ExtractedFact { field: ScopeField; value: string; confidence: number; source: string; evidence: string; basis?: "stated" | "calculated" | "visual" | "inferred" }
 export interface ScopeConflict { field: ScopeField; values: string[]; explanation: string; provenance?:'merged-independent-facts' }
-export interface ScopeExtraction { summary: string; facts: ExtractedFact[]; conflicts: ScopeConflict[]; missingInformation: string[]; reviewNotes: string[]; clarifications?: {field:ScopeField;question:string;reason:string}[]; instructions?:ScopeInstructions; documentCoverage?:import('./documentLedger.ts').DocumentCoverage; takeoffs?:import('./documentLedger.ts').Takeoff[] }
+export interface ScopeExtraction { summary: string; sourceText?:string; facts: ExtractedFact[]; conflicts: ScopeConflict[]; missingInformation: string[]; reviewNotes: string[]; clarifications?: {field:ScopeField;question:string;reason:string}[]; instructions?:ScopeInstructions; documentCoverage?:import('./documentLedger.ts').DocumentCoverage; takeoffs?:import('./documentLedger.ts').Takeoff[] }
 export interface ScopeUpload { id: string; name: string; type: string; size: number; sha256: string; status: "stored" | "failed" }
 export interface ReviewedScope {
   text: string; answers: ScopeAnswers; extraction: ScopeExtraction | null; uploads: ScopeUpload[];
@@ -221,6 +221,8 @@ export function mergeScopeFacts(current: ScopeAnswers, extraction: ScopeExtracti
 /** Merge page reads without losing distinct measurements or additive trade scope. */
 export function combineScopeExtractions(parts:ScopeExtraction[]):ScopeExtraction {
   const merged:ScopeExtraction={summary:[...new Set(parts.map(p=>p.summary).filter(Boolean))].join("\n"),facts:[],conflicts:parts.flatMap(p=>p.conflicts),missingInformation:[...new Set(parts.flatMap(p=>p.missingInformation))],reviewNotes:[...new Set(parts.flatMap(p=>p.reviewNotes))]};
+  const sourceTexts=parts.map(part=>part.sourceText).filter((text):text is string=>Boolean(text));
+  if(sourceTexts.length)merged.sourceText=sourceTexts.join("\n\n");
   if(parts.some(p=>p.instructions))merged.instructions=mergeInstructions(parts.flatMap(p=>p.instructions?[p.instructions]:[]));
   const coverage=parts.flatMap(p=>p.documentCoverage?[p.documentCoverage]:[]);
   if(coverage.length)merged.documentCoverage=combineCoverage(coverage);

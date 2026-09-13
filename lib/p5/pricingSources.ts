@@ -3,7 +3,7 @@ import type {ReviewedScope} from './scope.ts';
  * inventory and the final audit reconcile repeated descriptions, not quantities.
  */
 export function pricingSourceParts(scope:ReviewedScope){
-  const original={text:scope.text,answers:scope.answers,extraction:scope.extraction};
+  const original={text:scope.text,answers:scope.answers,extraction:scope.extraction,...(scope.extraction?.sourceText?{sourceNotice:'sourceText is original native document evidence. Reconcile all scope details and responsibilities against it. The visitor’s selections and exclusions define the requested subset; unselected alternatives remain excluded. Missing numbers are unknown.'}:{})};
   const serialized=JSON.stringify(original);
   if(serialized.length<=40000)return [original];
   const parts:Record<string,unknown>[]=[];

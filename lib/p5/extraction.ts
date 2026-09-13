@@ -225,6 +225,7 @@ export async function analyzeBatch(text: string, files: AnalysisFile[], previous
         : await analyzeWithAnthropic(provider, text, files, previous, boundedRequest, providerTimeout,sourceInstruction);
       const unsupported=unsupportedSpecifications(result.extraction,source?{...source,text:source.text+'\n'+text+'\n'+JSON.stringify(previous)}:null);
       if(unsupported.length)throw new UnsupportedSpecificationError(unsupported);
+      if(source)result.extraction.sourceText=source.text;
       const expected=files.flatMap(f=>f.pages||[]);
       // Each prepared detail batch is physically derived from exactly one
       // source page. Bind its evidence to that known page, not provider-local
@@ -245,7 +246,7 @@ export async function analyzeBatch(text: string, files: AnalysisFile[], previous
     } catch (error) {
       if(error instanceof ProcessingDeadlineError&&Date.now()>=absoluteDeadline)throw error;
       if(error instanceof UnsupportedSpecificationError&&!sourceRepair&&absoluteDeadline-Date.now()>1000){
-        sourceRepair=true;sourceInstruction=specificationHint(source)+' The preceding response incorrectly supplied '+error.specifications.join(', ')+'. Those complete designations are absent from the source. Re-read the supplied pages and keep the missing designations unspecified.';
+        sourceRepair=true;sourceInstruction=specificationHint(source)+' The preceding response incorrectly supplied '+error.specifications.join(', ')+'. Those claims are absent from the source. Re-read the supplied pages, omit unsupported work, and keep missing designations unspecified. Clearing, excavation and haul-off do not establish demolition work.';
         // Keep semantic correction on the same provider and original deadline.
         configured.splice(providerIndex+1,0,provider);
       }
