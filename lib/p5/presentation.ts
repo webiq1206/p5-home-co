@@ -35,7 +35,9 @@ export function summarySections(summary:string):EstimateSection[]{
 export function estimateSections(result:any):EstimateSection[]{
  const sections=summarySections(result.summary||'');
  const lines:any[]=result.lineItems||[], tasks:any[]=result.scopeTasks||[];
- const instructions=result.instructions;
+ const suppliedInstructions=result.instructions;
+ const list=(value:unknown):string[]=>Array.isArray(value)?value.filter((item):item is string=>typeof item==='string'):[];
+ const instructions=suppliedInstructions?{...suppliedInstructions,...Object.fromEntries(['inclusions','exclusions','responsibilities','floors','buildings','questions'].map(key=>[key,list(suppliedInstructions[key])]))}:null;
  if(instructions){
   sections.unshift({title:'Requested estimating scope',bullets:[...instructions.inclusions.map((x:string)=>`Include: ${x}`),...instructions.exclusions.map((x:string)=>`Exclude: ${x}`),...instructions.responsibilities,...instructions.floors.map((x:string)=>`Floor: ${x}`),...instructions.buildings.map((x:string)=>`Building: ${x}`),...(instructions.laborOnly?['Labor only; materials are not charged.']:[]),...(instructions.materialsOnly?['Materials only; labor is not charged.']:[])]});
   if(instructions.questions.length)sections.push({title:'Scope questions requiring clarification',bullets:instructions.questions});

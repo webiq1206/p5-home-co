@@ -77,7 +77,8 @@ function safeValidationReason(error: unknown): string {
   const message=error instanceof Error?error.message:'';
   if(/^Invalid takeoff evidence$/.test(message))return 'invalid-takeoff-evidence';
   if(/^Invalid takeoff /.test(message))return 'invalid-takeoff';
-  if(/^Invalid extracted fact /.test(message))return 'invalid-fact';
+  const fact=message.match(/^Invalid extracted fact \(([A-Za-z]+|unknown field): (field|empty value|value format|confidence|source|evidence)\)$/);
+  if(fact&&(fact[1]==='unknown field'||Object.hasOwn(SCOPE_FIELDS,fact[1])))return `invalid-fact:${fact[1]}:${fact[2]}`;
   if(/^Invalid fact(?: basis)?$/.test(message))return 'invalid-fact';
   if(/^Invalid conflict$/.test(message))return 'invalid-conflict';
   if(/^Invalid clarification$/.test(message))return 'invalid-clarification';

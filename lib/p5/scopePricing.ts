@@ -1,5 +1,5 @@
-import {retainedScopeInventory} from './scopeInventory';
-import {SERVER_BUDGET_MS,ProcessingDeadlineError,fetchWithinDeadline} from './processingBudget';
+import {retainedScopeInventory} from './scopeInventory.ts';
+import {SERVER_BUDGET_MS,ProcessingDeadlineError,fetchWithinDeadline} from './processingBudget.ts';
 import {createHash} from 'node:crypto';
 import {z} from 'zod';
 import {PricingPending} from './pricingProgress.ts';

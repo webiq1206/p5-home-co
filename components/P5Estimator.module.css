@@ -67,7 +67,7 @@
 /* The review action follows the thumb on touch phones, while remaining part of
    the form so it uses the exact same submit/validation path as the in-flow action. */
 .stickySubmit{display:none}
-@media(max-width:768px) and (pointer:coarse){
+@media(max-width:768px){
   .root[data-step="2"] .finalInlineAction{display:none}
   .root[data-step="2"]{scroll-padding-bottom:calc(100px + env(safe-area-inset-bottom,0px))}
   .root[data-step="2"] .formBody{padding-bottom:calc(104px + env(safe-area-inset-bottom,0px))}
@@ -114,4 +114,4 @@
 @media(max-width:580px){.root{padding:24px 18px;border-radius:16px;border:1px solid #dce2dc}.root h1{font-size:29px}.progress li{font-size:12px}.question{padding:20px 16px!important}.root .question h2{font-size:23px}.root .loadingCard{padding:22px 18px!important}.root .loadingCard h2{font-size:24px!important}.processingHeader{gap:8px}.processingFooter{align-items:center}.processingCount span{font-size:10px}.choices{grid-template-columns:1fr}.actions .primary{width:100%}.fields{gap:0}.inputTools .attach{padding:14px;gap:12px}.check{margin-bottom:20px}}
 @media(prefers-reduced-motion:reduce){.spinner{animation:none}.processingMeter progress::-webkit-progress-value{transition:none}}
 
-.root summary::after{content:'＋';margin-left:auto;padding-left:12px;color:#65736b;font-weight:400}.root details[open]>summary::after{content:'−'}.processingFooter>span{flex:1}.root .processingFooter button{white-space:nowrap;flex-shrink:0}
+.root summary::after{content:'+';margin-left:auto;padding-left:12px;color:#65736b;font-weight:400}.root details[open]>summary::after{content:'-'}.processingFooter>span{flex:1}.root .processingFooter button{white-space:nowrap;flex-shrink:0}

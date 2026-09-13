@@ -28,3 +28,8 @@ test('Specialty cabinet products and paint-grade trim retain the correct trade',
  assert.equal(suggestedTrade('Replace heating ductwork'),'Heating & Cooling');
  assert.equal(suggestedTrade('Supply an exterior entry door'),'Windows & Doors');
 });
+
+test("Partial saved instruction records remain readable without losing supplied exclusions",()=>{
+ const sections=estimateSections({summary:"",instructions:{exclusions:["Appliances"]}});
+ assert.ok(sections.some(section=>section.bullets?.includes("Exclude: Appliances")));
+});

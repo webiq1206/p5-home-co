@@ -1,4 +1,4 @@
-import {SERVER_BUDGET_MS,PROCESSING_PAUSED,remainingBudget} from './processingBudget';
+import {SERVER_BUDGET_MS,PROCESSING_PAUSED,remainingBudget} from './processingBudget.ts';
 import {createHash} from 'node:crypto';
 import {query} from './database';
 import {claimWork,writeWork,releaseWork} from './workStore';

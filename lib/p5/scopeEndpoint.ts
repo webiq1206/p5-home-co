@@ -1,4 +1,4 @@
-import {ProcessingDeadlineError,PROCESSING_PAUSED} from './processingBudget';
+import {ProcessingDeadlineError,PROCESSING_PAUSED} from './processingBudget.ts';
 import {applyCabinetIntent} from "./projectIntent";
 import {advanceAnalysis} from "./analysisWork";
 import {queuedJob} from './backgroundJobs';

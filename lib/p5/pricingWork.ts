@@ -1,4 +1,4 @@
-import {SERVER_BUDGET_MS,remainingBudget,withinDeadline,ProcessingDeadlineError} from './processingBudget';
+import {SERVER_BUDGET_MS,remainingBudget,withinDeadline,ProcessingDeadlineError} from './processingBudget.ts';
 import {createHash} from 'node:crypto';
 import {claimWork,writeWork,releaseWork} from './workStore';
 import {priceCompleteScope,requestPricing,type PricingReply,type PricingRequest} from './scopePricing';

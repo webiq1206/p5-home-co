@@ -51,6 +51,19 @@ export function materialScopeFields(answers:ScopeAnswers,pricedFields:ScopeField
   }
   return [...new Set([...required,...pricedFields])].filter(k=>!answers[k]?.trim());
 }
+const detailQuestions:Partial<Record<ScopeField,string>>={
+ cabinetRoom:'Which room are the cabinets for?',
+ cabinetBaseLf:'How many linear feet of base cabinets are needed?',
+ cabinetUpperLf:'How many linear feet of wall cabinets are needed?',
+ cabinetTallLf:'How many linear feet of tall cabinets are needed?',
+ garageSqft:'How many square feet is the garage?',
+ coveredOutdoorSqft:'How many square feet of covered outdoor space are included?',
+ laborHours:'How many total labor hours are included?',
+ projectMonths:'How many months do you expect the work to take?',
+ rooms:'How many rooms are included?',
+ bathrooms:'How many bathrooms are included?',
+ stories:'How many stories are included?',
+};
 export function scopeQuestions(input:ScopeAnswers,extraction:ScopeExtraction|null,conflicts:ScopeConflict[]=[],skipped:ScopeField[]=[],pricedFields:ScopeField[]=[]):ScopeQuestion[]{
   const answers=deriveScopeAnswers(input);
   const relevant=new Set<ScopeField>(['service',...materialScopeFields(answers,pricedFields),...pricedFields]);
@@ -60,7 +73,7 @@ export function scopeQuestions(input:ScopeAnswers,extraction:ScopeExtraction|nul
   questions.unshift(...instructionPrompts(extraction,answers).map(q=>({field:'estimatingInstructions' as const,label:'One scope detail',reason:q.question,detail:q.detail,values:q.values,instructionId:q.id})));
   for(const fact of uncertain)if(!questions.some(q=>q.field===fact.field)&&!skipped.includes(fact.field))questions.push({field:fact.field,label:SCOPE_FIELDS[fact.field].label,reason:`${SCOPE_FIELDS[fact.field].label}: we found “${fact.value}” in ${fact.source}. Is that correct?`,values:[fact.value]});
   for(const q of extraction?.clarifications||[])if(relevant.has(q.field)&&!(q.field==='finish'&&answers.materials)&&!(['address','location','schedule','urgency'].includes(q.field)&&!pricedFields.includes(q.field))&&!answers[q.field]?.trim()&&!skipped.includes(q.field)&&!questions.some(x=>x.field===q.field))questions.push({field:q.field,label:SCOPE_FIELDS[q.field].label,reason:SCOPE_FIELDS[q.field].kind==='number'?`Please confirm ${SCOPE_FIELDS[q.field].label.toLowerCase()}. Approximate is fine.`:visitorQuestionText(q.question)});
-  for(const field of relevant)if(!answers[field]?.trim()&&!questions.some(q=>q.field===field)&&!skipped.includes(field))questions.push({field,label:SCOPE_FIELDS[field].label,reason:field==='service'?'What would you like help with?':field==='taskList'?'What work should be included? A short list with quantities is enough.':field==='sqft'?(builds.includes(answers.service||'')?'About how many square feet of living space are included? Keep garage and outdoor areas separate.':'About how large is the area being worked on?'):field==='finish'?'This helps us allow for the materials you have in mind.':'This detail affects the work and its cost.'});
+  for(const field of relevant)if(!answers[field]?.trim()&&!questions.some(q=>q.field===field)&&!skipped.includes(field))questions.push({field,label:SCOPE_FIELDS[field].label,reason:field==='service'?'What would you like help with?':field==='taskList'?'What work should be included? A short list with quantities is enough.':field==='sqft'?(builds.includes(answers.service||'')?'About how many square feet of living space are included? Keep garage and outdoor areas separate.':'About how large is the area being worked on?'):field==='finish'?'What finish level would you like?':detailQuestions[field]||`What should we use for ${SCOPE_FIELDS[field].label.toLowerCase()}?`});
   return questions.map(q=>{const definition=SCOPE_FIELDS[q.field];const reason=visitorQuestionText(q.reason);const detail=q.detail?visitorQuestionText(q.detail):undefined;return {...q,reason,...(detail?{detail}:{}),...(!q.values?.length&&definition.kind==='choice'?{values:definition.options.filter(v=>q.field!=='service'||(ESTIMATOR_BRAND.services as readonly string[]).includes(v))}:{}),...(reason.length>240?{reason:`Please confirm ${q.label.toLowerCase()}.`,detail:reason}:{})};});
 }
 export function validateScopeAnswer(field:ScopeField,value:string){

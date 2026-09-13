@@ -1,4 +1,4 @@
-import {CLIENT_BUDGET_MS,remainingBudget,withinDeadline} from './processingBudget';
+import {CLIENT_BUDGET_MS,remainingBudget,withinDeadline} from './processingBudget.ts';
 import type {ProcessingStatus} from './processingStatus';
 /** Continue server-saved pricing stages without creating a second submission. */
 export async function completeSubmission(send:()=>Promise<Response>,progress:(message:string,status?:ProcessingStatus)=>void,wait:(ms:number)=>Promise<void>=ms=>new Promise(resolve=>setTimeout(resolve,ms)),deadline=Date.now()+CLIENT_BUDGET_MS){

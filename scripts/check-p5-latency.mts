@@ -12,7 +12,12 @@ const filename=index>=0?process.argv[index+1]:'';
 const files=filename?[{name:'Acceptance scope.pdf',type:'application/pdf',data:await readFile(filename)}]:[];
 const hasCabinet=(ESTIMATOR_BRAND.services as readonly string[]).includes('cabinet-install');
 const text=files.length?'':hasCabinet?'Supply and install two cabinets with 9 knobs. Assembly is 2 hours and cabinet installation is 8 hours. Choose one bench top: butcher block 5 hours, painted MDF/wood 4 hours, laminate 2 hours, quartz 5 hours. Cabinet lengths have not been measured. Exclude plumbing and electrical.':'Build a 20 by 30 foot single-story addition, 600 square feet of living space. No garage. Standard finishes. Include framing, insulation and drywall. Exclude appliance supply and landscaping.';
-const start=performance.now();const result=await analyzeScope(text,files,{});
+const start=performance.now();
+let result;
+try{result=await analyzeScope(text,files,{});}catch(error){
+ console.log(JSON.stringify({brand:ESTIMATOR_BRAND.id,elapsedMs:Math.round(performance.now()-start),complete:false,error:error instanceof Error?error.message:'analysis-failed'},null,2));
+ process.exit(1);
+}
 const elapsedMs=Math.round(performance.now()-start);
 const extraction=validateExtraction(result.extraction);
 const merged=reconcileScope({},extraction);

@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {PROCESSING_LIMIT_MS,CLIENT_BUDGET_MS,SERVER_BUDGET_MS,ProcessingDeadlineError,remainingBudget,withinDeadline,fetchWithinDeadline} from '../lib/p5/processingBudget.ts';
 import {completeSubmission} from '../lib/p5/submitProgress.ts';
-import {analysisSegments} from '../lib/p5/analysisWork.ts';
+import {analysisSegments} from '../lib/p5/analysisSegments.ts';
 import {analyzeBatch} from '../lib/p5/extraction.ts';
 import {PDFDocument} from 'pdf-lib';
 
