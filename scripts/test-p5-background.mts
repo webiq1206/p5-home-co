@@ -5,6 +5,8 @@ import {pathToFileURL} from 'node:url';
 import path from 'node:path';
 await mkdir('node_modules/.cache',{recursive:true});const dir=await mkdtemp(path.join(process.cwd(),'node_modules/.cache/p5-background-'));
 delete process.env.DATABASE_URL;
+// Requests drive jobs while they stay open; keep the hold short so the script observes intermediate states.
+process.env.P5_JOB_HOLD_MS='200';
 try{
  await cp('lib/p5',dir,{recursive:true});
  await writeFile(path.join(dir,'database.ts'),`import {PGlite} from '@electric-sql/pglite';export const database=new PGlite();export async function query(s:string,v:unknown[]=[]){return (await database.query(s,v)).rows;}`);
@@ -14,7 +16,7 @@ try{
  const id=randomUUID(),key=randomBytes(32).toString('hex');
  const draft=await store.saveDraft(id,key,'test',{text:'Queue fixture',answers:{},extraction:null,reviewed:null,contact:{name:'',email:'',phone:''}},0);
  const input={kind:'analysis',draft,text:'Queue fixture',answers:{}};
- assert.equal((await background.queuedJob(input)).state,'queued');
+ assert.ok(['queued','running','complete'].includes((await background.queuedJob(input,false,0)).state),'the job is durable before any pass runs');
  let live:any;
  for(let n=0;n<40;n++){await new Promise(r=>setTimeout(r,10));live=await background.queuedJob(input);if(live.processing?.phase==='reading')break;}
  assert.equal(live.processing.phase,'reading');assert.equal(live.processing.totalPages,16);assert.ok(live.processing.startedAt);
@@ -37,5 +39,5 @@ try{
  assert.equal((await db.query("SELECT * FROM p5_estimator_work WHERE work_key LIKE 'background-v1-%' AND payload->>'state'<>'complete'")).length,0);
  assert.equal((await db.query('SELECT * FROM p5_estimator_outbox')).length,0,'processing alone never sends customer messages');
  assert.equal((await db.query('SELECT * FROM p5_estimator_work WHERE lease_token IS NOT NULL')).length,0);
- await db.database.close();console.log('PASS: durable queue, live page status, continued work without browser polling, no duplicate finished work, expired-lease recovery, failure/retry, and no delivery side effects. SQL real, AI simulated.');
+ await db.database.close();console.log('PASS: durable queue, request-driven passes, live page status, continued work without browser polling, no duplicate finished work, expired-lease recovery, failure/retry, and no delivery side effects. SQL real, AI simulated.');
 }finally{await rm(dir,{recursive:true,force:true});}

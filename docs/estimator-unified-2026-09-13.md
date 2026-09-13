@@ -39,6 +39,19 @@ with `typedAlternatives.ts`).
   limit, a card explains that processing continues in the background and
   offers **Keep going**; nothing is recomputed.
 
+### Composer (2026-09-13, second pass)
+
+- Project entry is one chat-style composer, modelled on the Claude and ChatGPT
+  message boxes: a compact rounded box that grows with the text (scrolling past
+  about ten lines), file chips inside the box, and a toolbar with attach
+  (paperclip), talk (microphone, where the browser supports speech) and a
+  round send control. Files can also be dropped anywhere on the box.
+- The hidden file input keeps the accessible name "Upload project files" and
+  the textbox keeps "Tell us about your project", so the verification scripts
+  and assistive technology see the same controls as before.
+- The send control is the only "Continue" on the project step and is disabled
+  until there is text, a file, or an attached design.
+
 ## Processing and pricing
 
 - Background analysis and pricing jobs are no longer failed when they cross
@@ -62,6 +75,25 @@ with `typedAlternatives.ts`).
   pricing, and it keeps the same quantity defenses as sourced rates.
 - The submission reply for incomplete pricing now includes `missingFields`
   (scope-field vocabulary) so the interface can link to each missing detail.
+
+### Request-driven jobs (2026-09-13, second pass)
+
+- Live testing on the autoscale host showed pricing never finishing: work
+  started after a reply gets no CPU between requests, so a 240-second pricing
+  pass that ran "in the background" starved. Jobs are now driven by the
+  requests that ask about them (`lib/p5/backgroundJobs.ts`): a poll joins the
+  in-process run and stays open for up to `JOB_HOLD_MS` (25 s,
+  `P5_JOB_HOLD_MS`), replying as soon as the job finishes or saves progress.
+  The client keeps polling, so the instance keeps its CPU until the job ends.
+- A pass holds a renewable 150-second lease. If an instance is paused or
+  replaced the lease lapses and the next poll resumes from the saved stages.
+- Typed scopes have no document pages. Provider replies that invent page
+  records or takeoffs for a text-only read are now trimmed to facts instead of
+  failing the read (both providers were rejecting every typed-scope read with
+  "Invalid takeoff evidence" and the job looped).
+- The text-only provider race is opt-in from the first typed read only;
+  clarification reads cost one provider call, as P5 Home Co's clarification
+  test requires.
 
 ## Verification
 

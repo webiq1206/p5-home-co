@@ -13,6 +13,10 @@ export async function writeWork(draftId:string,workKey:string,token:string,paylo
   const rows=await query("UPDATE p5_estimator_work SET payload=$4::jsonb,updated_at=now(),lease_until=CASE WHEN $5 THEN NULL ELSE lease_until END,lease_token=CASE WHEN $5 THEN NULL ELSE lease_token END WHERE draft_id=$1 AND work_key=$2 AND lease_token=$3 RETURNING work_key",[draftId,workKey,token,JSON.stringify(payload),release]);
   if(!rows.length)throw new DraftError('This step is being retried in another tab. Your saved progress is intact.',409);
 }
+/** Extend a held lease; a pass that stops renewing lets another instance resume the saved stages. */
+export async function renewWork(draftId:string,workKey:string,token:string,seconds:number){
+  await query("UPDATE p5_estimator_work SET lease_until=now()+($4 * interval '1 second') WHERE draft_id=$1 AND work_key=$2 AND lease_token=$3",[draftId,workKey,token,seconds]);
+}
 export async function releaseWork(draftId:string,workKey:string,token:string){
   await query('UPDATE p5_estimator_work SET lease_until=NULL,lease_token=NULL WHERE draft_id=$1 AND work_key=$2 AND lease_token=$3',[draftId,workKey,token]);
 }

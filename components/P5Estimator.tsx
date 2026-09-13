@@ -24,6 +24,10 @@ const textAnswers=(a:ScopeAnswers)=>JSON.stringify(Object.entries(a).filter(([k,
 const labels:Record<string,string>={handyman:'Home repairs',re10:'Inspection and RE-10 repairs','cabinet-product':'Cabinets, supply only','cabinet-install':'Cabinets with installation',kitchen:'Kitchen remodel',bathroom:'Bathroom remodel','whole-home':'Whole-home remodel',addition:'Home addition',adu:'ADU','new-construction':'New home','change-order':'Change order',rush:'Rush work',refresh:'Simple refresh','mid-range':'Standard finishes','high-end':'Premium finishes',luxury:'Custom luxury finishes',standard:'Standard',priority:'Priority',emergency:'Emergency',complex:'Complex',yes:'Yes',no:'No'};
 const readable=(field:ScopeField,value:string)=>field==='cabinetRoom'?value.replaceAll('-',' ').replace(/\b\w/g,letter=>letter.toUpperCase()):labels[value]||value.replaceAll('-',' ');
 const scopeExample=(brand.id as string)==='cabinet'?'For example: Painted Shaker kitchen cabinets, 20 ft of base and 15 ft of uppers. Include installation.':(brand.id as string)==='construction'?'For example: Build a 2,500 sq ft home with an 800 sq ft garage. Our plans are attached.':(brand.id as string)==='handyman'?'For example: Fix three sticking doors, replace two faucets and repair damaged drywall.':'For example: Remodel our 8 x 10 ft bathroom. Keep the layout, replace the shower, tile and vanity.';
+const composerPlaceholder='Describe your project or drop files here. Include sizes, what to include or exclude, and who supplies materials.';
+const AttachGlyph=()=><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21.4 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>;
+const MicGlyph=()=><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 17v5M8 22h8"/></svg>;
+const FileGlyph=()=><svg aria-hidden="true" className={styles.chipIcon} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>;
 const accept='.pdf,.jpg,.jpeg,.png,.webp,.gif,.heic,.heif,.tif,.tiff,.avif,.txt,.csv,.json,.xlsx,.xls,.ods,.docx,.doc';
 const STEP_LABELS=['Project','Details','Estimate'];
 type Recognition={continuous:boolean;interimResults:boolean;lang:string;onresult:((event:any)=>void)|null;onerror:((event:any)=>void)|null;onend:(()=>void)|null;start:()=>void;stop:()=>void};
@@ -33,7 +37,7 @@ const theme=estimatorTheme();
 
 export function P5Estimator({defaultService='',headingAs='h1',projectSource}:{defaultService?:string;headingAs?:'h1'|'h2';projectSource?:ProjectSource}){
   const [draft,setDraft]=useState<BrowserDraft|null>(null);const current=useRef<BrowserDraft|null>(null);
-  const [files,setFiles]=useState<File[]>([]);const filesRef=useRef<File[]>([]);
+  const [files,setFiles]=useState<File[]>([]);const filesRef=useRef<File[]>([]);const fileInput=useRef<HTMLInputElement|null>(null);const composerRef=useRef<HTMLTextAreaElement|null>(null);
   const [busy,setBusy]=useState('');const busyRef=useRef(false);const [error,setError]=useState('');const [warning,setWarning]=useState('');const [status,setStatus]=useState('');
   const [uploadPercent,setUploadPercent]=useState<number|null>(null);const [preparingFiles,setPreparingFiles]=useState(false);const [dragging,setDragging]=useState(false);
   const [processing,setProcessing]=useState<ProcessingStatus|null>(null);const lastProcessing=useRef<ProcessingStatus|null>(null);
@@ -132,8 +136,11 @@ export function P5Estimator({defaultService='',headingAs='h1',projectSource}:{de
     if(!paused||busy)return;
     let cancelled=false;
     const kind=paused.kind;
+    let inFlight=false;
     const tick=async()=>{
-      const d=current.current;if(!d||cancelled)return;
+      const d=current.current;if(!d||cancelled||inFlight)return;inFlight=true;try{await check(d);}finally{inFlight=false;}
+    };
+    const check=async(d:NonNullable<typeof current.current>)=>{
       try{
         if(kind==='pricing'){
           const response=await fetch('/api/p5-estimator/submit',{method:'POST',headers:{...draftHeaders(d),'Content-Type':'application/json'},body:JSON.stringify({revision:d.revision,background:true,retry:false})});
@@ -212,6 +219,8 @@ export function P5Estimator({defaultService='',headingAs='h1',projectSource}:{de
     setStatus(data.warning?'Files uploaded. Some details still need review.':'Project details saved. We will only ask about what is missing.');showQuestions(next);
   }
   const needsAnalysis=()=>{const d=current.current;return Boolean(d&&(d.analysisWarning||!d.sourceDetached&&projectSource?.imageUrl&&d.sourceImageUrl!==projectSource.imageUrl||filesRef.current.length||d.text.trim()&&d.text!==d.analyzedText||textAnswers(d.answers)!=='[]'&&textAnswers(d.answers)!==d.analyzedAnswers));};
+  // The composer grows with its text, like a chat box, and scrolls past ten lines.
+  useEffect(()=>{const el=composerRef.current;if(!el)return;el.style.height='auto';el.style.height=Math.min(el.scrollHeight,300)+'px';},[draft?.text,draft?.answers.estimatingInstructions,draft?.step]);
   const begin=()=>run('Reading your project...',async()=>{
     if(!current.current?.text.trim()&&!filesRef.current.length&&!current.current?.uploads?.length&&!Object.values(current.current?.answers||{}).some(v=>v?.trim())){setError('Describe your project or add a file to continue.');return;}
     if(needsAnalysis()||(current.current?.uploads?.length&&!current.current.extraction))await analyze();
@@ -339,19 +348,27 @@ export function P5Estimator({defaultService='',headingAs='h1',projectSource}:{de
   const contactReady=draft.contact.name.trim().length>=2&&/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(draft.contact.email);
   const stepIndex=result?3:draft.step;
   const submitErrorId=`${id}-submit-error`;
+  const composerText=displayScopeText(draft.text,draft.answers.estimatingInstructions);
+  const canSend=Boolean(composerText.trim()||files.length||uploadedCount||attachedProjectSource);
   const projectInput=<>
-    <div className={styles.field}>
-      <div className={styles.fieldHead}><label htmlFor={`${id}-scope`}>Tell us about your project</label>{speechAvailable&&<button type="button" className={styles.mic} data-listening={listening} aria-pressed={listening} onClick={speak}><i aria-hidden="true"/>{listening?'Stop listening':'Talk instead'}</button>}</div>
-      <textarea id={`${id}-scope`} rows={5} value={displayScopeText(draft.text,draft.answers.estimatingInstructions)} onChange={e=>changeProjectText(e.target.value)} placeholder={`${scopeExample}\nInclude any notes, instructions, inclusions or exclusions.`}/>
-      <p className={styles.hint}>Include sizes, what to include or exclude, and who supplies materials. Instructions such as “price only the trim” or “exclude plumbing” are followed throughout.</p>
+    <div className={styles.composer} data-dragging={dragging} onDragEnter={e=>{e.preventDefault();setDragging(true);}} onDragOver={e=>e.preventDefault()} onDragLeave={e=>{if(!e.currentTarget.contains(e.relatedTarget as Node|null))setDragging(false);}} onDrop={e=>{e.preventDefault();setDragging(false);void addFiles(e.dataTransfer.files);}}>
+      <label htmlFor={`${id}-scope`} className={styles.srOnly}>Tell us about your project</label>
+      {Boolean(files.length||uploadedCount)&&<ul className={styles.chips} aria-label="Project files">
+        {draft.uploads?.map(f=><li key={f.id} className={styles.chip}><FileGlyph/><span className={styles.chipText}><span>{f.name}</span><small>Saved</small></span></li>)}
+        {files.map((f,i)=><li key={`${f.name}-${i}`} className={styles.chip}><FileGlyph/><span className={styles.chipText}><span>{f.name}</span><small>Ready</small></span><button type="button" className={styles.chipRemove} aria-label={`Remove ${f.name}`} onClick={async()=>{const next=filesRef.current.filter((_,index)=>i!==index);filesRef.current=next;setFiles(next);try{await cacheFiles(draft.id,next);}catch{setStatus('File removed from this session. Local storage could not be updated.');}}}><span aria-hidden="true">×</span></button></li>)}
+      </ul>}
+      <textarea ref={composerRef} id={`${id}-scope`} className={styles.composerText} rows={2} value={composerText} onChange={e=>changeProjectText(e.target.value)} placeholder={composerPlaceholder}/>
+      <div className={styles.composerBar}>
+        <div className={styles.composerTools}>
+          <button type="button" className={styles.iconBtn} aria-label="Attach files" title="Attach plans, photos, estimates or documents" onClick={()=>fileInput.current?.click()}><AttachGlyph/></button>
+          <input ref={fileInput} id={`${id}-files`} className={styles.srOnly} type="file" accept={accept} multiple tabIndex={-1} aria-label="Upload project files" onChange={e=>{const input=e.currentTarget;const selected=Array.from(input.files||[]);void addFiles(selected).then(()=>{input.value='';});}}/>
+          {speechAvailable&&<button type="button" className={styles.iconBtn} data-listening={listening} aria-pressed={listening} aria-label={listening?'Stop listening':'Talk instead'} title={listening?'Stop listening':'Talk instead'} onClick={speak}><MicGlyph/></button>}
+          <span className={styles.composerHint}>{dragging?'Drop files to add them':'Type, talk, or attach files'}</span>
+        </div>
+        <button type="button" className={styles.send} aria-label="Continue" title="Continue" onClick={begin} disabled={!canSend}><span aria-hidden="true">↑</span></button>
+      </div>
     </div>
-    <label className={styles.dropzone} htmlFor={`${id}-files`} data-dragging={dragging} onDragEnter={e=>{e.preventDefault();setDragging(true);}} onDragOver={e=>e.preventDefault()} onDragLeave={e=>{if(!e.currentTarget.contains(e.relatedTarget as Node|null))setDragging(false);}} onDrop={e=>{e.preventDefault();setDragging(false);void addFiles(e.dataTransfer.files);}}>
-      <span className={styles.dropzoneIcon} aria-hidden="true">↑</span>
-      <span><strong>Upload project files</strong><small>Plans, blueprints, photos, notes, estimates or proposals. PDF, images, Word, spreadsheets and text.</small></span>
-      <input id={`${id}-files`} type="file" accept={accept} multiple aria-label="Upload project files" onChange={e=>{const input=e.currentTarget;const selected=Array.from(input.files||[]);void addFiles(selected).then(()=>{input.value='';});}}/>
-    </label>
-    <p className={styles.hint}><details><summary>File types and limits</summary>{SCOPE_UPLOAD_HELP}</details></p>
-    {Boolean(files.length||uploadedCount)&&<ul className={styles.files} aria-label="Project files">{draft.uploads?.map(f=><li key={f.id}><span>{f.name}<small>Uploaded and saved</small></span></li>)}{files.map((f,i)=><li key={`${f.name}-${i}`}><span>{f.name}<small>Ready to upload</small></span><button type="button" className={styles.iconButton} aria-label={`Remove ${f.name}`} onClick={async()=>{const next=filesRef.current.filter((_,index)=>i!==index);filesRef.current=next;setFiles(next);try{await cacheFiles(draft.id,next);}catch{setStatus('File removed from this session. Local storage could not be updated.');}}}>Remove</button></li>)}</ul>}
+    <div className={styles.hint}>PDF, images, Word, spreadsheets and text. Instructions such as “price only the trim” or “exclude plumbing” are followed throughout. <details><summary>File types and limits</summary>{SCOPE_UPLOAD_HELP}</details></div>
     {!attachedProjectSource&&<div className={styles.tools}><button type="button" className={styles.ghost} onClick={()=>void switchProject()}>Start a different project</button>
       {recoveries.length>0&&<details className={styles.accordion} style={{flex:'1 1 100%',margin:0}}><summary><span className={styles.accordionTitle}>Saved project recovery</span><span className={styles.accordionMeta}>{recoveries.length}</span></summary><div className={styles.accordionBody}><ul className={styles.bullets} style={{listStyle:'none',paddingLeft:0}}>{recoveries.map(recovery=><li key={recovery.key}><button type="button" className={styles.secondary} onClick={()=>void switchProject(recovery)}>Restore {recovery.draft.text.slice(0,65)||'untitled project'}</button><details><summary className={styles.hint}>View saved details</summary><p style={{whiteSpace:'pre-wrap'}}>{displayScopeText(recovery.draft.text,recovery.draft.answers.estimatingInstructions)}</p><dl className={styles.rows}>{Object.entries(recovery.draft.answers).filter(([key])=>key!=='estimatingInstructions').map(([key,value])=><div key={key}><dt>{SCOPE_FIELDS[key as ScopeField]?.label||key}</dt><dd>{value}</dd></div>)}</dl>{recovery.draft.uploads?.map(file=><p key={file.id} className={styles.hint}>{file.name}</p>)}</details></li>)}</ul></div></details>}
     </div>}
@@ -376,7 +393,7 @@ export function P5Estimator({defaultService='',headingAs='h1',projectSource}:{de
     {!result&&<ol className={styles.steps} aria-label="Estimator progress">{STEP_LABELS.map((label,index)=><li key={label} data-state={index===draft.step?'current':index<draft.step?'done':'upcoming'} aria-current={draft.step===index?'step':undefined}><span aria-hidden="true">{index<draft.step?'✓':index+1}</span>{label}</li>)}</ol>}
     {!busy&&!preparingFiles&&<>
       <Heading ref={heading} tabIndex={-1} className={styles.title}>{result?'Your project summary':draft.step===0?(attachedProjectSource?'Your design is ready to estimate':'Start your estimate'):draft.step===1?'One quick detail':'Review your project'}</Heading>
-      <p className={styles.lead}>{result?'Review your estimate and the next step below.':draft.step===0?(attachedProjectSource?'Your design selections are included. Add anything else, then continue.':'Describe your project or add files. We only ask about what is missing.'):draft.step===1?'We saved what you provided. This detail affects the price.':'Check the summary, add where to send your estimate, and get your price.'}</p>
+      <p className={styles.lead}>{result?'Review your estimate and the next step below.':draft.step===0?(attachedProjectSource?'Your design selections are included. Add anything else, then continue.':'Type or talk about your project and attach any files. We only ask about what is missing.'):draft.step===1?'We saved what you provided. This detail affects the price.':'Check the summary, add where to send your estimate, and get your price.'}</p>
     </>}
     {result?<div className={styles.result}>
       <div className={styles.rangeCard}><p className={styles.eyebrow}>{result.range?'Preliminary planning range':'Status'}</p><h2>{result.range?`${result.range.low.toLocaleString("en-US",{style:"currency",currency:"USD",maximumFractionDigits:0})} to ${result.range.high.toLocaleString("en-US",{style:"currency",currency:"USD",maximumFractionDigits:0})}`:"Your scope is ready for pricing review"}</h2><p>{result.message}</p></div>
@@ -391,7 +408,6 @@ export function P5Estimator({defaultService='',headingAs='h1',projectSource}:{de
         {attachedProjectSource&&knownDetails}
         {projectInput}
         {pausedCard}{alertCard}
-        <div className={styles.actions}><button className={styles.primary} type="button" onClick={begin}>Continue <span aria-hidden="true">→</span></button><span className={styles.hint}>Add what you know. We help with the rest.</span></div>
       </>}
       {draft.step===1&&<>
         {active?<section key={active.instructionId||active.field} className={styles.question} aria-label="Project question">

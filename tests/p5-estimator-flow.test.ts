@@ -110,7 +110,7 @@ test('a typed scope is read by every configured provider at once and the first v
   };
   const started=Date.now();
   try{
-    const result=await analyzeBatch('Remodel the bathroom.',[],{},request,5000,Date.now()+5000);
+    const result=await analyzeBatch('Remodel the bathroom.',[],{},request,5000,Date.now()+5000,{race:true});
     assert.equal(result.provider,'Anthropic');assert.equal(result.extraction.facts[0].value,'bathroom');
     assert.ok(Date.now()-started<1000,'the slow primary provider must not delay a valid fallback result');
     assert.ok(calls.some(url=>url.includes('/responses'))&&calls.some(url=>url.includes('/messages')),'both providers are asked');

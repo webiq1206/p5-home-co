@@ -35,6 +35,16 @@ export function anthropicExtractionSchema(){
   return schema;
 }
 
+/** Text-only reads describe no document, so page records and takeoffs the
+ * model invents for them are discarded rather than rejected. Quantities from
+ * typed text arrive as facts. */
+function typedOnlyRecord(value:unknown,files:AnalysisFile[]){
+  if(files.length||!value||typeof value!=='object')return value;
+  const record=value as Record<string,unknown>;
+  if('takeoffs' in record)record.takeoffs=[];
+  if('pages' in record)record.pages=[];
+  return record;
+}
 function extractionRecord(value:unknown){
   if(value&&typeof value==='object'&&!Array.isArray(value)){
     const record=value as Record<string,unknown>;
@@ -134,7 +144,7 @@ async function analyzeWithOpenAI(provider: Provider, text: string, files: Analys
   const resultText = body.output?.flatMap((item: any) => item.content || []).find((part: any) => part.type === "output_text")?.text;
   if (typeof resultText !== "string") throw errorForProvider(provider, response.status, "provider returned no structured text");
   try {
-    return { extraction: validateExtraction(extractionRecord(JSON.parse(resultText))), provider: provider.kind, model: body.model || provider.model, analyzedAt: new Date().toISOString() };
+    return { extraction: validateExtraction(extractionRecord(typedOnlyRecord(JSON.parse(resultText),files))), provider: provider.kind, model: body.model || provider.model, analyzedAt: new Date().toISOString() };
   } catch (error) {
     throw errorForProvider(provider, response.status, error instanceof Error ? error.message : "provider returned invalid extraction");
   }
@@ -168,7 +178,7 @@ async function analyzeWithAnthropic(provider: Provider, text: string, files: Ana
   const resultText = body.content?.find((part: { type: string }) => part.type === "text")?.text;
   if (!records.length&&typeof resultText !== "string") throw errorForProvider(provider, response.status, "provider returned no structured text");
   try {
-    return { extraction: validateExtraction(extractionRecord(records.length?records[0].input:JSON.parse(resultText))), provider: provider.kind, model: body.model||provider.model, analyzedAt: new Date().toISOString() };
+    return { extraction: validateExtraction(extractionRecord(typedOnlyRecord(records.length?records[0].input:JSON.parse(resultText),files))), provider: provider.kind, model: body.model||provider.model, analyzedAt: new Date().toISOString() };
   } catch (error) {
     throw errorForProvider(provider, response.status, error instanceof Error ? error.message : "provider returned invalid extraction");
   }
@@ -181,7 +191,11 @@ function publicProviderError(error: unknown): Error {
   return new Error(`analysis-provider-failed:${error.provider}${status}${error.message ? `: ${error.message}` : ""}`);
 }
 
-export async function analyzeBatch(text: string, files: AnalysisFile[], previous: ScopeAnswers, request: RequestFunction = fetch, timeoutMs = 28_000, absoluteDeadline = Date.now() + timeoutMs): Promise<AnalysisResult> {
+export type AnalyzeOptions={
+  /** Read a typed scope with every configured provider at once and keep the first valid result. Only the first read of a project opts in; clarifications and document sections stay sequential. */
+  race?:boolean;
+};
+export async function analyzeBatch(text: string, files: AnalysisFile[], previous: ScopeAnswers, request: RequestFunction = fetch, timeoutMs = 28_000, absoluteDeadline = Date.now() + timeoutMs, options: AnalyzeOptions = {}): Promise<AnalysisResult> {
   // Failed preparation is a document exception, never a valid provider input.
   // Reject before even selecting a provider so retries cannot send empty PDFs.
   if (files.some(file => file.preparationError || file.data.length === 0)) throw new Error("analysis-file-preparation-failed");
@@ -192,10 +206,12 @@ export async function analyzeBatch(text: string, files: AnalysisFile[], previous
   const source=await withinDeadline(()=>readSpecificationSource(files),Math.min(absoluteDeadline,Date.now()+5000)).catch(()=>null);
   let sourceInstruction=specificationHint(source),sourceRepair=false;
   let last: unknown;let busy:ProviderError|undefined;
-  if(!files.length&&configured.length>1&&process.env.P5_TEXT_RACE!=='false'){
-    // A typed scope is cheap to read twice and expensive to wait on. Every
-    // configured provider reads it at once; the first valid result wins and
-    // the rest are abandoned. Document sections keep the sequential path.
+  if(options.race&&!files.length&&configured.length>1&&process.env.P5_TEXT_RACE!=='false'){
+    // A first typed-scope read is cheap to run twice and expensive to wait on.
+    // Every configured provider reads it at once; the first valid result wins
+    // and the rest are abandoned. Document sections and follow-up reads that
+    // refine a saved extraction keep the sequential path, so a clarification
+    // costs one provider call.
     const controllers=configured.map(()=>new AbortController());
     const attempts=configured.map(async(provider,index)=>{
       const providerTimeout=Math.min(timeoutMs,absoluteDeadline-Date.now(),SERVER_BUDGET_MS);

@@ -124,7 +124,7 @@ export async function advanceAnalysis(draft:Draft,text:string,answers:ScopeAnswe
     }
     if(job.prepared<draft.uploads.length)return {pending:true as const,progress:analysisProgress(job.units,job.expected).message};
     if(!job.units.length&&!draft.uploads.length&&!job.textDone){
-      job.textDone=await analyzeBatch(text,[],answers,request,28_000,absoluteDeadline);await checkpoint();
+      job.textDone=await analyzeBatch(text,[],answers,request,28_000,absoluteDeadline,{race:true});await checkpoint();
     }
     const results=job.units.flatMap(u=>u.result?[u.result]:[]);if(job.textDone)results.push(job.textDone);
     const last=results[results.length-1];
