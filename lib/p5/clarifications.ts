@@ -34,7 +34,7 @@ export function instructionPrompts(extraction:ScopeExtraction|null,answers:Scope
       const values=/labor.only/i.test(full)&&/materials.only/i.test(full)?['Labor only','Materials only','Labor and materials']:
         /include or exclude|include.*or.*exclude/i.test(full)?['Include it','Exclude it']:
         alternativeOptions(full,extraction?.takeoffs||[]);
-      result.push({id,question,...(field?{field}:{}),...(question!==full?{detail:full}:{}),values:values?.length?values:textBenchTopChoices(extraction,full)});
+      result.push({id,question,...(field?{field}:{}),...(question!==full?{detail:full}:{}),values:/^Who should install the /i.test(full)?['Include installation in this estimate','Owner handles installation']:values?.length?values:textBenchTopChoices(extraction,full)});
     }
   }
   return result;
