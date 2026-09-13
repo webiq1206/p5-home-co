@@ -96,7 +96,9 @@ export function validateExtraction(raw: unknown): ScopeExtraction {
   const unreadValues: string[] = [];
   const facts = r.facts.flatMap((item: unknown): ExtractedFact[] => {
     if (!item || typeof item !== "object") throw new Error("Invalid fact");
-    const f = item as Record<string, unknown>;
+    const f = {...item} as Record<string, unknown>;
+    // Accept an explicit JSON number without changing its value or evidence.
+    if(typeof f.field==='string'&&Object.hasOwn(SCOPE_FIELDS,f.field)&&SCOPE_FIELDS[f.field as ScopeField].kind==='number'&&typeof f.value==='number'&&Number.isFinite(f.value))f.value=String(f.value);
     // A blank optional slot is unknown, not a measurement and not a reason to
     // discard every other verified fact. Relevant missing fields are still asked.
     if(typeof f.field==='string'&&Object.hasOwn(SCOPE_FIELDS,f.field)&&(f.value==null||typeof f.value==='string'&&!f.value.trim())){

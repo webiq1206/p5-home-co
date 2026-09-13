@@ -20,3 +20,10 @@ test('blank optional facts remain unknown while stated quantities survive',()=>{
  assert.deepEqual(result.facts.map(f=>[f.field,f.value]),[['sqft','600']]);
  assert.equal(result.missingInformation.length,2);
 });
+
+test('numeric JSON transport preserves explicit values and evidence without inventing quantities',()=>{
+ const result=validateExtraction({summary:'Eight hours of installation',facts:[
+  {field:'laborHours',value:8,confidence:1,source:'typed scope',evidence:'Eight hours of installation',basis:'stated'},
+ ],conflicts:[],missingInformation:[],reviewNotes:[]});
+ assert.equal(result.facts[0].value,'8');assert.equal(result.facts[0].evidence,'Eight hours of installation');
+});
