@@ -202,3 +202,24 @@ test('OpenAI leads pricing stages by default and Anthropic covers its refusal',a
     for(const n of names){if(saved[n]===undefined)delete process.env[n];else process.env[n]=saved[n]!;}
   }
 });
+
+test('a document read keeps a section when one takeoff lacks a page reference',async()=>{
+  const {analyzeBatch}=await import('../lib/p5/extraction.ts');
+  const saved={openai:process.env.OPENAI_API_KEY,anthropic:process.env.ANTHROPIC_API_KEY,integrated:process.env.AI_INTEGRATIONS_OPENAI_API_KEY};
+  process.env.OPENAI_API_KEY='fixture';delete process.env.ANTHROPIC_API_KEY;delete process.env.AI_INTEGRATIONS_OPENAI_API_KEY;
+  const page={source:'estimate.pdf',page:1};
+  const record={summary:'Kitchen estimate',facts:[{field:'service',value:'kitchen',confidence:.9,source:'estimate.pdf',evidence:'Kitchen renovation estimate',basis:'stated'}],conflicts:[],missingInformation:[],reviewNotes:[],clarifications:[],
+    instructions:{inclusions:[],exclusions:[],responsibilities:[],buildings:[],floors:[],separateBuildings:false,laborOnly:false,materialsOnly:false,questions:[]},
+    pages:[{source:'estimate.pdf',sheet:'',revision:'',page:1,status:'read',notes:[]}],
+    takeoffs:[{id:'t1',description:'Base cabinets',building:'',floor:'',component:'cabinets',quantity:20,unit:'LF',basis:'stated',evidence:'20 LF base',supersedes:[],issues:[],sources:[{source:'estimate.pdf',sheet:'',revision:'',page:1}]},
+      {id:'t2',description:'Countertop',building:'',floor:'',component:'countertop',quantity:40,unit:'SF',basis:'stated',evidence:'40 SF quartz',supersedes:[],issues:[],sources:[]}]};
+  const request:typeof fetch=async()=>Response.json({status:'completed',output:[{content:[{type:'output_text',text:JSON.stringify(record)}]}]});
+  try{
+    const result=await analyzeBatch('Price the cabinets.',[{name:'estimate.pdf',type:'application/pdf',data:Buffer.from('%PDF-1.4 fixture'),pages:[page]}],{},request,20000,Date.now()+20000);
+    assert.equal(result.extraction.facts[0].value,'kitchen');
+    assert.deepEqual((result.extraction.takeoffs||[]).map(t=>t.id),['t1'],'the takeoff without a page reference is dropped, the section survives');
+    assert.ok(result.extraction.reviewNotes.some(n=>/lacked a usable page reference/.test(n)));
+  }finally{
+    for(const [key,value] of [['OPENAI_API_KEY',saved.openai],['ANTHROPIC_API_KEY',saved.anthropic],['AI_INTEGRATIONS_OPENAI_API_KEY',saved.integrated]] as const){if(value===undefined)delete process.env[key];else process.env[key]=value;}
+  }
+});

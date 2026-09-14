@@ -1,4 +1,5 @@
 import {groundSourceResponsibilities} from './sourceResponsibilities.ts';
+import {readTakeoffs,readPageRecords} from './documentLedger.ts';
 import {readSpecificationSource,specificationHint,unsupportedSpecifications,UnsupportedSpecificationError,retainUnspecifiedRatings} from './sourceSpecificationGuard.ts';
 import {SERVER_BUDGET_MS,ProcessingDeadlineError,fetchWithinDeadline,withinDeadline,isProcessingDeadline} from './processingBudget.ts';
 import {ESTIMATOR_BRAND} from "./brand.ts";
@@ -35,14 +36,35 @@ export function anthropicExtractionSchema(){
   return schema;
 }
 
-/** Text-only reads describe no document, so page records and takeoffs the
- * model invents for them are discarded rather than rejected. Quantities from
- * typed text arrive as facts. */
-function typedOnlyRecord(value:unknown,files:AnalysisFile[]){
-  if(files.length||!value||typeof value!=='object')return value;
+/** Keep a provider reply usable. A text-only read describes no document, so
+ * page records and takeoffs invented for it are discarded. A document read
+ * keeps every takeoff and page record that carries a usable page reference
+ * and drops the rest with a review note, instead of rejecting the whole
+ * section and losing its facts. Quantities from typed text arrive as facts. */
+function sanitizeRecord(value:unknown,files:AnalysisFile[]){
+  if(!value||typeof value!=='object')return value;
   const record=value as Record<string,unknown>;
-  if('takeoffs' in record)record.takeoffs=[];
-  if('pages' in record)record.pages=[];
+  if(!files.length){
+    if('takeoffs' in record)record.takeoffs=[];
+    if('pages' in record)record.pages=[];
+    return record;
+  }
+  let dropped=0;
+  if(Array.isArray(record.takeoffs)){
+    const kept:unknown[]=[];
+    for(const item of record.takeoffs){try{readTakeoffs([item]);kept.push(item);}catch{dropped++;}}
+    record.takeoffs=kept;
+  }
+  if(Array.isArray(record.pages)){
+    const kept:unknown[]=[];
+    for(const item of record.pages){try{readPageRecords([item]);kept.push(item);}catch{dropped++;}}
+    record.pages=kept;
+  }
+  if(dropped){
+    const notes=Array.isArray(record.reviewNotes)?record.reviewNotes.filter(n=>typeof n==='string'):[];
+    notes.push(`${dropped} quantity or page record${dropped===1?'':'s'} from this section lacked a usable page reference and were not used. Confirm quantities against the document before pricing.`);
+    record.reviewNotes=notes;
+  }
   return record;
 }
 function extractionRecord(value:unknown){
@@ -144,7 +166,7 @@ async function analyzeWithOpenAI(provider: Provider, text: string, files: Analys
   const resultText = body.output?.flatMap((item: any) => item.content || []).find((part: any) => part.type === "output_text")?.text;
   if (typeof resultText !== "string") throw errorForProvider(provider, response.status, "provider returned no structured text");
   try {
-    return { extraction: validateExtraction(extractionRecord(typedOnlyRecord(JSON.parse(resultText),files))), provider: provider.kind, model: body.model || provider.model, analyzedAt: new Date().toISOString() };
+    return { extraction: validateExtraction(extractionRecord(sanitizeRecord(JSON.parse(resultText),files))), provider: provider.kind, model: body.model || provider.model, analyzedAt: new Date().toISOString() };
   } catch (error) {
     throw errorForProvider(provider, response.status, error instanceof Error ? error.message : "provider returned invalid extraction");
   }
@@ -178,7 +200,7 @@ async function analyzeWithAnthropic(provider: Provider, text: string, files: Ana
   const resultText = body.content?.find((part: { type: string }) => part.type === "text")?.text;
   if (!records.length&&typeof resultText !== "string") throw errorForProvider(provider, response.status, "provider returned no structured text");
   try {
-    return { extraction: validateExtraction(extractionRecord(typedOnlyRecord(records.length?records[0].input:JSON.parse(resultText),files))), provider: provider.kind, model: body.model||provider.model, analyzedAt: new Date().toISOString() };
+    return { extraction: validateExtraction(extractionRecord(sanitizeRecord(records.length?records[0].input:JSON.parse(resultText),files))), provider: provider.kind, model: body.model||provider.model, analyzedAt: new Date().toISOString() };
   } catch (error) {
     throw errorForProvider(provider, response.status, error instanceof Error ? error.message : "provider returned invalid extraction");
   }
