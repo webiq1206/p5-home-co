@@ -7,6 +7,7 @@ import { draftCredentials, readDraft, saveDraft, DraftError } from "./store.ts";
 import { SCOPE_FIELDS, SCOPE_TEXT_LIMIT, validateAnswer, validateExtraction, type ScopeAnswers, type ReviewedScope } from "./scope.ts";
 import {answersForEditedScope,answersForReplacedScope,normalizeScopeText,scopeFingerprint,scopeTextChanged} from './scopeReplacement.ts';
 import { failed,json,limitedBody,protectRequest } from "./http.ts";
+import {draftEvents,recordEvent} from './events.ts';
 
 function stable(value:unknown):string{return JSON.stringify(value,(key,item)=>item&&typeof item==="object"&&!Array.isArray(item)?Object.fromEntries(Object.entries(item).sort(([a],[b])=>a.localeCompare(b))):item);}
 function withoutInstructions(answers:ScopeAnswers){const copy={...answers};delete copy.estimatingInstructions;return copy;}
@@ -47,7 +48,11 @@ export function clarificationRetryMatches(existing:{status:string;text:string;an
   return raw.reviewed!==true&&raw.scopeReplacement!==true&&raw.replaceScope!==true;
 }
 
-export async function getDraft(request:Request){try{protectRequest(request);const {id,key}=draftCredentials(request);return json({draft:await readDraft(id,key)});}catch(error){return failed(error);}}
+export async function getDraft(request:Request){try{protectRequest(request);const {id,key}=draftCredentials(request);const draft=await readDraft(id,key);
+  // The draft owner may read its own processing events (sanitized, no document
+  // contents) so a failed read can be explained and verified from the browser.
+  const withEvents=new URL(request.url).searchParams.get('events')==='1'&&draft;
+  return json({draft,...(withEvents?{events:(await draftEvents(id)).map(e=>({at:e.createdAt,kind:e.kind,stage:e.stage,file:e.file,provider:e.provider,model:e.model,status:e.status,code:e.code,message:e.message,durationMs:e.durationMs,attempt:e.attempt,fallback:e.fallback,outcome:e.outcome}))}:{})});}catch(error){return failed(error);}}
 export function parseAnswers(raw:unknown):ScopeAnswers {
   if(!raw||typeof raw!=="object"||Array.isArray(raw))throw new DraftError("Invalid project answers.");
   const answers:ScopeAnswers={};
@@ -124,5 +129,8 @@ export async function putDraft(request:Request){
     const pricedFields=await costQuestionFields(answers);
     const conflicts=extraction?reconcileScope(answers,extraction,resolutions).conflicts:[];
     return json({draft,conflicts,questions:scopeQuestions(answers,extraction,conflicts,skipped,pricedFields),pricedFields});
-  }catch(error){return failed(error);}
+  }catch(error){
+    if(error instanceof DraftError&&error.status===409){try{const {id}=draftCredentials(request);void recordEvent({draftId:id,kind:'draft',stage:'save-revision',status:409,code:'revision-conflict',message:error.message,outcome:'failed'});}catch{}}
+    return failed(error);
+  }
 }

@@ -5,8 +5,8 @@ import {scopeFingerprint,sourceSnapshot} from '../lib/p5/scopeReplacement.ts';
 import {clarificationRetryMatches} from '../lib/p5/draftEndpoint.ts';
 
 test('scope request revision and source identity are checked before mutation',()=>{
-  assert.throws(()=>guardScopeRequestRevision(7,6,'same scope','same scope'),/changed in another tab/);
-  assert.throws(()=>guardScopeRequestRevision(7,undefined,'old scope','new scope'),/changed in another tab/);
+  assert.throws(()=>guardScopeRequestRevision(7,6,'same scope','same scope'),/updated elsewhere/);
+  assert.throws(()=>guardScopeRequestRevision(7,undefined,'old scope','new scope'),/updated elsewhere/);
   assert.deepEqual(guardScopeRequestRevision(7,undefined,'same\r\nscope',' same\nscope '),{changed:false,supplied:false});
   assert.deepEqual(guardScopeRequestRevision(7,'7','same scope','new scope'),{changed:true,supplied:true});
 });

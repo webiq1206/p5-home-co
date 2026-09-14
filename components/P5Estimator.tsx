@@ -1,5 +1,5 @@
 "use client";
-import {CLIENT_BUDGET_MS,ProcessingDeadlineError,remainingBudget,withinDeadline,fetchWithinDeadline,isProcessingDeadline} from '@/lib/p5/processingBudget';
+import {CLIENT_BUDGET_MS,CLIENT_BACKGROUND_BUDGET_MS,ProcessingDeadlineError,remainingBudget,withinDeadline,fetchWithinDeadline,isProcessingDeadline} from '@/lib/p5/processingBudget';
 import {completeSubmission} from '@/lib/p5/submitProgress';
 import P5EstimateDetails from './P5EstimateDetails';
 import P5ProcessingStatus from './P5ProcessingStatus';
@@ -26,14 +26,15 @@ const labels:Record<string,string>={handyman:'Home repairs',re10:'Inspection and
 const readable=(field:ScopeField,value:string)=>field==='cabinetRoom'?value.replaceAll('-',' ').replace(/\b\w/g,letter=>letter.toUpperCase()):labels[value]||value.replaceAll('-',' ');
 const brandId=brand.id as string;
 const SUGGESTIONS:Record<string,string[]>={
-  construction:['Build a 2,500 sq ft home with an 800 sq ft garage in Eagle. Plans attached.','Add a 600 sq ft ADU above a detached garage in Boise.','Price only the framing and roofing from my plans; exclude finishes.'],
-  remodeling:['Remodel our 8 x 10 hall bathroom. Keep the layout; new tile shower, vanity and floor.','Kitchen remodel, about 200 sq ft, new cabinets and quartz counters. Exclude appliances.','Finish a 900 sq ft basement with one bedroom and a bathroom.'],
-  handyman:['Fix three sticking doors, replace two faucets and patch two drywall holes.','Install 120 ft of baseboard in two bedrooms. No painting; we will paint.','Complete the repairs on the attached RE-10 inspection report.'],
-  cabinet:['Painted Shaker kitchen cabinets, 20 ft of base and 15 ft of uppers. Include installation.','Two bathroom vanity cabinets, supply only, 48 inches each.','Built-in bookcases for a home office, about 10 ft wide.'],
-  p5:['Remodel our hall bathroom: new tile shower, vanity, toilet and floor.','Build a new home from the attached plans with a 3-car garage.','Handyman list: three doors, two faucets and drywall patches.'],
+  construction:['I need pricing for a new build','I have plans I want you to review','Help me estimate an addition or ADU','I want to describe my project'],
+  remodeling:['Help me price a remodel','I have plans I want you to review','Estimate this scope of work','I want to describe my project'],
+  handyman:['Estimate my repair list','Review my inspection report and estimate the repairs','Upload a file and build an estimate','I want to describe my project'],
+  cabinet:['Help me price new cabinets','I have drawings I want you to review','Estimate this scope of work','I want to describe my project'],
+  p5:['Estimate my construction project','I have plans I want you to review','Help me price a remodel','I want to describe my project'],
+  re10:['Estimate the repairs from my RE-10 report','Review my inspection report and estimate the repairs','Upload a file and build an estimate','I want to describe the repairs'],
 };
 const FINISH_LEVELS:[string,string][]=[['refresh','Budget-friendly materials and simple selections'],['mid-range','Builder-grade to mid-range materials; the most common choice'],['high-end','Upgraded materials, fixtures and details'],['luxury','Top-tier materials and custom work']];
-const composerPlaceholder='Describe your project or drop files here. Include sizes, what to include or exclude, and who supplies materials.';
+const composerPlaceholder='Describe your project in your own words, or attach plans, photos and documents.';
 const AttachGlyph=()=><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21.4 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>;
 const MicGlyph=()=><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 17v5M8 22h8"/></svg>;
 const FileGlyph=()=><svg aria-hidden="true" className={styles.chipIcon} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>;
@@ -130,7 +131,7 @@ export function P5Estimator({defaultService='',headingAs='h1',projectSource,layo
       // Never overwrite edits made while recovery was in flight or unsaved offline work.
       if(!sourceSnapshotsEqual(sourceSnapshot(d),sourceSnapshot(current.current as BrowserDraft)))return;
       if(!d.dirty&&current.current.updatedAt===d.updatedAt&&saved.revision>=d.revision){const restored={...d,...saved,key:d.key,step:d.step,updatedAt:d.updatedAt,transcript:d.transcript} as BrowserDraft;resume(restored);}
-      else apply({...current.current,uploads:saved.uploads});
+      else apply({...current.current,revision:saved.revision,uploads:saved.uploads,extraction:current.current.extraction||saved.extraction||null});
     }).catch(()=>setStatus('Your saved answers are available on this device. Reconnect to save online.'));
     const preventFileNavigation=(event:DragEvent)=>{if(event.dataTransfer?.types.includes('Files'))event.preventDefault();};
     window.addEventListener("drop",preventFileNavigation);window.addEventListener("dragover",preventFileNavigation);
@@ -174,12 +175,31 @@ export function P5Estimator({defaultService='',headingAs='h1',projectSource,layo
   const operationFetch:typeof fetch=(input,init)=>{const budget=operationBudget.current;return fetchWithinDeadline(fetch,input,{...init,...(budget?{signal:budget.controller.signal}:{})},budget?.deadline||Date.now()+CLIENT_BUDGET_MS);};
   const checkOperation=()=>{const budget=operationBudget.current;if(budget){if(budget.controller.signal.aborted)throw new ProcessingDeadlineError();remainingBudget(budget.deadline);}};
   const serialized=<T,>(operation:()=>Promise<T>):Promise<T>=>{const task=queue.current.catch(()=>undefined).then(operation);queue.current=task;return task;};
+  /** The server copy moved on without this tab (a background read finished
+   * after the tab was closed, or the same visitor continued elsewhere). Adopt
+   * its revision and completed reading, keep what is typed here, and let the
+   * caller retry once instead of showing a conflict to one person on one phone. */
+  async function adoptServerDraft(){
+    const d=current.current;if(!d)return false;
+    try{
+      const response=await operationFetch('/api/p5-estimator/draft',{headers:draftHeaders(d),cache:'no-store'});
+      if(!response.ok)return false;
+      const data=await response.json();const server=data?.draft;
+      const local=current.current;
+      if(!server||!Number.isInteger(server.revision)||!local||local.id!==d.id||server.revision===local.revision)return false;
+      apply({...local,revision:server.revision,uploads:server.uploads||local.uploads,extraction:local.extraction||server.extraction||null,answers:{...(server.answers||{}),...local.answers},wizard:local.wizard||server.wizard,pricedFields:local.pricedFields||data.pricedFields||[]});
+      return true;
+    }catch{return false;}
+  }
   async function save(reviewed=false,clarification?:{id:string;answer:string}){
     const initiated=operationBudget.current;
     const d=current.current;if(!d)throw new Error('Your project is still loading.');
     const requestSource=sourceSnapshot(d);
-    const response=await operationFetch('/api/p5-estimator/draft',{method:'PUT',headers:{...draftHeaders(d),'Content-Type':'application/json'},body:JSON.stringify({text:d.text,answers:d.answers,contact:d.contact,revision:d.revision,wizard:d.wizard,reviewed,clarification,scopeFingerprint:scopeFingerprint(d.text)})});
-    const data=await response.json();if(!response.ok)throw new Error(data.error||'Your project could not be saved. Please retry.');checkOperation();const saved=requireDraftReceipt(data);
+    const put=(revision:number)=>operationFetch('/api/p5-estimator/draft',{method:'PUT',headers:{...draftHeaders(d),'Content-Type':'application/json'},body:JSON.stringify({text:d.text,answers:d.answers,contact:d.contact,revision,wizard:d.wizard,reviewed,clarification,scopeFingerprint:scopeFingerprint(d.text)})});
+    let response=await put(d.revision);
+    let data=await response.json();
+    if(response.status===409&&!clarification&&await adoptServerDraft()){const refreshed=current.current;if(refreshed&&refreshed.id===d.id){response=await put(refreshed.revision);data=await response.json();}}
+    if(!response.ok)throw new Error(data.error||'Your project could not be saved. Please retry.');checkOperation();const saved=requireDraftReceipt(data);
     if(initiated&&initiated!==operationBudget.current)throw new ProcessingDeadlineError();
     if(current.current?.id!==d.id)return saved;
     // A response for an older source may still be valid on the server, but
@@ -201,7 +221,7 @@ export function P5Estimator({defaultService='',headingAs='h1',projectSource,layo
    * preserved server-side, never a failure that discards progress. */
   async function run(label:string,operation:()=>Promise<void>,kind:Paused['kind']|null=null){
     if(busyRef.current)return;busyRef.current=true;setBusy(label);setProcessing(null);lastProcessing.current=null;setError('');setPaused(null);recognition.current?.stop();
-    const budget={deadline:Date.now()+CLIENT_BUDGET_MS,controller:new AbortController()};operationBudget.current=budget;
+    const budget={deadline:Date.now()+(kind?CLIENT_BACKGROUND_BUDGET_MS:CLIENT_BUDGET_MS),controller:new AbortController()};operationBudget.current=budget;
     try{await withinDeadline(()=>serialized(async()=>{checkOperation();await withinDeadline(operation,budget.deadline);checkOperation();}),budget.deadline);}
     catch(e){
       const userPaused=budget.controller.signal.aborted&&Date.now()<budget.deadline;
@@ -221,14 +241,14 @@ export function P5Estimator({defaultService='',headingAs='h1',projectSource,layo
     const kind=paused.kind;
     let inFlight=false;
     const tick=async()=>{
-      const d=current.current;if(!d||cancelled||inFlight)return;inFlight=true;try{await check(d);}finally{inFlight=false;}
+      const d=current.current;if(!d||cancelled||inFlight||busyRef.current)return;inFlight=true;try{await check(d);}finally{inFlight=false;}
     };
     const check=async(d:NonNullable<typeof current.current>)=>{
       try{
         if(kind==='pricing'){
           if(d.dirty){setPaused(null);apply({...d,step:2});setActive(null);setError('Your project changed while it was being priced. Check the summary, confirm your details, then tap Get my estimate again.');return;}
           const response=await fetch('/api/p5-estimator/submit',{method:'POST',headers:{...draftHeaders(d),'Content-Type':'application/json'},body:JSON.stringify({revision:d.revision,background:true,retry:false})});
-          const data=await response.json();if(cancelled)return;
+          const data=await response.json();if(cancelled||busyRef.current)return;
           if(response.status===202&&data.pending){if(data.processing)setPaused(p=>p&&p.kind===kind?{...p,processing:data.processing}:p);return;}
           setPaused(null);
           if(!response.ok){if(data.pricingReviewRequired){setMissingFields(parseMissing(data.missingFields));setVerificationItems(parseItems(data.verificationItems));}setError(data.error||'Your estimate could not be completed. Your saved work is intact; please retry.');return;}
@@ -236,8 +256,9 @@ export function P5Estimator({defaultService='',headingAs='h1',projectSource,layo
         }else{
           const form=new FormData();form.set('text',d.text);form.set('scopeFingerprint',scopeFingerprint(d.text));form.set('revision',String(d.revision));form.set('resumable','true');form.set('background','true');form.set('retry','false');
           const response=await fetch('/api/p5-estimator/scope',{method:'POST',headers:draftHeaders(d),body:form});
-          const data=await response.json();if(cancelled)return;
+          const data=await response.json();if(cancelled||busyRef.current)return;
           if(data.pending){if(Number.isInteger(data.draftRevision)&&data.draftRevision!==d.revision)apply({...d,revision:data.draftRevision});if(data.processing)setPaused(p=>p&&p.kind===kind?{...p,processing:data.processing}:p);return;}
+          if(response.status===409){await adoptServerDraft();return;}
           setPaused(null);
           if(!response.ok){setError(data.error||'Your files could not be processed. They are still here. Please retry.');return;}
           // The reading finished. Re-enter the normal flow; the saved job answers immediately.
@@ -291,10 +312,12 @@ export function P5Estimator({defaultService='',headingAs='h1',projectSource,layo
       apply({...current.current!,uploads:receipt.uploads,revision:receipt.revision});filesRef.current=[];setFiles([]);await clearCachedFiles(d.id).catch(()=>undefined);setUploadPercent(null);setStatus('Files uploaded and saved.');
     }
     setBusy('Reading your documents and project details...');const form=new FormData();form.set('text',d.text);form.set('scopeFingerprint',scopeFingerprint(d.text));form.set('revision',String(current.current!.revision));form.set('resumable','true');form.set('background','true');form.set('retry',resuming.current?'false':'true');resuming.current=false;
-    let data:any;
+    let data:any;let conflicts=0;
     do{
       requireCurrentSource();
       const response=await operationFetch('/api/p5-estimator/scope',{method:'POST',headers:draftHeaders(d),body:form,signal:AbortSignal.timeout(200000)});data=await response.json();form.set('retry','false');
+      // A stale revision is refreshed from the server and the poll continues; the reading itself is unaffected.
+      if(response.status===409&&conflicts<3&&await adoptServerDraft()){conflicts++;form.set('revision',String(current.current!.revision));data={pending:true};continue;}
       if(!response.ok)throw new Error(data.error||'Your files could not be processed. They are still here. Please retry.');
       requireCurrentSource();
       if(data.pending){if(Number.isInteger(data.draftRevision)){apply({...current.current!,revision:data.draftRevision});form.set('revision',String(data.draftRevision));}setBusy(data.progress||'Reading your project...');track(data.processing);await new Promise(r=>setTimeout(r,1000));}
@@ -569,7 +592,7 @@ export function P5Estimator({defaultService='',headingAs='h1',projectSource,layo
   </div>;
   const pausedCard=paused&&<section className={styles.notice} role="status" aria-live="polite">
     <h3>{paused.kind==='analysis'?'Still reading your project':'Still preparing your estimate'}</h3>
-    <p>{paused.processing?.totalPages?`${Math.min(paused.processing.totalPages,paused.processing.readPages||0)} of ${paused.processing.totalPages} pages are checked so far. `:''}This is taking longer than the usual minute. Your completed work is saved and processing continues in the background; this page checks every few seconds and will show the result as soon as it is ready.</p>
+    <p>{paused.processing?.totalPages?`${Math.min(paused.processing.totalPages,paused.processing.readPages||0)} of ${paused.processing.totalPages} pages are checked so far. `:''}This is taking longer than usual. Your completed work is saved and processing continues in the background; this page checks every few seconds and shows the result as soon as it is ready.</p>
     <div className={styles.actions}><button type="button" className={styles.primary} onClick={continuePaused}>Keep going</button><button type="button" className={styles.ghost} onClick={()=>setPaused(null)}>Come back later</button></div>
   </section>;
   const alertCard=error&&<div id={submitErrorId} className={styles.alert} role="alert" aria-live="assertive">
@@ -585,7 +608,7 @@ export function P5Estimator({defaultService='',headingAs='h1',projectSource,layo
       <p className={styles.lead}>{attachedProjectSource?'Your design selections are included. Add anything else, then send it.':'Describe the work in your own words, or attach plans, photos and documents. I will ask only about what is missing, then show your planning range.'}</p>
     </div>
     {attachedProjectSource&&knownDetails}
-    {!hasProgress&&!composerText.trim()&&!files.length&&<div className={styles.suggestions} aria-label="Example projects">{(SUGGESTIONS[brandId]||SUGGESTIONS.p5).map(text=><button key={text} type="button" className={styles.suggestion} onClick={()=>{changeProjectText(text);composerRef.current?.focus();}}>{text}</button>)}</div>}
+    {!hasProgress&&!composerText.trim()&&!files.length&&<div className={styles.suggestions} aria-label="Example projects">{(defaultService==='re10'?SUGGESTIONS.re10:SUGGESTIONS[brandId]||SUGGESTIONS.p5).map(text=><button key={text} type="button" className={styles.suggestion} onClick={()=>{changeProjectText(text);composerRef.current?.focus();}}>{text}</button>)}</div>}
     {recoveries.length>0&&!hasProgress&&<details className={styles.accordion}><summary><span className={styles.accordionTitle}>Saved project recovery</span><span className={styles.accordionMeta}>{recoveries.length}</span></summary><div className={styles.accordionBody}><ul className={styles.bullets} style={{listStyle:'none',paddingLeft:0}}>{recoveries.map(recovery=><li key={recovery.key}><button type="button" className={styles.secondary} onClick={()=>void switchProject(recovery)}>Restore {recovery.draft.text.slice(0,65)||'untitled project'}</button><details><summary className={styles.hint}>View saved details</summary><p style={{whiteSpace:'pre-wrap'}}>{displayScopeText(recovery.draft.text,recovery.draft.answers.estimatingInstructions)}</p><dl className={styles.rows}>{Object.entries(recovery.draft.answers).filter(([key])=>key!=='estimatingInstructions').map(([key,value])=><div key={key}><dt>{SCOPE_FIELDS[key as ScopeField]?.label||key}</dt><dd>{value}</dd></div>)}</dl>{recovery.draft.uploads?.map(file=><p key={file.id} className={styles.hint}>{file.name}</p>)}</details></li>)}</ul></div></details>}
   </Message>;
   const history=transcript.map((entry,index)=><Message key={entry.id} role={entry.role} last={index===lastUserIndex}>

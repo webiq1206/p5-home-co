@@ -2,6 +2,7 @@ import { createHash, randomUUID, timingSafeEqual } from "node:crypto";
 import { query } from "./database.ts";
 import { storeObject, readStoredBytes } from "./objectStorage.ts";
 import { ESTIMATOR_BRAND } from "./brand.ts";
+import { EVENTS_TABLE_SQL, EVENTS_INDEX_SQL } from "./events.ts";
 import type { ReviewedScope, ScopeAnswers, ScopeExtraction, ScopeUpload } from "./scope.ts";
 const hash = (value: string | Buffer) => createHash("sha256").update(value).digest("hex");
 export class DraftError extends Error { status: number; constructor(message: string, status = 400) { super(message); this.status=status; } }
@@ -31,6 +32,7 @@ export function ensureSchema(): Promise<void> {
       `CREATE TABLE IF NOT EXISTS p5_estimator_outbox (id uuid PRIMARY KEY, draft_id uuid NOT NULL REFERENCES p5_estimator_drafts(id), revision integer NOT NULL, destination text NOT NULL, payload jsonb NOT NULL, status text NOT NULL DEFAULT 'pending', attempts integer NOT NULL DEFAULT 0, provider_id text, last_error text, locked_until timestamptz, next_attempt_at timestamptz NOT NULL DEFAULT now(), created_at timestamptz NOT NULL DEFAULT now(), sent_at timestamptz, UNIQUE(draft_id, revision, destination))`,
       `CREATE INDEX IF NOT EXISTS p5_estimator_outbox_due ON p5_estimator_outbox(status,next_attempt_at)`,
       `CREATE TABLE IF NOT EXISTS p5_estimator_work (draft_id uuid NOT NULL REFERENCES p5_estimator_drafts(id), work_key text NOT NULL, payload jsonb NOT NULL DEFAULT '{}', lease_token text, lease_until timestamptz, updated_at timestamptz NOT NULL DEFAULT now(), PRIMARY KEY(draft_id,work_key))`,
+      EVENTS_TABLE_SQL,EVENTS_INDEX_SQL,
       `CREATE TABLE IF NOT EXISTS p5_estimator_policy (id text PRIMARY KEY, version integer NOT NULL DEFAULT 1, payload jsonb NOT NULL, updated_by text NOT NULL, updated_at timestamptz NOT NULL DEFAULT now())`,
     ]) await query(statement);
   })().catch(error => {schemaReady=null;throw error;});
@@ -61,7 +63,7 @@ export async function readDraft(id: string,key: string): Promise<Draft|null> {
 export async function saveDraft(id: string,key: string,brand: string,payload: Omit<Draft,"id"|"brand"|"revision"|"status"|"updatedAt"|"uploads">,expectedRevision: number): Promise<Draft> {
   const existing=await rowFor(id,key);
   if(existing?.status==="submitted")throw new DraftError("This submission is already saved. Start a new revision to change the scope.",409);
-  if(existing && existing.revision!==expectedRevision)throw new DraftError("This draft changed in another tab. Reload the saved version before overwriting it.",409);
+  if(existing && existing.revision!==expectedRevision)throw new DraftError("This project was updated elsewhere. Reload the saved version before overwriting it.",409);
   let result;
   if(!existing)result=await query("INSERT INTO p5_estimator_drafts(id,key_hash,brand,payload,revision) VALUES($1,$2,$3,$4::jsonb,1) ON CONFLICT DO NOTHING RETURNING *",[id,hash(key),brand,JSON.stringify(payload)]);
   else result=await query("UPDATE p5_estimator_drafts SET payload=$1::jsonb,revision=revision+1,updated_at=now() WHERE id=$2 AND revision=$3 AND status='draft' RETURNING *",[JSON.stringify(payload),id,expectedRevision]);

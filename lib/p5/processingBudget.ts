@@ -3,6 +3,10 @@
 export const PROCESSING_LIMIT_MS = 60_000;
 export const SERVER_BUDGET_MS = 54_000;
 export const CLIENT_BUDGET_MS = 58_000;
+/** A background operation (document reading, pricing) is driven by polling
+ * requests; the browser waits on it far longer than one request budget and
+ * shows saved progress the whole time. */
+export const CLIENT_BACKGROUND_BUDGET_MS = Number(process.env.NEXT_PUBLIC_P5_CLIENT_BACKGROUND_BUDGET_MS||15*60_000);
 /** Durable background work may outlive one browser wait. It continues in the
  * queue while the visitor is shown honest progress and a way to keep going. */
 export const BACKGROUND_JOB_LIMIT_MS = 20 * 60_000;
@@ -10,6 +14,14 @@ export const BACKGROUND_JOB_LIMIT_MS = 20 * 60_000;
  * individually, so a pass that ends between stages loses nothing; a pass that
  * aborted a long stage every 54 seconds could never complete it. */
 export const PRICING_PASS_MS = 240_000;
+/** One document-reading pass. A provider read of a dense page is allowed to
+ * finish inside the pass; passes that cut reads off at 54 s counted every
+ * cut-off as a failed attempt and declared readable pages unreadable. */
+export const ANALYSIS_PASS_MS = Number(process.env.P5_ANALYSIS_PASS_MS||240_000);
+/** Longest one provider read of one document section may run. */
+export const READ_ALLOWANCE_MS = Number(process.env.P5_READ_ALLOWANCE_MS||120_000);
+/** A new section read is only started when at least this much of the pass remains. */
+export const READ_START_MARGIN_MS = Number(process.env.P5_READ_START_MARGIN_MS||75_000);
 export const PROCESSING_PAUSED = 'We could not verify everything within 60 seconds. Your completed work is saved. Resume the check to continue where it stopped.';
 
 export class ProcessingDeadlineError extends Error {

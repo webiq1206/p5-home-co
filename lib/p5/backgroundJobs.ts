@@ -1,4 +1,5 @@
-import {SERVER_BUDGET_MS,BACKGROUND_JOB_LIMIT_MS,PRICING_PASS_MS,PROCESSING_PAUSED,ProcessingDeadlineError,remainingBudget,isProcessingDeadline} from './processingBudget.ts';
+import {ANALYSIS_PASS_MS,BACKGROUND_JOB_LIMIT_MS,PRICING_PASS_MS,PROCESSING_PAUSED,ProcessingDeadlineError,remainingBudget,isProcessingDeadline} from './processingBudget.ts';
+import {recordEvent,describeError} from './events.ts';
 import {isPricingPending} from './pricingProgress.ts';
 import {createHash} from 'node:crypto';
 import {query} from './database.ts';
@@ -114,7 +115,7 @@ async function runPass(draftId:string,workKey:string):Promise<number|null>{
   try{
     // Each pass is bounded so progress is checkpointed and visible within
     // a browser wait; the job itself continues until it completes.
-    const deadline=Math.min(Date.now()+(job.input.kind==='pricing'?PRICING_PASS_MS:SERVER_BUDGET_MS),Date.parse(job.createdAt)+BACKGROUND_JOB_LIMIT_MS);
+    const deadline=Math.min(Date.now()+(job.input.kind==='pricing'?PRICING_PASS_MS:ANALYSIS_PASS_MS),Date.parse(job.createdAt)+BACKGROUND_JOB_LIMIT_MS);
     remainingBudget(deadline);
     job.state='running';await writeWork(draftId,workKey,lease.token,job);
     if(job.input.kind==='analysis'){
@@ -127,7 +128,7 @@ async function runPass(draftId:string,workKey:string):Promise<number|null>{
       try{job.result=await priceSavedScope(job.input.draft.id,job.input.draft.reviewed!,job.input.configuration,new Date(job.createdAt),deadline);job.state='complete';job.progress='Pricing calculation saved.';}
       catch(error){
         if(!isPricingPending(error))throw error;
-        if(error.fatal){job.state='failed';job.progress=error.message;job.attempts=3;again=null;console.error(`[p5-worker] pricing stopped: ${error.message}`);}
+        if(error.fatal){job.state='failed';job.progress=error.message;job.attempts=3;again=null;console.error(`[p5-worker] pricing stopped: ${error.message}`);void recordEvent({draftId,estimator:job.input.draft.answers?.service||null,kind:'pricing',stage:'job',code:'fatal',message:error.message,outcome:'failed'});}
         else if(!error.retryAfterMs)throw error;
         else{job.progress=error.message;job.retryAt=Date.now()+error.retryAfterMs;again=error.retryAfterMs;}
       }
@@ -143,10 +144,12 @@ async function runPass(draftId:string,workKey:string):Promise<number|null>{
       job.progress=job.state==='failed'?'Processing paused after repeated failures. Completed work is saved. Use Retry to resume.':'An interrupted processing step will retry automatically; completed work is saved.';
       again=job.state==='failed'?null:job.retryAt-Date.now();
       console.error(`[p5-worker] ${job.input.kind} pass failed (attempt ${job.attempts}): ${error instanceof Error?error.message:String(error)}`);
+      const detail=describeError(error);
+      void recordEvent({draftId,estimator:job.input.draft.answers?.service||null,kind:job.input.kind,stage:'job-pass',code:detail.code,status:detail.status,message:detail.message,attempt:job.attempts,outcome:job.state==='failed'?'failed':'retry'});
     }
   }finally{
     clearInterval(renew);
-    if(job.state!=='complete'&&jobExpired(job)){job.state='failed';job.progress=PROCESSING_PAUSED;delete job.retryAt;again=null;}
+    if(job.state!=='complete'&&jobExpired(job)){job.state='failed';job.progress=PROCESSING_PAUSED;delete job.retryAt;again=null;void recordEvent({draftId,estimator:job.input.draft.answers?.service||null,kind:job.input.kind,stage:'job',code:'expired',message:'Job lifetime exceeded before completion.',outcome:'failed'});}
     try{await writeWork(draftId,workKey,lease.token,job);}catch{again=null;}
     await releaseWork(draftId,workKey,lease.token);
   }

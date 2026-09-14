@@ -1,14 +1,27 @@
 import {groundSourceResponsibilities} from './sourceResponsibilities.ts';
 import {readTakeoffs,readPageRecords} from './documentLedger.ts';
 import {readSpecificationSource,specificationHint,unsupportedSpecifications,UnsupportedSpecificationError,retainUnspecifiedRatings} from './sourceSpecificationGuard.ts';
-import {SERVER_BUDGET_MS,ProcessingDeadlineError,fetchWithinDeadline,withinDeadline,isProcessingDeadline} from './processingBudget.ts';
+import {SERVER_BUDGET_MS,ANALYSIS_PASS_MS,READ_ALLOWANCE_MS,ProcessingDeadlineError,fetchWithinDeadline,withinDeadline,isProcessingDeadline} from './processingBudget.ts';
+import {recordEvent,describeError,type EstimatorEvent} from './events.ts';
 import {ESTIMATOR_BRAND} from "./brand.ts";
 import { SCOPE_FIELDS, SCOPE_BATCH_LIMIT, SCOPE_TEXT_LIMIT, validateExtraction, combineScopeExtractions, type ScopeAnswers, type ScopeExtraction } from "./scope.ts";
 import { PDFDocument } from "pdf-lib";
 import {INSTRUCTION_POLICY} from './instructions.ts';
 import {coverageFor,combineCoverage} from './documentLedger.ts';
 
-export interface AnalysisFile { name: string; type: string; data: Buffer; pages?:{source:string;page:number}[];nextPage?:number;preparationError?:string;detailViews?:boolean;detailRegions?:{columns:number;rows:number;tiles:number[];blankTiles:number[];inspectedTiles:number} }
+export interface AnalysisFile { name: string; type: string; data: Buffer; pages?:{source:string;page:number}[];nextPage?:number;preparationError?:string;detailViews?:boolean;detailRegions?:{columns:number;rows:number;tiles:number[];blankTiles:number[];inspectedTiles:number};
+  /** Text layer extracted locally from this page: exact strings for evidence, and a complete fallback when a provider cannot accept the page bytes. */
+  text?:string;
+  /** Excerpts of adjacent pages for continuity. No page or takeoff records are produced for them. */
+  context?:string }
+const TEXT_TYPES=["text/plain","text/csv","application/json"];
+const TEXT_LAYER_NOTE='Text layer extracted from this page. Use it for exact strings and evidence quotes; the page itself carries the layout, tables and any drawings. Blank runs of spaces mark values that are absent or redacted in the source, never numbers to guess.';
+const CONTEXT_NOTE='Adjacent-page context, supplied only for continuity. Return no page records or takeoffs for it and do not report it as missing.';
+/** A provider that rejects PDF input still reads the page from its text layer. */
+export function textLayerFiles(files:AnalysisFile[]):AnalysisFile[]{
+  return files.map(file=>file.type==='application/pdf'&&file.text?{...file,type:'text/plain',data:Buffer.from(file.text,'utf8'),text:undefined,name:`${file.name} (text layer)`}:file);
+}
+const pdfWithTextLayer=(files:AnalysisFile[])=>files.some(file=>file.type==='application/pdf'&&Boolean(file.text));
 export interface AnalysisResult { extraction: ScopeExtraction; provider: string; model: string; analyzedAt: string }
 type RequestFunction = typeof fetch;
 type ProviderKind = "OpenAI" | "Anthropic";
@@ -145,6 +158,8 @@ function asInputContent(files: AnalysisFile[], text: string, previous: ScopeAnsw
   for (const file of files) {
     content.push({ type: "input_text", text: `Source filename: ${file.name}\nOriginal page manifest: ${JSON.stringify(file.pages||[])}` });
     const detailContext=detailViewContext(file);if(detailContext)content.push({type:'input_text',text:detailContext});
+    if(file.text&&!TEXT_TYPES.includes(file.type))content.push({type:'input_text',text:`${TEXT_LAYER_NOTE}\n${file.text}`});
+    if(file.context)content.push({type:'input_text',text:`${CONTEXT_NOTE}\n${file.context}`});
     if (file.type === "application/pdf") content.push({ type: "input_file", filename: file.name, file_data: `data:application/pdf;base64,${file.data.toString("base64")}` });
     else if (["image/jpeg", "image/png", "image/webp", "image/gif"].includes(file.type)) content.push({ type: "input_image", image_url: `data:${file.type};base64,${file.data.toString("base64")}`, detail: "high" });
     else if (["text/plain", "text/csv", "application/json"].includes(file.type)) content.push({ type: "input_text", text: file.data.toString("utf8") });
@@ -190,6 +205,8 @@ async function analyzeWithAnthropic(provider: Provider, text: string, files: Ana
   for (const file of files) {
     content.push({ type: "text", text: `Source filename: ${file.name}\nOriginal page manifest: ${JSON.stringify(file.pages||[])}` });
     const detailContext=detailViewContext(file);if(detailContext)content.push({type:'text',text:detailContext});
+    if(file.text&&!TEXT_TYPES.includes(file.type))content.push({type:'text',text:`${TEXT_LAYER_NOTE}\n${file.text}`});
+    if(file.context)content.push({type:'text',text:`${CONTEXT_NOTE}\n${file.context}`});
     if (file.type === "application/pdf") content.push({ type: "document", source: { type: "base64", media_type: "application/pdf", data: file.data.toString("base64") } });
     else if (["image/jpeg", "image/png", "image/webp", "image/gif"].includes(file.type)) content.push({ type: "image", source: { type: "base64", media_type: file.type, data: file.data.toString("base64") } });
     else if (["text/plain", "text/csv", "application/json"].includes(file.type)) content.push({ type: "text", text: file.data.toString("utf8") });
@@ -231,14 +248,22 @@ function publicProviderError(error: unknown): Error {
 export type AnalyzeOptions={
   /** Read a typed scope with every configured provider at once and keep the first valid result. Only the first read of a project opts in; clarifications and document sections stay sequential. */
   race?:boolean;
+  /** Identity for the durable event log (draft, estimator, file). Document contents are never logged. */
+  event?:Pick<EstimatorEvent,'draftId'|'estimator'|'file'>;
 };
-export async function analyzeBatch(text: string, files: AnalysisFile[], previous: ScopeAnswers, request: RequestFunction = fetch, timeoutMs = 28_000, absoluteDeadline = Date.now() + timeoutMs, options: AnalyzeOptions = {}): Promise<AnalysisResult> {
+export async function analyzeBatch(text: string, files: AnalysisFile[], previous: ScopeAnswers, request: RequestFunction = fetch, timeoutMs = READ_ALLOWANCE_MS, absoluteDeadline = Date.now() + timeoutMs, options: AnalyzeOptions = {}): Promise<AnalysisResult> {
   // Failed preparation is a document exception, never a valid provider input.
   // Reject before even selecting a provider so retries cannot send empty PDFs.
   if (files.some(file => file.preparationError || file.data.length === 0)) throw new Error("analysis-file-preparation-failed");
   if (text.length > SCOPE_TEXT_LIMIT || files.reduce((n, f) => n + f.data.length, 0) > 22*1024*1024) throw new Error("analysis-too-large");
-  absoluteDeadline=Math.min(absoluteDeadline,Date.now()+SERVER_BUDGET_MS);
+  absoluteDeadline=Math.min(absoluteDeadline,Date.now()+ANALYSIS_PASS_MS);
   const configured = providers();
+  const eventBase=options.event;
+  const report=(provider:Provider,started:number,outcome:EstimatorEvent['outcome'],error?:unknown,fallback=false,extra:Record<string,unknown>={})=>{
+    if(!eventBase)return;
+    const detail=error===undefined?null:describeError(error);
+    void recordEvent({...eventBase,kind:'analysis',stage:files.length?'read-page':'read-text',provider:provider.kind,model:provider.model,status:detail?.status??(error===undefined?200:null),code:detail?.code??null,message:detail?.message??null,durationMs:Date.now()-started,fallback,outcome,meta:{files:files.length,bytes:files.reduce((n,f)=>n+f.data.length,0),...extra}});
+  };
   if (!configured.length) throw new Error("analysis-unconfigured");
   const source=await withinDeadline(()=>readSpecificationSource(files),Math.min(absoluteDeadline,Date.now()+5000)).catch(()=>null);
   let sourceInstruction=specificationHint(source),sourceRepair=false;
@@ -252,13 +277,17 @@ export async function analyzeBatch(text: string, files: AnalysisFile[], previous
     // costs one provider call.
     const controllers=configured.map(()=>new AbortController());
     const attempts=configured.map(async(provider,index)=>{
-      const providerTimeout=Math.min(timeoutMs,absoluteDeadline-Date.now(),SERVER_BUDGET_MS);
+      const providerTimeout=Math.min(timeoutMs,absoluteDeadline-Date.now(),ANALYSIS_PASS_MS);
       const providerDeadline=Date.now()+providerTimeout;
       const boundedRequest:RequestFunction=(input,init)=>fetchWithinDeadline(request,input,{...(init||{}),signal:controllers[index].signal},providerDeadline);
-      const result=provider.kind==='OpenAI'?await analyzeWithOpenAI(provider,text,files,previous,boundedRequest,providerTimeout,sourceInstruction):await analyzeWithAnthropic(provider,text,files,previous,boundedRequest,providerTimeout,sourceInstruction);
-      result.extraction=retainUnspecifiedRatings(result.extraction,null);
-      result.extraction=groundSourceResponsibilities(result.extraction,undefined,text,previous);
-      return result;
+      const started=Date.now();
+      try{
+        const result=provider.kind==='OpenAI'?await analyzeWithOpenAI(provider,text,files,previous,boundedRequest,providerTimeout,sourceInstruction):await analyzeWithAnthropic(provider,text,files,previous,boundedRequest,providerTimeout,sourceInstruction);
+        result.extraction=retainUnspecifiedRatings(result.extraction,null);
+        result.extraction=groundSourceResponsibilities(result.extraction,undefined,text,previous);
+        report(provider,started,'ok',undefined,false,{race:true});
+        return result;
+      }catch(error){report(provider,started,'failed',error,false,{race:true});throw error;}
     });
     try{
       const winner=await Promise.any(attempts.map((attempt,index)=>attempt.catch(error=>{if(isProcessingDeadline(error)&&Date.now()>=absoluteDeadline)throw error;last=error;if(error instanceof ProviderError&&error.status===429)busy=error;console.error(`[p5-analysis] ${configured[index].kind} text read failed (${error instanceof ProviderError?error.status??'no status':'no status'}: ${safeProviderMessage(error instanceof Error?error.message:error)}).`);throw error;})));
@@ -270,16 +299,24 @@ export async function analyzeBatch(text: string, files: AnalysisFile[], previous
       throw publicProviderError(busy||last);
     }
   }
+  // Providers that rejected the page bytes are retried once with the page's text layer.
+  const textLayerRetry=new Set<number>();
+  const primaryKind=configured[0]?.kind;
   for (const [providerIndex, provider] of configured.entries()) {
     const remaining = absoluteDeadline - Date.now();
     if (remaining < 1000) throw new Error("analysis-time-budget");
-    const providerTimeout = Math.min(timeoutMs, remaining, configured.length>1&&providerIndex===0?28_000:SERVER_BUDGET_MS);
+    // A read keeps its whole allowance. Cutting the first provider off early
+    // and starting over with the second turned every dense page into two
+    // failed reads (2026-09-14) instead of one finished one.
+    const providerTimeout = Math.min(timeoutMs, remaining);
     const providerDeadline=Date.now()+providerTimeout;
     const boundedRequest:RequestFunction=(input,init)=>fetchWithinDeadline(request,input,init||{},providerDeadline);
+    const inputFiles=textLayerRetry.has(providerIndex)?textLayerFiles(files):files;
+    const started=Date.now();
     try {
       const result = provider.kind === "OpenAI"
-        ? await analyzeWithOpenAI(provider, text, files, previous, boundedRequest, providerTimeout,sourceInstruction)
-        : await analyzeWithAnthropic(provider, text, files, previous, boundedRequest, providerTimeout,sourceInstruction);
+        ? await analyzeWithOpenAI(provider, text, inputFiles, previous, boundedRequest, providerTimeout,sourceInstruction)
+        : await analyzeWithAnthropic(provider, text, inputFiles, previous, boundedRequest, providerTimeout,sourceInstruction);
       const confirmedSource=source?{...source,text:source.text+'\n'+text+'\n'+JSON.stringify(previous)}:null;
       result.extraction=retainUnspecifiedRatings(result.extraction,confirmedSource);
       result.extraction=groundSourceResponsibilities(result.extraction,source?.text,text,previous);
@@ -298,13 +335,29 @@ export async function analyzeBatch(text: string, files: AnalysisFile[], previous
       }
       if(expected.length){
         const allowed=new Set(expected.map(page=>JSON.stringify([page.source,page.page])));
-        if((result.extraction.takeoffs||[]).some(item=>item.sources.some(source=>!allowed.has(JSON.stringify([source.source,source.page])))))throw new Error('analysis-page-reference-failed');
+        // A takeoff that cites a page outside this unit is kept for review
+        // with the citation corrected to the unit's own page when the unit is
+        // a single page; a whole read is never discarded for one citation.
+        for(const item of result.extraction.takeoffs||[])for(const source of item.sources)if(!allowed.has(JSON.stringify([source.source,source.page]))){
+          if(expected.length===1){source.source=expected[0].source;source.page=expected[0].page;item.issues=[...new Set([...item.issues,'Page citation corrected to the page this section was read from; confirm against the document.'])];}
+          else throw new Error('analysis-page-reference-failed');
+        }
         result.extraction.documentCoverage=coverageFor(expected,result.extraction.documentCoverage?.pages||[]);
         result.extraction.reviewNotes.push(...result.extraction.documentCoverage.pages.filter(p=>p.status!=='read').map(p=>`${p.source}, page ${p.page}: ${p.status}. ${p.notes.join(' ')}`));
       }
+      report(provider,started,'ok',undefined,provider.kind!==primaryKind||textLayerRetry.has(providerIndex),{textLayer:textLayerRetry.has(providerIndex)});
       return result;
     } catch (error) {
+      report(provider,started,'failed',error,provider.kind!==primaryKind||textLayerRetry.has(providerIndex),{textLayer:textLayerRetry.has(providerIndex)});
       if(isProcessingDeadline(error)&&Date.now()>=absoluteDeadline)throw error;
+      // The page bytes were refused (unsupported input, too large, bad request):
+      // read the same page from its text layer with the same provider before
+      // moving on, so one endpoint limitation never loses the page.
+      if(error instanceof ProviderError&&[400,413,415,422].includes(error.status||0)&&pdfWithTextLayer(inputFiles)&&!textLayerRetry.has(providerIndex)&&absoluteDeadline-Date.now()>5000){
+        textLayerRetry.add(providerIndex+1);configured.splice(providerIndex+1,0,provider);
+        console.error(`[p5-analysis] ${provider.kind} refused the page bytes (${error.status}); retrying from the text layer.`);
+        last=error;continue;
+      }
       if(error instanceof UnsupportedSpecificationError&&!sourceRepair&&absoluteDeadline-Date.now()>1000){
         sourceRepair=true;sourceInstruction=specificationHint(source)+' The preceding response incorrectly supplied '+error.specifications.join(', ')+'. Those claims are absent from the source. Re-read the supplied pages, omit unsupported work, and keep missing designations unspecified. Clearing, excavation and haul-off do not establish demolition work.';
         // Keep semantic correction on the same provider and original deadline.

@@ -12,6 +12,7 @@ import { draftCredentials,readDraft,readUploads,saveUpload,saveDraft,DraftError 
 import {answersForEditedScope,normalizeScopeText,scopeFingerprint,scopeTextChanged,sourceSnapshot,sourceSnapshotsEqual} from "./scopeReplacement.ts";
 import { failed,json,limitedBody,protectRequest } from "./http.ts";
 import { ESTIMATOR_BRAND } from "./brand.ts";
+import {recordEvent,describeError} from './events.ts';
 
 /** Guard multipart analysis/upload requests before they can mutate files. */
 export function guardScopeRequestRevision(storedRevision:number,requestedRevision:unknown,storedText:string,incomingText:string){
@@ -20,9 +21,9 @@ export function guardScopeRequestRevision(storedRevision:number,requestedRevisio
   if(supplied){
     const revision=Number(requestedRevision);
     if(!Number.isInteger(revision)||revision<0)throw new DraftError("Invalid draft revision.",409);
-    if(revision!==storedRevision)throw new DraftError("This project changed in another tab. Refresh to continue.",409);
+    if(revision!==storedRevision)throw new DraftError("This project was updated elsewhere. Refresh to continue.",409);
   }else if(changed){
-    throw new DraftError("This project changed in another tab. Refresh to continue.",409);
+    throw new DraftError("This project was updated elsewhere. Refresh to continue.",409);
   }
   return {changed,supplied};
 }
@@ -96,11 +97,13 @@ export async function postScope(request:Request){
       analysis=await analyzeScope(text,readable,visitorAnswers);
       analysis.extraction.reviewNotes.push(...manualReview);
       }
-      const unread=analysis.extraction.reviewNotes.filter((note:string)=>/saved for manual review|could not read|automatic read failed|automatic reading could not finish|unread section requires review|unreadable|partial/.test(note));
+      const unread=[...new Set(analysis.extraction.reviewNotes.filter((note:string)=>/saved for manual review|could not read|automatic read failed|automatic reading could not finish|unread section requires review|unreadable|partial/.test(note)))];
       if(unread.length)warning="Some files need review before pricing. "+unread.join(" ");
     }catch(error){
       if(isProcessingDeadline(error))throw new DraftError(PROCESSING_PAUSED,503);
       console.error("[p5-scope-analysis]",error instanceof Error?error.message:"analysis failed");
+      const detail=describeError(error);
+      void recordEvent({draftId:id,estimator:visitorAnswers.service||null,kind:'analysis',stage:'scope-request',code:detail.code,status:detail.status,message:detail.message,outcome:'failed'});
       warning="Your files are saved, but automatic reading could not finish. You can retry without uploading again, or add the key details below. Unread documents will need review before pricing.";
     }
     if(analysis)analysis.extraction=applyCabinetIntent(text,ESTIMATOR_BRAND.services,visitorAnswers,analysis.extraction).extraction!;
@@ -114,5 +117,8 @@ export async function postScope(request:Request){
     if(requested.some(digest=>!saved.uploads.some(file=>file.sha256===digest)))throw new DraftError("Some files could not be confirmed. Please retry; duplicate files will not be added twice.",503);
     const pricedFields=await costQuestionFields(saved.answers);
     return json({draft:saved,analysis,warning,conflicts:merged.conflicts,pricedFields,questions:scopeQuestions(saved.answers,safeExtraction,merged.conflicts,wizard.skipped,pricedFields)});
-  }catch(error){return failed(error);}
+  }catch(error){
+    if(error instanceof DraftError&&error.status===409){try{const {id}=draftCredentials(request);void recordEvent({draftId:id,kind:'draft',stage:'scope-revision',status:409,code:'revision-conflict',message:error.message,outcome:'failed'});}catch{}}
+    return failed(error);
+  }
 }

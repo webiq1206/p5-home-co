@@ -32,11 +32,12 @@ test('pending pricing responses share one deadline and never become a partial to
  await assert.rejects(completeSubmission(async()=>{calls++;return Response.json({pending:true,message:'Checking scope'},{status:202});},()=>{},async()=>{await new Promise(r=>setTimeout(r,5));},Date.now()+250),ProcessingDeadlineError);
  assert.ok(calls>=1&&calls<200);
 });
-test('ordinary PDF pages are grouped without dropping pages or breaking resume',async()=>{
+test('ordinary PDF pages become one read unit each without dropping pages or breaking resume',async()=>{
  const document=await PDFDocument.create();for(let i=0;i<9;i++)document.addPage([612,792]);
  const file={name:'nine-pages.pdf',type:'application/pdf',data:Buffer.from(await document.save())};
  const groups=[];for await(const group of analysisSegments(file))groups.push(group);
- assert.equal(groups.length,3);
+ assert.equal(groups.length,9);
+ assert.ok(groups.every(g=>/page \d+ of 9/.test(g.name)));
  assert.deepEqual(groups.flatMap(g=>g.pages?.map(p=>p.page)),[1,2,3,4,5,6,7,8,9]);
  for(const group of groups)assert.equal((await PDFDocument.load(group.data)).getPageCount(),group.pages?.length);
  const resumed=[];for await(const group of analysisSegments(file,4))resumed.push(group);
