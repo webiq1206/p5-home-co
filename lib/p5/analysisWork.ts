@@ -106,6 +106,8 @@ export async function advanceAnalysis(draft:Draft,text:string,answers:ScopeAnswe
           unit.result=await analyzeBatch(text.length>48000?'The complete typed scope is processed in saved sections; use the interpreted scope instructions.':text,[{name:unit.name,type:unit.type,data:saved.value[0],pages:unit.pages,detailViews:unit.detailViews,detailRegions:unit.detailRegions}],context,request,28_000,absoluteDeadline);delete unit.error;delete unit.retryAt;
         }catch(error){
           unit.error=`${unit.name}: automatic reading could not finish. Review this section before pricing.`;
+          // The cause is logged (never the document) so a live host explains an unreadable section.
+          console.error(`[p5-analysis] section ${unit.name} failed: ${error instanceof Error?error.message:String(error)}`);
           if(error instanceof AnalysisBusyError){
             unit.rateLimitRetries=(unit.rateLimitRetries||0)+1;
             if(unit.rateLimitRetries<8)unit.attempts=Math.max(0,(unit.attempts||1)-1);
