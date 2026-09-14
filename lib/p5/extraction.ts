@@ -32,7 +32,7 @@ const string = { type: "string" };
 const strings = { type: "array", items: string };
 export const EXTRACTION_JSON_SCHEMA = objectSchema({
   summary: string,
-  facts: { type: "array", items: objectSchema({ field: { type: "string", enum: Object.keys(SCOPE_FIELDS) }, value: {type:'string',minLength:1,description:'Nonempty value in the exact field vocabulary. Omit this fact entirely if unknown, blank or inapplicable. Do not emit null, N/A, none, or an empty string.'}, confidence: { type: "number" }, source: {type:'string',minLength:1,description:'Nonempty source filename or typed scope, at most 500 characters.'}, evidence: {type:'string',minLength:1,description:'Nonempty supporting source excerpt or explicit arithmetic, at most 4000 characters.'}, basis: {type:"string",enum:["stated","calculated","visual","inferred"]} }) },
+  facts: { type: "array", items: objectSchema({ field: { type: "string", enum: Object.keys(SCOPE_FIELDS) }, value: {type:'string',minLength:1,description:'Nonempty value in the exact field vocabulary. Omit this fact entirely if unknown, blank or inapplicable. Do not emit null, N/A, none, or an empty string.'}, confidence: { type: "number" }, source: {type:'string',minLength:1,description:'Nonempty source filename or typed scope, at most 500 characters.'}, evidence: {type:'string',minLength:1,description:'Nonempty supporting source excerpt or explicit arithmetic, at most 200 characters.'}, basis: {type:"string",enum:["stated","calculated","visual","inferred"]} }) },
   conflicts: { type: "array", items: objectSchema({ field: { type: "string", enum: Object.keys(SCOPE_FIELDS) }, values: strings, explanation: string }) },
   missingInformation: strings, reviewNotes: strings,
   clarifications: {type:"array",items:objectSchema({field:{type:"string",enum:Object.keys(SCOPE_FIELDS)},question:string,reason:string})},
@@ -90,6 +90,7 @@ function extractionRecord(value:unknown){
 
 const DOCUMENT_POLICY=`${INSTRUCTION_POLICY} PAGE COVERAGE: Review every supplied page, including scans, drawing details, schedules, specifications, revision clouds and notes. The supplied page manifest gives original source filenames and page numbers; return exactly one pages record per manifest entry. Do not call an unreadable or partially legible sheet read. Identify the affected content and conflicting or absent dimensions. Never infer scale from display size. Retain every distinct work component in takeoffs, with explicit building/floor, source pages, quantity unit and arithmetic. Use a stable physical identity (room/element/mark plus component) for id so plans and schedules referencing the same work are not counted twice. A repeated detail is not another physical instance. Use null quantity and uncertain basis when measurement is unsupported; preserve the item for an explicitly estimated allowance later. Record exact superseded references as source:sheet:revision only when the drawing explicitly establishes supersession. Do not infer the controlling revision from upload order. Cross-reference schedules, dimensions, material notes and assemblies. An empty page must still have a read record noting that it is blank. No sample-based analysis or silent truncation. Return empty pages/takeoffs for text without page references.`;
 
+const OUTPUT_BREVITY='OUTPUT BREVITY: The record is read by software, not a person. Keep every string short: evidence is the shortest excerpt that supports the value (at most 200 characters, never a whole paragraph); summary at most 500 characters; each takeoff description at most 120 characters; each note, issue or question at most 200 characters. Never restate the document, repeat the same evidence in several places, or describe routine processing. Completeness of distinct facts, pages and takeoffs matters; length does not.';
 const FACT_VALUE_POLICY='FACT OUTPUT CONTRACT: facts is a sparse list, not a form to fill. Omit an entire fact record when its value is unknown, irrelevant, empty or whitespace. Never emit an empty-string value, including for cabinetRoom or cabinetBaseLf on non-cabinet work. Do not emit placeholders such as N/A or unknown. Retain all supported nonempty facts and every page/takeoff record; this does not permit dropping evidence, pages or uncertain takeoffs.';
 
 function detailViewContext(file:AnalysisFile):string|null {
@@ -181,7 +182,7 @@ async function analyzeWithOpenAI(provider: Provider, text: string, files: Analys
     // without it. Local validateExtraction remains mandatory either way, so
     // nothing is accepted on the provider's word.
     body: JSON.stringify({
-      model: provider.model, instructions: EXTRACTION_SYSTEM+'\n'+DOCUMENT_POLICY+'\n'+sourceInstruction+'\n'+FACT_VALUE_POLICY+' Reply with one JSON object that matches the requested schema exactly; no prose.', max_output_tokens: 16000, store: false,
+      model: provider.model, instructions: EXTRACTION_SYSTEM+'\n'+DOCUMENT_POLICY+'\n'+sourceInstruction+'\n'+FACT_VALUE_POLICY+'\n'+OUTPUT_BREVITY+' Reply with one JSON object that matches the requested schema exactly; no prose.', max_output_tokens: 16000, store: false,
       input: [{ role: "user", content: asInputContent(files, text, previous) }],
       text: { format: { type: "json_schema", name: "p5_scope_extraction", strict: false, schema: EXTRACTION_JSON_SCHEMA } },
     }),
@@ -220,7 +221,7 @@ async function analyzeWithAnthropic(provider: Provider, text: string, files: Ana
     // This formatting-only tool never executes code or an external action.
     // Local schema/evidence validation remains mandatory; avoiding compiled
     // output grammars prevents rejection of the full, nested page ledger.
-    body: JSON.stringify({ model: provider.model, max_tokens: 16000, system: EXTRACTION_SYSTEM+'\n'+DOCUMENT_POLICY+'\n'+sourceInstruction+'\n'+FACT_VALUE_POLICY+' Return the final structured record through record_scope_analysis. It is only an output format, not an external action.', messages: [{ role: "user", content }], tools:[{name:'record_scope_analysis',description:'Return the complete extracted scope, interpreted instructions, original-page coverage and evidence-linked takeoffs. This output record performs no actions and changes no data. Do not omit unreadable pages or excluded-scope instructions.',input_schema:anthropicExtractionSchema()}],tool_choice:{type:'tool',name:'record_scope_analysis',disable_parallel_tool_use:true} }),
+    body: JSON.stringify({ model: provider.model, max_tokens: 16000, system: EXTRACTION_SYSTEM+'\n'+DOCUMENT_POLICY+'\n'+sourceInstruction+'\n'+FACT_VALUE_POLICY+'\n'+OUTPUT_BREVITY+' Return the final structured record through record_scope_analysis. It is only an output format, not an external action.', messages: [{ role: "user", content }], tools:[{name:'record_scope_analysis',description:'Return the complete extracted scope, interpreted instructions, original-page coverage and evidence-linked takeoffs. This output record performs no actions and changes no data. Do not omit unreadable pages or excluded-scope instructions.',input_schema:anthropicExtractionSchema()}],tool_choice:{type:'tool',name:'record_scope_analysis',disable_parallel_tool_use:true} }),
   });
   console.error(`[p5-analysis] Anthropic read replied in ${((Date.now()-started)/1000).toFixed(1)}s (${response.status}).`);
   if (!response.ok) throw await responseError(provider, response);
@@ -301,6 +302,7 @@ export async function analyzeBatch(text: string, files: AnalysisFile[], previous
   }
   // Providers that rejected the page bytes are retried once with the page's text layer.
   const textLayerRetry=new Set<number>();
+  const invalidRepair=new Set<ProviderKind>();
   const primaryKind=configured[0]?.kind;
   for (const [providerIndex, provider] of configured.entries()) {
     const remaining = absoluteDeadline - Date.now();
@@ -356,6 +358,17 @@ export async function analyzeBatch(text: string, files: AnalysisFile[], previous
       if(error instanceof ProviderError&&[400,413,415,422].includes(error.status||0)&&pdfWithTextLayer(inputFiles)&&!textLayerRetry.has(providerIndex)&&absoluteDeadline-Date.now()>5000){
         textLayerRetry.add(providerIndex+1);configured.splice(providerIndex+1,0,provider);
         console.error(`[p5-analysis] ${provider.kind} refused the page bytes (${error.status}); retrying from the text layer.`);
+        last=error;continue;
+      }
+      // A reply the provider delivered (200) but that failed local validation
+      // is asked for once more from the same provider, with the defect named,
+      // before a slower fallback provider is tried: the fast provider usually
+      // returns a valid record on the second try in a fraction of the time.
+      if(error instanceof ProviderError&&error.status===200&&!invalidRepair.has(provider.kind)&&absoluteDeadline-Date.now()>5000){
+        invalidRepair.add(provider.kind);
+        sourceInstruction=specificationHint(source)+' The preceding reply was rejected by the validator ('+error.message.slice(0,160)+'). Return one schema-exact record with short strings, valid page references and no empty values.';
+        configured.splice(providerIndex+1,0,provider);
+        console.error(`[p5-analysis] ${provider.kind} reply was invalid; asking the same provider once more.`);
         last=error;continue;
       }
       if(error instanceof UnsupportedSpecificationError&&!sourceRepair&&absoluteDeadline-Date.now()>1000){

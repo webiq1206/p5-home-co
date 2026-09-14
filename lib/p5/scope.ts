@@ -159,6 +159,16 @@ export function validateExtraction(raw: unknown): ScopeExtraction {
     }
     laborCoverage={...coverage,components:coverage.components.map(c=>({...c}))};
   }
+  if (typeof r.summary !== "string" || !Array.isArray(r.facts) || !Array.isArray(r.conflicts)) throw new Error("Invalid scope analysis");
+  // An over-long reply is trimmed, never discarded: a dense page that lists
+  // more than the caps still yields its first facts and a note, instead of a
+  // second provider call and an unread page.
+  const trimmedNotes:string[]=[];
+  if (r.summary.length > 8000) { r.summary = r.summary.slice(0, 8000); }
+  if (r.facts.length > 150) { trimmedNotes.push(`${r.facts.length - 150} additional extracted facts beyond the first 150 were not used; confirm quantities against the document before pricing.`); r.facts = r.facts.slice(0, 150); }
+  if (r.conflicts.length > 50) { r.conflicts = r.conflicts.slice(0, 50); }
+  if (trimmedNotes.length) r.reviewNotes = [...(Array.isArray(r.reviewNotes) ? r.reviewNotes.filter(n => typeof n === "string") : []), ...trimmedNotes];
+  // Cannot throw after trimming; restates the shape so the types below stay narrowed.
   if (typeof r.summary !== "string" || r.summary.length > 8000 || !Array.isArray(r.facts) || r.facts.length > 150 || !Array.isArray(r.conflicts) || r.conflicts.length > 50) throw new Error("Invalid scope analysis");
   const unreadValues: string[] = [];
   const takeoffs=r.takeoffs?readTakeoffs(r.takeoffs):undefined;

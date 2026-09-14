@@ -7,6 +7,8 @@ export interface ProgressUnit {
 }
 /** A detail view is not another physical page. All views of an original page
  * must finish before it is counted as fully read. Unstarted views count too.
+ * A page the reader has finished counts as checked even when it found parts
+ * illegible or redacted; only pages with work still pending are unchecked.
  */
 export function analysisProgress(units:ProgressUnit[],expected?:{source:string;page:number}[]){
   const parts=units.map(unit=>unit.result?.extraction.documentCoverage||{
@@ -14,10 +16,13 @@ export function analysisProgress(units:ProgressUnit[],expected?:{source:string;p
     expectedPages:unit.pages?.length||0,complete:false,
   });
   const coverage=combineCoverage(parts,expected);
-  const readPages=coverage.pages.filter(p=>p.status==='read').length;
+  const key=(p:{source:string;page:number})=>JSON.stringify([p.source,p.page]);
+  const finished=new Set(units.filter(u=>u.result).flatMap(u=>(u.pages||[]).map(key)));
+  const pending=new Set(units.filter(u=>!u.result).flatMap(u=>(u.pages||[]).map(key)));
+  const readPages=coverage.pages.filter(p=>finished.has(key(p))&&!pending.has(key(p))).length;
   const readSections=units.filter(u=>u.result).length;
   return {readPages,totalPages:coverage.expectedPages,readSections,totalSections:units.length,
-    message:coverage.expectedPages?`Read ${readPages} of ${coverage.expectedPages} pages. Checking drawings, schedules and scope.`:`Read ${readSections} of ${units.length} document sections.`};
+    message:coverage.expectedPages?`Checked ${readPages} of ${coverage.expectedPages} pages. Reading drawings, schedules and scope.`:`Read ${readSections} of ${units.length} document sections.`};
 }
 
 /** Bounded parallelism, never a sampling/page-count limit. */

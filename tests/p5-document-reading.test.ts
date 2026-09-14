@@ -102,3 +102,27 @@ test('event descriptions classify failures and redact credentials',()=>{
  assert.equal(describeError(new Error('analysis-busy')).status,429);
  assert.equal(sanitizeEventMessage('failed with key sk-ant-abcdefghijklmnop and more'),'failed with [redacted] and more');
 });
+
+test('an invalid reply is asked for again from the same provider before a slower fallback provider runs',async()=>{
+ await withProviders({OPENAI_API_KEY:'fixture-only',ANTHROPIC_API_KEY:'fixture-only',P5_SCOPE_PROVIDER:'openai'},async()=>{
+  const calls:{url:string;repair:boolean}[]=[];
+  const result=await analyzeBatch('Price this build',[{name:'budget.pdf (page 4 of 4)',type:'application/pdf',data:Buffer.from('%PDF-synthetic'),pages:[{source:'budget.pdf',page:4}],text:'Allowances'}],{},async(url,options)=>{
+   const body=JSON.parse(String(options?.body));
+   calls.push({url:String(url),repair:/rejected by the validator/.test(String(body.instructions))});
+   if(calls.length===1)return Response.json({status:'completed',output:[{content:[{type:'output_text',text:JSON.stringify({summary:'x',facts:'not-an-array',conflicts:[],missingInformation:[],reviewNotes:[],clarifications:[]})}]}]});
+   return openAiReply([{source:'budget.pdf',page:4}]);
+  },60_000,Date.now()+60_000);
+  assert.equal(calls.length,2);
+  assert.ok(calls.every(c=>c.url.includes('openai')),'the same provider is asked again');
+  assert.ok(!calls[0].repair&&calls[1].repair,'the second request names the defect');
+  assert.equal(result.extraction.documentCoverage?.complete,true);
+ });
+});
+
+test('an over-long reply is trimmed with a note instead of being rejected',async()=>{
+ const {validateExtraction}=await import('../lib/p5/scope.ts');
+ const facts=Array.from({length:160},(_,i)=>({field:'taskList',value:`Item ${i}`,confidence:.9,source:'budget.pdf',evidence:`Item ${i}`,basis:'stated'}));
+ const value=validateExtraction({summary:'s'.repeat(9000),facts,conflicts:[],missingInformation:[],reviewNotes:[],clarifications:[]});
+ assert.equal(value.summary.length,8000);
+ assert.ok(value.reviewNotes.some(n=>/additional extracted facts/.test(n)));
+});
