@@ -16,7 +16,9 @@ test('Formatted customer emails escape scope HTML and never include internal fin
  const customer=estimateEmail('test',record,false),admin=estimateEmail('test',record,true);
  assert.ok(customer.html.includes('<h2'));assert.ok(customer.html.includes('&lt;script&gt;'));
  assert.ok(!customer.html.includes('<script>'));assert.ok(!customer.html.includes('98,765'));
- assert.ok(admin.html.includes('98,765'));assert.ok(customer.text.includes('PLUMBING'));
+ assert.ok(admin.html.includes('98,765'));assert.ok(customer.text.includes('Plumbing'));assert.ok(customer.text.includes('NOT INCLUDED'));
+ // Excluded work is its own labeled section in both formats, never under an included heading.
+ assert.ok(customer.html.includes('Not included'));assert.ok(customer.html.indexOf('Land and financing.')>customer.html.indexOf('Not included'));
 });
 test('Specialty cabinet products and paint-grade trim retain the correct trade',()=>{
  assert.equal(suggestedTrade('Wood cabinet pullout product with door-mount hardware'),'Cabinets');
@@ -30,6 +32,10 @@ test('Specialty cabinet products and paint-grade trim retain the correct trade',
 });
 
 test("Partial saved instruction records remain readable without losing supplied exclusions",()=>{
- const sections=estimateSections({summary:"",instructions:{exclusions:["Appliances"]}});
- assert.ok(sections.some(section=>section.bullets?.includes("Exclude: Appliances")));
+ const sections=estimateSections({summary:"",instructions:{exclusions:["Appliances"],inclusions:["Cabinets"]}});
+ const excluded=sections.find(section=>section.kind==='excluded');
+ assert.ok(excluded?.bullets?.includes("Appliances"));
+ // Inclusions and exclusions never share a section.
+ const included=sections.find(section=>section.kind==='included');
+ assert.ok(included?.bullets?.includes("Cabinets"));assert.ok(!included?.bullets?.includes("Appliances"));
 });
