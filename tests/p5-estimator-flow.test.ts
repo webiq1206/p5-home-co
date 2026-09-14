@@ -121,10 +121,10 @@ test('a typed scope is read by every configured provider at once and the first v
 
 test('a billing refusal from Anthropic falls back to OpenAI for the stage and parks Anthropic',async()=>{
   const {requestPricing}=await import('../lib/p5/scopePricing.ts');
-  const names=['OPENAI_API_KEY','AI_INTEGRATIONS_OPENAI_API_KEY','AI_INTEGRATIONS_OPENAI_BASE_URL','ANTHROPIC_API_KEY','OPENAI_BASE_URL'] as const;
+  const names=['OPENAI_API_KEY','AI_INTEGRATIONS_OPENAI_API_KEY','AI_INTEGRATIONS_OPENAI_BASE_URL','ANTHROPIC_API_KEY','OPENAI_BASE_URL','P5_PRICING_PROVIDER'] as const;
   const saved=Object.fromEntries(names.map(n=>[n,process.env[n]]));
   for(const n of names)delete process.env[n];
-  process.env.ANTHROPIC_API_KEY='synthetic-anthropic';process.env.OPENAI_API_KEY='synthetic-openai';
+  process.env.ANTHROPIC_API_KEY='synthetic-anthropic';process.env.OPENAI_API_KEY='synthetic-openai';process.env.P5_PRICING_PROVIDER='anthropic';
   const runtime=globalThis as typeof globalThis & {p5AnthropicBlockedUntil?:number};runtime.p5AnthropicBlockedUntil=0;
   const realFetch=globalThis.fetch;let anthropicCalls=0,openaiCalls=0;
   globalThis.fetch=(async(input:any)=>{
@@ -175,4 +175,30 @@ test('confirmation-only audit findings become disclosed assumptions, real gaps s
   assert.equal(advisoryIssue('Priced hourly labor (12) does not reconcile with the confirmed 10 hours.'),false);
   assert.equal(advisoryIssue('Complete scope pricing could not be verified. An estimator must resolve the remaining work before a total is released.'),false);
   assert.equal(advisoryIssue('Vanity top duplicated in both cabinetry and countertop lines.'),false);
+});
+
+test('OpenAI leads pricing stages by default and Anthropic covers its refusal',async()=>{
+  const {requestPricing}=await import('../lib/p5/scopePricing.ts');
+  const names=['OPENAI_API_KEY','AI_INTEGRATIONS_OPENAI_API_KEY','AI_INTEGRATIONS_OPENAI_BASE_URL','ANTHROPIC_API_KEY','OPENAI_BASE_URL','P5_PRICING_PROVIDER'] as const;
+  const saved=Object.fromEntries(names.map(n=>[n,process.env[n]]));
+  for(const n of names)delete process.env[n];
+  process.env.ANTHROPIC_API_KEY='synthetic-anthropic';process.env.OPENAI_API_KEY='synthetic-openai';
+  const runtime=globalThis as typeof globalThis & {p5AnthropicBlockedUntil?:number};runtime.p5AnthropicBlockedUntil=0;
+  const realFetch=globalThis.fetch;let anthropicCalls=0,openaiCalls=0,openaiRefuses=false;
+  globalThis.fetch=(async(input:any)=>{
+    const url=String(input);
+    if(url.includes('anthropic.com')){anthropicCalls++;return Response.json({stop_reason:'end_turn',content:[{type:'text',text:'{"coveredTaskIds":["b"],"issues":[]}'}]});}
+    openaiCalls++;if(openaiRefuses)return new Response('{"error":{"message":"invalid_request"}}',{status:400});
+    return Response.json({status:'completed',output:[{content:[{type:'output_text',text:'{"coveredTaskIds":["a"],"issues":[]}'}]}]});
+  }) as typeof fetch;
+  try{
+    const first=await requestPricing('JSON',{},false,20000);
+    assert.deepEqual(first.value,{coveredTaskIds:['a'],issues:[]});assert.equal(openaiCalls,1);assert.equal(anthropicCalls,0,'OpenAI answers first');
+    openaiRefuses=true;
+    const second=await requestPricing('JSON',{},false,20000);
+    assert.deepEqual(second.value,{coveredTaskIds:['b'],issues:[]});assert.equal(anthropicCalls,1,'a refusal falls through to Anthropic');
+  }finally{
+    globalThis.fetch=realFetch;runtime.p5AnthropicBlockedUntil=0;
+    for(const n of names){if(saved[n]===undefined)delete process.env[n];else process.env[n]=saved[n]!;}
+  }
 });

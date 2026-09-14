@@ -118,6 +118,31 @@ with `typedAlternatives.ts`).
   (`[p5-pricing] mapping finished in 41.2s`), readable in the Replit
   deployment log viewer.
 
+### Pricing speed and stage memory (2026-09-13, fourth pass)
+
+- Live stage timings on p5homeco.com with claude-sonnet-5: inventory 11 to
+  14 s, mapping 46 to 105 s (one 150 s timeout), verification 12 to 120 s,
+  research 22 s timeouts falling back to the planning average. With gpt-4.1
+  the same pipeline priced a handyman scope in 11 s and a bathroom in 40 s.
+  OpenAI therefore leads pricing stages when both keys exist
+  (`P5_PRICING_PROVIDER=anthropic` restores Anthropic first); either provider
+  still covers a refusal by the other.
+- Stage replies are saved by phase and order of appearance (`mapping#2`)
+  instead of a hash of their input. Replays return saved replies in the same
+  order, so a later stage whose input drifts between passes (research
+  evidence, line ids) no longer runs again; the live logs showed mapping and
+  verification repeating on every pass. A research timeout is remembered so a
+  replay goes straight to the planning fallback.
+- Audit findings that only ask for later confirmation become disclosed
+  assumptions with the range; findings that name omitted, duplicated,
+  conflicting, unsupported or unverified pricing still block.
+- Provider wording for a choice fact ("Standard finishes") maps onto the
+  field's option instead of failing the whole read. When pricing ends without
+  a range the reasons are logged and the first three are shown.
+- Live results after these changes: boisehandyman.co typed scope, analysis
+  11.6 s, pricing 11.4 s, range $2,825 to $3,700 with categories, quantities,
+  unit rates and planning-rate labels.
+
 ## Verification
 
 - `tests/p5-estimator-flow.test.ts` covers missing-field links, category

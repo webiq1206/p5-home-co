@@ -147,6 +147,19 @@ export const requestPricing:PricingRequest=async(instructions,input,search,remai
   const integrated=Boolean(process.env.AI_INTEGRATIONS_OPENAI_API_KEY&&process.env.AI_INTEGRATIONS_OPENAI_BASE_URL);
   const openai=Boolean(integrated?process.env.AI_INTEGRATIONS_OPENAI_API_KEY:process.env.OPENAI_API_KEY);
   const anthropic=Boolean(process.env.ANTHROPIC_API_KEY)&&(providerRuntime.p5AnthropicBlockedUntil||0)<=Date.now();
+  // Live timings: gpt-4.1 returns a pricing stage in 5 to 40 s where claude-sonnet-5 took 70 to 150 s, so OpenAI leads when both are configured unless P5_PRICING_PROVIDER says otherwise; either provider still covers a refusal by the other.
+  const preferOpenAI=openai&&(process.env.P5_PRICING_PROVIDER||'openai')!=='anthropic';
+  if(preferOpenAI){
+    try{return await requestPricingWith('openai',instructions,input,search,remainingMs);}
+    catch(error){
+      const message=error instanceof Error?error.message:String(error);
+      if(!anthropic||!providerRefused(message))throw error;
+      const left=remainingMs-(Date.now()-started);
+      console.error(`[p5-pricing] OpenAI refused the stage (${message.slice(0,140)}); ${left>=5000?'continuing with Anthropic':'no time left for Anthropic'}.`);
+      if(left<5000)throw error;
+      return requestPricingWith('anthropic',instructions,input,search,left);
+    }
+  }
   if(anthropic){
     try{return await requestPricingWith('anthropic',instructions,input,search,remainingMs);}
     catch(error){

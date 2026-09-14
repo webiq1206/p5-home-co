@@ -108,10 +108,10 @@ test('Invalid catalog references and zero-quantity output never release a range'
  }
 });
 test('Anthropic-only configuration supports JSON and real tool-source extraction',async()=>{
- const names=['OPENAI_API_KEY','AI_INTEGRATIONS_OPENAI_API_KEY','AI_INTEGRATIONS_OPENAI_BASE_URL','ANTHROPIC_API_KEY','P5_PRICING_MODEL','P5_PRICING_RESEARCH_MODEL'];
+ const names=['OPENAI_API_KEY','AI_INTEGRATIONS_OPENAI_API_KEY','AI_INTEGRATIONS_OPENAI_BASE_URL','ANTHROPIC_API_KEY','P5_PRICING_MODEL','P5_PRICING_RESEARCH_MODEL','P5_PRICING_PROVIDER'];
  const saved=names.map(n=>process.env[n]);const oldFetch=globalThis.fetch;
  try{
-  for(const n of names)delete process.env[n];process.env.ANTHROPIC_API_KEY='synthetic-test-key';
+  for(const n of names)delete process.env[n];process.env.ANTHROPIC_API_KEY='synthetic-test-key';process.env.P5_PRICING_PROVIDER='anthropic';
   let search=false;
   globalThis.fetch=async(url,init)=>{
    assert.equal(url,'https://api.anthropic.com/v1/messages');

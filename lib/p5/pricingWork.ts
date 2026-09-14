@@ -28,22 +28,38 @@ export async function priceSavedScope(id:string,scope:ReviewedScope,configuratio
  configuration={...configuration,regionalRates:payload.regionalRates||[]};
  let saving=Promise.resolve();
  const persist=()=>{saving=saving.then(async()=>{try{await writeWork(id,workKey,claimed.token,payload);}catch{throw new PricingPending('Pricing progress could not be saved yet. Please retry to continue.',0);}});return saving;};
+ const ordinals:Record<string,number>={};
  const staged:PricingRequest=async(instructions,input,search,remainingMs)=>{
-  const key=pricingReplyKey(instructions,input,search);
-  const saved=payload.replies[key];if(saved)return saved;
+  const activity=pricingActivity(instructions,input,search);
+  // Stages are addressed by phase and order of appearance. Replays hand back
+  // saved replies in the same order, so this is stable across passes even
+  // when a later stage's input (research evidence, line ids) drifts.
+  const ordinal=(ordinals[activity.phase]=(ordinals[activity.phase]||0)+1);
+  const key=`${activity.phase}#${ordinal}`;
+  const legacy=pricingReplyKey(instructions,input,search);
+  const saved=payload.replies[key]||payload.replies[legacy];
+  if(saved){
+    if((saved as {timedOut?:boolean}).timedOut)throw new PricingStageTimeout();
+    return saved;
+  }
   // A pass ends between stages, never inside one. A stage that has started
   // keeps its whole allowance and is saved, so the next pass resumes after it
   // instead of repeating it; the job lifetime bounds the total.
   remainingBudget(deadline);
   let reply:PricingReply;
-  payload.processing=pricingActivity(instructions,input,search);await persist();
-  const phase=payload.processing.phase;
+  payload.processing=activity;await persist();
+  const phase=activity.phase;
   const allowance=search?Math.max(5000,Math.min(remainingMs,PRICING_STAGE_MAX_MS)):PRICING_STAGE_MAX_MS;
   const started=Date.now();
   const elapsed=()=>((Date.now()-started)/1000).toFixed(1);
   try{reply=await withinDeadline(()=>requestPricing(instructions,input,search,allowance),started+allowance);}
   catch(error){
-   if(isProcessingDeadline(error)){console.error(`[p5-pricing] ${phase} stage exceeded its ${Math.round(allowance/1000)}s allowance after ${elapsed()}s`);throw new PricingStageTimeout();}
+   if(isProcessingDeadline(error)){
+    console.error(`[p5-pricing] ${phase} stage exceeded its ${Math.round(allowance/1000)}s allowance after ${elapsed()}s`);
+    // A research stage that timed out is remembered so a replay goes straight to its planning fallback.
+    if(search){payload.replies[key]={value:null,sourceUrls:[],timedOut:true} as unknown as PricingReply;await persist();}
+    throw new PricingStageTimeout();
+   }
    // A failed published-cost search is not a reason to stop pricing: the caller may use a labeled planning average instead.
    if(search){console.error(`[p5-pricing] research failed after ${elapsed()}s: ${error instanceof Error?error.message:String(error)}`);throw new PricingStageTimeout(error instanceof Error?error.message:'pricing-search-unavailable');}
    payload.failures=(payload.failures||0)+1;await persist();
