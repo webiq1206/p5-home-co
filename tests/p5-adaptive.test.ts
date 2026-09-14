@@ -9,11 +9,11 @@ test('observed HTTP 200 null draft never advances or clears uploads',()=>{
  assert.equal(requireDraftReceipt({draft:{revision:1,answers:{},uploads:[]}}).revision,1);
 });
 test('detailed bathroom scope skips known details and derives area',()=>{
- const e=extracted({service:'bathroom',length:'8',width:'10',flooringSqft:'80',fixtures:'One shower and one toilet',materials:'Porcelain tile',demolition:'Remove tile and vanity',location:'Boise'});
+ const e=extracted({service:'bathroom',length:'8',width:'10',flooringSqft:'80',fixtures:'One shower and one toilet',materials:'Porcelain tile',finish:'mid-range',demolition:'Remove tile and vanity',location:'Boise'});
  const m=reconcileScope({},e);assert.equal(m.answers.sqft,'80');assert.deepEqual(scopeQuestions(m.answers,e,m.conflicts),[]);
 });
 test('only missing cost-book variables generate questions and zero is known',()=>{
- const a={service:'cabinet-install',cabinetRoom:'kitchen',cabinetBaseLf:'20',cabinetUpperLf:'0'};
+ const a={service:'cabinet-install',cabinetRoom:'kitchen',cabinetBaseLf:'20',cabinetUpperLf:'0',finish:'mid-range'};
  assert.deepEqual(scopeQuestions(a,null,[],[],['cabinetBaseLf','cabinetUpperLf']),[]);
  assert.deepEqual(scopeQuestions(a,null,[],[],['countertopSqft']).map(q=>q.field),['countertopSqft']);
 });
@@ -24,7 +24,7 @@ test('conflicts are one clarification and confirmation persists',()=>{
  assert.equal(reconcileScope({sqft:'200.0'},e).conflicts.length,0);
 });
 test('low confidence is one clarification, never an accepted quantity',()=>{
- const e=extracted({sqft:'80'},.65);const m=reconcileScope({service:'bathroom',materials:'Porcelain',demolition:'Remove tile'},e);
+ const e=extracted({sqft:'80'},.65);const m=reconcileScope({service:'bathroom',materials:'Porcelain',finish:'mid-range',demolition:'Remove tile'},e);
  assert.equal(m.answers.sqft,undefined);const q=scopeQuestions(m.answers,e);assert.equal(q.length,1);assert.deepEqual(q[0].values,['80']);
 });
 test('derive explicit rectangular area without guessing scale or overwriting stated area',()=>{
@@ -33,12 +33,12 @@ test('derive explicit rectangular area without guessing scale or overwriting sta
  assert.ok(reconcileScope({length:'8',width:'10',sqft:'70'},extracted({})).conflicts.length);
 });
 test('unknown answers are assumptions instead of repeated questions',()=>{
- const a={service:'bathroom',demolition:'Remove fixtures',materials:'Porcelain'};
+ const a={service:'bathroom',demolition:'Remove fixtures',materials:'Porcelain',finish:'mid-range'};
  assert.deepEqual(scopeQuestions(a,null,[],['sqft']),[]);assert.match(scopeAssumptions(a,['sqft']).join(' '),/not yet known/);
 });
 test('a clarification answered elsewhere is skipped',()=>{
  const e=validateExtraction({...extracted({plumbing:'Keep fixtures'}),clarifications:[{field:'plumbing',question:'Are fixtures moving?',reason:'Relocation cost'}]});
- assert.deepEqual(scopeQuestions({service:'bathroom',sqft:'80',materials:'Tile',demolition:'Remove tile',plumbing:'Keep fixtures'},e),[]);
+ assert.deepEqual(scopeQuestions({service:'bathroom',sqft:'80',materials:'Tile',finish:'mid-range',demolition:'Remove tile',plumbing:'Keep fixtures'},e),[]);
 });
 test('unrelated remodeling questions never appear for repairs',()=>{
  assert.deepEqual(scopeQuestions({service:'handyman',taskList:'Repair three doors'},null),[]);
@@ -73,7 +73,7 @@ test('reconciliation does not accept a high-confidence inferred fact or one side
  assert.equal(scopeQuestions(conflicted.answers,duplicate,conflicted.conflicts)[0].field,'sqft');
 });
 test('explicit calculated measurements retain their evidence and skip repeat questions',()=>{
- const raw=extracted({service:'bathroom',sqft:'80',materials:'Porcelain tile',demolition:'Remove old fixtures'});
+ const raw=extracted({service:'bathroom',sqft:'80',materials:'Porcelain tile',finish:'mid-range',demolition:'Remove old fixtures'});
  raw.facts=raw.facts.map(f=>({...f,basis:f.field==='sqft'?'calculated':'stated'}));
  const e=validateExtraction(raw), merged=reconcileScope({},e);
  assert.equal(merged.answers.sqft,'80');assert.deepEqual(scopeQuestions(merged.answers,e),[]);
@@ -95,7 +95,7 @@ test('designer handoff retains existing notes, contact, files and visitor correc
  assert.equal(edited.answers.cabinetBaseLf,'30');assert.equal(edited.conflicts?.length,1);
 });
 test('living area and garage stay separate and known specifications do not generate optional questions',()=>{
- const a={service:'new-construction',sqft:'2500',garageIncluded:'yes',materials:'Paint grade Shaker, engineered wood',taskList:'Residence and attached garage'};
+ const a={service:'new-construction',sqft:'2500',garageIncluded:'yes',materials:'Paint grade Shaker, engineered wood',finish:'mid-range',taskList:'Residence and attached garage'};
  const e=extracted({});e.clarifications=[{field:'finish',question:'What finish level?',reason:'materials'},{field:'location',question:'Where?',reason:'jurisdiction'}];
  assert.deepEqual(scopeQuestions(a,e).map(q=>q.field),['garageSqft']);
  assert.deepEqual(scopeQuestions({...a,garageSqft:'800'},e),[]);
@@ -103,7 +103,7 @@ test('living area and garage stay separate and known specifications do not gener
 });
 
 test('uncertain quantities are asked only when required by pricing',()=>{
- const a={service:'bathroom',length:'8',width:'10',materials:'Porcelain',demolition:'Remove tile'};
+ const a={service:'bathroom',length:'8',width:'10',materials:'Porcelain',finish:'mid-range',demolition:'Remove tile'};
  const e=extracted({flooringSqft:'80'},.65);
  assert.deepEqual(scopeQuestions(a,e),[]);
  const q=scopeQuestions(a,e,[],[],['flooringSqft']);
@@ -112,7 +112,7 @@ test('uncertain quantities are asked only when required by pricing',()=>{
 });
 
 test('model follow-ups must match a required field and its answer type',()=>{
- const a={service:'bathroom',length:'8',width:'10',materials:'Porcelain',demolition:'Remove tile'};
+ const a={service:'bathroom',length:'8',width:'10',materials:'Porcelain',finish:'mid-range',demolition:'Remove tile'};
  const e=extracted({});e.clarifications=[{field:'fixtureCount',question:'Which fixtures and who supplies them?',reason:'Scope'}];
  assert.deepEqual(scopeQuestions(a,e),[]);
  const q=scopeQuestions(a,e,[],[],['fixtureCount']);
@@ -136,4 +136,12 @@ test('an itemized document does not ask for the task list again',()=>{
   const answered=scopeQuestions({service:'kitchen',sqft:'200',finish:'standard'},withTakeoffs).map(q=>q.field);
   assert.ok(asked.includes('taskList'),'without quantities the task list is asked');
   assert.ok(!answered.includes('taskList'),'a document with takeoffs answers it');
+});
+
+test('finish level is asked whenever it is missing on work it prices, and never for repairs',()=>{
+ const asked=scopeQuestions({service:'bathroom',sqft:'80',materials:'Porcelain tile',demolition:'Remove tile',taskList:'Tile shower and floor'},null).map(q=>q.field);
+ assert.ok(asked.includes('finish'),'described materials do not replace the finish level');
+ assert.deepEqual(scopeQuestions({service:'bathroom',sqft:'80',materials:'Porcelain tile',finish:'high-end',demolition:'Remove tile',taskList:'Tile shower and floor'},null),[]);
+ assert.ok(!scopeQuestions({service:'handyman',taskList:'Repair three doors'},null).some(q=>q.field==='finish'));
+ assert.match(scopeAssumptions({service:'kitchen',sqft:'200'}).join(' '),/standard finishes are assumed/i);
 });

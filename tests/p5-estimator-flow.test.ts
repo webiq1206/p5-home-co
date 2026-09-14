@@ -100,6 +100,8 @@ test('a typed scope is read by every configured provider at once and the first v
   const {analyzeBatch}=await import('../lib/p5/extraction.ts');
   const saved={openai:process.env.OPENAI_API_KEY,anthropic:process.env.ANTHROPIC_API_KEY,integrated:process.env.AI_INTEGRATIONS_OPENAI_API_KEY};
   process.env.OPENAI_API_KEY='fixture';process.env.ANTHROPIC_API_KEY='fixture';delete process.env.AI_INTEGRATIONS_OPENAI_API_KEY;
+  // The race is opt-in (it doubles read spend); this test covers the opted-in path.
+  const savedRace=process.env.P5_TEXT_RACE;process.env.P5_TEXT_RACE='true';
   const record={summary:'Bathroom remodel',facts:[{field:'service',value:'bathroom',confidence:.95,source:'typed scope',evidence:'bathroom remodel',basis:'stated'}],conflicts:[],missingInformation:[],reviewNotes:[],clarifications:[],instructions:{inclusions:[],exclusions:[],responsibilities:[],buildings:[],floors:[],separateBuildings:false,laborOnly:false,materialsOnly:false,questions:[]},pages:[],takeoffs:[]};
   const calls:string[]=[];
   const request:typeof fetch=async(input,init)=>{
@@ -115,7 +117,7 @@ test('a typed scope is read by every configured provider at once and the first v
     assert.ok(Date.now()-started<1000,'the slow primary provider must not delay a valid fallback result');
     assert.ok(calls.some(url=>url.includes('/responses'))&&calls.some(url=>url.includes('/messages')),'both providers are asked');
   }finally{
-    for(const [key,value] of [['OPENAI_API_KEY',saved.openai],['ANTHROPIC_API_KEY',saved.anthropic],['AI_INTEGRATIONS_OPENAI_API_KEY',saved.integrated]] as const){if(value===undefined)delete process.env[key];else process.env[key]=value;}
+    for(const [key,value] of [['OPENAI_API_KEY',saved.openai],['ANTHROPIC_API_KEY',saved.anthropic],['AI_INTEGRATIONS_OPENAI_API_KEY',saved.integrated],['P5_TEXT_RACE',savedRace]] as const){if(value===undefined)delete process.env[key];else process.env[key]=value;}
   }
 });
 

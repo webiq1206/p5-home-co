@@ -21,8 +21,8 @@ test('a checked PDF retains unspecified ratings without waiting for another prov
  page.drawText(visible,{x:20,y:650,font,size:8});
  const file={name:'redacted.pdf',type:'application/pdf',data:Buffer.from(await pdf.save()),pages:[{source:'redacted.pdf',page:1}]};
  assert.deepEqual((await readSpecificationSource([file]))?.gaps,['siding','drywall']);
- const vars=['OPENAI_API_KEY','OPENAI_BASE_URL','AI_INTEGRATIONS_OPENAI_API_KEY','AI_INTEGRATIONS_OPENAI_BASE_URL','ANTHROPIC_API_KEY'];
- const before=Object.fromEntries(vars.map(k=>[k,process.env[k]]));for(const k of vars)delete process.env[k];process.env.OPENAI_API_KEY='fixture-only';process.env.ANTHROPIC_API_KEY='fixture-fallback';
+ const vars=['OPENAI_API_KEY','OPENAI_BASE_URL','AI_INTEGRATIONS_OPENAI_API_KEY','AI_INTEGRATIONS_OPENAI_BASE_URL','ANTHROPIC_API_KEY','P5_SCOPE_PROVIDER'];
+ const before=Object.fromEntries(vars.map(k=>[k,process.env[k]]));for(const k of vars)delete process.env[k];process.env.OPENAI_API_KEY='fixture-only';process.env.ANTHROPIC_API_KEY='fixture-fallback';process.env.P5_SCOPE_PROVIDER='openai';
  try{
   let calls=0;
   const result=await analyzeBatch('',[file],{},async(_url,init)=>{

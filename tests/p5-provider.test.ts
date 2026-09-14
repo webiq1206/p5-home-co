@@ -56,6 +56,8 @@ test('configured OpenAI reads all four scope pages together within its token lim
 });
 test('provider fallback retains the request and failed provider bodies never escape',async()=>{
  const before=Object.fromEntries(variables.map(k=>[k,process.env[k]]));for(const k of variables)delete process.env[k];process.env.OPENAI_API_KEY='fixture-only';process.env.ANTHROPIC_API_KEY='fixture-only';
+ // Anthropic leads by default; this test exercises the fallback with OpenAI leading.
+ const savedLead=process.env.P5_SCOPE_PROVIDER;process.env.P5_SCOPE_PROVIDER='openai';
  try{
   const urls:string[]=[];const result=await analyzeScope('Retain the selected cabinet doors',[],{cabinetBaseLf:'20'},async(url,options)=>{
    urls.push(String(url));if(url.toString().includes('openai'))return Response.json({error:{message:'PRIVATE DOCUMENT CONTENT'}},{status:503});
@@ -63,5 +65,5 @@ test('provider fallback retains the request and failed provider bodies never esc
   });assert.equal(result.provider,'Anthropic');assert.equal(urls.length,2);
   delete process.env.ANTHROPIC_API_KEY;
   await assert.rejects(analyzeScope('scope',[],{},async()=>Response.json({error:{message:'PRIVATE DOCUMENT CONTENT'}},{status:400})),error=>!String(error).includes('PRIVATE DOCUMENT'));
- }finally{for(const k of variables){if(before[k]===undefined)delete process.env[k];else process.env[k]=before[k];}}
+ }finally{if(savedLead===undefined)delete process.env.P5_SCOPE_PROVIDER;else process.env.P5_SCOPE_PROVIDER=savedLead;for(const k of variables){if(before[k]===undefined)delete process.env[k];else process.env[k]=before[k];}}
 });
