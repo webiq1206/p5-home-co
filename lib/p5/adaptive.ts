@@ -56,12 +56,16 @@ export function reconcileScope(current:ScopeAnswers,extraction:ScopeExtraction,r
 }
 const remodels=['kitchen','bathroom','whole-home'];
 const builds=['addition','adu','new-construction'];
+/** Services whose material pricing scales with the finish level. */
+export const finishServices=[...remodels,...builds,'cabinet-product','cabinet-install'];
 export function materialScopeFields(answers:ScopeAnswers,pricedFields:ScopeField[]=[]):ScopeField[]{
   const service=answers.service;
   const required=requiredScopeQuestions(answers);
   if(service&&builds.includes(service)&&answers.garageIncluded==='yes'&&!answers.garageSqft?.trim())required.push('garageSqft');
+  // Finish level multiplies every material line (0.85 to 1.6), so it is asked
+  // whenever it is not set, even when materials were described.
+  if(service&&finishServices.includes(service)&&!answers.finish?.trim())required.push('finish');
   if(service&&[...remodels,...builds].includes(service)){
-    if(!answers.materials&&!answers.finish)required.push('finish');
     // One description captures the work, including retained and changed items.
     if(!answers.taskList&&!answers.demolition&&!answers.structural&&!answers.otherDetails)required.push('taskList');
   }
@@ -116,7 +120,7 @@ export function scopeAssumptions(answers:ScopeAnswers,skipped:ScopeField[]=[]){
   const notes:string[]=[];
   if(!answers.location&&!answers.address)notes.push('General service-area pricing; location, access and jurisdiction will be confirmed.');
   if(!answers.urgency)notes.push('Standard scheduling; priority or emergency work is not included.');
-  if(!answers.finish&&!answers.materials&&[...remodels,...builds].includes(answers.service||''))notes.push('Finish selections need an itemized allowance or confirmation before a firm price.');
+  if(!answers.finish&&finishServices.includes(answers.service||''))notes.push('Finish level not chosen; standard finishes are assumed until you select one.');
   if(answers.length&&answers.width&&answers.sqft&&sameAnswer('sqft',answers.sqft,deriveScopeAnswers({...answers,sqft:''}).sqft||'0'))notes.push(`Project area calculated from ${answers.length} × ${answers.width} feet. Confirm irregular areas during the site visit.`);
   for(const k of skipped)if(!answers[k])notes.push(`${SCOPE_FIELDS[k].label}: not yet known; requires an allowance or pricing review.`);
   return notes;
