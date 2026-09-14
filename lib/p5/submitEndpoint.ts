@@ -35,7 +35,11 @@ export async function postSubmission(request:Request,schedule?:(task:()=>Promise
       const missing=('missingInformation' in priced.internal?priced.internal.missingInformation:[])||[];
       const missingFields=missingScopeFields(missing);
       const labels=missingFields.map(item=>item.label);
-      return json({pricingReviewRequired:true,missingFields,error:`Your project is saved and remains editable. ${labels.length?`Please confirm: ${labels.slice(0,5).join('; ')}.`:'Some scope items still need verified quantities or cost evidence.'} A complete price range is required before the estimate can be finalized and emailed.`},422);
+      const items=((priced.customer as {verificationItems?:string[]}).verificationItems||[]).filter(item=>typeof item==='string'&&item.trim());
+      // The reasons are logged so a live host explains an unpriced result, and the first few are shown so the visitor knows what to confirm.
+      console.error(`[p5-pricing] no range for draft ${id}: ${items.slice(0,6).join(' | ')||'no verification items'}`);
+      const detail=labels.length?`Please confirm: ${labels.slice(0,5).join('; ')}.`:items.length?`Still to confirm: ${items.slice(0,3).join(' ')}`:'Some scope items still need verified quantities or cost evidence.';
+      return json({pricingReviewRequired:true,missingFields,error:`Your project is saved and remains editable. ${detail} A complete price range is required before the estimate can be finalized and emailed.`},422);
     }
     const record={draftId:id,revision:draft.revision,brand:brand.name,estimator:"p5-policy",contact:draft.contact,scope:draft.reviewed,...priced};
     const accepted=await enqueueSubmission(id,draft.revision,record);
