@@ -21,7 +21,10 @@ test('legacy company-fit questions use the service picker instead of an instruct
 });
 test('ambiguous responsibility clarification retains provider and document protections',async()=>{
   const {resolveInstructionAnswer}=await resolver();
-  process.env.OPENAI_API_KEY='synthetic';delete process.env.AI_INTEGRATIONS_OPENAI_API_KEY;
+  const keys=['OPENAI_API_KEY','AI_INTEGRATIONS_OPENAI_API_KEY','AI_INTEGRATIONS_OPENAI_BASE_URL','ANTHROPIC_API_KEY'];
+  const saved=Object.fromEntries(keys.map(key=>[key,process.env[key]]));
+  for(const key of keys)delete process.env[key];
+  process.env.OPENAI_API_KEY='synthetic';
   const e=scope();const id=instructionPrompts(e,{})[0].id;let calls=0;
   const request:typeof fetch=async(_url,options)=>{
     calls++;const body=JSON.parse(String(options?.body));assert.equal(body.input[0].content.some((c:any)=>c.type==='input_file'||c.type==='input_image'),false);
@@ -36,7 +39,11 @@ test('ambiguous responsibility clarification retains provider and document prote
     assert.deepEqual(instructionPrompts(result.extraction,result.answers).map(q=>q.question),['Should we include or exclude painting?']);
     const repeated=await resolveInstructionAnswer(result.extraction,result.answers,{id,answer},result.history,request);
     assert.equal(calls,1);assert.equal(repeated.history.length,1);assert.match(result.answers.estimatingInstructions||'',/Answer: Labor only/);
-  }finally{delete process.env.OPENAI_API_KEY;}
+  }finally{
+    for(const key of keys){
+      if(saved[key]===undefined)delete process.env[key];else process.env[key]=saved[key];
+    }
+  }
 });
 test('exact responsibility choices resolve locally, preserve evidence and retry idempotently',async()=>{
   const {resolveInstructionAnswer}=await resolver();
