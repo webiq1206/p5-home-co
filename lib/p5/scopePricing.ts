@@ -82,6 +82,8 @@ const parseJson=(raw:string)=>JSON.parse(raw.replace(/^\s*```(?:json)?\s*/,'').r
 const providerRuntime=globalThis as typeof globalThis & {p5AnthropicBlockedUntil?:number};
 /** Stage errors that mean the provider will keep refusing this request: a billing block or a bad request (429 and 5xx stay retryable). */
 const providerRefused=(message:string)=>/^pricing-provider-unavailable:4(0[0-3]|0[5-9]|1\d|2[0-8])\b/.test(message);
+/** The structured output each stage must return, shared by both providers so a fallback reply has the same shape. */
+const stageSchema=(instructions:string)=>instructions===normalizeResearch?marketJson:instructions===INVENTORY?inventoryJson:instructions===MAP?mappingJson:instructions===PLANNING_AVERAGE?planningJson:auditJson;
 const requestPricingWith=async(provider:'anthropic'|'openai',instructions:string,input:unknown,search:boolean,remainingMs:number):Promise<PricingReply>=>{
   const started=Date.now();
   remainingMs=Math.min(remainingMs,PRICING_STAGE_MAX_MS);
@@ -95,7 +97,7 @@ const requestPricingWith=async(provider:'anthropic'|'openai',instructions:string
     if(!anthropic)throw new Error('pricing-provider-unavailable');
     const headers={'Content-Type':'application/json','x-api-key':anthropic,'anthropic-version':'2023-06-01'};
     const messages:any[]=[{role:'user',content:JSON.stringify(input)}];
-    const requestBody={model:search?(process.env.P5_PRICING_RESEARCH_MODEL||'claude-sonnet-5'):(process.env.P5_PRICING_MODEL||'claude-sonnet-5'),max_tokens:24000,system:instructions,...(search?{tools:[{type:'web_search_20250305',name:'web_search',max_uses:5},{type:'web_fetch_20250910',name:'web_fetch',max_uses:4,max_content_tokens:15000}]}:{output_config:{format:{type:'json_schema',schema:instructions===normalizeResearch?marketJson:instructions===INVENTORY?inventoryJson:instructions===MAP?mappingJson:instructions===PLANNING_AVERAGE?planningJson:auditJson}}})};
+    const requestBody={model:search?(process.env.P5_PRICING_RESEARCH_MODEL||'claude-sonnet-5'):(process.env.P5_PRICING_MODEL||'claude-sonnet-5'),max_tokens:24000,system:instructions,...(search?{tools:[{type:'web_search_20250305',name:'web_search',max_uses:5},{type:'web_fetch_20250910',name:'web_fetch',max_uses:4,max_content_tokens:15000}]}:{output_config:{format:{type:'json_schema',schema:stageSchema(instructions)}}})};
     const content:any[]=[];
     for(let continuation=0;;continuation++){
       const left=remainingMs-(Date.now()-started);if(left<=0)throw new Error('pricing-check-timeout');
@@ -126,7 +128,7 @@ const requestPricingWith=async(provider:'anthropic'|'openai',instructions:string
       return {value:parseJson((body.content||[]).filter((p:any)=>p.type==='text').map((p:any)=>p.text).join('')),sourceUrls,sourceReport:raw};
     }
   }
-  const response=await boundedFetch(`${endpoint}/responses`,{method:'POST',signal:AbortSignal.timeout(Math.min(search?150000:180000,remainingMs)),headers:{'Content-Type':'application/json',Authorization:`Bearer ${key}`},body:JSON.stringify({model:process.env.P5_PRICING_OPENAI_MODEL||process.env.P5_SCOPE_OPENAI_MODEL||'gpt-4.1',instructions,input:'Return JSON only.\n'+JSON.stringify(input),max_output_tokens:24000,store:false,...(search?{tools:[{type:'web_search'}],tool_choice:'required',include:['web_search_call.action.sources']}:{text:{format:{type:'json_object'}}})})});
+  const response=await boundedFetch(`${endpoint}/responses`,{method:'POST',signal:AbortSignal.timeout(Math.min(search?150000:180000,remainingMs)),headers:{'Content-Type':'application/json',Authorization:`Bearer ${key}`},body:JSON.stringify({model:process.env.P5_PRICING_OPENAI_MODEL||process.env.P5_SCOPE_OPENAI_MODEL||'gpt-4.1',instructions,input:'Return JSON only.\n'+JSON.stringify(input),max_output_tokens:24000,store:false,...(search?{tools:[{type:'web_search'}],tool_choice:'required',include:['web_search_call.action.sources']}:{text:{format:{type:'json_schema',name:'pricing_stage',strict:false,schema:stageSchema(instructions)}}})})});
   if(!response.ok){const detail=await response.text().catch(()=>'');throw new Error(`pricing-provider-unavailable:${response.status}:${detail.replace(/\s+/g,' ').slice(0,300)}`);}
   const body=await response.json();
   if(body.status!=='completed')throw new Error(`pricing-check-incomplete:${body.incomplete_details?.reason||body.status||'unknown'}`);
