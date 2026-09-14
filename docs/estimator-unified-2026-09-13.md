@@ -99,7 +99,7 @@ with `typedAlternatives.ts`).
 
 - Live pricing stages call Anthropic first (`P5_PRICING_MODEL`, default
   claude-sonnet-5). A refusal Anthropic will repeat, such as an exhausted
-  credit balance, an invalid request, or a reply that hit the output limit,
+  credit balance or an invalid request,
   falls back to OpenAI (`P5_PRICING_OPENAI_MODEL`, default gpt-4.1) for
   that stage; a billing block parks Anthropic for ten minutes so later stages
   go straight to OpenAI. On 2026-09-13 the Anthropic account reported

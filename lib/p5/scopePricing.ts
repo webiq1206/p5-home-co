@@ -80,8 +80,8 @@ const normalizeResearch=`Convert the supplied research report to the required JS
 const parseJson=(raw:string)=>JSON.parse(raw.replace(/^\s*```(?:json)?\s*/,'').replace(/\s*```\s*$/,''));
 
 const providerRuntime=globalThis as typeof globalThis & {p5AnthropicBlockedUntil?:number};
-/** Stage errors that mean the provider will keep refusing this request: a billing block, a bad request, or a reply too large for the output limit. */
-const providerRefused=(message:string)=>/^pricing-provider-unavailable:4(0[0-3]|0[5-9]|1\d|2[0-8])\b/.test(message)||/^pricing-check-incomplete:max_tokens/.test(message);
+/** Stage errors that mean the provider will keep refusing this request: a billing block or a bad request (429 and 5xx stay retryable). */
+const providerRefused=(message:string)=>/^pricing-provider-unavailable:4(0[0-3]|0[5-9]|1\d|2[0-8])\b/.test(message);
 const requestPricingWith=async(provider:'anthropic'|'openai',instructions:string,input:unknown,search:boolean,remainingMs:number):Promise<PricingReply>=>{
   const started=Date.now();
   remainingMs=Math.min(remainingMs,PRICING_STAGE_MAX_MS);
