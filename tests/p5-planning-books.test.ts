@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createPlanningConfiguration,PLANNING_MODEL_VERSION,materializePlanningBook,planningQuestionFields,type PlanningCatalog} from '../lib/p5/planningBooks.ts';
-import {priceReviewedScope} from '../lib/p5/costBook.ts';
+import {priceReviewedScope,blockingReviewNote} from '../lib/p5/costBook.ts';
+import {emptyInstructions} from '../lib/p5/instructions.ts';
 import type {ReviewedScope} from '../lib/p5/scope.ts';
 const date='2026-09-11T00:00:00.000Z';
 const codes=['03-17-01-M','03-17-01-L','03-19-02-M','03-15-02-M','03-15-02-L','03-16-01-M','03-16-01-L','03-14-01-M','03-14-01-L','03-04-01','03-04-02','03-04-03','03-05-02-M','03-05-02-L','REF-GENERAL-HOUR','REF-PLUMBING-HOUR','REF-ELECTRICAL-HOUR','REF-TOILET'];
@@ -42,4 +43,17 @@ test('Supplied countertops keep installation costs; retained countertops omit bo
  const answers={service:'kitchen',taskList:'Install countertops',sqft:'100',countertopSqft:'50',ownerSupplied:'COUNTERTOPS provided'};
  const supplied=materializePlanningBook(book,c,scope(answers),now);assert.ok(supplied.book.rules.some(r=>r.id.startsWith('03-17-02-L')));assert.ok(!supplied.book.rules.some(r=>r.id.startsWith('03-17-02-M')));
  const retained=materializePlanningBook(book,c,scope({...answers,ownerSupplied:'',exclusions:'COUNTERTOPS'}),now);assert.ok(!retained.book.rules.some(r=>r.id.startsWith('03-17-02')));
+});
+
+test('A document review note travels with the range; an unread document still blocks it',()=>{
+ const config=createPlanningConfiguration(catalog);
+ const answers={service:'cabinet-product' as const,cabinetBaseLf:'10',cabinetUpperLf:'5',cabinetTallLf:'0',cabinetRoom:'kitchen',location:'Boise'};
+ const extraction=(reviewNotes:string[])=>({summary:'Cabinet proposal',facts:[],conflicts:[],reviewNotes,missingInformation:[],instructions:emptyInstructions()});
+ const noted=priceReviewedScope({...scope(answers),uploads:[{name:'proposal.pdf',type:'application/pdf',size:10}] as any,extraction:extraction(['1 quantity or page record from this section lacked a usable page reference and were not used. Confirm quantities against the document before pricing.']) as any},config,now);
+ assert.equal(noted.customer.status,'planning-range');assert.ok(noted.customer.range,'a dropped takeoff record does not withhold the preliminary range');
+ assert.ok(noted.customer.assumptions.some(a=>/lacked a usable page reference/.test(a)),'the note is disclosed with the range');
+ const unread=priceReviewedScope({...scope(answers),uploads:[{name:'proposal.pdf',type:'application/pdf',size:10}] as any,extraction:extraction(['proposal.pdf: unread section requires review before pricing.']) as any},config,now);
+ assert.equal(unread.customer.range,null,'an unread document still blocks the range');
+ assert.ok(blockingReviewNote('proposal.pdf, page 3: unreadable. This page was not processed. Review or retry it before relying on the takeoff.'));
+ assert.ok(!blockingReviewNote('Unconfirmed photo observation - Tile area in square feet: 80. Confirm from written scope before pricing.'));
 });

@@ -37,7 +37,8 @@ export async function postSubmission(request:Request,schedule?:(task:()=>Promise
       const labels=missingFields.map(item=>item.label);
       const items=((priced.customer as {verificationItems?:string[]}).verificationItems||[]).filter(item=>typeof item==='string'&&item.trim());
       // The reasons are logged so a live host explains an unpriced result, and the first few are shown so the visitor knows what to confirm.
-      console.error(`[p5-pricing] no range for draft ${id}: ${items.slice(0,6).join(' | ')||'no verification items'}`);
+      const blocks=(('warnings' in priced.internal?priced.internal.warnings:[])||[]).filter((w:{severity?:string})=>w.severity==='block').map((w:{code:string})=>w.code);
+      console.error(`[p5-pricing] no range for draft ${id}: blocks=${blocks.join(',')||'none'}; missing=${missing.slice(0,6).join(' | ')||'none'}; items=${items.slice(0,4).join(' | ')||'none'}`);
       const detail=labels.length?`Please confirm: ${labels.slice(0,5).join('; ')}.`:items.length?`Still to confirm: ${items.slice(0,3).join(' ')}`:'Some scope items still need verified quantities or cost evidence.';
       return json({pricingReviewRequired:true,missingFields,error:`Your project is saved and remains editable. ${detail} A complete price range is required before the estimate can be finalized and emailed.`},422);
     }

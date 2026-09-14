@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {missingScopeFields} from '../lib/p5/missingFields.ts';
+import {missingScopeFields,missingNoteField} from '../lib/p5/missingFields.ts';
 import {categoryBreakdown,fieldCategory} from '../lib/p5/presentation.ts';
 import {questionForField,questionReason} from '../lib/p5/adaptive.ts';
 import {priceCompleteScope,planningResolution,RESEARCH_STAGE_MS,type PricingRequest} from '../lib/p5/scopePricing.ts';
@@ -222,4 +222,15 @@ test('a document read keeps a section when one takeoff lacks a page reference',a
   }finally{
     for(const [key,value] of [['OPENAI_API_KEY',saved.openai],['ANTHROPIC_API_KEY',saved.anthropic],['AI_INTEGRATIONS_OPENAI_API_KEY',saved.integrated]] as const){if(value===undefined)delete process.env[key];else process.env[key]=value;}
   }
+});
+
+test('planning-book wording links back to the unanswered quantity question',()=>{
+  assert.equal(missingNoteField('Missing quantity: sqft'),'sqft');
+  assert.equal(missingNoteField('Missing quantity: cabinetUpperLf'),'cabinetUpperLf');
+  assert.equal(missingNoteField('Missing quantity: tileSqft for the requested tile work'),'tileSqft');
+  assert.equal(missingNoteField('Missing cost condition: structural for Beam work'),'structural');
+  assert.equal(missingNoteField('Missing cost rate: 03-01-01'),null);
+  assert.equal(missingNoteField('Missing quantity: specialist trade takeoff for the additional work in this task list'),null);
+  assert.equal(missingNoteField('Missing quantity: sqftage'),null,'an unknown field is not offered');
+  assert.deepEqual(missingScopeFields(['Missing quantity: cabinetUpperLf','Missing quantity: sqft','Missing quantity: sqft']).map(f=>f.field).sort(),['cabinetUpperLf','sqft']);
 });

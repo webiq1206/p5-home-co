@@ -3,6 +3,13 @@ import { createHash } from "node:crypto";
 import { calculateP5Estimate,customerEstimate,DEFAULT_FINANCE,POLICY_VERSION,COST_CATEGORIES,SERVICE_MATRIX,type FinancePolicy,type DirectCostLine,type ScopeCoverage,type PricingInput,type Service,type RiskFactor } from "./pricing.ts";
 import { scopeText,type ReviewedScope,type ScopeField } from "./scope.ts";
 import {materializePlanningBook,type PlanningCatalog} from './planningBooks.ts';
+/** A review note blocks a customer range only when a document, section or
+ * page could not be read at all, so the quantities behind the price may be
+ * missing. Other notes (a dropped takeoff, an unconfirmed photo observation,
+ * a duplicate page record) travel with the range as items to confirm. */
+export function blockingReviewNote(note:string):boolean{
+  return /unread section|could not be read|was not processed|unsupported (?:file|upload|document|specification)|unreadable|not readable|failed to read|no pages? (?:were|was|could be) read/i.test(note);
+}
 export interface CostRule extends Omit<DirectCostLine,"quantity"|"quantitySource"> {
   scopeTaskId?:string;
   quantity: { field?: ScopeField; factor: number; fixed?: number };
@@ -63,14 +70,14 @@ export function priceReviewedScope(scope:ReviewedScope,configuration:EstimatorCo
   const input:PricingInput={service,revision,scopeSummary:summary,lines,coverage:book.coverage,risks,estimatePurpose:book.mode==='owner-planning'?'preliminary':undefined,
     locationProvided:Boolean(scope.answers.location||scope.answers.address),urgency:scope.answers.urgency as PricingInput["urgency"],complexity:scope.answers.complexity as PricingInput["complexity"],
     uncertainty:missingInformation.length||scope.extraction?.reviewNotes.length?"high":"medium",
-    assumptions:[...book.assumptions,...scopeAssumptions(scope.answers,scope.uncertainFields)],exclusions:[...new Set([...book.exclusions,...explicitExclusions])],
+    assumptions:[...book.assumptions,...scopeAssumptions(scope.answers,scope.uncertainFields),...(scope.extraction?.reviewNotes||[]).filter(note=>!blockingReviewNote(note)).map(note=>/^to confirm:/i.test(note)?note:`To confirm: ${note}`)],exclusions:[...new Set([...book.exclusions,...explicitExclusions])],
     missingInformation,allowances:[],
   };
   const estimate=calculateP5Estimate(input,configuration.finance,[],now);
   if(resolution?.issues.length){estimate.publishable=false;estimate.warnings.push({code:'scope-pricing-incomplete',severity:'block',message:'Every requested task must have supported pricing before a total can be shown.'});}
   if(missingInformation.some(x=>x.startsWith('Missing cost rate:')||x.includes('catalog quarterly review'))){estimate.publishable=false;estimate.warnings.push({code:'planning-catalog-incomplete',severity:'block',message:'The planning catalog needs the recorded missing rate or scheduled review.'});}
   if(scope.uploads.length&&!scope.extraction){estimate.publishable=false;estimate.warnings.push({code:"uploads-unreviewed",severity:"block",message:"Supporting uploads have not been analyzed. Review them before publishing a price."});}
-  if(scope.extraction?.reviewNotes.length){estimate.publishable=false;estimate.warnings.push({code:"scope-review-required",severity:"block",message:"Resolve document and scope review notes, including unsupported uploads, before publishing a price."});}
+  if(scope.extraction?.reviewNotes.some(blockingReviewNote)){estimate.publishable=false;estimate.warnings.push({code:"scope-review-required",severity:"block",message:"Resolve document and scope review notes, including unsupported uploads, before publishing a price."});}
   // A dropped high-cost quantity cannot quietly become an exclusion.
   if(missingInformation.some(x=>x.startsWith("Missing quantity:")||x.startsWith("Missing cost condition:"))){estimate.publishable=false;estimate.warnings.push({code:"quantity-missing",severity:"block",message:"One or more cost-book quantities or scope conditions are missing."});}
   if(scope.answers.allowances&&!resolution?.completeScopeVerified){estimate.publishable=false;estimate.warnings.push({code:"allowance-review-required",severity:"block",message:"Convert the submitted allowances into itemized, linked cost allowances before publishing a price."});}
