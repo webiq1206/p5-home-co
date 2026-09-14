@@ -27,7 +27,11 @@ const auditSchema=z.object({coveredTaskIds:z.array(text),issues:z.array(text),no
 const planningRate=z.object({taskId:text,description:text,unit:text,quantity:positive,quantityEvidence:text,quantityRange:quantityRange.nullish(),building:z.string().optional(),floor:z.string().optional(),basis:z.enum(['material-purchase','subcontractor-installed','trade-labor']),includes:text,excludes:z.string().max(2000),low:positive,high:positive,confidence:z.enum(['low','medium']),rationale:z.string().min(1).max(900)}).strict();
 const planningSchema=z.object({rates:z.array(planningRate).max(60),issues:z.array(text).max(100),notes:z.array(text).max(100).default([])}).strict();
 /** Web research gets this long per batch before a labeled planning average is used instead. */
-export const RESEARCH_STAGE_MS=Number(process.env.P5_RESEARCH_STAGE_MS||22000);
+// A research call that times out is still billed and then replaced by a
+// planning average that the audit will not release a range on. 40 s lets a
+// web-search stage finish inside the 240 s pricing pass (22 s timed out on
+// every handyman run on 2026-09-14); P5_RESEARCH_STAGE_MS overrides it.
+export const RESEARCH_STAGE_MS=Number(process.env.P5_RESEARCH_STAGE_MS||40000);
 /** Longest single provider stage. A stage is one saved unit of work; the pass window in backgroundJobs bounds the whole attempt. */
 export const PRICING_STAGE_MAX_MS=150_000;
 export interface PricingReply {value:unknown;sourceUrls:string[];sourceReport?:string}

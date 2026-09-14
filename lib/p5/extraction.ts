@@ -155,15 +155,23 @@ function asInputContent(files: AnalysisFile[], text: string, previous: ScopeAnsw
 }
 
 async function analyzeWithOpenAI(provider: Provider, text: string, files: AnalysisFile[], previous: ScopeAnswers, request: RequestFunction, timeoutMs: number,sourceInstruction=""): Promise<AnalysisResult> {
+  const started = Date.now();
   const response = await request(`${provider.endpoint}/responses`, {
     method: "POST", signal: AbortSignal.timeout(timeoutMs),
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${provider.key}` },
+    // strict:false, as the pricing stages already use: a strict grammar for
+    // this large nested schema forced constrained decoding (and schema
+    // compilation) that pushed every read past the 60-second budget on
+    // 2026-09-14, while the same model returns a pricing stage in 11 to 40 s
+    // without it. Local validateExtraction remains mandatory either way, so
+    // nothing is accepted on the provider's word.
     body: JSON.stringify({
-      model: provider.model, instructions: EXTRACTION_SYSTEM+'\n'+DOCUMENT_POLICY+'\n'+sourceInstruction+'\n'+FACT_VALUE_POLICY, max_output_tokens: 16000,
+      model: provider.model, instructions: EXTRACTION_SYSTEM+'\n'+DOCUMENT_POLICY+'\n'+sourceInstruction+'\n'+FACT_VALUE_POLICY+' Reply with one JSON object that matches the requested schema exactly; no prose.', max_output_tokens: 16000, store: false,
       input: [{ role: "user", content: asInputContent(files, text, previous) }],
-      text: { format: { type: "json_schema", name: "p5_scope_extraction", strict: true, schema: EXTRACTION_JSON_SCHEMA } },
+      text: { format: { type: "json_schema", name: "p5_scope_extraction", strict: false, schema: EXTRACTION_JSON_SCHEMA } },
     }),
   });
+  console.error(`[p5-analysis] OpenAI read replied in ${((Date.now()-started)/1000).toFixed(1)}s (${response.status}).`);
   if (!response.ok) throw await responseError(provider, response);
   let body: any;
   try { body = await response.json(); } catch { throw errorForProvider(provider, response.status, "provider returned invalid JSON"); }
@@ -188,6 +196,7 @@ async function analyzeWithAnthropic(provider: Provider, text: string, files: Ana
     else throw new Error("document-needs-conversion");
   }
   content.push({ type: "text", text: JSON.stringify({ submittedScope: text, previousAnswers: previous }) });
+  const started = Date.now();
   const response = await request(`${provider.endpoint}/messages`, {
     method: "POST", signal: AbortSignal.timeout(timeoutMs),
     headers: { "Content-Type": "application/json", "anthropic-version": "2023-06-01", "x-api-key": provider.key },
@@ -196,6 +205,7 @@ async function analyzeWithAnthropic(provider: Provider, text: string, files: Ana
     // output grammars prevents rejection of the full, nested page ledger.
     body: JSON.stringify({ model: provider.model, max_tokens: 16000, system: EXTRACTION_SYSTEM+'\n'+DOCUMENT_POLICY+'\n'+sourceInstruction+'\n'+FACT_VALUE_POLICY+' Return the final structured record through record_scope_analysis. It is only an output format, not an external action.', messages: [{ role: "user", content }], tools:[{name:'record_scope_analysis',description:'Return the complete extracted scope, interpreted instructions, original-page coverage and evidence-linked takeoffs. This output record performs no actions and changes no data. Do not omit unreadable pages or excluded-scope instructions.',input_schema:anthropicExtractionSchema()}],tool_choice:{type:'tool',name:'record_scope_analysis',disable_parallel_tool_use:true} }),
   });
+  console.error(`[p5-analysis] Anthropic read replied in ${((Date.now()-started)/1000).toFixed(1)}s (${response.status}).`);
   if (!response.ok) throw await responseError(provider, response);
   let body: any;
   try { body = await response.json(); } catch { throw errorForProvider(provider, response.status, "provider returned invalid JSON"); }
