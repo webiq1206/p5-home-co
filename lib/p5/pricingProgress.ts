@@ -1,8 +1,11 @@
 /** Expected continuation, not an incomplete customer estimate. */
 export class PricingPending extends Error {
  readonly retryAfterMs:number;
- constructor(message='Pricing progress is saved. Continuing the scope check...',retryAfterMs=1500){super(message);this.name='PricingPending';this.retryAfterMs=retryAfterMs;}
+ /** A fatal pending error ends the job now: retrying cannot help (for example, every configured provider refuses the request). */
+ readonly fatal:boolean;
+ constructor(message='Pricing progress is saved. Continuing the scope check...',retryAfterMs=1500,fatal=false){super(message);this.name='PricingPending';this.retryAfterMs=retryAfterMs;this.fatal=fatal;}
 }
+export const PRICING_UNAVAILABLE='Our pricing service is temporarily unavailable. Your project and contact details are saved, and we will follow up with your estimate by email.';
 /** One pricing stage exceeded its own time allowance while the overall
  * deadline still stands. The caller may choose a bounded alternative. */
 export class PricingStageTimeout extends Error {

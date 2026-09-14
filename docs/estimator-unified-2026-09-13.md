@@ -95,6 +95,29 @@ with `typedAlternatives.ts`).
   clarification reads cost one provider call, as P5 Home Co's clarification
   test requires.
 
+### Pricing providers and honest failure (2026-09-13, third pass)
+
+- Live pricing stages call Anthropic first (`P5_PRICING_MODEL`, default
+  claude-sonnet-5). A refusal Anthropic will repeat, such as an exhausted
+  credit balance, an invalid request, or a reply that hit the output limit,
+  falls back to OpenAI (`P5_PRICING_OPENAI_MODEL`, default gpt-4.1) for
+  that stage; a billing block parks Anthropic for ten minutes so later stages
+  go straight to OpenAI. On 2026-09-13 the Anthropic account reported
+  "credit balance is too low", which had every pricing stage failing on all
+  five sites until this fallback shipped.
+- When every configured provider refuses, the job ends at once with a plain
+  message (`PRICING_UNAVAILABLE`) instead of retrying for minutes; the
+  project and contact details stay saved for follow-up.
+- Output limits for pricing replies were raised from 14,000 to 24,000 tokens
+  after a mapping stage hit the limit on an ordinary bathroom scope.
+- Deadline, pending and stage-timeout errors are matched by name as well as
+  class. On the live host the deadline error crossed a dynamically imported
+  chunk and instanceof failed, so every pass that ended at its deadline was
+  counted as a failure and jobs were marked failed after three passes.
+- Each pricing stage logs its duration and outcome to stderr
+  (`[p5-pricing] mapping finished in 41.2s`), readable in the Replit
+  deployment log viewer.
+
 ## Verification
 
 - `tests/p5-estimator-flow.test.ts` covers missing-field links, category

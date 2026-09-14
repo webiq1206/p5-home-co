@@ -125,7 +125,12 @@ async function runPass(draftId:string,workKey:string):Promise<number|null>{
     }else{
       const {priceSavedScope}=await import('./pricingWork.ts');
       try{job.result=await priceSavedScope(job.input.draft.id,job.input.draft.reviewed!,job.input.configuration,new Date(job.createdAt),deadline);job.state='complete';job.progress='Pricing calculation saved.';}
-      catch(error){if(!(isPricingPending(error)))throw error;if(!error.retryAfterMs)throw error;job.progress=error.message;job.retryAt=Date.now()+error.retryAfterMs;again=error.retryAfterMs;}
+      catch(error){
+        if(!isPricingPending(error))throw error;
+        if(error.fatal){job.state='failed';job.progress=error.message;job.attempts=3;again=null;console.error(`[p5-worker] pricing stopped: ${error.message}`);}
+        else if(!error.retryAfterMs)throw error;
+        else{job.progress=error.message;job.retryAt=Date.now()+error.retryAfterMs;again=error.retryAfterMs;}
+      }
     }
     job.attempts=0;
   }catch(error){

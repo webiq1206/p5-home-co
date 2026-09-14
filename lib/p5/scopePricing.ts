@@ -79,7 +79,10 @@ const auditJson=jsObject({coveredTaskIds:jsArray(jsText),issues:jsArray(jsText),
 const normalizeResearch=`Convert the supplied research report to the required JSON schema using ONLY evidence in that report. ${UNTRUSTED} ${BENCHMARK_POLICY} ${ISSUE_POLICY} Put permitted benchmark limitations in notes, not issues. Do not invent missing dates, costs, quantities, units, or source excerpts. Use only supplied source URLs. If a task lacks the required evidence, omit its rate and state the missing evidence in issues. Preserve exact scope, units and direct-cost basis. Do not conduct new research or change the original requested tasks.`;
 const parseJson=(raw:string)=>JSON.parse(raw.replace(/^\s*```(?:json)?\s*/,'').replace(/\s*```\s*$/,''));
 
-export const requestPricing:PricingRequest=async(instructions,input,search,remainingMs)=>{
+const providerRuntime=globalThis as typeof globalThis & {p5AnthropicBlockedUntil?:number};
+/** Stage errors that mean the provider will keep refusing this request: a billing block, a bad request, or a reply too large for the output limit. */
+const providerRefused=(message:string)=>/^pricing-provider-unavailable:4(0[0-3]|0[5-9]|1\d|2[0-8])\b/.test(message)||/^pricing-check-incomplete:max_tokens/.test(message);
+const requestPricingWith=async(provider:'anthropic'|'openai',instructions:string,input:unknown,search:boolean,remainingMs:number):Promise<PricingReply>=>{
   const started=Date.now();
   remainingMs=Math.min(remainingMs,PRICING_STAGE_MAX_MS);
   const boundedFetch:typeof fetch=(input,init)=>fetchWithinDeadline(fetch,input,init||{},started+remainingMs);
@@ -87,12 +90,12 @@ export const requestPricing:PricingRequest=async(instructions,input,search,remai
   const key=integrated?process.env.AI_INTEGRATIONS_OPENAI_API_KEY:process.env.OPENAI_API_KEY;
   const endpoint=(integrated?process.env.AI_INTEGRATIONS_OPENAI_BASE_URL:process.env.OPENAI_BASE_URL||'https://api.openai.com/v1')?.replace(/\/+$/,'');
   if(remainingMs<1000)throw new Error('pricing-check-timeout');
-  if(process.env.ANTHROPIC_API_KEY||!key||!endpoint){
+  if(provider==='anthropic'){
     const anthropic=process.env.ANTHROPIC_API_KEY;
     if(!anthropic)throw new Error('pricing-provider-unavailable');
     const headers={'Content-Type':'application/json','x-api-key':anthropic,'anthropic-version':'2023-06-01'};
     const messages:any[]=[{role:'user',content:JSON.stringify(input)}];
-    const requestBody={model:search?(process.env.P5_PRICING_RESEARCH_MODEL||'claude-sonnet-5'):(process.env.P5_PRICING_MODEL||'claude-sonnet-5'),max_tokens:14000,system:instructions,...(search?{tools:[{type:'web_search_20250305',name:'web_search',max_uses:5},{type:'web_fetch_20250910',name:'web_fetch',max_uses:4,max_content_tokens:15000}]}:{output_config:{format:{type:'json_schema',schema:instructions===normalizeResearch?marketJson:instructions===INVENTORY?inventoryJson:instructions===MAP?mappingJson:instructions===PLANNING_AVERAGE?planningJson:auditJson}}})};
+    const requestBody={model:search?(process.env.P5_PRICING_RESEARCH_MODEL||'claude-sonnet-5'):(process.env.P5_PRICING_MODEL||'claude-sonnet-5'),max_tokens:24000,system:instructions,...(search?{tools:[{type:'web_search_20250305',name:'web_search',max_uses:5},{type:'web_fetch_20250910',name:'web_fetch',max_uses:4,max_content_tokens:15000}]}:{output_config:{format:{type:'json_schema',schema:instructions===normalizeResearch?marketJson:instructions===INVENTORY?inventoryJson:instructions===MAP?mappingJson:instructions===PLANNING_AVERAGE?planningJson:auditJson}}})};
     const content:any[]=[];
     for(let continuation=0;;continuation++){
       const left=remainingMs-(Date.now()-started);if(left<=0)throw new Error('pricing-check-timeout');
@@ -123,15 +126,39 @@ export const requestPricing:PricingRequest=async(instructions,input,search,remai
       return {value:parseJson((body.content||[]).filter((p:any)=>p.type==='text').map((p:any)=>p.text).join('')),sourceUrls,sourceReport:raw};
     }
   }
-  const response=await boundedFetch(`${endpoint}/responses`,{method:'POST',signal:AbortSignal.timeout(Math.min(search?150000:180000,remainingMs)),headers:{'Content-Type':'application/json',Authorization:`Bearer ${key}`},body:JSON.stringify({model:process.env.P5_SCOPE_OPENAI_MODEL||'gpt-4.1',instructions,input:'Return JSON only.\n'+JSON.stringify(input),max_output_tokens:14000,store:false,...(search?{tools:[{type:'web_search'}],tool_choice:'required',include:['web_search_call.action.sources']}:{text:{format:{type:'json_object'}}})})});
-  if(!response.ok)throw new Error('pricing-provider-unavailable');
+  const response=await boundedFetch(`${endpoint}/responses`,{method:'POST',signal:AbortSignal.timeout(Math.min(search?150000:180000,remainingMs)),headers:{'Content-Type':'application/json',Authorization:`Bearer ${key}`},body:JSON.stringify({model:process.env.P5_PRICING_OPENAI_MODEL||process.env.P5_SCOPE_OPENAI_MODEL||'gpt-4.1',instructions,input:'Return JSON only.\n'+JSON.stringify(input),max_output_tokens:24000,store:false,...(search?{tools:[{type:'web_search'}],tool_choice:'required',include:['web_search_call.action.sources']}:{text:{format:{type:'json_object'}}})})});
+  if(!response.ok){const detail=await response.text().catch(()=>'');throw new Error(`pricing-provider-unavailable:${response.status}:${detail.replace(/\s+/g,' ').slice(0,300)}`);}
   const body=await response.json();
-  if(body.status!=='completed')throw new Error('pricing-check-incomplete');
+  if(body.status!=='completed')throw new Error(`pricing-check-incomplete:${body.incomplete_details?.reason||body.status||'unknown'}`);
   const parts=(body.output||[]).flatMap((o:any)=>o.content||[]);
   const raw=parts.filter((p:any)=>p.type==='output_text').map((p:any)=>p.text).join('\n');
   const sourceUrls:string[]=[...(body.output||[]).filter((o:any)=>o.type==='web_search_call').flatMap((o:any)=>(o.action?.sources||[]).map((s:any)=>s.url)),...parts.flatMap((p:any)=>(p.annotations||[]).filter((a:any)=>a.type==='url_citation').map((a:any)=>a.url))];
   if(search&&!sourceUrls.length)throw new Error('pricing-search-unavailable');
   return {value:JSON.parse(raw.replace(/^\s*```(?:json)?\s*/,'').replace(/\s*```\s*$/,'')),sourceUrls};
+};
+/** Anthropic prices first when configured. A refusal it will repeat (billing
+ * block, invalid request, oversized reply) falls back to OpenAI for the rest
+ * of the stage when an OpenAI key exists; a billing block also parks
+ * Anthropic for ten minutes so later stages skip straight to OpenAI. */
+export const requestPricing:PricingRequest=async(instructions,input,search,remainingMs)=>{
+  const started=Date.now();
+  const integrated=Boolean(process.env.AI_INTEGRATIONS_OPENAI_API_KEY&&process.env.AI_INTEGRATIONS_OPENAI_BASE_URL);
+  const openai=Boolean(integrated?process.env.AI_INTEGRATIONS_OPENAI_API_KEY:process.env.OPENAI_API_KEY);
+  const anthropic=Boolean(process.env.ANTHROPIC_API_KEY)&&(providerRuntime.p5AnthropicBlockedUntil||0)<=Date.now();
+  if(anthropic){
+    try{return await requestPricingWith('anthropic',instructions,input,search,remainingMs);}
+    catch(error){
+      const message=error instanceof Error?error.message:String(error);
+      if(!openai||!providerRefused(message))throw error;
+      if(/credit balance|billing|:402:/i.test(message))providerRuntime.p5AnthropicBlockedUntil=Date.now()+10*60_000;
+      const left=remainingMs-(Date.now()-started);
+      console.error(`[p5-pricing] Anthropic refused the stage (${message.slice(0,140)}); ${left>=5000?'continuing with OpenAI':'no time left for OpenAI'}.`);
+      if(left<5000)throw error;
+      return requestPricingWith('openai',instructions,input,search,left);
+    }
+  }
+  if(!openai)throw new Error(process.env.ANTHROPIC_API_KEY?'pricing-provider-unavailable:anthropic-blocked':'pricing-provider-unavailable');
+  return requestPricingWith('openai',instructions,input,search,remainingMs);
 };
 
 function existingLines(priced:ReturnType<typeof priceReviewedScope>){

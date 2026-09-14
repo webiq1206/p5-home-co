@@ -2,7 +2,7 @@ import {SERVER_BUDGET_MS,remainingBudget,withinDeadline,ProcessingDeadlineError,
 import {createHash} from 'node:crypto';
 import {claimWork,writeWork,releaseWork,renewWork} from './workStore.ts';
 import {priceCompleteScope,requestPricing,type PricingReply,type PricingRequest,PRICING_STAGE_MAX_MS} from './scopePricing.ts';
-import {PricingPending,PricingStageTimeout} from './pricingProgress.ts';
+import {PricingPending,PricingStageTimeout,PRICING_UNAVAILABLE} from './pricingProgress.ts';
 import type {ReviewedScope} from './scope.ts';
 import type {EstimatorConfiguration} from './costBook.ts';
 import {readRegionalRates,saveRegionalRates} from './regionalRates.ts';
@@ -47,8 +47,11 @@ export async function priceSavedScope(id:string,scope:ReviewedScope,configuratio
    // A failed published-cost search is not a reason to stop pricing: the caller may use a labeled planning average instead.
    if(search){console.error(`[p5-pricing] research failed after ${elapsed()}s: ${error instanceof Error?error.message:String(error)}`);throw new PricingStageTimeout(error instanceof Error?error.message:'pricing-search-unavailable');}
    payload.failures=(payload.failures||0)+1;await persist();
+   const message=error instanceof Error?error.message:String(error);
    // The failure is logged with its stage so a live host can be diagnosed from its deployment logs.
-   console.error(`[p5-pricing] ${phase} failed after ${elapsed()}s (attempt ${payload.failures}): ${error instanceof Error?error.message:String(error)}`);
+   console.error(`[p5-pricing] ${phase} failed after ${elapsed()}s (attempt ${payload.failures}): ${message}`);
+   // A refusal every configured provider will repeat (billing block, bad request) ends the job honestly instead of retrying for minutes.
+   if(/^pricing-provider-unavailable(:4(0[0-3]|0[5-9]|1\d|2[0-8])\b|:anthropic-blocked|$)/.test(message))throw new PricingPending(PRICING_UNAVAILABLE,0,true);
    throw new PricingPending('The pricing provider needs another attempt. Your completed pricing steps are saved. Please retry to continue.',payload.failures>=2?0:4000);
   }
   console.error(`[p5-pricing] ${phase} finished in ${elapsed()}s`);

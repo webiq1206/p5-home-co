@@ -118,3 +118,35 @@ test('a typed scope is read by every configured provider at once and the first v
     for(const [key,value] of [['OPENAI_API_KEY',saved.openai],['ANTHROPIC_API_KEY',saved.anthropic],['AI_INTEGRATIONS_OPENAI_API_KEY',saved.integrated]] as const){if(value===undefined)delete process.env[key];else process.env[key]=value;}
   }
 });
+
+test('a billing refusal from Anthropic falls back to OpenAI for the stage and parks Anthropic',async()=>{
+  const {requestPricing}=await import('../lib/p5/scopePricing.ts');
+  const names=['OPENAI_API_KEY','AI_INTEGRATIONS_OPENAI_API_KEY','AI_INTEGRATIONS_OPENAI_BASE_URL','ANTHROPIC_API_KEY','OPENAI_BASE_URL'] as const;
+  const saved=Object.fromEntries(names.map(n=>[n,process.env[n]]));
+  for(const n of names)delete process.env[n];
+  process.env.ANTHROPIC_API_KEY='synthetic-anthropic';process.env.OPENAI_API_KEY='synthetic-openai';
+  const runtime=globalThis as typeof globalThis & {p5AnthropicBlockedUntil?:number};runtime.p5AnthropicBlockedUntil=0;
+  const realFetch=globalThis.fetch;let anthropicCalls=0,openaiCalls=0;
+  globalThis.fetch=(async(input:any)=>{
+    const url=String(input);
+    if(url.includes('anthropic.com')){anthropicCalls++;return new Response(JSON.stringify({type:'error',error:{type:'invalid_request_error',message:'Your credit balance is too low to access the Anthropic API.'}}),{status:400});}
+    openaiCalls++;return Response.json({status:'completed',output:[{content:[{type:'output_text',text:'{"coveredTaskIds":["a"],"issues":[]}'}]}]});
+  }) as typeof fetch;
+  try{
+    const first=await requestPricing('JSON',{},false,20000);
+    assert.deepEqual(first.value,{coveredTaskIds:['a'],issues:[]});assert.equal(anthropicCalls,1);assert.equal(openaiCalls,1);
+    const second=await requestPricing('JSON',{},false,20000);
+    assert.deepEqual(second.value,{coveredTaskIds:['a'],issues:[]});assert.equal(anthropicCalls,1,'a billing block parks Anthropic for later stages');assert.equal(openaiCalls,2);
+    delete process.env.OPENAI_API_KEY;
+    await assert.rejects(()=>requestPricing('JSON',{},false,20000),/pricing-provider-unavailable:anthropic-blocked/);
+  }finally{
+    globalThis.fetch=realFetch;runtime.p5AnthropicBlockedUntil=0;
+    for(const n of names){if(saved[n]===undefined)delete process.env[n];else process.env[n]=saved[n]!;}
+  }
+});
+test('a provider refusal ends the pricing job now instead of retrying for minutes',async()=>{
+  const {PricingPending,isPricingPending,PRICING_UNAVAILABLE}=await import('../lib/p5/pricingProgress.ts');
+  const fatal=new PricingPending(PRICING_UNAVAILABLE,0,true);
+  assert.ok(isPricingPending(fatal));assert.equal(fatal.fatal,true);assert.equal(fatal.retryAfterMs,0);
+  assert.equal(new PricingPending('x',1500).fatal,false);
+});
