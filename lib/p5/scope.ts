@@ -92,6 +92,29 @@ export const SCOPE_BATCH_LIMIT = 1024 * 1024 * 1024;
 export const SCOPE_FILE_COUNT = 50;
 export const SCOPE_CHUNK_SIZE = 4 * 1024 * 1024;
 export const SCOPE_UPLOAD_HELP = "Up to 50 files, 250 MB each and 1 GB total. Large uploads resume after interruptions.";
+/** Map a model's wording for a choice field onto one of its options, or
+ * null when no option is a clear match. Providers answer "Standard finishes"
+ * or "premium" for a field whose options are refresh / mid-range / high-end /
+ * luxury; rejecting the whole extraction for that wording lost every other
+ * verified fact. */
+export function coerceChoice(field: ScopeField, value: string): string | null {
+  const definition = SCOPE_FIELDS[field];
+  if (definition.kind !== "choice") return null;
+  const options = definition.options as readonly string[];
+  const text = value.trim().toLowerCase().replace(/[_\s]+/g, "-");
+  const direct = options.find(option => option === text || option.replace(/-/g, " ") === text.replace(/-/g, " "));
+  if (direct) return direct;
+  const synonyms: Partial<Record<ScopeField, Array<[RegExp, string]>>> = {
+    finish: [[/luxur|custom|top-of|bespoke/, "luxury"], [/premium|high|upgrad|semi-custom|upscale/, "high-end"], [/standard|mid|average|builder|typical|good/, "mid-range"], [/simple|basic|budget|econom|refresh|entry|value/, "refresh"]],
+    urgency: [[/emergenc|urgent|asap|immediate/, "emergency"], [/priorit|rush|soon|quick/, "priority"], [/standard|normal|flexible|no-rush|whenever/, "standard"]],
+    complexity: [[/complex|difficult|structural|custom|challeng/, "complex"], [/standard|simple|typical|straightforward|normal/, "standard"]],
+    garageIncluded: [[/^(yes|y|true|include|included|with-garage)$/, "yes"], [/^(no|n|false|exclude|excluded|none|without)/, "no"]],
+  };
+  for (const [pattern, option] of synonyms[field] || []) if (pattern.test(text) && options.includes(option)) return option;
+  // A wording that contains exactly one option name means that option.
+  const contained = options.filter(option => text.includes(option) || text.includes(option.replace(/-/g, " ")));
+  return contained.length === 1 ? contained[0] : null;
+}
 export function validateAnswer(field: ScopeField, value: string): string | null {
   if (!Object.hasOwn(SCOPE_FIELDS,field)) return "Unknown field";
   if (typeof value !== "string" || value.length > SCOPE_TEXT_LIMIT) return "This text exceeds the request transport size. Upload it as an instruction document; do not shorten or omit instructions.";
@@ -153,6 +176,11 @@ export function validateExtraction(raw: unknown): ScopeExtraction {
     if (typeof f.field === "string" && Object.hasOwn(SCOPE_FIELDS,f.field) && SCOPE_FIELDS[f.field as ScopeField].kind === "number" && typeof f.value === "string" && validateAnswer(f.field as ScopeField,f.value)) {
       unreadValues.push(`Confirm ${SCOPE_FIELDS[f.field as ScopeField].label.toLowerCase()} if no other source supplies a readable value.`);
       return [];
+    }
+    if (typeof f.field === "string" && Object.hasOwn(SCOPE_FIELDS,f.field) && SCOPE_FIELDS[f.field as ScopeField].kind === "choice" && typeof f.value === "string" && f.value.trim() && validateAnswer(f.field as ScopeField,f.value)) {
+      const coerced = coerceChoice(f.field as ScopeField, f.value);
+      if (coerced) f.value = coerced;
+      else { unreadValues.push(`Confirm ${SCOPE_FIELDS[f.field as ScopeField].label.toLowerCase()} if no other source supplies a readable value.`); return []; }
     }
     const knownField=typeof f.field==='string'&&Object.hasOwn(SCOPE_FIELDS,f.field);
     const invalid=!knownField?'field':typeof f.value!=='string'||!f.value.trim()?'empty value':validateAnswer(f.field as ScopeField,f.value)?'value format':typeof f.confidence!=='number'||!Number.isFinite(f.confidence)||f.confidence<0||f.confidence>1?'confidence':typeof f.source!=='string'||!f.source.trim()||f.source.length>500?'source':typeof f.evidence!=='string'||!f.evidence.trim()||f.evidence.length>4000?'evidence':'';

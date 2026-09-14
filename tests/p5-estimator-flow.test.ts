@@ -150,3 +150,17 @@ test('a provider refusal ends the pricing job now instead of retrying for minute
   assert.ok(isPricingPending(fatal));assert.equal(fatal.fatal,true);assert.equal(fatal.retryAfterMs,0);
   assert.equal(new PricingPending('x',1500).fatal,false);
 });
+
+test('a provider wording for a choice fact maps onto the option instead of failing the read',async()=>{
+  const {coerceChoice,validateExtraction}=await import('../lib/p5/scope.ts');
+  assert.equal(coerceChoice('finish','Standard finishes'),'mid-range');
+  assert.equal(coerceChoice('finish','Premium'),'high-end');
+  assert.equal(coerceChoice('finish','mid range'),'mid-range');
+  assert.equal(coerceChoice('finish','purple'),null);
+  const base={summary:'Bathroom',conflicts:[],reviewNotes:[],missingInformation:[],instructions:{inclusions:[],exclusions:[],responsibilities:[],buildings:[],floors:[],separateBuildings:false,laborOnly:false,materialsOnly:false,questions:[]},pages:[],takeoffs:[]};
+  const fact=(value:string)=>({field:'finish',value,confidence:.9,source:'typed scope',evidence:'standard finishes',basis:'stated'});
+  const mapped=validateExtraction({...base,facts:[fact('Standard finishes')]});
+  assert.equal(mapped.facts.find(f=>f.field==='finish')?.value,'mid-range');
+  const dropped=validateExtraction({...base,facts:[fact('purple')]});
+  assert.equal(dropped.facts.some(f=>f.field==='finish'),false,'an unmatched wording is asked, not fatal');
+});
