@@ -261,7 +261,7 @@ export async function analyzeBatch(text: string, files: AnalysisFile[], previous
   const eventBase=options.event;
   const report=(provider:Provider,started:number,outcome:EstimatorEvent['outcome'],error?:unknown,fallback=false,extra:Record<string,unknown>={})=>{
     if(!eventBase)return;
-    const detail=error===undefined?null:describeError(error);
+    const detail=error===undefined?null:error instanceof ProviderError?{...describeError(error),status:error.status,code:error.status===429?'provider-429':error.status?`provider-${error.status}`:'provider-network'}:describeError(error);
     void recordEvent({...eventBase,kind:'analysis',stage:files.length?'read-page':'read-text',provider:provider.kind,model:provider.model,status:detail?.status??(error===undefined?200:null),code:detail?.code??null,message:detail?.message??null,durationMs:Date.now()-started,fallback,outcome,meta:{files:files.length,bytes:files.reduce((n,f)=>n+f.data.length,0),...extra}});
   };
   if (!configured.length) throw new Error("analysis-unconfigured");
