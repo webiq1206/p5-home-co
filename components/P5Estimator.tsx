@@ -8,7 +8,7 @@ import {useEffect,useId,useLayoutEffect,useRef,useState} from 'react';
 import {ESTIMATOR_BRAND as brand} from '@/lib/p5/brand';
 import {estimatorTheme,estimatorThemeStyle} from '@/lib/p5/theme';
 import {SCOPE_FIELDS,SCOPE_FILE_LIMIT,SCOPE_BATCH_LIMIT,SCOPE_FILE_COUNT,SCOPE_UPLOAD_HELP,coerceChoice,type ScopeField,type ScopeAnswers,type ScopeUpload} from '@/lib/p5/scope';
-import {deriveScopeAnswers,questionForField,scopeQuestionsForBrand as scopeQuestions,scopeAssumptions,validateScopeAnswer,type ScopeQuestion} from '@/lib/p5/adaptive';
+import {deriveScopeAnswers,finishServices,questionForField,scopeQuestionsForBrand as scopeQuestions,scopeAssumptions,validateScopeAnswer,type ScopeQuestion} from '@/lib/p5/adaptive';
 import {loadBrowserDraft,persistBrowserDraft,draftHeaders,cacheFiles,loadCachedFiles,clearCachedFiles,requireDraftReceipt,archiveBrowserDraft,listBrowserDraftRecoveries,replaceBrowserDraft,restoreBrowserDraft,type BrowserDraft,type BrowserDraftRecovery,type TranscriptEntry} from '@/lib/p5/browserDraft';
 import {mergeProjectSource,type ProjectSource} from '@/lib/p5/projectSource';
 import {resumeWizardDraft} from '@/lib/p5/wizardResume';
@@ -18,7 +18,6 @@ import {transferProjectFiles} from '@/lib/p5/uploadTransfer';
 import {fieldCategory} from '@/lib/p5/presentation';
 import styles from './P5Estimator.module.css';
 import {reportProgress,trackScopeEvent} from '@/lib/p5/progress';
-import {trackGoogleAdsLeadConversion} from '@/lib/googleAdsConversion';
 import {displayScopeText,refreshAnalyzedScope,scopeFingerprint,scopeTextChanged,sourceSnapshot,sourceSnapshotsEqual} from '@/lib/p5/scopeReplacement';
 import {ESTIMATOR_VERSION} from '@/lib/p5/version';
 
@@ -33,6 +32,7 @@ const SUGGESTIONS:Record<string,string[]>={
   cabinet:['Painted Shaker kitchen cabinets, 20 ft of base and 15 ft of uppers. Include installation.','Two bathroom vanity cabinets, supply only, 48 inches each.','Built-in bookcases for a home office, about 10 ft wide.'],
   p5:['Remodel our hall bathroom: new tile shower, vanity, toilet and floor.','Build a new home from the attached plans with a 3-car garage.','Handyman list: three doors, two faucets and drywall patches.'],
 };
+const FINISH_LEVELS:[string,string][]=[['refresh','Budget-friendly materials and simple selections'],['mid-range','Builder-grade to mid-range materials; the most common choice'],['high-end','Upgraded materials, fixtures and details'],['luxury','Top-tier materials and custom work']];
 const composerPlaceholder='Describe your project or drop files here. Include sizes, what to include or exclude, and who supplies materials.';
 const AttachGlyph=()=><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21.4 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>;
 const MicGlyph=()=><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 17v5M8 22h8"/></svg>;
@@ -407,7 +407,7 @@ export function P5Estimator({defaultService='',headingAs='h1',projectSource,layo
         if(details?.pricingReviewRequired){setMissingFields(parseMissing(details.missingFields));setVerificationItems(parseItems(details.verificationItems));throw new Error(details.error||'A few more details are needed before pricing.');}
         throw failure;
       }
-      checkSubmission();setResult(data.result);setDelivery(data.delivery||[]);trackGoogleAdsLeadConversion({service:d.answers.service},`estimator:${d.id}`);if(data.result?.range)trackScopeEvent('estimateGenerated',d.answers.service);if(data.delivery?.some((v:any)=>v.channel==='customer'&&v.status==='sent'))trackScopeEvent('estimateEmailed',d.answers.service);setStatus('');
+      checkSubmission();setResult(data.result);setDelivery(data.delivery||[]);if(data.result?.range)trackScopeEvent('estimateGenerated',d.answers.service);if(data.delivery?.some((v:any)=>v.channel==='customer'&&v.status==='sent'))trackScopeEvent('estimateEmailed',d.answers.service);setStatus('');
     },'pricing');
   }
   const continuePaused=()=>{const kind=paused?.kind;setPaused(null);resuming.current=true;if(kind==='pricing'){const form=document.getElementById(`${id}-form`) as HTMLFormElement|null;if(form)form.requestSubmit();else void begin();}else void begin();};
@@ -626,6 +626,11 @@ export function P5Estimator({defaultService='',headingAs='h1',projectSource,layo
       </dl>
       {draft.extraction?.summary&&<p className={styles.hint} style={{marginTop:12}}>{draft.extraction.summary.slice(0,280)}{draft.extraction.summary.length>280?'…':''}</p>}
     </div>
+    {finishServices.includes(draft.answers.service||'')&&<div className={styles.card}>
+      <div className={styles.cardHead}><h3>Finish level</h3><span className={styles.badge} data-kind={draft.answers.finish?'included':'assumption'}>{draft.answers.finish?'Selected':'Choose one'}</span></div>
+      <p className={styles.hint} style={{marginBottom:12}}>Finish level changes material pricing across the whole estimate. {draft.answers.finish?'You can change it here before getting your estimate.':'Standard finishes are assumed until you choose.'}</p>
+      <div className={styles.choices} role="group" aria-label="Finish level">{FINISH_LEVELS.map(([value,detail])=><button type="button" key={value} className={styles.choice} aria-pressed={draft.answers.finish===value} onClick={()=>{if(draft.answers.finish===value)return;answer('finish',value);log(newEntry('user',`Finish level: ${readable('finish',value)}`,{kind:'note'}));}}><span><strong>{readable('finish',value)}</strong><br/><small className={styles.hint}>{detail}</small></span></button>)}</div>
+    </div>}
     {warningCard}
     {(draft.extraction?.instructions||draft.extraction?.documentCoverage)&&<div><P5EstimateDetails result={{instructions:draft.extraction.instructions,documentCoverage:draft.extraction.documentCoverage}} openFirst={false} showGlance={false}/></div>}
     {assumptions.length>0&&<details className={styles.accordion}><summary><span className={styles.accordionTitle}>Assumptions and details to confirm</span><span className={styles.badge} data-kind="assumption">To confirm</span><span className={styles.accordionMeta}>{assumptions.length}</span></summary><div className={styles.accordionBody}><ul className={styles.bullets}>{assumptions.map(note=><li key={note}>{note}</li>)}</ul></div></details>}
