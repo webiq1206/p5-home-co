@@ -120,7 +120,12 @@ function providers(): Provider[] {
     const requested = process.env.P5_SCOPE_MODEL;
     result.push({ kind: "Anthropic", key: anthropicKey, endpoint: "https://api.anthropic.com/v1", model: process.env.P5_SCOPE_FAST_MODEL || (requested && /sonnet|haiku/i.test(requested) ? requested : "claude-sonnet-5") });
   }
-  return result;
+  // One read costs one provider call. Anthropic leads scope reads (measured at
+  // about 16 s for a typed scope where the OpenAI read was exceeding the
+  // 60-second budget on 2026-09-14); the other provider only covers a refusal
+  // or failure. P5_SCOPE_PROVIDER=openai reverses the order.
+  const lead = (process.env.P5_SCOPE_PROVIDER || "anthropic").toLowerCase() === "openai" ? "OpenAI" : "Anthropic";
+  return result.sort((a, b) => (a.kind === lead ? -1 : 0) - (b.kind === lead ? -1 : 0));
 }
 
 function errorForProvider(provider: Provider, status: number | null, message: string): ProviderError {
@@ -228,7 +233,8 @@ export async function analyzeBatch(text: string, files: AnalysisFile[], previous
   const source=await withinDeadline(()=>readSpecificationSource(files),Math.min(absoluteDeadline,Date.now()+5000)).catch(()=>null);
   let sourceInstruction=specificationHint(source),sourceRepair=false;
   let last: unknown;let busy:ProviderError|undefined;
-  if(options.race&&!files.length&&configured.length>1&&process.env.P5_TEXT_RACE!=='false'){
+  // Racing both providers doubles the spend on every first read; it is opt-in (P5_TEXT_RACE=true) for hosts that value latency over cost.
+  if(options.race&&!files.length&&configured.length>1&&process.env.P5_TEXT_RACE==='true'){
     // A first typed-scope read is cheap to run twice and expensive to wait on.
     // Every configured provider reads it at once; the first valid result wins
     // and the rest are abandoned. Document sections and follow-up reads that

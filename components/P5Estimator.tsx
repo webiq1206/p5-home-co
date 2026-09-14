@@ -18,6 +18,7 @@ import {transferProjectFiles} from '@/lib/p5/uploadTransfer';
 import {fieldCategory} from '@/lib/p5/presentation';
 import styles from './P5Estimator.module.css';
 import {reportProgress,trackScopeEvent} from '@/lib/p5/progress';
+import {trackGoogleAdsLeadConversion} from '@/lib/googleAdsConversion';
 import {displayScopeText,refreshAnalyzedScope,scopeFingerprint,scopeTextChanged,sourceSnapshot,sourceSnapshotsEqual} from '@/lib/p5/scopeReplacement';
 import {ESTIMATOR_VERSION} from '@/lib/p5/version';
 
@@ -406,7 +407,7 @@ export function P5Estimator({defaultService='',headingAs='h1',projectSource,layo
         if(details?.pricingReviewRequired){setMissingFields(parseMissing(details.missingFields));setVerificationItems(parseItems(details.verificationItems));throw new Error(details.error||'A few more details are needed before pricing.');}
         throw failure;
       }
-      checkSubmission();setResult(data.result);setDelivery(data.delivery||[]);if(data.result?.range)trackScopeEvent('estimateGenerated',d.answers.service);if(data.delivery?.some((v:any)=>v.channel==='customer'&&v.status==='sent'))trackScopeEvent('estimateEmailed',d.answers.service);setStatus('');
+      checkSubmission();setResult(data.result);setDelivery(data.delivery||[]);trackGoogleAdsLeadConversion({service:d.answers.service},`estimator:${d.id}`);if(data.result?.range)trackScopeEvent('estimateGenerated',d.answers.service);if(data.delivery?.some((v:any)=>v.channel==='customer'&&v.status==='sent'))trackScopeEvent('estimateEmailed',d.answers.service);setStatus('');
     },'pricing');
   }
   const continuePaused=()=>{const kind=paused?.kind;setPaused(null);resuming.current=true;if(kind==='pricing'){const form=document.getElementById(`${id}-form`) as HTMLFormElement|null;if(form)form.requestSubmit();else void begin();}else void begin();};
@@ -635,7 +636,7 @@ export function P5Estimator({defaultService='',headingAs='h1',projectSource,layo
       <div className={styles.contactGrid}>{([['name','Your name','text'],['email','Email','email'],['phone','Phone','tel']] as const).map(([key,label,type])=><label className={styles.field} key={key} htmlFor={`${id}-contact-${key}`}><span>{label} {key==='phone'?<span className={styles.optional}>(optional)</span>:null}</span><input id={`${id}-contact-${key}`} ref={key==='name'?contactNameRef:key==='email'?contactEmailRef:undefined} type={type} autoComplete={key} required={key!=='phone'} aria-invalid={validationTarget==='contact'&&key!=='phone'&&(key==='name'?draft.contact.name.trim().length<2:!EMAIL.test(draft.contact.email))?true:undefined} aria-describedby={validationTarget==='contact'&&key!=='phone'?submitErrorId:undefined} value={draft.contact[key]} onChange={e=>{changeContact(key,e.target.value);if(validationTarget==='contact')setValidationTarget('');}} maxLength={key==='name'?120:key==='email'?200:40}/></label>)}</div>
       <label className={styles.check} data-invalid={validationTarget==='confirmation'&&!confirmed?true:undefined}><input ref={confirmationRef} type="checkbox" required checked={confirmed} aria-invalid={validationTarget==='confirmation'&&!confirmed?true:undefined} aria-describedby={validationTarget==='confirmation'?submitErrorId:undefined} onChange={e=>{setConfirmed(e.target.checked);if(e.target.checked){setValidationTarget('');setError('');}}}/><span>These details reflect my project. I understand this is a preliminary estimate, subject to confirmed scope, selections and site conditions.</span></label>
     </div>
-    {pausedCard}{alertCard}
+    {alertCard}
     <p className={styles.hint}>Need to change something? Use <b>Add or edit details</b> below to update your description or attach more files. Your answers are kept.</p>
   </Message>;
   const resultStage=result&&<Message role="assistant">
