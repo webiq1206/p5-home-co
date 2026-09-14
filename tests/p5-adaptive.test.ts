@@ -128,3 +128,12 @@ test("reanalysis replaces source facts while preserving visitor corrections",asy
  assert.equal(manualScopeAnswers({demolition:"Only remove vanity",sqft:"80"},previous).demolition,"Only remove vanity");
  assert.equal(manualScopeAnswers({sqft:"80"},previous,{sqft:"80"}).sqft,"80");
 });
+
+test('an itemized document does not ask for the task list again',()=>{
+  const base=extracted({service:'kitchen',sqft:'200',finish:'standard'});
+  const withTakeoffs={...base,takeoffs:[{id:'t1',description:'Base cabinets',building:'',floor:'',component:'cabinets',quantity:20,unit:'LF',basis:'stated' as const,evidence:'20 LF base',supersedes:[],issues:[],sources:[{source:'estimate.pdf',sheet:'',revision:'',page:1}]}]};
+  const asked=scopeQuestions({service:'kitchen',sqft:'200',finish:'standard'},base).map(q=>q.field);
+  const answered=scopeQuestions({service:'kitchen',sqft:'200',finish:'standard'},withTakeoffs).map(q=>q.field);
+  assert.ok(asked.includes('taskList'),'without quantities the task list is asked');
+  assert.ok(!answered.includes('taskList'),'a document with takeoffs answers it');
+});

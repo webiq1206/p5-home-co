@@ -282,6 +282,8 @@ export function P5Estimator({defaultService='',headingAs='h1',projectSource}:{de
   const focusCorrection=(element:HTMLElement|null)=>requestAnimationFrame(()=>{if(!element)return;element.focus({preventScroll:true});element.scrollIntoView({block:'center',behavior:'smooth'});});
   async function submit(event:React.FormEvent){
     event.preventDefault();if(draft?.step!==2){await begin();return;}
+    // A file the reader could not finish is named here instead of silently re-running the read on every click; the visitor retries the read, removes the file, or prices the rest.
+    if(current.current?.analysisWarning&&!filesRef.current.length&&(current.current.text||'')===(current.current.analyzedText||'')){setError('Some of your files could not be read, so they cannot be priced yet. Use Retry document reading, or remove the file to price the rest of your project.');return;}
     if(needsAnalysis()){await begin();return;}
     const d=current.current!;
     if(questions(d).length){showQuestions(d);return;}

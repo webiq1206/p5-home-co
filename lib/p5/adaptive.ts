@@ -96,6 +96,8 @@ export function questionForField(field:ScopeField,answers:ScopeAnswers):ScopeQue
 export function scopeQuestions(input:ScopeAnswers,extraction:ScopeExtraction|null,conflicts:ScopeConflict[]=[],skipped:ScopeField[]=[],pricedFields:ScopeField[]=[]):ScopeQuestion[]{
   const answers=deriveScopeAnswers(input);
   const relevant=new Set<ScopeField>(['service',...materialScopeFields(answers,pricedFields),...pricedFields]);
+  // A document that already lists the work with quantities answers the task question; asking again repeats what was supplied.
+  if((extraction?.takeoffs?.length||0)>0)relevant.delete('taskList');
   // An uncertain stated quantity is more useful as one clarification than a blank form.
   const uncertain=(extraction?.facts||[]).filter(f=>f.confidence<.85&&f.confidence>=.4&&!answers[f.field]?.trim()&&relevant.has(f.field));
   const questions:ScopeQuestion[]=conflicts.map(c=>({field:c.field,label:SCOPE_FIELDS[c.field].label,reason:c.explanation,values:c.values,conflict:true}));

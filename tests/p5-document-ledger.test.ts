@@ -42,3 +42,17 @@ test('Long pricing sources retain the last item and full boundary instructions',
   assert.ok(JSON.stringify(parts.at(-1)).includes('FINAL INCLUDED ITEM'));
   assert.ok(parts.every(p=>JSON.stringify(p).includes(scope.answers.estimatingInstructions)));
 });
+
+test('a drawing page is supplied whole when detail rendering fails on the host',async()=>{
+  const {analysisSegments}=await import('../lib/p5/analysisSegments.ts');
+  const {PDFDocument}=await import('pdf-lib');
+  const doc=await PDFDocument.create();doc.addPage([2592,1728]);doc.addPage([612,792]);
+  const data=Buffer.from(await doc.save());
+  const failing=async function*(){throw new TypeError('The "path" argument must be of type string. Received type number (15754)');};
+  const units=[];for await(const unit of analysisSegments({name:'plans.pdf',type:'application/pdf',data},0,failing as any))units.push(unit);
+  assert.equal(units.length,2);
+  assert.ok(!units[0].preparationError,'the large sheet is not marked unreadable');
+  assert.ok(units[0].data.length>0&&/supplied whole/.test(units[0].name));
+  assert.deepEqual(units[0].pages,[{source:'plans.pdf',page:1}]);assert.equal(units[0].nextPage,1);
+  assert.deepEqual(units[1].pages,[{source:'plans.pdf',page:2}]);
+});
