@@ -46,7 +46,7 @@ export function P5Estimator({defaultService='',headingAs='h1',projectSource}:{de
   const started=useRef(false);
   const [clarificationReply,setClarificationReply]=useState('');
   const [recoveries,setRecoveries]=useState<BrowserDraftRecovery[]>([]);
-  const [result,setResult]=useState<any>(null);const [delivery,setDelivery]=useState<any[]>([]);const [confirmed,setConfirmed]=useState(false);
+  const [result,setResult]=useState<any>(null);const [delivery,setDelivery]=useState<any[]>([]);const deliveryChecks=useRef(0);const [confirmed,setConfirmed]=useState(false);
   const [active,setActive]=useState<ScopeQuestion|null>(null);const [inputOpen,setInputOpen]=useState(false);const [editField,setEditField]=useState<ScopeField|''>('');
   const [listening,setListening]=useState(false);const [speechAvailable,setSpeechAvailable]=useState(false);const recognition=useRef<Recognition|null>(null);
   const queue=useRef<Promise<unknown>>(Promise.resolve());const heading=useRef<HTMLHeadingElement>(null);const mounted=useRef(false);const estimatorRef=useRef<HTMLDivElement>(null);const confirmationRef=useRef<HTMLInputElement>(null);const contactNameRef=useRef<HTMLInputElement>(null);const contactEmailRef=useRef<HTMLInputElement>(null);const id=useId();const Heading=headingAs;
@@ -220,6 +220,18 @@ export function P5Estimator({defaultService='',headingAs='h1',projectSource}:{de
   }
   const needsAnalysis=()=>{const d=current.current;return Boolean(d&&(d.analysisWarning||!d.sourceDetached&&projectSource?.imageUrl&&d.sourceImageUrl!==projectSource.imageUrl||filesRef.current.length||d.text.trim()&&d.text!==d.analyzedText||textAnswers(d.answers)!=='[]'&&textAnswers(d.answers)!==d.analyzedAnswers));};
   // The composer grows with its text, like a chat box, and scrolls past ten lines.
+  // Delivery finishes inside the submitting request when it can; otherwise a
+  // status check every few seconds drives the remaining sends on the host and
+  // the message below reflects the real state instead of a hopeful one.
+  useEffect(()=>{
+    if(!result||!delivery.length||!delivery.some(d=>d.status==='pending'||d.status==='retry'||d.status==='sending')||deliveryChecks.current>=10)return;
+    const d=current.current;if(!d)return;let cancelled=false;
+    const timer=setTimeout(async()=>{
+      deliveryChecks.current+=1;
+      try{const response=await fetch('/api/p5-estimator/submit',{method:'POST',headers:{...draftHeaders(d),'Content-Type':'application/json'},body:JSON.stringify({revision:d.revision})});const value=await response.json();if(!cancelled&&mounted.current&&Array.isArray(value.delivery)&&value.delivery.length)setDelivery(value.delivery);}catch{}
+    },6000);
+    return()=>{cancelled=true;clearTimeout(timer);};
+  },[result,delivery]);
   useEffect(()=>{const el=composerRef.current;if(!el)return;el.style.height='auto';el.style.height=Math.min(el.scrollHeight,300)+'px';},[draft?.text,draft?.answers.estimatingInstructions,draft?.step]);
   const begin=()=>run('Reading your project...',async()=>{
     if(!current.current?.text.trim()&&!filesRef.current.length&&!current.current?.uploads?.length&&!Object.values(current.current?.answers||{}).some(v=>v?.trim())){setError('Describe your project or add a file to continue.');return;}

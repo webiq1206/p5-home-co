@@ -9,6 +9,7 @@ import { enqueueSubmission,deliveryStatus,processOutbox } from "./outbox.ts";
 import { protectRequest,json,failed,limitedBody } from "./http.ts";
 import { ESTIMATOR_BRAND as brand } from "./brand.ts";
 
+const DELIVERY_WAIT_MS=Number(process.env.P5_DELIVERY_WAIT_MS||25_000);
 export async function postSubmission(request:Request,schedule?:(task:()=>Promise<void>)=>void){
   try{
     protectRequest(request,1000);const {id,key}=draftCredentials(request);const draft=await readDraft(id,key);
@@ -16,6 +17,8 @@ export async function postSubmission(request:Request,schedule?:(task:()=>Promise
     requireEstimateContact(draft.contact);
     if(draft.status==="submitted"){
       const [row]=await query("SELECT customer_estimate FROM p5_estimator_drafts WHERE id=$1",[id]);
+      // A status check after submission drives any delivery still queued; an autoscale host has no CPU between requests.
+      await processOutbox({draftId:id,limit:12}).catch(()=>undefined);
       return json({accepted:false,duplicate:true,id,result:row.customer_estimate,delivery:await deliveryStatus(id)});
     }
     const body=JSON.parse(new TextDecoder().decode(await limitedBody(request,4000)));
@@ -38,7 +41,7 @@ export async function postSubmission(request:Request,schedule?:(task:()=>Promise
       const items=((priced.customer as {verificationItems?:string[]}).verificationItems||[]).filter(item=>typeof item==='string'&&item.trim());
       // The reasons are logged so a live host explains an unpriced result, and the first few are shown so the visitor knows what to confirm.
       const blocks=(('warnings' in priced.internal?priced.internal.warnings:[])||[]).filter((w:{severity?:string})=>w.severity==='block').map((w:{code:string})=>w.code);
-      console.error(`[p5-pricing] no range for draft ${id}: blocks=${blocks.join(',')||'none'}; missing=${missing.slice(0,6).join(' | ')||'none'}; items=${items.slice(0,4).join(' | ')||'none'}`);
+      console.error(`[p5-pricing] no range for draft ${id}: blocks=${blocks.join(',')||'none'}; missing=${missing.slice(0,6).join(' | ')||'none'}; items=${items.slice(0,4).join(' | ')||'none'}; issues=${(((priced.internal as {scopePricing?:{issues?:string[]}}).scopePricing?.issues)||[]).slice(0,6).join(' | ')||'none'}`);
       const detail=labels.length?`Please confirm: ${labels.slice(0,5).join('; ')}.`:items.length?`Still to confirm: ${items.slice(0,3).join(' ')}`:'Some scope items still need verified quantities or cost evidence.';
       return json({pricingReviewRequired:true,missingFields,error:`Your project is saved and remains editable. ${detail} A complete price range is required before the estimate can be finalized and emailed.`},422);
     }
@@ -47,7 +50,12 @@ export async function postSubmission(request:Request,schedule?:(task:()=>Promise
     // Persistence is acknowledged separately from delivery. A transport failure
     // never erases the submission or tells a visitor to create a duplicate.
     const deliver=async()=>{await processOutbox({draftId:id,limit:12}).catch(()=>undefined);};
-    if(schedule)schedule(deliver);else await deliver();
+    // An autoscale host gives a request no CPU after its response, so delivery
+    // runs inside this request within a bounded wait; anything left continues
+    // after the response and on the visitor's next status check.
+    const started=deliver();
+    await Promise.race([started,new Promise<void>(resolve=>setTimeout(resolve,DELIVERY_WAIT_MS))]);
+    if(schedule)schedule(()=>started);
     return json({accepted,duplicate:!accepted,id,result:priced.customer,delivery:await deliveryStatus(id)});
   }catch(error){if(isPricingPending(error))return error.retryAfterMs===0?json({error:error.message},503):json({pending:true,message:error.message,retryAfterMs:error.retryAfterMs},202);return failed(error);}
 }

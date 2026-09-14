@@ -313,3 +313,11 @@ test('Repair does not erase a non-price blocker when it adds a positive rule',as
  assert.equal(result.customer.range,null);
  assert.ok(result.internal.scopePricing.issues.some(issue=>/does not match the explicit quantity/i.test(issue)));
 });
+
+test('research receives catalog additions as covered work, not only existing lines',async()=>{
+  const {coveredWork}=await import('../lib/p5/scopePricing.ts');
+  const configuration={finance:{} as any,costBooks:[],planningCatalog:{version:'v',source:'s',importedAt:'2026-09-01T00:00:00.000Z',authorizedBy:'t',rates:[{code:'03-15-02-M',description:'Tile - Materials',type:'Material',unit:'SF',amount:16,basis:'',effectiveDate:'2026-09-01'}]} as any};
+  const task={existingLineIds:['line-1'],additions:[{code:'03-15-02-M',quantity:78},{code:'unknown-code',quantity:1}]};
+  const covered=coveredWork(task,[{id:'line-1',description:'Plumbing - Labor',quantity:6,unit:'HR'},{id:'line-2',description:'Other',quantity:1,unit:'EA'}],configuration);
+  assert.deepEqual(covered,[{description:'Plumbing - Labor',quantity:6,unit:'HR'},{description:'Tile - Materials',quantity:78,unit:'SF'},{description:'unknown-code',quantity:1,unit:''}]);
+});
