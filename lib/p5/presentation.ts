@@ -1,12 +1,21 @@
 import {SCOPE_FIELDS} from './scope.ts';
 import {suggestedTrade} from './trades.ts';
-export type EstimateSection={title:string;text?:string;bullets?:string[];rows?:[string,string][]};
+/**
+ * What a section means to the reader. Every consumer (estimator, email, PDF,
+ * admin preview) labels sections by kind so excluded work is never shown as
+ * included work, and assumptions are never shown as confirmed scope.
+ */
+export type SectionKind='glance'|'brief'|'included'|'category'|'excluded'|'allowance'|'assumption'|'info';
+export type EstimateSection={title:string;kind?:SectionKind;text?:string;bullets?:string[];rows?:[string,string][]};
 export const money=(n:number)=>new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',maximumFractionDigits:0}).format(n);
 export const readable=(s:string)=>s.replace(/([a-z])([A-Z])/g,'$1 $2').replace(/-/g,' ').replace(/^./,c=>c.toUpperCase());
 // Preserve original wording, numbers and exclusions. Never split decimal values or URLs.
 export const scopeBullets=(s:string)=>s.split(/\n+|(?<=[.!?])\s+(?=[A-Z])/).map(x=>x.trim().replace(/^[•*]\s*/, '')).filter(Boolean);
 const overview=new Set(['service','location','address','sqft','garageSqft','coveredOutdoorSqft','rooms','bathrooms','stories','schedule','urgency','complexity','finish']);
 export const FIELD_CATEGORY_TITLES:Record<string,string>={site:'Site & utilities',utilities:'Site & utilities',access:'Site & utilities',demolition:'Demolition',structural:'Structure',mechanical:'Heating & Cooling',plumbing:'Plumbing',electrical:'Electrical',appliances:'Appliances',permits:'Permits & design',engineering:'Permits & design',materials:'Materials & finishes',fixtures:'Fixtures & finishes',allowances:'Allowances & selections',exclusions:'Excluded work',ownerSupplied:'Owner responsibilities',alternates:'Alternates'};
+const FIELD_SECTION_KIND:Record<string,SectionKind>={'Excluded work':'excluded','Allowances & selections':'allowance','Owner responsibilities':'info','Alternates':'info'};
+/** Section titles used by consumers that group by kind; kept in one place. */
+export const SECTION_TITLES={included:'Included work',excluded:'Excluded work',responsibilities:'Responsibilities',buildings:'Buildings and floors',questions:'Scope questions requiring clarification',coverage:'Document review coverage',buildingPrices:'Separate building prices',pricingBasis:'Pricing basis',allowances:'Included preliminary allowances',verify:'Items to verify before a firm proposal',categoriesIntro:'Included scope by category',requestedIntro:'Requested scope by category'} as const;
 function itemPriceText(item:any){
  const quantity=`${Number(item.quantity).toLocaleString('en-US')} ${item.unit}${item.quantityRange?` modeled allowance (${item.quantityRange.low.toLocaleString('en-US')} to ${item.quantityRange.high.toLocaleString('en-US')} ${item.unit} to verify)`:''}`;
  const total=`${money(item.low)} to ${money(item.high)} total`;
@@ -28,44 +37,100 @@ export function summarySections(summary:string):EstimateSection[]{
   const rows=groups.get(title)||[];active=[definition.label,value];rows.push(active);groups.set(title,rows);
  }
  const sections:EstimateSection[]=[];
- if(groups.has('Project at a glance')){sections.push({title:'Project at a glance',rows:groups.get('Project at a glance')});groups.delete('Project at a glance');}
- if(original.join('\n').trim())sections.push({title:'Project brief',bullets:scopeBullets(original.join('\n'))});
- for(const [title,rows]of groups)sections.push({title,rows});return sections;
+ if(groups.has('Project at a glance')){sections.push({title:'Project at a glance',kind:'glance',rows:groups.get('Project at a glance')});groups.delete('Project at a glance');}
+ if(original.join('\n').trim())sections.push({title:'Project brief',kind:'brief',bullets:scopeBullets(original.join('\n'))});
+ for(const [title,rows]of groups)sections.push({title,kind:FIELD_SECTION_KIND[title]||'info',rows});return sections;
+}
+/** Merge sections that share a title so one heading never appears twice. */
+function mergeByTitle(sections:EstimateSection[]):EstimateSection[]{
+ const merged:EstimateSection[]=[];
+ for(const section of sections){
+  const existing=merged.find(s=>s.title===section.title);
+  if(!existing){merged.push({...section});continue;}
+  existing.kind=existing.kind||section.kind;
+  existing.text=[existing.text,section.text].filter(Boolean).join('\n')||undefined;
+  if(section.bullets?.length)existing.bullets=[...new Set([...(existing.bullets||[]),...section.bullets])];
+  if(section.rows?.length)existing.rows=[...(existing.rows||[]),...section.rows];
+ }
+ return merged;
 }
 export function estimateSections(result:any):EstimateSection[]{
  const sections=summarySections(result.summary||'');
  const lines:any[]=result.lineItems||[], tasks:any[]=result.scopeTasks||[];
  const suppliedInstructions=result.instructions;
- const list=(value:unknown):string[]=>Array.isArray(value)?value.filter((item):item is string=>typeof item==='string'):[];
+ const list=(value:unknown):string[]=>Array.isArray(value)?value.filter((item):item is string=>typeof item==='string'&&item.trim().length>0):[];
  const instructions=suppliedInstructions?{...suppliedInstructions,...Object.fromEntries(['inclusions','exclusions','responsibilities','floors','buildings','questions'].map(key=>[key,list(suppliedInstructions[key])]))}:null;
  if(instructions){
-  sections.unshift({title:'Requested estimating scope',bullets:[...instructions.inclusions.map((x:string)=>`Include: ${x}`),...instructions.exclusions.map((x:string)=>`Exclude: ${x}`),...instructions.responsibilities,...instructions.floors.map((x:string)=>`Floor: ${x}`),...instructions.buildings.map((x:string)=>`Building: ${x}`),...(instructions.laborOnly?['Labor only; materials are not charged.']:[]),...(instructions.materialsOnly?['Materials only; labor is not charged.']:[])]});
-  if(instructions.questions.length)sections.push({title:'Scope questions requiring clarification',bullets:instructions.questions});
+  // Inclusions and exclusions are separate sections. Excluded work must never
+  // sit inside a list labeled as included work.
+  const included=[...instructions.inclusions,...(instructions.laborOnly?['Labor only; materials are not charged.']:[]),...(instructions.materialsOnly?['Materials only; labor is not charged.']:[])];
+  const leading:EstimateSection[]=[];
+  if(included.length)leading.push({title:SECTION_TITLES.included,kind:'included',bullets:included});
+  if(instructions.exclusions.length)leading.push({title:SECTION_TITLES.excluded,kind:'excluded',bullets:instructions.exclusions});
+  if(instructions.responsibilities.length)leading.push({title:SECTION_TITLES.responsibilities,kind:'info',bullets:instructions.responsibilities});
+  if(instructions.buildings.length||instructions.floors.length)leading.push({title:SECTION_TITLES.buildings,kind:'info',bullets:[...instructions.buildings.map((x:string)=>`Building: ${x}`),...instructions.floors.map((x:string)=>`Floor: ${x}`)]});
+  sections.unshift(...leading);
+  if(instructions.questions.length)sections.push({title:SECTION_TITLES.questions,kind:'assumption',bullets:instructions.questions});
  }
- if(result.documentCoverage){const c=result.documentCoverage;sections.push({title:'Document review coverage',text:`${c.pages.filter((p:any)=>p.status==='read').length} of ${c.expectedPages} pages fully read. ${c.complete?'Every page has a completed review record.':'Analysis is incomplete; review the exceptions below.'}`,bullets:c.pages.filter((p:any)=>p.status!=='read').map((p:any)=>`${p.source}, page ${p.page}${p.sheet?` (${p.sheet})`:''}: ${p.status}. ${p.notes.join(' ')}`)});}
+ if(result.documentCoverage){const c=result.documentCoverage;const expected=Number(c.expectedPages)||0;const pages:any[]=Array.isArray(c.pages)?c.pages:[];
+  // A typed scope has no pages; a coverage line for it only confuses the reader.
+  if(expected>0||pages.length>0)sections.push({title:SECTION_TITLES.coverage,kind:'info',text:`${pages.filter((p:any)=>p.status==='read').length} of ${expected||pages.length} pages fully read. ${c.complete?'Every page has a completed review record.':'Analysis is incomplete; review the exceptions below.'}`,bullets:pages.filter((p:any)=>p.status!=='read').map((p:any)=>`${p.source}, page ${p.page}${p.sheet?` (${p.sheet})`:''}: ${p.status}. ${(p.notes||[]).join(' ')}`)});}
  const buildings=[...new Set<string>(lines.map(l=>l.building).filter(Boolean))];
- if(buildings.length)sections.push({title:'Separate building prices',rows:buildings.map(b=>[b,`${money(lines.filter(l=>l.building===b).reduce((n,l)=>n+l.low,0))} to ${money(lines.filter(l=>l.building===b).reduce((n,l)=>n+l.high,0))}`]),text:'Building totals are included in, not added to, the overall estimate.'});
+ // One unnamed or default building is the whole project; a per-building table repeats the total.
+ if(buildings.length>1)sections.push({title:SECTION_TITLES.buildingPrices,kind:'included',rows:buildings.map(b=>[b,`${money(lines.filter(l=>l.building===b).reduce((n,l)=>n+l.low,0))} to ${money(lines.filter(l=>l.building===b).reduce((n,l)=>n+l.high,0))}`]),text:'Building totals are included in, not added to, the overall estimate.'});
  const estimated=lines.filter(l=>l.pricingStatus==='estimated-allowance');
- if(lines.some(l=>l.pricingStatus==='owner-planning-rate'))sections.push({title:'Pricing basis',text:'Owner planning rates provide the foundation for this preliminary range. They are not current supplier quotes; verify local availability, selections and trade pricing before a firm proposal.'});
- if(estimated.length)sections.push({title:'Included preliminary allowances',bullets:estimated.map(l=>`${[l.building,l.floor,l.description].filter(Boolean).join(' / ')}: ${money(l.low)} to ${money(l.high)} included. ${l.verification}${l.rateLocation?` Cost location: ${l.rateLocation}.`:''}${l.rateDate?` Researched: ${l.rateDate.slice(0,10)}.`:''}`)});
- if(result.verificationItems?.length)sections.push({title:'Items to verify before a firm proposal',bullets:[...new Set<string>(result.verificationItems)]});
+ if(lines.some(l=>l.pricingStatus==='owner-planning-rate'))sections.push({title:SECTION_TITLES.pricingBasis,kind:'assumption',text:'Owner planning rates provide the foundation for this preliminary range. They are not current supplier quotes; verify local availability, selections and trade pricing before a firm proposal.'});
+ if(estimated.length){
+  const notes=[...new Set<string>(estimated.map(l=>l.verification).filter(Boolean))];
+  sections.push({title:SECTION_TITLES.allowances,kind:'allowance',text:`These amounts are included in the range as preliminary allowances. ${notes.length===1?notes[0]:'Confirm quantities, selections and current supplier and trade pricing before a firm proposal.'}`,rows:estimated.map(l=>[[l.building&&!/^(main|default)$/i.test(l.building)?l.building:'',l.floor?`Floor ${l.floor}`:'',l.description].filter(Boolean).join(' / '),`${money(l.low)} to ${money(l.high)}${l.rateLocation?` · cost location: ${l.rateLocation}`:''}${l.rateDate?` · researched ${String(l.rateDate).slice(0,10)}`:''}`])});
+ }
+ if(result.verificationItems?.length)sections.push({title:SECTION_TITLES.verify,kind:'assumption',bullets:[...new Set<string>(result.verificationItems)]});
  const categories=[...new Set<string>([...(result.includedCategories||[]),...lines.map(x=>x.category),...tasks.map(x=>x.category||suggestedTrade(x.description))])];
  const breakdown:EstimateSection[]=categories.map(category=>{
   const range=result.categoryRanges?.find((x:any)=>x.category===category);
-  return {title:category,text:range?`${money(range.low)} to ${money(range.high)}`:undefined,
+  return {title:category,kind:'category',text:range?`${money(range.low)} to ${money(range.high)}`:undefined,
    bullets:[...new Set<string>(tasks.filter(x=>(x.category||suggestedTrade(x.description))===category).map(x=>x.description))],
-   rows:lines.filter(x=>x.category===category).map(x=>[[x.building,x.floor?`Floor ${x.floor}`:'',x.description].filter(Boolean).join(' / '),itemPriceText(x)])};
+   rows:lines.filter(x=>x.category===category).map(x=>[[x.building&&!/^(main|default)$/i.test(x.building)?x.building:'',x.floor?`Floor ${x.floor}`:'',x.description].filter(Boolean).join(' / '),itemPriceText(x)])};
  });
  if(breakdown.length){
-  sections.splice(sections[0]?.title==='Project at a glance'?1:0,0,{title:result.range?'Included scope by category':'Requested scope by category',text:result.range?'Category and item ranges are parts of the overall range, not additional charges. Where several tasks share an assembly, its price is shown once.':'Scope details are organized below. Pricing coverage still requires review.'});
-  for(const category of breakdown){const existing=sections.find(s=>s.title===category.title);if(existing){existing.text=category.text;existing.rows=[...(existing.rows||[]),...(category.rows||[])];existing.bullets=category.bullets;}else sections.push(category);}
+  const at=sections.findIndex(s=>s.kind==='glance');
+  sections.splice(at>=0?at+1:0,0,{title:result.range?SECTION_TITLES.categoriesIntro:SECTION_TITLES.requestedIntro,kind:'info',text:result.range?'Category and item ranges are parts of the overall range, not additional charges. Where several tasks share an assembly, its price is shown once.':'Scope details are organized below. Pricing coverage still requires review.'});
+  for(const category of breakdown){const existing=sections.find(s=>s.title===category.title);if(existing){existing.kind='category';existing.text=category.text;existing.rows=[...(existing.rows||[]),...(category.rows||[])];existing.bullets=category.bullets;}else sections.push(category);}
  }
- for(const [title,key] of [['Allowances','allowances'],['Planning assumptions','assumptions'],['Exclusions','exclusions'],['Factors that may change the range','factors']]){
+ for(const [title,key,kind] of [['Allowances','allowances','allowance'],['Planning assumptions','assumptions','assumption'],['Exclusions','exclusions','excluded'],['Factors that may change the range','factors','assumption']] as [string,string,SectionKind][]){
   const values=result[key]||[];if(!values.length)continue;
-  sections.push({title,bullets:values.map((x:any)=>typeof x==='string'?x:`${x.description}${x.amount!=null?`: ${money(x.amount)} included`:': selection to confirm'}. Includes ${(x.includes||[]).join(', ')}. ${['tax','freight','delivery','installation','waste'].map(k=>`${k}: ${x[k+'Included']?'included':'excluded'}`).join('; ')}. Selection deadline: ${x.selectionDeadline}. ${x.adjustment}`)});
+  sections.push({title,kind,bullets:values.map((x:any)=>typeof x==='string'?x:`${x.description}${x.amount!=null?`: ${money(x.amount)} included`:': selection to confirm'}. Includes ${(x.includes||[]).join(', ')}. ${['tax','freight','delivery','installation','waste'].map(k=>`${k}: ${x[k+'Included']?'included':'excluded'}`).join('; ')}. Selection deadline: ${x.selectionDeadline}. ${x.adjustment}`)});
  }
- return sections;
+ return mergeByTitle(sections);
 }
+export interface GroupedSections{glance?:EstimateSection;brief?:EstimateSection;categoriesIntro?:EstimateSection;included:EstimateSection[];categories:EstimateSection[];excluded:EstimateSection[];allowances:EstimateSection[];assumptions:EstimateSection[];info:EstimateSection[]}
+/**
+ * Reading order for every customer-facing output: what the project is, what
+ * is included, what it costs by category, what is excluded, what is carried
+ * as an allowance, what still needs confirming, then supporting notes.
+ */
+export function groupSections(sections:EstimateSection[]):GroupedSections{
+ const grouped:GroupedSections={included:[],categories:[],excluded:[],allowances:[],assumptions:[],info:[]};
+ for(const section of sections){
+  const kind=section.kind||'info';
+  if(kind==='glance'&&!grouped.glance)grouped.glance=section;
+  else if(kind==='brief'&&!grouped.brief)grouped.brief=section;
+  else if(section.title===SECTION_TITLES.categoriesIntro||section.title===SECTION_TITLES.requestedIntro)grouped.categoriesIntro=section;
+  else if(kind==='included')grouped.included.push(section);
+  else if(kind==='category')grouped.categories.push(section);
+  else if(kind==='excluded')grouped.excluded.push(section);
+  else if(kind==='allowance')grouped.allowances.push(section);
+  else if(kind==='assumption')grouped.assumptions.push(section);
+  else grouped.info.push(section);
+ }
+ return grouped;
+}
+/** Flat, ordered list for linear outputs such as the PDF and plain-text email. */
+export function orderedSections(sections:EstimateSection[]):EstimateSection[]{
+ const g=groupSections(sections);
+ return [g.glance,g.brief,...g.included,g.categoriesIntro,...g.categories,...g.excluded,...g.allowances,...g.assumptions,...g.info].filter((s):s is EstimateSection=>Boolean(s));
+}
+export const KIND_LABEL:Record<SectionKind,string>={glance:'',brief:'',included:'Included',category:'Included',excluded:'Excluded',allowance:'Allowance',assumption:'To confirm',info:''};
 
 /** Review-screen grouping for a scope field. */
 export function fieldCategory(field:string):string{
@@ -79,7 +144,7 @@ export function categoryBreakdown(result:any):CategoryBreakdown[]{
  const categories=[...new Set<string>([...(result?.includedCategories||[]),...lines.map(x=>x.category),...tasks.map(x=>x.category||suggestedTrade(x.description))])];
  return categories.map(category=>{
   const range=result?.categoryRanges?.find((x:any)=>x.category===category);
-  const items:CategoryLine[]=lines.filter(x=>x.category===category).map(x=>({id:String(x.id),label:[x.building,x.floor?`Floor ${x.floor}`:"",x.description].filter(Boolean).join(" / "),quantity:Number(x.quantity),unit:String(x.unit),...(x.quantityRange?{quantityRange:x.quantityRange}:{}),low:Number(x.low),high:Number(x.high),unitLow:Number(x.unitLow),unitHigh:Number(x.unitHigh),status:String(x.pricingStatus||"verified-cost"),...(x.verification?{verification:x.verification}:{}),...(x.rateLocation?{rateLocation:x.rateLocation}:{}),...(x.rateDate?{rateDate:String(x.rateDate).slice(0,10)}:{})}));
+  const items:CategoryLine[]=lines.filter(x=>x.category===category).map(x=>({id:String(x.id),label:[x.building&&!/^(main|default)$/i.test(x.building)?x.building:"",x.floor?`Floor ${x.floor}`:"",x.description].filter(Boolean).join(" / "),quantity:Number(x.quantity),unit:String(x.unit),...(x.quantityRange?{quantityRange:x.quantityRange}:{}),low:Number(x.low),high:Number(x.high),unitLow:Number(x.unitLow),unitHigh:Number(x.unitHigh),status:String(x.pricingStatus||"verified-cost"),...(x.verification?{verification:x.verification}:{}),...(x.rateLocation?{rateLocation:x.rateLocation}:{}),...(x.rateDate?{rateDate:String(x.rateDate).slice(0,10)}:{})}));
   return {category,...(range?{low:range.low,high:range.high}:{}),tasks:[...new Set<string>(tasks.filter(x=>(x.category||suggestedTrade(x.description))===category).map(x=>x.description))],items};
  });
 }

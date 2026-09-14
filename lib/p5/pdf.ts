@@ -5,7 +5,7 @@ import fontkit from "@pdf-lib/fontkit";
 import { ESTIMATOR_BRAND as brand } from "./brand.ts";
 type PublicResult={status:string;range:{low:number;high:number}|null;summary:string;includedCategories:string[];categoryRanges?:{category:string;low:number;high:number}[];lineItems?:{id:string;category:string;description:string;quantity:number;unit:string;low:number;high:number;unitLow:number;unitHigh:number}[];allowances:unknown[];assumptions:string[];exclusions:string[];factors:string[];nextStep:string;message:string;disclaimer:string};
 type Block={title?:string;text?:string;rows?:[string,string][];bullets?:string[];compact?:boolean};
-import {estimateSections,scopeBullets} from './presentation.ts';
+import {estimateSections,orderedSections,scopeBullets} from './presentation.ts';
 import {scopeText} from './scope.ts';
 const label=(value:string)=>value.replace(/([a-z])([A-Z])/g,"$1 $2").replaceAll("-"," ").replace(/^./,c=>c.toUpperCase());
 const money=(n:number)=>new Intl.NumberFormat("en-US",{style:"currency",currency:"USD",maximumFractionDigits:0}).format(n);
@@ -78,7 +78,11 @@ async function render(kind:"customer"|"administrative",id:string,blocks:Block[])
 export function customerPdf(id:string,result:PublicResult){
   const blocks:Block[]=[
     {title:result.range?`${money(result.range.low)} to ${money(result.range.high)}`:"Scope received for pricing review",text:result.message},
-    ...estimateSections(result),
+    // Reading order: project, included work, categories, excluded work,
+    // allowances, items to confirm, supporting notes. Section titles carry
+    // their meaning (Included work, Excluded work) so the PDF never lists
+    // excluded items under an included heading.
+    ...orderedSections(estimateSections(result)).map(section=>section.kind==='excluded'&&!/exclu|not included/i.test(section.title)?{...section,title:`${section.title} (not included)`}:section.kind==='assumption'&&!/confirm|assum|verify|basis|factor|question/i.test(section.title)?{...section,title:`${section.title} (to confirm)`}:section),
     {title:"Recommended next step",text:`${result.nextStep}\nSchedule a consultation: https://${brand.domain}${brand.consultationPath}\n${brand.phone} | ${brand.email}`},
     {title:"Planning disclaimer",text:result.disclaimer},
   ];return render("customer",id,blocks);

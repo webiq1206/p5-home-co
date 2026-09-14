@@ -55,7 +55,7 @@ export default function QuoteLanding({ service }: { service: QuoteService | null
           </TrackedPhoneLink>
         </header>
 
-        <section id="quote-form-heading" style={{padding:"12px 0 36px",scrollMarginTop:100}}><P5Estimator headingAs="h1" defaultService={({"kitchen-remodel":"kitchen","bathroom-remodel":"bathroom","home-addition":"addition","adu":"adu","custom-home":"new-construction","new-construction":"new-construction","custom-cabinets":"cabinet-install","handyman":"handyman","re-10":"re10"} as Record<string,string>)[service?.slug||""]||""} /></section>
+        <section id="quote-form-heading" style={{padding:"12px 16px 36px",scrollMarginTop:100}}><P5Estimator headingAs="h1" layout="embedded" defaultService={({"kitchen-remodel":"kitchen","bathroom-remodel":"bathroom","home-addition":"addition","adu":"adu","custom-home":"new-construction","new-construction":"new-construction","custom-cabinets":"cabinet-install","handyman":"handyman","re-10":"re10"} as Record<string,string>)[service?.slug||""]||""} /></section>
 
         <section className="quote-hero">
           <img

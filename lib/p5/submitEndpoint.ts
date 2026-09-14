@@ -42,8 +42,11 @@ export async function postSubmission(request:Request,schedule?:(task:()=>Promise
       // The reasons are logged so a live host explains an unpriced result, and the first few are shown so the visitor knows what to confirm.
       const blocks=(('warnings' in priced.internal?priced.internal.warnings:[])||[]).filter((w:{severity?:string})=>w.severity==='block').map((w:{code:string})=>w.code);
       console.error(`[p5-pricing] no range for draft ${id}: blocks=${blocks.join(',')||'none'}; missing=${missing.slice(0,6).join(' | ')||'none'}; items=${items.slice(0,4).join(' | ')||'none'}; issues=${(((priced.internal as {scopePricing?:{issues?:string[]}}).scopePricing?.issues)||[]).slice(0,6).join(' | ')||'none'}`);
-      const detail=labels.length?`Please confirm: ${labels.slice(0,5).join('; ')}.`:items.length?`Still to confirm: ${items.slice(0,3).join(' ')}`:'Some scope items still need verified quantities or cost evidence.';
-      return json({pricingReviewRequired:true,missingFields,error:`Your project is saved and remains editable. ${detail} A complete price range is required before the estimate can be finalized and emailed.`},422);
+      // The reply is structured so the interface can list each open item on
+      // its own line and link each missing detail to its question, instead of
+      // one dense paragraph.
+      const detail=labels.length?'Please confirm the details below.':items.length?'The items below still need confirmation before a complete range can be released.':'Some scope items still need verified quantities or cost evidence.';
+      return json({pricingReviewRequired:true,missingFields,verificationItems:items.slice(0,8),error:`Your project is saved and remains editable. ${detail} A complete price range is required before the estimate can be finalized and emailed.`},422);
     }
     const record={draftId:id,revision:draft.revision,brand:brand.name,estimator:"p5-policy",contact:draft.contact,scope:draft.reviewed,...priced};
     const accepted=await enqueueSubmission(id,draft.revision,record);
