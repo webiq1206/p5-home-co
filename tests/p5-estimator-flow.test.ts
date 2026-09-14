@@ -164,3 +164,15 @@ test('a provider wording for a choice fact maps onto the option instead of faili
   const dropped=validateExtraction({...base,facts:[fact('purple')]});
   assert.equal(dropped.facts.some(f=>f.field==='finish'),false,'an unmatched wording is asked, not fatal');
 });
+
+test('confirmation-only audit findings become disclosed assumptions, real gaps stay blocking',async()=>{
+  const {advisoryIssue}=await import('../lib/p5/scopePricing.ts');
+  assert.equal(advisoryIssue('All allowances use owner catalog line items per stated methodology; see each line for exact method.'),true);
+  assert.equal(advisoryIssue('Final audit must confirm bathroom dimensions, fixture counts and owner selections.'),true);
+  assert.equal(advisoryIssue('Demolish tub: mapped to Building Demolition + Haul, 15 SF. ALLOWANCE: rounded up to 15 SF. Must confirm final demo extent at site.'),true);
+  assert.equal(advisoryIssue('Tile floor: full pricing coverage has not been verified.'),false);
+  assert.equal(advisoryIssue('Exhaust fan wiring is omitted from the priced components.'),false);
+  assert.equal(advisoryIssue('Priced hourly labor (12) does not reconcile with the confirmed 10 hours.'),false);
+  assert.equal(advisoryIssue('Complete scope pricing could not be verified. An estimator must resolve the remaining work before a total is released.'),false);
+  assert.equal(advisoryIssue('Vanity top duplicated in both cabinetry and countertop lines.'),false);
+});

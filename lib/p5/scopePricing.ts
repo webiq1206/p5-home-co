@@ -390,6 +390,16 @@ export function planningResolution(raw:unknown,tasks:Mapping['tasks'],now:Date,o
   for(const t of tasks.filter(t=>t.researchDescription))if(!planning.rates.some(r=>r.taskId===t.id))result.issues.push(`${t.description}: no defensible planning average could be supported.`);
   return result;
 }
+/** Audit findings that only ask for later confirmation (dimensions, owner
+ * selections, an allowance's site extent, the methodology used) are
+ * assumptions to disclose, not reasons to withhold a preliminary range. A
+ * finding that names omitted, duplicated, conflicting, unsupported or
+ * unverified pricing stays blocking. */
+export function advisoryIssue(text:string):boolean{
+  const t=text.toLowerCase();
+  if(/\b(omit|omission|missing|not (?:been |be )?(?:verified|covered|priced|supported|found|included)|unverified|duplicat|double[- ]count|conflict|unsupported|fabricat|incorrect|wrong|mismatch|reconcile|cannot|could not|unpriced|unknown component|no (?:catalog|rate|price|evidence)|exceeds|out of scope|not (?:in|part of) the|excluded work|hidden in exclusion)\b/.test(t))return false;
+  return /\b(confirm|verify at site|allowance|assum|methodology|per stated|see each line|to be selected|owner selection|pending selection|subject to|typical|estimated|modeled|rounded)\b/.test(t);
+}
 export async function priceCompleteScope(scope:ReviewedScope,configuration:EstimatorConfiguration,request:PricingRequest=requestPricing,now=new Date(),absoluteDeadline=Date.now()+SERVER_BUDGET_MS){
   // Retained clarification alternatives are archival provenance, not active
   // scope. Every mapper/audit payload below must use the projected extraction
@@ -572,6 +582,10 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
     // timeout, unsupported search, invalid output or inadequate source evidence.
     resolution.issues.push('Complete scope pricing could not be verified. An estimator must resolve the remaining work before a total is released.');
   }
+  // Confirmation-only findings ride along as disclosed assumptions so a
+  // customer gets a preliminary range with the items to confirm listed.
+  const advisory=resolution.issues.filter(advisoryIssue);
+  if(advisory.length){resolution.issues=resolution.issues.filter(issue=>!advisoryIssue(issue));resolution.assumptions.push(...advisory.map(item=>/^to confirm:/i.test(item)?item:`To confirm: ${item}`));}
   resolution.completeScopeVerified=Boolean(auditTrail.verification)&&resolution.issues.length===0;
   resolution.issues=[...new Set(resolution.issues)];auditTrail.issues=resolution.issues;
   const priced=priceReviewedScope(scope,configuration,now,resolution);
