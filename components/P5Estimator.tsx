@@ -663,7 +663,7 @@ export function P5Estimator({defaultService='',headingAs='h1',projectSource,layo
     <form id={formId} className={styles.app} onSubmit={submit} noValidate>
       <div className={styles.topbar}>
         {showBack?<button type="button" className={styles.navBtn} onClick={back} aria-label="Back to the previous step"><BackGlyph/><span data-label>Back</span></button>:<span className={styles.navSpacer} aria-hidden="true"/>}
-        <div className={styles.topCenter}><span className={styles.brandLine}>{brand.name} · Project estimator</span><span className={styles.stepPill}>{stepLabel}</span></div>
+        <div className={styles.topCenter}><span className={styles.brandLine}><span data-brand>{brand.name} · </span>Project estimator</span><span className={styles.stepPill}>{stepLabel}</span></div>
         {frameActive?<button type="button" className={styles.navBtn} onClick={exit} aria-label={layout==='embedded'?'Exit full screen. Your progress is saved.':'Exit the estimator. Your progress is saved.'}><span data-label>Exit</span><CloseGlyph/></button>:<span className={styles.navSpacer} aria-hidden="true"/>}
       </div>
       {!result&&<div className={styles.rail} aria-hidden="true">{STEP_LABELS.map((label,index)=><span key={label} data-state={index===draft.step?'current':index<draft.step?'done':'upcoming'}/>)}</div>}
