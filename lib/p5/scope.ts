@@ -418,8 +418,63 @@ export function combineScopeExtractions(parts:ScopeExtraction[]):ScopeExtraction
     if(values.length>1&&SCOPE_FIELDS[field].kind!=="text"&&!merged.conflicts.some(c=>c.field===field))merged.conflicts.push({field,values,explanation:"Different document pages state different values. Confirm the intended project information."});
   }
   // Missing questions from one page may be answered on another.
-  merged.missingInformation=merged.missingInformation.filter(note=>!merged.facts.some(f=>f.confidence>=.85&&note.trim().toLowerCase()===SCOPE_FIELDS[f.field].label.toLowerCase()));
+  merged.missingInformation=reconcileMissingInformation(merged);
   return merged;
+}
+/** Words too generic to prove a note is answered: they appear in almost every
+ * construction line item, so matching on them would discard real questions. */
+const GENERIC_SUBJECT=new Set(['work','works','item','items','material','materials','labor','labour','hours','install','installation','installed','finish','finishes','finishing','spec','specs','specification','specifications','detail','details','scope','project','area','size','sizes','type','types','system','systems','concrete','wood','metal','paint','trim','unit','units','total','totals','quantity','quantities','dimension','dimensions','not','and','the','for','with','only','shown','stated','specified','provided','required','page','pages','per','this','that','from','all','new','existing']);
+/** A note referring to the reader's own page or excerpt, meaningless once every
+ * page of the document has been read. */
+const PAGE_LOCAL=/\b(?:on|in|to|for)\s+this\s+(?:page|segment|section|sheet|excerpt|crop|view|group)\b|\bnot\s+(?:included|shown|present|visible|legible)\s+(?:in|on)\s+this\b|\bthis\s+(?:page|segment|section|excerpt)\s+(?:does\s+not|only)\b|\bpage\s+\d+[^.;]*\b(?:not\s+included|may\s+continue|continues?\s+(?:on|elsewhere))\b/i;
+/** A note about money in the source document. The estimator never prices from a
+ * number printed on an upload, so a missing or redacted price is not missing
+ * project information. */
+const SOURCE_PRICING=/\b(?:price|prices|pricing|cost|costs|unit\s+cost|rate|rates|dollar|amount|amounts|subtotal|total\s+cost|budget\s+figure)\b[^.;]*\b(?:redact|blank|remov|missing|not\s+(?:shown|stated|listed|provided|given))/i;
+/** Contact and address detail the estimator deliberately never requires. */
+const NEVER_REQUIRED=/\b(?:client|customer|owner|homeowner)\b[^.;]*\bnot\s+(?:specified|stated|provided|listed|given)\b|\b(?:mailing\s+)?address\b[^.;]*\bnot\s+(?:specified|stated|provided|listed|given)\b/i;
+/** A note asking which specification applies - a thickness, strength, rating,
+ * grade, model or finish. A takeoff proves how much work there is, never which
+ * specification governs it, so takeoff evidence may not retire this question. */
+const SPEC_QUESTION=/\b(?:thickness|thick|psi|grade|r-?value|u-?value|rating|rated|model|colou?r|species|gauge|class|strength|mix\s*design|spec|specs|specification|specifications|standard|tolerance|profile)\b/i;
+const subjectWords=(note:string)=>new Set(note.toLowerCase().replace(/[^a-z0-9\s-]/g,' ').split(/\s+/).filter(w=>w.length>3&&!GENERIC_SUBJECT.has(w)));
+/** Drop a merged "missing information" note only when the combined record
+ * proves it wrong: the page it was scoped to is no longer the whole document,
+ * it asks for a source price the estimator does not use, it asks for a detail
+ * that is never required, or a quantified takeoff names the same distinctive
+ * subject. Anything still genuinely unanswered is kept, so a real gap is never
+ * hidden from the visitor or from pricing. */
+export function reconcileMissingInformation(merged:ScopeExtraction):string[]{
+  const complete=merged.documentCoverage?merged.documentCoverage.complete&&merged.documentCoverage.pages.every(page=>page.status!=='unreadable'):false;
+  const quantified=(merged.takeoffs||[]).filter(t=>typeof t.quantity==='number'&&Number.isFinite(t.quantity));
+  // Prefer the component, which names the thing itself ("rebar"), over the
+  // description, which also carries the project subject ("...for driveway
+  // slab"). Where no component is supplied, fall back to descriptions and
+  // discard any word shared by most of them: a word naming the whole project
+  // identifies nothing in particular and must not retire a question.
+  const components=quantified.filter(t=>t.component.trim());
+  const subjects=(components.length?components.map(t=>t.component):quantified.map(t=>t.description)).map(subjectWords);
+  if(!components.length&&subjects.length>=4){
+    const frequency=new Map<string,number>();
+    for(const set of subjects)for(const word of set)frequency.set(word,(frequency.get(word)||0)+1);
+    for(const set of subjects)for(const word of [...set])if((frequency.get(word)||0)*2>=subjects.length)set.delete(word);
+  }
+  const answered=subjects;
+  const labelled=new Map<string,string>();
+  for(const fact of merged.facts)if(fact.confidence>=.85&&fact.value.trim())labelled.set(SCOPE_FIELDS[fact.field].label.toLowerCase(),fact.value.trim());
+  return merged.missingInformation.filter(note=>{
+    const text=note.trim();if(!text)return false;
+    if(complete&&PAGE_LOCAL.test(text))return false;
+    if(SOURCE_PRICING.test(text))return false;
+    if(NEVER_REQUIRED.test(text))return false;
+    if(labelled.has(text.toLowerCase()))return false;
+    if(SPEC_QUESTION.test(text))return true;
+    const words=subjectWords(text);
+    if(!words.size)return true;
+    // One distinctive subject shared with a takeoff that carries a real
+    // quantity means the document did state it; a generic overlap does not.
+    return !answered.some(set=>[...words].some(word=>set.has(word)));
+  });
 }
 export function requiredScopeQuestions(answers: ScopeAnswers): ScopeField[] {
   if (!answers.service) return ["service"];
