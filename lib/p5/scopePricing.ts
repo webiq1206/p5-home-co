@@ -31,7 +31,13 @@ const planningSchema=z.object({rates:z.array(planningRate).max(60),issues:z.arra
 // planning average that the audit will not release a range on. 40 s lets a
 // web-search stage finish inside the 240 s pricing pass (22 s timed out on
 // every handyman run on 2026-09-14); P5_RESEARCH_STAGE_MS overrides it.
-export const RESEARCH_STAGE_MS=Number(process.env.P5_RESEARCH_STAGE_MS||40000);
+/** One published-cost-research stage. Measured live on 2026-09-15: a three
+ * item batch on boisehandyman.co exceeded the old 40 s allowance and fell back
+ * to a planning average every time, so no estimate ever used researched rates.
+ * Batches run concurrently and the pricing pass (240 s) still bounds the whole
+ * stage, so a longer per-stage allowance costs wall-clock only when research
+ * is genuinely still working. */
+export const RESEARCH_STAGE_MS=Number(process.env.P5_RESEARCH_STAGE_MS||150000);
 /** Longest single provider stage. A stage is one saved unit of work; the pass window in backgroundJobs bounds the whole attempt. */
 export const PRICING_STAGE_MAX_MS=150_000;
 export interface PricingReply {value:unknown;sourceUrls:string[];sourceReport?:string}

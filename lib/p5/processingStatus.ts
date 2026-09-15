@@ -10,6 +10,14 @@ export interface ProcessingStatus {
   readSections?:number;
   totalSections?:number;
   currentItems?:string[];
+  /** Stages finished in this pricing run. There is no honest total - the
+   * number of research batches and repair rounds is not known in advance - so
+   * this counts up rather than filling a bar. */
+  completedSteps?:number;
+  /** When the CURRENT stage began, so the interface can show that this step is
+   * still running instead of a total elapsed time that says nothing about
+   * whether anything is happening. */
+  stageStartedAt?:string;
 }
 export const processingTitles:Record<ProcessingStatus['phase'],string>={
   queued:'Getting your estimate started',preparing:'Preparing your documents',instructions:'Reading your estimating instructions',

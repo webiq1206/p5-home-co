@@ -3,9 +3,9 @@ import assert from 'node:assert/strict';
 import {missingScopeFields,missingNoteField} from '../lib/p5/missingFields.ts';
 import {categoryBreakdown,fieldCategory} from '../lib/p5/presentation.ts';
 import {questionForField,questionReason} from '../lib/p5/adaptive.ts';
-import {priceCompleteScope,planningResolution,RESEARCH_STAGE_MS,type PricingRequest} from '../lib/p5/scopePricing.ts';
+import {priceCompleteScope,planningResolution,RESEARCH_STAGE_MS,PRICING_STAGE_MAX_MS,type PricingRequest} from '../lib/p5/scopePricing.ts';
 import {PricingStageTimeout} from '../lib/p5/pricingProgress.ts';
-import {BACKGROUND_JOB_LIMIT_MS,CLIENT_BUDGET_MS} from '../lib/p5/processingBudget.ts';
+import {BACKGROUND_JOB_LIMIT_MS,CLIENT_BUDGET_MS,PRICING_PASS_MS} from '../lib/p5/processingBudget.ts';
 import {createPlanningConfiguration,PLANNING_MODEL_VERSION,type PlanningCatalog} from '../lib/p5/planningBooks.ts';
 import type {ReviewedScope} from '../lib/p5/scope.ts';
 import {estimatorTheme} from '../lib/p5/theme.ts';
@@ -43,7 +43,14 @@ test('category breakdown carries subtotals, quantities, unit prices and pricing 
 test('processing budgets keep one browser wait under a minute while durable work continues',()=>{
   assert.ok(CLIENT_BUDGET_MS<60_000);
   assert.ok(BACKGROUND_JOB_LIMIT_MS>CLIENT_BUDGET_MS*5);
-  assert.ok(RESEARCH_STAGE_MS<CLIENT_BUDGET_MS);
+  // A research stage is no longer required to fit inside one browser wait.
+  // Pricing runs as a polled background job, so the browser never blocks on a
+  // stage; it polls and is shown saved progress. What must hold is that a
+  // stage fits inside the pass that runs it, or a pass could never finish one
+  // - which is what happened at 40 s: research timed out on every attempt and
+  // every estimate silently fell back to a planning average.
+  assert.ok(RESEARCH_STAGE_MS<=PRICING_STAGE_MAX_MS,'a research stage must fit inside the per-stage ceiling');
+  assert.ok(PRICING_STAGE_MAX_MS<PRICING_PASS_MS,'a stage must fit inside one pricing pass');
 });
 
 test('each brand resolves a theme with an accent and heading font',()=>{

@@ -61,7 +61,17 @@ export function priceReviewedScope(scope:ReviewedScope,configuration:EstimatorCo
   if(!scope.answers.utilities&&["new-construction","addition","adu"].includes(service))risks.push("unknown-utilities");
   if(!scope.answers.site&&["new-construction","addition","adu"].includes(service))risks.push("soil-slope");
   if(scope.extraction?.reviewNotes.length)risks.push("incomplete-plans");
-  const input:PricingInput={service,revision,scopeSummary:summary,lines,coverage:book.coverage,risks,estimatePurpose:book.mode==='owner-planning'?'preliminary':undefined,
+  // An estimate priced from allowance rates is a preliminary model, whoever's
+  // book it came from. Published cost research times out on slow sources and
+  // the engine substitutes a labeled regional planning average; the resulting
+  // lines then failed every "before a firm proposal" guard - landed cost,
+  // loaded labor, planning-average-only - because those downgrade to review
+  // only for a preliminary purpose, and the purpose was set from the book's
+  // mode alone. The visitor got "a complete price range is required" and no
+  // estimate. Declaring the purpose from the evidence actually used keeps each
+  // line flagged for review, and the range carries its preliminary disclaimer.
+  const allowancePriced=lines.some(line=>line.evidence?.basis==='regional-planning-average'||line.evidence?.basis==='sourced-market-average');
+  const input:PricingInput={service,revision,scopeSummary:summary,lines,coverage:book.coverage,risks,estimatePurpose:book.mode==='owner-planning'||allowancePriced?'preliminary':undefined,
     locationProvided:Boolean(scope.answers.location||scope.answers.address),urgency:scope.answers.urgency as PricingInput["urgency"],complexity:scope.answers.complexity as PricingInput["complexity"],
     uncertainty:missingInformation.length||scope.extraction?.reviewNotes.length?"high":"medium",
     assumptions:[...book.assumptions,...scopeAssumptions(scope.answers,scope.uncertainFields),...(scope.extraction?.reviewNotes||[]).filter(note=>!blockingReviewNote(note)).map(note=>/^to confirm:/i.test(note)?note:`To confirm: ${note}`)],exclusions:[...new Set([...book.exclusions,...explicitExclusions])],

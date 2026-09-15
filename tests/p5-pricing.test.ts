@@ -202,3 +202,24 @@ test("explicit complex scope uses the approved higher target without reducing se
   }
   assert.throws(()=>calculateP5Estimate({...input(),complexity:"invalid" as any},finance,[],now));
 });
+
+test("a labeled regional planning average is reviewed, never a reason to withhold the range", () => {
+  const planningLine = { id: "planning-1", category: "materials" as const, description: "Ceiling drywall patch materials",
+    unit: "SF", quantity: 30, unitCost: 12, quantitySource: "TEST customer statement",
+    estimatingBasis: "regional-planning-average",
+    evidence: { basis: "regional-planning-average" as const, reference: "TEST regional average", verifiedAt: "2026-09-01", validUntil: "2026-10-01" } };
+  // No estimatePurpose: the ordinary path a brand cost book takes. Before this
+  // change that combination produced planning-average-preliminary-only at
+  // severity block, and one slow research lookup meant no estimate at all.
+  const coverage = COST_CATEGORIES.map(category => ({ category, status: category === "materials" ? "included" as const : "not-applicable" as const, reason: "TEST ONLY: explicitly reviewed fixture coverage" }));
+  // estimatePurpose 'preliminary' is what costBook now declares whenever any
+  // line is priced from an allowance, which is the case the research timeout
+  // produces.
+  const result = calculateP5Estimate({ ...input("handyman"), lines: [planningLine as never], coverage, estimatePurpose: "preliminary" }, finance, [], now);
+  const blocking = result.warnings.filter(w => w.severity === "block");
+  assert.deepEqual(blocking, [], `a planning average must not block: ${blocking.map(w => w.code).join(", ")}`);
+  assert.ok(result.warnings.some(w => w.code.startsWith("planning-average-preliminary")), "it is still raised for review");
+  const customer = customerEstimate(result, "Ceiling repair");
+  assert.ok(customer.range, "the planning range is released");
+  assert.ok(customer.disclaimer.toLowerCase().includes("not a bid"), "and stays explicitly preliminary");
+});

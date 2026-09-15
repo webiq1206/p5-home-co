@@ -17,7 +17,7 @@ export function pricingWorkKey(scope:ReviewedScope,configuration:EstimatorConfig
 export function pricingReplyKey(instructions:string,input:unknown,search:boolean){
  return createHash('sha256').update(JSON.stringify([instructions,search,input])).digest('hex');
 }
-type Payload={replies:Record<string,PricingReply>;failures?:number;regionalRates?:EstimatorConfiguration['regionalRates'];processing?:ProcessingStatus};
+type Payload={replies:Record<string,PricingReply>;failures?:number;completed?:number;regionalRates?:EstimatorConfiguration['regionalRates'];processing?:ProcessingStatus};
 export async function priceSavedScope(id:string,scope:ReviewedScope,configuration:EstimatorConfiguration,pricingAt=new Date(),deadline=Date.now()+SERVER_BUDGET_MS){
  remainingBudget(deadline);
  const workKey=pricingWorkKey(scope,configuration,pricingAt);
@@ -47,7 +47,9 @@ export async function priceSavedScope(id:string,scope:ReviewedScope,configuratio
   // instead of repeating it; the job lifetime bounds the total.
   remainingBudget(deadline);
   let reply:PricingReply;
-  payload.processing=activity;await persist();
+  // Stamp when THIS stage started and how many have finished, so a long
+  // research call still visibly moves instead of sitting on one label.
+  payload.processing={...activity,completedSteps:payload.completed||0,stageStartedAt:new Date().toISOString()};await persist();
   const phase=activity.phase;
   const allowance=search?Math.max(5000,Math.min(remainingMs,PRICING_STAGE_MAX_MS)):PRICING_STAGE_MAX_MS;
   const started=Date.now();
@@ -71,7 +73,8 @@ export async function priceSavedScope(id:string,scope:ReviewedScope,configuratio
    throw new PricingPending('The pricing provider needs another attempt. Your completed pricing steps are saved. Please retry to continue.',payload.failures>=2?0:4000);
   }
   console.error(`[p5-pricing] ${phase} finished in ${elapsed()}s`);
-  payload.failures=0;payload.replies[key]=reply;
+  payload.failures=0;payload.replies[key]=reply;payload.completed=(payload.completed||0)+1;
+  if(payload.processing)payload.processing={...payload.processing,completedSteps:payload.completed};
   await persist();
   return reply;
  };

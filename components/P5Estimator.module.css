@@ -271,6 +271,7 @@
 .processingMeter progress::-webkit-progress-bar{background:var(--p5-line);border-radius:20px}
 .processingMeter progress::-webkit-progress-value{background:var(--p5-accent);border-radius:20px;transition:width .25s}
 .processingMeter progress::-moz-progress-bar{background:var(--p5-accent);border-radius:20px}
+.processingSteps{margin:0;font-size:13px;color:var(--p5-ink-muted);font-variant-numeric:tabular-nums}
 .processingFile{font-size:12px;color:var(--p5-ink-muted);margin:0 0 12px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .processingFooter{display:flex;align-items:center;justify-content:space-between;gap:12px;padding-top:12px;border-top:1px solid var(--p5-line);font-size:12px;color:var(--p5-ink-muted)}
 .processingFooter>span{flex:1}
