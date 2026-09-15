@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {reconcileMissingInformation,combineScopeExtractions,type ScopeExtraction} from '../lib/p5/scope.ts';
+import {reconcileMissingInformation,reconcileReviewNotes,combineScopeExtractions,type ScopeExtraction} from '../lib/p5/scope.ts';
 
 const page=(source:string,page:number,status:'read'|'partial'|'unreadable'='read')=>({source,page,sheet:'',revision:'',status,notes:[]});
 const takeoff=(description:string,component:string,quantity:number|null,unit:string)=>({
@@ -67,4 +67,25 @@ test('combining pages applies the same reconciliation',()=>{
   const merged=combineScopeExtractions([first,second]);
   assert.deepEqual(merged.missingInformation,['Concrete slab thickness/PSI spec'],
     'the second page answers the first page question, and the real specification gap remains');
+});
+
+test('a page-scoped review note is dropped once every page is read, but a blocking one never is',()=>{
+  const complete=base({reviewNotes:[
+    'Demo section header shown but no line items follow on this page (may continue on next page)',
+    'plans.pdf: automatic reading could not finish for page 3 (the reader ran out of time).',
+  ]});
+  assert.deepEqual(reconcileReviewNotes(complete),
+    ['plans.pdf: automatic reading could not finish for page 3 (the reader ran out of time).'],
+    'the page-local observation goes; the unread page stays and keeps blocking');
+  const unread=base({reviewNotes:complete.reviewNotes,
+    documentCoverage:{expectedPages:2,complete:false,pages:[page('d.pdf',1),page('d.pdf',2,'unreadable')]}});
+  assert.deepEqual(reconcileReviewNotes(unread),complete.reviewNotes,'nothing is dropped while a page is unread');
+});
+
+test('a note deferring to a later page is retired once that page has been read',()=>{
+  const notes=['Finish level and materials for interior scope (likely on later pages)',
+               'Schedule may continue on the following page'];
+  assert.deepEqual(reconcileMissingInformation(base({missingInformation:notes})),[]);
+  const genuine=['Conditioned square footage of the addition'];
+  assert.deepEqual(reconcileMissingInformation(base({missingInformation:genuine})),genuine);
 });

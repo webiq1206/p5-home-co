@@ -1,15 +1,9 @@
 import {scopeAssumptions,deriveScopeAnswers} from "./adaptive.ts";
 import { createHash } from "node:crypto";
 import { calculateP5Estimate,customerEstimate,DEFAULT_FINANCE,POLICY_VERSION,COST_CATEGORIES,SERVICE_MATRIX,type FinancePolicy,type DirectCostLine,type ScopeCoverage,type PricingInput,type Service,type RiskFactor } from "./pricing.ts";
-import { scopeText,type ReviewedScope,type ScopeField } from "./scope.ts";
+import { scopeText,blockingReviewNote,type ReviewedScope,type ScopeField } from "./scope.ts";
+export { blockingReviewNote };
 import {materializePlanningBook,type PlanningCatalog} from './planningBooks.ts';
-/** A review note blocks a customer range only when a document, section or
- * page could not be read at all, so the quantities behind the price may be
- * missing. Other notes (a dropped takeoff, an unconfirmed photo observation,
- * a duplicate page record) travel with the range as items to confirm. */
-export function blockingReviewNote(note:string):boolean{
-  return /unread section|could not be read|was not processed|unsupported (?:file|upload|document|specification)|unreadable|not readable|failed to read|no pages? (?:were|was|could be) read|automatic reading could not finish|automatic read failed|saved for manual review|could not read this file/i.test(note);
-}
 export interface CostRule extends Omit<DirectCostLine,"quantity"|"quantitySource"> {
   scopeTaskId?:string;
   quantity: { field?: ScopeField; factor: number; fixed?: number };

@@ -418,15 +418,26 @@ export function combineScopeExtractions(parts:ScopeExtraction[]):ScopeExtraction
     if(values.length>1&&SCOPE_FIELDS[field].kind!=="text"&&!merged.conflicts.some(c=>c.field===field))merged.conflicts.push({field,values,explanation:"Different document pages state different values. Confirm the intended project information."});
   }
   // Missing questions from one page may be answered on another.
+  merged.reviewNotes=reconcileReviewNotes(merged);
   merged.missingInformation=reconcileMissingInformation(merged);
   return merged;
+}
+/** A review note blocks a customer range only when a document, section or
+ * page could not be read at all, so the quantities behind the price may be
+ * missing. Other notes (a dropped takeoff, an unconfirmed photo observation,
+ * a duplicate page record) travel with the range as items to confirm.
+ *
+ * Defined here rather than in costBook so the page-level reconciliation below
+ * can consult it without importing the pricing layer, which imports this one. */
+export function blockingReviewNote(note:string):boolean{
+  return /unread section|could not be read|was not processed|unsupported (?:file|upload|document|specification)|unreadable|not readable|failed to read|no pages? (?:were|was|could be) read|automatic reading could not finish|automatic read failed|saved for manual review|could not read this file/i.test(note);
 }
 /** Words too generic to prove a note is answered: they appear in almost every
  * construction line item, so matching on them would discard real questions. */
 const GENERIC_SUBJECT=new Set(['work','works','item','items','material','materials','labor','labour','hours','install','installation','installed','finish','finishes','finishing','spec','specs','specification','specifications','detail','details','scope','project','area','size','sizes','type','types','system','systems','concrete','wood','metal','paint','trim','unit','units','total','totals','quantity','quantities','dimension','dimensions','not','and','the','for','with','only','shown','stated','specified','provided','required','page','pages','per','this','that','from','all','new','existing']);
 /** A note referring to the reader's own page or excerpt, meaningless once every
  * page of the document has been read. */
-const PAGE_LOCAL=/\b(?:on|in|to|for)\s+this\s+(?:page|segment|section|sheet|excerpt|crop|view|group)\b|\bnot\s+(?:included|shown|present|visible|legible)\s+(?:in|on)\s+this\b|\bthis\s+(?:page|segment|section|excerpt)\s+(?:does\s+not|only)\b|\bpage\s+\d+[^.;]*\b(?:not\s+included|may\s+continue|continues?\s+(?:on|elsewhere))\b/i;
+const PAGE_LOCAL=/\b(?:on|in|to|for)\s+this\s+(?:page|segment|section|sheet|excerpt|crop|view|group)\b|\bnot\s+(?:included|shown|present|visible|legible)\s+(?:in|on)\s+this\b|\bthis\s+(?:page|segment|section|excerpt)\s+(?:does\s+not|only)\b|\bpage\s+\d+[^.;]*\b(?:not\s+included|may\s+continue|continues?\s+(?:on|elsewhere))\b|\b(?:on|to)\s+(?:a\s+|the\s+)?(?:later|next|following|subsequent|other)\s+pages?\b|\b(?:may|might|could)\s+continue\b/i;
 /** A note about money in the source document. The estimator never prices from a
  * number printed on an upload, so a missing or redacted price is not missing
  * project information. */
@@ -444,6 +455,17 @@ const subjectWords=(note:string)=>new Set(note.toLowerCase().replace(/[^a-z0-9\s
  * that is never required, or a quantified takeoff names the same distinctive
  * subject. Anything still genuinely unanswered is kept, so a real gap is never
  * hidden from the visitor or from pricing. */
+/** Drop a review note that was scoped to one page once every page has been
+ * read, unless it is the kind of note that blocks pricing. A reader's "may
+ * continue on the next page" is an artefact of reading one page at a time; it
+ * is not a finding about the project, and it reached the visitor as a
+ * question. Blocking notes are never touched, so an unread page still stops
+ * the estimate. */
+export function reconcileReviewNotes(merged:ScopeExtraction,blocking:(note:string)=>boolean=blockingReviewNote):string[]{
+  const complete=merged.documentCoverage?merged.documentCoverage.complete&&merged.documentCoverage.pages.every(page=>page.status!=='unreadable'):false;
+  if(!complete)return merged.reviewNotes;
+  return merged.reviewNotes.filter(note=>blocking(note)||!PAGE_LOCAL.test(note));
+}
 export function reconcileMissingInformation(merged:ScopeExtraction):string[]{
   const complete=merged.documentCoverage?merged.documentCoverage.complete&&merged.documentCoverage.pages.every(page=>page.status!=='unreadable'):false;
   const quantified=(merged.takeoffs||[]).filter(t=>typeof t.quantity==='number'&&Number.isFinite(t.quantity));

@@ -48,11 +48,12 @@ type MissingField={field:ScopeField;label:string};
 const theme=estimatorTheme();
 const EMAIL=/^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const newEntry=(role:TranscriptEntry['role'],text:string,extra:Partial<TranscriptEntry>={}):TranscriptEntry=>({id:`${Date.now().toString(36)}-${Math.random().toString(36).slice(2,8)}`,role,text,at:Date.now(),...extra});
-const ASSISTANT_INITIAL=brand.name.replace(/^Boise\s+/,'').slice(0,1).toUpperCase();
 /* Module-level so React keeps the subtree mounted between renders; a component
  * created inside the render would remount every message on each keystroke. */
-function Avatar({role}:{role:'user'|'assistant'}){return <span className={styles.avatar} aria-hidden="true">{role==='assistant'?ASSISTANT_INITIAL:'You'}</span>;}
-function Message({role,children,last}:{role:'user'|'assistant';children:React.ReactNode;last?:boolean}){return <div className={styles.msg} data-role={role} data-last-user={last?'':undefined}><Avatar role={role}/><div className={styles.bubble}>{children}</div></div>;}
+/** No speaker badge. The brand initial and the "You" chip added nothing a
+ * right-aligned bubble does not already say, and on a phone they cost 42px of
+ * width on every line of the conversation. */
+function Message({role,children,last}:{role:'user'|'assistant';children:React.ReactNode;last?:boolean}){return <div className={styles.msg} data-role={role} data-last-user={last?'':undefined}><div className={styles.bubble}>{children}</div></div>;}
 
 export interface P5EstimatorProps {
   defaultService?:string;
