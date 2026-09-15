@@ -54,9 +54,26 @@ export function anthropicExtractionSchema(){
  * keeps every takeoff and page record that carries a usable page reference
  * and drops the rest with a review note, instead of rejecting the whole
  * section and losing its facts. Quantities from typed text arrive as facts. */
+const LIST_FIELDS=['facts','conflicts','missingInformation','reviewNotes','clarifications','pages','takeoffs'] as const;
+/** Some tool replies carry a nested list as JSON text, or omit an empty list.
+ * Both are recoverable without another provider call. */
+export function normalizeRecordShape(record:Record<string,unknown>){
+  for(const key of [...LIST_FIELDS,'instructions']){
+    const value=record[key];
+    if(typeof value==='string'&&/^\s*[\[{]/.test(value)){try{record[key]=JSON.parse(value);}catch{}}
+  }
+  for(const key of ['facts','conflicts','missingInformation','reviewNotes'] as const)if(record[key]===undefined||record[key]===null)record[key]=[];
+  if(record.summary===undefined||record.summary===null)record.summary='';
+  return record;
+}
+/** Types of the top-level fields, for a diagnosable validation failure. */
+export function recordShape(value:unknown){
+  if(!value||typeof value!=='object')return typeof value;
+  return Object.entries(value as Record<string,unknown>).map(([key,item])=>`${key}:${Array.isArray(item)?`array(${item.length})`:typeof item==='string'?`string(${item.length})`:item===null?'null':typeof item}`).join(',');
+}
 function sanitizeRecord(value:unknown,files:AnalysisFile[]){
   if(!value||typeof value!=='object')return value;
-  const record=value as Record<string,unknown>;
+  const record=normalizeRecordShape(value as Record<string,unknown>);
   if(!files.length){
     if('takeoffs' in record)record.takeoffs=[];
     if('pages' in record)record.pages=[];
@@ -88,7 +105,7 @@ function extractionRecord(value:unknown){
   return value;
 }
 
-const DOCUMENT_POLICY=`${INSTRUCTION_POLICY} PAGE COVERAGE: Review every supplied page, including scans, drawing details, schedules, specifications, revision clouds and notes. The supplied page manifest gives original source filenames and page numbers; return exactly one pages record per manifest entry. Do not call an unreadable or partially legible sheet read. Identify the affected content and conflicting or absent dimensions. Never infer scale from display size. Retain every distinct work component in takeoffs, with explicit building/floor, source pages, quantity unit and arithmetic. Use a stable physical identity (room/element/mark plus component) for id so plans and schedules referencing the same work are not counted twice. A repeated detail is not another physical instance. Use null quantity and uncertain basis when measurement is unsupported; preserve the item for an explicitly estimated allowance later. Record exact superseded references as source:sheet:revision only when the drawing explicitly establishes supersession. Do not infer the controlling revision from upload order. Cross-reference schedules, dimensions, material notes and assemblies. An empty page must still have a read record noting that it is blank. No sample-based analysis or silent truncation. Return empty pages/takeoffs for text without page references.`;
+const DOCUMENT_POLICY=`${INSTRUCTION_POLICY} PAGE COVERAGE: Review every supplied page, including scans, drawing details, schedules, specifications, revision clouds and notes. The supplied page manifest gives original source filenames and page numbers; return exactly one pages record per manifest entry. Do not call an unreadable or partially legible sheet read. Values deliberately left blank or redacted (for example removed prices, areas or dates shown as blank runs) are not illegible content: when the printed content of a page is legible, its status is read, and the blank values are noted once in that page's notes. Identify the affected content and conflicting or absent dimensions. Never infer scale from display size. Retain every distinct work component in takeoffs, with explicit building/floor, source pages, quantity unit and arithmetic. Use a stable physical identity (room/element/mark plus component) for id so plans and schedules referencing the same work are not counted twice. A repeated detail is not another physical instance. Use null quantity and uncertain basis when measurement is unsupported; preserve the item for an explicitly estimated allowance later. Record exact superseded references as source:sheet:revision only when the drawing explicitly establishes supersession. Do not infer the controlling revision from upload order. Cross-reference schedules, dimensions, material notes and assemblies. An empty page must still have a read record noting that it is blank. No sample-based analysis or silent truncation. Return empty pages/takeoffs for text without page references.`;
 
 const OUTPUT_BREVITY='OUTPUT BREVITY: The record is read by software, not a person. Keep every string short: evidence is the shortest excerpt that supports the value (at most 200 characters, never a whole paragraph); summary at most 500 characters; each takeoff description at most 120 characters; each note, issue or question at most 200 characters. Never restate the document, repeat the same evidence in several places, or describe routine processing. Completeness of distinct facts, pages and takeoffs matters; length does not.';
 const FACT_VALUE_POLICY='FACT OUTPUT CONTRACT: facts is a sparse list, not a form to fill. Omit an entire fact record when its value is unknown, irrelevant, empty or whitespace. Never emit an empty-string value, including for cabinetRoom or cabinetBaseLf on non-cabinet work. Do not emit placeholders such as N/A or unknown. Retain all supported nonempty facts and every page/takeoff record; this does not permit dropping evidence, pages or uncertain takeoffs.';
@@ -194,10 +211,12 @@ async function analyzeWithOpenAI(provider: Provider, text: string, files: Analys
   if (body.status && body.status !== "completed") throw errorForProvider(provider, response.status, "analysis-incomplete");
   const resultText = body.output?.flatMap((item: any) => item.content || []).find((part: any) => part.type === "output_text")?.text;
   if (typeof resultText !== "string") throw errorForProvider(provider, response.status, "provider returned no structured text");
+  let parsed:unknown;
   try {
-    return { extraction: validateExtraction(extractionRecord(sanitizeRecord(JSON.parse(resultText),files))), provider: provider.kind, model: body.model || provider.model, analyzedAt: new Date().toISOString() };
+    parsed = extractionRecord(sanitizeRecord(JSON.parse(resultText),files));
+    return { extraction: validateExtraction(parsed), provider: provider.kind, model: body.model || provider.model, analyzedAt: new Date().toISOString() };
   } catch (error) {
-    throw errorForProvider(provider, response.status, error instanceof Error ? error.message : "provider returned invalid extraction");
+    throw errorForProvider(provider, response.status, `${error instanceof Error ? error.message : "provider returned invalid extraction"} [${recordShape(parsed)}]`);
   }
 }
 
@@ -232,10 +251,12 @@ async function analyzeWithAnthropic(provider: Provider, text: string, files: Ana
   if(body.stop_reason==='tool_use'&&records.length!==1)throw errorForProvider(provider,response.status,'provider returned an invalid output record');
   const resultText = body.content?.find((part: { type: string }) => part.type === "text")?.text;
   if (!records.length&&typeof resultText !== "string") throw errorForProvider(provider, response.status, "provider returned no structured text");
+  let parsed:unknown;
   try {
-    return { extraction: validateExtraction(extractionRecord(sanitizeRecord(records.length?records[0].input:JSON.parse(resultText),files))), provider: provider.kind, model: body.model||provider.model, analyzedAt: new Date().toISOString() };
+    parsed = extractionRecord(sanitizeRecord(records.length?records[0].input:JSON.parse(resultText),files));
+    return { extraction: validateExtraction(parsed), provider: provider.kind, model: body.model||provider.model, analyzedAt: new Date().toISOString() };
   } catch (error) {
-    throw errorForProvider(provider, response.status, error instanceof Error ? error.message : "provider returned invalid extraction");
+    throw errorForProvider(provider, response.status, `${error instanceof Error ? error.message : "provider returned invalid extraction"} [${recordShape(parsed)}]`);
   }
 }
 
@@ -370,6 +391,14 @@ export async function analyzeBatch(text: string, files: AnalysisFile[], previous
         configured.splice(providerIndex+1,0,provider);
         console.error(`[p5-analysis] ${provider.kind} reply was invalid; asking the same provider once more.`);
         last=error;continue;
+      }
+      // The provider is answering, just not validly. Falling back to a slower
+      // provider for that cost 60 to 80 s per page on 2026-09-14 and rarely
+      // finished; the section retries on the fast provider after a short pause.
+      // Real outages (errors, rate limits, timeouts) still use the fallback.
+      if(error instanceof ProviderError&&error.status===200&&invalidRepair.has(provider.kind)){
+        console.error(`[p5-analysis] ${provider.kind} reply invalid again; retrying the section instead of the fallback provider.`);
+        throw publicProviderError(error);
       }
       if(error instanceof UnsupportedSpecificationError&&!sourceRepair&&absoluteDeadline-Date.now()>1000){
         sourceRepair=true;sourceInstruction=specificationHint(source)+' The preceding response incorrectly supplied '+error.specifications.join(', ')+'. Those claims are absent from the source. Re-read the supplied pages, omit unsupported work, and keep missing designations unspecified. Clearing, excavation and haul-off do not establish demolition work.';

@@ -13,6 +13,7 @@ import {answersForEditedScope,normalizeScopeText,scopeFingerprint,scopeTextChang
 import { failed,json,limitedBody,protectRequest } from "./http.ts";
 import { ESTIMATOR_BRAND } from "./brand.ts";
 import {recordEvent,describeError} from './events.ts';
+import {blockingReviewNote} from './costBook.ts';
 
 /** Guard multipart analysis/upload requests before they can mutate files. */
 export function guardScopeRequestRevision(storedRevision:number,requestedRevision:unknown,storedText:string,incomingText:string){
@@ -97,7 +98,10 @@ export async function postScope(request:Request){
       analysis=await analyzeScope(text,readable,visitorAnswers);
       analysis.extraction.reviewNotes.push(...manualReview);
       }
-      const unread=[...new Set(analysis.extraction.reviewNotes.filter((note:string)=>/saved for manual review|could not read|automatic read failed|automatic reading could not finish|unread section requires review|unreadable|partial/.test(note)))];
+      // Only content that was not read blocks the estimate. A page the reader
+      // finished with some values blank or redacted is a note to confirm, the
+      // same rule the pricing engine applies.
+      const unread=[...new Set(analysis.extraction.reviewNotes.filter((note:string)=>blockingReviewNote(note)))];
       if(unread.length)warning="Some files need review before pricing. "+unread.join(" ");
     }catch(error){
       if(isProcessingDeadline(error))throw new DraftError(PROCESSING_PAUSED,503);

@@ -8,7 +8,7 @@ import {materializePlanningBook,type PlanningCatalog} from './planningBooks.ts';
  * missing. Other notes (a dropped takeoff, an unconfirmed photo observation,
  * a duplicate page record) travel with the range as items to confirm. */
 export function blockingReviewNote(note:string):boolean{
-  return /unread section|could not be read|was not processed|unsupported (?:file|upload|document|specification)|unreadable|not readable|failed to read|no pages? (?:were|was|could be) read/i.test(note);
+  return /unread section|could not be read|was not processed|unsupported (?:file|upload|document|specification)|unreadable|not readable|failed to read|no pages? (?:were|was|could be) read|automatic reading could not finish|automatic read failed|saved for manual review|could not read this file/i.test(note);
 }
 export interface CostRule extends Omit<DirectCostLine,"quantity"|"quantitySource"> {
   scopeTaskId?:string;

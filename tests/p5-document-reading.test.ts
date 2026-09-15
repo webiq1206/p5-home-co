@@ -126,3 +126,39 @@ test('an over-long reply is trimmed with a note instead of being rejected',async
  assert.equal(value.summary.length,8000);
  assert.ok(value.reviewNotes.some(n=>/additional extracted facts/.test(n)));
 });
+
+test('only unread content blocks the estimate; blank or redacted values on a read page do not',async()=>{
+ const {blockingReviewNote}=await import('../lib/p5/costBook.ts');
+ assert.equal(blockingReviewNote('budget.pdf: automatic reading could not finish for pages 1-2 (the reader ran out of time). Use Retry document reading to read them again; unread pages are not priced.'),true);
+ assert.equal(blockingReviewNote('plans.heic: saved for manual review. Export as PDF, XLSX, DOCX, JPEG or PNG for automatic extraction.'),true);
+ assert.equal(blockingReviewNote('budget.pdf, page 3: unreadable. No completed review record was returned for this page.'),true);
+ assert.equal(blockingReviewNote('budget.pdf, page 1: partial. Numeric values (SF, $ amounts, dates) are redacted throughout; scope descriptions are legible.'),false);
+});
+
+test('list fields delivered as JSON text or omitted are recovered without another provider call',async()=>{
+ const {normalizeRecordShape,recordShape}=await import('../lib/p5/extraction.ts');
+ const record=normalizeRecordShape({facts:'[{"field":"sqft","value":"80"}]',conflicts:undefined,pages:'[]'} as any);
+ assert.deepEqual(record.facts,[{field:'sqft',value:'80'}]);assert.deepEqual(record.conflicts,[]);assert.deepEqual(record.pages,[]);assert.equal(record.summary,'');
+ assert.equal(recordShape({summary:'x',facts:[1,2],instructions:null}),'summary:string(1),facts:array(2),instructions:null');
+ await withProviders({OPENAI_API_KEY:'fixture-only',P5_SCOPE_PROVIDER:'openai'},async()=>{
+  let calls=0;
+  const result=await analyzeBatch('Price this build',[{name:'budget.pdf (page 1 of 4)',type:'application/pdf',data:Buffer.from('%PDF-synthetic'),pages:[{source:'budget.pdf',page:1}]}],{},async()=>{
+   calls++;
+   const text=JSON.stringify({summary:'Budget page',facts:JSON.stringify([]),conflicts:JSON.stringify([]),missingInformation:[],reviewNotes:[],clarifications:[],pages:JSON.stringify([{source:'budget.pdf',page:1,sheet:'',revision:'',status:'read',notes:[]}]),takeoffs:[]});
+   return Response.json({status:'completed',output:[{content:[{type:'output_text',text}]}]});
+  },60_000,Date.now()+60_000);
+  assert.equal(calls,1);assert.equal(result.extraction.documentCoverage?.complete,true);
+ });
+});
+
+test('a reply that stays invalid after one repair never falls back to the slower provider',async()=>{
+ await withProviders({OPENAI_API_KEY:'fixture-only',ANTHROPIC_API_KEY:'fixture-only',P5_SCOPE_PROVIDER:'openai'},async()=>{
+  const urls:string[]=[];
+  await assert.rejects(analyzeBatch('Price this build',[{name:'budget.pdf (page 2 of 4)',type:'application/pdf',data:Buffer.from('%PDF-synthetic'),pages:[{source:'budget.pdf',page:2}]}],{},async(url)=>{
+   urls.push(String(url));
+   return Response.json({status:'completed',output:[{content:[{type:'output_text',text:JSON.stringify({summary:7,facts:{},conflicts:[]})}]}]});
+  },60_000,Date.now()+60_000),/analysis-provider-failed:OpenAI/);
+  assert.equal(urls.length,2,'one read and one repair');
+  assert.ok(urls.every(u=>u.includes('openai')),'the fallback provider is not called for an invalid reply');
+ });
+});
