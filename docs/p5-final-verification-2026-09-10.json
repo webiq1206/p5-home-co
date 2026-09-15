@@ -1,27 +1,16 @@
 {
-  "application_sha": "67d8a1e4f82c67a4f1744807f6d534ef8227fdbc",
-  "repository": "webiq1206/p5-home-co",
-  "branch": "codex/p5-visual-final-20260910",
-  "widths": [
-    320,
-    390,
-    430,
-    600,
-    768,
-    1024,
-    1366,
-    1440,
-    1920
-  ],
-  "production_build": "passed",
+  "main_source_commit": "459238eb7168cea1b1239ada452870c259df55f1",
+  "route_checks": 126,
   "route_count": 14,
-  "route_width_checks": 126,
   "route_failures": 0,
-  "broken_collected_internal_links": 0,
-  "scope_workflow_checks": 9,
-  "scope_workflow_failures": 0,
-  "external_services": "simulated",
-  "run_url": "https://github.com/webiq1206/p5-home-co/actions/runs/34517940578",
-  "manual_review": "Shared layouts and selected changed sections, with nine-width scope-intake captures; exhaustive manual approval of every section at every width is not complete.",
-  "deployment": "Not republished by this audit."
+  "route_workflow_runs": [
+    "34517940578"
+  ],
+  "component_checks": null,
+  "component_workflow_run": null,
+  "production_build": "passed at documented tested revisions",
+  "route_evidence": "p5-route-verification-2026-09-10.csv",
+  "interaction_evidence": "p5-interaction-verification-2026-09-10.json",
+  "manual_review": "Selected templates and changed sections; exhaustive per-section approval incomplete",
+  "deployment": "Requires pull and republish"
 }
