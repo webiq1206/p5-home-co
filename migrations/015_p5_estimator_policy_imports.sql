@@ -1,0 +1,13 @@
+-- The thirteenth estimator table.
+--
+-- 014 declared the twelve tables created under lib/. This one is created by
+-- scripts/import-p5-planning-books.mts, so it was missed, and a republish of
+-- Boise Construction Co then stopped at:
+--
+--   npm run db:push stopped at a proposed DROP of p5_estimator_policy_imports
+--   containing 1 item. No DROP was approved; database sync remains incomplete.
+--
+-- The row is a real audit record: the pricing policy before an import, the
+-- payload applied, and who applied it. Declaring the table makes the diff
+-- empty; the statement is a no-op on a database that already has it.
+CREATE TABLE IF NOT EXISTS p5_estimator_policy_imports (id text PRIMARY KEY, prior_payload jsonb, imported_payload jsonb NOT NULL, actor text NOT NULL, created_at timestamptz NOT NULL DEFAULT now());
