@@ -7,6 +7,24 @@ import {applyRetainedBenchTopAnswer,retainedPricingProjection,retainedPricingSco
 import {validateExtraction,type ScopeExtraction, type ReviewedScope} from '../lib/p5/scope.ts';
 import {pricingSourceParts} from '../lib/p5/pricingSources.ts';
 
+/** Configure exactly one provider - a synthetic OpenAI - for a test that stubs
+ * the transport with an OpenAI-shaped reply.
+ *
+ * Without this, a host that has ANTHROPIC_API_KEY set (Replit does) configures
+ * Anthropic as well, and Anthropic leads scope reads. The stub's OpenAI body
+ * then reaches the Anthropic branch, which finds no stop_reason and raises
+ * "analysis-incomplete". That failed the production build while the same test
+ * passed on a laptop with no Anthropic key - the difference was the
+ * environment, never the code under test. */
+function onlySyntheticOpenAi():()=>void{
+  const keys=['OPENAI_API_KEY','OPENAI_BASE_URL','AI_INTEGRATIONS_OPENAI_API_KEY','AI_INTEGRATIONS_OPENAI_BASE_URL','AI_INTEGRATIONS_OPENAI_MODEL','ANTHROPIC_API_KEY','P5_SCOPE_PROVIDER','P5_SCOPE_MODEL','P5_SCOPE_FAST_MODEL','P5_SCOPE_OPENAI_MODEL','P5_TEXT_RACE'];
+  const saved=Object.fromEntries(keys.map(key=>[key,process.env[key]]));
+  for(const key of keys)delete process.env[key];
+  process.env.OPENAI_API_KEY='synthetic';
+  return()=>{for(const key of keys){if(saved[key]===undefined)delete process.env[key];else process.env[key]=saved[key];}};
+}
+
+
 const question='Which bench top option should be included in the estimate?';
 const source='Option 1: butcher block (+5h); Option 2: matching painted MDF/wood (+4h); Option 3: laminate (+2h); Option 4: quartz (+5h). Assembly 2 hours + cabinet installation 8 hours.';
 
@@ -122,8 +140,7 @@ test('free-text provider clarification applies returned structured facts without
   const e=extraction();
   e.instructions!.questions=['How many cabinet units should be included?'];
   const prompt=instructionPrompts(e,{})[0];
-  const previousOpenAi=process.env.OPENAI_API_KEY;
-  process.env.OPENAI_API_KEY='synthetic';
+  const restore=onlySyntheticOpenAi();
   try{
     const result=await resolveInstructionAnswer(e,{},{id:prompt.id,answer:'Use 3 cabinet units.'},[],async(_url,options)=>{
       const body=JSON.parse(String(options?.body));
@@ -135,7 +152,7 @@ test('free-text provider clarification applies returned structured facts without
     assert.equal(result.extraction?.facts.find(fact=>fact.field==='taskList')?.value,'3 cabinet units');
     assert.equal(result.extraction?.takeoffs?.find(item=>item.id==='cabinet-units')?.quantity,3);
   }finally{
-    if(previousOpenAi===undefined)delete process.env.OPENAI_API_KEY;else process.env.OPENAI_API_KEY=previousOpenAi;
+    restore();
   }
 });
 
@@ -144,8 +161,7 @@ test('free-text quantity clarification replaces the contradicted active takeoff 
   e.instructions!.questions=['What trim length should be included?'];
   e.takeoffs=[{id:'trim-1',description:'Baseboard trim',building:'Main',floor:'1',component:'trim',quantity:10,unit:'LF',basis:'stated',evidence:'Original schedule: 10 LF trim.',sources:[{source:'cabinet.pdf',page:2,sheet:'A1',revision:'1'}],supersedes:[],issues:[]}];
   const prompt=instructionPrompts(e,{})[0];
-  const previousOpenAi=process.env.OPENAI_API_KEY;
-  process.env.OPENAI_API_KEY='synthetic';
+  const restore=onlySyntheticOpenAi();
   try{
     const result=await resolveInstructionAnswer(e,{}, {id:prompt.id,answer:'Use 24 LF of trim.'},[],async()=>{
       const output={summary:'',facts:[{field:'trimLf',value:'24',confidence:1,source:'typed scope',evidence:'24 LF trim from typed answer.',basis:'stated'}],conflicts:[],reviewNotes:[],missingInformation:[],clarifications:[],instructions:{...e.instructions,questions:[]},pages:[],takeoffs:[]};
@@ -155,7 +171,7 @@ test('free-text quantity clarification replaces the contradicted active takeoff 
     assert.match(result.extraction?.takeoffs?.[0].evidence||'',/Original schedule: 10 LF trim/);
     assert.equal(result.extraction?.takeoffs?.[0].sources[0].page,2);
   }finally{
-    if(previousOpenAi===undefined)delete process.env.OPENAI_API_KEY;else process.env.OPENAI_API_KEY=previousOpenAi;
+    restore();
   }
 });
 
