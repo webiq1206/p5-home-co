@@ -6,4 +6,4 @@ permissions:
   contents: write
 jobs:
   verify:
-    uses: webiq1206/boise-remodeling-co/.github/workflows/p5-mobile-seo.yml@df8d6cf15f61304af99095c2026680b256e85dae
+    uses: webiq1206/boise-remodeling-co/.github/workflows/p5-mobile-seo.yml@2261262c8a7386165d0710b6c0343887af509fad
