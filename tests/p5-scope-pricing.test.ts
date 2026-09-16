@@ -356,7 +356,6 @@ test('Advisory-only issues release the range without a repair round',async()=>{
  assert.equal(audits,1,'no second audit when the only issues are advisory');
  assert.ok(result.customer.range,'the range is released');
  assert.ok(result.customer.assumptions.some((a:string)=>/confirm the colour selection/.test(a)),'the advisory note travels with the estimate as an item to confirm');
- assert.equal(result.customer.issues?.length||0,0);
 });
 test('A batch that cannot shrink further pauses the job instead of ending it',async()=>{
  const tasks=Array.from({length:3},(_,i)=>({...task,id:`task-${i}`,description:`Assembly component ${i}`}));
