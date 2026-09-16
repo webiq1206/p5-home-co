@@ -87,3 +87,21 @@ export function replaceBrowserDraft(current:BrowserDraft,defaultService=''): {dr
   void defaultService;
   return {draft:{...newBrowserDraft(''),namespace:current.namespace,sourceDetached:true},recovery};
 }
+
+/** Read a reply that is supposed to be JSON but might not be.
+ *
+ * Every estimator endpoint answers with JSON, but the request does not always
+ * reach the app. During a redeploy, a container restart or a gateway error the
+ * host answers with its own plain-text or HTML page, and response.json() then
+ * throws "Failed to execute 'json' on 'Response': Unexpected token 'T', "The
+ * deploy"... is not valid JSON" - which is exactly what a visitor was shown on
+ * p5homeco.com while a deploy was in flight. The saved work is untouched in
+ * every one of those cases, so say that instead of showing a parser error. */
+export async function readJson(response:Response):Promise<any>{
+  const body=await response.text();
+  try{return JSON.parse(body);}catch{}
+  const hosted=/^\s*</.test(body)||/\bdeploy|unavailable|bad gateway|gateway time|maintenance|starting up|try again\b/i.test(body.slice(0,300));
+  throw new Error(hosted
+    ?'The site was finishing an update and could not answer just now. Your project is saved. Please try again in a moment.'
+    :`The server reply could not be read (HTTP ${response.status}). Your project is saved. Please try again.`);
+}

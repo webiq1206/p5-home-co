@@ -10,7 +10,7 @@ import {estimatorTheme,estimatorThemeStyle} from '@/lib/p5/theme';
 import {SCOPE_FIELDS,SCOPE_FILE_LIMIT,SCOPE_BATCH_LIMIT,SCOPE_FILE_COUNT,SCOPE_UPLOAD_HELP,coerceChoice,type ScopeField,type ScopeAnswers,type ScopeUpload} from '@/lib/p5/scope';
 import {questionContext,scopeFieldApplies} from '@/lib/p5/dynamicQuestions';
 import {deriveScopeAnswers,finishOptionsForService,questionForField,scopeQuestionsForBrand as scopeQuestions,scopeAssumptions,validateScopeAnswer,type ScopeQuestion} from '@/lib/p5/adaptive';
-import {loadBrowserDraft,persistBrowserDraft,draftHeaders,cacheFiles,loadCachedFiles,clearCachedFiles,requireDraftReceipt,archiveBrowserDraft,listBrowserDraftRecoveries,replaceBrowserDraft,restoreBrowserDraft,type BrowserDraft,type BrowserDraftRecovery,type TranscriptEntry} from '@/lib/p5/browserDraft';
+import {loadBrowserDraft,persistBrowserDraft,draftHeaders,cacheFiles,loadCachedFiles,clearCachedFiles,requireDraftReceipt,archiveBrowserDraft,listBrowserDraftRecoveries,replaceBrowserDraft,restoreBrowserDraft,type BrowserDraft,type BrowserDraftRecovery,type TranscriptEntry,readJson} from '@/lib/p5/browserDraft';
 import {mergeProjectSource,type ProjectSource} from '@/lib/p5/projectSource';
 import {resumeWizardDraft} from '@/lib/p5/wizardResume';
 import {snapshotProjectFile} from '@/lib/p5/fileSnapshot';
@@ -106,12 +106,12 @@ export function P5Estimator({defaultService='',headingAs='h1',projectSource,layo
     mounted.current=true;const loaded=loadBrowserDraft(defaultService,projectSource?.id);const d=projectSource&&!loaded.sourceDetached?mergeProjectSource(loaded,projectSource):loaded;resume(d);setRecoveries(listBrowserDraftRecoveries(d.namespace));setWarning(d.analysisWarning||d.extraction?.reviewNotes.find(n=>n.startsWith("Your files are saved, but"))||"");
     setSpeechAvailable(Boolean((window as any).SpeechRecognition||(window as any).webkitSpeechRecognition));
     loadCachedFiles(d.id).then(f=>{if(mounted.current&&current.current?.id===d.id){filesRef.current=f;setFiles(f);}}).catch(()=>setStatus('File recovery is unavailable. Keep this page open while uploading.'));
-    if(d.revision>0)fetch('/api/p5-estimator/draft',{headers:draftHeaders(d),cache:'no-store'}).then(r=>r.ok?r.json():null).then(async data=>{
+    if(d.revision>0)fetch('/api/p5-estimator/draft',{headers:draftHeaders(d),cache:'no-store'}).then(r=>r.ok?r.text().then(b=>{try{return JSON.parse(b);}catch{return null;}}):null).then(async data=>{
       if(!mounted.current||!data?.draft||current.current?.id!==d.id)return;
       checkOperation();const saved=requireDraftReceipt(data);
       if(saved.status==='submitted'){
         if(!sourceSnapshotsEqual(sourceSnapshot(d),sourceSnapshot(current.current as BrowserDraft)))return;
-        const response=await operationFetch('/api/p5-estimator/submit',{method:'POST',headers:{...draftHeaders(d),'Content-Type':'application/json'},body:JSON.stringify({revision:saved.revision})});const value=await response.json();
+        const response=await operationFetch('/api/p5-estimator/submit',{method:'POST',headers:{...draftHeaders(d),'Content-Type':'application/json'},body:JSON.stringify({revision:saved.revision})});const value=await readJson(response);
         if(value.result&&mounted.current){setResult(value.result);setDelivery(value.delivery||[]);}return;
       }
       if(!sourceSnapshotsEqual(sourceSnapshot(d),sourceSnapshot(current.current as BrowserDraft)))return;
@@ -162,7 +162,7 @@ export function P5Estimator({defaultService='',headingAs='h1',projectSource,layo
     try{
       const response=await operationFetch('/api/p5-estimator/draft',{headers:draftHeaders(d),cache:'no-store'});
       if(!response.ok)return false;
-      const data=await response.json();const server=data?.draft;
+      const data=await readJson(response);const server=data?.draft;
       const local=current.current;
       if(!server||!Number.isInteger(server.revision)||!local||local.id!==d.id||server.revision===local.revision)return false;
       apply({...local,revision:server.revision,uploads:server.uploads||local.uploads,extraction:local.extraction||server.extraction||null,answers:{...(server.answers||{}),...local.answers},wizard:local.wizard||server.wizard,pricedFields:local.pricedFields||data.pricedFields||[]});
@@ -175,8 +175,8 @@ export function P5Estimator({defaultService='',headingAs='h1',projectSource,layo
     const requestSource=sourceSnapshot(d);
     const put=(revision:number)=>operationFetch('/api/p5-estimator/draft',{method:'PUT',headers:{...draftHeaders(d),'Content-Type':'application/json'},body:JSON.stringify({text:d.text,answers:d.answers,contact:d.contact,revision,wizard:d.wizard,reviewed,clarification,scopeFingerprint:scopeFingerprint(d.text)})});
     let response=await put(d.revision);
-    let data=await response.json();
-    if(response.status===409&&!clarification&&await adoptServerDraft()){const refreshed=current.current;if(refreshed&&refreshed.id===d.id){response=await put(refreshed.revision);data=await response.json();}}
+    let data=await readJson(response);
+    if(response.status===409&&!clarification&&await adoptServerDraft()){const refreshed=current.current;if(refreshed&&refreshed.id===d.id){response=await put(refreshed.revision);data=await readJson(response);}}
     if(!response.ok)throw new Error(data.error||'Your project could not be saved. Please retry.');checkOperation();const saved=requireDraftReceipt(data);
     if(initiated&&initiated!==operationBudget.current)throw new ProcessingDeadlineError();
     if(current.current?.id!==d.id)return saved;
@@ -215,7 +215,7 @@ export function P5Estimator({defaultService='',headingAs='h1',projectSource,layo
         if(kind==='pricing'){
           if(d.dirty){setPaused(null);apply({...d,step:2});setActive(null);setError('Your project changed while it was being priced. Check the summary, confirm your details, then tap Get my estimate again.');return;}
           const response=await fetch('/api/p5-estimator/submit',{method:'POST',headers:{...draftHeaders(d),'Content-Type':'application/json'},body:JSON.stringify({revision:d.revision,background:true,retry:false})});
-          const data=await response.json();if(cancelled||busyRef.current)return;
+          const data=await readJson(response);if(cancelled||busyRef.current)return;
           if(response.status===202&&data.pending){if(data.processing)setPaused(p=>p&&p.kind===kind?{...p,processing:data.processing}:p);return;}
           setPaused(null);
           if(!response.ok){if(data.pricingReviewRequired){setMissingFields(parseMissing(data.missingFields));setVerificationItems(parseItems(data.verificationItems));}setError(data.error||'Your estimate could not be completed. Your saved work is intact; please retry.');return;}
@@ -223,7 +223,7 @@ export function P5Estimator({defaultService='',headingAs='h1',projectSource,layo
         }else{
           const form=new FormData();form.set('text',d.text);form.set('scopeFingerprint',scopeFingerprint(d.text));form.set('revision',String(d.revision));form.set('resumable','true');form.set('background','true');form.set('retry','false');
           const response=await fetch('/api/p5-estimator/scope',{method:'POST',headers:draftHeaders(d),body:form});
-          const data=await response.json();if(cancelled||busyRef.current)return;
+          const data=await readJson(response);if(cancelled||busyRef.current)return;
           if(data.pending){if(Number.isInteger(data.draftRevision)&&data.draftRevision!==d.revision)apply({...d,revision:data.draftRevision});if(data.processing)setPaused(p=>p&&p.kind===kind?{...p,processing:data.processing}:p);return;}
           if(response.status===409){await adoptServerDraft();return;}
           setPaused(null);
@@ -277,7 +277,7 @@ export function P5Estimator({defaultService='',headingAs='h1',projectSource,layo
     let data:any;let conflicts=0;
     do{
       requireCurrentSource();
-      const response=await operationFetch('/api/p5-estimator/scope',{method:'POST',headers:draftHeaders(d),body:form,signal:AbortSignal.timeout(200000)});data=await response.json();form.set('retry','false');
+      const response=await operationFetch('/api/p5-estimator/scope',{method:'POST',headers:draftHeaders(d),body:form,signal:AbortSignal.timeout(200000)});data=await readJson(response);form.set('retry','false');
       if(response.status===409&&conflicts<3&&await adoptServerDraft()){conflicts++;form.set('revision',String(current.current!.revision));data={pending:true};continue;}
       if(!response.ok)throw new Error(data.error||'Your files could not be processed. They are still here. Please retry.');
       requireCurrentSource();
@@ -295,7 +295,7 @@ export function P5Estimator({defaultService='',headingAs='h1',projectSource,layo
   useEffect(()=>{
     if(!result||!delivery.length||!delivery.some(d=>d.status==='pending'||d.status==='retry'||d.status==='sending')||deliveryChecks.current>=10)return;
     const d=current.current;if(!d)return;let cancelled=false;
-    const timer=setTimeout(async()=>{deliveryChecks.current+=1;try{const response=await fetch('/api/p5-estimator/submit',{method:'POST',headers:{...draftHeaders(d),'Content-Type':'application/json'},body:JSON.stringify({revision:d.revision})});const value=await response.json();if(!cancelled&&mounted.current&&Array.isArray(value.delivery)&&value.delivery.length)setDelivery(value.delivery);}catch{}},6000);
+    const timer=setTimeout(async()=>{deliveryChecks.current+=1;try{const response=await fetch('/api/p5-estimator/submit',{method:'POST',headers:{...draftHeaders(d),'Content-Type':'application/json'},body:JSON.stringify({revision:d.revision})});const value=await readJson(response);if(!cancelled&&mounted.current&&Array.isArray(value.delivery)&&value.delivery.length)setDelivery(value.delivery);}catch{}},6000);
     return()=>{cancelled=true;clearTimeout(timer);};
   },[result,delivery]);
   useEffect(()=>{const el=composerRef.current;if(!el)return;el.style.height='auto';el.style.height=Math.min(el.scrollHeight,220)+'px';},[draft?.text,draft?.answers.estimatingInstructions,draft?.step,reply,editText,addingDetails]);
@@ -363,7 +363,7 @@ export function P5Estimator({defaultService='',headingAs='h1',projectSource,layo
     await run('Preserving your project...',async()=>{
       if(filesRef.current.length)await cacheFiles(d.id,filesRef.current);const archived=replaceBrowserDraft(d,'');let next=recovery?restoreBrowserDraft(recovery):archived.draft;if(!next)throw new Error('This saved project could not be restored. Your current project is unchanged.');const pending=recovery?await loadCachedFiles(next.id):[];
       if(recovery&&next.revision>0){
-        const response=await operationFetch('/api/p5-estimator/draft',{headers:draftHeaders(next),cache:'no-store'});if(!response.ok)throw new Error('The saved project could not be checked. Keep this page open and retry.');const saved=requireDraftReceipt(await response.json());if(saved.status==='submitted')throw new Error('This project was already submitted and cannot be edited. Its recovery is retained; start a new project instead.');
+        const response=await operationFetch('/api/p5-estimator/draft',{headers:draftHeaders(next),cache:'no-store'});if(!response.ok)throw new Error('The saved project could not be checked. Keep this page open and retry.');const saved=requireDraftReceipt(await readJson(response));if(saved.status==='submitted')throw new Error('This project was already submitted and cannot be edited. Its recovery is retained; start a new project instead.');
         if(scopeTextChanged(saved.text,next.text)){next={...refreshAnalyzedScope(next,next.text),revision:saved.revision,uploads:saved.uploads,dirty:true};}
         else{if(next.dirty){const serverSnapshot={...next,...saved,key:next.key,namespace:next.namespace,dirty:false} as BrowserDraft;if(!archiveBrowserDraft(serverSnapshot))throw new Error('The newer server version could not be backed up. Neither version has been changed.');if(JSON.stringify((next.uploads||[]).map(f=>f.sha256).sort())!==JSON.stringify(saved.uploads.map((f:ScopeUpload)=>f.sha256).sort()))throw new Error('The saved project has a different file set. Both versions are retained in recovery; review them before replacing the project.');next={...next,revision:saved.revision,uploads:saved.uploads,extraction:saved.extraction,step:0,dirty:true};}else next={...next,...saved,key:next.key,namespace:next.namespace,step:0,dirty:false,transcript:next.transcript} as BrowserDraft;}
       }
