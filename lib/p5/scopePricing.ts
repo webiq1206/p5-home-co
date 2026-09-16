@@ -643,7 +643,16 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
       resolution.issues=[...new Set([...carriedIssues,...inventory.issues,...repaired.issues])];
       [...fixes.issues,...fixes.tasks.flatMap(t=>t.issues.map(issue=>`${t.description}: ${issue}`))].forEach(issue=>modelIssues.add(issue));
       mapping.tasks=fixes.tasks;
-      const repairGaps=fixes.tasks.filter(t=>t.researchDescription);
+      // Research already priced a task's gap in the first pass. The repair round
+      // researches a gap again only when the audit named that task; those
+      // earlier rules are replaced, not counted a second time. Every other
+      // researched task keeps its rules, which is also what makes repair fast.
+      const researchRule=(rule:{id:string;scopeTaskId?:string})=>Boolean(rule.scopeTaskId)&&(rule.id.startsWith('market-')||rule.id.startsWith('planning-'));
+      const researchedTaskIds=new Set(resolution.rules.filter(researchRule).map(rule=>rule.scopeTaskId));
+      const namedByAudit=(task:{description:string})=>priorIssues.some(issue=>issue.toLowerCase().includes(task.description.toLowerCase()));
+      const repairGaps=fixes.tasks.filter(t=>t.researchDescription&&(!researchedTaskIds.has(t.id)||namedByAudit(t)));
+      const replaced=new Set(repairGaps.map(t=>t.id));
+      resolution.rules=resolution.rules.filter(rule=>!(researchRule(rule)&&replaced.has(rule.scopeTaskId!)));
       mergeGapResults(await Promise.all(batchesOf(repairGaps,3).map((gapBatch,index)=>priceGapBatch(gapBatch,1000+index,t=>coveredWork(t,pricedComponents,configuration),priorIssues))));
       audit.coveredTaskIds=[];audit.issues=[];audit.resolvedIssues=[];
       const checkedParts=await Promise.all(sourceParts.map((part,index)=>request(AUDIT,{original:part,tasks:mapping.tasks.filter(t=>sourceParts.length===1||taskSources.get(t.id)===index),priorPricingIssues:resolution.issues,existingLines:lines.filter(l=>!resolution.removeLineIds?.includes(l.id)),additionalRules:resolution.rules,priorAuditIssues:priorIssues,removedLines:pricedComponents.filter(l=>resolution.removeLineIds?.includes(l.id)),existingExclusions:base.customer.exclusions.filter(e=>!resolution.removeExclusions?.includes(e)),research},false,deadline-Date.now())));

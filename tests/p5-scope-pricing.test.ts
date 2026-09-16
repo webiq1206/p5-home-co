@@ -361,6 +361,30 @@ test('An owner planning catalog older than its 92-day evidence window discloses 
  assert.ok(warnings.some((w:any)=>w.code==='planning-catalog-review-due'&&w.severity==='review'&&/imported \d{4}-\d{2}-\d{2}/.test(w.message)),'the due review is disclosed with its date');
  assert.ok(!(result.internal as any).warnings.some((w:any)=>w.severity==='block'),JSON.stringify(warnings.filter((w:any)=>w.severity==='block')));
 });
+test('A repair round keeps first-pass research and never prices the same gap twice',async()=>{
+ const tasks=[{...task,id:'drywall',description:'Patch drywall',researchDescription:''},{...extra,id:'texture',description:'Ceiling texture',researchDescription:'Matching ceiling texture over 30 sf'},{...extra,id:'caulk',description:'Re-caulk tub surround',researchDescription:'Re-caulk one bathtub surround'}];
+ const planned=(ids:string[])=>({rates:ids.map(id=>({taskId:id,description:`${id} allowance`,unit:'EA',quantity:1,quantityEvidence:'one',basis:'trade-labor',includes:'labor',excludes:'',low:100,high:200,confidence:'low',rationale:'Synthetic.'})),issues:[],notes:[]});
+ for(const flagged of [false,true]){
+  let calls=0,audits=0;const researchedFor:string[][]=[];
+  const request:PricingRequest=async(_i,input,search)=>{const d=input as any;calls++;
+   if(calls===1)return {value:{tasks:tasks.map(({id,description,evidence})=>({id,description,evidence})),issues:[]},sourceUrls:[]};
+   if(d.taskBatch)return {value:{tasks:d.taskBatch.map((t:any)=>({...tasks.find(x=>x.id===t.id)!,...t})),issues:[],notes:[],replacements:[],removeExclusions:[]},sourceUrls:[]};
+   if(search)throw new PricingStageTimeout('pricing-stage-timeout');
+   if('priorPricingIssues' in d){audits++;return {value:{coveredTaskIds:tasks.map(t=>t.id),issues:audits===1?[flagged?'Ceiling texture: the allowance omits blending into the adjacent texture.':'Patch drywall: the patch count disagrees with the description.']:[],notes:[],resolvedIssues:[]},sourceUrls:[]};}
+   if(d.tasks&&d.region){researchedFor.push(d.tasks.map((t:any)=>t.id));return {value:planned(d.tasks.map((t:any)=>t.id)),sourceUrls:[]};}
+   throw new Error('unexpected request');
+  };
+  const r=await priceCompleteScope(scope,config,request,now);
+  const rules=(r.internal as any).scopePricing?.rules||(r.internal as any).lines;
+  const lines=(r.internal as any).lines.filter((l:any)=>l.id.startsWith('planning-'));
+  assert.equal(lines.filter((l:any)=>l.description.startsWith('caulk')).length,1,'the caulk allowance is priced once');
+  assert.equal(lines.filter((l:any)=>l.description.startsWith('texture')).length,1,'the texture allowance is priced once');
+  assert.deepEqual(researchedFor[0].sort(),['caulk','texture'],'first pass researches both gaps');
+  if(flagged)assert.deepEqual(researchedFor.slice(1),[['texture']],'only the task the audit named is researched again');
+  else assert.equal(researchedFor.length,1,'a repair that names no researched task researches nothing again');
+  assert.ok(r.customer.range,'the range is released');
+ }
+});
 test('Advisory-only issues release the range without a repair round',async()=>{
  const tasks=Array.from({length:12},(_,i)=>({...task,id:`task-${i}`,description:`Assembly component ${i}`}));
  let calls=0,mappings=0,audits=0;
