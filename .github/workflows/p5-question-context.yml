@@ -1,0 +1,9 @@
+name: P5 question context verification
+on:
+  push:
+    branches: [fix/p5-question-context-20260916]
+permissions:
+  contents: write
+jobs:
+  verify:
+    uses: webiq1206/boise-remodeling-co/.github/workflows/p5-question-context.yml@d967d904d1612594a9564bedd9674e91061c5f1b
