@@ -1,0 +1,9 @@
+name: P5 mobile CTA and SEO verification
+on:
+  push:
+    branches: [fix/p5-mobile-seo-20260916]
+permissions:
+  contents: write
+jobs:
+  verify:
+    uses: webiq1206/boise-remodeling-co/.github/workflows/p5-mobile-seo.yml@65c6033803ad3017d0be563e240553b039be87cd
