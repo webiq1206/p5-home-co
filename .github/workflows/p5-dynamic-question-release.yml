@@ -1,0 +1,9 @@
+name: P5 dynamic question release verification
+on:
+  push:
+    branches: [fix/p5-dynamic-questions-20260915]
+permissions:
+  contents: write
+jobs:
+  verify:
+    uses: webiq1206/boise-remodeling-co/.github/workflows/p5-dynamic-question-release.yml@ceaad6d57deb16a5d73b4706c680da751ff78f63
