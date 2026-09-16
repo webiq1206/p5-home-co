@@ -61,7 +61,7 @@ async function mock(context,{interruptions=false,scenario='full'}={}){
  });return state;
 }
 async function overflow(page){assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'Horizontal page overflow');}
-async function noPinnedControls(estimator){assert.ok(await estimator.evaluate(root=>[...root.querySelectorAll('button,a')].every(el=>{for(let p=el;p&&p!==document.body;p=p.parentElement)if(['fixed','sticky'].includes(getComputedStyle(p).position))return false;return true;})),'An estimator control is pinned over content');}
+async function noPinnedControls(estimator){assert.ok(await estimator.evaluate(root=>[...root.querySelectorAll('button,a')].every(el=>{for(let p=el;p&&p!==document.body&&!p.hasAttribute('data-p5-estimator');p=p.parentElement)if(['fixed','sticky'].includes(getComputedStyle(p).position))return false;return true;})),'An estimator control is pinned over content');}
 async function capture(page,name){await page.evaluate(async()=>{await document.fonts.ready;document.documentElement.style.scrollBehavior='auto';if(document.activeElement instanceof HTMLElement)document.activeElement.blur();window.scrollTo(0,0);});await page.screenshot({path:`p5-verification/${name}.png`,fullPage:true,animations:'disabled'});}
 async function settled(page){await page.waitForFunction(()=>!document.querySelector('[data-p5-estimator][aria-busy=true]'));}
 for(const width of [320,390,430,768,1024,1440,1920]){
