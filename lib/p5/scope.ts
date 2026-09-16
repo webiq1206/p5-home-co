@@ -2,6 +2,7 @@ import {mergeInstructions,validateInstructions,type ScopeInstructions} from './i
 import {readPageRecords,readTakeoffs,reconcileTakeoffs,combineCoverage} from './documentLedger.ts';
 import type {RetainedClarificationProvenance,RetainedLaborCoverage} from './retainedClarification.ts';
 import {aggregateLaborFacts} from './laborFacts.ts';
+import {verifiedCabinetWidth} from './cabinetMeasurements.ts';
 /** Public scope vocabulary. No internal prices or financial policy belongs here. */
 export const SCOPE_FIELDS = {
   estimatingInstructions: {label: "Custom estimating instructions", kind: "text"},
@@ -212,9 +213,10 @@ export function validateExtraction(raw: unknown): ScopeExtraction {
     // function is called after module initialization.
     const numericEvidence=NUMERIC_EVIDENCE[f.field as ScopeField];
     const assemblyMeasurement=f.field==="cabinetBaseLf"||f.field==="cabinetUpperLf"||f.field==="cabinetTallLf";
+    const verifiedWidth=verifiedCabinetWidth(fact.field,value,fact.evidence);
     const explicitAbsence=value==="0"&&/\b(?:no|none|zero|without)\b.{0,30}\b(?:base|lower|upper|wall|tall|pantry|cabinet)\b/i.test(fact.evidence);
     if(assemblyMeasurement&&
-      (numericEvidence&&!numericEvidence.test(fact.evidence)&&!explicitAbsence||
+      (numericEvidence&&!numericEvidence.test(fact.evidence)&&!explicitAbsence&&!verifiedWidth||
        value==="0"&&UNDOCUMENTED_QUANTITY.test(fact.evidence))){
       unreadValues.push(`Confirm ${SCOPE_FIELDS[f.field as ScopeField].label.toLowerCase()} from an explicit measurement before pricing.`);
       return [];
@@ -318,7 +320,7 @@ export function protectPricingFacts(extraction: ScopeExtraction): ScopeExtractio
     }
     const numericEvidence=NUMERIC_EVIDENCE[fact.field];
     const explicitAbsence=fact.value.trim()==='0'&&/\b(?:no|none|zero|without)\b.{0,30}\b(?:base|lower|upper|wall|tall|pantry|cabinet)\b/i.test(fact.evidence);
-    if(numericEvidence&&(!numericEvidence.test(fact.evidence)&&!explicitAbsence||DERIVED_MEASUREMENT.test(fact.evidence))){
+    if(numericEvidence&&!verifiedCabinetWidth(fact.field,fact.value,fact.evidence)&&(!numericEvidence.test(fact.evidence)&&!explicitAbsence||DERIVED_MEASUREMENT.test(fact.evidence))){
       heldDerivedMeasurement=true;
       reviewNotes.push(`Unconfirmed derived measurement - ${SCOPE_FIELDS[fact.field].label}: ${fact.value}. The source evidence does not explicitly label this measurement, so it is not a pricing fact.`);
       continue;

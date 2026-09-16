@@ -78,7 +78,8 @@ export function questionContext(answers: ScopeAnswers, extraction: ScopeExtracti
   const fullProject = !restriction && (BUILDS.has(service) || REMODELS.has(service));
   return {answers, service, text, positive: positiveClauses(text).join('\n'), restriction,
     exclusions, takeoffs, extraction, fullProject,
-    laborOnly: extraction?.instructions?.laborOnly === true || /\blabou?r[ -]only\b/i.test(directions)};
+    laborOnly: extraction?.instructions?.laborOnly === true || /\blabou?r[ -]only\b/i.test(directions)
+      || clauses(joined([sourceText,answers.taskList,answers.installation])).some(clause=>/^(?:(?:price|estimate|quote|include|provide)\s+)?labou?r(?:\s+and\s+installation)?[ -]only[.!]?$/i.test(clause))};
 }
 
 function excluded(context: QuestionContext, topic: Topic): boolean {
@@ -97,6 +98,22 @@ function excluded(context: QuestionContext, topic: Topic): boolean {
 function topicActive(context: QuestionContext, topic: Topic): boolean {
   if (excluded(context, topic)) return false;
   return TOPICS[topic].test(context.restriction || context.positive);
+}
+/** Painting measured trim or cabinet doors does not require whole-room area. */
+function paintedAreaApplies(context: QuestionContext): boolean {
+ if (!topicActive(context,'paint')) return false;
+ const text=context.restriction||context.positive;
+ if (/\b(?:walls?(?! cabinets?)|ceilings?|drywall|plaster|interior walls|exterior siding)\b/i.test(text)) return true;
+ return !/\b(?:trim|baseboards?|moulding|molding|cabinets?|cabinetry|doors?|fence|gate|railings?)\b/i.test(text);
+}
+/** A specified cabinet package is more precise than a generic material tier. */
+export function cabinetSelectionsSpecified(context: QuestionContext): boolean {
+ if(!context.service.startsWith('cabinet-'))return false;
+ const specified=[context.answers.materials,context.answers.cabinetConstruction,
+ ...(context.extraction?.facts||[]).filter(f=>['materials','cabinetConstruction'].includes(f.field)
+ &&Number.isFinite(f.confidence)&&f.confidence>=.85&&f.basis!=='visual'&&f.basis!=='inferred').map(f=>f.value)].filter(Boolean).join('\n');
+ return /\b(?:plywood|mdf|melamine|particleboard|solid wood|oak|maple|walnut)\b/i.test(specified)
+ && /\b(?:painted|stained|laminate|thermofoil|unfinished|natural finish)\b/i.test(specified);
 }
 function cabinetPackage(context: QuestionContext): boolean {
   if (!topicActive(context, 'cabinets') && !context.service.startsWith('cabinet-')) return false;
@@ -143,7 +160,7 @@ export function scopeFieldApplies(field: ScopeField, context: QuestionContext): 
   if (field === 'service' || field === 'taskList' || field === 'estimatingInstructions') return true;
   if (field === 'address') return false;
   if (!context.service) return true;
-  if (field === 'finish') return !context.laborOnly && !context.restriction
+  if (field === 'finish') return !context.laborOnly && !context.restriction && !cabinetSelectionsSpecified(context)
     && (context.fullProject || context.service.startsWith('cabinet-'));
   if (field === 'garageIncluded') return context.service === 'new-construction' && !context.restriction
     || topicActive(context, 'garage');
@@ -160,7 +177,7 @@ export function scopeFieldApplies(field: ScopeField, context: QuestionContext): 
     if (field === 'cabinetTallLf') return topicActive(context, 'tall');
     return true;
   }
-  if (field === 'sqft') return !context.restriction && (context.fullProject || topicActive(context, 'paint'));
+  if (field === 'sqft') return !context.restriction && (context.fullProject || paintedAreaApplies(context));
   if (field === 'rooms' || field === 'bathrooms' || field === 'stories') return context.fullProject;
   if (field === 'laborHours') return /\b(?:time and materials|hourly|labor hours|labour hours)\b/i.test(context.positive);
   if (topic) return topicActive(context, topic) || context.fullProject && ['flooringSqft','tileSqft','trimLf'].includes(field);
@@ -178,7 +195,7 @@ export function dynamicScopeFields(answers: ScopeAnswers, extraction: ScopeExtra
     || extraction?.takeoffs?.length || extraction?.instructions?.inclusions?.length
     || answers.service?.startsWith('cabinet-') && [answers.cabinetBaseLf,answers.cabinetUpperLf,answers.cabinetTallLf].some(v=>v?.trim()));
   if (!hasWork) fields.add('taskList');
-  if (context.fullProject) fields.add('sqft');
+  if (scopeFieldApplies('sqft', context)) fields.add('sqft');
   if (scopeFieldApplies('garageIncluded', context)) fields.add('garageIncluded');
   if (scopeFieldApplies('garageSqft', context)) fields.add('garageSqft');
   if (scopeFieldApplies('finish', context) && !sourceAnswered(context,'materials')) fields.add('finish');

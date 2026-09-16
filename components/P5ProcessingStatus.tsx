@@ -13,7 +13,7 @@ export default function P5ProcessingStatus({message,processing,uploadPercent,onP
   const total=processing?.totalPages||0;
   const read=Math.min(total,processing?.readPages||0);
   const uploading=uploadPercent!==null;
-  const title=uploading?'Saving your files':processing?.phase==='reading'&&!total?'Understanding your project':processing?processingTitles[processing.phase]:message.replace(/\.+$/,'');
+  const title=uploading?'Saving your files':processing&&['reading','cross-referencing'].includes(processing.phase)&&!total?'Understanding your project':processing?processingTitles[processing.phase]:message.replace(/\.+$/,'');
   const item=processing?.currentItems?.[0];
   // Seconds THIS stage has been running. Total elapsed says nothing about
   // whether anything is still happening; a step clock that keeps moving does.

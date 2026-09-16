@@ -19,7 +19,7 @@ export function manualScopeAnswers(current:ScopeAnswers,previous:ScopeExtraction
 export function deriveScopeAnswers(input:ScopeAnswers){
   const answers={...input};
   // A previous remodel answer cannot become the finish selection for a new build.
-  if(['new-construction','addition','adu'].includes(answers.service||'')&&answers.finish==='refresh')delete answers.finish;
+  if(['new-construction','addition','adu','cabinet-product','cabinet-install'].includes(answers.service||'')&&answers.finish==='refresh')delete answers.finish;
   if(!answers.sqft?.trim()&&answers.length?.trim()&&answers.width?.trim()){
     const area=Number(answers.length.replaceAll(',',''))*Number(answers.width.replaceAll(',',''));
     if(Number.isFinite(area)&&area>0&&area<=1000000)answers.sqft=String(Math.round(area*100)/100);
@@ -45,7 +45,7 @@ const builds=['addition','adu','new-construction'];
 export const finishServices=[...remodels,...builds,'cabinet-product','cabinet-install'];
 export function finishOptionsForService(service?:string):string[]{
   const values=[...SCOPE_FIELDS.finish.options];
-  return service&&builds.includes(service)?values.filter(value=>value!=='refresh'):values;
+  return service&&[...builds,'cabinet-product','cabinet-install'].includes(service)?values.filter(value=>value!=='refresh'):values;
 }
 /** One shared scope-aware queue for the browser and server. A catalog dependency is
  * not permission to ask about an excluded trade or repeat a supplied measurement. */
@@ -109,13 +109,13 @@ export function validateScopeAnswer(field:ScopeField,value:string){
   if(['sqft','length','width','rooms','stories'].includes(field)&&value.trim()&&Number(value.replaceAll(',',''))<=0)return 'Enter a number greater than zero, or choose Not sure yet.';
   return null;
 }
-export function scopeAssumptions(answers:ScopeAnswers,skipped:ScopeField[]=[]){
+export function scopeAssumptions(answers:ScopeAnswers,skipped:ScopeField[]=[],extraction:ScopeExtraction|null=null,sourceText=''){
   const notes:string[]=[];
   if(!answers.location&&!answers.address)notes.push('General service-area pricing; location, access and jurisdiction will be confirmed.');
   if(!answers.urgency)notes.push('Standard scheduling; priority or emergency work is not included.');
-  if(!answers.finish&&finishServices.includes(answers.service||''))notes.push(answers.materials?.trim()?'Specified materials control the scope; any unselected items require individually disclosed planning allowances.':'Finish level not chosen; standard finishes are assumed until you select one.');
+  if(!answers.finish&&scopeFieldApplies('finish',questionContext(answers,extraction,sourceText)))notes.push(answers.materials?.trim()?'Specified materials control the scope; any unselected items require individually disclosed planning allowances.':'Finish level not chosen; standard finishes are assumed until you select one.');
   if(answers.length&&answers.width&&answers.sqft&&sameAnswer('sqft',answers.sqft,deriveScopeAnswers({...answers,sqft:''}).sqft||'0'))notes.push(`Project area calculated from ${answers.length} × ${answers.width} feet. Confirm irregular areas during the site visit.`);
-  for(const k of skipped)if(!answers[k])notes.push(`${SCOPE_FIELDS[k].label}: not yet known; requires a disclosed, supported allowance before pricing.`);
+  for(const k of skipped)if(!answers[k]&&scopeFieldApplies(k,questionContext(answers,extraction,sourceText)))notes.push(`${SCOPE_FIELDS[k].label}: not yet known; requires a disclosed, supported allowance before pricing.`);
   return notes;
 }
 function handoffForService(service:string){
