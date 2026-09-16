@@ -1,0 +1,11 @@
+name: P5 question evidence verification
+on:
+  push:
+    branches: [fix/p5-question-evidence-20260916]
+permissions:
+  contents: write
+jobs:
+  verify:
+    uses: webiq1206/boise-remodeling-co/.github/workflows/p5-question-evidence.yml@2bca78a678c396f996e4f3540673983d1a0b43ab
+    with:
+      source_ref: e8d95fe8e555d508728706de82745db6763588b8
