@@ -196,7 +196,8 @@ export function calculateP5Estimate(input: PricingInput, finance: FinancePolicy,
     const evidence = line.evidence;
     if (!evidence || !evidence.reference.trim() || !Number.isFinite(dateValue(evidence.verifiedAt)) || !Number.isFinite(dateValue(evidence.validUntil))) warn("cost-evidence-missing", `${line.id}: current cost evidence is required.`, "block");
     else {
-      if (dateValue(evidence.validUntil) < now.getTime() || dateValue(evidence.verifiedAt) > now.getTime()) warn("cost-evidence-expired", `${line.id}: refresh the cost evidence before presenting a range.`, "block");
+      // Under the preliminary planning model an aging owner schedule or allowance is disclosed with its date, not a reason to withhold the range; a firm proposal still requires refreshed evidence.
+      if (dateValue(evidence.validUntil) < now.getTime() || dateValue(evidence.verifiedAt) > now.getTime()) warn("cost-evidence-expired", modeled ? `${line.id}: rates last confirmed ${String(evidence.verifiedAt).slice(0,10)}; confirm current rates before a firm proposal.` : `${line.id}: refresh the cost evidence before presenting a range.`, modeled ? "review" : "block");
       if (evidence.basis === "planning-assumption") warn("unverified-direct-cost", `${line.id}: this planning assumption needs current cost confirmation.`, "block");
       if (line.category === "subcontractors" && evidence.basis !== "written-quote") warn("written-sub-quote-required", `${line.id}: obtain a current written subcontractor price before a firm proposal.`, modeled?"review":"block");
       if (line.category === "owner-production" && (evidence.basis !== "market-replacement" || line.unit !== "hour")) warn("owner-production-cost-required", `${line.id}: additional owner production requires a supported hourly replacement cost.`, "block");

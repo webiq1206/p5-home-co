@@ -433,6 +433,10 @@ export function planningResolution(raw:unknown,tasks:Mapping['tasks'],now:Date,o
  * unverified pricing stays blocking. */
 export function advisoryIssue(text:string):boolean{
   const t=text.toLowerCase();
+  // A planning-average or allowance caveat is disclosed with the range, never a
+  // reason to withhold it. These notes routinely say "not verified local
+  // pricing", which the defect list below would otherwise treat as a defect.
+  if(/\b(regional planning average|planning average allowance|planning allowances?|published cost research was not used|not verified local (?:pricing|quotes))\b/.test(t))return true;
   if(/\b(omit|omission|missing|not (?:been |be )?(?:verified|covered|priced|supported|found|included)|unverified|duplicat|double[- ]count|conflict|unsupported|fabricat|incorrect|wrong|mismatch|reconcile|cannot|could not|unpriced|unknown component|no (?:catalog|rate|price|evidence)|exceeds|out of scope|not (?:in|part of) the|excluded work|hidden in exclusion)\b/.test(t))return false;
   // Word forms of the same concept must classify the same way. A research
   // note reading "should be confirmed as available" was refused here because

@@ -1,7 +1,7 @@
 import {PricingStageTimeout} from '../lib/p5/pricingProgress.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {priceCompleteScope,marketResolution,catalogResolution,requestPricing,type PricingRequest,HANDOFF_ISSUE} from '../lib/p5/scopePricing.ts';
+import {priceCompleteScope,marketResolution,catalogResolution,requestPricing,advisoryIssue,type PricingRequest,HANDOFF_ISSUE} from '../lib/p5/scopePricing.ts';
 import {priceReviewedScope} from '../lib/p5/costBook.ts';
 import {createPlanningConfiguration,PLANNING_MODEL_VERSION,type PlanningCatalog} from '../lib/p5/planningBooks.ts';
 import type {ReviewedScope} from '../lib/p5/scope.ts';
@@ -340,6 +340,26 @@ test('A mapping batch that times out is halved and both halves are priced',async
  assert.deepEqual(sizes,[12,6,6],'the oversized batch was split once into two halves');
  assert.ok(result.customer.range,'the same model and prompt price the halves and the range is released');
  assert.equal(result.customer.scopeTasks.length,12);
+});
+test('Planning-average and allowance caveats are advisory even when they say not verified',()=>{
+ const live=[
+  'Published cost research was not used for Contractor to supply and apply ceiling texture. (published cost research did not finish within its time allowance). A regional planning average allowance is included instead; it is not verified local pricing.',
+  'Rates are preliminary Boise / Treasure Valley regional planning allowances in USD and represent direct costs only, not verified local quotes, published benchmarks, contractor overhead, profit, tax, permits, or general-contractor markup.',
+  'Ceiling-texture materials for repaired drywall: regional planning average allowance for 30 SF (low confidence; not verified local pricing). Confirm current local rates before a firm proposal.',
+ ];
+ for(const text of live)assert.equal(advisoryIssue(text),true,text.slice(0,60));
+ assert.equal(advisoryIssue('Overlay is unpriced'),false);assert.equal(advisoryIssue('Door count is missing from the plans'),false);assert.equal(advisoryIssue('Two lines double count the same tile'),false);
+});
+test('An owner planning catalog older than its 92-day evidence window discloses its date under the preliminary model instead of withholding the range',()=>{
+ const stale:PlanningCatalog={...catalog,importedAt:new Date(now.getTime()-120*86400000).toISOString()};
+ const result=priceReviewedScope(scope,createPlanningConfiguration(stale),now);
+ assert.ok(result.customer.range,'the preliminary range is released');
+ const expired=(result.internal as any).warnings.filter((w:any)=>w.code==='cost-evidence-expired');
+ assert.ok(expired.length,'the aging evidence is still recorded');
+ assert.ok(expired.every((w:any)=>w.severity==='review'&&/rates last confirmed \d{4}-\d{2}-\d{2}/.test(w.message)),'as a dated review note, not a block');
+ const warnings=(result.internal as any).warnings;assert.ok(!warnings.some((w:any)=>w.code==='planning-catalog-incomplete'),'a due quarterly review is not a missing rate');
+ assert.ok(warnings.some((w:any)=>w.code==='planning-catalog-review-due'&&w.severity==='review'&&/imported \d{4}-\d{2}-\d{2}/.test(w.message)),'the due review is disclosed with its date');
+ assert.ok(!(result.internal as any).warnings.some((w:any)=>w.severity==='block'),JSON.stringify(warnings.filter((w:any)=>w.severity==='block')));
 });
 test('Advisory-only issues release the range without a repair round',async()=>{
  const tasks=Array.from({length:12},(_,i)=>({...task,id:`task-${i}`,description:`Assembly component ${i}`}));

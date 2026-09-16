@@ -30,9 +30,12 @@ test('Supplied fixtures are not purchased twice and explicit task counts determi
  const config=createPlanningConfiguration(catalog);const review=scope({service:'handyman',taskList:'Replace two toilets',ownerSupplied:'TOILETS supplied by owner',location:'Boise'});
  const result=priceReviewedScope(review,config,now);const internal=result.internal as any;assert.ok(result.customer.range);assert.equal(internal.lines.find((r:any)=>r.id.startsWith('REF-PLUMBING-HOUR')).quantity,4);assert.ok(!internal.lines.some((r:any)=>r.id.startsWith('REF-TOILET')));
 });
-test('Unknown specialist work and expired planning catalogs cannot produce misleading partial ranges',()=>{
+test('Unknown specialist work cannot produce a misleading partial range; an expired planning catalog is disclosed, not withheld',()=>{
  const config=createPlanningConfiguration(catalog);const review=scope({service:'handyman',taskList:'Replace one toilet and repair structural foundation',location:'Boise'});assert.equal(priceReviewedScope(review,config,now).customer.range,null);
- const cabinet=scope({service:'cabinet-product',cabinetBaseLf:'10',cabinetUpperLf:'0',cabinetTallLf:'0'});assert.equal(priceReviewedScope(cabinet,config,new Date('2027-01-01')).customer.range,null);
+ // The customer-facing planning model releases the range past the catalog's quarterly review and says so with the import date; a firm proposal still needs refreshed evidence.
+ const cabinet=scope({service:'cabinet-product',cabinetBaseLf:'10',cabinetUpperLf:'0',cabinetTallLf:'0'});const aged=priceReviewedScope(cabinet,config,new Date('2027-01-01'));
+ assert.ok(aged.customer.range,'range released');const warnings=(aged.internal as any).warnings;
+ assert.ok(warnings.some((w:any)=>w.code==='planning-catalog-review-due'&&w.severity==='review'));assert.ok(!warnings.some((w:any)=>w.severity==='block'),JSON.stringify(warnings.filter((w:any)=>w.severity==='block')));
 });
 test('Question policy requests all relevant quantities in a combined task list',()=>{const fields=planningQuestionFields({service:'handyman',taskList:'Paint walls, install flooring and tile, replace baseboards'});for(const field of ['sqft','flooringSqft','tileSqft','trimLf'])assert.ok(fields.includes(field as any));});
 test('The catalog rejects duplicate contingency, owner-management salary and zero-price placeholders',()=>{for(const code of ['03-23-04','L-03-00','03-24-99'])assert.throws(()=>createPlanningConfiguration({...catalog,rates:[...catalog.rates,{...catalog.rates[0],code}]}));});
