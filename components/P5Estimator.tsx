@@ -379,6 +379,7 @@ export function P5Estimator({defaultService='',headingAs='h1',projectSource,layo
   /** Record the exchange for the question that was just answered. */
   const logExchange=(question:ScopeQuestion,answerText:string)=>log(newEntry('assistant',question.reason,{kind:'question',label:question.label}),newEntry('user',answerText,{kind:'answer'}));
   async function advance({skip=false,clarification}:{skip?:boolean;clarification?:string}={}){
+    if(active?.handoff)return;
     if(!current.current)return;
     if(active?.instructionId){
       const text=(clarification??reply).trim();
@@ -623,14 +624,14 @@ export function P5Estimator({defaultService='',headingAs='h1',projectSource,layo
     {!active&&warningCard}
     {active?<section key={active.instructionId||active.field} ref={el=>{stageRef.current=el;}} className={styles.question} aria-label="Project question">
       <p className={styles.eyebrow}>{active.label}</p><h2 tabIndex={-1} data-stage-heading>{active.reason}</h2>
-      {active.detail&&<details className={styles.context}><summary className={styles.hint}>Why we ask</summary><p className={styles.hint}>{active.detail}</p></details>}
+      {active.detail&&(active.handoff?<p className={styles.hint}>{active.detail}</p>:<details className={styles.context}><summary className={styles.hint}>Why we ask</summary><p className={styles.hint}>{active.detail}</p></details>)}{active.handoff&&<div className={styles.actions}><a className={styles.primary} href={active.handoff.url}>{active.handoff.label}</a></div>}
       {warningCard}
       {active.values?.length?<div className={styles.choices} role="group" aria-label="Suggested answers">{active.values.map(value=><button type="button" className={styles.choice} key={value} onClick={()=>choose(value)} aria-pressed={(active.instructionId?reply:draft.answers[active.field])===value}>{active.instructionId?value:readable(active.field,value)}</button>)}</div>:null}
       {alertCard}
-      <div className={styles.questionActions}>
+      {!active.handoff&&<div className={styles.questionActions}>
         {active.field!=='service'&&!active.conflict&&!active.instructionId&&<button type="button" className={styles.secondary} onClick={skipQuestion}>Not sure yet</button>}
         <span className={styles.hint}>{active.values?.length?'Choose an option, or type an answer below.':'Type your answer below and send it.'}</span>
-      </div>
+      </div>}
     </section>:<div ref={el=>{stageRef.current=el;}} className={styles.card}><h3 tabIndex={-1} data-stage-heading>Your details are complete.</h3><p className={styles.hint}>Review your project and add where to send your estimate.</p><div className={styles.actions}><button className={styles.primary} type="button" onClick={()=>{engage();showQuestions(current.current!);}}>Review your project <span aria-hidden="true">→</span></button></div></div>}
   </Message>;
   const reviewStage=draft.step===2&&!result&&!busy&&!preparingFiles&&<Message role="assistant">
@@ -687,6 +688,7 @@ export function P5Estimator({defaultService='',headingAs='h1',projectSource,layo
   const collapsedWithProgress=layout==='embedded'&&!expanded&&hasProgress;
   const dock=locked&&stage!==2&&stage!==3?<div className={styles.dockHint} role="status">Working on your project. Your progress is saved.</div>
     :stage===3?<div className={styles.dockBar}><a className={styles.primary} href={brand.consultationPath} onClick={()=>trackScopeEvent("onsiteRequested",draft.answers.service)}>Schedule a consultation</a><button type="button" className={styles.secondary} onClick={downloadPdf} disabled={locked}>Download PDF</button></div>
+    :stage===1&&active?.handoff?<div className={styles.dockBar}><a className={styles.primary} href={active.handoff.url}>{active.handoff.label}</a></div>
     :stage===2?<>{addingDetails&&composer}<div className={styles.dockBar}><button type="submit" form={formId} className={styles.primary} disabled={locked} aria-describedby={error?submitErrorId:undefined}>{busy?'Preparing your estimate…':'Get my estimate'}</button></div><div className={styles.dockRow}><span className={styles.dockHint}>{contactReady&&confirmed?'Your estimate opens right here and is emailed to you.':'Add your name and email above, then confirm your details.'}</span><button type="button" className={styles.ghost} disabled={locked} onClick={()=>setAddingDetails(v=>!v)} aria-expanded={addingDetails}>{addingDetails?'Cancel editing':'Add or edit details'}</button></div></>
     :<>{composer}{stage===0&&<p className={styles.dockHint}>PDF, images, Word, spreadsheets and text. Instructions such as “price only the trim” or “exclude plumbing” are followed throughout.</p>}</>;
   return <div ref={rootRef} role="region" aria-label="Project estimator" className={styles.root} data-p5-estimator data-version={ESTIMATOR_VERSION} data-theme={theme.mode} data-layout={layout} data-expanded={frameActive?'true':undefined} data-step={stage} aria-busy={Boolean(busy)} style={{...(estimatorThemeStyle(theme) as React.CSSProperties),'--p5-top':`${topInset}px`,'--p5-bottom':`${bottomInset}px`} as React.CSSProperties}>
