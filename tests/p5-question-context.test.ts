@@ -93,3 +93,27 @@ test('question selection does not mutate retained project evidence',()=>{
  const x=extraction(['Which trim profile? This affects price.']);const a={...trim};const before=JSON.stringify({a,x});
  scopeQuestions(a,x,[],[],[],'Price only trim');assert.equal(JSON.stringify({a,x}),before);
 });
+
+
+test('classification: source service survives an unsupported website brand',async()=>{
+ const {EXTRACTION_SYSTEM}=await import('../lib/p5/extraction.ts');
+ assert.match(EXTRACTION_SYSTEM,/Classify the actual requested work using the complete service field vocabulary/);
+ assert.doesNotMatch(EXTRACTION_SYSTEM,/select service only for the requested work that this company offers/);
+ assert.match(EXTRACTION_SYSTEM,/requested subset controls/);
+ assert.match(EXTRACTION_SYSTEM,/exclusions, negated alternatives/);
+});
+test('classification: follow-ups require a real project-specific pricing gap',async()=>{
+ const {EXTRACTION_SYSTEM}=await import('../lib/p5/extraction.ts');
+ assert.match(EXTRACTION_SYSTEM,/QUESTION NECESSITY:/);
+ assert.match(EXTRACTION_SYSTEM,/Do not generate a checklist from the service name/);
+ assert.match(EXTRACTION_SYSTEM,/not missing customer facts/);
+});
+test('classification: stale remodel refresh answers are replaced with build-appropriate choices',async()=>{
+ const {deriveScopeAnswers}=await import('../lib/p5/adaptive.ts');
+ const previous={...build,finish:'refresh'};
+ assert.equal(deriveScopeAnswers(previous).finish,undefined);
+ const q=scopeQuestions(previous,null);
+ assert.equal(q.length,1);assert.equal(q[0].field,'finish');
+ assert.ok(!q[0].values?.includes('refresh'));
+ assert.equal(previous.finish,'refresh','the source snapshot remains unchanged');
+});

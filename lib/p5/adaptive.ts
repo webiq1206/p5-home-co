@@ -18,6 +18,8 @@ export function manualScopeAnswers(current:ScopeAnswers,previous:ScopeExtraction
 }
 export function deriveScopeAnswers(input:ScopeAnswers){
   const answers={...input};
+  // A previous remodel answer cannot become the finish selection for a new build.
+  if(['new-construction','addition','adu'].includes(answers.service||'')&&answers.finish==='refresh')delete answers.finish;
   if(!answers.sqft?.trim()&&answers.length?.trim()&&answers.width?.trim()){
     const area=Number(answers.length.replaceAll(',',''))*Number(answers.width.replaceAll(',',''));
     if(Number.isFinite(area)&&area>0&&area<=1000000)answers.sqft=String(Math.round(area*100)/100);
