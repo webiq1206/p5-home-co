@@ -6,4 +6,4 @@ permissions:
   contents: write
 jobs:
   verify:
-    uses: webiq1206/boise-remodeling-co/.github/workflows/p5-dynamic-question-release.yml@ceaad6d57deb16a5d73b4706c680da751ff78f63
+    uses: webiq1206/boise-remodeling-co/.github/workflows/p5-dynamic-question-release.yml@36b54938a1727df82c726727f2dc251d2123ae0a
