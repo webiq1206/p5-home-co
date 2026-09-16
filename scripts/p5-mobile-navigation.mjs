@@ -13,7 +13,7 @@ try{
   await context.route('**/api/meta-capi',r=>r.fulfill({json:{ok:true}}));
   const page=await context.newPage();
   for(const route of parent?['/quote','/estimate/scope']:['/estimate','/','/estimate/scope',...extraRoutes]){
-   await page.goto(`http://127.0.0.1:5000${route}`,{waitUntil:'load'});
+   await page.goto(`${process.env.P5_TEST_BASE_URL||'http://127.0.0.1:5000'}${route}`,{waitUntil:'load'});
    if(route==='/')await page.locator('#calculator').first().scrollIntoViewIfNeeded();
    const estimator=page.locator('[data-p5-estimator]').first();await estimator.waitFor();
    const input=estimator.getByLabel('Tell us about your project',{exact:true});await input.waitFor().catch(async error=>{console.log('Navigation failure',width,route,await page.locator('body').innerText());await page.screenshot({path:'p5-verification/navigation-failure.png',fullPage:true});throw error;});

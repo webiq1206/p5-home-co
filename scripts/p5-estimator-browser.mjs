@@ -9,9 +9,13 @@ import {ESTIMATOR_BRAND as brand} from '../lib/p5/brand.ts';
 const base=process.env.P5_TEST_BASE_URL||'http://127.0.0.1:5000';
 await mkdir('p5-verification',{recursive:true});
 const browser=await (process.env.P5_TEST_BROWSER==='webkit'?webkit:chromium).launch();const results=[];
+// Brands ask their own extra questions before review (finish level for cabinets, trim length when trim is priced).
+// A choice is answered with its first option; an unknown quantity stays explicit with Not sure yet.
+const answerBrandQuestions=async(page,est,then)=>{for(let i=0;i<6;i++){const q=est.locator('section[aria-label="Project question"]');await then.or(q).first().waitFor();if(await then.count())return;const finish=q.getByRole('button',{name:'Standard finishes',exact:true});const unsure=q.getByRole('button',{name:'Not sure yet',exact:true});if(await finish.count())await finish.click();else if(await unsure.count())await unsure.click();else throw new Error('Unexpected brand question: '+(await q.innerText()).slice(0,120));await settled(page);}await then.waitFor();};
+
 const service=brand.services.includes('bathroom')?'bathroom':brand.services.includes('handyman')?'handyman':brand.services.includes('cabinet-install')?'cabinet-install':'new-construction';
 const serviceLabel=service==='handyman'?'Home repairs':service==='cabinet-install'?'Cabinets with installation':service==='new-construction'?'New home':'Bathroom remodel';
-const fullAnswers={service,taskList:'Complete the specified work. Repair three interior doors.',...(service.startsWith('cabinet-')?{cabinetRoom:'kitchen',cabinetBaseLf:'20',cabinetUpperLf:'0'}:service==='handyman'?{}:{sqft:'80',materials:'Porcelain tile',demolition:'Remove old finishes'})};
+const fullAnswers={service,taskList:'Complete the specified work. Repair three interior doors.',...(service.startsWith('cabinet-')?{cabinetRoom:'kitchen',cabinetBaseLf:'20',cabinetUpperLf:'0',finish:'mid-range'}:service==='handyman'?{}:{sqft:'80',materials:'Porcelain tile',demolition:'Remove old finishes'})};
 const result={status:'preliminary',range:{low:1000,high:1800},categoryRanges:[{category:'Carpentry',low:1000,high:1800}],lineItems:[{id:'repair',category:'Carpentry',description:'Repair three interior doors',quantity:3,unit:'EA',low:1000,high:1800,unitLow:1000/3,unitHigh:600,pricingStatus:'owner-planning-rate'}],scopeTasks:[{description:'Repair three interior doors',category:'Carpentry'}],summary:'Synthetic fixture scope.',includedCategories:['Carpentry'],allowances:[],assumptions:['Doors are standard interior slabs.'],exclusions:['Painting is excluded.'],factors:[],nextStep:'Schedule a scope review.',message:'Synthetic planning range.',disclaimer:'This is not a bid, quote, offer or guaranteed price.'};
 async function mock(context,{interruptions=false,scenario='full'}={}){
  // Keep synthetic estimator sessions out of production analytics and isolate third-party network failures.
@@ -79,6 +83,8 @@ for(const width of [320,390,430,768,1024,1440,1920]){
   await page.reload();await estimator.getByRole('button',{name:'Remove scope.txt'}).waitFor();assert.match(await description.inputValue(),/LongUnbrokenProjectSpecification/);await overflow(page);await capture(page,`${width}-scope`);
   await estimator.getByRole('button',{name:'Continue',exact:true}).click();await estimator.getByRole('heading',{name:'Review your project',exact:true}).waitFor();assert.equal(await estimator.getByRole('region',{name:'Project question'}).count(),0,'Known facts were asked again');
   // The primary action sits above the detailed scope, beside the summary.
+  // The submit dock renders once contact is ready; contact is captured first, then the action's placement is checked.
+  await estimator.getByLabel('Your name',{exact:true}).fill('Synthetic Test');await estimator.getByLabel('Email',{exact:true}).fill('customer@example.invalid');
   const action=estimator.getByRole('button',{name:'Get my estimate',exact:true});
   assert.ok(await action.evaluate(el=>el.getBoundingClientRect().top<document.querySelector('[data-p5-estimator] input[type=checkbox]').getBoundingClientRect().top),'Get my estimate must appear above the details');
   await noPinnedControls(estimator);
@@ -87,19 +93,19 @@ for(const width of [320,390,430,768,1024,1440,1920]){
   await page.reload();await estimator.getByRole('button',{name:'Get my estimate',exact:true}).waitFor();await estimator.getByRole('checkbox').waitFor();
   assert.equal(await estimator.getByRole('region',{name:'Project question'}).count(),0,'Restored known facts were asked again');
   await estimator.getByLabel('Your name',{exact:true}).fill('Synthetic Test');await estimator.getByLabel('Email',{exact:true}).fill('customer@example.invalid');
-  await estimator.getByRole('button',{name:'Back to my project',exact:true}).click();await estimator.getByText('Saved',{exact:true}).waitFor();assert.match(await description.inputValue(),/LongUnbroken/);
+  await estimator.getByRole('button',{name:'Back to the previous step',exact:true}).click();await description.waitFor();assert.match(await description.inputValue(),/LongUnbroken/);
   const calls=state.scopeCalls;await estimator.getByRole('button',{name:'Continue',exact:true}).click();await estimator.getByLabel('Email',{exact:true}).waitFor();assert.equal(await estimator.getByLabel('Email',{exact:true}).inputValue(),'customer@example.invalid');assert.equal(state.scopeCalls,calls,'Going back unnecessarily repeated analysis');
   // Details are grouped in accordions; editing one detail re-reads the scope before pricing.
   const details=estimator.locator('details',{hasText:'Additional scope details'}).first();if(!(await details.evaluate(el=>el.open)))await details.locator('summary').first().click();
   await estimator.getByRole('button',{name:'Edit Tasks and quantities',exact:true}).click();const tasks=estimator.getByLabel('Tasks and quantities',{exact:true});await tasks.fill(fullAnswers.taskList+' '+('LongMaterialSpecification'.repeat(80)));await page.setViewportSize({width,height:500});await overflow(page);await page.setViewportSize({width,height:900});await estimator.getByRole('button',{name:'Done',exact:true}).click();
   await estimator.getByRole('checkbox').check();await Promise.all([page.waitForResponse('**/api/p5-estimator/scope'),estimator.getByRole('button',{name:'Get my estimate',exact:true}).click()]);await settled(page);assert.ok(state.scopeCalls>calls);
-  await overflow(page);await capture(page,`${width}-review`);await estimator.getByRole('checkbox').check();await estimator.getByRole('button',{name:'Get my estimate',exact:true}).click();await estimator.getByText('Schedule a scope review.',{exact:true}).waitFor();
+  await overflow(page);await capture(page,`${width}-review`);await estimator.getByRole('checkbox').check();await estimator.getByRole('button',{name:'Get my estimate',exact:true}).click();await estimator.getByText('Synthetic planning range.',{exact:true}).waitFor();
   // The result is organized into category accordions with subtotals and labeled exclusions.
-  const carpentry=estimator.locator('details',{hasText:'Carpentry'}).first();await carpentry.waitFor();assert.match(await carpentry.locator('summary').innerText(),/\$1,000 to \$1,800/);
+  const carpentry=estimator.locator('details',{has:page.locator('summary',{hasText:'Carpentry'})}).first();await carpentry.waitFor();assert.match(await carpentry.locator('summary').innerText(),/\$1,000 to \$1,800/);
   if(!(await carpentry.evaluate(el=>el.open)))await carpentry.locator('summary').click();await estimator.getByText('Repair three interior doors',{exact:true}).first().waitFor();
-  const exclusions=estimator.locator('details',{hasText:'Exclusions'}).first();await exclusions.waitFor();assert.match(await exclusions.locator('summary').innerText(),/excluded/i);
+  const exclusions=estimator.locator('details',{has:page.locator('summary',{hasText:'Exclusions'})}).first();await exclusions.waitFor();assert.match(await exclusions.locator('summary').innerText(),/excluded/i);
   await overflow(page);assert.ok(!/overheadRecovery|operatingProfit|unitCost/.test(await estimator.innerText()));await capture(page,`${width}-result`);
-  await page.waitForTimeout(2100);assert.equal(state.postSubmissionSaves,0);await page.reload();await estimator.getByText('Schedule a scope review.',{exact:true}).waitFor();assert.equal(state.submissions,1);assert.deepEqual(errors,[]);
+  await page.waitForTimeout(2100);assert.equal(state.postSubmissionSaves,0);await page.reload();await estimator.getByText('Synthetic planning range.',{exact:true}).waitFor();assert.equal(state.submissions,1);assert.deepEqual(errors,[]);
   results.push({width,passed:true,checks:['null receipt preserves files','talk to text','typed and uploaded mixed input','failed upload and reload recovery','known facts skipped','primary action above details','no pinned controls','back and contact preservation','manual text reanalysis','category accordions','line-item privacy','single submission','result restoration','overflow']});
  }catch(error){results.push({width,passed:false,error:String(error),pageErrors:errors});await capture(page,`${width}-failure`).catch(()=>{});}await context.close();
 }
@@ -111,13 +117,13 @@ for(const width of [390,1440]){
   await est.getByLabel('Tell us about your project',{exact:true}).fill('Price the trim package.');await est.getByRole('button',{name:'Continue',exact:true}).click();
   const question=est.getByRole('region',{name:'Project question'});await question.getByText('Labor only or materials only?',{exact:true}).waitFor();
   assert.equal(await est.getByText('Should we include or exclude painting?',{exact:true}).count(),0,'Only one question is rendered');
-  await question.getByRole('button',{name:'Labor only',exact:true}).click();await question.getByRole('button',{name:'Continue',exact:true}).click();
-  await est.getByRole('alert').filter({hasText:'Temporary answer-save interruption'}).waitFor();assert.equal(await question.getByLabel('Your answer',{exact:true}).inputValue(),'Labor only');
-  await question.getByRole('button',{name:'Continue',exact:true}).click();await question.getByText('Should we include or exclude painting?',{exact:true}).waitFor();
-  assert.equal(await question.getByLabel('Your answer',{exact:true}).inputValue(),'','The next question starts with a fresh answer');
+  await question.getByRole('button',{name:'Labor only',exact:true}).click();
+  await est.getByRole('alert').filter({hasText:'Temporary answer-save interruption'}).waitFor();assert.equal(await est.getByLabel('Your answer',{exact:true}).inputValue(),'Labor only');
+  await est.getByRole('button',{name:'Send answer',exact:true}).click();await question.getByText('Should we include or exclude painting?',{exact:true}).waitFor();
+  assert.equal(await est.getByLabel('Your answer',{exact:true}).inputValue(),'','The next question starts with a fresh answer');
   await page.reload();await question.getByText('Should we include or exclude painting?',{exact:true}).waitFor();
-  await question.getByRole('button',{name:'Exclude it',exact:true}).click();await capture(page,`${width}-clarification`);await question.getByRole('button',{name:'Continue',exact:true}).click();
-  await est.getByLabel('Your name',{exact:true}).waitFor();assert.equal(state.scopeCalls,1,'Clarification answers never reread documents');await overflow(page);
+  await capture(page,`${width}-clarification`);await question.getByRole('button',{name:'Exclude it',exact:true}).click();
+  await answerBrandQuestions(page,est,est.getByLabel('Your name',{exact:true}));assert.equal(state.scopeCalls,1,'Clarification answers never reread documents');await overflow(page);
   results.push({scenario:'sequential-instructions',width,passed:true});
  }catch(error){results.push({scenario:'sequential-instructions',width,passed:false,error:String(error)});await capture(page,`${width}-instructions-failure`).catch(()=>{});}await context.close();
 }
@@ -132,16 +138,17 @@ for(const scenario of ['manual','conflict','unavailable']){
   if(scenario!=='conflict'){
    await settled(page);
    // Answer the service choice if asked, then only this project material questions; unknown numeric details remain explicit.
-   for(let i=0;i<10&&await est.getByRole('region',{name:'Project question'}).count();i++){
-    const q=est.getByRole('region',{name:'Project question'});const text=q.locator('textarea');const choice=q.getByRole('button',{name:serviceLabel,exact:true});
-    if(await choice.count()){await choice.click();await q.getByRole('button',{name:'Continue',exact:true}).click();}
-    else if(await text.count()){await text.fill('Repair three interior doors');await q.getByRole('button',{name:'Continue',exact:true}).click();}
+   for(let i=0;i<10&&await est.locator('section[aria-label="Project question"]').count();i++){
+    const q=est.locator('section[aria-label="Project question"]');const text=q.locator('textarea');const choice=q.getByRole('button',{name:serviceLabel,exact:true});
+    // Every question now shares the composer: chips answer a choice, unknown numeric details stay explicit via Not sure yet, and only free-text questions are typed.
+    if(await choice.count()){await choice.click();}
     else if(await q.getByRole('button',{name:'Not sure yet',exact:true}).count())await q.getByRole('button',{name:'Not sure yet',exact:true}).click();
+    else if(await est.getByLabel('Your answer',{exact:true}).count()){await est.getByLabel('Your answer',{exact:true}).fill('Repair three interior doors');await est.getByRole('button',{name:'Send answer',exact:true}).click();}
     else throw new Error('Unexpected required section');
     await settled(page);
    }
   }else{
-   await est.getByText('The documents disagree. Which work should be included?',{exact:true}).waitFor();await est.getByRole('button',{name:'Replace three doors',exact:true}).click();await est.getByRole('button',{name:'Continue',exact:true}).click();
+   await est.getByText('The documents disagree. Which work should be included?',{exact:true}).waitFor();await est.getByRole('button',{name:'Replace three doors',exact:true}).click();
   }
   await est.getByRole('heading',{name:'Review your project',exact:true}).waitFor();await overflow(page);results.push({scenario,passed:true});
  }catch(error){results.push({scenario,passed:false,error:String(error)});await capture(page,`${scenario}-failure`).catch(()=>{});}await context.close();
@@ -152,16 +159,22 @@ for(const width of [390,1440]){
  try{
   await page.goto(base+'/estimate/p5-preview');const est=page.locator('[data-p5-estimator]');
   await est.getByLabel('Tell us about your project',{exact:true}).fill('Install new baseboard trim.');await est.getByRole('button',{name:'Continue',exact:true}).click();
-  await est.getByRole('heading',{name:'Review your project',exact:true}).waitFor();
+  // Brands that price trim ask for its length before review; the others discover the gap at submission and ask then.
+  const trimQuestion=est.getByText('About how many linear feet of trim or baseboard are included?',{exact:true});const review=est.getByRole('heading',{name:'Review your project',exact:true});
+  await review.or(trimQuestion).first().waitFor();const askedUpFront=(await trimQuestion.count())>0;
+  if(askedUpFront){await est.getByLabel('Your answer',{exact:true}).fill('120');await est.getByRole('button',{name:'Send answer',exact:true}).click();await settled(page);await answerBrandQuestions(page,est,review);}
   await est.getByLabel('Your name',{exact:true}).fill('Synthetic Test');await est.getByLabel('Email',{exact:true}).fill('customer@example.invalid');await est.getByRole('checkbox').check();
   await est.getByRole('button',{name:'Get my estimate',exact:true}).click();
-  const alert=est.getByRole('alert');await alert.getByText('A few more details are needed',{exact:true}).waitFor();
-  await alert.getByRole('button',{name:/Trim or baseboard length in feet/}).click();
-  const question=est.getByRole('region',{name:'Project question'});await question.getByText('What should we use for trim or baseboard length in feet?',{exact:true}).waitFor();
-  await question.getByLabel('Trim or baseboard length in feet',{exact:true}).fill('120');await question.getByRole('button',{name:'Continue',exact:true}).click();await settled(page);
-  await est.getByRole('heading',{name:'Review your project',exact:true}).waitFor();
-  assert.equal(await est.getByLabel('Email',{exact:true}).inputValue(),'customer@example.invalid','Contact details survive the detour');
-  await est.getByRole('checkbox').check();await est.getByRole('button',{name:'Get my estimate',exact:true}).click();await est.getByText('Schedule a scope review.',{exact:true}).waitFor();
+  if(!askedUpFront){
+   const alert=est.getByRole('alert');await alert.getByText('A few more details are needed',{exact:true}).waitFor();
+   await alert.getByRole('button',{name:/Trim or baseboard length in feet/}).click();
+   const question=est.getByRole('region',{name:'Project question'});await question.getByText('About how many linear feet of trim or baseboard are included?',{exact:true}).waitFor();
+   await est.getByLabel('Your answer',{exact:true}).fill('120');await est.getByRole('button',{name:'Send answer',exact:true}).click();await settled(page);
+   await answerBrandQuestions(page,est,review);
+   assert.equal(await est.getByLabel('Email',{exact:true}).inputValue(),'customer@example.invalid','Contact details survive the detour');
+   await est.getByRole('checkbox').check();await est.getByRole('button',{name:'Get my estimate',exact:true}).click();
+  }
+  await est.getByText('Synthetic planning range.',{exact:true}).waitFor();
   assert.equal(state.submissions,1);await capture(page,`${width}-missing-recovered`);
   results.push({scenario:'missing-information',width,passed:true});
  }catch(error){results.push({scenario:'missing-information',width,passed:false,error:String(error)});await capture(page,`${width}-missing-failure`).catch(()=>{});}await context.close();
@@ -180,9 +193,9 @@ for(const width of [320,390,1440]){
   progressState.finishReading=true;
   await est.getByLabel('Your name',{exact:true}).waitFor();
   assert.equal(await est.getByRole('button',{name:'Download your project summary',exact:true}).count(),0,'No PDF before contact capture');
-  assert.equal(await est.getByText('Schedule a scope review.',{exact:true}).count(),0,'No estimate result before contact capture');
-  await est.getByRole('checkbox').check();await est.getByRole('button',{name:'Get my estimate',exact:true}).click();
-  await est.getByRole('alert').filter({hasText:'Enter your name and a valid email address'}).waitFor();
+  assert.equal(await est.getByText('Synthetic planning range.',{exact:true}).count(),0,'No estimate result before contact capture');
+  // The estimate action only renders once a name and a valid email are captured; nothing can be submitted before that.
+  await est.getByRole('checkbox').check();assert.equal(await est.getByRole('button',{name:'Get my estimate',exact:true}).count(),0,'The estimate action waits for contact');
   assert.equal(progressState.pricingPolls,0);assert.equal(progressState.submissions,0,'Contact is required before an estimate can be revealed');
   await est.getByLabel('Your name',{exact:true}).fill('Synthetic Test');await est.getByLabel('Email',{exact:true}).fill('customer@example.invalid');
   await est.getByRole('checkbox').check();
@@ -194,7 +207,7 @@ for(const width of [320,390,1440]){
   progressState.pricingStage='research';
   await page.getByRole('heading',{name:'Researching missing local rates',exact:true}).waitFor();await overflow(page);await capture(page,`${width}-live-pricing`);
   progressState.pricingStage='done';
-  await est.getByText('Schedule a scope review.',{exact:true}).waitFor();results.push({width,scenario:'live-progress',passed:true});
+  await est.getByText('Synthetic planning range.',{exact:true}).waitFor();results.push({width,scenario:'live-progress',passed:true});
  }catch(error){results.push({width,scenario:'live-progress',passed:false,error:String(error)});await capture(page,`${width}-progress-failure`).catch(()=>{});}await context.close();
 }
 const paths=brand.id==='p5'?['/estimate','/estimate/scope','/quote',...['kitchen-remodel','bathroom-remodel','home-addition','adu','custom-home','custom-cabinets','handyman'].map(s=>'/quote/'+s)]:['/estimate','/estimate/scope','/#calculator',...(brand.services.includes('re10')?['/re-10-repairs-boise']:[]),...(brand.id==='remodeling'?['/remodel-plans-boise']:[])];
