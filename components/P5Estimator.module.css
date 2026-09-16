@@ -303,3 +303,12 @@
   .root .navBtn{min-width:40px;padding:6px 8px}
 }
 @media(prefers-reduced-motion:reduce){.spinner{animation:none;border-style:dotted}.root .iconBtn[data-listening=true]{animation:none}.processingMeter progress::-webkit-progress-value{transition:none}}
+
+/* Project-specific chat question presentation. */
+.root .question{padding:0;border:0;background:transparent;border-radius:0}
+.root .question h2{font-family:inherit;font-size:18px;line-height:1.45;letter-spacing:0}
+.root .question .choices{display:flex;flex-wrap:wrap;gap:8px}
+.root .question .choice{width:auto;min-height:44px;padding:9px 14px;border-radius:16px;flex:0 1 auto;font-size:15px}
+.root .question .choice::before{display:none}
+.root .composerText{min-height:44px}
+@media(max-width:600px){.root .composer{padding:8px 10px}.root .threadInner{padding:16px 14px 20px}.root .questionActions{gap:8px}.root .accordionTitle{font-size:14px}}
