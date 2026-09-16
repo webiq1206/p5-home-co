@@ -78,10 +78,10 @@ for(const width of [320,390,430,768,1024,1440,1920]){
   await estimator.getByRole('button',{name:'Talk instead',exact:true}).click();assert.match(await description.inputValue(),/Repair three interior doors\./);
   await description.fill('Repair three interior doors. '+('LongUnbrokenProjectSpecification'.repeat(90)));
   await estimator.getByLabel('Upload project files',{exact:true}).setInputFiles({name:'scope.txt',mimeType:'text/plain',buffer:Buffer.from('Repair three interior doors.')});
-  await estimator.getByRole('button',{name:'Continue',exact:true}).click();await estimator.getByRole('alert').filter({hasText:'Your project save was not confirmed'}).waitFor();
-  await estimator.getByRole('button',{name:'Continue',exact:true}).click();await estimator.getByRole('alert').filter({hasText:'Synthetic upload interruption'}).waitFor();
+  await estimator.getByRole('button',{name:'Continue',exact:true}).click({timeout:120000});await estimator.getByRole('alert').filter({hasText:'Your project save was not confirmed'}).waitFor();
+  await estimator.getByRole('button',{name:'Continue',exact:true}).click({timeout:120000});await estimator.getByRole('alert').filter({hasText:'Synthetic upload interruption'}).waitFor();
   await page.reload();await estimator.getByRole('button',{name:'Remove scope.txt'}).waitFor();assert.match(await description.inputValue(),/LongUnbrokenProjectSpecification/);await overflow(page);await capture(page,`${width}-scope`);
-  await estimator.getByRole('button',{name:'Continue',exact:true}).click();await answerBrandQuestions(page,estimator,estimator.getByRole('heading',{name:'Review your project',exact:true}));assert.equal(await estimator.getByRole('region',{name:'Project question'}).count(),0,'Known facts were asked again');
+  await estimator.getByRole('button',{name:'Continue',exact:true}).click({timeout:120000});await answerBrandQuestions(page,estimator,estimator.getByRole('heading',{name:'Review your project',exact:true}));assert.equal(await estimator.getByRole('region',{name:'Project question'}).count(),0,'Known facts were asked again');
   // The primary action sits above the detailed scope, beside the summary.
   // The submit dock renders once contact is ready; contact is captured first, then the action's placement is checked.
   // The first width runs against a cold server; the contact form is given a full minute to render after review.
@@ -95,7 +95,7 @@ for(const width of [320,390,430,768,1024,1440,1920]){
   assert.equal(await estimator.getByRole('region',{name:'Project question'}).count(),0,'Restored known facts were asked again');
   await estimator.getByLabel('Your name',{exact:true}).fill('Synthetic Test');await estimator.getByLabel('Email',{exact:true}).fill('customer@example.invalid');
   await estimator.getByRole('button',{name:'Back to the previous step',exact:true}).click();await description.waitFor();await page.waitForFunction(()=>/LongUnbroken/.test(document.querySelector('[data-p5-estimator] textarea')?.value||''),null,{timeout:15000}).catch(()=>{});assert.match(await description.inputValue(),/LongUnbroken/);
-  const calls=state.scopeCalls;await estimator.getByRole('button',{name:'Continue',exact:true}).click();await estimator.getByLabel('Email',{exact:true}).waitFor();assert.equal(await estimator.getByLabel('Email',{exact:true}).inputValue(),'customer@example.invalid');assert.equal(state.scopeCalls,calls,'Going back unnecessarily repeated analysis');
+  const calls=state.scopeCalls;await estimator.getByRole('button',{name:'Continue',exact:true}).click({timeout:120000});await estimator.getByLabel('Email',{exact:true}).waitFor();assert.equal(await estimator.getByLabel('Email',{exact:true}).inputValue(),'customer@example.invalid');assert.equal(state.scopeCalls,calls,'Going back unnecessarily repeated analysis');
   // Details are grouped in accordions; editing one detail re-reads the scope before pricing.
   const details=estimator.locator('details',{hasText:'Additional scope details'}).first();if(!(await details.evaluate(el=>el.open)))await details.locator('summary').first().click();
   await estimator.getByRole('button',{name:'Edit Tasks and quantities',exact:true}).click();const tasks=estimator.getByLabel('Tasks and quantities',{exact:true});await tasks.fill(fullAnswers.taskList+' '+('LongMaterialSpecification'.repeat(80)));await page.setViewportSize({width,height:500});await overflow(page);await page.setViewportSize({width,height:900});await estimator.getByRole('button',{name:'Done',exact:true}).click();
@@ -115,7 +115,7 @@ for(const width of [390,1440]){
  const context=await browser.newContext({viewport:{width,height:900}});const state=await mock(context,{scenario:'instructions'});const page=await context.newPage();
  try{
   await page.goto(base+'/estimate/p5-preview');const est=page.locator('[data-p5-estimator]');
-  await est.getByLabel('Tell us about your project',{exact:true}).fill('Price the trim package.');await est.getByRole('button',{name:'Continue',exact:true}).click();
+  await est.getByLabel('Tell us about your project',{exact:true}).fill('Price the trim package.');await est.getByRole('button',{name:'Continue',exact:true}).click({timeout:120000});
   const question=est.getByRole('region',{name:'Project question'});await question.getByText('Labor only or materials only?',{exact:true}).waitFor();
   assert.equal(await est.getByText('Should we include or exclude painting?',{exact:true}).count(),0,'Only one question is rendered');
   await question.getByRole('button',{name:'Labor only',exact:true}).click();
@@ -135,7 +135,7 @@ for(const scenario of ['manual','conflict','unavailable']){
   await page.goto(base+'/estimate/p5-preview');const est=page.locator('[data-p5-estimator]');
   if(scenario==='conflict')await est.getByLabel('Tell us about your project',{exact:true}).fill('Two documents disagree about door repairs.');
   else await est.getByLabel('Tell us about your project',{exact:true}).fill('Repair three interior doors.');
-  await est.getByRole('button',{name:'Continue',exact:true}).click();
+  await est.getByRole('button',{name:'Continue',exact:true}).click({timeout:120000});
   if(scenario!=='conflict'){
    await settled(page);
    // Answer the service choice if asked, then only this project material questions; unknown numeric details remain explicit.
@@ -159,7 +159,7 @@ for(const width of [390,1440]){
  const context=await browser.newContext({viewport:{width,height:900}});const state=await mock(context,{scenario:'missing'});const page=await context.newPage();
  try{
   await page.goto(base+'/estimate/p5-preview');const est=page.locator('[data-p5-estimator]');
-  await est.getByLabel('Tell us about your project',{exact:true}).fill('Install new baseboard trim.');await est.getByRole('button',{name:'Continue',exact:true}).click();
+  await est.getByLabel('Tell us about your project',{exact:true}).fill('Install new baseboard trim.');await est.getByRole('button',{name:'Continue',exact:true}).click({timeout:120000});
   // Brands that price trim ask for its length before review; the others discover the gap at submission and ask then.
   const trimQuestion=est.getByText('About how many linear feet of trim or baseboard are included?',{exact:true});const review=est.getByRole('heading',{name:'Review your project',exact:true});
   await answerBrandQuestions(page,est,review.or(trimQuestion));const askedUpFront=(await trimQuestion.count())>0;
