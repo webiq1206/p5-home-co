@@ -7,10 +7,15 @@ await mkdir('node_modules/.cache',{recursive:true});const dir=await mkdtemp(path
 delete process.env.DATABASE_URL;
 // Requests drive jobs while they stay open; keep the hold short so the script observes intermediate states.
 process.env.P5_JOB_HOLD_MS='200';
+// The simulated read sleeps 350 ms per stage, longer than that hold, so a
+// request returns while a stage is still running and the live page status is
+// observable. A stage shorter than the hold completes inside it, and a
+// completed job carries no in-flight status - which is correct, and left
+// this script unable to observe the state it asserts.
 try{
  await cp('lib/p5',dir,{recursive:true});
  await writeFile(path.join(dir,'database.ts'),`import {PGlite} from '@electric-sql/pglite';export const database=new PGlite();export async function query(s:string,v:unknown[]=[]){return (await database.query(s,v)).rows;}`);
- await writeFile(path.join(dir,'analysisWork.ts'),`import {query} from './database';export const calls:string[]=[];export let fail=false;export function failure(value:boolean){fail=value;}export function analysisWorkKey(draft:any,text:string){return 'analysis-fixture-'+text;}export async function advanceAnalysis(draft:any,text:string){const key=analysisWorkKey(draft,text);const [row]=await query('SELECT payload FROM p5_estimator_work WHERE draft_id=$1 AND work_key=$2',[draft.id,key]);const stage=row?.payload?.stage||0;if(stage>=2)return {pending:false,analysis:{extraction:{reviewNotes:[]}}};calls.push(text+stage);if(fail)throw new Error('Synthetic provider outage');const processing={phase:'reading',message:'Reading original pages '+(stage*8+1)+' to '+(stage*8+8),readPages:stage*8,totalPages:16,updatedAt:new Date().toISOString()};await query('INSERT INTO p5_estimator_work(draft_id,work_key,payload) VALUES($1,$2,$3::jsonb) ON CONFLICT(draft_id,work_key) DO UPDATE SET payload=EXCLUDED.payload',[draft.id,key,JSON.stringify({stage:stage+1,processing})]);await new Promise(r=>setTimeout(r,80));return {pending:true,progress:processing.message};}`);
+ await writeFile(path.join(dir,'analysisWork.ts'),`import {query} from './database';export const calls:string[]=[];export let fail=false;export function failure(value:boolean){fail=value;}export function analysisWorkKey(draft:any,text:string){return 'analysis-fixture-'+text;}export async function advanceAnalysis(draft:any,text:string){const key=analysisWorkKey(draft,text);const [row]=await query('SELECT payload FROM p5_estimator_work WHERE draft_id=$1 AND work_key=$2',[draft.id,key]);const stage=row?.payload?.stage||0;if(stage>=2)return {pending:false,analysis:{extraction:{reviewNotes:[]}}};calls.push(text+stage);if(fail)throw new Error('Synthetic provider outage');const processing={phase:'reading',message:'Reading original pages '+(stage*8+1)+' to '+(stage*8+8),readPages:stage*8,totalPages:16,updatedAt:new Date().toISOString()};await query('INSERT INTO p5_estimator_work(draft_id,work_key,payload) VALUES($1,$2,$3::jsonb) ON CONFLICT(draft_id,work_key) DO UPDATE SET payload=EXCLUDED.payload',[draft.id,key,JSON.stringify({stage:stage+1,processing})]);await new Promise(r=>setTimeout(r,350));return {pending:true,progress:processing.message};}`);
  const mod=(n:string)=>import(pathToFileURL(path.join(dir,n+'.ts')).href);
  const store=await mod('store'),db=await mod('database'),background=await mod('backgroundJobs'),reader=await mod('analysisWork');
  const id=randomUUID(),key=randomBytes(32).toString('hex');
@@ -20,10 +25,12 @@ try{
  let live:any;
  for(let n=0;n<40;n++){await new Promise(r=>setTimeout(r,10));live=await background.queuedJob(input);if(live.processing?.phase==='reading')break;}
  assert.equal(live.processing.phase,'reading');assert.equal(live.processing.totalPages,16);assert.ok(live.processing.startedAt);
- await new Promise(r=>setTimeout(r,120));
- // Workers progress from saved SQL without any further browser polling.
- for(let n=0;n<5;n++)await background.drainEstimatorJobs();
- const [complete]=await db.query("SELECT payload FROM p5_estimator_work WHERE work_key LIKE 'background-v1-%' AND draft_id=$1",[id]);
+ // Workers progress from saved SQL without any further browser polling. A
+ // running job is owned by its in-process runner while it holds the lease, so
+ // a drain no longer steps it (it did before request-driven processing);
+ // wait, bounded, for the runner to finish on its own.
+ let complete:any;
+ for(let n=0;n<40;n++){await new Promise(r=>setTimeout(r,60));await background.drainEstimatorJobs();[complete]=await db.query("SELECT payload FROM p5_estimator_work WHERE work_key LIKE 'background-v1-%' AND draft_id=$1",[id]);if(complete?.payload?.state==='complete')break;}
  assert.equal(complete.payload.state,'complete');assert.equal(reader.calls.length,2);
  await background.queuedJob(input);assert.equal(reader.calls.length,2,'completed work is not purchased again');
  const interrupted={...input,text:'Interrupted queue fixture'};reader.failure(true);
