@@ -59,7 +59,11 @@ export function questionContext(answers: ScopeAnswers, extraction: ScopeExtracti
   const restrictive = clauses(explicitDirections).filter(s => /\bonly\b|limited to|restrict.*to/i.test(s)
     && !/^(?:labor|materials?|supply|installation)[ -]only[.!]?$/i.test(s.trim()));
   const restriction = restrictive.filter(s => Object.values(TOPICS).some(re => re.test(s))).join('\n');
-  const authored = joined([sourceText, answers.taskList, answers.otherDetails,
+  const statedScope = (extraction?.facts || []).filter(f => f.confidence >= .85 && f.value?.trim()
+    && f.basis !== 'visual' && f.basis !== 'inferred'
+    && ['taskList','otherDetails','demolition','structural','plumbing','electrical','mechanical','installation','materials','fixtures'].includes(f.field))
+    .map(f => f.value).join('\n');
+  const authored = joined([sourceText, statedScope, answers.taskList, answers.otherDetails,
     answers.demolition, answers.structural, answers.plumbing, answers.electrical,
     answers.mechanical, answers.installation, answers.materials, answers.fixtures]);
   const takeoffs = (extraction?.takeoffs || []).filter(t => {
@@ -71,9 +75,7 @@ export function questionContext(answers: ScopeAnswers, extraction: ScopeExtracti
   const text = joined([authored, directions, ...takeoffs.map(t => `${t.component}: ${t.description}`)]);
   const exclusions = [...clauses(answers.exclusions || ''), ...(extraction?.instructions?.exclusions || [])];
   // A general service label alone does not make every trade part of a repair request.
-  const fullProject = !restriction && (BUILDS.has(service)
-    || REMODELS.has(service) && /\b(?:(?:full|complete|entire|comprehensive) (?:kitchen|bathroom|home|house|remodel)|gut (?:the |a )?(?:kitchen|bathroom|home|house)|whole.home remodel)\b/i.test(authored)
-    || REMODELS.has(service) && !authored.trim());
+  const fullProject = !restriction && (BUILDS.has(service) || REMODELS.has(service));
   return {answers, service, text, positive: positiveClauses(text).join('\n'), restriction,
     exclusions, takeoffs, extraction, fullProject,
     laborOnly: extraction?.instructions?.laborOnly === true || /\blabou?r[ -]only\b/i.test(directions)};
@@ -128,6 +130,7 @@ export function scopeFieldApplies(field: ScopeField, context: QuestionContext): 
   if (topic && excluded(context, topic)) return false;
   if (field === 'service' || field === 'taskList' || field === 'estimatingInstructions') return true;
   if (field === 'address') return false;
+  if (!context.service) return true;
   if (field === 'finish') return !context.laborOnly && !context.restriction
     && (context.fullProject || context.service.startsWith('cabinet-'));
   if (field === 'garageIncluded') return context.service === 'new-construction' && !context.restriction
@@ -148,7 +151,7 @@ export function scopeFieldApplies(field: ScopeField, context: QuestionContext): 
   if (field === 'sqft') return !context.restriction && (context.fullProject || topicActive(context, 'paint'));
   if (field === 'rooms' || field === 'bathrooms' || field === 'stories') return context.fullProject;
   if (field === 'laborHours') return /\b(?:time and materials|hourly|labor hours|labour hours)\b/i.test(context.positive);
-  if (topic) return topicActive(context, topic);
+  if (topic) return topicActive(context, topic) || context.fullProject && ['flooringSqft','tileSqft','trimLf'].includes(field);
   return true;
 }
 
@@ -160,7 +163,8 @@ export function dynamicScopeFields(answers: ScopeAnswers, extraction: ScopeExtra
   const fields = new Set<ScopeField>();
   const hasWork = Boolean(joined([sourceText, answers.taskList, answers.otherDetails, answers.demolition,
     answers.structural, answers.plumbing, answers.electrical, answers.installation]).trim()
-    || extraction?.takeoffs?.length || extraction?.instructions?.inclusions?.length);
+    || extraction?.takeoffs?.length || extraction?.instructions?.inclusions?.length
+    || answers.service?.startsWith('cabinet-') && [answers.cabinetBaseLf,answers.cabinetUpperLf,answers.cabinetTallLf].some(v=>v?.trim()));
   if (!hasWork) fields.add('taskList');
   if (context.fullProject) fields.add('sqft');
   if (scopeFieldApplies('garageIncluded', context)) fields.add('garageIncluded');
@@ -173,12 +177,17 @@ export function dynamicScopeFields(answers: ScopeAnswers, extraction: ScopeExtra
   }
   // A complete whole-project assembly can use documented quantity allowances;
   // do not turn every unspecified trade measurement into a homeowner questionnaire.
-  if (context.fullProject && sourceAnswered(context, 'sqft')) {
+  if (context.fullProject) {
     for (const field of ['flooringSqft', 'tileSqft', 'demolitionSqft', 'trimLf', 'cabinetBaseLf', 'cabinetUpperLf', 'cabinetTallLf'] as ScopeField[]) fields.delete(field);
   }
   for (const field of pricedFields) if (scopeFieldApplies(field, context)) fields.add(field);
   for (const clarification of extraction?.clarifications || []) {
-    if (scopeFieldApplies(clarification.field, context)) fields.add(clarification.field);
+    const field = clarification.field;
+    const optional = ['location','address','schedule','urgency','projectMonths','phasing'].includes(field);
+    const numeric = ['fixtureCount','rooms','stories','bathrooms','laborHours','countertopSqft','length','width','sqft','flooringSqft','tileSqft','demolitionSqft','trimLf','cabinetBaseLf','cabinetUpperLf','cabinetTallLf','garageSqft','coveredOutdoorSqft'].includes(field);
+    if (optional && !pricedFields.includes(field)) continue;
+    if (numeric && !pricedFields.includes(field) && !fields.has(field)) continue;
+    if (scopeFieldApplies(field, context)) fields.add(field);
   }
   // Unknown production hours are an estimator's calculation. Ask about the
   // actual work, not a contractor-only labor budget the customer cannot know.
@@ -196,7 +205,13 @@ export function dynamicScopeFields(answers: ScopeAnswers, extraction: ScopeExtra
 /** Remove only questions demonstrably answered or outside the selected scope. Unknown
  * specialist decisions stay visible rather than being silently treated as resolved. */
 export function scopePromptApplies(field: ScopeField | undefined, question: string, context: QuestionContext): boolean {
-  if (field && !scopeFieldApplies(field, context)) return false;
+  // A pending source decision must not disappear merely because it has no answer.
+  if (field === 'address') return false;
+  const topic = field ? FIELD_TOPIC[field] : undefined;
+  if (topic && excluded(context, topic)) return false;
+  if (field === 'finish' && !scopeFieldApplies(field, context)) return false;
+  if (field === 'garageSqft' && context.answers.garageIncluded === 'no') return false;
+  if (field === 'cabinetRoom' && context.service && !context.service.startsWith('cabinet-')) return false;
   if (field && sourceAnswered(context, field) && !context.extraction?.conflicts.some(c => c.field === field)) return false;
   const topics = (Object.keys(TOPICS) as Topic[]).filter(topic => TOPICS[topic].test(question));
   if (topics.length && topics.every(topic => excluded(context, topic))) return false;

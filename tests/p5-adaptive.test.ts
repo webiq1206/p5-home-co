@@ -138,9 +138,9 @@ test('an itemized document does not ask for the task list again',()=>{
   assert.ok(!answered.includes('taskList'),'a document with takeoffs answers it');
 });
 
-test('finish level is asked whenever it is missing on work it prices, and never for repairs',()=>{
+test('specified materials replace generic finish tiers; unspecified scopes retain their planning assumption',()=>{
  const asked=scopeQuestions({service:'bathroom',sqft:'80',materials:'Porcelain tile',demolition:'Remove tile',taskList:'Tile shower and floor'},null).map(q=>q.field);
- assert.ok(asked.includes('finish'),'described materials do not replace the finish level');
+ assert.ok(!asked.includes('finish'),'specified materials must not trigger a redundant generic finish tier');
  assert.deepEqual(scopeQuestions({service:'bathroom',sqft:'80',materials:'Porcelain tile',finish:'high-end',demolition:'Remove tile',taskList:'Tile shower and floor'},null),[]);
  assert.ok(!scopeQuestions({service:'handyman',taskList:'Repair three doors'},null).some(q=>q.field==='finish'));
  assert.match(scopeAssumptions({service:'kitchen',sqft:'200'}).join(' '),/standard finishes are assumed/i);
