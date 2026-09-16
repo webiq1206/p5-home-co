@@ -6,4 +6,4 @@ permissions:
   contents: write
 jobs:
   verify:
-    uses: webiq1206/boise-remodeling-co/.github/workflows/p5-question-context.yml@d967d904d1612594a9564bedd9674e91061c5f1b
+    uses: webiq1206/boise-remodeling-co/.github/workflows/p5-question-context.yml@a0c7e1d2b6bc54a5584a1193da98009719ca5a32
