@@ -84,7 +84,8 @@ for(const width of [320,390,430,768,1024,1440,1920]){
   await estimator.getByRole('button',{name:'Continue',exact:true}).click();await answerBrandQuestions(page,estimator,estimator.getByRole('heading',{name:'Review your project',exact:true}));assert.equal(await estimator.getByRole('region',{name:'Project question'}).count(),0,'Known facts were asked again');
   // The primary action sits above the detailed scope, beside the summary.
   // The submit dock renders once contact is ready; contact is captured first, then the action's placement is checked.
-  await estimator.getByLabel('Your name',{exact:true}).fill('Synthetic Test');await estimator.getByLabel('Email',{exact:true}).fill('customer@example.invalid');
+  // The first width runs against a cold server; the contact form is given a full minute to render after review.
+  await estimator.getByLabel('Your name',{exact:true}).waitFor({timeout:60000});await estimator.getByLabel('Your name',{exact:true}).fill('Synthetic Test');await estimator.getByLabel('Email',{exact:true}).fill('customer@example.invalid');
   const action=estimator.getByRole('button',{name:'Get my estimate',exact:true});
   assert.ok(await action.evaluate(el=>el.getBoundingClientRect().top<document.querySelector('[data-p5-estimator] input[type=checkbox]').getBoundingClientRect().top),'Get my estimate must appear above the details');
   await noPinnedControls(estimator);
@@ -107,7 +108,7 @@ for(const width of [320,390,430,768,1024,1440,1920]){
   await overflow(page);assert.ok(!/overheadRecovery|operatingProfit|unitCost/.test(await estimator.innerText()));await capture(page,`${width}-result`);
   await page.waitForTimeout(2100);assert.equal(state.postSubmissionSaves,0);await page.reload();await estimator.getByText('Synthetic planning range.',{exact:true}).waitFor();assert.equal(state.submissions,1);assert.deepEqual(errors,[]);
   results.push({width,passed:true,checks:['null receipt preserves files','talk to text','typed and uploaded mixed input','failed upload and reload recovery','known facts skipped','primary action above details','no pinned controls','back and contact preservation','manual text reanalysis','category accordions','line-item privacy','single submission','result restoration','overflow']});
- }catch(error){results.push({width,passed:false,error:String(error),pageErrors:errors});await capture(page,`${width}-failure`).catch(()=>{});}await context.close();
+ }catch(error){const state=await page.evaluate(()=>{const r=document.querySelector('[data-p5-estimator]');if(!r)return null;const vis=e=>{const b=e.getBoundingClientRect();return b.width>0&&b.height>0;};return {labels:[...r.querySelectorAll('label')].map(e=>e.innerText.trim().slice(0,40)+(vis(e)?'':' [hidden]')),headings:[...r.querySelectorAll('h1,h2,h3')].map(e=>e.innerText.trim().slice(0,50)),buttons:[...r.querySelectorAll('button')].map(e=>(e.getAttribute('aria-label')||e.innerText).trim().slice(0,40)),text:r.innerText.slice(0,400)};}).catch(()=>null);results.push({width,passed:false,error:String(error),pageErrors:errors,state});await capture(page,`${width}-failure`).catch(()=>{});}await context.close();
 }
 // Reproduce two clarification questions, a failed save, same-answer retry and reload.
 for(const width of [390,1440]){
