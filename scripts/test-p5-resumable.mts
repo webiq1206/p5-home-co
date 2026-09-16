@@ -32,19 +32,23 @@ try{
  let active=0,peak=0;const counts=new Map<string,number>();const pagesSeen=new Set<number>();const failingSection=/\(pages? 9(?: to \d+)? of/;const provider=async(_url:any,options:any)=>{
    const payload=JSON.parse(options.body),name=payload.messages[0].content[0].text;
    const manifest=JSON.parse(name.split('Original page manifest: ')[1]);
-   const submitted=await PDFDocument.load(Buffer.from(payload.messages[0].content[1].source.data,'base64'));
-   assert.equal(submitted.getPageCount(),manifest.length,'every manifest page must actually reach the provider');
+   // One page per request. The page bytes travel as the document part; the reader's third and later attempts read from the text layer instead and carry no bytes.
+   const documentPart=payload.messages[0].content.find((part:any)=>part.type==='document');
+   if(documentPart){const submitted=await PDFDocument.load(Buffer.from(documentPart.source.data,'base64'));assert.equal(submitted.getPageCount(),manifest.length,'every manifest page must actually reach the provider');}
+   else assert.match(name,/\(text layer\)/,'a request without page bytes must be the text-layer fallback');
    for(const p of manifest)pagesSeen.add(p.page);
-   counts.set(name,(counts.get(name)||0)+1);active++;peak=Math.max(peak,active);
+   // Later attempts serialize the manifest with another key order, so requests are counted by page label.
+   const label=name.match(/\(pages? [^)]*\)/)?.[0]||name;
+   counts.set(label,(counts.get(label)||0)+1);active++;peak=Math.max(peak,active);
    try{
      await new Promise(r=>setTimeout(r,15));
-     if(failingSection.test(name)&&counts.get(name)===1)return new Response('temporary failure',{status:503});
+     if(failingSection.test(name)&&counts.get(label)===1)return new Response('temporary failure',{status:503});
      return Response.json({stop_reason:'end_turn',content:[{type:'text',text:JSON.stringify({summary:'One bathroom',facts:[{field:'sqft',value:'80',confidence:.99,source:'large-plan.pdf',evidence:'80 square feet',basis:'stated'}],conflicts:[],missingInformation:[],reviewNotes:[],clarifications:[],pages:manifest.map((p:any)=>({...p,sheet:`A${p.page}`,revision:p.page===256?'FINAL':'',status:'read',notes:[]})),takeoffs:[]})}]});
    }finally{active--;}
  };
  const draft=await store.readDraft(id,key);let step:any;let n=0;
  do{step=await work.advanceAnalysis(draft,'Bathroom remodel',{},provider);assert.ok(++n<80);}while(step.pending);
- assert.equal(step.analysis.extraction.facts[0].value,'80');assert.equal(pagesSeen.size,256,'all 256 pages must be processed');assert.equal(counts.size,64,'ordinary pages are read four per request');assert.equal([...counts.values()].filter(n=>n===2).length,1,'only the failed section is retried');assert.ok([...counts.values()].every(n=>n===1||n===2));
+ assert.equal(step.analysis.extraction.facts[0].value,'80');assert.equal(pagesSeen.size,256,'all 256 pages must be processed');assert.equal(counts.size,256,'pages are read one per request');assert.equal([...counts.values()].filter(n=>n===2).length,1,'only the failed page is retried');assert.ok([...counts.values()].every(n=>n===1||n===2));
  assert.equal(step.analysis.extraction.documentCoverage.complete,true);assert.equal(step.analysis.extraction.documentCoverage.expectedPages,256);
  assert.deepEqual(step.analysis.extraction.documentCoverage.pages.map((p:any)=>p.page),Array.from({length:256},(_,i)=>i+1));
  assert.equal(step.analysis.extraction.documentCoverage.pages[255].revision,'FINAL');assert.equal(peak,progress.analysisConcurrency(),'independent sections use bounded parallel processing');
@@ -65,12 +69,12 @@ try{
  const analyze=async()=>{const response=await scopeApi.postScope(new Request('https://test.local/api/p5-estimator/scope',{method:'POST',headers,body:form}));assert.equal(response.status,200,await response.clone().text());const data=await response.json();if(Number.isInteger(data.draftRevision))form.set('revision',String(data.draftRevision));else if(data.draft?.revision)form.set('revision',String(data.draft.revision));return data;};
  let response:any;let turns=0;do{response=await analyze();assert.ok(++turns<80);}while(response.pending);
  assert.match(response.warning,/automatic reading could not finish/,'failed sections must expose the retry control');
- assert.ok(response.draft.extraction.reviewNotes.some((note:string)=>failingSection.test(note)));
+ assert.ok(response.draft.extraction.reviewNotes.some((note:string)=>/automatic reading could not finish for pages? 9\b/.test(note)),'the review note must name the unread page');
  const completedBefore=[...sectionCalls].filter(([name])=>!failingSection.test(name));
  middleFails=false;form.set('retry','true');response=await analyze();form.set('retry','false');
  turns=0;while(response.pending){response=await analyze();assert.ok(++turns<80);}
  assert.equal(response.warning,'');assert.deepEqual(response.draft.extraction.reviewNotes,[]);
  for(const [name,count] of completedBefore)assert.equal(sectionCalls.get(name),count,'completed sections must not be billed again');
  globalThis.fetch=nativeFetch;
- await db.database.close();console.log('Passed: 25 MB resumable upload, corrupted-segment rejection, retry deduplication, authorization, full byte comparison, cleanup, all 256 pages and final revision in grouped requests, bounded concurrent readers, failed-section retry, Cabinet intent. Real isolated SQL/PDF; storage and AI simulated, not an OCR accuracy benchmark.');
+ await db.database.close();console.log('Passed: 25 MB resumable upload, corrupted-segment rejection, retry deduplication, authorization, full byte comparison, cleanup, all 256 pages and final revision in per-page requests, bounded concurrent readers, failed-page retry, Cabinet intent. Real isolated SQL/PDF; storage and AI simulated, not an OCR accuracy benchmark.');
 }finally{delete process.env.P5_OBJECT_STORAGE_ENABLED;delete process.env.ANTHROPIC_API_KEY;await rm(dir,{recursive:true,force:true});}
