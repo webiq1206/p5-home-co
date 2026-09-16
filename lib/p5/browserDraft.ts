@@ -33,6 +33,10 @@ export function requireDraftReceipt(data:unknown):{revision:number;answers:Scope
 }
 async function fileDb(){return new Promise<IDBDatabase>((resolve,reject)=>{const r=indexedDB.open('p5-project-files-v1',1);r.onupgradeneeded=()=>r.result.createObjectStore('files',{keyPath:'id'});r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error);});}
 /** Replace the draft's file set in one transaction, including removals. */
+/** Resolve with the promise, or reject after `ms` so a stalled browser store never locks the interface; the work itself is left to finish on its own. */
+export function withTimeout<T>(promise:Promise<T>,ms:number,message:string):Promise<T>{
+  return new Promise<T>((resolve,reject)=>{const timer=setTimeout(()=>reject(new Error(message)),ms);promise.then(value=>{clearTimeout(timer);resolve(value);},error=>{clearTimeout(timer);reject(error);});});
+}
 export async function cacheFiles(draftId:string,files:File[]){
   // WebKit cannot reliably persist File/Blob backing stores. Store portable bytes.
   const records=await Promise.all(files.map(async file=>({id:`${draftId}:${file.name}:${file.size}:${file.lastModified}`,draftId,name:file.name,type:file.type,lastModified:file.lastModified,bytes:await file.arrayBuffer()})));
