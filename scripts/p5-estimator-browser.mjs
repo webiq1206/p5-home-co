@@ -11,7 +11,7 @@ await mkdir('p5-verification',{recursive:true});
 const browser=await (process.env.P5_TEST_BROWSER==='webkit'?webkit:chromium).launch();const results=[];
 // Brands ask their own extra questions before review (finish level for cabinets, trim length when trim is priced).
 // A choice is answered with its first option; an unknown quantity stays explicit with Not sure yet.
-const answerBrandQuestions=async(page,est,then)=>{for(let i=0;i<6;i++){const q=est.locator('section[aria-label="Project question"]');await then.or(q).first().waitFor();if(await then.count())return;const finish=q.getByRole('button',{name:'Standard finishes',exact:true});const unsure=q.getByRole('button',{name:'Not sure yet',exact:true});if(await finish.count())await finish.click();else if(await unsure.count())await unsure.click();else throw new Error('Unexpected brand question: '+(await q.innerText()).slice(0,120));await settled(page);}await then.waitFor();};
+const answerBrandQuestions=async(page,est,then)=>{for(let i=0;i<8;i++){const q=est.locator('section[aria-label="Project question"]');await then.or(q).first().waitFor();if(await then.count())return;const chips=q.locator('[aria-label="Suggested answers"] button');const unsure=q.getByRole('button',{name:'Not sure yet',exact:true});if(await chips.count())await chips.first().click();else if(await unsure.count())await unsure.click();else throw new Error('Unexpected brand question: '+(await q.innerText()).slice(0,120));await settled(page);}await then.waitFor();};
 
 const service=brand.services.includes('bathroom')?'bathroom':brand.services.includes('handyman')?'handyman':brand.services.includes('cabinet-install')?'cabinet-install':'new-construction';
 const serviceLabel=service==='handyman'?'Home repairs':service==='cabinet-install'?'Cabinets with installation':service==='new-construction'?'New home':'Bathroom remodel';
@@ -81,7 +81,7 @@ for(const width of [320,390,430,768,1024,1440,1920]){
   await estimator.getByRole('button',{name:'Continue',exact:true}).click();await estimator.getByRole('alert').filter({hasText:'Your project save was not confirmed'}).waitFor();
   await estimator.getByRole('button',{name:'Continue',exact:true}).click();await estimator.getByRole('alert').filter({hasText:'Synthetic upload interruption'}).waitFor();
   await page.reload();await estimator.getByRole('button',{name:'Remove scope.txt'}).waitFor();assert.match(await description.inputValue(),/LongUnbrokenProjectSpecification/);await overflow(page);await capture(page,`${width}-scope`);
-  await estimator.getByRole('button',{name:'Continue',exact:true}).click();await estimator.getByRole('heading',{name:'Review your project',exact:true}).waitFor();assert.equal(await estimator.getByRole('region',{name:'Project question'}).count(),0,'Known facts were asked again');
+  await estimator.getByRole('button',{name:'Continue',exact:true}).click();await answerBrandQuestions(page,estimator,estimator.getByRole('heading',{name:'Review your project',exact:true}));assert.equal(await estimator.getByRole('region',{name:'Project question'}).count(),0,'Known facts were asked again');
   // The primary action sits above the detailed scope, beside the summary.
   // The submit dock renders once contact is ready; contact is captured first, then the action's placement is checked.
   await estimator.getByLabel('Your name',{exact:true}).fill('Synthetic Test');await estimator.getByLabel('Email',{exact:true}).fill('customer@example.invalid');
@@ -150,7 +150,7 @@ for(const scenario of ['manual','conflict','unavailable']){
   }else{
    await est.getByText('The documents disagree. Which work should be included?',{exact:true}).waitFor();await est.getByRole('button',{name:'Replace three doors',exact:true}).click();
   }
-  await est.getByRole('heading',{name:'Review your project',exact:true}).waitFor();await overflow(page);results.push({scenario,passed:true});
+  await answerBrandQuestions(page,est,est.getByRole('heading',{name:'Review your project',exact:true}));await overflow(page);results.push({scenario,passed:true});
  }catch(error){results.push({scenario,passed:false,error:String(error)});await capture(page,`${scenario}-failure`).catch(()=>{});}await context.close();
 }
 // Missing information after Get my estimate links straight to the missing field, keeps progress, and completes.
@@ -161,7 +161,7 @@ for(const width of [390,1440]){
   await est.getByLabel('Tell us about your project',{exact:true}).fill('Install new baseboard trim.');await est.getByRole('button',{name:'Continue',exact:true}).click();
   // Brands that price trim ask for its length before review; the others discover the gap at submission and ask then.
   const trimQuestion=est.getByText('About how many linear feet of trim or baseboard are included?',{exact:true});const review=est.getByRole('heading',{name:'Review your project',exact:true});
-  await review.or(trimQuestion).first().waitFor();const askedUpFront=(await trimQuestion.count())>0;
+  await answerBrandQuestions(page,est,review.or(trimQuestion));const askedUpFront=(await trimQuestion.count())>0;
   if(askedUpFront){await est.getByLabel('Your answer',{exact:true}).fill('120');await est.getByRole('button',{name:'Send answer',exact:true}).click();await settled(page);await answerBrandQuestions(page,est,review);}
   await est.getByLabel('Your name',{exact:true}).fill('Synthetic Test');await est.getByLabel('Email',{exact:true}).fill('customer@example.invalid');await est.getByRole('checkbox').check();
   await est.getByRole('button',{name:'Get my estimate',exact:true}).click();
@@ -191,7 +191,7 @@ for(const width of [320,390,1440]){
   progressState.readStage=2;
   await page.getByText('16 of 256 pages checked',{exact:true}).waitFor();
   progressState.finishReading=true;
-  await est.getByLabel('Your name',{exact:true}).waitFor();
+  await answerBrandQuestions(page,est,est.getByLabel('Your name',{exact:true}));
   assert.equal(await est.getByRole('button',{name:'Download your project summary',exact:true}).count(),0,'No PDF before contact capture');
   assert.equal(await est.getByText('Synthetic planning range.',{exact:true}).count(),0,'No estimate result before contact capture');
   // The estimate action only renders once a name and a valid email are captured; nothing can be submitted before that.
