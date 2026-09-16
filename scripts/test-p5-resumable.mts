@@ -47,7 +47,9 @@ try{
    }finally{active--;}
  };
  const draft=await store.readDraft(id,key);let step:any;let n=0;
- do{step=await work.advanceAnalysis(draft,'Bathroom remodel',{},provider);assert.ok(++n<80);}while(step.pending);
+ // Paced like the browser client: a pending reply is polled again after its retry interval, never in a tight loop.
+ const pace=(reply:any)=>new Promise(resolve=>setTimeout(resolve,Math.min(2000,Number(reply?.retryAfterMs)||500)));
+ do{step=await work.advanceAnalysis(draft,'Bathroom remodel',{},provider);assert.ok(++n<80,'analysis pass budget');if(step.pending)await pace(step);}while(step.pending);
  assert.equal(step.analysis.extraction.facts[0].value,'80');assert.equal(pagesSeen.size,256,'all 256 pages must be processed');assert.equal(counts.size,256,'pages are read one per request');assert.equal([...counts.values()].filter(n=>n===2).length,1,'only the failed page is retried');assert.ok([...counts.values()].every(n=>n===1||n===2));
  assert.equal(step.analysis.extraction.documentCoverage.complete,true);assert.equal(step.analysis.extraction.documentCoverage.expectedPages,256);
  assert.deepEqual(step.analysis.extraction.documentCoverage.pages.map((p:any)=>p.page),Array.from({length:256},(_,i)=>i+1));
@@ -67,12 +69,12 @@ try{
  };
  const form=new FormData();form.set('text','Partial section retry fixture');form.set('resumable','true');form.set('revision',String((await store.readDraft(id,key)).revision));
  const analyze=async()=>{const response=await scopeApi.postScope(new Request('https://test.local/api/p5-estimator/scope',{method:'POST',headers,body:form}));assert.equal(response.status,200,await response.clone().text());const data=await response.json();if(Number.isInteger(data.draftRevision))form.set('revision',String(data.draftRevision));else if(data.draft?.revision)form.set('revision',String(data.draft.revision));return data;};
- let response:any;let turns=0;do{response=await analyze();assert.ok(++turns<80);}while(response.pending);
+ let response:any;let turns=0;do{response=await analyze();assert.ok(++turns<80,'scope poll budget');if(response.pending)await pace(response);}while(response.pending);
  assert.match(response.warning,/automatic reading could not finish/,'failed sections must expose the retry control');
  assert.ok(response.draft.extraction.reviewNotes.some((note:string)=>/automatic reading could not finish for pages? 9\b/.test(note)),'the review note must name the unread page');
  const completedBefore=[...sectionCalls].filter(([name])=>!failingSection.test(name));
  middleFails=false;form.set('retry','true');response=await analyze();form.set('retry','false');
- turns=0;while(response.pending){response=await analyze();assert.ok(++turns<80);}
+ turns=0;while(response.pending){await pace(response);response=await analyze();assert.ok(++turns<80,'retry poll budget');}
  assert.equal(response.warning,'');assert.deepEqual(response.draft.extraction.reviewNotes,[]);
  for(const [name,count] of completedBefore)assert.equal(sectionCalls.get(name),count,'completed sections must not be billed again');
  globalThis.fetch=nativeFetch;
