@@ -1,4 +1,5 @@
 import {groundSourceResponsibilities} from './sourceResponsibilities.ts';
+import {retainExplicitSelections} from './explicitSelections.ts';
 import {retainCompletedCabinetRemoval} from './completedWork.ts';
 import {readTakeoffs,readPageRecords} from './documentLedger.ts';
 import {readSpecificationSource,specificationHint,unsupportedSpecifications,UnsupportedSpecificationError,retainUnspecifiedRatings} from './sourceSpecificationGuard.ts';
@@ -307,6 +308,7 @@ export async function analyzeBatch(text: string, files: AnalysisFile[], previous
       try{
         const result=provider.kind==='OpenAI'?await analyzeWithOpenAI(provider,text,files,previous,boundedRequest,providerTimeout,sourceInstruction):await analyzeWithAnthropic(provider,text,files,previous,boundedRequest,providerTimeout,sourceInstruction);
         result.extraction=retainUnspecifiedRatings(result.extraction,null);
+        result.extraction=retainExplicitSelections(result.extraction,text,previous);
         result.extraction=retainCompletedCabinetRemoval(result.extraction,text);
         result.extraction=groundSourceResponsibilities(result.extraction,undefined,text,previous);
         report(provider,started,'ok',undefined,false,{race:true});
@@ -344,6 +346,7 @@ export async function analyzeBatch(text: string, files: AnalysisFile[], previous
         : await analyzeWithAnthropic(provider, text, inputFiles, previous, boundedRequest, providerTimeout,sourceInstruction);
       const confirmedSource=source?{...source,text:source.text+'\n'+text+'\n'+JSON.stringify(previous)}:null;
       result.extraction=retainUnspecifiedRatings(result.extraction,confirmedSource);
+      result.extraction=retainExplicitSelections(result.extraction,text,previous);
       result.extraction=retainCompletedCabinetRemoval(result.extraction,[source?.text,text].filter(Boolean).join('\n'));
       result.extraction=groundSourceResponsibilities(result.extraction,source?.text,text,previous);
       const unsupported=unsupportedSpecifications(result.extraction,confirmedSource);
