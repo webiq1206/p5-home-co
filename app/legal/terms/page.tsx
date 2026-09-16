@@ -1,11 +1,12 @@
+import {withBrandPageMetadata} from '@/lib/brand-page-metadata';
 import type { Metadata } from "next";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = withBrandPageMetadata(({
   title: "Terms of Use | P5 Home Co",
   description:
     "The terms governing use of the P5 Home Co finance platform, vendor portal, and client portal.",
   alternates: { canonical: "/legal/terms" },
-};
+}), "/legal/terms");
 
 export default function TermsPage() {
   return (

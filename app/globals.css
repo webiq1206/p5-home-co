@@ -394,3 +394,6 @@ a:hover .arrow-diagonal, a:focus-visible .arrow-diagonal { transform: translate(
 
 /* While the conversational estimator owns the screen, the mobile action bar steps aside. */
 body[data-p5-estimator-active="true"] .p5-mobile-actionbar { display: none !important; }
+
+/* Readable secondary mobile call action. */
+.p5-mobile-call{min-width:76px;flex-direction:column;gap:4px}.p5-mobile-call span{font-size:12px;font-weight:600;line-height:1.2}

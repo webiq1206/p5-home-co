@@ -1,3 +1,4 @@
+import {withBrandPageMetadata} from '@/lib/brand-page-metadata';
 import type { Metadata } from "next";
 import Link from "next/link";
 
@@ -13,12 +14,12 @@ import ThanksMessage from "../ThanksMessage";
  * only in the successful intake callback, never because this URL was opened.
  */
 
-export const metadata: Metadata = {
+export const metadata: Metadata = withBrandPageMetadata(({
   title: "Your quote request is in | P5 Home Co",
   description: "We have your project details and the right P5 specialist team will be in touch.",
   alternates: { canonical: "/quote/thanks" },
   robots: { index: false, follow: true },
-};
+}), "/quote/thanks");
 
 export default function QuoteThanksPage() {
   return (

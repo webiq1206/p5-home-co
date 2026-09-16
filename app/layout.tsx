@@ -1,3 +1,4 @@
+import {withBrandPageMetadata} from '@/lib/brand-page-metadata';
 import type { Metadata, Viewport } from "next";
 import Script from "next/script";
 import HubSpotScript from "./HubSpotScript";
@@ -16,7 +17,7 @@ export const viewport: Viewport = {
   ],
 };
 
-export const metadata: Metadata = {
+export const metadata: Metadata = withBrandPageMetadata(({
   metadataBase: new URL(siteUrl),
   title,
   description,
@@ -65,7 +66,7 @@ export const metadata: Metadata = {
       "max-video-preview": -1,
     },
   },
-};
+}), "__layout__");
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
