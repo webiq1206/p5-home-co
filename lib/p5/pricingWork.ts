@@ -35,11 +35,22 @@ export async function priceSavedScope(id:string,scope:ReviewedScope,configuratio
   // saved replies in the same order, so this is stable across passes even
   // when a later stage's input (research evidence, line ids) drifts.
   const ordinal=(ordinals[activity.phase]=(ordinals[activity.phase]||0)+1);
-  const key=`${activity.phase}#${ordinal}`;
+  // Mapping batches are keyed by WHAT they map, not by the order they ran in.
+  // They now run concurrently, and a batch that times out is split in half
+  // and retried; positional keys would make those halves collide with saved
+  // replies of other batches. Every other stage keeps its positional key.
+  const batch=(input as {taskBatch?:{id:string}[];repairInstruction?:string}|null);
+  const batchIds=activity.phase==='mapping'&&Array.isArray(batch?.taskBatch)?batch!.taskBatch.map(t=>t.id).sort():null;
+  const key=batchIds?`mapping:${batch?.repairInstruction?'repair:':''}${createHash('sha256').update(JSON.stringify(batchIds)).digest('hex').slice(0,24)}`:`${activity.phase}#${ordinal}`;
   const legacy=pricingReplyKey(instructions,input,search);
   const saved=payload.replies[key]||payload.replies[legacy];
   if(saved){
-    if((saved as {timedOut?:boolean}).timedOut)throw new PricingStageTimeout();
+    // A stage that already timed out is not re-run verbatim on the next pass:
+    // research goes straight to its planning fallback, a mapping batch is
+    // split by the caller, and anything else pauses the job until it has
+    // timed out three times, at which point it is a real failure.
+    const timeouts=(saved as {timeouts?:number}).timeouts||0;
+    if(timeouts)throw new PricingStageTimeout(timeouts>=3?'pricing-stage-exhausted':'pricing-stage-timeout');
     return saved;
   }
   // A pass ends between stages, never inside one. A stage that has started
@@ -58,9 +69,12 @@ export async function priceSavedScope(id:string,scope:ReviewedScope,configuratio
   catch(error){
    if(isProcessingDeadline(error)){
     console.error(`[p5-pricing] ${phase} stage exceeded its ${Math.round(allowance/1000)}s allowance after ${elapsed()}s`);
-    // A research stage that timed out is remembered so a replay goes straight to its planning fallback.
-    if(search){payload.replies[key]={value:null,sourceUrls:[],timedOut:true} as unknown as PricingReply;await persist();}
-    throw new PricingStageTimeout();
+    // Every timed-out stage is remembered with a count, so a replay never
+    // repeats the identical oversized call: research falls back, a mapping
+    // batch is halved by the caller, other stages pause and resume.
+    const prior=(payload.replies[key] as unknown as {timeouts?:number}|undefined)?.timeouts||0;
+    payload.replies[key]={value:null,sourceUrls:[],timedOut:true,timeouts:prior+1} as unknown as PricingReply;await persist();
+    throw new PricingStageTimeout(prior+1>=3?'pricing-stage-exhausted':'pricing-stage-timeout');
    }
    // A failed published-cost search is not a reason to stop pricing: the caller may use a labeled planning average instead.
    if(search){console.error(`[p5-pricing] research failed after ${elapsed()}s: ${error instanceof Error?error.message:String(error)}`);throw new PricingStageTimeout(error instanceof Error?error.message:'pricing-search-unavailable');}

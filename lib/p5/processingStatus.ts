@@ -22,12 +22,12 @@ export interface ProcessingStatus {
 export const processingTitles:Record<ProcessingStatus['phase'],string>={
   queued:'Getting your estimate started',preparing:'Preparing your documents',instructions:'Reading your estimating instructions',
   reading:'Reading your plans', 'cross-referencing':'Checking drawings and quantities',inventory:'Organizing the requested scope',
-  mapping:'Matching your scope to the cost book',research:'Researching missing local rates',verification:'Checking scope and pricing coverage',retrying:'Recovering an interrupted step',
+  mapping:'Pricing your project',research:'Researching missing local rates',verification:'Checking scope and pricing coverage',retrying:'Recovering an interrupted step',
 };
 export function pricingActivity(instructions:string,input:unknown,search:boolean):ProcessingStatus{
   const data=input as {taskBatch?:{description:string}[];tasks?:{description:string}[];repairInstruction?:string};
   const phase=search?'research':instructions.startsWith('Inventory')?'inventory':instructions.startsWith('You are a construction estimator')?'mapping':instructions.startsWith('Convert the supplied research')?'research':'verification';
-  const message=phase==='inventory'?'Identifying the included work, exclusions and item-level quantities.':phase==='mapping'?(data.repairInstruction?'Resolving findings from the coverage check.':'Matching quantities, materials and labor to your established rates.'):phase==='research'?'Checking published cost evidence for items that need a supported allowance.':'Checking for missing items, duplicate counts, scope restrictions and pricing assumptions.';
+  const message=phase==='inventory'?'Identifying the included work, exclusions and item-level quantities.':phase==='mapping'?(data.repairInstruction?'Resolving findings from the coverage check.':'Pricing the quantities, materials and labor in your scope.'):phase==='research'?'Checking published cost evidence for items that need a supported allowance.':'Checking for missing items, duplicate counts, scope restrictions and pricing assumptions.';
   return {phase,message,updatedAt:new Date().toISOString(),currentItems:(data.taskBatch||(search?data.tasks:[])||[]).map(t=>t.description).filter(Boolean).slice(0,3)};
 }
 export function elapsedLabel(seconds:number){

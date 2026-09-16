@@ -108,7 +108,7 @@ const requestPricingWith=async(provider:'anthropic'|'openai',instructions:string
     if(!anthropic)throw new Error('pricing-provider-unavailable');
     const headers={'Content-Type':'application/json','x-api-key':anthropic,'anthropic-version':'2023-06-01'};
     const messages:any[]=[{role:'user',content:JSON.stringify(input)}];
-    const requestBody={model:search?(process.env.P5_PRICING_RESEARCH_MODEL||'claude-sonnet-5'):(process.env.P5_PRICING_MODEL||'claude-sonnet-5'),max_tokens:24000,system:instructions,...(search?{tools:[{type:'web_search_20250305',name:'web_search',max_uses:5},{type:'web_fetch_20250910',name:'web_fetch',max_uses:4,max_content_tokens:15000}]}:{output_config:{format:{type:'json_schema',schema:stageSchema(instructions)}}})};
+    const requestBody={model:search?(process.env.P5_PRICING_RESEARCH_MODEL||'claude-sonnet-5'):(process.env.P5_PRICING_MODEL||'claude-sonnet-5'),max_tokens:search?24000:10000,system:instructions,...(search?{tools:[{type:'web_search_20250305',name:'web_search',max_uses:5},{type:'web_fetch_20250910',name:'web_fetch',max_uses:4,max_content_tokens:15000}]}:{output_config:{format:{type:'json_schema',schema:stageSchema(instructions)}}})};
     const content:any[]=[];
     for(let continuation=0;;continuation++){
       const left=remainingMs-(Date.now()-started);if(left<=0)throw new Error('pricing-check-timeout');
@@ -139,7 +139,7 @@ const requestPricingWith=async(provider:'anthropic'|'openai',instructions:string
       return {value:parseJson((body.content||[]).filter((p:any)=>p.type==='text').map((p:any)=>p.text).join('')),sourceUrls,sourceReport:raw};
     }
   }
-  const response=await boundedFetch(`${endpoint}/responses`,{method:'POST',signal:AbortSignal.timeout(Math.min(search?150000:180000,remainingMs)),headers:{'Content-Type':'application/json',Authorization:`Bearer ${key}`},body:JSON.stringify({model:process.env.P5_PRICING_OPENAI_MODEL||process.env.P5_SCOPE_OPENAI_MODEL||'gpt-4.1',instructions,input:'Return JSON only.\n'+JSON.stringify(input),max_output_tokens:24000,store:false,...(search?{tools:[{type:'web_search'}],tool_choice:'required',include:['web_search_call.action.sources']}:{text:{format:{type:'json_schema',name:'pricing_stage',strict:false,schema:stageSchema(instructions)}}})})});
+  const response=await boundedFetch(`${endpoint}/responses`,{method:'POST',signal:AbortSignal.timeout(Math.min(search?150000:180000,remainingMs)),headers:{'Content-Type':'application/json',Authorization:`Bearer ${key}`},body:JSON.stringify({model:process.env.P5_PRICING_OPENAI_MODEL||process.env.P5_SCOPE_OPENAI_MODEL||'gpt-4.1',instructions,input:'Return JSON only.\n'+JSON.stringify(input),max_output_tokens:search?24000:10000,store:false,...(search?{tools:[{type:'web_search'}],tool_choice:'required',include:['web_search_call.action.sources']}:{text:{format:{type:'json_schema',name:'pricing_stage',strict:false,schema:stageSchema(instructions)}}})})});
   if(!response.ok){const detail=await response.text().catch(()=>'');throw new Error(`pricing-provider-unavailable:${response.status}:${detail.replace(/\s+/g,' ').slice(0,300)}`);}
   const body=await response.json();
   if(body.status!=='completed')throw new Error(`pricing-check-incomplete:${body.incomplete_details?.reason||body.status||'unknown'}`);
@@ -436,6 +436,51 @@ export function advisoryIssue(text:string):boolean{
   if(/\b(omit|omission|missing|not (?:been |be )?(?:verified|covered|priced|supported|found|included)|unverified|duplicat|double[- ]count|conflict|unsupported|fabricat|incorrect|wrong|mismatch|reconcile|cannot|could not|unpriced|unknown component|no (?:catalog|rate|price|evidence)|exceeds|out of scope|not (?:in|part of) the|excluded work|hidden in exclusion)\b/.test(t))return false;
   return /\b(confirm|verify at site|allowance|assum|methodology|per stated|see each line|to be selected|owner selection|pending selection|subject to|typical|estimated|modeled|rounded)\b/.test(t);
 }
+
+/** Map one batch of inventory tasks, and keep going when the provider is slow.
+ *
+ * A twelve-task batch of a large scope was measured at over two minutes on the
+ * live site and hit the stage ceiling; the replay then repeated the identical
+ * call, three times, and the visitor got no estimate. A batch that times out
+ * is now split in half and both halves run at once - same model, same prompt,
+ * fewer tasks per call - down to three tasks. A batch that still cannot finish
+ * pauses the job so the next pass resumes it, instead of counting as a failed
+ * attempt; only a batch that has timed out three times is a real failure. */
+async function mapBatch<T extends {id:string}>(request:PricingRequest,taskBatch:T[],build:(batch:T[])=>unknown,remaining:()=>number):Promise<Mapping>{
+  try{
+    const mapped=await request(MAP,build(taskBatch),false,remaining());
+    return mappingSchema.parse(mapped.value);
+  }catch(error){
+    if(!isPricingStageTimeout(error))throw error;
+    if(error.message==='pricing-stage-exhausted'||taskBatch.length<=3){
+      if(error.message==='pricing-stage-exhausted')throw error;
+      throw new PricingPending('Pricing is taking longer than usual on part of your scope. Your finished steps are saved; continuing.',1500);
+    }
+    const middle=Math.ceil(taskBatch.length/2);
+    const halves=await Promise.all([taskBatch.slice(0,middle),taskBatch.slice(middle)].map(half=>mapBatch(request,half,build,remaining)));
+    return mergeMappings(halves);
+  }
+}
+/** Combine concurrently mapped batches deterministically. Tasks are disjoint by
+ * construction; replacements and removed exclusions are deduplicated because
+ * two batches can each name the same wrong line. The independent audit still
+ * verifies every cross-batch interaction afterwards. */
+function mergeMappings(parts:Mapping[]):Mapping{
+  const seenLine=new Set<string>(),seenExclusion=new Set<string>();
+  return {
+    tasks:parts.flatMap(p=>p.tasks),
+    issues:[...new Set(parts.flatMap(p=>p.issues))],
+    notes:[...new Set(parts.flatMap(p=>p.notes))],
+    replacements:parts.flatMap(p=>p.replacements).filter(r=>!seenLine.has(r.lineId)&&seenLine.add(r.lineId)),
+    removeExclusions:parts.flatMap(p=>p.removeExclusions).filter(e=>!seenExclusion.has(e.text)&&seenExclusion.add(e.text)),
+  };
+}
+/** Shown to a visitor when pricing genuinely could not finish automatically.
+ * Nothing about it asks them for anything, because nothing they can type will
+ * change it. It is the one review item that is a handoff, not a question. */
+/** Split a list into consecutive groups of `size`; the last group may be shorter. */
+const batchesOf=<T,>(items:T[],size:number):T[][]=>{const out:T[][]=[];for(let start=0;start<items.length;start+=size)out.push(items.slice(start,start+size));return out;};
+export const HANDOFF_ISSUE='Automatic pricing could not finish for part of this scope. Your project and details are saved, and a person will complete your estimate and email it - nothing further is needed from you.';
 export async function priceCompleteScope(scope:ReviewedScope,configuration:EstimatorConfiguration,request:PricingRequest=requestPricing,now=new Date(),absoluteDeadline=Date.now()+SERVER_BUDGET_MS){
   // Retained clarification alternatives are archival provenance, not active
   // scope. Every mapper/audit payload below must use the projected extraction
@@ -467,11 +512,16 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
       }
     }
     if(new Set(inventory.tasks.map(t=>t.id)).size!==inventory.tasks.length)throw new Error('Duplicate inventory task');
+    // Batches map concurrently. priorMappedTasks used to serialise them so a
+    // later batch could see earlier additions; the independent audit below
+    // already verifies duplicates and conflicts across the whole mapping, so
+    // that ordering bought latency, not correctness. Wall-clock for mapping is
+    // now the slowest batch, not the sum of all of them.
+    const mappingInput=(taskBatch:typeof inventory.tasks)=>({original:sourceParts.length===1?original:{sections:[...new Set(taskBatch.map(t=>taskSources.get(t.id)!))].map(i=>sourceParts[i])},taskBatch,priorMappedTasks:[],priorReplacements:[],existingLines:lines.map(({id,description,quantity,unit,unitCost,category,trade,quantitySource})=>({id,description,quantity,unit,unitCost,category,trade,quantitySource})),defaultExclusions:base.customer.exclusions,date:now.toISOString(),catalogImportedAt:configuration.planningCatalog?.importedAt,regionalRates:configuration.regionalRates,catalog:(configuration.planningCatalog?.rates||[]).map(({code,description,type,unit,amount,basis})=>({code,description,type,unit,amount,basis}))});
+    const mappedBatches=await Promise.all(batchesOf(inventory.tasks,12).map(taskBatch=>mapBatch(request,taskBatch,mappingInput,()=>deadline-Date.now())));
     const mapping:Mapping={tasks:[],issues:[...inventory.issues],notes:[...inventory.notes],replacements:[],removeExclusions:[]};
-    for(let start=0;start<inventory.tasks.length;start+=12){
-      const taskBatch=inventory.tasks.slice(start,start+12);
-      const mapped=await request(MAP,{original:sourceParts.length===1?original:{sections:[...new Set(taskBatch.map(t=>taskSources.get(t.id)!))].map(i=>sourceParts[i])},taskBatch,priorMappedTasks:mapping.tasks,priorReplacements:mapping.replacements,existingLines:lines.map(({id,description,quantity,unit,unitCost,category,trade,quantitySource})=>({id,description,quantity,unit,unitCost,category,trade,quantitySource})),defaultExclusions:base.customer.exclusions,date:now.toISOString(),catalogImportedAt:configuration.planningCatalog?.importedAt,regionalRates:configuration.regionalRates,catalog:(configuration.planningCatalog?.rates||[]).map(({code,description,type,unit,amount,basis})=>({code,description,type,unit,amount,basis}))},false,deadline-Date.now());
-      const batch=mappingSchema.parse(mapped.value);
+    for(const [batchIndex,batch] of mappedBatches.entries()){
+      const taskBatch=batchesOf(inventory.tasks,12)[batchIndex];
       if(batch.tasks.length!==taskBatch.length||new Set(batch.tasks.map(t=>t.id)).size!==taskBatch.length||batch.tasks.some(t=>!taskBatch.some(expected=>expected.id===t.id)))throw new Error('Incomplete mapping batch');
       // Preserve inventory wording so later stages cannot quietly rewrite scope.
       mapping.tasks.push(...batch.tasks.map(t=>({...t,...taskBatch.find(expected=>expected.id===t.id)!})));
@@ -489,7 +539,6 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
     const gaps=mapping.tasks.filter(t=>t.researchDescription);
     const research:PricingReply[]=[];auditTrail.research=research;
     const region=scope.answers.location||'Boise / Treasure Valley, Idaho';
-    const batchesOf=(items:Mapping['tasks'],size:number)=>{const out:Mapping['tasks'][]=[];for(let start=0;start<items.length;start+=size)out.push(items.slice(start,start+size));return out;};
     /** Published cost research first, within a bounded time; otherwise a clearly
      * labeled regional planning average. Independent batches run in parallel and
      * every provider reply is saved by content, so a resumed request reuses them. */
@@ -548,10 +597,10 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
       const beforeRepair=priceReviewedScope(scope,configuration,now,resolution);
       const pricedComponents=existingLines(beforeRepair);
       const fixes:Mapping={tasks:[],issues:[],notes:[],replacements:[],removeExclusions:[]};
-      for(let start=0;start<mapping.tasks.length;start+=12){
-        const taskBatch=mapping.tasks.slice(start,start+12);
-        const repaired=await request(MAP,{original:sourceParts.length===1?original:{sections:[...new Set(taskBatch.map(t=>taskSources.get(t.id)!))].map(i=>sourceParts[i])},taskBatch:taskBatch.map(({id,description,evidence})=>({id,description,evidence})),pricingIssues:priorIssues,repairInstruction:'Resolve the audit findings with measured costs or item-specific allowances. Existing components already contain prior additions. Reference them instead of charging again; explicitly replace wrong or incomplete components. An unknown dimension may use an evidenced modeled quantity range, never an invented measurement.',priorMappedTasks:fixes.tasks,priorReplacements:fixes.replacements,existingLines:pricedComponents,defaultExclusions:beforeRepair.customer.exclusions,catalog:configuration.planningCatalog?.rates||[],regionalRates:configuration.regionalRates,date:now.toISOString()},false,deadline-Date.now());
-        const batch=mappingSchema.parse(repaired.value);
+      const repairInput=(taskBatch:typeof mapping.tasks)=>({original:sourceParts.length===1?original:{sections:[...new Set(taskBatch.map(t=>taskSources.get(t.id)!))].map(i=>sourceParts[i])},taskBatch:taskBatch.map(({id,description,evidence})=>({id,description,evidence})),pricingIssues:priorIssues,repairInstruction:'Resolve the audit findings with measured costs or item-specific allowances. Existing components already contain prior additions. Reference them instead of charging again; explicitly replace wrong or incomplete components. An unknown dimension may use an evidenced modeled quantity range, never an invented measurement.',priorMappedTasks:[],priorReplacements:[],existingLines:pricedComponents,defaultExclusions:beforeRepair.customer.exclusions,catalog:configuration.planningCatalog?.rates||[],regionalRates:configuration.regionalRates,date:now.toISOString()});
+      const repairedBatches=await Promise.all(batchesOf(mapping.tasks,12).map(taskBatch=>mapBatch(request,taskBatch,repairInput,()=>deadline-Date.now())));
+      for(const [batchIndex,batch] of repairedBatches.entries()){
+        const taskBatch=batchesOf(mapping.tasks,12)[batchIndex];
         if(batch.tasks.length!==taskBatch.length||new Set(batch.tasks.map(t=>t.id)).size!==taskBatch.length||batch.tasks.some(t=>!taskBatch.some(expected=>expected.id===t.id)))throw new Error('Incomplete repair batch');
         fixes.tasks.push(...batch.tasks.map(t=>({...t,...taskBatch.find(x=>x.id===t.id)!,existingLineIds:t.existingLineIds,additions:t.additions,researchDescription:t.researchDescription,issues:t.issues})));
         fixes.issues.push(...batch.issues);fixes.notes.push(...batch.notes);fixes.replacements.push(...batch.replacements);fixes.removeExclusions.push(...batch.removeExclusions);
@@ -614,17 +663,32 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
     for(const t of mapping.tasks)if(!audit.coveredTaskIds.includes(t.id))resolution.issues.push(`${t.description}: full pricing coverage has not been verified.`);
   }catch(error){
     if(isPricingPending(error)||isProcessingDeadline(error))throw error;
+    // A stage that ran out of time is not a verdict on the scope. The job
+    // pauses and resumes from its saved stages; only a stage that has timed
+    // out three times falls through to a real failure below.
+    if(isPricingStageTimeout(error)&&error.message!=='pricing-stage-exhausted')throw new PricingPending('Pricing is taking longer than usual. Your finished steps are saved; continuing.',1500);
+    const reason=error instanceof Error?`${error.name}: ${error.message}`:'Invalid pricing response';
     console.error('[p5-pricing] scope verification failure', {name:error instanceof Error?error.name:'UnknownError',message:error instanceof Error?error.message:'Invalid pricing response'});
-    // Preserve the lead, but never expose a partial total on provider failure,
-    // timeout, unsupported search, invalid output or inadequate source evidence.
-    resolution.issues.push('Complete scope pricing could not be verified. An estimator must resolve the remaining work before a total is released.');
+    // Never expose a partial total on provider failure, invalid output or
+    // inadequate evidence - that guarantee is unchanged. What changed is the
+    // sentence the visitor reads. "An estimator must resolve the remaining
+    // work" was an instruction to staff shown to a customer, under a headline
+    // that promised details to add and listed none. The precise cause stays
+    // in the internal audit trail; the visitor is told what is true.
+    auditTrail.issues.push(`Automatic pricing did not complete: ${reason}`);
+    resolution.issues.push(HANDOFF_ISSUE);
   }
   // Confirmation-only findings ride along as disclosed assumptions so a
   // customer gets a preliminary range with the items to confirm listed.
   const advisory=resolution.issues.filter(advisoryIssue);
   if(advisory.length){resolution.issues=resolution.issues.filter(issue=>!advisoryIssue(issue));resolution.assumptions.push(...advisory.map(item=>/^to confirm:/i.test(item)?item:`To confirm: ${item}`));}
   resolution.completeScopeVerified=Boolean(auditTrail.verification)&&resolution.issues.length===0;
-  resolution.issues=[...new Set(resolution.issues)];auditTrail.issues=resolution.issues;
+  resolution.issues=[...new Set(resolution.issues)];
+  // The audit trail keeps the customer-visible issues AND the internal cause
+  // recorded on failure; overwriting it here discarded the one line that told
+  // staff why pricing stopped. It is internal-only and is what the
+  // "no range for draft" server log prints.
+  auditTrail.issues=[...new Set([...auditTrail.issues,...resolution.issues])];
   const priced=priceReviewedScope(scope,configuration,now,resolution);
   return {...priced,customer:{...priced.customer,instructions:pricingExtraction?.instructions,documentCoverage:pricingExtraction?.documentCoverage,verificationItems:[...resolution.assumptions.filter(a=>/allowance|preliminary|confirm/i.test(a)),...resolution.issues],scopeTasks:(auditTrail.tasks as {description:string}[]).map(t=>({description:t.description,category:suggestedTrade(t.description)}))},internal:{...priced.internal,scopePricing:auditTrail}};
 }

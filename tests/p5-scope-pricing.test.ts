@@ -1,6 +1,7 @@
+import {PricingStageTimeout} from '../lib/p5/pricingProgress.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {priceCompleteScope,marketResolution,catalogResolution,requestPricing,type PricingRequest} from '../lib/p5/scopePricing.ts';
+import {priceCompleteScope,marketResolution,catalogResolution,requestPricing,type PricingRequest,HANDOFF_ISSUE} from '../lib/p5/scopePricing.ts';
 import {priceReviewedScope} from '../lib/p5/costBook.ts';
 import {createPlanningConfiguration,PLANNING_MODEL_VERSION,type PlanningCatalog} from '../lib/p5/planningBooks.ts';
 import type {ReviewedScope} from '../lib/p5/scope.ts';
@@ -175,15 +176,19 @@ test('A researched specialist takeoff resolves the generic small-job hold only a
 
 test('Large scope maps bounded batches and audits every original task together',async()=>{
  const tasks=Array.from({length:14},(_,i)=>({...task,id:`task-${i}`,description:`Assembly component ${i}`}));
- let calls=0;
+ let calls=0;const seen=new Set<string>();
  const request:PricingRequest=async(_instructions,input)=>{
   const data=input as any;calls++;
   if(calls===1)return {value:{tasks:tasks.map(({id,description,evidence})=>({id,description,evidence})),issues:[]},sourceUrls:[]};
-  if(data.taskBatch){assert.ok(data.taskBatch.length<=12);assert.equal(data.priorMappedTasks.length,(calls-2)*12);return {value:{tasks:data.taskBatch.map((t:any)=>({...task,...t})),issues:[]},sourceUrls:[]};}
+  // Batches are independent now: they run concurrently and none is handed
+  // another's additions. Each must be bounded, and together they must cover
+  // every inventory task exactly once - the audit verifies the whole mapping.
+  if(data.taskBatch){assert.ok(data.taskBatch.length<=12);assert.deepEqual(data.priorMappedTasks,[]);for(const t of data.taskBatch){assert.ok(!seen.has(t.id),`task ${t.id} mapped twice`);seen.add(t.id);}return {value:{tasks:data.taskBatch.map((t:any)=>({...task,...t})),issues:[]},sourceUrls:[]};}
   assert.equal(data.tasks.length,14);return {value:{coveredTaskIds:tasks.map(t=>t.id),issues:[]},sourceUrls:[]};
  };
  const result=await priceCompleteScope(scope,config,request,now);
  assert.equal(calls,4);assert.ok(result.customer.range);assert.equal(result.customer.scopeTasks.length,14);
+ assert.equal(seen.size,14,'every inventory task was mapped once');
 });
 test('A missing or substituted batch task never releases a partial total',async()=>{
  let calls=0;
@@ -320,4 +325,50 @@ test('research receives catalog additions as covered work, not only existing lin
   const task={existingLineIds:['line-1'],additions:[{code:'03-15-02-M',quantity:78},{code:'unknown-code',quantity:1}]};
   const covered=coveredWork(task,[{id:'line-1',description:'Plumbing - Labor',quantity:6,unit:'HR'},{id:'line-2',description:'Other',quantity:1,unit:'EA'}],configuration);
   assert.deepEqual(covered,[{description:'Plumbing - Labor',quantity:6,unit:'HR'},{description:'Tile - Materials',quantity:78,unit:'SF'},{description:'unknown-code',quantity:1,unit:''}]);
+});
+
+test('A mapping batch that times out is halved and both halves are priced',async()=>{
+ const tasks=Array.from({length:12},(_,i)=>({...task,id:`task-${i}`,description:`Assembly component ${i}`}));
+ const sizes:number[]=[];let calls=0;
+ const request:PricingRequest=async(_instructions,input)=>{
+  const data=input as any;calls++;
+  if(calls===1)return {value:{tasks:tasks.map(({id,description,evidence})=>({id,description,evidence})),issues:[]},sourceUrls:[]};
+  if(data.taskBatch){sizes.push(data.taskBatch.length);if(data.taskBatch.length>6)throw new PricingStageTimeout('pricing-stage-timeout');return {value:{tasks:data.taskBatch.map((t:any)=>({...task,...t})),issues:[]},sourceUrls:[]};}
+  return {value:{coveredTaskIds:tasks.map(t=>t.id),issues:[]},sourceUrls:[]};
+ };
+ const result=await priceCompleteScope(scope,config,request,now);
+ assert.deepEqual(sizes,[12,6,6],'the oversized batch was split once into two halves');
+ assert.ok(result.customer.range,'the same model and prompt price the halves and the range is released');
+ assert.equal(result.customer.scopeTasks.length,12);
+});
+test('A batch that cannot shrink further pauses the job instead of ending it',async()=>{
+ const tasks=Array.from({length:3},(_,i)=>({...task,id:`task-${i}`,description:`Assembly component ${i}`}));
+ let calls=0;
+ const request:PricingRequest=async(_instructions,input)=>{
+  const data=input as any;calls++;
+  if(calls===1)return {value:{tasks:tasks.map(({id,description,evidence})=>({id,description,evidence})),issues:[]},sourceUrls:[]};
+  if(data.taskBatch)throw new PricingStageTimeout('pricing-stage-timeout');
+  throw new Error('audit must not run');
+ };
+ await assert.rejects(()=>priceCompleteScope(scope,config,request,now),(e:any)=>e.name==='PricingPending'&&e.retryAfterMs>0&&!e.fatal,'a pause with a retry, never a verdict');
+});
+test('A stage that has timed out three times is an honest handoff, and still never a partial total',async()=>{
+ let calls=0;
+ const request:PricingRequest=async(_instructions,input)=>{
+  const data=input as any;calls++;
+  if(calls===1)return {value:{tasks:[{id:task.id,description:task.description,evidence:task.evidence}],issues:[]},sourceUrls:[]};
+  if(data.taskBatch)throw new PricingStageTimeout('pricing-stage-exhausted');
+  throw new Error('audit must not run');
+ };
+ const result=await priceCompleteScope(scope,config,request,now);
+ assert.equal(result.customer.range,null,'the no-partial-total guarantee is unchanged');
+ assert.ok(result.customer.verificationItems.includes(HANDOFF_ISSUE),'the visitor is told a person will finish it');
+ assert.ok(!JSON.stringify(result.customer).includes('An estimator must resolve'),'no staff instruction reaches the customer');
+ assert.ok(result.internal.scopePricing.issues.some((i:string)=>i.includes('pricing-stage-exhausted')),'the precise cause is kept internally');
+});
+test('A provider failure reads as a handoff to the customer and a cause to staff',async()=>{
+ const r=await priceCompleteScope(scope,config,async()=>{throw new Error('offline')},now);
+ assert.equal(r.customer.range,null);
+ assert.deepEqual(r.customer.verificationItems,[HANDOFF_ISSUE]);
+ assert.ok(r.internal.scopePricing.issues.some((i:string)=>i.includes('offline')));
 });
