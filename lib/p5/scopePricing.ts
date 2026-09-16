@@ -434,7 +434,12 @@ export function planningResolution(raw:unknown,tasks:Mapping['tasks'],now:Date,o
 export function advisoryIssue(text:string):boolean{
   const t=text.toLowerCase();
   if(/\b(omit|omission|missing|not (?:been |be )?(?:verified|covered|priced|supported|found|included)|unverified|duplicat|double[- ]count|conflict|unsupported|fabricat|incorrect|wrong|mismatch|reconcile|cannot|could not|unpriced|unknown component|no (?:catalog|rate|price|evidence)|exceeds|out of scope|not (?:in|part of) the|excluded work|hidden in exclusion)\b/.test(t))return false;
-  return /\b(confirm|verify at site|allowance|assum|methodology|per stated|see each line|to be selected|owner selection|pending selection|subject to|typical|estimated|modeled|rounded)\b/.test(t);
+  // Word forms of the same concept must classify the same way. A research
+  // note reading "should be confirmed as available" was refused here because
+  // this matched only \bconfirm\b, and that single note, carrying no defect,
+  // withheld an entire estimate. The negative list above is the guarantee and
+  // is unchanged; this only stops a suffix deciding whether a range ships.
+  return /\b(confirm(?:ed|ation|ing)?|verif(?:y|ied|ication)|verify at site|allowance|assum(?:e|ed|es|ing|ption|ptions)|methodology|per stated|see each line|to be selected|owner selection|pending selection|subject to|typical|estimat(?:e|ed|es|ing)|modeled|rounded)\b/.test(t);
 }
 
 /** Map one batch of inventory tasks, and keep going when the provider is slow.

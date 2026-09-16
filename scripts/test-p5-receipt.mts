@@ -20,7 +20,7 @@ try{
  assert.throws(()=>requireDraftReceipt({draft:{revision:1}}),/save was not confirmed/);
  db.setStale(false);assert.equal((await readDraft(id,key)).text,payload.text);
  const next=await saveDraft(id,key,'test',{...payload,text:'Updated synthetic scope'},1);assert.equal(next.revision,2);
- await assert.rejects(()=>saveDraft(id,key,'test',payload,1),/changed/);
+ await assert.rejects(()=>saveDraft(id,key,'test',payload,1),/updated elsewhere|changed/);
  const driverSource=await readFile('lib/db/index.ts','utf8').catch(()=> '');
  if(driverSource.includes('neon(connectionString')){
   const driverPackage=['@neondatabase','serverless'].join('/'),ormPackage=['drizzle','orm'].join('-');

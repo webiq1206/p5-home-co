@@ -105,7 +105,7 @@ try{
  assert.equal(transport.attempts.length,beforeRecovery+1);
  const manual=await module('manualReview');
  const costBook=await module('costBook');
- const unresolvedScope={text:'TEST scope',answers:{service:'kitchen'},extraction:{summary:'TEST scope',facts:[],conflicts:[],missingInformation:[],reviewNotes:['HEIC attachment requires manual review']},uploads:[],reviewedAt:today,corrections:[]};
+ const unresolvedScope={text:'TEST scope',answers:{service:'kitchen'},extraction:{summary:'TEST scope',facts:[],conflicts:[],missingInformation:[],reviewNotes:['plans.doc: saved for manual review. Export as PDF, XLSX, DOCX, JPEG or PNG for automatic extraction.']},uploads:[],reviewedAt:today,corrections:[]};
  const unreviewed=costBook.priceReviewedScope(unresolvedScope,{finance,costBooks:[{service:'kitchen',rules:pricing.lines.map((l:any)=>({...l,quantity:{fixed:l.quantity,factor:1}})),coverage:pricing.coverage,assumptions:[],exclusions:[],verifiedScope:'TEST ONLY',reviewedAt:today}]});
  assert.equal(unreviewed.customer.range,null);assert.ok(unreviewed.internal.warnings.some((w:any)=>w.code==='scope-review-required'));
  const conditionalBook={service:'kitchen',rules:[...pricing.lines.map((l:any)=>({...l,quantity:{fixed:l.quantity,factor:1}})),{...pricing.lines[0],id:'conditional-trade',when:{field:'structural',equals:'yes'},quantity:{fixed:1,factor:1}}],coverage:pricing.coverage,assumptions:[],exclusions:[],verifiedScope:'TEST ONLY',reviewedAt:today};
