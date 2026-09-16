@@ -1,4 +1,4 @@
-import {instructionPrompts} from './clarifications.ts';
+import {instructionPrompts,instructionPromptText} from './clarifications.ts';
 import {resolveInstructionAnswer} from './clarificationAnswer.ts';
 import {deriveScopeAnswers,reconcileScope,scopeQuestionsForBrand as scopeQuestions} from "./adaptive.ts";
 import {costQuestionFields} from "./questionPolicy.ts";
@@ -110,11 +110,11 @@ export async function putDraft(request:Request){
     if(raw.clarification){
       if(replacing)throw new DraftError('This clarification belongs to the previous project text. Read the updated project before answering.',409);
       if(!existing||raw.revision!==existing.revision)throw new DraftError('Your project changed in another tab. Refresh to continue.',409);
-      const resolved=await resolveInstructionAnswer(extraction,answers,raw.clarification,wizard.instructionAnswers);
+      const resolved=await resolveInstructionAnswer(extraction,answers,raw.clarification,wizard.instructionAnswers,undefined,incomingText);
       extraction=resolved.extraction;answers=resolved.answers;wizard.instructionAnswers=resolved.history;
       wizard.resolutions.estimatingInstructions=answers.estimatingInstructions;
     }
-    if(extraction?.instructions)extraction={...extraction,instructions:{...extraction.instructions,questions:instructionPrompts(extraction,answers).map(q=>q.detail||q.question)}};
+    if(extraction?.instructions)extraction={...extraction,instructions:{...extraction.instructions,questions:instructionPrompts(extraction,answers,incomingText).map(instructionPromptText)}};
     let reviewed:ReviewedScope|null=null;
     if(raw.reviewed===true){
       if(extraction?.instructions?.questions.length)throw new DraftError('Answer the remaining scope question before continuing.');

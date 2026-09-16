@@ -1,13 +1,13 @@
 import {analyzeBatch} from './extraction.ts';
-import {clarificationContext,exactResponsibilityChoice,instructionPrompts,isResponsibilityPrompt,questionKey,removeInstructionPrompt,type InstructionAnswer} from './clarifications.ts';
+import {clarificationContext,exactResponsibilityChoice,instructionPrompts,instructionPromptText,isResponsibilityPrompt,questionKey,removeInstructionPrompt,type InstructionAnswer} from './clarifications.ts';
 import {applyRetainedBenchTopAnswer,isBenchTopClarificationQuestion,reconcileClarificationTakeoffs} from './retainedClarification.ts';
 import {DraftError} from './store.ts';
 import {SCOPE_TEXT_LIMIT,type ScopeAnswers,type ScopeExtraction} from './scope.ts';
 
-export async function resolveInstructionAnswer(extraction:ScopeExtraction|null,answers:ScopeAnswers,raw:unknown,prior:InstructionAnswer[]=[],request=fetch){
+export async function resolveInstructionAnswer(extraction:ScopeExtraction|null,answers:ScopeAnswers,raw:unknown,prior:InstructionAnswer[]=[],request=fetch,sourceText=''){
   const value=raw as {id?:unknown;answer?:unknown};
   if(typeof value?.id!=='string'||typeof value.answer!=='string'||!value.answer.trim()||value.answer.length>SCOPE_TEXT_LIMIT)throw new DraftError('Enter an answer to continue.');
-  const prompt=instructionPrompts(extraction,answers).find(q=>q.id===value.id);
+  const prompt=instructionPrompts(extraction,answers,sourceText).find(q=>q.id===value.id);
   const answer=value.answer.trim();
   // Retries can arrive with either the already-updated extraction or a stale
   // copy that still contains the answered prompt. Return the prior result
@@ -16,7 +16,7 @@ export async function resolveInstructionAnswer(extraction:ScopeExtraction|null,a
   if(!prompt||!extraction){
     throw new DraftError('This question has changed. Refresh your saved project to continue.',409);
   }
-  const question=prompt.detail||prompt.question;
+  const question=instructionPromptText(prompt);
    // The source document has already been retained and reviewed. Cabinet-top
    // alternatives are therefore resolved locally from that extraction rather
    // than sent back through a provider (and, importantly, never trigger a PDF
@@ -33,7 +33,7 @@ export async function resolveInstructionAnswer(extraction:ScopeExtraction|null,a
      if(instructions){
        const repeated=instructions.questions.find(q=>questionKey(q)===prompt.id);
        if(repeated)throw new DraftError('Please make the scope decision explicit, such as what to include or exclude. Your answer is saved in this tab.');
-       instructions.questions=[...new Set([...instructionPrompts(extraction,answers).filter(q=>q.id!==prompt.id).map(q=>q.detail||q.question),...instructions.questions])];
+       instructions.questions=[...new Set([...instructionPrompts(extraction,answers,sourceText).filter(q=>q.id!==prompt.id).map(instructionPromptText),...instructions.questions])];
      }
      const record={id:prompt.id,question,answer};
      return {extraction:cleanedExtraction,answers:{...resolved.answers,estimatingInstructions:combined},history:[...prior,record]};
@@ -58,7 +58,7 @@ export async function resolveInstructionAnswer(extraction:ScopeExtraction|null,a
   const repeated=instructions.questions.find(q=>questionKey(q)===prompt.id);
   if(repeated)throw new DraftError('Please make the scope decision explicit, such as what to include or exclude. Your answer is saved in this tab.');
   // Preserve other unanswered questions even if a provider omitted them.
-  instructions.questions=[...new Set([...instructionPrompts(extraction,answers).filter(q=>q.id!==prompt.id).map(q=>q.detail||q.question),...instructions.questions])];
+  instructions.questions=[...new Set([...instructionPrompts(extraction,answers,sourceText).filter(q=>q.id!==prompt.id).map(instructionPromptText),...instructions.questions])];
    const changedFacts=result.extraction.facts||[];
    const changedFields=new Set(changedFacts.map(fact=>fact.field));
    const conflictedFields=new Set((result.extraction.conflicts||[]).map(conflict=>conflict.field));

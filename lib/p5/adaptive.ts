@@ -1,4 +1,4 @@
-import {instructionPrompts} from './clarifications.ts';
+import {instructionPrompts,instructionPromptText} from './clarifications.ts';
 import {ESTIMATOR_BRAND} from './brand.ts';
 import {SCOPE_FIELDS,mergeScopeFacts,validateAnswer,type ScopeAnswers,type ScopeField,type ScopeExtraction,type ScopeConflict} from './scope.ts';
 import {dynamicScopeFields,questionContext,scopeFieldApplies,scopePromptApplies} from './dynamicQuestions.ts';
@@ -85,12 +85,12 @@ export function scopeQuestions(input:ScopeAnswers,extraction:ScopeExtraction|nul
   if(!answers.service&&!applicableConflicts.length)return [questionForField('service',answers)];
   const relevant=new Set(materialScopeFields(answers,pricedFields,extraction,sourceText));
   const questions:ScopeQuestion[]=applicableConflicts.map(c=>({field:c.field,label:SCOPE_FIELDS[c.field].label,reason:c.explanation,values:c.values,conflict:true}));
-  for(const q of instructionPrompts(extraction,answers)){
-    if(!scopePromptApplies(q.field,q.detail||q.question,context))continue;
+  for(const q of instructionPrompts(extraction,answers,sourceText)){
+    if(!scopePromptApplies(q.field,instructionPromptText(q),context))continue;
     if(q.field&&questions.some(existing=>existing.field===q.field))continue;
     questions.push({field:q.field||'estimatingInstructions',label:q.field?SCOPE_FIELDS[q.field].label:'One scope detail',reason:q.question,detail:q.detail,values:q.values,...(!q.field?{instructionId:q.id}:{})});
   }
-  const uncertain=(extraction?.facts||[]).filter(f=>f.confidence<.85&&f.confidence>=.4&&!answers[f.field]?.trim()&&relevant.has(f.field));
+  const uncertain=(extraction?.facts||[]).filter(f=>Number.isFinite(f.confidence)&&f.confidence<.85&&f.confidence>=.4&&f.basis!=='visual'&&f.basis!=='inferred'&&!validateAnswer(f.field,f.value)&&!answers[f.field]?.trim()&&relevant.has(f.field));
   for(const fact of uncertain)if(!questions.some(q=>q.field===fact.field)&&!skipped.includes(fact.field))questions.push({field:fact.field,label:SCOPE_FIELDS[fact.field].label,reason:`${SCOPE_FIELDS[fact.field].label}: we found ${fact.value} in ${fact.source}. Is that correct?`,values:[fact.value]});
   // Keep the reader's project-specific wording, including which room or component
   // is missing. Replacing it with a generic numeric prompt loses that context.

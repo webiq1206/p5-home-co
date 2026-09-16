@@ -5,7 +5,15 @@ import type {ScopeInstructions} from './instructions.ts';
 import {isBenchTopClarificationQuestion,retainedBenchTopChoices,retainedChoiceValue} from './retainedClarification.ts';
 
 export interface InstructionAnswer {id:string;question:string;answer:string}
-export interface InstructionPrompt {id:string;question:string;detail?:string;values?:string[];field?:ScopeField}
+export interface InstructionPrompt {id:string;question:string;detail?:string;values?:string[];field?:ScopeField;sourceQuestion?:string}
+/** Preserve the original decision for saving and answer resolution. Helper text
+ * is display context, never a replacement for the question. */
+export function instructionPromptText(prompt:InstructionPrompt):string {
+  if(prompt.sourceQuestion?.trim())return prompt.sourceQuestion;
+  if(!prompt.detail?.trim())return prompt.question;
+  if(prompt.detail.includes(prompt.question)||prompt.detail.includes('?'))return prompt.detail;
+  return [prompt.question,prompt.detail].join(' ').trim();
+}
 export const questionKey=(text:string)=>text.toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
 const serviceQuestion=(text:string)=>/which .*services|what .*remodel.*service|company.s scope|typical .*services|offered.*services|services.*offered|residential remodel|boise .*estimate|requested subset/i.test(text);
 const RESPONSIBILITY_CHOICES=['Labor only','Materials only','Labor and materials'] as const;
@@ -25,7 +33,7 @@ const questionParts=(raw:string)=>{
 const normalizeQuestionPart=(part:string)=>part.replace(/\s+/g,' ').trim();
 
 /** One question per card, including older extractions that stored paragraphs. */
-export function instructionPrompts(extraction:ScopeExtraction|null,answers:ScopeAnswers):InstructionPrompt[]{
+export function instructionPrompts(extraction:ScopeExtraction|null,answers:ScopeAnswers,sourceText=''):InstructionPrompt[]{
   const result:InstructionPrompt[]=[];
   for(const raw of extraction?.instructions?.questions||[]){
     for(const part of questionParts(raw).flatMap(part=>atomicInstructionQuestions(part,answers,extraction?.conflicts))){
@@ -47,10 +55,11 @@ export function instructionPrompts(extraction:ScopeExtraction|null,answers:Scope
        const retainedValues=isBenchTopClarificationQuestion(full)
          ?(extraction?retainedBenchTopChoices(extraction):[]).map(retainedChoiceValue)
          :undefined;
-       result.push({id,question,...(field?{field}:{}),...(question!==asked?{detail:full}:trailing?{detail:trailing[2].trim()}:{}),values:/^Who should install the /i.test(full)?['Include installation in this estimate','Owner handles installation']:retainedValues?.length?retainedValues:values?.length?values:textBenchTopChoices(extraction,full)});
+       result.push({id,question,sourceQuestion:full,...(field?{field}:{}),...(question!==asked?{detail:full}:trailing?{detail:trailing[2].trim()}:{}),values:/^Who should install the /i.test(full)?['Include installation in this estimate','Owner handles installation']:retainedValues?.length?retainedValues:values?.length?values:textBenchTopChoices(extraction,full)});
     }
   }
-  return result.filter(q=>scopePromptApplies(q.field,q.detail||q.question,questionContext(answers,extraction)));
+  const context=questionContext(answers,extraction,sourceText);
+  return result.filter(q=>scopePromptApplies(q.field,instructionPromptText(q),context));
 }
 
 /** Only the three exact responsibility choices have a deterministic meaning. */
@@ -70,7 +79,7 @@ const PROJECT_WIDE_RESPONSIBILITY_MARKER=/\b(?:project[- ]wide|whole project|ent
 export function isResponsibilityPrompt(prompt:InstructionPrompt){
   if(!(prompt.values?.length===RESPONSIBILITY_CHOICES.length
     && RESPONSIBILITY_CHOICES.every((choice,index)=>prompt.values?.[index]===choice)))return false;
-  const text=(prompt.detail||prompt.question).replace(/\s+/g,' ').trim();
+  const text=instructionPromptText(prompt).replace(/\s+/g,' ').trim();
   const canonical=text.replace(/[?.!]+$/,'').toLowerCase();
   const exactCanonical=canonical==='labor only or materials only'
     ||canonical==='labor only, materials only, or labor and materials';
