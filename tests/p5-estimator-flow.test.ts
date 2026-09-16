@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {missingScopeFields,missingNoteField} from '../lib/p5/missingFields.ts';
 import {categoryBreakdown,fieldCategory} from '../lib/p5/presentation.ts';
 import {questionForField,questionReason} from '../lib/p5/adaptive.ts';
-import {priceCompleteScope,planningResolution,RESEARCH_STAGE_MS,PRICING_STAGE_MAX_MS,type PricingRequest} from '../lib/p5/scopePricing.ts';
+import {priceCompleteScope,planningResolution,RESEARCH_STAGE_MS,PRICING_STAGE_MAX_MS,type PricingRequest,HANDOFF_ISSUE} from '../lib/p5/scopePricing.ts';
 import {PricingStageTimeout} from '../lib/p5/pricingProgress.ts';
 import {BACKGROUND_JOB_LIMIT_MS,CLIENT_BUDGET_MS,PRICING_PASS_MS} from '../lib/p5/processingBudget.ts';
 import {createPlanningConfiguration,PLANNING_MODEL_VERSION,type PlanningCatalog} from '../lib/p5/planningBooks.ts';
@@ -182,7 +182,12 @@ test('confirmation-only audit findings become disclosed assumptions, real gaps s
   assert.equal(advisoryIssue('Tile floor: full pricing coverage has not been verified.'),false);
   assert.equal(advisoryIssue('Exhaust fan wiring is omitted from the priced components.'),false);
   assert.equal(advisoryIssue('Priced hourly labor (12) does not reconcile with the confirmed 10 hours.'),false);
-  assert.equal(advisoryIssue('Complete scope pricing could not be verified. An estimator must resolve the remaining work before a total is released.'),false);
+  // The handoff shown when pricing genuinely cannot finish must never read as
+  // a confirmation-only note: an advisory issue is downgraded to a "To
+  // confirm" assumption and a range is released. If this sentence is ever
+  // reworded into something the classifier accepts, a partial total would
+  // publish. Pin it.
+  assert.equal(advisoryIssue(HANDOFF_ISSUE),false,'the handoff can never be downgraded to an assumption');
   assert.equal(advisoryIssue('Vanity top duplicated in both cabinetry and countertop lines.'),false);
 });
 

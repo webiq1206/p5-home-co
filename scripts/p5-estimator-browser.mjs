@@ -189,7 +189,7 @@ for(const width of [320,390,1440]){
   assert.equal(await est.getByLabel('Your name',{exact:true}).inputValue(),'Synthetic Test','Contact name must survive adjacent field edits');
   assert.equal(await est.getByLabel('Email',{exact:true}).inputValue(),'customer@example.invalid','Contact email must survive adjacent field edits');
   await est.getByRole('button',{name:'Get my estimate',exact:true}).click();
-  await page.getByRole('heading',{name:'Matching your scope to the cost book',exact:true}).waitFor();
+  await page.getByRole('heading',{name:'Pricing your project',exact:true}).waitFor();
   assert.equal(await page.getByRole('progressbar',{name:'Original pages fully read'}).count(),0,'Document progress must not become a fabricated pricing percentage');
   progressState.pricingStage='research';
   await page.getByRole('heading',{name:'Researching missing local rates',exact:true}).waitFor();await overflow(page);await capture(page,`${width}-live-pricing`);
