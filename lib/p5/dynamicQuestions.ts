@@ -1,4 +1,4 @@
-import type {ScopeAnswers, ScopeExtraction, ScopeField} from './scope.ts';
+import {validateAnswer,type ScopeAnswers,type ScopeExtraction,type ScopeField} from './scope.ts';
 
 /** Question selection only. This module never invents quantities or authorizes prices. */
 const BUILDS = new Set(['new-construction', 'addition', 'adu']);
@@ -117,11 +117,23 @@ function measuredTopic(context: QuestionContext, topic: Topic): boolean {
     : ['base', 'upper', 'tall', 'cabinets'].includes(topic) ? LENGTH_UNIT.test(t.unit) || COUNT_UNIT.test(t.unit)
     : AREA_UNIT.test(t.unit)));
 }
+function validQuestionValue(field:ScopeField,value:string|undefined):boolean {
+  if(!value?.trim()||validateAnswer(field,value))return false;
+  return !['sqft','length','width','rooms','stories'].includes(field)||Number(value.replaceAll(',',''))>0;
+}
 function sourceAnswered(context: QuestionContext, field: ScopeField): boolean {
-  if (context.answers[field]?.trim()) return true;
+  // Validated visitor corrections win. Source-only facts must be valid and
+  // agree before they can suppress a required question.
+  if (validQuestionValue(field,context.answers[field])) return true;
   if (context.extraction?.conflicts.some(c => c.field === field)) return false;
-  return Boolean(context.extraction?.facts.some(f => f.field === field && f.confidence >= .85
-    && f.value?.trim() && f.basis !== 'visual' && f.basis !== 'inferred'));
+  const facts=(context.extraction?.facts||[]).filter(f => f.field === field
+    && Number.isFinite(f.confidence) && f.confidence >= .85
+    && validQuestionValue(field,f.value) && f.basis !== 'visual' && f.basis !== 'inferred');
+  const normalize=(value:string)=>{
+    const numeric=Number(value.replaceAll(',',''));
+    return Number.isFinite(numeric)?String(numeric):value.trim().toLowerCase();
+  };
+  return facts.length>0 && new Set(facts.map(f=>normalize(f.value))).size===1;
 }
 
 /** Applicability is separate from whether a question is already answered, so real conflicts survive. */
@@ -169,8 +181,7 @@ export function dynamicScopeFields(answers: ScopeAnswers, extraction: ScopeExtra
   if (context.fullProject) fields.add('sqft');
   if (scopeFieldApplies('garageIncluded', context)) fields.add('garageIncluded');
   if (scopeFieldApplies('garageSqft', context)) fields.add('garageSqft');
-  if (scopeFieldApplies('finish', context) && !answers.materials?.trim()
-    && !extraction?.facts.some(f => f.field === 'materials' && f.confidence >= .85 && f.value.trim())) fields.add('finish');
+  if (scopeFieldApplies('finish', context) && !sourceAnswered(context,'materials')) fields.add('finish');
   if (scopeFieldApplies('cabinetRoom', context) && !/\b(?:kitchen|bathroom|laundry|mudroom|pantry|office)\b/i.test(context.positive)) fields.add('cabinetRoom');
   for (const field of ['flooringSqft', 'tileSqft', 'demolitionSqft', 'trimLf', 'cabinetBaseLf', 'cabinetUpperLf', 'cabinetTallLf', 'coveredOutdoorSqft'] as ScopeField[]) {
     if (scopeFieldApplies(field, context)) fields.add(field);
