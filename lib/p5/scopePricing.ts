@@ -614,6 +614,7 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
     for(const t of mapping.tasks)if(!audit.coveredTaskIds.includes(t.id))resolution.issues.push(`${t.description}: full pricing coverage has not been verified.`);
   }catch(error){
     if(isPricingPending(error)||isProcessingDeadline(error))throw error;
+    console.error('[p5-pricing] scope verification failure', {name:error instanceof Error?error.name:'UnknownError',message:error instanceof Error?error.message:'Invalid pricing response'});
     // Preserve the lead, but never expose a partial total on provider failure,
     // timeout, unsupported search, invalid output or inadequate source evidence.
     resolution.issues.push('Complete scope pricing could not be verified. An estimator must resolve the remaining work before a total is released.');

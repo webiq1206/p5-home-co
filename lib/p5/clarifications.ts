@@ -1,3 +1,4 @@
+import {questionContext,scopePromptApplies} from './dynamicQuestions.ts';
 import {atomicInstructionQuestions,textBenchTopChoices,cabinetQuestionField} from './atomicQuestions.ts';
 import type {ScopeAnswers,ScopeExtraction,ScopeField} from './scope.ts';
 import type {ScopeInstructions} from './instructions.ts';
@@ -49,7 +50,7 @@ export function instructionPrompts(extraction:ScopeExtraction|null,answers:Scope
        result.push({id,question,...(field?{field}:{}),...(question!==asked?{detail:full}:trailing?{detail:trailing[2].trim()}:{}),values:/^Who should install the /i.test(full)?['Include installation in this estimate','Owner handles installation']:retainedValues?.length?retainedValues:values?.length?values:textBenchTopChoices(extraction,full)});
     }
   }
-  return result;
+  return result.filter(q=>scopePromptApplies(q.field,q.detail||q.question,questionContext(answers,extraction)));
 }
 
 /** Only the three exact responsibility choices have a deterministic meaning. */

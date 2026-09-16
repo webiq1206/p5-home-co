@@ -88,7 +88,7 @@ export async function putDraft(request:Request){
       const currentAnswers=existing.answers,currentExtraction=existing.extraction,currentResolutions=existing.wizard?.resolutions||{};
       const pricedFields=await costQuestionFields(currentAnswers);
       const conflicts=currentExtraction?reconcileScope(currentAnswers,currentExtraction,currentResolutions).conflicts:[];
-      return json({draft:existing,conflicts,questions:scopeQuestions(currentAnswers,currentExtraction,conflicts,existing.wizard?.skipped||[],pricedFields),pricedFields});
+      return json({draft:existing,conflicts,questions:scopeQuestions(currentAnswers,currentExtraction,conflicts,existing.wizard?.skipped||[],pricedFields,existing.text),pricedFields});
     }
     if(existing&&raw.clarification&&!replacing&&existing.wizard?.instructionAnswers?.some(item=>item.id===raw.clarification?.id&&item.answer===String(raw.clarification?.answer||"").trim())){
       throw new DraftError('This clarification retry includes other changes. Refresh the saved project before continuing.',409);
@@ -119,8 +119,9 @@ export async function putDraft(request:Request){
     if(raw.reviewed===true){
       if(extraction?.instructions?.questions.length)throw new DraftError('Answer the remaining scope question before continuing.');
       const unresolved=extraction?reconcileScope(answers,extraction,resolutions).conflicts:[];
-      if(unresolved.length)throw new DraftError(`Confirm ${SCOPE_FIELDS[unresolved[0].field].label} before submitting.`);
-      for(const conflict of extraction?.conflicts||[])if(!answers[conflict.field]?.trim())throw new DraftError(`Resolve ${SCOPE_FIELDS[conflict.field].label} before submitting.`);
+      const dependencies=await costQuestionFields(answers);
+      const remaining=scopeQuestions(answers,extraction,unresolved,skipped,dependencies,incomingText);
+      if(remaining.length)throw new DraftError(remaining[0].handoff?'Use the matching company estimator for this project.':`Answer the remaining ${remaining[0].label.toLowerCase()} question before continuing.`);
       reviewed={text:incomingText,answers,extraction,uncertainFields:skipped,uploads:existing?.uploads||[],reviewedAt:new Date().toISOString(),
         corrections:Object.entries(answers).filter(([field,value])=>{const fact=extraction?.facts.find(f=>f.field===field);return fact&&fact.value!==value;}).map(([field,value])=>({field:field as keyof ScopeAnswers,previous:extraction!.facts.find(f=>f.field===field)!.value,value:value!})),
       };
@@ -128,7 +129,7 @@ export async function putDraft(request:Request){
     const draft=await saveDraft(id,key,ESTIMATOR_BRAND.id,{text:incomingText,answers,extraction,reviewed,contact,wizard,analyzedFingerprint:replacing?undefined:existing?.analyzedFingerprint,analyzedAnswers:replacing?undefined:existing?.analyzedAnswers},raw.revision);
     const pricedFields=await costQuestionFields(answers);
     const conflicts=extraction?reconcileScope(answers,extraction,resolutions).conflicts:[];
-    return json({draft,conflicts,questions:scopeQuestions(answers,extraction,conflicts,skipped,pricedFields),pricedFields});
+    return json({draft,conflicts,questions:scopeQuestions(answers,extraction,conflicts,skipped,pricedFields,incomingText),pricedFields});
   }catch(error){
     if(error instanceof DraftError&&error.status===409){try{const {id}=draftCredentials(request);void recordEvent({draftId:id,kind:'draft',stage:'save-revision',status:409,code:'revision-conflict',message:error.message,outcome:'failed'});}catch{}}
     return failed(error);

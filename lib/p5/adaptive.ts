@@ -1,19 +1,19 @@
 import {instructionPrompts} from './clarifications.ts';
 import {ESTIMATOR_BRAND} from './brand.ts';
-import {SCOPE_FIELDS,mergeScopeFacts,requiredScopeQuestions,validateAnswer,type ScopeAnswers,type ScopeField,type ScopeExtraction,type ScopeConflict} from './scope.ts';
+import {SCOPE_FIELDS,mergeScopeFacts,validateAnswer,type ScopeAnswers,type ScopeField,type ScopeExtraction,type ScopeConflict} from './scope.ts';
+import {dynamicScopeFields,questionContext,scopeFieldApplies,scopePromptApplies} from './dynamicQuestions.ts';
 
 export interface ScopeQuestion {field:ScopeField;label:string;reason:string;values?:string[];conflict?:boolean;instructionId?:string;detail?:string;handoff?:{label:string;url:string}}
 export function sameAnswer(field:ScopeField,a:string,b:string){
   if(SCOPE_FIELDS[field].kind==='number')return Number(a.replaceAll(',',''))===Number(b.replaceAll(',',''));
   return a.trim().toLowerCase()===b.trim().toLowerCase();
 }
+/** Source-derived answers are replaced on reread; deliberate visitor corrections are retained. */
 export function manualScopeAnswers(current:ScopeAnswers,previous:ScopeExtraction|null,resolutions:ScopeAnswers={}){
   if(!previous)return {...current};
   const extracted=deriveScopeAnswers(mergeScopeFacts({},previous).answers);
   const answers={...current};
-  for(const key of Object.keys(extracted) as ScopeField[]){
-    if(!resolutions[key]&&current[key]!==undefined&&sameAnswer(key,current[key]!,extracted[key]!))delete answers[key];
-  }
+  for(const key of Object.keys(extracted) as ScopeField[]){if(!resolutions[key]&&current[key]!==undefined&&sameAnswer(key,current[key]!,extracted[key]!))delete answers[key];}
   return answers;
 }
 export function deriveScopeAnswers(input:ScopeAnswers){
@@ -34,91 +34,86 @@ export function reconcileScope(current:ScopeAnswers,extraction:ScopeExtraction,r
   const merged=mergeScopeFacts(current,{...normalized,facts:resolvedFacts});
   const answers=deriveScopeAnswers(merged.answers);
   const conflicts=merged.conflicts.filter((c,i,all)=>all.findIndex(v=>v.field===c.field)===i);
-  if(current.sqft&&current.length&&current.width){
-    const calculated=deriveScopeAnswers({...current,sqft:''}).sqft;
-    if(calculated&&!sameAnswer('sqft',current.sqft,calculated)&&!resolutions.sqft)conflicts.push({field:'sqft',values:[current.sqft,calculated],explanation:'The stated area differs from length multiplied by width. Which area is being estimated?'});
-  }
+  if(current.sqft&&current.length&&current.width){const calculated=deriveScopeAnswers({...current,sqft:''}).sqft;if(calculated&&!sameAnswer('sqft',current.sqft,calculated)&&!resolutions.sqft)conflicts.push({field:'sqft',values:[current.sqft,calculated],explanation:'The stated area differs from length multiplied by width. Which area is being estimated?'});}
   for(const conflict of conflicts)if(!current[conflict.field]?.trim())delete answers[conflict.field];
   return {answers,conflicts};
 }
 const remodels=['kitchen','bathroom','whole-home'];
 const builds=['addition','adu','new-construction'];
-const smallServices=['handyman','re10','change-order','rush'];
 export const finishServices=[...remodels,...builds,'cabinet-product','cabinet-install'];
-export function finishOptionsForService(service?:string){
+export function finishOptionsForService(service?:string):string[]{
   const values=[...SCOPE_FIELDS.finish.options];
   return service&&builds.includes(service)?values.filter(value=>value!=='refresh'):values;
 }
-function pricingQuestionFields(answers:ScopeAnswers):ScopeField[]{
-  const service=answers.service||'';
-  const required=[...requiredScopeQuestions(answers)];
-  if(builds.includes(service)){
-    if(!answers.garageIncluded?.trim())required.push('garageIncluded');
-    if(answers.garageIncluded==='yes'&&!answers.garageSqft?.trim())required.push('garageSqft');
-  }
-  if(service.startsWith('cabinet-')&&!answers.cabinetTallLf?.trim())required.push('cabinetTallLf');
-  const scope=[answers.taskList,answers.otherDetails,answers.demolition,answers.structural,answers.materials].filter(Boolean).join(' ').toLowerCase();
-  if(scope){
-    if(/paint|drywall/.test(scope)&&!answers.sqft?.trim())required.push('sqft');
-    if(/floor|lvp|hardwood|laminate|carpet/.test(scope)&&!answers.flooringSqft?.trim())required.push('flooringSqft');
-    if(/tile|backsplash/.test(scope)&&!answers.tileSqft?.trim())required.push('tileSqft');
-    if(/demoli|tear.?out/.test(scope)&&!answers.demolitionSqft?.trim())required.push('demolitionSqft');
-    if(/trim|baseboard/.test(scope)&&!answers.trimLf?.trim())required.push('trimLf');
-    if(/cabinet|vanit(?:y|ies)/.test(scope)){
-      if(!answers.cabinetBaseLf?.trim())required.push('cabinetBaseLf');
-      if(!answers.cabinetUpperLf?.trim())required.push('cabinetUpperLf');
-      if(!answers.cabinetTallLf?.trim())required.push('cabinetTallLf');
-    }
-    if(smallServices.includes(service)&&!/paint|drywall|floor|tile|demoli|toilet|faucet|disposal|door|outlet|switch|gfci|light|fan|trim|baseboard|cabinet|caulk|shelv|handrail/.test(scope)&&!answers.laborHours?.trim())required.push('laborHours');
-  }
-  return [...new Set(required)].filter(field=>!answers[field]?.trim());
+/** One shared scope-aware queue for the browser and server. A catalog dependency is
+ * not permission to ask about an excluded trade or repeat a supplied measurement. */
+export function materialScopeFields(answers:ScopeAnswers,pricedFields:ScopeField[]=[],extraction:ScopeExtraction|null=null,sourceText=''):ScopeField[]{
+  return dynamicScopeFields(deriveScopeAnswers(answers),extraction,pricedFields,sourceText);
 }
-export function materialScopeFields(answers:ScopeAnswers,pricedFields:ScopeField[]=[]):ScopeField[]{
-  const service=answers.service;
-  const required=pricingQuestionFields(answers);
-  if(service&&finishServices.includes(service)&&!answers.finish?.trim())required.push('finish');
-  if(service&&[...remodels,...builds].includes(service)&&!answers.taskList&&!answers.demolition&&!answers.structural&&!answers.otherDetails)required.push('taskList');
-  return [...new Set([...required,...pricedFields])].filter(k=>!answers[k]?.trim());
-}
-const detailQuestions:Partial<Record<ScopeField,string>>={cabinetRoom:'Which room are the cabinets for?',cabinetBaseLf:'How many linear feet of base cabinets are needed?',cabinetUpperLf:'How many linear feet of wall cabinets are needed?',cabinetTallLf:'How many linear feet of tall cabinets are needed? Enter 0 if there are none.',garageIncluded:'Does this project include a garage?',garageSqft:'How many square feet is the garage?',coveredOutdoorSqft:'How many square feet of covered outdoor space are included?',laborHours:'About how many labor hours should be included?',projectMonths:'How many months do you expect the work to take?',rooms:'How many rooms are included?',bathrooms:'How many bathrooms are included?',stories:'How many stories are included?',flooringSqft:'About how many square feet of flooring are included?',tileSqft:'About how many square feet of tile are included, including wall tile or backsplash where applicable?',demolitionSqft:'About how many square feet of demolition are included?',trimLf:'About how many linear feet of trim or baseboard are included?'};
+const detailQuestions:Partial<Record<ScopeField,string>>={
+  cabinetRoom:'Which room are the cabinets for?',cabinetBaseLf:'How many linear feet of base cabinets are needed?',
+  cabinetUpperLf:'How many linear feet of wall cabinets are needed?',cabinetTallLf:'How many linear feet of tall cabinets are needed? Enter 0 if there are none.',
+  garageIncluded:'Does the new home estimate include a garage?',garageSqft:'How many square feet is the included garage?',
+  coveredOutdoorSqft:'How many square feet of covered outdoor space are included?',laborHours:'How many hours should this hourly work allowance cover?',
+  projectMonths:'What construction duration should this estimate allow for?',rooms:'How many rooms are included?',bathrooms:'How many bathrooms are included?',stories:'How many stories are included?',
+  flooringSqft:'About how many square feet of flooring are being installed?',tileSqft:'How many square feet of tile are included? Keep floor, wall and backsplash areas clear in your answer.',
+  demolitionSqft:'About how large is the area being demolished?',trimLf:'About how many linear feet of trim or baseboard are included?',
+};
 export function questionReason(field:ScopeField,answers:ScopeAnswers):string{
   const service=answers.service||'';
-  if(field==='service')return 'What would you like help with?';
-  if(field==='taskList')return 'What work should be included? A short list with quantities is enough.';
+  if(field==='service')return 'What work would you like estimated?';
+  if(field==='taskList')return 'What work should be included? Describe the items, quantities and any work to leave out.';
   if(field==='sqft')return builds.includes(service)?'About how many square feet of living space are included? Keep garage and outdoor areas separate.':'About how large is the area being worked on?';
-  if(field==='finish')return builds.includes(service)?'What level of finishes should we budget for this build?':'What finish level would you like?';
+  if(field==='finish')return builds.includes(service)?'What level of finishes should we budget for this build?':'What finish level should we budget for the unspecified selections?';
   return detailQuestions[field]||`What should we use for ${SCOPE_FIELDS[field].label.toLowerCase()}?`;
 }
 function choiceValues(field:ScopeField,answers:ScopeAnswers){
-  const definition=SCOPE_FIELDS[field];
-  if(definition.kind!=='choice')return undefined;
+  const definition=SCOPE_FIELDS[field];if(definition.kind!=='choice')return undefined;
   if(field==='finish')return finishOptionsForService(answers.service);
   return definition.options.filter(v=>field!=='service'||(ESTIMATOR_BRAND.services as readonly string[]).includes(v));
 }
 export function questionForField(field:ScopeField,answers:ScopeAnswers):ScopeQuestion{
-  const values=choiceValues(field,answers);
-  return {field,label:SCOPE_FIELDS[field].label,reason:questionReason(field,answers),...(values?.length?{values}:{})};
+  const values=choiceValues(field,answers);return {field,label:SCOPE_FIELDS[field].label,reason:questionReason(field,answers),...(values?.length?{values}:{})};
 }
-export function scopeQuestions(input:ScopeAnswers,extraction:ScopeExtraction|null,conflicts:ScopeConflict[]=[],skipped:ScopeField[]=[],pricedFields:ScopeField[]=[]):ScopeQuestion[]{
+export function scopeQuestions(input:ScopeAnswers,extraction:ScopeExtraction|null,conflicts:ScopeConflict[]=[],skipped:ScopeField[]=[],pricedFields:ScopeField[]=[],sourceText=''):ScopeQuestion[]{
   const answers=deriveScopeAnswers(input);
-  const relevant=new Set<ScopeField>(['service',...materialScopeFields(answers,pricedFields),...pricedFields]);
-  if((extraction?.takeoffs?.length||0)>0)relevant.delete('taskList');
+  const context=questionContext(answers,extraction,sourceText);
+  const applicableConflicts=conflicts.filter(c=>scopeFieldApplies(c.field,context));
+  // Resolve the project type before calculating the next service-specific question.
+  const serviceConflict=applicableConflicts.find(c=>c.field==='service');
+  if(serviceConflict)return [{field:'service',label:SCOPE_FIELDS.service.label,reason:serviceConflict.explanation,values:serviceConflict.values,conflict:true}];
+  if(!answers.service&&!applicableConflicts.length)return [questionForField('service',answers)];
+  const relevant=new Set(materialScopeFields(answers,pricedFields,extraction,sourceText));
+  const questions:ScopeQuestion[]=applicableConflicts.map(c=>({field:c.field,label:SCOPE_FIELDS[c.field].label,reason:c.explanation,values:c.values,conflict:true}));
+  for(const q of instructionPrompts(extraction,answers)){
+    if(!scopePromptApplies(q.field,q.detail||q.question,context))continue;
+    if(q.field&&questions.some(existing=>existing.field===q.field))continue;
+    questions.push({field:q.field||'estimatingInstructions',label:q.field?SCOPE_FIELDS[q.field].label:'One scope detail',reason:q.question,detail:q.detail,values:q.values,...(!q.field?{instructionId:q.id}:{})});
+  }
   const uncertain=(extraction?.facts||[]).filter(f=>f.confidence<.85&&f.confidence>=.4&&!answers[f.field]?.trim()&&relevant.has(f.field));
-  const questions:ScopeQuestion[]=conflicts.map(c=>({field:c.field,label:SCOPE_FIELDS[c.field].label,reason:c.explanation,values:c.values,conflict:true}));
-  questions.unshift(...instructionPrompts(extraction,answers).map(q=>({field:q.field||'estimatingInstructions' as const,label:q.field?SCOPE_FIELDS[q.field].label:'One scope detail',reason:q.question,detail:q.detail,values:q.values,...(!q.field?{instructionId:q.id}:{})})));
-  for(const fact of uncertain)if(!questions.some(q=>q.field===fact.field)&&!skipped.includes(fact.field))questions.push({field:fact.field,label:SCOPE_FIELDS[fact.field].label,reason:`${SCOPE_FIELDS[fact.field].label}: we found “${fact.value}” in ${fact.source}. Is that correct?`,values:[fact.value]});
-  for(const q of extraction?.clarifications||[])if(relevant.has(q.field)&&!(q.field==='finish'&&answers.materials)&&!(['address','location','schedule','urgency'].includes(q.field)&&!pricedFields.includes(q.field))&&!answers[q.field]?.trim()&&!skipped.includes(q.field)&&!questions.some(x=>x.field===q.field))questions.push({field:q.field,label:SCOPE_FIELDS[q.field].label,reason:SCOPE_FIELDS[q.field].kind==='number'?`Please confirm ${SCOPE_FIELDS[q.field].label.toLowerCase()}. Approximate is fine.`:q.question});
-  for(const field of relevant)if(!answers[field]?.trim()&&!questions.some(q=>q.field===field)&&!skipped.includes(field))questions.push({field,label:SCOPE_FIELDS[field].label,reason:questionReason(field,answers)});
-  return questions.map(q=>{const values=q.values?.length?q.values:choiceValues(q.field,answers);return {...q,...(values?.length?{values}:{}),...(q.reason.length>240?{reason:`Please confirm ${q.label.toLowerCase()}.`,detail:q.reason}:{})};});
+  for(const fact of uncertain)if(!questions.some(q=>q.field===fact.field)&&!skipped.includes(fact.field))questions.push({field:fact.field,label:SCOPE_FIELDS[fact.field].label,reason:`${SCOPE_FIELDS[fact.field].label}: we found ${fact.value} in ${fact.source}. Is that correct?`,values:[fact.value]});
+  // Keep the reader's project-specific wording, including which room or component
+  // is missing. Replacing it with a generic numeric prompt loses that context.
+  for(const q of extraction?.clarifications||[])if(relevant.has(q.field)&&!answers[q.field]?.trim()&&!skipped.includes(q.field)&&!questions.some(x=>x.field===q.field))questions.push({field:q.field,label:SCOPE_FIELDS[q.field].label,reason:SCOPE_FIELDS[q.field].kind==='number'&&!/how (?:many|much|long|wide|large)|number of|square feet|linear feet|footage/i.test(q.question)?questionReason(q.field,answers):q.question,detail:q.reason});
+  for(const field of relevant)if(!questions.some(q=>q.field===field)&&!skipped.includes(field))questions.push(questionForField(field,answers));
+  return questions.map(q=>{
+    const allowed=choiceValues(q.field,answers);
+    const values=q.field==='finish'?allowed:q.values?.length?q.values:allowed;
+    return {...q,...(values?.length?{values}:{}),...(q.reason.length>240?{reason:`Please confirm ${q.label.toLowerCase()}.`,detail:q.reason}:{})};
+  });
 }
-export function validateScopeAnswer(field:ScopeField,value:string){const error=validateAnswer(field,value);if(error)return error;if(['sqft','length','width','rooms','stories'].includes(field)&&value.trim()&&Number(value.replaceAll(',',''))<=0)return 'Enter a number greater than zero, or choose Not sure yet.';return null;}
+export function validateScopeAnswer(field:ScopeField,value:string){
+  const error=validateAnswer(field,value);if(error)return error;
+  if(['sqft','length','width','rooms','stories'].includes(field)&&value.trim()&&Number(value.replaceAll(',',''))<=0)return 'Enter a number greater than zero, or choose Not sure yet.';
+  return null;
+}
 export function scopeAssumptions(answers:ScopeAnswers,skipped:ScopeField[]=[]){
   const notes:string[]=[];
   if(!answers.location&&!answers.address)notes.push('General service-area pricing; location, access and jurisdiction will be confirmed.');
   if(!answers.urgency)notes.push('Standard scheduling; priority or emergency work is not included.');
-  if(!answers.finish&&finishServices.includes(answers.service||''))notes.push('Finish level not chosen; standard finishes are assumed until you select one.');
+  if(!answers.finish&&finishServices.includes(answers.service||''))notes.push(answers.materials?.trim()?'Specified materials control the scope; any unselected items require individually disclosed planning allowances.':'Finish level not chosen; standard finishes are assumed until you select one.');
   if(answers.length&&answers.width&&answers.sqft&&sameAnswer('sqft',answers.sqft,deriveScopeAnswers({...answers,sqft:''}).sqft||'0'))notes.push(`Project area calculated from ${answers.length} × ${answers.width} feet. Confirm irregular areas during the site visit.`);
-  for(const k of skipped)if(!answers[k])notes.push(`${SCOPE_FIELDS[k].label}: not yet known; requires an allowance or pricing review.`);
+  for(const k of skipped)if(!answers[k])notes.push(`${SCOPE_FIELDS[k].label}: not yet known; requires a disclosed, supported allowance before pricing.`);
   return notes;
 }
 function handoffForService(service:string){
@@ -130,17 +125,13 @@ function handoffForService(service:string){
   return null;
 }
 export function scopeQuestionsForBrand(...args:Parameters<typeof scopeQuestions>):ScopeQuestion[]{
- const service=args[0].service;
- if(service&&!(ESTIMATOR_BRAND.services as readonly string[]).includes(service)){
-  const handoff=handoffForService(service);
-  if(handoff)return [{field:'service',label:'Right estimator',reason:handoff.reason,detail:'Your project was identified before unrelated questions were asked. Open the correct estimator below and attach the same source files there.',handoff:{label:handoff.label,url:handoff.url}}];
-  return [{field:'service',label:'Project type',reason:`Which part of this project should ${ESTIMATOR_BRAND.name} estimate?`,values:[...ESTIMATOR_BRAND.services],detail:'Choose the work you want this company to handle. Your complete project description and documents are retained.'}];
- }
- if(service&&!service.startsWith('cabinet-')){
-  const next=[...args] as Parameters<typeof scopeQuestions>;
-  next[2]=(args[2]||[]).filter(conflict=>conflict.field!=='cabinetRoom');
-  if(args[1])next[1]={...args[1],conflicts:args[1].conflicts.filter(conflict=>conflict.field!=='cabinetRoom')};
-  return scopeQuestions(...next).filter(question=>question.field!=='cabinetRoom');
- }
- return scopeQuestions(...args);
+  const service=args[0].service;
+  // A genuine service conflict is a question, not permission to redirect based
+  // on a stale default before the customer's project type is established.
+  if((args[2]||[]).some(c=>c.field==='service'))return scopeQuestions(...args).filter(q=>q.field==='service');
+  if(service&&!(ESTIMATOR_BRAND.services as readonly string[]).includes(service)){
+    const handoff=handoffForService(service);if(handoff)return [{field:'service',label:'Right estimator',reason:handoff.reason,detail:'Your project was identified before unrelated questions were asked. Open the correct estimator below and attach the same source files there.',handoff:{label:handoff.label,url:handoff.url}}];
+    return [{field:'service',label:'Project type',reason:`Which part of this project should ${ESTIMATOR_BRAND.name} estimate?`,values:[...ESTIMATOR_BRAND.services],detail:'Choose the work you want this company to handle. Your complete project description and documents are retained.'}];
+  }
+  return scopeQuestions(...args);
 }

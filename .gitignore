@@ -72,6 +72,7 @@ build/contracts/
 
 # Estimator test outputs
 /p5-verification/
+/p5-question-verification/
 
 # P5 estimator source and verification scripts are application code.
 !/lib/
@@ -82,6 +83,7 @@ build/contracts/
 !/scripts/p5-admin-pricing-browser.mjs
 !/scripts/test-p5-workflow.mts
 !/scripts/p5-estimator-browser.mjs
+!/scripts/integrate-p5-dynamic-questions.mjs
 
 !/scripts/dev.mjs
 !/scripts/test-p5-upload.mts

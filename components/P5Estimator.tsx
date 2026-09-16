@@ -90,12 +90,12 @@ export function P5Estimator({defaultService='',headingAs='h1',projectSource,layo
   const changeContact=(key:keyof BrowserDraft['contact'],value:string)=>{const latest=current.current;if(latest)change({contact:{...latest.contact,[key]:value}});};
   /** Append to the conversation record kept with the draft on this device. */
   const log=(...entries:TranscriptEntry[])=>{const d=current.current;if(!d||!entries.length)return;apply({...d,transcript:[...(d.transcript||[]),...entries]});};
-  const questions=(d:BrowserDraft)=>scopeQuestions(d.answers,d.extraction,d.conflicts||[],d.wizard?.skipped||[],d.pricedFields||[]);
+  const questions=(d:BrowserDraft)=>scopeQuestions(d.answers,d.extraction,d.conflicts||[],d.wizard?.skipped||[],d.pricedFields||[],d.text);
   const resume=(d:BrowserDraft)=>{const next=questions(d)[0]||null;setActive(next);setReply(d.pendingReply?.id===next?.instructionId?d.pendingReply?.answer||'':'');apply(resumeWizardDraft(d,Boolean(next)));};
   const engage=()=>{if(layout==='embedded'&&!expanded)setExpanded(true);};
   /** Scroll the conversation, never the page, so a stage heading or a field is in view. */
   const scrollThread=(el:HTMLElement|null,block:'start'|'center'='start')=>{
-    const thread=threadRef.current;if(!el)return;
+    const thread=threadRef.current;if(!el||!frameActive)return;
     const reduced=typeof window.matchMedia==='function'&&window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     const behavior:ScrollBehavior=reduced?'auto':'smooth';
     if(!thread||getComputedStyle(thread).overflowY==='visible'){el.scrollIntoView({block:block==='start'?'start':'center',behavior});return;}
@@ -105,7 +105,7 @@ export function P5Estimator({defaultService='',headingAs='h1',projectSource,layo
   };
   /** Instant positioning for a new stage: its heading sits at the top of the conversation area. */
   const positionThread=(el:HTMLElement|null)=>{
-    const thread=threadRef.current;if(!el)return;
+    const thread=threadRef.current;if(!el||!frameActive)return;
     if(!thread||getComputedStyle(thread).overflowY==='visible'){el.scrollIntoView({block:'start'});return;}
     thread.scrollTo({top:Math.max(0,el.getBoundingClientRect().top-thread.getBoundingClientRect().top+thread.scrollTop-8),behavior:'auto'});
   };
@@ -405,7 +405,7 @@ export function P5Estimator({defaultService='',headingAs='h1',projectSource,layo
     setActive(questionForField(field,d.answers));setMissingFields([]);setVerificationItems([]);setError('');setAddingDetails(false);
     apply({...current.current!,step:1});
   };
-  async function downloadPdf(){await run('Preparing your PDF...',async()=>{const response=await operationFetch('/api/p5-estimator/pdf',{headers:draftHeaders(current.current!)});if(!response.ok)throw new Error('The PDF could not be downloaded. Your submission is saved; please retry.');const url=URL.createObjectURL(await response.blob());const link=document.createElement('a');link.href=url;link.download=`${brand.id}-project-summary.pdf`;link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);});}
+  async function downloadPdf(){await run('Preparing your PDF...',async()=>{const response=await operationFetch('/api/p5-estimator/pdf',{headers:draftHeaders(current.current!)});if(!response.ok)throw new Error('The PDF could not be downloaded. Your submission is saved; please retry.');const url=URL.createObjectURL(await response.blob());const link=document.createElement('a');link.href=url;link.download=`${brand.id}-estimate.pdf`;link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);});}
   const focusCorrection=(element:HTMLElement|null)=>requestAnimationFrame(()=>{if(!element)return;element.focus({preventScroll:true});scrollThread(element,'center');});
   async function submit(event:React.FormEvent){
     event.preventDefault();if(busyRef.current)return;if(draft?.step!==2){await begin();return;}
@@ -536,10 +536,10 @@ export function P5Estimator({defaultService='',headingAs='h1',projectSource,layo
     // Each distinct stage or question starts with its heading in view once the
     // work that produced it has finished; typing, autosave and ordinary
     // re-renders never move the conversation.
-    if(!draft||!stageKey||working||stageKey===lastStage.current)return;lastStage.current=stageKey;
+    if(!frameActive||!draft||!stageKey||working||stageKey===lastStage.current)return;lastStage.current=stageKey;
     const position=()=>{const target=stageRef.current;if(target){positionThread(target);(target.querySelector('[data-stage-heading]') as HTMLElement|null)?.focus({preventScroll:true});}else threadRef.current?.scrollTo({top:0});};
     position();requestAnimationFrame(position);
-  },[stageKey,working,Boolean(draft)]);
+  },[stageKey,working,Boolean(draft),frameActive]);
   const sentMessageRef=useRef(false);
   useEffect(()=>{
     // After the visitor sends a message the conversation shows that message and the progress card beneath it.
@@ -586,7 +586,7 @@ export function P5Estimator({defaultService='',headingAs='h1',projectSource,layo
   </div>;
   const knownDetails=known.length>0&&<div>
     <p className={styles.sectionLabel} style={{marginTop:0}}>Your project details</p>
-    {knownGroups.map(group=><details key={group.title} className={styles.accordion} open={group.title==='Project at a glance'||group.fields.includes(editField as ScopeField)}>
+    {knownGroups.map(group=><details key={group.title} className={styles.accordion} open={group.fields.includes(editField as ScopeField)||undefined}>
       <summary><span className={styles.accordionTitle}>{group.title}</span><span className={styles.accordionMeta}>{group.fields.length} {group.fields.length===1?'detail':'details'}</span></summary>
       <div className={styles.accordionBody}><dl className={styles.rows}>{group.fields.map(k=><div key={k}><dt>{SCOPE_FIELDS[k].label}</dt><dd>{editField===k?<div>{field(k)}<button type="button" className={styles.secondary} onClick={()=>{const issue=validateScopeAnswer(k,draft.answers[k]||'');if(issue){setError(issue);return;}setEditField('');setError('');log(newEntry('user',`Changed ${SCOPE_FIELDS[k].label.toLowerCase()} to ${readable(k,draft.answers[k]||'')}`,{kind:'note'}));}}>Done</button></div>:readable(k,draft.answers[k]!)}</dd>{editField!==k&&<button type="button" className={styles.iconButton} aria-label={`Edit ${SCOPE_FIELDS[k].label}`} onClick={()=>setEditField(k)}>Edit</button>}</div>)}</dl></div>
     </details>)}
@@ -615,7 +615,7 @@ export function P5Estimator({defaultService='',headingAs='h1',projectSource,layo
   const history=transcript.map((entry,index)=><Message key={entry.id} role={entry.role} last={index===lastUserIndex}>
     {entry.role==='assistant'&&entry.kind==='question'&&entry.label&&<p className={styles.eyebrow}>{entry.label}</p>}
     {entry.caption&&<p className={styles.eyebrow} style={{color:'inherit',opacity:.7}}>{entry.caption}</p>}
-    {entry.text&&<p className={styles.msgText}>{entry.text}</p>}
+    {entry.text&&(entry.text.length>500?<details className={styles.accordion}><summary><span className={styles.accordionTitle}>View full message</span></summary><div className={styles.accordionBody}><p className={styles.msgText}>{entry.text}</p></div></details>:<p className={styles.msgText}>{entry.text}</p>)}
     {entry.files&&entry.files.length>0&&<ul className={styles.files} aria-label="Attached files">{entry.files.map((name,i)=><li key={name+i}><FileGlyph/>{name}</li>)}</ul>}
     {entry.kind==='ack'&&draft.step===1&&index===transcript.length-1&&known.length>0&&<details className={styles.accordion}><summary><span className={styles.accordionTitle}>What I captured so far</span><span className={styles.accordionMeta}>{known.length} {known.length===1?'detail':'details'}</span></summary><div className={styles.accordionBody}><dl className={styles.rows}>{known.map(k=><div key={k}><dt>{SCOPE_FIELDS[k].label}</dt><dd>{readable(k,draft.answers[k]!)}</dd></div>)}</dl></div></details>}
   </Message>);
@@ -650,11 +650,11 @@ export function P5Estimator({defaultService='',headingAs='h1',projectSource,layo
       </dl>
       {draft.extraction?.summary&&<p className={styles.hint} style={{marginTop:12}}>{draft.extraction.summary.slice(0,280)}{draft.extraction.summary.length>280?'…':''}</p>}
     </div>
-    {finishServices.includes(draft.answers.service||'')&&<div className={styles.card}>
+    {finishServices.includes(draft.answers.service||'')&&<details className={styles.accordion}><summary><span className={styles.accordionTitle}>Finish selections</span><span className={styles.accordionMeta}>{draft.answers.finish?readable('finish',draft.answers.finish):'Planning allowances'}</span></summary><div className={styles.accordionBody}>
       <div className={styles.cardHead}><h3>Finish level</h3><span className={styles.badge} data-kind={draft.answers.finish?'included':'assumption'}>{draft.answers.finish?'Selected':'Choose one'}</span></div>
       <p className={styles.hint} style={{marginBottom:12}}>Finish level changes material pricing across the whole estimate. {draft.answers.finish?'You can change it here before getting your estimate.':'Standard finishes are assumed until you choose.'}</p>
       <div className={styles.choices} role="group" aria-label="Finish level">{FINISH_LEVELS.map(([value,detail])=><button type="button" key={value} className={styles.choice} aria-pressed={draft.answers.finish===value} onClick={()=>{if(draft.answers.finish===value)return;answer('finish',value);log(newEntry('user',`Finish level: ${readable('finish',value)}`,{kind:'note'}));}}><span><strong>{readable('finish',value)}</strong><br/><small className={styles.hint}>{detail}</small></span></button>)}</div>
-    </div>}
+    </div></details>}
     {warningCard}
     {(draft.extraction?.instructions||draft.extraction?.documentCoverage)&&<div><P5EstimateDetails result={{instructions:draft.extraction.instructions,documentCoverage:draft.extraction.documentCoverage}} openFirst={false} showGlance={false}/></div>}
     {assumptions.length>0&&<details className={styles.accordion}><summary><span className={styles.accordionTitle}>Assumptions and details to confirm</span><span className={styles.badge} data-kind="assumption">To confirm</span><span className={styles.accordionMeta}>{assumptions.length}</span></summary><div className={styles.accordionBody}><ul className={styles.bullets}>{assumptions.map(note=><li key={note}>{note}</li>)}</ul></div></details>}
@@ -675,7 +675,7 @@ export function P5Estimator({defaultService='',headingAs='h1',projectSource,layo
     </div>
     <div className={styles.rangeCard}><p className={styles.eyebrow}>{result.range?'Preliminary planning range':'Status'}</p><h2>{result.range?`${result.range.low.toLocaleString("en-US",{style:"currency",currency:"USD",maximumFractionDigits:0})} to ${result.range.high.toLocaleString("en-US",{style:"currency",currency:"USD",maximumFractionDigits:0})}`:"Your scope is ready for pricing review"}</h2><p>{result.message}</p></div>
     <p className={styles.delivery} role="status" data-state={deliveryState}>{deliveryState==='sent'?`Your summary was emailed to ${draft.contact.email} and the team has your record.`:deliveryState==='review'?'Your estimate is saved. The email could not be delivered automatically, so the team will check it and follow up. You do not need to submit again; you can download the summary below.':customerDelivery?`Your estimate is saved. We are sending a copy to ${draft.contact.email}.`:'Your estimate is saved. We are sending a copy to your email.'}</p>
-    <P5EstimateDetails result={result}/>
+    <div className={styles.card} aria-label="Estimate PDF attachment"><div className={styles.cardHead}><h3>Your estimate PDF</h3><span className={styles.badge}>PDF</span></div><p className={styles.hint}>Includes your price range, scope, exclusions and planning assumptions.</p><div className={styles.actions}><button type="button" className={styles.secondary} onClick={downloadPdf} disabled={locked}>Download estimate PDF</button></div></div><P5EstimateDetails result={result} openFirst={false}/>
     <div className={styles.card}><h3>Recommended next step</h3><p>{result.nextStep}</p><div className={styles.resultActions}><a className={styles.primary} href={brand.consultationPath} onClick={()=>trackScopeEvent("onsiteRequested",draft.answers.service)}>Schedule a consultation</a><a className={styles.secondary} href="tel:+12084771169">Call {brand.phone}</a></div></div>
     <p className={styles.disclaimer}>{result.disclaimer}</p>
     {alertCard}
