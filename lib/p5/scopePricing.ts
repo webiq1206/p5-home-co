@@ -597,7 +597,12 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
     // A failed coverage audit is actionable work, not immediately a dead end.
     // Re-map against the actually priced components, then independently audit
     // the repaired estimate. Removed components cannot remain in the total.
-    if(resolution.issues.length||audit.issues.length||mapping.tasks.some(t=>!audit.coveredTaskIds.includes(t.id))){
+    // Advisory notes (allowances, items to confirm) are not defects; they are
+    // released with the range. Only blocking issues, audit findings or an
+    // uncovered task justify the repair pass, which costs a second mapping,
+    // research and audit round.
+    const blockingIssues=resolution.issues.filter(issue=>!advisoryIssue(issue));
+    if(blockingIssues.length||audit.issues.length||mapping.tasks.some(t=>!audit.coveredTaskIds.includes(t.id))){
       const priorIssues=[...resolution.issues,...audit.issues];
       const beforeRepair=priceReviewedScope(scope,configuration,now,resolution);
       const pricedComponents=existingLines(beforeRepair);

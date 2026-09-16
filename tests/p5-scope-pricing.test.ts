@@ -341,6 +341,23 @@ test('A mapping batch that times out is halved and both halves are priced',async
  assert.ok(result.customer.range,'the same model and prompt price the halves and the range is released');
  assert.equal(result.customer.scopeTasks.length,12);
 });
+test('Advisory-only issues release the range without a repair round',async()=>{
+ const tasks=Array.from({length:12},(_,i)=>({...task,id:`task-${i}`,description:`Assembly component ${i}`}));
+ let calls=0,mappings=0,audits=0;
+ const request:PricingRequest=async(_instructions,input)=>{
+  const data=input as any;calls++;
+  if(calls===1)return {value:{tasks:tasks.map(({id,description,evidence})=>({id,description,evidence})),issues:[]},sourceUrls:[]};
+  if(data.taskBatch){mappings++;return {value:{tasks:data.taskBatch.map((t:any)=>({...task,...t})),issues:['Interior paint allowance: confirm the colour selection with the owner.']},sourceUrls:[]};}
+  if('priorPricingIssues' in data){audits++;return {value:{coveredTaskIds:tasks.map(t=>t.id),issues:[]},sourceUrls:[]};}
+  throw new Error('unexpected pricing request');
+ };
+ const result=await priceCompleteScope(scope,config,request,now);
+ assert.equal(mappings,1,'no repair mapping when the only issues are advisory');
+ assert.equal(audits,1,'no second audit when the only issues are advisory');
+ assert.ok(result.customer.range,'the range is released');
+ assert.ok(result.customer.assumptions.some((a:string)=>/confirm the colour selection/.test(a)),'the advisory note travels with the estimate as an item to confirm');
+ assert.equal(result.customer.issues?.length||0,0);
+});
 test('A batch that cannot shrink further pauses the job instead of ending it',async()=>{
  const tasks=Array.from({length:3},(_,i)=>({...task,id:`task-${i}`,description:`Assembly component ${i}`}));
  let calls=0;
