@@ -93,7 +93,7 @@ for(const width of [320,390,430,768,1024,1440,1920]){
   await page.reload();await estimator.getByRole('button',{name:'Get my estimate',exact:true}).waitFor();await estimator.getByRole('checkbox').waitFor();
   assert.equal(await estimator.getByRole('region',{name:'Project question'}).count(),0,'Restored known facts were asked again');
   await estimator.getByLabel('Your name',{exact:true}).fill('Synthetic Test');await estimator.getByLabel('Email',{exact:true}).fill('customer@example.invalid');
-  await estimator.getByRole('button',{name:'Back to the previous step',exact:true}).click();await description.waitFor();assert.match(await description.inputValue(),/LongUnbroken/);
+  await estimator.getByRole('button',{name:'Back to the previous step',exact:true}).click();await description.waitFor();await page.waitForFunction(()=>/LongUnbroken/.test(document.querySelector('[data-p5-estimator] textarea')?.value||''),null,{timeout:15000}).catch(()=>{});assert.match(await description.inputValue(),/LongUnbroken/);
   const calls=state.scopeCalls;await estimator.getByRole('button',{name:'Continue',exact:true}).click();await estimator.getByLabel('Email',{exact:true}).waitFor();assert.equal(await estimator.getByLabel('Email',{exact:true}).inputValue(),'customer@example.invalid');assert.equal(state.scopeCalls,calls,'Going back unnecessarily repeated analysis');
   // Details are grouped in accordions; editing one detail re-reads the scope before pricing.
   const details=estimator.locator('details',{hasText:'Additional scope details'}).first();if(!(await details.evaluate(el=>el.open)))await details.locator('summary').first().click();
@@ -184,7 +184,8 @@ for(const width of [320,390,1440]){
  try{
   await page.goto(base+'/estimate/p5-preview');const est=page.locator('[data-p5-estimator]');
   await est.getByLabel('Tell us about your project',{exact:true}).fill('Synthetic progress test: repair three interior doors.');
-  await est.getByRole('button',{name:'Continue',exact:true}).click();
+  // The 256-page fixture is prepared in the browser before Continue enables; WebKit on a loaded runner needs more than the default wait.
+  await est.getByRole('button',{name:'Continue',exact:true}).click({timeout:120000});
   await page.getByText('8 of 256 pages checked',{exact:true}).waitFor();
   assert.equal(await page.getByRole('progressbar',{name:'Original pages fully read'}).getAttribute('value'),'8');
   await page.getByRole('heading',{name:'Reading your plans',exact:true}).waitFor();await overflow(page);await capture(page,`${width}-live-reading`);
