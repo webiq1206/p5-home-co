@@ -22,7 +22,7 @@ export function analysisProgress(units:ProgressUnit[],expected?:{source:string;p
   const readPages=coverage.pages.filter(p=>finished.has(key(p))&&!pending.has(key(p))).length;
   const readSections=units.filter(u=>u.result).length;
   return {readPages,totalPages:coverage.expectedPages,readSections,totalSections:units.length,
-    message:coverage.expectedPages?`Checked ${readPages} of ${coverage.expectedPages} pages. Reading drawings, schedules and scope.`:`Read ${readSections} of ${units.length} document sections.`};
+    message:coverage.expectedPages?`Checked ${readPages} of ${coverage.expectedPages} pages. Reading drawings, schedules and scope.`:units.length?`Read ${readSections} of ${units.length} document sections.`:'Checking your description, quantities and requested work.'};
 }
 
 /** Bounded parallelism, never a sampling/page-count limit. */
