@@ -1,60 +1,89 @@
 # P5 shared document service completion ledger
 
-Updated: 2026-09-17 UTC. Status: in progress, not production-qualified.
+Updated: 2026-09-17 UTC. Code delivery to GitHub; not a deployed or qualified worker.
 
-## Current source and access
+## Authorization and recovered source
 
-- Repository: webiq1206/p5-home-co.
-- Working branch: feat/shared-document-service-20260917.
-- Recovered head: eee403aac10cfb4eeec7e8874fd8c2fa654e0977; main: 66f0c808b134b286e317a2caa81a31517e1b9f22. Branch was 27 commits ahead and zero behind when checked.
-- This document is the first scoped, non-production write proof for the resumed session. The resulting commit is recorded in Git history; production files are unchanged by this commit.
-- GitHub connector advertises contents, Git data, PR and merge actions; repository metadata reports push permission. Actual connector write is demonstrated only if this commit exists remotely.
-- Local Git can read the public remote. No gh executable or credential helper is configured; do not equate public fetch with authenticated push.
-- All five named Replit apps were resolved through the connected app. No Replit Agent use is authorized for this task.
+The owner authorized edits, branches, PRs and verified merges in all five repositories, then explicitly instructed: do not do anything in Replit; update GitHub main and the owner will pull. No Replit code, configuration, synchronization or publishing was performed. Do not resume Replit actions without new instructions.
 
-## Verified evidence
+Actual GitHub connector writing was demonstrated by progress commit `d8415ff88d0173c9b8e7bd047e0334a408cf2104` on `feat/shared-document-service-20260917`. Local Git can fetch public repositories, but this environment had no gh executable or authenticated Git helper. Connector Git-tree/commit/ref/PR/merge actions provided the working write path.
 
-- Historical run 35285444100 failed its website production build and skipped the worker container check.
-- Newer run 35286129315 at eee403aac10cfb4eeec7e8874fd8c2fa654e0977 completed its verify job successfully, including database/HTTP/PDF tests, saved-file adapter tests, estimator regressions, production website build and worker Docker build.
-- CI still applies guarded source refinements before tests. Review and commit maintained readable source so the repository matches the tested implementation.
-- These are infrastructure/parser/mock-provider checks, not live provider or customer journey qualification.
+The initial recovered feature head was `eee403aac10cfb4eeec7e8874fd8c2fa654e0977`. During this session, newer original implementation PRs landed on main; they were fetched and preserved before hardening. Ordinary readable source is maintained. CI no longer runs transport/refinement scripts to rewrite tested source.
 
-## Open release gates
+## Merged service and adapter hardening
 
-- Inspect all service modules, configuration, transport/refinement scripts, adapter, benchmark, tests and current workflows.
-- Resolve correctness, recovery, isolation, capacity and benchmark-measurement gaps with regression evidence.
-- Check latest main and other UI/SEO branches across all five repositories before applying changes.
-- Provision or locate a separate always-on worker and PostgreSQL; configure tenant secrets, providers, explicit models, HTTPS, monitoring and retention. Obtain approval for new recurring charges.
-- Retrieve Neilsen_Preliminary_Budget_No_Numbers.pdf and real 25/100-page native/scanned fixtures. Missing numbers must remain missing; never use unredacted sources to fill the test.
-- Qualify real providers using independently reviewed ground truth, 1/5/10 concurrent uploads, separate upload/queue/parse/AI/reconciliation timings and precision/recall/quantity/exclusion/revision/page metrics.
-- Enable one site only after worker qualification; test reload, answers, edits, numeric estimate, branded PDF, verified hello@p5homeco.com QA email, rollback and RE-10 entry points. Extend to other four sites after that passes.
-- Verify UI, responsive layouts, handoffs, sticky actions and public SEO against deployed source. Emulation is not physical-device testing.
-- Review PR, required checks, merge, synchronize matching Replit apps, deploy and verify each release separately.
+| Repository | PR | Main merge | Passing PR verification run |
+| --- | --- | --- | --- |
+| p5-home-co | 44 | a15661e94ab32e5e95e6c2bb16a754fc56228025 | 35287891304 |
+| boise-remodeling-co | 40 | e4d4436f4a96742a3bd389717fb68f7ffb1001ce | 35288272802 |
+| Boise-Construction-Co | 37 | 5c9ba795962bd0049400252a1bf9269594759504 | 35288273936 |
+| Boise-Handyman-Co | 35 | 92fc6373bc21b3b6a02ca5d87cec778753e222d8 | 35288275564 |
+| Boise-Cabinet-Co | 34 | bbeaa04e3229eb1d8ceafb4c8ad4f0a5511e31c2 | 35288277539; E2E 35288277570 |
 
-## Deployment and limitations
+Hardening branch: `fix/shared-document-service-hardening-20260917`.
 
-No worker deployment, remote adapter activation, live-provider benchmark, 99.9% accuracy result, 60-second p95, customer email receipt or complete journey is asserted. Remote PDF-only and byte-limit boundaries must remain explicit. Mixed formats and larger files retain the legacy path. Pricing policy must remain unchanged.
+- Atomic document/last-page completion, lease-fenced manifest updates and recovery of saved terminal evidence.
+- Reconciliation queued while sources read, independent of subsequent browser polls once uploads have receipts.
+- Strict source/page coverage checks, identical-upload deduplication, verified retry responses and positive byte-limit validation in all adapters.
+- Local provider schema validation, bounded network retries, failed-call metrics and distinct tenant-secret validation.
+- Authenticated, tenant/project-isolated stage metrics; live benchmark concurrency/repeats, sample p95/p99 and separate quality dimensions using digest-matched reviewed truth.
+- Read-only CI validates committed source without pushing or editing application code. Existing prebuild-generated PDFs/assets are explicitly excluded from the maintained-source diff guard; source remains protected.
 
-Next action: inspect current readable service and adapters, reproduce targeted tests, and remove any gap between checked-in source and CI-tested source before implementation changes.
+P5 PR CI: 59 standalone service/database/HTTP/PDF/queue tests passed, none skipped. 357 estimator regressions passed. Production website build, Docker build, nonroot container boot and signed readiness against a separate disposable PostgreSQL database passed. The website's broader prebuild suite passed 965 tests, with one existing database-dependent case skipped. Child adapter SQL/HMAC integration, estimator regressions and production builds passed. Cabinet's existing Chromium desktop/Pixel emulation suite also passed. Semantic provider responses in these tests are fixtures, not live AI.
 
-## Resumed-session changes and current boundary
+Historical run `35285444100` failed the production build and skipped container verification; newer `35286129315` passed. Use the newer hardening runs above for delivered-source evidence.
 
-User steering: GitHub main only. Do not configure, synchronize or publish anything in Replit; owner will pull and republish. The first actual write proof is d8415ff88d0173c9b8e7bd047e0334a408cf2104.
+## Interface and SEO continuation
 
-The original source/adapters were merged by newer work during this session. Recovered that work before continuing. P5 main was 0d79da2 and child mains were f3012d68 (Remodeling), f55ddc6e (Construction), 9862d7d6 (Handyman), 2b5867d6 (Cabinet). New scoped hardening branch: fix/shared-document-service-hardening-20260917. Preserved newer parser callback-ordering tests and real-container startup/readiness checks.
+Scoped branch: `fix/p5-interface-completion-20260917`; PRs P5 45, Remodeling 41, Construction 38, Handyman 36, Cabinet 35. Only reviewed mobile/metadata pieces were recovered from the older `fix/p5-mobile-seo-20260916` branch. Older estimator, pricing and transport changes were not replayed over newer work.
 
-Implemented in this continuation:
-- Atomic last-page/document completion, fenced parser manifests, and recovery of saved terminal work.
-- Reconciliation queued during source reading rather than waiting for a subsequent browser request.
-- Strict adapter coverage and source-reference checks, duplicate-upload deduplication and verified retry responses.
-- Local provider schema validation, bounded network-error retries, failed-call metrics and unique tenant-key validation.
-- Signed, isolated stage timing endpoints; benchmark concurrency/repeats, sample p95/p99 and separate quality dimensions using reviewed, digest-matched ground truth.
-- Immutable CI verification of committed source with read-only credentials; no CI source rewriting.
+The action bar uses the actual hero geometry, starts hidden, and yields to active estimators, menus, visible forms and typing. Phone controls show Call and estimate actions use Get an Estimate. Existing estimator composer, file presentation, contact fields and final submission controls remain intact. Cross-brand handoffs open `/estimate` and explicitly require copying scope/answers and reattaching files; no transfer is claimed.
 
-Local evidence: 357 P5 estimator regressions pass; adapter SQL/HMAC/pending/reuse/partial/foreign-coverage/retry/duplicate checks pass; P5 production build passes. Standalone local tests passed with database cases explicitly skipped because no PostgreSQL server is installed locally. GitHub CI runs those against real disposable PostgreSQL and also builds/boots the actual container. Final CI results and merge commits must be recorded below.
+Approved existing icons/seals provide favicons and sharing previews. Metadata retains canonical/noindex rules and page-specific copy; core-page titles/descriptions were improved. Article/product structured-data imagery is unchanged. No particular Google display is promised.
 
-Private fixture retrieved: exact Neilsen_Preliminary_Budget_No_Numbers.pdf, 4 pages, 240892 bytes. Native extraction plus page rendering took 1192 ms; zero digits were present in extracted text on all four pages. This is parser-only, not live AI timing or accuracy. No unredacted copy was opened. Also retrieved real 23-page and 15-page construction sets, not substitutes for requested 25/100-page fixtures. Customer sources stay outside the repositories. hello@p5homeco.com was verified as the connected inbox; no email test submitted yet.
+Interface verification runs production builds, 361 estimator/metadata regressions, Chromium viewport checks at 320/390/768/1440 pixels, and public sitemap metadata/asset checks. These are automated emulated devices, not physical-device or deployed-release verification. Final interface checks and merge status are recorded below.
 
-Replit browser access encountered a persistent security challenge before the user stopped all Replit work. No worker host, database, provider secrets or paid infrastructure was configured. No live-provider latency/accuracy, customer journey, PDF delivery or customer email pass is asserted. Remote PDF mode must remain off until qualified. Exact 25/100-page real fixtures and independent exhaustive truth remain needed for that workload; do not inflate 15/23-page results or duplicate pages to claim them.
+## Private source measurements and unavailable qualifications
 
-UI/SEO branches were compared against newer main. They are not ancestor commits because newer main has superseding work; blindly replaying them would revert newer pricing and page changes. Preserve contextual mobile CTA, scrolling and metadata behavior; remaining browser/SEO acceptance is tracked separately from service CI.
+The exact `Neilsen_Preliminary_Budget_No_Numbers.pdf` was retrieved from existing files: four pages, 240892 bytes. Native parsing plus page previews took 1192 ms in this environment. Extracted native text had zero digits on all four pages. Missing numerical facts remain missing; no unredacted copy was opened to fill them.
+
+Available real construction sets with 23 and 15 pages were also retrieved. Parser/render elapsed times were 19115 ms and 31676 ms respectively. The latter included a dense scanned page with 11720 ms rendering. These are private, local parser-only measurements, not live-provider timing, end-to-end performance, accuracy, or requested 25/100-page results. The CI 100-page document is synthetic. Customer plans and private outputs were not committed or included in public CI artifacts.
+
+No independently reviewed exhaustive ground truth is available for the requested real 4/25/100-page workload. No measured 99.9% accuracy, 60-second p95 or 5–15-second live short-scope result is asserted. Benchmark reporting separates fact precision/recall, quantity correctness, inclusion/exclusion, revision and page completeness; model confidence is not accuracy. Stage work sums are distinct from wall time. Runner-to-worker upload is not full browser upload time.
+
+## Activation and remaining release gates
+
+Remote mode stays disabled by default. PDF-only stored submissions within the configured per-file byte limit can use the service; mixed/non-PDF and larger files retain the legacy path. Those slow paths have not been universally accelerated. Failed remote work preserves files and cannot silently return an unchecked estimate. Pricing books, margins, rates and responsibilities are unchanged.
+
+The service needs a separate always-on host, its own PostgreSQL database, HTTPS, five unique tenant secrets, provider credentials, explicit benchmarked model names, host monitoring/resource limits/backups and retention. See `services/document-service/.env.example` and README in p5-home-co. No host, paid subscription, limit increase or secrets were provisioned here.
+
+Website server-only settings, verified against the adapter:
+
+```text
+P5_DOCUMENT_SERVICE_MODE=remote
+P5_DOCUMENT_SERVICE_URL=https://qualified-worker-host
+P5_DOCUMENT_SERVICE_KEY=unique-secret-for-this-site
+P5_DOCUMENT_SERVICE_MAX_BYTES=52428800
+```
+
+Never use NEXT_PUBLIC_ for these secrets. Qualification must precede activation. Rollback uses `P5_DOCUMENT_SERVICE_MODE=legacy`; mode changes alter job keys, and regression tests preserve existing upload support. Live operational rollback is still untested.
+
+`hello@p5homeco.com` was verified through the connected business inbox. No controlled estimate submission or customer email was sent during this continuation. Live numeric pricing, source accuracy, branded PDF contents/download, actual email receipt, reload/resume, keyboard and all-site/RE-10 full journeys still require a configured worker/provider environment. No real prospects were contacted, appointments scheduled or calls placed.
+
+Next concrete action: owner pulls the merged main branches into the existing Replit apps and publishes when ready. That publishes website code only. Separately arrange/approve an always-on worker and provider configuration, supply the missing real 25/100-page fixtures and independent truth, run the live benchmark matrix, then qualify one site's complete QA journey before enabling the other four. Any new recurring infrastructure cost requires owner approval.
+
+## Final GitHub delivery checkpoint
+
+All ten implementation PRs listed above were merged after their applicable checks passed. These are the resulting implementation commits in main; a later documentation-only commit may follow.
+
+| Repository | UI/SEO PR | Implementation main commit | Passing interface run |
+| --- | --- | --- | --- |
+| p5-home-co | 45 | 6cc78a3b0d436470aca29ebf038d6699bd2811f9 | 35288635582 |
+| boise-remodeling-co | 41 | 343c3cfffb4da635fcca31073854867cbb8ab9c3 | 35288637805 |
+| Boise-Construction-Co | 38 | 068c1cb15801885e409123e18b4917056b3820fd | 35288640284 |
+| Boise-Handyman-Co | 36 | ee96baa5dcdc0ad87be4fc7a69dc9f131554f667 | 35288639297 |
+| Boise-Cabinet-Co | 35 | 79538ab55a7d0cf6faf55571c0f4b058192e4215 | 35288641417 |
+
+The final interface audit passed 361 estimator/metadata regressions per repository, all five production builds, and public-page audits of 6 P5, 201 Remodeling, 161 Construction, 150 Handyman and 136 Cabinet sitemap pages (654 total). All audited indexable titles and descriptions were unique within their site; approved brand previews and assets were present. Chromium checked no horizontal overflow at 320/390/768/1440 pixels and mobile hero visibility, after-hero visibility, returning-to-top suppression, labeled Call and at least 44px action targets. Cabinet E2E run 35288641517 also passed. These observations apply to production builds in CI, not the live domains.
+
+PR review covered the scoped diffs and passing automated evidence; no independent human reviewer approval is claimed. GitHub accepted ordinary squash merges using the exact expected PR heads. No branch protection was bypassed.
