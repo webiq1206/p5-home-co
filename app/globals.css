@@ -394,3 +394,28 @@ a:hover .arrow-diagonal, a:focus-visible .arrow-diagonal { transform: translate(
 
 /* While the conversational estimator owns the screen, the mobile action bar steps aside. */
 body[data-p5-estimator-active="true"] .p5-mobile-actionbar { display: none !important; }
+
+/* ─── Gentle section reveals ─── once, small rise; server HTML is complete and only the js class arms the hidden state. */
+.js .p5-reveal { opacity: 0; transform: translateY(22px); transition: opacity .7s cubic-bezier(.2,.7,.2,1), transform .7s cubic-bezier(.2,.7,.2,1); will-change: opacity, transform; }
+.js .p5-reveal.p5-reveal-in { opacity: 1; transform: none; will-change: auto; }
+/* ─── Refined interaction feedback ─── */
+.button:active { transform: translateY(1px); }
+.button, .matcher-choices button, .company-index a, .footer-save-contact { transition: color .18s ease, background-color .18s ease, border-color .18s ease, transform .12s ease; }
+.matcher-choices button:active { transform: scale(.985); }
+.button[aria-busy="true"] { pointer-events: none; opacity: .72; }
+/* ─── Sticky desktop storytelling: the brand copy holds beside its image as the panel scrolls. */
+@media (min-width: 1101px) { .brand-panel, .brand-panel-reverse { align-items: start; min-height: max(760px, 92vh); } .brand-image-wrap { align-self: stretch; } .brand-image-wrap img { position: absolute; inset: 0; width: 100%; height: 100%; } .brand-content { position: sticky; top: 82px; } }
+/* ─── Swipeable company index on phones: snap row with the next card peeking. */
+@media (max-width: 560px) {
+  .company-index { display: flex; gap: 0; overflow-x: auto; scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch; scrollbar-width: none; border-left: 0; }
+  .company-index::-webkit-scrollbar { display: none; }
+  .company-index a { flex: 0 0 78%; scroll-snap-align: start; border-left: 1px solid rgba(255,255,255,.17); }
+  .company-index a:last-child { grid-column: auto; }
+}
+/* ─── Contextual mobile action bar ─── slides away while an on-page call to action is visible. */
+.p5-mobile-actionbar { transition: transform .28s cubic-bezier(.2,.7,.2,1), opacity .28s ease; }
+.p5-mobile-actionbar[data-suppressed="true"] { transform: translateY(110%); opacity: 0; pointer-events: none; }
+@media (prefers-reduced-motion: reduce) { .js .p5-reveal { opacity: 1; transform: none; transition: none; } .p5-mobile-actionbar { transition: none; } .button:active, .matcher-choices button:active { transform: none; } }
+/* ─── Smooth content transitions: an answer rises into place when its question opens. */
+.faq-item[open] > p { animation: contentRise .32s cubic-bezier(.2,.7,.2,1) both; }
+@media (prefers-reduced-motion: reduce) { .faq-item[open] > p { animation: none; } }

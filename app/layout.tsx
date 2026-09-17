@@ -71,6 +71,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html lang="en">
       <body>
+        <Script id="p5-js-class" strategy="beforeInteractive">{'document.documentElement.classList.add("js")'}</Script>
         {/* Next preloads the hero and the logo marks on its own, but not the
             fonts, and the hero headline is set in the display serif. */}
         <link rel="preload" as="font" type="font/woff2" href="/fonts/p5-serif.woff2" crossOrigin="anonymous" />
