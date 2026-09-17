@@ -14,12 +14,13 @@ try{
  let doc;const until=Date.now()+600000;
  do{await sleep(500);doc=await request('GET',path+'/documents/'+uploaded.id);if(doc.state==='failed')throw Error(doc.error);if(Date.now()>until)throw Error('Benchmark timed out without complete source reading');}while(doc.state!=='complete');
  report.documentMs=Math.round(performance.now()-started)-report.uploadMs;report.pages=doc.progress.totalPages;report.coverage=doc.coverage;report.within60Seconds=report.documentMs<=60000;
+ if(!doc.coverage?.complete)throw Error('Processing finished with partial or unreadable source pages. This is not a completed-reading pass.');
  const review=await request('POST',path+'/reviews',Buffer.from(JSON.stringify({documents:[{id:uploaded.id,source:name}],text:process.env.DOCUMENT_BENCHMARK_SCOPE||'Extract the complete included construction scope. Preserve exclusions and absent values.',answers:{}})));
  let result;do{await sleep(500);result=await request('GET',path+'/reviews/'+review.id);if(result.state==='failed')throw Error(result.error);if(Date.now()>until)throw Error('Benchmark timed out in scope reconciliation');}while(result.state!=='complete');
- report.customerElapsedMs=Math.round(performance.now()-started);report.processingThroughReviewMs=report.customerElapsedMs-report.uploadMs;report.result=result.result;
+ report.customerElapsedMs=Math.round(performance.now()-started);report.processingThroughReviewMs=report.customerElapsedMs-report.uploadMs;report.within60SecondsThroughReview=report.processingThroughReviewMs<=60000;report.result=result.result;
  if(truthFile){
   const truth=JSON.parse(await readFile(truthFile,'utf8'));if(!Array.isArray(truth.facts)||!truth.facts.length)throw Error('Truth fixture must contain a nonempty facts array.');
-  const key=f=>JSON.stringify([f.field,String(f.value),f.source||name]);const wanted=new Set(truth.facts.map(key)),actual=new Set(result.result.facts.map(key));const tp=[...wanted].filter(k=>actual.has(k)).length;
+  const identity=f=>JSON.stringify([f.field,String(f.value),f.source||name]);const wanted=new Set(truth.facts.map(identity)),actual=new Set(result.result.facts.map(identity));const tp=[...wanted].filter(k=>actual.has(k)).length;
   report.factMetrics={truePositives:tp,expected:wanted.size,returned:actual.size,precision:actual.size?tp/actual.size:0,recall:tp/wanted.size,missing:[...wanted].filter(k=>!actual.has(k)),unexpected:[...actual].filter(k=>!wanted.has(k))};report.accuracyMeasured=true;
  }
  report.note='A single run is not a p95/p99 or 99.9% quality certification. Fact metrics do not measure final construction cost accuracy.';
