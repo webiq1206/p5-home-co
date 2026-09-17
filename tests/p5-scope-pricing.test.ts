@@ -183,11 +183,11 @@ test('Large scope maps bounded batches and audits every original task together',
   // Batches are independent now: they run concurrently and none is handed
   // another's additions. Each must be bounded, and together they must cover
   // every inventory task exactly once - the audit verifies the whole mapping.
-  if(data.taskBatch){assert.ok(data.taskBatch.length<=12);assert.deepEqual(data.priorMappedTasks,[]);for(const t of data.taskBatch){assert.ok(!seen.has(t.id),`task ${t.id} mapped twice`);seen.add(t.id);}return {value:{tasks:data.taskBatch.map((t:any)=>({...task,...t})),issues:[]},sourceUrls:[]};}
+  if(data.taskBatch){assert.ok(data.taskBatch.length<=6);assert.deepEqual(data.priorMappedTasks,[]);for(const t of data.taskBatch){assert.ok(!seen.has(t.id),`task ${t.id} mapped twice`);seen.add(t.id);}return {value:{tasks:data.taskBatch.map((t:any)=>({...task,...t})),issues:[]},sourceUrls:[]};}
   assert.equal(data.tasks.length,14);return {value:{coveredTaskIds:tasks.map(t=>t.id),issues:[]},sourceUrls:[]};
  };
  const result=await priceCompleteScope(scope,config,request,now);
- assert.equal(calls,4);assert.ok(result.customer.range);assert.equal(result.customer.scopeTasks.length,14);
+ assert.equal(calls,1+Math.ceil(14/6)+1,'inventory, one mapping call per six-task batch, one audit');assert.ok(result.customer.range);assert.equal(result.customer.scopeTasks.length,14);
  assert.equal(seen.size,14,'every inventory task was mapped once');
 });
 test('A missing or substituted batch task never releases a partial total',async()=>{
@@ -334,11 +334,11 @@ test('A mapping batch that times out is halved and both halves are priced',async
  const request:PricingRequest=async(_instructions,input)=>{
   const data=input as any;calls++;
   if(calls===1)return {value:{tasks:tasks.map(({id,description,evidence})=>({id,description,evidence})),issues:[]},sourceUrls:[]};
-  if(data.taskBatch){sizes.push(data.taskBatch.length);if(data.taskBatch.length>6)throw new PricingStageTimeout('pricing-stage-timeout');return {value:{tasks:data.taskBatch.map((t:any)=>({...task,...t})),issues:[]},sourceUrls:[]};}
+  if(data.taskBatch){sizes.push(data.taskBatch.length);if(data.taskBatch.length>3)throw new PricingStageTimeout('pricing-stage-timeout');return {value:{tasks:data.taskBatch.map((t:any)=>({...task,...t})),issues:[]},sourceUrls:[]};}
   return {value:{coveredTaskIds:tasks.map(t=>t.id),issues:[]},sourceUrls:[]};
  };
  const result=await priceCompleteScope(scope,config,request,now);
- assert.deepEqual(sizes,[12,6,6],'the oversized batch was split once into two halves');
+ assert.deepEqual(sizes,[6,6,3,3,3,3],'each oversized batch was split once into two halves');
  assert.ok(result.customer.range,'the same model and prompt price the halves and the range is released');
  assert.equal(result.customer.scopeTasks.length,12);
 });
@@ -439,6 +439,20 @@ test('A repair round is not started once the pricing job is past its repair budg
  assert.ok(late.r.customer.assumptions.some((a:string)=>/^To confirm: .*patch count/.test(a)),'and the finding is disclosed');
  assert.ok(late.r.internal.scopePricing.issues.some(i=>/Repair round skipped/.test(i)),'the skip is recorded for staff');
 });
+test('Past the research window a gap goes straight to the planning average without a web search',async()=>{
+ const tasks=[{...task,id:'drywall',description:'Patch drywall',researchDescription:''},{...extra,id:'texture',description:'Ceiling texture',researchDescription:'Matching ceiling texture over 30 sf'}];
+ const planned={rates:[{taskId:'texture',description:'Ceiling texture allowance',unit:'SF',quantity:30,quantityEvidence:'30 sf',basis:'trade-labor',includes:'labor',excludes:'',low:3,high:6,confidence:'low',rationale:'Regional planning average.'}],issues:[],notes:[]};
+ const run=async(startedAt:Date)=>{let searches=0;const request:PricingRequest=async(_i,input,search)=>{const d=input as any;
+  if(search){searches++;throw new PricingStageTimeout('pricing-stage-timeout');}
+  if(d.taskBatch)return {value:{tasks:d.taskBatch.map((t:any)=>({...tasks.find(x=>x.id===t.id)!,...t})),issues:[],notes:[],replacements:[],removeExclusions:[]},sourceUrls:[]};
+  if('priorPricingIssues' in d)return {value:{coveredTaskIds:tasks.map(t=>t.id),issues:[],notes:[],resolvedIssues:[]},sourceUrls:[]};
+  if(d.tasks&&d.region)return {value:planned,sourceUrls:[]};
+  return {value:{tasks:tasks.map(({id,description,evidence})=>({id,description,evidence})),issues:[]},sourceUrls:[]};};
+  const r=await priceCompleteScope(scope,config,request,startedAt);return {r,searches};};
+ const fresh=await run(new Date(Date.now()-1000));assert.equal(fresh.searches,1,'a fresh job attempts published research');assert.ok(fresh.r.customer.range);
+ const late=await run(new Date(Date.now()-4*60*1000));assert.equal(late.searches,0,'an old job does not start another search');assert.ok(late.r.customer.range,'the planning average releases the range');
+ assert.ok(late.r.customer.assumptions.some((a:string)=>/passed its research window/.test(a)),'the reason is disclosed');
+});
 test('Advisory-only issues release the range without a repair round',async()=>{
  const tasks=Array.from({length:12},(_,i)=>({...task,id:`task-${i}`,description:`Assembly component ${i}`}));
  let calls=0,mappings=0,audits=0;
@@ -450,7 +464,7 @@ test('Advisory-only issues release the range without a repair round',async()=>{
   throw new Error('unexpected pricing request');
  };
  const result=await priceCompleteScope(scope,config,request,now);
- assert.equal(mappings,1,'no repair mapping when the only issues are advisory');
+ assert.equal(mappings,Math.ceil(tasks.length/6),'initial mapping batches only: no repair mapping when the only issues are advisory');
  assert.equal(audits,1,'no second audit when the only issues are advisory');
  assert.ok(result.customer.range,'the range is released');
  assert.ok(result.customer.assumptions.some((a:string)=>/confirm the colour selection/.test(a)),'the advisory note travels with the estimate as an item to confirm');

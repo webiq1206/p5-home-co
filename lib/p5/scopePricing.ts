@@ -39,8 +39,10 @@ const planningSchema=z.object({rates:z.array(planningRate).max(60),issues:z.arra
  * stage, so a longer per-stage allowance costs wall-clock only when research
  * is genuinely still working. */
 /** Elapsed time from the pricing job's start after which no repair round is started; findings are disclosed with the range instead. */
-export const REPAIR_BUDGET_MS=Number(process.env.P5_REPAIR_BUDGET_MS||300000);
-export const RESEARCH_STAGE_MS=Number(process.env.P5_RESEARCH_STAGE_MS||150000);
+export const REPAIR_BUDGET_MS=Number(process.env.P5_REPAIR_BUDGET_MS||150000);
+/** Elapsed time from the job's start after which published research is no longer attempted and the planning average is used directly. */
+export const RESEARCH_WINDOW_MS=Number(process.env.P5_RESEARCH_WINDOW_MS||180000);
+export const RESEARCH_STAGE_MS=Number(process.env.P5_RESEARCH_STAGE_MS||60000);
 /** Longest single provider stage. A stage is one saved unit of work; the pass window in backgroundJobs bounds the whole attempt. */
 export const PRICING_STAGE_MAX_MS=150_000;
 export interface PricingReply {value:unknown;sourceUrls:string[];sourceReport?:string}
@@ -111,7 +113,7 @@ const requestPricingWith=async(provider:'anthropic'|'openai',instructions:string
     if(!anthropic)throw new Error('pricing-provider-unavailable');
     const headers={'Content-Type':'application/json','x-api-key':anthropic,'anthropic-version':'2023-06-01'};
     const messages:any[]=[{role:'user',content:JSON.stringify(input)}];
-    const requestBody={model:search?(process.env.P5_PRICING_RESEARCH_MODEL||'claude-sonnet-5'):(process.env.P5_PRICING_MODEL||'claude-sonnet-5'),max_tokens:search?24000:10000,system:instructions,...(search?{tools:[{type:'web_search_20250305',name:'web_search',max_uses:5},{type:'web_fetch_20250910',name:'web_fetch',max_uses:4,max_content_tokens:15000}]}:{output_config:{format:{type:'json_schema',schema:stageSchema(instructions)}}})};
+    const requestBody={model:search?(process.env.P5_PRICING_RESEARCH_MODEL||'claude-sonnet-5'):(process.env.P5_PRICING_MODEL||'claude-sonnet-5'),max_tokens:search?12000:10000,system:instructions,...(search?{tools:[{type:'web_search_20250305',name:'web_search',max_uses:5},{type:'web_fetch_20250910',name:'web_fetch',max_uses:4,max_content_tokens:15000}]}:{output_config:{format:{type:'json_schema',schema:stageSchema(instructions)}}})};
     const content:any[]=[];
     for(let continuation=0;;continuation++){
       const left=remainingMs-(Date.now()-started);if(left<=0)throw new Error('pricing-check-timeout');
@@ -532,10 +534,10 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
     // that ordering bought latency, not correctness. Wall-clock for mapping is
     // now the slowest batch, not the sum of all of them.
     const mappingInput=(taskBatch:typeof inventory.tasks)=>({original:sourceParts.length===1?original:{sections:[...new Set(taskBatch.map(t=>taskSources.get(t.id)!))].map(i=>sourceParts[i])},taskBatch,priorMappedTasks:[],priorReplacements:[],existingLines:lines.map(({id,description,quantity,unit,unitCost,category,trade,quantitySource})=>({id,description,quantity,unit,unitCost,category,trade,quantitySource})),defaultExclusions:base.customer.exclusions,date:now.toISOString(),catalogImportedAt:configuration.planningCatalog?.importedAt,regionalRates:configuration.regionalRates,catalog:(configuration.planningCatalog?.rates||[]).map(({code,description,type,unit,amount,basis})=>({code,description,type,unit,amount,basis}))});
-    const mappedBatches=await Promise.all(batchesOf(inventory.tasks,12).map(taskBatch=>mapBatch(request,taskBatch,mappingInput,()=>deadline-Date.now())));
+    const mappedBatches=await Promise.all(batchesOf(inventory.tasks,6).map(taskBatch=>mapBatch(request,taskBatch,mappingInput,()=>deadline-Date.now())));
     const mapping:Mapping={tasks:[],issues:[...inventory.issues],notes:[...inventory.notes],replacements:[],removeExclusions:[]};
     for(const [batchIndex,batch] of mappedBatches.entries()){
-      const taskBatch=batchesOf(inventory.tasks,12)[batchIndex];
+      const taskBatch=batchesOf(inventory.tasks,6)[batchIndex];
       if(batch.tasks.length!==taskBatch.length||new Set(batch.tasks.map(t=>t.id)).size!==taskBatch.length||batch.tasks.some(t=>!taskBatch.some(expected=>expected.id===t.id)))throw new Error('Incomplete mapping batch');
       // Preserve inventory wording so later stages cannot quietly rewrite scope.
       mapping.tasks.push(...batch.tasks.map(t=>({...t,...taskBatch.find(expected=>expected.id===t.id)!})));
@@ -560,7 +562,10 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
       const replies:PricingReply[]=[];const offset=batchIndex*100;
       const tasksInput=gapBatch.map(t=>({id:t.id,description:t.researchDescription,quantityEvidence:t.evidence,alreadyCovered:covered(t)}));
       let researchFailure='';
-      try{
+      // Past the research window the job goes straight to the labeled planning average; the visitor is not kept waiting on a second search.
+      const age=Date.now()-now.getTime();const pastWindow=age>RESEARCH_WINDOW_MS&&age<6*60*60*1000;
+      if(pastWindow)researchFailure='the pricing job passed its research window';
+      if(!pastWindow)try{
         let researched=await request(RESEARCH,{date:now.toISOString().slice(0,10),region,tasks:tasksInput,...(priorIssues?{priorIssues}:{})},true,Math.min(RESEARCH_STAGE_MS,deadline-Date.now()));
         // JSON syntax alone does not ensure the research schema is valid. Save a
         // separate formatting stage for valid JSON with arrays/objects in string
@@ -628,9 +633,9 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
       const pricedComponents=existingLines(beforeRepair);
       const fixes:Mapping={tasks:[],issues:[],notes:[],replacements:[],removeExclusions:[]};
       const repairInput=(taskBatch:typeof mapping.tasks)=>({original:sourceParts.length===1?original:{sections:[...new Set(taskBatch.map(t=>taskSources.get(t.id)!))].map(i=>sourceParts[i])},taskBatch:taskBatch.map(({id,description,evidence})=>({id,description,evidence})),pricingIssues:priorIssues,repairInstruction:'Resolve the audit findings with measured costs or item-specific allowances. Existing components already contain prior additions. Reference them instead of charging again; explicitly replace wrong or incomplete components. An unknown dimension may use an evidenced modeled quantity range, never an invented measurement.',priorMappedTasks:[],priorReplacements:[],existingLines:pricedComponents,defaultExclusions:beforeRepair.customer.exclusions,catalog:configuration.planningCatalog?.rates||[],regionalRates:configuration.regionalRates,date:now.toISOString()});
-      const repairedBatches=await Promise.all(batchesOf(mapping.tasks,12).map(taskBatch=>mapBatch(request,taskBatch,repairInput,()=>deadline-Date.now())));
+      const repairedBatches=await Promise.all(batchesOf(mapping.tasks,6).map(taskBatch=>mapBatch(request,taskBatch,repairInput,()=>deadline-Date.now())));
       for(const [batchIndex,batch] of repairedBatches.entries()){
-        const taskBatch=batchesOf(mapping.tasks,12)[batchIndex];
+        const taskBatch=batchesOf(mapping.tasks,6)[batchIndex];
         if(batch.tasks.length!==taskBatch.length||new Set(batch.tasks.map(t=>t.id)).size!==taskBatch.length||batch.tasks.some(t=>!taskBatch.some(expected=>expected.id===t.id)))throw new Error('Incomplete repair batch');
         fixes.tasks.push(...batch.tasks.map(t=>({...t,...taskBatch.find(x=>x.id===t.id)!,existingLineIds:t.existingLineIds,additions:t.additions,researchDescription:t.researchDescription,issues:t.issues})));
         fixes.issues.push(...batch.issues);fixes.notes.push(...batch.notes);fixes.replacements.push(...batch.replacements);fixes.removeExclusions.push(...batch.removeExclusions);
