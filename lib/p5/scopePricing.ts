@@ -8,6 +8,7 @@ import {priceReviewedScope,type CostRule,type EstimatorConfiguration,type ScopeP
 import type {ReviewedScope} from './scope.ts';
 import {hasRestrictedScope,INSTRUCTION_POLICY} from './instructions.ts';
 import {activePricingSource,pricingSourceParts} from './pricingSources.ts';
+import {missingScopeFields} from './missingFields.ts';
 
 // This module runs only on the server at submission. No client-supplied mapping
 // or rate can authorize a price. The approved catalog is never mutated here.
@@ -673,6 +674,24 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
     if(audit.coveredTaskIds.some(id=>!ids.has(id)))throw new Error('Unknown audited task');
     resolution.issues.push(...audit.issues,...(pricingExtraction?.instructions?.questions||[]));
     for(const t of mapping.tasks)if(!t.existingLineIds.some(id=>(lines.some(l=>l.id===id)||resolution.rules.some(r=>r.id===id))&&!resolution.removeLineIds?.includes(id))&&!resolution.rules.some(r=>r.scopeTaskId===t.id))resolution.issues.push(`${t.description}: no positive priced component or allowance was produced.`);
+    // Deterministic corrections come before the integrity checks: what the
+    // code can prove wrong it fixes, and discloses; only judgement calls ride
+    // along as items to confirm.
+    const ruleKey=(rule:CostRule)=>JSON.stringify([rule.scopeTaskId,rule.description,rule.unit,rule.quantity,(rule as {unitCost?:number}).unitCost,(rule as {category?:string}).category]);
+    const seenRules=new Set<string>();const repeated:string[]=[];
+    resolution.rules=resolution.rules.filter(rule=>{const key=ruleKey(rule);if(seenRules.has(key)){repeated.push(rule.description);return false;}seenRules.add(key);return true;});
+    if(repeated.length)resolution.assumptions.push(`Removed ${repeated.length} repeated component${repeated.length===1?'':'s'} so nothing is billed twice: ${[...new Set(repeated)].join('; ')}.`);
+    const offCategory=(category:string,keep:(c:string|undefined)=>boolean)=>{
+      const removeBase=lines.filter(l=>!resolution.removeLineIds?.includes(l.id)&&!keep(l.category)).map(l=>l.id);
+      const removeRules=resolution.rules.filter(rule=>!keep((rule as {category?:string}).category)).map(rule=>rule.description);
+      if(removeBase.length||removeRules.length){
+        resolution.removeLineIds=[...new Set([...(resolution.removeLineIds||[]),...removeBase])];
+        resolution.rules=resolution.rules.filter(rule=>keep((rule as {category?:string}).category));
+        resolution.assumptions.push(`Per the ${category} instruction, ${removeBase.length+removeRules.length} component${removeBase.length+removeRules.length===1?' was':'s were'} left out of the range.`);
+      }
+    };
+    if(pricingExtraction?.instructions?.laborOnly)offCategory('labor-only',c=>c==='field-labor');
+    if(pricingExtraction?.instructions?.materialsOnly)offCategory('materials-only',c=>c==='materials');
     const allLines=[...lines.filter(l=>!resolution.removeLineIds?.includes(l.id)),...resolution.rules];
     const confirmedHours=Number(scope.answers.laborHours);
     const laborLines=allLines.filter(line=>line.category==='field-labor');
@@ -685,8 +704,6 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
         ||hourlyLines.length===laborLines.length&&Math.abs(pricedHours-confirmedHours)>0.000001)){
       resolution.issues.push(`Priced hourly labor (${pricedHours}) does not reconcile with the confirmed ${confirmedHours} hours. Do not add summary totals to their components.`);
     }
-    if(pricingExtraction?.instructions?.laborOnly&&allLines.some(l=>l.category!=='field-labor'))resolution.issues.push('The labor-only instruction conflicts with a non-labor priced component.');
-    if(pricingExtraction?.instructions?.materialsOnly&&allLines.some(l=>l.category!=='materials'))resolution.issues.push('The materials-only instruction conflicts with a non-material priced component.');
     if(pricingExtraction?.instructions?.separateBuildings&&allLines.some(l=>!l.building))resolution.issues.push('Assign every priced component to a building before presenting separate building prices.');
     for(const t of mapping.tasks)if(!audit.coveredTaskIds.includes(t.id)){
       // A task the audit did not cover but that a planning or sourced allowance prices positively is released with that caveat; the audit's own findings about it are classified above.
@@ -711,17 +728,20 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
     auditTrail.issues.push(`Automatic pricing did not complete: ${reason}`);
     resolution.issues.push(HANDOFF_ISSUE);
   }
-  // Confirmation-only findings ride along as disclosed assumptions so a
-  // customer gets a preliminary range with the items to confirm listed.
-  const advisory=resolution.issues.filter(advisoryIssue);
-  if(advisory.length){resolution.issues=resolution.issues.filter(issue=>!advisoryIssue(issue));resolution.assumptions.push(...advisory.map(item=>/^to confirm:/i.test(item)?item:`To confirm: ${item}`));}
-  resolution.completeScopeVerified=Boolean(auditTrail.verification)&&resolution.issues.length===0;
-  resolution.issues=[...new Set(resolution.issues)];
-  // The audit trail keeps the customer-visible issues AND the internal cause
-  // recorded on failure; overwriting it here discarded the one line that told
-  // staff why pricing stopped. It is internal-only and is what the
-  // "no range for draft" server log prints.
-  auditTrail.issues=[...new Set([...auditTrail.issues,...resolution.issues])];
+  // Owner policy (2026-09-17): the preliminary range is always released.
+  // Every remaining finding, advisory or not, rides along as a disclosed item
+  // to confirm; the audit trail keeps the unfiltered list for staff. The one
+  // exception is the handoff, which means automatic pricing could not finish
+  // at all and a person completes the estimate.
+  // A finding the estimator can turn into a customer question (a missing
+  // measurement or selection) is still asked, never guessed around.
+  const findings=[...new Set(resolution.issues)];
+  auditTrail.issues=[...new Set([...auditTrail.issues,...findings])];
+  const kept=findings.filter(issue=>issue===HANDOFF_ISSUE||missingScopeFields([issue]).length>0);
+  const disclosed=findings.filter(issue=>!kept.includes(issue));
+  resolution.assumptions.push(...disclosed.map(item=>/^to confirm:/i.test(item)?item:`To confirm: ${item}`));
+  resolution.issues=kept;
+  resolution.completeScopeVerified=Boolean(auditTrail.verification)&&kept.length===0;
   const priced=priceReviewedScope(scope,configuration,now,resolution);
   return {...priced,customer:{...priced.customer,instructions:pricingExtraction?.instructions,documentCoverage:pricingExtraction?.documentCoverage,verificationItems:[...resolution.assumptions.filter(a=>/allowance|preliminary|confirm/i.test(a)),...resolution.issues],scopeTasks:(auditTrail.tasks as {description:string}[]).map(t=>({description:t.description,category:suggestedTrade(t.description)}))},internal:{...priced.internal,scopePricing:auditTrail}};
 }

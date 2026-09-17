@@ -321,8 +321,9 @@ test('retained four-option cabinet scope persists canonically through pricing',a
       ?{...task,additions:[...task.additions,...task.additions]}:task)}};
   };
   const duplicateSummary=await priceCompleteScope(scope,configuration,duplicateSummaryRequest,now);
-  assert.equal(duplicateSummary.customer.range,null,'a repeated labor summary must never be billed twice');
-  assert.ok(duplicateSummary.customer.verificationItems.some(item=>/hourly labor.*reconcile/.test(item)));
+  // The repeated component is removed before pricing, so the range is the single-billed one and the removal is disclosed.
+  assert.deepEqual(duplicateSummary.customer.range,priced.customer.range,'a repeated labor summary must never be billed twice');
+  assert.ok(duplicateSummary.customer.assumptions.some((item:string)=>/Removed 1 repeated component/.test(item)),'the removal is disclosed');
 });
 
 function handymanExtraction():ScopeExtraction{
@@ -466,7 +467,9 @@ test('two-page handyman drywall and paint scope keeps only the appliance exclusi
     corrections:[],
   };
   const priced=await priceCompleteScope(scope,configuration,request,now);
+  // No measured area and no priced component: nothing can be released, and the unmeasured-quantity finding is kept for staff.
   assert.equal(priced.customer.range,null);
+  assert.ok(priced.internal.scopePricing.issues.some((i:string)=>/unmeasured/.test(i)),'kept in the audit trail');
   assert.deepEqual(priced.customer.exclusions,['Appliance purchases and installation are excluded.']);
   assert.equal(priced.customer.lineItems.length,0);
   assert.ok(priced.customer.verificationItems.some(item=>/unmeasured|unknown|measured area/i.test(item)));

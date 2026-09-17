@@ -240,7 +240,8 @@ test('Trim-only and labor-only instructions replace whole-project defaults and r
  assert.ok(priced.customer.range);assert.equal((priced.internal as any).lines.length,1);assert.equal((priced.internal as any).lines[0].category,'field-labor');assert.equal(priced.customer.lineItems[0].floor,'1');
  const wrong={...trim,additions:[{...trim.additions[0],code:'03-15-02-M'}]};
  const refused=await priceCompleteScope(restricted,config,replies([{tasks:[wrong],issues:[]},{coveredTaskIds:['trim'],issues:[]}]),now);
- assert.equal(refused.customer.range,null);assert.ok(refused.internal.scopePricing.issues.some(i=>i.includes('labor-only')));
+ // The material charge is removed per the labor-only instruction rather than flagged; with nothing priceable left, the estimator asks for quantities instead of inventing a range.
+ assert.equal(refused.customer.range,null);assert.ok((refused.internal as any).pricingWarnings.includes('quantities-missing'));assert.ok(refused.customer.assumptions.some((a:string)=>/labor-only instruction, 1 component was left out/.test(a)),'the removal is disclosed');
 });
 test('Separate building prices require every component to be assigned to a building',async()=>{
  const instructions={...emptyInstructions(),separateBuildings:true,buildings:['Main','ADU'],materialsOnly:true};
@@ -250,7 +251,7 @@ test('Separate building prices require every component to be assigned to a build
  assert.ok(priced.customer.range);assert.deepEqual(priced.customer.lineItems.map(l=>l.building),['Main','ADU']);
  assert.equal(priced.customer.lineItems.reduce((n,l)=>n+l.low,0),priced.customer.range.low);assert.equal(priced.customer.lineItems.reduce((n,l)=>n+l.high,0),priced.customer.range.high);
  const missing=tasks.map(t=>({...t,additions:t.additions.map(a=>({...a,building:undefined}))}));
- const held=await priceCompleteScope(restricted,config,replies([{tasks:missing,issues:[]},{coveredTaskIds:['Main','ADU'],issues:[]}]),now);assert.equal(held.customer.range,null);
+ const held=await priceCompleteScope(restricted,config,replies([{tasks:missing,issues:[]},{coveredTaskIds:['Main','ADU'],issues:[]}]),now);assert.ok(held.customer.range,'range released');assert.ok(held.customer.assumptions.some((a:string)=>/^To confirm: /.test(a)&&/building/i.test(a)),'the missing building assignment is disclosed');assert.ok(held.internal.scopePricing.issues.some(i=>/building/i.test(i)),'and kept for staff');
 });
 test('Undated independent guide averages retain retrieval date and freshness limitations',()=>{
  const guides={...researched,rates:[{...researched.rates[0],sources:researched.rates[0].sources.map(s=>({...s,publishedAt:'',dateBasis:'retrieved',sourceType:'national-guide',region:'United States'}))}]};
@@ -315,7 +316,7 @@ test('Repair does not erase a non-price blocker when it adds a positive rule',as
  ];
  const request:PricingRequest=async()=>({value:queue.shift(),sourceUrls:urls});
  const result=await priceCompleteScope({...scope,answers:{...scope.answers,service:'handyman'}},config,request,now);
- assert.equal(result.customer.range,null);
+ assert.ok(result.customer.range,'range released');assert.ok(result.customer.assumptions.some((a:string)=>/^To confirm: /.test(a)),'the retained blocker is disclosed');
  assert.ok(result.internal.scopePricing.issues.some(issue=>/does not match the explicit quantity/i.test(issue)));
 });
 
@@ -404,8 +405,24 @@ test('An audit that faults a planning allowance for being uncited cannot withhol
  assert.ok(r.customer.range,'the range is released with the planning allowance disclosed');
  assert.ok(r.customer.assumptions.some((a:string)=>/priced by a preliminary allowance/.test(a)),'the uncovered task is disclosed as allowance-priced');
  assert.ok(r.customer.assumptions.some((a:string)=>/uncited general estimating knowledge/.test(a)),'the audit note travels as an item to confirm');
- assert.equal((r.internal as any).scopePricing.issues.length,0);
+ assert.ok((r.internal as any).scopePricing.issues.some((i:string)=>/uncited general estimating knowledge/.test(i)),'the audit note stays in the audit trail for staff');
  assert.equal(calls,5,'inventory, mapping, research (timed out), planning and one audit: no repair round for a planning-basis note');
+});
+test('Always-release policy: findings are disclosed with the range, but a missing measurement is still asked for',async()=>{
+ const tasks=[{...task,id:'drywall',description:'Patch drywall',researchDescription:''}];
+ const run=async(auditIssue:string)=>{let calls=0;const request:PricingRequest=async(_i,input)=>{const d=input as any;calls++;
+  if(calls===1)return {value:{tasks:tasks.map(({id,description,evidence})=>({id,description,evidence})),issues:[]},sourceUrls:[]};
+  if(d.taskBatch)return {value:{tasks:d.taskBatch.map((t:any)=>({...tasks.find(x=>x.id===t.id)!,...t})),issues:[],notes:[],replacements:[],removeExclusions:[]},sourceUrls:[]};
+  if('priorPricingIssues' in d)return {value:{coveredTaskIds:tasks.map(t=>t.id),issues:[auditIssue],notes:[],resolvedIssues:[]},sourceUrls:[]};
+  throw new Error('unexpected request');};
+  return priceCompleteScope(scope,config,request,now);};
+ const judged=await run('Patch drywall: the labor line appears to double count the mobilization already carried.');
+ assert.ok(judged.customer.range,'a judgement call ships with the range');
+ assert.ok(judged.customer.assumptions.some((a:string)=>/^To confirm: .*double count/.test(a)),'and is disclosed as an item to confirm');
+ assert.ok(judged.internal.scopePricing.issues.some(i=>/double count/.test(i)),'and stays in the audit trail');
+ const askable=await run('Missing quantity: sqft');
+ assert.equal(askable.customer.range,null,'a missing measurement is asked for, not guessed around');
+ assert.ok(askable.internal.missingInformation.some((m:string)=>/^Missing quantity: sqft/.test(m)),'it reaches the customer as a question');
 });
 test('Advisory-only issues release the range without a repair round',async()=>{
  const tasks=Array.from({length:12},(_,i)=>({...task,id:`task-${i}`,description:`Assembly component ${i}`}));
