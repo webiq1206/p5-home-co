@@ -36,3 +36,25 @@ Updated: 2026-09-17 UTC. Status: in progress, not production-qualified.
 No worker deployment, remote adapter activation, live-provider benchmark, 99.9% accuracy result, 60-second p95, customer email receipt or complete journey is asserted. Remote PDF-only and byte-limit boundaries must remain explicit. Mixed formats and larger files retain the legacy path. Pricing policy must remain unchanged.
 
 Next action: inspect current readable service and adapters, reproduce targeted tests, and remove any gap between checked-in source and CI-tested source before implementation changes.
+
+## Resumed-session changes and current boundary
+
+User steering: GitHub main only. Do not configure, synchronize or publish anything in Replit; owner will pull and republish. The first actual write proof is d8415ff88d0173c9b8e7bd047e0334a408cf2104.
+
+The original source/adapters were merged by newer work during this session. Recovered that work before continuing. P5 main was 0d79da2 and child mains were f3012d68 (Remodeling), f55ddc6e (Construction), 9862d7d6 (Handyman), 2b5867d6 (Cabinet). New scoped hardening branch: fix/shared-document-service-hardening-20260917. Preserved newer parser callback-ordering tests and real-container startup/readiness checks.
+
+Implemented in this continuation:
+- Atomic last-page/document completion, fenced parser manifests, and recovery of saved terminal work.
+- Reconciliation queued during source reading rather than waiting for a subsequent browser request.
+- Strict adapter coverage and source-reference checks, duplicate-upload deduplication and verified retry responses.
+- Local provider schema validation, bounded network-error retries, failed-call metrics and unique tenant-key validation.
+- Signed, isolated stage timing endpoints; benchmark concurrency/repeats, sample p95/p99 and separate quality dimensions using reviewed, digest-matched ground truth.
+- Immutable CI verification of committed source with read-only credentials; no CI source rewriting.
+
+Local evidence: 357 P5 estimator regressions pass; adapter SQL/HMAC/pending/reuse/partial/foreign-coverage/retry/duplicate checks pass; P5 production build passes. Standalone local tests passed with database cases explicitly skipped because no PostgreSQL server is installed locally. GitHub CI runs those against real disposable PostgreSQL and also builds/boots the actual container. Final CI results and merge commits must be recorded below.
+
+Private fixture retrieved: exact Neilsen_Preliminary_Budget_No_Numbers.pdf, 4 pages, 240892 bytes. Native extraction plus page rendering took 1192 ms; zero digits were present in extracted text on all four pages. This is parser-only, not live AI timing or accuracy. No unredacted copy was opened. Also retrieved real 23-page and 15-page construction sets, not substitutes for requested 25/100-page fixtures. Customer sources stay outside the repositories. hello@p5homeco.com was verified as the connected inbox; no email test submitted yet.
+
+Replit browser access encountered a persistent security challenge before the user stopped all Replit work. No worker host, database, provider secrets or paid infrastructure was configured. No live-provider latency/accuracy, customer journey, PDF delivery or customer email pass is asserted. Remote PDF mode must remain off until qualified. Exact 25/100-page real fixtures and independent exhaustive truth remain needed for that workload; do not inflate 15/23-page results or duplicate pages to claim them.
+
+UI/SEO branches were compared against newer main. They are not ancestor commits because newer main has superseding work; blindly replaying them would revert newer pricing and page changes. Preserve contextual mobile CTA, scrolling and metadata behavior; remaining browser/SEO acceptance is tracked separately from service CI.

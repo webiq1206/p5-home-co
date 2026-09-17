@@ -52,6 +52,20 @@ export class Store{
  }
  async coverage(id){return (await this.pool.query("SELECT page,evidence->>'status' AS status,evidence->'notes' AS notes FROM p5ds_pages WHERE document_id=$1 ORDER BY page",[id])).rows;}
 
+ async manifest(job,count){
+  return this.transaction(async c=>{await this.fence(c,job);await c.query('UPDATE p5ds_documents SET page_count=$2 WHERE id=$1',[job.document_id,count]);});
+ }
+ async finalize(id,c=this.pool){
+  // Run in the same transaction as the final page or parser checkpoint. A
+  // process exit must not strand a prepared document with no runnable jobs.
+  await c.query("UPDATE p5ds_documents d SET state='complete',updated_at=now() WHERE id=$1 AND state='prepared' AND page_count>0 AND page_count=(SELECT count(*) FROM p5ds_pages p WHERE p.document_id=d.id AND p.evidence IS NOT NULL)",[id]);
+ }
+ async metrics(tenant,project,id,kind){
+  if(kind==='documents')await this.document(tenant,project,id);else{const job=await this.job(tenant,project,id);if(job.kind!=='review')throw new ServiceError('not-found',404);}
+  const rows=await this.pool.query(`SELECT m.stage,m.duration_ms,m.detail,m.created_at,j.kind,j.attempts FROM p5ds_metrics m JOIN p5ds_jobs j ON j.id=m.job_id WHERE j.tenant=$1 AND j.project=$2 AND ${kind==='documents'?'j.document_id':'j.id'}=$3 ORDER BY m.id`,[tenant,project,id]);
+  return {events:rows.rows,note:'Stage durations are accumulated work across parallel jobs, not additive customer wall time.'};
+ }
+
  async putPage(job,page){
   return this.transaction(async c=>{await this.fence(c,job);
    await c.query('INSERT INTO p5ds_pages(document_id,page,native,image) VALUES($1,$2,$3::jsonb,$4) ON CONFLICT(document_id,page) DO UPDATE SET native=excluded.native,image=excluded.image',[job.document_id,page.page,JSON.stringify({...page,image:undefined}),page.image]);
@@ -86,6 +100,7 @@ export class Store{
     await c.query("UPDATE p5ds_jobs SET state='queued',attempts=0,available_at=now(),error_code=null,lease_token=null,lease_until=null,created_at=now() WHERE document_id=$1 AND state='failed'",[id]);
     const parse=await c.query("SELECT state FROM p5ds_jobs WHERE document_id=$1 AND kind='parse'",[id]);
     await c.query("UPDATE p5ds_documents SET state=$2,error_code=null,updated_at=now() WHERE id=$1",[id,parse.rows[0]?.state==='complete'?'prepared':'queued']);
+    await this.finalize(id,c);
    }else{
     const r=await c.query("UPDATE p5ds_jobs SET state='queued',attempts=0,available_at=now(),error_code=null,lease_token=null,lease_until=null,created_at=now() WHERE id=$1 AND tenant=$2 AND project=$3 AND kind='review' AND state='failed' RETURNING id",[id,tenant,project]);
     if(!r.rowCount)throw new ServiceError('job-not-failed-or-not-found',409);

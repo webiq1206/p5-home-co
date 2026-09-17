@@ -1,7 +1,7 @@
 name: P5 document service
 on:
   push:
-    branches: [feat/shared-document-service-20260917, main]
+    branches: [feat/shared-document-service-20260917, fix/shared-document-service-hardening-20260917, main]
     paths:
       - 'services/document-service/**'
       - 'lib/p5/**'
@@ -14,6 +14,7 @@ on:
       - 'lib/p5/documentServiceClient.ts'
       - 'lib/p5/analysisWork.ts'
       - '.github/workflows/p5-document-service.yml'
+  workflow_dispatch:
 permissions:
   contents: read
 concurrency:
@@ -99,6 +100,8 @@ jobs:
           test "$(docker exec p5-document-smoke id -u)" != '0'
           docker stop -t 35 p5-document-smoke
           docker logs p5-document-smoke > ../../document-service-verification/container-startup.log
+      - name: Confirm maintained source remains unchanged
+        run: git diff --exit-code
       - name: Package exact tested source and installation files
         if: always()
         run: |

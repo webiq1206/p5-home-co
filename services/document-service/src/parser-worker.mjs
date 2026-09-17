@@ -30,11 +30,12 @@ try{
   const crop=workerData.crop;const region=crop?crop.region:{x:0,y:0,width:1,height:1};
   const maxEdge=crop?2000:kind==='text'?1400:2200;
   const scale=Math.min(3,maxEdge/Math.max(base.width*region.width,base.height*region.height));
+  const nativeMs=Math.round(performance.now()-started),renderStarted=performance.now();
   const viewport=page.getViewport({scale});const w=Math.ceil(viewport.width*region.width),h=Math.ceil(viewport.height*region.height);
   const canvas=createCanvas(w,h);
   await page.render({canvas,canvasContext:canvas.getContext('2d'),viewport,transform:[1,0,0,1,-region.x*viewport.width,-region.y*viewport.height],background:'white'}).promise;
   const image=canvas.toBuffer('image/png');canvas.width=1;
-  parentPort.postMessage({type:'page',value:{page:number,width:base.width,height:base.height,text,spans,textQuality,kind,images,paths,render:{width:w,height:h,scale},image,parseMs:Math.round(performance.now()-started)}});
+  parentPort.postMessage({type:'page',value:{page:number,width:base.width,height:base.height,text,spans,textQuality,kind,images,paths,render:{width:w,height:h,scale},image,nativeMs,renderMs:Math.round(performance.now()-renderStarted),parseMs:Math.round(performance.now()-started)}});
   // Backpressure avoids buffering a 100-page set in memory while storage is slow.
   await new Promise(resolve=>parentPort.once('message',resolve));page.cleanup();
  }
