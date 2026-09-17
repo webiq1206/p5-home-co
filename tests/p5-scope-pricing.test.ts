@@ -385,6 +385,28 @@ test('A repair round keeps first-pass research and never prices the same gap twi
   assert.ok(r.customer.range,'the range is released');
  }
 });
+test('An audit that faults a planning allowance for being uncited cannot withhold the range; a duplicate on the same line still can',async()=>{
+ const live='T01 remains only partially defensibly priced. planning-100001 prices required selective demolition using uncited general estimating knowledge, with no published estimating-guide or cost-database observations. The approximately 30 SF demolition quantity also lacks the required positive quantityRange and an ALLOWANCE-prefixed quantity explanation.';
+ assert.equal(advisoryIssue(live),true,'the audit note about the planning basis is disclosed');
+ assert.equal(advisoryIssue('planning-2 duplicates the drywall labor already carried on scope-1 (double count).'),false,'a duplicate on a planning line still blocks');
+ const tasks=[{...task,id:'drywall',description:'Patch drywall',researchDescription:''},{...extra,id:'texture',description:'Ceiling texture',researchDescription:'Matching ceiling texture over 30 sf'}];
+ const planned={rates:[{taskId:'texture',description:'Ceiling texture allowance',unit:'SF',quantity:30,quantityEvidence:'30 sf',basis:'trade-labor',includes:'labor',excludes:'',low:3,high:6,confidence:'low',rationale:'Regional planning average.'}],issues:[],notes:[]};
+ let calls=0;
+ const request:PricingRequest=async(_i,input,search)=>{const d=input as any;calls++;
+  if(calls===1)return {value:{tasks:tasks.map(({id,description,evidence})=>({id,description,evidence})),issues:[]},sourceUrls:[]};
+  if(d.taskBatch)return {value:{tasks:d.taskBatch.map((t:any)=>({...tasks.find(x=>x.id===t.id)!,...t})),issues:[],notes:[],replacements:[],removeExclusions:[]},sourceUrls:[]};
+  if(search)throw new PricingStageTimeout('pricing-stage-timeout');
+  if('priorPricingIssues' in d)return {value:{coveredTaskIds:['drywall'],issues:[live],notes:[],resolvedIssues:[]},sourceUrls:[]};
+  if(d.tasks&&d.region)return {value:planned,sourceUrls:[]};
+  throw new Error('unexpected request');
+ };
+ const r=await priceCompleteScope(scope,config,request,now);
+ assert.ok(r.customer.range,'the range is released with the planning allowance disclosed');
+ assert.ok(r.customer.assumptions.some((a:string)=>/priced by a preliminary allowance/.test(a)),'the uncovered task is disclosed as allowance-priced');
+ assert.ok(r.customer.assumptions.some((a:string)=>/uncited general estimating knowledge/.test(a)),'the audit note travels as an item to confirm');
+ assert.equal((r.internal as any).scopePricing.issues.length,0);
+ assert.equal(calls,5,'inventory, mapping, research (timed out), planning and one audit: no repair round for a planning-basis note');
+});
 test('Advisory-only issues release the range without a repair round',async()=>{
  const tasks=Array.from({length:12},(_,i)=>({...task,id:`task-${i}`,description:`Assembly component ${i}`}));
  let calls=0,mappings=0,audits=0;

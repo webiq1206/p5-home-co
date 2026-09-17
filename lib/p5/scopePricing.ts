@@ -75,7 +75,7 @@ This is a preliminary allowance audit, not final supplier procurement approval. 
 Explicitly audit every item named in allowance/selection notes. Each must be linked to actual priced components, including product, tax, freight, delivery, installation and waste where required. Descriptive notes about selections do not themselves require a hold when full scope is costed. Monetary allowance budgets of unclear cost-versus-selling-price basis must remain an issue. Never mark an allowance covered by a generic contingency.
 Verify every requested item, including items the prior inventory missed. Check quantity, unit conversions, material quality, labor, supply/install responsibilities, minimum charges, demolition, disposal, specialty conditions and the combined quantities assigned to shared assemblies. Detect duplicated costs and requested work hidden in exclusions. A generic labor line, contingency or broad trade label does not cover unknown materials or specialist work.
 For sourced averages, verify the cited observations support the SAME scope, unit, date, geography and direct-cost basis. Reject customer project selling prices presented as direct costs, fabricated evidence, noncomparable averages, insufficient labor/material coverage and unrealistic substitutions. Check research evidence, not only the proposed numeric amount.
-Only put a task ID in coveredTaskIds when ALL its requested components have positive, defensible pricing. List all missing work, ambiguity, overlap, insufficient quantities or unsupported assumptions in issues. A missing original task is an issue even if all inventory IDs are covered. Do not waive issues to return a total.`;
+Lines whose id starts with planning- are regional planning average allowances: the approved preliminary basis used when published research does not finish in time. They carry no citations by design. A task priced by them is covered when the allowance's scope, unit and quantity match the request; put the preliminary-basis caveat in notes, never in issues, and do not fault a planning allowance for lacking published observations, a quantity range, an ALLOWANCE prefix or building/floor labels. Only put a task ID in coveredTaskIds when ALL its requested components have positive, defensible pricing. List all missing work, ambiguity, overlap, insufficient quantities or unsupported assumptions in issues. A missing original task is an issue even if all inventory IDs are covered. Do not waive issues to return a total.`;
 
 const jsText={type:'string'},jsNumber={type:'number'};
 const jsArray=(items:unknown)=>({type:'array',items});
@@ -437,7 +437,9 @@ export function advisoryIssue(text:string):boolean{
   // reason to withhold it. These notes routinely say "not verified local
   // pricing", which the defect list below would otherwise treat as a defect.
   if(/\b(regional planning average|planning average allowance|planning allowances?|published cost research was not used|not verified local (?:pricing|quotes))\b/.test(t))return true;
-  if(/\b(omit|omission|missing|not (?:been |be )?(?:verified|covered|priced|supported|found|included)|unverified|duplicat|double[- ]count|conflict|unsupported|fabricat|incorrect|wrong|mismatch|reconcile|cannot|could not|unpriced|unknown component|no (?:catalog|rate|price|evidence)|exceeds|out of scope|not (?:in|part of) the|excluded work|hidden in exclusion)\b/.test(t))return false;
+  // The audit may fault a regional planning allowance (planning-N line) for what it is by design: uncited, unranged, unlabelled. That is disclosure, not a defect; a duplicate, omission or wrong unit on the same line still blocks.
+  if(/\bplanning-\d+\b/.test(t)&&!/duplicat|double[- ]count|\bomit|omission|missing work|wrong (?:unit|uom|responsibilit)|fabricat|not (?:been )?requested|out of scope/.test(t))return true;
+  if(/\b(omit(?:s|ted|ting)?|omission|missing|not (?:been |be )?(?:verified|covered|priced|supported|found|included)|unverified|duplicat|double[- ]count|conflict|unsupported|fabricat|incorrect|wrong|mismatch|reconcile|cannot|could not|unpriced|unknown component|no (?:catalog|rate|price|evidence)|exceeds|out of scope|not (?:in|part of) the|excluded work|hidden in exclusion)\b/.test(t))return false;
   // Word forms of the same concept must classify the same way. A research
   // note reading "should be confirmed as available" was refused here because
   // this matched only \bconfirm\b, and that single note, carrying no defect,
@@ -606,7 +608,10 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
     // uncovered task justify the repair pass, which costs a second mapping,
     // research and audit round.
     const blockingIssues=resolution.issues.filter(issue=>!advisoryIssue(issue));
-    if(blockingIssues.length||audit.issues.length||mapping.tasks.some(t=>!audit.coveredTaskIds.includes(t.id))){
+    // An audit note about a planning allowance's basis, or a task left uncovered only because a planning or sourced allowance prices it, is disclosure, not a reason for a repair round.
+    const allowancePricedTask=(taskId:string)=>resolution.rules.some(rule=>rule.scopeTaskId===taskId&&(rule.id.startsWith('planning-')||rule.id.startsWith('market-'))&&rule.quantity.fixed!==undefined&&rule.quantity.fixed>0);
+    const blockingAuditIssues=audit.issues.filter(issue=>!advisoryIssue(issue));
+    if(blockingIssues.length||blockingAuditIssues.length||mapping.tasks.some(t=>!audit.coveredTaskIds.includes(t.id)&&!allowancePricedTask(t.id))){
       const priorIssues=[...resolution.issues,...audit.issues];
       const beforeRepair=priceReviewedScope(scope,configuration,now,resolution);
       const pricedComponents=existingLines(beforeRepair);
@@ -683,7 +688,12 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
     if(pricingExtraction?.instructions?.laborOnly&&allLines.some(l=>l.category!=='field-labor'))resolution.issues.push('The labor-only instruction conflicts with a non-labor priced component.');
     if(pricingExtraction?.instructions?.materialsOnly&&allLines.some(l=>l.category!=='materials'))resolution.issues.push('The materials-only instruction conflicts with a non-material priced component.');
     if(pricingExtraction?.instructions?.separateBuildings&&allLines.some(l=>!l.building))resolution.issues.push('Assign every priced component to a building before presenting separate building prices.');
-    for(const t of mapping.tasks)if(!audit.coveredTaskIds.includes(t.id))resolution.issues.push(`${t.description}: full pricing coverage has not been verified.`);
+    for(const t of mapping.tasks)if(!audit.coveredTaskIds.includes(t.id)){
+      // A task the audit did not cover but that a planning or sourced allowance prices positively is released with that caveat; the audit's own findings about it are classified above.
+      const allowancePriced=resolution.rules.some(rule=>rule.scopeTaskId===t.id&&(rule.id.startsWith('planning-')||rule.id.startsWith('market-'))&&rule.quantity.fixed!==undefined&&rule.quantity.fixed>0);
+      if(allowancePriced)resolution.assumptions.push(`${t.description}: priced by a preliminary allowance pending published research; confirm current local rates before a firm proposal.`);
+      else resolution.issues.push(`${t.description}: full pricing coverage has not been verified.`);
+    }
   }catch(error){
     if(isPricingPending(error)||isProcessingDeadline(error))throw error;
     // A stage that ran out of time is not a verdict on the scope. The job

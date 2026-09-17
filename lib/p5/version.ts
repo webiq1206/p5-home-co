@@ -1,2 +1,2 @@
 /** Live estimator release identifier. */
-export const ESTIMATOR_VERSION='2026-09-16.6';
+export const ESTIMATOR_VERSION='2026-09-17.1';
