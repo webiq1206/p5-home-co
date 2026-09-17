@@ -129,7 +129,7 @@ async function runPass(draftId:string,workKey:string):Promise<number|null>{
       catch(error){
         if(!isPricingPending(error))throw error;
         if(error.fatal){job.state='failed';job.progress=error.message;job.attempts=3;again=null;console.error(`[p5-worker] pricing stopped: ${error.message}`);void recordEvent({draftId,estimator:job.input.draft.answers?.service||null,kind:'pricing',stage:'job',code:'fatal',message:error.message,outcome:'failed'});}
-        else if(!error.retryAfterMs)throw error;
+        else if(typeof error.retryAfterMs!=='number')throw error;
         else{job.progress=error.message;job.retryAt=Date.now()+error.retryAfterMs;again=error.retryAfterMs;}
       }
     }

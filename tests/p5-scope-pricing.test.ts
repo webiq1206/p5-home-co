@@ -424,6 +424,21 @@ test('Always-release policy: findings are disclosed with the range, but a missin
  assert.equal(askable.customer.range,null,'a missing measurement is asked for, not guessed around');
  assert.ok(askable.internal.missingInformation.some((m:string)=>/^Missing quantity: sqft/.test(m)),'it reaches the customer as a question');
 });
+test('A repair round is not started once the pricing job is past its repair budget; findings are disclosed instead',async()=>{
+ const tasks=[{...task,id:'drywall',description:'Patch drywall',researchDescription:''}];
+ const run=async(startedAt:Date)=>{let mappings=0,audits=0;const request:PricingRequest=async(_i,input)=>{const d=input as any;
+  if(d.taskBatch){mappings++;return {value:{tasks:d.taskBatch.map((t:any)=>({...tasks.find(x=>x.id===t.id)!,...t})),issues:[],notes:[],replacements:[],removeExclusions:[]},sourceUrls:[]};}
+  if('priorPricingIssues' in d){audits++;return {value:{coveredTaskIds:tasks.map(t=>t.id),issues:audits===1?['Patch drywall: the patch count disagrees with the description.']:[],notes:[],resolvedIssues:[]},sourceUrls:[]};}
+  return {value:{tasks:tasks.map(({id,description,evidence})=>({id,description,evidence})),issues:[]},sourceUrls:[]};};
+  const r=await priceCompleteScope(scope,config,request,startedAt);return {r,mappings,audits};};
+ const fresh=await run(new Date(Date.now()-1000));
+ assert.equal(fresh.mappings,2,'a fresh job repairs the finding');assert.equal(fresh.audits,2);
+ const late=await run(new Date(Date.now()-6*60*1000));
+ assert.equal(late.mappings,1,'past the budget no repair mapping runs');assert.equal(late.audits,1);
+ assert.ok(late.r.customer.range,'the range is still released');
+ assert.ok(late.r.customer.assumptions.some((a:string)=>/^To confirm: .*patch count/.test(a)),'and the finding is disclosed');
+ assert.ok(late.r.internal.scopePricing.issues.some(i=>/Repair round skipped/.test(i)),'the skip is recorded for staff');
+});
 test('Advisory-only issues release the range without a repair round',async()=>{
  const tasks=Array.from({length:12},(_,i)=>({...task,id:`task-${i}`,description:`Assembly component ${i}`}));
  let calls=0,mappings=0,audits=0;

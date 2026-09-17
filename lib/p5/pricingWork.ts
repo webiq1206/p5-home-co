@@ -84,7 +84,9 @@ export async function priceSavedScope(id:string,scope:ReviewedScope,configuratio
    console.error(`[p5-pricing] ${phase} failed after ${elapsed()}s (attempt ${payload.failures}): ${message}`);
    // A refusal every configured provider will repeat (billing block, bad request) ends the job honestly instead of retrying for minutes.
    if(/^pricing-provider-unavailable(:4(0[0-3]|0[5-9]|1\d|2[0-8])\b|:anthropic-blocked|$)/.test(message))throw new PricingPending(PRICING_UNAVAILABLE,0,true);
-   throw new PricingPending('The pricing provider needs another attempt. Your completed pricing steps are saved. Please retry to continue.',payload.failures>=2?0:4000);
+   // Repeated failures of a stage end the job as a handoff rather than parking it: a person completes the estimate and the visitor is told so.
+   if(payload.failures>=4)throw new PricingPending(PRICING_UNAVAILABLE,0,true);
+   throw new PricingPending('The pricing provider needs another attempt. Your completed pricing steps are saved. Continuing automatically.',payload.failures>=2?250:4000);
   }
   console.error(`[p5-pricing] ${phase} finished in ${elapsed()}s`);
   payload.failures=0;payload.replies[key]=reply;payload.completed=(payload.completed||0)+1;

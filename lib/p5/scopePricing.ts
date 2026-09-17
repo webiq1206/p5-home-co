@@ -38,6 +38,8 @@ const planningSchema=z.object({rates:z.array(planningRate).max(60),issues:z.arra
  * Batches run concurrently and the pricing pass (240 s) still bounds the whole
  * stage, so a longer per-stage allowance costs wall-clock only when research
  * is genuinely still working. */
+/** Elapsed time from the pricing job's start after which no repair round is started; findings are disclosed with the range instead. */
+export const REPAIR_BUDGET_MS=Number(process.env.P5_REPAIR_BUDGET_MS||300000);
 export const RESEARCH_STAGE_MS=Number(process.env.P5_RESEARCH_STAGE_MS||150000);
 /** Longest single provider stage. A stage is one saved unit of work; the pass window in backgroundJobs bounds the whole attempt. */
 export const PRICING_STAGE_MAX_MS=150_000;
@@ -612,7 +614,15 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
     // An audit note about a planning allowance's basis, or a task left uncovered only because a planning or sourced allowance prices it, is disclosure, not a reason for a repair round.
     const allowancePricedTask=(taskId:string)=>resolution.rules.some(rule=>rule.scopeTaskId===taskId&&(rule.id.startsWith('planning-')||rule.id.startsWith('market-'))&&rule.quantity.fixed!==undefined&&rule.quantity.fixed>0);
     const blockingAuditIssues=audit.issues.filter(issue=>!advisoryIssue(issue));
-    if(blockingIssues.length||blockingAuditIssues.length||mapping.tasks.some(t=>!audit.coveredTaskIds.includes(t.id)&&!allowancePricedTask(t.id))){
+    // A repair round costs a second mapping, research and audit. Past the repair budget (measured from the pricing job's start) the
+    // range is released with the findings disclosed instead; the visitor is not kept waiting for a second pass.
+    // Measured against the job's pricing clock. A clock older than any job lifetime is a replay or a fixed test clock, not a
+    // running job, and does not count against the budget.
+    const sinceStart=Date.now()-now.getTime();
+    const repairBudgetLeft=!(sinceStart>REPAIR_BUDGET_MS&&sinceStart<6*60*60*1000);
+    const repairNeeded=blockingIssues.length||blockingAuditIssues.length||mapping.tasks.some(t=>!audit.coveredTaskIds.includes(t.id)&&!allowancePricedTask(t.id));
+    if(repairNeeded&&!repairBudgetLeft)auditTrail.issues.push('Repair round skipped: the pricing job exceeded its repair budget; findings are disclosed with the range.');
+    if(repairNeeded&&repairBudgetLeft){
       const priorIssues=[...resolution.issues,...audit.issues];
       const beforeRepair=priceReviewedScope(scope,configuration,now,resolution);
       const pricedComponents=existingLines(beforeRepair);
