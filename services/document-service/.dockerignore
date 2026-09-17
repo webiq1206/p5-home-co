@@ -1,0 +1,7 @@
+.env*
+node_modules
+verification
+benchmark-result.json
+test
+scripts
+*.pdf

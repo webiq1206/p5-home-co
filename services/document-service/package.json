@@ -1,0 +1,10 @@
+{
+  "name":"@p5/document-service",
+  "version":"0.1.0",
+  "private":true,
+  "type":"module",
+  "engines":{"node":">=24"},
+  "scripts":{"start":"node src/main.mjs","test":"node --test test/*.test.mjs","benchmark":"node scripts/benchmark.mjs"},
+  "dependencies":{"@napi-rs/canvas":"1.0.9","pdf-lib":"1.17.1","pdfjs-dist":"6.3.289","pg":"8.16.3"},
+  "devDependencies":{"@electric-sql/pglite":"0.5.8"}
+}
