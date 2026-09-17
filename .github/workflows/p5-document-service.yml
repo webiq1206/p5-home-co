@@ -57,6 +57,10 @@ jobs:
           npm test 2>&1 | tee ../../document-service-verification/service-tests.log
       - name: Install existing website dependencies
         run: npm ci --no-audit --no-fund
+      - name: Saved-file adapter integration
+        run: |
+          set -o pipefail
+          node --import tsx scripts/test-p5-document-adapter.mts 2>&1 | tee document-service-verification/adapter-integration.log
       - name: Existing estimator compatibility regressions
         run: |
           set -o pipefail
@@ -72,7 +76,7 @@ jobs:
       - name: Package exact tested source and installation files
         if: always()
         run: |
-          tar --exclude=node_modules --exclude=verification -czf document-service-verification/service-source.tgz services/document-service lib/p5/documentServiceClient.ts scripts/integrate-document-service.mjs tests/p5-document-service.test.ts
+          tar --exclude=node_modules --exclude=verification -czf document-service-verification/service-source.tgz services/document-service lib/p5/documentServiceClient.ts scripts/integrate-document-service.mjs scripts/test-p5-document-adapter.mts tests/p5-document-service.test.ts
       - uses: actions/upload-artifact@v4
         if: always()
         with:
