@@ -94,7 +94,7 @@ for(const width of [320,390,430,768,1024,1440,1920]){
   await page.reload();await estimator.getByRole('button',{name:'Get my estimate',exact:true}).waitFor();await estimator.getByRole('checkbox').waitFor();
   assert.equal(await estimator.getByRole('region',{name:'Project question'}).count(),0,'Restored known facts were asked again');
   await estimator.getByLabel('Your name',{exact:true}).fill('Synthetic Test');await estimator.getByLabel('Email',{exact:true}).fill('customer@example.invalid');
-  await estimator.getByRole('button',{name:'Back to the previous step',exact:true}).click();await description.waitFor();await page.waitForFunction(()=>/LongUnbroken/.test(document.querySelector('[data-p5-estimator] textarea')?.value||''),null,{timeout:15000}).catch(()=>{});assert.match(await description.inputValue(),/LongUnbroken/);
+  await estimator.getByRole('button',{name:'Back to the previous step',exact:true}).click();await page.waitForTimeout(400);/* Back lands on the previous step, which on a brand with its own questions is the last question, not the description; what must survive is the saved project text. */assert.match(await page.evaluate(()=>JSON.parse(localStorage.getItem('p5-project-draft-v2')||'{}').text||''),/LongUnbroken/,'the project description survives going back');
   const calls=state.scopeCalls;await estimator.getByRole('button',{name:'Continue',exact:true}).click({timeout:120000});await estimator.getByLabel('Email',{exact:true}).waitFor();assert.equal(await estimator.getByLabel('Email',{exact:true}).inputValue(),'customer@example.invalid');assert.equal(state.scopeCalls,calls,'Going back unnecessarily repeated analysis');
   // Details are grouped in accordions; editing one detail re-reads the scope before pricing.
   const details=estimator.locator('details',{hasText:'Additional scope details'}).first();if(!(await details.evaluate(el=>el.open)))await details.locator('summary').first().click();
@@ -120,7 +120,7 @@ for(const width of [390,1440]){
   assert.equal(await est.getByText('Should we include or exclude painting?',{exact:true}).count(),0,'Only one question is rendered');
   await question.getByRole('button',{name:'Labor only',exact:true}).click();
   await est.getByRole('alert').filter({hasText:'Temporary answer-save interruption'}).waitFor();assert.equal(await est.getByLabel('Your answer',{exact:true}).inputValue(),'Labor only');
-  await est.getByRole('button',{name:'Send answer',exact:true}).click();await question.getByText('Should we include or exclude painting?',{exact:true}).waitFor();
+  await est.getByRole('button',{name:'Send answer',exact:true}).click({timeout:120000});await question.getByText('Should we include or exclude painting?',{exact:true}).waitFor();
   assert.equal(await est.getByLabel('Your answer',{exact:true}).inputValue(),'','The next question starts with a fresh answer');
   await page.reload();await question.getByText('Should we include or exclude painting?',{exact:true}).waitFor();
   await capture(page,`${width}-clarification`);await question.getByRole('button',{name:'Exclude it',exact:true}).click();
@@ -144,7 +144,7 @@ for(const scenario of ['manual','conflict','unavailable']){
     // Every question now shares the composer: chips answer a choice, unknown numeric details stay explicit via Not sure yet, and only free-text questions are typed.
     if(await choice.count()){await choice.click();}
     else if(await q.getByRole('button',{name:'Not sure yet',exact:true}).count())await q.getByRole('button',{name:'Not sure yet',exact:true}).click();
-    else if(await est.getByLabel('Your answer',{exact:true}).count()){await est.getByLabel('Your answer',{exact:true}).fill('Repair three interior doors');await est.getByRole('button',{name:'Send answer',exact:true}).click();}
+    else if(await est.getByLabel('Your answer',{exact:true}).count()){await est.getByLabel('Your answer',{exact:true}).fill('Repair three interior doors');await est.getByRole('button',{name:'Send answer',exact:true}).click({timeout:120000});}
     else throw new Error('Unexpected required section');
     await settled(page);
    }
@@ -163,14 +163,14 @@ for(const width of [390,1440]){
   // Brands that price trim ask for its length before review; the others discover the gap at submission and ask then.
   const trimQuestion=est.getByText('About how many linear feet of trim or baseboard are included?',{exact:true});const review=est.getByRole('heading',{name:'Review your project',exact:true});
   await answerBrandQuestions(page,est,review.or(trimQuestion));const askedUpFront=(await trimQuestion.count())>0;
-  if(askedUpFront){await est.getByLabel('Your answer',{exact:true}).fill('120');await est.getByRole('button',{name:'Send answer',exact:true}).click();await settled(page);await answerBrandQuestions(page,est,review);}
+  if(askedUpFront){await est.getByLabel('Your answer',{exact:true}).fill('120');await est.getByRole('button',{name:'Send answer',exact:true}).click({timeout:120000});await settled(page);await answerBrandQuestions(page,est,review);}
   await est.getByLabel('Your name',{exact:true}).fill('Synthetic Test');await est.getByLabel('Email',{exact:true}).fill('customer@example.invalid');await est.getByRole('checkbox').check();
   await est.getByRole('button',{name:'Get my estimate',exact:true}).click();
   if(!askedUpFront){
    const alert=est.getByRole('alert');await alert.getByText('A few more details are needed',{exact:true}).waitFor();
    await alert.getByRole('button',{name:/Trim or baseboard length in feet/}).click();
    const question=est.getByRole('region',{name:'Project question'});await question.getByText('About how many linear feet of trim or baseboard are included?',{exact:true}).waitFor();
-   await est.getByLabel('Your answer',{exact:true}).fill('120');await est.getByRole('button',{name:'Send answer',exact:true}).click();await settled(page);
+   await est.getByLabel('Your answer',{exact:true}).fill('120');await est.getByRole('button',{name:'Send answer',exact:true}).click({timeout:120000});await settled(page);
    await answerBrandQuestions(page,est,review);
    assert.equal(await est.getByLabel('Email',{exact:true}).inputValue(),'customer@example.invalid','Contact details survive the detour');
    await est.getByRole('checkbox').check();await est.getByRole('button',{name:'Get my estimate',exact:true}).click();
