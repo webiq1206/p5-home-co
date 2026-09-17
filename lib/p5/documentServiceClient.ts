@@ -9,10 +9,10 @@ import {fetchWithinDeadline,remainingBudget} from './processingBudget.ts';
 import type {ProcessingStatus} from './processingStatus.ts';
 const VERSION='p5-documents-2026-09-17-v1';
 const digest=(value:string|Buffer)=>createHash('sha256').update(value).digest('hex');
-export function documentServiceEligible(uploads:ScopeUpload[],env:NodeJS.ProcessEnv=process.env){
+export function documentServiceEligible(uploads:ScopeUpload[],env:Readonly<Record<string,string|undefined>>=process.env){
  return env.P5_DOCUMENT_SERVICE_MODE==='remote'&&uploads.length>0&&uploads.every(u=>u.status==='stored'&&u.type==='application/pdf'&&u.size<=Number(env.P5_DOCUMENT_SERVICE_MAX_BYTES||50*1024*1024));
 }
-export function documentServiceHeaders(method:string,path:string,tenant:string,secret:string,body:Buffer,now=Date.now(),nonce=randomUUID()){
+export function documentServiceHeaders(method:string,path:string,tenant:string,secret:string,body:Buffer,now=Date.now(),nonce:string=randomUUID()){
  const timestamp=String(now),bodyHash=digest(body);
  return {'x-p5-tenant':tenant,'x-p5-time':timestamp,'x-p5-nonce':nonce,'x-p5-body-sha256':bodyHash,'x-p5-signature':createHmac('sha256',secret).update([method,path,tenant,timestamp,nonce,bodyHash].join('\n')).digest('hex')};
 }
@@ -23,7 +23,7 @@ export async function advanceDocumentService(draft:Draft,text:string,answers:Sco
  let origin:URL;try{origin=new URL(configured);}catch{throw new DraftError('The document service is not configured. Your files are saved.',503);}
  if(origin.protocol!=='https:'||origin.username||origin.password||origin.pathname!=='/'||origin.search||origin.hash||secret.length<32)throw new DraftError('The document service configuration needs attention. Your files are saved.',503);
  const base=`/v1/projects/${encodeURIComponent(draft.id)}`;
- const send=async(method:string,path:string,body=Buffer.alloc(0),contentType='application/json')=>{
+ const send=async(method:string,path:string,body:Buffer=Buffer.alloc(0),contentType='application/json')=>{
   const response=await fetchWithinDeadline(request,origin.origin+path,{method,headers:{...documentServiceHeaders(method,path,tenant,secret,body),'content-type':contentType},...(method==='POST'?{body:body as unknown as BodyInit}:{}),redirect:'error'},Math.min(deadline,Date.now()+60000));
   let value:any;try{value=await response.json();}catch{throw new DraftError('The document service returned an invalid response. Saved files are preserved.',503);}
   return {ok:response.ok,status:response.status,value};
@@ -68,7 +68,6 @@ export async function advanceDocumentService(draft:Draft,text:string,answers:Sco
   }
   if(review.state!=='complete')return pending('Matching the source evidence to your project and checking only missing details.',{phase:'cross-referencing',readPages,totalPages});
   const extraction=validateExtraction(review.result);
-  // validateExtraction validates page records, source references and quantity units.
   if(!extraction.documentCoverage||extraction.documentCoverage.expectedPages!==totalPages)throw new DraftError('The returned document coverage did not match the uploaded pages.',503);
   return {pending:false as const,version:digest(JSON.stringify([text,answers,draft.uploads.map(f=>[f.id,f.sha256])])),analysis:{extraction,provider:'P5 Document Service',model:VERSION,analyzedAt:new Date().toISOString()}};
  }finally{await releaseWork(draft.id,workKey,lease.token);}
