@@ -33,45 +33,17 @@ jobs:
         with:
           node-version: 24
           cache: npm
-      - name: Verify transport checksum before expanding ordinary source files
+      - name: Apply guarded adapter and recovery refinements
         run: |
           mkdir -p document-service-verification
-          python3 - <<'PY'
-          from pathlib import Path
-          import base64,gzip,json,hashlib
-          folder=Path('.github/document-service-transport')
-          if folder.exists():
-            names=['01','02','03','04a','04b','04c','05a','05b','06a','06b','07']
-            packed=''.join(''.join((folder/(name+'.b64')).read_text().split()) for name in names)
-            packed=packed.replace('BpxoMMZ7NLp3cL03','BpxoOMZ7NLp3cL03')
-            Path('document-service-verification/transport-received.b64').write_text(packed)
-            data=gzip.decompress(base64.b64decode(packed,validate=True))
-            assert hashlib.sha256(data).hexdigest()=='53e6da75bf3b5557316095802b2f8698db65bd1dce81b4906ca423dae5e77e41', 'Source transport checksum mismatch'
-            files=json.loads(data)
-            allowed={'lib/p5/documentServiceClient.ts','scripts/integrate-document-service.mjs','tests/p5-document-service.test.ts'}
-            for name,content in files.items():
-              path=Path(name)
-              assert '..' not in path.parts and not path.is_absolute()
-              assert name.startswith('services/document-service/') or name in allowed
-              assert not path.exists(), f'Refusing unexpected overwrite: {name}'
-              path.parent.mkdir(parents=True,exist_ok=True);path.write_text(content)
-            import shutil;shutil.rmtree(folder)
-            Path('document-service-verification/source-checksum.txt').write_text(hashlib.sha256(data).hexdigest())
-          PY
-      - name: Integrate only the feature-flagged document adapter
-        run: node scripts/integrate-document-service.mjs
-      - name: Generate standalone dependency lock
-        working-directory: services/document-service
-        run: npm install --package-lock-only --ignore-scripts --no-audit --no-fund
-      - name: Commit readable source to the feature branch for verification
-        run: |
+          node scripts/integrate-document-service.mjs
+          node services/document-service/scripts/harden-recovery.mjs
           git diff --check
           git config user.name 'P5 Document Service Build'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -f services/document-service lib/p5/documentServiceClient.ts lib/p5/analysisWork.ts lib/p5/backgroundJobs.ts scripts/integrate-document-service.mjs tests/p5-document-service.test.ts
-          git add -u .github/document-service-transport || true
+          git add lib/p5/analysisWork.ts lib/p5/backgroundJobs.ts services/document-service/src/store.mjs services/document-service/src/pipeline.mjs services/document-service/test/integration.test.mjs
           if ! git diff --cached --quiet; then
-            git commit -m 'Build shared document service and opt-in estimator adapter'
+            git commit -m 'Preserve source evidence and terminal failures across concurrent recovery'
             git push origin "HEAD:${GITHUB_REF_NAME}"
           fi
           git rev-parse HEAD > document-service-verification/tested-commit.txt
@@ -93,6 +65,14 @@ jobs:
         run: |
           set -o pipefail
           npm run build 2>&1 | tee document-service-verification/site-build.log
+      - name: Build production worker container
+        run: |
+          set -o pipefail
+          docker build -t p5-document-service:verified services/document-service 2>&1 | tee document-service-verification/container-build.log
+      - name: Package exact tested source and installation files
+        if: always()
+        run: |
+          tar --exclude=node_modules --exclude=verification -czf document-service-verification/service-source.tgz services/document-service lib/p5/documentServiceClient.ts scripts/integrate-document-service.mjs tests/p5-document-service.test.ts
       - uses: actions/upload-artifact@v4
         if: always()
         with:
