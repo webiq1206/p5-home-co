@@ -1,0 +1,49 @@
+name: P5 interface and metadata verification
+on:
+  push:
+    branches: [fix/p5-interface-completion-20260917]
+  pull_request:
+    paths: ['app/**', 'components/**', 'hooks/**', 'lib/brand-page-metadata.ts', 'shared/ctaCopy.ts', 'lib/p5/adaptive.ts', 'tests/p5-brand*.test.ts', 'scripts/verify-p5-mobile-seo.mjs', '.github/workflows/p5-mobile-seo.yml', 'public/brand/**']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: p5-interface-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      NEXT_TELEMETRY_DISABLED: '1'
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Estimator and metadata regressions
+        run: node --import tsx --test --test-concurrency=1 tests/p5-*.test.ts
+      - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - name: Production app responsive and public metadata audit
+        run: |
+          mkdir -p p5-mobile-seo-verification
+          git rev-parse HEAD > p5-mobile-seo-verification/tested-commit.txt
+          npm run start -- --port 5000 > p5-mobile-seo-verification/server.log 2>&1 &
+          app_pid=$!
+          trap 'kill "$app_pid" || true' EXIT
+          for attempt in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:5000/ > /dev/null; then break; fi
+            sleep 1
+          done
+          node scripts/verify-p5-mobile-seo.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: p5-interface-verification
+          path: p5-mobile-seo-verification
+          retention-days: 14

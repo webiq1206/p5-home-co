@@ -1,11 +1,12 @@
+import {withBrandPageMetadata} from '@/lib/brand-page-metadata';
 import type { Metadata } from "next";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = withBrandPageMetadata(({
   title: "Disconnecting QuickBooks | P5 Home Co",
   description:
     "How to disconnect the P5 Home Co finance platform from QuickBooks Online, and what happens when you do.",
   alternates: { canonical: "/legal/quickbooks-disconnect" },
-};
+}), "/legal/quickbooks-disconnect");
 
 export default function DisconnectPage() {
   return (

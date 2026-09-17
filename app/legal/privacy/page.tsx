@@ -1,11 +1,12 @@
+import {withBrandPageMetadata} from '@/lib/brand-page-metadata';
 import type { Metadata } from "next";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = withBrandPageMetadata(({
   title: "Privacy Policy | P5 Home Co",
   description:
     "How P5 Home Co collects, uses, shares, and protects personal information, including data accessed through QuickBooks Online.",
   alternates: { canonical: "/legal/privacy" },
-};
+}), "/legal/privacy");
 
 export default function PrivacyPage() {
   return (

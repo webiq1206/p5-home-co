@@ -1,3 +1,4 @@
+import {withBrandPageMetadata} from '@/lib/brand-page-metadata';
 import type { Metadata } from "next";
 
 import QuoteLanding from "./QuoteLanding";
@@ -16,7 +17,7 @@ const title = "Request a Free Home Project Quote | P5 Home Co";
 const description =
   "Get a free, no-obligation quote for a remodel, custom home, ADU, cabinetry, or repair in Idaho's Treasure Valley. One form reaches the right P5 team.";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = withBrandPageMetadata(({
   title,
   description,
   alternates: { canonical: "/quote" },
@@ -33,7 +34,7 @@ export const metadata: Metadata = {
   },
   twitter: { card: "summary_large_image", title, description, images: ["/images/p5-og.jpg"] },
   robots: { index: true, follow: true },
-};
+}), "/quote");
 
 export default function QuotePage() {
   return <QuoteLanding service={null} />;
