@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {summarySections,estimateSections} from '../lib/p5/presentation.ts';
+import {summarySections,estimateSections,SECTION_TITLES} from '../lib/p5/presentation.ts';
 import {estimateEmail} from '../lib/p5/estimateEmail.ts';
 import {suggestedTrade} from '../lib/p5/trades.ts';
 const result={summary:'Project type: new-construction\nProject area in square feet: 4500\nPlumbing work: Supply fixtures. Install connections.\nExcluded work: Land and financing.',includedCategories:['Plumbing'],range:{low:100,high:200},lineItems:[{id:'p',category:'Plumbing',description:'Fixture installation',quantity:2,unit:'EA',low:100,high:200,unitLow:50,unitHigh:100}],categoryRanges:[{category:'Plumbing',low:100,high:200}],assumptions:[],exclusions:['Land'],allowances:[],factors:[],message:'Review your estimate.',nextStep:'Consultation',disclaimer:'Preliminary only.'};
@@ -39,3 +39,15 @@ test("Partial saved instruction records remain readable without losing supplied 
  const included=sections.find(section=>section.kind==='included');
  assert.ok(included?.bullets?.includes("Cabinets"));assert.ok(!included?.bullets?.includes("Appliances"));
 });
+
+test('Placeholder building and floor labels neither create a per-building table nor prefix rows',()=>{
+ const line=(id:string,building:string,floor?:string,extra:any={})=>({id,category:'Drywall',description:'Ceiling patch '+id,quantity:1,unit:'EA',low:50,high:100,unitLow:50,unitHigh:100,building,floor,...extra});
+ const base={summary:'',includedCategories:['Drywall'],range:{low:100,high:200},scopeTasks:[],assumptions:[],exclusions:[],allowances:[],factors:[],categoryRanges:[{category:'Drywall',low:100,high:200}]};
+ const single=estimateSections({...base,lineItems:[line('a','Main residence'),line('b','Unspecified building','Unspecified floor',{pricingStatus:'estimated-allowance',verification:'Regional planning average.'})]});
+ assert.ok(!single.some(s=>s.title===SECTION_TITLES.buildingPrices),'one real building: no per-building table');
+ const allowanceRows=single.find(s=>s.title===SECTION_TITLES.allowances)?.rows||[];
+ assert.ok(allowanceRows.length&&allowanceRows.every(r=>!/unspecified/i.test(r[0])),'placeholder labels are not shown on rows');
+ const two=estimateSections({...base,lineItems:[line('a','Main'),line('b','ADU')]});
+ assert.ok(two.some(s=>s.title===SECTION_TITLES.buildingPrices),'two named buildings keep their totals');
+});
+

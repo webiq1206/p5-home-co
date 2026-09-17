@@ -75,14 +75,20 @@ export function estimateSections(result:any):EstimateSection[]{
  if(result.documentCoverage){const c=result.documentCoverage;const expected=Number(c.expectedPages)||0;const pages:any[]=Array.isArray(c.pages)?c.pages:[];
   // A typed scope has no pages; a coverage line for it only confuses the reader.
   if(expected>0||pages.length>0)sections.push({title:SECTION_TITLES.coverage,kind:'info',text:`${pages.filter((p:any)=>p.status==='read').length} of ${expected||pages.length} pages fully read. ${c.complete?'Every page has a completed review record.':'Analysis is incomplete; review the exceptions below.'}`,bullets:pages.filter((p:any)=>p.status!=='read').map((p:any)=>`${p.source}, page ${p.page}${p.sheet?` (${p.sheet})`:''}: ${p.status}. ${(p.notes||[]).join(' ')}`)});}
- const buildings=[...new Set<string>(lines.map(l=>l.building).filter(Boolean))];
+ // A placeholder label ("unspecified building") is no building at all and never counts; a default one ("main") counts toward
+ // building totals when another named building exists but is not repeated on every row.
+ const placeholderBuilding=(b?:string)=>!b||/^(unspecified(?: building)?|unknown|not specified|n\/a|none|same|whole project)$/i.test(b.trim());
+ const realBuilding=(b?:string)=>placeholderBuilding(b)?'':b!;
+ const namedBuilding=(b?:string)=>placeholderBuilding(b)||/^(main(?: residence| house| building| home)?|default)$/i.test(b!.trim())?'':b!;
+ const namedFloor=(f?:string)=>f&&!/^(unspecified(?: floor)?|unknown|not specified|n\/a|none|floor not specified)$/i.test(f.trim())?f:'';
+ const buildings=[...new Set<string>(lines.map(l=>realBuilding(l.building)).filter(Boolean))];
  // One unnamed or default building is the whole project; a per-building table repeats the total.
  if(buildings.length>1)sections.push({title:SECTION_TITLES.buildingPrices,kind:'included',rows:buildings.map(b=>[b,`${money(lines.filter(l=>l.building===b).reduce((n,l)=>n+l.low,0))} to ${money(lines.filter(l=>l.building===b).reduce((n,l)=>n+l.high,0))}`]),text:'Building totals are included in, not added to, the overall estimate.'});
  const estimated=lines.filter(l=>l.pricingStatus==='estimated-allowance');
  if(lines.some(l=>l.pricingStatus==='owner-planning-rate'))sections.push({title:SECTION_TITLES.pricingBasis,kind:'assumption',text:'Owner planning rates provide the foundation for this preliminary range. They are not current supplier quotes; verify local availability, selections and trade pricing before a firm proposal.'});
  if(estimated.length){
   const notes=[...new Set<string>(estimated.map(l=>l.verification).filter(Boolean))];
-  sections.push({title:SECTION_TITLES.allowances,kind:'allowance',text:`These amounts are included in the range as preliminary allowances. ${notes.length===1?notes[0]:'Confirm quantities, selections and current supplier and trade pricing before a firm proposal.'}`,rows:estimated.map(l=>[[l.building&&!/^(main|default)$/i.test(l.building)?l.building:'',l.floor?`Floor ${l.floor}`:'',l.description].filter(Boolean).join(' / '),`${money(l.low)} to ${money(l.high)}${l.rateLocation?` · cost location: ${l.rateLocation}`:''}${l.rateDate?` · researched ${String(l.rateDate).slice(0,10)}`:''}`])});
+  sections.push({title:SECTION_TITLES.allowances,kind:'allowance',text:`These amounts are included in the range as preliminary allowances. ${notes.length===1?notes[0]:'Confirm quantities, selections and current supplier and trade pricing before a firm proposal.'}`,rows:estimated.map(l=>[[namedBuilding(l.building),namedFloor(l.floor)?`Floor ${namedFloor(l.floor)}`:'',l.description].filter(Boolean).join(' / '),`${money(l.low)} to ${money(l.high)}${l.rateLocation?` · cost location: ${l.rateLocation}`:''}${l.rateDate?` · researched ${String(l.rateDate).slice(0,10)}`:''}`])});
  }
  if(result.verificationItems?.length)sections.push({title:SECTION_TITLES.verify,kind:'assumption',bullets:[...new Set<string>(result.verificationItems)]});
  const categories=[...new Set<string>([...(result.includedCategories||[]),...lines.map(x=>x.category),...tasks.map(x=>x.category||suggestedTrade(x.description))])];
@@ -90,7 +96,7 @@ export function estimateSections(result:any):EstimateSection[]{
   const range=result.categoryRanges?.find((x:any)=>x.category===category);
   return {title:category,kind:'category',text:range?`${money(range.low)} to ${money(range.high)}`:undefined,
    bullets:[...new Set<string>(tasks.filter(x=>(x.category||suggestedTrade(x.description))===category).map(x=>x.description))],
-   rows:lines.filter(x=>x.category===category).map(x=>[[x.building&&!/^(main|default)$/i.test(x.building)?x.building:'',x.floor?`Floor ${x.floor}`:'',x.description].filter(Boolean).join(' / '),itemPriceText(x)])};
+   rows:lines.filter(x=>x.category===category).map(x=>[[namedBuilding(x.building),namedFloor(x.floor)?`Floor ${namedFloor(x.floor)}`:'',x.description].filter(Boolean).join(' / '),itemPriceText(x)])};
  });
  if(breakdown.length){
   const at=sections.findIndex(s=>s.kind==='glance');
