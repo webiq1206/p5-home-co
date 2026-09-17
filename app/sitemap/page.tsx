@@ -1,3 +1,4 @@
+import {withBrandPageMetadata} from '@/lib/brand-page-metadata';
 import type { Metadata } from "next";
 import Link from "next/link";
 import { siteUrl } from "../site.ts";
@@ -5,12 +6,12 @@ import { childSites, legalPages, ownPages } from "../siteUrls.ts";
 
 const DESCRIPTION = "Every page on p5homeco.com, and a direct link to each of the five P5 Home Co companies.";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = withBrandPageMetadata(({
   title: "Site Map | P5 Home Co",
   description: DESCRIPTION,
   alternates: { canonical: "/sitemap" },
   openGraph: { title: "Site Map | P5 Home Co", description: DESCRIPTION, url: `${siteUrl}/sitemap`, type: "website" },
-};
+}), "/sitemap");
 
 /**
  * The HTML sitemap: a live, followed crawl path. The root layout renders bare

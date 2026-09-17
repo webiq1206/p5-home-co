@@ -419,3 +419,6 @@ body[data-p5-estimator-active="true"] .p5-mobile-actionbar { display: none !impo
 /* ─── Smooth content transitions: an answer rises into place when its question opens. */
 .faq-item[open] > p { animation: contentRise .32s cubic-bezier(.2,.7,.2,1) both; }
 @media (prefers-reduced-motion: reduce) { .faq-item[open] > p { animation: none; } }
+
+/* Keep the secondary mobile action labeled and easy to tap. */
+.p5-mobile-call{min-width:76px;flex-direction:column;gap:4px}.p5-mobile-call span{font-size:12px;font-weight:600;line-height:1.2}

@@ -120,10 +120,10 @@ export function scopeAssumptions(answers:ScopeAnswers,skipped:ScopeField[]=[],ex
 }
 function handoffForService(service:string){
   const id=ESTIMATOR_BRAND.id as string;
-  if(id==='remodeling'&&service==='new-construction')return {label:'Continue with Boise Construction Co',url:'https://boiseconstruction.co',reason:'This is a new-build project. Boise Construction Co is the correct estimator for new construction.'};
-  if(id==='construction'&&remodels.includes(service))return {label:'Continue with Boise Remodeling Co',url:'https://boiseremodeling.co',reason:'This is a remodeling project. Boise Remodeling Co is the correct estimator for remodel work.'};
-  if(id!=='cabinet'&&service.startsWith('cabinet-'))return {label:'Continue with Boise Cabinet Co',url:'https://boisecabinet.co',reason:'This project is primarily cabinet work. Boise Cabinet Co is the correct estimator for cabinet supply and installation.'};
-  if(id!=='handyman'&&service==='handyman')return {label:'Continue with Boise Handyman Co',url:'https://boisehandyman.co',reason:'This project is a repair or handyman scope. Boise Handyman Co is the correct estimator for this work.'};
+  if(id==='remodeling'&&service==='new-construction')return {label:'Continue with Boise Construction Co',url:'https://boiseconstruction.co/estimate',reason:'This is a new-build project. Boise Construction Co is the correct estimator for new construction.'};
+  if(id==='construction'&&remodels.includes(service))return {label:'Continue with Boise Remodeling Co',url:'https://boiseremodeling.co/estimate',reason:'This is a remodeling project. Boise Remodeling Co is the correct estimator for remodel work.'};
+  if(id!=='cabinet'&&service.startsWith('cabinet-'))return {label:'Continue with Boise Cabinet Co',url:'https://boisecabinet.co/estimate',reason:'This project is primarily cabinet work. Boise Cabinet Co is the correct estimator for cabinet supply and installation.'};
+  if(id!=='handyman'&&service==='handyman')return {label:'Continue with Boise Handyman Co',url:'https://boisehandyman.co/estimate',reason:'This project is a repair or handyman scope. Boise Handyman Co is the correct estimator for this work.'};
   return null;
 }
 export function scopeQuestionsForBrand(...args:Parameters<typeof scopeQuestions>):ScopeQuestion[]{
@@ -132,7 +132,7 @@ export function scopeQuestionsForBrand(...args:Parameters<typeof scopeQuestions>
   // on a stale default before the customer's project type is established.
   if((args[2]||[]).some(c=>c.field==='service'))return scopeQuestions(...args).filter(q=>q.field==='service');
   if(service&&!(ESTIMATOR_BRAND.services as readonly string[]).includes(service)){
-    const handoff=handoffForService(service);if(handoff)return [{field:'service',label:'Right estimator',reason:handoff.reason,detail:'Your project was identified before unrelated questions were asked. Open the correct estimator below and attach the same source files there.',handoff:{label:handoff.label,url:handoff.url}}];
+    const handoff=handoffForService(service);if(handoff)return [{field:'service',label:'Right estimator',reason:handoff.reason,detail:'Open the correct estimator below. Your scope, answers, and files are not transferred automatically; copy your scope and answers, then attach your files there.',handoff:{label:handoff.label,url:handoff.url}}];
     return [{field:'service',label:'Project type',reason:`Which part of this project should ${ESTIMATOR_BRAND.name} estimate?`,values:[...ESTIMATOR_BRAND.services],detail:'Choose the work you want this company to handle. Your complete project description and documents are retained.'}];
   }
   return scopeQuestions(...args);

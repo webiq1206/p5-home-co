@@ -1,3 +1,4 @@
+import {withBrandPageMetadata} from '@/lib/brand-page-metadata';
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
@@ -31,7 +32,7 @@ export async function generateMetadata({
   if (!service) return {};
 
   const path = `/quote/${service.slug}`;
-  return {
+  return withBrandPageMetadata(await ({
     title: service.metaTitle,
     description: service.metaDescription,
     alternates: { canonical: path },
@@ -64,7 +65,7 @@ export async function generateMetadata({
      * generic /quote page is the one indexable quote destination.
      */
     robots: { index: false, follow: true },
-  };
+  }), "/quote/[service]");
 }
 
 export default async function ServiceQuotePage({
