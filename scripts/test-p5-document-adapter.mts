@@ -24,7 +24,7 @@ try{
  await db.query('INSERT INTO p5_estimator_files(id,draft_id,name,mime_type,size_bytes,sha256,data_base64) VALUES($1,$2,$3,$4,$5,$6,$7)',[fileId,id,'scope.pdf','application/pdf',bytes.length,digest,bytes.toString('base64')]);
  draft.uploads=[{id:fileId,name:'scope.pdf',type:'application/pdf',size:bytes.length,sha256:digest,status:'stored'}];
  const documentId=client.remoteDocumentId(brand.domain,id,digest);
- let stored=false,uploads=0,reviewCalls=0;const scopeBodies:string[]=[];
+ let stored=false,uploads=0,reviewCalls=0,partial=false,wrongSource=false,retryStatus=202,failed=false;const scopeBodies:string[]=[];
  const fakeRequest=async(input:any,init:any)=>{
   const url=new URL(String(input)),route=url.pathname+url.search,method=init.method;
   const headers=new Headers(init.headers),body=init.body?Buffer.from(init.body):Buffer.alloc(0);
@@ -32,22 +32,28 @@ try{
   assert.equal(headers.get('x-p5-signature'),createHmac('sha256',process.env.P5_DOCUMENT_SERVICE_KEY!).update(signed).digest('hex'));
   assert.equal(init.redirect,'error');
   const reply=(data:unknown,status=200)=>new Response(JSON.stringify(data),{status,headers:{'content-type':'application/json'}});
-  if(method==='GET'&&url.pathname.endsWith('/documents/'+documentId))return stored?reply({id:documentId,state:'complete',progress:{checkedPages:1,totalPages:1}}):reply({error:'not-found'},404);
+  if(method==='GET'&&url.pathname.endsWith('/documents/'+documentId))return stored?reply({id:documentId,state:failed?'failed':'complete',progress:{checkedPages:1,totalPages:1},coverage:{complete:!partial,pages:[{page:1,status:partial?'partial':'read'}]}}):reply({error:'not-found'},404);
+  if(method==='POST'&&url.pathname.endsWith('/retry'))return reply({error:'retry unavailable'},retryStatus);
   if(method==='POST'&&url.pathname.endsWith('/documents')){uploads++;stored=true;assert.deepEqual(body,bytes);return reply({id:documentId,state:'queued'},202);}
   if(method==='POST'&&url.pathname.endsWith('/reviews')){
    reviewCalls++;scopeBodies.push(body.toString());
    if(reviewCalls===1)return reply({id:'review-1',state:'queued'},202);
-   return reply({id:'review-'+reviewCalls,state:'complete',result:{summary:'Controlled result',facts:[],conflicts:[],missingInformation:[],reviewNotes:[],clarifications:[],pages:[{source:'scope.pdf',page:1,sheet:'A1',revision:'',status:'read',notes:[]}],takeoffs:[],instructions:{inclusions:[],exclusions:[],responsibilities:[],buildings:[],floors:[],separateBuildings:false,laborOnly:false,materialsOnly:false,questions:[]}}},202);
+   return reply({id:'review-'+reviewCalls,state:'complete',result:{summary:'Controlled result',facts:[],conflicts:[],missingInformation:[],reviewNotes:[],clarifications:[],pages:[{source:wrongSource?'foreign.pdf':'scope.pdf',page:1,sheet:'A1',revision:'',status:'read',notes:[]}],takeoffs:[],instructions:{inclusions:[],exclusions:[],responsibilities:[],buildings:[],floors:[],separateBuildings:false,laborOnly:false,materialsOnly:false,questions:[]}}},202);
   }
   throw new Error('Unexpected controlled service route: '+route);
  };
  const advance=(text:string,answers:any,work:string)=>client.advanceDocumentService(draft,text,answers,work,fakeRequest,false,Date.now()+30000);
  const one=await advance(draft.text,draft.answers,'remote-fixture-1');assert.equal(one.pending,true);
- const two=await advance(draft.text,draft.answers,'remote-fixture-1');assert.equal(two.pending,true);
+ assert.equal(reviewCalls,1,'reconciliation is queued during initial ingestion, before a later browser poll');
+ const two=await advance(draft.text,draft.answers,'remote-fixture-1');assert.equal(two.pending,false);
  const three=await advance(draft.text,draft.answers,'remote-fixture-1');assert.equal(three.pending,false);assert.equal(three.analysis.extraction.documentCoverage.expectedPages,1);assert.equal(uploads,1);
  const changed=await advance('Only the garage',{...draft.answers,garageIncluded:'yes'},'remote-fixture-2');assert.equal(changed.pending,false);assert.equal(uploads,1,'a changed scope must reuse the saved source');assert.notEqual(scopeBodies[0],scopeBodies.at(-1));
  assert.equal((await db.query('SELECT * FROM p5_estimator_outbox')).length,0,'document processing must not email or create a CRM delivery');
  assert.equal((await db.query('SELECT * FROM p5_estimator_work WHERE lease_token IS NOT NULL')).length,0,'adapter leases released');
+ partial=true;await assert.rejects(advance(draft.text,draft.answers,'partial'),/unchecked estimate/);partial=false;
+ wrongSource=true;await assert.rejects(advance(draft.text,draft.answers,'foreign-coverage'),/verified uploaded pages/);wrongSource=false;
+ failed=true;retryStatus=503;await assert.rejects(client.advanceDocumentService(draft,draft.text,draft.answers,'retry-failure',fakeRequest,true,Date.now()+30000),/retry could not start/);failed=false;
+ draft.uploads.push({...draft.uploads[0],id:randomUUID(),name:'duplicate.pdf'});await advance(draft.text,draft.answers,'duplicate-source');assert.equal(JSON.parse(scopeBodies.at(-1)!).documents.length,1);draft.uploads.pop();
  stored=false;await db.query('UPDATE p5_estimator_files SET data_base64=$2 WHERE id=$1',[fileId,Buffer.from('tampered').toString('base64')]);
  await assert.rejects(advance(draft.text,draft.answers,'integrity-check'),/integrity check/);
  process.env.P5_DOCUMENT_SERVICE_URL='http://insecure.example';await assert.rejects(advance(draft.text,draft.answers,'insecure-url'),/configuration needs attention/);

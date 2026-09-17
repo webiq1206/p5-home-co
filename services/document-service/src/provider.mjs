@@ -1,4 +1,5 @@
 import {ServiceError} from './core.mjs';
+import {validateSchema} from './schema.mjs';
 const sleep=(ms,signal)=>new Promise((resolve,reject)=>{if(signal?.aborted)return reject(signal.reason);const abort=()=>{clearTimeout(timer);reject(signal.reason);};const timer=setTimeout(()=>{signal?.removeEventListener('abort',abort);resolve();},ms);signal?.addEventListener('abort',abort,{once:true});});
 export function requestBody(provider,model,system,input,images,schema,maxOutput){
  const text=JSON.stringify(input);
@@ -35,10 +36,15 @@ export class Reader{
    }
    const length=Number(response.headers.get('content-length')||0);if(length>8*1024*1024)throw new ServiceError('provider-response-too-large',422);
    const text=await response.text();if(text.length>8*1024*1024)throw new ServiceError('provider-response-too-large',422);
-   const data=JSON.parse(text);const value=parseReply(c.provider,data);
-   await this.store.metric(job,verify?'verify-provider':'read-provider',performance.now()-start,{provider:c.provider,model:verify?c.verifyModel:c.model,queueMs:Math.round(start-waitStart),estimatedTokens:estimated,usage:data.usage||data.usageMetadata||{}});
+   let data;try{data=JSON.parse(text);}catch{throw new ServiceError('invalid-provider-json',422);}
+   const value=validateSchema(parseReply(c.provider,data),schema);
+   await this.store.metric(job,job.kind==='review'?'reconciliation-provider':verify?'verify-provider':'read-provider',performance.now()-start,{provider:c.provider,model:verify?c.verifyModel:c.model,queueMs:Math.round(start-waitStart),estimatedTokens:estimated,usage:data.usage||data.usageMetadata||{}});
    return value;
-  }catch(e){if(e.name==='TimeoutError'||e.name==='AbortError')throw new ServiceError('provider-timeout',503);throw e;}
+  }catch(e){
+   const error=e.name==='TimeoutError'||e.name==='AbortError'?new ServiceError('provider-timeout',503):e instanceof TypeError?new ServiceError('provider-network-error',503):e;
+   await this.store.metric(job,'provider-failure',performance.now()-start,{provider:c.provider,queueMs:Math.round(start-waitStart),code:error.code||'provider-error'}).catch(()=>{});
+   throw error;
+  }
   finally{await this.store.release(slot);}
  }
 }

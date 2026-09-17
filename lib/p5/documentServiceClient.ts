@@ -10,7 +10,9 @@ import type {ProcessingStatus} from './processingStatus.ts';
 const VERSION='p5-documents-2026-09-17-v1';
 const digest=(value:string|Buffer)=>createHash('sha256').update(value).digest('hex');
 export function documentServiceEligible(uploads:ScopeUpload[],env:Readonly<Record<string,string|undefined>>=process.env){
- return env.P5_DOCUMENT_SERVICE_MODE==='remote'&&uploads.length>0&&uploads.every(u=>u.status==='stored'&&u.type==='application/pdf'&&u.size<=Number(env.P5_DOCUMENT_SERVICE_MAX_BYTES||50*1024*1024));
+ const limit=Number(env.P5_DOCUMENT_SERVICE_MAX_BYTES||50*1024*1024);
+ if(env.P5_DOCUMENT_SERVICE_MODE==='remote'&&(!Number.isSafeInteger(limit)||limit<=0))throw new DraftError('The document size limit needs configuration. Your files are saved.',503);
+ return env.P5_DOCUMENT_SERVICE_MODE==='remote'&&uploads.length>0&&uploads.every(u=>u.status==='stored'&&u.type==='application/pdf'&&u.size>0&&u.size<=limit);
 }
 export function documentServiceHeaders(method:string,path:string,tenant:string,secret:string,body:Buffer,now=Date.now(),nonce:string=randomUUID()){
  const timestamp=String(now),bodyHash=digest(body);
@@ -37,7 +39,7 @@ export async function advanceDocumentService(draft:Draft,text:string,answers:Sco
   return {pending:true as const,progress,retryAfterMs:wait};
  };
  try{
-  const documents:{id:string;source:string}[]=[];let complete=true,readPages=0,totalPages=0;
+  const documents:{id:string;source:string}[]=[],expectedPages=new Set<string>();let complete=true,readPages=0,totalPages=0;
   for(const upload of draft.uploads){
    remainingBudget(deadline);const id=remoteDocumentId(tenant,draft.id,upload.sha256),path=base+'/documents/'+id;
    let response=await send('GET',path);
@@ -51,24 +53,36 @@ export async function advanceDocumentService(draft:Draft,text:string,answers:Sco
    if(!response.ok)throw new DraftError(`Document reading is unavailable (${response.value.error||response.status}). Your uploaded files are saved.`,503);
    if(response.value.id!==id)throw new DraftError('The document service receipt did not match this project.',503);
    if(response.value.state==='failed'){
-    if(retryFailed){await send('POST',path+'/retry');return pending('Retrying only the interrupted document stages.',{phase:'retrying'});}
+    if(retryFailed){const retried=await send('POST',path+'/retry');if(!retried.ok)throw new DraftError('The document retry could not start. Your files are saved.',503);return pending('Retrying only the interrupted document stages.',{phase:'retrying'});}
     throw new DraftError(`Document processing needs attention (${response.value.error||'reader failure'}). Completed work is saved. Use Retry to resume.`,422);
    }
    complete&&=response.value.state==='complete';readPages+=Number(response.value.progress?.checkedPages||0);totalPages+=Number(response.value.progress?.totalPages||0);
-   documents.push({id,source:draft.uploads.filter(u=>u.name===upload.name).length>1?`${upload.name} [${upload.id.slice(0,8)}]`:upload.name});
+   const source=draft.uploads.filter(u=>u.name===upload.name).length>1?`${upload.name} [${upload.id.slice(0,8)}]`:upload.name;
+   // Duplicate bytes in the same project are one physical source, even when
+   // uploaded twice under different names. They must not multiply quantities.
+   if(documents.some(d=>d.id===id)){readPages-=Number(response.value.progress?.checkedPages||0);totalPages-=Number(response.value.progress?.totalPages||0);continue;}
+   documents.push({id,source});
+   if(response.value.state==='complete'){
+    const coverage=response.value.coverage;
+    if(!coverage?.complete||!Array.isArray(coverage.pages)||coverage.pages.length!==response.value.progress?.totalPages||coverage.pages.some((p:any,i:number)=>p.page!==i+1||p.status!=='read'))throw new DraftError('Some document pages still need verification. Your files are saved; an unchecked estimate cannot be submitted.',422);
+    for(const page of coverage.pages)expectedPages.add(JSON.stringify([source,page.page]));
+   }
   }
-  if(!complete)return pending(totalPages?`Checked ${readPages} of ${totalPages} pages. Reading source evidence.`:'Preparing your document source records.',{readPages,totalPages});
+  // Queue reconciliation while pages are reading. Once receipts are stored,
+  // the worker can finish even when the website or browser stops polling.
   const submitted=await send('POST',base+'/reviews',Buffer.from(JSON.stringify({documents,text,answers})));
   if(submitted.status===429)return pending('Waiting to reconcile the document evidence.',{phase:'queued'},2000);
   if(!submitted.ok||!submitted.value.id)throw new DraftError('Your documents are read, but scope reconciliation could not start. Please retry.',503);
   const review=submitted.value;
   if(review.state==='failed'){
-   if(retryFailed){await send('POST',base+'/reviews/'+review.id+'/retry');return pending('Retrying scope reconciliation without rereading the documents.',{phase:'cross-referencing'});}
+   if(retryFailed){const retried=await send('POST',base+'/reviews/'+review.id+'/retry');if(!retried.ok)throw new DraftError('The scope retry could not start. Your source evidence is saved.',503);return pending('Retrying scope reconciliation without rereading the documents.',{phase:'cross-referencing'});}
    throw new DraftError(`Scope reconciliation needs attention (${review.error||'processing error'}). Your source documents are saved.`,422);
   }
+  if(!complete)return pending(totalPages?`Checked ${readPages} of ${totalPages} pages. Reading source evidence.`:'Preparing your document source records.',{readPages,totalPages});
   if(review.state!=='complete')return pending('Matching the source evidence to your project and checking only missing details.',{phase:'cross-referencing',readPages,totalPages});
   const extraction=validateExtraction(review.result);
-  if(!extraction.documentCoverage||extraction.documentCoverage.expectedPages!==totalPages)throw new DraftError('The returned document coverage did not match the uploaded pages.',503);
+  const coverage=extraction.documentCoverage,seen=new Set<string>();
+  if(!coverage?.complete||coverage.expectedPages!==totalPages||coverage.pages.length!==totalPages||coverage.pages.some(p=>{const key=JSON.stringify([p.source,p.page]);if(p.status!=='read'||!expectedPages.has(key)||seen.has(key))return true;seen.add(key);return false;}))throw new DraftError('The returned document coverage did not match the verified uploaded pages.',503);
   return {pending:false as const,version:digest(JSON.stringify([text,answers,draft.uploads.map(f=>[f.id,f.sha256])])),analysis:{extraction,provider:'P5 Document Service',model:VERSION,analyzedAt:new Date().toISOString()}};
  }finally{await releaseWork(draft.id,workKey,lease.token);}
 }

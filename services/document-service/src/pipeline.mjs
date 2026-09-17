@@ -9,9 +9,10 @@ export class Pipeline{
   const cachedPages=await this.store.pages(doc.id);
   const emit=async()=>{if(buffer.length){await this.enqueueRead(job,buffer);buffer=[];}};
   await this.parser(doc.bytes,{maxPages:this.config.maxPages,timeoutMs:this.config.parseMs,signal,skipPages:cachedPages.map(p=>p.page),
-   onManifest:async n=>{count=n;job.priority=n<=4?0:5;await this.store.pool.query('UPDATE p5ds_documents SET page_count=$2 WHERE id=$1',[doc.id,n]);},
+   onManifest:async n=>{count=n;job.priority=n<=4?0:5;await this.store.manifest(job,n);},
    onPage:async page=>{
     signal.throwIfAborted();await this.store.putPage(job,page);
+    await this.store.metric(job,'page-parse',page.parseMs,{page:page.page,nativeMs:page.nativeMs,renderMs:page.renderMs});
     if(buffer.length&&(page.kind!=='text'||buffer.reduce((n,p)=>n+p.text.length,0)+page.text.length>24000))await emit();
     buffer.push(page);if(buffer.length>=4||page.kind!=='text')await emit();
     await this.store.progress(job,{phase:'preparing',parsedPages:page.page,totalPages:count,message:'Preparing native text, page layout and visual evidence.'});
@@ -20,14 +21,13 @@ export class Pipeline{
   // Reconstruct deterministic batches after a restart, reusing cached native pages.
   if(cachedPages.length)for(const pages of groupPages((await this.store.pages(doc.id)).map(p=>p.native)))await this.enqueueRead(job,pages);
   await this.store.metric(job,'native-parse',performance.now()-start,{pages:count,bytes:Number(doc.size_bytes)});
-  await this.store.complete(job,{pages:count},async c=>{await c.query("UPDATE p5ds_documents SET state='prepared',updated_at=now() WHERE id=$1 AND state!='failed'",[doc.id]);});
-  await this.finalize(doc.id);
+  await this.store.complete(job,{pages:count},async c=>{await c.query("UPDATE p5ds_documents SET state='prepared',updated_at=now() WHERE id=$1 AND state!='failed'",[doc.id]);await this.store.finalize(doc.id,c);});
  }
  async read(job,signal){
   const requested=await this.store.pages(job.document_id,job.payload.pages,true);
   if(requested.length!==job.payload.pages.length)throw new ServiceError('missing-prepared-page',503);
   const stored=requested.filter(p=>!p.evidence);
-  if(!stored.length){await this.store.complete(job,{cached:true});await this.finalize(job.document_id);return;}
+  if(!stored.length){await this.store.complete(job,{cached:true},c=>this.store.finalize(job.document_id,c));return;}
   const input=stored.map(p=>({...p.native,image:undefined,spans:undefined}));
   // Positions are durable in the source record. The reader sees row-preserving
   // text and an overview; detailed positions are sent only with a crop check.
@@ -35,7 +35,7 @@ export class Pipeline{
   let reply;
   try{reply=validateEvidence(await this.reader.call(job,READER_SYSTEM,{pages:input},images,EVIDENCE_SCHEMA,signal),input);}
   catch(e){
-   if(stored.length>1&&['provider-output-incomplete','invalid-provider-json','incomplete-page-manifest','invalid-page-record','quote-not-in-source'].includes(e.code)){
+   if(stored.length>1&&['provider-output-incomplete','invalid-provider-json','invalid-provider-schema','incomplete-page-manifest','invalid-page-record','quote-not-in-source'].includes(e.code)){
     for(const p of stored)await this.enqueueRead(job,[p.native]);await this.store.complete(job,{splitIntoPages:true,reason:e.code});return;
    }throw e;
   }
@@ -61,15 +61,12 @@ export class Pipeline{
   }
   await this.store.complete(job,{pages:reply.pages.map(p=>p.page)},async c=>{
    for(const p of reply.pages)await c.query('UPDATE p5ds_pages SET evidence=$3::jsonb WHERE document_id=$1 AND page=$2 AND evidence IS NULL',[job.document_id,p.page,JSON.stringify(p)]);
+   await this.store.finalize(job.document_id,c);
   });
-  await this.finalize(job.document_id);
- }
- async finalize(id){
-  await this.store.pool.query("UPDATE p5ds_documents d SET state='complete',updated_at=now() WHERE id=$1 AND state='prepared' AND page_count=(SELECT count(*) FROM p5ds_pages p WHERE p.document_id=d.id AND p.evidence IS NOT NULL)",[id]);
  }
  async submitReview(tenant,project,payload){
   if(!Array.isArray(payload.documents)||!payload.documents.length||payload.documents.length>50||typeof payload.text!=='string'||payload.text.length>2*1024*1024||!payload.answers||typeof payload.answers!=='object'||Array.isArray(payload.answers))throw new ServiceError('invalid-review-input');
-  const seen=new Set();for(const ref of payload.documents){if(typeof ref.source!=='string'||!ref.source.trim()||ref.source.length>500||seen.has(ref.source))throw new ServiceError('ambiguous-source-name');seen.add(ref.source);await this.store.document(tenant,project,ref.id);}
+  const seen=new Set(),ids=new Set();for(const ref of payload.documents){if(!ref||typeof ref.id!=='string'||typeof ref.source!=='string'||!ref.source.trim()||ref.source.length>500||seen.has(ref.source)||ids.has(ref.id))throw new ServiceError('ambiguous-source-name');seen.add(ref.source);ids.add(ref.id);await this.store.document(tenant,project,ref.id);}
   const id=jobId(tenant,project,'review',payload);
   await this.store.transaction(async c=>{
    await c.query('SELECT pg_advisory_xact_lock(hashtext($1))',['p5ds-quota:'+tenant]);
@@ -100,7 +97,7 @@ export class Pipeline{
   if(age>=this.config.jobMs){await this.store.fail({...job,attempts:3},new ServiceError('job-deadline-exceeded',422));return;}
   const timer=setTimeout(()=>controller.abort(),this.config.jobMs-age);
   const renew=setInterval(async()=>{try{if(!await this.store.renew(job))controller.abort();}catch{controller.abort();}},20000);
-  try{if(job.kind==='parse')await this.prepare(job,controller.signal);else if(job.kind==='read')await this.read(job,controller.signal);else await this.review(job,controller.signal);}
+  try{await this.store.metric(job,'queue',Math.max(0,Date.now()-new Date(job.attempts===1?job.created_at:job.available_at).getTime()),{kind:job.kind,attempt:job.attempts});if(job.kind==='parse')await this.prepare(job,controller.signal);else if(job.kind==='read')await this.read(job,controller.signal);else await this.review(job,controller.signal);}
   catch(error){await this.store.fail(job,error).catch(()=>{});console.error(JSON.stringify({event:'document-job',id:job.id,stage:job.kind,code:error.code||'internal-processing-error'}));}
   finally{clearTimeout(timer);clearInterval(renew);}
  }

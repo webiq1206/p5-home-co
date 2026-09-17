@@ -25,7 +25,7 @@ export function validateReview(result,manifest){
   if(spec.kind==='choice'&&!spec.options.includes(f.value))throw new ServiceError('invalid-choice-fact',422);
  }
  const allowed=new Set(manifest.map(p=>JSON.stringify([p.source,p.page])));
- for(const t of result.takeoffs){if(!t.id?.trim()||!t.sources?.length||t.sources.some(s=>!allowed.has(JSON.stringify([s.source,s.page]))))throw new ServiceError('invalid-takeoff-provenance',422);if(t.quantity!==null&&(!Number.isFinite(t.quantity)||t.quantity<0))throw new ServiceError('invalid-takeoff-quantity',422);}
+ for(const t of result.takeoffs){if(!t.id?.trim()||!t.sources?.length||t.sources.some(s=>!allowed.has(JSON.stringify([s.source,s.page]))))throw new ServiceError('invalid-takeoff-provenance',422);if(t.quantity!==null&&(!Number.isFinite(t.quantity)||t.quantity<=0||t.basis==='uncertain'))throw new ServiceError('invalid-takeoff-quantity',422);}
  for(const q of result.clarifications)if(!FIELDS[q.field]||!q.question?.trim()||!q.reason?.trim())throw new ServiceError('invalid-clarification',422);
  // The model cannot replace, omit or promote source coverage. Read status is
  // supplied by the completed document readers and their targeted verification.

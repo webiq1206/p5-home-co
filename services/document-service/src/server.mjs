@@ -19,6 +19,9 @@ export function makeServer(store,pipeline,config){
     receiving++;try{const chunks=[];let size=0;for await(const chunk of req){size+=chunk.length;if(size>maximum)throw new ServiceError('payload-too-large',413);chunks.push(chunk);}body=Buffer.concat(chunks);}finally{receiving--;}
    }
    if(hash(body)!==auth.digest)throw new ServiceError('body-integrity-failed',401);
+   if(['documents','reviews'].includes(parts[3])&&parts.length===6&&parts[5]==='metrics'&&req.method==='GET'){
+    send(200,await store.metrics(auth.tenant,project,identifier(parts[4]),parts[3]));return;
+   }
    if(['documents','reviews'].includes(parts[3])&&parts.length===6&&parts[5]==='retry'&&req.method==='POST'){
     await store.retry(auth.tenant,project,identifier(parts[4]),parts[3]);send(202,{queued:true});return;
    }
