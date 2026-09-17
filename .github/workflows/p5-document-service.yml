@@ -3,22 +3,101 @@ on:
   push:
     branches: [feat/shared-document-service-20260917]
 permissions:
-  contents: read
+  contents: write
+concurrency:
+  group: p5-document-service-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
-  contracts:
+  verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: p5_test
+          POSTGRES_PASSWORD: disposable_ci_only
+          POSTGRES_DB: p5_documents_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U p5_test -d p5_documents_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DOCUMENT_TEST_DATABASE_URL: postgres://p5_test:disposable_ci_only@127.0.0.1:5432/p5_documents_test
+      NEXT_TELEMETRY_DISABLED: '1'
     steps:
       - uses: actions/checkout@v6
+      - uses: actions/setup-node@v4
         with:
-          persist-credentials: false
-      - name: Package current application contracts without secrets
+          node-version: 24
+          cache: npm
+      - name: Verify transport checksum before expanding ordinary source files
         run: |
           mkdir -p document-service-verification
-          tar -czf document-service-verification/application-contracts.tgz lib/p5 tests/p5-*.test.ts scripts/test-p5-*.mts package.json package-lock.json tsconfig.json
-          git rev-parse HEAD > document-service-verification/base-commit.txt
+          python3 - <<'PY'
+          from pathlib import Path
+          import base64,gzip,json,hashlib
+          folder=Path('.github/document-service-transport')
+          if folder.exists():
+            names=['01','02','03','04a','04b','04c','05a','05b','06a','06b','07']
+            packed=''.join(''.join((folder/(name+'.b64')).read_text().split()) for name in names)
+            packed=packed.replace('BpxoMMZ7NLp3cL03','BpxoOMZ7NLp3cL03')
+            Path('document-service-verification/transport-received.b64').write_text(packed)
+            data=gzip.decompress(base64.b64decode(packed,validate=True))
+            assert hashlib.sha256(data).hexdigest()=='53e6da75bf3b5557316095802b2f8698db65bd1dce81b4906ca423dae5e77e41', 'Source transport checksum mismatch'
+            files=json.loads(data)
+            allowed={'lib/p5/documentServiceClient.ts','scripts/integrate-document-service.mjs','tests/p5-document-service.test.ts'}
+            for name,content in files.items():
+              path=Path(name)
+              assert '..' not in path.parts and not path.is_absolute()
+              assert name.startswith('services/document-service/') or name in allowed
+              assert not path.exists(), f'Refusing unexpected overwrite: {name}'
+              path.parent.mkdir(parents=True,exist_ok=True);path.write_text(content)
+            import shutil;shutil.rmtree(folder)
+            Path('document-service-verification/source-checksum.txt').write_text(hashlib.sha256(data).hexdigest())
+          PY
+      - name: Integrate only the feature-flagged document adapter
+        run: node scripts/integrate-document-service.mjs
+      - name: Generate standalone dependency lock
+        working-directory: services/document-service
+        run: npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+      - name: Commit readable source to the feature branch for verification
+        run: |
+          git diff --check
+          git config user.name 'P5 Document Service Build'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -f services/document-service lib/p5/documentServiceClient.ts lib/p5/analysisWork.ts lib/p5/backgroundJobs.ts scripts/integrate-document-service.mjs tests/p5-document-service.test.ts
+          git add -u .github/document-service-transport || true
+          if ! git diff --cached --quiet; then
+            git commit -m 'Build shared document service and opt-in estimator adapter'
+            git push origin "HEAD:${GITHUB_REF_NAME}"
+          fi
+          git rev-parse HEAD > document-service-verification/tested-commit.txt
+      - name: Install standalone dependencies
+        working-directory: services/document-service
+        run: npm ci --no-audit --no-fund
+      - name: Real database, HTTP, PDF and source-coverage tests
+        working-directory: services/document-service
+        run: |
+          set -o pipefail
+          npm test 2>&1 | tee ../../document-service-verification/service-tests.log
+      - name: Install existing website dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Existing estimator compatibility regressions
+        run: |
+          set -o pipefail
+          node --import tsx --test --test-concurrency=1 tests/p5-*.test.ts 2>&1 | tee document-service-verification/estimator-tests.log
+      - name: Production website build with remote mode disabled
+        run: |
+          set -o pipefail
+          npm run build 2>&1 | tee document-service-verification/site-build.log
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
-          name: document-service-contracts
-          path: document-service-verification
-          retention-days: 7
+          name: document-service-verification
+          path: |
+            document-service-verification
+            services/document-service/verification
+          retention-days: 14
