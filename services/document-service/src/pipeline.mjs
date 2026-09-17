@@ -24,9 +24,10 @@ export class Pipeline{
   await this.finalize(doc.id);
  }
  async read(job,signal){
-  const stored=await this.store.pages(job.document_id,job.payload.pages,true);
-  if(stored.length!==job.payload.pages.length)throw new ServiceError('missing-prepared-page',503);
-  if(stored.every(p=>p.evidence)){await this.store.complete(job,{cached:true});await this.finalize(job.document_id);return;}
+  const requested=await this.store.pages(job.document_id,job.payload.pages,true);
+  if(requested.length!==job.payload.pages.length)throw new ServiceError('missing-prepared-page',503);
+  const stored=requested.filter(p=>!p.evidence);
+  if(!stored.length){await this.store.complete(job,{cached:true});await this.finalize(job.document_id);return;}
   const input=stored.map(p=>({...p.native,image:undefined,spans:undefined}));
   // Positions are durable in the source record. The reader sees row-preserving
   // text and an overview; detailed positions are sent only with a crop check.
@@ -59,7 +60,7 @@ export class Pipeline{
    }
   }
   await this.store.complete(job,{pages:reply.pages.map(p=>p.page)},async c=>{
-   for(const p of reply.pages)await c.query('UPDATE p5ds_pages SET evidence=$3::jsonb WHERE document_id=$1 AND page=$2',[job.document_id,p.page,JSON.stringify(p)]);
+   for(const p of reply.pages)await c.query('UPDATE p5ds_pages SET evidence=$3::jsonb WHERE document_id=$1 AND page=$2 AND evidence IS NULL',[job.document_id,p.page,JSON.stringify(p)]);
   });
   await this.finalize(job.document_id);
  }

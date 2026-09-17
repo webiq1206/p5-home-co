@@ -55,7 +55,7 @@ export class Store{
  async putPage(job,page){
   return this.transaction(async c=>{await this.fence(c,job);
    await c.query('INSERT INTO p5ds_pages(document_id,page,native,image) VALUES($1,$2,$3::jsonb,$4) ON CONFLICT(document_id,page) DO UPDATE SET native=excluded.native,image=excluded.image',[job.document_id,page.page,JSON.stringify({...page,image:undefined}),page.image]);
-   await c.query("UPDATE p5ds_documents SET state='parsing',updated_at=now() WHERE id=$1",[job.document_id]);
+   await c.query("UPDATE p5ds_documents SET state=CASE WHEN state='failed' THEN state ELSE 'parsing' END,updated_at=now() WHERE id=$1",[job.document_id]);
   });
  }
  async fence(c,job){const r=await c.query("SELECT id FROM p5ds_jobs WHERE id=$1 AND lease_token=$2 AND state='running' AND lease_until>now() FOR UPDATE",[job.id,job.lease_token]);if(!r.rowCount)throw new ServiceError('lease-lost',409);}

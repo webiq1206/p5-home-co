@@ -65,3 +65,22 @@ test('unique 100-sheet native blueprint fixture keeps every page, exact quantity
  console.log(`Native-only synthetic 100-sheet benchmark: ${elapsed}ms. NOT a live AI benchmark.`);
 });
 test('corrupt PDF fails rather than returning an empty successful record',async()=>{await assert.rejects(parsePdf(Buffer.from('%PDF-1.7 invalid data'),{timeoutMs:5000}),/parsed/);});
+
+test('a parser checkpoint cannot erase a terminal reader failure',{skip:!available},async()=>{
+ const id=hash('failure-preservation'),bytes=Buffer.from('%PDF-test-only');
+ await pool.query("INSERT INTO p5ds_documents(id,tenant,project,digest,name,bytes,size_bytes,state,error_code) VALUES($1,$2,'failure-preservation',$3,'test.pdf',$4,$5,'failed','reader-failed')",[id,tenant,hash(bytes),bytes,bytes.length]);
+ await store.enqueue(pool,{id:jobId(tenant,'failure-preservation','test',{}),tenant,project:'failure-preservation',documentId:id,kind:'fault-test',payload:{}});
+ const lease=await store.claim(['fault-test']);
+ await store.putPage(lease,{page:1,text:'Room 101 SF',image:Buffer.from('test-image')});
+ assert.equal((await store.document(tenant,'failure-preservation',id)).state,'failed');
+ await store.complete(lease,{});
+});
+test('a recovered reader never sends completed pages to the provider again',async()=>{
+ const native=n=>({page:n,text:'Room '+(100+n)+' SF',textQuality:1,kind:'text'});
+ const sent=[],queries=[];let completed=false;
+ const fakeStore={pages:async()=>[{page:1,native:native(1),image:Buffer.alloc(0),evidence:fakePage(native(1))},{page:2,native:native(2),image:Buffer.alloc(0),evidence:null}],pool:{query:async(q)=>{queries.push(q);return {rows:[]};}},complete:async(job,result,extra)=>{completed=true;if(extra)await extra(fakeStore.pool);}};
+ const reader={call:async(job,system,input)=>{sent.push(...input.pages.map(p=>p.page));return {pages:input.pages.map(fakePage)};}};
+ const pipeline=new Pipeline(fakeStore,reader,config);
+ await pipeline.read({document_id:'d',payload:{pages:[1,2]}},new AbortController().signal);
+ assert.deepEqual(sent,[2]);assert.ok(completed);assert.ok(queries.some(q=>q.includes('AND evidence IS NULL')));
+});
