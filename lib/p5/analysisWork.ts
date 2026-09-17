@@ -1,3 +1,4 @@
+import {documentServiceEligible,advanceDocumentService} from './documentServiceClient.ts';
 import {ANALYSIS_PASS_MS,READ_ALLOWANCE_MS,READ_START_MARGIN_MS,remainingBudget,ProcessingDeadlineError,isProcessingDeadline} from './processingBudget.ts';
 import {createHash} from 'node:crypto';
 import {PDFDocument} from 'pdf-lib';
@@ -27,7 +28,7 @@ type Job={prepared:number;units:Unit[];notes:string[];textDone?:AnalysisResult;t
 export const MAX_READ_ATTEMPTS=Math.max(1,Number(process.env.P5_READ_ATTEMPTS||4));
 const pending=(u:Unit)=>!u.result&&(u.attempts||0)<MAX_READ_ATTEMPTS;
 export function analysisWorkKey(draft:Draft,text:string,answers:ScopeAnswers){
-  return `analysis:v8:${createHash('sha256').update(JSON.stringify([text,answers,draft.uploads.map(f=>[f.id,f.sha256])])).digest('hex')}`;
+  return `analysis:${process.env.P5_DOCUMENT_SERVICE_MODE==='remote'?'document-service-v1':'v8'}:${createHash('sha256').update(JSON.stringify([text,answers,draft.uploads.map(f=>[f.id,f.sha256])])).digest('hex')}`;
 }
 /** Page numbers as compact ranges: 1-4, 7, 9-10. */
 export function pageRanges(pages:number[]):string{
@@ -51,8 +52,10 @@ export function unreadNotes(units:Unit[]):string[]{
   });
 }
 /** Each request checkpoints work before returning. Reloading resumes the same source fingerprint. */
-export async function advanceAnalysis(draft:Draft,text:string,answers:ScopeAnswers,request=fetch,retryFailed=false,absoluteDeadline=Date.now()+ANALYSIS_PASS_MS){
+type DocumentAnalysisStep={pending:true;progress:string;retryAfterMs?:number}|{pending:false;version:string;analysis:AnalysisResult};
+export async function advanceAnalysis(draft:Draft,text:string,answers:ScopeAnswers,request=fetch,retryFailed=false,absoluteDeadline=Date.now()+ANALYSIS_PASS_MS):Promise<DocumentAnalysisStep>{
   remainingBudget(absoluteDeadline);
+  if(documentServiceEligible(draft.uploads))return advanceDocumentService(draft,text,answers,analysisWorkKey(draft,text,answers),request,retryFailed,absoluteDeadline);
   const version=createHash('sha256').update(JSON.stringify([text,answers,draft.uploads.map(f=>[f.id,f.sha256])])).digest('hex');
   const workKey=analysisWorkKey(draft,text,answers),bucketId=ESTIMATOR_BUCKETS[ESTIMATOR_BRAND.domain],client=new Client({bucketId});
   const lease=await claimWork(draft.id,workKey,{prepared:0,units:[],notes:[]},300);

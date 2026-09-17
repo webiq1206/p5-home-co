@@ -1,0 +1,113 @@
+name: P5 document service
+on:
+  push:
+    branches: [feat/shared-document-service-20260917, main]
+    paths:
+      - 'services/document-service/**'
+      - 'lib/p5/**'
+      - 'scripts/*document*.m*'
+      - 'tests/p5-document-service.test.ts'
+      - '.github/workflows/p5-document-service.yml'
+  pull_request:
+    paths:
+      - 'services/document-service/**'
+      - 'lib/p5/documentServiceClient.ts'
+      - 'lib/p5/analysisWork.ts'
+      - '.github/workflows/p5-document-service.yml'
+permissions:
+  contents: read
+concurrency:
+  group: p5-document-service-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: p5_test
+          POSTGRES_PASSWORD: disposable_ci_only
+          POSTGRES_DB: p5_documents_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U p5_test -d p5_documents_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DOCUMENT_TEST_DATABASE_URL: postgres://p5_test:disposable_ci_only@127.0.0.1:5432/p5_documents_test
+      NEXT_TELEMETRY_DISABLED: '1'
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - name: Record exact tested source
+        run: |
+          mkdir -p document-service-verification
+          git diff --check
+          git rev-parse HEAD > document-service-verification/tested-commit.txt
+      - name: Install standalone dependencies
+        working-directory: services/document-service
+        run: npm ci --no-audit --no-fund
+      - name: Real database, HTTP, PDF and source-coverage tests
+        working-directory: services/document-service
+        run: |
+          set -o pipefail
+          npm test 2>&1 | tee ../../document-service-verification/service-tests.log
+      - name: Install existing website dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Saved-file adapter integration
+        run: |
+          set -o pipefail
+          node --import tsx scripts/test-p5-document-adapter.mts 2>&1 | tee document-service-verification/adapter-integration.log
+      - name: Existing estimator compatibility regressions
+        run: |
+          set -o pipefail
+          node --import tsx --test --test-concurrency=1 tests/p5-*.test.ts 2>&1 | tee document-service-verification/estimator-tests.log
+      - name: Production website build with remote mode disabled
+        run: |
+          set -o pipefail
+          npm run build 2>&1 | tee document-service-verification/site-build.log
+      - name: Build production worker container
+        if: ${{ !cancelled() }}
+        run: |
+          set -o pipefail
+          docker build -t p5-document-service:verified services/document-service 2>&1 | tee document-service-verification/container-build.log
+      - name: Start the actual container against a separate disposable database
+        working-directory: services/document-service
+        run: |
+          node --input-type=module -e 'import pg from "pg";const p=new pg.Pool({connectionString:process.env.DOCUMENT_TEST_DATABASE_URL});await p.query("CREATE DATABASE p5_documents_smoke");await p.end();'
+          docker run -d --name p5-document-smoke --network host \
+            -e DOCUMENT_DATABASE_URL="${DOCUMENT_TEST_DATABASE_URL%/*}/p5_documents_smoke" \
+            -e P5_DOCUMENT_TENANTS_JSON='{"smoke-test":"CI-only-disposable-secret-not-for-production-123456789"}' \
+            -e DOCUMENT_PROVIDER=anthropic -e DOCUMENT_MODEL=ci-placeholder-no-provider-calls \
+            -e ANTHROPIC_API_KEY=ci-placeholder-no-provider-calls p5-document-service:verified
+          node --input-type=module <<'JS'
+          import assert from 'node:assert/strict';import {signedHeaders} from './src/core.mjs';
+          let ready=false;for(let n=0;n<30;n++){try{const r=await fetch('http://127.0.0.1:8080/healthz');if(r.ok){ready=true;break;}}catch{}await new Promise(r=>setTimeout(r,500));}
+          assert.ok(ready,'Container did not start');
+          const r=await fetch('http://127.0.0.1:8080/readyz',{headers:signedHeaders('CI-only-disposable-secret-not-for-production-123456789','GET','/readyz','smoke-test')});
+          assert.equal(r.status,200);assert.equal((await r.json()).ok,true);
+          console.log('PASS: production container boot, database migration, authenticated readiness. No provider calls or deployment claimed.');
+          JS
+          test "$(docker exec p5-document-smoke id -u)" != '0'
+          docker stop -t 35 p5-document-smoke
+          docker logs p5-document-smoke > ../../document-service-verification/container-startup.log
+      - name: Package exact tested source and installation files
+        if: always()
+        run: |
+          tar --exclude=node_modules --exclude=verification -czf document-service-verification/service-source.tgz services/document-service lib/p5/documentServiceClient.ts scripts/integrate-document-service.mjs scripts/test-p5-document-adapter.mts tests/p5-document-service.test.ts
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: document-service-verification
+          path: |
+            document-service-verification
+            services/document-service/verification
+          retention-days: 14
