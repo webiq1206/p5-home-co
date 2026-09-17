@@ -1,0 +1,24 @@
+name: P5 document service
+on:
+  push:
+    branches: [feat/shared-document-service-20260917]
+permissions:
+  contents: read
+jobs:
+  contracts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: Package current application contracts without secrets
+        run: |
+          mkdir -p document-service-verification
+          tar -czf document-service-verification/application-contracts.tgz lib/p5 tests/p5-*.test.ts scripts/test-p5-*.mts package.json package-lock.json tsconfig.json
+          git rev-parse HEAD > document-service-verification/base-commit.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: document-service-contracts
+          path: document-service-verification
+          retention-days: 7
