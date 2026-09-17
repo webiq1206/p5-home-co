@@ -1,0 +1,73 @@
+name: P5 document adapter verification
+on:
+  workflow_call:
+    inputs:
+      source_ref:
+        type: string
+        required: true
+permissions:
+  contents: write
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      NEXT_TELEMETRY_DISABLED: '1'
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/checkout@v6
+        with:
+          repository: webiq1206/p5-home-co
+          ref: ${{ inputs.source_ref }}
+          path: .document-adapter-source
+          persist-credentials: false
+          sparse-checkout: |
+            lib/p5/documentServiceClient.ts
+            scripts/integrate-document-service.mjs
+            scripts/test-p5-document-adapter.mts
+            tests/p5-document-service.test.ts
+          sparse-checkout-cone-mode: false
+      - name: Copy only the reviewed document adapter and its tests
+        run: |
+          for file in lib/p5/documentServiceClient.ts scripts/integrate-document-service.mjs scripts/test-p5-document-adapter.mts tests/p5-document-service.test.ts; do
+            mkdir -p "$(dirname "$file")"
+            cp ".document-adapter-source/$file" "$file"
+          done
+          rm -rf .document-adapter-source
+          mkdir -p document-adapter-verification
+          node scripts/integrate-document-service.mjs
+          git diff --check
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Saved-file, HMAC, pending-to-complete and scope-reuse integration
+        run: |
+          set -o pipefail
+          node --import tsx scripts/test-p5-document-adapter.mts 2>&1 | tee document-adapter-verification/adapter-integration.log
+      - name: All existing estimator regressions
+        run: |
+          set -o pipefail
+          node --import tsx --test --test-concurrency=1 tests/p5-*.test.ts 2>&1 | tee document-adapter-verification/estimator-tests.log
+      - name: Production website build with remote mode disabled
+        run: |
+          set -o pipefail
+          npm run build 2>&1 | tee document-adapter-verification/build.log
+      - name: Commit only verified integration changes to the repair branch
+        run: |
+          git config user.name 'P5 Document Service Build'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -f lib/p5/documentServiceClient.ts lib/p5/analysisWork.ts lib/p5/backgroundJobs.ts scripts/integrate-document-service.mjs scripts/test-p5-document-adapter.mts tests/p5-document-service.test.ts
+          git diff --cached --check
+          if ! git diff --cached --quiet; then
+            git commit -m 'Integrate verified opt-in shared document service'
+            git push origin "HEAD:${GITHUB_REF_NAME}"
+          fi
+          git rev-parse HEAD > document-adapter-verification/tested-commit.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: document-adapter-verification
+          path: document-adapter-verification
+          retention-days: 14
