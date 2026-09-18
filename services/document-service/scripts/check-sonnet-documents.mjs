@@ -1,0 +1,100 @@
+/** Opt-in private qualification with the REAL parser, Reader, Pipeline and Store.
+ * No production DB, HTTP endpoint, deployment, email or pricing call is used.
+ * Private fixture bundle contains original PDFs, never executable source. */
+import {readFile,mkdir,chmod,stat} from 'node:fs/promises';
+import {resolve,join} from 'node:path';
+import {fileURLToPath} from 'node:url';
+import {createHash,randomBytes} from 'node:crypto';
+import {Store} from '../src/store.mjs';
+import {Pipeline} from '../src/pipeline.mjs';
+import {Reader} from '../src/provider.mjs';
+import {parsePdf} from '../src/parser.mjs';
+import {readConfig,hash} from '../src/core.mjs';
+import {summarizeStages} from '../src/benchmark-metrics.mjs';
+import {isolatedPool,guardedSonnetFetch,privateJson,targetedChecks} from './model-qa-support.mjs';
+
+export async function runFixture(fixture,{root,key,parseOnly=false,request=fetch,log=console.log}={}){
+ const bytes=Buffer.from(fixture.pdfBase64,'base64');
+ if(!['short','plans'].includes(fixture.id)||hash(bytes)!==fixture.sha256||bytes.length>25*1024*1024||fixture.pages!==({short:4,plans:23})[fixture.id])throw Error('Invalid fixture bundle or source digest.');
+ const providerLimit=fixture.id==='short'?1:3,maxCalls=fixture.id==='short'?12:64;
+ const directory=join(root,fixture.id+'-'+fixture.sha256.slice(0,16));await mkdir(directory,{recursive:true,mode:0o700});
+ const sourceSummary={id:fixture.id,sourceSha256:fixture.sha256,sourceBytes:bytes.length,expectedPages:fixture.pages};
+ if(parseOnly){
+  const started=performance.now(),pages=[];
+  await parsePdf(bytes,{maxPages:fixture.pages,timeoutMs:180000,onPage:p=>pages.push({page:p.page,kind:p.kind,nativeMs:p.nativeMs,renderMs:p.renderMs,characters:p.text.length,digitCharacters:(p.text.match(/\d/g)||[]).length})});
+  if(pages.length!==fixture.pages)throw Error('Fixture page count differs from its manifest.');
+  const report={...sourceSummary,test:'parser-only',liveAI:false,pages,elapsedMs:Math.round(performance.now()-started)};
+  await privateJson(join(directory,'parser-report.json'),report);log(JSON.stringify(report));return report;
+ }
+ if(!key)throw Error('ANTHROPIC_API_KEY is unavailable. Run this inside the existing P5 Replit Shell. Do not paste the key into chat.');
+ const config=readConfig({...process.env,DOCUMENT_PROVIDER:'anthropic',ANTHROPIC_API_KEY:key,DOCUMENT_MODEL:'claude-sonnet-5',DOCUMENT_VERIFY_MODEL:'claude-sonnet-5',DOCUMENT_DATABASE_URL:'qa-isolated-pglite-not-a-network-database',P5_DOCUMENT_TENANTS_JSON:JSON.stringify({'model-qa':randomBytes(32).toString('hex')})});
+ config.slots=Math.min(config.slots,2);config.parserSlots=1;config.maxPages=fixture.pages;config.maxOutput=Math.min(config.maxOutput,10000);
+ const controller=new AbortController(),limit=fixture.id==='short'?180000:600000;
+ let stop,document,review,started,runType='new';
+ const costGuard=await guardedSonnetFetch({file:join(directory,'cost.json'),limitUsd:providerLimit,maxCalls,request,onRequest:n=>log(fixture.id+': provider request '+n)});
+ const pool=await isolatedPool(join(directory,'database')),store=new Store(pool,config);
+ const reader=new Reader(config,store,(url,options)=>costGuard.request(url,{...options,signal:AbortSignal.any([options.signal,controller.signal])}));
+ const parser=(data,options)=>parsePdf(data,{...options,signal:AbortSignal.any([options.signal,controller.signal])});
+ const pipeline=new Pipeline(store,reader,config,parser);
+ let report={...sourceSummary,test:'isolated-live-provider',liveAI:true,model:'claude-sonnet-5',verificationModel:'claude-sonnet-5',complete:false,uploadMs:null,productionQueueMs:null,customerWaitMs:null,productionPerformanceQualified:false,accuracyQualified:false};
+ const timer=setTimeout(()=>controller.abort(),limit);
+ try{
+  await store.init();started=performance.now();
+  const receipt=await store.putDocument('model-qa','source-check','fixture.pdf',bytes);document=receipt.document;
+  runType=receipt.cached?'resume-or-cache':'new';
+  review=await pipeline.submitReview('model-qa','source-check',{documents:[{id:document.id,source:'fixture.pdf'}],text:'Extract all included work, preserve exclusions and responsibility boundaries. Missing or redacted values must remain missing. Do not generate prices.',answers:{}});
+  if(document.state==='failed'||review.state==='failed')throw Error('Saved failure requires inspection; this command does not automatically restart exhausted work.');
+  stop=pipeline.start();let last='';
+  while(true){
+   controller.signal.throwIfAborted();
+   [document,review]=await Promise.all([store.document('model-qa','source-check',document.id),store.job('model-qa','source-check',review.id)]);
+   const progress=await store.documentProgress(document.id),status=`${document.state}; checked ${progress.checked}/${document.page_count??'?'}; review ${review.state}`;
+   if(status!==last){log(fixture.id+': '+status);last=status;}
+   if(document.state==='failed'||review.state==='failed')throw Error(document.error_code||review.error_code||'Processing failed');
+   if(document.state==='complete'&&review.state==='complete')break;
+   await new Promise(r=>setTimeout(r,500));
+  }
+  const coverage=await store.coverage(document.id);
+  report.result=review.result;
+  report.pageEvidence=(await store.pages(document.id)).map(p=>({page:p.page,nativeText:p.native.text,evidence:p.evidence}));
+  report.quality=targetedChecks(fixture.id,review.result,fixture.pages);
+  report.complete=coverage.length===fixture.pages&&coverage.every(p=>p.status==='read')&&report.quality.passed;
+  if(!report.complete)report.error='Targeted source checks or page verification did not pass. Inspect the private report before another paid run.';
+ }catch(error){report.error=error.name==='AbortError'?'qa-wall-time-limit':error.code||error.message;}
+ finally{
+  clearTimeout(timer);controller.abort();if(stop)await stop();
+  report.runType=runType;report.currentInvocationMs=started?Math.round(performance.now()-started):0;
+  const events=[];
+  for(const [kind,id] of [['documents',document?.id],['reviews',review?.id]])if(id)events.push(...(await store.metrics('model-qa','source-check',id,kind)).events);
+  report.stageWork=summarizeStages(events);report.events=events;report.cost=costGuard.summary();
+  report.notes=['Uses actual production processing code in isolated local SQL storage. This is not the deployed website/worker or its queue.',
+   'No network upload is measured. Token counting adds QA overhead; summed parallel stages do not equal wall time.',
+   'One run is not a percentile benchmark. Cached/resumed runs are not cold processing performance.',
+   'No price, branded PDF, email, live adapter activation or 99.9% accuracy claim follows from this test.'];
+  await privateJson(join(directory,'report.json'),report);await pool.end();
+ }
+ log(JSON.stringify({id:fixture.id,complete:report.complete,error:report.error,model:report.model,currentInvocationMs:report.currentInvocationMs,cost:report.cost,quality:report.quality,report:join(directory,'report.json')}));
+ return report;
+}
+
+async function main(){
+ const bundlePath=resolve(process.argv[2]||'p5-sonnet-fixtures.json'),mode=process.argv[3]||'live';
+ if(!['live','parse'].includes(mode))throw Error('Use live or parse as the optional mode.');
+ if((await stat(bundlePath)).size>40*1024*1024)throw Error('QA bundle exceeds the allowed size.');
+ await chmod(bundlePath,0o600);
+ const bundle=JSON.parse(await readFile(bundlePath,'utf8'));
+ if(bundle.version!==1||bundle.fixtures?.length!==2||bundle.fixtures[0].id!=='short'||bundle.fixtures[1].id!=='plans')throw Error('Expected the private four-page and 23-page fixture bundle.');
+ // Isolate checkpoints after any maintained processing-code change.
+ const fingerprint=createHash('sha256');
+ for(const file of ['core','contracts','pipeline','provider','parser','parser-worker','schema','store'])fingerprint.update(await readFile(new URL('../src/'+file+'.mjs',import.meta.url)));
+ const root=resolve('.p5-model-qa',fingerprint.digest('hex').slice(0,16));
+ console.log(mode==='parse'?'Parser checks only. No provider calls.':'Sonnet-only QA: four-page file first; 23-page plans only if its targeted checks pass.');
+ console.log('Live runs reserve estimated costs up to $1 for the short file and $3 for the plans. Existing provider limits are not raised.');
+ console.log('Uses private local checkpoints, never DATABASE_URL. No republish or production configuration change.');
+ for(const fixture of bundle.fixtures){
+  const result=await runFixture(fixture,{root,key:process.env.ANTHROPIC_API_KEY,parseOnly:mode==='parse'});
+  if(mode==='live'&&!result.complete){process.exitCode=1;console.log('Stopped before the next fixture. Upload the private report for review.');return;}
+ }
+ console.log('Finished requested checks. Upload the report files for source review. This is not full accuracy or deployment qualification.');
+}
+if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url))main().catch(error=>{console.error('Check stopped:',error.code||error.message);process.exitCode=1;});

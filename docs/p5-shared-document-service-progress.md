@@ -474,3 +474,75 @@ pull/republish is the current deployment blocker. No live deployment of the
 pricing fix, all-site activation or performance target is claimed. The retained
 completion ledger above still governs document benchmarks, accuracy review,
 RE-10, rollback, PDF presentation and remaining UI/SEO verification.
+
+## Sonnet model qualification in progress: 2026-09-18
+
+Working branch: qa/p5-sonnet-real-documents-20260918, recovered from main
+115d9f3382e8173cf6a0995632e63babb9778d46. Preserve the five pricing releases above.
+Owner authorizes testing Sonnet on the original four-page redacted PDF and a
+larger real plan set. Existing planning-cost logic already permits disclosed
+standard-profile and regional-average allowances; asking more questions is not
+itself an accuracy measure. Missing source quantities and exclusions stay intact.
+
+The owner-run single synthetic Sonnet 5 review passed structural/provenance checks
+in 11,541 ms, versus the earlier Opus 5 check at 22,321 ms. This one comparison
+is not an average, percentile, independent accuracy score or PDF processing test.
+The Sonnet result retained 120 lf baseboard, four doors, absent door dimensions
+and excluded plumbing/electrical. It did not flag baseboard supply/paint choices;
+their eventual handling as questions or disclosed allowances needs qualification.
+
+Available private fixtures: exact Neilsen four-page file (digest above), Lot 23
+construction set (23 pages, 12,468,822 bytes), Lot 29 (15 pages, 19,107,678 bytes).
+Earlier parser-only runs do not establish provider behavior. No 100-page real
+set has been selected. Never pad a plan set to claim that workload was tested.
+
+Direct Replit Shell execution and provider credentials are unavailable here.
+No keys were requested or exposed, no production model/configuration was changed,
+and no paid provider calls have been made by this session. Next: prepare an
+isolated, bounded runner using the actual service pipeline, then have the owner
+execute it where the existing provider key is available. Keep source documents
+and reports outside public Git and CI artifacts. No new server/database service.
+
+## Unit-rate persistence and bounded Sonnet runner: implementation checkpoint
+
+GitHub write path proved on this branch with progress commit aec26c9.
+Extended the existing site-local regional rate store to retain both sourced
+benchmarks and disclosed provisional planning costs by normalized unit. Approved
+cost books retain priority. Specifications, cost responsibility, includes/excludes,
+locality, source dates and unchanged expiry travel with the rate. Project
+quantities, uncertainty ranges, building/floor and conditions do not.
+Only publishable complete-scope pricing results enter the reusable store.
+No new database schema or paid infrastructure. Legacy v2 rows are preserved.
+
+New regressions verify reuse without another research call, fresh quantities,
+expiry, distinct specifications/responsibilities and rejection of unsupported
+rate bases. Actual isolated-SQL persistence verifies idempotency and site/location
+isolation. Five unit-rate tests pass; complete P5 website suite: 979 passed,
+one pre-existing database-dependent watchdog test skipped. TypeScript passes.
+Full repository lint remains failing on existing debt (351 errors, 53 warnings);
+it is not represented as passed. Production/CI verification follows this commit.
+
+Added a private-bundle Sonnet-only runner using the actual service parser, queue,
+Reader and reconciliation code in isolated PGlite. No production DB, pricing,
+email or model configuration changes. Estimated guards: short $1/12 requests,
+plans $3/64 requests; these are estimates, not a guaranteed provider billing cap.
+Completed work persists, failures stop rather than silently using unchecked data.
+
+Four-page exact fixture: parser-only 1,083 ms, all four pages native.
+Real 23-page plan set: parser-only 19,555 ms, nine pages without native text.
+These exclude upload and AI, were run locally, and are NOT customer performance.
+Original four-page source visually reviewed including appliance product-only
+allowance versus separately carried ancillary work; no missing values recovered
+from another file. Targeted plan check identifies scanned page 10 as A5.1.
+Mocked-provider SQL/parser/pipeline and cached-resume tests pass, as do the
+manifest persistence tests. Fixed a worker-exit race when all pages are cached
+and the final manifest checkpoint is still saving, preventing a false reparse.
+
+Live Sonnet tests remain blocked on execution in the owner's authenticated
+Replit Shell. The private bundle is available separately, outside public Git.
+Run instructions and test limitations: docs/p5-sonnet-unit-rate-qualification.md.
+Next concrete step after reviewed merges: pull P5, upload that bundle, run the
+single documented command, inspect reports before changing production models.
+All five websites require pull/republish for rate-library activation. There is
+no cross-site rate API or claim that live adapters, prices, PDFs and emails have
+passed from these tests. Full original completion ledger remains open.
