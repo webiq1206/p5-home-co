@@ -33,7 +33,7 @@ function wrap(text:string,font:PDFFont,size:number,width:number):string[]{
 }
 async function render(kind:"customer"|"administrative",id:string,blocks:Block[]){
   const doc=await PDFDocument.create();doc.registerFontkit(fontkit);
-  const compact=kind==="customer"&&JSON.stringify(blocks).length<3000;
+  const compact=kind==="customer";
   const asset=(p:string)=>readFile(path.join(process.cwd(),"public",p));
   // Missing brand assets fail delivery and stay in the outbox; no placeholder logos.
   const font=await doc.embedFont(await asset(brand.font),{subset:true});

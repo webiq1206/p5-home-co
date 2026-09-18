@@ -11,8 +11,9 @@ try{
  await writeFile(path.join(dir,'scopePricing.ts'),`export const PRICING_STAGE_MAX_MS=150000;export const calls:string[]=[];let blocked=false;export function block(){blocked=true;}export async function requestPricing(stage:string){calls.push(stage);await new Promise(r=>setTimeout(r,40));return {value:{stage},sourceUrls:[]};}export async function priceCompleteScope(scope:any,configuration:any,request:any){for(const stage of ['MAP','RESEARCH','AUDIT'])await request(stage,{text:scope.text,answers:scope.answers},stage==='RESEARCH',255000);return blocked?{customer:{range:null},internal:{missingInformation:["Missing quantity: tileSqft for tile work"],privateCostDetail:"INTERNAL_ONLY"}}:{customer:{range:{low:100,high:150}}};}`);
  const load=(name:string)=>import(pathToFileURL(path.join(dir,name+'.ts')).href);
  const {saveDraft}=await load('store');const {priceSavedScope}=await load('pricingWork');const {PricingPending}=await load('pricingProgress');const provider=await load('scopePricing');const db=await load('database');
+ const {ESTIMATOR_BRAND}=await load('brand');
  const id=randomUUID(),key=randomBytes(32).toString('hex');
- await saveDraft(id,key,'test',{text:'Synthetic',answers:{},extraction:null,reviewed:null,contact:{name:'',email:'',phone:''}},0);
+ await saveDraft(id,key,ESTIMATOR_BRAND.id,{text:'Synthetic',answers:{},extraction:null,reviewed:null,contact:{name:'',email:'',phone:''}},0);
  const scope={text:'Synthetic',answers:{},extraction:null,uploads:[]};
  assert.deepEqual((await priceSavedScope(id,scope,{})).customer.range,{low:100,high:150});assert.deepEqual(provider.calls,['MAP','RESEARCH','AUDIT'],'every responsive stage completes within one bounded pass');
  await priceSavedScope(id,{...scope,reviewedAt:new Date().toISOString()},{});assert.equal(provider.calls.length,3,'A re-save of unchanged scope must reuse work');
@@ -22,19 +23,22 @@ try{
  const rows=await db.query('SELECT payload,lease_token FROM p5_estimator_work');assert.ok(rows.every((r:any)=>r.lease_token===null));
  // Regional allowances are reusable evidence, never edits to the approved book.
  const regional=await load('regionalRates');
- const rule={id:'well-allowance',description:'Synthetic well pump',category:'materials',unit:'EA',unitCost:100,quantity:{fixed:8,factor:1},building:'Alpha',floor:'First',scopeTaskId:'scope-well',estimatingBasis:'sourced-market-average',evidence:{validUntil:'2099-01-01',provenance:{sources:[{url:'https://supplier.example.invalid/well-pump',date:'2026-09-12',dateBasis:'retrieved'}]}}};
+ const rateDate=new Date('2026-09-18T00:00:00Z');
+ const rule={id:'well-allowance',description:'Synthetic well pump',category:'materials',unit:'EA',unitCost:100,priceBasis:'direct-cost',quantity:{fixed:8,factor:1},building:'Alpha',floor:'First',scopeTaskId:'scope-well',estimatingBasis:'sourced-market-average',unitRateContext:{currency:'USD',basis:'material-purchase',includes:'Pump material only',excludes:'Installation and tax',assumptions:['Synthetic test specification']},evidence:{basis:'published-benchmark',verifiedAt:'2026-09-18',validUntil:'2026-10-01',provenance:{status:'estimated',location:'Emmett, Idaho',retrievedAt:'2026-09-18',sources:[{url:'https://supplier.example.invalid/well-pump',date:'2026-09-18',dateBasis:'retrieved'},{url:'https://guide.example.invalid/well-pump',date:'2026-09-18',dateBasis:'retrieved'}]}}};
  const original=JSON.stringify(rule);
- await regional.saveRegionalRates(id,' Emmett,  Idaho ',[rule,{...rule,id:'owner-rate',estimatingBasis:'owner-average'}]);
- const local=await regional.readRegionalRates('emmett, idaho',new Date('2026-09-12'));
+ await regional.saveRegionalRates(id,' Emmett,  Idaho ',[rule,{...rule,id:'owner-rate',estimatingBasis:'owner-average'}],rateDate);
+ const local=await regional.readRegionalRates('emmett, idaho',rateDate);
  assert.equal(local.length,1);assert.deepEqual(local[0].quantity,{fixed:1,factor:1});assert.equal(local[0].building,undefined);assert.equal(local[0].floor,undefined);assert.equal(local[0].scopeTaskId,undefined);
  assert.equal(JSON.stringify(rule),original,'Saving regional evidence must not mutate approved input costs or scope');
- assert.equal((await regional.readRegionalRates('Boise, Idaho',new Date('2026-09-12'))).length,0,'Another location cannot inherit this allowance without new evidence');
+ assert.equal((await regional.readRegionalRates('Boise, Idaho',rateDate)).length,0,'Another location cannot inherit this allowance without new evidence');
  assert.equal((await regional.readRegionalRates('Emmett, Idaho',new Date('2100-01-01'))).length,0,'Expired evidence must not be reused');
- const [savedRate]=await db.query("SELECT payload FROM p5_estimator_work WHERE work_key LIKE 'regional-rate-v2-%'");assert.equal(savedRate.payload.status,'estimated');assert.equal(savedRate.payload.rate.evidence.provenance.sources[0].dateBasis,'retrieved');
+ const [savedRate]=await db.query("SELECT payload FROM p5_estimator_work WHERE work_key LIKE 'regional-rate-v3-%'");assert.equal(savedRate.payload.status,'estimated');assert.equal(savedRate.payload.rate.evidence.provenance.sources[0].dateBasis,'retrieved');
+ assert.equal(savedRate.payload.rate.unit,'each');assert.equal(savedRate.payload.rate.unitRateContext.basis,'material-purchase');
+ assert.equal(savedRate.payload.expiresAt,'2026-10-01','Saving must preserve evidence expiry');
  // Exercise the real submission route against isolated SQL. No transport may
  // run for an incomplete quote, and the saved draft must remain editable.
  await writeFile(path.join(dir,'outbox.ts'),`export async function enqueueSubmission(){throw new Error('An incomplete quote reached delivery');}export async function deliveryStatus(){return [];}export async function processOutbox(){throw new Error('An incomplete quote reached transport');}`);
- const {postSubmission}=await load('submitEndpoint');const {ESTIMATOR_BRAND}=await load('brand');
+ const {postSubmission}=await load('submitEndpoint');
  const {getCustomerPdf}=await load('customerPdfEndpoint');
  const beforeContactCalls=provider.calls.length;
  for(const contact of [{name:'',email:'customer@example.invalid',phone:''},{name:'Test Customer',email:'',phone:''},{name:'Test Customer',email:'not-an-email',phone:''},{name:'  ',email:'customer@example.invalid',phone:''}]){

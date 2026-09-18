@@ -1,6 +1,7 @@
 import {chromium,webkit} from '@playwright/test';
 import {createHash} from 'node:crypto';
-import {mkdir,writeFile} from 'node:fs/promises';
+import {mkdir,writeFile,readFile} from 'node:fs/promises';
+import {PDFDocument} from 'pdf-lib';
 import assert from 'node:assert/strict';
 import {scopeQuestions,reconcileScope} from '../lib/p5/adaptive.ts';
 import {instructionPrompts} from '../lib/p5/clarifications.ts';
@@ -9,6 +10,8 @@ import {ESTIMATOR_BRAND as brand} from '../lib/p5/brand.ts';
 const base=process.env.P5_TEST_BASE_URL||'http://127.0.0.1:5000';
 await mkdir('p5-verification',{recursive:true});
 const browser=await (process.env.P5_TEST_BROWSER==='webkit'?webkit:chromium).launch();const results=[];
+const fixturePdf=await PDFDocument.create();fixturePdf.addPage().drawText('Synthetic estimate PDF download.');
+const pdfBytes=Buffer.from(await fixturePdf.save());
 // Brands ask their own extra questions before review (finish level for cabinets, trim length when trim is priced).
 // A choice is answered with its first option; an unknown quantity stays explicit with Not sure yet.
 const answerBrandQuestions=async(page,est,then)=>{for(let i=0;i<8;i++){const q=est.locator('section[aria-label="Project question"]');await then.or(q).first().waitFor();if(await then.count())return;const chips=q.locator('[aria-label="Suggested answers"] button');const unsure=q.getByRole('button',{name:'Not sure yet',exact:true});if(await chips.count())await chips.first().click();else if(await unsure.count())await unsure.click();else throw new Error('Unexpected brand question: '+(await q.innerText()).slice(0,120));await settled(page);}await then.waitFor();};
@@ -21,11 +24,16 @@ async function mock(context,{interruptions=false,scenario='full'}={}){
  // Keep synthetic estimator sessions out of production analytics and isolate third-party network failures.
  await context.route(/^https:\/\/([a-z0-9-]+\.)*clarity\.ms\//, route=>route.fulfill({status:200,contentType:'application/javascript',body:''}));
  await context.route('**/api/estimator-session',route=>route.fulfill({status:200,contentType:'application/json',body:'{}'}));
- const state={saved:null,nullReceipt:interruptions,failUpload:interruptions,submissions:0,postSubmissionSaves:0,scopeCalls:0,pricingPolls:0,readStage:1,finishReading:false,pricingStage:'mapping',failClarification:scenario==='instructions',holdPricing:scenario==='missing'};
+ const state={saved:null,nullReceipt:interruptions,failUpload:interruptions,submissions:0,postSubmissionSaves:0,scopeCalls:0,pricingPolls:0,readStage:1,finishReading:false,pricingStage:'mapping',failClarification:scenario==='instructions',holdPricing:scenario==='missing',invalidPdf:false,pdfRequests:0};
  await context.addInitScript(()=>{window.SpeechRecognition=class{start(){this.onresult?.({resultIndex:0,results:[Object.assign([{transcript:'Repair three interior doors.'}],{isFinal:true})]});this.onend?.();}stop(){this.onend?.();}};});
  await context.route('**/api/p5-estimator/**',async route=>{
   const request=route.request();const endpoint=new URL(request.url()).pathname.split('/').at(-1);
   const send=(data,status=200)=>route.fulfill({status,contentType:'application/json',body:JSON.stringify(data)});
+  if(endpoint==='pdf'){
+   state.pdfRequests++;
+   if(state.invalidPdf){state.invalidPdf=false;return send({error:'Synthetic invalid PDF response'});}
+   return route.fulfill({status:200,contentType:'application/pdf',body:pdfBytes});
+  }
   if(endpoint==='draft'){
    if(request.method()==='GET')return send({draft:state.saved});
    if(state.nullReceipt){state.nullReceipt=false;return send({draft:null});}
@@ -104,7 +112,17 @@ for(const width of [320,390,430,768,1024,1440,1920]){
   // The result is organized into category accordions with subtotals and labeled exclusions.
   const carpentry=estimator.locator('details',{has:page.locator('summary',{hasText:'Carpentry'})}).first();await carpentry.waitFor();assert.match(await carpentry.locator('summary').innerText(),/\$1,000 to \$1,800/);
   if(!(await carpentry.evaluate(el=>el.open)))await carpentry.locator('summary').click();await estimator.getByText('Repair three interior doors',{exact:true}).first().waitFor();
-  const exclusions=estimator.locator('details',{has:page.locator('summary',{hasText:'Exclusions'})}).first();await exclusions.waitFor();assert.match(await exclusions.locator('summary').innerText(),/excluded/i);
+  const exclusions=estimator.locator('details[data-kind="excluded"]');await exclusions.waitFor();assert.equal(await exclusions.count(),1);assert.match(await exclusions.locator('summary').innerText(),/excluded/i);
+  if([390,1440].includes(width)){
+   state.invalidPdf=true;
+   const attachment=estimator.getByRole('button',{name:'Download estimate PDF',exact:true});
+   await attachment.click();await estimator.getByRole('alert').filter({hasText:'The PDF is not ready. Your estimate is saved; please retry.'}).waitFor();
+   const downloaded=page.waitForEvent('download');await attachment.click();const file=await downloaded;
+   assert.equal(file.suggestedFilename(),brand.id+'-estimate.pdf');
+   assert.equal(await file.failure(),null);const bytes=await readFile(await file.path());
+   assert.equal((await PDFDocument.load(bytes)).getPageCount(),1);assert.deepEqual(bytes,pdfBytes);
+   await settled(page);assert.equal(state.pdfRequests,2);assert.equal(state.submissions,1,'Download retry must not resubmit the estimate');
+  }
   await overflow(page);assert.ok(!/overheadRecovery|operatingProfit|unitCost/.test(await estimator.innerText()));await capture(page,`${width}-result`);
   await page.waitForTimeout(2100);assert.equal(state.postSubmissionSaves,0);await page.reload();await estimator.getByText('Synthetic planning range.',{exact:true}).waitFor();assert.equal(state.submissions,1);assert.deepEqual(errors,[]);
   results.push({width,passed:true,checks:['null receipt preserves files','talk to text','typed and uploaded mixed input','failed upload and reload recovery','known facts skipped','primary action above details','no pinned controls','back and contact preservation','manual text reanalysis','category accordions','line-item privacy','single submission','result restoration','overflow']});

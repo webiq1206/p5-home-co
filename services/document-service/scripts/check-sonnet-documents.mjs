@@ -9,11 +9,13 @@ import {Store} from '../src/store.mjs';
 import {Pipeline} from '../src/pipeline.mjs';
 import {Reader} from '../src/provider.mjs';
 import {parsePdf} from '../src/parser.mjs';
-import {readConfig,hash} from '../src/core.mjs';
+import {readConfig,hash,validateEvidence} from '../src/core.mjs';
+import {validateSchema} from '../src/schema.mjs';
+import {EVIDENCE_SCHEMA} from '../src/contracts.mjs';
 import {summarizeStages} from '../src/benchmark-metrics.mjs';
 import {isolatedPool,guardedSonnetFetch,privateJson,targetedChecks} from './model-qa-support.mjs';
 
-export async function runFixture(fixture,{root,key,parseOnly=false,request=fetch,log=console.log}={}){
+export async function runFixture(fixture,{root,key,parseOnly=false,request=fetch,log=console.log,seedPages=[]}={}){
  const bytes=Buffer.from(fixture.pdfBase64,'base64');
  if(!['short','plans'].includes(fixture.id)||hash(bytes)!==fixture.sha256||bytes.length>25*1024*1024||fixture.pages!==({short:4,plans:23})[fixture.id])throw Error('Invalid fixture bundle or source digest.');
  const providerLimit=fixture.id==='short'?1:3,maxCalls=fixture.id==='short'?12:64;
@@ -36,7 +38,13 @@ export async function runFixture(fixture,{root,key,parseOnly=false,request=fetch
  const costGuard=await guardedSonnetFetch({file:join(directory,'cost.json'),limitUsd:providerLimit,maxCalls,request,onRequest:n=>log(fixture.id+': provider request '+n),onPause:error=>controller.abort(error)});
  const pool=await isolatedPool(join(directory,'database')),store=new Store(pool,config);
  const reader=new Reader(config,store,(url,options)=>costGuard.request(url,{...options,signal:AbortSignal.any([options.signal,controller.signal])}));
- const parser=(data,options)=>parsePdf(data,{...options,signal:AbortSignal.any([options.signal,controller.signal])});
+ const parser=(data,options)=>{
+  if(!options.crop&&seedPages.length===fixture.pages)return (async()=>{
+   await options.onManifest(fixture.pages);
+   for(const p of seedPages){controller.signal.throwIfAborted();if(!options.skipPages?.includes(p.page))await options.onPage({...p.native,page:p.page,image:p.image,parseMs:0,nativeMs:0,renderMs:0});}
+  })();
+  return parsePdf(data,{...options,signal:AbortSignal.any([options.signal,controller.signal])});
+ };
  const pipeline=new Pipeline(store,reader,config,parser);
  let report={...sourceSummary,test:'isolated-live-provider',liveAI:true,model:'claude-sonnet-5',verificationModel:'claude-sonnet-5',complete:false,uploadMs:null,productionQueueMs:null,customerWaitMs:null,productionPerformanceQualified:false,accuracyQualified:false};
  const timer=setTimeout(()=>controller.abort(),limit);
@@ -44,6 +52,23 @@ export async function runFixture(fixture,{root,key,parseOnly=false,request=fetch
   await store.init();started=performance.now();
   const receipt=await store.putDocument('model-qa','source-check','fixture.pdf',bytes);document=receipt.document;
   runType=receipt.cached?'resume-or-cache':'new';
+  if(!receipt.cached&&seedPages.length){
+   if(seedPages.length!==fixture.pages||seedPages.some((p,i)=>p.page!==i+1||p.native.page!==p.page||!p.image?.length))throw Error('Invalid saved-page manifest.');
+   // Native pages were saved by the real parser in the prior source run. No
+   // original PDF is parsed again; already validated evidence is imported once.
+   await pipeline.prepare(await store.claim(['parse']),controller.signal);
+   const reused=[];
+   await store.transaction(async c=>{
+    for(const p of seedPages.filter(p=>p.evidence)){
+     const value=validateEvidence(validateSchema({pages:[structuredClone(p.evidence)]},EVIDENCE_SCHEMA),[p.native]).pages[0];
+     if(value.status!=='read'||value.regions.length)throw Error('Saved evidence is incomplete.');
+     await c.query('UPDATE p5ds_pages SET evidence=$3::jsonb WHERE document_id=$1 AND page=$2',[document.id,p.page,JSON.stringify(value)]);reused.push(p.page);
+    }
+    await store.finalize(document.id,c);
+   });
+   runType='resume-saved-source';report.reusedPages=reused;
+   log(fixture.id+': reused validated pages '+reused.join(', ')+'; only unfinished pages will call the provider.');
+  }
   review=await pipeline.submitReview('model-qa','source-check',{documents:[{id:document.id,source:'fixture.pdf'}],text:'Extract all included work, preserve exclusions and responsibility boundaries. Missing or redacted values must remain missing. Do not generate prices.',answers:{}});
   if(document.state==='failed'||review.state==='failed')throw Error('Saved failure requires inspection; this command does not automatically restart exhausted work.');
   stop=pipeline.start();let last='';
@@ -72,6 +97,7 @@ export async function runFixture(fixture,{root,key,parseOnly=false,request=fetch
   if(document){report.pageEvidence=(await store.pages(document.id)).map(p=>({page:p.page,nativeText:p.native.text,evidence:p.evidence}));}
   report.qaProviderSlots=config.slots;
   report.notes=['Uses actual production processing code in isolated local SQL storage. This is not the deployed website/worker or its queue.',
+   ...(seedPages.length?['Native source pages and validated evidence were reused from a previous paid run. This is not a cold full-file performance measurement.']:[]),
    'QA provider concurrency is one for diagnosis and cost containment. This is not a production concurrency benchmark.',
    'No network upload is measured. Token counting adds QA overhead; summed parallel stages do not equal wall time.',
    'One run is not a percentile benchmark. Cached/resumed runs are not cold processing performance.',

@@ -30,50 +30,42 @@ API. Old v2 records remain stored but are not used as v3 records because they
 lack the separated rate assumptions needed for safe reuse. No customer data
 or rate database is checked into Git.
 
-## Sonnet document test
+## Sonnet document completion
 
-The private p5-sonnet-fixtures.json bundle contains the original four-page
-redacted scope and a 23-page mixed native/scanned construction set. It contains
-data, not executable code. Keep it and the .p5-model-qa reports outside Git.
-Both paths are excluded from Git and deployment packaging.
-
-The initial full-file command is shown below for reference. The two observed
-failures are still unqualified. Do not rerun it while investigating the timeout;
-use the saved-page experiment below first. The supplied bundle is already in
-the owner's P5 workspace.
+The private bundle and successful saved work already exist in the P5 workspace.
+Use the current completion command after pulling reviewed main:
 
 ```sh
-node services/document-service/scripts/check-sonnet-documents.mjs p5-sonnet-fixtures.json
+node services/document-service/scripts/finish-sonnet-qualification.mjs
 ```
 
-The command uses the existing ANTHROPIC_API_KEY only in the P5 Shell, forces
-claude-sonnet-5 for page reading and verification, and runs the real maintained
-parser, provider, pipeline and queue code against private local PGlite storage.
-It never connects to DATABASE_URL or changes production models. PGlite is
-already a development dependency; no hosted database is provisioned.
+This recovers validated saved pages 1 and 2 free, preserves their original
+checkpoints and cost ledgers, reads only missing pages, then reconciles the
+short scope. Plans run only after the short file passes its targeted checks.
+It uses real production processing modules with isolated local SQL storage,
+never DATABASE_URL. All source PDFs and reports remain outside Git.
 
-The short file runs first. The plans run only after its page-completeness and
-targeted source checks pass. The guard reserves estimated generation costs
-before calls, using the provider token-count endpoint and conservative headroom.
-It stops at estimated limits of $1 for the short file and $3 for the plans,
-with separate request/time limits. These are estimates, not billing hard caps.
-Timeouts with unknown charges retain their reservation. QA now sends one provider
-request at a time and pauses the saved ledger after the first unknown charge,
-before additional token counts or generation calls. Restarting cannot clear this
-pause. This reduces QA concurrency only; production settings are unchanged.
-No automatic Opus fallback occurs. Successful work persists locally and is reused if restarted;
-exhausted failures require inspection rather than automatic paid reprocessing.
+Additional estimated reservations remain bounded to $1 unfinished short work
+and $3 plans, with the existing request/time limits. The original failed-run and
+probe estimates are recorded separately. Returned provider usage determines
+reported estimates; interrupted calls keep their reservation and pause further
+requests. The fixed completion profile and exclusive lock prevent concurrent
+runs and silent budget resets. Cache reuse is not a cold performance benchmark.
+
+See p5-sonnet-switch-runbook.md for current settings and the remaining deployed
+checks. The historical diagnostic below is retained as evidence, not the next
+command to run.
 
 ### Investigating a timeout
 
-Current next step after the free diagnostic: one medium-effort saved-page probe.
+Historical experiment: one medium-effort saved-page probe. This is now complete.
 Sonnet 5's default is high effort; the completed page used 1007 thinking tokens
 out of 3478 output tokens and took 30618 ms. This suggests an experiment, not a
 proven explanation for the interrupted calls. Anthropic documents the supported
 control and the quality tradeoff at
 https://platform.claude.com/docs/en/build-with-claude/effort.
 
-After pulling the new code, run only:
+The historical probe command was:
 
 ```sh
 node services/document-service/scripts/check-sonnet-saved-page.mjs

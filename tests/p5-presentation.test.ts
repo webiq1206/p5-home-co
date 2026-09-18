@@ -4,6 +4,16 @@ import {summarySections,estimateSections,SECTION_TITLES} from '../lib/p5/present
 import {estimateEmail} from '../lib/p5/estimateEmail.ts';
 import {suggestedTrade} from '../lib/p5/trades.ts';
 const result={summary:'Project type: new-construction\nProject area in square feet: 4500\nPlumbing work: Supply fixtures. Install connections.\nExcluded work: Land and financing.',includedCategories:['Plumbing'],range:{low:100,high:200},lineItems:[{id:'p',category:'Plumbing',description:'Fixture installation',quantity:2,unit:'EA',low:100,high:200,unitLow:50,unitHigh:100}],categoryRanges:[{category:'Plumbing',low:100,high:200}],assumptions:[],exclusions:['Land'],allowances:[],factors:[],message:'Review your estimate.',nextStep:'Consultation',disclaimer:'Preliminary only.'};
+test('Customer outputs combine repeated exclusions and retain every distinct condition',()=>{
+ const r={...result,summary:'Excluded work: Plumbing excluded.',instructions:{inclusions:['Install trim.'],exclusions:['Plumbing excluded.','Electrical excluded.']},exclusions:['Plumbing excluded','Electrical excluded.','Permits excluded.'],verificationItems:['Confirm door size.'],assumptions:['Confirm door size.','Confirm hardware responsibility.']};
+ const sections=estimateSections(r),excluded=sections.filter(s=>s.kind==='excluded');
+ assert.equal(excluded.length,1);assert.deepEqual(excluded[0].bullets,['Plumbing excluded.','Electrical excluded.','Permits excluded.']);
+ const assumptions=sections.filter(s=>s.kind==='assumption').flatMap(s=>s.bullets||[]);
+ assert.equal(assumptions.filter(s=>s==='Confirm door size.').length,1);assert.ok(assumptions.includes('Confirm hardware responsibility.'));
+ assert.ok(sections.some(s=>s.kind==='included'&&s.bullets?.includes('Install trim.')));
+ const mail=estimateEmail('synthetic',{customer:r,contact:{name:'QA'}},false);
+ assert.equal(mail.text.split('Plumbing excluded.').length-1,1);
+});
 test('Legacy summaries retain values, use readable quantities and group scope without inventing prices',()=>{
  const sections=summarySections(result.summary);
  assert.deepEqual(sections[0].rows,[['Project type','New construction'],['Project area in square feet','4,500']]);
@@ -50,4 +60,3 @@ test('Placeholder building and floor labels neither create a per-building table 
  const two=estimateSections({...base,lineItems:[line('a','Main'),line('b','ADU')]});
  assert.ok(two.some(s=>s.title===SECTION_TITLES.buildingPrices),'two named buildings keep their totals');
 });
-

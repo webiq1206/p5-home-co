@@ -117,11 +117,11 @@ test('QA runner exercises real SQL, PDF parser and pipeline, then reuses complet
  };
  try{
   const report=await runFixture(fixture,{root,key:'synthetic-test-key-no-network',request,log:()=>{}});
-  assert.equal(report.complete,true,report.error);assert.equal(report.pageEvidence.length,4);assert.equal(report.accuracyQualified,false);assert.equal(report.uploadMs,null);assert.equal(paid,2);
+  assert.equal(report.complete,true,report.error);assert.equal(report.pageEvidence.length,4);assert.equal(report.accuracyQualified,false);assert.equal(report.uploadMs,null);assert.equal(paid,5);
   const before=paid,cached=await runFixture(fixture,{root,key:'synthetic-test-key-no-network',request,log:()=>{}});
   assert.equal(cached.complete,true,cached.error);assert.equal(cached.runType,'resume-or-cache');assert.equal(paid,before);
   const saved=JSON.parse(await readFile(join(root,'short-'+fixture.sha256.slice(0,16),'report.json'),'utf8'));
-  assert.equal(saved.stageWork.aiReadWorkMs>0,true);assert.equal(saved.cost.usage.length,2);
+  assert.equal(saved.stageWork.aiReadWorkMs>0,true);assert.equal(saved.cost.usage.length,5);
   assert.ok(!JSON.stringify(saved).includes('synthetic-test-key-no-network'));
   const snapshot=async directory=>{
    const entries=[];

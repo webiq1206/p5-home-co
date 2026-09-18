@@ -56,7 +56,7 @@ test('probe changes only effort, reads only missing page 2, preserves original c
   const cached=await checkSavedPage({...f.options,key:undefined,request});assert.equal(cached.cached,true);
   assert.equal(paid,1);assert.equal(counts,1);assert.deepEqual(await snapshot(f.directory),before);
   const ordinary=requestBody('anthropic','claude-sonnet-5',READER_SYSTEM,{pages:[]},[],EVIDENCE_SCHEMA,10000,'read');
-  assert.equal(ordinary.body.output_config.effort,undefined,'Production request remains unchanged');
+  assert.equal(ordinary.body.output_config.effort,'medium','Production Sonnet source reading now uses the measured profile');
  }finally{await rm(f.root,{recursive:true,force:true});}
 });
 
