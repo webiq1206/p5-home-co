@@ -1,3 +1,4 @@
+import {randomBytes} from 'node:crypto';
 import {test,before,after} from 'node:test';
 import assert from 'node:assert/strict';
 import pg from 'pg';
@@ -99,6 +100,6 @@ test('rendered pages and evidence count toward storage quota and roll back on ov
  await assert.rejects(capped.putPage(lease,{page:1,text:'small native text',image:Buffer.alloc(2000)}),/document-storage-quota/);
  assert.equal((await capped.pages(id)).length,0);
  await capped.putPage(lease,{page:1,text:'small',image:Buffer.alloc(10)});
- await assert.rejects(capped.transaction(async c=>{await c.query('UPDATE p5ds_pages SET evidence=$2::jsonb WHERE document_id=$1',[id,JSON.stringify({notes:'x'.repeat(2000)})]);await capped.checkStorage(c,'quota-test');}),/document-storage-quota/);
+ await assert.rejects(capped.transaction(async c=>{await c.query('UPDATE p5ds_pages SET evidence=$2::jsonb WHERE document_id=$1',[id,JSON.stringify({notes:randomBytes(2000).toString('hex')})]);await capped.checkStorage(c,'quota-test');}),/document-storage-quota/);
  assert.equal((await capped.pages(id))[0].evidence,null);await capped.complete(lease,{});
 });
