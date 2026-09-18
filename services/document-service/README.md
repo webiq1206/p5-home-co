@@ -128,3 +128,31 @@ Original PDFs remain unchanged. Native text and cached evidence avoid unnecessar
 rereading; small previews and targeted crops avoid blanket high-resolution tiling.
 Universal upload compression is not implemented and is not a performance promise.
 The existing 0.5 vCPU / 2 GB VM has not yet demonstrated the live 100-page SLA.
+
+### Anthropic reconciliation and deployment checks
+
+Live qualification on 2026-09-18 found that the reconciliation schema exceeded
+Anthropic's grammar budget even with its repeated field enums removed. Anthropic
+reviews now request a single regular `submit_document_review` client-tool payload
+(`strict: false`), with no `output_config.format`. This is a data container only;
+no tool is executed. The complete original schema, field vocabulary and semantic
+source/quantity validation still apply locally. Missing, extra, invalid, ambiguous
+or truncated output fails the job. Source-page reading still uses its working
+structured JSON output. The configured model must support forced tool choice;
+this path targets the existing `claude-opus-5` integration. Other providers are
+unchanged. No extra fallback call or automatic reread was added.
+
+Before republishing, run `node services/document-service/scripts/check-review-provider.mjs`
+in the P5 workspace Shell. It makes one synthetic request with the configured
+Anthropic model, validates its output and prints the result without credentials.
+It does not access the database or documents. A pass is not a deployed service or
+end-to-end estimate pass. After publishing, retry the existing failed review with
+`POST /v1/projects/{project}/reviews/{id}/retry` and inspect the completed result.
+
+Replit may propose deleting production-only `p5ds_` tables when they are absent
+from development. Cancel any publish containing those DROP TABLE statements.
+Initialize the development schema from the same `DDL` export in `src/store.mjs`
+using the explicitly verified development database, then regenerate and inspect
+the publish migration. The owner completed this initialization on 2026-09-18.
+Never copy development data over production or approve these table deletions to
+publish an application-only patch. The live source evidence and jobs must survive.

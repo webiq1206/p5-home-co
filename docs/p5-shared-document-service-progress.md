@@ -188,3 +188,33 @@ Synthetic project: p5-qa-1789704249953.
 Review: d331348c215480aeb7464fa574ef0d2c3d2cb7c1a90e5def5030b84b4d470ea9.
 All five remote adapters remain unqualified. Real documents, full customer journeys,
 PDFs, QA email, resource/recovery checks and performance targets remain open.
+
+## Reconciliation grammar follow-up: 2026-09-18
+
+PR #50 merged as 6a1fc872f64bd50d595fa4d9c6f12a23704fe577 after all service/database,
+adapter, estimator, production-build, cohost and container CI checks passed. The
+owner pulled and republished. Replit initially proposed dropping all seven p5ds_
+production tables; publication was stopped. Owner ran the additive schema setup
+against the verified Helium development database and reported PASS, then published.
+The saved production review remained present, but its retry failed with HTTP 400
+in 3,680 ms. A direct synthetic request confirmed the first patch was present and
+claude-opus-5 still rejected its compiled grammar. That patch did NOT resolve the
+live failure. The source document is still read; do not reupload it.
+
+Branch fix/p5-review-tool-output-20260918 replaces Anthropic reconciliation's
+compiled JSON output with one regular client-tool data payload. No tool actions
+are executed. The original schema and existing semantic validator remain required.
+Source readers and other providers retain their prior request formats. Regression
+coverage rejects unknown fields, missing/extra properties, string quantities,
+truncation/refusal, absent/wrong/multiple tool calls, and unexpected tool responses
+to source-reading requests. Global provider capacity is released on validation
+failure; no second request or page reread is introduced. Token reservations now
+include schema characters. This format requires a model supporting forced tools.
+
+A single-request synthetic preflight is checked in at
+services/document-service/scripts/check-review-provider.mjs. Run it in the P5
+workspace after pulling reviewed main and BEFORE another publish. Inspect provider
+acceptance and the validated scope result. Then republish without destructive
+migrations and retry the existing saved review. Live acceptance of this new format,
+all-site remote activation, real-fixture accuracy/performance, pricing/PDF/email
+and full browser journeys remain unverified. No cost increase or new infrastructure.
