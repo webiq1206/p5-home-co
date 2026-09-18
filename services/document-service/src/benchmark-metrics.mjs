@@ -32,7 +32,7 @@ export function summarizeStages(events){
  return {queueWorkMs:sum(e=>e.stage==='queue'?e.duration_ms:0),
   nativeParseWorkMs:sum(e=>e.stage==='page-parse'?e.detail.nativeMs:0),renderWorkMs:sum(e=>e.stage==='page-parse'?e.detail.renderMs:0),
   parsePipelineWorkMs:sum(e=>e.stage==='native-parse'?e.duration_ms:0),providerAdmissionWaitWorkMs:sum(e=>e.detail.queueMs),
-  aiReadWorkMs:sum(e=>e.stage==='read-provider'?e.duration_ms:0),aiVerificationWorkMs:sum(e=>e.stage==='verify-provider'?e.duration_ms:0),
+  aiReadWorkMs:sum(e=>e.stage==='read-provider'?e.duration_ms:0),aiCitationWorkMs:sum(e=>e.stage==='citation-provider'?e.duration_ms:0),aiVerificationWorkMs:sum(e=>e.stage==='verify-provider'?e.duration_ms:0),
   reconciliationWorkMs:sum(e=>e.stage==='reconciliation-provider'?e.duration_ms:0),failedProviderWorkMs:sum(e=>e.stage==='provider-failure'?e.duration_ms:0),
   note:'Summed work across concurrent jobs. These durations do not add up to customer wall time.'};
 }

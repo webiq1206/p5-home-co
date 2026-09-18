@@ -1,6 +1,7 @@
 import {jobId,groupPages,ServiceError,validateEvidence,stable} from './core.mjs';
 import {parsePdf,limitParser} from './parser.mjs';
 import {EVIDENCE_SCHEMA,REVIEW_SCHEMA,READER_SYSTEM,VERIFIER_SYSTEM,REVIEW_SYSTEM,validateReview} from './contracts.mjs';
+import {CITATION_SYSTEM,CITATION_SCHEMA,citationInput,applyCitations,evidenceCheckpointKey} from './evidence-citations.mjs';
 export class Pipeline{
  constructor(store,reader,config,parser=parsePdf){this.store=store;this.reader=reader;this.config=config;this.readBatchPages=config.provider==='anthropic'&&config.model==='claude-sonnet-5'?1:4;this.parser=limitParser(parser,config.parserSlots||1);}
  async enqueueRead(job,pages,client=this.store.pool){const numbers=pages.map(p=>p.page);await this.store.enqueue(client,{id:jobId(job.tenant,job.project,'read',[job.document_id,numbers]),tenant:job.tenant,project:job.project,documentId:job.document_id,kind:'read',priority:job.priority,payload:{pages:numbers}});}
@@ -23,6 +24,29 @@ export class Pipeline{
   await this.store.metric(job,'native-parse',performance.now()-start,{pages:count,bytes:Number(doc.size_bytes)});
   await this.store.complete(job,{pages:count},async c=>{await c.query("UPDATE p5ds_documents SET state='prepared',updated_at=now() WHERE id=$1 AND state!='failed'",[doc.id]);await this.store.finalize(doc.id,c);});
  }
+ async evidence(job,system,input,images,signal,verify=false,checkpointName='read',prior){
+   const key=evidenceCheckpointKey({input,prior,provider:this.config.provider,model:verify?this.config.verifyModel:this.config.model},system,EVIDENCE_SCHEMA);
+   let saved=checkpointName==='read'?job.result?.evidenceCheckpoint:job.result?.verificationCheckpoints?.[checkpointName];
+   const save=()=>this.store.checkpoint(job,checkpointName==='read'?{...job.result,evidenceCheckpoint:saved}:{...job.result,verificationCheckpoints:{...job.result?.verificationCheckpoints,[checkpointName]:saved}});
+   if(saved&&saved.key!==key)throw new ServiceError('evidence-checkpoint-source-changed',422);
+   if(!saved){
+    const raw=await this.reader.call(job,system,{pages:input,...(prior?{prior}:{})},images,EVIDENCE_SCHEMA,signal,verify);
+    saved={version:1,key,raw};
+    await save();
+   }
+   const citations=citationInput(saved.raw,input);
+   if(citations.statements.length&&!saved.repair){
+    // One bounded correction per saved response. An interrupted correction is
+    // inspected instead of silently paying for another on a job retry.
+    if(saved.repairStarted)throw new ServiceError('citation-repair-needs-inspection',422);
+    signal.throwIfAborted();saved.repairStarted=true;
+    await save();
+    saved.repair=await this.reader.call(job,CITATION_SYSTEM,citations,[],CITATION_SCHEMA,signal,verify,'citation');
+    await save();
+   }
+   const grounded=saved.repair?applyCitations(saved.raw,input,citations,saved.repair):structuredClone(saved.raw);
+   return validateEvidence(grounded,input);
+ }
  async read(job,signal){
   const requested=await this.store.pages(job.document_id,job.payload.pages,true);
   if(requested.length!==job.payload.pages.length)throw new ServiceError('missing-prepared-page',503);
@@ -33,13 +57,15 @@ export class Pipeline{
   // text and an overview; detailed positions are sent only with a crop check.
   const images=stored.map(p=>({label:`Original page ${p.page}; overview, not proof of fine-detail legibility.`,bytes:p.image}));
   let reply;
-  try{reply=validateEvidence(await this.reader.call(job,READER_SYSTEM,{pages:input},images,EVIDENCE_SCHEMA,signal),input);}
+  try{
+   reply=await this.evidence(job,READER_SYSTEM,input,images,signal);
+  }
   catch(e){
    // A cancelled job or expired lease must not create fresh paid work. A live
    // multi-page call that hits its deadline gets smaller requests, not three
    // identical whole-batch retries. Single pages retain bounded failure handling.
    signal.throwIfAborted();
-   if(stored.length>1&&['provider-timeout','provider-output-incomplete','invalid-provider-json','invalid-provider-schema','incomplete-page-manifest','invalid-page-record','quote-not-in-source'].includes(e.code)){
+   if(stored.length>1&&!job.result?.evidenceCheckpoint&&['provider-timeout','provider-output-incomplete','invalid-provider-json','invalid-provider-schema','incomplete-page-manifest','invalid-page-record','quote-not-in-source'].includes(e.code)){
     await this.store.complete(job,{splitIntoPages:true,reason:e.code,pages:stored.map(p=>p.page)},async c=>{
      for(const p of stored)await this.enqueueRead(job,[p.native],c);
     });return;
@@ -53,7 +79,7 @@ export class Pipeline{
     if(page.regions.length&&!original)original=await this.store.document(job.tenant,job.project,job.document_id,true);
     for(const region of page.regions){await this.parser(original.bytes,{maxPages:this.config.maxPages,timeoutMs:this.config.parseMs,signal,crop:{page:page.page,region},onPage:p=>{crops.push({label:`Original page ${page.page}, normalized crop ${JSON.stringify(region)}`,bytes:p.image});}});}
     const inputPage={...source.native,image:undefined};
-    const verification=validateEvidence(await this.reader.call(job,VERIFIER_SYSTEM,{pages:[inputPage],prior:page},[{label:`Original page ${page.page}`,bytes:source.image},...crops],EVIDENCE_SCHEMA,signal,true),[inputPage]);
+    const verification=await this.evidence(job,VERIFIER_SYSTEM,[inputPage],[{label:`Original page ${page.page}`,bytes:source.image},...crops],signal,true,'verify-'+page.page,page);
     const checked=verification.pages[0];
     // Each prior supported statement must survive or be listed as a correction.
     // Preserve both versions when a verifier disagrees; do not silently pick one.

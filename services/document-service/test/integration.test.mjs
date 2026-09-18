@@ -83,7 +83,7 @@ test('a parser checkpoint cannot erase a terminal reader failure',{skip:!availab
 test('a recovered reader never sends completed pages to the provider again',async()=>{
  const native=n=>({page:n,text:'Room '+(100+n)+' SF',textQuality:1,kind:'text'});
  const sent=[],queries=[];let completed=false;
- const fakeStore={checkStorage:async()=>{},finalize:async()=>{},pages:async()=>[{page:1,native:native(1),image:Buffer.alloc(0),evidence:fakePage(native(1))},{page:2,native:native(2),image:Buffer.alloc(0),evidence:null}],pool:{query:async(q)=>{queries.push(q);return {rows:[]};}},complete:async(job,result,extra)=>{completed=true;if(extra)await extra(fakeStore.pool);}};
+ const fakeStore={checkpoint:async(job,result)=>{job.result=result;},checkStorage:async()=>{},finalize:async()=>{},pages:async()=>[{page:1,native:native(1),image:Buffer.alloc(0),evidence:fakePage(native(1))},{page:2,native:native(2),image:Buffer.alloc(0),evidence:null}],pool:{query:async(q)=>{queries.push(q);return {rows:[]};}},complete:async(job,result,extra)=>{completed=true;if(extra)await extra(fakeStore.pool);}};
  const reader={call:async(job,system,input)=>{sent.push(...input.pages.map(p=>p.page));return {pages:input.pages.map(fakePage)};}};
  const pipeline=new Pipeline(fakeStore,reader,config);
  await pipeline.read({document_id:'d',payload:{pages:[1,2]}},new AbortController().signal);
