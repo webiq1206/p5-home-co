@@ -55,14 +55,20 @@ try{
  await run(recovered);
  assert.equal(mappingCalls,2,'a completed mapping is not called again');assert.equal(auditCalls,1);
 
- const exhausted=await newDraft();let attempts=0;
+ const exhausted=await newDraft();let attempts=0,legacyKey='';
  provider.setProvider(async(_instructions:string,value:unknown)=>{
   const input=value as StageInput;
-  if(input.taskBatch){attempts++;throw new ProcessingDeadlineError();}
+  if(input.taskBatch){legacyKey=work.pricingReplyKey(_instructions,input,false);attempts++;throw new ProcessingDeadlineError();}
   if('priorPricingIssues' in input)throw Error('An incomplete mapping must never reach the audit');
   return reply({tasks:[task],issues:[]});
  });
  await assert.rejects(run(exhausted),(error:unknown)=>error instanceof Error&&error.name==='PricingPending');
+ // Older releases used a content hash. Its actual attempts still count after
+ // migration to the current mapping key, so an upgrade cannot reset the limit.
+ const older=await payload(exhausted);
+ const marker=Object.entries(older.replies).find(([,value])=>value.timeouts===1)!;
+ delete older.replies[marker[0]];older.replies[legacyKey]=marker[1];
+ await db!.query('UPDATE p5_estimator_work SET payload=$1::jsonb WHERE draft_id=$2 AND work_key=$3',[JSON.stringify(older),exhausted,work.pricingWorkKey(scope,config,date)]);
  await assert.rejects(run(exhausted),(error:unknown)=>error instanceof Error&&error.name==='PricingPending');
  const failed=await run(exhausted);
  assert.equal(failed.customer.range,null,'exhaustion must not release a partial price');

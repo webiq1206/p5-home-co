@@ -73,7 +73,7 @@ export async function priceSavedScope(id:string,scope:ReviewedScope,configuratio
     // Every timed-out stage is remembered with a count, so a replay never
     // repeats the identical oversized call: research falls back, a mapping
     // batch is halved by the caller, other stages pause and resume.
-    const prior=(payload.replies[key] as unknown as {timeouts?:number}|undefined)?.timeouts||0;
+    const prior=(saved as unknown as {timeouts?:number}|undefined)?.timeouts||0;
     payload.replies[key]={value:null,sourceUrls:[],timedOut:true,timeouts:prior+1} as unknown as PricingReply;await persist();
     throw new PricingStageTimeout(prior+1>=3?'pricing-stage-exhausted':'pricing-stage-timeout');
    }
