@@ -30,7 +30,8 @@ function pageSummary(page){
   quotedCharacters:quotes.reduce((n,q)=>n+q.length,0),uniqueQuotedCharacters:[...new Set(quotes)].reduce((n,q)=>n+q.length,0)};
 }
 
-export async function inspectSavedRun({root=resolve('.p5-model-qa'),reportPath}={}){
+/** Call inspect against a disposable copy. The source is never opened by SQL. */
+export async function withSavedRun({root=resolve('.p5-model-qa'),reportPath}={},inspect){
  root=await realpath(root);
  const file=await realpath(reportPath?resolve(reportPath):await latestReport(root));
  const within=relative(root,file);
@@ -45,16 +46,23 @@ export async function inspectSavedRun({root=resolve('.p5-model-qa'),reportPath}=
   await cp(source,join(copy,'database'),{recursive:true});
   db=new PGlite(join(copy,'database'));await db.waitReady;
   await db.query('BEGIN READ ONLY');
+  const result=await inspect({db,report,file,root});
+  await db.query('ROLLBACK');
+  return result;
+ }finally{try{if(db)await db.close();}finally{await rm(copy,{recursive:true,force:true});}}
+}
+
+export async function inspectSavedRun(options={}){
+ return withSavedRun(options,async({db,report,file})=>{
   const pages=await db.query('SELECT page,native,evidence FROM p5ds_pages ORDER BY page');
   const jobs=await db.query("SELECT kind,state,attempts,error_code,payload->'pages' AS pages,result->>'reason' AS split_reason FROM p5ds_jobs ORDER BY created_at,id");
-  await db.query('ROLLBACK');
   const keys=['provider','model','attempt','pages','imageCount','inputCharacters','maxOutputTokens','timeoutMs','queueMs','code','cancelled','usage'];
   return {report:file,model:report.model,complete:report.complete,error:report.error,
    currentInvocationMs:report.currentInvocationMs,stageWork:report.stageWork,cost:report.cost,
    pages:pages.rows.map(pageSummary),jobs:jobs.rows,
    providerEvents:(report.events||[]).filter(e=>e.stage.includes('provider')).map(e=>({stage:e.stage,durationMs:e.duration_ms,...Object.fromEntries(keys.filter(k=>Object.hasOwn(e.detail||{},k)).map(k=>[k,e.detail[k]]))})),
    note:'Read saved data only. No provider calls, PDF rereading, production connection or checkpoint changes. Incomplete provider responses were not saved, so their generation progress is unknown.'};
- }finally{try{if(db)await db.close();}finally{await rm(copy,{recursive:true,force:true});}}
+ });
 }
 
 if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url)){

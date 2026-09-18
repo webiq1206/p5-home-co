@@ -37,7 +37,10 @@ redacted scope and a 23-page mixed native/scanned construction set. It contains
 data, not executable code. Keep it and the .p5-model-qa reports outside Git.
 Both paths are excluded from Git and deployment packaging.
 
-After pulling this release, upload the supplied bundle to P5's Files and run:
+The initial full-file command is shown below for reference. The two observed
+failures are still unqualified. Do not rerun it while investigating the timeout;
+use the saved-page experiment below first. The supplied bundle is already in
+the owner's P5 workspace.
 
 ```sh
 node services/document-service/scripts/check-sonnet-documents.mjs p5-sonnet-fixtures.json
@@ -62,6 +65,42 @@ No automatic Opus fallback occurs. Successful work persists locally and is reuse
 exhausted failures require inspection rather than automatic paid reprocessing.
 
 ### Investigating a timeout
+
+Current next step after the free diagnostic: one medium-effort saved-page probe.
+Sonnet 5's default is high effort; the completed page used 1007 thinking tokens
+out of 3478 output tokens and took 30618 ms. This suggests an experiment, not a
+proven explanation for the interrupted calls. Anthropic documents the supported
+control and the quality tradeoff at
+https://platform.claude.com/docs/en/build-with-claude/effort.
+
+After pulling the new code, run only:
+
+```sh
+node services/document-service/scripts/check-sonnet-saved-page.mjs
+```
+
+This reuses page 2's saved native text and overview, obtained from a disposable
+copy of the latest failed QA database. It uses the maintained production request
+builder, prompt, JSON schema and native quote checks, changing only the request's
+output_config.effort to medium. The call deadline stays at most 40 seconds and
+the output limit at most 10000 tokens, honoring lower configured limits. No
+PDF upload, parsing, production database or model-setting change is involved.
+
+The experiment has a separate additional $0.20 estimated reservation and allows
+one generation request only. This is not an actual charge or guaranteed billing
+cap. It does not clear or draw down the old failed run's ledger. The per-source
+probe directory is an atomic permanent attempt lock: a repeated command returns
+the saved report or stops, including after an interrupted run. No automatic
+retry, verification call, review or 23-page run follows. Do not delete its files
+to retry. No source-code fingerprint change resets this probe. Production source
+and the full-run checkpoint fingerprint are unchanged by this QA-only release.
+
+Return the printed report for comparison with its nativeText, including missing
+numbers, all scope, exclusions and responsibilities. A structurally valid response
+with source quotes is not an accuracy pass. Visual or calculated evidence remains
+unverified and blocks readyForSourceReview. Even a successful page does not qualify
+the four-page file, larger plans, pricing, PDF/email or live websites. Lower effort
+must be measured before changing production defaults.
 
 The first real four-page run on 2026-09-18 parsed all pages but exhausted three
 40-second provider calls before any page evidence completed. The plans did not

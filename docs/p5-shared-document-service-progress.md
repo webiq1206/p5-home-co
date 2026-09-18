@@ -694,3 +694,21 @@ Limit the experiment to one generation request and a separate, explicit $0.20
 estimated reservation. Repeated invocations must reuse its saved outcome or stop,
 never retry or reset the ledger. No new PDF upload, parsing or production access.
 Validate the probe with controlled responses before another live request.
+
+Implemented check-sonnet-saved-page.mjs as a QA-only request decorator: only
+output_config.effort changes to medium. Production source, defaults and the
+full-run fingerprint remain unchanged. Page 2 is taken from a disposable copy
+of saved QA storage; the original page evidence and failed cost ledger stay
+untouched. The probe has a permanent one-attempt directory lock, one-call guard,
+$0.20 additional estimated reservation and durable outcome. Repeated commands
+read the outcome or stop. Visual/calculated evidence requires further verification;
+structure and quotes are never reported as measured accuracy.
+
+20 focused local tests passed without paid API calls, covering exact request
+parity apart from effort, page selection, schema/quote/truncation rejection,
+unknown-charge stop, estimate cap, concurrent/crashed attempts, cache reuse and
+original-checkpoint immutability. The existing free inspector also passed its
+regression after sharing its disposable-copy helper. Await full PR CI before
+merge. No production deployment or model change has been made. Next live action
+is one saved-page probe, followed by source review; the full file and plans remain
+blocked on qualification.
