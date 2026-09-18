@@ -4,7 +4,7 @@ import {mkdtemp,readFile,rm,stat} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {isolatedPool,guardedSonnetFetch,privateJson,reservationFingerprint} from '../scripts/model-qa-support.mjs';
-import {resumeReviewStream} from '../scripts/resume-review-stream.mjs';
+import {resumeReviewStream,inspectReviewStreamState} from '../scripts/resume-review-stream.mjs';
 import {resumeReservedStream} from '../scripts/resume-reserved-stream.mjs';
 import {resumeLegacyCitationFailure} from '../scripts/resume-citation-failure.mjs';
 import {qualificationWindow,admitBeforeDeadline} from '../scripts/check-sonnet-documents.mjs';
@@ -197,6 +197,27 @@ test('review-only recovery retains every source page and reservation and runs on
   await privateJson(join(root,'cost.json'),ledger);await privateJson(join(root,'report.json'),{error:'qa-paused-unknown-provider-charge'});
   const doc=await f.store.document('qa','test',f.document.id),before=await f.store.pages(doc.id);
   assert.equal(doc.state,'complete');
+  const eligible=await inspectReviewStreamState(f.store,doc,root);
+  assert.equal(eligible.diagnostic.eligible,true);
+  assert.deepEqual(eligible.diagnostic.failedChecks,[]);
+  for(const [state,expected] of [['running','oneFailedReview'],['queued','oneFailedReview']]){
+   await f.pool.query('UPDATE p5ds_jobs SET state=$2 WHERE id=$1',[review.id,state]);
+   await assert.rejects(resumeReviewStream(f.store,doc,root),error=>error.recoveryDiagnostic.failedChecks.includes(expected));
+   assert.equal((await f.store.job('qa','test',review.id)).state,state);
+  }
+  await f.pool.query("UPDATE p5ds_jobs SET state='failed' WHERE id=$1",[review.id]);
+  const partial=structuredClone(before[3].evidence);partial.status='partial';
+  await f.pool.query('UPDATE p5ds_pages SET evidence=$3 WHERE document_id=$1 AND page=$2',[doc.id,4,partial]);
+  await assert.rejects(resumeReviewStream(f.store,doc,root),error=>{
+   assert.deepEqual(error.recoveryDiagnostic.failedChecks,['everyPageRead']);
+   assert.equal(error.recoveryDiagnostic.pages[3].status,'partial');return true;
+  });
+  await f.pool.query('UPDATE p5ds_pages SET evidence=$3 WHERE document_id=$1 AND page=$2',[doc.id,4,before[3].evidence]);
+  await f.pool.query("UPDATE p5ds_jobs SET state='queued' WHERE id=$1",[f.job.id]);
+  await assert.rejects(resumeReviewStream(f.store,doc,root),error=>error.recoveryDiagnostic.failedChecks.includes('sourceJobsComplete'));
+  await f.pool.query("UPDATE p5ds_jobs SET state='complete' WHERE id=$1",[f.job.id]);
+  assert.deepEqual(JSON.parse(await readFile(join(root,'cost.json'),'utf8')),ledger);
+  assert.deepEqual(await f.store.pages(doc.id),before);
   for(const change of [x=>x.calls[5].reservedUsd+=.01,x=>x.calls[5].failure.code='provider-total-timeout',x=>x.calls[5].progress.complete=true,x=>x.calls.push(used(.01))]){
    const changed=structuredClone(ledger);change(changed);await privateJson(join(root,'cost.json'),changed);
    await assert.rejects(resumeReviewStream(f.store,doc,root),/differs/);

@@ -5,6 +5,22 @@ import {resolve,join,dirname,relative,sep} from 'node:path';
 import {tmpdir} from 'node:os';
 import {fileURLToPath} from 'node:url';
 import {PGlite} from '@electric-sql/pglite';
+import {Store} from '../src/store.mjs';
+import {inspectReviewStreamState} from './resume-review-stream.mjs';
+import {savedRunEvents,latestProviderFailure} from './saved-run-events.mjs';
+
+/** Uses exactly the recovery predicates, but cannot start a worker or call AI.
+ * The original database is never opened; the ledger is read without changes. */
+export async function inspectReviewRecovery(options={}){
+ return withSavedRun(options,async({db,file})=>{
+  const documents=(await db.query('SELECT id,tenant,project,digest,state,page_count,error_code FROM p5ds_documents')).rows;
+  if(documents.length!==1)throw Error('Expected one saved source document. No recovery was attempted.');
+  const document=documents[0],store=new Store(db,{});
+  const {diagnostic}=await inspectReviewStreamState(store,document,dirname(file));
+  return {...diagnostic,lastSavedProviderFailure:latestProviderFailure(await savedRunEvents(db,document)),
+   note:'Free inspection of copied local QA storage. No AI calls, PDF parsing, job changes, ledger changes or production connection.'};
+ });
+}
 
 async function latestReport(root){
  const reports=[];
@@ -56,11 +72,13 @@ export async function inspectSavedRun(options={}){
  return withSavedRun(options,async({db,report,file})=>{
   const pages=await db.query('SELECT page,native,evidence FROM p5ds_pages ORDER BY page');
   const jobs=await db.query("SELECT kind,state,attempts,error_code,payload->'pages' AS pages,result->>'reason' AS split_reason FROM p5ds_jobs ORDER BY created_at,id");
+  const documents=(await db.query('SELECT id,tenant,project FROM p5ds_documents')).rows;
+  const events=documents.length===1?await savedRunEvents(db,documents[0]):[];
   const keys=['provider','model','attempt','pages','imageCount','inputCharacters','maxOutputTokens','timeoutMs','queueMs','code','cancelled','usage','purpose','effort','idleTimeoutMs','stopReason','stream'];
   return {report:file,model:report.model,complete:report.complete,error:report.error,
    currentInvocationMs:report.currentInvocationMs,stageWork:report.stageWork,cost:report.cost,
    pages:pages.rows.map(pageSummary),jobs:jobs.rows,
-   providerEvents:(report.events||[]).filter(e=>e.stage.includes('provider')).map(e=>({stage:e.stage,durationMs:e.duration_ms,...Object.fromEntries(keys.filter(k=>Object.hasOwn(e.detail||{},k)).map(k=>[k,e.detail[k]]))})),
+   providerEvents:events.filter(e=>e.stage.includes('provider')).map(e=>({stage:e.stage,durationMs:e.duration_ms,...Object.fromEntries(keys.filter(k=>Object.hasOwn(e.detail||{},k)).map(k=>[k,e.detail[k]]))})),
    note:'Read saved data only. No provider calls, PDF rereading, production connection or checkpoint changes. Stream progress and final usage are included when available; incomplete input is not accepted as evidence.'};
  });
 }

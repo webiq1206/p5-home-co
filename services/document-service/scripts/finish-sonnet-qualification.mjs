@@ -2,7 +2,7 @@
 import {readFile,mkdir,rm,stat,chmod} from 'node:fs/promises';
 import {resolve,join} from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {withSavedRun} from './inspect-sonnet-run.mjs';
+import {withSavedRun,inspectReviewRecovery} from './inspect-sonnet-run.mjs';
 import {runFixture} from './check-sonnet-documents.mjs';
 import {privateJson} from './model-qa-support.mjs';
 import {hash,validateEvidence,signedHeaders} from '../src/core.mjs';
@@ -51,6 +51,12 @@ async function siteChecks(){
 }
 
 async function main(){
+ if(process.argv[2]==='inspect-review'){
+  const root=resolve('.p5-model-qa'),profile=join(root,hash(PROFILE).slice(0,16));
+  try{await stat(join(profile,'running.lock'));throw Error('Qualification is running or was interrupted. Inspection will not open active storage.');}catch(e){if(e.code!=='ENOENT')throw e;}
+  console.log(JSON.stringify(await inspectReviewRecovery({root,reportPath:join(profile,'short-'+SOURCE.slice(0,16),'report.json')}),null,2));
+  return;
+ }
  const resumeReserved=process.argv[2]==='resume-reserved',resumeReview=process.argv[2]==='resume-review';
  const bundlePath=resolve(process.argv[resumeReserved||resumeReview?3:2]||'p5-sonnet-fixtures.json');
  if((await stat(bundlePath)).size>40*1024*1024)throw Error('QA bundle exceeds the allowed size.');
@@ -69,7 +75,7 @@ async function main(){
  const file=join(root,'qualification-report.json');
  for(const fixture of bundle.fixtures){
   const r=await runFixture(fixture,{root,key:process.env.ANTHROPIC_API_KEY,...(fixture.id==='short'?{seedPages:recovered.pages,recoverLegacyCitationFailure:true,resumeReserved,resumeReview}:{})});
-  report.fixtures.push({id:r.id,complete:r.complete,error:r.error,reusedPages:r.reusedPages,elapsedMs:r.currentInvocationMs,cost:r.cost,quality:r.quality,providerFailure:r.providerFailure,report:join(root,fixture.id+'-'+fixture.sha256.slice(0,16),'report.json')});
+  report.fixtures.push({id:r.id,complete:r.complete,error:r.error,reusedPages:r.reusedPages,elapsedMs:r.currentInvocationMs,cost:r.cost,quality:r.quality,providerFailure:r.providerFailure,recoveryDiagnostic:r.recoveryDiagnostic,lastSavedProviderFailure:r.lastSavedProviderFailure,report:r.reportPath});
   await privateJson(file,report);
   if(!r.complete){process.exitCode=1;break;}
  }
