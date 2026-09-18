@@ -316,10 +316,19 @@ Local verification: 79 service tests passed, nine PostgreSQL tests reserved for 
 364 estimator regressions passed. Saved-file SQL adapter integration, TypeScript
 and lint on every changed source/script/test passed. New authenticated HTTP tests
 cover cached GET and POST responses, no stored-result mutation, and stable elapsed
-times. The full CI production build, cohost and container gates remain required.
+times. CI run https://github.com/webiq1206/p5-home-co/actions/runs/35346825830
+passed all service/database/HTTP/PDF tests, adapter integration, estimator
+regressions, production build, existing-server cohost startup and actual worker
+container build/startup/readiness checks. No live provider was called by CI.
 
-Next: finish the full test/build/cohost checks, merge reviewed source, and publish
-the P5 update. The existing check-saved-qa-review.mjs command then verifies the
+Release: PR #54 merged as d48fd9586bbc717d204225b1c64f651f1c9d7510.
+Reviewed head: 4ec036f8eb03bcc2fcf8f5559a1fd81de085b638. The merged tree exactly
+matches tested tree 23d04dca4b1bb1e8f894543866d62d40cebfb099. Replit deployment
+of this release remains pending; direct Shell/configuration access is unavailable
+to this session, so the owner must pull P5 main and republish. No database
+migration is part of this release; do not approve deletion of production tables.
+
+Next: publish the P5 update. The existing check-saved-qa-review.mjs command then verifies the
 cached review and pending website questions with no further provider call. The
 P5 website adapter still requires explicit remote activation for the controlled
 customer journey. All-site rollout, independent real-document accuracy/performance,
