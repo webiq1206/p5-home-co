@@ -403,3 +403,15 @@ the owner must pull and republish because direct Replit Shell/configuration
 access remains unavailable. Next live check is a new complete-scope QA price,
 then P5-only remote-PDF qualification. Do not re-run the cached review checker as
 a substitute for either, and do not enable all five adapters yet.
+
+Validation before PR: all 366 estimator regressions pass. The new PGlite-backed
+test exercises actual saved pricing claims, persistence and replay with synthetic
+provider replies, including one-time recovery, three-attempt exhaustion and split
+mapping cache reuse. TypeScript passes; the new script passes ESLint. Existing
+scope-pricing source/tests contain pre-existing explicit-any lint errors, so a
+repository-wide clean lint is not claimed. Production builds and CI are required
+before merge. No new live provider performance claim follows from these tests.
+
+Write-path checkpoint: progress-only commit 0973a360cadcc0ef5d264a2bad80672bebb8c838
+was committed and pushed to qa/p5-deployed-followups-20260918 using the authenticated
+GitHub connector. It changes no production source.

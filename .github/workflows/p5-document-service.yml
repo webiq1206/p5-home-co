@@ -17,6 +17,10 @@ on:
       - 'services/document-service/**'
       - 'lib/p5/documentServiceClient.ts'
       - 'lib/p5/analysisWork.ts'
+      - 'lib/p5/pricingWork.ts'
+      - 'lib/p5/scopePricing.ts'
+      - 'tests/p5-scope-pricing.test.ts'
+      - 'scripts/test-p5-pricing-recovery.mts'
       - '.github/workflows/p5-document-service.yml'
   workflow_dispatch:
 permissions:
@@ -75,6 +79,8 @@ jobs:
         run: |
           set -o pipefail
           node --import tsx --test --test-concurrency=1 tests/p5-*.test.ts 2>&1 | tee document-service-verification/estimator-tests.log
+      - name: Saved pricing timeout recovery
+        run: node --import tsx scripts/test-p5-pricing-recovery.mts
       - name: Production website build with remote mode disabled
         run: |
           set -o pipefail

@@ -68,6 +68,9 @@ test('An unfamiliar document category reaches custom pricing with evidence and a
  },[{source:'QA.pdf',page:1,sheet:'',revision:'',status:'read',notes:[]}]);
  const extraction=validateExtraction(reviewed);
  const customScope={...scope,text:'Supply ten feet of cabinetry.',extraction};
+ // Narrow document instructions suppress broad default assemblies. Map the
+ // explicitly requested cabinet material instead of referencing those defaults.
+ const customCabinetTask={...task,existingLineIds:[],additions:[{code:'03-15-02-M',quantity:10,quantityEvidence:'Ten feet of cabinet material requested'}]};
  assert.equal(extraction.facts[0].field,'otherDetails');
  assert.equal(extraction.facts[0].evidence,evidence);
  for(const fallback of [false,true]){
@@ -79,16 +82,16 @@ test('An unfamiliar document category reaches custom pricing with evidence and a
     assert.equal(data.original?.extraction.facts[0].source,'QA.pdf p.1');
     assert.equal(data.original?.extraction.takeoffs?.[0].quantity,10);
     assert.deepEqual(data.original?.extraction.instructions?.exclusions,['Electrical work']);
-    return {value:{tasks:[task,extra].map(({id,description,evidence})=>({id,description,evidence})),issues:[]},sourceUrls:[]};
+    return {value:{tasks:[customCabinetTask,extra].map(({id,description,evidence})=>({id,description,evidence})),issues:[]},sourceUrls:[]};
    }
-   if(data.taskBatch)return {value:{tasks:[task,extra],issues:[]},sourceUrls:[]};
+   if(data.taskBatch)return {value:{tasks:[customCabinetTask,extra],issues:[]},sourceUrls:[]};
    if(search){searches++;if(fallback)throw new PricingStageTimeout('pricing-stage-timeout');return {value:researched,sourceUrls:urls};}
    if(data.tasks&&data.region){planning++;return {value:{rates:[{taskId:'overlay',description:'Protective overlay allowance',unit:'LF',quantity:10,quantityEvidence:evidence,basis:'material-purchase',includes:'overlay material',excludes:'Electrical work',low:10,high:30,confidence:'low',rationale:'Synthetic test allowance, not a real market observation.'}],issues:[],notes:[]},sourceUrls:[]};}
    if('priorPricingIssues' in data)return {value:{coveredTaskIds:['cabinets','overlay'],issues:[]},sourceUrls:[]};
    throw new Error('Unexpected pricing stage');
   };
   const priced=await priceCompleteScope(customScope,config,request,now);
-  assert.ok(priced.customer.range);
+  assert.ok(priced.customer.range,JSON.stringify(priced.internal.scopePricing.issues));
   assert.equal(searches,1);assert.equal(planning,fallback?1:0);
   const customLines=priced.customer.lineItems.filter(l=>/protective overlay/i.test(l.description));
   assert.equal(customLines.length,1,'one physical item is priced once');
@@ -295,7 +298,7 @@ test('Separate building prices require every component to be assigned to a build
  assert.ok(priced.customer.range);assert.deepEqual(priced.customer.lineItems.map(l=>l.building),['Main','ADU']);
  assert.equal(priced.customer.lineItems.reduce((n,l)=>n+l.low,0),priced.customer.range.low);assert.equal(priced.customer.lineItems.reduce((n,l)=>n+l.high,0),priced.customer.range.high);
  const missing=tasks.map(t=>({...t,additions:t.additions.map(a=>({...a,building:undefined}))}));
- const held=await priceCompleteScope(restricted,config,replies([{tasks:missing,issues:[]},{coveredTaskIds:['Main','ADU'],issues:[]}]),now);assert.ok(held.customer.range,'range released');assert.ok(held.customer.assumptions.some((a:string)=>/^To confirm: /.test(a)&&/building/i.test(a)),'the missing building assignment is disclosed');assert.ok(held.internal.scopePricing.issues.some(i=>/building/i.test(i)),'and kept for staff');
+ const held=await priceCompleteScope(restricted,config,replies([{tasks:missing,issues:[]},{coveredTaskIds:['Main','ADU'],issues:[]}]),now);assert.equal(held.customer.range,null,'separate totals require building assignments');assert.ok(held.customer.verificationItems?.some((a:string)=>/building/i.test(a)));assert.ok(held.internal.scopePricing.issues.some(i=>/building/i.test(i)));
 });
 test('Undated independent guide averages retain retrieval date and freshness limitations',()=>{
  const guides={...researched,rates:[{...researched.rates[0],sources:researched.rates[0].sources.map(s=>({...s,publishedAt:'',dateBasis:'retrieved',sourceType:'national-guide',region:'United States'}))}]};
@@ -360,16 +363,35 @@ test('Repair does not erase a non-price blocker when it adds a positive rule',as
  ];
  const request:PricingRequest=async()=>({value:queue.shift(),sourceUrls:urls});
  const result=await priceCompleteScope({...scope,answers:{...scope.answers,service:'handyman'}},config,request,now);
- assert.ok(result.customer.range,'range released');assert.ok(result.customer.assumptions.some((a:string)=>/^To confirm: /.test(a)),'the retained blocker is disclosed');
+ assert.equal(result.customer.range,null,'an unresolved deterministic quantity conflict still blocks release');assert.ok(result.customer.verificationItems?.some((a:string)=>/does not match the explicit quantity/i.test(a)));
  assert.ok(result.internal.scopePricing.issues.some(issue=>/does not match the explicit quantity/i.test(issue)));
 });
 
-test('research receives catalog additions as covered work, not only existing lines',async()=>{
+test('research sees only actual positive priced work, never rejected additions or removed lines',async()=>{
   const {coveredWork}=await import('../lib/p5/scopePricing.ts');
-  const configuration={finance:{} as any,costBooks:[],planningCatalog:{version:'v',source:'s',importedAt:'2026-09-01T00:00:00.000Z',authorizedBy:'t',rates:[{code:'03-15-02-M',description:'Tile - Materials',type:'Material',unit:'SF',amount:16,basis:'',effectiveDate:'2026-09-01'}]} as any};
-  const task={existingLineIds:['line-1'],additions:[{code:'03-15-02-M',quantity:78},{code:'unknown-code',quantity:1}]};
-  const covered=coveredWork(task,[{id:'line-1',description:'Plumbing - Labor',quantity:6,unit:'HR'},{id:'line-2',description:'Other',quantity:1,unit:'EA'}],configuration);
-  assert.deepEqual(covered,[{description:'Plumbing - Labor',quantity:6,unit:'HR'},{description:'Tile - Materials',quantity:78,unit:'SF'},{description:'unknown-code',quantity:1,unit:''}]);
+  const mixed={...extra,existingLineIds:['line-1','scope-1','removed-line'],additions:[{code:'03-15-02-M',quantity:10,quantityEvidence:'10 LF'},{code:'03-15-02-M',quantity:132,quantityEvidence:'Unexplained 132 LF'},{code:'unknown-code',quantity:1,quantityEvidence:'1 each'}]};
+  const accepted=catalogResolution({tasks:[mixed],issues:[],notes:[],replacements:[],removeExclusions:[]} as Parameters<typeof catalogResolution>[0],config,[],now,scope);
+  assert.equal(accepted.rules.length,1,'mismatched and unknown additions are rejected');
+  const priced=[{id:'line-1',description:'Plumbing - Labor',quantity:6,unit:'HR',unitCost:40},{id:'scope-1',description:'Overlay material',quantity:10,unit:'LF',unitCost:100},{id:'line-2',description:'Other',quantity:1,unit:'EA',unitCost:100}];
+  assert.deepEqual(coveredWork(mixed,priced,accepted.rules),[{description:'Plumbing - Labor',quantity:6,unit:'HR'},{description:'Overlay material',quantity:10,unit:'LF'}],'accepted additions appear once and rejected proposals never imply coverage');
+  assert.deepEqual(coveredWork(mixed,priced.map(line=>({...line,unitCost:0})),accepted.rules),[],'zero-cost components cannot imply coverage');
+});
+
+test('Explicit cutting-waste allowances increase purchased material without increasing installed labor',()=>{
+ const trim={...extra,id:'baseboard',description:'Baseboard',evidence:'Install 120 linear feet of baseboard.',researchDescription:''};
+ const waste={code:'03-15-02-M',quantity:132,quantityEvidence:'ALLOWANCE: 120 LF installed plus 10% cutting waste = 132 LF purchased.',quantityRange:{low:120,high:132}};
+ const resolve=(additions:Parameters<typeof catalogResolution>[0]['tasks'][number]['additions'])=>catalogResolution({tasks:[{...trim,additions}],issues:[],notes:[],replacements:[],removeExclusions:[]},config,[],now,scope);
+ const valid=resolve([waste,{code:'03-15-02-L',quantity:120,quantityEvidence:'120 LF installed'}]);
+ assert.deepEqual(valid.rules.map(rule=>rule.quantity.fixed),[132,120]);assert.deepEqual(valid.issues,[]);
+ assert.equal(valid.rules[0].allowance,true);assert.deepEqual(valid.rules[0].quantityRange,{low:120,high:132});
+ for(const changed of [
+  {code:'03-15-02-L'},
+  {quantity:144},
+  {quantityRange:null},
+  {quantityRange:{low:133,high:140}},
+  {quantityEvidence:'ALLOWANCE: 132 LF including waste.'},
+  {quantityEvidence:'ALLOWANCE: 100 LF installed plus 10% cutting waste = 132 LF purchased.'},
+ ]){const rejected=resolve([{...waste,...changed}]);assert.equal(rejected.rules.length,0,JSON.stringify(changed));assert.ok(rejected.issues.some(issue=>/does not match/.test(issue)));}
 });
 
 test('A mapping batch that times out is halved and both halves are priced',async()=>{
@@ -452,7 +474,7 @@ test('An audit that faults a planning allowance for being uncited cannot withhol
  assert.ok((r.internal as any).scopePricing.issues.some((i:string)=>/uncited general estimating knowledge/.test(i)),'the audit note stays in the audit trail for staff');
  assert.equal(calls,5,'inventory, mapping, research (timed out), planning and one audit: no repair round for a planning-basis note');
 });
-test('Always-release policy: findings are disclosed with the range, but a missing measurement is still asked for',async()=>{
+test('Unresolved duplicate pricing blocks release, and missing measurements remain questions',async()=>{
  const tasks=[{...task,id:'drywall',description:'Patch drywall',researchDescription:''}];
  const run=async(auditIssue:string)=>{let calls=0;const request:PricingRequest=async(_i,input)=>{const d=input as any;calls++;
   if(calls===1)return {value:{tasks:tasks.map(({id,description,evidence})=>({id,description,evidence})),issues:[]},sourceUrls:[]};
@@ -461,14 +483,14 @@ test('Always-release policy: findings are disclosed with the range, but a missin
   throw new Error('unexpected request');};
   return priceCompleteScope(scope,config,request,now);};
  const judged=await run('Patch drywall: the labor line appears to double count the mobilization already carried.');
- assert.ok(judged.customer.range,'a judgement call ships with the range');
- assert.ok(judged.customer.assumptions.some((a:string)=>/^To confirm: .*double count/.test(a)),'and is disclosed as an item to confirm');
+ assert.equal(judged.customer.range,null,'unresolved duplicate costs cannot ship as a complete estimate');
+ assert.ok(judged.customer.verificationItems.some((a:string)=>/double count/.test(a)),'the unresolved finding remains visible');
  assert.ok(judged.internal.scopePricing.issues.some(i=>/double count/.test(i)),'and stays in the audit trail');
  const askable=await run('Missing quantity: sqft');
  assert.equal(askable.customer.range,null,'a missing measurement is asked for, not guessed around');
  assert.ok(askable.internal.missingInformation.some((m:string)=>/^Missing quantity: sqft/.test(m)),'it reaches the customer as a question');
 });
-test('A repair round is not started once the pricing job is past its repair budget; findings are disclosed instead',async()=>{
+test('Exhausting the repair budget preserves the scope hold instead of authorizing an unchecked total',async()=>{
  const tasks=[{...task,id:'drywall',description:'Patch drywall',researchDescription:''}];
  const run=async(startedAt:Date)=>{let mappings=0,audits=0;const request:PricingRequest=async(_i,input)=>{const d=input as any;
   if(d.taskBatch){mappings++;return {value:{tasks:d.taskBatch.map((t:any)=>({...tasks.find(x=>x.id===t.id)!,...t})),issues:[],notes:[],replacements:[],removeExclusions:[]},sourceUrls:[]};}
@@ -479,9 +501,29 @@ test('A repair round is not started once the pricing job is past its repair budg
  assert.equal(fresh.mappings,2,'a fresh job repairs the finding');assert.equal(fresh.audits,2);
  const late=await run(new Date(Date.now()-6*60*1000));
  assert.equal(late.mappings,1,'past the budget no repair mapping runs');assert.equal(late.audits,1);
- assert.ok(late.r.customer.range,'the range is still released');
- assert.ok(late.r.customer.assumptions.some((a:string)=>/^To confirm: .*patch count/.test(a)),'and the finding is disclosed');
+ assert.equal(late.r.customer.range,null,'elapsed time cannot authorize a conflicting quantity');
+ assert.ok(late.r.customer.verificationItems.some((a:string)=>/patch count/.test(a)),'the unresolved finding remains visible');
  assert.ok(late.r.internal.scopePricing.issues.some(i=>/Repair round skipped/.test(i)),'the skip is recorded for staff');
+});
+test('A partial finishing allowance cannot release a total that omits baseboard material',async()=>{
+ const omission='BASE-001 is not fully priced: no positive priced line carries baseboard material. planning-1 covers caulk, filler, paint and finishing labor; the proposed material addition was not converted into a priced line.';
+ assert.equal(advisoryIssue(omission),false,'a planning line cannot hide a material omission');
+ assert.equal(advisoryIssue('Regional planning average has missing material and unpriced fasteners.'),false);
+ const trim={...extra,id:'BASE-001',description:'Baseboard installation',evidence:'Install 120 linear feet of painted baseboard.',researchDescription:'Baseboard finishing',additions:[{code:'03-15-02-L',quantity:120,quantityEvidence:'120 LF installed'}]};
+ let audits=0;
+ const request:PricingRequest=async(_instructions,input)=>{
+  const data=input as {taskBatch?:unknown;tasks?:unknown;region?:unknown};
+  if(data.taskBatch)return {value:{tasks:[trim],issues:[]},sourceUrls:[]};
+  if('priorPricingIssues' in data){audits++;return {value:{coveredTaskIds:[],issues:[omission]},sourceUrls:[]};}
+  if(data.tasks&&data.region)return {value:{rates:[{taskId:trim.id,description:'Baseboard finishing allowance',unit:'LF',quantity:120,quantityEvidence:'120 LF',basis:'trade-labor',includes:'caulk, filler, paint and finishing labor only',excludes:'baseboard material',low:3,high:6,confidence:'low',rationale:'Synthetic fixture only.'}],issues:[]},sourceUrls:[]};
+  return {value:{tasks:[{id:trim.id,description:trim.description,evidence:trim.evidence}],issues:[]},sourceUrls:[]};
+ };
+ const result=await priceCompleteScope(scope,config,request,new Date(Date.now()-6*60*1000));
+ assert.equal(audits,1,'expired repair budget does not initiate more provider work');
+ assert.equal(result.customer.range,null,'the partial allowance never becomes a full-scope range');
+ assert.ok(result.customer.verificationItems.includes(omission));
+ assert.ok(!result.customer.assumptions.some(item=>item.includes(omission)),'missing work cannot become a routine assumption');
+ assert.ok(result.internal.scopePricing.issues.some(item=>/full pricing coverage/.test(item)));
 });
 test('Past the research window a gap goes straight to the planning average without a web search',async()=>{
  const tasks=[{...task,id:'drywall',description:'Patch drywall',researchDescription:''},{...extra,id:'texture',description:'Ceiling texture',researchDescription:'Matching ceiling texture over 30 sf'}];
