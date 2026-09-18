@@ -133,7 +133,7 @@ export async function runFixture(fixture,{root,key,parseOnly=false,request=fetch
   report.notes=['Uses actual production processing code in isolated local SQL storage. This is not the deployed website/worker or its queue.',
    ...(seedPages.length?['Native source pages and validated evidence were reused from a previous paid run. This is not a cold full-file performance measurement.']:[]),
    'QA provider concurrency is one for diagnosis and cost containment. This is not a production concurrency benchmark.',
-   'The isolated sequential queue has a separate overall time window; production deadlines and per-provider timeouts are unchanged.',
+   'QA uses the same bounded provider stream handling as production code, with a separate sequential queue window.',
    'No network upload is measured. Token counting adds QA overhead; summed parallel stages do not equal wall time.',
    'One run is not a percentile benchmark. Cached/resumed runs are not cold processing performance.',
    'No price, branded PDF, email, live adapter activation or 99.9% accuracy claim follows from this test.'];
