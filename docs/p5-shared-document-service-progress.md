@@ -474,3 +474,31 @@ pull/republish is the current deployment blocker. No live deployment of the
 pricing fix, all-site activation or performance target is claimed. The retained
 completion ledger above still governs document benchmarks, accuracy review,
 RE-10, rollback, PDF presentation and remaining UI/SEO verification.
+
+## Sonnet model qualification in progress: 2026-09-18
+
+Working branch: qa/p5-sonnet-real-documents-20260918, recovered from main
+115d9f3382e8173cf6a0995632e63babb9778d46. Preserve the five pricing releases above.
+Owner authorizes testing Sonnet on the original four-page redacted PDF and a
+larger real plan set. Existing planning-cost logic already permits disclosed
+standard-profile and regional-average allowances; asking more questions is not
+itself an accuracy measure. Missing source quantities and exclusions stay intact.
+
+The owner-run single synthetic Sonnet 5 review passed structural/provenance checks
+in 11,541 ms, versus the earlier Opus 5 check at 22,321 ms. This one comparison
+is not an average, percentile, independent accuracy score or PDF processing test.
+The Sonnet result retained 120 lf baseboard, four doors, absent door dimensions
+and excluded plumbing/electrical. It did not flag baseboard supply/paint choices;
+their eventual handling as questions or disclosed allowances needs qualification.
+
+Available private fixtures: exact Neilsen four-page file (digest above), Lot 23
+construction set (23 pages, 12,468,822 bytes), Lot 29 (15 pages, 19,107,678 bytes).
+Earlier parser-only runs do not establish provider behavior. No 100-page real
+set has been selected. Never pad a plan set to claim that workload was tested.
+
+Direct Replit Shell execution and provider credentials are unavailable here.
+No keys were requested or exposed, no production model/configuration was changed,
+and no paid provider calls have been made by this session. Next: prepare an
+isolated, bounded runner using the actual service pipeline, then have the owner
+execute it where the existing provider key is available. Keep source documents
+and reports outside public Git and CI artifacts. No new server/database service.
