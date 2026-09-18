@@ -258,8 +258,23 @@ on pre-existing violations; the changed pricing test has the same lint findings 
 main, and all changed service code/scripts/tests pass scoped lint. No new lint
 violations are introduced. The final pricing regression rerun passed all 44 tests.
 
-Next: complete PR service/database, estimator, production-build and container checks,
-merge reviewed code, pull P5 and republish without destructive migrations. Then run:
+Release: PR #52 merged as 9e71382acc049a265385a44d599c6a1e1009bdac.
+Reviewed head: 83f8d0552491914474f47ebd0b877839df5016f7.
+The merged tree exactly matches tested tree 37749982508102176efec4400c213ce3eb023377.
+CI run https://github.com/webiq1206/p5-home-co/actions/runs/35310610662 passed:
+real PostgreSQL/HTTP/PDF/coverage tests, saved-file adapter integration, estimator
+regressions, production build, existing-server cohost startup, and worker container
+build/startup/authenticated readiness. No live provider was called by these tests.
+
+Latest satellite main branches were fetched and compared: Remodeling d5c2b14e,
+Construction c3d63f0b, Handyman 267e919d, Cabinet 26d41d89. All five share identical
+scopePricing.ts and pricing.ts blobs (a8e1194be3efb3a8dd4087ecf35fade3236d3926 and
+d76a128018a88ab51c865012055dfd628056896f). Their existing custom-task and allowance
+engine does not need duplication. This release changes shared P5 service behavior.
+
+Deployment remains pending. This session cannot run the Replit Shell through the
+available connector; the owner must pull P5 main and republish without destructive
+migrations. Then run:
 
     node services/document-service/scripts/check-saved-qa-review.mjs
 
