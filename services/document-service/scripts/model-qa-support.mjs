@@ -3,7 +3,8 @@ import {PGlite} from '@electric-sql/pglite';
 import {readFile,writeFile,rename,mkdir} from 'node:fs/promises';
 import {dirname,join} from 'node:path';
 import {DDL} from '../src/store.mjs';
-import {ServiceError,hash} from '../src/core.mjs';
+import {collectAnthropicResponse} from '../src/anthropic-stream.mjs';
+import {ServiceError,hash,stable} from '../src/core.mjs';
 
 export async function privateJson(file,value){
  await mkdir(dirname(file),{recursive:true,mode:0o700});
@@ -34,6 +35,10 @@ const cost=usage=>((usage.input_tokens||0)*2+(usage.output_tokens||0)*10+
  (usage.cache_creation_input_tokens||0)*2.5+(usage.cache_read_input_tokens||0)*.2)/1e6;
 const safeUsage=usage=>Object.fromEntries(['input_tokens','output_tokens','cache_creation_input_tokens','cache_read_input_tokens'].map(k=>[k,Number.isSafeInteger(usage?.[k])&&usage[k]>=0?usage[k]:0]));
 
+// Explicit owner recovery accepts this exact historical reservation, never a new call.
+export function reservationFingerprint(record){const {acknowledgement,...original}=record;return hash(stable(original));}
+export function reservationAcknowledged(record){return record.acknowledgement?.action==='resume-reserved'&&record.acknowledgement.fingerprint===reservationFingerprint(record);}
+
 /** Reserve before sending. Unknown/timeout charges retain their full reservation.
  * The provider token counter is an estimate, so this is NOT a billing hard cap. */
 export async function guardedSonnetFetch({file,limitUsd,maxCalls,request=fetch,onRequest=()=>{},onPause=()=>{},reuseResponses=false}){
@@ -42,7 +47,7 @@ export async function guardedSonnetFetch({file,limitUsd,maxCalls,request=fetch,o
  if(state.version!==1||state.model!=='claude-sonnet-5'||!Array.isArray(state.calls)||state.calls.some(c=>!Number.isFinite(c.reservedUsd)||c.reservedUsd<0))throw Error('Invalid saved QA cost ledger.');
  // A previous interrupted call may have incurred charges. Resuming the same
  // ledger must not issue more paid requests, even if its estimate is below cap.
- state.paused=Boolean(state.paused||state.calls.some(c=>['reserved','charge-unknown'].includes(c.status)));
+ state.paused=Boolean(state.paused||state.calls.some(c=>['reserved','charge-unknown'].includes(c.status)&&!reservationAcknowledged(c)));
  const checkPaused=()=>{if(state.paused)throw new ServiceError('qa-paused-unknown-provider-charge',422);};
  let persistence=Promise.resolve();
  const save=()=>{const snapshot=structuredClone(state);persistence=persistence.then(()=>privateJson(file,snapshot));return persistence;};
@@ -79,7 +84,10 @@ export async function guardedSonnetFetch({file,limitUsd,maxCalls,request=fetch,o
    onRequest(state.calls.length);sent=true;
    response=await request(url,{...options,redirect:'error'});
    record.httpStatus=response.status;
-   const responseText=await response.clone().text();
+   record.requestId=response.headers.get('request-id')||null;
+   await save();
+   const responseText=await collectAnthropicResponse(response,{signal:options.signal,onProgress:progress=>{record.progress=progress;options.onProviderProgress?.(progress);}});
+   response=new Response(responseText,{status:response.status,headers:{'content-type':'application/json'}});
    // Persist the paid reply BEFORE schema/domain validation. No headers or keys
    // are written. A rejected citation remains available for free local replay.
    const responseFile=join('responses',String(state.calls.indexOf(record)+1).padStart(4,'0')+'.json');
@@ -92,6 +100,7 @@ export async function guardedSonnetFetch({file,limitUsd,maxCalls,request=fetch,o
    }else throw new ServiceError('qa-provider-usage-missing',422);
   }catch(error){
    if(!sent){record.status='not-sent';record.reservedUsd=0;await save();throw error;}
+   record.failure={code:typeof error.code==='string'?error.code:error.name||'provider-error'};
    record.status='charge-unknown';state.paused=true;
    const paused=new ServiceError('qa-paused-unknown-provider-charge',422);
    onPause(paused);await save();throw paused;

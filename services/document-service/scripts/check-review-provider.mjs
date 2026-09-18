@@ -1,8 +1,10 @@
 // One explicit, synthetic provider request. No database, uploads or automatic retries.
 import {requestBody,parseReply} from '../src/provider.mjs';
 import {REVIEW_SYSTEM,REVIEW_SCHEMA,validateReview} from '../src/contracts.mjs';
+import {collectAnthropicResponse,responseDeadline} from '../src/anthropic-stream.mjs';
 import {validateSchema} from '../src/schema.mjs';
 
+let deadline;
 try {
  if(process.env.DOCUMENT_PROVIDER!=='anthropic')throw Error('This check is for the configured Anthropic integration.');
  const model=process.env.DOCUMENT_MODEL,key=process.env.ANTHROPIC_API_KEY;
@@ -25,8 +27,9 @@ try {
  console.log('Model:',model);
  console.log('Making one synthetic reconciliation request. No PDF is uploaded or read.');
  const started=performance.now();
- const response=await fetch(built.url,{method:'POST',headers:{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01'},body:JSON.stringify(built.body),signal:AbortSignal.timeout(45000),redirect:'error'});
- const data=await response.json();
+ deadline=responseDeadline(new AbortController().signal,40000,120000);
+ const response=await fetch(built.url,{method:'POST',headers:{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01'},body:JSON.stringify(built.body),signal:deadline.signal,redirect:'error'});
+ const data=JSON.parse(await collectAnthropicResponse(response,{signal:deadline.signal,onProgress:deadline.touch}));
  console.log('HTTP status:',response.status);
  if(!response.ok){
   // Only synthetic public input was sent. Never reuse this diagnostic for customer data.
@@ -41,4 +44,4 @@ try {
 } catch(error) {
  console.error('Check stopped:',error.code||(['TimeoutError','AbortError'].includes(error.name)?'provider-timeout':error.message));
  process.exitCode=1;
-}
+} finally {deadline?.close();}

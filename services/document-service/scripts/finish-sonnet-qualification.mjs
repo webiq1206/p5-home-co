@@ -51,7 +51,8 @@ async function siteChecks(){
 }
 
 async function main(){
- const bundlePath=resolve(process.argv[2]||'p5-sonnet-fixtures.json');
+ const resumeReserved=process.argv[2]==='resume-reserved';
+ const bundlePath=resolve(process.argv[resumeReserved?3:2]||'p5-sonnet-fixtures.json');
  if((await stat(bundlePath)).size>40*1024*1024)throw Error('QA bundle exceeds the allowed size.');
  await chmod(bundlePath,0o600);
  const bundle=JSON.parse(await readFile(bundlePath,'utf8'));
@@ -63,10 +64,11 @@ async function main(){
  const report={profile:PROFILE,previousRunEstimate:recovered.previousRunEstimate,previousProbeEstimate:recovered.previousProbeEstimate,fixtures:[],sites:await siteChecks(),allSitesQualified:false};
  console.log('Recovered saved evidence without AI calls. Additional estimated limits: $1 unfinished short-file work; $3 plans only after short-file checks pass.');
  console.log('Prior ledgers stay unchanged. One request at a time; stop on unknown charges. Cached completion is not a cold performance benchmark.');
- console.log('The sequential plans test has up to 20 minutes. Production timeouts and the $1/$3 estimated limits are unchanged.');
+ console.log('Streaming: 40-second idle default, 120-second total default. Sequential QA windows: 10 minutes short, 20 minutes plans. Existing $1/$3 estimated limits remain.');
+ if(resumeReserved)console.log('Explicit recovery retains the full previous unknown reservation as spent. Any new unknown charge pauses again.');
  const file=join(root,'qualification-report.json');
  for(const fixture of bundle.fixtures){
-  const r=await runFixture(fixture,{root,key:process.env.ANTHROPIC_API_KEY,...(fixture.id==='short'?{seedPages:recovered.pages,recoverLegacyCitationFailure:true}:{})});
+  const r=await runFixture(fixture,{root,key:process.env.ANTHROPIC_API_KEY,...(fixture.id==='short'?{seedPages:recovered.pages,recoverLegacyCitationFailure:true,resumeReserved}:{})});
   report.fixtures.push({id:r.id,complete:r.complete,error:r.error,reusedPages:r.reusedPages,elapsedMs:r.currentInvocationMs,cost:r.cost,quality:r.quality,report:join(root,fixture.id+'-'+fixture.sha256.slice(0,16),'report.json')});
   await privateJson(file,report);
   if(!r.complete){process.exitCode=1;break;}

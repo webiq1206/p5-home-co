@@ -103,7 +103,7 @@ test('provider failure metrics identify the request shape without source text or
   async()=>{throw new DOMException('Private provider error body','TimeoutError');});
  await assert.rejects(reader.call({kind:'read',attempts:2},'private instructions',{pages:[{page:2,text:'Private source contents'}]},[],EVIDENCE_SCHEMA,signal()),/provider-timeout/);
  const detail=metrics[0][3];
- assert.deepEqual(detail.pages,[2]);assert.equal(detail.attempt,2);assert.equal(detail.timeoutMs,40000);assert.equal(detail.maxOutputTokens,10000);
+ assert.deepEqual(detail.pages,[2]);assert.equal(detail.attempt,2);assert.equal(detail.timeoutMs,120000);assert.equal(detail.maxOutputTokens,10000);
  assert.equal(detail.cancelled,false);assert.equal(released,1);
  assert.ok(!JSON.stringify(metrics).includes('Private'));assert.ok(!JSON.stringify(metrics).includes('secret-not-for-metrics'));
 });

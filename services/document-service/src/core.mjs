@@ -7,6 +7,7 @@ export const jobId=(tenant,project,kind,input)=>hash(stable([VERSION,tenant,proj
 export class ServiceError extends Error{
   constructor(code,status=400,retryMs=0){super(code);this.code=code;this.status=status;this.retryMs=retryMs;}
 }
+export const providerCallLimit=config=>config.provider==='anthropic'?Math.max(config.callMs,config.streamMs??120000):config.callMs;
 export function identifier(value,label='identifier'){
  if(typeof value!=='string'||! /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,127}$/.test(value))throw new ServiceError(`invalid-${label}`);
  return value;
@@ -53,7 +54,7 @@ export function readConfig(env=process.env){
  bindHost:env.DOCUMENT_BIND_HOST||'0.0.0.0',poolMax:integer('DOCUMENT_DATABASE_POOL_MAX',Math.max(6,Number(env.DOCUMENT_PROVIDER_SLOTS||12)+Number(env.DOCUMENT_PARSER_SLOTS||2)),2,64),uploadSlots:integer('DOCUMENT_UPLOAD_SLOTS',4,1,4),
  port:integer('PORT',8080,1,65535),maxBytes:integer('DOCUMENT_MAX_BYTES',50*1024*1024,1048576,250*1024*1024),maxPages:integer('DOCUMENT_MAX_PAGES',200,1,2000),
  slots:integer('DOCUMENT_PROVIDER_SLOTS',12,1,48),parserSlots:integer('DOCUMENT_PARSER_SLOTS',2,1,8),rpm:integer('DOCUMENT_REQUESTS_PER_MINUTE',60,1,5000),tpm:integer('DOCUMENT_TOKENS_PER_MINUTE',600000,10000,20000000),
- callMs:integer('DOCUMENT_CALL_TIMEOUT_MS',40000,5000,120000),parseMs:integer('DOCUMENT_PARSE_TIMEOUT_MS',60000,5000,180000),jobMs:integer('DOCUMENT_JOB_TIMEOUT_MS',300000,60000,1200000),
+ callMs:integer('DOCUMENT_CALL_TIMEOUT_MS',40000,5000,120000),streamMs:integer('DOCUMENT_STREAM_TIMEOUT_MS',120000,5000,120000),parseMs:integer('DOCUMENT_PARSE_TIMEOUT_MS',60000,5000,180000),jobMs:integer('DOCUMENT_JOB_TIMEOUT_MS',300000,60000,1200000),
  maxOutput:integer('DOCUMENT_MAX_OUTPUT_TOKENS',10000,1024,32000),retentionDays:integer('DOCUMENT_RETENTION_DAYS',30,1,365),maxTenantBytes:integer('DOCUMENT_TENANT_STORAGE_BYTES',2*1024*1024*1024,50*1024*1024,100*1024*1024*1024),maxQueue:integer('DOCUMENT_TENANT_MAX_QUEUED',30,1,500),
  instance:randomUUID()};
 }

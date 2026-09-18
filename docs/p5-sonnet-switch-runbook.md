@@ -75,6 +75,37 @@ customer journey success. Existing cached results are not cold performance tests
 The original full-file and one-page probe commands are historical diagnostics;
 do not run them again instead of this completion command.
 
+## Recovery after the reported 40-second interruption
+
+The reported fixed-profile ledger now has two requests: one known estimate of
+$0.050426 and one unconfirmed reserved estimate of $0.12375. Its total remains
+$0.174176 against the same $1 short-file limit. Do not delete or reset it.
+
+The default command still honors this pause. After pulling the streaming fix,
+the owner can explicitly accept keeping that full unconfirmed reservation as
+spent within the existing budget and continue with:
+
+```sh
+node services/document-service/scripts/finish-sonnet-qualification.mjs resume-reserved
+```
+
+This is a one-time recovery of the exact reported page-3 interruption. It archives
+the prior report, jobs and ledger, preserves pages 1 and 2, and changes neither
+prior charges nor the $1/$3 estimated limits. Any new unknown charge pauses again.
+It does not assert that Anthropic actually billed the reserved amount. Repeating
+this recovery mode refuses a second restart; a successful completed run is read
+with the ordinary command above. No upload, environment edits or republish is
+needed for this isolated qualification command.
+
+Anthropic calls now request SSE streaming. The existing 40-second default becomes
+an idle-response deadline, with a separate 120-second total deadline. Provider
+leases cover that full bound, and parent cancellation remains effective. The
+sequential QA windows are 10 minutes for the short file and 20 minutes for plans;
+production job-age limits, concurrency and token/spend limits are unchanged.
+This extends allowed response time and does not establish a 60-second performance
+pass. Complete responses require the final stream marker and final usage. Partial
+usage is retained only as diagnostic information with the full reservation.
+
 ## Verified versus open
 
 All five latest unit-rate source PR checks were reconfirmed successful on

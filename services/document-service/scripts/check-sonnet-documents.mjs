@@ -9,10 +9,11 @@ import {Store} from '../src/store.mjs';
 import {Pipeline} from '../src/pipeline.mjs';
 import {Reader} from '../src/provider.mjs';
 import {parsePdf} from '../src/parser.mjs';
-import {readConfig,hash,validateEvidence,ServiceError} from '../src/core.mjs';
+import {readConfig,hash,validateEvidence,ServiceError,providerCallLimit} from '../src/core.mjs';
 import {validateSchema} from '../src/schema.mjs';
 import {EVIDENCE_SCHEMA} from '../src/contracts.mjs';
 import {citationInput} from '../src/evidence-citations.mjs';
+import {resumeReservedStream} from './resume-reserved-stream.mjs';
 import {resumeLegacyCitationFailure} from './resume-citation-failure.mjs';
 import {summarizeStages} from '../src/benchmark-metrics.mjs';
 import {isolatedPool,guardedSonnetFetch,privateJson,targetedChecks} from './model-qa-support.mjs';
@@ -20,14 +21,14 @@ import {isolatedPool,guardedSonnetFetch,privateJson,targetedChecks} from './mode
 // Sequential diagnostic queues need their own window. This does not alter the
 // production job deadline, per-call timeout, provider capacity or cost guards.
 export function qualificationWindow(config,id){
- const windowMs=id==='plans'?1200000:Math.max(300000,config.jobMs);
+ const windowMs=id==='plans'?1200000:Math.max(600000,config.jobMs);
  return {windowMs,jobMs:Math.max(windowMs,config.jobMs)};
 }
 export function admitBeforeDeadline(deadline,callMs,now=performance.now()){
  if(deadline-now<callMs+5000)throw new ServiceError('qa-window-complete-before-next-request',422);
 }
 
-export async function runFixture(fixture,{root,key,parseOnly=false,request=fetch,log=console.log,seedPages=[],recoverLegacyCitationFailure=false}={}){
+export async function runFixture(fixture,{root,key,parseOnly=false,request=fetch,log=console.log,seedPages=[],recoverLegacyCitationFailure=false,resumeReserved=false}={}){
  const bytes=Buffer.from(fixture.pdfBase64,'base64');
  if(!['short','plans'].includes(fixture.id)||hash(bytes)!==fixture.sha256||bytes.length>25*1024*1024||fixture.pages!==({short:4,plans:23})[fixture.id])throw Error('Invalid fixture bundle or source digest.');
  const providerLimit=fixture.id==='short'?1:3,maxCalls=fixture.id==='short'?12:64;
@@ -48,10 +49,11 @@ export async function runFixture(fixture,{root,key,parseOnly=false,request=fetch
  const timing=qualificationWindow(config,fixture.id);config.jobMs=timing.jobMs;
  const controller=new AbortController(),limit=timing.windowMs,deadline=performance.now()+limit;
  let stop,document,review,started,runType='new';
- const costGuard=await guardedSonnetFetch({file:join(directory,'cost.json'),limitUsd:providerLimit,maxCalls,request,reuseResponses:true,onRequest:n=>log(fixture.id+': provider request '+n),onPause:error=>controller.abort(error)});
+ const makeCostGuard=()=>guardedSonnetFetch({file:join(directory,'cost.json'),limitUsd:providerLimit,maxCalls,request,reuseResponses:true,onRequest:n=>log(fixture.id+': provider request '+n),onPause:error=>controller.abort(error)});
+ let costGuard=await makeCostGuard();
  const pool=await isolatedPool(join(directory,'database')),store=new Store(pool,config);
  const reader=new Reader(config,store,(url,options)=>{
-  admitBeforeDeadline(deadline,config.callMs);
+  admitBeforeDeadline(deadline,providerCallLimit(config));
   return costGuard.request(url,{...options,signal:AbortSignal.any([options.signal,controller.signal])});
  });
  const parser=(data,options)=>{
@@ -68,6 +70,11 @@ export async function runFixture(fixture,{root,key,parseOnly=false,request=fetch
   await store.init();started=performance.now();
   const receipt=await store.putDocument('model-qa','source-check','fixture.pdf',bytes);document=receipt.document;
   runType=receipt.cached?'resume-or-cache':'new';
+  if(resumeReserved&&fixture.id==='short'){
+   await resumeReservedStream(store,document,directory);
+   costGuard=await makeCostGuard();document=await store.document('model-qa','source-check',document.id);
+   runType='resume-reserved-stream';log('short: full prior reservation retained; pages 1 and 2 preserved; unfinished work uses bounded streaming.');
+  }
   if(recoverLegacyCitationFailure&&fixture.id==='short'&&await resumeLegacyCitationFailure(store,document,directory)){
    document=await store.document('model-qa','source-check',document.id);
    runType='resume-citation-recovery';log('short: preserved pages 1 and 2 and prior charges; resuming unfinished work with citation recovery.');
@@ -126,7 +133,7 @@ export async function runFixture(fixture,{root,key,parseOnly=false,request=fetch
   report.notes=['Uses actual production processing code in isolated local SQL storage. This is not the deployed website/worker or its queue.',
    ...(seedPages.length?['Native source pages and validated evidence were reused from a previous paid run. This is not a cold full-file performance measurement.']:[]),
    'QA provider concurrency is one for diagnosis and cost containment. This is not a production concurrency benchmark.',
-   'The isolated sequential queue has a separate overall time window; production deadlines and per-provider timeouts are unchanged.',
+   'QA uses the same bounded provider stream handling as production code, with a separate sequential queue window.',
    'No network upload is measured. Token counting adds QA overhead; summed parallel stages do not equal wall time.',
    'One run is not a percentile benchmark. Cached/resumed runs are not cold processing performance.',
    'No price, branded PDF, email, live adapter activation or 99.9% accuracy claim follows from this test.'];

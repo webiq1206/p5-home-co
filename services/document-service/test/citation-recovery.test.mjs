@@ -4,6 +4,7 @@ import {mkdtemp,readFile,rm,stat} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {isolatedPool,guardedSonnetFetch,privateJson} from '../scripts/model-qa-support.mjs';
+import {resumeReservedStream} from '../scripts/resume-reserved-stream.mjs';
 import {resumeLegacyCitationFailure} from '../scripts/resume-citation-failure.mjs';
 import {qualificationWindow,admitBeforeDeadline} from '../scripts/check-sonnet-documents.mjs';
 import {Store} from '../src/store.mjs';
@@ -145,5 +146,33 @@ test('legacy recovery archives the reported failure, retains charges and pages, 
   assert.equal((await f.store.job('qa','test',f.job.id)).attempts,1);
   assert.equal((await f.store.document('qa','test',doc.id)).state,'prepared');
   await assert.rejects(resumeLegacyCitationFailure(f.store,doc,root),/already attempted/);
+ }finally{await f.pool.end();await rm(root,{recursive:true,force:true});}
+});
+
+
+test('explicit reserved-charge recovery archives the failure, preserves costs and pages, and refuses another restart',async()=>{
+ const root=await mkdtemp(join(tmpdir(),'p5-reserved-stream-')),f=await fixture();
+ try{
+  await f.pool.query('UPDATE p5ds_documents SET page_count=4,digest=$2 WHERE id=$1',[f.document.id,'ef5caf06821319350a3f672d98a1c42db2311d601d570cb5345d76f9808a3018']);
+  for(let page=2;page<=4;page++)await f.store.putPage(f.job,{...native,page,image:Buffer.from('synthetic')});
+  for(const page of [1,2])await f.pool.query('UPDATE p5ds_pages SET evidence=$3 WHERE document_id=$1 AND page=$2',[f.document.id,page,{...evidence(),page}]);
+  await f.pool.query('UPDATE p5ds_jobs SET payload=$2 WHERE id=$1',[f.job.id,{pages:[3]}]);
+  await f.store.fail(f.job,new ServiceError('qa-paused-unknown-provider-charge',422));
+  const ledger={version:1,model:'claude-sonnet-5',tokenCountMs:515,calls:[{status:'usage-reported',usage:{input_tokens:3718,output_tokens:3731},reservedUsd:.050426},{status:'charge-unknown',reservedUsd:.12375}],paused:true};
+  await privateJson(join(root,'cost.json'),ledger);await privateJson(join(root,'report.json'),{error:'qa-paused-unknown-provider-charge'});
+  const review=await f.pipeline.submitReview('qa','test',{documents:[{id:f.document.id,source:'fixture.pdf'}],text:'Synthetic scope',answers:{}});
+  await f.pool.query("UPDATE p5ds_jobs SET state='failed',error_code='source-reading-failed' WHERE id=$1",[review.id]);
+  const settings={file:join(root,'cost.json'),limitUsd:1,maxCalls:12,request:()=>{throw Error('No provider call permitted');}};
+  let guard=await guardedSonnetFetch(settings);assert.equal(guard.summary().paused,true);
+  const doc=await f.store.document('qa','test',f.document.id),before=await f.store.pages(doc.id);
+  await resumeReservedStream(f.store,doc,root);
+  const archive=JSON.parse(await readFile(join(root,'reserved-stream-recovery-v1.json'),'utf8'));
+  assert.deepEqual(archive.previousLedger,ledger);assert.deepEqual(await f.store.pages(doc.id),before);
+  guard=await guardedSonnetFetch(settings);assert.equal(guard.summary().paused,false);assert.equal(guard.summary().estimatedUsd,.174176);assert.equal(guard.summary().unknownChargeRequests,1);
+  assert.equal((await f.store.job('qa','test',review.id)).state,'queued');
+  assert.equal((await f.store.job('qa','test',f.job.id)).state,'queued');assert.equal((await f.store.job('qa','test',f.job.id)).attempts,1);
+  await assert.rejects(resumeReservedStream(f.store,doc,root),/already attempted/);
+  const slot=await f.store.reserve(100),leases=await f.pool.query('SELECT extract(epoch FROM(expires_at-now())) AS seconds FROM p5ds_provider_leases WHERE token=$1',[slot]);
+  assert.ok(Number(leases.rows[0].seconds)>120);await f.store.release(slot);
  }finally{await f.pool.end();await rm(root,{recursive:true,force:true});}
 });
