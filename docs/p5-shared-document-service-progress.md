@@ -333,3 +333,85 @@ cached review and pending website questions with no further provider call. The
 P5 website adapter still requires explicit remote activation for the controlled
 customer journey. All-site rollout, independent real-document accuracy/performance,
 reload/resume, pricing, branded PDF, QA email and rollback remain open.
+
+## Deployed question handoff verified: 2026-09-18
+
+The owner published PR #54 and ran check-saved-qa-review.mjs. Both deployed
+checks passed: the saved synthetic review is complete, and the door/material
+follow-up questions are present in instructions.questions. The saved result
+retains 120 lf baseboard, four doors, unknown door dimensions and plumbing/
+electrical exclusions. Reported terminal reconciliation time is 22,700 ms;
+this reads the existing completed result, with no new upload or provider call.
+It is not total customer wait, a new benchmark sample or evidence of a speedup.
+
+Recovery main: 6521ef0b83763175675c2edff4b0f00f8e1f28f9. Compared with ledger
+release 582e3e864528318cea354d78c622003f0002451c, the six newer commits record
+Replit publishes and introduce no file changes. Existing code was preserved.
+Connected Gmail profile confirms hello@p5homeco.com is the authorized QA inbox.
+No new infrastructure, machine upgrade, spending-limit change or subscription.
+
+A controlled live website test used an isolated cloud-browser
+tab at https://p5homeco.com/quote, not the owner's browser or a physical device.
+The synthetic typed scope specifies 120 lf painted MDF baseboard and four
+30x80-inch prehung interior doors including casing, hardware and painting,
+contractor supply, Caldwell location, ready openings and explicit exclusions.
+The UI asked only for the service choice and retained all supplied scope details.
+Reload/resume preserved the reviewed scope and contact form; the required review
+checkbox correctly needed confirmation again. Phone is blank, and the test name
+is P5 QA Trim Journey 20260918. No real prospect is involved. This typed test does not exercise the remote PDF
+adapter, which still requires explicit P5-only activation after qualification.
+
+### Live pricing failure and scoped correction
+
+The typed QA journey released $6,825-$8,925 after more than five minutes of
+pricing. This is an observed slow run, not a percentile benchmark. Actual customer
+email reached the verified business inbox at 2026-09-18T13:14:01Z, reference
+95d669b3, with a 16-page PDF attachment. This is NOT a valid completed estimate:
+the email/PDF audit explicitly says baseboard material and installation fasteners
+are unpriced. The total nevertheless shipped because the final release policy
+demoted non-question audit failures to assumptions, including after the repair
+time budget expired. No customer range from this QA run is approved for use.
+
+The material mapper proposed 132 LF against 120 installed LF. Rejection of that
+unvalidated quantity did not remove it from research's "already covered" input,
+so subsequent finishing allowances omitted the actual baseboard material.
+Changes on qa/p5-deployed-followups-20260918:
+
+- Preserve missing-work, quantity-conflict and duplicate-charge findings as
+  blocking. A time budget or partial allowance cannot authorize incomplete totals.
+- Research receives actual positive priced components only, including validated
+  additions once, excluding rejected proposals and removed components.
+- Permit explicitly labeled material procurement waste with reviewed base
+  quantity, percentage, containing range and checked arithmetic. Installed labor
+  keeps its reviewed quantity. No pricing rates, finance policy or measured source
+  quantities were changed.
+- Stop presenting unresolved pricing blockers as routine "To confirm" assumptions.
+- Fix a separately reproduced saved-timeout replay bug: small failed stages now
+  make bounded real attempts, successful replies remain cached, large mappings
+  retain their split children, and three actual timeouts exhaust the stage.
+
+The chat PDF download event did not complete in the cloud-browser check; its
+download remains unverified. Email receipt and PDF text were inspected, but PDF
+visual layout, physical devices, all-site email and complete-price correctness
+remain unqualified. The verbose 16-page small-job report needs a later presentation
+review. Remote PDF adapters, RE-10, live 4/25/100-page benchmarks, independent
+accuracy qualification, concurrency and live rollback remain open.
+
+No deployment settings, database rows, production documents or provider limits
+were changed by these fixes. No new paid infrastructure. After reviewed merges,
+the owner must pull and republish because direct Replit Shell/configuration
+access remains unavailable. Next live check is a new complete-scope QA price,
+then P5-only remote-PDF qualification. Do not re-run the cached review checker as
+a substitute for either, and do not enable all five adapters yet.
+
+Validation before PR: all 366 estimator regressions pass. The new PGlite-backed
+test exercises actual saved pricing claims, persistence and replay with synthetic
+provider replies, including one-time recovery, three-attempt exhaustion and split
+mapping cache reuse. TypeScript passes; the new script passes ESLint. Existing
+scope-pricing source/tests contain pre-existing explicit-any lint errors, so a
+repository-wide clean lint is not claimed. Production builds and CI are required
+before merge. No new live provider performance claim follows from these tests.
+
+Write-path checkpoint: progress-only commit 0973a360cadcc0ef5d264a2bad80672bebb8c838
+was committed and pushed to qa/p5-deployed-followups-20260918 using the authenticated
+GitHub connector. It changes no production source.

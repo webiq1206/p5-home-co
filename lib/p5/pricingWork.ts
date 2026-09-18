@@ -45,13 +45,14 @@ export async function priceSavedScope(id:string,scope:ReviewedScope,configuratio
   const legacy=pricingReplyKey(instructions,input,search);
   const saved=payload.replies[key]||payload.replies[legacy];
   if(saved){
-    // A stage that already timed out is not re-run verbatim on the next pass:
-    // research goes straight to its planning fallback, a mapping batch is
-    // split by the caller, and anything else pauses the job until it has
-    // timed out three times, at which point it is a real failure.
+    // Research uses its existing allowance fallback and large mapping batches
+    // keep their smaller saved children. A small batch or another stage must
+    // actually retry, or replaying its timeout marker loops forever without
+    // advancing the attempt count. Only actual provider timeouts count.
     const timeouts=(saved as {timeouts?:number}).timeouts||0;
-    if(timeouts)throw new PricingStageTimeout(timeouts>=3?'pricing-stage-exhausted':'pricing-stage-timeout');
-    return saved;
+    if(timeouts>=3)throw new PricingStageTimeout('pricing-stage-exhausted');
+    if(timeouts&&(search||(batchIds&&batchIds.length>3)))throw new PricingStageTimeout('pricing-stage-timeout');
+    if(!timeouts)return saved;
   }
   // A pass ends between stages, never inside one. A stage that has started
   // keeps its whole allowance and is saved, so the next pass resumes after it
@@ -72,7 +73,7 @@ export async function priceSavedScope(id:string,scope:ReviewedScope,configuratio
     // Every timed-out stage is remembered with a count, so a replay never
     // repeats the identical oversized call: research falls back, a mapping
     // batch is halved by the caller, other stages pause and resume.
-    const prior=(payload.replies[key] as unknown as {timeouts?:number}|undefined)?.timeouts||0;
+    const prior=(saved as unknown as {timeouts?:number}|undefined)?.timeouts||0;
     payload.replies[key]={value:null,sourceUrls:[],timedOut:true,timeouts:prior+1} as unknown as PricingReply;await persist();
     throw new PricingStageTimeout(prior+1>=3?'pricing-stage-exhausted':'pricing-stage-timeout');
    }

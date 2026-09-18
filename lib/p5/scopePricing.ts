@@ -57,6 +57,7 @@ Return JSON only: {tasks:[{id,description,evidence}],issues:[],notes:[]}.
 ${ISSUE_POLICY}
 Identify EVERY requested work item from original typed scope, reviewed answers and extracted details. Preserve rooms, quantities, specifications, preparation, supply, installation, demolition, disposal and specialist requirements. Honor only explicit customer exclusions and owner-supplied responsibilities. Include allowance items requiring pricing. Do not price or map catalog codes yet. Keep each description under 400 characters and evidence under 600 characters, preferably one short sentence each. Use unique stable short IDs. Group components purchased as one assembly coherently while retaining their details in evidence. Do not repeat full paragraphs. Never invent dimensions, quantities or exclusions. This source section is one part of the complete inventory. Record an explicit issue if the response cannot contain every task from this section. Do not repeat tasks already represented with the same physical identity in priorTaskDescriptions. Missing quantities remain visible in the inventory.`;
 const MAP=`You are a construction estimator checking COMPLETE scope coverage. ${UNTRUSTED} ${ALLOWANCE_POLICY} ${FOUNDATION_POLICY} ${ISSUE_POLICY}
+For material procurement with cutting waste, preserve the installed quantity for labor. Label the material quantity ALLOWANCE:, state the reviewed installed quantity and explicit percentage as, for example, "120 LF installed plus 10% cutting waste = 132 LF purchased", and provide a positive quantityRange containing the purchase quantity. Never apply procurement waste to installed labor quantities.
 Return JSON only: {tasks:[{id,description,evidence,existingLineIds:[],additions:[{code,quantity,quantityEvidence}],researchDescription,issues:[]}],issues:[],notes:[],replacements:[{lineId,reason}],removeExclusions:[{text,reason}]}.
 Keep each task description and evidence concise, preserving exact quantities and specifications without repeating full source passages.\nMap ONLY the supplied taskBatch, returning exactly those task IDs once each. The complete inventory was prepared separately. Do not create or omit tasks. Retain each supplied description and evidence. Read priorMappedTasks to prevent duplicate additions or conflicting removals across batches. Original scope is context, not permission to expand this batch. Split mixed tasks and preserve each room, quantity, specification, preparation, supply, installation, demolition, disposal and specialist requirement. Honor only the customer's explicit exclusions and owner-supplied responsibilities. Default exclusions in an existing estimate DO NOT override requested work. Do not infer a new exclusion to make the estimate pass.
 For each task, identify existing positive-priced line IDs that actually cover its complete quantity/specification. Broad trade labels and general contingencies do not prove inclusion. Multiple tasks may reference one assembly only if its quantity and specification cover their combined work. If partially covered, reference the covered portion and add ONLY the missing portion.
@@ -221,7 +222,7 @@ export function catalogResolution(mapping:Mapping,configuration:EstimatorConfigu
       const rate=configuration.planningCatalog?.rates.find(r=>r.code===a.code);
       const regional=configuration.regionalRates?.find(r=>r.id===a.code);
       const rateUnit=rate?.unit||regional?.unit||'';
-      const quantityFindings=quantityIssues(t,a,rateUnit,scope,mapping.tasks.length,rate?.description||regional?.description||a.code);
+      const quantityFindings=quantityIssues(t,a,rateUnit,scope,mapping.tasks.length,rate?.description||regional?.description||a.code,rate?.type==='Material'||regional?.category==='materials');
       if(quantityFindings.length){result.issues.push(...quantityFindings);continue;}
       if(!rate&&regional){
         if(Date.parse(regional.evidence.validUntil)<now.getTime()){result.issues.push(`${t.description}: regional rate needs current evidence.`);continue;}
@@ -317,7 +318,7 @@ function knownScopeClaims(scope:ReviewedScope|undefined,task:Mapping['tasks'][nu
   addAnswer('sqft','sf',/\b(?:drywall|paint(?:ing)?|floor(?:ing)?|tile|project\s+area)\b/);
   return claims;
 }
-function quantityIssues(task:Mapping['tasks'][number],addition:{quantity:number;quantityEvidence:string;quantityRange?:{low:number;high:number}|null},unit:string,scope:ReviewedScope|undefined,taskCount:number,componentDescription=''){
+function quantityIssues(task:Mapping['tasks'][number],addition:{quantity:number;quantityEvidence:string;quantityRange?:{low:number;high:number}|null},unit:string,scope:ReviewedScope|undefined,taskCount:number,componentDescription='',materialPurchase=false){
   const taskText=`${task.description} ${task.evidence}`;
   const evidence=addition.quantityEvidence.trim();
   const claims=[...quantityClaims(taskText),...(taskCount===1?knownScopeClaims(scope,task):[])];
@@ -325,13 +326,22 @@ function quantityIssues(task:Mapping['tasks'][number],addition:{quantity:number;
   const allowance=/^ALLOWANCE\s*:/i.test(evidence);
   const issues:string[]=[];
   const matching=matchingClaims(claims,unit);
+  // Procurement overage changes purchased material, never installed work.
+  // Require an explicit base quantity, waste percentage, labeled allowance
+  // and range, and verify the arithmetic against the one reviewed quantity.
+  const waste=evidence.match(/\b(\d+(?:\.\d+)?)\s*%\s*(?:(?:cutting|cut|material)\s+)?(?:waste|overage)\b/i);
+  const range=addition.quantityRange;
+  const procurementAllowance=materialPurchase&&allowance&&matching.length===1&&Boolean(waste)&&Number(waste?.[1])>0&&Number(waste?.[1])<=100
+    &&Boolean(range&&range.low>0&&range.low<=addition.quantity&&range.high>=addition.quantity)
+    &&matchingClaims(quantityClaims(evidence),unit).some(claim=>claim.quantity===matching[0].quantity)
+    &&Math.abs(matching[0].quantity*(1+Number(waste?.[1])/100)-addition.quantity)<0.0001;
   // An unknown sibling component must not suppress a positive line for the
   // component that has an explicit reviewed quantity. The task-level issue is
   // still retained by catalogResolution, so the incomplete scope stays held.
   if(unknown&&!allowance&&!matching.length)issues.push(`${task.description}: quantity remains unmeasured; do not publish a confirmed ${unit} quantity.`);
   if(unknown&&allowance&&!addition.quantityEvidence.match(/ALLOWANCE\s*:/i))issues.push(`${task.description}: unresolved quantity allowances must be labeled.`);
   if(unknown&&allowance&&!addition.quantityRange)issues.push(`${task.description}: an allowance for an unresolved quantity needs a positive quantity range.`);
-  if(matching.length&&(!matching.some(claim=>Math.abs(claim.quantity-addition.quantity)<0.0001)||matching.length>1)&&!isCorrectionEvidence(evidence)){
+  if(matching.length&&(!matching.some(claim=>Math.abs(claim.quantity-addition.quantity)<0.0001)||matching.length>1)&&!isCorrectionEvidence(evidence)&&!procurementAllowance){
     issues.push(`${task.description}: mapped ${addition.quantity} ${unit} does not match the explicit quantity in the reviewed scope.`);
   }
   // A bench/counter top can share LF units with cabinetry but is not evidence
@@ -358,17 +368,12 @@ function existingQuantityIssues(task:Mapping['tasks'][number],line:{quantity:num
   return [];
 }
 
-/** What the catalog already prices for a task: existing lines the mapper kept
- * and the catalog additions it made. Research receives this list so a task
- * mapped to tile and plumbing lines is not priced a second time as a lump. */
-export function coveredWork(task:{existingLineIds:string[];additions:{code:string;quantity:number}[]},existing:{id:string;description:string;quantity:number;unit:string}[],configuration:EstimatorConfiguration){
-  const covered:{description:string;quantity:number;unit:string}[]=[];
-  for(const id of task.existingLineIds){const line=existing.find(l=>l.id===id);if(line)covered.push({description:line.description,quantity:line.quantity,unit:line.unit});}
-  for(const a of task.additions){
-    const rate=configuration.planningCatalog?.rates.find(r=>r.code===a.code);const regional=configuration.regionalRates?.find(r=>r.id===a.code);
-    covered.push({description:rate?.description||regional?.description||a.code,quantity:a.quantity,unit:rate?.unit||regional?.unit||''});
-  }
-  return covered;
+/** Research sees only actual positive priced components. Proposed additions
+ * may have been rejected; reporting them as covered silently omits material. */
+export function coveredWork(task:{id:string;existingLineIds:string[]},priced:{id:string;description:string;quantity:number;unit:string;unitCost:number}[],acceptedRules:CostRule[]){
+  const ids=new Set([...task.existingLineIds,...acceptedRules.filter(rule=>rule.scopeTaskId===task.id).map(rule=>rule.id)]);
+  return priced.filter(line=>ids.has(line.id)&&line.quantity>0&&line.unitCost>0)
+    .map(({description,quantity,unit})=>({description,quantity,unit}));
 }
 export function marketResolution(raw:unknown,urls:string[],tasks:Mapping['tasks'],now:Date,offset=0,location='',scope?:ReviewedScope):ScopePriceResolution{
   const market=marketSchema.parse(raw);const result:ScopePriceResolution={rules:[],assumptions:[...market.notes],issues:[...market.issues]};
@@ -382,7 +387,7 @@ export function marketResolution(raw:unknown,urls:string[],tasks:Mapping['tasks'
     const unresolved=unresolvedQuantityIssue(t);
     const hasAllowance=/^ALLOWANCE\s*:/i.test(r.quantityEvidence)&&Boolean(r.quantityRange);
     if(unresolved&&!hasAllowance)result.issues.push(unresolved);
-    const quantityFindings=quantityIssues(t,{quantity:r.quantity,quantityEvidence:r.quantityEvidence,quantityRange:r.quantityRange},r.unit,scope,tasks.length,r.description);
+    const quantityFindings=quantityIssues(t,{quantity:r.quantity,quantityEvidence:r.quantityEvidence,quantityRange:r.quantityRange},r.unit,scope,tasks.length,r.description,r.basis==='material-purchase');
     if(quantityFindings.length){result.issues.push(...quantityFindings);continue;}
     const hosts=new Set<string>();
     for(const s of r.sources){
@@ -420,7 +425,7 @@ export function planningResolution(raw:unknown,tasks:Mapping['tasks'],now:Date,o
     const unresolved=unresolvedQuantityIssue(t);
     const hasAllowance=/^ALLOWANCEs*:/i.test(r.quantityEvidence)&&Boolean(r.quantityRange);
     if(unresolved&&!hasAllowance)result.issues.push(unresolved);
-    const quantityFindings=quantityIssues(t,{quantity:r.quantity,quantityEvidence:r.quantityEvidence,quantityRange:r.quantityRange},r.unit,scope,tasks.length,r.description);
+    const quantityFindings=quantityIssues(t,{quantity:r.quantity,quantityEvidence:r.quantityEvidence,quantityRange:r.quantityRange},r.unit,scope,tasks.length,r.description,r.basis==='material-purchase');
     if(quantityFindings.length){result.issues.push(...quantityFindings);continue;}
     if(r.high<r.low||r.high>r.low*6)throw new Error('Unsupported planning average range');
     const amount=(r.low+r.high)/2;
@@ -438,6 +443,9 @@ export function planningResolution(raw:unknown,tasks:Mapping['tasks'],now:Date,o
  * unverified pricing stays blocking. */
 export function advisoryIssue(text:string):boolean{
   const t=text.toLowerCase();
+  // An allowance basis never excuses omitted work or a rejected priced line.
+  // Check concrete defects before the planning-basis exceptions below.
+  if(/duplicat|double[- ]count|\bomit|omission|\bunpriced\b|missing (?:work|materials?|labor|components?|quantit(?:y|ies)|scope)|not (?:fully |been )?(?:priced|covered|included|supported)|no positive priced|not converted into a priced line|does not match|disagrees|wrong (?:unit|uom|responsibilit)|fabricat|out of scope/.test(t))return false;
   // A planning-average or allowance caveat is disclosed with the range, never a
   // reason to withhold it. These notes routinely say "not verified local
   // pricing", which the defect list below would otherwise treat as a defect.
@@ -590,7 +598,8 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
     const mergeGapResults=(results:Awaited<ReturnType<typeof priceGapBatch>>[])=>{
       for(const priced of results){research.push(...priced.replies);priced.modelIssues.forEach(issue=>modelIssues.add(issue));resolution.rules.push(...priced.resolution.rules);resolution.assumptions.push(...priced.resolution.assumptions);resolution.issues.push(...priced.resolution.issues);}
     };
-    mergeGapResults(await Promise.all(batchesOf(gaps,3).map((gapBatch,index)=>priceGapBatch(gapBatch,index,t=>coveredWork(t,lines,configuration)))));
+    const mappedLines=existingLines(priceReviewedScope(scope,configuration,now,resolution));
+    mergeGapResults(await Promise.all(batchesOf(gaps,3).map((gapBatch,index)=>priceGapBatch(gapBatch,index,t=>coveredWork(t,mappedLines,resolution.rules)))));
     const audit:z.infer<typeof auditSchema>={coveredTaskIds:[],issues:[],notes:[],resolvedIssues:[]};
     const reconcileIssues=()=>{
       if(audit.issues.length||mapping.tasks.some(t=>!audit.coveredTaskIds.includes(t.id)))return;
@@ -620,13 +629,13 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
     const allowancePricedTask=(taskId:string)=>resolution.rules.some(rule=>rule.scopeTaskId===taskId&&(rule.id.startsWith('planning-')||rule.id.startsWith('market-'))&&rule.quantity.fixed!==undefined&&rule.quantity.fixed>0);
     const blockingAuditIssues=audit.issues.filter(issue=>!advisoryIssue(issue));
     // A repair round costs a second mapping, research and audit. Past the repair budget (measured from the pricing job's start) the
-    // range is released with the findings disclosed instead; the visitor is not kept waiting for a second pass.
+    // scope stays saved with unresolved findings; time alone cannot authorize a partial price.
     // Measured against the job's pricing clock. A clock older than any job lifetime is a replay or a fixed test clock, not a
     // running job, and does not count against the budget.
     const sinceStart=Date.now()-now.getTime();
     const repairBudgetLeft=!(sinceStart>REPAIR_BUDGET_MS&&sinceStart<6*60*60*1000);
     const repairNeeded=blockingIssues.length||blockingAuditIssues.length||mapping.tasks.some(t=>!audit.coveredTaskIds.includes(t.id)&&!allowancePricedTask(t.id));
-    if(repairNeeded&&!repairBudgetLeft)auditTrail.issues.push('Repair round skipped: the pricing job exceeded its repair budget; findings are disclosed with the range.');
+    if(repairNeeded&&!repairBudgetLeft)auditTrail.issues.push('Repair round skipped: the pricing job exceeded its repair budget; unresolved scope findings remain blocking.');
     if(repairNeeded&&repairBudgetLeft){
       const priorIssues=[...resolution.issues,...audit.issues];
       const beforeRepair=priceReviewedScope(scope,configuration,now,resolution);
@@ -674,7 +683,8 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
       const repairGaps=fixes.tasks.filter(t=>t.researchDescription&&(!researchedTaskIds.has(t.id)||namedByAudit(t)));
       const replaced=new Set(repairGaps.map(t=>t.id));
       resolution.rules=resolution.rules.filter(rule=>!(researchRule(rule)&&replaced.has(rule.scopeTaskId!)));
-      mergeGapResults(await Promise.all(batchesOf(repairGaps,3).map((gapBatch,index)=>priceGapBatch(gapBatch,1000+index,t=>coveredWork(t,pricedComponents,configuration),priorIssues))));
+      const repairedLines=existingLines(priceReviewedScope(scope,configuration,now,resolution));
+      mergeGapResults(await Promise.all(batchesOf(repairGaps,3).map((gapBatch,index)=>priceGapBatch(gapBatch,1000+index,t=>coveredWork(t,repairedLines,resolution.rules),priorIssues))));
       audit.coveredTaskIds=[];audit.issues=[];audit.resolvedIssues=[];
       const checkedParts=await Promise.all(sourceParts.map((part,index)=>request(AUDIT,{original:part,tasks:mapping.tasks.filter(t=>sourceParts.length===1||taskSources.get(t.id)===index),priorPricingIssues:resolution.issues,existingLines:lines.filter(l=>!resolution.removeLineIds?.includes(l.id)),additionalRules:resolution.rules,priorAuditIssues:priorIssues,removedLines:pricedComponents.filter(l=>resolution.removeLineIds?.includes(l.id)),existingExclusions:base.customer.exclusions.filter(e=>!resolution.removeExclusions?.includes(e)),research},false,deadline-Date.now())));
       for(const checked of checkedParts){
@@ -723,7 +733,7 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
     for(const t of mapping.tasks)if(!audit.coveredTaskIds.includes(t.id)){
       // A task the audit did not cover but that a planning or sourced allowance prices positively is released with that caveat; the audit's own findings about it are classified above.
       const allowancePriced=resolution.rules.some(rule=>rule.scopeTaskId===t.id&&(rule.id.startsWith('planning-')||rule.id.startsWith('market-'))&&rule.quantity.fixed!==undefined&&rule.quantity.fixed>0);
-      if(allowancePriced)resolution.assumptions.push(`${t.description}: priced by a preliminary allowance pending published research; confirm current local rates before a firm proposal.`);
+      if(allowancePriced&&audit.issues.length>0&&audit.issues.every(advisoryIssue))resolution.assumptions.push(`${t.description}: priced by a preliminary allowance pending published research; confirm current local rates before a firm proposal.`);
       else resolution.issues.push(`${t.description}: full pricing coverage has not been verified.`);
     }
   }catch(error){
@@ -743,16 +753,13 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
     auditTrail.issues.push(`Automatic pricing did not complete: ${reason}`);
     resolution.issues.push(HANDOFF_ISSUE);
   }
-  // Owner policy (2026-09-17): the preliminary range is always released.
-  // Every remaining finding, advisory or not, rides along as a disclosed item
-  // to confirm; the audit trail keeps the unfiltered list for staff. The one
-  // exception is the handoff, which means automatic pricing could not finish
-  // at all and a person completes the estimate.
-  // A finding the estimator can turn into a customer question (a missing
-  // measurement or selection) is still asked, never guessed around.
+  // Disclose ordinary selection/allowance caveats. Missing work, conflicting
+  // quantities, duplicate charges and unknown findings remain blocking even
+  // after a timeout or repair-budget expiry. A preliminary range must cover
+  // the requested scope; disclosure cannot turn an omitted component into one.
   const findings=[...new Set(resolution.issues)];
   auditTrail.issues=[...new Set([...auditTrail.issues,...findings])];
-  const kept=findings.filter(issue=>issue===HANDOFF_ISSUE||missingScopeFields([issue]).length>0);
+  const kept=findings.filter(issue=>issue===HANDOFF_ISSUE||missingScopeFields([issue]).length>0||!advisoryIssue(issue));
   const disclosed=findings.filter(issue=>!kept.includes(issue));
   resolution.assumptions.push(...disclosed.map(item=>/^to confirm:/i.test(item)?item:`To confirm: ${item}`));
   resolution.issues=kept;
