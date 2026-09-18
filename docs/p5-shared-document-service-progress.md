@@ -582,3 +582,31 @@ models. Return the printed summaries and private report files for source review.
 No paid model request was made from this session. Production Sonnet activation,
 real-file extraction precision/recall, quantity correctness, all-site customer
 prices/PDFs/emails, and 100-page percentile targets remain unverified.
+
+
+## Sonnet transition handoff and preflight recheck, 2026-09-18
+
+Owner requested a full next-session execution prompt, exact Sonnet settings and
+complete all-site qualification. Added docs/p5-sonnet-switch-runbook.md with
+verified document/scope/pricing model names, the higher-priority scope override,
+provider-routing distinction, private test command, limits and remaining gates.
+The full private continuation prompt and fixture bundle are supplied separately.
+
+All five main SHAs and successful source PR workflows listed above were rechecked.
+An additional 25 focused local tests passed with mocked provider responses and no
+paid AI calls: 10 QA/cohost tests plus 15 unit-rate/adapter/provider tests. Existing
+production build evidence is unchanged; documentation does not claim a new build.
+
+The P5 connector reports a successful publication but no deployed Git SHA; it
+still exposes no direct Shell or configuration editing. No production model,
+secret, database, spend limit, deployment setting or code was changed here.
+
+Private read-only inspection of the earlier QA email confirmed repeated customer
+PDF exclusions and verification/assumption text. No presentation/download fix was
+made. Chat PDF delivery, latest pricing fixes and all-site journeys remain open.
+
+Next concrete action: run the already merged bounded Sonnet runner in the existing
+P5 Shell with the private fixture bundle. Review its private reports before
+claiming document qualification or extending remote activation. Sonnet production
+settings and broader website pricing/provider routing require separate observed
+verification. Do not reuse completed old review results as fresh Sonnet evidence.
