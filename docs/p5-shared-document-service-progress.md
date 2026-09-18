@@ -610,3 +610,22 @@ P5 Shell with the private fixture bundle. Review its private reports before
 claiming document qualification or extending remote activation. Sonnet production
 settings and broader website pricing/provider routing require separate observed
 verification. Do not reuse completed old review results as fresh Sonnet evidence.
+
+
+## First real Sonnet short-file failure, 2026-09-18
+
+Owner ran the bounded private four-page fixture in Replit. Parsing reached four
+pages, but zero pages completed AI verification. The same read job returned
+provider-timeout on three attempts; current invocation was 126398 ms. The runner
+stopped before the 23-page plans. Its approximately $0.465 cost reservation has
+no returned usage and is not a verified Anthropic charge.
+
+Source inspection confirms a 40000 ms default call deadline and up to three
+transient retries. Text pages can share a four-page read request. Timeout recovery
+currently repeats that batch; existing adaptive page splitting only covers invalid
+or incomplete outputs. The cause of provider latency is not yet established.
+
+Working branch: fix/document-read-timeout-recovery-20260918. Preserve the failed
+private checkpoint. Investigate bounded single-page recovery and add no-cost
+regressions before requesting another paid run. Do not raise limits, republish,
+change production data or claim real-file qualification from synthetic tests.
