@@ -55,13 +55,13 @@ No independently reviewed exhaustive ground truth is available for the requested
 
 Remote mode stays disabled by default. PDF-only stored submissions within the configured per-file byte limit can use the service; mixed/non-PDF and larger files retain the legacy path. Those slow paths have not been universally accelerated. Failed remote work preserves files and cannot silently return an unchecked estimate. Pricing books, margins, rates and responsibilities are unchanged.
 
-The service needs a separate always-on host, its own PostgreSQL database, HTTPS, five unique tenant secrets, provider credentials, explicit benchmarked model names, host monitoring/resource limits/backups and retention. See `services/document-service/.env.example` and README in p5-home-co. No host, paid subscription, limit increase or secrets were provisioned here.
+The service needs an always-on process, PostgreSQL, HTTPS, five unique tenant secrets, provider credentials, explicit benchmarked model names, monitoring/resource limits/backups and retention. The new cohost mode reuses the existing P5 Reserved VM and database; a separate host/database is not required. See `services/document-service/.env.example` and README in p5-home-co. No host, paid subscription, limit increase or secrets were provisioned here.
 
 Website server-only settings, verified against the adapter:
 
 ```text
 P5_DOCUMENT_SERVICE_MODE=remote
-P5_DOCUMENT_SERVICE_URL=https://qualified-worker-host
+P5_DOCUMENT_SERVICE_URL=https://p5homeco.com/api/p5-documents
 P5_DOCUMENT_SERVICE_KEY=unique-secret-for-this-site
 P5_DOCUMENT_SERVICE_MAX_BYTES=52428800
 ```
@@ -70,7 +70,7 @@ Never use NEXT_PUBLIC_ for these secrets. Qualification must precede activation.
 
 `hello@p5homeco.com` was verified through the connected business inbox. No controlled estimate submission or customer email was sent during this continuation. Live numeric pricing, source accuracy, branded PDF contents/download, actual email receipt, reload/resume, keyboard and all-site/RE-10 full journeys still require a configured worker/provider environment. No real prospects were contacted, appointments scheduled or calls placed.
 
-Next concrete action: owner pulls the merged main branches into the existing Replit apps and publishes when ready. That publishes website code only. Separately arrange/approve an always-on worker and provider configuration, supply the missing real 25/100-page fixtures and independent truth, run the live benchmark matrix, then qualify one site's complete QA journey before enabling the other four. Any new recurring infrastructure cost requires owner approval.
+Next concrete action: obtain supported direct workspace configuration access, synchronize the reviewed mains, and configure P5 cohosting with existing resources and secure tenant/provider settings. Keep adapters in legacy mode during worker qualification. Run the available redacted fixture first, then the benchmark matrix and one complete QA journey before enabling the other four. Real 25/100-page fixtures and independent truth remain missing. Any new recurring infrastructure cost requires owner approval.
 
 ## Final GitHub delivery checkpoint
 
@@ -114,3 +114,28 @@ not an acceptable workaround. Finish reviewed Git delivery, then obtain supporte
 workspace access or owner-applied secure configuration. Do not publish an unsynced
 workspace. Worker readiness, real provider benchmarks, all-site remote activation,
 customer QA PDF/email and deployed rollback remain open.
+
+
+## Cohost GitHub delivery evidence
+
+All five PRs merged after their required checks passed:
+
+| Repository | PR | Implementation merge |
+| --- | --- | --- |
+| p5-home-co | 47 | 86b7e60ae1619de2ded6b9eedce19dac175ae0e3 |
+| boise-remodeling-co | 42 | 8ebf9383b3798e3a74d594c7546e7783732c0fe8 |
+| Boise-Construction-Co | 39 | a925ee7bb2bc8daaa9194556eece53e5a7552843 |
+| Boise-Handyman-Co | 37 | 03072279b5c540d8bd5ce7292543118972aead83 |
+| Boise-Cabinet-Co | 36 | f02d348d6661e73435816697d00a9a47a040da0d |
+
+P5 PR run `35296428956` passed: 64 service tests (none skipped), 361 estimator
+regressions, saved-file adapter integration, production build (969 broader prebuild
+tests passed; one existing database-dependent test skipped), actual cohost startup,
+and standalone container boot/authenticated readiness. The cohost smoke verified
+existing database reuse and an unchanged website sentinel table. No provider calls.
+Satellite PR adapter regressions/builds passed; Cabinet desktop Chrome/Pixel 7
+emulated browser suite passed. These are CI environments, not physical devices.
+
+Post-merge workflows are checked separately. Replit remains unchanged during this
+continuation because direct workspace access is blocked. No new subscription,
+server upgrade, deployment type change, or spending-limit increase was made.
