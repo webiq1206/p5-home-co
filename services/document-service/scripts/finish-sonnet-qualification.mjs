@@ -65,7 +65,7 @@ async function main(){
  console.log('Prior ledgers stay unchanged. One request at a time; stop on unknown charges. Cached completion is not a cold performance benchmark.');
  const file=join(root,'qualification-report.json');
  for(const fixture of bundle.fixtures){
-  const r=await runFixture(fixture,{root,key:process.env.ANTHROPIC_API_KEY,...(fixture.id==='short'?{seedPages:recovered.pages}:{})});
+  const r=await runFixture(fixture,{root,key:process.env.ANTHROPIC_API_KEY,...(fixture.id==='short'?{seedPages:recovered.pages,recoverLegacyCitationFailure:true}:{})});
   report.fixtures.push({id:r.id,complete:r.complete,error:r.error,reusedPages:r.reusedPages,elapsedMs:r.currentInvocationMs,cost:r.cost,quality:r.quality,report:join(root,fixture.id+'-'+fixture.sha256.slice(0,16),'report.json')});
   await privateJson(file,report);
   if(!r.complete){process.exitCode=1;break;}

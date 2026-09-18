@@ -17,7 +17,7 @@ export function requestBody(provider,model,system,input,images,schema,maxOutput,
   body.output_config={format:{type:'json_schema',schema}};
   // Sonnet 5 defaults to high effort. Routine source reading uses medium;
   // independent visual verification and reconciliation retain model defaults.
-  if(model==='claude-sonnet-5'&&purpose==='read')body.output_config.effort='medium';
+  if(model==='claude-sonnet-5'&&['read','citation'].includes(purpose))body.output_config.effort='medium';
   return {url:'https://api.anthropic.com/v1/messages',body};
  }
  if(provider==='gemini')return {url:`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,body:{systemInstruction:{parts:[{text:system}]},contents:[{role:'user',parts:[{text},...images.flatMap(i=>[{text:i.label},{inlineData:{mimeType:'image/png',data:Buffer.from(i.bytes).toString('base64')}}])]}],generationConfig:{responseMimeType:'application/json',responseJsonSchema:schema,maxOutputTokens:maxOutput}}};
@@ -39,7 +39,7 @@ export function parseReply(provider,data,outputTool){
 }
 export class Reader{
  constructor(config,store,request=fetch){this.config=config;this.store=store;this.request=request;}
- async call(job,system,input,images,schema,signal,verify=false){
+ async call(job,system,input,images,schema,signal,verify=false,purpose=verify?'verify':job.kind){
   const c=this.config,estimated=Math.ceil((JSON.stringify(input).length+JSON.stringify(schema).length+system.length)/3)+images.reduce((n,i)=>n+Math.ceil(i.bytes.length/256),0)+c.maxOutput;
   if(estimated>c.tpm)throw new ServiceError('request-exceeds-configured-token-budget',422);
   let slot;const waitStart=performance.now();
@@ -49,7 +49,8 @@ export class Reader{
    pages:Array.isArray(input.pages)?input.pages.map(p=>p.page):[],imageCount:images.length,
    inputCharacters:JSON.stringify(input).length,maxOutputTokens:c.maxOutput,timeoutMs:c.callMs};
   try{
-   const built=requestBody(c.provider,verify?c.verifyModel:c.model,system,input,images,schema,c.maxOutput,verify?'verify':job.kind);
+   const built=requestBody(c.provider,verify?c.verifyModel:c.model,system,input,images,schema,purpose==='citation'?Math.min(c.maxOutput,2048):c.maxOutput,purpose);
+   requestDetail.purpose=purpose;requestDetail.maxOutputTokens=built.body.max_tokens||c.maxOutput;
    if(built.body.output_config?.effort)requestDetail.effort=built.body.output_config.effort;
    const headers={'content-type':'application/json',...(c.provider==='anthropic'?{'x-api-key':c.key,'anthropic-version':'2023-06-01'}:c.provider==='gemini'?{'x-goog-api-key':c.key}:{authorization:`Bearer ${c.key}`})};
    const timeout=AbortSignal.timeout(c.callMs),combined=AbortSignal.any([signal,timeout]);
@@ -64,11 +65,11 @@ export class Reader{
    const text=await response.text();if(text.length>8*1024*1024)throw new ServiceError('provider-response-too-large',422);
    let data;try{data=JSON.parse(text);}catch{throw new ServiceError('invalid-provider-json',422);}
    const value=validateSchema(parseReply(c.provider,data,built.outputTool),schema);
-   await this.store.metric(job,job.kind==='review'?'reconciliation-provider':verify?'verify-provider':'read-provider',performance.now()-start,{...requestDetail,queueMs:Math.round(start-waitStart),estimatedTokens:estimated,usage:data.usage||data.usageMetadata||{}});
+   await this.store.metric(job,purpose==='citation'?'citation-provider':job.kind==='review'?'reconciliation-provider':verify?'verify-provider':'read-provider',performance.now()-start,{...requestDetail,queueMs:Math.round(start-waitStart),estimatedTokens:estimated,usage:data.usage||data.usageMetadata||{}});
    return value;
   }catch(e){
-   const error=e.name==='TimeoutError'||e.name==='AbortError'?new ServiceError('provider-timeout',503):e instanceof TypeError?new ServiceError('provider-network-error',503):e;
-   await this.store.metric(job,'provider-failure',performance.now()-start,{...requestDetail,queueMs:Math.round(start-waitStart),code:error.code||'provider-error',cancelled:signal.aborted}).catch(()=>{});
+   const error=e.name==='AbortError'?new ServiceError('provider-cancelled',422):e.name==='TimeoutError'?new ServiceError('provider-timeout',503):e instanceof TypeError?new ServiceError('provider-network-error',503):e;
+   await this.store.metric(job,'provider-failure',performance.now()-start,{...requestDetail,queueMs:Math.round(start-waitStart),code:error.code||'provider-error',cancelled:signal.aborted||error.code==='provider-cancelled'}).catch(()=>{});
    throw error;
   }
   finally{await this.store.release(slot);}

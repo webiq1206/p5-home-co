@@ -1,9 +1,9 @@
 // QA-only helpers. Production never imports this module or opens this database.
 import {PGlite} from '@electric-sql/pglite';
 import {readFile,writeFile,rename,mkdir} from 'node:fs/promises';
-import {dirname} from 'node:path';
+import {dirname,join} from 'node:path';
 import {DDL} from '../src/store.mjs';
-import {ServiceError} from '../src/core.mjs';
+import {ServiceError,hash} from '../src/core.mjs';
 
 export async function privateJson(file,value){
  await mkdir(dirname(file),{recursive:true,mode:0o700});
@@ -71,7 +71,13 @@ export async function guardedSonnetFetch({file,limitUsd,maxCalls,request=fetch,o
    onRequest(state.calls.length);sent=true;
    response=await request(url,{...options,redirect:'error'});
    record.httpStatus=response.status;
-   const data=await response.clone().json();
+   const responseText=await response.clone().text();
+   // Persist the paid reply BEFORE schema/domain validation. No headers or keys
+   // are written. A rejected citation remains available for free local replay.
+   const responseFile=join('responses',String(state.calls.indexOf(record)+1).padStart(4,'0')+'.json');
+   await privateJson(join(dirname(file),responseFile),{version:1,requestSha256:hash(options.body),request:body,httpStatus:response.status,responseText});
+   record.responseFile=responseFile;
+   const data=JSON.parse(responseText);
    if(data?.usage&&Number.isSafeInteger(data.usage.input_tokens)&&data.usage.input_tokens>=0&&Number.isSafeInteger(data.usage.output_tokens)&&data.usage.output_tokens>=0){
     record.usage=safeUsage(data.usage);record.estimatedActualUsd=cost(record.usage);
     record.reservedUsd=record.estimatedActualUsd;record.status='usage-reported';

@@ -66,7 +66,7 @@ export class Store{
  }
 
  async checkStorage(c,tenant,additional=0){
-  const r=await c.query(`SELECT (coalesce(sum(size_bytes),0)+(SELECT coalesce(sum(octet_length(p.image)+pg_column_size(p.native)+coalesce(pg_column_size(p.evidence),0)),0) FROM p5ds_pages p JOIN p5ds_documents d ON d.id=p.document_id WHERE d.tenant=$1))::text AS used FROM p5ds_documents WHERE tenant=$1`,[tenant]);
+  const r=await c.query(`SELECT (coalesce(sum(size_bytes),0)+(SELECT coalesce(sum(octet_length(p.image)+pg_column_size(p.native)+coalesce(pg_column_size(p.evidence),0)),0) FROM p5ds_pages p JOIN p5ds_documents d ON d.id=p.document_id WHERE d.tenant=$1)+(SELECT coalesce(sum(pg_column_size(result)),0) FROM p5ds_jobs WHERE tenant=$1))::text AS used FROM p5ds_documents WHERE tenant=$1`,[tenant]);
   if(Number(r.rows[0].used)+additional>this.config.maxTenantBytes)throw new ServiceError('document-storage-quota',422);
  }
  async putPage(job,page){
@@ -79,12 +79,13 @@ export class Store{
  async fence(c,job){const r=await c.query("SELECT id FROM p5ds_jobs WHERE id=$1 AND lease_token=$2 AND state='running' AND lease_until>now() FOR UPDATE",[job.id,job.lease_token]);if(!r.rowCount)throw new ServiceError('lease-lost',409);}
  async claim(kinds){
   return this.transaction(async c=>{
-   const r=await c.query("SELECT * FROM p5ds_jobs WHERE kind=ANY($1::text[]) AND ((state='queued' AND available_at<=now()) OR (state='running' AND lease_until<now())) ORDER BY priority-extract(epoch FROM(now()-created_at))/10,created_at FOR UPDATE SKIP LOCKED LIMIT 1",[kinds]);if(!r.rowCount)return null;
+   const r=await c.query("SELECT * FROM p5ds_jobs j WHERE kind=ANY($1::text[]) AND (kind!='read' OR NOT EXISTS(SELECT 1 FROM p5ds_documents d WHERE d.id=j.document_id AND d.state='failed')) AND ((state='queued' AND available_at<=now()) OR (state='running' AND lease_until<now())) ORDER BY priority-extract(epoch FROM(now()-created_at))/10,created_at FOR UPDATE SKIP LOCKED LIMIT 1",[kinds]);if(!r.rowCount)return null;
    const token=randomUUID();return (await c.query("UPDATE p5ds_jobs SET state='running',lease_token=$2,lease_until=now()+interval '90 seconds',attempts=attempts+1,updated_at=now() WHERE id=$1 RETURNING *",[r.rows[0].id,token])).rows[0];
   });
  }
  async renew(job){const r=await this.pool.query("UPDATE p5ds_jobs SET lease_until=now()+interval '90 seconds' WHERE id=$1 AND lease_token=$2 AND state='running' AND lease_until>now()",[job.id,job.lease_token]);return r.rowCount===1;}
  async progress(job,progress){const r=await this.pool.query("UPDATE p5ds_jobs SET progress=$3::jsonb,updated_at=now() WHERE id=$1 AND lease_token=$2 AND state='running' AND lease_until>now()",[job.id,job.lease_token,JSON.stringify(progress)]);if(!r.rowCount)throw new ServiceError('lease-lost',409);}
+ async checkpoint(job,result){return this.transaction(async c=>{await this.fence(c,job);if(Buffer.byteLength(JSON.stringify(result))>8*1024*1024)throw new ServiceError('evidence-checkpoint-too-large',422);await c.query('SELECT pg_advisory_xact_lock(hashtext($1))',['p5ds-quota:'+job.tenant]);await c.query('UPDATE p5ds_jobs SET result=$3::jsonb,updated_at=now() WHERE id=$1 AND lease_token=$2',[job.id,job.lease_token,JSON.stringify(result)]);await this.checkStorage(c,job.tenant);job.result=result;});}
  async complete(job,result,extra){return this.transaction(async c=>{await this.fence(c,job);if(extra)await extra(c);await c.query("UPDATE p5ds_jobs SET state='complete',result=$3::jsonb,lease_until=null,lease_token=null,updated_at=now() WHERE id=$1 AND lease_token=$2",[job.id,job.lease_token,JSON.stringify(result)]);});}
  async fail(job,error){
   const code=error.code||'internal-processing-error';const transient=error.status===429||error.status>=500||['provider-timeout','parse-timeout'].includes(code);

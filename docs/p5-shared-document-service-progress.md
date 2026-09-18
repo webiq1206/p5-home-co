@@ -775,3 +775,36 @@ Await exact-head release CI before merge. No new provider charge, customer email
 production database mutation or Replit deployment occurred during these checks.
 The direct Replit Shell/configuration connection remains unavailable; the owner
 must pull reviewed main and publish before deployed behavior can be verified.
+
+### 2026-09-18: Reported page-3 citation failure and durable recovery
+
+The owner ran the merged consolidated command. Pages 1 and 2 were reused. One
+Sonnet request returned known usage, estimated at $0.050426, but page 3 failed
+`quote-not-in-source`. The old runner retained usage without the rejected reply,
+so the precise offending quote cannot be reconstructed from that report. The
+following canceled page was incorrectly labeled a provider timeout. The plans
+were not run. All five entries and tenant host-readiness checks returned 200;
+adapter activation and complete customer journeys remain unverified.
+
+The correction saves structured reader/verifier drafts behind the existing job
+lease and storage quota before domain validation. A mismatched citation permits
+one bounded correction that selects numbered source lines. Application code
+copies the contiguous original span; the model cannot alter quantities, units,
+values, exclusions or other scope fields. Unsupported statements and invalid
+line references still stop qualification. Interrupted or rejected corrections
+retain their draft and do not silently buy another correction on a job retry.
+No provider timeout, account limit, output limit, infrastructure size or QA
+spending limit was increased. Citation requests are capped at 2,048 output tokens.
+
+QA also saves each complete HTTP response and request body privately, without
+headers or credentials, before downstream validation. Failed documents cannot
+schedule another page. Cancellation has its own diagnostic code. The exact
+reported legacy failure can resume once with the same fixed qualification profile
+and existing cost ledger. Its report, ledger and job state are archived before
+requeueing; completed source evidence is untouched. An interrupted migration or
+another failure requires inspection, not an automatic budget reset.
+
+Release validation and final commit are recorded in the pull request. These
+changes do not certify live document accuracy, large-plan completion, pricing,
+PDF/email delivery or all-site customer journeys. Replit must pull the reviewed
+main before the owner runs the existing consolidated qualification command.
