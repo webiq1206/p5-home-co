@@ -712,3 +712,23 @@ regression after sharing its disposable-copy helper. Await full PR CI before
 merge. No production deployment or model change has been made. Next live action
 is one saved-page probe, followed by source review; the full file and plans remain
 blocked on qualification.
+
+
+## Real saved-response failures and completion work, 2026-09-18
+
+Owner supplied the medium-effort page-2 response and requested finalization.
+Provider completed in 36604 ms, returning 4554 output tokens with 291 thinking
+tokens; estimated reported-usage cost is $0.058087. Schema passed. Native quote
+validation rejected a fact joining two real source excerpts with an ellipsis.
+The response also requested crops to recover deliberately absent values. This
+is not an accuracy pass, even though all 15 main table divisions were retained.
+
+Working branch: fix/document-evidence-recovery-20260918. Verify abbreviated quotes
+against every ordered source fragment, preserve missing values, prevent crops
+whose only request is to recover explicit blanks, reduce duplicated reader output
+and use supported Sonnet read effort. Revalidate the actual saved response free
+of further AI calls. Prepare one resumable qualification command that preserves
+successful pages and old cost ledgers, then processes only unfinished work under
+existing bounded estimates. Check live websites and address PDF presentation and
+download faults with observed evidence. Full-file, pricing and all-site live
+qualification remain open until their real results pass.
