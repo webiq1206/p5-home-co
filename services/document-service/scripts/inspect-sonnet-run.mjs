@@ -56,12 +56,12 @@ export async function inspectSavedRun(options={}){
  return withSavedRun(options,async({db,report,file})=>{
   const pages=await db.query('SELECT page,native,evidence FROM p5ds_pages ORDER BY page');
   const jobs=await db.query("SELECT kind,state,attempts,error_code,payload->'pages' AS pages,result->>'reason' AS split_reason FROM p5ds_jobs ORDER BY created_at,id");
-  const keys=['provider','model','attempt','pages','imageCount','inputCharacters','maxOutputTokens','timeoutMs','queueMs','code','cancelled','usage'];
+  const keys=['provider','model','attempt','pages','imageCount','inputCharacters','maxOutputTokens','timeoutMs','queueMs','code','cancelled','usage','purpose','effort','idleTimeoutMs','stopReason','stream'];
   return {report:file,model:report.model,complete:report.complete,error:report.error,
    currentInvocationMs:report.currentInvocationMs,stageWork:report.stageWork,cost:report.cost,
    pages:pages.rows.map(pageSummary),jobs:jobs.rows,
    providerEvents:(report.events||[]).filter(e=>e.stage.includes('provider')).map(e=>({stage:e.stage,durationMs:e.duration_ms,...Object.fromEntries(keys.filter(k=>Object.hasOwn(e.detail||{},k)).map(k=>[k,e.detail[k]]))})),
-   note:'Read saved data only. No provider calls, PDF rereading, production connection or checkpoint changes. Incomplete provider responses were not saved, so their generation progress is unknown.'};
+   note:'Read saved data only. No provider calls, PDF rereading, production connection or checkpoint changes. Stream progress and final usage are included when available; incomplete input is not accepted as evidence.'};
  });
 }
 

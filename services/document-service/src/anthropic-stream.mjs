@@ -28,11 +28,11 @@ export async function collectAnthropicResponse(response,{signal,onProgress=()=>{
  const aborted=new Promise((_,reject)=>{rejectAbort=reject;});
  const abort=()=>{rejectAbort(signal.reason);void reader.cancel(signal.reason).catch(()=>{});};
  if(signal?.aborted)abort();else signal?.addEventListener('abort',abort,{once:true});
- const fail=()=>{throw new ServiceError('provider-invalid-stream',422);};
+ const fail=(reason='event-order')=>{progress.failure={reason,event:progress.lastEvent||null};onProgress(structuredClone(progress));throw new ServiceError('provider-invalid-stream',422);};
  const event=frame=>{
   const data=frame.split('\n').filter(line=>line.startsWith('data:')).map(line=>line.slice(5).trimStart()).join('\n');
   if(!data)return;
-  let value;try{value=JSON.parse(data);}catch{fail();}
+  let value;try{value=JSON.parse(data);}catch{fail('event-json');}
   if(!value||typeof value.type!=='string')fail();
   progress.events++;progress.lastEvent=value.type;
   if(stopped)fail();
@@ -53,27 +53,32 @@ export async function collectAnthropicResponse(response,{signal,onProgress=()=>{
     if(d.type==='text_delta'&&saved.block.type==='text'&&typeof d.text==='string'){saved.block.text=(saved.block.text||'')+d.text;progress.textCharacters+=d.text.length;}
     else if(d.type==='input_json_delta'&&saved.block.type==='tool_use'&&typeof d.partial_json==='string'){saved.json+=d.partial_json;progress.toolCharacters+=d.partial_json.length;}
     // Thinking is not needed for domain parsing and is never logged.
-    else if(!(['thinking_delta','signature_delta'].includes(d.type)&&saved.block.type==='thinking'))fail();
+    else if(['thinking_delta','signature_delta'].includes(d.type)){if(saved.block.type!=='thinking')fail('delta-block-mismatch');}
+    else if(['text_delta','input_json_delta'].includes(d.type))fail('delta-block-mismatch');
+    else progress.unknownDeltaTypes=[...new Set([...(progress.unknownDeltaTypes||[]),String(d.type).slice(0,80)])].slice(0,16);
     break;
    }
    case 'content_block_stop':{
     const saved=blocks.get(value.index);if(!saved||saved.closed)fail();
-    if(saved.block.type==='tool_use'&&saved.json){try{saved.block.input=JSON.parse(saved.json);}catch{fail();}}
+    // A tool may stop midway through JSON at max_tokens. Keep consuming the
+    // stream for its final stop reason and usage; incomplete input is NEVER
+    // promoted into a usable tool call. Domain parsing rejects the raw string.
+    if(saved.block.type==='tool_use'&&saved.json){try{saved.block.input=JSON.parse(saved.json);}catch{saved.block.input=saved.json;progress.invalidToolJson=true;}}
     saved.closed=true;break;
    }
    case 'message_delta':
     if(!message||[...blocks.values()].some(b=>!b.closed))fail();
-    deltaSeen=true;Object.assign(message,value.delta);message.usage={...message.usage,...value.usage};break;
+    deltaSeen=true;Object.assign(message,value.delta);message.usage={...message.usage,...value.usage};progress.stopReason=message.stop_reason;break;
    case 'message_stop':
     if(!message||!deltaSeen||!message.stop_reason||[...blocks.values()].some(b=>!b.closed))fail();
     message.content=[...blocks.values()].map(b=>b.block);stopped=true;progress.complete=true;break;
    default:break; // Future event types do not turn an incomplete message complete.
   }
   if(message?.usage)progress.observedUsage={...message.usage};
-  onProgress({...progress});
+  onProgress(structuredClone(progress));
  };
  try{
-  onProgress({...progress});
+  onProgress(structuredClone(progress));
   for(;;){
    signal?.throwIfAborted();
    const {done,value}=await Promise.race([reader.read(),aborted]);if(done)break;
@@ -85,7 +90,7 @@ export async function collectAnthropicResponse(response,{signal,onProgress=()=>{
     buffer=buffer.replace(/\r\n/g,'\n').replace(/\r(?!$)/g,'\n');
     let boundary;while((boundary=buffer.indexOf('\n\n'))>=0){const frame=buffer.slice(0,boundary);buffer=buffer.slice(boundary+2);event(frame);}
    }else plain+=chunk;
-   onProgress({...progress});
+   onProgress(structuredClone(progress));
    if(stopped){await reader.cancel();break;}
   }
   signal?.throwIfAborted();

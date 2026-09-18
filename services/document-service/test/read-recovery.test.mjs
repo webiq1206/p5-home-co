@@ -29,18 +29,18 @@ async function fixture(count=4){
  return {pool,store,pipeline,reader,calls,document,job};
 }
 
-test('a timed-out batch becomes durable single-page jobs without rereading cached evidence',async()=>{
+for(const failure of ['provider-timeout','provider-output-limit'])test(failure+' batch becomes durable single-page jobs without rereading cached evidence',async()=>{
  const f=await fixture();
  try{
   await f.pool.query('UPDATE p5ds_pages SET evidence=$2::jsonb WHERE document_id=$1 AND page=1',[f.document.id,JSON.stringify(evidence(1))]);
   const original=f.reader.call;
   f.reader.call=async(...args)=>{
-   if(args[2].pages.length>1){f.calls.push(args[2].pages.map(p=>p.page));throw new ServiceError('provider-timeout',503);}
+   if(args[2].pages.length>1){f.calls.push(args[2].pages.map(p=>p.page));throw new ServiceError(failure,503);}
    return original(...args);
   };
   await f.pipeline.read(f.job,signal());
   const parent=await f.store.job('test','test',f.job.id);
-  assert.equal(parent.state,'complete');assert.equal(parent.result.reason,'provider-timeout');
+  assert.equal(parent.state,'complete');assert.equal(parent.result.reason,failure);
   assert.deepEqual(parent.result.pages,[2,3,4]);
   assert.equal((await f.store.document('test','test',f.document.id)).state,'prepared');
   for(let n=0;n<3;n++)await f.pipeline.read(await f.store.claim(['read']),signal());

@@ -42,7 +42,7 @@ for(const location of ['facts','conflicts','clarifications','missing','extra','q
  });
  const call=reader.call({kind:'review'},'vocabulary',{},[],REVIEW_SCHEMA,new AbortController().signal);
  if(location==='valid')assert.deepEqual(await call,result);
- else await assert.rejects(call,/invalid-provider-schema/);
+ else await assert.rejects(call,/invalid-provider-schema|invalid-provider-tool-json/);
  assert.equal(calls,1);assert.equal(released,1);
 });
 for(const kind of ['truncated','refusal','text-only','wrong-tool','multiple-tools','missing-id'])test('incomplete or ambiguous tool output rejected: '+kind,()=>{
@@ -53,7 +53,7 @@ for(const kind of ['truncated','refusal','text-only','wrong-tool','multiple-tool
  if(kind==='wrong-tool')response.content[0].name='send_email';
  if(kind==='multiple-tools')response.content.push({...response.content[0],id:'second-call'});
  if(kind==='missing-id')delete response.content[0].id;
- assert.throws(()=>parseReply('anthropic',response,toolName),/provider-output-incomplete|invalid-provider-tool-output/);
+ assert.throws(()=>parseReply('anthropic',response,toolName),/provider-output-incomplete|provider-output-limit|invalid-provider-tool-output/);
 });
 test('tool output is not accepted by the evidence text path',()=>{
  assert.throws(()=>parseReply('anthropic',reply({pages:[]})),/provider-output-incomplete/);

@@ -13,6 +13,7 @@ import {readConfig,hash,validateEvidence,ServiceError,providerCallLimit} from '.
 import {validateSchema} from '../src/schema.mjs';
 import {EVIDENCE_SCHEMA} from '../src/contracts.mjs';
 import {citationInput} from '../src/evidence-citations.mjs';
+import {resumeReviewStream} from './resume-review-stream.mjs';
 import {resumeReservedStream} from './resume-reserved-stream.mjs';
 import {resumeLegacyCitationFailure} from './resume-citation-failure.mjs';
 import {summarizeStages} from '../src/benchmark-metrics.mjs';
@@ -28,7 +29,7 @@ export function admitBeforeDeadline(deadline,callMs,now=performance.now()){
  if(deadline-now<callMs+5000)throw new ServiceError('qa-window-complete-before-next-request',422);
 }
 
-export async function runFixture(fixture,{root,key,parseOnly=false,request=fetch,log=console.log,seedPages=[],recoverLegacyCitationFailure=false,resumeReserved=false}={}){
+export async function runFixture(fixture,{root,key,parseOnly=false,request=fetch,log=console.log,seedPages=[],recoverLegacyCitationFailure=false,resumeReserved=false,resumeReview=false}={}){
  const bytes=Buffer.from(fixture.pdfBase64,'base64');
  if(!['short','plans'].includes(fixture.id)||hash(bytes)!==fixture.sha256||bytes.length>25*1024*1024||fixture.pages!==({short:4,plans:23})[fixture.id])throw Error('Invalid fixture bundle or source digest.');
  const providerLimit=fixture.id==='short'?1:3,maxCalls=fixture.id==='short'?12:64;
@@ -70,6 +71,11 @@ export async function runFixture(fixture,{root,key,parseOnly=false,request=fetch
   await store.init();started=performance.now();
   const receipt=await store.putDocument('model-qa','source-check','fixture.pdf',bytes);document=receipt.document;
   runType=receipt.cached?'resume-or-cache':'new';
+  if(resumeReview&&fixture.id==='short'){
+   await resumeReviewStream(store,document,directory);
+   costGuard=await makeCostGuard();
+   runType='resume-review-stream';log('short: all four completed pages and prior charges preserved; resuming final review only.');
+  }
   if(resumeReserved&&fixture.id==='short'){
    await resumeReservedStream(store,document,directory);
    costGuard=await makeCostGuard();document=await store.document('model-qa','source-check',document.id);
@@ -122,6 +128,7 @@ export async function runFixture(fixture,{root,key,parseOnly=false,request=fetch
   const events=[];
   for(const [kind,id] of [['documents',document?.id],['reviews',review?.id]])if(id)events.push(...(await store.metrics('model-qa','source-check',id,kind)).events);
   report.stageWork=summarizeStages(events);report.events=events;report.cost=costGuard.summary();
+  report.providerFailure=report.complete?null:events.filter(e=>e.stage==='provider-failure').at(-1)||null;
   if(document){
    const pages=await store.pages(document.id);
    report.pageEvidence=pages.map(p=>({page:p.page,nativeText:p.native.text,evidence:p.evidence}));
@@ -139,7 +146,7 @@ export async function runFixture(fixture,{root,key,parseOnly=false,request=fetch
    'No price, branded PDF, email, live adapter activation or 99.9% accuracy claim follows from this test.'];
   await privateJson(join(directory,'report.json'),report);await pool.end();
  }
- log(JSON.stringify({id:fixture.id,complete:report.complete,error:report.error,model:report.model,currentInvocationMs:report.currentInvocationMs,cost:report.cost,quality:report.quality,report:join(directory,'report.json')}));
+ log(JSON.stringify({id:fixture.id,complete:report.complete,error:report.error,model:report.model,currentInvocationMs:report.currentInvocationMs,cost:report.cost,quality:report.quality,providerFailure:report.providerFailure,report:join(directory,'report.json')}));
  return report;
 }
 
