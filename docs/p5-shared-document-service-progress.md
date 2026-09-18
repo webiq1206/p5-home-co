@@ -732,3 +732,46 @@ successful pages and old cost ledgers, then processes only unfinished work under
 existing bounded estimates. Check live websites and address PDF presentation and
 download faults with observed evidence. Full-file, pricing and all-site live
 qualification remain open until their real results pass.
+
+
+### Completion implementation and local evidence
+
+The actual saved response replays successfully with all 15 table items. Ordered
+ellipsis fragments must each occur exactly and in order; invented/reordered
+fragments still fail. Crops solely requesting recovery of explicit redacted
+numbers on reliable native text are removed. Scans, drawings, mixed visual
+concerns and already-partial pages remain subject to verification. Missing
+numbers are never filled. Counts remain component-specific at reconciliation.
+
+Sonnet source reading now uses one page per call and explicit medium effort;
+visual verification and reconciliation retain their existing effort. Prompts
+reduce redundant output without shrinking the schema or omitting distinct work.
+No production timeout, output, concurrency, account limit or infrastructure size
+was increased. Full semantic quality and latency still need live qualification.
+
+The consolidated completion runner validates source checksums and saved native
+text, imports only completed evidence, preserves original databases/ledgers,
+processes remaining work and gates the plans on the short result. Tests prove
+pages 1 and 2 make no further provider requests, parsing is bypassed for saved
+native pages, a repeated completion incurs no extra calls, and original files
+remain byte-for-byte unchanged. A fixed profile and exclusive lock prevent
+concurrent processing and source-fingerprint budget resets.
+
+Local checks passed: 71 document validation, recovery, cost-guard and probe
+regressions; 57 estimator presentation, pricing and unit-rate regressions;
+TypeScript; isolated estimate persistence, PDF generation and simulated email
+retry/CRM tests. The one-page branded customer PDF was rendered and inspected.
+These are offline tests with intercepted providers, not paid source qualification.
+
+Read-only browser checks loaded all five live estimator entry forms. The older
+P5 QA result displayed duplicate exclusion sections. Its browser download event
+did not complete during the observation window; no server root cause is inferred.
+Shared changes consolidate exclusions and exact duplicate assumptions, apply
+compact PDF spacing, validate PDF responses, attach the download link to the DOM
+and allow a longer object URL lifetime. Release browser tests cover download
+bytes and error retry in Chromium and WebKit at mobile and desktop viewports.
+
+Await exact-head release CI before merge. No new provider charge, customer email,
+production database mutation or Replit deployment occurred during these checks.
+The direct Replit Shell/configuration connection remains unavailable; the owner
+must pull reviewed main and publish before deployed behavior can be verified.

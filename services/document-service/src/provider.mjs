@@ -15,6 +15,9 @@ export function requestBody(provider,model,system,input,images,schema,maxOutput,
    return {url:'https://api.anthropic.com/v1/messages',body,outputTool:REVIEW_TOOL};
   }
   body.output_config={format:{type:'json_schema',schema}};
+  // Sonnet 5 defaults to high effort. Routine source reading uses medium;
+  // independent visual verification and reconciliation retain model defaults.
+  if(model==='claude-sonnet-5'&&purpose==='read')body.output_config.effort='medium';
   return {url:'https://api.anthropic.com/v1/messages',body};
  }
  if(provider==='gemini')return {url:`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,body:{systemInstruction:{parts:[{text:system}]},contents:[{role:'user',parts:[{text},...images.flatMap(i=>[{text:i.label},{inlineData:{mimeType:'image/png',data:Buffer.from(i.bytes).toString('base64')}}])]}],generationConfig:{responseMimeType:'application/json',responseJsonSchema:schema,maxOutputTokens:maxOutput}}};
@@ -46,7 +49,8 @@ export class Reader{
    pages:Array.isArray(input.pages)?input.pages.map(p=>p.page):[],imageCount:images.length,
    inputCharacters:JSON.stringify(input).length,maxOutputTokens:c.maxOutput,timeoutMs:c.callMs};
   try{
-   const built=requestBody(c.provider,verify?c.verifyModel:c.model,system,input,images,schema,c.maxOutput,job.kind);
+   const built=requestBody(c.provider,verify?c.verifyModel:c.model,system,input,images,schema,c.maxOutput,verify?'verify':job.kind);
+   if(built.body.output_config?.effort)requestDetail.effort=built.body.output_config.effort;
    const headers={'content-type':'application/json',...(c.provider==='anthropic'?{'x-api-key':c.key,'anthropic-version':'2023-06-01'}:c.provider==='gemini'?{'x-goog-api-key':c.key}:{authorization:`Bearer ${c.key}`})};
    const timeout=AbortSignal.timeout(c.callMs),combined=AbortSignal.any([signal,timeout]);
    const response=await this.request(built.url,{method:'POST',headers,body:JSON.stringify(built.body),signal:combined,redirect:'error'});

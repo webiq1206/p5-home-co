@@ -58,6 +58,27 @@ export function readConfig(env=process.env){
  instance:randomUUID()};
 }
 export const cleanText=value=>String(value||'').normalize('NFKC').replace(/\s+/g,' ').trim();
+/** An ellipsis may omit source text, but cannot invent or reorder it. */
+export function sourceQuoteMatches(text,quote){
+ const source=cleanText(text),value=cleanText(quote);
+ if(!value)return false;
+ if(source.includes(value))return true;
+ const parts=value.split(/\.{3}|\u2026/).map(s=>s.trim());
+ if(parts.length<2||parts.some(s=>s.length<12||s.split(/\s+/).length<2))return false;
+ let end=0;
+ for(const part of parts){const at=source.indexOf(part,end);if(at<0)return false;end=at+part.length;}
+ return true;
+}
+/** Only explicit missing-number recovery on reliable native text is redundant.
+ * Drawings, scans and regions with a second legibility/scope concern stay open. */
+export function missingNumberRecovery(page,reason){
+ if(page.kind!=='text'||!(page.textQuality>=.9))return false;
+ const blank=/\$\s*[,_.]|\bR-\s*(?:attic|exterior|crawl)|(?:^|\s)-(?:ft|in|amp|year)\b/i.test(page.text||'');
+ const missing=/\b(?:redacted|blanked|blank)\b/i.test(reason||'');
+ const recovery=/\b(?:recover(?:able|y)?|closer inspection|verify for)\b/i.test(reason||'');
+ const other=/\b(?:geometry|boundary|symbol|linework|handwrit\w*|dimension line|material note|revision|contradict\w*|unreadable text|faded|cut off|cropped|obscured|overlap\w*)\b/i.test(reason||'');
+ return blank&&missing&&recovery&&!other&&/\b(?:digits|numeric|amounts?|figures?|numbers?)\b/i.test(reason||'');
+}
 export function validateEvidence(value,pages){
  if(!value||!Array.isArray(value.pages)||value.pages.length!==pages.length)throw new ServiceError('incomplete-page-manifest',422);
  const seen=new Set();
@@ -70,8 +91,13 @@ export function validateEvidence(value,pages){
    if(!f.evidence?.trim()||!['stated','calculated','visual','uncertain'].includes(f.basis))throw new ServiceError('unsupported-evidence',422);
    // Exact text quotes can be checked without asking a second model. Visual
    // readings stay explicitly visual and trigger independent verification.
-   if(f.basis==='stated'&&page.textQuality>=.9&&!cleanText(page.text).includes(cleanText(f.evidence)))throw new ServiceError('quote-not-in-source',422);
+   if(f.basis==='stated'&&page.textQuality>=.9&&!sourceQuoteMatches(page.text,f.evidence))throw new ServiceError('quote-not-in-source',422);
    if(f.quantity!==undefined&&f.quantity!==null&&(!Number.isFinite(f.quantity)||f.quantity<0))throw new ServiceError('invalid-quantity',422);
+  }
+  const missing=record.regions.filter(r=>missingNumberRecovery(page,r.reason));
+  if(missing.length){
+   record.regions=record.regions.filter(r=>!missing.includes(r));
+   record.notes=[...new Set([...record.notes,'Blank or redacted source values remain missing. No dimensions, ratings, quantities or prices were recovered from those blanks.'])];
   }
   if(record.regions.length)record.status='partial';
  }

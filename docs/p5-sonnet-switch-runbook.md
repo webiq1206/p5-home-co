@@ -44,30 +44,36 @@ second paid service or change machine size. Pull reviewed main before publishing
 while preserving local commits. A Shell environment does not prove published
 environment values. Check deployed request metrics to verify the actual model.
 
-## Bounded paid document test
+## Finish the existing saved qualification
 
-Upload the separately supplied private p5-sonnet-fixtures.json to P5's workspace
-root and run this command in the existing Replit Shell:
+The private bundle and original checkpoints are already in the owner's P5
+workspace. After pulling this reviewed release, run one command:
 
 ```sh
-node services/document-service/scripts/check-sonnet-documents.mjs p5-sonnet-fixtures.json
+node services/document-service/scripts/finish-sonnet-qualification.mjs
 ```
 
-It runs the original four-page redacted scope first, then the real 23-page plans
-if targeted short-file checks pass. It forces Sonnet for reading and verification
-only inside the test process. It does not change production settings, use the
-production database, price a project, send an email or republish the app.
+It revalidates the successful saved page-1 evidence and the paid page-2 response
+against the exact saved source. Ordered excerpt quotes are checked without a
+new AI call. It processes only unfinished short-file pages, then reconciliation.
+The 23-page plans start only if the short-file coverage and targeted checks pass.
+No file upload or fixture replacement is required.
 
-Estimated guards: $1 / 12 generation requests / 180 seconds for the short file;
-$3 / 64 requests / 600 seconds for the plans. These are estimates, not guaranteed
-provider billing caps. Do not raise guards or erase checkpoints to retry blindly.
-Review private reports under .p5-model-qa before another paid attempt. Successful
-cached work is not a fresh performance sample. Never commit the bundle or reports.
+The new qualification profile reserves additional estimates of at most $1 for
+unfinished short-file work and $3 for the plans. Previous reported estimates
+remain separately visible and their ledgers are unchanged. These are not invoice
+amounts or guaranteed billing caps. Provider settings and account limits are not
+raised. One request runs at a time, with a persistent stop on unknown charges.
+The fixed profile reuses completed work across restarts and code changes; it
+never resets its budget based on a changed source-code fingerprint. A concurrent
+or crashed run retains an exclusive lock for inspection. Do not delete locks,
+ledgers or checkpoints to force another run.
 
-Changing models does not prove an old completed cached review used the new model.
-Use fresh isolated QA work and inspect the actual provider/model metrics. The
-document service currently keys document/job identities by pipeline version,
-tenant, project and content/input, not the model name alone.
+The consolidated private report includes document checks and passive site/host
+availability. These do not establish live adapter activation, pricing, email or
+customer journey success. Existing cached results are not cold performance tests.
+The original full-file and one-page probe commands are historical diagnostics;
+do not run them again instead of this completion command.
 
 ## Verified versus open
 
@@ -88,9 +94,11 @@ reload/resume and responsive browser journeys; failures/recovery/rollback;
 real 25- and 100-page fixtures and bounded concurrency tests. Do not claim 99.9%
 accuracy or p95 performance from a single synthetic or isolated run.
 
-The previous small-job customer PDF contained repeated exclusions and repeated
-verification/assumption notes. Its chat download remains unverified. This
-checkpoint records the issue; no PDF presentation or download fix was made.
+This release consolidates duplicate exclusions and exact duplicate assumption
+text, uses compact customer PDF spacing without dropping details, and hardens
+PDF downloads. Chromium/WebKit release tests exercise the actual browser download
+event, file contents and retry without resubmission. The live deployment still
+needs to receive this release before those changes can be verified on its domains.
 
 Do not approve Replit-generated migrations that drop p5ds_* tables or copy the
 development database over production. A prior publish proposed those destructive

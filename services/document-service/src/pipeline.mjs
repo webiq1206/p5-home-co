@@ -2,7 +2,7 @@ import {jobId,groupPages,ServiceError,validateEvidence,stable} from './core.mjs'
 import {parsePdf,limitParser} from './parser.mjs';
 import {EVIDENCE_SCHEMA,REVIEW_SCHEMA,READER_SYSTEM,VERIFIER_SYSTEM,REVIEW_SYSTEM,validateReview} from './contracts.mjs';
 export class Pipeline{
- constructor(store,reader,config,parser=parsePdf){this.store=store;this.reader=reader;this.config=config;this.parser=limitParser(parser,config.parserSlots||1);}
+ constructor(store,reader,config,parser=parsePdf){this.store=store;this.reader=reader;this.config=config;this.readBatchPages=config.provider==='anthropic'&&config.model==='claude-sonnet-5'?1:4;this.parser=limitParser(parser,config.parserSlots||1);}
  async enqueueRead(job,pages,client=this.store.pool){const numbers=pages.map(p=>p.page);await this.store.enqueue(client,{id:jobId(job.tenant,job.project,'read',[job.document_id,numbers]),tenant:job.tenant,project:job.project,documentId:job.document_id,kind:'read',priority:job.priority,payload:{pages:numbers}});}
  async prepare(job,signal){
   const start=performance.now(),doc=await this.store.document(job.tenant,job.project,job.document_id,true);let count=0,buffer=[];
@@ -14,12 +14,12 @@ export class Pipeline{
     signal.throwIfAborted();await this.store.putPage(job,page);
     await this.store.metric(job,'page-parse',page.parseMs,{page:page.page,nativeMs:page.nativeMs,renderMs:page.renderMs});
     if(buffer.length&&(page.kind!=='text'||buffer.reduce((n,p)=>n+p.text.length,0)+page.text.length>24000))await emit();
-    buffer.push(page);if(buffer.length>=4||page.kind!=='text')await emit();
+    buffer.push(page);if(buffer.length>=this.readBatchPages||page.kind!=='text')await emit();
     await this.store.progress(job,{phase:'preparing',parsedPages:page.page,totalPages:count,message:'Preparing native text, page layout and visual evidence.'});
    }});
   await emit();
   // Reconstruct deterministic batches after a restart, reusing cached native pages.
-  if(cachedPages.length)for(const pages of groupPages((await this.store.pages(doc.id)).map(p=>p.native)))await this.enqueueRead(job,pages);
+  if(cachedPages.length)for(const pages of groupPages((await this.store.pages(doc.id)).map(p=>p.native),24000,this.readBatchPages))await this.enqueueRead(job,pages);
   await this.store.metric(job,'native-parse',performance.now()-start,{pages:count,bytes:Number(doc.size_bytes)});
   await this.store.complete(job,{pages:count},async c=>{await c.query("UPDATE p5ds_documents SET state='prepared',updated_at=now() WHERE id=$1 AND state!='failed'",[doc.id]);await this.store.finalize(doc.id,c);});
  }

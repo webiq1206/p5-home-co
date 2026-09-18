@@ -54,6 +54,19 @@ function mergeByTitle(sections:EstimateSection[]):EstimateSection[]{
  }
  return merged;
 }
+/** Remove repeated presentation text without merging distinct scope or prices. */
+function uniqueCustomerSections(sections:EstimateSection[]):EstimateSection[]{
+ const key=(s:string)=>s.normalize('NFKC').replace(/\s+/g,' ').trim().replace(/[.!;]+$/,'').toLowerCase();
+ const seen=new Map<string,Set<string>>();
+ const normalized=sections.map(s=>s.kind==='excluded'?{...s,title:SECTION_TITLES.excluded,bullets:[...(s.bullets||[]),...(s.rows||[]).flatMap(([name,value])=>name==='Excluded work'?scopeBullets(value):[`${name}: ${value}`])],rows:undefined}:s);
+ return mergeByTitle(normalized).map(section=>{
+  const bucket=section.kind==='assumption'?'assumption':section.title;
+  const used=seen.get(bucket)||new Set<string>();seen.set(bucket,used);
+  const bullets=(section.bullets||[]).filter(b=>{const k=key(b);if(used.has(k))return false;used.add(k);return true;});
+  const rows=(section.rows||[]).filter(([a,b])=>{const k=key(a)+'\n'+key(b);if(used.has(k))return false;used.add(k);return true;});
+  return {...section,bullets,rows};
+ }).filter(s=>s.text||s.bullets?.length||s.rows?.length);
+}
 export function estimateSections(result:any):EstimateSection[]{
  const sections=summarySections(result.summary||'');
  const lines:any[]=result.lineItems||[], tasks:any[]=result.scopeTasks||[];
@@ -107,7 +120,7 @@ export function estimateSections(result:any):EstimateSection[]{
   const values=result[key]||[];if(!values.length)continue;
   sections.push({title,kind,bullets:values.map((x:any)=>typeof x==='string'?x:`${x.description}${x.amount!=null?`: ${money(x.amount)} included`:': selection to confirm'}. Includes ${(x.includes||[]).join(', ')}. ${['tax','freight','delivery','installation','waste'].map(k=>`${k}: ${x[k+'Included']?'included':'excluded'}`).join('; ')}. Selection deadline: ${x.selectionDeadline}. ${x.adjustment}`)});
  }
- return mergeByTitle(sections);
+ return uniqueCustomerSections(sections);
 }
 export interface GroupedSections{glance?:EstimateSection;brief?:EstimateSection;categoriesIntro?:EstimateSection;included:EstimateSection[];categories:EstimateSection[];excluded:EstimateSection[];allowances:EstimateSection[];assumptions:EstimateSection[];info:EstimateSection[]}
 /**
