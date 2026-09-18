@@ -8,7 +8,7 @@ export async function parsePdf(bytes,{maxPages=200,timeoutMs=60000,signal,onMani
   const abort=()=>finish(new ServiceError('processing-cancelled',503));const timer=setTimeout(()=>finish(new ServiceError('parse-timeout',503)),timeoutMs);
   if(signal?.aborted)return abort();signal?.addEventListener('abort',abort,{once:true});
   worker.on('error',()=>finish(new ServiceError('parser-worker-failed',503)));
-  worker.on('exit',code=>{if(!ended)finish(new ServiceError('parser-exited-'+code,503));});
+  worker.on('exit',code=>{void callbacks.then(()=>{if(!ended)finish(new ServiceError('parser-exited-'+code,503));});});
   // A slow manifest write must finish before the first page checkpoint. The
   // worker waits for each page acknowledgment, so this queue stays bounded.
   worker.on('message',m=>{

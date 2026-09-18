@@ -81,6 +81,8 @@ jobs:
           node --import tsx --test --test-concurrency=1 tests/p5-*.test.ts 2>&1 | tee document-service-verification/estimator-tests.log
       - name: Saved pricing timeout recovery
         run: node --import tsx scripts/test-p5-pricing-recovery.mts
+      - name: Unit-rate persistence and site isolation
+        run: node --import tsx scripts/test-p5-unit-rate-store.mts
       - name: Production website build with remote mode disabled
         run: |
           set -o pipefail

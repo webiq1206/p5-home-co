@@ -103,3 +103,7 @@ tsconfig.tsbuildinfo
 !/lib/brand-page-metadata.ts
 !/scripts/verify-p5-mobile-seo.mjs
 /p5-mobile-seo-verification/
+
+# Private source documents, live model QA reports and isolated SQL checkpoints.
+/.p5-model-qa/
+/p5-sonnet-fixtures.json

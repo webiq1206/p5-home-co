@@ -10,7 +10,7 @@ import {pricingActivity,type ProcessingStatus} from './processingStatus.ts';
 
 export function pricingWorkKey(scope:ReviewedScope,configuration:EstimatorConfiguration,pricingAt:Date){
  const signature={pricingDate:pricingAt.toISOString().slice(0,10),text:scope.text,answers:scope.answers,extraction:scope.extraction,uploads:scope.uploads,uncertainFields:scope.uncertainFields,configuration};
- return 'pricing-v10-'+createHash('sha256').update(JSON.stringify(signature)).digest('hex');
+ return 'pricing-v11-'+createHash('sha256').update(JSON.stringify(signature)).digest('hex');
 }
 /** Saved replies are keyed by stage content, so independent stages may run in
  * parallel and a resumed request reuses exactly the work that finished. */

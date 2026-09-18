@@ -10,3 +10,8 @@ test('slow manifest persistence finishes before any page checkpoint or completio
 test('a failed manifest write rejects preparation instead of falsely completing',async()=>{
  let pages=0;await assert.rejects(parsePdf(await fixture(),{onManifest:async()=>{await new Promise(r=>setTimeout(r,100));throw Error('controlled-storage-failure');},onPage:()=>pages++}),/controlled-storage-failure/);assert.equal(pages,0);
 });
+test('all cached pages can finish while a slow manifest checkpoint is pending',async()=>{
+ let saved=false;
+ await parsePdf(await fixture(),{skipPages:[1],onManifest:async()=>{await new Promise(r=>setTimeout(r,300));saved=true;},onPage:()=>assert.fail('cached page must not be parsed again')});
+ assert.equal(saved,true);
+});
