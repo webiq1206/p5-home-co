@@ -22,15 +22,18 @@ try{
  const rows=await db.query('SELECT payload,lease_token FROM p5_estimator_work');assert.ok(rows.every((r:any)=>r.lease_token===null));
  // Regional allowances are reusable evidence, never edits to the approved book.
  const regional=await load('regionalRates');
- const rule={id:'well-allowance',description:'Synthetic well pump',category:'materials',unit:'EA',unitCost:100,quantity:{fixed:8,factor:1},building:'Alpha',floor:'First',scopeTaskId:'scope-well',estimatingBasis:'sourced-market-average',evidence:{validUntil:'2099-01-01',provenance:{sources:[{url:'https://supplier.example.invalid/well-pump',date:'2026-09-12',dateBasis:'retrieved'}]}}};
+ const rateDate=new Date('2026-09-18T00:00:00Z');
+ const rule={id:'well-allowance',description:'Synthetic well pump',category:'materials',unit:'EA',unitCost:100,priceBasis:'direct-cost',quantity:{fixed:8,factor:1},building:'Alpha',floor:'First',scopeTaskId:'scope-well',estimatingBasis:'sourced-market-average',unitRateContext:{currency:'USD',basis:'material-purchase',includes:'Pump material only',excludes:'Installation and tax',assumptions:['Synthetic test specification']},evidence:{basis:'published-benchmark',verifiedAt:'2026-09-18',validUntil:'2026-10-01',provenance:{status:'estimated',location:'Emmett, Idaho',retrievedAt:'2026-09-18',sources:[{url:'https://supplier.example.invalid/well-pump',date:'2026-09-18',dateBasis:'retrieved'},{url:'https://guide.example.invalid/well-pump',date:'2026-09-18',dateBasis:'retrieved'}]}}};
  const original=JSON.stringify(rule);
- await regional.saveRegionalRates(id,' Emmett,  Idaho ',[rule,{...rule,id:'owner-rate',estimatingBasis:'owner-average'}]);
- const local=await regional.readRegionalRates('emmett, idaho',new Date('2026-09-12'));
+ await regional.saveRegionalRates(id,' Emmett,  Idaho ',[rule,{...rule,id:'owner-rate',estimatingBasis:'owner-average'}],rateDate);
+ const local=await regional.readRegionalRates('emmett, idaho',rateDate);
  assert.equal(local.length,1);assert.deepEqual(local[0].quantity,{fixed:1,factor:1});assert.equal(local[0].building,undefined);assert.equal(local[0].floor,undefined);assert.equal(local[0].scopeTaskId,undefined);
  assert.equal(JSON.stringify(rule),original,'Saving regional evidence must not mutate approved input costs or scope');
- assert.equal((await regional.readRegionalRates('Boise, Idaho',new Date('2026-09-12'))).length,0,'Another location cannot inherit this allowance without new evidence');
+ assert.equal((await regional.readRegionalRates('Boise, Idaho',rateDate)).length,0,'Another location cannot inherit this allowance without new evidence');
  assert.equal((await regional.readRegionalRates('Emmett, Idaho',new Date('2100-01-01'))).length,0,'Expired evidence must not be reused');
- const [savedRate]=await db.query("SELECT payload FROM p5_estimator_work WHERE work_key LIKE 'regional-rate-v2-%'");assert.equal(savedRate.payload.status,'estimated');assert.equal(savedRate.payload.rate.evidence.provenance.sources[0].dateBasis,'retrieved');
+ const [savedRate]=await db.query("SELECT payload FROM p5_estimator_work WHERE work_key LIKE 'regional-rate-v3-%'");assert.equal(savedRate.payload.status,'estimated');assert.equal(savedRate.payload.rate.evidence.provenance.sources[0].dateBasis,'retrieved');
+ assert.equal(savedRate.payload.rate.unit,'each');assert.equal(savedRate.payload.rate.unitRateContext.basis,'material-purchase');
+ assert.equal(savedRate.payload.expiresAt,'2026-10-01','Saving must preserve evidence expiry');
  // Exercise the real submission route against isolated SQL. No transport may
  // run for an incomplete quote, and the saved draft must remain editable.
  await writeFile(path.join(dir,'outbox.ts'),`export async function enqueueSubmission(){throw new Error('An incomplete quote reached delivery');}export async function deliveryStatus(){return [];}export async function processOutbox(){throw new Error('An incomplete quote reached transport');}`);
