@@ -14,6 +14,15 @@ Global PostgreSQL admission controls coordinate provider slots, request budgets,
 
 Scope reconciliation is a separate cached job using the current request, all supplied answers, source evidence and full native text. It produces the existing estimator's structured scope contract. Its page coverage cannot exceed the source reader's verified coverage. It does not invent quantities to avoid asking a necessary question.
 
+Choice fields accept only configured options, with case/spacing normalization.
+Unmatched descriptions are preserved as sourced `otherDetails`, including their
+original field label, rather than failing the whole review or inventing a category.
+The website's existing dynamic pricing can create custom tasks from these details,
+use maintained rates or sourced benchmarks, and disclose a provisional planning
+allowance when current sourced pricing is unavailable. A planning allowance is not
+verified local pricing. Source evidence, quantities and exclusions remain separate
+from pricing; missing quantities and incomplete coverage are not silently filled.
+
 ## Standalone deployment alternative
 
 This folder is a Node 24 app requiring an always-on process. For the existing P5 Reserved VM, use the cohosting section below; it requires no separate server or database. The following steps apply only if a separate host is explicitly chosen and approved. Do not run the queue as a background timer in an Autoscale website.
@@ -148,6 +157,10 @@ Anthropic model, validates its output and prints the result without credentials.
 It does not access the database or documents. A pass is not a deployed service or
 end-to-end estimate pass. After publishing, retry the existing failed review with
 `POST /v1/projects/{project}/reviews/{id}/retry` and inspect the completed result.
+For the owner's existing synthetic `p5-qa-1789704249953` fixture, the equivalent
+single command is `node services/document-service/scripts/check-saved-qa-review.mjs`.
+It checks the deployed service, retries only if that review failed, and prints its
+terminal result. It does not rerun source extraction or send customer messages.
 
 Replit may propose deleting production-only `p5ds_` tables when they are absent
 from development. Cancel any publish containing those DROP TABLE statements.

@@ -10,7 +10,12 @@ try {
  const source='P5-QA.pdf';
  const nativeText='Install 120 linear feet of painted baseboard. Install 4 interior doors. Door dimensions are not supplied. Exclude plumbing and electrical work.';
  const manifest=[{source,page:1,sheet:'',revision:'',status:'read',notes:['Door dimensions are not supplied.']}];
- const evidence={page:1,sheet:'',revision:'',status:'read',facts:[],items:[
+ const evidence={page:1,sheet:'',revision:'',status:'read',facts:[
+  {field:'trimLf',value:'120 linear feet painted baseboard',evidence:'Install 120 linear feet of painted baseboard.',basis:'stated'},
+  {field:'finish',value:'Painted baseboard',evidence:'Install 120 linear feet of painted baseboard.',basis:'stated'},
+  {field:'otherDetails',value:'Door dimensions are not supplied',evidence:'Door dimensions are not supplied.',basis:'stated'},
+  {field:'exclusions',value:'Plumbing and electrical work excluded',evidence:'Exclude plumbing and electrical work.',basis:'stated'}
+ ],items:[
   {id:'baseboard-painted',unit:'lf',basis:'stated',floor:'',building:'',evidence:'Install 120 linear feet of painted baseboard.',quantity:120,component:'Baseboard trim',description:'Painted baseboard installation'},
   {id:'interior-doors',unit:'each',basis:'stated',floor:'',building:'',evidence:'Install 4 interior doors. Door dimensions are not supplied.',quantity:4,component:'Interior door',description:'Interior doors, dimensions not supplied'}
  ],notes:['Door dimensions are not supplied.'],regions:[],exclusions:['Exclude plumbing and electrical work.'],inclusions:['Install 120 linear feet of painted baseboard.','Install 4 interior doors.'],responsibilities:[]};

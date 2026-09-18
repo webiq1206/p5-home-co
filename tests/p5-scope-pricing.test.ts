@@ -4,7 +4,8 @@ import assert from 'node:assert/strict';
 import {priceCompleteScope,marketResolution,catalogResolution,requestPricing,advisoryIssue,type PricingRequest,HANDOFF_ISSUE} from '../lib/p5/scopePricing.ts';
 import {priceReviewedScope} from '../lib/p5/costBook.ts';
 import {createPlanningConfiguration,PLANNING_MODEL_VERSION,type PlanningCatalog} from '../lib/p5/planningBooks.ts';
-import type {ReviewedScope} from '../lib/p5/scope.ts';
+import {validateExtraction,type ReviewedScope} from '../lib/p5/scope.ts';
+import {validateReview} from '../services/document-service/src/contracts.mjs';
 import {emptyInstructions} from '../lib/p5/instructions.ts';
 const date='2026-09-11T00:00:00.000Z',now=new Date(date);
 const codes=['03-17-01-M','03-17-01-L','03-19-02-M','03-15-02-M','03-15-02-L','03-16-01-M','03-16-01-L','03-14-01-M','03-14-01-L','03-04-01','03-04-02','03-04-03','03-05-02-M','03-05-02-L','REF-GENERAL-HOUR','REF-PLUMBING-HOUR','REF-ELECTRICAL-HOUR'];
@@ -56,6 +57,49 @@ test('Sourced averages add missing costs, retain sources, and preserve financial
  assert.ok((r.customer.range?.low||0)>(base.customer.range?.low||0));
  assert.ok(JSON.stringify(r.internal.scopePricing).includes(urls[0]));
  assert.ok(!JSON.stringify(r.customer).includes('unitCost'));
+});
+test('An unfamiliar document category reaches custom pricing with evidence and a disclosed allowance',async()=>{
+ const evidence='Supply 10 linear feet of specialty protective overlay. Electrical work excluded.';
+ const reviewed=validateReview({summary:'Cabinet supply and specialty protective overlay',
+  facts:[{field:'service',value:'Specialty protective overlay',confidence:.9,source:'QA.pdf p.1',evidence,basis:'stated'}],
+  conflicts:[],missingInformation:[],reviewNotes:[],clarifications:[],
+  instructions:{...emptyInstructions(),inclusions:['Supply 10 linear feet of specialty protective overlay'],exclusions:['Electrical work']},
+  takeoffs:[{id:'overlay',description:'Specialty protective overlay',building:'',floor:'',component:'overlay',quantity:10,unit:'lf',basis:'stated',evidence,sources:[{source:'QA.pdf',page:1,sheet:'',revision:''}],supersedes:[],issues:[]}]
+ },[{source:'QA.pdf',page:1,sheet:'',revision:'',status:'read',notes:[]}]);
+ const extraction=validateExtraction(reviewed);
+ const customScope={...scope,text:'Supply ten feet of cabinetry.',extraction};
+ assert.equal(extraction.facts[0].field,'otherDetails');
+ assert.equal(extraction.facts[0].evidence,evidence);
+ for(const fallback of [false,true]){
+  let calls=0,searches=0,planning=0;
+  const request:PricingRequest=async(_instructions,input,search)=>{
+   calls++;const data=input as {original?:{extraction:typeof extraction};taskBatch?:unknown;tasks?:unknown;region?:unknown};
+   if(calls===1){
+    assert.equal(data.original?.extraction.facts[0].value,'Project type: Specialty protective overlay');
+    assert.equal(data.original?.extraction.facts[0].source,'QA.pdf p.1');
+    assert.equal(data.original?.extraction.takeoffs?.[0].quantity,10);
+    assert.deepEqual(data.original?.extraction.instructions?.exclusions,['Electrical work']);
+    return {value:{tasks:[task,extra].map(({id,description,evidence})=>({id,description,evidence})),issues:[]},sourceUrls:[]};
+   }
+   if(data.taskBatch)return {value:{tasks:[task,extra],issues:[]},sourceUrls:[]};
+   if(search){searches++;if(fallback)throw new PricingStageTimeout('pricing-stage-timeout');return {value:researched,sourceUrls:urls};}
+   if(data.tasks&&data.region){planning++;return {value:{rates:[{taskId:'overlay',description:'Protective overlay allowance',unit:'LF',quantity:10,quantityEvidence:evidence,basis:'material-purchase',includes:'overlay material',excludes:'Electrical work',low:10,high:30,confidence:'low',rationale:'Synthetic test allowance, not a real market observation.'}],issues:[],notes:[]},sourceUrls:[]};}
+   if('priorPricingIssues' in data)return {value:{coveredTaskIds:['cabinets','overlay'],issues:[]},sourceUrls:[]};
+   throw new Error('Unexpected pricing stage');
+  };
+  const priced=await priceCompleteScope(customScope,config,request,now);
+  assert.ok(priced.customer.range);
+  assert.equal(searches,1);assert.equal(planning,fallback?1:0);
+  const customLines=priced.customer.lineItems.filter(l=>/protective overlay/i.test(l.description));
+  assert.equal(customLines.length,1,'one physical item is priced once');
+  assert.equal(customLines[0].quantity,10);assert.equal(customLines[0].unit,'LF');
+  assert.equal(customLines[0].pricingStatus,'estimated-allowance');
+  assert.ok(customLines[0].low>0&&customLines[0].high>=customLines[0].low);
+  if(fallback){assert.match(customLines[0].verification||'',/not verified local pricing/);assert.ok(!customLines[0].rateSources?.length);}
+  else assert.deepEqual(customLines[0].rateSources,urls);
+  assert.ok(priced.customer.exclusions.some(e=>/electrical/i.test(e)));
+  assert.ok('reconciliation' in priced.internal&&Math.abs(priced.internal.reconciliation)<1e-8,'existing financial allocations reconcile');
+ }
 });
 test('Complete-scope mapper and audit receive active scope without retained alternatives',async()=>{
  const history={version:'p5-retained-clarification-v1',clarifications:[],unselected:'Unselected quartz top'};

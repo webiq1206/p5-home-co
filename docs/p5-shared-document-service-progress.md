@@ -235,9 +235,38 @@ tasks, maintained rates, researched averages and explicitly disclosed regional
 planning allowances. The immediate gap is earlier: a non-enum description in a
 known choice field aborts the entire document review before pricing.
 
-Next change: conservatively normalize exact option spellings and retain unmatched
-descriptions as sourced text details, without inventing a category or dropping
-scope. Keep numeric, schema, provenance and completeness checks. Add regression
-coverage for preservation through review and custom allowance pricing. Then run
-required checks, merge reviewed code, and retry the saved review after publishing.
-This checkpoint contains documentation only and does not change production.
+Write access proved with documentation-only branch commit
+ecee797cb924ca2c748d1214f02a6d74a3a45db9 before implementation.
+
+Implemented: exact choice spelling normalization (case, spaces and underscores),
+with unmatched descriptions retained as otherDetails including the original field
+label, value, confidence, basis and source evidence. No guessed category or grade,
+extra AI call, source reread, new price database or cost-book change. Prompt guidance
+distinguishes physical finishes from finish grades and keeps specification questions
+off quantity fields. Numeric, structural, takeoff-provenance and coverage validation
+remain enforced. Preflight input now includes the saved synthetic page's field hints.
+
+Local results: 75 service tests passed; nine PostgreSQL-dependent tests skipped
+locally and required in CI. All 362 estimator regressions passed. Type checking
+passed. New regressions preserve unknown scope through the website extraction
+adapter and dynamic pricing, including a sourced average and a disclosed planning
+allowance after research timeout, positive quantities, one line per physical item,
+electrical exclusions and unchanged financial reconciliation. These use synthetic
+rates and mocked provider responses, not real market prices or live-provider proof.
+Saved-file/SQL adapter integration also passed. Repository-wide lint remains failing
+on pre-existing violations; the changed pricing test has the same lint findings as
+main, and all changed service code/scripts/tests pass scoped lint. No new lint
+violations are introduced. The final pricing regression rerun passed all 44 tests.
+
+Next: complete PR service/database, estimator, production-build and container checks,
+merge reviewed code, pull P5 and republish without destructive migrations. Then run:
+
+    node services/document-service/scripts/check-saved-qa-review.mjs
+
+This script retries only the existing failed synthetic review once and polls it.
+It never uploads or rereads the saved PDF and never sends email. Inspect the returned
+120 lf baseboard, four doors, unknown door dimensions and plumbing/electrical
+exclusions. Direct Replit shell/configuration remains unavailable to this session;
+the owner executes this single command. A passing result is only deployed review
+qualification. All-site activation, real-document performance/accuracy and full
+pricing/PDF/email/browser qualification remain open. No new infrastructure or spend.
