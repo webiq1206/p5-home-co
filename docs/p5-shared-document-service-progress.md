@@ -157,3 +157,34 @@ workflow now runs on relevant PRs before merge. Each linked PR and its exact-hea
 checks are the authoritative verification record for this follow-up.
 
 No Replit configuration/deployment or live-provider QA occurred during this fix.
+
+## Live cohost qualification: 2026-09-18
+
+Owner configured and republished the existing P5 Reserved VM (0.5 vCPU, 2 GiB)
+with the existing production database. Host enabled; estimator mode remains legacy.
+No new machine, subscription, or spending limit was requested. Owner confirmed five
+unique tenant keys, direct Anthropic model-list HTTP 200, and signed production
+readiness HTTP 200. Public homepage returned 200; unsigned readiness returned 401.
+
+A synthetic one-page scope completed with 120 lf painted baseboard, four interior
+doors, plumbing/electrical exclusions, and absent door dimensions correctly retained.
+Observed customer wait including upload/polling: 20,734 ms. Metrics: parse queue
+323 ms, parse job 6,117 ms (page native 59 ms, render 556 ms), read queue 139 ms,
+provider reservation wait 213 ms, Anthropic claude-opus-5 reading 11,086 ms.
+These nested work durations are not additive wall time. Upload duration was not
+separately instrumented in this manual smoke. This is not a p95 or accuracy study.
+
+Reconciliation failed with provider-http-400. A synthetic direct request confirmed
+Anthropic's "compiled grammar is too large" rejection. The correction simplifies
+large string enums only in the Anthropic wire schema. The original full schema is
+still used for local validation; the field vocabulary remains in the system prompt.
+Evidence schemas and other providers are unchanged. Regression tests exercise
+rejection of unknown fact, conflict and clarification fields after simplification.
+
+Branch: fix/p5-review-schema-20260918. Live acceptance of the simplified schema is
+still pending. After reviewed merge, pull P5 and republish, then retry the existing
+failed review using its retry endpoint; do not reupload or reread the successful PDF.
+Synthetic project: p5-qa-1789704249953.
+Review: d331348c215480aeb7464fa574ef0d2c3d2cb7c1a90e5def5030b84b4d470ea9.
+All five remote adapters remain unqualified. Real documents, full customer journeys,
+PDFs, QA email, resource/recovery checks and performance targets remain open.

@@ -1,9 +1,25 @@
 import {ServiceError} from './core.mjs';
 import {validateSchema} from './schema.mjs';
 const sleep=(ms,signal)=>new Promise((resolve,reject)=>{if(signal?.aborted)return reject(signal.reason);const abort=()=>{clearTimeout(timer);reject(signal.reason);};const timer=setTimeout(()=>{signal?.removeEventListener('abort',abort);resolve();},ms);signal?.addEventListener('abort',abort,{once:true});});
+// Large repeated field-name enums can exceed Anthropic's compiled grammar budget.
+// Keep them in the system vocabulary and enforce the original schema locally.
+// Transform a copy: never weaken the schema used to validate provider replies.
+export function anthropicWireSchema(schema){
+ const copy=structuredClone(schema);
+ const visit=node=>{
+  if(!node||typeof node!=='object')return;
+  if(node.type==='string'&&Array.isArray(node.enum)&&node.enum.length>32){
+   delete node.enum;
+   node.description=[node.description,'Use only a field name from the system vocabulary.'].filter(Boolean).join(' ');
+  }
+  if(node.properties)Object.values(node.properties).forEach(visit);
+  if(node.items)visit(node.items);
+ };
+ visit(copy);return copy;
+}
 export function requestBody(provider,model,system,input,images,schema,maxOutput){
  const text=JSON.stringify(input);
- if(provider==='anthropic')return {url:'https://api.anthropic.com/v1/messages',body:{model,max_tokens:maxOutput,system:[{type:'text',text:system,cache_control:{type:'ephemeral'}}],messages:[{role:'user',content:[{type:'text',text},...images.flatMap(i=>[{type:'text',text:i.label},{type:'image',source:{type:'base64',media_type:'image/png',data:Buffer.from(i.bytes).toString('base64')}}])]}],output_config:{format:{type:'json_schema',schema}}}};
+ if(provider==='anthropic')return {url:'https://api.anthropic.com/v1/messages',body:{model,max_tokens:maxOutput,system:[{type:'text',text:system,cache_control:{type:'ephemeral'}}],messages:[{role:'user',content:[{type:'text',text},...images.flatMap(i=>[{type:'text',text:i.label},{type:'image',source:{type:'base64',media_type:'image/png',data:Buffer.from(i.bytes).toString('base64')}}])]}],output_config:{format:{type:'json_schema',schema:anthropicWireSchema(schema)}}}};
  if(provider==='gemini')return {url:`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,body:{systemInstruction:{parts:[{text:system}]},contents:[{role:'user',parts:[{text},...images.flatMap(i=>[{text:i.label},{inlineData:{mimeType:'image/png',data:Buffer.from(i.bytes).toString('base64')}}])]}],generationConfig:{responseMimeType:'application/json',responseJsonSchema:schema,maxOutputTokens:maxOutput}}};
  if(provider==='openai')return {url:'https://api.openai.com/v1/responses',body:{model,store:false,instructions:system,input:[{role:'user',content:[{type:'input_text',text},...images.flatMap(i=>[{type:'input_text',text:i.label},{type:'input_image',image_url:'data:image/png;base64,'+Buffer.from(i.bytes).toString('base64'),detail:'high'}])]}],text:{format:{type:'json_schema',name:'document_evidence',strict:true,schema}},max_output_tokens:maxOutput}};
  throw new ServiceError('unsupported-provider',500);
