@@ -218,3 +218,26 @@ acceptance and the validated scope result. Then republish without destructive
 migrations and retry the existing saved review. Live acceptance of this new format,
 all-site remote activation, real-fixture accuracy/performance, pricing/PDF/email
 and full browser journeys remain unverified. No cost increase or new infrastructure.
+
+## Custom scope and choice validation follow-up: 2026-09-18
+
+Recovery base: main d6d68116cb18598297a3c3dcd335d51207cf1822 (PR #51).
+Working branch: fix/p5-custom-scope-facts-20260918. Owner's synthetic preflight
+returned HTTP 200 and a validated review in 22,321 ms. After republishing, the
+saved production review reached semantic validation but failed with
+invalid-choice-fact after 29,824 ms. The exact rejected field is not available;
+the saved page's finish hint "Painted baseboard" is one regression case, not a
+confirmed diagnosis of the rejected response. Successful PDF evidence remains saved.
+
+Owner requests automatic custom work items and average-price allowances for work
+outside the catalog. The existing complete-scope pricing engine supports dynamic
+tasks, maintained rates, researched averages and explicitly disclosed regional
+planning allowances. The immediate gap is earlier: a non-enum description in a
+known choice field aborts the entire document review before pricing.
+
+Next change: conservatively normalize exact option spellings and retain unmatched
+descriptions as sourced text details, without inventing a category or dropping
+scope. Keep numeric, schema, provenance and completeness checks. Add regression
+coverage for preservation through review and custom allowance pricing. Then run
+required checks, merge reviewed code, and retry the saved review after publishing.
+This checkpoint contains documentation only and does not change production.
