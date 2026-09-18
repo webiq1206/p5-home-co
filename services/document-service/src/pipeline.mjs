@@ -3,7 +3,7 @@ import {parsePdf,limitParser} from './parser.mjs';
 import {EVIDENCE_SCHEMA,REVIEW_SCHEMA,READER_SYSTEM,VERIFIER_SYSTEM,REVIEW_SYSTEM,validateReview} from './contracts.mjs';
 export class Pipeline{
  constructor(store,reader,config,parser=parsePdf){this.store=store;this.reader=reader;this.config=config;this.parser=limitParser(parser,config.parserSlots||1);}
- async enqueueRead(job,pages){const numbers=pages.map(p=>p.page);await this.store.enqueue(this.store.pool,{id:jobId(job.tenant,job.project,'read',[job.document_id,numbers]),tenant:job.tenant,project:job.project,documentId:job.document_id,kind:'read',priority:job.priority,payload:{pages:numbers}});}
+ async enqueueRead(job,pages,client=this.store.pool){const numbers=pages.map(p=>p.page);await this.store.enqueue(client,{id:jobId(job.tenant,job.project,'read',[job.document_id,numbers]),tenant:job.tenant,project:job.project,documentId:job.document_id,kind:'read',priority:job.priority,payload:{pages:numbers}});}
  async prepare(job,signal){
   const start=performance.now(),doc=await this.store.document(job.tenant,job.project,job.document_id,true);let count=0,buffer=[];
   const cachedPages=await this.store.pages(doc.id);
@@ -35,8 +35,14 @@ export class Pipeline{
   let reply;
   try{reply=validateEvidence(await this.reader.call(job,READER_SYSTEM,{pages:input},images,EVIDENCE_SCHEMA,signal),input);}
   catch(e){
-   if(stored.length>1&&['provider-output-incomplete','invalid-provider-json','invalid-provider-schema','incomplete-page-manifest','invalid-page-record','quote-not-in-source'].includes(e.code)){
-    for(const p of stored)await this.enqueueRead(job,[p.native]);await this.store.complete(job,{splitIntoPages:true,reason:e.code});return;
+   // A cancelled job or expired lease must not create fresh paid work. A live
+   // multi-page call that hits its deadline gets smaller requests, not three
+   // identical whole-batch retries. Single pages retain bounded failure handling.
+   signal.throwIfAborted();
+   if(stored.length>1&&['provider-timeout','provider-output-incomplete','invalid-provider-json','invalid-provider-schema','incomplete-page-manifest','invalid-page-record','quote-not-in-source'].includes(e.code)){
+    await this.store.complete(job,{splitIntoPages:true,reason:e.code,pages:stored.map(p=>p.page)},async c=>{
+     for(const p of stored)await this.enqueueRead(job,[p.native],c);
+    });return;
    }throw e;
   }
   let original;

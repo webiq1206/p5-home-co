@@ -629,3 +629,15 @@ Working branch: fix/document-read-timeout-recovery-20260918. Preserve the failed
 private checkpoint. Investigate bounded single-page recovery and add no-cost
 regressions before requesting another paid run. Do not raise limits, republish,
 change production data or claim real-file qualification from synthetic tests.
+
+Local source parsing confirmed this exact short PDF groups pages 1-4 into one
+read (13982 native text characters). Implemented lease-fenced atomic single-page
+recovery for multi-page provider timeouts and numeric request-shape metrics.
+66 focused tests pass, including isolated SQL rollback, stale-lease fencing,
+cancellation, cached-page preservation, bounded single-page failure, existing
+provider schemas and QA cost guards. These tests use controlled responses and
+make no paid AI calls. Live latency and accuracy remain unverified. No timeout,
+output budget, model, slot setting or spend limit was raised. Await PR checks and
+inspect the owner's private failed report before a further paid test. The existing
+source-fingerprinted runner creates a fresh ledger after a source update; previous
+estimated costs are not part of the new ledger.
