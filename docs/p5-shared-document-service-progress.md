@@ -657,3 +657,20 @@ a hypothesis, not a confirmed root cause. Working branch:
 fix/sonnet-qa-stop-on-unknown-charge-20260918. Add a persistent stop after unknown
 charges and a no-network inspection of saved timings and completed evidence.
 Do not raise deadlines, spend limits or change production models speculatively.
+
+The QA guard now pauses after the first interrupted/unknown-charge generation,
+persists that stop across restarts and checks it again after concurrent token
+counts. QA concurrency is reduced to one. Production processing, models, limits
+and fingerprint e887478622096021 are unchanged; this patch does not silently
+reset the failed run's checkpoint or budget. Incomplete reports preserve saved
+page evidence. The free inspector selects the latest short report and queries a
+disposable database copy, printing timings and evidence counts without source
+text, secrets, provider calls or changes to the original checkpoint.
+
+16 focused local tests passed (11 QA/inspection and five existing read-recovery),
+including response interruptions, missing/invalid usage, estimate caps, concurrent
+pause races, restart blocking and preserving a completed page. Original checkpoint
+file sizes/modification times were unchanged by inspection. No paid request or
+production deployment was made. Await PR CI before merge. Actual Sonnet latency,
+source accuracy and the 23-page test remain unresolved; obtain the free saved-run
+diagnostic before selecting another processing change or paid experiment.

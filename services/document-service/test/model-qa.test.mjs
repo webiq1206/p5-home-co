@@ -1,26 +1,74 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {mkdtemp,rm,readFile} from 'node:fs/promises';
+import {mkdtemp,rm,readFile,readdir,stat} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {PDFDocument,StandardFonts} from 'pdf-lib';
 import {isolatedPool,guardedSonnetFetch,targetedChecks} from '../scripts/model-qa-support.mjs';
 import {runFixture} from '../scripts/check-sonnet-documents.mjs';
 import {hash} from '../src/core.mjs';
+import {inspectSavedRun} from '../scripts/inspect-sonnet-run.mjs';
 
 const json=value=>new Response(JSON.stringify(value),{headers:{'content-type':'application/json'}});
 const options={body:JSON.stringify({model:'claude-sonnet-5',max_tokens:1000,messages:[]})};
 const url='https://api.anthropic.com/v1/messages';
 
-test('QA cost reservation persists unknown charges and stops before another paid request',async()=>{
- const root=await mkdtemp(join(tmpdir(),'p5-budget-'));let calls=0;
- const request=async u=>{if(u.endsWith('count_tokens'))return json({input_tokens:100});calls++;throw new TypeError('Simulated interrupted response');};
+test('QA unknown charges pause immediately and across restart before any further network request',async()=>{
+ const root=await mkdtemp(join(tmpdir(),'p5-budget-'));let calls=0,counts=0,pauses=0;
+ const request=async u=>{if(u.endsWith('count_tokens')){counts++;return json({input_tokens:100});}calls++;throw new TypeError('Simulated interrupted response');};
  try{
-  const settings={file:join(root,'cost.json'),limitUsd:.025,maxCalls:10,request};
-  const a=await guardedSonnetFetch(settings);await assert.rejects(a.request(url,options));assert.equal(calls,1);
+  const settings={file:join(root,'cost.json'),limitUsd:1,maxCalls:10,request,onPause:()=>pauses++};
+  const a=await guardedSonnetFetch(settings);await assert.rejects(a.request(url,options),e=>e.code==='qa-paused-unknown-provider-charge');assert.equal(calls,1);
   assert.ok(a.summary().estimatedUsd>.01);assert.equal(a.summary().unknownChargeRequests,1);
+  assert.equal(a.summary().paused,true);assert.equal(pauses,1);
   const resumed=await guardedSonnetFetch(settings);
-  await assert.rejects(resumed.request(url,options),e=>e.code==='qa-estimated-spend-limit-reached');assert.equal(calls,1);
+  await assert.rejects(resumed.request(url,options),e=>e.code==='qa-paused-unknown-provider-charge');assert.equal(calls,1);assert.equal(counts,1);
+ }finally{await rm(root,{recursive:true,force:true});}
+});
+
+test('known charges still enforce the estimate cap before a further generation request',async()=>{
+ const root=await mkdtemp(join(tmpdir(),'p5-budget-'));let paid=0;
+ try{
+  const guard=await guardedSonnetFetch({file:join(root,'cost.json'),limitUsd:.02,maxCalls:10,request:async u=>u.endsWith('count_tokens')?json({input_tokens:100}):(paid++,json({usage:{input_tokens:100,output_tokens:1000}}))});
+  await guard.request(url,options);
+  await assert.rejects(guard.request(url,options),e=>e.code==='qa-estimated-spend-limit-reached');
+  assert.equal(paid,1);assert.equal(guard.summary().paused,false);
+ }finally{await rm(root,{recursive:true,force:true});}
+});
+
+for(const kind of ['missing usage','truncated body','negative usage'])test('QA pauses when a response has '+kind,async()=>{
+ const root=await mkdtemp(join(tmpdir(),'p5-budget-'));let paid=0;
+ try{
+  const guard=await guardedSonnetFetch({file:join(root,'cost.json'),limitUsd:1,maxCalls:10,request:async u=>{
+   if(u.endsWith('count_tokens'))return json({input_tokens:100});
+   paid++;
+   if(kind==='truncated body')return new Response('{"usage":');
+   return json(kind==='negative usage'?{usage:{input_tokens:-1,output_tokens:20}}:{});
+  }});
+  await assert.rejects(guard.request(url,options),e=>e.code==='qa-paused-unknown-provider-charge');
+  await assert.rejects(guard.request(url,options),e=>e.code==='qa-paused-unknown-provider-charge');
+  assert.equal(paid,1);assert.equal(guard.summary().unknownChargeRequests,1);
+  assert.ok(guard.summary().estimatedUsd>0);
+ }finally{await rm(root,{recursive:true,force:true});}
+});
+
+test('a concurrent token count cannot start generation after another request pauses the ledger',async()=>{
+ const root=await mkdtemp(join(tmpdir(),'p5-budget-'));let counts=0,paid=0,releaseCount,failFirst;
+ let countedSecond;const secondReached=new Promise(r=>{countedSecond=r;});
+ const request=async u=>{
+  if(u.endsWith('count_tokens')){
+   if(++counts===2){countedSecond();await new Promise(r=>{releaseCount=r;});}
+   return json({input_tokens:100});
+  }
+  paid++;await new Promise((resolve,reject)=>{failFirst=()=>reject(new DOMException('Test timeout','TimeoutError'));});
+ };
+ try{
+  const guard=await guardedSonnetFetch({file:join(root,'cost.json'),limitUsd:1,maxCalls:10,request});
+  const a=assert.rejects(guard.request(url,options),e=>e.code==='qa-paused-unknown-provider-charge');
+  while(!failFirst)await new Promise(r=>setTimeout(r,1));
+  const b=assert.rejects(guard.request(url,options),e=>e.code==='qa-paused-unknown-provider-charge');
+  await secondReached;failFirst();await a;releaseCount();await b;
+  assert.equal(paid,1);assert.equal(guard.summary().requests,1);
  }finally{await rm(root,{recursive:true,force:true});}
 });
 
@@ -53,7 +101,7 @@ test('targeted redaction checks fail invented house area and do not claim full a
 });
 
 test('QA runner exercises real SQL, PDF parser and pipeline, then reuses completed work with no paid calls',async()=>{
- const root=await mkdtemp(join(tmpdir(),'p5-qa-flow-'));const pdf=await PDFDocument.create(),font=await pdf.embedFont(StandardFonts.Helvetica);
+ const directory=await mkdtemp(join(tmpdir(),'p5-qa-flow-')),root=join(directory,'1234567890abcdef');const pdf=await PDFDocument.create(),font=await pdf.embedFont(StandardFonts.Helvetica);
  for(let i=0;i<4;i++){const p=pdf.addPage();p.drawText('Well septic cabinetry painting appliances fireplace.',{x:40,y:740,font,size:12});p.drawText('Exclude land, financing and wallpaper.',{x:40,y:710,font,size:12});}
  const bytes=Buffer.from(await pdf.save()),fixture={id:'short',sha256:hash(bytes),pages:4,pdfBase64:bytes.toString('base64')};let paid=0;
  const request=async(u,options)=>{
@@ -75,5 +123,46 @@ test('QA runner exercises real SQL, PDF parser and pipeline, then reuses complet
   const saved=JSON.parse(await readFile(join(root,'short-'+fixture.sha256.slice(0,16),'report.json'),'utf8'));
   assert.equal(saved.stageWork.aiReadWorkMs>0,true);assert.equal(saved.cost.usage.length,2);
   assert.ok(!JSON.stringify(saved).includes('synthetic-test-key-no-network'));
+  const snapshot=async directory=>{
+   const entries=[];
+   for(const entry of await readdir(directory,{withFileTypes:true})){
+    const path=join(directory,entry.name);
+    if(entry.isDirectory())entries.push(...await snapshot(path));
+    else {const s=await stat(path);entries.push([path,s.size,s.mtimeMs]);}
+   }
+   return entries.sort((a,b)=>a[0].localeCompare(b[0]));
+  };
+  const filesBefore=await snapshot(root),callsBefore=paid;
+  const inspected=await inspectSavedRun({root:directory});
+  assert.equal(inspected.pages.length,4);assert.equal(inspected.complete,true);
+  assert.equal(inspected.pages[0].status,'read');assert.equal(paid,callsBefore);
+  assert.deepEqual(await snapshot(root),filesBefore,'Inspection must not modify checkpoints');
+  assert.ok(!JSON.stringify(inspected).includes('Well septic'),'Diagnostic console omits source text');
+ }finally{await rm(directory,{recursive:true,force:true});}
+});
+
+test('QA runner stops after the first interruption and retains the earlier completed page',async()=>{
+ const root=await mkdtemp(join(tmpdir(),'p5-qa-stop-')),pdf=await PDFDocument.create();
+ for(let n=0;n<4;n++)pdf.addPage().drawText('Synthetic source page. No customer information.');
+ const bytes=Buffer.from(await pdf.save()),fixture={id:'short',sha256:hash(bytes),pages:4,pdfBase64:bytes.toString('base64')};let paid=0;
+ const request=async(u,options)=>{
+  if(u.endsWith('count_tokens'))return json({input_tokens:500});
+  paid++;
+  if(paid===1){
+   const input=JSON.parse(JSON.parse(options.body).messages[0].content[0].text);
+   const pages=input.pages.map(p=>({page:p.page,sheet:'',revision:'',status:'read',notes:[],facts:[],items:[],inclusions:[],exclusions:['Synthetic exclusion'],responsibilities:[],regions:[]}));
+   return json({stop_reason:'end_turn',usage:{input_tokens:500,output_tokens:100},content:[{type:'text',text:JSON.stringify({pages})}]});
+  }
+  throw new DOMException('Synthetic timeout','TimeoutError');
+ };
+ try{
+  const report=await runFixture(fixture,{root,key:'synthetic-no-network',request,log:()=>{}});
+  assert.equal(report.complete,false);assert.equal(report.error,'qa-paused-unknown-provider-charge');
+  assert.equal(paid,2);assert.equal(report.cost.unknownChargeRequests,1);assert.equal(report.cost.paused,true);assert.equal(report.qaProviderSlots,1);
+  const completed=report.pageEvidence.filter(p=>p.evidence);
+  assert.equal(completed.length,1);assert.deepEqual(completed[0].evidence.exclusions,['Synthetic exclusion']);
+  assert.ok(report.pageEvidence.length>=2&&report.pageEvidence.length<=4);
+  await runFixture(fixture,{root,key:'synthetic-no-network',request,log:()=>{}});
+  assert.equal(paid,2,'Saved failure must not spend again');
  }finally{await rm(root,{recursive:true,force:true});}
 });

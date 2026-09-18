@@ -28,10 +28,12 @@ export async function runFixture(fixture,{root,key,parseOnly=false,request=fetch
  }
  if(!key)throw Error('ANTHROPIC_API_KEY is unavailable. Run this inside the existing P5 Replit Shell. Do not paste the key into chat.');
  const config=readConfig({...process.env,DOCUMENT_PROVIDER:'anthropic',ANTHROPIC_API_KEY:key,DOCUMENT_MODEL:'claude-sonnet-5',DOCUMENT_VERIFY_MODEL:'claude-sonnet-5',DOCUMENT_DATABASE_URL:'qa-isolated-pglite-not-a-network-database',P5_DOCUMENT_TENANTS_JSON:JSON.stringify({'model-qa':randomBytes(32).toString('hex')})});
- config.slots=Math.min(config.slots,2);config.parserSlots=1;config.maxPages=fixture.pages;config.maxOutput=Math.min(config.maxOutput,10000);
+ // Diagnostic QA is sequential so a single unknown charge can stop all further
+ // paid calls. Production concurrency and processing code remain unchanged.
+ config.slots=1;config.parserSlots=1;config.maxPages=fixture.pages;config.maxOutput=Math.min(config.maxOutput,10000);
  const controller=new AbortController(),limit=fixture.id==='short'?180000:600000;
  let stop,document,review,started,runType='new';
- const costGuard=await guardedSonnetFetch({file:join(directory,'cost.json'),limitUsd:providerLimit,maxCalls,request,onRequest:n=>log(fixture.id+': provider request '+n)});
+ const costGuard=await guardedSonnetFetch({file:join(directory,'cost.json'),limitUsd:providerLimit,maxCalls,request,onRequest:n=>log(fixture.id+': provider request '+n),onPause:error=>controller.abort(error)});
  const pool=await isolatedPool(join(directory,'database')),store=new Store(pool,config);
  const reader=new Reader(config,store,(url,options)=>costGuard.request(url,{...options,signal:AbortSignal.any([options.signal,controller.signal])}));
  const parser=(data,options)=>parsePdf(data,{...options,signal:AbortSignal.any([options.signal,controller.signal])});
@@ -67,7 +69,10 @@ export async function runFixture(fixture,{root,key,parseOnly=false,request=fetch
   const events=[];
   for(const [kind,id] of [['documents',document?.id],['reviews',review?.id]])if(id)events.push(...(await store.metrics('model-qa','source-check',id,kind)).events);
   report.stageWork=summarizeStages(events);report.events=events;report.cost=costGuard.summary();
+  if(document){report.pageEvidence=(await store.pages(document.id)).map(p=>({page:p.page,nativeText:p.native.text,evidence:p.evidence}));}
+  report.qaProviderSlots=config.slots;
   report.notes=['Uses actual production processing code in isolated local SQL storage. This is not the deployed website/worker or its queue.',
+   'QA provider concurrency is one for diagnosis and cost containment. This is not a production concurrency benchmark.',
    'No network upload is measured. Token counting adds QA overhead; summed parallel stages do not equal wall time.',
    'One run is not a percentile benchmark. Cached/resumed runs are not cold processing performance.',
    'No price, branded PDF, email, live adapter activation or 99.9% accuracy claim follows from this test.'];
@@ -91,6 +96,7 @@ async function main(){
  console.log(mode==='parse'?'Parser checks only. No provider calls.':'Sonnet-only QA: four-page file first; 23-page plans only if its targeted checks pass.');
  console.log('Live runs reserve estimated costs up to $1 for the short file and $3 for the plans. Existing provider limits are not raised.');
  console.log('Uses private local checkpoints, never DATABASE_URL. No republish or production configuration change.');
+ console.log('QA sends one request at a time and stops on the first interrupted or unknown-charge request. Inspect saved work before any further paid attempt.');
  for(const fixture of bundle.fixtures){
   const result=await runFixture(fixture,{root,key:process.env.ANTHROPIC_API_KEY,parseOnly:mode==='parse'});
   if(mode==='live'&&!result.complete){process.exitCode=1;console.log('Stopped before the next fixture. Upload the private report for review.');return;}
