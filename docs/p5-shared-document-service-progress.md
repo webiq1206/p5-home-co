@@ -641,3 +641,36 @@ output budget, model, slot setting or spend limit was raised. Await PR checks an
 inspect the owner's private failed report before a further paid test. The existing
 source-fingerprinted runner creates a fresh ledger after a source update; previous
 estimated costs are not part of the new ledger.
+
+
+## Second real Sonnet short-file failure, 2026-09-18
+
+Owner reran after PR #61. Adaptive splitting preserved one completed page, but
+single-page reads still timed out. Eight paid requests were started, seven had
+unknown charges, and the estimated spend guard stopped the run at $0.935268.
+The only returned usage included 3478 output tokens. Invocation time was 164919
+ms. The 23-page plans did not run. This is not a successful document test.
+
+Stop further paid reruns. Source inspection cannot yet distinguish provider wait
+from response generation within the 40-second limit. Larger generated output is
+a hypothesis, not a confirmed root cause. Working branch:
+fix/sonnet-qa-stop-on-unknown-charge-20260918. Add a persistent stop after unknown
+charges and a no-network inspection of saved timings and completed evidence.
+Do not raise deadlines, spend limits or change production models speculatively.
+
+The QA guard now pauses after the first interrupted/unknown-charge generation,
+persists that stop across restarts and checks it again after concurrent token
+counts. QA concurrency is reduced to one. Production processing, models, limits
+and fingerprint e887478622096021 are unchanged; this patch does not silently
+reset the failed run's checkpoint or budget. Incomplete reports preserve saved
+page evidence. The free inspector selects the latest short report and queries a
+disposable database copy, printing timings and evidence counts without source
+text, secrets, provider calls or changes to the original checkpoint.
+
+16 focused local tests passed (11 QA/inspection and five existing read-recovery),
+including response interruptions, missing/invalid usage, estimate caps, concurrent
+pause races, restart blocking and preserving a completed page. Original checkpoint
+file sizes/modification times were unchanged by inspection. No paid request or
+production deployment was made. Await PR CI before merge. Actual Sonnet latency,
+source accuracy and the 23-page test remain unresolved; obtain the free saved-run
+diagnostic before selecting another processing change or paid experiment.

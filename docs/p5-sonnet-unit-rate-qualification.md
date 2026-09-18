@@ -54,8 +54,11 @@ targeted source checks pass. The guard reserves estimated generation costs
 before calls, using the provider token-count endpoint and conservative headroom.
 It stops at estimated limits of $1 for the short file and $3 for the plans,
 with separate request/time limits. These are estimates, not billing hard caps.
-Timeouts with unknown charges retain their reservation. No automatic Opus
-fallback occurs. Successful work persists locally and is reused if restarted;
+Timeouts with unknown charges retain their reservation. QA now sends one provider
+request at a time and pauses the saved ledger after the first unknown charge,
+before additional token counts or generation calls. Restarting cannot clear this
+pause. This reduces QA concurrency only; production settings are unchanged.
+No automatic Opus fallback occurs. Successful work persists locally and is reused if restarted;
 exhausted failures require inspection rather than automatic paid reprocessing.
 
 ### Investigating a timeout
@@ -78,6 +81,26 @@ checkpoint directory and a new cost ledger, so its budget does not include old
 attempts. A failed run's reserved estimate is not a verified provider charge.
 The recovery change has controlled local/CI tests; real-file success still
 requires a separately observed Sonnet run.
+
+The second real short-file run completed one page, but seven of its eight
+requests returned no usage before timing out or being cancelled. It stopped at
+the estimated spend limit. The first recovery change was insufficient. Further
+paid reruns are paused pending diagnosis, and no timeout or spend limit was raised.
+
+After the Shell test has finished, inspect its saved state for free:
+
+```sh
+node services/document-service/scripts/inspect-sonnet-run.mjs
+```
+
+The inspector selects the latest short-file report and queries a disposable copy
+of its private local QA database. It prints request timings, page numbers, output
+usage and evidence counts. It makes no provider calls, reads no API credential,
+does not connect to the production database and preserves the original checkpoint.
+It does not parse or reread the PDF and does not print document text. An explicit
+report path can be supplied as its only argument. Stop any running QA command
+before inspecting its saved database. Interrupted non-streaming responses do not
+reveal time to first output or generation progress; do not invent those timings.
 
 Reports include stage timings, usage, estimated costs, all page evidence and
 reconciled output. Native parsing/rendering, provider capacity waits, AI reading,
