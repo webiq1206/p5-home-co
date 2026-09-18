@@ -1,5 +1,11 @@
 import {createServer} from 'node:http';
-import {hash,verifyHeaders,identifier,ServiceError,publicJob,VERSION} from './core.mjs';
+import {hash,verifyHeaders,identifier,ServiceError,publicJob,elapsedMs,VERSION} from './core.mjs';
+import {reviewForWebsite} from './website-review.mjs';
+function reviewResponse(row){
+ const response=publicJob(row);
+ if(response.state==='complete'&&response.kind==='review'&&response.result)response.result=reviewForWebsite(response.result);
+ return response;
+}
 export function makeServer(store,pipeline,config){
  let receiving=0;
  const server=createServer(async(req,res)=>{
@@ -34,14 +40,14 @@ export function makeServer(store,pipeline,config){
    if(parts[3]==='documents'&&parts.length===5&&req.method==='GET'){
     const id=identifier(parts[4]),doc=await store.document(auth.tenant,project,id),progress=await store.documentProgress(id);
     const read=progress.read,checked=progress.checked;
-    send(200,{id,state:doc.state,error:doc.error_code||undefined,progress:{totalPages:doc.page_count,parsedPages:progress.parsed,checkedPages:checked,readPages:read},elapsedMs:Date.now()-new Date(doc.created_at).getTime(),targetMs:60000,version:VERSION,
+    send(200,{id,state:doc.state,error:doc.error_code||undefined,progress:{totalPages:doc.page_count,parsedPages:progress.parsed,checkedPages:checked,readPages:read},elapsedMs:elapsedMs(doc),targetMs:60000,version:VERSION,
      ...(doc.state==='complete'?{coverage:{complete:read===doc.page_count,pages:await store.coverage(id)}}:{})});return;
    }
    if(parts[3]==='reviews'&&parts.length===4&&req.method==='POST'){
     let data;try{data=JSON.parse(body);}catch{throw new ServiceError('invalid-json');}
-    send(202,publicJob(await pipeline.submitReview(auth.tenant,project,data)));return;
+    send(202,reviewResponse(await pipeline.submitReview(auth.tenant,project,data)));return;
    }
-   if(parts[3]==='reviews'&&parts.length===5&&req.method==='GET'){send(200,publicJob(await store.job(auth.tenant,project,identifier(parts[4]))));return;}
+   if(parts[3]==='reviews'&&parts.length===5&&req.method==='GET'){send(200,reviewResponse(await store.job(auth.tenant,project,identifier(parts[4]))));return;}
    throw new ServiceError('not-found',404);
   }catch(error){const status=error instanceof ServiceError?error.status:500;if(error.retryMs)res.setHeader('retry-after',String(Math.ceil(error.retryMs/1000)));send(status,{error:error instanceof ServiceError?error.code:'internal-error',retryAfterMs:error.retryMs||undefined});}
  });

@@ -33,7 +33,12 @@ try {
   result=await request('GET',path);
  }
  if(result.state==='failed')throw Error(`Saved review failed: ${code(result.error)}. Source evidence is still saved.`);
+ const pending=result.result?.instructions?.questions||[];
+ if(!pending.some(q=>/door/i.test(q)&&/size|dimension|type/i.test(q))||!pending.some(q=>/baseboard/i.test(q)&&/suppl|paint/i.test(q))){
+  throw Error('The review completed, but its door/material follow-up questions are not ready for the website. Pull and republish the current P5 release; no new AI read is needed.');
+ }
  console.log('PASS: The deployed saved synthetic review completed.');
+ console.log('PASS: Door and material follow-up questions are preserved for the website.');
  console.log(JSON.stringify(result,null,2));
  console.log('Inspect 120 lf baseboard, 4 doors, missing door dimensions and plumbing/electrical exclusions.');
  console.log('This does not verify customer pricing, PDF/email delivery, all-site activation or performance targets.');

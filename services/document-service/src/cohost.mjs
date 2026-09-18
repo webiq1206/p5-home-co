@@ -22,7 +22,20 @@ export function cohostConfig(env=process.env){
   DOCUMENT_TENANT_MAX_QUEUED:env.DOCUMENT_TENANT_MAX_QUEUED||'5',DOCUMENT_TENANT_STORAGE_BYTES:env.DOCUMENT_TENANT_STORAGE_BYTES||'268435456',DOCUMENT_RETENTION_DAYS:env.DOCUMENT_RETENTION_DAYS||'7'};
  // An explicit document model is still required. Never silently choose a new
  // model, paid gateway, or larger provider budget for the existing website.
- return {enabled,port,webPort,workerPort,workerEnv,rssLimitMb:integer(env,'P5_DOCUMENT_WORKER_RSS_MB',640,256,768)};
+ const webEnv={...env};
+ if(env.P5_DOCUMENT_SERVICE_MODE==='remote'){
+  const localPublicUrl='https://p5homeco.com'+PREFIX;
+  webEnv.P5_DOCUMENT_SERVICE_URL=env.P5_DOCUMENT_SERVICE_URL||localPublicUrl;
+  // Reuse only P5's own server-side tenant key and only for its own host.
+  // An explicit external URL must supply its own explicit service key.
+  if(!env.P5_DOCUMENT_SERVICE_KEY&&webEnv.P5_DOCUMENT_SERVICE_URL.replace(/\/$/,'')===localPublicUrl){
+   try{
+    const key=JSON.parse(env.P5_DOCUMENT_TENANTS_JSON||'{}')['p5homeco.com'];
+    if(typeof key==='string'&&key.length>=32)webEnv.P5_DOCUMENT_SERVICE_KEY=key;
+   }catch{/* The worker and website report their existing configuration errors. */}
+  }
+ }
+ return {enabled,port,webPort,workerPort,workerEnv,webEnv,rssLimitMb:integer(env,'P5_DOCUMENT_WORKER_RSS_MB',640,256,768)};
 }
 function unavailable(res){if(!res.headersSent){res.writeHead(503,{'content-type':'application/json','cache-control':'no-store','retry-after':'5'});res.end('{"error":"document-host-unavailable","retryAfterMs":5000}');}else res.destroy();}
 export function makeGateway({webPort,workerPort,workerAvailable=()=>true}){
@@ -49,7 +62,7 @@ export async function workerRssMb(pid){const status=await readFile(`/proc/${pid}
 export async function runHost(env=process.env,{spawnProcess=spawn,readRss=workerRssMb,log=event=>console.log(JSON.stringify(event)),monitorMs=2000,restartDelayMs=10000}={}){
  let config;try{config=cohostConfig(env);}catch{log({event:'document-host',code:'invalid-cohost-configuration-worker-disabled'});config=cohostConfig({...env,P5_DOCUMENT_HOST_ENABLED:'false'});}
  let closing=false,worker=null,workerOnline=false,restartTimer=null,watch=null,workerStarts=0,windowStart=Date.now();
- const web=spawnProcess(process.execPath,[path.join(root,'node_modules/next/dist/bin/next'),'start','-H',config.enabled?'127.0.0.1':'0.0.0.0','-p',String(config.enabled?config.webPort:config.port)],{cwd:root,env,stdio:'inherit'});
+ const web=spawnProcess(process.execPath,[path.join(root,'node_modules/next/dist/bin/next'),'start','-H',config.enabled?'127.0.0.1':'0.0.0.0','-p',String(config.enabled?config.webPort:config.port)],{cwd:root,env:config.webEnv||env,stdio:'inherit'});
  const children=new Set([web]);let gateway;
  const onExit=child=>new Promise(resolve=>child.exitCode!==null||child.signalCode!==null?resolve():child.once('close',resolve));
  async function close(){if(closing)return;closing=true;clearTimeout(restartTimer);clearInterval(watch);gateway?.close();const active=[...children];for(const child of active)child.kill('SIGTERM');const forced=setTimeout(()=>{for(const child of active)child.kill('SIGKILL');gateway?.closeAllConnections();},35000);forced.unref();await Promise.all(active.map(onExit));clearTimeout(forced);gateway?.closeAllConnections();}
