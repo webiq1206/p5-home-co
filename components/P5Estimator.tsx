@@ -395,8 +395,11 @@ export function P5Estimator({defaultService='',headingAs='h1',projectSource,layo
   const lastStage=useRef('');const working=Boolean(busy)||preparingFiles;
   useLayoutEffect(()=>{
     if(!frameActive||!draft||!stageKey||working||stageKey===lastStage.current)return;lastStage.current=stageKey;
-    const position=()=>{const target=stageRef.current;if(target){positionThread(target);(target.querySelector('[data-stage-heading]') as HTMLElement|null)?.focus({preventScroll:true});}else threadRef.current?.scrollTo({top:0});};
-    position();requestAnimationFrame(position);
+    const position=(focus:boolean)=>{const target=stageRef.current;if(target){positionThread(target);if(focus)(target.querySelector('[data-stage-heading]') as HTMLElement|null)?.focus({preventScroll:true});}else threadRef.current?.scrollTo({top:0});};
+    // Focus before paint only. A second focus on the next frame can steal a
+    // newly focused input while WebKit is delivering its input event.
+    position(true);const frame=requestAnimationFrame(()=>position(false));
+    return()=>cancelAnimationFrame(frame);
   },[stageKey,working,Boolean(draft),frameActive]);
   const sentMessageRef=useRef(false);
   useEffect(()=>{if(!busy||!sentMessageRef.current)return;sentMessageRef.current=false;requestAnimationFrame(()=>{const last=threadRef.current?.querySelector<HTMLElement>('[data-last-user]');if(last)scrollThread(last,'start');});},[busy]);
