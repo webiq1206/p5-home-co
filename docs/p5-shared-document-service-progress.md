@@ -674,3 +674,41 @@ file sizes/modification times were unchanged by inspection. No paid request or
 production deployment was made. Await PR CI before merge. Actual Sonnet latency,
 source accuracy and the 23-page test remain unresolved; obtain the free saved-run
 diagnostic before selecting another processing change or paid experiment.
+
+
+## Saved-page Sonnet effort investigation, 2026-09-18
+
+The owner's free diagnostic confirms 3692 ms parsing, negligible provider
+admission wait and one completed page in 30618 ms. That response used 3478
+output tokens including 1007 thinking tokens. Pages 2-4 still hit the 40000 ms
+call deadline. Seven interrupted requests have unknown actual charges. Thinking
+is a measurable contributor, but incomplete responses cannot establish what
+caused their delays. No larger fixture or full-file accuracy pass is established.
+
+Working branch: test/sonnet-medium-effort-saved-page-20260918. Anthropic's current
+effort guidance confirms Sonnet 5 defaults high and supports medium; reduced
+effort can trade quality for speed. Prepare a QA-only, single saved page-2 probe
+at medium effort using the original request, schema, image, quote checks and
+40-second deadline. Preserve production defaults and the existing failed run.
+Limit the experiment to one generation request and a separate, explicit $0.20
+estimated reservation. Repeated invocations must reuse its saved outcome or stop,
+never retry or reset the ledger. No new PDF upload, parsing or production access.
+Validate the probe with controlled responses before another live request.
+
+Implemented check-sonnet-saved-page.mjs as a QA-only request decorator: only
+output_config.effort changes to medium. Production source, defaults and the
+full-run fingerprint remain unchanged. Page 2 is taken from a disposable copy
+of saved QA storage; the original page evidence and failed cost ledger stay
+untouched. The probe has a permanent one-attempt directory lock, one-call guard,
+$0.20 additional estimated reservation and durable outcome. Repeated commands
+read the outcome or stop. Visual/calculated evidence requires further verification;
+structure and quotes are never reported as measured accuracy.
+
+20 focused local tests passed without paid API calls, covering exact request
+parity apart from effort, page selection, schema/quote/truncation rejection,
+unknown-charge stop, estimate cap, concurrent/crashed attempts, cache reuse and
+original-checkpoint immutability. The existing free inspector also passed its
+regression after sharing its disposable-copy helper. Await full PR CI before
+merge. No production deployment or model change has been made. Next live action
+is one saved-page probe, followed by source review; the full file and plans remain
+blocked on qualification.
