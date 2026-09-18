@@ -415,3 +415,62 @@ before merge. No new live provider performance claim follows from these tests.
 Write-path checkpoint: progress-only commit 0973a360cadcc0ef5d264a2bad80672bebb8c838
 was committed and pushed to qa/p5-deployed-followups-20260918 using the authenticated
 GitHub connector. It changes no production source.
+
+## Verified pricing release: 2026-09-18
+
+All five scoped source PRs were merged only after their exact-head checks passed.
+Each merged tree was checked against the reviewed source tree. No branch
+protection was disabled or bypassed. Deployment remains PENDING on all five apps.
+
+| Repository | Merged PR | Main source commit | Verification run |
+| --- | --- | --- | --- |
+| p5-home-co | [#56](https://github.com/webiq1206/p5-home-co/pull/56) | `c69cbeee1d8a8bd234fab29b1fbddb599dc652ff` | [CI 35350835851](https://github.com/webiq1206/p5-home-co/actions/runs/35350835851) |
+| boise-remodeling-co | [#44](https://github.com/webiq1206/boise-remodeling-co/pull/44) | `3af8609a0bb5851b0f789e4bbaf638230287bb55` | [CI 35350912261](https://github.com/webiq1206/boise-remodeling-co/actions/runs/35350912261) |
+| Boise-Construction-Co | [#41](https://github.com/webiq1206/Boise-Construction-Co/pull/41) | `2b7bc3177a05364c19ce21737ed3e9e4f619aa75` | [CI 35350918661](https://github.com/webiq1206/Boise-Construction-Co/actions/runs/35350918661) |
+| Boise-Handyman-Co | [#39](https://github.com/webiq1206/Boise-Handyman-Co/pull/39) | `e3a0c3130745bc84094c8b54db45ee8997da042a` | [CI 35350926876](https://github.com/webiq1206/Boise-Handyman-Co/actions/runs/35350926876) |
+| Boise-Cabinet-Co | [#38](https://github.com/webiq1206/Boise-Cabinet-Co/pull/38) | `525b7c7037bd32b942c3212ca9c6a3eeb84d8853` | [CI 35350934070](https://github.com/webiq1206/Boise-Cabinet-Co/actions/runs/35350934070) |
+
+Exact reviewed source:
+- p5-home-co: head `06a3b149cea7194c12da8ce6b8c3d9ad627b1e18`; tree `bc5b3b9136b73237c8a4d893ee8d45ea4e5d57e2`.
+- boise-remodeling-co: head `62ecff1396d80ee530d15da003d1bab999ea25fd`; tree `5c9ad3665210f604fcc83f93513fa75d09a2805c`.
+- Boise-Construction-Co: head `9abe8d6476c3688ee49ec9c84d42a7fa05b8809c`; tree `b5cca429df368e34c83c3eabcb9fa886be4db452`.
+- Boise-Handyman-Co: head `b323695fa175c40b17be02e52027df29219df690`; tree `e4d5654745ee3029e350e40f27822603cec180bb`.
+- Boise-Cabinet-Co: head `18a51c4fceaab8380b3e8acceb958b78ca6ed5dd`; tree `ecdebaeb4b92a4e362729fd4b1355f78e25088e7`.
+
+P5 CI passed 88 standalone service/database/HTTP/PDF tests, saved-file adapter
+integration, 366 estimator regressions, saved-pricing SQL recovery, production
+website build, cohost startup and actual container build/startup/readiness.
+The site's prebuild suite recorded 974 passed, zero failed and one skipped.
+Each satellite passed 363 estimator regressions, saved-file adapter integration,
+saved-pricing recovery, TypeScript with its own dependencies and its production
+build. Cabinet additionally passed 54 browser tests in Desktop Chrome and
+emulated Pixel 7 under [E2E run 35350934074](https://github.com/webiq1206/Boise-Cabinet-Co/actions/runs/35350934074).
+These browser checks use CI fixtures; they do not establish live-provider,
+customer-email, physical-device or document-performance qualification.
+
+The original Neilsen_Preliminary_Budget_No_Numbers.pdf was retrieved from the
+available files. The two exact-name copies are byte-identical: 240,892 bytes,
+SHA-256 ef5caf06821319350a3f672d98a1c42db2311d601d570cb5345d76f9808a3018.
+It has four pages with native text. Local text extraction contains zero digit
+characters. This is a file-availability/parser observation, not a live document
+benchmark or independently reviewed accuracy score. No unredacted copy was read,
+no missing values were supplied from another source, and no file contents were
+committed or uploaded to public CI. The fixture does not need to be re-uploaded.
+
+Owner deployment action:
+1. In each existing Replit app, pull its matching repository's main branch.
+   Preserve any unpushed workspace changes and resolve rather than discard them.
+2. Republish using the existing deployment settings. This release has no database
+   migration and requires no new secret, capacity increase or subscription.
+3. Run a new controlled P5 customer price to confirm all material and labor
+   components, complete range, concise PDF and actual QA-email contents. The
+   previous 95d669b3 QA range remains invalid; cached review success is not this
+   check.
+4. Then qualify the P5-only remote PDF path using the retrieved four-page
+   redacted fixture. Expand to the other sites only after that passes.
+
+Direct Replit shell/configuration control is unavailable in this session; owner
+pull/republish is the current deployment blocker. No live deployment of the
+pricing fix, all-site activation or performance target is claimed. The retained
+completion ledger above still governs document benchmarks, accuracy review,
+RE-10, rollback, PDF presentation and remaining UI/SEO verification.
