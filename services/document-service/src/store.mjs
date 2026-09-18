@@ -1,5 +1,5 @@
 import {randomUUID} from 'node:crypto';
-import {documentId,jobId,hash,ServiceError,VERSION} from './core.mjs';
+import {documentId,jobId,hash,ServiceError,VERSION,providerCallLimit} from './core.mjs';
 export const DDL=`
 CREATE TABLE IF NOT EXISTS p5ds_documents (
  id text PRIMARY KEY,tenant text NOT NULL,project text NOT NULL,digest text NOT NULL,name text NOT NULL,
@@ -121,7 +121,7 @@ export class Store{
    await c.query('DELETE FROM p5ds_provider_leases WHERE expires_at<now()');
    const n=(await c.query('SELECT count(*)::int AS n FROM p5ds_provider_leases')).rows[0].n;
    if(n>=this.config.slots||budget.requests>=this.config.rpm||Number(budget.tokens)+tokens>this.config.tpm)return null;
-   const token=randomUUID();await c.query('INSERT INTO p5ds_provider_leases(token,expires_at) VALUES($1,now()+$2*interval \'1 millisecond\')',[token,this.config.callMs+15000]);
+   const token=randomUUID();await c.query('INSERT INTO p5ds_provider_leases(token,expires_at) VALUES($1,now()+$2*interval \'1 millisecond\')',[token,providerCallLimit(this.config)+15000]);
    await c.query("UPDATE p5ds_capacity SET requests=requests+1,tokens=tokens+$1 WHERE name='reader'",[tokens]);return token;
   });
  }

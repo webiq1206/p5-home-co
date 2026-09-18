@@ -1,11 +1,12 @@
-import {ServiceError} from './core.mjs';
+import {ServiceError,providerCallLimit} from './core.mjs';
+import {collectAnthropicResponse,responseDeadline} from './anthropic-stream.mjs';
 import {validateSchema} from './schema.mjs';
 const sleep=(ms,signal)=>new Promise((resolve,reject)=>{if(signal?.aborted)return reject(signal.reason);const abort=()=>{clearTimeout(timer);reject(signal.reason);};const timer=setTimeout(()=>{signal?.removeEventListener('abort',abort);resolve();},ms);signal?.addEventListener('abort',abort,{once:true});});
 const REVIEW_TOOL='submit_document_review';
 export function requestBody(provider,model,system,input,images,schema,maxOutput,purpose='evidence'){
  const text=JSON.stringify(input);
  if(provider==='anthropic'){
-  const body={model,max_tokens:maxOutput,system:[{type:'text',text:system,cache_control:{type:'ephemeral'}}],messages:[{role:'user',content:[{type:'text',text},...images.flatMap(i=>[{type:'text',text:i.label},{type:'image',source:{type:'base64',media_type:'image/png',data:Buffer.from(i.bytes).toString('base64')}}])]}]};
+  const body={model,stream:true,max_tokens:maxOutput,system:[{type:'text',text:system,cache_control:{type:'ephemeral'}}],messages:[{role:'user',content:[{type:'text',text},...images.flatMap(i=>[{type:'text',text:i.label},{type:'image',source:{type:'base64',media_type:'image/png',data:Buffer.from(i.bytes).toString('base64')}}])]}]};
   // Reconciliation exceeded Anthropic's grammar budget even after enum reduction.
   // A regular client tool returns data without constrained grammar compilation.
   // No tool is executed. Its input must pass the original schema and domain checks.
@@ -45,16 +46,18 @@ export class Reader{
   let slot;const waitStart=performance.now();
   while(!(slot=await this.store.reserve(estimated))){signal.throwIfAborted();await sleep(250,signal);}
   const start=performance.now();
+  const deadline=responseDeadline(signal,c.callMs,providerCallLimit(c));
   const requestDetail={provider:c.provider,model:verify?c.verifyModel:c.model,attempt:job.attempts,
    pages:Array.isArray(input.pages)?input.pages.map(p=>p.page):[],imageCount:images.length,
-   inputCharacters:JSON.stringify(input).length,maxOutputTokens:c.maxOutput,timeoutMs:c.callMs};
+   inputCharacters:JSON.stringify(input).length,maxOutputTokens:c.maxOutput,timeoutMs:providerCallLimit(c),idleTimeoutMs:c.callMs};
   try{
    const built=requestBody(c.provider,verify?c.verifyModel:c.model,system,input,images,schema,purpose==='citation'?Math.min(c.maxOutput,2048):c.maxOutput,purpose);
    requestDetail.purpose=purpose;requestDetail.maxOutputTokens=built.body.max_tokens||c.maxOutput;
    if(built.body.output_config?.effort)requestDetail.effort=built.body.output_config.effort;
    const headers={'content-type':'application/json',...(c.provider==='anthropic'?{'x-api-key':c.key,'anthropic-version':'2023-06-01'}:c.provider==='gemini'?{'x-goog-api-key':c.key}:{authorization:`Bearer ${c.key}`})};
-   const timeout=AbortSignal.timeout(c.callMs),combined=AbortSignal.any([signal,timeout]);
-   const response=await this.request(built.url,{method:'POST',headers,body:JSON.stringify(built.body),signal:combined,redirect:'error'});
+   const combined=deadline.signal;
+   const onProviderProgress=progress=>{deadline.touch();if(progress.streaming)requestDetail.stream=progress;};
+   const response=await this.request(built.url,{method:'POST',headers,body:JSON.stringify(built.body),signal:combined,redirect:'error',onProviderProgress});
    if(!response.ok){
     const requested=response.headers.get('retry-after');const seconds=Number(requested);const retryMs=Number.isFinite(seconds)?Math.min(120000,Math.max(1000,seconds*1000)):Math.max(1000,Math.min(120000,Date.parse(requested||'')-Date.now()||1000));
     if(response.status===429){await this.store.cooldown(retryMs);throw new ServiceError('provider-rate-limit',429,retryMs);}
@@ -62,7 +65,7 @@ export class Reader{
     throw new ServiceError(`provider-http-${response.status}`,response.status===401||response.status===403?422:response.status);
    }
    const length=Number(response.headers.get('content-length')||0);if(length>8*1024*1024)throw new ServiceError('provider-response-too-large',422);
-   const text=await response.text();if(text.length>8*1024*1024)throw new ServiceError('provider-response-too-large',422);
+   const text=c.provider==='anthropic'?await collectAnthropicResponse(response,{signal:combined,onProgress:onProviderProgress}):await response.text();if(text.length>8*1024*1024)throw new ServiceError('provider-response-too-large',422);
    let data;try{data=JSON.parse(text);}catch{throw new ServiceError('invalid-provider-json',422);}
    const value=validateSchema(parseReply(c.provider,data,built.outputTool),schema);
    await this.store.metric(job,purpose==='citation'?'citation-provider':job.kind==='review'?'reconciliation-provider':verify?'verify-provider':'read-provider',performance.now()-start,{...requestDetail,queueMs:Math.round(start-waitStart),estimatedTokens:estimated,usage:data.usage||data.usageMetadata||{}});
@@ -72,6 +75,6 @@ export class Reader{
    await this.store.metric(job,'provider-failure',performance.now()-start,{...requestDetail,queueMs:Math.round(start-waitStart),code:error.code||'provider-error',cancelled:signal.aborted||error.code==='provider-cancelled'}).catch(()=>{});
    throw error;
   }
-  finally{await this.store.release(slot);}
+  finally{deadline.close();await this.store.release(slot);}
  }
 }

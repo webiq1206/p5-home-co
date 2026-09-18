@@ -823,3 +823,32 @@ production configuration and individual provider-call timeout are unchanged.
 The runner stops admission before another call can overlap its shutdown window.
 The longer diagnostic window is disclosed in console/report output and does not
 raise either cost guard or qualify production speed.
+
+
+### 2026-09-18: Bounded streaming after the next fixed-cutoff failure
+
+The owner's latest recovery stopped after 40,391 ms with
+`qa-paused-unknown-provider-charge`. The exact old underlying provider cause was
+not retained. Source inspection confirms a fixed 40-second response deadline;
+the longer overall plans window did not change it. Pages 1 and 2 remain saved,
+the plans did not start, and all-site customer journeys are still unqualified.
+
+Anthropic requests now stream and retain an idle deadline plus a 120-second
+absolute bound. SSE reconstruction handles text, forced tool JSON, cumulative
+usage, pings, UTF-8 boundaries and provider error events. Missing final markers,
+truncation and invalid block ordering fail. Provider capacity leases cover the
+full request bound. Parent cancellation still stops the body. QA saves progress,
+request ID and underlying failure code; partial usage never converts an unknown
+charge into known billing. Completed paid responses remain available for replay.
+
+The explicit `resume-reserved` command accepts only the exact reported historical
+interruption. It archives the original state, retains the complete $0.174176
+reservation within the original $1 budget, and requeues only unfinished work.
+A subsequent unknown charge pauses again. Its durable one-time marker prevents
+repeated recovery. The short sequential QA window is now 10 minutes, while plans
+remain 20 minutes. No production job-age, concurrency, token or spending limit
+was raised. No API key or direct Replit Shell is available in this session, so
+live paid qualification remains an owner-run step. Release tests use synthetic
+streams and disposable databases; they are not Sonnet accuracy or speed results.
+
+Reference: https://platform.claude.com/docs/en/build-with-claude/streaming
