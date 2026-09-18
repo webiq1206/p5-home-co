@@ -50,6 +50,7 @@ export function readConfig(env=process.env){
  const key=env[{'anthropic':'ANTHROPIC_API_KEY','gemini':'GEMINI_API_KEY','openai':'OPENAI_API_KEY'}[provider]];
  if(!key||!env.DOCUMENT_MODEL)throw new ServiceError('missing-provider-configuration',500);
  return {tenants,databaseUrl:env.DOCUMENT_DATABASE_URL,provider,key,model:env.DOCUMENT_MODEL,verifyModel:env.DOCUMENT_VERIFY_MODEL||env.DOCUMENT_MODEL,
+ bindHost:env.DOCUMENT_BIND_HOST||'0.0.0.0',poolMax:integer('DOCUMENT_DATABASE_POOL_MAX',Math.max(6,Number(env.DOCUMENT_PROVIDER_SLOTS||12)+Number(env.DOCUMENT_PARSER_SLOTS||2)),2,64),uploadSlots:integer('DOCUMENT_UPLOAD_SLOTS',4,1,4),
  port:integer('PORT',8080,1,65535),maxBytes:integer('DOCUMENT_MAX_BYTES',50*1024*1024,1048576,250*1024*1024),maxPages:integer('DOCUMENT_MAX_PAGES',200,1,2000),
  slots:integer('DOCUMENT_PROVIDER_SLOTS',12,1,48),parserSlots:integer('DOCUMENT_PARSER_SLOTS',2,1,8),rpm:integer('DOCUMENT_REQUESTS_PER_MINUTE',60,1,5000),tpm:integer('DOCUMENT_TOKENS_PER_MINUTE',600000,10000,20000000),
  callMs:integer('DOCUMENT_CALL_TIMEOUT_MS',40000,5000,120000),parseMs:integer('DOCUMENT_PARSE_TIMEOUT_MS',60000,5000,180000),jobMs:integer('DOCUMENT_JOB_TIMEOUT_MS',300000,60000,1200000),

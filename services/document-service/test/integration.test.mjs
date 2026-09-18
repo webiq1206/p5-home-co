@@ -82,9 +82,23 @@ test('a parser checkpoint cannot erase a terminal reader failure',{skip:!availab
 test('a recovered reader never sends completed pages to the provider again',async()=>{
  const native=n=>({page:n,text:'Room '+(100+n)+' SF',textQuality:1,kind:'text'});
  const sent=[],queries=[];let completed=false;
- const fakeStore={finalize:async()=>{},pages:async()=>[{page:1,native:native(1),image:Buffer.alloc(0),evidence:fakePage(native(1))},{page:2,native:native(2),image:Buffer.alloc(0),evidence:null}],pool:{query:async(q)=>{queries.push(q);return {rows:[]};}},complete:async(job,result,extra)=>{completed=true;if(extra)await extra(fakeStore.pool);}};
+ const fakeStore={checkStorage:async()=>{},finalize:async()=>{},pages:async()=>[{page:1,native:native(1),image:Buffer.alloc(0),evidence:fakePage(native(1))},{page:2,native:native(2),image:Buffer.alloc(0),evidence:null}],pool:{query:async(q)=>{queries.push(q);return {rows:[]};}},complete:async(job,result,extra)=>{completed=true;if(extra)await extra(fakeStore.pool);}};
  const reader={call:async(job,system,input)=>{sent.push(...input.pages.map(p=>p.page));return {pages:input.pages.map(fakePage)};}};
  const pipeline=new Pipeline(fakeStore,reader,config);
  await pipeline.read({document_id:'d',payload:{pages:[1,2]}},new AbortController().signal);
  assert.deepEqual(sent,[2]);assert.ok(completed);assert.ok(queries.some(q=>q.includes('AND evidence IS NULL')));
+});
+
+
+test('rendered pages and evidence count toward storage quota and roll back on overflow',{skip:!available},async()=>{
+ const id=hash('storage-accounting'),bytes=Buffer.from('%PDF-test-only');
+ await pool.query("INSERT INTO p5ds_documents(id,tenant,project,digest,name,bytes,size_bytes) VALUES($1,'quota-test','quota-test',$2,'test.pdf',$3,$4)",[id,hash(bytes),bytes,bytes.length]);
+ const capped=new Store(pool,{...config,maxTenantBytes:1000});
+ await capped.enqueue(pool,{id:jobId('quota-test','quota-test','quota-test',{}),tenant:'quota-test',project:'quota-test',documentId:id,kind:'quota-test',payload:{}});
+ const lease=await capped.claim(['quota-test']);
+ await assert.rejects(capped.putPage(lease,{page:1,text:'small native text',image:Buffer.alloc(2000)}),/document-storage-quota/);
+ assert.equal((await capped.pages(id)).length,0);
+ await capped.putPage(lease,{page:1,text:'small',image:Buffer.alloc(10)});
+ await assert.rejects(capped.transaction(async c=>{await c.query('UPDATE p5ds_pages SET evidence=$2::jsonb WHERE document_id=$1',[id,JSON.stringify({notes:'x'.repeat(2000)})]);await capped.checkStorage(c,'quota-test');}),/document-storage-quota/);
+ assert.equal((await capped.pages(id))[0].evidence,null);await capped.complete(lease,{});
 });

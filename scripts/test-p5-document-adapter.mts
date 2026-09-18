@@ -11,7 +11,7 @@ let db:any;
 try{
  delete process.env.DATABASE_URL;
  process.env.P5_DOCUMENT_SERVICE_MODE='remote';
- process.env.P5_DOCUMENT_SERVICE_URL='https://controlled-document-service.example';
+ process.env.P5_DOCUMENT_SERVICE_URL='https://controlled-document-service.example/api/p5-documents';
  process.env.P5_DOCUMENT_SERVICE_KEY='controlled-test-secret-not-production'.repeat(2);
  await cp('lib/p5',dir,{recursive:true});
  await writeFile(path.join(dir,'database.ts'),`import {PGlite} from '@electric-sql/pglite';export const database=new PGlite();export async function query(s:string,v:unknown[]=[]){return (await database.query(s,v)).rows;}`);
@@ -26,7 +26,8 @@ try{
  const documentId=client.remoteDocumentId(brand.domain,id,digest);
  let stored=false,uploads=0,reviewCalls=0,partial=false,wrongSource=false,retryStatus=202,failed=false;const scopeBodies:string[]=[];
  const fakeRequest=async(input:any,init:any)=>{
-  const url=new URL(String(input)),route=url.pathname+url.search,method=init.method;
+  const url=new URL(String(input)),route=url.pathname.replace(/^\/api\/p5-documents/,'')+url.search,method=init.method;
+  assert.ok(url.pathname.startsWith('/api/p5-documents/v1/'));
   const headers=new Headers(init.headers),body=init.body?Buffer.from(init.body):Buffer.alloc(0);
   const signed=[method,route,brand.domain,headers.get('x-p5-time'),headers.get('x-p5-nonce'),createHash('sha256').update(body).digest('hex')].join('\n');
   assert.equal(headers.get('x-p5-signature'),createHmac('sha256',process.env.P5_DOCUMENT_SERVICE_KEY!).update(signed).digest('hex'));

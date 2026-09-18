@@ -3,6 +3,8 @@ on:
   push:
     branches: [feat/shared-document-service-20260917, fix/shared-document-service-hardening-20260917, main]
     paths:
+      - '.replit'
+      - 'package.json'
       - 'services/document-service/**'
       - 'lib/p5/**'
       - 'scripts/*document*.m*'
@@ -10,6 +12,8 @@ on:
       - '.github/workflows/p5-document-service.yml'
   pull_request:
     paths:
+      - '.replit'
+      - 'package.json'
       - 'services/document-service/**'
       - 'lib/p5/documentServiceClient.ts'
       - 'lib/p5/analysisWork.ts'
@@ -75,6 +79,8 @@ jobs:
         run: |
           set -o pipefail
           npm run build 2>&1 | tee document-service-verification/site-build.log
+      - name: Existing-server cohosting production smoke
+        run: node services/document-service/scripts/cohost-smoke.mjs
       - name: Build production worker container
         if: ${{ !cancelled() }}
         run: |

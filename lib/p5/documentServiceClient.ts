@@ -23,10 +23,10 @@ export async function advanceDocumentService(draft:Draft,text:string,answers:Sco
  const tenant=ESTIMATOR_BRAND.domain;
  const secret=process.env.P5_DOCUMENT_SERVICE_KEY||'',configured=process.env.P5_DOCUMENT_SERVICE_URL||'';
  let origin:URL;try{origin=new URL(configured);}catch{throw new DraftError('The document service is not configured. Your files are saved.',503);}
- if(origin.protocol!=='https:'||origin.username||origin.password||origin.pathname!=='/'||origin.search||origin.hash||secret.length<32)throw new DraftError('The document service configuration needs attention. Your files are saved.',503);
+ if(origin.protocol!=='https:'||origin.username||origin.password||!['/','/api/p5-documents','/api/p5-documents/'].includes(origin.pathname)||origin.search||origin.hash||secret.length<32)throw new DraftError('The document service configuration needs attention. Your files are saved.',503);
  const base=`/v1/projects/${encodeURIComponent(draft.id)}`;
  const send=async(method:string,path:string,body:Buffer=Buffer.alloc(0),contentType='application/json')=>{
-  const response=await fetchWithinDeadline(request,origin.origin+path,{method,headers:{...documentServiceHeaders(method,path,tenant,secret,body),'content-type':contentType},...(method==='POST'?{body:body as unknown as BodyInit}:{}),redirect:'error'},Math.min(deadline,Date.now()+60000));
+  const response=await fetchWithinDeadline(request,origin.origin+origin.pathname.replace(/\/$/,'')+path,{method,headers:{...documentServiceHeaders(method,path,tenant,secret,body),'content-type':contentType},...(method==='POST'?{body:body as unknown as BodyInit}:{}),redirect:'error'},Math.min(deadline,Date.now()+60000));
   let value:any;try{value=await response.json();}catch{throw new DraftError('The document service returned an invalid response. Saved files are preserved.',503);}
   return {ok:response.ok,status:response.status,value};
  };

@@ -16,7 +16,9 @@
     "db:migrate": "node --experimental-strip-types --env-file-if-exists=.env.local tools/migrate.ts",
     "flags": "node --experimental-strip-types --env-file-if-exists=.env.local tools/flags.ts",
     "notify:test": "node --experimental-strip-types --env-file-if-exists=.env.local tools/notify-test.ts",
-    "contracts:pdf": "node --experimental-strip-types tools/contracts-pdf.ts"
+    "contracts:pdf": "node --experimental-strip-types tools/contracts-pdf.ts",
+    "start:host": "node services/document-service/src/cohost.mjs",
+    "build:host": "npm ci --prefix services/document-service --omit=dev --no-audit --no-fund && npm run build"
   },
   "dependencies": {
     "@napi-rs/canvas": "^1.0.9",
