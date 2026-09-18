@@ -7,6 +7,21 @@ import {limitParser} from '../src/parser.mjs';
 import {signedHeaders,verifyHeaders,hash} from '../src/core.mjs';
 const listen=async server=>{server.listen(0,'127.0.0.1');await once(server,'listening');return server.address().port;};
 const close=server=>new Promise(resolve=>{server.close(resolve);server.closeAllConnections();});
+test('P5 opt-in reuses only its own key and host; legacy and external hosts are not auto-enabled',()=>{
+ const p5Key='synthetic-p5-tenant-secret-123456789',otherKey='synthetic-other-tenant-secret-123456789';
+ const env={P5_DOCUMENT_HOST_ENABLED:'true',P5_DOCUMENT_TENANTS_JSON:JSON.stringify({'p5homeco.com':p5Key,'boiseconstruction.co':otherKey})};
+ const legacy=cohostConfig(env);assert.equal(legacy.webEnv.P5_DOCUMENT_SERVICE_MODE,undefined);assert.equal(legacy.webEnv.P5_DOCUMENT_SERVICE_KEY,undefined);
+ const active=cohostConfig({...env,P5_DOCUMENT_SERVICE_MODE:'remote'});
+ assert.equal(active.webEnv.P5_DOCUMENT_SERVICE_KEY,p5Key);
+ assert.equal(active.webEnv.P5_DOCUMENT_SERVICE_URL,'https://p5homeco.com/api/p5-documents');
+ assert.equal(env.P5_DOCUMENT_SERVICE_KEY,undefined,'the caller environment is not mutated');
+ const external=cohostConfig({...env,P5_DOCUMENT_SERVICE_MODE:'remote',P5_DOCUMENT_SERVICE_URL:'https://other.example/api/p5-documents'});
+ assert.equal(external.webEnv.P5_DOCUMENT_SERVICE_KEY,undefined,'a tenant key cannot leak to an external URL');
+ const explicit=cohostConfig({...env,P5_DOCUMENT_SERVICE_MODE:'remote',P5_DOCUMENT_SERVICE_KEY:'explicit-key'});
+ assert.equal(explicit.webEnv.P5_DOCUMENT_SERVICE_KEY,'explicit-key');
+ const disabled=cohostConfig({...env,P5_DOCUMENT_HOST_ENABLED:'false',P5_DOCUMENT_SERVICE_MODE:'remote'});
+ assert.equal(disabled.webEnv,undefined);
+});
 test('cohosting reuses the existing database with conservative limits and is opt-in',()=>{
  assert.equal(cohostConfig({DOCUMENT_PARSER_SLOTS:'99'}).enabled,false);
  const c=cohostConfig({P5_DOCUMENT_HOST_ENABLED:'true',DATABASE_URL:'postgres://existing'});

@@ -77,8 +77,12 @@ export function validateEvidence(value,pages){
  }
  return value;
 }
+export function elapsedMs(row,now=Date.now()){
+ const end=['complete','failed'].includes(row.state)?new Date(row.updated_at).getTime():now;
+ return Math.max(0,(Number.isFinite(end)?end:now)-new Date(row.created_at).getTime());
+}
 export function publicJob(row){
- const created=new Date(row.created_at).getTime(),elapsed=Date.now()-created;
+ const elapsed=elapsedMs(row);
  return {id:row.id,state:row.state,kind:row.kind,progress:row.progress||{},elapsedMs:elapsed,targetMs:60000,targetExceeded:elapsed>60000,error:row.error_code||undefined,
  ...(row.state==='complete'?{result:row.result}:{}),version:VERSION};
 }

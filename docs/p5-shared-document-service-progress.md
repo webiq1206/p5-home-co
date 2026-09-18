@@ -285,3 +285,42 @@ exclusions. Direct Replit shell/configuration remains unavailable to this sessio
 the owner executes this single command. A passing result is only deployed review
 qualification. All-site activation, real-document performance/accuracy and full
 pricing/PDF/email/browser qualification remain open. No new infrastructure or spend.
+
+## Deployed reconciliation PASS and website handoff: 2026-09-18
+
+Owner ran the saved-review check after publishing PR #52. The existing synthetic
+review completed in reported 23,244 ms, retaining 120 lf baseboard, four doors,
+unknown door dimensions and plumbing/electrical exclusions. Painted baseboard is
+now a materials fact, not a finish-grade choice. This timing covers reconciliation
+of cached source evidence only, not upload/extraction, a p95 sample or full pricing.
+The original document was not uploaded or read again. No numeric price, PDF or
+customer email has yet been qualified through the remote website path.
+
+Follow-up branch: fix/p5-document-followups-20260918, based on main
+a8deccd32c747487ec04450baa1baab064826405. Reproduced a website question bug with
+the successful synthetic result: existing materials and otherDetails values hide
+the still-unanswered material-supply and door-dimension questions. The API now
+projects text clarifications into independent saved question cards, including for
+cached completed reviews. Numeric/optional-field handling is retained. Evidence,
+takeoffs, coverage and the stored result are unchanged, and no extra AI call runs.
+Both the reproduction and answered-question removal regressions pass locally.
+
+Also freeze terminal elapsed times at updated_at; later polling previously counted
+idle time since completion. P5 cohost startup now reuses its own existing tenant
+key and HTTPS URL only when remote mode is explicitly selected. It never enables
+remote mode itself, sends that key to an external URL, or configures satellite
+sites. Explicit configuration wins. No new infrastructure, secret values in source,
+database migration or raised budget. Keep satellite adapters in legacy during P5 QA.
+
+Local verification: 79 service tests passed, nine PostgreSQL tests reserved for CI;
+364 estimator regressions passed. Saved-file SQL adapter integration, TypeScript
+and lint on every changed source/script/test passed. New authenticated HTTP tests
+cover cached GET and POST responses, no stored-result mutation, and stable elapsed
+times. The full CI production build, cohost and container gates remain required.
+
+Next: finish the full test/build/cohost checks, merge reviewed source, and publish
+the P5 update. The existing check-saved-qa-review.mjs command then verifies the
+cached review and pending website questions with no further provider call. The
+P5 website adapter still requires explicit remote activation for the controlled
+customer journey. All-site rollout, independent real-document accuracy/performance,
+reload/resume, pricing, branded PDF, QA email and rollback remain open.

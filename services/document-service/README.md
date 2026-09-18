@@ -22,6 +22,12 @@ use maintained rates or sourced benchmarks, and disclose a provisional planning
 allowance when current sourced pricing is unavailable. A planning allowance is not
 verified local pricing. Source evidence, quantities and exclusions remain separate
 from pricing; missing quantities and incomplete coverage are not silently filled.
+At the API boundary, outstanding text specifications/responsibility questions use
+independent question cards. A partially filled materials or other-details field
+cannot suppress them. This projection also applies to cached completed reviews,
+without modifying the saved evidence or making another provider request. Numeric
+and optional-field questions retain their existing handling. Completed/failed
+elapsed times stop at the stored terminal timestamp instead of increasing on polls.
 
 ## Standalone deployment alternative
 
@@ -110,6 +116,12 @@ Configure `P5_DOCUMENT_TENANTS_JSON` with distinct random server-only keys, plus
 credential. Do not assume a Replit AI gateway key works with a direct provider.
 No model or paid provider is automatically selected. Each website uses its own key
 and the prefixed URL above with the existing `P5_DOCUMENT_SERVICE_*` variables.
+For the P5 cohost only, explicitly selecting `P5_DOCUMENT_SERVICE_MODE=remote`
+now supplies the P5 HTTPS URL and reuses the `p5homeco.com` entry from the existing
+tenant map when separate URL/key variables are absent. This happens inside the
+server process, never browser configuration or logs. Explicit settings win; a key
+is never auto-supplied to an external URL. The other four sites still require their
+own explicit server-only URL/key configuration. Legacy mode remains the default.
 
 Leave standalone example concurrency values unset for cohosting: defaults are one
 parser (including crop renders), one incoming upload, two provider calls, four DB
