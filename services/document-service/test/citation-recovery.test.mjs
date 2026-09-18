@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import {mkdtemp,readFile,rm,stat} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
-import {isolatedPool,guardedSonnetFetch,privateJson} from '../scripts/model-qa-support.mjs';
+import {isolatedPool,guardedSonnetFetch,privateJson,reservationFingerprint} from '../scripts/model-qa-support.mjs';
+import {resumeReviewStream} from '../scripts/resume-review-stream.mjs';
 import {resumeReservedStream} from '../scripts/resume-reserved-stream.mjs';
 import {resumeLegacyCitationFailure} from '../scripts/resume-citation-failure.mjs';
 import {qualificationWindow,admitBeforeDeadline} from '../scripts/check-sonnet-documents.mjs';
@@ -174,5 +175,55 @@ test('explicit reserved-charge recovery archives the failure, preserves costs an
   await assert.rejects(resumeReservedStream(f.store,doc,root),/already attempted/);
   const slot=await f.store.reserve(100),leases=await f.pool.query('SELECT extract(epoch FROM(expires_at-now())) AS seconds FROM p5ds_provider_leases WHERE token=$1',[slot]);
   assert.ok(Number(leases.rows[0].seconds)>120);await f.store.release(slot);
+ }finally{await f.pool.end();await rm(root,{recursive:true,force:true});}
+});
+
+test('review-only recovery retains every source page and reservation and runs only the final review',async()=>{
+ const root=await mkdtemp(join(tmpdir(),'p5-review-stream-')),f=await fixture();let paid=0;
+ try{
+  await f.pool.query('UPDATE p5ds_documents SET page_count=4,digest=$2 WHERE id=$1',[f.document.id,'ef5caf06821319350a3f672d98a1c42db2311d601d570cb5345d76f9808a3018']);
+  for(let page=2;page<=4;page++)await f.store.putPage(f.job,{...native,page,image:Buffer.from('synthetic')});
+  for(let page=1;page<=4;page++){
+   const value={...evidence(),page};value.items[0].evidence='Install 120 linear feet of painted baseboard.';
+   await f.pool.query('UPDATE p5ds_pages SET evidence=$3 WHERE document_id=$1 AND page=$2',[f.document.id,page,value]);
+  }
+  await f.pool.query("UPDATE p5ds_documents SET state='prepared' WHERE id=$1",[f.document.id]);
+  await f.store.complete(f.job,{pages:[1,2,3,4]},c=>f.store.finalize(f.document.id,c));
+  const review=await f.pipeline.submitReview('qa','test',{documents:[{id:f.document.id,source:'fixture.pdf'}],text:'Synthetic scope',answers:{}});
+  await f.store.fail(await f.store.claim(['review']),new ServiceError('qa-paused-unknown-provider-charge',422));
+  const prior={status:'charge-unknown',reservedUsd:.12375};prior.acknowledgement={action:'resume-reserved',fingerprint:reservationFingerprint(prior)};
+  const used=n=>({status:'usage-reported',usage:{input_tokens:100,output_tokens:100},reservedUsd:n});
+  const ledger={version:1,model:'claude-sonnet-5',tokenCountMs:1694,paused:true,calls:[used(.050426),prior,used(.072026),used(.0541404),used(.007206),{status:'charge-unknown',reservedUsd:.189205,httpStatus:200,failure:{code:'provider-invalid-stream'},progress:{streaming:true,complete:false,toolCharacters:24214,events:3467}}]};
+  await privateJson(join(root,'cost.json'),ledger);await privateJson(join(root,'report.json'),{error:'qa-paused-unknown-provider-charge'});
+  const doc=await f.store.document('qa','test',f.document.id),before=await f.store.pages(doc.id);
+  assert.equal(doc.state,'complete');
+  for(const change of [x=>x.calls[5].reservedUsd+=.01,x=>x.calls[5].failure.code='provider-total-timeout',x=>x.calls[5].progress.complete=true,x=>x.calls.push(used(.01))]){
+   const changed=structuredClone(ledger);change(changed);await privateJson(join(root,'cost.json'),changed);
+   await assert.rejects(resumeReviewStream(f.store,doc,root),/differs/);
+   await assert.rejects(stat(join(root,'review-stream-recovery-v1.json')),e=>e.code==='ENOENT');
+   assert.equal((await f.store.job('qa','test',review.id)).state,'failed');
+  }
+  await privateJson(join(root,'cost.json'),ledger);
+  await resumeReviewStream(f.store,doc,root);
+  assert.deepEqual(await f.store.pages(doc.id),before);
+  assert.equal((await f.store.document('qa','test',doc.id)).state,'complete');
+  assert.equal((await f.store.job('qa','test',f.job.id)).state,'complete');
+  const archived=JSON.parse(await readFile(join(root,'review-stream-recovery-v1.json'),'utf8'));
+  assert.deepEqual(archived.previousLedger,ledger);
+  const guard=await guardedSonnetFetch({file:join(root,'cost.json'),limitUsd:1,maxCalls:12,request:async(url,options)=>{
+   if(url.endsWith('count_tokens'))return new Response('{"input_tokens":100}');
+   paid++;const body=JSON.parse(options.body),input=JSON.parse(body.messages[0].content[0].text);
+   assert.equal(body.tools[0].name,'submit_document_review');assert.equal(body.output_config.effort,'medium');assert.equal(input.documents[0].pages.length,4);
+   const result={summary:'Trim scope',facts:[],conflicts:[],missingInformation:[],reviewNotes:[],clarifications:[],instructions:{inclusions:['Trim'],exclusions:['Electrical'],responsibilities:[],buildings:[],floors:[],separateBuildings:false,laborOnly:false,materialsOnly:false,questions:[]},pages:[],takeoffs:[]};
+   return new Response(JSON.stringify({stop_reason:'tool_use',usage:{input_tokens:100,output_tokens:100},content:[{type:'tool_use',name:'submit_document_review',id:'synthetic-review',input:result}]}));
+  }});
+  assert.equal(guard.summary().paused,false);assert.ok(Math.abs(guard.summary().estimatedUsd-.4967534)<1e-8);assert.equal(guard.summary().unknownChargeRequests,2);
+  f.pipeline.reader=new Reader({...config,key:'synthetic-no-network'},f.store,guard.request);
+  await f.pipeline.review(await f.store.claim(['review']),new AbortController().signal);
+  assert.equal(paid,1);assert.equal((await f.store.job('qa','test',review.id)).state,'complete');
+  assert.deepEqual(await f.store.pages(doc.id),before);
+  const finalLedger=JSON.parse(await readFile(join(root,'cost.json'),'utf8'));
+  assert.deepEqual(finalLedger.calls.slice(0,5),ledger.calls.slice(0,5));assert.equal(finalLedger.calls[5].reservedUsd,.189205);
+  await assert.rejects(resumeReviewStream(f.store,doc,root),/already attempted/);
  }finally{await f.pool.end();await rm(root,{recursive:true,force:true});}
 });

@@ -83,3 +83,52 @@ test('provider lease horizon covers streaming while other providers keep their o
  assert.equal(providerCallLimit({provider:'anthropic',callMs:40000}),120000);
  assert.equal(providerCallLimit({provider:'openai',callMs:40000}),40000);
 });
+
+function toolEvents(raw,stopReason='tool_use'){
+ return [start,{type:'content_block_start',index:0,content_block:{type:'tool_use',id:'tool-1',name:'submit_document_review',input:{}}},
+  {type:'content_block_delta',index:0,delta:{type:'input_json_delta',partial_json:raw}},
+  finish[0],{type:'message_delta',delta:{stop_reason:stopReason},usage:{output_tokens:10000}},finish[2]];
+}
+test('unfinished tool JSON retains terminal usage and stop reason without becoming a valid review',async()=>{
+ for(const reason of ['max_tokens','tool_use']){
+  const root=await mkdtemp(join(tmpdir(),'p5-tool-final-'));const metrics=[];let calls=0;
+  try{
+   const raw='{"summary":"unfinished';
+   const guard=await guardedSonnetFetch({file:join(root,'cost.json'),limitUsd:1,maxCalls:2,reuseResponses:true,request:async url=>{
+    if(url.endsWith('count_tokens'))return new Response('{"input_tokens":100}');
+    calls++;return stream(toolEvents(raw,reason),{bytes:true});
+   }});
+   const config={provider:'anthropic',model:'claude-sonnet-5',key:'private',callMs:1000,streamMs:5000,maxOutput:10000,tpm:600000};
+   const reader=new Reader(config,{reserve:async()=>1,release:async()=>{},metric:async(...x)=>metrics.push(x)},guard.request);
+   const call=()=>reader.call({kind:'review'},'',{},[],{type:'object'},new AbortController().signal);
+   await assert.rejects(call(),new RegExp(reason==='max_tokens'?'provider-output-limit':'invalid-provider-tool-json'));
+   assert.equal(guard.summary().paused,false);assert.equal(guard.summary().unknownChargeRequests,0);
+   assert.equal(guard.summary().usage[0].output_tokens,10000);assert.equal(calls,1);
+   const ledger=JSON.parse(await readFile(join(root,'cost.json'),'utf8'));
+   const saved=JSON.parse(await readFile(join(root,ledger.calls[0].responseFile),'utf8'));
+   const response=JSON.parse(saved.responseText);
+   assert.equal(response.content[0].input,raw);assert.equal(response.stop_reason,reason);
+   assert.equal(metrics[0][3].stream.complete,true);assert.equal(metrics[0][3].stream.invalidToolJson,true);
+   assert.equal(metrics[0][3].usage.output_tokens,10000);assert.equal(metrics[0][3].stopReason,reason);
+   await assert.rejects(call(),new RegExp(reason==='max_tokens'?'provider-output-limit':'invalid-provider-tool-json'));
+   assert.equal(calls,1,'A rejected complete response is replayed without another charge');
+  }finally{await rm(root,{recursive:true,force:true});}
+ }
+});
+test('unknown additive delta events do not discard known tool input or final usage',async()=>{
+ const events=toolEvents('{"ok":true}');events.splice(3,0,{type:'content_block_delta',index:0,delta:{type:'future_metadata_delta',detail:'not-for-logs'}});
+ let progress;
+ const message=JSON.parse(await collectAnthropicResponse(stream(events),{onProgress:p=>progress=p}));
+ assert.deepEqual(message.content[0].input,{ok:true});assert.equal(message.usage.output_tokens,10000);
+ assert.deepEqual(progress.unknownDeltaTypes,['future_metadata_delta']);assert.ok(!JSON.stringify(progress).includes('not-for-logs'));
+});
+test('invalid event diagnostics identify the event and reason without logging its content',async()=>{
+ const events=toolEvents('{"ok":true}');events.splice(3,0,{type:'content_block_delta',index:0,delta:{type:'text_delta',text:'private source text'}});
+ let progress;
+ await assert.rejects(collectAnthropicResponse(stream(events),{onProgress:p=>progress=p}),/provider-invalid-stream/);
+ assert.deepEqual(progress.failure,{reason:'delta-block-mismatch',event:'content_block_delta'});
+ assert.ok(!JSON.stringify(progress).includes('private source text'));
+});
+test('an interrupted tool stream still pauses even when its partial JSON happens to parse',async()=>{
+ await assert.rejects(collectAnthropicResponse(stream(toolEvents('{"ok":true}').slice(0,-1))),/provider-stream-incomplete/);
+});

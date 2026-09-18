@@ -65,7 +65,7 @@ export class Pipeline{
    // multi-page call that hits its deadline gets smaller requests, not three
    // identical whole-batch retries. Single pages retain bounded failure handling.
    signal.throwIfAborted();
-   if(stored.length>1&&!job.result?.evidenceCheckpoint&&['provider-timeout','provider-idle-timeout','provider-total-timeout','provider-stream-incomplete','provider-output-incomplete','invalid-provider-json','invalid-provider-schema','incomplete-page-manifest','invalid-page-record','quote-not-in-source'].includes(e.code)){
+   if(stored.length>1&&!job.result?.evidenceCheckpoint&&['provider-timeout','provider-idle-timeout','provider-total-timeout','provider-stream-incomplete','provider-output-incomplete','provider-output-limit','invalid-provider-json','invalid-provider-schema','incomplete-page-manifest','invalid-page-record','quote-not-in-source'].includes(e.code)){
     await this.store.complete(job,{splitIntoPages:true,reason:e.code,pages:stored.map(p=>p.page)},async c=>{
      for(const p of stored)await this.enqueueRead(job,[p.native],c);
     });return;

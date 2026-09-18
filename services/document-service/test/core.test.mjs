@@ -30,7 +30,7 @@ test('valid exact source evidence accepted',()=>assert.equal(validateEvidence({p
 test('pending visual crop keeps page partial',()=>assert.equal(validateEvidence({pages:[evidence({regions:[{x:.1,y:.2,width:.5,height:.5,reason:'dimension'}]})]},[source]).pages[0].status,'partial'));
 test('out-of-page crop rejected',()=>assert.throws(()=>validateEvidence({pages:[evidence({regions:[{x:.9,y:0,width:.5,height:1}]})]},[source]),/region/));
 test('a redacted number is not invented to fill an empty value',()=>assert.throws(()=>validateEvidence({pages:[evidence({facts:[{field:'sqft',value:'2400',evidence:'2400 SF',basis:'stated'}]})]},[{...source,text:'House , SF'}]),/quote-not/));
-test('truncated Anthropic response fails rather than dropping trailing data',()=>assert.throws(()=>parseReply('anthropic',{stop_reason:'max_tokens',content:[]}),/incomplete/));
+test('truncated Anthropic response fails rather than dropping trailing data',()=>assert.throws(()=>parseReply('anthropic',{stop_reason:'max_tokens',content:[]}),/provider-output-limit/));
 test('blocked Gemini response fails visibly',()=>assert.throws(()=>parseReply('gemini',{candidates:[{finishReason:'SAFETY'}]}),/incomplete/));
 test('incomplete OpenAI response fails visibly',()=>assert.throws(()=>parseReply('openai',{status:'incomplete'}),/incomplete/));
 test('valid provider JSON parsed',()=>assert.deepEqual(parseReply('anthropic',{stop_reason:'end_turn',content:[{type:'text',text:'{"pages":[]}'}]}),{pages:[]}));

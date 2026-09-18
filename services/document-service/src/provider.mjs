@@ -13,11 +13,13 @@ export function requestBody(provider,model,system,input,images,schema,maxOutput,
   if(purpose==='review'){
    body.tools=[{name:REVIEW_TOOL,description:'Return the complete reconciled scope, evidence, quantities, exclusions and unresolved questions. This tool only submits structured data; it performs no external action. Include every required field, with empty arrays when absent.',input_schema:schema,strict:false}];
    body.tool_choice={type:'tool',name:REVIEW_TOOL,disable_parallel_tool_use:true};
+   if(model==='claude-sonnet-5')body.output_config={effort:'medium'};
    return {url:'https://api.anthropic.com/v1/messages',body,outputTool:REVIEW_TOOL};
   }
   body.output_config={format:{type:'json_schema',schema}};
   // Sonnet 5 defaults to high effort. Routine source reading uses medium;
-  // independent visual verification and reconciliation retain model defaults.
+  // independent visual verification retains the model default. Review uses
+  // medium explicitly above to leave room for the complete structured answer.
   if(model==='claude-sonnet-5'&&['read','citation'].includes(purpose))body.output_config.effort='medium';
   return {url:'https://api.anthropic.com/v1/messages',body};
  }
@@ -27,10 +29,12 @@ export function requestBody(provider,model,system,input,images,schema,maxOutput,
 }
 export function parseReply(provider,data,outputTool){
  let text;
+ if(provider==='anthropic'&&data.stop_reason==='max_tokens')throw new ServiceError('provider-output-limit',422);
  if(provider==='anthropic'&&outputTool){
   if(data.stop_reason!=='tool_use')throw new ServiceError('provider-output-incomplete',422);
   const calls=(Array.isArray(data.content)?data.content:[]).filter(b=>b.type==='tool_use');
   if(calls.length!==1||calls[0].name!==outputTool||!calls[0].id)throw new ServiceError('invalid-provider-tool-output',422);
+  if(typeof calls[0].input==='string')throw new ServiceError('invalid-provider-tool-json',422);
   return calls[0].input;
  }
  if(provider==='anthropic'){if(data.stop_reason!=='end_turn')throw new ServiceError('provider-output-incomplete',422);text=(data.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('');}
@@ -67,6 +71,8 @@ export class Reader{
    const length=Number(response.headers.get('content-length')||0);if(length>8*1024*1024)throw new ServiceError('provider-response-too-large',422);
    const text=c.provider==='anthropic'?await collectAnthropicResponse(response,{signal:combined,onProgress:onProviderProgress}):await response.text();if(text.length>8*1024*1024)throw new ServiceError('provider-response-too-large',422);
    let data;try{data=JSON.parse(text);}catch{throw new ServiceError('invalid-provider-json',422);}
+   requestDetail.usage=data.usage||data.usageMetadata||{};
+   requestDetail.stopReason=data.stop_reason||data.status||null;
    const value=validateSchema(parseReply(c.provider,data,built.outputTool),schema);
    await this.store.metric(job,purpose==='citation'?'citation-provider':job.kind==='review'?'reconciliation-provider':verify?'verify-provider':'read-provider',performance.now()-start,{...requestDetail,queueMs:Math.round(start-waitStart),estimatedTokens:estimated,usage:data.usage||data.usageMetadata||{}});
    return value;

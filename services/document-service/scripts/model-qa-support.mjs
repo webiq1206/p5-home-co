@@ -107,7 +107,7 @@ export async function guardedSonnetFetch({file,limitUsd,maxCalls,request=fetch,o
   }
   await save();return response;
  };
- return {request:guarded,summary:()=>({model:state.model,requests:state.calls.filter(c=>c.status!=='not-sent').length,estimatedUsd:reserved(),estimatedLimitUsd:limitUsd,maxRequests:maxCalls,tokenCountMs:state.tokenCountMs,unknownChargeRequests:state.calls.filter(c=>c.status!=='not-sent'&&!c.usage).length,paused:state.paused,usage:state.calls.map(c=>c.usage).filter(Boolean),note:'Standard-price estimate with guarded reservations, not an invoice or a guaranteed billing cap. Failed calls without usage retain their reserved estimate. Unknown charges pause this ledger before further requests.'})};
+ return {request:guarded,summary:()=>({model:state.model,requests:state.calls.filter(c=>c.status!=='not-sent').length,estimatedUsd:reserved(),estimatedLimitUsd:limitUsd,maxRequests:maxCalls,tokenCountMs:state.tokenCountMs,unknownChargeRequests:state.calls.filter(c=>c.status!=='not-sent'&&!c.usage).length,paused:state.paused,usage:state.calls.map(c=>c.usage).filter(Boolean),lastFailure:state.calls.at(-1)?.failure?{request:state.calls.length,...state.calls.at(-1).failure,progress:state.calls.at(-1).progress}:null,note:'Standard-price estimate with guarded reservations, not an invoice or a guaranteed billing cap. Failed calls without usage retain their reserved estimate. Unknown charges pause this ledger before further requests.'})};
 }
 
 /** Independent targeted source checks. They are NOT exhaustive accuracy scoring. */

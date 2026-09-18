@@ -24,9 +24,9 @@ test('scanned, drawing, mixed visual concerns and partial status never get promo
  const noBlank={...native,text:'Construction division included scope summary. Install trim. Total project cost $500.'};const no=record();no.facts=[];
  assert.equal(validateEvidence({pages:[no]},[noBlank]).pages[0].regions.length,1);
 });
-test('Sonnet reading uses medium effort without changing verification, review or other models',()=>{
+test('Sonnet reading uses medium effort with medium review effort and unchanged visual verification',()=>{
  assert.equal(requestBody('anthropic','claude-sonnet-5','',{},[],EVIDENCE_SCHEMA,10000,'read').body.output_config.effort,'medium');
  for(const purpose of ['verify','evidence'])assert.equal(requestBody('anthropic','claude-sonnet-5','',{},[],EVIDENCE_SCHEMA,10000,purpose).body.output_config.effort,undefined);
- assert.equal(requestBody('anthropic','claude-sonnet-5','',{},[],REVIEW_SCHEMA,10000,'review').body.output_config,undefined);
+ assert.equal(requestBody('anthropic','claude-sonnet-5','',{},[],REVIEW_SCHEMA,10000,'review').body.output_config.effort,'medium');
  assert.equal(requestBody('anthropic','claude-opus-5','',{},[],EVIDENCE_SCHEMA,10000,'read').body.output_config.effort,undefined);
 });

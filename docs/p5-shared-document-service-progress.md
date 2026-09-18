@@ -852,3 +852,51 @@ live paid qualification remains an owner-run step. Release tests use synthetic
 streams and disposable databases; they are not Sonnet accuracy or speed results.
 
 Reference: https://platform.claude.com/docs/en/build-with-claude/streaming
+
+### 2026-09-18: Completed source pages, then review-stream parser rejection
+
+The latest owner run completed all four short-source pages, then failed in
+review after 79,480 ms. HTTP status was 200. The saved ledger reports
+`provider-invalid-stream`, 3,467 handled events, 24,214 tool-input characters,
+and no terminal usage. Total reservations are $0.4967534, including the two
+historical unknown charges. The plans have not started. This was not the
+120-second total deadline or the $1 cost guard.
+
+The old collector attempted JSON parsing at `content_block_stop` and aborted
+before consuming the final stop reason and usage if the tool input was partial.
+A synthetic regression reproduces that defect. The old diagnostic captured only
+the last successful event, so the exact rejected live event and whether it ended
+at `max_tokens` cannot be proved from the retained record.
+
+The collector now preserves unparseable input as a string until final usage is
+received. Reader validation still rejects it. `max_tokens` has its own terminal
+`provider-output-limit` code, retaining known usage and the complete response
+for free replay. Missing final markers still pause unknown charges. Unknown
+additive delta types are ignored without altering known tool-input fragments;
+known mismatched delta types still fail with an event/reason diagnostic that
+contains no source text. Failure metrics and console summaries include the
+retained stream progress, stop reason and usage when available.
+
+Sonnet reconciliation now explicitly uses medium effort and compact output
+instructions within the same 10,000-token cap. Independent visual verification
+keeps its prior effort. Every distinct item, quantity, exclusion, responsibility
+and source reference remains required. Live source accuracy at the changed
+review effort is still pending and must pass the fixture checks.
+
+The explicit command below recovers only this exact six-call historical state:
+
+```bash
+git -c pull.ff=only pull && node services/document-service/scripts/finish-sonnet-qualification.mjs resume-review
+```
+
+It archives the original state, preserves all four validated source pages and
+every reserved charge, and requeues only the failed review. It does not reset
+budgets or timeouts. A durable marker rejects another invocation of that mode;
+a new unknown charge still pauses. Plans run only after short-file checks pass.
+No paid provider call, production database mutation or deployment was performed
+while developing this change. Release verification is recorded in the PR.
+
+API references:
+- https://platform.claude.com/docs/en/build-with-claude/streaming
+- https://platform.claude.com/docs/en/agents-and-tools/tool-use/fine-grained-tool-streaming
+- https://platform.claude.com/docs/en/build-with-claude/effort
