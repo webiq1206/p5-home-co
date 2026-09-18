@@ -42,6 +42,9 @@ export class Reader{
   let slot;const waitStart=performance.now();
   while(!(slot=await this.store.reserve(estimated))){signal.throwIfAborted();await sleep(250,signal);}
   const start=performance.now();
+  const requestDetail={provider:c.provider,model:verify?c.verifyModel:c.model,attempt:job.attempts,
+   pages:Array.isArray(input.pages)?input.pages.map(p=>p.page):[],imageCount:images.length,
+   inputCharacters:JSON.stringify(input).length,maxOutputTokens:c.maxOutput,timeoutMs:c.callMs};
   try{
    const built=requestBody(c.provider,verify?c.verifyModel:c.model,system,input,images,schema,c.maxOutput,job.kind);
    const headers={'content-type':'application/json',...(c.provider==='anthropic'?{'x-api-key':c.key,'anthropic-version':'2023-06-01'}:c.provider==='gemini'?{'x-goog-api-key':c.key}:{authorization:`Bearer ${c.key}`})};
@@ -57,11 +60,11 @@ export class Reader{
    const text=await response.text();if(text.length>8*1024*1024)throw new ServiceError('provider-response-too-large',422);
    let data;try{data=JSON.parse(text);}catch{throw new ServiceError('invalid-provider-json',422);}
    const value=validateSchema(parseReply(c.provider,data,built.outputTool),schema);
-   await this.store.metric(job,job.kind==='review'?'reconciliation-provider':verify?'verify-provider':'read-provider',performance.now()-start,{provider:c.provider,model:verify?c.verifyModel:c.model,queueMs:Math.round(start-waitStart),estimatedTokens:estimated,usage:data.usage||data.usageMetadata||{}});
+   await this.store.metric(job,job.kind==='review'?'reconciliation-provider':verify?'verify-provider':'read-provider',performance.now()-start,{...requestDetail,queueMs:Math.round(start-waitStart),estimatedTokens:estimated,usage:data.usage||data.usageMetadata||{}});
    return value;
   }catch(e){
    const error=e.name==='TimeoutError'||e.name==='AbortError'?new ServiceError('provider-timeout',503):e instanceof TypeError?new ServiceError('provider-network-error',503):e;
-   await this.store.metric(job,'provider-failure',performance.now()-start,{provider:c.provider,queueMs:Math.round(start-waitStart),code:error.code||'provider-error'}).catch(()=>{});
+   await this.store.metric(job,'provider-failure',performance.now()-start,{...requestDetail,queueMs:Math.round(start-waitStart),code:error.code||'provider-error',cancelled:signal.aborted}).catch(()=>{});
    throw error;
   }
   finally{await this.store.release(slot);}

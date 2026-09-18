@@ -610,3 +610,34 @@ P5 Shell with the private fixture bundle. Review its private reports before
 claiming document qualification or extending remote activation. Sonnet production
 settings and broader website pricing/provider routing require separate observed
 verification. Do not reuse completed old review results as fresh Sonnet evidence.
+
+
+## First real Sonnet short-file failure, 2026-09-18
+
+Owner ran the bounded private four-page fixture in Replit. Parsing reached four
+pages, but zero pages completed AI verification. The same read job returned
+provider-timeout on three attempts; current invocation was 126398 ms. The runner
+stopped before the 23-page plans. Its approximately $0.465 cost reservation has
+no returned usage and is not a verified Anthropic charge.
+
+Source inspection confirms a 40000 ms default call deadline and up to three
+transient retries. Text pages can share a four-page read request. Timeout recovery
+currently repeats that batch; existing adaptive page splitting only covers invalid
+or incomplete outputs. The cause of provider latency is not yet established.
+
+Working branch: fix/document-read-timeout-recovery-20260918. Preserve the failed
+private checkpoint. Investigate bounded single-page recovery and add no-cost
+regressions before requesting another paid run. Do not raise limits, republish,
+change production data or claim real-file qualification from synthetic tests.
+
+Local source parsing confirmed this exact short PDF groups pages 1-4 into one
+read (13982 native text characters). Implemented lease-fenced atomic single-page
+recovery for multi-page provider timeouts and numeric request-shape metrics.
+66 focused tests pass, including isolated SQL rollback, stale-lease fencing,
+cancellation, cached-page preservation, bounded single-page failure, existing
+provider schemas and QA cost guards. These tests use controlled responses and
+make no paid AI calls. Live latency and accuracy remain unverified. No timeout,
+output budget, model, slot setting or spend limit was raised. Await PR checks and
+inspect the owner's private failed report before a further paid test. The existing
+source-fingerprinted runner creates a fresh ledger after a source update; previous
+estimated costs are not part of the new ledger.

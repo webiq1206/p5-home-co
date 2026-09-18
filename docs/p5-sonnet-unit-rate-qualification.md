@@ -58,6 +58,27 @@ Timeouts with unknown charges retain their reservation. No automatic Opus
 fallback occurs. Successful work persists locally and is reused if restarted;
 exhausted failures require inspection rather than automatic paid reprocessing.
 
+### Investigating a timeout
+
+The first real four-page run on 2026-09-18 parsed all pages but exhausted three
+40-second provider calls before any page evidence completed. The plans did not
+run. This does not qualify Sonnet accuracy or prove what caused provider latency.
+
+Multi-page reader timeouts now use the existing adaptive single-page recovery
+path. The parent job and child jobs change atomically under its valid lease.
+Completed pages remain cached. Cancellation, authentication and rate limits do
+not trigger splits; single-page failures retain the existing bounded retries.
+Provider metrics include page numbers, model, attempt, configured deadline and
+input size, without source text or secrets. No deadline, output limit, provider
+slot limit or QA spending limit was raised.
+
+Before another paid attempt, inspect the private report at the path printed by
+the failed run. Keep that checkpoint. Processing-source changes create a new
+checkpoint directory and a new cost ledger, so its budget does not include old
+attempts. A failed run's reserved estimate is not a verified provider charge.
+The recovery change has controlled local/CI tests; real-file success still
+requires a separately observed Sonnet run.
+
 Reports include stage timings, usage, estimated costs, all page evidence and
 reconciled output. Native parsing/rendering, provider capacity waits, AI reading,
 verification and reconciliation are distinguished. Upload, production queue and
