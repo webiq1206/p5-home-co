@@ -139,3 +139,21 @@ emulated browser suite passed. These are CI environments, not physical devices.
 Post-merge workflows are checked separately. Replit remains unchanged during this
 continuation because direct workspace access is blocked. No new subscription,
 server upgrade, deployment type change, or spending-limit increase was made.
+
+
+## Follow-up browser focus correction
+
+Post-merge broader browser workflows exposed intermittent WebKit failures on P5,
+Construction and Cabinet: scope text was not retained, Continue stayed disabled,
+or contact entry did not reveal the submission control. Cohost/service/build checks
+passed independently. Do not describe those initial browser runs as all green.
+
+Follow-up PRs: P5 #49, Remodeling #43, Construction #40, Handyman #38, Cabinet #37.
+The shared estimator focused stage headings synchronously and again on the next
+animation frame. The correction retains synchronous accessible focus, makes the
+later frame scroll-only, and cancels stale callbacks. Existing recovery, missing-
+information and submission assertions are retained. The full estimator/browser
+workflow now runs on relevant PRs before merge. Each linked PR and its exact-head
+checks are the authoritative verification record for this follow-up.
+
+No Replit configuration/deployment or live-provider QA occurred during this fix.

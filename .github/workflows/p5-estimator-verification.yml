@@ -2,6 +2,8 @@ name: P5 estimator policy and workflow verification
 on:
   push:
     branches: [fix/estimator-flow-20260913,release/estimator-overhaul-20260912,wip/estimator-overhaul-20260912,fix/research-format,fix/pricing-batches,fix/pricing-latency,fix/readable-estimates,fix/complete-scope-pricing, codex/activate-cost-books-20260911, codex/finalize-estimators-20260911, codex/p5-upload-receipt-fix-20260910, codex/p5-intelligent-wizard-20260910, main, codex/p5-estimator-policy-20260910, codex/p5-merge-all-20260910, codex/p5-complete-main-20260910]
+  pull_request:
+    paths: ['components/P5Estimator.tsx', 'scripts/p5-estimator-browser.mjs', '.github/workflows/p5-estimator-verification.yml']
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
