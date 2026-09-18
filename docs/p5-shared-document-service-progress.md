@@ -808,3 +808,9 @@ Release validation and final commit are recorded in the pull request. These
 changes do not certify live document accuracy, large-plan completion, pricing,
 PDF/email delivery or all-site customer journeys. Replit must pull the reviewed
 main before the owner runs the existing consolidated qualification command.
+
+Saved QA replies are also replayed for an identical request after a restart,
+before token counting or another generation call. Request and response checksums
+must match the same fixture ledger; changed requests cannot borrow a cached
+reply, and an unknown-charge pause still blocks further work. This covers a
+process interruption between a paid response and its SQL checkpoint.

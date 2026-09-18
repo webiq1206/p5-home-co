@@ -36,7 +36,7 @@ const safeUsage=usage=>Object.fromEntries(['input_tokens','output_tokens','cache
 
 /** Reserve before sending. Unknown/timeout charges retain their full reservation.
  * The provider token counter is an estimate, so this is NOT a billing hard cap. */
-export async function guardedSonnetFetch({file,limitUsd,maxCalls,request=fetch,onRequest=()=>{},onPause=()=>{}}){
+export async function guardedSonnetFetch({file,limitUsd,maxCalls,request=fetch,onRequest=()=>{},onPause=()=>{},reuseResponses=false}){
  let state;
  try{state=JSON.parse(await readFile(file,'utf8'));}catch(error){if(error.code!=='ENOENT')throw error;state={version:1,model:'claude-sonnet-5',calls:[],tokenCountMs:0};}
  if(state.version!==1||state.model!=='claude-sonnet-5'||!Array.isArray(state.calls)||state.calls.some(c=>!Number.isFinite(c.reservedUsd)||c.reservedUsd<0))throw Error('Invalid saved QA cost ledger.');
@@ -51,6 +51,14 @@ export async function guardedSonnetFetch({file,limitUsd,maxCalls,request=fetch,o
   checkPaused();options.signal?.throwIfAborted();
   const body=JSON.parse(options.body);
   if(url!=='https://api.anthropic.com/v1/messages'||body.model!=='claude-sonnet-5'||!Number.isSafeInteger(body.max_tokens)||body.max_tokens<1||body.max_tokens>10000)throw new ServiceError('qa-unapproved-provider-request',422);
+  const requestSha256=hash(options.body);
+  const prior=reuseResponses&&state.calls.find(c=>c.requestSha256===requestSha256&&c.status==='usage-reported'&&c.httpStatus>=200&&c.httpStatus<300&&c.responseFile);
+  if(prior){
+   if(!/^responses[\\/]\d+\.json$/.test(prior.responseFile))throw new ServiceError('qa-invalid-response-checkpoint',422);
+   const saved=JSON.parse(await readFile(join(dirname(file),prior.responseFile),'utf8'));
+   if(saved.requestSha256!==requestSha256||hash(JSON.stringify(saved.request))!==requestSha256||hash(saved.responseText)!==prior.responseSha256||saved.httpStatus!==prior.httpStatus)throw new ServiceError('qa-response-checkpoint-mismatch',422);
+   return new Response(saved.responseText,{status:saved.httpStatus,headers:{'content-type':'application/json'}});
+  }
   if(state.calls.length>=maxCalls)throw new ServiceError('qa-request-limit-reached',422);
   const started=performance.now();
   const countBody={model:body.model,system:body.system,messages:body.messages,...(body.tools?{tools:body.tools}:{}),...(body.tool_choice?{tool_choice:body.tool_choice}:{})};
@@ -64,7 +72,7 @@ export async function guardedSonnetFetch({file,limitUsd,maxCalls,request=fetch,o
   const inputUpper=Math.ceil(count.input_tokens*1.2)+2048+Buffer.byteLength(JSON.stringify(body.output_config||{}));
   const estimate=(inputUpper*2.5+body.max_tokens*10)/1e6;
   if(state.calls.length>=maxCalls||reserved()+estimate>limitUsd)throw new ServiceError('qa-estimated-spend-limit-reached',422);
-  const record={reservedUsd:estimate,estimatedInputTokens:count.input_tokens,maxOutputTokens:body.max_tokens,status:'reserved'};
+  const record={requestSha256,reservedUsd:estimate,estimatedInputTokens:count.input_tokens,maxOutputTokens:body.max_tokens,status:'reserved'};
   state.calls.push(record);await save();let sent=false,response;
   try{
    checkPaused();options.signal?.throwIfAborted();
@@ -76,7 +84,7 @@ export async function guardedSonnetFetch({file,limitUsd,maxCalls,request=fetch,o
    // are written. A rejected citation remains available for free local replay.
    const responseFile=join('responses',String(state.calls.indexOf(record)+1).padStart(4,'0')+'.json');
    await privateJson(join(dirname(file),responseFile),{version:1,requestSha256:hash(options.body),request:body,httpStatus:response.status,responseText});
-   record.responseFile=responseFile;
+   record.responseFile=responseFile;record.responseSha256=hash(responseText);
    const data=JSON.parse(responseText);
    if(data?.usage&&Number.isSafeInteger(data.usage.input_tokens)&&data.usage.input_tokens>=0&&Number.isSafeInteger(data.usage.output_tokens)&&data.usage.output_tokens>=0){
     record.usage=safeUsage(data.usage);record.estimatedActualUsd=cost(record.usage);

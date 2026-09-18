@@ -37,7 +37,7 @@ export async function runFixture(fixture,{root,key,parseOnly=false,request=fetch
  config.slots=1;config.parserSlots=1;config.maxPages=fixture.pages;config.maxOutput=Math.min(config.maxOutput,10000);
  const controller=new AbortController(),limit=fixture.id==='short'?180000:600000;
  let stop,document,review,started,runType='new';
- const costGuard=await guardedSonnetFetch({file:join(directory,'cost.json'),limitUsd:providerLimit,maxCalls,request,onRequest:n=>log(fixture.id+': provider request '+n),onPause:error=>controller.abort(error)});
+ const costGuard=await guardedSonnetFetch({file:join(directory,'cost.json'),limitUsd:providerLimit,maxCalls,request,reuseResponses:true,onRequest:n=>log(fixture.id+': provider request '+n),onPause:error=>controller.abort(error)});
  const pool=await isolatedPool(join(directory,'database')),store=new Store(pool,config);
  const reader=new Reader(config,store,(url,options)=>costGuard.request(url,{...options,signal:AbortSignal.any([options.signal,controller.signal])}));
  const parser=(data,options)=>{

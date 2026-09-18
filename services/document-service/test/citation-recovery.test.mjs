@@ -102,6 +102,25 @@ test('caller cancellation is distinct from provider timeout and releases its slo
  }
 });
 
+test('an identical paid reply replays free across restart but a changed request cannot reuse it',async()=>{
+ const root=await mkdtemp(join(tmpdir(),'p5-response-replay-'));let calls=0,counts=0;
+ try{
+  const settings={file:join(root,'cost.json'),limitUsd:1,maxCalls:3,reuseResponses:true,request:async url=>{
+   if(url.endsWith('count_tokens')){counts++;return new Response('{"input_tokens":100}');}
+   calls++;return new Response(JSON.stringify({usage:{input_tokens:100,output_tokens:20},content:[{type:'text',text:'Saved even if downstream validation fails.'}]}));
+  }};
+  const body={model:'claude-sonnet-5',max_tokens:1000,messages:[]},url='https://api.anthropic.com/v1/messages';
+  let guard=await guardedSonnetFetch(settings);
+  const first=await (await guard.request(url,{body:JSON.stringify(body)})).text();
+  guard=await guardedSonnetFetch(settings);
+  assert.equal(await (await guard.request(url,{body:JSON.stringify(body)})).text(),first);
+  assert.equal(calls,1);assert.equal(counts,1);assert.equal(guard.summary().requests,1);
+  await guard.request(url,{body:JSON.stringify({...body,max_tokens:1001})});assert.equal(calls,2);
+  const file=join(root,'responses','0001.json'),saved=JSON.parse(await readFile(file,'utf8'));saved.responseText='tampered';await privateJson(file,saved);
+  await assert.rejects(guard.request(url,{body:JSON.stringify(body)}),/checkpoint-mismatch/);assert.equal(calls,2);
+ }finally{await rm(root,{recursive:true,force:true});}
+});
+
 test('legacy recovery archives the reported failure, retains charges and pages, and runs at most once',async()=>{
  const root=await mkdtemp(join(tmpdir(),'p5-legacy-citation-')),f=await fixture();
  try{
