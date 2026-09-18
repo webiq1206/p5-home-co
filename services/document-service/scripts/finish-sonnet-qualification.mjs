@@ -63,6 +63,7 @@ async function main(){
  const report={profile:PROFILE,previousRunEstimate:recovered.previousRunEstimate,previousProbeEstimate:recovered.previousProbeEstimate,fixtures:[],sites:await siteChecks(),allSitesQualified:false};
  console.log('Recovered saved evidence without AI calls. Additional estimated limits: $1 unfinished short-file work; $3 plans only after short-file checks pass.');
  console.log('Prior ledgers stay unchanged. One request at a time; stop on unknown charges. Cached completion is not a cold performance benchmark.');
+ console.log('The sequential plans test has up to 20 minutes. Production timeouts and the $1/$3 estimated limits are unchanged.');
  const file=join(root,'qualification-report.json');
  for(const fixture of bundle.fixtures){
   const r=await runFixture(fixture,{root,key:process.env.ANTHROPIC_API_KEY,...(fixture.id==='short'?{seedPages:recovered.pages,recoverLegacyCitationFailure:true}:{})});

@@ -814,3 +814,12 @@ before token counting or another generation call. Request and response checksums
 must match the same fixture ledger; changed requests cannot borrow a cached
 reply, and an unknown-charge pause still blocks further work. This covers a
 process interruption between a paid response and its SQL checkpoint.
+
+The sequential plans runner previously inherited a five-minute production job
+age limit and a ten-minute overall QA limit. That could expire later pages in
+the isolated one-request queue before they were read. Its diagnostic window and
+job allowance are now 20 minutes; short-file QA gets at least five minutes. The
+production configuration and individual provider-call timeout are unchanged.
+The runner stops admission before another call can overlap its shutdown window.
+The longer diagnostic window is disclosed in console/report output and does not
+raise either cost guard or qualify production speed.

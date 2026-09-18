@@ -5,6 +5,7 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {isolatedPool,guardedSonnetFetch,privateJson} from '../scripts/model-qa-support.mjs';
 import {resumeLegacyCitationFailure} from '../scripts/resume-citation-failure.mjs';
+import {qualificationWindow,admitBeforeDeadline} from '../scripts/check-sonnet-documents.mjs';
 import {Store} from '../src/store.mjs';
 import {Pipeline} from '../src/pipeline.mjs';
 import {Reader} from '../src/provider.mjs';
@@ -16,6 +17,12 @@ const native={page:1,kind:'text',textQuality:1,text:'Interior trim scope\nInstal
 const evidence=()=>({page:1,sheet:'',revision:'',status:'read',notes:[],facts:[],items:[{id:'baseboard',description:'Painted baseboard',component:'Trim',building:'',floor:'',quantity:120,unit:'lf',basis:'stated',evidence:'Install 120 lf of painted baseboard.'}],inclusions:[],exclusions:['Electrical work'],responsibilities:[],regions:[]});
 const repair={citations:[{key:'1:items:0',supported:true,lines:[2]}]};
 const config={provider:'anthropic',model:'claude-sonnet-5',verifyModel:'claude-sonnet-5',parserSlots:1,slots:1,rpm:60,tpm:600000,callMs:40000,parseMs:60000,jobMs:300000,maxPages:4,maxTenantBytes:1000000,maxQueue:30,maxOutput:10000};
+test('sequential plans do not inherit the production queue deadline or admit work too close to shutdown',()=>{
+ const before=structuredClone(config),timing=qualificationWindow(config,'plans');
+ assert.equal(timing.windowMs,1200000);assert.equal(timing.jobMs,1200000);assert.deepEqual(config,before);
+ assert.doesNotThrow(()=>admitBeforeDeadline(1200000,40000,600000));
+ assert.throws(()=>admitBeforeDeadline(1200000,40000,1160000),/before-next-request/);
+});
 async function fixture(){
  const pool=await isolatedPool(),store=new Store(pool,config);await store.init();
  const reader={call:async()=>({pages:[evidence()]})};
