@@ -7,7 +7,7 @@ import {PDFDocument,StandardFonts} from 'pdf-lib';
 import {isolatedPool,guardedSonnetFetch,targetedChecks} from '../scripts/model-qa-support.mjs';
 import {runFixture} from '../scripts/check-sonnet-documents.mjs';
 import {hash} from '../src/core.mjs';
-import {inspectSavedRun} from '../scripts/inspect-sonnet-run.mjs';
+import {inspectSavedRun,inspectReviewRecovery} from '../scripts/inspect-sonnet-run.mjs';
 
 const json=value=>new Response(JSON.stringify(value),{headers:{'content-type':'application/json'}});
 const options={body:JSON.stringify({model:'claude-sonnet-5',max_tokens:1000,messages:[]})};
@@ -138,6 +138,40 @@ test('QA runner exercises real SQL, PDF parser and pipeline, then reuses complet
   assert.equal(inspected.pages[0].status,'read');assert.equal(paid,callsBefore);
   assert.deepEqual(await snapshot(root),filesBefore,'Inspection must not modify checkpoints');
   assert.ok(!JSON.stringify(inspected).includes('Well septic'),'Diagnostic console omits source text');
+  // Reproduce the early-recovery path: the saved review exists even though
+  // runFixture never reaches submitReview in this invocation.
+  const runDirectory=join(root,'short-'+fixture.sha256.slice(0,16)),pool=await isolatedPool(join(runDirectory,'database'));
+  let beforeRows;
+  try{
+   const read=(await pool.query("SELECT id FROM p5ds_jobs WHERE kind='read' LIMIT 1")).rows[0];
+   const review=(await pool.query("SELECT id FROM p5ds_jobs WHERE kind='review'")).rows[0];
+   await pool.query("UPDATE p5ds_jobs SET state='failed',error_code='qa-paused-unknown-provider-charge' WHERE id=$1",[review.id]);
+   for(const [id,code,when] of [[read.id,'older-read-failure','2026-09-18T17:56:46Z'],[review.id,'latest-review-failure','2026-09-18T18:53:18Z']]){
+    await pool.query("INSERT INTO p5ds_metrics(job_id,stage,duration_ms,detail,created_at) VALUES($1,'provider-failure',1,$2,$3)",[id,{code},when]);
+   }
+   beforeRows=(await pool.query('SELECT id,state,error_code,attempts FROM p5ds_jobs ORDER BY id')).rows;
+  }finally{await pool.end();}
+  const reportFile=join(runDirectory,'report.json'),ledgerFile=join(runDirectory,'cost.json');
+  const priorReport=await readFile(reportFile,'utf8'),priorLedger=await readFile(ledgerFile,'utf8');
+  const recovery=await runFixture(fixture,{root,key:'synthetic-test-key-no-network',request:()=>{throw Error('No network during recovery preflight');},resumeReview:true,log:()=>{}});
+  assert.equal(recovery.preflightRejected,true);assert.equal(recovery.providerFailure,null);
+  assert.equal(recovery.lastSavedProviderFailure.detail.code,'latest-review-failure');
+  assert.equal(recovery.recoveryDiagnostic.checks.oneFailedReview,true);
+  assert.ok(recovery.recoveryDiagnostic.failedChecks.includes('expectedDocument'));
+  assert.equal(await readFile(reportFile,'utf8'),priorReport,'Do not overwrite paid-run history on preflight rejection');
+  assert.equal(await readFile(ledgerFile,'utf8'),priorLedger);
+  assert.ok(recovery.reportPath.endsWith('recovery-preflight-report.json'));
+  const afterPool=await isolatedPool(join(runDirectory,'database'));
+  try{assert.deepEqual((await afterPool.query('SELECT id,state,error_code,attempts FROM p5ds_jobs ORDER BY id')).rows,beforeRows);}finally{await afterPool.end();}
+  const inspectionFiles=await snapshot(root);
+  const diagnostic=await inspectReviewRecovery({root:directory,reportPath:reportFile});
+  assert.deepEqual(diagnostic.failedChecks,recovery.recoveryDiagnostic.failedChecks);
+  assert.equal(diagnostic.lastSavedProviderFailure.detail.code,'latest-review-failure');
+  assert.deepEqual(await snapshot(root),inspectionFiles,'Free inspection never opens original storage for writes');
+  assert.ok(!JSON.stringify(diagnostic).includes('Well septic'),'Recovery diagnostics omit source text');
+  assert.ok(!JSON.stringify(diagnostic).includes('synthetic-test-key-no-network'));
+  const historical=await inspectSavedRun({root:directory,reportPath:reportFile});
+  assert.equal(historical.providerEvents.at(-1).code,'latest-review-failure','Read durable metrics even when the report was overwritten');
  }finally{await rm(directory,{recursive:true,force:true});}
 });
 

@@ -900,3 +900,36 @@ API references:
 - https://platform.claude.com/docs/en/build-with-claude/streaming
 - https://platform.claude.com/docs/en/agents-and-tools/tool-use/fine-grained-tool-streaming
 - https://platform.claude.com/docs/en/build-with-claude/effort
+
+### 2026-09-18: Diagnose recovery rejection without another paid request
+
+The owner ran `resume-review` and the strict saved-state preflight rejected it
+before any provider call. The ledger remained at six requests and $0.4967534
+reserved. The supplied output does not contain the SQL job states or page
+coverage statuses that failed the preflight, so the exact mismatch is still
+unconfirmed. A complete document and four checked pages do not by themselves
+prove that all evidence has `status: read`.
+
+The runner also had a reporting defect: early rejection occurred before its
+local review variable was assigned, so the report omitted saved review metrics
+and selected an older source-reading failure. Metrics now come directly from
+all matching saved jobs in database event order. A preflight rejection writes
+`recovery-preflight-report.json` and preserves the original `report.json`.
+Historical provider failures are labeled separately from the current rejection.
+
+Use this free command to identify the exact failed predicate:
+
+```bash
+git -c pull.ff=only pull && node services/document-service/scripts/finish-sonnet-qualification.mjs inspect-review
+```
+
+It needs no fixture upload or API key, does not run site checks, and inspects a
+disposable copy of local QA storage in a read-only transaction. It reports each
+existing recovery predicate, page statuses, job states, ledger acknowledgements,
+and the last durable provider failure without source text. It cannot start a
+worker, clear a pause, change a reservation, or requeue a job. Recovery eligibility
+has not been relaxed. The paid review and plans qualification remain unfinished.
+
+Regression coverage includes partial page evidence, queued/running reviews,
+unfinished source jobs, preserving paid-run reports, recovering omitted review
+metrics from SQL, and byte-for-byte ledger/checkpoint preservation on inspection.

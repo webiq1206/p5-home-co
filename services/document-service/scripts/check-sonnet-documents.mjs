@@ -18,6 +18,7 @@ import {resumeReservedStream} from './resume-reserved-stream.mjs';
 import {resumeLegacyCitationFailure} from './resume-citation-failure.mjs';
 import {summarizeStages} from '../src/benchmark-metrics.mjs';
 import {isolatedPool,guardedSonnetFetch,privateJson,targetedChecks} from './model-qa-support.mjs';
+import {savedRunEvents,latestProviderFailure} from './saved-run-events.mjs';
 
 // Sequential diagnostic queues need their own window. This does not alter the
 // production job deadline, per-call timeout, provider capacity or cost guards.
@@ -49,7 +50,7 @@ export async function runFixture(fixture,{root,key,parseOnly=false,request=fetch
  config.slots=1;config.parserSlots=1;config.maxPages=fixture.pages;config.maxOutput=Math.min(config.maxOutput,10000);
  const timing=qualificationWindow(config,fixture.id);config.jobMs=timing.jobMs;
  const controller=new AbortController(),limit=timing.windowMs,deadline=performance.now()+limit;
- let stop,document,review,started,runType='new';
+ let stop,document,review,started,runType='new',recoveryPreflight=false;
  const makeCostGuard=()=>guardedSonnetFetch({file:join(directory,'cost.json'),limitUsd:providerLimit,maxCalls,request,reuseResponses:true,onRequest:n=>log(fixture.id+': provider request '+n),onPause:error=>controller.abort(error)});
  let costGuard=await makeCostGuard();
  const pool=await isolatedPool(join(directory,'database')),store=new Store(pool,config);
@@ -72,7 +73,9 @@ export async function runFixture(fixture,{root,key,parseOnly=false,request=fetch
   const receipt=await store.putDocument('model-qa','source-check','fixture.pdf',bytes);document=receipt.document;
   runType=receipt.cached?'resume-or-cache':'new';
   if(resumeReview&&fixture.id==='short'){
+   recoveryPreflight=true;
    await resumeReviewStream(store,document,directory);
+   recoveryPreflight=false;
    costGuard=await makeCostGuard();
    runType='resume-review-stream';log('short: all four completed pages and prior charges preserved; resuming final review only.');
   }
@@ -121,14 +124,18 @@ export async function runFixture(fixture,{root,key,parseOnly=false,request=fetch
   report.quality=targetedChecks(fixture.id,review.result,fixture.pages);
   report.complete=coverage.length===fixture.pages&&coverage.every(p=>p.status==='read')&&report.quality.passed;
   if(!report.complete)report.error='Targeted source checks or page verification did not pass. Inspect the private report before another paid run.';
- }catch(error){report.error=error.name==='AbortError'?'qa-wall-time-limit':error.code||error.message;}
+ }catch(error){
+  report.error=error.name==='AbortError'?'qa-wall-time-limit':error.code||error.message;
+  if(error.recoveryDiagnostic)report.recoveryDiagnostic=error.recoveryDiagnostic;
+  if(recoveryPreflight)report.preflightRejected=true;
+ }
  finally{
   clearTimeout(timer);controller.abort();if(stop)await stop();
   report.runType=runType;report.currentInvocationMs=started?Math.round(performance.now()-started):0;
-  const events=[];
-  for(const [kind,id] of [['documents',document?.id],['reviews',review?.id]])if(id)events.push(...(await store.metrics('model-qa','source-check',id,kind)).events);
+  const events=await savedRunEvents(pool,document);
   report.stageWork=summarizeStages(events);report.events=events;report.cost=costGuard.summary();
-  report.providerFailure=report.complete?null:events.filter(e=>e.stage==='provider-failure').at(-1)||null;
+  report.providerFailure=report.complete||report.preflightRejected?null:latestProviderFailure(events);
+  if(report.preflightRejected)report.lastSavedProviderFailure=latestProviderFailure(events);
   if(document){
    const pages=await store.pages(document.id);
    report.pageEvidence=pages.map(p=>({page:p.page,nativeText:p.native.text,evidence:p.evidence}));
@@ -144,9 +151,12 @@ export async function runFixture(fixture,{root,key,parseOnly=false,request=fetch
    'No network upload is measured. Token counting adds QA overhead; summed parallel stages do not equal wall time.',
    'One run is not a percentile benchmark. Cached/resumed runs are not cold processing performance.',
    'No price, branded PDF, email, live adapter activation or 99.9% accuracy claim follows from this test.'];
-  await privateJson(join(directory,'report.json'),report);await pool.end();
+  // A preflight rejection is a separate attempt, not a new provider result.
+  // Preserve the primary paid-run report and its history for recovery archives.
+  report.reportPath=join(directory,report.preflightRejected?'recovery-preflight-report.json':'report.json');
+  await privateJson(report.reportPath,report);await pool.end();
  }
- log(JSON.stringify({id:fixture.id,complete:report.complete,error:report.error,model:report.model,currentInvocationMs:report.currentInvocationMs,cost:report.cost,quality:report.quality,providerFailure:report.providerFailure,report:join(directory,'report.json')}));
+ log(JSON.stringify({id:fixture.id,complete:report.complete,error:report.error,model:report.model,currentInvocationMs:report.currentInvocationMs,cost:report.cost,quality:report.quality,providerFailure:report.providerFailure,recoveryDiagnostic:report.recoveryDiagnostic,lastSavedProviderFailure:report.lastSavedProviderFailure,report:report.reportPath}));
  return report;
 }
 
