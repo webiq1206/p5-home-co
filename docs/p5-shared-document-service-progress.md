@@ -641,3 +641,19 @@ output budget, model, slot setting or spend limit was raised. Await PR checks an
 inspect the owner's private failed report before a further paid test. The existing
 source-fingerprinted runner creates a fresh ledger after a source update; previous
 estimated costs are not part of the new ledger.
+
+
+## Second real Sonnet short-file failure, 2026-09-18
+
+Owner reran after PR #61. Adaptive splitting preserved one completed page, but
+single-page reads still timed out. Eight paid requests were started, seven had
+unknown charges, and the estimated spend guard stopped the run at $0.935268.
+The only returned usage included 3478 output tokens. Invocation time was 164919
+ms. The 23-page plans did not run. This is not a successful document test.
+
+Stop further paid reruns. Source inspection cannot yet distinguish provider wait
+from response generation within the 40-second limit. Larger generated output is
+a hypothesis, not a confirmed root cause. Working branch:
+fix/sonnet-qa-stop-on-unknown-charge-20260918. Add a persistent stop after unknown
+charges and a no-network inspection of saved timings and completed evidence.
+Do not raise deadlines, spend limits or change production models speculatively.
