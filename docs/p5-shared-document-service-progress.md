@@ -546,3 +546,39 @@ single documented command, inspect reports before changing production models.
 All five websites require pull/republish for rate-library activation. There is
 no cross-site rate API or claim that live adapters, prices, PDFs and emails have
 passed from these tests. Full original completion ledger remains open.
+
+## Reviewed main releases and remaining owner action
+
+All five unit-rate releases passed their applicable PR checks before merge:
+
+| Repository | PR | Reviewed source | Main merge | Passing checks |
+| --- | --- | --- | --- | --- |
+| webiq1206/p5-home-co | [#58](https://github.com/webiq1206/p5-home-co/pull/58) | `2fc26581eded41ac8a6ad1042bdeb175d4b31197` | `6165f9d87d01930d020b5fd6701e55466e285fc4` | [35355404000](https://github.com/webiq1206/p5-home-co/actions/runs/35355404000) |
+| webiq1206/boise-remodeling-co | [#45](https://github.com/webiq1206/boise-remodeling-co/pull/45) | `ad41824fe4b514b3c4580ffe1be68fc24d7c2e0a` | `ba86dfdff04d4a76f3bd118fa9b9dce1cc19ea05` | [35355462177](https://github.com/webiq1206/boise-remodeling-co/actions/runs/35355462177) |
+| webiq1206/Boise-Construction-Co | [#42](https://github.com/webiq1206/Boise-Construction-Co/pull/42) | `184d89d145e04a67a4da6b8677ff6d16ac75b8c1` | `fd2b82e26a91476f01d9cbd41e0391b986552502` | [35355470200](https://github.com/webiq1206/Boise-Construction-Co/actions/runs/35355470200) |
+| webiq1206/Boise-Handyman-Co | [#40](https://github.com/webiq1206/Boise-Handyman-Co/pull/40) | `83c56f8bd495eb909d92d466e67322d746b37391` | `6583b47af65f6ba9da9da61769d6d7d249a5b1fc` | [35355477578](https://github.com/webiq1206/Boise-Handyman-Co/actions/runs/35355477578) |
+| webiq1206/Boise-Cabinet-Co | [#39](https://github.com/webiq1206/Boise-Cabinet-Co/pull/39) | `fc6d9b0e9cdda559c5e6610ce08c254f370f35e6` | `32305f51d6433e1b922da57262acaddf663d5df7` | [35355490109](https://github.com/webiq1206/Boise-Cabinet-Co/actions/runs/35355490109), [35355490172](https://github.com/webiq1206/Boise-Cabinet-Co/actions/runs/35355490172) |
+
+P5 CI: 94 service tests, 371 estimator regressions, 979 full website tests
+passed (one existing database-dependent watchdog test skipped), actual isolated
+SQL unit-rate persistence, adapter integration, saved pricing recovery, production
+build, cohosting smoke and production container/database readiness passed.
+All four satellite estimator/type/build gates passed. Cabinet additionally passed
+54 Chromium/Pixel 7 browser tests using emulated devices, not physical devices.
+These are CI/infrastructure checks with controlled semantic providers, not live
+Sonnet accuracy or deployed customer journey qualification.
+
+Deployment was not changed. Owner action: pull main in the existing Replit apps
+and republish to activate unit-rate reuse. No new secrets, tables, server or
+subscription is required for this change. Preserve any unrelated workspace
+commits when pulling. Revert the corresponding unit-rate PR and republish to
+roll back; retained v3 rate records can remain unused. Do not delete tables.
+
+For live model qualification, download the private p5-sonnet-fixtures.json bundle,
+upload it into the P5 workspace root, then run the command in
+[the qualification instructions](p5-sonnet-unit-rate-qualification.md).
+This uses the existing provider credential in Shell without changing production
+models. Return the printed summaries and private report files for source review.
+No paid model request was made from this session. Production Sonnet activation,
+real-file extraction precision/recall, quantity correctness, all-site customer
+prices/PDFs/emails, and 100-page percentile targets remain unverified.
