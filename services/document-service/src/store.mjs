@@ -34,8 +34,7 @@ export class Store{
   return this.transaction(async c=>{
    await c.query('SELECT pg_advisory_xact_lock(hashtext($1))',['p5ds-quota:'+tenant]);
    const previous=await c.query('SELECT * FROM p5ds_documents WHERE id=$1 AND tenant=$2 AND project=$3',[id,tenant,project]);if(previous.rowCount)return {document:previous.rows[0],cached:true};
-   const used=await c.query('SELECT coalesce(sum(size_bytes),0)::text AS used FROM p5ds_documents WHERE tenant=$1',[tenant]);
-   if(Number(used.rows[0].used)+bytes.length>this.config.maxTenantBytes)throw new ServiceError('document-storage-quota',429);
+   await this.checkStorage(c,tenant,bytes.length);
    const queued=await c.query("SELECT count(*)::int AS n FROM p5ds_jobs WHERE tenant=$1 AND kind IN ('parse','review') AND state IN ('queued','running')",[tenant]);if(queued.rows[0].n>=this.config.maxQueue)throw new ServiceError('document-queue-full',429,5000);
    const r=await c.query('INSERT INTO p5ds_documents(id,tenant,project,digest,name,bytes,size_bytes) VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING *',[id,tenant,project,digest,name,bytes,bytes.length]);
    await this.enqueue(c,{id:jobId(tenant,project,'parse',id),tenant,project,kind:'parse',documentId:id,payload:{documentId:id},priority:bytes.length<1000000?0:5});
@@ -66,9 +65,14 @@ export class Store{
   return {events:rows.rows,note:'Stage durations are accumulated work across parallel jobs, not additive customer wall time.'};
  }
 
+ async checkStorage(c,tenant,additional=0){
+  const r=await c.query(`SELECT (coalesce(sum(size_bytes),0)+(SELECT coalesce(sum(octet_length(p.image)+pg_column_size(p.native)+coalesce(pg_column_size(p.evidence),0)),0) FROM p5ds_pages p JOIN p5ds_documents d ON d.id=p.document_id WHERE d.tenant=$1))::text AS used FROM p5ds_documents WHERE tenant=$1`,[tenant]);
+  if(Number(r.rows[0].used)+additional>this.config.maxTenantBytes)throw new ServiceError('document-storage-quota',422);
+ }
  async putPage(job,page){
-  return this.transaction(async c=>{await this.fence(c,job);
+  return this.transaction(async c=>{await this.fence(c,job);await c.query('SELECT pg_advisory_xact_lock(hashtext($1))',['p5ds-quota:'+job.tenant]);
    await c.query('INSERT INTO p5ds_pages(document_id,page,native,image) VALUES($1,$2,$3::jsonb,$4) ON CONFLICT(document_id,page) DO UPDATE SET native=excluded.native,image=excluded.image',[job.document_id,page.page,JSON.stringify({...page,image:undefined}),page.image]);
+   await this.checkStorage(c,job.tenant);
    await c.query("UPDATE p5ds_documents SET state=CASE WHEN state='failed' THEN state ELSE 'parsing' END,updated_at=now() WHERE id=$1",[job.document_id]);
   });
  }

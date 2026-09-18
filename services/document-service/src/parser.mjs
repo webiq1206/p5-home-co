@@ -22,3 +22,10 @@ export async function parsePdf(bytes,{maxPages=200,timeoutMs=60000,signal,onMani
   });
  });
 }
+
+/** Share parser capacity between document preparation AND verification crops. */
+export function limitParser(parser,limit=1){
+ let active=0;const waiting=[];
+ const pump=()=>{while(active<limit&&waiting.length){const item=waiting.shift();item.signal?.removeEventListener('abort',item.abort);if(item.signal?.aborted){item.reject(new ServiceError('processing-cancelled',503));continue;}active++;Promise.resolve().then(()=>parser(item.bytes,item.options)).then(item.resolve,item.reject).finally(()=>{active--;pump();});}};
+ return (bytes,options={})=>new Promise((resolve,reject)=>{const item={bytes,options,signal:options.signal,resolve,reject,abort:null};item.abort=()=>{const index=waiting.indexOf(item);if(index>=0){waiting.splice(index,1);reject(new ServiceError('processing-cancelled',503));}};if(item.signal?.aborted){reject(new ServiceError('processing-cancelled',503));return;}waiting.push(item);item.signal?.addEventListener('abort',item.abort,{once:true});pump();});
+}

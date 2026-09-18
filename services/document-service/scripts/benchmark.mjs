@@ -7,13 +7,13 @@ const env=process.env;
 const {DOCUMENT_BENCHMARK_URL:base,DOCUMENT_BENCHMARK_KEY:key,DOCUMENT_BENCHMARK_TENANT:tenant,DOCUMENT_BENCHMARK_PDF:file,DOCUMENT_BENCHMARK_TRUTH:truthFile}=env;
 if(!base||!key||!tenant||!file)throw Error('Set DOCUMENT_BENCHMARK_URL, KEY, TENANT and PDF.');
 const origin=new URL(base);
-if(origin.protocol!=='https:'||origin.username||origin.password||origin.pathname!=='/'||origin.search||origin.hash)throw Error('Use a plain HTTPS service origin.');
+if(origin.protocol!=='https:'||origin.username||origin.password||!['/','/api/p5-documents','/api/p5-documents/'].includes(origin.pathname)||origin.search||origin.hash)throw Error('Use an HTTPS service origin or the P5 /api/p5-documents endpoint.');
 const concurrency=(env.DOCUMENT_BENCHMARK_CONCURRENCY||'1').split(',').map(Number),repeats=Number(env.DOCUMENT_BENCHMARK_REPEATS||1);
 if(concurrency.some(n=>![1,5,10].includes(n))||!Number.isInteger(repeats)||repeats<1||repeats>100)throw Error('Use concurrency 1, 5, 10 and repeats 1..100. Existing provider budgets remain enforced.');
 const bytes=await readFile(file),truth=truthFile?JSON.parse(await readFile(truthFile,'utf8')):null;
 if(truth&&truth.sourceSha256!==hash(bytes))throw Error('Ground truth must identify the exact benchmark file digest.');
 const request=async(method,path,body=Buffer.alloc(0),type='application/json')=>{
- const r=await fetch(new URL(path,origin),{method,headers:{...signedHeaders(key,method,path,tenant,body),'content-type':type},...(method==='POST'?{body}:{}),signal:AbortSignal.timeout(90000),redirect:'error'});
+ const r=await fetch(origin.origin+origin.pathname.replace(/\/$/,'')+path,{method,headers:{...signedHeaders(key,method,path,tenant,body),'content-type':type},...(method==='POST'?{body}:{}),signal:AbortSignal.timeout(90000),redirect:'error'});
  const data=await r.json();if(!r.ok)throw Error('Service '+r.status+': '+(data.error||'request-failed'));return data;
 };
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));

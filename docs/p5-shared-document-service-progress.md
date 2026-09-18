@@ -1,10 +1,10 @@
 # P5 shared document service completion ledger
 
-Updated: 2026-09-17 UTC. Code delivery to GitHub; not a deployed or qualified worker.
+Updated: 2026-09-18 UTC. Code delivery to GitHub; not a deployed or qualified worker.
 
 ## Authorization and recovered source
 
-The owner authorized edits, branches, PRs and verified merges in all five repositories, then explicitly instructed: do not do anything in Replit; update GitHub main and the owner will pull. No Replit code, configuration, synchronization or publishing was performed. Do not resume Replit actions without new instructions.
+The owner has now authorized GitHub and Replit edits/configuration/deployment after pulling and republishing all five sites. Use direct code and Git, never Replit Agent to write code. No paid subscriptions, VM upgrades, or spending-limit increases without approval. Earlier no-Replit restriction is superseded.
 
 Actual GitHub connector writing was demonstrated by progress commit `d8415ff88d0173c9b8e7bd047e0334a408cf2104` on `feat/shared-document-service-20260917`. Local Git can fetch public repositories, but this environment had no gh executable or authenticated Git helper. Connector Git-tree/commit/ref/PR/merge actions provided the working write path.
 
@@ -87,3 +87,30 @@ All ten implementation PRs listed above were merged after their applicable check
 The final interface audit passed 361 estimator/metadata regressions per repository, all five production builds, and public-page audits of 6 P5, 201 Remodeling, 161 Construction, 150 Handyman and 136 Cabinet sitemap pages (654 total). All audited indexable titles and descriptions were unique within their site; approved brand previews and assets were present. Chromium checked no horizontal overflow at 320/390/768/1440 pixels and mobile hero visibility, after-hero visibility, returning-to-top suppression, labeled Call and at least 44px action targets. Cabinet E2E run 35288641517 also passed. These observations apply to production builds in CI, not the live domains.
 
 PR review covered the scoped diffs and passing automated evidence; no independent human reviewer approval is claimed. GitHub accepted ordinary squash merges using the exact expected PR heads. No branch protection was bypassed.
+
+
+## Existing P5 host integration — 2026-09-18
+
+Working branch: `feat/p5-cohost-document-service-20260918`, based on main
+`a8b38de25354722eee2932b75de83debeefa4d85`. Prior delivered five-site changes remain intact.
+Read-only connected Replit inspection confirmed P5 app
+`2d29af42-b4a0-47ed-be90-6bb8bfc2c140`, Reserved VM (gce), 0.5 vCPU / 2 GB,
+PostgreSQL 16.15 and existing DATABASE_URL. No new service purchase is required by
+this implementation. These resources have not demonstrated the target workload SLA.
+
+Implemented opt-in streaming host launcher, private worker, existing database reuse,
+conservative concurrency/storage/retention, sampled RSS protection and bounded
+restarts. All adapters must support the `/api/p5-documents` URL prefix. Originals
+remain unchanged; universal file compression is not claimed. README contains exact
+configuration and rollback. No secrets committed. No production activation performed.
+
+Local cohost isolation/HMAC/parser/restart tests and prefixed saved-file adapter test
+pass. CI adds actual built Next.js + worker + disposable shared-database startup.
+This is infrastructure validation, not live semantic or performance qualification.
+
+Replit cloud-browser access is blocked by its persistent security-verification screen.
+Available connector lacks direct shell/secrets/Git-sync operations; Agent writing is
+not an acceptable workaround. Finish reviewed Git delivery, then obtain supported
+workspace access or owner-applied secure configuration. Do not publish an unsynced
+workspace. Worker readiness, real provider benchmarks, all-site remote activation,
+customer QA PDF/email and deployed rollback remain open.

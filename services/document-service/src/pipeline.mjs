@@ -1,8 +1,8 @@
 import {jobId,groupPages,ServiceError,validateEvidence,stable} from './core.mjs';
-import {parsePdf} from './parser.mjs';
+import {parsePdf,limitParser} from './parser.mjs';
 import {EVIDENCE_SCHEMA,REVIEW_SCHEMA,READER_SYSTEM,VERIFIER_SYSTEM,REVIEW_SYSTEM,validateReview} from './contracts.mjs';
 export class Pipeline{
- constructor(store,reader,config,parser=parsePdf){this.store=store;this.reader=reader;this.config=config;this.parser=parser;}
+ constructor(store,reader,config,parser=parsePdf){this.store=store;this.reader=reader;this.config=config;this.parser=limitParser(parser,config.parserSlots||1);}
  async enqueueRead(job,pages){const numbers=pages.map(p=>p.page);await this.store.enqueue(this.store.pool,{id:jobId(job.tenant,job.project,'read',[job.document_id,numbers]),tenant:job.tenant,project:job.project,documentId:job.document_id,kind:'read',priority:job.priority,payload:{pages:numbers}});}
  async prepare(job,signal){
   const start=performance.now(),doc=await this.store.document(job.tenant,job.project,job.document_id,true);let count=0,buffer=[];
@@ -60,7 +60,9 @@ export class Pipeline{
    }
   }
   await this.store.complete(job,{pages:reply.pages.map(p=>p.page)},async c=>{
+   await c.query('SELECT pg_advisory_xact_lock(hashtext($1))',['p5ds-quota:'+job.tenant]);
    for(const p of reply.pages)await c.query('UPDATE p5ds_pages SET evidence=$3::jsonb WHERE document_id=$1 AND page=$2 AND evidence IS NULL',[job.document_id,p.page,JSON.stringify(p)]);
+   await this.store.checkStorage(c,job.tenant);
    await this.store.finalize(job.document_id,c);
   });
  }

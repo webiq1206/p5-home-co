@@ -15,7 +15,7 @@ export function makeServer(store,pipeline,config){
    let body=Buffer.alloc(0);
    if(req.method==='POST'){
     const maximum=parts[3]==='documents'?config.maxBytes:3*1024*1024;
-    if(receiving>=4)throw new ServiceError('upload-capacity',429,1000);if(Number(req.headers['content-length']||0)>maximum)throw new ServiceError('payload-too-large',413);
+    if(receiving>=(config.uploadSlots||4))throw new ServiceError('upload-capacity',429,1000);if(Number(req.headers['content-length']||0)>maximum)throw new ServiceError('payload-too-large',413);
     receiving++;try{const chunks=[];let size=0;for await(const chunk of req){size+=chunk.length;if(size>maximum)throw new ServiceError('payload-too-large',413);chunks.push(chunk);}body=Buffer.concat(chunks);}finally{receiving--;}
    }
    if(hash(body)!==auth.digest)throw new ServiceError('body-integrity-failed',401);
