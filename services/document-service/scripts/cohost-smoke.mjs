@@ -16,7 +16,7 @@ try{
  let ready=false;
  for(let n=0;n<60;n++){
   if(child.exitCode!==null)throw Error('cohost exited before readiness');
-  try{const r=await fetch('http://127.0.0.1:5090/api/p5-documents/readyz',{headers:signedHeaders(key,'GET','/readyz','smoke-test')});if(r.ok){ready=true;break;}}catch{}
+  try{const r=await fetch('http://127.0.0.1:5090/api/p5-documents/readyz',{headers:signedHeaders(key,'GET','/readyz','smoke-test')});if(r.ok){const web=await fetch('http://127.0.0.1:5090/');await web.arrayBuffer();if(web.ok){ready=true;break;}}}catch{}
   await new Promise(r=>setTimeout(r,500));
  }
  assert.ok(ready,'cohost database readiness');

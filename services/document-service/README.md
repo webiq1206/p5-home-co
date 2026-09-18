@@ -14,9 +14,9 @@ Global PostgreSQL admission controls coordinate provider slots, request budgets,
 
 Scope reconciliation is a separate cached job using the current request, all supplied answers, source evidence and full native text. It produces the existing estimator's structured scope contract. Its page coverage cannot exceed the source reader's verified coverage. It does not invent quantities to avoid asking a necessary question.
 
-## Deployment
+## Standalone deployment alternative
 
-This folder is an independent Node 24 app. It must run on an always-on worker/API host, such as a separate Replit Reserved VM, not a background timer in an Autoscale website. Keep all five websites where they are.
+This folder is a Node 24 app requiring an always-on process. For the existing P5 Reserved VM, use the cohosting section below; it requires no separate server or database. The following steps apply only if a separate host is explicitly chosen and approved. Do not run the queue as a background timer in an Autoscale website.
 
 1. Import the reviewed GitHub source into the separate worker workspace. Set its working directory to `services/document-service`.
 2. Install with `npm ci`; start with `npm start`. A Dockerfile is also provided, with this folder as its build context.
