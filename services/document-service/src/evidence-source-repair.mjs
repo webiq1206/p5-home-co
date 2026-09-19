@@ -101,3 +101,35 @@ export function resolveSourceCitations(corrected,pages,input,response){
  }
  return result;
 }
+
+/** A verifier cannot independently verify a new visual/calculated correction
+ * that it introduced itself. Keep the physical identity and supported page
+ * evidence, but convert that unverified claim into an explicit unresolved
+ * finding without another model call or correction loop. */
+export function resolveVerifierCorrections(corrected,answer,grounded){
+ validateSchema(answer,SOURCE_REPAIR_SCHEMA);
+ const result=structuredClone(corrected),unsafe=new Set();
+ for(const correction of [...answer.facts,...answer.items]){
+  if(['visual','calculated'].includes(correction.statement.basis)||correction.statement.basis==='uncertain'&&(correction.key.includes(':items:')||correction.statement.field!=='otherDetails'))unsafe.add(correction.key);
+ }
+ for(const key of unsafe){
+  const match=/^(\d+):(facts|items):(\d+)$/.exec(key),page=match&&result.pages.find(p=>p.page===Number(match[1])),trustedPage=match&&grounded.pages.find(p=>p.page===Number(match[1])),collection=match?.[2],index=match&&Number(match[3]),statement=page?.[collection]?.[index],trusted=trustedPage?.[collection]?.[index];
+  if(!statement||!trusted)throw new ServiceError('invalid-source-repair-reference',422);
+  if(collection==='items'){
+   page.items[index]={id:trusted.id,description:`Physical source item ${trusted.id}: drawing-dependent specification remains unresolved and requires independent source verification.`,building:'',floor:'',component:'',quantity:null,unit:'',
+    evidence:'Limitation: a verifier-introduced visual or calculated correction cannot verify itself.',basis:'uncertain'};
+  }else{
+   page.facts[index]={field:'otherDetails',value:`A drawing-dependent correction about ${trusted.field} remains unresolved and requires independent source verification.`,
+    evidence:'Limitation: a verifier-introduced visual or calculated correction cannot verify itself.',basis:'uncertain'};
+  }
+  page.status='partial';
+  page.notes.push(`Unresolved independent verification ${key}: retained without asserting the unverified correction.`);
+ }
+ for(const {page:pageNumber,...region} of answer.regions){
+  const page=result.pages.find(p=>p.page===pageNumber);
+  if(!page)throw new ServiceError('invalid-source-repair-reference',422);
+  page.status='partial';
+  page.notes.push(`Independent verification identified an unresolved source region: ${region.reason}`);
+ }
+ return result;
+}

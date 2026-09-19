@@ -3,15 +3,51 @@ import {parsePdf,limitParser} from './parser.mjs';
 import {SPAN_COORDINATES,textAnchorRegions} from './page-geometry.mjs';
 import {EVIDENCE_SCHEMA,REVIEW_SCHEMA,READER_SYSTEM,VERIFIER_SYSTEM,REVIEW_SYSTEM,validateReview} from './contracts.mjs';
 import {CITATION_SYSTEM,CITATION_SCHEMA,citationInput,applyCitations,evidenceCheckpointKey} from './evidence-citations.mjs';
-import {SOURCE_REPAIR_SYSTEM,SOURCE_REPAIR_SCHEMA,SOURCE_REPAIR_VERIFIER_RULE,prepareSourceRepair,applySourceRepairs,resolveSourceCitations,emptyFactKeys} from './evidence-source-repair.mjs';
+import {SOURCE_REPAIR_SYSTEM,SOURCE_REPAIR_SCHEMA,SOURCE_REPAIR_VERIFIER_RULE,prepareSourceRepair,applySourceRepairs,resolveSourceCitations,resolveVerifierCorrections,emptyFactKeys} from './evidence-source-repair.mjs';
 import {cropSavedPageImage} from './source-image-crop.mjs';
 export function reconcileVerification(page,checked){
- const contradictions=[];
- for(const f of page.facts){const match=checked.facts.find(v=>v.field===f.field&&v.value===f.value);if(!match){checked.facts.push(f);contradictions.push(`Verify conflicting ${f.field}: ${f.value}`);}}
- for(const item of page.items){if(!checked.items.some(v=>v.id===item.id&&v.quantity===item.quantity&&v.unit===item.unit&&v.component===item.component)){checked.items.push(item);contradictions.push(`Reconcile item ${item.id} against its source.`);}}
- if(contradictions.length){checked.status='partial';checked.notes.push(...contradictions);}
- if(checked.regions.length){checked.status='partial';checked.notes.push('Some detail regions still require confirmation.');}
- return checked;
+ const result=structuredClone(checked),findings=[];
+ const acceptedFacts=new Set(),acceptedItems=new Set();
+ const factIdentity=value=>value.field;
+ const itemIdentity=value=>value.id;
+ const factValue=value=>stable({field:value.field,value:value.value});
+ const itemValue=value=>stable({id:value.id,description:value.description,building:value.building,floor:value.floor,component:value.component,quantity:value.quantity,unit:value.unit});
+ const facts=page.facts.map(fact=>{
+  const index=checked.facts.findIndex(value=>factIdentity(value)===factIdentity(fact));
+  if(index<0){findings.push(`Independent verification omitted ${fact.field}; the supported source claim was retained and the disagreement remains unresolved.`);return fact;}
+  const candidate=checked.facts[index];acceptedFacts.add(index);
+  if(stable(candidate)===stable(fact))return fact;
+  if(candidate.basis==='uncertain'&&['visual','calculated'].includes(fact.basis)||candidate.basis==='stated'&&factValue(candidate)===factValue(fact))return candidate;
+  findings.push(`Independent verification disagreed with ${fact.field}; the supported source claim was retained and the disagreement remains unresolved.`);
+  return fact;
+ });
+ const items=page.items.map(item=>{
+  const index=checked.items.findIndex(value=>itemIdentity(value)===itemIdentity(item));
+  if(index<0){findings.push(`Independent verification omitted item ${item.id}; the supported physical claim was retained and the disagreement remains unresolved.`);return item;}
+  const candidate=checked.items[index];acceptedItems.add(index);
+  if(stable(candidate)===stable(item))return item;
+  if(candidate.basis==='uncertain'&&['visual','calculated'].includes(item.basis)||candidate.basis==='stated'&&itemValue(candidate)===itemValue(item))return candidate;
+  findings.push(`Independent verification changed item ${item.id}; the supported physical claim was retained and the disagreement remains unresolved.`);
+  return item;
+ });
+ for(let index=0;index<checked.facts.length;index++){
+  if(acceptedFacts.has(index))continue;
+  const fact=checked.facts[index];
+  if(fact.basis==='uncertain'&&fact.field==='otherDetails'){facts.push(fact);continue;}
+  findings.push(`Independent verification introduced a new ${fact.basis} fact (${fact.field}); it remains unresolved and was not accepted as source evidence.`);
+ }
+ for(let index=0;index<checked.items.length;index++){
+  if(acceptedItems.has(index))continue;
+  const item=checked.items[index];
+  findings.push(`Independent verification introduced or relabeled item ${item.id}; it remains unresolved and was not accepted as source evidence.`);
+ }
+ for(const collection of ['inclusions','exclusions','responsibilities'])if(stable(checked[collection])!==stable(page[collection]))findings.push(`Independent verification changed ${collection}; the supported source statements were retained and the difference remains unresolved.`);
+ result.facts=structuredClone(facts);result.items=structuredClone(items);
+ result.inclusions=structuredClone(page.inclusions);result.exclusions=structuredClone(page.exclusions);result.responsibilities=structuredClone(page.responsibilities);
+ result.notes=[...new Set([...page.notes,...checked.notes,...findings])];
+ if(findings.length||result.regions.length)result.status='partial';
+ if(result.regions.length)result.notes=[...new Set([...result.notes,'Some detail regions still require confirmation.'])];
+ return result;
 }
 export class Pipeline{
  constructor(store,reader,config,parser=parsePdf){this.store=store;this.reader=reader;this.config=config;this.readBatchPages=config.provider==='anthropic'&&config.model==='claude-sonnet-5'?1:4;this.parser=limitParser(parser,config.parserSlots||1);}
@@ -75,8 +111,8 @@ export class Pipeline{
       saved.sourceCorrection=await this.reader.call(job,SOURCE_REPAIR_SYSTEM+(verify?SOURCE_REPAIR_VERIFIER_RULE:''),prepared.input,images,SOURCE_REPAIR_SCHEMA,signal,verify,efficientRepair?'source-repair-efficient':'source-repair');
      await save();
     }
-    const corrected=applySourceRepairs(prepared.grounded,input,prepared.rejected,saved.sourceCorrection);
-    if(verify&&(saved.sourceCorrection.regions.length||[...saved.sourceCorrection.facts,...saved.sourceCorrection.items].some(c=>!['stated','uncertain'].includes(c.statement.basis))||saved.sourceCorrection.facts.some(c=>c.statement.basis==='uncertain'&&c.statement.field!=='otherDetails')))throw new ServiceError('source-correction-needs-independent-verification',422);
+    let corrected=applySourceRepairs(prepared.grounded,input,prepared.rejected,saved.sourceCorrection);
+    if(verify)corrected=resolveVerifierCorrections(corrected,saved.sourceCorrection,prepared.grounded);
     // Exact replacement quotes still receive semantic support validation.
     const correctionCitations=citationInput(corrected,input,prepared.rejected);
     if(correctionCitations.statements.length&&!saved.sourceCitations){

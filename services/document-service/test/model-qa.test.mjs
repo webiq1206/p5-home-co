@@ -8,6 +8,7 @@ import {isolatedPool,guardedSonnetFetch,targetedChecks} from '../scripts/model-q
 import {runFixture,qualificationCallLimit,qualificationSpendLimit} from '../scripts/check-sonnet-documents.mjs';
 import {hash} from '../src/core.mjs';
 import {inspectSavedRun,inspectReviewRecovery} from '../scripts/inspect-sonnet-run.mjs';
+import {verificationBoundarySnapshot} from '../scripts/resume-plans-verification-boundary.mjs';
 
 const json=value=>new Response(JSON.stringify(value),{headers:{'content-type':'application/json'}});
 const options={body:JSON.stringify({model:'claude-sonnet-5',max_tokens:1000,messages:[]})};
@@ -27,6 +28,18 @@ test('plans qualification uses a cumulative 160-call secondary ceiling without c
  assert.equal(qualificationCallLimit('short'),12);
  assert.throws(()=>qualificationCallLimit('plans',161),/qa-max-calls-invalid/);
  assert.throws(()=>qualificationCallLimit('short',160),/qa-max-calls-invalid/);
+});
+
+test('verification-boundary fingerprints detect checkpoint, evidence and job mutations',()=>{
+ const document={id:'doc',digest:'source',state:'failed',error_code:'source-correction-needs-independent-verification',page_count:23};
+ const jobs=[{id:'page-19',kind:'read',state:'failed',error_code:'source-correction-needs-independent-verification',attempts:4,priority:0,payload:{pages:[19]},result:{verificationCheckpoints:{'verify-19':{raw:{pages:[]}}}}}];
+ const pages=[{page:19,native:{page:19,text:'source'},evidence:null}];
+ const original=verificationBoundarySnapshot(document,jobs,pages);
+ const changedCheckpoint=verificationBoundarySnapshot(document,[structuredClone(jobs[0])],pages);
+ changedCheckpoint.verificationCheckpointSha256=verificationBoundarySnapshot(document,[{...structuredClone(jobs[0]),result:{verificationCheckpoints:{'verify-19':{raw:{pages:[{page:19}]}}}}}],pages).verificationCheckpointSha256;
+ assert.notEqual(changedCheckpoint.verificationCheckpointSha256,original.verificationCheckpointSha256);
+ assert.notEqual(verificationBoundarySnapshot(document,[{...jobs[0],state:'queued'}],pages).jobTopologySha256,original.jobTopologySha256);
+ assert.notEqual(verificationBoundarySnapshot(document,jobs,[{...pages[0],evidence:{status:'read'}}]).pageEvidenceSha256,original.pageEvidenceSha256);
 });
 
 test('QA unknown charges pause immediately and across restart before any further network request',async()=>{

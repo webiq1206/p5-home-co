@@ -7,8 +7,9 @@ import {PDFDocument} from 'pdf-lib';
 import {recoverSavedPages,withQualificationLock} from '../scripts/finish-sonnet-qualification.mjs';
 import {runFixture} from '../scripts/check-sonnet-documents.mjs';
 import {isolatedPool,privateJson} from '../scripts/model-qa-support.mjs';
-import {DDL} from '../src/store.mjs';
-import {hash} from '../src/core.mjs';
+import {DDL,Store} from '../src/store.mjs';
+import {hash,stable} from '../src/core.mjs';
+import {resumePlansVerificationBoundary,verificationBoundarySnapshot} from '../scripts/resume-plans-verification-boundary.mjs';
 
 const source='ef5caf06821319350a3f672d98a1c42db2311d601d570cb5345d76f9808a3018';
 const text='Well septic cabinetry painting appliances fireplace. Exclude land, financing and wallpaper. Project cost $ , .';
@@ -85,4 +86,34 @@ test('qualification lock prevents concurrent runs and retained crash locks preve
   await mkdir(join(root,'running.lock'));
   await assert.rejects(withQualificationLock(root,async()=>calls++),/interrupted/);assert.equal(calls,2);
  }finally{release?.();await rm(root,{recursive:true,force:true});}
+});
+
+test('page-19 verification-boundary recovery uses the open store, preserves its ledger and refuses a pinned mutation',async()=>{
+ const root=await mkdtemp(join(tmpdir(),'p5-verification-boundary-')),directory=join(root,'plans'),shortDirectory=join(root,'short-ef5caf0682131935');
+ await mkdir(directory,{recursive:true});await mkdir(shortDirectory,{recursive:true});
+ const total=3.675191,calls=Array.from({length:64},(_,index)=>({requestSha256:String(index).padStart(64,'0'),reservedUsd:total/64,status:'usage-reported',httpStatus:200,usage:{input_tokens:1,output_tokens:1}}));
+ const ledger={version:1,model:'claude-sonnet-5',paused:false,tokenCountMs:0,calls},short={version:1,model:'claude-sonnet-5',paused:true,calls:[]};
+ await privateJson(join(directory,'cost.json'),ledger);await privateJson(join(shortDirectory,'cost.json'),short);
+ const pool=await isolatedPool(join(directory,'database')),store=new Store(pool,{});
+ try{
+  await pool.query(DDL);
+  await pool.query("INSERT INTO p5ds_documents(id,tenant,project,digest,name,bytes,size_bytes,state,page_count,error_code) VALUES('doc','model-qa','source-check',$1,'fixture.pdf',$2,0,'failed',23,'source-correction-needs-independent-verification')",['4565acfa74cc3590fc2c7b2baf532c99a069c9a572448de8a6f599a7cf135786',Buffer.alloc(0)]);
+  const accepted={page:1,sheet:'',revision:'',status:'partial',notes:['Unresolved source detail'],facts:[],items:[],inclusions:[],exclusions:[],responsibilities:[],regions:[]};
+  for(let page=1;page<=23;page++)await pool.query('INSERT INTO p5ds_pages(document_id,page,native,image,evidence) VALUES($1,$2,$3,$4,$5)',['doc',page,{page,kind:'drawing',text:'source',textQuality:1},Buffer.from('image'),page<=16?{...accepted,page}:null]);
+  const sourceCorrection={facts:[],items:[{key:'19:items:0',statement:{id:'item',description:'poison',building:'poison',floor:'poison',component:'poison',quantity:1,unit:'each',evidence:'visual',basis:'visual'},reason:'visual'}],regions:[]};
+  const checkpoint={version:1,key:'saved',raw:{pages:[]},repairStarted:true,repair:{citations:[]},sourceCorrectionStarted:true,sourceCorrection};
+  const result={evidenceCheckpoint:{version:1,key:'read',raw:{pages:[]}},verificationCheckpoints:{'verify-19':checkpoint}};
+  await pool.query("INSERT INTO p5ds_jobs(id,tenant,project,kind,document_id,state,priority,payload,result,attempts,error_code) VALUES('page19','model-qa','source-check','read','doc','failed',0,$1,$2,4,'source-correction-needs-independent-verification')",[{pages:[19]},result]);
+  await pool.query("INSERT INTO p5ds_jobs(id,tenant,project,kind,document_id,state,priority,payload,attempts,error_code) VALUES('review','model-qa','source-check','review','doc','failed',2,$1,9,'source-reading-failed')",[{documents:[{id:'doc',source:'fixture.pdf'}],text:'scope',answers:{}}]);
+  const document=(await pool.query('SELECT * FROM p5ds_documents')).rows[0],jobs=(await pool.query('SELECT * FROM p5ds_jobs ORDER BY id')).rows,pages=(await pool.query('SELECT page,native,evidence FROM p5ds_pages ORDER BY page')).rows;
+  const expected=verificationBoundarySnapshot(document,jobs,pages),ledgerBytes=await readFile(join(directory,'cost.json')),shortBytes=await readFile(join(shortDirectory,'cost.json'));
+  const options={expected,expectedLedger:hash(ledgerBytes),expectedShort:hash(shortBytes),expectedCalls:64,expectedUsd:total};
+  await assert.rejects(resumePlansVerificationBoundary(store,document,directory,{...options,expected:{...expected,nativePagesSha256:'changed'}}),/nativePagesSha256 differs/);
+  await resumePlansVerificationBoundary(store,document,directory,options);
+  assert.equal(hash(await readFile(join(directory,'cost.json'))),hash(ledgerBytes));
+  const recovered=(await pool.query("SELECT kind,state,error_code,attempts FROM p5ds_jobs ORDER BY kind")).rows;
+  assert.deepEqual(recovered,[{kind:'read',state:'queued',error_code:null,attempts:4},{kind:'review',state:'queued',error_code:null,attempts:9}]);
+  assert.equal((await pool.query("SELECT state,error_code FROM p5ds_documents WHERE id='doc'")).rows[0].state,'prepared');
+  assert.equal(JSON.parse(await readFile(join(directory,'plans-page19-verification-boundary-v1.json'),'utf8')).verificationCheckpointSha256,hash(stable(checkpoint)));
+ }finally{await pool.end();await rm(root,{recursive:true,force:true});}
 });

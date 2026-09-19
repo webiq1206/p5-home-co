@@ -60,12 +60,43 @@ for(const note of ['No unresolved conflicts remain, but the ceiling dimension is
  assert.equal(validateEvidence({pages:[evidence({notes:[note]})]},[source]).pages[0].status,'partial');
 });
 test('reconciliation-generated source conflicts remain partial',()=>{
- const original={page:1,facts:[{field:'ceilingHeight',value:'9',evidence:'9 ft ceiling',basis:'stated'}],items:[],regions:[],notes:[]};
- const checked={page:1,status:'read',facts:[],items:[],regions:[],notes:[]};
+  const original=evidence({facts:[{field:'ceilingHeight',value:'9',evidence:'9 ft ceiling',basis:'stated'}]});
+  const checked=evidence();
  const page=reconcileVerification(original,checked);
  assert.equal(page.status,'partial');
- assert.match(page.notes.join(' '),/Verify conflicting ceilingHeight/);
+  assert.deepEqual(page.facts,original.facts);
+  assert.match(page.notes.join(' '),/omitted ceilingHeight/);
  assert.equal(noteHasUnresolvedIssue(page.notes.at(-1)),true);
+});
+test('independent verification cannot silently relabel or duplicate an existing physical item',()=>{
+  const item={id:'holdown-1',description:'Mark 1 HDU2 holdown',building:'Main',floor:'Foundation',component:'Holdown schedule',quantity:1,unit:'each',evidence:'Schedule row Mark 1',basis:'visual'};
+  const original=evidence({items:[item]});
+  const checked=evidence({items:[{...item,description:'Mark 1 portal-frame holdown',evidence:'Flattened schedule text',basis:'stated'}]});
+  const page=reconcileVerification(original,checked);
+  assert.equal(page.status,'partial');assert.deepEqual(page.items,[item]);
+  assert.match(page.notes.join(' '),/changed item holdown-1/);
+});
+test('independent verification cannot replace a supported quantity',()=>{
+  const item={id:'footing-f2',description:'F2 footing',building:'Main',floor:'Foundation',component:'Footing',quantity:3,unit:'each',evidence:'F2 3 #4 EACH WAY',basis:'stated'};
+  const page=reconcileVerification(evidence({items:[item]}),evidence({items:[{...item,quantity:4}]}));
+  assert.equal(page.status,'partial');assert.deepEqual(page.items,[item]);assert.equal(page.items.length,1);
+});
+test('uncertain verifier output cannot overwrite a supported stated claim',()=>{
+  const fact={field:'sqft',value:'2400',evidence:'House 2400 SF',basis:'stated'};
+  const page=reconcileVerification(evidence({facts:[fact]}),evidence({facts:[{field:'sqft',value:'unknown',evidence:'Could not confirm area',basis:'uncertain'}]}));
+  assert.equal(page.status,'partial');assert.deepEqual(page.facts,[fact]);assert.match(page.notes.join(' '),/disagreed with sqft/);
+});
+test('new verifier visual and calculated claims remain explicit unresolved findings, not accepted evidence',()=>{
+  const checked=evidence({facts:[{field:'sqft',value:'3841',evidence:'87 ft 3 in by 44 ft',basis:'calculated'}],
+   items:[{id:'new-visual',description:'Portal frame holdown',building:'Main',floor:'Foundation',component:'Holdown',quantity:1,unit:'each',evidence:'Schedule alignment',basis:'visual'}]});
+  const page=reconcileVerification(evidence(),checked);
+  assert.equal(page.status,'partial');assert.deepEqual(page.facts,[]);assert.deepEqual(page.items,[]);
+  assert.match(page.notes.join(' '),/new calculated fact/);assert.match(page.notes.join(' '),/new-visual/);
+});
+test('new verifier regions remain unresolved and cannot promote a page',()=>{
+  const region={x:.1,y:.1,width:.2,height:.2,reason:'Verify schedule row alignment'};
+  const page=reconcileVerification(evidence(),evidence({regions:[region]}));
+  assert.equal(page.status,'partial');assert.deepEqual(page.regions,[region]);assert.match(page.notes.join(' '),/detail regions/);
 });
 test('known unspecified values do not create a reread region',()=>{
  const page=validateEvidence({pages:[evidence({regions:[{x:.1,y:.2,width:.3,height:.3,reason:'Dimension not specified; closer inspection cannot recover a value.'}]})]},[{...source,kind:'text',textQuality:1}]).pages[0];

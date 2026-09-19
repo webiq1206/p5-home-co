@@ -186,16 +186,25 @@ test('unsupported verifier text receives one text-only correction with an indepe
  const count=f.purposes.length;await f.pipeline.read(f.job,new AbortController().signal);assert.equal(f.purposes.length,count);
  assert.equal(f.job.result.verificationCheckpoints['verify-1'].raw.pages[0].items[0].quantity,999);
 });
-for(const kind of ['visual','calculated','new-region'])test('verifier correction refuses '+kind+' and does not create another verification loop',async()=>{
+for(const kind of ['visual','calculated','uncertain-item','new-region'])test('verifier correction retains '+kind+' as explicit uncertainty and does not create another verification loop',async()=>{
  const f=verifierFixture(({purpose})=>{
   if(purpose!=='source-repair')return;
   const answer=patch();
-  if(kind==='visual'||kind==='calculated')answer.items[0].statement.basis=kind;
+  if(['visual','calculated','uncertain-item'].includes(kind))Object.assign(answer.items[0].statement,{
+   basis:kind==='uncertain-item'?'uncertain':kind,description:'POISON DESCRIPTION',component:'POISON COMPONENT',building:'POISON BUILDING',floor:'POISON FLOOR',
+   quantity:kind==='uncertain-item'?null:999,unit:'POISON UNIT'
+  });
   if(kind==='new-region')answer.regions=[{page:1,x:0,y:0,width:.1,height:.1,reason:'New visual detail'}];
   return answer;
  });
- await assert.rejects(f.pipeline.read(f.job,new AbortController().signal));assert.equal(f.committed(),undefined);
- const count=f.purposes.length;await assert.rejects(f.pipeline.read(f.job,new AbortController().signal));assert.equal(f.purposes.length,count);
+ await f.pipeline.read(f.job,new AbortController().signal);const page=f.committed();
+ assert.equal(page.status,'partial');
+ if(['visual','calculated','uncertain-item'].includes(kind)){
+  assert.deepEqual(page.items[0],{id:'trim',description:'Physical source item trim: drawing-dependent specification remains unresolved and requires independent source verification.',
+   building:'',floor:'',component:'',quantity:null,unit:'',evidence:'Limitation: a verifier-introduced visual or calculated correction cannot verify itself.',basis:'uncertain'});
+ }
+ else assert.equal(page.regions.length,1);
+ const count=f.purposes.length;await f.pipeline.read(f.job,new AbortController().signal);assert.equal(f.purposes.length,count);
 });
 test('verifier text replacement that still fails support is retained as partial uncertainty after one correction',async()=>{
  const f=verifierFixture(({purpose})=>purpose==='citation'?rejected:undefined);
@@ -203,13 +212,14 @@ test('verifier text replacement that still fails support is retained as partial 
  assert.deepEqual(f.purposes,['read','verify','citation','source-repair','citation']);
  assert.equal(f.committed().status,'partial');assert.equal(f.committed().items[0].basis,'uncertain');assert.equal(f.committed().items[0].quantity,null);
 });
-test('verifier correction cannot retain an unsupported numeric fact merely by labeling it uncertain',async()=>{
+test('verifier correction converts an unsupported numeric fact to an explicit unresolved finding',async()=>{
  const f=verifierFixture(({purpose})=>{
   if(purpose==='verify'){const value=raw();value.pages[0].items[0]=corrected();value.pages[0].facts=[{field:'sqft',value:'999',evidence:'Wrong quote',basis:'stated'}];return value;}
   if(purpose==='citation')return {citations:[{key:'1:facts:0',supported:false,lines:[]}]};
   if(purpose==='source-repair')return {facts:[{key:'1:facts:0',statement:{field:'sqft',value:'999',evidence:'Not established',basis:'uncertain'},reason:'No numeric support'}],items:[],regions:[]};
  });
- await assert.rejects(f.pipeline.read(f.job,new AbortController().signal),/source-correction-needs-independent-verification/);assert.equal(f.committed(),undefined);
+ await f.pipeline.read(f.job,new AbortController().signal);const fact=f.committed().facts[0];
+ assert.equal(fact.field,'otherDetails');assert.equal(fact.basis,'uncertain');assert.match(fact.value,/remains unresolved/);
 });
 for(const stage of ['source-repair','replacement-citation'])test('interrupted verifier '+stage+' cannot repeat a paid attempt',async()=>{
  const f=verifierFixture(({purpose,purposes})=>{if(purpose===stage||stage==='replacement-citation'&&purpose==='citation'&&purposes.includes('source-repair'))throw new ServiceError('qa-paused-unknown-provider-charge',422);});

@@ -24,6 +24,7 @@ import {resumePlansSourceCorrection} from './resume-plans-source-correction.mjs'
 import {resumePlansEmptyFact} from './resume-plans-empty-fact.mjs';
 import {resumePlansRepairEvidence} from './resume-plans-repair-evidence.mjs';
 import {resumePlansVerifierCitation} from './resume-plans-verifier-citation.mjs';
+import {resumePlansVerificationBoundary} from './resume-plans-verification-boundary.mjs';
 import {summarizeStages} from '../src/benchmark-metrics.mjs';
 import {isolatedPool,guardedSonnetFetch,privateJson,targetedChecks} from './model-qa-support.mjs';
 import {savedRunEvents,latestProviderFailure} from './saved-run-events.mjs';
@@ -53,7 +54,7 @@ export function qualificationCallLimit(id,override){
  return value;
 }
 
-export async function runFixture(fixture,{root,key,parseOnly=false,request=fetch,log=console.log,seedPages=[],recoverLegacyCitationFailure=false,resumeReserved=false,resumeReview=false,resumePlans=false,resumeOutput=false,resumeCitationOutput=false,resumeSourceRepair=false,resumeSourceCorrection=false,resumeEmptyFact=false,resumeRepairEvidence=false,resumeVerifierCitation=false,maxCallsOverride}={}){
+export async function runFixture(fixture,{root,key,parseOnly=false,request=fetch,log=console.log,seedPages=[],recoverLegacyCitationFailure=false,resumeReserved=false,resumeReview=false,resumePlans=false,resumeOutput=false,resumeCitationOutput=false,resumeSourceRepair=false,resumeSourceCorrection=false,resumeEmptyFact=false,resumeRepairEvidence=false,resumeVerifierCitation=false,resumeVerificationBoundary=false,maxCallsOverride}={}){
  const bytes=Buffer.from(fixture.pdfBase64,'base64');
  if(!['short','plans'].includes(fixture.id)||hash(bytes)!==fixture.sha256||bytes.length>25*1024*1024||fixture.pages!==({short:4,plans:23})[fixture.id])throw Error('Invalid fixture bundle or source digest.');
  const providerLimit=qualificationSpendLimit(fixture.id),maxCalls=qualificationCallLimit(fixture.id,maxCallsOverride);
@@ -102,6 +103,13 @@ export async function runFixture(fixture,{root,key,parseOnly=false,request=fetch
    document=await store.document('model-qa','source-check',document.id);
    runType='resume-plans-verifier-citation';log('plans: retained seven committed pages and all 34 charges; correcting only the rejected text claim in the saved page-8 verification.');
   }
+   if(resumeVerificationBoundary&&fixture.id==='plans'){
+    recoveryPreflight=true;
+    await resumePlansVerificationBoundary(store,document,directory);
+    recoveryPreflight=false;
+    document=await store.document('model-qa','source-check',document.id);
+    runType='resume-plans-verification-boundary';log('plans: retained 16 committed pages and all 64 charges; resolving unverified page-19 correction claims as explicit uncertainty before unfinished pages continue.');
+   }
   if(resumeRepairEvidence&&fixture.id==='plans'){
    recoveryPreflight=true;
    await resumePlansRepairEvidence(store,document,directory);
