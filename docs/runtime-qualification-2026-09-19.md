@@ -2,6 +2,24 @@
 
 The owner authorized Replit runtime inspection and test execution. Source changes remain in GitHub. No browser, infrastructure upgrade, customer delivery, CRM submission or increased paid-test limit is authorized by this record.
 
+This is a chronological evidence log. Earlier balances, page states and source revisions describe the run at that point; later sections supersede them. A passing local or disposable-database test is not a production deployment or live-model accuracy certification.
+
+## Latest decision: no all-clear
+
+PR79 (`b6f7096da8d64152c94aed4acb3d94d17e7dc4d4`) has 293 distinct local/PostgreSQL passing tests with no failures. Its single live continuation recovered page 8 and committed evidence through page 14, then the unchanged spending guard refused the page-15 read before sending it. The plans ledger has 50 usage-reported calls, zero unknown charges and an estimated $2.879392 under the original $3 cap. No further paid continuation is authorized by the existing allowance.
+
+| Qualification area | Current evidence | Remaining gap |
+|---|---|---|
+| Saved four-page source | All pages and targeted checks previously passed | Cached completion does not qualify cold timing |
+| Actual 23-page plans | 14 pages committed: 3 marked read, 11 partial; 9 unchecked; page 9 fails an independent semantic spot check | Finish remaining pages/review, resolve partials, re-verify earlier geometry and page 9, independently assess accuracy |
+| Large uploads | Earlier five-site 25 MiB/256-page synthetic upload and recovery checks passed | Upload success is not live AI accuracy or timing |
+| Latest source regression | 293 distinct local/PostgreSQL cases pass | Not a deployment or live-model certificate |
+| Live pricing | Bounded mapping test prepared; no paid pricing invocation | Separate allowance and provider qualification |
+| Shared customer reader | All tenant identities registered and readiness checked | P5 adapter still legacy; child remote settings/keys absent in inspected configuration |
+| Publication | Earlier publication succeeded on all five sites | Later PR71–79 source fixes have not been deployed or qualified through customer flows here |
+
+The original estimated plans cap and 64-request ceiling remain unchanged. Extending paid qualification requires a separately approved increase, preserving the same ledger and every existing charge. Shared-reader tenant keys must be connected using protected Replit Secrets; no secret should enter chat or source control.
+
 ## Observed runtime state
 
 All five Replit workspaces contain the approved upload-recovery release. Their later workspace commits are publication commits; ancestry does not establish the exact published SHA.
@@ -243,3 +261,64 @@ A bounded verifier-text correction now follows this specific failure type. Only 
 The next explicit recovery admits only the inspected 34-known-charge state. It preserves seven committed pages, the original page-8 read/citations and verifier/citations, all source fingerprints and every charge. It reconstructs page 7's saved correction, verification and reconciliation before preserving it, and queues page 8 first to correct only the one rejected verifier item. No page read or verification is repeated, and no budget is reset or increased.
 
 The complete local candidate suite passes 284 tests with zero failures and nine PostgreSQL skips (293 total) in 57.971 seconds, exit zero. The 48 focused correction/recovery cases also pass. Coverage includes refusal of new visual/calculated replacements, unsupported numeric uncertainty, repeated paid attempts, a second unsupported replacement, changed saved evidence or charges, and preservation of both page-8 checkpoints. The PostgreSQL gate and live continuation still need to run against the exact merged source.
+
+## PR 79 PostgreSQL result
+
+The exact merged `b6f7096da8d64152c94aed4acb3d94d17e7dc4d4` source passed the unchanged integration file once: twelve passed, zero failed/skipped/cancelled, exit zero, 11.681 seconds. Nine cover the local PostgreSQL skips and three overlap, giving 293 distinct passing cases across the local and PostgreSQL runs. Its synthetic 100-sheet native parser check took 8.650 seconds and made no AI calls.
+
+Raw TAP and identity/shutdown evidence were retrieved. The detached checkout was clean before and after, and all seven file hashes matched locally tested source and remained unchanged. The changed hashes are pipeline `1bc55db8beaa27d5ee8b13b726a67fc596c0ff6134e364810185d2e44dfd1376` and source correction `fc27e7c887a2641d28e33581ec74eacfbea5e6470e87b488c27962bdfc601494`; manifest, lock, integration test, parser worker and page geometry retain their PR78 hashes. The test used only a fresh verified PostgreSQL 16.10 temporary database on loopback port 35451, in a cleared environment without provider credentials or existing database URLs. Shutdown of only the owned temporary server was confirmed. This gate does not itself qualify live AI recovery or deployment.
+
+## PR 79 live continuation: stopped at original estimated-spend limit
+
+The exact merged source ran `resume-plans-verifier-citation` once. Its unmodified 34-call admission passed, preserving the original $2.1054914 balance, seven committed pages and both page-8 checkpoints. The connector timed out but the runtime continued; subsequent requests only retrieved saved evidence and never repeated qualification or a provider call.
+
+Page 8 recovered, then pages 9–14 completed their processing. The run stopped with `qa-estimated-spend-limit-reached` while admitting the page-15 read. That rejected admission did not create paid response 51. There are now 50 usage-reported responses, zero unknown charges, an unpaused ledger and an estimated total of $2.879392 under the unchanged $3 cap and 64-request ceiling. The remaining numerical balance is insufficient for the next conservative request reservation; the cap must not be bypassed or reset.
+
+Plans elapsed time is 456,175 ms; the captured qualification process ran for 464,250 ms overall and exited 1. These are resumed sequential test timings, not cold processing or customer upload timing. The run and lock are no longer active. Its archive `plans-page8-verifier-citation-v1.json` has SHA-256 `beb7e4e733dc820a9f0f64d7196fd5f9a83e4877f6f010da8f91268d13f80cfd`.
+
+Coverage is 14/23 committed: pages 4, 6 and 9 read; pages 1–3, 5, 7–8 and 10–14 partial; pages 15–23 uncommitted. Page 15 failed on attempt 1, priority 5; eight later reads remain queued. Review is queued at attempt 23, priority 2, with source-reading-pending. It has not produced a completed review or passed the full plans acceptance checks. Earlier pages 1–6 retain the previously documented geometry/re-verification limitation.
+
+Requests 35–50 all used and returned `claude-sonnet-5`, HTTP 200, `end_turn`, with reported usage. Request 35 corrected the rejected verifier item `8:items:2`; it did not reread or reverify page 8. Subsequent calls comprise six reads, six verifications and three source corrections. Exact page attribution and unresolved statements were then checked from saved request JSON and evidence, without further paid calls.
+
+Independent local inspection of the original PDF confirms page 9 is A4.2, Building Sections + Interior Elevations, with two building sections and a fireplace-wall elevation. Page 10 is the scanned A5.1 Main Level Electrical Plan. Text extraction on original pages 10–14 produces no native text; their evidence must therefore come from the image. These observations are manual source checks, not additional live AI calls or a full accuracy certificate.
+
+## PR 79 terminal integrity and independent accuracy findings
+
+Read-only saved-file inspection confirms all 50 request hashes, response hashes and HTTP statuses match the ledger. The first 34 calls exactly equal the recovery archive's previous ledger. No response 51, reserved record 51 or paid request 51 exists. The original page-8 response files 31–34 remain intact. No process or lock remains, and the diagnostic made no SQL, worker or provider invocation.
+
+| Request | Page | Purpose | Thinking tokens |
+|---|---|---|---|
+| 35 | 8 | Verifier source correction | 5803 |
+| 36 | 9 | Read | 0 |
+| 37 | 9 | Verify | 738 |
+| 38 | 10 | Read | 0 |
+| 39 | 10 | Source correction | 0 |
+| 40 | 10 | Verify | 1219 |
+| 41 | 11 | Read | 0 |
+| 42 | 11 | Source correction | 0 |
+| 43 | 11 | Verify | 4526 |
+| 44 | 12 | Read | 50 |
+| 45 | 12 | Source correction | 0 |
+| 46 | 12 | Verify | 0 |
+| 47 | 13 | Read | 0 |
+| 48 | 13 | Verify | 0 |
+| 49 | 14 | Read | 0 |
+| 50 | 14 | Verify | 3213 |
+
+Response 35 returned only the rejected `8:items:2` replacement, with no facts or regions. Its physical ID remains `BS3-Section1`, quantity null, basis uncertain. It retains the room labels and dimension strings while explicitly refusing the unsupported room-to-dimension associations. The committed item exactly matches this replacement. It is a valid bounded recovery, not resolution of the dimensional interpretation. Page 8 also retains an unidentified slatted element, section-2 dimension endpoint ambiguities, a drawing-date/project-duration conflict and a roof-pitch reconciliation note.
+
+The short fixture again passed all ten targeted checks and all four page/review statuses, reusing pages 1–4 in 241 ms. All five entry pages and authenticated document-host readiness checks returned 200. Every adapter/customer-journey status remains not verified, and `allSitesQualified` remains false.
+
+The new scanned-page evidence remains partial:
+
+| Page | Sheet title | Facts/items/regions | Unresolved evidence |
+|---|---|---|---|
+| 10 | Main Level Electrical Plan | 8/15/0 | No duration stated; issue date is not duration; schematic device counts/locations and three item reconciliations |
+| 11 | Upper Level Electrical Plan | 6/15/0 | No duration stated; circled-X symbol ambiguity; doorbell location unconfirmed; three item reconciliations |
+| 12 | Roof Vent Calculations | 3/9/0 | Empty projectMonths was corrected into an uncertain statement that no duration is specified |
+| 13 | Roof Vent Calculations | 6/4/1 | Unlabeled roof bump-out may be a dormer or bay; an unresolved region remains |
+| 14 | Details | 7/6/0 | Reconciliation retains an issued-date versus projectMonths conflict |
+
+Missing project duration is not itself unreadable source information. The reader/verifier instructions already prohibit using issue dates as project duration and instruct omission of absent facts. The live outputs still demonstrate this error and unnecessary empty-field correction on scanned sheets; prompt instructions alone have not established reliable behavior. Do not mark these pages read simply to remove the failure. Preserve the original drafts and resolve their semantics explicitly.
+
+Independent original-PDF inspection found a false-positive read status on page 9 (A4.2). Committed item `9-item-1` groups `1'-6 3/4"` among confirmed ceiling/wall heights. A high-resolution crop of Building Section 2 shows that dimension's witness lines span the floor/truss assembly below Bed #3; it is an assembly depth, not a room ceiling/wall height. The page's three detail identities, catwalk verification note and many literal dimensions match, but this grouping is semantically wrong. The database's saved read status was left intact as historical evidence; it must not be treated as an accuracy pass. Page 9 now explicitly needs re-verification along with earlier pages 1–6 affected by legacy coordinates. No exhaustive accuracy percentage follows from these spot checks.
