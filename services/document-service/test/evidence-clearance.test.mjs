@@ -6,6 +6,31 @@ import {validateReview} from '../src/contracts.mjs';
 const record=(extra={})=>({page:1,sheet:'',revision:'',status:'read',notes:[],facts:[],items:[],regions:[],...extra});
 const source=text=>({page:1,kind:'text',textQuality:1,text,spans:[]});
 
+const obligation='CONTRACTOR SHALL VERIFY ALL EXISTING SITE CONDITIONS PRIOR TO STARTING CONSTRUCTION.';
+test('an exact readable contractor obligation stays a source note without forcing a reread',()=>{
+ const page=validateEvidence({pages:[record({notes:[obligation]})]},[source(obligation)]).pages[0];
+ assert.equal(page.status,'read');
+ assert.deepEqual(page.notes,[obligation]);
+});
+test('an obligation must be grounded in the current page before its verification verb is cleared',()=>{
+ const page=validateEvidence({pages:[record({notes:[obligation]})]},[source('Install 120 linear feet of baseboard.')]).pages[0];
+ assert.equal(page.status,'partial');
+});
+test('a quoted obligation does not clear another unresolved note or clause',()=>{
+ for(const notes of [[obligation,'Confirm the unreadable ceiling dimension.'],[obligation+' The ceiling dimension is unclear.']]){
+  assert.equal(validateEvidence({pages:[record({notes})]},[source(obligation)]).pages[0].status,'partial');
+ }
+});
+test('a source obligation containing a genuine conflict remains partial',()=>{
+ const text='Contractor shall verify conflicting ceiling dimensions before construction.';
+ assert.equal(validateEvidence({pages:[record({notes:[text]})]},[source(text)]).pages[0].status,'partial');
+});
+test('a quoted obligation does not clear structured uncertainty or a partial reading',()=>{
+ for(const extra of [{status:'partial'},{regions:[{x:0,y:0,width:.2,height:.2,reason:'Unread dimension'}]},{facts:[{field:'otherDetails',value:'Ceiling dimension unclear',evidence:'Ceiling dimension unclear',basis:'uncertain'}]}]){
+  assert.equal(validateEvidence({pages:[record({...extra,notes:[obligation]})]},[source(obligation+' Ceiling dimension unclear')]).pages[0].status,'partial');
+ }
+});
+
 test('a resolved-conflict note does not invalidate a completely read source',()=>{
  const page=validateEvidence({pages:[record({notes:['No unresolved conflicts remain after verification.']})]},[source('Install 120 linear feet of baseboard.')]).pages[0];
  assert.equal(page.status,'read');

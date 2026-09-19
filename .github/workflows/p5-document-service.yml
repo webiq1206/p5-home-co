@@ -19,6 +19,8 @@ on:
       - 'lib/p5/analysisWork.ts'
       - 'lib/p5/pricingWork.ts'
       - 'lib/p5/scopePricing.ts'
+      - 'lib/p5/pricingLedger.ts'
+      - 'tests/p5-pricing-ledger.test.ts'
       - 'tests/p5-scope-pricing.test.ts'
       - 'scripts/test-p5-pricing-recovery.mts'
       - '.github/workflows/p5-document-service.yml'
@@ -81,6 +83,12 @@ jobs:
           node --import tsx --test --test-concurrency=1 tests/p5-*.test.ts 2>&1 | tee document-service-verification/estimator-tests.log
       - name: Saved pricing timeout recovery
         run: node --import tsx scripts/test-p5-pricing-recovery.mts
+      - name: Customer pricing ledger database regressions
+        env:
+          TEST_DATABASE_URL: postgres://p5_test:disposable_ci_only@127.0.0.1:5432/p5_pricing_admission?sslmode=disable
+        run: |
+          node --input-type=module -e 'import pg from "pg";const p=new pg.Pool({connectionString:process.env.DOCUMENT_TEST_DATABASE_URL});await p.query("CREATE DATABASE p5_pricing_admission");await p.end();'
+          node --import tsx --test --test-concurrency=1 tests/p5-pricing-ledger.test.ts
       - name: Unit-rate persistence and site isolation
         run: node --import tsx scripts/test-p5-unit-rate-store.mts
       - name: Production website build with remote mode disabled
