@@ -46,10 +46,12 @@ export function qualificationSpendLimit(id,env=process.env){
  return value;
 }
 
-export async function runFixture(fixture,{root,key,parseOnly=false,request=fetch,log=console.log,seedPages=[],recoverLegacyCitationFailure=false,resumeReserved=false,resumeReview=false,resumePlans=false,resumeOutput=false,resumeCitationOutput=false,resumeSourceRepair=false,resumeSourceCorrection=false,resumeEmptyFact=false,resumeRepairEvidence=false,resumeVerifierCitation=false}={}){
+export async function runFixture(fixture,{root,key,parseOnly=false,request=fetch,log=console.log,seedPages=[],recoverLegacyCitationFailure=false,resumeReserved=false,resumeReview=false,resumePlans=false,resumeOutput=false,resumeCitationOutput=false,resumeSourceRepair=false,resumeSourceCorrection=false,resumeEmptyFact=false,resumeRepairEvidence=false,resumeVerifierCitation=false,maxCallsOverride}={}){
  const bytes=Buffer.from(fixture.pdfBase64,'base64');
  if(!['short','plans'].includes(fixture.id)||hash(bytes)!==fixture.sha256||bytes.length>25*1024*1024||fixture.pages!==({short:4,plans:23})[fixture.id])throw Error('Invalid fixture bundle or source digest.');
- const providerLimit=qualificationSpendLimit(fixture.id),maxCalls=fixture.id==='short'?12:64;
+ const providerLimit=qualificationSpendLimit(fixture.id),defaultMaxCalls=fixture.id==='short'?12:64;
+ const maxCalls=maxCallsOverride??defaultMaxCalls;
+ if(!Number.isSafeInteger(maxCalls)||maxCalls<defaultMaxCalls||maxCalls>256||fixture.id!=='plans'&&maxCallsOverride!==undefined)throw new ServiceError('qa-max-calls-invalid',422);
  const directory=join(root,fixture.id+'-'+fixture.sha256.slice(0,16));await mkdir(directory,{recursive:true,mode:0o700});
  const sourceSummary={id:fixture.id,sourceSha256:fixture.sha256,sourceBytes:bytes.length,expectedPages:fixture.pages};
  if(parseOnly){

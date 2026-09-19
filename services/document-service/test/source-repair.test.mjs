@@ -83,6 +83,26 @@ test('a replacement still rejected by the support check fails and cannot create 
  await assert.rejects(f.run(),/unsupported-source-statement/);await assert.rejects(f.run(),/unsupported-source-statement/);
  assert.deepEqual(f.purposes,['read','citation','source-repair','citation']);
 });
+test('an inspected source-repair output limit can use one durable low-effort recovery',async()=>{
+ let limited=true;
+ const f=fixture(({purpose})=>{
+  if(purpose==='source-repair'&&limited){limited=false;throw new ServiceError('provider-output-limit',422);}
+  if(purpose==='source-repair-efficient')return patch();
+ });
+ await assert.rejects(f.run(),/provider-output-limit/);
+ f.job.result.evidenceCheckpoint.sourceRepairProfile='low-effort-v1';
+ const result=await f.run();
+ assert.equal(result.pages[0].items[0].quantity,120);
+ assert.deepEqual(f.purposes,['read','citation','source-repair','source-repair-efficient','citation']);
+ const count=f.purposes.length;assert.deepEqual(await f.run(),result);assert.equal(f.purposes.length,count);
+});
+test('an interrupted low-effort source repair cannot repeat',async()=>{
+ const f=fixture(({purpose})=>{if(purpose==='source-repair')throw new ServiceError('provider-output-limit',422);if(purpose==='source-repair-efficient')throw new ServiceError('provider-timeout',503);});
+ await assert.rejects(f.run(),/provider-output-limit/);
+ f.job.result.evidenceCheckpoint.sourceRepairProfile='low-effort-v1';
+ await assert.rejects(f.run(),/provider-timeout/);const count=f.purposes.length;
+ await assert.rejects(f.run(),/source-correction-recovery-needs-inspection/);assert.equal(f.purposes.length,count);
+});
 for(const provider of ['openai','gemini'])test('bounded correction does not silently change the '+provider+' processing policy',async()=>{
  const f=fixture();f.pipeline.config.provider=provider;
  await assert.rejects(f.run(),/unsupported-source-statement/);assert.deepEqual(f.purposes,['read','citation']);

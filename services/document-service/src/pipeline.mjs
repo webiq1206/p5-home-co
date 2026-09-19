@@ -63,9 +63,15 @@ export class Pipeline{
    if(this.config.provider==='anthropic'&&this.config.model==='claude-sonnet-5'&&(!verify||this.config.verifyModel==='claude-sonnet-5')&&(saved.repair?.citations?.some(c=>c.supported===false)||!verify&&emptyFactKeys(saved.raw).length)){
     const prepared=prepareSourceRepair(saved.raw,input,citations,saved.repair||{citations:[]});
     if(!saved.sourceCorrection){
-     if(saved.sourceCorrectionStarted)throw new ServiceError('source-correction-needs-inspection',422);
-     signal.throwIfAborted();saved.sourceCorrectionStarted=true;await save();
-     saved.sourceCorrection=await this.reader.call(job,SOURCE_REPAIR_SYSTEM+(verify?SOURCE_REPAIR_VERIFIER_RULE:''),prepared.input,images,SOURCE_REPAIR_SCHEMA,signal,verify,'source-repair');
+      const efficientRepair=saved.sourceRepairProfile==='low-effort-v1';
+      if(efficientRepair){
+       if(saved.lowSourceRepairStarted)throw new ServiceError('source-correction-recovery-needs-inspection',422);
+       signal.throwIfAborted();saved.lowSourceRepairStarted=true;await save();
+      }else{
+       if(saved.sourceCorrectionStarted)throw new ServiceError('source-correction-needs-inspection',422);
+       signal.throwIfAborted();saved.sourceCorrectionStarted=true;await save();
+      }
+      saved.sourceCorrection=await this.reader.call(job,SOURCE_REPAIR_SYSTEM+(verify?SOURCE_REPAIR_VERIFIER_RULE:''),prepared.input,images,SOURCE_REPAIR_SCHEMA,signal,verify,efficientRepair?'source-repair-efficient':'source-repair');
      await save();
     }
     const corrected=applySourceRepairs(prepared.grounded,input,prepared.rejected,saved.sourceCorrection);

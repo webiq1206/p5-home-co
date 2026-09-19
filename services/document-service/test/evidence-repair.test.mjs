@@ -26,6 +26,7 @@ test('scanned, drawing, mixed visual concerns and partial status never get promo
 });
 test('Sonnet reading uses medium effort with medium review effort and unchanged visual verification',()=>{
  assert.equal(requestBody('anthropic','claude-sonnet-5','',{},[],EVIDENCE_SCHEMA,10000,'read').body.output_config.effort,'medium');
+ assert.equal(requestBody('anthropic','claude-sonnet-5','',{},[],EVIDENCE_SCHEMA,10000,'source-repair-efficient').body.output_config.effort,'low');
  for(const purpose of ['verify','evidence'])assert.equal(requestBody('anthropic','claude-sonnet-5','',{},[],EVIDENCE_SCHEMA,10000,purpose).body.output_config.effort,undefined);
  assert.equal(requestBody('anthropic','claude-sonnet-5','',{},[],REVIEW_SCHEMA,10000,'review').body.output_config.effort,'medium');
  assert.equal(requestBody('anthropic','claude-opus-5','',{},[],EVIDENCE_SCHEMA,10000,'read').body.output_config.effort,undefined);
