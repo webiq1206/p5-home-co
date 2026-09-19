@@ -151,12 +151,12 @@ test('a lower-effort reply must still pass strict citation support and preserve 
   f.reader.call=async(job,system,input,images,schema,signal,verify,purpose)=>{
    purposes.push(purpose);if(purpose==='read')throw new ServiceError('provider-output-limit',422);
    if(purpose==='citation')return {citations:[{key:'1:items:0',supported:false,lines:[]}]};
-   const page=evidence(1);page.items[0].quantity=999;page.items[0].evidence='Invented amount';return {pages:[page]};
+   const page=evidence(1);page.items[0].quantity=999;page.items[0].evidence='Invented amount';if(purpose==='source-repair')return {facts:[],items:[{key:'1:items:0',statement:page.items[0],reason:'Still unsupported.'}],regions:[]};return {pages:[page]};
   };
   await assert.rejects(f.pipeline.read(f.job,signal()),e=>e.code==='unsupported-source-statement');
   const restarted=await f.store.job('test','test',f.job.id);
   await assert.rejects(f.pipeline.read(restarted,signal()),e=>e.code==='unsupported-source-statement');
-  assert.deepEqual(purposes,['read','read-efficient','citation']);
+  assert.deepEqual(purposes,['read','read-efficient','citation','source-repair','citation']);
   assert.equal((await f.store.documentProgress(f.document.id)).checked,0);
  }finally{await f.pool.end();}
 });

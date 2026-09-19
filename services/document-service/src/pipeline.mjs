@@ -2,6 +2,7 @@ import {jobId,groupPages,ServiceError,validateEvidence,stable} from './core.mjs'
 import {parsePdf,limitParser} from './parser.mjs';
 import {EVIDENCE_SCHEMA,REVIEW_SCHEMA,READER_SYSTEM,VERIFIER_SYSTEM,REVIEW_SYSTEM,validateReview} from './contracts.mjs';
 import {CITATION_SYSTEM,CITATION_SCHEMA,citationInput,applyCitations,evidenceCheckpointKey} from './evidence-citations.mjs';
+import {SOURCE_REPAIR_SYSTEM,SOURCE_REPAIR_SCHEMA,prepareSourceRepair,applySourceRepairs} from './evidence-source-repair.mjs';
 export class Pipeline{
  constructor(store,reader,config,parser=parsePdf){this.store=store;this.reader=reader;this.config=config;this.readBatchPages=config.provider==='anthropic'&&config.model==='claude-sonnet-5'?1:4;this.parser=limitParser(parser,config.parserSlots||1);}
  async enqueueRead(job,pages,client=this.store.pool){const numbers=pages.map(p=>p.page);await this.store.enqueue(client,{id:jobId(job.tenant,job.project,'read',[job.document_id,numbers]),tenant:job.tenant,project:job.project,documentId:job.document_id,kind:'read',priority:job.priority,payload:{pages:numbers}});}
@@ -49,7 +50,26 @@ export class Pipeline{
     saved.repair=await this.reader.call(job,CITATION_SYSTEM,citations,[],CITATION_SCHEMA,signal,verify,'citation');
     await save();
    }
-   const grounded=saved.repair?applyCitations(saved.raw,input,citations,saved.repair):structuredClone(saved.raw);
+   let grounded;
+   if(!verify&&this.config.provider==='anthropic'&&this.config.model==='claude-sonnet-5'&&saved.repair?.citations?.some(c=>c.supported===false)){
+    const prepared=prepareSourceRepair(saved.raw,input,citations,saved.repair);
+    if(!saved.sourceCorrection){
+     if(saved.sourceCorrectionStarted)throw new ServiceError('source-correction-needs-inspection',422);
+     signal.throwIfAborted();saved.sourceCorrectionStarted=true;await save();
+     saved.sourceCorrection=await this.reader.call(job,SOURCE_REPAIR_SYSTEM,prepared.input,images,SOURCE_REPAIR_SCHEMA,signal,false,'source-repair');
+     await save();
+    }
+    const corrected=applySourceRepairs(prepared.grounded,input,prepared.rejected,saved.sourceCorrection);
+    // Exact replacement quotes still receive semantic support validation.
+    const correctionCitations=citationInput(corrected,input,prepared.rejected);
+    if(correctionCitations.statements.length&&!saved.sourceCitations){
+     if(saved.sourceCitationsStarted)throw new ServiceError('source-citation-needs-inspection',422);
+     signal.throwIfAborted();saved.sourceCitationsStarted=true;await save();
+     saved.sourceCitations=await this.reader.call(job,CITATION_SYSTEM,correctionCitations,[],CITATION_SCHEMA,signal,false,'citation');
+     await save();
+    }
+    grounded=saved.sourceCitations?applyCitations(corrected,input,correctionCitations,saved.sourceCitations):corrected;
+   }else grounded=saved.repair?applyCitations(saved.raw,input,citations,saved.repair):structuredClone(saved.raw);
    return validateEvidence(grounded,input);
  }
  async read(job,signal){

@@ -8,8 +8,8 @@ import {requestBody} from '../../src/provider.mjs';
 import {READER_SYSTEM,EVIDENCE_SCHEMA} from '../../src/contracts.mjs';
 import {CITATION_SYSTEM,CITATION_SCHEMA,citationInput,evidenceCheckpointKey} from '../../src/evidence-citations.mjs';
 
-export async function citationOutputFixture(){
- const f=await outputFixture();await resumePlansOutput(f.store,f.document,f.root);
+export async function citationOutputFixture(options){
+ const f=await outputFixture(options);await resumePlansOutput(f.store,f.document,f.root);
  const native=(await f.store.pages(f.document.id))[3].native,input=[{...native,image:undefined,spans:undefined}];
  const raw={pages:[{page:4,sheet:'',revision:'',status:'read',notes:[],facts:[{field:'site',value:'Synthetic source',evidence:'Incorrect citation',basis:'stated'}],items:[],regions:[],inclusions:[],exclusions:[],responsibilities:[]}]};
  const result={readProfile:'low-effort-v1',readProfileReason:'provider-output-limit',lowReadStarted:true,evidenceCheckpoint:{version:1,key:evidenceCheckpointKey({input,provider:'anthropic',model:'claude-sonnet-5',readProfile:'low-effort-v1'},READER_SYSTEM,EVIDENCE_SCHEMA),raw,repairStarted:true}};

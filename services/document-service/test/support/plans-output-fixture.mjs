@@ -6,13 +6,13 @@ import {Store} from '../../src/store.mjs';
 import {hash} from '../../src/core.mjs';
 
 const digest='4565acfa74cc3590fc2c7b2baf532c99a069c9a572448de8a6f599a7cf135786';
-export async function outputFixture(){
+export async function outputFixture({page5Text}={}){
  const root=await mkdtemp(join(tmpdir(),'p5-plans-output-')),pool=await isolatedPool(),store=new Store(pool,{maxTenantBytes:1000000,maxQueue:30});await store.init();
  const {document}=await store.putDocument('qa','plans','synthetic.pdf',Buffer.from('%PDF synthetic'));
  await pool.query("UPDATE p5ds_documents SET digest=$2,state='failed',error_code='provider-output-limit',page_count=23 WHERE id=$1",[document.id,digest]);
  await pool.query("UPDATE p5ds_jobs SET state='complete',attempts=1 WHERE document_id=$1",[document.id]);
  for(let page=1;page<=23;page++){
-  const native={page,kind:'drawing',textQuality:1,text:'Synthetic source',spans:[]};
+  const native={page,kind:'drawing',textQuality:1,text:page===5&&page5Text?page5Text:'Synthetic source',spans:[]};
   const evidence={page,sheet:'',revision:'',status:'partial',notes:['Unresolved actual detail'],facts:[],items:[],regions:[],inclusions:[],exclusions:['Excluded synthetic scope'],responsibilities:[]};
   await pool.query('INSERT INTO p5ds_pages(document_id,page,native,image,evidence) VALUES($1,$2,$3,$4,$5)',[document.id,page,native,Buffer.from('image-'+page),page<=3?evidence:null]);
   await store.enqueue(pool,{id:'read-'+page,tenant:'qa',project:'plans',kind:'read',documentId:document.id,payload:{pages:[page]}});
