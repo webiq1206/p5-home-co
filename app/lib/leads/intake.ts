@@ -12,6 +12,7 @@
  */
 
 import type { PoolClient } from "pg";
+import {SYNTHETIC_ESTIMATOR_FORM,estimatorDeliveryMode} from "./synthetic-qa.ts";
 
 import { isUniqueViolation, transaction } from "../db.ts";
 import {
@@ -159,11 +160,18 @@ export async function ingestLead(
   lead: InboundLead,
   settings: LeadManagerSettings,
   actorUserId: number | null = null,
+  options: {estimatorDeliveryMode?:'live'|'synthetic_qa'} = {},
 ): Promise<IntakeResult> {
   const errors = validateInboundLead(lead);
   if (errors.length) return { status: "rejected", errors };
 
-  const identityKey = contactIdentityKey(lead);
+  const estimator=options.estimatorDeliveryMode!==undefined;
+  const synthetic=options.estimatorDeliveryMode==='synthetic_qa';
+  if(estimator&&(!lead.externalLeadId||lead.originalForm!=='p5-estimator'))throw Error('Estimator intake requires its durable source identity');
+  if(synthetic&&(estimatorDeliveryMode([lead.firstName,lead.lastName].filter(Boolean).join(' '),lead.email||'')!=='synthetic_qa'||!lead.externalLeadId?.startsWith('qa-')))
+    throw Error('Synthetic estimator intake identity is invalid');
+  // A QA contact must never rename or attach to an existing real customer.
+  const identityKey = synthetic?'synthetic:'+lead.externalLeadId:contactIdentityKey(lead);
   if (!identityKey) {
     return {
       status: "rejected",
@@ -171,7 +179,7 @@ export async function ingestLead(
     };
   }
 
-  const dedupKey = dealIdentityKey(lead);
+  const dedupKey = estimator?'p5-estimator:'+lead.externalLeadId:dealIdentityKey(lead);
   const slaDeadline = addBusinessMinutes(
     lead.receivedAt,
     settings.firstResponseTargetMinutes,
@@ -211,7 +219,7 @@ export async function ingestLead(
         };
       }
 
-      const ownerUserId = await chooseOwner(client);
+      const ownerUserId = synthetic?null:await chooseOwner(client);
 
       const { rows } = await client.query<{ id: string }>(
         `INSERT INTO deal (
@@ -243,7 +251,7 @@ export async function ingestLead(
           arrivedInHours ? "on_track" : "after_hours",
           dedupKey,
           lead.externalLeadId,
-          normalizeText(lead.originalForm),
+          synthetic?SYNTHETIC_ESTIMATOR_FORM:normalizeText(lead.originalForm),
           normalizeText(lead.originalCampaign),
           lead.source === "Facebook Lead Ad" ? lead.externalLeadId : null,
           lead.utm ? JSON.stringify(lead.utm) : null,
@@ -259,19 +267,22 @@ export async function ingestLead(
         [dealId, lead.summary ?? `${lead.source} lead received.`, lead.receivedAt],
       );
 
-      // The first action, carrying a stable rule_key so a replay reuses it.
-      await client.query(
-        `INSERT INTO task (deal_id, assigned_to, title, due_at, rule_key)
-         VALUES ($1, $2, $3, $4, 'first_contact')
-         ON CONFLICT (deal_id, rule_key) WHERE completed_at IS NULL AND rule_key IS NOT NULL DO NOTHING`,
-        [dealId, ownerUserId, "Make first contact", slaDeadline],
-      );
+      // Synthetic acceptance records retain intake evidence without outreach.
+      if(!synthetic){
+        // The first action, carrying a stable rule_key so a replay reuses it.
+        await client.query(
+          `INSERT INTO task (deal_id, assigned_to, title, due_at, rule_key)
+           VALUES ($1, $2, $3, $4, 'first_contact')
+           ON CONFLICT (deal_id, rule_key) WHERE completed_at IS NULL AND rule_key IS NOT NULL DO NOTHING`,
+          [dealId, ownerUserId, "Make first contact", slaDeadline],
+        );
 
-      await client.query(
-        "UPDATE deal SET next_action = $2, next_action_at = $3 WHERE id = $1",
-        [dealId, "Make first contact", slaDeadline],
-      );
+        await client.query(
+          "UPDATE deal SET next_action = $2, next_action_at = $3 WHERE id = $1",
+          [dealId, "Make first contact", slaDeadline],
+        );
 
+      }
       await audit(client, {
         recordType: "deal",
         recordId: String(dealId),
@@ -283,6 +294,8 @@ export async function ingestLead(
           slaDeadline: slaDeadline.toISOString(),
           arrivedInBusinessHours: arrivedInHours,
           actorUserId,
+          estimatorDeliveryMode:options.estimatorDeliveryMode||null,
+          downstreamSuppressed:synthetic,
         },
         source: actorUserId ? "admin_ui" : "intake",
       });

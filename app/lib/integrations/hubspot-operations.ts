@@ -21,7 +21,7 @@ export async function pullHubSpotLeadActions(now = new Date(), limit = 25): Prom
   if (!settings.featureFlags.hubspotIntegrationEnabled || !process.env.HUBSPOT_TOKEN) return { read: 0, failed: 0 };
   const rows = await query<{ id: string; hubspot_deal_id: string; revision: string }>(
     `SELECT id,hubspot_deal_id,updated_at::text AS revision FROM deal
-     WHERE hubspot_deal_id IS NOT NULL AND integration_sync_status='synced'
+     WHERE original_form IS DISTINCT FROM 'p5-estimator-synthetic-qa' AND hubspot_deal_id IS NOT NULL AND integration_sync_status='synced'
        AND (stage NOT IN ('Closed Won','Closed Lost') OR closed_at > now()-interval '7 days')
      ORDER BY last_hubspot_read_at ASC NULLS FIRST,id LIMIT $1`, [limit],
   );

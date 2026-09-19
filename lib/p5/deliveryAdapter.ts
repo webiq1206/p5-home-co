@@ -2,6 +2,7 @@ import {createTransport} from "nodemailer";
 import {getSmtpConfig, assertSmtpAccepted} from "../../app/lib/notifications/smtp-config.ts";
 import {peopleWithRole} from "../../app/lib/notifications/dispatch.ts";
 import {ingestLead} from "../../app/lib/leads/intake.ts";
+import {estimatorDeliveryMode} from "../../app/lib/leads/synthetic-qa.ts";
 import {loadSettings} from "../../app/lib/leads/settings.ts";
 import {ESTIMATOR_BRAND as brand} from "./brand.ts";
 export async function adminRecipients(){return [...new Set((await peopleWithRole(["administrator"])).map(p=>p.email))];}
@@ -15,11 +16,12 @@ export async function sendEmail(input:{to:string;subject:string;text:string;html
   return String(result.messageId);
 }
 export async function syncCrm(record:any,key:string){
+  const mode=estimatorDeliveryMode(record.contact.name,record.contact.email);
   const names=record.contact.name.trim().split(/\s+/);
   const result=await ingestLead({firstName:names.shift()||null,lastName:names.join(" ")||null,email:record.contact.email,phone:record.contact.phone||null,
     brand:deliveryBrand(record),projectType:record.scope.answers.service,source:"Organic Website",sourceDetail:`p5-estimator:${record.draftId}`,
     propertyAddress:record.scope.answers.address||null,propertyCity:record.scope.answers.location||null,
-    summary:record.customer.summary,externalLeadId:key,originalForm:"p5-estimator",originalCampaign:null,utm:null,receivedAt:new Date()},await loadSettings());
+    summary:record.customer.summary,externalLeadId:mode==='synthetic_qa'?'qa-'+key:key,originalForm:"p5-estimator",originalCampaign:null,utm:null,receivedAt:new Date()},await loadSettings(),null,{estimatorDeliveryMode:mode});
   if(result.status==="rejected")throw new Error("CRM rejected the estimate lead");
   if(!Number.isInteger(result.dealId)||result.dealId<=0)throw new Error("CRM duplicate acknowledgement has no resolved lead identifier; reconcile before retrying");
   return String(result.dealId);

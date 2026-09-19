@@ -292,6 +292,7 @@ export async function syncDealToHubSpot(dealId: number): Promise<SyncOutcome> {
   );
   if (!rows.length) return { status: "failed", error: `Deal ${dealId} not found.` };
   const row = rows[0];
+  if(row.original_form==="p5-estimator-synthetic-qa")return {status:"skipped",reason:"Synthetic estimator acceptance has downstream delivery suppressed."};
   // Attribution fields are optional. A token without schema-read permission or
   // a portal where setup has not created them still syncs the operational lead.
   const propertyNames = await fetchDealPropertyNames().catch(() => null);
@@ -410,6 +411,7 @@ export async function syncPendingDeals(limit = 25): Promise<{
   const rows = await query<{ id: string }>(
     `SELECT id FROM deal
       WHERE integration_sync_status IN ('pending','failed')
+        AND original_form IS DISTINCT FROM 'p5-estimator-synthetic-qa'
       ORDER BY received_at ASC
       LIMIT $1`,
     [limit],

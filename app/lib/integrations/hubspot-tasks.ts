@@ -90,7 +90,7 @@ export async function syncHubSpotAlertTasks(now = new Date(), limit = 25): Promi
     `SELECT i.*, d.hubspot_deal_id, d.brand, d.name, c.hubspot_contact_id
      FROM lead_alert_incident i JOIN deal d ON d.id=i.deal_id
      JOIN contact c ON c.id=d.contact_id
-     WHERE i.task_completed_at IS NULL AND
+     WHERE d.original_form IS DISTINCT FROM 'p5-estimator-synthetic-qa' AND i.task_completed_at IS NULL AND
        (i.resolved_at IS NULL OR i.hubspot_task_id IS NOT NULL OR i.create_attempted_at IS NOT NULL)
      ORDER BY i.last_checked_at ASC NULLS FIRST, i.id LIMIT $1`,
     [limit],

@@ -124,8 +124,9 @@ async function loadDeals(): Promise<DealRow[]> {
               WHERE a.deal_id = d.id AND a.direction IS NOT NULL
               ORDER BY a.occurred_at DESC LIMIT 1) AS client_waiting_since
        FROM deal d
-      WHERE d.stage NOT IN ('Closed Won','Closed Lost')
-         OR d.closed_at > now() - interval '7 days'`,
+      WHERE d.original_form IS DISTINCT FROM 'p5-estimator-synthetic-qa'
+        AND (d.stage NOT IN ('Closed Won','Closed Lost')
+         OR d.closed_at > now() - interval '7 days')`,
   );
 }
 
