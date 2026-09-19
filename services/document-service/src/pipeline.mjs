@@ -1,4 +1,4 @@
-import {jobId,groupPages,ServiceError,validateEvidence,stable} from './core.mjs';
+import {jobId,groupPages,ServiceError,validateEvidence,stable,retainInvalidDurationsAsUncertain} from './core.mjs';
 import {parsePdf,limitParser} from './parser.mjs';
 import {SPAN_COORDINATES,textAnchorRegions} from './page-geometry.mjs';
 import {EVIDENCE_SCHEMA,REVIEW_SCHEMA,READER_SYSTEM,VERIFIER_SYSTEM,REVIEW_SYSTEM,validateReview} from './contracts.mjs';
@@ -87,7 +87,7 @@ export class Pipeline{
     }
      grounded=saved.sourceCitations?resolveSourceCitations(corrected,input,correctionCitations,saved.sourceCitations):corrected;
    }else grounded=saved.repair?applyCitations(saved.raw,input,citations,saved.repair):structuredClone(saved.raw);
-   return validateEvidence(grounded,input);
+    return validateEvidence(retainInvalidDurationsAsUncertain(grounded),input);
  }
  async read(job,signal){
   const requested=await this.store.pages(job.document_id,job.payload.pages,true);

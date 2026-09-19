@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {documentId,jobId,hash,stable,signature,signedHeaders,verifyHeaders,identifier,groupPages,mapLimit,readConfig,validateEvidence,noteHasUnresolvedIssue,ServiceError} from '../src/core.mjs';
+import {documentId,jobId,hash,stable,signature,signedHeaders,verifyHeaders,identifier,groupPages,mapLimit,readConfig,validateEvidence,noteHasUnresolvedIssue,ServiceError,retainInvalidDurationsAsUncertain} from '../src/core.mjs';
 import {requestBody,parseReply,Reader} from '../src/provider.mjs';
 import {EVIDENCE_SCHEMA,REVIEW_SCHEMA,validateReview} from '../src/contracts.mjs';
 import {reconcileVerification} from '../src/pipeline.mjs';
@@ -91,6 +91,11 @@ test('protected activation requires exactly the five authorized tenants',()=>{
 test('reader releases global capacity when provider authentication fails',async()=>{let released=0;const c={provider:'anthropic',model:'model',verifyModel:'model',key:'test',tpm:100000,maxOutput:2048,callMs:1000};const store={reserve:async()=> 'slot',release:async()=>released++,metric:async()=>{},cooldown:async()=>{}};const reader=new Reader(c,store,async()=>new Response('{}',{status:401}));await assert.rejects(reader.call({id:'job'},'instruction',{},[],EVIDENCE_SCHEMA,new AbortController().signal),/provider-http-401/);assert.equal(released,1);});
 test('synthesis cannot promote a partially read page',()=>{const r={summary:'project',facts:[],takeoffs:[],clarifications:[],conflicts:[],reviewNotes:[]};assert.equal(validateReview(r,[{source:'A.pdf',page:1,status:'partial',notes:['unread dimension']}]).pages[0].status,'partial');assert.equal(r.reviewNotes.length,1);});
 test('review cannot convert an issued date into project duration',()=>assert.throws(()=>validateReview({summary:'scope',facts:[{field:'projectMonths',value:'13',confidence:1,source:'A.pdf',evidence:'Issued Date: 13 July 2026',basis:'stated'}],takeoffs:[],clarifications:[],conflicts:[],reviewNotes:[]},[{source:'A.pdf',page:1,status:'read',notes:[]}]),/invalid-project-duration-source/));
+test('page evidence retains an issue-date duration mistake only as an explicit uncertainty',()=>{
+ const result=retainInvalidDurationsAsUncertain({pages:[evidence({facts:[{field:'projectMonths',value:'Issued Date 13 July 2026',evidence:'Issued Date: 13 July 2026',basis:'stated'}]})]});
+ assert.equal(result.pages[0].status,'partial');assert.equal(result.pages[0].facts[0].field,'otherDetails');assert.equal(result.pages[0].facts[0].basis,'uncertain');
+ assert.match(result.pages[0].facts[0].value,/does not establish project duration/);assert.doesNotThrow(()=>validateEvidence(result,[source]));
+});
 test('review omits absent project duration instead of inventing a fact',()=>assert.throws(()=>validateReview({summary:'scope',facts:[{field:'projectMonths',value:'0',confidence:1,source:'A.pdf',evidence:'Project duration not stated',basis:'uncertain'}],takeoffs:[],clarifications:[],conflicts:[],reviewNotes:[]},[{source:'A.pdf',page:1,status:'read',notes:[]}]),/absent-source-fact/));
 test('review cannot price an ambiguous room height against assembly depth',()=>assert.throws(()=>validateReview({summary:'scope',facts:[],takeoffs:[{id:'height-1',description:'Ceiling height at floor truss assembly',building:'Main',floor:'Upper',component:'Building Section',quantity:1,unit:'ft',basis:'visual',evidence:'floor truss assembly',sources:[{source:'A.pdf',page:1}],supersedes:[],issues:[]}],clarifications:[],conflicts:[],reviewNotes:[]},[{source:'A.pdf',page:1,status:'partial',notes:['uncertain dimension']}]),/ambiguous-room-height-measurement/));
 test('synthesis cannot reference another document',()=>assert.throws(()=>validateReview({summary:'scope',facts:[],takeoffs:[{id:'x',quantity:1,sources:[{source:'other.pdf',page:1}]}],clarifications:[],conflicts:[],reviewNotes:[]},[{source:'A.pdf',page:1,status:'read',notes:[]}]),/provenance/));

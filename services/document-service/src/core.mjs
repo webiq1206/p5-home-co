@@ -105,6 +105,17 @@ export function durationSourceError(field, evidence, value){
   if(absentValue.test(`${evidence} ${value}`))return 'absent-source-fact';
   return null;
 }
+export function retainInvalidDurationsAsUncertain(result){
+ const copy=structuredClone(result);
+ for(const page of copy.pages||[])for(let i=0;i<(page.facts||[]).length;i++){
+  const fact=page.facts[i];
+  if(durationSourceError(fact.field,fact.evidence,fact.value)!=='invalid-project-duration-source')continue;
+  page.facts[i]={field:'otherDetails',value:`The drawing issue date (${fact.value}) does not establish project duration.`,
+   evidence:'Limitation: a drawing issue date is not a construction-duration statement.',basis:'uncertain'};
+  page.status='partial';page.notes.push('Project duration remains unresolved; a drawing issue date was retained only as an explicit limitation.');
+ }
+ return copy;
+}
 export function measurementNeedsClarification(f){
   if(!f||typeof f!=='object')return false;
   const field=String(f.field||'');
