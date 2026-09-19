@@ -137,3 +137,55 @@ test('an empty fact in independent verification remains a failure rather than op
  await assert.rejects(f.pipeline.read(f.job,new AbortController().signal),/empty-source-fact/);assert.equal(f.committed(),undefined);
  assert.deepEqual(f.purposes,['read','citation','source-repair','verify']);
 });
+
+function verifierFixture(handler){
+ const value=raw();value.pages[0].items[0]=corrected();value.pages[0].items[0].basis='visual';
+ return fixture(args=>{
+  const {purpose,verify}=args;
+  const custom=handler?.(args);if(custom!==undefined)return custom;
+  if(purpose==='read')return value;
+  if(purpose==='verify')return raw();
+  if(purpose==='citation')return args.purposes.includes('source-repair')?{citations:[{key:'1:items:0',supported:true,lines:[1]}]}:rejected;
+  if(purpose==='source-repair'){assert.equal(verify,true);assert.match(args.system,/Only stated or uncertain replacements/);return patch();}
+ });
+}
+test('unsupported verifier text receives one text-only correction with an independent semantic support check and durable replay',async()=>{
+ const f=verifierFixture();await f.pipeline.read(f.job,new AbortController().signal);
+ assert.equal(f.committed().items[0].quantity,120);assert.equal(f.committed().items[0].basis,'stated');
+ assert.deepEqual(f.purposes,['read','verify','citation','source-repair','citation']);
+ const count=f.purposes.length;await f.pipeline.read(f.job,new AbortController().signal);assert.equal(f.purposes.length,count);
+ assert.equal(f.job.result.verificationCheckpoints['verify-1'].raw.pages[0].items[0].quantity,999);
+});
+for(const kind of ['visual','calculated','new-region'])test('verifier correction refuses '+kind+' and does not create another verification loop',async()=>{
+ const f=verifierFixture(({purpose})=>{
+  if(purpose!=='source-repair')return;
+  const answer=patch();
+  if(kind==='visual'||kind==='calculated')answer.items[0].statement.basis=kind;
+  if(kind==='new-region')answer.regions=[{page:1,x:0,y:0,width:.1,height:.1,reason:'New visual detail'}];
+  return answer;
+ });
+ await assert.rejects(f.pipeline.read(f.job,new AbortController().signal));assert.equal(f.committed(),undefined);
+ const count=f.purposes.length;await assert.rejects(f.pipeline.read(f.job,new AbortController().signal));assert.equal(f.purposes.length,count);
+});
+test('verifier text replacement that still fails support stops after one correction',async()=>{
+ const f=verifierFixture(({purpose})=>purpose==='citation'?rejected:undefined);
+ await assert.rejects(f.pipeline.read(f.job,new AbortController().signal),/unsupported-source-statement/);
+ assert.deepEqual(f.purposes,['read','verify','citation','source-repair','citation']);assert.equal(f.committed(),undefined);
+});
+test('verifier correction cannot retain an unsupported numeric fact merely by labeling it uncertain',async()=>{
+ const f=verifierFixture(({purpose})=>{
+  if(purpose==='verify'){const value=raw();value.pages[0].items[0]=corrected();value.pages[0].facts=[{field:'sqft',value:'999',evidence:'Wrong quote',basis:'stated'}];return value;}
+  if(purpose==='citation')return {citations:[{key:'1:facts:0',supported:false,lines:[]}]};
+  if(purpose==='source-repair')return {facts:[{key:'1:facts:0',statement:{field:'sqft',value:'999',evidence:'Not established',basis:'uncertain'},reason:'No numeric support'}],items:[],regions:[]};
+ });
+ await assert.rejects(f.pipeline.read(f.job,new AbortController().signal),/source-correction-needs-independent-verification/);assert.equal(f.committed(),undefined);
+});
+for(const stage of ['source-repair','replacement-citation'])test('interrupted verifier '+stage+' cannot repeat a paid attempt',async()=>{
+ const f=verifierFixture(({purpose,purposes})=>{if(purpose===stage||stage==='replacement-citation'&&purpose==='citation'&&purposes.includes('source-repair'))throw new ServiceError('qa-paused-unknown-provider-charge',422);});
+ await assert.rejects(f.pipeline.read(f.job,new AbortController().signal),/unknown-provider-charge/);const count=f.purposes.length;
+ await assert.rejects(f.pipeline.read(f.job,new AbortController().signal),stage==='source-repair'?/source-correction-needs-inspection/:/source-citation-needs-inspection/);assert.equal(f.purposes.length,count);
+});
+test('a separately selected verifier model cannot silently enter Sonnet-only correction',async()=>{
+ const f=verifierFixture();f.pipeline.config.verifyModel='another-model';
+ await assert.rejects(f.pipeline.read(f.job,new AbortController().signal),/unsupported-source-statement/);assert.deepEqual(f.purposes,['read','verify','citation']);
+});

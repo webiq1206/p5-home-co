@@ -3,7 +3,7 @@ import {parsePdf,limitParser} from './parser.mjs';
 import {SPAN_COORDINATES,textAnchorRegions} from './page-geometry.mjs';
 import {EVIDENCE_SCHEMA,REVIEW_SCHEMA,READER_SYSTEM,VERIFIER_SYSTEM,REVIEW_SYSTEM,validateReview} from './contracts.mjs';
 import {CITATION_SYSTEM,CITATION_SCHEMA,citationInput,applyCitations,evidenceCheckpointKey} from './evidence-citations.mjs';
-import {SOURCE_REPAIR_SYSTEM,SOURCE_REPAIR_SCHEMA,prepareSourceRepair,applySourceRepairs,emptyFactKeys} from './evidence-source-repair.mjs';
+import {SOURCE_REPAIR_SYSTEM,SOURCE_REPAIR_SCHEMA,SOURCE_REPAIR_VERIFIER_RULE,prepareSourceRepair,applySourceRepairs,emptyFactKeys} from './evidence-source-repair.mjs';
 export function reconcileVerification(page,checked){
  const contradictions=[];
  for(const f of page.facts){const match=checked.facts.find(v=>v.field===f.field&&v.value===f.value);if(!match){checked.facts.push(f);contradictions.push(`Verify conflicting ${f.field}: ${f.value}`);}}
@@ -60,21 +60,22 @@ export class Pipeline{
     await save();
    }
    let grounded;
-   if(!verify&&this.config.provider==='anthropic'&&this.config.model==='claude-sonnet-5'&&(saved.repair?.citations?.some(c=>c.supported===false)||emptyFactKeys(saved.raw).length)){
+   if(this.config.provider==='anthropic'&&this.config.model==='claude-sonnet-5'&&(!verify||this.config.verifyModel==='claude-sonnet-5')&&(saved.repair?.citations?.some(c=>c.supported===false)||!verify&&emptyFactKeys(saved.raw).length)){
     const prepared=prepareSourceRepair(saved.raw,input,citations,saved.repair||{citations:[]});
     if(!saved.sourceCorrection){
      if(saved.sourceCorrectionStarted)throw new ServiceError('source-correction-needs-inspection',422);
      signal.throwIfAborted();saved.sourceCorrectionStarted=true;await save();
-     saved.sourceCorrection=await this.reader.call(job,SOURCE_REPAIR_SYSTEM,prepared.input,images,SOURCE_REPAIR_SCHEMA,signal,false,'source-repair');
+     saved.sourceCorrection=await this.reader.call(job,SOURCE_REPAIR_SYSTEM+(verify?SOURCE_REPAIR_VERIFIER_RULE:''),prepared.input,images,SOURCE_REPAIR_SCHEMA,signal,verify,'source-repair');
      await save();
     }
     const corrected=applySourceRepairs(prepared.grounded,input,prepared.rejected,saved.sourceCorrection);
+    if(verify&&(saved.sourceCorrection.regions.length||[...saved.sourceCorrection.facts,...saved.sourceCorrection.items].some(c=>!['stated','uncertain'].includes(c.statement.basis))||saved.sourceCorrection.facts.some(c=>c.statement.basis==='uncertain'&&c.statement.field!=='otherDetails')))throw new ServiceError('source-correction-needs-independent-verification',422);
     // Exact replacement quotes still receive semantic support validation.
     const correctionCitations=citationInput(corrected,input,prepared.rejected);
     if(correctionCitations.statements.length&&!saved.sourceCitations){
      if(saved.sourceCitationsStarted)throw new ServiceError('source-citation-needs-inspection',422);
      signal.throwIfAborted();saved.sourceCitationsStarted=true;await save();
-     saved.sourceCitations=await this.reader.call(job,CITATION_SYSTEM,correctionCitations,[],CITATION_SCHEMA,signal,false,'citation');
+     saved.sourceCitations=await this.reader.call(job,CITATION_SYSTEM,correctionCitations,[],CITATION_SCHEMA,signal,verify,'citation');
      await save();
     }
     grounded=saved.sourceCitations?applyCitations(corrected,input,correctionCitations,saved.sourceCitations):corrected;
