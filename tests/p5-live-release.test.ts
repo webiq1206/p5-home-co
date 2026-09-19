@@ -44,6 +44,19 @@ test('measured labor-only trim is recognized without another project type or roo
  assert.deepEqual(scopeQuestions(a,x,[],[],[],text),[]);
  for(const suffix of [' New home construction.',' Part of a kitchen remodel.',' RE-10 inspection repairs.',' This is a change order.'])assert.equal(retainExplicitSelections(empty,text+suffix).facts.length,0);
 });
+test('owner-supplied measured baseboard retains explicit scope and skips only the redundant project-type question',()=>{
+ const text='Install 100 linear feet of owner-supplied baseboard in Caldwell. Labor only. Exclude painting, plumbing and electrical.';
+ const supplied:ScopeExtraction={...empty,
+  facts:[{field:'trimLf',value:'100',source:'qa-scope.txt',evidence:'100 linear feet of owner-supplied baseboard',confidence:1,basis:'stated'}],
+  instructions:{inclusions:['Install baseboard'],exclusions:['Painting','Plumbing','Electrical'],responsibilities:['Owner supplies baseboard'],buildings:[],floors:[],separateBuildings:false,laborOnly:true,materialsOnly:false,questions:[]}};
+ const x=retainExplicitSelections(supplied,text),a=mergeScopeFacts({taskList:text},x).answers;
+ assert.equal(a.service,'handyman');assert.equal(a.trimLf,'100');
+ assert.deepEqual(x.instructions,supplied.instructions);
+ assert.deepEqual(scopeQuestions(a,x,[],[],[],text),[]);
+ for(const context of ['Kitchen remodel.','New construction.','RE-10 inspection repairs.','Rush emergency work.','This is a change order.']){
+  assert.equal(retainExplicitSelections(supplied,`${text} ${context}`).facts.some(f=>f.field==='service'),false,context);
+ }
+});
 test('painted shaker vanity specifications replace the generic finish tier without choosing box construction',()=>{
  const text='Supply and install one 48-inch-wide bathroom vanity cabinet in Nampa. Painted shaker cabinet, standard hardware. Existing vanity removal is already completed. Exclude countertop, sink, plumbing and electrical.';
  const a={service:'cabinet-product',taskList:text,cabinetRoom:'bathroom',cabinetBaseLf:'4'};
