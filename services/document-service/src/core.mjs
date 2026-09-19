@@ -77,8 +77,14 @@ const issueDate=/\b(?:issued?|drawing)\s*date\b|\bissued\s+for\b|\b(?:19|20)\d{2
 const absentValue=/\b(?:not\s+(?:stated|specified|provided|shown)|unknown|unavailable|n\/?a|none|blank|redacted)\b/i;
 const unresolvedText=/\b(?:uncertain|unresolved|ambiguous|conflict(?:ing)?|contradict(?:ory|ion)?|verify|confirm(?:ation)?|unclear|illegible|not\s+legible|cannot\s+be\s+confirmed|needs?\s+clarification)\b/i;
 const resolvedIssue=/\b(?:no\s+(?:unresolved\s+)?(?:conflicts?|issues?|ambigu(?:ity|ities))\s+(?:remain|are\s+left)|(?:conflicts?|issues?|ambigu(?:ity|ities))\s+(?:have\s+been|were|are)\s+(?:resolved|verified|confirmed)|verification\s+(?:is\s+)?complete)\b/gi;
-export function noteHasUnresolvedIssue(note){
-  const active=String(note||'').replace(resolvedIssue,' ');
+export function noteHasUnresolvedIssue(note,sourceText=''){
+  const source=cleanText(sourceText).toLowerCase();
+  const active=String(note||'').replace(resolvedIssue,' ').replace(/\b(?:the\s+)?(?:general\s+)?(?:contractor|builder|installer|subcontractor)\s+(?:shall|must|is\s+required\s+to)\s+(?:verify|confirm)\b[^.!?;\n]*/gi,clause=>{
+    // A quoted construction obligation is readable source information. Only
+    // clear its verification verb when this page contains the exact clause;
+    // other uncertainty words and structured findings remain authoritative.
+    return source.includes(cleanText(clause).toLowerCase())?clause.replace(/\b(?:verify|confirm)\b/gi,' '):clause;
+  });
   return unresolvedText.test(active)||/\b(?:conflicts|ambiguities|contradictions|uncertainties)\s+(?:remain|persist)\b/i.test(active);
 }
 const assemblyMeasurement=/\b(?:assembly|floor\s*\/?\s*truss|floor[-\s]?truss|truss|joist|roof\s+depth|floor\s+depth|deck\s+depth|slab\s+depth|structural\s+depth)\b/i;
@@ -152,7 +158,7 @@ export function validateEvidence(value,pages){
     });
     record.notes=[...new Set([...record.notes,...absentReasons,'Known absent values remain missing; no dimensions, ratings, quantities or prices were inferred.'])];
   }
-   if(record.regions.length||record.facts.some(f=>f.basis==='uncertain')||record.items.some(f=>f.basis==='uncertain')||record.notes.some(noteHasUnresolvedIssue))record.status='partial';
+   if(record.regions.length||record.facts.some(f=>f.basis==='uncertain')||record.items.some(f=>f.basis==='uncertain')||record.notes.some(note=>noteHasUnresolvedIssue(note,page.text||'')))record.status='partial';
  }
  return value;
 }
