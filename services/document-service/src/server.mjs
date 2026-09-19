@@ -21,6 +21,7 @@ export function makeServer(store,pipeline,config){
      const providerConfigured=Boolean(config.provider&&config.key&&config.model);
      if(!providerConfigured)throw new ServiceError('provider-not-ready',503,5000);
      send(200,{ok:true,version:VERSION,protocol:'v1',tenant:auth.tenant,
+      providerConfigured,capabilities:{pdf:true},limits:{maxFileBytes:config.maxBytes,maxPages:config.maxPages},
       pdf:true,maxBytes:config.maxBytes,maxPages:config.maxPages,
       provider:{name:config.provider,configured:true,ready:true,health:'configured'},
       service:{healthy:true,database:'ok'}});

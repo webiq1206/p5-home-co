@@ -78,11 +78,27 @@ const absentValue=/\b(?:not\s+(?:stated|specified|provided|shown)|unknown|unavai
 const unresolvedText=/\b(?:uncertain|unresolved|ambiguous|conflict(?:ing)?|contradict(?:ory|ion)?|verify|confirm|unclear|illegible|not\s+legible|cannot\s+be\s+confirmed|needs?\s+clarification)\b/i;
 const assemblyMeasurement=/\b(?:assembly|floor\s*\/?\s*truss|floor[-\s]?truss|truss|joist|roof\s+depth|floor\s+depth|deck\s+depth|slab\s+depth|structural\s+depth)\b/i;
 function isDurationField(field){return durationFields.test(String(field||'').replace(/[\s_-]+/g,''));}
-function durationSourceError(field, evidence, value){
+export function durationSourceError(field, evidence, value){
   if(!isDurationField(field))return null;
+  // A citation may include an issue date beside a genuine duration. Require
+  // the exact month value to be explicitly labelled before accepting it.
+  const months=String(value??'').trim().match(/^(\d+(?:\.\d+)?)\s*(?:months?)?$/i);
+  if(months){
+   const durations=String(evidence??'').matchAll(/\b(?:project|construction|building|build)\s+duration\s*(?::|=|is|of)?\s*(\d+(?:\.\d+)?)\s*months?\b/gi);
+   for(const match of durations){
+    const prefix=String(evidence).slice(0,match.index).split(/[.;\n]/).at(-1)||'';
+    if(!/\b(?:no|not)\s*$/i.test(prefix)&&Number(match[1])===Number(months[1]))return null;
+   }
+  }
   if(issueDate.test(`${evidence} ${value}`))return 'invalid-project-duration-source';
   if(absentValue.test(`${evidence} ${value}`))return 'absent-source-fact';
   return null;
+}
+function hasUnresolvedSourceNote(note){
+  // Remove only the clearance phrase, preserving separate unresolved findings
+  // elsewhere in the same note and every structured uncertainty marker.
+  const remaining=String(note).replace(/\bno\s+(?:remaining\s+)?(?:unresolved\s+)?(?:conflicts?|ambiguities|contradictions?|uncertainties)(?:\s+remain(?:s|ing)?)?\b/gi,'');
+  return unresolvedText.test(remaining)||/\b(?:conflicts|ambiguities|contradictions|uncertainties)\s+(?:remain|persist)\b/i.test(remaining);
 }
 export function measurementNeedsClarification(f){
   if(!f||typeof f!=='object')return false;
@@ -130,7 +146,7 @@ export function validateEvidence(value,pages){
    record.regions=record.regions.filter(r=>!missing.includes(r));
    record.notes=[...new Set([...record.notes,'Blank or redacted source values remain missing. No dimensions, ratings, quantities or prices were recovered from those blanks.'])];
   }
-   if(record.regions.length||record.facts.some(f=>f.basis==='uncertain')||record.items.some(f=>f.basis==='uncertain')||record.notes.some(note=>unresolvedText.test(note)))record.status='partial';
+   if(record.regions.length||record.facts.some(f=>f.basis==='uncertain')||record.items.some(f=>f.basis==='uncertain')||record.notes.some(hasUnresolvedSourceNote))record.status='partial';
  }
  return value;
 }

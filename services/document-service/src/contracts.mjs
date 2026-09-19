@@ -1,5 +1,5 @@
 import {FIELDS} from './fields.mjs';
-import {ServiceError,measurementNeedsClarification} from './core.mjs';
+import {ServiceError,measurementNeedsClarification,durationSourceError} from './core.mjs';
 const str={type:'string'},num={type:'number'},strings={type:'array',items:str};
 const obj=properties=>({type:'object',properties,required:Object.keys(properties),additionalProperties:false});
 const arr=items=>({type:'array',items});
@@ -21,8 +21,7 @@ export const REVIEW_SYSTEM=`Reconcile the supplied source evidence into a prelim
 export function validateReview(result,manifest){
  if(!result||!Array.isArray(result.facts)||!Array.isArray(result.takeoffs)||!Array.isArray(result.clarifications)||!Array.isArray(result.conflicts)||!Array.isArray(result.reviewNotes)||typeof result.summary!=='string')throw new ServiceError('invalid-review-schema',422);
   const facts=result.facts.map(f=>{const spec=Object.hasOwn(FIELDS,f.field)?FIELDS[f.field]:null;if(!spec||typeof f.value!=='string'||!f.value.trim()||!f.evidence?.trim()||!f.source?.trim()||!Number.isFinite(f.confidence)||f.confidence<0||f.confidence>1)throw new ServiceError('invalid-review-fact',422);
-   if(f.field==='projectMonths'&&(/\b(?:issued?|drawing)\s*date\b|\bissued\s+for\b|\b(?:19|20)\d{2}[-/.]\d{1,2}[-/.]\d{1,2}\b|\b\d{1,2}[-/.]\d{1,2}[-/.](?:19|20)\d{2}\b|\b\d{1,2}[-/.]\d{1,2}[-/.]\d{2}\b|\b\d{1,2}\s+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*,?\s+(?:19|20)?\d{2}\b|\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\s+\d{1,2},\s+(?:19|20)\d{2}\b/i.test(`${f.evidence} ${f.value}`)))throw new ServiceError('invalid-project-duration-source',422);
-   if(f.field==='projectMonths'&&/\b(?:not\s+(?:stated|specified|provided|shown)|unknown|unavailable|n\/?a|none|blank|redacted)\b/i.test(`${f.evidence} ${f.value}`))throw new ServiceError('absent-source-fact',422);
+   const durationError=durationSourceError(f.field,f.evidence,f.value);if(durationError)throw new ServiceError(durationError,422);
   if(spec.kind==='number'&&!/^(?:\d+(?:\.\d+)?|\.\d+)$/.test(f.value))throw new ServiceError('invalid-numeric-fact',422);
   if(spec.kind==='choice'){
    // Only spelling/format equivalents can set an enum. Do not guess a grade,
