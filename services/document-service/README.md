@@ -111,7 +111,11 @@ on separate loopback ports. The document process reuses `DATABASE_URL` unless
 `DOCUMENT_DATABASE_URL` is explicitly set. It creates only `p5ds_` tables. Existing
 website migrations still run first. Back up the existing database before activation.
 
-Configure `P5_DOCUMENT_TENANTS_JSON` with distinct random server-only keys, plus
+Configure `P5_DOCUMENT_TENANTS_JSON` with exactly these five tenant IDs and
+distinct random server-only keys: `p5homeco.com`, `boiseconstruction.co`,
+`boiseremodeling.co`, `boisehandyman.co`, and `boisecabinet.co`. Set
+`P5_DOCUMENT_REQUIRE_ALL_TENANTS=true` in the protected worker environment.
+Never expose, log, or reuse a key between tenants. Then configure
 `DOCUMENT_PROVIDER`, `DOCUMENT_MODEL`, and the matching existing direct provider
 credential. Do not assume a Replit AI gateway key works with a direct provider.
 No model or paid provider is automatically selected. Each website uses its own key
@@ -121,7 +125,10 @@ now supplies the P5 HTTPS URL and reuses the `p5homeco.com` entry from the exist
 tenant map when separate URL/key variables are absent. This happens inside the
 server process, never browser configuration or logs. Explicit settings win; a key
 is never auto-supplied to an external URL. The other four sites still require their
-own explicit server-only URL/key configuration. Legacy mode remains the default.
+own explicit server-only URL/key configuration. Activate and verify only one site
+at a time, installing only that site's key through the host secret manager; never
+copy the P5 key or place any key in a `NEXT_PUBLIC_*` variable. Legacy mode remains
+the default.
 
 Leave standalone example concurrency values unset for cohosting: defaults are one
 parser (including crop renders), one incoming upload, two provider calls, four DB

@@ -5,8 +5,8 @@ import {randomUUID,randomBytes} from 'node:crypto';
 import {pathToFileURL} from 'node:url';
 import path from 'node:path';
 
-await mkdir('node_modules/.cache',{recursive:true});
-const dir=await mkdtemp(path.join(process.cwd(),'node_modules/.cache/p5-pricing-recovery-'));
+await mkdir('.cache',{recursive:true});
+const dir=await mkdtemp(path.join(process.cwd(),'.cache/p5-pricing-recovery-'));
 const previous=process.env.DATABASE_URL;
 type SavedPayload={replies:Record<string,{timeouts?:number}>};
 type StageInput={taskBatch?:{id:string;description:string;evidence:string}[]};

@@ -11,7 +11,7 @@ import {signedHeaders,jobId,ServiceError,hash,VERSION} from '../src/core.mjs';
 import {mkdir,writeFile} from 'node:fs/promises';
 const available=Boolean(process.env.DOCUMENT_TEST_DATABASE_URL);
 const tenant='boiseconstruction.co',other='boiseremodeling.co',secret='test-only-not-a-production-secret-'.repeat(2);
-const config={tenants:{[tenant]:secret,[other]:secret},slots:2,parserSlots:1,rpm:100,tpm:1000000,callMs:10000,parseMs:60000,jobMs:120000,maxPages:200,maxBytes:10*1024*1024,maxTenantBytes:100*1024*1024,maxQueue:30,retentionDays:1};
+const config={tenants:{[tenant]:secret,[other]:secret},provider:'anthropic',key:'synthetic-provider-key',model:'offline-test',slots:2,parserSlots:1,rpm:100,tpm:1000000,callMs:10000,parseMs:60000,jobMs:120000,maxPages:200,maxBytes:10*1024*1024,maxTenantBytes:100*1024*1024,maxQueue:30,retentionDays:1};
 let pool,store,server,url,stop;let parseRuns=0,readCalls=0,reviewCalls=0;
 function fakePage(page){return {page:page.page,sheet:'A'+page.page,revision:'',status:'read',notes:[],facts:[{field:'sqft',value:String(100+page.page),evidence:`Room ${100+page.page} SF`,basis:'stated'}],items:[],inclusions:[],exclusions:[],responsibilities:[],regions:[]};}
 const fakeReader={call:async(job,system,input)=>{
@@ -43,6 +43,13 @@ test('live database + HTTP + real PDF parser reaches complete source and review 
 });
 test('replayed signed requests rejected by persistent nonce table',{skip:!available},async()=>{
  const path='/readyz',headers=signedHeaders(secret,'GET',path,tenant);assert.equal((await fetch(url+path,{headers})).status,200);assert.equal((await fetch(url+path,{headers})).status,401);
+});
+test('authenticated readiness reports effective tenant protocol and capacity',{skip:!available},async()=>{
+ const path='/readyz',headers=signedHeaders(secret,'GET',path,tenant),response=await fetch(url+path,{headers});
+ assert.equal(response.status,200);const value=await response.json();
+ assert.deepEqual(value,{ok:true,version:VERSION,protocol:'v1',tenant,pdf:true,maxBytes:config.maxBytes,maxPages:config.maxPages,
+  providerConfigured:true,capabilities:{pdf:true},limits:{maxFileBytes:config.maxBytes,maxPages:config.maxPages},
+  provider:{name:'anthropic',configured:true,ready:true,health:'configured'},service:{healthy:true,database:'ok'}});
 });
 test('modified body rejected before document ingestion',{skip:!available},async()=>{
  const path='/v1/projects/integrity/documents?name=x.pdf',original=await fixture(1);const headers={...signedHeaders(secret,'POST',path,tenant,original),'content-type':'application/pdf'};

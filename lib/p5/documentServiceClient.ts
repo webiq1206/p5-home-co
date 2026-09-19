@@ -15,6 +15,15 @@ export function documentServiceEligible(uploads:ScopeUpload[],env:Readonly<Recor
  if(env.P5_DOCUMENT_SERVICE_MODE==='remote'&&(!Number.isSafeInteger(limit)||limit<=0))throw new DraftError('The document size limit needs configuration. Your files are saved.',503);
  return env.P5_DOCUMENT_SERVICE_MODE==='remote'&&uploads.length>0&&uploads.every(u=>u.status==='stored'&&u.type==='application/pdf'&&u.size>0&&u.size<=limit);
 }
+export function validateDocumentServiceReadiness(value:unknown){
+  const v=value as any;
+  const valid=Boolean(v&&v.ok===true&&v.protocol==='v1'&&v.tenant===ESTIMATOR_BRAND.domain&&v.pdf===true&&
+    Number.isInteger(v.maxBytes)&&v.maxBytes>=SCOPE_FILE_LIMIT&&Number.isInteger(v.maxPages)&&v.maxPages>=SCOPE_MAX_PAGES&&
+    v.provider?.configured===true&&v.provider?.ready===true&&v.provider?.health==='configured'&&
+    v.service?.healthy===true&&v.service?.database==='ok');
+  if(!valid)throw new DraftError('The document service is not compatible or ready. Your files are saved.',503);
+  return v as {maxBytes:number;maxPages:number;tenant:string;protocol:'v1'};
+}
 export function documentServiceHeaders(method:string,path:string,tenant:string,secret:string,body:Buffer,now=Date.now(),nonce:string=randomUUID()){
  const timestamp=String(now),bodyHash=digest(body);
  return {'x-p5-tenant':tenant,'x-p5-time':timestamp,'x-p5-nonce':nonce,'x-p5-body-sha256':bodyHash,'x-p5-signature':createHmac('sha256',secret).update([method,path,tenant,timestamp,nonce,bodyHash].join('\n')).digest('hex')};
@@ -31,6 +40,9 @@ export async function advanceDocumentService(draft:Draft,text:string,answers:Sco
   let value:any;try{value=await response.json();}catch{throw new DraftError('The document service returned an invalid response. Saved files are preserved.',503);}
   return {ok:response.ok,status:response.status,value};
  };
+  const readiness=await send('GET','/readyz');
+  if(!readiness.ok)throw new DraftError('The document service is not ready. Your files are saved.',503);
+  validateDocumentServiceReadiness(readiness.value);
  const lease=await claimWork(draft.id,workKey,{processing:{},remote:true},150);
  if(!lease)return {pending:true as const,progress:'Your source review is already running.',retryAfterMs:1000};
  const state=lease.payload as {processing?:ProcessingStatus;remote?:boolean};

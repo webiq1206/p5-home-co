@@ -39,16 +39,19 @@ test('database admission serializes distinct fingerprints at the configured cap'
   process.env.P5_PRICING_BUDGET_USD='0.25';
   process.env.P5_PRICING_REQUEST_RESERVATION_USD='0.20';
   const {query}=await import('../lib/p5/database.ts');
-  await query('CREATE TABLE IF NOT EXISTS p5_pricing_ledger (fingerprint text PRIMARY KEY, provider text NOT NULL, amount numeric(12,6) NOT NULL, state text NOT NULL, provider_id text, last_error text, created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now())');
-  await query("DELETE FROM p5_pricing_ledger WHERE fingerprint LIKE 'concurrency-test-%'");
-  const results=await Promise.allSettled([
-    reservePricingCharge('concurrency-test-a','openai'),
-    reservePricingCharge('concurrency-test-b','openai'),
-  ]);
-  assert.equal(results.filter(result=>result.status==='fulfilled').length,1);
-  assert.equal(results.filter(result=>result.status==='rejected'&&result.reason instanceof PricingBudgetError).length,1);
-  await query("DELETE FROM p5_pricing_ledger WHERE fingerprint LIKE 'concurrency-test-%'");
-  if(previous.database===undefined)delete process.env.DATABASE_URL;else process.env.DATABASE_URL=previous.database;
-  if(previous.budget===undefined)delete process.env.P5_PRICING_BUDGET_USD;else process.env.P5_PRICING_BUDGET_USD=previous.budget;
-  if(previous.amount===undefined)delete process.env.P5_PRICING_REQUEST_RESERVATION_USD;else process.env.P5_PRICING_REQUEST_RESERVATION_USD=previous.amount;
+  try{
+    await query('CREATE TABLE IF NOT EXISTS p5_pricing_ledger (fingerprint text PRIMARY KEY, provider text NOT NULL, amount numeric(12,6) NOT NULL, state text NOT NULL, provider_id text, last_error text, created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now())');
+    await query("DELETE FROM p5_pricing_ledger WHERE fingerprint LIKE 'concurrency-test-%'");
+    const results=await Promise.allSettled([
+      reservePricingCharge('concurrency-test-a','openai'),
+      reservePricingCharge('concurrency-test-b','openai'),
+    ]);
+    assert.equal(results.filter(result=>result.status==='fulfilled').length,1);
+    assert.equal(results.filter(result=>result.status==='rejected'&&result.reason instanceof PricingBudgetError).length,1);
+  }finally{
+    await query("DELETE FROM p5_pricing_ledger WHERE fingerprint LIKE 'concurrency-test-%'");
+    if(previous.database===undefined)delete process.env.DATABASE_URL;else process.env.DATABASE_URL=previous.database;
+    if(previous.budget===undefined)delete process.env.P5_PRICING_BUDGET_USD;else process.env.P5_PRICING_BUDGET_USD=previous.budget;
+    if(previous.amount===undefined)delete process.env.P5_PRICING_REQUEST_RESERVATION_USD;else process.env.P5_PRICING_REQUEST_RESERVATION_USD=previous.amount;
+  }
 });

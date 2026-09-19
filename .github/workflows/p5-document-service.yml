@@ -100,14 +100,14 @@ jobs:
           node --input-type=module -e 'import pg from "pg";const p=new pg.Pool({connectionString:process.env.DOCUMENT_TEST_DATABASE_URL});await p.query("CREATE DATABASE p5_documents_smoke");await p.end();'
           docker run -d --name p5-document-smoke --network host \
             -e DOCUMENT_DATABASE_URL="${DOCUMENT_TEST_DATABASE_URL%/*}/p5_documents_smoke" \
-            -e P5_DOCUMENT_TENANTS_JSON='{"smoke-test":"CI-only-disposable-secret-not-for-production-123456789"}' \
+            -e P5_DOCUMENT_TENANTS_JSON='{"boiseconstruction.co":"CI-only-disposable-secret-not-for-production-123456789"}' \
             -e DOCUMENT_PROVIDER=anthropic -e DOCUMENT_MODEL=ci-placeholder-no-provider-calls \
             -e ANTHROPIC_API_KEY=ci-placeholder-no-provider-calls p5-document-service:verified
           node --input-type=module <<'JS'
           import assert from 'node:assert/strict';import {signedHeaders} from './src/core.mjs';
           let ready=false;for(let n=0;n<30;n++){try{const r=await fetch('http://127.0.0.1:8080/healthz');if(r.ok){ready=true;break;}}catch{}await new Promise(r=>setTimeout(r,500));}
           assert.ok(ready,'Container did not start');
-          const r=await fetch('http://127.0.0.1:8080/readyz',{headers:signedHeaders('CI-only-disposable-secret-not-for-production-123456789','GET','/readyz','smoke-test')});
+          const r=await fetch('http://127.0.0.1:8080/readyz',{headers:signedHeaders('CI-only-disposable-secret-not-for-production-123456789','GET','/readyz','boiseconstruction.co')});
           assert.equal(r.status,200);assert.equal((await r.json()).ok,true);
           console.log('PASS: production container boot, database migration, authenticated readiness. No provider calls or deployment claimed.');
           JS

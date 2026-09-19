@@ -6,7 +6,7 @@ import {draftCredentials,readDraft,DraftError} from './store.ts';
 import {ESTIMATOR_BRAND} from './brand.ts';
 import {ESTIMATOR_BUCKETS,uploadObjectKey} from './objectStorage.ts';
 import {SCOPE_FILE_LIMIT,SCOPE_BATCH_LIMIT,SCOPE_FILE_COUNT,SCOPE_CHUNK_SIZE,SCOPE_UPLOAD_HELP} from './scope.ts';
-import {verifyUpload,checkOfficeArchiveRanges} from './documents.ts';
+import {verifyUpload,checkOfficeArchiveRanges,emptyUploadMessage} from './documents.ts';
 import {protectRequest,limitedBody,failed,json} from './http.ts';
 import {claimWork,releaseWork} from './workStore.ts';
 
@@ -27,7 +27,8 @@ export async function postUpload(request:Request){
       const body=await limitedBody(request,2000);let input:any;
       try{input=JSON.parse(new TextDecoder().decode(body));}catch{throw new DraftError('The upload request is not valid JSON. Select the file again.');}
       if(!input||typeof input!=='object'||Array.isArray(input))throw new DraftError('Invalid upload request.');
-      if(typeof input.name!=='string'||input.name.length>180||!Number.isInteger(input.size)||input.size<=0||input.size>SCOPE_FILE_LIMIT)throw new DraftError(SCOPE_UPLOAD_HELP,413);
+      if(typeof input.name!=='string'||input.name.length>180||!Number.isInteger(input.size)||input.size<0||input.size>SCOPE_FILE_LIMIT)throw new DraftError(SCOPE_UPLOAD_HELP,413);
+      if(input.size===0)throw new DraftError(emptyUploadMessage(input.name),413);
       const gate=await claimWork(id,'upload-admission',{},30);
       if(!gate)throw new DraftError('Another file is being prepared. Please retry.',409);
       try{

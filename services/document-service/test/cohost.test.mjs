@@ -27,6 +27,7 @@ test('cohosting reuses the existing database with conservative limits and is opt
  const c=cohostConfig({P5_DOCUMENT_HOST_ENABLED:'true',DATABASE_URL:'postgres://existing'});
  assert.equal(c.workerEnv.DOCUMENT_DATABASE_URL,'postgres://existing');assert.equal(c.workerEnv.DOCUMENT_PARSER_SLOTS,'1');assert.equal(c.workerEnv.DOCUMENT_DATABASE_POOL_MAX,'4');assert.equal(c.workerEnv.DOCUMENT_BIND_HOST,'127.0.0.1');assert.equal(c.workerEnv.DOCUMENT_MODEL,undefined);
  assert.equal(c.workerEnv.DOCUMENT_UPLOAD_SLOTS,'1');assert.equal(c.rssLimitMb,640);
+ assert.equal(c.workerEnv.DOCUMENT_MAX_BYTES,String(250*1024*1024));assert.equal(c.workerEnv.DOCUMENT_MAX_PAGES,'250');
  assert.throws(()=>cohostConfig({P5_DOCUMENT_HOST_ENABLED:'true',DOCUMENT_PARSER_SLOTS:'2'}));
  assert.throws(()=>cohostConfig({P5_DOCUMENT_HOST_ENABLED:'true',PORT:'3081'}));
 });
@@ -53,7 +54,7 @@ test('supervisor bounds restarts and keeps website alive after worker memory fai
  const probe=createServer();const port=await listen(probe);await close(probe);
  const children=[],events=[];
  const spawnProcess=()=>{const child=new EventEmitter();child.pid=99999999;child.exitCode=null;child.signalCode=null;child.kill=signal=>{if(child.signalCode)return;child.signalCode=signal;queueMicrotask(()=>{child.emit('exit',null,signal);child.emit('close',null,signal);});};children.push(child);queueMicrotask(()=>child.emit('spawn'));return child;};
- const host=await runHost({P5_DOCUMENT_HOST_ENABLED:'true',PORT:String(port),DATABASE_URL:'postgres://test',P5_DOCUMENT_TENANTS_JSON:JSON.stringify({test:'synthetic-key-for-test-only-123456789'}),DOCUMENT_MODEL:'no-provider-calls',ANTHROPIC_API_KEY:'synthetic'},{spawnProcess,readRss:async()=>999,log:e=>events.push(e),monitorMs:5,restartDelayMs:5});
+  const host=await runHost({P5_DOCUMENT_HOST_ENABLED:'true',PORT:String(port),DATABASE_URL:'postgres://test',P5_DOCUMENT_TENANTS_JSON:JSON.stringify({'p5homeco.com':'synthetic-key-for-test-only-123456789'}),DOCUMENT_MODEL:'no-provider-calls',ANTHROPIC_API_KEY:'synthetic'},{spawnProcess,readRss:async()=>999,log:e=>events.push(e),monitorMs:5,restartDelayMs:5});
  try{
   for(let i=0;i<100&&!events.some(e=>e.code==='restart-budget-exhausted');i++)await new Promise(r=>setTimeout(r,5));
   assert.equal(children.length,4,'one website and at most three worker starts');assert.equal(children[0].signalCode,null,'website survives worker failure');
