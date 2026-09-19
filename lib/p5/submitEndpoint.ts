@@ -32,7 +32,9 @@ export async function postSubmission(request:Request,schedule?:(task:()=>Promise
     // A job that stopped after repeated failures is the handoff outcome: the project and contact are saved, a person completes the estimate, nothing further is needed from the visitor.
     if(job&&job.state==='failed'){console.error(`[p5-pricing] handoff for draft ${id}: ${job.progress}`);return json({pricingReviewRequired:true,needsCustomerInput:false,handoff:true,missingFields:[],verificationItems:[],error:HANDOFF_ISSUE},422);}
     if(job&&job.state!=='complete')return json({pending:true,message:job.progress,processing:job.processing,retryAfterMs:2000},202);
-    const priced=job?job.result:await priceSavedScope(id,draft.reviewed,configuration);
+    const customerKey=`${draft.contact.email.trim().toLowerCase()}|${draft.contact.name.trim().toLowerCase()}`;
+    const pricingIdentity={draftId:id,customerKey,revision:draft.revision};
+    const priced=job?job.result:await priceSavedScope(id,draft.reviewed,configuration,new Date(),Date.now()+250_000,pricingIdentity);
     if(!priced.customer.range){
       // Keep incomplete pricing available to the authenticated admin, but do
       // not submit it or create customer-email/CRM delivery records.

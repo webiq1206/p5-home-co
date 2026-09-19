@@ -5,13 +5,21 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {PDFDocument,StandardFonts} from 'pdf-lib';
 import {isolatedPool,guardedSonnetFetch,targetedChecks} from '../scripts/model-qa-support.mjs';
-import {runFixture} from '../scripts/check-sonnet-documents.mjs';
+import {runFixture,qualificationSpendLimit} from '../scripts/check-sonnet-documents.mjs';
 import {hash} from '../src/core.mjs';
 import {inspectSavedRun,inspectReviewRecovery} from '../scripts/inspect-sonnet-run.mjs';
 
 const json=value=>new Response(JSON.stringify(value),{headers:{'content-type':'application/json'}});
 const options={body:JSON.stringify({model:'claude-sonnet-5',max_tokens:1000,messages:[]})};
 const url='https://api.anthropic.com/v1/messages';
+
+test('plans qualification allowance is isolated, cumulative and hard-capped at twelve dollars',()=>{
+ assert.equal(qualificationSpendLimit('short',{P5_QA_PLANS_LIMIT_USD:'12'}),1);
+ assert.equal(qualificationSpendLimit('plans',{}),3);
+ assert.equal(qualificationSpendLimit('plans',{P5_QA_PLANS_LIMIT_USD:'12'}),12);
+ assert.throws(()=>qualificationSpendLimit('plans',{P5_QA_PLANS_LIMIT_USD:'12.01'}),/qa-plans-spend-limit-invalid/);
+ assert.throws(()=>qualificationSpendLimit('plans',{P5_QA_PLANS_LIMIT_USD:'not-a-number'}),/qa-plans-spend-limit-invalid/);
+});
 
 test('QA unknown charges pause immediately and across restart before any further network request',async()=>{
  const root=await mkdtemp(join(tmpdir(),'p5-budget-'));let calls=0,counts=0,pauses=0;

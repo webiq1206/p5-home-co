@@ -125,7 +125,7 @@ async function runPass(draftId:string,workKey:string):Promise<number|null>{
       else{job.result=step;job.state='complete';job.progress='Document processing finished. Review the page coverage and any unreadable content.';}
     }else{
       const {priceSavedScope}=await import('./pricingWork.ts');
-      try{job.result=await priceSavedScope(job.input.draft.id,job.input.draft.reviewed!,job.input.configuration,new Date(job.createdAt),deadline);job.state='complete';job.progress='Pricing calculation saved.';}
+      try{const contact=job.input.draft.contact;const pricingIdentity={draftId:job.input.draft.id,customerKey:`${contact.email.trim().toLowerCase()}|${contact.name.trim().toLowerCase()}`,revision:job.input.draft.revision};job.result=await priceSavedScope(job.input.draft.id,job.input.draft.reviewed!,job.input.configuration,new Date(job.createdAt),deadline,pricingIdentity);job.state='complete';job.progress='Pricing calculation saved.';}
       catch(error){
         if(!isPricingPending(error))throw error;
         if(error.fatal){job.state='failed';job.progress=error.message;job.attempts=3;again=null;console.error(`[p5-worker] pricing stopped: ${error.message}`);void recordEvent({draftId,estimator:job.input.draft.answers?.service||null,kind:'pricing',stage:'job',code:'fatal',message:error.message,outcome:'failed'});}

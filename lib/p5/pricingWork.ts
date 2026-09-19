@@ -7,6 +7,7 @@ import type {ReviewedScope} from './scope.ts';
 import type {EstimatorConfiguration} from './costBook.ts';
 import {readRegionalRates,saveRegionalRates} from './regionalRates.ts';
 import {pricingActivity,type ProcessingStatus} from './processingStatus.ts';
+import type {PricingIdentity} from './pricingLedger.ts';
 
 export function pricingWorkKey(scope:ReviewedScope,configuration:EstimatorConfiguration,pricingAt:Date){
  const signature={pricingDate:pricingAt.toISOString().slice(0,10),text:scope.text,answers:scope.answers,extraction:scope.extraction,uploads:scope.uploads,uncertainFields:scope.uncertainFields,configuration};
@@ -18,7 +19,7 @@ export function pricingReplyKey(instructions:string,input:unknown,search:boolean
  return createHash('sha256').update(JSON.stringify([instructions,search,input])).digest('hex');
 }
 type Payload={replies:Record<string,PricingReply>;failures?:number;completed?:number;regionalRates?:EstimatorConfiguration['regionalRates'];processing?:ProcessingStatus;pricingAt?:string};
-export async function priceSavedScope(id:string,scope:ReviewedScope,configuration:EstimatorConfiguration,pricingAt=new Date(),deadline=Date.now()+SERVER_BUDGET_MS){
+export async function priceSavedScope(id:string,scope:ReviewedScope,configuration:EstimatorConfiguration,pricingAt=new Date(),deadline=Date.now()+SERVER_BUDGET_MS,identity?:PricingIdentity){
  remainingBudget(deadline);
  const workKey=pricingWorkKey(scope,configuration,pricingAt);
  const claimed=await claimWork(id,workKey,{replies:{},regionalRates:await readRegionalRates(scope.answers.location||'',pricingAt)},290);
@@ -72,7 +73,7 @@ export async function priceSavedScope(id:string,scope:ReviewedScope,configuratio
   const allowance=search?Math.max(5000,Math.min(remainingMs,PRICING_STAGE_MAX_MS)):PRICING_STAGE_MAX_MS;
   const started=Date.now();
   const elapsed=()=>((Date.now()-started)/1000).toFixed(1);
-  try{reply=await withinDeadline(()=>requestPricing(instructions,input,search,allowance),started+allowance);}
+   try{reply=await withinDeadline(()=>requestPricing(instructions,input,search,allowance,identity),started+allowance);}
   catch(error){
    if(isProcessingDeadline(error)){
     console.error(`[p5-pricing] ${phase} stage exceeded its ${Math.round(allowance/1000)}s allowance after ${elapsed()}s`);

@@ -75,7 +75,12 @@ export function sourceQuoteMatches(text,quote){
 const durationFields=/^(?:projectmonths|duration|projectduration|constructionduration)$/i;
 const issueDate=/\b(?:issued?|drawing)\s*date\b|\bissued\s+for\b|\b(?:19|20)\d{2}[-/.]\d{1,2}[-/.]\d{1,2}\b|\b\d{1,2}[-/.]\d{1,2}[-/.](?:19|20)\d{2}\b|\b\d{1,2}[-/.]\d{1,2}[-/.]\d{2}\b|\b\d{1,2}\s+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*,?\s+(?:19|20)?\d{2}\b|\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\s+\d{1,2},\s+(?:19|20)\d{2}\b/i;
 const absentValue=/\b(?:not\s+(?:stated|specified|provided|shown)|unknown|unavailable|n\/?a|none|blank|redacted)\b/i;
-const unresolvedText=/\b(?:uncertain|unresolved|ambiguous|conflict(?:ing)?|contradict(?:ory|ion)?|verify|confirm|unclear|illegible|not\s+legible|cannot\s+be\s+confirmed|needs?\s+clarification)\b/i;
+const unresolvedText=/\b(?:uncertain|unresolved|ambiguous|conflict(?:ing)?|contradict(?:ory|ion)?|verify|confirm(?:ation)?|unclear|illegible|not\s+legible|cannot\s+be\s+confirmed|needs?\s+clarification)\b/i;
+const resolvedIssue=/\b(?:no\s+(?:unresolved\s+)?(?:conflicts?|issues?|ambigu(?:ity|ities))\s+(?:remain|are\s+left)|(?:conflicts?|issues?|ambigu(?:ity|ities))\s+(?:have\s+been|were|are)\s+(?:resolved|verified|confirmed)|verification\s+(?:is\s+)?complete)\b/gi;
+export function noteHasUnresolvedIssue(note){
+  const active=String(note||'').replace(resolvedIssue,' ');
+  return unresolvedText.test(active)||/\b(?:conflicts|ambiguities|contradictions|uncertainties)\s+(?:remain|persist)\b/i.test(active);
+}
 const assemblyMeasurement=/\b(?:assembly|floor\s*\/?\s*truss|floor[-\s]?truss|truss|joist|roof\s+depth|floor\s+depth|deck\s+depth|slab\s+depth|structural\s+depth)\b/i;
 function isDurationField(field){return durationFields.test(String(field||'').replace(/[\s_-]+/g,''));}
 export function durationSourceError(field, evidence, value){
@@ -94,12 +99,6 @@ export function durationSourceError(field, evidence, value){
   if(absentValue.test(`${evidence} ${value}`))return 'absent-source-fact';
   return null;
 }
-function hasUnresolvedSourceNote(note){
-  // Remove only the clearance phrase, preserving separate unresolved findings
-  // elsewhere in the same note and every structured uncertainty marker.
-  const remaining=String(note).replace(/\bno\s+(?:remaining\s+)?(?:unresolved\s+)?(?:conflicts?|ambiguities|contradictions?|uncertainties)(?:\s+remain(?:s|ing)?)?\b/gi,'');
-  return unresolvedText.test(remaining)||/\b(?:conflicts|ambiguities|contradictions|uncertainties)\s+(?:remain|persist)\b/i.test(remaining);
-}
 export function measurementNeedsClarification(f){
   if(!f||typeof f!=='object')return false;
   const field=String(f.field||'');
@@ -114,11 +113,13 @@ export function measurementNeedsClarification(f){
  * Drawings, scans and regions with a second legibility/scope concern stay open. */
 export function missingNumberRecovery(page,reason){
  if(page.kind!=='text'||!(page.textQuality>=.9))return false;
- const blank=/\$\s*[,_.]|\bR-\s*(?:attic|exterior|crawl)|(?:^|\s)-(?:ft|in|amp|year)\b/i.test(page.text||'');
- const missing=/\b(?:redacted|blanked|blank)\b/i.test(reason||'');
+  const blank=/\$\s*[,_.]|\bR-\s*(?:attic|exterior|crawl)|(?:^|\s)-(?:ft|in|amp|year)\b/i.test(page.text||'');
+  const missing=/\b(?:redacted|blanked|blank|not\s+(?:specified|provided|shown)|unspecified)\b/i.test(reason||'');
  const recovery=/\b(?:recover(?:able|y)?|closer inspection|verify for)\b/i.test(reason||'');
  const other=/\b(?:geometry|boundary|symbol|linework|handwrit\w*|dimension line|material note|revision|contradict\w*|unreadable text|faded|cut off|cropped|obscured|overlap\w*)\b/i.test(reason||'');
- return blank&&missing&&recovery&&!other&&/\b(?:digits|numeric|amounts?|figures?|numbers?)\b/i.test(reason||'');
+  const explicitAbsent=/\b(?:digits|numeric|amounts?|figures?|numbers?|values?|dimensions?|quantities?)\b/i.test(reason||'');
+  const statedAbsent=/\b(?:not\s+(?:specified|provided|shown)|unspecified)\b/i.test(reason||'');
+  return (blank&&missing||statedAbsent&&explicitAbsent)&&missing&&recovery&&!other&&explicitAbsent;
 }
 export function validateEvidence(value,pages){
  if(!value||!Array.isArray(value.pages)||value.pages.length!==pages.length)throw new ServiceError('incomplete-page-manifest',422);
@@ -144,9 +145,14 @@ export function validateEvidence(value,pages){
   const missing=record.regions.filter(r=>missingNumberRecovery(page,r.reason));
   if(missing.length){
    record.regions=record.regions.filter(r=>!missing.includes(r));
-   record.notes=[...new Set([...record.notes,'Blank or redacted source values remain missing. No dimensions, ratings, quantities or prices were recovered from those blanks.'])];
+    const absentReasons=missing.map(r=>{
+     const reason=String(r.reason||'The source does not provide this value.').trim();
+     const subject=reason.replace(/;\s*(?:verify|closer inspection)\b.*$/i,'').replace(/\bverify\b.*$/i,'').trim()||'The source does not provide this value.';
+     return `Known absent source information: ${subject.slice(0,500)}`;
+    });
+    record.notes=[...new Set([...record.notes,...absentReasons,'Known absent values remain missing; no dimensions, ratings, quantities or prices were inferred.'])];
   }
-   if(record.regions.length||record.facts.some(f=>f.basis==='uncertain')||record.items.some(f=>f.basis==='uncertain')||record.notes.some(hasUnresolvedSourceNote))record.status='partial';
+   if(record.regions.length||record.facts.some(f=>f.basis==='uncertain')||record.items.some(f=>f.basis==='uncertain')||record.notes.some(noteHasUnresolvedIssue))record.status='partial';
  }
  return value;
 }

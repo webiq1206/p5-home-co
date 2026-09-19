@@ -35,6 +35,19 @@ test('custom descriptions preserve quantities, exclusions, takeoff provenance an
  assert.equal(result.pages.length,1);
 });
 
+test('known absent information remains a focused clarification instead of a reread request',()=>{
+ const result=review([]);
+ result.missingInformation=['Door dimensions are not supplied'];
+ result.clarifications=[];
+ const validated=validateReview(result,manifest);
+ assert.deepEqual(validated.missingInformation,['Door dimensions are not supplied']);
+ assert.equal(validated.clarifications.length,1);
+ assert.equal(validated.clarifications[0].field,'otherDetails');
+ assert.match(validated.clarifications[0].question,/door dimensions/i);
+ assert.match(validated.clarifications[0].reason,/cannot be recovered by rereading/i);
+ assert.equal(validated.pages[0].status,'read');
+});
+
 test('custom-scope preservation does not relax structural, numeric or provenance validation',()=>{
  for(const f of [fact('unknownField','custom'),fact('finish',''),{...fact('finish','Painted'),evidence:''},{...fact('finish','Painted'),confidence:2}]){
   assert.throws(()=>validateReview(review([f]),manifest),/invalid-review-fact/);

@@ -1,8 +1,9 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {documentId,jobId,hash,stable,signature,signedHeaders,verifyHeaders,identifier,groupPages,mapLimit,readConfig,validateEvidence,ServiceError} from '../src/core.mjs';
+import {documentId,jobId,hash,stable,signature,signedHeaders,verifyHeaders,identifier,groupPages,mapLimit,readConfig,validateEvidence,noteHasUnresolvedIssue,ServiceError} from '../src/core.mjs';
 import {requestBody,parseReply,Reader} from '../src/provider.mjs';
 import {EVIDENCE_SCHEMA,REVIEW_SCHEMA,validateReview} from '../src/contracts.mjs';
+import {reconcileVerification} from '../src/pipeline.mjs';
 const secret='a'.repeat(48),tenant='boiseconstruction.co',time=1789680000000;
 const raw=Buffer.from('original PDF content');const headers=()=>signedHeaders(secret,'POST','/v1/projects/qa/documents',tenant,raw,time);
 const evidence=(extra={})=>({page:1,sheet:'A1',revision:'',status:'read',notes:[],facts:[],items:[],inclusions:[],exclusions:[],responsibilities:[],regions:[],...extra});
@@ -40,6 +41,35 @@ test('ordinary assembly and wall dimensions are not falsely conflated',()=>{
 test('uncertain and conflicting notes cannot remain a read page',()=>{
  const page=validateEvidence({pages:[evidence({notes:['Verify conflicting ceiling dimension with builder']})]},[source]).pages[0];
  assert.equal(page.status,'partial');
+});
+for(const note of ['No unresolved conflicts remain after verification.','Conflicts were resolved and verified.','No ambiguities remain.'])test('resolved evidence note remains read: '+note,()=>{
+ const page=validateEvidence({pages:[evidence({notes:[note]})]},[source]).pages[0];
+ assert.equal(noteHasUnresolvedIssue(note),false);assert.equal(page.status,'read');
+});
+for(const note of ['Unresolved conflict remains in the ceiling dimensions.','Verify conflicting ceiling dimension with builder.','Some detail regions still require confirmation.'])test('active uncertainty note remains partial: '+note,()=>{
+ assert.equal(noteHasUnresolvedIssue(note),true);
+ assert.equal(validateEvidence({pages:[evidence({notes:[note]})]},[source]).pages[0].status,'partial');
+});
+test('a resolved note does not hide a mixed active uncertainty',()=>{
+ const notes=['No unresolved conflicts remain after verification.','Verify the stair opening dimension.'];
+ const page=validateEvidence({pages:[evidence({notes})]},[source]).pages[0];
+ assert.equal(page.status,'partial');
+});
+for(const note of ['No unresolved conflicts remain, but the ceiling dimension is uncertain.','No conflicts remain; verify the stair opening dimension.','Verification is complete, but one region is still ambiguous.'])test('same-sentence resolution does not hide active uncertainty: '+note,()=>{
+ assert.equal(noteHasUnresolvedIssue(note),true);
+ assert.equal(validateEvidence({pages:[evidence({notes:[note]})]},[source]).pages[0].status,'partial');
+});
+test('reconciliation-generated source conflicts remain partial',()=>{
+ const original={page:1,facts:[{field:'ceilingHeight',value:'9',evidence:'9 ft ceiling',basis:'stated'}],items:[],regions:[],notes:[]};
+ const checked={page:1,status:'read',facts:[],items:[],regions:[],notes:[]};
+ const page=reconcileVerification(original,checked);
+ assert.equal(page.status,'partial');
+ assert.match(page.notes.join(' '),/Verify conflicting ceilingHeight/);
+ assert.equal(noteHasUnresolvedIssue(page.notes.at(-1)),true);
+});
+test('known unspecified values do not create a reread region',()=>{
+ const page=validateEvidence({pages:[evidence({regions:[{x:.1,y:.2,width:.3,height:.3,reason:'Dimension not specified; closer inspection cannot recover a value.'}]})]},[{...source,kind:'text',textQuality:1}]).pages[0];
+ assert.equal(page.regions.length,0);assert.equal(page.status,'read');assert.match(page.notes.join(' '),/Dimension not specified/);assert.match(page.notes.join(' '),/remain missing/i);
 });
 test('pending visual crop keeps page partial',()=>assert.equal(validateEvidence({pages:[evidence({regions:[{x:.1,y:.2,width:.5,height:.5,reason:'dimension'}]})]},[source]).pages[0].status,'partial'));
 test('out-of-page crop rejected',()=>assert.throws(()=>validateEvidence({pages:[evidence({regions:[{x:.9,y:0,width:.5,height:1}]})]},[source]),/region/));
