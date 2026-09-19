@@ -52,7 +52,7 @@ test('inspected plans recovery preserves pages, charges, caches and strict valid
   assert.equal(await readFile(join(f.root,'responses','0007.json'),'utf8'),response);
   assert.deepEqual((await f.pool.query("SELECT * FROM p5ds_jobs WHERE state='complete' ORDER BY id")).rows,complete);
   const job=await f.store.job('qa','plans','read-3');assert.equal(job.state,'queued');assert.equal(job.result,null);assert.equal(job.attempts,2);
-  const archive=JSON.parse(await readFile(join(f.root,'plans-citation-recovery-v1.json'),'utf8'));
+  const archive=JSON.parse(await readFile(join(f.root,'plans-spatial-page3-recovery-v1.json'),'utf8'));
   assert.deepEqual(archive.previousLedger,f.ledger);assert.deepEqual(archive.previousJobs.find(j=>j.id==='read-3').result,f.result);
   assert.equal(archive.pageEvidence.length,2);assert.ok(archive.pageEvidence.every(p=>p.evidence.status==='partial'));
   assert.equal((await f.store.document('qa','plans',f.document.id)).state,'prepared');
@@ -64,9 +64,10 @@ test('inspected plans recovery preserves pages, charges, caches and strict valid
  }finally{await f.close();}
 });
 
-for(const kind of ['unknown-charge','tampered-cache','changed-statement','active-job','changed-page-status'])test('plans recovery refuses '+kind+' without changing database or ledger',async()=>{
+for(const kind of ['unknown-charge','tampered-cache','changed-statement','active-job','changed-page-status','unknown-historical-recovery'])test('plans recovery refuses '+kind+' without changing database or ledger',async()=>{
  const f=await fixture();
  try{
+  if(kind==='unknown-historical-recovery')await privateJson(join(f.root,'plans-citation-recovery-v1.json'),{version:1,action:'Different recovery'});
   if(kind==='unknown-charge'){f.ledger.calls[6].status='charge-unknown';await privateJson(join(f.root,'cost.json'),f.ledger);}
   if(kind==='tampered-cache')await writeFile(join(f.root,'responses','0007.json'),'{"request":{},"responseText":"tampered"}');
   if(kind==='changed-statement'){f.result.evidenceCheckpoint.raw.pages[0].facts[7].value='Different failure';await f.pool.query("UPDATE p5ds_jobs SET result=$1 WHERE id='read-3'",[f.result]);}
@@ -76,6 +77,6 @@ for(const kind of ['unknown-charge','tampered-cache','changed-statement','active
   await assert.rejects(resumePlansCitation(f.store,f.document,f.root));
   assert.deepEqual((await f.pool.query('SELECT * FROM p5ds_jobs ORDER BY id')).rows,before);
   assert.equal(await readFile(join(f.root,'cost.json'),'utf8'),cost);
-  await assert.rejects(readFile(join(f.root,'plans-citation-recovery-v1.json')),{code:'ENOENT'});
+  await assert.rejects(readFile(join(f.root,'plans-spatial-page3-recovery-v1.json')),{code:'ENOENT'});
  }finally{await f.close();}
 });

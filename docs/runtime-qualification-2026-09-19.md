@@ -33,3 +33,11 @@ This recovery does not qualify partial pages, reset the budget, raise timeouts, 
 ## Still required
 
 Resolve the partial source pages honestly, complete the plan qualification, measure actual cold and customer wall-clock times, and qualify pricing with durable paid-test controls. Secure per-tenant key configuration is still needed in the child apps. Enable and prove P5's actual adapter path before expanding activation. A successful readiness response alone is insufficient.
+
+## Inspected historical recovery and page-limit correction
+
+The first PR 71 invocation stopped before any provider call because the generic plans recovery marker already existed. Runtime inspection proved that marker belongs to an older page-1 recovery with two known-charge requests totaling $0.072422. Its file timestamp is September 19 at 00:02 UTC. It contains neither the page-3 failure nor the new source fingerprints. There was one PR 71 invocation and zero new requests; the connector timeout did not launch a duplicate.
+
+The page-3 repair now has its own durable marker. It leaves the historical marker untouched and, when present, accepts only the exact inspected historical archive hash. All seven current paid responses, the $0.551956 current ledger, and the specific page-3 job checks still have to match. A different historical archive or any repeated page-3 attempt is rejected.
+
+The source defaults and example configuration now admit 250 pages, matching the owner's stated supported size. The parser boundary check reads and renders every page of a synthetic 250-page PDF and rejects 251 before emitting any page. File-byte limits, worker memory, provider concurrency, timeouts, infrastructure and paid-test limits are unchanged. This is parser boundary evidence, not real-plan AI accuracy, production latency or a published configuration change.
