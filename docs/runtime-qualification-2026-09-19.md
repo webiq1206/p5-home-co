@@ -107,3 +107,46 @@ Dependencies were installed from the existing lock with lifecycle scripts disabl
 | `test/integration.test.mjs` | `c298e168772c2e0947fd16f92ae243f9b7cdbd9ec56334cc46d0c49e3023906b` |
 
 The saved TAP output was retrieved and checked against the test names and source hashes. The process had a cleared environment with only the verified disposable database URL and no existing database URLs or provider credentials. Server data directory, loopback address, unique port, database and test user were verified before execution. Shutdown of only the temporary server was confirmed afterward. Production databases, application checkouts, configuration and deployments were untouched. These results close the PostgreSQL test gap, not the live AI, pricing or deployed adapter gaps.
+
+## Per-site configuration record
+
+These are inspected workspace configurations, not proof of the exact published revision or a completed customer journey. The parent-only document corrections merged after the owner's earlier republication and were tested in isolated checkouts.
+
+Replit's current publish-status API reports `success` for all five public sites. It returns deployment IDs and URLs but no source revision, so this confirms publication availability without establishing that the later P5 corrections are deployed.
+
+| Site | Inspected workspace revision | Customer reader configuration | Pricing selection | Exact published revision |
+| --- | --- | --- | --- | --- |
+| P5 | `5823b1290a72d531bbfd19da10f927efe45ada6f` | Explicit legacy mode; hosted shared reader available | OpenAI, inherited `gpt-5.6-sol` | Unverified |
+| Remodeling | `b137dd6d8afee4bcb1090e030b94d42b726458f9` | Remote mode, URL and key unset | OpenAI, inherited `gpt-5.6-sol` | Unverified |
+| Construction | `31a9d819b62285f33e4ecf0a964587a391e50f90` | Remote mode, URL and key unset | OpenAI, inherited `gpt-5.6-sol` | Unverified |
+| Handyman | `592c6f4f33ded368da8debc206c42c4dfe9d3ee8` | Remote mode, URL and key unset | OpenAI, inherited `gpt-5.6-sol` | Unverified |
+| Cabinet | `a1be4e5955f32c32f39d975b88b8309f10501aa9` | Remote mode, URL and key unset | OpenAI, inherited `gpt-5.6-sol` | Unverified |
+
+The latest Remodeling workspace contains approved release `5bfa67ae7d6fb7516a3121992577c50ce9ba2253`; its only later changed file is `.replit`. All five workspaces contain their approved upload-recovery releases. Existing RE-10 extraction in Remodeling, Construction and Handyman still selects Opus 5 separately from the shared reader. This record does not certify all estimator stages as Sonnet. Model metadata checks did not establish live pricing availability, and no paid pricing call was made.
+
+After P5 source qualification, actual shared-reader activation must be verified first through P5's customer adapter, then through each child using its own private tenant key and `https://p5homeco.com/api/p5-documents`. Child keys must be linked through protected Replit Secrets; they must not be copied into chat, source or reports. Availability, registered tenant names and signed readiness alone do not establish that a customer upload used the shared reader.
+
+## PR 75 live result and bounded source correction
+
+The single admitted continuation at `3873ee3398859242cc54cd126e361b87cd53074e` passed the cached short-file gate in 220 ms. Plans ran for 134,890 ms. Page 4 completed both reading and independent visual verification; its committed evidence exactly matches the validated saved response 16. It is marked read, with 19 facts, 19 items, seven notes, five inclusions, two responsibilities and no remaining regions. Those counts are not an exhaustive accuracy score.
+
+The run then stopped on page 5 with `invalid-citation-line`. Four pages have committed evidence: pages 1 through 3 remain partial, and page 4 is read. Page 5 retains its draft and citations; pages 6 through 23 remain untouched. The review failed with `source-reading-failed`, and final plans quality checks were not reached. The ledger holds eighteen usage-reported requests, zero unknown charges, and $1.3259193 reserved against the unchanged $3 limit.
+
+| Request | Stage | Page | Input tokens | Output tokens | Thinking tokens | Stop reason |
+| --- | --- | --- | ---: | ---: | ---: | --- |
+| 15 | Lower-effort read | 4 | 9,999 | 4,636 | 0 | `end_turn` |
+| 16 | Visual verification | 4 | 59,614 | 5,774 | 1,043 | `end_turn` |
+| 17 | Read | 5 | 7,665 | 3,929 | 541 | `end_turn` |
+| 18 | Citation support | 5 | 9,049 | 169 | 0 | `end_turn` |
+
+All four requests used Sonnet 5. The page-4 source-recovery archive SHA-256 is `5f720e24c0643e699d3dad11c29da8cd3a1d71f70efab86adca7f5de3e175dda`. No invocation was repeated after a connector timeout. This remains resumed isolated processing, not a cold or published customer performance measurement.
+
+Response 18 selected the correct page-5 sheet-title fragments in the order `[427,441,425,443,445]`. Valid, unique line references are now sorted into original source order before extracting the full contiguous span, preserving all intervening qualifications. Duplicate, out-of-bounds and noninteger references still fail. This normalization does not change any source value or support decision.
+
+The same reply also rejects two window items, so sorting alone cannot recover the page. Those items expand an undefined window code and attach “Lot 19” qualifiers through drawing associations that native line order does not establish. A single bounded Sonnet 5 correction can now replace only rejected records. Accepted records, item identities, exclusions and responsibilities remain intact. The original draft and rejection stay in the checkpoint. A stated replacement receives a fresh semantic citation check even when its quote matches exactly; visual replacements still undergo independent visual verification. Unresolved corrections remain explicit and do not invent quantities. An unsupported replacement still fails, and visual-verification failures do not start another correction loop.
+
+Each correction and subsequent citation attempt is durably marked before sending. A missing reply after either attempt requires inspection instead of another automatic request. Caller cancellation and lost leases prevent new calls. Other providers retain their existing processing policy. Existing monetary reservations and unknown-charge stops remain in force.
+
+The explicit `resume-plans-source-correction` mode admits only the inspected eighteen-call state. It verifies all response hashes and prior archives, binds completed page 4 to its saved verification, and preserves the page-5 draft and citations unchanged. It archives the state before requeuing page 5 for correction of only its two rejected items, followed by normal verification. A permanent marker blocks a repeated recovery. The new correction still requires real-plan qualification.
+
+The saved PR 75 site checks show HTTP 200 for all five entry pages and successful authenticated shared-host readiness under all five tenant identities. Every entry still records adapter activation and the customer journey as unverified. These host checks do not configure the missing child settings.
