@@ -1,4 +1,5 @@
 import {createTransport} from "nodemailer";
+import {getSmtpConfig, assertSmtpAccepted} from "../../app/lib/notifications/smtp-config.ts";
 import {peopleWithRole} from "../../app/lib/notifications/dispatch.ts";
 import {ingestLead} from "../../app/lib/leads/intake.ts";
 import {loadSettings} from "../../app/lib/leads/settings.ts";
@@ -7,11 +8,10 @@ export async function adminRecipients(){return [...new Set((await peopleWithRole
 export const EMAIL_SUPPORTS_IDEMPOTENCY=false;
 export const deliveryBrand=(record:any)=>typeof record?.brand==="string"&&record.brand.trim()?record.brand:brand.name;
 export async function sendEmail(input:{to:string;subject:string;text:string;html?:string;attachments:{filename:string;content:Buffer}[];key:string}){
-  if(!process.env.SMTP_USER||!process.env.SMTP_PASSWORD)throw new Error("Email delivery is not configured");
-  const port=Number(process.env.SMTP_PORT||465);
-  const transport=createTransport({host:process.env.SMTP_HOST||"smtp.gmail.com",port,secure:port===465,auth:{user:process.env.SMTP_USER,pass:process.env.SMTP_PASSWORD},connectionTimeout:15000,socketTimeout:25000});
-  const result=await transport.sendMail({from:process.env.SMTP_FROM||`${brand.name} <${brand.email}>`,to:input.to,replyTo:brand.email,subject:input.subject,text:input.text,html:input.html,attachments:input.attachments,messageId:`<${input.key}@${brand.domain}>`});
-  if(!result.accepted?.length||result.rejected?.length)throw new Error("Email was not accepted for delivery");
+  const config=getSmtpConfig();
+  const transport=createTransport(config.options);
+  const result=await transport.sendMail({from:config.from,to:input.to,replyTo:config.replyTo,subject:input.subject,text:input.text,html:input.html,attachments:input.attachments,messageId:`<${input.key}@${brand.domain}>`});
+  assertSmtpAccepted(result);
   return String(result.messageId);
 }
 export async function syncCrm(record:any,key:string){

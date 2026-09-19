@@ -7,6 +7,7 @@
  */
 
 import type { Message } from "./render.ts";
+import { getSmtpConfig, assertSmtpAccepted } from "./smtp-config.ts";
 
 export type SendResult = { ok: true } | { ok: false; error: string };
 
@@ -25,7 +26,7 @@ export const consoleTransport: Transport = {
   name: "console",
   async send(to, message) {
     console.log(`[notify:console] would send to ${to}: ${message.subject}`);
-    return { ok: true };
+    return { ok: false, error: "Email delivery is not configured; the message was only logged" };
   },
 };
 
@@ -42,27 +43,23 @@ export function smtpTransport(): Transport | null {
   if (!user || !pass) return null;
 
   const host = process.env.SMTP_HOST ?? "smtp.gmail.com";
-  const port = Number(process.env.SMTP_PORT ?? 465);
-  const from = process.env.SMTP_FROM ?? `P5 Home Co <${user}>`;
 
   return {
     name: `smtp:${host}`,
     async send(to, message) {
       try {
         const { createTransport } = await import("nodemailer");
-        const mailer = createTransport({
-          host,
-          port,
-          secure: port === 465,
-          auth: { user, pass },
-        });
-        await mailer.sendMail({
-          from,
+        const config = getSmtpConfig();
+        const mailer = createTransport(config.options);
+        const result = await mailer.sendMail({
+          from: config.from,
+          replyTo: config.replyTo,
           to,
           subject: message.subject,
           text: message.text,
           html: message.html,
         });
+        assertSmtpAccepted(result);
         return { ok: true };
       } catch (error) {
         return { ok: false, error: (error as Error).message };
