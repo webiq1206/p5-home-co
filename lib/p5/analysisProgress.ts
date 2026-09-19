@@ -10,7 +10,7 @@ export interface ProgressUnit {
  * A page the reader has finished counts as checked even when it found parts
  * illegible or redacted; only pages with work still pending are unchecked.
  */
-export function analysisProgress(units:ProgressUnit[],expected?:{source:string;page:number}[]){
+export function analysisProgress(units:ProgressUnit[],expected?:{source:string;page:number}[],hasAttachments=true){
   const parts=units.map(unit=>unit.result?.extraction.documentCoverage||{
     pages:(unit.pages||[]).map(p=>({...p,sheet:'',revision:'',status:'unreadable' as const,notes:[unit.error||'Analysis is pending.']})),
     expectedPages:unit.pages?.length||0,complete:false,
@@ -22,7 +22,7 @@ export function analysisProgress(units:ProgressUnit[],expected?:{source:string;p
   const readPages=coverage.pages.filter(p=>finished.has(key(p))&&!pending.has(key(p))).length;
   const readSections=units.filter(u=>u.result).length;
   return {readPages,totalPages:coverage.expectedPages,readSections,totalSections:units.length,
-    message:coverage.expectedPages?`Checked ${readPages} of ${coverage.expectedPages} pages. Reading drawings, schedules and scope.`:units.length?`Read ${readSections} of ${units.length} document sections.`:'Checking your description, quantities and requested work.'};
+    message:coverage.expectedPages?`Checked ${readPages} of ${coverage.expectedPages} pages. Reading source evidence.`:units.length?`Read ${readSections} of ${units.length} ${hasAttachments?'document':'scope'} sections.`:'Checking your description, quantities and requested work.'};
 }
 
 /** Bounded parallelism, never a sampling/page-count limit. */

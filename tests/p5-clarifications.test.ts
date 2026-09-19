@@ -5,7 +5,7 @@ import {require as tsxRequire} from 'tsx/cjs/api';
 import {pathToFileURL} from 'node:url';
 const resolver=()=>tsxRequire('../lib/p5/clarificationAnswer.ts',pathToFileURL(`${process.cwd()}/tests/p5-clarifications.test.ts`).href) as typeof import('../lib/p5/clarificationAnswer.ts');
 import {emptyInstructions} from '../lib/p5/instructions.ts';
-import {scopeQuestions} from '../lib/p5/adaptive.ts';
+import {scopeQuestions,reconcileScope} from '../lib/p5/adaptive.ts';
 import type {ScopeExtraction} from '../lib/p5/scope.ts';
 const scope=():ScopeExtraction=>({summary:'Trim scope',facts:[],conflicts:[],reviewNotes:[],missingInformation:[],instructions:{...emptyInstructions(),inclusions:['Trim'],exclusions:['Plumbing'],questions:['Labor only or materials only?','Should we include or exclude painting?']},documentCoverage:{expectedPages:80,complete:true,pages:[]},takeoffs:[]});
 
@@ -120,4 +120,38 @@ test('invalid or stale clarification cannot replace the server extraction',async
   const {resolveInstructionAnswer}=await resolver();
   await assert.rejects(resolveInstructionAnswer(scope(),{},{id:'forged',answer:'yes'}),/question has changed/);
   await assert.rejects(resolveInstructionAnswer(scope(),{},{id:'x',answer:''}),/Enter an answer/);
+});
+
+test('a customer contradiction retains its confirmation and exact source quantities',async()=>{
+  const {resolveInstructionAnswer}=await resolver();
+  const keys=['OPENAI_API_KEY','AI_INTEGRATIONS_OPENAI_API_KEY','AI_INTEGRATIONS_OPENAI_BASE_URL','ANTHROPIC_API_KEY'];
+  const saved=Object.fromEntries(keys.map(key=>[key,process.env[key]]));
+  for(const key of keys)delete process.env[key];process.env.OPENAI_API_KEY='synthetic';
+  try{
+    const e=scope();e.instructions!.questions=['Who will supply the doors?'];
+    e.instructions!.inclusions=['Install four doors','120 lf baseboard'];
+    e.instructions!.exclusions=['Plumbing','Electrical'];
+    e.facts=[{field:'taskList',value:'Install four doors',confidence:.99,source:'scope.pdf p.1',evidence:'four doors',basis:'stated'},
+      {field:'trimLf',value:'120',confidence:.99,source:'scope.pdf p.1',evidence:'120 lf baseboard',basis:'stated'}];
+    const originalFacts=structuredClone(e.facts);
+    const answers={service:'handyman',taskList:'Install four doors',trimLf:'120'};
+    const prompt=instructionPrompts(e,answers)[0];
+    const request:typeof fetch=async(_url,options)=>{
+      const body=JSON.parse(String(options?.body));
+      assert.match(JSON.stringify(body),/four installations and one supplied door/);
+      const output={summary:'',facts:[],conflicts:[{field:'ownerSupplied',values:['Customer supplies all doors','Contractor supplies one door'],explanation:'Your selection and typed detail differ. Should we supply one door?'}],
+        reviewNotes:[],missingInformation:[],clarifications:[{field:'ownerSupplied',question:'Should we supply one door and install all four?',reason:'Confirm supply responsibility'}],
+        instructions:{...e.instructions,questions:[]},pages:[],takeoffs:[]};
+      return Response.json({status:'completed',output:[{content:[{type:'output_text',text:JSON.stringify(output)}]}]});
+    };
+    const result=await resolveInstructionAnswer(e,answers,{id:prompt.id,answer:"I'll supply all of them\nI have three doors. Please include one more."},[],request);
+    assert.deepEqual(result.extraction?.facts,originalFacts);
+    assert.equal(result.answers.taskList,'Install four doors');assert.equal(result.answers.trimLf,'120');
+    assert.equal(result.extraction?.conflicts.length,1);
+    assert.deepEqual(result.unresolvedFields,['ownerSupplied']);
+    assert.ok(result.extraction?.clarifications?.some(q=>q.question==='Should we supply one door and install all four?'));
+    assert.deepEqual(result.extraction?.instructions?.exclusions,['Plumbing','Electrical']);
+    assert.match(result.answers.estimatingInstructions||'',/I have three doors/);
+    assert.ok(scopeQuestions(result.answers,result.extraction,reconcileScope(result.answers,result.extraction!).conflicts).some(q=>q.conflict&&q.field==='ownerSupplied'));
+  }finally{for(const key of keys){if(saved[key]===undefined)delete process.env[key];else process.env[key]=saved[key];}}
 });

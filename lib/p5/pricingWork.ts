@@ -17,13 +17,17 @@ export function pricingWorkKey(scope:ReviewedScope,configuration:EstimatorConfig
 export function pricingReplyKey(instructions:string,input:unknown,search:boolean){
  return createHash('sha256').update(JSON.stringify([instructions,search,input])).digest('hex');
 }
-type Payload={replies:Record<string,PricingReply>;failures?:number;completed?:number;regionalRates?:EstimatorConfiguration['regionalRates'];processing?:ProcessingStatus};
+type Payload={replies:Record<string,PricingReply>;failures?:number;completed?:number;regionalRates?:EstimatorConfiguration['regionalRates'];processing?:ProcessingStatus;pricingAt?:string};
 export async function priceSavedScope(id:string,scope:ReviewedScope,configuration:EstimatorConfiguration,pricingAt=new Date(),deadline=Date.now()+SERVER_BUDGET_MS){
  remainingBudget(deadline);
  const workKey=pricingWorkKey(scope,configuration,pricingAt);
  const claimed=await claimWork(id,workKey,{replies:{},regionalRates:await readRegionalRates(scope.answers.location||'',pricingAt)},290);
  if(!claimed)throw new PricingPending('Your pricing check is already running. Waiting for its saved result...',10000);
  const payload=claimed.payload as Payload;
+ // Freeze the pricing timestamp across requests. Rate freshness and generated
+ // evidence dates must not drift merely because the customer resumed a draft.
+ if(payload.pricingAt)pricingAt=new Date(payload.pricingAt);
+ else payload.pricingAt=pricingAt.toISOString();
  if(!payload.replies||Array.isArray(payload.replies))payload.replies={};
  configuration={...configuration,regionalRates:payload.regionalRates||[]};
  let saving=Promise.resolve();
@@ -31,19 +35,21 @@ export async function priceSavedScope(id:string,scope:ReviewedScope,configuratio
  const ordinals:Record<string,number>={};
  const staged:PricingRequest=async(instructions,input,search,remainingMs)=>{
   const activity=pricingActivity(instructions,input,search);
-  // Stages are addressed by phase and order of appearance. Replays hand back
-  // saved replies in the same order, so this is stable across passes even
-  // when a later stage's input (research evidence, line ids) drifts.
+  // Keep old positions only to retain timeout counts during migration. A
+  // successful reply requires an exact request identity, including evidence,
+  // quantities, rates and instructions, regardless of execution order.
   const ordinal=(ordinals[activity.phase]=(ordinals[activity.phase]||0)+1);
   // Mapping batches are keyed by WHAT they map, not by the order they ran in.
   // They now run concurrently, and a batch that times out is split in half
   // and retried; positional keys would make those halves collide with saved
-  // replies of other batches. Every other stage keeps its positional key.
+  // replies of other batches. These old keys are used for timeout counts only.
   const batch=(input as {taskBatch?:{id:string}[];repairInstruction?:string}|null);
   const batchIds=activity.phase==='mapping'&&Array.isArray(batch?.taskBatch)?batch!.taskBatch.map(t=>t.id).sort():null;
-  const key=batchIds?`mapping:${batch?.repairInstruction?'repair:':''}${createHash('sha256').update(JSON.stringify(batchIds)).digest('hex').slice(0,24)}`:`${activity.phase}#${ordinal}`;
+  const positional=batchIds?`mapping:${batch?.repairInstruction?'repair:':''}${createHash('sha256').update(JSON.stringify(batchIds)).digest('hex').slice(0,24)}`:`${activity.phase}#${ordinal}`;
   const legacy=pricingReplyKey(instructions,input,search);
-  const saved=payload.replies[key]||payload.replies[legacy];
+  const key=`content-v1:${legacy}`;
+  const oldTimeout=payload.replies[positional] as (PricingReply&{timeouts?:number})|undefined;
+  const saved=payload.replies[key]||payload.replies[legacy]||(oldTimeout?.timeouts?oldTimeout:undefined);
   if(saved){
     // Research uses its existing allowance fallback and large mapping batches
     // keep their smaller saved children. A small batch or another stage must
