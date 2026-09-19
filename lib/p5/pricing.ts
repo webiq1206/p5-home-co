@@ -282,7 +282,8 @@ export type P5Estimate = ReturnType<typeof calculateP5Estimate>;
 export const PLANNING_DISCLAIMER = "Preliminary planning information only. This is not a bid, quote, offer or guaranteed price. A site or plan review, confirmed scope, current supplier and trade pricing, and written agreement are required before work proceeds.";
 const CUSTOMER_ALLOWANCE_DISCLOSURE="Preliminary allowance: confirm quantities, selections and current supplier or trade pricing before a firm proposal.";
 const INTERNAL_COMMERCIAL_NOTE=[
-  /\bdirect costs?\b/i,
+  /\bdirect[- ]costs?\b/i,
+  /\b(?:owner-average|mapped to|provides positive|published cost research|planning-\d+)\b/i,
   /\bunit costs?\b/i,
   /\blanded costs?\b/i,
   /\bcost arithmetic\b/i,
@@ -308,11 +309,12 @@ export function customerSafeText(value:string):string{
   }
   INTERNAL_RATE.lastIndex=0;INTERNAL_DIRECT_TOTAL.lastIndex=0;
   const allowance=/\b(?:preliminary|allowance)\b/i.test(value);
-  let text=value.replace(INTERNAL_RATE,'').replace(INTERNAL_DIRECT_TOTAL,'');
+  // Internal review amounts may appear in a later sentence of the same note.
+  let text=value.replace(INTERNAL_RATE,'').replace(INTERNAL_DIRECT_TOTAL,'').replace(/\$\s*\d[\d,.]*(?:\s*(?:-|to)\s*\$?\s*\d[\d,.]*)?/gi,'[internal amount]');
   INTERNAL_RATE.lastIndex=0;INTERNAL_DIRECT_TOTAL.lastIndex=0;
   text=text.replace(/\bbased on\s*(?=[,;:.!?]|$)/gi,'').replace(/\s+([,;:.!?])/g,'$1').replace(/([,;])\s*([,;])/g,'$2');
   const clauses=text.split(/;\s*|(?<=[.!?])\s+/).map(part=>part.trim()).filter(Boolean);
-  const safe=clauses.filter(part=>!INTERNAL_COMMERCIAL_NOTE.some(pattern=>pattern.test(part))).join('; ').replace(/\s{2,}/g,' ').trim();
+  const safe=clauses.filter(part=>!part.includes('[internal amount]')&&!INTERNAL_COMMERCIAL_NOTE.some(pattern=>pattern.test(part))).join('; ').replace(/\s{2,}/g,' ').trim();
   return safe||(allowance?CUSTOMER_ALLOWANCE_DISCLOSURE:'');
 }
 /** Customer prose may describe scope and preliminary allowances, but never the
