@@ -9,8 +9,8 @@ import {READER_SYSTEM,VERIFIER_SYSTEM,EVIDENCE_SCHEMA} from '../../src/contracts
 import {CITATION_SYSTEM,CITATION_SCHEMA,citationInput,evidenceCheckpointKey} from '../../src/evidence-citations.mjs';
 import {SOURCE_REPAIR_SYSTEM,SOURCE_REPAIR_SCHEMA} from '../../src/evidence-source-repair.mjs';
 
-export async function emptyFactFixture(){
- const f=await sourceCorrectionFixture({page7Text:Array.from({length:70},(_,i)=>i===0?'Synthetic source':`Source line ${i+1}`).join('\n')});
+export async function emptyFactFixture(options={}){
+ const f=await sourceCorrectionFixture({...options,page7Text:Array.from({length:70},(_,i)=>i===0?'Synthetic source':`Source line ${i+1}`).join('\n')});
  await resumePlansSourceCorrection(f.store,f.document,f.root);
  const pages=await f.store.pages(f.document.id,null,true),native6=pages[5].native,native7=pages[6].native,input7=[{...native7,image:undefined,spans:undefined}];
  const page6={page:6,sheet:'',revision:'',status:'read',notes:[],facts:[{field:'otherDetails',value:'Synthetic source',evidence:'Synthetic source',basis:'stated'}],items:[],regions:[],inclusions:[],exclusions:[],responsibilities:[]};
