@@ -4,8 +4,29 @@ import assert from 'node:assert/strict';
 import {normalizeReviewFactBasis} from '../src/review-basis.mjs';
 import {Reader} from '../src/provider.mjs';
 import {readConfig} from '../src/core.mjs';
+import {validateReview} from '../src/contracts.mjs';
 const source=(basis='stated',value='3019')=>({source:'plans.pdf',pages:[{page:1,evidence:{facts:[{field:'sqft',value,evidence:'verified exact excerpt',basis}]}}]});
 const fact=(extra={})=>({field:'sqft',value:'3019',confidence:.99,source:'plans.pdf, page 1',evidence:'model paraphrase',...extra});
+test('unresolved descriptions and approximate counts survive without supplying numeric pricing answers',()=>{
+ const raw={summary:'Scope',facts:[fact({field:'rooms',value:'Kitchen, Garage (x2)',basis:'inferred'}),fact({field:'projectMonths',value:'missing',confidence:0,basis:'stated'})],reviewNotes:[],conflicts:[],clarifications:[],missingInformation:[],takeoffs:[{id:'portal',description:'Portal frame',component:'Wall',quantity:4,unit:'ea',basis:'uncertain',issues:['Approximate visual count'],sources:[{source:'plans.pdf',page:22}]}]};
+ const before=structuredClone(raw),result=normalizeReviewFactBasis(raw,{documents:[]});
+ validateReview(result,[{source:'plans.pdf',page:22,status:'partial',notes:['Unresolved detail']}]);
+ assert.deepEqual(raw,before);assert.ok(result.facts.every(f=>f.field==='otherDetails'&&f.basis==='inferred'&&f.confidence<=.2));
+ assert.match(result.facts[0].value,/Kitchen, Garage \(x2\)/);assert.match(result.facts[1].value,/missing/);
+ assert.equal(result.takeoffs[0].quantity,null);assert.match(result.takeoffs[0].issues[1],/4 ea/);
+ assert.equal(result.pages[0].status,'partial');
+ assert.deepEqual(normalizeReviewFactBasis(result,{documents:[]}),result,'normalization is idempotent');
+});
+test('asserted malformed numbers and invalid takeoff quantities remain invalid',()=>{
+ for(const value of ['120 feet','-1','unknown']){
+  const raw={summary:'Scope',facts:[fact({field:'trimLf',value,basis:'stated'})],takeoffs:[],clarifications:[],conflicts:[],reviewNotes:[]};
+  assert.throws(()=>validateReview(normalizeReviewFactBasis(raw,{}),[]),/invalid-numeric-fact/);
+ }
+ for(const quantity of [-1,0,Infinity]){
+  const raw={facts:[],takeoffs:[{quantity,basis:'uncertain',issues:[]}]};
+  assert.equal(normalizeReviewFactBasis(raw,{}).takeoffs[0].quantity,quantity);
+ }
+});
 test('only exact unanimous verified facts restore missing basis and canonical source citation',()=>{
  const raw={facts:[fact()],reviewNotes:[]},before=JSON.stringify(raw);
  const result=normalizeReviewFactBasis(raw,{documents:[source()]});

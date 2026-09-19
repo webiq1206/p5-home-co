@@ -1,4 +1,4 @@
-
+import {FIELDS} from './fields.mjs';
 /** Missing provenance is never upgraded from model confidence. Only an exact
  * field/value match in unanimous, already validated evidence may restore it.
  * Otherwise retain the interpretation as inferred and unusable for auto-fill. */
@@ -21,6 +21,22 @@ export function normalizeReviewFactBasis(value,input){
    fact.evidence=match.source.evidence;fact.source=match.document+', page '+match.page;restored++;
   }else{
    fact.basis='inferred';if(Number.isFinite(fact.confidence)&&fact.confidence>=0&&fact.confidence<=1)fact.confidence=Math.min(fact.confidence,.2);unconfirmed++;
+  }
+ }
+ // Preserve unresolved model descriptions without turning them into quantities.
+ // Malformed asserted numbers still fail the normal domain validator.
+ for(const fact of result.facts){
+  if(!fact||FIELDS[fact.field]?.kind!=='number'||typeof fact.value!=='string'||/^(?:\d+(?:\.\d+)?|\.\d+)$/.test(fact.value))continue;
+  if(fact.basis==='inferred'||(fact.confidence===0&&/^(?:missing|unknown|not (?:stated|specified|provided))$/i.test(fact.value.trim()))){
+   fact.value=FIELDS[fact.field].label+': '+fact.value;
+   fact.field='otherDetails';fact.basis='inferred';
+   if(Number.isFinite(fact.confidence)&&fact.confidence>=0&&fact.confidence<=1)fact.confidence=Math.min(fact.confidence,.2);
+  }
+ }
+ for(const takeoff of Array.isArray(result.takeoffs)?result.takeoffs:[]){
+  if(takeoff?.basis==='uncertain'&&Number.isFinite(takeoff.quantity)&&takeoff.quantity>0&&Array.isArray(takeoff.issues)){
+   takeoff.issues.push('Unconfirmed model quantity '+takeoff.quantity+' '+takeoff.unit+' retained for review only; no verified quantity is available.');
+   takeoff.quantity=null;
   }
  }
  if(Array.isArray(result.reviewNotes)&&(restored||unconfirmed))
