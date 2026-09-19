@@ -1,0 +1,30 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "zW8nV6A1F8_xGRQxk6tYy"
+uri = "file://p5-verification/guarded-pricing-mapping-openai-v1/p5-estimate-00000000-0000-4000-8000-000000000005-customer.pdf"
+type = "pdf"
+title = "P5 synthetic customer estimate"
+description = "Captured branded customer PDF from the guarded live approved-rate pricing qualification. Synthetic data; no send occurred."
+logical_id = "f1c908ff-9019-4db8-b3a6-7c8460c30deb"
+content_hash = "sha256:6292cdc7bcb791c91eb1c2223ff3f107169ee45fb0dff99b52b0600a8df13fc2"
+size = 150556
+mtime_ms = 1789836570215
+storage_uri = "gcs://replit-rams-assets-kirk/rams/assets/repl:2d29af42-b4a0-47ed-be90-6bb8bfc2c140/f1c908ff-9019-4db8-b3a6-7c8460c30deb/bb3d34fe-c3d1-4b05-9b24-9b6953e4ac78"
+storage_version_token = "1789836888434082"
+content_type = "application/pdf"
+
+[[outputs]]
+id = "3IufUwZAgOQS23pW94hdp"
+uri = "file://p5-verification/guarded-pricing-mapping-openai-v1/p5-estimate-00000000-0000-4000-8000-000000000005-administrative.pdf"
+type = "pdf"
+title = "P5 synthetic administrative estimate"
+description = "Captured confidential administrative PDF from the guarded live approved-rate pricing qualification. Synthetic data; no send occurred."
+logical_id = "14a60aea-c144-432c-b237-38a460890cf1"
+content_hash = "sha256:065baf7a6b33e3dd5a51d018c4f6432e05cd80ad0b79f947db07d2c098dd1d48"
+size = 166479
+mtime_ms = 1789836570215
+storage_uri = "gcs://replit-rams-assets-kirk/rams/assets/repl:2d29af42-b4a0-47ed-be90-6bb8bfc2c140/14a60aea-c144-432c-b237-38a460890cf1/30626c29-1f85-4815-af97-ac9d3ea87653"
+storage_version_token = "1789836889256677"
+content_type = "application/pdf"
