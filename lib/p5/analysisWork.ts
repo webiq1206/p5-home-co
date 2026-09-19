@@ -15,7 +15,7 @@ import {isInstructionFile,mergeInstructions} from './instructions.ts';
 import {combineCoverage} from './documentLedger.ts';
 import {analysisConcurrency,analysisProgress} from './analysisProgress.ts';
 import {recordEvent,describeError} from './events.ts';
-import type {ProcessingStatus} from './processingStatus.ts';
+import {analysisMessage,type ProcessingStatus} from './processingStatus.ts';
 
 export {analysisSegments} from './analysisSegments.ts';
 import {analysisSegments} from './analysisSegments.ts';
@@ -59,7 +59,7 @@ export async function advanceAnalysis(draft:Draft,text:string,answers:ScopeAnswe
   const version=createHash('sha256').update(JSON.stringify([text,answers,draft.uploads.map(f=>[f.id,f.sha256])])).digest('hex');
   const workKey=analysisWorkKey(draft,text,answers),bucketId=ESTIMATOR_BUCKETS[ESTIMATOR_BRAND.domain],client=new Client({bucketId});
   const lease=await claimWork(draft.id,workKey,{prepared:0,units:[],notes:[]},300);
-  if(!lease)return {pending:true as const,progress:'Your document review is already running. Saved progress will appear shortly.'};
+  if(!lease)return {pending:true as const,progress:analysisMessage(draft.uploads.length>0,'busy')};
   const job=lease.payload as Job;
   const event=(stage:string,outcome:'ok'|'failed'|'retry',extra:Partial<Parameters<typeof recordEvent>[0]>={})=>void recordEvent({draftId:draft.id,estimator:answers.service||null,kind:'analysis',stage,outcome,...extra});
   if(retryFailed)delete job.cooldownUntil;
@@ -68,11 +68,11 @@ export async function advanceAnalysis(draft:Draft,text:string,answers:ScopeAnswe
   // overwrite a more recent completed section.
   let saving=Promise.resolve();
   const checkpoint=()=>{saving=saving.then(()=>{
-    const progress=analysisProgress(job.units,job.expected);
+    const progress=analysisProgress(job.units,job.expected,draft.uploads.length>0);
     const active=job.units.filter(u=>u.active);
     const phase=!active.length&&job.prepared<draft.uploads.length?'preparing':active.some(u=>isInstructionFile(u.name))?'instructions':progress.readSections===progress.totalSections?'cross-referencing':'reading';
     job.progress=phase==='preparing'?`Preparing file ${Math.min(job.prepared+1,draft.uploads.length)} of ${draft.uploads.length}. ${job.units.length} sections saved for reading.`:progress.message;
-    job.processing={...progress,phase,message:job.progress,currentItems:active.slice(0,3).map(u=>u.name),updatedAt:new Date().toISOString()};
+    job.processing={...progress,inputKind:draft.uploads.length?'documents':'text',phase,message:job.progress,currentItems:active.slice(0,3).map(u=>u.name),updatedAt:new Date().toISOString()};
     return writeWork(draft.id,workKey,lease.token,job);
   });return saving;};
   try{
@@ -179,9 +179,9 @@ export async function advanceAnalysis(draft:Draft,text:string,answers:ScopeAnswe
         }
       }));
       await checkpoint();
-      if(job.prepared<draft.uploads.length||job.units.some(pending))return {pending:true as const,progress:analysisProgress(job.units,job.expected).message};
+      if(job.prepared<draft.uploads.length||job.units.some(pending))return {pending:true as const,progress:analysisProgress(job.units,job.expected,draft.uploads.length>0).message};
     }
-    if(job.prepared<draft.uploads.length)return {pending:true as const,progress:analysisProgress(job.units,job.expected).message};
+    if(job.prepared<draft.uploads.length)return {pending:true as const,progress:analysisProgress(job.units,job.expected,draft.uploads.length>0).message};
     if(!job.units.length&&!draft.uploads.length&&!job.textDone){
       job.textDone=await analyzeBatch(text,[],answers,request,Math.min(READ_ALLOWANCE_MS,absoluteDeadline-Date.now()),absoluteDeadline,{race:true,event:{draftId:draft.id,estimator:answers.service||null,file:null}});await checkpoint();
     }

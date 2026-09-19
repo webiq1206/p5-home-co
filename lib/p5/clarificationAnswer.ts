@@ -69,8 +69,12 @@ export async function resolveInstructionAnswer(extraction:ScopeExtraction|null,a
    const updatedAnswers={...answers};
    for(const fact of changedFacts)if(fact.confidence>=.85&&!conflictedFields.has(fact.field))updatedAnswers[fact.field]=fact.value;
    const takeoffs=reconcileClarificationTakeoffs(extraction.takeoffs,result.extraction.takeoffs,changedFacts);
+   // A clarification can introduce a contradiction or another focused question.
+   // Retain those decisions instead of silently treating the reply as resolved.
+   const conflicts=[...extraction.conflicts.filter(conflict=>!changedFields.has(conflict.field)&&!conflictedFields.has(conflict.field)),...result.extraction.conflicts];
+   const clarifications=[...(extraction.clarifications||[]).filter(item=>!changedFields.has(item.field)),...(result.extraction.clarifications||[])];
   const record={id:prompt.id,question,answer};
   const combined=[answers.estimatingInstructions,`Question: ${question}\nAnswer: ${answer}`].filter(Boolean).join('\n\n');
   if(combined.length>SCOPE_TEXT_LIMIT)throw new DraftError('Upload the additional scope notes as a document to preserve them in full.');
-    return {extraction:{...extraction,instructions,facts,...(takeoffs?{takeoffs}:{})},answers:{...updatedAnswers,estimatingInstructions:combined},history:[...prior,record]};
+    return {unresolvedFields:[...conflictedFields],extraction:{...extraction,instructions,facts,conflicts,clarifications,...(takeoffs?{takeoffs}:{})},answers:{...updatedAnswers,estimatingInstructions:combined},history:[...prior,record]};
 }

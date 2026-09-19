@@ -112,6 +112,8 @@ export async function putDraft(request:Request){
       if(!existing||raw.revision!==existing.revision)throw new DraftError('Your project changed in another tab. Refresh to continue.',409);
       const resolved=await resolveInstructionAnswer(extraction,answers,raw.clarification,wizard.instructionAnswers,undefined,incomingText);
       extraction=resolved.extraction;answers=resolved.answers;wizard.instructionAnswers=resolved.history;
+      // An earlier correction cannot resolve a new contradiction automatically.
+      if('unresolvedFields' in resolved)for(const field of resolved.unresolvedFields||[])delete wizard.resolutions[field];
       wizard.resolutions.estimatingInstructions=answers.estimatingInstructions;
     }
     if(extraction?.instructions)extraction={...extraction,instructions:{...extraction.instructions,questions:instructionPrompts(extraction,answers,incomingText).map(instructionPromptText)}};

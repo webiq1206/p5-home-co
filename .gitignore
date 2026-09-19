@@ -107,3 +107,5 @@ tsconfig.tsbuildinfo
 # Private source documents, live model QA reports and isolated SQL checkpoints.
 /.p5-model-qa/
 /p5-sonnet-fixtures.json
+
+!/scripts/test-p5-pricing-identity.mts

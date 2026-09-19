@@ -1,0 +1,56 @@
+name: P5 conversation and recovery regressions
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'components/P5Estimator.tsx'
+      - 'components/P5ProcessingStatus.tsx'
+      - 'lib/p5/**'
+      - 'tests/p5-*.test.ts'
+      - '.github/workflows/p5-conversation-verification.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'components/P5Estimator.tsx'
+      - 'components/P5ProcessingStatus.tsx'
+      - 'lib/p5/**'
+      - 'tests/p5-*.test.ts'
+      - '.github/workflows/p5-conversation-verification.yml'
+permissions:
+  contents: read
+concurrency:
+  group: p5-conversation-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      NEXT_TELEMETRY_DISABLED: '1'
+      ANTHROPIC_API_KEY: ''
+      OPENAI_API_KEY: ''
+      DATABASE_URL: ''
+      P5_DOCUMENT_SERVICE_MODE: ''
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Offline estimator and conversation checks
+        run: node --import tsx --test --test-concurrency=1 tests/p5-*.test.ts
+      - name: Isolated saved-file adapter checks
+        run: node --import tsx scripts/test-p5-document-adapter.mts
+      - name: Pricing identity, recovery and captured delivery
+        run: |
+          node --import tsx scripts/test-p5-pricing-identity.mts
+          node --import tsx scripts/test-p5-pricing-recovery.mts
+          node --import tsx scripts/test-p5-pricing-work.mts
+          node --import tsx scripts/test-p5-workflow.mts
+      - name: Production build
+        run: npm run build
+      - name: Source integrity
+        run: git diff --exit-code

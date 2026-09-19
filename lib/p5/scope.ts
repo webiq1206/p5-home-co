@@ -276,7 +276,7 @@ export function validateExtraction(raw: unknown): ScopeExtraction {
     const row=takeoffs?.find(item=>item.id===component.id);
     return !row||!/^(?:h|hr|hrs|hour|hours)$/i.test(row.unit)||row.quantity!==component.hours;
   }))throw new Error('Labor coverage does not match its active component takeoffs');
-  return {
+  return preserveIndependentQuestions({
     summary: r.summary, facts, conflicts,clarifications,
     ...(r.instructions?{instructions:validateInstructions(r.instructions)}:{}),
     ...(hasPages?{documentCoverage:{pages,expectedPages,complete:savedCoverage?.complete!==false&&pages.length===expectedPages&&pages.every(p=>p.status==='read')}}:{}),
@@ -286,7 +286,18 @@ export function validateExtraction(raw: unknown): ScopeExtraction {
     ...(laborCoverage?{laborCoverage}:{}),
     missingInformation: [...strings(r.missingInformation, 50),...unreadValues],
     reviewNotes: strings(r.reviewNotes, 50)
-  };
+  });
+}
+/** Broad text fields are not question identities. Route independent decisions
+ * through the existing per-question answer protocol instead of overwriting
+ * one shared field or discarding the second card. */
+function preserveIndependentQuestions(extraction:ScopeExtraction):ScopeExtraction{
+  const questions=extraction.clarifications||[];
+  const independent=questions.filter(q=>SCOPE_FIELDS[q.field].kind==='text'&&!['location','address'].includes(q.field)&&questions.filter(other=>other.field===q.field).length>1);
+  if(!independent.length)return extraction;
+  const instructions=mergeInstructions(extraction.instructions?[extraction.instructions]:[]);
+  instructions.questions=[...new Set([...instructions.questions,...independent.map(q=>q.question.trim()+(q.question.trim().endsWith('?')?'':'?')+(q.reason.trim()?' '+q.reason.trim():''))])];
+  return {...extraction,instructions,clarifications:questions.filter(q=>!independent.includes(q))};
 }
 const IMAGE_SOURCE = /\.(?:jpe?g|png|webp|gif|heic|heif)(?:\b|[),])/i;
 const EXPLICIT_URGENCY = /\b(?:standard|normal timing|not urgent|priority|prioritized|emergency|urgent|rush|asap|same[- ]day|immediately)\b/i;
@@ -380,7 +391,10 @@ export function combineScopeExtractions(parts:ScopeExtraction[]):ScopeExtraction
   if(coverage.length)merged.documentCoverage=combineCoverage(coverage);
   const takeoffs=reconcileTakeoffs(parts.flatMap(p=>p.takeoffs||[]));
   if(takeoffs.items.length){merged.takeoffs=takeoffs.items;merged.missingInformation.push(...takeoffs.issues);}
-  merged.clarifications=parts.flatMap(p=>p.clarifications||[]).filter((q,i,a)=>a.findIndex(v=>v.field===q.field)===i);
+  // A broad field can contain multiple independent decisions. Only collapse
+  // an identical question, never all door/material/supply questions in it.
+  const clarificationKey=(q:NonNullable<ScopeExtraction['clarifications']>[number])=>JSON.stringify([q.field,q.question.normalize('NFKC').replace(/\s+/g,' ').trim().toLowerCase()]);
+  merged.clarifications=parts.flatMap(p=>p.clarifications||[]).filter((q,i,a)=>a.findIndex(v=>clarificationKey(v)===clarificationKey(q))===i);
   const seen=new Set<string>();
   for(const fact of parts.flatMap(p=>p.facts)){
     const key=JSON.stringify([fact.field,fact.value.trim(),fact.source,fact.evidence]);
@@ -422,7 +436,7 @@ export function combineScopeExtractions(parts:ScopeExtraction[]):ScopeExtraction
   // Missing questions from one page may be answered on another.
   merged.reviewNotes=reconcileReviewNotes(merged);
   merged.missingInformation=reconcileMissingInformation(merged);
-  return merged;
+  return preserveIndependentQuestions(merged);
 }
 /** A review note blocks a customer range only when a document, section or
  * page could not be read at all, so the quantities behind the price may be

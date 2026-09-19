@@ -47,7 +47,8 @@ export function instructionPrompts(extraction:ScopeExtraction|null,answers:Scope
       const trailing=full.match(/^(.*\?)\s+([^?]+)$/);
       const asked=trailing?trailing[1].trim():full;
       const question=asked.length<=240?asked:'What should we include for this part of your project?';
-      const values=/labor.only/i.test(full)&&/materials.only/i.test(full)?['Labor only','Materials only','Labor and materials']:
+      const values=/^Who\b[^?]*\b(?:supply|supplies|provide|provides|purchase|purchases)\b[^?]*\?/i.test(asked)?["I'll supply all of them",'Please include all of them',"I'll supply some of them","I'm not sure yet"]:
+        /labor.only/i.test(full)&&/materials.only/i.test(full)?['Labor only','Materials only','Labor and materials']:
         /include or exclude|include.*or.*exclude/i.test(full)?['Include it','Exclude it']:undefined;
        // A retained-document choice card is built from extraction evidence,
        // not from the wording of the question.  In particular, do not
@@ -105,6 +106,7 @@ export function removeInstructionPrompt(instructions:ScopeInstructions,id:string
 export function clarificationContext(extraction:ScopeExtraction,question:string,answer:string,answers:ScopeAnswers={}){
   return JSON.stringify({
     task:'Resolve only this answered scope question using the answer below. Return the complete updated instructions and any directly changed structured facts, preserving every unrelated inclusion, exclusion, responsibility, building and floor. Remove this question when answered. Never ask it again because a page was not reuploaded. This is a clarification of a document review already completed. Do not reread or recreate pages or takeoffs, and do not return unreadable-file notes. If the answer is insufficient, return one short, specific follow-up explaining the missing decision. A fact update must be supported by the typed answer; retain source-backed facts that the answer did not change.',
+    answerPolicy:'The answer is from the customer. Interpret a selected option and additional typed detail together. A material contradiction requires one short confirmation, not a silent choice. A later explicit correction replaces the earlier answer only for that item. Not sure is unknown, never yes, no, zero or permission for an undisclosed assumption. Keep installation quantity separate from supply quantity. For example, four door installations with three customer-supplied doors and one requested door means four installations and one supplied door. Keep removal and disposal separate. Preserve excluded trades. Do not infer field painting only from the word painted.',
     previousInstructions:extraction.instructions,previousFacts:extraction.facts,previousAnswers:answers,question,answer,
   });
 }
