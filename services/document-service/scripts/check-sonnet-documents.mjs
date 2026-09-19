@@ -46,12 +46,17 @@ export function qualificationSpendLimit(id,env=process.env){
  return value;
 }
 
+export function qualificationCallLimit(id,override){
+ const minimum=id==='short'?12:64,maximum=id==='plans'?160:12;
+ const value=override??maximum;
+ if(!Number.isSafeInteger(value)||value<minimum||value>maximum||id!=='plans'&&override!==undefined)throw new ServiceError('qa-max-calls-invalid',422);
+ return value;
+}
+
 export async function runFixture(fixture,{root,key,parseOnly=false,request=fetch,log=console.log,seedPages=[],recoverLegacyCitationFailure=false,resumeReserved=false,resumeReview=false,resumePlans=false,resumeOutput=false,resumeCitationOutput=false,resumeSourceRepair=false,resumeSourceCorrection=false,resumeEmptyFact=false,resumeRepairEvidence=false,resumeVerifierCitation=false,maxCallsOverride}={}){
  const bytes=Buffer.from(fixture.pdfBase64,'base64');
  if(!['short','plans'].includes(fixture.id)||hash(bytes)!==fixture.sha256||bytes.length>25*1024*1024||fixture.pages!==({short:4,plans:23})[fixture.id])throw Error('Invalid fixture bundle or source digest.');
- const providerLimit=qualificationSpendLimit(fixture.id),defaultMaxCalls=fixture.id==='short'?12:64;
- const maxCalls=maxCallsOverride??defaultMaxCalls;
- if(!Number.isSafeInteger(maxCalls)||maxCalls<defaultMaxCalls||maxCalls>256||fixture.id!=='plans'&&maxCallsOverride!==undefined)throw new ServiceError('qa-max-calls-invalid',422);
+ const providerLimit=qualificationSpendLimit(fixture.id),maxCalls=qualificationCallLimit(fixture.id,maxCallsOverride);
  const directory=join(root,fixture.id+'-'+fixture.sha256.slice(0,16));await mkdir(directory,{recursive:true,mode:0o700});
  const sourceSummary={id:fixture.id,sourceSha256:fixture.sha256,sourceBytes:bytes.length,expectedPages:fixture.pages};
  if(parseOnly){
@@ -221,7 +226,7 @@ export async function runFixture(fixture,{root,key,parseOnly=false,request=fetch
   report.notes=['Uses actual production processing code in isolated local SQL storage. This is not the deployed website/worker or its queue.',
    ...(seedPages.length?['Native source pages and validated evidence were reused from a previous paid run. This is not a cold full-file performance measurement.']:[]),
    'QA provider concurrency is one for diagnosis and cost containment. This is not a production concurrency benchmark.',
-   'QA uses the same bounded provider stream handling as production code, with a separate sequential queue window.',
+    'QA uses the same bounded provider stream handling as production code, with a separate sequential queue window. A clean window boundary admits no new request; rerunning the same qualification directory resumes its saved database, checkpoints, responses and cumulative cost ledger.',
    'No network upload is measured. Token counting adds QA overhead; summed parallel stages do not equal wall time.',
    'One run is not a percentile benchmark. Cached/resumed runs are not cold processing performance.',
    'No price, branded PDF, email, live adapter activation or 99.9% accuracy claim follows from this test.'];

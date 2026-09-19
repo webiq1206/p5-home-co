@@ -5,7 +5,7 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {PDFDocument,StandardFonts} from 'pdf-lib';
 import {isolatedPool,guardedSonnetFetch,targetedChecks} from '../scripts/model-qa-support.mjs';
-import {runFixture,qualificationSpendLimit} from '../scripts/check-sonnet-documents.mjs';
+import {runFixture,qualificationCallLimit,qualificationSpendLimit} from '../scripts/check-sonnet-documents.mjs';
 import {hash} from '../src/core.mjs';
 import {inspectSavedRun,inspectReviewRecovery} from '../scripts/inspect-sonnet-run.mjs';
 
@@ -19,6 +19,14 @@ test('plans qualification allowance is isolated, cumulative and hard-capped at t
  assert.equal(qualificationSpendLimit('plans',{P5_QA_PLANS_LIMIT_USD:'12'}),12);
  assert.throws(()=>qualificationSpendLimit('plans',{P5_QA_PLANS_LIMIT_USD:'12.01'}),/qa-plans-spend-limit-invalid/);
  assert.throws(()=>qualificationSpendLimit('plans',{P5_QA_PLANS_LIMIT_USD:'not-a-number'}),/qa-plans-spend-limit-invalid/);
+});
+
+test('plans qualification uses a cumulative 160-call secondary ceiling without changing the short-file guard',()=>{
+ assert.equal(qualificationCallLimit('plans'),160);
+ assert.equal(qualificationCallLimit('plans',128),128);
+ assert.equal(qualificationCallLimit('short'),12);
+ assert.throws(()=>qualificationCallLimit('plans',161),/qa-max-calls-invalid/);
+ assert.throws(()=>qualificationCallLimit('short',160),/qa-max-calls-invalid/);
 });
 
 test('QA unknown charges pause immediately and across restart before any further network request',async()=>{
