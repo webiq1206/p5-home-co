@@ -1,8 +1,17 @@
 import {jobId,groupPages,ServiceError,validateEvidence,stable} from './core.mjs';
 import {parsePdf,limitParser} from './parser.mjs';
+import {SPAN_COORDINATES,textAnchorRegions} from './page-geometry.mjs';
 import {EVIDENCE_SCHEMA,REVIEW_SCHEMA,READER_SYSTEM,VERIFIER_SYSTEM,REVIEW_SYSTEM,validateReview} from './contracts.mjs';
 import {CITATION_SYSTEM,CITATION_SCHEMA,citationInput,applyCitations,evidenceCheckpointKey} from './evidence-citations.mjs';
 import {SOURCE_REPAIR_SYSTEM,SOURCE_REPAIR_SCHEMA,prepareSourceRepair,applySourceRepairs,emptyFactKeys} from './evidence-source-repair.mjs';
+export function reconcileVerification(page,checked){
+ const contradictions=[];
+ for(const f of page.facts){const match=checked.facts.find(v=>v.field===f.field&&v.value===f.value);if(!match){checked.facts.push(f);contradictions.push(`Verify conflicting ${f.field}: ${f.value}`);}}
+ for(const item of page.items){if(!checked.items.some(v=>v.id===item.id&&v.quantity===item.quantity&&v.unit===item.unit&&v.component===item.component)){checked.items.push(item);contradictions.push(`Reconcile item ${item.id} against its source.`);}}
+ if(contradictions.length){checked.status='partial';checked.notes.push(...contradictions);}
+ if(checked.regions.length){checked.status='partial';checked.notes.push('Some detail regions still require confirmation.');}
+ return checked;
+}
 export class Pipeline{
  constructor(store,reader,config,parser=parsePdf){this.store=store;this.reader=reader;this.config=config;this.readBatchPages=config.provider==='anthropic'&&config.model==='claude-sonnet-5'?1:4;this.parser=limitParser(parser,config.parserSlots||1);}
  async enqueueRead(job,pages,client=this.store.pool){const numbers=pages.map(p=>p.page);await this.store.enqueue(client,{id:jobId(job.tenant,job.project,'read',[job.document_id,numbers]),tenant:job.tenant,project:job.project,documentId:job.document_id,kind:'read',priority:job.priority,payload:{pages:numbers}});}
@@ -105,20 +114,26 @@ export class Pipeline{
   for(let i=0;i<reply.pages.length;i++){
    const page=reply.pages[i],source=stored.find(p=>p.page===page.page);const needs=page.regions.length||[...page.facts,...page.items].some(f=>['visual','calculated'].includes(f.basis));
    if(needs){
-    const crops=[];
-    if(page.regions.length&&!original)original=await this.store.document(job.tenant,job.project,job.document_id,true);
-    for(const region of page.regions){await this.parser(original.bytes,{maxPages:this.config.maxPages,timeoutMs:this.config.parseMs,signal,crop:{page:page.page,region},onPage:p=>{crops.push({label:`Original page ${page.page}, normalized crop ${JSON.stringify(region)}`,bytes:p.image});}});}
-    const inputPage={...source.native,image:undefined};
+    const crops=[];let native=source.native;
+    const refresh=!!native.spans?.length&&native.spanCoordinates!==SPAN_COORDINATES;
+    const render=async(region,include=true)=>{
+     if(!original)original=await this.store.document(job.tenant,job.project,job.document_id,true);
+     await this.parser(original.bytes,{maxPages:this.config.maxPages,timeoutMs:this.config.parseMs,signal,crop:{page:page.page,region},onPage:p=>{
+      if(refresh){if(p.spanCoordinates!==SPAN_COORDINATES)throw new ServiceError('source-coordinate-refresh-failed',422);native={...source.native,spans:p.spans,spanCoordinates:p.spanCoordinates};}
+      if(include)crops.push({label:`Original page ${page.page}, normalized top-left crop ${JSON.stringify(region)}`,bytes:p.image});
+     }});
+    };
+    for(const region of page.regions)await render(region);
+    // Old cached text/images and read checkpoints remain unchanged. Only the
+    // verifier's positional metadata is refreshed from the identical PDF.
+    if(refresh&&!page.regions.length)await render({x:0,y:0,width:1,height:1},false);
+    for(const region of textAnchorRegions(page,native,Math.min(4,12-crops.length)))await render(region);
+    const inputPage={...native,image:undefined};
     const verification=await this.evidence(job,VERIFIER_SYSTEM,[inputPage],[{label:`Original page ${page.page}`,bytes:source.image},...crops],signal,true,'verify-'+page.page,page);
     const checked=verification.pages[0];
     // Each prior supported statement must survive or be listed as a correction.
     // Preserve both versions when a verifier disagrees; do not silently pick one.
-    const contradictions=[];
-    for(const f of page.facts){const match=checked.facts.find(v=>v.field===f.field&&v.value===f.value);if(!match){checked.facts.push(f);contradictions.push(`Verify conflicting ${f.field}: ${f.value}`);}}
-    for(const item of page.items){if(!checked.items.some(v=>v.id===item.id&&v.quantity===item.quantity&&v.unit===item.unit&&v.component===item.component)){checked.items.push(item);contradictions.push(`Reconcile item ${item.id} against its source.`);}}
-    if(contradictions.length){checked.status='partial';checked.notes.push(...contradictions);}
-    if(checked.regions.length){checked.status='partial';checked.notes.push('Some detail regions still require confirmation.');}
-    reply.pages[i]=checked;
+    reply.pages[i]=reconcileVerification(page,checked);
    }
   }
   await this.store.complete(job,{pages:reply.pages.map(p=>p.page)},async c=>{
