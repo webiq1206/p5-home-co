@@ -42,6 +42,31 @@ export function checkOfficeArchive(data:Buffer) {
     offset+=46+data.readUInt16LE(offset+28)+data.readUInt16LE(offset+30)+data.readUInt16LE(offset+32);
   }
 }
+/** Validate saved ZIP metadata through bounded reads, without buffering a large upload. */
+export async function checkOfficeArchiveRanges(size:number,read:(offset:number,length:number)=>Promise<Buffer>) {
+  const invalid=()=>new Error('This office document is damaged or unsupported.');
+  if(size<22)throw invalid();
+  const tailStart=Math.max(0,size-65557),tail=await read(tailStart,size-tailStart);
+  let end=-1;
+  for(let i=tail.length-22;i>=0;i--)if(tail.readUInt32LE(i)===0x06054b50&&i+22+tail.readUInt16LE(i+20)===tail.length){end=i;break;}
+  if(end<0)throw invalid();
+  const count=tail.readUInt16LE(end+10),centralSize=tail.readUInt32LE(end+12),centralStart=tail.readUInt32LE(end+16),centralEnd=centralStart+centralSize;
+  if(tail.readUInt16LE(end+4)||tail.readUInt16LE(end+6)||tail.readUInt16LE(end+8)!==count||!count||count>3000||centralEnd!==tailStart+end)throw invalid();
+  let offset=centralStart,total=0;
+  for(let i=0;i<count;i++){
+    if(offset+46>centralEnd)throw invalid();
+    const entry=await read(offset,46);
+    if(entry.readUInt32LE(0)!==0x02014b50)throw invalid();
+    const flags=entry.readUInt16LE(8),compressed=entry.readUInt32LE(20),expanded=entry.readUInt32LE(24),local=entry.readUInt32LE(42);
+    const next=offset+46+entry.readUInt16LE(28)+entry.readUInt16LE(30)+entry.readUInt16LE(32);
+    if(flags&1||expanded===0xffffffff||compressed===0xffffffff||expanded>16*1024*1024||next>centralEnd||local+30>centralStart)throw invalid();
+    const header=await read(local,30);
+    if(header.readUInt32LE(0)!==0x04034b50||header.readUInt16LE(6)&1||local+30+header.readUInt16LE(26)+header.readUInt16LE(28)+compressed>centralStart)throw invalid();
+    total+=expanded;if(total>32*1024*1024)throw new Error('This document expands beyond the automatic review limit.');
+    offset=next;
+  }
+  if(offset!==centralEnd)throw invalid();
+}
 export async function prepareAnalysisFiles(files:AnalysisFile[]) {
   const readable:AnalysisFile[]=[];const manualReview:string[]=[];
   for(const file of files){
