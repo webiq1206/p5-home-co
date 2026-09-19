@@ -26,6 +26,7 @@ import {resumePlansRepairEvidence} from './resume-plans-repair-evidence.mjs';
 import {resumePlansVerifierCitation} from './resume-plans-verifier-citation.mjs';
 import {resumePlansVerificationBoundary} from './resume-plans-verification-boundary.mjs';
 import {resumePlansFinalReview} from './resume-plans-final-review.mjs';
+import {resumePlansFinalReviewAfterFix} from './resume-plans-final-review-after-fix.mjs';
 import {summarizeStages} from '../src/benchmark-metrics.mjs';
 import {isolatedPool,guardedSonnetFetch,privateJson,targetedChecks} from './model-qa-support.mjs';
 import {savedRunEvents,latestProviderFailure} from './saved-run-events.mjs';
@@ -55,7 +56,7 @@ export function qualificationCallLimit(id,override){
  return value;
 }
 
-export async function runFixture(fixture,{root,key,parseOnly=false,request=fetch,log=console.log,seedPages=[],recoverLegacyCitationFailure=false,resumeReserved=false,resumeReview=false,resumePlans=false,resumeOutput=false,resumeCitationOutput=false,resumeSourceRepair=false,resumeSourceCorrection=false,resumeEmptyFact=false,resumeRepairEvidence=false,resumeVerifierCitation=false,resumeVerificationBoundary=false,resumePlansReview=false,maxCallsOverride}={}){
+export async function runFixture(fixture,{root,key,parseOnly=false,request=fetch,log=console.log,seedPages=[],recoverLegacyCitationFailure=false,resumeReserved=false,resumeReview=false,resumePlans=false,resumeOutput=false,resumeCitationOutput=false,resumeSourceRepair=false,resumeSourceCorrection=false,resumeEmptyFact=false,resumeRepairEvidence=false,resumeVerifierCitation=false,resumeVerificationBoundary=false,resumePlansReview=false,resumePlansReviewAfterFix=false,maxCallsOverride}={}){
  const bytes=Buffer.from(fixture.pdfBase64,'base64');
  if(!['short','plans'].includes(fixture.id)||hash(bytes)!==fixture.sha256||bytes.length>25*1024*1024||fixture.pages!==({short:4,plans:23})[fixture.id])throw Error('Invalid fixture bundle or source digest.');
  const providerLimit=qualificationSpendLimit(fixture.id),maxCalls=qualificationCallLimit(fixture.id,maxCallsOverride);
@@ -97,6 +98,13 @@ export async function runFixture(fixture,{root,key,parseOnly=false,request=fetch
   await store.init();started=performance.now();
   const receipt=await store.putDocument('model-qa','source-check','fixture.pdf',bytes);document=receipt.document;
   runType=receipt.cached?'resume-or-cache':'new';
+   if(resumePlansReviewAfterFix&&fixture.id==='plans'){
+    recoveryPreflight=true;
+    await resumePlansFinalReviewAfterFix(store,document,directory);
+    recoveryPreflight=false;
+    costGuard=await makeCostGuard();document=await store.document('model-qa','source-check',document.id);
+    runType='resume-plans-final-review-after-fix';log('plans: preserved all 23 accepted pages, 87 prior calls and both unknown reservations; one post-fix review attempt admitted.');
+   }
    if(resumePlansReview&&fixture.id==='plans'){
     recoveryPreflight=true;
     await resumePlansFinalReview(store,document,directory);
