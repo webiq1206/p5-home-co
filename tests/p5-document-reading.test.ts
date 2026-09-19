@@ -2,11 +2,13 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {PDFDocument,StandardFonts} from 'pdf-lib';
 import {analysisSegments} from '../lib/p5/analysisSegments.ts';
+import {SCOPE_MAX_PAGES} from '../lib/p5/scope.ts';
 import {analyzeBatch,textLayerFiles} from '../lib/p5/extraction.ts';
 import {pageTextFromItems} from '../lib/p5/pdfText.ts';
 import {unreadNotes,pageRanges,MAX_READ_ATTEMPTS} from '../lib/p5/analysisWork.ts';
 import {ANALYSIS_PASS_MS,READ_ALLOWANCE_MS,READ_START_MARGIN_MS,SERVER_BUDGET_MS} from '../lib/p5/processingBudget.ts';
 import {describeError,sanitizeEventMessage} from '../lib/p5/events.ts';
+import {analysisProgress} from '../lib/p5/analysisProgress.ts';
 
 const variables=['OPENAI_API_KEY','OPENAI_BASE_URL','AI_INTEGRATIONS_OPENAI_API_KEY','AI_INTEGRATIONS_OPENAI_BASE_URL','ANTHROPIC_API_KEY','P5_SCOPE_PROVIDER'];
 const withProviders=async(env:Record<string,string>,run:()=>Promise<void>)=>{
@@ -42,6 +44,16 @@ test('a text PDF is split into one unit per page, each carrying its own text lay
  for(const unit of units)assert.equal((await PDFDocument.load(unit.data)).getPageCount(),1);
  const layered=textLayerFiles(units);
  assert.equal(layered[2].type,'text/plain');assert.match(layered[2].data.toString('utf8'),/Cabinetry is paint-grade Shaker/);
+});
+
+test('the legacy reader accepts the published page boundary and rejects larger plans before preparation',async()=>{
+  const atLimit=await PDFDocument.create();
+  for(let i=0;i<SCOPE_MAX_PAGES;i++)atLimit.addPage([240,240]);
+  const accepted=[];for await(const unit of analysisSegments({name:'limit.pdf',type:'application/pdf',data:Buffer.from(await atLimit.save())}))accepted.push(unit);
+  assert.equal(accepted.length,SCOPE_MAX_PAGES);
+  const over=await PDFDocument.create();
+  for(let i=0;i<SCOPE_MAX_PAGES+1;i++)over.addPage([240,240]);
+  await assert.rejects(async()=>{for await(const _ of analysisSegments({name:'over-limit.pdf',type:'application/pdf',data:Buffer.from(await over.save())})){}},new RegExp(`between 1 and ${SCOPE_MAX_PAGES} pages`));
 });
 
 test('page text keeps row structure from positioned runs',()=>{
@@ -94,6 +106,20 @@ test('unread sections are reported once per document with page ranges and a plai
  ]);
  assert.equal(notes.length,1);
  assert.match(notes[0],/^budget\.pdf: automatic reading could not finish for pages 1-2, 4 \(the reader ran out of time\)/);
+});
+
+test('mixed-format progress keeps completed sections visible and names only failed sections for retry',()=>{
+  const progress=analysisProgress([
+    {pages:[{source:'plans.pdf',page:1}],result:{extraction:{documentCoverage:{
+      pages:[{source:'plans.pdf',page:1,sheet:'',revision:'',status:'read',notes:[]}],
+      expectedPages:1,complete:true,
+    }}}},
+    {pages:[],error:'schedule.xlsx could not be prepared'},
+  ],[{source:'plans.pdf',page:1}],true);
+  assert.equal(progress.readPages,1);
+  assert.equal(progress.remainingItems,1);
+  assert.deepEqual(progress.failedItems,['Unidentified document section']);
+  assert.match(progress.message,/Checked 1 of 1 pages/);
 });
 
 test('event descriptions classify failures and redact credentials',()=>{

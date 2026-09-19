@@ -89,10 +89,14 @@ export interface ReviewedScope {
 // use the resumable document upload and are processed in full sections.
 export const SCOPE_TEXT_LIMIT = 8 * 1024 * 1024;
 export const SCOPE_FILE_LIMIT = 250 * 1024 * 1024;
+/** The public document contract is intentionally shared by upload admission,
+ * legacy segmentation and the hosted reader. Keep this a hard safety limit:
+ * larger plans must be split by the customer rather than silently sampled. */
+export const SCOPE_MAX_PAGES = 250;
 export const SCOPE_BATCH_LIMIT = 1024 * 1024 * 1024;
 export const SCOPE_FILE_COUNT = 50;
 export const SCOPE_CHUNK_SIZE = 4 * 1024 * 1024;
-export const SCOPE_UPLOAD_HELP = "Up to 50 files, 250 MB each and 1 GB total. Large uploads resume after interruptions.";
+export const SCOPE_UPLOAD_HELP = "Up to 50 files, 250 MiB each and 1 GiB total. Large uploads resume after interruptions.";
 /** Map a model's wording for a choice field onto one of its options, or
  * null when no option is a clear match. Providers answer "Standard finishes"
  * or "premium" for a field whose options are refresh / mid-range / high-end /

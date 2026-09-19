@@ -11,6 +11,7 @@ import type {ReviewedScope} from './scope.ts';
 import {hasRestrictedScope,INSTRUCTION_POLICY} from './instructions.ts';
 import {activePricingSource,pricingSourceParts} from './pricingSources.ts';
 import {missingScopeFields} from './missingFields.ts';
+import {markPricingChargeUnknown,pricingFingerprint,recordPricingRequest,rejectPricingCharge,reservePricingCharge,settlePricingCharge,PricingChargeUnknownError} from './pricingLedger.ts';
 
 // This module runs only on the server at submission. No client-supplied mapping
 // or rate can authorize a price. The approved catalog is never mutated here.
@@ -103,10 +104,22 @@ const providerRuntime=globalThis as typeof globalThis & {p5AnthropicBlockedUntil
 const providerRefused=(message:string)=>/^pricing-provider-unavailable:4(0[0-3]|0[5-9]|1\d|2[0-8])\b/.test(message);
 /** The structured output each stage must return, shared by both providers so a fallback reply has the same shape. */
 const stageSchema=(instructions:string)=>instructions===normalizeResearch?marketJson:instructions===INVENTORY?inventoryJson:instructions===MAP?mappingJson:instructions===PLANNING_AVERAGE?planningJson:auditJson;
-const requestPricingWith=async(provider:'anthropic'|'openai',instructions:string,input:unknown,search:boolean,remainingMs:number):Promise<PricingReply>=>{
+const requestPricingWithUnsafe=async(provider:'anthropic'|'openai',instructions:string,input:unknown,search:boolean,remainingMs:number,requestIdentity?:string):Promise<PricingReply>=>{
   const started=Date.now();
   remainingMs=Math.min(remainingMs,PRICING_STAGE_MAX_MS);
-  const boundedFetch:typeof fetch=(input,init)=>fetchWithinDeadline(fetch,input,init||{},started+remainingMs);
+  let requestSequence=0;
+  const boundedFetch:typeof fetch=async(input,init)=>{
+    const sequence=++requestSequence;
+    if(requestIdentity)await recordPricingRequest(requestIdentity,sequence,'started');
+    try {
+      const response=await fetchWithinDeadline(fetch,input,init||{},started+remainingMs);
+      if(requestIdentity)await recordPricingRequest(requestIdentity,sequence,'completed');
+      return response;
+    } catch(error) {
+      if(requestIdentity)await recordPricingRequest(requestIdentity,sequence,'unknown');
+      throw error;
+    }
+  };
   const integrated=Boolean(process.env.AI_INTEGRATIONS_OPENAI_API_KEY&&process.env.AI_INTEGRATIONS_OPENAI_BASE_URL);
   const key=integrated?process.env.AI_INTEGRATIONS_OPENAI_API_KEY:process.env.OPENAI_API_KEY;
   const endpoint=(integrated?process.env.AI_INTEGRATIONS_OPENAI_BASE_URL:process.env.OPENAI_BASE_URL||'https://api.openai.com/v1')?.replace(/\/+$/,'');
@@ -156,6 +169,28 @@ const requestPricingWith=async(provider:'anthropic'|'openai',instructions:string
   const sourceUrls:string[]=[...(body.output||[]).filter((o:any)=>o.type==='web_search_call').flatMap((o:any)=>(o.action?.sources||[]).map((s:any)=>s.url)),...parts.flatMap((p:any)=>(p.annotations||[]).filter((a:any)=>a.type==='url_citation').map((a:any)=>a.url))];
   if(search&&!sourceUrls.length)throw new Error('pricing-search-unavailable');
   return {value:JSON.parse(raw.replace(/^\s*```(?:json)?\s*/,'').replace(/\s*```\s*$/,'')),sourceUrls};
+};
+/** Reserve before a provider request and settle only after a complete response.
+ * Ambiguous failures are parked and cannot silently fall back or retry. */
+const requestPricingWith=async(provider:'anthropic'|'openai',instructions:string,input:unknown,search:boolean,remainingMs:number):Promise<PricingReply>=>{
+  const fingerprint=pricingFingerprint(provider,instructions,input,search);
+  const reservation=await reservePricingCharge(fingerprint,provider,provider==='anthropic'?4:1);
+  try {
+    const reply=await requestPricingWithUnsafe(provider,instructions,input,search,remainingMs,fingerprint);
+    if(reservation)await settlePricingCharge(fingerprint);
+    return reply;
+  } catch(error) {
+    const message=error instanceof Error?error.message:String(error);
+    if(process.env.NODE_TEST_CONTEXT&&process.env.P5_PRICING_LEDGER_TEST_MODE==='memory')throw error;
+    // A syntactically valid 4xx rejection before provider acceptance is
+    // known non-chargeable (except 408/429, whose acknowledgement is not
+    // reliable). Keep the existing provider fallback for those responses.
+    const knownRejection=/^pricing-provider-unavailable:4(?:0[0-3]|0[5-7])\b/.test(message);
+    if(error instanceof PricingChargeUnknownError||!reservation)throw error;
+    if(knownRejection){await rejectPricingCharge(fingerprint,message);throw error;}
+    if(reservation)await markPricingChargeUnknown(fingerprint,message);
+    throw new PricingChargeUnknownError();
+  }
 };
 /** Anthropic prices first when configured. A refusal it will repeat (billing
  * block, invalid request, oversized reply) falls back to OpenAI for the rest

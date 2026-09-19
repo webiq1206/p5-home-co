@@ -130,10 +130,10 @@ test('a typed scope is read by every configured provider at once and the first v
 
 test('a billing refusal from Anthropic falls back to OpenAI for the stage and parks Anthropic',async()=>{
   const {requestPricing}=await import('../lib/p5/scopePricing.ts');
-  const names=['OPENAI_API_KEY','AI_INTEGRATIONS_OPENAI_API_KEY','AI_INTEGRATIONS_OPENAI_BASE_URL','ANTHROPIC_API_KEY','OPENAI_BASE_URL','P5_PRICING_PROVIDER'] as const;
+  const names=['OPENAI_API_KEY','AI_INTEGRATIONS_OPENAI_API_KEY','AI_INTEGRATIONS_OPENAI_BASE_URL','ANTHROPIC_API_KEY','OPENAI_BASE_URL','P5_PRICING_PROVIDER','P5_PRICING_LEDGER_TEST_MODE'] as const;
   const saved=Object.fromEntries(names.map(n=>[n,process.env[n]]));
   for(const n of names)delete process.env[n];
-  process.env.ANTHROPIC_API_KEY='synthetic-anthropic';process.env.OPENAI_API_KEY='synthetic-openai';process.env.P5_PRICING_PROVIDER='anthropic';
+  process.env.ANTHROPIC_API_KEY='synthetic-anthropic';process.env.OPENAI_API_KEY='synthetic-openai';process.env.P5_PRICING_PROVIDER='anthropic';process.env.P5_PRICING_LEDGER_TEST_MODE='memory';
   const runtime=globalThis as typeof globalThis & {p5AnthropicBlockedUntil?:number};runtime.p5AnthropicBlockedUntil=0;
   const realFetch=globalThis.fetch;let anthropicCalls=0,openaiCalls=0;
   globalThis.fetch=(async(input:any)=>{
@@ -193,10 +193,10 @@ test('confirmation-only audit findings become disclosed assumptions, real gaps s
 
 test('OpenAI leads pricing stages by default and Anthropic covers its refusal',async()=>{
   const {requestPricing}=await import('../lib/p5/scopePricing.ts');
-  const names=['OPENAI_API_KEY','AI_INTEGRATIONS_OPENAI_API_KEY','AI_INTEGRATIONS_OPENAI_BASE_URL','ANTHROPIC_API_KEY','OPENAI_BASE_URL','P5_PRICING_PROVIDER'] as const;
+  const names=['OPENAI_API_KEY','AI_INTEGRATIONS_OPENAI_API_KEY','AI_INTEGRATIONS_OPENAI_BASE_URL','ANTHROPIC_API_KEY','OPENAI_BASE_URL','P5_PRICING_PROVIDER','P5_PRICING_LEDGER_TEST_MODE'] as const;
   const saved=Object.fromEntries(names.map(n=>[n,process.env[n]]));
   for(const n of names)delete process.env[n];
-  process.env.ANTHROPIC_API_KEY='synthetic-anthropic';process.env.OPENAI_API_KEY='synthetic-openai';
+  process.env.ANTHROPIC_API_KEY='synthetic-anthropic';process.env.OPENAI_API_KEY='synthetic-openai';process.env.P5_PRICING_LEDGER_TEST_MODE='memory';
   const runtime=globalThis as typeof globalThis & {p5AnthropicBlockedUntil?:number};runtime.p5AnthropicBlockedUntil=0;
   const realFetch=globalThis.fetch;let anthropicCalls=0,openaiCalls=0,openaiRefuses=false;
   globalThis.fetch=(async(input:any)=>{

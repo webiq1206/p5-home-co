@@ -72,7 +72,7 @@ export async function advanceAnalysis(draft:Draft,text:string,answers:ScopeAnswe
     const active=job.units.filter(u=>u.active);
     const phase=!active.length&&job.prepared<draft.uploads.length?'preparing':active.some(u=>isInstructionFile(u.name))?'instructions':progress.readSections===progress.totalSections?'cross-referencing':'reading';
     job.progress=phase==='preparing'?`Preparing file ${Math.min(job.prepared+1,draft.uploads.length)} of ${draft.uploads.length}. ${job.units.length} sections saved for reading.`:progress.message;
-    job.processing={...progress,inputKind:draft.uploads.length?'documents':'text',phase,message:job.progress,currentItems:active.slice(0,3).map(u=>u.name),updatedAt:new Date().toISOString()};
+    job.processing={...progress,inputKind:draft.uploads.length?'documents':'text',phase,message:job.progress,currentItems:active.slice(0,3).map(u=>u.name),failedItems:progress.failedItems,remainingItems:progress.remainingItems,updatedAt:new Date().toISOString()};
     return writeWork(draft.id,workKey,lease.token,job);
   });return saving;};
   try{
@@ -186,7 +186,10 @@ export async function advanceAnalysis(draft:Draft,text:string,answers:ScopeAnswe
       job.textDone=await analyzeBatch(text,[],answers,request,Math.min(READ_ALLOWANCE_MS,absoluteDeadline-Date.now()),absoluteDeadline,{race:true,event:{draftId:draft.id,estimator:answers.service||null,file:null}});await checkpoint();
     }
     const results=job.units.flatMap(u=>u.result?[u.result]:[]);if(job.textDone)results.push(job.textDone);
-    const last=results[results.length-1];
+    // Preparation failures can leave a project with no successful provider
+    // result. Return an explicit incomplete extraction instead of dereferencing
+    // an absent result (or, worse, letting callers treat it as complete).
+    const last=results[results.length-1]||{provider:'P5 document reader',model:'none',analyzedAt:new Date().toISOString(),extraction:combineScopeExtractions([])};
     const extraction:ScopeExtraction=combineScopeExtractions(results.map(r=>r.extraction));
     const unprocessed=job.units.filter(u=>!u.result).flatMap(u=>(u.pages||[]).map(p=>({...p,sheet:'',revision:'',status:'unreadable' as const,notes:[u.error||'Page analysis did not finish.']})));
     if(unprocessed.length){const c=extraction.documentCoverage||{pages:[],expectedPages:0,complete:false};extraction.documentCoverage={pages:[...c.pages,...unprocessed],expectedPages:c.expectedPages+unprocessed.length,complete:false};}

@@ -4,13 +4,14 @@ import {readStoredBytes} from './objectStorage.ts';
 import {claimWork,writeWork,releaseWork} from './workStore.ts';
 import {ESTIMATOR_BRAND} from './brand.ts';
 import {validateExtraction,type ScopeAnswers,type ScopeUpload} from './scope.ts';
+import {SCOPE_FILE_LIMIT,SCOPE_MAX_PAGES} from './scope.ts';
 import {type Draft,DraftError} from './store.ts';
 import {fetchWithinDeadline,remainingBudget} from './processingBudget.ts';
 import type {ProcessingStatus} from './processingStatus.ts';
 const VERSION='p5-documents-2026-09-17-v1';
 const digest=(value:string|Buffer)=>createHash('sha256').update(value).digest('hex');
 export function documentServiceEligible(uploads:ScopeUpload[],env:Readonly<Record<string,string|undefined>>=process.env){
- const limit=Number(env.P5_DOCUMENT_SERVICE_MAX_BYTES||50*1024*1024);
+  const limit=Number(env.P5_DOCUMENT_SERVICE_MAX_BYTES||SCOPE_FILE_LIMIT);
  if(env.P5_DOCUMENT_SERVICE_MODE==='remote'&&(!Number.isSafeInteger(limit)||limit<=0))throw new DraftError('The document size limit needs configuration. Your files are saved.',503);
  return env.P5_DOCUMENT_SERVICE_MODE==='remote'&&uploads.length>0&&uploads.every(u=>u.status==='stored'&&u.type==='application/pdf'&&u.size>0&&u.size<=limit);
 }
@@ -56,7 +57,8 @@ export async function advanceDocumentService(draft:Draft,text:string,answers:Sco
     if(retryFailed){const retried=await send('POST',path+'/retry');if(!retried.ok)throw new DraftError('The document retry could not start. Your files are saved.',503);return pending('Retrying only the interrupted document stages.',{phase:'retrying'});}
     throw new DraftError(`Document processing needs attention (${response.value.error||'reader failure'}). Completed work is saved. Use Retry to resume.`,422);
    }
-   complete&&=response.value.state==='complete';readPages+=Number(response.value.progress?.checkedPages||0);totalPages+=Number(response.value.progress?.totalPages||0);
+    complete&&=response.value.state==='complete';readPages+=Number(response.value.progress?.checkedPages||0);totalPages+=Number(response.value.progress?.totalPages||0);
+    if(Number(response.value.progress?.totalPages||0)>SCOPE_MAX_PAGES)throw new DraftError(`This document has more than ${SCOPE_MAX_PAGES} pages. Split the plan before automatic reading. Your uploaded file is saved.`,413);
    const source=draft.uploads.filter(u=>u.name===upload.name).length>1?`${upload.name} [${upload.id.slice(0,8)}]`:upload.name;
    // Duplicate bytes in the same project are one physical source, even when
    // uploaded twice under different names. They must not multiply quantities.

@@ -13,7 +13,7 @@ const TYPES: Record<string,string> = {
 };
 export const ACCEPT_SCOPE_FILES = Object.keys(TYPES).map(ext=>`.${ext}`).join(",");
 export function verifyUpload(name: string, data: Buffer): AnalysisFile {
-  if (!data.length || data.length > SCOPE_FILE_LIMIT) throw new Error("Files must be nonempty and no larger than 250 MB each.");
+  if (!data.length || data.length > SCOPE_FILE_LIMIT) throw new Error("Files must be nonempty and no larger than 250 MiB each.");
   const safeName=name.replace(/[\u0000-\u001f/\\]/g,"_").slice(0,180);
   const extension=safeName.split(".").pop()?.toLowerCase()||"";const type=TYPES[extension];
   if(!type)throw new Error("Use a PDF, photo, Word document, spreadsheet or text file.");

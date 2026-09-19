@@ -6,7 +6,8 @@ test('shared service is off by default and never changes legacy mixed-format inp
  assert.equal(documentServiceEligible([pdf],{}),false);
  assert.equal(documentServiceEligible([pdf],{P5_DOCUMENT_SERVICE_MODE:'remote'}),true);
  assert.equal(documentServiceEligible([pdf,{...pdf,type:'image/png'}],{P5_DOCUMENT_SERVICE_MODE:'remote'}),false);
- assert.equal(documentServiceEligible([{...pdf,size:60*1024*1024}],{P5_DOCUMENT_SERVICE_MODE:'remote'}),false);
+  assert.equal(documentServiceEligible([{...pdf,size:250*1024*1024}],{P5_DOCUMENT_SERVICE_MODE:'remote'}),true);
+  assert.equal(documentServiceEligible([{...pdf,size:250*1024*1024+1}],{P5_DOCUMENT_SERVICE_MODE:'remote'}),false);
  assert.equal(documentServiceEligible([{...pdf,size:0}],{P5_DOCUMENT_SERVICE_MODE:'remote'}),false);
  assert.throws(()=>documentServiceEligible([pdf],{P5_DOCUMENT_SERVICE_MODE:'remote',P5_DOCUMENT_SERVICE_MAX_BYTES:'invalid'}),/configuration/);
 });

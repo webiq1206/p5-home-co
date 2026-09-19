@@ -12,6 +12,7 @@ export default function P5ProcessingStatus({message,processing,uploadPercent,onP
   const elapsed=Math.max(0,Math.floor((clock-started)/1000));
   const {total,read,uploading,title,detail}=processingPresentation(message,processing,uploadPercent,hasAttachments);
   const item=processing?.currentItems?.[0];
+  const failed=processing?.failedItems||[];
   // Seconds THIS stage has been running. Total elapsed says nothing about
   // whether anything is still happening; a step clock that keeps moving does.
   const stageStarted=processing?.stageStartedAt?Date.parse(processing.stageStartedAt):NaN;
@@ -31,6 +32,7 @@ export default function P5ProcessingStatus({message,processing,uploadPercent,onP
       {done>0?`${done} ${done===1?'check':'checks'} completed`:'First check running'}{stageSeconds!==null?` · this step ${stageSeconds}s`:''}
     </p>}
     {item&&<p className={styles.processingFile} title={item}>{item}</p>}
+    {failed.length>0&&<p className={styles.processingMessage}>Saved but not checked yet: {failed.slice(0,3).join(', ')}{failed.length>3?` and ${failed.length-3} more`:''}. Retry document reading before pricing.</p>}
     {patience&&<p className={styles.processingMessage}>{patience}</p>}
     <div className={styles.processingFooter}><span>Completed checks are saved. You can come back to this page later.</span>{onPause&&<button type="button" className={styles.iconButton} onClick={onPause}>Back to project</button>}</div>
   </section>;

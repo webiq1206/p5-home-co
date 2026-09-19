@@ -63,7 +63,7 @@ Website server-only settings, verified against the adapter:
 P5_DOCUMENT_SERVICE_MODE=remote
 P5_DOCUMENT_SERVICE_URL=https://p5homeco.com/api/p5-documents
 P5_DOCUMENT_SERVICE_KEY=unique-secret-for-this-site
-P5_DOCUMENT_SERVICE_MAX_BYTES=52428800
+P5_DOCUMENT_SERVICE_MAX_BYTES=262144000
 ```
 
 Never use NEXT_PUBLIC_ for these secrets. Qualification must precede activation. Rollback uses `P5_DOCUMENT_SERVICE_MODE=legacy`; mode changes alter job keys, and regression tests preserve existing upload support. Live operational rollback is still untested.

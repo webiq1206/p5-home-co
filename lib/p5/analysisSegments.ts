@@ -2,6 +2,7 @@ import {PDFDocument} from 'pdf-lib';
 import {drawingDetails} from './planRendering.ts';
 import {pdfTextLayers} from './pdfText.ts';
 import type {AnalysisFile} from './extraction.ts';
+import {SCOPE_MAX_PAGES} from './scope.ts';
 
 const UNIT_BYTES=16*1024*1024;
 /** Characters of neighbouring-page text supplied as context to a page read. */
@@ -17,7 +18,7 @@ const CONTEXT_CHARS=2500;
 export async function* analysisSegments(file:AnalysisFile,startPage=0,render:typeof drawingDetails=drawingDetails):AsyncGenerator<AnalysisFile>{
   if(file.type==='application/pdf'){
     const document=await PDFDocument.load(file.data);const count=document.getPageCount();
-    if(!count||count>2000)throw new Error('This PDF needs between 1 and 2,000 pages.');
+     if(!count||count>SCOPE_MAX_PAGES)throw new Error(`This PDF needs between 1 and ${SCOPE_MAX_PAGES} pages. Split larger plans before automatic reading.`);
     // Text layers are read once per generator run; a failure leaves the layer
     // absent and the page is still read from its PDF bytes.
     const layers=await pdfTextLayers(file.data,count).catch(error=>{console.error(`[p5-analysis] text layer unavailable for ${file.name}: ${error instanceof Error?error.message:String(error)}`);return [] as string[];});

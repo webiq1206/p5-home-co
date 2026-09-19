@@ -11,6 +11,9 @@ export interface ProcessingStatus {
   readSections?:number;
   totalSections?:number;
   currentItems?:string[];
+  /** File/section names that are saved but still need retry or review. */
+  failedItems?:string[];
+  remainingItems?:number;
   /** Stages finished in this pricing run. There is no honest total - the
    * number of research batches and repair rounds is not known in advance - so
    * this counts up rather than filling a bar. */

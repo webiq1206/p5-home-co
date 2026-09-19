@@ -3,3 +3,4 @@
 - [Estimator worker diagnostics](estimator-worker-diagnostics.md) — persist and log only allowlisted failure categories; raw exceptions may contain customer data or credentials.
 - [GitHub synchronization](github-synchronization.md) — advance GitHub from its own reviewed parent without force, then merge locally to retain Replit-only history.
 - [Estimator browser timing](estimator-browser-timing.md) — separate server job duration from automation overhead before diagnosing a completion handoff failure.
+- [Pricing spend admission](pricing-spend-admission.md) — live pricing must reserve durable budget per billable request and stop on missing budget or ambiguous charges.

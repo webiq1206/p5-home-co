@@ -21,7 +21,8 @@ export function analysisProgress(units:ProgressUnit[],expected?:{source:string;p
   const pending=new Set(units.filter(u=>!u.result).flatMap(u=>(u.pages||[]).map(key)));
   const readPages=coverage.pages.filter(p=>finished.has(key(p))&&!pending.has(key(p))).length;
   const readSections=units.filter(u=>u.result).length;
-  return {readPages,totalPages:coverage.expectedPages,readSections,totalSections:units.length,
+  const failedItems=units.filter(u=>!u.result&&u.error).map(u=>u.pages?.length?`${u.pages[0].source} (page ${u.pages[0].page})`:'Unidentified document section');
+  return {readPages,totalPages:coverage.expectedPages,readSections,totalSections:units.length,failedItems,remainingItems:units.filter(u=>!u.result).length,
     message:coverage.expectedPages?`Checked ${readPages} of ${coverage.expectedPages} pages. Reading source evidence.`:units.length?`Read ${readSections} of ${units.length} ${hasAttachments?'document':'scope'} sections.`:'Checking your description, quantities and requested work.'};
 }
 

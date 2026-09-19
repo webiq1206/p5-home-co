@@ -5,6 +5,7 @@ import {loadSettings} from "../../app/lib/leads/settings.ts";
 import {ESTIMATOR_BRAND as brand} from "./brand.ts";
 export async function adminRecipients(){return [...new Set((await peopleWithRole(["administrator"])).map(p=>p.email))];}
 export const EMAIL_SUPPORTS_IDEMPOTENCY=false;
+export const deliveryBrand=(record:any)=>typeof record?.brand==="string"&&record.brand.trim()?record.brand:brand.name;
 export async function sendEmail(input:{to:string;subject:string;text:string;html?:string;attachments:{filename:string;content:Buffer}[];key:string}){
   if(!process.env.SMTP_USER||!process.env.SMTP_PASSWORD)throw new Error("Email delivery is not configured");
   const port=Number(process.env.SMTP_PORT||465);
@@ -16,7 +17,7 @@ export async function sendEmail(input:{to:string;subject:string;text:string;html
 export async function syncCrm(record:any,key:string){
   const names=record.contact.name.trim().split(/\s+/);
   const result=await ingestLead({firstName:names.shift()||null,lastName:names.join(" ")||null,email:record.contact.email,phone:record.contact.phone||null,
-    brand:"P5 Home Co",projectType:record.scope.answers.service,source:"Organic Website",sourceDetail:`p5-estimator:${record.draftId}`,
+    brand:deliveryBrand(record),projectType:record.scope.answers.service,source:"Organic Website",sourceDetail:`p5-estimator:${record.draftId}`,
     propertyAddress:record.scope.answers.address||null,propertyCity:record.scope.answers.location||null,
     summary:record.customer.summary,externalLeadId:key,originalForm:"p5-estimator",originalCampaign:null,utm:null,receivedAt:new Date()},await loadSettings());
   if(result.status==="rejected")throw new Error("CRM rejected the estimate lead");

@@ -49,7 +49,7 @@ Each website adapter accepts these SERVER-ONLY variables:
 P5_DOCUMENT_SERVICE_MODE=remote
 P5_DOCUMENT_SERVICE_URL=https://your-worker-host
 P5_DOCUMENT_SERVICE_KEY=the-secret-for-this-website-only
-P5_DOCUMENT_SERVICE_MAX_BYTES=52428800
+P5_DOCUMENT_SERVICE_MAX_BYTES=262144000
 ```
 
 Do not put any key in a `NEXT_PUBLIC_` variable. The mode is disabled by default. Build-time and local mock tests are not reasons to enable it in production. Deploy and qualify the worker first, then turn on one site, run real upload/reload/question/PDF/email checks, and expand to the remaining sites. Setting the mode back to `legacy` rolls back new analysis jobs without deleting source data. Existing successful legacy estimates are untouched.
