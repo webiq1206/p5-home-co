@@ -2,6 +2,7 @@ import {readFile,stat} from 'node:fs/promises';
 import {resolve,join} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {hash,stable} from '../src/core.mjs';
+import {Store} from '../src/store.mjs';
 import {isolatedPool,privateJson} from './model-qa-support.mjs';
 
 const SOURCE='4565acfa74cc3590fc2c7b2baf532c99a069c9a572448de8a6f599a7cf135786';
@@ -14,7 +15,9 @@ const refuse=message=>{throw Error(message+'. Nothing restarted.');};
  * uncertainty policy, while leaving all other queued work and accounting intact. */
 export async function resumePlansSourceSupport(directory){
  const marker=join(directory,'plans-page19-source-support-v1.json');
- try{await stat(marker);throw Error('Plans page-19 source-support recovery was already attempted. Inspect its saved result.');}catch(e){if(e.code!=='ENOENT')throw e;}
+ let existingMarker;
+ try{existingMarker=JSON.parse(await readFile(marker,'utf8'));}catch(e){if(e.code!=='ENOENT')throw e;}
+ if(existingMarker&&existingMarker.action!=='resume-plans-source-support')refuse('The recovery marker differs');
  const ledgerBytes=await readFile(join(directory,'cost.json')),ledger=JSON.parse(ledgerBytes);
  const shortBytes=await readFile(join(directory,'..','short-ef5caf0682131935','cost.json'));
  if(hash(ledgerBytes)!==EXPECTED_LEDGER||hash(shortBytes)!==EXPECTED_SHORT)refuse('A preserved ledger changed');
@@ -23,6 +26,7 @@ export async function resumePlansSourceSupport(directory){
   Math.abs(ledger.calls.reduce((n,c)=>n+c.reservedUsd,0)-3.3895915)>1e-8)refuse('Plans accounting differs from the inspected 61 known-charge calls');
  const pool=await isolatedPool(join(directory,'database'));
  try{
+  const store=new Store(pool,{});
   const documents=(await pool.query('SELECT * FROM p5ds_documents')).rows;
   if(documents.length!==1)refuse('Saved document count differs');
   const document=documents[0];
@@ -36,11 +40,13 @@ export async function resumePlansSourceSupport(directory){
    citations.some(c=>!c.supported&&c.lines.length))refuse('Saved page-19 support checkpoint differs');
   const pages=(await pool.query('SELECT page,native,evidence FROM p5ds_pages ORDER BY page')).rows;
   if(pages.length!==23||pages.filter(p=>p.evidence).length!==16||pages.some((p,i)=>p.page!==i+1||!p.native))refuse('Saved page coverage differs');
-  await privateJson(marker,{version:1,action:'resume-plans-source-support',createdAt:new Date().toISOString(),sourceCommit:process.env.P5_QA_SOURCE_COMMIT||null,
+  const archive={version:1,action:'resume-plans-source-support',createdAt:existingMarker?.createdAt||new Date().toISOString(),sourceCommit:existingMarker?.sourceCommit||process.env.P5_QA_SOURCE_COMMIT||null,
    plansLedgerSha256:hash(ledgerBytes),shortLedgerSha256:hash(shortBytes),plansCalls:61,plansEstimatedUsd:3.3895915,
    previousDocument:{state:document.state,errorCode:document.error_code},failedJob:{id:failed.id,state:failed.state,attempts:failed.attempts,errorCode:failed.error_code},
-   pageEvidenceSha256:hash(stable(pages.map(p=>({page:p.page,evidence:p.evidence}))))});
-  await pool.transaction(async c=>{
+   pageEvidenceSha256:hash(stable(pages.map(p=>({page:p.page,evidence:p.evidence}))))};
+  if(existingMarker&&stable(existingMarker)!==stable(archive))refuse('The interrupted recovery archive differs');
+  if(!existingMarker)await privateJson(marker,archive);
+  await store.transaction(async c=>{
    const locked=(await c.query('SELECT state,error_code FROM p5ds_documents WHERE id=$1 FOR UPDATE',[document.id])).rows[0];
    if(locked?.state!=='failed'||locked.error_code!=='unsupported-source-statement')throw Error('Document changed during recovery. Inspect the archive.');
    const changed=await c.query("UPDATE p5ds_jobs SET state='queued',error_code=null,priority=0,created_at=now(),available_at=now(),lease_token=null,lease_until=null WHERE id=$1 AND state='failed' AND attempts=1 AND error_code='unsupported-source-statement' AND result=$2::jsonb RETURNING id",[failed.id,JSON.stringify(failed.result)]);
