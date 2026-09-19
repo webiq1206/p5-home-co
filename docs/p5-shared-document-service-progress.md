@@ -933,3 +933,36 @@ has not been relaxed. The paid review and plans qualification remain unfinished.
 Regression coverage includes partial page evidence, queued/running reviews,
 unfinished source jobs, preserving paid-run reports, recovering omitted review
 metrics from SQL, and byte-for-byte ledger/checkpoint preservation on inspection.
+
+### 2026-09-19: Runtime recovery supersedes the earlier six-call diagnosis
+
+The owner authorized Replit runtime inspection and test execution. Read-only
+inspection established that the short fixture had already completed all four
+pages and its review, with ten targeted checks passing. Its original ledger is
+ten calls and $0.9056429 reserved, including three previously acknowledged
+unknown charges. The old six-call `resume-review` predicate is obsolete for that
+advanced state; do not run it again.
+
+PRs 71 and 72 diagnosed the actual seven-call plans failure on page 3, preserved
+the historical recovery archive, and added a separate guarded recovery. One
+admitted run reached page 4 and failed at its output ceiling. PR 73 added one
+durable lower-effort response recovery. The next single runtime run completed
+the page-4 read, then failed in citation correction because all 2,048 output
+tokens were thinking tokens. The complete page read is saved and must be reused.
+
+The latest completed runtime result is thirteen known-charge plans requests,
+$0.9384168 reserved, no unknown charges, three partial pages and a saved page-4
+draft. This remains a failed qualification. The new citation-specific repair
+keeps the same output ceiling and strict validation, and its narrow recovery
+must preserve all earlier archives, responses, source pages and charges.
+
+P5's hosted reader is authenticated and available, but its customer adapter is
+still legacy. The four child adapters lack remote configuration and private
+signing keys. Current pricing defaults to managed OpenAI. Historical passing
+pricing reports are not current-release qualification. A separate guarded P5
+pricing test is prepared but has not been authorized to spend or executed.
+
+See [the current runtime qualification record](runtime-qualification-2026-09-19.md)
+for exact source SHAs, measured timings, source quantities, recovery rules,
+configuration findings and remaining owner actions. No cold 250-page AI timing,
+exhaustive plan accuracy or all-site customer journey has been certified.
