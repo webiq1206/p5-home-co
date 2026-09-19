@@ -51,6 +51,27 @@ test('a clearance note cannot promote structured partial coverage',()=>{
  }
 });
 
+for(const clause of [
+ 'CONTRACTOR SHALL VERIFY ALL EXISTING SITE CONDITIONS PRIOR TO STARTING CONSTRUCTION.',
+ 'CONTRACTOR SHALL VERIFY ALL DIMENSIONS AND REPORT ANY DISCREPANCIES TO THE DESIGNER PRIOR TO CONSTRUCTION.',
+])test('a fully readable contractor verification responsibility remains read: '+clause,()=>{
+ const page=validateEvidence({pages:[record({notes:[clause],responsibilities:[clause]})]},[source(clause)]).pages[0];
+ assert.equal(page.status,'read');
+ assert.deepEqual(page.responsibilities,[clause]);
+});
+
+test('a contractor responsibility cannot hide a separate unresolved finding',()=>{
+ const responsibility='CONTRACTOR SHALL VERIFY ALL DIMENSIONS PRIOR TO CONSTRUCTION.';
+ for(const extra of [
+  {notes:[responsibility,'Verify conflicting stair dimensions with the builder.']},
+  {notes:[responsibility+' The stair dimension remains uncertain.']},
+  {notes:[responsibility],facts:[{field:'otherDetails',value:'Stair dimension unresolved',evidence:'Stair dimension unresolved',basis:'uncertain'}]},
+  {notes:[responsibility],regions:[{x:0,y:0,width:.2,height:.2,reason:'Unread stair dimension'}]},
+ ]){
+  assert.equal(validateEvidence({pages:[record(extra)]},[source(`${responsibility} Stair dimension unresolved`)]).pages[0].status,'partial');
+ }
+});
+
 test('an explicit duration remains usable beside an unrelated issue date',()=>{
  const text='Project duration: 6 months. Issue Date: 13 July 2026.';
  const fact={field:'projectMonths',value:'6',evidence:text,basis:'stated'};
