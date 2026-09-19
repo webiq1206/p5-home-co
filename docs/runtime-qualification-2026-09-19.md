@@ -79,3 +79,31 @@ The new `check-p5-live-pricing-guarded.mts` is a reviewable first pricing test, 
 Its independent acceptance checks reject wrong units or quantities, duplicate full-length charges, owner-supplied material charges, unrelated work, unapproved rate bases, wrong building/floor and incorrect direct-cost arithmetic. The underlying runner checks that the approved policy is unchanged and performs no customer delivery or business writes. Local safeguards pass, and a dry invocation with no separate pricing allowance refuses before any generation. No new pricing allowance was inferred from the $1 short-file or $3 plans-document budgets.
 
 Completing live pricing requires a separate allowance and an explicit decision on the pricing provider to qualify. Secure shared-reader activation still requires each child app's private per-tenant key to be linked through Replit's protected Secrets mechanism. Available inspection tools cannot transfer those secrets securely between apps. Do not paste keys into chat or include them in commits. Qualify P5's document processing before enabling child adapters. Neither the prepared test nor any metadata request provides an all-site all-clear.
+
+## PR 74 live result and inspected source errors
+
+The single resumed run at `5e2eb16d7e19f55b272ccfbf3b8966c623390ee5` reused the successful page-4 read and made only one new citation request. The cached short-file gate passed in 221 ms. Plans stopped after 12,279 ms with `unsupported-source-statement`, preserving partial pages 1 through 3. Page 4 has no committed evidence, and pages 5 through 23 remain queued. This is still a failed qualification.
+
+Request 14 used Sonnet 5 at medium effort with thinking disabled. It completed with `end_turn`, 20,308 input tokens, 1,142 output tokens and zero thinking tokens. Eight statements failed support validation: `4:facts:1` and item indices 0, 1, 7, 10, 12, 23 and 42 on page 4. Completing the response did not make those claims acceptable. The plans ledger now has fourteen usage-reported requests, no unknown charges, and $0.9904528 reserved against the unchanged $3 limit. The new recovery archive SHA-256 is `56c6a0a9ca69f91523848af4888ca37603fdb825be4e8993fc95c96e1242b465`. A connector timeout was handled by retrieving saved results, without repeating the paid invocation.
+
+The rejected draft has an empty project-duration fact citing the drawing issue date. Other rejected claims assign labels to rooms from native-text proximity, silently change an inch mark to feet, combine separate ceiling labels into a range, or attach a counted fireplace/keynote and appliance grouping without establishing their drawing relationships. These are source-support problems. Citation validation remains unchanged and continues to reject unsupported claims.
+
+The reader and verifier instructions now explicitly distinguish drawing metadata from estimator facts, require nonempty facts, preserve literal units, and classify placement-dependent room labels, finishes, keynotes and counts as visual. The evidence validator independently rejects empty fact fields or values. Missing dimensions remain missing; genuinely unresolved visual details remain partial.
+
+The explicit `resume-plans-source-repair` command admits only the inspected fourteen-call state, exact rejected keys, matching cached raw read and citation response, unchanged original source and partial pages, and inactive expected jobs. It archives the rejected draft, citations, ledger and jobs before requeuing only page 4 and its dependent review. That failed draft is reread at the existing low-effort profile under the corrected instructions; previously accepted source pages are not reread. The existing $3 budget, provider limits, citation checks and independent visual verification remain. A permanent marker prevents a second invocation. Local tests do not establish that the revised prompt is accurate on the real plans.
+
+## Disposable PostgreSQL integration evidence
+
+The exact PR 74 source above ran the existing, unmodified integration file once in a disposable Replit checkout against a new local PostgreSQL 16.10 database. All twelve tests passed, with zero failures, skips or cancellations, in 13.626 seconds. Nine of these had been skipped locally for lack of a PostgreSQL server; three had already run locally. Do not add twelve new unique tests to the local suite total.
+
+Coverage includes the HTTP ingestion/review path with a synthetic Reader, persistent nonce replay protection, modified-body rejection, MIME limits, competing worker claims and stale-lease fencing, shared provider capacity, saved-evidence reuse, parser failure preservation, and storage-quota rollback. The file also checks a unique synthetic 100-sheet PDF, a corrupt PDF and avoidance of rereading completed pages. The 100-sheet parse benchmark was 10.421 seconds, without live AI.
+
+Dependencies were installed from the existing lock with lifecycle scripts disabled. Independently matching local SHA-256 values are:
+
+| File, relative to the document service | SHA-256 |
+| --- | --- |
+| `package.json` | `4d6934cef087df8e4dc9a68a0123afc9381dc36e5d0dc9666c1938869cbf0462` |
+| `package-lock.json` | `90e9ca422a18e0020039633b72c265cbc69b9545b67b223eb4a1e5e4f2244f70` |
+| `test/integration.test.mjs` | `c298e168772c2e0947fd16f92ae243f9b7cdbd9ec56334cc46d0c49e3023906b` |
+
+The saved TAP output was retrieved and checked against the test names and source hashes. The process had a cleared environment with only the verified disposable database URL and no existing database URLs or provider credentials. Server data directory, loopback address, unique port, database and test user were verified before execution. Shutdown of only the temporary server was confirmed afterward. Production databases, application checkouts, configuration and deployments were untouched. These results close the PostgreSQL test gap, not the live AI, pricing or deployed adapter gaps.

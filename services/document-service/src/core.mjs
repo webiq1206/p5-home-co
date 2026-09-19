@@ -87,6 +87,7 @@ export function validateEvidence(value,pages){
   const page=pages.find(p=>p.page===record.page);if(!page||seen.has(record.page))throw new ServiceError('invalid-page-reference',422);seen.add(record.page);
   if(!['read','partial','unreadable'].includes(record.status)||!Array.isArray(record.facts)||!Array.isArray(record.items)||!Array.isArray(record.regions)||!Array.isArray(record.notes))throw new ServiceError('invalid-page-record',422);
   if(record.regions.length>12)throw new ServiceError('too-many-unresolved-regions',422);
+  for(const f of record.facts)if(typeof f.field!=='string'||!f.field.trim()||typeof f.value!=='string'||!f.value.trim())throw new ServiceError('empty-source-fact',422);
   for(const r of record.regions){if(![r.x,r.y,r.width,r.height].every(Number.isFinite)||r.x<0||r.y<0||r.width<=0||r.height<=0||r.x+r.width>1.001||r.y+r.height>1.001)throw new ServiceError('invalid-region',422);}
   for(const f of [...record.facts,...record.items]){
    if(!f.evidence?.trim()||!['stated','calculated','visual','uncertain'].includes(f.basis))throw new ServiceError('unsupported-evidence',422);

@@ -19,6 +19,7 @@ import {resumeLegacyCitationFailure} from './resume-citation-failure.mjs';
 import {resumePlansCitation} from './resume-plans-citation.mjs';
 import {resumePlansOutput} from './resume-plans-output.mjs';
 import {resumePlansCitationOutput} from './resume-plans-citation-output.mjs';
+import {resumePlansSourceRepair} from './resume-plans-source-repair.mjs';
 import {summarizeStages} from '../src/benchmark-metrics.mjs';
 import {isolatedPool,guardedSonnetFetch,privateJson,targetedChecks} from './model-qa-support.mjs';
 import {savedRunEvents,latestProviderFailure} from './saved-run-events.mjs';
@@ -33,7 +34,7 @@ export function admitBeforeDeadline(deadline,callMs,now=performance.now()){
  if(deadline-now<callMs+5000)throw new ServiceError('qa-window-complete-before-next-request',422);
 }
 
-export async function runFixture(fixture,{root,key,parseOnly=false,request=fetch,log=console.log,seedPages=[],recoverLegacyCitationFailure=false,resumeReserved=false,resumeReview=false,resumePlans=false,resumeOutput=false,resumeCitationOutput=false}={}){
+export async function runFixture(fixture,{root,key,parseOnly=false,request=fetch,log=console.log,seedPages=[],recoverLegacyCitationFailure=false,resumeReserved=false,resumeReview=false,resumePlans=false,resumeOutput=false,resumeCitationOutput=false,resumeSourceRepair=false}={}){
  const bytes=Buffer.from(fixture.pdfBase64,'base64');
  if(!['short','plans'].includes(fixture.id)||hash(bytes)!==fixture.sha256||bytes.length>25*1024*1024||fixture.pages!==({short:4,plans:23})[fixture.id])throw Error('Invalid fixture bundle or source digest.');
  const providerLimit=fixture.id==='short'?1:3,maxCalls=fixture.id==='short'?12:64;
@@ -75,6 +76,13 @@ export async function runFixture(fixture,{root,key,parseOnly=false,request=fetch
   await store.init();started=performance.now();
   const receipt=await store.putDocument('model-qa','source-check','fixture.pdf',bytes);document=receipt.document;
   runType=receipt.cached?'resume-or-cache':'new';
+  if(resumeSourceRepair&&fixture.id==='plans'){
+   recoveryPreflight=true;
+   await resumePlansSourceRepair(store,document,directory);
+   recoveryPreflight=false;
+   document=await store.document('model-qa','source-check',document.id);
+   runType='resume-plans-source-repair';log('plans: archived the rejected page-4 draft and citations; preserved completed evidence and every charge. Re-reading only the failed page under corrected source rules.');
+  }
   if(resumeCitationOutput&&fixture.id==='plans'){
    recoveryPreflight=true;
    await resumePlansCitationOutput(store,document,directory);
