@@ -13,8 +13,16 @@ const REJECTED="5' PUID easements on north and south property lines; unverified 
  * and all prior charges survive. A further failure needs another inspection.
  */
 export async function resumePlansCitation(store,document,directory){
- const marker=join(directory,'plans-citation-recovery-v1.json');
+ const marker=join(directory,'plans-spatial-page3-recovery-v1.json');
  try{await stat(marker);throw Error('Plans citation recovery was already attempted. Inspect the saved result.');}catch(e){if(e.code!=='ENOENT')throw e;}
+ // The inspected older marker belongs to a TWO-call page-1 recovery. It must
+ // survive unchanged and cannot authorize another page-3 recovery. Recognize
+ // only that exact archived file, not an arbitrary same-name recovery record.
+ let legacyMarkerSha256=null;
+ try{
+  legacyMarkerSha256=hash(await readFile(join(directory,'plans-citation-recovery-v1.json')));
+  if(legacyMarkerSha256!=='e4142864d5749da4869391301a1c87d6e813625de22314a337e3c0cd64637b08')throw Error('Historical plans recovery archive differs. Nothing restarted.');
+ }catch(e){if(e.code!=='ENOENT')throw e;}
  const ledger=JSON.parse(await readFile(join(directory,'cost.json'),'utf8'));
  const report=JSON.parse(await readFile(join(directory,'report.json'),'utf8'));
  const calls=ledger.calls,expectedCost=.551956;
@@ -38,7 +46,7 @@ export async function resumePlansCitation(store,document,directory){
  const rejections=checkpoint?.repair?.citations?.filter(c=>!c.supported);
  if(statement?.field!=='site'||statement.value!==REJECTED||statement.basis!=='stated'||rejections?.length!==1||rejections[0].key!=='3:facts:7'||rejections[0].lines?.length!==0||failed.result?.verificationCheckpoints)throw Error('Saved rejected statement differs. Nothing restarted.');
  // Archive first. An interruption after this point cannot authorize another run.
- await privateJson(marker,{version:1,createdAt:new Date().toISOString(),reason:'Re-read the inspected unsupported spatial claim with drawing relationships classified as visual. Strict citations and independent verification remain required.',previousLedger:ledger,previousReport:report,previousJobs:jobs,pageEvidence:pages.filter(p=>p.evidence).map(p=>({page:p.page,evidence:p.evidence})),pageFingerprints:pages.map(p=>({page:p.page,nativeSha256:hash(JSON.stringify(p.native)),imageSha256:hash(p.image)}))});
+ await privateJson(marker,{version:1,createdAt:new Date().toISOString(),legacyMarkerSha256,reason:'Re-read the inspected unsupported spatial claim with drawing relationships classified as visual. Strict citations and independent verification remain required.',previousLedger:ledger,previousReport:report,previousJobs:jobs,pageEvidence:pages.filter(p=>p.evidence).map(p=>({page:p.page,evidence:p.evidence})),pageFingerprints:pages.map(p=>({page:p.page,nativeSha256:hash(JSON.stringify(p.native)),imageSha256:hash(p.image)}))});
  await store.transaction(async c=>{
   const locked=(await c.query('SELECT state,error_code FROM p5ds_documents WHERE id=$1 FOR UPDATE',[document.id])).rows[0];
   if(locked?.state!=='failed'||locked.error_code!=='unsupported-source-statement')throw Error('Saved document changed during recovery. Inspect the archive.');
