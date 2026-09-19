@@ -41,3 +41,23 @@ The first PR 71 invocation stopped before any provider call because the generic 
 The page-3 repair now has its own durable marker. It leaves the historical marker untouched and, when present, accepts only the exact inspected historical archive hash. All seven current paid responses, the $0.551956 current ledger, and the specific page-3 job checks still have to match. A different historical archive or any repeated page-3 attempt is rejected.
 
 The source defaults and example configuration now admit 250 pages, matching the owner's stated supported size. The parser boundary check reads and renders every page of a synthetic 250-page PDF and rejects 251 before emitting any page. File-byte limits, worker memory, provider concurrency, timeouts, infrastructure and paid-test limits are unchanged. This is parser boundary evidence, not real-plan AI accuracy, production latency or a published configuration change.
+
+## Real run at e40d4a6: page-4 output limit
+
+The single admitted recovery at `e40d4a6d9295f6ec3571c510ab896811a4e9858c` used four additional requests and stopped after 152,212 ms. Page 3 advanced to partial evidence, preserving two unresolved visual regions. Pages 1 through 3 are partial, and pages 4 through 23 remain unfinished. The plans ledger now has eleven usage-reported requests, zero unknown charges, and an estimated $0.7937253 reserved against the unchanged $3 limit. Both earlier recovery archives remain intact. This was an isolated resumed test, not published customer-path timing.
+
+The saved eleventh response is HTTP 200 with `max_tokens`, not a transport interruption. It used 9,999 input tokens and exactly 10,000 output tokens, including 4,246 reported thinking tokens. It contains 12,241 visible text characters, seven complete fact records and 39 complete item records, but stops at the start of the inclusions array. The incomplete JSON was correctly rejected. The provider stage took 83,884 ms.
+
+The real PDF parser reports page 4 as a drawing with 6,134 native text characters, 921 positioned spans, and text quality 1. All 921 text-and-position entries are distinct at two-decimal coordinates. Duplicate native text did not cause this response limit. The page dimensions are 2448 by 1584 PDF points.
+
+Page 3 still lacks confirmation of the exact extent of an undimensioned fill zone and the relationship of two room-label strips to the site plan. Those uncertainties remain visible; no partial page was promoted to read.
+
+## Bounded output recovery and stronger acceptance checks
+
+A Sonnet 5 single-page read that reaches its output ceiling can make one lower-effort recovery with the same source, model, schema and 10,000-token ceiling. Normal reads and citations retain medium effort; independent visual verification retains its existing behavior. A durable checkpoint records the lower-effort attempt before sending it. An interrupted or truncated recovery requires inspection rather than another automatic paid attempt. Unsupported citations still fail, and existing partial evidence cannot be promoted by this change.
+
+This addresses the observed split between reasoning and visible output without increasing limits. Anthropic documents that Sonnet 5 has adaptive thinking enabled by default and that thinking shares the output allowance: [thinking defaults and troubleshooting](https://platform.claude.com/docs/en/build-with-claude/thinking-troubleshooting), [effort guidance](https://platform.claude.com/docs/en/build-with-claude/effort). A lower-effort request still requires live accuracy qualification; its local regression checks are not accuracy evidence.
+
+The explicit `resume-plans-output` command admits only the inspected eleven-call state and the saved page-4 max-token response. It verifies the original source fingerprints, both previous recovery archives, all paid response hashes, retained page evidence and inactive job states. It archives the current report, ledger and jobs, queues page 4 directly into the bounded recovery, and leaves the ledger, original responses and completed pages untouched. A permanent new marker prevents repeating it.
+
+The plans acceptance check now also requires the original A0.0 Building Data values: conditioned area 3,019 square feet, garage area 836 square feet, covered outdoor area 557 square feet, and two stories. These values were independently read from the original cover image. Missing, conflicting or incorrect values fail, even if every page is marked read. The page-10 A5.1 identity and complete page manifest checks remain. This is targeted validation, not an exhaustive accuracy percentage.

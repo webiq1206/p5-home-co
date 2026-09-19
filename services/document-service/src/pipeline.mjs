@@ -25,12 +25,17 @@ export class Pipeline{
   await this.store.complete(job,{pages:count},async c=>{await c.query("UPDATE p5ds_documents SET state='prepared',updated_at=now() WHERE id=$1 AND state!='failed'",[doc.id]);await this.store.finalize(doc.id,c);});
  }
  async evidence(job,system,input,images,signal,verify=false,checkpointName='read',prior){
-   const key=evidenceCheckpointKey({input,prior,provider:this.config.provider,model:verify?this.config.verifyModel:this.config.model},system,EVIDENCE_SCHEMA);
+   const efficient=checkpointName==='read'&&job.result?.readProfile==='low-effort-v1';
+   const key=evidenceCheckpointKey({input,prior,provider:this.config.provider,model:verify?this.config.verifyModel:this.config.model,...(efficient?{readProfile:'low-effort-v1'}:{})},system,EVIDENCE_SCHEMA);
    let saved=checkpointName==='read'?job.result?.evidenceCheckpoint:job.result?.verificationCheckpoints?.[checkpointName];
    const save=()=>this.store.checkpoint(job,checkpointName==='read'?{...job.result,evidenceCheckpoint:saved}:{...job.result,verificationCheckpoints:{...job.result?.verificationCheckpoints,[checkpointName]:saved}});
    if(saved&&saved.key!==key)throw new ServiceError('evidence-checkpoint-source-changed',422);
    if(!saved){
-    const raw=await this.reader.call(job,system,{pages:input,...(prior?{prior}:{})},images,EVIDENCE_SCHEMA,signal,verify);
+    if(efficient){
+     if(job.result.lowReadStarted)throw new ServiceError('output-recovery-needs-inspection',422);
+     signal.throwIfAborted();await this.store.checkpoint(job,{...job.result,lowReadStarted:true});
+    }
+    const raw=await this.reader.call(job,system,{pages:input,...(prior?{prior}:{})},images,EVIDENCE_SCHEMA,signal,verify,efficient?'read-efficient':verify?'verify':job.kind);
     saved={version:1,key,raw};
     await save();
    }
@@ -65,11 +70,16 @@ export class Pipeline{
    // multi-page call that hits its deadline gets smaller requests, not three
    // identical whole-batch retries. Single pages retain bounded failure handling.
    signal.throwIfAborted();
-   if(stored.length>1&&!job.result?.evidenceCheckpoint&&['provider-timeout','provider-idle-timeout','provider-total-timeout','provider-stream-incomplete','provider-output-incomplete','provider-output-limit','invalid-provider-json','invalid-provider-schema','incomplete-page-manifest','invalid-page-record','quote-not-in-source'].includes(e.code)){
+   if(stored.length===1&&e.code==='provider-output-limit'&&!job.result?.evidenceCheckpoint&&!job.result?.readProfile&&this.config.provider==='anthropic'&&this.config.model==='claude-sonnet-5'){
+    // Persist the recovery before spending. Restarting after an interrupted
+    // recovery requires inspection, never another automatic paid attempt.
+    await this.store.checkpoint(job,{...job.result,readProfile:'low-effort-v1',readProfileReason:e.code});
+    reply=await this.evidence(job,READER_SYSTEM,input,images,signal);
+   }else if(stored.length>1&&!job.result?.evidenceCheckpoint&&['provider-timeout','provider-idle-timeout','provider-total-timeout','provider-stream-incomplete','provider-output-incomplete','provider-output-limit','invalid-provider-json','invalid-provider-schema','incomplete-page-manifest','invalid-page-record','quote-not-in-source'].includes(e.code)){
     await this.store.complete(job,{splitIntoPages:true,reason:e.code,pages:stored.map(p=>p.page)},async c=>{
      for(const p of stored)await this.enqueueRead(job,[p.native],c);
     });return;
-   }throw e;
+   }else throw e;
   }
   let original;
   for(let i=0;i<reply.pages.length;i++){
