@@ -77,8 +77,11 @@ const issueDate=/\b(?:issued?|drawing)\s*date\b|\bissued\s+for\b|\b(?:19|20)\d{2
 const absentValue=/\b(?:not\s+(?:stated|specified|provided|shown)|unknown|unavailable|n\/?a|none|blank|redacted)\b/i;
 const unresolvedText=/\b(?:uncertain|unresolved|ambiguous|conflict(?:ing)?|contradict(?:ory|ion)?|verify|confirm(?:ation)?|unclear|illegible|not\s+legible|cannot\s+be\s+confirmed|needs?\s+clarification)\b/i;
 const resolvedIssue=/\b(?:no\s+(?:unresolved\s+)?(?:conflicts?|issues?|ambigu(?:ity|ities))\s+(?:remain|are\s+left)|(?:conflicts?|issues?|ambigu(?:ity|ities))\s+(?:have\s+been|were|are)\s+(?:resolved|verified|confirmed)|verification\s+(?:is\s+)?complete)\b/gi;
+const contractorVerificationResponsibility=/^\s*(?:(?:source\s+)?responsibility\s*:\s*)?(?:\d+\s+)?(?:the\s+)?contractor\s+(?:shall|must|is\s+to|to)\s+(?:field\s+)?verify\b[^.!?]*[.!?]?\s*$/i;
 export function noteHasUnresolvedIssue(note){
-  const active=String(note||'').replace(resolvedIssue,' ');
+  const source=String(note||'');
+  if(contractorVerificationResponsibility.test(source))return false;
+  const active=source.replace(resolvedIssue,' ');
   return unresolvedText.test(active)||/\b(?:conflicts|ambiguities|contradictions|uncertainties)\s+(?:remain|persist)\b/i.test(active);
 }
 const assemblyMeasurement=/\b(?:assembly|floor\s*\/?\s*truss|floor[-\s]?truss|truss|joist|roof\s+depth|floor\s+depth|deck\s+depth|slab\s+depth|structural\s+depth)\b/i;
