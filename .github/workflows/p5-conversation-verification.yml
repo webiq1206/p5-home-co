@@ -44,6 +44,10 @@ jobs:
         run: node --import tsx --test --test-concurrency=1 tests/p5-*.test.ts
       - name: Isolated saved-file adapter checks
         run: node --import tsx scripts/test-p5-document-adapter.mts
+      - name: Upload faults and hostile document replies
+        run: |
+          node --import tsx scripts/test-p5-upload-adversarial.mts
+          node --import tsx scripts/test-p5-document-adversarial.mts
       - name: Pricing identity, recovery and captured delivery
         run: |
           node --import tsx scripts/test-p5-pricing-identity.mts
