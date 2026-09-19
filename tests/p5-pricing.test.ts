@@ -147,6 +147,20 @@ test("customer notes retain honest allowances without leaking internal unit-cost
   assert.ok(!JSON.stringify(customer).includes("direct cost"));
   assert.deepEqual(customerSafeNotes([leaking]),[]);
 });
+test("overhead doors and lights retain their scope while financial overhead stays private",()=>{
+  const i=input();
+  i.lines=[{...i.lines[0],id:"door",description:"Repair the overhead garage door and its opener.",unitCost:400},{...i.lines[0],id:"lights",description:"Replace two overhead lights.",unitCost:200}];
+  i.assumptions=["Overhead recovery rate is 20%.","Overhead: 20%", "$120 for overhead", "Use existing overhead wiring."];
+  const internal=calculateP5Estimate(i,finance,[],now);
+  const customer=customerEstimate(internal,"Repair the overhead garage door and replace two overhead lights.");
+  assert.match(customer.summary,/overhead garage door/);
+  assert.deepEqual(customer.lineItems.map(line=>line.description),i.lines.map(line=>line.description));
+  assert.deepEqual(customer.assumptions,["Use existing overhead wiring."]);
+  assert.deepEqual(customer.range,internal.planningRange);
+  assert.equal(customer.lineItems.reduce((sum,line)=>sum+line.low,0),customer.range!.low);
+  assert.equal(customer.lineItems.reduce((sum,line)=>sum+line.high,0),customer.range!.high);
+  assert.ok(internal.assumptions.includes("Overhead: 20%"));
+});
 test("customer categories use trades and reconcile both endpoints without exposing costs",()=>{
   const i=input();i.lines=[{...i.lines[0],id:"paint",description:"Painting",trade:"Painting",unitCost:15000},{...i.lines[0],id:"drywall",description:"Drywall",trade:"Drywall",unitCost:25000},{...i.lines[0],id:"floor",description:"Flooring",trade:"Flooring",unitCost:20000}];
   const result=calculateP5Estimate(i,finance,[],now),customer=customerEstimate(result,"Reviewed scope");
