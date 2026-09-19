@@ -283,7 +283,6 @@ export const PLANNING_DISCLAIMER = "Preliminary planning information only. This 
 const CUSTOMER_ALLOWANCE_DISCLOSURE="Preliminary allowance: confirm quantities, selections and current supplier or trade pricing before a firm proposal.";
 const INTERNAL_COMMERCIAL_NOTE=[
   /\bdirect[- ]costs?\b/i,
-  /\b(?:owner-average|mapped to|provides positive|published cost research|planning-\d+)\b/i,
   /\bunit costs?\b/i,
   /\blanded costs?\b/i,
   /\bcost arithmetic\b/i,
