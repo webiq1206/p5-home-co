@@ -30,3 +30,9 @@ test('Sonnet reading uses medium effort with medium review effort and unchanged 
  assert.equal(requestBody('anthropic','claude-sonnet-5','',{},[],REVIEW_SCHEMA,10000,'review').body.output_config.effort,'medium');
  assert.equal(requestBody('anthropic','claude-opus-5','',{},[],EVIDENCE_SCHEMA,10000,'read').body.output_config.effort,undefined);
 });
+test('bounded citation correction reserves its output for support decisions without changing source or visual verification',()=>{
+ const body=requestBody('anthropic','claude-sonnet-5','Exact source support required',{statements:[]},[],EVIDENCE_SCHEMA,2048,'citation').body;
+ assert.deepEqual(body.thinking,{type:'disabled'});assert.equal(body.max_tokens,2048);assert.equal(body.output_config.effort,'medium');
+ assert.equal(body.model,'claude-sonnet-5');assert.equal(body.output_config.format.schema,EVIDENCE_SCHEMA);
+ for(const purpose of ['read','read-efficient','verify','review'])assert.equal(requestBody('anthropic','claude-sonnet-5','',{},[],EVIDENCE_SCHEMA,10000,purpose).body.thinking,undefined);
+});

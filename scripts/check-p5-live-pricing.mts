@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
 import {mkdir,writeFile} from 'node:fs/promises';
+import {resolve} from 'node:path';
+import {fileURLToPath} from 'node:url';
+import {pricingMappingChecks} from '../services/document-service/scripts/pricing-mapping-checks.mjs';
 import {query} from '../lib/p5/database';
 import {priceCompleteScope,requestPricing,type PricingRequest} from '../lib/p5/scopePricing';
 import {ESTIMATOR_BRAND as brand} from '../lib/p5/brand';
@@ -11,7 +14,7 @@ import type {ReviewedScope} from '../lib/p5/scope';
 // No draft, rate, lead, CRM, outbox or email write is called by this script.
 if(process.env.P5_RUN_LIVE_PRICING!=='true')throw new Error('Explicit live pricing test authorization is required.');
 const fingerprint=(value:unknown)=>createHash('sha256').update(JSON.stringify(value)).digest('hex');
-async function main(){
+export async function runLivePricing(){
  const [policy]=await query("SELECT payload FROM p5_estimator_policy WHERE id='current'");
  assert.ok(policy?.payload?.planningCatalog?.rates?.length,'The approved catalog must be populated');
  const configuration=policy.payload as EstimatorConfiguration,before=fingerprint(configuration),reports:any[]=[];
@@ -33,7 +36,8 @@ async function main(){
   };
   const start=performance.now();const result=await priceCompleteScope(scope,config,request);const internal=result.internal as any;
   const issues=internal.scopePricing?.issues||[];const lines=internal.lines||[];
-  reports.push({scenario,scope,elapsedMs:Math.round(performance.now()-start),stages,result,passed:Boolean(result.customer.range)&&lines.length>0&&lines.every((line:any)=>line.quantity>0&&line.cost>0)&&issues.length===0});
+  const qualityChecks=missing?[]:pricingMappingChecks(result,cabinet);
+  reports.push({scenario,scope,elapsedMs:Math.round(performance.now()-start),stages,result,qualityChecks,passed:Boolean(result.customer.range)&&lines.length>0&&lines.every((line:any)=>line.quantity>0&&line.cost>0)&&issues.length===0&&qualityChecks.every(c=>c.pass)});
   await writeFile(`p5-verification/live-pricing-${scenario}-report.json`,JSON.stringify(reports.at(-1),null,2));
  }
  const [after]=await query("SELECT payload FROM p5_estimator_policy WHERE id='current'");
@@ -41,5 +45,6 @@ async function main(){
  await mkdir('p5-verification',{recursive:true});await writeFile('p5-verification/live-pricing-report.json',JSON.stringify(report,null,2));
  console.log(JSON.stringify({brand:brand.id,approvedRateCount:report.approvedRateCount,unchanged:report.approvedConfigurationUnchanged,scenarios:reports.map(r=>({scenario:r.scenario,passed:r.passed,range:r.result.customer.range,elapsedMs:r.elapsedMs,issues:r.result.internal.scopePricing?.issues}))}));
  assert.ok(report.approvedConfigurationUnchanged,'The approved configuration must not change');assert.ok(reports.every(r=>r.passed),'Every synthetic scope must have a complete positive range');
+ return report;
 }
-main().then(()=>process.exit(0)).catch(error=>{console.error(error instanceof Error?error.message:'Live pricing check failed');process.exit(1);});
+if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url))runLivePricing().then(()=>process.exit(0)).catch(error=>{console.error(error instanceof Error?error.message:'Live pricing check failed');process.exit(1);});

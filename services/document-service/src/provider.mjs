@@ -21,6 +21,11 @@ export function requestBody(provider,model,system,input,images,schema,maxOutput,
   // independent visual verification retains the model default. Review uses
   // medium explicitly above to leave room for the complete structured answer.
   if(model==='claude-sonnet-5'&&['read','citation'].includes(purpose))body.output_config.effort='medium';
+  // Citation answers are only support decisions and source-line numbers. The
+  // inspected 2,048-token failure spent its entire allowance on adaptive
+  // thinking and returned no answer. Keep the ceiling and strict validation;
+  // allocate this small response to the requested citation data instead.
+  if(model==='claude-sonnet-5'&&purpose==='citation')body.thinking={type:'disabled'};
   // One durable recovery after a single-page output limit reserves more of the
   // unchanged token allowance for evidence. Visual verification is unchanged.
   if(model==='claude-sonnet-5'&&purpose==='read-efficient')body.output_config.effort='low';
