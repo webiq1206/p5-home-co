@@ -109,6 +109,9 @@ test('expired settled reservations do not create a lifetime pricing cap',{skip:!
     await query(`INSERT INTO p5_pricing_ledger(fingerprint,provider,amount,state,active_until)
       VALUES($1,'openai',0.20,'settled',now()-interval '1 minute')`,[prefix+'expired']);
     assert.equal((await reservePricingCharge(prefix+'new','openai')).state,'reserved');
+    await query(`INSERT INTO p5_pricing_ledger(fingerprint,provider,amount,state,active_until)
+      VALUES($1,'openai',0.20,'unknown',now()-interval '1 day')`,[prefix+'unknown']);
+    await assert.rejects(()=>reservePricingCharge(prefix+'unknown','openai'),PricingChargeUnknownError);
   }finally{
     await query('DELETE FROM p5_pricing_ledger WHERE fingerprint LIKE $1',[prefix+'%']);
     if(previous.database===undefined)delete process.env.DATABASE_URL;else process.env.DATABASE_URL=previous.database;
