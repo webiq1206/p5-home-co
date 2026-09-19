@@ -122,6 +122,14 @@ test('unknown additive delta events do not discard known tool input or final usa
  assert.deepEqual(message.content[0].input,{ok:true});assert.equal(message.usage.output_tokens,10000);
  assert.deepEqual(progress.unknownDeltaTypes,['future_metadata_delta']);assert.ok(!JSON.stringify(progress).includes('not-for-logs'));
 });
+test('terminal message metadata may precede the final block stop without accepting later content',async()=>{
+ const events=toolEvents('{"ok":true}'),blockStop=events.splice(3,1)[0];
+ events.splice(4,0,blockStop);
+ const message=JSON.parse(await collectAnthropicResponse(stream(events)));
+ assert.deepEqual(message.content[0].input,{ok:true});assert.equal(message.stop_reason,'tool_use');assert.equal(message.usage.output_tokens,10000);
+ const invalid=toolEvents('{"ok":true}');invalid.splice(2,0,invalid.splice(4,1)[0]);
+ await assert.rejects(collectAnthropicResponse(stream(invalid)),/provider-invalid-stream/);
+});
 test('invalid event diagnostics identify the event and reason without logging its content',async()=>{
  const events=toolEvents('{"ok":true}');events.splice(3,0,{type:'content_block_delta',index:0,delta:{type:'text_delta',text:'private source text'}});
  let progress;

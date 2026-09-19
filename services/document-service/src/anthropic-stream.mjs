@@ -67,7 +67,10 @@ export async function collectAnthropicResponse(response,{signal,onProgress=()=>{
     saved.closed=true;break;
    }
    case 'message_delta':
-    if(!message||[...blocks.values()].some(b=>!b.closed))fail();
+     // Anthropic may deliver terminal message metadata before the final
+     // content_block_stop. Defer completion until that block closes. No later
+     // content delta is accepted, and message_stop still requires all blocks.
+     if(!message)fail();
     deltaSeen=true;Object.assign(message,value.delta);message.usage={...message.usage,...value.usage};progress.stopReason=message.stop_reason;break;
    case 'message_stop':
     if(!message||!deltaSeen||!message.stop_reason||[...blocks.values()].some(b=>!b.closed))fail();

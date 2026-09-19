@@ -1,7 +1,7 @@
 import {PricingStageTimeout} from '../lib/p5/pricingProgress.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {priceCompleteScope,marketResolution,catalogResolution,requestPricing,advisoryIssue,type PricingRequest,HANDOFF_ISSUE} from '../lib/p5/scopePricing.ts';
+import {priceCompleteScope,marketResolution,planningResolution,catalogResolution,requestPricing,advisoryIssue,type PricingRequest,HANDOFF_ISSUE} from '../lib/p5/scopePricing.ts';
 import {priceReviewedScope} from '../lib/p5/costBook.ts';
 import {createPlanningConfiguration,PLANNING_MODEL_VERSION,type PlanningCatalog} from '../lib/p5/planningBooks.ts';
 import {validateExtraction,type ReviewedScope} from '../lib/p5/scope.ts';
@@ -127,6 +127,14 @@ test('Regional unit-cost benchmarks reject incompatible units, responsibility an
   const wrong=structuredClone(researched);Object.assign(wrong.rates[0].sources[0],change);assert.throws(()=>marketResolution(wrong,urls,[extra],now));
  }
  const noCheckout={...researched,rates:[{...researched.rates[0],landedCost:null}]};assert.equal(marketResolution(noCheckout,urls,[extra],now).rules[0].unitCost,20);
+});
+test('Unsupported market and planning output units remain visibly unpriced',()=>{
+  const market=structuredClone(researched);market.rates[0].unit='project';market.rates[0].sources.forEach(s=>s.unit='project');
+  const rejectedMarket=marketResolution(market,urls,[extra],now);
+  assert.equal(rejectedMarket.rules.length,0);assert.match(rejectedMarket.issues.join(' '),/unsupported pricing unit "project"/);
+  const planning={rates:[{taskId:'overlay',description:'Protective overlay allowance',unit:'bundle',quantity:1,quantityEvidence:'One requested scope package',basis:'material-purchase' as const,includes:'Overlay material',excludes:'Installation',low:100,high:200,confidence:'low' as const,rationale:'Synthetic unsupported-unit fixture.'}],issues:[]};
+  const rejectedPlanning=planningResolution(planning,[extra],now);
+  assert.equal(rejectedPlanning.rules.length,0);assert.match(rejectedPlanning.issues.join(' '),/unsupported pricing unit "bundle"/);
 });
 test('An incomplete scope price is not misreported as a missing quantity',()=>{
  const r=priceReviewedScope(scope,config,now,{replaceBase:true,rules:[],assumptions:[],issues:['Supplier research could not complete.']});

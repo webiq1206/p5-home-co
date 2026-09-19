@@ -1,4 +1,4 @@
-import {unitKey,reusableUnitRate} from './unitRates.ts';
+import {unitKey,reusableUnitRate,supportedUnit} from './unitRates.ts';
 export {unitKey} from './unitRates.ts';
 import {retainedScopeInventory} from './scopeInventory.ts';
 import {SERVER_BUDGET_MS,ProcessingDeadlineError,fetchWithinDeadline,isProcessingDeadline} from './processingBudget.ts';
@@ -415,6 +415,10 @@ export function marketResolution(raw:unknown,urls:string[],tasks:Mapping['tasks'
       result.issues.push(`${t.description}: unselected alternative or excluded work is not billable.`);
       continue;
     }
+    if(!supportedUnit(r.unit)){
+      result.issues.push(`${t.description}: unsupported pricing unit ${JSON.stringify(r.unit)}; provide a sourced supported unit or focused clarification.`);
+      continue;
+    }
     const unresolved=unresolvedQuantityIssue(t);
     const hasAllowance=/^ALLOWANCE\s*:/i.test(r.quantityEvidence)&&Boolean(r.quantityRange);
     if(unresolved&&!hasAllowance)result.issues.push(unresolved);
@@ -453,6 +457,10 @@ export function planningResolution(raw:unknown,tasks:Mapping['tasks'],now:Date,o
     const t=tasks.find(t=>t.id===r.taskId&&t.researchDescription);
     if(!t)throw new Error('Unknown planning scope task');
     if(taskIsUnselected(t)){result.issues.push(`${t.description}: unselected alternative or excluded work is not billable.`);continue;}
+    if(!supportedUnit(r.unit)){
+      result.issues.push(`${t.description}: unsupported pricing unit ${JSON.stringify(r.unit)}; provide a sourced supported unit or focused clarification.`);
+      continue;
+    }
     const unresolved=unresolvedQuantityIssue(t);
     const hasAllowance=/^ALLOWANCE\s*:/i.test(r.quantityEvidence)&&Boolean(r.quantityRange);
     if(unresolved&&!hasAllowance)result.issues.push(unresolved);
