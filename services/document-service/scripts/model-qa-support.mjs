@@ -47,7 +47,8 @@ export function reservationAcknowledged(record){return record.acknowledgement?.a
 
 /** Reserve before sending. Unknown/timeout charges retain their full reservation.
  * The provider token counter is an estimate, so this is NOT a billing hard cap. */
-export async function guardedSonnetFetch({file,limitUsd,maxCalls,request=fetch,onRequest=()=>{},onPause=()=>{},reuseResponses=false}){
+export async function guardedSonnetFetch({file,limitUsd,maxCalls,maxOutputTokens=10000,request=fetch,onRequest=()=>{},onPause=()=>{},reuseResponses=false}){
+ if(!Number.isSafeInteger(maxOutputTokens)||maxOutputTokens<1||maxOutputTokens>32000)throw new ServiceError('qa-output-limit-invalid',422);
  let state;
  try{state=JSON.parse(await readFile(file,'utf8'));}catch(error){if(error.code!=='ENOENT')throw error;state={version:1,model:'claude-sonnet-5',calls:[],tokenCountMs:0};}
  if(state.version!==1||state.model!=='claude-sonnet-5'||!Array.isArray(state.calls)||state.calls.some(c=>!Number.isFinite(c.reservedUsd)||c.reservedUsd<0))throw Error('Invalid saved QA cost ledger.');
@@ -61,7 +62,7 @@ export async function guardedSonnetFetch({file,limitUsd,maxCalls,request=fetch,o
  const guarded=async(url,options)=>{
   checkPaused();options.signal?.throwIfAborted();
   const body=JSON.parse(options.body);
-  if(url!=='https://api.anthropic.com/v1/messages'||body.model!=='claude-sonnet-5'||!Number.isSafeInteger(body.max_tokens)||body.max_tokens<1||body.max_tokens>10000)throw new ServiceError('qa-unapproved-provider-request',422);
+  if(url!=='https://api.anthropic.com/v1/messages'||body.model!=='claude-sonnet-5'||!Number.isSafeInteger(body.max_tokens)||body.max_tokens<1||body.max_tokens>maxOutputTokens)throw new ServiceError('qa-unapproved-provider-request',422);
   const requestSha256=hash(options.body);
   const prior=reuseResponses&&state.calls.find(c=>c.requestSha256===requestSha256&&c.status==='usage-reported'&&c.httpStatus>=200&&c.httpStatus<300&&c.responseFile);
   if(prior){

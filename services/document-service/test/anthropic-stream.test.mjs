@@ -140,3 +140,40 @@ test('invalid event diagnostics identify the event and reason without logging it
 test('an interrupted tool stream still pauses even when its partial JSON happens to parse',async()=>{
  await assert.rejects(collectAnthropicResponse(stream(toolEvents('{"ok":true}').slice(0,-1))),/provider-stream-incomplete/);
 });
+
+test('terminal token exhaustion with open blocks settles usage but never accepts partial output',async()=>{
+ const root=await mkdtemp(join(tmpdir(),'p5-terminal-limit-'));let calls=0;
+ try{
+  const events=toolEvents('{"summary":"private unfinished','max_tokens').filter(e=>e.type!=='content_block_stop');
+  const guard=await guardedSonnetFetch({file:join(root,'cost.json'),limitUsd:1,maxCalls:1,reuseResponses:true,request:async url=>{
+   if(url.endsWith('count_tokens'))return Response.json({input_tokens:100});calls++;return stream(events);
+  }});
+  const reader=new Reader({provider:'anthropic',model:'claude-sonnet-5',key:'private',callMs:1000,streamMs:5000,maxOutput:10000,tpm:600000},
+   {reserve:async()=>1,release:async()=>{},metric:async()=>{}},guard.request);
+  await assert.rejects(reader.call({kind:'review'},'',{},[],{type:'object'},new AbortController().signal),/provider-output-limit/);
+  const ledger=JSON.parse(await readFile(join(root,'cost.json'),'utf8'));
+  assert.equal(calls,1);assert.equal(ledger.calls[0].status,'usage-reported');assert.equal(ledger.calls[0].usage.output_tokens,10000);
+  assert.equal(guard.summary().unknownChargeRequests,0);assert.equal(ledger.calls[0].progress.outputTruncated,true);
+  assert.deepEqual(ledger.calls[0].progress.unclosedBlocks,[{index:0,type:'tool_use'}]);
+  assert.ok(!JSON.stringify(ledger.calls[0].progress).includes('private unfinished'));
+  for(const reason of ['tool_use','end_turn']){
+   const invalid=structuredClone(events);invalid.at(-2).delta.stop_reason=reason;
+   await assert.rejects(collectAnthropicResponse(stream(invalid)),/provider-invalid-stream/);
+  }
+  await assert.rejects(collectAnthropicResponse(stream(events.slice(0,-1))),/provider-stream-incomplete/);
+ }finally{await rm(root,{recursive:true,force:true});}
+});
+test('larger explicitly configured output is reserved before dispatch and retains the default guard',async()=>{
+ const root=await mkdtemp(join(tmpdir(),'p5-output-reserve-'));let calls=0;
+ const options={body:JSON.stringify({model:'claude-sonnet-5',max_tokens:32000,stream:true,messages:[]})};
+ try{
+  const request=async url=>{calls++;if(url.endsWith('count_tokens'))return Response.json({input_tokens:100});return stream(textEvents);};
+  let guard=await guardedSonnetFetch({file:join(root,'default.json'),limitUsd:1,maxCalls:1,request});
+  await assert.rejects(guard.request('https://api.anthropic.com/v1/messages',options),/qa-unapproved/);assert.equal(calls,0);
+  guard=await guardedSonnetFetch({file:join(root,'limited.json'),limitUsd:.3,maxCalls:1,maxOutputTokens:32000,request});
+  await assert.rejects(guard.request('https://api.anthropic.com/v1/messages',options),/qa-estimated-spend-limit/);assert.equal(calls,1);
+  guard=await guardedSonnetFetch({file:join(root,'allowed.json'),limitUsd:1,maxCalls:1,maxOutputTokens:32000,request});
+  await guard.request('https://api.anthropic.com/v1/messages',options);assert.equal(calls,3);
+  const ledger=JSON.parse(await readFile(join(root,'allowed.json'),'utf8'));assert.equal(ledger.calls[0].maxOutputTokens,32000);assert.equal(ledger.calls[0].status,'usage-reported');
+ }finally{await rm(root,{recursive:true,force:true});}
+});

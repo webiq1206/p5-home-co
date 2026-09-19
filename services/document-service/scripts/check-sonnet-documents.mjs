@@ -27,6 +27,7 @@ import {resumePlansVerifierCitation} from './resume-plans-verifier-citation.mjs'
 import {resumePlansVerificationBoundary} from './resume-plans-verification-boundary.mjs';
 import {resumePlansFinalReview} from './resume-plans-final-review.mjs';
 import {resumePlansFinalReviewAfterFix} from './resume-plans-final-review-after-fix.mjs';
+import {resumePlansFinalReviewOutputLimit} from './resume-plans-final-review-output-limit.mjs';
 import {summarizeStages} from '../src/benchmark-metrics.mjs';
 import {isolatedPool,guardedSonnetFetch,privateJson,targetedChecks} from './model-qa-support.mjs';
 import {savedRunEvents,latestProviderFailure} from './saved-run-events.mjs';
@@ -56,10 +57,11 @@ export function qualificationCallLimit(id,override){
  return value;
 }
 
-export async function runFixture(fixture,{root,key,parseOnly=false,request=fetch,log=console.log,seedPages=[],recoverLegacyCitationFailure=false,resumeReserved=false,resumeReview=false,resumePlans=false,resumeOutput=false,resumeCitationOutput=false,resumeSourceRepair=false,resumeSourceCorrection=false,resumeEmptyFact=false,resumeRepairEvidence=false,resumeVerifierCitation=false,resumeVerificationBoundary=false,resumePlansReview=false,resumePlansReviewAfterFix=false,maxCallsOverride}={}){
+export async function runFixture(fixture,{root,key,parseOnly=false,request=fetch,log=console.log,seedPages=[],recoverLegacyCitationFailure=false,resumeReserved=false,resumeReview=false,resumePlans=false,resumeOutput=false,resumeCitationOutput=false,resumeSourceRepair=false,resumeSourceCorrection=false,resumeEmptyFact=false,resumeRepairEvidence=false,resumeVerifierCitation=false,resumeVerificationBoundary=false,resumePlansReview=false,resumePlansReviewAfterFix=false,resumePlansReviewOutputLimit=false,maxCallsOverride}={}){
  const bytes=Buffer.from(fixture.pdfBase64,'base64');
  if(!['short','plans'].includes(fixture.id)||hash(bytes)!==fixture.sha256||bytes.length>25*1024*1024||fixture.pages!==({short:4,plans:23})[fixture.id])throw Error('Invalid fixture bundle or source digest.');
  const providerLimit=qualificationSpendLimit(fixture.id),maxCalls=qualificationCallLimit(fixture.id,maxCallsOverride);
+ if(resumePlansReviewOutputLimit&&(fixture.id!=='plans'||maxCalls!==89))throw new ServiceError('qa-output-recovery-requires-one-call-89',422);
  const directory=join(root,fixture.id+'-'+fixture.sha256.slice(0,16));await mkdir(directory,{recursive:true,mode:0o700});
  const sourceSummary={id:fixture.id,sourceSha256:fixture.sha256,sourceBytes:bytes.length,expectedPages:fixture.pages};
  if(parseOnly){
@@ -73,11 +75,12 @@ export async function runFixture(fixture,{root,key,parseOnly=false,request=fetch
  const config=readConfig({...process.env,DOCUMENT_PROVIDER:'anthropic',ANTHROPIC_API_KEY:key,DOCUMENT_MODEL:'claude-sonnet-5',DOCUMENT_VERIFY_MODEL:'claude-sonnet-5',DOCUMENT_DATABASE_URL:'qa-isolated-pglite-not-a-network-database',P5_DOCUMENT_TENANTS_JSON:JSON.stringify({'p5homeco.com':randomBytes(32).toString('hex')})});
  // Diagnostic QA is sequential so a single unknown charge can stop all further
  // paid calls. Production concurrency and processing code remain unchanged.
- config.slots=1;config.parserSlots=1;config.maxPages=fixture.pages;config.maxOutput=Math.min(config.maxOutput,10000);
+ config.slots=1;config.parserSlots=1;config.maxPages=fixture.pages;config.maxOutput=resumePlansReviewOutputLimit?32000:Math.min(config.maxOutput,10000);
+ if(resumePlansReviewOutputLimit)config.streamMs=360000;
  const timing=qualificationWindow(config,fixture.id);config.jobMs=timing.jobMs;
  const controller=new AbortController(),limit=timing.windowMs,deadline=performance.now()+limit;
  let stop,document,review,started,runType='new',recoveryPreflight=false;
- const makeCostGuard=()=>guardedSonnetFetch({file:join(directory,'cost.json'),limitUsd:providerLimit,maxCalls,request,reuseResponses:true,onRequest:n=>log(fixture.id+': provider request '+n),onPause:error=>controller.abort(error)});
+ const makeCostGuard=()=>guardedSonnetFetch({file:join(directory,'cost.json'),limitUsd:providerLimit,maxCalls,maxOutputTokens:config.maxOutput,request,reuseResponses:true,onRequest:n=>log(fixture.id+': provider request '+n),onPause:error=>controller.abort(error)});
  let costGuard=await makeCostGuard();
  const pool=await isolatedPool(join(directory,'database')),store=new Store(pool,config);
  const reader=new Reader(config,store,(url,options)=>{
@@ -98,6 +101,13 @@ export async function runFixture(fixture,{root,key,parseOnly=false,request=fetch
   await store.init();started=performance.now();
   const receipt=await store.putDocument('model-qa','source-check','fixture.pdf',bytes);document=receipt.document;
   runType=receipt.cached?'resume-or-cache':'new';
+   if(resumePlansReviewOutputLimit){
+    recoveryPreflight=true;
+    await resumePlansFinalReviewOutputLimit(store,document,directory);
+    recoveryPreflight=false;
+    costGuard=await makeCostGuard();document=await store.document('model-qa','source-check',document.id);
+    runType='resume-plans-final-review-output-limit';log('plans: preserved all 23 pages, 88 prior calls and all three unknown reservations; one larger-output final review admitted.');
+   }
    if(resumePlansReviewAfterFix&&fixture.id==='plans'){
     recoveryPreflight=true;
     await resumePlansFinalReviewAfterFix(store,document,directory);

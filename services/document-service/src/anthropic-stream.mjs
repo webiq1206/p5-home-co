@@ -14,8 +14,9 @@ export function responseDeadline(parent,idleMs,totalMs){
  return {signal:controller.signal,touch,close(){clearTimeout(idle);clearTimeout(total);parent.removeEventListener('abort',abort);}};
 }
 
-/** Consume bounded SSE and reconstruct the ordinary Messages response. Partial
- * usage is diagnostic only: a truncated stream is never a completed response. */
+/** Consume bounded SSE and reconstruct the ordinary Messages response. A terminal
+ * max_tokens receipt can settle usage, but domain parsing still rejects its output.
+ * Usage from a transport interruption remains diagnostic only. */
 export async function collectAnthropicResponse(response,{signal,onProgress=()=>{}}={}){
  signal?.throwIfAborted();
  const streaming=/text\/event-stream/i.test(response.headers.get('content-type')||'');
@@ -73,7 +74,18 @@ export async function collectAnthropicResponse(response,{signal,onProgress=()=>{
      if(!message)fail();
     deltaSeen=true;Object.assign(message,value.delta);message.usage={...message.usage,...value.usage};progress.stopReason=message.stop_reason;break;
    case 'message_stop':
-    if(!message||!deltaSeen||!message.stop_reason||[...blocks.values()].some(b=>!b.closed))fail();
+    if(!message||!deltaSeen||!message.stop_reason)fail();
+    {
+     const open=[...blocks.entries()].filter(([,b])=>!b.closed);
+     if(open.length){
+      progress.unclosedBlocks=open.map(([index,b])=>({index,type:b.block.type}));
+      // Token exhaustion can terminate an open block. Preserve only the final
+      // billing receipt; parseReply rejects max_tokens before reading content.
+      if(message.stop_reason!=='max_tokens')fail('unclosed-content-block');
+      progress.outputTruncated=true;
+      for(const [,saved] of open)if(saved.block.type==='tool_use')saved.block.input=saved.json;
+     }
+    }
     message.content=[...blocks.values()].map(b=>b.block);stopped=true;progress.complete=true;break;
    default:break; // Future event types do not turn an incomplete message complete.
   }
