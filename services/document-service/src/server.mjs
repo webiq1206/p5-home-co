@@ -15,7 +15,17 @@ export function makeServer(store,pipeline,config){
    if(req.method==='GET'&&url.pathname==='/healthz'){send(200,{ok:true,version:VERSION});return;}
    const auth=verifyHeaders(config.tenants,req.method,req.url,req.headers);
    if(!await store.nonce(auth.tenant,auth.nonce))throw new ServiceError('replayed-request',401);
-   if(req.method==='GET'&&url.pathname==='/readyz'){await store.pool.query('SELECT 1');send(200,{ok:true,version:VERSION,providerConfigured:true});return;}
+    if(req.method==='GET'&&url.pathname==='/readyz'){
+     try{await store.pool.query('SELECT 1');}
+     catch{throw new ServiceError('document-service-not-ready',503,5000);}
+     const providerConfigured=Boolean(config.provider&&config.key&&config.model);
+     if(!providerConfigured)throw new ServiceError('provider-not-ready',503,5000);
+     send(200,{ok:true,version:VERSION,protocol:'v1',tenant:auth.tenant,
+      pdf:true,maxBytes:config.maxBytes,maxPages:config.maxPages,
+      provider:{name:config.provider,configured:true,ready:true,health:'configured'},
+      service:{healthy:true,database:'ok'}});
+     return;
+    }
    const parts=url.pathname.split('/').filter(Boolean);if(parts[0]!=='v1'||parts[1]!=='projects')throw new ServiceError('not-found',404);
    const project=identifier(parts[2],'project');
    let body=Buffer.alloc(0);

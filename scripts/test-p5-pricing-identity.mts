@@ -4,8 +4,8 @@ import {randomUUID,randomBytes} from 'node:crypto';
 import {pathToFileURL} from 'node:url';
 import path from 'node:path';
 
-await mkdir('node_modules/.cache',{recursive:true});
-const dir=await mkdtemp(path.join(process.cwd(),'node_modules/.cache/p5-pricing-identity-'));
+await mkdir('.cache',{recursive:true});
+const dir=await mkdtemp(path.join(process.cwd(),'.cache/p5-pricing-identity-'));
 let database:any;
 try{
  await cp('lib/p5',dir,{recursive:true});

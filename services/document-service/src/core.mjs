@@ -44,8 +44,10 @@ export function readConfig(env=process.env){
  const integer=(key,fallback,min,max)=>{const n=Number(env[key]||fallback);if(!Number.isInteger(n)||n<min||n>max)throw new ServiceError(`invalid-config-${key}`,500);return n;};
  let tenants;try{tenants=JSON.parse(env.P5_DOCUMENT_TENANTS_JSON||'{}');}catch{throw new ServiceError('invalid-tenant-config',500);}
  if(!tenants||Array.isArray(tenants)||!Object.keys(tenants).length)throw new ServiceError('missing-tenant-keys',500);
+ const authorized=['p5homeco.com','boiseconstruction.co','boiseremodeling.co','boisehandyman.co','boisecabinet.co'];
+ if(env.P5_DOCUMENT_REQUIRE_ALL_TENANTS==='true'&&(Object.keys(tenants).length!==authorized.length||authorized.some(id=>!(id in tenants))))throw new ServiceError('incomplete-tenant-config',500);
  const keys=new Set();
- for(const [id,key] of Object.entries(tenants)){identifier(id,'tenant');if(typeof key!=='string'||key.length<32)throw new ServiceError('weak-tenant-key',500);if(keys.has(key))throw new ServiceError('duplicate-tenant-key',500);keys.add(key);}
+ for(const [id,key] of Object.entries(tenants)){if(!authorized.includes(id))throw new ServiceError('unauthorized-tenant',500);identifier(id,'tenant');if(typeof key!=='string'||key.length<32)throw new ServiceError('weak-tenant-key',500);if(keys.has(key))throw new ServiceError('duplicate-tenant-key',500);keys.add(key);}
  if(!env.DOCUMENT_DATABASE_URL)throw new ServiceError('missing-document-database',500);
  const provider=env.DOCUMENT_PROVIDER||'anthropic';if(!['anthropic','gemini','openai'].includes(provider))throw new ServiceError('unsupported-provider',500);
  const key=env[{'anthropic':'ANTHROPIC_API_KEY','gemini':'GEMINI_API_KEY','openai':'OPENAI_API_KEY'}[provider]];

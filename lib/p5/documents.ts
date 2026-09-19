@@ -12,9 +12,12 @@ const TYPES: Record<string,string> = {
   doc:"application/msword",heic:"image/heic",heif:"image/heif",tif:"image/tiff",tiff:"image/tiff",avif:"image/avif",
 };
 export const ACCEPT_SCOPE_FILES = Object.keys(TYPES).map(ext=>`.${ext}`).join(",");
+export const uploadDisplayName=(name:string)=>name.replace(/[\u0000-\u001f/\\]/g,"_").slice(0,180)||"Uploaded file";
+export const emptyUploadMessage=(name:string)=>`${uploadDisplayName(name)} is empty.`;
 export function verifyUpload(name: string, data: Buffer): AnalysisFile {
-  if (!data.length || data.length > SCOPE_FILE_LIMIT) throw new Error("Files must be nonempty and no larger than 250 MiB each.");
-  const safeName=name.replace(/[\u0000-\u001f/\\]/g,"_").slice(0,180);
+  if (!data.length) throw new Error(emptyUploadMessage(name));
+  if (data.length > SCOPE_FILE_LIMIT) throw new Error("Files must be no larger than 250 MiB each.");
+  const safeName=uploadDisplayName(name);
   const extension=safeName.split(".").pop()?.toLowerCase()||"";const type=TYPES[extension];
   if(!type)throw new Error("Use a PDF, photo, Word document, spreadsheet or text file.");
   if(extension==="pdf" && !data.subarray(0,1024).includes(Buffer.from("%PDF-")))throw new Error("This file is not a readable PDF.");

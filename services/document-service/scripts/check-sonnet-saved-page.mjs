@@ -32,7 +32,7 @@ export async function checkSavedPage({root=resolve('.p5-model-qa'),reportPath,ke
   return {...prior,cached:true};
  }catch(error){if(error.code!=='ENOENT')throw error;}
  if(!key)throw Error('Run this in the existing P5 Replit Shell. ANTHROPIC_API_KEY is unavailable here.');
- const config=readConfig({...env,DOCUMENT_PROVIDER:'anthropic',ANTHROPIC_API_KEY:key,DOCUMENT_MODEL:'claude-sonnet-5',DOCUMENT_VERIFY_MODEL:'claude-sonnet-5',DOCUMENT_DATABASE_URL:'qa-no-network-database',P5_DOCUMENT_TENANTS_JSON:JSON.stringify({'model-qa':'synthetic-page-probe-local-configuration-only'})});
+ const config=readConfig({...env,DOCUMENT_PROVIDER:'anthropic',ANTHROPIC_API_KEY:key,DOCUMENT_MODEL:'claude-sonnet-5',DOCUMENT_VERIFY_MODEL:'claude-sonnet-5',DOCUMENT_DATABASE_URL:'qa-no-network-database',P5_DOCUMENT_TENANTS_JSON:JSON.stringify({'p5homeco.com':'synthetic-page-probe-local-configuration-only'})});
  config.callMs=Math.min(config.callMs,40000);config.streamMs=config.callMs;config.maxOutput=Math.min(config.maxOutput,10000);
  await mkdir(join(saved.root,'probes'),{recursive:true,mode:0o700});
  try{await mkdir(directory,{mode:0o700});}catch(error){if(error.code==='EEXIST')throw Error('This probe was already started. Inspect its saved files; no automatic paid retry is allowed.');throw error;}

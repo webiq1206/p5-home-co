@@ -3,12 +3,12 @@ import {mkdtemp,cp,writeFile,rm,mkdir} from 'node:fs/promises';
 import {randomUUID,randomBytes} from 'node:crypto';
 import {pathToFileURL} from 'node:url';
 import path from 'node:path';
-await mkdir('node_modules/.cache',{recursive:true});
-const dir=await mkdtemp(path.join(process.cwd(),'node_modules/.cache/p5-pricing-work-'));
+await mkdir('.cache',{recursive:true});
+const dir=await mkdtemp(path.join(process.cwd(),'.cache/p5-pricing-work-'));
 try{
  await cp('lib/p5',dir,{recursive:true});
  await writeFile(path.join(dir,'database.ts'),`import {PGlite} from '@electric-sql/pglite';export const database=new PGlite();export async function query(s:string,v:unknown[]=[]){return (await database.query(s,v)).rows;}`);
- await writeFile(path.join(dir,'scopePricing.ts'),`export const PRICING_STAGE_MAX_MS=150000;export const calls:string[]=[];let blocked=false;export function block(){blocked=true;}export async function requestPricing(stage:string){calls.push(stage);await new Promise(r=>setTimeout(r,40));return {value:{stage},sourceUrls:[]};}export async function priceCompleteScope(scope:any,configuration:any,request:any){for(const stage of ['MAP','RESEARCH','AUDIT'])await request(stage,{text:scope.text,answers:scope.answers},stage==='RESEARCH',255000);return blocked?{customer:{range:null},internal:{missingInformation:["Missing quantity: tileSqft for tile work"],privateCostDetail:"INTERNAL_ONLY"}}:{customer:{range:{low:100,high:150}}};}`);
+ await writeFile(path.join(dir,'scopePricing.ts'),`export const PRICING_STAGE_MAX_MS=150000;export const HANDOFF_ISSUE='pricing-handoff';export const calls:string[]=[];let blocked=false;export function block(){blocked=true;}export async function requestPricing(stage:string){calls.push(stage);await new Promise(r=>setTimeout(r,40));return {value:{stage},sourceUrls:[]};}export async function priceCompleteScope(scope:any,configuration:any,request:any){for(const stage of ['MAP','RESEARCH','AUDIT'])await request(stage,{text:scope.text,answers:scope.answers},stage==='RESEARCH',255000);return blocked?{customer:{range:null},internal:{missingInformation:["Missing quantity: tileSqft for tile work"],privateCostDetail:"INTERNAL_ONLY"}}:{customer:{range:{low:100,high:150}}};}`);
  const load=(name:string)=>import(pathToFileURL(path.join(dir,name+'.ts')).href);
  const {saveDraft}=await load('store');const {priceSavedScope}=await load('pricingWork');const {PricingPending}=await load('pricingProgress');const provider=await load('scopePricing');const db=await load('database');
  const {ESTIMATOR_BRAND}=await load('brand');

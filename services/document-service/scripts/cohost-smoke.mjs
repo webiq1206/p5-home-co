@@ -10,7 +10,7 @@ await pool.query('CREATE DATABASE p5_cohost_smoke');
 const database=new URL(process.env.DOCUMENT_TEST_DATABASE_URL);database.pathname='/p5_cohost_smoke';
 const shared=new pg.Pool({connectionString:database.href});
 await shared.query('CREATE TABLE website_sentinel(value text); INSERT INTO website_sentinel VALUES(\'preserved\')');
-const child=spawn(process.execPath,['services/document-service/src/cohost.mjs'],{stdio:'inherit',env:{...process.env,PORT:'5090',P5_DOCUMENT_HOST_ENABLED:'true',P5_DOCUMENT_WEB_PORT:'5091',P5_DOCUMENT_WORKER_PORT:'5092',DATABASE_URL:database.href,DOCUMENT_DATABASE_URL:'',P5_DOCUMENT_TENANTS_JSON:JSON.stringify({'smoke-test':key}),DOCUMENT_MODEL:'ci-placeholder-no-provider-calls',DOCUMENT_PROVIDER:'anthropic',ANTHROPIC_API_KEY:'ci-placeholder-no-provider-calls'}});
+const child=spawn(process.execPath,['services/document-service/src/cohost.mjs'],{stdio:'inherit',env:{...process.env,PORT:'5090',P5_DOCUMENT_HOST_ENABLED:'true',P5_DOCUMENT_WEB_PORT:'5091',P5_DOCUMENT_WORKER_PORT:'5092',DATABASE_URL:database.href,DOCUMENT_DATABASE_URL:'',P5_DOCUMENT_TENANTS_JSON:JSON.stringify({'p5homeco.com':key}),DOCUMENT_MODEL:'ci-placeholder-no-provider-calls',DOCUMENT_PROVIDER:'anthropic',ANTHROPIC_API_KEY:'ci-placeholder-no-provider-calls'}});
 const exited=once(child,'exit');
 try{
  let ready=false;
