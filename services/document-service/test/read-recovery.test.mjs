@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {isolatedPool} from '../scripts/model-qa-support.mjs';
 import {Store} from '../src/store.mjs';
 import {Pipeline} from '../src/pipeline.mjs';
-import {Reader} from '../src/provider.mjs';
+import {Reader,requestBody} from '../src/provider.mjs';
 import {ServiceError} from '../src/core.mjs';
 import {EVIDENCE_SCHEMA} from '../src/contracts.mjs';
 
@@ -14,15 +14,16 @@ const evidence=page=>({page,sheet:'',revision:'',status:'read',notes:[],facts:[]
  inclusions:['Install 120 lf baseboard.'],exclusions:['Electrical work'],responsibilities:[],regions:[]});
 const signal=()=>new AbortController().signal;
 
-async function fixture(count=4){
- const pool=await isolatedPool(),store=new Store(pool,config);await store.init();
+async function fixture(count=4,overrides={}){
+ const settings={...config,...overrides};
+ const pool=await isolatedPool(),store=new Store(pool,settings);await store.init();
  const calls=[];
  const reader={call:async(job,system,input)=>{calls.push(input.pages.map(p=>p.page));return {pages:input.pages.map(p=>evidence(p.page))};}};
  const parser=async(bytes,{onManifest,onPage})=>{
   await onManifest(count);
   for(let page=1;page<=count;page++)await onPage({page,kind:'text',text:'Install 120 lf baseboard. Exclude electrical work.',textQuality:1,image:Buffer.from('synthetic-image'),parseMs:1,nativeMs:1,renderMs:0});
  };
- const pipeline=new Pipeline(store,reader,config,parser);
+ const pipeline=new Pipeline(store,reader,settings,parser);
  const {document}=await store.putDocument('test','test','synthetic.pdf',Buffer.from('%PDF-synthetic-parser'));
  await pipeline.prepare(await store.claim(['parse']),signal());
  const job=await store.claim(['read']);
@@ -106,4 +107,68 @@ test('provider failure metrics identify the request shape without source text or
  assert.deepEqual(detail.pages,[2]);assert.equal(detail.attempt,2);assert.equal(detail.timeoutMs,120000);assert.equal(detail.maxOutputTokens,10000);
  assert.equal(detail.cancelled,false);assert.equal(released,1);
  assert.ok(!JSON.stringify(metrics).includes('Private'));assert.ok(!JSON.stringify(metrics).includes('secret-not-for-metrics'));
+});
+
+test('single-page output recovery retains quantities, exclusions and independent visual verification',async()=>{
+ const f=await fixture(1,{provider:'anthropic',model:'claude-sonnet-5'}),requests=[];
+ try{
+  f.reader.call=async(job,system,input,images,schema,signal,verify,purpose)=>{
+   requests.push({purpose,verify,input,images,schema});
+   if(purpose==='read')throw new ServiceError('provider-output-limit',422);
+   const page=evidence(1);if(purpose==='read-efficient')page.items[0].basis='visual';
+   return {pages:[page]};
+  };
+  await f.pipeline.read(f.job,signal());
+  assert.deepEqual(requests.map(r=>r.purpose),['read','read-efficient','verify']);
+  assert.equal(requests[2].verify,true);
+  assert.deepEqual(requests[0].input,requests[1].input);assert.deepEqual(requests[0].images,requests[1].images);
+  assert.equal(requests[0].schema,requests[1].schema);
+  const actual=(await f.store.pages(f.document.id))[0].evidence;
+  assert.equal(actual.items[0].quantity,120);assert.deepEqual(actual.exclusions,['Electrical work']);
+  const ordinary=requestBody('anthropic','claude-sonnet-5','',{},[],EVIDENCE_SCHEMA,10000,'read').body;
+  const recovered=requestBody('anthropic','claude-sonnet-5','',{},[],EVIDENCE_SCHEMA,10000,'read-efficient').body;
+  assert.equal(ordinary.output_config.effort,'medium');assert.equal(recovered.output_config.effort,'low');
+  recovered.output_config.effort='medium';assert.deepEqual(recovered,ordinary,'Recovery changes only effort, not model, output ceiling or schema');
+  assert.equal(requestBody('anthropic','claude-sonnet-5','',{},[],EVIDENCE_SCHEMA,10000,'verify').body.output_config.effort,undefined);
+ }finally{await f.pool.end();}
+});
+
+for(const code of ['provider-output-limit','qa-paused-unknown-provider-charge','provider-timeout'])test('an interrupted lower-effort recovery cannot repeat on job restart: '+code,async()=>{
+ const f=await fixture(1,{provider:'anthropic',model:'claude-sonnet-5'});let calls=0;
+ try{
+  f.reader.call=async()=>{calls++;throw new ServiceError(calls===1?'provider-output-limit':code,422);};
+  await assert.rejects(f.pipeline.read(f.job,signal()),e=>e.code===code);assert.equal(calls,2);
+  const restarted=await f.store.job('test','test',f.job.id);
+  assert.equal(restarted.result.lowReadStarted,true);
+  await assert.rejects(f.pipeline.read(restarted,signal()),e=>e.code==='output-recovery-needs-inspection');
+  assert.equal(calls,2);assert.equal((await f.store.documentProgress(f.document.id)).checked,0);
+ }finally{await f.pool.end();}
+});
+
+test('a lower-effort reply must still pass strict citation support and preserve its checkpoint',async()=>{
+ const f=await fixture(1,{provider:'anthropic',model:'claude-sonnet-5'}),purposes=[];
+ try{
+  f.reader.call=async(job,system,input,images,schema,signal,verify,purpose)=>{
+   purposes.push(purpose);if(purpose==='read')throw new ServiceError('provider-output-limit',422);
+   if(purpose==='citation')return {citations:[{key:'1:items:0',supported:false,lines:[]}]};
+   const page=evidence(1);page.items[0].quantity=999;page.items[0].evidence='Invented amount';return {pages:[page]};
+  };
+  await assert.rejects(f.pipeline.read(f.job,signal()),e=>e.code==='unsupported-source-statement');
+  const restarted=await f.store.job('test','test',f.job.id);
+  await assert.rejects(f.pipeline.read(restarted,signal()),e=>e.code==='unsupported-source-statement');
+  assert.deepEqual(purposes,['read','read-efficient','citation']);
+  assert.equal((await f.store.documentProgress(f.document.id)).checked,0);
+ }finally{await f.pool.end();}
+});
+
+for(const reason of ['cancelled','lease-lost'])test('output-limit recovery cannot spend after '+reason,async()=>{
+ const f=await fixture(1,{provider:'anthropic',model:'claude-sonnet-5'}),controller=new AbortController();let calls=0;
+ try{
+  f.reader.call=async()=>{
+   calls++;if(reason==='cancelled')controller.abort();else await f.pool.query("UPDATE p5ds_jobs SET lease_until=now()-interval '1 second' WHERE id=$1",[f.job.id]);
+   throw new ServiceError('provider-output-limit',422);
+  };
+  await assert.rejects(f.pipeline.read(f.job,controller.signal));assert.equal(calls,1);
+  assert.equal((await f.store.job('test','test',f.job.id)).result,null);
+ }finally{await f.pool.end();}
 });

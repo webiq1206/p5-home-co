@@ -121,6 +121,15 @@ export function targetedChecks(id,result,pages){
   checks.push({name:'Land and financing excluded',pass:/\bland\b/i.test(exclusions)&&/\bfinanc/i.test(exclusions)});
   checks.push({name:'Specialty coatings remain excluded',pass:/wallpaper|limewash|decorative plaster|specialty coatings/i.test(exclusions)});
  }
- if(id==='plans')checks.push({name:'Scanned electrical sheet identity retained',pass:/\bA5\.1\b/i.test(result.pages?.find(p=>p.page===10)?.sheet||'')});
+ if(id==='plans'){
+  checks.push({name:'Scanned electrical sheet identity retained',pass:/\bA5\.1\b/i.test(result.pages?.find(p=>p.page===10)?.sheet||'')});
+  // Independently read from original page 1, A0.0, Building Data. These
+  // expectations are not generated from the model's answer. Keep conditioned,
+  // garage and outdoor areas separate; repeated plan references are not sums.
+  for(const [field,expected,name] of [['sqft',3019,'Conditioned area'],['garageSqft',836,'Garage area'],['coveredOutdoorSqft',557,'Covered outdoor area'],['stories',2,'Story count']]){
+   const facts=(result.facts||[]).filter(f=>f.field===field);
+   checks.push({name:name+' matches original cover sheet',expected,pass:facts.length>0&&facts.every(f=>typeof f.value==='string'&&/^(?:\d+(?:\.\d+)?|\.\d+)$/.test(f.value)&&Number(f.value)===expected)&&!(result.conflicts||[]).some(c=>c.field===field)});
+  }
+ }
  return {exhaustive:false,precision:null,recall:null,quantityAccuracy:null,checks,passed:checks.every(c=>c.pass),note:'Targeted checks derived from the original source, independent of the extracting model. Full facts/quantities/responsibilities/revisions still need review; confidence scores are not accuracy.'};
 }
