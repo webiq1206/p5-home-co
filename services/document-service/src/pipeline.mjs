@@ -72,17 +72,21 @@ export class Pipeline{
   await this.store.complete(job,{pages:count},async c=>{await c.query("UPDATE p5ds_documents SET state='prepared',updated_at=now() WHERE id=$1 AND state!='failed'",[doc.id]);await this.store.finalize(doc.id,c);});
  }
  async evidence(job,system,input,images,signal,verify=false,checkpointName='read',prior){
-   const efficient=checkpointName==='read'&&job.result?.readProfile==='low-effort-v1';
-   const key=evidenceCheckpointKey({input,prior,provider:this.config.provider,model:verify?this.config.verifyModel:this.config.model,...(efficient?{readProfile:'low-effort-v1'}:{})},system,EVIDENCE_SCHEMA);
+    const efficientRead=checkpointName==='read'&&job.result?.readProfile==='low-effort-v1';
+    const efficientVerify=verify&&job.result?.verificationProfiles?.[checkpointName]==='low-effort-v1';
+    const key=evidenceCheckpointKey({input,prior,provider:this.config.provider,model:verify?this.config.verifyModel:this.config.model,...(efficientRead?{readProfile:'low-effort-v1'}:{}),...(efficientVerify?{verificationProfile:'low-effort-v1'}:{})},system,EVIDENCE_SCHEMA);
    let saved=checkpointName==='read'?job.result?.evidenceCheckpoint:job.result?.verificationCheckpoints?.[checkpointName];
    const save=()=>this.store.checkpoint(job,checkpointName==='read'?{...job.result,evidenceCheckpoint:saved}:{...job.result,verificationCheckpoints:{...job.result?.verificationCheckpoints,[checkpointName]:saved}});
    if(saved&&saved.key!==key)throw new ServiceError('evidence-checkpoint-source-changed',422);
    if(!saved){
-    if(efficient){
+     if(efficientRead){
      if(job.result.lowReadStarted)throw new ServiceError('output-recovery-needs-inspection',422);
      signal.throwIfAborted();await this.store.checkpoint(job,{...job.result,lowReadStarted:true});
+     }else if(efficientVerify){
+      if(job.result.lowVerificationStarted?.[checkpointName])throw new ServiceError('verification-output-recovery-needs-inspection',422);
+      signal.throwIfAborted();await this.store.checkpoint(job,{...job.result,lowVerificationStarted:{...job.result?.lowVerificationStarted,[checkpointName]:true}});
     }
-    const raw=await this.reader.call(job,system,{pages:input,...(prior?{prior}:{})},images,EVIDENCE_SCHEMA,signal,verify,efficient?'read-efficient':verify?'verify':job.kind);
+     const raw=await this.reader.call(job,system,{pages:input,...(prior?{prior}:{})},images,EVIDENCE_SCHEMA,signal,verify,efficientRead?'read-efficient':efficientVerify?'verify-efficient':verify?'verify':job.kind);
     saved={version:1,key,raw};
     await save();
    }
@@ -178,7 +182,17 @@ export class Pipeline{
     if(refresh&&!page.regions.length)await render({x:0,y:0,width:1,height:1},false);
     for(const region of textAnchorRegions(page,native,Math.min(4,12-crops.length)))await render(region);
     const inputPage={...native,image:undefined};
-    const verification=await this.evidence(job,VERIFIER_SYSTEM,[inputPage],[{label:`Original page ${page.page}`,bytes:source.image},...crops],signal,true,'verify-'+page.page,page);
+     const checkpointName='verify-'+page.page,verificationInput=[inputPage],verificationImages=[{label:`Original page ${page.page}`,bytes:source.image},...crops];
+     let verification;
+     try{verification=await this.evidence(job,VERIFIER_SYSTEM,verificationInput,verificationImages,signal,true,checkpointName,page);}
+     catch(error){
+      signal.throwIfAborted();
+      if(error.code==='provider-output-limit'&&!job.result?.verificationCheckpoints?.[checkpointName]&&!job.result?.verificationProfiles?.[checkpointName]&&
+       this.config.provider==='anthropic'&&this.config.verifyModel==='claude-sonnet-5'){
+       await this.store.checkpoint(job,{...job.result,verificationProfiles:{...job.result?.verificationProfiles,[checkpointName]:'low-effort-v1'},verificationProfileReasons:{...job.result?.verificationProfileReasons,[checkpointName]:error.code}});
+       verification=await this.evidence(job,VERIFIER_SYSTEM,verificationInput,verificationImages,signal,true,checkpointName,page);
+      }else throw error;
+     }
     const checked=verification.pages[0];
     // Each prior supported statement must survive or be listed as a correction.
     // Preserve both versions when a verifier disagrees; do not silently pick one.

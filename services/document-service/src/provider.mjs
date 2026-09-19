@@ -26,9 +26,11 @@ export function requestBody(provider,model,system,input,images,schema,maxOutput,
   // thinking and returned no answer. Keep the ceiling and strict validation;
   // allocate this small response to the requested citation data instead.
   if(model==='claude-sonnet-5'&&purpose==='citation')body.thinking={type:'disabled'};
-  // One durable recovery after a single-page output limit reserves more of the
-  // unchanged token allowance for evidence. Visual verification is unchanged.
-  if(model==='claude-sonnet-5'&&['read-efficient','source-repair-efficient'].includes(purpose))body.output_config.effort='low';
+  // One durable recovery after an inspected output limit reserves more of the
+  // unchanged token allowance for structured evidence. The model, source,
+  // images, output ceiling, schema and independent-verifier instructions stay
+  // unchanged.
+  if(model==='claude-sonnet-5'&&['read-efficient','source-repair-efficient','verify-efficient'].includes(purpose))body.output_config.effort='low';
   return {url:'https://api.anthropic.com/v1/messages',body};
  }
  if(provider==='gemini')return {url:`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,body:{systemInstruction:{parts:[{text:system}]},contents:[{role:'user',parts:[{text},...images.flatMap(i=>[{text:i.label},{inlineData:{mimeType:'image/png',data:Buffer.from(i.bytes).toString('base64')}}])]}],generationConfig:{responseMimeType:'application/json',responseJsonSchema:schema,maxOutputTokens:maxOutput}}};

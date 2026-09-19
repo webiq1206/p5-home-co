@@ -133,6 +133,40 @@ test('single-page output recovery retains quantities, exclusions and independent
  }finally{await f.pool.end();}
 });
 
+test('independent verification output limit gets one durable low-effort retry with unchanged source inputs',async()=>{
+ const f=await fixture(1,{provider:'anthropic',model:'claude-sonnet-5',verifyModel:'claude-sonnet-5'}),requests=[];
+ try{
+  f.reader.call=async(job,system,input,images,schema,signal,verify,purpose)=>{
+   requests.push({purpose,verify,input:structuredClone(input),images:images.map(i=>i.label),schema});
+   const page=evidence(1);page.items[0].basis='visual';
+   if(purpose==='verify')throw new ServiceError('provider-output-limit',422);
+   return {pages:[page]};
+  };
+  await f.pipeline.read(f.job,signal());
+  assert.deepEqual(requests.map(r=>r.purpose),['read','verify','verify-efficient']);
+  assert.equal(requests[2].verify,true);assert.deepEqual(requests[2].input,requests[1].input);assert.deepEqual(requests[2].images,requests[1].images);assert.equal(requests[2].schema,requests[1].schema);
+  const ordinary=requestBody('anthropic','claude-sonnet-5','',{},[],EVIDENCE_SCHEMA,10000,'verify').body,recovered=requestBody('anthropic','claude-sonnet-5','',{},[],EVIDENCE_SCHEMA,10000,'verify-efficient').body;
+  assert.equal(ordinary.output_config.effort,undefined);assert.equal(recovered.output_config.effort,'low');delete recovered.output_config.effort;assert.deepEqual(recovered,ordinary);
+  assert.equal((await f.store.documentProgress(f.document.id)).checked,1);
+ }finally{await f.pool.end();}
+});
+
+for(const code of ['provider-output-limit','qa-paused-unknown-provider-charge','provider-timeout'])test('an interrupted low-effort verification cannot repeat on restart: '+code,async()=>{
+ const f=await fixture(1,{provider:'anthropic',model:'claude-sonnet-5',verifyModel:'claude-sonnet-5'});let verifies=0;
+ try{
+  f.reader.call=async(job,system,input,images,schema,signal,verify,purpose)=>{
+   const page=evidence(1);page.items[0].basis='visual';
+   if(purpose==='verify'){verifies++;throw new ServiceError('provider-output-limit',422);}
+   if(purpose==='verify-efficient'){verifies++;throw new ServiceError(code,422);}
+   return {pages:[page]};
+  };
+  await assert.rejects(f.pipeline.read(f.job,signal()),error=>error.code===code);assert.equal(verifies,2);
+  const restarted=await f.store.job('test','test',f.job.id);
+  await assert.rejects(f.pipeline.read(restarted,signal()),error=>error.code==='verification-output-recovery-needs-inspection');
+  assert.equal(verifies,2);assert.equal((await f.store.documentProgress(f.document.id)).checked,0);
+ }finally{await f.pool.end();}
+});
+
 for(const code of ['provider-output-limit','qa-paused-unknown-provider-charge','provider-timeout'])test('an interrupted lower-effort recovery cannot repeat on job restart: '+code,async()=>{
  const f=await fixture(1,{provider:'anthropic',model:'claude-sonnet-5'});let calls=0;
  try{
