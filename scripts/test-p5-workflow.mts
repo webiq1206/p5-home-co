@@ -6,6 +6,9 @@ import {pathToFileURL} from 'node:url';
 import {PDFDocument} from 'pdf-lib';
 import {customerPdf,administrativePdf} from '../lib/p5/pdf.ts';
 import {COST_CATEGORIES,calculateP5Estimate,customerEstimate} from '../lib/p5/pricing.ts';
+import {estimateEmail} from '../lib/p5/estimateEmail.ts';
+import {estimateSections} from '../lib/p5/presentation.ts';
+import {getDocument} from 'pdfjs-dist/legacy/build/pdf.mjs';
 import {mergeScopeFacts,requiredScopeQuestions,validateExtraction,validateAnswer} from '../lib/p5/scope.ts';
 import {verifyUpload,prepareAnalysisFiles} from '../lib/p5/documents.ts';
 import ExcelJS from 'exceljs';
@@ -23,15 +26,23 @@ const now=new Date();
 const today=now.toISOString().slice(0,10);
 const future=new Date(now.getTime()+86400000*20).toISOString().slice(0,10);
 const finance={annualOverhead:420000,annualRevenue:6000000,forecastSource:'TEST ONLY; never deploy this forecast',reviewedAt:today,approvedBy:['Fixture']};
+const leakingAssumption='$2.00/LF ($200.00 direct cost)';
 const pricing:any={service:'kitchen',revision:'synthetic-fixture',scopeSummary:'TEST ONLY: kitchen planning scope, 200 square feet.',uncertainty:'high',locationProvided:false,
  lines:[{id:'trade',category:'subcontractors',description:'Synthetic written complete trade scope',quantity:1,unit:'package',unitCost:60000,quantitySource:'TEST scope',evidence:{basis:'written-quote',reference:'TEST ONLY',verifiedAt:today,validUntil:future}}],
- coverage:COST_CATEGORIES.map(category=>({category,status:category==='subcontractors'?'included':'not-applicable',reason:'Reviewed synthetic fixture only'})),risks:['limited-access'],assumptions:['Fixture layout retained.'],exclusions:['Owner-supplied appliances.'],missingInformation:[],allowances:[]};
+  coverage:COST_CATEGORIES.map(category=>({category,status:category==='subcontractors'?'included':'not-applicable',reason:'Reviewed synthetic fixture only'})),risks:['limited-access'],assumptions:[leakingAssumption,`Preliminary trim allowance based on ${leakingAssumption}; confirm field quantity.`],exclusions:['Owner-supplied appliances.'],missingInformation:[],allowances:[]};
 const internal=calculateP5Estimate(pricing,finance,[],now);
 const customer=customerEstimate(internal,pricing.scopeSummary);
 const fixtureId=randomUUID();
+const pdfText=async(bytes:Buffer)=>{const pdf=await getDocument({data:new Uint8Array(bytes)}).promise;const pages=[];for(let n=1;n<=pdf.numPages;n++){const content=await (await pdf.getPage(n)).getTextContent();pages.push(content.items.map((item:any)=>item.str||'').join(' '));}return pages.join('\n');};
+const customerEmail=estimateEmail(fixtureId,{customer,internal,contact:{name:'Test Customer'}},false);
+assert.ok(!JSON.stringify(customer).includes(leakingAssumption));
+assert.ok(!JSON.stringify(estimateSections(customer)).includes(leakingAssumption),'customer page sections must not carry internal pricing arithmetic');
+assert.ok(!customerEmail.text.includes(leakingAssumption)&&!customerEmail.html.includes(leakingAssumption),'customer email must not carry internal pricing arithmetic');
+assert.ok(internal.assumptions.includes(leakingAssumption),'the administrative result retains the inspected audit note');
 for(const [kind,bytes] of [['customer',await customerPdf(fixtureId,customer)],['administrative',await administrativePdf(fixtureId,{...internal,scope:{text:'TEST ONLY. '+('Long scope with room, dimensions, allowances and source evidence. '.repeat(120)),uploads:[{name:'A'.repeat(250)+'.pdf'}]}})]] as const){
  const doc=await PDFDocument.load(bytes);assert.ok(doc.getPageCount()>=1);if(kind==="customer")assert.equal(doc.getPageCount(),1,"A short planning summary and its complete disclaimer should fit on one page.");
  for(const page of doc.getPages()){assert.equal(page.getWidth(),612);assert.equal(page.getHeight(),792);}
+  const text=await pdfText(bytes);if(kind==='customer')assert.ok(!text.includes(leakingAssumption),'customer PDF must not carry internal pricing arithmetic');else assert.ok(text.includes(leakingAssumption),'administrative PDF retains the internal pricing audit note');
  await writeFile(`p5-verification/${kind}.pdf`,bytes);
 }
 const extraction=validateExtraction({summary:"Synthetic kitchen scope",facts:[{field:'service',value:'kitchen',confidence:.98,source:'typed scope',evidence:'kitchen remodel'},{field:'sqft',value:'200',confidence:.95,source:'plan.pdf',evidence:'200 square feet'}],conflicts:[],missingInformation:[],reviewNotes:[]});
@@ -181,6 +192,6 @@ try{
  await outbox.processOutbox({draftId:id});
  assert.ok((await outbox.deliveryStatus(id)).every((d:any)=>d.status==='sent'));
  await db.database.close();
- await writeFile('p5-verification/workflow-results.json',JSON.stringify({passed:true,scope:'Isolated database, synthetic pricing fixtures, simulated delivery and CRM. No live email or CRM request was made.',checks:['PDF generation','high-confidence extraction','conflict preservation','low-confidence review','optional address','invalid upload','XLSX extraction','draft authorization','optimistic concurrency','upload deduplication','atomic submission','outbox deduplication','customer delivery retry','CRM ambiguity review','administrator alert','confidential result separation','manual cost review','authenticated distinct owner approvals','stale forecast approval rejection','changed scope approval rejection','atomic reviewed publication','revision history','CRM update duplicate guard','delivery reconciliation audit','unresolved document review blocks pricing','submitted urgency cannot silently lower margin','missing conditional cost answers block pricing','interrupted delivery alert and retry ceiling','private reference authorization','versioned reference import','stale reference import rejected','comparison tied to reviewed quantity and units','saved reference comparison audit','approved initial overhead without forecast','legacy policy approval invalidation','stale pricing comparison rejection','reference direct-cost ceilings','complex scope retains higher target in automatic and manual review']},null,2));
+ await writeFile('p5-verification/workflow-results.json',JSON.stringify({passed:true,scope:'Isolated database, synthetic pricing fixtures, simulated delivery and CRM. No live email or CRM request was made.',checks:['PDF generation','customer page/PDF/email pricing privacy boundary','high-confidence extraction','conflict preservation','low-confidence review','optional address','invalid upload','XLSX extraction','draft authorization','optimistic concurrency','upload deduplication','atomic submission','outbox deduplication','customer delivery retry','CRM ambiguity review','administrator alert','confidential result separation','manual cost review','authenticated distinct owner approvals','stale forecast approval rejection','changed scope approval rejection','atomic reviewed publication','revision history','CRM update duplicate guard','delivery reconciliation audit','unresolved document review blocks pricing','submitted urgency cannot silently lower margin','missing conditional cost answers block pricing','interrupted delivery alert and retry ceiling','private reference authorization','versioned reference import','stale reference import rejected','comparison tied to reviewed quantity and units','saved reference comparison audit','approved initial overhead without forecast','legacy policy approval invalidation','stale pricing comparison rejection','reference direct-cost ceilings','complex scope retains higher target in automatic and manual review']},null,2));
  console.log('P5 workflow checks passed (isolated database; simulated external services).');
 }finally{await rm(runtime,{recursive:true,force:true});}

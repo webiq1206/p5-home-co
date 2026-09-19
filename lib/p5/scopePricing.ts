@@ -12,6 +12,7 @@ import {hasRestrictedScope,INSTRUCTION_POLICY} from './instructions.ts';
 import {activePricingSource,pricingSourceParts} from './pricingSources.ts';
 import {missingScopeFields} from './missingFields.ts';
 import {markPricingChargeUnknown,pricingFingerprint,recordPricingRequest,rejectPricingCharge,reservePricingCharge,settlePricingCharge,PricingChargeUnknownError,type PricingIdentity} from './pricingLedger.ts';
+import {customerSafeNotes,customerSafeProjection} from './pricing.ts';
 
 // This module runs only on the server at submission. No client-supplied mapping
 // or rate can authorize a price. The approved catalog is never mutated here.
@@ -804,5 +805,5 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
   resolution.issues=kept;
   resolution.completeScopeVerified=Boolean(auditTrail.verification)&&kept.length===0;
   const priced=priceReviewedScope(scope,configuration,now,resolution);
-  return {...priced,customer:{...priced.customer,instructions:pricingExtraction?.instructions,documentCoverage:pricingExtraction?.documentCoverage,verificationItems:[...resolution.assumptions.filter(a=>/allowance|preliminary|confirm/i.test(a)),...resolution.issues],scopeTasks:(auditTrail.tasks as {description:string}[]).map(t=>({description:t.description,category:suggestedTrade(t.description)}))},internal:{...priced.internal,scopePricing:auditTrail}};
+  return {...priced,customer:customerSafeProjection({...priced.customer,instructions:pricingExtraction?.instructions,documentCoverage:pricingExtraction?.documentCoverage,verificationItems:customerSafeNotes([...resolution.assumptions.filter(a=>/allowance|preliminary|confirm/i.test(a)),...resolution.issues]),scopeTasks:(auditTrail.tasks as {description:string}[]).map(t=>({description:t.description,category:suggestedTrade(t.description)}))}),internal:{...priced.internal,scopePricing:auditTrail}};
 }

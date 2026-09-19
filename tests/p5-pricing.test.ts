@@ -5,7 +5,7 @@ import {validateReferences,compareReference,referenceDirectCostBudget,type Price
 import {combineScopeExtractions,mergeScopeFacts} from "../lib/p5/scope.ts";
 import {analyzeScope} from "../lib/p5/extraction.ts";
 import {PDFDocument} from "pdf-lib";
-import { COST_CATEGORIES, SERVICE_MATRIX, UNCONFIGURED_FINANCE, allowanceAdjustment, calculateP5Estimate, companyAllocation, customerEstimate, landedUnitCost, loadedHourlyCost, priceFromRiskAdjustedCost, type FinancePolicy, type PricingInput, type Service } from "../lib/p5/pricing.ts";
+import { COST_CATEGORIES, SERVICE_MATRIX, UNCONFIGURED_FINANCE, allowanceAdjustment, calculateP5Estimate, companyAllocation, customerEstimate, customerSafeNotes, landedUnitCost, loadedHourlyCost, priceFromRiskAdjustedCost, type FinancePolicy, type PricingInput, type Service } from "../lib/p5/pricing.ts";
 
 const now = new Date("2026-09-10T12:00:00Z");
 const finance: FinancePolicy = { annualOverhead: 420000, annualRevenue: 6000000, forecastSource: "TEST FIXTURE ONLY: conservative forecast", reviewedAt: "2026-09-10", approvedBy: ["Nick"] };
@@ -125,6 +125,27 @@ test("customer projection excludes internal rates, evidence, approvals and dolla
   const r=calculateP5Estimate(input(),finance,[],now);const p=customerEstimate(r,"Kitchen");
   for (const key of ["divisor","operatingProfit","allocationDollars","financeSnapshot","ownerApprovals","lines","directCost","targetOperatingProfit"]) assert.equal(key in p,false);
   assert.match(p.disclaimer,/not a bid, quote, offer or guaranteed price/);
+});
+test("customer notes retain honest allowances without leaking internal unit-cost arithmetic",()=>{
+  const leaking="$2.00/LF ($200.00 direct cost)";
+  const i=input();i.scopeSummary=`Reviewed remodeling scope; ${leaking}`;i.lines[0].description=`Install 100 LF of trim; ${leaking}`;
+  i.assumptions=["Existing layout remains.",leaking,`Preliminary trim allowance based on ${leaking}; confirm field quantity.`];
+  i.exclusions=[`Painting excluded; ${leaking}`];
+  i.allowances=[{id:"trim",description:`Trim selection; ${leaking}`,directAmount:60000,costLineIds:["trade-1"],includes:[`100 LF trim; ${leaking}`],tax:true,freight:true,delivery:true,installation:true,waste:true,selectionDeadline:"2026-10-01"}];
+  const internal=calculateP5Estimate(i,finance,[],now),customer=customerEstimate(internal,i.scopeSummary);
+  assert.ok(internal.assumptions.includes(leaking),"the admin result retains the original pricing audit note");
+  assert.ok(customer.assumptions.includes("Existing layout remains."));
+  assert.ok(customer.assumptions.some(note=>/Preliminary trim allowance; confirm field quantity/.test(note)));
+  assert.match(customer.summary,/Reviewed remodeling scope/);
+  assert.match(customer.lineItems[0].description,/Install 100 LF of trim/);
+  assert.match(customer.exclusions[0],/Painting excluded/);
+  assert.match(customer.allowances[0].description,/Trim selection/);
+  assert.match(customer.allowances[0].includes[0],/100 LF trim/);
+  assert.equal(customer.lineItems[0].quantity,internal.lines[0].quantity);
+  assert.deepEqual(customer.range,internal.planningRange);
+  assert.ok(!JSON.stringify(customer).includes(leaking));
+  assert.ok(!JSON.stringify(customer).includes("direct cost"));
+  assert.deepEqual(customerSafeNotes([leaking]),[]);
 });
 test("customer categories use trades and reconcile both endpoints without exposing costs",()=>{
   const i=input();i.lines=[{...i.lines[0],id:"paint",description:"Painting",trade:"Painting",unitCost:15000},{...i.lines[0],id:"drywall",description:"Drywall",trade:"Drywall",unitCost:25000},{...i.lines[0],id:"floor",description:"Flooring",trade:"Flooring",unitCost:20000}];

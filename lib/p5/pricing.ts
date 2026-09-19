@@ -280,6 +280,59 @@ export function calculateP5Estimate(input: PricingInput, finance: FinancePolicy,
 }
 export type P5Estimate = ReturnType<typeof calculateP5Estimate>;
 export const PLANNING_DISCLAIMER = "Preliminary planning information only. This is not a bid, quote, offer or guaranteed price. A site or plan review, confirmed scope, current supplier and trade pricing, and written agreement are required before work proceeds.";
+const CUSTOMER_ALLOWANCE_DISCLOSURE="Preliminary allowance: confirm quantities, selections and current supplier or trade pricing before a firm proposal.";
+const INTERNAL_COMMERCIAL_NOTE=[
+  /\bdirect costs?\b/i,
+  /\bunit costs?\b/i,
+  /\blanded costs?\b/i,
+  /\bcost arithmetic\b/i,
+  /\boverhead(?: recovery| allocation)?\b/i,
+  /\b(?:operating|target|gross)\s+(?:profit|margin)\b/i,
+  /\ballocation(?: dollars?| figures?)?\b/i,
+  /\bpricing divisor\b/i,
+  /\bmark[- ]?up\b/i,
+  /\$\s*\d[\d,.]*(?:\s*-\s*\$\s*\d[\d,.]*)?\s*(?:\/|\bper\b)\s*(?:lf|sf|ea|each|hour|hr|cy)\b/i,
+  /\b\d[\d,.]*(?:\s*(?:to|-)\s*\d[\d,.]*)?\s+USD\s*\/\s*(?:lf|sf|ea|each|hour|hr|cy)\b/i,
+];
+const INTERNAL_RATE=/\$\s*\d[\d,.]*(?:\s*-\s*\$\s*\d[\d,.]*)?\s*(?:\/|\bper\b)\s*(?:lf|sf|ea|each|hour|hr|cy)\b(?:\s*\(\s*\$\s*\d[\d,.]*\s+direct costs?\s*\))?/gi;
+const INTERNAL_DIRECT_TOTAL=/\(?\s*\$\s*\d[\d,.]*\s+direct costs?\s*\)?/gi;
+/** Redact only private cost arithmetic; retain surrounding scope, quantity,
+ * selection, and preliminary-allowance wording. */
+export function customerSafeText(value:string):string{
+  const original=value.trim();
+  if(!INTERNAL_COMMERCIAL_NOTE.some(pattern=>pattern.test(original))&&!INTERNAL_RATE.test(original)&&!INTERNAL_DIRECT_TOTAL.test(original)){
+    INTERNAL_RATE.lastIndex=0;INTERNAL_DIRECT_TOTAL.lastIndex=0;
+    return original;
+  }
+  INTERNAL_RATE.lastIndex=0;INTERNAL_DIRECT_TOTAL.lastIndex=0;
+  const allowance=/\b(?:preliminary|allowance)\b/i.test(value);
+  let text=value.replace(INTERNAL_RATE,'').replace(INTERNAL_DIRECT_TOTAL,'');
+  INTERNAL_RATE.lastIndex=0;INTERNAL_DIRECT_TOTAL.lastIndex=0;
+  text=text.replace(/\bbased on\s*(?=[,;:.!?]|$)/gi,'').replace(/\s+([,;:.!?])/g,'$1').replace(/([,;])\s*([,;])/g,'$2');
+  const clauses=text.split(/;\s*|(?<=[.!?])\s+/).map(part=>part.trim()).filter(Boolean);
+  const safe=clauses.filter(part=>!INTERNAL_COMMERCIAL_NOTE.some(pattern=>pattern.test(part))).join('; ').replace(/\s{2,}/g,' ').trim();
+  return safe||(allowance?CUSTOMER_ALLOWANCE_DISCLOSURE:'');
+}
+/** Customer prose may describe scope and preliminary allowances, but never the
+ * private cost basis or the arithmetic used to turn cost into a selling range. */
+export function customerSafeNotes(notes:unknown):string[]{
+  if(!Array.isArray(notes))return [];
+  const safe:string[]=[];
+  for(const value of notes){
+    if(typeof value!=="string"||!value.trim())continue;
+    const note=customerSafeText(value.trim());
+    if(note)safe.push(note);
+  }
+  return [...new Set(safe)];
+}
+/** One final recursive projection protects every prose field later rendered by
+ * the customer page, PDF, email, or public API response. */
+export function customerSafeProjection<T>(value:T):T{
+  if(typeof value==="string")return customerSafeText(value) as T;
+  if(Array.isArray(value))return value.map(item=>customerSafeProjection(item)).filter(item=>item!==''&&item!==null&&item!==undefined) as T;
+  if(value&&typeof value==="object")return Object.fromEntries(Object.entries(value).map(([key,item])=>[key,customerSafeProjection(item)])) as T;
+  return value;
+}
 /** Explicit projection keeps internal calculations out of API, email and PDF output. */
 export function customerEstimate(estimate: P5Estimate, summary: string) {
   const trades=[...new Set(estimate.lines.map(l=>tradeForLine(l)))];
@@ -291,7 +344,7 @@ export function customerEstimate(estimate: P5Estimate, summary: string) {
   const increases=apportionAmount(estimate.planningRange.high-estimate.planningRange.low,highWeights.some(n=>n>0)?highWeights:weights);
   const highs=lows.map((low,i)=>low+increases[i]);
   const lineItems=estimate.publishable?estimate.lines.map((line,i)=>({id:line.id,category:tradeForLine(line),description:line.description,quantity:line.quantity,unit:line.unit,low:lows[i],high:highs[i],unitLow:lows[i]/line.quantity,unitHigh:highs[i]/line.quantity,...(line.building?{building:line.building}:{}),...(line.floor?{floor:line.floor}:{}),...(line.quantityRange?{quantityRange:line.quantityRange}:{}),pricingStatus:line.allowance||line.estimatingBasis==='sourced-market-average'||line.estimatingBasis==='regional-planning-average'?'estimated-allowance':line.evidence.basis==='owner-estimating-schedule'?'owner-planning-rate':'verified-cost',...(line.estimatingBasis==='regional-planning-average'?{verification:'Regional planning average, not verified local pricing. Confirm current local rates, quantities and selections before a firm proposal.'}:line.allowance||line.estimatingBasis==='sourced-market-average'||line.evidence.basis==='owner-estimating-schedule'?{verification:'Confirm quantities, selections and current supplier/trade pricing before a firm proposal.'}:{}),...(line.evidence.provenance?{rateLocation:line.evidence.provenance.location,rateDate:line.evidence.provenance.retrievedAt,rateSources:line.evidence.provenance.sources.map(s=>s.url)}:{})})):[];
-  return {
+  return customerSafeProjection({
     status: estimate.publishable ? "planning-range" as const : "review-required" as const,
     range: estimate.publishable ? estimate.planningRange : null,
     summary,
@@ -306,10 +359,10 @@ export function customerEstimate(estimate: P5Estimate, summary: string) {
       selectionDeadline: a.selectionDeadline,
       adjustment: "Selection increases and decreases receive the same project pricing treatment. Confirm changes in writing before ordering.",
     })),
-    assumptions: estimate.assumptions, exclusions: estimate.exclusions,
+    assumptions: customerSafeNotes(estimate.assumptions), exclusions: estimate.exclusions,
     factors: estimate.riskFactors.map(r => r.replaceAll("-", " ")),
     nextStep: estimate.contractMethod,
     message: estimate.publishable ? "Schedule a consultation to confirm the scope and refine this range." : "Your scope needs a pricing review before we can provide a reliable range. Schedule a consultation or plan review.",
     disclaimer: PLANNING_DISCLAIMER,
-  };
+  });
 }
