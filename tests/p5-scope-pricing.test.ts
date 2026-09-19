@@ -533,6 +533,18 @@ test('A partial finishing allowance cannot release a total that omits baseboard 
  assert.ok(!result.customer.assumptions.some(item=>item.includes(omission)),'missing work cannot become a routine assumption');
  assert.ok(result.internal.scopePricing.issues.some(item=>/full pricing coverage/.test(item)));
 });
+test('Empty completed research uses an audited planning allowance instead of leaving a requested task unpriced',async()=>{
+ const tasks=[task,extra];let planned=0,audited=0;
+ const request:PricingRequest=async(_i,input,search)=>{const d=input as any;
+  if(search)return {value:{rates:[],issues:['No matching published rate found'],notes:[]},sourceUrls:[]};
+  if(d.taskBatch)return {value:{tasks:d.taskBatch.map((t:any)=>({...tasks.find(x=>x.id===t.id)!,...t})),issues:[],notes:[],replacements:[],removeExclusions:[]},sourceUrls:[]};
+  if('priorPricingIssues' in d){audited++;return {value:{coveredTaskIds:tasks.map(t=>t.id),issues:[],notes:[],resolvedIssues:[]},sourceUrls:[]};}
+  if(d.tasks&&d.region){planned++;return {value:{rates:[{taskId:'overlay',description:'Protective overlay',unit:'LF',quantity:10,quantityEvidence:'ten feet',basis:'material-purchase',includes:'overlay material',excludes:'installation',low:3,high:6,confidence:'low',rationale:'Synthetic planning allowance.'}],issues:[],notes:[]},sourceUrls:[]};}
+  return {value:{tasks:tasks.map(({id,description,evidence})=>({id,description,evidence})),issues:[]},sourceUrls:[]};};
+ const result=await priceCompleteScope(scope,config,request,now);
+ assert.equal(planned,1);assert.equal(audited,1);assert.ok(result.customer.range);
+ assert.ok(result.customer.verificationItems.some((note:string)=>/planning average/i.test(note)));
+});
 test('Past the research window a gap goes straight to the planning average without a web search',async()=>{
  const tasks=[{...task,id:'drywall',description:'Patch drywall',researchDescription:''},{...extra,id:'texture',description:'Ceiling texture',researchDescription:'Matching ceiling texture over 30 sf'}];
  const planned={rates:[{taskId:'texture',description:'Ceiling texture allowance',unit:'SF',quantity:30,quantityEvidence:'30 sf',basis:'trade-labor',includes:'labor',excludes:'',low:3,high:6,confidence:'low',rationale:'Regional planning average.'}],issues:[],notes:[]};

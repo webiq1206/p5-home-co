@@ -22,3 +22,11 @@ export function missingScopeFields(missing:string[]):MissingScopeField[]{
     .filter(([key])=>wanted.has(key))
     .map(([field,definition])=>({field,label:definition.label}));
 }
+
+/** Pricing diagnostics belong in the staff record. Only explicit customer
+ * questions cross the incomplete-estimate response boundary. */
+export function customerPricingQuestions(missing:string[]):string[]{
+ const questions=missing.flatMap(note=>note.match(/\b(?:Should|Will|What|Which|How|Who|Do|Does|Is|Are|Can)\b[^?]*\?/gi)||[])
+  .filter(question=>!/(?:[$€£]|\b(?:direct[- ]cost|unit[- ]cost|markup|margin|divisor|payroll|catalog rate)\b)/i.test(question));
+ return [...new Set(questions.map(question=>question.trim()))];
+}

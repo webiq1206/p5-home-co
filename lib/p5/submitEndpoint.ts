@@ -4,7 +4,7 @@ import { draftCredentials,readDraft,DraftError,requireEstimateContact } from "./
 import { EMPTY_CONFIGURATION,type EstimatorConfiguration } from "./costBook.ts";
 import {priceSavedScope} from "./pricingWork.ts";
 import {queuedJob} from './backgroundJobs.ts';
-import {missingScopeFields} from "./missingFields.ts";
+import {missingScopeFields,customerPricingQuestions} from "./missingFields.ts";
 import {PricingPending,isPricingPending} from './pricingProgress.ts';
 import { enqueueSubmission,deliveryStatus,processOutbox } from "./outbox.ts";
 import { protectRequest,json,failed,limitedBody } from "./http.ts";
@@ -43,7 +43,7 @@ export async function postSubmission(request:Request,schedule?:(task:()=>Promise
       const missing=('missingInformation' in priced.internal?priced.internal.missingInformation:[])||[];
       const missingFields=missingScopeFields(missing);
       const labels=missingFields.map(item=>item.label);
-      const items=((priced.customer as {verificationItems?:string[]}).verificationItems||[]).filter(item=>typeof item==='string'&&item.trim());
+      const items=customerPricingQuestions(missing);
       // The reasons are logged so a live host explains an unpriced result, and the first few are shown so the visitor knows what to confirm.
       const blocks=(('warnings' in priced.internal?priced.internal.warnings:[])||[]).filter((w:{severity?:string})=>w.severity==='block').map((w:{code:string})=>w.code);
       console.error(`[p5-pricing] no range for draft ${id}: blocks=${blocks.join(',')||'none'}; missing=${missing.slice(0,6).join(' | ')||'none'}; items=${items.slice(0,4).join(' | ')||'none'}; issues=${(((priced.internal as {scopePricing?:{issues?:string[]}}).scopePricing?.issues)||[]).slice(0,6).join(' | ')||'none'}`);
@@ -53,10 +53,10 @@ export async function postSubmission(request:Request,schedule?:(task:()=>Promise
       // Three different situations used to share one headline. A visitor with
       // questions to answer gets them; one whose scope is being finished by a
       // person is told exactly that and asked for nothing.
-      const handoff=!labels.length&&items.every(item=>item===HANDOFF_ISSUE);
+      const handoff=!labels.length&&!items.length;
       const detail=labels.length?'Please confirm the details below.':handoff?'':items.length?'The items below still need confirmation before a complete range can be released.':'Some scope items still need verified quantities or cost evidence.';
       const error=handoff?HANDOFF_ISSUE:`Your project is saved and remains editable. ${detail} A complete price range is required before the estimate can be finalized and emailed.`;
-      return json({pricingReviewRequired:true,needsCustomerInput:labels.length>0,handoff,missingFields,verificationItems:handoff?[]:items.slice(0,8),error},422);
+      return json({pricingReviewRequired:true,needsCustomerInput:labels.length>0||items.length>0,handoff,missingFields,verificationItems:handoff?[]:items.slice(0,8),error},422);
     }
     const record={draftId:id,revision:draft.revision,brand:brand.name,estimator:"p5-policy",contact:draft.contact,scope:draft.reviewed,...priced};
     const accepted=await enqueueSubmission(id,draft.revision,record);

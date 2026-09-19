@@ -624,6 +624,7 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
         }
         replies.push(researched);
         const market=marketResolution(researched.value,researched.sourceUrls,gapBatch,now,offset,region,scope);
+        if(gapBatch.some(task=>!market.rules.some(rule=>rule.scopeTaskId===task.id&&rule.unitCost>0)))throw new Error('Published research did not price every requested task');
         return {replies,resolution:market,modelIssues:marketSchema.parse(researched.value).issues};
       }catch(error){
         if(isPricingPending(error)||isProcessingDeadline(error))throw error;
