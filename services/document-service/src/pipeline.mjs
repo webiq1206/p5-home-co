@@ -132,7 +132,7 @@ export class Pipeline{
         if(include)crops.push({label:`Original page ${page.page}, normalized top-left crop ${JSON.stringify(region)}`,bytes:p.image});
        }});
       }catch(error){
-       if(!include||refresh||!['parser-worker-failed','parse-timeout','pdf-cannot-be-parsed'].includes(error.code))throw error;
+       if(!include||!['parser-worker-failed','parse-timeout','pdf-cannot-be-parsed'].includes(error.code))throw error;
        crops.push({label:`Original saved page ${page.page} crop ${JSON.stringify(region)}; PDF rerender failed, so this crop adds no detail beyond the authenticated saved overview. Retain uncertainty if insufficient.`,bytes:await cropSavedPageImage(source.image,region)});
       }
     };
