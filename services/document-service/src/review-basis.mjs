@@ -20,7 +20,7 @@ export function normalizeReviewFactBasis(value,input){
    // Reuse the verified citation rather than the model's uncategorized paraphrase.
    fact.evidence=match.source.evidence;fact.source=match.document+', page '+match.page;restored++;
   }else{
-   fact.basis='inferred';if(typeof fact.confidence==='number')fact.confidence=Math.min(fact.confidence,.2);unconfirmed++;
+   fact.basis='inferred';if(Number.isFinite(fact.confidence)&&fact.confidence>=0&&fact.confidence<=1)fact.confidence=Math.min(fact.confidence,.2);unconfirmed++;
   }
  }
  if(Array.isArray(result.reviewNotes)&&(restored||unconfirmed))

@@ -25,6 +25,7 @@ test('explicit basis, invalid values and other required fields are never rewritt
  }
  const missing={facts:[{field:'sqft',confidence:2}],reviewNotes:[]};
  const result=normalizeReviewFactBasis(missing,{documents:[]});assert.ok(!Object.hasOwn(result.facts[0],'value'));
+ assert.equal(result.facts[0].confidence,2,'invalid confidence must remain invalid for domain validation');
 });
 test('production review reserves its larger output budget while ordinary reading keeps its own ceiling',async()=>{
  const config=readConfig({DOCUMENT_PROVIDER:'anthropic',DOCUMENT_MODEL:'claude-sonnet-5',DOCUMENT_VERIFY_MODEL:'claude-sonnet-5',ANTHROPIC_API_KEY:'synthetic',DOCUMENT_DATABASE_URL:'postgres://synthetic',P5_DOCUMENT_TENANTS_JSON:JSON.stringify({'p5homeco.com':'a'.repeat(64)})});
