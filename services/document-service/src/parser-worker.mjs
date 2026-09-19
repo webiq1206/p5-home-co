@@ -2,6 +2,7 @@ import {parentPort,workerData} from 'node:worker_threads';
 import {createCanvas,DOMMatrix,Path2D,ImageData} from '@napi-rs/canvas';
 import {createRequire} from 'node:module';
 import path from 'node:path';
+import {viewportSpan,SPAN_COORDINATES} from './page-geometry.mjs';
 // Rasterization is isolated from the HTTP server in a bounded worker thread.
 Object.assign(globalThis,{DOMMatrix,Path2D,ImageData});
 const {getDocument,OPS}=await import('pdfjs-dist/legacy/build/pdf.mjs');
@@ -16,10 +17,10 @@ try{
   const started=performance.now(),page=await doc.getPage(number),base=page.getViewport({scale:1});
   if(base.width*base.height>40000000||Math.min(base.width,base.height)<=0)throw Error('unsafe-page-size');
   const content=await page.getTextContent();const spans=[];let lastY=null,text='';
-  for(const item of content.items){if(typeof item.str!=='string')continue;const m=item.transform;const x=m[4],y=base.height-m[5];
+  for(const item of content.items){if(typeof item.str!=='string')continue;const m=item.transform;const [,y]=base.convertToViewportPoint(m[4],m[5]);
    if(lastY!==null&&Math.abs(y-lastY)>2)text+='\n';else if(text&&!text.endsWith('\n'))text+=' ';
    text+=item.str;if(item.hasEOL)text+='\n';lastY=y;
-   spans.push({text:item.str,x,y,width:item.width,height:item.height});
+   spans.push(viewportSpan(item,base));
   }
   if(text.length>300000||spans.length>100000)throw Error('page-content-capacity');
   const bad=[...text].filter(c=>c==='\uFFFD'||(c.charCodeAt(0)<32&&!['\n','\r','\t'].includes(c))).length;
@@ -35,7 +36,7 @@ try{
   const canvas=createCanvas(w,h);
   await page.render({canvas,canvasContext:canvas.getContext('2d'),viewport,transform:[1,0,0,1,-region.x*viewport.width,-region.y*viewport.height],background:'white'}).promise;
   const image=canvas.toBuffer('image/png');canvas.width=1;
-  parentPort.postMessage({type:'page',value:{page:number,width:base.width,height:base.height,text,spans,textQuality,kind,images,paths,render:{width:w,height:h,scale},image,nativeMs,renderMs:Math.round(performance.now()-renderStarted),parseMs:Math.round(performance.now()-started)}});
+  parentPort.postMessage({type:'page',value:{page:number,width:base.width,height:base.height,text,spans,spanCoordinates:SPAN_COORDINATES,textQuality,kind,images,paths,render:{width:w,height:h,scale},image,nativeMs,renderMs:Math.round(performance.now()-renderStarted),parseMs:Math.round(performance.now()-started)}});
   // Backpressure avoids buffering a 100-page set in memory while storage is slow.
   await new Promise(resolve=>parentPort.once('message',resolve));page.cleanup();
  }
