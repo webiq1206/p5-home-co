@@ -132,11 +132,19 @@ the default.
 
 Leave standalone example concurrency values unset for cohosting: defaults are one
 parser (including crop renders), one incoming upload, two provider calls, four DB
-connections, 30 requests/minute, 120,000 reserved tokens/minute, five queued source/
+connections, 30 requests/minute, 300,000 reserved tokens/minute, five queued source/
 review jobs per tenant, seven-day retention, and 256 MiB source/page data per tenant.
 Logical storage accounting includes original bytes, previews, native spans and
 page evidence, but is not a physical database/backups/WAL size ceiling. These are
 resource controls, not a dollar spending cap. Monitor provider billing separately.
+
+Ordinary reads retain a 10,000-token output ceiling. Final cross-document reviews
+reserve up to 32,000 output tokens, with a six-minute total stream deadline and
+a fifteen-minute job deadline. The larger cohost token reservation admits the
+inspected 23-page review without clipping source context; explicit host settings
+still override these defaults. Missing review-fact evidence classifications are
+restored only from exact, unanimous validated source facts. Other interpretations
+remain inferred with confidence capped at 0.20 and cannot fill pricing answers.
 
 The worker has a 256 MiB JS heap setting and a 640 MiB RSS watchdog (sampled every
 two seconds). These are best-effort process limits, not an OS memory guarantee.

@@ -77,6 +77,8 @@ export async function runFixture(fixture,{root,key,parseOnly=false,request=fetch
  // paid calls. Production concurrency and processing code remain unchanged.
  config.slots=1;config.parserSlots=1;config.maxPages=fixture.pages;config.maxOutput=resumePlansReviewOutputLimit?32000:Math.min(config.maxOutput,10000);
  if(resumePlansReviewOutputLimit)config.streamMs=360000;
+ // Historical QA modes preserve their pinned request shape and reservations.
+ config.reviewMaxOutput=config.maxOutput;
  const timing=qualificationWindow(config,fixture.id);config.jobMs=timing.jobMs;
  const controller=new AbortController(),limit=timing.windowMs,deadline=performance.now()+limit;
  let stop,document,review,started,runType='new',recoveryPreflight=false;

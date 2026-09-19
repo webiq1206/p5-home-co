@@ -1,6 +1,7 @@
 import {ServiceError,providerCallLimit} from './core.mjs';
 import {collectAnthropicResponse,responseDeadline} from './anthropic-stream.mjs';
 import {validateSchema} from './schema.mjs';
+import {normalizeReviewFactBasis} from './review-basis.mjs';
 const sleep=(ms,signal)=>new Promise((resolve,reject)=>{if(signal?.aborted)return reject(signal.reason);const abort=()=>{clearTimeout(timer);reject(signal.reason);};const timer=setTimeout(()=>{signal?.removeEventListener('abort',abort);resolve();},ms);signal?.addEventListener('abort',abort,{once:true});});
 const REVIEW_TOOL='submit_document_review';
 export function requestBody(provider,model,system,input,images,schema,maxOutput,purpose='evidence'){
@@ -55,7 +56,7 @@ export function parseReply(provider,data,outputTool){
 export class Reader{
  constructor(config,store,request=fetch){this.config=config;this.store=store;this.request=request;}
  async call(job,system,input,images,schema,signal,verify=false,purpose=verify?'verify':job.kind){
-  const c=this.config,estimated=Math.ceil((JSON.stringify(input).length+JSON.stringify(schema).length+system.length)/3)+images.reduce((n,i)=>n+Math.ceil(i.bytes.length/256),0)+c.maxOutput;
+  const c=this.config,maxOutput=purpose==='review'?(c.reviewMaxOutput??c.maxOutput):c.maxOutput,estimated=Math.ceil((JSON.stringify(input).length+JSON.stringify(schema).length+system.length)/3)+images.reduce((n,i)=>n+Math.ceil(i.bytes.length/256),0)+maxOutput;
   if(estimated>c.tpm)throw new ServiceError('request-exceeds-configured-token-budget',422);
   let slot;const waitStart=performance.now();
   while(!(slot=await this.store.reserve(estimated))){signal.throwIfAborted();await sleep(250,signal);}
@@ -63,9 +64,9 @@ export class Reader{
   const deadline=responseDeadline(signal,c.callMs,providerCallLimit(c));
   const requestDetail={provider:c.provider,model:verify?c.verifyModel:c.model,attempt:job.attempts,
    pages:Array.isArray(input.pages)?input.pages.map(p=>p.page):[],imageCount:images.length,
-   inputCharacters:JSON.stringify(input).length,maxOutputTokens:c.maxOutput,timeoutMs:providerCallLimit(c),idleTimeoutMs:c.callMs};
+   inputCharacters:JSON.stringify(input).length,maxOutputTokens:maxOutput,timeoutMs:providerCallLimit(c),idleTimeoutMs:c.callMs};
   try{
-   const built=requestBody(c.provider,verify?c.verifyModel:c.model,system,input,images,schema,purpose==='citation'?Math.min(c.maxOutput,2048):c.maxOutput,purpose);
+   const built=requestBody(c.provider,verify?c.verifyModel:c.model,system,input,images,schema,purpose==='citation'?Math.min(maxOutput,2048):maxOutput,purpose);
    requestDetail.purpose=purpose;requestDetail.maxOutputTokens=built.body.max_tokens||c.maxOutput;
    if(built.body.output_config?.effort)requestDetail.effort=built.body.output_config.effort;
    const headers={'content-type':'application/json',...(c.provider==='anthropic'?{'x-api-key':c.key,'anthropic-version':'2023-06-01'}:c.provider==='gemini'?{'x-goog-api-key':c.key}:{authorization:`Bearer ${c.key}`})};
@@ -83,7 +84,8 @@ export class Reader{
    let data;try{data=JSON.parse(text);}catch{throw new ServiceError('invalid-provider-json',422);}
    requestDetail.usage=data.usage||data.usageMetadata||{};
    requestDetail.stopReason=data.stop_reason||data.status||null;
-   const value=validateSchema(parseReply(c.provider,data,built.outputTool),schema);
+   const parsed=parseReply(c.provider,data,built.outputTool);
+   const value=validateSchema(purpose==='review'?normalizeReviewFactBasis(parsed,input):parsed,schema);
    await this.store.metric(job,purpose==='citation'?'citation-provider':job.kind==='review'?'reconciliation-provider':verify?'verify-provider':'read-provider',performance.now()-start,{...requestDetail,queueMs:Math.round(start-waitStart),estimatedTokens:estimated,usage:data.usage||data.usageMetadata||{}});
    return value;
   }catch(e){
