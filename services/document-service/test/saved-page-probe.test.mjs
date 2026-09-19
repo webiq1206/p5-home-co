@@ -102,7 +102,7 @@ test('invalid saved source and already-completed page are rejected before spendi
   const request=async()=>{calls++;throw Error('No network permitted');};
   const file=join(f.directory,'report.json'),report=JSON.parse(await readFile(file,'utf8'));
   await writeFile(file,JSON.stringify({...report,sourceSha256:'wrong'}));
-  await assert.rejects(checkSavedPage({...f.options,request}),/existing incomplete/);
+  await assert.rejects(checkSavedPage({...f.options,request}),/Saved QA report does not match its source directory/);
   await writeFile(file,JSON.stringify(report));
   const pool=await isolatedPool(join(f.directory,'database'));
   await pool.query('UPDATE p5ds_pages SET evidence=$1 WHERE page=2',[page]);await pool.end();

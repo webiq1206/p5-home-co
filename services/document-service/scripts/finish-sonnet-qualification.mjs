@@ -57,8 +57,8 @@ async function main(){
   console.log(JSON.stringify(await inspectReviewRecovery({root,reportPath:join(profile,'short-'+SOURCE.slice(0,16),'report.json')}),null,2));
   return;
  }
- const resumeReserved=process.argv[2]==='resume-reserved',resumeReview=process.argv[2]==='resume-review',resumePlans=process.argv[2]==='resume-plans-citation',resumeOutput=process.argv[2]==='resume-plans-output',resumeCitationOutput=process.argv[2]==='resume-plans-citation-output',resumeSourceRepair=process.argv[2]==='resume-plans-source-repair',resumeSourceCorrection=process.argv[2]==='resume-plans-source-correction';
- const bundlePath=resolve(process.argv[resumeReserved||resumeReview||resumePlans||resumeOutput||resumeCitationOutput||resumeSourceRepair||resumeSourceCorrection?3:2]||'p5-sonnet-fixtures.json');
+ const resumeReserved=process.argv[2]==='resume-reserved',resumeReview=process.argv[2]==='resume-review',resumePlans=process.argv[2]==='resume-plans-citation',resumeOutput=process.argv[2]==='resume-plans-output',resumeCitationOutput=process.argv[2]==='resume-plans-citation-output',resumeSourceRepair=process.argv[2]==='resume-plans-source-repair',resumeSourceCorrection=process.argv[2]==='resume-plans-source-correction',resumeEmptyFact=process.argv[2]==='resume-plans-empty-fact';
+ const bundlePath=resolve(process.argv[resumeReserved||resumeReview||resumePlans||resumeOutput||resumeCitationOutput||resumeSourceRepair||resumeSourceCorrection||resumeEmptyFact?3:2]||'p5-sonnet-fixtures.json');
  if((await stat(bundlePath)).size>40*1024*1024)throw Error('QA bundle exceeds the allowed size.');
  await chmod(bundlePath,0o600);
  const bundle=JSON.parse(await readFile(bundlePath,'utf8'));
@@ -74,7 +74,7 @@ async function main(){
  if(resumeReserved||resumeReview)console.log('Explicit recovery retains the full previous unknown reservation as spent. Any new unknown charge pauses again.');
  const file=join(root,'qualification-report.json');
  for(const fixture of bundle.fixtures){
-  const r=await runFixture(fixture,{root,key:process.env.ANTHROPIC_API_KEY,...(fixture.id==='short'?{seedPages:recovered.pages,recoverLegacyCitationFailure:true,resumeReserved,resumeReview}:{resumePlans,resumeOutput,resumeCitationOutput,resumeSourceRepair,resumeSourceCorrection})});
+  const r=await runFixture(fixture,{root,key:process.env.ANTHROPIC_API_KEY,...(fixture.id==='short'?{seedPages:recovered.pages,recoverLegacyCitationFailure:true,resumeReserved,resumeReview}:{resumePlans,resumeOutput,resumeCitationOutput,resumeSourceRepair,resumeSourceCorrection,resumeEmptyFact})});
   report.fixtures.push({id:r.id,complete:r.complete,error:r.error,reusedPages:r.reusedPages,elapsedMs:r.currentInvocationMs,cost:r.cost,quality:r.quality,providerFailure:r.providerFailure,recoveryDiagnostic:r.recoveryDiagnostic,lastSavedProviderFailure:r.lastSavedProviderFailure,report:r.reportPath});
   await privateJson(file,report);
   if(!r.complete){process.exitCode=1;break;}

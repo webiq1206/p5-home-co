@@ -101,3 +101,39 @@ for(const kind of ['cancelled','lease-lost'])test('source correction cannot spen
  const controller=new AbortController(),f=fixture(({purpose})=>{if(kind==='cancelled'&&purpose==='citation')controller.abort();},result=>{if(kind==='lease-lost'&&result.evidenceCheckpoint?.sourceCorrectionStarted)throw new ServiceError('lease-lost',409);});
  await assert.rejects(f.run(controller.signal));assert.deepEqual(f.purposes,['read','citation']);
 });
+
+for(const basis of ['uncertain','stated'])test('empty '+basis+' facts outside the citation manifest get one bounded correction and replay',async()=>{
+ const value=raw();value.pages[0].items[0]=corrected();
+ value.pages[0].facts=[{field:'sqft',value:'',evidence:basis==='stated'?'Install 3 doors.':'',basis}];
+ const answer={facts:[{key:'1:facts:0',statement:{field:'otherDetails',value:'Floor area is not specified on this page.',evidence:'The page lists trim and doors without a floor area.',basis:'uncertain'},reason:'Retain the missing area explicitly without inventing a quantity.'}],items:[],regions:[]};
+ const f=fixture(({purpose})=>purpose==='read'?value:purpose==='source-repair'?answer:undefined);
+ const result=await f.run();assert.equal(result.pages[0].status,'partial');assert.equal(result.pages[0].facts[0].basis,'uncertain');
+ assert.deepEqual(f.job.result.evidenceCheckpoint.raw,value);assert.deepEqual(result.pages[0].items,value.pages[0].items);
+ assert.deepEqual(await f.run(),result);assert.deepEqual(f.purposes,['read','source-repair']);
+});
+test('empty facts and unsupported items share one correction without duplication',()=>{
+ const value=raw();value.pages[0].facts=[{field:'',value:'   ',evidence:'Wrong quote',basis:'stated'}];
+ const input=citationInput(value,[source]),response={citations:input.statements.map(s=>({key:s.key,supported:false,lines:[]}))};
+ const prepared=prepareSourceRepair(value,[source],input,response);
+ assert.deepEqual(prepared.rejected.sort(),['1:facts:0','1:items:0']);assert.equal(prepared.input.rejectedStatements.length,2);
+});
+test('a supported citation cannot validate an empty fact or conceal an invalid line reference',()=>{
+ const value=raw();value.pages[0].items[0]=corrected();value.pages[0].facts=[{field:'sqft',value:'',basis:'stated',evidence:'Wrong quote'}];
+ const input=citationInput(value,[source]);
+ const prepared=prepareSourceRepair(value,[source],input,{citations:[{key:'1:facts:0',supported:true,lines:[1]}]});
+ assert.deepEqual(prepared.rejected,['1:facts:0']);
+ assert.throws(()=>prepareSourceRepair(value,[source],input,{citations:[{key:'1:facts:0',supported:true,lines:[900]}]}),/invalid-citation-line/);
+});
+test('a correction that returns another empty fact fails once and stays cached',async()=>{
+ const value=raw();value.pages[0].items[0]=corrected();value.pages[0].facts=[{field:'sqft',value:'',evidence:'',basis:'uncertain'}];
+ const f=fixture(({purpose})=>purpose==='read'?value:purpose==='source-repair'?{facts:[{key:'1:facts:0',statement:{...value.pages[0].facts[0],evidence:'Not provided'},reason:'Still empty'}],items:[],regions:[]}:undefined);
+ await assert.rejects(f.run(),/empty-source-fact/);await assert.rejects(f.run(),/empty-source-fact/);assert.deepEqual(f.purposes,['read','source-repair']);
+});
+test('an empty fact in independent verification remains a failure rather than opening another correction cycle',async()=>{
+ const f=fixture(({purpose})=>{
+  if(purpose==='source-repair'){const answer=patch();answer.items[0].statement.basis='visual';return answer;}
+  if(purpose==='verify'){const value=raw();value.pages[0].items[0]=corrected();value.pages[0].facts=[{field:'sqft',value:'',evidence:'',basis:'uncertain'}];return value;}
+ });
+ await assert.rejects(f.pipeline.read(f.job,new AbortController().signal),/empty-source-fact/);assert.equal(f.committed(),undefined);
+ assert.deepEqual(f.purposes,['read','citation','source-repair','verify']);
+});
