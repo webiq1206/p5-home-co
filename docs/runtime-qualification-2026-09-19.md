@@ -150,3 +150,44 @@ Each correction and subsequent citation attempt is durably marked before sending
 The explicit `resume-plans-source-correction` mode admits only the inspected eighteen-call state. It verifies all response hashes and prior archives, binds completed page 4 to its saved verification, and preserves the page-5 draft and citations unchanged. It archives the state before requeuing page 5 for correction of only its two rejected items, followed by normal verification. A permanent marker blocks a repeated recovery. The new correction still requires real-plan qualification.
 
 The saved PR 75 site checks show HTTP 200 for all five entry pages and successful authenticated shared-host readiness under all five tenant identities. Every entry still records adapter activation and the customer journey as unverified. These host checks do not configure the missing child settings.
+
+## PR 76 offline and PostgreSQL release checks
+
+At `88af1676a299a2456320dc9577b1a300cc372d1e`, the document-service suite passed 232 tests with zero failures; nine PostgreSQL-dependent cases were skipped locally. The unchanged integration file then ran once against fresh, verified disposable PostgreSQL 16.10 in Replit: twelve passed, zero failed or skipped, exit code zero, in 13.570 seconds. Three integration-file cases overlap the local suite, so the combined coverage is 241 distinct tests, not 244. The database checks use a synthetic Reader and do not qualify live AI.
+
+The checkout matched the exact merged SHA and had no tracked diff. The manifest, lock and integration-test hashes match the earlier record. The newly executed source hashes also matched the local verified files:
+
+| File, relative to the document service | SHA-256 |
+| --- | --- |
+| `src/pipeline.mjs` | `8f4e250e0edacd6eccd829fb9eaf5affb3df67ea88e4bfd831612623305dec74` |
+| `src/evidence-source-repair.mjs` | `586d557b15775deeb4ae76e433d6c660105b8088d2d551343620327880065ac8` |
+
+Raw Node spec-reporter output was returned and preserved as such, without relabeling it as TAP. The test process received only its executable path and the verified disposable database URL. Existing database URLs and provider credentials were absent. The temporary server's data directory, loopback address, port, database and test user matched before execution; shutdown and absence of its postmaster process were confirmed afterward. No application configuration, production database or deployment changed. A preliminary inspection found the new SHA absent from cached clones and ran no test; the repository was then fetched into the separate checkout before this single invocation.
+
+## Independent page-5 image reference
+
+The original 12,468,822-byte plans PDF was recovered and its SHA-256 rechecked against `4565acfa74cc3590fc2c7b2baf532c99a069c9a572448de8a6f599a7cf135786`. A fresh full-page render and higher-resolution window detail on A2.2 were visually inspected independently of the correcting model. They show:
+
+| Drawing location and mark | Visible qualifier |
+| --- | --- |
+| `2646 C`, below BED #3 | `(from Lot 19)` |
+| `2640 C`, below BATH | Keynote 2; the sheet's legend defines it as tempered glass |
+| Two `5020 F` windows on the left walls, alongside BED #3 and OPEN TO BELOW | `Match Lot 19 Glass` |
+
+The prior page-5 draft attached the first two Lot 19 qualifiers incorrectly. The reference establishes the actual relationships to check in the corrected result; it was not supplied to the in-progress model as an expected answer. Window codes remain literal here, without expanding undefined abbreviations or asserting whole-plan accuracy.
+
+A separate high-resolution crop on page 4 confirms that the lower garage label itself reads `10" CLG`, while the adjacent WIC reads `10' CLG`. This is not just a native-text extraction discrepancy. The garage unit must be retained as written and flagged for clarification, rather than silently normalized to feet. Reading the annotation does not establish that a ten-inch garage ceiling is physically intended.
+
+### PR76 live continuation: actual result, not qualification
+
+The pinned `88af1676a299a2456320dc9577b1a300cc372d1e` continuation ran once. The short fixture remained complete from cache (103 ms). Plans stopped after 179,836 ms with five committed pages: pages 1–3 partial and pages 4 and 6 read. Page 5 remained queued with its original response-17 read and response-18 citations; it was tied in priority with untouched pages. Page 7 failed `empty-source-fact`: fact index 0 was `{field:"sqft",value:"",evidence:"",basis:"uncertain"}`. Its two saved citations were both supported and did not include that empty fact.
+
+The six added requests were page-6 read/citation/source correction/verification followed by page-7 read/citation. All ended normally. All 24 saved requests and actual returned model IDs were `claude-sonnet-5`. The unchanged plans ledger has 24 usage-reported requests, zero unknown charges, and an estimated $1.5931982 against the original $3 cap. The page-5 recovery archive SHA-256 is `a520bc232f1e7a667e6ad07e6c50b0ca9528079ade2b9f9eeaa93bdf6b1f1c77`. Page 6's committed evidence exactly equals validated response 22 (six facts, 16 items, six notes, no unresolved regions).
+
+Read-only inspection of copied, stopped SQL storage confirmed page 5 queued/attempt 1/priority 5 and page 7 failed/attempt 1/priority 5; neither had begun source correction or replacement citations. Review failed at attempt 14. The old inspector accepted only short-report paths; the runtime inspector used a disposable report-shaped copy to inspect plans. That workaround is not an approved recurring procedure: the source helper must explicitly support authentic plans reports without relabeling them.
+
+The next source change routes empty facts through the existing one-shot correction, preserves their original drafts, and forces stated replacements through support validation. It explicitly prioritizes page 5 then page 7 before untouched work, with equal queue ages. Recovery admission requires the exact inspected 24-call state and archives it before changing queue state. No source prompt, completed evidence, budget, ledger, or saved provider response is reset.
+
+The committed page-4 `GARAGE-2` item also retains the literal `10" CLG` label with null quantity. It has not silently been changed to feet. The drawing's apparent unit anomaly still needs a clarification; preserving the source is not proof that ten inches is the intended physical ceiling height.
+
+The new local document-service suite passes 250 tests with zero failures and nine PostgreSQL skips (259 total, 49.863 seconds). The first pass found one assertion expecting the old rejection message for a mismatched saved report; the stricter source-directory check now rejects that input earlier. The assertion was updated to the exact new error and the whole suite passed on rerun. The authentic plans inspector additionally verifies report/path/database source identity, refuses active qualification locks and SQL writes, and leaves original storage unchanged. The recovery tests exercise the actual queue claims without postponing untouched pages.

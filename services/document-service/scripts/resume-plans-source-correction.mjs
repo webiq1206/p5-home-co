@@ -55,6 +55,7 @@ export async function resumePlansSourceCorrection(store,document,directory){
   const review=await c.query("UPDATE p5ds_jobs SET state='queued',error_code=null,available_at=now(),created_at=now(),lease_token=null,lease_until=null WHERE id=$1 AND state='failed' AND error_code='source-reading-failed' RETURNING id",[reviews[0].id]);
   if(review.rowCount!==1)throw Error('Review changed during recovery. Inspect the archive.');
   await c.query("UPDATE p5ds_jobs SET created_at=now(),available_at=now() WHERE document_id=$1 AND state='queued'",[document.id]);
+  await c.query('UPDATE p5ds_jobs SET priority=0 WHERE id=$1',[failed.id]);
   await c.query("UPDATE p5ds_documents SET state='prepared',error_code=null,updated_at=now() WHERE id=$1",[document.id]);
  });
  return true;

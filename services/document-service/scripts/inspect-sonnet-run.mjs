@@ -51,9 +51,11 @@ export async function withSavedRun({root=resolve('.p5-model-qa'),reportPath}={},
  root=await realpath(root);
  const file=await realpath(reportPath?resolve(reportPath):await latestReport(root));
  const within=relative(root,file);
- if(within.startsWith('..'+sep)||within==='..'||resolve(root,within)!==file||!/^([a-f0-9]{16})[\\/]short-[a-f0-9]{16}[\\/]report\.json$/.test(within))throw Error('Choose a saved short-file report inside .p5-model-qa.');
+ if(within.startsWith('..'+sep)||within==='..'||resolve(root,within)!==file||!/^([a-f0-9]{16})[\\/](?:short|plans)-[a-f0-9]{16}[\\/]report\.json$/.test(within))throw Error('Choose an authentic saved short or plans report inside .p5-model-qa.');
  const report=JSON.parse(await readFile(file,'utf8'));
- if(report.id!=='short'||report.expectedPages!==4)throw Error('Expected the saved four-page QA report.');
+ const expectedPages={short:4,plans:23}[report.id];
+ if(!expectedPages||report.expectedPages!==expectedPages||!/^([a-f0-9]{64})$/.test(report.sourceSha256||'')||dirname(file).split(sep).at(-1)!==report.id+'-'+report.sourceSha256.slice(0,16))throw Error('Saved QA report does not match its source directory.');
+ try{await stat(join(dirname(dirname(file)),'running.lock'));throw Error('Qualification is running or was interrupted. Inspect its process before opening saved storage.');}catch(e){if(e.code!=='ENOENT')throw e;}
  const source=join(dirname(file),'database');
  if(await realpath(source)!==source)throw Error('QA database must be a local directory, not a link.');
  await stat(join(source,'PG_VERSION'));
@@ -62,6 +64,8 @@ export async function withSavedRun({root=resolve('.p5-model-qa'),reportPath}={},
   await cp(source,join(copy,'database'),{recursive:true});
   db=new PGlite(join(copy,'database'));await db.waitReady;
   await db.query('BEGIN READ ONLY');
+  const docs=(await db.query('SELECT digest,page_count FROM p5ds_documents')).rows;
+  if(docs.length!==1||docs[0].digest!==report.sourceSha256||docs[0].page_count!==expectedPages)throw Error('Saved database does not match the authentic QA report.');
   const result=await inspect({db,report,file,root});
   await db.query('ROLLBACK');
   return result;
