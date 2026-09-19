@@ -69,3 +69,35 @@ export function applySourceRepairs(grounded,pages,rejected,answer){
  if(result.pages.some(p=>p.regions.length>12))throw new ServiceError('too-many-unresolved-regions',422);
  return result;
 }
+
+/** A bounded source repair may still contain claims that the independent
+ * semantic citation check cannot support. Keep the physical record and every
+ * separately grounded statement, but turn only those claims into explicit
+ * clarification findings. This is deterministic and creates no new model call. */
+export function resolveSourceCitations(corrected,pages,input,response){
+ validateSchema(response,CITATION_SCHEMA);
+ if(response.citations.length!==input.statements.length)throw new ServiceError('incomplete-citation-repair',422);
+ const seen=new Set(),supported=[];
+ for(const citation of response.citations){
+  const entry=input.statements.find(s=>s.key===citation.key);
+  if(!entry||seen.has(citation.key)||!citation.supported&&citation.lines.length)throw new ServiceError('invalid-citation-reference',422);
+  seen.add(citation.key);if(citation.supported)supported.push(citation);
+ }
+ let result=supported.length?applyCitations(corrected,pages,{...input,statements:input.statements.filter(s=>supported.some(c=>c.key===s.key))},{citations:supported}):structuredClone(corrected);
+ for(const citation of response.citations.filter(c=>!c.supported)){
+  const match=/^(\d+):(facts|items):(\d+)$/.exec(citation.key);
+  const page=match&&result.pages.find(p=>p.page===Number(match[1])),index=match&&Number(match[3]),collection=match?.[2],statement=page?.[collection]?.[index];
+  if(!statement)throw new ServiceError('invalid-citation-reference',422);
+  if(collection==='items'){
+   const identity=statement.component?.trim()||statement.id;
+   page.items[index]={...statement,description:`${identity}: complete specification remains unresolved and requires source clarification.`,building:'',floor:'',quantity:null,unit:'',
+    evidence:'Limitation: the source-support check could not establish the complete specification for this physical item.',basis:'uncertain'};
+  }else{
+   page.facts[index]={field:'otherDetails',value:`A source claim about ${statement.field} remains unresolved and requires clarification.`,
+    evidence:'Limitation: the source-support check could not establish the complete value for this fact.',basis:'uncertain'};
+  }
+  page.status='partial';
+  page.notes.push(`Unresolved source support ${citation.key}: retained for clarification without asserting the rejected value.`);
+ }
+ return result;
+}

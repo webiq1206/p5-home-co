@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {Pipeline} from '../src/pipeline.mjs';
 import {READER_SYSTEM} from '../src/contracts.mjs';
 import {citationInput,applyCitations} from '../src/evidence-citations.mjs';
-import {prepareSourceRepair,applySourceRepairs} from '../src/evidence-source-repair.mjs';
+import {prepareSourceRepair,applySourceRepairs,resolveSourceCitations} from '../src/evidence-source-repair.mjs';
 import {ServiceError,validateEvidence} from '../src/core.mjs';
 
 const source={page:1,kind:'text',textQuality:1,text:'Install 120 linear feet of baseboard.\nExclude owner-supplied materials.\nInstall 3 doors.',spans:[]};
@@ -78,10 +78,20 @@ test('a corrected exact quote receives support validation and all successful sta
  const result=await f.run();assert.equal(result.pages[0].items[0].quantity,120);assert.equal(f.job.result.evidenceCheckpoint.raw.pages[0].items[0].quantity,999);
  assert.deepEqual(await f.run(),result);assert.deepEqual(f.purposes,['read','citation','source-repair','citation']);
 });
-test('a replacement still rejected by the support check fails and cannot create a correction loop',async()=>{
+test('a replacement still rejected by the support check is retained as explicit uncertainty without a correction loop',async()=>{
  const f=fixture(({purpose})=>purpose==='citation'?rejected:undefined);
- await assert.rejects(f.run(),/unsupported-source-statement/);await assert.rejects(f.run(),/unsupported-source-statement/);
+ const first=await f.run(),second=await f.run();
+ assert.equal(first.pages[0].status,'partial');assert.equal(first.pages[0].items[0].basis,'uncertain');assert.equal(first.pages[0].items[0].quantity,null);
+ assert.match(first.pages[0].items[0].description,/requires source clarification/);assert.deepEqual(second,first);
  assert.deepEqual(f.purposes,['read','citation','source-repair','citation']);
+});
+test('mixed source-citation outcomes preserve supported repairs and retain only rejected claims for clarification',()=>{
+ const value=raw(),input=citationInput(value,[source]),prepared=prepareSourceRepair(value,[source],input,rejected);
+ const repaired=applySourceRepairs(prepared.grounded,[source],prepared.rejected,patch()),check=citationInput(repaired,[source],prepared.rejected);
+ const result=resolveSourceCitations(repaired,[source],check,{citations:[{key:'1:items:0',supported:false,lines:[]}]});
+ assert.deepEqual(result.pages[0].items[1],value.pages[0].items[1]);
+ assert.equal(result.pages[0].items[0].id,value.pages[0].items[0].id);
+ assert.equal(result.pages[0].items[0].basis,'uncertain');assert.equal(result.pages[0].items[0].quantity,null);
 });
 test('an inspected source-repair output limit can use one durable low-effort recovery',async()=>{
  let limited=true;
@@ -187,10 +197,11 @@ for(const kind of ['visual','calculated','new-region'])test('verifier correction
  await assert.rejects(f.pipeline.read(f.job,new AbortController().signal));assert.equal(f.committed(),undefined);
  const count=f.purposes.length;await assert.rejects(f.pipeline.read(f.job,new AbortController().signal));assert.equal(f.purposes.length,count);
 });
-test('verifier text replacement that still fails support stops after one correction',async()=>{
+test('verifier text replacement that still fails support is retained as partial uncertainty after one correction',async()=>{
  const f=verifierFixture(({purpose})=>purpose==='citation'?rejected:undefined);
- await assert.rejects(f.pipeline.read(f.job,new AbortController().signal),/unsupported-source-statement/);
- assert.deepEqual(f.purposes,['read','verify','citation','source-repair','citation']);assert.equal(f.committed(),undefined);
+ await f.pipeline.read(f.job,new AbortController().signal);
+ assert.deepEqual(f.purposes,['read','verify','citation','source-repair','citation']);
+ assert.equal(f.committed().status,'partial');assert.equal(f.committed().items[0].basis,'uncertain');assert.equal(f.committed().items[0].quantity,null);
 });
 test('verifier correction cannot retain an unsupported numeric fact merely by labeling it uncertain',async()=>{
  const f=verifierFixture(({purpose})=>{

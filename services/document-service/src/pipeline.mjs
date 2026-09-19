@@ -3,7 +3,8 @@ import {parsePdf,limitParser} from './parser.mjs';
 import {SPAN_COORDINATES,textAnchorRegions} from './page-geometry.mjs';
 import {EVIDENCE_SCHEMA,REVIEW_SCHEMA,READER_SYSTEM,VERIFIER_SYSTEM,REVIEW_SYSTEM,validateReview} from './contracts.mjs';
 import {CITATION_SYSTEM,CITATION_SCHEMA,citationInput,applyCitations,evidenceCheckpointKey} from './evidence-citations.mjs';
-import {SOURCE_REPAIR_SYSTEM,SOURCE_REPAIR_SCHEMA,SOURCE_REPAIR_VERIFIER_RULE,prepareSourceRepair,applySourceRepairs,emptyFactKeys} from './evidence-source-repair.mjs';
+import {SOURCE_REPAIR_SYSTEM,SOURCE_REPAIR_SCHEMA,SOURCE_REPAIR_VERIFIER_RULE,prepareSourceRepair,applySourceRepairs,resolveSourceCitations,emptyFactKeys} from './evidence-source-repair.mjs';
+import {cropSavedPageImage} from './source-image-crop.mjs';
 export function reconcileVerification(page,checked){
  const contradictions=[];
  for(const f of page.facts){const match=checked.facts.find(v=>v.field===f.field&&v.value===f.value);if(!match){checked.facts.push(f);contradictions.push(`Verify conflicting ${f.field}: ${f.value}`);}}
@@ -84,7 +85,7 @@ export class Pipeline{
      saved.sourceCitations=await this.reader.call(job,CITATION_SYSTEM,correctionCitations,[],CITATION_SCHEMA,signal,verify,'citation');
      await save();
     }
-    grounded=saved.sourceCitations?applyCitations(corrected,input,correctionCitations,saved.sourceCitations):corrected;
+     grounded=saved.sourceCitations?resolveSourceCitations(corrected,input,correctionCitations,saved.sourceCitations):corrected;
    }else grounded=saved.repair?applyCitations(saved.raw,input,citations,saved.repair):structuredClone(saved.raw);
    return validateEvidence(grounded,input);
  }
@@ -125,10 +126,15 @@ export class Pipeline{
     const refresh=!!native.spans?.length&&native.spanCoordinates!==SPAN_COORDINATES;
     const render=async(region,include=true)=>{
      if(!original)original=await this.store.document(job.tenant,job.project,job.document_id,true);
-     await this.parser(original.bytes,{maxPages:this.config.maxPages,timeoutMs:this.config.parseMs,signal,crop:{page:page.page,region},onPage:p=>{
-      if(refresh){if(p.spanCoordinates!==SPAN_COORDINATES)throw new ServiceError('source-coordinate-refresh-failed',422);native={...source.native,spans:p.spans,spanCoordinates:p.spanCoordinates};}
-      if(include)crops.push({label:`Original page ${page.page}, normalized top-left crop ${JSON.stringify(region)}`,bytes:p.image});
-     }});
+      try{
+       await this.parser(original.bytes,{maxPages:this.config.maxPages,timeoutMs:this.config.parseMs,signal,crop:{page:page.page,region},onPage:p=>{
+        if(refresh){if(p.spanCoordinates!==SPAN_COORDINATES)throw new ServiceError('source-coordinate-refresh-failed',422);native={...source.native,spans:p.spans,spanCoordinates:p.spanCoordinates};}
+        if(include)crops.push({label:`Original page ${page.page}, normalized top-left crop ${JSON.stringify(region)}`,bytes:p.image});
+       }});
+      }catch(error){
+       if(!include||refresh||!['parser-worker-failed','parse-timeout','pdf-cannot-be-parsed'].includes(error.code))throw error;
+       crops.push({label:`Original saved page ${page.page} crop ${JSON.stringify(region)}; PDF rerender failed, so this crop adds no detail beyond the authenticated saved overview. Retain uncertainty if insufficient.`,bytes:await cropSavedPageImage(source.image,region)});
+      }
     };
     for(const region of page.regions)await render(region);
     // Old cached text/images and read checkpoints remain unchanged. Only the

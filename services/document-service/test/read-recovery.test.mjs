@@ -145,7 +145,7 @@ for(const code of ['provider-output-limit','qa-paused-unknown-provider-charge','
  }finally{await f.pool.end();}
 });
 
-test('a lower-effort reply must still pass strict citation support and preserve its checkpoint',async()=>{
+test('a lower-effort reply retains a strict citation rejection as uncertainty and preserves its checkpoint',async()=>{
  const f=await fixture(1,{provider:'anthropic',model:'claude-sonnet-5'}),purposes=[];
  try{
   f.reader.call=async(job,system,input,images,schema,signal,verify,purpose)=>{
@@ -153,11 +153,11 @@ test('a lower-effort reply must still pass strict citation support and preserve 
    if(purpose==='citation')return {citations:[{key:'1:items:0',supported:false,lines:[]}]};
    const page=evidence(1);page.items[0].quantity=999;page.items[0].evidence='Invented amount';if(purpose==='source-repair')return {facts:[],items:[{key:'1:items:0',statement:page.items[0],reason:'Still unsupported.'}],regions:[]};return {pages:[page]};
   };
-  await assert.rejects(f.pipeline.read(f.job,signal()),e=>e.code==='unsupported-source-statement');
-  const restarted=await f.store.job('test','test',f.job.id);
-  await assert.rejects(f.pipeline.read(restarted,signal()),e=>e.code==='unsupported-source-statement');
+   await f.pipeline.read(f.job,signal());
+   const saved=(await f.store.pages(f.document.id))[0].evidence;
+   assert.equal(saved.status,'partial');assert.equal(saved.items[0].basis,'uncertain');assert.equal(saved.items[0].quantity,null);
   assert.deepEqual(purposes,['read','read-efficient','citation','source-repair','citation']);
-  assert.equal((await f.store.documentProgress(f.document.id)).checked,0);
+   assert.equal((await f.store.documentProgress(f.document.id)).checked,1);
  }finally{await f.pool.end();}
 });
 

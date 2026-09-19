@@ -63,19 +63,22 @@ for(const kind of ['unsupported','out-of-range','duplicate','changed-value'])tes
  assert.equal(raw.pages[0].items[0].quantity,120);
 });
 
-test('rejected or interrupted corrections retain drafts and never silently repeat paid requests on retry',async()=>{
+test('a rejected completed correction becomes partial while an interrupted correction remains fail-closed',async()=>{
  for(const interrupted of [false,true]){
   const f=await fixture();let calls=0;
   try{
    f.reader.call=async(job,system,input,images,schema,signal,verify,purpose)=>{if(++calls===1)return {pages:[evidence()]};if(interrupted)throw new ServiceError('provider-timeout',503);if(purpose==='source-repair')return {facts:[],items:[{key:'1:items:0',statement:evidence().items[0],reason:'Candidate still needs independent text support.'}],regions:[]};return {citations:[{...repair.citations[0],supported:false,lines:[]}]};};
    const first=await f.pipeline.read(f.job,new AbortController().signal).catch(e=>e);
-   assert.ok(first instanceof Error);
-   await f.store.fail({...f.job,attempts:3},first);
+   if(!interrupted){
+    assert.equal(first,undefined);const saved=(await f.store.pages(f.document.id))[0].evidence;
+    assert.equal(saved.status,'partial');assert.equal(saved.items[0].basis,'uncertain');assert.equal(calls,4);continue;
+   }
+   assert.ok(first instanceof Error);await f.store.fail({...f.job,attempts:3},first);
    const saved=await f.store.job('qa','test',f.job.id);assert.ok(saved.result.evidenceCheckpoint.raw);
    await f.store.retry('qa','test',f.document.id,'documents');
    const retry=await f.store.claim(['read']);
-   await assert.rejects(f.pipeline.read(retry,new AbortController().signal),interrupted?/citation-repair-needs-inspection/:/unsupported-source-statement/);
-   assert.equal(calls,interrupted?2:4);
+   await assert.rejects(f.pipeline.read(retry,new AbortController().signal),/citation-repair-needs-inspection/);
+   assert.equal(calls,2);
   }finally{await f.pool.end();}
  }
 });
