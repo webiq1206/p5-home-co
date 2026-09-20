@@ -7,6 +7,13 @@ export function retainedScopeInventory(scope:ReviewedScope){
   const extraction=scope.extraction;
   if(!extraction?.documentCoverage?.complete||!extraction.takeoffs?.length||extraction.reviewNotes.length)return null;
   const items=extraction.takeoffs;
+  const pages=extraction.documentCoverage.pages;
+  if(!Array.isArray(pages)||pages.length!==extraction.documentCoverage.expectedPages||pages.some(page=>page.status!=='read'))return null;
+  const sourceIsCurrent=(source:(typeof items)[number]['sources'][number])=>pages.some(page=>
+    page.source===source.source&&page.page===source.page&&
+    (!page.sheet||!source.sheet||page.sheet===source.sheet)&&
+    (!page.revision||!source.revision||page.revision===source.revision));
+  if(items.some(item=>item.sources.some(source=>!sourceIsCurrent(source))))return null;
   if(items.some(item=>item.supersedes.length||('duplicateOf' in item&&item.duplicateOf)||('alternativeGroup' in item&&item.alternativeGroup)||('aggregateOf' in item&&Array.isArray(item.aggregateOf)&&item.aggregateOf.length)))return null;
   if(items.some(item=>!item.id.trim()||!item.description.trim()||!item.evidence.trim()||!item.sources.length))return null;
   if(new Set(items.map(item=>item.id)).size!==items.length)return null;

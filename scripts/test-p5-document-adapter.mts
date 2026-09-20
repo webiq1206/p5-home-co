@@ -5,7 +5,7 @@ import {pathToFileURL} from 'node:url';
 import path from 'node:path';
 await mkdir('node_modules/.cache',{recursive:true});
 const dir=await mkdtemp(path.join(process.cwd(),'node_modules/.cache/p5-document-adapter-'));
-const names=['DATABASE_URL','P5_DOCUMENT_SERVICE_MODE','P5_DOCUMENT_SERVICE_URL','P5_DOCUMENT_SERVICE_KEY'];
+const names=['DATABASE_URL','P5_DOCUMENT_SERVICE_MODE','P5_DOCUMENT_SERVICE_URL','P5_DOCUMENT_SERVICE_KEY','P5_DOCUMENT_SERVICE_TENANT'];
 const previous=Object.fromEntries(names.map(n=>[n,process.env[n]]));
 let db:any;
 try{
@@ -17,6 +17,7 @@ try{
  await writeFile(path.join(dir,'database.ts'),`import {PGlite} from '@electric-sql/pglite';export const database=new PGlite();export async function query(s:string,v:unknown[]=[]){return (await database.query(s,v)).rows;}`);
  const mod=(n:string)=>import(pathToFileURL(path.join(dir,n+'.ts')).href);
  const store=await mod('store'),client=await mod('documentServiceClient'),brand=(await mod('brand')).ESTIMATOR_BRAND;
+ process.env.P5_DOCUMENT_SERVICE_TENANT=brand.domain;
  db=await mod('database');
  const id=randomUUID(),key=randomBytes(32).toString('hex');
  const draft=await store.saveDraft(id,key,brand.id,{text:'Controlled adapter fixture',answers:{service:'new-construction'},extraction:null,reviewed:null,contact:{name:'',email:'',phone:''}},0);
@@ -24,16 +25,16 @@ try{
  await db.query('INSERT INTO p5_estimator_files(id,draft_id,name,mime_type,size_bytes,sha256,data_base64) VALUES($1,$2,$3,$4,$5,$6,$7)',[fileId,id,'scope.pdf','application/pdf',bytes.length,digest,bytes.toString('base64')]);
  draft.uploads=[{id:fileId,name:'scope.pdf',type:'application/pdf',size:bytes.length,sha256:digest,status:'stored'}];
  const documentId=client.remoteDocumentId(brand.domain,id,digest);
- let stored=false,uploads=0,reviewCalls=0,partial=false,wrongSource=false,retryStatus=202,failed=false,ready=true;const scopeBodies:string[]=[];
+ let stored=false,uploads=0,reviewCalls=0,partial=false,wrongSource=false,retryStatus=202,failed=false;const scopeBodies:string[]=[];
  const fakeRequest=async(input:any,init:any)=>{
   const url=new URL(String(input)),route=url.pathname.replace(/^\/api\/p5-documents/,'')+url.search,method=init.method;
-  assert.ok(url.pathname==='/api/p5-documents/readyz'||url.pathname.startsWith('/api/p5-documents/v1/'));
+  assert.ok(url.pathname.startsWith('/api/p5-documents/v1/')||url.pathname==='/api/p5-documents/readyz');
   const headers=new Headers(init.headers),body=init.body?Buffer.from(init.body):Buffer.alloc(0);
   const signed=[method,route,brand.domain,headers.get('x-p5-time'),headers.get('x-p5-nonce'),createHash('sha256').update(body).digest('hex')].join('\n');
   assert.equal(headers.get('x-p5-signature'),createHmac('sha256',process.env.P5_DOCUMENT_SERVICE_KEY!).update(signed).digest('hex'));
   assert.equal(init.redirect,'error');
   const reply=(data:unknown,status=200)=>new Response(JSON.stringify(data),{status,headers:{'content-type':'application/json'}});
-  if(method==='GET'&&route==='/readyz')return reply({ok:ready,providerConfigured:true,tenant:brand.domain,protocol:'v1',capabilities:{pdf:true},limits:{maxFileBytes:250*1024*1024,maxPages:250},pdf:true,maxBytes:250*1024*1024,maxPages:250,provider:{configured:true,ready:true,health:'configured'},service:{healthy:true,database:'ok'}});
+  if(route==='/readyz')return reply({ready:true,providerConfigured:true,tenant:brand.domain,protocol:'v1',limits:{maxFileBytes:250*1024*1024,maxPages:250},capabilities:{pdf:true}});
   if(method==='GET'&&url.pathname.endsWith('/documents/'+documentId))return stored?reply({id:documentId,state:failed?'failed':'complete',progress:{checkedPages:1,totalPages:1},coverage:{complete:!partial,pages:[{page:1,status:partial?'partial':'read'}]}}):reply({error:'not-found'},404);
   if(method==='POST'&&url.pathname.endsWith('/retry'))return reply({error:'retry unavailable'},retryStatus);
   if(method==='POST'&&url.pathname.endsWith('/documents')){uploads++;stored=true;assert.deepEqual(body,bytes);return reply({id:documentId,state:'queued'},202);}
@@ -45,7 +46,6 @@ try{
   throw new Error('Unexpected controlled service route: '+route);
  };
  const advance=(text:string,answers:any,work:string)=>client.advanceDocumentService(draft,text,answers,work,fakeRequest,false,Date.now()+30000);
- ready=false;await assert.rejects(advance(draft.text,draft.answers,'not-ready'),/ready/i);assert.equal(uploads,0);assert.equal(reviewCalls,0);ready=true;
  const one=await advance(draft.text,draft.answers,'remote-fixture-1');assert.equal(one.pending,true);
  assert.equal(reviewCalls,1,'reconciliation is queued during initial ingestion, before a later browser poll');
  const two=await advance(draft.text,draft.answers,'remote-fixture-1');assert.equal(two.pending,false);

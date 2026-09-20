@@ -57,6 +57,6 @@ test('complete pricing reuses the unit allowance without another market search',
   return {value:{coveredTaskIds:['trim'],issues:[],notes:[],resolvedIssues:[]},sourceUrls:[]};
  };
  const result=await priceCompleteScope(scope,{...config,regionalRates:[saved]},request,now);
- assert.ok(result.customer.range);assert.match(result.customer.assumptions.join(' '),/provisional planning/);
+ assert.ok(result.customer.range);assert.match(result.customer.assumptions.join(' '),/Budget allowance; final selection to be confirmed/);assert.match(JSON.stringify(result.internal),/provisional planning/,'the staff record keeps the rate basis');
  assert.equal(calls.length,3);
 });

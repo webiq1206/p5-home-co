@@ -5,7 +5,7 @@ import fontkit from "@pdf-lib/fontkit";
 import { ESTIMATOR_BRAND as brand } from "./brand.ts";
 type PublicResult={status:string;range:{low:number;high:number}|null;summary:string;includedCategories:string[];categoryRanges?:{category:string;low:number;high:number}[];lineItems?:{id:string;category:string;description:string;quantity:number;unit:string;low:number;high:number;unitLow:number;unitHigh:number}[];allowances:unknown[];assumptions:string[];exclusions:string[];factors:string[];nextStep:string;message:string;disclaimer:string};
 type Block={title?:string;text?:string;rows?:[string,string][];bullets?:string[];compact?:boolean};
-import {estimateSections,orderedSections,scopeBullets} from './presentation.ts';
+import {customerPresentation,estimateSections,orderedSections,scopeBullets} from './presentation.ts';
 import {scopeText} from './scope.ts';
 const label=(value:string)=>value.replace(/([a-z])([A-Z])/g,"$1 $2").replaceAll("-"," ").replace(/^./,c=>c.toUpperCase());
 const money=(n:number)=>new Intl.NumberFormat("en-US",{style:"currency",currency:"USD",maximumFractionDigits:0}).format(n);
@@ -76,6 +76,7 @@ async function render(kind:"customer"|"administrative",id:string,blocks:Block[])
   return Buffer.from(await doc.save());
 }
 export function customerPdf(id:string,result:PublicResult){
+  result=customerPresentation(result);
   const blocks:Block[]=[
     {title:result.range?`${money(result.range.low)} to ${money(result.range.high)}`:"Scope received for pricing review",text:result.message},
     // Reading order: project, included work, categories, excluded work,

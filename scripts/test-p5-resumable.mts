@@ -15,7 +15,7 @@ try{
  process.env.P5_OBJECT_STORAGE_ENABLED='true';process.env.ANTHROPIC_API_KEY='synthetic';
  const id=randomUUID(),key=randomBytes(32).toString('hex'),headers={'x-p5-draft-id':id,'x-p5-draft-key':key};
  await store.saveDraft(id,key,'synthetic',{text:'Bathroom remodel',answers:{},extraction:null,reviewed:null,contact:{name:'',email:'',phone:''}},0);
- const pdf=await PDFDocument.create();for(let i=0;i<256;i++){const page=pdf.addPage();page.drawText(`SHEET ${i+1} OF 256${i===255?' FINAL REVISION: INCLUDE TRIM PACKAGE':''}`,{x:40,y:700,size:12});}
+ const pdf=await PDFDocument.create();for(let i=0;i<250;i++){const page=pdf.addPage();page.drawText(`SHEET ${i+1} OF 250${i===249?' FINAL REVISION: INCLUDE TRIM PACKAGE':''}`,{x:40,y:700,size:12});}
  const bytes=Buffer.concat([Buffer.from(await pdf.save()),Buffer.alloc(25*1024*1024,32)]),digest=createHash('sha256').update(bytes).digest('hex');
  const call=(action:string,body:BodyInit,extra='',h=headers)=>api.postUpload(new Request(`https://test.local/api/p5-estimator/upload?action=${action}&sha256=${digest}${extra}`,{method:'POST',headers:h,body}));
  let res=await call('start',JSON.stringify({name:'large-plan.pdf',size:bytes.length}));assert.equal(res.status,200);let result=await res.json();const chunkSize=result.chunkSize;
@@ -43,17 +43,17 @@ try{
    try{
      await new Promise(r=>setTimeout(r,15));
      if(failingSection.test(name)&&counts.get(label)===1)return new Response('temporary failure',{status:503});
-     return Response.json({stop_reason:'end_turn',content:[{type:'text',text:JSON.stringify({summary:'One bathroom',facts:[{field:'sqft',value:'80',confidence:.99,source:'large-plan.pdf',evidence:'80 square feet',basis:'stated'}],conflicts:[],missingInformation:[],reviewNotes:[],clarifications:[],pages:manifest.map((p:any)=>({...p,sheet:`A${p.page}`,revision:p.page===256?'FINAL':'',status:'read',notes:[]})),takeoffs:[]})}]});
+     return Response.json({stop_reason:'end_turn',content:[{type:'text',text:JSON.stringify({summary:'One bathroom',facts:[{field:'sqft',value:'80',confidence:.99,source:'large-plan.pdf',evidence:'80 square feet',basis:'stated'}],conflicts:[],missingInformation:[],reviewNotes:[],clarifications:[],pages:manifest.map((p:any)=>({...p,sheet:`A${p.page}`,revision:p.page===250?'FINAL':'',status:'read',notes:[]})),takeoffs:[]})}]});
    }finally{active--;}
  };
  const draft=await store.readDraft(id,key);let step:any;let n=0;
  // Paced like the browser client: a pending reply is polled again after its retry interval, never in a tight loop.
  const pace=(reply:any)=>new Promise(resolve=>setTimeout(resolve,Math.min(2000,Number(reply?.retryAfterMs)||500)));
  do{step=await work.advanceAnalysis(draft,'Bathroom remodel',{},provider);assert.ok(++n<80,'analysis pass budget');if(step.pending)await pace(step);}while(step.pending);
- assert.equal(step.analysis.extraction.facts[0].value,'80');assert.equal(pagesSeen.size,256,'all 256 pages must be processed');assert.equal(counts.size,256,'pages are read one per request');assert.equal([...counts.values()].filter(n=>n===2).length,1,'only the failed page is retried');assert.ok([...counts.values()].every(n=>n===1||n===2));
- assert.equal(step.analysis.extraction.documentCoverage.complete,true);assert.equal(step.analysis.extraction.documentCoverage.expectedPages,256);
- assert.deepEqual(step.analysis.extraction.documentCoverage.pages.map((p:any)=>p.page),Array.from({length:256},(_,i)=>i+1));
- assert.equal(step.analysis.extraction.documentCoverage.pages[255].revision,'FINAL');assert.equal(peak,progress.analysisConcurrency(),'independent sections use bounded parallel processing');
+ assert.equal(step.analysis.extraction.facts[0].value,'80');assert.equal(pagesSeen.size,250,'all 250 pages must be processed');assert.equal(counts.size,250,'pages are read one per request');assert.equal([...counts.values()].filter(n=>n===2).length,1,'only the failed page is retried');assert.ok([...counts.values()].every(n=>n===1||n===2));
+ assert.equal(step.analysis.extraction.documentCoverage.complete,true);assert.equal(step.analysis.extraction.documentCoverage.expectedPages,250);
+ assert.deepEqual(step.analysis.extraction.documentCoverage.pages.map((p:any)=>p.page),Array.from({length:250},(_,i)=>i+1));
+ assert.equal(step.analysis.extraction.documentCoverage.pages[249].revision,'FINAL');assert.equal(peak,progress.analysisConcurrency(),'independent sections use bounded parallel processing');
  const calls=[...counts.values()].reduce((a,b)=>a+b,0);await work.advanceAnalysis(draft,'Bathroom remodel',{},provider);assert.equal([...counts.values()].reduce((a,b)=>a+b,0),calls,'completed analysis survives another request');
  assert.equal(intent.cabinetIntent('Supply and install one bathroom vanity cabinet',['cabinet-install','cabinet-product']),'cabinet-install');
  assert.equal(intent.cabinetIntent('Supply only vanity cabinet, no installation',['cabinet-install','cabinet-product']),'cabinet-product');
@@ -78,5 +78,5 @@ try{
  assert.equal(response.warning,'');assert.deepEqual(response.draft.extraction.reviewNotes,[]);
  for(const [name,count] of completedBefore)assert.equal(sectionCalls.get(name),count,'completed sections must not be billed again');
  globalThis.fetch=nativeFetch;
- await db.database.close();console.log('Passed: 25 MB resumable upload, corrupted-segment rejection, retry deduplication, authorization, full byte comparison, cleanup, all 256 pages and final revision in per-page requests, bounded concurrent readers, failed-page retry, Cabinet intent. Real isolated SQL/PDF; storage and AI simulated, not an OCR accuracy benchmark.');
+ await db.database.close();console.log('Passed: 25 MB resumable upload, corrupted-segment rejection, retry deduplication, authorization, full byte comparison, cleanup, all 250 pages and final revision in per-page requests, bounded concurrent readers, failed-page retry, Cabinet intent. Real isolated SQL/PDF; storage and AI simulated, not an OCR accuracy benchmark.');
 }finally{delete process.env.P5_OBJECT_STORAGE_ENABLED;delete process.env.ANTHROPIC_API_KEY;await rm(dir,{recursive:true,force:true});}

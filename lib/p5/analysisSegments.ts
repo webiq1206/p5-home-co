@@ -1,6 +1,7 @@
 import {PDFDocument} from 'pdf-lib';
 import {drawingDetails} from './planRendering.ts';
 import {pdfTextLayers} from './pdfText.ts';
+import {openablePdf,renderedPagePdf} from './pdfAccess.ts';
 import type {AnalysisFile} from './extraction.ts';
 import {SCOPE_MAX_PAGES} from './scope.ts';
 
@@ -17,8 +18,12 @@ const CONTEXT_CHARS=2500;
  * full-resolution detail path and source identity. */
 export async function* analysisSegments(file:AnalysisFile,startPage=0,render:typeof drawingDetails=drawingDetails):AsyncGenerator<AnalysisFile>{
   if(file.type==='application/pdf'){
-    const document=await PDFDocument.load(file.data);const count=document.getPageCount();
-     if(!count||count>SCOPE_MAX_PAGES)throw new Error(`This PDF needs between 1 and ${SCOPE_MAX_PAGES} pages. Split larger plans before automatic reading.`);
+    // `rendered` files open without a password but cannot be copied page by
+    // page (permission-restricted forms). Their pages are read from the
+    // rendered image plus the text layer instead.
+    const inspection=await openablePdf(file.name,file.data);const count=inspection.pages;const rendered=inspection.access==='rendered';
+    const document=rendered?null:inspection.native||await PDFDocument.load(file.data);
+    if(!count||count>SCOPE_MAX_PAGES)throw new Error(`This PDF needs between 1 and ${SCOPE_MAX_PAGES} pages. Split larger plans before automatic reading.`);
     // Text layers are read once per generator run; a failure leaves the layer
     // absent and the page is still read from its PDF bytes.
     const layers=await pdfTextLayers(file.data,count).catch(error=>{console.error(`[p5-analysis] text layer unavailable for ${file.name}: ${error instanceof Error?error.message:String(error)}`);return [] as string[];});
@@ -31,8 +36,8 @@ export async function* analysisSegments(file:AnalysisFile,startPage=0,render:typ
     };
     // Do not re-open a complete high-resolution plan set for every sheet.
     // Render one isolated source page while retaining its original identity.
-    const singlePage=async(index:number)=>{const single=await PDFDocument.create();single.addPage((await single.copyPages(document,[index]))[0]);return Buffer.from(await single.save());};
-    const detailPage=async function*(index:number){for await(const unit of render({...file,data:await singlePage(index)},index+1,1))yield {...unit,text:layer(index)||undefined};};
+    const singlePage=async(index:number)=>{if(!document)return renderedPagePdf(file.data,index+1);const single=await PDFDocument.create();single.addPage((await single.copyPages(document,[index]))[0]);return Buffer.from(await single.save());};
+    const detailPage=async function*(index:number){for await(const unit of (document?render({...file,data:await singlePage(index)},index+1,1):render(file,index+1,index+1)))yield {...unit,text:layer(index)||undefined};};
     // When the host cannot render a drawing's detail tiles, the original page
     // is supplied whole so the sheet is still read; only a page too large for
     // one request is reported as unprepared. The cause is logged for the host.
@@ -42,7 +47,7 @@ export async function* analysisSegments(file:AnalysisFile,startPage=0,render:typ
       if(data.length>UNIT_BYTES){yield {...file,data:Buffer.alloc(0),pages:[{source:file.name,page:index+1}],nextPage:index+1,preparationError:`Page ${index+1}: detail rendering failed and the page is too large to send whole. ${error instanceof Error?error.message:'Review the original drawing.'}`};return;}
       yield {...file,name:`${file.name} (original page ${index+1} of ${count}; supplied whole because detail rendering was unavailable)`,pages:[{source:file.name,page:index+1}],data,text:layer(index)||undefined,context:context(index)||undefined,nextPage:index+1};
     };
-    const large=(i:number)=>{const p=document.getPage(i);return p.getWidth()>1200||p.getHeight()>1200;};
+    const large=(i:number)=>{const p=inspection.sizes[i];return Boolean(p)&&(p.width>1200||p.height>1200);};
     for(let index=startPage;index<count;index++){
       if(large(index)){
         try{yield* detailPage(index);}catch(error){yield* originalPage(index,error);}

@@ -89,14 +89,21 @@ export interface ReviewedScope {
 // use the resumable document upload and are processed in full sections.
 export const SCOPE_TEXT_LIMIT = 8 * 1024 * 1024;
 export const SCOPE_FILE_LIMIT = 250 * 1024 * 1024;
-/** The public document contract is intentionally shared by upload admission,
- * legacy segmentation and the hosted reader. Keep this a hard safety limit:
- * larger plans must be split by the customer rather than silently sampled. */
-export const SCOPE_MAX_PAGES = 250;
 export const SCOPE_BATCH_LIMIT = 1024 * 1024 * 1024;
 export const SCOPE_FILE_COUNT = 50;
 export const SCOPE_CHUNK_SIZE = 4 * 1024 * 1024;
-export const SCOPE_UPLOAD_HELP = "Up to 50 files, 250 MiB each and 1 GiB total. Large uploads resume after interruptions.";
+/** The public page limit is intentionally shared by upload admission, legacy
+ * segmentation and the hosted reader. Keep this a hard safety limit: larger
+ * plans must be split by the customer rather than silently sampled. The saved
+ * extraction parser keeps its own independent defensive ceiling. */
+export const SCOPE_MAX_PAGES = 250;
+/** Historical per-brand names for the same limit. They are aliases so every
+ * caller written against any brand's copy compiles and can never drift. */
+export const SCOPE_PAGE_LIMIT = SCOPE_MAX_PAGES;
+export const SCOPE_PDF_PAGE_LIMIT = SCOPE_MAX_PAGES;
+export const SCOPE_PLAN_PAGE_LIMIT = SCOPE_MAX_PAGES;
+export const SCOPE_PLAN_PAGE_TARGET = SCOPE_MAX_PAGES;
+export const SCOPE_UPLOAD_HELP = "Up to 50 files, 250 MiB each and 1 GiB total; up to 250 pages per PDF. Large uploads resume after interruptions.";
 /** Map a model's wording for a choice field onto one of its options, or
  * null when no option is a clear match. Providers answer "Standard finishes"
  * or "premium" for a field whose options are refresh / mid-range / high-end /
@@ -358,7 +365,8 @@ export function mergeScopeFacts(current: ScopeAnswers, extraction: ScopeExtracti
   const answers = { ...current }; const conflicts = [...extraction.conflicts];
   const textFields=new Set<ScopeField>();
   for (const fact of extraction.facts) {
-    if (fact.confidence < .85 || conflicts.some(c => c.field === fact.field)) continue;
+    // Callers pass only facts they have already accepted; the project type is accepted at a lower bar (see reconcileScope).
+    if (fact.confidence < (fact.field==='service'&&fact.basis==='stated'?.7:.85) || conflicts.some(c => c.field === fact.field)) continue;
     if(SCOPE_FIELDS[fact.field].kind==="text"){
       if(textFields.has(fact.field))continue;textFields.add(fact.field);
       const values=[...new Set([current[fact.field]?.trim(),...extraction.facts.filter(f=>f.field===fact.field&&f.confidence>=.85).map(f=>f.value.trim())].filter(Boolean))];

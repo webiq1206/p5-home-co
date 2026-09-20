@@ -12,7 +12,8 @@ export default function P5ProcessingStatus({message,processing,uploadPercent,onP
   const elapsed=Math.max(0,Math.floor((clock-started)/1000));
   const {total,read,uploading,title,detail}=processingPresentation(message,processing,uploadPercent,hasAttachments);
   const item=processing?.currentItems?.[0];
-  const failed=processing?.failedItems||[];
+  // Optional on the status contract: only readers that report unread sections send it.
+  const failed:string[]=(processing as {failedItems?:string[]}|null|undefined)?.failedItems||[];
   // Seconds THIS stage has been running. Total elapsed says nothing about
   // whether anything is still happening; a step clock that keeps moving does.
   const stageStarted=processing?.stageStartedAt?Date.parse(processing.stageStartedAt):NaN;

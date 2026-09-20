@@ -1,3 +1,4 @@
+import {publicPricingText} from './customerProjection.ts';
 import {tradeForLine,apportionAmount,type TradeCategory} from "./trades.ts";
 /** Internal policy. Import only from server entry points, never client components. */
 export const POLICY_VERSION = "p5-2026-09-10-unified-overhead";
@@ -301,6 +302,17 @@ const INTERNAL_DIRECT_TOTAL=/\(?\s*\$\s*\d[\d,.]*\s+direct costs?\s*\)?/gi;
 /** Redact only private cost arithmetic; retain surrounding scope, quantity,
  * selection, and preliminary-allowance wording. */
 export function customerSafeText(value:string):string{
+  // The one customer projection runs first (cost wording, rates, plain
+  // allowance language), so the page, PDF, email and API can never disagree
+  // about what is private; remaining commercial arithmetic is removed after it.
+  // Both filters always run, so either order is safe. They cut sentences at
+  // different places; the order that keeps more of the customer's own scope
+  // and honest allowance wording is used.
+  const first=withoutCommercialArithmetic(publicPricingText(value)),second=publicPricingText(withoutCommercialArithmetic(value));
+  const commercial=first||second;const projected=second.length>first.length?second:first;
+  return projected||(commercial&&/\b(?:preliminary|allowance)\b/i.test(value)?CUSTOMER_ALLOWANCE_DISCLOSURE:'');
+}
+function withoutCommercialArithmetic(value:string):string{
   const original=value.trim();
   if(!INTERNAL_COMMERCIAL_NOTE.some(pattern=>pattern.test(original))&&!INTERNAL_RATE.test(original)&&!INTERNAL_DIRECT_TOTAL.test(original)){
     INTERNAL_RATE.lastIndex=0;INTERNAL_DIRECT_TOTAL.lastIndex=0;

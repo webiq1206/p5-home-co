@@ -5,10 +5,15 @@ import { EMPTY_CONFIGURATION,type EstimatorConfiguration } from "./costBook.ts";
 import {priceSavedScope} from "./pricingWork.ts";
 import {queuedJob} from './backgroundJobs.ts';
 import {missingScopeFields,customerPricingQuestions} from "./missingFields.ts";
+import {pricingPreflight,PREFLIGHT_MESSAGE} from './pricingPreflight.ts';
 import {PricingPending,isPricingPending} from './pricingProgress.ts';
 import { enqueueSubmission,deliveryStatus,processOutbox } from "./outbox.ts";
 import { protectRequest,json,failed,limitedBody } from "./http.ts";
 import { ESTIMATOR_BRAND as brand } from "./brand.ts";
+import {customerPresentation,HIDE_CUSTOMER_UNIT_RATES} from './presentation.ts';
+// Every public response uses the one customer boundary, including responses
+// rebuilt from a previously saved estimate.
+const publicResult=(estimate:unknown)=>customerPresentation(estimate,{hideUnitRates:HIDE_CUSTOMER_UNIT_RATES});
 
 const DELIVERY_WAIT_MS=Number(process.env.P5_DELIVERY_WAIT_MS||25_000);
 export async function postSubmission(request:Request,schedule?:(task:()=>Promise<void>)=>void){
@@ -19,8 +24,9 @@ export async function postSubmission(request:Request,schedule?:(task:()=>Promise
     if(draft.status==="submitted"){
       const [row]=await query("SELECT customer_estimate FROM p5_estimator_drafts WHERE id=$1",[id]);
       // A status check after submission drives any delivery still queued; an autoscale host has no CPU between requests.
-      await processOutbox({draftId:id,limit:12}).catch(()=>undefined);
-      return json({accepted:false,duplicate:true,id,result:row.customer_estimate,delivery:await deliveryStatus(id)});
+      // Delivery is scoped to this saved revision so a status check never drives another revision's queue.
+      await processOutbox({draftId:id,revision:draft.revision,limit:12}).catch(()=>undefined);
+      return json({accepted:false,duplicate:true,id,result:publicResult(row.customer_estimate),delivery:await deliveryStatus(id)});
     }
     const body=JSON.parse(new TextDecoder().decode(await limitedBody(request,4000)));
     if(body.revision!==draft.revision)throw new DraftError("Save the latest scope before submitting.",409);
@@ -28,13 +34,20 @@ export async function postSubmission(request:Request,schedule?:(task:()=>Promise
     if(!draft.reviewed)throw new DraftError("Review and confirm the extracted scope before submitting.");
     const [policy]=await query("SELECT payload FROM p5_estimator_policy WHERE id='current'");
     const configuration=(policy?.payload||EMPTY_CONFIGURATION) as EstimatorConfiguration;
+    // Ask for a quantity the planning model cannot work without now, before any pricing work starts.
+    const needed=pricingPreflight(draft.reviewed,configuration);
+    if(needed.length)return json({pricingReviewRequired:true,needsCustomerInput:true,handoff:false,preflight:true,missingFields:needed,verificationItems:[],error:PREFLIGHT_MESSAGE},422);
     const job=body.background===true?await queuedJob({kind:'pricing',draft,configuration},body.retry===true):null;
     // A job that stopped after repeated failures is the handoff outcome: the project and contact are saved, a person completes the estimate, nothing further is needed from the visitor.
     if(job&&job.state==='failed'){console.error(`[p5-pricing] handoff for draft ${id}: ${job.progress}`);return json({pricingReviewRequired:true,needsCustomerInput:false,handoff:true,missingFields:[],verificationItems:[],error:HANDOFF_ISSUE},422);}
     if(job&&job.state!=='complete')return json({pending:true,message:job.progress,processing:job.processing,retryAfterMs:2000},202);
+    // Paid pricing requests are ledgered per customer, draft and revision, so a
+    // retried submission never pays for the same research twice. A request
+    // priced inline (no background job) may use the route's own time allowance.
     const customerKey=`${draft.contact.email.trim().toLowerCase()}|${draft.contact.name.trim().toLowerCase()}`;
     const pricingIdentity={draftId:id,customerKey,revision:draft.revision};
     const priced=job?job.result:await priceSavedScope(id,draft.reviewed,configuration,new Date(),Date.now()+250_000,pricingIdentity);
+    const publicCustomer=publicResult(priced.customer);
     if(!priced.customer.range){
       // Keep incomplete pricing available to the authenticated admin, but do
       // not submit it or create customer-email/CRM delivery records.
@@ -62,13 +75,13 @@ export async function postSubmission(request:Request,schedule?:(task:()=>Promise
     const accepted=await enqueueSubmission(id,draft.revision,record);
     // Persistence is acknowledged separately from delivery. A transport failure
     // never erases the submission or tells a visitor to create a duplicate.
-    const deliver=async()=>{await processOutbox({draftId:id,limit:12}).catch(()=>undefined);};
+    const deliver=async()=>{await processOutbox({draftId:id,revision:draft.revision,limit:12}).catch(()=>undefined);};
     // An autoscale host gives a request no CPU after its response, so delivery
     // runs inside this request within a bounded wait; anything left continues
     // after the response and on the visitor's next status check.
     const started=deliver();
     await Promise.race([started,new Promise<void>(resolve=>setTimeout(resolve,DELIVERY_WAIT_MS))]);
     if(schedule)schedule(()=>started);
-    return json({accepted,duplicate:!accepted,id,result:priced.customer,delivery:await deliveryStatus(id)});
+    return json({accepted,duplicate:!accepted,id,result:publicCustomer,delivery:await deliveryStatus(id)});
   }catch(error){if(isPricingPending(error))return error.retryAfterMs===0?json({error:error.message},503):json({pending:true,message:error.message,retryAfterMs:error.retryAfterMs},202);return failed(error);}
 }

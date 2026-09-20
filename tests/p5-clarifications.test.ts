@@ -21,6 +21,7 @@ test('legacy company-fit questions use the service picker instead of an instruct
 });
 test('ambiguous responsibility clarification retains provider and document protections',async()=>{
   const {resolveInstructionAnswer}=await resolver();
+  // Isolate every provider credential so a developer's real keys can never route this fixture to a live provider.
   const keys=['OPENAI_API_KEY','AI_INTEGRATIONS_OPENAI_API_KEY','AI_INTEGRATIONS_OPENAI_BASE_URL','ANTHROPIC_API_KEY'];
   const saved=Object.fromEntries(keys.map(key=>[key,process.env[key]]));
   for(const key of keys)delete process.env[key];

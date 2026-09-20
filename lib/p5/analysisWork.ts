@@ -1,13 +1,13 @@
-import {documentServiceEligible,advanceDocumentService} from './documentServiceClient.ts';
+import {advanceMixedDocumentAnalysis,assertAnalysisMigrationSafe,assertCompleteSourceCoverage,partitionDocumentServiceUploads,readSavedSource,SOURCE_COVERAGE_REQUIRED,type DocumentAnalysisStep} from './documentServiceClient.ts';
 import {ANALYSIS_PASS_MS,READ_ALLOWANCE_MS,READ_START_MARGIN_MS,remainingBudget,ProcessingDeadlineError,isProcessingDeadline} from './processingBudget.ts';
 import {createHash} from 'node:crypto';
-import {PDFDocument} from 'pdf-lib';
+import {openablePdf,PdfAccessError} from './pdfAccess.ts';
 import {Client} from '@replit/object-storage';
-import {analyzeBatch,AnalysisBusyError,type AnalysisFile,type AnalysisResult} from './extraction.ts';
+import {analyzeBatch,AnalysisBusyError,retainScopeContext,type AnalysisFile,type AnalysisResult} from './extraction.ts';
 import {prepareAnalysisFiles} from './documents.ts';
-import {combineScopeExtractions,type ScopeAnswers,type ScopeExtraction} from './scope.ts';
+import {SCOPE_MAX_PAGES,combineScopeExtractions,type ScopeAnswers,type ScopeExtraction} from './scope.ts';
 import {query} from './database.ts';
-import {readStoredBytes,ESTIMATOR_BUCKETS} from './objectStorage.ts';
+import {ESTIMATOR_BUCKETS} from './objectStorage.ts';
 import {ESTIMATOR_BRAND} from './brand.ts';
 import {claimWork,writeWork,releaseWork} from './workStore.ts';
 import {type Draft,DraftError} from './store.ts';
@@ -20,15 +20,16 @@ import {analysisMessage,type ProcessingStatus} from './processingStatus.ts';
 export {analysisSegments} from './analysisSegments.ts';
 import {analysisSegments} from './analysisSegments.ts';
 
-type Unit={name:string;type:string;object:string;pages?:AnalysisFile['pages'];text?:string;context?:string;detailViews?:boolean;detailRegions?:AnalysisFile['detailRegions'];result?:AnalysisResult;attempts?:number;rateLimitRetries?:number;error?:string;lastCode?:string;retryAt?:number;active?:boolean};
-type Job={prepared:number;units:Unit[];notes:string[];textDone?:AnalysisResult;textPrepared?:boolean;cursor?:number;expected?:{source:string;page:number}[];progress?:string;processing?:ProcessingStatus;concurrency?:number;cooldownUntil?:number};
+type Unit={name:string;type:string;object:string;uploadId?:string;pages?:AnalysisFile['pages'];text?:string;context?:string;detailViews?:boolean;detailRegions?:AnalysisFile['detailRegions'];result?:AnalysisResult;attempts?:number;rateLimitRetries?:number;error?:string;lastCode?:string;retryAt?:number;active?:boolean};
+type Job={prepared:number;units:Unit[];notes:string[];preparationFailures?:string[];textDone?:AnalysisResult;textPrepared?:boolean;cursor?:number;expected?:{source:string;page:number}[];progress?:string;processing?:ProcessingStatus;concurrency?:number;cooldownUntil?:number};
 /** Reads of one section before it is reported as unread. Each attempt may use
  * a different provider or the page's text layer, so this is several distinct
  * strategies, not the same call repeated. */
 export const MAX_READ_ATTEMPTS=Math.max(1,Number(process.env.P5_READ_ATTEMPTS||4));
 const pending=(u:Unit)=>!u.result&&(u.attempts||0)<MAX_READ_ATTEMPTS;
-export function analysisWorkKey(draft:Draft,text:string,answers:ScopeAnswers){
-  return `analysis:${process.env.P5_DOCUMENT_SERVICE_MODE==='remote'?'document-service-v1':'v8'}:${createHash('sha256').update(JSON.stringify([text,answers,draft.uploads.map(f=>[f.id,f.sha256])])).digest('hex')}`;
+export function analysisWorkKey(draft:Draft,text:string,answers:ScopeAnswers,route?:'remote'|'local'){
+  const mode=(route?route==='remote':process.env.P5_DOCUMENT_SERVICE_MODE==='remote')?'document-service-v2':'v8';
+  return `analysis:${mode}:${createHash('sha256').update(JSON.stringify([text,answers,draft.uploads.map(f=>[f.id,f.sha256])])).digest('hex')}`;
 }
 /** Page numbers as compact ranges: 1-4, 7, 9-10. */
 export function pageRanges(pages:number[]):string{
@@ -51,18 +52,88 @@ export function unreadNotes(units:Unit[]):string[]{
     return `${source}: automatic reading could not finish for ${where} (${reason}). Use Retry document reading to read ${entry.pages.length>1?'them':'it'} again; unread pages are not priced.`;
   });
 }
+/** Cabinet call sites: the same partition the mixed reader snapshots. */
+export function partitionDocumentUploads(uploads:Draft['uploads'],env:Readonly<Record<string,string|undefined>>=process.env){
+  return partitionDocumentServiceUploads(uploads,env);
+}
+/** Every durable work key that can carry live progress for this analysis. The
+ * project key holds the combined status; while a branch reader is mid-pass its
+ * own checkpoint is newer, so progress lookups follow both. */
+export function analysisProgressWorkKeys(draft:Draft,text:string,answers:ScopeAnswers,env:Readonly<Record<string,string|undefined>>=process.env){
+  if(env.P5_DOCUMENT_SERVICE_MODE!=='remote'||!draft.uploads.length)return [analysisWorkKey(draft,text,answers,'local')];
+  const key=analysisWorkKey(draft,text,answers,'remote'),{remote,local}=partitionDocumentServiceUploads(draft.uploads,env);
+  return [key,...(local.length?[`${key}:local`]:[]),...(remote.length?[`${key}:remote`]:[])];
+}
+/** Each physical source stays on its capable reader; failures never downgrade the entire batch.
+ * Pure combinator over two readers. advanceAnalysis uses the durable, checkpointed
+ * advanceMixedDocumentAnalysis; this remains for callers that supply their own readers. */
+export async function advanceMixedSources(draft:Draft,text:string,answers:ScopeAnswers,remote:(draft:Draft)=>Promise<DocumentAnalysisStep>,local:(draft:Draft)=>Promise<DocumentAnalysisStep>):Promise<DocumentAnalysisStep>{
+ const uploads=draft.uploads.map(upload=>({...upload,name:draft.uploads.filter(u=>u.name===upload.name).length>1?`${upload.name} [${upload.id.slice(0,8)}]`:upload.name}));
+ const pdfs=uploads.filter(u=>u.type==='application/pdf'),others=uploads.filter(u=>u.type!=='application/pdf');
+ const read=await remote({...draft,uploads:pdfs});
+ if(read.pending||!others.length)return read;
+ const additional=await local({...draft,uploads:others});
+ if(additional.pending)return additional;
+ const extraction=retainScopeContext(combineScopeExtractions([read.analysis.extraction,additional.analysis.extraction]),text,answers);
+ return {pending:false,version:createHash('sha256').update(JSON.stringify([text,answers,draft.uploads.map(f=>[f.id,f.sha256])])).digest('hex'),analysis:{extraction,provider:[read.analysis.provider,additional.analysis.provider].join(' + '),model:[read.analysis.model,additional.analysis.model].join(' + '),analyzedAt:new Date().toISOString()}};
+}
 /** Each request checkpoints work before returning. Reloading resumes the same source fingerprint. */
-type DocumentAnalysisStep={pending:true;progress:string;retryAfterMs?:number}|{pending:false;version:string;analysis:AnalysisResult};
 export async function advanceAnalysis(draft:Draft,text:string,answers:ScopeAnswers,request=fetch,retryFailed=false,absoluteDeadline=Date.now()+ANALYSIS_PASS_MS):Promise<DocumentAnalysisStep>{
   remainingBudget(absoluteDeadline);
-  if(documentServiceEligible(draft.uploads))return advanceDocumentService(draft,text,answers,analysisWorkKey(draft,text,answers),request,retryFailed,absoluteDeadline);
+  const key=analysisWorkKey(draft,text,answers);
+  if(draft.uploads.length)await assertAnalysisMigrationSafe(draft,text,answers,key);
+  if(process.env.P5_DOCUMENT_SERVICE_MODE==='remote'&&draft.uploads.length){
+    const mixed=await advanceMixedDocumentAnalysis(draft,text,answers,key,request,retryFailed,absoluteDeadline,async(subset,scope,context,branchKey,fetcher,retry,deadline)=>{
+      const step=await advanceLocalAnalysis(subset,scope,context,fetcher,retry,deadline,branchKey,true);
+      if(step.pending){const [row]=await query("SELECT payload->'processing' AS processing FROM p5_estimator_work WHERE draft_id=$1 AND work_key=$2",[draft.id,branchKey]);if(row?.processing)step.processing=row.processing;}
+      return step;
+    });
+    // Shared-reader and merged results receive the same explicit-scope safeguards as local reads.
+    return mixed.pending?mixed:{...mixed,analysis:{...mixed.analysis,extraction:retainScopeContext(mixed.analysis.extraction,text,answers)}};
+  }
+  // Construction refuses to complete a local read with unread sources; the other
+  // brands return the partial read with blocking review notes and incomplete coverage.
+  return advanceLocalAnalysis(draft,text,answers,request,retryFailed,absoluteDeadline,undefined,SOURCE_COVERAGE_REQUIRED&&draft.uploads.length>0);
+}
+async function advanceLocalAnalysis(draft:Draft,text:string,answers:ScopeAnswers,request:typeof fetch,retryFailed:boolean,absoluteDeadline:number,keyOverride?:string,requireComplete=false):Promise<DocumentAnalysisStep>{
   const version=createHash('sha256').update(JSON.stringify([text,answers,draft.uploads.map(f=>[f.id,f.sha256])])).digest('hex');
-  const workKey=analysisWorkKey(draft,text,answers),bucketId=ESTIMATOR_BUCKETS[ESTIMATOR_BRAND.domain],client=new Client({bucketId});
+  const workKey=keyOverride||analysisWorkKey(draft,text,answers),bucketId=ESTIMATOR_BUCKETS[ESTIMATOR_BRAND.domain],client=new Client({bucketId});
   const lease=await claimWork(draft.id,workKey,{prepared:0,units:[],notes:[]},300);
   if(!lease)return {pending:true as const,progress:analysisMessage(draft.uploads.length>0,'busy')};
   const job=lease.payload as Job;
+  let identityMigrated=false;
+  // Checkpoints created before non-PDF source ledgers existed may contain a
+  // completed photo/spreadsheet result with no proof that the source was read.
+  // Give those units their logical identity, but mark the old result unread so
+  // only an explicit Retry can spend another read attempt.
+  for(const upload of draft.uploads.filter(source=>source.type!=='application/pdf')){
+    const source=keyOverride?upload.name:draft.uploads.filter(other=>other.name===upload.name).length>1?`${upload.name} [${upload.id.slice(0,8)}]`:upload.name;
+    const page={source,page:1};
+    if(!(job.expected||[]).some(expected=>expected.source===page.source&&expected.page===1)){
+      job.expected=[...(job.expected||[]),page];identityMigrated=true;
+    }
+    for(const unit of job.units.filter(candidate=>!candidate.pages?.length&&(candidate.name===source||candidate.name.startsWith(`${source} (`)))){
+      unit.pages=[page];identityMigrated=true;
+      if(unit.result&&!unit.result.extraction.documentCoverage){
+        unit.result.extraction.documentCoverage={expectedPages:1,complete:false,pages:[{...page,sheet:'',revision:'',status:'unreadable',notes:['This saved result predates source coverage verification. Use Retry to verify it.']}]};
+      }
+    }
+  }
   const event=(stage:string,outcome:'ok'|'failed'|'retry',extra:Partial<Parameters<typeof recordEvent>[0]>={})=>void recordEvent({draftId:draft.id,estimator:answers.service||null,kind:'analysis',stage,outcome,...extra});
+  const sourceName=(upload:Draft['uploads'][number])=>keyOverride?upload.name:draft.uploads.filter(u=>u.name===upload.name).length>1?`${upload.name} [${upload.id.slice(0,8)}]`:upload.name;
+  const prepareFailed=(name:string)=>{job.preparationFailures=[...new Set([...(job.preparationFailures||[]),name])];};
   if(retryFailed)delete job.cooldownUntil;
+  if(retryFailed){
+    const failedIds=new Set(job.units.filter(unit=>unit.lastCode==='preparation'&&!unit.object&&unit.uploadId).map(unit=>unit.uploadId!));
+    const failedIndexes=draft.uploads.map((upload,index)=>failedIds.has(upload.id)?index:-1).filter(index=>index>=0);
+    if(failedIndexes.length){
+      const rewind=Math.min(...failedIndexes),rewoundIds=new Set(draft.uploads.slice(rewind).map(upload=>upload.id)),rewoundNames=new Set(draft.uploads.slice(rewind).flatMap(upload=>[upload.name,sourceName(upload)]));
+      job.units=job.units.filter(unit=>!unit.uploadId||!rewoundIds.has(unit.uploadId));
+      job.expected=(job.expected||[]).filter(page=>!rewoundNames.has(page.source));
+      job.notes=job.notes.filter(note=>![...rewoundNames].some(name=>note.startsWith(`${name}:`)));
+      job.prepared=rewind;job.cursor=0;job.preparationFailures=(job.preparationFailures||[]).filter(name=>!rewoundNames.has(name));
+    }
+  }
   if(retryFailed)for(const unit of job.units)if(unit.object&&(!unit.result||unit.result.extraction.documentCoverage?.complete===false)){unit.attempts=0;unit.rateLimitRetries=0;delete unit.error;delete unit.lastCode;delete unit.result;delete unit.retryAt;}
   // Serialize writes from concurrent readers so a late database response cannot
   // overwrite a more recent completed section.
@@ -76,6 +147,7 @@ export async function advanceAnalysis(draft:Draft,text:string,answers:ScopeAnswe
     return writeWork(draft.id,workKey,lease.token,job);
   });return saving;};
   try{
+    if(identityMigrated)await checkpoint();
     if(!job.textPrepared){
       // Long typed instructions are read in full before plan sections. No silent
       // clipping to fit one provider request, and no instruction-count cap.
@@ -93,33 +165,46 @@ export async function advanceAnalysis(draft:Draft,text:string,answers:ScopeAnswe
     // upload instead of after every file is prepared.
     if(job.prepared<draft.uploads.length){
       const upload=draft.uploads[job.prepared];
-      const [row]=await query('SELECT name,mime_type,data_base64,storage_bucket,storage_key,sha256,size_bytes FROM p5_estimator_files WHERE draft_id=$1 AND id=$2',[draft.id,upload.id]);
-      if(!row)throw new DraftError('A saved project file could not be located. Please retry.',503);
-      const name=draft.uploads.filter(u=>u.name===row.name).length>1?`${row.name} [${upload.id.slice(0,8)}]`:String(row.name);
-      const file={name,type:String(row.mime_type),data:await readStoredBytes(row)};
-      const preparing=Date.now();
+      const {file:row,bytes}=await readSavedSource(upload,draft.id);
+      const name=keyOverride?upload.name:draft.uploads.filter(u=>u.name===row.name).length>1?`${row.name} [${upload.id.slice(0,8)}]`:String(row.name);
+      const file={name,type:String(row.mime_type),data:bytes};
+      const preparing=Date.now();let fileFailed=false;
       if(file.type==='application/pdf'){
-        try{const pdf=await PDFDocument.load(file.data);job.expected=[...(job.expected||[]).filter(p=>p.source!==file.name),...Array.from({length:pdf.getPageCount()},(_,i)=>({source:file.name,page:i+1}))];}
-        catch(error){job.notes.push(`${file.name}: unreadable or encrypted PDF. No pages can be claimed as analyzed.`);event('prepare','failed',{file:file.name,code:'unreadable-pdf',message:error instanceof Error?error.message:String(error),durationMs:Date.now()-preparing});job.prepared++;await checkpoint();return {pending:true as const,progress:`Saved an unreadable-file exception for ${file.name}. Continuing remaining files.`};}
+        try{
+          const count=(await openablePdf(file.name,file.data)).pages;
+          const prior=(job.expected||[]).filter(p=>p.source!==file.name);
+          if(!count||count>SCOPE_MAX_PAGES||prior.length+count>SCOPE_MAX_PAGES)throw new DraftError(`Source review is limited to ${SCOPE_MAX_PAGES} pages total. Split this project into separate estimates.`,422);
+          job.expected=[...prior,...Array.from({length:count},(_,i)=>({source:file.name,page:i+1}))];
+        }
+        catch(error){if(error instanceof DraftError)throw error;const message=error instanceof PdfAccessError?error.message:`${file.name}: could not be read. No pages can be claimed as analyzed. Upload it again or export a fresh copy.`;job.notes.push(message);prepareFailed(file.name);job.units.push({name:file.name,type:file.type,object:'',uploadId:upload.id,error:message,lastCode:'preparation',attempts:MAX_READ_ATTEMPTS});event('prepare','failed',{file:file.name,code:error instanceof PdfAccessError?error.code:'unreadable-pdf',message:error instanceof Error?error.message:String(error),durationMs:Date.now()-preparing});job.prepared++;await checkpoint();return {pending:true as const,progress:`Saved an unreadable-file exception for ${file.name}. Continuing remaining files.`};}
       }
       const {readable,manualReview}=await prepareAnalysisFiles([file]);job.notes.push(...manualReview);
       for(const note of manualReview)event('prepare','failed',{file:file.name,code:'manual-review',message:note,durationMs:Date.now()-preparing});
+      if(!readable.length&&manualReview.length){fileFailed=true;prepareFailed(file.name);job.units.push({name:file.name,type:file.type,object:'',uploadId:upload.id,error:manualReview.join(' '),lastCode:'preparation',attempts:MAX_READ_ATTEMPTS});}
       const preparedAt=Date.now();let finished=true;
       for(const converted of readable){
         try{
-          for await(const segment of analysisSegments(converted,job.cursor||0)){
+          // Non-PDF sources are one logical page. If preparation emits several
+          // views/sections they all retain this identity and all must be read.
+          const logical=converted.type==='application/pdf'?converted:{...converted,pages:[{source:file.name,page:1}]};
+          if(converted.type!=='application/pdf'){
+            const prior=(job.expected||[]).filter(p=>p.source!==file.name);
+            if(prior.length+1>SCOPE_MAX_PAGES)throw new DraftError(`Source review is limited to ${SCOPE_MAX_PAGES} pages total. Split this project into separate estimates.`,422);
+            job.expected=[...prior,{source:file.name,page:1}];
+          }
+          for await(const segment of analysisSegments(logical,job.cursor||0)){
             remainingBudget(absoluteDeadline);
             const object=`analysis/${ESTIMATOR_BRAND.domain}/${draft.id}/${version}/${job.units.length}`;
-            if(segment.preparationError){job.units.push({name:segment.name,type:segment.type,object:'',pages:segment.pages,error:segment.preparationError,lastCode:'preparation',attempts:MAX_READ_ATTEMPTS});event('prepare','failed',{file:segment.name,code:'preparation',message:segment.preparationError});job.cursor=segment.nextPage;await checkpoint();continue;}
+            if(segment.preparationError){fileFailed=true;prepareFailed(file.name);job.units.push({name:segment.name,type:segment.type,object:'',uploadId:upload.id,pages:segment.pages,error:segment.preparationError,lastCode:'preparation',attempts:MAX_READ_ATTEMPTS});event('prepare','failed',{file:segment.name,code:'preparation',message:segment.preparationError});job.cursor=segment.nextPage;await checkpoint();continue;}
             const saved=await client.uploadFromBytes(object,segment.data,{compress:false});
             if(!saved.ok)throw new DraftError('Document preparation was interrupted. Retry to resume.',503);
-            job.units.push({name:segment.name,type:segment.type,object,pages:segment.pages,text:segment.text,context:segment.context,detailViews:segment.detailViews,detailRegions:segment.detailRegions});
+            job.units.push({name:segment.name,type:segment.type,object,uploadId:upload.id,pages:segment.pages,text:segment.text,context:segment.context,detailViews:segment.detailViews,detailRegions:segment.detailRegions});
             if(segment.nextPage!==undefined){job.cursor=segment.nextPage;await checkpoint();if(Date.now()-preparedAt>4000||job.units.filter(pending).length>=analysisConcurrency()*2){finished=false;break;}}
           }
-        }catch(error){if(error instanceof DraftError||isProcessingDeadline(error))throw error;job.notes.push(`${file.name}: ${error instanceof Error?error.message:'Could not read this file.'} Review the original before pricing.`);event('prepare','failed',{file:file.name,code:'prepare-error',message:error instanceof Error?error.message:String(error),durationMs:Date.now()-preparing});}
+        }catch(error){if(error instanceof DraftError||isProcessingDeadline(error))throw error;fileFailed=true;const message=`${file.name}: ${error instanceof Error?error.message:'Could not read this file.'} Review the original before pricing.`;job.notes.push(message);prepareFailed(file.name);job.units.push({name:file.name,type:file.type,object:'',uploadId:upload.id,error:message,lastCode:'preparation',attempts:MAX_READ_ATTEMPTS});event('prepare','failed',{file:file.name,code:'prepare-error',message:error instanceof Error?error.message:String(error),durationMs:Date.now()-preparing});}
         if(!finished)break;
       }
-      if(finished){job.prepared++;job.cursor=0;event('prepare','ok',{file:file.name,durationMs:Date.now()-preparing,meta:{sections:job.units.length}});}
+      if(finished){job.prepared++;job.cursor=0;if(!fileFailed)job.preparationFailures=(job.preparationFailures||[]).filter(name=>name!==file.name);event('prepare',fileFailed?'failed':'ok',{file:file.name,durationMs:Date.now()-preparing,meta:{sections:job.units.length}});}
       await checkpoint();
       // Prepared sections are read right away in this same pass.
     }
@@ -186,6 +271,7 @@ export async function advanceAnalysis(draft:Draft,text:string,answers:ScopeAnswe
       job.textDone=await analyzeBatch(text,[],answers,request,Math.min(READ_ALLOWANCE_MS,absoluteDeadline-Date.now()),absoluteDeadline,{race:true,event:{draftId:draft.id,estimator:answers.service||null,file:null}});await checkpoint();
     }
     const results=job.units.flatMap(u=>u.result?[u.result]:[]);if(job.textDone)results.push(job.textDone);
+    if(requireComplete)for(const unit of job.units)if(unit.result)assertCompleteSourceCoverage(unit.result.extraction,unit.pages?.map(p=>p.source)||[unit.name],unit.pages,Boolean(unit.pages?.length));
     // Preparation failures can leave a project with no successful provider
     // result. Return an explicit incomplete extraction instead of dereferencing
     // an absent result (or, worse, letting callers treat it as complete).
@@ -200,8 +286,11 @@ export async function advanceAnalysis(draft:Draft,text:string,answers:ScopeAnswe
     extraction.reviewNotes.push(...job.notes,...unreadNotes(job.units));
     extraction.reviewNotes.push(...(extraction.documentCoverage?.pages.filter(p=>p.status!=='read'&&!failedPages.has(JSON.stringify([p.source,p.page]))).map(p=>`${p.source}, page ${p.page}: ${p.status}. ${p.notes.join(' ')}`)||[]));
     extraction.reviewNotes=[...new Set(extraction.reviewNotes)];
+    if(job.preparationFailures?.length){const coverage=extraction.documentCoverage||{pages:[],expectedPages:job.expected?.length||0,complete:false};extraction.documentCoverage={...coverage,complete:false};}
     const unread=job.units.filter(u=>!u.result).length;
     event('complete',unread?'failed':'ok',{meta:{sections:job.units.length,unread,pages:job.expected?.length||0,files:draft.uploads.length}});
-    return {pending:false as const,version,analysis:{...last,extraction,analyzedAt:new Date().toISOString()}};
+    if(requireComplete&&(unread||job.notes.length||job.preparationFailures?.length||extraction.documentCoverage?.complete===false))throw new DraftError('Some local files could not be completely read. Your files and completed sections are saved. Use Retry or replace the unreadable file before continuing.',422);
+    if(requireComplete)assertCompleteSourceCoverage(extraction,draft.uploads.map(sourceName),job.expected,Boolean(job.expected?.length));
+    return {pending:false as const,version,analysis:{...last,extraction,analyzedAt:new Date().toISOString()},expectedPages:job.expected,processing:job.processing};
   }finally{await releaseWork(draft.id,workKey,lease.token);}
 }

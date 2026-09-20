@@ -12,10 +12,18 @@ export function protectRequest(request:Request,limit=60) {
   const origin=request.headers.get("origin");const url=new URL(request.url);
   const localPreview=process.env.NODE_ENV==="development" && origin==="http://terminal.local:4173";
   if(origin && !localPreview && origin!==url.origin && !configuredOrigins().has(origin))throw new DraftError("Request origin is not allowed.",403);
-  const key=`${url.pathname}:${request.method}:${(request.headers.get("x-forwarded-for")||"unknown").split(",")[0]}`;const now=Date.now();
+  // Limits follow the project, not the network: an office, a carrier NAT or a
+  // family shares one address, and one customer answering twenty questions
+  // saves far more often than an abusive client needs to be allowed to.
+  // The address bucket stays as a much higher ceiling against abuse. Replit's
+  // proxy appends the real client address last; earlier entries are client-supplied.
+  const address=(request.headers.get("x-forwarded-for")||"unknown").split(",").at(-1)!.trim()||"unknown";
+  const project=(request.headers.get("x-p5-draft-id")||"").slice(0,64);const now=Date.now();
   if(buckets.size>10000)for(const [k,v]of buckets)if(v.until<now)buckets.delete(k);
-  const b=buckets.get(key);if(!b||b.until<now)buckets.set(key,{count:1,until:now+600000});
-  else if(++b.count>limit)throw new DraftError("Please wait a few minutes before trying again.",429);
+  const spend=(key:string,ceiling:number)=>{const b=buckets.get(key);if(!b||b.until<now){buckets.set(key,{count:1,until:now+600000});return;}if(++b.count>ceiling)throw new DraftError("Your project is saved. Please wait a minute, then continue.",429);};
+  const perProject=Math.max(limit,600);
+  if(project)spend(`${url.pathname}:${request.method}:project:${project}`,perProject);
+  spend(`${url.pathname}:${request.method}:address:${address}`,project?perProject*10:Math.max(limit,120));
 }
 export async function limitedBody(request:Request,max:number) {
   const declared=Number(request.headers.get("content-length")||0);if(declared>max)throw new DraftError("Request is too large.",413);

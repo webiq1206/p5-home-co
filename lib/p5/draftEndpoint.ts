@@ -8,6 +8,8 @@ import { SCOPE_FIELDS, SCOPE_TEXT_LIMIT, validateAnswer, validateExtraction, typ
 import {answersForEditedScope,answersForReplacedScope,normalizeScopeText,scopeFingerprint,scopeTextChanged} from './scopeReplacement.ts';
 import { failed,json,limitedBody,protectRequest } from "./http.ts";
 import {draftEvents,recordEvent} from './events.ts';
+import {query} from './database.ts';
+import {customerPresentation,HIDE_CUSTOMER_UNIT_RATES} from './presentation.ts';
 
 function stable(value:unknown):string{return JSON.stringify(value,(key,item)=>item&&typeof item==="object"&&!Array.isArray(item)?Object.fromEntries(Object.entries(item).sort(([a],[b])=>a.localeCompare(b))):item);}
 function withoutInstructions(answers:ScopeAnswers){const copy={...answers};delete copy.estimatingInstructions;return copy;}
@@ -52,7 +54,8 @@ export async function getDraft(request:Request){try{protectRequest(request);cons
   // The draft owner may read its own processing events (sanitized, no document
   // contents) so a failed read can be explained and verified from the browser.
   const withEvents=new URL(request.url).searchParams.get('events')==='1'&&draft;
-  return json({draft,...(withEvents?{events:(await draftEvents(id)).map(e=>({at:e.createdAt,kind:e.kind,stage:e.stage,file:e.file,provider:e.provider,model:e.model,status:e.status,code:e.code,message:e.message,durationMs:e.durationMs,attempt:e.attempt,fallback:e.fallback,outcome:e.outcome}))}:{})});}catch(error){return failed(error);}}
+  const [stored]=draft?.status==='submitted'?await query('SELECT customer_estimate FROM p5_estimator_drafts WHERE id=$1',[id]):[];
+  return json({draft,...(stored?.customer_estimate?{result:customerPresentation(stored.customer_estimate,{hideUnitRates:HIDE_CUSTOMER_UNIT_RATES})}:{}),...(withEvents?{events:(await draftEvents(id)).map(e=>({at:e.createdAt,kind:e.kind,stage:e.stage,file:e.file,provider:e.provider,model:e.model,status:e.status,code:e.code,message:e.message,durationMs:e.durationMs,attempt:e.attempt,fallback:e.fallback,outcome:e.outcome}))}:{})});}catch(error){return failed(error);}}
 export function parseAnswers(raw:unknown):ScopeAnswers {
   if(!raw||typeof raw!=="object"||Array.isArray(raw))throw new DraftError("Invalid project answers.");
   const answers:ScopeAnswers={};

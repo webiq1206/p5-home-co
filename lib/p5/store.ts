@@ -32,11 +32,17 @@ export function ensureSchema(): Promise<void> {
       `CREATE TABLE IF NOT EXISTS p5_estimator_outbox (id uuid PRIMARY KEY, draft_id uuid NOT NULL REFERENCES p5_estimator_drafts(id), revision integer NOT NULL, destination text NOT NULL, payload jsonb NOT NULL, status text NOT NULL DEFAULT 'pending', attempts integer NOT NULL DEFAULT 0, provider_id text, last_error text, locked_until timestamptz, next_attempt_at timestamptz NOT NULL DEFAULT now(), created_at timestamptz NOT NULL DEFAULT now(), sent_at timestamptz, UNIQUE(draft_id, revision, destination))`,
       `CREATE INDEX IF NOT EXISTS p5_estimator_outbox_due ON p5_estimator_outbox(status,next_attempt_at)`,
       `CREATE TABLE IF NOT EXISTS p5_estimator_work (draft_id uuid NOT NULL REFERENCES p5_estimator_drafts(id), work_key text NOT NULL, payload jsonb NOT NULL DEFAULT '{}', lease_token text, lease_until timestamptz, updated_at timestamptz NOT NULL DEFAULT now(), PRIMARY KEY(draft_id,work_key))`,
+      // Paid pricing-request ledger: one reservation per fingerprint so a retry never pays twice.
       `CREATE TABLE IF NOT EXISTS p5_pricing_ledger (fingerprint text PRIMARY KEY, provider text NOT NULL, amount numeric(12,6) NOT NULL, state text NOT NULL, provider_id text, last_error text, active_until timestamptz, created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now())`,
       `ALTER TABLE p5_pricing_ledger ADD COLUMN IF NOT EXISTS active_until timestamptz`,
       `CREATE TABLE IF NOT EXISTS p5_pricing_ledger_requests (fingerprint text NOT NULL REFERENCES p5_pricing_ledger(fingerprint), sequence integer NOT NULL, state text NOT NULL, created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now(), PRIMARY KEY(fingerprint,sequence))`,
       EVENTS_TABLE_SQL,EVENTS_INDEX_SQL,
       `CREATE TABLE IF NOT EXISTS p5_estimator_policy (id text PRIMARY KEY, version integer NOT NULL DEFAULT 1, payload jsonb NOT NULL, updated_by text NOT NULL, updated_at timestamptz NOT NULL DEFAULT now())`,
+      // Provider qualification budget (spend-capped acceptance runs).
+      `CREATE TABLE IF NOT EXISTS p5_provider_qualification_budgets (run_id text PRIMARY KEY, allowance_microusd bigint NOT NULL CHECK(allowance_microusd>0), committed_microusd bigint NOT NULL DEFAULT 0 CHECK(committed_microusd>=0), blocked boolean NOT NULL DEFAULT false, created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now())`,
+      `ALTER TABLE p5_provider_qualification_budgets ADD COLUMN IF NOT EXISTS committed_microusd bigint NOT NULL DEFAULT 0 CHECK(committed_microusd>=0)`,
+      `CREATE TABLE IF NOT EXISTS p5_provider_qualification_reservations (idempotency_key text PRIMARY KEY, run_id text NOT NULL REFERENCES p5_provider_qualification_budgets(run_id), provider text NOT NULL, model text NOT NULL, request_hash text NOT NULL, reserved_microusd bigint NOT NULL CHECK(reserved_microusd>0), status text NOT NULL CHECK(status IN ('reserved','in_flight','consumed','released','unknown')), provider_request_id text, created_at timestamptz NOT NULL DEFAULT now(), started_at timestamptz, settled_at timestamptz)`,
+      `CREATE INDEX IF NOT EXISTS p5_provider_qualification_run_status ON p5_provider_qualification_reservations(run_id,status)`,
     ]) await query(statement);
   })().catch(error => {schemaReady=null;throw error;});
   return schemaReady;

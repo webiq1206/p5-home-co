@@ -107,7 +107,12 @@ function excluded(context: QuestionContext, topic: Topic): boolean {
   const excludedTopic = context.exclusions.some(s => pattern.test(s)
     // Excluding purchase of a material is not excluding its installation.
     && !/\b(?:purchase|supply|material|owner.supplied)\b/i.test(s));
-  if (excludedTopic) return true;
+  // "Floor tile only, no wall tile" excludes part of a trade, not the trade.
+  // Work the customer positively asked for stays active when a narrower
+  // exclusion names the same trade.
+  const requested = (context.extraction?.instructions?.inclusions || []).some(s => pattern.test(s))
+    || positiveClauses(context.text).some(s => pattern.test(s) && !excludedClause.test(s));
+  if (excludedTopic && !requested) return true;
   if (context.restriction && !pattern.test(context.restriction)) {
     // Base/upper/tall are subdivisions of a genuinely requested cabinet package.
     if (['base', 'upper', 'tall'].includes(topic) && TOPICS.cabinets.test(context.restriction)) return false;

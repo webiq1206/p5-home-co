@@ -8,6 +8,7 @@ import {recordEvent,describeError,type EstimatorEvent} from './events.ts';
 import {ESTIMATOR_BRAND} from "./brand.ts";
 import { SCOPE_FIELDS, SCOPE_BATCH_LIMIT, SCOPE_TEXT_LIMIT, SCOPE_MAX_PAGES, validateExtraction, combineScopeExtractions, type ScopeAnswers, type ScopeExtraction } from "./scope.ts";
 import { PDFDocument } from "pdf-lib";
+import {openablePdf,renderedPagePdf} from "./pdfAccess.ts";
 import {INSTRUCTION_POLICY} from './instructions.ts';
 import {coverageFor,combineCoverage} from './documentLedger.ts';
 
@@ -25,6 +26,12 @@ export function textLayerFiles(files:AnalysisFile[]):AnalysisFile[]{
 }
 const pdfWithTextLayer=(files:AnalysisFile[])=>files.some(file=>file.type==='application/pdf'&&Boolean(file.text));
 export interface AnalysisResult { extraction: ScopeExtraction; provider: string; model: string; analyzedAt: string }
+/** Shared-reader results receive the same explicit-scope safeguards as local reads. */
+export function retainScopeContext(extraction:ScopeExtraction,text:string,previous:ScopeAnswers):ScopeExtraction{
+ const selected=retainExplicitSelections(extraction,text,previous);
+ const completed=retainCompletedCabinetRemoval(selected,[extraction.sourceText,text].filter(Boolean).join('\n'));
+ return groundSourceResponsibilities(completed,extraction.sourceText,text,previous);
+}
 type RequestFunction = typeof fetch;
 type ProviderKind = "OpenAI" | "Anthropic";
 interface Provider { kind: ProviderKind; key: string; endpoint: string; model: string }
@@ -433,11 +440,13 @@ export async function analyzeScope(text:string,files:AnalysisFile[],previous:Sco
   const units:AnalysisFile[][]=[];let totalPages=0;
   for(const file of files){
     if(file.type!=="application/pdf"){if(["text/plain","text/csv","application/json"].includes(file.type)&&file.data.toString("utf8").length>120000)throw new Error(`${file.name}: text exceeds the automatic review limit. Supply the relevant sections or request manual review.`);units.push([file]);continue;}
-    let source;try{source=await PDFDocument.load(file.data);}catch{throw new Error(`Unreadable or encrypted PDF: ${file.name}. Supply an unlocked copy.`);}
-    if(!source.getPageCount()||source.getPageCount()>SCOPE_MAX_PAGES)throw new Error(`Use PDFs with 1 to ${SCOPE_MAX_PAGES} pages. Split larger plans before automatic reading.`);
+    const inspection=await openablePdf(file.name,file.data);
+    if(!inspection.pages||inspection.pages>SCOPE_MAX_PAGES)throw new Error(`Use PDFs with 1 to ${SCOPE_MAX_PAGES} pages. Split larger plans before automatic reading.`);
     // Keep adjacent scope sections together so one page cannot mistake another
     // page's specifications for missing information. Bound large plan sets.
-    const pageCount=source.getPageCount();totalPages+=pageCount;
+    const pageCount=inspection.pages;totalPages+=pageCount;
+    // A viewable file pdf-lib cannot copy is rebuilt from its rendered pages.
+    const source=inspection.native?inspection.native:await (async()=>{const rebuilt=await PDFDocument.create();for(let page=1;page<=pageCount;page++){const single=await PDFDocument.load(await renderedPagePdf(file.data,page));rebuilt.addPage((await rebuilt.copyPages(single,[0]))[0]);}return rebuilt;})();
     for(let start=0;start<pageCount;start+=8){
       const end=Math.min(start+8,pageCount);const part=await PDFDocument.create();
       for(const copied of await part.copyPages(source,Array.from({length:end-start},(_,i)=>start+i)))part.addPage(copied);

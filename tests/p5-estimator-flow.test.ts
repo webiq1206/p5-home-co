@@ -9,6 +9,8 @@ import {BACKGROUND_JOB_LIMIT_MS,CLIENT_BUDGET_MS,PRICING_PASS_MS} from '../lib/p
 import {createPlanningConfiguration,PLANNING_MODEL_VERSION,type PlanningCatalog} from '../lib/p5/planningBooks.ts';
 import type {ReviewedScope} from '../lib/p5/scope.ts';
 import {estimatorTheme} from '../lib/p5/theme.ts';
+// The brand that records provider charges (P5 Home Co) keeps them in memory during tests; other brands ignore this.
+process.env.P5_PRICING_LEDGER_TEST_MODE||='memory';
 
 test('missing cost-book quantities become answerable fields, review-only items do not',()=>{
   const fields=missingScopeFields(['Missing quantity: tileSqft for Tile installation','Missing cost condition: structural for Beam work','Missing cost rate: 03-01-01 needs review','Missing quantity: Drywall has a zero quantity; confirm exclusion']);
@@ -34,7 +36,8 @@ test('review details group by presentation category',()=>{
 
 test('category breakdown carries subtotals, quantities, unit prices and pricing status',()=>{
   const result={includedCategories:['Plumbing'],range:{low:100,high:200},categoryRanges:[{category:'Plumbing',low:100,high:200}],lineItems:[{id:'p',category:'Plumbing',description:'Fixture installation',quantity:2,unit:'EA',low:100,high:200,unitLow:50,unitHigh:100,pricingStatus:'estimated-allowance',verification:'Confirm selections.'}],scopeTasks:[{description:'Install two fixtures',category:'Plumbing'},{description:'Paint the walls'}]};
-  const groups=categoryBreakdown(result);
+  // Unit prices are asserted explicitly; one brand hides them from customers by default.
+  const groups=categoryBreakdown(result,true,false);
   assert.deepEqual(groups.map(g=>g.category),['Plumbing','Painting']);
   assert.equal(groups[0].low,100);assert.equal(groups[0].items[0].unitHigh,100);assert.equal(groups[0].items[0].status,'estimated-allowance');
   assert.deepEqual(groups[1].tasks,['Paint the walls']);assert.equal(groups[1].items.length,0);
@@ -97,8 +100,9 @@ test('a slow or unavailable web search falls back to a labeled planning average 
   const line=(r.internal as any).lines.find((l:any)=>l.id==='planning-1');
   assert.ok(line);assert.equal(line.evidence.basis,'regional-planning-average');
   const item=r.customer.lineItems.find((l:any)=>l.id==='planning-1') as any;
-  assert.equal(item.pricingStatus,'estimated-allowance');assert.match(item.verification,/not verified local pricing/);
-  assert.ok(r.customer.assumptions.some((a:string)=>a.includes('Published cost research was not used')));
+  assert.equal(item.pricingStatus,'estimated-allowance');assert.match(item.verification,/Budget allowance; final selection to be confirmed/);
+  assert.ok(r.customer.assumptions.some((a:string)=>a.includes('Budget allowance; final selection to be confirmed.')));
+  assert.doesNotMatch(JSON.stringify(r.customer),/published cost research|planning average|local pricing/i);
   assert.ok((r.internal as any).warnings.some((w:any)=>w.code==='planning-average-preliminary'&&w.severity==='review'));
   assert.ok(!JSON.stringify(r.customer).includes('unitCost'));
 });
@@ -130,10 +134,10 @@ test('a typed scope is read by every configured provider at once and the first v
 
 test('a billing refusal from Anthropic falls back to OpenAI for the stage and parks Anthropic',async()=>{
   const {requestPricing}=await import('../lib/p5/scopePricing.ts');
-  const names=['OPENAI_API_KEY','AI_INTEGRATIONS_OPENAI_API_KEY','AI_INTEGRATIONS_OPENAI_BASE_URL','ANTHROPIC_API_KEY','OPENAI_BASE_URL','P5_PRICING_PROVIDER','P5_PRICING_LEDGER_TEST_MODE'] as const;
+  const names=['OPENAI_API_KEY','AI_INTEGRATIONS_OPENAI_API_KEY','AI_INTEGRATIONS_OPENAI_BASE_URL','ANTHROPIC_API_KEY','OPENAI_BASE_URL','P5_PRICING_PROVIDER'] as const;
   const saved=Object.fromEntries(names.map(n=>[n,process.env[n]]));
   for(const n of names)delete process.env[n];
-  process.env.ANTHROPIC_API_KEY='synthetic-anthropic';process.env.OPENAI_API_KEY='synthetic-openai';process.env.P5_PRICING_PROVIDER='anthropic';process.env.P5_PRICING_LEDGER_TEST_MODE='memory';
+  process.env.ANTHROPIC_API_KEY='synthetic-anthropic';process.env.OPENAI_API_KEY='synthetic-openai';process.env.P5_PRICING_PROVIDER='anthropic';
   const runtime=globalThis as typeof globalThis & {p5AnthropicBlockedUntil?:number};runtime.p5AnthropicBlockedUntil=0;
   const realFetch=globalThis.fetch;let anthropicCalls=0,openaiCalls=0;
   globalThis.fetch=(async(input:any)=>{
@@ -193,10 +197,10 @@ test('confirmation-only audit findings become disclosed assumptions, real gaps s
 
 test('OpenAI leads pricing stages by default and Anthropic covers its refusal',async()=>{
   const {requestPricing}=await import('../lib/p5/scopePricing.ts');
-  const names=['OPENAI_API_KEY','AI_INTEGRATIONS_OPENAI_API_KEY','AI_INTEGRATIONS_OPENAI_BASE_URL','ANTHROPIC_API_KEY','OPENAI_BASE_URL','P5_PRICING_PROVIDER','P5_PRICING_LEDGER_TEST_MODE'] as const;
+  const names=['OPENAI_API_KEY','AI_INTEGRATIONS_OPENAI_API_KEY','AI_INTEGRATIONS_OPENAI_BASE_URL','ANTHROPIC_API_KEY','OPENAI_BASE_URL','P5_PRICING_PROVIDER'] as const;
   const saved=Object.fromEntries(names.map(n=>[n,process.env[n]]));
   for(const n of names)delete process.env[n];
-  process.env.ANTHROPIC_API_KEY='synthetic-anthropic';process.env.OPENAI_API_KEY='synthetic-openai';process.env.P5_PRICING_LEDGER_TEST_MODE='memory';
+  process.env.ANTHROPIC_API_KEY='synthetic-anthropic';process.env.OPENAI_API_KEY='synthetic-openai';
   const runtime=globalThis as typeof globalThis & {p5AnthropicBlockedUntil?:number};runtime.p5AnthropicBlockedUntil=0;
   const realFetch=globalThis.fetch;let anthropicCalls=0,openaiCalls=0,openaiRefuses=false;
   globalThis.fetch=(async(input:any)=>{

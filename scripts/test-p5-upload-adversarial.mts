@@ -1,22 +1,20 @@
 import assert from 'node:assert/strict';
-import {mkdtemp,cp,writeFile,readFile,mkdir,rm} from 'node:fs/promises';
+import {mkdtemp,cp,writeFile,readFile,mkdir} from 'node:fs/promises';
 import {randomUUID,randomBytes,createHash} from 'node:crypto';
 import {pathToFileURL} from 'node:url';
 import path from 'node:path';
 import {createRequire} from 'node:module';
 const ExcelJS=createRequire(path.join(process.cwd(),'package.json'))('exceljs');
-const root=process.cwd();await mkdir('.cache',{recursive:true});
-const dir=await mkdtemp(path.join(root,'.cache/adversarial-upload-'));
-let db:any;
-try{
+const root=process.cwd();await mkdir('node_modules/.cache',{recursive:true});
+const dir=await mkdtemp(path.join(root,'node_modules/.cache/adversarial-upload-'));
 await cp('lib/p5',dir,{recursive:true});
 await writeFile(path.join(dir,'database.ts'),`import {PGlite} from '@electric-sql/pglite';export const database=new PGlite();export async function query(s:string,v:unknown[]=[]){return (await database.query(s,v)).rows;}`);
 await writeFile(path.join(dir,'storageFixture.ts'),`export const objects=new Map<string,Buffer>();export const state={failPart:false,failFinish:false,delay:0,failAfterPersist:false,sourceErrorOnly:false,beforeCommit:null as any};export class Client{async uploadFromBytes(k:string,b:Buffer){if(state.failPart)return {ok:false};objects.set(k,Buffer.from(b));return {ok:true};}async downloadAsBytes(k:string){return objects.has(k)?{ok:true,value:[objects.get(k)]}:{ok:false};}async uploadFromStream(k:string,s:any){if(state.sourceErrorOnly)return new Promise<void>(resolve=>{s.on('data',()=>{});s.on('end',resolve);});const parts=[];for await(const part of s)parts.push(part);if(state.delay)await new Promise(r=>setTimeout(r,state.delay));if(state.beforeCommit)await state.beforeCommit();if(state.failFinish)throw Error('synthetic final storage failure');objects.set(k,Buffer.concat(parts));if(state.failAfterPersist)throw Error('synthetic acknowledgement loss');}async delete(k:string){objects.delete(k);return {ok:true};}}`);
-for(const name of ['objectStorage','resumableUpload']){const f=path.join(dir,name+'.ts');await writeFile(f,(await readFile(f,'utf8')).replace(/from ['"]@replit\/object-storage['"]/g,"from './storageFixture.ts'"));}
+for(const name of ['objectStorage','resumableUpload']){const f=path.join(dir,name+'.ts');await writeFile(f,(await readFile(f,'utf8')).replace(/from ['"]@replit\/object-storage['"]/g,"from './storageFixture'"));}
 globalThis.fetch=async()=>{throw Error('External network forbidden by test');};
 process.env.P5_OBJECT_STORAGE_ENABLED='true';
 const mod=(n:string)=>import(pathToFileURL(path.join(dir,n+'.ts')).href);
-const store=await mod('store');db=await mod('database');const api=await mod('resumableUpload'),fixture=await mod('storageFixture'),scope=await mod('scope');
+const store=await mod('store'),db=await mod('database'),api=await mod('resumableUpload'),fixture=await mod('storageFixture'),scope=await mod('scope');
 const sha=(b:Buffer|string)=>createHash('sha256').update(b).digest('hex');
 const rows:any[]=[];
 async function draft(){const id=randomUUID(),key=randomBytes(32).toString('hex');await store.saveDraft(id,key,'test',{text:'Synthetic QA',answers:{},extraction:null,reviewed:null,contact:{name:'',email:'',phone:''}},0);return {id,key};}
@@ -56,9 +54,7 @@ await test('expired finalization lease cannot publish a file',async()=>{const d=
 await test('failed finalization removes broken chunk from resume manifest',async()=>{const d=await draft(),b=Buffer.from('scope');await start(d,b);await part(d,b);const k=[...fixture.objects.keys()].find((k:string)=>k.includes('/'+d.id+'/'));fixture.objects.delete(k);assert.equal((await request(d,sha(b),'finish')).status,503);const state=await (await request(d,sha(b),'start',JSON.stringify({name:'scope.txt',size:b.length}))).json();assert.equal(state.chunks['0'],undefined);});
 await test('receipt survives a lost completion checkpoint and missing temporary chunks',async()=>{const d=await draft(),b=Buffer.from('scope');await start(d,b);await part(d,b);assert.equal((await request(d,sha(b),'finish')).status,200);await db.query("UPDATE p5_estimator_work SET payload=payload-'complete' WHERE draft_id=$1 AND work_key=$2",[d.id,'upload:'+sha(b)]);assert.equal((await request(d,sha(b),'finish')).status,200);assert.equal(await count(d),1);});
 await test('valid Office archive larger than one chunk validates all metadata and bytes',async()=>{const w=new ExcelJS.Workbook();w.addWorksheet('Scope').addRows([['Item','Quantity'],['Doors',4]]);const JSZip=createRequire(path.join(root,'package.json'))('jszip'),zip=await JSZip.loadAsync(await w.xlsx.writeBuffer());zip.file('fixture-padding.bin',Buffer.alloc(scope.SCOPE_CHUNK_SIZE+200,7));const b:Buffer=await zip.generateAsync({type:'nodebuffer',compression:'STORE'}),d=await draft();assert.ok(b.length>scope.SCOPE_CHUNK_SIZE);await start(d,b,'large.xlsx');for(let at=0,n=0;at<b.length;at+=scope.SCOPE_CHUNK_SIZE,n++){const segment=b.subarray(at,at+scope.SCOPE_CHUNK_SIZE);assert.equal((await request(d,sha(b),'part',new Uint8Array(segment),'&part='+n+'&checksum='+sha(segment))).status,200);}assert.equal((await request(d,sha(b),'finish')).status,200);const bytes=await store.readUploads(d.id,d.key);assert.ok(bytes[0].data.equals(b));});
-await writeFile(path.join(root,'.cache/upload-adversarial-results.json'),JSON.stringify(rows,null,2));
+await db.database.close();
+await writeFile(path.join(root,'node_modules/.cache/upload-adversarial-results.json'),JSON.stringify(rows,null,2));
 console.log(JSON.stringify({passed:rows.filter(r=>r.passed).length,failed:rows.filter(r=>!r.passed).length}));
 if(rows.some(r=>!r.passed))process.exitCode=1;
-}finally{
- try{await db?.database?.close();}finally{await rm(dir,{recursive:true,force:true});}
-}

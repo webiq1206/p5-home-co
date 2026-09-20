@@ -27,7 +27,11 @@ export function deriveScopeAnswers(input:ScopeAnswers){
   return answers;
 }
 function isValidatedSuppliedFact(fact:ScopeExtraction['facts'][number],conflicts:ScopeConflict[]){
-  return Number.isFinite(fact.confidence)&&fact.confidence>=.85&&Boolean(fact.value?.trim())&&fact.basis!=='visual'&&fact.basis!=='inferred'&&!validateAnswer(fact.field,fact.value)&&!conflicts.some(conflict=>conflict.field===fact.field);
+  // The project type is a classification the customer sees and can change on
+  // the review screen, not a measured fact. A stated type this company offers
+  // is accepted at a lower bar so an obvious bathroom job is not asked its type.
+  const floor=fact.field==='service'&&fact.basis==='stated'&&(ESTIMATOR_BRAND.services as readonly string[]).includes(fact.value)?.7:.85;
+  return Number.isFinite(fact.confidence)&&fact.confidence>=floor&&Boolean(fact.value?.trim())&&fact.basis!=='visual'&&fact.basis!=='inferred'&&!validateAnswer(fact.field,fact.value)&&!conflicts.some(conflict=>conflict.field===fact.field);
 }
 export function reconcileScope(current:ScopeAnswers,extraction:ScopeExtraction,resolutions:ScopeAnswers={}){
   const unresolvedConflicts=extraction.conflicts.filter(c=>!resolutions[c.field]||!sameAnswer(c.field,resolutions[c.field]!,current[c.field]||''));

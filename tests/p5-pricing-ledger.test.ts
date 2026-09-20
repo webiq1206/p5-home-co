@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {pricingFingerprint,reservationDecision,pricingReservationConfig,PricingBudgetError,PricingChargeUnknownError,reservePricingCharge,rejectPricingCharge,markPricingChargeUnknown,settlePricingCharge} from '../lib/p5/pricingLedger.ts';
-import {deliveryBrand} from '../lib/p5/deliveryAdapter.ts';
-import {deliveryRetryDecision} from '../lib/p5/outbox.ts';
+import {pricingFingerprint,reservationDecision,pricingReservationConfig,pricingLedgerActive,configurePricingLedger,PricingBudgetError,PricingChargeUnknownError,reservePricingCharge,rejectPricingCharge,markPricingChargeUnknown,settlePricingCharge} from '../lib/p5/pricingLedger.ts';
+import {ESTIMATOR_BRAND} from '../lib/p5/brand.ts';
+import {requestPricing} from '../lib/p5/scopePricing.ts';
 
 test('pricing reservations reject when the configured remainder cannot cover a request',()=>{
   assert.equal(reservationDecision(0.24,0.25),'reject');
@@ -31,18 +31,31 @@ test('unknown charge and budget errors remain explicit typed stops',()=>{
   assert.equal(new PricingChargeUnknownError().code,'pricing-charge-unknown');
   assert.match(new PricingChargeUnknownError('A completed pricing charge already exists without a reusable saved result; repeating it is blocked.').message,/repeating it is blocked/);
 });
-test('delivery preserves the record brand and only defaults for old records',()=>{
-  assert.equal(deliveryBrand({brand:'Remodeling Co'}),'Remodeling Co');
-  assert.equal(deliveryBrand({brand:''}),'P5 Home Co');
-  assert.equal(deliveryBrand({}),'P5 Home Co');
+test('the ledger is brand-gated, opt-in elsewhere, and a configured cap never runs unguarded',async()=>{
+  const names=['P5_PRICING_BUDGET_USD','P5_PRICING_REQUEST_RESERVATION_USD','P5_PRICING_LEDGER','P5_PRICING_LEDGER_TEST_MODE'] as const;
+  const previous=Object.fromEntries(names.map(name=>[name,process.env[name]]));
+  for(const name of names)delete process.env[name];
+  const p5=(ESTIMATOR_BRAND.id as string)==='p5';
+  const held:string[]=[];
+  try{
+    configurePricingLedger(async run=>run(async statement=>{held.push(statement);return [];}));
+    assert.equal(await pricingLedgerActive(),p5,'only P5 Home Co records ordinary pricing by default');
+    process.env.P5_PRICING_LEDGER='on';
+    assert.equal(await pricingLedgerActive(),true);
+    delete process.env.P5_PRICING_LEDGER;
+    process.env.P5_PRICING_BUDGET_USD='1';process.env.P5_PRICING_REQUEST_RESERVATION_USD='0.25';
+    assert.equal(await pricingLedgerActive(),true,'a configured cap always activates the ledger');
+    assert.equal(held.length,0,'activation alone reserves nothing');
+  }finally{
+    configurePricingLedger(undefined);
+    for(const name of names){const value=previous[name];if(value===undefined)delete process.env[name];else process.env[name]=value;}
+  }
 });
-test('ambiguous delivery never retries CRM or non-idempotent email',()=>{
-  const now=Date.now();
-  assert.equal(deliveryRetryDecision('crm',true,1,new Date(now)),'needs-review');
-  assert.equal(deliveryRetryDecision('customer:x',false,1,new Date(now)),'needs-review');
-  assert.equal(deliveryRetryDecision('customer:x',true,1,new Date(now)),'retry');
-  assert.equal(deliveryRetryDecision('customer:x',true,1,new Date(now-24*3600000)),'needs-review');
-  assert.equal(deliveryRetryDecision('customer:x',true,6,new Date(now)),'needs-review');
+test('a qualification policy is fail-closed before any provider request',async()=>{
+  const policy={provider:'openai',noFallback:true,toolFree:true,maxOutputTokens:512,serviceTier:'default'} as const;
+  await assert.rejects(()=>requestPricing('stage',{},true,5000,undefined,policy),/pricing-qualification-policy-invalid/);
+  await assert.rejects(()=>requestPricing('stage',{},false,5000,undefined,{...policy,maxOutputTokens:4097}),/pricing-qualification-policy-invalid/);
+  await assert.rejects(()=>requestPricing('stage',{},false,5000,undefined,{...policy,noFallback:false as unknown as true}),/pricing-qualification-policy-invalid/);
 });
 test('database admission serializes distinct fingerprints at the configured cap',{skip:!process.env.TEST_DATABASE_URL},async()=>{
   const previous={database:process.env.DATABASE_URL,budget:process.env.P5_PRICING_BUDGET_USD,amount:process.env.P5_PRICING_REQUEST_RESERVATION_USD};

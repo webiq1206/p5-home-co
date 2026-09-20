@@ -19,7 +19,7 @@ export function reusableUnitRate(rule:CostRule,location:string,now=new Date()):C
  const categories={'material-purchase':'materials','trade-labor':'field-labor','subcontractor-installed':'subcontractors'};
  if(categories[context.basis]!==rule.category||!context.includes.trim())return null;
  const unit=unitKey(rule.unit),expires=Date.parse(rule.evidence.validUntil),retrieved=Date.parse(provenance.retrievedAt);
-  if(!supportedUnit(unit)||!Number.isFinite(expires)||expires<=now.getTime()||!Number.isFinite(retrieved)||retrieved>now.getTime()||expires>retrieved+30*86400000)return null;
+ if(!supportedUnit(unit)||!Number.isFinite(expires)||expires<=now.getTime()||!Number.isFinite(retrieved)||retrieved>now.getTime()||expires>retrieved+30*86400000)return null;
  if(rateLocation(provenance.location)!==rateLocation(location))return null;
  if(!Number.isFinite(rule.unitCost)||rule.unitCost<=0)return null;
  if(rule.unitCostRange&&(!Number.isFinite(rule.unitCostRange.low)||!Number.isFinite(rule.unitCostRange.high)||rule.unitCostRange.low<=0||rule.unitCostRange.low>rule.unitCost||rule.unitCostRange.high<rule.unitCost))return null;

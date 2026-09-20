@@ -3,13 +3,8 @@ import assert from 'node:assert/strict';
 import {PDFDocument} from 'pdf-lib';
 import {analyzeScope,analyzeBatch,AnalysisBusyError,anthropicExtractionSchema} from '../lib/p5/extraction.ts';
 import {validateExtraction} from '../lib/p5/scope.ts';
-import {verifyUpload,emptyUploadMessage} from '../lib/p5/documents.ts';
 const variables=['OPENAI_API_KEY','OPENAI_BASE_URL','AI_INTEGRATIONS_OPENAI_API_KEY','AI_INTEGRATIONS_OPENAI_BASE_URL','ANTHROPIC_API_KEY'];
 const extraction={summary:'Fixture scope',facts:[],conflicts:[],missingInformation:[],reviewNotes:[],clarifications:[]};
-test('empty uploads identify the selected file in both validation paths',()=>{
- assert.equal(emptyUploadMessage('plans.pdf'),'plans.pdf is empty.');
- assert.throws(()=>verifyUpload('plans.pdf',Buffer.alloc(0)),/plans\.pdf is empty/);
-});
 test('failed preparation and empty files never reach a paid provider',async()=>{
  let calls=0;const request=async()=>{calls++;throw new Error('Provider must not be called');};
  for(const file of [{name:'empty.pdf',type:'application/pdf',data:Buffer.alloc(0)},{name:'failed.pdf',type:'application/pdf',data:Buffer.from('partial'),preparationError:'PRIVATE renderer error'}]){

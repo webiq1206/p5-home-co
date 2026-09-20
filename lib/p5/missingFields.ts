@@ -1,4 +1,5 @@
 import {SCOPE_FIELDS,type ScopeField} from './scope.ts';
+import {customerSafeQuestion} from './customerCopy.ts';
 
 export interface MissingScopeField {field:ScopeField;label:string}
 
@@ -18,9 +19,14 @@ export function missingNoteField(note:string):ScopeField|null{
  * vocabulary and in the order the questions are asked. */
 export function missingScopeFields(missing:string[]):MissingScopeField[]{
   const wanted=new Set(missing.map(missingNoteField).filter((field):field is ScopeField=>Boolean(field)));
+  // Vocabulary order, except that tall cabinets follow base and upper runs,
+  // the way a person is asked about a kitchen.
+  const keys=Object.keys(SCOPE_FIELDS) as ScopeField[];
+  const position=(field:ScopeField)=>field==='cabinetTallLf'?keys.indexOf('cabinetUpperLf')+.5:keys.indexOf(field);
   return (Object.entries(SCOPE_FIELDS) as [ScopeField,{label:string}][])
     .filter(([key])=>wanted.has(key))
-    .map(([field,definition])=>({field,label:definition.label}));
+    .map(([field,definition])=>({field,label:definition.label}))
+    .sort((a,b)=>position(a.field)-position(b.field));
 }
 
 /** Pricing diagnostics belong in the staff record. Only explicit customer
@@ -28,5 +34,7 @@ export function missingScopeFields(missing:string[]):MissingScopeField[]{
 export function customerPricingQuestions(missing:string[]):string[]{
  const questions=missing.flatMap(note=>note.match(/\b(?:Should|Will|What|Which|How|Who|Do|Does|Is|Are|Can)\b[^?]*\?/gi)||[])
   .filter(question=>!/(?:[$€£]|\b(?:direct[- ]cost|unit[- ]cost|markup|margin|divisor|payroll|catalog rate)\b)/i.test(question));
- return [...new Set(questions.map(question=>question.trim()))];
+ // Only a plain question about the customer's own project is shown; an
+ // estimator's or a model's working note stays in the staff record.
+ return [...new Set(questions.flatMap(question=>{const safe=customerSafeQuestion(question);return safe?[safe]:[];}))];
 }

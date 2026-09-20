@@ -6,7 +6,7 @@ import {manualScopeAnswers,reconcileScope,scopeQuestionsForBrand as scopeQuestio
 import {costQuestionFields} from "./questionPolicy.ts";
 import {createHash} from "node:crypto";
 import { analyzeScope } from "./extraction.ts";
-import { prepareAnalysisFiles,verifyUpload } from "./documents.ts";
+import { prepareAnalysisFiles,verifyPdfPageLimit,verifyUpload } from "./documents.ts";
 import { SCOPE_BATCH_LIMIT,SCOPE_TEXT_LIMIT,SCOPE_FILE_COUNT,SCOPE_UPLOAD_HELP,SCOPE_FIELDS } from "./scope.ts";
 import { draftCredentials,readDraft,readUploads,saveUpload,saveDraft,DraftError } from "./store.ts";
 import {answersForEditedScope,normalizeScopeText,scopeFingerprint,scopeTextChanged,sourceSnapshot,sourceSnapshotsEqual} from "./scopeReplacement.ts";
@@ -14,6 +14,8 @@ import { failed,json,limitedBody,protectRequest } from "./http.ts";
 import { ESTIMATOR_BRAND } from "./brand.ts";
 import {recordEvent,describeError} from './events.ts';
 import {blockingReviewNote} from './costBook.ts';
+import {selectReusableAnalysis} from './analysisReuse.ts';
+import {query} from './database.ts';
 
 /** Guard multipart analysis/upload requests before they can mutate files. */
 export function guardScopeRequestRevision(storedRevision:number,requestedRevision:unknown,storedText:string,incomingText:string){
@@ -30,6 +32,11 @@ export function guardScopeRequestRevision(storedRevision:number,requestedRevisio
 }
 export function guardUploadedSourceSnapshot(expectedRevision:number,rereadRevision:number,expectedSource:ReturnType<typeof sourceSnapshot>,rereadSource:ReturnType<typeof sourceSnapshot>){
   if(rereadRevision!==expectedRevision||!sourceSnapshotsEqual(expectedSource,rereadSource))throw new DraftError("This project changed while its files were uploading. The files are saved; refresh before continuing.",409);
+}
+export function scopeAnalysisFailureWarning(hasUploads:boolean){
+  return hasUploads
+    ?"Your files are saved, but automatic reading could not finish. You can retry without uploading again, or add the key details below. Unread documents will need review before pricing."
+    :"Your project description is saved, but automatic reading could not finish. Retry, or add the key details below.";
 }
 export async function postScope(request:Request){
   try{
@@ -54,7 +61,11 @@ export async function postScope(request:Request){
     const requested:string[]=[];const incoming=[];const known=new Set(analysisDraft.uploads.map(f=>f.sha256));
     for(const file of files){
       if(!(file instanceof File))throw new DraftError("Invalid file.");
-      let verified;try{verified=verifyUpload(file.name,Buffer.from(await file.arrayBuffer()));}catch(error){throw new DraftError(error instanceof Error?error.message:"Invalid upload.");}
+      let verified;try{
+        verified=verifyUpload(file.name,Buffer.from(await file.arrayBuffer()));
+        // Enforce the customer-facing PDF page boundary before any provider work begins.
+        if(verified.type==="application/pdf")await verifyPdfPageLimit(verified.name,verified.data);
+      }catch(error){throw new DraftError(error instanceof Error?error.message:"Invalid upload.",422);}
       const digest=createHash("sha256").update(verified.data).digest("hex");
       requested.push(digest);
       if(!known.has(digest)){known.add(digest);incoming.push(verified);}
@@ -87,9 +98,17 @@ export async function postScope(request:Request){
     try{
       if(checkpointed){
         const background=form.get('background')==='true';
-        const job=background?await queuedJob({kind:'analysis',draft:analysisDraft,text,answers:visitorAnswers},form.get('retry')==='true'):null;
+        // Cabinet only: a completed legacy read queued before the service answer
+        // was inferred is reused when its full source identity is exact, instead
+        // of spending a second read on the same typed scope.
+        const reuse=(ESTIMATOR_BRAND.id as string)==='cabinet'&&background&&form.get('retry')!=='true'?selectReusableAnalysis(
+          (await query("SELECT work_key,payload FROM p5_estimator_work WHERE draft_id=$1 AND work_key LIKE 'background-v1-%' AND payload->>'state'='complete' AND payload->'input'->>'kind'='analysis' ORDER BY updated_at DESC",[analysisDraft.id]))
+            .map(row=>({workKey:String(row.work_key),payload:row.payload})),
+          {text,answers:visitorAnswers,uploads:analysisDraft.uploads},
+        ).reusable:null;
+        const job=!reuse&&background?await queuedJob({kind:'analysis',draft:analysisDraft,text,answers:visitorAnswers},form.get('retry')==='true'):null;
         if(job&&job.state!=='complete')return json({pending:job.state!=='failed',progress:job.progress,processing:job.processing,revision:draft.revision,draftRevision:draft.revision,...(job.state==='failed'?{error:job.progress}:{})},job.state==='failed'?503:200);
-        const step=job?job.result:await advanceAnalysis(analysisDraft,text,visitorAnswers,fetch,form.get("retry")==="true");
+        const step=reuse?{pending:false as const,version:reuse.version,analysis:reuse.analysis}:job?job.result:await advanceAnalysis(analysisDraft,text,visitorAnswers,fetch,form.get("retry")==="true");
          if(step.pending)return json({...step,revision:draft.revision,draftRevision:draft.revision});
         analysis=step.analysis;
       }else{
@@ -108,11 +127,12 @@ export async function postScope(request:Request){
       console.error("[p5-scope-analysis]",error instanceof Error?error.message:"analysis failed");
       const detail=describeError(error);
       void recordEvent({draftId:id,estimator:visitorAnswers.service||null,kind:'analysis',stage:'scope-request',code:detail.code,status:detail.status,message:detail.message,outcome:'failed'});
-      warning="Your files are saved, but automatic reading could not finish. You can retry without uploading again, or add the key details below. Unread documents will need review before pricing.";
+      warning=scopeAnalysisFailureWarning(Boolean(analysisDraft.uploads.length));
     }
-    if(analysis)analysis.extraction=applyCabinetIntent(text,ESTIMATOR_BRAND.services,visitorAnswers,analysis.extraction).extraction!;
+    // Copy before applying intent: a stored or reused result must never be mutated in place.
+    if(analysis)analysis={...analysis,extraction:applyCabinetIntent(text,ESTIMATOR_BRAND.services,visitorAnswers,analysis.extraction).extraction!};
     const extraction=analysis?.extraction||analysisDraft.extraction;
-    const merged=analysis?reconcileScope(visitorAnswers,analysis.extraction,resolutions):{answers:analysisDraft.answers,conflicts:[]};
+    const merged=analysis?reconcileScope(visitorAnswers,analysis.extraction,resolutions):{answers:{...analysisDraft.answers,...visitorAnswers},conflicts:[]};
     const wizard={instructionAnswers:sourceChanged?[]:analysisDraft.wizard?.instructionAnswers||[],skipped:sourceChanged?[]:analysisDraft.wizard?.skipped||[],resolutions,sourceVersion:analysis?version:sourceChanged?undefined:analysisDraft.wizard?.sourceVersion};
     // Partial analysis is visible and prevents unread documents from being priced.
     const safeExtraction=warning?{...extraction,summary:extraction?.summary||text,facts:extraction?.facts||[],conflicts:extraction?.conflicts||[],missingInformation:extraction?.missingInformation||[],reviewNotes:[...new Set([...(extraction?.reviewNotes||[]),warning])]}:extraction;

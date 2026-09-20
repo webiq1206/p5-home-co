@@ -8,8 +8,13 @@ import {instructionPrompts} from '../lib/p5/clarifications.ts';
 import {emptyInstructions} from '../lib/p5/instructions.ts';
 import {ESTIMATOR_BRAND as brand} from '../lib/p5/brand.ts';
 const base=process.env.P5_TEST_BASE_URL||'http://127.0.0.1:5000';
-await mkdir('p5-verification',{recursive:true});
-const browser=await (process.env.P5_TEST_BROWSER==='webkit'?webkit:chromium).launch();const results=[];
+const output=process.env.P5_TEST_OUTPUT_DIR||'p5-verification';
+const progressOnly=process.env.P5_TEST_SCENARIO==='live-progress';
+if(process.env.P5_TEST_SCENARIO&&!progressOnly)throw new Error('Unsupported P5_TEST_SCENARIO');
+await mkdir(output,{recursive:true});
+const browser=await (process.env.P5_TEST_BROWSER==='webkit'?webkit:chromium).launch({
+ ...(process.env.P5_TEST_BROWSER!=='webkit'&&process.env.P5_TEST_CHROMIUM_PATH?{executablePath:process.env.P5_TEST_CHROMIUM_PATH}:{}),
+});const results=[];
 const fixturePdf=await PDFDocument.create();fixturePdf.addPage().drawText('Synthetic estimate PDF download.');
 const pdfBytes=Buffer.from(await fixturePdf.save());
 // Brands ask their own extra questions before review (finish level for cabinets, trim length when trim is priced).
@@ -17,10 +22,17 @@ const pdfBytes=Buffer.from(await fixturePdf.save());
 const answerBrandQuestions=async(page,est,then)=>{for(let i=0;i<8;i++){const q=est.locator('section[aria-label="Project question"]');await then.or(q).first().waitFor();if(await then.count())return;const chips=q.locator('[aria-label="Suggested answers"] button');const unsure=q.getByRole('button',{name:'Not sure yet',exact:true});if(await chips.count()){await chips.first().click();await est.getByRole('button',{name:'Send answer',exact:true}).click();}else if(await unsure.count())await unsure.click();else throw new Error('Unexpected brand question: '+(await q.innerText()).slice(0,120));await settled(page);}await then.waitFor();};
 
 const service=brand.services.includes('bathroom')?'bathroom':brand.services.includes('handyman')?'handyman':brand.services.includes('cabinet-install')?'cabinet-install':'new-construction';
-const serviceLabel=service==='handyman'?'Home repairs':service==='cabinet-install'?'Cabinets with installation':service==='new-construction'?'New home':'Bathroom remodel';
+const serviceLabel=service==='handyman'?'Home repairs':service==='cabinet-install'?'Cabinet installation':service==='new-construction'?'New home':'Bathroom remodel';
 const fullAnswers={service,taskList:'Complete the specified work. Repair three interior doors.',...(service.startsWith('cabinet-')?{cabinetRoom:'kitchen',cabinetBaseLf:'20',cabinetUpperLf:'0',finish:'mid-range'}:service==='handyman'?{}:{sqft:'80',materials:'Porcelain tile',demolition:'Remove old finishes'})};
 const result={status:'preliminary',range:{low:1000,high:1800},categoryRanges:[{category:'Carpentry',low:1000,high:1800}],lineItems:[{id:'repair',category:'Carpentry',description:'Repair three interior doors',quantity:3,unit:'EA',low:1000,high:1800,unitLow:1000/3,unitHigh:600,pricingStatus:'owner-planning-rate'}],scopeTasks:[{description:'Repair three interior doors',category:'Carpentry'}],summary:'Synthetic fixture scope.',includedCategories:['Carpentry'],allowances:[],assumptions:['Doors are standard interior slabs.'],exclusions:['Painting is excluded.'],factors:[],nextStep:'Schedule a scope review.',message:'Synthetic planning range.',disclaimer:'This is not a bid, quote, offer or guaranteed price.'};
 async function mock(context,{interruptions=false,scenario='full'}={}){
+ // This qualification harness must never reach real business APIs or analytics.
+ // Specific synthetic routes below take precedence over this fail-closed guard.
+ await context.route('**/*',route=>{
+  const url=new URL(route.request().url());
+  if(url.origin!==new URL(base).origin||url.pathname.startsWith('/api/'))return route.abort('blockedbyclient');
+  return route.continue();
+ });
  // Keep synthetic estimator sessions out of production analytics and isolate third-party network failures.
  await context.route(/^https:\/\/([a-z0-9-]+\.)*clarity\.ms\//, route=>route.fulfill({status:200,contentType:'application/javascript',body:''}));
  await context.route('**/api/estimator-session',route=>route.fulfill({status:200,contentType:'application/json',body:'{}'}));
@@ -54,7 +66,7 @@ async function mock(context,{interruptions=false,scenario='full'}={}){
     const files=await Promise.all(form.getAll('files').map(async file=>({id:'test-upload',name:file.name,size:file.size,type:file.type,sha256:createHash('sha256').update(Buffer.from(await file.arrayBuffer())).digest('hex'),status:'stored'})));
     state.saved={...state.saved,uploads:files};return send({draft:state.saved,analysis:null});
    }
-   if(scenario==='progress'&&!state.finishReading)return send({pending:true,progress:'Reading original plan pages',processing:{phase:'reading',message:'Reading the next eight original pages.',readPages:state.readStage*8,totalPages:256,readSections:state.readStage,totalSections:32,currentItems:['Plans.pdf (pages '+(state.readStage*8+1)+' to '+(state.readStage*8+8)+')'],updatedAt:new Date().toISOString()}});
+   if(scenario==='progress'&&!state.finishReading)return send({pending:true,progress:'Reading original plan pages',processing:{phase:'reading',message:'Reading the next eight original pages.',readPages:state.readStage*8,totalPages:250,readSections:state.readStage,totalSections:32,currentItems:['Plans.pdf (pages '+(state.readStage*8+1)+' to '+(state.readStage*8+8)+')'],updatedAt:new Date().toISOString()}});
    const desired=scenario==='unavailable'?{}:scenario==='manual'?{service,taskList:state.saved.answers.taskList||'Repair three interior doors',...(service.startsWith('cabinet-')?{cabinetRoom:'kitchen',cabinetBaseLf:'20',cabinetUpperLf:'0'}:{})}:fullAnswers;
    const extraction={summary:'Synthetic project',facts:Object.entries(desired).map(([field,value])=>({field,value,confidence:.98,source:'scope.txt',evidence:value})),conflicts:scenario==='conflict'?[{field:'taskList',values:['Repair three doors','Replace three doors'],explanation:'The documents disagree. Which work should be included?'}]:[],missingInformation:[],reviewNotes:[],clarifications:[]};
    if(scenario==='instructions')extraction.instructions={...emptyInstructions(),questions:['Labor only or materials only?','Should we include or exclude painting?']};
@@ -74,9 +86,9 @@ async function mock(context,{interruptions=false,scenario='full'}={}){
 }
 async function overflow(page){assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'Horizontal page overflow');}
 async function noPinnedControls(estimator){assert.ok(await estimator.evaluate(root=>[...root.querySelectorAll('button,a')].every(el=>{for(let p=el;p&&p!==document.body&&!p.hasAttribute('data-p5-estimator');p=p.parentElement)if(['fixed','sticky'].includes(getComputedStyle(p).position))return false;return true;})),'An estimator control is pinned over content');}
-async function capture(page,name){await page.evaluate(async()=>{await document.fonts.ready;document.documentElement.style.scrollBehavior='auto';if(document.activeElement instanceof HTMLElement)document.activeElement.blur();window.scrollTo(0,0);});await page.screenshot({path:`p5-verification/${name}.png`,fullPage:true,animations:'disabled'});}
+async function capture(page,name){await page.evaluate(async()=>{await document.fonts.ready;document.documentElement.style.scrollBehavior='auto';if(document.activeElement instanceof HTMLElement)document.activeElement.blur();window.scrollTo(0,0);});await page.screenshot({path:`${output}/${name}.png`,fullPage:true,animations:'disabled'});}
 async function settled(page){await page.waitForFunction(()=>!document.querySelector('[data-p5-estimator][aria-busy=true]'));}
-for(const width of [320,390,430,768,1024,1440,1920]){
+for(const width of progressOnly?[]:[320,390,430,768,1024,1440,1920]){
  const context=await browser.newContext({viewport:{width,height:900},hasTouch:width<768});const state=await mock(context,{interruptions:true});
  const page=await context.newPage();page.setDefaultTimeout(15000);const errors=[];page.on('pageerror',e=>errors.push(e.message));
  try{
@@ -129,7 +141,7 @@ for(const width of [320,390,430,768,1024,1440,1920]){
  }catch(error){const state=await page.evaluate(()=>{const r=document.querySelector('[data-p5-estimator]');if(!r)return {missingEstimator:true,url:location.href,body:document.body.innerText.slice(0,400)};const vis=e=>{const b=e.getBoundingClientRect();return b.width>0&&b.height>0;};return {labels:[...r.querySelectorAll('label')].map(e=>e.innerText.trim().slice(0,40)+(vis(e)?'':' [hidden]')),headings:[...r.querySelectorAll('h1,h2,h3')].map(e=>e.innerText.trim().slice(0,50)),buttons:[...r.querySelectorAll('button')].map(e=>(e.getAttribute('aria-label')||e.innerText).trim().slice(0,40)),text:r.innerText.slice(0,400),url:location.href};}).catch(e=>({captureFailed:String(e).slice(0,200),url:page.url()}));results.push({width,passed:false,error:String(error),pageErrors:errors,state});await capture(page,`${width}-failure`).catch(()=>{});}await context.close();
 }
 // Reproduce two clarification questions, a failed save, same-answer retry and reload.
-for(const width of [390,1440]){
+for(const width of progressOnly?[]:[390,1440]){
  const context=await browser.newContext({viewport:{width,height:900}});const state=await mock(context,{scenario:'instructions'});const page=await context.newPage();
  try{
   await page.goto(base+'/estimate/p5-preview');const est=page.locator('[data-p5-estimator]');
@@ -148,7 +160,7 @@ for(const width of [390,1440]){
  }catch(error){results.push({scenario:'sequential-instructions',width,passed:false,error:String(error)});await capture(page,`${width}-instructions-failure`).catch(()=>{});}await context.close();
 }
 // Project-specific missing questions and a single conflicting fact.
-for(const scenario of ['manual','conflict','unavailable']){
+for(const scenario of progressOnly?[]:['manual','conflict','unavailable']){
  const context=await browser.newContext({viewport:{width:390,height:844}});await mock(context,{scenario});const page=await context.newPage();
  try{
   await page.goto(base+'/estimate/p5-preview');const est=page.locator('[data-p5-estimator]');
@@ -174,7 +186,7 @@ for(const scenario of ['manual','conflict','unavailable']){
  }catch(error){results.push({scenario,passed:false,error:String(error)});await capture(page,`${scenario}-failure`).catch(()=>{});}await context.close();
 }
 // Missing information after Get my estimate links straight to the missing field, keeps progress, and completes.
-for(const width of [390,1440]){
+for(const width of progressOnly?[]:[390,1440]){
  const context=await browser.newContext({viewport:{width,height:900}});const state=await mock(context,{scenario:'missing'});const page=await context.newPage();
  try{
   await page.goto(base+'/estimate/p5-preview');const est=page.locator('[data-p5-estimator]');
@@ -204,13 +216,15 @@ for(const width of [320,390,1440]){
  try{
   await page.goto(base+'/estimate/p5-preview');const est=page.locator('[data-p5-estimator]');
   await est.getByLabel('Tell us about your project',{exact:true}).fill('Synthetic progress test: repair three interior doors.');
-  // The 256-page fixture is prepared in the browser before Continue enables; WebKit on a loaded runner needs more than the default wait.
+  // Page progress only applies when this project actually has an attachment.
+  await est.getByLabel('Upload project files',{exact:true}).setInputFiles({name:'Plans.pdf',mimeType:'application/pdf',buffer:pdfBytes});
+  // Allow bounded preparation to finish before Continue enables on a loaded runner.
   await est.getByRole('button',{name:'Continue',exact:true}).click({timeout:120000});
-  await page.getByText('8 of 256 pages checked',{exact:true}).waitFor();
-  assert.equal(await page.getByRole('progressbar',{name:'Original pages fully read'}).getAttribute('value'),'8');
-  await page.getByRole('heading',{name:'Reading your plans',exact:true}).waitFor();await overflow(page);await capture(page,`${width}-live-reading`);
+  await page.getByText('8 of 250 pages checked',{exact:true}).waitFor();
+  assert.equal(await page.getByRole('progressbar',{name:'Original pages checked'}).getAttribute('value'),'8');
+  await page.getByRole('heading',{name:'Reading your documents',exact:true}).waitFor();await overflow(page);await capture(page,`${width}-live-reading`);
   progressState.readStage=2;
-  await page.getByText('16 of 256 pages checked',{exact:true}).waitFor();
+  await page.getByText('16 of 250 pages checked',{exact:true}).waitFor();
   progressState.finishReading=true;
   await answerBrandQuestions(page,est,est.getByLabel('Your name',{exact:true}));
   assert.equal(await est.getByRole('button',{name:'Download your project summary',exact:true}).count(),0,'No PDF before contact capture');
@@ -224,17 +238,17 @@ for(const width of [320,390,1440]){
   assert.equal(await est.getByLabel('Email',{exact:true}).inputValue(),'customer@example.invalid','Contact email must survive adjacent field edits');
   await est.getByRole('button',{name:'Get my estimate',exact:true}).click();
   await page.getByRole('heading',{name:'Pricing your project',exact:true}).waitFor();
-  assert.equal(await page.getByRole('progressbar',{name:'Original pages fully read'}).count(),0,'Document progress must not become a fabricated pricing percentage');
+  assert.equal(await page.getByRole('progressbar',{name:'Original pages checked'}).count(),0,'Document progress must not become a fabricated pricing percentage');
   progressState.pricingStage='research';
-  await page.getByRole('heading',{name:'Researching missing local rates',exact:true}).waitFor();await overflow(page);await capture(page,`${width}-live-pricing`);
+  await page.getByRole('heading',{name:'Preparing your estimate',exact:true}).waitFor();await overflow(page);await capture(page,`${width}-live-pricing`);
   progressState.pricingStage='done';
   await est.getByText('Synthetic planning range.',{exact:true}).waitFor();results.push({width,scenario:'live-progress',passed:true});
  }catch(error){results.push({width,scenario:'live-progress',passed:false,error:String(error)});await capture(page,`${width}-progress-failure`).catch(()=>{});}await context.close();
 }
 const paths=brand.id==='p5'?['/estimate','/estimate/scope','/quote',...['kitchen-remodel','bathroom-remodel','home-addition','adu','custom-home','custom-cabinets','handyman'].map(s=>'/quote/'+s)]:['/estimate','/estimate/scope','/#calculator',...(brand.services.includes('re10')?['/re-10-repairs-boise']:[]),...(brand.id==='remodeling'?['/remodel-plans-boise']:[])];
-for(const width of [390,768,1440])for(const path of paths){
+for(const width of progressOnly?[]:[390,768,1440])for(const path of paths){
  const context=await browser.newContext({viewport:{width,height:900}});await mock(context);const page=await context.newPage();
  try{const response=await page.goto(base+path);assert.ok(response?.ok(),`HTTP ${response?.status()}`);const est=page.locator('[data-p5-estimator]').first();if(path.includes('#calculator')){await page.locator('#calculator').first().scrollIntoViewIfNeeded();}await est.getByLabel('Tell us about your project',{exact:true}).waitFor();await overflow(page);assert.ok(!/Continue manually|Upload Scope|Manual Estimate/.test(await est.innerText()));results.push({width,path,passed:true});}
  catch(error){results.push({width,path,passed:false,error:String(error)});await capture(page,`route-${width}-${path.replace(/[^a-z0-9]/gi,'_')}`).catch(()=>{});}await context.close();
 }
-await browser.close();await writeFile('p5-verification/browser-results.json',JSON.stringify({brand:brand.id,externalServices:'simulated',physicalMicrophone:'not tested',results},null,2));console.log(JSON.stringify(results));if(results.some(r=>!r.passed))process.exitCode=1;
+await browser.close();await writeFile(`${output}/browser-results.json`,JSON.stringify({brand:brand.id,externalServices:'simulated',physicalMicrophone:'not tested',results},null,2));console.log(JSON.stringify(results));if(results.some(r=>!r.passed))process.exitCode=1;

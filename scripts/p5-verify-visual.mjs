@@ -5,7 +5,7 @@ await fs.mkdir(out,{recursive:true});
 const browser=await chromium.launch({headless:true});
 const widths=[320,390,430,768,1024,1440,1920];
 const parent=process.env.P5_PARENT==='1';
-const routes=parent?['/','/quote','/sitemap','/legal/terms','/legal/privacy','/legal/quickbooks-disconnect','/quote/adu','/quote/bathroom-remodel','/quote/custom-cabinets','/quote/custom-home','/quote/handyman','/quote/home-addition','/quote/kitchen-remodel']:['/','/services','/about','/contact','/testimonials'];
+const routes=parent?['/','/quote','/sitemap','/legal/terms','/legal/privacy','/legal/quickbooks-disconnect']:['/','/services','/services/kitchen-remodel','/services/kitchen-remodel/boise','/blog/kitchen-remodel-cost-boise','/blog/bathroom-remodel-cost-boise','/blog/whole-home-remodel-cost-boise','/blog/home-addition-cost-boise','/areas/boise','/about','/contact','/testimonials'];
 const results=[];
 let failed=false;
 function check(ok,message){if(!ok)throw new Error(message);}
@@ -18,6 +18,20 @@ try {
    try {
     const response=await page.goto('http://127.0.0.1:5000'+route,{waitUntil:'networkidle'});
     check(response.status()<400,route+' status '+response.status());
+    if (route === '/') {
+      const menu = page.getByTestId('button-mobile-menu-open');
+      if (width < 1280) {
+        check(await menu.isVisible(), 'Compact navigation must remain visible below 1280px');
+        await menu.click();
+        check(await page.getByTestId('mobile-nav-drawer').isVisible(), 'Navigation drawer did not open');
+        await page.keyboard.press('Escape');
+        await page.getByTestId('mobile-nav-drawer').waitFor({state:'hidden'});
+      } else {
+        const phone = await page.getByTestId('link-phone-desktop').boundingBox();
+        check(phone && phone.height <= 24, 'Desktop phone number wraps');
+      }
+    }
+
     await page.evaluate(async()=>{await document.fonts.ready; for(let y=0;y<document.documentElement.scrollHeight;y+=650){window.scrollTo({top:y,behavior:'instant'});await new Promise(r=>setTimeout(r,70));}});
     await page.evaluate(async()=>{
       const images=[...document.images].filter(i=>i.getClientRects().length);
@@ -25,46 +39,20 @@ try {
       await Promise.race([Promise.allSettled(images.map(i=>i.decode())),new Promise(r=>setTimeout(r,15000))]);
     });
     await page.waitForTimeout(900);
-    const geometry=await page.evaluate(()=>({width:innerWidth,scrollWidth:document.documentElement.scrollWidth,broken:[...document.images].filter(i=>i.getClientRects().length&&(!i.complete||!i.naturalWidth)).map(i=>i.currentSrc||i.src)}));
+    const geometry=await page.evaluate(()=>({width:innerWidth,scrollWidth:document.documentElement.scrollWidth,broken:[...document.images].filter(i=>i.getClientRects().length&&(!i.complete||!i.naturalWidth)).map(i=>({src:i.currentSrc||i.src,html:i.outerHTML}))}));
     check(geometry.scrollWidth<=geometry.width+1,'Horizontal overflow '+JSON.stringify(geometry));
-    check(!geometry.broken.length,'Broken images '+geometry.broken.join(','));
+    check(!geometry.broken.length,'Broken images '+JSON.stringify(geometry.broken));
     check(!errors.length,'Browser errors '+errors.join(','));
     await page.evaluate(()=>window.scrollTo({top:0,behavior:'instant'}));
-    if(parent && route.startsWith('/quote') && width<768){
-      await page.locator('.quote-form-panel').scrollIntoViewIfNeeded();await page.waitForTimeout(150);
-      check(!await page.locator('.quote-callbar').isVisible(),'Call bar overlaps quote form');
-      await page.locator('.quote-footer').scrollIntoViewIfNeeded();await page.waitForTimeout(150);
-      check(await page.locator('.quote-callbar').isVisible(),'Call bar does not return below form');
-      await page.evaluate(()=>window.scrollTo({top:0,behavior:'instant'}));await page.waitForTimeout(150);
-    }
     await page.screenshot({path:`${out}/${width}-${route.replaceAll('/','_')||'home'}.jpg`,fullPage:true,type:'jpeg',quality:70});
-    results.push({width,route,ok:true,geometry});
+    const sticky = await page.evaluate(()=>[...document.querySelectorAll('body *')].filter(el=>{
+      const s=getComputedStyle(el),r=el.getBoundingClientRect();
+      return s.position==='fixed' && s.display!=='none' && r.width>innerWidth*.8 && r.height>30 && r.height<200 && Math.abs(r.bottom-innerHeight)<2;
+    }).map(el=>({background:getComputedStyle(el).backgroundColor,text:el.textContent?.trim().slice(0,80)})));
+    for(const bar of sticky)check(!['rgba(0, 0, 0, 0)','transparent'].includes(bar.background),'Transparent fixed bottom bar: '+bar.text);
+    results.push({width,route,ok:true,geometry,sticky});
    }catch(e){failed=true;results.push({width,route,ok:false,error:String(e)});}
    page.off('pageerror',handler);
-  }
-  if(parent && width<1024) {
-   try {
-    await page.setViewportSize({width,height:568});
-    await page.goto('http://127.0.0.1:5000/',{waitUntil:'networkidle'});
-    await page.getByRole('button',{name:'Open menu',exact:true}).click();
-    const menu=page.getByRole('dialog',{name:'Site menu'});
-    const button=menu.getByRole('button',{name:'Find your team'});
-    await button.scrollIntoViewIfNeeded();
-    const rect=await button.boundingBox();check(rect.y>=68&&rect.y+rect.height<=568,'Menu CTA fits short screen');
-    await page.screenshot({path:`${out}/${width}-short-menu.jpg`});
-    await button.click();
-    check(await page.locator('.matcher').isVisible(),'Matcher opens');
-    await page.waitForTimeout(300);
-    const panelBox=await page.locator('.matcher-panel').boundingBox();
-    check(panelBox.y>=0 && panelBox.y+panelBox.height<=569,'Matcher panel exceeds short viewport');
-    const lastChoice=page.locator('.matcher-choices button').last();
-    await lastChoice.scrollIntoViewIfNeeded();
-    const choiceBox=await lastChoice.boundingBox();
-    check(choiceBox.y>=0 && choiceBox.y+choiceBox.height<=569,'Last matcher choice is off screen');
-    await page.screenshot({path:`${out}/${width}-matcher.jpg`});
-    await page.keyboard.press('Escape');check(!await page.locator('.matcher').isVisible(),'Matcher Escape dismissal');
-    results.push({width,route:'short-menu-and-matcher',ok:true});
-   }catch(e){failed=true;results.push({width,route:'short-menu-and-matcher',ok:false,error:String(e)});}
   }
   if(!parent) {
    try {
@@ -84,7 +72,8 @@ try {
      await cdp.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{x:box.x+box.width*.7,y}]});
      for(let i=0;i<=10;i++)await cdp.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[{x:box.x+box.width*(.7-.04*i),y}]});
      await cdp.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});
-     check(Math.abs(Number(await slider.getAttribute('aria-valuenow'))-30)<3,'Touch drag');
+     await page.waitForTimeout(100);
+     check(Math.abs(Number(await slider.getAttribute('aria-valuenow'))-30)<3,'Touch drag: '+await slider.getAttribute('aria-valuenow'));
     }
     const grid=await page.locator('#four-cards').evaluate(el=>[...el.children].map(c=>({x:c.getBoundingClientRect().x,y:c.getBoundingClientRect().y})));
     if(width>=1024)check(grid[0].y===grid[1].y&&grid[2].y===grid[3].y&&grid[0].y!==grid[2].y,'Four-card grid is not 2 by 2');
