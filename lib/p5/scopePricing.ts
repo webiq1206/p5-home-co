@@ -44,7 +44,7 @@ const planningSchema=z.object({rates:z.array(planningRate).max(60),issues:z.arra
  * stage, so a longer per-stage allowance costs wall-clock only when research
  * is genuinely still working. */
 /** Elapsed time from the pricing job's start after which no repair round is started; findings are disclosed with the range instead. */
-export const REPAIR_BUDGET_MS=Number(process.env.P5_REPAIR_BUDGET_MS||150000);
+export const REPAIR_BUDGET_MS=Number(process.env.P5_REPAIR_BUDGET_MS||210000);
 /** Elapsed time from the job's start after which published research is no longer attempted and the planning average is used directly. */
 /** Live web cost research while the customer waits. On production every search batch
  * ran to its 60 s limit and the estimate used the planning allowance anyway, so the
@@ -349,7 +349,11 @@ export function catalogResolution(mapping:Mapping,configuration:EstimatorConfigu
 
 type QuantityClaim={quantity:number;unit:string};
 const NUMBER_WORDS:Record<string,number>={one:1,two:2,three:3,four:4,five:5,six:6,seven:7,eight:8,nine:9,ten:10,eleven:11,twelve:12,thirteen:13,fourteen:14,fifteen:15,sixteen:16,seventeen:17,eighteen:18,nineteen:19,twenty:20};
-const UNKNOWN_QUANTITY=/\b(?:unknown|not\s+(?:known|documented|specified|provided|measured|shown)|undocumented|unmeasured|tbd|to\s+be\s+determined|n\/?a)\b/i;
+const UNKNOWN_WORDS=/\b(?:unknown|not\s+(?:known|documented|specified|provided|measured|shown)|undocumented|unmeasured|tbd|to\s+be\s+determined|n\/?a)\b/i;
+// "Replace one outlet; interior floor not specified" has a stated quantity of one. What is
+// unknown there is where, or which model - never how much - so it is removed before the test.
+const UNKNOWN_NON_QUANTITY=/\b(?:floor|level|story|storey|location|building|room|model|type|brand|manufacturer|finish|colou?r|specifications?|spec|material|fuel|schedule|date)s?\b[^.;,:]{0,40}?\b(?:unknown|not\s+(?:known|documented|specified|provided|shown|stated)|tbd|to\s+be\s+determined|n\/?a)\b/gi;
+const UNKNOWN_QUANTITY={test:(value:string)=>UNKNOWN_WORDS.test(value.replace(UNKNOWN_NON_QUANTITY,' '))};
 const UNSELECTED_SCOPE=/\b(?:alternate|alternative|optional|not\s+selected|not\s+included|excluded|by\s+others|previous(?:ly)?\s+proposed|discarded)\b/i;
 const INCLUDED_SCOPE=/\b(?:included|selected|requested|approved|retain(?:ed)?|keep|kept|yes)\b/i;
 const TASK_STATUS_SCOPE=/\b(?:alternate|alternative|optional|not\s+selected|not\s+included|by\s+others|previous(?:ly)?\s+proposed|discarded)\b/i;
@@ -641,6 +645,14 @@ export function advisoryIssue(text:string):boolean{
   // "assumed overhead and profit" - disputes the owner's method, not the estimate. On a live
   // repair list this one opinion rejected every approved labor line and withheld the range.
   if(/\bscope-\d+\b/.test(t)&&/selling[- ](?:price|rate)s?[- ]to[- ]direct[- ]cost|reverse[- ]engineer|historical (?:customer )?selling (?:rates?|prices?)|unevidenced margin|assumed \d+% overhead/.test(t)&&!/duplicat|double[- ]count|wrong (?:unit|uom|responsibilit)|fabricat|out of scope|does not match/.test(t))return true;
+  // Every line in a preliminary range is a budget allowance and is labelled as one. A finding that a
+  // priced line lacks a citation, rests on general estimating knowledge, is "not a planning-* line",
+  // or should call its modeled quantity an allowance is a remark on the evidence for a line that
+  // exists - disclosure, not a missing price. Each live run raised a different one of these and each
+  // one withheld the whole range. Omitted, duplicated, mismatched or out-of-scope work still blocks.
+  if(/\b(?:scope|planning|market|repair-scope)-\d+\b/.test(t)
+    &&/uncited|general estimating knowledge|published estimating guide|construction[- ]cost database|not a planning-\S* line|supportably priced|rather than a verified quantity|modeled allowance|label(?:ed|led)? as an? (?:modeled |quantity )?allowance/.test(t)
+    &&!/duplicat|double[- ]count|\bomit|omission|wrong (?:unit|uom|responsibilit)|fabricat|out of scope|does not match the explicit|no positive/.test(t))return true;
   // An allowance basis never excuses omitted work or a rejected priced line.
   // Check concrete defects before the planning-basis exceptions below.
   if(/duplicat|double[- ]count|\bomit|omission|\bunpriced\b|missing (?:work|materials?|labor|components?|quantit(?:y|ies)|scope)|not (?:fully |been )?(?:priced|covered|included|supported)|no positive priced|not converted into a priced line|does not match|disagrees|wrong (?:unit|uom|responsibilit)|fabricat|out of scope/.test(t))return false;
@@ -866,7 +878,7 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
     // An audit note about a planning allowance's basis, or a task left uncovered only because a planning or sourced allowance prices it, is disclosure, not a reason for a repair round.
     const allowancePricedTask=(taskId:string)=>resolution.rules.some(rule=>rule.scopeTaskId===taskId&&(rule.id.startsWith('planning-')||rule.id.startsWith('market-'))&&rule.quantity.fixed!==undefined&&rule.quantity.fixed>0);
     // The same holds for a task priced from the owner's approved schedule when every finding the check raised is advisory.
-    const schedulePricedTask=(taskId:string)=>audit.issues.length>0&&audit.issues.every(advisoryIssue)&&resolution.rules.some(rule=>rule.scopeTaskId===taskId&&rule.quantity.fixed!==undefined&&rule.quantity.fixed>0&&rule.unitCost>0);
+    const schedulePricedTask=(taskId:string)=>!audit.issues.some(issue=>!advisoryIssue(issue)&&issue.toLowerCase().includes(taskId.toLowerCase()))&&resolution.rules.some(rule=>rule.scopeTaskId===taskId&&rule.quantity.fixed!==undefined&&rule.quantity.fixed>0&&rule.unitCost>0);
     const blockingAuditIssues=audit.issues.filter(issue=>!advisoryIssue(issue));
     // A repair round costs a second mapping, research and audit. Past the repair budget (measured from the pricing job's start) the
     // scope stays saved with unresolved findings; time alone cannot authorize a partial price.
@@ -991,7 +1003,9 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
     for(const t of mapping.tasks)if(!audit.coveredTaskIds.includes(t.id)){
       // A task the audit did not cover but that a planning or sourced allowance prices positively is released with that caveat; the audit's own findings about it are classified above.
       const allowancePriced=resolution.rules.some(rule=>rule.scopeTaskId===t.id&&rule.quantity.fixed!==undefined&&rule.quantity.fixed>0&&rule.unitCost>0);
-      if(allowancePriced&&audit.issues.length>0&&audit.issues.every(advisoryIssue))resolution.assumptions.push(`${t.description}: priced by a preliminary allowance pending published research; confirm current local rates before a firm proposal.`);
+      // Judged task by task: one blocking finding about the chimney does not un-cover the outlets.
+      const named=(issue:string)=>{const text=issue.toLowerCase();return text.includes(t.id.toLowerCase())||text.includes(t.description.toLowerCase());};
+      if(allowancePriced&&!audit.issues.some(issue=>!advisoryIssue(issue)&&named(issue)))resolution.assumptions.push(`${t.description}: priced by a preliminary allowance pending published research; confirm current local rates before a firm proposal.`);
       else resolution.issues.push(`${t.description}: full pricing coverage has not been verified.`);
     }
   }catch(error){

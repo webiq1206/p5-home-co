@@ -256,3 +256,17 @@ test('planning-book wording links back to the unanswered quantity question',()=>
   assert.equal(missingNoteField('Missing quantity: sqftage'),null,'an unknown field is not offered');
   assert.deepEqual(missingScopeFields(['Missing quantity: cabinetUpperLf','Missing quantity: sqft','Missing quantity: sqft']).map(f=>f.field).sort(),['cabinetUpperLf','sqft']);
 });
+
+test('an unknown floor or model is not an unknown quantity; evidence remarks on a priced line are disclosure',async()=>{
+  const {advisoryIssue}=await import('../lib/p5/scopePricing.ts');
+  const outlet={...extra,id:'outlet',description:'Seller to replace one outlet in the front corner bedroom to correct the grounding issue; interior floor not specified.',evidence:'one outlet',researchDescription:'Replace one receptacle'};
+  const rate={...planned.rates[0],taskId:'outlet',description:'Replace one receptacle',unit:'each',quantity:1,quantityEvidence:'One outlet requested',basis:'subcontractor-installed',low:60,high:140};
+  const resolved=planningResolution({...planned,rates:[rate]},[outlet],now,0,'Boise');
+  assert.equal(resolved.rules.length,1);assert.deepEqual(resolved.issues,[]);
+  const unknownCount={...outlet,description:'Replace receptacles; quantity not specified.',evidence:''};
+  assert.ok(planningResolution({...planned,rates:[{...rate,quantity:4}]},[unknownCount],now,0,'Boise').issues.some(i=>/unmeasured/.test(i)));
+  assert.equal(advisoryIssue('plumbing-vent-boots is not supportably priced: scope-1 is not a planning-* line and relies only on uncited general estimating knowledge rather than a published estimating guide, construction-cost database, or approved catalog rate.'),true);
+  assert.equal(advisoryIssue('gfci-receptacles has incorrect quantity evidence: planning-201 states that six devices are explicitly requested, but the RE-10 does not state a count. Scope-7 models six locations, so planning-201 must identify six as a modeled allowance rather than a verified quantity before the task is treated as fully covered.'),true);
+  assert.equal(advisoryIssue('scope-1 is uncited and duplicates scope-2'),false);
+  assert.equal(advisoryIssue('The sprinkler pump task has no positive priced line.'),false);
+});
