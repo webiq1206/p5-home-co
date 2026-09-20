@@ -25,10 +25,11 @@ import type {EstimatorConfiguration, ScopePriceResolution} from './costBook.ts';
  * projection is rebuilt from the draft being priced, so nothing another
  * visitor typed can travel into this one's estimate.
  */
-export interface PricingCacheEntry { resolution:ScopePriceResolution; auditTrail:unknown }
+export interface PricingCacheEntry { resolution:ScopePriceResolution; auditTrail:unknown; answers?:[string,string][] }
+export interface PricingCacheKeys { fingerprint:string; document:string }
 export interface PricingCache {
-  load(fingerprint:string):Promise<PricingCacheEntry|null>;
-  save(fingerprint:string,entry:PricingCacheEntry):Promise<void>;
+  load(keys:PricingCacheKeys):Promise<PricingCacheEntry|null>;
+  save(keys:PricingCacheKeys,entry:PricingCacheEntry):Promise<void>;
 }
 const digest=(value:unknown)=>createHash('sha256').update(JSON.stringify(value)).digest('hex');
 const words=(value:unknown)=>String(value??'').replace(/\s+/g,' ').trim().toLowerCase();
@@ -57,6 +58,36 @@ export function pricingScopeFingerprint(scope:ReviewedScope,configuration:Estima
     configurationIdentity(configuration),
   ]);
 }
+/**
+ * The identity of the PROJECT rather than of one conversation about it.
+ *
+ * Which clarifications the reader asks varies from one run to the next, so the answers vary, so
+ * the exact identity above varies - and a visitor re-uploading one document saw a second price
+ * purely because they were asked different questions. This key covers what the customer actually
+ * brought: their documents, their typed scope, and the service. A saved price found under it is
+ * replayed only when nothing the customer stated this time contradicts what was priced before.
+ */
+export function documentScopeFingerprint(scope:ReviewedScope,configuration:EstimatorConfiguration):string{
+  return digest([
+    'p5-price-doc-v1',ESTIMATOR_VERSION,ESTIMATOR_BRAND.id,
+    words(scope.answers?.service),
+    words(scope.text),
+    (scope.uploads||[]).filter(upload=>upload.status==='stored').map(upload=>upload.sha256).filter(Boolean).sort(),
+    configurationIdentity(configuration),
+  ]);
+}
+export const answerEntries=(scope:ReviewedScope)=>answerIdentity(scope.answers as unknown as Record<string,unknown>).map(([k,v])=>[k,v] as [string,string]);
+/**
+ * Whether a saved price still describes what this visitor is asking for. Every field they have
+ * stated in both runs must agree. A field only one run holds is a question the other was never
+ * asked, which is exactly the drift this key exists to absorb; a field they answered differently
+ * is a different project, and it prices again.
+ */
+export function compatibleAnswers(saved:[string,string][]|undefined,current:[string,string][]):boolean{
+  if(!saved)return false;
+  const before=new Map(saved);
+  return current.every(([field,value])=>!before.has(field)||before.get(field)===value);
+}
 /** How long a saved price may be replayed. A rate carries its own validity; this stays inside it. */
 export const pricingCacheDays=()=>{
   const configured=Number(process.env.P5_PRICING_CACHE_DAYS||'');
@@ -80,25 +111,35 @@ export function databasePricingCache():PricingCache{
   // Created on first use, the way the charge ledger creates its own tables: a table declared in
   // the shared schema but absent from a brand's database turns a publish into a schema migration.
   let ready:Promise<unknown>|null=null;
-  const table=()=>ready||(ready=query(`CREATE TABLE IF NOT EXISTS p5_estimator_price_cache (
-    fingerprint text PRIMARY KEY, payload jsonb NOT NULL,
-    created_at timestamptz NOT NULL DEFAULT now(), used_at timestamptz NOT NULL DEFAULT now(),
-    uses integer NOT NULL DEFAULT 0)`));
+  const table=()=>ready||(ready=(async()=>{
+    await query(`CREATE TABLE IF NOT EXISTS p5_estimator_price_cache (
+      fingerprint text PRIMARY KEY, payload jsonb NOT NULL,
+      created_at timestamptz NOT NULL DEFAULT now(), used_at timestamptz NOT NULL DEFAULT now(),
+      uses integer NOT NULL DEFAULT 0)`);
+    await query('ALTER TABLE p5_estimator_price_cache ADD COLUMN IF NOT EXISTS document text');
+    await query('CREATE INDEX IF NOT EXISTS p5_estimator_price_cache_document ON p5_estimator_price_cache(document,created_at DESC)');
+  })());
+  const reuse=(fingerprint:string)=>query('UPDATE p5_estimator_price_cache SET used_at=now(),uses=uses+1 WHERE fingerprint=$1',[fingerprint]).catch(()=>undefined);
+  const entry=(row:Record<string,any>|undefined)=>row?(typeof row.payload==='string'?JSON.parse(row.payload):row.payload) as PricingCacheEntry:null;
   return {
-    async load(fingerprint){
+    async load(keys){
       await table();
-      const rows=await query(`SELECT payload FROM p5_estimator_price_cache
-        WHERE fingerprint=$1 AND created_at>now()-($2||' days')::interval`,[fingerprint,String(pricingCacheDays())]);
-      if(!rows.length)return null;
-      // Record the reuse, but never let bookkeeping fail a priced estimate.
-      await query('UPDATE p5_estimator_price_cache SET used_at=now(),uses=uses+1 WHERE fingerprint=$1',[fingerprint]).catch(()=>undefined);
-      const payload=rows[0].payload;
-      return (typeof payload==='string'?JSON.parse(payload):payload) as PricingCacheEntry;
+      const days=String(pricingCacheDays());
+      // The same conversation first; then the same project, whatever it was asked this time.
+      const exact=await query(`SELECT payload FROM p5_estimator_price_cache
+        WHERE fingerprint=$1 AND created_at>now()-($2||' days')::interval`,[keys.fingerprint,days]);
+      if(exact.length){void reuse(keys.fingerprint);return entry(exact[0]);}
+      const sameProject=await query(`SELECT fingerprint,payload FROM p5_estimator_price_cache
+        WHERE document=$1 AND created_at>now()-($2||' days')::interval ORDER BY created_at DESC LIMIT 1`,[keys.document,days]);
+      if(!sameProject.length)return null;
+      void reuse(String(sameProject[0].fingerprint));
+      return entry(sameProject[0]);
     },
-    async save(fingerprint,entry){
+    async save(keys,saved){
       await table();
-      await query(`INSERT INTO p5_estimator_price_cache(fingerprint,payload) VALUES($1,$2::jsonb)
-        ON CONFLICT(fingerprint) DO UPDATE SET payload=EXCLUDED.payload,created_at=now()`,[fingerprint,JSON.stringify(entry)]);
+      await query(`INSERT INTO p5_estimator_price_cache(fingerprint,document,payload) VALUES($1,$2,$3::jsonb)
+        ON CONFLICT(fingerprint) DO UPDATE SET payload=EXCLUDED.payload,document=EXCLUDED.document,created_at=now()`,
+        [keys.fingerprint,keys.document,JSON.stringify(saved)]);
     },
   };
 }

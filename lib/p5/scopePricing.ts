@@ -9,7 +9,7 @@ import {PricingPending,PricingStageTimeout,isPricingPending,isPricingStageTimeou
 import {suggestedTrade} from './trades.ts';
 import {priceReviewedScope,type CostRule,type EstimatorConfiguration,type ScopePriceResolution} from './costBook.ts';
 import type {ReviewedScope,ScopeExtraction} from './scope.ts';
-import {pricingScopeFingerprint,reusableResolution,type PricingCache} from './pricingCache.ts';
+import {pricingScopeFingerprint,documentScopeFingerprint,answerEntries,compatibleAnswers,reusableResolution,type PricingCache} from './pricingCache.ts';
 import {hasRestrictedScope,INSTRUCTION_POLICY} from './instructions.ts';
 import {activePricingSource,pricingSourceParts} from './pricingSources.ts';
 import {missingScopeFields} from './missingFields.ts';
@@ -767,11 +767,11 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
   // The same document, answered the same way, prices to the same number: a saved resolution is
   // replayed instead of asking the provider to read and map it a second time. The projection is
   // rebuilt from THIS draft below, so only the pricing travels, never another visitor's words.
-  const fingerprint=cache?pricingScopeFingerprint(scope,configuration):'';
-  if(cache){
-    const saved=await cache.load(fingerprint).catch(error=>{console.error('[p5-pricing] the saved price could not be read:',error instanceof Error?error.message:error);return null;});
-    if(saved&&reusableResolution(saved.resolution)){
-      console.log(`[p5-pricing] replayed the saved price for this scope (${fingerprint.slice(0,12)})`);
+  const keys=cache?{fingerprint:pricingScopeFingerprint(scope,configuration),document:documentScopeFingerprint(scope,configuration)}:null;
+  if(cache&&keys){
+    const saved=await cache.load(keys).catch(error=>{console.error('[p5-pricing] the saved price could not be read:',error instanceof Error?error.message:error);return null;});
+    if(saved&&reusableResolution(saved.resolution)&&compatibleAnswers(saved.answers,answerEntries(scope))){
+      console.log(`[p5-pricing] replayed the saved price for this project (${keys.document.slice(0,12)})`);
       return finishScopePricing(scope,configuration,now,saved.resolution,saved.auditTrail as {tasks:unknown[]},activePricingSource(scope).extraction);
     }
   }
@@ -1114,7 +1114,7 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
   resolution.assumptions.push(...disclosed.map(item=>/^to confirm:/i.test(item)?item:`To confirm: ${item}`));
   resolution.issues=kept;
   resolution.completeScopeVerified=Boolean(auditTrail.verification)&&kept.length===0;
-  if(cache&&reusableResolution(resolution))await cache.save(fingerprint,{resolution,auditTrail}).catch(error=>console.error('[p5-pricing] the priced result could not be saved for reuse:',error instanceof Error?error.message:error));
+  if(cache&&keys&&reusableResolution(resolution))await cache.save(keys,{resolution,auditTrail,answers:answerEntries(scope)}).catch(error=>console.error('[p5-pricing] the priced result could not be saved for reuse:',error instanceof Error?error.message:error));
   return finishScopePricing(scope,configuration,now,resolution,auditTrail,pricingExtraction);
 }
 /** Render a finished pricing resolution for one draft. Shared by a fresh pricing pass and by the
