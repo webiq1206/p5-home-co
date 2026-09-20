@@ -1,7 +1,7 @@
 {
  "source": "boise-remodeling-co",
- "commit": "da758ae9aae65cea553e32d4d7fb4ba24d264bf0",
- "generatedAt": "2026-09-20T15:06:25.857Z",
+ "commit": "3be007e92959056589fdd72de68d8821bd3cc0ad",
+ "generatedAt": "2026-09-20T15:12:32.164Z",
  "note": "Shared estimator files. Edit them in boise-remodeling-co and run scripts/p5-sync.mjs; never edit them in one brand.",
  "files": {
   "app/admin/p5-estimators/page.tsx": "80b9e20e4144c34a9f78033ab1b84e2555e42c44e670050b9e0fcbffa477512e",
@@ -67,7 +67,7 @@
   "lib/p5/multipart.ts": "7a6fc7409f7d2eb79e6d95ebde4232a88f4a5c3e0b0f0eb01d6caa3cbaa991f2",
   "lib/p5/objectStorage.ts": "85847be9ed74090540c80ee54a5dfb14e4bd96c796f9d1e3fee6ab29e6fcacb5",
   "lib/p5/origin.ts": "14590525c4e443514bd0e73ec20b8190209842631893fac5606c55de7d25924e",
-  "lib/p5/outbox.ts": "1feb390f23d982924c05989fd30f92924ea97ce5b828d4ad820cde8f4be090d1",
+  "lib/p5/outbox.ts": "d6c0087970530e98b54fa11b7239f9e55bb28c5b6eca4bcf4bf81aad848ab3fd",
   "lib/p5/pdf.ts": "6c00dd2902f1c8be91bc7b07fe262d9a4b34fdcefa0af37472151dcb74e8a366",
   "lib/p5/pdfAccess.ts": "14f75bd71777338ac90a1e81ece3defb6ce391fff1a6b108e2d581137cc7bc98",
   "lib/p5/pdfText.ts": "19cbbb629f38542cb770d96a3ccc46bcf15f311dc3af0443693893a63fedbb51",
