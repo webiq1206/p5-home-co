@@ -461,13 +461,19 @@ test('Explicit cutting-waste allowances increase purchased material without incr
  assert.deepEqual(valid.rules.map(rule=>rule.quantity.fixed),[132,120]);assert.deepEqual(valid.issues,[]);
  assert.equal(valid.rules[0].allowance,true);assert.deepEqual(valid.rules[0].quantityRange,{low:120,high:132});
  for(const changed of [
-  {code:'03-15-02-L'},
-  {quantity:144},
-  {quantityRange:null},
-  {quantityRange:{low:133,high:140}},
+  {code:'03-15-02-L'},            // installed labor may never carry waste
+  {quantity:144},                 // 20% is past ordinary cutting waste
+  {quantityRange:null},           // an overage needs a range that contains it
+  {quantityRange:{low:133,high:140}}, // and the range must actually contain it
+ ]){const rejected=resolve([{...waste,...changed}]);assert.equal(rejected.rules.length,0,JSON.stringify(changed));assert.ok(rejected.issues.some(issue=>/does not match/.test(issue)));}
+ // Changed on purpose 2026-09-20: a PURCHASE up to 15% over one stated quantity, inside a range
+ // that contains it, is ordinary cutting waste and is allowed even when the evidence does not
+ // spell the arithmetic out. Demanding that exact wording rejected 990 SF of vapor barrier
+ // against 900 SF installed on live repair lists and withheld the entire estimate each time.
+ for(const changed of [
   {quantityEvidence:'ALLOWANCE: 132 LF including waste.'},
   {quantityEvidence:'ALLOWANCE: 100 LF installed plus 10% cutting waste = 132 LF purchased.'},
- ]){const rejected=resolve([{...waste,...changed}]);assert.equal(rejected.rules.length,0,JSON.stringify(changed));assert.ok(rejected.issues.some(issue=>/does not match/.test(issue)));}
+ ]){const allowed=resolve([{...waste,...changed}]);assert.equal(allowed.rules.length,1,JSON.stringify(changed));assert.equal(allowed.rules[0].quantity.fixed,132);assert.deepEqual(allowed.issues,[]);}
 });
 
 test('A mapping batch that times out is halved and both halves are priced',async()=>{

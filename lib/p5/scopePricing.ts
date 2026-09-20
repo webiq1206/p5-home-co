@@ -493,7 +493,17 @@ function quantityIssues(task:Mapping['tasks'][number],addition:{quantity:number;
   if(unknown&&!allowance&&!matching.length)issues.push(`${task.description}: quantity remains unmeasured; do not publish a confirmed ${unit} quantity.`);
   if(unknown&&allowance&&!addition.quantityEvidence.match(/ALLOWANCE\s*:/i))issues.push(`${task.description}: unresolved quantity allowances must be labeled.`);
   if(unknown&&allowance&&!addition.quantityRange)issues.push(`${task.description}: an allowance for an unresolved quantity needs a positive quantity range.`);
-  if(matching.length&&(!matching.some(claim=>Math.abs(claim.quantity-addition.quantity)<0.0001)||matching.length>1)&&!isCorrectionEvidence(evidence)&&!procurementAllowance){
+  // PURCHASED material ordinarily exceeds the installed quantity by cutting waste, and the
+  // strict form above demands the arithmetic spelled out in the evidence. Requiring that exact
+  // wording rejected 990 SF of vapor barrier against 900 SF installed on live repair lists, over
+  // and over, and took the whole estimate with it. A purchase up to 15% above ONE stated quantity,
+  // inside a supplied range that contains it, is ordinary waste: it is allowed and disclosed.
+  // Installed labor, a larger gap, and a quantity that contradicts the scope keep the original hold.
+  const overageRange=addition.quantityRange;
+  const plainOverage=materialPurchase&&matching.length===1&&addition.quantity>matching[0].quantity
+    &&addition.quantity<=matching[0].quantity*1.15
+    &&Boolean(overageRange&&overageRange.low>0&&overageRange.low<=addition.quantity&&overageRange.high>=addition.quantity);
+  if(matching.length&&(!matching.some(claim=>Math.abs(claim.quantity-addition.quantity)<0.0001)||matching.length>1)&&!isCorrectionEvidence(evidence)&&!procurementAllowance&&!plainOverage){
     issues.push(`${task.description}: mapped ${addition.quantity} ${unit} does not match the explicit quantity in the reviewed scope.`);
   }
   // A bench/counter top can share LF units with cabinetry but is not evidence
