@@ -1,13 +1,13 @@
 {
  "source": "boise-remodeling-co",
- "commit": "e18ed730bfc7e57aba2f42c726eb7b5939c7f7aa",
- "generatedAt": "2026-09-20T16:02:46.219Z",
+ "commit": "a4e19ecebe0932e1ac396ea2bb15f83c10bf9f2b",
+ "generatedAt": "2026-09-20T16:16:37.669Z",
  "note": "Shared estimator files. Edit them in boise-remodeling-co and run scripts/p5-sync.mjs; never edit them in one brand.",
  "files": {
   "app/admin/p5-estimators/page.tsx": "80b9e20e4144c34a9f78033ab1b84e2555e42c44e670050b9e0fcbffa477512e",
   "app/api/p5-estimator/draft/route.ts": "0ea604e39ed5df91766a87eed6a5b6936342cd13f77c16facc5fac7f140c4a66",
   "app/api/p5-estimator/pdf/route.ts": "4cac38114fc40b15faeda8011da82ddaf6df68283426b672d516143389d8d7b0",
-  "app/api/p5-estimator/release/route.ts": "3da5b9bdf65ca6578d3d150e6a203ffaf030d8133eedd56831b47486b3abd145",
+  "app/api/p5-estimator/release/route.ts": "021cf8d003814556f646f6414df2a2da0c276e8090028f87020dcb2be47fd731",
   "app/api/p5-estimator/scope/route.ts": "4b64ecfd940f9e9589eb68b369e4beead35b7b25aa369b49a8290311b0265a3e",
   "app/api/p5-estimator/submit/route.ts": "e1f58ea430692d73df1c72f51b05f33c72caaec6c30687ea2b187c509c64184c",
   "app/api/p5-estimator/upload/route.ts": "30513ebab4a4f175e0f31d03efceaf020ac3f6cc0d104a6d1779fe5580a14907",
