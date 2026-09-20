@@ -99,3 +99,22 @@ test('A typed whole-building budget is priced by the planning model directly, wi
  assert.equal(wholeBuildingPlanningBudget({...reviewed,answers:{...answers,service:'bathroom'}},null,false),false);
  assert.equal(wholeBuildingPlanningBudget(reviewed,null,false),true);
 });
+
+test('A reader listing what a new home includes is not a customer restriction; real limits still are',async()=>{
+ const {hasRestrictedScope}=await import('../lib/p5/instructions.ts');
+ const base={...emptyInstructions()};
+ // The instructions the production reader returned for the 3,500 SF new-home request.
+ const newHome={...base,floors:['Floor 1','Floor 2'],buildings:['Single-family home (main structure with attached garage)'],inclusions:['Two-story single-family home, 3,500 sf conditioned living space','1,000 sf attached garage','Premium finishes throughout']};
+ assert.equal(hasRestrictedScope({service:'new-construction',sqft:'3500'},newHome),false);
+ assert.equal(hasRestrictedScope({service:'adu',sqft:'800'},{...base,inclusions:['Detached 800 sf ADU, single story']}),false);
+ // Real limits keep the item-by-item pipeline.
+ assert.equal(hasRestrictedScope({service:'adu'},{...base,laborOnly:true,inclusions:['Framing labor for 800 sf ADU']}),true);
+ assert.equal(hasRestrictedScope({service:'new-construction'},{...base,inclusions:['Interior trim only']}),true);
+ assert.equal(hasRestrictedScope({service:'new-construction'},{...base,inclusions:['Baseboard and door casing']}),true,'a trade list that never describes the building is a limited scope');
+ assert.equal(hasRestrictedScope({service:'new-construction'},{...newHome,exclusions:['Landscaping']}),true);
+ assert.equal(hasRestrictedScope({service:'new-construction',exclusions:'No plumbing'},newHome),true);
+ assert.equal(hasRestrictedScope({service:'new-construction'},{...newHome,separateBuildings:true}),true);
+ // Remodel and repair services are unchanged: a listed inclusion there is the scope.
+ assert.equal(hasRestrictedScope({service:'bathroom'},{...base,inclusions:['Install new porcelain floor tile']}),true);
+ assert.equal(hasRestrictedScope({service:'bathroom'},base),false);
+});
