@@ -28,7 +28,13 @@ export async function postSubmission(request:Request,schedule?:(task:()=>Promise
       // A status check after submission drives any delivery still queued; an autoscale host has no CPU between requests.
       // Delivery is scoped to this saved revision so a status check never drives another revision's queue.
       await processOutbox({draftId:id,revision:draft.revision,limit:12}).catch(()=>undefined);
-      return json({accepted:false,duplicate:true,id,result:publicResult(row.customer_estimate),delivery:await deliveryStatus(id)});
+      // This is the status poll the result screen runs while delivery finishes. It must never 500:
+      // the visitor already has the estimate on screen, and a failure here only makes the page
+      // look broken after a successful job. A missing row or a delivery lookup that cannot run
+      // is reported as "still sending", which is what the next poll will resolve.
+      const saved=row?.customer_estimate?publicResult(row.customer_estimate):null;
+      const delivered=await deliveryStatus(id).catch(error=>{console.error(`[p5-delivery] status lookup failed for draft ${id}:`,error instanceof Error?error.message:error);return [];});
+      return json({accepted:false,duplicate:true,id,...(saved?{result:saved}:{}),delivery:delivered});
     }
     const body=JSON.parse(new TextDecoder().decode(await limitedBody(request,4000)));
     if(body.revision!==draft.revision)throw new DraftError("Save the latest scope before submitting.",409);
