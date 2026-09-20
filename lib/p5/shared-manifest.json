@@ -1,7 +1,7 @@
 {
  "source": "boise-remodeling-co",
- "commit": "a840ce4320a3a8fb6be132cb331aaaadad5d57fc",
- "generatedAt": "2026-09-20T15:41:06.607Z",
+ "commit": "e18ed730bfc7e57aba2f42c726eb7b5939c7f7aa",
+ "generatedAt": "2026-09-20T16:02:46.219Z",
  "note": "Shared estimator files. Edit them in boise-remodeling-co and run scripts/p5-sync.mjs; never edit them in one brand.",
  "files": {
   "app/admin/p5-estimators/page.tsx": "80b9e20e4144c34a9f78033ab1b84e2555e42c44e670050b9e0fcbffa477512e",
@@ -101,7 +101,7 @@
   "lib/p5/sourceResponsibilities.ts": "2c77105334ff8c66b8f8572c76be7822c3846ac357e8acf75a16d1c0b3faf809",
   "lib/p5/sourceSpecificationGuard.ts": "a52b5fbd623696aa37160a72780c9c5711232f4237855f02d07f64ddde356fc3",
   "lib/p5/store.ts": "bfa525f3ce56b8f87e33993e92a6181ed3a0c5664d0c8ef60ac6ea403b1a1ca1",
-  "lib/p5/submitEndpoint.ts": "d1ae6d39c110f5d9712c34cec1841ddc70e7b552eaf5c0959740f51b46f1abbb",
+  "lib/p5/submitEndpoint.ts": "c8b61e215e907057db1dddf0d16e15280675d2bcf4c4d3ff5d94837dd4728d9a",
   "lib/p5/submitProgress.ts": "01bf0ae58b700555965c1b3684119c40ef5ba76fb877e4dc2a8ea42397a1b93b",
   "lib/p5/theme.ts": "2b9b485f240c495c3b002be41e963658c96e2b3ab491c0db232d5eae04f29303",
   "lib/p5/trades.ts": "6f2fce2b8ade88d46e6ff28dc8824332eb67dc4cf8310c416e1dee89c4078eca",
@@ -126,7 +126,7 @@
   "scripts/p5-estimator-browser.mjs": "98beb2551e0a9d9be5f2b00bcf017456640a254a33bb157eea68cdee8b7e8996",
   "scripts/p5-hub-notification-check.mjs": "e2d4216777feeb2e4099b93986ca257e4760f671312a6b343014ef7677148f06",
   "scripts/p5-launcher-forms.mjs": "601862a5ec30750ab4acc20e69d86d51165fd235b38d5e5ab8fc77b6eaa4ffa7",
-  "scripts/p5-live-journey.mjs": "6ade86efbfc2287d1d97936035235684caa8c21601ef454816a38a2c25c77686",
+  "scripts/p5-live-journey.mjs": "d2746c3d163721dd8ef4fd0e5125e541962a352065037bbf8a3110745d1c7978",
   "scripts/p5-mobile-navigation.mjs": "0ce895161381226081ee66817cd89fac7615bfb660202903df87c4e242079dfc",
   "scripts/p5-pricing-qualification-ledger.mts": "c195e4758c3ce767f3e6162a9178a545883fdb35df3e1c5d2bcc0ecc535d5920",
   "scripts/p5-runtime-acceptance.mjs": "7b872dc7be1b8226a679d63ea93d8679a62905a8462a04a6eff4bec2dd2a9824",
