@@ -1,7 +1,7 @@
 {
  "source": "boise-remodeling-co",
- "commit": "1b711c7eaade4a9f92edacbb5d176da2c214a015",
- "generatedAt": "2026-09-20T16:51:01.783Z",
+ "commit": "10eceba7a869320c04a6c58c964305d17b90a46a",
+ "generatedAt": "2026-09-20T17:07:34.282Z",
  "note": "Shared estimator files. Edit them in boise-remodeling-co and run scripts/p5-sync.mjs; never edit them in one brand.",
  "files": {
   "app/admin/p5-estimators/page.tsx": "80b9e20e4144c34a9f78033ab1b84e2555e42c44e670050b9e0fcbffa477512e",
@@ -96,7 +96,7 @@
   "lib/p5/scope.ts": "6c9af734681aecf7f81ae0b2ffaf10b88bd8d7440119b5f7952061d95d663497",
   "lib/p5/scopeEndpoint.ts": "ac256d011921ae4e2e42202c8ccc1b8b8b5935bdc1feba47025ae7e429a31e11",
   "lib/p5/scopeInventory.ts": "823baac9f40357847a8f6afd9a905058298dfc8dab553d584223bcd3f890d64a",
-  "lib/p5/scopePricing.ts": "7f0f7e27ae6f79593aaf6197e74be3090a54b8fddf85c57e358f65d015937483",
+  "lib/p5/scopePricing.ts": "299b439ecc233b7ce5fa0170f500cff3ddd718467b0f0e59adc56da34129a51e",
   "lib/p5/scopeReplacement.ts": "ad340bab97512e3583b8789cf0731edfc78811e8715fcd55555e6ea59fe1411a",
   "lib/p5/sourceResponsibilities.ts": "2c77105334ff8c66b8f8572c76be7822c3846ac357e8acf75a16d1c0b3faf809",
   "lib/p5/sourceSpecificationGuard.ts": "a52b5fbd623696aa37160a72780c9c5711232f4237855f02d07f64ddde356fc3",
@@ -181,7 +181,7 @@
   "tests/p5-document-service.test.ts": "1218450a4265e66b585e7d80b3e719474156c64fae6dcc32523e808837faf1fe",
   "tests/p5-dynamic-questions.test.ts": "4fe144d9a382d2bfd5909f72c94da332fe0b3f57ca6cd7fef5ce47e12bfafd56",
   "tests/p5-endpoint-concurrency.test.ts": "b4f8e3658ada6ea602e7c30ff0f5e5bddda8ea3aaa6335f849c73db566e8f498",
-  "tests/p5-estimator-flow.test.ts": "f2b4489afdda0b3734f94d6a316202f456724b2c143745dd6b4d114ac999dd20",
+  "tests/p5-estimator-flow.test.ts": "a4e38bb88e639b1f44034decc68f8c19cd03f1c1d9a7c2e9ee8fe664b5885160",
   "tests/p5-explicit-labor.test.ts": "2333a7a897f81021c3112780174938efda2873fdff56db61810a7c77f426cb2a",
   "tests/p5-extraction-values.test.ts": "8b211c0acf2c42056e57912d9db8caaa1b0a241ff02f85644b6979e97f8e3985",
   "tests/p5-file-snapshot.test.ts": "5a55110d87ee2fa57494ef51b72804d3bbd4551113dae763e7e9d6dc0a9387b4",
