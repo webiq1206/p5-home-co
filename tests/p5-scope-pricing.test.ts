@@ -787,3 +787,35 @@ test('An item nobody can price is named and carried out of the total; the rest s
  assert.ok(result.customer.exclusions.some((e:string)=>/cracked chimney cap/i.test(e)),'the unpriced item is named as not included');
  assert.ok(result.customer.assumptions.some((a:string)=>/not priced in this range/.test(a)));
 });
+test('The same document answered the same way prices to the same number, without asking the provider again',async()=>{
+ const {pricingScopeFingerprint,reusableResolution}=await import('../lib/p5/pricingCache.ts');
+ const store=new Map<string,any>();
+ const cache={async load(f:string){return store.get(f)||null;},async save(f:string,e:any){store.set(f,e);}};
+ const priced0={...extra,researchDescription:'',additions:[{code:'03-15-02-M',quantity:10,quantityEvidence:'Ten feet requested'}]};
+ const answered=scope;
+ const uploaded={...scope,uploads:[{id:'u1',name:'re10.pdf',type:'application/pdf',size:1024,sha256:'a'.repeat(64),status:'stored' as const}]};
+ const first=await priceCompleteScope(answered,config,replies([
+   {tasks:[task,priced0],issues:[]},
+   {coveredTaskIds:['cabinets','overlay'],issues:[]},
+ ]),now,undefined,cache as never);
+ assert.ok(first.customer.range,JSON.stringify({w:(first.internal as any).pricingWarnings,i:(first.internal as any).scopePricing.issues,n:(first.internal as any).lines?.length}));
+ assert.equal(store.size,1,'a priced estimate is saved for reuse');
+ // A second submission of the same document and answers must not reach the provider at all.
+ const never=async()=>{throw new Error('the provider must not be called when a saved price applies');};
+ const second=await priceCompleteScope(answered,config,never as never,new Date(now.getTime()+86400000),undefined,cache as never);
+ assert.deepEqual(second.customer.range,first.customer.range,'same input, same price');
+ assert.deepEqual(second.customer.lineItems.map((l:any)=>[l.id,l.low,l.high]),first.customer.lineItems.map((l:any)=>[l.id,l.low,l.high]));
+ // Anything that would change the price changes the identity, so a stale number is never served.
+ const base=pricingScopeFingerprint(answered,config);
+ assert.notEqual(pricingScopeFingerprint(uploaded,config),base,'an attached document is part of the project');
+ assert.notEqual(pricingScopeFingerprint({...uploaded,uploads:[{...uploaded.uploads[0],sha256:'b'.repeat(64)}]},config),pricingScopeFingerprint(uploaded,config),'a different document');
+ assert.notEqual(pricingScopeFingerprint({...answered,answers:{...answered.answers,cabinetBaseLf:'20'}},config),base,'a different answer');
+ assert.notEqual(pricingScopeFingerprint({...answered,text:answered.text+' and a new pantry'},config),base,'different typed scope');
+ assert.equal(pricingScopeFingerprint({...answered,text:'  '+answered.text.toUpperCase()+' '},config),base,'spacing and case are not a different project');
+ const repriced={...config,planningCatalog:{...config.planningCatalog!,rates:config.planningCatalog!.rates.map((r,i)=>i?r:{...r,amount:r.amount+5})}};
+ assert.notEqual(pricingScopeFingerprint(answered,repriced),base,'an owner rate change');
+ assert.notEqual(pricingScopeFingerprint(answered,{...config,finance:{...config.finance,targetMargin:0.44}}),base,'a margin change');
+ // A scope that could not be priced is never saved, so it is tried again rather than refused forever.
+ assert.equal(reusableResolution({rules:[],assumptions:[],issues:[]}),false);
+ assert.equal(reusableResolution({rules:[{unitCost:5,quantity:{fixed:1,factor:1}} as never],assumptions:[],issues:['Something is unresolved']}),false);
+});

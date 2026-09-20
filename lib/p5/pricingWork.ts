@@ -1,5 +1,6 @@
 import {SERVER_BUDGET_MS,remainingBudget,withinDeadline,ProcessingDeadlineError,isProcessingDeadline} from './processingBudget.ts';
 import {createHash} from 'node:crypto';
+import {databasePricingCache,pricingCacheEnabled} from './pricingCache.ts';
 import {claimWork,writeWork,releaseWork,renewWork} from './workStore.ts';
 import {priceCompleteScope,requestPricing,type PricingReply,type PricingRequest,PRICING_STAGE_MAX_MS} from './scopePricing.ts';
 import {PricingPending,PricingStageTimeout,PRICING_UNAVAILABLE} from './pricingProgress.ts';
@@ -114,5 +115,5 @@ export async function priceSavedScope(id:string,scope:ReviewedScope,configuratio
  };
  // The saved-stage lease outlives a pass; keep it renewed while this pass runs.
  const renew=setInterval(()=>{void renewWork(id,workKey,claimed.token,290).catch(()=>{});},60_000);renew.unref?.();
- try{const priced=await priceCompleteScope(scope,configuration,staged,pricingAt,deadline);if(priced.customer.range&&priced.internal&&'costBookSnapshot' in priced.internal)await saveRegionalRates(id,scope.answers.location||'',priced.internal.costBookSnapshot?.rules||[]);return priced;}finally{clearInterval(renew);await releaseWork(id,workKey,claimed.token);}
+ try{const priced=await priceCompleteScope(scope,configuration,staged,pricingAt,deadline,pricingCacheEnabled()?databasePricingCache():undefined);if(priced.customer.range&&priced.internal&&'costBookSnapshot' in priced.internal)await saveRegionalRates(id,scope.answers.location||'',priced.internal.costBookSnapshot?.rules||[]);return priced;}finally{clearInterval(renew);await releaseWork(id,workKey,claimed.token);}
 }
