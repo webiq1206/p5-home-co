@@ -1,7 +1,7 @@
 {
  "source": "boise-remodeling-co",
- "commit": "9fbac20bbce2d32f47cb735e512679af461fcfd3",
- "generatedAt": "2026-09-20T14:49:47.587Z",
+ "commit": "da758ae9aae65cea553e32d4d7fb4ba24d264bf0",
+ "generatedAt": "2026-09-20T15:06:25.857Z",
  "note": "Shared estimator files. Edit them in boise-remodeling-co and run scripts/p5-sync.mjs; never edit them in one brand.",
  "files": {
   "app/admin/p5-estimators/page.tsx": "80b9e20e4144c34a9f78033ab1b84e2555e42c44e670050b9e0fcbffa477512e",
@@ -96,7 +96,7 @@
   "lib/p5/scope.ts": "6c9af734681aecf7f81ae0b2ffaf10b88bd8d7440119b5f7952061d95d663497",
   "lib/p5/scopeEndpoint.ts": "ac256d011921ae4e2e42202c8ccc1b8b8b5935bdc1feba47025ae7e429a31e11",
   "lib/p5/scopeInventory.ts": "823baac9f40357847a8f6afd9a905058298dfc8dab553d584223bcd3f890d64a",
-  "lib/p5/scopePricing.ts": "6af872285522c110f0f3d98b2b1faf725bd8230d962b4a043e98a20a4e22afc6",
+  "lib/p5/scopePricing.ts": "7f0f7e27ae6f79593aaf6197e74be3090a54b8fddf85c57e358f65d015937483",
   "lib/p5/scopeReplacement.ts": "ad340bab97512e3583b8789cf0731edfc78811e8715fcd55555e6ea59fe1411a",
   "lib/p5/sourceResponsibilities.ts": "2c77105334ff8c66b8f8572c76be7822c3846ac357e8acf75a16d1c0b3faf809",
   "lib/p5/sourceSpecificationGuard.ts": "a52b5fbd623696aa37160a72780c9c5711232f4237855f02d07f64ddde356fc3",
@@ -196,7 +196,7 @@
   "tests/p5-outbox.test.ts": "d4833856fd69136241326690156d0b8f3495c144ed0227d1160f302279048cbd",
   "tests/p5-page-limit.test.ts": "7482b83b220c6706f1fdbb2775a5b66cd54ad2c20a2d29df8ee397c5804eaffc",
   "tests/p5-pdf-access.test.ts": "2008c53369a31c62e35c87f3c26c6e70d876d1dc9af43bc8cf3ecaba65f0d410",
-  "tests/p5-planning-books.test.ts": "f4c5ff3666e9aa045a2b7ece7756156760784a63bb8fee2e4642430fb97202d7",
+  "tests/p5-planning-books.test.ts": "d9ad1412852f77602250381e787a0dc7c74224a62da516d47bcd2a817574b8e6",
   "tests/p5-presentation.test.ts": "ed34ab05314dbb058592a95bf43a7733920fb329c33855e057ca3e063c82bd76",
   "tests/p5-pricing-ledger.test.ts": "62a7dafef991f0af94f4cf5da66d879cc667f01f312c14f4657d2cffbe090eb2",
   "tests/p5-pricing-source-history.test.ts": "7a2696abb429e65555da6b1bb43289e785661a05cdfdc258883ff7bdf8379be0",

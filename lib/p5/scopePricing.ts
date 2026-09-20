@@ -681,6 +681,16 @@ function mergeMappings(parts:Mapping[]):Mapping{
 /** Split a list into consecutive groups of `size`; the last group may be shorter. */
 const batchesOf=<T,>(items:T[],size:number):T[][]=>{const out:T[][]=[];for(let start=0;start<items.length;start+=size)out.push(items.slice(start,start+size));return out;};
 export const HANDOFF_ISSUE='Automatic pricing could not finish for part of this scope. Your project and details are saved, and a person will complete your estimate and email it - nothing further is needed from you.';
+const WHOLE_BUILDING=new Set(['new-construction','addition','adu']);
+/** True when nothing the customer supplied changes what the planning model prices. */
+export function wholeBuildingPlanningBudget(scope:ReviewedScope,extraction:ReviewedScope['extraction'],restricted:boolean):boolean{
+  if(restricted||!WHOLE_BUILDING.has(String(scope.answers.service||''))||scope.uploads?.length)return false;
+  const instructions=extraction?.instructions;
+  if(instructions&&(instructions.laborOnly||instructions.materialsOnly||instructions.exclusions?.length||instructions.questions?.length||instructions.separateBuildings))return false;
+  if((extraction?.takeoffs||[]).length)return false;
+  const answers=scope.answers;
+  return !['exclusions','ownerSupplied','alternates','taskList','estimatingInstructions','allowances'].some(field=>String(answers[field as keyof typeof answers]||'').trim());
+}
 export async function priceCompleteScope(scope:ReviewedScope,configuration:EstimatorConfiguration,request:PricingRequest=requestPricing,now=new Date(),absoluteDeadline=Date.now()+SERVER_BUDGET_MS){
   // Retained clarification alternatives are archival provenance, not active
   // scope. Every mapper/audit payload below must use the projected extraction
@@ -691,6 +701,17 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
   const replaceBase=hasRestrictedScope(scope.answers,pricingExtraction?.instructions);
   const resolution:ScopePriceResolution={rules:[],assumptions:[],issues:[],replaceBase};
   const base=priceReviewedScope(scope,configuration,now,replaceBase?resolution:undefined);
+  // A whole-building budget typed without documents is priced by the owner's
+  // planning model from size, stories, garage and finish. Item-by-item model
+  // stages add nothing the model does not already carry, took four to six
+  // minutes on production, and then withheld the budget over details (bathroom
+  // count, soil) that a planning budget treats as allowances. They still run
+  // whenever the customer supplied documents, exclusions, responsibilities or a
+  // restricted scope, because those change what is priced.
+  if(wholeBuildingPlanningBudget(scope,pricingExtraction,replaceBase)&&base.customer.range){
+    const note='This preliminary budget is based on the home size, stories, garage and finish level you gave. Room counts, fixtures, site conditions and selections are budget allowances until plans are available.';
+    return {...base,customer:customerSafeProjection({...base.customer,assumptions:[note,...base.customer.assumptions],instructions:pricingExtraction?.instructions,documentCoverage:pricingExtraction?.documentCoverage,verificationItems:[],scopeTasks:[]}),internal:{...base.internal,scopePricing:{version:'planning-model-direct-v1',scopeHash:createHash('sha256').update(JSON.stringify({scope:pricingScope,configuration})).digest('hex'),tasks:[],adjustments:null,research:null,verification:null,issues:[]}}};
+  }
   // The caller bounds the pass; stages are saved individually so a pass that
   // ends between stages loses nothing. Capping here at one browser budget
   // aborted any stage longer than the remaining pass and restarted it forever.

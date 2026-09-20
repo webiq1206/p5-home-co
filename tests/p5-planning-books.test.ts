@@ -73,3 +73,29 @@ test('A document review note travels with the range; an unread document still bl
  assert.ok(blockingReviewNote('proposal.pdf, page 3: unreadable. This page was not processed. Review or retry it before relying on the takeoff.'));
  assert.ok(!blockingReviewNote('Unconfirmed photo observation - Tile area in square feet: 80. Confirm from written scope before pricing.'));
 });
+
+test('A typed whole-building budget is priced by the planning model directly, with no provider calls',async()=>{
+ const {priceCompleteScope,wholeBuildingPlanningBudget}=await import('../lib/p5/scopePricing.ts');
+ const answers={service:'new-construction',location:'Boise',sqft:'3500',stories:'2',garageIncluded:'yes',garageSqft:'1000',finish:'high-end'};
+ const reviewed=scope(answers,'New two-story home, 3,500 SF plus a 1,000 SF garage, premium finishes.');
+ // The shared synthetic catalog covers small jobs; add a synthetic rate for every code a whole build asks for.
+ const needed=(((priceReviewedScope(reviewed,createPlanningConfiguration(catalog),now).internal as any).missingInformation||[]) as string[]).flatMap(note=>note.match(/^Missing cost rate: (\S+)/)?.[1]||[]);
+ const template=catalog.rates[0];
+ const extra=[...new Set(needed)].filter(code=>!catalog.rates.some(rate=>rate.code===code));
+ // Synthetic amounts only need to land inside the estimator's broad sanity limits for a home this size.
+ const configurations=[2,4,6,9,14,22,35].map(amount=>createPlanningConfiguration({...catalog,rates:[...catalog.rates,...extra.map(code=>({...template,code,description:`Synthetic ${code}`,amount}))]}));
+ const configuration=configurations.find(candidate=>priceReviewedScope(reviewed,candidate,now).customer.range)||configurations[0];
+ const direct=priceReviewedScope(reviewed,configuration,now);
+ assert.ok(direct.customer.range,'the planning model prices a whole build from size, stories, garage and finish');
+ let calls=0;const refuse=async()=>{calls++;throw new Error('no provider call is expected');};
+ const priced=await priceCompleteScope(reviewed,configuration,refuse as any,now,Date.now()+60000);
+ assert.equal(calls,0);assert.deepEqual(priced.customer.range,direct.customer.range);
+ assert.match(priced.customer.assumptions[0],/home size, stories, garage and finish level/);
+ assert.equal((priced.internal as any).scopePricing.version,'planning-model-direct-v1');
+ // Anything that changes what is priced keeps the full item-by-item pipeline.
+ assert.equal(wholeBuildingPlanningBudget({...reviewed,answers:{...answers,exclusions:'Exclude landscaping'}},null,false),false);
+ assert.equal(wholeBuildingPlanningBudget({...reviewed,uploads:[{id:'u'} as any]},null,false),false);
+ assert.equal(wholeBuildingPlanningBudget(reviewed,null,true),false);
+ assert.equal(wholeBuildingPlanningBudget({...reviewed,answers:{...answers,service:'bathroom'}},null,false),false);
+ assert.equal(wholeBuildingPlanningBudget(reviewed,null,false),true);
+});
