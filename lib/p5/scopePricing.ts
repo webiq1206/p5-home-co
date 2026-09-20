@@ -604,11 +604,14 @@ export function marketResolution(raw:unknown,urls:string[],tasks:Mapping['tasks'
 /** A planning range the estimate can carry: positive, ordered, and no wider than six to one.
  * A reversed range is put in order; a wider one keeps its geometric centre and is narrowed to
  * six to one, so an honest "it depends" still prices instead of ending the job. */
+/** The widest low-to-high spread one planning line may carry. A preliminary range is meant to be
+ * usable: a six-to-one spread on every line summed into a range nobody could plan against. */
+export const PLANNING_SPREAD=Number(process.env.P5_PLANNING_SPREAD||2.5);
 export function planningBounds(low:number,high:number):{low:number;high:number}|null{
   if(!Number.isFinite(low)||!Number.isFinite(high)||low<=0||high<=0)return null;
   const [a,b]=low<=high?[low,high]:[high,low];
-  if(b<=a*6)return {low:a,high:b};
-  const centre=Math.sqrt(a*b),half=Math.sqrt(6),round=(n:number)=>Math.round(n*100)/100;
+  if(b<=a*PLANNING_SPREAD)return {low:a,high:b};
+  const centre=Math.sqrt(a*b),half=Math.sqrt(PLANNING_SPREAD),round=(n:number)=>Math.round(n*100)/100;
   return {low:round(centre/half),high:round(centre*half)};
 }
 /** Clearly labeled regional planning averages. Same quantity defenses as sourced rates; never presented as verified pricing. */
@@ -699,9 +702,10 @@ export function pricedTaskRemark(issue:string,pricedTasks:{id:string;description
   // Only this one shape is released: the complaint is that a priced line's stated inclusions do
   // not visibly reach every incidental of the task. Anything naming omitted work, an unpriced
   // component, an owner-supplied responsibility, a duplicate, a quantity conflict or a wrong unit
-  // is a defect and keeps its hold, whatever it is attached to.
-  if(!/not fully covered|does not affirmatively include|does not (?:explicitly |expressly )?(?:state|say) (?:that )?it includes|full pricing coverage has not been verified|identifies .{0,60}as unverified/.test(t))return false;
-  if(/duplicat|double[- ]count|\bomit|omission|\bunpriced\b|missing (?:work|materials?|labor|components?|quantit(?:y|ies)|scope)|no positive|does not match the explicit|disagrees with|wrong (?:unit|uom|responsibilit)|fabricat|out of scope|excluded work|not (?:been )?requested|quantity remains unmeasured|does not reconcile|owner.supplied|labor.only|materials.only|coverage reference|invalid existing price/.test(t))return false;
+  // is a defect and keeps its hold, whatever it is attached to. The list is explicit on purpose:
+  // widening it is a deliberate act, recorded against the live run that made it necessary.
+  if(!/not fully covered|not fully supported|does not affirmatively include|expressly exclude|excludes? (?:air|concealed|ordinary|incidental|connection|minor)|no positive (?:line|material|allowance) covers|does not cover the (?:ordinary|incidental|required)|merely assumes|full pricing coverage has not been verified|identifies .{0,60}as unverified/.test(t))return false;
+  if(/duplicat|double[- ]count|\bomit|omission|\bunpriced\b|missing (?:work|materials?|labor|components?|quantit(?:y|ies)|scope)|does not match the explicit|disagrees with|wrong (?:unit|uom|responsibilit)|fabricat|out of scope|excluded work|not (?:been )?requested|quantity remains unmeasured|does not reconcile|owner.supplied|labor.only|materials.only|coverage reference|invalid existing price/.test(t))return false;
   return pricedTasks.some(task=>t.includes(task.id.toLowerCase())||t.includes(task.description.toLowerCase()));
 }
 /** Map one batch of inventory tasks, and keep going when the provider is slow.

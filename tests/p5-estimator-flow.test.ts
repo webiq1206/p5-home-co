@@ -79,9 +79,9 @@ test('planning averages are labeled allowances with the same quantity defenses',
   assert.match(resolved.assumptions[0],/not verified local pricing/);
   // A range wider than six to one no longer ends the job: it is narrowed around its centre and still prices.
   const wide=planningResolution({...planned,rates:[{...planned.rates[0],low:1,high:100}]},[extra],now,0,'Boise',scope);
-  assert.equal(wide.rules.length,1);assert.deepEqual(wide.rules[0].unitCostRange,{low:4.08,high:24.49});assert.equal(wide.issues.length,0);
+  assert.equal(wide.rules.length,1);assert.deepEqual(wide.rules[0].unitCostRange,{low:6.32,high:15.81});assert.equal(wide.issues.length,0);
   const reversed=planningResolution({...planned,rates:[{...planned.rates[0],low:9,high:3}]},[extra],now,0,'Boise',scope);
-  assert.deepEqual(reversed.rules[0].unitCostRange,{low:3,high:9});
+  assert.deepEqual(reversed.rules[0].unitCostRange,{low:3.29,high:8.22},'a reversed range is ordered, then narrowed to the allowed spread');
   assert.throws(()=>planningResolution({...planned,rates:[{...planned.rates[0],taskId:'unknown'}]},[extra],now,0,'Boise',scope),/Unknown planning scope task/);
   const missing=planningResolution({...planned,rates:[]},[extra],now,0,'Boise',scope);
   assert.ok(missing.issues.some(issue=>/no defensible planning average/.test(issue)));
