@@ -75,13 +75,17 @@ export async function reservePricingCharge(fingerprint:string,provider:string,ma
   if(!transaction)throw new PricingBudgetError('The pricing ledger requires a transactional database adapter (export transaction from lib/p5/database.ts or call configurePricingLedger).');
   const row=await transaction(async(run)=>{
     if(config)await run('SELECT pg_advisory_xact_lock(hashtextextended($1,0))',[`p5-pricing-budget:${config.budget}`]);
-    const existing=(await run('SELECT state,provider_id FROM p5_pricing_ledger WHERE fingerprint=$1',[fingerprint]))[0];
-    if(existing?.state==='unknown')throw new PricingChargeUnknownError();
-    if(existing?.state==='reserved')throw new PricingChargeUnknownError('A previous pricing attempt is still reserved; reconciliation is required before retrying.');
+    const existing=(await run("SELECT state,provider_id,updated_at<now()-interval '3 minutes' AS stale FROM p5_pricing_ledger WHERE fingerprint=$1",[fingerprint]))[0];
+    // "Never retry an unknown charge" protects a configured spending cap. With no cap
+    // there is nothing to protect, and refusing the retry turned one slow provider reply
+    // into a customer estimate that could never finish. The retry is recorded on the row.
+    const retryable=!config&&(existing?.state==='unknown'||existing?.state==='reserved'&&existing.stale===true);
+    if(existing?.state==='unknown'&&!retryable)throw new PricingChargeUnknownError();
+    if(existing?.state==='reserved'&&!retryable)throw new PricingChargeUnknownError('A previous pricing attempt is still reserved; reconciliation is required before retrying.');
     if(existing?.state==='settled')throw new PricingChargeUnknownError('A completed pricing charge has no reusable saved reply; reconciliation is required before repeating it.');
     const inserted=!config
-      ?existing?.state==='rejected'
-        ?await run(`UPDATE p5_pricing_ledger SET provider=$2,amount=0,state='reserved',provider_id=NULL,last_error=NULL,active_until=NULL,updated_at=now()
+      ?existing?.state==='rejected'||retryable
+        ?await run(`UPDATE p5_pricing_ledger SET provider=$2,amount=0,state='reserved',provider_id=NULL,last_error=CASE WHEN state='rejected' THEN NULL ELSE 'retried after an unacknowledged attempt (no spending cap configured)' END,active_until=NULL,updated_at=now()
           WHERE fingerprint=$1 RETURNING fingerprint,amount,state`,[fingerprint,provider])
         :await run(`INSERT INTO p5_pricing_ledger(fingerprint,provider,amount,state,active_until)
           VALUES($1,$2,0,'reserved',NULL) RETURNING fingerprint,amount,state`,[fingerprint,provider])

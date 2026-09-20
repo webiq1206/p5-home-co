@@ -1,7 +1,6 @@
 import {PDFDocument} from 'pdf-lib';
 import {createCanvas,type Canvas} from '@napi-rs/canvas';
-import {createRequire} from 'node:module';
-import path from 'node:path';
+import {pdfjsAssetOptions} from './pdfjsAssets.ts';
 import type {AnalysisFile} from './extraction.ts';
 import {SCOPE_MAX_PAGES} from './scope.ts';
 
@@ -18,8 +17,7 @@ export function entirelyWhite(pixels:Uint8ClampedArray|Uint8Array):boolean {
  * Blank regions retain explicit pixel-inspection evidence in the manifest. */
 export async function* drawingDetails(file:AnalysisFile,pageNumber:number,dataPageNumber=pageNumber):AsyncGenerator<AnalysisFile>{
   const {getDocument}=await import('pdfjs-dist/legacy/build/pdf.mjs');
-  const assets=path.dirname(createRequire(path.join(process.cwd(),'package.json')).resolve('pdfjs-dist/package.json')).split(path.sep).join('/');
-  const task=getDocument({data:new Uint8Array(file.data),useSystemFonts:true,standardFontDataUrl:`${assets}/standard_fonts/`,cMapUrl:`${assets}/cmaps/`,cMapPacked:true,wasmUrl:`${assets}/wasm/`} as any);
+  const task=getDocument({data:new Uint8Array(file.data),...pdfjsAssetOptions()} as any);
   const document=await task.promise;
   if(!document.numPages||document.numPages>SCOPE_MAX_PAGES){await task.destroy();throw new Error(`Use PDFs with 1 to ${SCOPE_MAX_PAGES} pages.`);}
   let full:Canvas|null=null;

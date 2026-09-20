@@ -65,7 +65,13 @@ export async function postScope(request:Request){
         verified=verifyUpload(file.name,Buffer.from(await file.arrayBuffer()));
         // Enforce the customer-facing PDF page boundary before any provider work begins.
         if(verified.type==="application/pdf")await verifyPdfPageLimit(verified.name,verified.data);
-      }catch(error){throw new DraftError(error instanceof Error?error.message:"Invalid upload.",422);}
+      }catch(error){
+        // Only our own upload checks write customer wording. A system fault (a TypeError, a
+        // Node error code) is logged for staff and shown as a plain retryable message.
+        const system=!(error instanceof Error)||error instanceof TypeError||error instanceof RangeError||typeof (error as {code?:unknown}).code==="string"&&String((error as {code?:unknown}).code).startsWith("ERR_");
+        if(system)console.error(`[p5-analysis] upload check failed for ${file.name}:`,error);
+        throw new DraftError(system?`${file.name} could not be checked just now. Nothing was lost; please try again.`:(error as Error).message,422);
+      }
       const digest=createHash("sha256").update(verified.data).digest("hex");
       requested.push(digest);
       if(!known.has(digest)){known.add(digest);incoming.push(verified);}

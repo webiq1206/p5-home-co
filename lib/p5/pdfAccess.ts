@@ -1,7 +1,6 @@
 import {PDFDocument} from 'pdf-lib';
 import {createCanvas} from '@napi-rs/canvas';
-import {createRequire} from 'node:module';
-import path from 'node:path';
+import {pdfjsAssetOptions} from './pdfjsAssets.ts';
 
 /** How a stored PDF can be opened.
  *
@@ -35,8 +34,7 @@ export async function openablePdf(name:string,data:Buffer):Promise<PdfInspection
 
 async function pdfjs(){
   const library=await import('pdfjs-dist/legacy/build/pdf.mjs');
-  const assets=path.dirname(createRequire(path.join(process.cwd(),'package.json')).resolve('pdfjs-dist/package.json')).split(path.sep).join('/');
-  return {library,options:{useSystemFonts:true,standardFontDataUrl:`${assets}/standard_fonts/`,cMapUrl:`${assets}/cmaps/`,cMapPacked:true,wasmUrl:`${assets}/wasm/`,disableFontFace:true}};
+  return {library,options:{...pdfjsAssetOptions(),disableFontFace:true}};
 }
 const passwordError=(error:unknown)=>error instanceof Error&&(error.name==='PasswordException'||/password/i.test(error.message));
 

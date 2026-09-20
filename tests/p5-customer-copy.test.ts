@@ -46,3 +46,10 @@ test('no customer-facing component or email template carries ruled-out wording',
     for(const rule of [/local averages?/i,/researching/i,/missing local rates/i,/pricing research/i])assert.doesNotMatch(text,rule,file);
   }
 });
+
+test('the progress card never shows the estimator\'s instructions to the pricing model',async()=>{
+  const {customerProgressItems}=await import('../lib/p5/processingStatus.ts');
+  const research=pricingActivity('anything',{tasks:[{description:'Research an average direct-cost rate per square foot for removing 40 SF of existing bathroom floor tile'}]},true);
+  assert.deepEqual(research.currentItems,[]);
+  assert.deepEqual(customerProgressItems(['PUBLIC: Obtain a current regional direct-cost rate per SF','Remove existing bathroom floor tile','Install porcelain floor tile']),['Remove existing bathroom floor tile','Install porcelain floor tile']);
+});

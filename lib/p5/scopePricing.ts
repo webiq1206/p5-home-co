@@ -301,7 +301,11 @@ export function catalogResolution(mapping:Mapping,configuration:EstimatorConfigu
       const line=existing.find(l=>l.id===id);
       if(result.removeLineIds?.includes(id)||!line||line.quantity*line.unitCost<=0)result.issues.push(`${t.description}: invalid existing price reference.`);
       else if(['materials','subcontractors'].includes(line.category)&&ownerSuppliesMaterial(t,line.quantity,line.unit,line.description))result.issues.push(`${t.description}: owner-supplied material cannot be charged through a contractor material or supply-and-install package.`);
-      else result.issues.push(...existingQuantityIssues(t,line,scope,mapping.tasks.length));
+      else{
+        const overage=purchasingOverage(t,line,scope,mapping.tasks.length);
+        if(overage)result.assumptions.push(`${line.description}: ${line.quantity} ${line.unit} purchased for ${overage.installed} ${line.unit} installed, which includes about ${overage.percent}% for cuts and waste.`);
+        else result.issues.push(...existingQuantityIssues(t,line,scope,mapping.tasks.length));
+      }
     }
     for(const a of t.additions){
       const rate=configuration.planningCatalog?.rates.find(r=>r.code===a.code);
@@ -483,6 +487,20 @@ function quantityIssues(task:Mapping['tasks'][number],addition:{quantity:number;
 }
 function matchingClaims(claims:QuantityClaim[],unit:string){
   return [...new Map(claims.filter(claim=>unitKey(claim.unit)===unitKey(unit)).map(claim=>[`${claim.quantity}:${unitKey(claim.unit)}`,claim])).values()];
+}
+/** Purchased material ordinarily exceeds the installed quantity by cutting
+ * waste. A materials line up to 15% over the one stated quantity is that
+ * overage, not a disagreement with the customer's measurement. Labor and
+ * installed work must still match the stated quantity exactly. */
+const MAX_PURCHASING_OVERAGE=.15;
+function purchasingOverage(task:Mapping['tasks'][number],line:{quantity:number;unit:string;category?:string},scope:ReviewedScope|undefined,taskCount:number){
+  if(line.category!=='materials')return null;
+  const claims=[...quantityClaims(`${task.description} ${task.evidence}`),...(taskCount===1?knownScopeClaims(scope,task):[])].filter(claim=>unitKey(claim.unit)===unitKey(line.unit));
+  const stated=[...new Set(claims.map(claim=>claim.quantity))];
+  if(stated.length!==1||stated[0]<=0)return null;
+  const ratio=line.quantity/stated[0];
+  if(ratio<=1.0001||ratio>1+MAX_PURCHASING_OVERAGE+.0001)return null;
+  return {installed:stated[0],percent:Math.round((ratio-1)*100)};
 }
 function existingQuantityIssues(task:Mapping['tasks'][number],line:{quantity:number;unit:string},scope:ReviewedScope|undefined,taskCount:number){
   const taskText=`${task.description} ${task.evidence}`;
@@ -766,7 +784,10 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
       const positiveLines=new Set(existingLines(priceReviewedScope(scope,configuration,now,resolution)).filter(line=>line.quantity*line.unitCost>0).map(line=>line.id));
       for(const resolved of audit.resolvedIssues){
         if(!resolution.issues.includes(resolved.issue))continue;
-        if(!modelIssues.has(resolved.issue)||resolved.lineIds.some(id=>!positiveLines.has(id)))throw new Error('Unsupported pricing issue resolution');
+        // The check may only clear a finding an earlier model stage raised, and only by
+        // pointing at priced lines. Anything else is ignored: the finding stays open and
+        // keeps blocking, rather than one malformed entry discarding the whole job.
+        if(!modelIssues.has(resolved.issue)||resolved.lineIds.some(id=>!positiveLines.has(id))){console.error(`[p5-pricing] ignored an unsupported issue resolution: ${resolved.issue.slice(0,160)}`);continue;}
         resolution.issues=resolution.issues.filter(issue=>issue!==resolved.issue);
         resolution.assumptions.push(`${resolved.issue} Review evidence: ${resolved.reason}`);
       }

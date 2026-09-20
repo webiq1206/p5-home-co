@@ -713,3 +713,14 @@ test('Every customer projection leaving the cost book and scope pricing redacts 
  assert.ok(complete.customer.range);
  assert.deepEqual(complete.customer.range,(complete.internal as any).planningRange,'the customer boundary never changes the selling range');
 });
+
+test('A materials line may carry ordinary cutting waste over the stated area; labor and larger gaps may not',()=>{
+ const task=(existing:string)=>({tasks:[{id:'tile',description:'Supply porcelain floor tile and setting materials for 40 square feet',evidence:'40 SF bathroom floor, floor only',existingLineIds:[existing],additions:[],researchDescription:'',issues:[]}],issues:[],notes:[],replacements:[],removeExclusions:[]});
+ const line=(id:string,category:string,quantity:number)=>({id,category,description:'Porcelain floor tile',quantity,unit:'SF',unitCost:6}) as any;
+ const waste=catalogResolution(task('m') as any,config,[line('m','materials',44)],now,scope);
+ assert.deepEqual(waste.issues,[]);assert.ok(waste.assumptions.some(note=>/44 SF purchased for 40 SF installed.*10% for cuts and waste/.test(note)));
+ const labor=catalogResolution(task('l') as any,config,[line('l','field-labor',44)],now,scope);
+ assert.ok(labor.issues.some(issue=>/does not match the explicit quantity/.test(issue)),'installed work must match the stated area');
+ const excessive=catalogResolution(task('x') as any,config,[line('x','materials',60)],now,scope);
+ assert.ok(excessive.issues.some(issue=>/does not match the explicit quantity/.test(issue)),'a 50% difference is not cutting waste');
+});

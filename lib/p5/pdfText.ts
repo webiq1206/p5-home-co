@@ -1,5 +1,4 @@
-import {createRequire} from 'node:module';
-import path from 'node:path';
+import {pdfjsAssetOptions} from './pdfjsAssets.ts';
 
 /** Extract each page's text layer locally with pdf.js. Scanned pages return an
  * empty string. This never replaces reading the page; it lets a provider that
@@ -7,8 +6,7 @@ import path from 'node:path';
  * supplies adjacent-page context without another provider call. */
 export async function pdfTextLayers(data:Buffer,expectedPages?:number):Promise<string[]>{
   const {getDocument}=await import('pdfjs-dist/legacy/build/pdf.mjs');
-  const assets=path.dirname(createRequire(path.join(process.cwd(),'package.json')).resolve('pdfjs-dist/package.json')).split(path.sep).join('/');
-  const task=getDocument({data:new Uint8Array(data),useSystemFonts:true,standardFontDataUrl:`${assets}/standard_fonts/`,cMapUrl:`${assets}/cmaps/`,cMapPacked:true,wasmUrl:`${assets}/wasm/`,disableFontFace:true} as any);
+  const task=getDocument({data:new Uint8Array(data),...pdfjsAssetOptions(),disableFontFace:true} as any);
   const document=await task.promise;
   try{
     const count=expectedPages||document.numPages;const layers:string[]=[];

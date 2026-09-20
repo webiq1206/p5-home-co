@@ -1,3 +1,4 @@
+import {bannedCustomerCopy} from './customerCopy.ts';
 /** Public progress describes completed work and current operations, never model
  * reasoning, internal costs, invented completion percentages or guessed ETAs. */
 export interface ProcessingStatus {
@@ -54,11 +55,18 @@ export function processingPresentation(message:string,processing:ProcessingStatu
   const detail=uploading?'Keep this tab open until your files are saved.':!documents&&analysis?'Checking your description, quantities and requested work.':total&&read<total?'Checking dimensions, notes and included work on each page.':processing?.phase==='retrying'?'Your progress is saved while the connection recovers.':processing?.message||'Checking your scope so we only ask about what is missing.';
   return {title,detail,total,read,uploading};
 }
+/** Item names shown on the progress card. Allowance stages carry the
+ * estimator's own instructions to the pricing model rather than the customer's
+ * wording, so they show no items; anything else that reads like an internal
+ * instruction or a cost basis is withheld too. */
+export function customerProgressItems(items:(string|undefined)[]):string[]{
+  return items.filter((item):item is string=>Boolean(item)&&!bannedCustomerCopy(item!)&&!/^(?:PUBLIC|PRIVATE|Research|Obtain|Find|Determine)\b|direct[- ]cost|\brates?\b|\bper (?:square|linear) foot\b/i.test(item!)).slice(0,3);
+}
 export function pricingActivity(instructions:string,input:unknown,search:boolean):ProcessingStatus{
   const data=input as {taskBatch?:{description:string}[];tasks?:{description:string}[];repairInstruction?:string};
   const phase=search?'research':instructions.startsWith('Inventory')?'inventory':instructions.startsWith('You are a construction estimator')?'mapping':instructions.startsWith('Convert the supplied research')?'research':'verification';
   const message=phase==='inventory'?'Identifying the included work, exclusions and item-level quantities.':phase==='mapping'?(data.repairInstruction?'Checking your estimate against your project details.':'Pricing the quantities, materials and labor in your scope.'):phase==='research'?'Working out budget allowances for the items that need one.':'Checking for missing items, duplicate counts and your exclusions.';
-  return {phase,message,updatedAt:new Date().toISOString(),currentItems:(data.taskBatch||(search?data.tasks:[])||[]).map(t=>t.description).filter(Boolean).slice(0,3)};
+  return {phase,message,updatedAt:new Date().toISOString(),currentItems:customerProgressItems(phase==='research'?[]:(data.taskBatch||[]).map(t=>t.description))};
 }
 export function elapsedLabel(seconds:number){
   const total=Math.max(0,Math.floor(seconds));
