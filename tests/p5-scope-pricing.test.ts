@@ -765,3 +765,19 @@ test('A remark about a task that is priced becomes a confirmation note, not a wi
  assert.ok(result.customer.range,JSON.stringify((result.internal as any).scopePricing.issues));
  assert.ok(result.customer.verificationItems?.some((v:string)=>/edge sealing/i.test(v)),'the remark is disclosed');
 });
+test('An item nobody can price is named and carried out of the total; the rest still prices',async()=>{
+ const {advisoryIssue}=await import('../lib/p5/scopePricing.ts');
+ assert.equal(advisoryIssue('Exterior GFCI scope may be duplicated between planning-103 and planning-201; the locations should be reconciled before procurement.'),true);
+ assert.equal(advisoryIssue('planning-103 duplicates planning-201 and the exterior devices are charged twice'),false);
+ const priced0={...extra,researchDescription:'',additions:[{code:'03-15-02-M',quantity:10,quantityEvidence:'Ten feet requested'}]};
+ const unpriceable={id:'chimney',description:'Repair the cracked chimney cap',evidence:'severe cracking',existingLineIds:[],additions:[],researchDescription:'',issues:[]};
+ const result=await priceCompleteScope(scope,config,replies([
+   {tasks:[task,priced0,unpriceable],issues:[]},
+   {coveredTaskIds:['cabinets','overlay','chimney'],issues:[]},
+   {tasks:[task,priced0,unpriceable],issues:[]},
+   {coveredTaskIds:['cabinets','overlay','chimney'],issues:[]},
+ ]),now);
+ assert.ok(result.customer.range,JSON.stringify((result.internal as any).scopePricing.issues));
+ assert.ok(result.customer.exclusions.some((e:string)=>/cracked chimney cap/i.test(e)),'the unpriced item is named as not included');
+ assert.ok(result.customer.assumptions.some((a:string)=>/not priced in this range/.test(a)));
+});

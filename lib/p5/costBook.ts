@@ -13,7 +13,7 @@ export interface CostRule extends Omit<DirectCostLine,"quantity"|"quantitySource
 export interface ServiceCostBook {service:Service;mode?:'owner-planning';rules:CostRule[];coverage:ScopeCoverage[];assumptions:string[];exclusions:string[];verifiedScope:string;reviewedAt:string}
 export interface EstimatorConfiguration { finance:FinancePolicy;costBooks:ServiceCostBook[];planningCatalog?:PlanningCatalog;regionalRates?:CostRule[] }
 export const EMPTY_CONFIGURATION:EstimatorConfiguration={finance:DEFAULT_FINANCE,costBooks:[]};
-export interface ScopePriceResolution { rules:CostRule[]; assumptions:string[]; issues:string[];removeLineIds?:string[];removeExclusions?:string[];completeScopeVerified?:boolean;replaceBase?:boolean }
+export interface ScopePriceResolution { rules:CostRule[]; assumptions:string[]; issues:string[];removeLineIds?:string[];removeExclusions?:string[];addExclusions?:string[];completeScopeVerified?:boolean;replaceBase?:boolean }
 /** Every customer projection leaving the cost book, including the early
  * review-required results that quote book notes verbatim, passes the same
  * customer-safe boundary. Internal records are returned unchanged. */
@@ -59,7 +59,7 @@ function priceReviewedScopeInternal(scope:ReviewedScope,configuration:EstimatorC
     const {when,quantity:quantityRule,...cost}=rule;
     lines.push({...cost,quantity,quantitySource:rule.quantity.field?`Reviewed ${rule.quantity.field}: ${value}; quantity factor ${rule.quantity.factor}`:`Approved fixed scope: ${book.verifiedScope}; ${rule.description}`});
   }
-  if(!lines.length)return {internal:{revision,scope,missingInformation,pricingWarnings:[resolution?.issues.length?'scope-pricing-incomplete':'quantities-missing'],costBookSnapshot:book},customer:{status:'review-required',range:null,summary,includedCategories:[],categoryRanges:[],lineItems:[],allowances:[],assumptions:book.assumptions,exclusions:[...new Set([...book.exclusions,...explicitExclusions])],factors:[],nextStep:SERVICE_MATRIX[service].method,message:resolution?.issues.length?'Your scope is saved. Pricing is not complete yet. Review the items listed below, then try again.':'We have your scope. Confirm the missing quantities to calculate the planning range.',disclaimer:'Preliminary project information only. This is not a bid, quote, offer or guaranteed price.'}};
+  if(!lines.length)return {internal:{revision,scope,missingInformation,pricingWarnings:[resolution?.issues.length?'scope-pricing-incomplete':'quantities-missing'],costBookSnapshot:book},customer:{status:'review-required',range:null,summary,includedCategories:[],categoryRanges:[],lineItems:[],allowances:[],assumptions:book.assumptions,exclusions:[...new Set([...book.exclusions,...explicitExclusions,...(resolution?.addExclusions||[])])],factors:[],nextStep:SERVICE_MATRIX[service].method,message:resolution?.issues.length?'Your scope is saved. Pricing is not complete yet. Review the items listed below, then try again.':'We have your scope. Confirm the missing quantities to calculate the planning range.',disclaimer:'Preliminary project information only. This is not a bid, quote, offer or guaranteed price.'}};
   const risks:RiskFactor[]=[];
   if(!scope.answers.utilities&&["new-construction","addition","adu"].includes(service))risks.push("unknown-utilities");
   if(!scope.answers.site&&["new-construction","addition","adu"].includes(service))risks.push("soil-slope");
@@ -69,7 +69,7 @@ function priceReviewedScopeInternal(scope:ReviewedScope,configuration:EstimatorC
   const input:PricingInput={service,revision,scopeSummary:summary,lines,coverage:book.coverage,risks,estimatePurpose:preliminaryPurpose?'preliminary':undefined,
     locationProvided:Boolean(scope.answers.location||scope.answers.address),urgency:scope.answers.urgency as PricingInput["urgency"],complexity:scope.answers.complexity as PricingInput["complexity"],
     uncertainty:missingInformation.length||scope.extraction?.reviewNotes.length?"high":"medium",
-    assumptions:[...book.assumptions,...scopeAssumptions(scope.answers,scope.uncertainFields,scope.extraction,scope.text),...(scope.extraction?.reviewNotes||[]).filter(note=>!blockingReviewNote(note)).map(note=>/^to confirm:/i.test(note)?note:`To confirm: ${note}`)],exclusions:[...new Set([...book.exclusions,...explicitExclusions])],
+    assumptions:[...book.assumptions,...scopeAssumptions(scope.answers,scope.uncertainFields,scope.extraction,scope.text),...(scope.extraction?.reviewNotes||[]).filter(note=>!blockingReviewNote(note)).map(note=>/^to confirm:/i.test(note)?note:`To confirm: ${note}`)],exclusions:[...new Set([...book.exclusions,...explicitExclusions,...(resolution?.addExclusions||[])])],
     missingInformation,allowances:[],
   };
   const estimate=calculateP5Estimate(input,configuration.finance,[],now);

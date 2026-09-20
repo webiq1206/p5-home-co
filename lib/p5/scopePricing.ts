@@ -653,6 +653,12 @@ export function advisoryIssue(text:string):boolean{
   if(/\b(?:scope|planning|market|repair-scope)-\d+\b/.test(t)
     &&/uncited|general estimating knowledge|published estimating guide|construction[- ]cost database|not a planning-\S* line|supportably priced|rather than a verified quantity|modeled allowance|label(?:ed|led)? as an? (?:modeled |quantity )?allowance/.test(t)
     &&!/duplicat|double[- ]count|\bomit|omission|wrong (?:unit|uom|responsibilit)|fabricat|out of scope|does not match the explicit|no positive/.test(t))return true;
+  // A hedged overlap ("planning-103 MAY overlap planning-201; reconcile before procurement") is a
+  // suspicion. This codebase's rule for suspected duplicates is to flag them, never to merge them
+  // silently - and never to bin an entire estimate over one. A duplicate stated as fact still blocks.
+  if(/\b(?:may|might|could|possibl(?:e|y)|potential(?:ly)?|cannot be ruled out|verify whether|check whether|confirm whether|should be (?:reconciled|checked))\b/.test(t)
+    &&/duplicat|overlap/.test(t)
+    &&!/double[- ]count|\bis duplicated\b|\bare duplicated\b|\bduplicates\b|confirmed duplicate|charged twice/.test(t))return true;
   // An allowance basis never excuses omitted work or a rejected priced line.
   // Check concrete defects before the planning-basis exceptions below.
   if(/duplicat|double[- ]count|\bomit|omission|\bunpriced\b|missing (?:work|materials?|labor|components?|quantit(?:y|ies)|scope)|not (?:fully |been )?(?:priced|covered|included|supported)|no positive priced|not converted into a priced line|does not match|disagrees|wrong (?:unit|uom|responsibilit)|fabricat|out of scope/.test(t))return false;
@@ -992,7 +998,19 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
     const ids=new Set(mapping.tasks.map(t=>t.id));
     if(audit.coveredTaskIds.some(id=>!ids.has(id)))throw new Error('Unknown audited task');
     resolution.issues.push(...audit.issues,...(pricingExtraction?.instructions?.questions||[]));
-    for(const t of mapping.tasks)if(billableTask(t)&&!t.existingLineIds.some(id=>(lines.some(l=>l.id===id)||resolution.rules.some(r=>r.id===id))&&!resolution.removeLineIds?.includes(id))&&!resolution.rules.some(r=>r.scopeTaskId===t.id))resolution.issues.push(`${t.description}: no positive priced component or allowance was produced.`);
+    // An item nobody could put a defensible number on is named and carried OUT of the total, the
+    // way the rest of this codebase treats measured-but-unpriced work. Withholding the whole
+    // estimate instead tells a visitor nothing and hides the twenty items that did price. If
+    // nothing priced at all there is no estimate to publish, and that still blocks.
+    const unpriced=mapping.tasks.filter(t=>billableTask(t)&&!t.existingLineIds.some(id=>(lines.some(l=>l.id===id)||resolution.rules.some(r=>r.id===id))&&!resolution.removeLineIds?.includes(id))&&!resolution.rules.some(r=>r.scopeTaskId===t.id));
+    const pricedTaskCount=mapping.tasks.filter(billableTask).length-unpriced.length;
+    for(const t of unpriced){
+      if(!pricedTaskCount){resolution.issues.push(`${t.description}: no positive priced component or allowance was produced.`);continue;}
+      resolution.issues=resolution.issues.filter(issue=>issue!==`${t.description}: no supported price.`&&issue!==`${t.description}: no defensible planning average could be supported.`);
+      resolution.addExclusions=[...new Set([...(resolution.addExclusions||[]),`${t.description} (not included in this range; we will quote it after a site visit)`])];
+      resolution.assumptions.push(`To confirm: ${t.description} is listed but not priced in this range; it needs a site visit before we can put a number on it.`);
+      console.error(`[p5-pricing] carried an unpriced item out of the total: ${t.description.slice(0,120)}`);
+    }
     // Deterministic corrections come before the integrity checks: what the
     // code can prove wrong it fixes, and discloses; only judgement calls ride
     // along as items to confirm.
