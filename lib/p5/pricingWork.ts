@@ -90,15 +90,21 @@ export async function priceSavedScope(id:string,scope:ReviewedScope,configuratio
    }
    // A failed published-cost search is not a reason to stop pricing: the caller may use a labeled planning average instead.
    if(search){console.error(`[p5-pricing] research failed after ${elapsed()}s: ${error instanceof Error?error.message:String(error)}`);throw new PricingStageTimeout(error instanceof Error?error.message:'pricing-search-unavailable');}
-   payload.failures=(payload.failures||0)+1;await persist();
    const message=error instanceof Error?error.message:String(error);
+   // Batches run side by side, so one provider hiccup arrives as several failures in the same
+   // second. They are one event: counting each ended an 18-item job in under a second.
+   const state=payload as unknown as {failures?:number;lastFailureAt?:number;busyWaits?:number};
+   const burst=Date.now()-(state.lastFailureAt||0)<5000;state.lastFailureAt=Date.now();
+   const busy=/^pricing-provider-unavailable:(?:429|5\d\d)\b/.test(message);
+   if(busy&&(state.busyWaits||0)<12){if(!burst)state.busyWaits=(state.busyWaits||0)+1;await persist();console.error(`[p5-pricing] ${phase}: provider busy (${message.slice(0,60)}); waiting before continuing.`);throw new PricingPending('Preparing your estimate. Your completed steps are saved.',Math.min(20000,4000*(state.busyWaits||1)));}
+   if(!burst)payload.failures=(payload.failures||0)+1;await persist();
    // The failure is logged with its stage so a live host can be diagnosed from its deployment logs.
    console.error(`[p5-pricing] ${phase} failed after ${elapsed()}s (attempt ${payload.failures}): ${message}`);
    // A refusal every configured provider will repeat (billing block, bad request) ends the job honestly instead of retrying for minutes.
    if(/^pricing-provider-unavailable(:4(0[0-3]|0[5-9]|1\d|2[0-8])\b|:anthropic-blocked|$)/.test(message))throw new PricingPending(PRICING_UNAVAILABLE,0,true);
    // Repeated failures of a stage end the job as a handoff rather than parking it: a person completes the estimate and the visitor is told so.
-   if(payload.failures>=4)throw new PricingPending(PRICING_UNAVAILABLE,0,true);
-   throw new PricingPending('The pricing provider needs another attempt. Your completed pricing steps are saved. Continuing automatically.',payload.failures>=2?250:4000);
+   if((payload.failures||0)>=4)throw new PricingPending(PRICING_UNAVAILABLE,0,true);
+   throw new PricingPending('The pricing provider needs another attempt. Your completed pricing steps are saved. Continuing automatically.',(payload.failures||0)>=2?250:4000);
   }
   console.error(`[p5-pricing] ${phase} finished in ${elapsed()}s`);
   payload.failures=0;payload.replies[key]=reply;payload.completed=(payload.completed||0)+1;

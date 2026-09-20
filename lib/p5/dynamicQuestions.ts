@@ -187,9 +187,11 @@ export function scopeFieldApplies(field: ScopeField, context: QuestionContext): 
   if (!context.service) return true;
   if (field === 'finish') return !context.laborOnly && !context.restriction && !cabinetSelectionsSpecified(context)
     && (context.fullProject || context.service.startsWith('cabinet-'));
-  if (field === 'garageIncluded') return context.service === 'new-construction' && !context.restriction
-    || topicActive(context, 'garage');
-  if (field === 'garageSqft') return context.answers.garageIncluded !== 'no'
+  // A garage is a building question. A repair in an existing garage (a GFCI outlet,
+  // a door opener) mentions the word without any garage being built or sized.
+  if (field === 'garageIncluded') return BUILDS.has(context.service) && (context.service === 'new-construction' && !context.restriction
+    || topicActive(context, 'garage'));
+  if (field === 'garageSqft') return BUILDS.has(context.service) && context.answers.garageIncluded !== 'no'
     && (context.answers.garageIncluded === 'yes' || topicActive(context, 'garage'));
   if (field === 'cabinetRoom') return context.service.startsWith('cabinet-') && cabinetPackage(context);
   if (field === 'demolitionSqft') return topicActive(context, 'demolition')

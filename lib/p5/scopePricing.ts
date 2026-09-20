@@ -46,6 +46,10 @@ const planningSchema=z.object({rates:z.array(planningRate).max(60),issues:z.arra
 /** Elapsed time from the pricing job's start after which no repair round is started; findings are disclosed with the range instead. */
 export const REPAIR_BUDGET_MS=Number(process.env.P5_REPAIR_BUDGET_MS||150000);
 /** Elapsed time from the job's start after which published research is no longer attempted and the planning average is used directly. */
+/** Live web cost research while the customer waits. On production every search batch
+ * ran to its 60 s limit and the estimate used the planning allowance anyway, so the
+ * default goes straight to that allowance. Set P5_PRICING_WEB_RESEARCH=on to search live. */
+export const LIVE_RESEARCH=process.env.P5_PRICING_WEB_RESEARCH==='on'||Boolean(process.env.NODE_TEST_CONTEXT)&&process.env.P5_PRICING_WEB_RESEARCH!=='off';
 export const RESEARCH_WINDOW_MS=Number(process.env.P5_RESEARCH_WINDOW_MS||180000);
 export const RESEARCH_STAGE_MS=Number(process.env.P5_RESEARCH_STAGE_MS||60000);
 /** Longest single provider stage. A stage is one saved unit of work; the pass window in backgroundJobs bounds the whole attempt. */
@@ -121,6 +125,8 @@ export function validateManagedPricingOpenAI(env:Readonly<Record<string,string|u
   return endpoint;
 }
 /** Stage errors that mean the provider will keep refusing this request: a billing block or a bad request (429 and 5xx stay retryable). */
+/** The provider did not take the request (rate limit, overload, gateway): nothing ran and nothing was charged, so the other provider may serve the stage at once. */
+const providerBusy=(message:string)=>/^pricing-provider-unavailable:(?:429|5\d\d)\b/.test(message);
 const providerRefused=(message:string)=>/^pricing-provider-unavailable:4(0[0-3]|0[5-9]|1\d|2[0-8])\b/.test(message);
 /** The structured output each stage must return, shared by both providers so a fallback reply has the same shape. */
 const stageSchema=(instructions:string)=>instructions===normalizeResearch?marketJson:instructions===INVENTORY?inventoryJson:instructions===MAP?mappingJson:instructions===PLANNING_AVERAGE?planningJson:auditJson;
@@ -252,7 +258,7 @@ export const requestPricing=async(instructions:string,input:unknown,search:boole
     try{return await requestPricingWith('openai',instructions,input,search,remainingMs,{},identity);}
     catch(error){
       const message=error instanceof Error?error.message:String(error);
-      if(!anthropic||!providerRefused(message))throw error;
+      if(!anthropic||!(providerRefused(message)||providerBusy(message)))throw error;
       const left=remainingMs-(Date.now()-started);
       console.error(`[p5-pricing] OpenAI refused the stage (${message.slice(0,140)}); ${left>=5000?'continuing with Anthropic':'no time left for Anthropic'}.`);
       if(left<5000)throw error;
@@ -263,7 +269,7 @@ export const requestPricing=async(instructions:string,input:unknown,search:boole
     try{return await requestPricingWith('anthropic',instructions,input,search,remainingMs,{},identity);}
     catch(error){
       const message=error instanceof Error?error.message:String(error);
-      if(!openai||!providerRefused(message))throw error;
+      if(!openai||!(providerRefused(message)||providerBusy(message)))throw error;
       if(/credit balance|billing|:402:/i.test(message))providerRuntime.p5AnthropicBlockedUntil=Date.now()+10*60_000;
       const left=remainingMs-(Date.now()-started);
       console.error(`[p5-pricing] Anthropic refused the stage (${message.slice(0,140)}); ${left>=5000?'continuing with OpenAI':'no time left for OpenAI'}.`);
@@ -275,6 +281,14 @@ export const requestPricing=async(instructions:string,input:unknown,search:boole
   return requestPricingWith('openai',instructions,input,search,remainingMs,{},identity);
 };
 
+/** Independent batches run together, but only a few at a time: a burst of a dozen
+ * simultaneous requests is what drew the provider's rate limit on an 18-item repair list. */
+const PRICING_FANOUT=Math.max(1,Number(process.env.P5_PRICING_FANOUT||4));
+async function mapLimit<T,R>(items:T[],run:(item:T,index:number)=>Promise<R>):Promise<R[]>{
+  const results:R[]=new Array(items.length);let next=0;
+  await Promise.all(Array.from({length:Math.min(PRICING_FANOUT,items.length)},async()=>{while(next<items.length){const index=next++;results[index]=await run(items[index],index);}}));
+  return results;
+}
 function existingLines(priced:ReturnType<typeof priceReviewedScope>){
   return 'lines' in priced.internal?priced.internal.lines:[];
 }
@@ -704,7 +718,7 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
     // that ordering bought latency, not correctness. Wall-clock for mapping is
     // now the slowest batch, not the sum of all of them.
     const mappingInput=(taskBatch:typeof inventory.tasks)=>({original:sourceParts.length===1?original:{sections:[...new Set(taskBatch.map(t=>taskSources.get(t.id)!))].map(i=>sourceParts[i])},taskBatch,priorMappedTasks:[],priorReplacements:[],existingLines:lines.map(({id,description,quantity,unit,unitCost,category,trade,quantitySource})=>({id,description,quantity,unit,unitCost,category,trade,quantitySource})),defaultExclusions:base.customer.exclusions,date:now.toISOString(),catalogImportedAt:configuration.planningCatalog?.importedAt,regionalRates:configuration.regionalRates,catalog:(configuration.planningCatalog?.rates||[]).map(({code,description,type,unit,amount,basis})=>({code,description,type,unit,amount,basis}))});
-    const mappedBatches=await Promise.all(batchesOf(inventory.tasks,6).map(taskBatch=>mapBatch(request,taskBatch,mappingInput,()=>deadline-Date.now())));
+    const mappedBatches=await mapLimit(batchesOf(inventory.tasks,6),taskBatch=>mapBatch(request,taskBatch,mappingInput,()=>deadline-Date.now()));
     const mapping:Mapping={tasks:[],issues:[...inventory.issues],notes:[...inventory.notes],replacements:[],removeExclusions:[]};
     for(const [batchIndex,batch] of mappedBatches.entries()){
       const taskBatch=batchesOf(inventory.tasks,6)[batchIndex];
@@ -733,8 +747,8 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
       const tasksInput=gapBatch.map(t=>({id:t.id,description:t.researchDescription,quantityEvidence:t.evidence,alreadyCovered:covered(t)}));
       let researchFailure='';
       // Past the research window the job goes straight to the labeled planning average; the visitor is not kept waiting on a second search.
-      const age=Date.now()-now.getTime();const pastWindow=age>RESEARCH_WINDOW_MS&&age<6*60*60*1000;
-      if(pastWindow)researchFailure='the pricing job passed its research window';
+      const age=Date.now()-now.getTime();const pastWindow=!LIVE_RESEARCH||age>RESEARCH_WINDOW_MS&&age<6*60*60*1000;
+      if(pastWindow)researchFailure=LIVE_RESEARCH?'the pricing job passed its research window':'live cost research is not run while a customer waits';
       if(!pastWindow)try{
         let researched=await request(RESEARCH,{date:now.toISOString().slice(0,10),region,tasks:tasksInput,...(priorIssues?{priorIssues}:{})},true,Math.min(RESEARCH_STAGE_MS,deadline-Date.now()));
         // JSON syntax alone does not ensure the research schema is valid. Save a
@@ -777,7 +791,7 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
       for(const priced of results){research.push(...priced.replies);priced.modelIssues.forEach(issue=>modelIssues.add(issue));resolution.rules.push(...priced.resolution.rules);resolution.assumptions.push(...priced.resolution.assumptions);resolution.issues.push(...priced.resolution.issues);}
     };
     const mappedLines=existingLines(priceReviewedScope(scope,configuration,now,resolution));
-    mergeGapResults(await Promise.all(batchesOf(gaps,3).map((gapBatch,index)=>priceGapBatch(gapBatch,index,t=>coveredWork(t,mappedLines,resolution.rules)))));
+    mergeGapResults(await mapLimit(batchesOf(gaps,3),(gapBatch,index)=>priceGapBatch(gapBatch,index,t=>coveredWork(t,mappedLines,resolution.rules))));
     const audit:z.infer<typeof auditSchema>={coveredTaskIds:[],issues:[],notes:[],resolvedIssues:[]};
     const reconcileIssues=()=>{
       if(audit.issues.length||mapping.tasks.some(t=>!audit.coveredTaskIds.includes(t.id)))return;
@@ -824,7 +838,7 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
       const pricedComponents=existingLines(beforeRepair);
       const fixes:Mapping={tasks:[],issues:[],notes:[],replacements:[],removeExclusions:[]};
       const repairInput=(taskBatch:typeof mapping.tasks)=>({original:sourceParts.length===1?original:{sections:[...new Set(taskBatch.map(t=>taskSources.get(t.id)!))].map(i=>sourceParts[i])},taskBatch:taskBatch.map(({id,description,evidence})=>({id,description,evidence})),pricingIssues:priorIssues,repairInstruction:'Resolve the audit findings with measured costs or item-specific allowances. Existing components already contain prior additions. Reference them instead of charging again; explicitly replace wrong or incomplete components. An unknown dimension may use an evidenced modeled quantity range, never an invented measurement.',priorMappedTasks:[],priorReplacements:[],existingLines:pricedComponents,defaultExclusions:beforeRepair.customer.exclusions,catalog:configuration.planningCatalog?.rates||[],regionalRates:configuration.regionalRates,date:now.toISOString()});
-      const repairedBatches=await Promise.all(batchesOf(mapping.tasks,6).map(taskBatch=>mapBatch(request,taskBatch,repairInput,()=>deadline-Date.now())));
+      const repairedBatches=await mapLimit(batchesOf(mapping.tasks,6),taskBatch=>mapBatch(request,taskBatch,repairInput,()=>deadline-Date.now()));
       for(const [batchIndex,batch] of repairedBatches.entries()){
         const taskBatch=batchesOf(mapping.tasks,6)[batchIndex];
         if(batch.tasks.length!==taskBatch.length||new Set(batch.tasks.map(t=>t.id)).size!==taskBatch.length||batch.tasks.some(t=>!taskBatch.some(expected=>expected.id===t.id)))throw new Error('Incomplete repair batch');
@@ -866,7 +880,7 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
       const replaced=new Set(repairGaps.map(t=>t.id));
       resolution.rules=resolution.rules.filter(rule=>!(researchRule(rule)&&replaced.has(rule.scopeTaskId!)));
       const repairedLines=existingLines(priceReviewedScope(scope,configuration,now,resolution));
-      mergeGapResults(await Promise.all(batchesOf(repairGaps,3).map((gapBatch,index)=>priceGapBatch(gapBatch,1000+index,t=>coveredWork(t,repairedLines,resolution.rules),priorIssues))));
+      mergeGapResults(await mapLimit(batchesOf(repairGaps,3),(gapBatch,index)=>priceGapBatch(gapBatch,1000+index,t=>coveredWork(t,repairedLines,resolution.rules),priorIssues)));
       audit.coveredTaskIds=[];audit.issues=[];audit.resolvedIssues=[];
       const checkedParts=await Promise.all(sourceParts.map((part,index)=>request(AUDIT,{original:part,tasks:mapping.tasks.filter(t=>sourceParts.length===1||taskSources.get(t.id)===index),priorPricingIssues:resolution.issues,existingLines:lines.filter(l=>!resolution.removeLineIds?.includes(l.id)),additionalRules:resolution.rules,priorAuditIssues:priorIssues,removedLines:pricedComponents.filter(l=>resolution.removeLineIds?.includes(l.id)),existingExclusions:base.customer.exclusions.filter(e=>!resolution.removeExclusions?.includes(e)),research},false,deadline-Date.now())));
       for(const checked of checkedParts){
