@@ -78,6 +78,7 @@ build/contracts/
 !/lib/
 /lib/*
 !/lib/p5/
+!/lib/googleAdsConversion.ts
 !/scripts/
 /scripts/*
 !/scripts/p5-admin-pricing-browser.mjs
