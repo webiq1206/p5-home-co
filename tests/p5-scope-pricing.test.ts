@@ -737,3 +737,16 @@ test('A repair round cannot delete a priced component without replacing it in ki
  assert.ok((priced.internal as any).lines.some((l:any)=>l.id==='scope-1'),'the original component is kept');
  assert.ok(priced.customer.range,JSON.stringify((priced.internal as any).scopePricing.issues));
 });
+test('A finding that only disputes how the owner derived an approved rate never withholds the range',async()=>{
+ const {advisoryIssue}=await import('../lib/p5/scopePricing.ts');
+ assert.equal(advisoryIssue('garage-lights is not fully supported: labor line scope-8 uses an unsupported selling-price-to-direct-cost conversion. Planning line planning-302 covers only minor repair materials, not defensible electrician labor.'),true);
+ assert.equal(advisoryIssue('sink-traps is not fully supported: labor line scope-3 derives a purported direct cost from historical customer selling rates using assumed 20% overhead, 20% profit, and a 1.10 divisor.'),true);
+ assert.equal(advisoryIssue('scope-3 duplicates scope-4 and was reverse-engineered'),false);
+ assert.equal(advisoryIssue('Electrician labor for the outlet is unpriced.'),false);
+ const priced0={...extra,researchDescription:'',additions:[{code:'03-15-02-M',quantity:10,quantityEvidence:'Ten feet requested'}]};
+ const priced=await priceCompleteScope(scope,config,replies([
+   {tasks:[task,priced0],issues:[]},
+   {coveredTaskIds:['cabinets'],issues:['overlay is not fully supported: line scope-1 uses an unsupported selling-price-to-direct-cost conversion.']},
+ ]),now);
+ assert.ok(priced.customer.range,JSON.stringify((priced.internal as any).scopePricing.issues));
+});
