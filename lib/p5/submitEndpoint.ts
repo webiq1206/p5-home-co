@@ -1,4 +1,5 @@
 import {HANDOFF_ISSUE} from './scopePricing.ts';
+import {shippedRateCard,withRateCard} from './rateCard.ts';
 import { query } from "./database.ts";
 import { draftCredentials,readDraft,DraftError,requireEstimateContact } from "./store.ts";
 import { EMPTY_CONFIGURATION,type EstimatorConfiguration } from "./costBook.ts";
@@ -34,7 +35,11 @@ export async function postSubmission(request:Request,schedule?:(task:()=>Promise
     if(!(brand.services as readonly string[]).includes(String(draft.answers.service)))throw new DraftError("Choose a service offered by this company.");
     if(!draft.reviewed)throw new DraftError("Review and confirm the extracted scope before submitting.");
     const [policy]=await query("SELECT payload FROM p5_estimator_policy WHERE id='current'");
-    const configuration=(policy?.payload||EMPTY_CONFIGURATION) as EstimatorConfiguration;
+    const saved=(policy?.payload||EMPTY_CONFIGURATION) as EstimatorConfiguration;
+    // The owner's shipped rate card fills any gap in the saved catalog before pricing starts.
+    const card=process.env.P5_RATE_CARD==='off'?null:await shippedRateCard();
+    const configuration=card?withRateCard(saved,card):saved;
+    if(card&&configuration!==saved)console.log(`[p5-rates] priced with ${configuration.planningCatalog?.rates.length} planning rates (${(configuration.planningCatalog?.rates.length||0)-(saved.planningCatalog?.rates.length||0)} from the shipped Boise rate card)`);
     // Ask for a quantity the planning model cannot work without now, before any pricing work starts.
     const needed=pricingPreflight(draft.reviewed,configuration);
     if(needed.length)return json({pricingReviewRequired:true,needsCustomerInput:true,handoff:false,preflight:true,missingFields:needed,verificationItems:[],error:PREFLIGHT_MESSAGE},422);

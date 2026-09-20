@@ -95,3 +95,28 @@ test('the Boise rate card is loadable into an owner planning catalog',async()=>{
   const merged=validatePlanningCatalog({version:PLANNING_MODEL_VERSION,source:'Owner schedule plus Boise rate card',authorizedBy:'Owner',importedAt:new Date().toISOString(),rates:[...required,...rates]} as never);
   assert.equal(merged.rates.length,required.length+rates.length);
 });
+
+test('the shipped rate card fills gaps in a saved catalog without touching the owner\'s own rates',async()=>{
+  const {shippedRateCard,withRateCard,missingRates}=await import('../lib/p5/rateCard.ts');
+  const card=await shippedRateCard();
+  assert.ok(card&&card.length>=200,'the card loads from the repository');
+  const owner={code:'RC-LAB-GENERAL',description:'Owner general labor',type:'Labor',unit:'HR',amount:99,source:'Owner schedule',basis:'owner-average-cost'};
+  const saved={finance:{},costBooks:[],planningCatalog:{version:'owner-schedule-2026-09-11',source:'Owner',authorizedBy:'Owner',importedAt:new Date().toISOString(),rates:[owner]}} as never;
+  const merged=withRateCard(saved,card!);
+  const general=merged.planningCatalog!.rates.filter(r=>r.code==='RC-LAB-GENERAL');
+  assert.equal(general.length,1);assert.equal(general[0].amount,99,"the owner's own rate wins");
+  assert.equal(merged.planningCatalog!.rates.length,card!.length,'every other card rate is added once');
+  assert.equal(missingRates(merged,card!).length,0,'a second pass adds nothing');
+  assert.equal(withRateCard(merged,card!),merged,'and returns the same configuration');
+  // The catalog ceiling still holds.
+  const full={...saved,planningCatalog:{...saved.planningCatalog!,rates:Array.from({length:500},(_,i)=>({...owner,code:`OWN-${i}`}))}} as never;
+  assert.equal(withRateCard(full,card!).planningCatalog!.rates.length,500);
+});
+
+test('the generated rate card module matches the JSON source of truth',async()=>{
+  const {readFile}=await import('node:fs/promises');
+  const {RATE_CARD}=await import('../lib/p5/rateCardData.ts');
+  const card=JSON.parse(await readFile(new URL('../scripts/p5-boise-rate-card.json',import.meta.url),'utf8'));
+  const expected=card.rates.map((r:any)=>({code:r.code,description:r.description,type:r.type,unit:r.unit,amount:r.amount,source:r.source||card.source,basis:r.basis||card.basis||'owner-average-cost'}));
+  assert.deepEqual(RATE_CARD,expected,'run node scripts/p5-build-rate-card.mjs after editing the rate card');
+});
