@@ -1,7 +1,7 @@
 {
  "source": "boise-remodeling-co",
- "commit": "7ec59919f2c2e76f4090df6b37bc45a92470866c",
- "generatedAt": "2026-09-20T23:15:30.825Z",
+ "commit": "c939a29ca7677d6552e8736b1c16957fd62b94ae",
+ "generatedAt": "2026-09-20T23:27:13.438Z",
  "note": "Shared estimator files. Edit them in boise-remodeling-co and run scripts/p5-sync.mjs; never edit them in one brand.",
  "files": {
   "app/admin/p5-estimators/page.tsx": "80b9e20e4144c34a9f78033ab1b84e2555e42c44e670050b9e0fcbffa477512e",
@@ -124,6 +124,7 @@
   "scripts/check-p5-scope-extraction.ts": "6c1f6d77d5d769bea9fee4f821d59c552aae9a8a8a68253f4b55fd17a3280fda",
   "scripts/offline-network-guard.cjs": "9b59369f57de777d46c3a53c8a6606026e534faa4667c5e25dcc22e0a85b4c05",
   "scripts/p5-admin-pricing-browser.mjs": "1a55ce1c7da4472f31c19a1eee3acdd9d48383bf84f35cfa2c2b1d7337ab2e36",
+  "scripts/p5-align-price-cache.mjs": "0fe3a5fdc7203f6d1c8708f4b0cb6d4e958689ad605e2121d84fe0c5a1b43131",
   "scripts/p5-boise-rate-card.json": "d1ee10548c3121db392dca6a2c3bec81b0e3b8ec4f581ab99baf4c563cc79833",
   "scripts/p5-build-rate-card.mjs": "465946857b7adcd1f0eb018241e7b0390cd38b9595cbcd3fc431fb7077a95bef",
   "scripts/p5-cli-acceptance.mts": "ed5b8fc80231c03b3c2b54de486fb6db7f259947e855ecf4985a9caf6f4ea6b8",
