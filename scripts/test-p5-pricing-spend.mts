@@ -1,0 +1,48 @@
+import assert from 'node:assert/strict';
+import {mkdtemp,cp,writeFile,rm} from 'node:fs/promises';
+import {randomBytes} from 'node:crypto';
+import path from 'node:path';
+import {pathToFileURL} from 'node:url';
+
+const root=process.cwd(),dir=await mkdtemp(path.join(root,'node_modules/.cache/p5-pricing-spend-'));
+try{
+  await cp('lib/p5',dir,{recursive:true});
+  await writeFile(path.join(dir,'database.ts'),`import {PGlite} from '@electric-sql/pglite';export const database=new PGlite();export async function query(s:string,v:unknown[]=[]){return (await database.query(s,v)).rows as any[];}export async function transaction<T>(run:(q:typeof query)=>Promise<T>){return database.transaction(async tx=>run(async(s:string,v:unknown[]=[])=>((await tx.query(s,v)).rows as any[])));}`);
+  const mod=await import(pathToFileURL(path.join(dir,'pricingSpend.ts')).href) as typeof import('../lib/p5/pricingSpend.ts');
+  const db=await import(pathToFileURL(path.join(dir,'database.ts')).href) as any;
+  const env={P5_LIVE_PRICING_ALLOWANCE_ID:'fixture-allowance',P5_LIVE_PRICING_ALLOWANCE_USD:'3',P5_LIVE_PRICING_RESERVE_USD:'1'};
+  const key=`fixture-${randomBytes(4).toString('hex')}`;
+  const first=await mod.reservePricingSpend({operationKey:key,provider:'Fake',model:'fixture',scenario:'mapping',stage:'provider'},env);
+  assert.equal(first.status,'reserved');assert.equal(first.remainingUsd,2);
+  const reused=await mod.reservePricingSpend({operationKey:key,provider:'Fake',model:'fixture'},env);
+  assert.equal(reused.id,first.id);assert.equal(reused.status,'reserved');assert.equal(reused.remainingUsd,2);
+  await mod.beginPricingSpend(first.id!);
+  const pendingRestart=await mod.reservePricingSpend({operationKey:key,provider:'Fake',model:'fixture'},env);
+  assert.equal(pendingRestart.status,'unknown');assert.equal(pendingRestart.remainingUsd,2);
+  const second=await mod.reservePricingSpend({operationKey:'second',provider:'Fake',model:'fixture'},env);
+  assert.equal(second.status,'reserved');
+  await mod.finishPricingSpend(second.id!,'released');
+  const third=await mod.reservePricingSpend({operationKey:'third',provider:'Fake',model:'fixture'},env);
+  assert.equal(third.status,'reserved');
+  await mod.finishPricingSpend(third.id!,'consumed');
+  const fourth=await mod.reservePricingSpend({operationKey:'fourth',provider:'Fake'},env);
+  assert.equal(fourth.status,'reserved');
+  await mod.beginPricingSpend(fourth.id!);
+  await mod.confirmPricingSpend(fourth.id!,{elapsedMs:12,actualUsd:.25,responseId:'fixture-response',returnedModel:'fixture',serviceTier:'default',inputTokens:100,outputTokens:20,cachedInputTokens:0,inputPerMillion:6.875,outputPerMillion:33});
+  const fullReservation=await mod.reservePricingSpend({operationKey:'fifth-full',provider:'Fake'},env);
+  assert.equal(fullReservation.status,'stopped');
+  const remainder=await mod.reservePricingSpend({operationKey:'fifth',provider:'Fake',reserveUsd:.75},env);
+  assert.equal(remainder.status,'reserved');assert.equal(remainder.amountUsd,.75);
+  await mod.beginPricingSpend(remainder.id!);
+  const stopped=await mod.reservePricingSpend({operationKey:'sixth',provider:'Fake'},env);
+  assert.equal(stopped.status,'stopped');assert.equal(stopped.code,'allowance-exhausted');
+  assert.throws(()=>mod.configuredPricingAllowance({}),/configuration-required/);
+  const concurrentEnv={P5_LIVE_PRICING_ALLOWANCE_ID:'concurrent',P5_LIVE_PRICING_ALLOWANCE_USD:'1',P5_LIVE_PRICING_RESERVE_USD:'1'};
+  const concurrent=await Promise.all([mod.reservePricingSpend({operationKey:'a',provider:'Fake'},concurrentEnv),mod.reservePricingSpend({operationKey:'b',provider:'Fake'},concurrentEnv)]);
+  assert.equal(concurrent.filter(value=>value.status==='reserved').length,1);
+  assert.equal(concurrent.filter(value=>value.status==='stopped').length,1);
+  const rows=await db.database.query("SELECT status,amount_usd,operation_key FROM p5_estimator_pricing_spend WHERE allowance_id='fixture-allowance' ORDER BY operation_key");
+  assert.deepEqual(rows.rows.map((r:any)=>r.status).sort(),['consumed','consumed','released','stopped','stopped','unknown','unknown']);
+  await db.database.close();
+  console.log('PASS: pricing spend ledger is explicit, atomic, idempotent across restart keys, settles conservative actual usage, preserves unknown outcomes, and stops exhausted allowance.');
+}finally{await rm(dir,{recursive:true,force:true});}
