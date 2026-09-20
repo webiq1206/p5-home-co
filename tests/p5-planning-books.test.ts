@@ -9,6 +9,19 @@ const codes=['03-17-01-M','03-17-01-L','03-19-02-M','03-15-02-M','03-15-02-L','0
 const catalog:PlanningCatalog={version:PLANNING_MODEL_VERSION,source:'Synthetic test catalog. Not business cost data.',importedAt:date,authorizedBy:'Test fixture',rates:codes.map(code=>({code,description:code.includes('17-01')?'Cabinets':code.includes('19-02')?'Decorative cabinet hardware':'Synthetic work',type:code.endsWith('-M')||code==='REF-TOILET'?'Material':code.endsWith('-L')||code.includes('HOUR')?'Labor':'Subcontractor',unit:code.includes('HOUR')?'HR':code==='REF-TOILET'?'EA':'LF',amount:code==='03-17-01-M'?100:code==='03-17-01-L'?40:10,source:'Synthetic unit-cost fixture',basis:'owner-average-cost'}))};
 const scope=(answers:ReviewedScope['answers'],text=''):ReviewedScope=>({text,answers,extraction:null,uploads:[],reviewedAt:date,corrections:[]});
 const now=new Date(date);
+test('Whole-build cabinet allowance avoids a late measurement blocker and preserves supplied tall runs',()=>{
+ const book=createPlanningConfiguration(catalog).costBooks.find(b=>b.service==='new-construction')!;
+ const answers={service:'new-construction',sqft:'3500',garageIncluded:'yes',garageSqft:'1000',finish:'high-end'};
+ const modeled=materializePlanningBook(book,catalog,scope(answers),now);
+ assert.ok(!modeled.missing.includes('Missing quantity: cabinetTallLf'));
+ assert.ok(modeled.book.assumptions.some(note=>/Tall cabinet run.*modeled allowance of 4/.test(note)));
+ const cabinetQuantity=(result:typeof modeled)=>result.book.rules.find(rule=>rule.id.startsWith('03-17-01-M'))!.quantity.fixed!;
+ const zero=materializePlanningBook(book,catalog,scope({...answers,cabinetTallLf:'0'}),now);
+ const measured=materializePlanningBook(book,catalog,scope({...answers,cabinetTallLf:'7'}),now);
+ assert.equal(cabinetQuantity(modeled)-cabinetQuantity(zero),8);
+ assert.equal(cabinetQuantity(measured)-cabinetQuantity(zero),14);
+ assert.ok(!zero.book.assumptions.some(note=>/Tall cabinet run.*modeled allowance/.test(note)));
+});
 test('Every service has an explicit owner-planning book; rates remain in private configuration',()=>{const config=createPlanningConfiguration(catalog);assert.equal(config.costBooks.length,12);assert.equal(new Set(config.costBooks.map(b=>b.service)).size,12);assert.ok(config.costBooks.every(b=>b.mode==='owner-planning'));});
 test('Cabinet supply and installation use distinct scope and preserve the overhead/profit reconciliation',()=>{
  const config=createPlanningConfiguration(catalog);
