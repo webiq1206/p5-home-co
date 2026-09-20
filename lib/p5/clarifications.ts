@@ -16,6 +16,24 @@ export function instructionPromptText(prompt:InstructionPrompt):string {
 }
 export const questionKey=(text:string)=>text.toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
 const serviceQuestion=(text:string)=>/which .*services|what .*remodel.*service|company.s scope|typical .*services|offered.*services|services.*offered|residential remodel|boise .*estimate|requested subset/i.test(text);
+/** A contract deadline, closing date or who-pays question comes from the form the list was
+ * written on. It changes nothing about what the work costs, so the customer is never asked. */
+const contractQuestion=(text:string)=>/\b(?:business|calendar|working) days\b|\bdeadline\b|\bclosing date\b|\bclose of escrow\b|\bseller ha(?:s|ve)\b|\bbuyer ha(?:s|ve)\b|\bwho (?:pays|is paying)\b|\bblank on (?:the )?form\b/i.test(text);
+const TOPIC_STOP=new Set(['what','which','should','would','could','there','their','this','that','with','from','have','does','need','needs','needed','page','please','include','included','about','being','your','will','into','than','then','them','they','were','when','where','whether']);
+const topicStems=(text:string)=>new Set((text.toLowerCase().match(/[a-z]{4,}/g)||[]).filter(word=>!TOPIC_STOP.has(word)).map(word=>word.slice(0,5)));
+const measuredQuestion=(text:string)=>/how (?:many|much|long|wide|tall|large)|square f|linear f|\bsq\.? ?ft\b|\blf\b|\bsf\b/i.test(text);
+/** Two wordings of one decision ("is the chimney cap repair structural or cosmetic?" asked
+ * once per page of the document). A measured quantity is never treated as a repeat: base
+ * and wall cabinet lengths share almost every word and are different answers. */
+export function sameDecision(a:string,b:string):boolean{
+  if(measuredQuestion(a)||measuredQuestion(b))return false;
+  // Compare the questions themselves; a shared helper sentence ("This affects cost.") is not a shared subject.
+  const asked=(text:string)=>text.includes('?')?text.slice(0,text.indexOf('?')):text;
+  const left=topicStems(asked(a)),right=topicStems(asked(b));
+  const shared=[...left].filter(stem=>right.has(stem)).length;
+  return shared>=3&&shared/Math.min(left.size,right.size)>=0.55;
+}
+const answeredQuestions=(answers:ScopeAnswers)=>[...(answers.estimatingInstructions||'').matchAll(/^Question: (.+)$/gm)].map(match=>match[1]);
 const RESPONSIBILITY_CHOICES=['Labor only','Materials only','Labor and materials'] as const;
 
 /** Split a stored paragraph into questions. A trailing statement such as
@@ -34,13 +52,15 @@ const normalizeQuestionPart=(part:string)=>part.replace(/\s+/g,' ').trim();
 
 /** One question per card, including older extractions that stored paragraphs. */
 export function instructionPrompts(extraction:ScopeExtraction|null,answers:ScopeAnswers,sourceText=''):InstructionPrompt[]{
-  const result:InstructionPrompt[]=[];
+  const result:InstructionPrompt[]=[],answered=answeredQuestions(answers);
   for(const raw of extraction?.instructions?.questions||[]){
     for(const part of questionParts(raw).flatMap(part=>atomicInstructionQuestions(part,answers,extraction?.conflicts))){
       const full=normalizeQuestionPart(part);if(!full)continue;
       // Filter each question separately so a legacy paragraph cannot lose a real scope decision.
-      if(serviceQuestion(full))continue;
+      if(serviceQuestion(full)||contractQuestion(full))continue;
       const field=cabinetQuestionField(full);
+      // One decision is asked once, however many pages or wordings raised it.
+      if(!field&&(result.some(q=>!q.field&&sameDecision(instructionPromptText(q),full))||answered.some(q=>sameDecision(q,full))))continue;
       if(field&&answers[field]?.trim()&&!extraction?.conflicts.some(conflict=>conflict.field===field))continue;
       const id=questionKey(full);
       if(result.some(q=>q.id===id))continue;

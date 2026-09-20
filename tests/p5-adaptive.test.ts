@@ -145,3 +145,21 @@ test('specified materials replace generic finish tiers; unspecified scopes retai
  assert.ok(!scopeQuestions({service:'handyman',taskList:'Repair three doors'},null).some(q=>q.field==='finish'));
  assert.match(scopeAssumptions({service:'kitchen',sqft:'200'}).join(' '),/standard finishes are assumed/i);
 });
+
+test('a crawl-space question filed under demolition area keeps its own wording and a neutral heading',async()=>{
+  const {clarificationLabel}=await import('../lib/p5/adaptive.ts');
+  assert.equal(clarificationLabel('demolitionSqft','About how many square feet is the crawl space where debris is removed?'),'Project detail');
+  assert.notEqual(clarificationLabel('demolitionSqft','How many square feet of drywall demolition are included?'),'Project detail');
+});
+
+test('one decision is asked once and contract-form questions are never asked',async()=>{
+  const {sameDecision,instructionPrompts}=await import('../lib/p5/clarifications.ts');
+  assert.equal(sameDecision('What is the extent/size of chimney cap cracking - full replacement or patch repair?','Is chimney cap crack repair (from page 1) structural masonry repair or cosmetic patching?'),true);
+  assert.equal(sameDecision('How many linear feet of base cabinets are needed?','How many linear feet of wall cabinets are needed?'),false);
+  assert.equal(sameDecision('Should the garage lights be repaired or replaced?','Is the chimney cap repair structural or cosmetic?'),false);
+  const extraction={instructions:{questions:['Is chimney cap crack repair structural masonry repair or cosmetic patching?','Is chimney cap crack repair (from page 1) structural masonry repair or cosmetic patching?','How many business days does seller have to complete repairs (blank on form)?'],inclusions:[],exclusions:[],floors:[],buildings:[]},facts:[],clarifications:[],conflicts:[]} as never;
+  const asked=instructionPrompts(extraction,{service:'handyman'} as never,'');
+  assert.equal(asked.length,1);
+  const after=instructionPrompts(extraction,{service:'handyman',estimatingInstructions:'Question: What is the extent/size of chimney cap cracking - full replacement or patch repair?\nAnswer: patch'} as never,'');
+  assert.equal(after.length,0);
+});

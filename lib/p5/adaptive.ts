@@ -85,7 +85,7 @@ export function questionForField(field:ScopeField,answers:ScopeAnswers):ScopeQue
  * under. The reader chooses both the question and the field; when they
  * disagree (a crawl-space area filed under "Demolition area") the heading says
  * only that a detail is needed, rather than naming the wrong thing. */
-const FIELD_WORDS:Partial<Record<ScopeField,RegExp>>={demolitionSqft:/demol|remov|tear|haul/i,tileSqft:/tile|backsplash/i,flooringSqft:/floor/i,trimLf:/trim|baseboard|crown|casing|mould|mold/i,cabinetBaseLf:/cabinet|vanit/i,cabinetUpperLf:/cabinet/i,cabinetTallLf:/cabinet|pantry/i,garageSqft:/garage/i,coveredOutdoorSqft:/patio|porch|deck|outdoor|covered/i,countertopSqft:/counter|worktop|bench/i,sqft:/area|square|size|living|footage|large|big/i};
+const FIELD_WORDS:Partial<Record<ScopeField,RegExp>>={demolitionSqft:/demol|tear[- ]?out|gutt?(?:ed|ing)\b/i,tileSqft:/tile|backsplash/i,flooringSqft:/floor/i,trimLf:/trim|baseboard|crown|casing|mould|mold/i,cabinetBaseLf:/cabinet|vanit/i,cabinetUpperLf:/cabinet/i,cabinetTallLf:/cabinet|pantry/i,garageSqft:/garage/i,coveredOutdoorSqft:/patio|porch|deck|outdoor|covered/i,countertopSqft:/counter|worktop|bench/i,sqft:/area|square|size|living|footage|large|big/i};
 export const clarificationLabel=(field:ScopeField,question:string)=>FIELD_WORDS[field]&&!FIELD_WORDS[field]!.test(question)?'Project detail':SCOPE_FIELDS[field].label;
 export function scopeQuestions(input:ScopeAnswers,extraction:ScopeExtraction|null,conflicts:ScopeConflict[]=[],skipped:ScopeField[]=[],pricedFields:ScopeField[]=[],sourceText=''):ScopeQuestion[]{
   const answers=deriveScopeAnswers(input);
@@ -106,7 +106,7 @@ export function scopeQuestions(input:ScopeAnswers,extraction:ScopeExtraction|nul
   for(const fact of uncertain)if(!questions.some(q=>q.field===fact.field)&&!skipped.includes(fact.field))questions.push({field:fact.field,label:SCOPE_FIELDS[fact.field].label,reason:`${SCOPE_FIELDS[fact.field].label}: we found ${fact.value} in ${fact.source}. Is that correct?`,values:[fact.value]});
   // Keep the reader's project-specific wording, including which room or component
   // is missing. Replacing it with a generic numeric prompt loses that context.
-  for(const q of extraction?.clarifications||[])if(relevant.has(q.field)&&!answers[q.field]?.trim()&&!skipped.includes(q.field)&&!questions.some(x=>x.field===q.field))questions.push({field:q.field,label:clarificationLabel(q.field,q.question),reason:SCOPE_FIELDS[q.field].kind==='number'&&!/how (?:many|much|long|wide|large)|number of|square feet|linear feet|footage/i.test(q.question)?questionReason(q.field,answers):q.question,detail:q.reason});
+  for(const q of extraction?.clarifications||[])if(relevant.has(q.field)&&!answers[q.field]?.trim()&&!skipped.includes(q.field)&&!questions.some(x=>x.field===q.field))questions.push({field:q.field,label:clarificationLabel(q.field,q.question),reason:SCOPE_FIELDS[q.field].kind==='number'&&clarificationLabel(q.field,q.question)!=='Project detail'&&!/how (?:many|much|long|wide|large)|number of|square feet|linear feet|footage/i.test(q.question)?questionReason(q.field,answers):q.question,detail:q.reason});
   for(const field of relevant)if(!questions.some(q=>q.field===field)&&!skipped.includes(field))questions.push(questionForField(field,answers));
   return questions.map(q=>{
     const allowed=choiceValues(q.field,answers);

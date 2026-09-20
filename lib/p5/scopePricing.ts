@@ -884,6 +884,23 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
       }
       const repaired=catalogResolution(fixes,configuration,pricedComponents,now,scope);
       if(fixes.removeExclusions.some(e=>!beforeRepair.customer.exclusions.some(value=>value===e.text)))throw new Error('Unknown repair exclusion');
+      // A repair may replace a priced component, never just delete it. On a live repair list the
+      // repair named every approved labor line as a replacement and supplied no labor in return,
+      // so the final check found outlets, traps and hose bibs with parts and nobody to fit them.
+      // A removal stands only when the same task gains a positive line of the same kind, or the
+      // task goes back to be priced again; otherwise the original line stays.
+      const alreadyResearched=new Set(resolution.rules.filter(r=>r.scopeTaskId&&(r.id.startsWith('market-')||r.id.startsWith('planning-'))).map(r=>r.scopeTaskId));
+      const repricedTasks=new Set(fixes.tasks.filter(t=>t.researchDescription&&(!alreadyResearched.has(t.id)||priorIssues.some(issue=>issue.toLowerCase().includes(t.description.toLowerCase())))).map(t=>t.id));
+      const replacedInKind=(rule:CostRule)=>!rule.scopeTaskId||repricedTasks.has(rule.scopeTaskId)||repaired.rules.some(next=>next.scopeTaskId===rule.scopeTaskId&&next.category===rule.category&&next.quantity.fixed!==undefined&&next.quantity.fixed>0&&next.unitCost>0);
+      const refusedRemovals=resolution.rules.filter(r=>repaired.removeLineIds?.includes(r.id)&&!replacedInKind(r)).map(r=>r.id);
+      if(refusedRemovals.length){
+        repaired.removeLineIds=repaired.removeLineIds?.filter(id=>!refusedRemovals.includes(id));
+        // The task still has its original price, so the repair's "nothing priced" placeholder for it is untrue.
+        const keptTasks=new Set(resolution.rules.filter(r=>refusedRemovals.includes(r.id)).map(r=>r.scopeTaskId));
+        const stillPriced=new Set(fixes.tasks.filter(t=>keptTasks.has(t.id)).map(t=>`${t.description}: no supported price.`));
+        repaired.issues=repaired.issues.filter(issue=>!stillPriced.has(issue));
+        resolution.assumptions.push(`Repair round: kept ${refusedRemovals.join(', ')} because no replacement of the same kind was supplied.`);console.error(`[p5-pricing] repair round kept ${refusedRemovals.join(', ')}: removal without a replacement in kind`);
+      }
       resolution.rules=resolution.rules.filter(r=>!repaired.removeLineIds?.includes(r.id));
       resolution.rules.push(...repaired.rules.map(r=>({...r,id:`repair-${r.id}`})));
       resolution.removeLineIds=[...new Set([...(resolution.removeLineIds||[]),...(repaired.removeLineIds||[])])];

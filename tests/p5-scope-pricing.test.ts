@@ -724,3 +724,16 @@ test('A materials line may carry ordinary cutting waste over the stated area; la
  const excessive=catalogResolution(task('x') as any,config,[line('x','materials',60)],now,scope);
  assert.ok(excessive.issues.some(issue=>/does not match the explicit quantity/.test(issue)),'a 50% difference is not cutting waste');
 });
+test('A repair round cannot delete a priced component without replacing it in kind',async()=>{
+ const priced0={...extra,researchDescription:'',additions:[{code:'03-15-02-M',quantity:10,quantityEvidence:'Ten feet requested'}]};
+ // The repair names the first-pass line as wrong and supplies nothing for that task.
+ const emptied={...extra,researchDescription:'',additions:[]};
+ const priced=await priceCompleteScope(scope,config,replies([
+   {tasks:[task,priced0],issues:[]},
+   {coveredTaskIds:['cabinets'],issues:['Overlay coverage should be confirmed as missing labor']},
+   {tasks:[task,emptied],issues:[],replacements:[{lineId:'scope-1',reason:'replace with a better rate'}]},
+   {coveredTaskIds:['cabinets','overlay'],issues:[]},
+ ]),now);
+ assert.ok((priced.internal as any).lines.some((l:any)=>l.id==='scope-1'),'the original component is kept');
+ assert.ok(priced.customer.range,JSON.stringify((priced.internal as any).scopePricing.issues));
+});
