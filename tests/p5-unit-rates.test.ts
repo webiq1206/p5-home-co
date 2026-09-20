@@ -77,3 +77,21 @@ test('repair-list units are recognised by dimension and unfamiliar units are ref
  for(const unit of ['SF','LF','each vent','hour','CY'])assert.ok(reusableUnit(unit),unit);
  for(const unit of ['allowance','pickup-load','day','gallon'])assert.equal(reusableUnit(unit),false,unit);
 });
+
+test('the Boise rate card is loadable into an owner planning catalog',async()=>{
+  const {readFile}=await import('node:fs/promises');
+  const {validatePlanningCatalog,PLANNING_MODEL_VERSION}=await import('../lib/p5/planningBooks.ts');
+  const {supportedUnit}=await import('../lib/p5/unitRates.ts');
+  const card=JSON.parse(await readFile(new URL('../scripts/p5-boise-rate-card.json',import.meta.url),'utf8'));
+  const rates=card.rates.map((r:any)=>({...r,source:r.source||card.source,basis:r.basis||card.basis}));
+  assert.ok(rates.length>=200,'the card covers the long tail of repair work');
+  assert.equal(new Set(rates.map((r:any)=>r.code)).size,rates.length,'codes are unique');
+  for(const rate of rates)assert.ok(supportedUnit(rate.unit),`${rate.code} uses a priceable unit`);
+  // Direct costs only: the estimator adds overhead, profit and contingency after them.
+  for(const rate of rates)assert.ok(!/\b(?:overhead|profit|margin|markup|retail price)\b/i.test(rate.description),`${rate.code} states a direct cost`);
+  // Loads beside the existing owner schedule without exceeding the catalog ceiling.
+  const required=['03-17-01-M','03-17-01-L','03-15-02-M','03-15-02-L','03-16-01-M','03-16-01-L','03-14-01-M','03-14-01-L','03-04-01','03-04-02','03-04-03','03-05-02-M','03-05-02-L','REF-GENERAL-HOUR','REF-PLUMBING-HOUR','REF-ELECTRICAL-HOUR']
+    .map(code=>({code,description:'Existing owner rate',type:'Labor',unit:'HR',amount:80,source:'Owner schedule',basis:'owner-average-cost'}));
+  const merged=validatePlanningCatalog({version:PLANNING_MODEL_VERSION,source:'Owner schedule plus Boise rate card',authorizedBy:'Owner',importedAt:new Date().toISOString(),rates:[...required,...rates]} as never);
+  assert.equal(merged.rates.length,required.length+rates.length);
+});
