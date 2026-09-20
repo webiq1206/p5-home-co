@@ -130,7 +130,9 @@ export function materializePlanningBook(book:ServiceCostBook,catalog:PlanningCat
     for(const code of ['03-05-02','03-05-03','03-06-01','03-11-01','03-11-06'])pair(code,garage,'Garage-only structure area, separate from living area.');add('03-07-01',Math.ceil(garage/400),'One garage-door allowance per 400 SF.');
    }
    const outdoor=quantity('coveredOutdoorSqft',0);if(outdoor){pair('03-22-01',outdoor,'Covered outdoor paving.');pair('03-22-02',outdoor,'Covered outdoor structure.');}
-   cabinet(Math.max(12,area*.012),Math.max(8,area*.008));
+   // Schematic whole-build budgets use disclosed assembly allowances for all
+   // cabinet runs. A later supplied measurement, including zero, overrides it.
+   cabinet(Math.max(12,area*.012),Math.max(8,area*.008),4);
   }else{
    if(full||/demo|remove|replace/.test(text))add('03-03-04',quantity('demolitionSqft',area),'Selected interior demolition and haul-off.');
    if(/structur|load.bearing|beam|wall removal/.test(text)){pair('03-05-02',area,'Structural remodel allowance on affected area.');add('02-00-03',8,'Engineering allowance for structural review.','engineering-design');}
