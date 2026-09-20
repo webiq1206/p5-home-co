@@ -1,7 +1,7 @@
 {
  "source": "boise-remodeling-co",
- "commit": "7f2103daa4bae10042e70525a5b2c455b52969f4",
- "generatedAt": "2026-09-20T16:27:20.236Z",
+ "commit": "1b711c7eaade4a9f92edacbb5d176da2c214a015",
+ "generatedAt": "2026-09-20T16:51:01.783Z",
  "note": "Shared estimator files. Edit them in boise-remodeling-co and run scripts/p5-sync.mjs; never edit them in one brand.",
  "files": {
   "app/admin/p5-estimators/page.tsx": "80b9e20e4144c34a9f78033ab1b84e2555e42c44e670050b9e0fcbffa477512e",
@@ -105,7 +105,7 @@
   "lib/p5/submitProgress.ts": "01bf0ae58b700555965c1b3684119c40ef5ba76fb877e4dc2a8ea42397a1b93b",
   "lib/p5/theme.ts": "2b9b485f240c495c3b002be41e963658c96e2b3ab491c0db232d5eae04f29303",
   "lib/p5/trades.ts": "6f2fce2b8ade88d46e6ff28dc8824332eb67dc4cf8310c416e1dee89c4078eca",
-  "lib/p5/unitRates.ts": "334428aef8860ca2818ee8afc53b20453ec39e303eca929ecb7e816027fb646b",
+  "lib/p5/unitRates.ts": "46a490fafaa2d64ae525d81c09f4abb5207225ca98c059c1dc63e580f72ee51f",
   "lib/p5/uploadTransfer.ts": "4699b9644174a9aad530c5179f3932baef23aafccb9491ec937d7dac737fd4e5",
   "lib/p5/version.ts": "0837d36d2a93a0fe2ec1c1a959f92d1280d66228a00bd37e62987380bda012d0",
   "lib/p5/wizardResume.ts": "e1e70d2a8fa0362661afe7fb9bd94b9dd2d78fd99d4e8e9df54955104ceb320a",
@@ -216,7 +216,7 @@
   "tests/p5-source-responsibilities.test.ts": "8dffd02608e602a78062d4a72f35f95e993f4fe80298e097bad40cbd26beb7ae",
   "tests/p5-source-specifications.test.ts": "9461b16cfa2b65c345e380e4502a5f739350f9da9a333c18dd455ddc0c6f6549",
   "tests/p5-submit-progress.test.ts": "0746bfdb952dd0475ac106f977a77aad5ce39a239b6f756ad95930532b4db47a",
-  "tests/p5-unit-rates.test.ts": "54d9738a3470311b5cc69f522edf6fb3b2f975c7881eda583120c8e2fc1a68fd",
+  "tests/p5-unit-rates.test.ts": "97f9098ae6a53b233dcca2ef1416b6fc8dc7e8a3022a192aafce3d2b5d322093",
   "tests/p5-upload-capacity.test.ts": "0c8d9b922c1d99a78140be286944a5923b4fbf849a9610f64c49146fea3a1500",
   "tests/p5-upload-transfer.test.ts": "57046bd3c25bb27b905dcca03ac6f41484812501fa4ad719fc2baf99d54e1c1c",
   "tests/p5-with-timeout.test.ts": "19144aa63a2d3e7991a67ec19e2f1ae867b40d55a499a3b7ad98e45ce8c3284e",

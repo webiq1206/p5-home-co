@@ -60,3 +60,20 @@ test('complete pricing reuses the unit allowance without another market search',
  assert.ok(result.customer.range);assert.match(result.customer.assumptions.join(' '),/Budget allowance; final selection to be confirmed/);assert.match(JSON.stringify(result.internal),/provisional planning/,'the staff record keeps the rate basis');
  assert.equal(calls.length,3);
 });
+
+test('repair-list units are recognised by dimension and unfamiliar units are refused, never forced',async()=>{
+ const {unitKey,supportedUnit,reusableUnit,UNIT_REGISTRY}=await import('../lib/p5/unitRates.ts');
+ // The exact units production rejected on the Marcliffe RE-10.
+ for(const unit of ['each termination','assembly','device location','each vent','per fixture','EA'])assert.equal(unitKey(unit),'each',unit);
+ for(const unit of ['allowance','lump sum','LS','job'])assert.equal(unitKey(unit),'ls',unit);
+ assert.equal(unitKey('pickup-load'),'load');
+ for(const unit of ['each termination','assembly','allowance','pickup-load','device location','day','roofing square','gallon','sheet'])assert.ok(supportedUnit(unit),unit);
+ // Dimensions never blur: a roofing square is not a square foot, square feet are not linear feet.
+ assert.notEqual(unitKey('square'),unitKey('square feet'));assert.notEqual(unitKey('SF'),unitKey('LF'));
+ assert.equal(UNIT_REGISTRY[unitKey('square')].dimension,'area');assert.equal(UNIT_REGISTRY[unitKey('load')].dimension,'count');
+ // Unknown units stay unsupported instead of becoming EA or LS.
+ for(const unit of ['furlong','bucketful','conditioned SF','per smile'])assert.equal(supportedUnit(unit),false,unit);
+ // Only portable unit costs are saved for reuse on other projects.
+ for(const unit of ['SF','LF','each vent','hour','CY'])assert.ok(reusableUnit(unit),unit);
+ for(const unit of ['allowance','pickup-load','day','gallon'])assert.equal(reusableUnit(unit),false,unit);
+});

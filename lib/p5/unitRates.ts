@@ -2,13 +2,39 @@ import {createHash} from 'node:crypto';
 import type {CostRule} from './costBook.ts';
 
 export const rateLocation=(value:string)=>value.trim().toLowerCase().replace(/\s+/g,' ')||'boise / treasure valley, idaho';
+/** Units of measure the estimator prices in. Each has a dimension, so a unit is
+ * never converted into one of another kind: square feet never becomes linear
+ * feet, a roofing square (100 SF) is not a square foot, and an unfamiliar unit
+ * is refused rather than forced into "each" or a lump sum. */
+export type UnitDimension='area'|'length'|'count'|'time'|'volume'|'weight'|'lump';
+export const UNIT_REGISTRY:Record<string,{dimension:UnitDimension;label:string}>={
+ sf:{dimension:'area',label:'SF'},sy:{dimension:'area',label:'SY'},square:{dimension:'area',label:'roofing square'},
+ lf:{dimension:'length',label:'LF'},
+ each:{dimension:'count',label:'EA'},pair:{dimension:'count',label:'pair'},set:{dimension:'count',label:'set'},load:{dimension:'count',label:'load'},sheet:{dimension:'count',label:'sheet'},roll:{dimension:'count',label:'roll'},
+ hour:{dimension:'time',label:'HR'},day:{dimension:'time',label:'day'},week:{dimension:'time',label:'week'},month:{dimension:'time',label:'month'},
+ cy:{dimension:'volume',label:'CY'},gallon:{dimension:'volume',label:'gallon'},
+ ton:{dimension:'weight',label:'ton'},
+ ls:{dimension:'lump',label:'lump sum'},
+};
+/** Things a repair list counts one at a time. "each vent", "per fixture" and "device location" are all a count of one. */
+const COUNTED='(?:items?|fixtures?|devices?|locations?|device locations?|assembl(?:y|ies)|terminations?|vents?|receptacles?|outlets?|switch(?:es)?|lights?|doors?|windows?|openings?|breakers?|valves?|hose bibs?|traps?|boots?|caps?|pumps?|units?|pieces?|pcs?|components?|repairs?|occurrences?|rooms?|bathrooms?)';
+const COUNTED_UNIT=new RegExp(`^(?:each|ea|per|one)? ?${COUNTED}$`);
 export const unitKey=(unit:string)=>{
  const key=unit.toLowerCase().replace(/[.²]/g,m=>m==='²'?'2':'').replace(/[-_]/g,' ').replace(/\s+/g,' ').trim().replace(/^(?:per |\/)/,'').trim();
- const aliases:Record<string,string>={'sf':'sf','sq ft':'sf','sqft':'sf','square foot':'sf','square feet':'sf','ft2':'sf','lf':'lf','lin ft':'lf','linear ft':'lf','lineal foot':'lf','lineal feet':'lf','linear foot':'lf','linear feet':'lf','ea':'each','each':'each','unit':'each','units':'each','hr':'hour','hrs':'hour','h':'hour','hour':'hour','hours':'hour','cy':'cy','cubic yard':'cy','cubic yards':'cy'};
- return aliases[key]||key;
+ const aliases:Record<string,string>={'sf':'sf','sq ft':'sf','sqft':'sf','square foot':'sf','square feet':'sf','ft2':'sf','sy':'sy','sq yd':'sy','square yard':'sy','square yards':'sy','sq':'square','square':'square','squares':'square','roofing square':'square','roofing squares':'square',
+  'lf':'lf','lin ft':'lf','linear ft':'lf','lineal foot':'lf','lineal feet':'lf','linear foot':'lf','linear feet':'lf',
+  'ea':'each','each':'each','unit':'each','units':'each','count':'each','qty':'each','pair':'pair','pairs':'pair','pr':'pair','set':'set','sets':'set','load':'load','loads':'load','pickup load':'load','pickup loads':'load','truck load':'load','truckload':'load','trailer load':'load','dump load':'load','sheet':'sheet','sheets':'sheet','roll':'roll','rolls':'roll',
+  'hr':'hour','hrs':'hour','h':'hour','hour':'hour','hours':'hour','labor hour':'hour','labor hours':'hour','day':'day','days':'day','crew day':'day','wk':'week','week':'week','weeks':'week','mo':'month','month':'month','months':'month',
+  'cy':'cy','cubic yard':'cy','cubic yards':'cy','gal':'gallon','gallon':'gallon','gallons':'gallon','ton':'ton','tons':'ton',
+  'ls':'ls','lump sum':'ls','lumpsum':'ls','lot':'ls','job':'ls','allowance':'ls','package':'ls','trip':'ls','visit':'ls','service call':'ls','minimum charge':'ls'};
+ if(aliases[key])return aliases[key];
+ return COUNTED_UNIT.test(key)?'each':key;
 };
-const units=new Set(['sf','lf','each','hour','cy']);
-export const supportedUnit=(unit:string)=>units.has(unitKey(unit));
+/** Units a line may be priced in. */
+export const supportedUnit=(unit:string)=>unitKey(unit) in UNIT_REGISTRY;
+/** Units whose rate may be saved and reused on another project. A lump sum or a load belongs to the job it was priced for. */
+const reusableUnits=new Set(['sf','lf','each','hour','cy']);
+export const reusableUnit=(unit:string)=>reusableUnits.has(unitKey(unit));
 /** Keep only a reusable direct unit cost. Project quantities/conditions never travel. */
 export function reusableUnitRate(rule:CostRule,location:string,now=new Date()):CostRule|null{
  const context=rule.unitRateContext,provenance=rule.evidence?.provenance;
@@ -19,7 +45,7 @@ export function reusableUnitRate(rule:CostRule,location:string,now=new Date()):C
  const categories={'material-purchase':'materials','trade-labor':'field-labor','subcontractor-installed':'subcontractors'};
  if(categories[context.basis]!==rule.category||!context.includes.trim())return null;
  const unit=unitKey(rule.unit),expires=Date.parse(rule.evidence.validUntil),retrieved=Date.parse(provenance.retrievedAt);
- if(!supportedUnit(unit)||!Number.isFinite(expires)||expires<=now.getTime()||!Number.isFinite(retrieved)||retrieved>now.getTime()||expires>retrieved+30*86400000)return null;
+ if(!reusableUnit(unit)||!Number.isFinite(expires)||expires<=now.getTime()||!Number.isFinite(retrieved)||retrieved>now.getTime()||expires>retrieved+30*86400000)return null;
  if(rateLocation(provenance.location)!==rateLocation(location))return null;
  if(!Number.isFinite(rule.unitCost)||rule.unitCost<=0)return null;
  if(rule.unitCostRange&&(!Number.isFinite(rule.unitCostRange.low)||!Number.isFinite(rule.unitCostRange.high)||rule.unitCostRange.low<=0||rule.unitCostRange.low>rule.unitCost||rule.unitCostRange.high<rule.unitCost))return null;
