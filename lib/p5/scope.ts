@@ -274,9 +274,13 @@ export function validateExtraction(raw: unknown): ScopeExtraction {
     const values = [...new Set(facts.filter(f => f.field === field && f.confidence >= .4).map(f => f.value.trim()))];
     if (values.length > 1 && SCOPE_FIELDS[field].kind !== "text" && !conflicts.some(c => c.field === field)) conflicts.push({ field, values, explanation: "The supplied information contains different values. Please confirm the intended scope." });
   }
-  const clarifications=Array.isArray(r.clarifications)?r.clarifications.map((q:any)=>{
-    if(!q||!Object.hasOwn(SCOPE_FIELDS,q.field)||typeof q.question!=="string"||q.question.length>500||typeof q.reason!=="string"||q.reason.length>1000)throw new Error("Invalid clarification");
-    return {field:q.field as ScopeField,question:q.question,reason:q.reason};
+  // One malformed question must not discard a whole page read: on a live repair list that cost a
+  // 34-second reread. A question filed under a field this estimator does not have is kept as a
+  // general project detail, over-long text is shortened, and an entry with no question is dropped.
+  const clarifications=Array.isArray(r.clarifications)?r.clarifications.flatMap((q:any)=>{
+    if(!q||typeof q.question!=="string"||!q.question.trim())return [];
+    const field=(typeof q.field==="string"&&Object.hasOwn(SCOPE_FIELDS,q.field)?q.field:"otherDetails") as ScopeField;
+    return [{field,question:q.question.trim().slice(0,500),reason:typeof q.reason==="string"?q.reason.slice(0,1000):""}];
   }):[];
   const savedCoverage=r.documentCoverage as ScopeExtraction['documentCoverage']|undefined;
   const hasPages=r.pages!==undefined||savedCoverage!==undefined;

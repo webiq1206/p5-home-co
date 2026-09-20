@@ -35,7 +35,7 @@ const browser=await (opt('browser','chromium')==='webkit'?webkit:chromium).launc
 const context=await browser.newContext({viewport:{width,height},hasTouch:width<768,isMobile:width<768&&opt('browser','chromium')!=='webkit'});
 const page=await context.newPage();page.setDefaultTimeout(60000);
 let lastApi='';
-page.on('response',async response=>{const url=response.url();if(!url.includes('/api/p5-estimator/'))return;const name=url.split('/api/p5-estimator/')[1].split('?')[0];
+page.on('response',async response=>{const url=response.url();if(response.status()>=500){const where=new URL(url).pathname.slice(0,120);result.errors.push(`${response.status()} on ${where}`);note('server-error',{status:response.status(),path:where,method:response.request().method()});}if(!url.includes('/api/p5-estimator/'))return;const name=url.split('/api/p5-estimator/')[1].split('?')[0];
   if(response.status()===429){result.errors.push(`429 on ${name}`);note('rate-limited',{name});}
   try{const data=await response.json();const p=data.processing||{};const line=JSON.stringify({name,status:response.status(),pending:data.pending,message:data.message||data.error||data.warning||'',phase:p.phase,stage:p.stage,detail:p.message,title:p.title});
     if(line!==lastApi){lastApi=line;const entry={t:seconds(),...JSON.parse(line)};result.api.push(entry);note('api',entry);}

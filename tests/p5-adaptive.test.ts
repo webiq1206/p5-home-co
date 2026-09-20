@@ -163,3 +163,17 @@ test('one decision is asked once and contract-form questions are never asked',as
   const after=instructionPrompts(extraction,{service:'handyman',estimatingInstructions:'Question: What is the extent/size of chimney cap cracking - full replacement or patch repair?\nAnswer: patch'} as never,'');
   assert.equal(after.length,0);
 });
+
+test('cleanup on a repair list does not ask for a demolition area; real demolition still does',()=>{
+  const fields=(text:string)=>scopeQuestions({service:'handyman',taskList:text} as never,null,[],[],[],text).map(q=>q.field);
+  assert.ok(!fields('Remove debris from the crawl space and install a vapor barrier on the floor.').includes('demolitionSqft'));
+  assert.ok(fields('Demolish the bathroom walls and floor tile down to the studs.').includes('demolitionSqft'));
+});
+
+test('repair items land in the trade doing the work, not in cleanup',async()=>{
+  const {suggestedTrade}=await import('../lib/p5/trades.ts');
+  assert.equal(suggestedTrade('Inspect and reconfigure all under-sink trap assemblies, including common fittings, testing, and cleanup.'),'Plumbing');
+  assert.equal(suggestedTrade('Supply and install vacuum breakers on all exterior hose bibs, including testing and cleanup.'),'Plumbing');
+  assert.equal(suggestedTrade('Diagnose the grounding fault at one bedroom receptacle, test, and clean up.'),'Electrical');
+  assert.equal(suggestedTrade('Final cleanup and debris haul-off'),'Cleanup & Disposal');
+});

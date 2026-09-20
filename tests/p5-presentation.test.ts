@@ -186,3 +186,9 @@ test('financial context identifies overhead, margin, allocation, and markup with
  ].join('\n');
  assert.equal(publicPricingText(ordinary),ordinary);
 });
+test('One house described four ways is not four buildings',()=>{
+ const line=(id:string,building:string)=>({id,category:'Electrical',description:'Repair '+id,quantity:1,unit:'EA',low:50,high:100,unitLow:50,unitHigh:100,building});
+ const sections=estimateSections({summary:'',includedCategories:['Electrical'],range:{low:200,high:400},scopeTasks:[],assumptions:[],exclusions:[],allowances:[],factors:[],categoryRanges:[{category:'Electrical',low:200,high:400}],lineItems:[line('a','5487 N Marcliffe Ave'),line('b','Residence'),line('c','Single-family residence'),line('d','Residence site')]} as never);
+ assert.ok(!sections.some(s=>s.title===SECTION_TITLES.buildingPrices));
+ assert.ok(!JSON.stringify(sections).includes('Single-family residence /'));
+});

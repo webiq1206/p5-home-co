@@ -102,11 +102,16 @@ export function estimateSections(result:any,hideUnitRates=HIDE_CUSTOMER_UNIT_RAT
  // building totals when another named building exists but is not repeated on every row.
  const placeholderBuilding=(b?:string)=>!b||/^(unspecified(?: building)?|unknown|not specified|n\/a|none|same|whole project)$/i.test(b.trim());
  const realBuilding=(b?:string)=>placeholderBuilding(b)?'':b!;
- const namedBuilding=(b?:string)=>placeholderBuilding(b)||/^(main(?: residence| house| building| home)?|default)$/i.test(b!.trim())?'':b!;
+ const namedBuilding=(b?:string)=>!severalBuildings||placeholderBuilding(b)||/^(main(?: residence| house| building| home)?|default)$/i.test(b!.trim())?'':b!;
  const namedFloor=(f?:string)=>f&&!/^(unspecified(?: floor)?|unknown|not specified|n\/a|none|floor not specified)$/i.test(f.trim())?f:'';
  const buildings=[...new Set<string>(lines.map(l=>realBuilding(l.building)).filter(Boolean))];
  // One unnamed or default building is the whole project; a per-building table repeats the total.
- if(buildings.length>1)sections.push({title:SECTION_TITLES.buildingPrices,kind:'included',rows:buildings.map(b=>[b,`${money(lines.filter(l=>l.building===b).reduce((n,l)=>n+l.low,0))} to ${money(lines.filter(l=>l.building===b).reduce((n,l)=>n+l.high,0))}`]),text:'Building totals are included in, not added to, the overall estimate.'});
+ // The table answers a request for separate building prices, or a project that names more than one
+ // building. Pricing labels alone ("Residence", "Single-family residence", the street address) are
+ // one house described four ways, and produced four invented building totals on a live repair list.
+ const oneHouseLabel=(b:string)=>/^(?:the\s+)?(?:main|primary|existing|single[- ]family)?\s*(?:residence|house|home|dwelling|property|building|site|residence site|project site)?$/i.test(b.trim())||/^\d+\s+\S/.test(b.trim());
+ const severalBuildings=Boolean(instructions?.separateBuildings)||(instructions?.buildings?.length||0)>1||buildings.length>1&&buildings.some(b=>!oneHouseLabel(b));
+ if(buildings.length>1&&severalBuildings)sections.push({title:SECTION_TITLES.buildingPrices,kind:'included',rows:buildings.map(b=>[b,`${money(lines.filter(l=>l.building===b).reduce((n,l)=>n+l.low,0))} to ${money(lines.filter(l=>l.building===b).reduce((n,l)=>n+l.high,0))}`]),text:'Building totals are included in, not added to, the overall estimate.'});
  const estimated=lines.filter(l=>l.pricingStatus==='estimated-allowance');
  if(lines.some(l=>l.pricingStatus==='owner-planning-rate'))sections.push({title:SECTION_TITLES.pricingBasis,kind:'assumption',text:'Owner planning rates provide the foundation for this preliminary range. They are not current supplier quotes; verify local availability, selections and trade pricing before a firm proposal.'});
  if(estimated.length){

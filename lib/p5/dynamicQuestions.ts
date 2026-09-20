@@ -194,8 +194,11 @@ export function scopeFieldApplies(field: ScopeField, context: QuestionContext): 
   if (field === 'garageSqft') return BUILDS.has(context.service) && context.answers.garageIncluded !== 'no'
     && (context.answers.garageIncluded === 'yes' || topicActive(context, 'garage'));
   if (field === 'cabinetRoom') return context.service.startsWith('cabinet-') && cabinetPackage(context);
+  // "Remove debris from the crawl space" on a repair list is cleanup, not demolition of an area:
+  // the area question needs a demolition word, or a removal aimed at a building surface.
   if (field === 'demolitionSqft') return topicActive(context, 'demolition')
-    && /\b(?:walls?|floors?|flooring|ceilings?|tile|rooms?|drywall|slabs?|house|home)\b/i.test(context.restriction || context.positive);
+    && /\b(?:demolition|demolish\w*|tear[ -]?out|gut(?:ted|ting)?)\b|\bremov\w*\s+(?:the\s+|all\s+|existing\s+|old\s+)*(?:walls?|drywall|floors?|flooring|tile|ceilings?|slabs?|plaster|paneling)\b/i.test(context.restriction || context.positive)
+    &&/\b(?:walls?|floors?|flooring|ceilings?|tile|rooms?|drywall|slabs?|house|home)\b/i.test(context.restriction || context.positive);
   if (['cabinetBaseLf', 'cabinetUpperLf', 'cabinetTallLf', 'cabinetConstruction'].includes(field)) {
     if (!cabinetPackage(context)) return false;
     if (field === 'cabinetBaseLf') return topicActive(context, 'base')
