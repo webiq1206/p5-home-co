@@ -1,7 +1,7 @@
 {
  "source": "boise-remodeling-co",
- "commit": "8d6a73c8c8e0f92711c6ceaf6402b57d249ae39b",
- "generatedAt": "2026-09-20T20:46:36.460Z",
+ "commit": "194ecab6b56e70bc3352fdd7436b5cb6f73d55e5",
+ "generatedAt": "2026-09-20T21:04:00.536Z",
  "note": "Shared estimator files. Edit them in boise-remodeling-co and run scripts/p5-sync.mjs; never edit them in one brand.",
  "files": {
   "app/admin/p5-estimators/page.tsx": "80b9e20e4144c34a9f78033ab1b84e2555e42c44e670050b9e0fcbffa477512e",
@@ -98,7 +98,7 @@
   "lib/p5/scope.ts": "dedce7601edcab61b3c4d00d71f8b35d1f665e502c2c6109a31666549d5320ed",
   "lib/p5/scopeEndpoint.ts": "ac256d011921ae4e2e42202c8ccc1b8b8b5935bdc1feba47025ae7e429a31e11",
   "lib/p5/scopeInventory.ts": "823baac9f40357847a8f6afd9a905058298dfc8dab553d584223bcd3f890d64a",
-  "lib/p5/scopePricing.ts": "e920cb0fe79b5f7ba8a191010ced32a8c205a2066fba780611ae11518ff8f7d8",
+  "lib/p5/scopePricing.ts": "3d1229428f8dae89155f4f040b5d6b131938b3d18ef738ad6765c15a0fb53de0",
   "lib/p5/scopeReplacement.ts": "ad340bab97512e3583b8789cf0731edfc78811e8715fcd55555e6ea59fe1411a",
   "lib/p5/sourceResponsibilities.ts": "2c77105334ff8c66b8f8572c76be7822c3846ac357e8acf75a16d1c0b3faf809",
   "lib/p5/sourceSpecificationGuard.ts": "a52b5fbd623696aa37160a72780c9c5711232f4237855f02d07f64ddde356fc3",

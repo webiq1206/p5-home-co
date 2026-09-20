@@ -918,7 +918,7 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
     const repairBudgetLeft=!(sinceStart>REPAIR_BUDGET_MS&&sinceStart<6*60*60*1000);
     const billableTask=(t:Mapping['tasks'][number])=>taskSelectionStatus(t,mapping.tasks)==='billable';
     const repairNeeded=blockingIssues.length||blockingAuditIssues.length||mapping.tasks.some(t=>billableTask(t)&&!audit.coveredTaskIds.includes(t.id)&&!allowancePricedTask(t.id)&&!schedulePricedTask(t.id));
-    if(repairNeeded&&!repairBudgetLeft)auditTrail.issues.push('Repair round skipped: the pricing job exceeded its repair budget; unresolved scope findings remain blocking.');
+    if(repairNeeded&&!repairBudgetLeft)auditTrail.issues.push('Repair round skipped: the pricing job exceeded its repair budget. Findings already raised are judged on their own merits below.');
     if(repairNeeded&&repairBudgetLeft){
       const priorIssues=[...resolution.issues,...audit.issues];
       const beforeRepair=priceReviewedScope(scope,configuration,now,resolution);
@@ -1074,6 +1074,15 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
   // the requested scope; disclosure cannot turn an omitted component into one.
   const findings=[...new Set(resolution.issues)];
   auditTrail.issues=[...new Set([...auditTrail.issues,...findings])];
+  // Judge the findings against the estimate as it finally stands, not as it stood before the
+  // repair round added lines: a remark about a task that ended up priced is a note, not a block.
+  try{
+    const finalLines=existingLines(priceReviewedScope(scope,configuration,now,resolution)).filter(line=>line.quantity*line.unitCost>0);
+    const finalIds=new Set(finalLines.map(line=>line.id));
+    pricedTasks=(auditTrail.tasks as {id:string;description:string;existingLineIds?:string[]}[]).filter(task=>
+      resolution.rules.some(rule=>rule.scopeTaskId===task.id&&rule.quantity.fixed!==undefined&&rule.quantity.fixed>0&&rule.unitCost>0)
+      ||(task.existingLineIds||[]).some(id=>finalIds.has(id))).map(({id,description})=>({id,description}));
+  }catch{/* keep the list computed during pricing */}
   const kept=findings.filter(issue=>issue===HANDOFF_ISSUE||missingScopeFields([issue]).length>0||!advisoryIssue(issue)&&!pricedTaskRemark(issue,pricedTasks));
   const disclosed=findings.filter(issue=>!kept.includes(issue));
   resolution.assumptions.push(...disclosed.map(item=>/^to confirm:/i.test(item)?item:`To confirm: ${item}`));
