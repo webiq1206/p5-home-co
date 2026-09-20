@@ -111,35 +111,32 @@ export function databasePricingCache():PricingCache{
   // Created on first use, the way the charge ledger creates its own tables: a table declared in
   // the shared schema but absent from a brand's database turns a publish into a schema migration.
   let ready:Promise<unknown>|null=null;
-  const table=()=>ready||(ready=(async()=>{
-    await query(`CREATE TABLE IF NOT EXISTS p5_estimator_price_cache (
-      fingerprint text PRIMARY KEY, payload jsonb NOT NULL,
-      created_at timestamptz NOT NULL DEFAULT now(), used_at timestamptz NOT NULL DEFAULT now(),
-      uses integer NOT NULL DEFAULT 0)`);
-    await query('ALTER TABLE p5_estimator_price_cache ADD COLUMN IF NOT EXISTS document text');
-    await query('CREATE INDEX IF NOT EXISTS p5_estimator_price_cache_document ON p5_estimator_price_cache(document,created_at DESC)');
-  })());
-  const reuse=(fingerprint:string)=>query('UPDATE p5_estimator_price_cache SET used_at=now(),uses=uses+1 WHERE fingerprint=$1',[fingerprint]).catch(()=>undefined);
-  const entry=(row:Record<string,any>|undefined)=>row?(typeof row.payload==='string'?JSON.parse(row.payload):row.payload) as PricingCacheEntry:null;
+  // Saved prices live as rows in the estimator's existing key-value table, under their own id
+  // prefix. A table of their own would be a production schema change, and a schema change turns
+  // every publish into a database review; this needs no migration on any brand. Every reader of
+  // that table selects the single 'current' policy row, so these rows are invisible to them.
+  const id=(fingerprint:string)=>`price-cache:${fingerprint}`;
+  const entry=(row:Record<string,any>|undefined)=>{
+    if(!row)return null;
+    const payload=(typeof row.payload==='string'?JSON.parse(row.payload):row.payload) as PricingCacheEntry&{document?:string};
+    return payload&&payload.resolution?payload:null;
+  };
+  const fresh=`updated_at>now()-($2||' days')::interval`;
   return {
     async load(keys){
-      await table();
       const days=String(pricingCacheDays());
       // The same conversation first; then the same project, whatever it was asked this time.
-      const exact=await query(`SELECT payload FROM p5_estimator_price_cache
-        WHERE fingerprint=$1 AND created_at>now()-($2||' days')::interval`,[keys.fingerprint,days]);
-      if(exact.length){void reuse(keys.fingerprint);return entry(exact[0]);}
-      const sameProject=await query(`SELECT fingerprint,payload FROM p5_estimator_price_cache
-        WHERE document=$1 AND created_at>now()-($2||' days')::interval ORDER BY created_at DESC LIMIT 1`,[keys.document,days]);
-      if(!sameProject.length)return null;
-      void reuse(String(sameProject[0].fingerprint));
+      const exact=await query(`SELECT payload FROM p5_estimator_policy WHERE id=$1 AND ${fresh}`,[id(keys.fingerprint),days]);
+      if(exact.length)return entry(exact[0]);
+      const sameProject=await query(`SELECT payload FROM p5_estimator_policy
+        WHERE id LIKE 'price-cache:%' AND payload->>'document'=$1 AND ${fresh}
+        ORDER BY updated_at DESC LIMIT 1`,[keys.document,days]);
       return entry(sameProject[0]);
     },
     async save(keys,saved){
-      await table();
-      await query(`INSERT INTO p5_estimator_price_cache(fingerprint,document,payload) VALUES($1,$2,$3::jsonb)
-        ON CONFLICT(fingerprint) DO UPDATE SET payload=EXCLUDED.payload,document=EXCLUDED.document,created_at=now()`,
-        [keys.fingerprint,keys.document,JSON.stringify(saved)]);
+      await query(`INSERT INTO p5_estimator_policy(id,payload,updated_by) VALUES($1,$2::jsonb,'price-cache')
+        ON CONFLICT(id) DO UPDATE SET payload=EXCLUDED.payload,updated_at=now()`,
+        [id(keys.fingerprint),JSON.stringify({...saved,document:keys.document})]);
     },
   };
 }

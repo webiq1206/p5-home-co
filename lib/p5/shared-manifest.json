@@ -1,7 +1,7 @@
 {
  "source": "boise-remodeling-co",
- "commit": "c4fae06164f1bdd345cf004fe7225ba02b39059f",
- "generatedAt": "2026-09-20T23:06:22.844Z",
+ "commit": "7ec59919f2c2e76f4090df6b37bc45a92470866c",
+ "generatedAt": "2026-09-20T23:15:30.825Z",
  "note": "Shared estimator files. Edit them in boise-remodeling-co and run scripts/p5-sync.mjs; never edit them in one brand.",
  "files": {
   "app/admin/p5-estimators/page.tsx": "80b9e20e4144c34a9f78033ab1b84e2555e42c44e670050b9e0fcbffa477512e",
@@ -76,7 +76,7 @@
   "lib/p5/planningBooks.ts": "f6cb18dceb80a67393fefd401939bed6b1160e0a4f196ec7b458f3d60dd4164f",
   "lib/p5/presentation.ts": "eb9cb3700398c15bca435eedc2b73f67a1bc370085f90c058619f50523e0001a",
   "lib/p5/pricing.ts": "a5afd67d86dde609b2671e0dc880e9363ec94abe7b03d1aedc45544366843db4",
-  "lib/p5/pricingCache.ts": "6ed3942517084f4f18cd75f87768858fa44b1f2829389d8930201c993554f1b0",
+  "lib/p5/pricingCache.ts": "057032d9cf4ed0d8d79e77a77329d7c208bd301f1a01febc15bf2036c1ddf8fd",
   "lib/p5/pricingLedger.ts": "5b5a5eab4f91a844e847fb19abb6850241f3488c62556d4f05b25fe5740e2e44",
   "lib/p5/pricingPreflight.ts": "3024bb6d9e5d3e6831964a9f2ba734718d20c7855bf946292b0a8037bdfd77c8",
   "lib/p5/pricingProgress.ts": "bc41e712fc4646b0fac46fe4c8fa815dd6490778f70ab1212fda568edf445156",
