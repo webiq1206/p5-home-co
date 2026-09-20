@@ -750,3 +750,18 @@ test('A finding that only disputes how the owner derived an approved rate never 
  ]),now);
  assert.ok(priced.customer.range,JSON.stringify((priced.internal as any).scopePricing.issues));
 });
+test('A remark about a task that is priced becomes a confirmation note, not a withheld range',async()=>{
+ const {pricedTaskRemark}=await import('../lib/p5/scopePricing.ts');
+ const priced=[{id:'crawl-debris',description:'Remove crawl space debris'}];
+ assert.equal(pricedTaskRemark('crawl-debris is not fully covered by scope-3 and scope-4; the dumpster line does not affirmatively include hauling or landfill charges.',priced),true);
+ assert.equal(pricedTaskRemark('crawl-debris duplicates scope-9',priced),false);
+ assert.equal(pricedTaskRemark('sprinkler-pump has no positive priced component or allowance was produced.',priced),false);
+ assert.equal(pricedTaskRemark('Remove crawl space debris: quantity remains unmeasured; do not publish a confirmed quantity.',priced),false);
+ const priced0={...extra,researchDescription:'',additions:[{code:'03-15-02-M',quantity:10,quantityEvidence:'Ten feet requested'}]};
+ const result=await priceCompleteScope(scope,config,replies([
+   {tasks:[task,priced0],issues:[]},
+   {coveredTaskIds:['cabinets'],issues:['Protective overlay is not fully covered by scope-1: the line does not affirmatively include edge sealing.']},
+ ]),now);
+ assert.ok(result.customer.range,JSON.stringify((result.internal as any).scopePricing.issues));
+ assert.ok(result.customer.verificationItems?.some((v:string)=>/edge sealing/i.test(v)),'the remark is disclosed');
+});

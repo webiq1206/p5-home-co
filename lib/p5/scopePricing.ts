@@ -671,6 +671,23 @@ export function advisoryIssue(text:string):boolean{
   return /\b(confirm(?:ed|ation|ing)?|verif(?:y|ied|ication)|verify at site|allowance|assum(?:e|ed|es|ing|ption|ptions)|methodology|per stated|see each line|to be selected|owner selection|pending selection|subject to|typical|estimat(?:e|ed|es|ing)|modeled|rounded)\b/.test(t);
 }
 
+/** A remark that a task which IS priced could be priced more completely ("not fully covered",
+ * "does not affirmatively include dumpster delivery") is something to confirm at the consultation,
+ * not a reason to give the visitor no range at all. Every live run of one repair list produced a
+ * differently worded remark of this kind, and each one withheld the whole estimate. What still
+ * blocks is decided by facts, not wording: a task with no positive price, duplicated or
+ * double-counted work, a quantity that contradicts the stated one, a wrong unit, or work that is
+ * out of scope. */
+export function pricedTaskRemark(issue:string,pricedTasks:{id:string;description:string}[]):boolean{
+  const t=issue.toLowerCase();
+  // Only this one shape is released: the complaint is that a priced line's stated inclusions do
+  // not visibly reach every incidental of the task. Anything naming omitted work, an unpriced
+  // component, an owner-supplied responsibility, a duplicate, a quantity conflict or a wrong unit
+  // is a defect and keeps its hold, whatever it is attached to.
+  if(!/not fully covered|does not affirmatively include|does not (?:explicitly |expressly )?(?:state|say) (?:that )?it includes|full pricing coverage has not been verified|identifies .{0,60}as unverified/.test(t))return false;
+  if(/duplicat|double[- ]count|\bomit|omission|\bunpriced\b|missing (?:work|materials?|labor|components?|quantit(?:y|ies)|scope)|no positive|does not match the explicit|disagrees with|wrong (?:unit|uom|responsibilit)|fabricat|out of scope|excluded work|not (?:been )?requested|quantity remains unmeasured|does not reconcile|owner.supplied|labor.only|materials.only|coverage reference|invalid existing price/.test(t))return false;
+  return pricedTasks.some(task=>t.includes(task.id.toLowerCase())||t.includes(task.description.toLowerCase()));
+}
 /** Map one batch of inventory tasks, and keep going when the provider is slow.
  *
  * A twelve-task batch of a large scope was measured at over two minutes on the
@@ -753,6 +770,7 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
   const original=pricingSource;
   const sourceParts=pricingSourceParts(pricingScope);
   const taskSources=new Map<string,number>();
+  let pricedTasks:{id:string;description:string}[]=[];
   const auditTrail:{version:string;scopeHash:string;tasks:unknown[];adjustments:unknown;research:unknown;verification:unknown;issues:string[]}={version:'complete-scope-v3',scopeHash:createHash('sha256').update(JSON.stringify({scope:pricingScope,configuration})).digest('hex'),tasks:[],adjustments:null,research:null,verification:null,issues:[]};
   try{
     const lines=existingLines(base);
@@ -874,12 +892,18 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
     // released with the range. Only blocking issues, audit findings or an
     // uncovered task justify the repair pass, which costs a second mapping,
     // research and audit round.
-    const blockingIssues=resolution.issues.filter(issue=>!advisoryIssue(issue));
+    const positivelyPriced=()=>{
+      const live=new Set(existingLines(priceReviewedScope(scope,configuration,now,resolution)).filter(line=>line.quantity*line.unitCost>0).map(line=>line.id));
+      return mapping.tasks.filter(t=>resolution.rules.some(rule=>rule.scopeTaskId===t.id&&rule.quantity.fixed!==undefined&&rule.quantity.fixed>0&&rule.unitCost>0)||t.existingLineIds.some(id=>live.has(id)&&!resolution.removeLineIds?.includes(id))).map(({id,description})=>({id,description}));
+    };
+    pricedTasks=positivelyPriced();
+    const blocks=(issue:string)=>!advisoryIssue(issue)&&!pricedTaskRemark(issue,pricedTasks);
+    const blockingIssues=resolution.issues.filter(blocks);
     // An audit note about a planning allowance's basis, or a task left uncovered only because a planning or sourced allowance prices it, is disclosure, not a reason for a repair round.
     const allowancePricedTask=(taskId:string)=>resolution.rules.some(rule=>rule.scopeTaskId===taskId&&(rule.id.startsWith('planning-')||rule.id.startsWith('market-'))&&rule.quantity.fixed!==undefined&&rule.quantity.fixed>0);
     // The same holds for a task priced from the owner's approved schedule when every finding the check raised is advisory.
-    const schedulePricedTask=(taskId:string)=>!audit.issues.some(issue=>!advisoryIssue(issue)&&issue.toLowerCase().includes(taskId.toLowerCase()))&&resolution.rules.some(rule=>rule.scopeTaskId===taskId&&rule.quantity.fixed!==undefined&&rule.quantity.fixed>0&&rule.unitCost>0);
-    const blockingAuditIssues=audit.issues.filter(issue=>!advisoryIssue(issue));
+    const schedulePricedTask=(taskId:string)=>!audit.issues.some(issue=>blocks(issue)&&issue.toLowerCase().includes(taskId.toLowerCase()))&&resolution.rules.some(rule=>rule.scopeTaskId===taskId&&rule.quantity.fixed!==undefined&&rule.quantity.fixed>0&&rule.unitCost>0);
+    const blockingAuditIssues=audit.issues.filter(blocks);
     // A repair round costs a second mapping, research and audit. Past the repair budget (measured from the pricing job's start) the
     // scope stays saved with unresolved findings; time alone cannot authorize a partial price.
     // Measured against the job's pricing clock. A clock older than any job lifetime is a replay or a fixed test clock, not a
@@ -1005,7 +1029,8 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
       const allowancePriced=resolution.rules.some(rule=>rule.scopeTaskId===t.id&&rule.quantity.fixed!==undefined&&rule.quantity.fixed>0&&rule.unitCost>0);
       // Judged task by task: one blocking finding about the chimney does not un-cover the outlets.
       const named=(issue:string)=>{const text=issue.toLowerCase();return text.includes(t.id.toLowerCase())||text.includes(t.description.toLowerCase());};
-      if(allowancePriced&&!audit.issues.some(issue=>!advisoryIssue(issue)&&named(issue)))resolution.assumptions.push(`${t.description}: priced by a preliminary allowance pending published research; confirm current local rates before a firm proposal.`);
+      pricedTasks=positivelyPriced();
+      if(allowancePriced&&!audit.issues.some(issue=>blocks(issue)&&named(issue)))resolution.assumptions.push(`${t.description}: priced by a preliminary allowance pending published research; confirm current local rates before a firm proposal.`);
       else resolution.issues.push(`${t.description}: full pricing coverage has not been verified.`);
     }
   }catch(error){
@@ -1031,7 +1056,7 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
   // the requested scope; disclosure cannot turn an omitted component into one.
   const findings=[...new Set(resolution.issues)];
   auditTrail.issues=[...new Set([...auditTrail.issues,...findings])];
-  const kept=findings.filter(issue=>issue===HANDOFF_ISSUE||missingScopeFields([issue]).length>0||!advisoryIssue(issue));
+  const kept=findings.filter(issue=>issue===HANDOFF_ISSUE||missingScopeFields([issue]).length>0||!advisoryIssue(issue)&&!pricedTaskRemark(issue,pricedTasks));
   const disclosed=findings.filter(issue=>!kept.includes(issue));
   resolution.assumptions.push(...disclosed.map(item=>/^to confirm:/i.test(item)?item:`To confirm: ${item}`));
   resolution.issues=kept;
