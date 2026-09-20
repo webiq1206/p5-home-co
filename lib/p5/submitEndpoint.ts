@@ -11,6 +11,7 @@ import { enqueueSubmission,deliveryStatus,processOutbox } from "./outbox.ts";
 import { protectRequest,json,failed,limitedBody } from "./http.ts";
 import { ESTIMATOR_BRAND as brand } from "./brand.ts";
 import {customerPresentation,HIDE_CUSTOMER_UNIT_RATES} from './presentation.ts';
+import {recordEvent} from './events.ts';
 // Every public response uses the one customer boundary, including responses
 // rebuilt from a previously saved estimate.
 const publicResult=(estimate:unknown)=>customerPresentation(estimate,{hideUnitRates:HIDE_CUSTOMER_UNIT_RATES});
@@ -60,6 +61,9 @@ export async function postSubmission(request:Request,schedule?:(task:()=>Promise
       // The reasons are logged so a live host explains an unpriced result, and the first few are shown so the visitor knows what to confirm.
       const blocks=(('warnings' in priced.internal?priced.internal.warnings:[])||[]).filter((w:{severity?:string})=>w.severity==='block').map((w:{code:string})=>w.code);
       console.error(`[p5-pricing] no range for draft ${id}: blocks=${blocks.join(',')||'none'}; missing=${missing.slice(0,6).join(' | ')||'none'}; items=${items.slice(0,4).join(' | ')||'none'}; issues=${(((priced.internal as {scopePricing?:{issues?:string[]}}).scopePricing?.issues)||[]).slice(0,6).join(' | ')||'none'}`);
+      // A labelled QA run records why the range was withheld in its own event log, so an
+      // acceptance run explains itself without access to the host's logs. Customers' drafts never carry this.
+      if(/^\[QA\](?:\s|$)/i.test(String(draft.contact?.name||'')))void recordEvent({draftId:id,estimator:String(draft.answers.service||'')||null,kind:'pricing',stage:'no-range',code:blocks.join(',').slice(0,120)||'no-range',outcome:'failed',message:null,meta:{missing:missing.slice(0,10).map((note:string)=>note.slice(0,240)),issues:((((priced.internal as {scopePricing?:{issues?:string[]}}).scopePricing?.issues)||[]) as string[]).slice(0,10).map(note=>note.slice(0,240))}});
       // The reply is structured so the interface can list each open item on
       // its own line and link each missing detail to its question, instead of
       // one dense paragraph.
