@@ -1075,8 +1075,8 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
     for(const t of unpriced){
       if(!pricedTaskCount){resolution.issues.push(`${t.description}: no positive priced component or allowance was produced.`);continue;}
       resolution.issues=resolution.issues.filter(issue=>issue!==`${t.description}: no supported price.`&&issue!==`${t.description}: no defensible planning average could be supported.`);
-      resolution.addExclusions=[...new Set([...(resolution.addExclusions||[]),`${t.description} (not included in this range; we will quote it after a site visit)`])];
-      resolution.assumptions.push(`To confirm: ${t.description} is listed but not priced in this range; it needs a site visit before we can put a number on it.`);
+      resolution.addExclusions=[...new Set([...(resolution.addExclusions||[]),`${t.description} (not included in this price; we will quote it after a site visit)`])];
+      resolution.assumptions.push(`To confirm: ${t.description} is listed but not priced in this estimate; it needs a site visit before we can put a number on it.`);
       carriedOut.push({id:t.id,description:t.description});
       console.error(`[p5-pricing] carried an unpriced item out of the total: ${t.description.slice(0,120)}`);
     }

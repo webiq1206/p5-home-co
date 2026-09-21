@@ -189,7 +189,7 @@ function referencePayload(source: JsonRecord, fields: {
     estimateSummary: `REFERENCE MODE: estimate ${fields.draftId}, revision ${source.revision}. ${summaryExcerpt} Selling range: $${fields.range.low} to $${fields.range.high}. Full unchanged detail requires normal administrator authentication at ${url}. Full estimate sections omitted from this bounded envelope: ${omittedPaths.join(", ")}.`,
     estimateLow: fields.range.low,
     estimateHigh: fields.range.high,
-    estimateRange: fields.range.low != null && fields.range.high != null ? `$${fields.range.low} to $${fields.range.high}` : undefined,
+    estimateRange: fields.range.low != null && fields.range.high != null ? (fields.range.low === fields.range.high ? `${fields.range.low}` : `${fields.range.low} to ${fields.range.high}`) : undefined,
   };
 }
 
@@ -305,7 +305,7 @@ export function buildCrmPayload(record: unknown, key: string, configuredDomain: 
     estimateSummary: `Administrative estimate ${draftId}. Complete durable record: ${adminUrl}. CRM copy omits redundant metadata: ${omittedPaths || "none"}.`,
     estimateLow: range.low,
     estimateHigh: range.high,
-    estimateRange: range.low != null && range.high != null ? `$${range.low} to $${range.high}` : undefined,
+    estimateRange: range.low != null && range.high != null ? (range.low === range.high ? `${range.low}` : `${range.low} to ${range.high}`) : undefined,
   };
   const bytes = crmPayloadBytes(payload);
   if (bytes > CRM_PAYLOAD_LIMIT_BYTES) {

@@ -88,6 +88,8 @@ export interface OwnerApproval {
 }
 export interface PricingInput {
   estimatePurpose?:'preliminary';
+  /** One price instead of a range (owner rule: an RE-10 repair list gets a single firm price). */
+  firmPrice?:boolean;
   service: Service; revision: string; scopeSummary: string; lines: DirectCostLine[];
   coverage: ScopeCoverage[]; risks: RiskFactor[]; assumptions: string[];
   exclusions: string[]; missingInformation: string[]; allowances: Allowance[];
@@ -259,6 +261,10 @@ export function calculateP5Estimate(input: PricingInput, finance: FinancePolicy,
   });
   const sourceHigh=directCost+Math.sqrt(upsides.reduce((total,upside)=>total+upside*upside,0));
   planningRange.high=Math.max(planningRange.high,Math.ceil(priceFromRiskAdjustedCost(sourceHigh*(1+contingencyRate),allocations.total,margin)/step)*step);
+  // A firm price is the modeled, margin-correct contract price, rounded up to the step: the number the
+  // range was built around, never its low end. Quantities a document leaves open are priced at the
+  // modeled count and disclosed as assumptions.
+  if(input.firmPrice){const firm=Math.ceil(contractPrice/step)*step;planningRange.low=firm;planningRange.high=firm;}
   if (input.missingInformation.length) warn("missing-project-information", "Resolve the recorded missing project information before a firm proposal.");
   if (contractPrice < 100 || contractPrice > 10000000) warn("unusual-total", "The result is outside the broad project review limits. Verify quantities and units.", "block");
   if (input.benchmark) {
@@ -355,6 +361,13 @@ export function customerSafeProjection<T>(value:T):T{
   return value;
 }
 /** Explicit projection keeps internal calculations out of API, email and PDF output. */
+/** What happens next, in plain words, for the customer. */
+export function customerNextStep(service: string, firm: boolean): string {
+  if (firm) return "Book a walkthrough so we can confirm the listed repairs on site. Once they are confirmed, this is the price we hold.";
+  if (["handyman", "change-order", "rush"].includes(service)) return "Schedule a visit so we can confirm the work on site and give you a fixed price.";
+  if (["new-construction", "addition", "adu"].includes(service)) return "Book a planning meeting. We will review your plans, site and selections and turn this range into a detailed proposal.";
+  return "Book a free consultation. We will walk the space with you, go over selections, and turn this range into a fixed-price proposal.";
+}
 export function customerEstimate(estimate: P5Estimate, summary: string) {
   const trades=[...new Set(estimate.lines.map(l=>tradeForLine(l)))];
   const weights=estimate.lines.map(line=>line.cost);
@@ -382,8 +395,10 @@ export function customerEstimate(estimate: P5Estimate, summary: string) {
     })),
     assumptions: customerSafeNotes(estimate.assumptions), exclusions: estimate.exclusions,
     factors: estimate.riskFactors.map(r => r.replaceAll("-", " ")),
-    nextStep: estimate.contractMethod,
-    message: estimate.publishable ? "Schedule a consultation to confirm the scope and refine this range." : "Your scope needs a pricing review before we can provide a reliable range. Schedule a consultation or plan review.",
+    // The contract method is internal ("paid planning followed by a guaranteed maximum price"); the
+    // customer is told, in plain words, what happens next.
+    nextStep: customerNextStep(estimate.service, estimate.planningRange.low===estimate.planningRange.high),
+    message: estimate.publishable ? (estimate.planningRange.low===estimate.planningRange.high ? "This is your price for the repairs listed. Schedule a walkthrough so we can confirm the items on site before work begins." : "Schedule a consultation to confirm the scope and refine this range.") : "Your scope needs a pricing review before we can provide a reliable range. Schedule a consultation or plan review.",
     disclaimer: PLANNING_DISCLAIMER,
   });
 }

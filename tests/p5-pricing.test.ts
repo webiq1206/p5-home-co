@@ -273,3 +273,22 @@ test("uncertain lines widen the high end as independent errors, not all at their
   const oneFull = calculateP5Estimate({ ...base, lines: [{ ...line(0), quantity: 5, quantityRange: undefined }] }, finance, [], now);
   assert.ok(one.planningRange.high >= oneFull.contractPrice * 0.999, "a single allowance's full upside is still covered");
 });
+
+test("an RE-10 gets one firm price: the modeled contract price, shown as a single number everywhere", async () => {
+  const {isRe10Scope} = await import("../lib/p5/costBook.ts");
+  const {priceText, priceLabel} = await import("../lib/p5/presentation.ts");
+  const base = input("re10");
+  const line = { ...base.lines[0], id: "boot", description: "Vent boot", unit: "each", quantity: 3, unitCost: 200, quantityRange: { low: 1, high: 5 } };
+  const firm = calculateP5Estimate({ ...base, firmPrice: true, lines: [line] }, finance, [], now);
+  assert.equal(firm.planningRange.low, firm.planningRange.high, "one price, not a range");
+  assert.ok(firm.planningRange.low >= firm.contractPrice && firm.planningRange.low - firm.contractPrice < 100, "the firm price is the margin-correct contract price, rounded up");
+  const ranged = calculateP5Estimate({ ...base, lines: [line] }, finance, [], now);
+  assert.ok(ranged.planningRange.low < ranged.planningRange.high, "other work keeps its range");
+  assert.equal(priceText({ low: 28200, high: 28200 }), "$28,200");
+  assert.equal(priceText({ low: 28200, high: 40000 }), "$28,200 to $40,000");
+  assert.equal(priceLabel({ low: 1, high: 1 }), "Your price");
+  // Live Marcliffe RE-10s were classified as handyman work; the document itself makes it an RE-10.
+  assert.ok(isRe10Scope({ answers: { service: "handyman" }, text: "Please estimate the repair items listed on this RE-10 inspection notice." }));
+  assert.ok(isRe10Scope({ answers: { service: "handyman" }, uploads: [{ name: "5487 N Marcliffe Ave RE-10 Inspection Contingency Notice.pdf" }] }));
+  assert.ok(!isRe10Scope({ answers: { service: "handyman" }, text: "Replace two exterior outlets and fix a leaking trap." }));
+});

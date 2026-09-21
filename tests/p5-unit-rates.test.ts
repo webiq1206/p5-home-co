@@ -191,3 +191,24 @@ test('trade vocabulary a customer or inspector uses still reaches the right line
   finds('Add four can lights in the family room','PB-26-50-01');        // Recessed LED light
   finds('Flush the hot water tank','PB-22-01-10');                      // Water heater flush
 });
+test('a complete project is priced from the owner book assembly at the chosen finish, not the older itemized schedule',async()=>{
+  const {priceBookRates}=await import('../lib/p5/priceBook.ts');
+  const {createPlanningConfiguration,PLANNING_MODEL_VERSION}=await import('../lib/p5/planningBooks.ts');
+  const {priceReviewedScope}=await import('../lib/p5/costBook.ts');
+  const required=['03-17-01-M','03-17-01-L','03-15-02-M','03-15-02-L','03-16-01-M','03-16-01-L','03-14-01-M','03-14-01-L','03-04-01','03-04-02','03-04-03','03-05-02-M','03-05-02-L','REF-GENERAL-HOUR','REF-PLUMBING-HOUR','REF-ELECTRICAL-HOUR'];
+  const catalogFor=(answers:{service:string;finish?:string})=>({version:PLANNING_MODEL_VERSION,source:'Synthetic required codes plus the owner price book',authorizedBy:'Test',importedAt:'2026-09-11T00:00:00.000Z',
+    rates:[...required.map(code=>({code,description:'Synthetic',type:(code.endsWith('-M')?'Material':'Labor') as 'Material'|'Labor',unit:code.includes('HOUR')?'HR':'SF',amount:1,source:'Synthetic',basis:'owner-average-cost' as const})),...priceBookRates(answers)]});
+  const price=(answers:Record<string,string>)=>{
+    const config=createPlanningConfiguration(catalogFor(answers as any),[answers.service]);
+    const {text,...fields}=answers;const r=priceReviewedScope({text:text||'',answers:{location:'Boise',...fields},extraction:null,uploads:[],reviewedAt:'2026-09-21',corrections:[]} as any,config,new Date('2026-09-21'));
+    return (r.internal as any).lines as {description:string;quantity:number;unitCost:number;evidence:{reference:string}}[];
+  };
+  const home=price({service:'new-construction',sqft:'2000',garageIncluded:'yes',garageSqft:'600',finish:'mid-range',stories:'1',text:'New 2,000 SF home with a 600 SF garage'});
+  assert.deepEqual(home.map(l=>[l.evidence.reference.match(/PB-90-\d\d-\d\d/)?.[0],l.quantity,l.unitCost]),[['PB-90-10-01',2000,210],['PB-90-10-03',600,65]],'mid-range new home 210/SF and garage 65/SF, nothing else');
+  const lux=price({service:'new-construction',sqft:'2000',garageIncluded:'no',finish:'luxury',stories:'1',text:'New home'});
+  assert.equal(lux[0].unitCost,475,'luxury tier');
+  const kitchen=price({service:'kitchen',sqft:'180',finish:'high-end',text:'Complete kitchen remodel'});
+  assert.equal(kitchen.length,1);assert.equal(kitchen[0].quantity,180);assert.ok(kitchen[0].unitCost>=220,'high-end kitchen per SF, with any remodel premium');
+  const bath=price({service:'bathroom',bathrooms:'2',finish:'mid-range',text:'Full remodel of two hall bathrooms'});
+  assert.equal(bath.length,1);assert.equal(bath[0].quantity,2);assert.match(bath[0].evidence.reference,/PB-90-30-02/);
+});

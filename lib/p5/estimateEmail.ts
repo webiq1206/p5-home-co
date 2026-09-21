@@ -1,4 +1,4 @@
-import {customerPresentation,estimateSections,groupSections,money,orderedSections,scopeBullets,type EstimateSection} from './presentation.ts';
+import {priceText,priceLabel,customerPresentation,estimateSections,groupSections,money,orderedSections,scopeBullets,type EstimateSection} from './presentation.ts';
 import {ESTIMATOR_BRAND as brand} from './brand.ts';
 import {documentFooterLine,legalIdentityLine} from './brandIdentity.ts';
 
@@ -75,11 +75,11 @@ function compactCategory(section:EstimateSection):EstimateSection{
 function customerBody(id:string,result:any,contact:{name?:string}|undefined){
  const sections=estimateSections(result);
  const g=groupSections(sections);
- const range=result.range?`${money(result.range.low)} to ${money(result.range.high)}`:'';
+ const range=result.range?priceText(result.range):'';
  const parts:string[]=[];
  parts.push(`<p style="margin:0 0 16px;font-size:16px;line-height:1.6;color:${PALETTE.ink}">${escape(contact?.name?`Hi ${contact.name.split(' ')[0]},`:'Hello,')}</p>`);
  parts.push(`<p style="margin:0 0 20px;font-size:16px;line-height:1.6;color:${PALETTE.ink}">Thank you for using the ${escape(brand.name)} project estimator. Your complete project summary is below and attached as a PDF.</p>`);
- parts.push(`<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:separate;margin:0 0 8px"><tr><td style="padding:22px 22px;border-radius:14px;background:${PALETTE.card};border:1px solid ${PALETTE.line};border-left:5px solid ${PALETTE.accent}"><p style="margin:0 0 6px;font-size:12px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:${PALETTE.soft}">${range?'Preliminary planning range':'Status'}</p><p style="margin:0 0 8px;font-size:${range?'32px':'22px'};line-height:1.2;font-weight:700;color:${PALETTE.ink};${SERIF}">${escape(range||'Scope received for pricing review')}</p><p style="margin:0;font-size:15px;line-height:1.6;color:${PALETTE.muted}">${escape(result.message||'')}</p></td></tr></table>`);
+ parts.push(`<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:separate;margin:0 0 8px"><tr><td style="padding:22px 22px;border-radius:14px;background:${PALETTE.card};border:1px solid ${PALETTE.line};border-left:5px solid ${PALETTE.accent}"><p style="margin:0 0 6px;font-size:12px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:${PALETTE.soft}">${priceLabel(result.range)}</p><p style="margin:0 0 8px;font-size:${range?'32px':'22px'};line-height:1.2;font-weight:700;color:${PALETTE.ink};${SERIF}">${escape(range||'Scope received for pricing review')}</p><p style="margin:0;font-size:15px;line-height:1.6;color:${PALETTE.muted}">${escape(result.message||'')}</p></td></tr></table>`);
  if(g.glance)parts.push(card(g.glance));
  if(g.brief)parts.push(card(g.brief));
  if(g.included.length||g.categories.length){
@@ -109,7 +109,7 @@ function internalBody(id:string,record:any){
  parts.push(`<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:separate;margin:0 0 16px"><tr><td style="padding:14px 18px;border-radius:10px;background:#FFF3EE;border:1px solid #E6BAAC"><p style="margin:0;font-size:14px;line-height:1.6;color:#7A2F22"><b>Confidential.</b> The internal attachment and financial breakdown are for the estimating team only. Do not forward this message to the customer.</p></td></tr></table>`);
  parts.push(heading('Lead'));
  parts.push(card({title:'Contact',rows:[['Reference',id],['Customer',record.contact?.name||'Not supplied'],['Email',record.contact?.email||'Not supplied'],['Phone',record.contact?.phone||'Not supplied'],['Service',String(record.scope?.answers?.service||'Not set')]]}));
- const range=result?.range?`${money(result.range.low)} to ${money(result.range.high)}`:'Scope received for pricing review';
+ const range=result?.range?priceText(result.range):'Scope received for pricing review';
  parts.push(`<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:separate;margin:0 0 8px"><tr><td style="padding:20px 22px;border-radius:14px;background:${PALETTE.card};border:1px solid ${PALETTE.line};border-left:5px solid ${PALETTE.accent}"><p style="margin:0 0 6px;font-size:12px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:${PALETTE.soft}">Customer planning range</p><p style="margin:0;font-size:28px;line-height:1.2;font-weight:700;color:${PALETTE.ink};${SERIF}">${escape(range)}</p></td></tr></table>`);
  const financial:[string,string][]=([['Direct project cost',internal.directCost],['Contingency',internal.contingency],['Overhead recovery',internal.allocationDollars?.overhead],['Operating profit',internal.operatingProfit],['Recommended contract price',internal.contractPrice]] as [string,unknown][]).filter(([,v])=>typeof v==='number').map(([k,v])=>[k,money(Number(v))]);
  if(financial.length){parts.push(heading('Internal financial breakdown'));parts.push(card({title:'Pricing',rows:financial}));}
@@ -145,7 +145,7 @@ function plainText(id:string,record:any,admin:boolean){
  const result=record.customer,internal=record.internal||{};
  const lines:string[]=[brand.name,admin?'CONFIDENTIAL INTERNAL ESTIMATE':'YOUR PROJECT ESTIMATE',`Reference: ${id}`,''];
  if(admin)lines.push('LEAD',`Customer: ${record.contact?.name||'Not supplied'}`,`Email: ${record.contact?.email||'Not supplied'}`,`Phone: ${record.contact?.phone||'Not supplied'}`,'');
- lines.push(result?.range?`PLANNING RANGE: ${money(result.range.low)} to ${money(result.range.high)}`:'STATUS: Scope received for pricing review',result?.message||'','');
+ lines.push(result?.range?`${priceLabel(result.range).toUpperCase()}: ${priceText(result.range)}`:'STATUS: Scope received for pricing review',result?.message||'','');
  const g=groupSections(estimateSections(result||{}));
  const block=(title:string,sections:EstimateSection[],note?:string)=>{if(!sections.length)return;lines.push(title.toUpperCase());if(note)lines.push(note);for(const s of sections){lines.push('',`${s.title}${s.kind==='category'&&s.text?`: ${s.text}`:''}`);if(s.text&&s.kind!=='category')lines.push(s.text);for(const b of s.bullets||[])lines.push(`  - ${b}`);for(const [k,v] of s.rows||[])lines.push(`  ${k}: ${v.replace(/\n+/g,' ')}`);}lines.push('');};
  const cap=(items:string[],limit:number)=>{const shown=items.slice(0,limit);const rest=items.length-shown.length;return rest>0?[...shown,`(+${rest} more in the attached PDF)`]:shown;};
@@ -168,7 +168,6 @@ function plainText(id:string,record:any,admin:boolean){
   }
   plainBlock('Not included',g.excluded.flatMap(s=>s.bullets||[]));
   plainBlock('Before we can give you a firm price',cap([...g.allowances.flatMap(s=>s.bullets||[]),...g.assumptions.flatMap(s=>s.bullets||[])],4));
-  lines.push('The attached PDF has the complete breakdown: every line, allowance and assumption.','');
  }
  if(admin){
   const financial=([['Direct project cost',internal.directCost],['Contingency',internal.contingency],['Overhead recovery',internal.allocationDollars?.overhead],['Operating profit',internal.operatingProfit],['Recommended contract price',internal.contractPrice]] as [string,unknown][]).filter(([,v])=>typeof v==='number');

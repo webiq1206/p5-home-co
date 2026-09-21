@@ -14,6 +14,35 @@ export const PLANNING_MODEL_VERSION='owner-schedule-2026-09-11';
 export const MAX_PLANNING_RATES=2000;
 const SMALL=new Set(['handyman','re10','change-order','rush']);
 const BUILDS=new Set(['new-construction','addition','adu']);
+/**
+ * The owner's price book prices a complete project as one assembly per unit (Division 90): a new
+ * home per SF, a whole-home renovation per SF, a kitchen per SF of kitchen, a bathroom by type, an
+ * addition per SF, an ADU by type. Owner rule (2026-09-21): everything uses the book's pricing, so
+ * a complete project is priced from these assemblies at the chosen finish tier. The older itemized
+ * schedule is used only if an assembly line is missing from the catalog.
+ * Each entry names the book line and how its quantity is read.
+ */
+function bookAssemblies(service:string,a:ScopeAnswers,text:string):{code:string;field?:ScopeField;fixed?:number;scale?:number;note:string}[]{
+ const bathCode=/powder|half[- ]bath/.test(text)?'PB-90-30-01':/primary|master/.test(text)?'PB-90-30-03':'PB-90-30-02';
+ switch(service){
+  case 'new-construction':{
+   const lines:{code:string;field?:ScopeField;fixed?:number;note:string}[]=[{code:'PB-90-10-01',field:'sqft',note:'Complete new home (excluding land) per conditioned SF, from the owner price book.'}];
+   if(a.garageIncluded==='yes'||fieldNumber(a,'garageSqft'))lines.push({code:'PB-90-10-03',field:'garageSqft',note:'Unconditioned garage area per SF, from the owner price book.'});
+   return lines;
+  }
+  case 'whole-home':return [{code:'PB-90-40-01',field:'sqft',note:'Whole-home renovation per SF, from the owner price book.'}];
+  case 'addition':return [{code:'PB-90-50-01',field:'sqft',note:'Room addition per SF, from the owner price book.'}];
+  case 'adu':{
+   const code=/garage conversion|convert(?:ing)? (?:the |a )?garage/.test(text)?'PB-90-50-09':/attached/.test(text)?'PB-90-50-11':'PB-90-50-10';
+   const area=fieldNumber(a,'sqft');
+   // The book prices a detached ADU at 600 SF; a stated size scales it in proportion.
+   return [{code,fixed:1,scale:code==='PB-90-50-10'&&area?area/600:undefined,note:'Complete ADU from the owner price book.'}];
+  }
+  case 'kitchen':return fieldNumber(a,'sqft')?[{code:'PB-90-20-02',field:'sqft',note:'Complete kitchen remodel per SF of kitchen, from the owner price book.'}]:[{code:'PB-90-20-01',fixed:1,note:'Complete kitchen remodel, from the owner price book.'}];
+  case 'bathroom':return [{code:bathCode,field:'bathrooms',fixed:1,note:'Complete bathroom remodel by bathroom type, from the owner price book.'}];
+  default:return [];
+ }
+}
 const EXCLUDED_CODES=new Set(['03-23-03','03-23-04','L-01-02','L-03-00','03-24-02']);
 export function validatePlanningCatalog(catalog:PlanningCatalog){
  if(!catalog||catalog.version!==PLANNING_MODEL_VERSION||!catalog.source?.trim()||!catalog.authorizedBy?.trim()||!Number.isFinite(Date.parse(catalog.importedAt))||!Array.isArray(catalog.rates)||catalog.rates.length>MAX_PLANNING_RATES)throw new Error('Invalid owner planning catalog.');
@@ -100,6 +129,10 @@ export function materializePlanningBook(book:ServiceCostBook,catalog:PlanningCat
   if(full||/paint/.test(text))pair('03-14-01',area,'Project floor-area budgeting basis for interior paint; verify surface takeoff before a proposal.');
   if((full||/drywall/.test(text))&&!unchanged(/drywall/))pair('03-13-01',area,'Project floor-area budgeting basis for drywall; verify actual wall and ceiling takeoff.');
  };
+ // A complete project of a type the book prices as one assembly uses that assembly (owner rule 2026-09-21).
+ const completeProject=BUILDS.has(service)||service==='whole-home'||/full|complete|gut|entire|new kitchen|new bathroom/.test(text)||(!a.taskList&&!a.demolition&&!a.structural);
+ const assemblyPlan=completeProject?bookAssemblies(service,a,text):[];
+ const useAssembly=assemblyPlan.length>0&&assemblyPlan.every(x=>rates.has(x.code));
  if(service.startsWith('cabinet-')){
   cabinet(undefined,undefined);
   exclusions.push('Countertops, appliances, electrical and plumbing changes are excluded unless separately itemized.');
@@ -119,6 +152,11 @@ export function materializePlanningBook(book:ServiceCostBook,catalog:PlanningCat
   if(!matched)add('REF-GENERAL-HOUR',quantity('laborHours'),'Reviewed labor allowance for the listed tasks.');
   if(/roof|foundation|load.bearing|structural|electrical panel|service upgrade|hvac|furnace|concrete|mold|asbestos|water damage/.test(text))missing.push('Missing quantity: specialist trade takeoff for the additional work in this task list');
   exclusions.push('Concealed damage, hazardous materials, structural alterations and permit-driven system upgrades require a revised scope.');
+ }else if(useAssembly){
+  for(const x of assemblyPlan){const q=x.field?quantity(x.field,x.fixed):(x.fixed??1);add(x.code,q*(x.scale??1),x.note);}
+  if(assemblyPlan.some(x=>x.scale))assumptions.push('The book prices a detached ADU at 600 SF; this one is scaled to the stated size.');
+  assumptions.push('Priced as a complete project at the finish level you chose. Your selections, site conditions, engineering and permits are confirmed before a firm proposal.');
+  exclusions.push('Land, permit and utility connection fees, and work outside the described project are excluded unless separately itemized.');
  }else{
   const area=quantity('sqft');const build=BUILDS.has(service);const full=build||service==='whole-home'||/full|complete|gut|entire|new kitchen|new bathroom/.test(text)||(!a.taskList&&!a.demolition&&!a.structural);
   if(build){
@@ -160,9 +198,10 @@ export function materializePlanningBook(book:ServiceCostBook,catalog:PlanningCat
  const materialCost=rules.filter(r=>r.category==='materials').reduce((sum,r)=>sum+r.unitCost*(r.quantity.fixed||0),0);
  const baseCost=rules.reduce((sum,r)=>sum+r.unitCost*(r.quantity.fixed||0),0);
  const reserve=(id:string,description:string,amount:number,category:CostCategory)=>{if(amount<=0)return;rules.push({id,description,category,unit:'LS',unitCost:Math.round(amount*100)/100,priceBasis:'direct-cost',quantity:{fixed:1,factor:1},estimatingBasis:'owner-average-cost',evidence:{basis:'owner-estimating-schedule',reference:`Disclosed estimating reserve, ${PLANNING_MODEL_VERSION}. This is not a supplier invoice, tax calculation or payroll record.`,verifiedAt:catalog.importedAt,validUntil:new Date(Date.parse(catalog.importedAt)+92*86400000).toISOString()}});};
- reserve('material-procurement','Material purchasing, freight, waste and handling budget',materialCost*.12,'other-direct');
- if(baseCost){reserve('mobilization','Project mobilization and small equipment budget',Math.max(SMALL.has(service)?35:75,baseCost*.015),'travel-mobilization');if(!rules.some(r=>r.category==='closeout'))reserve('closeout','Cleanup and closeout budget',Math.max(25,baseCost*.015),'closeout');}
- assumptions.push('Material purchasing, delivery, waste and handling are included as budgeting allowances. Confirm quantities and delivered prices before ordering.');
+ // A book assembly is a complete installed price: purchasing, mobilization and cleanup are inside it.
+ if(!useAssembly){reserve('material-procurement','Material purchasing, freight, waste and handling budget',materialCost*.12,'other-direct');
+ if(baseCost){reserve('mobilization','Project mobilization and small equipment budget',Math.max(SMALL.has(service)?35:75,baseCost*.015),'travel-mobilization');if(!rules.some(r=>r.category==='closeout'))reserve('closeout','Cleanup and closeout budget',Math.max(25,baseCost*.015),'closeout');}}
+ if(!useAssembly)assumptions.push('Material purchasing, delivery, waste and handling are included as budgeting allowances. Confirm quantities and delivered prices before ordering.');
  if(a.finish==='high-end'||a.finish==='luxury')assumptions.push(`The material budget reflects the selected ${a.finish} finish level. Custom selections require supplier confirmation.`);
  const present=new Set(rules.map(r=>r.category));
  const coverage=COST_CATEGORIES.map(category=>({category,status:present.has(category)?'included' as const:'not-applicable' as const,reason:present.has(category)?'Included in the itemized preliminary cost model.':category==='owner-production'||category==='project-supervision'?'Ordinary owner labor and supervision are already covered by the company overhead budget; additional separately hired project management requires a scope revision.':'No separate charge in this defined preliminary assembly. Additional work requires revised scope and takeoff.'}));

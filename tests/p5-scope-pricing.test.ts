@@ -811,7 +811,7 @@ test('An item nobody can price is named and carried out of the total; the rest s
  ]),now);
  assert.ok(result.customer.range,JSON.stringify((result.internal as any).scopePricing.issues));
  assert.ok(result.customer.exclusions.some((e:string)=>/cracked chimney cap/i.test(e)),'the unpriced item is named as not included');
- assert.ok(result.customer.assumptions.some((a:string)=>/not priced in this range/.test(a)));
+ assert.ok(result.customer.assumptions.some((a:string)=>/not priced in this estimate/.test(a)));
 });
 test('The same document answered the same way prices to the same number, without asking the provider again',async()=>{
  const {pricingScopeFingerprint,reusableResolution}=await import('../lib/p5/pricingCache.ts');

@@ -11,7 +11,13 @@ export {customerPresentation,publicPricingText,projectCustomerEstimate,customerT
  */
 export type SectionKind='glance'|'brief'|'included'|'category'|'excluded'|'allowance'|'assumption'|'info';
 export type EstimateSection={title:string;kind?:SectionKind;text?:string;bullets?:string[];rows?:[string,string][]};
+/** Short labels for the customer-facing summary; the long form labels are for the questions. */
+const DISPLAY_LABEL:Record<string,string>={location:'Location',address:'Property address',sqft:'Project area (SF)',service:'Project type',finish:'Finish level',garageSqft:'Garage area (SF)',coveredOutdoorSqft:'Covered outdoor area (SF)',bathrooms:'Bathrooms',stories:'Stories'};
 export const money=(n:number)=>new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',maximumFractionDigits:0}).format(n);
+/** One price when the estimate is firm (an RE-10), otherwise the range. */
+export const isFirmPrice=(range?:{low:number;high:number}|null)=>Boolean(range&&range.low===range.high);
+export const priceText=(range:{low:number;high:number})=>isFirmPrice(range)?money(range.low):`${money(range.low)} to ${money(range.high)}`;
+export const priceLabel=(range?:{low:number;high:number}|null)=>range?(isFirmPrice(range)?'Your price':'Preliminary planning range'):'Status';
 export const readable=(s:string)=>s.replace(/([a-z])([A-Z])/g,'$1 $2').replace(/-/g,' ').replace(/^./,c=>c.toUpperCase());
 const overview=new Set(['service','location','address','sqft','garageSqft','coveredOutdoorSqft','rooms','bathrooms','stories','schedule','urgency','complexity','finish']);
 export const FIELD_CATEGORY_TITLES:Record<string,string>={site:'Site & utilities',utilities:'Site & utilities',access:'Site & utilities',demolition:'Demolition',structural:'Structure',mechanical:'Heating & Cooling',plumbing:'Plumbing',electrical:'Electrical',appliances:'Appliances',permits:'Permits & design',engineering:'Permits & design',materials:'Materials & finishes',fixtures:'Fixtures & finishes',allowances:'Allowances & selections',exclusions:'Excluded work',ownerSupplied:'Owner responsibilities',alternates:'Alternates'};
@@ -43,7 +49,7 @@ export function summarySections(summary:string):EstimateSection[]{
   if(definition.kind==='number'&&/^\d[\d,.]*$/.test(value))value=Number(value.replaceAll(',','')).toLocaleString('en-US');
   if(definition.kind==='choice')value=readable(value);
   const title=overview.has(key)?'Project at a glance':FIELD_CATEGORY_TITLES[key]||'Additional scope details';
-  const rows=groups.get(title)||[];active=[definition.label,value];rows.push(active);groups.set(title,rows);
+  const rows=groups.get(title)||[];active=[DISPLAY_LABEL[key]||definition.label,value];rows.push(active);groups.set(title,rows);
  }
  const sections:EstimateSection[]=[];
  if(groups.has('Project at a glance')){sections.push({title:'Project at a glance',kind:'glance',rows:groups.get('Project at a glance')});groups.delete('Project at a glance');}

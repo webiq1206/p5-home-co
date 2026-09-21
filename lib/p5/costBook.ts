@@ -16,6 +16,12 @@ export interface EstimatorConfiguration { finance:FinancePolicy;costBooks:Servic
   catalogVersion?:string }
 export const EMPTY_CONFIGURATION:EstimatorConfiguration={finance:DEFAULT_FINANCE,costBooks:[]};
 export interface ScopePriceResolution { rules:CostRule[]; assumptions:string[]; issues:string[];removeLineIds?:string[];removeExclusions?:string[];addExclusions?:string[];completeScopeVerified?:boolean;replaceBase?:boolean }
+/** An RE-10 repair list, however the project was classified: the owner prices these at one firm number. */
+export function isRe10Scope(scope:{answers:{service?:string|null};text?:string;extraction?:{summary?:string}|null;uploads?:{name?:string}[]}):boolean{
+  if(scope.answers.service==='re10')return true;
+  const text=[scope.text,scope.extraction?.summary,...(scope.uploads||[]).map(u=>u.name)].filter(Boolean).join(' ');
+  return /\bRE[- ]?10\b|inspection contingency notice/i.test(text);
+}
 /** Every customer projection leaving the cost book, including the early
  * review-required results that quote book notes verbatim, passes the same
  * customer-safe boundary. Internal records are returned unchanged. */
@@ -73,6 +79,7 @@ function priceReviewedScopeInternal(scope:ReviewedScope,configuration:EstimatorC
     // Missing information widens the band; reviewer notes alone (a blank completion date, a page
     // citation to confirm) are disclosed as assumptions and do not.
     uncertainty:missingInformation.length?"high":"medium",
+    firmPrice:isRe10Scope(scope),
     assumptions:[...book.assumptions,...scopeAssumptions(scope.answers,scope.uncertainFields,scope.extraction,scope.text),...(scope.extraction?.reviewNotes||[]).filter(note=>!blockingReviewNote(note)).map(note=>/^to confirm:/i.test(note)?note:`To confirm: ${note}`)],exclusions:[...new Set([...book.exclusions,...explicitExclusions,...(resolution?.addExclusions||[])])],
     missingInformation,allowances:[],
   };
