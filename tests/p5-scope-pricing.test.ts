@@ -37,6 +37,18 @@ test('Semantic mapping uses the existing cost amount without inventing a rate',a
  assert.ok(r.customer.range);assert.equal((r.internal as any).lines.find((l:any)=>l.id==='scope-1').unitCost,100);
  assert.notEqual(r.internal.revision,base.internal.revision);
 });
+test('A malformed mapping answer is asked again, then repaired, instead of handing the estimate off',async()=>{
+ // Live on boisehandyman.co (Marcliffe RE-10): one addition came back without a code and the
+ // parse error handed the whole estimate to a person.
+ const good={...extra,researchDescription:'',additions:[{code:'03-15-02-M',quantity:10,quantityEvidence:'Ten feet fixture conversion'}]};
+ const broken={...extra,researchDescription:'',additions:[{quantity:3,quantityEvidence:'no code given'},good.additions[0]]};
+ const audit={coveredTaskIds:['cabinets','overlay'],issues:[]};
+ const retried=await priceCompleteScope(scope,config,replies([{tasks:[task,broken],issues:[]},{tasks:[task,good],issues:[]},audit]),now);
+ assert.ok(retried.customer.range,'the second, well-formed answer prices');
+ const repaired=await priceCompleteScope(scope,config,replies([{tasks:[task,broken],issues:[]},{tasks:[task,broken],issues:[]},audit]),now);
+ assert.ok(repaired.customer.range,'a repeat malformed answer keeps its well-formed additions');
+ assert.equal((repaired.internal as any).lines.find((l:any)=>l.id==='scope-1').unitCost,100);
+});
 test('Scope facts use notes and earlier model issues require an explicit evidenced resolution',async()=>{
  const note='The cabinetry quantity is explicitly stated in the reviewed scope.';
  const mapping={tasks:[task],issues:[note],notes:['No additional cabinet runs requested.']};

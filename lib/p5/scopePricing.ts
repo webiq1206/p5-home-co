@@ -710,6 +710,21 @@ export function pricedTaskRemark(issue:string,pricedTasks:{id:string;description
   if(/duplicat|double[- ]count|\bomit|omission|\bunpriced\b|missing (?:work|materials?|labor|components?|quantit(?:y|ies)|scope)|does not match the explicit|disagrees with|wrong (?:unit|uom|responsibilit)|fabricat|out of scope|excluded work|not (?:been )?requested|quantity remains unmeasured|does not reconcile|owner.supplied|labor.only|materials.only|coverage reference|invalid existing price/.test(t))return false;
   return pricedTasks.some(task=>t.includes(task.id.toLowerCase())||t.includes(task.description.toLowerCase()));
 }
+/**
+ * A mapping answer with its malformed additions removed. An addition without a usable code,
+ * quantity or evidence cannot be priced; dropping it leaves its task to the coverage rules (a task
+ * with no priced line is carried out of the total and named) and to the independent audit, so
+ * nothing vanishes silently. Only additions are repaired: any other malformed field still fails.
+ */
+export function withoutMalformedAdditions(value:unknown):unknown{
+  if(!value||typeof value!=='object'||!Array.isArray((value as {tasks?:unknown}).tasks))return value;
+  const answer=value as {tasks:unknown[]};
+  return {...answer,tasks:answer.tasks.map(t=>{
+    if(!t||typeof t!=='object'||!Array.isArray((t as {additions?:unknown}).additions))return t;
+    const task=t as {additions:unknown[]};
+    return {...task,additions:task.additions.filter(a=>addition.safeParse(a).success)};
+  })};
+}
 /** Map one batch of inventory tasks, and keep going when the provider is slow.
  *
  * A twelve-task batch of a large scope was measured at over two minutes on the
@@ -722,7 +737,14 @@ export function pricedTaskRemark(issue:string,pricedTasks:{id:string;description
 async function mapBatch<T extends {id:string}>(request:PricingRequest,taskBatch:T[],build:(batch:T[])=>unknown,remaining:()=>number):Promise<Mapping>{
   try{
     const mapped=await request(MAP,build(taskBatch),false,remaining());
-    return mappingSchema.parse(mapped.value);
+    const first=mappingSchema.safeParse(mapped.value);
+    if(first.success)return first.data;
+    // A malformed answer (live: an addition with no code) used to throw and hand the whole
+    // estimate off. Ask once more; if the second answer is malformed too, keep what is well formed.
+    const again=await request(MAP,build(taskBatch),false,remaining());
+    const second=mappingSchema.safeParse(again.value);
+    if(second.success)return second.data;
+    return mappingSchema.parse(withoutMalformedAdditions(again.value));
   }catch(error){
     if(!isPricingStageTimeout(error))throw error;
     if(error.message==='pricing-stage-exhausted'||taskBatch.length<=3){
