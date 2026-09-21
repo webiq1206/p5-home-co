@@ -17,8 +17,10 @@ const strings=(v:unknown):v is string[]=>Array.isArray(v)&&v.every(x=>typeof x==
 export function pageRecordList(raw:unknown):unknown{
   if(Array.isArray(raw)||!isObject(raw))return raw;
   if('page' in raw&&'status' in raw)return [raw];
-  const values=Object.values(raw);
-  return values.length&&values.every(isObject)?values:raw;
+  // Keyed by page ({"1":{...}}) or wrapped ({"records":[...]}, seen live on a permit set): take the
+  // page records wherever they sit, one level down.
+  const found=Object.values(raw).flatMap(value=>Array.isArray(value)?value.filter(isObject):isObject(value)?[value]:[]).filter(v=>'page' in v);
+  return found.length?found:raw;
 }
 export function readPageRecords(input:unknown):PageRecord[]{
   const raw=pageRecordList(input);

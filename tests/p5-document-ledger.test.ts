@@ -25,6 +25,7 @@ test('A page review returned as one object or keyed by page is still read',async
  const {readPageRecords}=await import('../lib/p5/documentLedger.ts');
  assert.deepEqual(readPageRecords(read),[read]);
  assert.deepEqual(readPageRecords({'1':read,'2':{...read,page:2}}).map(p=>p.page),[1,2]);
+ assert.deepEqual(readPageRecords({records:[read,{...read,page:2}],count:2}).map(p=>p.page),[1,2],'a wrapped list is found');
  assert.throws(()=>readPageRecords({'1':{...read,status:'maybe'}}),/Invalid page review record/,'the records themselves are still validated');
  assert.throws(()=>readPageRecords('page one'),/Missing page-by-page review record/);
 });

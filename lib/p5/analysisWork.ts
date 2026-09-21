@@ -1,4 +1,3 @@
-import {advanceMixedDocumentAnalysis,assertAnalysisMigrationSafe,assertCompleteSourceCoverage,partitionDocumentServiceUploads,readSavedSource,SOURCE_COVERAGE_REQUIRED,type DocumentAnalysisStep} from './documentServiceClient.ts';
 import {ANALYSIS_PASS_MS,READ_ALLOWANCE_MS,READ_START_MARGIN_MS,remainingBudget,ProcessingDeadlineError,isProcessingDeadline} from './processingBudget.ts';
 import {createHash} from 'node:crypto';
 import {openablePdf,PdfAccessError} from './pdfAccess.ts';
@@ -19,6 +18,12 @@ import {analysisMessage,type ProcessingStatus} from './processingStatus.ts';
 
 export {analysisSegments} from './analysisSegments.ts';
 import {analysisSegments} from './analysisSegments.ts';
+import {advanceMixedDocumentAnalysis,assertAnalysisMigrationSafe,assertCompleteSourceCoverage,partitionDocumentServiceUploads,readSavedSource,SOURCE_COVERAGE_REQUIRED,type DocumentAnalysisStep} from './documentServiceClient.ts';
+/** How long one pass keeps rendering pages before it starts reading them. One scanned 36x24 sheet
+ * renders into 24 detail tiles in about 4 s, so the old 4 s window prepared one page per pass and a
+ * 27-page permit set was read about 4 sections at a time for over 15 minutes, with 12 read slots
+ * mostly idle. The queue cap (twice the read concurrency) still bounds each pass. */
+const PREPARE_WINDOW_MS=Number(process.env.P5_PREPARE_WINDOW_MS||25_000);
 
 type Unit={name:string;type:string;object:string;uploadId?:string;pages?:AnalysisFile['pages'];text?:string;context?:string;detailViews?:boolean;detailRegions?:AnalysisFile['detailRegions'];result?:AnalysisResult;attempts?:number;rateLimitRetries?:number;error?:string;lastCode?:string;retryAt?:number;active?:boolean};
 type Job={prepared:number;units:Unit[];notes:string[];preparationFailures?:string[];textDone?:AnalysisResult;textPrepared?:boolean;cursor?:number;expected?:{source:string;page:number}[];progress?:string;processing?:ProcessingStatus;concurrency?:number;cooldownUntil?:number};
@@ -199,7 +204,7 @@ async function advanceLocalAnalysis(draft:Draft,text:string,answers:ScopeAnswers
             const saved=await client.uploadFromBytes(object,segment.data,{compress:false});
             if(!saved.ok)throw new DraftError('Document preparation was interrupted. Retry to resume.',503);
             job.units.push({name:segment.name,type:segment.type,object,uploadId:upload.id,pages:segment.pages,text:segment.text,context:segment.context,detailViews:segment.detailViews,detailRegions:segment.detailRegions});
-            if(segment.nextPage!==undefined){job.cursor=segment.nextPage;await checkpoint();if(Date.now()-preparedAt>4000||job.units.filter(pending).length>=analysisConcurrency()*2){finished=false;break;}}
+            if(segment.nextPage!==undefined){job.cursor=segment.nextPage;await checkpoint();if(Date.now()-preparedAt>PREPARE_WINDOW_MS||job.units.filter(pending).length>=analysisConcurrency()*2){finished=false;break;}}
           }
         }catch(error){if(error instanceof DraftError||isProcessingDeadline(error))throw error;fileFailed=true;const message=`${file.name}: ${error instanceof Error?error.message:'Could not read this file.'} Review the original before pricing.`;job.notes.push(message);prepareFailed(file.name);job.units.push({name:file.name,type:file.type,object:'',uploadId:upload.id,error:message,lastCode:'preparation',attempts:MAX_READ_ATTEMPTS});event('prepare','failed',{file:file.name,code:'prepare-error',message:error instanceof Error?error.message:String(error),durationMs:Date.now()-preparing});}
         if(!finished)break;
