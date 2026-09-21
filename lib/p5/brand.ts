@@ -2,6 +2,8 @@ export const ESTIMATOR_BRAND = {
   "id": "p5",
   "name": "P5 Home Co",
   "domain": "p5homeco.com",
+  "legalName": "P5 Home Co, LLC",
+  "parentLegalName": "P5 Home Co, LLC",
   "accent": "#D0B496",
   "services": [
     "handyman",

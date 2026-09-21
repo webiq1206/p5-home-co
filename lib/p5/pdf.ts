@@ -1,4 +1,5 @@
 import { readFile } from "node:fs/promises";
+import {documentFooterLine,legalIdentityLine} from './brandIdentity.ts';
 import path from "node:path";
 import { PDFDocument,rgb,type PDFPage,type PDFFont } from "pdf-lib";
 import fontkit from "@pdf-lib/fontkit";
@@ -68,7 +69,7 @@ async function render(kind:"customer"|"administrative",id:string,blocks:Block[])
   const pages=doc.getPages();
   pages.forEach((p,index)=>{
     p.drawLine({start:{x:44,y:49},end:{x:568,y:49},color:rgb(.8,.8,.8),thickness:.5});
-    p.drawText(`${brand.domain} | ${brand.phone}`,{x:44,y:34,font,size:8,color:ink});
+    p.drawText(kind==="administrative"?`${brand.domain} | ${brand.phone}`:documentFooterLine(),{x:44,y:34,font,size:8,color:ink});
     p.drawText(`${index+1} / ${pages.length}`,{x:524,y:34,font,size:8,color:ink});
     p.drawText(kind==="administrative"?"Confidential P5 information. Do not send this version to the customer.":"Planning information only. Final scope and written agreement required.",{x:44,y:21,font,size:7,color:ink});
   });
@@ -86,6 +87,9 @@ export function customerPdf(id:string,result:PublicResult){
     ...orderedSections(estimateSections(result)).map(section=>section.kind==='excluded'&&!/exclu|not included/i.test(section.title)?{...section,title:`${section.title} (not included)`}:section.kind==='assumption'&&!/confirm|assum|verify|basis|factor|question/i.test(section.title)?{...section,title:`${section.title} (to confirm)`}:section),
     {title:"Recommended next step",text:`${result.nextStep}\nSchedule a consultation: https://${brand.domain}${brand.consultationPath}\n${brand.phone} | ${brand.email}`},
     {title:"Planning disclaimer",text:result.disclaimer},
+    // Who the customer is contracting with, on the document they keep and forward.
+    {title:"About this estimate",text:`${legalIdentityLine()}
+Prepared by ${brand.name} · ${brand.phone} · ${brand.email} · ${brand.domain}`},
   ];return render("customer",id,blocks);
 }
 export function administrativePdf(id:string,record:Record<string,unknown>){

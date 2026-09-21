@@ -1,5 +1,6 @@
 import {customerPresentation,estimateSections,groupSections,money,orderedSections,scopeBullets,type EstimateSection} from './presentation.ts';
 import {ESTIMATOR_BRAND as brand} from './brand.ts';
+import {documentFooterLine,legalIdentityLine} from './brandIdentity.ts';
 
 /**
  * Customer and internal estimate emails.
@@ -37,6 +38,40 @@ function card(section:EstimateSection,options:{heading?:'h2'|'h3';subtitle?:stri
 function heading(text:string,note?:string){return `<h2 style="margin:28px 0 12px;font-size:13px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:${PALETTE.soft};${FONT}">${escape(text)}</h2>${note?`<p style="margin:-4px 0 12px;font-size:14px;line-height:1.6;color:${PALETTE.muted}">${escape(note)}</p>`:''}`;}
 function button(label:string,href:string,primary=true){return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="display:inline-table;margin:0 10px 10px 0"><tr><td style="border-radius:10px;background:${primary?PALETTE.button:PALETTE.card};border:1px solid ${primary?PALETTE.button:'#B7C0B8'}"><a href="${escape(href)}" style="display:inline-block;padding:14px 22px;font-size:15px;font-weight:700;color:${primary?PALETTE.buttonInk:PALETTE.ink};text-decoration:none;${FONT}">${escape(label)}</a></td></tr></table>`;}
 
+/**
+ * The customer email is a summary, not the estimate.
+ *
+ * It used to render every priced line, every allowance and every note, which ran to several
+ * screens and buried the one thing a reader wants: the number, what it covers, and what to do
+ * next. The complete breakdown is attached as a PDF, so the email carries the shape of the
+ * project and a capped number of items under each heading, each pointing at the PDF for the rest.
+ */
+const EMAIL_LIMIT=5;
+function capped(items:string[],limit=EMAIL_LIMIT){
+ const shown=items.slice(0,limit);
+ const rest=items.length-shown.length;
+ return {shown,note:rest>0?`${rest} more ${rest===1?'item is':'items are'} listed in the attached PDF.`:''};
+}
+/** Category totals only. The lines behind each total are in the PDF. */
+function categoryTable(result:any){
+ const ranges=(result.categoryRanges||[]).filter((r:any)=>r&&r.category&&Number.isFinite(r.low)&&Number.isFinite(r.high));
+ if(!ranges.length)return '';
+ const body=ranges.map((r:any)=>`<tr><td style="padding:10px 0;border-bottom:1px solid ${PALETTE.line};font-size:15px;line-height:1.5;color:${PALETTE.ink}">${escape(r.category)}</td><td style="padding:10px 0;border-bottom:1px solid ${PALETTE.line};font-size:15px;line-height:1.5;color:${PALETTE.ink};text-align:right;white-space:nowrap">${escape(`${money(r.low)} to ${money(r.high)}`)}</td></tr>`).join('');
+ return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;margin:0 0 6px">${body}</table>`;
+}
+/** A titled card around arbitrary content, for the category table. */
+function panel(title:string,note:string,body:string){
+ return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:separate;margin:0 0 14px"><tr><td style="padding:18px 20px;border:1px solid ${PALETTE.line};border-radius:12px;background:${PALETTE.card}"><h3 style="margin:0 0 12px;font-size:17px;line-height:1.35;font-weight:700;color:${PALETTE.ink};${FONT}">${escape(title)}</h3>${body}<p style="margin:10px 0 0;font-size:13px;line-height:1.6;color:${PALETTE.soft}">${escape(note)}</p></td></tr></table>`;
+}
+/** Keep the quantity and the line total; drop only the per-unit rate line. */
+const withoutUnitRate=(value:string)=>String(value).split('\n').filter(part=>!/\s\/\s[A-Za-z]+(?:\s+at the modeled quantity)?\s*$/.test(part)).join('\n');
+/** In the email a priced line shows its name and its total. The unit rate, the modeled quantity
+ * and the verification note behind it are the PDF's job; in a mail client they turned every line
+ * into three. Nothing is dropped here: every line still appears, and so does every requested item. */
+function compactCategory(section:EstimateSection):EstimateSection{
+ if(!section.rows?.length)return section;
+ return {...section,rows:section.rows.map(([label,value])=>[label,withoutUnitRate(value)] as [string,string])};
+}
 function customerBody(id:string,result:any,contact:{name?:string}|undefined){
  const sections=estimateSections(result);
  const g=groupSections(sections);
@@ -45,12 +80,22 @@ function customerBody(id:string,result:any,contact:{name?:string}|undefined){
  parts.push(`<p style="margin:0 0 16px;font-size:16px;line-height:1.6;color:${PALETTE.ink}">${escape(contact?.name?`Hi ${contact.name.split(' ')[0]},`:'Hello,')}</p>`);
  parts.push(`<p style="margin:0 0 20px;font-size:16px;line-height:1.6;color:${PALETTE.ink}">Thank you for using the ${escape(brand.name)} project estimator. Your complete project summary is below and attached as a PDF.</p>`);
  parts.push(`<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:separate;margin:0 0 8px"><tr><td style="padding:22px 22px;border-radius:14px;background:${PALETTE.card};border:1px solid ${PALETTE.line};border-left:5px solid ${PALETTE.accent}"><p style="margin:0 0 6px;font-size:12px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:${PALETTE.soft}">${range?'Preliminary planning range':'Status'}</p><p style="margin:0 0 8px;font-size:${range?'32px':'22px'};line-height:1.2;font-weight:700;color:${PALETTE.ink};${SERIF}">${escape(range||'Scope received for pricing review')}</p><p style="margin:0;font-size:15px;line-height:1.6;color:${PALETTE.muted}">${escape(result.message||'')}</p></td></tr></table>`);
- if(g.glance||g.brief){parts.push(heading('Project summary'));if(g.glance)parts.push(card(g.glance));if(g.brief)parts.push(card(g.brief));}
- if(g.included.length||g.categories.length){parts.push(heading(result.range?'What is included':'Requested work',g.categories.length?g.categoriesIntro?.text:undefined));for(const s of g.included)parts.push(card(s));for(const s of g.categories)parts.push(card(s));}
- if(g.excluded.length){parts.push(heading('Not included','The following work is not part of this estimate.'));for(const s of g.excluded)parts.push(card(s));}
- if(g.allowances.length){parts.push(heading('Allowances','Amounts carried in the range for selections that are not final yet.'));for(const s of g.allowances)parts.push(card(s));}
- if(g.assumptions.length){parts.push(heading('Assumptions and items to confirm','These affect the final price and will be confirmed with you before a firm proposal.'));for(const s of g.assumptions)parts.push(card(s));}
- if(g.info.length){parts.push(heading('Supporting details'));for(const s of g.info)parts.push(card(s));}
+ if(g.glance)parts.push(card(g.glance));
+ if(g.brief)parts.push(card(g.brief));
+ if(g.included.length||g.categories.length){
+  parts.push(heading(result.range?'What is included':'Requested work',g.categoriesIntro?.text));
+  for(const section of g.included)parts.push(card(section));
+  for(const section of g.categories)parts.push(card(compactCategory(section)));
+ }
+ if(g.excluded.length){
+  parts.push(heading('Not included','This work is not part of the range above.'));
+  for(const section of g.excluded)parts.push(card(section));
+ }
+ const notes=capped([...g.allowances.flatMap(s=>s.bullets||[]),...g.assumptions.flatMap(s=>s.bullets||[])],4);
+ if(notes.shown.length){
+  parts.push(heading('Before we can give you a firm price'));
+  parts.push(card({title:'To confirm with you',kind:'assumption',bullets:notes.shown,text:notes.note||'These are confirmed with you first; they can move the final number.'}));
+ }
  parts.push(heading('Next step'));
  parts.push(`<p style="margin:0 0 16px;font-size:15px;line-height:1.6;color:${PALETTE.ink}">${escape(result.nextStep||'Schedule a consultation to confirm the scope and refine this range.')}</p>`);
  parts.push(`<div>${button('Schedule a consultation',`${SITE}${brand.consultationPath}`)}${button(`Call ${brand.phone}`,`tel:${brand.phone.replace(/[^\d+]/g,'')}`,false)}</div>`);
@@ -92,6 +137,7 @@ function layout(title:string,subtitle:string,body:string){
  <tr><td style="padding:22px 16px 0;text-align:center">
   <p style="margin:0 0 6px;font-size:13px;line-height:1.6;color:${PALETTE.muted}"><b style="color:${PALETTE.ink}">${escape(brand.name)}</b> · <a href="tel:${escape(brand.phone.replace(/[^\d+]/g,''))}" style="color:${PALETTE.ink};text-decoration:none">${escape(brand.phone)}</a> · <a href="mailto:${escape(brand.email)}" style="color:${PALETTE.ink};text-decoration:none">${escape(brand.email)}</a></p>
   <p style="margin:0;font-size:12px;line-height:1.6;color:${PALETTE.soft}"><a href="${SITE}" style="color:${PALETTE.soft}">${escape(brand.domain)}</a> · Planning information only. Final scope and a written agreement are required.</p>
+  <p style="margin:8px 0 0;font-size:12px;line-height:1.6;color:${PALETTE.soft}">${escape(documentFooterLine())}</p>
  </td></tr>
 </table></td></tr></table></body></html>`;
 }
@@ -102,18 +148,34 @@ function plainText(id:string,record:any,admin:boolean){
  lines.push(result?.range?`PLANNING RANGE: ${money(result.range.low)} to ${money(result.range.high)}`:'STATUS: Scope received for pricing review',result?.message||'','');
  const g=groupSections(estimateSections(result||{}));
  const block=(title:string,sections:EstimateSection[],note?:string)=>{if(!sections.length)return;lines.push(title.toUpperCase());if(note)lines.push(note);for(const s of sections){lines.push('',`${s.title}${s.kind==='category'&&s.text?`: ${s.text}`:''}`);if(s.text&&s.kind!=='category')lines.push(s.text);for(const b of s.bullets||[])lines.push(`  - ${b}`);for(const [k,v] of s.rows||[])lines.push(`  ${k}: ${v.replace(/\n+/g,' ')}`);}lines.push('');};
- block('Project summary',[g.glance,g.brief].filter((s):s is EstimateSection=>Boolean(s)));
- block(result?.range?'What is included':'Requested work',[...g.included,...g.categories],g.categoriesIntro?.text);
- block('Not included',g.excluded,'The following work is not part of this estimate.');
- block('Allowances',g.allowances);
- block('Assumptions and items to confirm',g.assumptions);
- block('Supporting details',g.info);
+ const cap=(items:string[],limit:number)=>{const shown=items.slice(0,limit);const rest=items.length-shown.length;return rest>0?[...shown,`(+${rest} more in the attached PDF)`]:shown;};
+ const plainBlock=(title:string,items:string[],note?:string)=>{if(!items.length)return;lines.push(title.toUpperCase());if(note)lines.push(note);for(const item of items)lines.push(`  - ${item}`);lines.push('');};
+ if(admin){
+  block('Project summary',[g.glance,g.brief].filter((s):s is EstimateSection=>Boolean(s)));
+  block('What is included',[...g.included,...g.categories],g.categoriesIntro?.text);
+  block('Not included',g.excluded,'The following work is not part of this estimate.');
+  block('Allowances',g.allowances);
+  block('Assumptions and items to confirm',g.assumptions);
+  block('Supporting details',g.info);
+ }else{
+  block('Project summary',[g.glance,g.brief].filter((s):s is EstimateSection=>Boolean(s)));
+  // Every requested item and every priced line is named here, the same as in the HTML and the
+  // PDF. Nothing a customer asked for is ever summarised away; only the notes below are capped.
+  if(g.included.length)plainBlock('What is included',g.included.flatMap(s=>s.bullets||[]));
+  for(const section of g.categories){
+    const items=[...(section.bullets||[]),...(section.rows||[]).map(([label,value])=>`${label} — ${withoutUnitRate(value).split('\n').join(' · ')}`)];
+    plainBlock(`${section.title}${section.text?` (${section.text})`:''}`,items);
+  }
+  plainBlock('Not included',g.excluded.flatMap(s=>s.bullets||[]));
+  plainBlock('Before we can give you a firm price',cap([...g.allowances.flatMap(s=>s.bullets||[]),...g.assumptions.flatMap(s=>s.bullets||[])],4));
+  lines.push('The attached PDF has the complete breakdown: every line, allowance and assumption.','');
+ }
  if(admin){
   const financial=([['Direct project cost',internal.directCost],['Contingency',internal.contingency],['Overhead recovery',internal.allocationDollars?.overhead],['Operating profit',internal.operatingProfit],['Recommended contract price',internal.contractPrice]] as [string,unknown][]).filter(([,v])=>typeof v==='number');
   if(financial.length){lines.push('INTERNAL FINANCIAL BREAKDOWN');for(const [k,v] of financial)lines.push(`  ${k}: ${money(Number(v))}`);lines.push('');}
   if(internal.warnings?.length){lines.push('PRICING CHECKS REQUIRING ATTENTION');for(const w of internal.warnings)lines.push(`  - ${w.message||String(w)}`);lines.push('');}
  }
- lines.push('NEXT STEP',result?.nextStep||'Schedule a consultation to confirm the scope and refine this range.',`Schedule: https://${brand.domain}${brand.consultationPath}`,`Call: ${brand.phone}`,'',admin?'The complete administrative estimate is attached. Do not forward it to the customer.':'Your complete project summary is attached as a PDF.','',result?.disclaimer||'');
+ lines.push(legalIdentityLine(),'','NEXT STEP',result?.nextStep||'Schedule a consultation to confirm the scope and refine this range.',`Schedule: https://${brand.domain}${brand.consultationPath}`,`Call: ${brand.phone}`,'',admin?'The complete administrative estimate is attached. Do not forward it to the customer.':'Your complete project summary is attached as a PDF.','',result?.disclaimer||'');
  return lines.join('\n');
 }
 export function estimateEmail(id:string,record:any,admin:boolean){

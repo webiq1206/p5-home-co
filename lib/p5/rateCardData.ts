@@ -2207,5 +2207,536 @@ export const RATE_CARD:PlanningRate[]=[
   "amount": 145,
   "source": "Boise / Treasure Valley planning averages, reviewed 2026-09-20",
   "basis": "owner-average-cost"
+ },
+ {
+  "code": "RC-BATH-TUBSHOWER-M",
+  "description": "Alcove tub with valve and surround, material each",
+  "type": "Material",
+  "unit": "EA",
+  "amount": 985,
+  "source": "Boise / Treasure Valley planning averages, reviewed 2026-09-20",
+  "basis": "owner-average-cost"
+ },
+ {
+  "code": "RC-BATH-TUBSHOWER-L",
+  "description": "Set alcove tub and surround, labor each",
+  "type": "Labor",
+  "unit": "EA",
+  "amount": 985,
+  "source": "Boise / Treasure Valley planning averages, reviewed 2026-09-20",
+  "basis": "owner-average-cost"
+ },
+ {
+  "code": "RC-BATH-SHOWERPAN-M",
+  "description": "Shower pan or base with drain, material each",
+  "type": "Material",
+  "unit": "EA",
+  "amount": 565,
+  "source": "Boise / Treasure Valley planning averages, reviewed 2026-09-20",
+  "basis": "owner-average-cost"
+ },
+ {
+  "code": "RC-BATH-SHOWERPAN-L",
+  "description": "Set shower pan and drain, labor each",
+  "type": "Labor",
+  "unit": "EA",
+  "amount": 485,
+  "source": "Boise / Treasure Valley planning averages, reviewed 2026-09-20",
+  "basis": "owner-average-cost"
+ },
+ {
+  "code": "RC-BATH-GLASS-M",
+  "description": "Frameless shower glass enclosure, material each",
+  "type": "Material",
+  "unit": "EA",
+  "amount": 1850,
+  "source": "Boise / Treasure Valley planning averages, reviewed 2026-09-20",
+  "basis": "owner-average-cost"
+ },
+ {
+  "code": "RC-BATH-GLASS-L",
+  "description": "Measure and install shower glass, labor each",
+  "type": "Labor",
+  "unit": "EA",
+  "amount": 465,
+  "source": "Boise / Treasure Valley planning averages, reviewed 2026-09-20",
+  "basis": "owner-average-cost"
+ },
+ {
+  "code": "RC-BATH-ACCESSORY-M",
+  "description": "Towel bar, paper holder or grab bar, material each",
+  "type": "Material",
+  "unit": "EA",
+  "amount": 42,
+  "source": "Boise / Treasure Valley planning averages, reviewed 2026-09-20",
+  "basis": "owner-average-cost"
+ },
+ {
+  "code": "RC-BATH-ACCESSORY-L",
+  "description": "Install one bath accessory with blocking, labor each",
+  "type": "Labor",
+  "unit": "EA",
+  "amount": 38,
+  "source": "Boise / Treasure Valley planning averages, reviewed 2026-09-20",
+  "basis": "owner-average-cost"
+ },
+ {
+  "code": "RC-BATH-EXHAUSTRUN-L",
+  "description": "Vent one bath fan to a new exterior termination, labor each",
+  "type": "Labor",
+  "unit": "EA",
+  "amount": 385,
+  "source": "Boise / Treasure Valley planning averages, reviewed 2026-09-20",
+  "basis": "owner-average-cost"
+ },
+ {
+  "code": "RC-KIT-SINK-M",
+  "description": "Kitchen sink, material each",
+  "type": "Material",
+  "unit": "EA",
+  "amount": 465,
+  "source": "Boise / Treasure Valley planning averages, reviewed 2026-09-20",
+  "basis": "owner-average-cost"
+ },
+ {
+  "code": "RC-KIT-SINK-L",
+  "description": "Set kitchen sink and connect, labor each",
+  "type": "Labor",
+  "unit": "EA",
+  "amount": 265,
+  "source": "Boise / Treasure Valley planning averages, reviewed 2026-09-20",
+  "basis": "owner-average-cost"
+ },
+ {
+  "code": "RC-KIT-ISLAND-L",
+  "description": "Build and set a cabinet island, labor each",
+  "type": "Labor",
+  "unit": "EA",
+  "amount": 685,
+  "source": "Boise / Treasure Valley planning averages, reviewed 2026-09-20",
+  "basis": "owner-average-cost"
+ },
+ {
+  "code": "RC-ROUGH-PLUMB-M",
+  "description": "Supply, drain and vent rough-in materials per fixture",
+  "type": "Material",
+  "unit": "EA",
+  "amount": 285,
+  "source": "Boise / Treasure Valley planning averages, reviewed 2026-09-20",
+  "basis": "owner-average-cost"
+ },
+ {
+  "code": "RC-ROUGH-PLUMB-L",
+  "description": "Rough in one plumbing fixture in accessible framing, labor each",
+  "type": "Labor",
+  "unit": "EA",
+  "amount": 585,
+  "source": "Boise / Treasure Valley planning averages, reviewed 2026-09-20",
+  "basis": "owner-average-cost"
+ },
+ {
+  "code": "RC-ROUGH-ELEC-M",
+  "description": "Wire, boxes and devices per electrical rough-in point",
+  "type": "Material",
+  "unit": "EA",
+  "amount": 38,
+  "source": "Boise / Treasure Valley planning averages, reviewed 2026-09-20",
+  "basis": "owner-average-cost"
+ },
+ {
+  "code": "RC-ROUGH-ELEC-L",
+  "description": "Rough in one electrical point in accessible framing, labor each",
+  "type": "Labor",
+  "unit": "EA",
+  "amount": 85,
+  "source": "Boise / Treasure Valley planning averages, reviewed 2026-09-20",
+  "basis": "owner-average-cost"
+ },
+ {
+  "code": "RC-ROUGH-HVAC-M",
+  "description": "Duct, register and fittings per conditioned room",
+  "type": "Material",
+  "unit": "EA",
+  "amount": 315,
+  "source": "Boise / Treasure Valley planning averages, reviewed 2026-09-20",
+  "basis": "owner-average-cost"
+ },
+ {
+  "code": "RC-ROUGH-HVAC-L",
+  "description": "Rough in duct to one room, labor each",
+  "type": "Labor",
+  "unit": "EA",
+  "amount": 425,
+  "source": "Boise / Treasure Valley planning averages, reviewed 2026-09-20",
+  "basis": "owner-average-cost"
+ },
+ {
+  "code": "RC-BUILD-FOUNDATION-M",
+  "description": "Foundation concrete, rebar and forms, material per square foot of footprint",
+  "type": "Material",
+  "unit": "SF",
+  "amount": 9.5,
+  "source": "Boise / Treasure Valley planning averages, reviewed 2026-09-20",
+  "basis": "owner-average-cost"
+ },
+ {
+  "code": "RC-BUILD-FOUNDATION-L",
+  "description": "Excavate, form and pour foundation, labor per square foot of footprint",
+  "type": "Labor",
+  "unit": "SF",
+  "amount": 11,
+  "source": "Boise / Treasure Valley planning averages, reviewed 2026-09-20",
+  "basis": "owner-average-cost"
+ },
+ {
+  "code": "RC-BUILD-FRAMESHELL-M",
+  "description": "Framing package for floor, wall and roof, material per square foot of floor",
+  "type": "Material",
+  "unit": "SF",
+  "amount": 22,
+  "source": "Boise / Treasure Valley planning averages, reviewed 2026-09-20",
+  "basis": "owner-average-cost"
+ },
+ {
+  "code": "RC-BUILD-FRAMESHELL-L",
+  "description": "Frame the shell, labor per square foot of floor",
+  "type": "Labor",
+  "unit": "SF",
+  "amount": 18,
+  "source": "Boise / Treasure Valley planning averages, reviewed 2026-09-20",
+  "basis": "owner-average-cost"
+ },
+ {
+  "code": "RC-BUILD-ROOFSYSTEM-M",
+  "description": "Roofing system over a new shell, material per square foot of floor",
+  "type": "Material",
+  "unit": "SF",
+  "amount": 6.5,
+  "source": "Boise / Treasure Valley planning averages, reviewed 2026-09-20",
+  "basis": "owner-average-cost"
+ },
+ {
+  "code": "RC-BUILD-ROOFSYSTEM-L",
+  "description": "Install roofing over a new shell, labor per square foot of floor",
+  "type": "Labor",
+  "unit": "SF",
+  "amount": 5.25,
+  "source": "Boise / Treasure Valley planning averages, reviewed 2026-09-20",
+  "basis": "owner-average-cost"
+ },
+ {
+  "code": "RC-BUILD-ENVELOPE-M",
+  "description": "Windows, exterior doors and weather barrier, material per square foot of floor",
+  "type": "Material",
+  "unit": "SF",
+  "amount": 14,
+  "source": "Boise / Treasure Valley planning averages, reviewed 2026-09-20",
+  "basis": "owner-average-cost"
+ },
+ {
+  "code": "RC-BUILD-ENVELOPE-L",
+  "description": "Install windows, exterior doors and weather barrier, labor per square foot of floor",
+  "type": "Labor",
+  "unit": "SF",
+  "amount": 7.5,
+  "source": "Boise / Treasure Valley planning averages, reviewed 2026-09-20",
+  "basis": "owner-average-cost"
+ },
+ {
+  "code": "RC-BUILD-MECHANICAL-L",
+  "description": "Complete mechanical, electrical and plumbing rough and trim, labor per square foot of floor",
+  "type": "Labor",
+  "unit": "SF",
+  "amount": 28,
+  "source": "Boise / Treasure Valley planning averages, reviewed 2026-09-20",
+  "basis": "owner-average-cost"
+ },
+ {
+  "code": "RC-BUILD-INTERIOR-M",
+  "description": "Interior finish package: drywall, trim, paint and floors, material per square foot of floor",
+  "type": "Material",
+  "unit": "SF",
+  "amount": 26,
+  "source": "Boise / Treasure Valley planning averages, reviewed 2026-09-20",
+  "basis": "owner-average-cost"
+ },
+ {
+  "code": "RC-BUILD-INTERIOR-L",
+  "description": "Install the interior finish package, labor per square foot of floor",
+  "type": "Labor",
+  "unit": "SF",
+  "amount": 31,
+  "source": "Boise / Treasure Valley planning averages, reviewed 2026-09-20",
+  "basis": "owner-average-cost"
+ },
+ {
+  "code": "RC-BUILD-GARAGE-M",
+  "description": "Garage shell and slab, material per square foot of garage",
+  "type": "Material",
+  "unit": "SF",
+  "amount": 34,
+  "source": "Boise / Treasure Valley planning averages, reviewed 2026-09-20",
+  "basis": "owner-average-cost"
+ },
+ {
+  "code": "RC-BUILD-GARAGE-L",
+  "description": "Build garage shell and slab, labor per square foot of garage",
+  "type": "Labor",
+  "unit": "SF",
+  "amount": 26,
+  "source": "Boise / Treasure Valley planning averages, reviewed 2026-09-20",
+  "basis": "owner-average-cost"
+ },
+ {
+  "code": "RC-BUILD-COVERED-M",
+  "description": "Covered patio or porch structure, material per square foot",
+  "type": "Material",
+  "unit": "SF",
+  "amount": 28,
+  "source": "Boise / Treasure Valley planning averages, reviewed 2026-09-20",
+  "basis": "owner-average-cost"
+ },
+ {
+  "code": "RC-BUILD-COVERED-L",
+  "description": "Build covered patio or porch, labor per square foot",
+  "type": "Labor",
+  "unit": "SF",
+  "amount": 22,
+  "source": "Boise / Treasure Valley planning averages, reviewed 2026-09-20",
+  "basis": "owner-average-cost"
+ },
+ {
+  "code": "RC-SITE-UTILITY-L",
+  "description": "Trench and run one utility service to a new structure, labor each",
+  "type": "Labor",
+  "unit": "EA",
+  "amount": 3850,
+  "source": "Boise / Treasure Valley planning averages, reviewed 2026-09-20",
+  "basis": "owner-average-cost"
+ },
+ {
+  "code": "RC-SITE-SEPTIC",
+  "description": "Septic system, permitted and installed, each",
+  "type": "Subcontractor",
+  "unit": "EA",
+  "amount": 16500,
+  "source": "Boise / Treasure Valley planning averages, reviewed 2026-09-20",
+  "basis": "owner-average-cost"
+ },
+ {
+  "code": "RC-SITE-WELL",
+  "description": "Drilled well with pump, each",
+  "type": "Subcontractor",
+  "unit": "EA",
+  "amount": 22500,
+  "source": "Boise / Treasure Valley planning averages, reviewed 2026-09-20",
+  "basis": "owner-average-cost"
+ },
+ {
+  "code": "RC-SITE-DRIVEWAY-M",
+  "description": "Driveway gravel or concrete, material per square foot",
+  "type": "Material",
+  "unit": "SF",
+  "amount": 5.25,
+  "source": "Boise / Treasure Valley planning averages, reviewed 2026-09-20",
+  "basis": "owner-average-cost"
+ },
+ {
+  "code": "RC-SITE-GRADE-L",
+  "description": "Rough and finish grading, labor per square foot of lot area worked",
+  "type": "Labor",
+  "unit": "SF",
+  "amount": 0.85,
+  "source": "Boise / Treasure Valley planning averages, reviewed 2026-09-20",
+  "basis": "owner-average-cost"
+ },
+ {
+  "code": "RC-ELEC-SERVICE-L",
+  "description": "Upgrade or relocate the electrical service entrance, labor each",
+  "type": "Labor",
+  "unit": "EA",
+  "amount": 1950,
+  "source": "Boise / Treasure Valley planning averages, reviewed 2026-09-20",
+  "basis": "owner-average-cost"
+ },
+ {
+  "code": "RC-ELEC-EVCHARGER-M",
+  "description": "Level 2 EV charger circuit materials, each",
+  "type": "Material",
+  "unit": "EA",
+  "amount": 285,
+  "source": "Boise / Treasure Valley planning averages, reviewed 2026-09-20",
+  "basis": "owner-average-cost"
+ },
+ {
+  "code": "RC-ELEC-EVCHARGER-L",
+  "description": "Install one EV charger circuit, labor each",
+  "type": "Labor",
+  "unit": "EA",
+  "amount": 485,
+  "source": "Boise / Treasure Valley planning averages, reviewed 2026-09-20",
+  "basis": "owner-average-cost"
+ },
+ {
+  "code": "RC-PLUM-REPIPE-L",
+  "description": "Repipe one fixture group in accessible walls, labor each",
+  "type": "Labor",
+  "unit": "EA",
+  "amount": 985,
+  "source": "Boise / Treasure Valley planning averages, reviewed 2026-09-20",
+  "basis": "owner-average-cost"
+ },
+ {
+  "code": "RC-PLUM-GASLINE-L",
+  "description": "Run one gas line to an appliance in accessible framing, labor each",
+  "type": "Labor",
+  "unit": "EA",
+  "amount": 585,
+  "source": "Boise / Treasure Valley planning averages, reviewed 2026-09-20",
+  "basis": "owner-average-cost"
+ },
+ {
+  "code": "RC-HVAC-FURNACE-M",
+  "description": "Residential furnace, material each",
+  "type": "Material",
+  "unit": "EA",
+  "amount": 2450,
+  "source": "Boise / Treasure Valley planning averages, reviewed 2026-09-20",
+  "basis": "owner-average-cost"
+ },
+ {
+  "code": "RC-HVAC-FURNACE-L",
+  "description": "Replace one furnace in the same location, labor each",
+  "type": "Labor",
+  "unit": "EA",
+  "amount": 1250,
+  "source": "Boise / Treasure Valley planning averages, reviewed 2026-09-20",
+  "basis": "owner-average-cost"
+ },
+ {
+  "code": "RC-HVAC-AC-M",
+  "description": "Air conditioner condenser and coil, material each",
+  "type": "Material",
+  "unit": "EA",
+  "amount": 2950,
+  "source": "Boise / Treasure Valley planning averages, reviewed 2026-09-20",
+  "basis": "owner-average-cost"
+ },
+ {
+  "code": "RC-HVAC-AC-L",
+  "description": "Replace one air conditioner, labor each",
+  "type": "Labor",
+  "unit": "EA",
+  "amount": 1450,
+  "source": "Boise / Treasure Valley planning averages, reviewed 2026-09-20",
+  "basis": "owner-average-cost"
+ },
+ {
+  "code": "RC-HVAC-MINISPLIT-M",
+  "description": "Single-zone mini split, material each",
+  "type": "Material",
+  "unit": "EA",
+  "amount": 2250,
+  "source": "Boise / Treasure Valley planning averages, reviewed 2026-09-20",
+  "basis": "owner-average-cost"
+ },
+ {
+  "code": "RC-HVAC-MINISPLIT-L",
+  "description": "Install one mini split zone, labor each",
+  "type": "Labor",
+  "unit": "EA",
+  "amount": 1150,
+  "source": "Boise / Treasure Valley planning averages, reviewed 2026-09-20",
+  "basis": "owner-average-cost"
+ },
+ {
+  "code": "RC-DRY-CEILING-L",
+  "description": "Hang and finish ceiling drywall, labor per square foot",
+  "type": "Labor",
+  "unit": "SF",
+  "amount": 2.65,
+  "source": "Boise / Treasure Valley planning averages, reviewed 2026-09-20",
+  "basis": "owner-average-cost"
+ },
+ {
+  "code": "RC-PAINT-CABINET-L",
+  "description": "Prep, prime and spray cabinetry, labor per linear foot",
+  "type": "Labor",
+  "unit": "LF",
+  "amount": 48,
+  "source": "Boise / Treasure Valley planning averages, reviewed 2026-09-20",
+  "basis": "owner-average-cost"
+ },
+ {
+  "code": "RC-FLR-STAIR-L",
+  "description": "Install stair treads and risers, labor each",
+  "type": "Labor",
+  "unit": "EA",
+  "amount": 115,
+  "source": "Boise / Treasure Valley planning averages, reviewed 2026-09-20",
+  "basis": "owner-average-cost"
+ },
+ {
+  "code": "RC-TRIM-WAINSCOT-M",
+  "description": "Wainscot or accent wall material, per square foot",
+  "type": "Material",
+  "unit": "SF",
+  "amount": 9.5,
+  "source": "Boise / Treasure Valley planning averages, reviewed 2026-09-20",
+  "basis": "owner-average-cost"
+ },
+ {
+  "code": "RC-TRIM-WAINSCOT-L",
+  "description": "Install wainscot or accent wall, labor per square foot",
+  "type": "Labor",
+  "unit": "SF",
+  "amount": 11,
+  "source": "Boise / Treasure Valley planning averages, reviewed 2026-09-20",
+  "basis": "owner-average-cost"
+ },
+ {
+  "code": "RC-DEMO-STRUCTURE-L",
+  "description": "Demolish and remove a structure, labor per square foot",
+  "type": "Labor",
+  "unit": "SF",
+  "amount": 7.5,
+  "source": "Boise / Treasure Valley planning averages, reviewed 2026-09-20",
+  "basis": "owner-average-cost"
+ },
+ {
+  "code": "RC-DEMO-KITCHEN-L",
+  "description": "Strip out a kitchen to framing, labor each",
+  "type": "Labor",
+  "unit": "EA",
+  "amount": 1850,
+  "source": "Boise / Treasure Valley planning averages, reviewed 2026-09-20",
+  "basis": "owner-average-cost"
+ },
+ {
+  "code": "RC-DEMO-BATH-L",
+  "description": "Strip out a bathroom to framing, labor each",
+  "type": "Labor",
+  "unit": "EA",
+  "amount": 1250,
+  "source": "Boise / Treasure Valley planning averages, reviewed 2026-09-20",
+  "basis": "owner-average-cost"
+ },
+ {
+  "code": "RC-GC-SUPERVISION-L",
+  "description": "Project supervision and coordination, labor per day on site",
+  "type": "Labor",
+  "unit": "EA",
+  "amount": 585,
+  "source": "Boise / Treasure Valley planning averages, reviewed 2026-09-20",
+  "basis": "owner-average-cost"
+ },
+ {
+  "code": "RC-GC-PROTECTION-L",
+  "description": "Site protection, temporary barriers and daily tidy, labor per day",
+  "type": "Labor",
+  "unit": "EA",
+  "amount": 225,
+  "source": "Boise / Treasure Valley planning averages, reviewed 2026-09-20",
+  "basis": "owner-average-cost"
  }
 ];
