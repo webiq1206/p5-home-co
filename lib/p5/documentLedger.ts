@@ -8,7 +8,20 @@ export interface Takeoff {
 }
 const isObject=(v:unknown):v is Record<string,unknown>=>Boolean(v&&typeof v==='object'&&!Array.isArray(v));
 const strings=(v:unknown):v is string[]=>Array.isArray(v)&&v.every(x=>typeof x==='string');
-export function readPageRecords(raw:unknown):PageRecord[]{
+/**
+ * The page review list as a list. Readers sometimes return one page as a bare object, or the pages
+ * keyed by number ({"1":{...},"2":{...}}); live on the Marcliffe RE-10 that shape threw away a
+ * page that had been read, and the visitor was told the file could not be read. The records inside
+ * are still validated one by one below; only the container is normalised.
+ */
+export function pageRecordList(raw:unknown):unknown{
+  if(Array.isArray(raw)||!isObject(raw))return raw;
+  if('page' in raw&&'status' in raw)return [raw];
+  const values=Object.values(raw);
+  return values.length&&values.every(isObject)?values:raw;
+}
+export function readPageRecords(input:unknown):PageRecord[]{
+  const raw=pageRecordList(input);
   if(!Array.isArray(raw))throw new Error('Missing page-by-page review record');
   return raw.map(v=>{
     if(!isObject(v)||!['source','sheet','revision'].every(k=>typeof v[k]==='string')||!Number.isInteger(v.page)||Number(v.page)<1||!['read','unreadable','partial'].includes(String(v.status))||!strings(v.notes))throw new Error('Invalid page review record');

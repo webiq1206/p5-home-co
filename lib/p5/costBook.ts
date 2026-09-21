@@ -11,7 +11,9 @@ export interface CostRule extends Omit<DirectCostLine,"quantity"|"quantitySource
   when?: {field:ScopeField;equals:string};
 }
 export interface ServiceCostBook {service:Service;mode?:'owner-planning';rules:CostRule[];coverage:ScopeCoverage[];assumptions:string[];exclusions:string[];verifiedScope:string;reviewedAt:string}
-export interface EstimatorConfiguration { finance:FinancePolicy;costBooks:ServiceCostBook[];planningCatalog?:PlanningCatalog;regionalRates?:CostRule[] }
+export interface EstimatorConfiguration { finance:FinancePolicy;costBooks:ServiceCostBook[];planningCatalog?:PlanningCatalog;regionalRates?:CostRule[];
+  /** The exact catalog an estimate was priced from (saved catalog version plus price book content hash and tier), snapshotted into its audit trail. */
+  catalogVersion?:string }
 export const EMPTY_CONFIGURATION:EstimatorConfiguration={finance:DEFAULT_FINANCE,costBooks:[]};
 export interface ScopePriceResolution { rules:CostRule[]; assumptions:string[]; issues:string[];removeLineIds?:string[];removeExclusions?:string[];addExclusions?:string[];completeScopeVerified?:boolean;replaceBase?:boolean }
 /** Every customer projection leaving the cost book, including the early

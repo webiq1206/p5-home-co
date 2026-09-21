@@ -28,12 +28,18 @@ export async function* drawingDetails(file:AnalysisFile,pageNumber:number,dataPa
     if(full)await page.render({canvas:full as any,canvasContext:full.getContext('2d') as any,viewport,background:'white'} as any).promise;
     const columns=Math.max(1,Math.ceil((viewport.width-edge)/step)+1),rows=Math.max(1,Math.ceil((viewport.height-edge)/step)+1),count=columns*rows;
     if(count>500)throw new Error(`Page ${pageNumber} has an unusually large physical size. Confirm its page dimensions before detail rendering.`);
-    let part=await PDFDocument.create(),indices:number[]=[],inspected=0;const blankTiles:number[]=[];
+    // blankTiles holds only the white regions found since the previous batch, so each batch reports
+    // its own blank regions once instead of repeating every earlier batch's.
+    let part=await PDFDocument.create(),indices:number[]=[],inspected=0,blankTiles:number[]=[],contentBatches=0;
     const finish=async(last:boolean):Promise<AnalysisFile>=>{
       if(!part.getPageCount())part.addPage([612,792]);
       const data=Buffer.from(await part.save());
       if(data.length>16*1024*1024)throw new Error(`Page ${pageNumber} detail images exceed the safe analysis request size.`);
-      return {name:`${file.name} (original page ${pageNumber}; detail regions ${indices.join(', ')||'none: all regions exactly white'} of ${count}; overlapping regions, do not count twice)`,type:'application/pdf',data,pages:[{source:file.name,page:pageNumber}],detailViews:true,detailRegions:{columns,rows,tiles:[...indices],blankTiles:[...blankTiles],inspectedTiles:inspected},nextPage:last?pageNumber:undefined};
+      const regions=indices.join(', ')||(contentBatches?'none: the remaining regions are exactly white':'none: all regions exactly white');
+      const unit:AnalysisFile={name:`${file.name} (original page ${pageNumber}; detail regions ${regions} of ${count}; overlapping regions, do not count twice)`,type:'application/pdf',data,pages:[{source:file.name,page:pageNumber}],detailViews:true,detailRegions:{columns,rows,tiles:[...indices],blankTiles:[...blankTiles],inspectedTiles:inspected},nextPage:last?pageNumber:undefined};
+      if(indices.length)contentBatches++;
+      blankTiles=[];
+      return unit;
     };
     for(let row=0;row<rows;row++)for(let column=0;column<columns;column++){
       const x=column*step,y=row*step,width=Math.ceil(Math.min(edge,viewport.width-x)),height=Math.ceil(Math.min(edge,viewport.height-y));

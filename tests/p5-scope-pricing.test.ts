@@ -49,6 +49,25 @@ test('A malformed mapping answer is asked again, then repaired, instead of handi
  assert.ok(repaired.customer.range,'a repeat malformed answer keeps its well-formed additions');
  assert.equal((repaired.internal as any).lines.find((l:any)=>l.id==='scope-1').unitCost,100);
 });
+test('A finding about a task already carried out of the total is disclosed, not a reason to withhold the range',async()=>{
+ const {carriedOutRemark}=await import('../lib/p5/scopePricing.ts');
+ const carried=[{id:'chimney-cap-repair',description:'Repair chimney cap'}],priced=[{id:'gfci',description:'GFCI receptacles'}];
+ // Live Marcliffe RE-10 wording: the chimney had already been listed as excluded.
+ assert.ok(carriedOutRemark('chimney-cap-repair is not covered: its proposed PB-04-01-04 patch-repair assembly was not carried into any positive priced line.',carried,priced));
+ assert.ok(!carriedOutRemark('gfci is duplicated by scope-4',carried,priced),'a finding about a priced task is judged by the other rules');
+ assert.ok(!carriedOutRemark('chimney-cap-repair duplicates gfci',carried,priced),'one that also names a priced task is not released here');
+});
+test('One trip is carried for the whole job when repairs were priced as time inside one visit',async()=>{
+ const {jobTripRule}=await import('../lib/p5/scopePricing.ts');
+ const trip={code:'PB-01-01-07',description:'Minimum service charge (trip, call, minimum or diagnostic charge)',type:'Other' as const,unit:'EA',amount:135,source:'P5 Cost Database 2026.xlsx',basis:'owner-average-cost' as const};
+ const withTrip={...config,planningCatalog:{...catalog,rates:[...catalog.rates,trip]}};
+ const planning={id:'planning-1',description:'Replace one vent boot',unit:'EA',quantity:{fixed:1,factor:1},unitCost:40} as any;
+ const rule=jobTripRule(withTrip,[],[planning])!;
+ assert.equal(rule.unitCost,135);assert.equal(rule.quantity.fixed,1);
+ assert.equal(jobTripRule(withTrip,[],[{...planning,id:'scope-1'}]),null,'no planning allowance, no one-visit promise to keep');
+ assert.equal(jobTripRule(withTrip,[{description:'Service call fee'}],[planning]),null,'a trip already carried is never added twice');
+ assert.equal(jobTripRule(config,[],[planning]),null,'without the owner\'s trip line no number is invented');
+});
 test('Scope facts use notes and earlier model issues require an explicit evidenced resolution',async()=>{
  const note='The cabinetry quantity is explicitly stated in the reviewed scope.';
  const mapping={tasks:[task],issues:[note],notes:['No additional cabinet runs requested.']};

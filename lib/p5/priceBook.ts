@@ -1,3 +1,4 @@
+import {createHash} from 'node:crypto';
 import {PRICE_BOOK,PRICE_BOOK_SOURCE,type PriceBookRow} from './priceBookData.ts';
 import type {PlanningRate} from './planningBooks.ts';
 
@@ -101,6 +102,9 @@ export function priceBookRates(answers:{service?:string|null;finish?:string|null
   const rest=PRICE_BOOK_RATEABLE.filter(row=>(row[8]&flags)===0);
   return [...marked,...rest].map(row=>priceBookRate(row,tier,remodel));
 }
+/** A content hash of the whole book: it changes whenever any line, price or flag changes, so an
+ * estimate that records it can always be traced to the exact prices it used. */
+export const PRICE_BOOK_VERSION=createHash('sha256').update(JSON.stringify(PRICE_BOOK)).digest('hex').slice(0,12);
 export function priceBookSummary(){
-  return {source:PRICE_BOOK_SOURCE,lines:PRICE_BOOK.length,rateable:PRICE_BOOK_RATEABLE.length,percentage:PRICE_BOOK_PERCENTAGE.length};
+  return {source:PRICE_BOOK_SOURCE,version:PRICE_BOOK_VERSION,lines:PRICE_BOOK.length,rateable:PRICE_BOOK_RATEABLE.length,percentage:PRICE_BOOK_PERCENTAGE.length};
 }

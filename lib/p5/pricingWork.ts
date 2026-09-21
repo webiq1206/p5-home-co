@@ -1,5 +1,6 @@
 import {SERVER_BUDGET_MS,remainingBudget,withinDeadline,ProcessingDeadlineError,isProcessingDeadline} from './processingBudget.ts';
 import {createHash} from 'node:crypto';
+import {recordEvent} from './events.ts';
 import {databasePricingCache,pricingCacheEnabled} from './pricingCache.ts';
 import {claimWork,writeWork,releaseWork,renewWork} from './workStore.ts';
 import {priceCompleteScope,requestPricing,type PricingReply,type PricingRequest,PRICING_STAGE_MAX_MS} from './scopePricing.ts';
@@ -92,6 +93,7 @@ export async function priceSavedScope(id:string,scope:ReviewedScope,configuratio
    // A failed published-cost search is not a reason to stop pricing: the caller may use a labeled planning average instead.
    if(search){console.error(`[p5-pricing] research failed after ${elapsed()}s: ${error instanceof Error?error.message:String(error)}`);throw new PricingStageTimeout(error instanceof Error?error.message:'pricing-search-unavailable');}
    const message=error instanceof Error?error.message:String(error);
+   void recordEvent({draftId:id,estimator:scope.answers.service||null,kind:'pricing',stage:`price-${phase}`,durationMs:Date.now()-started,outcome:'retry',message}).catch(()=>{});
    // Batches run side by side, so one provider hiccup arrives as several failures in the same
    // second. They are one event: counting each ended an 18-item job in under a second.
    const state=payload as unknown as {failures?:number;lastFailureAt?:number;busyWaits?:number};
@@ -108,6 +110,8 @@ export async function priceSavedScope(id:string,scope:ReviewedScope,configuratio
    throw new PricingPending('The pricing provider needs another attempt. Your completed pricing steps are saved. Continuing automatically.',(payload.failures||0)>=2?250:4000);
   }
   console.error(`[p5-pricing] ${phase} finished in ${elapsed()}s`);
+  // Per-stage timings in the events log, so speed is reported as measured p50/p95 by stage.
+  void recordEvent({draftId:id,estimator:scope.answers.service||null,kind:'pricing',stage:`price-${phase}`,durationMs:Date.now()-started,outcome:'ok',meta:{search:Boolean(search),repair:Boolean((input as {repairInstruction?:string}|null)?.repairInstruction)}}).catch(()=>{});
   payload.failures=0;payload.replies[key]=reply;payload.completed=(payload.completed||0)+1;
   if(payload.processing)payload.processing={...payload.processing,completedSteps:payload.completed};
   await persist();

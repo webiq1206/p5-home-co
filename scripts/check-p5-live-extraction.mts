@@ -34,7 +34,7 @@ if(scanned)for(let page=1;page<=count;page++){
  const parts=units.filter(unit=>unit.pages?.[0]?.page===page),last=parts.at(-1)?.detailRegions;
  assert.ok(last,`Page ${page} must retain its inspected-region manifest`);
  assert.equal(last.inspectedTiles,last.columns*last.rows);
- const accounted=new Set([...parts.flatMap(unit=>unit.detailRegions?.tiles||[]),...last.blankTiles]);
+ const accounted=new Set(parts.flatMap(unit=>[...(unit.detailRegions?.tiles||[]),...(unit.detailRegions?.blankTiles||[])]));
  assert.deepEqual([...accounted].sort((a,b)=>a-b),Array.from({length:last.columns*last.rows},(_,i)=>i+1),`Every region of page ${page} must be inspected, including empty areas`);
 }
 if(process.env.P5_LIVE_TEST_PREPARE_ONLY==='true'){

@@ -1,7 +1,7 @@
 import {groundSourceResponsibilities} from './sourceResponsibilities.ts';
 import {retainExplicitSelections} from './explicitSelections.ts';
 import {retainCompletedCabinetRemoval} from './completedWork.ts';
-import {readTakeoffs,readPageRecords} from './documentLedger.ts';
+import {readTakeoffs,readPageRecords,pageRecordList} from './documentLedger.ts';
 import {readSpecificationSource,specificationHint,unsupportedSpecifications,UnsupportedSpecificationError,retainUnspecifiedRatings} from './sourceSpecificationGuard.ts';
 import {SERVER_BUDGET_MS,ANALYSIS_PASS_MS,READ_ALLOWANCE_MS,ProcessingDeadlineError,fetchWithinDeadline,withinDeadline,isProcessingDeadline} from './processingBudget.ts';
 import {recordEvent,describeError,type EstimatorEvent} from './events.ts';
@@ -94,6 +94,7 @@ function sanitizeRecord(value:unknown,files:AnalysisFile[]){
     for(const item of record.takeoffs){try{readTakeoffs([item]);kept.push(item);}catch{dropped++;}}
     record.takeoffs=kept;
   }
+  record.pages=pageRecordList(record.pages);
   if(Array.isArray(record.pages)){
     const kept:unknown[]=[];
     for(const item of record.pages){try{readPageRecords([item]);kept.push(item);}catch{dropped++;}}

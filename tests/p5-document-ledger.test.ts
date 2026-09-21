@@ -20,6 +20,14 @@ test('Missing or duplicate page reports never claim completion',()=>{
   assert.equal(coverageFor([page],[read,read]).complete,false);
   assert.equal(coverageFor([page],[{...read,status:'partial'}]).complete,false);
 });
+test('A page review returned as one object or keyed by page is still read',async()=>{
+ // Live on the Marcliffe RE-10 the reader returned "pages" as an object and a read page was lost.
+ const {readPageRecords}=await import('../lib/p5/documentLedger.ts');
+ assert.deepEqual(readPageRecords(read),[read]);
+ assert.deepEqual(readPageRecords({'1':read,'2':{...read,page:2}}).map(p=>p.page),[1,2]);
+ assert.throws(()=>readPageRecords({'1':{...read,status:'maybe'}}),/Invalid page review record/,'the records themselves are still validated');
+ assert.throws(()=>readPageRecords('page one'),/Missing page-by-page review record/);
+});
 test('Parallelism is bounded without limiting total plan pages',()=>{
   assert.equal(analysisConcurrency('6'),6);assert.equal(analysisConcurrency('999'),24);
   assert.equal(analysisConcurrency('-1'),12);assert.equal(analysisConcurrency('invalid'),12);

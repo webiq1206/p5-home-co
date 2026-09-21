@@ -1,6 +1,6 @@
 import {HANDOFF_ISSUE} from './scopePricing.ts';
 import {withRateCard} from './rateCard.ts';
-import {finishTier,priceBookRates} from './priceBook.ts';
+import {finishTier,priceBookRates,PRICE_BOOK_VERSION} from './priceBook.ts';
 import { query } from "./database.ts";
 import { draftCredentials,readDraft,DraftError,requireEstimateContact } from "./store.ts";
 import { EMPTY_CONFIGURATION,type EstimatorConfiguration } from "./costBook.ts";
@@ -47,8 +47,8 @@ export async function postSubmission(request:Request,schedule?:(task:()=>Promise
     // service, priced at the chosen finish tier, with the remodel premium where the work is in an
     // existing home. They join the saved catalog; a code the owner has saved keeps its own amount.
     const book=process.env.P5_PRICE_BOOK==='off'?null:priceBookRates(draft.reviewed.answers);
-    const configuration=book?withRateCard(saved,book):saved;
-    if(book&&configuration!==saved)console.log(`[p5-rates] priced with ${configuration.planningCatalog?.rates.length} rates (${(configuration.planningCatalog?.rates.length||0)-(saved.planningCatalog?.rates.length||0)} from the master price book, ${finishTier(draft.reviewed.answers.finish)} finish)`);
+    const configuration={...(book?withRateCard(saved,book):saved),catalogVersion:`${saved.planningCatalog?.version||'no-saved-catalog'}${book?`+price-book:${PRICE_BOOK_VERSION}:${finishTier(draft.reviewed.answers.finish)}`:''}`};
+    if(book)console.log(`[p5-rates] priced with ${configuration.planningCatalog?.rates.length} rates (${(configuration.planningCatalog?.rates.length||0)-(saved.planningCatalog?.rates.length||0)} from the master price book, ${finishTier(draft.reviewed.answers.finish)} finish)`);
     // Ask for a quantity the planning model cannot work without now, before any pricing work starts.
     const needed=pricingPreflight(draft.reviewed,configuration);
     if(needed.length)return json({pricingReviewRequired:true,needsCustomerInput:true,handoff:false,preflight:true,missingFields:needed,verificationItems:[],error:PREFLIGHT_MESSAGE},422);

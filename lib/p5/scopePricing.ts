@@ -692,6 +692,32 @@ export function advisoryIssue(text:string):boolean{
   return /\b(confirm(?:ed|ation|ing)?|verif(?:y|ied|ication)|verify at site|allowance|assum(?:e|ed|es|ing|ption|ptions)|methodology|per stated|see each line|to be selected|owner selection|pending selection|subject to|typical|estimat(?:e|ed|es|ing)|modeled|rounded)\b/.test(t);
 }
 
+/** The owner's book line for a job's trip and setup: preferred codes first. */
+export const TRIP_CODES=['PB-01-01-07','PB-01-01-08'];
+const TRIP_WORDS=/\b(?:trip|mobili[sz]ation|service (?:call|charge)|minimum (?:service|charge)|setup day)\b/i;
+/**
+ * One job-level trip line, when repairs were priced as incremental time within one visit (planning
+ * allowances) and nothing in the estimate already carries a trip, mobilization or service charge.
+ * Null when the owner's book has no trip line, so no number is ever invented here.
+ */
+export function jobTripRule(configuration:EstimatorConfiguration,lines:readonly {description:string}[],rules:readonly CostRule[]):CostRule|null{
+  if(!rules.some(rule=>rule.id.startsWith('planning-')))return null;
+  if([...lines,...rules].some(item=>TRIP_WORDS.test(item.description)))return null;
+  const rate=TRIP_CODES.map(code=>configuration.planningCatalog?.rates.find(r=>r.code===code)).find(Boolean);
+  if(!rate||!configuration.planningCatalog)return null;
+  return {id:'job-trip-1',description:`Job trip and setup: ${rate.description}`,trade:suggestedTrade(rate.description),unit:rate.unit==='HR'||rate.unit==='HRS'?'hour':rate.unit,quantity:{fixed:1,factor:1},unitCost:rate.amount,allowance:false,category:'other-direct',priceBasis:'direct-cost',estimatingBasis:rate.basis,evidence:{basis:'owner-estimating-schedule',reference:`${rate.source}; ${rate.code}; one trip for the whole job`,verifiedAt:configuration.planningCatalog.importedAt,validUntil:new Date(Date.parse(configuration.planningCatalog.importedAt)+92*86400000).toISOString()}} as CostRule;
+}
+/** A finding about a task that has already been carried OUT of the total ("not included in this
+ * range; we will quote it after a site visit") is answered by that exclusion: the task is named to
+ * the customer and costs nothing in the range, so "it remains unpriced" is simply true and is
+ * disclosed. Live on the Marcliffe RE-10 the audit's "chimney cap repair remains unpriced" held the
+ * range back after the chimney had already been listed as excluded. Judged by which tasks the
+ * finding names, not by its wording: one that also names a priced task is left to the other rules. */
+export function carriedOutRemark(issue:string,carried:{id:string;description:string}[],pricedTasks:{id:string;description:string}[]):boolean{
+  const t=issue.toLowerCase();
+  const names=(task:{id:string;description:string})=>t.includes(task.id.toLowerCase())||t.includes(task.description.toLowerCase());
+  return carried.some(names)&&!pricedTasks.some(names);
+}
 /** A remark that a task which IS priced could be priced more completely ("not fully covered",
  * "does not affirmatively include dumpster delivery") is something to confirm at the consultation,
  * not a reason to give the visitor no range at all. Every live run of one repair list produced a
@@ -826,7 +852,11 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
   const sourceParts=pricingSourceParts(pricingScope);
   const taskSources=new Map<string,number>();
   let pricedTasks:{id:string;description:string}[]=[];
-  const auditTrail:{version:string;scopeHash:string;tasks:unknown[];adjustments:unknown;research:unknown;verification:unknown;issues:string[]}={version:'complete-scope-v3',scopeHash:createHash('sha256').update(JSON.stringify({scope:pricingScope,configuration})).digest('hex'),tasks:[],adjustments:null,research:null,verification:null,issues:[]};
+  // Tasks carried OUT of the total as "to confirm, quote after a site visit".
+  let carriedOut:{id:string;description:string}[]=[];
+  const auditTrail:{version:string;catalog:{version:string|null;importedAt:string|null;rates:number};scopeHash:string;tasks:unknown[];adjustments:unknown;research:unknown;verification:unknown;issues:string[]}={version:'complete-scope-v3',
+    // The catalog snapshot this estimate was priced from, so a later price book edit never makes an old estimate unexplainable.
+    catalog:{version:configuration.catalogVersion||configuration.planningCatalog?.version||null,importedAt:configuration.planningCatalog?.importedAt||null,rates:configuration.planningCatalog?.rates.length||0},scopeHash:createHash('sha256').update(JSON.stringify({scope:pricingScope,configuration})).digest('hex'),tasks:[],adjustments:null,research:null,verification:null,issues:[]};
   try{
     const lines=existingLines(base);
     const inventory:z.infer<typeof inventorySchema>={tasks:[],issues:[],notes:[]};
@@ -920,6 +950,11 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
     };
     const mappedLines=existingLines(priceReviewedScope(scope,configuration,now,resolution));
     mergeGapResults(await mapLimit(batchesOf(gaps,3),(gapBatch,index)=>priceGapBatch(gapBatch,index,t=>coveredWork(t,mappedLines,resolution.rules))));
+    // The planning prompt prices each repair as incremental time inside ONE visit and promises the
+    // trip is carried once for the whole job. Carry it, so the promise is true and the audit, which
+    // rightly asks where the trip went, finds it.
+    const trip=jobTripRule(configuration,lines,resolution.rules);
+    if(trip){resolution.rules.push(trip);resolution.assumptions.push(`${trip.description}: one trip and setup charge carried once for the whole job, from the owner's price book.`);}
     const audit:z.infer<typeof auditSchema>={coveredTaskIds:[],issues:[],notes:[],resolvedIssues:[]};
     const reconcileIssues=()=>{
       if(audit.issues.length||mapping.tasks.some(t=>!audit.coveredTaskIds.includes(t.id)))return;
@@ -1058,6 +1093,7 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
       resolution.issues=resolution.issues.filter(issue=>issue!==`${t.description}: no supported price.`&&issue!==`${t.description}: no defensible planning average could be supported.`);
       resolution.addExclusions=[...new Set([...(resolution.addExclusions||[]),`${t.description} (not included in this range; we will quote it after a site visit)`])];
       resolution.assumptions.push(`To confirm: ${t.description} is listed but not priced in this range; it needs a site visit before we can put a number on it.`);
+      carriedOut.push({id:t.id,description:t.description});
       console.error(`[p5-pricing] carried an unpriced item out of the total: ${t.description.slice(0,120)}`);
     }
     // Deterministic corrections come before the integrity checks: what the
@@ -1132,7 +1168,7 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
       resolution.rules.some(rule=>rule.scopeTaskId===task.id&&rule.quantity.fixed!==undefined&&rule.quantity.fixed>0&&rule.unitCost>0)
       ||(task.existingLineIds||[]).some(id=>finalIds.has(id))).map(({id,description})=>({id,description}));
   }catch{/* keep the list computed during pricing */}
-  const kept=findings.filter(issue=>issue===HANDOFF_ISSUE||missingScopeFields([issue]).length>0||!advisoryIssue(issue)&&!pricedTaskRemark(issue,pricedTasks));
+  const kept=findings.filter(issue=>issue===HANDOFF_ISSUE||missingScopeFields([issue]).length>0||!advisoryIssue(issue)&&!pricedTaskRemark(issue,pricedTasks)&&!carriedOutRemark(issue,carriedOut,pricedTasks));
   const disclosed=findings.filter(issue=>!kept.includes(issue));
   resolution.assumptions.push(...disclosed.map(item=>/^to confirm:/i.test(item)?item:`To confirm: ${item}`));
   resolution.issues=kept;
