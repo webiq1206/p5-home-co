@@ -24,10 +24,10 @@ test("authoritative $60,000 / .60 example and seven divisors", () => {
   for (const [margin, divisor] of [[.10,.70],[.12,.68],[.15,.65],[.18,.62],[.20,.60],[.25,.55],[.30,.50]]) near(priceFromRiskAdjustedCost(60000,.20,margin),60000/divisor);
 });
 for (const [service, target, floor, stretch] of [
-  ["handyman",.25,.20,.30],["re10",.25,.20,.30],["cabinet-product",.20,.12,.25],
-  ["cabinet-install",.20,.15,.25],["kitchen",.20,.15,.25],["bathroom",.20,.15,.25],
-  ["whole-home",.20,.15,.25],["addition",.15,.12,.20],["adu",.15,.12,.20],
-  ["new-construction",.15,.10,.20],["change-order",.25,.20,.30],["rush",.25,.20,.30],
+  ["handyman",.12,.10,.15],["re10",.12,.10,.15],["cabinet-product",.12,.10,.15],
+  ["cabinet-install",.12,.10,.15],["kitchen",.12,.10,.15],["bathroom",.12,.10,.15],
+  ["whole-home",.12,.10,.15],["addition",.12,.10,.15],["adu",.12,.10,.15],
+  ["new-construction",.12,.10,.15],["change-order",.12,.10,.15],["rush",.25,.20,.30],
 ] as const) test(`${service}: exact service target, floor, stretch and allocation reconciliation`, () => {
   const result = calculateP5Estimate(input(service), finance, [], now);
   near(result.targetOperatingProfit,target); near(result.matrix.floor,floor); near(result.matrix.stretch,stretch);
@@ -40,13 +40,13 @@ for (const [service, target, floor, stretch] of [
 });
 test("contingency is in direct cost before applying the formula", () => {
   const result = calculateP5Estimate({...input(),contingencyRate:.10},finance,[],now);
-  near(result.contingency,6000);near(result.riskAdjustedDirectCost,66000);near(result.contractPrice,110000);
+  near(result.contingency,6000);near(result.riskAdjustedDirectCost,66000);near(result.contractPrice,66000/.68);
 });
 test("the budget is recovered once and only increases above the approved standard", () => {
   for(const [revenue,required] of [[1400000,.30],[2000000,.21],[2100000,.20],[2400000,.175],[3000000,.14],[4000000,.105],[5000000,.084]]){
     const policy={...finance,annualRevenue:revenue};
     const rates=companyAllocation(policy,now);near(rates.requiredOverhead!,required);near(rates.total,Math.max(.20,required));near(rates.overhead,rates.total);
-    const result=calculateP5Estimate(input(),policy,[],now);near(result.divisor,1-Math.max(.20,required)-.20);near(result.targetOperatingProfit,.20);
+    const result=calculateP5Estimate(input(),policy,[],now);near(result.divisor,1-Math.max(.20,required)-.12);near(result.targetOperatingProfit,.12);
   }
 });
 test("the approved initial rate works without a forecast and keeps overdue reviews visible", () => {
@@ -61,7 +61,7 @@ test("17.5 percent requires earned-revenue evidence instead of just a sales goal
   const reduced={...finance,annualRevenue:2400000,overheadRate:.175};
   const blocked=calculateP5Estimate(input(),reduced,[],now);assert.equal(blocked.publishable,false);near(blocked.allocations.total,.20);
   const evidence={annualizedEarnedRevenue:2400000,annualizedOverhead:420000,source:"TEST ONLY: consistent earned revenue and complete overhead for the reviewed period",reviewedAt:"2026-09-01"};
-  const approved=calculateP5Estimate(input(),{...reduced,reducedRateReview:evidence},[],now);assert.equal(approved.publishable,true);near(approved.allocations.total,.175);near(approved.divisor,.625);
+  const approved=calculateP5Estimate(input(),{...reduced,reducedRateReview:evidence},[],now);assert.equal(approved.publishable,true);near(approved.allocations.total,.175);near(approved.divisor,.705);
   for(const changed of [{...evidence,annualizedEarnedRevenue:2200000},{...evidence,annualizedOverhead:430000},{...evidence,reviewedAt:"2026-01-01"},{...evidence,source:""}])assert.equal(calculateP5Estimate(input(),{...reduced,reducedRateReview:changed},[],now).publishable,false);
   assert.equal(calculateP5Estimate(input(),{...finance,annualOverhead:360000},[],now).publishable,false);
 });
@@ -71,7 +71,7 @@ test("invalid arithmetic and impossible overhead cannot produce totals", () => {
   assert.throws(()=>calculateP5Estimate(input(),{...finance,annualRevenue:100000},[],now));
 });
 test("below-floor pricing requires two distinct owners for this revision", () => {
-  const i={...input(),targetMargin:.14};
+  const i={...input(),targetMargin:.08};
   const a={owner:"Nick" as const,recordId:"stored-1",writtenReason:"Verified highly repeatable scope with documented strategic value",approvedAt:"2026-09-09",estimateRevision:i.revision};
   assert.equal(calculateP5Estimate(i,finance,[],now).publishable,false);
   assert.equal(calculateP5Estimate(i,finance,[a,a],now).publishable,false);
@@ -119,7 +119,7 @@ test("negative, blank, duplicate and inconsistent direct-cost lines are rejected
 });
 test("market pressure flags the result without automatically cutting profit", () => {
   const r=calculateP5Estimate({...input(),benchmark:{low:100,high:1000,source:"TEST benchmark",validUntil:"2026-10-01"}},finance,[],now);
-  near(r.targetOperatingProfit,.20);assert.ok(r.warnings.some(w=>w.code==="benchmark-outlier"));
+  near(r.targetOperatingProfit,.12);assert.ok(r.warnings.some(w=>w.code==="benchmark-outlier"));
 });
 test("customer projection excludes internal rates, evidence, approvals and dollars", () => {
   const r=calculateP5Estimate(input(),finance,[],now);const p=customerEstimate(r,"Kitchen");
@@ -232,8 +232,8 @@ test("PDF analysis accounts for every page and holds failed pages for review",as
 test("explicit complex scope uses the approved higher target without reducing service safeguards",()=>{
   for(const service of ["kitchen","cabinet-product","whole-home","addition","adu","new-construction"] as const){
     const complex=calculateP5Estimate({...input(service),complexity:"complex"},finance,[],now);
-    near(complex.targetOperatingProfit,.25);near(complex.matrix.stretch,.30);near(complex.matrix.floor,SERVICE_MATRIX[service].floor);near(complex.allocations.total,.20);near(complex.reconciliation,0);
-    const risk=calculateP5Estimate({...input(service),complexity:"complex",risks:["hidden-conditions","limited-access","difficult-sequencing","incomplete-plans"]},finance,[],now);assert.ok(risk.targetOperatingProfit>=.25&&risk.targetOperatingProfit<=.30);
+    near(complex.targetOperatingProfit,.14);near(complex.matrix.stretch,.15);near(complex.matrix.floor,SERVICE_MATRIX[service].floor);near(complex.allocations.total,.20);near(complex.reconciliation,0);
+    const risk=calculateP5Estimate({...input(service),complexity:"complex",risks:["hidden-conditions","limited-access","difficult-sequencing","incomplete-plans"]},finance,[],now);assert.ok(risk.targetOperatingProfit>=.14&&risk.targetOperatingProfit<=.15);
   }
   assert.throws(()=>calculateP5Estimate({...input(),complexity:"invalid" as any},finance,[],now));
 });
@@ -291,4 +291,12 @@ test("an RE-10 gets one firm price: the modeled contract price, shown as a singl
   assert.ok(isRe10Scope({ answers: { service: "handyman" }, text: "Please estimate the repair items listed on this RE-10 inspection notice." }));
   assert.ok(isRe10Scope({ answers: { service: "handyman" }, uploads: [{ name: "5487 N Marcliffe Ave RE-10 Inspection Contingency Notice.pdf" }] }));
   assert.ok(!isRe10Scope({ answers: { service: "handyman" }, text: "Replace two exterior outlets and fix a leaking trap." }));
+});
+
+test("contingency is a flat 10% on remodels and new construction and none on cabinet or handyman work", () => {
+  for (const service of ["kitchen", "bathroom", "whole-home", "addition", "adu", "new-construction"] as Service[])
+    assert.equal(calculateP5Estimate({ ...input(service), risks: ["hidden-conditions", "occupied-home"] }, finance, [], now).contingencyRate, .10, service);
+  for (const service of ["handyman", "re10", "cabinet-product", "cabinet-install", "change-order", "rush"] as Service[])
+    assert.equal(calculateP5Estimate({ ...input(service), risks: ["hidden-conditions"] }, finance, [], now).contingency, 0, service);
+  assert.equal(calculateP5Estimate({ ...input("new-construction"), urgency: "emergency" }, finance, [], now).contingencyRate, .10, "a rushed new build keeps its contingency");
 });

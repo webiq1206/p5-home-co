@@ -30,7 +30,7 @@ test('Cabinet supply and installation use distinct scope and preserve the overhe
  assert.equal(supply.customer.status,'planning-range');assert.equal(installed.customer.status,'planning-range');
  const s=supply.internal as any,i=installed.internal as any;assert.equal(s.currentCostsConfirmed,false);assert.equal(s.estimatePurpose,'preliminary');assert.equal(s.lines.filter((l:any)=>l.category==='field-labor').length,0);
  assert.equal(i.lines.find((l:any)=>l.id.startsWith('03-17-01-L')).cost,600);assert.ok(Math.abs(i.reconciliation)<1e-8);assert.ok(i.contractPrice>s.contractPrice);
- assert.equal(i.allocations.overhead,.2);assert.equal(i.targetOperatingProfit,.2);
+ assert.equal(i.allocations.overhead,.2);assert.equal(i.targetOperatingProfit,.12,"business plan: 12% profit on top of 20% overhead = 32% gross margin");
  const publicData=JSON.stringify(installed.customer);assert.ok(!publicData.includes('Synthetic unit-cost fixture'));assert.ok(!publicData.includes('unitCost'));assert.ok(!publicData.includes('overheadRecovery'));
 });
 test('Missing cabinet measurements are blocked; a real zero stays zero',()=>{const config=createPlanningConfiguration(catalog);const missing=priceReviewedScope(scope({service:'cabinet-product',cabinetBaseLf:'10'}),config,now);assert.equal(missing.customer.range,null);const missingTall=priceReviewedScope(scope({service:'cabinet-product',cabinetBaseLf:'10',cabinetUpperLf:'0'}),config,now);assert.equal(missingTall.customer.range,null);const zero=priceReviewedScope(scope({service:'cabinet-product',cabinetBaseLf:'0',cabinetUpperLf:'10',cabinetTallLf:'0'}),config,now);assert.ok(zero.customer.range);});

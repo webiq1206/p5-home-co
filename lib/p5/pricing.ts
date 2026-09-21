@@ -3,19 +3,23 @@ import {tradeForLine,apportionAmount,type TradeCategory} from "./trades.ts";
 /** Internal policy. Import only from server entry points, never client components. */
 export const POLICY_VERSION = "p5-2026-09-10-unified-overhead";
 export const STANDARD_OVERHEAD_RATE = .20;
+/** Operating profit targets. Owner business plan (P5 Comprehensive Business Planning Roadmap, 2026):
+ * a 32% planning gross margin with a 30% hard floor, company-wide. The engine prices as
+ * cost / (1 - overhead - profit), so 20% overhead + 12% profit = the 32% gross margin target,
+ * 20% + 10% = the 30% floor, and risk may add up to 3 points (35%). Rush keeps its urgency premium. */
 export const SERVICE_MATRIX = {
-  handyman: { target: .25, floor: .20, stretch: .30, contingency: [.03, .05], method: "Flat-rate menu or fixed-price package" },
-  re10: { target: .25, floor: .20, stretch: .30, contingency: [.03, .05], method: "Flat-rate menu or fixed-price package" },
-  "cabinet-product": { target: .20, floor: .12, stretch: .25, contingency: [.03, .05], method: "Quoted product price with design and delivery separated" },
-  "cabinet-install": { target: .20, floor: .15, stretch: .25, contingency: [.03, .05], method: "Fixed price after measurement and supplier confirmation" },
-  kitchen: { target: .20, floor: .15, stretch: .25, contingency: [.07, .10], method: "Paid planning followed by fixed price or guaranteed maximum price" },
-  bathroom: { target: .20, floor: .15, stretch: .25, contingency: [.07, .10], method: "Paid planning followed by fixed price or guaranteed maximum price" },
-  "whole-home": { target: .20, floor: .15, stretch: .25, contingency: [.08, .12], method: "Paid preconstruction followed by a guaranteed maximum price" },
-  addition: { target: .15, floor: .12, stretch: .20, contingency: [.05, .08], method: "Paid preconstruction followed by a guaranteed maximum price" },
-  adu: { target: .15, floor: .12, stretch: .20, contingency: [.05, .08], method: "Paid preconstruction followed by a guaranteed maximum price" },
-  "new-construction": { target: .15, floor: .10, stretch: .20, contingency: [.03, .05], method: "Paid preconstruction followed by a guaranteed maximum price or controlled cost-plus agreement" },
-  "change-order": { target: .25, floor: .20, stretch: .30, contingency: [.05, .10], method: "Written price and schedule approval before changed work proceeds" },
-  rush: { target: .25, floor: .20, stretch: .30, contingency: [.05, .10], method: "Written fixed-price scope and schedule approval before work proceeds" },
+  handyman: { target: .12, floor: .10, stretch: .15, contingency: [0, 0], method: "Flat-rate menu or fixed-price package" },
+  re10: { target: .12, floor: .10, stretch: .15, contingency: [0, 0], method: "Flat-rate menu or fixed-price package" },
+  "cabinet-product": { target: .12, floor: .10, stretch: .15, contingency: [0, 0], method: "Quoted product price with design and delivery separated" },
+  "cabinet-install": { target: .12, floor: .10, stretch: .15, contingency: [0, 0], method: "Fixed price after measurement and supplier confirmation" },
+  kitchen: { target: .12, floor: .10, stretch: .15, contingency: [.10, .10], method: "Paid planning followed by fixed price or guaranteed maximum price" },
+  bathroom: { target: .12, floor: .10, stretch: .15, contingency: [.10, .10], method: "Paid planning followed by fixed price or guaranteed maximum price" },
+  "whole-home": { target: .12, floor: .10, stretch: .15, contingency: [.10, .10], method: "Paid preconstruction followed by a guaranteed maximum price" },
+  addition: { target: .12, floor: .10, stretch: .15, contingency: [.10, .10], method: "Paid preconstruction followed by a guaranteed maximum price" },
+  adu: { target: .12, floor: .10, stretch: .15, contingency: [.10, .10], method: "Paid preconstruction followed by a guaranteed maximum price" },
+  "new-construction": { target: .12, floor: .10, stretch: .15, contingency: [.10, .10], method: "Paid preconstruction followed by a guaranteed maximum price or controlled cost-plus agreement" },
+  "change-order": { target: .12, floor: .10, stretch: .15, contingency: [0, 0], method: "Written price and schedule approval before changed work proceeds" },
+  rush: { target: .25, floor: .20, stretch: .30, contingency: [0, 0], method: "Written fixed-price scope and schedule approval before work proceeds" },
 } as const;
 export type Service = keyof typeof SERVICE_MATRIX;
 export const COST_CATEGORIES = ["materials", "field-labor", "owner-production", "subcontractors", "permits-inspections", "engineering-design", "equipment-rentals", "disposal", "travel-mobilization", "protection-cleanup", "project-supervision", "closeout", "other-direct"] as const;
@@ -159,7 +163,8 @@ export function calculateP5Estimate(input: PricingInput, finance: FinancePolicy,
   const service = input.service === "change-order" ? input.service : input.urgency && input.urgency !== "standard" ? "rush" : input.service;
   if(input.complexity!==undefined&&!["standard","complex"].includes(input.complexity))throw new Error("Unknown project complexity");
   const baseMatrix = SERVICE_MATRIX[service];
-  const matrix = input.complexity==="complex"?{...baseMatrix,target:Math.max(.25,baseMatrix.target),stretch:.30}:baseMatrix;
+  // A complex project may carry up to 2 more points of profit, still inside the business plan's range.
+  const matrix = input.complexity==="complex"?{...baseMatrix,target:Math.min(baseMatrix.stretch,baseMatrix.target+.02)}:baseMatrix;
   const riskSet = new Set(input.risks);
   for (const risk of riskSet) if (!(RISK_FACTORS as readonly string[]).includes(risk)) throw new Error("Unknown risk factor");
   if (!input.locationProvided) { riskSet.add("jurisdiction-uncertain"); warn("location-unknown", "Jurisdiction, utilities, access, soil, slope and permits require review. Obtain the exact address before a site visit or firm proposal."); }
@@ -171,10 +176,14 @@ export function calculateP5Estimate(input: PricingInput, finance: FinancePolicy,
   if (margin < matrix.target) warn("below-target", "Value-engineer the scope first. Record the reason for using a target below the standard service target.");
   const validApprovals = approvals.filter(a => ["Nick", "Jared"].includes(a.owner) && a.estimateRevision === input.revision && a.recordId.trim() && a.writtenReason.trim().length >= 20 && Number.isFinite(dateValue(a.approvedAt)) && dateValue(a.approvedAt) <= now.getTime());
   if (margin < matrix.floor && !["Nick", "Jared"].every(owner => validApprovals.some(a => a.owner === owner))) warn("owner-approval-required", "Below-floor pricing requires written approval from both owners for this exact estimate revision.", "block");
-  const contingencyRate = input.contingencyRate ?? Math.min(.25, matrix.contingency[0] + riskCount * .01 + (input.uncertainty === "high" ? .02 : input.uncertainty === "medium" ? .01 : 0));
+  // Owner rule 2026-09-21: a flat 10% contingency on remodels and new construction, none on cabinet,
+  // handyman, RE-10, change-order or rush work. Risk is reflected in the range, not a larger reserve.
+  // Keyed to the kind of project, not its urgency: a rushed new build is still new construction.
+  const projectContingency = SERVICE_MATRIX[input.service].contingency;
+  const contingencyRate = input.contingencyRate ?? projectContingency[0];
   finite(contingencyRate, "Contingency rate");
-  if (contingencyRate < matrix.contingency[0]) warn("contingency-below-policy", "Contingency is below the service starting range.", "block");
-  if (contingencyRate > matrix.contingency[1]) warn("elevated-contingency", "Risk factors require contingency above the service starting range. Keep this reserve until closeout and warranty review.");
+  if (contingencyRate < projectContingency[0]) warn("contingency-below-policy", "Contingency is below the service starting range.", "block");
+  if (contingencyRate > projectContingency[1]) warn("elevated-contingency", "Risk factors require contingency above the service starting range. Keep this reserve until closeout and warranty review.");
   const ids = new Set<string>();
   const directByCategory = Object.fromEntries(COST_CATEGORIES.map(c => [c, 0])) as Record<CostCategory, number>;
   const lines = input.lines.map(line => {

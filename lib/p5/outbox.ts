@@ -9,11 +9,14 @@ export function deliveryRetryDecision(destination:string,emailIdempotent:boolean
   const canRetry=destination!=="crm"&&emailIdempotent&&now-createdAt.getTime()<23*3600000&&attempts<6;
   return canRetry?"retry":"needs-review";
 }
+/** Owner instruction 2026-09-21: nothing goes to the CRM for now (it will move to the P5 site).
+ * P5_CRM_DELIVERY=on turns it back on; no CRM job is queued or sent otherwise. */
+export const CRM_DELIVERY_ENABLED=process.env.P5_CRM_DELIVERY==='on';
 export async function enqueueSubmission(id:string,revision:number,record:any){
   const recipients=await adminRecipients();if(!recipients.length)throw new Error("No estimate administrator is configured");
   const jobs=[...recipients.map(email=>({id:randomUUID(),destination:`admin:${email}`,payload:record})),
     {id:randomUUID(),destination:`customer:${record.contact.email}`,payload:record},
-    {id:randomUUID(),destination:"crm",payload:record}];
+    ...(CRM_DELIVERY_ENABLED?[{id:randomUUID(),destination:"crm",payload:record}]:[])];
   const rows=await query(`WITH accepted AS (
     UPDATE p5_estimator_drafts SET status='submitted',submitted_at=now(),internal_estimate=$1::jsonb,customer_estimate=$2::jsonb
     WHERE id=$3 AND revision=$4 AND status='draft' RETURNING id
@@ -40,7 +43,7 @@ export async function processOutbox(options:{draftId?:string;revision?:number;li
     const key=`p5-${row.draft_id}-${row.revision}-${createHash("sha256").update(destination).digest("hex").slice(0,20)}`;
     try{
       let providerId:string;
-      if(destination==="crm")providerId=await syncCrm(record,key);
+      if(destination==="crm"){if(!CRM_DELIVERY_ENABLED)throw new Error("CRM delivery is turned off");providerId=await syncCrm(record,key);}
       else {
         const [kind,...address]=destination.split(":");const admin=kind==="admin";const alert=kind==="alert";
         const attachments=alert?[]:[{filename:pdfFilename(row.draft_id,admin?"administrative":"customer"),content:admin?await administrativePdf(row.draft_id,{...record.internal,contact:record.contact,brand:record.brand,estimator:record.estimator}):await customerPdf(row.draft_id,record.customer)}];
