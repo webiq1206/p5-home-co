@@ -1,5 +1,5 @@
 import type {EstimatorConfiguration} from './costBook.ts';
-import type {PlanningRate} from './planningBooks.ts';
+import {MAX_PLANNING_RATES,type PlanningRate} from './planningBooks.ts';
 import {RATE_CARD} from './rateCardData.ts';
 
 /** The owner's Boise rate card, merged into the saved planning catalog.
@@ -29,8 +29,8 @@ export function withRateCard(configuration:EstimatorConfiguration,card:PlanningR
   const catalog=configuration.planningCatalog;
   if(!catalog||!Array.isArray(catalog.rates))return configuration;
   const missing=missingRates(configuration,card);
-  // The catalog's own ceiling is 500 rates; never push it past that.
-  const room=Math.max(0,500-catalog.rates.length);
+  // Never push the saved catalog past the ceiling its own validation enforces.
+  const room=Math.max(0,MAX_PLANNING_RATES-catalog.rates.length);
   if(!missing.length||!room)return configuration;
   return {...configuration,planningCatalog:{...catalog,rates:[...catalog.rates,...missing.slice(0,room)]}};
 }

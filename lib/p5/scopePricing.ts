@@ -9,6 +9,7 @@ import {PricingPending,PricingStageTimeout,isPricingPending,isPricingStageTimeou
 import {suggestedTrade} from './trades.ts';
 import {priceReviewedScope,type CostRule,type EstimatorConfiguration,type ScopePriceResolution} from './costBook.ts';
 import type {ReviewedScope,ScopeExtraction} from './scope.ts';
+import {relevantCatalog} from './catalogSelection.ts';
 import {pricingScopeFingerprint,documentScopeFingerprint,answerEntries,compatibleAnswers,reusableResolution,type PricingCache} from './pricingCache.ts';
 import {hasRestrictedScope,INSTRUCTION_POLICY} from './instructions.ts';
 import {activePricingSource,pricingSourceParts} from './pricingSources.ts';
@@ -822,7 +823,7 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
     // already verifies duplicates and conflicts across the whole mapping, so
     // that ordering bought latency, not correctness. Wall-clock for mapping is
     // now the slowest batch, not the sum of all of them.
-    const mappingInput=(taskBatch:typeof inventory.tasks)=>({original:sourceParts.length===1?original:{sections:[...new Set(taskBatch.map(t=>taskSources.get(t.id)!))].map(i=>sourceParts[i])},taskBatch,priorMappedTasks:[],priorReplacements:[],existingLines:lines.map(({id,description,quantity,unit,unitCost,category,trade,quantitySource})=>({id,description,quantity,unit,unitCost,category,trade,quantitySource})),defaultExclusions:base.customer.exclusions,date:now.toISOString(),catalogImportedAt:configuration.planningCatalog?.importedAt,regionalRates:configuration.regionalRates,catalog:(configuration.planningCatalog?.rates||[]).map(({code,description,type,unit,amount,basis})=>({code,description,type,unit,amount,basis}))});
+    const mappingInput=(taskBatch:typeof inventory.tasks)=>({original:sourceParts.length===1?original:{sections:[...new Set(taskBatch.map(t=>taskSources.get(t.id)!))].map(i=>sourceParts[i])},taskBatch,priorMappedTasks:[],priorReplacements:[],existingLines:lines.map(({id,description,quantity,unit,unitCost,category,trade,quantitySource})=>({id,description,quantity,unit,unitCost,category,trade,quantitySource})),defaultExclusions:base.customer.exclusions,date:now.toISOString(),catalogImportedAt:configuration.planningCatalog?.importedAt,regionalRates:configuration.regionalRates,catalog:relevantCatalog((configuration.planningCatalog?.rates||[]).map(({code,description,type,unit,amount,basis})=>({code,description,type,unit,amount,basis})),taskBatch)});
     const mappedBatches=await mapLimit(batchesOf(inventory.tasks,6),taskBatch=>mapBatch(request,taskBatch,mappingInput,()=>deadline-Date.now()));
     const mapping:Mapping={tasks:[],issues:[...inventory.issues],notes:[...inventory.notes],replacements:[],removeExclusions:[]};
     for(const [batchIndex,batch] of mappedBatches.entries()){

@@ -109,8 +109,8 @@ test('the shipped rate card fills gaps in a saved catalog without touching the o
   assert.equal(missingRates(merged,card!).length,0,'a second pass adds nothing');
   assert.equal(withRateCard(merged,card!),merged,'and returns the same configuration');
   // The catalog ceiling still holds.
-  const full={...saved,planningCatalog:{...saved.planningCatalog!,rates:Array.from({length:500},(_,i)=>({...owner,code:`OWN-${i}`}))}} as never;
-  assert.equal(withRateCard(full,card!).planningCatalog!.rates.length,500);
+  const full={...saved,planningCatalog:{...saved.planningCatalog!,rates:Array.from({length:2000},(_,i)=>({...owner,code:`OWN-${i}`}))}} as never;
+  assert.equal(withRateCard(full,card!).planningCatalog!.rates.length,2000);
 });
 
 test('the generated rate card module matches the JSON source of truth',async()=>{
@@ -119,4 +119,27 @@ test('the generated rate card module matches the JSON source of truth',async()=>
   const card=JSON.parse(await readFile(new URL('../scripts/p5-boise-rate-card.json',import.meta.url),'utf8'));
   const expected=card.rates.map((r:any)=>({code:r.code,description:r.description,type:r.type,unit:r.unit,amount:r.amount,source:r.source||card.source,basis:r.basis||card.basis||'owner-average-cost'}));
   assert.deepEqual(RATE_CARD,expected,'run node scripts/p5-build-rate-card.mjs after editing the rate card');
+});
+
+test('a mapping batch is shown the part of the catalog it can use, plus the rates any task needs',async()=>{
+  const {relevantCatalog,FOUNDATION_CODES,meaningfulWords}=await import('../lib/p5/catalogSelection.ts');
+  const {RATE_CARD}=await import('../lib/p5/rateCardData.ts');
+  const owner=FOUNDATION_CODES.map(code=>({code,description:'Owner schedule rate',type:'Labor',unit:'HR',amount:80,source:'Owner',basis:'owner-average-cost'}));
+  const catalog=[...owner,...RATE_CARD];
+  const plumbing=[{description:'Reconfigure the under-sink trap assemblies',evidence:'All sink locations'},{description:'Install vacuum breakers on exterior hose bibs',evidence:''}];
+  const slice=relevantCatalog(catalog,plumbing,60);
+  assert.ok(slice.length<=60&&slice.length<catalog.length,'the batch sees a slice, not the whole book');
+  const codes=new Set(slice.map(r=>r.code));
+  assert.ok(codes.has('RC-PLUM-PTRAP-L'),'the trap rate is offered');
+  assert.ok(codes.has('RC-PLUM-VACBREAK-M'),'so is the vacuum breaker');
+  for(const code of FOUNDATION_CODES)assert.ok(codes.has(code),`${code} is always offered`);
+  assert.ok(codes.has('RC-LAB-PLUMBING'),'trade labor is always offered');
+  assert.ok(!codes.has('RC-ROOF-SHINGLE-M'),'an unrelated roofing rate is not');
+  // Deterministic: the same batch always sees the same book, in the owner's own order.
+  assert.deepEqual(relevantCatalog(catalog,plumbing,60).map(r=>r.code),slice.map(r=>r.code));
+  const order=slice.map(r=>catalog.findIndex(c=>c.code===r.code));
+  assert.deepEqual(order,[...order].sort((a,b)=>a-b));
+  // A small catalog is passed through untouched, and stemming matches singular to plural.
+  assert.equal(relevantCatalog(owner,plumbing,60).length,owner.length);
+  assert.ok(meaningfulWords('vacuum breakers').has('vacuum'));
 });

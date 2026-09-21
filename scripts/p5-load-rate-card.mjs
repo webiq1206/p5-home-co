@@ -49,7 +49,7 @@ try{
   }
   const rates=[...existing.values()];
   console.log(`catalog ${catalog.rates.length} -> ${rates.length} rates (added ${added.length}, updated ${updated.length}, unchanged ${kept.length})`);
-  if(rates.length>500){console.error('A planning catalog may hold at most 500 rates; trim the card and run again.');process.exit(1);}
+  if(rates.length>2000){console.error('A planning catalog may hold at most 2000 rates; trim the card and run again.');process.exit(1);}
   for(const rate of added.slice(0,12))console.log(`  + ${rate.code} ${rate.amount} / ${rate.unit}  ${rate.description.slice(0,70)}`);
   if(added.length>12)console.log(`  + ...${added.length-12} more`);
   if(!apply){console.log('Nothing written. Re-run with --apply to save.');process.exit(0);}

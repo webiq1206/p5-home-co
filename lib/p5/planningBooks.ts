@@ -6,11 +6,16 @@ import type {CostRule,EstimatorConfiguration,ServiceCostBook} from './costBook.t
 export interface PlanningRate {code:string;description:string;type:'Material'|'Labor'|'Subcontractor'|'Equipment'|'Other';unit:string;amount:number;source:string;basis:'owner-average-cost'|'historical-cost-budget'}
 export interface PlanningCatalog {version:string;source:string;importedAt:string;authorizedBy:string;rates:PlanningRate[]}
 export const PLANNING_MODEL_VERSION='owner-schedule-2026-09-11';
+/** How many rates the owner's catalog may hold. It was 500 while every rate was pasted into each
+ * mapping prompt, where a longer book cost length on every call and buried the right rate. The
+ * mapping stage is now shown only the slice a batch can use (lib/p5/catalogSelection.ts), so the
+ * book can grow: what it costs now is the owner's own review of what is in it. */
+export const MAX_PLANNING_RATES=2000;
 const SMALL=new Set(['handyman','re10','change-order','rush']);
 const BUILDS=new Set(['new-construction','addition','adu']);
 const EXCLUDED_CODES=new Set(['03-23-03','03-23-04','L-01-02','L-03-00','03-24-02']);
 export function validatePlanningCatalog(catalog:PlanningCatalog){
- if(!catalog||catalog.version!==PLANNING_MODEL_VERSION||!catalog.source?.trim()||!catalog.authorizedBy?.trim()||!Number.isFinite(Date.parse(catalog.importedAt))||!Array.isArray(catalog.rates)||catalog.rates.length>500)throw new Error('Invalid owner planning catalog.');
+ if(!catalog||catalog.version!==PLANNING_MODEL_VERSION||!catalog.source?.trim()||!catalog.authorizedBy?.trim()||!Number.isFinite(Date.parse(catalog.importedAt))||!Array.isArray(catalog.rates)||catalog.rates.length>MAX_PLANNING_RATES)throw new Error('Invalid owner planning catalog.');
  const ids=new Set<string>();
  for(const r of catalog.rates){
   if(!r.code?.trim()||ids.has(r.code)||!r.description?.trim()||!r.source?.trim()||!['Material','Labor','Subcontractor','Equipment','Other'].includes(r.type)||!['SF','LF','EA','HR','HRS','MO','LS'].includes(r.unit)||!['owner-average-cost','historical-cost-budget'].includes(r.basis)||!Number.isFinite(r.amount)||r.amount<=0||EXCLUDED_CODES.has(r.code)||r.code.endsWith('-99'))throw new Error(`Invalid planning rate: ${r.code||'unknown'}`);
