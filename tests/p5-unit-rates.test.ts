@@ -86,7 +86,7 @@ test('the master price book prices each line at the chosen finish, with the remo
   assert.equal(rate({service:'kitchen',finish:'luxury'},'12-31-01')?.amount,1540);
   assert.equal(rate({service:'new-construction',finish:'refresh'},'12-31-01')?.amount,250,'new construction is base cost at Builder Grade');
   assert.equal(rate({service:'cabinet-install',finish:'high-end'},'12-31-01')?.amount,850,'cabinet work is base cost, as its tab in the book is');
-  assert.equal(rate({service:'handyman'},'12-31-01'),undefined,'a line not flagged for handyman is not offered to handyman');
+  assert.equal(rate({service:'handyman'},'12-31-01')?.amount,500,'a line filed under other work is still offered, at base cost');
   // No finish chosen: the book's own default, Mid-Range.
   assert.equal(finishTier(undefined),'mid');
   assert.equal(rate({service:'kitchen'},'12-31-01')?.amount,550);
@@ -108,14 +108,24 @@ test('the master price book prices each line at the chosen finish, with the remo
   assert.equal(summary.lines,1484);assert.equal(summary.rateable+summary.percentage,summary.lines);
   // Codes are namespaced, so the book can never replace a saved schedule code such as 03-01-01.
   assert.ok(priceBookRates({service:'kitchen'}).every(r=>r.code.startsWith('PB-')));
-  // Every service draws on its own lines, and a change order can modify any residential work.
   assert.equal(serviceContext('re10').remodel,true);
   assert.equal(serviceContext('new-construction').remodel,false);
-  assert.ok(priceBookRates({service:'change-order'}).length>priceBookRates({service:'handyman'}).length);
-  // An inspection can name work in any trade: the book's RE-10 flag alone carries no light fixture,
-  // irrigation or mobilization line, which left a live RE-10 pricing those from uncited guesses.
+  // The owner performs every line however it is labelled: every service sees the whole book. The
+  // book's RE-10 flag carries no light fixture, irrigation or mobilization line, which left a live
+  // RE-10 pricing those from uncited guesses.
+  for(const service of ['re10','handyman','kitchen','new-construction','cabinet-install','change-order'])assert.equal(priceBookRates({service}).length,summary.rateable,service);
   for(const code of ['26-50-02','32-84-03','01-54-11','26-01-14'])assert.ok(rate({service:'re10'},code),`RE-10 offers ${code}`);
-  assert.ok(rate({service:'handyman'},'26-01-14'),'a handyman job sees the RE-10 repair lines');
+  // Lines filed under the job's own kind of work come first, so they win an equal match.
+  const re10=priceBookRates({service:'re10'}).map(r=>r.code);
+  assert.ok(re10.indexOf('PB-26-01-14')<re10.indexOf('PB-26-50-02'),'an RE-10 line precedes a remodel line');
+});
+test('a scope in plain words finds the book line whatever the book files it under',async()=>{
+  const {priceBookRates}=await import('../lib/p5/priceBook.ts');
+  const {relevantCatalog}=await import('../lib/p5/catalogSelection.ts');
+  const catalog=priceBookRates({service:'re10'});
+  const offered=(text:string)=>relevantCatalog(catalog,[{description:text}]).map(r=>r.code);
+  assert.ok(offered('Repair garage lights so they are operational').includes('PB-26-50-02'));
+  assert.ok(offered('Install a smart irrigation controller for the sprinkler system').includes('PB-32-84-03'));
 });
 
 test('every priced line is a positive direct cost in a unit the catalog accepts, within the catalog ceiling',async()=>{

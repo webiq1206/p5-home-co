@@ -30,18 +30,15 @@ const NC=1,RM=2,HM=4,CAB=8,RE10=16;
  * cabinet lines are priced at base direct cost, as their tabs in the book are. A change order or
  * rush job can modify any kind of residential work, so it sees all of it.
  *
- * The book's RE-10 flag marks the classic inspection repairs only (189 lines): no light fixture,
- * irrigation or mobilization line carries it. An inspection can name work in any trade, so an RE-10
- * also draws on the handyman and remodel lines, and a handyman job also draws on the RE-10 repair
- * lines. The catalog slice then offers only the lines that fit the tasks.
+ * These flags order the book; they never hide a line (see priceBookRates).
  */
 export function serviceContext(service?:string|null):{flags:number;remodel:boolean}{
   switch(service){
     case 'new-construction':case 'adu':return {flags:NC,remodel:false};
     case 'addition':return {flags:NC|RM,remodel:false};
     case 'kitchen':case 'bathroom':case 'whole-home':return {flags:RM,remodel:true};
-    case 're10':return {flags:RE10|HM|RM,remodel:true};
-    case 'handyman':return {flags:HM|RE10,remodel:false};
+    case 're10':return {flags:RE10,remodel:true};
+    case 'handyman':return {flags:HM,remodel:false};
     case 'cabinet-product':case 'cabinet-install':return {flags:CAB,remodel:false};
     default:return {flags:NC|RM|HM|CAB|RE10,remodel:false};
   }
@@ -87,11 +84,22 @@ export function priceBookRate(row:PriceBookRow,tier:FinishTier,remodel:boolean):
     basis:'owner-average-cost',
   };
 }
-/** Every line that applies to this project's service, priced at its finish tier. */
+/**
+ * Every line in the book, priced at this project's finish tier.
+ *
+ * The owner performs every line whatever it is labelled, so the applicability flags never hide a
+ * line: a scope that names a light fixture on an RE-10 must find the light fixture line even though
+ * the book files it under remodel and handyman work. The match is made by meaning
+ * (catalogSelection.ts). The flags only order the book, lines marked for this service first, so
+ * that when two lines match a task equally well the one the owner files under this kind of work
+ * is the one offered.
+ */
 export function priceBookRates(answers:{service?:string|null;finish?:string|null}):PlanningRate[]{
   const {flags,remodel}=serviceContext(answers.service);
   const tier=finishTier(answers.finish);
-  return PRICE_BOOK_RATEABLE.filter(row=>(row[8]&flags)!==0).map(row=>priceBookRate(row,tier,remodel));
+  const marked=PRICE_BOOK_RATEABLE.filter(row=>(row[8]&flags)!==0);
+  const rest=PRICE_BOOK_RATEABLE.filter(row=>(row[8]&flags)===0);
+  return [...marked,...rest].map(row=>priceBookRate(row,tier,remodel));
 }
 export function priceBookSummary(){
   return {source:PRICE_BOOK_SOURCE,lines:PRICE_BOOK.length,rateable:PRICE_BOOK_RATEABLE.length,percentage:PRICE_BOOK_PERCENTAGE.length};
