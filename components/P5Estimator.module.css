@@ -259,6 +259,19 @@
 .deliveryList li[data-state=sent] span{color:var(--p5-success-ink)}
 .deliveryList li[data-state=review] span{color:var(--p5-danger-ink)}
 .disclaimer{font-size:12px;color:var(--p5-ink-soft);line-height:1.5}
+/* Approved preliminary estimate blocks: finish basis before the price detail, then the three next steps and the review action. */
+.finishCard{padding:14px 16px;border-left:3px solid var(--p5-accent);border-radius:0 12px 12px 0;background:color-mix(in srgb,var(--p5-accent) 12%,var(--p5-surface-3));display:grid;gap:4px}
+.finishCard p{margin:0;font-size:14px;line-height:1.5;color:var(--p5-ink-muted)}
+.finishCard .finishName{font-size:16px;font-weight:700;color:var(--p5-ink)}
+.nextSteps{display:grid;gap:10px;margin:4px 0}
+.nextSteps h3{margin:0;font-size:18px}
+.nextSteps ol{margin:0;padding:0;list-style:none;counter-reset:step;display:grid;gap:10px}
+.nextSteps li{counter-increment:step;display:grid;grid-template-columns:32px 1fr;column-gap:8px;font-size:14px;line-height:1.5;color:var(--p5-ink-muted)}
+.nextSteps li::before{content:counter(step,decimal-leading-zero);grid-row:span 2;font-weight:700;font-size:15px;color:var(--p5-ink)}
+.nextSteps li strong{color:var(--p5-ink);font-size:15px}
+.reviewCard{display:grid;justify-items:center;gap:8px;padding:16px;border:1px solid color-mix(in srgb,var(--p5-accent) 60%,var(--p5-line));border-radius:12px;background:color-mix(in srgb,var(--p5-accent) 10%,var(--p5-surface-3));text-align:center}
+.reviewCard p{margin:0;font-size:14px;color:var(--p5-ink-muted);overflow-wrap:anywhere}
+.reviewCard a:not(.primary){color:inherit}
 
 /* ---- Processing ---------------------------------------------------- */
 .processing{padding:18px;border:1px solid var(--p5-line);border-radius:16px;background:var(--p5-surface-3)}

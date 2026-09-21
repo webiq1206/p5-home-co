@@ -1,4 +1,5 @@
 import {estimateEmail} from './estimateEmail.ts';
+import {estimateReference} from './estimateDocument.ts';
 import { randomUUID,createHash } from "node:crypto";
 import { query } from "./database.ts";
 import { ensureSchema } from "./store.ts";
@@ -48,7 +49,7 @@ export async function processOutbox(options:{draftId?:string;revision?:number;li
         const [kind,...address]=destination.split(":");const admin=kind==="admin";const alert=kind==="alert";
         const attachments=alert?[]:[{filename:pdfFilename(row.draft_id,admin?"administrative":"customer"),content:admin?await administrativePdf(row.draft_id,{...record.internal,contact:record.contact,brand:record.brand,estimator:record.estimator}):await customerPdf(row.draft_id,record.customer)}];
         const formatted=alert?{text:`Estimate ${row.draft_id} needs delivery review. ${record.error}\nOpen https://${brand.domain}/admin/p5-estimators to inspect the saved record. Do not resubmit the lead to retry delivery.`,html:undefined}:estimateEmail(row.draft_id,record,admin);
-        providerId=await sendEmail({to:address.join(":"),subject:alert?`${brand.name}: estimate delivery needs attention (ref ${String(row.draft_id).slice(0,8)})`:admin?`${brand.name}: internal estimate record (ref ${String(row.draft_id).slice(0,8)})`:`Your ${brand.name} project estimate (ref ${String(row.draft_id).slice(0,8)})`,...formatted,attachments,key});
+        providerId=await sendEmail({to:address.join(":"),subject:alert?`${brand.name}: estimate delivery needs attention (ref ${String(row.draft_id).slice(0,8)})`:admin?`${brand.name}: internal estimate record (ref ${String(row.draft_id).slice(0,8)})`:`Your ${brand.name} preliminary estimate ${estimateReference(String(row.draft_id))}`,...formatted,attachments,key});
       }
       await query("UPDATE p5_estimator_outbox SET status='sent',provider_id=$1,sent_at=now(),locked_until=NULL,last_error=NULL WHERE id=$2 AND status='sending'",[providerId,row.id]);
       results.push({id:row.id,status:"sent"});

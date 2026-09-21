@@ -30,7 +30,7 @@ test('Formatted customer emails escape scope HTML and never include internal fin
  const customer=estimateEmail('test',record,false),admin=estimateEmail('test',record,true);
  assert.ok(customer.html.includes('<h2'));assert.ok(customer.html.includes('&lt;script&gt;'));
  assert.ok(!customer.html.includes('<script>'));assert.ok(!customer.html.includes('98,765'));
- assert.ok(admin.html.includes('98,765'));assert.ok(customer.text.includes('Plumbing'));assert.ok(customer.text.includes('NOT INCLUDED'));
+ assert.ok(admin.html.includes('98,765'));assert.ok(customer.text.includes('Plumbing'));assert.ok(customer.text.includes('EXCLUSIONS'));
  // Excluded work is its own labeled section in both formats, never under an included heading.
  assert.ok(customer.html.includes('Not included'));assert.ok(customer.html.indexOf('Land and financing.')>customer.html.indexOf('Not included'));
 });
@@ -117,7 +117,8 @@ test('ordinary overhead-door scope and every priced line survive page, email, an
  for(const output of [page,mail.html,mail.text,pdf]){
   assert.match(output,/Repair the overhead garage door and its opener\./);
   assert.match(output,/Repair overhead garage door/);
-  assert.match(output,/\$1,200 to \$1,400 total/);
+  // The approved estimate shows one amount per category; the page breakdown still shows each line's total.
+  assert.match(output,output===page?/\$1,200 to \$1,400 total/:/\$1,500 to \$1,800/);
  }
 });
 
@@ -139,7 +140,7 @@ test('a fully private description is replaced safely without dropping its priced
  for(const output of [page,mail.html,mail.text,pdf]){
   assert.match(output,/Priced scope item - Garage Doors/);
   assert.match(output,/100 LF/);
-  assert.match(output,/\$335 to \$435 total/);
+  assert.match(output,output===page?/\$335 to \$435 total/:/\$335 to \$435/);
   assert.doesNotMatch(output,/\$2\.00|200\.00 direct cost|direct labor rate/i);
  }
 });

@@ -6,8 +6,10 @@ import fontkit from "@pdf-lib/fontkit";
 import { ESTIMATOR_BRAND as brand } from "./brand.ts";
 type PublicResult={status:string;range:{low:number;high:number}|null;summary:string;includedCategories:string[];categoryRanges?:{category:string;low:number;high:number}[];lineItems?:{id:string;category:string;description:string;quantity:number;unit:string;low:number;high:number;unitLow:number;unitHigh:number}[];allowances:unknown[];assumptions:string[];exclusions:string[];factors:string[];nextStep:string;message:string;disclaimer:string};
 type Block={title?:string;text?:string;rows?:[string,string][];bullets?:string[];compact?:boolean};
-import {priceText,customerPresentation,estimateSections,orderedSections,scopeBullets} from './presentation.ts';
+import {priceText,estimateSections,scopeBullets} from './presentation.ts';
 import {scopeText} from './scope.ts';
+import {buildEstimateDocument,estimateReference,type EstimateBrand} from './estimateDocument.ts';
+import {renderEstimatePdf} from './estimatePdf.ts';
 const label=(value:string)=>value.replace(/([a-z])([A-Z])/g,"$1 $2").replaceAll("-"," ").replace(/^./,c=>c.toUpperCase());
 const money=(n:number)=>new Intl.NumberFormat("en-US",{style:"currency",currency:"USD",maximumFractionDigits:0}).format(n);
 const unitMoney=(n:number)=>new Intl.NumberFormat("en-US",{style:"currency",currency:"USD",minimumFractionDigits:2,maximumFractionDigits:2}).format(n);
@@ -76,21 +78,14 @@ async function render(kind:"customer"|"administrative",id:string,blocks:Block[])
   doc.setTitle(`${brand.name} ${kind} estimate ${id}`);doc.setAuthor(brand.name);doc.setSubject("Preliminary planning; not a bid, quote, offer or guaranteed price");
   return Buffer.from(await doc.save());
 }
-export function customerPdf(id:string,result:PublicResult){
-  result=customerPresentation(result);
-  const blocks:Block[]=[
-    {title:result.range?priceText(result.range):"Scope received for pricing review",text:result.message},
-    // Reading order: project, included work, categories, excluded work,
-    // allowances, items to confirm, supporting notes. Section titles carry
-    // their meaning (Included work, Excluded work) so the PDF never lists
-    // excluded items under an included heading.
-    ...orderedSections(estimateSections(result)).map(section=>section.kind==='excluded'&&!/exclu|not included/i.test(section.title)?{...section,title:`${section.title} (not included)`}:section.kind==='assumption'&&!/confirm|assum|verify|basis|factor|question/i.test(section.title)?{...section,title:`${section.title} (to confirm)`}:section),
-    {title:"Recommended next step",text:`${result.nextStep}\nSchedule a consultation: https://${brand.domain}${brand.consultationPath}\n${brand.phone} | ${brand.email}`},
-    {title:"Planning disclaimer",text:result.disclaimer},
-    // Who the customer is contracting with, on the document they keep and forward.
-    {title:"About this estimate",text:`${legalIdentityLine()}
-Prepared by ${brand.name} · ${brand.phone} · ${brand.email} · ${brand.domain}`},
-  ];return render("customer",id,blocks);
+/**
+ * The customer PDF is the approved preliminary online estimate (estimateDocument.ts + estimatePdf.ts):
+ * built from the saved estimate and its issue record, so a download, the email attachment, an admin
+ * customer preview and a resend of one revision are the same document. submittedAt dates estimates
+ * saved before issue records existed; it never falls back to the day the file happens to be rendered.
+ */
+export function customerPdf(id:string,result:PublicResult|Record<string,unknown>,submittedAt?:string|null){
+  return renderEstimatePdf(buildEstimateDocument({id,result,brand:brand as unknown as EstimateBrand,submittedAt:submittedAt||null,legalLine:legalIdentityLine()}));
 }
 export function administrativePdf(id:string,record:Record<string,unknown>){
   const number=(value:unknown)=>typeof value==="number"?new Intl.NumberFormat("en-US",{style:"currency",currency:"USD",minimumFractionDigits:2,maximumFractionDigits:2}).format(value):"Not available";
@@ -126,4 +121,4 @@ export function administrativePdf(id:string,record:Record<string,unknown>){
   if(record.costBookSnapshot){const book=record.costBookSnapshot as any;blocks.push({title:"Cost-book scope and assumptions",text:book.verifiedScope,bullets:book.assumptions||[]},{title:"Cost-book exclusions",bullets:book.exclusions||[]});}
   return render("administrative",id,blocks);
 }
-export function pdfFilename(id:string,kind:"customer"|"administrative"){return `${brand.id}-estimate-${id}-${kind}.pdf`;}
+export function pdfFilename(id:string,kind:"customer"|"administrative"){return kind==="customer"?`${brand.id}-preliminary-estimate-${estimateReference(id)}.pdf`:`${brand.id}-estimate-${id}-${kind}.pdf`;}

@@ -15,9 +15,13 @@ import { protectRequest,json,failed,limitedBody } from "./http.ts";
 import { ESTIMATOR_BRAND as brand } from "./brand.ts";
 import {customerPresentation,HIDE_CUSTOMER_UNIT_RATES} from './presentation.ts';
 import {recordEvent} from './events.ts';
+import {issueRecord,buildEstimateDocument,type EstimateBrand} from './estimateDocument.ts';
+import {legalIdentityLine} from './brandIdentity.ts';
 // Every public response uses the one customer boundary, including responses
 // rebuilt from a previously saved estimate.
 const publicResult=(estimate:unknown)=>customerPresentation(estimate,{hideUnitRates:HIDE_CUSTOMER_UNIT_RATES});
+/** The same estimate document the PDF and email render, so the result screen shows the same reference, date, finish, total and next steps. */
+const estimateDocument=(id:string,saved:unknown,submittedAt?:string|null)=>{try{return buildEstimateDocument({id,result:saved,brand:brand as unknown as EstimateBrand,submittedAt:submittedAt||null,legalLine:legalIdentityLine()});}catch(error){console.error(`[p5-estimate] document for draft ${id} could not be built:`,error instanceof Error?error.message:error);return null;}};
 
 const DELIVERY_WAIT_MS=Number(process.env.P5_DELIVERY_WAIT_MS||25_000);
 export async function postSubmission(request:Request,schedule?:(task:()=>Promise<void>)=>void){
@@ -26,7 +30,7 @@ export async function postSubmission(request:Request,schedule?:(task:()=>Promise
     if(!draft)throw new DraftError("Draft not found.",404);
     requireEstimateContact(draft.contact);
     if(draft.status==="submitted"){
-      const [row]=await query("SELECT customer_estimate FROM p5_estimator_drafts WHERE id=$1",[id]);
+      const [row]=await query("SELECT customer_estimate,submitted_at FROM p5_estimator_drafts WHERE id=$1",[id]);
       // A status check after submission drives any delivery still queued; an autoscale host has no CPU between requests.
       // Delivery is scoped to this saved revision so a status check never drives another revision's queue.
       await processOutbox({draftId:id,revision:draft.revision,limit:12}).catch(()=>undefined);
@@ -36,7 +40,7 @@ export async function postSubmission(request:Request,schedule?:(task:()=>Promise
       // is reported as "still sending", which is what the next poll will resolve.
       const saved=row?.customer_estimate?publicResult(row.customer_estimate):null;
       const delivered=await deliveryStatus(id).catch(error=>{console.error(`[p5-delivery] status lookup failed for draft ${id}:`,error instanceof Error?error.message:error);return [];});
-      return json({accepted:false,duplicate:true,id,...(saved?{result:saved}:{}),delivery:delivered});
+            return json({accepted:false,duplicate:true,id,...(saved?{result:saved}:{}),...(row?.customer_estimate?{document:estimateDocument(id,row.customer_estimate,row.submitted_at?new Date(row.submitted_at).toISOString():null)}:{}),delivery:delivered});
     }
     const body=JSON.parse(new TextDecoder().decode(await limitedBody(request,4000)));
     if(body.revision!==draft.revision)throw new DraftError("Save the latest scope before submitting.",409);
@@ -92,7 +96,11 @@ export async function postSubmission(request:Request,schedule?:(task:()=>Promise
       const error=handoff?HANDOFF_ISSUE:`Your project is saved and remains editable. ${detail} A complete price range is required before the estimate can be finalized and emailed.`;
       return json({pricingReviewRequired:true,needsCustomerInput:labels.length>0||items.length>0,handoff,missingFields,verificationItems:handoff?[]:items.slice(0,8),error},422);
     }
-    const record={draftId:id,revision:draft.revision,brand:brand.name,estimator:"p5-policy",contact:draft.contact,scope:draft.reviewed,...priced};
+    // The issue record is stamped once, here, on the saved customer estimate: reference, date, brand,
+    // service, finish basis and contact. Every later render (PDF, email, download, admin preview,
+    // resend) reads it back, so re-rendering never moves the date or re-reads the project.
+    const issue=issueRecord({brandId:brand.id,id,revision:draft.revision,now:new Date(),contact:draft.contact,scope:draft.reviewed});
+    const record={draftId:id,revision:draft.revision,brand:brand.name,estimator:"p5-policy",contact:draft.contact,scope:draft.reviewed,...priced,customer:{...priced.customer,issue}};
     const accepted=await enqueueSubmission(id,draft.revision,record);
     // Persistence is acknowledged separately from delivery. A transport failure
     // never erases the submission or tells a visitor to create a duplicate.
@@ -103,6 +111,6 @@ export async function postSubmission(request:Request,schedule?:(task:()=>Promise
     const started=deliver();
     await Promise.race([started,new Promise<void>(resolve=>setTimeout(resolve,DELIVERY_WAIT_MS))]);
     if(schedule)schedule(()=>started);
-    return json({accepted,duplicate:!accepted,id,result:publicCustomer,delivery:await deliveryStatus(id)});
+    return json({accepted,duplicate:!accepted,id,result:publicCustomer,document:estimateDocument(id,record.customer),delivery:await deliveryStatus(id)});
   }catch(error){if(isPricingPending(error))return error.retryAfterMs===0?json({error:error.message},503):json({pending:true,message:error.message,retryAfterMs:error.retryAfterMs},202);return failed(error);}
 }

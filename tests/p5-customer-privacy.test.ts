@@ -104,8 +104,8 @@ test('private text in the message, next step and disclaimer never reaches the cu
  const pdf=(await pdfTextLayers(await customerPdf('offline-privacy',leaking))).join(' ');
  for(const output of [email.html,email.text,pdf]){
   assert.doesNotMatch(output,/\$200\.00|40%|12%|Direct cost|Overhead allocation/i);
-  assert.match(output,/Planning estimate\./);
-  assert.match(output,/Not a bid\./);
+  // The free-text message and disclaimer are replaced by the approved notice on the customer estimate.
+  assert.match(output,/Preliminary estimate, not a contract\./);
  }
 });
 test('unit rates can be withheld from the customer copy while the administrative breakdown retains them',async()=>{
@@ -131,4 +131,11 @@ test('historical customer PDF hides prose rates while keeping selling totals and
  assert.match(text,/\$350/);
  assert.match(text,/100 LF/);
  assert.match(text,/not a supplier quote/);
+});
+test('owner price-book provenance notes never reach customer copy (live RE-10, 2026-09-21)',()=>{
+ // 165 book lines carry "Third-party market rate (cost to you if subcontracted)" and 28 carry
+ // "parts / materials extra"; both reached a live result screen inside line descriptions.
+ assert.equal(publicPricingText('Exterior/roof: Clean buildup at the flashing.: Roofer. Third-party market rate (cost to you if subcontracted)'),'Exterior/roof: Clean buildup at the flashing.: Roofer.');
+ assert.equal(publicPricingText('Service call. Third-party market rate; parts / materials extra'),'Service call.');
+ assert.equal(publicPricingText('Install vapor barrier in crawl space.'),'Install vapor barrier in crawl space.');
 });
