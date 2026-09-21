@@ -62,10 +62,33 @@ export function reconcileTakeoffs(items:Takeoff[]):{items:Takeoff[];issues:strin
   for(const item of output.values())issues.push(...item.issues);
   return {items:[...output.values()],issues:[...new Set(issues)]};
 }
+/**
+ * Bind the reader's page records to the pages this unit actually sent.
+ *
+ * Live 2026-09-21 (27-page permit set): pages that were read came back "unreadable, no completed
+ * review record" because the reader labelled them differently from the ledger: the file name
+ * spelled another way, or the page numbered within its section (1, 2) instead of the original
+ * (8, 9). Takeoff citations were already re-bound for a single-page unit; the page record was not.
+ * Binding, in order and never across pages that were not sent:
+ *  1. exact file and page;
+ *  2. a single-page unit owns every record it returns (it can only describe that page);
+ *  3. the same page number under a differently spelled file name;
+ *  4. section-relative numbering (1..n) mapped by position, only when nothing matched exactly.
+ * Several records for one page (tiles, repeats) combine to the worst status, as combineCoverage does.
+ * A page with no record at all is still unreadable, so a page that was never read still blocks.
+ */
 export function coverageFor(expected:{source:string;page:number}[],reported:PageRecord[]):DocumentCoverage{
-  const pages=expected.map(e=>{
-    const matches=reported.filter(r=>r.source===e.source&&r.page===e.page);
-    return matches.length===1?matches[0]:{...e,sheet:'',revision:'',status:'unreadable' as const,notes:[matches.length?'Duplicate page review records require verification.':'No completed review record was returned for this page.']};
+  const bound=new Map<number,PageRecord[]>();const used=new Set<PageRecord>();
+  const bind=(i:number,r:PageRecord)=>{used.add(r);bound.set(i,[...(bound.get(i)||[]),{...r,source:expected[i].source,page:expected[i].page}]);};
+  expected.forEach((e,i)=>{for(const r of reported)if(r.source===e.source&&r.page===e.page)bind(i,r);});
+  if(expected.length===1)for(const r of reported)if(!used.has(r))bind(0,r);
+  expected.forEach((e,i)=>{if(bound.has(i))return;for(const r of reported)if(!used.has(r)&&r.page===e.page)bind(i,r);});
+  const exact=reported.some(r=>expected.some(e=>e.source===r.source&&e.page===r.page));
+  if(!exact&&expected.length>1)for(const r of reported)if(!used.has(r)&&r.page>=1&&r.page<=expected.length&&!bound.has(r.page-1))bind(r.page-1,r);
+  const pages=expected.map((e,i)=>{
+    const rows=bound.get(i)||[];
+    if(!rows.length)return {...e,sheet:'',revision:'',status:'unreadable' as const,notes:['No completed review record was returned for this page.']};
+    return {...rows[0],status:rows.every(r=>r.status==='read')?'read' as const:rows.some(r=>r.status==='read'||r.status==='partial')?'partial' as const:'unreadable' as const,notes:[...new Set(rows.flatMap(r=>r.notes))]};
   });
   return {pages,expectedPages:expected.length,complete:pages.length===expected.length&&pages.every(p=>p.status==='read')};
 }

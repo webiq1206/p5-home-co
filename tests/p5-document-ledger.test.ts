@@ -15,10 +15,27 @@ test('Progress counts original pages, not overlapping image tiles',()=>{
   assert.equal(complete.readPages,1);assert.equal(complete.totalSections,2);
   assert.equal(analysisProgress([{pages:[page],result}],[page,{...page,page:2}]).readPages,1);
 });
-test('Missing or duplicate page reports never claim completion',()=>{
+test('Missing or conflicting page reports never claim completion',()=>{
   assert.equal(coverageFor([page],[]).complete,false);
-  assert.equal(coverageFor([page],[read,read]).complete,false);
+  // Repeated records for one page combine to the worst status: agreeing reads are a read page,
+  // any partial or unreadable record keeps it from counting as read.
+  assert.equal(coverageFor([page],[read,read]).complete,true);
+  assert.equal(coverageFor([page],[read,{...read,status:'partial'}]).complete,false);
   assert.equal(coverageFor([page],[{...read,status:'partial'}]).complete,false);
+});
+test('A read page labelled differently by the reader is bound to the page that was sent (live permit set, 2026-09-21)',()=>{
+  const sent={source:'Permit Plans - Gambardella.pdf',page:8};
+  // A one-page unit owns the record it returns, whatever file name or section number it used.
+  assert.equal(coverageFor([sent],[{...read,source:'Permit Plans - Gambardella.pdf (page 8)',page:1}]).complete,true);
+  const bound=coverageFor([sent],[{...read,page:1}]).pages[0];assert.equal(bound.page,8);assert.equal(bound.source,sent.source);
+  // Several pages: the same page number under another spelling of the file name.
+  const two=[{source:'set.pdf',page:8},{source:'set.pdf',page:9}];
+  assert.equal(coverageFor(two,[{...read,source:'SET.PDF',page:8},{...read,source:'SET.PDF',page:9}]).complete,true);
+  // Several pages numbered within the section (1, 2) map by position when nothing matched exactly.
+  assert.deepEqual(coverageFor(two,[{...read,source:'set.pdf',page:1},{...read,source:'set.pdf',page:2}]).pages.map(p=>[p.page,p.status]),[[8,'read'],[9,'read']]);
+  // A page with no record at all still blocks: nothing is invented for a page that was not read.
+  const missing=coverageFor(two,[{...read,source:'set.pdf',page:8}]);
+  assert.equal(missing.complete,false);assert.equal(missing.pages[1].status,'unreadable');
 });
 test('A page review returned as one object or keyed by page is still read',async()=>{
  // Live on the Marcliffe RE-10 the reader returned "pages" as an object and a read page was lost.
