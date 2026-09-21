@@ -841,3 +841,24 @@ test('Re-uploading one document prices the same even when the reader asks differ
  assert.equal(compatibleAnswers(answerEntries(plain),answerEntries(corrected)),false,'a changed measurement is a different project');
  assert.equal(compatibleAnswers(answerEntries(plain),answerEntries(asked)),true,'a question that was never asked is not a contradiction');
 });
+test("The reader's own summary of a document does not make it a different project",async()=>{
+ const {documentScopeFingerprint,pricingScopeFingerprint,compatibleAnswers,answerEntries}=await import('../lib/p5/pricingCache.ts');
+ // Both sides are the SAME RE-10, read twice on boisehandyman.co. Every difference below is the
+ // reader describing one document in its own words; the customer stated nothing different.
+ const read1={...scope,uploads:[{id:'u1',name:'re10.pdf',type:'application/pdf',size:2048,sha256:'c'.repeat(64),status:'stored' as const}],
+  answers:{...scope.answers,plumbing:'Reconfigure under sink trap assemblies; install vacuum breakers on all exterior hose bibs',
+   taskList:'Fireplace: install ignition components, ensure operational; remove damper',
+   otherDetails:'Prior page items: chimney cap repair/cleaning, exterior venting boots',
+   estimatingInstructions:'Question: This page lists items 1-4\nAnswer: generic text'}};
+ const read2={...read1,answers:{...scope.answers,plumbing:'Reconfigure under sink trap assemblies; install vacuum breakers on exterior hose bibs',
+   taskList:'Chimney cap: repair severe cracking; clean chimney bottom flashing buildup',
+   otherDetails:'About 900 square feet'}};
+ assert.equal(documentScopeFingerprint(read1,config),documentScopeFingerprint(read2,config),'one document, one project');
+ assert.equal(pricingScopeFingerprint(read1,config),pricingScopeFingerprint(read2,config),'and one priced identity');
+ assert.equal(compatibleAnswers(answerEntries(read1),answerEntries(read2)),true,'so the saved price still applies');
+ // What the customer states still governs: a measurement they change prices again.
+ const measured={...read2,answers:{...read2.answers,sqft:'1200'}};
+ const before={...read1,answers:{...read1.answers,sqft:'900'}};
+ assert.equal(compatibleAnswers(answerEntries(before),answerEntries(measured)),false);
+ assert.notEqual(pricingScopeFingerprint(before,config),pricingScopeFingerprint(measured,config));
+});

@@ -1,7 +1,7 @@
 {
  "source": "boise-remodeling-co",
- "commit": "c939a29ca7677d6552e8736b1c16957fd62b94ae",
- "generatedAt": "2026-09-20T23:27:13.438Z",
+ "commit": "1ea35906d389a87b0221445188a6e4443c70d1fe",
+ "generatedAt": "2026-09-21T00:18:57.325Z",
  "note": "Shared estimator files. Edit them in boise-remodeling-co and run scripts/p5-sync.mjs; never edit them in one brand.",
  "files": {
   "app/admin/p5-estimators/page.tsx": "80b9e20e4144c34a9f78033ab1b84e2555e42c44e670050b9e0fcbffa477512e",
@@ -76,7 +76,7 @@
   "lib/p5/planningBooks.ts": "f6cb18dceb80a67393fefd401939bed6b1160e0a4f196ec7b458f3d60dd4164f",
   "lib/p5/presentation.ts": "eb9cb3700398c15bca435eedc2b73f67a1bc370085f90c058619f50523e0001a",
   "lib/p5/pricing.ts": "a5afd67d86dde609b2671e0dc880e9363ec94abe7b03d1aedc45544366843db4",
-  "lib/p5/pricingCache.ts": "057032d9cf4ed0d8d79e77a77329d7c208bd301f1a01febc15bf2036c1ddf8fd",
+  "lib/p5/pricingCache.ts": "9aaebdf929f959b9d66d106196ac9b9b96e511524b9fa4c0dad2856618e4ae8b",
   "lib/p5/pricingLedger.ts": "5b5a5eab4f91a844e847fb19abb6850241f3488c62556d4f05b25fe5740e2e44",
   "lib/p5/pricingPreflight.ts": "3024bb6d9e5d3e6831964a9f2ba734718d20c7855bf946292b0a8037bdfd77c8",
   "lib/p5/pricingProgress.ts": "bc41e712fc4646b0fac46fe4c8fa815dd6490778f70ab1212fda568edf445156",
@@ -217,7 +217,7 @@
   "tests/p5-response-reader.test.ts": "8d0f4227f2366bcbd480fe306e61c79ae5fe577e526e6aa32fef9c7a4b39121c",
   "tests/p5-retained-clarification.test.ts": "6e5e5f5e46f0fd81a1d08fa6b7c88465b1b9abf59f6d592021687d2e344ca60e",
   "tests/p5-scope-inventory.test.ts": "7f66957ff37ecd0d67dec62619103882575fb4f21bbe6d98d8eabd18d369969b",
-  "tests/p5-scope-pricing.test.ts": "8a2a984314a9e3c319826ccf1045e7276ae1ddea6910237bc541becc435a68c7",
+  "tests/p5-scope-pricing.test.ts": "0686d0143adef0941d1a4cad263942d7c594aee8ce7733d3dff9a2b55bf76b1f",
   "tests/p5-scope-replacement.test.ts": "f807839815b94265f8abe02473e39590bcbfbb57f1e1e2dabd80fec4d41ec24e",
   "tests/p5-shared-engine.test.ts": "20ae2674d22f093301f9745f81d81e5135985e9ffa7ac1a0708c9ece1cc33ed4",
   "tests/p5-source-responsibilities.test.ts": "8dffd02608e602a78062d4a72f35f95e993f4fe80298e097bad40cbd26beb7ae",

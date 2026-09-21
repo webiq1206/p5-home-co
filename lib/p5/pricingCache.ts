@@ -52,7 +52,7 @@ export function pricingScopeFingerprint(scope:ReviewedScope,configuration:Estima
   return digest([
     'p5-price-v1',ESTIMATOR_VERSION,ESTIMATOR_BRAND.id,
     words(scope.text),
-    answerIdentity(scope.answers as unknown as Record<string,unknown>),
+    answerEntries(scope),
     (scope.uploads||[]).filter(upload=>upload.status==='stored').map(upload=>upload.sha256).filter(Boolean).sort(),
     (scope.corrections||[]).map(correction=>[correction.field,words(correction.value)]).sort(),
     configurationIdentity(configuration),
@@ -76,7 +76,28 @@ export function documentScopeFingerprint(scope:ReviewedScope,configuration:Estim
     configurationIdentity(configuration),
   ]);
 }
-export const answerEntries=(scope:ReviewedScope)=>answerIdentity(scope.answers as unknown as Record<string,unknown>).map(([k,v])=>[k,v] as [string,string]);
+/**
+ * The answer fields a saved price is compared on: measurements, counts and chosen options, plus
+ * the location and the scope limits a customer states in their own words.
+ *
+ * Deliberately NOT every field. The reader writes its own summary of the uploaded document into
+ * the narrative fields - taskList, electrical, plumbing, otherDetails and the rest - and it
+ * summarises differently each time it reads. Two runs of one RE-10 produced "install vacuum
+ * breakers on all exterior hose bibs" and "install vacuum breakers on exterior hose bibs", which
+ * is the same work described twice. Comparing that prose compares the reader against itself and
+ * never matches, which is exactly the drift a saved price exists to remove. What a customer
+ * actually decides - how many square feet, which finish, what to leave out - is structured, and
+ * that is what must agree.
+ */
+const COMPARED_FIELDS=new Set([
+  'service','finish','garageIncluded','cabinetRoom','urgency','complexity','location','address',
+  'exclusions','ownerSupplied','alternates','allowances','permits',
+  'sqft','garageSqft','coveredOutdoorSqft','cabinetTallLf','length','width','rooms','bathrooms','stories',
+  'cabinetBaseLf','cabinetUpperLf','flooringSqft','tileSqft','countertopSqft','demolitionSqft',
+  'fixtureCount','laborHours','trimLf','projectMonths',
+]);
+export const answerEntries=(scope:ReviewedScope)=>answerIdentity(scope.answers as unknown as Record<string,unknown>)
+  .filter(([field])=>COMPARED_FIELDS.has(field)).map(([k,v])=>[k,v] as [string,string]);
 /**
  * Whether a saved price still describes what this visitor is asking for. Every field they have
  * stated in both runs must agree. A field only one run holds is a question the other was never
