@@ -45,7 +45,17 @@ try{
     console.log('removed the empty table from this workspace; a publish should now propose no database change.');
     process.exit(0);
   }
-  if(exists){console.log('p5_estimator_price_cache is already present here; a publish will propose no change to it.');process.exit(0);}
+  if(exists){
+    // Present, but possibly in the older five-column shape while production carries the newer one.
+    // Adding the column and index is additive and idempotent, and it is what makes the two match.
+    const [{column}]=(await pool.query("SELECT count(*)::int AS column FROM information_schema.columns WHERE table_name='p5_estimator_price_cache' AND column_name='document'")).rows;
+    if(column||legacy){console.log('p5_estimator_price_cache is already present here; a publish will propose no change to it.');process.exit(0);}
+    if(!apply){console.log('p5_estimator_price_cache here lacks the document column that a newer production copy has. Re-run with --apply to add it.');process.exit(0);}
+    await pool.query('ALTER TABLE p5_estimator_price_cache ADD COLUMN IF NOT EXISTS document text');
+    await pool.query('CREATE INDEX IF NOT EXISTS p5_estimator_price_cache_document ON p5_estimator_price_cache(document,created_at DESC)');
+    console.log('added the document column and its index here; publish again and the migration should be empty.');
+    process.exit(0);
+  }
   console.log('p5_estimator_price_cache is missing from this database, so a publish would propose dropping it in production.');
   if(!apply&&!legacy){console.log('Nothing written. Re-run with --apply (current shape) or --legacy (original five-column shape).');process.exit(0);}
   await pool.query(`CREATE TABLE IF NOT EXISTS p5_estimator_price_cache (
