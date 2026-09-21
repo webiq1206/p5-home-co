@@ -156,3 +156,24 @@ test('a customer contradiction retains its confirmation and exact source quantit
     assert.ok(scopeQuestions(result.answers,result.extraction,reconcileScope(result.answers,result.extraction!).conflicts).some(q=>q.conflict&&q.field==='ownerSupplied'));
   }finally{for(const key of keys){if(saved[key]===undefined)delete process.env[key];else process.env[key]=saved[key];}}
 });
+test('an answer that gives no count is kept and priced, never asked again (live RE-10, 2026-09-21)',async()=>{
+  const {resolveInstructionAnswer}=await resolver();
+  const keys=['OPENAI_API_KEY','AI_INTEGRATIONS_OPENAI_API_KEY','AI_INTEGRATIONS_OPENAI_BASE_URL','ANTHROPIC_API_KEY'];
+  const saved=Object.fromEntries(keys.map(key=>[key,process.env[key]]));
+  for(const key of keys)delete process.env[key];process.env.OPENAI_API_KEY='synthetic';
+  try{
+    const e=scope();e.instructions!.questions=['How many garage light fixtures need repair?'];
+    const answers={service:'handyman',taskList:'Fix garage lighting'};
+    const prompt=instructionPrompts(e,answers)[0];
+    // The re-read turns the non-answer into new questions; none of them may reach the customer.
+    const request:typeof fetch=async()=>{
+      const output={summary:'',facts:[],conflicts:[],reviewNotes:[],missingInformation:[],clarifications:[{field:'taskList',question:'Answer did not specify a count.?',reason:'No count'}],
+        instructions:{...e.instructions,questions:['Answer did not specify a count.?']},pages:[],takeoffs:[]};
+      return Response.json({status:'completed',output:[{content:[{type:'output_text',text:JSON.stringify(output)}]}]});
+    };
+    const result=await resolveInstructionAnswer(e,answers,{id:prompt.id,answer:'Not sure, all of the ones in the garage'},[],request);
+    assert.deepEqual(result.extraction?.instructions?.questions,[]);
+    assert.equal((result.extraction?.clarifications||[]).some(q=>/did not specify/i.test(q.question)),false);
+    assert.match(result.answers.estimatingInstructions||'',/all of the ones in the garage/);
+  }finally{for(const key of keys){if(saved[key]===undefined)delete process.env[key];else process.env[key]=saved[key];}}
+});

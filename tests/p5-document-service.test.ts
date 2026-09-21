@@ -167,13 +167,16 @@ test('strict coverage rejects false-complete records without blocking unpaged ty
   {complete:true,expectedPages:2,pages:[page]},
   {complete:true,expectedPages:2,pages:[page,page]},
   {complete:true,expectedPages:1,pages:[{...page,source:'unknown.pdf'}]},
-  {complete:true,expectedPages:1,pages:[{...page,status:'partial'}]},
+  {complete:true,expectedPages:1,pages:[{...page,status:'partial',notes:['Part of the sheet is unreadable.']}]},
+  {complete:true,expectedPages:1,pages:[{...page,status:'unreadable'}]},
   {complete:true,expectedPages:1,pages:[{...page,page:0}]},
   {complete:true,expectedPages:0,pages:[]},
  ]){
   assert.throws(()=>assertCompleteSourceCoverage({...base,documentCoverage:coverage},['local.pdf'],[{source:'local.pdf',page:1}],true),/coverage/);
  }
  assert.doesNotThrow(()=>assertCompleteSourceCoverage({...base,documentCoverage:{complete:true,expectedPages:1,pages:[page]}},['local.pdf'],[{source:'local.pdf',page:1}],true));
+ // A read page marked partial only because values are blank (a budget with its numbers removed) is covered.
+ assert.doesNotThrow(()=>assertCompleteSourceCoverage({...base,documentCoverage:{complete:true,expectedPages:1,pages:[{...page,status:'partial',notes:['Dollar amounts are blank; descriptions are legible.']}]}},['local.pdf'],[{source:'local.pdf',page:1}],true));
  assert.doesNotThrow(()=>assertProjectSourceCoverage([],null));
  assert.throws(()=>assertProjectSourceCoverage([pdf],null),/verification is missing/);
   assert.throws(()=>assertProjectSourceCoverage([pdf,{...pdf,id:'photo',sha256:'b'.repeat(64),name:'site.jpg',type:'image/jpeg'}],{...base,documentCoverage:{complete:true,expectedPages:1,pages:[page]}}),/coverage/);

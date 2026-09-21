@@ -18,10 +18,10 @@ test('Progress counts original pages, not overlapping image tiles',()=>{
 test('Missing or conflicting page reports never claim completion',()=>{
   assert.equal(coverageFor([page],[]).complete,false);
   // Repeated records for one page combine to the worst status: agreeing reads are a read page,
-  // any partial or unreadable record keeps it from counting as read.
+  // a partial record counts only when no note says content could not be read; unreadable never counts.
   assert.equal(coverageFor([page],[read,read]).complete,true);
-  assert.equal(coverageFor([page],[read,{...read,status:'partial'}]).complete,false);
-  assert.equal(coverageFor([page],[{...read,status:'partial'}]).complete,false);
+  assert.equal(coverageFor([page],[read,{...read,status:'partial',notes:['Section C is unreadable.']}]).complete,false);
+  assert.equal(coverageFor([page],[{...read,status:'unreadable'}]).complete,false);
 });
 test('A read page labelled differently by the reader is bound to the page that was sent (live permit set, 2026-09-21)',()=>{
   const sent={source:'Permit Plans - Gambardella.pdf',page:8};
@@ -81,4 +81,21 @@ test('a drawing page is supplied whole when detail rendering fails on the host',
   assert.ok(units[0].data.length>0&&/supplied whole/.test(units[0].name));
   assert.deepEqual(units[0].pages,[{source:'plans.pdf',page:1}]);assert.equal(units[0].nextPage,1);
   assert.deepEqual(units[1].pages,[{source:'plans.pdf',page:2}]);
+});
+test('A readable page marked partial for blank or redacted values counts as read (live Construction budget, 2026-09-21)',async()=>{
+  const {pageCovered,blockingReviewNote}=await import('../lib/p5/documentLedger.ts');
+  const partial={...read,status:'partial' as const,notes:['Dollar amounts are blank on this page; all line descriptions are legible.']};
+  assert.equal(pageCovered(partial),true);
+  assert.equal(coverageFor([page],[partial]).complete,true);
+  // A partial page that says part of it could not be read still blocks.
+  assert.equal(pageCovered({...partial,notes:['The lower half of the sheet is unreadable.']}),false);
+  assert.equal(coverageFor([page],[{...partial,notes:['The lower half of the sheet is unreadable.']}]).complete,false);
+  assert.equal(blockingReviewNote('Revision table is blank, not unreadable.'),false);
+});
+test('Text from a PDF is made well formed before it is sent to a reader (live Construction budget, 2026-09-21)',async()=>{
+  const {wellFormed}=await import('../lib/p5/extraction.ts');
+  const broken=`Budget ${String.fromCharCode(0xD83D)} line${String.fromCharCode(0)}${String.fromCharCode(7)} kept\nnext`;
+  const out=wellFormed(broken);
+  assert.equal(out.isWellFormed(),true);assert.match(out,/Budget .* line kept\nnext/);
+  assert.equal([...out].some(c=>c.charCodeAt(0)<9),false,'control bytes are removed');
 });

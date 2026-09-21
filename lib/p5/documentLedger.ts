@@ -6,6 +6,27 @@ export interface Takeoff {
   sources:{source:string;page:number;sheet:string;revision:string}[];
   supersedes:string[];issues:string[];
 }
+/** A review note blocks a customer range only when a document, section or
+ * page could not be read at all, so the quantities behind the price may be
+ * missing. Other notes (a dropped takeoff, an unconfirmed photo observation,
+ * a duplicate page record) travel with the range as items to confirm.
+ *
+ * Kept in this dependency-free module so page coverage, reading and pricing share one rule. */
+/** A reader stating content is NOT unreadable ("all legible, no unreadable content", "blank
+ * table, not unreadable content"). Live 2026-09-21 these notes alone blocked a fully read
+ * 27-page plan set. Only the negated phrase is removed; the rest of the note is still tested. */
+const NEGATED_UNREADABLE=/\b(?:no|not|nothing|none|without)\s+(?:[a-z]+\s+){0,2}?(?:unreadable|illegible)\b/gi;
+export function blockingReviewNote(note:string):boolean{
+  note=note.replace(NEGATED_UNREADABLE,' ');
+  return /unread section|could not be read|was not processed|unsupported (?:file|upload|document|specification)|unreadable|not readable|failed to read|no pages? (?:were|was|could be) read|automatic reading could not finish|automatic read failed|saved for manual review|could not read this file/i.test(note);
+}
+/**
+ * A page counts as read when it was read in full, or read as "partial" with no note saying that
+ * content could not be read. Live 2026-09-21: a budget with its numbers removed was read on every
+ * page, each marked partial because the amounts were blank, and the estimator retried until it gave
+ * up. A partial page whose note says part of it is unreadable still does not count.
+ */
+export const pageCovered=(p:{status:string;notes?:string[]})=>p.status==='read'||p.status==='partial'&&!(p.notes||[]).some(blockingReviewNote);
 const isObject=(v:unknown):v is Record<string,unknown>=>Boolean(v&&typeof v==='object'&&!Array.isArray(v));
 const strings=(v:unknown):v is string[]=>Array.isArray(v)&&v.every(x=>typeof x==='string');
 /**
@@ -90,7 +111,7 @@ export function coverageFor(expected:{source:string;page:number}[],reported:Page
     if(!rows.length)return {...e,sheet:'',revision:'',status:'unreadable' as const,notes:['No completed review record was returned for this page.']};
     return {...rows[0],status:rows.every(r=>r.status==='read')?'read' as const:rows.some(r=>r.status==='read'||r.status==='partial')?'partial' as const:'unreadable' as const,notes:[...new Set(rows.flatMap(r=>r.notes))]};
   });
-  return {pages,expectedPages:expected.length,complete:pages.length===expected.length&&pages.every(p=>p.status==='read')};
+  return {pages,expectedPages:expected.length,complete:pages.length===expected.length&&pages.every(pageCovered)};
 }
 /** Multiple detail-tile batches must ALL be read before one physical page is read. */
 export function combineCoverage(parts:DocumentCoverage[],expected?:{source:string;page:number}[]):DocumentCoverage{
@@ -102,5 +123,5 @@ export function combineCoverage(parts:DocumentCoverage[],expected?:{source:strin
     if(!rows.length)return {...p,sheet:'',revision:'',status:'unreadable' as const,notes:['This page was not processed. Review or retry it before relying on the takeoff.']};
     return {...rows[0],status:rows.every(r=>r.status==='read')?'read' as const:rows.some(r=>r.status==='read'||r.status==='partial')?'partial' as const:'unreadable' as const,notes:[...new Set(rows.flatMap(r=>r.notes))]};
   });
-  return {pages,expectedPages:wanted.length,complete:pages.every(p=>p.status==='read')};
+  return {pages,expectedPages:wanted.length,complete:pages.every(pageCovered)};
 }

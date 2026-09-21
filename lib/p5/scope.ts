@@ -1,5 +1,5 @@
 import {mergeInstructions,validateInstructions,type ScopeInstructions} from './instructions.ts';
-import {readPageRecords,readTakeoffs,reconcileTakeoffs,combineCoverage} from './documentLedger.ts';
+import {readPageRecords,readTakeoffs,reconcileTakeoffs,combineCoverage,blockingReviewNote} from './documentLedger.ts';
 import type {RetainedClarificationProvenance,RetainedLaborCoverage} from './retainedClarification.ts';
 import {aggregateLaborFacts} from './laborFacts.ts';
 import {verifiedCabinetWidth} from './cabinetMeasurements.ts';
@@ -461,21 +461,8 @@ export function combineScopeExtractions(parts:ScopeExtraction[]):ScopeExtraction
   merged.missingInformation=reconcileMissingInformation(merged);
   return preserveIndependentQuestions(merged);
 }
-/** A review note blocks a customer range only when a document, section or
- * page could not be read at all, so the quantities behind the price may be
- * missing. Other notes (a dropped takeoff, an unconfirmed photo observation,
- * a duplicate page record) travel with the range as items to confirm.
- *
- * Defined here rather than in costBook so the page-level reconciliation below
- * can consult it without importing the pricing layer, which imports this one. */
-/** A reader stating content is NOT unreadable ("all legible, no unreadable content", "blank
- * table, not unreadable content"). Live 2026-09-21 these notes alone blocked a fully read
- * 27-page plan set. Only the negated phrase is removed; the rest of the note is still tested. */
-const NEGATED_UNREADABLE=/\b(?:no|not|nothing|none|without)\s+(?:[a-z]+\s+){0,2}?(?:unreadable|illegible)\b/gi;
-export function blockingReviewNote(note:string):boolean{
-  note=note.replace(NEGATED_UNREADABLE,' ');
-  return /unread section|could not be read|was not processed|unsupported (?:file|upload|document|specification)|unreadable|not readable|failed to read|no pages? (?:were|was|could be) read|automatic reading could not finish|automatic read failed|saved for manual review|could not read this file/i.test(note);
-}
+/** blockingReviewNote lives in documentLedger.ts so page coverage and pricing share one rule. */
+export {blockingReviewNote};
 /** Words too generic to prove a note is answered: they appear in almost every
  * construction line item, so matching on them would discard real questions. */
 const GENERIC_SUBJECT=new Set(['work','works','item','items','material','materials','labor','labour','hours','install','installation','installed','finish','finishes','finishing','spec','specs','specification','specifications','detail','details','scope','project','area','size','sizes','type','types','system','systems','concrete','wood','metal','paint','trim','unit','units','total','totals','quantity','quantities','dimension','dimensions','not','and','the','for','with','only','shown','stated','specified','provided','required','page','pages','per','this','that','from','all','new','existing']);

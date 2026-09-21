@@ -189,24 +189,36 @@ function errorForProvider(provider: Provider, status: number | null, message: st
 
 async function responseError(provider: Provider, response: Response): Promise<ProviderError> {
   const error=errorForProvider(provider, response.status, "Document analysis service rejected the request");
+  // The provider's own reason describes the request, never the document; logging it names the cause.
+  if(response.status>=400&&response.status<500&&response.status!==429){try{const detail=await response.clone().json() as {error?:{type?:string;message?:string}};console.error(`[p5-analysis] ${provider.kind} ${response.status} reason: ${String(detail?.error?.type||'')} ${String(detail?.error?.message||'').slice(0,240)}`);}catch{}}
   const header=response.headers.get('retry-after');
   if(header){const milliseconds=/^\d+(\.\d+)?$/.test(header)?Number(header)*1000:Date.parse(header)-Date.now();if(Number.isFinite(milliseconds)&&milliseconds>0)error.retryAfterMs=Math.max(1000,milliseconds);}
   return error;
 }
 
+/**
+ * Text taken from a PDF can carry unpaired UTF-16 halves and control bytes (live 2026-09-21: a budget
+ * with its numbers removed). They make the request body invalid for Anthropic, which rejected every
+ * page and even the text-only retry in under a second. Replace broken characters; keep the words.
+ */
+export function wellFormed(value:unknown):string{
+  const text=String(value??'');
+  const repaired=typeof (text as {toWellFormed?:()=>string}).toWellFormed==='function'?(text as unknown as {toWellFormed:()=>string}).toWellFormed():text.replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g,'\uFFFD');
+  return repaired.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g,'');
+}
 function asInputContent(files: AnalysisFile[], text: string, previous: ScopeAnswers): Record<string, unknown>[] {
   const content: Record<string, unknown>[] = [];
   for (const file of files) {
     content.push({ type: "input_text", text: `Source filename: ${file.name}\nOriginal page manifest: ${JSON.stringify(file.pages||[])}` });
     const detailContext=detailViewContext(file);if(detailContext)content.push({type:'input_text',text:detailContext});
-    if(file.text&&!TEXT_TYPES.includes(file.type))content.push({type:'input_text',text:`${TEXT_LAYER_NOTE}\n${file.text}`});
-    if(file.context)content.push({type:'input_text',text:`${CONTEXT_NOTE}\n${file.context}`});
+    if(file.text&&!TEXT_TYPES.includes(file.type))content.push({type:'input_text',text:`${TEXT_LAYER_NOTE}\n${wellFormed(file.text)}`});
+    if(file.context)content.push({type:'input_text',text:`${CONTEXT_NOTE}\n${wellFormed(file.context)}`});
     if (file.type === "application/pdf") content.push({ type: "input_file", filename: file.name, file_data: `data:application/pdf;base64,${file.data.toString("base64")}` });
     else if (["image/jpeg", "image/png", "image/webp", "image/gif"].includes(file.type)) content.push({ type: "input_image", image_url: `data:${file.type};base64,${file.data.toString("base64")}`, detail: "high" });
-    else if (["text/plain", "text/csv", "application/json"].includes(file.type)) content.push({ type: "input_text", text: file.data.toString("utf8") });
+    else if (["text/plain", "text/csv", "application/json"].includes(file.type)) content.push({ type: "input_text", text: wellFormed(file.data.toString("utf8")) });
     else throw new Error("document-needs-conversion");
   }
-  content.push({ type: "input_text", text: JSON.stringify({ submittedScope: text, previousAnswers: previous }) });
+  content.push({ type: "input_text", text: JSON.stringify({ submittedScope: wellFormed(text), previousAnswers: previous }) });
   return content;
 }
 
@@ -248,14 +260,14 @@ async function analyzeWithAnthropic(provider: Provider, text: string, files: Ana
   for (const file of files) {
     content.push({ type: "text", text: `Source filename: ${file.name}\nOriginal page manifest: ${JSON.stringify(file.pages||[])}` });
     const detailContext=detailViewContext(file);if(detailContext)content.push({type:'text',text:detailContext});
-    if(file.text&&!TEXT_TYPES.includes(file.type))content.push({type:'text',text:`${TEXT_LAYER_NOTE}\n${file.text}`});
-    if(file.context)content.push({type:'text',text:`${CONTEXT_NOTE}\n${file.context}`});
+    if(file.text&&!TEXT_TYPES.includes(file.type))content.push({type:'text',text:`${TEXT_LAYER_NOTE}\n${wellFormed(file.text)}`});
+    if(file.context)content.push({type:'text',text:`${CONTEXT_NOTE}\n${wellFormed(file.context)}`});
     if (file.type === "application/pdf") content.push({ type: "document", source: { type: "base64", media_type: "application/pdf", data: file.data.toString("base64") } });
     else if (["image/jpeg", "image/png", "image/webp", "image/gif"].includes(file.type)) content.push({ type: "image", source: { type: "base64", media_type: file.type, data: file.data.toString("base64") } });
-    else if (["text/plain", "text/csv", "application/json"].includes(file.type)) content.push({ type: "text", text: file.data.toString("utf8") });
+    else if (["text/plain", "text/csv", "application/json"].includes(file.type)) content.push({ type: "text", text: wellFormed(file.data.toString("utf8")) });
     else throw new Error("document-needs-conversion");
   }
-  content.push({ type: "text", text: JSON.stringify({ submittedScope: text, previousAnswers: previous }) });
+  content.push({ type: "text", text: JSON.stringify({ submittedScope: wellFormed(text), previousAnswers: previous }) });
   const started = Date.now();
   const response = await request(`${provider.endpoint}/messages`, {
     method: "POST", signal: AbortSignal.timeout(timeoutMs),

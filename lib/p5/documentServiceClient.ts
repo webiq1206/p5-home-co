@@ -1,4 +1,5 @@
 import {createHash,createHmac,randomUUID} from 'node:crypto';
+import {pageCovered} from './documentLedger.ts';
 import {query} from './database.ts';
 import {readStoredBytes} from './objectStorage.ts';
 import {claimWork,writeWork,releaseWork} from './workStore.ts';
@@ -89,7 +90,7 @@ export function assertCompleteSourceCoverage(extraction:AnalysisResult['extracti
  const seen=new Set<string>(),wanted=expected&&new Set(expected.map(p=>JSON.stringify([p.source,p.page])));
  for(const page of coverage.pages){
   const key=JSON.stringify([page.source,page.page]);
-  if(!sources.includes(page.source)||!Number.isSafeInteger(page.page)||page.page<=0||page.status!=='read'||seen.has(key)||(wanted&&!wanted.has(key)))fail();
+  if(!sources.includes(page.source)||!Number.isSafeInteger(page.page)||page.page<=0||!pageCovered(page)||seen.has(key)||(wanted&&!wanted.has(key)))fail();
   seen.add(key);
  }
  if((wanted&&seen.size!==wanted.size)||(requiresPages&&!seen.size))fail();

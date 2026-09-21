@@ -55,10 +55,13 @@ export async function resolveInstructionAnswer(extraction:ScopeExtraction|null,a
    const result=await analyzeBatch(clarificationContext(extraction,question,answer,answers),[],answers,request,60000);
   if(!result.extraction.instructions)throw new DraftError('Your answer is still here. We could not save its scope update. Please retry.',503);
   const instructions=result.extraction.instructions;
-  const repeated=instructions.questions.find(q=>questionKey(q)===prompt.id);
-  if(repeated)throw new DraftError('Please make the scope decision explicit, such as what to include or exclude. Your answer is saved in this tab.');
-  // Preserve other unanswered questions even if a provider omitted them.
-  instructions.questions=[...new Set([...instructionPrompts(extraction,answers,sourceText).filter(q=>q.id!==prompt.id).map(instructionPromptText),...instructions.questions])];
+  // Owner rule (2026-09-21): never ask the same question twice. The customer's reply is kept word for
+  // word in the estimating instructions below and priced from; a reply that settles nothing (for
+  // example no count) is priced as an allowance to confirm, not asked again. So the re-read may not add
+  // questions: live, "How many fixtures?" answered without a number came back as a new question
+  // reading "Answer did not specify a count.?" and then blocked the estimate. Only questions the
+  // customer has not been asked yet remain.
+  instructions.questions=[...new Set(instructionPrompts(extraction,answers,sourceText).filter(q=>q.id!==prompt.id).map(instructionPromptText))];
    const changedFacts=result.extraction.facts||[];
    const changedFields=new Set(changedFacts.map(fact=>fact.field));
    const conflictedFields=new Set((result.extraction.conflicts||[]).map(conflict=>conflict.field));
@@ -72,7 +75,9 @@ export async function resolveInstructionAnswer(extraction:ScopeExtraction|null,a
    // A clarification can introduce a contradiction or another focused question.
    // Retain those decisions instead of silently treating the reply as resolved.
    const conflicts=[...extraction.conflicts.filter(conflict=>!changedFields.has(conflict.field)&&!conflictedFields.has(conflict.field)),...result.extraction.conflicts];
-   const clarifications=[...(extraction.clarifications||[]).filter(item=>!changedFields.has(item.field)),...(result.extraction.clarifications||[])];
+   // A follow-up from re-reading an answer is kept only where the answer itself contradicts something
+   // (a real, different decision); any other follow-up would be the same question again.
+   const clarifications=[...(extraction.clarifications||[]).filter(item=>!changedFields.has(item.field)),...(result.extraction.clarifications||[]).filter(item=>conflictedFields.has(item.field))];
   const record={id:prompt.id,question,answer};
   const combined=[answers.estimatingInstructions,`Question: ${question}\nAnswer: ${answer}`].filter(Boolean).join('\n\n');
   if(combined.length>SCOPE_TEXT_LIMIT)throw new DraftError('Upload the additional scope notes as a document to preserve them in full.');
