@@ -159,6 +159,11 @@ test('only unread content blocks the estimate; blank or redacted values on a rea
  assert.equal(blockingReviewNote('plans.heic: saved for manual review. Export as PDF, XLSX, DOCX, JPEG or PNG for automatic extraction.'),true);
  assert.equal(blockingReviewNote('budget.pdf, page 3: unreadable. No completed review record was returned for this page.'),true);
  assert.equal(blockingReviewNote('budget.pdf, page 1: partial. Numeric values (SF, $ amounts, dates) are redacted throughout; scope descriptions are legible.'),false);
+ // Live 2026-09-21, Gambardella permit set: notes saying content is NOT unreadable blocked a fully read set.
+ assert.equal(blockingReviewNote('Page 1 detail crops (regions 7-12) show partial site plan graphics (retaining wall, addition outlines, setback lines) - all legible, no unreadable content.'),false);
+ assert.equal(blockingReviewNote('Blank runs in title block/general notes tables reflect source formatting, not unreadable content.'),false);
+ assert.equal(blockingReviewNote('Delta Revision Date table on this page is blank (no revision entries), not unreadable.'),false);
+ assert.equal(blockingReviewNote('No dimension strings are legible; sheet A2.1 is unreadable.'),true);
 });
 
 test('list fields delivered as JSON text or omitted are recovered without another provider call',async()=>{

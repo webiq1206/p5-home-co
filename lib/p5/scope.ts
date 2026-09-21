@@ -207,6 +207,11 @@ export function validateExtraction(raw: unknown): ScopeExtraction {
       else { unreadValues.push(`Confirm ${SCOPE_FIELDS[f.field as ScopeField].label.toLowerCase()} if no other source supplies a readable value.`); return []; }
     }
     const knownField=typeof f.field==='string'&&Object.hasOwn(SCOPE_FIELDS,f.field);
+    // A fact filed under a name outside the vocabulary is never used, but it is not a reason to
+    // discard the page's other facts and repair items. Live 2026-09-21: one such fact threw away
+    // page 2 of an RE-10, items 5-8 went missing and the estimate was handed to a person.
+    // No question stands behind an unknown name, so nothing is asked; the page's repair items and text still carry the work.
+    if(!knownField)return [];
     const invalid=!knownField?'field':typeof f.value!=='string'||!f.value.trim()?'empty value':validateAnswer(f.field as ScopeField,f.value)?'value format':typeof f.confidence!=='number'||!Number.isFinite(f.confidence)||f.confidence<0||f.confidence>1?'confidence':typeof f.source!=='string'||!f.source.trim()||f.source.length>500?'source':typeof f.evidence!=='string'||!f.evidence.trim()||f.evidence.length>4000?'evidence':'';
     if(invalid)throw new Error(`Invalid extracted fact (${knownField?f.field:'unknown field'}: ${invalid})`);
     // The validation above narrows these at runtime. Never include the supplied
@@ -463,7 +468,12 @@ export function combineScopeExtractions(parts:ScopeExtraction[]):ScopeExtraction
  *
  * Defined here rather than in costBook so the page-level reconciliation below
  * can consult it without importing the pricing layer, which imports this one. */
+/** A reader stating content is NOT unreadable ("all legible, no unreadable content", "blank
+ * table, not unreadable content"). Live 2026-09-21 these notes alone blocked a fully read
+ * 27-page plan set. Only the negated phrase is removed; the rest of the note is still tested. */
+const NEGATED_UNREADABLE=/\b(?:no|not|nothing|none|without)\s+(?:[a-z]+\s+){0,2}?(?:unreadable|illegible)\b/gi;
 export function blockingReviewNote(note:string):boolean{
+  note=note.replace(NEGATED_UNREADABLE,' ');
   return /unread section|could not be read|was not processed|unsupported (?:file|upload|document|specification)|unreadable|not readable|failed to read|no pages? (?:were|was|could be) read|automatic reading could not finish|automatic read failed|saved for manual review|could not read this file/i.test(note);
 }
 /** Words too generic to prove a note is answered: they appear in almost every

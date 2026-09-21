@@ -14,7 +14,9 @@ test('failed preparation and empty files never reach a paid provider',async()=>{
 });
 test('the smaller fallback grammar retains strict local vocabulary validation',()=>{
  const schema=anthropicExtractionSchema();assert.equal(schema.properties.facts.items.properties.field.enum,undefined);assert.equal(schema.additionalProperties,false);
- assert.throws(()=>validateExtraction({...extraction,facts:[{field:'unapproved_field',value:'PRIVATE',source:'PRIVATE',evidence:'PRIVATE',confidence:1}]}),error=>/Invalid extracted fact/.test(String(error))&&!String(error).includes('PRIVATE'));
+ // An unapproved field is never used and never echoed, and it does not discard the rest of the read.
+ const read=validateExtraction({...extraction,facts:[{field:'unapproved_field',value:'PRIVATE',source:'PRIVATE',evidence:'PRIVATE',confidence:1}]});
+ assert.equal(read.facts.some((f:{field:string})=>f.field==='unapproved_field'),false);assert.ok(!JSON.stringify(read).includes('PRIVATE'));
 });
 test('detail view evidence stays bound to its known original page without clearing unreadability',async()=>{
  const before=Object.fromEntries(variables.map(k=>[k,process.env[k]]));for(const k of variables)delete process.env[k];process.env.OPENAI_API_KEY='fixture-only';
