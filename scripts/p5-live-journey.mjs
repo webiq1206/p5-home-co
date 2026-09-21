@@ -103,7 +103,7 @@ try{
     await est.getByLabel(/^Your name/).fill(contact.name);await est.getByLabel(/^Email/).fill(contact.email);
     const check=est.getByRole('checkbox');for(let i=0;i<await check.count();i++)if(!await check.nth(i).isChecked())await check.nth(i).check().catch(()=>{});
     const pricingStart=Date.now();await est.getByRole('button',{name:'Get my estimate',exact:true}).first().click();note('get my estimate clicked');
-    let priced='';
+    let priced='';let resubmitAfterRetry=false;
     while(Date.now()-t0<limit){
       await scanCopy('pricing');
       if(await est.getByRole('button',{name:/Download (?:estimate )?PDF/i}).count()){priced='result';break;}
@@ -114,7 +114,10 @@ try{
           // After a late question the flow returns to review; submit again.
           await page.waitForTimeout(1500);if(!await busy()&&await est.getByRole('button',{name:'Get my estimate',exact:true}).count()){await est.getByRole('button',{name:'Get my estimate',exact:true}).first().click();note('resubmitted');}continue;}
         const alert=est.getByRole('alert');if(await alert.count()){const text=(await alert.first().innerText()).trim();if(text&&!result.errors.includes(text)){result.errors.push(text);note('alert',{text:text.slice(0,400)});await shot('04-alert');
-          const retry=est.getByRole('button',{name:/^Retry/});if(await retry.count()&&result.errors.length<3){await retry.first().click();note('retry clicked');await page.waitForTimeout(2000);continue;}priced='error';break;}}
+          const retry=est.getByRole('button',{name:/^Retry/});if(await retry.count()&&result.errors.length<3){await retry.first().click();note('retry clicked');resubmitAfterRetry=true;await page.waitForTimeout(2000);continue;}priced='error';break;}}
+        // A retried document read returns to review; a visitor presses "Get my estimate" again, so the run does too.
+        const submit=est.getByRole('button',{name:'Get my estimate',exact:true});
+        if(resubmitAfterRetry&&await submit.count()&&await submit.first().isEnabled()){resubmitAfterRetry=false;await submit.first().click();note('resubmitted after retry');continue;}
       }
       await page.waitForTimeout(700);
     }
