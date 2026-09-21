@@ -19,7 +19,12 @@
 //   node scripts/p5-align-price-cache.mjs           shows what it would do
 //   node scripts/p5-align-price-cache.mjs --apply   creates the table if it is missing
 //   node scripts/p5-align-price-cache.mjs --remove  drops it here, only when it is empty
+// A site still serving the first cache build has the ORIGINAL five-column table in production: the
+// document column and its index came later. Recreating the workspace copy in that original shape
+// makes the two sides identical, so the migration is empty and no review is needed. --legacy does
+// that; --apply creates the later shape, which a site whose production already has the column wants.
 const apply=process.argv.includes('--apply');
+const legacy=process.argv.includes('--legacy');
 const remove=process.argv.includes('--remove');
 const url=process.env.DATABASE_URL||process.env.PGDATABASE_URL;
 if(!url){console.error('DATABASE_URL is not set; run this inside the workspace shell.');process.exit(1);}
@@ -42,11 +47,11 @@ try{
   }
   if(exists){console.log('p5_estimator_price_cache is already present here; a publish will propose no change to it.');process.exit(0);}
   console.log('p5_estimator_price_cache is missing from this database, so a publish would propose dropping it in production.');
-  if(!apply){console.log('Nothing written. Re-run with --apply to create the empty table.');process.exit(0);}
+  if(!apply&&!legacy){console.log('Nothing written. Re-run with --apply (current shape) or --legacy (original five-column shape).');process.exit(0);}
   await pool.query(`CREATE TABLE IF NOT EXISTS p5_estimator_price_cache (
-    fingerprint text PRIMARY KEY, payload jsonb NOT NULL, document text,
+    fingerprint text PRIMARY KEY, payload jsonb NOT NULL,${legacy?'':' document text,'}
     created_at timestamptz NOT NULL DEFAULT now(), used_at timestamptz NOT NULL DEFAULT now(),
     uses integer NOT NULL DEFAULT 0)`);
-  await pool.query('CREATE INDEX IF NOT EXISTS p5_estimator_price_cache_document ON p5_estimator_price_cache(document,created_at DESC)');
-  console.log('created the empty table; publish again and the migration should be empty.');
+  if(!legacy)await pool.query('CREATE INDEX IF NOT EXISTS p5_estimator_price_cache_document ON p5_estimator_price_cache(document,created_at DESC)');
+  console.log(`created the empty table in its ${legacy?'original':'current'} shape; publish again and the migration should be empty.`);
 }finally{await pool.end();}
