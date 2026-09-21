@@ -903,3 +903,9 @@ test('A task mapped to a master price book line carries the book\'s direct cost 
  assert.equal(rule.priceBasis,'direct-cost','overhead and profit are applied once, after this');
  assert.match(rule.evidence.reference,/PB-12-31-01/);
 });
+test('a contract-timing question never withholds a price',async()=>{
+ const {advisoryIssue}=await import('../lib/p5/scopePricing.ts');
+ // Live Marcliffe RE-10 wording.
+ assert.ok(advisoryIssue('Schedule conflict: the extracted notice states completion within 8 business days, while another document note says the field is blank and defaults to 10 business days. Which deadline governs the estimate? Price and scope are otherwise unaffected.'));
+ assert.ok(!advisoryIssue('The 8 business day completion requires overtime labor that is unpriced.'),'timing that names unpriced cost still blocks');
+});

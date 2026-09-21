@@ -659,6 +659,11 @@ export function planningResolution(raw:unknown,tasks:Mapping['tasks'],now:Date,o
  * unverified pricing stays blocking. */
 export function advisoryIssue(text:string):boolean{
   const t=text.toLowerCase();
+  // Contract timing is not pricing. Live on the Marcliffe RE-10, "which completion deadline governs:
+  // 8 business days or the form's 10-day default? Price and scope are otherwise unaffected" withheld
+  // the whole price. A timing finding is disclosed unless it also names cost, quantity or missing work.
+  if(/\b(?:business days?|completion (?:deadline|date|period)|deadline governs|(?:contract(?:ual)?|repair) (?:deadline|completion)|days? (?:to|for) (?:complete|completion)|closing date)\b/.test(t)
+    &&!/\$|\bcost|quantit|\bunpriced\b|\bomit|missing (?:work|materials?|labor)|duplicat|double[- ]count|wrong (?:unit|uom)/.test(t))return true;
   // The owner's approved schedule is the foundation. A finding whose only complaint is how the
   // owner arrived at an approved catalog line (scope-N) - "derived from past selling prices",
   // "assumed overhead and profit" - disputes the owner's method, not the estimate. On a live
