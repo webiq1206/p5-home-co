@@ -129,13 +129,25 @@ export function scopeAssumptions(answers:ScopeAnswers,skipped:ScopeField[]=[],ex
   for(const k of skipped)if(!answers[k]&&scopeFieldApplies(k,questionContext(answers,extraction,sourceText)))notes.push(`${SCOPE_FIELDS[k].label}: not yet known; requires a disclosed, supported allowance before pricing.`);
   return notes;
 }
-function handoffForService(service:string){
-  const id=ESTIMATOR_BRAND.id as string;
-  if(id==='remodeling'&&service==='new-construction')return {label:'Continue with Boise Construction Co',url:'https://boiseconstruction.co/estimate',reason:'This is a new-build project. Boise Construction Co is the correct estimator for new construction.'};
-  if(id==='construction'&&remodels.includes(service))return {label:'Continue with Boise Remodeling Co',url:'https://boiseremodeling.co/estimate',reason:'This is a remodeling project. Boise Remodeling Co is the correct estimator for remodel work.'};
-  if(id!=='cabinet'&&service.startsWith('cabinet-'))return {label:'Continue with Boise Cabinet Co',url:'https://boisecabinet.co/estimate',reason:'This project is primarily cabinet work. Boise Cabinet Co is the correct estimator for cabinet supply and installation.'};
-  if(id!=='handyman'&&service==='handyman')return {label:'Continue with Boise Handyman Co',url:'https://boisehandyman.co/estimate',reason:'This project is a repair or handyman scope. Boise Handyman Co is the correct estimator for this work.'};
-  return null;
+/** Which sister company estimates each kind of work. Every site can send a project it does not
+ * handle to the right one; Cabinet and Handyman used to have no route out at all, so a remodel or
+ * new build typed there ended at a question listing only their own services. */
+const SERVICE_HOME:Record<string,{id:string;name:string;url:string;work:string}>={
+  'new-construction':{id:'construction',name:'Boise Construction Co',url:'https://boiseconstruction.co/estimate',work:'new construction'},
+  kitchen:{id:'remodeling',name:'Boise Remodeling Co',url:'https://boiseremodeling.co/estimate',work:'remodel work'},
+  bathroom:{id:'remodeling',name:'Boise Remodeling Co',url:'https://boiseremodeling.co/estimate',work:'remodel work'},
+  'whole-home':{id:'remodeling',name:'Boise Remodeling Co',url:'https://boiseremodeling.co/estimate',work:'remodel work'},
+  addition:{id:'remodeling',name:'Boise Remodeling Co',url:'https://boiseremodeling.co/estimate',work:'additions'},
+  adu:{id:'remodeling',name:'Boise Remodeling Co',url:'https://boiseremodeling.co/estimate',work:'ADUs'},
+  'cabinet-product':{id:'cabinet',name:'Boise Cabinet Co',url:'https://boisecabinet.co/estimate',work:'cabinet supply and installation'},
+  'cabinet-install':{id:'cabinet',name:'Boise Cabinet Co',url:'https://boisecabinet.co/estimate',work:'cabinet supply and installation'},
+  handyman:{id:'handyman',name:'Boise Handyman Co',url:'https://boisehandyman.co/estimate',work:'repair and handyman work'},
+  re10:{id:'handyman',name:'Boise Handyman Co',url:'https://boisehandyman.co/estimate',work:'inspection and RE-10 repairs'},
+};
+export function handoffForService(service:string){
+  const home=SERVICE_HOME[service];
+  if(!home||home.id===(ESTIMATOR_BRAND.id as string))return null;
+  return {label:`Continue with ${home.name}`,url:home.url,reason:`${home.name} is the correct estimator for ${home.work}.`};
 }
 export function scopeQuestionsForBrand(...args:Parameters<typeof scopeQuestions>):ScopeQuestion[]{
   const service=args[0].service;
@@ -143,7 +155,7 @@ export function scopeQuestionsForBrand(...args:Parameters<typeof scopeQuestions>
   // on a stale default before the customer's project type is established.
   if((args[2]||[]).some(c=>c.field==='service'))return scopeQuestions(...args).filter(q=>q.field==='service');
   if(service&&!(ESTIMATOR_BRAND.services as readonly string[]).includes(service)){
-    const handoff=handoffForService(service);if(handoff)return [{field:'service',label:'Right estimator',reason:handoff.reason,detail:'Open the correct estimator below. Your scope, answers, and files are not transferred automatically; copy your scope and answers, then attach your files there.',handoff:{label:handoff.label,url:handoff.url}}];
+    const handoff=handoffForService(service);if(handoff)return [{field:'service',label:'Right estimator',reason:handoff.reason,detail:'Open the correct estimator below. Your description and answers are carried over for you; attach any files again there.',handoff:{label:handoff.label,url:handoff.url}}];
     return [{field:'service',label:'Project type',reason:`Which part of this project should ${ESTIMATOR_BRAND.name} estimate?`,values:[...ESTIMATOR_BRAND.services],detail:'Choose the work you want this company to handle. Your complete project description and documents are retained.'}];
   }
   return scopeQuestions(...args);

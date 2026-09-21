@@ -57,16 +57,11 @@ test('A finding about a task already carried out of the total is disclosed, not 
  assert.ok(!carriedOutRemark('gfci is duplicated by scope-4',carried,priced),'a finding about a priced task is judged by the other rules');
  assert.ok(!carriedOutRemark('chimney-cap-repair duplicates gfci',carried,priced),'one that also names a priced task is not released here');
 });
-test('One trip is carried for the whole job when repairs were priced as time inside one visit',async()=>{
- const {jobTripRule}=await import('../lib/p5/scopePricing.ts');
- const trip={code:'PB-01-01-07',description:'Minimum service charge (trip, call, minimum or diagnostic charge)',type:'Other' as const,unit:'EA',amount:135,source:'P5 Cost Database 2026.xlsx',basis:'owner-average-cost' as const};
- const withTrip={...config,planningCatalog:{...catalog,rates:[...catalog.rates,trip]}};
- const planning={id:'planning-1',description:'Replace one vent boot',unit:'EA',quantity:{fixed:1,factor:1},unitCost:40} as any;
- const rule=jobTripRule(withTrip,[],[planning])!;
- assert.equal(rule.unitCost,135);assert.equal(rule.quantity.fixed,1);
- assert.equal(jobTripRule(withTrip,[],[{...planning,id:'scope-1'}]),null,'no planning allowance, no one-visit promise to keep');
- assert.equal(jobTripRule(withTrip,[{description:'Service call fee'}],[planning]),null,'a trip already carried is never added twice');
- assert.equal(jobTripRule(config,[],[planning]),null,'without the owner\'s trip line no number is invented');
+test('The one-visit rule says trip and setup are recovered in overhead, so the audit never looks for a trip line',async()=>{
+ const source=(await import('node:fs')).readFileSync('lib/p5/scopePricing.ts','utf8');
+ // Live Marcliffe RE-10: the prompt promised a trip line nothing carried, and a carried one was then refused as an unsupported extra charge.
+ assert.match(source,/recovered by the company overhead/);
+ assert.doesNotMatch(source,/jobTripRule/);
 });
 test('Scope facts use notes and earlier model issues require an explicit evidenced resolution',async()=>{
  const note='The cabinetry quantity is explicitly stated in the reviewed scope.';
@@ -216,11 +211,11 @@ test('Large scope maps bounded batches and audits every original task together',
   // Batches are independent now: they run concurrently and none is handed
   // another's additions. Each must be bounded, and together they must cover
   // every inventory task exactly once - the audit verifies the whole mapping.
-  if(data.taskBatch){assert.ok(data.taskBatch.length<=6);assert.deepEqual(data.priorMappedTasks,[]);for(const t of data.taskBatch){assert.ok(!seen.has(t.id),`task ${t.id} mapped twice`);seen.add(t.id);}return {value:{tasks:data.taskBatch.map((t:any)=>({...task,...t})),issues:[]},sourceUrls:[]};}
+  if(data.taskBatch){assert.ok(data.taskBatch.length<=4);assert.deepEqual(data.priorMappedTasks,[]);for(const t of data.taskBatch){assert.ok(!seen.has(t.id),`task ${t.id} mapped twice`);seen.add(t.id);}return {value:{tasks:data.taskBatch.map((t:any)=>({...task,...t})),issues:[]},sourceUrls:[]};}
   assert.equal(data.tasks.length,14);return {value:{coveredTaskIds:tasks.map(t=>t.id),issues:[]},sourceUrls:[]};
  };
  const result=await priceCompleteScope(scope,config,request,now);
- assert.equal(calls,1+Math.ceil(14/6)+1,'inventory, one mapping call per six-task batch, one audit');assert.ok(result.customer.range);assert.equal(result.customer.scopeTasks.length,14);
+ assert.equal(calls,1+Math.ceil(14/4)+1,'inventory, one mapping call per four-task batch, one audit');assert.ok(result.customer.range);assert.equal(result.customer.scopeTasks.length,14);
  assert.equal(seen.size,14,'every inventory task was mapped once');
 });
 test('A missing or substituted batch task never releases a partial total',async()=>{
@@ -517,7 +512,7 @@ test('A mapping batch that times out is halved and both halves are priced',async
   return {value:{coveredTaskIds:tasks.map(t=>t.id),issues:[]},sourceUrls:[]};
  };
  const result=await priceCompleteScope(scope,config,request,now);
- assert.deepEqual(sizes,[6,6,3,3,3,3],'each oversized batch was split once into two halves');
+ assert.deepEqual(sizes,[4,4,4,2,2,2,2,2,2],'each oversized batch was split once into two halves');
  assert.ok(result.customer.range,'the same model and prompt price the halves and the range is released');
  assert.equal(result.customer.scopeTasks.length,12);
 });
@@ -665,7 +660,7 @@ test('Advisory-only issues release the range without a repair round',async()=>{
   throw new Error('unexpected pricing request');
  };
  const result=await priceCompleteScope(scope,config,request,now);
- assert.equal(mappings,Math.ceil(tasks.length/6),'initial mapping batches only: no repair mapping when the only issues are advisory');
+ assert.equal(mappings,Math.ceil(tasks.length/4),'initial mapping batches only: no repair mapping when the only issues are advisory');
  assert.equal(audits,1,'no second audit when the only issues are advisory');
  assert.ok(result.customer.range,'the range is released');
  assert.ok(result.customer.assumptions.some((a:string)=>/confirm the colour selection/.test(a)),'the advisory note travels with the estimate as an item to confirm');

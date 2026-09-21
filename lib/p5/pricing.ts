@@ -245,13 +245,19 @@ export function calculateP5Estimate(input: PricingInput, finance: FinancePolicy,
   // The low endpoint cannot cut known direct costs below the approved floor.
   const lowFloor = priceFromRiskAdjustedCost(riskAdjustedDirectCost, allocations.total, Math.min(matrix.floor, margin));
   const planningRange = { low: Math.ceil(Math.max(lowFloor, contractPrice * (1 - width)) / step) * step, high: Math.ceil(contractPrice * (1 + width) / step) * step };
-  // Extend observed direct-cost bounds before applying the same policy once.
-  const sourceHigh=lines.reduce((total,line)=>{
+  // Extend observed direct-cost bounds before applying the same policy once. Each line's upside is
+  // its high quantity at its high cost, less its modeled cost. The uncertain lines of one job do
+  // not all land at their worst case together, so their upsides combine as independent errors
+  // (square root of the sum of squares) rather than stacking: a single uncertain allowance keeps
+  // its full upside, while twenty small ones no longer compound into a range the customer reads
+  // as a guess (live Marcliffe RE-10: $28,200 to $45,900).
+  const upsides=lines.map(line=>{
     const range=line.unitCostRange;
     if(range){finite(range.low,'Source cost low',true);finite(range.high,'Source cost high',true);if(range.low>line.unitCost||range.high<line.unitCost)throw new Error('The source range must contain the unit cost');}
     if(line.quantityRange){finite(line.quantityRange.low,'Quantity allowance low',true);finite(line.quantityRange.high,'Quantity allowance high',true);if(line.quantityRange.low>line.quantity||line.quantityRange.high<line.quantity)throw new Error('The quantity range must contain the modeled quantity');}
-    return total+(line.quantityRange?.high??line.quantity)*(range?.high??line.unitCost);
-  },0);
+    return Math.max(0,(line.quantityRange?.high??line.quantity)*(range?.high??line.unitCost)-line.cost);
+  });
+  const sourceHigh=directCost+Math.sqrt(upsides.reduce((total,upside)=>total+upside*upside,0));
   planningRange.high=Math.max(planningRange.high,Math.ceil(priceFromRiskAdjustedCost(sourceHigh*(1+contingencyRate),allocations.total,margin)/step)*step);
   if (input.missingInformation.length) warn("missing-project-information", "Resolve the recorded missing project information before a firm proposal.");
   if (contractPrice < 100 || contractPrice > 10000000) warn("unusual-total", "The result is outside the broad project review limits. Verify quantities and units.", "block");

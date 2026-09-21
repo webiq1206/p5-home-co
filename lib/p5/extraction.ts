@@ -147,7 +147,21 @@ function safeProviderMessage(value: unknown): string {
     .slice(0, 240);
 }
 
+/**
+ * The scope reader's Anthropic model, and why. P5_SCOPE_FAST_MODEL wins; P5_SCOPE_MODEL is used only
+ * when it names a Sonnet or Haiku model (Opus reads were too slow for the 60-second analysis budget),
+ * and a value that is ignored is reported rather than silently replaced. The release endpoint shows it.
+ */
+export function scopeModelSetting():{model:string;source:string;ignored?:string}{
+  const fast=process.env.P5_SCOPE_FAST_MODEL,requested=process.env.P5_SCOPE_MODEL;
+  if(fast)return {model:fast,source:'P5_SCOPE_FAST_MODEL',...(requested?{ignored:`P5_SCOPE_MODEL=${requested} (P5_SCOPE_FAST_MODEL takes precedence)`}:{})};
+  if(requested&&/sonnet|haiku/i.test(requested))return {model:requested,source:'P5_SCOPE_MODEL'};
+  return {model:'claude-sonnet-5',source:'default',...(requested?{ignored:`P5_SCOPE_MODEL=${requested} (only Sonnet or Haiku models are used for scope reads)`}:{})};
+}
+let reportedIgnored=false;
 function providers(): Provider[] {
+  const setting=scopeModelSetting();
+  if(setting.ignored&&!reportedIgnored){reportedIgnored=true;console.warn(`[p5-config] scope reader uses ${setting.model}; ignored ${setting.ignored}`);}
   const result: Provider[] = [];
   const integrated = Boolean(process.env.AI_INTEGRATIONS_OPENAI_API_KEY && process.env.AI_INTEGRATIONS_OPENAI_BASE_URL);
   const openAiKey = integrated ? process.env.AI_INTEGRATIONS_OPENAI_API_KEY : process.env.OPENAI_API_KEY;
@@ -158,8 +172,7 @@ function providers(): Provider[] {
   }
   const anthropicKey = process.env.ANTHROPIC_API_KEY;
   if (anthropicKey) {
-    const requested = process.env.P5_SCOPE_MODEL;
-    result.push({ kind: "Anthropic", key: anthropicKey, endpoint: "https://api.anthropic.com/v1", model: process.env.P5_SCOPE_FAST_MODEL || (requested && /sonnet|haiku/i.test(requested) ? requested : "claude-sonnet-5") });
+    result.push({ kind: "Anthropic", key: anthropicKey, endpoint: "https://api.anthropic.com/v1", model: scopeModelSetting().model });
   }
   // One read costs one provider call. Anthropic leads scope reads (measured at
   // about 16 s for a typed scope where the OpenAI read was exceeding the

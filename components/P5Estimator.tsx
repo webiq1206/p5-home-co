@@ -114,7 +114,21 @@ export function P5Estimator({defaultService='',headingAs='h1',projectSource,layo
     change({answers,conflicts:(d.conflicts||[]).filter(c=>c.field!==key),wizard:{...d.wizard,skipped:(d.wizard?.skipped||[]).filter(k=>k!==key),resolutions:{...d.wizard?.resolutions,[key]:value}}});
   };
   useEffect(()=>{
-    mounted.current=true;const loaded=loadBrowserDraft(defaultService,projectSource?.id);const d=projectSource&&!loaded.sourceDetached?mergeProjectSource(loaded,projectSource):loaded;resume(d);setRecoveries(listBrowserDraftRecoveries(d.namespace));setWarning(d.analysisWarning||d.extraction?.reviewNotes.find(n=>n.startsWith("Your files are saved, but"))||"");
+    mounted.current=true;const loaded=loadBrowserDraft(defaultService,projectSource?.id);const d=projectSource&&!loaded.sourceDetached?mergeProjectSource(loaded,projectSource):loaded;resume(d);
+    // A project carried over from a sister company arrives as a single-use code; claim it once and
+    // start from it. The code is removed from the address bar so a refresh or a shared link never reuses it.
+    const carriedCode=new URLSearchParams(window.location.search).get('continue');
+    if(carriedCode){
+      const url=new URL(window.location.href);url.searchParams.delete('continue');window.history.replaceState(null,'',url.toString());
+      void fetch('/api/p5-estimator/handoff',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({action:'claim',code:carriedCode})}).then(r=>r.json()).then((carried:{text?:string;answers?:Record<string,string>;fromName?:string;error?:string})=>{
+        if(!mounted.current)return;
+        if(carried.error||!current.current){setWarning(carried.error||'');return;}
+        const answers=Object.fromEntries(Object.entries(carried.answers||{}).filter(([key])=>Object.hasOwn(SCOPE_FIELDS,key)));
+        if(carried.text?.trim())changeProjectText(carried.text);
+        if(Object.keys(answers).length)change({answers:{...current.current.answers,...answers}});
+        setStatus(`Your project was carried over from ${carried.fromName||'our sister company'}. If you attached files there, attach them again here.`);
+      }).catch(()=>{});
+    }setRecoveries(listBrowserDraftRecoveries(d.namespace));setWarning(d.analysisWarning||d.extraction?.reviewNotes.find(n=>n.startsWith("Your files are saved, but"))||"");
     setSpeechAvailable(Boolean((window as any).SpeechRecognition||(window as any).webkitSpeechRecognition));
     // The composer stays locked until device recovery settles, so a reload can
     // never send a project while files chosen earlier are silently missing.
@@ -368,6 +382,16 @@ export function P5Estimator({defaultService='',headingAs='h1',projectSource,layo
   const choose=(value:string)=>{if(!active||busyRef.current)return;engage();setError('');const text=selectCustomerAnswer(optionLabel(value),reply,(active.values||[]).map(optionLabel));setReply(text);change({pendingReply:{id:customerQuestionKey(active)!,answer:text}});composerRef.current?.focus();};
   const skipQuestion=()=>{if(!active||busyRef.current)return;engage();logExchange(active,'Not sure yet');void advance({skip:true});};
   const jumpToField=(field:ScopeField)=>{const d=current.current;if(!d)return;engage();change({wizard:{...d.wizard,resolutions:d.wizard?.resolutions||{},skipped:(d.wizard?.skipped||[]).filter(k=>k!==field)}});setActive(questionForField(field,d.answers));setMissingFields([]);setVerificationItems([]);setError('');setAddingDetails(false);apply({...current.current!,step:1});};
+  /** Carry this project to the sister company's estimator; if the transfer fails, open it plainly. */
+  async function carryProject(fallback:string){
+    const d=current.current;let target=fallback;
+    try{
+      const response=await fetch('/api/p5-estimator/handoff',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({action:'send',service:d?.answers.service,text:d?.text||'',answers:d?.answers||{}})});
+      const sent=response.ok?await response.json() as {url?:string}:null;
+      if(typeof sent?.url==='string'&&sent.url.startsWith('https://'))target=sent.url;
+    }catch{/* the plain link still works */}
+    window.location.assign(target);
+  }
   async function downloadPdf(){let saved=false;setPdfState('preparing');await run('Preparing your PDF...',async()=>{const response=await operationFetch('/api/p5-estimator/pdf',{headers:draftHeaders(current.current!)});if(!response.ok)throw new Error('The PDF could not be downloaded. Your submission is saved; please retry.');const blob=await response.blob();if(!blob.size||!blob.type.toLowerCase().includes('application/pdf'))throw new Error('The PDF is not ready. Your estimate is saved; please retry.');const url=URL.createObjectURL(blob);const link=document.createElement('a');link.href=url;link.download=`${brand.id}-estimate.pdf`;link.hidden=true;document.body.appendChild(link);try{link.click();saved=true;}finally{link.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);}});setPdfState(saved?'downloaded':'failed');}
   const focusCorrection=(element:HTMLElement|null)=>requestAnimationFrame(()=>{if(!element)return;element.focus({preventScroll:true});scrollThread(element,'center');});
   async function submit(event:React.FormEvent){
@@ -505,7 +529,7 @@ export function P5Estimator({defaultService='',headingAs='h1',projectSource,layo
   const dock=locked&&stage!==2&&stage!==3?<div className={styles.dockHint} role="status">Working on your project. Your progress is saved.</div>
     :stage===3?<div className={styles.dockBar}><a className={styles.primary} href={brand.consultationPath} onClick={()=>trackScopeEvent("onsiteRequested",draft.answers.service)}>Schedule a consultation</a><a className={styles.secondary} href={`tel:${brand.phone.replace(/[^\d+]/g,'').replace(/^(?!\+)(\d{10})$/,'+1$1')}`}>Call {brand.phone}</a></div>
     :stage===2?<>{addingDetails&&composer}<div className={styles.dockBar} data-final-action><button type="submit" form={formId} className={styles.primary} disabled={locked} aria-describedby={error?submitErrorId:undefined}>{busy?'Preparing your estimate…':'Get my estimate'}</button></div><div className={styles.dockRow}><span className={styles.dockHint}>{contactReady?(confirmed?'Your estimate opens right here and is emailed to you.':'Confirm your project details above, then get your estimate.'):'Add your name and email above to continue.'}</span><button type="button" className={styles.ghost} disabled={locked} onClick={()=>setAddingDetails(v=>!v)} aria-expanded={addingDetails}>{addingDetails?'Cancel editing':'Add or edit details'}</button></div></>
-    :stage===1&&active?.handoff?<div className={styles.dockBar}><a className={styles.primary} href={active.handoff.url}>{active.handoff.label}</a></div>
+    :stage===1&&active?.handoff?<div className={styles.dockBar}><a className={styles.primary} href={active.handoff.url} onClick={e=>{e.preventDefault();void carryProject(active.handoff!.url);}}>{active.handoff.label}</a></div>
     :<>{composer}{stage===0&&<p className={styles.dockHint}>PDFs up to {SCOPE_MAX_PAGES} pages, images, Word, spreadsheets and text. Up to 50 files, 250 MiB each and 1 GiB total. Instructions such as “price only the trim” or “exclude plumbing” are followed throughout.</p>}</>;
   return <div ref={rootRef} role="region" aria-label="Project estimator" className={styles.root} data-p5-estimator data-version={ESTIMATOR_VERSION} data-release={estimatorRelease().sha.slice(0,12)} data-theme={theme.mode} data-layout={layout} data-expanded={frameActive?'true':undefined} data-step={stage} aria-busy={Boolean(busy)} style={{...(estimatorThemeStyle(theme) as React.CSSProperties),'--p5-top':`${topInset}px`,'--p5-bottom':`${bottomInset}px`} as React.CSSProperties}>
     <form id={formId} className={styles.app} onSubmit={submit} noValidate>

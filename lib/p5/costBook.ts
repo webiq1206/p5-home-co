@@ -70,7 +70,9 @@ function priceReviewedScopeInternal(scope:ReviewedScope,configuration:EstimatorC
   const preliminaryPurpose=preliminaryModel||allowancePriced;
   const input:PricingInput={service,revision,scopeSummary:summary,lines,coverage:book.coverage,risks,estimatePurpose:preliminaryPurpose?'preliminary':undefined,
     locationProvided:Boolean(scope.answers.location||scope.answers.address),urgency:scope.answers.urgency as PricingInput["urgency"],complexity:scope.answers.complexity as PricingInput["complexity"],
-    uncertainty:missingInformation.length||scope.extraction?.reviewNotes.length?"high":"medium",
+    // Missing information widens the band; reviewer notes alone (a blank completion date, a page
+    // citation to confirm) are disclosed as assumptions and do not.
+    uncertainty:missingInformation.length?"high":"medium",
     assumptions:[...book.assumptions,...scopeAssumptions(scope.answers,scope.uncertainFields,scope.extraction,scope.text),...(scope.extraction?.reviewNotes||[]).filter(note=>!blockingReviewNote(note)).map(note=>/^to confirm:/i.test(note)?note:`To confirm: ${note}`)],exclusions:[...new Set([...book.exclusions,...explicitExclusions,...(resolution?.addExclusions||[])])],
     missingInformation,allowances:[],
   };

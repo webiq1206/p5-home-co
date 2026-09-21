@@ -94,7 +94,7 @@ const PLANNING_AVERAGE=`Provide a defensible REGIONAL PLANNING AVERAGE unit cost
 Return JSON only: {rates:[{taskId,description,unit,quantity,quantityEvidence,quantityRange,building,floor,basis,includes,excludes,low,high,confidence,rationale}],issues:[],notes:[]}.
 These are preliminary planning allowances for the supplied region (default Boise / Treasure Valley, Idaho), NOT verified local pricing, supplier quotes or published benchmarks. Give a direct-cost low/high range in USD per the stated unit for the same material/labor responsibility as the task. Use general construction estimating knowledge of typical regional unit costs; do not cite URLs, dates or sources, and never fabricate any. rationale states what the range assumes (typical materials grade, labor basis, what is included and excluded). Set confidence to medium only for common, well-understood work; otherwise low. Keep quantities exactly as supplied unless a clearly labeled ALLOWANCE modeled quantity is needed. Contradictory work, or work outside construction, remains an explicit issue rather than a guessed number. A general contractor selling price is not a direct cost.
 SERVICE AND REPAIR ITEMS: A repair list routinely leaves the product model, fixture count, size or cause of failure unstated ("repair the garage lights as needed", "install the required fireplace ignition components", "repair the cracked chimney cap"). That is normal and is NOT an issue. For such a task return exactly one lump-sum rate: unit "ls", quantity 1, quantityRange {low:1,high:1}, quantityEvidence beginning "ALLOWANCE:" and naming the assumed typical condition, includes describing a typical diagnose-and-repair visit with common parts for that item, and excludes naming what would exceed it (full replacement, specialty or discontinued parts, concealed damage, work by a licensed specialist). Use low confidence and a low/high range wide enough to reflect the unknowns, with high no more than five times low.
-ONE VISIT, DIRECT COST: Every task in one request is carried out by the same crew during the same mobilization. Price only the incremental direct labor time and materials of each task. Never put a trip charge, minimum service call, mobilization, setup day, diagnostic visit fee, permit, overhead, profit or contingency inside a task's rate; those are added once for the whole job by the established calculation after direct costs. A small repair (one receptacle, one vacuum breaker, one vent boot, one trap) is a fraction of an hour of trade labor plus a common part, so its direct cost is tens of dollars to low hundreds, not a contractor's advertised per-visit price. Retail "cost to hire a pro" figures are selling prices with a visit minimum built in; do not use them as direct costs.`;
+ONE VISIT, DIRECT COST: Every task in one request is carried out by the same crew during the same mobilization. Price only the incremental direct labor time and materials of each task. Never put a trip charge, minimum service call, mobilization, setup day, diagnostic visit fee, permit, overhead, profit or contingency inside a task's rate; trip, setup and mobilization are recovered by the company overhead that the established calculation applies once to the whole job after direct costs, so no separate trip line is carried and none is missing. Say exactly that in a line's excludes text; never say a trip line is carried separately. A small repair (one receptacle, one vacuum breaker, one vent boot, one trap) is a fraction of an hour of trade labor plus a common part, so its direct cost is tens of dollars to low hundreds, not a contractor's advertised per-visit price. Retail "cost to hire a pro" figures are selling prices with a visit minimum built in; do not use them as direct costs.`;
 const AUDIT=`Independently audit this PRELIMINARY UNIT-COST ALLOWANCE against the ORIGINAL requested scope. ${UNTRUSTED} ${ALLOWANCE_POLICY} ${FOUNDATION_POLICY} ${DIMENSION_POLICY} ${BENCHMARK_POLICY} ${ISSUE_POLICY}
 Return JSON only: {coveredTaskIds:[],issues:[],notes:[],resolvedIssues:[{issue,reason,lineIds:[]}]}.
 This is a preliminary allowance audit, not final supplier procurement approval. Put allowed broader-region evidence, disclosed undated-source freshness, unselected standard profiles and unconfirmed incidental tax/freight in notes. A national benchmark is permitted and must not fail solely for lacking Boise-specific data. A generic standard profile may be a disclosed comparable if it does not contradict a specified dimension, species or grade. Keep actual omitted work, wrong responsibility/UOM, duplicated charges, fabricated data and unsupported costs in issues. Do not put the same nonblocking note back into issues. Review priorPricingIssues explicitly. A prior model issue that is demonstrably an informational scope fact or has been resolved by positive priced components may be listed in resolvedIssues using its EXACT issue text, a specific evidence-based reason, and IDs of the positive priced lines that prove resolution. Never resolve missing or conflicting requested work merely to release a total. Unresolved findings stay in issues. A clearly labeled regional or national average unit-cost allowance can pass preliminary review when it covers the requested assembly and quantity. Do not demand supplier SKUs, pickup inventory or exact checkout tax/freight evidence for that benchmark. Preserve those limitations as verification assumptions; separately requested work must still be priced.
@@ -287,7 +287,11 @@ export const requestPricing=async(instructions:string,input:unknown,search:boole
 
 /** Independent batches run together, but only a few at a time: a burst of a dozen
  * simultaneous requests is what drew the provider's rate limit on an 18-item repair list. */
-const PRICING_FANOUT=Math.max(1,Number(process.env.P5_PRICING_FANOUT||4));
+const PRICING_FANOUT=Math.max(1,Number(process.env.P5_PRICING_FANOUT||6));
+/** Tasks per mapping call. The slowest batch sets the pace and its time is mostly the answer it
+ * writes, so smaller batches side by side finish sooner: live, a 6-task batch took 103 s while the
+ * rest took 28 to 72 s. */
+const MAP_BATCH=Math.max(1,Number(process.env.P5_MAP_BATCH||4));
 async function mapLimit<T,R>(items:T[],run:(item:T,index:number)=>Promise<R>):Promise<R[]>{
   const results:R[]=new Array(items.length);let next=0;
   await Promise.all(Array.from({length:Math.min(PRICING_FANOUT,items.length)},async()=>{while(next<items.length){const index=next++;results[index]=await run(items[index],index);}}));
@@ -692,21 +696,6 @@ export function advisoryIssue(text:string):boolean{
   return /\b(confirm(?:ed|ation|ing)?|verif(?:y|ied|ication)|verify at site|allowance|assum(?:e|ed|es|ing|ption|ptions)|methodology|per stated|see each line|to be selected|owner selection|pending selection|subject to|typical|estimat(?:e|ed|es|ing)|modeled|rounded)\b/.test(t);
 }
 
-/** The owner's book line for a job's trip and setup: preferred codes first. */
-export const TRIP_CODES=['PB-01-01-07','PB-01-01-08'];
-const TRIP_WORDS=/\b(?:trip|mobili[sz]ation|service (?:call|charge)|minimum (?:service|charge)|setup day)\b/i;
-/**
- * One job-level trip line, when repairs were priced as incremental time within one visit (planning
- * allowances) and nothing in the estimate already carries a trip, mobilization or service charge.
- * Null when the owner's book has no trip line, so no number is ever invented here.
- */
-export function jobTripRule(configuration:EstimatorConfiguration,lines:readonly {description:string}[],rules:readonly CostRule[]):CostRule|null{
-  if(!rules.some(rule=>rule.id.startsWith('planning-')))return null;
-  if([...lines,...rules].some(item=>TRIP_WORDS.test(item.description)))return null;
-  const rate=TRIP_CODES.map(code=>configuration.planningCatalog?.rates.find(r=>r.code===code)).find(Boolean);
-  if(!rate||!configuration.planningCatalog)return null;
-  return {id:'job-trip-1',description:`Job trip and setup: ${rate.description}`,trade:suggestedTrade(rate.description),unit:rate.unit==='HR'||rate.unit==='HRS'?'hour':rate.unit,quantity:{fixed:1,factor:1},unitCost:rate.amount,allowance:false,category:'other-direct',priceBasis:'direct-cost',estimatingBasis:rate.basis,evidence:{basis:'owner-estimating-schedule',reference:`${rate.source}; ${rate.code}; one trip for the whole job`,verifiedAt:configuration.planningCatalog.importedAt,validUntil:new Date(Date.parse(configuration.planningCatalog.importedAt)+92*86400000).toISOString()}} as CostRule;
-}
 /** A finding about a task that has already been carried OUT of the total ("not included in this
  * range; we will quote it after a site visit") is answered by that exclusion: the task is named to
  * the customer and costs nothing in the range, so "it remains unpriced" is simply true and is
@@ -876,10 +865,10 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
     // that ordering bought latency, not correctness. Wall-clock for mapping is
     // now the slowest batch, not the sum of all of them.
     const mappingInput=(taskBatch:typeof inventory.tasks)=>({original:sourceParts.length===1?original:{sections:[...new Set(taskBatch.map(t=>taskSources.get(t.id)!))].map(i=>sourceParts[i])},taskBatch,priorMappedTasks:[],priorReplacements:[],existingLines:lines.map(({id,description,quantity,unit,unitCost,category,trade,quantitySource})=>({id,description,quantity,unit,unitCost,category,trade,quantitySource})),defaultExclusions:base.customer.exclusions,date:now.toISOString(),catalogImportedAt:configuration.planningCatalog?.importedAt,regionalRates:configuration.regionalRates,catalog:relevantCatalog((configuration.planningCatalog?.rates||[]).map(({code,description,type,unit,amount,basis})=>({code,description,type,unit,amount,basis})),taskBatch)});
-    const mappedBatches=await mapLimit(batchesOf(inventory.tasks,6),taskBatch=>mapBatch(request,taskBatch,mappingInput,()=>deadline-Date.now()));
+    const mappedBatches=await mapLimit(batchesOf(inventory.tasks,MAP_BATCH),taskBatch=>mapBatch(request,taskBatch,mappingInput,()=>deadline-Date.now()));
     const mapping:Mapping={tasks:[],issues:[...inventory.issues],notes:[...inventory.notes],replacements:[],removeExclusions:[]};
     for(const [batchIndex,batch] of mappedBatches.entries()){
-      const taskBatch=batchesOf(inventory.tasks,6)[batchIndex];
+      const taskBatch=batchesOf(inventory.tasks,MAP_BATCH)[batchIndex];
       if(batch.tasks.length!==taskBatch.length||new Set(batch.tasks.map(t=>t.id)).size!==taskBatch.length||batch.tasks.some(t=>!taskBatch.some(expected=>expected.id===t.id)))throw new Error('Incomplete mapping batch');
       // Preserve inventory wording so later stages cannot quietly rewrite scope.
       mapping.tasks.push(...batch.tasks.map(t=>({...t,...taskBatch.find(expected=>expected.id===t.id)!})));
@@ -950,11 +939,6 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
     };
     const mappedLines=existingLines(priceReviewedScope(scope,configuration,now,resolution));
     mergeGapResults(await mapLimit(batchesOf(gaps,3),(gapBatch,index)=>priceGapBatch(gapBatch,index,t=>coveredWork(t,mappedLines,resolution.rules))));
-    // The planning prompt prices each repair as incremental time inside ONE visit and promises the
-    // trip is carried once for the whole job. Carry it, so the promise is true and the audit, which
-    // rightly asks where the trip went, finds it.
-    const trip=jobTripRule(configuration,lines,resolution.rules);
-    if(trip){resolution.rules.push(trip);resolution.assumptions.push(`${trip.description}: one trip and setup charge carried once for the whole job, from the owner's price book.`);}
     const audit:z.infer<typeof auditSchema>={coveredTaskIds:[],issues:[],notes:[],resolvedIssues:[]};
     const reconcileIssues=()=>{
       if(audit.issues.length||mapping.tasks.some(t=>!audit.coveredTaskIds.includes(t.id)))return;
@@ -1009,9 +993,9 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
       const pricedComponents=existingLines(beforeRepair);
       const fixes:Mapping={tasks:[],issues:[],notes:[],replacements:[],removeExclusions:[]};
       const repairInput=(taskBatch:typeof mapping.tasks)=>({original:sourceParts.length===1?original:{sections:[...new Set(taskBatch.map(t=>taskSources.get(t.id)!))].map(i=>sourceParts[i])},taskBatch:taskBatch.map(({id,description,evidence})=>({id,description,evidence})),pricingIssues:priorIssues,repairInstruction:'Resolve the audit findings with measured costs or item-specific allowances. Existing components already contain prior additions. Reference them instead of charging again; explicitly replace wrong or incomplete components. An unknown dimension may use an evidenced modeled quantity range, never an invented measurement.',priorMappedTasks:[],priorReplacements:[],existingLines:pricedComponents,defaultExclusions:beforeRepair.customer.exclusions,catalog:configuration.planningCatalog?.rates||[],regionalRates:configuration.regionalRates,date:now.toISOString()});
-      const repairedBatches=await mapLimit(batchesOf(mapping.tasks,6),taskBatch=>mapBatch(request,taskBatch,repairInput,()=>deadline-Date.now()));
+      const repairedBatches=await mapLimit(batchesOf(mapping.tasks,MAP_BATCH),taskBatch=>mapBatch(request,taskBatch,repairInput,()=>deadline-Date.now()));
       for(const [batchIndex,batch] of repairedBatches.entries()){
-        const taskBatch=batchesOf(mapping.tasks,6)[batchIndex];
+        const taskBatch=batchesOf(mapping.tasks,MAP_BATCH)[batchIndex];
         if(batch.tasks.length!==taskBatch.length||new Set(batch.tasks.map(t=>t.id)).size!==taskBatch.length||batch.tasks.some(t=>!taskBatch.some(expected=>expected.id===t.id)))throw new Error('Incomplete repair batch');
         fixes.tasks.push(...batch.tasks.map(t=>({...t,...taskBatch.find(x=>x.id===t.id)!,existingLineIds:t.existingLineIds,additions:t.additions,researchDescription:t.researchDescription,issues:t.issues})));
         fixes.issues.push(...batch.issues);fixes.notes.push(...batch.notes);fixes.replacements.push(...batch.replacements);fixes.removeExclusions.push(...batch.removeExclusions);

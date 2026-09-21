@@ -258,3 +258,18 @@ test("a labeled regional planning average is reviewed, never a reason to withhol
   assert.ok(customer.range, "the planning range is released");
   assert.ok(customer.disclaimer.toLowerCase().includes("not a bid"), "and stays explicitly preliminary");
 });
+
+test("uncertain lines widen the high end as independent errors, not all at their worst case together", () => {
+  // Twenty small allowances, each with an unverified count of 1 to 5. Live on the Marcliffe RE-10 the
+  // stacked worst case produced $28,200 to $45,900 for a list of small repairs.
+  const base = input("re10");
+  const line = (i: number) => ({ ...base.lines[0], id: `repair-${i}`, description: `Repair ${i}`, unit: "each", quantity: 3, unitCost: 200, quantityRange: { low: 1, high: 5 } });
+  const many = calculateP5Estimate({ ...base, lines: Array.from({ length: 20 }, (_, i) => line(i)) }, finance, [], now);
+  const worst = calculateP5Estimate({ ...base, lines: Array.from({ length: 20 }, (_, i) => ({ ...line(i), quantity: 5, quantityRange: undefined })) }, finance, [], now);
+  assert.ok(many.planningRange.high < worst.contractPrice, "twenty upsides no longer compound into every line at its worst case");
+  assert.ok(many.planningRange.high >= many.contractPrice, "the high end never falls below the modeled price");
+  // One uncertain allowance keeps its whole upside.
+  const one = calculateP5Estimate({ ...base, lines: [line(0)] }, finance, [], now);
+  const oneFull = calculateP5Estimate({ ...base, lines: [{ ...line(0), quantity: 5, quantityRange: undefined }] }, finance, [], now);
+  assert.ok(one.planningRange.high >= oneFull.contractPrice * 0.999, "a single allowance's full upside is still covered");
+});
