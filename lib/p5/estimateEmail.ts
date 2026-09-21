@@ -163,7 +163,7 @@ function plainText(id:string,record:any,admin:boolean){
   // PDF. Nothing a customer asked for is ever summarised away; only the notes below are capped.
   if(g.included.length)plainBlock('What is included',g.included.flatMap(s=>s.bullets||[]));
   for(const section of g.categories){
-    const items=[...(section.bullets||[]),...(section.rows||[]).map(([label,value])=>`${label} — ${withoutUnitRate(value).split('\n').join(' · ')}`)];
+    const items=[...(section.bullets||[]),...(section.rows||[]).map(([label,value])=>`${label} · ${withoutUnitRate(value).split('\n').join(' · ')}`)];
     plainBlock(`${section.title}${section.text?` (${section.text})`:''}`,items);
   }
   plainBlock('Not included',g.excluded.flatMap(s=>s.bullets||[]));

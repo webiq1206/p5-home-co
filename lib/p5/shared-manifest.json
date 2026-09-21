@@ -1,7 +1,7 @@
 {
  "source": "boise-remodeling-co",
- "commit": "f6ce5a9ec678652e270273c385ef6cfdf8bd190f",
- "generatedAt": "2026-09-21T02:48:50.150Z",
+ "commit": "f9c51550609267e5db9a4c006f490503538a7344",
+ "generatedAt": "2026-09-21T02:57:13.653Z",
  "note": "Shared estimator files. Edit them in boise-remodeling-co and run scripts/p5-sync.mjs; never edit them in one brand.",
  "files": {
   "app/admin/p5-estimators/page.tsx": "80b9e20e4144c34a9f78033ab1b84e2555e42c44e670050b9e0fcbffa477512e",
@@ -51,7 +51,7 @@
   "lib/p5/documents.ts": "c4eba81a0322c2b3a58abf08c522a7d9dd0a76334f941c4cb6cc4b240080de00",
   "lib/p5/draftEndpoint.ts": "0bea7d7be4171d3412f5bd28ad8d404c325cf595b035469682f779af6a66655a",
   "lib/p5/dynamicQuestions.ts": "a1a0a4a4405566c6d9204652aa321904a3f31993239a002362f4ceec2fc64069",
-  "lib/p5/estimateEmail.ts": "aef4281a50ca90fa010f852d7b6d32f5051c89349eb1ccc836e6dd7ffcc28e11",
+  "lib/p5/estimateEmail.ts": "19613d97f8588d3d68b658b44f6a07fa2cdf5a186395a99e467903544da53ba5",
   "lib/p5/events.ts": "ac8749055b13f296f40e0426add9802d302c2c1a1873767a7c2714d25abcf1f0",
   "lib/p5/explicitLabor.ts": "9bdf1fc3a08c166ccef823d71a641ee650c995d701d9fc9c02808f43fb6e6929",
   "lib/p5/explicitSelections.ts": "40d6484a83566c5ff7b72ab23f4ca6832fa5a2878c89d01ef108646cce504aba",
