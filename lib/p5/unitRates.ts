@@ -6,7 +6,7 @@ export const rateLocation=(value:string)=>value.trim().toLowerCase().replace(/\s
  * never converted into one of another kind: square feet never becomes linear
  * feet, a roofing square (100 SF) is not a square foot, and an unfamiliar unit
  * is refused rather than forced into "each" or a lump sum. */
-export type UnitDimension='area'|'length'|'count'|'time'|'volume'|'weight'|'lump';
+export type UnitDimension='area'|'length'|'count'|'time'|'volume'|'weight'|'power'|'lump';
 export const UNIT_REGISTRY:Record<string,{dimension:UnitDimension;label:string}>={
  sf:{dimension:'area',label:'SF'},sy:{dimension:'area',label:'SY'},square:{dimension:'area',label:'roofing square'},
  lf:{dimension:'length',label:'LF'},
@@ -14,6 +14,7 @@ export const UNIT_REGISTRY:Record<string,{dimension:UnitDimension;label:string}>
  hour:{dimension:'time',label:'HR'},day:{dimension:'time',label:'day'},week:{dimension:'time',label:'week'},month:{dimension:'time',label:'month'},
  cy:{dimension:'volume',label:'CY'},gallon:{dimension:'volume',label:'gallon'},
  ton:{dimension:'weight',label:'ton'},
+ acre:{dimension:'area',label:'acre'},watt:{dimension:'power',label:'watt'},
  ls:{dimension:'lump',label:'lump sum'},
 };
 /** Things a repair list counts one at a time. "each vent", "per fixture" and "device location" are all a count of one. */
@@ -25,7 +26,7 @@ export const unitKey=(unit:string)=>{
   'lf':'lf','lin ft':'lf','linear ft':'lf','lineal foot':'lf','lineal feet':'lf','linear foot':'lf','linear feet':'lf',
   'ea':'each','each':'each','unit':'each','units':'each','count':'each','qty':'each','pair':'pair','pairs':'pair','pr':'pair','set':'set','sets':'set','load':'load','loads':'load','pickup load':'load','pickup loads':'load','truck load':'load','truckload':'load','trailer load':'load','dump load':'load','sheet':'sheet','sheets':'sheet','roll':'roll','rolls':'roll',
   'hr':'hour','hrs':'hour','h':'hour','hour':'hour','hours':'hour','labor hour':'hour','labor hours':'hour','day':'day','days':'day','crew day':'day','wk':'week','week':'week','weeks':'week','mo':'month','month':'month','months':'month',
-  'cy':'cy','cubic yard':'cy','cubic yards':'cy','gal':'gallon','gallon':'gallon','gallons':'gallon','ton':'ton','tons':'ton',
+  'cy':'cy','cubic yard':'cy','cubic yards':'cy','gal':'gallon','gallon':'gallon','gallons':'gallon','ton':'ton','tons':'ton','rl':'roll','ac':'acre','acre':'acre','acres':'acre','w':'watt','watt':'watt','watts':'watt',
   'ls':'ls','lump sum':'ls','lumpsum':'ls','lot':'ls','job':'ls','allowance':'ls','package':'ls','trip':'ls','visit':'ls','service call':'ls','minimum charge':'ls'};
  if(aliases[key])return aliases[key];
  return COUNTED_UNIT.test(key)?'each':key;

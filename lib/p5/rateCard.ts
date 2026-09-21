@@ -1,24 +1,19 @@
 import type {EstimatorConfiguration} from './costBook.ts';
 import {MAX_PLANNING_RATES,type PlanningRate} from './planningBooks.ts';
-import {RATE_CARD} from './rateCardData.ts';
 
-/** The owner's Boise rate card, merged into the saved planning catalog.
+/** Shipped rates merged into the saved planning catalog for one project.
  *
- * The catalog lives in each brand's own database, and a deployment's database
- * is not the workspace's, so a rate card loaded from a workspace shell never
- * reaches production. This merge closes that gap: the card ships with the
- * server (imported only by server code, so it is never in a browser bundle),
- * and pricing adds any of its codes the saved catalog does not have yet.
+ * The saved catalog lives in each brand's own database, and a deployment's
+ * database is not the workspace's, so rates loaded from a workspace shell never
+ * reach production. The owner's master price book instead ships with the server
+ * (imported only by server code, so it is never in a browser bundle) and is
+ * resolved per project by lib/p5/priceBook.ts; this adds its lines to whatever
+ * the saved catalog holds.
  *
- * It is strictly additive and idempotent. A code the owner already has keeps
- * the owner's amount, nothing is ever removed, and once every code is present
- * the merge does nothing at all. Set P5_RATE_CARD=off to disable it. */
-export async function shippedRateCard():Promise<PlanningRate[]|null>{
-  // The generated module is what a deployed server reads: the scripts directory is not traced
-  // into the standalone build, so the JSON beside it is not there at runtime. The JSON stays the
-  // source of truth, p5-build-rate-card.mjs regenerates the module, and a test pins them together.
-  return Array.isArray(RATE_CARD)&&RATE_CARD.length?RATE_CARD:null;
-}
+ * It is strictly additive and idempotent. A code the owner has saved keeps the
+ * owner's amount, nothing is ever removed, and the catalog's own ceiling is
+ * respected. Price-book codes carry a PB- prefix, so they never collide with the
+ * saved schedule's codes the whole-home model is built on. */
 /** Codes in the card that the saved catalog does not carry yet. */
 export function missingRates(configuration:EstimatorConfiguration,card:PlanningRate[]):PlanningRate[]{
   const have=new Set((configuration.planningCatalog?.rates||[]).map(rate=>rate.code));

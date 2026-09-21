@@ -1,44 +1,62 @@
 import type {PlanningRate} from './planningBooks.ts';
+import {TRADE_SYNONYMS} from './tradeVocabulary.ts';
 
 /**
  * The slice of the owner's catalog one mapping batch is shown.
  *
- * Every rate used to be pasted into the mapping prompt, several times per estimate. That made the
- * book expensive to own: each rate added length to every call, and past a point the right rate was
- * harder to find in a longer list rather than easier. Sending the relevant slice instead means the
- * catalog can hold thousands of rates while each prompt gets shorter and the match gets sharper.
+ * Every rate used to be pasted into the mapping prompt, several times per estimate, so each rate
+ * cost length on every call and past a point the right rate was harder to find in a longer list.
+ * A batch is now shown the lines it can plausibly use, which lets the catalog hold the owner's
+ * whole price book while each prompt stays short.
  *
- * Selection is deterministic and generous, in this order:
- *   1. rates whose words overlap the tasks being mapped, best overlap first;
- *   2. the trade labor rates, which almost any task can need;
- *   3. the foundation codes the planning model is built on, which must always be offered.
- * A task that matches nothing still sees the general rates, so a thin batch is never left with an
- * empty book, and `researchDescription` remains the honest answer when nothing fits.
+ * Scopes rarely use the book's own words, so a line is chosen by meaning as well as spelling:
+ *   - a CONCEPT shared through lib/p5/tradeVocabulary.ts ("receptacle" and "outlet", "spigot" and
+ *     "hose bib") counts most;
+ *   - a word shared with the line's own name counts next;
+ *   - a word shared only with its section or division ("Electrical", "Plumbing") counts least, so
+ *     a broad trade word never crowds out the specific line.
+ * Always offered, whatever the words: the owner's foundation codes the planning model is built
+ * on, and every trade's hourly labor rate, so a task that matches nothing specific can still be
+ * priced as time. Selection is deterministic and keeps the catalog's own order.
  */
-const STOP=new Set(['with','from','that','this','into','each','only','and','the','for','per','all','any','are','not','its','their','them','were','been','over','under','also','other','such','than','then','when','where','which','while','shall','must','may','can','will','one','two','three','installed','install','supply','provide','repair','replace','remove','existing','new','required','requires','work','material','materials','labor','site','area','job','item','items','project','owner','seller','buyer','please','confirm','verify','field','stated','unstated','typical','standard','ordinary']);
-const words=(value:unknown)=>String(value??'').toLowerCase().match(/[a-z]{3,}/g)||[];
+const STOP=new Set(['with','from','that','this','into','each','only','and','the','for','per','all','any','are','not','its','their','them','were','been','over','under','also','other','such','than','then','when','where','which','while','shall','must','may','can','will','one','two','three','four','five','six','installed','install','supply','provide','existing','new','required','requires','work','material','materials','labor','site','area','job','item','items','project','owner','seller','buyer','please','confirm','verify','field','stated','unstated','typical','standard','ordinary','price','priced','separately','included','includes','only','finish','grade','range','mid','high','end','builder','luxury','remodel','premium','home','house','residence','front','back','north','south','east','west','left','right','room','rooms','needs','need','needed','replace','replacement','per','and','or']);
+const normalized=(value:unknown)=>` ${String(value??'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim()} `;
+const stem=(word:string)=>word.replace(/(?:ing|ies|ied|ed|es|s)$/,'');
+const words=(value:unknown)=>normalized(value).trim().split(' ').filter(word=>word.length>=3&&!STOP.has(word));
 /** Words that carry meaning for matching a rate to a task. */
 export function meaningfulWords(value:unknown):Set<string> {
-  return new Set(words(value).filter(word=>!STOP.has(word)).map(word=>word.replace(/(?:ing|ed|es|s)$/,'')));
+  return new Set(words(value).map(stem));
 }
-const overlap=(rate:Set<string>,task:Set<string>)=>{
-  let shared=0;
-  for(const word of rate)if(task.has(word))shared++;
-  return shared;
-};
-/** A rate every batch should see: trade labor by the hour, and the codes the planning model needs. */
-const GENERAL=/^(?:REF-|RC-LAB-|RC-GC-|RC-DISP-|RC-EQ-|RC-MOB-|RC-PERMIT-|RC-CLEAN-|RC-INSPECT-)/;
+/** Phrases, pre-normalised, so each group can be tested against normalised text. */
+const GROUPS=TRADE_SYNONYMS.map(group=>group.map(phrase=>normalized(phrase)));
+/** The concepts a text names, by index into TRADE_SYNONYMS. */
+export function conceptsOf(value:unknown):Set<number> {
+  const text=normalized(value);
+  // Also try a crude singular, so "receptacles" names the same concept as "receptacle".
+  const singular=` ${text.trim().split(' ').map(stem).join(' ')} `;
+  const found=new Set<number>();
+  GROUPS.forEach((group,index)=>{if(group.some(phrase=>text.includes(phrase)||singular.includes(` ${stem(phrase.trim())} `)))found.add(index);});
+  return found;
+}
+const shared=<V>(a:Set<V>,b:Set<V>)=>{let n=0;for(const v of a)if(b.has(v))n++;return n;};
+/** A rate's own name, as distinct from the section and division it is filed under. */
+const nameOf=(description:string)=>{const cut=description.indexOf(' (');return cut>0?description.slice(0,cut):description;};
 export const FOUNDATION_CODES=['03-17-01-M','03-17-01-L','03-15-02-M','03-15-02-L','03-16-01-M','03-16-01-L','03-14-01-M','03-14-01-L','03-04-01','03-04-02','03-04-03','03-05-02-M','03-05-02-L','REF-GENERAL-HOUR','REF-PLUMBING-HOUR','REF-ELECTRICAL-HOUR'];
-export const CATALOG_SLICE=Number(process.env.P5_CATALOG_SLICE||160);
-export function relevantCatalog<T extends Pick<PlanningRate,'code'|'description'>>(rates:readonly T[],tasks:readonly {description?:string;evidence?:string}[],limit=CATALOG_SLICE):T[]{
+/** Rates every batch should see: the planning model's foundation, and hourly trade labor. */
+const LEGACY_GENERAL=/^(?:REF-|RC-LAB-|RC-GC-|RC-DISP-|RC-EQ-|RC-MOB-|RC-PERMIT-|RC-CLEAN-|RC-INSPECT-)/;
+const alwaysOffered=(rate:{code:string;type?:string;unit?:string})=>FOUNDATION_CODES.includes(rate.code)||LEGACY_GENERAL.test(rate.code)||(rate.type==='Labor'&&/^(?:HR|HRS)$/i.test(String(rate.unit||'')));
+export const CATALOG_SLICE=Number(process.env.P5_CATALOG_SLICE||220);
+export function relevantCatalog<T extends Pick<PlanningRate,'code'|'description'>&Partial<Pick<PlanningRate,'type'|'unit'>>>(rates:readonly T[],tasks:readonly {description?:string;evidence?:string}[],limit=CATALOG_SLICE):T[]{
   if(rates.length<=limit)return [...rates];
-  const wanted=new Set<string>();
-  for(const task of tasks)for(const word of meaningfulWords(`${task.description||''} ${task.evidence||''}`))wanted.add(word);
-  const required=new Set(FOUNDATION_CODES);
-  const scored=rates.map((rate,index)=>({rate,index,
-    score:required.has(rate.code)?Number.MAX_SAFE_INTEGER:GENERAL.test(rate.code)?1e6-index:overlap(meaningfulWords(`${rate.code.replace(/-/g,' ')} ${rate.description}`),wanted)}));
-  // Best overlap first; ties keep the owner's own order so the same batch always gets the same book.
+  const text=tasks.map(task=>`${task.description||''} ${task.evidence||''}`).join(' ');
+  const wanted=meaningfulWords(text),concepts=conceptsOf(text);
+  const scored=rates.map((rate,index)=>{
+    if(alwaysOffered(rate))return {rate,index,score:Number.MAX_SAFE_INTEGER};
+    const name=nameOf(rate.description);
+    const score=shared(conceptsOf(name),concepts)*6+shared(meaningfulWords(name),wanted)*3+shared(meaningfulWords(`${rate.code.replace(/-/g,' ')} ${rate.description.slice(name.length)}`),wanted);
+    return {rate,index,score};
+  });
+  // Best match first; ties keep the catalog's own order, so the same batch always gets the same book.
   scored.sort((a,b)=>b.score-a.score||a.index-b.index);
-  const chosen=scored.filter(entry=>entry.score>0).slice(0,limit);
-  return chosen.sort((a,b)=>a.index-b.index).map(entry=>entry.rate);
+  return scored.filter(entry=>entry.score>0).slice(0,limit).sort((a,b)=>a.index-b.index).map(entry=>entry.rate);
 }

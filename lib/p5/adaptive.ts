@@ -18,8 +18,6 @@ export function manualScopeAnswers(current:ScopeAnswers,previous:ScopeExtraction
 }
 export function deriveScopeAnswers(input:ScopeAnswers){
   const answers={...input};
-  // A previous remodel answer cannot become the finish selection for a new build.
-  if(['new-construction','addition','adu','cabinet-product','cabinet-install'].includes(answers.service||'')&&answers.finish==='refresh')delete answers.finish;
   if(!answers.sqft?.trim()&&answers.length?.trim()&&answers.width?.trim()){
     const area=Number(answers.length.replaceAll(',',''))*Number(answers.width.replaceAll(',',''));
     if(Number.isFinite(area)&&area>0&&area<=1000000)answers.sqft=String(Math.round(area*100)/100);
@@ -48,8 +46,11 @@ const remodels=['kitchen','bathroom','whole-home'];
 const builds=['addition','adu','new-construction'];
 export const finishServices=[...remodels,...builds,'cabinet-product','cabinet-install'];
 export function finishOptionsForService(service?:string):string[]{
-  const values=[...SCOPE_FIELDS.finish.options];
-  return service&&[...builds,'cabinet-product','cabinet-install'].includes(service)?values.filter(value=>value!=='refresh'):values;
+  // Every service offers all four of the price book's tiers. Builder Grade was once hidden for new
+  // builds and cabinets, but it is the book's production-builder spec: exactly the tier a spec home
+  // or a stock-cabinet job is priced at, so hiding it priced those jobs a tier too high.
+  void service;
+  return [...SCOPE_FIELDS.finish.options];
 }
 /** One shared scope-aware queue for the browser and server. A catalog dependency is
  * not permission to ask about an excluded trade or repeat a supplied measurement. */

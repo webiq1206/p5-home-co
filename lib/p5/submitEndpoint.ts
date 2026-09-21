@@ -1,5 +1,6 @@
 import {HANDOFF_ISSUE} from './scopePricing.ts';
-import {shippedRateCard,withRateCard} from './rateCard.ts';
+import {withRateCard} from './rateCard.ts';
+import {finishTier,priceBookRates} from './priceBook.ts';
 import { query } from "./database.ts";
 import { draftCredentials,readDraft,DraftError,requireEstimateContact } from "./store.ts";
 import { EMPTY_CONFIGURATION,type EstimatorConfiguration } from "./costBook.ts";
@@ -42,10 +43,12 @@ export async function postSubmission(request:Request,schedule?:(task:()=>Promise
     if(!draft.reviewed)throw new DraftError("Review and confirm the extracted scope before submitting.");
     const [policy]=await query("SELECT payload FROM p5_estimator_policy WHERE id='current'");
     const saved=(policy?.payload||EMPTY_CONFIGURATION) as EstimatorConfiguration;
-    // The owner's shipped rate card fills any gap in the saved catalog before pricing starts.
-    const card=process.env.P5_RATE_CARD==='off'?null:await shippedRateCard();
-    const configuration=card?withRateCard(saved,card):saved;
-    if(card&&configuration!==saved)console.log(`[p5-rates] priced with ${configuration.planningCatalog?.rates.length} planning rates (${(configuration.planningCatalog?.rates.length||0)-(saved.planningCatalog?.rates.length||0)} from the shipped Boise rate card)`);
+    // The owner's master price book, resolved for this project: the lines that apply to its
+    // service, priced at the chosen finish tier, with the remodel premium where the work is in an
+    // existing home. They join the saved catalog; a code the owner has saved keeps its own amount.
+    const book=process.env.P5_PRICE_BOOK==='off'?null:priceBookRates(draft.reviewed.answers);
+    const configuration=book?withRateCard(saved,book):saved;
+    if(book&&configuration!==saved)console.log(`[p5-rates] priced with ${configuration.planningCatalog?.rates.length} rates (${(configuration.planningCatalog?.rates.length||0)-(saved.planningCatalog?.rates.length||0)} from the master price book, ${finishTier(draft.reviewed.answers.finish)} finish)`);
     // Ask for a quantity the planning model cannot work without now, before any pricing work starts.
     const needed=pricingPreflight(draft.reviewed,configuration);
     if(needed.length)return json({pricingReviewRequired:true,needsCustomerInput:true,handoff:false,preflight:true,missingFields:needed,verificationItems:[],error:PREFLIGHT_MESSAGE},422);

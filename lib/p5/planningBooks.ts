@@ -1,6 +1,7 @@
 import {COST_CATEGORIES,DEFAULT_FINANCE,SERVICE_MATRIX,type CostCategory,type Service} from './pricing.ts';
 import {SCOPE_FIELDS,type ScopeAnswers,type ScopeField,type ReviewedScope} from './scope.ts';
 import type {CostRule,EstimatorConfiguration,ServiceCostBook} from './costBook.ts';
+import {supportedUnit} from './unitRates.ts';
 
 /** Private owner data lives in the policy database, never in the public bundle. */
 export interface PlanningRate {code:string;description:string;type:'Material'|'Labor'|'Subcontractor'|'Equipment'|'Other';unit:string;amount:number;source:string;basis:'owner-average-cost'|'historical-cost-budget'}
@@ -18,7 +19,7 @@ export function validatePlanningCatalog(catalog:PlanningCatalog){
  if(!catalog||catalog.version!==PLANNING_MODEL_VERSION||!catalog.source?.trim()||!catalog.authorizedBy?.trim()||!Number.isFinite(Date.parse(catalog.importedAt))||!Array.isArray(catalog.rates)||catalog.rates.length>MAX_PLANNING_RATES)throw new Error('Invalid owner planning catalog.');
  const ids=new Set<string>();
  for(const r of catalog.rates){
-  if(!r.code?.trim()||ids.has(r.code)||!r.description?.trim()||!r.source?.trim()||!['Material','Labor','Subcontractor','Equipment','Other'].includes(r.type)||!['SF','LF','EA','HR','HRS','MO','LS'].includes(r.unit)||!['owner-average-cost','historical-cost-budget'].includes(r.basis)||!Number.isFinite(r.amount)||r.amount<=0||EXCLUDED_CODES.has(r.code)||r.code.endsWith('-99'))throw new Error(`Invalid planning rate: ${r.code||'unknown'}`);
+  if(!r.code?.trim()||ids.has(r.code)||!r.description?.trim()||!r.source?.trim()||!['Material','Labor','Subcontractor','Equipment','Other'].includes(r.type)||!supportedUnit(r.unit)||!['owner-average-cost','historical-cost-budget'].includes(r.basis)||!Number.isFinite(r.amount)||r.amount<=0||EXCLUDED_CODES.has(r.code)||r.code.endsWith('-99'))throw new Error(`Invalid planning rate: ${r.code||'unknown'}`);
   ids.add(r.code);
  }
  for(const code of ['03-17-01-M','03-17-01-L','03-15-02-M','03-15-02-L','03-16-01-M','03-16-01-L','03-14-01-M','03-14-01-L','03-04-01','03-04-02','03-04-03','03-05-02-M','03-05-02-L','REF-GENERAL-HOUR','REF-PLUMBING-HOUR','REF-ELECTRICAL-HOUR'])if(!ids.has(code))throw new Error(`Planning catalog is missing ${code}.`);

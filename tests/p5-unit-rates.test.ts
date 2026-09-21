@@ -78,68 +78,102 @@ test('repair-list units are recognised by dimension and unfamiliar units are ref
  for(const unit of ['allowance','pickup-load','day','gallon'])assert.equal(reusableUnit(unit),false,unit);
 });
 
-test('the Boise rate card is loadable into an owner planning catalog',async()=>{
-  const {readFile}=await import('node:fs/promises');
-  const {validatePlanningCatalog,PLANNING_MODEL_VERSION}=await import('../lib/p5/planningBooks.ts');
+test('the master price book prices each line at the chosen finish, with the remodel premium only in an existing home',async()=>{
+  const {priceBookRates,priceBookSummary,finishTier,serviceContext}=await import('../lib/p5/priceBook.ts');
+  const rate=(answers:{service:string;finish?:string},code:string)=>priceBookRates(answers).find(r=>r.code===`PB-${code}`);
+  // Kitchen cabinets, installed, per LF: Builder 250 / Mid 500 / High 850 / Luxury 1400, remodel premium 10%.
+  assert.equal(rate({service:'kitchen',finish:'mid-range'},'12-31-01')?.amount,550,'a kitchen remodel adds the 10% existing-home premium');
+  assert.equal(rate({service:'kitchen',finish:'luxury'},'12-31-01')?.amount,1540);
+  assert.equal(rate({service:'new-construction',finish:'refresh'},'12-31-01')?.amount,250,'new construction is base cost at Builder Grade');
+  assert.equal(rate({service:'cabinet-install',finish:'high-end'},'12-31-01')?.amount,850,'cabinet work is base cost, as its tab in the book is');
+  assert.equal(rate({service:'handyman'},'12-31-01'),undefined,'a line not flagged for handyman is not offered to handyman');
+  // No finish chosen: the book's own default, Mid-Range.
+  assert.equal(finishTier(undefined),'mid');
+  assert.equal(rate({service:'kitchen'},'12-31-01')?.amount,550);
+  // An installed line is typed so the engine never adds labor or material on top of it.
+  const cabinets=rate({service:'kitchen'},'12-31-01')!;
+  assert.equal(cabinets.type,'Subcontractor');
+  assert.match(cabinets.description,/installed price, labor and material together/);
+  assert.match(cabinets.description,/Mid-Range finish/);
+  assert.match(cabinets.description,/remodel premium 10% included/);
+  assert.equal(cabinets.unit,'LF');
+  // A labor-only line is typed Labor and says materials are priced separately.
+  const gfci=rate({service:'handyman'},'26-01-05')!;
+  assert.equal(gfci.type,'Labor');assert.equal(gfci.amount,130);
+  assert.match(gfci.description,/labor only; price materials separately/);
+  assert.equal(rate({service:'re10'},'26-01-05')?.amount,130,'no premium is added where the book carries none');
+  // A percentage is not a dollar price and is never offered as a unit rate.
+  assert.equal(rate({service:'new-construction'},'00-10-03'),undefined);
+  const summary=priceBookSummary();
+  assert.equal(summary.lines,1484);assert.equal(summary.rateable+summary.percentage,summary.lines);
+  // Codes are namespaced, so the book can never replace a saved schedule code such as 03-01-01.
+  assert.ok(priceBookRates({service:'kitchen'}).every(r=>r.code.startsWith('PB-')));
+  // Every service draws on its own lines, and a change order can modify any residential work.
+  assert.equal(serviceContext('re10').remodel,true);
+  assert.equal(serviceContext('new-construction').remodel,false);
+  assert.ok(priceBookRates({service:'change-order'}).length>priceBookRates({service:'handyman'}).length);
+});
+
+test('every priced line is a positive direct cost in a unit the catalog accepts, within the catalog ceiling',async()=>{
+  const {priceBookRates}=await import('../lib/p5/priceBook.ts');
   const {supportedUnit}=await import('../lib/p5/unitRates.ts');
-  const card=JSON.parse(await readFile(new URL('../scripts/p5-boise-rate-card.json',import.meta.url),'utf8'));
-  const rates=card.rates.map((r:any)=>({...r,source:r.source||card.source,basis:r.basis||card.basis}));
-  assert.ok(rates.length>=200,'the card covers the long tail of repair work');
-  assert.equal(new Set(rates.map((r:any)=>r.code)).size,rates.length,'codes are unique');
-  for(const rate of rates)assert.ok(supportedUnit(rate.unit),`${rate.code} uses a priceable unit`);
-  // Direct costs only: the estimator adds overhead, profit and contingency after them.
-  for(const rate of rates)assert.ok(!/\b(?:overhead|profit|margin|markup|retail price)\b/i.test(rate.description),`${rate.code} states a direct cost`);
-  // Loads beside the existing owner schedule without exceeding the catalog ceiling.
-  const required=['03-17-01-M','03-17-01-L','03-15-02-M','03-15-02-L','03-16-01-M','03-16-01-L','03-14-01-M','03-14-01-L','03-04-01','03-04-02','03-04-03','03-05-02-M','03-05-02-L','REF-GENERAL-HOUR','REF-PLUMBING-HOUR','REF-ELECTRICAL-HOUR']
-    .map(code=>({code,description:'Existing owner rate',type:'Labor',unit:'HR',amount:80,source:'Owner schedule',basis:'owner-average-cost'}));
-  const merged=validatePlanningCatalog({version:PLANNING_MODEL_VERSION,source:'Owner schedule plus Boise rate card',authorizedBy:'Owner',importedAt:new Date().toISOString(),rates:[...required,...rates]} as never);
-  assert.equal(merged.rates.length,required.length+rates.length);
+  const {validatePlanningCatalog,PLANNING_MODEL_VERSION,MAX_PLANNING_RATES}=await import('../lib/p5/planningBooks.ts');
+  const {FOUNDATION_CODES}=await import('../lib/p5/catalogSelection.ts');
+  const owner=FOUNDATION_CODES.map(code=>({code,description:'Owner schedule rate',type:'Labor' as const,unit:'HR',amount:80,source:'Owner',basis:'owner-average-cost' as const}));
+  for(const service of ['handyman','re10','cabinet-install','kitchen','bathroom','whole-home','addition','adu','new-construction','change-order']){
+    for(const finish of ['refresh','mid-range','high-end','luxury']){
+      const rates=priceBookRates({service,finish});
+      assert.ok(rates.length>0,`${service} has lines`);
+      for(const r of rates){assert.ok(supportedUnit(r.unit),`${r.code} unit ${r.unit}`);assert.ok(r.amount>=0&&Number.isFinite(r.amount),`${r.code} amount`);}
+      assert.ok(owner.length+rates.length<=MAX_PLANNING_RATES,`${service} fits the ceiling`);
+    }
+  }
+  // The largest merge, a change order, still validates as a planning catalog.
+  const rates=priceBookRates({service:'change-order',finish:'luxury'});
+  validatePlanningCatalog({version:PLANNING_MODEL_VERSION,source:'Owner schedule and master price book',authorizedBy:'Owner',importedAt:new Date().toISOString(),rates:[...owner,...rates]} as never);
 });
 
-test('the shipped rate card fills gaps in a saved catalog without touching the owner\'s own rates',async()=>{
-  const {shippedRateCard,withRateCard,missingRates}=await import('../lib/p5/rateCard.ts');
-  const card=await shippedRateCard();
-  assert.ok(card&&card.length>=200,'the card loads from the repository');
-  const owner={code:'RC-LAB-GENERAL',description:'Owner general labor',type:'Labor',unit:'HR',amount:99,source:'Owner schedule',basis:'owner-average-cost'};
-  const saved={finance:{},costBooks:[],planningCatalog:{version:'owner-schedule-2026-09-11',source:'Owner',authorizedBy:'Owner',importedAt:new Date().toISOString(),rates:[owner]}} as never;
-  const merged=withRateCard(saved,card!);
-  const general=merged.planningCatalog!.rates.filter(r=>r.code==='RC-LAB-GENERAL');
-  assert.equal(general.length,1);assert.equal(general[0].amount,99,"the owner's own rate wins");
-  assert.equal(merged.planningCatalog!.rates.length,card!.length,'every other card rate is added once');
-  assert.equal(missingRates(merged,card!).length,0,'a second pass adds nothing');
-  assert.equal(withRateCard(merged,card!),merged,'and returns the same configuration');
-  // The catalog ceiling still holds.
-  const full={...saved,planningCatalog:{...saved.planningCatalog!,rates:Array.from({length:2000},(_,i)=>({...owner,code:`OWN-${i}`}))}} as never;
-  assert.equal(withRateCard(full,card!).planningCatalog!.rates.length,2000);
-});
-
-test('the generated rate card module matches the JSON source of truth',async()=>{
-  const {readFile}=await import('node:fs/promises');
-  const {RATE_CARD}=await import('../lib/p5/rateCardData.ts');
-  const card=JSON.parse(await readFile(new URL('../scripts/p5-boise-rate-card.json',import.meta.url),'utf8'));
-  const expected=card.rates.map((r:any)=>({code:r.code,description:r.description,type:r.type,unit:r.unit,amount:r.amount,source:r.source||card.source,basis:r.basis||card.basis||'owner-average-cost'}));
-  assert.deepEqual(RATE_CARD,expected,'run node scripts/p5-build-rate-card.mjs after editing the rate card');
-});
-
-test('a mapping batch is shown the part of the catalog it can use, plus the rates any task needs',async()=>{
-  const {relevantCatalog,FOUNDATION_CODES,meaningfulWords}=await import('../lib/p5/catalogSelection.ts');
-  const {RATE_CARD}=await import('../lib/p5/rateCardData.ts');
+test('a mapping batch is shown the lines it can use, even when the scope does not use the book\'s words',async()=>{
+  const {relevantCatalog,FOUNDATION_CODES}=await import('../lib/p5/catalogSelection.ts');
+  const {priceBookRates}=await import('../lib/p5/priceBook.ts');
   const owner=FOUNDATION_CODES.map(code=>({code,description:'Owner schedule rate',type:'Labor',unit:'HR',amount:80,source:'Owner',basis:'owner-average-cost'}));
-  const catalog=[...owner,...RATE_CARD];
-  const plumbing=[{description:'Reconfigure the under-sink trap assemblies',evidence:'All sink locations'},{description:'Install vacuum breakers on exterior hose bibs',evidence:''}];
-  const slice=relevantCatalog(catalog,plumbing,60);
-  assert.ok(slice.length<=60&&slice.length<catalog.length,'the batch sees a slice, not the whole book');
-  const codes=new Set(slice.map(r=>r.code));
-  assert.ok(codes.has('RC-PLUM-PTRAP-L'),'the trap rate is offered');
-  assert.ok(codes.has('RC-PLUM-VACBREAK-M'),'so is the vacuum breaker');
-  for(const code of FOUNDATION_CODES)assert.ok(codes.has(code),`${code} is always offered`);
-  assert.ok(codes.has('RC-LAB-PLUMBING'),'trade labor is always offered');
-  assert.ok(!codes.has('RC-ROOF-SHINGLE-M'),'an unrelated roofing rate is not');
-  // Deterministic: the same batch always sees the same book, in the owner's own order.
-  assert.deepEqual(relevantCatalog(catalog,plumbing,60).map(r=>r.code),slice.map(r=>r.code));
-  const order=slice.map(r=>catalog.findIndex(c=>c.code===r.code));
+  const catalog=[...owner,...priceBookRates({service:'re10'})];
+  const codes=(tasks:{description:string;evidence?:string}[])=>new Set(relevantCatalog(catalog,tasks).map(r=>r.code));
+  // Wording taken from real RE-10s, none of it the book's own.
+  const shown=codes([
+    {description:'Replace the inoperable receptacles in the garage with GFCI protection'},
+    {description:'Install vacuum breakers on all exterior sillcocks'},
+    {description:'Reconfigure the under-sink traps so water is not siphoned'},
+    {description:'Replace the rubber boots on the plumbing vents on the roof'},
+    {description:'Install a moisture barrier in the crawlspace'},
+  ]);
+  assert.ok(shown.has('PB-26-01-05'),'receptacle finds the GFCI outlet line');
+  assert.ok(shown.has('PB-22-01-32'),'sillcock finds the hose bib vacuum breaker');
+  assert.ok(shown.has('PB-22-01-29'),'under-sink trap finds the P-trap line');
+  assert.ok(shown.has('PB-07-72-07'),'rubber boot finds the plumbing vent pipe boot');
+  assert.ok(shown.has('PB-03-95-01'),'moisture barrier finds the crawlspace vapor barrier');
+  for(const code of FOUNDATION_CODES)assert.ok(shown.has(code),`${code} is always offered`);
+  assert.ok(shown.has('PB-22-01-01'),'the trade\'s hourly rate is always offered');
+  // Deterministic: the same batch always sees the same lines, in catalog order.
+  const again=relevantCatalog(catalog,[{description:'Replace the inoperable receptacles in the garage with GFCI protection'}]);
+  assert.deepEqual(again.map(r=>r.code),relevantCatalog(catalog,[{description:'Replace the inoperable receptacles in the garage with GFCI protection'}]).map(r=>r.code));
+  const order=again.map(r=>catalog.findIndex(c=>c.code===r.code));
   assert.deepEqual(order,[...order].sort((a,b)=>a-b));
-  // A small catalog is passed through untouched, and stemming matches singular to plural.
-  assert.equal(relevantCatalog(owner,plumbing,60).length,owner.length);
-  assert.ok(meaningfulWords('vacuum breakers').has('vacuum'));
+  // A small catalog is passed through untouched.
+  assert.equal(relevantCatalog(owner,[{description:'anything'}]).length,owner.length);
+});
+
+test('trade vocabulary a customer or inspector uses still reaches the right line in a large catalog',async()=>{
+  const {relevantCatalog}=await import('../lib/p5/catalogSelection.ts');
+  const {priceBookRates}=await import('../lib/p5/priceBook.ts');
+  const catalog=priceBookRates({service:'change-order'});
+  assert.ok(catalog.length>1000,'a change order draws on most of the book');
+  const finds=(description:string,code:string)=>assert.ok(relevantCatalog(catalog,[{description}]).some(r=>r.code===code),`"${description}" should reach ${code}`);
+  // Each phrasing shares no word with the book's own line item.
+  finds('Replace one receptacle in the front bedroom','PB-26-01-04');   // Outlet / switch replacement
+  finds('The spigot on the north wall drips','PB-22-10-15');            // Frost-free hose bib
+  finds('Commode rocks and needs resetting','PB-22-01-30');             // Loose toilet reset with new wax ring
+  finds('Patch the sheetrock where the doorknob hit','PB-09-01-08');    // Drywall patch, medium
+  finds('Add four can lights in the family room','PB-26-50-01');        // Recessed LED light
+  finds('Flush the hot water tank','PB-22-01-10');                      // Water heater flush
 });

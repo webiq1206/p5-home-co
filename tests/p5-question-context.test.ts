@@ -108,12 +108,11 @@ test('classification: follow-ups require a real project-specific pricing gap',as
  assert.match(EXTRACTION_SYSTEM,/Do not generate a checklist from the service name/);
  assert.match(EXTRACTION_SYSTEM,/not missing customer facts/);
 });
-test('classification: stale remodel refresh answers are replaced with build-appropriate choices',async()=>{
+// Changed on purpose 2026-09-20: a Builder Grade answer is a real choice for a build under the price book.
+test('classification: a Builder Grade answer on a build is kept, not asked again',async()=>{
  const {deriveScopeAnswers}=await import('../lib/p5/adaptive.ts');
  const previous={...build,finish:'refresh'};
- assert.equal(deriveScopeAnswers(previous).finish,undefined);
- const q=scopeQuestions(previous,null);
- assert.equal(q.length,1);assert.equal(q[0].field,'finish');
- assert.ok(!q[0].values?.includes('refresh'));
+ assert.equal(deriveScopeAnswers(previous).finish,'refresh');
+ assert.ok(!scopeQuestions(previous,null).some(q=>q.field==='finish'),'the finish is not asked again');
  assert.equal(previous.finish,'refresh','the source snapshot remains unchanged');
 });

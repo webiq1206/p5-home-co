@@ -51,12 +51,13 @@ test('specific cabinet construction and finish replace a generic finish tier',()
  assert.ok(dynamicScopeFields({...answers,cabinetConstruction:'Frameless cabinets'}).includes('finish'));
  assert.ok(dynamicScopeFields({...answers,cabinetConstruction:''},{...empty,facts:[{field:'cabinetConstruction',value:answers.cabinetConstruction,confidence:.99,source:'photo.png',evidence:'Visual appearance',basis:'visual'}]}).includes('finish'));
 });
-test('new builds and new cabinet packages cannot retain a remodel refresh tier',()=>{
- for(const service of ['new-construction','addition','adu','cabinet-product','cabinet-install']){
-  assert.ok(!finishOptionsForService(service).includes('refresh'));
-  assert.equal(deriveScopeAnswers({service,finish:'refresh'}).finish,undefined);
+// Changed on purpose 2026-09-20: Builder Grade is the price book's production-builder spec, so a
+// new build or a stock-cabinet job keeps it rather than being pushed a tier higher.
+test('every service keeps the Builder Grade tier the price book prices it at',()=>{
+ for(const service of ['new-construction','addition','adu','cabinet-product','cabinet-install','kitchen']){
+  assert.ok(finishOptionsForService(service).includes('refresh'));
+  assert.equal(deriveScopeAnswers({service,finish:'refresh'}).finish,'refresh');
  }
- assert.ok(finishOptionsForService('kitchen').includes('refresh'));
 });
 test('already removed cabinets never acquire a new removal charge while other demolition is retained',()=>{
  const x:ScopeExtraction={...empty,summary:'Supply and install cabinets; removal of existing cabinets.',instructions:{...emptyInstructions(),inclusions:['Removal of existing cabinets','Remove wall tile']},facts:[

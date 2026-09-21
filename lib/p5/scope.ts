@@ -117,7 +117,9 @@ export function coerceChoice(field: ScopeField, value: string): string | null {
   const direct = options.find(option => option === text || option.replace(/-/g, " ") === text.replace(/-/g, " "));
   if (direct) return direct;
   const synonyms: Partial<Record<ScopeField, Array<[RegExp, string]>>> = {
-    finish: [[/luxur|custom|top-of|bespoke/, "luxury"], [/premium|high|upgrad|semi-custom|upscale/, "high-end"], [/standard|mid|average|builder|typical|good/, "mid-range"], [/simple|basic|budget|econom|refresh|entry|value/, "refresh"]],
+    // The price book's tiers: semi-custom cabinetry is Mid-Range and custom is High-End, so
+    // "semi-custom" is tested before "custom"; builder, production and stock are Builder Grade.
+    finish: [[/luxur|bespoke|european|inset|top-of/, "luxury"], [/semi-?custom/, "mid-range"], [/premium|high|upgrad|upscale|designer|custom/, "high-end"], [/builder|production|stock|spec home|entry|budget|basic|econom|value|simple|refresh/, "refresh"], [/standard|mid|average|typical|good|common/, "mid-range"]],
     urgency: [[/emergenc|urgent|asap|immediate/, "emergency"], [/priorit|rush|soon|quick/, "priority"], [/standard|normal|flexible|no-rush|whenever/, "standard"]],
     complexity: [[/complex|difficult|structural|custom|challeng/, "complex"], [/standard|simple|typical|straightforward|normal/, "standard"]],
     garageIncluded: [[/^(yes|y|true|include|included|with-garage)$/, "yes"], [/^(no|n|false|exclude|excluded|none|without)/, "no"]],

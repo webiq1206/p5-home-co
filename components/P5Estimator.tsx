@@ -27,7 +27,7 @@ import {ESTIMATOR_VERSION,estimatorRelease} from '@/lib/p5/version';
 import {parseNumericAnswer} from '@/lib/p5/answerParsing';
 
 const textAnswers=(a:ScopeAnswers)=>JSON.stringify(Object.entries(a).filter(([k,v])=>SCOPE_FIELDS[k as ScopeField].kind==='text'&&v?.trim()).sort(([a],[b])=>a.localeCompare(b)));
-const labels:Record<string,string>={handyman:'Home repairs',re10:'Inspection and RE-10 repairs','cabinet-product':'Cabinets, supply only','cabinet-install':'Cabinet installation',kitchen:'Kitchen remodel',bathroom:'Bathroom remodel','whole-home':'Whole-home remodel',addition:'Home addition',adu:'ADU','new-construction':'New home','change-order':'Change order',rush:'Rush work',refresh:'Simple refresh','mid-range':'Standard finishes','high-end':'Premium finishes',luxury:'Custom luxury finishes',standard:'Standard',priority:'Priority',emergency:'Emergency',complex:'Complex',yes:'Yes',no:'No'};
+const labels:Record<string,string>={handyman:'Home repairs',re10:'Inspection and RE-10 repairs','cabinet-product':'Cabinets, supply only','cabinet-install':'Cabinet installation',kitchen:'Kitchen remodel',bathroom:'Bathroom remodel','whole-home':'Whole-home remodel',addition:'Home addition',adu:'ADU','new-construction':'New home','change-order':'Change order',rush:'Rush work',refresh:'Builder grade','mid-range':'Mid-range','high-end':'High-end',luxury:'Luxury',standard:'Standard',priority:'Priority',emergency:'Emergency',complex:'Complex',yes:'Yes',no:'No'};
 const readable=(field:ScopeField,value:string)=>field==='cabinetRoom'?value.replaceAll('-',' ').replace(/\b\w/g,letter=>letter.toUpperCase()):labels[value]||value.replaceAll('-',' ');
 const brandId=brand.id as string;
 const SUGGESTIONS:Record<string,string[]>={
@@ -38,7 +38,9 @@ const SUGGESTIONS:Record<string,string[]>={
   p5:['Estimate my construction project','I have plans I want you to review','Help me price a remodel','I want to describe my project'],
   re10:['Estimate the repairs from my RE-10 report','Review my inspection report and estimate the repairs','Upload a file and build an estimate','I want to describe the repairs'],
 };
-const FINISH_LEVELS:[string,string][]=[['refresh','Budget-friendly materials and simple selections'],['mid-range','Builder-grade to mid-range materials; the most common choice'],['high-end','Upgraded materials, fixtures and details'],['luxury','Top-tier materials and custom work']];
+// The four tiers of the owner's master price book, in its own definitions. The value 'refresh'
+// is what the selector has always stored for the lowest tier; the book calls it Builder Grade.
+const FINISH_LEVELS:[string,string][]=[['refresh','Production-builder spec: stock cabinets, LVP or carpet, laminate or entry-level quartz, standard fixtures, vinyl windows, hollow-core doors.'],['mid-range','Semi-custom cabinets, quartz or granite, engineered hardwood, tiled showers, name-brand fixtures, solid-core doors. The most common choice.'],['high-end','Custom cabinets, quartzite or premium quartz, wide-plank white oak, frameless glass, designer fixtures, custom trim.'],['luxury','Inset or European cabinetry, full-height slabs, custom millwork, pro or integrated appliances, luxury plumbing brands.']];
 const composerPlaceholder='Describe your project in your own words, or attach plans, photos and documents.';
 const AttachGlyph=()=><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21.4 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>;
 const MicGlyph=()=><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 17v5M8 22h8"/></svg>;

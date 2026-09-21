@@ -862,3 +862,18 @@ test("The reader's own summary of a document does not make it a different projec
  assert.equal(compatibleAnswers(answerEntries(before),answerEntries(measured)),false);
  assert.notEqual(pricingScopeFingerprint(before,config),pricingScopeFingerprint(measured,config));
 });
+test('A task mapped to a master price book line carries the book\'s direct cost into the estimate',async()=>{
+ const {priceBookRates}=await import('../lib/p5/priceBook.ts');
+ const {withRateCard}=await import('../lib/p5/rateCard.ts');
+ const booked=withRateCard(config,priceBookRates({service:'kitchen',finish:'mid-range'}));
+ const cabinets={id:'cabinets',description:'Kitchen cabinets, 12 linear feet',evidence:'12 LF of cabinets',existingLineIds:[],researchDescription:'',issues:[],
+  additions:[{code:'PB-12-31-01',quantity:12,quantityEvidence:'12 LF of cabinets'}]};
+ const resolved=catalogResolution({tasks:[cabinets],issues:[],notes:[],replacements:[],removeExclusions:[]},booked,[],now,scope);
+ assert.deepEqual(resolved.issues,[]);
+ const rule=resolved.rules[0];
+ assert.equal(rule.unitCost,550,'Mid-Range $500/LF plus the 10% existing-home premium');
+ assert.equal(rule.quantity.fixed,12);
+ assert.equal(rule.category,'subcontractors','an installed price, never split into extra labor or material');
+ assert.equal(rule.priceBasis,'direct-cost','overhead and profit are applied once, after this');
+ assert.match(rule.evidence.reference,/PB-12-31-01/);
+});
