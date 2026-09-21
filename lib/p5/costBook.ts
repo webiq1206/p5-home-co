@@ -80,6 +80,7 @@ function priceReviewedScopeInternal(scope:ReviewedScope,configuration:EstimatorC
     // citation to confirm) are disclosed as assumptions and do not.
     uncertainty:missingInformation.length?"high":"medium",
     firmPrice:isRe10Scope(scope),
+    bookPriced:lines.length>0&&lines.every(line=>/\bPB-\d\d-\d\d/.test(line.evidence?.reference||'')),
     assumptions:[...book.assumptions,...scopeAssumptions(scope.answers,scope.uncertainFields,scope.extraction,scope.text),...(scope.extraction?.reviewNotes||[]).filter(note=>!blockingReviewNote(note)).map(note=>/^to confirm:/i.test(note)?note:`To confirm: ${note}`)],exclusions:[...new Set([...book.exclusions,...explicitExclusions,...(resolution?.addExclusions||[])])],
     missingInformation,allowances:[],
   };

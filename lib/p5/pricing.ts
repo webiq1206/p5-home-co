@@ -90,6 +90,8 @@ export interface PricingInput {
   estimatePurpose?:'preliminary';
   /** One price instead of a range (owner rule: an RE-10 repair list gets a single firm price). */
   firmPrice?:boolean;
+  /** Every line is priced from the owner's price book: the band reflects the book's own accuracy (owner rule 2026-09-21). */
+  bookPriced?:boolean;
   service: Service; revision: string; scopeSummary: string; lines: DirectCostLine[];
   coverage: ScopeCoverage[]; risks: RiskFactor[]; assumptions: string[];
   exclusions: string[]; missingInformation: string[]; allowances: Allowance[];
@@ -242,7 +244,9 @@ export function calculateP5Estimate(input: PricingInput, finance: FinancePolicy,
     const operatingProfit=sellingAmount*margin;
     return {...line,contingency:lineContingency,riskAdjustedCost,overheadRecovery,operatingProfit,sellingAmount,sellingUnitPrice:sellingAmount/line.quantity};
   });
-  const width = Math.min(.5, (input.uncertainty === "high" ? .30 : input.uncertainty === "medium" ? .20 : .10) + riskCount * .015);
+  // A book-priced estimate carries the owner's own dialed-in prices, so its band is tight: 5% each way,
+  // plus 1% per real risk flag, never more than 8%. Anything priced outside the book keeps the wider band.
+  const width = input.bookPriced ? Math.min(.08, .05 + riskCount * .01) : Math.min(.5, (input.uncertainty === "high" ? .30 : input.uncertainty === "medium" ? .20 : .10) + riskCount * .015);
   const step = contractPrice >= 100000 ? 1000 : contractPrice >= 10000 ? 100 : contractPrice >= 1000 ? 25 : 5;
   // The low endpoint cannot cut known direct costs below the approved floor.
   const lowFloor = priceFromRiskAdjustedCost(riskAdjustedDirectCost, allocations.total, Math.min(matrix.floor, margin));

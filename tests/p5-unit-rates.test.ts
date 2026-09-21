@@ -212,3 +212,15 @@ test('a complete project is priced from the owner book assembly at the chosen fi
   const bath=price({service:'bathroom',bathrooms:'2',finish:'mid-range',text:'Full remodel of two hall bathrooms'});
   assert.equal(bath.length,1);assert.equal(bath[0].quantity,2);assert.match(bath[0].evidence.reference,/PB-90-30-02/);
 });
+test('an estimate priced entirely from the owner book carries a tight band; anything outside the book keeps the wide one',async()=>{
+  const {priceBookRates}=await import('../lib/p5/priceBook.ts');
+  const {createPlanningConfiguration,PLANNING_MODEL_VERSION}=await import('../lib/p5/planningBooks.ts');
+  const {priceReviewedScope}=await import('../lib/p5/costBook.ts');
+  const required=['03-17-01-M','03-17-01-L','03-15-02-M','03-15-02-L','03-16-01-M','03-16-01-L','03-14-01-M','03-14-01-L','03-04-01','03-04-02','03-04-03','03-05-02-M','03-05-02-L','REF-GENERAL-HOUR','REF-PLUMBING-HOUR','REF-ELECTRICAL-HOUR'];
+  const answers={service:'new-construction',sqft:'2400',garageIncluded:'yes',garageSqft:'750',finish:'mid-range',stories:'1',location:'Meridian, ID'};
+  const catalog={version:PLANNING_MODEL_VERSION,source:'owner',authorizedBy:'owner',importedAt:'2026-09-11T00:00:00.000Z',rates:[...required.map(code=>({code,description:'x',type:'Labor' as const,unit:'SF',amount:1,source:'x',basis:'owner-average-cost' as const})),...priceBookRates(answers)]};
+  const r=priceReviewedScope({text:'New single-story home with an attached garage',answers,extraction:null,uploads:[],reviewedAt:'2026-09-21',corrections:[]} as any,createPlanningConfiguration(catalog,['new-construction']),new Date('2026-09-21'));
+  const range=r.customer.range!;
+  assert.ok(range.high/range.low<1.2,`book-priced new home band is tight: ${range.low} to ${range.high}`);
+  assert.ok(range.high/range.low>1.05,'still a range, not a single number');
+});
