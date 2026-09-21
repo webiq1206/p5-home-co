@@ -112,6 +112,10 @@ test('the master price book prices each line at the chosen finish, with the remo
   assert.equal(serviceContext('re10').remodel,true);
   assert.equal(serviceContext('new-construction').remodel,false);
   assert.ok(priceBookRates({service:'change-order'}).length>priceBookRates({service:'handyman'}).length);
+  // An inspection can name work in any trade: the book's RE-10 flag alone carries no light fixture,
+  // irrigation or mobilization line, which left a live RE-10 pricing those from uncited guesses.
+  for(const code of ['26-50-02','32-84-03','01-54-11','26-01-14'])assert.ok(rate({service:'re10'},code),`RE-10 offers ${code}`);
+  assert.ok(rate({service:'handyman'},'26-01-14'),'a handyman job sees the RE-10 repair lines');
 });
 
 test('every priced line is a positive direct cost in a unit the catalog accepts, within the catalog ceiling',async()=>{

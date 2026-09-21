@@ -29,14 +29,19 @@ const NC=1,RM=2,HM=4,CAB=8,RE10=16;
  * premium applies). RE-10 repairs are priced as remodel work, as the book states. Handyman and
  * cabinet lines are priced at base direct cost, as their tabs in the book are. A change order or
  * rush job can modify any kind of residential work, so it sees all of it.
+ *
+ * The book's RE-10 flag marks the classic inspection repairs only (189 lines): no light fixture,
+ * irrigation or mobilization line carries it. An inspection can name work in any trade, so an RE-10
+ * also draws on the handyman and remodel lines, and a handyman job also draws on the RE-10 repair
+ * lines. The catalog slice then offers only the lines that fit the tasks.
  */
 export function serviceContext(service?:string|null):{flags:number;remodel:boolean}{
   switch(service){
     case 'new-construction':case 'adu':return {flags:NC,remodel:false};
     case 'addition':return {flags:NC|RM,remodel:false};
     case 'kitchen':case 'bathroom':case 'whole-home':return {flags:RM,remodel:true};
-    case 're10':return {flags:RE10,remodel:true};
-    case 'handyman':return {flags:HM,remodel:false};
+    case 're10':return {flags:RE10|HM|RM,remodel:true};
+    case 'handyman':return {flags:HM|RE10,remodel:false};
     case 'cabinet-product':case 'cabinet-install':return {flags:CAB,remodel:false};
     default:return {flags:NC|RM|HM|CAB|RE10,remodel:false};
   }
