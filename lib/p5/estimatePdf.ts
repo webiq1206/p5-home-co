@@ -14,11 +14,11 @@ import type {EstimateDocument} from './estimateDocument.ts';
  * No solid dark bars anywhere; totals stand out by size, weight and a light tint.
  */
 const W=612,H=792,L=54,R=558,WIDTH=R-L,TOP=680,BOTTOM=80;
-const ASSETS='p5-estimate';
-const hex=(h:string):RGB=>rgb(parseInt(h.slice(1,3),16)/255,parseInt(h.slice(3,5),16)/255,parseInt(h.slice(5,7),16)/255);
-const mix=(h:string,amount:number):RGB=>{const c=[1,3,5].map(i=>parseInt(h.slice(i,i+2),16)/255);return rgb(...(c.map(v=>1-(1-v)*amount) as [number,number,number]));};
-const clean=(t:string)=>t.replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g,'').replace(/[‐-―]/g,'-');
-function wrap(text:string,font:PDFFont,size:number,width:number,firstIndent=0):string[]{
+export const ASSETS='p5-estimate';
+export const hex=(h:string):RGB=>rgb(parseInt(h.slice(1,3),16)/255,parseInt(h.slice(3,5),16)/255,parseInt(h.slice(5,7),16)/255);
+export const mix=(h:string,amount:number):RGB=>{const c=[1,3,5].map(i=>parseInt(h.slice(i,i+2),16)/255);return rgb(...(c.map(v=>1-(1-v)*amount) as [number,number,number]));};
+export const clean=(t:string)=>t.replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g,'').replace(/[‐-―]/g,'-');
+export function wrap(text:string,font:PDFFont,size:number,width:number,firstIndent=0):string[]{
   const lines:string[]=[];let line='';let limit=width-firstIndent;
   const push=()=>{lines.push(line);line='';limit=width;};
   for(const word of clean(text).split(/\s+/).filter(Boolean)){

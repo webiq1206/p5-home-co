@@ -1,43 +1,15 @@
-import {priceText,priceLabel,estimateSections,groupSections,money,orderedSections,scopeBullets,type EstimateSection} from './presentation.ts';
 import {ESTIMATOR_BRAND as brand} from './brand.ts';
-import {documentFooterLine,legalIdentityLine} from './brandIdentity.ts';
+import {legalIdentityLine} from './brandIdentity.ts';
+import {buildAdminSummary,adminBasis} from './adminEstimate.ts';
 import {buildEstimateDocument,issueRecord,type EstimateBrand,type EstimateDocument,type EstimateIssue} from './estimateDocument.ts';
 
 /**
- * Customer and internal estimate emails.
- *
- * Table-based layout with inline styles so Gmail, Outlook and Apple Mail
- * render it the same way: a 600px container with generous internal padding,
- * a brand header, the planning range, then the project under distinct
- * headings in reading order (what the project is, what is included, what it
- * costs by category, what is excluded, allowances, items to confirm, next
- * steps). Excluded work is never listed under an included heading. Internal
- * costs and margins appear only in the internal record.
+ * Customer and internal estimate emails, both in the approved template (2026-09-21). Table-based
+ * layout with inline styles so Gmail, Outlook and Apple Mail render them alike. Internal costs and
+ * margins appear only in the internal email.
  */
 const escape=(value:unknown)=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]!));
 const FONT="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
-const SERIF="font-family:Georgia,'Times New Roman',serif";
-const PALETTE={paper:'#F2F0EB',card:'#FFFFFF',ink:'#20231F',muted:'#5F6862',soft:'#7A837D',line:'#E1E5DD',accent:brand.accent,included:'#E4EFE7',includedInk:'#1F4A33',excluded:'#F7E5E2',excludedInk:'#7A2F22',allowance:'#F6EFDF',allowanceInk:'#6B4E12',assumption:'#E6EEF3',assumptionInk:'#2D4A5E',button:'#17211C',buttonInk:'#FBFAF6'} as const;
-const SITE=`https://${brand.domain}`;
-
-type Tag={label:string;bg:string;ink:string};
-const TAGS:Record<string,Tag>={included:{label:'Included',bg:PALETTE.included,ink:PALETTE.includedInk},category:{label:'Included',bg:PALETTE.included,ink:PALETTE.includedInk},excluded:{label:'Not included',bg:PALETTE.excluded,ink:PALETTE.excludedInk},allowance:{label:'Allowance',bg:PALETTE.allowance,ink:PALETTE.allowanceInk},assumption:{label:'To confirm',bg:PALETTE.assumption,ink:PALETTE.assumptionInk}};
-
-function tag(kind?:string){const t=kind?TAGS[kind]:undefined;return t?`<span style="display:inline-block;padding:3px 9px;border-radius:999px;background:${t.bg};color:${t.ink};font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;${FONT};vertical-align:middle;margin-left:8px">${t.label}</span>`:'';}
-function bullets(items:string[]){return `<ul style="margin:0;padding:0 0 0 20px">${items.map(x=>`<li style="margin:0 0 8px;line-height:1.6;font-size:15px;color:${PALETTE.ink}">${escape(x)}</li>`).join('')}</ul>`;}
-function rows(items:[string,string][]){
- return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse">${items.map(([k,v],i)=>{const parts=scopeBullets(v);return `<tr><td style="padding:${i?12:0}px 0 12px;border-top:${i?`1px solid ${PALETTE.line}`:'0'}"><p style="margin:0 0 4px;font-size:12px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:${PALETTE.soft};${FONT}">${escape(k)}</p>${parts.length>1?`<ul style="margin:0;padding:0 0 0 18px">${parts.map(p=>`<li style="margin:0 0 4px;line-height:1.55;font-size:15px;color:${PALETTE.ink}">${escape(p)}</li>`).join('')}</ul>`:`<p style="margin:0;line-height:1.55;font-size:15px;color:${PALETTE.ink};white-space:pre-line">${escape(v)}</p>`}</td></tr>`;}).join('')}</table>`;
-}
-function card(section:EstimateSection,options:{heading?:'h2'|'h3';subtitle?:string}={}){
- const kind=section.kind;
- const border=kind==='excluded'?'#E6BAAC':kind==='allowance'?'#E7D9B6':kind==='assumption'?'#C5D4DF':PALETTE.line;
- const title=`<${options.heading||'h3'} style="margin:0;font-size:${options.heading==='h2'?'20px':'17px'};line-height:1.35;font-weight:700;color:${PALETTE.ink};${FONT}">${escape(section.title)}${kind==='category'&&section.text?`<span style="float:right;font-weight:700;font-size:15px;color:${PALETTE.ink};white-space:nowrap">${escape(section.text)}</span>`:tag(kind)}</${options.heading||'h3'}>`;
- const text=kind==='category'?'':section.text?`<p style="margin:10px 0 0;line-height:1.6;font-size:14px;color:${PALETTE.muted};white-space:pre-line">${escape(section.text)}</p>`:'';
- const body=[section.bullets?.length?bullets(section.bullets):'',section.rows?.length?rows(section.rows):''].filter(Boolean).join('<div style="height:12px"></div>');
- return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:separate;margin:0 0 14px"><tr><td style="padding:18px 20px;border:1px solid ${border};border-radius:12px;background:${PALETTE.card}">${title}${text}${body?`<div style="height:12px"></div>${body}`:''}</td></tr></table>`;
-}
-function heading(text:string,note?:string){return `<h2 style="margin:28px 0 12px;font-size:13px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:${PALETTE.soft};${FONT}">${escape(text)}</h2>${note?`<p style="margin:-4px 0 12px;font-size:14px;line-height:1.6;color:${PALETTE.muted}">${escape(note)}</p>`:''}`;}
-
 /**
  * The customer email is the approved preliminary online estimate in email form. It is built from the
  * same document model as the attached PDF (estimateDocument.ts), so the reference, date, brand,
@@ -130,70 +102,45 @@ function customerText(doc:EstimateDocument){
  lines.push('','Your complete estimate is attached as a PDF.');
  return lines.join('\n');
 }
-function internalBody(id:string,record:any){
- const result=record.customer,internal=record.internal||{};
+/**
+ * The internal team email: the admin summary (adminEstimate.ts) in a short, scannable form. Who,
+ * where, status, the price build-up, cost by trade and what still needs attention; every priced line
+ * is in the attached internal PDF and the admin screen.
+ */
+function adminEmail(id:string,record:any){
+ const s=buildAdminSummary({id,record:{...record.internal,customer:record.customer,contact:record.contact,scope:record.scope},brand:brand as unknown as EstimateBrand,submittedAt:record.submittedAt||null,legalLine:legalIdentityLine()});
+ const doc=s.doc;const tint=tintOf(doc.brand.accent);const accent=doc.brand.accent;const site=`https://${doc.brand.domain}`;
+ const alert='#9E3324',alertTint='#FBEDE9';
+ const h2=(t:string)=>`<h2 style="margin:24px 0 8px;font-size:16px;font-weight:700;color:${C.ink};${FONT}">${escape(t)}</h2>`;
+ const table=(rows:[string,string,boolean?][])=>`<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse">${rows.map(([k,v,strong])=>`<tr><td style="padding:7px ${strong?'10px':'0'};border-bottom:1px solid ${C.line};${strong?`background:${tint};`:''}font-size:14px;${strong?'font-weight:700;':''}color:${C.ink}">${escape(k)}</td><td style="padding:7px ${strong?'10px':'0'};border-bottom:1px solid ${C.line};${strong?`background:${tint};`:''}font-size:14px;${strong?'font-weight:700;':''}color:${C.ink};text-align:right;white-space:nowrap">${escape(v)}</td></tr>`).join('')}</table>`;
+ const list=(items:string[],color:string=C.ink)=>`<ul style="margin:0;padding:0 0 0 18px">${items.map(x=>`<li style="margin:0 0 5px;font-size:14px;line-height:1.5;color:${/^Blocking|^Not priced/.test(x)?alert:color}">${escape(x)}</li>`).join('')}</ul>`;
+ const confirm=(doc.assumptionRows.find(([k])=>k==='To confirm')?.[1]||[]).map(c=>`Customer to confirm: ${c}`);
+ const open=capped([...s.notPriced.map(n=>`Not priced: ${n}`),...confirm],6);const checks=capped(s.checks,6);const trades=capped(s.trades.map(t=>`${t.trade}|${t.cost}|${t.share}`),8);
  const parts:string[]=[];
- parts.push(`<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:separate;margin:0 0 16px"><tr><td style="padding:14px 18px;border-radius:10px;background:#FFF3EE;border:1px solid #E6BAAC"><p style="margin:0;font-size:14px;line-height:1.6;color:#7A2F22"><b>Confidential.</b> The internal attachment and financial breakdown are for the estimating team only. Do not forward this message to the customer.</p></td></tr></table>`);
- parts.push(heading('Lead'));
- parts.push(card({title:'Contact',rows:[['Reference',id],['Customer',record.contact?.name||'Not supplied'],['Email',record.contact?.email||'Not supplied'],['Phone',record.contact?.phone||'Not supplied'],['Service',String(record.scope?.answers?.service||'Not set')]]}));
- const range=result?.range?priceText(result.range):'Scope received for pricing review';
- parts.push(`<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:separate;margin:0 0 8px"><tr><td style="padding:20px 22px;border-radius:14px;background:${PALETTE.card};border:1px solid ${PALETTE.line};border-left:5px solid ${PALETTE.accent}"><p style="margin:0 0 6px;font-size:12px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:${PALETTE.soft}">Customer planning range</p><p style="margin:0;font-size:28px;line-height:1.2;font-weight:700;color:${PALETTE.ink};${SERIF}">${escape(range)}</p></td></tr></table>`);
- const financial:[string,string][]=([['Direct project cost',internal.directCost],['Contingency',internal.contingency],['Overhead recovery',internal.allocationDollars?.overhead],['Operating profit',internal.operatingProfit],['Recommended contract price',internal.contractPrice]] as [string,unknown][]).filter(([,v])=>typeof v==='number').map(([k,v])=>[k,money(Number(v))]);
- if(financial.length){parts.push(heading('Internal financial breakdown'));parts.push(card({title:'Pricing',rows:financial}));}
- if(internal.warnings?.length){parts.push(heading('Pricing checks requiring attention'));parts.push(card({title:'Warnings',kind:'assumption',bullets:internal.warnings.map((w:any)=>w.message||String(w))}));}
- parts.push(heading('Customer summary as delivered'));
- const g=groupSections(estimateSections(result||{}));
- for(const s of orderedSections([g.glance,g.brief,...g.included,...g.categories,...g.excluded,...g.allowances,...g.assumptions,...g.info].filter((s):s is EstimateSection=>Boolean(s))))parts.push(card(s));
- parts.push(`<p style="margin:16px 0 0;font-size:13px;line-height:1.6;color:${PALETTE.muted}">Attached: the complete administrative estimate (PDF). Open <a href="${SITE}/admin/p5-estimators" style="color:${PALETTE.ink}">the estimator admin</a> to review the saved record.</p>`);
- return parts.join('');
-}
-function layout(title:string,subtitle:string,body:string){
- const logo=`${SITE}${brand.logo}`;
- return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light"><meta name="supported-color-schemes" content="light"><title>${escape(title)}</title><style>body{margin:0;padding:0}@media (max-width:640px){.container{width:100%!important}.pad{padding:20px 16px!important}.header{padding:22px 16px!important}h1{font-size:22px!important}}</style></head>
-<body style="margin:0;padding:0;background:${PALETTE.paper};${FONT};-webkit-text-size-adjust:100%">
-<div style="display:none;max-height:0;overflow:hidden;opacity:0">${escape(subtitle)}</div>
-<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:${PALETTE.paper}"><tr><td align="center" style="padding:24px 12px">
-<table role="presentation" class="container" cellpadding="0" cellspacing="0" border="0" width="600" style="width:600px;max-width:100%;border-collapse:separate">
- <tr><td class="header" style="padding:28px 28px 22px;background:${PALETTE.card};border:1px solid ${PALETTE.line};border-bottom:0;border-radius:16px 16px 0 0">
-  <img src="${escape(logo)}" alt="${escape(brand.name)}" width="220" style="display:block;width:220px;max-width:70%;height:auto;border:0;margin:0 0 18px">
-  <p style="margin:0 0 6px;font-size:12px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:${PALETTE.soft}">${escape(subtitle)}</p>
-  <h1 style="margin:0;font-size:26px;line-height:1.25;font-weight:700;color:${PALETTE.ink};${SERIF}">${escape(title)}</h1>
- </td></tr>
- <tr><td style="height:4px;background:${PALETTE.accent};border-left:1px solid ${PALETTE.line};border-right:1px solid ${PALETTE.line}"></td></tr>
- <tr><td class="pad" style="padding:26px 28px 30px;background:${PALETTE.paper};border:1px solid ${PALETTE.line};border-top:0;border-radius:0 0 16px 16px">${body}</td></tr>
- <tr><td style="padding:22px 16px 0;text-align:center">
-  <p style="margin:0 0 6px;font-size:13px;line-height:1.6;color:${PALETTE.muted}"><b style="color:${PALETTE.ink}">${escape(brand.name)}</b> · <a href="tel:${escape(brand.phone.replace(/[^\d+]/g,''))}" style="color:${PALETTE.ink};text-decoration:none">${escape(brand.phone)}</a> · <a href="mailto:${escape(brand.email)}" style="color:${PALETTE.ink};text-decoration:none">${escape(brand.email)}</a></p>
-  <p style="margin:0;font-size:12px;line-height:1.6;color:${PALETTE.soft}"><a href="${SITE}" style="color:${PALETTE.soft}">${escape(brand.domain)}</a> · Planning information only. Final scope and a written agreement are required.</p>
-  <p style="margin:8px 0 0;font-size:12px;line-height:1.6;color:${PALETTE.soft}">${escape(documentFooterLine())}</p>
- </td></tr>
-</table></td></tr></table></body></html>`;
-}
-function plainText(id:string,record:any,admin:boolean){
- const result=record.customer,internal=record.internal||{};
- const lines:string[]=[brand.name,admin?'CONFIDENTIAL INTERNAL ESTIMATE':'YOUR PROJECT ESTIMATE',`Reference: ${id}`,''];
- if(admin)lines.push('LEAD',`Customer: ${record.contact?.name||'Not supplied'}`,`Email: ${record.contact?.email||'Not supplied'}`,`Phone: ${record.contact?.phone||'Not supplied'}`,'');
- lines.push(result?.range?`${priceLabel(result.range).toUpperCase()}: ${priceText(result.range)}`:'STATUS: Scope received for pricing review',result?.message||'','');
- const g=groupSections(estimateSections(result||{}));
- const block=(title:string,sections:EstimateSection[],note?:string)=>{if(!sections.length)return;lines.push(title.toUpperCase());if(note)lines.push(note);for(const s of sections){lines.push('',`${s.title}${s.kind==='category'&&s.text?`: ${s.text}`:''}`);if(s.text&&s.kind!=='category')lines.push(s.text);for(const b of s.bullets||[])lines.push(`  - ${b}`);for(const [k,v] of s.rows||[])lines.push(`  ${k}: ${v.replace(/\n+/g,' ')}`);}lines.push('');};
- {
-  block('Project summary',[g.glance,g.brief].filter((s):s is EstimateSection=>Boolean(s)));
-  block('What is included',[...g.included,...g.categories],g.categoriesIntro?.text);
-  block('Not included',g.excluded,'The following work is not part of this estimate.');
-  block('Allowances',g.allowances);
-  block('Assumptions and items to confirm',g.assumptions);
-  block('Supporting details',g.info);
- }
- if(admin){
-  const financial=([['Direct project cost',internal.directCost],['Contingency',internal.contingency],['Overhead recovery',internal.allocationDollars?.overhead],['Operating profit',internal.operatingProfit],['Recommended contract price',internal.contractPrice]] as [string,unknown][]).filter(([,v])=>typeof v==='number');
-  if(financial.length){lines.push('INTERNAL FINANCIAL BREAKDOWN');for(const [k,v] of financial)lines.push(`  ${k}: ${money(Number(v))}`);lines.push('');}
-  if(internal.warnings?.length){lines.push('PRICING CHECKS REQUIRING ATTENTION');for(const w of internal.warnings)lines.push(`  - ${w.message||String(w)}`);lines.push('');}
- }
- lines.push(legalIdentityLine(),'','The complete administrative estimate is attached. Do not forward it to the customer.');
- return lines.join('\n');
+ parts.push(`<p style="margin:0 0 16px;padding:10px 14px;background:${alertTint};font-size:13px;line-height:1.5;color:${alert}"><b>Internal estimate record.</b> Confidential; do not forward to the customer.</p>`);
+ parts.push(`<p style="margin:0 0 4px;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:${C.soft}">Internal estimate record</p><h1 style="margin:0 0 4px;font-size:24px;line-height:1.25;font-weight:700;color:${C.ink};${FONT}">${escape(doc.title)}</h1>${doc.projectName?`<p style="margin:0 0 4px;font-size:15px;color:${C.muted}">${escape(doc.projectName)}</p>`:''}<p style="margin:0 0 14px;font-size:13px;color:${C.soft}">Estimate ${escape(doc.reference)}${doc.issuedLabel?` &nbsp;|&nbsp; ${escape(doc.issuedLabel)}`:''}</p>`);
+ parts.push(`<p style="margin:0;padding:10px 14px;background:${s.released?tint:alertTint};border-left:3px solid ${s.released?accent:alert};font-size:14px;font-weight:700;color:${s.released?C.ink:alert}">${escape(s.status)}</p>`);
+ parts.push(h2('Lead'));
+ parts.push(`<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse">${([['Customer',escape(doc.customer.name||'Not supplied')],['Email',doc.customer.email?`<a href="mailto:${escape(doc.customer.email)}" style="color:${C.ink}">${escape(doc.customer.email)}</a>`:'Not supplied'],['Phone',doc.customer.phone?`<a href="tel:${escape(doc.customer.phone.replace(/[^\d+]/g,''))}" style="color:${C.ink}">${escape(doc.customer.phone)}</a>`:'Not supplied'],['Location',escape(doc.location.join(', ')||'Not stated')],['Finish',escape(`${doc.finish.name} (${adminBasis(doc)})`)]] as [string,string][]).map(([k,v])=>`<tr><td style="padding:6px 12px 6px 0;border-bottom:1px solid ${C.line};font-size:13px;color:${C.soft};width:90px;vertical-align:top">${k}</td><td style="padding:6px 0;border-bottom:1px solid ${C.line};font-size:14px;color:${C.ink}">${v}</td></tr>`).join('')}</table>`);
+ parts.push(h2('Price build-up'));
+ parts.push(table([...s.build.map(([k,v])=>[k,v] as [string,string]),['Contract price',s.contractPrice,true],[`Customer ${doc.priceKind==='range'?'range':'price'}${doc.status==='partial'?' (partial)':''}`,s.customerPrice,true]]));
+ if(s.trades.length){parts.push(h2('Direct cost by trade'));parts.push(table(trades.shown.map(t=>{const [trade,cost,share]=t.split('|');return [trade,`${cost}${share?`  (${share})`:''}`] as [string,string];})));if(trades.note)parts.push(`<p style="margin:6px 0 0;font-size:12px;color:${C.soft}">${escape(trades.note)}</p>`);}
+ if(s.checks.length){parts.push(h2('Checks before a firm proposal'));parts.push(list(checks.shown));if(checks.note)parts.push(`<p style="margin:4px 0 0;font-size:12px;color:${C.soft}">${escape(checks.note)}</p>`);}
+ if(open.shown.length){parts.push(h2('Open items'));parts.push(list(open.shown));if(open.note)parts.push(`<p style="margin:4px 0 0;font-size:12px;color:${C.soft}">${escape(open.note)}</p>`);}
+ parts.push(`<p style="margin:22px 0 0;font-size:13px;line-height:1.6;color:${C.muted}">Attached: the internal record with every priced line (PDF). <a href="${escape(`${site}/admin/p5-estimators`)}" style="color:${C.ink}">Open the estimator admin</a> for the saved record and the customer copy.</p>`);
+ const html=`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light"><title>${escape(`Internal record ${doc.reference}`)}</title></head><body style="margin:0;padding:0;background:${C.page};${FONT}"><table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:${C.page}"><tr><td align="center" style="padding:20px 12px"><table role="presentation" cellpadding="0" cellspacing="0" border="0" width="600" style="width:600px;max-width:100%;border-collapse:collapse;background:#FFFFFF;border:1px solid ${C.line}"><tr><td style="padding:20px 24px 14px;border-bottom:1px solid ${accent}"><img src="${escape(`${site}${doc.brand.logo}`)}" alt="${escape(doc.brand.name)}" width="180" style="display:block;width:180px;max-width:60%;height:auto;border:0"></td></tr><tr><td style="padding:18px 24px 24px">${parts.join('')}</td></tr></table></td></tr></table></body></html>`;
+ const lines:string[]=['INTERNAL ESTIMATE RECORD - CONFIDENTIAL, DO NOT FORWARD TO THE CUSTOMER','',`${doc.title}${doc.projectName?`: ${doc.projectName}`:''}`,`Estimate ${doc.reference}${doc.issuedLabel?` | ${doc.issuedLabel}`:''}`,`Status: ${s.status}`,'',
+  'LEAD',`Customer: ${doc.customer.name||'Not supplied'}`,`Email: ${doc.customer.email||'Not supplied'}`,`Phone: ${doc.customer.phone||'Not supplied'}`,`Location: ${doc.location.join(', ')||'Not stated'}`,`Finish: ${doc.finish.name} (${adminBasis(doc)})`,'',
+  'PRICE BUILD-UP',...s.build.map(([k,v])=>`${k}: ${v}`),`Contract price: ${s.contractPrice}`,`Customer ${doc.priceKind==='range'?'range':'price'}: ${s.customerPrice}`,''];
+ if(s.trades.length)lines.push('DIRECT COST BY TRADE',...s.trades.map(t=>`${t.trade}: ${t.cost}${t.share?` (${t.share})`:''}`),'');
+ if(s.checks.length)lines.push('CHECKS BEFORE A FIRM PROPOSAL',...checks.shown.map(c=>`- ${c}`),...(checks.note?[checks.note]:[]),'');
+ if(open.shown.length)lines.push('OPEN ITEMS',...open.shown.map(c=>`- ${c}`),...(open.note?[open.note]:[]),'');
+ lines.push('The internal record with every priced line is attached (PDF).',`Admin: ${site}/admin/p5-estimators`);
+ return {html,text:lines.join('\n')};
 }
 export function estimateEmail(id:string,record:any,admin:boolean){
- // The customer email is the approved estimate, built from the same document as the attached PDF.
+ // The customer email is the approved estimate, built from the same document as the attached PDF;
+ // the internal email is the short admin summary of the same saved record.
  if(!admin){const doc=customerEstimateDocument(id,record);return {text:customerText(doc),html:customerLayout(doc,customerHtml(doc))};}
- // The administrative email keeps the saved record and shows the customer sections as delivered.
- return {text:plainText(id,record,true),html:layout('Internal estimate record',`Confidential · Reference ${id.slice(0,8)}`,internalBody(id,record))};
+ return adminEmail(id,record);
 }

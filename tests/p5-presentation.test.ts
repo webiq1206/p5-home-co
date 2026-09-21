@@ -92,9 +92,10 @@ test('saved pricing result keeps public scope and selling prices while customer 
  // The same saved record remains complete in the explicitly administrative
  // artifact; the repair is a customer boundary, not destructive persistence.
  const adminText=(await pdfTextLayers(await administrativePdf('saved-result',saved.internal))).join('\n');
- assert.match(adminText,/Direct project cost: \$200\.00/);
- assert.match(adminText,/\$2\.00 = \$200\.00/);
- assert.match(adminText,/owner-average cost/i);
+ // The internal record (2026-09-21 template) shows the build-up and one row per line: unit cost, cost, source.
+ assert.match(adminText,/Direct project cost[\s\S]{0,40}\$200/);
+ assert.match(adminText,/\$2\.00[\s\S]{0,20}\$200\.00/);
+ assert.match(adminText,/Owner average|PB-/);
 });
 
 test('ordinary overhead-door scope and every priced line survive page, email, and PDF presentation',async()=>{
