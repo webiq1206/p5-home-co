@@ -29,6 +29,10 @@ test('facts still withhold the price',()=>{
     'Patch drywall: the labor line appears to double count the mobilization already carried.',
   ])assert.equal(findingBlocks(defect,tasks,priced),true,defect);
 });
+test('a research gap withholds the price only for a task with no price (live Neilsen framing)',()=>{
+  assert.equal(findingBlocks('Install new vanity: no defensible planning average could be supported.',tasks,priced),false);
+  assert.equal(findingBlocks('Chimney cap repair: no defensible planning average could be supported.',tasks,priced),true);
+});
 test('an unpriced task already carried out of the total is disclosed, not withheld',()=>{
   assert.equal(findingBlocks('Chimney cap repair: remains unpriced.',tasks,priced,[tasks[3]]),false);
 });

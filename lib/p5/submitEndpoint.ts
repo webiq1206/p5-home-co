@@ -84,7 +84,7 @@ export async function postSubmission(request:Request,schedule?:(task:()=>Promise
       // A labelled QA run records why the range was withheld in its own event log, so an
       // acceptance run explains itself without access to the host's logs. Customers' drafts never carry this.
       const firstCheck=(((priced.internal as {scopePricing?:{adjustments?:{priorAuditIssues?:string[]}}}).scopePricing?.adjustments?.priorAuditIssues)||[]).map(issue=>`First check: ${issue}`);
-      if(/^\[QA\](?:\s|$)/i.test(String(draft.contact?.name||'')))for(const note of [...new Set([...((((priced.internal as {scopePricing?:{issues?:string[]}}).scopePricing?.issues)||[]) as string[]),...missing,...firstCheck])].slice(0,30))void recordEvent({draftId:id,estimator:String(draft.answers.service||'')||null,kind:'pricing',stage:'no-range',code:blocks.join(',').slice(0,80)||'no-range',outcome:'failed',message:String(note)});
+      if(/^\[QA\](?:\s|$)/i.test(String(draft.contact?.name||'')))for(const note of [...new Set([...missing.map((m:string)=>`HOLD: ${m}`),...((((priced.internal as {scopePricing?:{issues?:string[]}}).scopePricing?.issues)||[]) as string[]).filter(i=>!missing.includes(i)).map(i=>`note: ${i}`),...firstCheck])].slice(0,30))void recordEvent({draftId:id,estimator:String(draft.answers.service||'')||null,kind:'pricing',stage:'no-range',code:blocks.join(',').slice(0,80)||'no-range',outcome:'failed',message:String(note)});
       // The reply is structured so the interface can list each open item on
       // its own line and link each missing detail to its question, instead of
       // one dense paragraph.

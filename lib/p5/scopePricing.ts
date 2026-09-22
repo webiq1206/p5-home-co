@@ -462,7 +462,7 @@ function quantityClaims(textValue:string):QuantityClaim[]{
   const textValueWithWords=textValue.replace(/\b(one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty)\b/gi,(word)=>String(NUMBER_WORDS[word.toLowerCase()]));
   const claims:QuantityClaim[]=[];
   const add=(quantity:number,unit:string)=>{if(Number.isFinite(quantity)&&quantity>0)claims.push({quantity,unit:unitKey(unit)});};
-  const pattern=/(?:^|[^\d.])(\d+(?:\.\d+)?)\s*(?:(?:labor|labour)\s*)?(hours?|hrs?|hr|h|feet?|ft|linear\s+feet?|lineal\s+feet?|lf|square\s+feet?|square\s+foot|sq\.?\s*ft|sf|cubic\s+yards?|cubic\s+yard|cy|each|units?|fixtures?|doors?|windows?|toilets?|faucets?|lights?)(?=$|[^\w])/gi;
+  const pattern=/(?:^|[^\d.])(\d+(?:\.\d+)?)\s*(?:(?:labor|labour)\s*)?(hours?|hrs?|hr|h|feet?|ft|linear\s+feet?|lineal\s+feet?|lf|square\s+feet?|square\s+foot|sq\.?\s*ft|sf|cubic\s+yards?|cubic\s+yard|cy|each|units?|fixtures?|doors?|windows?|toilets?|faucets?|lights?)(?![\w/])(?!\s+(?:colou?rs?|styles?|types?|finish(?:es)?|hardware|swing|handing|selections?)\b)/gi;
   for(const match of textValueWithWords.matchAll(pattern)){
     const unit=match[2].toLowerCase();
      add(Number(match[1]),/\bhours?\b|\bhrs?\b|\bhr\b|\bh\b/.test(unit)?'hour':/\b(?:square|sq|sf)\b/.test(unit)?'sf':/\b(?:cubic|cy)\b/.test(unit)?'cy':/\b(?:linear|lineal|lf|feet?|ft)\b/.test(unit)?'lf':/\b(?:doors?|windows?|fixtures?|toilets?|faucets?|lights?)\b/.test(unit)?'each':unit);
@@ -1024,7 +1024,7 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
       return mapping.tasks.filter(t=>resolution.rules.some(rule=>rule.scopeTaskId===t.id&&rule.quantity.fixed!==undefined&&rule.quantity.fixed>0&&rule.unitCost>0)||t.existingLineIds.some(id=>live.has(id)&&!resolution.removeLineIds?.includes(id))).map(({id,description})=>({id,description}));
     };
     pricedTasks=positivelyPriced();
-    const blocks=(issue:string)=>opinions.has(issue)?findingBlocks(issue,mapping.tasks,pricedTasks):!advisoryIssue(issue)&&!pricedTaskRemark(issue,pricedTasks);
+    const blocks=(issue:string)=>opinions.has(issue)||/: (?:no supported price|no defensible planning average could be supported)\.$/.test(issue)?findingBlocks(issue,mapping.tasks,pricedTasks):!advisoryIssue(issue)&&!pricedTaskRemark(issue,pricedTasks);
     const blockingIssues=resolution.issues.filter(blocks);
     // An audit note about a planning allowance's basis, or a task left uncovered only because a planning or sourced allowance prices it, is disclosure, not a reason for a repair round.
     const allowancePricedTask=(taskId:string)=>resolution.rules.some(rule=>rule.scopeTaskId===taskId&&(rule.id.startsWith('planning-')||rule.id.startsWith('market-'))&&rule.quantity.fixed!==undefined&&rule.quantity.fixed>0);
@@ -1230,7 +1230,12 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
     }
   }catch(error){console.error('[p5-pricing] duplicate correction skipped:',error instanceof Error?error.message:error);}
   const allTasks=(auditTrail.tasks as {id:string;description:string}[]).map(({id,description})=>({id,description}));
-  const kept=findings.filter(issue=>issue===HANDOFF_ISSUE||missingScopeFields([issue]).length>0||!resolvedDuplicates.has(issue)&&(opinions.has(issue)?findingBlocks(issue,allTasks,pricedTasks,carriedOut):!advisoryIssue(issue)&&!pricedTaskRemark(issue,pricedTasks)&&!carriedOutRemark(issue,carriedOut,pricedTasks)));
+  // A research gap ("no supported price", "no defensible planning average") is computed per task, but
+  // the task may already be priced from the owner's book. Live Neilsen (2026-09-21): framing, well and
+  // excavation were priced from the book and still held the estimate because web research for an extra
+  // component failed. It withholds the price only when the task itself has no price.
+  const researchGap=(issue:string)=>/: (?:no supported price|no defensible planning average could be supported)\.$/.test(issue);
+  const kept=findings.filter(issue=>issue===HANDOFF_ISSUE||missingScopeFields([issue]).length>0||!resolvedDuplicates.has(issue)&&(opinions.has(issue)||researchGap(issue)?findingBlocks(issue,allTasks,pricedTasks,carriedOut):!advisoryIssue(issue)&&!pricedTaskRemark(issue,pricedTasks)&&!carriedOutRemark(issue,carriedOut,pricedTasks)));
   const disclosed=findings.filter(issue=>!kept.includes(issue));
   resolution.assumptions.push(...disclosed.map(item=>/^to confirm:/i.test(item)?item:`To confirm: ${item}`));
   resolution.issues=kept;
