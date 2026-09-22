@@ -270,3 +270,26 @@ test('an unknown floor or model is not an unknown quantity; evidence remarks on 
   assert.equal(advisoryIssue('scope-1 is uncited and duplicates scope-2'),false);
   assert.equal(advisoryIssue('The sprinkler pump task has no positive priced line.'),false);
 });
+test('an OpenAI rate limit is waited out, not ended by an Anthropic account with no credit (live 2026-09-21)',async()=>{
+  const {requestPricing}=await import('../lib/p5/scopePricing.ts');
+  const names=['OPENAI_API_KEY','AI_INTEGRATIONS_OPENAI_API_KEY','AI_INTEGRATIONS_OPENAI_BASE_URL','ANTHROPIC_API_KEY','OPENAI_BASE_URL','P5_PRICING_PROVIDER'] as const;
+  const saved=Object.fromEntries(names.map(n=>[n,process.env[n]]));
+  for(const n of names)delete process.env[n];
+  process.env.ANTHROPIC_API_KEY='synthetic-anthropic';process.env.OPENAI_API_KEY='synthetic-openai';
+  const runtime=globalThis as typeof globalThis & {p5AnthropicBlockedUntil?:number};runtime.p5AnthropicBlockedUntil=0;
+  const realFetch=globalThis.fetch;let anthropicCalls=0;
+  globalThis.fetch=(async(input:any)=>{
+    if(String(input).includes('anthropic.com')){anthropicCalls++;return new Response(JSON.stringify({type:'error',error:{type:'invalid_request_error',message:'Your credit balance is too low to access the Anthropic API.'}}),{status:400});}
+    return new Response(JSON.stringify({error:{code:'RATELIMIT_EXCEEDED',message:'Rate limit exceeded.'}}),{status:429});
+  }) as typeof fetch;
+  try{
+    // The stage reports the OpenAI rate limit (a busy provider the job waits out), not the billing refusal.
+    await assert.rejects(()=>requestPricing('JSON',{},false,20000),/^Error: pricing-provider-unavailable:429/);
+    assert.equal(anthropicCalls,1);
+    await assert.rejects(()=>requestPricing('JSON',{},false,20000),/pricing-provider-unavailable:429/);
+    assert.equal(anthropicCalls,1,'Anthropic is parked after a billing refusal');
+  }finally{
+    globalThis.fetch=realFetch;runtime.p5AnthropicBlockedUntil=0;
+    for(const n of names){if(saved[n]===undefined)delete process.env[n];else process.env[n]=saved[n]!;}
+  }
+});

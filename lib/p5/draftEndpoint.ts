@@ -126,7 +126,13 @@ export async function putDraft(request:Request){
       const unresolved=extraction?reconcileScope(answers,extraction,resolutions).conflicts:[];
       const dependencies=await costQuestionFields(answers);
       const remaining=scopeQuestions(answers,extraction,unresolved,skipped,dependencies,incomingText);
-      if(remaining.length)throw new DraftError(remaining[0].handoff?'Use the matching company estimator for this project.':`Answer the remaining ${remaining[0].label.toLowerCase()} question before continuing.`);
+      // Only a question the price depends on, a contradiction or a wrong-company handoff can stop the
+      // estimate here. The page caps the other questions (owner rule: few questions, none twice), so an
+      // uncapped block on them left a customer facing "Answer the remaining other scope details
+      // question" with no question on screen (live RE-10, 2026-09-21). The rest become items to confirm.
+      const blocking=remaining.filter(q=>q.handoff||q.conflict||dependencies.includes(q.field));
+      if(blocking.length)throw new DraftError(blocking[0].handoff?'Use the matching company estimator for this project.':`Answer the remaining ${blocking[0].label.toLowerCase()} question before continuing.`);
+      for(const q of remaining)if(!skipped.includes(q.field))skipped.push(q.field);
       reviewed={text:incomingText,answers,extraction,uncertainFields:skipped,uploads:existing?.uploads||[],reviewedAt:new Date().toISOString(),
         corrections:Object.entries(answers).filter(([field,value])=>{const fact=extraction?.facts.find(f=>f.field===field);return fact&&fact.value!==value;}).map(([field,value])=>({field:field as keyof ScopeAnswers,previous:extraction!.facts.find(f=>f.field===field)!.value,value:value!})),
       };

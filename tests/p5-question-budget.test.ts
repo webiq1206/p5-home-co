@@ -24,3 +24,15 @@ test('questions that change the price come first and are never capped; the rest 
   const eighteen=topics.map((topic,i)=>q(`field${i}`,`Label ${i}`,`Please confirm the ${topic}`));
   assert.equal(unaskedQuestions(eighteen,[]).length,MAX_OTHER_QUESTIONS,'a large plan set asks a handful, not eighteen');
 });
+test('questions the review step can require are never hidden by the cap or the repeat rule (live RE-10, 2026-09-21)',()=>{
+  const asked=Array.from({length:6},(_,i)=>({kind:'question',text:`How many items of kind ${i} need repair?`,label:'One scope detail'}));
+  const questions=[
+    {field:'otherDetails',label:'Other scope details',reason:'Please confirm other scope details.'},
+    {field:'sqft',label:'Project area',reason:'What is the project area?'},
+    {field:'finish',label:'One scope detail',reason:'Your two answers disagree on finish.',conflict:true},
+  ];
+  const shown=unaskedQuestions(questions,asked,['sqft']).map(q=>q.field);
+  // The six-question cap is used up, so the optional one is not shown, but the price question and the
+  // contradiction still are, even though the contradiction shares an asked label.
+  assert.deepEqual(shown,['sqft','finish']);
+});

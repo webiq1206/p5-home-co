@@ -266,7 +266,16 @@ export const requestPricing=async(instructions:string,input:unknown,search:boole
       const left=remainingMs-(Date.now()-started);
       console.error(`[p5-pricing] OpenAI refused the stage (${message.slice(0,140)}); ${left>=5000?'continuing with Anthropic':'no time left for Anthropic'}.`);
       if(left<5000)throw error;
-      return requestPricingWith('anthropic',instructions,input,search,left,{},identity);
+      try{return await requestPricingWith('anthropic',instructions,input,search,left,{},identity);}
+      catch(fallback){
+        // Live 2026-09-21: OpenAI was rate limited (429), the fallback reached an Anthropic account with
+        // no credit, and that billing refusal was reported instead, which ends the job as a handoff. A
+        // billing block parks Anthropic, and the original OpenAI error is what the stage reports, so a
+        // rate limit is waited out and retried as the busy path intends.
+        const detail=fallback instanceof Error?fallback.message:String(fallback);
+        if(/credit balance|billing|:402:/i.test(detail)){providerRuntime.p5AnthropicBlockedUntil=Date.now()+10*60_000;console.error('[p5-pricing] Anthropic has no credit; parked for 10 minutes. Retrying with OpenAI.');throw error;}
+        throw fallback;
+      }
     }
   }
   if(anthropic){
