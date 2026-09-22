@@ -27,12 +27,14 @@ const addition=z.object({code:text,quantity:positive,quantityEvidence:text,build
 const task=z.object({id:text,description:text,evidence:text,existingLineIds:z.array(text).max(150),additions:z.array(addition).max(30),researchDescription:z.string().max(1000),issues:z.array(text).max(20)}).strict();
 const mappingSchema=z.object({tasks:z.array(task).min(1).max(150),issues:z.array(text).max(100),notes:z.array(text).max(100).default([]),replacements:z.array(z.object({lineId:text,reason:text}).strict()).max(150).default([]),removeExclusions:z.array(z.object({text:text,reason:text}).strict()).max(50).default([])}).strict();
 type Mapping=z.infer<typeof mappingSchema>;
-const inventorySchema=z.object({tasks:z.array(z.object({id:text,description:z.string().min(1).max(400),evidence:z.string().min(1).max(600)}).strict()).min(1).max(150),issues:z.array(text).max(100),notes:z.array(text).max(100).default([])}).strict();
+// A section may hold nothing priceable (live 2026-09-21: a budget with every quantity removed); requiring a
+// task there threw a validation error and handed the whole estimate to a person.
+const inventorySchema=z.object({tasks:z.array(z.object({id:text,description:z.string().min(1).max(400),evidence:z.string().min(1).max(600)}).strict()).max(150),issues:z.array(text).max(100),notes:z.array(text).max(100).default([])}).strict();
 const observation=z.object({url:z.string().url(),low:positive,high:positive,unit:text,costBasis:z.enum(['material-purchase','subcontractor-installed','trade-labor']),publishedAt:z.string(),region:text,excerpt:z.string().min(1).max(220),sourceType:z.enum(['regional-guide','national-guide']),dateBasis:z.enum(['published','retrieved'])}).strict();
 const costEvidence=z.object({url:z.string().url(),publishedAt:z.string(),dateBasis:z.enum(['published','retrieved']),region:text,excerpt:z.string().min(1).max(220)}).strict();
 const landedCost=z.object({taxRate:z.number().finite().min(0).max(1),freightPerUnit:z.number().finite().min(0).max(10000000),taxOnFreight:z.boolean(),taxEvidence:costEvidence,freightEvidence:costEvidence}).strict();
 const marketSchema=z.object({rates:z.array(z.object({taskId:text,description:text,unit:text,quantity:positive,quantityEvidence:text,quantityRange:quantityRange.nullish(),building:z.string().optional(),floor:z.string().optional(),basis:z.enum(['material-purchase','subcontractor-installed','trade-labor']),includes:text,excludes:z.string().max(2000),landedCost:landedCost.nullish(),sources:z.array(observation).min(1).max(4)}).strict()).max(60),issues:z.array(text).max(100),notes:z.array(text).max(100).default([])}).strict();
-const auditSchema=z.object({coveredTaskIds:z.array(text),issues:z.array(text),notes:z.array(text).default([]),resolvedIssues:z.array(z.object({issue:text,reason:text,lineIds:z.array(text).min(1)}).strict()).default([])}).strict();
+const auditSchema=z.object({coveredTaskIds:z.array(text),issues:z.array(text),notes:z.array(text).default([]),resolvedIssues:z.preprocess(value=>Array.isArray(value)?value.filter(item=>item&&typeof item==='object'&&Array.isArray((item as {lineIds?:unknown}).lineIds)&&(item as {lineIds:unknown[]}).lineIds.length>0):value,z.array(z.object({issue:text,reason:text,lineIds:z.array(text).min(1)}).strict()).default([]))}).strict();
 const planningRate=z.object({taskId:text,description:text,unit:text,quantity:positive,quantityEvidence:text,quantityRange:quantityRange.nullish(),building:z.string().optional(),floor:z.string().optional(),basis:z.enum(['material-purchase','subcontractor-installed','trade-labor']),includes:text,excludes:z.string().max(2000),low:positive,high:positive,confidence:z.enum(['low','medium']),rationale:z.string().min(1).max(900)}).strict();
 const planningSchema=z.object({rates:z.array(planningRate).max(60),issues:z.array(text).max(100),notes:z.array(text).max(100).default([])}).strict();
 /** Web research gets this long per batch before a labeled planning average is used instead. */
@@ -879,6 +881,12 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
       }
     }
     if(new Set(inventory.tasks.map(t=>t.id)).size!==inventory.tasks.length)throw new Error('Duplicate inventory task');
+    // Nothing separately priceable in the source: the reviewed answers price the project (a new home from its
+    // square footage through the book assemblies); a size nobody gave is asked for, never a handoff.
+    if(!inventory.tasks.length){
+      auditTrail.issues.push('No separately priceable tasks were found in the source; priced from the reviewed project answers.');
+      return {...base,customer:customerSafeProjection({...base.customer,instructions:pricingExtraction?.instructions,documentCoverage:pricingExtraction?.documentCoverage}),internal:{...base.internal,scopePricing:auditTrail}};
+    }
     // Batches map concurrently. priorMappedTasks used to serialise them so a
     // later batch could see earlier additions; the independent audit below
     // already verifies duplicates and conflicts across the whole mapping, so

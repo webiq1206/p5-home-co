@@ -909,3 +909,15 @@ test('a contract-timing question never withholds a price',async()=>{
  assert.ok(advisoryIssue('Schedule conflict: the extracted notice states completion within 8 business days, while another document note says the field is blank and defaults to 10 business days. Which deadline governs the estimate? Price and scope are otherwise unaffected.'));
  assert.ok(!advisoryIssue('The 8 business day completion requires overtime labor that is unpriced.'),'timing that names unpriced cost still blocks');
 });
+test('an audit resolution that cites no line is dropped instead of failing the estimate (live bathroom, 2026-09-21)',async()=>{
+ const r=await priceCompleteScope(scope,config,replies([{tasks:[task],issues:[]},{coveredTaskIds:['cabinets'],issues:[],resolvedIssues:[{issue:'Hardware labor',reason:'covered',lineIds:[]}]}]),now);
+ assert.ok(r.customer.range,'the priced estimate is released');
+ assert.doesNotMatch(JSON.stringify(r.internal.scopePricing.issues),/ZodError/);
+});
+test('a source with nothing separately priceable is priced from the reviewed answers, never handed off (live budget, 2026-09-21)',async()=>{
+ const empty:PricingRequest=async()=>({value:{tasks:[],issues:[],notes:[]},sourceUrls:[]});
+ const r=await priceCompleteScope(scope,config,empty,now);
+ assert.deepEqual(r.customer.range,base.customer.range);
+ assert.ok(r.internal.scopePricing.issues.some((i:string)=>/No separately priceable tasks/.test(i)));
+ assert.doesNotMatch(JSON.stringify(r.internal.scopePricing.issues),/ZodError/);
+});
