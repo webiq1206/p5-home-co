@@ -586,7 +586,9 @@ export function marketResolution(raw:unknown,urls:string[],tasks:Mapping['tasks'
   const market=marketSchema.parse(raw);const result:ScopePriceResolution={rules:[],assumptions:[...market.notes],issues:[...market.issues]};
   for(const r of market.rates){
     const t=tasks.find(t=>t.id===r.taskId&&t.researchDescription);
-    if(!t)throw new Error('Unknown researched scope task');
+    // A reply row naming a task outside this batch is dropped, not fatal: live P5 kitchen and Cabinet (2026-09-22) handed
+    // off entirely over one such row. The task it failed to price stays unpriced and is judged by the coverage rules.
+    if(!t){console.error(`[p5-pricing] dropped a researched rate for unknown task ${String(r.taskId).slice(0,60)}`);continue;}
     const selection=taskSelectionStatus(t,tasks);
     if(selection!=='billable'){
       const finding=`${t.description}: ${selection==='ambiguous'?'alternative selection is ambiguous or conflicting':'unselected alternative or excluded work is not billable'}.`;
@@ -650,7 +652,9 @@ export function planningResolution(raw:unknown,tasks:Mapping['tasks'],now:Date,o
   const planning=planningSchema.parse(raw);const result:ScopePriceResolution={rules:[],assumptions:[...planning.notes],issues:[...planning.issues]};
   for(const r of planning.rates){
     const t=tasks.find(t=>t.id===r.taskId&&t.researchDescription);
-    if(!t)throw new Error('Unknown planning scope task');
+    // A reply row naming a task outside this batch is dropped, not fatal: live P5 kitchen and Cabinet (2026-09-22) handed
+    // off entirely over one such row. The task it failed to price stays unpriced and is judged by the coverage rules.
+    if(!t){console.error(`[p5-pricing] dropped a planning rate for unknown task ${String(r.taskId).slice(0,60)}`);continue;}
     const selection=taskSelectionStatus(t,tasks);
     if(selection!=='billable'){const finding=`${t.description}: ${selection==='ambiguous'?'alternative selection is ambiguous or conflicting':'unselected alternative or excluded work is not billable'}.`;if(selection==='ambiguous')result.issues.push(finding);else result.assumptions.push(finding);continue;}
     if(!supportedUnit(r.unit)){
@@ -1133,7 +1137,8 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
     }
     auditTrail.verification=audit;
     const ids=new Set(mapping.tasks.map(t=>t.id));
-    if(audit.coveredTaskIds.some(id=>!ids.has(id)))throw new Error('Unknown audited task');
+    // An unknown id in the check's coverage list is ignored; it cannot mark a real task covered.
+    audit.coveredTaskIds=audit.coveredTaskIds.filter(id=>ids.has(id));
     resolution.issues.push(...audit.issues);
     // A scope question the customer was not asked (the page caps them) or did not answer is an item to
     // confirm, not a reason to withhold the price: unknown counts are already priced as modeled

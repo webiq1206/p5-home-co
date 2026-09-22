@@ -173,7 +173,7 @@ function providers(): Provider[] {
     result.push({ kind: "OpenAI", key: openAiKey, endpoint: openAiEndpoint.replace(/\/+$/, ""), model: requested || "gpt-4.1" });
   }
   const anthropicKey = process.env.ANTHROPIC_API_KEY;
-  if (anthropicKey) {
+  if (anthropicKey && Date.now() >= anthropicParkedUntil) {
     result.push({ kind: "Anthropic", key: anthropicKey, endpoint: "https://api.anthropic.com/v1", model: scopeModelSetting().model });
   }
   // One read costs one provider call. Anthropic leads scope reads (measured at
@@ -184,6 +184,12 @@ function providers(): Provider[] {
   return result.sort((a, b) => (a.kind === lead ? -1 : 0) - (b.kind === lead ? -1 : 0));
 }
 
+/** An account that is out of credit refuses every request; skip it for a while instead of asking per page.
+ * Live 2026-09-22: every page tried Anthropic twice (bytes, then text layer) before OpenAI read it. */
+let anthropicParkedUntil=0;
+export const ANTHROPIC_CREDIT_PARK_MS=Number(process.env.P5_ANTHROPIC_PARK_MS||10*60*1000);
+export const creditRefusal=(detail:string)=>/credit balance is too low|insufficient.{0,20}credit|billing/i.test(detail);
+
 function errorForProvider(provider: Provider, status: number | null, message: string): ProviderError {
   const retryable = status === 408 || status === 409 || status === 429 || status === null || status >= 500;
   return new ProviderError(provider.kind, status, safeProviderMessage(message), retryable);
@@ -192,7 +198,7 @@ function errorForProvider(provider: Provider, status: number | null, message: st
 async function responseError(provider: Provider, response: Response): Promise<ProviderError> {
   const error=errorForProvider(provider, response.status, "Document analysis service rejected the request");
   // The provider's own reason describes the request, never the document; logging it names the cause.
-  if(response.status>=400&&response.status<500&&response.status!==429){try{const detail=await response.clone().json() as {error?:{type?:string;message?:string}};console.error(`[p5-analysis] ${provider.kind} ${response.status} reason: ${String(detail?.error?.type||'')} ${String(detail?.error?.message||'').slice(0,240)}`);}catch{}}
+  if(response.status>=400&&response.status<500&&response.status!==429){try{const detail=await response.clone().json() as {error?:{type?:string;message?:string}};console.error(`[p5-analysis] ${provider.kind} ${response.status} reason: ${String(detail?.error?.type||'')} ${String(detail?.error?.message||'').slice(0,240)}`);if(provider.kind==='Anthropic'&&creditRefusal(String(detail?.error?.message||''))){anthropicParkedUntil=Date.now()+ANTHROPIC_CREDIT_PARK_MS;}}catch{}}
   const header=response.headers.get('retry-after');
   if(header){const milliseconds=/^\d+(\.\d+)?$/.test(header)?Number(header)*1000:Date.parse(header)-Date.now();if(Number.isFinite(milliseconds)&&milliseconds>0)error.retryAfterMs=Math.max(1000,milliseconds);}
   return error;

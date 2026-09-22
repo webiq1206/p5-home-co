@@ -82,7 +82,9 @@ test('planning averages are labeled allowances with the same quantity defenses',
   assert.equal(wide.rules.length,1);assert.deepEqual(wide.rules[0].unitCostRange,{low:6.32,high:15.81});assert.equal(wide.issues.length,0);
   const reversed=planningResolution({...planned,rates:[{...planned.rates[0],low:9,high:3}]},[extra],now,0,'Boise',scope);
   assert.deepEqual(reversed.rules[0].unitCostRange,{low:3.29,high:8.22},'a reversed range is ordered, then narrowed to the allowed spread');
-  assert.throws(()=>planningResolution({...planned,rates:[{...planned.rates[0],taskId:'unknown'}]},[extra],now,0,'Boise',scope),/Unknown planning scope task/);
+  // A row for an unknown task is dropped, not fatal (live 2026-09-22); it prices nothing.
+  const stray=planningResolution({...planned,rates:[{...planned.rates[0],taskId:'unknown'}]},[extra],now,0,'Boise',scope);
+  assert.equal(stray.rules.length,0,'an unknown task is never priced');
   const missing=planningResolution({...planned,rates:[]},[extra],now,0,'Boise',scope);
   assert.ok(missing.issues.some(issue=>/no defensible planning average/.test(issue)));
 });

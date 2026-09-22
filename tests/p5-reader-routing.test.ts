@@ -28,3 +28,8 @@ test('rate-limit waits grow, honour retry-after and stay short',()=>{
   assert.ok(rateLimitWaitMs(0,'5')>=5000);
   assert.ok(rateLimitWaitMs(5,'60')<=8500,'never more than about 8 s');
 });
+test('an out-of-credit Anthropic account is recognised so reads stop asking it (live 2026-09-22)',async()=>{
+  const {creditRefusal}=await import('../lib/p5/extraction.ts');
+  assert.equal(creditRefusal('Your credit balance is too low to access the Anthropic API. Please go to Plans & Billing'),true);
+  assert.equal(creditRefusal('messages.0.content: image exceeds 5 MB maximum'),false);
+});
