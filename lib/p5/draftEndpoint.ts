@@ -122,7 +122,8 @@ export async function putDraft(request:Request){
     if(extraction?.instructions)extraction={...extraction,instructions:{...extraction.instructions,questions:instructionPrompts(extraction,answers,incomingText).map(instructionPromptText)}};
     let reviewed:ReviewedScope|null=null;
     if(raw.reviewed===true){
-      if(extraction?.instructions?.questions.length)throw new DraftError('Answer the remaining scope question before continuing.');
+      // Open scope questions no longer stop the review: the page shows a capped number of them, and
+      // any left over are priced as modeled allowances and listed as items to confirm (scopePricing.ts).
       const unresolved=extraction?reconcileScope(answers,extraction,resolutions).conflicts:[];
       const dependencies=await costQuestionFields(answers);
       const remaining=scopeQuestions(answers,extraction,unresolved,skipped,dependencies,incomingText);

@@ -1,4 +1,5 @@
 import {groundSourceResponsibilities} from './sourceResponsibilities.ts';
+import {reasoningFor,rejectsReasoning} from './openaiReasoning.ts';
 import {retainExplicitSelections} from './explicitSelections.ts';
 import {retainCompletedCabinetRemoval} from './completedWork.ts';
 import {readTakeoffs,readPageRecords,pageRecordList} from './documentLedger.ts';
@@ -224,8 +225,8 @@ function asInputContent(files: AnalysisFile[], text: string, previous: ScopeAnsw
 
 async function analyzeWithOpenAI(provider: Provider, text: string, files: AnalysisFile[], previous: ScopeAnswers, request: RequestFunction, timeoutMs: number,sourceInstruction=""): Promise<AnalysisResult> {
   const started = Date.now();
-  const response = await request(`${provider.endpoint}/responses`, {
-    method: "POST", signal: AbortSignal.timeout(timeoutMs),
+  const sendRead=(withReasoning:boolean)=>request(`${provider.endpoint}/responses`, {
+    method: "POST", signal: AbortSignal.timeout(Math.max(1000,timeoutMs-(Date.now()-started))),
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${provider.key}` },
     // strict:false, as the pricing stages already use: a strict grammar for
     // this large nested schema forced constrained decoding (and schema
@@ -234,11 +235,14 @@ async function analyzeWithOpenAI(provider: Provider, text: string, files: Analys
     // without it. Local validateExtraction remains mandatory either way, so
     // nothing is accepted on the provider's word.
     body: JSON.stringify({
-      model: provider.model, instructions: EXTRACTION_SYSTEM+'\n'+DOCUMENT_POLICY+'\n'+sourceInstruction+'\n'+FACT_VALUE_POLICY+'\n'+OUTPUT_BREVITY+' Reply with one JSON object that matches the requested schema exactly; no prose.', max_output_tokens: 16000, store: false,
+      model: provider.model, ...(withReasoning?reasoningFor(provider.model,'read'):{}), instructions: EXTRACTION_SYSTEM+'\n'+DOCUMENT_POLICY+'\n'+sourceInstruction+'\n'+FACT_VALUE_POLICY+'\n'+OUTPUT_BREVITY+' Reply with one JSON object that matches the requested schema exactly; no prose.', max_output_tokens: 16000, store: false,
       input: [{ role: "user", content: asInputContent(files, text, previous) }],
       text: { format: { type: "json_schema", name: "p5_scope_extraction", strict: false, schema: EXTRACTION_JSON_SCHEMA } },
     }),
   });
+  let response = await sendRead(true);
+  // A gateway that does not accept the reasoning setting is asked once more without it.
+  if(!response.ok&&Object.keys(reasoningFor(provider.model,'read')).length){const detail=await response.clone().text().catch(()=>'');if(rejectsReasoning(response.status,detail)){console.error('[p5-analysis] OpenAI refused the reasoning setting; retrying without it.');response=await sendRead(false);}}
   console.error(`[p5-analysis] OpenAI read replied in ${((Date.now()-started)/1000).toFixed(1)}s (${response.status}).`);
   if (!response.ok) throw await responseError(provider, response);
   let body: any;

@@ -1,4 +1,5 @@
 import {unitKey,reusableUnitRate,supportedUnit} from './unitRates.ts';
+import {reasoningFor,rejectsReasoning} from './openaiReasoning.ts';
 class MissingResearchRateError extends Error {}
 export {unitKey} from './unitRates.ts';
 import {retainedScopeInventory} from './scopeInventory.ts';
@@ -137,7 +138,8 @@ const stageSchema=(instructions:string)=>instructions===normalizeResearch?market
 export type OpenAiPricingOptions={serviceTier?:'default';maxOutputTokens?:number};
 export const openAiPricingRequestEnvelope=(instructions:string,input:unknown,search:boolean,options:OpenAiPricingOptions={})=>{
   const model=process.env.P5_PRICING_OPENAI_MODEL||process.env.P5_SCOPE_OPENAI_MODEL||'gpt-4.1';
-  const body={model,instructions,input:'Return JSON only.\n'+JSON.stringify(input),max_output_tokens:options.maxOutputTokens||(search?24000:10000),store:false,...(options.serviceTier?{service_tier:options.serviceTier}:{}),...(search?{tools:[{type:'web_search'}],tool_choice:'required',include:['web_search_call.action.sources']}:{text:{format:{type:'json_schema',name:'pricing_stage',strict:false,schema:stageSchema(instructions)}}})};
+  const task=search?'research':instructions===INVENTORY?'inventory':instructions===MAP||instructions===PLANNING_AVERAGE||instructions===normalizeResearch?'map':'audit';
+  const body={model,...reasoningFor(model,task),instructions,input:'Return JSON only.\n'+JSON.stringify(input),max_output_tokens:options.maxOutputTokens||(search?24000:10000),store:false,...(options.serviceTier?{service_tier:options.serviceTier}:{}),...(search?{tools:[{type:'web_search'}],tool_choice:'required',include:['web_search_call.action.sources']}:{text:{format:{type:'json_schema',name:'pricing_stage',strict:false,schema:stageSchema(instructions)}}})};
   return {model,body};
 };
 /** One provider exchange without charge accounting. `requestPricingWith` adds the ledger. */
@@ -200,8 +202,12 @@ const requestPricingWithUnsafe=async(provider:'anthropic'|'openai',instructions:
   }
   const {model,body:requestBody}=openAiPricingRequestEnvelope(instructions,input,search,openAiOptions);
   if(beforeOpenAIDispatch)await beforeOpenAIDispatch();
-  const response=await boundedFetch(`${endpoint}/responses`,{method:'POST',signal:AbortSignal.timeout(Math.min(search?150000:180000,remainingMs)),headers:{'Content-Type':'application/json',Authorization:`Bearer ${key}`},body:JSON.stringify(requestBody)});
-  if(!response.ok){const detail=await response.text().catch(()=>'');throw new Error(`pricing-provider-unavailable:${response.status}:${detail.replace(/\s+/g,' ').slice(0,300)}`);}
+  const send=(payload:unknown)=>boundedFetch(`${endpoint}/responses`,{method:'POST',signal:AbortSignal.timeout(Math.min(search?150000:180000,remainingMs-(Date.now()-started))),headers:{'Content-Type':'application/json',Authorization:`Bearer ${key}`},body:JSON.stringify(payload)});
+  let response=await send(requestBody);
+  if(!response.ok){let detail=await response.text().catch(()=>'');
+    // A gateway that does not accept the reasoning setting is asked once more without it.
+    if(rejectsReasoning(response.status,detail)&&'reasoning' in requestBody){const {reasoning:_omit,...plain}=requestBody as Record<string,unknown>;void _omit;console.error('[p5-pricing] OpenAI refused the reasoning setting; retrying without it.');response=await send(plain);detail=response.ok?'':await response.text().catch(()=>'');}
+    if(!response.ok)throw new Error(`pricing-provider-unavailable:${response.status}:${detail.replace(/\s+/g,' ').slice(0,300)}`);}
   const body=await response.json();
   if(body.status!=='completed')throw new Error(`pricing-check-incomplete:${body.incomplete_details?.reason||body.status||'unknown'}`);
   const parts=(body.output||[]).flatMap((o:any)=>o.content||[]);
@@ -1079,7 +1085,11 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
     auditTrail.verification=audit;
     const ids=new Set(mapping.tasks.map(t=>t.id));
     if(audit.coveredTaskIds.some(id=>!ids.has(id)))throw new Error('Unknown audited task');
-    resolution.issues.push(...audit.issues,...(pricingExtraction?.instructions?.questions||[]));
+    resolution.issues.push(...audit.issues);
+    // A scope question the customer was not asked (the page caps them) or did not answer is an item to
+    // confirm, not a reason to withhold the price: unknown counts are already priced as modeled
+    // quantity ranges. Live RE-10 (2026-09-21): the open questions blocked an estimate at review.
+    resolution.assumptions.push(...(pricingExtraction?.instructions?.questions||[]).map(q=>`To confirm: ${q}`));
     // An item nobody could put a defensible number on is named and carried OUT of the total, the
     // way the rest of this codebase treats measured-but-unpriced work. Withholding the whole
     // estimate instead tells a visitor nothing and hides the twenty items that did price. If
