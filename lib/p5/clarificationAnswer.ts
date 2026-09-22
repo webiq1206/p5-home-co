@@ -21,8 +21,12 @@ export async function resolveInstructionAnswer(extraction:ScopeExtraction|null,a
    // alternatives are therefore resolved locally from that extraction rather
    // than sent back through a provider (and, importantly, never trigger a PDF
    // reread). An incomplete or conflicting reply gets one concise follow-up.
-   if(isBenchTopClarificationQuestion(question)){
-     const resolved=applyRetainedBenchTopAnswer(extraction,answers,question,answer);
+   // When the document carries no structured bench-top choices, the answer is taken like any other
+   // clarification below. Live Cabinet (2026-09-22): every reply was refused with "the retained document
+   // does not provide the bench top choices", so the customer could never get past the question.
+   const benchTop=isBenchTopClarificationQuestion(question)?applyRetainedBenchTopAnswer(extraction,answers,question,answer):null;
+   if(benchTop&&!(benchTop.status==='ambiguous'&&/does not provide the bench top choices/.test(benchTop.question))){
+     const resolved=benchTop;
      if(resolved.status==='ambiguous')throw new DraftError(resolved.question);
      const combined=[answers.estimatingInstructions,`Question: ${question}\nAnswer: ${answer}`].filter(Boolean).join('\n\n');
      if(combined.length>SCOPE_TEXT_LIMIT)throw new DraftError('Upload the additional scope notes as a document to preserve them in full.');

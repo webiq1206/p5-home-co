@@ -186,3 +186,11 @@ test('a skipped cabinet-run question from a document is not asked again (live Ca
   const after=scopeQuestions(answers,extraction,[],[field as any],['cabinetBaseLf'] as any);
   assert.ok(!after.some(q=>/cabinet base and upper run/i.test(q.reason)),'Not sure yet is an answer; the same question does not return');
 });
+test('a bench-top question without structured choices takes a typed answer (live Cabinet 2026-09-22)',async()=>{
+  const {resolveInstructionAnswer}=await resolver();
+  const e=scope();e.instructions!.questions=['Which window bench top finish do you want priced: butcher block, matching cabinet, laminate, or quartz?'];
+  const answers={service:'cabinets'} as any;
+  const prompt=instructionPrompts(e,answers)[0];assert.ok(prompt,'the question is offered');
+  const outcome=await resolveInstructionAnswer(e,answers,{id:prompt.id,answer:'Quartz'},[],(async()=>{throw new Error('provider-not-called-in-test');}) as any).then(()=>'resolved',(error:Error)=>error.message);
+  assert.doesNotMatch(outcome,/does not provide the bench top choices/,'a plain answer is no longer refused outright');
+});

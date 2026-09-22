@@ -376,6 +376,9 @@ const UNKNOWN_WORDS=/\b(?:unknown|not\s+(?:known|documented|specified|provided|m
 // "Replace one outlet; interior floor not specified" has a stated quantity of one. What is
 // unknown there is where, or which model - never how much - so it is removed before the test.
 const UNKNOWN_NON_QUANTITY=/\b(?:floor|level|story|storey|location|building|room|model|type|brand|manufacturer|finish|colou?r|specifications?|spec|material|fuel|schedule|date)s?\b[^.;,:]{0,40}?\b(?:unknown|not\s+(?:known|documented|specified|provided|shown|stated)|tbd|to\s+be\s+determined|n\/?a)\b/gi;
+// Research-priced lines are checked with Math.max(batch size, 2): a research batch is a slice of the job, so a
+// batch of one is not a one-task job and the job's total stated labor hours do not apply to it (live Moonglow
+// RE-10, 2026-09-22: a 2.5 HR allowance for three drain stops was held against the notice's total hours).
 const UNKNOWN_QUANTITY={test:(value:string)=>UNKNOWN_WORDS.test(value.replace(UNKNOWN_NON_QUANTITY,' '))};
 const UNSELECTED_SCOPE=/\b(?:alternate|alternative|optional|not\s+selected|not\s+included|excluded|by\s+others|previous(?:ly)?\s+proposed|discarded)\b/i;
 const INCLUDED_SCOPE=/\b(?:included|selected|requested|approved|retain(?:ed)?|keep|kept|yes)\b/i;
@@ -601,7 +604,7 @@ export function marketResolution(raw:unknown,urls:string[],tasks:Mapping['tasks'
     const unresolved=unresolvedQuantityIssue(t);
     const hasAllowance=/^ALLOWANCE\s*:/i.test(r.quantityEvidence)&&Boolean(r.quantityRange);
     if(unresolved&&!hasAllowance)result.issues.push(unresolved);
-    const quantityFindings=quantityIssues(t,{quantity:r.quantity,quantityEvidence:r.quantityEvidence,quantityRange:r.quantityRange},r.unit,scope,tasks.length,r.description,r.basis==='material-purchase');
+    const quantityFindings=quantityIssues(t,{quantity:r.quantity,quantityEvidence:r.quantityEvidence,quantityRange:r.quantityRange},r.unit,scope,Math.max(tasks.length,2),r.description,r.basis==='material-purchase');
     if(quantityFindings.length){result.issues.push(...quantityFindings);continue;}
     const hosts=new Set<string>();
     for(const s of r.sources){
@@ -658,7 +661,7 @@ export function planningResolution(raw:unknown,tasks:Mapping['tasks'],now:Date,o
     const unresolved=unresolvedQuantityIssue(t);
     const hasAllowance=/^ALLOWANCE\s*:/i.test(r.quantityEvidence)&&Boolean(r.quantityRange);
     if(unresolved&&!hasAllowance)result.issues.push(unresolved);
-    const quantityFindings=quantityIssues(t,{quantity:r.quantity,quantityEvidence:r.quantityEvidence,quantityRange:r.quantityRange},r.unit,scope,tasks.length,r.description,r.basis==='material-purchase');
+    const quantityFindings=quantityIssues(t,{quantity:r.quantity,quantityEvidence:r.quantityEvidence,quantityRange:r.quantityRange},r.unit,scope,Math.max(tasks.length,2),r.description,r.basis==='material-purchase');
     if(quantityFindings.length){result.issues.push(...quantityFindings);continue;}
     // One unusable range is a finding about that task. It used to throw, and a single
     // wide allowance on a twenty-item repair list ended the whole estimate.
@@ -1142,7 +1145,8 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
     // nothing priced at all there is no estimate to publish, and that still blocks.
     // Only a POSITIVE price counts. Live Moonglow RE-10 (2026-09-22): smoke detectors and a firewall patch
     // each had a line with no unit cost, so they were neither priced nor carried out, and held the estimate.
-    const positiveRule=(r:CostRule)=>r.unitCost>0&&(r.quantity.fixed===undefined||r.quantity.fixed>0);
+    // The same test the priced-task list uses; a looser one left the Moonglow firewall patch neither priced nor carried out.
+    const positiveRule=(r:CostRule)=>r.unitCost>0&&r.quantity.fixed!==undefined&&r.quantity.fixed>0;
     const positiveLine=(id:string)=>lines.some(l=>l.id===id&&l.unitCost>0&&(typeof l.quantity!=='number'||l.quantity>0))||resolution.rules.some(r=>r.id===id&&positiveRule(r));
     const unpriced=mapping.tasks.filter(t=>billableTask(t)&&!t.existingLineIds.some(id=>positiveLine(id)&&!resolution.removeLineIds?.includes(id))&&!resolution.rules.some(r=>r.scopeTaskId===t.id&&positiveRule(r)));
     const pricedTaskCount=mapping.tasks.filter(billableTask).length-unpriced.length;

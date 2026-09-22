@@ -1,5 +1,7 @@
 /** Live estimator release identifier. */
-export const ESTIMATOR_VERSION='2026-09-20.1';
+// Bumped whenever pricing rules change: saved prices are keyed on it, so an old result is not replayed
+// under new rules (2026-09-22: a new-home price saved before the core-scope guard replayed as $154k).
+export const ESTIMATOR_VERSION='2026-09-22.1';
 export type EstimatorRelease={sha:string;tree:string;dirty:boolean;builtAt:string};
 /** Build-time git identity, written by next.config. Empty strings when the build had no git metadata. */
 export function estimatorRelease():EstimatorRelease{
