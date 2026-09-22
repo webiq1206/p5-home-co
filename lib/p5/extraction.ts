@@ -503,3 +503,19 @@ export async function analyzeScope(text:string,files:AnalysisFile[],previous:Sco
   if(expected.length)extraction.documentCoverage=combineCoverage(parts.filter(Boolean).flatMap(part=>part.documentCoverage?[part.documentCoverage]:[]),expected);
   return {...last,extraction,analyzedAt:new Date().toISOString()};
 }
+
+/** Benchmark support (readBenchmark.ts): the same provider configuration and the same single read the
+ * production analyzer makes, for one named model. Returns null when that provider is not configured. */
+export function benchmarkProvider(kind:ProviderKind,model:string):Provider|null{
+  if(kind==='OpenAI'){
+    const integrated=Boolean(process.env.AI_INTEGRATIONS_OPENAI_API_KEY&&process.env.AI_INTEGRATIONS_OPENAI_BASE_URL);
+    const key=integrated?process.env.AI_INTEGRATIONS_OPENAI_API_KEY:process.env.OPENAI_API_KEY;
+    const endpoint=integrated?process.env.AI_INTEGRATIONS_OPENAI_BASE_URL:(process.env.OPENAI_BASE_URL||'https://api.openai.com/v1');
+    return key&&endpoint?{kind,key,endpoint:endpoint.replace(/\/+$/,''),model}:null;
+  }
+  const key=process.env.ANTHROPIC_API_KEY;
+  return key?{kind,key,endpoint:'https://api.anthropic.com/v1',model}:null;
+}
+export function benchmarkRead(provider:Provider,files:AnalysisFile[],text:string,timeoutMs:number):Promise<AnalysisResult>{
+  return provider.kind==='OpenAI'?analyzeWithOpenAI(provider,text,files,{},fetch,timeoutMs):analyzeWithAnthropic(provider,text,files,{},fetch,timeoutMs);
+}
