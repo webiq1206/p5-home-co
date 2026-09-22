@@ -1,4 +1,5 @@
 import {groundSourceResponsibilities} from './sourceResponsibilities.ts';
+import {openAiReadModel,rateLimitWaitMs,RATE_LIMIT_RETRIES} from './readerRouting.ts';
 import {reasoningFor,rejectsReasoning} from './openaiReasoning.ts';
 import {retainExplicitSelections} from './explicitSelections.ts';
 import {retainCompletedCabinetRemoval} from './completedWork.ts';
@@ -223,8 +224,10 @@ function asInputContent(files: AnalysisFile[], text: string, previous: ScopeAnsw
   return content;
 }
 
-async function analyzeWithOpenAI(provider: Provider, text: string, files: AnalysisFile[], previous: ScopeAnswers, request: RequestFunction, timeoutMs: number,sourceInstruction=""): Promise<AnalysisResult> {
+async function analyzeWithOpenAI(provider: Provider, text: string, files: AnalysisFile[], previous: ScopeAnswers, request: RequestFunction, timeoutMs: number,sourceInstruction="",routeModel=true): Promise<AnalysisResult> {
   const started = Date.now();
+  // Text and form pages read on the fast model, drawing tiles on the configured one (readerRouting.ts).
+  const model=routeModel?openAiReadModel(provider.model,files):provider.model;
   const sendRead=(withReasoning:boolean)=>request(`${provider.endpoint}/responses`, {
     method: "POST", signal: AbortSignal.timeout(Math.max(1000,timeoutMs-(Date.now()-started))),
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${provider.key}` },
@@ -235,15 +238,18 @@ async function analyzeWithOpenAI(provider: Provider, text: string, files: Analys
     // without it. Local validateExtraction remains mandatory either way, so
     // nothing is accepted on the provider's word.
     body: JSON.stringify({
-      model: provider.model, ...(withReasoning?reasoningFor(provider.model,'read'):{}), instructions: EXTRACTION_SYSTEM+'\n'+DOCUMENT_POLICY+'\n'+sourceInstruction+'\n'+FACT_VALUE_POLICY+'\n'+OUTPUT_BREVITY+' Reply with one JSON object that matches the requested schema exactly; no prose.', max_output_tokens: 16000, store: false,
+      model, ...(withReasoning?reasoningFor(model,'read'):{}), instructions: EXTRACTION_SYSTEM+'\n'+DOCUMENT_POLICY+'\n'+sourceInstruction+'\n'+FACT_VALUE_POLICY+'\n'+OUTPUT_BREVITY+' Reply with one JSON object that matches the requested schema exactly; no prose.', max_output_tokens: 16000, store: false,
       input: [{ role: "user", content: asInputContent(files, text, previous) }],
       text: { format: { type: "json_schema", name: "p5_scope_extraction", strict: false, schema: EXTRACTION_JSON_SCHEMA } },
     }),
   });
   let response = await sendRead(true);
+  // The managed connection answers bursts with 429 in a fraction of a second; wait briefly and resend
+  // rather than failing the page (live 2026-09-21: parallel reads were refused in bursts).
+  for(let attempt=0;response.status===429&&attempt<RATE_LIMIT_RETRIES;attempt++){const wait=rateLimitWaitMs(attempt,response.headers.get('retry-after'));if(timeoutMs-(Date.now()-started)<wait+8000)break;await new Promise(r=>setTimeout(r,wait));response=await sendRead(true);}
   // A gateway that does not accept the reasoning setting is asked once more without it.
-  if(!response.ok&&Object.keys(reasoningFor(provider.model,'read')).length){const detail=await response.clone().text().catch(()=>'');if(rejectsReasoning(response.status,detail)){console.error('[p5-analysis] OpenAI refused the reasoning setting; retrying without it.');response=await sendRead(false);}}
-  console.error(`[p5-analysis] OpenAI read replied in ${((Date.now()-started)/1000).toFixed(1)}s (${response.status}).`);
+  if(!response.ok&&Object.keys(reasoningFor(model,'read')).length){const detail=await response.clone().text().catch(()=>'');if(rejectsReasoning(response.status,detail)){console.error('[p5-analysis] OpenAI refused the reasoning setting; retrying without it.');response=await sendRead(false);}}
+  console.error(`[p5-analysis] OpenAI ${model} read replied in ${((Date.now()-started)/1000).toFixed(1)}s (${response.status}).`);
   if (!response.ok) throw await responseError(provider, response);
   let body: any;
   try { body = await response.json(); } catch { throw errorForProvider(provider, response.status, "provider returned invalid JSON"); }
@@ -253,7 +259,7 @@ async function analyzeWithOpenAI(provider: Provider, text: string, files: Analys
   let parsed:unknown;
   try {
     parsed = extractionRecord(sanitizeRecord(JSON.parse(resultText),files));
-    return { extraction: validateExtraction(parsed), provider: provider.kind, model: body.model || provider.model, analyzedAt: new Date().toISOString() };
+    return { extraction: validateExtraction(parsed), provider: provider.kind, model: body.model || model, analyzedAt: new Date().toISOString() };
   } catch (error) {
     throw errorForProvider(provider, response.status, `${error instanceof Error ? error.message : "provider returned invalid extraction"} [${recordShape(parsed)}]`);
   }
@@ -517,5 +523,5 @@ export function benchmarkProvider(kind:ProviderKind,model:string):Provider|null{
   return key?{kind,key,endpoint:'https://api.anthropic.com/v1',model}:null;
 }
 export function benchmarkRead(provider:Provider,files:AnalysisFile[],text:string,timeoutMs:number):Promise<AnalysisResult>{
-  return provider.kind==='OpenAI'?analyzeWithOpenAI(provider,text,files,{},fetch,timeoutMs):analyzeWithAnthropic(provider,text,files,{},fetch,timeoutMs);
+  return provider.kind==='OpenAI'?analyzeWithOpenAI(provider,text,files,{},fetch,timeoutMs,'',false):analyzeWithAnthropic(provider,text,files,{},fetch,timeoutMs);
 }

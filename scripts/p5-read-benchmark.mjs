@@ -8,7 +8,7 @@ import {chromium} from '@playwright/test';
 import {mkdir,writeFile} from 'node:fs/promises';
 import path from 'node:path';
 const args=process.argv.slice(2);const opt=(n,d)=>{const i=args.indexOf('--'+n);return i>=0?args[i+1]:d;};
-const base=opt('base'),file=opt('file'),pages=Number(opt('pages','6')),out=opt('out','p5-verification/read-benchmark');
+const base=opt('base'),file=opt('file'),pages=Number(opt('pages','6')),out=opt('out','p5-verification/read-benchmark'),pause=Number(opt('pause','60'));
 const candidates=opt('candidates','OpenAI:gpt-5.6-sol,OpenAI:gpt-5.6-sol:text,OpenAI:gpt-4.1,OpenAI:gpt-4.1:text,OpenAI:gpt-4.1-mini,OpenAI:gpt-4.1-mini:text,Anthropic:claude-sonnet-5,Anthropic:claude-haiku-4-5,Anthropic:claude-haiku-4-5:text')
   .split(',').map(s=>{const [kind,model,mode]=s.split(':');return {kind,model,textOnly:mode==='text'};});
 if(!base||!file)throw new Error('--base and --file are required');
@@ -29,7 +29,9 @@ for(let i=0;i<90&&!creds;i++){
 if(!creds)throw new Error('the upload never reached the server');
 void est;
 const results=[];
-for(const candidate of candidates){
+for(const [index,candidate] of candidates.entries()){
+  // The Replit-managed OpenAI connection rate-limits bursts (429); space the setups out.
+  if(index)await page.waitForTimeout(pause*1000);
   const t0=Date.now();
   const r=await page.evaluate(async({creds,candidate,pages})=>{const res=await fetch('/api/p5-estimator/benchmark',{method:'POST',headers:{'content-type':'application/json','x-p5-draft-id':creds.id,'x-p5-draft-key':creds.key},body:JSON.stringify({candidate,maxPages:pages})});return {status:res.status,body:await res.json().catch(()=>null)};},{creds,candidate,pages});
   const s=r.body?.summary;const label=`${candidate.kind}:${candidate.model}${candidate.textOnly?' (text only)':' (page + text)'}`;
