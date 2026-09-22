@@ -935,3 +935,12 @@ test('a line equal to one of several stated quantities in the same unit agrees w
  const held=await priceCompleteScope(kitchen,config,replies([{tasks:[wrong],issues:[]},{coveredTaskIds:['cabinets'],issues:[]},{tasks:[wrong],issues:[]},{coveredTaskIds:['cabinets'],issues:[]}]),now);
  assert.equal(held.customer.range,null,'a quantity stated nowhere still holds the price');
 });
+test('a task whose description excludes a PART of it is still priced (live Moonglow RE-10 2026-09-22)',async()=>{
+ const re10:ReviewedScope={...scope,text:'Replace six smoke detectors. Patch the garage firewall.',answers:{service:'handyman',location:'Boise'}};
+ const detectors={...extra,id:'smoke',description:'Furnish and replace up to six standard smoke detectors; specialty devices and wiring changes are excluded unless separately approved.',evidence:'Replace six smoke detectors.',researchDescription:'',additions:[{code:'TEST-DOOR-M',quantity:6,quantityEvidence:'six smoke detectors'}]};
+ const priced=await priceCompleteScope(re10,config,replies([{tasks:[detectors],issues:[]},{coveredTaskIds:['smoke'],issues:[]}]),now);
+ assert.ok(priced.customer.range,'the detectors are requested work; only the specialty extras are excluded');
+ const unselected={...detectors,description:'Alternate: smoke detectors not selected.'};
+ const skipped=await priceCompleteScope(re10,config,replies([{tasks:[unselected],issues:[]},{coveredTaskIds:['smoke'],issues:[]}]),now);
+ assert.ok(!(skipped.internal as any).lines?.some((l:any)=>l.scopeTaskId==='smoke'&&l.quantity>0),'a task that is itself not selected is still not charged');
+});

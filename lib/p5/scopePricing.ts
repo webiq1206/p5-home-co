@@ -397,7 +397,10 @@ const clauseHasComponent=(clause:string,terms:string[])=>terms.some(term=>{
  * applies to the task when no component is named.
  */
 function taskSelectionStatus(task:Mapping['tasks'][number],tasks:Mapping['tasks']):'billable'|'unselected'|'ambiguous'{
-  const description=task.description.trim();
+  // Only the main clause names the task. A trailing "specialty devices are excluded" or "painting is excluded"
+  // excludes a PART of it; live Moonglow RE-10 (2026-09-22) had six smoke detectors and a firewall patch
+  // treated as unrequested, never priced, and holding the estimate because their descriptions said so.
+  const description=task.description.trim().split(/\s*[;.]\s+|\s*;\s*|,\s*(?:but|excluding|except|with(?:out)?)\b|\s+-\s+/)[0]||task.description.trim();
   const allTerms=componentTerms(description);
   const siblingTerms=new Set(tasks.filter(other=>other!==task).flatMap(other=>componentTerms(other.description)));
   // Prefer terms unique to this task. Shared words such as "tile" or "door"
