@@ -64,7 +64,9 @@ test('The one-visit rule says trip and setup are recovered in overhead, so the a
  assert.doesNotMatch(source,/jobTripRule/);
 });
 test('Scope facts use notes and earlier model issues require an explicit evidenced resolution',async()=>{
- const note='The cabinetry quantity is explicitly stated in the reviewed scope.';
+ // A model finding only withholds the price when it states a fact such as a quantity conflict
+ // (findingBlocks, 2026-09-21); a benign remark is disclosed. The finding here is a real defect.
+ const note='Cabinets: the mapped cabinet run disagrees with the stated quantity in the reviewed scope.';
  const mapping={tasks:[task],issues:[note],notes:['No additional cabinet runs requested.']};
  const verified={coveredTaskIds:[task.id],issues:[],resolvedIssues:[{issue:note,reason:'The supplied positive cabinet line covers the requested task; this statement records the scope boundary.',lineIds:[ids[0]]}]};
  const r=await priceCompleteScope(scope,config,replies([mapping,verified]),now);
@@ -198,7 +200,7 @@ test('A researched specialist takeoff resolves the generic small-job hold only a
  const labor={...task,id:'prep',description:'Preparation labor',existingLineIds:initialIds};
  const priced=await priceCompleteScope(specialist,config,replies([{tasks:[labor,extra],issues:[]},researched,{coveredTaskIds:['prep','overlay'],issues:[]}]),now);
  assert.ok(priced.customer.range);
- const failed=await priceCompleteScope(specialist,config,replies([{tasks:[labor,extra],issues:[]},researched,{coveredTaskIds:['prep'],issues:['Specialist scope remains incomplete']}]),now);
+ const failed=await priceCompleteScope(specialist,config,replies([{tasks:[labor,extra],issues:[]},researched,{coveredTaskIds:['prep'],issues:['Concrete protective overlay: the mapped overlay length disagrees with the stated ten linear feet.']}]),now);
  assert.equal(failed.customer.range,null);
 });
 
@@ -545,7 +547,7 @@ test('A repair round keeps first-pass research and never prices the same gap twi
    if(calls===1)return {value:{tasks:tasks.map(({id,description,evidence})=>({id,description,evidence})),issues:[]},sourceUrls:[]};
    if(d.taskBatch)return {value:{tasks:d.taskBatch.map((t:any)=>({...tasks.find(x=>x.id===t.id)!,...t})),issues:[],notes:[],replacements:[],removeExclusions:[]},sourceUrls:[]};
    if(search)throw new PricingStageTimeout('pricing-stage-timeout');
-   if('priorPricingIssues' in d){audits++;return {value:{coveredTaskIds:tasks.map(t=>t.id),issues:audits===1?[flagged?'Ceiling texture: the allowance omits blending into the adjacent texture.':'Patch drywall: the patch count disagrees with the description.']:[],notes:[],resolvedIssues:[]},sourceUrls:[]};}
+   if('priorPricingIssues' in d){audits++;return {value:{coveredTaskIds:tasks.map(t=>t.id),issues:audits===1?[flagged?'Ceiling texture: the allowance area disagrees with the stated 30 sf.':'Patch drywall: the patch count disagrees with the description.']:[],notes:[],resolvedIssues:[]},sourceUrls:[]};}
    if(d.tasks&&d.region){researchedFor.push(d.tasks.map((t:any)=>t.id));return {value:planned(d.tasks.map((t:any)=>t.id)),sourceUrls:[]};}
    throw new Error('unexpected request');
   };

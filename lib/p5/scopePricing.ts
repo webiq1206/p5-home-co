@@ -748,6 +748,28 @@ export function pricedTaskRemark(issue:string,pricedTasks:{id:string;description
   return pricedTasks.some(task=>t.includes(task.id.toLowerCase())||t.includes(task.description.toLowerCase()));
 }
 /**
+ * The release decision, judged on facts rather than on the wording of a model's remark (owner
+ * request 2026-09-21: estimates must publish). Live on the new reader, a Marcliffe RE-10, a typed
+ * bathroom and the Neilsen budget were each withheld by remarks such as "the sink is not explicitly
+ * included", "VEN-01 and VEN-02 have an unresolved overlap" or "number of vent boots", about work
+ * that was priced. Such a remark is an item to confirm at review. A finding still withholds the
+ * price only when it
+ * - names a requested task that has no positive price and was not carried out of the total,
+ * - states as fact that work is billed twice,
+ * - contradicts a stated quantity or uses the wrong unit, or
+ * - prices work nobody requested.
+ */
+const STATED_DUPLICATE=/double[- ]count|\b(?:is|are) duplicated\b|duplicatively|\bduplicates\b|confirmed duplicate|(?:charged|billed|priced) twice/;
+const HARD_DEFECT=/does not match the explicit|disagrees with the (?:stated|explicit|confirmed)|contradicts the (?:stated|explicit|confirmed)|wrong (?:unit|uom)|out of scope|not (?:been )?requested|was not requested|does not reconcile with the confirmed|assign every priced component to a building|disagrees with|omitted from|not converted into a priced line|no positive priced line carries|^missing quantity:/;
+const HEDGED=/\b(?:may|might|could|possibl(?:e|y)|potential(?:ly)?|cannot be ruled out|verify whether|check whether|confirm whether|unresolved overlap)\b/;
+const namesTask=(text:string,task:{id:string;description:string})=>new RegExp(`(?:^|[^\\w-])${task.id.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g,'\\$&')}(?![\\w-])`).test(text)||text.includes(task.description.toLowerCase());
+export function findingBlocks(issue:string,tasks:{id:string;description:string}[],pricedTasks:{id:string;description:string}[],carried:{id:string;description:string}[]=[]):boolean{
+  const t=issue.toLowerCase();
+  if(HARD_DEFECT.test(t))return true;
+  if(STATED_DUPLICATE.test(t)&&!HEDGED.test(t))return true;
+  return tasks.some(task=>namesTask(t,task)&&!pricedTasks.some(p=>p.id===task.id)&&!carried.some(c=>c.id===task.id));
+}
+/**
  * A mapping answer with its malformed additions removed. An addition without a usable code,
  * quantity or evidence cannot be priced; dropping it leaves its task to the coverage rules (a task
  * with no priced line is carried out of the total and named) and to the independent audit, so
@@ -863,6 +885,8 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
   const sourceParts=pricingSourceParts(pricingScope);
   const taskSources=new Map<string,number>();
   let pricedTasks:{id:string;description:string}[]=[];
+  // Findings written by a model stage (inventory, mapping, audit) as opposed to ones this code computed.
+  const opinions=new Set<string>();
   // Tasks carried OUT of the total as "to confirm, quote after a site visit".
   let carriedOut:{id:string;description:string}[]=[];
   const auditTrail:{version:string;catalog:{version:string|null;importedAt:string|null;rates:number};scopeHash:string;tasks:unknown[];adjustments:unknown;research:unknown;verification:unknown;issues:string[]}={version:'complete-scope-v3',
@@ -911,6 +935,7 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
     auditTrail.adjustments={replacements:mapping.replacements,removeExclusions:mapping.removeExclusions};
     resolution.rules.push(...catalog.rules);resolution.assumptions.push(...catalog.assumptions);resolution.issues.push(...catalog.issues);
     const modelIssues=new Set([...mapping.issues,...mapping.tasks.flatMap(t=>t.issues.map(issue=>`${t.description}: ${issue}`))]);
+    modelIssues.forEach(issue=>opinions.add(issue));inventory.issues.forEach(issue=>opinions.add(issue));
     const gaps=mapping.tasks.filter(t=>t.researchDescription);
     const research:PricingReply[]=[];auditTrail.research=research;
     const region=scope.answers.location||'Boise / Treasure Valley, Idaho';
@@ -983,7 +1008,7 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
     };
     const verifiedParts=await Promise.all(sourceParts.map((part,index)=>request(AUDIT,{original:part,tasks:mapping.tasks.filter(t=>sourceParts.length===1||taskSources.get(t.id)===index),allTaskDescriptions:mapping.tasks.map(t=>({id:t.id,description:t.description})),priorPricingIssues:resolution.issues,existingLines:lines.filter(l=>!resolution.removeLineIds?.includes(l.id)),removedLines:lines.filter(l=>resolution.removeLineIds?.includes(l.id)),adjustments:auditTrail.adjustments,additionalRules:resolution.rules,existingExclusions:base.customer.exclusions.filter(e=>!resolution.removeExclusions?.includes(e)),research:auditTrail.research},false,deadline-Date.now())));
     for(const verified of verifiedParts){
-      const section=auditSchema.parse(verified.value);audit.coveredTaskIds.push(...section.coveredTaskIds);audit.issues.push(...section.issues);audit.notes.push(...section.notes);resolution.assumptions.push(...section.notes);audit.resolvedIssues.push(...section.resolvedIssues);
+      const section=auditSchema.parse(verified.value);audit.coveredTaskIds.push(...section.coveredTaskIds);audit.issues.push(...section.issues);section.issues.forEach(issue=>opinions.add(issue));audit.notes.push(...section.notes);resolution.assumptions.push(...section.notes);audit.resolvedIssues.push(...section.resolvedIssues);
     }
     audit.coveredTaskIds=[...new Set(audit.coveredTaskIds)];
     reconcileIssues();
@@ -999,7 +1024,7 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
       return mapping.tasks.filter(t=>resolution.rules.some(rule=>rule.scopeTaskId===t.id&&rule.quantity.fixed!==undefined&&rule.quantity.fixed>0&&rule.unitCost>0)||t.existingLineIds.some(id=>live.has(id)&&!resolution.removeLineIds?.includes(id))).map(({id,description})=>({id,description}));
     };
     pricedTasks=positivelyPriced();
-    const blocks=(issue:string)=>!advisoryIssue(issue)&&!pricedTaskRemark(issue,pricedTasks);
+    const blocks=(issue:string)=>opinions.has(issue)?findingBlocks(issue,mapping.tasks,pricedTasks):!advisoryIssue(issue)&&!pricedTaskRemark(issue,pricedTasks);
     const blockingIssues=resolution.issues.filter(blocks);
     // An audit note about a planning allowance's basis, or a task left uncovered only because a planning or sourced allowance prices it, is disclosure, not a reason for a repair round.
     const allowancePricedTask=(taskId:string)=>resolution.rules.some(rule=>rule.scopeTaskId===taskId&&(rule.id.startsWith('planning-')||rule.id.startsWith('market-'))&&rule.quantity.fixed!==undefined&&rule.quantity.fixed>0);
@@ -1067,7 +1092,7 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
       const repairedNoPriceIssues=new Set([...repairedDescriptions].map(description=>`${description}: no supported price.`));
       const carriedIssues=resolution.issues.filter(issue=>!repairedNoPriceIssues.has(issue));
       resolution.issues=[...new Set([...carriedIssues,...inventory.issues,...repaired.issues])];
-      [...fixes.issues,...fixes.tasks.flatMap(t=>t.issues.map(issue=>`${t.description}: ${issue}`))].forEach(issue=>modelIssues.add(issue));
+      [...fixes.issues,...fixes.tasks.flatMap(t=>t.issues.map(issue=>`${t.description}: ${issue}`))].forEach(issue=>{modelIssues.add(issue);opinions.add(issue);});
       mapping.tasks=fixes.tasks;
       // Research already priced a task's gap in the first pass. The repair round
       // researches a gap again only when the audit named that task; those
@@ -1084,7 +1109,7 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
       audit.coveredTaskIds=[];audit.issues=[];audit.resolvedIssues=[];
       const checkedParts=await Promise.all(sourceParts.map((part,index)=>request(AUDIT,{original:part,tasks:mapping.tasks.filter(t=>sourceParts.length===1||taskSources.get(t.id)===index),priorPricingIssues:resolution.issues,existingLines:lines.filter(l=>!resolution.removeLineIds?.includes(l.id)),additionalRules:resolution.rules,priorAuditIssues:priorIssues,removedLines:pricedComponents.filter(l=>resolution.removeLineIds?.includes(l.id)),existingExclusions:base.customer.exclusions.filter(e=>!resolution.removeExclusions?.includes(e)),research},false,deadline-Date.now())));
       for(const checked of checkedParts){
-        const section=auditSchema.parse(checked.value);audit.coveredTaskIds.push(...section.coveredTaskIds);audit.issues.push(...section.issues);audit.notes.push(...section.notes);resolution.assumptions.push(...section.notes);audit.resolvedIssues.push(...section.resolvedIssues);
+        const section=auditSchema.parse(checked.value);audit.coveredTaskIds.push(...section.coveredTaskIds);audit.issues.push(...section.issues);section.issues.forEach(issue=>opinions.add(issue));audit.notes.push(...section.notes);resolution.assumptions.push(...section.notes);audit.resolvedIssues.push(...section.resolvedIssues);
       }
       auditTrail.tasks=mapping.tasks;
       auditTrail.adjustments={initial:auditTrail.adjustments,repairReplacements:fixes.replacements,repairExclusions:fixes.removeExclusions,priorAuditIssues:priorIssues};
@@ -1184,7 +1209,28 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
       resolution.rules.some(rule=>rule.scopeTaskId===task.id&&rule.quantity.fixed!==undefined&&rule.quantity.fixed>0&&rule.unitCost>0)
       ||(task.existingLineIds||[]).some(id=>finalIds.has(id))).map(({id,description})=>({id,description}));
   }catch{/* keep the list computed during pricing */}
-  const kept=findings.filter(issue=>issue===HANDOFF_ISSUE||missingScopeFields([issue]).length>0||!advisoryIssue(issue)&&!pricedTaskRemark(issue,pricedTasks)&&!carriedOutRemark(issue,carriedOut,pricedTasks));
+  // A duplicate stated as fact that names two or more priced lines is corrected, not a reason to
+  // withhold the estimate: the costliest line stays, the others leave the total, and the change is
+  // disclosed for review. One naming fewer than two priced lines cannot be acted on and still blocks.
+  const resolvedDuplicates=new Set<string>();
+  try{
+    const finalLines=existingLines(priceReviewedScope(scope,configuration,now,resolution)).filter(line=>line.quantity*line.unitCost>0);
+    for(const issue of findings){
+      const t=issue.toLowerCase();
+      if(!STATED_DUPLICATE.test(t)||HEDGED.test(t)||HARD_DEFECT.test(t))continue;
+      const named=finalLines.filter(line=>new RegExp(`(?:^|[^\\w-])${line.id.toLowerCase()}(?![\\w-])`).test(t)&&!resolution.removeLineIds?.includes(line.id));
+      if(named.length<2)continue;
+      const keep=named.reduce((a,b)=>b.quantity*b.unitCost>a.quantity*a.unitCost?b:a);
+      const drop=named.filter(line=>line!==keep).map(line=>line.id);
+      resolution.rules=resolution.rules.filter(rule=>!drop.includes(rule.id));
+      resolution.removeLineIds=[...new Set([...(resolution.removeLineIds||[]),...drop])];
+      resolution.assumptions.push(`To confirm: removed ${drop.join(', ')} as a duplicate of ${keep.id} so the work is not billed twice (${issue.slice(0,200)})`);
+      console.error(`[p5-pricing] removed a stated duplicate ${drop.join(', ')}; kept ${keep.id}`);
+      resolvedDuplicates.add(issue);
+    }
+  }catch(error){console.error('[p5-pricing] duplicate correction skipped:',error instanceof Error?error.message:error);}
+  const allTasks=(auditTrail.tasks as {id:string;description:string}[]).map(({id,description})=>({id,description}));
+  const kept=findings.filter(issue=>issue===HANDOFF_ISSUE||missingScopeFields([issue]).length>0||!resolvedDuplicates.has(issue)&&(opinions.has(issue)?findingBlocks(issue,allTasks,pricedTasks,carriedOut):!advisoryIssue(issue)&&!pricedTaskRemark(issue,pricedTasks)&&!carriedOutRemark(issue,carriedOut,pricedTasks)));
   const disclosed=findings.filter(issue=>!kept.includes(issue));
   resolution.assumptions.push(...disclosed.map(item=>/^to confirm:/i.test(item)?item:`To confirm: ${item}`));
   resolution.issues=kept;
