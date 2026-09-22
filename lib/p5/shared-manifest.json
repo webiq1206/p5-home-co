@@ -1,7 +1,7 @@
 {
  "source": "boise-remodeling-co",
- "commit": "8b6b6d28ba5b3c4c4e29c42b2116e7a69233d37f",
- "generatedAt": "2026-09-22T02:53:47.991Z",
+ "commit": "b8b2389bc785ae4d56ed1ef3e60ed8abc1919e81",
+ "generatedAt": "2026-09-22T03:10:24.485Z",
  "note": "Shared estimator files. Edit them in boise-remodeling-co and run scripts/p5-sync.mjs; never edit them in one brand.",
  "files": {
   "app/admin/p5-estimators/page.tsx": "80b9e20e4144c34a9f78033ab1b84e2555e42c44e670050b9e0fcbffa477512e",
@@ -104,7 +104,7 @@
   "lib/p5/questionBudget.ts": "b0a7b93e16dbe37e02865e6d36c2ebd6ca64bfbdd3b10cf9f143e91a90080292",
   "lib/p5/questionPolicy.ts": "6e4a5b14bb3c7f30c4ae04acbb80eba14cacc735e815c2333c3bd9a2627cabcf",
   "lib/p5/rateCard.ts": "537d3cae8d9f8edd33c48d6ee7b993b846d14fe0e7d40dc08944857aa69b6ce0",
-  "lib/p5/readBenchmark.ts": "87dd139dc704f0376ff11215d60831efda71610d601d56e706107d0c96832d1a",
+  "lib/p5/readBenchmark.ts": "a7e22fb3a99dfe8919d018ecd6b6fd0584b84b315a7a17c728bf05d76b2b9c9c",
   "lib/p5/referenceEndpoint.ts": "90e952623dfc06cbd1854d1948642cfbd7e8b643f5dcb7803a16bce1b2cfc238",
   "lib/p5/references.ts": "26115f8582223f42ea844bce62b378921688f5f2f0704c58ceb7e317cbd1f458",
   "lib/p5/regionalRates.ts": "49cf079506f0788e40c3a6591148b3003264f140e3202a28670076e70955e576",

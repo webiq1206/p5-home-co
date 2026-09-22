@@ -1,8 +1,7 @@
-import {PDFDocument} from 'pdf-lib';
+import {analysisSegments} from './analysisSegments.ts';
 import {query} from './database.ts';
 import {readDraft,DraftError} from './store.ts';
 import {readStoredBytes} from './objectStorage.ts';
-import {pdfTextLayers} from './pdfText.ts';
 import {benchmarkProvider,benchmarkRead,type AnalysisFile} from './extraction.ts';
 /**
  * Reader benchmark (owner request 2026-09-21: pages read accurately in under 5 s).
@@ -29,33 +28,34 @@ export async function runReadBenchmark(id:string,key:string,raw:unknown){
   const [row]=await query("SELECT name,mime_type,data_base64,storage_bucket,storage_key FROM p5_estimator_files WHERE draft_id=$1 AND mime_type='application/pdf' ORDER BY created_at LIMIT 1",[id]);
   if(!row)throw new DraftError('Upload a PDF to this QA draft first.',422);
   const bytes=Buffer.from(await readStoredBytes(row));
-  const source=await PDFDocument.load(bytes,{ignoreEncryption:true});
-  const total=source.getPageCount(),count=Math.min(total,maxPages);
-  const texts=await pdfTextLayers(bytes,total).catch(()=>[] as string[]);
+  // Pages are prepared by the production splitter (analysisSegments): permission-restricted forms are
+  // rendered, drawings get their detail tiles, every unit carries its text layer. Exactly what a customer's
+  // upload is read from.
+  const name=String(row.name);
+  const units:AnalysisFile[]=[];
+  for await(const unit of analysisSegments({name,type:'application/pdf',data:bytes})){if(new Set([...units,unit].flatMap(u=>(u.pages||[]).map(p=>p.page))).size>maxPages)break;units.push(unit);}
+  const total=Math.max(0,...units.flatMap(u=>(u.pages||[]).map(p=>p.page)));
   const provider=benchmarkProvider(candidate.kind,candidate.model);
   if(!provider)return {candidate,error:`${candidate.kind} is not configured on this site.`,pages:[]};
-  const name=String(row.name);
   const started=Date.now();
-  const pages=await Promise.all(Array.from({length:count},async(_,index)=>{
-    const one=await PDFDocument.create();const [copied]=await one.copyPages(source,[index]);one.addPage(copied);
-    const pageBytes=Buffer.from(await one.save());const text=texts[index]||'';
-    const file:AnalysisFile=candidate.textOnly
-      ?{name:`${name} (page ${index+1} of ${total}, text layer)`,type:'text/plain',data:Buffer.from(text,'utf8'),pages:[{source:name,page:index+1}]}
-      :{name:`${name} (page ${index+1} of ${total})`,type:'application/pdf',data:pageBytes,pages:[{source:name,page:index+1}],...(text?{text}:{})};
+  const pages=await Promise.all(units.map(async(unit,index)=>{
+    const text=unit.text||'';
+    if(candidate.textOnly&&!text.trim())return {page:unit.pages?.[0]?.page||index+1,seconds:0,ok:false,textChars:0,error:'no text layer on this page'};
+    const file:AnalysisFile=candidate.textOnly?{name:`${unit.name} (text layer)`,type:'text/plain',data:Buffer.from(text,'utf8'),pages:unit.pages}:unit;
     const t0=Date.now();
     try{
       const result=await benchmarkRead(provider,[file],draft.text,120_000);
       const ex=result.extraction;
-      return {page:index+1,seconds:+((Date.now()-t0)/1000).toFixed(1),ok:true,textChars:text.length,
+      return {page:unit.pages?.[0]?.page||index+1,unit:unit.name.slice(-60),seconds:+((Date.now()-t0)/1000).toFixed(1),ok:true,textChars:text.length,
         facts:ex.facts.length,fields:[...new Set(ex.facts.map(f=>f.field))],
         items:(ex.instructions?.inclusions||[]).length,sampleItems:(ex.instructions?.inclusions||[]).slice(0,12).map(s=>s.slice(0,100)),
         takeoffs:(ex.takeoffs||[]).length,status:(ex.documentCoverage?.pages||[]).map(p=>p.status).join(',')||'none',
         questions:(ex.instructions?.questions||[]).length+(ex.clarifications||[]).length};
-    }catch(error){return {page:index+1,seconds:+((Date.now()-t0)/1000).toFixed(1),ok:false,textChars:text.length,error:String(error instanceof Error?error.message:error).slice(0,200)};}
+    }catch(error){return {page:unit.pages?.[0]?.page||index+1,unit:unit.name.slice(-60),seconds:+((Date.now()-t0)/1000).toFixed(1),ok:false,textChars:text.length,error:String(error instanceof Error?error.message:error).slice(0,200)};}
   }));
   const ok=pages.filter(p=>p.ok);
   const secs=ok.map(p=>p.seconds).sort((a,b)=>a-b);
-  return {candidate,file:{pages:total,benchmarked:count},wallSeconds:+((Date.now()-started)/1000).toFixed(1),
+  return {candidate,file:{units:units.length,pages:total},wallSeconds:+((Date.now()-started)/1000).toFixed(1),
     summary:{ok:ok.length,failed:pages.length-ok.length,medianSeconds:secs.length?secs[Math.floor(secs.length/2)]:null,maxSeconds:secs.length?secs[secs.length-1]:null,
       items:ok.reduce((t,p)=>t+(p.items||0),0),facts:ok.reduce((t,p)=>t+(p.facts||0),0),takeoffs:ok.reduce((t,p)=>t+(p.takeoffs||0),0)},pages};
 }
