@@ -18,7 +18,7 @@ export const UNIT_REGISTRY:Record<string,{dimension:UnitDimension;label:string}>
  ls:{dimension:'lump',label:'lump sum'},
 };
 /** Things a repair list counts one at a time. "each vent", "per fixture" and "device location" are all a count of one. */
-const COUNTED='(?:items?|fixtures?|devices?|locations?|device locations?|assembl(?:y|ies)|terminations?|vents?|receptacles?|outlets?|switch(?:es)?|lights?|doors?|windows?|openings?|breakers?|valves?|hose bibs?|traps?|boots?|caps?|pumps?|units?|pieces?|pcs?|components?|repairs?|occurrences?|rooms?|bathrooms?)';
+const COUNTED='(?:items?|fixtures?|devices?|locations?|device locations?|assembl(?:y|ies)|terminations?|vents?|receptacles?|outlets?|switch(?:es)?|lights?|doors?|windows?|openings?|breakers?|valves?|hose bibs?|traps?|boots?|caps?|pumps?|units?|pieces?|pcs?|components?|repairs?|occurrences?|rooms?|bathrooms?|cabinets?|systems?|shelves|shelf|drawers?|panels?|fans?|detectors?|sinks?|faucets?|toilets?|vanit(?:y|ies)|appliances?|heaters?|fixture sets?|stops?|stations?)';
 const COUNTED_UNIT=new RegExp(`^(?:each|ea|per|one)? ?${COUNTED}$`);
 export const unitKey=(unit:string)=>{
  const key=unit.toLowerCase().replace(/[.²]/g,m=>m==='²'?'2':'').replace(/[-_]/g,' ').replace(/\s+/g,' ').trim().replace(/^(?:per |\/)/,'').trim();

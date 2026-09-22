@@ -447,6 +447,14 @@ function actionClaims(textValue:string,unit:string,action:'supply'|'install',exc
 function ownerSuppliesMaterial(task:Mapping['tasks'][number],quantity?:number,unit='',componentDescription=''){
   const text=`${task.description}. ${task.evidence}`;
   if(!OWNER_SUPPLIED.test(text))return false;
+  // Owner supply is judged in the clause that names THIS item. Live 2026-09-22: "supply and install one
+  // undermount sink" was refused because the document said appliances were owner-supplied elsewhere, and
+  // "owner-provided trim where available, contractor-provided for the remainder" refused the remainder.
+  const own=componentTerms(task.description.split(/\s*[;.]\s+|\s*;\s*/)[0]||task.description);
+  const clauses=text.split(/[.;\n]+/).map(c=>c.trim()).filter(c=>OWNER_SUPPLIED.test(c));
+  const naming=own.length?clauses.filter(c=>clauseHasComponent(c,own)):clauses;
+  if(!naming.length)return false;
+  if(naming.every(c=>/\bcontractor[- ](?:provided|supplied|furnished)\b|\b(?:the )?(?:remainder|remaining)\b|\bwhere (?:available|provided)\b/i.test(c)))return false;
   // Mixed responsibility is permitted only from an explicit contractor
   // supply quantity for this component. This prevents a broad keyword
   // exception from turning owner-furnished siblings into contractor charges.

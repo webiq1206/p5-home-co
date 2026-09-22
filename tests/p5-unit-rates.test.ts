@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {reusableUnitRate,unitKey} from '../lib/p5/unitRates.ts';
+import {reusableUnitRate,unitKey,supportedUnit} from '../lib/p5/unitRates.ts';
 import {catalogResolution,planningResolution,priceCompleteScope,type PricingRequest} from '../lib/p5/scopePricing.ts';
 import {createPlanningConfiguration,PLANNING_MODEL_VERSION} from '../lib/p5/planningBooks.ts';
 import type {CostRule} from '../lib/p5/costBook.ts';
@@ -223,4 +223,8 @@ test('an estimate priced entirely from the owner book carries a tight band; anyt
   const range=r.customer.range!;
   assert.ok(range.high/range.low<1.2,`book-priced new home band is tight: ${range.low} to ${range.high}`);
   assert.ok(range.high/range.low>1.05,'still a range, not a single number');
+});
+test('everyday count nouns are counts (live Cabinet 2026-09-22)',()=>{
+  for(const unit of ['cabinet','cabinets','system','shelf','drawer','detector','sink','vanity'])assert.equal(unitKey(unit),'each',unit);
+  assert.ok(supportedUnit('cabinet'));
 });

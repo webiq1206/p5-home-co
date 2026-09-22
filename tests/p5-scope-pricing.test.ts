@@ -944,3 +944,12 @@ test('a task whose description excludes a PART of it is still priced (live Moong
  const skipped=await priceCompleteScope(re10,config,replies([{tasks:[unselected],issues:[]},{coveredTaskIds:['smoke'],issues:[]}]),now);
  assert.ok(!(skipped.internal as any).lines?.some((l:any)=>l.scopeTaskId==='smoke'&&l.quantity>0),'a task that is itself not selected is still not charged');
 });
+test('owner supply elsewhere in a document does not block a contractor-supplied item (live P5 kitchen 2026-09-22)',async()=>{
+ const kitchen:ReviewedScope={...scope,text:'Owner supplies the appliances. Supply and install one undermount sink.',answers:{service:'handyman',location:'Boise'}};
+ const sink={...extra,id:'sink',description:'Supply and install one undermount kitchen sink',evidence:'Owner supplies the appliances. Supply and install one undermount sink.',researchDescription:'',additions:[{code:'TEST-DOOR-M',quantity:1,quantityEvidence:'one undermount sink'}]};
+ const priced=await priceCompleteScope(kitchen,config,replies([{tasks:[sink],issues:[]},{coveredTaskIds:['sink'],issues:[]}]),now);
+ assert.ok(priced.customer.range,'the sink is contractor-supplied; only the appliances are the owner\'s');
+ const owned={...sink,description:'Install the owner-supplied undermount sink',evidence:'Owner supplies the sink; contractor installs it.'};
+ const held=await priceCompleteScope(kitchen,config,replies([{tasks:[owned],issues:[]},{coveredTaskIds:['sink'],issues:[]},{tasks:[owned],issues:[]},{coveredTaskIds:['sink'],issues:[]}]),now);
+ assert.equal(held.customer.range,null,'an owner-supplied sink is still never charged as contractor material');
+});
