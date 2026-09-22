@@ -764,6 +764,14 @@ export function pricedTaskRemark(issue:string,pricedTasks:{id:string;description
  * - contradicts a stated quantity or uses the wrong unit, or
  * - prices work nobody requested.
  */
+/** A task that IS the project (the house, the whole remodel, the full stated area), as opposed to a part of it. */
+export function coreProjectTask(task:{description:string;evidence?:string},answers:{sqft?:string}={}):boolean{
+  const text=`${task.description}`.toLowerCase();
+  if(/\b(?:construct|build)\b.{0,40}\b(?:home|house|residence|dwelling|adu|addition|building)\b|\bnew (?:single[- ](?:family|story) |two[- ]story )?(?:home|house|residence|dwelling)\b|\bwhole[- ](?:house|home)\b|\bentire (?:house|home|project|remodel)\b|\bcomplete (?:new[- ]construction|remodel|renovation|build)\b/.test(text))return true;
+  const area=Number(String(answers.sqft||'').replace(/,/g,''));
+  if(area>=200){const shown=[String(area),area.toLocaleString('en-US')];if(shown.some(n=>new RegExp(`(?:^|[^\\d,])${n.replace(/,/g,',')}\\s*(?:sf|sq\\.?\\s*ft|square\\s+feet)\\b`).test(text)))return true;}
+  return false;
+}
 const STATED_DUPLICATE=/double[- ]count|\b(?:is|are) duplicated\b|duplicatively|\bduplicates\b|confirmed duplicate|(?:charged|billed|priced) twice/;
 const HARD_DEFECT=/does not match the explicit|disagrees with the (?:stated|explicit|confirmed)|contradicts the (?:stated|explicit|confirmed)|wrong (?:unit|uom)|out of scope|not (?:been )?requested|was not requested|does not reconcile with the confirmed|assign every priced component to a building|disagrees with|omitted from|not converted into a priced line|no positive priced line carries|^missing quantity:/;
 const HEDGED=/\b(?:may|might|could|possibl(?:e|y)|potential(?:ly)?|cannot be ruled out|verify whether|check whether|confirm whether|unresolved overlap)\b/;
@@ -1140,6 +1148,11 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
     const pricedTaskCount=mapping.tasks.filter(billableTask).length-unpriced.length;
     for(const t of unpriced){
       if(!pricedTaskCount){resolution.issues.push(`${t.description}: no positive priced component or allowance was produced.`);continue;}
+      // The core of the project is never carried out of the total. Live Construction (2026-09-22): the
+      // "construct one new 2,400 SF residence" task went unpriced and was listed as excluded, so a new-home
+      // estimate published $154k for the garage and plumbing alone. Carrying out a side item is honest;
+      // carrying out the house is a misleading number, so that still holds the price.
+      if(coreProjectTask(t,scope.answers)){resolution.issues.push(`${t.description}: the main scope of the project has no supported price.`);continue;}
       resolution.issues=resolution.issues.filter(issue=>issue!==`${t.description}: no supported price.`&&issue!==`${t.description}: no defensible planning average could be supported.`);
       resolution.addExclusions=[...new Set([...(resolution.addExclusions||[]),`${t.description} (not included in this price; we will quote it after a site visit)`])];
       resolution.assumptions.push(`To confirm: ${t.description} is listed but not priced in this estimate; it needs a site visit before we can put a number on it.`);

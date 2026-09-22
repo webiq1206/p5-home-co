@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {findingBlocks} from '../lib/p5/scopePricing.ts';
+import {findingBlocks,coreProjectTask} from '../lib/p5/scopePricing.ts';
 
 // Live 2026-09-21 on the routed reader: a Marcliffe RE-10, a typed bathroom and the Neilsen budget
 // were each withheld by model remarks about work that WAS priced. Those are items to confirm. What
@@ -35,4 +35,11 @@ test('a research gap withholds the price only for a task with no price (live Nei
 });
 test('an unpriced task already carried out of the total is disclosed, not withheld',()=>{
   assert.equal(findingBlocks('Chimney cap repair: remains unpriced.',tasks,priced,[tasks[3]]),false);
+});
+test('the core of the project is never carried out of the total (live new home 2026-09-22)',()=>{
+  assert.equal(coreProjectTask({description:'Construct one new single-story residence in Boise with 2,400 SF of living area; complete new-construction scope is requested.'},{sqft:'2400'}),true);
+  assert.equal(coreProjectTask({description:'Remodel the 900 SF basement'},{sqft:'900'}),true);
+  assert.equal(coreProjectTask({description:'Furnish and replace up to six smoke detectors.'},{sqft:'1800'}),false);
+  assert.equal(coreProjectTask({description:'Patch damaged garage firewall drywall behind the water softener.'}),false);
+  assert.equal(coreProjectTask({description:'Chimney cap repair'},{sqft:'2400'}),false);
 });

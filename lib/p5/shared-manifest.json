@@ -1,7 +1,7 @@
 {
  "source": "boise-remodeling-co",
- "commit": "6d99b316ee99c5ac5f6da96d3a5936019fef3648",
- "generatedAt": "2026-09-22T07:59:17.356Z",
+ "commit": "70dabd70e9864b1bd4638c29df8956e151f68e26",
+ "generatedAt": "2026-09-22T08:07:52.953Z",
  "note": "Shared estimator files. Edit them in boise-remodeling-co and run scripts/p5-sync.mjs; never edit them in one brand.",
  "files": {
   "app/admin/p5-estimators/page.tsx": "80b9e20e4144c34a9f78033ab1b84e2555e42c44e670050b9e0fcbffa477512e",
@@ -115,7 +115,7 @@
   "lib/p5/scope.ts": "55feea62c680ced8caf68cb7fc920e74e91887b6dd4a9d0ce08a8ee76cf172bb",
   "lib/p5/scopeEndpoint.ts": "ac256d011921ae4e2e42202c8ccc1b8b8b5935bdc1feba47025ae7e429a31e11",
   "lib/p5/scopeInventory.ts": "823baac9f40357847a8f6afd9a905058298dfc8dab553d584223bcd3f890d64a",
-  "lib/p5/scopePricing.ts": "05a6bdcbbb3642ae69d503222790f9a191dc3c39f762e252dacfcbc156bffe5a",
+  "lib/p5/scopePricing.ts": "97c66d60c26aea252a6fd21a42736c0bebe4c38cc90ff101c9f14c81e5bffa73",
   "lib/p5/scopeReplacement.ts": "ad340bab97512e3583b8789cf0731edfc78811e8715fcd55555e6ea59fe1411a",
   "lib/p5/sourceResponsibilities.ts": "2c77105334ff8c66b8f8572c76be7822c3846ac357e8acf75a16d1c0b3faf809",
   "lib/p5/sourceSpecificationGuard.ts": "a52b5fbd623696aa37160a72780c9c5711232f4237855f02d07f64ddde356fc3",
@@ -213,7 +213,7 @@
   "tests/p5-extraction-values.test.ts": "8b211c0acf2c42056e57912d9db8caaa1b0a241ff02f85644b6979e97f8e3985",
   "tests/p5-file-snapshot.test.ts": "5a55110d87ee2fa57494ef51b72804d3bbd4551113dae763e7e9d6dc0a9387b4",
   "tests/p5-final-acceptance.test.ts": "cd58f23583fd2231d7f6f5164b438abb675096df2ffb7af8e609d574914a9c06",
-  "tests/p5-finding-release.test.ts": "6f369d6e2217b19f42199c5b140fb6fd0ac1b538257efa4fb4d730eb9a2cb322",
+  "tests/p5-finding-release.test.ts": "517855ad56b781f9f81b392abed0be50437d883e78f2c21a827d4ee27ea2e9c6",
   "tests/p5-handoff-routes.test.ts": "67f7e7373349f5a5a103c98e4f500671bd5e16a5d02c246c56e2a71a3ee5fb57",
   "tests/p5-input-progress.test.ts": "40ff623d80dab2fb48df5cbf346f7d0bf1c890c06f3c801aa45fe844344a1d9d",
   "tests/p5-keyed-crm.test.ts": "ffd30b0748a3d39474ea8a23eb20ef22b07014d430932d41fb739e895748e2bb",
