@@ -140,7 +140,8 @@ export function customerPresentation(result:any,options:CustomerProjectionOption
    ...(x?.id!=null&&x.id!==''?{id:String(x.id)}:{}),description:publicPricingText(x?.description),category:publicPricingText(x?.category),
    ...(x?.building?{building:publicPricingText(x.building)}:{}),...(x?.floor?{floor:publicPricingText(x.floor)}:{}),
    ...(Number.isFinite(x?.quantity)?{quantity:Number(x.quantity)}:{}),...(typeof x?.unit==='string'&&x.unit?{unit:x.unit}:{}),
-   ...(quantityRange?{quantityRange}:{}),...(typeof x?.status==='string'&&x.status?{status:x.status}:{})
+   ...(quantityRange?{quantityRange}:{}),...(typeof x?.status==='string'&&x.status?{status:x.status}:{}),
+   ...(x?.origin==='required'?{origin:'required',basis:publicPricingText(x?.basis)}:{})
   };
  }).filter((x:any)=>x.description):[];
  return {

@@ -59,7 +59,9 @@ export const PRELIMINARY_NOTICE={lead:'Preliminary estimate, not a contract.',te
 
 /** An estimate saved before issue records existed names its project from the first line of its brief. */
 const briefLine=(summary:string)=>clean(summary.split(/\n/).find(line=>line.trim()&&!/^[A-Z][A-Za-z ,()/-]{2,60}: /.test(line))||'',140);
-export interface EstimateCategory {number:string;title:string;amount:string;low:number;high:number;work:string[];allowances:string[]}
+/** One requested (or added) task with its priced items, for clear, separated rendering. */
+export interface EstimateWorkItem {task:string;where:string;details:{text:string;qty:string}[];added:boolean}
+export interface EstimateCategory {number:string;title:string;amount:string;low:number;high:number;work:string[];items:EstimateWorkItem[];allowances:string[]}
 export interface EstimateDocument {
   templateVersion:string;brand:EstimateBrand&{endorsed:boolean};reference:string;revision:number;issuedAt:string;issuedLabel:string;
   service:string;title:string;projectName:string;customer:{name:string;email:string;phone:string};location:string[];
@@ -90,12 +92,21 @@ export function allocate(total:number,weights:number[]):number[]{
   const largest=weights.indexOf(Math.max(...weights));shares[largest]+=total-shares.reduce((t,v)=>t+v,0);
   return shares;
 }
+/** "Residence / Floor Main level / Task" -> where "Main level", rest "Task". Generic building words are dropped. */
+export function splitWhere(description:string):{where:string;rest:string}{
+  const m=description.match(/^((?:[^/:]{1,48}\s\/\s)+)(.*)$/);if(!m)return {where:'',rest:description};
+  const parts=m[1].split(/\s\/\s/).map(p=>p.trim().replace(/^Floor\s+/i,'')).filter(p=>p&&!/^(?:(?:main|new|existing)\s+)?(?:residence|house|home|building|project|unspecified(?: building)?|site)$/i.test(p));
+  return {where:parts.join(', '),rest:m[2]};
+}
+const lineQty=(x:any)=>{const q=Number(x.quantity);const unit=String(x.unit||'').trim();return Number.isFinite(q)&&q>0&&!(q===1&&/^(ls|lump|package|job|ea)$/i.test(unit))?`${q.toLocaleString('en-US')} ${unit}`.trim():'';};
 const lineText=(x:any)=>{
   const q=Number(x.quantity);const unit=String(x.unit||'').trim();
   const qty=Number.isFinite(q)&&q>0&&!(q===1&&/^(ls|lump|package|job|ea)$/i.test(unit))?`, ${q.toLocaleString('en-US')} ${unit}`:'';
   return `${clean(x.description,300)}${qty}`;
 };
 
+/** Marks a task the estimator added because the requested work needs it (owner rule 2026-09-22). */
+export const ADDED_MARK='(included to complete the work)';
 export function buildEstimateDocument(input:{id:string;result:unknown;brand:EstimateBrand;issue?:Partial<EstimateIssue>|null;submittedAt?:string|null;legalLine?:string}):EstimateDocument{
   const {id,brand}=input;
   // The issue record is read from the saved estimate itself; the customer projection that follows
@@ -117,7 +128,11 @@ export function buildEstimateDocument(input:{id:string;result:unknown;brand:Esti
     const text=clean(item);if(!text)continue;
     if(UNPRICED.test(text))unpriced.push(text.replace(UNPRICED,''));else exclusions.push(text);
   }
-  for(const item of (result.instructions?.responsibilities||[]) as string[])if(clean(item))exclusions.push(`By others or supplied by the owner: ${clean(item)}`);
+  // A responsibility that gives work TO the contractor ("Contractor supplies and installs all cabinets",
+  // "Provide and install all listed materials") is included work, not an exclusion; live estimates
+  // showed it to customers as "By others or supplied by the owner" (owner report 2026-09-22).
+  const contractorsOwn=(t:string)=>!/\b(?:owner|homeowner|customer|client|by others|others|tenant|seller|buyer)\b/i.test(t)&&(/\bcontractor\b/i.test(t)||/^(?:supply|provide|furnish|install)\b/i.test(t));
+  for(const item of (result.instructions?.responsibilities||[]) as string[])if(clean(item)&&!contractorsOwn(clean(item)))exclusions.push(`By others or supplied by the owner: ${clean(item)}`);
   // Exclusions and owner responsibilities the customer stated in the reviewed scope travel too.
   for(const raw of String(result.summary||'').split(/\n/)){
     const excluded=raw.match(/^Excluded work: (.+)$/),owner=raw.match(/^Owner-supplied items and responsibilities: (.+)$/);
@@ -136,19 +151,31 @@ export function buildEstimateDocument(input:{id:string;result:unknown;brand:Esti
     const own=lines.filter(l=>l.category===name);
     // A priced line's description repeats its task ("Task: book item."). The task is listed once as the
     // work; the line contributes only its item and quantity, so nothing reads twice.
+    // Work the estimator added to complete the job is marked, so requested and inferred scope read apart.
     const taskTexts=tasks.filter(t=>t.category===name).map(t=>clean(t.description,300)).filter(Boolean);
+    const added=tasks.filter(t=>t.origin==='required').map(t=>clean(t.description,300)).filter(Boolean);
     const allTasks=tasks.map(t=>clean(t.description,300)).filter(Boolean);
-    const item=(l:any)=>{const d=clean(l.description,300);const task=allTasks.find(t=>d.startsWith(`${t}:`));return {task,text:lineText({...l,description:task?d.slice(task.length+1).trim()||d:d})};};
+    // A priced line reads "Residence / Floor Main level / Task: book item". The location prefix is split
+    // off (shown as a small tag) so the line matches its task; before, each task printed twice (owner
+    // report 2026-09-22: the text "just kind of mixes together").
+    const item=(l:any)=>{const {where,rest:d}=splitWhere(clean(l.description,300));const task=allTasks.find(t=>d.startsWith(`${t}:`)||d===t);const detail=task?d.slice(task.length+1).trim():d;return {task,where,detail:detail.replace(/\s*\((?:labor|material|installed|fee)[^)]*\)\s*$/i,'').replace(/\.$/,''),qty:lineQty(l),text:lineText({...l,description:task?detail||d:d})};};
     const allowanceLines=own.filter(l=>l.pricingStatus==='estimated-allowance');
-    const work=[...new Set<string>([...taskTexts,...own.filter(l=>l.pricingStatus!=='estimated-allowance').map(l=>{const x=item(l);return x.task?(taskTexts.includes(x.task)?`${x.task} (${x.text})`:`${x.task}: ${x.text}`):x.text;})].filter(Boolean))]
-      // A task shown on its own and again with its item keeps only the fuller line.
-      .filter((w,_,all)=>!all.some(o=>o!==w&&o.startsWith(`${w} (`)));
+    const priced=own.filter(l=>l.pricingStatus!=='estimated-allowance').map(item);
+    const items:EstimateWorkItem[]=[];
+    for(const t of taskTexts)items.push({task:t,where:'',details:[],added:added.includes(t)});
+    for(const x of priced){
+      const home=x.task?items.find(i=>i.task===x.task):undefined;
+      const target=home||(x.task?(()=>{const n={task:x.task!,where:'',details:[],added:added.includes(x.task!)};items.push(n);return n;})():undefined);
+      if(target){if(!target.where&&x.where)target.where=x.where;if(x.detail&&!target.details.some(d=>d.text===x.detail))target.details.push({text:x.detail,qty:x.qty});}
+      else if(!items.some(i=>i.task===x.detail))items.push({task:x.detail,where:x.where,details:x.qty?[{text:'',qty:x.qty}]:[],added:false});
+    }
+    const work=items.map(i=>`${i.task}${i.details.filter(d=>d.text).length?` (${i.details.filter(d=>d.text).map(d=>`${d.text}${d.qty?`, ${d.qty}`:''}`).join('; ')})`:i.details[0]?.qty?`, ${i.details[0].qty}`:''}${i.added?` ${ADDED_MARK}`:''}`);
     const allowances=allowanceLines.map(l=>{
       const amount=priceKind==='range'?(l.low===l.high?money(l.low):`${money(l.low)} to ${money(l.high)}`):'';
       return `${amount?`${amount} for `:''}${item(l).text}${amount?'':' (included in this category amount)'}; selection and final quantity to confirm.`;
     });
     const low=priceKind==='single'?split[i]:Math.round(ranges[i].low),high=priceKind==='single'?split[i]:Math.round(ranges[i].high);
-    return {number:String(i+1).padStart(2,'0'),title:clean(name,120),amount:priceKind==='none'?'':priceKind==='single'?money(low):`${money(low)} to ${money(high)}`,low,high,work,allowances};
+    return {number:String(i+1).padStart(2,'0'),title:clean(name,120),amount:priceKind==='none'?'':priceKind==='single'?money(low):`${money(low)} to ${money(high)}`,low,high,work,items,allowances};
   });
   // Structured allowances carry their own coverage; each sits in the category it best matches.
   for(const a of (result.allowances||[]) as any[]){
@@ -178,6 +205,7 @@ export function buildEstimateDocument(input:{id:string;result:unknown;brand:Esti
   const assumptionRows:[string,string[]][]=([
     ['Pricing basis',[`Your online submission${sources.length?` and ${sources.length===1?'the document':'the documents'} you uploaded: ${sources.join('; ')}`:''}.`]],
     ['Assumptions',[...new Set(assumptions)].slice(0,12)],
+    ['Included to complete the work',tasks.filter(t=>t.origin==='required'&&clean(t.basis)).map(t=>`${clean(t.description,160)}: ${clean(t.basis,240)}`).slice(0,12)],
     ['To confirm',[...new Set(toConfirm)].slice(0,16)],
     ['Timing',[issue.timing?`Requested: ${clean(issue.timing,160)}. Availability is confirmed with your final proposal.`:'Start and completion dates are confirmed with your final proposal.']],
   ] as [string,string[]][]).filter(([,v])=>v.length);

@@ -45,3 +45,12 @@ test('the internal PDF and email are short, complete and marked confidential; th
  const customerMail=estimateEmail(ID,{internal,customer,contact},false);
  assert.doesNotMatch(customerMail.html+customerMail.text,/\$7,166|Contract price|Overhead recovery|PB-12/);
 });
+test('a priced estimate lists no "Not priced" work; the check\'s remarks are review notes (owner report 2026-09-22)',()=>{
+ const released={...internal,publishable:true,warnings:[],scopePricing:{tasks:[{id:'t1',description:'Base cabinets'}],verification:{coveredTaskIds:[]},issues:['CAB-01: the line uses a regional average rather than a planning line.']}};
+ const s=buildAdminSummary({id:ID,record:{...released,customer,contact},brand});
+ assert.deepEqual(s.notPriced,[],'every task has a price, so nothing is listed as not priced');
+ assert.ok(s.reviewNotes.some(n=>/regional average/.test(n)),'the remark is kept as a review note');
+ const carried={...customer,exclusions:['Chimney cap repair (not included in this price; we will quote it after a site visit)']};
+ const t=buildAdminSummary({id:ID,record:{...released,customer:carried,contact},brand});
+ assert.deepEqual(t.notPriced,['Chimney cap repair'],'work carried out of the total is listed');
+});

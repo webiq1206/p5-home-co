@@ -97,7 +97,9 @@ export async function renderEstimatePdf(doc:EstimateDocument):Promise<Buffer>{
   for(const c of doc.categories){
     const head=()=>{text(`${c.number}  ${c.title}`,L,y-11,11,bold);if(c.amount)right(c.amount,R,y-11,11,bold);y-=17;page.drawLine({start:{x:L,y},end:{x:R,y},thickness:.7,color:accent});y-=9;};
     const first=c.work[0]||c.allowances[0]||'';
-    ensure(40+(first?height(first,10.5,WIDTH):0));y-=6;
+    // Keep the heading with its first task and that task's first priced item.
+    const firstItem=c.items?.[0];
+    ensure(40+(first?height(first,10.5,WIDTH):0)+(firstItem?(firstItem.where?12:0)+(firstItem.details.length?16:0):0)+14);y-=6;
     // The title is sized to leave room for the amount; a long title wraps rather than colliding.
     const titleWidth=WIDTH-(c.amount?bold.widthOfTextAtSize(c.amount,11)+18:0);
     if(bold.widthOfTextAtSize(`${c.number}  ${c.title}`,11)>titleWidth){
@@ -106,7 +108,27 @@ export async function renderEstimatePdf(doc:EstimateDocument):Promise<Buffer>{
       y-=2;page.drawLine({start:{x:L,y},end:{x:R,y},thickness:.7,color:accent});y-=9;
     }else head();
     const page0=page;
-    for(const w of c.work){if(ensure(height(w,10.5,WIDTH))){text(`${c.number}  ${c.title} (continued)`,L,y-10,10,bold,soft);y-=18;}para(w,10.5,{gap:2});}
+    // One block per task: a bullet and the task, a small location tag, then its priced items indented
+    // with quantities aligned right, and a hairline between tasks (owner report 2026-09-22: the scope
+    // text ran together and was hard to read).
+    const items=c.items?.length?c.items:c.work.map(w=>({task:w,where:'',details:[] as {text:string;qty:string}[],added:false}));
+    const continued=()=>{text(`${c.number}  ${c.title} (continued)`,L,y-10,10,bold,soft);y-=18;};
+    items.forEach((it,index)=>{
+      const title=`${it.task}${it.added?' (included to complete the work)':''}`;
+      const need=height(title,10.5,WIDTH-14)+(it.where?12:0)+it.details.reduce((t,d)=>t+height(d.text||' ',9.5,WIDTH-110),0)+8;
+      if(ensure(Math.min(need,200)))continued();
+      if(index>0){page.drawLine({start:{x:L+14,y:y+3},end:{x:R,y:y+3},thickness:.4,color:rule});y-=4;}
+      text('•',L+2,y-10.5,10.5,bold,accent);
+      para(title,10.5,{x:L+14,width:WIDTH-14,font:it.added?regular:regular,color:ink});
+      if(it.where)para(it.where,8.5,{x:L+14,width:WIDTH-14,color:soft});
+      for(const d of it.details){
+        if(!d.text&&!d.qty)continue;
+        const qtyW=d.qty?regular.widthOfTextAtSize(d.qty,9.5):0;
+        if(d.text){const startY=y;para(d.text,9.5,{x:L+28,width:WIDTH-28-qtyW-16,color:muted});if(d.qty)right(d.qty,R,startY-9.5,9.5,regular,muted);}
+        else if(d.qty){right(d.qty,R,y-9.5,9.5,regular,muted);y-=13;}
+      }
+      y-=5;
+    });
     for(const a of c.allowances){if(ensure(height(a,10.5,WIDTH,regular,'Allowance included:'))){text(`${c.number}  ${c.title} (continued)`,L,y-10,10,bold,soft);y-=18;}para(a,10.5,{lead:'Allowance included:',gap:2});}
     void page0;y-=4;
   }

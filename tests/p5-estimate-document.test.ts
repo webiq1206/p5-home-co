@@ -108,6 +108,21 @@ test('a task and the priced line that repeats it read once, with the item and qu
   scopeTasks:[{description:task,category:'Roofing'}],
   lineItems:[line('b','Roofing',`${task}: Plumbing vent pipe boot.`,3,'EA',288,288,{pricingStatus:'estimated-allowance'}),line('c','Roofing',`${task}: Roofer labor.`,2,'hour',212,212)]}});
  const c=doc.categories[0];
- assert.deepEqual(c.work,[`${task} (Roofer labor., 2 hour)`]);
+ assert.deepEqual(c.work,[`${task} (Roofer labor, 2 hour)`]);
+ // Structured for separated rendering: one item per task, its priced lines under it.
+ assert.deepEqual(c.items,[{task,where:'',details:[{text:'Roofer labor',qty:'2 hour'}],added:false}]);
  assert.match(c.allowances[0],/^Plumbing vent pipe boot\., 3 EA \(included in this category amount\)/);
+});
+test('a location prefix is shown as a tag, and the task still reads once (owner report 2026-09-22)',()=>{
+ const task='Tighten the guest toilet and verify stability';
+ const doc=buildEstimateDocument({id:ID,brand:brand('handyman'),issue:{service:'re10'},result:{range:{low:660,high:660},categoryRanges:[{category:'Plumbing',low:660,high:660}],
+  scopeTasks:[{description:task,category:'Plumbing'}],
+  lineItems:[line('t','Plumbing',`Residence / Floor Main level / ${task}: Toilet reset / tighten (labor)`,1,'EA',660,660)]}});
+ assert.deepEqual(doc.categories[0].items,[{task,where:'Main level',details:[{text:'Toilet reset / tighten',qty:''}],added:false}]);
+ assert.equal(doc.categories[0].work.length,1,'the task is listed once, not again with its location');
+});
+test('work the contractor does is never listed as supplied by the owner (owner report 2026-09-22)',()=>{
+ const doc=buildEstimateDocument({id:ID,brand:brand('cabinet'),issue:{service:'cabinet-install'},result:{...re10,instructions:{responsibilities:['Contractor supplies and installs all specified kitchen cabinets and hardware','Provide and install all listed materials and items','Owner supplies the appliances']}}});
+ assert.ok(!doc.exclusions.some(e=>/Contractor supplies|Provide and install all listed/.test(e)));
+ assert.ok(doc.exclusions.includes('By others or supplied by the owner: Owner supplies the appliances'));
 });

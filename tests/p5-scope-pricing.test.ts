@@ -953,3 +953,34 @@ test('owner supply elsewhere in a document does not block a contractor-supplied 
  const held=await priceCompleteScope(kitchen,config,replies([{tasks:[owned],issues:[]},{coveredTaskIds:['sink'],issues:[]},{tasks:[owned],issues:[]},{coveredTaskIds:['sink'],issues:[]}]),now);
  assert.equal(held.customer.range,null,'an owner-supplied sink is still never charged as contractor material');
 });
+test('a thousands comma is part of the number (live new home 2026-09-22: "2,400 SF" read as 400)',async()=>{
+ const home:ReviewedScope={...scope,text:'Construct one new residence with 2,400 SF of living area.',answers:{service:'handyman',location:'Boise'}};
+ const house={...extra,id:'house',description:'Construct one new residence with 2,400 SF of living area',evidence:'2,400 SF of living area',researchDescription:'',additions:[{code:'03-16-01-M',quantity:2400,quantityEvidence:'2,400 SF living area'}]};
+ const priced=await priceCompleteScope(home,config,replies([{tasks:[house],issues:[]},{coveredTaskIds:['house'],issues:[]}]),now);
+ assert.ok(priced.customer.range,'2400 SF agrees with the stated 2,400 SF');
+ assert.ok(!(priced.internal as any).scopePricing.issues.some((i:string)=>/does not match the explicit quantity/.test(i)));
+});
+test('work needed to complete the job is priced and marked; excluded but needed work is named, not priced (owner rule 2026-09-22)',async()=>{
+ const {buildEstimateDocument,ADDED_MARK}=await import('../lib/p5/estimateDocument.ts');
+ const {ESTIMATOR_BRAND}=await import('../lib/p5/brand.ts');
+ const shower:ReviewedScope={...scope,text:'Replace the shower with a tiled shower. Exclude plumbing.',answers:{service:'handyman',location:'Boise'}};
+ const inv={tasks:[
+  {id:'SHW-01',description:'Install a new tiled shower',evidence:'Replace the shower with a tiled shower.',origin:'requested',basis:''},
+  {id:'SHW-02',description:'Remove and dispose of the existing shower',evidence:'Replace the shower.',origin:'required',basis:'Removing the old shower is required to install the new one.'},
+ ],issues:[],notes:[],dependencies:['Drain and valve connections are needed to complete the shower but are excluded; not priced.']};
+ const map=(id:string,code:string)=>({...extra,id,description:inv.tasks.find(t=>t.id===id)!.description,evidence:inv.tasks.find(t=>t.id===id)!.evidence,researchDescription:'',additions:[{code,quantity:1,quantityEvidence:'one shower'}]});
+ let calls=0;
+ const request:PricingRequest=async(_i,input)=>{const d=input as any;calls++;
+  if(calls===1)return {value:inv,sourceUrls:[]};
+  if(d.taskBatch){assert.ok(d.taskBatch.every((t:any)=>!('origin' in t)),'the mapping stage gets plain tasks');return {value:{tasks:d.taskBatch.map((t:any)=>map(t.id,t.id==='SHW-01'?'TEST-DOOR-M':'TEST-DOOR-L')),issues:[],notes:[],replacements:[],removeExclusions:[]},sourceUrls:[]};}
+  if('priorPricingIssues' in d)return {value:{coveredTaskIds:['SHW-01','SHW-02'],issues:[]},sourceUrls:[]};
+  throw new Error('unexpected request');};
+ const r=await priceCompleteScope(shower,config,request,now);
+ assert.ok(r.customer.range,'requested and required work are both priced');
+ assert.ok(r.customer.exclusions.some((e:string)=>/^Needed to complete the work but excluded as you asked: Drain and valve connections/.test(e)),'the excluded dependency is named');
+ assert.ok(!(r.internal as any).lines.some((l:any)=>/drain|valve/i.test(l.description)),'and never priced');
+ const doc=buildEstimateDocument({id:'0f1e2d3c-4b5a-4000-8000-00000000abcd',result:r.customer as any,brand:ESTIMATOR_BRAND as any,issue:{brandId:ESTIMATOR_BRAND.id} as any,submittedAt:new Date().toISOString()} as any);
+ const text=JSON.stringify(doc);
+ assert.ok(text.includes(`Remove and dispose of the existing shower`)&&text.includes(ADDED_MARK),'the added work is marked on the estimate');
+ assert.match(text,/Included to complete the work/);assert.match(text,/Removing the old shower is required/);
+});

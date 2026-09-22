@@ -20,7 +20,7 @@ export interface AdminSummary {
   build:[string,string][];contractPrice:string;customerPrice:string;
   trades:{trade:string;lines:number;cost:string;share:string}[];
   lines:{item:string;qty:string;unitCost:string;cost:string;basis:string}[];
-  checks:string[];notPriced:string[];
+  checks:string[];notPriced:string[];reviewNotes:string[];
 }
 const money=(n:unknown,cents=false)=>typeof n==='number'&&Number.isFinite(n)?new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',minimumFractionDigits:cents?2:0,maximumFractionDigits:cents?2:0}).format(n):'Not available';
 const pct=(n:unknown)=>typeof n==='number'&&Number.isFinite(n)?`${(n*100).toFixed(1)}%`:'';
@@ -67,14 +67,21 @@ export function buildAdminSummary(input:{id:string;record:any;brand:EstimateBran
   const byTrade=new Map<string,{lines:number;cost:number}>();
   for(const l of lines){const t=String(l.trade||TRADE_LABEL(String(l.category||'Other')));const g=byTrade.get(t)||{lines:0,cost:0};g.lines++;g.cost+=Number(l.cost)||0;byTrade.set(t,g);}
   const direct=Number(r.directCost)||[...byTrade.values()].reduce((t,g)=>t+g.cost,0);
-  const tasks:any[]=r.scopePricing?.tasks||[];const covered=new Set<string>(r.scopePricing?.verification?.coveredTaskIds||[]);
+  const confirmRows=doc.assumptionRows.find(([k])=>k==='To confirm')?.[1]||[];
+  const carriedOut=confirmRows.filter(c=>/: not priced yet; we will quote it after a site visit.$/.test(c)).map(c=>c.replace(/: not priced yet; we will quote it after a site visit.$/,''));
+  const holding=released?[]:((Array.isArray(r.missingInformation)?r.missingInformation:[]) as unknown[]).map(i=>clean(String(i))).filter(i=>i.length>40);
+  const notPriced=[...new Set([...carriedOut,...holding])].filter(Boolean).slice(0,12);
+  const reviewNotes:string[]=[...new Set<string>(((Array.isArray(r.scopePricing?.issues)?r.scopePricing.issues:[]) as unknown[]).map(i=>clean(String(i))))].filter(i=>i&&!notPriced.includes(i)).slice(0,6);
   return {
     doc,released,status:released?'Released to the customer':doc.total?`Customer price saved; ${blocking} blocking check${blocking===1?'':'s'} to clear before a firm proposal`:`Withheld from the customer${blocking?`: ${blocking} blocking check${blocking===1?'':'s'}`:''}`,
     build,contractPrice:money(r.contractPrice),customerPrice:doc.total?.amount||'Not released',
     trades:[...byTrade.entries()].sort((a,b)=>b[1].cost-a[1].cost).map(([trade,g])=>({trade,lines:g.lines,cost:money(g.cost),share:direct>0?`${Math.round(g.cost/direct*100)}%`:''})),
     lines:lines.map(l=>({item:clean(String(l.description||'')).replace(/\s+/g,' ').slice(0,160),qty:`${Number(l.quantity).toLocaleString('en-US')} ${l.unit||''}`.trim(),unitCost:money(l.unitCost,true),cost:money(l.cost,true),basis:basisOf(l)})),
     checks:groupedChecks(r.warnings),
-    notPriced:[...tasks.filter(t=>t?.id&&covered.size&&!covered.has(t.id)).map(t=>clean(String(t.description||''))),...(Array.isArray(r.scopePricing?.issues)?r.scopePricing.issues.map((i:unknown)=>clean(String(i))):[])].filter(Boolean).slice(0,12),
+    // Owner report 2026-09-22: 'Not priced' listed every remark the pricing check made, so fully priced
+    // estimates looked full of unpriced work. It now lists only work that is truly outside the total (carried
+    // out, or holding a withheld estimate); the check's remarks are review notes.
+    notPriced,reviewNotes,
   };
 }
 const W=612,H=792,L=40,R=572,WIDTH=R-L,TOP=680,BOTTOM=70;
@@ -125,7 +132,10 @@ export async function renderAdminPdf(s:AdminSummary):Promise<Buffer>{
     for(const l of s.lines)row([[l.item,WIDTH-304,'l'],[l.qty,62,'r'],[l.unitCost,70,'r'],[l.cost,76,'r'],[l.basis,96,'l']],8,false,head);}
   if(s.checks.length){heading('Checks before a firm proposal');for(const c of s.checks.slice(0,14)){y-=2;para(`• ${c}`,9,{color:/^Blocking/.test(c)?alert:ink});}if(s.checks.length>14)para(`${s.checks.length-14} more in the admin record.`,8.5,{color:soft});}
   const confirm=doc.assumptionRows.find(([k])=>k==='To confirm')?.[1]||[];
-  if(confirm.length||s.notPriced.length){heading('Open items');for(const c of confirm.slice(0,10)){y-=2;para(`• Customer to confirm: ${c}`,9);}for(const n of s.notPriced){y-=2;para(`• Not priced: ${n}`,9,{color:alert});}}
+  const toConfirm=confirm.filter(c=>!/: not priced yet; we will quote it after a site visit.$/.test(c));
+  if(s.notPriced.length){heading(`Not priced (${s.notPriced.length})`);for(const n of s.notPriced){y-=2;para(`• ${n}`,9,{color:alert});}}
+  if(toConfirm.length){heading('Customer to confirm');for(const c of toConfirm.slice(0,10)){y-=2;para(`• ${c}`,9);}}
+  if(s.reviewNotes.length){heading('Review notes from the pricing check');for(const n of s.reviewNotes){y-=2;para(`• ${n}`,8.5,{color:soft});}}
   if(doc.exclusions.length){heading('Exclusions shown to the customer');for(const e of doc.exclusions.slice(0,10)){y-=2;para(`• ${e}`,9);}}
 
   pages.forEach((p,i)=>{p.drawLine({start:{x:L,y:50},end:{x:R,y:50},thickness:.5,color:rule});

@@ -21,7 +21,9 @@ import {TRADE_SYNONYMS} from './tradeVocabulary.ts';
  */
 const STOP=new Set(['with','from','that','this','into','each','only','and','the','for','per','all','any','are','not','its','their','them','were','been','over','under','also','other','such','than','then','when','where','which','while','shall','must','may','can','will','one','two','three','four','five','six','installed','install','supply','provide','existing','new','required','requires','work','material','materials','labor','site','area','job','item','items','project','owner','seller','buyer','please','confirm','verify','field','stated','unstated','typical','standard','ordinary','price','priced','separately','included','includes','only','finish','grade','range','mid','high','end','builder','luxury','remodel','premium','home','house','residence','front','back','north','south','east','west','left','right','room','rooms','needs','need','needed','replace','replacement','per','and','or']);
 const normalized=(value:unknown)=>` ${String(value??'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim()} `;
-const stem=(word:string)=>word.replace(/(?:ing|ies|ied|ed|es|s)$/,'');
+// 'construction' and 'construct', 'installation' and 'install' are one word for matching (2026-09-22: the
+// book's 'New home construction' line was never offered for 'construct one new residence').
+const stem=(word:string)=>word.length>6?word.replace(/(?:ation|ion|ing|ies|ied|ed|es|s)$/,''):word.replace(/(?:ing|ies|ied|ed|es|s)$/,'');
 const words=(value:unknown)=>normalized(value).trim().split(' ').filter(word=>word.length>=3&&!STOP.has(word));
 /** Words that carry meaning for matching a rate to a task. */
 export function meaningfulWords(value:unknown):Set<string> {
@@ -46,12 +48,13 @@ export const FOUNDATION_CODES=['03-17-01-M','03-17-01-L','03-15-02-M','03-15-02-
 const LEGACY_GENERAL=/^(?:REF-|RC-LAB-|RC-GC-|RC-DISP-|RC-EQ-|RC-MOB-|RC-PERMIT-|RC-CLEAN-|RC-INSPECT-)/;
 const alwaysOffered=(rate:{code:string;type?:string;unit?:string})=>FOUNDATION_CODES.includes(rate.code)||LEGACY_GENERAL.test(rate.code)||(rate.type==='Labor'&&/^(?:HR|HRS)$/i.test(String(rate.unit||'')));
 export const CATALOG_SLICE=Number(process.env.P5_CATALOG_SLICE||220);
-export function relevantCatalog<T extends Pick<PlanningRate,'code'|'description'>&Partial<Pick<PlanningRate,'type'|'unit'>>>(rates:readonly T[],tasks:readonly {description?:string;evidence?:string}[],limit=CATALOG_SLICE):T[]{
+export function relevantCatalog<T extends Pick<PlanningRate,'code'|'description'>&Partial<Pick<PlanningRate,'type'|'unit'>>>(rates:readonly T[],tasks:readonly {description?:string;evidence?:string}[],limit=CATALOG_SLICE,must:ReadonlySet<string>=new Set()):T[]{
   if(rates.length<=limit)return [...rates];
   const text=tasks.map(task=>`${task.description||''} ${task.evidence||''}`).join(' ');
   const wanted=meaningfulWords(text),concepts=conceptsOf(text);
   const scored=rates.map((rate,index)=>{
-    if(alwaysOffered(rate))return {rate,index,score:Number.MAX_SAFE_INTEGER};
+    // Codes the full-book shortlist named (bookShortlist.ts) are always offered.
+    if(alwaysOffered(rate)||must.has(rate.code))return {rate,index,score:Number.MAX_SAFE_INTEGER};
     const name=nameOf(rate.description);
     const score=shared(conceptsOf(name),concepts)*6+shared(meaningfulWords(name),wanted)*3+shared(meaningfulWords(`${rate.code.replace(/-/g,' ')} ${rate.description.slice(name.length)}`),wanted);
     return {rate,index,score};

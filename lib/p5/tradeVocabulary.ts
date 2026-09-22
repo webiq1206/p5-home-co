@@ -12,6 +12,10 @@
  * "toilet", or every plumbing task would pull every plumbing line and crowd out the right one.
  */
 export const TRADE_SYNONYMS:readonly (readonly string[])[]=[
+  // Whole projects, so a complete-assembly line (Division 90) is offered for a whole-job task.
+  ['new home','new house','new residence','new dwelling','new single family','new single-family','custom home','ground up','ground-up','new build','new-build','new construction','new-construction','construct a home','build a home','construct one new','residence construction'],
+  ['whole home','whole house','whole-home','whole-house','entire home','entire house','gut remodel','full renovation','full remodel'],
+  ['detached garage','shop building','detached shop'],
   // Electrical
   ['outlet','receptacle','plug','socket','duplex'],
   ['gfci','gfi','ground fault'],
