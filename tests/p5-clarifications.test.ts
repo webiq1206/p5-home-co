@@ -177,3 +177,12 @@ test('an answer that gives no count is kept and priced, never asked again (live 
     assert.match(result.answers.estimatingInstructions||'',/all of the ones in the garage/);
   }finally{for(const key of keys){if(saved[key]===undefined)delete process.env[key];else process.env[key]=saved[key];}}
 });
+test('a skipped cabinet-run question from a document is not asked again (live Cabinet 2026-09-22)',()=>{
+  const extraction:ScopeExtraction={...scope(),instructions:{...emptyInstructions(),questions:['What are the cabinet base and upper run dimensions in linear feet?']}};
+  const answers={service:'cabinets',location:'Boise'} as any;
+  const first=scopeQuestions(answers,extraction,[],[],['cabinetBaseLf'] as any);
+  const field=first.find(q=>/cabinet base and upper run/i.test(q.reason))?.field;
+  assert.ok(field,'the question is asked once');
+  const after=scopeQuestions(answers,extraction,[],[field as any],['cabinetBaseLf'] as any);
+  assert.ok(!after.some(q=>/cabinet base and upper run/i.test(q.reason)),'Not sure yet is an answer; the same question does not return');
+});

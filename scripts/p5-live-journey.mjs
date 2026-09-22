@@ -22,7 +22,7 @@ const fallback=opt('fallback','unsure'),stopAt=opt('stop',''),limit=Number(opt('
 const width=Number(opt('width','430')),height=Number(opt('height','900'));
 const contact={name:opt('contact-name','[QA] Estimator Journey'),email:opt('contact-email','qa@example.invalid')};
 // Customer copy the owner has ruled out, plus signs of internal detail leaking.
-const BANNED=[/local averages?/i,/researching/i,/missing local rates/i,/pricing-(?:search|provider)[-\w:]*/i,/\b(?:direct|unit)[- ]cost\b/i,/\bmarkup\b/i,/\bmargin\b/i,/\bprovider\b/i,/\btokens?\b/i,/sourced-market-average/i,/\bHTTP \d{3}\b/i,/Too many requests/i];
+const BANNED=[/local averages?/i,/researching/i,/missing local rates/i,/pricing-(?:search|provider)[-\w:]*/i,/\b(?:direct|unit)[- ]cost\b/i,/\bmarkup\b/i,/\bmargin\b/i,/(?<!utility[- ])\bprovider\b(?!\s+assessments)/i,/\btokens?\b/i,/sourced-market-average/i,/\bHTTP \d{3}\b/i,/Too many requests/i];
 await mkdir(out,{recursive:true});
 const t0=Date.now(),seconds=()=>+((Date.now()-t0)/1000).toFixed(1);
 const log=[];const note=(m,extra={})=>{const entry={t:seconds(),m,...extra};log.push(entry);console.log(JSON.stringify(entry).slice(0,600));};

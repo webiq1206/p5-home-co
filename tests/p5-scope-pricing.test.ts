@@ -923,3 +923,15 @@ test('a source with nothing separately priceable is priced from the reviewed ans
  assert.ok(r.internal.scopePricing.issues.some((i:string)=>/No separately priceable tasks/.test(i)));
  assert.doesNotMatch(JSON.stringify(r.internal.scopePricing.issues),/ZodError/);
 });
+test('a line equal to one of several stated quantities in the same unit agrees with the scope (live kitchen 2026-09-22)',async()=>{
+ const kitchen:ReviewedScope={...scope,text:'Supply and install 22 LF base cabinets and 18 LF upper cabinets.',answers:{service:'handyman',location:'Boise'}};
+ const cabinets={...extra,id:'cabinets',description:'Kitchen cabinets',evidence:'22 LF base cabinets and 18 LF upper cabinets.',researchDescription:'',additions:[
+  {code:'03-17-01-M',quantity:22,quantityEvidence:'22 LF base cabinets.'},
+  {code:'03-15-02-M',quantity:18,quantityEvidence:'18 LF upper cabinets.'},
+ ]};
+ const priced=await priceCompleteScope(kitchen,config,replies([{tasks:[cabinets],issues:[]},{coveredTaskIds:['cabinets'],issues:[]}]),now);
+ assert.ok(priced.customer.range,'22 LF and 18 LF are both stated; neither contradicts the scope');
+ const wrong={...cabinets,additions:[{code:'03-17-01-M',quantity:30,quantityEvidence:'30 LF base cabinets.'}]};
+ const held=await priceCompleteScope(kitchen,config,replies([{tasks:[wrong],issues:[]},{coveredTaskIds:['cabinets'],issues:[]},{tasks:[wrong],issues:[]},{coveredTaskIds:['cabinets'],issues:[]}]),now);
+ assert.equal(held.customer.range,null,'a quantity stated nowhere still holds the price');
+});

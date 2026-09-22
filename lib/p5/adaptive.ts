@@ -101,6 +101,9 @@ export function scopeQuestions(input:ScopeAnswers,extraction:ScopeExtraction|nul
   for(const q of instructionPrompts(extraction,answers,sourceText)){
     if(!scopePromptApplies(q.field,instructionPromptText(q),context))continue;
     if(q.field&&questions.some(existing=>existing.field===q.field))continue;
+    // "Not sure yet" is an answer. Live Cabinet (2026-09-22): a document's cabinet-run question came back
+    // four times after the customer skipped it, because this path did not check the skipped list.
+    if(q.field&&skipped.includes(q.field))continue;
     questions.push({field:q.field||'estimatingInstructions',label:q.field?SCOPE_FIELDS[q.field].label:'One scope detail',reason:q.question,detail:q.detail,values:q.values,...(!q.field?{instructionId:q.id}:{})});
   }
   const uncertain=(extraction?.facts||[]).filter(f=>Number.isFinite(f.confidence)&&f.confidence<.85&&f.confidence>=.4&&f.basis!=='visual'&&f.basis!=='inferred'&&!validateAnswer(f.field,f.value)&&!answers[f.field]?.trim()&&relevant.has(f.field));

@@ -526,7 +526,12 @@ function quantityIssues(task:Mapping['tasks'][number],addition:{quantity:number;
   const plainOverage=materialPurchase&&matching.length===1&&addition.quantity>matching[0].quantity
     &&addition.quantity<=matching[0].quantity*1.15
     &&Boolean(overageRange&&overageRange.low>0&&overageRange.low<=addition.quantity&&overageRange.high>=addition.quantity);
-  if(matching.length&&(!matching.some(claim=>Math.abs(claim.quantity-addition.quantity)<0.0001)||matching.length>1)&&!isCorrectionEvidence(evidence)&&!procurementAllowance&&!plainOverage){
+  // One task can state several quantities in one unit ("22 LF base cabinets and 18 LF upper cabinets").
+  // A line that equals one of them, and whose own evidence names that number, agrees with the scope;
+  // live Remodeling (2026-09-22) rejected an exact 22 LF base line because 18 LF was also stated.
+  const statedInEvidence=matching.length>1&&matching.some(claim=>Math.abs(claim.quantity-addition.quantity)<0.0001)
+    &&matchingClaims(quantityClaims(evidence),unit).some(claim=>Math.abs(claim.quantity-addition.quantity)<0.0001);
+  if(matching.length&&(!matching.some(claim=>Math.abs(claim.quantity-addition.quantity)<0.0001)||matching.length>1&&!statedInEvidence)&&!isCorrectionEvidence(evidence)&&!procurementAllowance&&!plainOverage){
     issues.push(`${task.description}: mapped ${addition.quantity} ${unit} does not match the explicit quantity in the reviewed scope.`);
   }
   // A bench/counter top can share LF units with cabinetry but is not evidence
@@ -1127,7 +1132,11 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
     // way the rest of this codebase treats measured-but-unpriced work. Withholding the whole
     // estimate instead tells a visitor nothing and hides the twenty items that did price. If
     // nothing priced at all there is no estimate to publish, and that still blocks.
-    const unpriced=mapping.tasks.filter(t=>billableTask(t)&&!t.existingLineIds.some(id=>(lines.some(l=>l.id===id)||resolution.rules.some(r=>r.id===id))&&!resolution.removeLineIds?.includes(id))&&!resolution.rules.some(r=>r.scopeTaskId===t.id));
+    // Only a POSITIVE price counts. Live Moonglow RE-10 (2026-09-22): smoke detectors and a firewall patch
+    // each had a line with no unit cost, so they were neither priced nor carried out, and held the estimate.
+    const positiveRule=(r:CostRule)=>r.unitCost>0&&(r.quantity.fixed===undefined||r.quantity.fixed>0);
+    const positiveLine=(id:string)=>lines.some(l=>l.id===id&&l.unitCost>0&&(typeof l.quantity!=='number'||l.quantity>0))||resolution.rules.some(r=>r.id===id&&positiveRule(r));
+    const unpriced=mapping.tasks.filter(t=>billableTask(t)&&!t.existingLineIds.some(id=>positiveLine(id)&&!resolution.removeLineIds?.includes(id))&&!resolution.rules.some(r=>r.scopeTaskId===t.id&&positiveRule(r)));
     const pricedTaskCount=mapping.tasks.filter(billableTask).length-unpriced.length;
     for(const t of unpriced){
       if(!pricedTaskCount){resolution.issues.push(`${t.description}: no positive priced component or allowance was produced.`);continue;}
