@@ -126,7 +126,10 @@ try{
     if(priced==='result'){
       for(const d of await est.locator('details').all())await d.evaluate(el=>{el.open=true;}).catch(()=>{});
       await scanCopy('result');const text=await est.innerText();result.resultText=text.slice(0,12000);
-      result.range=(text.match(/\$[\d,]+(?:\.\d+)?\s*(?:to|-|–)\s*\$[\d,]+(?:\.\d+)?/)||[''])[0];
+      // The headline first (a single price for repairs, a range otherwise); the first "$a to $b" on
+      // the page can be a category line, which reported a $21,500 RE-10 as $1,326 on 2026-09-21.
+      const headline=text.match(/YOUR (?:PRICE|ESTIMATE|RANGE)\s+(\$[\d,]+(?:\.\d+)?(?:\s*(?:to|-|–)\s*\$[\d,]+(?:\.\d+)?)?)/i);
+      result.range=headline?headline[1]:(text.match(/\$[\d,]+(?:\.\d+)?\s*(?:to|-|–)\s*\$[\d,]+(?:\.\d+)?/)||[''])[0];
       for(let i=0;i<8&&!(result.delivery||[]).some(d=>d.channel==='customer'&&d.status==='sent');i++)await page.waitForTimeout(6000);
       result.deliveryText=await est.locator('p[role=status]').first().innerText().catch(()=>'');
       result.status=result.range?'priced':'result-without-range';
