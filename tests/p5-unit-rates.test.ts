@@ -228,3 +228,17 @@ test('everyday count nouns are counts (live Cabinet 2026-09-22)',()=>{
   for(const unit of ['cabinet','cabinets','system','shelf','drawer','detector','sink','vanity'])assert.equal(unitKey(unit),'each',unit);
   assert.ok(supportedUnit('cabinet'));
 });
+
+// The mapping stage is where a job spends nearly all of its time, so it can be pointed at a faster
+// model from Secrets without a rebuild. Unset, nothing changes; the audit is never redirected.
+test('P5_MAP_MODEL moves only the mapping stage',async()=>{
+  const {openAiPricingRequestEnvelope}=await import('../lib/p5/scopePricing.ts');
+  const before=process.env.P5_MAP_MODEL;
+  try{
+    delete process.env.P5_MAP_MODEL;
+    const plain=openAiPricingRequestEnvelope('anything at all',{},false).model;
+    process.env.P5_MAP_MODEL='faster-test-model';
+    assert.equal(openAiPricingRequestEnvelope('anything at all',{},false).model,plain,'an audit keeps its model');
+    assert.equal(openAiPricingRequestEnvelope('anything at all',{},true).model,plain,'so does research');
+  }finally{if(before===undefined)delete process.env.P5_MAP_MODEL;else process.env.P5_MAP_MODEL=before;}
+});

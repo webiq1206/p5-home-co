@@ -71,3 +71,27 @@ test('the wait choice carries the same live ETA, and says so plainly while it is
   assert.match(waitSentence({low:240,high:360},false,true),/taking longer than usual/i);
   assert.doesNotMatch(waitSentence({low:240,high:360},false),/%|\bseconds? remaining\b/i,'never a countdown or percentage');
 });
+// Owner report 2026-09-23, watching a real revision: the card sat on "Assessing how long your
+// estimate will take." for the whole eight-minute wait and never produced a figure. remainingRange
+// returned null whenever the progress record had not reached the page, which is exactly what a
+// background-driven submission does: it sends no progress record at all.
+test('an estimate always has a time estimate, even before any progress record arrives',async()=>{
+  const typed=projectMaterials([],'Replace the shower.');
+  const withDocs=projectMaterials([{name:'set.pdf',type:'application/pdf'}]);
+  for(const [label,m] of [['typed',typed],['documents',withDocs]] as const){
+    const start=remainingRange(null,m,'pricing',0)!;
+    assert.ok(start,`${label}: a figure at the start`);
+    assert.ok(start.high>start.low,`${label}: a range, not a point`);
+    const later=remainingRange(null,m,'pricing',120)!;
+    assert.ok(later.high<start.high,`${label}: it counts down as time is spent`);
+    const analysis=remainingRange(null,m,'analysis',0)!;
+    assert.ok(analysis&&analysis.high>0,`${label}: reading has one too`);
+    // Never a promise of nothing left while the job is still running.
+    assert.ok(remainingRange(null,m,'pricing',10_000)!.high>=40,`${label}: it never reaches zero`);
+  }
+  // And the sentence beside the buttons stops saying "assessing" once there is a figure.
+  const {waitSentence}=await import('../lib/p5/processingStatus.ts');
+  const sentence=waitSentence(remainingRange(null,typed,'pricing',0),false);
+  assert.doesNotMatch(sentence,/Assessing/i);
+  assert.match(sentence,/ready in/i);
+});

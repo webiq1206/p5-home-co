@@ -114,10 +114,22 @@ export function stageTitle(processing:ProcessingStatus|null|undefined,materials:
  * 40 s each six at a time, pricing 1 to 4 minutes by scope size). It is recomputed from the stage and
  * the pages still unread on every update, never a fixed countdown; past its high end it says so.
  */
+/** What each pricing phase costs, low and high seconds. One table, so the whole-job estimate below
+ * cannot drift from the per-phase one. */
+const PRICING_PHASE_COST=(docs:boolean):Record<string,[number,number]>=>({queued:[5,15],inventory:docs?[20,60]:[10,40],mapping:docs?[30,120]:[20,80],research:[0,90],verification:[15,60]});
 export function remainingRange(processing:ProcessingStatus|null|undefined,materials:ProjectMaterials|null|undefined,kind:'analysis'|'pricing',stageSeconds=0):{low:number;high:number}|null{
-  if(!processing)return null;
   const m=materials||{text:true,photos:0,documents:0,specifications:0};
   const docs=m.documents>0||m.photos>0;
+  // A running job whose progress record has not reached the page yet still has a knowable shape: the
+  // whole pipeline for this kind, less the time already spent. Returning null here left the customer
+  // on "Assessing how long your estimate will take" for an entire eight-minute wait, because a
+  // background-driven submission never sends a progress record at all (owner report 2026-09-23).
+  if(!processing){
+    if(kind==='analysis')return {low:Math.max(5,(docs?40:15)-stageSeconds),high:Math.max(20,(docs?180:40)-stageSeconds)};
+    const costs=Object.values(PRICING_PHASE_COST(docs));
+    const low=costs.reduce((total,[l])=>total+l,0),high=costs.reduce((total,[,h])=>total+h,0);
+    return {low:Math.max(10,low-stageSeconds),high:Math.max(40,high-stageSeconds)};
+  }
   if(kind==='analysis'){
     const total=Math.max(0,processing.totalPages||0),read=Math.max(0,Math.min(total,processing.readPages||0)),left=total-read;
     const drawings=(processing.currentItems||[]).some(i=>DRAWING_ITEM.test(i));
@@ -128,7 +140,7 @@ export function remainingRange(processing:ProcessingStatus|null|undefined,materi
     return {low:Math.max(10,batches*(drawings?35:8)+10),high:Math.max(30,batches*(drawings?75:25)+30)};
   }
   const order:ProcessingStatus['phase'][]=['queued','inventory','mapping','research','verification'];
-  const cost:Record<string,[number,number]>={queued:[5,15],inventory:docs?[20,60]:[10,40],mapping:docs?[30,120]:[20,80],research:[0,90],verification:[15,60]};
+  const cost=PRICING_PHASE_COST(docs);
   const at=Math.max(0,order.indexOf(processing.phase==='retrying'?'mapping':processing.phase));
   let low=0,high=0;
   order.slice(at).forEach((p,i)=>{const [l,h]=cost[p]||[10,40];low+=i===0?Math.max(0,l-stageSeconds):l;high+=i===0?Math.max(10,h-stageSeconds):h;});

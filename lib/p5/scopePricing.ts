@@ -156,8 +156,13 @@ const providerRefused=(message:string)=>/^pricing-provider-unavailable:4(0[0-3]|
 const stageSchema=(instructions:string)=>instructions===normalizeResearch?marketJson:instructions===INVENTORY?inventoryJson:instructions===MAP?mappingJson:instructions===PLANNING_AVERAGE?planningJson:auditJson;
 export type OpenAiPricingOptions={serviceTier?:'default';maxOutputTokens?:number};
 export const openAiPricingRequestEnvelope=(instructions:string,input:unknown,search:boolean,options:OpenAiPricingOptions={})=>{
-  const model=process.env.P5_PRICING_OPENAI_MODEL||process.env.P5_SCOPE_OPENAI_MODEL||'gpt-4.1';
   const task=search?'research':instructions===INVENTORY?'inventory':instructions===MAP||instructions===PLANNING_AVERAGE||instructions===normalizeResearch?'map':'audit';
+  // Mapping is where a job spends nearly all of its time: it is the only stage that runs once per
+  // batch and then again for every batch a repair round questions, and live calls have measured 12 s
+  // to 75 s each. P5_MAP_MODEL sets that stage's model on its own so a faster one can be trialled
+  // from Secrets, without a rebuild and without touching the audit, which is the stage that catches
+  // double counts and is the last place to trade accuracy for speed. Unset, nothing changes.
+  const model=(task==='map'&&process.env.P5_MAP_MODEL)||process.env.P5_PRICING_OPENAI_MODEL||process.env.P5_SCOPE_OPENAI_MODEL||'gpt-4.1';
   const body={model,...reasoningFor(model,task),instructions,input:'Return JSON only.\n'+JSON.stringify(input),max_output_tokens:options.maxOutputTokens||(search?24000:10000),store:false,...(options.serviceTier?{service_tier:options.serviceTier}:{}),...(search?{tools:[{type:'web_search'}],tool_choice:'required',include:['web_search_call.action.sources']}:{text:{format:{type:'json_schema',name:'pricing_stage',strict:false,schema:stageSchema(instructions)}}})};
   return {model,body};
 };

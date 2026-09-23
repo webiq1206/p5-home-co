@@ -27,7 +27,10 @@ export default function P5ProcessingStatus({message,processing,uploadPercent,onP
   const done=processing?.completedSteps||0;
   const jobStarted=processing?.startedAt?Date.parse(processing.startedAt):started;
   const jobSeconds=Math.max(0,Math.floor((clock-(Number.isFinite(jobStarted)?jobStarted:started))/1000));
-  const range=uploading||!kind?null:remainingRange(processing,materials,kind,stageSeconds||0);
+  // Without a progress record there is no stage clock, so the job's own elapsed time is what the
+  // estimate counts down from. Using 0 there left the figure frozen for the whole wait.
+  const spent=stageSeconds!==null?stageSeconds:jobSeconds;
+  const range=uploading||!kind?null:remainingRange(processing,materials,kind,spent);
   // Past the high end of a range computed at the start of the stage, say so plainly rather than guessing again.
   const fresh=uploading||!kind?null:remainingRange(processing,materials,kind,0);
   const overdue=Boolean(fresh&&stageSeconds!==null&&stageSeconds>fresh.high*1.5+30&&jobSeconds>90);
