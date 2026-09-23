@@ -16,7 +16,9 @@ export const CRM_DELIVERY_ENABLED=process.env.P5_CRM_DELIVERY==='on';
 export async function enqueueSubmission(id:string,revision:number,record:any){
   const recipients=await adminRecipients();if(!recipients.length)throw new Error("No estimate administrator is configured");
   const jobs=[...recipients.map(email=>({id:randomUUID(),destination:`admin:${email}`,payload:record})),
-    {id:randomUUID(),destination:`customer:${record.contact.email}`,payload:record},
+    // A customer who waited on screen without an email address gets no customer email; one who asked to be
+    // emailed is recorded on the submission request (submitEndpoint) and arrives here as the contact email.
+    ...(/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(record.contact?.email||'').trim())?[{id:randomUUID(),destination:`customer:${String(record.contact.email).trim()}`,payload:record}]:[]),
     ...(CRM_DELIVERY_ENABLED?[{id:randomUUID(),destination:"crm",payload:record}]:[])];
   const rows=await query(`WITH accepted AS (
     UPDATE p5_estimator_drafts SET status='submitted',submitted_at=now(),internal_estimate=$1::jsonb,customer_estimate=$2::jsonb

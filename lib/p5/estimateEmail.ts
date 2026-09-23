@@ -1,4 +1,5 @@
 import {ESTIMATOR_BRAND as brand} from './brand.ts';
+import {estimateLinkUrl} from './estimateLinks.ts';
 import {legalIdentityLine} from './brandIdentity.ts';
 import {buildAdminSummary,adminBasis} from './adminEstimate.ts';
 import {buildEstimateDocument,issueRecord,type EstimateBrand,type EstimateDocument,type EstimateIssue} from './estimateDocument.ts';
@@ -33,7 +34,7 @@ export function customerEstimateDocument(id:string,record:any){
  return buildEstimateDocument({id,result:record.customer||{},brand:brand as unknown as EstimateBrand,issue:record.customer?.issue||fallbackIssue(id,record),submittedAt:record.submittedAt||null,legalLine:legalIdentityLine()});
 }
 const C={ink:'#2C302F',muted:'#565D58',soft:'#6F7671',line:'#E1E5DD',page:'#F4F4F2'} as const;
-function customerHtml(doc:EstimateDocument){
+function customerHtml(doc:EstimateDocument,link=''){
  const tint=tintOf(doc.brand.accent);const accent=doc.brand.accent;
  const kicker=(t:string)=>`<p style="margin:0 0 6px;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:${C.soft}">${escape(t)}</p>`;
  const h2=(t:string)=>`<h2 style="margin:28px 0 10px;font-size:18px;line-height:1.3;font-weight:700;color:${C.ink};${FONT}">${escape(t)}</h2>`;
@@ -42,6 +43,8 @@ function customerHtml(doc:EstimateDocument){
  const first=doc.customer.name.split(' ')[0];
  parts.push(`<p style="margin:0 0 14px;font-size:16px;line-height:1.6;color:${C.ink}">${escape(first?`Hi ${first},`:'Hello,')}</p>`);
  parts.push(`<p style="margin:0 0 20px;font-size:16px;line-height:1.6;color:${C.ink}">Thank you for using the ${escape(doc.brand.name)} online estimator. Your preliminary estimate is below, and the complete estimate is attached as a PDF.</p>`);
+ // A signed link opens this saved estimate on any device to review or revise it (estimateLinks.ts).
+ if(link)parts.push(`<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;margin:0 0 18px"><tr><td align="center"><a href="${escape(link)}" style="display:inline-block;padding:13px 24px;border-radius:6px;background:${accent};color:#FFFFFF;font-size:15px;font-weight:700;text-decoration:none">View or update your estimate online</a></td></tr></table>`);
  // Total first: the number, what it is, and whether anything requested is still unpriced.
  parts.push(`<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;margin:0 0 16px"><tr><td style="padding:18px 20px;background:${tint};border-top:2px solid ${accent}">${kicker(doc.total?.label||'Estimate status')}<p style="margin:0;font-size:28px;line-height:1.2;font-weight:700;color:${C.ink};${FONT}">${escape(doc.total?.amount||'Pricing pending review')}</p>${doc.partialNote?`<p style="margin:10px 0 0;font-size:14px;line-height:1.5;font-weight:700;color:${C.ink}">${escape(doc.partialNote)}</p>`:''}</td></tr></table>`);
  parts.push(`<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;margin:0 0 8px"><tr><td style="padding:14px 18px;background:${tint};border-left:3px solid ${accent}">${kicker(doc.finish.heading)}<p style="margin:0 0 4px;font-size:16px;font-weight:700;color:${C.ink}">${escape(doc.finish.name)}</p><p style="margin:0 0 4px;font-size:14px;line-height:1.5;color:${C.muted}">${escape(doc.finish.detail)}</p><p style="margin:0;font-size:13px;line-height:1.5;color:${C.soft}">${escape(doc.finish.basis)}</p></td></tr></table>`);
@@ -90,8 +93,8 @@ function customerLayout(doc:EstimateDocument,body:string){
  </td></tr>
 </table></td></tr></table></body></html>`;
 }
-function customerText(doc:EstimateDocument){
- const lines:string[]=[doc.brand.name,'PRELIMINARY ONLINE ESTIMATE',doc.title,...(doc.projectName?[doc.projectName]:[]),`Estimate ${doc.reference}${doc.issuedLabel?` | Prepared ${doc.issuedLabel}`:''}`,''];
+function customerText(doc:EstimateDocument,link=''){
+ const lines:string[]=[doc.brand.name,'PRELIMINARY ONLINE ESTIMATE',doc.title,...(doc.projectName?[doc.projectName]:[]),`Estimate ${doc.reference}${doc.issuedLabel?` | Prepared ${doc.issuedLabel}`:''}`,'',...(link?[`View or update your estimate online: ${link}`,'']:[])];
  lines.push(`${(doc.total?.label||'Estimate status').toUpperCase()}: ${doc.total?.amount||'Pricing pending review'}`);if(doc.partialNote)lines.push(doc.partialNote);lines.push('');
  lines.push(doc.finish.heading.toUpperCase(),doc.finish.name,doc.finish.detail,doc.finish.basis,'');
  if(doc.categories.length){lines.push('SCOPE & PRICING');for(const c of doc.categories){lines.push(`${c.number}  ${c.title}${c.amount?`: ${c.amount}`:''}`);for(const w of c.work)lines.push(`  - ${w}`);for(const a of c.allowances)lines.push(`  - Allowance included: ${a}`);}
@@ -143,6 +146,6 @@ function adminEmail(id:string,record:any){
 export function estimateEmail(id:string,record:any,admin:boolean){
  // The customer email is the approved estimate, built from the same document as the attached PDF;
  // the internal email is the short admin summary of the same saved record.
- if(!admin){const doc=customerEstimateDocument(id,record);return {text:customerText(doc),html:customerLayout(doc,customerHtml(doc))};}
+ if(!admin){const doc=customerEstimateDocument(id,record);let link='';try{link=estimateLinkUrl(id);}catch(error){console.error('[p5-delivery] estimate link unavailable:',error instanceof Error?error.message:error);}return {text:customerText(doc,link),html:customerLayout(doc,customerHtml(doc,link))};}
  return adminEmail(id,record);
 }

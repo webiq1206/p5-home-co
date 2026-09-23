@@ -149,6 +149,9 @@ export function customerPresentation(result:any,options:CustomerProjectionOption
   assumptions:publicTextList(source.assumptions),exclusions:publicTextList(source.exclusions),factors:publicTextList(source.factors),
   nextStep:publicPricingText(source.nextStep),message:publicPricingText(source.message),disclaimer:publicPricingText(source.disclaimer),
   verificationItems:publicTextList(source.verificationItems),
+  // What changed from the prior version of a revised estimate (estimateRevisions.changeSummary).
+  ...(Array.isArray(source.revisionSummary)?{revisionSummary:publicTextList(source.revisionSummary)}:{}),
+  ...(Number.isInteger(source.revisionOf)?{revisionOf:Number(source.revisionOf)}:{}),
   scopeTasks,
   ...(instructions?{instructions}:{}),...(documentCoverage?{documentCoverage}:{})
  };

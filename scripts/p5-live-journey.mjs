@@ -103,6 +103,39 @@ try{
     await est.getByLabel(/^Your name/).fill(contact.name);await est.getByLabel(/^Email/).fill(contact.email);
     const check=est.getByRole('checkbox');for(let i=0;i<await check.count();i++)if(!await check.nth(i).isChecked())await check.nth(i).check().catch(()=>{});
     const pricingStart=Date.now();await est.getByRole('button',{name:'Get my estimate',exact:true}).first().click();note('get my estimate clicked');
+    // --leave-after-submit N: close the browser N seconds into pricing (optionally after choosing "Email me
+    // when it's ready" with --notify) and prove the estimate still finishes: poll only the draft READ, which
+    // never advances work, until the saved estimate appears (owner requirement 2026-09-22, scenario E/F).
+    const leaveAfter=Number(opt('leave-after-submit','0'));
+    if(leaveAfter>0){
+      await page.waitForTimeout(leaveAfter*1000);
+      const choice=est.getByTestId('p5-wait-choice');
+      result.waitChoiceShown=await choice.count()>0;note('wait choice',{shown:result.waitChoiceShown});
+      if(args.includes('--notify')&&result.waitChoiceShown){
+        await choice.getByRole('button',{name:"Email me when it's ready"}).click();
+        const field=choice.getByLabel('Email for your estimate');await field.fill(contact.email);
+        await choice.getByRole('button',{name:'Email me',exact:true}).click();
+        await choice.getByText('You can close this page.').waitFor({timeout:20000}).then(()=>note('email requested')).catch(()=>note('email request not confirmed'));
+      }
+      result.etaShown=await est.getByTestId('p5-eta').textContent().catch(()=>null);
+      result.stageTitle=await est.locator('[data-testid="p5-processing"] h2').textContent().catch(()=>null);
+      const creds=await page.evaluate(()=>{const d=Object.keys(localStorage).filter(k=>k.startsWith('p5-project-draft')).map(k=>{try{return JSON.parse(localStorage.getItem(k));}catch{return null;}}).find(x=>x&&x.id&&x.key);return d?{id:d.id,key:d.key}:null;});
+      await browser.close();note('browser closed during pricing',{stageTitle:result.stageTitle,eta:result.etaShown});
+      const closedAt=Date.now();let finished=null;
+      while(Date.now()-closedAt<limit){
+        await new Promise(r=>setTimeout(r,15000));
+        const r=await fetch(`${base}/api/p5-estimator/draft`,{headers:{'x-p5-draft-id':creds.id,'x-p5-draft-key':creds.key},cache:'no-store'}).then(x=>x.json()).catch(()=>null);
+        const status=r?.draft?.status,submission=r?.submission?.state||'';
+        note('background poll',{status,submission,range:r?.result?.range||null});
+        if(status==='submitted'){finished={seconds:Math.round((Date.now()-closedAt)/1000),range:r.result?.range||null};break;}
+        if(submission&&submission!=='processing'){finished={seconds:Math.round((Date.now()-closedAt)/1000),outcome:submission};break;}
+      }
+      result.background=finished||{timedOut:true};result.status=finished?.range?'priced-in-background':finished?'finished-without-range':'background-timeout';
+      result.draftId=creds.id;result.finishedAt=new Date().toISOString();result.totalSeconds=seconds();
+      await writeFile(path.join(out,`${label}.json`),JSON.stringify(result,null,1));
+      console.log('RESULT '+JSON.stringify({label,status:result.status,background:result.background,stageTitle:result.stageTitle,eta:result.etaShown,waitChoice:result.waitChoiceShown}));
+      process.exit(0);
+    }
     let priced='';let resubmitAfterRetry=false;
     while(Date.now()-t0<limit){
       await scanCopy('pricing');

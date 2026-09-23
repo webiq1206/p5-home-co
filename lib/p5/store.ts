@@ -1,4 +1,4 @@
-import { createHash, randomUUID, timingSafeEqual } from "node:crypto";
+import { createHash, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import { query } from "./database.ts";
 import { storeObject, readStoredBytes } from "./objectStorage.ts";
 import { ESTIMATOR_BRAND } from "./brand.ts";
@@ -22,7 +22,10 @@ export interface Draft {
 }
 /** Contact must already be saved before any customer estimate is released. */
 export function requireEstimateContact(contact:Draft['contact']) {
-  if(typeof contact?.name!=='string'||contact.name.trim().length<2||typeof contact?.email!=='string'||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contact.email.trim()))throw new DraftError('Enter your name and a valid email address.');
+  // Owner rule 2026-09-22: a customer need not give an email address just to wait for the estimate on screen.
+  // A name is still required; an email, when given, must be valid and receives a copy.
+  if(typeof contact?.name!=='string'||contact.name.trim().length<2)throw new DraftError('Enter your name.');
+  if(typeof contact?.email==='string'&&contact.email.trim()&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contact.email.trim()))throw new DraftError('Enter a valid email address or leave it blank.');
   if(contact.phone&&contact.phone.replace(/\D/g,'').length<10)throw new DraftError('Enter a valid phone number or leave it blank.');
 }
 let schemaReady: Promise<void> | null = null;
@@ -62,8 +65,29 @@ async function rowFor(id: string, key: string) {
   const [row]=await query("SELECT * FROM p5_estimator_drafts WHERE id=$1",[id]);
   if (!row) return null;
   const a=Buffer.from(String(row.key_hash));const b=Buffer.from(hash(key));
-  if(a.length!==b.length || !timingSafeEqual(a,b)) throw new DraftError("Draft not found",404);
+  if(a.length!==b.length || !timingSafeEqual(a,b)){
+    // A key issued through a signed estimate link (estimateLinks.ts) opens the same draft on another device.
+    const [linked]=await query("SELECT 1 FROM p5_estimator_work WHERE draft_id=$1 AND work_key=$2",[id,`access-key-v1:${hash(key)}`]);
+    if(!linked)throw new DraftError("Draft not found",404);
+  }
   return row;
+}
+/** A fresh key for a draft, issued only after a signed estimate link was verified. The original key keeps working. */
+export async function issueLinkKey(id:string):Promise<string>{
+  await ensureSchema();
+  const key=randomBytes(32).toString('hex');
+  await query("INSERT INTO p5_estimator_work(draft_id,work_key,payload) VALUES($1,$2,$3::jsonb) ON CONFLICT DO NOTHING",[id,`access-key-v1:${hash(key)}`,JSON.stringify({issuedAt:new Date().toISOString()})]);
+  return key;
+}
+/** A draft read by the server itself (the background driver finishing a submission). Never exposed to a request. */
+export async function readDraftById(id:string):Promise<Draft|null>{
+  await ensureSchema();
+  const [row]=await query("SELECT * FROM p5_estimator_drafts WHERE id=$1",[id]);if(!row)return null;
+  const files=await query("SELECT id,name,mime_type,size_bytes,sha256 FROM p5_estimator_files WHERE draft_id=$1 ORDER BY created_at",[id]);
+  return {id,revision:Number(row.revision),status:row.status,updatedAt:new Date(row.updated_at).toISOString(),brand:row.brand,
+    text:"",answers:{},extraction:null,reviewed:null,contact:{name:"",email:"",phone:""},...row.payload,
+    uploads:files.map(f=>({id:f.id,name:f.name,type:f.mime_type,size:f.size_bytes,sha256:f.sha256,status:"stored"})),
+  } as Draft;
 }
 export async function readDraft(id: string,key: string): Promise<Draft|null> {
   const row=await rowFor(id,key);if(!row)return null;

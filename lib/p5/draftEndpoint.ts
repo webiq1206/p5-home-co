@@ -9,6 +9,7 @@ import {answersForEditedScope,answersForReplacedScope,normalizeScopeText,scopeFi
 import { failed,json,limitedBody,protectRequest } from "./http.ts";
 import {draftEvents,recordEvent} from './events.ts';
 import {query} from './database.ts';
+import {listVersions} from './estimateRevisions.ts';
 import {customerPresentation,HIDE_CUSTOMER_UNIT_RATES} from './presentation.ts';
 
 function stable(value:unknown):string{return JSON.stringify(value,(key,item)=>item&&typeof item==="object"&&!Array.isArray(item)?Object.fromEntries(Object.entries(item).sort(([a],[b])=>a.localeCompare(b))):item);}
@@ -55,7 +56,13 @@ export async function getDraft(request:Request){try{protectRequest(request);cons
   // contents) so a failed read can be explained and verified from the browser.
   const withEvents=new URL(request.url).searchParams.get('events')==='1'&&draft;
   const [stored]=draft?.status==='submitted'?await query('SELECT customer_estimate FROM p5_estimator_drafts WHERE id=$1',[id]):[];
-  return json({draft,...(stored?.customer_estimate?{result:customerPresentation(stored.customer_estimate,{hideUnitRates:HIDE_CUSTOMER_UNIT_RATES})}:{}),...(withEvents?{events:(await draftEvents(id)).map(e=>({at:e.createdAt,kind:e.kind,stage:e.stage,file:e.file,provider:e.provider,model:e.model,status:e.status,code:e.code,message:e.message,durationMs:e.durationMs,attempt:e.attempt,fallback:e.fallback,outcome:e.outcome}))}:{})});}catch(error){return failed(error);}}
+  // A submission still being prepared for THIS revision: a returning visitor (same browser or an emailed
+  // link) sees its live progress instead of a form asking them to submit again.
+  const [requested]=draft&&draft.status!=='submitted'?await query("SELECT payload FROM p5_estimator_work WHERE draft_id=$1 AND work_key='submit-request-v1'",[id]):[];
+  const pendingSubmit=requested?.payload as {state?:string;revision?:number;outcome?:string;notifyEmail?:string}|undefined;
+  const submission=pendingSubmit&&pendingSubmit.revision===draft?.revision?{state:pendingSubmit.state==='pending'?'processing':pendingSubmit.outcome==='needs-review'?'needs-review':pendingSubmit.state||'',notifyEmail:pendingSubmit.notifyEmail||''}:null;
+  const versions=draft?await listVersions(id).catch(()=>[]):[];
+  return json({draft,...(submission?{submission}:{}),...(versions.length?{versions}:{}),...(stored?.customer_estimate?{result:customerPresentation(stored.customer_estimate,{hideUnitRates:HIDE_CUSTOMER_UNIT_RATES})}:{}),...(withEvents?{events:(await draftEvents(id)).map(e=>({at:e.createdAt,kind:e.kind,stage:e.stage,file:e.file,provider:e.provider,model:e.model,status:e.status,code:e.code,message:e.message,durationMs:e.durationMs,attempt:e.attempt,fallback:e.fallback,outcome:e.outcome}))}:{})});}catch(error){return failed(error);}}
 export function parseAnswers(raw:unknown):ScopeAnswers {
   if(!raw||typeof raw!=="object"||Array.isArray(raw))throw new DraftError("Invalid project answers.");
   const answers:ScopeAnswers={};
@@ -138,7 +145,7 @@ export async function putDraft(request:Request){
         corrections:Object.entries(answers).filter(([field,value])=>{const fact=extraction?.facts.find(f=>f.field===field);return fact&&fact.value!==value;}).map(([field,value])=>({field:field as keyof ScopeAnswers,previous:extraction!.facts.find(f=>f.field===field)!.value,value:value!})),
       };
     }
-    const draft=await saveDraft(id,key,ESTIMATOR_BRAND.id,{text:incomingText,answers,extraction,reviewed,contact,wizard,analyzedFingerprint:replacing?undefined:existing?.analyzedFingerprint,analyzedAnswers:replacing?undefined:existing?.analyzedAnswers},raw.revision);
+    const draft=await saveDraft(id,key,ESTIMATOR_BRAND.id,{text:incomingText,answers,extraction,reviewed,contact,wizard,analyzedFingerprint:replacing?undefined:existing?.analyzedFingerprint,analyzedAnswers:replacing?undefined:existing?.analyzedAnswers,...((existing as {revisionOf?:number}|null)?.revisionOf!==undefined?{revisionOf:(existing as {revisionOf?:number}).revisionOf}:{})} as Parameters<typeof saveDraft>[3],raw.revision);
     const pricedFields=await costQuestionFields(answers);
     const conflicts=extraction?reconcileScope(answers,extraction,resolutions).conflicts:[];
     return json({draft,conflicts,questions:scopeQuestions(answers,extraction,conflicts,skipped,pricedFields,incomingText),pricedFields});

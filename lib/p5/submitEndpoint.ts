@@ -7,6 +7,8 @@ import { draftCredentials,readDraft,DraftError,requireEstimateContact } from "./
 import { EMPTY_CONFIGURATION,type EstimatorConfiguration } from "./costBook.ts";
 import {priceSavedScope} from "./pricingWork.ts";
 import {queuedJob} from './backgroundJobs.ts';
+import {kickDriver} from './estimateDriver.ts';
+import {archivedVersion,changeSummary} from './estimateRevisions.ts';
 import {missingScopeFields,customerPricingQuestions} from "./missingFields.ts";
 import {pricingPreflight,PREFLIGHT_MESSAGE} from './pricingPreflight.ts';
 import {PricingPending,isPricingPending} from './pricingProgress.ts';
@@ -44,6 +46,32 @@ export async function postSubmission(request:Request,schedule?:(task:()=>Promise
     }
     const body=JSON.parse(new TextDecoder().decode(await limitedBody(request,4000)));
     if(body.revision!==draft.revision)throw new DraftError("Save the latest scope before submitting.",409);
+    // A background submission is recorded before any work starts, so it finishes (saved estimate, email)
+    // even if this page is closed: the estimate driver completes it without the browser.
+    const notifyEmail=typeof body.notifyEmail==='string'?body.notifyEmail.trim().slice(0,200):'';
+    if(notifyEmail&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(notifyEmail))throw new DraftError('Enter a valid email address.');
+    if(body.background===true){await recordSubmitRequest(id,draft.revision,body.notify===true,notifyEmail);kickDriver('submit');}
+    // "Email me when it's ready": the request is recorded and the customer may leave now.
+    if(body.notifyOnly===true)return json({notified:true,email:notifyEmail||draft.contact.email||''});
+    return await completeSubmission(id,draft,{background:body.background===true,retry:body.retry===true},schedule);
+  }catch(error){if(isPricingPending(error))return error.retryAfterMs===0?json({error:error.message},503):json({pending:true,message:error.message,retryAfterMs:error.retryAfterMs},202);return failed(error);}
+}
+/** Record that the customer asked for this revision's estimate; the driver finishes it if they leave. */
+export async function recordSubmitRequest(id:string,revision:number,notify:boolean,notifyEmail=''){
+  const payload={state:'pending',revision,notify,...(notifyEmail?{notifyEmail}:{}),requestedAt:new Date().toISOString()};
+  // The same revision keeps its state and any address already given (the page's own status polls carry
+  // none); notify is sticky once asked for. A new revision starts a fresh request.
+  await query(`INSERT INTO p5_estimator_work(draft_id,work_key,payload) VALUES($1,'submit-request-v1',$2::jsonb)
+    ON CONFLICT(draft_id,work_key) DO UPDATE SET payload=CASE
+      WHEN (p5_estimator_work.payload->>'revision')::int=$3 THEN p5_estimator_work.payload
+        ||jsonb_build_object('notify',coalesce((p5_estimator_work.payload->>'notify')::boolean,false) OR $4)
+        ||CASE WHEN $5::text<>'' THEN jsonb_build_object('notifyEmail',$5::text) ELSE '{}'::jsonb END
+      ELSE $2::jsonb END,updated_at=now()`,[id,JSON.stringify(payload),revision,notify,notifyEmail]);
+}
+/** Price (or wait for) a revision and, once it has a validated range, save it and queue its delivery.
+ * Shared by the customer's request and the background driver, so the outcome is the same either way. */
+export async function completeSubmission(id:string,draft:Awaited<ReturnType<typeof readDraft>>&object,opts:{background:boolean;retry:boolean;holdMs?:number},schedule?:(task:()=>Promise<void>)=>void){
+  try{
     if(!(brand.services as readonly string[]).includes(String(draft.answers.service)))throw new DraftError("Choose a service offered by this company.");
     if(!draft.reviewed)throw new DraftError("Review and confirm the extracted scope before submitting.");
     const [policy]=await query("SELECT payload FROM p5_estimator_policy WHERE id='current'");
@@ -58,7 +86,7 @@ export async function postSubmission(request:Request,schedule?:(task:()=>Promise
     // Ask for a quantity the planning model cannot work without now, before any pricing work starts.
     const needed=pricingPreflight(draft.reviewed,configuration);
     if(needed.length)return json({pricingReviewRequired:true,needsCustomerInput:true,handoff:false,preflight:true,missingFields:needed,verificationItems:[],error:PREFLIGHT_MESSAGE},422);
-    const job=body.background===true?await queuedJob({kind:'pricing',draft,configuration},body.retry===true):null;
+    const job=opts.background?await queuedJob({kind:'pricing',draft,configuration},opts.retry,opts.holdMs):null;
     // A job that stopped after repeated failures is the handoff outcome: the project and contact are saved, a person completes the estimate, nothing further is needed from the visitor.
     if(job&&job.state==='failed'){console.error(`[p5-pricing] handoff for draft ${id}: ${job.progress}`);return json({pricingReviewRequired:true,needsCustomerInput:false,handoff:true,missingFields:[],verificationItems:[],error:HANDOFF_ISSUE},422);}
     if(job&&job.state!=='complete')return json({pending:true,message:job.progress,processing:job.processing,retryAfterMs:2000},202);
@@ -100,7 +128,14 @@ export async function postSubmission(request:Request,schedule?:(task:()=>Promise
     // service, finish basis and contact. Every later render (PDF, email, download, admin preview,
     // resend) reads it back, so re-rendering never moves the date or re-reads the project.
     const issue=issueRecord({brandId:brand.id,id,revision:draft.revision,now:new Date(),contact:draft.contact,scope:draft.reviewed});
-    const record={draftId:id,revision:draft.revision,brand:brand.name,estimator:"p5-policy",contact:draft.contact,scope:draft.reviewed,...priced,customer:{...priced.customer,issue}};
+    // The address given with "Email me when it's ready" receives the estimate when the saved contact has none.
+    const [requested]=await query("SELECT payload FROM p5_estimator_work WHERE draft_id=$1 AND work_key='submit-request-v1'",[id]).catch(()=>[] as any[]);
+    const notifyEmail=String((requested?.payload as {notifyEmail?:string}|undefined)?.notifyEmail||'');
+    const contact={...draft.contact,email:draft.contact.email?.trim()||notifyEmail};
+    // A revised estimate says what changed from the version it replaces (estimateRevisions.ts).
+    const revisionOf=Number((draft as {revisionOf?:number}).revisionOf);
+    const revisionSummary=Number.isInteger(revisionOf)?changeSummary(await archivedVersion(id,revisionOf).catch(()=>undefined),priced.customer):[];
+    const record={draftId:id,revision:draft.revision,brand:brand.name,estimator:"p5-policy",contact,scope:draft.reviewed,...priced,customer:{...priced.customer,...(revisionSummary.length?{revisionSummary,revisionOf}:{}),issue:{...issue,contact:{...issue.contact,email:issue.contact?.email||notifyEmail}}}};
     const accepted=await enqueueSubmission(id,draft.revision,record);
     // Persistence is acknowledged separately from delivery. A transport failure
     // never erases the submission or tells a visitor to create a duplicate.

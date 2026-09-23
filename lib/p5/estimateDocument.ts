@@ -205,6 +205,7 @@ export function buildEstimateDocument(input:{id:string;result:unknown;brand:Esti
   const assumptionRows:[string,string[]][]=([
     ['Pricing basis',[`Your online submission${sources.length?` and ${sources.length===1?'the document':'the documents'} you uploaded: ${sources.join('; ')}`:''}.`]],
     ['Assumptions',[...new Set(assumptions)].slice(0,12)],
+    ['Changes in this version',((result.revisionSummary||[]) as string[]).map(v=>clean(v,300)).filter(Boolean).slice(0,8)],
     ['Included to complete the work',tasks.filter(t=>t.origin==='required'&&clean(t.basis)).map(t=>`${clean(t.description,160)}: ${clean(t.basis,240)}`).slice(0,12)],
     ['To confirm',[...new Set(toConfirm)].slice(0,16)],
     ['Timing',[issue.timing?`Requested: ${clean(issue.timing,160)}. Availability is confirmed with your final proposal.`:'Start and completion dates are confirmed with your final proposal.']],

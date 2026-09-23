@@ -333,3 +333,15 @@
 .root .question .choice::before{display:none}
 .root .composerText{min-height:44px}
 @media(max-width:600px){.root .composer{padding:8px 10px}.root .threadInner{padding:16px 14px 20px}.root .questionActions{gap:8px}.root .accordionTitle{font-size:14px}}
+/* Honest time range for the work still left, and the "stay or be emailed" choice (2026-09-22). */
+.processingEta{margin:6px 0 0;font-size:14px;font-weight:600;color:var(--p5-ink)}
+.waitChoice{display:grid;gap:10px;margin:14px 0 4px;padding:14px;border:1px solid var(--p5-line);border-radius:10px;background:var(--p5-surface,#fff)}
+.waitButtons{display:flex;flex-wrap:wrap;gap:10px}
+.waitButtons>button{flex:1 1 180px;min-height:44px}
+.waitEmail{display:grid;gap:10px}
+/* Change a saved estimate and reach its earlier versions (2026-09-22). */
+.reviseCard{display:grid;gap:10px;margin:18px 0 8px;padding:16px;border:1px solid var(--p5-line);border-radius:12px;background:var(--p5-surface-3)}
+.reviseCard h3{margin:0;font-size:17px}
+.reviseCard textarea{width:100%;min-height:84px;resize:vertical;font:inherit}
+.versionList ul{list-style:none;margin:6px 0 0;padding:0;display:grid;gap:6px}
+.versionList li{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 10px;border:1px solid var(--p5-line);border-radius:8px;font-size:14px}

@@ -72,3 +72,73 @@ export function elapsedLabel(seconds:number){
   const total=Math.max(0,Math.floor(seconds));
   return total<60?`${total}s elapsed`:`${Math.floor(total/60)}m ${String(total%60).padStart(2,'0')}s elapsed`;
 }
+
+/**
+ * What the customer actually provided, so progress names only materials that exist (owner rule
+ * 2026-09-22): a typed or dictated description never mentions uploads, photos are "photos", and a PDF
+ * is "plans" only when the reader reports drawing sheets, "specifications" only when it is named so.
+ */
+export interface ProjectMaterials {text:boolean;photos:number;documents:number;specifications:number}
+export function projectMaterials(files:readonly {name:string;type?:string}[],text=''):ProjectMaterials{
+  const photos=files.filter(f=>/^image\//i.test(f.type||'')||/\.(?:jpe?g|png|heic|heif|webp|gif)$/i.test(f.name)).length;
+  const docs=files.filter(f=>!(/^image\//i.test(f.type||'')||/\.(?:jpe?g|png|heic|heif|webp|gif)$/i.test(f.name)));
+  return {text:Boolean(text.trim()),photos,documents:docs.length,specifications:docs.filter(f=>/\bspec(?:ification)?s?\b|project manual/i.test(f.name)).length};
+}
+const DRAWING_ITEM=/detail regions|detail views|supplied whole|\bsheet\b/i;
+/** The heading for the stage that is actually running, in the customer's terms. */
+export function stageTitle(processing:ProcessingStatus|null|undefined,materials:ProjectMaterials|null|undefined):string{
+  if(!processing)return 'Getting your estimate started';
+  const m=materials||{text:true,photos:0,documents:0,specifications:0};
+  switch(processing.phase){
+    case 'queued':return 'Getting your estimate started';
+    case 'preparing':case 'instructions':case 'reading':{
+      if(!m.photos&&!m.documents)return 'Reviewing your project details';
+      const items=processing.currentItems||[];
+      if(items.some(i=>DRAWING_ITEM.test(i)))return 'Reviewing your plans';
+      if(m.photos&&!m.documents)return 'Reviewing your photos';
+      if(m.specifications&&m.specifications===m.documents&&!m.photos)return 'Reviewing your specifications';
+      if(m.photos&&items.some(i=>/\.(?:jpe?g|png|heic|heif|webp|gif)\b/i.test(i)))return 'Reviewing your photos';
+      return 'Reviewing your documents';
+    }
+    case 'cross-referencing':return 'Calculating quantities';
+    case 'inventory':return 'Building the scope of work';
+    case 'mapping':case 'research':return 'Applying pricing';
+    case 'verification':return 'Checking your estimate';
+    case 'retrying':return 'Recovering an interrupted step';
+  }
+  return processingTitles[processing.phase]||'Working on your project';
+}
+/**
+ * An honest time range for what is left, from the actual workload and the timings measured on the live
+ * sites (2026-09-21/22 benchmarks: text pages about 10 s each read 12 at a time, drawing tiles about
+ * 40 s each six at a time, pricing 1 to 4 minutes by scope size). It is recomputed from the stage and
+ * the pages still unread on every update, never a fixed countdown; past its high end it says so.
+ */
+export function remainingRange(processing:ProcessingStatus|null|undefined,materials:ProjectMaterials|null|undefined,kind:'analysis'|'pricing',stageSeconds=0):{low:number;high:number}|null{
+  if(!processing)return null;
+  const m=materials||{text:true,photos:0,documents:0,specifications:0};
+  const docs=m.documents>0||m.photos>0;
+  if(kind==='analysis'){
+    const total=Math.max(0,processing.totalPages||0),read=Math.max(0,Math.min(total,processing.readPages||0)),left=total-read;
+    const drawings=(processing.currentItems||[]).some(i=>DRAWING_ITEM.test(i));
+    if(!docs)return {low:Math.max(5,15-stageSeconds),high:Math.max(15,40-stageSeconds)};
+    if(processing.phase==='cross-referencing')return {low:10,high:40};
+    if(!total)return {low:20+m.photos*3,high:60+m.photos*8+m.documents*30};
+    const batches=Math.ceil(left/(drawings?6:12));
+    return {low:Math.max(10,batches*(drawings?35:8)+10),high:Math.max(30,batches*(drawings?75:25)+30)};
+  }
+  const order:ProcessingStatus['phase'][]=['queued','inventory','mapping','research','verification'];
+  const cost:Record<string,[number,number]>={queued:[5,15],inventory:docs?[20,60]:[10,40],mapping:docs?[30,120]:[20,80],research:[0,90],verification:[15,60]};
+  const at=Math.max(0,order.indexOf(processing.phase==='retrying'?'mapping':processing.phase));
+  let low=0,high=0;
+  order.slice(at).forEach((p,i)=>{const [l,h]=cost[p]||[10,40];low+=i===0?Math.max(0,l-stageSeconds):l;high+=i===0?Math.max(10,h-stageSeconds):h;});
+  return {low:Math.max(5,low),high:Math.max(low+15,high)};
+}
+export function remainingLabel(range:{low:number;high:number}|null,overdue=false):string{
+  if(overdue)return 'Taking longer than usual. Still working, and every finished step is saved.';
+  if(!range)return '';
+  const min=(s:number)=>Math.max(1,Math.round(s/60));
+  if(range.high<=60)return 'Less than a minute left';
+  if(min(range.low)===min(range.high))return `About ${min(range.high)} minute${min(range.high)===1?'':'s'} left`;
+  return `About ${min(range.low)} to ${min(range.high)} minutes left`;
+}
