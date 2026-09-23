@@ -321,7 +321,10 @@ export const requestPricing=async(instructions:string,input:unknown,search:boole
 
 /** Independent batches run together, but only a few at a time: a burst of a dozen
  * simultaneous requests is what drew the provider's rate limit on an 18-item repair list. */
-const PRICING_FANOUT=Math.max(1,Number(process.env.P5_PRICING_FANOUT||6));
+// Six at a time drew twelve 429s from the provider on a single small shower job (live 2026-09-23),
+// and every one of those is a wait the customer pays for. Owner's call that day: absorb the limit
+// here rather than raise the account's. Three keeps batches overlapping without bursting.
+const PRICING_FANOUT=Math.max(1,Number(process.env.P5_PRICING_FANOUT||3));
 /** Tasks per mapping call. The slowest batch sets the pace and its time is mostly the answer it
  * writes, so smaller batches side by side finish sooner: live, a 6-task batch took 103 s while the
  * rest took 28 to 72 s. */

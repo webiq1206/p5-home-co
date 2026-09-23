@@ -102,7 +102,11 @@ export async function priceSavedScope(id:string,scope:ReviewedScope,configuratio
    const busy=/^pricing-provider-unavailable:(?:429|5\d\d)\b/.test(message);
    if(busy&&(state.busyWaits||0)<12){
     if(!burst)state.busyWaits=(state.busyWaits||0)+1;
-    const wait=Math.min(20000,4000*(state.busyWaits||1));
+    // A provider rate limit usually clears in tens of seconds, so a 20 s ceiling retried too early
+    // and spent the ladder without ever waiting long enough. Jitter keeps parallel batches, which
+    // fail in the same second, from returning in the same second too.
+    const step=Math.min(45000,5000*(state.busyWaits||1));
+    const wait=Math.round(step*(1+Math.random()*0.2));
     // Remembered so the repair budget can be measured in worked time. Waiting out a busy provider
     // once cost the repair round that removes double counts, and with it the whole estimate.
     if(!burst)state.busyWaitMs=(state.busyWaitMs||0)+wait;

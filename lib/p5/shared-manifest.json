@@ -1,7 +1,7 @@
 {
  "source": "boise-remodeling-co",
- "commit": "0c23bc758b41f35b8d1047f2d37460026e165941",
- "generatedAt": "2026-09-23T04:45:56.775Z",
+ "commit": "438a6bbd9d01ac50797a2a31204ab79bade762ff",
+ "generatedAt": "2026-09-23T06:11:57.769Z",
  "note": "Shared estimator files. Edit them in boise-remodeling-co and run scripts/p5-sync.mjs; never edit them in one brand.",
  "files": {
   "app/admin/p5-estimators/page.tsx": "80b9e20e4144c34a9f78033ab1b84e2555e42c44e670050b9e0fcbffa477512e",
@@ -105,7 +105,7 @@
   "lib/p5/pricingProgress.ts": "bc41e712fc4646b0fac46fe4c8fa815dd6490778f70ab1212fda568edf445156",
   "lib/p5/pricingSources.ts": "a951d9d6faa3405f7c6bb4175242852d3d603f3ed89b5d330dbcc08ccc362b6b",
   "lib/p5/pricingSpend.ts": "a22283b37b119e84ebecd2dd27c36d1430b37fa446957e827f44dacc6672c9d9",
-  "lib/p5/pricingWork.ts": "9bebba745c9e2838912e306f7a6933dc4628907b60e7e5f417ec5c60fb7b4d31",
+  "lib/p5/pricingWork.ts": "5bb2f3f5ef4b97d5d4e787d6631dcedd552672b54279b2af204bbd942573b4bf",
   "lib/p5/processingBudget.ts": "c5dd71b043479bf0bd39a55a3957bcd21f95d5113a74932d917953347b42c63f",
   "lib/p5/processingStatus.ts": "69903682833b5cefa51c9871d29d4b8907217e86cc6489ec9768f6b1dcc38ff1",
   "lib/p5/projectSource.ts": "77edf216923253458a562e08b4822bf6ede89952d001e968cd3bac2ab07b8cce",
@@ -125,7 +125,7 @@
   "lib/p5/scope.ts": "55feea62c680ced8caf68cb7fc920e74e91887b6dd4a9d0ce08a8ee76cf172bb",
   "lib/p5/scopeEndpoint.ts": "ac256d011921ae4e2e42202c8ccc1b8b8b5935bdc1feba47025ae7e429a31e11",
   "lib/p5/scopeInventory.ts": "823baac9f40357847a8f6afd9a905058298dfc8dab553d584223bcd3f890d64a",
-  "lib/p5/scopePricing.ts": "abba789b8f1c2cd55e1949734efa094d166c2565691bad138e253d08cad39733",
+  "lib/p5/scopePricing.ts": "19128c34a0109a9c81e9c932a62112f9382cccd57e15683337af83a03b310873",
   "lib/p5/scopeReplacement.ts": "ad340bab97512e3583b8789cf0731edfc78811e8715fcd55555e6ea59fe1411a",
   "lib/p5/sourceResponsibilities.ts": "2c77105334ff8c66b8f8572c76be7822c3846ac357e8acf75a16d1c0b3faf809",
   "lib/p5/sourceSpecificationGuard.ts": "a52b5fbd623696aa37160a72780c9c5711232f4237855f02d07f64ddde356fc3",
