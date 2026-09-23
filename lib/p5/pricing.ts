@@ -160,6 +160,23 @@ export function calculateP5Estimate(input: PricingInput, finance: FinancePolicy,
   if (!input.scopeSummary.trim() || !input.revision.trim()) throw new Error("A scope summary and estimate revision are required");
   if (!Object.hasOwn(SERVICE_MATRIX,input.service)) throw new Error("Unknown service");
   if (!input.lines.length) throw new Error("At least one direct-cost line is required");
+  // A range that does not contain the value it brackets is a repairable inconsistency in one line,
+  // not a reason to discard a finished estimate. Live 2026-09-23: "The quantity range must contain
+  // the modeled quantity" threw out completed pricing and the stage was asked again, which is how a
+  // five-item bedroom scope reached 27 mapping calls. Widening is also the safe direction here: the
+  // range feeds the HIGH end of the estimate, so including the modeled value can only make the top
+  // of the range honest, never narrower than the work actually priced.
+  input = {...input, lines: input.lines.map(line => {
+    const widen = (range: {low: number; high: number} | undefined, value: number) =>
+      range && Number.isFinite(range.low) && Number.isFinite(range.high) && Number.isFinite(value)
+        ? {low: Math.min(range.low, value), high: Math.max(range.high, value)} : range;
+    const quantityRange = widen(line.quantityRange, line.quantity);
+    const unitCostRange = widen(line.unitCostRange, line.unitCost);
+    if ((quantityRange && line.quantityRange && (quantityRange.low !== line.quantityRange.low || quantityRange.high !== line.quantityRange.high))
+      || (unitCostRange && line.unitCostRange && (unitCostRange.low !== line.unitCostRange.low || unitCostRange.high !== line.unitCostRange.high)))
+      console.error(`[p5-pricing] widened a range on ${line.id} to contain its own value; the line is priced, not discarded.`);
+    return {...line, ...(quantityRange ? {quantityRange} : {}), ...(unitCostRange ? {unitCostRange} : {})};
+  })};
   const service = input.service === "change-order" ? input.service : input.urgency && input.urgency !== "standard" ? "rush" : input.service;
   if(input.complexity!==undefined&&!["standard","complex"].includes(input.complexity))throw new Error("Unknown project complexity");
   const baseMatrix = SERVICE_MATRIX[service];

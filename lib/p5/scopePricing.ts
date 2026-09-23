@@ -182,7 +182,7 @@ export const openAiPricingRequestEnvelope=(instructions:string,input:unknown,sea
   // from Secrets, without a rebuild and without touching the audit, which is the stage that catches
   // double counts and is the last place to trade accuracy for speed. Unset, nothing changes.
   const model=(task==='map'&&process.env.P5_MAP_MODEL)||process.env.P5_PRICING_OPENAI_MODEL||process.env.P5_SCOPE_OPENAI_MODEL||'gpt-4.1';
-  const body={model,...reasoningFor(model,task),instructions,input:'Return JSON only.\n'+JSON.stringify(input),max_output_tokens:options.maxOutputTokens||(search?24000:10000),store:false,...(options.serviceTier?{service_tier:options.serviceTier}:{}),...(search?{tools:[{type:'web_search'}],tool_choice:'required',include:['web_search_call.action.sources']}:{text:{format:{type:'json_schema',name:'pricing_stage',strict:false,schema:stageSchema(instructions)}}})};
+  const body={model,...reasoningFor(model,task),instructions,input:'Return JSON only.\n'+JSON.stringify(input),max_output_tokens:options.maxOutputTokens||(search?24000:task==='map'?28000:16000),store:false,...(options.serviceTier?{service_tier:options.serviceTier}:{}),...(search?{tools:[{type:'web_search'}],tool_choice:'required',include:['web_search_call.action.sources']}:{text:{format:{type:'json_schema',name:'pricing_stage',strict:false,schema:stageSchema(instructions)}}})};
   return {model,body};
 };
 /** One provider exchange without charge accounting. `requestPricingWith` adds the ledger. */
@@ -357,6 +357,20 @@ const PRICING_FANOUT=Math.max(1,Number(process.env.P5_PRICING_FANOUT||5));
  * writes, so smaller batches side by side finish sooner: live, a 6-task batch took 103 s while the
  * rest took 28 to 72 s. */
 const MAP_BATCH=Math.max(1,Number(process.env.P5_MAP_BATCH||4));
+/** The most mapping calls one round may make, however many tasks it holds.
+ *
+ * Batch size alone does not bound anything: the number of calls grows with the scope, and the scope
+ * is not ours to limit. Live 2026-09-23, "remodel the primary bedroom and closet" was typed as a
+ * whole-home project, drew in the whole-home planning book, and took 27 mapping calls and 495 s of a
+ * 645 s estimate to price five items of work.
+ *
+ * So the batch grows instead of the call count. Every task is still mapped and nothing is dropped;
+ * a large scope simply travels in fewer, fuller calls. That makes the worst case a number we choose
+ * rather than a number the scope chooses. */
+const MAX_MAP_CALLS=Math.max(1,Number(process.env.P5_MAX_MAP_CALLS||8));
+/** Tasks per call for this round: the configured size, or larger when that would exceed the ceiling. */
+export const mappingBatchSize=(tasks:number,batch=MAP_BATCH,ceiling=MAX_MAP_CALLS)=>
+  Math.max(1,batch,Math.ceil(Math.max(0,tasks)/Math.max(1,ceiling)));
 async function mapLimit<T,R>(items:T[],run:(item:T,index:number)=>Promise<R>):Promise<R[]>{
   const results:R[]=new Array(items.length);let next=0;
   await Promise.all(Array.from({length:Math.min(PRICING_FANOUT,items.length)},async()=>{while(next<items.length){const index=next++;results[index]=await run(items[index],index);}}));
@@ -1014,10 +1028,11 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
     const bookRates=(configuration.planningCatalog?.rates||[]).map(({code,description,type,unit,amount,basis})=>({code,description,type,unit,amount,basis}));
     const shortlist=process.env.NODE_TEST_CONTEXT&&!process.env.P5_BOOK_SHORTLIST_TEST?new Map<string,string[]>():await shortlistBook(inventory.tasks,bookRates);
     const mappingInput=(taskBatch:typeof inventory.tasks)=>({original:sourceParts.length===1?original:{sections:[...new Set(taskBatch.map(t=>taskSources.get(t.id)!))].map(i=>sourceParts[i])},taskBatch:taskBatch.map(({id,description,evidence})=>({id,description,evidence})),priorMappedTasks:[],priorReplacements:[],existingLines:lines.map(({id,description,quantity,unit,unitCost,category,trade,quantitySource})=>({id,description,quantity,unit,unitCost,category,trade,quantitySource})),defaultExclusions:base.customer.exclusions,date:now.toISOString(),catalogImportedAt:configuration.planningCatalog?.importedAt,regionalRates:configuration.regionalRates,shortlist:Object.fromEntries(taskBatch.map(t=>[t.id,shortlist.get(t.id)||[]])),catalog:relevantCatalog(bookRates,taskBatch,undefined,new Set(taskBatch.flatMap(t=>shortlist.get(t.id)||[])))});
-    const mappedBatches=await mapLimit(batchesOf(inventory.tasks,MAP_BATCH),taskBatch=>mapBatch(request,taskBatch,mappingInput,()=>deadline-Date.now()));
+    const firstBatches=batchesOf(inventory.tasks,mappingBatchSize(inventory.tasks.length));
+    const mappedBatches=await mapLimit(firstBatches,taskBatch=>mapBatch(request,taskBatch,mappingInput,()=>deadline-Date.now()));
     const mapping:Mapping={tasks:[],issues:[...inventory.issues],notes:[...inventory.notes],replacements:[],removeExclusions:[]};
     for(const [batchIndex,batch] of mappedBatches.entries()){
-      const taskBatch=batchesOf(inventory.tasks,MAP_BATCH)[batchIndex];
+      const taskBatch=firstBatches[batchIndex];
       if(batch.tasks.length!==taskBatch.length||new Set(batch.tasks.map(t=>t.id)).size!==taskBatch.length||batch.tasks.some(t=>!taskBatch.some(expected=>expected.id===t.id)))throw new Error('Incomplete mapping batch');
       // Preserve inventory wording so later stages cannot quietly rewrite scope.
       mapping.tasks.push(...batch.tasks.map(t=>({...t,...taskBatch.find(expected=>expected.id===t.id)!})));
@@ -1160,7 +1175,7 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
       // A finding names a task, or names one of the priced lines that task owns.
       const questioned=(t:Mapping['tasks'][number])=>lowerIssues.some(issue=>namesTask(issue,t)||(ruleIdsByTask.get(t.id)||[]).some(id=>namesLine(issue,id)))
         ||billableTask(t)&&!audit.coveredTaskIds.includes(t.id)&&!allowancePricedTask(t.id)&&!schedulePricedTask(t.id);
-      const batches=batchesOf(mapping.tasks,MAP_BATCH);
+      const batches=batchesOf(mapping.tasks,mappingBatchSize(mapping.tasks.length));
       // If no finding can be pinned to a task, repair everything rather than guess which to skip.
       const anyQuestioned=mapping.tasks.some(questioned);
       const settled=(taskBatch:typeof mapping.tasks)=>({tasks:taskBatch.map(t=>({...t,

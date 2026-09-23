@@ -1041,3 +1041,23 @@ test('ids stay strict, so a malformed one is never guessed at',async()=>{
  ]),now);
  assert.equal(broken.customer.range,null,'a malformed identifier still withholds the price');
 });
+
+// Live 2026-09-23: "remodel the primary bedroom and closet" was typed as a whole-home project, drew
+// in the whole-home planning book, and spent 27 mapping calls and 495 s of a 645 s estimate pricing
+// five items of work. Batch size alone bounds nothing, because the call count grows with the scope.
+test('a large scope travels in fuller calls, never in more of them',async()=>{
+ const {mappingBatchSize}=await import('../lib/p5/scopePricing.ts');
+ // Small scopes keep the configured batch size.
+ assert.equal(mappingBatchSize(8,4,8),4,'two calls, nothing to do');
+ assert.equal(mappingBatchSize(32,4,8),4,'exactly at the ceiling');
+ // Past it, the batch grows so the call count cannot.
+ for(const tasks of [33,60,108,500]){
+  const size=mappingBatchSize(tasks,4,8);
+  assert.ok(Math.ceil(tasks/size)<=8,`${tasks} tasks fit in eight calls (batch ${size})`);
+  assert.ok(size>=4,`${tasks} tasks never shrink the batch below the configured size`);
+ }
+ // Every task is still carried: growing the batch must not drop work.
+ const tasks=108,size=mappingBatchSize(tasks,4,8);
+ assert.ok(Math.ceil(tasks/size)*size>=tasks,'the batches cover every task');
+ assert.equal(mappingBatchSize(0,4,8),4,'an empty scope is harmless');
+});

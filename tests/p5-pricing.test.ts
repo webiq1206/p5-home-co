@@ -300,3 +300,26 @@ test("contingency is a flat 10% on remodels and new construction and none on cab
     assert.equal(calculateP5Estimate({ ...input(service), risks: ["hidden-conditions"] }, finance, [], now).contingency, 0, service);
   assert.equal(calculateP5Estimate({ ...input("new-construction"), urgency: "emergency" }, finance, [], now).contingencyRate, .10, "a rushed new build keeps its contingency");
 });
+
+// Live 2026-09-23: "The quantity range must contain the modeled quantity" threw away completed
+// pricing, the stage was asked again, and a five-item bedroom scope reached 27 mapping calls. A
+// range that does not contain the value it brackets is one repairable line, not a dead estimate.
+test("a range that does not contain its own value is widened, not thrown",()=>{
+  const base=input();
+  const line={...base.lines[0],quantity:10,unitCost:100,cost:1000};
+  // The model put the range beside the quantity instead of around it.
+  const priced=calculateP5Estimate({...base,lines:[{...line,quantityRange:{low:12,high:15}}]},finance,[],now);
+  assert.ok(priced.planningRange.high>0,"the estimate still prices");
+  // And the same for a unit-cost range.
+  const cost=calculateP5Estimate({...base,lines:[{...line,unitCostRange:{low:120,high:150}}]},finance,[],now);
+  assert.ok(cost.planningRange.high>0,"a unit-cost range is repaired the same way");
+  // Widening is the safe direction: the range feeds the HIGH end, so the top can only stay honest.
+  const narrow=calculateP5Estimate({...base,lines:[{...line,quantityRange:{low:10,high:10}}]},finance,[],now);
+  assert.ok(priced.planningRange.high>=narrow.planningRange.high,"a range reaching past the quantity still lifts the top");
+});
+test("a genuinely unusable range is still refused",()=>{
+  const base=input();
+  const line={...base.lines[0],quantity:10,unitCost:100,cost:1000};
+  // Not a packaging quirk: a non-finite bound says nothing about the work and cannot be repaired.
+  assert.throws(()=>calculateP5Estimate({...base,lines:[{...line,quantityRange:{low:Number.NaN,high:15}}]},finance,[],now));
+});
