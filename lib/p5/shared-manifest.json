@@ -1,7 +1,7 @@
 {
  "source": "boise-remodeling-co",
- "commit": "438a6bbd9d01ac50797a2a31204ab79bade762ff",
- "generatedAt": "2026-09-23T06:11:57.769Z",
+ "commit": "e215cd78d61057a5c943152f907bc91dc91646ab",
+ "generatedAt": "2026-09-23T07:18:43.737Z",
  "note": "Shared estimator files. Edit them in boise-remodeling-co and run scripts/p5-sync.mjs; never edit them in one brand.",
  "files": {
   "app/admin/p5-estimators/page.tsx": "80b9e20e4144c34a9f78033ab1b84e2555e42c44e670050b9e0fcbffa477512e",
@@ -19,7 +19,7 @@
   "app/api/p5-estimator/upload/route.ts": "30513ebab4a4f175e0f31d03efceaf020ac3f6cc0d104a6d1779fe5580a14907",
   "components/P5EstimateDetails.tsx": "8f1cab0d2f3d7cd63c83ebfcf076fbb79679d8a8f2a833ccc31f325f21636427",
   "components/P5Estimator.module.css": "a2572e3342c84c4e2a156e44b6563bfbe8deafb2a45bd9d71368c76b2bebe66c",
-  "components/P5Estimator.tsx": "c22163dbf798e58a16d462583a7963caf97ec20cf818bde4839ce64ab13940fe",
+  "components/P5Estimator.tsx": "6e78f6284e94a1d5dcb5a494d79e1f117507156e79533db7ed264598d560f059",
   "components/P5LinePricing.tsx": "9e0359cd6bff8226f491daab60c5ef468cc2f60dda67ee632910eaf5094b741d",
   "components/P5OverheadReview.tsx": "ea137874fedfde8551b375d56cdc1999a196c615dab034a22da04a3a6f03c3f0",
   "components/P5PriceReferences.tsx": "bd4bd0f88b5f1079ec21df963faf35cf1a0ec629fa66328fe8e537597a900b26",
@@ -227,7 +227,7 @@
   "tests/p5-final-acceptance.test.ts": "cd58f23583fd2231d7f6f5164b438abb675096df2ffb7af8e609d574914a9c06",
   "tests/p5-finding-release.test.ts": "517855ad56b781f9f81b392abed0be50437d883e78f2c21a827d4ee27ea2e9c6",
   "tests/p5-handoff-routes.test.ts": "67f7e7373349f5a5a103c98e4f500671bd5e16a5d02c246c56e2a71a3ee5fb57",
-  "tests/p5-input-progress.test.ts": "40ff623d80dab2fb48df5cbf346f7d0bf1c890c06f3c801aa45fe844344a1d9d",
+  "tests/p5-input-progress.test.ts": "c0259a4d2108c854f3836ad22e774ffb8c05e21bf2cadc8ae683548080807cde",
   "tests/p5-keyed-crm.test.ts": "ffd30b0748a3d39474ea8a23eb20ef22b07014d430932d41fb739e895748e2bb",
   "tests/p5-learned-book.test.ts": "2f63d72f072663a04aef3487d036a9b309c41efdc92ac1079ea1b661f36bb317",
   "tests/p5-live-release.test.ts": "dc611416e465ca3cbcc6f15ee9eda7cde7546071b7d03a77d9905a87c04072dd",

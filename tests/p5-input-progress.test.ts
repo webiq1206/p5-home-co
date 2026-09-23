@@ -89,3 +89,21 @@ test('different questions sharing a field survive the page merge',()=>{
   const resolved={...merged,instructions:removeInstructionPrompt(merged.instructions!,prompts[0].id)};
   assert.deepEqual(instructionPrompts(resolved,answers).map(q=>q.id),[prompts[1].id]);
 });
+
+// Live 2026-09-23: through a whole revision wait the customer saw neither the ETA nor the
+// stay-or-email choice. Both hang off operationKind, which was recognised by comparing `busy` to two
+// exact strings - but `busy` is replaced by whatever the server last reported ("Recovering an
+// interrupted step", "Your scope is queued for pricing"), so the match almost always failed.
+test('the running operation declares its kind instead of it being guessed from the progress message',()=>{
+  const source=readFileSync(new URL('../components/P5Estimator.tsx',import.meta.url),'utf8');
+  const line=source.split('\n').find(l=>l.includes('const operationKind='))||'';
+  assert.ok(line,'operationKind is still computed somewhere');
+  assert.doesNotMatch(line,/\bbusy\s*===/,'the kind must not be recovered by matching the progress message');
+  assert.match(line,/runKind/,'it comes from the kind the caller declared');
+  // run(label,operation,kind) is the single place a background operation announces itself.
+  assert.match(source,/setRunKind\(kind\)/,'the declared kind is recorded when the operation starts');
+  assert.match(source,/setRunKind\(null\)/,'and cleared when it ends');
+  // Both surfaces must still gate the choice on a pricing run, never show it while reading.
+  assert.equal(source.split(/operationKind==='pricing'\?waitChoice:null/).length-1,1,'the active card offers the choice while pricing');
+  assert.equal(source.split(/paused\.kind==='pricing'\?waitChoice:null/).length-1,1,'so does the resumed card');
+});

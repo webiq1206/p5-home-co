@@ -70,7 +70,9 @@ export function P5Estimator({defaultService='',headingAs='h1',projectSource,layo
   // Saved versions of this estimate and the plain-language change request for the next one.
   const [versions,setVersions]=useState<{revision:number;submittedAt:string|null;total:string;reference:string}[]>([]);
   const [reviseText,setReviseText]=useState('');
-  const [busy,setBusy]=useState('');const busyRef=useRef(false);const [error,setError]=useState('');const [warning,setWarning]=useState('');const [status,setStatus]=useState('');
+  const [busy,setBusy]=useState('');const busyRef=useRef(false);
+  // Which operation is running, declared by its caller rather than guessed from the progress message.
+  const [runKind,setRunKind]=useState<Paused['kind']|null>(null);const [error,setError]=useState('');const [warning,setWarning]=useState('');const [status,setStatus]=useState('');
   const [uploadPercent,setUploadPercent]=useState<number|null>(null);const [preparingFiles,setPreparingFiles]=useState(true);const [dragging,setDragging]=useState(false);
   const [processing,setProcessing]=useState<ProcessingStatus|null>(null);const lastProcessing=useRef<ProcessingStatus|null>(null);
   const [paused,setPaused]=useState<Paused|null>(null);const resuming=useRef(false);
@@ -252,7 +254,7 @@ export function P5Estimator({defaultService='',headingAs='h1',projectSource,layo
   },[draft?.text,JSON.stringify(draft?.answers),JSON.stringify(draft?.contact),busy,Boolean(result),Boolean(draft?.dirty),Boolean(paused)]);
   const preflightField=useRef<ScopeField|null>(null);
   async function run(label:string,operation:()=>Promise<void>,kind:Paused['kind']|null=null){
-    if(busyRef.current)return;busyRef.current=true;setBusy(label);setProcessing(null);lastProcessing.current=null;setError('');setPaused(null);recognition.current?.stop();
+    if(busyRef.current)return;busyRef.current=true;setBusy(label);setRunKind(kind);setProcessing(null);lastProcessing.current=null;setError('');setPaused(null);recognition.current?.stop();
     const budget={deadline:Date.now()+(kind?CLIENT_BACKGROUND_BUDGET_MS:CLIENT_BUDGET_MS),controller:new AbortController()};operationBudget.current=budget;
     try{await withinDeadline(()=>serialized(async()=>{checkOperation();await withinDeadline(operation,budget.deadline);checkOperation();}),budget.deadline);}
     catch(e){
@@ -267,7 +269,7 @@ export function P5Estimator({defaultService='',headingAs='h1',projectSource,layo
         else setError(isProcessingDeadline(e)?'This is taking longer than expected. Your completed work is saved; continue to pick up where it stopped.':e instanceof TypeError?'The connection was interrupted. Your saved details are intact. Keep this tab open and retry.':message||'This step could not finish. Your work is still here.');
       }
     }
-    finally{budget.controller.abort();if(operationBudget.current===budget)operationBudget.current=null;busyRef.current=false;setBusy('');setUploadPercent(null);setProcessing(null);}
+    finally{budget.controller.abort();if(operationBudget.current===budget)operationBudget.current=null;busyRef.current=false;setBusy('');setRunKind(null);setUploadPercent(null);setProcessing(null);}
   }
   useEffect(()=>{
     if(!paused||busy)return;
@@ -549,7 +551,11 @@ export function P5Estimator({defaultService='',headingAs='h1',projectSource,layo
   // What the customer actually provided decides the stage wording (photos, plans, specifications, or
   // only a description); the running operation decides whether this is reading or pricing.
   const materials=projectMaterials([...(draft.uploads||[]).map(u=>({name:u.name,type:u.type})),...files.map(f=>({name:f.name,type:f.type})),...(attachedProjectSource?.imageUrl?[{name:'photo.jpg',type:'image/jpeg'}]:[])],draft.text);
-  const operationKind=busy==='Preparing your estimate...'?'pricing':busy==='Reading your project...'?'analysis':undefined;
+  // The running operation declares its own kind. It used to be recognised by comparing `busy` against
+  // two exact strings, but `busy` is replaced by whatever the server last reported ("Recovering an
+  // interrupted step", "Your scope is queued for pricing"), so the match almost always failed and the
+  // customer lost both the ETA and the stay-or-email choice for the whole wait (live 2026-09-23).
+  const operationKind=runKind||undefined;
   const waitChoice:WaitChoice|null={email:draft.contact.email||'',onEmail:async(email:string)=>{
     const d=current.current;if(!d)return 'Your project is not saved yet.';
     try{const response=await fetch('/api/p5-estimator/submit',{method:'POST',headers:{...draftHeaders(d),'Content-Type':'application/json'},body:JSON.stringify({revision:d.revision,background:true,notify:true,notifyEmail:email,notifyOnly:true})});
