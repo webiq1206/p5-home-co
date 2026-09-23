@@ -52,6 +52,17 @@ const planningSchema=z.object({rates:z.array(planningRate).max(60),issues:z.arra
  * is genuinely still working. */
 /** Elapsed time from the pricing job's start after which no repair round is started; findings are disclosed with the range instead. */
 export const REPAIR_BUDGET_MS=Number(process.env.P5_REPAIR_BUDGET_MS||210000);
+/** Is there budget left for the repair round, the pass that removes double counts and prices what the
+ * audit found uncovered? Measured in WORKED time: waiting out a rate-limited provider is not work.
+ *
+ * Live 2026-09-23, a tiled shower replacement: 12 provider 429s, whose backoff alone is about 200 s of
+ * the 210 s budget, so the repair round was skipped, two real double counts stayed in the estimate,
+ * and the customer got a handoff instead of a price. A clock older than any job lifetime is a replay
+ * or a fixed test clock, not a running job, and never spends the budget. */
+export function hasRepairBudget(sinceStartMs:number,busyWaitMs=0):boolean{
+  const worked=sinceStartMs-Math.max(0,busyWaitMs||0);
+  return !(worked>REPAIR_BUDGET_MS&&sinceStartMs<6*60*60*1000);
+}
 /** Elapsed time from the job's start after which published research is no longer attempted and the planning average is used directly. */
 /** Live web cost research while the customer waits. On production every search batch
  * ran to its 60 s limit and the estimate used the planning allowance anyway, so the
@@ -885,7 +896,7 @@ export function wholeBuildingPlanningBudget(scope:ReviewedScope,extraction:Revie
   const answers=scope.answers;
   return !['exclusions','ownerSupplied','alternates','taskList','estimatingInstructions','allowances'].some(field=>String(answers[field as keyof typeof answers]||'').trim());
 }
-export async function priceCompleteScope(scope:ReviewedScope,configuration:EstimatorConfiguration,request:PricingRequest=requestPricing,now=new Date(),absoluteDeadline=Date.now()+SERVER_BUDGET_MS,cache?:PricingCache){
+export async function priceCompleteScope(scope:ReviewedScope,configuration:EstimatorConfiguration,request:PricingRequest=requestPricing,now=new Date(),absoluteDeadline=Date.now()+SERVER_BUDGET_MS,cache?:PricingCache,busyWaitMs=0){
   // The same document, answered the same way, prices to the same number: a saved resolution is
   // replayed instead of asking the provider to read and map it a second time. The projection is
   // rebuilt from THIS draft below, so only the pricing travels, never another visitor's words.
@@ -1078,8 +1089,12 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
     // scope stays saved with unresolved findings; time alone cannot authorize a partial price.
     // Measured against the job's pricing clock. A clock older than any job lifetime is a replay or a fixed test clock, not a
     // running job, and does not count against the budget.
-    const sinceStart=Date.now()-now.getTime();
-    const repairBudgetLeft=!(sinceStart>REPAIR_BUDGET_MS&&sinceStart<6*60*60*1000);
+    // Waiting out a rate-limited provider is not work, and must not spend the repair budget. Live
+    // 2026-09-23: a tiled shower replacement drew 12 provider 429s, whose backoff alone is about 200 s
+    // of a 210 s budget, so the repair round that would have removed two real double counts was
+    // skipped and the whole estimate was withheld as a handoff. Same shape as the 2026-09-14 defect
+    // where timed-out reads were counted as failed attempts.
+    const repairBudgetLeft=hasRepairBudget(Date.now()-now.getTime(),busyWaitMs);
     const billableTask=(t:Mapping['tasks'][number])=>taskSelectionStatus(t,mapping.tasks)==='billable';
     const repairNeeded=blockingIssues.length||blockingAuditIssues.length||mapping.tasks.some(t=>billableTask(t)&&!audit.coveredTaskIds.includes(t.id)&&!allowancePricedTask(t.id)&&!schedulePricedTask(t.id));
     if(repairNeeded&&!repairBudgetLeft)auditTrail.issues.push('Repair round skipped: the pricing job exceeded its repair budget. Findings already raised are judged on their own merits below.');

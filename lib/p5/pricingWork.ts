@@ -97,10 +97,17 @@ export async function priceSavedScope(id:string,scope:ReviewedScope,configuratio
    void recordEvent({draftId:id,estimator:scope.answers.service||null,kind:'pricing',stage:`price-${phase}`,durationMs:Date.now()-started,outcome:'retry',message}).catch(()=>{});
    // Batches run side by side, so one provider hiccup arrives as several failures in the same
    // second. They are one event: counting each ended an 18-item job in under a second.
-   const state=payload as unknown as {failures?:number;lastFailureAt?:number;busyWaits?:number};
+   const state=payload as unknown as {failures?:number;lastFailureAt?:number;busyWaits?:number;busyWaitMs?:number};
    const burst=Date.now()-(state.lastFailureAt||0)<5000;state.lastFailureAt=Date.now();
    const busy=/^pricing-provider-unavailable:(?:429|5\d\d)\b/.test(message);
-   if(busy&&(state.busyWaits||0)<12){if(!burst)state.busyWaits=(state.busyWaits||0)+1;await persist();console.error(`[p5-pricing] ${phase}: provider busy (${message.slice(0,60)}); waiting before continuing.`);throw new PricingPending('Preparing your estimate. Your completed steps are saved.',Math.min(20000,4000*(state.busyWaits||1)));}
+   if(busy&&(state.busyWaits||0)<12){
+    if(!burst)state.busyWaits=(state.busyWaits||0)+1;
+    const wait=Math.min(20000,4000*(state.busyWaits||1));
+    // Remembered so the repair budget can be measured in worked time. Waiting out a busy provider
+    // once cost the repair round that removes double counts, and with it the whole estimate.
+    if(!burst)state.busyWaitMs=(state.busyWaitMs||0)+wait;
+    await persist();console.error(`[p5-pricing] ${phase}: provider busy (${message.slice(0,60)}); waiting before continuing.`);
+    throw new PricingPending('Preparing your estimate. Your completed steps are saved.',wait);}
    if(!burst)payload.failures=(payload.failures||0)+1;await persist();
    // The failure is logged with its stage so a live host can be diagnosed from its deployment logs.
    console.error(`[p5-pricing] ${phase} failed after ${elapsed()}s (attempt ${payload.failures}): ${message}`);
@@ -120,5 +127,5 @@ export async function priceSavedScope(id:string,scope:ReviewedScope,configuratio
  };
  // The saved-stage lease outlives a pass; keep it renewed while this pass runs.
  const renew=setInterval(()=>{void renewWork(id,workKey,claimed.token,290).catch(()=>{});},60_000);renew.unref?.();
- try{const priced=await priceCompleteScope(scope,configuration,staged,pricingAt,deadline,pricingCacheEnabled()?databasePricingCache():undefined);if(priced.customer.range&&priced.internal&&'costBookSnapshot' in priced.internal){await saveRegionalRates(id,scope.answers.location||'',priced.internal.costBookSnapshot?.rules||[]);await saveLearnedLines(priced.internal.costBookSnapshot?.rules||[],scope.answers.service||'',id).catch(error=>console.error('[p5-book] learned lines were not saved:',error instanceof Error?error.message:error));}return priced;}finally{clearInterval(renew);await releaseWork(id,workKey,claimed.token);}
+ try{const priced=await priceCompleteScope(scope,configuration,staged,pricingAt,deadline,pricingCacheEnabled()?databasePricingCache():undefined,(payload as unknown as {busyWaitMs?:number}).busyWaitMs||0);if(priced.customer.range&&priced.internal&&'costBookSnapshot' in priced.internal){await saveRegionalRates(id,scope.answers.location||'',priced.internal.costBookSnapshot?.rules||[]);await saveLearnedLines(priced.internal.costBookSnapshot?.rules||[],scope.answers.service||'',id).catch(error=>console.error('[p5-book] learned lines were not saved:',error instanceof Error?error.message:error));}return priced;}finally{clearInterval(renew);await releaseWork(id,workKey,claimed.token);}
 }
