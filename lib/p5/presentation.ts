@@ -83,12 +83,26 @@ function uniqueCustomerSections(sections:EstimateSection[]):EstimateSection[]{
   return {...section,bullets,rows};
  }).filter(s=>s.text||s.bullets?.length||s.rows?.length);
 }
+/** A location fragment that tells the customer nothing. A compound value carries them mixed in with
+ * real places ("Kitchen and garage; Floor not specified"), so filtering whole values is not enough. */
+const PLACEHOLDER_PLACE=/^(?:(?:the\s+)?(?:main|new|existing|single[- ]family)\s+)?(?:residence|house|home|building|project|site|dwelling|property)$|^(?:not specified|unspecified(?: building| floor)?|unknown|n\/a|none|tbd|various|same)$/i;
+/** Location fragments the customer can act on, in order, without repeats. "Floor" is dropped in front of
+ * a named area ("Floor Roof" is the roof, not a storey) but kept in front of a numbered storey. */
+export function placeParts(values:(string|undefined)[]):string[]{
+ const parts:string[]=[];
+ for(const value of values)for(const raw of String(value||'').split(/\s*[;,]\s*|\s+\/\s+/)){
+  const part=raw.trim().replace(/^floor\s+(?=[A-Za-z])/i,'').replace(/\.$/,'').trim();
+  if(part&&!PLACEHOLDER_PLACE.test(part)&&!parts.some(p=>p.toLowerCase()===part.toLowerCase()))parts.push(part);
+ }
+ return parts;
+}
 /** The work first and the location after it, in brackets; generic words ("Residence") dropped. Before,
  * "Residence / Floor Main level / task" ran the location into the work (owner report 2026-09-22). */
 function lineLabel(description:unknown,location:string[]):string{
  const {where,rest}=splitWhere(String(description||''));
- const places=[...new Set([...location.map(p=>String(p||'').replace(/^Floor\s+/i,'').trim()).filter(p=>p&&!/^(?:(?:main|new|existing|single[- ]family)\s+)?(?:residence|house|home|building|project|site)$/i.test(p)),...(where?where.split(', '):[])])];
- return places.length?`${rest} (${places.join(', ')})`:rest;
+ const places=placeParts([...location,...(where?where.split(', '):[])]);
+ const work=rest.replace(/\s*\.\s*:\s*/,': ').trim();
+ return places.length?`${work} (${places.join(', ')})`:work;
 }
 export function estimateSections(result:any,hideUnitRates=HIDE_CUSTOMER_UNIT_RATES):EstimateSection[]{
  result=customerPresentation(result,{hideUnitRates});
@@ -130,7 +144,7 @@ export function estimateSections(result:any,hideUnitRates=HIDE_CUSTOMER_UNIT_RAT
  if(lines.some(l=>l.pricingStatus==='owner-planning-rate'))sections.push({title:SECTION_TITLES.pricingBasis,kind:'assumption',text:'Owner planning rates provide the foundation for this preliminary range. They are not current supplier quotes; verify local availability, selections and trade pricing before a firm proposal.'});
  if(estimated.length){
   const notes=[...new Set<string>(estimated.map(l=>l.verification).filter(Boolean))];
-  sections.push({title:SECTION_TITLES.allowances,kind:'allowance',text:`These amounts are included in the range as preliminary allowances. ${notes.length===1?notes[0]:'Confirm quantities, selections and current supplier and trade pricing before a firm proposal.'}`,rows:estimated.map(l=>[[namedBuilding(l.building),namedFloor(l.floor)?`Floor ${namedFloor(l.floor)}`:'',l.description].filter(Boolean).join(' / '),`${money(l.low)} to ${money(l.high)}${l.rateLocation?` · cost location: ${l.rateLocation}`:''}${l.rateDate?` · researched ${String(l.rateDate).slice(0,10)}`:''}`])});
+  sections.push({title:SECTION_TITLES.allowances,kind:'allowance',text:`These amounts are included in the range as preliminary allowances. ${notes.length===1?notes[0]:'Confirm quantities, selections and current supplier and trade pricing before a firm proposal.'}`,rows:estimated.map(l=>[lineLabel(l.description,[namedBuilding(l.building),namedFloor(l.floor)]),`${money(l.low)} to ${money(l.high)}${l.rateLocation?` · cost location: ${l.rateLocation}`:''}${l.rateDate?` · researched ${String(l.rateDate).slice(0,10)}`:''}`])});
  }
  if(result.verificationItems?.length)sections.push({title:SECTION_TITLES.verify,kind:'assumption',bullets:[...new Set<string>(result.verificationItems)]});
  const categories=[...new Set<string>([...(result.includedCategories||[]),...lines.map(x=>x.category),...tasks.map(x=>x.category||suggestedTrade(x.description))])];
@@ -138,7 +152,7 @@ export function estimateSections(result:any,hideUnitRates=HIDE_CUSTOMER_UNIT_RAT
   const range=result.categoryRanges?.find((x:any)=>x.category===category);
   return {title:category,kind:'category',text:range?`${money(range.low)} to ${money(range.high)}`:undefined,
    bullets:[...new Set<string>(tasks.filter(x=>(x.category||suggestedTrade(x.description))===category).map(x=>x.description))],
-   rows:lines.filter(x=>x.category===category).map(x=>[lineLabel(x.description,[namedBuilding(x.building),namedFloor(x.floor)?`Floor ${namedFloor(x.floor)}`:'']),itemPriceText(x)])};
+   rows:lines.filter(x=>x.category===category).map(x=>[lineLabel(x.description,[namedBuilding(x.building),namedFloor(x.floor)]),itemPriceText(x)])};
  });
  if(breakdown.length){
   const at=sections.findIndex(s=>s.kind==='glance');
@@ -196,7 +210,7 @@ export function categoryBreakdown(result:any,customerSafe=true,hideUnitRates=HID
  const categories=[...new Set<string>([...(result?.includedCategories||[]),...lines.map(x=>x.category),...tasks.map(x=>x.category||suggestedTrade(x.description))])];
  return categories.map(category=>{
   const range=result?.categoryRanges?.find((x:any)=>x.category===category);
-  const items:CategoryLine[]=lines.filter(x=>x.category===category).map(x=>({id:String(x.id),label:lineLabel(x.description,[x.building&&!/^(main|default)$/i.test(x.building)?x.building:"",x.floor?`Floor ${x.floor}`:""]),quantity:Number(x.quantity),unit:String(x.unit),...(x.quantityRange?{quantityRange:x.quantityRange}:{}),low:Number(x.low),high:Number(x.high),...(x.unitLow!=null&&x.unitHigh!=null?{unitLow:Number(x.unitLow),unitHigh:Number(x.unitHigh)}:{}),status:String(x.pricingStatus||"verified-cost"),...(x.verification?{verification:x.verification}:{}),...(x.rateLocation?{rateLocation:x.rateLocation}:{}),...(x.rateDate?{rateDate:String(x.rateDate).slice(0,10)}:{})}));
+  const items:CategoryLine[]=lines.filter(x=>x.category===category).map(x=>({id:String(x.id),label:lineLabel(x.description,[x.building&&!/^(main|default)$/i.test(x.building)?x.building:"",x.floor||""]),quantity:Number(x.quantity),unit:String(x.unit),...(x.quantityRange?{quantityRange:x.quantityRange}:{}),low:Number(x.low),high:Number(x.high),...(x.unitLow!=null&&x.unitHigh!=null?{unitLow:Number(x.unitLow),unitHigh:Number(x.unitHigh)}:{}),status:String(x.pricingStatus||"verified-cost"),...(x.verification?{verification:x.verification}:{}),...(x.rateLocation?{rateLocation:x.rateLocation}:{}),...(x.rateDate?{rateDate:String(x.rateDate).slice(0,10)}:{})}));
   return {category,...(range?{low:range.low,high:range.high}:{}),tasks:[...new Set<string>(tasks.filter(x=>(x.category||suggestedTrade(x.description))===category).map(x=>x.description))],items};
  });
 }

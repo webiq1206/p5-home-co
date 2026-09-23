@@ -63,3 +63,11 @@ test('a revision keeps the request in the description and says what changed from
   assert.deepEqual(changeSummary(before,after),['Requested change: Remove painting','Total was $22,800 to $31,300; now $21,000 to $29,000.','Removed: Paint the bathroom.']);
   assert.deepEqual(changeSummary(undefined,after),[],'a first version has nothing to compare');
 });
+test('the wait choice carries the same live ETA, and says so plainly while it is being worked out',async()=>{
+  const {waitSentence}=await import('../lib/p5/processingStatus.ts');
+  assert.equal(waitSentence(null,true),'Assessing how long your estimate will take.');
+  assert.equal(waitSentence({low:240,high:360},false),'Your estimate should be ready in about 4 to 6 minutes.');
+  assert.equal(waitSentence({low:10,high:40},false),'Your estimate should be ready in less than a minute.');
+  assert.match(waitSentence({low:240,high:360},false,true),/taking longer than usual/i);
+  assert.doesNotMatch(waitSentence({low:240,high:360},false),/%|\bseconds? remaining\b/i,'never a countdown or percentage');
+});

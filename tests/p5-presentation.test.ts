@@ -212,3 +212,26 @@ test('Every customer document says which company stands behind the brand',async(
  const pdf=(await pdfTextLayers(await customerPdf('dba-check',result))).join('\n');
  for(const output of [mail.html,mail.text,pdf])assert.match(output,/P5 Home Co, LLC/,'the company is named on what the customer keeps');
 });
+// Owner report 2026-09-22, from a live Handyman estimate: allowance rows read
+// "FLOOR ROOF / Clean the bottom of the chimney.: General laborer." - the location was glued to the
+// work, "Floor" was prefixed to a room, and a "not specified" placeholder reached the customer.
+test('a priced line names the work first and only real locations, on every surface',()=>{
+ const r={...result,includedCategories:['Roofing'],categoryRanges:[{category:'Roofing',low:100,high:400}],lineItems:[
+  {id:'a',category:'Roofing',description:'Clean the bottom of the chimney.: General laborer.',building:'Residence',floor:'Roof',quantity:1,unit:'LS',low:100,high:100,pricingStatus:'estimated-allowance'},
+  {id:'b',category:'Roofing',description:'Replace GFCI receptacles.: GFCI outlet replacement.',building:'Residence',floor:'Kitchen and garage; Floor not specified',quantity:3,unit:'EA',low:300,high:300,pricingStatus:'estimated-allowance'}]};
+ const rows=estimateSections(r).filter(s=>s.kind==='allowance').flatMap(s=>s.rows||[]).map(row=>row[0]);
+ assert.deepEqual(rows,['Clean the bottom of the chimney: General laborer. (Roof)','Replace GFCI receptacles: GFCI outlet replacement. (Kitchen and garage)']);
+ for(const row of rows){
+  assert.doesNotMatch(row,/not specified/i,'a placeholder location never reaches the customer');
+  assert.doesNotMatch(row,/^Floor /i,'a room is not a storey');
+  assert.doesNotMatch(row,/\.\s*:/,'no stray period before the book item');
+  assert.doesNotMatch(row,/Residence/,'the one building is not a location');
+ }
+});
+test('placeParts keeps numbered storeys and drops what the customer cannot act on',async()=>{
+ const {placeParts}=await import('../lib/p5/presentation.ts');
+ assert.deepEqual(placeParts(['Floor Main level','Roof']),['Main level','Roof']);
+ assert.deepEqual(placeParts(['Floor 2']),['Floor 2'],'a numbered storey keeps its word');
+ assert.deepEqual(placeParts(['Residence','Floor not specified','unknown','']),[]);
+ assert.deepEqual(placeParts(['Kitchen, Garage','garage']),['Kitchen','Garage'],'compound values split, repeats drop');
+});

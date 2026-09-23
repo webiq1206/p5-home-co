@@ -142,3 +142,16 @@ export function remainingLabel(range:{low:number;high:number}|null,overdue=false
   if(min(range.low)===min(range.high))return `About ${min(range.high)} minute${min(range.high)===1?'':'s'} left`;
   return `About ${min(range.low)} to ${min(range.high)} minutes left`;
 }
+
+/**
+ * The sentence shown beside "Stay here" and "Email me when it's ready" (owner rule 2026-09-22): the same
+ * live range as the progress line, an honest "still working it out" while the first range is computed,
+ * and a plain statement when the work runs past its range. Never a fixed countdown.
+ */
+export function waitSentence(range:{low:number;high:number}|null|undefined,assessing:boolean,overdue=false):string{
+  if(assessing)return 'Assessing how long your estimate will take.';
+  if(overdue)return 'This is taking longer than usual. It keeps going whether you stay or not.';
+  if(!range)return '';
+  const left=remainingLabel(range).replace(/^About /,'about ').replace(/ left$/,'').replace(/^Less than a minute$/,'less than a minute');
+  return `Your estimate should be ready in ${left}.`;
+}

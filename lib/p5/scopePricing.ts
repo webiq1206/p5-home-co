@@ -18,6 +18,7 @@ import {activePricingSource,pricingSourceParts} from './pricingSources.ts';
 import {missingScopeFields} from './missingFields.ts';
 import {markPricingChargeUnknown,pricingFingerprint,pricingLedgerActive,recordPricingRequest,rejectPricingCharge,reservePricingCharge,settlePricingCharge,PricingChargeUnknownError,type PricingIdentity} from './pricingLedger.ts';
 import {customerSafeNotes,customerSafeProjection} from './pricing.ts';
+import {duplicateChargeNotes} from './duplicateCharges.ts';
 
 // This module runs only on the server at submission. No client-supplied mapping
 // or rate can authorize a price. The approved catalog is never mutated here.
@@ -1303,5 +1304,5 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
  * replay of a saved one, so a replayed estimate is built the same way, from THIS draft's scope. */
 export function finishScopePricing(scope:ReviewedScope,configuration:EstimatorConfiguration,now:Date,resolution:ScopePriceResolution,auditTrail:{tasks:unknown[]},pricingExtraction:ScopeExtraction|null|undefined){
   const priced=priceReviewedScope(scope,configuration,now,resolution);
-  return {...priced,customer:customerSafeProjection({...priced.customer,instructions:pricingExtraction?.instructions,documentCoverage:pricingExtraction?.documentCoverage,verificationItems:customerSafeNotes([...resolution.assumptions.filter(a=>/allowance|preliminary|confirm/i.test(a)),...resolution.issues]),scopeTasks:(auditTrail.tasks as {description:string;origin?:string;basis?:string}[]).map(t=>({description:t.description,category:suggestedTrade(t.description),...(t.origin==='required'?{origin:'required',basis:t.basis||''}:{})}))}),internal:{...priced.internal,scopePricing:auditTrail}};
+  return {...priced,customer:customerSafeProjection({...priced.customer,instructions:pricingExtraction?.instructions,documentCoverage:pricingExtraction?.documentCoverage,verificationItems:customerSafeNotes([...resolution.assumptions.filter(a=>/allowance|preliminary|confirm/i.test(a)),...resolution.issues,...duplicateChargeNotes(resolution.rules)]),scopeTasks:(auditTrail.tasks as {description:string;origin?:string;basis?:string}[]).map(t=>({description:t.description,category:suggestedTrade(t.description),...(t.origin==='required'?{origin:'required',basis:t.basis||''}:{})}))}),internal:{...priced.internal,scopePricing:auditTrail}};
 }

@@ -1,6 +1,6 @@
 'use client';
 import {useEffect,useState} from 'react';
-import {processingPresentation,stageTitle,remainingRange,remainingLabel,type ProcessingStatus,type ProjectMaterials} from '@/lib/p5/processingStatus';
+import {processingPresentation,stageTitle,remainingRange,remainingLabel,waitSentence,type ProcessingStatus,type ProjectMaterials} from '@/lib/p5/processingStatus';
 import styles from './P5Estimator.module.css';
 
 /** "Email me when it's ready": the page records the address with the running estimate and may then close. */
@@ -32,6 +32,10 @@ export default function P5ProcessingStatus({message,processing,uploadPercent,onP
   const fresh=uploading||!kind?null:remainingRange(processing,materials,kind,0);
   const overdue=Boolean(fresh&&stageSeconds!==null&&stageSeconds>fresh.high*1.5+30&&jobSeconds>90);
   const eta=remainingLabel(range,overdue);
+  // The wait-or-email choice carries the SAME live ETA as the progress line (owner rule 2026-09-22), and
+  // says plainly that it is still being worked out rather than inventing a duration.
+  const assessing=Boolean(kind)&&!range&&!uploading;
+  const etaSentence=waitSentence(range,assessing,overdue);
   const sendEmail=async()=>{
     if(!waitChoice)return;
     if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())){setEmailError('Enter a valid email address.');return;}
@@ -52,10 +56,12 @@ export default function P5ProcessingStatus({message,processing,uploadPercent,onP
     {item&&<p className={styles.processingFile} title={item}>{item}</p>}
     {failed.length>0&&<p className={styles.processingMessage}>Saved but not checked yet: {failed.slice(0,3).join(', ')}{failed.length>3?` and ${failed.length-3} more`:''}. Retry document reading before pricing.</p>}
     {waitChoice&&!uploading&&<div className={styles.waitChoice} data-testid="p5-wait-choice">
-      {choice==='ask'&&<><p className={styles.processingMessage}>Your estimate keeps going if you leave this page.</p><div className={styles.waitButtons}>
-        <button type="button" className={styles.secondary} onClick={()=>setChoice('stay')}>Stay here</button>
-        <button type="button" className={styles.primary} onClick={()=>setChoice('email')}>Email me when it&apos;s ready</button></div></>}
-      {choice==='stay'&&<p className={styles.processingMessage}>Your estimate will appear here as soon as it is ready.</p>}
+      {etaSentence&&<p className={styles.waitEta} data-testid="p5-wait-eta">{etaSentence}</p>}
+      {choice!=='emailed'&&<p className={styles.processingMessage}>Stay here to see it when it is ready, or we will email you a link when it is finished. Your estimate keeps going either way.</p>}
+      {(choice==='ask'||choice==='stay')&&<div className={styles.waitButtons}>
+        <button type="button" className={styles.secondary} data-active={choice==='stay'?true:undefined} onClick={()=>setChoice('stay')}>Stay here</button>
+        <button type="button" className={styles.primary} onClick={()=>setChoice('email')}>Email me when it&apos;s ready</button></div>}
+      {choice==='stay'&&<p className={styles.processingMessage}>Staying here. Your estimate will appear as soon as it is ready, and you can still choose email above.</p>}
       {choice==='email'&&<div className={styles.waitEmail}>
         <label className={styles.field} htmlFor="p5-wait-email"><span>Email for your estimate</span><input id="p5-wait-email" type="email" autoComplete="email" value={email} onChange={e=>{setEmail(e.target.value);setEmailError('');}} maxLength={200} aria-invalid={emailError?true:undefined}/></label>
         {emailError&&<p className={styles.processingMessage} role="alert">{emailError}</p>}
