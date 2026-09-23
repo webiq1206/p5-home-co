@@ -59,3 +59,29 @@ test('a suspected duplicate is reported once, and nothing is removed from the es
   assert.equal(new Set(notes).size,notes.length,'no note repeats');
   assert.equal(lines.length,3,'flagging never merges or drops a priced line');
 });
+
+// Live 2026-09-23, revision 5 of Handyman estimate P5-EB029A8F: the check reported two overlaps
+// between named priced lines, the correction did not recognise the word "overlap", so nothing was
+// corrected and the customer got no estimate at all.
+test('a stated overlap between named priced lines is correctable, like a stated duplicate',async()=>{
+  const {correctableDuplicate}=await import('../lib/p5/scopePricing.ts');
+  for(const stated of [
+    'Exterior penetration weatherproofing overlaps across scope-5 and scope-28, and scope-28 also assigns sealant.',
+    'The electrical safe-off, removal, final connection, and testing allowances in scope-33 and scope-34 overlap.',
+    'scope-5 and scope-6 are duplicated by planning-1.',
+    'The shower tile assembly is priced twice: scope-2 and scope-7.',
+    'Overlapping protection and cleanup scope between scope-9 and scope-11.',
+  ])assert.equal(correctableDuplicate(stated),true,stated);
+});
+test('a tentative overlap, or a different defect, still withholds the estimate',async()=>{
+  const {correctableDuplicate}=await import('../lib/p5/scopePricing.ts');
+  for(const held of [
+    'scope-5 and scope-28 may overlap; confirm before pricing.',
+    'Verify whether scope-33 and scope-34 overlap.',
+    'There is an unresolved overlap between scope-5 and scope-28.',
+    'This could be a double-count between scope-1 and scope-2.',
+    'scope-7 was not requested and is out of scope.',
+    'The quantity does not match the explicit figure the customer confirmed.',
+    'Demolition was omitted from the priced lines.',
+  ])assert.equal(correctableDuplicate(held),false,held);
+});

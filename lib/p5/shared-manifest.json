@@ -1,7 +1,7 @@
 {
  "source": "boise-remodeling-co",
- "commit": "e215cd78d61057a5c943152f907bc91dc91646ab",
- "generatedAt": "2026-09-23T07:18:43.737Z",
+ "commit": "726f82e6b85f2e70ed6955740325aa4b3ca12c3e",
+ "generatedAt": "2026-09-23T07:32:15.793Z",
  "note": "Shared estimator files. Edit them in boise-remodeling-co and run scripts/p5-sync.mjs; never edit them in one brand.",
  "files": {
   "app/admin/p5-estimators/page.tsx": "80b9e20e4144c34a9f78033ab1b84e2555e42c44e670050b9e0fcbffa477512e",
@@ -125,7 +125,7 @@
   "lib/p5/scope.ts": "55feea62c680ced8caf68cb7fc920e74e91887b6dd4a9d0ce08a8ee76cf172bb",
   "lib/p5/scopeEndpoint.ts": "ac256d011921ae4e2e42202c8ccc1b8b8b5935bdc1feba47025ae7e429a31e11",
   "lib/p5/scopeInventory.ts": "823baac9f40357847a8f6afd9a905058298dfc8dab553d584223bcd3f890d64a",
-  "lib/p5/scopePricing.ts": "19128c34a0109a9c81e9c932a62112f9382cccd57e15683337af83a03b310873",
+  "lib/p5/scopePricing.ts": "ed2ac0f72dd59dd352b77556aee82628a26fb0b9538ba47bf9f1a6db3a31dd37",
   "lib/p5/scopeReplacement.ts": "ad340bab97512e3583b8789cf0731edfc78811e8715fcd55555e6ea59fe1411a",
   "lib/p5/sourceResponsibilities.ts": "2c77105334ff8c66b8f8572c76be7822c3846ac357e8acf75a16d1c0b3faf809",
   "lib/p5/sourceSpecificationGuard.ts": "a52b5fbd623696aa37160a72780c9c5711232f4237855f02d07f64ddde356fc3",
@@ -216,7 +216,7 @@
   "tests/p5-document-ledger.test.ts": "dd44c3fe4bb21149bcfe0ba8fe02c1236414950a1fc59712977322726a76f7a9",
   "tests/p5-document-reading.test.ts": "320dc6083ae039b7b3790873f9f45e5d5580c91f04641ad8d85543484a50cd23",
   "tests/p5-document-service.test.ts": "24031d38f8c4694be4f5cc569a546d94f2ae8f1f54f265fcf064b27ab92526b1",
-  "tests/p5-duplicate-charges.test.ts": "e6be02faddeab94d4e9388ce894e430ddc60151b607c8da81a6834c8097dc695",
+  "tests/p5-duplicate-charges.test.ts": "8c5701b9f121838f35aa577eab1419b63a6a66885a9879cf9e55e15e2724f78c",
   "tests/p5-dynamic-questions.test.ts": "2e2ef2ae64f0d2af17b6e46820d670890b88cf16ec5695bb739f92cc9c39c248",
   "tests/p5-endpoint-concurrency.test.ts": "b4f8e3658ada6ea602e7c30ff0f5e5bddda8ea3aaa6335f849c73db566e8f498",
   "tests/p5-estimate-document.test.ts": "0ba414712bc5407c85f497014947e906ff55c4c6c894a9f5320e2c6b557dfd0d",

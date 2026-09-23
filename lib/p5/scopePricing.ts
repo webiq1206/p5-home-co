@@ -813,9 +813,21 @@ export function coreProjectTask(task:{description:string;evidence?:string},answe
   if(area>=200){const shown=[String(area),area.toLocaleString('en-US')];if(shown.some(n=>new RegExp(`(?:^|[^\\d,])${n.replace(/,/g,',')}\\s*(?:sf|sq\\.?\\s*ft|square\\s+feet)\\b`).test(text)))return true;}
   return false;
 }
-const STATED_DUPLICATE=/double[- ]count|\b(?:is|are) duplicated\b|duplicatively|\bduplicates\b|confirmed duplicate|(?:charged|billed|priced) twice/;
+// "scope-5 and scope-28 overlap" is the same defect as "scope-5 and scope-28 are duplicated", and it
+// was the wording the check actually used on a live revision (2026-09-23): the correction did not
+// recognise it, so two named priced lines went uncorrected and the customer got no estimate at all.
+// HEDGED still holds back anything tentative, including the "unresolved overlap" phrasing.
+const STATED_DUPLICATE=/double[- ]count|\b(?:is|are) duplicated\b|duplicatively|\bduplicates\b|confirmed duplicate|(?:charged|billed|priced) twice|\boverlaps?\b|\boverlapping\b/;
 const HARD_DEFECT=/does not match the explicit|disagrees with the (?:stated|explicit|confirmed)|contradicts the (?:stated|explicit|confirmed)|wrong (?:unit|uom)|out of scope|not (?:been )?requested|was not requested|does not reconcile with the confirmed|assign every priced component to a building|disagrees with|omitted from|not converted into a priced line|no positive priced line carries|^missing quantity:/;
 const HEDGED=/\b(?:may|might|could|possibl(?:e|y)|potential(?:ly)?|cannot be ruled out|verify whether|check whether|confirm whether|unresolved overlap)\b/;
+/** Does this finding state, as fact, that two priced lines charge for the same work? Only then may the
+ * correction act on it: the costliest line stays, the rest leave the total, and the change is
+ * disclosed. Anything tentative ("may overlap", "verify whether") still withholds the estimate, and so
+ * does a hard defect, which is a different problem that removing a line would hide. */
+export function correctableDuplicate(issue:string):boolean{
+  const t=issue.toLowerCase();
+  return STATED_DUPLICATE.test(t)&&!HEDGED.test(t)&&!HARD_DEFECT.test(t);
+}
 const namesTask=(text:string,task:{id:string;description:string})=>new RegExp(`(?:^|[^\\w-])${task.id.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g,'\\$&')}(?![\\w-])`).test(text)||text.includes(task.description.toLowerCase());
 export function findingBlocks(issue:string,tasks:{id:string;description:string}[],pricedTasks:{id:string;description:string}[],carried:{id:string;description:string}[]=[]):boolean{
   const t=issue.toLowerCase();
@@ -1292,14 +1304,14 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
     const finalLines=existingLines(priceReviewedScope(scope,configuration,now,resolution)).filter(line=>line.quantity*line.unitCost>0);
     for(const issue of findings){
       const t=issue.toLowerCase();
-      if(!STATED_DUPLICATE.test(t)||HEDGED.test(t)||HARD_DEFECT.test(t))continue;
+      if(!correctableDuplicate(issue))continue;
       const named=finalLines.filter(line=>new RegExp(`(?:^|[^\\w-])${line.id.toLowerCase()}(?![\\w-])`).test(t)&&!resolution.removeLineIds?.includes(line.id));
       if(named.length<2)continue;
       const keep=named.reduce((a,b)=>b.quantity*b.unitCost>a.quantity*a.unitCost?b:a);
       const drop=named.filter(line=>line!==keep).map(line=>line.id);
       resolution.rules=resolution.rules.filter(rule=>!drop.includes(rule.id));
       resolution.removeLineIds=[...new Set([...(resolution.removeLineIds||[]),...drop])];
-      resolution.assumptions.push(`To confirm: removed ${drop.join(', ')} as a duplicate of ${keep.id} so the work is not billed twice (${issue.slice(0,200)})`);
+      resolution.assumptions.push(`To confirm: removed ${drop.join(', ')} as work already covered by ${keep.id} so it is not billed twice (${issue.slice(0,200)})`);
       console.error(`[p5-pricing] removed a stated duplicate ${drop.join(', ')}; kept ${keep.id}`);
       resolvedDuplicates.add(issue);
     }
