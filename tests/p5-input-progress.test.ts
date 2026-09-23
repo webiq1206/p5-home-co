@@ -107,3 +107,16 @@ test('the running operation declares its kind instead of it being guessed from t
   assert.equal(source.split(/operationKind==='pricing'\?waitChoice:null/).length-1,1,'the active card offers the choice while pricing');
   assert.equal(source.split(/paused\.kind==='pricing'\?waitChoice:null/).length-1,1,'so does the resumed card');
 });
+
+// Owner report 2026-09-23: the stay-or-email choice "disappears too quickly". It lives inside the
+// progress card, and the card was mounted on `busy` - the server's progress sentence, which goes
+// briefly empty between steps. Each blink unmounted the card and reset the choice, the address the
+// customer had typed, and the elapsed timer.
+test('the progress card stays mounted for the whole operation, not just while a message is set',()=>{
+  const source=readFileSync(new URL('../components/P5Estimator.tsx',import.meta.url),'utf8');
+  const line=source.split('\n').find(l=>l.includes('const processingStage='))||'';
+  assert.ok(line,'the progress card is still built here');
+  assert.match(line,/\(busy\|\|preparingFiles\|\|runKind\)/,'a running operation keeps the card mounted on its own');
+  assert.doesNotMatch(line,/message=\{preparingFiles\?'Preparing your files\.\.\.':busy\}/,'an empty message must not reach the card');
+  assert.match(line,/busy\|\|\(runKind===/,'there is a fallback sentence while the server has not sent one');
+});

@@ -323,8 +323,12 @@ export const requestPricing=async(instructions:string,input:unknown,search:boole
  * simultaneous requests is what drew the provider's rate limit on an 18-item repair list. */
 // Six at a time drew twelve 429s from the provider on a single small shower job (live 2026-09-23),
 // and every one of those is a wait the customer pays for. Owner's call that day: absorb the limit
-// here rather than raise the account's. Three keeps batches overlapping without bursting.
-const PRICING_FANOUT=Math.max(1,Number(process.env.P5_PRICING_FANOUT||3));
+// here rather than raise the account's, so this went to three.
+//
+// Five, once the repair round stopped re-pricing every batch. That change roughly halved the calls a
+// job makes, so five in flight over the remaining work still asks less of the provider per second
+// than six did over twice the work, while giving the customer back a whole wave of waiting.
+const PRICING_FANOUT=Math.max(1,Number(process.env.P5_PRICING_FANOUT||5));
 /** Tasks per mapping call. The slowest batch sets the pace and its time is mostly the answer it
  * writes, so smaller batches side by side finish sooner: live, a 6-task batch took 103 s while the
  * rest took 28 to 72 s. */
@@ -1119,9 +1123,31 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
       const pricedComponents=existingLines(beforeRepair);
       const fixes:Mapping={tasks:[],issues:[],notes:[],replacements:[],removeExclusions:[]};
       const repairInput=(taskBatch:typeof mapping.tasks)=>({original:sourceParts.length===1?original:{sections:[...new Set(taskBatch.map(t=>taskSources.get(t.id)!))].map(i=>sourceParts[i])},taskBatch:taskBatch.map(({id,description,evidence})=>({id,description,evidence})),pricingIssues:priorIssues,repairInstruction:'Resolve the audit findings with measured costs or item-specific allowances. Existing components already contain prior additions. Reference them instead of charging again; explicitly replace wrong or incomplete components. An unknown dimension may use an evidenced modeled quantity range, never an invented measurement.',priorMappedTasks:[],priorReplacements:[],existingLines:pricedComponents,defaultExclusions:beforeRepair.customer.exclusions,catalog:configuration.planningCatalog?.rates||[],regionalRates:configuration.regionalRates,date:now.toISOString()});
-      const repairedBatches=await mapLimit(batchesOf(mapping.tasks,MAP_BATCH),taskBatch=>mapBatch(request,taskBatch,repairInput,()=>deadline-Date.now()));
+      // Re-pricing a task the check never questioned costs a model call and moves a price nobody
+      // disputed. Live 2026-09-23: a shower replacement re-mapped every task a second time, 16
+      // mapping calls and 332 s of a 366 s estimate, to resolve findings against two of them. Only
+      // the batches holding a questioned task are sent again. The rest keep exactly what they
+      // already resolved to, and add nothing: a repair's rules are pushed ON TOP of the existing
+      // ones, so returning their original additions here would charge for that work twice.
+      const ruleIdsByTask=new Map<string,string[]>();
+      for(const rule of resolution.rules)if(rule.scopeTaskId)ruleIdsByTask.set(rule.scopeTaskId,[...(ruleIdsByTask.get(rule.scopeTaskId)||[]),rule.id]);
+      const lowerIssues=priorIssues.map(issue=>issue.toLowerCase());
+      const namesLine=(text:string,id:string)=>new RegExp(`(?:^|[^\\w-])${id.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g,'\\$&')}(?![\\w-])`).test(text);
+      // A finding names a task, or names one of the priced lines that task owns.
+      const questioned=(t:Mapping['tasks'][number])=>lowerIssues.some(issue=>namesTask(issue,t)||(ruleIdsByTask.get(t.id)||[]).some(id=>namesLine(issue,id)))
+        ||billableTask(t)&&!audit.coveredTaskIds.includes(t.id)&&!allowancePricedTask(t.id)&&!schedulePricedTask(t.id);
+      const batches=batchesOf(mapping.tasks,MAP_BATCH);
+      // If no finding can be pinned to a task, repair everything rather than guess which to skip.
+      const anyQuestioned=mapping.tasks.some(questioned);
+      const settled=(taskBatch:typeof mapping.tasks)=>({tasks:taskBatch.map(t=>({...t,
+        existingLineIds:[...new Set([...(t.existingLineIds||[]),...(ruleIdsByTask.get(t.id)||[])])].filter(id=>pricedComponents.some(line=>line.id===id)),
+        additions:[],researchDescription:'',issues:[]})),issues:[],notes:[],replacements:[],removeExclusions:[]});
+      const skipped=anyQuestioned?batches.filter(taskBatch=>!taskBatch.some(questioned)).length:0;
+      if(skipped)console.error(`[p5-pricing] repair round: ${batches.length-skipped} of ${batches.length} batches questioned; the rest keep their prices.`);
+      const repairedBatches=await mapLimit(batches,taskBatch=>
+        !anyQuestioned||taskBatch.some(questioned)?mapBatch(request,taskBatch,repairInput,()=>deadline-Date.now()):Promise.resolve(settled(taskBatch)));
       for(const [batchIndex,batch] of repairedBatches.entries()){
-        const taskBatch=batchesOf(mapping.tasks,MAP_BATCH)[batchIndex];
+        const taskBatch=batches[batchIndex];
         if(batch.tasks.length!==taskBatch.length||new Set(batch.tasks.map(t=>t.id)).size!==taskBatch.length||batch.tasks.some(t=>!taskBatch.some(expected=>expected.id===t.id)))throw new Error('Incomplete repair batch');
         fixes.tasks.push(...batch.tasks.map(t=>({...t,...taskBatch.find(x=>x.id===t.id)!,existingLineIds:t.existingLineIds,additions:t.additions,researchDescription:t.researchDescription,issues:t.issues})));
         fixes.issues.push(...batch.issues);fixes.notes.push(...batch.notes);fixes.replacements.push(...batch.replacements);fixes.removeExclusions.push(...batch.removeExclusions);

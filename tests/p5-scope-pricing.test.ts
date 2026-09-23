@@ -984,3 +984,33 @@ test('work needed to complete the job is priced and marked; excluded but needed 
  assert.ok(text.includes(`Remove and dispose of the existing shower`)&&text.includes(ADDED_MARK),'the added work is marked on the estimate');
  assert.match(text,/Included to complete the work/);assert.match(text,/Removing the old shower is required/);
 });
+// Live 2026-09-23: a shower replacement spent 332 s of a 366 s estimate on 16 mapping calls, because
+// the repair round re-priced every task a second time to resolve a finding against one of them.
+test('the repair round re-prices only the tasks the check questioned',async()=>{
+ const priceable=(id:string)=>({id,description:`Synthetic work item ${id}`,evidence:'ten feet',existingLineIds:[],additions:[{code:'REF-GENERAL-HOUR',quantity:2,quantityEvidence:'Two hours'}],researchDescription:'',issues:[]});
+ const many=Array.from({length:9},(_,i)=>priceable(`t${i}`));
+ // t4 comes back from the first mapping with nothing priced, so the first check cannot cover it and
+ // a repair round is required. The repair supplies its hours.
+ const unpriced={...priceable('t4'),additions:[]};
+ let mappingCalls=0,audits=0;
+ const staged:PricingRequest=async(_instructions,input)=>{
+  const body=input as {taskBatch?:{id:string}[];tasks?:unknown;existingLines?:unknown};
+  if(body.taskBatch){
+   mappingCalls++;
+   const answer=many.filter(t=>body.taskBatch!.some(b=>b.id===t.id)).map(t=>t.id==='t4'&&audits===0?unpriced:t);
+   return {value:{tasks:answer,issues:[],notes:[],replacements:[],removeExclusions:[]},sourceUrls:urls};
+  }
+  if(body.tasks!==undefined&&body.existingLines!==undefined){
+   audits++;
+   return {value:{coveredTaskIds:many.map(t=>t.id).filter(id=>audits>1||id!=='t4'),issues:[],notes:[],resolvedIssues:[]},sourceUrls:urls};
+  }
+  return {value:{tasks:many.map(({id,description,evidence})=>({id,description,evidence})),issues:[],notes:[],dependencies:[]},sourceUrls:urls};
+ };
+ const priced=await priceCompleteScope(scope,config,staged,now);
+ assert.equal(audits,2,`a repair round ran (mapping ${mappingCalls})`);
+ assert.ok(priced.customer.range,'the estimate still completes');
+ // 9 tasks at MAP_BATCH 4 is 3 batches. The first round maps all three; the repair round must send
+ // only the batch holding t4, not all three again.
+ assert.ok(mappingCalls>=3,`the first round still maps every batch (mapping calls: ${mappingCalls})`);
+ assert.ok(mappingCalls<=4,`a repair round must not re-price every batch (mapping calls: ${mappingCalls})`);
+});

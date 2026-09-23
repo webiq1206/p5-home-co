@@ -314,8 +314,10 @@
   .dock{padding:8px 10px calc(10px + env(safe-area-inset-bottom,0px))}
   .dockBar{flex-direction:column}
   .dockBar .primary{width:100%}
+  /* The estimator is the only header on a phone now, so it carries the brand. "Project estimator"
+     is what gives way instead: the step pill directly under it already says where the customer is. */
   .brandLine{font-size:11px}
-  .brandLine [data-brand]{display:none}
+  .brandLine [data-sep],.brandLine [data-title]{display:none}
   .stepPill{font-size:11px}
   .root .navBtn span[data-label]{display:none}
   .root .navBtn{min-width:40px;padding:6px 8px}
