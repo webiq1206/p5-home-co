@@ -1061,3 +1061,19 @@ test('a large scope travels in fuller calls, never in more of them',async()=>{
  assert.ok(Math.ceil(tasks/size)*size>=tasks,'the batches cover every task');
  assert.equal(mappingBatchSize(0,4,8),4,'an empty scope is harmless');
 });
+
+// Live 2026-09-23: "remodel the primary suite" listed five items of work and became about ninety
+// tasks, because COMPLETE THE SCOPE added demolition, disposal, protection, cleanup and a permit for
+// EACH requested item. Those are things a crew does once for the whole job.
+test('shared supporting work is instructed once for the project, not once per item',async()=>{
+ const {INVENTORY_INSTRUCTIONS}=await import('../lib/p5/scopePricing.ts');
+ const text=INVENTORY_INSTRUCTIONS.toLowerCase();
+ assert.match(text,/one task per kind of supporting work/,'the rule is stated');
+ assert.match(text,/never one per item and never one per room/,'and stated as a prohibition');
+ assert.match(text,/single project-level task/,'the shared work is project level');
+ // The exceptions must survive: work that genuinely differs per item stays its own task.
+ assert.match(text,/waterproofing system for one wet area/,'per-item exceptions are preserved');
+ // And the completion rule itself must not have been weakened away.
+ assert.match(text,/complete the scope/,'supporting work is still added');
+ assert.match(text,/debris haul-off and disposal/,'the kinds of supporting work are still named');
+});
