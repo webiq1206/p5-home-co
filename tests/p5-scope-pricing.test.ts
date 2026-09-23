@@ -1077,3 +1077,18 @@ test('shared supporting work is instructed once for the project, not once per it
  assert.match(text,/complete the scope/,'supporting work is still added');
  assert.match(text,/debris haul-off and disposal/,'the kinds of supporting work are still named');
 });
+
+// Live 2026-09-23: "replace the kitchen faucet and repair a leaking under-sink shutoff valve" handed
+// off. The new scope-consolidation rule added a shared disconnect/reconnect task that duplicated the
+// installation line, and a shared protection task that only matched a whole-room dust-protection
+// catalog price - a two-hundred-dollar repair reaching for a thousand-dollar line.
+test('a small single-component swap does not draw its own protection or disconnect task',async()=>{
+ const {INVENTORY_INSTRUCTIONS}=await import('../lib/p5/scopePricing.ts');
+ const text=INVENTORY_INSTRUCTIONS.toLowerCase();
+ assert.match(text,/scale supporting work to the job/,'the rule is stated');
+ assert.match(text,/one fixture, one valve, one outlet, one switch/,'named for the small-repair case');
+ assert.match(text,/does not get its own protection, cleanup, permit, or disconnect\/reconnect task/);
+ assert.match(text,/already inside its own labor/,'the reason is stated, not just the prohibition');
+ // The larger-job exception must survive: room-scale and multi-item work still gets these tasks.
+ assert.match(text,/room-scale demolition, multi-item work/,'the exception for substantial work is preserved');
+});
