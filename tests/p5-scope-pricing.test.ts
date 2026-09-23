@@ -1014,3 +1014,30 @@ test('the repair round re-prices only the tasks the check questioned',async()=>{
  assert.ok(mappingCalls>=3,`the first round still maps every batch (mapping calls: ${mappingCalls})`);
  assert.ok(mappingCalls<=4,`a repair round must not re-price every batch (mapping calls: ${mappingCalls})`);
 });
+// Live 2026-09-23, revision of Handyman estimate P5-EB029A8F: the check returned its findings as
+// objects rather than sentences, and the whole eight-minute pricing job was discarded on that one
+// field - "Expected string, received object" at issues[0]. Remarks are prose we read, log and show;
+// their packaging must not be able to throw away a finished estimate.
+test('a finding wrapped in an object is read, not thrown away with the estimate',async()=>{
+ const wrapped=[{issue:'scope-1 and scope-2 overlap.',severity:'high'},'a plain sentence',{message:'wrapped under message'}];
+ const priced=await priceCompleteScope(scope,config,replies([
+   {tasks:[task],issues:[]},
+   {coveredTaskIds:['cabinets'],issues:wrapped,notes:[{note:'a wrapped note'}],resolvedIssues:[]},
+   {tasks:[task],issues:[]},
+   {coveredTaskIds:['cabinets'],issues:[],resolvedIssues:[]},
+ ]),now);
+ const recorded=JSON.stringify(priced.internal.scopePricing);
+ assert.doesNotMatch(recorded,/ZodError/,'the reply parses instead of discarding the job');
+ assert.match(recorded,/scope-1 and scope-2 overlap/,'the wrapped finding survives as its own words');
+ assert.match(recorded,/a plain sentence/,'a plain one is untouched');
+ assert.match(recorded,/wrapped under message/,'other wrappers are unwrapped too');
+ assert.doesNotMatch(recorded,/\[object Object\]/,'never stringified into nothing');
+});
+test('ids stay strict, so a malformed one is never guessed at',async()=>{
+ // A task id arriving as an object is not a packaging quirk; acting on it would price the wrong work.
+ const broken=await priceCompleteScope(scope,config,replies([
+   {tasks:[{...task,id:{value:'cabinets'}}],issues:[]},
+   {coveredTaskIds:['cabinets'],issues:[]},
+ ]),now);
+ assert.equal(broken.customer.range,null,'a malformed identifier still withholds the price');
+});

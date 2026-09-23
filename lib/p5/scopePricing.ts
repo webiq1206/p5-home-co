@@ -23,22 +23,41 @@ import {duplicateChargeNotes} from './duplicateCharges.ts';
 // This module runs only on the server at submission. No client-supplied mapping
 // or rate can authorize a price. The approved catalog is never mutated here.
 const text=z.string().trim().min(1).max(3000);
+/** A remark the model wrote, accepted whether it sent a sentence or wrapped one in an object.
+ *
+ * Live 2026-09-23: a revision returned `issues: [{...}]` instead of `issues: ["..."]`, and the whole
+ * eight-minute pricing job was discarded on that one field ("Expected string, received object"). The
+ * remarks are prose we read, log and show; there is no reason for their packaging to be able to throw
+ * away a finished estimate, so a wrapped one is unwrapped and anything else is rendered rather than
+ * rejected. Fields that carry MEANING to the engine - ids, codes, quantities - keep `text` and stay
+ * strict, because guessing at those would price something nobody asked for. */
+const remark=z.preprocess(value=>{
+  if(typeof value==='string')return value;
+  if(value&&typeof value==='object'&&!Array.isArray(value)){
+    const o=value as Record<string,unknown>;
+    for(const key of ['issue','message','text','description','note','detail','reason','summary'])
+      if(typeof o[key]==='string'&&(o[key] as string).trim())return o[key];
+    try{return JSON.stringify(value);}catch{return String(value);}
+  }
+  return value===undefined||value===null?value:String(value);
+},text);
+const remarks=(max:number)=>z.preprocess(value=>Array.isArray(value)?value.filter(item=>item!==null&&item!==undefined&&item!==''):value,z.array(remark).max(max));
 const positive=z.number().finite().positive().max(10000000);
 const quantityRange=z.object({low:positive,high:positive}).strict();
 const addition=z.object({code:text,quantity:positive,quantityEvidence:text,building:z.string().optional(),floor:z.string().optional(),quantityRange:quantityRange.nullish()}).strict();
-const task=z.object({id:text,description:text,evidence:text,existingLineIds:z.array(text).max(150),additions:z.array(addition).max(30),researchDescription:z.string().max(1000),issues:z.array(text).max(20)}).strict();
-const mappingSchema=z.object({tasks:z.array(task).min(1).max(150),issues:z.array(text).max(100),notes:z.array(text).max(100).default([]),replacements:z.array(z.object({lineId:text,reason:text}).strict()).max(150).default([]),removeExclusions:z.array(z.object({text:text,reason:text}).strict()).max(50).default([])}).strict();
+const task=z.object({id:text,description:text,evidence:text,existingLineIds:z.array(text).max(150),additions:z.array(addition).max(30),researchDescription:z.string().max(1000),issues:remarks(20)}).strict();
+const mappingSchema=z.object({tasks:z.array(task).min(1).max(150),issues:remarks(100),notes:remarks(100).default([]),replacements:z.array(z.object({lineId:text,reason:text}).strict()).max(150).default([]),removeExclusions:z.array(z.object({text:text,reason:text}).strict()).max(50).default([])}).strict();
 type Mapping=z.infer<typeof mappingSchema>;
 // A section may hold nothing priceable (live 2026-09-21: a budget with every quantity removed); requiring a
 // task there threw a validation error and handed the whole estimate to a person.
-const inventorySchema=z.object({tasks:z.array(z.object({id:text,description:z.string().min(1).max(400),evidence:z.string().min(1).max(600),origin:z.enum(['requested','required']).default('requested'),basis:z.string().max(400).default('')}).strict()).max(150),issues:z.array(text).max(100),notes:z.array(text).max(100).default([]),dependencies:z.array(z.string().max(400)).max(40).default([])}).strict();
+const inventorySchema=z.object({tasks:z.array(z.object({id:text,description:z.string().min(1).max(400),evidence:z.string().min(1).max(600),origin:z.enum(['requested','required']).default('requested'),basis:z.string().max(400).default('')}).strict()).max(150),issues:remarks(100),notes:remarks(100).default([]),dependencies:z.array(z.string().max(400)).max(40).default([])}).strict();
 const observation=z.object({url:z.string().url(),low:positive,high:positive,unit:text,costBasis:z.enum(['material-purchase','subcontractor-installed','trade-labor']),publishedAt:z.string(),region:text,excerpt:z.string().min(1).max(220),sourceType:z.enum(['regional-guide','national-guide']),dateBasis:z.enum(['published','retrieved'])}).strict();
 const costEvidence=z.object({url:z.string().url(),publishedAt:z.string(),dateBasis:z.enum(['published','retrieved']),region:text,excerpt:z.string().min(1).max(220)}).strict();
 const landedCost=z.object({taxRate:z.number().finite().min(0).max(1),freightPerUnit:z.number().finite().min(0).max(10000000),taxOnFreight:z.boolean(),taxEvidence:costEvidence,freightEvidence:costEvidence}).strict();
-const marketSchema=z.object({rates:z.array(z.object({taskId:text,description:text,unit:text,quantity:positive,quantityEvidence:text,quantityRange:quantityRange.nullish(),building:z.string().optional(),floor:z.string().optional(),basis:z.enum(['material-purchase','subcontractor-installed','trade-labor']),includes:text,excludes:z.string().max(2000),landedCost:landedCost.nullish(),sources:z.array(observation).min(1).max(4)}).strict()).max(60),issues:z.array(text).max(100),notes:z.array(text).max(100).default([])}).strict();
-const auditSchema=z.object({coveredTaskIds:z.array(text),issues:z.array(text),notes:z.array(text).default([]),resolvedIssues:z.preprocess(value=>Array.isArray(value)?value.filter(item=>item&&typeof item==='object'&&Array.isArray((item as {lineIds?:unknown}).lineIds)&&(item as {lineIds:unknown[]}).lineIds.length>0):value,z.array(z.object({issue:text,reason:text,lineIds:z.array(text).min(1)}).strict()).default([]))}).strict();
+const marketSchema=z.object({rates:z.array(z.object({taskId:text,description:text,unit:text,quantity:positive,quantityEvidence:text,quantityRange:quantityRange.nullish(),building:z.string().optional(),floor:z.string().optional(),basis:z.enum(['material-purchase','subcontractor-installed','trade-labor']),includes:text,excludes:z.string().max(2000),landedCost:landedCost.nullish(),sources:z.array(observation).min(1).max(4)}).strict()).max(60),issues:remarks(100),notes:remarks(100).default([])}).strict();
+const auditSchema=z.object({coveredTaskIds:z.array(text),issues:remarks(1000),notes:remarks(1000).default([]),resolvedIssues:z.preprocess(value=>Array.isArray(value)?value.filter(item=>item&&typeof item==='object'&&Array.isArray((item as {lineIds?:unknown}).lineIds)&&(item as {lineIds:unknown[]}).lineIds.length>0):value,z.array(z.object({issue:text,reason:text,lineIds:z.array(text).min(1)}).strict()).default([]))}).strict();
 const planningRate=z.object({taskId:text,description:text,unit:text,quantity:positive,quantityEvidence:text,quantityRange:quantityRange.nullish(),building:z.string().optional(),floor:z.string().optional(),basis:z.enum(['material-purchase','subcontractor-installed','trade-labor']),includes:text,excludes:z.string().max(2000),low:positive,high:positive,confidence:z.enum(['low','medium']),rationale:z.string().min(1).max(900)}).strict();
-const planningSchema=z.object({rates:z.array(planningRate).max(60),issues:z.array(text).max(100),notes:z.array(text).max(100).default([])}).strict();
+const planningSchema=z.object({rates:z.array(planningRate).max(60),issues:remarks(100),notes:remarks(100).default([])}).strict();
 /** Web research gets this long per batch before a labeled planning average is used instead. */
 // A research call that times out is still billed and then replaced by a
 // planning average that the audit will not release a range on. 40 s lets a
