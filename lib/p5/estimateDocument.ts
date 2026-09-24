@@ -189,7 +189,7 @@ export function buildEstimateDocument(input:{id:string;result:unknown;brand:Esti
   const total=range?{label:priceKind==='single'?(repair?'Your price':'Estimated project total'):'Estimated project range',amount:priceKind==='single'?money(range.low):`${money(range.low)} to ${money(range.high)}`,low:range.low,high:range.high}:null;
   const totalNotes=[
     categories.some(c=>c.allowances.length)?'Includes the allowances listed above. Final selections may change allowance amounts.':'',
-    priceKind==='range'&&categories.length>1?'Category ranges are parts of the overall range, not additional charges. The overall range is narrower than the sum of the category ends because every category is unlikely to land at its low or high end at once.':'',
+    priceKind==='range'&&categories.length>1?'Category ranges are parts of the overall range, not additional charges.':'',
     'All prices are in U.S. dollars. Exclusions and items to confirm follow.',
   ].filter(Boolean);
   const partialNote=status==='partial'?`Partial estimate: ${unpriced.length===1?'one requested item is':`${unpriced.length} requested items are`} not priced yet and ${unpriced.length===1?'is':'are'} not in this ${priceKind==='range'?'range':'total'}. See items to confirm.`:'';
