@@ -60,6 +60,18 @@ test('generated evidence ranges and verbose financial ratios hide every cost bou
 test('customer selling totals and allowance amounts in prose are not cost figures',()=>{
  for(const text of ['The customer selling total is $500.','Fixture allowance includes $1,200 for 8 fixtures, delivery, and installation by October 15.','Tile allowance of $4,500 is included.'])assert.equal(customerText(text),text);
 });
+test('live consumable cost notes hide direct-material amounts and their later bounds',async()=>{
+ const note='The consumables are covered by planning-1 as a $30 direct-material work-package allowance, with a disclosed $20–$40 range, for the stated 100 LF. This is not a supplier quote; verify local pricing before a firm proposal.';
+ const result={...oldResult,verificationItems:[note]};
+ const projected=projectCustomerEstimate(result);
+ const email=estimateEmail('offline-consumables',{customer:result,internal:{}},false);
+ const pdf=(await pdfTextLayers(await customerPdf('offline-consumables',result))).join(' ');
+ for(const output of [customerText(note),JSON.stringify(projected.verificationItems),email.text,email.html,pdf]){
+  assert.doesNotMatch(output,/\$20|\$30|\$40|direct-material/);
+  assert.match(output,/100 LF/);assert.match(output,/not a supplier quote/);
+ }
+ assert.deepEqual(projected.range,result.range,'customer selling totals remain unchanged');
+});
 test('ordinary overhead, margin and markup wording survives while financial overhead does not',()=>{
  for(const text of ['Install overhead cabinets above the workbench.','Replace overhead lighting in the pantry.','Repair the overhead garage door and its opener.','Replace overhead doors at both bays.','Follow the architect markup.','Maintain a 1/8-inch margin around the door.'])assert.equal(customerSafeText(text),text);
  for(const text of ['Overhead recovery: $400.','Overhead is 20%.','Add $400 for overhead.','Overhead costs are $900.'])assert.equal(customerSafeText(text),'');

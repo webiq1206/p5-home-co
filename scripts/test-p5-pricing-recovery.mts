@@ -8,7 +8,7 @@ import path from 'node:path';
 await mkdir('node_modules/.cache',{recursive:true});
 const dir=await mkdtemp(path.join(process.cwd(),'node_modules/.cache/p5-pricing-recovery-'));
 const previous=process.env.DATABASE_URL;
-type SavedPayload={replies:Record<string,{timeouts?:number}>};
+type SavedPayload={replies:Record<string,{timeouts?:number;outputLimited?:boolean}>};
 type StageInput={taskBatch?:{id:string;description:string;evidence:string}[]};
 let db:{database:{close():Promise<void>};query(sql:string,values?:unknown[]):Promise<{payload:SavedPayload}[]>}|undefined;
 try{
@@ -87,9 +87,38 @@ try{
  });
  await run(split);assert.deepEqual(sizes,[4,2,2,2]);assert.deepEqual([...completed].sort(),tasks.map(item=>item.id).sort(),'every task is completed exactly once');
  await run(split);assert.deepEqual(sizes,[4,2,2,2],'timed-out large mapping stays split on replay');
+
+ const auditSplit=await newDraft();const auditSizes:number[]=[];let childRetry=0;
+ provider.setProvider(async(_instructions:string,value:unknown)=>{
+  const input=value as StageInput&{tasks?:typeof tasks};
+  if(input.taskBatch)return reply({tasks:input.taskBatch.map(item=>({...item,existingLineIds:lines,additions:[],researchDescription:'',issues:[]})),issues:[]});
+  if('priorPricingIssues' in input){
+   auditSizes.push(input.tasks!.length);
+   if(input.tasks!.length>3)throw new Error('pricing-check-incomplete:max_tokens');
+   if(input.tasks![0].id==='cabinet-3'&&++childRetry===1)throw new ProcessingDeadlineError();
+   return reply({coveredTaskIds:input.tasks!.map(item=>item.id),issues:[]});
+  }
+  return reply({tasks,issues:[]});
+ });
+ await assert.rejects(run(auditSplit),(error:unknown)=>error instanceof Error&&error.name==='PricingPending');
+ assert.ok(Object.values((await payload(auditSplit)).replies).some(value=>value.outputLimited),'the oversized audit is durably marked');
+ assert.ok((await run(auditSplit)).customer.range,'resumed child audit completes full coverage');
+ assert.deepEqual(auditSizes,[6,3,3,3],'resume reuses the successful subset and never repeats the oversized audit');
+ await run(auditSplit);assert.deepEqual(auditSizes,[6,3,3,3],'all completed audit subsets are reused');
+
+ const auditExhausted=await newDraft();let singleAuditCalls=0;
+ provider.setProvider(async(_instructions:string,value:unknown)=>{
+  const input=value as StageInput;
+  if(input.taskBatch)return reply({tasks:input.taskBatch.map(item=>({...item,existingLineIds:lines,additions:[],researchDescription:'',issues:[]})),issues:[]});
+  if('priorPricingIssues' in input){singleAuditCalls++;throw new Error('pricing-check-incomplete:max_tokens');}
+  return reply({tasks:[task],issues:[]});
+ });
+ assert.equal((await run(auditExhausted)).customer.range,null,'an incomplete single-task audit cannot release pricing');
+ assert.equal((await run(auditExhausted)).customer.range,null);
+ assert.equal(singleAuditCalls,1,'an unsplittable output failure does not repeat paid work');
  assert.equal((await db!.query('SELECT * FROM p5_estimator_work WHERE lease_token IS NOT NULL')).length,0);
  assert.equal((await db!.query('SELECT * FROM p5_estimator_outbox')).length,0);
- console.log('PASS: saved SQL pricing timeout recovers, completed work is reused, actual retries stop at three, large mappings stay split, and incomplete pricing creates no delivery. No live provider calls.');
+ console.log('PASS: saved SQL pricing timeout recovers, completed work is reused, actual retries stop at three, large mappings and output-limited audits stay split, unsplittable output remains held, and incomplete pricing creates no delivery. No live provider calls.');
 }finally{
  if(db)await db.database.close();
  if(previous===undefined)delete process.env.DATABASE_URL;else process.env.DATABASE_URL=previous;

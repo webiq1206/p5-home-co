@@ -606,7 +606,7 @@ test('Exhausting the repair budget preserves the scope hold instead of authorizi
   if(d.taskBatch){mappings++;return {value:{tasks:d.taskBatch.map((t:any)=>({...tasks.find(x=>x.id===t.id)!,...t})),issues:[],notes:[],replacements:[],removeExclusions:[]},sourceUrls:[]};}
   if('priorPricingIssues' in d){audits++;return {value:{coveredTaskIds:tasks.map(t=>t.id),issues:audits===1?['Patch drywall: the patch count disagrees with the description.']:[],notes:[],resolvedIssues:[]},sourceUrls:[]};}
   return {value:{tasks:tasks.map(({id,description,evidence})=>({id,description,evidence})),issues:[]},sourceUrls:[]};};
-  const r=await priceCompleteScope(scope,config,request,startedAt);return {r,mappings,audits};};
+  const r=await priceCompleteScope(scope,config,request,startedAt,undefined,undefined,0,async()=>({startedAt:startedAt.getTime(),busyWaitMs:0}));return {r,mappings,audits};};
  const fresh=await run(new Date(Date.now()-1000));
  assert.equal(fresh.mappings,2,'a fresh job repairs the finding');assert.equal(fresh.audits,2);
  const late=await run(new Date(Date.now()-6*60*1000));
@@ -628,7 +628,8 @@ test('A partial finishing allowance cannot release a total that omits baseboard 
   if(data.tasks&&data.region)return {value:{rates:[{taskId:trim.id,description:'Baseboard finishing allowance',unit:'LF',quantity:120,quantityEvidence:'120 LF',basis:'trade-labor',includes:'caulk, filler, paint and finishing labor only',excludes:'baseboard material',low:3,high:6,confidence:'low',rationale:'Synthetic fixture only.'}],issues:[]},sourceUrls:[]};
   return {value:{tasks:[{id:trim.id,description:trim.description,evidence:trim.evidence}],issues:[]},sourceUrls:[]};
  };
- const result=await priceCompleteScope(scope,config,request,new Date(Date.now()-6*60*1000));
+ const expiredRepairAt=Date.now()-6*60*1000;
+ const result=await priceCompleteScope(scope,config,request,new Date(expiredRepairAt),undefined,undefined,0,async()=>({startedAt:expiredRepairAt,busyWaitMs:0}));
  assert.equal(audits,1,'expired repair budget does not initiate more provider work');
  assert.equal(result.customer.range,null,'the partial allowance never becomes a full-scope range');
  assert.ok(result.customer.verificationItems.includes(omission));
@@ -1001,6 +1002,26 @@ test('the repair round re-prices only the tasks the check questioned',async()=>{
  assert.ok(mappingCalls>=3,`the first round still maps every batch (mapping calls: ${mappingCalls})`);
  assert.ok(mappingCalls<=4,`a repair round must not re-price every batch (mapping calls: ${mappingCalls})`);
 });
+test('a long first pass still gets its first corrective pass',async()=>{
+ let audits=0,repairs=0,clockStarts=0;
+ const staged:PricingRequest=async(_instructions,input)=>{
+  const body=input as {taskBatch?:{id:string}[];repairInstruction?:string;tasks?:unknown;existingLines?:unknown};
+  if(body.taskBatch){
+   if(body.repairInstruction)repairs++;
+   const overlay={...extra,researchDescription:'',additions:body.repairInstruction?[{code:'03-15-02-M',quantity:10,quantityEvidence:'Ten feet requested'}]:[]};
+   return {value:{tasks:[task,overlay].filter(t=>body.taskBatch!.some(b=>b.id===t.id)),issues:[],notes:[],replacements:[],removeExclusions:[]},sourceUrls:[]};
+  }
+  if(body.tasks!==undefined&&body.existingLines!==undefined){
+   audits++;
+   return {value:{coveredTaskIds:audits>1?['cabinets','overlay']:['cabinets'],issues:[],notes:[],resolvedIssues:[]},sourceUrls:[]};
+  }
+  return {value:{tasks:[task,extra].map(({id,description,evidence})=>({id,description,evidence})),issues:[],notes:[],dependencies:[]},sourceUrls:[]};
+ };
+ const result=await priceCompleteScope(scope,config,staged,new Date(Date.now()-10*60000),Date.now()+60000,undefined,0,async()=>{clockStarts++;return {startedAt:Date.now(),busyWaitMs:0};});
+ assert.equal(clockStarts,1);
+ assert.equal(repairs,1);
+ assert.ok(result.customer.range,'the completed repair releases the range');
+});
 // Live 2026-09-23, revision of Handyman estimate P5-EB029A8F: the check returned its findings as
 // objects rather than sentences, and the whole eight-minute pricing job was discarded on that one
 // field - "Expected string, received object" at issues[0]. Remarks are prose we read, log and show;
@@ -1086,11 +1107,34 @@ test('a small single-component swap does not draw its own protection or disconne
 
 test('labor-only pricing retains requested contractor consumables through final release',async()=>{
  const restricted={...scope,text:'Install owner-supplied baseboard. Labor only. Contractor supplies nails and caulk.',answers:{service:'handyman',ownerSupplied:'Owner supplies baseboard'},extraction:{summary:'Trim installation',facts:[],conflicts:[],missingInformation:[],reviewNotes:[],instructions:{...emptyInstructions(),laborOnly:true}}};
- const configuration=createPlanningConfiguration({...catalog,rates:[...catalog.rates,{code:'QA-CONSUMABLE-M',description:'Finish nails and caulk',type:'Material',unit:'LS',amount:25,source:'Synthetic fixture',basis:'owner-average-cost'}]});
+ const configuration=createPlanningConfiguration({...catalog,rates:[...catalog.rates,{code:'QA-CONSUMABLE-M',description:'Nails, interior trim caulk, and nail-hole filler for 100 LF of owner-supplied primed MDF baseboard',type:'Material',unit:'LS',amount:25,source:'Synthetic fixture',basis:'owner-average-cost'}]});
  const trim={id:'trim',description:'Install owner-supplied baseboard',evidence:'Labor only',existingLineIds:[],additions:[{code:'REF-GENERAL-HOUR',quantity:4,quantityEvidence:'ALLOWANCE: Four installation hours, verify two to six.',quantityRange:{low:2,high:6}}],researchDescription:'',issues:[]};
  const consumables={id:'consumables',description:'Supply nails and caulk',evidence:restricted.text,existingLineIds:[],additions:[{code:'QA-CONSUMABLE-M',quantity:1,quantityEvidence:'ALLOWANCE: One material package; confirm usage.',quantityRange:{low:1,high:1}}],researchDescription:'',issues:[]};
  const result=await priceCompleteScope(restricted,configuration,replies([{tasks:[trim,consumables],issues:[]},{coveredTaskIds:['trim','consumables'],issues:[]}]),now);
  assert.ok(result.customer.range);assert.ok('lines' in result.internal);
  assert.deepEqual(result.internal.lines.map(l=>l.category).sort(),['field-labor','materials']);
  assert.equal(result.internal.lines.find(l=>l.category==='materials')?.unitCost,25);
+});
+
+test('one shared consumables line reconciles base and upper runs without repeating its total',()=>{
+ const description='Supply normal cabinet mounting screws, shims, fasteners and other standard installation consumables for fastening and leveling.: Cabinet + Vanity Hardware - Materials';
+ const pricedLine={...base.internal.lines[0],id:'shared-consumables',description,category:'materials' as const,quantity:20,unit:'LF',unitCost:8};
+ const cabinetScope={...scope,text:'Install 10 LF owner-supplied base cabinets and 10 LF owner-supplied uppers. Contractor supplies all mounting consumables.',answers:{service:'cabinet-install'}};
+ const item=(id:string,description:string,evidence:string)=>({id,description,evidence,existingLineIds:[pricedLine.id],additions:[],researchDescription:'',issues:[]});
+ const tasks=[item('base','Install 10 LF owner-supplied base cabinets','Base run is 10 LF.'),item('upper','Install 10 LF owner-supplied upper cabinets','Upper run is 10 LF.'),item('supplies','Supply mounting consumables','10 LF base + 10 LF upper = 20 LF total.')];
+ const result=catalogResolution({tasks,issues:[],notes:[],replacements:[],removeExclusions:[]},config,[pricedLine],now,cabinetScope);
+ assert.deepEqual(result.issues,[]);assert.equal(result.rules.length,0,'shared references never add another charge');
+ const wrong=catalogResolution({tasks,issues:[],notes:[],replacements:[],removeExclusions:[]},config,[{...pricedLine,quantity:30}],now,cabinetScope);
+ assert.match(wrong.issues.join(' '),/does not match the explicit quantity/);
+ const labor=catalogResolution({tasks,issues:[],notes:[],replacements:[],removeExclusions:[]},config,[{...pricedLine,category:'field-labor'}],now,cabinetScope);
+ assert.match(labor.issues.join(' '),/does not match the explicit quantity/,'a shared material allowance cannot excuse mismatched installation labor');
+});
+
+test('a clean model audit cannot cover requested consumable material with labor alone',async()=>{
+ const restricted={...scope,text:'Install owner-supplied baseboard. Labor only. Contractor supplies nails and caulk.',answers:{service:'handyman'},extraction:{summary:'Trim installation',facts:[],conflicts:[],missingInformation:[],reviewNotes:[],instructions:{...emptyInstructions(),laborOnly:true}}};
+ const labor={id:'trim',description:'Install owner-supplied baseboard',evidence:'Installation work',existingLineIds:[],additions:[{code:'REF-GENERAL-HOUR',quantity:4,quantityEvidence:'ALLOWANCE: Four installation hours.',quantityRange:{low:2,high:6}}],researchDescription:'',issues:[]};
+ const consumables={...labor,id:'supplies',description:'Supply nails and caulk',evidence:restricted.text,additions:[{code:'REF-GENERAL-HOUR',quantity:1,quantityEvidence:'ALLOWANCE: One hour.',quantityRange:{low:1,high:1}}]};
+ const result=await priceCompleteScope(restricted,config,replies([{tasks:[labor,consumables],issues:[]},{coveredTaskIds:['trim','supplies'],issues:[]}]),now);
+ assert.equal(result.customer.range,null);
+ assert.match(result.internal.scopePricing.issues.join(' '),/no positive material line covers requested contractor-supplied/);
 });

@@ -6,6 +6,7 @@ import {databasePricingCache,pricingCacheEnabled} from './pricingCache.ts';
 import {claimWork,writeWork,releaseWork,renewWork} from './workStore.ts';
 import {priceCompleteScope,requestPricing,type PricingReply,type PricingRequest,PRICING_STAGE_MAX_MS} from './scopePricing.ts';
 import {PricingPending,PricingStageTimeout,PRICING_UNAVAILABLE} from './pricingProgress.ts';
+import {beginPricingRepair,type PricingRepairState} from './repairClock.ts';
 import type {ReviewedScope} from './scope.ts';
 import type {EstimatorConfiguration} from './costBook.ts';
 import {readRegionalRates,saveRegionalRates} from './regionalRates.ts';
@@ -22,7 +23,7 @@ export function pricingWorkKey(scope:ReviewedScope,configuration:EstimatorConfig
 export function pricingReplyKey(instructions:string,input:unknown,search:boolean){
  return createHash('sha256').update(JSON.stringify([instructions,search,input])).digest('hex');
 }
-type Payload={replies:Record<string,PricingReply>;failures?:number;completed?:number;regionalRates?:EstimatorConfiguration['regionalRates'];processing?:ProcessingStatus;pricingAt?:string};
+type Payload=PricingRepairState&{replies:Record<string,PricingReply>;failures?:number;completed?:number;regionalRates?:EstimatorConfiguration['regionalRates'];processing?:ProcessingStatus;pricingAt?:string;busyWaitMs?:number};
 export async function priceSavedScope(id:string,scope:ReviewedScope,configuration:EstimatorConfiguration,pricingAt=new Date(),deadline=Date.now()+SERVER_BUDGET_MS,identity?:PricingIdentity){
  // Construction prices only a project whose every source page was verified;
  // the other brands return a partial read for manual review instead.
@@ -64,6 +65,7 @@ export async function priceSavedScope(id:string,scope:ReviewedScope,configuratio
     // actually retry, or replaying its timeout marker loops forever without
     // advancing the attempt count. Only actual provider timeouts count.
     const timeouts=(saved as {timeouts?:number}).timeouts||0;
+    if((saved as {outputLimited?:boolean}).outputLimited)throw new PricingStageTimeout('pricing-stage-output-limit');
     if(timeouts>=3)throw new PricingStageTimeout('pricing-stage-exhausted');
     if(timeouts&&(search||(batchIds&&batchIds.length>3)))throw new PricingStageTimeout('pricing-stage-timeout');
     if(!timeouts)return saved;
@@ -94,6 +96,13 @@ export async function priceSavedScope(id:string,scope:ReviewedScope,configuratio
    // A failed published-cost search is not a reason to stop pricing: the caller may use a labeled planning average instead.
    if(search){console.error(`[p5-pricing] research failed after ${elapsed()}s: ${error instanceof Error?error.message:String(error)}`);throw new PricingStageTimeout(error instanceof Error?error.message:'pricing-search-unavailable');}
    const message=error instanceof Error?error.message:String(error);
+   if(/^pricing-check-incomplete:(?:max_tokens|max_output_tokens)$/.test(message)){
+    const prior=(saved as {timeouts?:number}|undefined)?.timeouts||0;
+    payload.replies[key]={value:null,sourceUrls:[],timeouts:prior+1,outputLimited:phase==='verification'} as unknown as PricingReply;
+    await persist();
+    void recordEvent({draftId:id,estimator:scope.answers.service||null,kind:'pricing',stage:`price-${phase}`,durationMs:Date.now()-started,outcome:'retry',message}).catch(()=>{});
+    throw new PricingStageTimeout(prior+1>=3?'pricing-stage-exhausted':'pricing-stage-output-limit');
+   }
    void recordEvent({draftId:id,estimator:scope.answers.service||null,kind:'pricing',stage:`price-${phase}`,durationMs:Date.now()-started,outcome:'retry',message}).catch(()=>{});
    // Batches run side by side, so one provider hiccup arrives as several failures in the same
    // second. They are one event: counting each ended an 18-item job in under a second.
@@ -131,5 +140,5 @@ export async function priceSavedScope(id:string,scope:ReviewedScope,configuratio
  };
  // The saved-stage lease outlives a pass; keep it renewed while this pass runs.
  const renew=setInterval(()=>{void renewWork(id,workKey,claimed.token,290).catch(()=>{});},60_000);renew.unref?.();
- try{const priced=await priceCompleteScope(scope,configuration,staged,pricingAt,deadline,pricingCacheEnabled()?databasePricingCache():undefined,(payload as unknown as {busyWaitMs?:number}).busyWaitMs||0);if(priced.customer.range&&priced.internal&&'costBookSnapshot' in priced.internal){await saveRegionalRates(id,scope.answers.location||'',priced.internal.costBookSnapshot?.rules||[]);await saveLearnedLines(priced.internal.costBookSnapshot?.rules||[],scope.answers.service||'',id,{location:scope.answers.location||'',finish:scope.answers.finish},pricingAt).catch(error=>console.error('[p5-book] learned lines were not saved:',error instanceof Error?error.message:error));}return priced;}finally{clearInterval(renew);await releaseWork(id,workKey,claimed.token);}
+ try{const priced=await priceCompleteScope(scope,configuration,staged,pricingAt,deadline,pricingCacheEnabled()?databasePricingCache():undefined,payload.busyWaitMs||0,()=>beginPricingRepair(payload,persist,payload.busyWaitMs||0));if(priced.customer.range&&priced.internal&&'costBookSnapshot' in priced.internal){await saveRegionalRates(id,scope.answers.location||'',priced.internal.costBookSnapshot?.rules||[]);await saveLearnedLines(priced.internal.costBookSnapshot?.rules||[],scope.answers.service||'',id,{location:scope.answers.location||'',finish:scope.answers.finish},pricingAt).catch(error=>console.error('[p5-book] learned lines were not saved:',error instanceof Error?error.message:error));}return priced;}finally{clearInterval(renew);await releaseWork(id,workKey,claimed.token);}
 }

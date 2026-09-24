@@ -9,10 +9,13 @@ import type {ReviewedScope} from '../lib/p5/scope.ts';
 const text='Install 100 linear feet of owner-supplied 3.25-inch primed MDF baseboard. Labor only. Owner supplies the baseboard; contractor supplies nails and caulk. No painting.';
 const scope:ReviewedScope={text,answers:{service:'handyman',ownerSupplied:'Owner supplies baseboard; contractor supplies nails and caulk'},extraction:null,uploads:[],reviewedAt:'2026-09-24',corrections:[]};
 test('contractor consumables are item-specific and do not authorize owner products or extra materials',()=>{
- for(const component of ['Finish nails','Paintable caulk','Install baseboard: finish nails (materials)'])assert.equal(contractorConsumableIncluded(scope,component),true,component);
+ for(const component of ['Finish nails','Paintable caulk','Install baseboard: finish nails (materials)','Nails, interior trim caulk, and nail-hole filler for 100 LF of owner-supplied primed MDF baseboard'])assert.equal(contractorConsumableIncluded(scope,component),true,component);
  for(const component of ['Baseboard','Install nails and caulk: MDF baseboard','Owner-supplied nails','Adhesive','Supply and install baseboard','Cabinets including fasteners','Baseboard with nails'])assert.equal(contractorConsumableIncluded(scope,component),false,component);
  assert.equal(contractorConsumableIncluded({...scope,text:'Labor only. Owner supplies all nails and caulk.',answers:{}},'Nails'),false);
  assert.equal(contractorConsumableIncluded({...scope,text:'Include normal fastening and leveling consumables.',answers:{}},'Cabinet shims'),true);
+ const generic='Supply normal cabinet mounting screws, shims, fasteners and other standard installation consumables for fastening and leveling.: Cabinet + Vanity Hardware - Materials';
+ assert.equal(contractorConsumableIncluded({...scope,text:'Contractor supplies all mounting consumables.',answers:{}},generic),true);
+ for(const product of ['Cabinet + Vanity Hardware - Materials','Supply mounting screws: Decorative knobs and pulls','Supply mounting screws: Cabinet materials'])assert.equal(contractorConsumableIncluded({...scope,text:'Contractor supplies all mounting consumables.',answers:{}},product),false,product);
 });
 test('catalog section labels cannot turn installation into painting',()=>{
  assert.equal(suggestedTrade('Cabinet install labor only (12-39 Cabinet Refacing, Refinishing & Install)'), 'Cabinets');
