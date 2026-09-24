@@ -114,7 +114,7 @@ export function estimateSections(result:any,hideUnitRates=HIDE_CUSTOMER_UNIT_RAT
  if(instructions){
   // Inclusions and exclusions are separate sections. Excluded work must never
   // sit inside a list labeled as included work.
-  const included=[...instructions.inclusions,...(instructions.laborOnly?['Labor only; materials are not charged.']:[]),...(instructions.materialsOnly?['Materials only; labor is not charged.']:[])];
+  const included=[...instructions.inclusions,...(instructions.laborOnly?['Installation labor with owner-supplied products. Any expressly included contractor consumables are listed separately.']:[]),...(instructions.materialsOnly?['Materials only; labor is not charged.']:[])];
   const leading:EstimateSection[]=[];
   if(included.length)leading.push({title:SECTION_TITLES.included,kind:'included',bullets:included});
   if(instructions.exclusions.length)leading.push({title:SECTION_TITLES.excluded,kind:'excluded',bullets:instructions.exclusions});

@@ -1083,3 +1083,14 @@ test('a small single-component swap does not draw its own protection or disconne
  // The larger-job exception must survive: room-scale and multi-item work still gets these tasks.
  assert.match(text,/room-scale demolition, multi-item work/,'the exception for substantial work is preserved');
 });
+
+test('labor-only pricing retains requested contractor consumables through final release',async()=>{
+ const restricted={...scope,text:'Install owner-supplied baseboard. Labor only. Contractor supplies nails and caulk.',answers:{service:'handyman',ownerSupplied:'Owner supplies baseboard'},extraction:{summary:'Trim installation',facts:[],conflicts:[],missingInformation:[],reviewNotes:[],instructions:{...emptyInstructions(),laborOnly:true}}};
+ const configuration=createPlanningConfiguration({...catalog,rates:[...catalog.rates,{code:'QA-CONSUMABLE-M',description:'Finish nails and caulk',type:'Material',unit:'LS',amount:25,source:'Synthetic fixture',basis:'owner-average-cost'}]});
+ const trim={id:'trim',description:'Install owner-supplied baseboard',evidence:'Labor only',existingLineIds:[],additions:[{code:'REF-GENERAL-HOUR',quantity:4,quantityEvidence:'ALLOWANCE: Four installation hours, verify two to six.',quantityRange:{low:2,high:6}}],researchDescription:'',issues:[]};
+ const consumables={id:'consumables',description:'Supply nails and caulk',evidence:restricted.text,existingLineIds:[],additions:[{code:'QA-CONSUMABLE-M',quantity:1,quantityEvidence:'ALLOWANCE: One material package; confirm usage.',quantityRange:{low:1,high:1}}],researchDescription:'',issues:[]};
+ const result=await priceCompleteScope(restricted,configuration,replies([{tasks:[trim,consumables],issues:[]},{coveredTaskIds:['trim','consumables'],issues:[]}]),now);
+ assert.ok(result.customer.range);assert.ok('lines' in result.internal);
+ assert.deepEqual(result.internal.lines.map(l=>l.category).sort(),['field-labor','materials']);
+ assert.equal(result.internal.lines.find(l=>l.category==='materials')?.unitCost,25);
+});

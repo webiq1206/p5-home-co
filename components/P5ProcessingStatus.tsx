@@ -60,7 +60,7 @@ export default function P5ProcessingStatus({message,processing,uploadPercent,onP
     {failed.length>0&&<p className={styles.processingMessage}>Saved but not checked yet: {failed.slice(0,3).join(', ')}{failed.length>3?` and ${failed.length-3} more`:''}. Retry document reading before pricing.</p>}
     {waitChoice&&!uploading&&<div className={styles.waitChoice} data-testid="p5-wait-choice">
       {etaSentence&&<p className={styles.waitEta} data-testid="p5-wait-eta">{etaSentence}</p>}
-      {choice!=='emailed'&&<p className={styles.processingMessage}>Stay here to see it when it is ready, or we will email you a link when it is finished. Your estimate keeps going either way.</p>}
+      {choice!=='emailed'&&<p className={styles.processingMessage}>Stay here to see the result, or choose email below to receive a link when your estimate is ready. Your estimate keeps going either way.</p>}
       {(choice==='ask'||choice==='stay')&&<div className={styles.waitButtons}>
         <button type="button" className={styles.secondary} data-active={choice==='stay'?true:undefined} onClick={()=>setChoice('stay')}>Stay here</button>
         <button type="button" className={styles.primary} onClick={()=>setChoice('email')}>Email me when it&apos;s ready</button></div>}

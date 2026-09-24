@@ -96,6 +96,13 @@ export async function bootEstimatorWorker(){
  * Every request that asks about a job also drives it (see JOB_HOLD_MS), so
  * progress does not depend on CPU being available between requests.
  */
+/** Use the persisted input read by the worker. PostgreSQL jsonb reorders object
+ * keys, so hashing the request's original objects can miss its live checkpoint.
+ * Preserve existing keys and paid replies; only the status lookup changes. */
+export async function jobProgressWorkKeys(job:Pick<Job,'input'|'createdAt'>){
+  const input=job.input;
+  return input.kind==='analysis'?(await import('./analysisWork.ts')).analysisProgressWorkKeys(input.draft,input.text,input.answers):[(await import('./pricingWork.ts')).pricingWorkKey(input.draft.reviewed!,input.configuration,new Date(job.createdAt))];
+}
 export async function queuedJob(input:Input,retry=false,holdMs=JOB_HOLD_MS){
   // A quiescing process admits neither new rows nor explicit retries. This is
   // deliberately checked before validation that can call a provider.
@@ -131,7 +138,7 @@ export async function queuedJob(input:Input,retry=false,holdMs=JOB_HOLD_MS){
   }
   if(job.state!=='complete'&&job.state!=='failed'&&jobExpired(job)){job.state='failed';job.progress=PROCESSING_PAUSED;}
   if(job.state!=='complete'&&job.state!=='failed'){
-    const workKeys=input.kind==='analysis'?(await import('./analysisWork.ts')).analysisProgressWorkKeys(input.draft,input.text,input.answers):[(await import('./pricingWork.ts')).pricingWorkKey(input.draft.reviewed!,input.configuration,new Date(job.createdAt))];
+    const workKeys=await jobProgressWorkKeys(job);
     const lookup=processingLookup(workKeys);
     const [detail]=await query(lookup.statement,[input.draft.id,...lookup.values]);
     if(detail?.processing){job.processing={...detail.processing,startedAt:job.createdAt};job.progress=job.processing!.message;}

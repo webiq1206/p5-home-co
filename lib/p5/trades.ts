@@ -30,7 +30,7 @@ const patterns: [TradeCategory, RegExp][] = [
   ["Countertops", /countertop|bench top|butcher block|quartz|granite/i],
   ["Tile", /tile|backsplash|grout/i],
   ["Flooring", /flooring|carpet|\blvp\b|\blvt\b|hardwood floor/i],
-  ["Trim & Finish Carpentry", /trim|baseboard|crown|finish carpentry|shelv/i],
+  ["Trim & Finish Carpentry", /trim|baseboard|crown|finish carpentry|finish carpenter|shelv/i],
   ["Painting", /paint|primer|caulking|sealant|sandpaper/i],
   ["Framing", /framing|joist|stud|truss|sheath|blocking|beam/i],
   ["Appliances", /appliance|refrigerator|dishwasher|microwave|oven|cooktop/i],
@@ -43,7 +43,11 @@ export function suggestedTrade(description: string): TradeCategory {
   const included = description.replace(/\b(?:no|without|exclud(?:e|es|ed|ing))\s+[^,;()\n]*/gi, ' ');
   // "...testing and cleanup" at the end of a repair is housekeeping, not the trade doing the work.
   const work = included.replace(/(?:,|\band\b|\bincluding\b|\bwith\b)\s+(?:final\s+|incidental\s+)?clean.?up\b/gi, " ");
-  return patterns.find(([, pattern]) => pattern.test(work))?.[0] ?? patterns.find(([, pattern]) => pattern.test(included))?.[0] ?? "Other Project Work";
+  // Catalog descriptions append broad section names in parentheses. "Cabinet
+  // install labor only (... Cabinet Refacing, Refinishing & Install ...)" is
+  // cabinet installation, not the refinishing trade named in that section.
+  const item=work.split('(')[0];
+  return patterns.find(([, pattern]) => pattern.test(item))?.[0] ?? patterns.find(([, pattern]) => pattern.test(work))?.[0] ?? patterns.find(([, pattern]) => pattern.test(included))?.[0] ?? "Other Project Work";
 }
 export function tradeForLine(line: { trade?: string; description: string }): TradeCategory {
   if (line.trade !== undefined) {

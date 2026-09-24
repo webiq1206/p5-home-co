@@ -86,7 +86,7 @@ export async function completeSubmission(id:string,draft:Awaited<ReturnType<type
     const needed=pricingPreflight(draft.reviewed,configuration);
     if(needed.length)return json({pricingReviewRequired:true,needsCustomerInput:true,handoff:false,preflight:true,missingFields:needed,verificationItems:[],error:PREFLIGHT_MESSAGE},422);
     const job=opts.background?await queuedJob({kind:'pricing',draft,configuration},opts.retry,opts.holdMs):null;
-    // A job that stopped after repeated failures is the handoff outcome: the project and contact are saved, a person completes the estimate, nothing further is needed from the visitor.
+    // A stopped job preserves the draft. Do not promise a human follow-up: this branch creates no delivery record.
     if(job&&job.state==='failed'){console.error(`[p5-pricing] handoff for draft ${id}: ${job.progress}`);return json({pricingReviewRequired:true,needsCustomerInput:false,handoff:true,missingFields:[],verificationItems:[],error:HANDOFF_ISSUE},422);}
     if(job&&job.state!=='complete')return json({pending:true,message:job.progress,processing:job.processing,retryAfterMs:2000},202);
     // Paid pricing requests are ledgered per customer, draft and revision, so a
@@ -116,8 +116,8 @@ export async function completeSubmission(id:string,draft:Awaited<ReturnType<type
       // its own line and link each missing detail to its question, instead of
       // one dense paragraph.
       // Three different situations used to share one headline. A visitor with
-      // questions to answer gets them; one whose scope is being finished by a
-      // person is told exactly that and asked for nothing.
+      // questions to answer gets them; one whose scope needs team assistance
+      // receives the saved-project message without a promised email.
       const handoff=!labels.length&&!items.length;
       const detail=labels.length?'Please confirm the details below.':handoff?'':items.length?'The items below still need confirmation before a complete range can be released.':'Some scope items still need verified quantities or cost evidence.';
       const error=handoff?HANDOFF_ISSUE:`Your project is saved and remains editable. ${detail} A complete price range is required before the estimate can be finalized and emailed.`;

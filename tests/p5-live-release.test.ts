@@ -78,3 +78,8 @@ test('provider response integration recovers supplied finish selections before r
   assert.equal(result.extraction.facts.find(f=>f.field==='finish')?.value,'mid-range');
  }finally{for(const k of keys){if(saved[k]===undefined)delete process.env[k];else process.env[k]=saved[k];}}
 });
+
+test('dimensions and material specifications do not force another baseboard project-type question',()=>{
+ const text='In Boise, install 100 linear feet of owner-supplied 3.25-inch primed MDF baseboard in one empty first-floor room. Labor only: measure, cut, attach, caulk and fill nail holes. Owner supplies baseboard; contractor supplies nails and caulk. No painting.';
+ assert.equal(retainExplicitSelections(empty,text).facts.find(f=>f.field==='service')?.value,'handyman');
+});

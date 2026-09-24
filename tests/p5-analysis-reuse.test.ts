@@ -62,3 +62,18 @@ test('refuses ambiguous exact legacy matches instead of selecting either result'
   assert.equal(selected.reusable,null);
   assert.equal(selected.reason,'multiple-compatible-analyses');
 });
+
+test('progress lookup uses the persisted jsonb input hashed by the pricing worker',async()=>{
+ const {PGlite}=await import('@electric-sql/pglite');
+ const {jobProgressWorkKeys}=await import('../lib/p5/backgroundJobs.ts');
+ const {pricingWorkKey}=await import('../lib/p5/pricingWork.ts');
+ const {EMPTY_CONFIGURATION}=await import('../lib/p5/costBook.ts');
+ const db=new PGlite();
+ try{
+  const job={createdAt:'2026-09-24T12:00:00Z',input:{kind:'pricing',draft:{id:'qa',reviewed:{text:'Trim',answers:{service:'handyman',location:'Boise'},extraction:null,uploads:[],reviewedAt:'2026-09-24',corrections:[]}},configuration:EMPTY_CONFIGURATION}};
+  const {rows}=await db.query<{payload:typeof job}>('SELECT $1::jsonb AS payload',[JSON.stringify(job)]);const saved=rows[0].payload;
+  const workerKey=pricingWorkKey(saved.input.draft.reviewed,saved.input.configuration,new Date(saved.createdAt));
+  assert.notEqual(pricingWorkKey(job.input.draft.reviewed,job.input.configuration,new Date(job.createdAt)),workerKey,'jsonb reproduces the original key-order mismatch');
+  assert.deepEqual(await jobProgressWorkKeys(saved as Parameters<typeof jobProgressWorkKeys>[0]),[workerKey]);
+ }finally{await db.close();}
+});

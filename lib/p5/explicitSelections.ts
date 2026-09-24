@@ -18,7 +18,7 @@ export function retainExplicitSelections(extraction:ScopeExtraction,text:string,
  if(new Set(selected.map(s=>s.value)).size===1)add('finish',selected[0].value,selected[0].evidence);
  // A measured trim installation is already a repair task. Do not ask the visitor
  // to choose among repair, inspection, rush or change-order when none is in doubt.
- const trim=clauses.find(clause=>/\b(?:install|replace|repair)(?:\s+and\s+paint)?\s+\d+(?:\.\d+)?\s+(?:linear feet|lf)\s+of\s+(?:owner[ -]supplied\s+)?(?:baseboard(?:\s+trim)?|trim)\b/i.test(clause));
+ const trim=clauses.find(clause=>/\b(?:install|replace|repair)(?:\s+and\s+paint)?\s+\d+(?:\.\d+)?\s+(?:linear feet|lf)\s+of\s+(?:owner[ -]supplied\s+)?(?:\d+(?:\.\d+)?[ -]inch\s+)?(?:(?:primed|painted|MDF|wood|PVC)\s+){0,3}(?:baseboard(?:\s+trim)?|trim)\b/i.test(clause));
  if(trim&&!/\b(?:new[ -]build|new home|new construction|remodel|renovat\w*|addition|adu|inspection|re[ -]?10|change order|rush|emergency)\b/i.test(text))add('service','handyman',trim.trim());
  return facts.length===extraction.facts.length?extraction:{...extraction,facts};
 }

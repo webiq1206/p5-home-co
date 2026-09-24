@@ -19,6 +19,7 @@ import {missingScopeFields} from './missingFields.ts';
 import {markPricingChargeUnknown,pricingFingerprint,pricingLedgerActive,recordPricingRequest,rejectPricingCharge,reservePricingCharge,settlePricingCharge,PricingChargeUnknownError,type PricingIdentity} from './pricingLedger.ts';
 import {customerSafeNotes,customerSafeProjection} from './pricing.ts';
 import {duplicateChargeNotes} from './duplicateCharges.ts';
+import {contractorConsumableIncluded} from './contractorConsumables.ts';
 
 // This module runs only on the server at submission. No client-supplied mapping
 // or rate can authorize a price. The approved catalog is never mutated here.
@@ -399,7 +400,7 @@ export function catalogResolution(mapping:Mapping,configuration:EstimatorConfigu
     for(const id of t.existingLineIds){
       const line=existing.find(l=>l.id===id);
       if(result.removeLineIds?.includes(id)||!line||line.quantity*line.unitCost<=0)result.issues.push(`${t.description}: invalid existing price reference.`);
-      else if(['materials','subcontractors'].includes(line.category)&&ownerSuppliesMaterial(t,line.quantity,line.unit,line.description))result.issues.push(`${t.description}: owner-supplied material cannot be charged through a contractor material or supply-and-install package.`);
+      else if(['materials','subcontractors'].includes(line.category)&&ownerSuppliesMaterial(t,line.quantity,line.unit,line.description,scope,line.category==='materials'))result.issues.push(`${t.description}: owner-supplied material cannot be charged through a contractor material or supply-and-install package.`);
       else{
         const overage=purchasingOverage(t,line,scope,mapping.tasks.length);
         if(overage)result.assumptions.push(`${line.description}: ${line.quantity} ${line.unit} purchased for ${overage.installed} ${line.unit} installed, which includes about ${overage.percent}% for cuts and waste.`);
@@ -410,7 +411,7 @@ export function catalogResolution(mapping:Mapping,configuration:EstimatorConfigu
       const rate=configuration.planningCatalog?.rates.find(r=>r.code===a.code);
       const regional=configuration.regionalRates?.find(r=>r.id===a.code);
       const rateUnit=rate?.unit||regional?.unit||'';
-      if((rate?.type==='Material'||rate?.type==='Subcontractor'||regional?.category==='materials'||regional?.category==='subcontractors')&&ownerSuppliesMaterial(t,a.quantity,rateUnit,rate?.description||regional?.description||a.code)){
+      if((rate?.type==='Material'||rate?.type==='Subcontractor'||regional?.category==='materials'||regional?.category==='subcontractors')&&ownerSuppliesMaterial(t,a.quantity,rateUnit,rate?.description||regional?.description||a.code,scope,rate?.type==='Material'||regional?.category==='materials')){
         result.issues.push(`${t.description}: owner-supplied material cannot be charged through a contractor material or supply-and-install package.`);
         continue;
       }
@@ -507,7 +508,10 @@ function actionClaims(textValue:string,unit:string,action:'supply'|'install',exc
   }
   return result;
 }
-function ownerSuppliesMaterial(task:Mapping['tasks'][number],quantity?:number,unit='',componentDescription=''){
+function ownerSuppliesMaterial(task:Mapping['tasks'][number],quantity?:number,unit='',componentDescription='',scope?:ReviewedScope,materialOnly=false){
+  // Owner-provided products do not make explicitly requested contractor consumables free.
+  // This exception never admits a combined supply-and-install package.
+  if(materialOnly&&scope&&contractorConsumableIncluded(scope,componentDescription))return false;
   const text=`${task.description}. ${task.evidence}`;
   if(!OWNER_SUPPLIED.test(text))return false;
   // Owner supply is judged in the clause that names THIS item. Live 2026-09-22: "supply and install one
@@ -673,7 +677,7 @@ export function marketResolution(raw:unknown,urls:string[],tasks:Mapping['tasks'
       result.issues.push(`${t.description}: unsupported pricing unit ${JSON.stringify(r.unit)}; provide a sourced supported unit or focused clarification.`);
       continue;
     }
-    if(r.basis!=='trade-labor'&&ownerSuppliesMaterial(t,r.quantity,r.unit,r.description)){
+    if(r.basis!=='trade-labor'&&ownerSuppliesMaterial(t,r.quantity,r.unit,r.description,scope,r.basis==='material-purchase')){
       result.issues.push(`${t.description}: owner-supplied material permits a labor-only rate, not a material or supply-and-install package.`);
       continue;
     }
@@ -735,7 +739,7 @@ export function planningResolution(raw:unknown,tasks:Mapping['tasks'],now:Date,o
       result.issues.push(`${t.description}: unsupported pricing unit ${JSON.stringify(r.unit)}; provide a sourced supported unit or focused clarification.`);
       continue;
     }
-    if(r.basis!=='trade-labor'&&ownerSuppliesMaterial(t,r.quantity,r.unit,r.description)){result.issues.push(`${t.description}: owner-supplied material permits a labor-only rate, not a material or supply-and-install package.`);continue;}
+    if(r.basis!=='trade-labor'&&ownerSuppliesMaterial(t,r.quantity,r.unit,r.description,scope,r.basis==='material-purchase')){result.issues.push(`${t.description}: owner-supplied material permits a labor-only rate, not a material or supply-and-install package.`);continue;}
     const unresolved=unresolvedQuantityIssue(t);
     const hasAllowance=/^ALLOWANCE\s*:/i.test(r.quantityEvidence)&&Boolean(r.quantityRange);
     if(unresolved&&!hasAllowance)result.issues.push(unresolved);
@@ -762,6 +766,7 @@ export function planningResolution(raw:unknown,tasks:Mapping['tasks'],now:Date,o
  * unverified pricing stays blocking. */
 export function advisoryIssue(text:string):boolean{
   const t=text.toLowerCase();
+  if(confirmedMissingComponent(t))return false;
   // Contract timing is not pricing. Live on the Marcliffe RE-10, "which completion deadline governs:
   // 8 business days or the form's 10-day default? Price and scope are otherwise unaffected" withheld
   // the whole price. A timing finding is disclosed unless it also names cost, quantity or missing work.
@@ -824,6 +829,7 @@ export function carriedOutRemark(issue:string,carried:{id:string;description:str
  * out of scope. */
 export function pricedTaskRemark(issue:string,pricedTasks:{id:string;description:string}[]):boolean{
   const t=issue.toLowerCase();
+  if(confirmedMissingComponent(t))return false;
   // Only this one shape is released: the complaint is that a priced line's stated inclusions do
   // not visibly reach every incidental of the task. Anything naming omitted work, an unpriced
   // component, an owner-supplied responsibility, a duplicate, a quantity conflict or a wrong unit
@@ -860,18 +866,22 @@ export function coreProjectTask(task:{description:string;evidence?:string},answe
 const STATED_DUPLICATE=/double[- ]count|\b(?:is|are) duplicated\b|duplicatively|\bduplicates\b|confirmed duplicate|(?:charged|billed|priced) twice|\boverlaps?\b|\boverlapping\b/;
 const HARD_DEFECT=/does not match the explicit|disagrees with the (?:stated|explicit|confirmed)|contradicts the (?:stated|explicit|confirmed)|wrong (?:unit|uom)|out of scope|not (?:been )?requested|was not requested|does not reconcile with the confirmed|assign every priced component to a building|disagrees with|omitted from|not converted into a priced line|no positive priced line carries|^missing quantity:/;
 const HEDGED=/\b(?:may|might|could|possibl(?:e|y)|potential(?:ly)?|cannot be ruled out|verify whether|check whether|confirm whether|unresolved overlap)\b/;
+/** A positive parent task does not prove that its explicitly required component is priced. */
+export function confirmedMissingComponent(issue:string):boolean{
+  return /\bno positive (?:(?:priced|material|labor|cost) )?(?:line|component|allowance) (?:covers|includes|carries)\b|\b(?:requested|required|contractor[- ](?:provided|supplied))\b.{0,100}\b(?:is|are|remains?) (?:unpriced|omitted)\b/i.test(issue);
+}
 /** Does this finding state, as fact, that two priced lines charge for the same work? Only then may the
  * correction act on it: the costliest line stays, the rest leave the total, and the change is
  * disclosed. Anything tentative ("may overlap", "verify whether") still withholds the estimate, and so
  * does a hard defect, which is a different problem that removing a line would hide. */
 export function correctableDuplicate(issue:string):boolean{
   const t=issue.toLowerCase();
-  return STATED_DUPLICATE.test(t)&&!HEDGED.test(t)&&!HARD_DEFECT.test(t);
+  return !confirmedMissingComponent(t)&&STATED_DUPLICATE.test(t)&&!HEDGED.test(t)&&!HARD_DEFECT.test(t);
 }
 const namesTask=(text:string,task:{id:string;description:string})=>new RegExp(`(?:^|[^\\w-])${task.id.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g,'\\$&')}(?![\\w-])`).test(text)||text.includes(task.description.toLowerCase());
 export function findingBlocks(issue:string,tasks:{id:string;description:string}[],pricedTasks:{id:string;description:string}[],carried:{id:string;description:string}[]=[]):boolean{
   const t=issue.toLowerCase();
-  if(HARD_DEFECT.test(t))return true;
+  if(HARD_DEFECT.test(t)||confirmedMissingComponent(t))return true;
   if(STATED_DUPLICATE.test(t)&&!HEDGED.test(t))return true;
   return tasks.some(task=>namesTask(t,task)&&!pricedTasks.some(p=>p.id===task.id)&&!carried.some(c=>c.id===task.id));
 }
@@ -940,7 +950,7 @@ function mergeMappings(parts:Mapping[]):Mapping{
  * change it. It is the one review item that is a handoff, not a question. */
 /** Split a list into consecutive groups of `size`; the last group may be shorter. */
 const batchesOf=<T,>(items:T[],size:number):T[][]=>{const out:T[][]=[];for(let start=0;start<items.length;start+=size)out.push(items.slice(start,start+size));return out;};
-export const HANDOFF_ISSUE='Automatic pricing could not finish for part of this scope. Your project and details are saved, and a person will complete your estimate and email it - nothing further is needed from you.';
+export const HANDOFF_ISSUE='Automatic pricing could not finish for part of this scope. Your project and details are saved. Please contact our team for help completing your estimate.';
 const WHOLE_BUILDING=new Set(['new-construction','addition','adu']);
 /** True when nothing the customer supplied changes what the planning model prices. */
 export function wholeBuildingPlanningBudget(scope:ReviewedScope,extraction:ReviewedScope['extraction'],restricted:boolean):boolean{
@@ -1294,16 +1304,16 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
     const seenRules=new Set<string>();const repeated:string[]=[];
     resolution.rules=resolution.rules.filter(rule=>{const key=ruleKey(rule);if(seenRules.has(key)){repeated.push(rule.description);return false;}seenRules.add(key);return true;});
     if(repeated.length)resolution.assumptions.push(`Removed ${repeated.length} repeated component${repeated.length===1?'':'s'} so nothing is billed twice: ${[...new Set(repeated)].join('; ')}.`);
-    const offCategory=(category:string,keep:(c:string|undefined)=>boolean)=>{
-      const removeBase=lines.filter(l=>!resolution.removeLineIds?.includes(l.id)&&!keep(l.category)).map(l=>l.id);
-      const removeRules=resolution.rules.filter(rule=>!keep((rule as {category?:string}).category)).map(rule=>rule.description);
+    const offCategory=(category:string,keep:(c:string|undefined,description:string)=>boolean)=>{
+      const removeBase=lines.filter(l=>!resolution.removeLineIds?.includes(l.id)&&!keep(l.category,l.description)).map(l=>l.id);
+      const removeRules=resolution.rules.filter(rule=>!keep(rule.category,rule.description)).map(rule=>rule.description);
       if(removeBase.length||removeRules.length){
         resolution.removeLineIds=[...new Set([...(resolution.removeLineIds||[]),...removeBase])];
-        resolution.rules=resolution.rules.filter(rule=>keep((rule as {category?:string}).category));
+        resolution.rules=resolution.rules.filter(rule=>keep(rule.category,rule.description));
         resolution.assumptions.push(`Per the ${category} instruction, ${removeBase.length+removeRules.length} component${removeBase.length+removeRules.length===1?' was':'s were'} left out of the range.`);
       }
     };
-    if(pricingExtraction?.instructions?.laborOnly)offCategory('labor-only',c=>c==='field-labor');
+    if(pricingExtraction?.instructions?.laborOnly)offCategory('labor-only',(c,description)=>c==='field-labor'||c==='materials'&&contractorConsumableIncluded(pricingScope,description));
     if(pricingExtraction?.instructions?.materialsOnly)offCategory('materials-only',c=>c==='materials');
     const allLines=[...lines.filter(l=>!resolution.removeLineIds?.includes(l.id)),...resolution.rules];
     const confirmedHours=Number(scope.answers.laborHours);
