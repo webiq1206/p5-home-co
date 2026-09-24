@@ -1,7 +1,7 @@
 {
  "source": "boise-remodeling-co",
- "commit": "c5441ed54995a6e541b4e95f0e4a2f998c076ece",
- "generatedAt": "2026-09-24T13:40:12.067Z",
+ "commit": "c869e0227931962c0312106ee57cccaa16c698ea",
+ "generatedAt": "2026-09-24T13:51:04.779Z",
  "note": "Shared estimator files. Edit them in boise-remodeling-co and run scripts/p5-sync.mjs; never edit them in one brand.",
  "files": {
   "app/admin/p5-estimators/page.tsx": "80b9e20e4144c34a9f78033ab1b84e2555e42c44e670050b9e0fcbffa477512e",
@@ -19,7 +19,7 @@
   "app/api/p5-estimator/upload/route.ts": "30513ebab4a4f175e0f31d03efceaf020ac3f6cc0d104a6d1779fe5580a14907",
   "components/P5EstimateDetails.tsx": "8f1cab0d2f3d7cd63c83ebfcf076fbb79679d8a8f2a833ccc31f325f21636427",
   "components/P5Estimator.module.css": "a9b334bc15f38deb8e725664497de77509b52bd12309e8b589bec4846da33b89",
-  "components/P5Estimator.tsx": "ed7799ad59da152f8254f694fefbf71e5c5e8937fa15cda692c519a3369214cd",
+  "components/P5Estimator.tsx": "ce36da19abfa131580ac44a881ec0d7e3e61b0fe1124202b226140b627186ddb",
   "components/P5LinePricing.tsx": "9e0359cd6bff8226f491daab60c5ef468cc2f60dda67ee632910eaf5094b741d",
   "components/P5OverheadReview.tsx": "ea137874fedfde8551b375d56cdc1999a196c615dab034a22da04a3a6f03c3f0",
   "components/P5PriceReferences.tsx": "bd4bd0f88b5f1079ec21df963faf35cf1a0ec629fa66328fe8e537597a900b26",

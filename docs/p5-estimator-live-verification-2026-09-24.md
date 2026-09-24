@@ -29,7 +29,8 @@ The Construction administrator page requires sign-in. The available Replit conne
 5. Read progress from the persisted job input used by the worker. An isolated PostgreSQL jsonb roundtrip reproduced the key-order mismatch between request objects and stored worker objects. Existing work keys, completed replies and accounting are preserved; only progress lookup changes.
 6. Recognize explicitly measured baseboard installation despite dimensions and common material adjectives, avoiding the redundant service question.
 7. Remove the unsupported promise that a person will automatically finish and email a failed estimate. The failed-pricing branch creates no delivery record. Waiting copy asks the visitor to choose email instead of promising email before an address has been supplied.
-8. Advance the estimator version to invalidate incompatible cached release results. Synchronize 277 shared files and preserve brand-owned adapters.
+8. Fix validation focus before publishing the final release: the first GitHub browser pass reproduced email text appended to the name after submitting an empty contact. Validation focus now happens synchronously; later scrolling runs only while that field remains active. The existing browser assertions continue checking both field values across 320, 390 and 1,440 px; no assertion was relaxed.
+9. Advance the estimator version to invalidate incompatible cached release results. Synchronize 277 shared files and preserve brand-owned adapters.
 
 ## Validation evidence before publication
 
@@ -39,7 +40,7 @@ The Construction administrator page requires sign-in. The available Replit conne
 - Remodeling and P5 production builds passed; Remodeling TypeScript passed.
 - Actual owner-book PB-12-39-06 was read locally and resolved to Cabinets.
 - Repository-wide P5 lint remains non-clean. The run reported 670 errors and 94 warnings before cleanup of newly added test typings; this is not a clean lint result. Existing broad lint debt is not treated as estimator verification.
-- GitHub main-triggered workflows provide full child-brand tests, TypeScript/build, persistence/recovery and browser verification on the published commits. Consult the exact commit's Actions runs for final CI status.
+- GitHub main-triggered workflows provide full child-brand tests, TypeScript/build, persistence/recovery and browser verification on the published commits. The first pass completed conversation/recovery builds and document checks in all five, but browser checks caught the validation-focus defect above. A follow-up commit repairs that defect. Consult the exact final commit's Actions runs for final CI status.
 
 All model replies in regression fixtures are synthetic; their prices are test data. Local tests do not prove deployed model performance. Build-generated marketing PDFs were restored and excluded from this repair.
 

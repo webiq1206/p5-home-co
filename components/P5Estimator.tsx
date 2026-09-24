@@ -440,7 +440,13 @@ export function P5Estimator({defaultService='',headingAs='h1',projectSource,layo
       const url=URL.createObjectURL(await response.blob());const link=document.createElement('a');link.href=url;link.download=`${brand.id}-estimate-version-${revision}.pdf`;link.hidden=true;document.body.appendChild(link);try{link.click();}finally{link.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);}});
   }
   async function downloadPdf(){let saved=false;setPdfState('preparing');await run('Preparing your PDF...',async()=>{const response=await operationFetch('/api/p5-estimator/pdf',{headers:draftHeaders(current.current!)});if(!response.ok)throw new Error('The PDF could not be downloaded. Your submission is saved; please retry.');const blob=await response.blob();if(!blob.size||!blob.type.toLowerCase().includes('application/pdf'))throw new Error('The PDF is not ready. Your estimate is saved; please retry.');const url=URL.createObjectURL(blob);const link=document.createElement('a');link.href=url;link.download=`${brand.id}-estimate.pdf`;link.hidden=true;document.body.appendChild(link);try{link.click();saved=true;}finally{link.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);}});setPdfState(saved?'downloaded':'failed');}
-  const focusCorrection=(element:HTMLElement|null)=>requestAnimationFrame(()=>{if(!element)return;element.focus({preventScroll:true});scrollThread(element,'center');});
+  const focusCorrection=(element:HTMLElement|null)=>{
+    if(!element)return;
+    // The invalid field already exists. Focus it before returning from submit:
+    // deferred focus can steal the next field's input event and mix contact values.
+    element.focus({preventScroll:true});
+    requestAnimationFrame(()=>{if(document.activeElement===element)scrollThread(element,'center');});
+  };
   async function submit(event:React.FormEvent){
     event.preventDefault();if(busyRef.current)return;if(draft?.step!==2){await begin();return;}
     try{requireRecoveredFiles();}catch(error){setError(error instanceof Error?error.message:'Reselect your original files before continuing.');return;}
