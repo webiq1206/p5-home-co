@@ -1,7 +1,7 @@
 {
  "source": "boise-remodeling-co",
- "commit": "b5c23529a2f71c72c2a428b33c993834e4c13877",
- "generatedAt": "2026-09-24T07:43:35.017Z",
+ "commit": "b420a82fc270b38cd39bc7c03cf559b8e96defa6",
+ "generatedAt": "2026-09-24T07:49:12.504Z",
  "note": "Shared estimator files. Edit them in boise-remodeling-co and run scripts/p5-sync.mjs; never edit them in one brand.",
  "files": {
   "app/admin/p5-estimators/page.tsx": "80b9e20e4144c34a9f78033ab1b84e2555e42c44e670050b9e0fcbffa477512e",
@@ -31,7 +31,7 @@
   "lib/p5/analysisProgress.ts": "2f41c2b12c5b6551241967b63c6f36479e5b41f799811b81b55e92ab8a6eb539",
   "lib/p5/analysisReuse.ts": "13924551868e07118029a87e1c48d356a3b52089bab528fe57711ae66ab01681",
   "lib/p5/analysisSegments.ts": "eeb29e2b84ac0d1523c907deaefdc7668a31e2b6e3923d72f8a7faa249fd8b88",
-  "lib/p5/analysisWork.ts": "a25574ef10bafc4818de36d113761168758020a8876e0a1669a4d8a22dc3d982",
+  "lib/p5/analysisWork.ts": "7ab729783ad1e51704b0f771141f967106453999dd8dbf13f67715c68701edbe",
   "lib/p5/answerParsing.ts": "927192edee8ed4d381374647c4735d433b9e2387618034cd0f55bdc2f5be2eb6",
   "lib/p5/assistantContinuation.ts": "2990139f6bc41a17014338abc819207b02fce2bed37504294e8e8f908934d3c2",
   "lib/p5/atomicQuestions.ts": "db3fc445abcd527b2618508c34a26e84e2bc096a8d0f0f95a316c9dd3e044b7c",

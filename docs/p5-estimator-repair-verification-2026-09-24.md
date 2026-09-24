@@ -21,7 +21,7 @@ Shared source remains Remodeling. The shared manifest tracks 275 files; brand da
 | Repository | Full test run | Production build | TypeScript |
 | --- | --- | --- | --- |
 | boise-remodeling-co | 669 passed, 6 skipped, 0 failed | Passed | Passed |
-| p5-home-co | 1,277 passed, 15 skipped, 0 failed | Passed | Passed |
+| p5-home-co | 1,279 passed, 15 skipped, 0 failed | Passed | Passed |
 | Boise-Construction-Co | 674 passed, 7 skipped, 0 failed | Passed in an isolated source copy | Passed |
 | Boise-Handyman-Co | 677 passed, 7 skipped, 0 failed | Passed | Passed |
 | Boise-Cabinet-Co | 677 passed, 7 skipped, 0 failed | Passed | Passed |
@@ -38,7 +38,7 @@ Additional checks passed:
 - `scripts/test-p5-resumable.mts`: 25 MB upload, corrupted segment rejection, deduplication, authorization, byte comparison, all 250 pages, failed-page retry and final-page preservation. Storage and model responses were simulated. This is not an OCR accuracy benchmark.
 - `scripts/test-p5-workflow.mts`: draft authorization, atomic submission, customer delivery retry, ambiguous acknowledgement handling, manual review, distinct owner approvals, immutable history and customer/internal disclosure boundaries using captured transports.
 - `scripts/test-p5-pricing-qualification.mts`: 34 checks of accounting guards and captured PDF/email consistency, with zero provider network calls, business writes or external sends. CRM-off capture creates no CRM job.
-- Generated Remodeling customer PDF rendered and visually inspected across its two pages. Brand identity, category/total agreement, exclusions, assumptions, next steps and preliminary notice were present.
+- Generated customer PDFs for all five brands were rendered and visually inspected across both pages. Brand identity, category/total agreement, exclusions, assumptions, next steps and preliminary notice were present. The four additional PDFs came from the second GitHub CI pass; subsequent changes did not modify the PDF renderer. Phone review/result screenshots for P5, Handyman and Cabinet were also inspected.
 
 Build-generated marketing resources were restored to their pre-test versions; they are not part of this repair. Cabinet's first CI pass also detected two stale entries in its generated image-variant manifest. The manifest was regenerated from the existing build assets and committed; the source-integrity check remains enabled. Local repeated Next builds encountered stale `.next/export` directory cleanup errors in two children. Handyman passed after its disposable output was moved aside. Construction passed in an isolated `/tmp` source copy using the same dependencies and assets, without changing production logic.
 
@@ -71,3 +71,5 @@ Browser qualification was updated to the approved bottom action and optional-ema
 The second pass confirmed conversation/recovery and document-adapter builds across all five sites, P5's actual PostgreSQL/document-service workflow, and Cabinet's desktop/mobile E2E suite. The broader browser suite passed its normal workflow scenarios but still used retired progress headings; its assertions now match the material-aware stage labels and also require the ETA and wait choice.
 
 Construction's stricter source-coverage gate exposed a real diagnostic gap: its incomplete local read discarded the unread-page explanation. A typed failure now carries that explanation into the draft, while still refusing incomplete source acceptance. Background reading preserves the source/page failure and waits for explicit retry after per-page attempts are exhausted. Construction's 25 MB/250-page test passed locally with the final-page and retry-without-rereading checks; the isolated worker test passed actionable-failure and explicit-retry recovery.
+
+P5 uses Node native TypeScript loading for its full prebuild suite. The incomplete-source error class uses explicit property assignment for that loader. The final full local native-loader run passed 1,279 tests with 15 explicitly skipped and zero failures.

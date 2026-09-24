@@ -27,8 +27,10 @@ const PREPARE_WINDOW_MS=Number(process.env.P5_PREPARE_WINDOW_MS||25_000);
 
 /** Preserve actionable source failures without accepting an incomplete read. */
 export class IncompleteAnalysisError extends DraftError {
-  constructor(readonly reviewNotes:string[]){
+  readonly reviewNotes:string[];
+  constructor(reviewNotes:string[]){
     super(['Some local files could not be completely read. Your files and completed sections are saved. Use Retry or replace the unreadable file before continuing.',...reviewNotes].join(' '),422);
+    this.reviewNotes=reviewNotes;
   }
 }
 
