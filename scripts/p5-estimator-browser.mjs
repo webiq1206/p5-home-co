@@ -220,7 +220,7 @@ for(const width of [320,390,1440]){
   await est.getByRole('button',{name:'Continue',exact:true}).click({timeout:120000});
   await page.getByText('8 of 250 pages checked',{exact:true}).waitFor();
   assert.equal(await page.getByRole('progressbar',{name:'Original pages checked'}).getAttribute('value'),'8');
-  await page.getByRole('heading',{name:'Reading your documents',exact:true}).waitFor();await overflow(page);await capture(page,`${width}-live-reading`);
+  await page.getByRole('heading',{name:'Reviewing your documents',exact:true}).waitFor();await page.getByTestId('p5-eta').waitFor();await overflow(page);await capture(page,`${width}-live-reading`);
   progressState.readStage=2;
   await page.getByText('16 of 250 pages checked',{exact:true}).waitFor();
   progressState.finishReading=true;
@@ -236,10 +236,10 @@ for(const width of [320,390,1440]){
   assert.equal(await est.getByLabel('Your name',{exact:true}).inputValue(),'Synthetic Test','Contact name must survive adjacent field edits');
   assert.equal(await est.getByLabel(/^Email/).inputValue(),width===390?'':'customer@example.invalid','Optional contact email must survive adjacent field edits');
   await est.getByRole('button',{name:'Get my estimate',exact:true}).click();
-  await page.getByRole('heading',{name:'Pricing your project',exact:true}).waitFor();
+  await page.getByRole('heading',{name:'Applying pricing',exact:true}).waitFor();
   assert.equal(await page.getByRole('progressbar',{name:'Original pages checked'}).count(),0,'Document progress must not become a fabricated pricing percentage');
   progressState.pricingStage='research';
-  await page.getByRole('heading',{name:'Preparing your estimate',exact:true}).waitFor();await overflow(page);await capture(page,`${width}-live-pricing`);
+  await page.getByRole('heading',{name:'Applying pricing',exact:true}).waitFor();await page.getByText('Checking published cost evidence for the trim package.',{exact:true}).waitFor();await page.getByTestId('p5-wait-choice').getByRole('button',{name:'Stay here',exact:true}).click();await overflow(page);await capture(page,`${width}-live-pricing`);
   progressState.pricingStage='done';
   await est.getByText('Synthetic planning range.',{exact:true}).waitFor();if(width===390){await est.getByText('Your estimate is saved here. You can download your PDF below.',{exact:true}).waitFor();assert.equal(await est.getByText('Not requested',{exact:true}).count(),1);}results.push({width,scenario:'live-progress',passed:true});
  }catch(error){results.push({width,scenario:'live-progress',passed:false,error:String(error)});await capture(page,`${width}-progress-failure`).catch(()=>{});}await context.close();

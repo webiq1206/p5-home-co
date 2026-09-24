@@ -25,6 +25,13 @@ import {advanceMixedDocumentAnalysis,assertAnalysisMigrationSafe,assertCompleteS
  * mostly idle. The queue cap (twice the read concurrency) still bounds each pass. */
 const PREPARE_WINDOW_MS=Number(process.env.P5_PREPARE_WINDOW_MS||25_000);
 
+/** Preserve actionable source failures without accepting an incomplete read. */
+export class IncompleteAnalysisError extends DraftError {
+  constructor(readonly reviewNotes:string[]){
+    super(['Some local files could not be completely read. Your files and completed sections are saved. Use Retry or replace the unreadable file before continuing.',...reviewNotes].join(' '),422);
+  }
+}
+
 type Unit={name:string;type:string;object:string;uploadId?:string;pages?:AnalysisFile['pages'];text?:string;context?:string;detailViews?:boolean;detailRegions?:AnalysisFile['detailRegions'];result?:AnalysisResult;attempts?:number;rateLimitRetries?:number;error?:string;lastCode?:string;retryAt?:number;active?:boolean};
 type Job={prepared:number;units:Unit[];notes:string[];preparationFailures?:string[];textDone?:AnalysisResult;textPrepared?:boolean;cursor?:number;expected?:{source:string;page:number}[];progress?:string;processing?:ProcessingStatus;concurrency?:number;cooldownUntil?:number};
 /** Reads of one section before it is reported as unread. Each attempt may use
@@ -294,7 +301,7 @@ async function advanceLocalAnalysis(draft:Draft,text:string,answers:ScopeAnswers
     if(job.preparationFailures?.length){const coverage=extraction.documentCoverage||{pages:[],expectedPages:job.expected?.length||0,complete:false};extraction.documentCoverage={...coverage,complete:false};}
     const unread=job.units.filter(u=>!u.result).length;
     event('complete',unread?'failed':'ok',{meta:{sections:job.units.length,unread,pages:job.expected?.length||0,files:draft.uploads.length}});
-    if(requireComplete&&(unread||job.notes.length||job.preparationFailures?.length||extraction.documentCoverage?.complete===false))throw new DraftError('Some local files could not be completely read. Your files and completed sections are saved. Use Retry or replace the unreadable file before continuing.',422);
+    if(requireComplete&&(unread||job.notes.length||job.preparationFailures?.length||extraction.documentCoverage?.complete===false))throw new IncompleteAnalysisError(extraction.reviewNotes);
     if(requireComplete)assertCompleteSourceCoverage(extraction,draft.uploads.map(sourceName),job.expected,Boolean(job.expected?.length));
     return {pending:false as const,version,analysis:{...last,extraction,analyzedAt:new Date().toISOString()},expectedPages:job.expected,processing:job.processing};
   }finally{await releaseWork(draft.id,workKey,lease.token);}

@@ -1,6 +1,6 @@
 import {ProcessingDeadlineError,PROCESSING_PAUSED,isProcessingDeadline} from './processingBudget.ts';
 import {applyCabinetIntent} from "./projectIntent.ts";
-import {advanceAnalysis} from "./analysisWork.ts";
+import {advanceAnalysis,IncompleteAnalysisError} from "./analysisWork.ts";
 import {queuedJob} from './backgroundJobs.ts';
 import {manualScopeAnswers,reconcileScope,scopeQuestionsForBrand as scopeQuestions} from "./adaptive.ts";
 import {costQuestionFields} from "./questionPolicy.ts";
@@ -100,7 +100,7 @@ export async function postScope(request:Request){
     // derived from these same documents are re-derived, so a retry after a
     // partial read keeps the same work key and never re-bills finished pages.
     const visitorAnswers=applyCabinetIntent(text,ESTIMATOR_BRAND.services,manualScopeAnswers(analysisDraft.answers,analysisDraft.extraction,analysisDraft.wizard?.resolutions||{})).answers;
-    let analysis=null;let warning="";
+    let analysis=null;let warning="";let failedSourceNotes:string[]=[];
     try{
       if(checkpointed){
         const background=form.get('background')==='true';
@@ -134,6 +134,7 @@ export async function postScope(request:Request){
       const detail=describeError(error);
       void recordEvent({draftId:id,estimator:visitorAnswers.service||null,kind:'analysis',stage:'scope-request',code:detail.code,status:detail.status,message:detail.message,outcome:'failed'});
       warning=scopeAnalysisFailureWarning(Boolean(analysisDraft.uploads.length));
+      if(error instanceof IncompleteAnalysisError)failedSourceNotes=error.reviewNotes;
     }
     // Copy before applying intent: a stored or reused result must never be mutated in place.
     if(analysis)analysis={...analysis,extraction:applyCabinetIntent(text,ESTIMATOR_BRAND.services,visitorAnswers,analysis.extraction).extraction!};
@@ -141,7 +142,7 @@ export async function postScope(request:Request){
     const merged=analysis?reconcileScope(visitorAnswers,analysis.extraction,resolutions):{answers:{...analysisDraft.answers,...visitorAnswers},conflicts:[]};
     const wizard={instructionAnswers:sourceChanged?[]:analysisDraft.wizard?.instructionAnswers||[],skipped:sourceChanged?[]:analysisDraft.wizard?.skipped||[],resolutions,sourceVersion:analysis?version:sourceChanged?undefined:analysisDraft.wizard?.sourceVersion};
     // Partial analysis is visible and prevents unread documents from being priced.
-    const safeExtraction=warning?{...extraction,summary:extraction?.summary||text,facts:extraction?.facts||[],conflicts:extraction?.conflicts||[],missingInformation:extraction?.missingInformation||[],reviewNotes:[...new Set([...(extraction?.reviewNotes||[]),warning])]}:extraction;
+    const safeExtraction=warning?{...extraction,summary:extraction?.summary||text,facts:extraction?.facts||[],conflicts:extraction?.conflicts||[],missingInformation:extraction?.missingInformation||[],reviewNotes:[...new Set([...(extraction?.reviewNotes||[]),...failedSourceNotes,warning])]}:extraction;
     const analyzedAnswers=analysis?JSON.stringify(Object.entries(merged.answers).filter(([field,value])=>SCOPE_FIELDS[field as keyof typeof SCOPE_FIELDS].kind==='text'&&value?.trim()).sort(([a],[b])=>a.localeCompare(b))):undefined;
     const saved=await saveDraft(id,key,ESTIMATOR_BRAND.id,{text,answers:merged.answers,extraction:safeExtraction,reviewed:null,contact:analysisDraft.contact,wizard,analyzedFingerprint:analysis?scopeFingerprint(text):undefined,analyzedAnswers},draft.revision);
     if(requested.some(digest=>!saved.uploads.some(file=>file.sha256===digest)))throw new DraftError("Some files could not be confirmed. Please retry; duplicate files will not be added twice.",503);

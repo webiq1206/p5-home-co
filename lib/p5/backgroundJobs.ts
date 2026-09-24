@@ -252,6 +252,11 @@ async function runPass(draftId:string,workKey:string):Promise<number|null>{
     if(isProcessingDeadline(error)&&!jobExpired(job)){
       // The pass ran out of time, not the work. Saved stages resume on the next pass.
       job.progress='Continuing where the previous step stopped. Completed work is saved.';job.retryAt=Date.now()+250;again=250;
+    }else if(job.input.kind==='analysis'&&error instanceof DraftError&&error.status===422){
+      // The reader already exhausted its per-page attempts. Preserve the
+      // actionable source/page message and wait for an explicit customer retry.
+      job.state='failed';job.attempts=3;job.progress=error.message;delete job.retryAt;again=null;
+      void recordEvent({draftId,estimator:job.input.draft.answers?.service||null,kind:'analysis',stage:'job-pass',status:422,code:'incomplete-source',message:error.message,outcome:'failed'});
     }else{
       job.attempts++;job.retryAt=Date.now()+Math.min(60000,job.attempts*10000);
       job.state=job.attempts>=3?'failed':'queued';
