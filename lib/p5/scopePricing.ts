@@ -50,7 +50,7 @@ const mappingSchema=z.object({tasks:z.array(task).min(1).max(150),issues:remarks
 type Mapping=z.infer<typeof mappingSchema>;
 // A section may hold nothing priceable (live 2026-09-21: a budget with every quantity removed); requiring a
 // task there threw a validation error and handed the whole estimate to a person.
-const inventorySchema=z.object({tasks:z.array(z.object({id:text,description:z.string().min(1).max(400),evidence:z.string().min(1).max(600),origin:z.enum(['requested','required']).default('requested'),basis:z.string().max(400).default('')}).strict()).max(150),issues:remarks(100),notes:remarks(100).default([]),dependencies:z.array(z.string().max(400)).max(40).default([])}).strict();
+const inventorySchema=z.object({tasks:z.array(z.object({id:text,description:z.string().min(1).max(400),evidence:z.string().min(1).max(600),origin:z.enum(['requested','required']).default('requested'),basis:z.string().max(400).default('')}).strict()).max(5000),issues:remarks(100),notes:remarks(100).default([]),dependencies:z.array(z.string().max(400)).max(40).default([])}).strict();
 const observation=z.object({url:z.string().url(),low:positive,high:positive,unit:text,costBasis:z.enum(['material-purchase','subcontractor-installed','trade-labor']),publishedAt:z.string(),region:text,excerpt:z.string().min(1).max(220),sourceType:z.enum(['regional-guide','national-guide']),dateBasis:z.enum(['published','retrieved'])}).strict();
 const costEvidence=z.object({url:z.string().url(),publishedAt:z.string(),dateBasis:z.enum(['published','retrieved']),region:text,excerpt:z.string().min(1).max(220)}).strict();
 const landedCost=z.object({taxRate:z.number().finite().min(0).max(1),freightPerUnit:z.number().finite().min(0).max(10000000),taxOnFreight:z.boolean(),taxEvidence:costEvidence,freightEvidence:costEvidence}).strict();
@@ -361,20 +361,14 @@ const PRICING_FANOUT=Math.max(1,Number(process.env.P5_PRICING_FANOUT||5));
  * writes, so smaller batches side by side finish sooner: live, a 6-task batch took 103 s while the
  * rest took 28 to 72 s. */
 const MAP_BATCH=Math.max(1,Number(process.env.P5_MAP_BATCH||4));
-/** The most mapping calls one round may make, however many tasks it holds.
- *
- * Batch size alone does not bound anything: the number of calls grows with the scope, and the scope
- * is not ours to limit. Live 2026-09-23, "remodel the primary bedroom and closet" was typed as a
- * whole-home project, drew in the whole-home planning book, and took 27 mapping calls and 495 s of a
- * 645 s estimate to price five items of work.
- *
- * So the batch grows instead of the call count. Every task is still mapped and nothing is dropped;
- * a large scope simply travels in fewer, fuller calls. That makes the worst case a number we choose
- * rather than a number the scope chooses. */
+/** Preferred mapping call count. Small scopes use compact batches; larger scopes fill them
+ * up to the response-safe maximum. Genuine large takeoffs can exceed this preference while
+ * retaining every task and the existing concurrency and request-budget controls. */
 const MAX_MAP_CALLS=Math.max(1,Number(process.env.P5_MAX_MAP_CALLS||8));
-/** Tasks per call for this round: the configured size, or larger when that would exceed the ceiling. */
+/** Prefer the call-count ceiling, but never overflow a model response to enforce it.
+ * Genuine large takeoffs need additional bounded-concurrency batches, not truncated scope. */
 export const mappingBatchSize=(tasks:number,batch=MAP_BATCH,ceiling=MAX_MAP_CALLS)=>
-  Math.max(1,batch,Math.ceil(Math.max(0,tasks)/Math.max(1,ceiling)));
+  Math.min(32,Math.max(1,batch,Math.ceil(Math.max(0,tasks)/Math.max(1,ceiling))));
 async function mapLimit<T,R>(items:T[],run:(item:T,index:number)=>Promise<R>):Promise<R[]>{
   const results:R[]=new Array(items.length);let next=0;
   await Promise.all(Array.from({length:Math.min(PRICING_FANOUT,items.length)},async()=>{while(next<items.length){const index=next++;results[index]=await run(items[index],index);}}));

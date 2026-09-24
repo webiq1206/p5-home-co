@@ -847,40 +847,27 @@ test('The same document answered the same way prices to the same number, without
  assert.equal(reusableResolution({rules:[],assumptions:[],issues:[]}),false);
  assert.equal(reusableResolution({rules:[{unitCost:5,quantity:{fixed:1,factor:1}} as never],assumptions:[],issues:['Something is unresolved']}),false);
 });
-test('Re-uploading one document prices the same even when the reader asks different questions',async()=>{
- const {documentScopeFingerprint,compatibleAnswers,answerEntries}=await import('../lib/p5/pricingCache.ts');
- const store=new Map<string,any>();
- const cache={async load(k:any){return store.get(k.fingerprint)||store.get(k.document)||null;},async save(k:any,e:any){store.set(k.fingerprint,e);store.set(k.document,e);}};
- const priced0={...extra,researchDescription:'',additions:[{code:'03-15-02-M',quantity:10,quantityEvidence:'Ten feet requested'}]};
- // First visit: the reader asked nothing beyond the form.
- const plain=scope;
+test('A new customer clarification invalidates a cached document price',async()=>{
+ const {documentScopeFingerprint,compatibleAnswers,answerEntries,pricingScopeFingerprint}=await import('../lib/p5/pricingCache.ts');
  const asked={...scope,answers:{...scope.answers,otherDetails:'Question: Which overlay finish?\nAnswer: the standard one'}};
- const first=await priceCompleteScope(plain,config,replies([
-   {tasks:[task,priced0],issues:[]},{coveredTaskIds:['cabinets','overlay'],issues:[]},
- ]),now,undefined,cache as never);
- assert.ok(first.customer.range);
- // Second visit, same document and typed scope, but this time the reader asked a clarification.
- const never=async()=>{throw new Error('the provider must not be called for a project already priced');};
- const again=await priceCompleteScope(asked,config,never as never,new Date(now.getTime()+3600000),undefined,cache as never);
- assert.deepEqual(again.customer.range,first.customer.range,'same project, same price');
- assert.equal(documentScopeFingerprint(scope,config),documentScopeFingerprint(asked,config),'answers do not change which project this is');
- // A visitor who states something different is asking for different work, and it prices again.
- const corrected={...scope,answers:{...scope.answers,cabinetBaseLf:'20'}};
- assert.equal(compatibleAnswers(answerEntries(plain),answerEntries(corrected)),false,'a changed measurement is a different project');
- assert.equal(compatibleAnswers(answerEntries(plain),answerEntries(asked)),true,'a question that was never asked is not a contradiction');
+ assert.equal(documentScopeFingerprint(scope,config),documentScopeFingerprint(asked,config),'document lookup can find the same source');
+ assert.notEqual(pricingScopeFingerprint(scope,config),pricingScopeFingerprint(asked,config),'the effective pricing identity changes');
+ assert.equal(compatibleAnswers(answerEntries(scope),answerEntries(asked)),false,'a new answer must be evaluated');
+ assert.equal(compatibleAnswers(answerEntries(asked),answerEntries(scope)),false,'removing a decision also needs evaluation');
 });
 test("The reader's own summary of a document does not make it a different project",async()=>{
  const {documentScopeFingerprint,pricingScopeFingerprint,compatibleAnswers,answerEntries}=await import('../lib/p5/pricingCache.ts');
  // Both sides are the SAME RE-10, read twice on boisehandyman.co. Every difference below is the
  // reader describing one document in its own words; the customer stated nothing different.
- const read1={...scope,uploads:[{id:'u1',name:'re10.pdf',type:'application/pdf',size:2048,sha256:'c'.repeat(64),status:'stored' as const}],
+ const rawRead1={...scope,uploads:[{id:'u1',name:'re10.pdf',type:'application/pdf',size:2048,sha256:'c'.repeat(64),status:'stored' as const}],
   answers:{...scope.answers,plumbing:'Reconfigure under sink trap assemblies; install vacuum breakers on all exterior hose bibs',
    taskList:'Fireplace: install ignition components, ensure operational; remove damper',
-   otherDetails:'Prior page items: chimney cap repair/cleaning, exterior venting boots',
-   estimatingInstructions:'Question: This page lists items 1-4\nAnswer: generic text'}};
- const read2={...read1,answers:{...scope.answers,plumbing:'Reconfigure under sink trap assemblies; install vacuum breakers on exterior hose bibs',
+   otherDetails:'Prior page items: chimney cap repair/cleaning, exterior venting boots'}};
+ const rawRead2={...rawRead1,answers:{...scope.answers,plumbing:'Reconfigure under sink trap assemblies; install vacuum breakers on exterior hose bibs',
    taskList:'Chimney cap: repair severe cracking; clean chimney bottom flashing buildup',
    otherDetails:'About 900 square feet'}};
+ const withEvidence=(v:typeof rawRead1)=>({...v,extraction:{summary:'Source review',facts:Object.entries(v.answers).filter(([field])=>['plumbing','taskList','otherDetails'].includes(field)).map(([field,value])=>({field:field as 'otherDetails',value,confidence:1,basis:'stated' as const,source:'re10.pdf',evidence:value})),conflicts:[],missingInformation:[],reviewNotes:[]}});
+ const read1=withEvidence(rawRead1),read2=withEvidence(rawRead2);
  assert.equal(documentScopeFingerprint(read1,config),documentScopeFingerprint(read2,config),'one document, one project');
  assert.equal(pricingScopeFingerprint(read1,config),pricingScopeFingerprint(read2,config),'and one priced identity');
  assert.equal(compatibleAnswers(answerEntries(read1),answerEntries(read2)),true,'so the saved price still applies');
@@ -1045,7 +1032,7 @@ test('ids stay strict, so a malformed one is never guessed at',async()=>{
 // Live 2026-09-23: "remodel the primary bedroom and closet" was typed as a whole-home project, drew
 // in the whole-home planning book, and spent 27 mapping calls and 495 s of a 645 s estimate pricing
 // five items of work. Batch size alone bounds nothing, because the call count grows with the scope.
-test('a large scope travels in fuller calls, never in more of them',async()=>{
+test('large mapping batches bound each response without dropping tasks',async()=>{
  const {mappingBatchSize}=await import('../lib/p5/scopePricing.ts');
  // Small scopes keep the configured batch size.
  assert.equal(mappingBatchSize(8,4,8),4,'two calls, nothing to do');
@@ -1053,7 +1040,11 @@ test('a large scope travels in fuller calls, never in more of them',async()=>{
  // Past it, the batch grows so the call count cannot.
  for(const tasks of [33,60,108,500]){
   const size=mappingBatchSize(tasks,4,8);
-  assert.ok(Math.ceil(tasks/size)<=8,`${tasks} tasks fit in eight calls (batch ${size})`);
+  assert.ok(size<=32,`${tasks} tasks use response-safe batches (batch ${size})`);
+  if(tasks<=256)assert.ok(Math.ceil(tasks/size)<=8,`${tasks} tasks still fit in eight calls`);
+  const items=Array.from({length:tasks},(_,i)=>i);
+  const batches=Array.from({length:Math.ceil(tasks/size)},(_,i)=>items.slice(i*size,(i+1)*size));
+  assert.deepEqual(batches.flat(),items,'every task travels exactly once');
   assert.ok(size>=4,`${tasks} tasks never shrink the batch below the configured size`);
  }
  // Every task is still carried: growing the batch must not drop work.

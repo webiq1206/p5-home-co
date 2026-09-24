@@ -77,16 +77,16 @@ try{
  await run(exhausted);assert.equal(attempts,3,'exhausted work never starts another paid call');
  assert.ok(Object.values((await payload(exhausted)).replies).some(value=>value.timeouts===3));
 
- const split=await newDraft();const sizes:number[]=[];
+ const split=await newDraft();const sizes:number[]=[];const completed:string[]=[];
  const tasks=Array.from({length:6},(_,i)=>({...task,id:'cabinet-'+i,description:'Synthetic component '+i}));
  provider.setProvider(async(_instructions:string,value:unknown)=>{
   const input=value as StageInput;
-  if(input.taskBatch){sizes.push(input.taskBatch.length);if(input.taskBatch.length>3)throw new ProcessingDeadlineError();return reply({tasks:input.taskBatch.map(item=>({...item,existingLineIds:lines,additions:[],researchDescription:'',issues:[]})),issues:[]});}
+  if(input.taskBatch){sizes.push(input.taskBatch.length);if(input.taskBatch.length>3)throw new ProcessingDeadlineError();completed.push(...input.taskBatch.map(item=>item.id));return reply({tasks:input.taskBatch.map(item=>({...item,existingLineIds:lines,additions:[],researchDescription:'',issues:[]})),issues:[]});}
   if('priorPricingIssues' in input)return reply({coveredTaskIds:tasks.map(item=>item.id),issues:[]});
   return reply({tasks,issues:[]});
  });
- await run(split);assert.deepEqual(sizes,[6,3,3]);
- await run(split);assert.deepEqual(sizes,[6,3,3],'timed-out large mapping stays split on replay');
+ await run(split);assert.deepEqual(sizes,[4,2,2,2]);assert.deepEqual([...completed].sort(),tasks.map(item=>item.id).sort(),'every task is completed exactly once');
+ await run(split);assert.deepEqual(sizes,[4,2,2,2],'timed-out large mapping stays split on replay');
  assert.equal((await db!.query('SELECT * FROM p5_estimator_work WHERE lease_token IS NOT NULL')).length,0);
  assert.equal((await db!.query('SELECT * FROM p5_estimator_outbox')).length,0);
  console.log('PASS: saved SQL pricing timeout recovers, completed work is reused, actual retries stop at three, large mappings stay split, and incomplete pricing creates no delivery. No live provider calls.');

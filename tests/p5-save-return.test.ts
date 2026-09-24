@@ -47,7 +47,8 @@ test('the time range follows the actual workload and shrinks as work finishes; p
   const fewer=remainingRange(at('reading',{totalPages:48,readPages:36}),docs,'analysis')!;
   assert.ok(many.high>fewer.high,'fewer pages left, less time left');
   const text=remainingRange(at('reading'),projectMaterials([],'Paint two rooms.'),'analysis')!;
-  assert.ok(text.high<=40,'a typed description is quick');
+  assert.ok(text.high>remainingRange(null,projectMaterials([],'Paint two rooms.'),'pricing')!.high,'the description ETA includes pricing and checking');
+  assert.ok(text.high<many.high,'text review remains faster than a large document set');
   const early=remainingRange(at('inventory'),docs,'pricing')!,late=remainingRange(at('verification'),docs,'pricing')!;
   assert.ok(early.high>late.high,'later pricing stages leave less');
   assert.match(remainingLabel({low:90,high:240}),/^About 2 to 4 minutes left$/);

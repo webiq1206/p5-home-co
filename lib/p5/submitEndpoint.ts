@@ -1,6 +1,5 @@
 import {HANDOFF_ISSUE} from './scopePricing.ts';
 import {withRateCard} from './rateCard.ts';
-import {readLearnedLines,learnedRates} from './learnedBook.ts';
 import {finishTier,priceBookRates,PRICE_BOOK_VERSION} from './priceBook.ts';
 import { query } from "./database.ts";
 import { draftCredentials,readDraft,DraftError,requireEstimateContact } from "./store.ts";
@@ -79,8 +78,8 @@ export async function completeSubmission(id:string,draft:Awaited<ReturnType<type
     // The owner's master price book, resolved for this project: the lines that apply to its
     // service, priced at the chosen finish tier, with the remodel premium where the work is in an
     // existing home. They join the saved catalog; a code the owner has saved keeps its own amount.
-    // The owner's book plus the lines learned from earlier estimates (lib/p5/learnedBook.ts).
-    const book=process.env.P5_PRICE_BOOK==='off'?null:[...priceBookRates(draft.reviewed.answers),...learnedRates(await readLearnedLines())];
+    // Learned allowances join the regional rules in pricingWork, with their evidence intact.
+    const book=process.env.P5_PRICE_BOOK==='off'?null:priceBookRates(draft.reviewed.answers);
     const configuration={...(book?withRateCard(saved,book):saved),catalogVersion:`${saved.planningCatalog?.version||'no-saved-catalog'}${book?`+price-book:${PRICE_BOOK_VERSION}:${finishTier(draft.reviewed.answers.finish)}`:''}`};
     if(book)console.log(`[p5-rates] priced with ${configuration.planningCatalog?.rates.length} rates (${(configuration.planningCatalog?.rates.length||0)-(saved.planningCatalog?.rates.length||0)} from the master price book, ${finishTier(draft.reviewed.answers.finish)} finish)`);
     // Ask for a quantity the planning model cannot work without now, before any pricing work starts.

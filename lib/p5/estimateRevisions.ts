@@ -21,6 +21,8 @@ export function revisedDescription(text:string,change:string,revision:number):st
 }
 /** Archive the submitted version and reopen the project as the next revision. */
 export async function startRevision(id:string,change:string){
+  const {ensureReviewSchema}=await import('./manualReview.ts');
+  await ensureReviewSchema();
   const request=String(change||'').trim();
   if(request.length>MAX_CHANGE_LENGTH)throw new DraftError(`Describe the change in ${MAX_CHANGE_LENGTH} characters or fewer, or attach a document.`);
   const [row]=await query("SELECT revision,status,payload,customer_estimate,internal_estimate,submitted_at FROM p5_estimator_drafts WHERE id=$1",[id]);
@@ -28,9 +30,20 @@ export async function startRevision(id:string,change:string){
   if(row.status!=='submitted')throw new DraftError('This estimate is already open for changes.',409);
   const revision=Number(row.revision);const payload=row.payload||{};
   const archived={revision,submittedAt:row.submitted_at?new Date(row.submitted_at).toISOString():null,payload,customer:row.customer_estimate,internal:row.internal_estimate,change:request,archivedAt:new Date().toISOString()};
-  await query("INSERT INTO p5_estimator_work(draft_id,work_key,payload) VALUES($1,$2,$3::jsonb) ON CONFLICT DO NOTHING",[id,VERSION_KEY(revision),JSON.stringify(archived)]);
   const next={...payload,text:revisedDescription(String(payload.text||''),request,revision),reviewed:null,revisionOf:revision,revisionRequest:request};
-  const reopened=await query("UPDATE p5_estimator_drafts SET status='draft',revision=revision+1,payload=$2::jsonb,customer_estimate=NULL,internal_estimate=NULL,submitted_at=NULL,updated_at=now() WHERE id=$1 AND revision=$3 AND status='submitted' RETURNING revision",[id,JSON.stringify(next),revision]);
+  const reopened=await query(`WITH reopened AS (
+    UPDATE p5_estimator_drafts SET status='draft',revision=revision+1,payload=$2::jsonb,
+      customer_estimate=NULL,internal_estimate=NULL,submitted_at=NULL,updated_at=now()
+    WHERE id=$1 AND revision=$3 AND status='submitted' RETURNING revision
+  ), archived AS (
+    INSERT INTO p5_estimator_work(draft_id,work_key,payload)
+    SELECT $1,$4,$5::jsonb FROM reopened
+    ON CONFLICT(draft_id,work_key) DO NOTHING
+  ), admin_archive AS (
+    INSERT INTO p5_estimator_history(draft_id,revision,record)
+    SELECT $1,$3,$5::jsonb FROM reopened
+    ON CONFLICT(draft_id,revision) DO NOTHING
+  ) SELECT revision FROM reopened`,[id,JSON.stringify(next),revision,VERSION_KEY(revision),JSON.stringify(archived)]);
   if(!reopened.length)throw new DraftError('This estimate changed while it was being reopened. Reload and try again.',409);
   return {revision:Number(reopened[0].revision),previous:revision,text:next.text};
 }

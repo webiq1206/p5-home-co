@@ -145,12 +145,13 @@ test('an invalid reply is asked for again from the same provider before a slower
  });
 });
 
-test('an over-long reply is trimmed with a note instead of being rejected',async()=>{
+test('a dense reply preserves the complete summary and every extracted fact',async()=>{
  const {validateExtraction}=await import('../lib/p5/scope.ts');
  const facts=Array.from({length:160},(_,i)=>({field:'taskList',value:`Item ${i}`,confidence:.9,source:'budget.pdf',evidence:`Item ${i}`,basis:'stated'}));
  const value=validateExtraction({summary:'s'.repeat(9000),facts,conflicts:[],missingInformation:[],reviewNotes:[],clarifications:[]});
- assert.equal(value.summary.length,8000);
- assert.ok(value.reviewNotes.some(n=>/additional extracted facts/.test(n)));
+ assert.equal(value.summary.length,9000);
+ assert.equal(value.facts.length,160);
+ assert.equal(value.facts[159].value,"Item 159");
 });
 
 test('only unread content blocks the estimate; blank or redacted values on a read page do not',async()=>{

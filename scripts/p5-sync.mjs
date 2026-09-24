@@ -30,7 +30,7 @@ const SHARED_ROOTS=[
   {dir:'tests',match:name=>/^p5-.*\.test\.(ts|mjs)$/.test(name),flat:true},
   {dir:'tests/fixtures',match:name=>/^(p5-|crm)/.test(name),flat:true},
   {dir:'scripts',match:name=>/^(test-p5-|check-p5-|p5-|offline-network-guard)/.test(name)&&!/p5-sync\.mjs$/.test(name)||name==='p5-sync.mjs',flat:true},
-  {dir:'scripts/lib',match:name=>/p5|livePricing|offline/i.test(name),flat:true},
+  {dir:'scripts/lib',match:name=>/\.(ts|mts|mjs)$/.test(name),flat:true},
 ];
 
 function walk(dir,match,flat,base=dir){

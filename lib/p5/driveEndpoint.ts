@@ -12,14 +12,14 @@ export async function finishRequestedSubmissions(limit=4):Promise<number>{
   let finished=0;
   for(const row of rows){
     const id=String(row.draft_id);const request=row.payload as {revision:number;notify?:boolean};
-    const mark=(state:string,outcome:string)=>query("UPDATE p5_estimator_work SET payload=payload||jsonb_build_object('state',$2::text,'outcome',$3::text,'finishedAt',now()::text),updated_at=now() WHERE draft_id=$1 AND work_key='submit-request-v1'",[id,state,outcome]);
+    const mark=(state:string,outcome:string)=>query("UPDATE p5_estimator_work SET payload=payload||jsonb_build_object('state',$2::text,'outcome',$3::text,'finishedAt',now()::text),updated_at=now() WHERE draft_id=$1 AND work_key='submit-request-v1' AND (payload->>'revision')::int=$4 AND payload->>'state'='pending'",[id,state,outcome,request.revision]);
     const draft=await readDraftById(id);
     if(!draft){await mark('done','missing');continue;}
     if(draft.status==='submitted'){await mark('done','submitted');continue;}
     if(draft.revision!==request.revision){await mark('done','superseded');continue;}
     const {completeSubmission}=await import('./submitEndpoint.ts');
     const response=await completeSubmission(id,draft,{background:true,retry:false,holdMs:0});
-    if(response.status===202||response.status===503)continue;
+    if(response.status===202||response.status===408||response.status===429||response.status>=500)continue;
     const outcome=response.status===200?'estimate-saved':response.status===422?'needs-review':`http-${response.status}`;
     await mark('done',outcome);finished++;
     void recordEvent({draftId:id,estimator:String(draft.answers?.service||'')||null,kind:'pricing',stage:'background-finish',code:outcome,outcome:response.status===200?'ok':'failed',message:`Finished without the browser (${outcome}).`});
@@ -30,14 +30,16 @@ export async function finishRequestedSubmissions(limit=4):Promise<number>{
 export async function postDrive(request:Request){
   try{
     if(!validDriveToken(request.headers.get('x-p5-drive')))return json({error:'Not found'},404);
-    const result=await runDriver({
-      drainJobs:async()=>{void drainEstimatorJobs();},
-      finishSubmissions:()=>finishRequestedSubmissions(),
-      deliver:async()=>{await processOutbox({limit:12});},
-    });
+    const result=await runEstimatorDriver();
     return json(result);
   }catch(error){return failed(error);}
 }
+/** Used by both the signed self-driver and the authenticated external recovery scheduler. */
+export function runEstimatorDriver(){return runDriver({
+  drainJobs:async()=>{void drainEstimatorJobs();},
+  finishSubmissions:()=>finishRequestedSubmissions(),
+  deliver:async()=>{await processOutbox({limit:12});},
+});}
 /** POST /api/p5-estimator/open {id,t}: a signed estimate link, exchanged for a key for this device. */
 export async function postOpen(request:Request){
   try{

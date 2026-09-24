@@ -1,0 +1,32 @@
+name: Recover unfinished estimator work
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: estimator-recovery
+  cancel-in-progress: false
+jobs:
+  recover:
+    if: ${{ github.event_name == 'workflow_dispatch' || vars.P5_ESTIMATOR_RECOVERY_ENABLED == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Wake the authenticated estimator driver
+        env:
+          CRON_SECRET: ${{ secrets.P5_ESTIMATOR_CRON_SECRET }}
+          ESTIMATOR_ORIGIN: https://p5homeco.com
+        run: |
+          node --input-type=module <<'JS'
+          const secret=process.env.CRON_SECRET;
+          if(!secret){console.error('::error::Set P5_ESTIMATOR_CRON_SECRET to this site hosting CRON_SECRET. Recovery is not configured.');process.exit(1);}
+          const response=await fetch(`${process.env.ESTIMATOR_ORIGIN}/api/cron/p5-estimator-delivery`,{method:'POST',headers:{authorization:`Bearer ${secret}`},redirect:'error',signal:AbortSignal.timeout(75000)});
+          if(!response.ok){console.error(`Estimator recovery returned HTTP ${response.status}.`);process.exit(1);}
+          const body=await response.json();
+          console.log(JSON.stringify({ran:body.results?.ran,passes:body.results?.passes,finished:body.results?.finished,idle:body.results?.idle}));
+          JS

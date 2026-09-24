@@ -22,7 +22,7 @@ try{
    assert.equal(await estimator.locator('[data-scope-estimate-option]').count(),0,'A separate scope workflow was reintroduced');
    await input.fill('Synthetic navigation check. '+('LongUnbrokenMaterialSpecification'.repeat(60)));
    const next=estimator.getByRole('button',{name:'Continue',exact:true});await next.scrollIntoViewIfNeeded();
-   assert.ok(await next.evaluate(el=>{for(let p=el;p&&p!==document.body&&!p.hasAttribute('data-p5-estimator');p=p.parentElement)if(['fixed','sticky'].includes(getComputedStyle(p).position))return false;return true;}),'Estimator action is pinned over form content');
+   assert.ok(await next.evaluate(el=>{const r=el.getBoundingClientRect(),x=r.left+r.width/2,y=r.top+r.height/2;return r.width>0&&r.height>0&&x>=0&&x<innerWidth&&y>=0&&y<innerHeight&&el.contains(document.elementFromPoint(x,y));}),'Estimator action must be visible and unobstructed');
    assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'Horizontal overflow');
    await page.screenshot({path:`p5-verification/navigation-${width}-${route==='/'?'home':route.replaceAll('/','_')}.png`});results.push({width,route,passed:true});
   }

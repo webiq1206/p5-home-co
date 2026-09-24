@@ -1,5 +1,6 @@
 import {ANALYSIS_PASS_MS,BACKGROUND_JOB_LIMIT_MS,PRICING_PASS_MS,PROCESSING_PAUSED,ProcessingDeadlineError,remainingBudget,isProcessingDeadline} from './processingBudget.ts';
 import {recordEvent,describeError} from './events.ts';
+import {kickDriver} from './estimateDriver.ts';
 import {isPricingPending} from './pricingProgress.ts';
 import {createHash} from 'node:crypto';
 import {query} from './database.ts';
@@ -143,9 +144,10 @@ export async function queuedJob(input:Input,retry=false,holdMs=JOB_HOLD_MS){
 }
 export function startEstimatorWorker(){
   if(runtime.p5JobTimer||!process.env.DATABASE_URL||isQuiescing())return;
-  runtime.p5JobTimer=setInterval(()=>{void drainEstimatorJobs();},15000);
+  runtime.p5JobTimer=setInterval(()=>{void drainEstimatorJobs();kickDriver('worker-heartbeat');},15000);
   runtime.p5JobTimer.unref?.();
   void drainEstimatorJobs();
+  kickDriver('worker-start');
 }
 /** Refuse new request, timer, and retry-loop admissions in this process.
  * Existing provider passes are not cancelled: each is allowed to persist its

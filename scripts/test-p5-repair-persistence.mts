@@ -1,0 +1,50 @@
+import assert from 'node:assert/strict';
+import {mkdtemp,cp,writeFile,rm,mkdir} from 'node:fs/promises';
+import {randomUUID,randomBytes} from 'node:crypto';
+import {pathToFileURL} from 'node:url';
+import path from 'node:path';
+// Isolated PostgreSQL semantics, no application credentials, network or delivery.
+process.env.P5_ESTIMATE_DRIVER='off';delete process.env.DATABASE_URL;
+await mkdir('node_modules/.cache',{recursive:true});
+const dir=await mkdtemp(path.join(process.cwd(),'node_modules/.cache/p5-repair-'));
+let db:any;
+try {
+  await cp('lib/p5',dir,{recursive:true});
+  await writeFile(path.join(dir,'database.ts'),`import {PGlite} from '@electric-sql/pglite';export const database=new PGlite();export async function query(s:string,v:unknown[]=[]){return (await database.query(s,v)).rows;}`);
+  await writeFile(path.join(dir,'submitEndpoint.ts'),`import {query} from './database.ts';export let status=500;export let supersede=false;export function setResponse(s:number,next=false){status=s;supersede=next;}export async function completeSubmission(id:string,draft:any){if(supersede)await query("UPDATE p5_estimator_work SET payload=jsonb_set(payload,'{revision}',to_jsonb($2::int)) WHERE draft_id=$1 AND work_key='submit-request-v1'",[id,draft.revision+1]);return new Response('{}',{status});}`);
+  await writeFile(path.join(dir,'events.ts'),`export async function recordEvent(){}`);
+  await writeFile(path.join(dir,'deliveryAdapter.ts'),`export const EMAIL_SUPPORTS_IDEMPOTENCY=true;export async function adminRecipients(){return [];}export async function sendEmail(){throw new Error('Unexpected delivery');}export async function syncCrm(){throw new Error('Unexpected CRM');}`);
+  const mod=(name:string)=>import(pathToFileURL(path.join(dir,name+'.ts')).href);
+  db=await mod('database');const store=await mod('store'),revision=await mod('estimateRevisions'),handoff=await mod('handoff'),driver=await mod('driveEndpoint'),submission=await mod('submitEndpoint');
+  const id=randomUUID(),key=randomBytes(32).toString('hex');
+  const draft=await store.saveDraft(id,key,'test',{text:'Original scope',answers:{service:'handyman'},extraction:null,reviewed:null,contact:{name:'',email:'',phone:''}},0);
+  const customer={range:{low:1200,high:1200},issue:{reference:'immutable-original'}},internal={directCost:600};
+  await db.query("UPDATE p5_estimator_drafts SET status='submitted',customer_estimate=$2::jsonb,internal_estimate=$3::jsonb,submitted_at=now() WHERE id=$1",[id,JSON.stringify(customer),JSON.stringify(internal)]);
+  const races=await Promise.allSettled([revision.startRevision(id,'Add trim'),revision.startRevision(id,'Remove painting')]);
+  assert.equal(races.filter(r=>r.status==='fulfilled').length,1,'exactly one revision wins');
+  const [reopened]=await db.query('SELECT revision,payload FROM p5_estimator_drafts WHERE id=$1',[id]);
+  assert.equal(reopened.revision,draft.revision+1);
+  const archived=await revision.archivedVersion(id,draft.revision);
+  assert.deepEqual(archived.customer,customer);assert.deepEqual(archived.internal,internal);
+  assert.equal(archived.change,reopened.payload.revisionRequest,'losing request cannot poison the archive');
+  const [admin]=await db.query('SELECT record FROM p5_estimator_history WHERE draft_id=$1 AND revision=$2',[id,draft.revision]);
+  assert.deepEqual(admin.record.customer,customer,'admin and customer see the same original issue');
+  const code=await handoff.createContinuation({text:'Long scope '.repeat(2000),answers:{service:'handyman'},requiredFiles:[{name:'original.pdf',size:2048}]});
+  const claims=await Promise.all([handoff.claimContinuation(code),handoff.claimContinuation(code)]);
+  assert.equal(claims.filter(Boolean).length,1,'transfer is single-use under concurrent claims');
+  assert.deepEqual(claims.find(Boolean).requiredFiles,[{name:'original.pdf',size:2048}]);
+  await db.query("INSERT INTO p5_estimator_work(draft_id,work_key,payload) VALUES($1,'submit-request-v1',$2::jsonb)",[id,JSON.stringify({state:'pending',revision:reopened.revision})]);
+  for(const status of [202,408,429,500,502,503]){
+    submission.setResponse(status);await driver.finishRequestedSubmissions();
+    const [request]=await db.query("SELECT payload FROM p5_estimator_work WHERE draft_id=$1 AND work_key='submit-request-v1'",[id]);
+    assert.equal(request.payload.state,'pending',`HTTP ${status} remains retryable`);
+  }
+  submission.setResponse(200,true);await driver.finishRequestedSubmissions();
+  let [request]=await db.query("SELECT payload FROM p5_estimator_work WHERE draft_id=$1 AND work_key='submit-request-v1'",[id]);
+  assert.equal(request.payload.state,'pending','old completion cannot mark a newer request done');
+  await db.query("UPDATE p5_estimator_work SET payload=jsonb_set(payload,'{revision}',to_jsonb($2::int)) WHERE draft_id=$1 AND work_key='submit-request-v1'",[id,reopened.revision]);
+  submission.setResponse(200);await driver.finishRequestedSubmissions();
+  [request]=await db.query("SELECT payload FROM p5_estimator_work WHERE draft_id=$1 AND work_key='submit-request-v1'",[id]);
+  assert.equal(request.payload.state,'done');assert.equal(request.payload.outcome,'estimate-saved');
+  console.log('PASS: revision race/archive parity, single-use full-scope handoff, retryable completion and superseded revision fencing.');
+} finally {await db?.database.close();await rm(dir,{recursive:true,force:true});}

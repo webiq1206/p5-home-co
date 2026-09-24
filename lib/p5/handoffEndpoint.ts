@@ -1,6 +1,6 @@
 import {protectRequest,limitedBody,json,failed} from './http.ts';
 import {DraftError} from './store.ts';
-import {createContinuation,claimContinuation,sendContinuation} from './handoff.ts';
+import {createContinuation,claimContinuation,sendContinuation,CONTINUATION_BODY_LIMIT} from './handoff.ts';
 
 /**
  * POST /api/p5-estimator/handoff
@@ -16,10 +16,10 @@ import {createContinuation,claimContinuation,sendContinuation} from './handoff.t
 export async function handoffRequest(request:Request):Promise<Response>{
   try{
     protectRequest(request,30);
-    const body=JSON.parse(new TextDecoder().decode(await limitedBody(request,64_000))) as Record<string,unknown>;
+    const body=JSON.parse(new TextDecoder().decode(await limitedBody(request,CONTINUATION_BODY_LIMIT))) as Record<string,unknown>;
     if(body.action==='send'){
       if(typeof body.service!=='string')throw new DraftError('Choose the kind of project first.');
-      const sent=await sendContinuation(body.service,{text:body.text,answers:body.answers});
+      const sent=await sendContinuation(body.service,{text:body.text,answers:body.answers,requiredFiles:body.requiredFiles});
       if(!sent)throw new DraftError('This project belongs with this company; no transfer is needed.');
       return json(sent);
     }
@@ -31,7 +31,7 @@ export async function handoffRequest(request:Request):Promise<Response>{
     if(body.action==='claim'){
       const carried=await claimContinuation(body.code);
       if(!carried)return json({error:'This link has already been used or has expired. Describe your project below to start.'},404);
-      return json({text:carried.text,answers:carried.answers,fromName:carried.fromName});
+      return json({text:carried.text,answers:carried.answers,fromName:carried.fromName,requiredFiles:carried.requiredFiles||[]});
     }
     throw new DraftError('Unknown request.');
   }catch(error){return failed(error);}

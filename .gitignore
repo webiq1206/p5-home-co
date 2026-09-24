@@ -118,3 +118,11 @@ tsconfig.tsbuildinfo
 !/scripts/test-p5-pricing-identity.mts
 !/scripts/test-p5-upload-adversarial.mts
 !/scripts/test-p5-document-adversarial.mts
+
+# Shared estimator qualification helpers are maintained source.
+!/scripts/lib/
+/scripts/lib/*
+!/scripts/lib/capturedPricingDelivery.ts
+!/scripts/lib/pricingQualification.ts
+!/scripts/lib/syntheticPlanSet.ts
+!/scripts/lib/syntheticRe10Pdf.ts

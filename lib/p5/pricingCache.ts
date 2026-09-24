@@ -1,6 +1,7 @@
 import {createHash} from 'node:crypto';
 import {ESTIMATOR_BRAND} from './brand.ts';
 import {ESTIMATOR_VERSION} from './version.ts';
+import {POLICY_VERSION,SERVICE_MATRIX} from './pricing.ts';
 import type {ReviewedScope} from './scope.ts';
 import type {EstimatorConfiguration, ScopePriceResolution} from './costBook.ts';
 
@@ -38,10 +39,12 @@ const answerIdentity=(answers:Record<string,unknown>)=>Object.keys(answers).sort
   .map(key=>[key,words(answers[key])] as const).filter(([,value])=>value.length>0);
 /** What the owner is pricing against: every rate, its unit and its amount, plus the margin policy. */
 export const configurationIdentity=(configuration:EstimatorConfiguration)=>digest([
+  POLICY_VERSION,SERVICE_MATRIX,configuration.catalogVersion||null,
   configuration.planningCatalog?.version||null,
-  (configuration.planningCatalog?.rates||[]).map(rate=>[rate.code,rate.unit,rate.amount,rate.type]).sort(),
+  (configuration.planningCatalog?.rates||[]).map(rate=>[rate.code,rate.unit,rate.amount,rate.type,rate.description,rate.source,rate.basis]).sort(),
   configuration.finance,
-  (configuration.costBooks||[]).map(book=>[book.service,book.mode||null,(book.rules||[]).length]).sort(),
+  [...(configuration.costBooks||[])].sort((a,b)=>a.service.localeCompare(b.service)),
+  [...(configuration.regionalRates||[])].sort((a,b)=>a.id.localeCompare(b.id)),
 ]);
 /**
  * The identity of a priced job. Deliberately built from customer input only:
@@ -50,7 +53,7 @@ export const configurationIdentity=(configuration:EstimatorConfiguration)=>diges
  */
 export function pricingScopeFingerprint(scope:ReviewedScope,configuration:EstimatorConfiguration):string{
   return digest([
-    'p5-price-v1',ESTIMATOR_VERSION,ESTIMATOR_BRAND.id,
+    'p5-price-v2',ESTIMATOR_VERSION,ESTIMATOR_BRAND.id,
     words(scope.text),
     answerEntries(scope),
     (scope.uploads||[]).filter(upload=>upload.status==='stored').map(upload=>upload.sha256).filter(Boolean).sort(),
@@ -65,30 +68,21 @@ export function pricingScopeFingerprint(scope:ReviewedScope,configuration:Estima
  * the exact identity above varies - and a visitor re-uploading one document saw a second price
  * purely because they were asked different questions. This key covers what the customer actually
  * brought: their documents, their typed scope, and the service. A saved price found under it is
- * replayed only when nothing the customer stated this time contradicts what was priced before.
+ * replayed only when the complete set of effective customer decisions agrees with the saved set.
  */
 export function documentScopeFingerprint(scope:ReviewedScope,configuration:EstimatorConfiguration):string{
   return digest([
-    'p5-price-doc-v1',ESTIMATOR_VERSION,ESTIMATOR_BRAND.id,
+    'p5-price-doc-v2',ESTIMATOR_VERSION,ESTIMATOR_BRAND.id,
     words(scope.answers?.service),
     words(scope.text),
     (scope.uploads||[]).filter(upload=>upload.status==='stored').map(upload=>upload.sha256).filter(Boolean).sort(),
+    (scope.corrections||[]).map(correction=>[correction.field,words(correction.value)]).sort(),
     configurationIdentity(configuration),
   ]);
 }
-/**
- * The answer fields a saved price is compared on: measurements, counts and chosen options, plus
- * the location and the scope limits a customer states in their own words.
- *
- * Deliberately NOT every field. The reader writes its own summary of the uploaded document into
- * the narrative fields - taskList, electrical, plumbing, otherDetails and the rest - and it
- * summarises differently each time it reads. Two runs of one RE-10 produced "install vacuum
- * breakers on all exterior hose bibs" and "install vacuum breakers on exterior hose bibs", which
- * is the same work described twice. Comparing that prose compares the reader against itself and
- * never matches, which is exactly the drift a saved price exists to remove. What a customer
- * actually decides - how many square feet, which finish, what to leave out - is structured, and
- * that is what must agree.
- */
+/** Compare all customer decisions, including prose. Only narrative proven to be an exact
+ * copy of a fact attributed to one of the unchanged uploaded documents may be omitted.
+ * A model copying a customer's new answer is not evidence that the answer is irrelevant. */
 const COMPARED_FIELDS=new Set([
   'service','finish','garageIncluded','cabinetRoom','urgency','complexity','location','address',
   'exclusions','ownerSupplied','alternates','allowances','permits',
@@ -97,17 +91,22 @@ const COMPARED_FIELDS=new Set([
   'fixtureCount','laborHours','trimLf','projectMonths',
 ]);
 export const answerEntries=(scope:ReviewedScope)=>answerIdentity(scope.answers as unknown as Record<string,unknown>)
-  .filter(([field])=>COMPARED_FIELDS.has(field)).map(([k,v])=>[k,v] as [string,string]);
+  .filter(([field,value])=>{
+    if(COMPARED_FIELDS.has(field)||scope.corrections?.some(c=>c.field===field))return true;
+    // Only a narrative copied exactly from the reader's own facts is noise.
+    // Customer-entered details and answers must never disappear from cache identity.
+    if(/\bquestion:|\banswer:/i.test(value))return true;
+    return !scope.extraction?.facts.some(f=>f.field===field&&words(f.value)===value&&scope.uploads.some(upload=>upload.status==='stored'&&upload.sha256&&words(f.source).includes(words(upload.name))));
+  }).map(([k,v])=>[k,v] as [string,string]);
 /**
- * Whether a saved price still describes what this visitor is asking for. Every field they have
- * stated in both runs must agree. A field only one run holds is a question the other was never
- * asked, which is exactly the drift this key exists to absorb; a field they answered differently
- * is a different project, and it prices again.
+ * Both the fields and their values must agree. Adding a finish, exclusion or supply decision
+ * changes the project even if the earlier conversation never asked that question. Removing a
+ * decision also requires a new review; it must not silently reuse the old restriction.
  */
 export function compatibleAnswers(saved:[string,string][]|undefined,current:[string,string][]):boolean{
   if(!saved)return false;
   const before=new Map(saved);
-  return current.every(([field,value])=>!before.has(field)||before.get(field)===value);
+  return before.size===current.length&&current.every(([field,value])=>before.get(field)===value);
 }
 /** How long a saved price may be replayed. A rate carries its own validity; this stays inside it. */
 export const pricingCacheDays=()=>{

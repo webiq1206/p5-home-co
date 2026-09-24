@@ -1,7 +1,7 @@
 import {publicPricingText} from './customerProjection.ts';
 import {tradeForLine,apportionAmount,type TradeCategory} from "./trades.ts";
 /** Internal policy. Import only from server entry points, never client components. */
-export const POLICY_VERSION = "p5-2026-09-10-unified-overhead";
+export const POLICY_VERSION = "p5-2026-09-21-business-plan";
 export const STANDARD_OVERHEAD_RATE = .20;
 /** Operating profit targets. Owner business plan (P5 Comprehensive Business Planning Roadmap, 2026):
  * a 32% planning gross margin with a 30% hard floor, company-wide. The engine prices as

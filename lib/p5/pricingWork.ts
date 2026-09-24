@@ -1,7 +1,7 @@
 import {SERVER_BUDGET_MS,remainingBudget,withinDeadline,ProcessingDeadlineError,isProcessingDeadline} from './processingBudget.ts';
 import {createHash} from 'node:crypto';
 import {recordEvent} from './events.ts';
-import {saveLearnedLines} from './learnedBook.ts';
+import {saveLearnedLines,readLearnedLines,learnedCostRules} from './learnedBook.ts';
 import {databasePricingCache,pricingCacheEnabled} from './pricingCache.ts';
 import {claimWork,writeWork,releaseWork,renewWork} from './workStore.ts';
 import {priceCompleteScope,requestPricing,type PricingReply,type PricingRequest,PRICING_STAGE_MAX_MS} from './scopePricing.ts';
@@ -29,7 +29,7 @@ export async function priceSavedScope(id:string,scope:ReviewedScope,configuratio
  if(SOURCE_COVERAGE_REQUIRED)assertProjectSourceCoverage(scope.uploads,scope.extraction);
  remainingBudget(deadline);
  const workKey=pricingWorkKey(scope,configuration,pricingAt);
- const claimed=await claimWork(id,workKey,{replies:{},regionalRates:await readRegionalRates(scope.answers.location||'',pricingAt)},290);
+ const claimed=await claimWork(id,workKey,{replies:{},regionalRates:[...await readRegionalRates(scope.answers.location||'',pricingAt),...learnedCostRules(await readLearnedLines(),scope.answers.service||'',{location:scope.answers.location||'',finish:scope.answers.finish},pricingAt)]},290);
  if(!claimed)throw new PricingPending('Your pricing check is already running. Waiting for its saved result...',10000);
  const payload=claimed.payload as Payload;
  // Freeze the pricing timestamp across requests. Rate freshness and generated
@@ -131,5 +131,5 @@ export async function priceSavedScope(id:string,scope:ReviewedScope,configuratio
  };
  // The saved-stage lease outlives a pass; keep it renewed while this pass runs.
  const renew=setInterval(()=>{void renewWork(id,workKey,claimed.token,290).catch(()=>{});},60_000);renew.unref?.();
- try{const priced=await priceCompleteScope(scope,configuration,staged,pricingAt,deadline,pricingCacheEnabled()?databasePricingCache():undefined,(payload as unknown as {busyWaitMs?:number}).busyWaitMs||0);if(priced.customer.range&&priced.internal&&'costBookSnapshot' in priced.internal){await saveRegionalRates(id,scope.answers.location||'',priced.internal.costBookSnapshot?.rules||[]);await saveLearnedLines(priced.internal.costBookSnapshot?.rules||[],scope.answers.service||'',id).catch(error=>console.error('[p5-book] learned lines were not saved:',error instanceof Error?error.message:error));}return priced;}finally{clearInterval(renew);await releaseWork(id,workKey,claimed.token);}
+ try{const priced=await priceCompleteScope(scope,configuration,staged,pricingAt,deadline,pricingCacheEnabled()?databasePricingCache():undefined,(payload as unknown as {busyWaitMs?:number}).busyWaitMs||0);if(priced.customer.range&&priced.internal&&'costBookSnapshot' in priced.internal){await saveRegionalRates(id,scope.answers.location||'',priced.internal.costBookSnapshot?.rules||[]);await saveLearnedLines(priced.internal.costBookSnapshot?.rules||[],scope.answers.service||'',id,{location:scope.answers.location||'',finish:scope.answers.finish},pricingAt).catch(error=>console.error('[p5-book] learned lines were not saved:',error instanceof Error?error.message:error));}return priced;}finally{clearInterval(renew);await releaseWork(id,workKey,claimed.token);}
 }

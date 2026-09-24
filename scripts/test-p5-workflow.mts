@@ -20,6 +20,9 @@ import {ESTIMATOR_BRAND as brand} from '../lib/p5/brand.ts';
 // Pricing/workflow verification is offline; never let ambient provider secrets
 // change which code path this fixture exercises.
 for (const key of ['AI_INTEGRATIONS_OPENAI_API_KEY','AI_INTEGRATIONS_OPENAI_BASE_URL','OPENAI_API_KEY','ANTHROPIC_API_KEY']) delete process.env[key];
+// This suite explicitly enables the capture-only CRM adapter to test its failure handling.
+process.env.P5_CRM_DELIVERY='on';
+process.env.P5_LINK_SECRET='isolated-workflow-test-secret';
 const root=process.cwd();
 await mkdir('p5-verification',{recursive:true});
 const now=new Date();
@@ -45,7 +48,7 @@ assert.ok(JSON.stringify(estimateSections(leakingCustomer)).includes('confirm fi
 assert.ok(internal.assumptions.some((note:string)=>note.includes(leakingAssumption)),'the administrative result retains the inspected audit note');
 assert.ok(!(await pdfTextLayers(await customerPdf(fixtureId,leakingCustomer))).join('\n').includes(leakingAssumption),'customer PDF must not carry internal pricing arithmetic');
 for(const [kind,bytes] of [['customer',await customerPdf(fixtureId,customer)],['administrative',await administrativePdf(fixtureId,{...internal,scope:{text:'TEST ONLY. '+('Long scope with room, dimensions, allowances and source evidence. '.repeat(120)),uploads:[{name:'A'.repeat(250)+'.pdf'}]}})]] as const){
- const doc=await PDFDocument.load(bytes);assert.ok(doc.getPageCount()>=1);if(kind==="customer")assert.equal(doc.getPageCount(),1,"A short planning summary and its complete disclaimer should fit on one page.");
+ const doc=await PDFDocument.load(bytes);assert.ok(doc.getPageCount()>=1);if(kind==="customer")assert.ok(doc.getPageCount()<=3,"A short approved estimate and its full details must remain compact.");
  for(const page of doc.getPages()){assert.equal(page.getWidth(),612);assert.equal(page.getHeight(),792);}
  await writeFile(`p5-verification/${kind}.pdf`,bytes);
 }
@@ -94,7 +97,7 @@ try{
  await outbox.processOutbox({draftId:id});
  const attemptsBefore=transport.attempts.length;await outbox.processOutbox({draftId:id});assert.equal(transport.attempts.length,attemptsBefore);
  const customerMail=[...transport.delivered.values()].find((v:any)=>v.to==='customer@example.invalid') as any;
- assert.ok(customerMail);assert.match(customerMail.attachments[0].filename,/-customer.pdf$/);
+ assert.ok(customerMail);assert.match(customerMail.attachments[0].filename,/-preliminary-estimate-P5-[A-F0-9]+\.pdf$/);
  assert.ok(!customerMail.text.includes('operatingProfit'));
  const alertMail=[...transport.delivered.values()].find((v:any)=>v.subject?.includes('needs attention')) as any;
  assert.ok(alertMail);assert.equal(alertMail.attachments.length,0);
@@ -165,9 +168,9 @@ try{
  const complexId=randomUUID(),complexKey=randomBytes(32).toString('hex');
  await store.saveDraft(complexId,complexKey,'test',{...payload,answers:{service:brand.services[0],complexity:'complex'}},0);
  const complexReview=await manual.saveManualReview({id:complexId,expectedRevision:1,input:{...pricing,service:brand.services[0],complexity:'standard'},notes:'TEST ONLY: explicitly complex scope must retain the higher default target.'},{id:'fixture-admin',email:'admin@example.invalid'});
- assert.equal(complexReview.estimate.targetOperatingProfit>=.25,true);
+ assert.equal(complexReview.estimate.targetOperatingProfit,.15);
  const complexFromScope=costBook.priceReviewedScope({...unresolvedScope,answers:{service:'kitchen',complexity:'complex'}},{finance,costBooks:[{...conditionalBook,rules:conditionalBook.rules.slice(0,1)}]});
- assert.equal(complexFromScope.internal.targetOperatingProfit>=.25,true);
+ assert.equal(complexFromScope.internal.targetOperatingProfit,.15);
  const manualInput={...pricing,service:brand.services[0],revision:'server-assigned',targetMargin:.01};
  const notes='TEST ONLY: verified uploaded scope, cost evidence, exclusions, allowances and all risk dispositions.';
  const actor={id:'fixture-admin',email:'admin@example.invalid'};

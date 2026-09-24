@@ -2,6 +2,7 @@ import {createHash,randomBytes} from 'node:crypto';
 import {query} from './database.ts';
 import {handoffForService} from './adaptive.ts';
 import {ESTIMATOR_BRAND} from './brand.ts';
+import {SCOPE_TEXT_LIMIT,SCOPE_FILE_COUNT,SCOPE_FILE_LIMIT,SCOPE_BATCH_LIMIT} from './scope.ts';
 
 /**
  * Carrying a project from one sister company's estimator to another's.
@@ -17,21 +18,37 @@ import {ESTIMATOR_BRAND} from './brand.ts';
  * change is needed and a copy of the database never exposes a usable code.
  */
 export const CONTINUATION_MINUTES=30;
-const MAX_TEXT=48_000,MAX_ANSWERS=40,MAX_ANSWER=4_000;
-export interface Continuation {text:string;answers:Record<string,string>;from:string;fromName:string}
+const MAX_TEXT=SCOPE_TEXT_LIMIT,MAX_ANSWERS=100,MAX_ANSWER=SCOPE_TEXT_LIMIT;
+export const CONTINUATION_BODY_LIMIT=2*SCOPE_TEXT_LIMIT;
+export interface Continuation {text:string;answers:Record<string,string>;from:string;fromName:string;requiredFiles?:Array<{name:string;size:number}>}
 const rowId=(code:string)=>`handoff:${createHash('sha256').update(code).digest('hex')}`;
-/** Only plain text and short string answers cross; anything else is dropped, never forwarded. */
+/** Preserve accepted scope in full. Oversize input is refused, never silently truncated. */
 export function cleanContinuation(value:unknown):Continuation|null{
   if(!value||typeof value!=='object')return null;
   const v=value as Record<string,unknown>;
-  const text=typeof v.text==='string'?v.text.slice(0,MAX_TEXT):'';
+  const text=typeof v.text==='string'?v.text:'';
+  if(text.length>MAX_TEXT)return null;
   const answers:Record<string,string>={};
-  if(v.answers&&typeof v.answers==='object')for(const [key,answer] of Object.entries(v.answers as Record<string,unknown>).slice(0,MAX_ANSWERS))
-    if(/^[a-zA-Z][a-zA-Z0-9]{0,40}$/.test(key)&&typeof answer==='string'&&answer.trim())answers[key]=answer.slice(0,MAX_ANSWER);
+  const entries=v.answers&&typeof v.answers==='object'?Object.entries(v.answers):[];
+  if(entries.length>MAX_ANSWERS)return null;
+  for(const [key,answer] of entries){
+    if(typeof answer==='string'&&answer.length>MAX_ANSWER)return null;
+    if(/^[a-zA-Z][a-zA-Z0-9]{0,40}$/.test(key)&&typeof answer==='string'&&answer.trim())answers[key]=answer;
+  }
+  const requiredFiles:Array<{name:string;size:number}>=[];
+  if(v.requiredFiles!==undefined){
+    if(!Array.isArray(v.requiredFiles)||v.requiredFiles.length>SCOPE_FILE_COUNT)return null;
+    for(const file of v.requiredFiles){
+      if(!file||typeof file.name!=='string'||!file.name.trim()||file.name.length>500||!Number.isSafeInteger(file.size)||file.size<=0||file.size>SCOPE_FILE_LIMIT)return null;
+      if(!requiredFiles.some(f=>f.name===file.name&&f.size===file.size))requiredFiles.push({name:file.name,size:file.size});
+    }
+    if(requiredFiles.reduce((n,f)=>n+f.size,0)>SCOPE_BATCH_LIMIT)return null;
+  }
   const from=typeof v.from==='string'&&/^[a-z0-9.-]{3,80}$/.test(v.from)?v.from:'';
   const fromName=typeof v.fromName==='string'?v.fromName.slice(0,80):'';
-  if(!text.trim()&&!Object.keys(answers).length)return null;
-  return {text,answers,from,fromName};
+  if(!text.trim()&&!Object.keys(answers).length&&!requiredFiles.length)return null;
+  if(JSON.stringify({text,answers,requiredFiles}).length>CONTINUATION_BODY_LIMIT-2000)return null;
+  return {text,answers,from,fromName,...(requiredFiles.length?{requiredFiles}:{})};
 }
 /** Receiving side: keep a carried project under a new single-use code. */
 export async function createContinuation(value:unknown):Promise<string|null>{

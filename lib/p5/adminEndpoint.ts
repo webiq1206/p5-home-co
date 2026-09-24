@@ -100,5 +100,8 @@ export async function getAdminUpload(request:Request){try{
 export async function runDeliveryCron(request:Request){try{
   const expected=process.env.CRON_SECRET;if(!expected)throw new DraftError("Delivery scheduler is not configured.",503);
   const supplied=request.headers.get("authorization")||"";const a=Buffer.from(supplied);const b=Buffer.from(`Bearer ${expected}`);if(a.length!==b.length||!timingSafeEqual(a,b))throw new DraftError("Unauthorized",401);
-  return json({results:await processOutbox({limit:30})});
+  // A delivery-only sweep leaves interrupted analysis/pricing and ready submissions stranded.
+  // Recover the complete durable pipeline, including work whose browser no longer exists.
+  const {runEstimatorDriver}=await import('./driveEndpoint.ts');
+  return json({results:await runEstimatorDriver()});
 }catch(error){return failed(error);}}

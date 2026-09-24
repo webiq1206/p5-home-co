@@ -41,7 +41,9 @@ try{
  const {postSubmission}=await load('submitEndpoint');
  const {getCustomerPdf}=await load('customerPdfEndpoint');
  const beforeContactCalls=provider.calls.length;
- for(const contact of [{name:'',email:'customer@example.invalid',phone:''},{name:'Test Customer',email:'',phone:''},{name:'Test Customer',email:'not-an-email',phone:''},{name:'  ',email:'customer@example.invalid',phone:''}]){
+ const {requireEstimateContact}=await load('store');
+ assert.doesNotThrow(()=>requireEstimateContact({name:'Test Customer',email:'',phone:''}),'the customer can wait on screen without giving an email');
+ for(const contact of [{name:'',email:'customer@example.invalid',phone:''},{name:'Test Customer',email:'not-an-email',phone:''},{name:'  ',email:'customer@example.invalid',phone:''}]){
   const contactId=randomUUID(),contactKey=randomBytes(32).toString('hex');
   const contactDraft=await saveDraft(contactId,contactKey,'test',{text:'Synthetic contact gate',answers:{service:ESTIMATOR_BRAND.services[0]},extraction:null,reviewed:{...scope,answers:{service:ESTIMATOR_BRAND.services[0]}},contact},0);
   const headers={'x-p5-draft-id':contactId,'x-p5-draft-key':contactKey,'Content-Type':'application/json'};

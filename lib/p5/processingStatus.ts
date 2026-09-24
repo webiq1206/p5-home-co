@@ -120,12 +120,14 @@ const PRICING_PHASE_COST=(docs:boolean):Record<string,[number,number]>=>({queued
 export function remainingRange(processing:ProcessingStatus|null|undefined,materials:ProjectMaterials|null|undefined,kind:'analysis'|'pricing',stageSeconds=0):{low:number;high:number}|null{
   const m=materials||{text:true,photos:0,documents:0,specifications:0};
   const docs=m.documents>0||m.photos>0;
+  const pricingCosts=Object.values(PRICING_PHASE_COST(docs));
+  const throughEstimate=(read:{low:number;high:number})=>({low:read.low+pricingCosts.reduce((n,[low])=>n+low,0),high:read.high+pricingCosts.reduce((n,[,high])=>n+high,0)});
   // A running job whose progress record has not reached the page yet still has a knowable shape: the
   // whole pipeline for this kind, less the time already spent. Returning null here left the customer
   // on "Assessing how long your estimate will take" for an entire eight-minute wait, because a
   // background-driven submission never sends a progress record at all (owner report 2026-09-23).
   if(!processing){
-    if(kind==='analysis')return {low:Math.max(5,(docs?40:15)-stageSeconds),high:Math.max(20,(docs?180:40)-stageSeconds)};
+    if(kind==='analysis')return throughEstimate({low:Math.max(5,(docs?40:15)-stageSeconds),high:Math.max(20,(docs?180:40)-stageSeconds)});
     const costs=Object.values(PRICING_PHASE_COST(docs));
     const low=costs.reduce((total,[l])=>total+l,0),high=costs.reduce((total,[,h])=>total+h,0);
     return {low:Math.max(10,low-stageSeconds),high:Math.max(40,high-stageSeconds)};
@@ -133,11 +135,11 @@ export function remainingRange(processing:ProcessingStatus|null|undefined,materi
   if(kind==='analysis'){
     const total=Math.max(0,processing.totalPages||0),read=Math.max(0,Math.min(total,processing.readPages||0)),left=total-read;
     const drawings=(processing.currentItems||[]).some(i=>DRAWING_ITEM.test(i));
-    if(!docs)return {low:Math.max(5,15-stageSeconds),high:Math.max(15,40-stageSeconds)};
-    if(processing.phase==='cross-referencing')return {low:10,high:40};
-    if(!total)return {low:20+m.photos*3,high:60+m.photos*8+m.documents*30};
+    if(!docs)return throughEstimate({low:Math.max(5,15-stageSeconds),high:Math.max(15,40-stageSeconds)});
+    if(processing.phase==='cross-referencing')return throughEstimate({low:10,high:40});
+    if(!total)return throughEstimate({low:20+m.photos*3,high:60+m.photos*8+m.documents*30});
     const batches=Math.ceil(left/(drawings?6:12));
-    return {low:Math.max(10,batches*(drawings?35:8)+10),high:Math.max(30,batches*(drawings?75:25)+30)};
+    return throughEstimate({low:Math.max(10,batches*(drawings?35:8)+10),high:Math.max(30,batches*(drawings?75:25)+30)});
   }
   const order:ProcessingStatus['phase'][]=['queued','inventory','mapping','research','verification'];
   const cost=PRICING_PHASE_COST(docs);

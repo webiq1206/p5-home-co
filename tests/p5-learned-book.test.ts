@@ -23,8 +23,8 @@ test('a similar line in a different unit is a different price; in the same unit 
   assert.equal(resemblesExisting({description:'Stone veneer wainscot',unit:'SF'},[{description:'Stone veneer wainscot',unit:'LF'}]),false);
   assert.equal(resemblesExisting({description:'Stone veneer wainscot, installed',unit:'SF'},[{description:'Stone veneer wainscot',unit:'SF'}]),true);
 });
-test('learned lines join the catalog with clean customer-safe descriptions',()=>{
+test('unverified learned lines never masquerade as owner-approved catalog rates',()=>{
   const [line]=learnableLines([rule('market-1','Replace clothesline posts','EA',850)],'handyman','draft-5',[]);
-  const [rate]=learnedRates([line]);
-  assert.equal(rate.description,'Replace clothesline posts');assert.equal(rate.basis,'owner-average-cost');
+  assert.equal(line.description,'Replace clothesline posts');assert.equal(line.status,'review-required');
+  assert.deepEqual(learnedRates([line]),[]);
 });
