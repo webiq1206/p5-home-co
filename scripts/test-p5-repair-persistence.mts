@@ -10,7 +10,7 @@ const dir=await mkdtemp(path.join(process.cwd(),'node_modules/.cache/p5-repair-'
 let db:any;
 try {
   await cp('lib/p5',dir,{recursive:true});
-  await writeFile(path.join(dir,'database.ts'),`import {PGlite} from '@electric-sql/pglite';export const database=new PGlite();export async function query(s:string,v:unknown[]=[]){return (await database.query(s,v)).rows;}`);
+  await writeFile(path.join(dir,'database.ts'),`import {PGlite} from '@electric-sql/pglite';export const database=new PGlite();export async function query(s:string,v:unknown[]=[]){return (await database.query(s,v)).rows;}export async function transaction(run:any){return database.transaction(tx=>run(async(s:string,v:unknown[]=[])=> (await tx.query(s,v)).rows));}`);
   await writeFile(path.join(dir,'submitEndpoint.ts'),`import {query} from './database.ts';export let status=500;export let supersede=false;export function setResponse(s:number,next=false){status=s;supersede=next;}export async function completeSubmission(id:string,draft:any){if(supersede)await query("UPDATE p5_estimator_work SET payload=jsonb_set(payload,'{revision}',to_jsonb($2::int)) WHERE draft_id=$1 AND work_key='submit-request-v1'",[id,draft.revision+1]);return new Response('{}',{status});}`);
   await writeFile(path.join(dir,'events.ts'),`export async function recordEvent(){}`);
   await writeFile(path.join(dir,'deliveryAdapter.ts'),`export const EMAIL_SUPPORTS_IDEMPOTENCY=true;export async function adminRecipients(){return [];}export async function sendEmail(){throw new Error('Unexpected delivery');}export async function syncCrm(){throw new Error('Unexpected CRM');}`);
@@ -46,5 +46,16 @@ try {
   submission.setResponse(200);await driver.finishRequestedSubmissions();
   [request]=await db.query("SELECT payload FROM p5_estimator_work WHERE draft_id=$1 AND work_key='submit-request-v1'",[id]);
   assert.equal(request.payload.state,'done');assert.equal(request.payload.outcome,'estimate-saved');
-  console.log('PASS: revision race/archive parity, single-use full-scope handoff, retryable completion and superseded revision fencing.');
+  const ledger=await mod('pricingLedger');
+  delete process.env.P5_PRICING_BUDGET_USD;delete process.env.P5_PRICING_REQUEST_RESERVATION_USD;
+  await ledger.reservePricingCharge('isolated-retry','openai');
+  await ledger.markPricingChargeUnknown('isolated-retry','synthetic timeout');
+  const retried=await Promise.allSettled(Array.from({length:5},()=>ledger.reservePricingCharge('isolated-retry','openai')));
+  assert.equal(retried.filter(r=>r.status==='fulfilled').length,1,'one owner for an uncapped provider retry');
+  for(const r of retried)if(r.status==='rejected')assert.ok(r.reason instanceof ledger.PricingChargeUnknownError);
+  await ledger.markPricingChargeUnknown('isolated-retry','synthetic timeout');
+  process.env.P5_PRICING_BUDGET_USD='1';process.env.P5_PRICING_REQUEST_RESERVATION_USD='0.25';
+  await assert.rejects(()=>ledger.reservePricingCharge('isolated-retry','openai'),ledger.PricingChargeUnknownError);
+  delete process.env.P5_PRICING_BUDGET_USD;delete process.env.P5_PRICING_REQUEST_RESERVATION_USD;
+  console.log('PASS: revision race/archive parity, single-use full-scope handoff, retryable completion, superseded revision fencing and serialized pricing admission.');
 } finally {await db?.database.close();await rm(dir,{recursive:true,force:true});}

@@ -40,7 +40,7 @@ Additional checks passed:
 - `scripts/test-p5-pricing-qualification.mts`: 34 checks of accounting guards and captured PDF/email consistency, with zero provider network calls, business writes or external sends. CRM-off capture creates no CRM job.
 - Generated Remodeling customer PDF rendered and visually inspected across its two pages. Brand identity, category/total agreement, exclusions, assumptions, next steps and preliminary notice were present.
 
-Build-generated marketing resources were restored to their pre-test versions; they are not part of this repair. Local repeated Next builds encountered stale `.next/export` directory cleanup errors in two children. Handyman passed after its disposable output was moved aside. Construction passed in an isolated `/tmp` source copy using the same dependencies and assets, without changing production logic.
+Build-generated marketing resources were restored to their pre-test versions; they are not part of this repair. Cabinet's first CI pass also detected two stale entries in its generated image-variant manifest. The manifest was regenerated from the existing build assets and committed; the source-integrity check remains enabled. Local repeated Next builds encountered stale `.next/export` directory cleanup errors in two children. Handyman passed after its disposable output was moved aside. Construction passed in an isolated `/tmp` source copy using the same dependencies and assets, without changing production logic.
 
 ## Outstanding qualification
 
@@ -61,3 +61,9 @@ Build-generated marketing resources were restored to their pre-test versions; th
 Run `npm ci`, `node --import tsx --test --test-concurrency=2 tests/p5-*.test.ts`, the isolated scripts listed above, `npx tsc --noEmit` and `npm run build`. P5 also runs its complete `npm test` suite in prebuild. For local capture-only integration scripts, `P5_ESTIMATE_DRIVER=off` prevents a self-driver request; `scripts/offline-network-guard.cjs` can be preloaded to deny outbound network while permitting explicit test callbacks.
 
 Use `node scripts/p5-sync.mjs --all` only from the canonical Remodeling checkout with the other four sibling repositories present. Verify `tests/p5-shared-engine.test.ts` in each repository. Recovery cron routes, legacy assistants, navigation and repository workflows are reviewed separately because they include brand-owned integration code.
+
+## CI follow-up
+
+The initial GitHub pass confirmed the full conversation/recovery and document adapter workflows in Remodeling, Construction and Handyman, and the P5 conversation/recovery workflow. It also exposed stale upload and pricing-ledger assertions. The invalid upload integration now verifies HTTP 422, unchanged storage and no provider call. The ledger integration verifies one uncapped retry owner, an audit note and capped unknown-charge blocking; per-request transaction locking now prevents competing retries.
+
+Browser qualification was updated to the approved bottom action and optional-email flow. The interface now treats an absent email consistently: the review hint permits name-only submission, and the result says the PDF is saved instead of falsely claiming an email is sending. The browser fixture tests both email delivery and name-only display. CI remains a required gate; consult the workflow result for the exact commit being deployed.

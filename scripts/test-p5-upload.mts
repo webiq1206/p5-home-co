@@ -42,7 +42,8 @@ try{
  const png=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a5GQAAAAASUVORK5CYII=','base64');
  response=await upload([{name:'inspection.docx',type:'application/vnd.openxmlformats-officedocument.wordprocessingml.document',data:docx},{name:'project-photo.png',type:'image/png',data:png}]);body=await response.json();assert.equal(body.draft.uploads.length,6);assert.ok(calls.some(c=>JSON.stringify(c).includes('Inspection report: replace damaged vanity')));assert.ok(calls.some(c=>c.messages[0].content.some((p:any)=>p.type==='image'&&p.source.media_type==='image/png')));
  // Invalid uploads are rejected before storage; ownership is enforced.
- response=await upload([{name:'bad.pdf',type:'application/pdf',data:'not a PDF'}]);assert.equal(response.status,400);assert.equal((await store.readDraft(id,key)).uploads.length,6);
+ const callsBeforeInvalid=calls.length;
+ response=await upload([{name:'bad.pdf',type:'application/pdf',data:'not a PDF'}]);assert.equal(response.status,422);assert.ok((await response.json()).error);assert.equal((await store.readDraft(id,key)).uploads.length,6);assert.equal(calls.length,callsBeforeInvalid,'invalid uploads must never reach the provider');
  response=await scopeApi.postScope(new Request('http://test.local/api/p5-estimator/scope',{method:'POST',headers:{...headers,'x-p5-draft-key':randomBytes(32).toString('hex')},body:new FormData()}));assert.equal(response.status,404);
  globalThis.fetch=originalFetch;delete process.env.ANTHROPIC_API_KEY;await db.database.close();
  console.log('Upload endpoint checks passed: null-read receipt, two-page PDF, XLSX, CSV, mixed input, mapping, deduplication, provider failure/retry, persistence, invalid PDF, ownership. AI provider simulated; real isolated SQL and parsers.');

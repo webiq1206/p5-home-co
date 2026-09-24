@@ -79,13 +79,13 @@ async function mock(context,{interruptions=false,scenario='full'}={}){
    if(scenario==='progress'&&state.pricingStage!=='done'){const phase=state.pricingStage;return send({pending:true,message:'Checking the requested scope.',processing:{phase,message:phase==='mapping'?'Matching the trim package to established rates.':'Checking published cost evidence for the trim package.',currentItems:['First-floor trim package'],updatedAt:new Date().toISOString()},retryAfterMs:2000},202);}
    if(state.holdPricing&&!state.saved?.answers?.trimLf){return send({pricingReviewRequired:true,missingFields:[{field:'trimLf',label:'Trim or baseboard length in feet'}],error:'Your project is saved and remains editable. Please confirm: Trim or baseboard length in feet. A complete price range is required before the estimate can be finalized and emailed.'},422);}
    const duplicate=state.saved?.status==='submitted';if(!duplicate)state.submissions++;
-   state.saved={...state.saved,status:'submitted'};return send({accepted:!duplicate,duplicate,result,delivery:[{channel:'customer',status:'retry'},{channel:'admin',status:'sent'},{channel:'crm',status:'needs-review'}]});
+   state.saved={...state.saved,status:'submitted'};return send({accepted:!duplicate,duplicate,result,delivery:[...(state.saved.contact.email?[{channel:'customer',status:'retry'}]:[]),{channel:'admin',status:'sent'}]});
   }
   return send({error:'Unknown test endpoint'},404);
  });return state;
 }
 async function overflow(page){assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'Horizontal page overflow');}
-async function noPinnedControls(estimator){assert.ok(await estimator.evaluate(root=>[...root.querySelectorAll('button,a')].every(el=>{for(let p=el;p&&p!==document.body&&!p.hasAttribute('data-p5-estimator');p=p.parentElement)if(['fixed','sticky'].includes(getComputedStyle(p).position))return false;return true;})),'An estimator control is pinned over content');}
+async function usableAction(action){await action.scrollIntoViewIfNeeded();assert.ok(await action.evaluate(el=>{const r=el.getBoundingClientRect(),x=r.left+r.width/2,y=r.top+r.height/2;return r.width>0&&r.height>0&&x>=0&&x<innerWidth&&y>=0&&y<innerHeight&&el.contains(document.elementFromPoint(x,y));}),'The current estimator action must be visible and unobstructed');}
 async function capture(page,name){await page.evaluate(async()=>{await document.fonts.ready;document.documentElement.style.scrollBehavior='auto';if(document.activeElement instanceof HTMLElement)document.activeElement.blur();window.scrollTo(0,0);});await page.screenshot({path:`${output}/${name}.png`,fullPage:true,animations:'disabled'});}
 async function settled(page){await page.waitForFunction(()=>!document.querySelector('[data-p5-estimator][aria-busy=true]'));}
 for(const width of progressOnly?[]:[320,390,430,768,1024,1440,1920]){
@@ -102,20 +102,18 @@ for(const width of progressOnly?[]:[320,390,430,768,1024,1440,1920]){
   await estimator.getByRole('button',{name:'Continue',exact:true}).click({timeout:120000});await estimator.getByRole('alert').filter({hasText:'Synthetic upload interruption'}).waitFor();
   await page.reload();await estimator.getByRole('button',{name:'Remove scope.txt'}).waitFor();assert.match(await description.inputValue(),/LongUnbrokenProjectSpecification/);await overflow(page);await capture(page,`${width}-scope`);
   await estimator.getByRole('button',{name:'Continue',exact:true}).click({timeout:120000});await answerBrandQuestions(page,estimator,estimator.getByRole('heading',{name:'Review your project',exact:true}));assert.equal(await estimator.getByRole('region',{name:'Project question'}).count(),0,'Known facts were asked again');
-  // The primary action sits above the detailed scope, beside the summary.
-  // The submit dock renders once contact is ready; contact is captured first, then the action's placement is checked.
+  // The approved bottom action remains reachable while the details scroll.
   // The first width runs against a cold server; the contact form is given a full minute to render after review.
-  await estimator.getByLabel('Your name',{exact:true}).waitFor({timeout:60000});await estimator.getByLabel('Your name',{exact:true}).fill('Synthetic Test');await estimator.getByLabel('Email',{exact:true}).fill('customer@example.invalid');
+  await estimator.getByLabel('Your name',{exact:true}).waitFor({timeout:60000});await estimator.getByLabel('Your name',{exact:true}).fill('Synthetic Test');await estimator.getByLabel(/^Email/).fill('customer@example.invalid');
   const action=estimator.getByRole('button',{name:'Get my estimate',exact:true});
-  assert.ok(await action.evaluate(el=>el.getBoundingClientRect().top<document.querySelector('[data-p5-estimator] input[type=checkbox]').getBoundingClientRect().top),'Get my estimate must appear above the details');
-  await noPinnedControls(estimator);
+  await usableAction(action);
   // Reproduce an older saved question step after all its questions become known.
   await page.evaluate(()=>{const key='p5-project-draft-v2';const draft=JSON.parse(localStorage.getItem(key));draft.step=1;localStorage.setItem(key,JSON.stringify(draft));});
   await page.reload();await estimator.getByRole('button',{name:'Get my estimate',exact:true}).waitFor();await estimator.getByRole('checkbox').waitFor();
   assert.equal(await estimator.getByRole('region',{name:'Project question'}).count(),0,'Restored known facts were asked again');
-  await estimator.getByLabel('Your name',{exact:true}).fill('Synthetic Test');await estimator.getByLabel('Email',{exact:true}).fill('customer@example.invalid');
+  await estimator.getByLabel('Your name',{exact:true}).fill('Synthetic Test');await estimator.getByLabel(/^Email/).fill('customer@example.invalid');
   await estimator.getByRole('button',{name:'Back to the previous step',exact:true}).click();await page.waitForTimeout(400);/* Back lands on the previous step, which on a brand with its own questions is the last question, not the description; what must survive is the saved project text. */assert.match(await page.evaluate(()=>JSON.parse(localStorage.getItem('p5-project-draft-v2')||'{}').text||''),/LongUnbroken/,'the project description survives going back');
-  const calls=state.scopeCalls;await estimator.getByRole('button',{name:'Continue',exact:true}).click({timeout:120000});await estimator.getByLabel('Email',{exact:true}).waitFor();assert.equal(await estimator.getByLabel('Email',{exact:true}).inputValue(),'customer@example.invalid');assert.equal(state.scopeCalls,calls,'Going back unnecessarily repeated analysis');
+  const calls=state.scopeCalls;await estimator.getByRole('button',{name:'Continue',exact:true}).click({timeout:120000});await estimator.getByLabel(/^Email/).waitFor();assert.equal(await estimator.getByLabel(/^Email/).inputValue(),'customer@example.invalid');assert.equal(state.scopeCalls,calls,'Going back unnecessarily repeated analysis');
   // Details are grouped in accordions; editing one detail re-reads the scope before pricing.
   const details=estimator.locator('details',{hasText:'Additional scope details'}).first();if(!(await details.evaluate(el=>el.open)))await details.locator('summary').first().click();
   await estimator.getByRole('button',{name:'Edit Tasks and quantities',exact:true}).click();const tasks=estimator.getByLabel('Tasks and quantities',{exact:true});await tasks.fill(fullAnswers.taskList+' '+('LongMaterialSpecification'.repeat(80)));await page.setViewportSize({width,height:500});await overflow(page);await page.setViewportSize({width,height:900});await estimator.getByRole('button',{name:'Done',exact:true}).click();
@@ -137,7 +135,7 @@ for(const width of progressOnly?[]:[320,390,430,768,1024,1440,1920]){
   }
   await overflow(page);assert.ok(!/overheadRecovery|operatingProfit|unitCost/.test(await estimator.innerText()));await capture(page,`${width}-result`);
   await page.waitForTimeout(2100);assert.equal(state.postSubmissionSaves,0);await page.reload();await estimator.getByText('Synthetic planning range.',{exact:true}).waitFor();assert.equal(state.submissions,1);assert.deepEqual(errors,[]);
-  results.push({width,passed:true,checks:['null receipt preserves files','talk to text','typed and uploaded mixed input','failed upload and reload recovery','known facts skipped','primary action above details','no pinned controls','back and contact preservation','manual text reanalysis','category accordions','line-item privacy','single submission','result restoration','overflow']});
+  results.push({width,passed:true,checks:['null receipt preserves files','talk to text','typed and uploaded mixed input','failed upload and reload recovery','known facts skipped','visible unobstructed bottom action','back and contact preservation','manual text reanalysis','category accordions','line-item privacy','single submission','result restoration','overflow']});
  }catch(error){const state=await page.evaluate(()=>{const r=document.querySelector('[data-p5-estimator]');if(!r)return {missingEstimator:true,url:location.href,body:document.body.innerText.slice(0,400)};const vis=e=>{const b=e.getBoundingClientRect();return b.width>0&&b.height>0;};return {labels:[...r.querySelectorAll('label')].map(e=>e.innerText.trim().slice(0,40)+(vis(e)?'':' [hidden]')),headings:[...r.querySelectorAll('h1,h2,h3')].map(e=>e.innerText.trim().slice(0,50)),buttons:[...r.querySelectorAll('button')].map(e=>(e.getAttribute('aria-label')||e.innerText).trim().slice(0,40)),text:r.innerText.slice(0,400),url:location.href};}).catch(e=>({captureFailed:String(e).slice(0,200),url:page.url()}));results.push({width,passed:false,error:String(error),pageErrors:errors,state});await capture(page,`${width}-failure`).catch(()=>{});}await context.close();
 }
 // Reproduce two clarification questions, a failed save, same-answer retry and reload.
@@ -195,7 +193,7 @@ for(const width of progressOnly?[]:[390,1440]){
   const trimQuestion=est.getByText('About how many linear feet of trim or baseboard are included?',{exact:true});const review=est.getByRole('heading',{name:'Review your project',exact:true});
   await answerBrandQuestions(page,est,review.or(trimQuestion));const askedUpFront=(await trimQuestion.count())>0;
   if(askedUpFront){await est.getByLabel('Your answer',{exact:true}).fill('120');await est.getByRole('button',{name:'Send answer',exact:true}).click({timeout:120000});await settled(page);await answerBrandQuestions(page,est,review);}
-  await est.getByLabel('Your name',{exact:true}).fill('Synthetic Test');await est.getByLabel('Email',{exact:true}).fill('customer@example.invalid');await est.getByRole('checkbox').check();
+  await est.getByLabel('Your name',{exact:true}).fill('Synthetic Test');await est.getByLabel(/^Email/).fill('customer@example.invalid');await est.getByRole('checkbox').check();
   await est.getByRole('button',{name:'Get my estimate',exact:true}).click();
   if(!askedUpFront){
    const alert=est.getByRole('alert');await alert.getByText('A few more details are needed',{exact:true}).waitFor();
@@ -203,7 +201,7 @@ for(const width of progressOnly?[]:[390,1440]){
    const question=est.getByRole('region',{name:'Project question'});await question.getByText('About how many linear feet of trim or baseboard are included?',{exact:true}).waitFor();
    await est.getByLabel('Your answer',{exact:true}).fill('120');await est.getByRole('button',{name:'Send answer',exact:true}).click({timeout:120000});await settled(page);
    await answerBrandQuestions(page,est,review);
-   assert.equal(await est.getByLabel('Email',{exact:true}).inputValue(),'customer@example.invalid','Contact details survive the detour');
+   assert.equal(await est.getByLabel(/^Email/).inputValue(),'customer@example.invalid','Contact details survive the detour');
    await est.getByRole('checkbox').check();await est.getByRole('button',{name:'Get my estimate',exact:true}).click();
   }
   await est.getByText('Synthetic planning range.',{exact:true}).waitFor();
@@ -229,20 +227,21 @@ for(const width of [320,390,1440]){
   await answerBrandQuestions(page,est,est.getByLabel('Your name',{exact:true}));
   assert.equal(await est.getByRole('button',{name:'Download your project summary',exact:true}).count(),0,'No PDF before contact capture');
   assert.equal(await est.getByText('Synthetic planning range.',{exact:true}).count(),0,'No estimate result before contact capture');
-  // The estimate action only renders once a name and a valid email are captured; nothing can be submitted before that.
-  await est.getByRole('checkbox').check();assert.equal(await est.getByRole('button',{name:'Get my estimate',exact:true}).count(),0,'The estimate action waits for contact');
+  // The action remains visible and validates the required name before starting pricing.
+  await est.getByRole('checkbox').check();await est.getByRole('button',{name:'Get my estimate',exact:true}).click();
+  assert.equal(await est.getByLabel('Your name',{exact:true}).getAttribute('required'),'');
   assert.equal(progressState.pricingPolls,0);assert.equal(progressState.submissions,0,'Contact is required before an estimate can be revealed');
-  await est.getByLabel('Your name',{exact:true}).fill('Synthetic Test');await est.getByLabel('Email',{exact:true}).fill('customer@example.invalid');
+  await est.getByLabel('Your name',{exact:true}).fill('Synthetic Test');await est.getByLabel(/^Email/).fill(width===390?'':'customer@example.invalid');
   await est.getByRole('checkbox').check();
   assert.equal(await est.getByLabel('Your name',{exact:true}).inputValue(),'Synthetic Test','Contact name must survive adjacent field edits');
-  assert.equal(await est.getByLabel('Email',{exact:true}).inputValue(),'customer@example.invalid','Contact email must survive adjacent field edits');
+  assert.equal(await est.getByLabel(/^Email/).inputValue(),width===390?'':'customer@example.invalid','Optional contact email must survive adjacent field edits');
   await est.getByRole('button',{name:'Get my estimate',exact:true}).click();
   await page.getByRole('heading',{name:'Pricing your project',exact:true}).waitFor();
   assert.equal(await page.getByRole('progressbar',{name:'Original pages checked'}).count(),0,'Document progress must not become a fabricated pricing percentage');
   progressState.pricingStage='research';
   await page.getByRole('heading',{name:'Preparing your estimate',exact:true}).waitFor();await overflow(page);await capture(page,`${width}-live-pricing`);
   progressState.pricingStage='done';
-  await est.getByText('Synthetic planning range.',{exact:true}).waitFor();results.push({width,scenario:'live-progress',passed:true});
+  await est.getByText('Synthetic planning range.',{exact:true}).waitFor();if(width===390){await est.getByText('Your estimate is saved here. You can download your PDF below.',{exact:true}).waitFor();assert.equal(await est.getByText('Not requested',{exact:true}).count(),1);}results.push({width,scenario:'live-progress',passed:true});
  }catch(error){results.push({width,scenario:'live-progress',passed:false,error:String(error)});await capture(page,`${width}-progress-failure`).catch(()=>{});}await context.close();
 }
 const paths=brand.id==='p5'?['/estimate','/estimate/scope','/quote',...['kitchen-remodel','bathroom-remodel','home-addition','adu','custom-home','custom-cabinets','handyman'].map(s=>'/quote/'+s)]:['/estimate','/estimate/scope','/#calculator',...(brand.services.includes('re10')?['/re-10-repairs-boise']:[]),...(brand.id==='remodeling'?['/remodel-plans-boise']:[])];

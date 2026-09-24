@@ -4,7 +4,8 @@ import {ESTIMATOR_BRAND} from './brand.ts';
 /**
  * A pricing reservation is deliberately separate from the stage checkpoint.
  * The checkpoint says whether a reply was saved; this ledger says whether a
- * provider charge may have happened. An unknown charge is never retried.
+ * provider charge may have happened. Unknown charges block capped runs;
+ * ordinary uncapped runs may retry while retaining an audit note.
  */
 type LedgerQuery=(statement:string,values?:unknown[])=>Promise<Record<string,any>[]>;
 /** Runs every statement of one admission decision on a single connection. */
@@ -75,6 +76,9 @@ export async function reservePricingCharge(fingerprint:string,provider:string,ma
   if(!transaction)throw new PricingBudgetError('The pricing ledger requires a transactional database adapter (export transaction from lib/p5/database.ts or call configurePricingLedger).');
   const row=await transaction(async(run)=>{
     if(config)await run('SELECT pg_advisory_xact_lock(hashtextextended($1,0))',[`p5-pricing-budget:${config.budget}`]);
+    // Serialize retries and first admission for this request even without a cap.
+    // Otherwise two transactions can both reclaim the same unknown charge.
+    await run('SELECT pg_advisory_xact_lock(hashtextextended($1,0))',[`p5-pricing-request:${fingerprint}`]);
     const existing=(await run("SELECT state,provider_id,updated_at<now()-interval '3 minutes' AS stale FROM p5_pricing_ledger WHERE fingerprint=$1",[fingerprint]))[0];
     // "Never retry an unknown charge" protects a configured spending cap. With no cap
     // there is nothing to protect, and refusing the retry turned one slow provider reply

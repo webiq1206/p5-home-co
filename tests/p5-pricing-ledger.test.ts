@@ -96,7 +96,14 @@ test('database ledger protects ordinary pricing without imposing a configured sp
     await rejectPricingCharge(prefix+'rejected','known 400');
     assert.equal((await reservePricingCharge(prefix+'rejected','openai')).state,'reserved');
     await markPricingChargeUnknown(prefix+'rejected','timeout');
-    await assert.rejects(()=>reservePricingCharge(prefix+'rejected','openai'),PricingChargeUnknownError);
+    const retries=await Promise.allSettled(Array.from({length:5},()=>reservePricingCharge(prefix+'rejected','openai')));
+    assert.equal(retries.filter(r=>r.status==='fulfilled').length,1,'only one uncapped retry can own the request');
+    for(const retry of retries)if(retry.status==='rejected')assert.ok(retry.reason instanceof PricingChargeUnknownError);
+    assert.match((await query('SELECT last_error FROM p5_pricing_ledger WHERE fingerprint=$1',[prefix+'rejected']))[0].last_error,/retried after an unacknowledged attempt/);
+    await markPricingChargeUnknown(prefix+'rejected','timeout');
+    process.env.P5_PRICING_BUDGET_USD='1';process.env.P5_PRICING_REQUEST_RESERVATION_USD='0.25';
+    await assert.rejects(()=>reservePricingCharge(prefix+'rejected','openai'),PricingChargeUnknownError,'a configured cap must still block unknown charges');
+    delete process.env.P5_PRICING_BUDGET_USD;delete process.env.P5_PRICING_REQUEST_RESERVATION_USD;
     assert.equal((await reservePricingCharge(prefix+'other-customer','openai')).state,'reserved');
     await settlePricingCharge(prefix+'other-customer','provider-result');
     await assert.rejects(()=>reservePricingCharge(prefix+'other-customer','openai'),PricingChargeUnknownError);
