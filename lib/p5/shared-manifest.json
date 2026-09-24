@@ -1,7 +1,7 @@
 {
  "source": "boise-remodeling-co",
- "commit": "b420a82fc270b38cd39bc7c03cf559b8e96defa6",
- "generatedAt": "2026-09-24T07:49:12.504Z",
+ "commit": "d1cfd8cfe21810458d90b330a058de5684312891",
+ "generatedAt": "2026-09-24T07:56:47.177Z",
  "note": "Shared estimator files. Edit them in boise-remodeling-co and run scripts/p5-sync.mjs; never edit them in one brand.",
  "files": {
   "app/admin/p5-estimators/page.tsx": "80b9e20e4144c34a9f78033ab1b84e2555e42c44e670050b9e0fcbffa477512e",
@@ -162,7 +162,7 @@
   "scripts/p5-build-price-book.mjs": "1170e1d5cc388a2f4d467d4279d42e91b650f2305c46ccfd20f6bdf65df1136f",
   "scripts/p5-cli-acceptance.mts": "ed5b8fc80231c03b3c2b54de486fb6db7f259947e855ecf4985a9caf6f4ea6b8",
   "scripts/p5-component-review.mjs": "7035921690a6dc0648b1c3142b054ad09d67535c706e108817369e9e6de6ab26",
-  "scripts/p5-estimator-browser.mjs": "ff06b05ebbdd5c70076ed004213a75c9ef8c73a265e218133a08fa352d612752",
+  "scripts/p5-estimator-browser.mjs": "b9b5311546fec6985f3bde51fa27ab7be71eb48145fc90094e18955ce0883e40",
   "scripts/p5-hub-notification-check.mjs": "e2d4216777feeb2e4099b93986ca257e4760f671312a6b343014ef7677148f06",
   "scripts/p5-launcher-forms.mjs": "601862a5ec30750ab4acc20e69d86d51165fd235b38d5e5ab8fc77b6eaa4ffa7",
   "scripts/p5-live-journey.mjs": "836fe7c0da772c793397513cf5d93adcc860c3ba183cf378884ebf2f400caafa",
