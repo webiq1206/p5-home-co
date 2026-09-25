@@ -2,6 +2,7 @@ import {instructionPrompts,instructionPromptText} from './clarifications.ts';
 import {ESTIMATOR_BRAND} from './brand.ts';
 import {SCOPE_FIELDS,mergeScopeFacts,validateAnswer,type ScopeAnswers,type ScopeField,type ScopeExtraction,type ScopeConflict} from './scope.ts';
 import {dynamicScopeFields,questionContext,scopeFieldApplies,scopePromptApplies} from './dynamicQuestions.ts';
+import {serviceEvidenceSupports} from './serviceSignals.ts';
 
 export interface ScopeQuestion {field:ScopeField;label:string;reason:string;values?:string[];conflict?:boolean;instructionId?:string;detail?:string;handoff?:{label:string;url:string}}
 export function sameAnswer(field:ScopeField,a:string,b:string){
@@ -29,6 +30,10 @@ function isValidatedSuppliedFact(fact:ScopeExtraction['facts'][number],conflicts
   // the review screen, not a measured fact. A stated type this company offers
   // is accepted at a lower bar so an obvious bathroom job is not asked its type.
   const floor=fact.field==='service'&&fact.basis==='stated'&&(ESTIMATOR_BRAND.services as readonly string[]).includes(fact.value)?.7:.85;
+  // A policy-changing type (RE-10, rush, change order) needs the customer's own words behind it.
+  // Live P5 (2026-09-25): a flooring request was "stated" as re10 with the flooring sentence as
+  // evidence and issued at one firm RE-10 price. Without a signal the type is asked, not assumed.
+  if(fact.field==='service'&&!serviceEvidenceSupports(fact.value,fact.evidence))return false;
   return Number.isFinite(fact.confidence)&&fact.confidence>=floor&&Boolean(fact.value?.trim())&&fact.basis!=='visual'&&fact.basis!=='inferred'&&!validateAnswer(fact.field,fact.value)&&!conflicts.some(conflict=>conflict.field===fact.field);
 }
 export function reconcileScope(current:ScopeAnswers,extraction:ScopeExtraction,resolutions:ScopeAnswers={}){
@@ -106,7 +111,7 @@ export function scopeQuestions(input:ScopeAnswers,extraction:ScopeExtraction|nul
     if(q.field&&skipped.includes(q.field))continue;
     questions.push({field:q.field||'estimatingInstructions',label:q.field?SCOPE_FIELDS[q.field].label:'One scope detail',reason:q.question,detail:q.detail,values:q.values,...(!q.field?{instructionId:q.id}:{})});
   }
-  const uncertain=(extraction?.facts||[]).filter(f=>Number.isFinite(f.confidence)&&f.confidence<.85&&f.confidence>=.4&&f.basis!=='visual'&&f.basis!=='inferred'&&!validateAnswer(f.field,f.value)&&!answers[f.field]?.trim()&&relevant.has(f.field));
+  const uncertain=(extraction?.facts||[]).filter(f=>Number.isFinite(f.confidence)&&f.confidence<.85&&f.confidence>=.4&&f.basis!=='visual'&&f.basis!=='inferred'&&!validateAnswer(f.field,f.value)&&!answers[f.field]?.trim()&&relevant.has(f.field)&&(f.field!=='service'||serviceEvidenceSupports(f.value,f.evidence)));
   for(const fact of uncertain)if(!questions.some(q=>q.field===fact.field)&&!skipped.includes(fact.field))questions.push({field:fact.field,label:SCOPE_FIELDS[fact.field].label,reason:`${SCOPE_FIELDS[fact.field].label}: we found ${fact.value} in ${fact.source}. Is that correct?`,values:[fact.value]});
   // Keep the reader's project-specific wording, including which room or component
   // is missing. Replacing it with a generic numeric prompt loses that context.

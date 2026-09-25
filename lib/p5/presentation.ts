@@ -137,7 +137,9 @@ export function estimateSections(result:any,hideUnitRates=HIDE_CUSTOMER_UNIT_RAT
  // The table answers a request for separate building prices, or a project that names more than one
  // building. Pricing labels alone ("Residence", "Single-family residence", the street address) are
  // one house described four ways, and produced four invented building totals on a live repair list.
- const oneHouseLabel=(b:string)=>/^(?:the\s+)?(?:main|primary|existing|single[- ]family)?\s*(?:residence|house|home|dwelling|property|building|site|residence site|project site)?$/i.test(b.trim())||/^\d+\s+\S/.test(b.trim());
+ // "Boise home" against "Main home" (live two-bathroom estimate, 2026-09-25) is one house named twice
+ // by the pricing step, so a place name or two in front of the house word still reads as the one house.
+ const oneHouseLabel=(b:string)=>/^(?:the\s+)?(?:[a-z0-9.'-]+\s+){0,3}?(?:main|primary|existing|single[- ]family)?\s*(?:residence|house|home|dwelling|property|building|site|residence site|project site)?$/i.test(b.trim())||/^\d+\s+\S/.test(b.trim());
  const severalBuildings=Boolean(instructions?.separateBuildings)||(instructions?.buildings?.length||0)>1||buildings.length>1&&buildings.some(b=>!oneHouseLabel(b));
  if(buildings.length>1&&severalBuildings)sections.push({title:SECTION_TITLES.buildingPrices,kind:'included',rows:buildings.map(b=>[b,`${money(lines.filter(l=>l.building===b).reduce((n,l)=>n+l.low,0))} to ${money(lines.filter(l=>l.building===b).reduce((n,l)=>n+l.high,0))}`]),text:'Building totals are included in, not added to, the overall estimate.'});
  const estimated=lines.filter(l=>l.pricingStatus==='estimated-allowance');

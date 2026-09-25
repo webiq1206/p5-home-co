@@ -140,6 +140,15 @@ export function cabinetSelectionsSpecified(context: QuestionContext): boolean {
  return /\b(?:plywood|mdf|melamine|particleboard|solid wood|oak|maple|walnut|shaker|slab doors?|raised[ -]panel)\b/i.test(specified)
  && /\b(?:painted|stained|laminate|thermofoil|unfinished|natural finish)\b/i.test(specified);
 }
+/** The customer already owns the cabinets: there is no selection left to budget a finish tier for.
+ * Live Cabinet (2026-09-25): an install of owner-supplied base and upper runs still asked which finish
+ * level to budget "for the unspecified selections", when the only unspecified thing was screws. */
+const OWNER_SUPPLIED_PRODUCT=/\b(?:owner|homeowner|client|customer)[- ](?:supplied|provided|furnished|purchased)\b|\b(?:we|i|they|the (?:owner|homeowner|client|customer))\s+(?:have\s+|has\s+)?(?:already\s+)?(?:bought|purchased|ordered|own|have|has)\s+(?:the\s+|our\s+|all\s+)?(?:new\s+)?cabinets?\b|\bcabinets?\s+(?:are|is|were)\s+(?:already\s+)?(?:on[- ]site|purchased|bought|delivered|here|ordered)\b/i;
+export function ownerSuppliedCabinets(context: QuestionContext): boolean {
+  if (context.service !== 'cabinet-install') return false;
+  return OWNER_SUPPLIED_PRODUCT.test(joined([context.text, context.answers.ownerSupplied, context.answers.installation,
+    ...(context.extraction?.instructions?.responsibilities || [])]));
+}
 function cabinetPackage(context: QuestionContext): boolean {
   if (!topicActive(context, 'cabinets') && !context.service.startsWith('cabinet-')) return false;
   // Knobs, hinges and painting existing cabinets are not new cabinet runs.
@@ -186,7 +195,7 @@ export function scopeFieldApplies(field: ScopeField, context: QuestionContext): 
   if (field === 'address') return false;
   if (!context.service) return true;
   if (field === 'finish') return !context.laborOnly && !context.restriction && !cabinetSelectionsSpecified(context)
-    && (context.fullProject || context.service.startsWith('cabinet-'));
+    && !ownerSuppliedCabinets(context) && (context.fullProject || context.service.startsWith('cabinet-'));
   // A garage is a building question. A repair in an existing garage (a GFCI outlet,
   // a door opener) mentions the word without any garage being built or sized.
   if (field === 'garageIncluded') return BUILDS.has(context.service) && (context.service === 'new-construction' && !context.restriction

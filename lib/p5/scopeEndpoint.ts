@@ -15,6 +15,7 @@ import { ESTIMATOR_BRAND } from "./brand.ts";
 import {recordEvent,describeError} from './events.ts';
 import {blockingReviewNote} from './costBook.ts';
 import {selectReusableAnalysis} from './analysisReuse.ts';
+import {impliedRepairService} from './serviceSignals.ts';
 import {query} from './database.ts';
 
 /** Guard multipart analysis/upload requests before they can mutate files. */
@@ -140,6 +141,13 @@ export async function postScope(request:Request){
     if(analysis)analysis={...analysis,extraction:applyCabinetIntent(text,ESTIMATOR_BRAND.services,visitorAnswers,analysis.extraction).extraction!};
     const extraction=analysis?.extraction||analysisDraft.extraction;
     const merged=analysis?reconcileScope(visitorAnswers,analysis.extraction,resolutions):{answers:{...analysisDraft.answers,...visitorAnswers},conflicts:[]};
+    // A repair-only site prices a plain repair request as home repairs instead of asking the customer
+    // to pick "Home repairs" from a menu of repair types (live Handyman baseboard, 2026-09-24/25). Any
+    // RE-10, rush or change-order signal in the text keeps the question; the type stays editable on review.
+    if(!merged.answers.service&&!merged.conflicts.some(c=>c.field==='service')){
+      const implied=impliedRepairService([text,...(analysis?.extraction?.facts||[]).map((f:{evidence:string})=>f.evidence)].join('\n'),ESTIMATOR_BRAND.services as readonly string[]);
+      if(implied)merged.answers={...merged.answers,service:implied};
+    }
     const wizard={instructionAnswers:sourceChanged?[]:analysisDraft.wizard?.instructionAnswers||[],skipped:sourceChanged?[]:analysisDraft.wizard?.skipped||[],resolutions,sourceVersion:analysis?version:sourceChanged?undefined:analysisDraft.wizard?.sourceVersion};
     // Partial analysis is visible and prevents unread documents from being priced.
     const safeExtraction=warning?{...extraction,summary:extraction?.summary||text,facts:extraction?.facts||[],conflicts:extraction?.conflicts||[],missingInformation:extraction?.missingInformation||[],reviewNotes:[...new Set([...(extraction?.reviewNotes||[]),...failedSourceNotes,warning])]}:extraction;

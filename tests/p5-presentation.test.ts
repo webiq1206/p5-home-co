@@ -235,3 +235,11 @@ test('placeParts keeps numbered storeys and drops what the customer cannot act o
  assert.deepEqual(placeParts(['Residence','Floor not specified','unknown','']),[]);
  assert.deepEqual(placeParts(['Kitchen, Garage','garage']),['Kitchen','Garage'],'compound values split, repeats drop');
 });
+test('one house named twice by the pricing step is not two buildings (live two-bathroom estimate, 2026-09-25)',()=>{
+ const line=(id:string,building:string)=>({id,category:'Tile',description:'Shower wall tile '+id,quantity:90,unit:'SF',low:500,high:600,unitLow:5,unitHigh:6,building});
+ const base={summary:'',includedCategories:['Tile'],range:{low:1000,high:1200},scopeTasks:[],assumptions:[],exclusions:[],allowances:[],factors:[],categoryRanges:[{category:'Tile',low:1000,high:1200}]};
+ const sections=estimateSections({...base,lineItems:[line('a','Boise home'),line('b','Main home')]});
+ assert.ok(!sections.some(s=>s.title===SECTION_TITLES.buildingPrices),'"Boise home" and "Main home" are the same house');
+ const named=estimateSections({...base,lineItems:[line('a','Main house'),line('b','Detached shop')]});
+ assert.ok(named.some(s=>s.title===SECTION_TITLES.buildingPrices),'a detached shop is still a second building');
+});

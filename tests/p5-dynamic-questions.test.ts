@@ -72,3 +72,11 @@ test('regression: known cabinet runs are already a description of the requested 
 test('regression: optional location prompts do not reappear as mandatory follow-ups',()=>assert.deepEqual(scopeQuestions(build(),extraction({clarifications:[{field:'location',question:'What is the street address?',reason:'Optional visit detail'}]})),[]));
 test('regression: pending cabinet questions are not discarded merely because quantities are unknown',()=>{const x=extraction({instructions:instructions({questions:['What are the cabinet lengths?','What is the cabinet room type?']})});const q=scopeQuestions({service:'cabinet-install',cabinetBaseLf:'20'},x);assert.equal(q[0].field,'cabinetUpperLf');});
 test('regression: a numeric input is paired with a numeric answer prompt',()=>{const a={service:'bathroom',sqft:'80',materials:'Porcelain tile',demolition:'Remove tile',finish:'mid-range'};const x=extraction({clarifications:[{field:'fixtureCount',question:'Which fixtures and who supplies them?',reason:'Scope'}]});assert.deepEqual(scopeQuestions(a,x),[]);assert.match(scopeQuestions(a,x,[],[],['fixtureCount'])[0].reason,/number of fixtures/i);});
+test('owner-supplied cabinets leave nothing to budget a finish tier for (live Cabinet, 2026-09-25)',()=>{
+  const owned={service:'cabinet-install',cabinetRoom:'kitchen',cabinetBaseLf:'10',cabinetUpperLf:'10',cabinetTallLf:'0',location:'Boise'};
+  const text='Install 10 linear feet of owner-supplied base cabinets and 10 linear feet of owner-supplied upper cabinets in a kitchen in Boise. The cabinets are already on site. The contractor supplies normal fastening and leveling consumables.';
+  assert.ok(!fields(owned,null,[],text).includes('finish'),'no finish question for owner-supplied cabinets');
+  assert.ok(!scopeQuestions(owned,null,[],[],[],text).some(q=>q.field==='finish'));
+  const supplied='Supply and install 10 linear feet of new base cabinets and 10 linear feet of upper cabinets in the kitchen.';
+  assert.ok(fields(owned,null,[],supplied).includes('finish'),'cabinets the contractor supplies still ask which tier');
+});
