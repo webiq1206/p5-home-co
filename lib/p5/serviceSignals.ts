@@ -16,14 +16,21 @@ export const SERVICE_SIGNALS:Record<string,RegExp>={
 };
 /** Services a repair-only site (Handyman) offers; a menu made only of these has one ordinary default. */
 export const REPAIR_SERVICES=['handyman','re10','change-order','rush'] as const;
+/** The estimator's own revision note ("Requested change for revision 5: remove the caulk") is the
+ * customer revising THIS estimate, not a change order to a signed contract. Live Handyman
+ * (2026-09-25): a revision that removed caulk was reissued as a "Change order estimate" at a higher
+ * price because the reader read that note as a change order. */
+const REVISION_NOTE=/\brequested change for revision \d+\s*:?/gi;
+const withoutRevisionNotes=(text:string|null|undefined)=>String(text||'').replace(REVISION_NOTE,' ');
 /** True unless the service is one that needs a signal and the text carries none. */
 export function serviceEvidenceSupports(service:string|null|undefined,text:string|null|undefined):boolean{
   const signal=SERVICE_SIGNALS[String(service||'')];
-  return !signal||signal.test(String(text||''));
+  return !signal||signal.test(withoutRevisionNotes(text));
 }
 /** Any signal in the text for a policy-changing service, or null. */
 export function signalledService(text:string|null|undefined):string|null{
-  for(const [service,signal] of Object.entries(SERVICE_SIGNALS))if(signal.test(String(text||'')))return service;
+  const cleaned=withoutRevisionNotes(text);
+  for(const [service,signal] of Object.entries(SERVICE_SIGNALS))if(signal.test(cleaned))return service;
   return null;
 }
 /**

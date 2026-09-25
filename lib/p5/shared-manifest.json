@@ -1,7 +1,7 @@
 {
  "source": "boise-remodeling-co",
- "commit": "48b74fee751b42c969955fee7653efe4b589478b",
- "generatedAt": "2026-09-25T13:55:48.693Z",
+ "commit": "a31d50562f4e08503dc125c66104edf439eee390",
+ "generatedAt": "2026-09-25T14:01:22.534Z",
  "note": "Shared estimator files. Edit them in boise-remodeling-co and run scripts/p5-sync.mjs; never edit them in one brand.",
  "files": {
   "app/admin/p5-estimators/page.tsx": "80b9e20e4144c34a9f78033ab1b84e2555e42c44e670050b9e0fcbffa477512e",
@@ -134,7 +134,7 @@
   "lib/p5/scopeInventory.ts": "823baac9f40357847a8f6afd9a905058298dfc8dab553d584223bcd3f890d64a",
   "lib/p5/scopePricing.ts": "20962a1656af5fec51c5b4ba92b6656e51f393487d5b3de972767a9fe2c0e240",
   "lib/p5/scopeReplacement.ts": "ad340bab97512e3583b8789cf0731edfc78811e8715fcd55555e6ea59fe1411a",
-  "lib/p5/serviceSignals.ts": "34aa85b87fc40992b88ac64b8dfc3b4492e731261b4a149356e08bf23099b1a1",
+  "lib/p5/serviceSignals.ts": "732336f9f4423f8e67067f694af42f438286d9b0be3bd41c28f245acfa34aed8",
   "lib/p5/sourceResponsibilities.ts": "2c77105334ff8c66b8f8572c76be7822c3846ac357e8acf75a16d1c0b3faf809",
   "lib/p5/sourceSpecificationGuard.ts": "a52b5fbd623696aa37160a72780c9c5711232f4237855f02d07f64ddde356fc3",
   "lib/p5/store.ts": "d6b663b2c8d90b41d857a68b36db70044e799ae6aa0ee33eb186aa56f2f04eee",
@@ -282,7 +282,7 @@
   "tests/p5-scope-inventory.test.ts": "7f66957ff37ecd0d67dec62619103882575fb4f21bbe6d98d8eabd18d369969b",
   "tests/p5-scope-pricing.test.ts": "43133337c867bfbbf1e0d065c42c4a3198c85a10d5603af8f8aea054ea04c62e",
   "tests/p5-scope-replacement.test.ts": "f807839815b94265f8abe02473e39590bcbfbb57f1e1e2dabd80fec4d41ec24e",
-  "tests/p5-service-signals.test.ts": "9d232566df7da610d2a88218e8f798ecf93ec9ffa8cad6c8d1d4afa61616a0a2",
+  "tests/p5-service-signals.test.ts": "c016b3ea8dea787c3f26d7a7527ed69bc547ece3167b52f8bb8e97c0b8a8285f",
   "tests/p5-shared-engine.test.ts": "20ae2674d22f093301f9745f81d81e5135985e9ffa7ac1a0708c9ece1cc33ed4",
   "tests/p5-source-responsibilities.test.ts": "8dffd02608e602a78062d4a72f35f95e993f4fe80298e097bad40cbd26beb7ae",
   "tests/p5-source-specifications.test.ts": "9461b16cfa2b65c345e380e4502a5f739350f9da9a333c18dd455ddc0c6f6549",

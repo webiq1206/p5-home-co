@@ -34,3 +34,10 @@ test('a repair-only site defaults a plain repair request to home repairs; signal
   assert.equal(impliedRepairService('Install 100 linear feet of baseboard.',['handyman','re10','kitchen','bathroom']),null,'a multi-trade menu asks');
   assert.equal(impliedRepairService('Install 100 linear feet of baseboard.',['re10','change-order','rush']),null,'no home-repairs service to default to');
 });
+test('the estimator\'s own revision note is not a change-order signal (live Handyman revision, 2026-09-25)',()=>{
+  const revised='Install 100 linear feet of owner-supplied baseboard. Requested change for revision 5: Remove the caulk. Only price the baseboard installation labor; the homeowner will caulk and paint.';
+  assert.equal(serviceEvidenceSupports('change-order',revised),false,'no change order was requested');
+  assert.equal(signalledService(revised),null);
+  assert.equal(impliedRepairService(revised,['handyman','re10','change-order','rush']),'handyman','a revised repair stays home repairs');
+  assert.equal(serviceEvidenceSupports('change-order','Change order to our signed contract: add a pantry.'),true,'a real change order still counts');
+});
