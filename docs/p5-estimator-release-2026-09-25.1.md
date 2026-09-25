@@ -57,6 +57,18 @@ Local results after the change: TypeScript 0 errors in all five repositories; P5
 
 The shared live-journey script now presses Retry when a read stops short (at most twice, as a visitor would) and records the device credentials so a stopped run's saved events can be read afterwards.
 
+## Third round: revising a saved estimate from the emailed link
+
+Opened the Handyman link (P5-5FE1DBBB) in a fresh browser context: the token was exchanged for a device key, the saved estimate showed its range, "Update my estimate" with "Remove the caulk. Only price the baseboard installation labor; the homeowner will caulk and paint." reopened it as version 5 with the change recorded, the review screen asked for the details to be confirmed again, and the new version priced in 69 s with the caulk moved to exclusions and "needed to complete the work but excluded as you asked" named. Version 4 kept its $455 to $565 total and its PDF (HTTP 200, 64 KB); the current PDF downloads; a wrong device key is refused (404); the revised email arrived in the same inbox thread.
+
+DEFECT on 24.3: the reader read the estimator's own note "Requested change for revision 5: ..." as a change order, so the revision was reissued as a "Change order estimate" at $510 to $630, above the version it revised. Fix in this release: the revision note is stripped before RE-10, rush and change-order signals are tested, so a revised repair stays home repairs (`serviceSignals.ts`, regression in `tests/p5-service-signals.test.ts`).
+
+Local results after the third round: TypeScript 0 errors; Remodeling shared suite 727 tests / 0 failures; Handyman focused suites 0 failures; em-dash guard clean.
+
+## Fourth round: a stopped read must offer its retry control
+
+Rerunning the 23-page set twice more on 24.3: 22 of 23 pages read each time (6 to 7.5 minutes; five drawing-region reads hit the 120 s read allowance on the slower run and one reply again carried facts as a string), then the page showed "Your files and completed work are saved. Use Retry to resume." with no retry control anywhere: the stopped-read response came back as an error, and the retry card is only rendered for a warning. `P5Estimator.tsx` now treats a stopped read ("Use Retry to resume", "Resume the check to continue") as a warning on the saved draft, so the "Retry document reading" control appears and resumes the saved pages. The CI resumable and upload fixtures also caught that the repair-only default must never relabel a reader classification this site does not offer (a bathroom remodel typed on the Handyman site still hands off to Remodeling); the default applies only when the reader gave no usable type.
+
 ## Not changed on purpose
 
 No rate, margin, contingency, policy setting, price-book amount or production schema was changed. No Replit Agent prompt was used. No secrets were read or written.

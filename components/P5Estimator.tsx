@@ -345,7 +345,13 @@ export function P5Estimator({defaultService='',headingAs='h1',projectSource,layo
       requireCurrentSource();
       const response=await operationFetch('/api/p5-estimator/scope',{method:'POST',headers:draftHeaders(d),body:form,signal:AbortSignal.timeout(200000)});data=await readJson(response);form.set('retry','false');
       if(response.status===409&&conflicts<3&&await adoptServerDraft()){conflicts++;form.set('revision',String(current.current!.revision));data={pending:true};continue;}
-      if(!response.ok)throw new Error(data.error||analysisMessage(Boolean(current.current!.uploads?.length),'error'));
+      if(!response.ok){
+        const message=String(data.error||analysisMessage(Boolean(current.current!.uploads?.length),'error'));
+        // A read that stopped short keeps its finished pages; the visitor resumes it with the retry control
+        // instead of meeting a dead-end error that only says "use Retry" (live 23-page plan set, 2026-09-25).
+        if(/\bUse Retry to resume\b|\bResume the check to continue\b/i.test(message)){apply({...current.current!,step:0,analysisWarning:message});setWarning(message);setStatus('');filesRef.current=[];setFiles([]);trackScopeEvent('analysisFailed',current.current!.answers.service);return;}
+        throw new Error(message);
+      }
       requireCurrentSource();
       if(data.pending){if(Number.isInteger(data.draftRevision)){apply({...current.current!,revision:data.draftRevision});form.set('revision',String(data.draftRevision));}setBusy(data.progress||'Reading your project...');track(data.processing);await new Promise(r=>setTimeout(r,1000));}
     }while(data.pending);

@@ -1,7 +1,7 @@
 {
  "source": "boise-remodeling-co",
- "commit": "a31d50562f4e08503dc125c66104edf439eee390",
- "generatedAt": "2026-09-25T14:01:22.534Z",
+ "commit": "79f73affde550eb116a50de8f714ec699c808b71",
+ "generatedAt": "2026-09-25T14:06:15.597Z",
  "note": "Shared estimator files. Edit them in boise-remodeling-co and run scripts/p5-sync.mjs; never edit them in one brand.",
  "files": {
   "app/admin/p5-estimators/page.tsx": "80b9e20e4144c34a9f78033ab1b84e2555e42c44e670050b9e0fcbffa477512e",
@@ -19,7 +19,7 @@
   "app/api/p5-estimator/upload/route.ts": "30513ebab4a4f175e0f31d03efceaf020ac3f6cc0d104a6d1779fe5580a14907",
   "components/P5EstimateDetails.tsx": "8f1cab0d2f3d7cd63c83ebfcf076fbb79679d8a8f2a833ccc31f325f21636427",
   "components/P5Estimator.module.css": "78298217191fa971fc4ca1221bfa53be6f19d36dccc5d2728c20c9eee4aa15da",
-  "components/P5Estimator.tsx": "064964e988a9f558816af253870c8edf26a7d1a9fb10190501d22e489b9a136a",
+  "components/P5Estimator.tsx": "0587ea4efbdbe07835e697b2a5e3fb5d534aa31dd3a37c3fc1c4289df1b042e6",
   "components/P5EstimatorNavigation.tsx": "ced21d253fd41d142c1cf79a31bd4beee7e8b03883f4e14c0db9af1c194c1a04",
   "components/P5LinePricing.tsx": "9e0359cd6bff8226f491daab60c5ef468cc2f60dda67ee632910eaf5094b741d",
   "components/P5OverheadReview.tsx": "ea137874fedfde8551b375d56cdc1999a196c615dab034a22da04a3a6f03c3f0",
@@ -130,7 +130,7 @@
   "lib/p5/retainedClarification.ts": "da77e3458d43e36554adb6b09a463fd802a5723d36a815902de00f550f3c6d13",
   "lib/p5/revisionEndpoint.ts": "9b1bde9e251fe0ad4e836085e6fa5424743e25384702b299dbde78cf91ad420a",
   "lib/p5/scope.ts": "8f38ce4aba15cb12f37c55c5ddd71b83c648c5b5ae42c1bd136cd5b462ed2eb8",
-  "lib/p5/scopeEndpoint.ts": "61db57fa12af732a5b2f34ca22e2dd6941aafc08f1aaa7671d9e2c70ef37ad11",
+  "lib/p5/scopeEndpoint.ts": "e94739e413f57d5120b58bee27e076bd97cd4c475230a24fb5868029e95f7dbe",
   "lib/p5/scopeInventory.ts": "823baac9f40357847a8f6afd9a905058298dfc8dab553d584223bcd3f890d64a",
   "lib/p5/scopePricing.ts": "20962a1656af5fec51c5b4ba92b6656e51f393487d5b3de972767a9fe2c0e240",
   "lib/p5/scopeReplacement.ts": "ad340bab97512e3583b8789cf0731edfc78811e8715fcd55555e6ea59fe1411a",

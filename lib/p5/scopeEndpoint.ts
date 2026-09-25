@@ -147,7 +147,11 @@ export async function postScope(request:Request){
     // change-order signal keeps the question, and the type stays editable on the review screen.
     if(analysis&&!visitorAnswers.service&&!analysis.extraction.conflicts.some((c:{field:string})=>c.field==='service')){
       const facts:{field:string;value:string;confidence:number;source:string;evidence:string;basis?:string}[]=analysis.extraction.facts;
-      const supported=facts.some(f=>f.field==='service'&&f.confidence>=.7&&f.basis!=='inferred'&&f.basis!=='visual'&&(ESTIMATOR_BRAND.services as readonly string[]).includes(f.value)&&serviceEvidenceSupports(f.value,f.evidence));
+      // A reader classification stands whether or not this site offers it: a bathroom remodel typed on
+      // the Handyman site is handed to Remodeling, never re-labelled as home repairs. Only when the
+      // reader gave no usable type (nothing, a low-confidence guess, or an RE-10/rush/change-order
+      // claim without the customer's signal) does the repair-only default apply.
+      const supported=facts.some(f=>f.field==='service'&&f.confidence>=.7&&f.basis!=='inferred'&&f.basis!=='visual'&&(SCOPE_FIELDS.service.options as readonly string[]).includes(f.value)&&serviceEvidenceSupports(f.value,f.evidence));
       const implied=supported?null:impliedRepairService([text,...facts.map(f=>f.evidence)].join('\n'),ESTIMATOR_BRAND.services as readonly string[]);
       if(implied)analysis={...analysis,extraction:{...analysis.extraction,facts:[...facts.filter(f=>f.field!=='service'),{field:'service',value:implied,confidence:1,source:'typed scope',evidence:text.slice(0,4000),basis:'stated'}]}};
     }
