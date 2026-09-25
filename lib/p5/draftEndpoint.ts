@@ -1,7 +1,7 @@
 import {instructionPrompts,instructionPromptText} from './clarifications.ts';
 import {resolveInstructionAnswer} from './clarificationAnswer.ts';
 import {deriveScopeAnswers,reconcileScope,scopeQuestionsForBrand as scopeQuestions} from "./adaptive.ts";
-import {costQuestionFields} from "./questionPolicy.ts";
+import {costQuestionReader} from "./questionPolicy.ts";
 import { ESTIMATOR_BRAND } from "./brand.ts";
 import { draftCredentials, readDraft, saveDraft, DraftError } from "./store.ts";
 import { SCOPE_FIELDS, SCOPE_TEXT_LIMIT, validateAnswer, validateExtraction, type ScopeAnswers, type ReviewedScope } from "./scope.ts";
@@ -73,6 +73,7 @@ export function parseAnswers(raw:unknown):ScopeAnswers {
   }return answers;
 }
 export async function putDraft(request:Request){
+  const costQuestionFields=costQuestionReader();
   try{
     protectRequest(request);const {id,key}=draftCredentials(request);
     const raw=JSON.parse(new TextDecoder().decode(await limitedBody(request,24*1024*1024)));
@@ -145,8 +146,7 @@ export async function putDraft(request:Request){
         corrections:Object.entries(answers).filter(([field,value])=>{const fact=extraction?.facts.find(f=>f.field===field);return fact&&fact.value!==value;}).map(([field,value])=>({field:field as keyof ScopeAnswers,previous:extraction!.facts.find(f=>f.field===field)!.value,value:value!})),
       };
     }
-    const draft=await saveDraft(id,key,ESTIMATOR_BRAND.id,{text:incomingText,answers,extraction,reviewed,contact,wizard,analyzedFingerprint:replacing?undefined:existing?.analyzedFingerprint,analyzedAnswers:replacing?undefined:existing?.analyzedAnswers,...((existing as {revisionOf?:number}|null)?.revisionOf!==undefined?{revisionOf:(existing as {revisionOf?:number}).revisionOf}:{})} as Parameters<typeof saveDraft>[3],raw.revision);
-    const pricedFields=await costQuestionFields(answers);
+    const [draft,pricedFields]=await Promise.all([saveDraft(id,key,ESTIMATOR_BRAND.id,{text:incomingText,answers,extraction,reviewed,contact,wizard,analyzedFingerprint:replacing?undefined:existing?.analyzedFingerprint,analyzedAnswers:replacing?undefined:existing?.analyzedAnswers,...((existing as {revisionOf?:number}|null)?.revisionOf!==undefined?{revisionOf:(existing as {revisionOf?:number}).revisionOf}:{})} as Parameters<typeof saveDraft>[3],raw.revision),costQuestionFields(answers)]);
     const conflicts=extraction?reconcileScope(answers,extraction,resolutions).conflicts:[];
     return json({draft,conflicts,questions:scopeQuestions(answers,extraction,conflicts,skipped,pricedFields,incomingText),pricedFields});
   }catch(error){

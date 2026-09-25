@@ -25,8 +25,16 @@ export function questionFieldsForBook(answers:ScopeAnswers,book:any):ScopeField[
   return [...fields];
 }
 
+/** Request-local snapshot: repeated evaluations share one read without serving
+ * a stale price book to the next request. Rejections are not cached globally. */
+export function costQuestionReader(read=()=>query("SELECT payload FROM p5_estimator_policy WHERE id='current'")){
+  let policy:ReturnType<typeof read>|undefined;
+  return async(answers:ScopeAnswers):Promise<ScopeField[]>=>{
+    const [row]=await (policy??=read());
+    const book=row?.payload?.costBooks?.find((b:any)=>b.service===answers.service);
+    return questionFieldsForBook(answers,book);
+  };
+}
 export async function costQuestionFields(answers:ScopeAnswers):Promise<ScopeField[]>{
-  const [policy]=await query("SELECT payload FROM p5_estimator_policy WHERE id='current'");
-  const book=policy?.payload?.costBooks?.find((b:any)=>b.service===answers.service);
-  return questionFieldsForBook(answers,book);
+  return costQuestionReader()(answers);
 }

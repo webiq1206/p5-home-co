@@ -349,3 +349,8 @@
 .versionList li{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 10px;border:1px solid var(--p5-line);border-radius:8px;font-size:14px}
 .waitEta{margin:0;font-size:15px;font-weight:700;color:var(--p5-ink)}
 .waitButtons>button[data-active]{outline:2px solid var(--p5-accent);outline-offset:2px}
+
+/* Home and Exit stay legible and tappable at narrow phone widths. */
+.root .topCenter{text-decoration:none;min-height:44px;justify-content:center}
+.root .navBtn{min-height:44px;min-width:44px;flex-shrink:0;text-decoration:none}
+@media(max-width:380px){.topbar{gap:4px;padding-inline:8px}.brandLine{font-size:9px;letter-spacing:.04em}.root .navBtn{padding-inline:6px;font-size:13px}}

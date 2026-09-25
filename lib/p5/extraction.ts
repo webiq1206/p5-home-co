@@ -1,5 +1,5 @@
 import {groundSourceResponsibilities} from './sourceResponsibilities.ts';
-import {openAiReadModel,rateLimitWaitMs,RATE_LIMIT_RETRIES} from './readerRouting.ts';
+import {openAiReadModel,preferredReadProvider,rateLimitWaitMs,RATE_LIMIT_RETRIES} from './readerRouting.ts';
 import {reasoningFor,rejectsReasoning} from './openaiReasoning.ts';
 import {retainExplicitSelections} from './explicitSelections.ts';
 import {retainCompletedCabinetRemoval} from './completedWork.ts';
@@ -161,7 +161,7 @@ export function scopeModelSetting():{model:string;source:string;ignored?:string}
   return {model:'claude-sonnet-5',source:'default',...(requested?{ignored:`P5_SCOPE_MODEL=${requested} (only Sonnet or Haiku models are used for scope reads)`}:{})};
 }
 let reportedIgnored=false;
-function providers(): Provider[] {
+function providers(files:readonly AnalysisFile[]=[]): Provider[] {
   const setting=scopeModelSetting();
   if(setting.ignored&&!reportedIgnored){reportedIgnored=true;console.warn(`[p5-config] scope reader uses ${setting.model}; ignored ${setting.ignored}`);}
   const result: Provider[] = [];
@@ -176,11 +176,8 @@ function providers(): Provider[] {
   if (anthropicKey && Date.now() >= anthropicParkedUntil) {
     result.push({ kind: "Anthropic", key: anthropicKey, endpoint: "https://api.anthropic.com/v1", model: scopeModelSetting().model });
   }
-  // One read costs one provider call. Anthropic leads scope reads (measured at
-  // about 16 s for a typed scope where the OpenAI read was exceeding the
-  // 60-second budget on 2026-09-14); the other provider only covers a refusal
-  // or failure. P5_SCOPE_PROVIDER=openai reverses the order.
-  const lead = (process.env.P5_SCOPE_PROVIDER || "anthropic").toLowerCase() === "openai" ? "OpenAI" : "Anthropic";
+  // Typed scope reaches the fast reader first without racing paid requests.
+  const lead = preferredReadProvider(files);
   return result.sort((a, b) => (a.kind === lead ? -1 : 0) - (b.kind === lead ? -1 : 0));
 }
 
@@ -330,7 +327,7 @@ export async function analyzeBatch(text: string, files: AnalysisFile[], previous
   if (files.some(file => file.preparationError || file.data.length === 0)) throw new Error("analysis-file-preparation-failed");
   if (text.length > SCOPE_TEXT_LIMIT || files.reduce((n, f) => n + f.data.length, 0) > 22*1024*1024) throw new Error("analysis-too-large");
   absoluteDeadline=Math.min(absoluteDeadline,Date.now()+ANALYSIS_PASS_MS);
-  const configured = providers();
+  const configured = providers(files);
   const eventBase=options.event;
   const report=(provider:Provider,started:number,outcome:EstimatorEvent['outcome'],error?:unknown,fallback=false,extra:Record<string,unknown>={})=>{
     if(!eventBase)return;

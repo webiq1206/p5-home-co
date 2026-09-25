@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {PDFDocument} from 'pdf-lib';
 import {analyzeScope,analyzeBatch,AnalysisBusyError,anthropicExtractionSchema} from '../lib/p5/extraction.ts';
 import {validateExtraction} from '../lib/p5/scope.ts';
-const variables=['OPENAI_API_KEY','OPENAI_BASE_URL','AI_INTEGRATIONS_OPENAI_API_KEY','AI_INTEGRATIONS_OPENAI_BASE_URL','ANTHROPIC_API_KEY'];
+const variables=['P5_SCOPE_PROVIDER','OPENAI_API_KEY','OPENAI_BASE_URL','AI_INTEGRATIONS_OPENAI_API_KEY','AI_INTEGRATIONS_OPENAI_BASE_URL','ANTHROPIC_API_KEY'];
 const extraction={summary:'Fixture scope',facts:[],conflicts:[],missingInformation:[],reviewNotes:[],clarifications:[]};
 test('failed preparation and empty files never reach a paid provider',async()=>{
  let calls=0;const request=async()=>{calls++;throw new Error('Provider must not be called');};
@@ -30,6 +30,7 @@ test('detail view evidence stays bound to its known original page without cleari
 });
 test('a fallback failure cannot hide the primary provider cooldown',async()=>{
  const before=Object.fromEntries(variables.map(k=>[k,process.env[k]]));for(const k of variables)delete process.env[k];process.env.OPENAI_API_KEY='fixture-only';process.env.ANTHROPIC_API_KEY='fixture-only';
+ process.env.P5_SCOPE_PROVIDER='anthropic';
  try{
   let calls=0;
   await assert.rejects(analyzeBatch('Synthetic trim',[],{},async()=>{calls++;return Response.json({error:{message:'PRIVATE SOURCE MUST NOT ESCAPE'}},{status:calls===1?429:400,headers:calls===1?{'retry-after':'47'}:{}});}),error=>error instanceof AnalysisBusyError&&error.retryAfterMs===47000&&!String(error).includes('PRIVATE'));
@@ -58,7 +59,7 @@ test('configured OpenAI reads all four scope pages together within its token lim
 });
 test('provider fallback retains the request and failed provider bodies never escape',async()=>{
  const before=Object.fromEntries(variables.map(k=>[k,process.env[k]]));for(const k of variables)delete process.env[k];process.env.OPENAI_API_KEY='fixture-only';process.env.ANTHROPIC_API_KEY='fixture-only';
- // Anthropic leads by default; this test exercises the fallback with OpenAI leading.
+ // Explicitly exercise fallback with OpenAI leading, regardless of host routing.
  const savedLead=process.env.P5_SCOPE_PROVIDER;process.env.P5_SCOPE_PROVIDER='openai';
  try{
   const urls:string[]=[];const result=await analyzeScope('Retain the selected cabinet doors',[],{cabinetBaseLf:'20'},async(url,options)=>{

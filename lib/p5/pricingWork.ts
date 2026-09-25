@@ -30,7 +30,8 @@ export async function priceSavedScope(id:string,scope:ReviewedScope,configuratio
  if(SOURCE_COVERAGE_REQUIRED)assertProjectSourceCoverage(scope.uploads,scope.extraction);
  remainingBudget(deadline);
  const workKey=pricingWorkKey(scope,configuration,pricingAt);
- const claimed=await claimWork(id,workKey,{replies:{},regionalRates:[...await readRegionalRates(scope.answers.location||'',pricingAt),...learnedCostRules(await readLearnedLines(),scope.answers.service||'',{location:scope.answers.location||'',finish:scope.answers.finish},pricingAt)]},290);
+ const [regional,learned]=await Promise.all([readRegionalRates(scope.answers.location||'',pricingAt),readLearnedLines()]);
+ const claimed=await claimWork(id,workKey,{replies:{},regionalRates:[...regional,...learnedCostRules(learned,scope.answers.service||'',{location:scope.answers.location||'',finish:scope.answers.finish},pricingAt)]},290);
  if(!claimed)throw new PricingPending('Your pricing check is already running. Waiting for its saved result...',10000);
  const payload=claimed.payload as Payload;
  // Freeze the pricing timestamp across requests. Rate freshness and generated

@@ -24,3 +24,10 @@ export const rateLimitWaitMs=(attempt:number,retryAfterHeader:string|null)=>{
   const header=retryAfterHeader&&/^\d+(\.\d+)?$/.test(retryAfterHeader)?Number(retryAfterHeader)*1000:0;
   return Math.min(8000,Math.max(header,1500*2**attempt))+Math.floor(Math.random()*500);
 };
+
+/** Typed scope uses the fast OpenAI reader first. Explicit host selection and
+ * document routing stay authoritative; unavailable providers still fall back. */
+export function preferredReadProvider(files:readonly AnalysisFile[],configured=process.env.P5_SCOPE_PROVIDER):'OpenAI'|'Anthropic'{
+  if(configured?.trim())return configured.trim().toLowerCase()==='openai'?'OpenAI':'Anthropic';
+  return files.length?'Anthropic':'OpenAI';
+}
