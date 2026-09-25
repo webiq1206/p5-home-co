@@ -111,3 +111,14 @@ test('nothing changes on an ordinary estimate with no assemblies, one building a
   assert.equal(JSON.stringify(input.resolution.rules),snapshot);
   assert.deepEqual(result.notes,[]);
 });
+test('an unpriced protection, cleanup or debris task on a small job is absorbed into the requested work, not a hold (live Handyman trim-only, 2026-09-25)',()=>{
+  const scope=scopeFor('Only price the trim: 300 LF of MDF baseboard and casing for 8 doors.',{service:'handyman',trimLf:'300'});
+  const tasks=[{id:'base',description:'Supply and install 300 LF of MDF baseboard',origin:'requested'},{id:'protect',description:'Protect adjacent completed basement surfaces during the trim installation',origin:'required'},{id:'debris',description:'Remove MDF cutoffs and packaging debris',origin:'required'},{id:'clean',description:'Final cleanup of the work area',origin:'required'}];
+  const input=inputFor(scope,tasks,[rule('base','Supply and install 300 LF of MDF baseboard','06-20-26',300),rule('debris','Remove MDF cutoffs and packaging debris','01-74-13',1)]);
+  const result=applyPricingCorrections(input);
+  assert.ok(result.coveredTaskIds.includes('protect')&&result.coveredTaskIds.includes('clean'),'unpriced supporting tasks are covered');
+  assert.ok(input.mappingTasks.find(t=>t.id==='protect')!.existingLineIds.includes(input.resolution.rules[0].id),'covered by the requested line');
+  const debris=input.resolution.rules.find(r=>r.scopeTaskId==='debris')!;
+  assert.ok(direct(debris)<=direct(input.resolution.rules[0])*0.15+0.01,'a full truckload for cutoffs is capped');
+  assert.ok(input.resolution.assumptions.some(a=>/included within the installation labor/.test(a)));
+});

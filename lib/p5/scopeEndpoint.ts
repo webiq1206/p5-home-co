@@ -15,7 +15,7 @@ import { ESTIMATOR_BRAND } from "./brand.ts";
 import {recordEvent,describeError} from './events.ts';
 import {blockingReviewNote} from './costBook.ts';
 import {selectReusableAnalysis} from './analysisReuse.ts';
-import {impliedRepairService} from './serviceSignals.ts';
+import {impliedRepairService,serviceEvidenceSupports} from './serviceSignals.ts';
 import {query} from './database.ts';
 
 /** Guard multipart analysis/upload requests before they can mutate files. */
@@ -139,15 +139,20 @@ export async function postScope(request:Request){
     }
     // Copy before applying intent: a stored or reused result must never be mutated in place.
     if(analysis)analysis={...analysis,extraction:applyCabinetIntent(text,ESTIMATOR_BRAND.services,visitorAnswers,analysis.extraction).extraction!};
+    // A repair-only site prices a plain repair request as home repairs instead of asking the customer
+    // to pick "Home repairs" from a menu of repair types (live Handyman baseboard, 2026-09-24/25). The
+    // type is supplied as a source-derived fact, exactly like the Cabinet intent above, and it is
+    // part of the SAVED extraction: a manual answer would change the analysis identity on the next
+    // request and re-read every finished section (CI resumable check, 2026-09-25). Any RE-10, rush or
+    // change-order signal keeps the question, and the type stays editable on the review screen.
+    if(analysis&&!visitorAnswers.service&&!analysis.extraction.conflicts.some((c:{field:string})=>c.field==='service')){
+      const facts:{field:string;value:string;confidence:number;source:string;evidence:string;basis?:string}[]=analysis.extraction.facts;
+      const supported=facts.some(f=>f.field==='service'&&f.confidence>=.7&&f.basis!=='inferred'&&f.basis!=='visual'&&(ESTIMATOR_BRAND.services as readonly string[]).includes(f.value)&&serviceEvidenceSupports(f.value,f.evidence));
+      const implied=supported?null:impliedRepairService([text,...facts.map(f=>f.evidence)].join('\n'),ESTIMATOR_BRAND.services as readonly string[]);
+      if(implied)analysis={...analysis,extraction:{...analysis.extraction,facts:[...facts.filter(f=>f.field!=='service'),{field:'service',value:implied,confidence:1,source:'typed scope',evidence:text.slice(0,4000),basis:'stated'}]}};
+    }
     const extraction=analysis?.extraction||analysisDraft.extraction;
     const merged=analysis?reconcileScope(visitorAnswers,analysis.extraction,resolutions):{answers:{...analysisDraft.answers,...visitorAnswers},conflicts:[]};
-    // A repair-only site prices a plain repair request as home repairs instead of asking the customer
-    // to pick "Home repairs" from a menu of repair types (live Handyman baseboard, 2026-09-24/25). Any
-    // RE-10, rush or change-order signal in the text keeps the question; the type stays editable on review.
-    if(!merged.answers.service&&!merged.conflicts.some(c=>c.field==='service')){
-      const implied=impliedRepairService([text,...(analysis?.extraction?.facts||[]).map((f:{evidence:string})=>f.evidence)].join('\n'),ESTIMATOR_BRAND.services as readonly string[]);
-      if(implied)merged.answers={...merged.answers,service:implied};
-    }
     const wizard={instructionAnswers:sourceChanged?[]:analysisDraft.wizard?.instructionAnswers||[],skipped:sourceChanged?[]:analysisDraft.wizard?.skipped||[],resolutions,sourceVersion:analysis?version:sourceChanged?undefined:analysisDraft.wizard?.sourceVersion};
     // Partial analysis is visible and prevents unread documents from being priced.
     const safeExtraction=warning?{...extraction,summary:extraction?.summary||text,facts:extraction?.facts||[],conflicts:extraction?.conflicts||[],missingInformation:extraction?.missingInformation||[],reviewNotes:[...new Set([...(extraction?.reviewNotes||[]),...failedSourceNotes,warning])]}:extraction;

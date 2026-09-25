@@ -82,7 +82,10 @@ try{
   if(scope)await est.getByLabel('Tell us about your project',{exact:true}).fill(scope);
   await shot('01-start');await scanCopy('start');
   const analysisStart=Date.now();await est.getByRole('button',{name:'Continue',exact:true}).first().click();note('sent');
-  let firstResponse=0,phase='';
+  let firstResponse=0,phase='',detailRetries=0;
+  // Keep this device's draft credentials in the record so the saved events can be read even when the run stops early.
+  await page.waitForTimeout(2500);result.draftCredentials=await page.evaluate(()=>{const d=Object.keys(localStorage).filter(k=>k.startsWith('p5-project-draft')).map(k=>{try{return JSON.parse(localStorage.getItem(k));}catch{return null;}}).find(x=>x&&x.id&&x.key);return d?{id:d.id,key:d.key}:null;}).catch(()=>null);
+  if(result.draftCredentials)result.draftId=result.draftCredentials.id;
   while(Date.now()-t0<limit){
     await scanCopy('details');
     const step=await est.getAttribute('data-step');
@@ -90,7 +93,13 @@ try{
     if(!await busy()){
       if(await est.getByRole('heading',{name:'Review your project',exact:true}).count()||step==='2'){phase='review';break;}
       if(await est.getByRole('region',{name:'Project question'}).count()){if(!firstResponse){firstResponse=Date.now();result.timings.firstQuestionSeconds=+((firstResponse-analysisStart)/1000).toFixed(1);await shot('02-first-question');}await answerQuestion();continue;}
-      const alert=est.getByRole('alert');if(await alert.count()){const text=(await alert.first().innerText()).trim();if(text){result.errors.push(text);note('alert',{text:text.slice(0,300)});await shot('02-alert');phase='error';break;}}
+      const alert=est.getByRole('alert');if(await alert.count()){const text=(await alert.first().innerText()).trim();if(text){result.errors.push(text);note('alert',{text:text.slice(0,300)});await shot('02-alert');
+        // A read that stopped short offers Retry with the finished pages saved; a visitor presses it, so the run does too (at most twice).
+        // The retry control renders on the warning card a moment after the alert, once the request has settled.
+        await page.waitForTimeout(2500);
+        const retry=est.getByRole('button',{name:/^Retry/});detailRetries=detailRetries||0;
+        if(await retry.count()&&detailRetries<2){detailRetries++;await retry.first().click();note('retry clicked (details)',{attempt:detailRetries,button:await retry.first().innerText().catch(()=>'')});await page.waitForTimeout(2000);continue;}
+        phase='error';break;}}
     }
     await page.waitForTimeout(600);
   }

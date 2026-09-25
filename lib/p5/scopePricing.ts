@@ -1451,7 +1451,9 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
       const drop=named.filter(line=>line!==keep).map(line=>line.id);
       resolution.rules=resolution.rules.filter(rule=>!drop.includes(rule.id));
       resolution.removeLineIds=[...new Set([...(resolution.removeLineIds||[]),...drop])];
-      resolution.assumptions.push(`To confirm: removed ${drop.join(', ')} as work already covered by ${keep.id} so it is not billed twice (${issue.slice(0,200)})`);
+      // Customer wording names the work, not line ids or the audit's own arithmetic; the finding itself stays in the audit trail.
+      const shortName=(description:string)=>{const at=description.lastIndexOf(': ');const item=(at<0?description:description.slice(at+2)).replace(/\s*\(.*$/,'').trim();return (item||description).slice(0,100);};
+      resolution.assumptions.push(`To confirm: removed ${named.filter(line=>drop.includes(line.id)).map(line=>shortName(line.description)).join('; ')} as work already covered by ${shortName(keep.description)} so it is not billed twice.`);
       console.error(`[p5-pricing] removed a stated duplicate ${drop.join(', ')}; kept ${keep.id}`);
       resolvedDuplicates.add(issue);
     }

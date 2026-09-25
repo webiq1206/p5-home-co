@@ -143,7 +143,43 @@ export function validateAnswer(field: ScopeField, value: string): string | null 
   if (definition.kind === "choice" && !(definition.options as readonly string[]).includes(value)) return "Choose one of the listed options.";
   return null;
 }
+/** Quantity fields whose stated parts (a wall and a floor, two rooms) add up to the field's total. */
+const AREA_PART_FIELDS: ScopeField[] = ['tileSqft', 'flooringSqft', 'countertopSqft', 'demolitionSqft', 'trimLf'];
+const SURFACE_WORDS = /\b(?:walls?|floors?|backsplash|ceilings?|countertops?|island|niche|tub surround|shower pan|perimeter|casing|baseboards?|crown)\b/gi;
+const ROOM_WORDS = /\b(?:bedrooms?|living room|family room|great room|kitchen|bath(?:room)?s?|powder room|hall(?:way)?|basement|garage|master|primary|guest|main level|upper level|lower level|office|closets?|laundry|entry|dining|mudroom|pantry)\b/gi;
+const wordSet = (text: string, pattern: RegExp) => new Set((text.toLowerCase().match(pattern) || []).map(w => w.replace(/s$/, '')));
+const disjoint = (a: Set<string>, b: Set<string>) => a.size > 0 && b.size > 0 && [...a].every(w => !b.has(w));
+/** True when every stated fact in the group names its own surface (or, on the same surface, its own room). */
+function distinctAreaParts(group: ExtractedFact[]): boolean {
+  if (group.length < 2 || group.length > 6) return false;
+  if (group.some(f => f.basis === 'calculated' || f.basis === 'inferred' || f.basis === 'visual' || !/\d/.test(f.evidence) || /\btotal\b/i.test(f.evidence) || !Number.isFinite(Number(f.value.replace(/,/g, ''))))) return false;
+  if (new Set(group.map(f => f.value.trim())).size !== group.length) return false;
+  for (let i = 0; i < group.length; i++) for (let j = i + 1; j < group.length; j++) {
+    const a = group[i].evidence, b = group[j].evidence;
+    const surfaceA = wordSet(a, SURFACE_WORDS), surfaceB = wordSet(b, SURFACE_WORDS);
+    if (disjoint(surfaceA, surfaceB)) continue;
+    const roomA = wordSet(a, ROOM_WORDS), roomB = wordSet(b, ROOM_WORDS);
+    if ([...surfaceA].sort().join() === [...surfaceB].sort().join() && disjoint(roomA, roomB)) continue;
+    return false;
+  }
+  return true;
+}
+/** Reply fields a reader sometimes returns as a JSON string instead of the structure itself. Live
+ * Construction plan set (2026-09-25): two drawing pages came back with facts as a 1,900-character
+ * string of JSON, were rejected as "Invalid scope analysis", and the whole 23-page read was held. */
+const STRUCTURED_REPLY_FIELDS = ['facts', 'conflicts', 'missingInformation', 'reviewNotes', 'clarifications', 'takeoffs', 'instructions', 'documentCoverage', 'sourcePages'];
+export function unwrapStructuredReply(raw: unknown): unknown {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return raw;
+  const r = { ...(raw as Record<string, unknown>) };
+  for (const key of STRUCTURED_REPLY_FIELDS) {
+    const value = r[key];
+    if (typeof value !== 'string' || !/^\s*[[{]/.test(value)) continue;
+    try { const parsed = JSON.parse(value); if (parsed && typeof parsed === 'object') r[key] = parsed; } catch { /* left as it was; validation reports it */ }
+  }
+  return r;
+}
 export function validateExtraction(raw: unknown): ScopeExtraction {
+  raw = unwrapStructuredReply(raw);
   if (!raw || typeof raw !== "object") throw new Error("Invalid scope analysis");
   const r = raw as Record<string, unknown>;
   const strings = (value: unknown, max: number) => { if (!Array.isArray(value) || value.length > max || value.some(x => typeof x !== "string" || x.length > 4000)) throw new Error("Invalid analysis notes");return value as string[]; };
@@ -269,6 +305,19 @@ export function validateExtraction(raw: unknown): ScopeExtraction {
         laborFacts:retainedLaborFacts,
       } as RetainedClarificationProvenance;
     }
+  }
+  // Two stated quantities of one field that describe DIFFERENT surfaces or rooms are parts of one
+  // total, not a contradiction: "about 80 square feet of wall tile" and a "12 square foot tiled floor"
+  // (live Remodeling, 2026-09-25) asked the customer to choose between 80 and 12. They become one
+  // calculated fact with the arithmetic in its evidence; parts of the same surface stay a conflict.
+  for (const field of AREA_PART_FIELDS) {
+    const group = facts.filter(f => f.field === field && f.confidence >= .4);
+    if (!distinctAreaParts(group)) continue;
+    const total = group.reduce((n, f) => n + Number(f.value.replace(/,/g, '')), 0);
+    const combined: ExtractedFact = { field, value: String(Math.round(total * 100) / 100), confidence: Math.min(...group.map(f => f.confidence)), source: group[0].source, basis: 'calculated',
+      evidence: `${group.map(f => `${f.value} (${f.evidence.trim().slice(0, 80)})`).join(' + ')} = ${Math.round(total * 100) / 100}` };
+    for (const f of group) facts.splice(facts.indexOf(f), 1);
+    facts.push(combined);
   }
   // Independent conflict detection: never let a model overwrite two different measurements.
   for (const field of Object.keys(SCOPE_FIELDS) as ScopeField[]) {

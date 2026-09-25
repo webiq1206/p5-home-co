@@ -632,7 +632,7 @@ test('A partial finishing allowance cannot release a total that omits baseboard 
  const result=await priceCompleteScope(scope,config,request,new Date(expiredRepairAt),undefined,undefined,0,async()=>({startedAt:expiredRepairAt,busyWaitMs:0}));
  assert.equal(audits,1,'expired repair budget does not initiate more provider work');
  assert.equal(result.customer.range,null,'the partial allowance never becomes a full-scope range');
- assert.ok(result.customer.verificationItems.includes(omission));
+ assert.ok(result.customer.verificationItems.some(item=>item.includes('no positive priced line carries baseboard material')),'the omission reaches the customer, without internal line ids');
  assert.ok(!result.customer.assumptions.some(item=>item.includes(omission)),'missing work cannot become a routine assumption');
  assert.ok(result.internal.scopePricing.issues.some(item=>/full pricing coverage/.test(item)));
 });

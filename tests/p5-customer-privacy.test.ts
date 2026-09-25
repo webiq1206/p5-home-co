@@ -151,3 +151,18 @@ test('owner price-book provenance notes never reach customer copy (live RE-10, 2
  assert.equal(publicPricingText('Service call. Third-party market rate; parts / materials extra'),'Service call.');
  assert.equal(publicPricingText('Install vapor barrier in crawl space.'),'Install vapor barrier in crawl space.');
 });
+test('an audit remark quoting a direct amount beside an internal line id never reaches the customer (live Remodeling email, 2026-09-25)',async()=>{
+ const {customerSafeNotes,withoutInternalIds}=await import('../lib/p5/pricing.ts');
+ const leaked=[
+  "To confirm: removed scope-6, scope-7 as work already covered by scope-4 so it is not billed twice (substrate-prep (scope-7) duplicates the complete PB-09-30-05 'Tiled shower pan with waterproofing' assembly (2 EA @ $2,990) already priced in full under floor-tile (scope-4) for the same two showers. )",
+  "To confirm: substrate-prep (scope-7) duplicates the complete PB-09-30-05 'Tiled shower pan with waterproofing' assembly (2 EA @ $2,990) already priced in full under floor-tile (scope-4) for the same two showers. This double-bills the sloped, waterproofed shower-floor assembly; scope-7 must be removed.",
+  "Shower drain (scope-9) is priced as an owner-selection material allowance at Mid-Range; drain-setting labor is carried within the PB-09-30-05 pan assembly rather than as a separate labor line.",
+  "The receptacle line was priced at $1,011 each; confirm the count.",
+ ];
+ const safe=customerSafeNotes(leaked).join('\n');
+ assert.ok(!/\$\s*\d/.test(safe),'no dollar figure from an audit remark: '+safe);
+ assert.ok(!/\b(?:scope|planning)-\d+\b|\bPB-\d\d-\d\d-\d\d\b/.test(safe),'no internal ids: '+safe);
+ assert.ok(/owner-selection material allowance/.test(safe),'the useful allowance wording survives');
+ assert.equal(withoutInternalIds('Tile setting materials for both showers (scope-4, PB-09-30-06).'),'Tile setting materials for both showers.');
+ assert.equal(withoutInternalIds('Baseboard install labor, 100 LF.'),'Baseboard install labor, 100 LF.');
+});

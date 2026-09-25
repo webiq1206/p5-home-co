@@ -119,7 +119,8 @@ export function applyPricingCorrections(input:CorrectionInput):CorrectionResult{
       &&COMPONENT_TASK.test(task.description)&&!OUTSIDE_TASK.test(task.description));
     for(const task of unpricedComponents)cover(task.id,assembly.id);
     if(!drop.length&&!unpricedComponents.length)continue;
-    notes.push(`To confirm: the ${itemOf(assembly.description)} price is a complete assembly that already includes its structure, envelope, systems, finishes and cleanup${drop.length?`, so ${drop.length} component ${drop.length===1?'line':'lines'} (${money(total)} direct) ${drop.length===1?'was':'were'} removed so nothing is charged twice`:''}${unpricedComponents.length?`; ${unpricedComponents.length} component ${unpricedComponents.length===1?'item is':'items are'} covered by it rather than priced separately`:''}. Site work, utility connections, permits, fees and design stay separate.`);
+    console.error(`[p5-pricing] whole-unit assembly kept ${assembly.id}; removed ${drop.length} component lines (${money(total)} direct)`);
+    notes.push(`To confirm: the ${itemOf(assembly.description)} price is a complete assembly that already includes its structure, envelope, systems, finishes and cleanup${drop.length?`, so ${drop.length} component ${drop.length===1?'line was':'lines were'} removed so nothing is charged twice`:''}${unpricedComponents.length?`; ${unpricedComponents.length} component ${unpricedComponents.length===1?'item is':'items are'} covered by it rather than priced separately`:''}. Site work, utility connections, permits, fees and design stay separate.`);
   }
 
   // 2. One building described means one building priced.
@@ -144,7 +145,7 @@ export function applyPricingCorrections(input:CorrectionInput):CorrectionResult{
     const debrisTasks=inventoryTasks.filter(t=>(t.origin||'requested')==='required'&&(/\b(?:debris|junk|dumpster|waste)\b/i.test(t.description)||DEBRIS_TASK.test(t.description)&&!/\b(?:demolish|demolition|remove|removal|tear)\b/i.test(t.description)));
     const dropped:CostRule[]=[];
     for(const task of debrisTasks)for(const rule of resolution.rules.filter(r=>r.scopeTaskId===task.id&&DEBRIS_LINE.test(itemOf(r.description)))){dropped.push(rule);dropRule(rule);cover(task.id,removalLines[0].id);}
-    if(dropped.length)notes.push(`To confirm: debris haul-off and dump fees are already included in the removal ${removalLines.length===1?'line':'lines'}, so the separate debris allowance (${money(dropped.reduce((n,r)=>n+direct(r),0))} direct) was removed and disposal is not charged twice.`);
+    if(dropped.length){console.error(`[p5-pricing] removed a separate debris line (${money(dropped.reduce((n,r)=>n+direct(r),0))} direct) already covered by removal haul-off`);notes.push(`To confirm: debris haul-off and dump fees are already included in the removal ${removalLines.length===1?'line':'lines'}, so the separate debris allowance was removed and disposal is not charged twice.`);}
   }
 
   // 4. Reconnecting existing plumbing is reconnection labor, not a rough-in package.
@@ -167,14 +168,29 @@ export function applyPricingCorrections(input:CorrectionInput):CorrectionResult{
     }
   }
 
-  // 5. Supporting protection and cleanup are scaled to the work they support.
-  const supportingTasks=inventoryTasks.filter(t=>(t.origin||'requested')==='required'&&PROTECT_OR_CLEAN.test(t.description)&&!/\b(?:demoli\w*|remov\w*|haul\w*|debris|disposal)\b/i.test(t.description));
+  // 5. Supporting protection, cleanup and debris handling are scaled to the work they support, and
+  //    when the mapping left such a task unpriced it is part of the requested work's own labor rather
+  //    than a reason to withhold the estimate (live Handyman trim-only job, 2026-09-25: held for an
+  //    unpriced protection task and a full-truckload junk line for MDF cutoffs).
+  const debrisWords=/\b(?:debris|junk|dumpster|waste|cutoffs?|packaging|haul\w*|dispos\w*)\b/i;
+  const supportingTasks=inventoryTasks.filter(t=>(t.origin||'requested')==='required'&&(PROTECT_OR_CLEAN.test(t.description)||debrisWords.test(t.description))
+    // "Remove the showers" is the removal itself; "remove cutoffs and packaging debris" is debris handling.
+    &&!(/\b(?:demoli\w*|remov\w*|tear)\b/i.test(t.description)&&!/\b(?:debris|cutoffs?|packaging|waste|junk)\b/i.test(t.description)));
   if(supportingTasks.length){
     const supportingIds=new Set(supportingTasks.map(t=>t.id));
     const coreRules=resolution.rules.filter(rule=>!supportingIds.has(rule.scopeTaskId||''));
     const coreLines=lines.filter(line=>!removed.has(line.id)&&!supportingTasks.some(t=>mappingTasks.find(m=>m.id===t.id)?.existingLineIds.includes(line.id)));
     const core=coreRules.reduce((n,rule)=>n+direct(rule),0)+coreLines.reduce((n,line)=>n+line.unitCost*line.quantity,0);
     const cap=core*SUPPORTING_SHARE;
+    const anchor=[...coreRules.map(r=>({id:r.id,value:direct(r)})),...coreLines.map(l=>({id:l.id,value:l.unitCost*l.quantity}))].sort((a,b)=>b.value-a.value)[0];
+    const absorbed:string[]=[];
+    for(const task of supportingTasks){
+      const mapped=mappingTasks.find(m=>m.id===task.id);
+      const priced=resolution.rules.some(rule=>rule.scopeTaskId===task.id&&direct(rule)>0)||Boolean(mapped?.existingLineIds.some(id=>lines.some(line=>line.id===id&&!removed.has(line.id)&&line.unitCost*line.quantity>0)));
+      if(priced||!anchor||covered.has(task.id))continue;
+      cover(task.id,anchor.id);absorbed.push(task.description.replace(/[.\s]+$/,''));
+    }
+    if(absorbed.length)notes.push(`To confirm: ${absorbed.join('; ')}: included within the installation labor for a job this size rather than priced as a separate line.`);
     if(cap>0)for(const task of supportingTasks){
       const rules=resolution.rules.filter(rule=>rule.scopeTaskId===task.id&&direct(rule)>0);
       const total=rules.reduce((n,rule)=>n+direct(rule),0);
@@ -185,7 +201,8 @@ export function applyPricingCorrections(input:CorrectionInput):CorrectionResult{
         if(rule.unitCostRange)rule.unitCostRange={low:Math.round(rule.unitCostRange.low*factor*100)/100,high:Math.round(rule.unitCostRange.high*factor*100)/100};
         rule.allowance=true;
       }
-      notes.push(`To confirm: ${task.description.replace(/[.\s]+$/,'')} is carried as an allowance of about ${Math.round(SUPPORTING_SHARE*100)}% of the priced work (${money(cap)} direct instead of ${money(total)}), because the catalog package it matched is sized for a whole house; confirm on site.`);
+      console.error(`[p5-pricing] supporting work ${task.id} capped at ${money(cap)} direct (was ${money(total)})`);
+      notes.push(`To confirm: ${task.description.replace(/[.\s]+$/,'')} is carried as an allowance of about ${Math.round(SUPPORTING_SHARE*100)}% of the priced work, because the catalog package it matched is sized for a whole house; confirm on site.`);
     }
   }
 

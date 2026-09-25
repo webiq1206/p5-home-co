@@ -339,7 +339,24 @@ const INTERNAL_COMMERCIAL_NOTE=[
   /\bmark[- ]?up\b/i,
   /\$\s*\d[\d,.]*(?:\s*-\s*\$\s*\d[\d,.]*)?\s*(?:\/|\bper\b)\s*(?:lf|sf|ea|each|hour|hr|cy)\b/i,
   /\b\d[\d,.]*(?:\s*(?:to|-)\s*\d[\d,.]*)?\s+USD\s*\/\s*(?:lf|sf|ea|each|hour|hr|cy)\b/i,
+  // A model audit remark quotes the direct amount it checked ("2 EA @ $2,990", "at $1,600 each",
+  // "scope-7 ... $2,990"): a figure next to an internal line id, an "@", or "each" is private cost,
+  // never a customer amount (live Remodeling email, 2026-09-25).
+  /@\s*\$\s*\d/i,
+  /\$\s*\d[\d,.]*\s*(?:each|apiece|a piece)\b/i,
+  /\bat\s+\$\s*\d[\d,.]*\s*(?:each|per|\/|a\b)/i,
+  /\b(?:scope|planning|regional)-\d+\b[^$]*\$\s*\d|\$\s*\d[^$]*\b(?:scope|planning|regional)-\d+\b/i,
+  /\bPB-\d{2}-\d{2}-\d{2}\b[^$]*\$\s*\d|\$\s*\d[^$]*\bPB-\d{2}-\d{2}-\d{2}\b/i,
 ];
+/** Internal line and catalog identifiers are administrative detail, never customer wording. */
+const INTERNAL_ID_GROUP=/\s*\((?:\s*(?:and|,|\/|or)?\s*(?:(?:scope|planning|regional)-\d+(?:-[a-z]+)?|PB-\d{2}-\d{2}-\d{2}(?:-[A-Z])?))+\s*\)/gi;
+const INTERNAL_ID=/\b(?:scope|planning|regional)-\d+(?:-[a-z]+)?\b|\bPB-\d{2}-\d{2}-\d{2}(?:-[A-Z])?\b/gi;
+export function withoutInternalIds(text:string):string{
+  if(!INTERNAL_ID.test(text)){INTERNAL_ID.lastIndex=0;return text;}
+  INTERNAL_ID.lastIndex=0;
+  return text.replace(INTERNAL_ID_GROUP,'').replace(INTERNAL_ID,'').replace(/\(\s*\)/g,'').replace(/\s{2,}/g,' ')
+    .replace(/\s+([,.;:!?)])/g,'$1').replace(/([(,;:])\s*(?=[,;:])/g,'$1').replace(/,\s*,/g,',').replace(/:\s*([,.;])/g,'$1').replace(/^[\s,;:]+/,'').trim();
+}
 const INTERNAL_RATE=/\$\s*\d[\d,.]*(?:\s*-\s*\$\s*\d[\d,.]*)?\s*(?:\/|\bper\b)\s*(?:lf|sf|ea|each|hour|hr|cy)\b(?:\s*\(\s*\$\s*\d[\d,.]*\s+direct costs?\s*\))?/gi;
 const INTERNAL_DIRECT_TOTAL=/\(?\s*\$\s*\d[\d,.]*\s+direct costs?\s*\)?/gi;
 /** Redact only private cost arithmetic; retain surrounding scope, quantity,
@@ -378,17 +395,20 @@ export function customerSafeNotes(notes:unknown):string[]{
   const safe:string[]=[];
   for(const value of notes){
     if(typeof value!=="string"||!value.trim())continue;
-    const note=customerSafeText(value.trim());
+    const note=withoutInternalIds(customerSafeText(value.trim()));
     if(note)safe.push(note);
   }
   return [...new Set(safe)];
 }
+/** Prose fields where an internal line or catalog id is administrative noise; identifiers such as a
+ * line's own id, reference or code are never rewritten. */
+const PROSE_KEYS=new Set(['verificationItems','assumptions','exclusions','allowances','verification','summary','description','explanation','rationale','notes','nextStep','basis','includes','excludes','text','disclaimer','changeSummary','factors','scopeTasks']);
 /** One final recursive projection protects every prose field later rendered by
  * the customer page, PDF, email, or public API response. */
-export function customerSafeProjection<T>(value:T):T{
-  if(typeof value==="string")return customerSafeText(value) as T;
-  if(Array.isArray(value))return value.map(item=>customerSafeProjection(item)).filter(item=>item!==''&&item!==null&&item!==undefined) as T;
-  if(value&&typeof value==="object")return Object.fromEntries(Object.entries(value).map(([key,item])=>[key,customerSafeProjection(item)])) as T;
+export function customerSafeProjection<T>(value:T,key=''):T{
+  if(typeof value==="string"){const safe=customerSafeText(value);return (PROSE_KEYS.has(key)?withoutInternalIds(safe):safe) as T;}
+  if(Array.isArray(value))return value.map(item=>customerSafeProjection(item,key)).filter(item=>item!==''&&item!==null&&item!==undefined) as T;
+  if(value&&typeof value==="object")return Object.fromEntries(Object.entries(value).map(([k,item])=>[k,customerSafeProjection(item,k)])) as T;
   return value;
 }
 /** Explicit projection keeps internal calculations out of API, email and PDF output. */
