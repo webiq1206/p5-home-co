@@ -1,7 +1,7 @@
 {
  "source": "boise-remodeling-co",
  "commit": "50ce203c2ed0db7fa41d19f36ec710400fadeb46",
- "generatedAt": "2026-09-26T19:12:44.211Z",
+ "generatedAt": "2026-09-26T19:19:50.780Z",
  "note": "Shared estimator files. Edit them in boise-remodeling-co and run scripts/p5-sync.mjs; never edit them in one brand.",
  "files": {
   "app/admin/p5-estimators/page.tsx": "a2401f2a29c22dd1a5631fa2c065114275b4e7c1d99ba6c97a8ff0f26cb6a3ad",
@@ -193,7 +193,7 @@
   "scripts/test-p5-background.mts": "adbc260009a133cd575314f4d9800b3472ba6d17cc011e86cd6f427eac6099bf",
   "scripts/test-p5-database-regression.mts": "9e4cbeffd7f5931e1d077925842f8547b7da461738f958ba909494390e7a7fee",
   "scripts/test-p5-document-adapter.mts": "7a2cd0481e4977fbffe8b409ddbeb4ba906050e66bdafcbc65748803d6578e4d",
-  "scripts/test-p5-document-adversarial.mts": "c1cc7f008ab78dd94f72cfb20aa805f08e6411bc3887ba003732da5a5d518c4d",
+  "scripts/test-p5-document-adversarial.mts": "31d6fbfb1afb38b99fb96ec5da48d76b15c4205c3d59696986539a5c47c445fd",
   "scripts/test-p5-document-preparation.mts": "f79cd22eb0342a8f8fa326a2085876bca996416b3e44fd80b3a84af747842bab",
   "scripts/test-p5-origin.mts": "9d1023bfb4fe9da2a28a583074a347d7aeb47d3c6a9e585fe3f329aab4e8acb5",
   "scripts/test-p5-plan-rendering.mts": "9ddafb4401376c667dfc78e0ac9ac293d6df6bc73691c0a5c9aa19d7fc4a6770",
