@@ -12,7 +12,7 @@ try{
  for(const name of ['objectStorage','resumableUpload','analysisWork']){const p=path.join(dir,name+'.ts');await writeFile(p,(await readFile(p,'utf8')).replace(/from ['"]@replit\/object-storage['"]/g,"from './storageFixture'"));}
  const mod=(name:string)=>import(pathToFileURL(path.join(dir,name+'.ts')).href);
  const store=await mod('store'),db=await mod('database'),api=await mod('resumableUpload'),work=await mod('analysisWork'),fixture=await mod('storageFixture'),intent=await mod('projectIntent'),progress=await mod('analysisProgress');
- process.env.P5_OBJECT_STORAGE_ENABLED='true';process.env.ANTHROPIC_API_KEY='synthetic';
+ process.env.P5_OBJECT_STORAGE_ENABLED='true';process.env.OPENAI_API_KEY='synthetic';
  const id=randomUUID(),key=randomBytes(32).toString('hex'),headers={'x-p5-draft-id':id,'x-p5-draft-key':key};
  await store.saveDraft(id,key,'synthetic',{text:'Bathroom remodel',answers:{},extraction:null,reviewed:null,contact:{name:'',email:'',phone:''}},0);
  const pdf=await PDFDocument.create();for(let i=0;i<250;i++){const page=pdf.addPage();page.drawText(`SHEET ${i+1} OF 250${i===249?' FINAL REVISION: INCLUDE TRIM PACKAGE':''}`,{x:40,y:700,size:12});}
@@ -30,11 +30,11 @@ try{
  assert.equal((await store.readUploads(id,key))[0].data.equals(bytes),true);assert.equal([...fixture.objects.keys()].some((k:string)=>k.startsWith('transfers/')),false);
  assert.equal((await call('finish','')).status,200);assert.equal((await store.readDraft(id,key)).uploads.length,1);
  let active=0,peak=0;const counts=new Map<string,number>();const pagesSeen=new Set<number>();const failingSection=/\(pages? 9(?: to \d+)? of/;const provider=async(_url:any,options:any)=>{
-   const payload=JSON.parse(options.body),name=payload.messages[0].content[0].text;
+   const payload=JSON.parse(options.body),name=payload.input[0].content.find((v:any)=>v.type==='input_text'&&v.text.startsWith('Source filename:'))?.text;
    const manifest=JSON.parse(name.split('Original page manifest: ')[1]);
    // One page per request. The page bytes travel as the document part; the reader's third and later attempts read from the text layer instead and carry no bytes.
-   const documentPart=payload.messages[0].content.find((part:any)=>part.type==='document');
-   if(documentPart){const submitted=await PDFDocument.load(Buffer.from(documentPart.source.data,'base64'));assert.equal(submitted.getPageCount(),manifest.length,'every manifest page must actually reach the provider');}
+   const documentPart=payload.input[0].content.find((part:any)=>part.type==='input_file');
+   if(documentPart){const submitted=await PDFDocument.load(Buffer.from(documentPart.file_data.split(',')[1],'base64'));assert.equal(submitted.getPageCount(),manifest.length,'every manifest page must actually reach the provider');}
    else assert.match(name,/\(text layer\)/,'a request without page bytes must be the text-layer fallback');
    for(const p of manifest)pagesSeen.add(p.page);
    // Later attempts serialize the manifest with another key order, so requests are counted by page label.
@@ -43,7 +43,7 @@ try{
    try{
      await new Promise(r=>setTimeout(r,15));
      if(failingSection.test(name)&&counts.get(label)===1)return new Response('temporary failure',{status:503});
-     return Response.json({stop_reason:'end_turn',content:[{type:'text',text:JSON.stringify({summary:'One bathroom',facts:[{field:'sqft',value:'80',confidence:.99,source:'large-plan.pdf',evidence:'80 square feet',basis:'stated'}],conflicts:[],missingInformation:[],reviewNotes:[],clarifications:[],pages:manifest.map((p:any)=>({...p,sheet:`A${p.page}`,revision:p.page===250?'FINAL':'',status:'read',notes:[]})),takeoffs:[]})}]});
+     return Response.json({status:'completed',model:'gpt-4.1-2025-04-14',output:[{content:[{type:'output_text',text:JSON.stringify({summary:'One bathroom',facts:[{field:'sqft',value:'80',confidence:.99,source:'large-plan.pdf',evidence:'80 square feet',basis:'stated'}],conflicts:[],missingInformation:[],reviewNotes:[],clarifications:[],pages:manifest.map((p:any)=>({...p,sheet:`A${p.page}`,revision:p.page===250?'FINAL':'',status:'read',notes:[]})),takeoffs:[]})}]}]});
    }finally{active--;}
  };
  const draft=await store.readDraft(id,key);let step:any;let n=0;
@@ -62,7 +62,7 @@ try{
  const scopeApi=await mod('scopeEndpoint');const nativeFetch=globalThis.fetch;
  let middleFails=true;const sectionCalls=new Map<string,number>();
  globalThis.fetch=async(url:any,options:any)=>{
-   const payload=JSON.parse(options.body),name=payload.messages[0].content[0].text;
+   const payload=JSON.parse(options.body),name=payload.input[0].content.find((v:any)=>v.type==='input_text'&&v.text.startsWith('Source filename:'))?.text;
    sectionCalls.set(name,(sectionCalls.get(name)||0)+1);
    if(middleFails&&failingSection.test(name))return new Response('fixture outage',{status:503});
    return provider(url,options);
@@ -79,4 +79,4 @@ try{
  for(const [name,count] of completedBefore)assert.equal(sectionCalls.get(name),count,'completed sections must not be billed again');
  globalThis.fetch=nativeFetch;
  await db.database.close();console.log('Passed: 25 MB resumable upload, corrupted-segment rejection, retry deduplication, authorization, full byte comparison, cleanup, all 250 pages and final revision in per-page requests, bounded concurrent readers, failed-page retry, Cabinet intent. Real isolated SQL/PDF; storage and AI simulated, not an OCR accuracy benchmark.');
-}finally{delete process.env.P5_OBJECT_STORAGE_ENABLED;delete process.env.ANTHROPIC_API_KEY;await rm(dir,{recursive:true,force:true});}
+}finally{delete process.env.P5_OBJECT_STORAGE_ENABLED;delete process.env.OPENAI_API_KEY;await rm(dir,{recursive:true,force:true});}

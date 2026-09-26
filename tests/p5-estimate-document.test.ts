@@ -53,7 +53,7 @@ test('finish basis is reported truthfully: selected, from documents, or an assum
  const base={brandId:'remodeling',id:ID,revision:1,now:new Date('2026-09-21T18:00:00Z'),contact};
  assert.equal(issueRecord({...base,scope:scope('kitchen',{finish:'high-end'})}).finishBasis,'selected');
  assert.equal(issueRecord({...base,scope:{...scope('kitchen',{finish:'high-end'}),uncertainFields:['finish']}}).finishBasis,'assumed');
- assert.equal(issueRecord({...base,scope:{...scope('kitchen',{finish:'luxury'}),extraction:{facts:[{field:'finish'}]}}}).finishBasis,'document');
+ assert.equal(issueRecord({...base,scope:{...scope('kitchen',{finish:'luxury'}),uploads:[{name:'selections.pdf'}],extraction:{facts:[{field:'finish',value:'luxury',source:'selections.pdf',basis:'stated'}]}}}).finishBasis,'document');
  assert.equal(issueRecord({...base,scope:scope('kitchen')}).finishBasis,'assumed');
  assert.equal(issueRecord({...base,scope:scope('re10')}).finishBasis,'not-applicable');
  // The builder-grade tier is never called a "refresh" on a new home.

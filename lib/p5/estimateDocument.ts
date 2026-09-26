@@ -20,7 +20,7 @@ export interface EstimateBrand {id:string;name:string;domain:string;email:string
 export interface EstimateIssue {
   brandId:string;templateVersion:string;reference:string;revision:number;issuedAt:string;service:string;
   projectName:string;contact:{name:string;email:string;phone:string};location:string;address:string;
-  finish:string;finishBasis:'selected'|'document'|'assumed'|'not-applicable';timing:string;sources:string[];
+  finish:string;finishBasis:'selected'|'description'|'document'|'assumed'|'not-applicable';timing:string;sources:string[];
 }
 export type FinishBasis=EstimateIssue['finishBasis'];
 
@@ -51,6 +51,7 @@ const FINISH:Record<string,{name:string;detail:string}>={
 };
 const BASIS_TEXT:Record<FinishBasis,string>={
   'selected':'Basis: selected by you in the online estimator.',
+  'description':'Basis: captured from your project description.',
   'document':'Basis: taken from the documents you uploaded.',
   'assumed':'Basis: estimating assumption. Please confirm or tell us what you have in mind.',
   'not-applicable':'Basis: finish selections do not apply to this work.',
@@ -230,9 +231,11 @@ export function buildEstimateDocument(input:{id:string;result:unknown;brand:Esti
   };
 }
 /** Build the issue record at submission from the reviewed scope and contact. Pure, so tests pin it. */
-export function issueRecord(input:{brandId:string;id:string;revision:number;now:Date;contact:{name:string;email:string;phone?:string};scope:{text?:string;answers:Record<string,unknown>;uncertainFields?:string[];uploads?:{name:string}[];extraction?:{facts?:{field:string}[]}|null}}):EstimateIssue{
+export function issueRecord(input:{brandId:string;id:string;revision:number;now:Date;contact:{name:string;email:string;phone?:string};scope:{text?:string;answers:Record<string,unknown>;uncertainFields?:string[];uploads?:{name:string}[];extraction?:{facts?:{field:string;value?:string;source?:string;basis?:string}[]}|null}}):EstimateIssue{
   const a=input.scope.answers||{};const finish=clean(a.finish,20);const service=clean(a.service,40);
-  const finishBasis:FinishBasis=REPAIR_SERVICES.has(service)?'not-applicable':!finish?'assumed':(input.scope.uncertainFields||[]).includes('finish')?'assumed':(input.scope.extraction?.facts||[]).some(f=>f.field==='finish')?'document':'selected';
+  const fact=(input.scope.extraction?.facts||[]).find(f=>f.field==='finish'&&f.value===finish);
+  const fromUpload=Boolean(fact?.source&&(input.scope.uploads||[]).some(u=>fact.source!.includes(u.name)));
+  const finishBasis:FinishBasis=REPAIR_SERVICES.has(service)?'not-applicable':!finish?'assumed':(input.scope.uncertainFields||[]).includes('finish')||fact?.basis==='inferred'?'assumed':fact?(fromUpload?'document':'description'):'selected';
   const firstSentence=clean(input.scope.text,600).split(/(?<=[.!?])\s/)[0]||'';
   // The customer's own first sentence names the project; a long one is cut at its first clause, never mid-phrase.
   const sentence=firstSentence.replace(/[.!?]$/,'');
