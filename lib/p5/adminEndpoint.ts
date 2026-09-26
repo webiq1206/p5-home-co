@@ -45,7 +45,10 @@ export async function getAdminEstimates(request:Request){try{
   const drafts=await query("SELECT id,brand,status,revision,payload->'contact' AS contact,payload->'answers'->>'service' AS service,updated_at FROM p5_estimator_drafts ORDER BY updated_at DESC LIMIT 100");
   const delivery=await query("SELECT status,count(*)::integer AS count FROM p5_estimator_outbox GROUP BY status");
   const configuration=policy?.payload||EMPTY_CONFIGURATION;
-  return json({configuration,version:policy?.version||0,allocation:companyAllocation(configuration.finance),drafts,delivery,serviceMatrix:SERVICE_MATRIX});
+  // Existing deployments may not have received a first review request yet.
+  const [reviewTable]=await query("SELECT to_regclass('public.p5_estimator_review_requests') AS relation");
+  const reviewRequests=reviewTable?.relation?await query("SELECT r.draft_id,r.revision,r.contact,r.scope,r.status,r.created_at FROM p5_estimator_review_requests r JOIN p5_estimator_drafts d ON d.id=r.draft_id WHERE d.brand=$1 ORDER BY r.created_at DESC LIMIT 100",[ESTIMATOR_BRAND.id]):[];
+  return json({configuration,version:policy?.version||0,allocation:companyAllocation(configuration.finance),drafts,delivery,reviewRequests,serviceMatrix:SERVICE_MATRIX});
 }catch(error){return failed(error);}}
 export function validateConfiguration(raw:any):EstimatorConfiguration{
   if(!raw?.finance||!Array.isArray(raw.costBooks)||raw.costBooks.length>30)throw new DraftError("Invalid estimator configuration.");

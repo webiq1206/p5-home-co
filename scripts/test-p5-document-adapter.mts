@@ -34,14 +34,14 @@ try{
   assert.equal(headers.get('x-p5-signature'),createHmac('sha256',process.env.P5_DOCUMENT_SERVICE_KEY!).update(signed).digest('hex'));
   assert.equal(init.redirect,'error');
   const reply=(data:unknown,status=200)=>new Response(JSON.stringify(data),{status,headers:{'content-type':'application/json'}});
-  if(route==='/readyz')return reply({ready:true,providerConfigured:true,tenant:brand.domain,protocol:'v1',limits:{maxFileBytes:250*1024*1024,maxPages:250},capabilities:{pdf:true}});
+  if(route==='/readyz')return reply({ready:true,providerConfigured:true,tenant:brand.domain,protocol:'v1',limits:{maxFileBytes:250*1024*1024,maxPages:250},capabilities:{pdf:true},provider:{name:'openai',model:'gpt-4.1',verifyModel:'gpt-4.1',configured:true,ready:true,health:'configured'}});
   if(method==='GET'&&url.pathname.endsWith('/documents/'+documentId))return stored?reply({id:documentId,state:failed?'failed':'complete',progress:{checkedPages:1,totalPages:1},coverage:{complete:!partial,pages:[{page:1,status:partial?'partial':'read'}]}}):reply({error:'not-found'},404);
   if(method==='POST'&&url.pathname.endsWith('/retry'))return reply({error:'retry unavailable'},retryStatus);
   if(method==='POST'&&url.pathname.endsWith('/documents')){uploads++;stored=true;assert.deepEqual(body,bytes);return reply({id:documentId,state:'queued'},202);}
   if(method==='POST'&&url.pathname.endsWith('/reviews')){
    reviewCalls++;scopeBodies.push(body.toString());
    if(reviewCalls===1)return reply({id:'review-1',state:'queued'},202);
-   return reply({id:'review-'+reviewCalls,state:'complete',result:{summary:'Controlled result',facts:[],conflicts:[],missingInformation:[],reviewNotes:[],clarifications:[],pages:[{source:wrongSource?'foreign.pdf':'scope.pdf',page:1,sheet:'A1',revision:'',status:'read',notes:[]}],takeoffs:[],instructions:{inclusions:[],exclusions:[],responsibilities:[],buildings:[],floors:[],separateBuildings:false,laborOnly:false,materialsOnly:false,questions:[]}}},202);
+   return reply({id:'review-'+reviewCalls,state:'complete',modelEvidence:{verified:true,requestedModel:'gpt-4.1',responseModels:['gpt-4.1-2025-04-14'],calls:1},result:{summary:'Controlled result',facts:[],conflicts:[],missingInformation:[],reviewNotes:[],clarifications:[],pages:[{source:wrongSource?'foreign.pdf':'scope.pdf',page:1,sheet:'A1',revision:'',status:'read',notes:[]}],takeoffs:[],instructions:{inclusions:[],exclusions:[],responsibilities:[],buildings:[],floors:[],separateBuildings:false,laborOnly:false,materialsOnly:false,questions:[]}}},202);
   }
   throw new Error('Unexpected controlled service route: '+route);
  };

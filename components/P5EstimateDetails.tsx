@@ -1,3 +1,5 @@
+'use client';
+import {useRef} from 'react';
 import {categoryBreakdown,estimateSections,groupSections,money,scopeBullets,KIND_LABEL,type EstimateSection,type SectionKind} from '../lib/p5/presentation';
 import styles from './P5Estimator.module.css';
 
@@ -29,12 +31,21 @@ function Section({section,open}:{section:EstimateSection;open?:boolean}){
  * readable on a phone while every item remains one tap away.
  */
 export default function P5EstimateDetails({result,openFirst=false,showGlance=true}:{result:any;openFirst?:boolean;showGlance?:boolean}){
+ const root=useRef<HTMLDivElement>(null);
  const sections=estimateSections(result);
  const grouped=groupSections(sections);
  const breakdown=categoryBreakdown(result);
  const priced=Boolean(result?.range);
  const hasCategories=breakdown.length>0;
- return <div className={styles.result}>
+ const costDrivers=priced?[...breakdown].filter(group=>Number.isFinite(group.high)).sort((a,b)=>(b.high||0)-(a.high||0)).slice(0,3):[];
+ const checks=[...new Set(grouped.assumptions.flatMap(section=>section.bullets||[]))];
+ const setAll=(open:boolean)=>root.current?.querySelectorAll('details').forEach(detail=>{detail.open=open;});
+ return <div ref={root} className={styles.result}>
+  {priced&&(costDrivers.length>0||checks.length>0)&&<section className={styles.card} aria-label="Estimate highlights">
+   {costDrivers.length>0&&<><h3>Largest budget categories</h3><dl className={styles.rows}>{costDrivers.map(group=><div key={group.category}><dt>{group.category}</dt><dd>{range(group.low,group.high)}</dd></div>)}</dl></>}
+   {checks.length>0&&<><h3>Start by checking these assumptions</h3><ul className={styles.bullets}>{checks.slice(0,3).map(item=><li key={item}>{item}</li>)}</ul>{checks.length>3&&<p className={styles.hint}>{checks.length-3} more assumptions are listed below. Review all of them before planning the work.</p>}</>}
+  </section>}
+  <div className={styles.actions}><button type="button" className={styles.secondary} onClick={()=>setAll(true)}>Expand all details</button><button type="button" className={styles.ghost} onClick={()=>setAll(false)}>Collapse all details</button></div>
   {showGlance&&grouped.glance&&<Section section={grouped.glance} open={openFirst}/>}
   {grouped.brief&&<Section section={grouped.brief}/>}
   {(grouped.included.length>0||hasCategories)&&<p className={styles.sectionLabel}>{priced?'What is included':'Requested work'}</p>}
