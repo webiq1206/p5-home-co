@@ -16,12 +16,22 @@ export function P5LazyEstimator(props:ComponentProps<typeof P5Estimator>){
   const [ready,setReady]=useState(false);
   useEffect(()=>{
     if(!ref.current)return;
-    if(!('IntersectionObserver' in window)){setReady(true);return;}
+    // An explicit anchor visit must not depend on observer delivery after a
+    // dynamic parent replaces its loading placeholder (notably in WebKit).
+    const loadAnchor=()=>{
+      let id='';
+      try{id=decodeURIComponent(window.location.hash.slice(1));}catch{return;}
+      const target=id?document.getElementById(id):null;
+      if(target&&ref.current&&(target.contains(ref.current)||ref.current.contains(target)))setReady(true);
+    };
+    loadAnchor();
+    window.addEventListener('hashchange',loadAnchor);
+    if(!('IntersectionObserver' in window)){setReady(true);return ()=>window.removeEventListener('hashchange',loadAnchor);}
     const observer=new IntersectionObserver(entries=>{
       if(entries.some(entry=>entry.isIntersecting)){setReady(true);observer.disconnect();}
     },{rootMargin:'300px'});
     observer.observe(ref.current);
-    return ()=>observer.disconnect();
+    return ()=>{observer.disconnect();window.removeEventListener('hashchange',loadAnchor);};
   },[]);
   return <div ref={ref} style={{minHeight:300}}>{ready?<Estimator {...props}/>:<div style={{padding:32,background:'#fff',color:'#20231f',border:'1px solid #d9ded6',borderRadius:20}}>
     <p>Describe your project, add photos or plans, and review the details before requesting a preliminary estimate.</p>
