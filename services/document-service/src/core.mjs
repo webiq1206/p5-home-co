@@ -1,5 +1,5 @@
 import {createHash,createHmac,timingSafeEqual,randomUUID} from 'node:crypto';
-export const VERSION='p5-documents-2026-09-17-v1';
+export const VERSION='p5-documents-gpt41-2026-09-26-v2';
 export const hash=value=>createHash('sha256').update(value).digest('hex');
 export const stable=value=>JSON.stringify(value,(_,v)=>v&&typeof v==='object'&&!Array.isArray(v)?Object.fromEntries(Object.keys(v).sort().map(k=>[k,v[k]])):v);
 export const documentId=(tenant,project,digest)=>hash(stable([VERSION,tenant,project,digest]));
@@ -49,10 +49,12 @@ export function readConfig(env=process.env){
  const keys=new Set();
  for(const [id,key] of Object.entries(tenants)){if(!authorized.includes(id))throw new ServiceError('unauthorized-tenant',500);identifier(id,'tenant');if(typeof key!=='string'||key.length<32)throw new ServiceError('weak-tenant-key',500);if(keys.has(key))throw new ServiceError('duplicate-tenant-key',500);keys.add(key);}
  if(!env.DOCUMENT_DATABASE_URL)throw new ServiceError('missing-document-database',500);
- const provider=env.DOCUMENT_PROVIDER||'anthropic';if(!['anthropic','gemini','openai'].includes(provider))throw new ServiceError('unsupported-provider',500);
- const key=env[{'anthropic':'ANTHROPIC_API_KEY','gemini':'GEMINI_API_KEY','openai':'OPENAI_API_KEY'}[provider]];
- if(!key||!env.DOCUMENT_MODEL)throw new ServiceError('missing-provider-configuration',500);
- return {tenants,databaseUrl:env.DOCUMENT_DATABASE_URL,provider,key,model:env.DOCUMENT_MODEL,verifyModel:env.DOCUMENT_VERIFY_MODEL||env.DOCUMENT_MODEL,
+ const provider='openai';
+ const integrated=Boolean(env.AI_INTEGRATIONS_OPENAI_API_KEY&&env.AI_INTEGRATIONS_OPENAI_BASE_URL);
+ const key=integrated?env.AI_INTEGRATIONS_OPENAI_API_KEY:env.OPENAI_API_KEY;
+ if(!key)throw new ServiceError('missing-provider-configuration',500);
+ const endpoint=(integrated?env.AI_INTEGRATIONS_OPENAI_BASE_URL:env.OPENAI_BASE_URL||'https://api.openai.com/v1').replace(/\/+$/,'');
+ return {tenants,databaseUrl:env.DOCUMENT_DATABASE_URL,provider,key,endpoint,model:'gpt-4.1',verifyModel:'gpt-4.1',
  bindHost:env.DOCUMENT_BIND_HOST||'0.0.0.0',poolMax:integer('DOCUMENT_DATABASE_POOL_MAX',Math.max(6,Number(env.DOCUMENT_PROVIDER_SLOTS||12)+Number(env.DOCUMENT_PARSER_SLOTS||2)),2,64),uploadSlots:integer('DOCUMENT_UPLOAD_SLOTS',4,1,4),
   port:integer('PORT',8080,1,65535),maxBytes:integer('DOCUMENT_MAX_BYTES',250*1024*1024,1048576,250*1024*1024),maxPages:integer('DOCUMENT_MAX_PAGES',250,1,250),
  slots:integer('DOCUMENT_PROVIDER_SLOTS',12,1,48),parserSlots:integer('DOCUMENT_PARSER_SLOTS',2,1,8),rpm:integer('DOCUMENT_REQUESTS_PER_MINUTE',60,1,5000),tpm:integer('DOCUMENT_TOKENS_PER_MINUTE',600000,10000,20000000),

@@ -113,7 +113,7 @@ test('a slow or unavailable web search falls back to a labeled planning average 
   assert.ok(!JSON.stringify(r.customer).includes('unitCost'));
 });
 
-test('a typed scope is read by every configured provider at once and the first valid result wins',async()=>{
+test('legacy race settings cannot dispatch another provider',async()=>{
   const {analyzeBatch}=await import('../lib/p5/extraction.ts');
   const saved={openai:process.env.OPENAI_API_KEY,anthropic:process.env.ANTHROPIC_API_KEY,integrated:process.env.AI_INTEGRATIONS_OPENAI_API_KEY};
   process.env.OPENAI_API_KEY='fixture';process.env.ANTHROPIC_API_KEY='fixture';delete process.env.AI_INTEGRATIONS_OPENAI_API_KEY;
@@ -123,22 +123,21 @@ test('a typed scope is read by every configured provider at once and the first v
   const calls:string[]=[];
   const request:typeof fetch=async(input,init)=>{
     const url=String(input);calls.push(url);
-    if(url.includes('/responses')){await new Promise((_,reject)=>{init?.signal?.addEventListener('abort',()=>reject(new Error('aborted')));setTimeout(()=>reject(new Error('aborted')),1500);});throw new Error('unreachable');}
-    await new Promise(r=>setTimeout(r,20));
-    return Response.json({stop_reason:'tool_use',model:'claude-sonnet-5',content:[{type:'tool_use',name:'record_scope_analysis',input:record}]});
+    assert.ok(url.includes('/responses'));
+    return Response.json({status:'completed',model:'gpt-4.1-2025-04-14',output:[{content:[{type:'output_text',text:JSON.stringify(record)}]}]});
   };
   const started=Date.now();
   try{
     const result=await analyzeBatch('Remodel the bathroom.',[],{},request,5000,Date.now()+5000,{race:true});
-    assert.equal(result.provider,'Anthropic');assert.equal(result.extraction.facts[0].value,'bathroom');
+    assert.equal(result.provider,'OpenAI');assert.equal(result.extraction.facts[0].value,'bathroom');
     assert.ok(Date.now()-started<1000,'the slow primary provider must not delay a valid fallback result');
-    assert.ok(calls.some(url=>url.includes('/responses'))&&calls.some(url=>url.includes('/messages')),'both providers are asked');
+    assert.equal(calls.length,1,'only the required model is asked');
   }finally{
     for(const [key,value] of [['OPENAI_API_KEY',saved.openai],['ANTHROPIC_API_KEY',saved.anthropic],['AI_INTEGRATIONS_OPENAI_API_KEY',saved.integrated],['P5_TEXT_RACE',savedRace]] as const){if(value===undefined)delete process.env[key];else process.env[key]=value;}
   }
 });
 
-test('a billing refusal from Anthropic falls back to OpenAI for the stage and parks Anthropic',async()=>{
+test('legacy Anthropic preference is ignored and missing OpenAI configuration blocks pricing',async()=>{
   const {requestPricing}=await import('../lib/p5/scopePricing.ts');
   const names=['OPENAI_API_KEY','AI_INTEGRATIONS_OPENAI_API_KEY','AI_INTEGRATIONS_OPENAI_BASE_URL','ANTHROPIC_API_KEY','OPENAI_BASE_URL','P5_PRICING_PROVIDER'] as const;
   const saved=Object.fromEntries(names.map(n=>[n,process.env[n]]));
@@ -149,15 +148,15 @@ test('a billing refusal from Anthropic falls back to OpenAI for the stage and pa
   globalThis.fetch=(async(input:any)=>{
     const url=String(input);
     if(url.includes('anthropic.com')){anthropicCalls++;return new Response(JSON.stringify({type:'error',error:{type:'invalid_request_error',message:'Your credit balance is too low to access the Anthropic API.'}}),{status:400});}
-    openaiCalls++;return Response.json({status:'completed',output:[{content:[{type:'output_text',text:'{"coveredTaskIds":["a"],"issues":[]}'}]}]});
+    openaiCalls++;return Response.json({status:'completed', model:'gpt-4.1-2025-04-14',output:[{content:[{type:'output_text',text:'{"coveredTaskIds":["a"],"issues":[]}'}]}]});
   }) as typeof fetch;
   try{
     const first=await requestPricing('JSON',{},false,20000);
-    assert.deepEqual(first.value,{coveredTaskIds:['a'],issues:[]});assert.equal(anthropicCalls,1);assert.equal(openaiCalls,1);
+    assert.deepEqual(first.value,{coveredTaskIds:['a'],issues:[]});assert.equal(anthropicCalls,0);assert.equal(openaiCalls,1);
     const second=await requestPricing('JSON',{},false,20000);
-    assert.deepEqual(second.value,{coveredTaskIds:['a'],issues:[]});assert.equal(anthropicCalls,1,'a billing block parks Anthropic for later stages');assert.equal(openaiCalls,2);
+    assert.deepEqual(second.value,{coveredTaskIds:['a'],issues:[]});assert.equal(anthropicCalls,0,'the required provider is retained for every stage');assert.equal(openaiCalls,2);
     delete process.env.OPENAI_API_KEY;
-    await assert.rejects(()=>requestPricing('JSON',{},false,20000),/pricing-provider-unavailable:anthropic-blocked/);
+    await assert.rejects(()=>requestPricing('JSON',{},false,20000),/pricing-provider-unavailable/);
   }finally{
     globalThis.fetch=realFetch;runtime.p5AnthropicBlockedUntil=0;
     for(const n of names){if(saved[n]===undefined)delete process.env[n];else process.env[n]=saved[n]!;}
@@ -201,7 +200,7 @@ test('confirmation-only audit findings become disclosed assumptions, real gaps s
   assert.equal(advisoryIssue('Vanity top duplicated in both cabinetry and countertop lines.'),false);
 });
 
-test('OpenAI leads pricing stages by default and Anthropic covers its refusal',async()=>{
+test('OpenAI refusal pauses pricing without provider fallback',async()=>{
   const {requestPricing}=await import('../lib/p5/scopePricing.ts');
   const names=['OPENAI_API_KEY','AI_INTEGRATIONS_OPENAI_API_KEY','AI_INTEGRATIONS_OPENAI_BASE_URL','ANTHROPIC_API_KEY','OPENAI_BASE_URL','P5_PRICING_PROVIDER'] as const;
   const saved=Object.fromEntries(names.map(n=>[n,process.env[n]]));
@@ -213,14 +212,14 @@ test('OpenAI leads pricing stages by default and Anthropic covers its refusal',a
     const url=String(input);
     if(url.includes('anthropic.com')){anthropicCalls++;return Response.json({stop_reason:'end_turn',content:[{type:'text',text:'{"coveredTaskIds":["b"],"issues":[]}'}]});}
     openaiCalls++;if(openaiRefuses)return new Response('{"error":{"message":"invalid_request"}}',{status:400});
-    return Response.json({status:'completed',output:[{content:[{type:'output_text',text:'{"coveredTaskIds":["a"],"issues":[]}'}]}]});
+    return Response.json({status:'completed', model:'gpt-4.1-2025-04-14',output:[{content:[{type:'output_text',text:'{"coveredTaskIds":["a"],"issues":[]}'}]}]});
   }) as typeof fetch;
   try{
     const first=await requestPricing('JSON',{},false,20000);
     assert.deepEqual(first.value,{coveredTaskIds:['a'],issues:[]});assert.equal(openaiCalls,1);assert.equal(anthropicCalls,0,'OpenAI answers first');
     openaiRefuses=true;
-    const second=await requestPricing('JSON',{},false,20000);
-    assert.deepEqual(second.value,{coveredTaskIds:['b'],issues:[]});assert.equal(anthropicCalls,1,'a refusal falls through to Anthropic');
+    await assert.rejects(requestPricing('JSON',{},false,20000),/pricing-provider-unavailable/);
+    assert.equal(anthropicCalls,0,'a refusal cannot substitute another provider');
   }finally{
     globalThis.fetch=realFetch;runtime.p5AnthropicBlockedUntil=0;
     for(const n of names){if(saved[n]===undefined)delete process.env[n];else process.env[n]=saved[n]!;}
@@ -237,7 +236,7 @@ test('a document read keeps a section when one takeoff lacks a page reference',a
     pages:[{source:'estimate.pdf',sheet:'',revision:'',page:1,status:'read',notes:[]}],
     takeoffs:[{id:'t1',description:'Base cabinets',building:'',floor:'',component:'cabinets',quantity:20,unit:'LF',basis:'stated',evidence:'20 LF base',supersedes:[],issues:[],sources:[{source:'estimate.pdf',sheet:'',revision:'',page:1}]},
       {id:'t2',description:'Countertop',building:'',floor:'',component:'countertop',quantity:40,unit:'SF',basis:'stated',evidence:'40 SF quartz',supersedes:[],issues:[],sources:[]}]};
-  const request:typeof fetch=async()=>Response.json({status:'completed',output:[{content:[{type:'output_text',text:JSON.stringify(record)}]}]});
+  const request:typeof fetch=async()=>Response.json({status:'completed', model:'gpt-4.1-2025-04-14',output:[{content:[{type:'output_text',text:JSON.stringify(record)}]}]});
   try{
     const result=await analyzeBatch('Price the cabinets.',[{name:'estimate.pdf',type:'application/pdf',data:Buffer.from('%PDF-1.4 fixture'),pages:[page]}],{},request,20000,Date.now()+20000);
     assert.equal(result.extraction.facts[0].value,'kitchen');
@@ -287,9 +286,9 @@ test('an OpenAI rate limit is waited out, not ended by an Anthropic account with
   try{
     // The stage reports the OpenAI rate limit (a busy provider the job waits out), not the billing refusal.
     await assert.rejects(()=>requestPricing('JSON',{},false,20000),/^Error: pricing-provider-unavailable:429/);
-    assert.equal(anthropicCalls,1);
+    assert.equal(anthropicCalls,0);
     await assert.rejects(()=>requestPricing('JSON',{},false,20000),/pricing-provider-unavailable:429/);
-    assert.equal(anthropicCalls,1,'Anthropic is parked after a billing refusal');
+    assert.equal(anthropicCalls,0,'a rate limit never dispatches another provider');
   }finally{
     globalThis.fetch=realFetch;runtime.p5AnthropicBlockedUntil=0;
     for(const n of names){if(saved[n]===undefined)delete process.env[n];else process.env[n]=saved[n]!;}

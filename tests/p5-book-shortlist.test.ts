@@ -35,7 +35,7 @@ test('a failed or unconfigured search falls back to word matching, never an erro
     process.env.OPENAI_API_KEY='synthetic';
     assert.equal((await shortlistBook(tasks,rates,(async()=>new Response('busy',{status:429})) as any)).size,0,'a refusal');
     assert.equal((await shortlistBook(tasks,rates,(async()=>{throw new Error('timeout');}) as any)).size,0,'a timeout');
-    const ok=await shortlistBook(tasks,rates,(async()=>Response.json({output:[{content:[{type:'output_text',text:JSON.stringify({tasks:[{id:'HOME-01',codes:['PB-90-10-01']}]})}]}]})) as any);
+    const ok=await shortlistBook(tasks,rates,(async()=>Response.json({model:'gpt-4.1-2025-04-14',output:[{content:[{type:'output_text',text:JSON.stringify({tasks:[{id:'HOME-01',codes:['PB-90-10-01']}]})}]}]})) as any);
     assert.deepEqual(ok.get('HOME-01'),['PB-90-10-01']);
   }finally{for(const k of keys){if(saved[k]===undefined)delete process.env[k];else process.env[k]=saved[k]!;}}
 });

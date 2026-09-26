@@ -1,3 +1,4 @@
+import {ESTIMATOR_MODEL,assertEstimatorModel,EstimatorModelError} from './modelPolicy.ts';
 import {unitKey,reusableUnitRate,supportedUnit} from './unitRates.ts';
 import {reasoningFor,rejectsReasoning} from './openaiReasoning.ts';
 class MissingResearchRateError extends Error {}
@@ -188,12 +189,7 @@ const stageSchema=(instructions:string)=>instructions===normalizeResearch?market
 export type OpenAiPricingOptions={serviceTier?:'default';maxOutputTokens?:number};
 export const openAiPricingRequestEnvelope=(instructions:string,input:unknown,search:boolean,options:OpenAiPricingOptions={})=>{
   const task=search?'research':instructions===INVENTORY?'inventory':instructions===MAP||instructions===PLANNING_AVERAGE||instructions===normalizeResearch?'map':'audit';
-  // Mapping is where a job spends nearly all of its time: it is the only stage that runs once per
-  // batch and then again for every batch a repair round questions, and live calls have measured 12 s
-  // to 75 s each. P5_MAP_MODEL sets that stage's model on its own so a faster one can be trialled
-  // from Secrets, without a rebuild and without touching the audit, which is the stage that catches
-  // double counts and is the last place to trade accuracy for speed. Unset, nothing changes.
-  const model=(task==='map'&&process.env.P5_MAP_MODEL)||process.env.P5_PRICING_OPENAI_MODEL||process.env.P5_SCOPE_OPENAI_MODEL||'gpt-4.1';
+  const model=ESTIMATOR_MODEL;
   const body={model,...reasoningFor(model,task),instructions,input:'Return JSON only.\n'+JSON.stringify(input),max_output_tokens:options.maxOutputTokens||(search?24000:task==='map'?28000:16000),store:false,...(options.serviceTier?{service_tier:options.serviceTier}:{}),...(search?{tools:[{type:'web_search'}],tool_choice:'required',include:['web_search_call.action.sources']}:{text:{format:{type:'json_schema',name:'pricing_stage',strict:false,schema:stageSchema(instructions)}}})};
   return {model,body};
 };
@@ -264,6 +260,7 @@ const requestPricingWithUnsafe=async(provider:'anthropic'|'openai',instructions:
     if(rejectsReasoning(response.status,detail)&&'reasoning' in requestBody){const {reasoning:_omit,...plain}=requestBody as Record<string,unknown>;void _omit;console.error('[p5-pricing] OpenAI refused the reasoning setting; retrying without it.');response=await send(plain);detail=response.ok?'':await response.text().catch(()=>'');}
     if(!response.ok)throw new Error(`pricing-provider-unavailable:${response.status}:${detail.replace(/\s+/g,' ').slice(0,300)}`);}
   const body=await response.json();
+  assertEstimatorModel(body.model);
   if(body.status!=='completed')throw new Error(`pricing-check-incomplete:${body.incomplete_details?.reason||body.status||'unknown'}`);
   const parts=(body.output||[]).flatMap((o:any)=>o.content||[]);
   const raw=parts.filter((p:any)=>p.type==='output_text').map((p:any)=>p.text).join('\n');
@@ -292,6 +289,7 @@ export const requestPricingWith=async(provider:'anthropic'|'openai',instructions
     // known non-chargeable (except 408/429, whose acknowledgement is not
     // reliable). Keep the existing provider fallback for those responses.
     const knownRejection=/^pricing-provider-unavailable:4(?:0[0-3]|0[5-7])\b/.test(message);
+    if(error instanceof EstimatorModelError){await settlePricingCharge(fingerprint);throw error;}
     if(error instanceof PricingChargeUnknownError)throw error;
     if(knownRejection){await rejectPricingCharge(fingerprint,message);throw error;}
     if(reservation)await markPricingChargeUnknown(fingerprint,message);
@@ -304,55 +302,12 @@ export const requestPricingOpenAI=async(instructions:string,input:unknown,search
   validateManagedPricingOpenAI();
   return requestPricingWith('openai',instructions,input,search,remainingMs,{serviceTier:'default'},undefined,beforeDispatch);
 };
-/** Anthropic prices first when configured. A refusal it will repeat (billing
- * block, invalid request, oversized reply) falls back to OpenAI for the rest
- * of the stage when an OpenAI key exists; a billing block also parks
- * Anthropic for ten minutes so later stages skip straight to OpenAI. */
+/** GPT-4.1 is mandatory. Durable callers handle bounded retries without provider substitution. */
 export const requestPricing=async(instructions:string,input:unknown,search:boolean,remainingMs:number,identity?:PricingIdentity,policy?:PricingRequestPolicy):Promise<PricingReply>=>{
-  const started=Date.now();
-  if(policy){
-    if(policy.provider!=='openai'||policy.noFallback!==true||policy.toolFree!==true||search||!Number.isSafeInteger(policy.maxOutputTokens)||policy.maxOutputTokens<1||policy.maxOutputTokens>4096)throw new Error('pricing-qualification-policy-invalid');
-    return requestPricingWith('openai',instructions,input,false,remainingMs,{maxOutputTokens:policy.maxOutputTokens,serviceTier:policy.serviceTier},identity);
-  }
+  if(policy&&(policy.provider!=='openai'||policy.noFallback!==true||policy.toolFree!==true||search||!Number.isSafeInteger(policy.maxOutputTokens)||policy.maxOutputTokens<1||policy.maxOutputTokens>4096))throw new Error('pricing-qualification-policy-invalid');
   const integrated=Boolean(process.env.AI_INTEGRATIONS_OPENAI_API_KEY&&process.env.AI_INTEGRATIONS_OPENAI_BASE_URL);
-  const openai=Boolean(integrated?process.env.AI_INTEGRATIONS_OPENAI_API_KEY:process.env.OPENAI_API_KEY);
-  const anthropic=Boolean(process.env.ANTHROPIC_API_KEY)&&(providerRuntime.p5AnthropicBlockedUntil||0)<=Date.now();
-  // Live timings: gpt-4.1 returns a pricing stage in 5 to 40 s where claude-sonnet-5 took 70 to 150 s, so OpenAI leads when both are configured unless P5_PRICING_PROVIDER says otherwise; either provider still covers a refusal by the other.
-  const preferOpenAI=openai&&(process.env.P5_PRICING_PROVIDER||'openai')!=='anthropic';
-  if(preferOpenAI){
-    try{return await requestPricingWith('openai',instructions,input,search,remainingMs,{},identity);}
-    catch(error){
-      const message=error instanceof Error?error.message:String(error);
-      if(!anthropic||!(providerRefused(message)||providerBusy(message)))throw error;
-      const left=remainingMs-(Date.now()-started);
-      console.error(`[p5-pricing] OpenAI refused the stage (${message.slice(0,140)}); ${left>=5000?'continuing with Anthropic':'no time left for Anthropic'}.`);
-      if(left<5000)throw error;
-      try{return await requestPricingWith('anthropic',instructions,input,search,left,{},identity);}
-      catch(fallback){
-        // Live 2026-09-21: OpenAI was rate limited (429), the fallback reached an Anthropic account with
-        // no credit, and that billing refusal was reported instead, which ends the job as a handoff. A
-        // billing block parks Anthropic, and the original OpenAI error is what the stage reports, so a
-        // rate limit is waited out and retried as the busy path intends.
-        const detail=fallback instanceof Error?fallback.message:String(fallback);
-        if(/credit balance|billing|:402:/i.test(detail)){providerRuntime.p5AnthropicBlockedUntil=Date.now()+10*60_000;console.error('[p5-pricing] Anthropic has no credit; parked for 10 minutes. Retrying with OpenAI.');throw error;}
-        throw fallback;
-      }
-    }
-  }
-  if(anthropic){
-    try{return await requestPricingWith('anthropic',instructions,input,search,remainingMs,{},identity);}
-    catch(error){
-      const message=error instanceof Error?error.message:String(error);
-      if(!openai||!(providerRefused(message)||providerBusy(message)))throw error;
-      if(/credit balance|billing|:402:/i.test(message))providerRuntime.p5AnthropicBlockedUntil=Date.now()+10*60_000;
-      const left=remainingMs-(Date.now()-started);
-      console.error(`[p5-pricing] Anthropic refused the stage (${message.slice(0,140)}); ${left>=5000?'continuing with OpenAI':'no time left for OpenAI'}.`);
-      if(left<5000)throw error;
-      return requestPricingWith('openai',instructions,input,search,left,{},identity);
-    }
-  }
-  if(!openai)throw new Error(process.env.ANTHROPIC_API_KEY?'pricing-provider-unavailable:anthropic-blocked':'pricing-provider-unavailable');
-  return requestPricingWith('openai',instructions,input,search,remainingMs,{},identity);
+  if(!(integrated?process.env.AI_INTEGRATIONS_OPENAI_API_KEY:process.env.OPENAI_API_KEY))throw new Error('pricing-provider-unavailable');
+  return requestPricingWith('openai',instructions,input,search,remainingMs,policy?{maxOutputTokens:policy.maxOutputTokens,serviceTier:policy.serviceTier}:{},identity);
 };
 
 /** Independent batches run together, but only a few at a time: a burst of a dozen
@@ -1091,7 +1046,7 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
     // One full-book search per estimate names the closest book lines for every task (bookShortlist.ts).
     const bookRates=(configuration.planningCatalog?.rates||[]).map(({code,description,type,unit,amount,basis})=>({code,description,type,unit,amount,basis}));
     const shortlist=process.env.NODE_TEST_CONTEXT&&!process.env.P5_BOOK_SHORTLIST_TEST?new Map<string,string[]>():await shortlistBook(inventory.tasks,bookRates);
-    const mappingInput=(taskBatch:typeof inventory.tasks)=>({original:sourceParts.length===1?original:{sections:[...new Set(taskBatch.map(t=>taskSources.get(t.id)!))].map(i=>sourceParts[i])},taskBatch:taskBatch.map(({id,description,evidence})=>({id,description,evidence})),priorMappedTasks:[],priorReplacements:[],existingLines:lines.map(({id,description,quantity,unit,unitCost,category,trade,quantitySource})=>({id,description,quantity,unit,unitCost,category,trade,quantitySource})),defaultExclusions:base.customer.exclusions,date:now.toISOString(),catalogImportedAt:configuration.planningCatalog?.importedAt,regionalRates:configuration.regionalRates,shortlist:Object.fromEntries(taskBatch.map(t=>[t.id,shortlist.get(t.id)||[]])),catalog:relevantCatalog(bookRates,taskBatch,undefined,new Set(taskBatch.flatMap(t=>shortlist.get(t.id)||[])))});
+    const mappingInput=(taskBatch:typeof inventory.tasks)=>({original:sourceParts.length===1?original:{sections:[...new Set(taskBatch.map(t=>taskSources.get(t.id)!))].map(i=>sourceParts[i])},taskBatch:taskBatch.map(({id,description,evidence})=>({id,description,evidence})),priorMappedTasks:[],priorReplacements:[],existingLines:lines.map(({id,description,quantity,unit,unitCost,category,trade,quantitySource})=>({id,description,quantity,unit,unitCost,category,trade,quantitySource})),defaultExclusions:base.customer.exclusions,date:now.toISOString(),catalogImportedAt:configuration.planningCatalog?.importedAt,regionalRates:configuration.regionalRates,shortlist:Object.fromEntries(taskBatch.map(t=>[t.id,shortlist.get(t.id)||[]])),catalog:taskBatch.some(t=>!shortlist.get(t.id)?.length)?bookRates:relevantCatalog(bookRates,taskBatch,undefined,new Set(taskBatch.flatMap(t=>shortlist.get(t.id)||[])))});
     const firstBatches=batchesOf(inventory.tasks,mappingBatchSize(inventory.tasks.length));
     const mappedBatches=await mapLimit(firstBatches,taskBatch=>mapBatch(request,taskBatch,mappingInput,()=>deadline-Date.now()));
     const mapping:Mapping={tasks:[],issues:[...inventory.issues],notes:[...inventory.notes],replacements:[],removeExclusions:[]};

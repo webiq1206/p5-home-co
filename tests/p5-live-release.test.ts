@@ -73,7 +73,7 @@ test('provider response integration recovers supplied finish selections before r
  process.env.OPENAI_API_KEY='synthetic-test';
  try{
   const {analyzeBatch}=await import('../lib/p5/extraction.ts');
-  const request:typeof fetch=async()=>Response.json({status:'completed',output:[{content:[{type:'output_text',text:JSON.stringify(empty)}]}]});
+  const request:typeof fetch=async()=>Response.json({status:'completed', model:'gpt-4.1-2025-04-14',output:[{content:[{type:'output_text',text:JSON.stringify(empty)}]}]});
   const result=await analyzeBatch('Build a new home with standard finishes.',[],{},request,5000,Date.now()+5000);
   assert.equal(result.extraction.facts.find(f=>f.field==='finish')?.value,'mid-range');
  }finally{for(const k of keys){if(saved[k]===undefined)delete process.env[k];else process.env[k]=saved[k];}}

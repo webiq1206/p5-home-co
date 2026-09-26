@@ -16,7 +16,7 @@ const withProviders=async(env:Record<string,string>,run:()=>Promise<void>)=>{
  try{await run();}finally{for(const k of variables){if(before[k]===undefined)delete process.env[k];else process.env[k]=before[k];}}
 };
 const extraction={summary:'Fixture scope',facts:[],conflicts:[],missingInformation:[],reviewNotes:[],clarifications:[]};
-const openAiReply=(manifest:{source:string;page:number}[])=>Response.json({status:'completed',output:[{content:[{type:'output_text',text:JSON.stringify({...extraction,pages:manifest.map(p=>({...p,sheet:'',revision:'',status:'read',notes:[]})),takeoffs:[]})}]}]});
+const openAiReply=(manifest:{source:string;page:number}[])=>Response.json({status:'completed', model:'gpt-4.1-2025-04-14',output:[{content:[{type:'output_text',text:JSON.stringify({...extraction,pages:manifest.map(p=>({...p,sheet:'',revision:'',status:'read',notes:[]})),takeoffs:[]})}]}]});
 async function budgetPdf(){
  const pdf=await PDFDocument.create();const font=await pdf.embedFont(StandardFonts.Helvetica);
  const lines=[['PRELIMINARY CONSTRUCTION BUDGET','Structural Framing: floor, wall and roof framing; trusses'],['Roofing and Gutters: architectural shingles','Plumbing: complete rough and finish plumbing'],['Allowance: septic system, permit, tank','Cabinetry is paint-grade Shaker style']];
@@ -135,7 +135,7 @@ test('an invalid reply is asked for again from the same provider before a slower
   const result=await analyzeBatch('Price this build',[{name:'budget.pdf (page 4 of 4)',type:'application/pdf',data:Buffer.from('%PDF-synthetic'),pages:[{source:'budget.pdf',page:4}],text:'Allowances'}],{},async(url,options)=>{
    const body=JSON.parse(String(options?.body));
    calls.push({url:String(url),repair:/rejected by the validator/.test(String(body.instructions))});
-   if(calls.length===1)return Response.json({status:'completed',output:[{content:[{type:'output_text',text:JSON.stringify({summary:'x',facts:'not-an-array',conflicts:[],missingInformation:[],reviewNotes:[],clarifications:[]})}]}]});
+   if(calls.length===1)return Response.json({status:'completed', model:'gpt-4.1-2025-04-14',output:[{content:[{type:'output_text',text:JSON.stringify({summary:'x',facts:'not-an-array',conflicts:[],missingInformation:[],reviewNotes:[],clarifications:[]})}]}]});
    return openAiReply([{source:'budget.pdf',page:4}]);
   },60_000,Date.now()+60_000);
   assert.equal(calls.length,2);
@@ -177,7 +177,7 @@ test('list fields delivered as JSON text or omitted are recovered without anothe
   const result=await analyzeBatch('Price this build',[{name:'budget.pdf (page 1 of 4)',type:'application/pdf',data:Buffer.from('%PDF-synthetic'),pages:[{source:'budget.pdf',page:1}]}],{},async()=>{
    calls++;
    const text=JSON.stringify({summary:'Budget page',facts:JSON.stringify([]),conflicts:JSON.stringify([]),missingInformation:[],reviewNotes:[],clarifications:[],pages:JSON.stringify([{source:'budget.pdf',page:1,sheet:'',revision:'',status:'read',notes:[]}]),takeoffs:[]});
-   return Response.json({status:'completed',output:[{content:[{type:'output_text',text}]}]});
+   return Response.json({status:'completed', model:'gpt-4.1-2025-04-14',output:[{content:[{type:'output_text',text}]}]});
   },60_000,Date.now()+60_000);
   assert.equal(calls,1);assert.equal(result.extraction.documentCoverage?.complete,true);
  });
@@ -188,7 +188,7 @@ test('a reply that stays invalid after one repair never falls back to the slower
   const urls:string[]=[];
   await assert.rejects(analyzeBatch('Price this build',[{name:'budget.pdf (page 2 of 4)',type:'application/pdf',data:Buffer.from('%PDF-synthetic'),pages:[{source:'budget.pdf',page:2}]}],{},async(url)=>{
    urls.push(String(url));
-   return Response.json({status:'completed',output:[{content:[{type:'output_text',text:JSON.stringify({summary:7,facts:{},conflicts:[]})}]}]});
+   return Response.json({status:'completed', model:'gpt-4.1-2025-04-14',output:[{content:[{type:'output_text',text:JSON.stringify({summary:7,facts:{},conflicts:[]})}]}]});
   },60_000,Date.now()+60_000),/analysis-provider-failed:OpenAI/);
   assert.equal(urls.length,2,'one read and one repair');
   assert.ok(urls.every(u=>u.includes('openai')),'the fallback provider is not called for an invalid reply');

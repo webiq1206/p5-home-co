@@ -1,3 +1,4 @@
+import {ESTIMATOR_MODEL,MODEL_POLICY_VERSION,estimatorModelConfiguration,assertEstimatorModel} from './modelPolicy.ts';
 import {groundSourceResponsibilities} from './sourceResponsibilities.ts';
 import {openAiReadModel,preferredReadProvider,rateLimitWaitMs,RATE_LIMIT_RETRIES} from './readerRouting.ts';
 import {reasoningFor,rejectsReasoning} from './openaiReasoning.ts';
@@ -27,7 +28,7 @@ export function textLayerFiles(files:AnalysisFile[]):AnalysisFile[]{
   return files.map(file=>file.type==='application/pdf'&&file.text?{...file,type:'text/plain',data:Buffer.from(file.text,'utf8'),text:undefined,name:`${file.name} (text layer)`}:file);
 }
 const pdfWithTextLayer=(files:AnalysisFile[])=>files.some(file=>file.type==='application/pdf'&&Boolean(file.text));
-export interface AnalysisResult { extraction: ScopeExtraction; provider: string; model: string; analyzedAt: string }
+export interface AnalysisResult { modelPolicy?:string; extraction: ScopeExtraction; provider: string; model: string; analyzedAt: string }
 /** Shared-reader results receive the same explicit-scope safeguards as local reads. */
 export function retainScopeContext(extraction:ScopeExtraction,text:string,previous:ScopeAnswers):ScopeExtraction{
  const selected=retainExplicitSelections(extraction,text,previous);
@@ -149,36 +150,16 @@ function safeProviderMessage(value: unknown): string {
     .slice(0, 240);
 }
 
-/**
- * The scope reader's Anthropic model, and why. P5_SCOPE_FAST_MODEL wins; P5_SCOPE_MODEL is used only
- * when it names a Sonnet or Haiku model (Opus reads were too slow for the 60-second analysis budget),
- * and a value that is ignored is reported rather than silently replaced. The release endpoint shows it.
- */
+/** Public diagnostic metadata describes the model actually dispatched. */
 export function scopeModelSetting():{model:string;source:string;ignored?:string}{
-  const fast=process.env.P5_SCOPE_FAST_MODEL,requested=process.env.P5_SCOPE_MODEL;
-  if(fast)return {model:fast,source:'P5_SCOPE_FAST_MODEL',...(requested?{ignored:`P5_SCOPE_MODEL=${requested} (P5_SCOPE_FAST_MODEL takes precedence)`}:{})};
-  if(requested&&/sonnet|haiku/i.test(requested))return {model:requested,source:'P5_SCOPE_MODEL'};
-  return {model:'claude-sonnet-5',source:'default',...(requested?{ignored:`P5_SCOPE_MODEL=${requested} (only Sonnet or Haiku models are used for scope reads)`}:{})};
+  const policy=estimatorModelConfiguration();
+  return {model:policy.model,source:policy.source,...(policy.overriddenSettings.length?{ignored:policy.overriddenSettings.join(', ')}:{})};
 }
-let reportedIgnored=false;
-function providers(files:readonly AnalysisFile[]=[]): Provider[] {
-  const setting=scopeModelSetting();
-  if(setting.ignored&&!reportedIgnored){reportedIgnored=true;console.warn(`[p5-config] scope reader uses ${setting.model}; ignored ${setting.ignored}`);}
-  const result: Provider[] = [];
-  const integrated = Boolean(process.env.AI_INTEGRATIONS_OPENAI_API_KEY && process.env.AI_INTEGRATIONS_OPENAI_BASE_URL);
-  const openAiKey = integrated ? process.env.AI_INTEGRATIONS_OPENAI_API_KEY : process.env.OPENAI_API_KEY;
-  const openAiEndpoint = integrated ? process.env.AI_INTEGRATIONS_OPENAI_BASE_URL : (process.env.OPENAI_BASE_URL || "https://api.openai.com/v1");
-  if (openAiKey && openAiEndpoint) {
-    const requested = process.env.P5_SCOPE_OPENAI_MODEL || process.env.AI_INTEGRATIONS_OPENAI_MODEL;
-    result.push({ kind: "OpenAI", key: openAiKey, endpoint: openAiEndpoint.replace(/\/+$/, ""), model: requested || "gpt-4.1" });
-  }
-  const anthropicKey = process.env.ANTHROPIC_API_KEY;
-  if (anthropicKey && Date.now() >= anthropicParkedUntil) {
-    result.push({ kind: "Anthropic", key: anthropicKey, endpoint: "https://api.anthropic.com/v1", model: scopeModelSetting().model });
-  }
-  // Typed scope reaches the fast reader first without racing paid requests.
-  const lead = preferredReadProvider(files);
-  return result.sort((a, b) => (a.kind === lead ? -1 : 0) - (b.kind === lead ? -1 : 0));
+function providers(_files:readonly AnalysisFile[]=[]): Provider[] {
+  const integrated=Boolean(process.env.AI_INTEGRATIONS_OPENAI_API_KEY&&process.env.AI_INTEGRATIONS_OPENAI_BASE_URL);
+  const key=integrated?process.env.AI_INTEGRATIONS_OPENAI_API_KEY:process.env.OPENAI_API_KEY;
+  const endpoint=integrated?process.env.AI_INTEGRATIONS_OPENAI_BASE_URL:(process.env.OPENAI_BASE_URL||'https://api.openai.com/v1');
+  return key&&endpoint?[{kind:'OpenAI',key,endpoint:endpoint.replace(/\/+$/,''),model:ESTIMATOR_MODEL}]:[];
 }
 
 /** An account that is out of credit refuses every request; skip it for a while instead of asking per page.
@@ -194,8 +175,7 @@ function errorForProvider(provider: Provider, status: number | null, message: st
 
 async function responseError(provider: Provider, response: Response): Promise<ProviderError> {
   const error=errorForProvider(provider, response.status, "Document analysis service rejected the request");
-  // The provider's own reason describes the request, never the document; logging it names the cause.
-  if(response.status>=400&&response.status<500&&response.status!==429){try{const detail=await response.clone().json() as {error?:{type?:string;message?:string}};console.error(`[p5-analysis] ${provider.kind} ${response.status} reason: ${String(detail?.error?.type||'')} ${String(detail?.error?.message||'').slice(0,240)}`);if(provider.kind==='Anthropic'&&creditRefusal(String(detail?.error?.message||''))){anthropicParkedUntil=Date.now()+ANTHROPIC_CREDIT_PARK_MS;}}catch{}}
+  // Provider error text can echo customer source data; keep only status.
   const header=response.headers.get('retry-after');
   if(header){const milliseconds=/^\d+(\.\d+)?$/.test(header)?Number(header)*1000:Date.parse(header)-Date.now();if(Number.isFinite(milliseconds)&&milliseconds>0)error.retryAfterMs=Math.max(1000,milliseconds);}
   return error;
@@ -256,13 +236,14 @@ async function analyzeWithOpenAI(provider: Provider, text: string, files: Analys
   if (!response.ok) throw await responseError(provider, response);
   let body: any;
   try { body = await response.json(); } catch { throw errorForProvider(provider, response.status, "provider returned invalid JSON"); }
+  assertEstimatorModel(body.model);
   if (body.status && body.status !== "completed") throw errorForProvider(provider, response.status, "analysis-incomplete");
   const resultText = body.output?.flatMap((item: any) => item.content || []).find((part: any) => part.type === "output_text")?.text;
   if (typeof resultText !== "string") throw errorForProvider(provider, response.status, "provider returned no structured text");
   let parsed:unknown;
   try {
     parsed = extractionRecord(sanitizeRecord(JSON.parse(resultText),files));
-    return { extraction: validateExtraction(parsed), provider: provider.kind, model: body.model || model, analyzedAt: new Date().toISOString() };
+    return { extraction: validateExtraction(parsed), provider: provider.kind, model: body.model, modelPolicy:MODEL_POLICY_VERSION, analyzedAt: new Date().toISOString() };
   } catch (error) {
     throw errorForProvider(provider, response.status, `${error instanceof Error ? error.message : "provider returned invalid extraction"} [${recordShape(parsed)}]`);
   }
@@ -420,7 +401,7 @@ export async function analyzeBatch(text: string, files: AnalysisFile[], previous
         result.extraction.documentCoverage=coverageFor(expected,result.extraction.documentCoverage?.pages||[]);
         result.extraction.reviewNotes.push(...result.extraction.documentCoverage.pages.filter(p=>p.status!=='read').map(p=>`${p.source}, page ${p.page}: ${p.status}. ${p.notes.join(' ')}`));
       }
-      report(provider,started,'ok',undefined,provider.kind!==primaryKind||textLayerRetry.has(providerIndex),{textLayer:textLayerRetry.has(providerIndex)});
+      report(provider,started,'ok',undefined,provider.kind!==primaryKind||textLayerRetry.has(providerIndex),{textLayer:textLayerRetry.has(providerIndex),requestedModel:ESTIMATOR_MODEL,responseModel:result.model});
       return result;
     } catch (error) {
       report(provider,started,'failed',error,provider.kind!==primaryKind||textLayerRetry.has(providerIndex),{textLayer:textLayerRetry.has(providerIndex)});

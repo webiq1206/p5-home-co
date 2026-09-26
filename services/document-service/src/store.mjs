@@ -65,6 +65,14 @@ export class Store{
   return {events:rows.rows,note:'Stage durations are accumulated work across parallel jobs, not additive customer wall time.'};
  }
 
+ /** Attest persisted successful requests, never infer the returned model from configuration. */
+ async modelEvidence(job){
+  const documents=(job.payload?.documents||[]).map(d=>d.id);
+  const {rows}=await this.pool.query(`SELECT j.id,j.document_id,m.detail FROM p5ds_jobs j LEFT JOIN p5ds_metrics m ON m.job_id=j.id AND m.stage IN ('read-provider','verify-provider','citation-provider','reconciliation-provider') WHERE j.tenant=$1 AND j.project=$2 AND j.state='complete' AND (j.id=$3 OR (j.kind='read' AND j.document_id=ANY($4::text[])))`,[job.tenant,job.project,job.id,documents]);
+  const allowed=new Set(['gpt-4.1','gpt-4.1-2025-04-14']);
+  const verified=rows.length>0&&documents.every(id=>rows.some(r=>r.document_id===id))&&rows.some(r=>r.id===job.id)&&rows.every(r=>r.detail?.provider==='openai'&&r.detail.model==='gpt-4.1'&&allowed.has(r.detail.responseModel));
+  return {verified,requestedModel:'gpt-4.1',responseModels:[...new Set(rows.map(r=>r.detail?.responseModel).filter(Boolean))],calls:rows.filter(r=>r.detail).length};
+ }
  async checkStorage(c,tenant,additional=0){
   const r=await c.query(`SELECT (coalesce(sum(size_bytes),0)+(SELECT coalesce(sum(octet_length(p.image)+pg_column_size(p.native)+coalesce(pg_column_size(p.evidence),0)),0) FROM p5ds_pages p JOIN p5ds_documents d ON d.id=p.document_id WHERE d.tenant=$1)+(SELECT coalesce(sum(pg_column_size(result)),0) FROM p5ds_jobs WHERE tenant=$1))::text AS used FROM p5ds_documents WHERE tenant=$1`,[tenant]);
   if(Number(r.rows[0].used)+additional>this.config.maxTenantBytes)throw new ServiceError('document-storage-quota',422);

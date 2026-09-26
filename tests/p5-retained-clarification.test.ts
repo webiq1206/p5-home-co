@@ -146,7 +146,7 @@ test('free-text provider clarification applies returned structured facts without
       const body=JSON.parse(String(options?.body));
       assert.equal(body.input[0].content.some((item:any)=>item.type==='input_file'||item.type==='input_image'),false);
       const output={...e,facts:[{field:'taskList',value:'3 cabinet units',confidence:1,source:'typed scope',evidence:'Use 3 cabinet units.',basis:'stated'}],instructions:{...e.instructions,questions:[]},pages:[],takeoffs:[]};
-      return Response.json({status:'completed',output:[{content:[{type:'output_text',text:JSON.stringify(output)}]}]});
+      return Response.json({status:'completed', model:'gpt-4.1-2025-04-14',output:[{content:[{type:'output_text',text:JSON.stringify(output)}]}]});
     });
     assert.equal(result.answers.taskList,'3 cabinet units');
     assert.equal(result.extraction?.facts.find(fact=>fact.field==='taskList')?.value,'3 cabinet units');
@@ -165,7 +165,7 @@ test('free-text quantity clarification replaces the contradicted active takeoff 
   try{
     const result=await resolveInstructionAnswer(e,{}, {id:prompt.id,answer:'Use 24 LF of trim.'},[],async()=>{
       const output={summary:'',facts:[{field:'trimLf',value:'24',confidence:1,source:'typed scope',evidence:'24 LF trim from typed answer.',basis:'stated'}],conflicts:[],reviewNotes:[],missingInformation:[],clarifications:[],instructions:{...e.instructions,questions:[]},pages:[],takeoffs:[]};
-      return Response.json({status:'completed',output:[{content:[{type:'output_text',text:JSON.stringify(output)}]}]});
+      return Response.json({status:'completed', model:'gpt-4.1-2025-04-14',output:[{content:[{type:'output_text',text:JSON.stringify(output)}]}]});
     });
     assert.equal(result.extraction?.takeoffs?.[0].quantity,24);
     assert.match(result.extraction?.takeoffs?.[0].evidence||'',/Original schedule: 10 LF trim/);

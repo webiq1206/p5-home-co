@@ -30,7 +30,7 @@ test('ambiguous responsibility clarification retains provider and document prote
   const request:typeof fetch=async(_url,options)=>{
     calls++;const body=JSON.parse(String(options?.body));assert.equal(body.input[0].content.some((c:any)=>c.type==='input_file'||c.type==='input_image'),false);
     const output={summary:'',facts:[],conflicts:[],reviewNotes:[],missingInformation:[],clarifications:[],instructions:{...e.instructions,laborOnly:true,questions:[]},pages:[],takeoffs:[]};
-    return Response.json({status:'completed',output:[{content:[{type:'output_text',text:JSON.stringify(output)}]}]});
+    return Response.json({status:'completed', model:'gpt-4.1-2025-04-14',output:[{content:[{type:'output_text',text:JSON.stringify(output)}]}]});
   };
   try{
     const answer='Labor only, but owner supplies materials for paint';
@@ -106,7 +106,7 @@ test('scoped responsibility choices retain the choices but use provider interpre
     const request:typeof fetch=async(_url,options)=>{
       calls++;const body=JSON.parse(String(options?.body));assert.equal(body.input[0].content.some((c:any)=>c.type==='input_file'||c.type==='input_image'),false);
       const output={summary:'',facts:[],conflicts:[],reviewNotes:[],missingInformation:[],clarifications:[],instructions:{...e.instructions,laborOnly:true,materialsOnly:false,questions:[]},pages:[],takeoffs:[]};
-      return Response.json({status:'completed',output:[{content:[{type:'output_text',text:JSON.stringify(output)}]}]});
+      return Response.json({status:'completed', model:'gpt-4.1-2025-04-14',output:[{content:[{type:'output_text',text:JSON.stringify(output)}]}]});
     };
     const result=await resolveInstructionAnswer(e,{service:'handyman'},{id:prompt.id,answer:'Labor only'},[],request);
     assert.equal(calls,1);
@@ -143,7 +143,7 @@ test('a customer contradiction retains its confirmation and exact source quantit
       const output={summary:'',facts:[],conflicts:[{field:'ownerSupplied',values:['Customer supplies all doors','Contractor supplies one door'],explanation:'Your selection and typed detail differ. Should we supply one door?'}],
         reviewNotes:[],missingInformation:[],clarifications:[{field:'ownerSupplied',question:'Should we supply one door and install all four?',reason:'Confirm supply responsibility'}],
         instructions:{...e.instructions,questions:[]},pages:[],takeoffs:[]};
-      return Response.json({status:'completed',output:[{content:[{type:'output_text',text:JSON.stringify(output)}]}]});
+      return Response.json({status:'completed', model:'gpt-4.1-2025-04-14',output:[{content:[{type:'output_text',text:JSON.stringify(output)}]}]});
     };
     const result=await resolveInstructionAnswer(e,answers,{id:prompt.id,answer:"I'll supply all of them\nI have three doors. Please include one more."},[],request);
     assert.deepEqual(result.extraction?.facts,originalFacts);
@@ -169,7 +169,7 @@ test('an answer that gives no count is kept and priced, never asked again (live 
     const request:typeof fetch=async()=>{
       const output={summary:'',facts:[],conflicts:[],reviewNotes:[],missingInformation:[],clarifications:[{field:'taskList',question:'Answer did not specify a count.?',reason:'No count'}],
         instructions:{...e.instructions,questions:['Answer did not specify a count.?']},pages:[],takeoffs:[]};
-      return Response.json({status:'completed',output:[{content:[{type:'output_text',text:JSON.stringify(output)}]}]});
+      return Response.json({status:'completed', model:'gpt-4.1-2025-04-14',output:[{content:[{type:'output_text',text:JSON.stringify(output)}]}]});
     };
     const result=await resolveInstructionAnswer(e,answers,{id:prompt.id,answer:'Not sure, all of the ones in the garage'},[],request);
     assert.deepEqual(result.extraction?.instructions?.questions,[]);

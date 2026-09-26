@@ -1,3 +1,4 @@
+import {MODEL_POLICY_VERSION,hasVerifiedAnalysis} from './modelPolicy.ts';
 import {ANALYSIS_PASS_MS,BACKGROUND_JOB_LIMIT_MS,PRICING_PASS_MS,PROCESSING_PAUSED,ProcessingDeadlineError,remainingBudget,isProcessingDeadline} from './processingBudget.ts';
 import {recordEvent,describeError} from './events.ts';
 import {kickDriver} from './estimateDriver.ts';
@@ -111,10 +112,10 @@ export async function queuedJob(input:Input,retry=false,holdMs=JOB_HOLD_MS){
   if(input.kind==='analysis'&&input.draft.uploads.length)await assertAnalysisMigrationSafe(input.draft,input.text,input.answers,(await import('./analysisWork.ts')).analysisWorkKey(input.draft,input.text,input.answers));
   rejectQuiescedAdmission();
   // Keep the deployed v1 queue identity and its attempt/lifetime accounting.
-  const canonicalKey=backgroundKey(input.kind==='analysis'?analysisQueueIdentity(input):{engineVersion:9,kind:input.kind,id:input.draft.id,reviewed:input.draft.reviewed,configuration:input.configuration,date:new Date().toISOString().slice(0,10)});
+  const canonicalKey=backgroundKey(input.kind==='analysis'?analysisQueueIdentity(input):{engineVersion:9,modelPolicy:MODEL_POLICY_VERSION,kind:input.kind,id:input.draft.id,reviewed:input.draft.reviewed,configuration:input.configuration,date:new Date().toISOString().slice(0,10)});
   const key=input.kind==='analysis'?await analysisQueueKey(input,canonicalKey):canonicalKey;
   rejectQuiescedAdmission();
-  const initial:Job={input,state:'queued',progress:input.kind==='analysis'?'Your complete document set is queued for analysis.':'Your scope is queued for pricing.',attempts:0,createdAt:new Date().toISOString()};
+  const initial:Job={input,state:'queued',progress:input.kind==='analysis'?(input.draft.uploads.length?'Your project files are saved and queued for review.':'Your project details are saved and queued for review.'):'Your scope is queued for pricing.',attempts:0,createdAt:new Date().toISOString()};
   await query('INSERT INTO p5_estimator_work(draft_id,work_key,payload) VALUES($1,$2,$3::jsonb) ON CONFLICT DO NOTHING',[input.draft.id,key,JSON.stringify(initial)]);
   rejectQuiescedAdmission();
   if(retry){
@@ -122,7 +123,7 @@ export async function queuedJob(input:Input,retry=false,holdMs=JOB_HOLD_MS){
     if(lease){const previous=lease.payload as Job;try{
       rejectQuiescedAdmission();
       const stale=previous.state!=='complete'&&jobExpired(previous);
-      const rereadRequested=previous.state==='complete'&&input.kind==='analysis'&&previous.result?.analysis?.extraction?.reviewNotes?.length;
+      const rereadRequested=previous.state==='complete'&&input.kind==='analysis'&&(!hasVerifiedAnalysis(previous.result?.analysis)||previous.result?.analysis?.extraction?.reviewNotes?.length);
       if(previous.state==='failed'||stale||rereadRequested){previous.state='queued';previous.attempts=0;previous.retryAt=0;previous.retryUnits=true;previous.createdAt=new Date().toISOString();delete previous.result;}
       await writeWork(input.draft.id,key,lease.token,previous);
     }finally{await releaseWork(input.draft.id,key,lease.token);}}
@@ -131,6 +132,7 @@ export async function queuedJob(input:Input,retry=false,holdMs=JOB_HOLD_MS){
   if(holdMs>0)await driveJob(input.draft.id,key,holdMs);else void ensureRunning(input.draft.id,key);
   const [row]=await query('SELECT payload FROM p5_estimator_work WHERE draft_id=$1 AND work_key=$2',[input.draft.id,key]);
   const job=row.payload as Job;
+  if(job.state==='complete'&&input.kind==='analysis'&&!hasVerifiedAnalysis(job.result?.analysis))throw new DraftError('This saved analysis predates verified GPT-4.1 processing. Your files are preserved. Use Retry to verify the project with the required model.',422);
   if(SOURCE_COVERAGE_REQUIRED&&job.state==='complete'&&input.kind==='analysis'&&input.draft.uploads.length){
     const extraction=job.result?.analysis?.extraction;
     if(!extraction)throw new DraftError('Saved analysis result is missing; your files are preserved. Please retry.',503);
@@ -243,7 +245,7 @@ async function runPass(draftId:string,workKey:string):Promise<number|null>{
       const {advanceAnalysis}=await import('./analysisWork.ts');
       const step=await advanceAnalysis(job.input.draft,job.input.text,job.input.answers,fetch,job.retryUnits,deadline);job.retryUnits=false;
       if(step.pending){job.progress=step.progress;job.retryAt=Date.now()+(step.retryAfterMs||0);again=step.retryAfterMs||0;}
-      else{job.result=step;job.state='complete';job.progress='Document processing finished. Review the page coverage and any unreadable content.';}
+      else{job.result=step;job.state='complete';job.progress=job.input.draft.uploads.length?'Source review finished. Review the page coverage and any unreadable content.':'Project review finished. Review your scope and any missing details.';}
     }else{
       const {priceSavedScope}=await import('./pricingWork.ts');
       try{const contact=job.input.draft.contact;const pricingIdentity={draftId:job.input.draft.id,customerKey:`${contact.email.trim().toLowerCase()}|${contact.name.trim().toLowerCase()}`,revision:job.input.draft.revision};job.result=await priceSavedScope(job.input.draft.id,job.input.draft.reviewed!,job.input.configuration,new Date(job.createdAt),deadline,pricingIdentity);job.state='complete';job.progress='Pricing calculation saved.';}

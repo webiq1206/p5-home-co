@@ -6,7 +6,7 @@ import {ESTIMATOR_BRAND} from '../lib/p5/brand.ts';
 const pdf:any={id:'file',name:'scope.pdf',type:'application/pdf',size:1000,sha256:'a'.repeat(64),status:'stored'};
 const tenant=ESTIMATOR_BRAND.domain;
 // Isolated fixtures only. Never read a live secret or call a network.
-const readiness={ready:true,providerConfigured:true,tenant,protocol:'v1',limits:{maxFileBytes:250*1024*1024,maxPages:250},capabilities:{pdf:true}};
+const readiness={provider:{name:"openai",model:"gpt-4.1",verifyModel:"gpt-4.1",configured:true,ready:true,health:"configured"},ready:true,providerConfigured:true,tenant,protocol:'v1',limits:{maxFileBytes:250*1024*1024,maxPages:250},capabilities:{pdf:true}};
 const MIB50=String(50*1024*1024);
 test('shared service is off by default and selects eligible PDFs within mixed inputs',()=>{
  assert.equal(documentServiceEligible([pdf],{}),false);
@@ -114,7 +114,7 @@ test('remote protocol mocks accept all 250 verified pages and reject missing, pa
     if(String(url).endsWith('/readyz'))return Response.json(readiness);
     const document={id:remoteDocumentId(ESTIMATOR_BRAND.domain,draft.id,pdf.sha256),state:'complete',progress:{checkedPages:250,totalPages:mode==='zero'?0:250},coverage:{complete:true,pages:mode==='zero'?[]:mode==='document-source'?pages.map(p=>({...p,source:'unknown.pdf'})):pages}};
     const returned=mode==='missing'?pages.slice(1):mode==='partial'?pages.map((p,i)=>i? p:{...p,status:'partial'}):mode==='unknown-source'?pages.map(p=>({...p,source:'other.pdf'})):mode==='duplicate-page'?pages.map((p,i)=>i===1?pages[0]:p):pages;
-    const review={id:'review-fixture',state:'complete',result:{summary:'250 page fixture',facts:[],conflicts:[],missingInformation:[],reviewNotes:[],documentCoverage:{complete:true,expectedPages:250,pages:returned}}};
+    const review={id:'review-fixture',state:'complete',modelEvidence:{verified:true,requestedModel:'gpt-4.1',responseModels:['gpt-4.1-2025-04-14'],calls:251},result:{summary:'250 page fixture',facts:[],conflicts:[],missingInformation:[],reviewNotes:[],documentCoverage:{complete:true,expectedPages:250,pages:returned}}};
     return new Response(JSON.stringify(String(url).endsWith('/reviews')?review:document),{status:200});
    };
    const run=()=>advanceDocumentService(draft,'',{},'remote',request,false,Date.now()+10000,{...memory,query:async()=>{throw new Error('DB forbidden');},readStoredBytes:async()=>{throw new Error('Storage forbidden');}});
@@ -200,7 +200,7 @@ test('duplicate PDF bytes make one host request and one progress/coverage contri
    if(String(url).endsWith('/readyz'))return Response.json(readiness);
    if(String(url).endsWith('/reviews')){
     assert.equal(JSON.parse(Buffer.from(init!.body as any).toString()).documents.length,1);
-    return new Response(JSON.stringify({id:'review',state:complete?'complete':'reading',result:complete?{summary:'five pages',facts:[],conflicts:[],missingInformation:[],reviewNotes:[],documentCoverage:{complete:true,expectedPages:5,pages}}:undefined}));
+    return new Response(JSON.stringify({id:'review',state:complete?'complete':'reading',modelEvidence:{verified:true,requestedModel:'gpt-4.1',responseModels:['gpt-4.1-2025-04-14'],calls:6},result:complete?{summary:'five pages',facts:[],conflicts:[],missingInformation:[],reviewNotes:[],documentCoverage:{complete:true,expectedPages:5,pages}}:undefined}));
    }
    gets++;
    return new Response(JSON.stringify({id:remoteDocumentId(ESTIMATOR_BRAND.domain,draft.id,pdf.sha256),state:complete?'complete':'reading',progress:{checkedPages:complete?5:2,totalPages:5},coverage:complete?{complete:true,pages}:undefined}));
@@ -260,7 +260,7 @@ test('readiness rejects generic health, wrong tenant, reduced capacity and missi
  assert.equal(validateDocumentServiceReadiness({...readiness,ready:undefined,ok:true,providerConfigured:true}),true);
  assert.equal(validateDocumentServiceReadiness({...readiness,limits:{maxFileBytes:500*1024*1024,maxPages:500}}),true);
  for(const providerConfigured of [undefined,false])for(const ready of [{ready:true},{ready:undefined,ok:true}]){
-  assert.throws(()=>validateDocumentServiceReadiness({...readiness,...ready,providerConfigured}),/configured provider/);
+  assert.throws(()=>validateDocumentServiceReadiness({...readiness,...ready,providerConfigured,provider:{...readiness.provider,configured:providerConfigured}}),/configured provider/);
  }
  for(const value of [null,{ok:true,version:'v1',providerConfigured:true},{...readiness,tenant:'other.example'},{...readiness,protocol:'v2'},{...readiness,limits:{maxFileBytes:50*1024*1024,maxPages:200}},{...readiness,limits:{maxFileBytes:250*1024*1024,maxPages:249}},{...readiness,capabilities:{}},{...readiness,ready:false}]){
   assert.throws(()=>validateDocumentServiceReadiness(value),/readiness/);
@@ -290,7 +290,7 @@ test('preflight fails closed for denied, unavailable, invalid and wrong-tenant r
  }
 });
 test('flat readiness shape from the P5 Home host is accepted with the same guarantees',()=>{
- const value={ok:true,protocol:'v1',tenant,pdf:true,maxBytes:250*1024*1024,maxPages:250,provider:{configured:true,ready:true,health:'configured'},service:{healthy:true,database:'ok'}};
+ const value={ok:true,protocol:'v1',tenant,pdf:true,maxBytes:250*1024*1024,maxPages:250,provider:{name:'openai',model:'gpt-4.1',verifyModel:'gpt-4.1',configured:true,ready:true,health:'configured'},service:{healthy:true,database:'ok'}};
  assert.equal(validateDocumentServiceReadiness(value),true);
  // The live host reports both shapes at once.
  assert.equal(validateDocumentServiceReadiness({...value,providerConfigured:true,capabilities:{pdf:true},limits:{maxFileBytes:value.maxBytes,maxPages:value.maxPages}}),true);

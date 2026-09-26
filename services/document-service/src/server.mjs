@@ -1,9 +1,12 @@
 import {createServer} from 'node:http';
 import {hash,verifyHeaders,identifier,ServiceError,publicJob,elapsedMs,VERSION} from './core.mjs';
 import {reviewForWebsite} from './website-review.mjs';
-function reviewResponse(row){
+async function reviewResponse(row,store){
  const response=publicJob(row);
- if(response.state==='complete'&&response.kind==='review'&&response.result)response.result=reviewForWebsite(response.result);
+ if(response.state==='complete'&&response.kind==='review'&&response.result){
+  response.result=reviewForWebsite(response.result);
+  response.modelEvidence=await store.modelEvidence(row);
+ }
  return response;
 }
 export function makeServer(store,pipeline,config){
@@ -23,7 +26,7 @@ export function makeServer(store,pipeline,config){
      send(200,{ok:true,version:VERSION,protocol:'v1',tenant:auth.tenant,
       providerConfigured,capabilities:{pdf:true},limits:{maxFileBytes:config.maxBytes,maxPages:config.maxPages},
       pdf:true,maxBytes:config.maxBytes,maxPages:config.maxPages,
-      provider:{name:config.provider,configured:true,ready:true,health:'configured'},
+      provider:{name:config.provider,model:config.model,verifyModel:config.verifyModel,configured:true,ready:true,health:'configured'},
       service:{healthy:true,database:'ok'}});
      return;
     }
@@ -56,9 +59,9 @@ export function makeServer(store,pipeline,config){
    }
    if(parts[3]==='reviews'&&parts.length===4&&req.method==='POST'){
     let data;try{data=JSON.parse(body);}catch{throw new ServiceError('invalid-json');}
-    send(202,reviewResponse(await pipeline.submitReview(auth.tenant,project,data)));return;
+    send(202,await reviewResponse(await pipeline.submitReview(auth.tenant,project,data),store));return;
    }
-   if(parts[3]==='reviews'&&parts.length===5&&req.method==='GET'){send(200,reviewResponse(await store.job(auth.tenant,project,identifier(parts[4]))));return;}
+   if(parts[3]==='reviews'&&parts.length===5&&req.method==='GET'){send(200,await reviewResponse(await store.job(auth.tenant,project,identifier(parts[4])),store));return;}
    throw new ServiceError('not-found',404);
   }catch(error){const status=error instanceof ServiceError?error.status:500;if(error.retryMs)res.setHeader('retry-after',String(Math.ceil(error.retryMs/1000)));send(status,{error:error instanceof ServiceError?error.code:'internal-error',retryAfterMs:error.retryMs||undefined});}
  });

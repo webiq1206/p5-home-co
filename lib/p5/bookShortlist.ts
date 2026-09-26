@@ -1,3 +1,4 @@
+import {ESTIMATOR_MODEL,assertEstimatorModel,EstimatorModelError} from './modelPolicy.ts';
 /**
  * Full-book shortlist (owner request 2026-09-22: "the scope matching logic to the line items in the
  * cost book needs to be improved greatly").
@@ -11,12 +12,12 @@
  * alongside the word matches, and passed as a per-task shortlist.
  *
  * It never prices anything and never removes a line from consideration: a failure or timeout
- * returns an empty shortlist and the word matching alone applies, exactly as before.
+ * returns an empty shortlist and mapping receives the complete book.
  */
 export interface ShortlistTask {id:string;description:string;evidence?:string}
 export interface ShortlistRate {code:string;description:string;unit?:string;type?:string}
 export const SHORTLIST_PER_TASK=8;
-const lineName=(description:string)=>{const cut=description.indexOf(' (');return (cut>0?description.slice(0,cut):description).slice(0,90);};
+const lineName=(description:string)=>{const cut=description.indexOf(' (');return (cut>0?description.slice(0,cut):description);};
 const costKind=(type?:string)=>type==='Material'?'material':type==='Labor'?'labor':type==='Other'?'fee':'installed';
 /** One line per book entry: code | name | unit | installed/material/labor/fee. */
 export function bookIndex(rates:readonly ShortlistRate[]):string{
@@ -53,16 +54,19 @@ export async function shortlistBook(tasks:readonly ShortlistTask[],rates:readonl
   const started=Date.now();
   try{
     const input={tasks:tasks.map(t=>({id:t.id,task:`${t.description}${t.evidence&&t.evidence!==t.description?` (${String(t.evidence).slice(0,300)})`:''}`})),bookIndex:bookIndex(rates)};
-    const body={model:(process.env.P5_SHORTLIST_MODEL||'gpt-4.1').trim(),instructions:SHORTLIST_INSTRUCTIONS,input:'Return JSON only.\n'+JSON.stringify(input),max_output_tokens:6000,store:false,text:{format:{type:'json_schema',name:'book_shortlist',strict:true,schema}}};
+    const body={model:ESTIMATOR_MODEL,instructions:SHORTLIST_INSTRUCTIONS,input:'Return JSON only.\n'+JSON.stringify(input),max_output_tokens:6000,store:false,text:{format:{type:'json_schema',name:'book_shortlist',strict:true,schema}}};
     const response=await request(`${endpoint}/responses`,{method:'POST',signal:AbortSignal.timeout(timeoutMs),headers:{'Content-Type':'application/json',Authorization:`Bearer ${key}`},body:JSON.stringify(body)});
-    if(!response.ok){console.error(`[p5-pricing] book shortlist unavailable (${response.status}); using word matching only.`);return new Map();}
-    const reply=await response.json() as {output?:{content?:{type?:string;text?:string}[]}[]};
+    if(!response.ok){console.error(`[p5-pricing] book shortlist unavailable (${response.status}); retaining the complete book for mapping.`);return new Map();}
+    const reply=await response.json() as {model?:string;output?:{content?:{type?:string;text?:string}[]}[]};
+    const responseModel=assertEstimatorModel(reply.model);
+    console.error(JSON.stringify({event:'p5-model',stage:'book-shortlist',requestedModel:ESTIMATOR_MODEL,responseModel}));
     const text=(reply.output||[]).flatMap(o=>o.content||[]).filter(p=>p.type==='output_text').map(p=>p.text||'').join('');
     const shortlist=parseShortlist(JSON.parse(text),tasks,rates);
     console.error(`[p5-pricing] book shortlist: ${shortlist.size}/${tasks.length} tasks matched in ${((Date.now()-started)/1000).toFixed(1)}s`);
     return shortlist;
   }catch(error){
-    console.error(`[p5-pricing] book shortlist failed; using word matching only: ${error instanceof Error?error.message.slice(0,160):String(error).slice(0,160)}`);
+    if(error instanceof EstimatorModelError)throw error;
+    console.error(`[p5-pricing] book shortlist failed; retaining the complete book for mapping: ${error instanceof Error?error.message.slice(0,160):String(error).slice(0,160)}`);
     return new Map();
   }
 }

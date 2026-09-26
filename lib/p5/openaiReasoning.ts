@@ -1,13 +1,5 @@
-/**
- * Reasoning effort for OpenAI reasoning models (speed, owner request 2026-09-21).
- *
- * Every site runs document reading and pricing on P5_SCOPE_OPENAI_MODEL=gpt-5.6-sol, a reasoning
- * model, at its default effort; live, one page read took 60 to 120 s and a pricing stage minutes.
- * These are structured, schema-bound tasks (read a page into fields, map scope to book lines), so a
- * low effort keeps the same model and its knowledge while cutting the thinking time. The accuracy
- * check (the audit) keeps a medium effort. P5_OPENAI_REASONING_EFFORT overrides every stage
- * ("default" sends no setting). Non-reasoning models (gpt-4.1) receive nothing.
- */
+/** Legacy benchmark reasoning settings. Production estimation uses full GPT-4.1,
+ * which receives no reasoning-effort setting. */
 export type ReasoningTask='read'|'inventory'|'map'|'research'|'audit';
 export const isReasoningModel=(model:string)=>/^(?:gpt-5|o[1-9])/i.test(model.trim());
 export function reasoningFor(model:string,task:ReasoningTask):{reasoning?:{effort:string}}{

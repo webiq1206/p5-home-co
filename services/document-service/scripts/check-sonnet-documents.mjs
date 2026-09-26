@@ -72,7 +72,9 @@ export async function runFixture(fixture,{root,key,parseOnly=false,request=fetch
   await privateJson(join(directory,'parser-report.json'),report);log(JSON.stringify(report));return report;
  }
  if(!key)throw Error('ANTHROPIC_API_KEY is unavailable. Run this inside the existing P5 Replit Shell. Do not paste the key into chat.');
- const config=readConfig({...process.env,DOCUMENT_PROVIDER:'anthropic',ANTHROPIC_API_KEY:key,DOCUMENT_MODEL:'claude-sonnet-5',DOCUMENT_VERIFY_MODEL:'claude-sonnet-5',DOCUMENT_DATABASE_URL:'qa-isolated-pglite-not-a-network-database',P5_DOCUMENT_TENANTS_JSON:JSON.stringify({'p5homeco.com':randomBytes(32).toString('hex')})});
+ const config=readConfig({...process.env,DOCUMENT_PROVIDER:'anthropic',OPENAI_API_KEY:key,ANTHROPIC_API_KEY:key,DOCUMENT_MODEL:'claude-sonnet-5',DOCUMENT_VERIFY_MODEL:'claude-sonnet-5',DOCUMENT_DATABASE_URL:'qa-isolated-pglite-not-a-network-database',P5_DOCUMENT_TENANTS_JSON:JSON.stringify({'p5homeco.com':randomBytes(32).toString('hex')})});
+ // Historical Sonnet diagnostic only; never used by the estimator worker.
+ Object.assign(config,{provider:'anthropic',key,model:'claude-sonnet-5',verifyModel:'claude-sonnet-5'});
  // Diagnostic QA is sequential so a single unknown charge can stop all further
  // paid calls. Production concurrency and processing code remain unchanged.
  config.slots=1;config.parserSlots=1;config.maxPages=fixture.pages;config.maxOutput=resumePlansReviewOutputLimit?32000:Math.min(config.maxOutput,10000);

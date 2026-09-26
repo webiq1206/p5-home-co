@@ -28,7 +28,7 @@ test('a checked PDF retains unspecified ratings without waiting for another prov
   const result=await analyzeBatch('',[file],{},async(_url,init)=>{
    calls++;assert.match(String(_url),/responses$/);const body=JSON.parse(String(init?.body));assert.match(body.instructions,/LOCAL SOURCE CHECK/);assert.match(body.instructions,/nativePdfText/);
    if(calls===2)assert.match(body.instructions,/preceding response incorrectly supplied/);
-   return Response.json({status:'completed',output:[{content:[{type:'output_text',text:JSON.stringify({...empty,summary:calls===1?'T1-11 siding; Level 5 finishing excluded.':'Board-and-batten siding is an option. Premium finishing is excluded; its numbered level is unspecified.',pages:[{source:'redacted.pdf',page:1,sheet:'',revision:'',status:'read',notes:[]}],takeoffs:[]})}]}]});
+   return Response.json({status:'completed', model:'gpt-4.1-2025-04-14',output:[{content:[{type:'output_text',text:JSON.stringify({...empty,summary:calls===1?'T1-11 siding; Level 5 finishing excluded.':'Board-and-batten siding is an option. Premium finishing is excluded; its numbered level is unspecified.',pages:[{source:'redacted.pdf',page:1,sheet:'',revision:'',status:'read',notes:[]}],takeoffs:[]})}]}]});
   });
   assert.equal(calls,1);assert.equal(result.extraction.documentCoverage?.complete,true);assert.match(result.extraction.sourceText||'',/board-and-batten/);
   assert.doesNotMatch(result.extraction.summary,/T1-11|Level 5/);

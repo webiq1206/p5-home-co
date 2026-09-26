@@ -214,19 +214,21 @@ test("page merging preserves additive trade scope and conflicting measurements",
   assert.equal(merged.answers.sqft,undefined);assert.ok(merged.conflicts.some(c=>c.field==="sqft"));
 });
 test("PDF analysis accounts for every page and holds failed pages for review",async()=>{
-  const old=process.env.ANTHROPIC_API_KEY;process.env.ANTHROPIC_API_KEY="synthetic-not-a-real-key";
-  const openAiKeys=["AI_INTEGRATIONS_OPENAI_API_KEY","OPENAI_API_KEY"];
-  const savedOpenAi=openAiKeys.map(key=>process.env[key]);
-  for(const key of openAiKeys)delete process.env[key];
+  const names=['OPENAI_API_KEY','AI_INTEGRATIONS_OPENAI_API_KEY','AI_INTEGRATIONS_OPENAI_BASE_URL','ANTHROPIC_API_KEY'];
+  const saved=Object.fromEntries(names.map(key=>[key,process.env[key]]));names.forEach(key=>delete process.env[key]);process.env.OPENAI_API_KEY='synthetic-only';
   try{
     const doc=await PDFDocument.create();for(let i=0;i<17;i++)doc.addPage();const calls:string[]=[];
-    const transport:typeof fetch=async(_url,options)=>{const body=JSON.parse(String(options?.body));const name=body.messages[0].content.find((x:{text?:string})=>x.text?.startsWith("Source filename:")).text;calls.push(name);if(name.includes("pages 9 to 16 "))return new Response("failure",{status:503});return Response.json({stop_reason:"end_turn",content:[{type:"text",text:JSON.stringify({summary:"Synthetic page scope",facts:[{field:"plumbing",value:name.includes("pages 1 to 8 ")?"Install sink":"Replace supply lines",confidence:.99,source:name,evidence:"Synthetic stated scope"}],conflicts:[],missingInformation:[],reviewNotes:[]})}]});};
-    const result=await analyzeScope("Synthetic scope",[{name:"synthetic.pdf",type:"application/pdf",data:Buffer.from(await doc.save())}],{},transport);
-    assert.equal(calls.length,3);assert.equal(result.extraction.facts.length,2);assert.match(result.extraction.reviewNotes.join(" "),/pages 9 to 16 of 17/);
-  }finally{
-    if(old===undefined)delete process.env.ANTHROPIC_API_KEY;else process.env.ANTHROPIC_API_KEY=old;
-    openAiKeys.forEach((key,index)=>{if(savedOpenAi[index]===undefined)delete process.env[key];else process.env[key]=savedOpenAi[index];});
-  }
+    const transport:typeof fetch=async(_url,options)=>{
+      const body=JSON.parse(String(options?.body));const label=body.input[0].content.find((x:{text?:string})=>x.text?.startsWith('Source filename:')).text;
+      calls.push(label);const manifest=JSON.parse(label.split('Original page manifest: ')[1]);
+      if(manifest.some((p:{page:number})=>p.page===9))return new Response('failure',{status:503});
+      return Response.json({status:'completed',model:'gpt-4.1-2025-04-14',output:[{content:[{type:'output_text',text:JSON.stringify({summary:'Synthetic page scope',facts:[],conflicts:[],missingInformation:[],reviewNotes:[],pages:manifest.map((p:object)=>({...p,sheet:'',revision:'',status:'read',notes:[]}))})}]}]});
+    };
+    const result=await analyzeScope('Synthetic scope',[{name:'synthetic.pdf',type:'application/pdf',data:Buffer.from(await doc.save())}],{},transport);
+    assert.equal(calls.length,3);assert.equal(result.extraction.documentCoverage?.complete,false);
+    assert.equal(result.extraction.documentCoverage?.expectedPages,17);
+    assert.match(result.extraction.reviewNotes.join(' '),/pages 9 to 16 of 17/);
+  }finally{names.forEach(key=>{if(saved[key]===undefined)delete process.env[key];else process.env[key]=saved[key];});}
 });
 
 test("explicit complex scope uses the approved higher target without reducing service safeguards",()=>{

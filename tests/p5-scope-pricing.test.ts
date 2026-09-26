@@ -1,7 +1,7 @@
 import {PricingStageTimeout} from '../lib/p5/pricingProgress.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {priceCompleteScope,marketResolution,planningResolution,catalogResolution,requestPricing,advisoryIssue,type PricingRequest,HANDOFF_ISSUE} from '../lib/p5/scopePricing.ts';
+import {priceCompleteScope,marketResolution,planningResolution,catalogResolution,requestPricing,requestPricingWith,advisoryIssue,type PricingRequest,HANDOFF_ISSUE} from '../lib/p5/scopePricing.ts';
 import {priceReviewedScope} from '../lib/p5/costBook.ts';
 import {createPlanningConfiguration,PLANNING_MODEL_VERSION,type PlanningCatalog} from '../lib/p5/planningBooks.ts';
 import type {ReviewedScope} from '../lib/p5/scope.ts';
@@ -138,7 +138,7 @@ test('Invalid catalog references and zero-quantity output never release a range'
   assert.equal(r.customer.range,null);
  }
 });
-test('Anthropic-only configuration supports JSON and real tool-source extraction',async()=>{
+test('legacy provider parser retains historical source extraction support',async()=>{
  const names=['OPENAI_API_KEY','AI_INTEGRATIONS_OPENAI_API_KEY','AI_INTEGRATIONS_OPENAI_BASE_URL','ANTHROPIC_API_KEY','P5_PRICING_MODEL','P5_PRICING_RESEARCH_MODEL','P5_PRICING_PROVIDER'];
  const saved=names.map(n=>process.env[n]);const oldFetch=globalThis.fetch;
  try{
@@ -149,15 +149,15 @@ test('Anthropic-only configuration supports JSON and real tool-source extraction
    const input=JSON.parse(String(init?.body));search=Boolean(input.tools);assert.equal(input.model,'claude-sonnet-5');
    return Response.json({stop_reason:'end_turn',content:search?[{type:'text',text:'Searching now.'},{type:'web_search_tool_result',content:urls.map(url=>({type:'web_search_result',url}))},{type:'text',text:JSON.stringify(researched)}]:[{type:'text',text:'{"coveredTaskIds":["cabinets"],"issues":[]}'}]});
   };
-  assert.deepEqual((await requestPricing('JSON',{},false,1000)).value,{coveredTaskIds:['cabinets'],issues:[]});
+  assert.deepEqual((await requestPricingWith('anthropic','JSON',{},false,1000)).value,{coveredTaskIds:['cabinets'],issues:[]});
   process.env.OPENAI_API_KEY='synthetic-openai-key';
-  assert.deepEqual((await requestPricing('JSON',{},false,1000)).value,{coveredTaskIds:['cabinets'],issues:[]});
-  const r=await requestPricing('JSON',{},true,1000);assert.ok(search);assert.deepEqual(r.sourceUrls,urls);assert.deepEqual(r.value,researched);
+  assert.deepEqual((await requestPricingWith('anthropic','JSON',{},false,1000)).value,{coveredTaskIds:['cabinets'],issues:[]});
+  const r=await requestPricingWith('anthropic','JSON',{},true,1000);assert.ok(search);assert.deepEqual(r.sourceUrls,urls);assert.deepEqual(r.value,researched);
   globalThis.fetch=async(_url,init)=>{
    const input=JSON.parse(String(init?.body));assert.ok(input.tools.some((t:any)=>t.name==='web_fetch'&&t.max_uses>0));
    return Response.json({stop_reason:'end_turn',content:[{type:'text',text:'Opening supplier evidence.'},{type:'web_fetch_tool_result',content:{type:'web_fetch_result',url:urls[0],content:{type:'document',source:{type:'text',data:'Synthetic product price.'}}}},{type:'text',text:JSON.stringify(researched)}]});
   };
-  const fetched=await requestPricing('JSON',{},true,1000);assert.deepEqual(fetched.sourceUrls,[urls[0]]);assert.deepEqual(fetched.value,researched);
+  const fetched=await requestPricingWith('anthropic','JSON',{},true,1000);assert.deepEqual(fetched.sourceUrls,[urls[0]]);assert.deepEqual(fetched.value,researched);
   let pausedCalls=0;
   const pausedContent=[{type:'web_search_tool_result',content:urls.map(url=>({type:'web_search_result',url}))}];
   globalThis.fetch=async(_url,init)=>{
@@ -166,11 +166,11 @@ test('Anthropic-only configuration supports JSON and real tool-source extraction
    assert.deepEqual(body.messages[1],{role:'assistant',content:pausedContent});assert.ok(body.tools.some((t:any)=>t.name==='web_fetch'));
    return Response.json({stop_reason:'end_turn',content:[{type:'text',text:JSON.stringify(researched)}]});
   };
-  const resumed=await requestPricing('JSON',{},true,5000);assert.equal(pausedCalls,2);assert.deepEqual(resumed.sourceUrls,urls);assert.deepEqual(resumed.value,researched);
+  const resumed=await requestPricingWith('anthropic','JSON',{},true,5000);assert.equal(pausedCalls,2);assert.deepEqual(resumed.sourceUrls,urls);assert.deepEqual(resumed.value,researched);
   pausedCalls=0;globalThis.fetch=async()=>{pausedCalls++;return Response.json({stop_reason:'pause_turn',content:pausedContent});};
-  await assert.rejects(()=>requestPricing('JSON',{},true,5000),/pricing-check-incomplete:pause_turn/);assert.equal(pausedCalls,3);
+  await assert.rejects(()=>requestPricingWith('anthropic','JSON',{},true,5000),/pricing-check-incomplete:pause_turn/);assert.equal(pausedCalls,3);
   globalThis.fetch=async()=>Response.json({stop_reason:'max_tokens',content:[{type:'text',text:'{"rates":['}]});
-  await assert.rejects(()=>requestPricing('JSON',{},true,5000),/pricing-check-incomplete:max_tokens/);
+  await assert.rejects(()=>requestPricingWith('anthropic','JSON',{},true,5000),/pricing-check-incomplete:max_tokens/);
   let calls=0;
   globalThis.fetch=async(_url,init)=>{
    calls++;const body=JSON.parse(String(init?.body));
@@ -178,9 +178,9 @@ test('Anthropic-only configuration supports JSON and real tool-source extraction
    assert.ok(body.output_config.format.schema.properties.rates);assert.equal(body.tools,undefined);assert.ok(body.messages[0].content.includes(urls[0]));
    return Response.json({stop_reason:'end_turn',content:[{type:'text',text:JSON.stringify(researched)}]});
   };
-  const normalized=await requestPricing('JSON',{},true,5000);assert.equal(calls,2);assert.deepEqual(normalized.value,researched);assert.ok(normalized.sourceReport?.startsWith('# Research'));assert.deepEqual(normalized.sourceUrls,urls);
+  const normalized=await requestPricingWith('anthropic','JSON',{},true,5000);assert.equal(calls,2);assert.deepEqual(normalized.value,researched);assert.ok(normalized.sourceReport?.startsWith('# Research'));assert.deepEqual(normalized.sourceUrls,urls);
   globalThis.fetch=async()=>Response.json({stop_reason:'end_turn',content:[{type:'text',text:'{"rates":[],"issues":[]}'}]});
-  await assert.rejects(()=>requestPricing('JSON',{},true,1000),/search-unavailable/);
+  await assert.rejects(()=>requestPricingWith('anthropic','JSON',{},true,1000),/search-unavailable/);
  }finally{globalThis.fetch=oldFetch;names.forEach((n,i)=>{if(saved[i]===undefined)delete process.env[n];else process.env[n]=saved[i]});}
 });
 test('Allowance notes release a range only after complete scope coverage passes the independent audit',async()=>{

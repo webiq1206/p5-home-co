@@ -54,7 +54,7 @@ test('supervisor bounds restarts and keeps website alive after worker memory fai
  const probe=createServer();const port=await listen(probe);await close(probe);
  const children=[],events=[];
  const spawnProcess=()=>{const child=new EventEmitter();child.pid=99999999;child.exitCode=null;child.signalCode=null;child.kill=signal=>{if(child.signalCode)return;child.signalCode=signal;queueMicrotask(()=>{child.emit('exit',null,signal);child.emit('close',null,signal);});};children.push(child);queueMicrotask(()=>child.emit('spawn'));return child;};
-  const host=await runHost({P5_DOCUMENT_HOST_ENABLED:'true',PORT:String(port),DATABASE_URL:'postgres://test',P5_DOCUMENT_TENANTS_JSON:JSON.stringify({'p5homeco.com':'synthetic-key-for-test-only-123456789'}),DOCUMENT_MODEL:'no-provider-calls',ANTHROPIC_API_KEY:'synthetic'},{spawnProcess,readRss:async()=>999,log:e=>events.push(e),monitorMs:5,restartDelayMs:5});
+  const host=await runHost({P5_DOCUMENT_HOST_ENABLED:'true',PORT:String(port),DATABASE_URL:'postgres://test',P5_DOCUMENT_TENANTS_JSON:JSON.stringify({'p5homeco.com':'synthetic-key-for-test-only-123456789'}),DOCUMENT_MODEL:'no-provider-calls',OPENAI_API_KEY:'synthetic'},{spawnProcess,readRss:async()=>999,log:e=>events.push(e),monitorMs:5,restartDelayMs:5});
  try{
   for(let i=0;i<100&&!events.some(e=>e.code==='restart-budget-exhausted');i++)await new Promise(r=>setTimeout(r,5));
   assert.equal(children.length,4,'one website and at most three worker starts');assert.equal(children[0].signalCode,null,'website survives worker failure');

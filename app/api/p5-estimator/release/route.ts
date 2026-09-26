@@ -1,3 +1,4 @@
+import {estimatorModelConfiguration} from '@/lib/p5/modelPolicy';
 import {ESTIMATOR_VERSION,estimatorRelease} from '@/lib/p5/version';
 import {priceBookSummary} from '@/lib/p5/priceBook';
 import {scopeModelSetting} from '@/lib/p5/extraction';
@@ -17,5 +18,5 @@ async function policySummary(){
 export async function GET(){
   const book=process.env.P5_PRICE_BOOK==='off'?{off:true}:priceBookSummary();
   const reader=scopeModelSetting();
-  return Response.json({version:ESTIMATOR_VERSION,...estimatorRelease(),policy:await policySummary(),priceBook:book,scopeReader:{model:reader.model,source:reader.source,ignored:reader.ignored||null},learnedBookLines:(await readLearnedLines()).length},{headers:{'cache-control':'no-store'}});
+  return Response.json({version:ESTIMATOR_VERSION,...estimatorRelease(),policy:await policySummary(),priceBook:book,modelPolicy:estimatorModelConfiguration(),scopeReader:{model:reader.model,source:reader.source,ignored:reader.ignored||null},learnedBookLines:(await readLearnedLines()).length},{headers:{'cache-control':'no-store'}});
 }

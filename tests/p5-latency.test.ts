@@ -26,7 +26,7 @@ test('failed policy reads fail closed and the next request can recover',async()=
 test('typed scope uses the fast reader while documents and explicit provider choices retain routing',()=>{
   const files=[{name:'plan.pdf',type:'application/pdf',data:Buffer.from('plan')}];
   assert.equal(preferredReadProvider([],''),'OpenAI');
-  assert.equal(preferredReadProvider(files,''),'Anthropic');
-  assert.equal(preferredReadProvider([],'anthropic'),'Anthropic');
+  assert.equal(preferredReadProvider(files,''),'OpenAI');
+  assert.equal(preferredReadProvider([],'anthropic'),'OpenAI');
   assert.equal(preferredReadProvider(files,'openai'),'OpenAI');
 });

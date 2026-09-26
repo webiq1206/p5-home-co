@@ -67,12 +67,12 @@ export class Reader{
    inputCharacters:JSON.stringify(input).length,maxOutputTokens:maxOutput,timeoutMs:providerCallLimit(c),idleTimeoutMs:c.callMs};
   try{
    const built=requestBody(c.provider,verify?c.verifyModel:c.model,system,input,images,schema,purpose==='citation'?Math.min(maxOutput,2048):maxOutput,purpose);
-   requestDetail.purpose=purpose;requestDetail.maxOutputTokens=built.body.max_tokens||c.maxOutput;
+   requestDetail.purpose=purpose;requestDetail.maxOutputTokens=built.body.max_tokens||built.body.max_output_tokens||c.maxOutput;
    if(built.body.output_config?.effort)requestDetail.effort=built.body.output_config.effort;
    const headers={'content-type':'application/json',...(c.provider==='anthropic'?{'x-api-key':c.key,'anthropic-version':'2023-06-01'}:c.provider==='gemini'?{'x-goog-api-key':c.key}:{authorization:`Bearer ${c.key}`})};
    const combined=deadline.signal;
    const onProviderProgress=progress=>{deadline.touch();if(progress.streaming)requestDetail.stream=progress;};
-   const response=await this.request(built.url,{method:'POST',headers,body:JSON.stringify(built.body),signal:combined,redirect:'error',onProviderProgress});
+   const response=await this.request(c.provider==='openai'&&c.endpoint?`${c.endpoint}/responses`:built.url,{method:'POST',headers,body:JSON.stringify(built.body),signal:combined,redirect:'error',onProviderProgress});
    if(!response.ok){
     const requested=response.headers.get('retry-after');const seconds=Number(requested);const retryMs=Number.isFinite(seconds)?Math.min(120000,Math.max(1000,seconds*1000)):Math.max(1000,Math.min(120000,Date.parse(requested||'')-Date.now()||1000));
     if(response.status===429){await this.store.cooldown(retryMs);throw new ServiceError('provider-rate-limit',429,retryMs);}
@@ -82,6 +82,8 @@ export class Reader{
    const length=Number(response.headers.get('content-length')||0);if(length>8*1024*1024)throw new ServiceError('provider-response-too-large',422);
    const text=c.provider==='anthropic'?await collectAnthropicResponse(response,{signal:combined,onProgress:onProviderProgress}):await response.text();if(text.length>8*1024*1024)throw new ServiceError('provider-response-too-large',422);
    let data;try{data=JSON.parse(text);}catch{throw new ServiceError('invalid-provider-json',422);}
+   requestDetail.responseModel=data.model||null;
+   if(c.provider==='openai'&&!['gpt-4.1','gpt-4.1-2025-04-14'].includes(data.model))throw new ServiceError('provider-model-unverified',422);
    requestDetail.usage=data.usage||data.usageMetadata||{};
    requestDetail.stopReason=data.stop_reason||data.status||null;
    const parsed=parseReply(c.provider,data,built.outputTool);

@@ -61,5 +61,7 @@ export function relevantCatalog<T extends Pick<PlanningRate,'code'|'description'
   });
   // Best match first; ties keep the catalog's own order, so the same batch always gets the same book.
   scored.sort((a,b)=>b.score-a.score||a.index-b.index);
-  return scored.filter(entry=>entry.score>0).slice(0,limit).sort((a,b)=>a.index-b.index).map(entry=>entry.rate);
+  const required=scored.filter(entry=>must.has(entry.rate.code));
+  const optional=scored.filter(entry=>!must.has(entry.rate.code)&&entry.score>0).slice(0,Math.max(0,limit-required.length));
+  return [...required,...optional].sort((a,b)=>a.index-b.index).map(entry=>entry.rate);
 }

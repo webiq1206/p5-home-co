@@ -64,7 +64,9 @@ const tierPrice=(row:PriceBookRow,tier:FinishTier)=>({builder:row[10],mid:row[11
 /** Lines that can be offered as a unit rate at all. */
 export const PRICE_BOOK_RATEABLE=PRICE_BOOK.filter(row=>UNITS[row[4]]&&COST_TYPES[row[5]]);
 /** Lines the book prices as a percentage; carried by the estimator's own calculation instead. */
-export const PRICE_BOOK_PERCENTAGE=PRICE_BOOK.filter(row=>!UNITS[row[4]]||!COST_TYPES[row[5]]);
+export const PRICE_BOOK_PERCENTAGE=PRICE_BOOK.filter(row=>row[5]==='Percentage'&&['% of const.','% of cost'].includes(row[4]));
+export const PRICE_BOOK_INVALID=PRICE_BOOK.filter(row=>!PRICE_BOOK_RATEABLE.includes(row)&&!PRICE_BOOK_PERCENTAGE.includes(row));
+if(PRICE_BOOK_INVALID.length)throw new Error('The price book contains unsupported units or cost types: '+PRICE_BOOK_INVALID.map(row=>row[0]).join(', '));
 /** One line, priced for this project. */
 export function priceBookRate(row:PriceBookRow,tier:FinishTier,remodel:boolean):PlanningRate{
   const [code,division,section,item,uom,costType,allowance,,,finishSensitive,,,,,premium,notes]=row;
@@ -79,7 +81,7 @@ export function priceBookRate(row:PriceBookRow,tier:FinishTier,remodel:boolean):
   const detail=notes?` ${notes}`:'';
   return {
     code:`PB-${code}`,
-    description:`${item} (${kind.includes}${assembly}${selection}${tierNote}${remodelNote}; ${section}, ${division}).${detail}`.slice(0,480),
+    description:`${item} (${kind.includes}${assembly}${selection}${tierNote}${remodelNote}; ${section}, ${division}).${detail}`,
     type:kind.type,unit:UNITS[uom],amount,
     source:`${PRICE_BOOK_SOURCE}, ${TIER_LABEL[tier]}${withPremium?' remodel':''} direct cost`,
     basis:'owner-average-cost',

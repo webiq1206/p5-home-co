@@ -5,7 +5,7 @@ import {parsePdf} from '../src/parser.mjs';
 import {readConfig} from '../src/core.mjs';
 
 test('default reader configuration and real parser admit 250 pages and reject 251 before reading',async()=>{
- const config=readConfig({P5_DOCUMENT_TENANTS_JSON:JSON.stringify({'p5homeco.com':'synthetic-key'.repeat(4)}),DOCUMENT_DATABASE_URL:'isolated-test-only',DOCUMENT_MODEL:'claude-sonnet-5',ANTHROPIC_API_KEY:'synthetic-no-network'});
+ const config=readConfig({P5_DOCUMENT_TENANTS_JSON:JSON.stringify({'p5homeco.com':'synthetic-key'.repeat(4)}),DOCUMENT_DATABASE_URL:'isolated-test-only',DOCUMENT_MODEL:'claude-sonnet-5',OPENAI_API_KEY:'synthetic-no-network'});
  assert.equal(config.maxPages,250);
  const pdf=await PDFDocument.create();
  for(let i=1;i<=250;i++)pdf.addPage([240,240]).drawText('Synthetic page '+i,{size:10,x:10,y:120});

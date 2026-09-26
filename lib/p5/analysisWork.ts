@@ -1,3 +1,4 @@
+import {MODEL_POLICY_VERSION} from './modelPolicy.ts';
 import {ANALYSIS_PASS_MS,READ_ALLOWANCE_MS,READ_START_MARGIN_MS,remainingBudget,ProcessingDeadlineError,isProcessingDeadline} from './processingBudget.ts';
 import {createHash} from 'node:crypto';
 import {openablePdf,PdfAccessError} from './pdfAccess.ts';
@@ -43,7 +44,7 @@ export const MAX_READ_ATTEMPTS=Math.max(1,Number(process.env.P5_READ_ATTEMPTS||4
 const pending=(u:Unit)=>!u.result&&(u.attempts||0)<MAX_READ_ATTEMPTS;
 export function analysisWorkKey(draft:Draft,text:string,answers:ScopeAnswers,route?:'remote'|'local'){
   const mode=(route?route==='remote':process.env.P5_DOCUMENT_SERVICE_MODE==='remote')?'document-service-v2':'v8';
-  return `analysis:${mode}:${createHash('sha256').update(JSON.stringify([text,answers,draft.uploads.map(f=>[f.id,f.sha256])])).digest('hex')}`;
+  return `analysis:${mode}:${createHash('sha256').update(JSON.stringify([MODEL_POLICY_VERSION,text,answers,draft.uploads.map(f=>[f.id,f.sha256])])).digest('hex')}`;
 }
 /** Page numbers as compact ranges: 1-4, 7, 9-10. */
 export function pageRanges(pages:number[]):string{
@@ -89,7 +90,7 @@ export async function advanceMixedSources(draft:Draft,text:string,answers:ScopeA
  const additional=await local({...draft,uploads:others});
  if(additional.pending)return additional;
  const extraction=retainScopeContext(combineScopeExtractions([read.analysis.extraction,additional.analysis.extraction]),text,answers);
- return {pending:false,version:createHash('sha256').update(JSON.stringify([text,answers,draft.uploads.map(f=>[f.id,f.sha256])])).digest('hex'),analysis:{extraction,provider:[read.analysis.provider,additional.analysis.provider].join(' + '),model:[read.analysis.model,additional.analysis.model].join(' + '),analyzedAt:new Date().toISOString()}};
+ return {pending:false,version:createHash('sha256').update(JSON.stringify([MODEL_POLICY_VERSION,text,answers,draft.uploads.map(f=>[f.id,f.sha256])])).digest('hex'),analysis:{modelPolicy:MODEL_POLICY_VERSION,extraction,provider:[read.analysis.provider,additional.analysis.provider].join(' + '),model:[read.analysis.model,additional.analysis.model].join(' + '),analyzedAt:new Date().toISOString()}};
 }
 /** Each request checkpoints work before returning. Reloading resumes the same source fingerprint. */
 export async function advanceAnalysis(draft:Draft,text:string,answers:ScopeAnswers,request=fetch,retryFailed=false,absoluteDeadline=Date.now()+ANALYSIS_PASS_MS):Promise<DocumentAnalysisStep>{
@@ -110,7 +111,7 @@ export async function advanceAnalysis(draft:Draft,text:string,answers:ScopeAnswe
   return advanceLocalAnalysis(draft,text,answers,request,retryFailed,absoluteDeadline,undefined,SOURCE_COVERAGE_REQUIRED&&draft.uploads.length>0);
 }
 async function advanceLocalAnalysis(draft:Draft,text:string,answers:ScopeAnswers,request:typeof fetch,retryFailed:boolean,absoluteDeadline:number,keyOverride?:string,requireComplete=false):Promise<DocumentAnalysisStep>{
-  const version=createHash('sha256').update(JSON.stringify([text,answers,draft.uploads.map(f=>[f.id,f.sha256])])).digest('hex');
+  const version=createHash('sha256').update(JSON.stringify([MODEL_POLICY_VERSION,text,answers,draft.uploads.map(f=>[f.id,f.sha256])])).digest('hex');
   const workKey=keyOverride||analysisWorkKey(draft,text,answers),bucketId=ESTIMATOR_BUCKETS[ESTIMATOR_BRAND.domain],client=new Client({bucketId});
   const lease=await claimWork(draft.id,workKey,{prepared:0,units:[],notes:[]},300);
   if(!lease)return {pending:true as const,progress:analysisMessage(draft.uploads.length>0,'busy')};

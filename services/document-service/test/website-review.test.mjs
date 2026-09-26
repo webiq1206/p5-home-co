@@ -36,7 +36,7 @@ test('authenticated cached review GET and POST expose pending questions without 
  const tenant='p5homeco.com',secret='synthetic-website-review-test-secret-123456789';
  const row={id:'saved-review',kind:'review',state:'complete',created_at:'2026-09-18T00:00:00Z',updated_at:'2026-09-18T00:00:23Z',result:review()};
  const before=structuredClone(row);let lookups=0,submissions=0;
- const store={nonce:async()=>true,job:async(who,project,id)=>{assert.equal(who,tenant);assert.equal(project,'qa');assert.equal(id,row.id);lookups++;return row;}};
+ const store={modelEvidence:async()=>({verified:false,requestedModel:'gpt-4.1',responseModels:[],calls:0}),nonce:async()=>true,job:async(who,project,id)=>{assert.equal(who,tenant);assert.equal(project,'qa');assert.equal(id,row.id);lookups++;return row;}};
  const pipeline={submitReview:async(who,project)=>{assert.equal(who,tenant);assert.equal(project,'qa');submissions++;return row;}};
  const server=makeServer(store,pipeline,{tenants:{[tenant]:secret},maxBytes:1024});
  server.listen(0,'127.0.0.1');await once(server,'listening');
