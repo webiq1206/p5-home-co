@@ -33,7 +33,9 @@ test('provider cooldown is retained without dispatching a fallback',async()=>{
  process.env.P5_SCOPE_PROVIDER='anthropic';
  try{
   let calls=0;
-  await assert.rejects(analyzeBatch('Synthetic trim',[],{},async()=>{calls++;return Response.json({error:{message:'PRIVATE SOURCE MUST NOT ESCAPE'}},{status:calls===1?429:400,headers:calls===1?{'retry-after':'47'}:{}});},1000),error=>error instanceof AnalysisBusyError&&error.retryAfterMs===47000&&!String(error).includes('PRIVATE'));
+  // Leave room above the 1000ms dispatch guard. This tests cooldown handling,
+  // not whether fixture setup happens within the same clock millisecond.
+  await assert.rejects(analyzeBatch('Synthetic trim',[],{},async()=>{calls++;return Response.json({error:{message:'PRIVATE SOURCE MUST NOT ESCAPE'}},{status:calls===1?429:400,headers:calls===1?{'retry-after':'47'}:{}});},5000),error=>error instanceof AnalysisBusyError&&error.retryAfterMs===47000&&!String(error).includes('PRIVATE'));
   assert.equal(calls,1);
  }finally{for(const k of variables){if(before[k]===undefined)delete process.env[k];else process.env[k]=before[k];}}
 });

@@ -10,22 +10,22 @@ import {PDFDocument} from 'pdf-lib';
 // still return an explicit incomplete extraction, and an over-limit PDF must be
 // rejected before any provider call. Real isolated SQL; storage and AI simulated.
 const root=process.cwd();await mkdir('node_modules/.cache',{recursive:true});const dir=await mkdtemp(path.join(root,'node_modules/.cache/p5-document-preparation-'));
-const names=['DATABASE_URL','P5_DOCUMENT_SERVICE_MODE','P5_OBJECT_STORAGE_ENABLED','ANTHROPIC_API_KEY'];const previous=names.map(name=>process.env[name]);
+const names=['DATABASE_URL','P5_DOCUMENT_SERVICE_MODE','P5_OBJECT_STORAGE_ENABLED','OPENAI_API_KEY'];const previous=names.map(name=>process.env[name]);
 try{
  await cp('lib/p5',dir,{recursive:true});
  await writeFile(path.join(dir,'database.ts'),`import {PGlite} from '@electric-sql/pglite';export const database=new PGlite();export async function query(statement:string,values:unknown[]=[]){return (await database.query(statement,values)).rows as any[];}`);
  await writeFile(path.join(dir,'storageFixture.ts'),`export const objects=new Map<string,Buffer>();export class Client{async uploadFromBytes(k:string,b:Buffer){objects.set(k,Buffer.from(b));return {ok:true,value:null};}async downloadAsBytes(k:string){return objects.has(k)?{ok:true,value:[objects.get(k)]}:{ok:false};}async delete(k:string){objects.delete(k);return {ok:true};}}`);
  for(const name of ['objectStorage','analysisWork']){const p=path.join(dir,name+'.ts');await writeFile(p,(await readFile(p,'utf8')).replace(/from ['"]@replit\/object-storage['"]/g,"from './storageFixture'"));}
  delete process.env.DATABASE_URL;delete process.env.P5_DOCUMENT_SERVICE_MODE;
- process.env.P5_OBJECT_STORAGE_ENABLED='true';process.env.ANTHROPIC_API_KEY='synthetic';
+ process.env.P5_OBJECT_STORAGE_ENABLED='true';process.env.OPENAI_API_KEY='synthetic';
  const mod=(name:string)=>import(pathToFileURL(path.join(dir,name+'.ts')).href);
  const store=await mod('store'),db=await mod('database'),work=await mod('analysisWork'),client=await mod('documentServiceClient');
  let providerCalls=0;
  const provider=async(_url:any,options:any)=>{
   providerCalls++;
-  const payload=JSON.parse(options.body),prompt=String(payload.messages[0].content[0].text||'');
+  const payload=JSON.parse(options.body),prompt=String(payload.input[0].content.find((v:any)=>v.type==='input_text'&&v.text.startsWith('Source filename:'))?.text||'');
   const manifest=prompt.includes('Original page manifest: ')?JSON.parse(prompt.split('Original page manifest: ')[1]):[];
-  return Response.json({stop_reason:'end_turn',content:[{type:'text',text:JSON.stringify({summary:'Hall bathroom',facts:[{field:'sqft',value:'64',confidence:.99,source:'notes.txt',evidence:'64 square feet',basis:'stated'}],conflicts:[],missingInformation:[],reviewNotes:[],clarifications:[],pages:manifest.map((p:any)=>({...p,sheet:'',revision:'',status:'read',notes:[]})),takeoffs:[]})}]});
+  return Response.json({status:'completed',model:'gpt-4.1-2025-04-14',output:[{content:[{type:'output_text',text:JSON.stringify({summary:'Hall bathroom',facts:[{field:'sqft',value:'64',confidence:.99,source:'notes.txt',evidence:'64 square feet',basis:'stated'}],conflicts:[],missingInformation:[],reviewNotes:[],clarifications:[],pages:manifest.map((p:any)=>({...p,sheet:'',revision:'',status:'read',notes:[]})),takeoffs:[]})}]}]});
  };
  const project=async(text:string,files:{name:string;type:string;bytes:Buffer}[])=>{
   const id=randomUUID(),key=randomBytes(32).toString('hex');
@@ -52,7 +52,7 @@ try{
   const step=await finish(mixed,mixedText);
   assert.equal(step.analysis.extraction.facts.some((fact:any)=>fact.value==='64'),true,'the readable file is still read');
   assert.equal(step.analysis.extraction.documentCoverage?.complete,false,'an unprepared file can never count as complete coverage');
-  assert.ok(step.analysis.extraction.reviewNotes.some((note:string)=>/locked-plan\.pdf: unreadable or encrypted PDF/.test(note)),'the unreadable file is named in a review note');
+  assert.ok(step.analysis.extraction.reviewNotes.some((note:string)=>/locked-plan\.pdf:.*incomplete or damaged/.test(note)),'the damaged file is named with a useful recovery instruction');
  }
  let saved=await job(mixed,mixedText);
  assert.deepEqual(saved.preparationFailures,['locked-plan.pdf']);

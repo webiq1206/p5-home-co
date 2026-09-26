@@ -58,7 +58,7 @@ test('processing budgets keep one browser wait under a minute while durable work
 
 test('each brand resolves a theme with an accent and heading font',()=>{
   for(const id of ['p5','remodeling','construction','handyman','cabinet']){const theme=estimatorTheme(id);assert.ok(theme.accent.startsWith('#'));assert.ok(theme.headingFont.length>0);assert.ok(['dark','light'].includes(theme.mode));}
-  assert.equal(estimatorTheme('p5').mode,'light');assert.equal(estimatorTheme('remodeling').mode,'dark');
+  assert.equal(estimatorTheme('p5').mode,'light');assert.equal(estimatorTheme('remodeling').mode,'light');
 });
 
 const date='2026-09-11T00:00:00.000Z',now=new Date(date);
