@@ -29,6 +29,16 @@ try {
   assert.equal(archived.change,reopened.payload.revisionRequest,'losing request cannot poison the archive');
   const [admin]=await db.query('SELECT record FROM p5_estimator_history WHERE draft_id=$1 AND revision=$2',[id,draft.revision]);
   assert.deepEqual(admin.record.customer,customer,'admin and customer see the same original issue');
+  const replaceId=randomUUID(),replaceKey=randomBytes(32).toString('hex');
+  const original=await store.saveDraft(replaceId,replaceKey,'test',{text:'Supply only 12 LF base cabinets. Owner installs.',answers:{service:'cabinet-product',cabinetBaseLf:'12',installation:'Owner installs'},extraction:null,reviewed:null,contact:{name:'QA',email:'',phone:''},wizard:{skipped:[],resolutions:{cabinetBaseLf:'12'},instructionAnswers:[]}},0);
+  await db.query("UPDATE p5_estimator_drafts SET status='submitted',customer_estimate=$2::jsonb,internal_estimate=$3::jsonb,submitted_at=now() WHERE id=$1",[replaceId,JSON.stringify(customer),JSON.stringify(internal)]);
+  await revision.startRevision(replaceId,'Replace this project with an installation-only cabinet scope in the new document.');
+  const replaced=await store.readDraft(replaceId,replaceKey);
+  assert.deepEqual(replaced.answers,{},'a replacement cannot retain the old quantity or responsibility');
+  assert.deepEqual(replaced.wizard.resolutions,{},'old visitor decisions belong to the archived scope');
+  assert.doesNotMatch(replaced.text,/12 LF|Owner installs/);
+  assert.equal(replaced.contact.name,'QA','contact is retained');
+  assert.equal((await revision.archivedVersion(replaceId,original.revision)).payload.answers.cabinetBaseLf,'12','the original scope remains available in its archived version');
   const code=await handoff.createContinuation({text:'Long scope '.repeat(2000),answers:{service:'handyman'},requiredFiles:[{name:'original.pdf',size:2048}]});
   const claims=await Promise.all([handoff.claimContinuation(code),handoff.claimContinuation(code)]);
   assert.equal(claims.filter(Boolean).length,1,'transfer is single-use under concurrent claims');

@@ -39,6 +39,12 @@ export function scopeTextChanged(previous: string, incoming: string): boolean {
   return normalizeScopeText(previous) !== normalizeScopeText(incoming);
 }
 
+/** Only an explicit replacement of the whole scope discards the old brief.
+ * "Replace the cabinets" is an ordinary edit, not a different project. */
+export function replacesEntireScope(request:string):boolean{
+  return /\breplace\s+(?:(?:this|the|my|our|previous|existing|current)\s+){0,2}(?:(?:entire|whole|complete)\s+)?(?:project|scope)(?:\s+of\s+work)?\s+with\b/i.test(request);
+}
+
 export interface ScopeSourceSnapshot {
   text: string;
   answers: ScopeAnswers;

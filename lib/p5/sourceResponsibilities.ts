@@ -5,10 +5,37 @@ const items=[{label:'appliances',pattern:/\bappliances?\b/i},{label:'decorative 
 const owner=/\b(?:owner|homeowner|client|customer)\b/i;
 const installation=/\b(?:install\w*|hookups?)\b/i;
 const clauses=(text:string)=>text.split(/(?<=[.;!?])\s+|\n+/).map(clause=>clause.trim()).filter(Boolean);
+const cabinetFamilies=[
+ {name:/^(?:base|lower) cabinets?\.?$/i,subject:/\b(?:base|lower) cabinets?\b/i},
+ {name:/^(?:upper|wall) cabinets?\.?$/i,subject:/\b(?:upper|wall) cabinets?\b/i},
+ {name:/^(?:tall|pantry) cabinets?\.?$/i,subject:/\b(?:tall|pantry) cabinets?\b/i},
+];
+/** A page that does not mention a cabinet run cannot exclude that run from
+ * the entire project. Only remove a bare reader-generated exclusion when
+ * native source text is available and no explicit source restriction supports
+ * it. Never remove qualified or location-specific exclusions by guesswork. */
+export function groundCabinetExclusions(extraction:ScopeExtraction,nativeText:string|undefined,typedText:string,previous:ScopeAnswers):ScopeExtraction{
+ if(!nativeText)return extraction;
+ const sources=clauses([nativeText,typedText,previous.estimatingInstructions,previous.exclusions].filter(Boolean).join('\n'));
+ const unsupported=(value:string)=>{
+  const family=cabinetFamilies.find(f=>f.name.test(value.trim()));
+  if(!family)return false;
+  return !sources.some(source=>family.subject.test(source)&&/\b(?:no|none|zero|without|exclud\w*|omit\w*|not included|do not include)\b/i.test(source)
+   || /\b(?:no|zero|without|exclude|excluding|omit)\s+(?:any |all )?cabinets?(?:\s|[.,;]|$)/i.test(source)&&!/\bcabinets?\s+(?:products?|supply|purchase|materials?)\b/i.test(source));
+ };
+ const instructions=extraction.instructions;
+ const facts=extraction.facts.flatMap(fact=>{
+  if(fact.field!=='exclusions')return [fact];
+  const value=fact.value.split(/[;\n]+|,\s*/).filter(part=>!unsupported(part)).join('; ');
+  return value?[{...fact,value}]:[];
+ });
+ return {...extraction,facts,...(instructions?{instructions:{...instructions,exclusions:instructions.exclusions.filter(value=>!unsupported(value))}}:{})};
+}
 /** Selecting products or separating product allowances from ancillary costs
  * does not make the owner responsible for installation. Ask when unsupported. */
 export function groundSourceResponsibilities(extraction:ScopeExtraction,nativeText:string|undefined,typedText:string,previous:ScopeAnswers):ScopeExtraction{
  if(!nativeText)return extraction;
+ extraction=groundCabinetExclusions(extraction,nativeText,typedText,previous);
  const direct=[typedText,previous.estimatingInstructions,previous.installation,previous.ownerSupplied,previous.exclusions].filter(Boolean).join('\n');
  const sourceClauses=clauses(nativeText+'\n'+direct);
  const affected=items.filter(item=>{

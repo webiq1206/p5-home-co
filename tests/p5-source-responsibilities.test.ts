@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {groundSourceResponsibilities} from '../lib/p5/sourceResponsibilities.ts';
+import {groundSourceResponsibilities,groundCabinetExclusions} from '../lib/p5/sourceResponsibilities.ts';
 import {emptyInstructions} from '../lib/p5/instructions.ts';
 import {instructionPrompts} from '../lib/p5/clarifications.ts';
 import type {ScopeExtraction} from '../lib/p5/scope.ts';
@@ -10,6 +10,18 @@ const extraction:ScopeExtraction={summary:'New house',sourceText:source,facts:[
  {field:'ownerSupplied',value:'Decorative lighting and all appliances are product-only allowances.',confidence:1,source:'scope.pdf',evidence:source,basis:'stated'},
  {field:'exclusions',value:'Land and financing are excluded.',confidence:1,source:'scope.pdf',evidence:'Land and financing excluded.',basis:'stated'},
 ],conflicts:[],reviewNotes:[],missingInformation:[],instructions:{...emptyInstructions(),responsibilities:['Owner provides final selections for decorative lighting and appliances','Owner responsible for installation of appliances and decorative lighting'],exclusions:['Appliance, lighting, and some decorative hardware shipping/tax/install','Land and financing'],questions:[]}};
+test('a page-local cabinet omission never excludes a run stated on another page',()=>{
+ const input:ScopeExtraction={summary:'Cabinet installation',facts:[],conflicts:[],reviewNotes:[],missingInformation:[],instructions:{...emptyInstructions(),inclusions:['Install 20 linear feet of base cabinets'],exclusions:['Upper cabinets','Tall cabinets','Countertops']}};
+ const first=groundCabinetExclusions(input,'Install 20 linear feet of base cabinets. Owner supplies assembled cabinets.','',{});
+ assert.deepEqual(first.instructions?.exclusions,['Countertops']);
+ const complete=groundCabinetExclusions(input,'Install 20 linear feet of base cabinets. Install 8 linear feet of upper cabinets. Zero tall cabinets.','',{});
+ assert.deepEqual(complete.instructions?.exclusions,['Tall cabinets','Countertops']);
+ assert.deepEqual(groundCabinetExclusions(input,undefined,'',{}),input,'no native text means no automatic deletion');
+ assert.ok(groundCabinetExclusions(input,'Install 20 LF base cabinets.','Exclude upper cabinets.',{}).instructions?.exclusions.includes('Upper cabinets'));
+ assert.ok(groundCabinetExclusions(input,'No upper cabinets. Install base cabinets.','',{}).instructions?.exclusions.includes('Upper cabinets'));
+ const qualified={...input,instructions:{...input.instructions!,exclusions:['Upper cabinets in the garage','Upper cabinet product supply']}};
+ assert.deepEqual(groundCabinetExclusions(qualified,'Install 8 LF upper cabinets.','',{}),qualified,'qualified restrictions need their actual scope, not a broad noun match');
+});
 test('product allowance exclusions do not become owner installation or global project exclusions',()=>{
  const safe=groundSourceResponsibilities(extraction,source,'',{});
  assert.equal(safe.facts.find(f=>f.field==='installation')?.value,'Standard installation and waterproofing for engineered wood and tile.');

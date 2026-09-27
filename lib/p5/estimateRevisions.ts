@@ -1,5 +1,6 @@
 import {query} from './database.ts';
 import {DraftError} from './store.ts';
+import {refreshAnalyzedScope,replaceAnalyzedScope,replacesEntireScope} from './scopeReplacement.ts';
 /**
  * Saved estimates and revisions (owner request 2026-09-22): a customer returns to a saved estimate and
  * asks for a change in plain words ("Remove painting", "Use upgraded cabinets", "Update this using the
@@ -17,7 +18,7 @@ export const rangeText=(range:{low:number;high:number}|null|undefined)=>!range?'
 /** The customer's request as it is added to the project description for the next revision. */
 export function revisedDescription(text:string,change:string,revision:number):string{
   const request=change.replace(/\s+/g,' ').trim();
-  return request?`${text.trim()}\n\nRequested change for revision ${revision+1}: ${request}`:text;
+  return !request?text:replacesEntireScope(request)?request:`${text.trim()}\n\nRequested change for revision ${revision+1}: ${request}`;
 }
 /** Archive the submitted version and reopen the project as the next revision. */
 export async function startRevision(id:string,change:string){
@@ -30,7 +31,10 @@ export async function startRevision(id:string,change:string){
   if(row.status!=='submitted')throw new DraftError('This estimate is already open for changes.',409);
   const revision=Number(row.revision);const payload=row.payload||{};
   const archived={revision,submittedAt:row.submitted_at?new Date(row.submitted_at).toISOString():null,payload,customer:row.customer_estimate,internal:row.internal_estimate,change:request,archivedAt:new Date().toISOString()};
-  const next={...payload,text:revisedDescription(String(payload.text||''),request,revision),reviewed:null,revisionOf:revision,revisionRequest:request};
+  const text=revisedDescription(String(payload.text||''),request,revision);
+  const state={...payload,text:String(payload.text||''),answers:payload.answers||{},extraction:payload.extraction||null};
+  const reopenedScope=(replacesEntireScope(request)?replaceAnalyzedScope:refreshAnalyzedScope)(state,text);
+  const next={...reopenedScope,reviewed:null,revisionOf:revision,revisionRequest:request};
   const reopened=await query(`WITH reopened AS (
     UPDATE p5_estimator_drafts SET status='draft',revision=revision+1,payload=$2::jsonb,
       customer_estimate=NULL,internal_estimate=NULL,submitted_at=NULL,updated_at=now()

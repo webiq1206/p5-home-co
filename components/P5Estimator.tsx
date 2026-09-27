@@ -26,7 +26,7 @@ import styles from './P5Estimator.module.css';
 import type {EstimateDocument} from '@/lib/p5/estimateDocument';
 import {reportProgress,trackScopeEvent} from '@/lib/p5/progress';
 import {trackGoogleAdsLeadConversion} from '@/lib/googleAdsConversion';
-import {displayScopeText,refreshAnalyzedScope,scopeFingerprint,scopeTextChanged,sourceSnapshot,sourceSnapshotsEqual} from '@/lib/p5/scopeReplacement';
+import {displayScopeText,refreshAnalyzedScope,replaceAnalyzedScope,replacesEntireScope,scopeFingerprint,scopeTextChanged,sourceSnapshot,sourceSnapshotsEqual} from '@/lib/p5/scopeReplacement';
 import {ESTIMATOR_VERSION,estimatorRelease} from '@/lib/p5/version';
 import {parseNumericAnswer} from '@/lib/p5/answerParsing';
 
@@ -437,7 +437,8 @@ export function P5Estimator({defaultService='',headingAs='h1',projectSource,layo
       const value=await readJson(response);if(!response.ok)throw new Error(value.error||'Your estimate could not be reopened. It is still saved; please retry.');
       setVersions(v=>[{revision:Number(value.previous),submittedAt:null,total:estimateDoc?.total?.amount||'',reference:estimateDoc?.reference||''},...v.filter(x=>x.revision!==Number(value.previous))]);
       setResult(null);setEstimateDoc(null);setDelivery([]);setReviseText('');setConfirmed(false);setMissingFields([]);setVerificationItems([]);
-      apply({...d,revision:Number(value.revision),text:String(value.text||d.text),step:0,dirty:false,reviewedRevision:undefined});
+      const revised=(replacesEntireScope(change)?replaceAnalyzedScope:refreshAnalyzedScope)(d,String(value.text||d.text));
+      apply({...revised,revision:Number(value.revision),step:0,dirty:false,reviewedRevision:undefined});
       setStatus(`Version ${value.revision} is open with your change. Add anything else or attach revised files, then continue. Your earlier estimate is saved.`);
     });
   }

@@ -59,6 +59,8 @@ test('the time range follows the actual workload and shrinks as work finishes; p
 test('a revision keeps the request in the description and says what changed from the prior version',async()=>{
   const {revisedDescription,changeSummary}=await import('../lib/p5/estimateRevisions.ts');
   assert.equal(revisedDescription('Remodel the hall bath.','Remove painting',2),'Remodel the hall bath.\n\nRequested change for revision 3: Remove painting');
+  assert.equal(revisedDescription('Supply 12 LF of cabinets. Owner installs.','[QA] Replace this project with an installation-only cabinet scope. The owner supplies the cabinets.',5),'[QA] Replace this project with an installation-only cabinet scope. The owner supplies the cabinets.');
+  assert.equal(revisedDescription('Remodel the hall bath.','Replace the vanity with a wider cabinet',2),'Remodel the hall bath.\n\nRequested change for revision 3: Replace the vanity with a wider cabinet');
   const before={change:'Remove painting',customer:{range:{low:22800,high:31300},scopeTasks:[{description:'Tile the shower'},{description:'Paint the bathroom'}]}};
   const after={range:{low:21000,high:29000},scopeTasks:[{description:'Tile the shower'}]};
   assert.deepEqual(changeSummary(before,after),['Requested change: Remove painting','Total was $22,800 to $31,300; now $21,000 to $29,000.','Removed: Paint the bathroom.']);
