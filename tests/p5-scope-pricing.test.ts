@@ -45,6 +45,29 @@ test('Semantic mapping uses the existing cost amount without inventing a rate',a
  assert.ok(r.customer.range);assert.equal((r.internal as any).lines.find((l:any)=>l.id==='scope-1').unitCost,100);
  assert.notEqual(r.internal.revision,base.internal.revision);
 });
+test('smoke-alarm labor cannot use a video-doorbell rate, and a verified repair can release it',async()=>{
+ const deviceConfig=createPlanningConfiguration({...catalog,rates:[...catalog.rates,
+  {code:'QA-SMOKE',description:'Smoke detector replacement (labor only)',type:'Labor',unit:'EA',amount:65,source:'Synthetic approved book',basis:'owner-average-cost'},
+  {code:'QA-BELL',description:'Video doorbell install (labor only)',type:'Labor',unit:'EA',amount:140,source:'Synthetic approved book',basis:'owner-average-cost'},
+ ]});
+ const alarmScope:ReviewedScope={...scope,text:'Install 2 owner-supplied battery-powered smoke alarms. Labor only.',answers:{service:'re10',location:'Boise'}};
+ const wrong={...extra,id:'alarms',description:'Install 2 owner-supplied battery-powered smoke alarms.',evidence:'Install 2 battery-powered smoke alarms; owner supplies alarms.',researchDescription:'',additions:[{code:'QA-BELL',quantity:2,quantityEvidence:'Two alarms requested'}]};
+ const correct={...wrong,additions:[{...wrong.additions[0],code:'QA-SMOKE'}]};
+ const mapping=(t:typeof wrong)=>({tasks:[t],issues:[],notes:[],replacements:[],removeExclusions:[]});
+ const rejected=catalogResolution(mapping(wrong),deviceConfig,[],now,alarmScope);
+ assert.equal(rejected.rules.length,0);
+ assert.match(rejected.issues.join(' '),/catalog device does not match/);
+ const valid=catalogResolution(mapping(correct),deviceConfig,[],now,alarmScope);
+ assert.equal(valid.rules[0].unitCost,65);
+ const repaired=await priceCompleteScope(alarmScope,deviceConfig,replies([mapping(wrong),{coveredTaskIds:['alarms'],issues:[]},mapping(correct),{coveredTaskIds:['alarms'],issues:[]}]),now);
+ assert.ok(repaired.customer.range,'a compatible accepted replacement clears this specific mismatch');
+ assert.equal((repaired.internal as any).lines.filter((line:any)=>line.scopeTaskId==='alarms'&&line.quantity>0).length,1);
+ assert.equal((repaired.internal as any).lines.find((line:any)=>line.scopeTaskId==='alarms').unitCost,65);
+ const stillWrong=await priceCompleteScope(alarmScope,deviceConfig,replies([mapping(wrong),{coveredTaskIds:['alarms'],issues:[]},mapping(wrong),{coveredTaskIds:['alarms'],issues:[]}]),now);
+ assert.equal(stillWrong.customer.range,null,'model audit approval cannot override the incompatible device guard');
+ const bell={...wrong,description:'Install 2 owner-supplied video doorbells.',evidence:'Two video doorbells',additions:wrong.additions};
+ assert.equal(catalogResolution(mapping(bell),deviceConfig,[],now,alarmScope).rules.length,1,'a doorbell task can still use its own rate');
+});
 test('A malformed mapping answer is asked again, then repaired, instead of handing the estimate off',async()=>{
  // Live on boisehandyman.co (Marcliffe RE-10): one addition came back without a code and the
  // parse error handed the whole estimate to a person.
