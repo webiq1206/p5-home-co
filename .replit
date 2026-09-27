@@ -1,5 +1,9 @@
 modules = ["nodejs-24", "python-base-3.13", "postgresql-16"]
 
+[postMerge]
+path = "scripts/post-merge.sh"
+timeoutMs = 120000
+
 [deployment]
 router = "application"
 deploymentTarget = "gce"

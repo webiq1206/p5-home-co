@@ -16,6 +16,7 @@ import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 
 import { Client } from "pg";
+import { verifyMigrationFiles } from "../scripts/p5-schema-safety.mjs";
 
 const DRY = process.argv.includes("--dry");
 const MIGRATIONS = path.join(process.cwd(), "migrations");
@@ -35,6 +36,8 @@ function seedAdminArgs(): { email: string; name: string } | null {
 }
 
 async function main(): Promise<void> {
+  // Refuse the whole plan before connecting if any migration can remove data.
+  verifyMigrationFiles();
   const connectionString = process.env.DATABASE_URL;
   if (!connectionString) {
     console.error(
