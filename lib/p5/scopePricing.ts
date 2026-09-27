@@ -1375,6 +1375,11 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
     }
     if(pricingExtraction?.instructions?.separateBuildings&&allLines.some(l=>!l.building))resolution.issues.push('Assign every priced component to a building before presenting separate building prices.');
     for(const t of mapping.tasks)if(!audit.coveredTaskIds.includes(t.id)){
+      // A confirmed exclusion is not a billable task. The earlier mapping and
+      // repair gates already use this same selection check; requiring a price
+      // here made an expressly excluded permit hold an otherwise checked repair
+      // estimate. Independent audit findings still remain blocking as usual.
+      if(taskSelectionStatus(t,mapping.tasks)==='unselected')continue;
       // A task the audit did not cover but that a planning or sourced allowance prices positively is released with that caveat; the audit's own findings about it are classified above.
       const allowancePriced=resolution.rules.some(rule=>rule.scopeTaskId===t.id&&rule.quantity.fixed!==undefined&&rule.quantity.fixed>0&&rule.unitCost>0);
       // Judged task by task: one blocking finding about the chimney does not un-cover the outlets.

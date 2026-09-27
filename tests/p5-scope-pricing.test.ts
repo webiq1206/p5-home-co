@@ -32,6 +32,14 @@ test('A mapped task plus an unsupported task cannot masquerade as complete',asyn
  const r=await priceCompleteScope(scope,config,replies([{tasks:[task,{...extra,researchDescription:''}],issues:[]},{coveredTaskIds:['cabinets'],issues:['Overlay is unpriced']}]),now);
  assert.equal(r.customer.range,null);
 });
+test('an excluded permit needs no positive price or covered-task ID',async()=>{
+ const excluded={...extra,id:'permit',description:'Permit for this work is not included due to minor repair/nature of scope.',evidence:'Permit not included for this defined scope.',researchDescription:''};
+ let calls=0;const queued=replies([{tasks:[task,excluded],issues:[]},{coveredTaskIds:['cabinets'],issues:[]}]);
+ const result=await priceCompleteScope(scope,config,async(...args)=>{calls++;return queued(...args);},now);
+ assert.ok(result.customer.range,'nonbillable inventory commentary cannot hold a complete estimate');
+ assert.equal(calls,3,'no futile repair request for a price on excluded work');
+ assert.ok(!(result.internal as any).lines.some((line:any)=>line.scopeTaskId==='permit'),'the exclusion is never charged');
+});
 test('Semantic mapping uses the existing cost amount without inventing a rate',async()=>{
  const r=await priceCompleteScope(scope,config,replies([{tasks:[task,{...extra,researchDescription:'',additions:[{code:'03-15-02-M',quantity:10,quantityEvidence:'Ten feet fixture conversion'}]}],issues:[]},{coveredTaskIds:['cabinets','overlay'],issues:[]}]),now);
  assert.ok(r.customer.range);assert.equal((r.internal as any).lines.find((l:any)=>l.id==='scope-1').unitCost,100);
