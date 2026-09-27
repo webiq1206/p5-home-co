@@ -205,10 +205,13 @@ export function P5Estimator({defaultService='',headingAs='h1',projectSource,layo
       const vv=window.visualViewport;
       if(vv){const gap=window.innerHeight-(vv.height+vv.offsetTop);setBottomInset(gap>40?Math.round(gap):0);}
     };
-    window.scrollTo(0,0);measure();
+    // Marketing pages use smooth scrolling. Measure only after an immediate
+    // reset, or a sticky site header can still be above the viewport and the
+    // estimator's Back/Exit controls end up underneath it.
+    window.scrollTo({top:0,left:0,behavior:'instant'});measure();
     const later=window.setTimeout(measure,250);
-    window.addEventListener('resize',measure);window.visualViewport?.addEventListener('resize',measure);window.visualViewport?.addEventListener('scroll',measure);
-    return()=>{window.clearTimeout(later);window.removeEventListener('resize',measure);window.visualViewport?.removeEventListener('resize',measure);window.visualViewport?.removeEventListener('scroll',measure);html.style.overflow=previous.html;body.style.overflow=previous.body;delete body.dataset.p5EstimatorActive;if(layout==='embedded')rootRef.current?.scrollIntoView({block:'start'});};
+    window.addEventListener('resize',measure);window.addEventListener('scroll',measure,{passive:true});window.visualViewport?.addEventListener('resize',measure);window.visualViewport?.addEventListener('scroll',measure);
+    return()=>{window.clearTimeout(later);window.removeEventListener('resize',measure);window.removeEventListener('scroll',measure);window.visualViewport?.removeEventListener('resize',measure);window.visualViewport?.removeEventListener('scroll',measure);html.style.overflow=previous.html;body.style.overflow=previous.body;delete body.dataset.p5EstimatorActive;if(layout==='embedded')rootRef.current?.scrollIntoView({block:'start'});};
   },[frameActive]);
   // When the on-screen keyboard changes the inset, keep the focused field in view.
   useEffect(()=>{

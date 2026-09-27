@@ -58,26 +58,32 @@ function stripRateFigures(sentence:string):string{
  * useful scope with a private cost clause, so the clause is removed rather
  * than the whole sentence, and a stated limitation is kept.
  */
+const PRIVATE_COMPONENT_TEXT=/\b(?:master book|(?:labor|labour|material)(?: cost)? share|complete installed line)\b/i;
+const isPrivatePricingText=(value:string)=>PRIVATE_PRICING_TEXT.test(value)||PRIVATE_COMPONENT_TEXT.test(value);
 export function publicPricingText(value:unknown):string{
  const text=typeof value==='string'?value.trim():'';
  if(!text)return '';
  const repairSentence=(sentence:string):string[]=>{
+   // Component derivation notes are useful to the pricing engine, never to
+   // the customer. Remove the full note rather than leaving "Component" or
+   // "calculated" fragments beside the actual cabinet scope and quantities.
+   if(PRIVATE_COMPONENT_TEXT.test(sentence)&&/^(?:Component\b|Do not add\b)/i.test(sentence.trim()))return [];
    // A private material/labor amount can have its bounds in a later clause.
    // Redact all monetary figures in that sentence before retaining safe scope.
-   if(/\bdirect[- ](?:materials?|labor|labour)\b/i.test(sentence)&&/[$€£]\s*\d/.test(sentence))sentence=sentence.split(/(?<=[,;])\s+/).filter(clause=>!/[$€£]\s*\d/.test(clause)||PRIVATE_PRICING_TEXT.test(clause)||/\bcustomer\s+(?:selling\s+)?(?:total|price)\b/i.test(clause)).join(' ');
+   if(/\bdirect[- ](?:materials?|labor|labour)\b/i.test(sentence)&&/[$€£]\s*\d/.test(sentence))sentence=sentence.split(/(?<=[,;])\s+/).filter(clause=>!/[$€£]\s*\d/.test(clause)||isPrivatePricingText(clause)||/\bcustomer\s+(?:selling\s+)?(?:total|price)\b/i.test(clause)).join(' ');
    let safe=stripRateFigures(sentence
-    .replace(/\s*\(([^)]*)\)/g,(whole,body)=>PRIVATE_PRICING_TEXT.test(body)?'':whole)
+    .replace(/\s*\(([^)]*)\)/g,(whole,body)=>isPrivatePricingText(body)?'':whole)
     .replace(/:\s*(?:mapped to|catalog(?:ued)? as)\s+[^.]+/gi,''));
-  if(!PRIVATE_PRICING_TEXT.test(safe)){
+  if(!isPrivatePricingText(safe)){
    safe=safe.replace(/\s+/g,' ').replace(/\s+([,.;:])/g,'$1').trim();
    return /[A-Za-z0-9]/.test(safe)?[safe]:[];
   }
   const clauses=safe.split(/(?<=[,;])\s+|\s+(?=(?:and|but)\s+)/i).flatMap(clause=>{
    let part=clause.trim().replace(/[,;]\s*$/,'');
-   if(!PRIVATE_PRICING_TEXT.test(part))return part?[part]:[];
+   if(!isPrivatePricingText(part))return part?[part]:[];
    // Retain the useful scope before a private basis/rate appended to it.
    const introduced=part.match(/^(.+?)\s+(?:at|using|from|based on|with)\s+.+$/i);
-   if(introduced&&!PRIVATE_PRICING_TEXT.test(introduced[1])&&!/^(?:the )?(?:rate|cost|price|pricing|formula|calculation)\b/i.test(introduced[1].trim()))return [introduced[1].trim()];
+   if(introduced&&!isPrivatePricingText(introduced[1])&&!/^(?:the )?(?:rate|cost|price|pricing|formula|calculation)\b/i.test(introduced[1].trim()))return [introduced[1].trim()];
    // A private evidence sentence may also state a useful limitation. Keep that
    // limitation rather than treating the whole sentence as disposable.
    const limitation=part.match(/\b((?:(?:the )?(?:source|evidence|rate) date|effective date)[^.;]*(?:not stated|not supplied|unknown|unavailable|expired|out of date)[^.;]*)/i);

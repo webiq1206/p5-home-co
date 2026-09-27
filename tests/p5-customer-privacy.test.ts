@@ -151,6 +151,14 @@ test('owner price-book provenance notes never reach customer copy (live RE-10, 2
  assert.equal(publicPricingText('Service call. Third-party market rate; parts / materials extra'),'Service call.');
  assert.equal(publicPricingText('Install vapor barrier in crawl space.'),'Install vapor barrier in crawl space.');
 });
+test('cabinet component derivation stays private while scope and quantities remain',()=>{
+ const note="Install 20 LF of owner-supplied base cabinets. Component, calculated from the master book's stated 20% labor share. Do not add to the complete installed line.";
+ assert.equal(publicPricingText(note),'Install 20 LF of owner-supplied base cabinets.');
+ assert.equal(publicPricingText('Allow 20% extra material for the patterned layout.'),'Allow 20% extra material for the patterned layout.');
+ const result=customerPresentation({status:'complete',lineItems:[{category:'Cabinets',description:note,quantity:20,unit:'LF',low:2003,high:2178}],assumptions:[note]});
+ assert.doesNotMatch(JSON.stringify(result),/master book|labor share|complete installed line|calculated from/i);
+ assert.match(JSON.stringify(result),/20 LF/);
+});
 test('an audit remark quoting a direct amount beside an internal line id never reaches the customer (live Remodeling email, 2026-09-25)',async()=>{
  const {customerSafeNotes,withoutInternalIds}=await import('../lib/p5/pricing.ts');
  const leaked=[

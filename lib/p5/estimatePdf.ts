@@ -151,10 +151,13 @@ export async function renderEstimatePdf(doc:EstimateDocument):Promise<Buffer>{
   const labelW=112;
   for(const [label,values] of doc.assumptionRows){
     const items=values.length>1?values.map(v=>`• ${v}`):values;
-    ensure(Math.min(80,height(items[0],10.5,WIDTH-labelW)+10));y-=4;
-    const start=y;let startPage=page;text(label,L,y-10.5,10.5,regular,muted);
-    for(const v of items){if(ensure(height(v,10.5,WIDTH-labelW))){startPage=page;}para(v,10.5,{x:L+labelW,width:WIDTH-labelW,gap:2});}
-    void start;void startPage;divider(7);
+    const labelLines=wrap(label,regular,10.5,labelW-12),labelHeight=labelLines.length*10.5*1.38;
+    ensure(Math.max(labelHeight,Math.min(80,height(items[0],10.5,WIDTH-labelW)))+10);y-=4;
+    const start=y,startPage=page;
+    labelLines.forEach((line,index)=>text(line,L,start-10.5-index*10.5*1.38,10.5,regular,muted));
+    items.forEach((v,index)=>{if(index>0)ensure(Math.min(80,height(v,10.5,WIDTH-labelW)));para(v,10.5,{x:L+labelW,width:WIDTH-labelW,gap:2});});
+    if(page===startPage)y=Math.min(y,start-labelHeight);
+    divider(7);
   }
   ensure(32+doc.nextSteps.reduce((t,[,b])=>t+19+height(b,10.5,WIDTH-32)+6,0)+64+height(doc.notice.text,9.5,WIDTH,regular,doc.notice.lead)+(doc.legalLine?15:0));heading('Next steps',14,10);
   doc.nextSteps.forEach(([title,body],i)=>{ensure(40);y-=4;text(String(i+1).padStart(2,'0'),L,y-17,12,bold);text(title,L+32,y-11,11,bold);y-=15;para(body,10.5,{x:L+32,width:WIDTH-32,gap:6});});
