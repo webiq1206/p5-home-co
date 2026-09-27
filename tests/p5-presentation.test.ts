@@ -25,6 +25,21 @@ test('Legacy summaries retain values, use readable quantities and group scope wi
  assert.equal(breakdown?.rows?.length,2);assert.ok(breakdown?.rows?.[1][1].includes('$100 to $200 total'));
  assert.ok(JSON.stringify(sections).includes('Land and financing.'));
 });
+test('privacy cleanup preserves scope labels so installation cannot become an exclusion',async()=>{
+ const scope='Excluded work: Painting.\nInstallation work and responsibilities: Install two owner-supplied interior door handle sets, labor only.';
+ const historical=scope.replace('work and responsibilities','work, and responsibilities');
+ for(const summary of [scope,historical]){
+  const projected=customerPresentation({...result,summary});
+  assert.match(projected.summary,/\nInstallation work and responsibilities: Install two owner-supplied interior door handle sets\./);
+  assert.deepEqual(customerPresentation(projected),projected);
+  const sections=estimateSections(projected);
+  assert.deepEqual(sections.find(s=>s.kind==='excluded')?.bullets,['Painting.','Land']);
+  assert.ok(sections.some(s=>s.kind!=='excluded'&&s.rows?.some(([label,value])=>label==='Installation work and responsibilities'&&value.includes('Install two owner-supplied'))));
+ }
+ const privateSummary=publicPricingText('Direct cost: $140\nInstallation work and responsibilities: Install two handles at $70 per each, labor only.');
+ assert.doesNotMatch(privateSummary,/\$140|\$70|Direct cost/i);
+ assert.match(privateSummary,/Installation work and responsibilities: Install two handles/);
+});
 test('Formatted customer emails escape scope HTML and never include internal finance',()=>{
  const record={customer:{...result,summary:result.summary+'\n<script>alert(1)</script>'},internal:{directCost:98765,operatingProfit:12345},contact:{name:'Test'}};
  const customer=estimateEmail('test',record,false),admin=estimateEmail('test',record,true);

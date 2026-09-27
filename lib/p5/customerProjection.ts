@@ -1,4 +1,5 @@
 import {plainCustomerLine,customerSentence} from './customerCopy.ts';
+import {SCOPE_FIELDS} from './scopeFields.ts';
 /**
  * The one customer boundary for every brand. The estimator page, customer
  * email, customer PDF, public API responses and the customer copy inside the
@@ -89,7 +90,21 @@ export function publicPricingText(value:unknown):string{
  };
  // Removing a private figure can leave its connector behind ("allowance based on; confirm ...").
  const mend=(line:string)=>line.replace(/\s+(?:based on|at|using|from|with|of)\s*(?=[,;:.!?]|$)/gi,'').replace(/\s*[;,:]\s*(?=[.!?]?$)/,'').replace(/\s+([,;:.!?])/g,'$1').trim();
- return text.split('\n').map(line=>mend(scopeBullets(plainCustomerLine(line)).flatMap(repairSentence).flatMap(sentence=>{const safe=customerSentence(sentence);return safe?[safe]:[];}).join(' '))).filter(Boolean).join('\n');
+ const clean=(line:string)=>mend(scopeBullets(line).flatMap(repairSentence).flatMap(sentence=>{const safe=customerSentence(sentence);return safe?[safe]:[];}).join(' '));
+ return text.split('\n').map(raw=>{
+  const line=plainCustomerLine(raw);
+  // A scope label is structure, not part of the prose being redacted. Splitting
+  // "Installation work and responsibilities" at "and" made the next parser
+  // attach installation to the preceding Excluded work section. Also repair
+  // the comma inserted into that label in previously saved customer copies.
+  const field=line.match(/^([A-Za-z][A-Za-z ,()/&-]{2,100}):\s+(.+)$/);
+  const label=field?.[1].replace(/,\s+(and|or)\b/g,' $1');
+  if(field&&Object.values(SCOPE_FIELDS).some(definition=>definition.label===label)){
+   const value=clean(field[2]);
+   return value?`${label}: ${value}`:'';
+  }
+  return clean(line);
+ }).filter(Boolean).join('\n');
 }
 const publicTextList=(value:unknown):string[]=>Array.isArray(value)?value.map(publicPricingText).filter(Boolean):[];
 const finiteRange=(r:any)=>r&&Number.isFinite(r.low)&&Number.isFinite(r.high)?{low:Number(r.low),high:Number(r.high)}:null;
