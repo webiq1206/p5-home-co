@@ -124,7 +124,7 @@ Add ONLY work that is necessary: never an optional upgrade, a nice-to-have, or a
 Explicit instructions win. If the customer excluded work or limited the scope ("only price the trim", "exclude plumbing", labor only, materials only, owner supplies X), do not add that work; when it is still needed to complete the job, list it in dependencies as a short sentence ("Plumbing connections are needed to complete the shower but are excluded; not priced.").`;
 const MAP=`You are a construction estimator checking COMPLETE scope coverage. ${UNTRUSTED} ${ALLOWANCE_POLICY} ${FOUNDATION_POLICY} ${ISSUE_POLICY}
 For material procurement with cutting waste, preserve the installed quantity for labor. Label the material quantity ALLOWANCE:, state the reviewed installed quantity and explicit percentage as, for example, "120 LF installed plus 10% cutting waste = 132 LF purchased", and provide a positive quantityRange containing the purchase quantity. Never apply procurement waste to installed labor quantities.
-Match the actual device before choosing an analogous task. Smoke/CO alarms use the smoke-detector installation or replacement line when available, never a video-doorbell line. Doorbells and life-safety alarms are different work even when both are owner-supplied battery devices. A shortlist suggestion is not evidence of compatibility; check the catalog name and original scope.
+Match the actual device before choosing an analogous task. Smoke/CO alarms use the smoke-detector installation or replacement line when available, never a video-doorbell line. Doorbells and life-safety alarms are different work even when both are owner-supplied battery devices. A shortlist suggestion is not evidence of compatibility; check the catalog name and original scope. Match stated assembly dimensions: a 60-inch vanity cannot use a 24-36 inch vanity rate. Use a dimension-compatible assembly or separately price the required compatible components; never silently substitute a smaller product.
 Return JSON only: {tasks:[{id,description,evidence,existingLineIds:[],additions:[{code,quantity,quantityEvidence}],researchDescription,issues:[]}],issues:[],notes:[],replacements:[{lineId,reason}],removeExclusions:[{text,reason}]}.
 Keep each task description and evidence concise, preserving exact quantities and specifications without repeating full source passages.\nMap ONLY the supplied taskBatch, returning exactly those task IDs once each. The complete inventory was prepared separately. Do not create or omit tasks. Retain each supplied description and evidence. Read priorMappedTasks to prevent duplicate additions or conflicting removals across batches. Original scope is context, not permission to expand this batch. Split mixed tasks and preserve each room, quantity, specification, preparation, supply, installation, demolition, disposal and specialist requirement. Honor only the customer's explicit exclusions and owner-supplied responsibilities. Default exclusions in an existing estimate DO NOT override requested work. Do not infer a new exclusion to make the estimate pass.
 For each task, identify existing positive-priced line IDs that actually cover its complete quantity/specification. Broad trade labels and general contingencies do not prove inclusion. Multiple tasks may reference one assembly only if its quantity and specification cover their combined work. If partially covered, reference the covered portion and add ONLY the missing portion.
@@ -356,6 +356,16 @@ function incompatibleDevice(task:string,component:string):boolean{
   const scope=deviceKind(task),priced=deviceKind(component.startsWith(`${task}:`)?component.slice(task.length+1):component);
   return Boolean(scope&&priced&&scope!==priced);
 }
+function vanitySizeMatches(task:string,component:string):boolean|null{
+  const priced=component.startsWith(`${task}:`)?component.slice(task.length+1):component;
+  if(!/\bvanit(?:y|ies)\b/i.test(task)||!/\bvanit(?:y|ies)\b/i.test(priced))return null;
+  const sizes=(value:string)=>[...value.matchAll(/\b(\d{2}(?:\.\d+)?)\s*(?:[-–]\s*(\d{2}(?:\.\d+)?))?\s*[- ]?\s*(?:inches\b|inch\b|in\b|")/gi)].map(m=>[Number(m[1]),Number(m[2]||m[1])]);
+  const wanted=sizes(task),available=sizes(priced);
+  // A single stated nominal width can be checked mechanically. Multidimensional
+  // or unspecified assemblies remain subject to the semantic scope audit.
+  return wanted.length===1&&available.length===1?wanted[0][0]>=available[0][0]&&wanted[0][1]<=available[0][1]:null;
+}
+const vanitySizeIssue=(description:string)=>`${description}: catalog vanity size does not match the requested width.`;
 export function catalogResolution(mapping:Mapping,configuration:EstimatorConfiguration,existing:ReturnType<typeof existingLines>,now:Date,scope?:ReviewedScope):ScopePriceResolution{
   const result:ScopePriceResolution={rules:[],assumptions:[...(mapping.notes||[])],issues:[...mapping.issues],removeLineIds:mapping.replacements.map(r=>r.lineId),removeExclusions:mapping.removeExclusions.map(e=>e.text)};
   for(const r of mapping.replacements)if(!existing.some(l=>l.id===r.lineId))throw new Error('Unknown replacement line');
@@ -379,6 +389,7 @@ export function catalogResolution(mapping:Mapping,configuration:EstimatorConfigu
       const line=existing.find(l=>l.id===id);
       if(result.removeLineIds?.includes(id)||!line||line.quantity*line.unitCost<=0)result.issues.push(`${t.description}: invalid existing price reference.`);
       else if(incompatibleDevice(t.description,line.description))result.issues.push(deviceMismatchIssue(t.description));
+      else if(vanitySizeMatches(t.description,line.description)===false)result.issues.push(vanitySizeIssue(t.description));
       else if(['materials','subcontractors'].includes(line.category)&&ownerSuppliesMaterial(t,line.quantity,line.unit,line.description,scope,line.category==='materials'))result.issues.push(`${t.description}: owner-supplied material cannot be charged through a contractor material or supply-and-install package.`);
       else{
         const overage=purchasingOverage(t,line,scope,mapping.tasks.length);
@@ -393,6 +404,9 @@ export function catalogResolution(mapping:Mapping,configuration:EstimatorConfigu
       if(incompatibleDevice(t.description,rate?.description||regional?.description||'')){
         result.issues.push(deviceMismatchIssue(t.description));
         continue;
+      }
+      if(vanitySizeMatches(t.description,rate?.description||regional?.description||'')===false){
+        result.issues.push(vanitySizeIssue(t.description));continue;
       }
       if((rate?.type==='Material'||rate?.type==='Subcontractor'||regional?.category==='materials'||regional?.category==='subcontractors')&&ownerSuppliesMaterial(t,a.quantity,rateUnit,rate?.description||regional?.description||a.code,scope,rate?.type==='Material'||regional?.category==='materials')){
         result.issues.push(`${t.description}: owner-supplied material cannot be charged through a contractor material or supply-and-install package.`);
@@ -1291,7 +1305,11 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
         const rate=configuration.planningCatalog?.rates.find(candidate=>candidate.code===addition.code);
         return rate&&deviceKind(rate.description)===deviceKind(task.description)&&repaired.rules.some(rule=>rule.scopeTaskId===task.id&&rule.unitCost===rate.amount&&rule.quantity.fixed===addition.quantity);
       })).map(task=>deviceMismatchIssue(task.description)));
-      const carriedIssues=resolution.issues.filter(issue=>!repairedNoPriceIssues.has(issue)&&!repairedDeviceIssues.has(issue));
+      const repairedVanityIssues=new Set(fixes.tasks.filter(task=>repairedTaskIds.has(task.id)&&task.additions.some(addition=>{
+        const rate=configuration.planningCatalog?.rates.find(candidate=>candidate.code===addition.code);
+        return rate&&vanitySizeMatches(task.description,rate.description)===true&&repaired.rules.some(rule=>rule.scopeTaskId===task.id&&rule.unitCost===rate.amount&&rule.quantity.fixed===addition.quantity);
+      })).map(task=>vanitySizeIssue(task.description)));
+      const carriedIssues=resolution.issues.filter(issue=>!repairedNoPriceIssues.has(issue)&&!repairedDeviceIssues.has(issue)&&!repairedVanityIssues.has(issue));
       resolution.issues=[...new Set([...carriedIssues,...inventory.issues,...repaired.issues])];
       [...fixes.issues,...fixes.tasks.flatMap(t=>t.issues.map(issue=>`${t.description}: ${issue}`))].forEach(issue=>{modelIssues.add(issue);opinions.add(issue);});
       mapping.tasks=fixes.tasks;
@@ -1326,7 +1344,7 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
     // quantity ranges. Live RE-10 (2026-09-21): the open questions blocked an estimate at review.
     resolution.assumptions.push(...(pricingExtraction?.instructions?.questions||[]).map(q=>`To confirm: ${q}`));
     // Work needed to complete the job that the customer excluded or limited out: named, never priced.
-    const neededButExcluded=inventory.dependencies.map(d=>d.replace(/s*;?s*not priced.?s*$/i,'').replace(/.$/,'').trim()).filter(Boolean);
+    const neededButExcluded=inventory.dependencies.map(d=>d.replace(/\s*;?\s*not priced\.?\s*$/i,'').replace(/\.\s*$/,'').trim()).filter(Boolean);
     if(neededButExcluded.length)resolution.addExclusions=[...new Set([...(resolution.addExclusions||[]),...neededButExcluded.map(d=>`Needed to complete the work but excluded as you asked: ${d}`)])];
     // An item nobody could put a defensible number on is named and carried OUT of the total, the
     // way the rest of this codebase treats measured-but-unpriced work. Withholding the whole

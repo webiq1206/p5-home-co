@@ -40,6 +40,28 @@ test('an excluded permit needs no positive price or covered-task ID',async()=>{
  assert.equal(calls,3,'no futile repair request for a price on excluded work');
  assert.ok(!(result.internal as any).lines.some((line:any)=>line.scopeTaskId==='permit'),'the exclusion is never charged');
 });
+test('a sixty-inch vanity cannot use a smaller cabinet assembly rate',async()=>{
+ const vanityScope:ReviewedScope={...scope,text:'Install one 60-inch single-sink vanity.',answers:{service:'bathroom',location:'Boise'}};
+ const vanityConfig=createPlanningConfiguration({...catalog,rates:[...catalog.rates,
+  {code:'QA-SMALL-VANITY',description:'Vanity, single 24-36 in, installed incl. top.',type:'Subcontractor',unit:'EA',amount:1000,source:'Synthetic approved book',basis:'owner-average-cost'},
+  {code:'QA-CORRECT-VANITY',description:'Vanity, single 60 in, installed incl. top.',type:'Subcontractor',unit:'EA',amount:1600,source:'Synthetic approved book',basis:'owner-average-cost'},
+ ]});
+ const vanity={...extra,id:'vanity',description:'Install new 60-inch mid-range, single-sink vanity (contractor-supplied)',evidence:vanityScope.text,researchDescription:'',additions:[{code:'QA-SMALL-VANITY',quantity:1,quantityEvidence:'One vanity'}]};
+ const mapping={tasks:[vanity],issues:[],notes:[],replacements:[],removeExclusions:[]};
+ const wrong=catalogResolution(mapping,vanityConfig,[],now,vanityScope);
+ assert.equal(wrong.rules.length,0);assert.match(wrong.issues.join(' '),/catalog vanity size does not match/);
+ const correct=catalogResolution({...mapping,tasks:[{...vanity,additions:[{...vanity.additions[0],code:'QA-CORRECT-VANITY'}]}]},vanityConfig,[],now,vanityScope);
+ assert.equal(correct.rules.length,1);assert.deepEqual(correct.issues,[]);
+ const smallerExisting={id:'small-vanity',category:'subcontractors',description:'Vanity, single 24-36 in, installed incl. top.',unit:'EA',quantity:1,unitCost:1000};
+ const reused=catalogResolution({...mapping,tasks:[{...vanity,additions:[],existingLineIds:[smallerExisting.id]}]},vanityConfig,[smallerExisting] as Parameters<typeof catalogResolution>[2],now,vanityScope);
+ assert.match(reused.issues.join(' '),/catalog vanity size does not match/);
+ const fixed={...mapping,tasks:[{...vanity,additions:[{...vanity.additions[0],code:'QA-CORRECT-VANITY'}]}]};
+ const repaired=await priceCompleteScope(vanityScope,vanityConfig,replies([mapping,{coveredTaskIds:['vanity'],issues:[]},fixed,{coveredTaskIds:['vanity'],issues:[]}]),now);
+ assert.ok(repaired.customer.range,'a compatible corrected size can release after the final audit');
+ const held=await priceCompleteScope(vanityScope,vanityConfig,replies([mapping,{coveredTaskIds:['vanity'],issues:[]},mapping,{coveredTaskIds:['vanity'],issues:[]}]),now);
+ assert.equal(held.customer.range,null,'model approval cannot override the size mismatch');
+
+});
 test('Semantic mapping uses the existing cost amount without inventing a rate',async()=>{
  const r=await priceCompleteScope(scope,config,replies([{tasks:[task,{...extra,researchDescription:'',additions:[{code:'03-15-02-M',quantity:10,quantityEvidence:'Ten feet fixture conversion'}]}],issues:[]},{coveredTaskIds:['cabinets','overlay'],issues:[]}]),now);
  assert.ok(r.customer.range);assert.equal((r.internal as any).lines.find((l:any)=>l.id==='scope-1').unitCost,100);
@@ -995,7 +1017,7 @@ test('work needed to complete the job is priced and marked; excluded but needed 
  const inv={tasks:[
   {id:'SHW-01',description:'Install a new tiled shower',evidence:'Replace the shower with a tiled shower.',origin:'requested',basis:''},
   {id:'SHW-02',description:'Remove and dispose of the existing shower',evidence:'Replace the shower.',origin:'required',basis:'Removing the old shower is required to install the new one.'},
- ],issues:[],notes:[],dependencies:['Drain and valve connections are needed to complete the shower but are excluded; not priced.']};
+ ],issues:[],notes:[],dependencies:['Drain and valve connections are needed to complete the shower but are excluded; not priced.','Owner-supplied shower doors','Owner-supplied accessories; not priced']};
  const map=(id:string,code:string)=>({...extra,id,description:inv.tasks.find(t=>t.id===id)!.description,evidence:inv.tasks.find(t=>t.id===id)!.evidence,researchDescription:'',additions:[{code,quantity:1,quantityEvidence:'one shower'}]});
  let calls=0;
  const request:PricingRequest=async(_i,input)=>{const d=input as any;calls++;
@@ -1005,7 +1027,7 @@ test('work needed to complete the job is priced and marked; excluded but needed 
   throw new Error('unexpected request');};
  const r=await priceCompleteScope(shower,config,request,now);
  assert.ok(r.customer.range,'requested and required work are both priced');
- assert.ok(r.customer.exclusions.some((e:string)=>/^Needed to complete the work but excluded as you asked: Drain and valve connections/.test(e)),'the excluded dependency is named');
+ for(const dependency of ['Drain and valve connections are needed to complete the shower but are excluded','Owner-supplied shower doors','Owner-supplied accessories'])assert.ok(r.customer.exclusions.includes(`Needed to complete the work but excluded as you asked: ${dependency}`),`the excluded dependency is preserved: ${dependency}`);
  assert.ok(!(r.internal as any).lines.some((l:any)=>/drain|valve/i.test(l.description)),'and never priced');
  const doc=buildEstimateDocument({id:'0f1e2d3c-4b5a-4000-8000-00000000abcd',result:r.customer as any,brand:ESTIMATOR_BRAND as any,issue:{brandId:ESTIMATOR_BRAND.id} as any,submittedAt:new Date().toISOString()} as any);
  const text=JSON.stringify(doc);

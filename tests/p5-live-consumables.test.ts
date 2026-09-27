@@ -17,6 +17,11 @@ test('contractor consumables are item-specific and do not authorize owner produc
  assert.equal(contractorConsumableIncluded({...scope,text:'Contractor supplies all mounting consumables.',answers:{}},generic),true);
  for(const product of ['Cabinet + Vanity Hardware - Materials','Supply mounting screws: Decorative knobs and pulls','Supply mounting screws: Cabinet materials'])assert.equal(contractorConsumableIncluded({...scope,text:'Contractor supplies all mounting consumables.',answers:{}},product),false,product);
 });
+test('cabinet installation operations are labor, while the specified screws and shims are materials',()=>{
+ const cabinet={...scope,text:'Owner supplies assembled cabinets and handles. Contractor supplies only screws and shims. Include leveling, fastening, adjustments and handle installation.',answers:{}};
+ for(const operation of ['Leveling, fastening, adjustments, and handle installation','Cabinet leveling','Fastening cabinets to walls'])assert.equal(contractorConsumableIncluded(cabinet,operation),false,operation);
+ for(const supply of ['Mounting screws','Cabinet shims','Fastening materials','Leveling supplies'])assert.equal(contractorConsumableIncluded(cabinet,supply),true,supply);
+});
 test('catalog section labels cannot turn installation into painting',()=>{
  assert.equal(suggestedTrade('Cabinet install labor only (12-39 Cabinet Refacing, Refinishing & Install)'), 'Cabinets');
  assert.equal(suggestedTrade('Finish carpenter (12-39 Cabinet Refacing, Refinishing & Install)'), 'Trim & Finish Carpentry');

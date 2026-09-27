@@ -2,7 +2,7 @@ import type {ReviewedScope} from './scope.ts';
 
 // A labor-only request can still expressly include contractor-provided installation
 // consumables. Match the priced component, not its parent task or catalog section.
-const GROUPS=[/\b(?:nails?|screws?|fasteners?|fastening)\b/i,/\b(?:caulk|caulking)\b/i,/\bshims?\b|\bleveling\b/i,/\badhesives?\b|\bglue\b/i,/\bsealants?\b/i,/\b(?:consumables?|sundries)\b/i];
+const GROUPS=[/\b(?:nails?|screws?|fasteners?)\b|\bfastening\s+(?:materials?|supplies)\b/i,/\b(?:caulk|caulking)\b/i,/\bshims?\b|\bleveling\s+(?:materials?|supplies)\b/i,/\badhesives?\b|\bglue\b/i,/\bsealants?\b/i,/\b(?:consumables?|sundries)\b/i];
 const CONSUMABLES=/\b(?:consumables?|sundries)\b/i;
 export function contractorConsumableIncluded(scope:ReviewedScope,description:string):boolean{
   const parts=description.split(':');

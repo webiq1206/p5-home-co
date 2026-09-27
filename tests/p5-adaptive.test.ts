@@ -23,6 +23,17 @@ test('conflicts are one clarification and confirmation persists',()=>{
  assert.equal(reconcileScope({sqft:'300'},e,{sqft:'300'}).conflicts.length,0);
  assert.equal(reconcileScope({sqft:'200.0'},e).conflicts.length,0);
 });
+test('conflicting quantities show their source context instead of unexplained numbers',()=>{
+ const e:ScopeExtraction={...extracted({}),facts:[
+  {field:'fixtureCount',value:'3',confidence:.98,source:'scope.pdf, page 8',evidence:'Three exhaust fans'},
+  {field:'fixtureCount',value:'2',confidence:.98,source:'scope.pdf, page 9',evidence:'Two water heaters'},
+ ],conflicts:[{field:'fixtureCount',values:['3','2'],explanation:'The supplied information contains different values.'}]};
+ const q=scopeQuestions({service:'new-construction'},e,e.conflicts).find(q=>q.field==='fixtureCount')!;
+ assert.deepEqual(q.values,['3','2']);
+ assert.match(q.detail||'',/3.*scope.pdf, page 8.*Three exhaust fans/);
+ assert.match(q.detail||'',/2.*scope.pdf, page 9.*Two water heaters/);
+ assert.equal(q.conflict,true,'showing evidence must not silently resolve a quantity conflict');
+});
 test('low confidence is one clarification, never an accepted quantity',()=>{
  const e=extracted({sqft:'80'},.65);const m=reconcileScope({service:'bathroom',materials:'Porcelain',finish:'mid-range',demolition:'Remove tile'},e);
  assert.equal(m.answers.sqft,undefined);const q=scopeQuestions(m.answers,e);assert.equal(q.length,1);assert.deepEqual(q[0].values,['80']);

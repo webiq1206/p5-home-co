@@ -1,5 +1,6 @@
 import {prepareImages} from "./imagePreparation.ts";
 import ExcelJS from "exceljs";
+import {canonicalSpreadsheetArchive} from "./spreadsheetXml.ts";
 import mammoth from "mammoth";
 import {inflateRawSync} from "node:zlib";
 import {openablePdf} from "./pdfAccess.ts";
@@ -104,7 +105,7 @@ export async function prepareAnalysisFiles(files:AnalysisFile[]) {
     }else if(file.type==="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"){
       if(file.data.length>OFFICE_INPUT_LIMIT)throw new Error("Automatic spreadsheet conversion is limited to 16 MiB. Export the relevant sheets as CSV or PDF.");
       checkOfficeArchive(file.data);
-      const workbook=new ExcelJS.Workbook();await workbook.xlsx.load(file.data as any);
+      const workbook=new ExcelJS.Workbook();await workbook.xlsx.load(await canonicalSpreadsheetArchive(file.data) as any);
       const parts:string[]=[];let cells=0,bytes=0;
       const append=(text:string)=>{bytes+=Buffer.byteLength(text)+1;if(bytes>DOCUMENT_TEXT_LIMIT)throw new Error("Spreadsheet text exceeds 2 MiB. Upload the relevant sheets.");parts.push(text);};
       workbook.eachSheet(sheet=>{append(`Worksheet: ${sheet.name}`);sheet.eachRow((row,rowNumber)=>{

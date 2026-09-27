@@ -93,16 +93,21 @@ export function questionForField(field:ScopeField,answers:ScopeAnswers):ScopeQue
  * only that a detail is needed, rather than naming the wrong thing. */
 const FIELD_WORDS:Partial<Record<ScopeField,RegExp>>={demolitionSqft:/demol|tear[- ]?out|gutt?(?:ed|ing)\b/i,tileSqft:/tile|backsplash/i,flooringSqft:/floor/i,trimLf:/trim|baseboard|crown|casing|mould|mold/i,cabinetBaseLf:/cabinet|vanit/i,cabinetUpperLf:/cabinet/i,cabinetTallLf:/cabinet|pantry/i,garageSqft:/garage/i,coveredOutdoorSqft:/patio|porch|deck|outdoor|covered/i,countertopSqft:/counter|worktop|bench/i,sqft:/area|square|size|living|footage|large|big/i};
 export const clarificationLabel=(field:ScopeField,question:string)=>FIELD_WORDS[field]&&!FIELD_WORDS[field]!.test(question)?'Project detail':SCOPE_FIELDS[field].label;
+function conflictSourceDetail(conflict:ScopeConflict,extraction:ScopeExtraction|null){
+  const facts=(extraction?.facts||[]).filter(f=>f.field===conflict.field&&conflict.values.some(value=>sameAnswer(f.field,value,f.value)));
+  const evidence=[...new Set(facts.map(f=>`${f.value} (${f.source}): ${f.evidence}`).filter(Boolean))];
+  return evidence.length?`Source details: ${evidence.join(' | ')}`:undefined;
+}
 export function scopeQuestions(input:ScopeAnswers,extraction:ScopeExtraction|null,conflicts:ScopeConflict[]=[],skipped:ScopeField[]=[],pricedFields:ScopeField[]=[],sourceText=''):ScopeQuestion[]{
   const answers=deriveScopeAnswers(input);
   const context=questionContext(answers,extraction,sourceText);
   const applicableConflicts=conflicts.filter(c=>scopeFieldApplies(c.field,context));
   // Resolve the project type before calculating the next service-specific question.
   const serviceConflict=applicableConflicts.find(c=>c.field==='service');
-  if(serviceConflict)return [{field:'service',label:SCOPE_FIELDS.service.label,reason:serviceConflict.explanation,values:serviceConflict.values,conflict:true}];
+  if(serviceConflict)return [{field:'service',label:SCOPE_FIELDS.service.label,reason:serviceConflict.explanation,values:serviceConflict.values,conflict:true,detail:conflictSourceDetail(serviceConflict,extraction)}];
   if(!answers.service&&!applicableConflicts.length)return [questionForField('service',answers)];
   const relevant=new Set(materialScopeFields(answers,pricedFields,extraction,sourceText));
-  const questions:ScopeQuestion[]=applicableConflicts.map(c=>({field:c.field,label:SCOPE_FIELDS[c.field].label,reason:c.explanation,values:c.values,conflict:true}));
+  const questions:ScopeQuestion[]=applicableConflicts.map(c=>({field:c.field,label:SCOPE_FIELDS[c.field].label,reason:c.explanation,values:c.values,conflict:true,detail:conflictSourceDetail(c,extraction)}));
   for(const q of instructionPrompts(extraction,answers,sourceText)){
     if(!scopePromptApplies(q.field,instructionPromptText(q),context))continue;
     if(q.field&&questions.some(existing=>existing.field===q.field))continue;
@@ -120,7 +125,7 @@ export function scopeQuestions(input:ScopeAnswers,extraction:ScopeExtraction|nul
   return questions.map(q=>{
     const allowed=choiceValues(q.field,answers);
     const values=q.field==='finish'?allowed:q.values?.length?q.values:allowed;
-    return {...q,...(values?.length?{values}:{}),...(q.reason.length>240?{reason:`Please confirm ${q.label.toLowerCase()}.`,detail:q.reason}:{})};
+    return {...q,...(values?.length?{values}:{}),...(q.reason.length>240?{reason:`Please confirm ${q.label.toLowerCase()}.`,detail:[q.reason,q.detail].filter(Boolean).join(" ")}:{})};
   });
 }
 export function validateScopeAnswer(field:ScopeField,value:string){

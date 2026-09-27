@@ -57,7 +57,7 @@ export default function P5ProcessingStatus({message,processing,uploadPercent,onP
       {done>0?`${done} ${done===1?'check':'checks'} completed`:'First check running'}{stageSeconds!==null?` · this step ${stageSeconds}s`:''}
     </p>}
     {item&&<p className={styles.processingFile} title={item}>{item}</p>}
-    {failed.length>0&&<p className={styles.processingMessage}>Saved but not checked yet: {failed.slice(0,3).join(', ')}{failed.length>3?` and ${failed.length-3} more`:''}. Retry document reading before pricing.</p>}
+    {failed.length>0&&<p className={styles.processingMessage}>These pages still need review: {failed.slice(0,3).join(', ')}{failed.length>3?` and ${failed.length-3} more`:''}. Completed checks are saved while we finish the remaining review.</p>}
     {waitChoice&&!uploading&&<div className={styles.waitChoice} data-testid="p5-wait-choice">
       {etaSentence&&<p className={styles.waitEta} data-testid="p5-wait-eta">{etaSentence}</p>}
       {choice!=='emailed'&&<p className={styles.processingMessage}>Stay here to see the result, or choose email below to receive a link when your estimate is ready. Your estimate keeps going either way.</p>}

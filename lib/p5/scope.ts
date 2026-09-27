@@ -2,6 +2,7 @@ import {mergeInstructions,validateInstructions,type ScopeInstructions} from './i
 import {readPageRecords,readTakeoffs,reconcileTakeoffs,combineCoverage,blockingReviewNote} from './documentLedger.ts';
 import type {RetainedClarificationProvenance,RetainedLaborCoverage} from './retainedClarification.ts';
 import {aggregateLaborFacts} from './laborFacts.ts';
+import {separateFixtureFacts} from './fixtureFacts.ts';
 import {verifiedCabinetWidth} from './cabinetMeasurements.ts';
 import {SCOPE_FIELDS,type ScopeField} from './scopeFields.ts';
 export {SCOPE_FIELDS,type ScopeField} from './scopeFields.ts';
@@ -227,7 +228,9 @@ export function validateExtraction(raw: unknown): ScopeExtraction {
     return { field, values, explanation: c.explanation };
   });
   const laborAggregation=aggregateLaborFacts(factsBeforeLaborAggregation,takeoffs,laborCoverage);
-  const facts=laborAggregation.facts;
+  const fixtureGroups=separateFixtureFacts(laborAggregation.facts,conflicts);
+  const facts=fixtureGroups.facts;
+  conflicts.splice(0,conflicts.length,...fixtureGroups.conflicts);
   conflicts.push(...laborAggregation.conflicts);
   unreadValues.push(...laborAggregation.missingInformation);
   let validatedSourceHistory=sourceHistory;
@@ -414,7 +417,9 @@ export function combineScopeExtractions(parts:ScopeExtraction[]):ScopeExtraction
     if(!seen.has(key)){seen.add(key);merged.facts.push(fact);}
   }
   const laborAggregation=aggregateLaborFacts(merged.facts,merged.takeoffs,merged.laborCoverage);
-  merged.facts=laborAggregation.facts;
+  const fixtureGroups=separateFixtureFacts(laborAggregation.facts,merged.conflicts);
+  merged.facts=fixtureGroups.facts;
+  merged.conflicts=fixtureGroups.conflicts;
   merged.conflicts.push(...laborAggregation.conflicts);
   merged.missingInformation.push(...laborAggregation.missingInformation);
   if(laborAggregation.replacedCanonicalFacts){
