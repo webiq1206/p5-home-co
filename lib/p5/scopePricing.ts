@@ -978,7 +978,7 @@ export function wholeBuildingPlanningBudget(scope:ReviewedScope,extraction:Revie
   const answers=scope.answers;
   return !['exclusions','ownerSupplied','alternates','taskList','estimatingInstructions','allowances'].some(field=>String(answers[field as keyof typeof answers]||'').trim());
 }
-export async function priceCompleteScope(scope:ReviewedScope,configuration:EstimatorConfiguration,request:PricingRequest=requestPricing,now=new Date(),absoluteDeadline=Date.now()+SERVER_BUDGET_MS,cache?:PricingCache,busyWaitMs=0,beginRepair?:()=>Promise<{startedAt:number;busyWaitMs:number}>){
+export async function priceCompleteScope(scope:ReviewedScope,configuration:EstimatorConfiguration,request:PricingRequest=requestPricing,now=new Date(),absoluteDeadline=Date.now()+SERVER_BUDGET_MS,cache?:PricingCache,busyWaitMs=0,beginRepair?:()=>Promise<{startedAt:number;busyWaitMs:number}>,selectBook:typeof shortlistBook=shortlistBook){
   // The same document, answered the same way, prices to the same number: a saved resolution is
   // replayed instead of asking the provider to read and map it a second time. The projection is
   // rebuilt from THIS draft below, so only the pricing travels, never another visitor's words.
@@ -1051,7 +1051,7 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
     // now the slowest batch, not the sum of all of them.
     // One full-book search per estimate names the closest book lines for every task (bookShortlist.ts).
     const bookRates=(configuration.planningCatalog?.rates||[]).map(({code,description,type,unit,amount,basis})=>({code,description,type,unit,amount,basis}));
-    const shortlist=process.env.NODE_TEST_CONTEXT&&!process.env.P5_BOOK_SHORTLIST_TEST?new Map<string,string[]>():await shortlistBook(inventory.tasks,bookRates);
+    const shortlist=process.env.NODE_TEST_CONTEXT&&!process.env.P5_BOOK_SHORTLIST_TEST?new Map<string,string[]>():await selectBook(inventory.tasks,bookRates);
     const mappingInput=(taskBatch:typeof inventory.tasks)=>({original:sourceParts.length===1?original:{sections:[...new Set(taskBatch.map(t=>taskSources.get(t.id)!))].map(i=>sourceParts[i])},taskBatch:taskBatch.map(({id,description,evidence})=>({id,description,evidence})),priorMappedTasks:[],priorReplacements:[],existingLines:lines.map(({id,description,quantity,unit,unitCost,category,trade,quantitySource})=>({id,description,quantity,unit,unitCost,category,trade,quantitySource})),defaultExclusions:base.customer.exclusions,date:now.toISOString(),catalogImportedAt:configuration.planningCatalog?.importedAt,regionalRates:configuration.regionalRates,shortlist:Object.fromEntries(taskBatch.map(t=>[t.id,shortlist.get(t.id)||[]])),catalog:taskBatch.some(t=>!shortlist.get(t.id)?.length)?bookRates:relevantCatalog(bookRates,taskBatch,undefined,new Set(taskBatch.flatMap(t=>shortlist.get(t.id)||[])))});
     const firstBatches=batchesOf(inventory.tasks,mappingBatchSize(inventory.tasks.length));
     const mappedBatches=await mapLimit(firstBatches,taskBatch=>mapBatch(request,taskBatch,mappingInput,()=>deadline-Date.now()));

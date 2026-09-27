@@ -14,6 +14,7 @@ import {readRegionalRates,saveRegionalRates} from './regionalRates.ts';
 import {pricingActivity,type ProcessingStatus} from './processingStatus.ts';
 import type {PricingIdentity} from './pricingLedger.ts';
 import {assertProjectSourceCoverage,SOURCE_COVERAGE_REQUIRED} from './documentServiceClient.ts';
+import {shortlistBook,type ShortlistTask,type ShortlistRate} from './bookShortlist.ts';
 
 export function pricingWorkKey(scope:ReviewedScope,configuration:EstimatorConfiguration,pricingAt:Date){
  const signature={modelPolicy:MODEL_POLICY_VERSION,pricingDate:pricingAt.toISOString().slice(0,10),text:scope.text,answers:scope.answers,extraction:scope.extraction,uploads:scope.uploads,uncertainFields:scope.uncertainFields,configuration};
@@ -24,7 +25,7 @@ export function pricingWorkKey(scope:ReviewedScope,configuration:EstimatorConfig
 export function pricingReplyKey(instructions:string,input:unknown,search:boolean){
  return createHash('sha256').update(JSON.stringify([MODEL_POLICY_VERSION,instructions,search,input])).digest('hex');
 }
-type Payload=PricingRepairState&{replies:Record<string,PricingReply>;failures?:number;completed?:number;regionalRates?:EstimatorConfiguration['regionalRates'];processing?:ProcessingStatus;pricingAt?:string;busyWaitMs?:number};
+type Payload=PricingRepairState&{replies:Record<string,PricingReply>;shortlists?:Record<string,Record<string,string[]>>;failures?:number;completed?:number;regionalRates?:EstimatorConfiguration['regionalRates'];processing?:ProcessingStatus;pricingAt?:string;busyWaitMs?:number};
 export async function priceSavedScope(id:string,scope:ReviewedScope,configuration:EstimatorConfiguration,pricingAt=new Date(),deadline=Date.now()+SERVER_BUDGET_MS,identity?:PricingIdentity){
  // Construction prices only a project whose every source page was verified;
  // the other brands return a partial read for manual review instead.
@@ -43,6 +44,19 @@ export async function priceSavedScope(id:string,scope:ReviewedScope,configuratio
  configuration={...configuration,regionalRates:payload.regionalRates||[]};
  let saving=Promise.resolve();
  const persist=()=>{saving=saving.then(async()=>{try{await writeWork(id,workKey,claimed.token,payload);}catch{throw new PricingPending('Pricing progress could not be saved yet. Please retry to continue.',0);}});return saving;};
+ // A new shortlist changes the mapping request hash even when the scope is
+ // unchanged. Persist it before mapping so retries reuse finished work and
+ // retain their actual attempt counts. An empty fallback is stable too.
+ const selectBook=async(tasks:readonly ShortlistTask[],rates:readonly ShortlistRate[])=>{
+  const key=createHash('sha256').update(JSON.stringify([MODEL_POLICY_VERSION,tasks,rates])).digest('hex');
+  const saved=payload.shortlists?.[key];
+  if(saved)return new Map(Object.entries(saved));
+  remainingBudget(deadline);
+  const selected=await shortlistBook(tasks,rates);
+  payload.shortlists={...payload.shortlists,[key]:Object.fromEntries(selected)};
+  await persist();
+  return selected;
+ };
  const ordinals:Record<string,number>={};
  const staged:PricingRequest=async(instructions,input,search,remainingMs)=>{
   const activity=pricingActivity(instructions,input,search);
@@ -142,5 +156,5 @@ export async function priceSavedScope(id:string,scope:ReviewedScope,configuratio
  };
  // The saved-stage lease outlives a pass; keep it renewed while this pass runs.
  const renew=setInterval(()=>{void renewWork(id,workKey,claimed.token,290).catch(()=>{});},60_000);renew.unref?.();
- try{const priced=await priceCompleteScope(scope,configuration,staged,pricingAt,deadline,pricingCacheEnabled()?databasePricingCache():undefined,payload.busyWaitMs||0,()=>beginPricingRepair(payload,persist,payload.busyWaitMs||0));if(priced.customer.range&&priced.internal&&'costBookSnapshot' in priced.internal){await saveRegionalRates(id,scope.answers.location||'',priced.internal.costBookSnapshot?.rules||[]);await saveLearnedLines(priced.internal.costBookSnapshot?.rules||[],scope.answers.service||'',id,{location:scope.answers.location||'',finish:scope.answers.finish},pricingAt).catch(error=>console.error('[p5-book] learned lines were not saved:',error instanceof Error?error.message:error));}return priced;}finally{clearInterval(renew);await releaseWork(id,workKey,claimed.token);}
+ try{const priced=await priceCompleteScope(scope,configuration,staged,pricingAt,deadline,pricingCacheEnabled()?databasePricingCache():undefined,payload.busyWaitMs||0,()=>beginPricingRepair(payload,persist,payload.busyWaitMs||0),selectBook);if(priced.customer.range&&priced.internal&&'costBookSnapshot' in priced.internal){await saveRegionalRates(id,scope.answers.location||'',priced.internal.costBookSnapshot?.rules||[]);await saveLearnedLines(priced.internal.costBookSnapshot?.rules||[],scope.answers.service||'',id,{location:scope.answers.location||'',finish:scope.answers.finish},pricingAt).catch(error=>console.error('[p5-book] learned lines were not saved:',error instanceof Error?error.message:error));}return priced;}finally{clearInterval(renew);await releaseWork(id,workKey,claimed.token);}
 }

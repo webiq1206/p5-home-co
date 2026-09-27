@@ -5,6 +5,14 @@ import {randomUUID,randomBytes} from 'node:crypto';
 import {pathToFileURL} from 'node:url';
 import path from 'node:path';
 
+// This standalone script also runs on hosts with real provider credentials.
+// Isolate every provider boundary and fail if any unexpected fetch is attempted.
+const network=globalThis.fetch;let unexpectedNetwork=0;
+globalThis.fetch=async()=>{unexpectedNetwork++;throw new Error('Unexpected network request in isolated pricing recovery');};
+const credentialNames=['OPENAI_API_KEY','OPENAI_BASE_URL','AI_INTEGRATIONS_OPENAI_API_KEY','AI_INTEGRATIONS_OPENAI_BASE_URL','ANTHROPIC_API_KEY','P5_BOOK_SHORTLIST_TEST'];
+const environment=Object.fromEntries(credentialNames.map(name=>[name,process.env[name]]));
+for(const name of credentialNames)delete process.env[name];
+process.env.P5_BOOK_SHORTLIST_TEST='1';
 await mkdir('node_modules/.cache',{recursive:true});
 const dir=await mkdtemp(path.join(process.cwd(),'node_modules/.cache/p5-pricing-recovery-'));
 const previous=process.env.DATABASE_URL;
@@ -14,12 +22,13 @@ let db:{database:{close():Promise<void>};query(sql:string,values?:unknown[]):Pro
 try{
  delete process.env.DATABASE_URL;
  await cp('lib/p5',dir,{recursive:true});
+ await writeFile(path.join(dir,'bookShortlist.ts'),`export let calls=0;export async function shortlistBook(tasks:any[],rates:any[]){calls++;return new Map(tasks.map(task=>[task.id,calls%2?[rates[0].code]:[]]));}`);
  await writeFile(path.join(dir,'database.ts'),`import {PGlite} from '@electric-sql/pglite';export const database=new PGlite();export async function query(s:string,v:unknown[]=[]){return (await database.query(s,v)).rows;}`);
  // Keep the real pricing engine. Replace only its external provider boundary.
  await rename(path.join(dir,'scopePricing.ts'),path.join(dir,'scopePricingReal.ts'));
  await writeFile(path.join(dir,'scopePricing.ts'),`export * from './scopePricingReal.ts';let provider:any;export const setProvider=(value:any)=>{provider=value;};export const requestPricing=(...args:any[])=>provider(...args);`);
  const mod=(name:string)=>import(pathToFileURL(path.join(dir,name+'.ts')).href);
- const store=await mod('store'),work=await mod('pricingWork'),provider=await mod('scopePricing');
+ const store=await mod('store'),work=await mod('pricingWork'),provider=await mod('scopePricing'),shortlist=await mod('bookShortlist');
  const {ProcessingDeadlineError}=await mod('processingBudget');
  const {createPlanningConfiguration,PLANNING_MODEL_VERSION}=await mod('planningBooks');
  const {priceReviewedScope}=await mod('costBook');
@@ -54,6 +63,7 @@ try{
  assert.equal(inventoryCalls,1,'completed inventory is reused');assert.equal(mappingCalls,2);assert.equal(auditCalls,1);
  await run(recovered);
  assert.equal(mappingCalls,2,'a completed mapping is not called again');assert.equal(auditCalls,1);
+ assert.equal(shortlist.calls,1,'the original shortlist is saved and reused across pricing resumes');
 
  // A durable malformed mapping must receive one differently keyed repair,
  // not replay itself when mapBatch asks again. Other stages remain reusable.
@@ -139,8 +149,11 @@ try{
  assert.equal(singleAuditCalls,1,'an unsplittable output failure does not repeat paid work');
  assert.equal((await db!.query('SELECT * FROM p5_estimator_work WHERE lease_token IS NOT NULL')).length,0);
  assert.equal((await db!.query('SELECT * FROM p5_estimator_outbox')).length,0);
+ assert.equal(unexpectedNetwork,0,'every provider boundary is isolated');
  console.log('PASS: saved SQL pricing timeout recovers, completed work is reused, actual retries stop at three, large mappings and output-limited audits stay split, unsplittable output remains held, and incomplete pricing creates no delivery. No live provider calls.');
 }finally{
+ globalThis.fetch=network;
+ for(const name of credentialNames){if(environment[name]===undefined)delete process.env[name];else process.env[name]=environment[name];}
  if(db)await db.database.close();
  if(previous===undefined)delete process.env.DATABASE_URL;else process.env.DATABASE_URL=previous;
  await rm(dir,{recursive:true,force:true});
