@@ -1,7 +1,7 @@
 {
  "source": "boise-remodeling-co",
- "commit": "121e68bfdf318ff15063a59c3fc01fd2584b045e",
- "generatedAt": "2026-09-27T05:23:30.743Z",
+ "commit": "6fc1d2d2c601b2eaeb5b07814857e3bd4f5c4ff4",
+ "generatedAt": "2026-09-27T12:59:11.357Z",
  "note": "Shared estimator files. Edit them in boise-remodeling-co and run scripts/p5-sync.mjs; never edit them in one brand.",
  "files": {
   "app/admin/p5-estimators/page.tsx": "a2401f2a29c22dd1a5631fa2c065114275b4e7c1d99ba6c97a8ff0f26cb6a3ad",
@@ -295,6 +295,7 @@
   "tests/p5-response-reader.test.ts": "8d0f4227f2366bcbd480fe306e61c79ae5fe577e526e6aa32fef9c7a4b39121c",
   "tests/p5-retained-clarification.test.ts": "51c54a32265203ba5d6fb144b896d57c5d34750a5720f690bbf7cb927faebb19",
   "tests/p5-review-request.test.ts": "2e21fbca0ba95bff7754e2fc3f738e72d55e3c385e0199ee53102e6ca2ae4518",
+  "tests/p5-review-schema.test.mjs": "aa87ddc79b7cf745cb3c898e321afc36496e86dfea658e2c08e5aa1212b44b28",
   "tests/p5-save-return.test.ts": "82da58e74b24a570102b1252cc326817c3196d8e309919bb64f7eb1666f05c81",
   "tests/p5-scope-inventory.test.ts": "7f66957ff37ecd0d67dec62619103882575fb4f21bbe6d98d8eabd18d369969b",
   "tests/p5-scope-pricing.test.ts": "bc88fb54bb60b03788f43e8753787cd8c790e43a537436fe4a04314e72a14b24",
