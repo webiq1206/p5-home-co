@@ -4,6 +4,17 @@ import {instructionPrompts} from '../lib/p5/clarifications.ts';
 import {atomicInstructionQuestions,textBenchTopChoices} from '../lib/p5/atomicQuestions.ts';
 import type {ScopeExtraction} from '../lib/p5/scope.ts';
 const scope:ScopeExtraction={summary:'Choose one bench top: butcher block 5 hours, painted MDF/wood 4 hours, laminate 2 hours, quartz 5 hours.',facts:[],conflicts:[],reviewNotes:[],missingInformation:[],instructions:{inclusions:[],exclusions:[],responsibilities:[],buildings:[],floors:[],separateBuildings:false,laborOnly:false,materialsOnly:false,questions:['Confirm cabinet base linear footage, room(s), and chosen bench top option.']}};
+test('a document cannot ask again for the confirmed total project area',()=>{
+ const question='What is the total square footage of the new addition?';
+ const extraction={...scope,instructions:{...scope.instructions!,questions:[question]}};
+ assert.deepEqual(instructionPrompts(extraction,{service:'addition',sqft:'200'}),[]);
+ assert.equal(instructionPrompts(extraction,{service:'addition'})[0].field,'sqft','a missing area uses the normal numeric field');
+ const conflicted={...extraction,conflicts:[{field:'sqft' as const,values:['200','240'],explanation:'Conflicting stated project areas'}]};
+ assert.equal(instructionPrompts(conflicted,{service:'addition',sqft:'200'}).length,1,'a genuine conflict still needs a decision');
+ for(const text of ['What is the total square footage of the existing house?','What is the total roof area of the addition?','What is the total square footage of the garage?']){
+  assert.equal(instructionPrompts({...extraction,instructions:{...extraction.instructions,questions:[text]}},{service:'addition',sqft:'200'}).length,1,'project area does not answer a component measurement');
+ }
+});
 test('a bundled request becomes separate clear questions with evidence-based options',()=>{
  const questions=instructionPrompts(scope,{});
  assert.deepEqual(questions.map(q=>q.question),['How many linear feet of base cabinets are included?','Which rooms are the cabinets for?','Which bench top option would you like?']);

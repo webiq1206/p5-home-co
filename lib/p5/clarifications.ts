@@ -1,5 +1,5 @@
 import {questionContext,scopePromptApplies} from './dynamicQuestions.ts';
-import {atomicInstructionQuestions,textBenchTopChoices,cabinetQuestionField} from './atomicQuestions.ts';
+import {atomicInstructionQuestions,textBenchTopChoices,cabinetQuestionField,projectAreaQuestionField} from './atomicQuestions.ts';
 import type {ScopeAnswers,ScopeExtraction,ScopeField} from './scope.ts';
 import type {ScopeInstructions} from './instructions.ts';
 import {isBenchTopClarificationQuestion,retainedBenchTopChoices,retainedChoiceValue} from './retainedClarification.ts';
@@ -58,7 +58,7 @@ export function instructionPrompts(extraction:ScopeExtraction|null,answers:Scope
       const full=normalizeQuestionPart(part);if(!full)continue;
       // Filter each question separately so a legacy paragraph cannot lose a real scope decision.
       if(serviceQuestion(full)||contractQuestion(full))continue;
-      const field=cabinetQuestionField(full);
+      const field=cabinetQuestionField(full)||projectAreaQuestionField(full,answers);
       // One decision is asked once, however many pages or wordings raised it.
       if(!field&&(result.some(q=>!q.field&&sameDecision(instructionPromptText(q),full))||answered.some(q=>sameDecision(q,full))))continue;
       if(field&&answers[field]?.trim()&&!extraction?.conflicts.some(conflict=>conflict.field===field))continue;

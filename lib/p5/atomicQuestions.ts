@@ -10,6 +10,15 @@ export function cabinetQuestionField(text:string):ScopeField|undefined{
  }
  if(/\brooms?\b/i.test(text))return 'cabinetRoom';
 }
+/** Document segments sometimes ask for the same project area another segment
+ * already supplied. Only a clearly project-wide question binds to sqft;
+ * component measurements must remain separate questions. */
+export function projectAreaQuestionField(text:string,answers:ScopeAnswers):ScopeField|undefined{
+ if(!/\b(?:square (?:feet|footage)|sq\.?\s*ft|area)\b/i.test(text)||!/\b(?:total|overall|entire|whole|project)\b/i.test(text))return;
+ if(/\b(?:garage|outdoor|covered|roof|wall|flooring|tile|countertop|window|door|foundation|existing)\b/i.test(text))return;
+ const subject:Record<string,RegExp>={addition:/\baddition\b/i,adu:/\badu\b/i,'new-construction':/\b(?:home|house|residence|living space)\b/i,'whole-home':/\b(?:home|house|residence|project)\b/i,kitchen:/\bkitchen\b/i,bathroom:/\bbathroom\b/i};
+ if(/\bproject\b/i.test(text)||subject[answers.service||'']?.test(text))return 'sqft';
+}
 
 /** Separate independent requests without splitting a list of answer choices. */
 export function atomicInstructionQuestions(text:string,answers:ScopeAnswers={},conflicts:ScopeConflict[]=[]):string[]{
