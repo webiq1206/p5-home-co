@@ -48,8 +48,11 @@ const remarks=(max:number)=>z.preprocess(value=>Array.isArray(value)?value.filte
 const positive=z.number().finite().positive().max(10000000);
 const quantityRange=z.object({low:positive,high:positive}).strict();
 const addition=z.object({code:text,quantity:positive,quantityEvidence:text,building:z.string().optional(),floor:z.string().optional(),quantityRange:quantityRange.nullish()}).strict();
-const task=z.object({id:text,description:text,evidence:text,existingLineIds:z.array(text).max(150),additions:z.array(addition).max(30),researchDescription:z.string().max(1000),issues:remarks(20)}).strict();
-const mappingSchema=z.object({tasks:z.array(task).min(1).max(150),issues:remarks(100),notes:remarks(100).default([]),replacements:z.array(z.object({lineId:text,reason:text}).strict()).max(150).default([]),removeExclusions:z.array(z.object({text:text,reason:text}).strict()).max(50).default([])}).strict();
+// Live 2026-09-27: an otherwise valid saved mapping put explanatory notes on
+// tasks[1]. Preserve those notes for the audit instead of rejecting the quote.
+// Codes, quantities, evidence and unknown fields remain strictly validated.
+const task=z.object({id:text,description:text,evidence:text,existingLineIds:z.array(text).max(150),additions:z.array(addition).max(30),researchDescription:z.string().max(1000),issues:remarks(20),notes:remarks(20).nullish()}).strict();
+const mappingSchema=z.object({tasks:z.array(task).min(1).max(150),issues:remarks(100),notes:remarks(100).default([]),replacements:z.array(z.object({lineId:text,reason:text}).strict()).max(150).default([]),removeExclusions:z.array(z.object({text:text,reason:text}).strict()).max(50).default([])}).strict().transform(mapping=>({...mapping,notes:[...new Set([...mapping.notes,...mapping.tasks.flatMap(item=>(item.notes||[]).map(note=>`${item.description}: ${note}`))])]}));
 type Mapping=z.infer<typeof mappingSchema>;
 // A section may hold nothing priceable (live 2026-09-21: a budget with every quantity removed); requiring a
 // task there threw a validation error and handed the whole estimate to a person.
@@ -161,7 +164,7 @@ const jsObject=(properties:Record<string,unknown>)=>({type:'object',properties,r
 const evidenceJson=jsObject({url:jsText,publishedAt:jsText,dateBasis:{type:'string',enum:['published','retrieved']},region:jsText,excerpt:jsText});
 const landedJson=jsObject({taxRate:jsNumber,freightPerUnit:jsNumber,taxOnFreight:{type:'boolean'},taxEvidence:evidenceJson,freightEvidence:evidenceJson});
 const marketJson=jsObject({rates:jsArray(jsObject({taskId:jsText,description:jsText,unit:jsText,quantity:jsNumber,quantityEvidence:jsText,quantityRange:{anyOf:[jsObject({low:jsNumber,high:jsNumber}),{type:'null'}]},building:jsText,floor:jsText,basis:{type:'string',enum:['material-purchase','subcontractor-installed','trade-labor']},includes:jsText,excludes:jsText,landedCost:{anyOf:[landedJson,{type:'null'}]},sources:jsArray(jsObject({url:jsText,low:jsNumber,high:jsNumber,unit:jsText,costBasis:{type:'string',enum:['material-purchase','subcontractor-installed','trade-labor']},publishedAt:jsText,region:jsText,excerpt:jsText,sourceType:{type:'string',enum:['regional-guide','national-guide']},dateBasis:{type:'string',enum:['published','retrieved']}}))})),issues:jsArray(jsText),notes:jsArray(jsText)});
-const mappingJson=jsObject({tasks:jsArray(jsObject({id:jsText,description:jsText,evidence:jsText,existingLineIds:jsArray(jsText),additions:jsArray(jsObject({code:jsText,quantity:jsNumber,quantityEvidence:jsText,quantityRange:{anyOf:[jsObject({low:jsNumber,high:jsNumber}),{type:'null'}]},building:jsText,floor:jsText})),researchDescription:jsText,issues:jsArray(jsText)})),issues:jsArray(jsText),notes:jsArray(jsText),replacements:jsArray(jsObject({lineId:jsText,reason:jsText})),removeExclusions:jsArray(jsObject({text:jsText,reason:jsText}))});
+const mappingJson=jsObject({tasks:jsArray(jsObject({id:jsText,description:jsText,evidence:jsText,existingLineIds:jsArray(jsText),additions:jsArray(jsObject({code:jsText,quantity:jsNumber,quantityEvidence:jsText,quantityRange:{anyOf:[jsObject({low:jsNumber,high:jsNumber}),{type:'null'}]},building:jsText,floor:jsText})),researchDescription:jsText,issues:jsArray(jsText),notes:jsArray(jsText)})),issues:jsArray(jsText),notes:jsArray(jsText),replacements:jsArray(jsObject({lineId:jsText,reason:jsText})),removeExclusions:jsArray(jsObject({text:jsText,reason:jsText}))});
 const inventoryJson=jsObject({tasks:jsArray(jsObject({id:jsText,description:jsText,evidence:jsText,origin:{type:'string',enum:['requested','required']},basis:jsText})),issues:jsArray(jsText),notes:jsArray(jsText),dependencies:jsArray(jsText)});
 const planningJson=jsObject({rates:jsArray(jsObject({taskId:jsText,description:jsText,unit:jsText,quantity:jsNumber,quantityEvidence:jsText,quantityRange:{anyOf:[jsObject({low:jsNumber,high:jsNumber}),{type:'null'}]},building:jsText,floor:jsText,basis:{type:'string',enum:['material-purchase','subcontractor-installed','trade-labor']},includes:jsText,excludes:jsText,low:jsNumber,high:jsNumber,confidence:{type:'string',enum:['low','medium']},rationale:jsText})),issues:jsArray(jsText),notes:jsArray(jsText)});
 const auditJson=jsObject({coveredTaskIds:jsArray(jsText),issues:jsArray(jsText),notes:jsArray(jsText),resolvedIssues:jsArray(jsObject({issue:jsText,reason:jsText,lineIds:jsArray(jsText)}))});
@@ -190,7 +193,7 @@ export type OpenAiPricingOptions={serviceTier?:'default';maxOutputTokens?:number
 export const openAiPricingRequestEnvelope=(instructions:string,input:unknown,search:boolean,options:OpenAiPricingOptions={})=>{
   const task=search?'research':instructions===INVENTORY?'inventory':instructions===MAP||instructions===PLANNING_AVERAGE||instructions===normalizeResearch?'map':'audit';
   const model=ESTIMATOR_MODEL;
-  const body={model,...reasoningFor(model,task),instructions,input:'Return JSON only.\n'+JSON.stringify(input),max_output_tokens:options.maxOutputTokens||(search?24000:task==='map'?28000:16000),store:false,...(options.serviceTier?{service_tier:options.serviceTier}:{}),...(search?{tools:[{type:'web_search'}],tool_choice:'required',include:['web_search_call.action.sources']}:{text:{format:{type:'json_schema',name:'pricing_stage',strict:false,schema:stageSchema(instructions)}}})};
+  const body={model,...reasoningFor(model,task),instructions,input:'Return JSON only.\n'+JSON.stringify(input),max_output_tokens:options.maxOutputTokens||(search?24000:task==='map'?28000:16000),store:false,...(options.serviceTier?{service_tier:options.serviceTier}:{}),...(search?{tools:[{type:'web_search'}],tool_choice:'required',include:['web_search_call.action.sources']}:{text:{format:{type:'json_schema',name:'pricing_stage',strict:true,schema:stageSchema(instructions)}}})};
   return {model,body};
 };
 /** One provider exchange without charge accounting. `requestPricingWith` adds the ledger. */
@@ -896,7 +899,10 @@ async function mapBatch<T extends {id:string}>(request:PricingRequest,taskBatch:
     if(first.success)return first.data;
     // A malformed answer (live: an addition with no code) used to throw and hand the whole
     // estimate off. Ask once more; if the second answer is malformed too, keep what is well formed.
-    const again=await request(MAP,build(taskBatch),false,remaining());
+    // A retry must have a different checkpoint/charge identity. Repeating the
+    // same input replayed the invalid saved reply forever without a new call.
+    const original=build(taskBatch);
+    const again=await request(MAP,{...(original as Record<string,unknown>),formatRepair:{attempt:1,errors:first.error.issues.map(issue=>({path:issue.path,code:issue.code,message:issue.message})),instruction:'Return the same complete task batch in the requested schema. Correct these format errors; preserve all scope, identifiers, quantities and evidence. Do not omit a task or invent a cost to repair formatting.'}},false,remaining());
     const second=mappingSchema.safeParse(again.value);
     if(second.success)return second.data;
     return mappingSchema.parse(withoutMalformedAdditions(again.value));

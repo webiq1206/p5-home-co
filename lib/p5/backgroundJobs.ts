@@ -124,7 +124,12 @@ export async function queuedJob(input:Input,retry=false,holdMs=JOB_HOLD_MS){
       rejectQuiescedAdmission();
       const stale=previous.state!=='complete'&&jobExpired(previous);
       const rereadRequested=previous.state==='complete'&&input.kind==='analysis'&&(!hasVerifiedAnalysis(previous.result?.analysis)||previous.result?.analysis?.extraction?.reviewNotes?.length);
-      if(previous.state==='failed'||stale||rereadRequested){previous.state='queued';previous.attempts=0;previous.retryAt=0;previous.retryUnits=true;previous.createdAt=new Date().toISOString();delete previous.result;}
+      // A caught parser failure is stored as a completed job with no range.
+      // Explicit Retry must re-run validation of its saved stages after a fix,
+      // while a successful estimate and genuine scope holds stay untouched.
+      const formatRetry=input.kind==='pricing'&&previous.state==='complete'&&!previous.result?.customer?.range&&
+        previous.result?.internal?.scopePricing?.issues?.some((issue:unknown)=>typeof issue==='string'&&/^Automatic pricing did not complete: (?:ZodError|SyntaxError):/.test(issue));
+      if(previous.state==='failed'||stale||rereadRequested||formatRetry){previous.state='queued';previous.attempts=0;previous.retryAt=0;previous.retryUnits=true;previous.createdAt=new Date().toISOString();delete previous.result;}
       await writeWork(input.draft.id,key,lease.token,previous);
     }finally{await releaseWork(input.draft.id,key,lease.token);}}
   }

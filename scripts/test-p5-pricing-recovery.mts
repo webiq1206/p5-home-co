@@ -55,6 +55,27 @@ try{
  await run(recovered);
  assert.equal(mappingCalls,2,'a completed mapping is not called again');assert.equal(auditCalls,1);
 
+ // A durable malformed mapping must receive one differently keyed repair,
+ // not replay itself when mapBatch asks again. Other stages remain reusable.
+ const formatted=await newDraft();let formattedInventory=0,formattedMapping=0,formattedAudit=0;
+ provider.setProvider(async(_instructions:string,value:unknown)=>{
+  const input=value as StageInput&{formatRepair?:{attempt:number;errors:unknown[]}};
+  if(input.taskBatch){
+   formattedMapping++;
+   const mapped={...task,existingLineIds:lines,additions:[],researchDescription:'',issues:[],notes:['Confirm the selected color.']};
+   if(!input.formatRepair)return reply({tasks:[{...mapped,id:{value:task.id}}],issues:[]});
+   assert.equal(input.formatRepair.attempt,1);assert.ok(input.formatRepair.errors.length);
+   return reply({tasks:[mapped],issues:[]});
+  }
+  if('priorPricingIssues' in input){formattedAudit++;return reply({coveredTaskIds:[task.id],issues:[]});}
+  formattedInventory++;return reply({tasks:[task],issues:[]});
+ });
+ const corrected=await run(formatted);
+ assert.ok(corrected.customer.range,'a saved malformed mapping has a real repair path');
+ assert.deepEqual([formattedInventory,formattedMapping,formattedAudit],[1,2,1]);
+ await run(formatted);
+ assert.deepEqual([formattedInventory,formattedMapping,formattedAudit],[1,2,1],'resume reuses the successful repair without another paid call');
+
  const exhausted=await newDraft();let attempts=0,legacyKey='';
  provider.setProvider(async(_instructions:string,value:unknown)=>{
   const input=value as StageInput;

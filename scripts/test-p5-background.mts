@@ -15,6 +15,7 @@ process.env.P5_JOB_HOLD_MS='200';
 try{
  await cp('lib/p5',dir,{recursive:true});
  await writeFile(path.join(dir,'database.ts'),`import {PGlite} from '@electric-sql/pglite';export const database=new PGlite();export async function query(s:string,v:unknown[]=[]){return (await database.query(s,v)).rows;}`);
+ await writeFile(path.join(dir,'pricingWork.ts'),`export const calls:string[]=[];export function pricingWorkKey(){return 'pricing-fixture';}export async function priceSavedScope(id:string){calls.push(id);return {customer:{range:{low:100,high:150}},internal:{scopePricing:{issues:[]}}};}`);
  await writeFile(path.join(dir,'analysisWork.ts'),`import {query} from './database';import {DraftError} from './store';import {MODEL_POLICY_VERSION,ESTIMATOR_MODEL_SNAPSHOT} from './modelPolicy';export const calls:string[]=[];export let fail:boolean|'unread'=false;export function failure(value:boolean|'unread'){fail=value;}export function analysisWorkKey(draft:any,text:string){return 'analysis-fixture-'+text;}export function analysisProgressWorkKeys(draft:any,text:string){return [analysisWorkKey(draft,text)];}export async function advanceAnalysis(draft:any,text:string){const key=analysisWorkKey(draft,text);const [row]=await query('SELECT payload FROM p5_estimator_work WHERE draft_id=$1 AND work_key=$2',[draft.id,key]);const stage=row?.payload?.stage||0;if(stage>=2)return {pending:false,analysis:{modelPolicy:MODEL_POLICY_VERSION,model:ESTIMATOR_MODEL_SNAPSHOT,extraction:{reviewNotes:[]}}};calls.push(text+stage);if(fail==='unread')throw new DraftError('large-plan.pdf: automatic reading could not finish for page 9. Use Retry document reading.',422);if(fail)throw new Error('Synthetic provider outage');const processing={phase:'reading',message:'Reading original pages '+(stage*8+1)+' to '+(stage*8+8),readPages:stage*8,totalPages:16,updatedAt:new Date().toISOString()};await query('INSERT INTO p5_estimator_work(draft_id,work_key,payload) VALUES($1,$2,$3::jsonb) ON CONFLICT(draft_id,work_key) DO UPDATE SET payload=EXCLUDED.payload',[draft.id,key,JSON.stringify({stage:stage+1,processing})]);await new Promise(r=>setTimeout(r,350));return {pending:true,progress:processing.message};}`);
  const mod=(n:string)=>import(pathToFileURL(path.join(dir,n+'.ts')).href);
  const {MODEL_POLICY_VERSION,ESTIMATOR_MODEL_SNAPSHOT}=await mod('modelPolicy');
@@ -94,5 +95,22 @@ try{
  reader.failure(false);unreadJob=await background.queuedJob(unreadInput,true);
  for(let n=0;n<40&&unreadJob.state!=='complete';n++){await new Promise(r=>setTimeout(r,60));unreadJob=await background.queuedJob(unreadInput);}
  assert.equal(unreadJob.state,'complete');
+ // Production stored a parser error as "complete" with no customer range.
+ // Passive polls preserve it; explicit retry resumes it after the parser fix.
+ const pricer=await mod('pricingWork');
+ const pricingInput={kind:'pricing',draft:{...draft,reviewed:{text:'Synthetic pricing',answers:{},extraction:null,uploads:[],reviewedAt:new Date().toISOString(),corrections:[]}},configuration:{}};
+ const pricingKey='background-v1-'+createHash('sha256').update(JSON.stringify({engineVersion:9,modelPolicy:MODEL_POLICY_VERSION,kind:'pricing',id:draft.id,reviewed:pricingInput.draft.reviewed,configuration:{},date:new Date().toISOString().slice(0,10)})).digest('hex');
+ const completedPricing={input:pricingInput,state:'complete',progress:'Finished',attempts:1,createdAt:new Date().toISOString(),result:{customer:{range:null},internal:{scopePricing:{issues:["Automatic pricing did not complete: ZodError: Unrecognized key(s) in object: 'notes'"]}}}};
+ await db.query('INSERT INTO p5_estimator_work(draft_id,work_key,payload) VALUES($1,$2,$3::jsonb)',[draft.id,pricingKey,JSON.stringify(completedPricing)]);
+ assert.equal((await background.queuedJob(pricingInput,false)).result.customer.range,null);
+ assert.equal(pricer.calls.length,0,'polling does not repurchase a completed failed result');
+ const retriedPricing=await background.queuedJob(pricingInput,true);
+ assert.deepEqual(retriedPricing.result.customer.range,{low:100,high:150});
+ assert.equal(pricer.calls.length,1,'explicit retry reopens the caught format failure');
+ await background.queuedJob(pricingInput,true);
+ assert.equal(pricer.calls.length,1,'a successful price is never reopened');
+ await db.query('UPDATE p5_estimator_work SET payload=$1::jsonb WHERE draft_id=$2 AND work_key=$3',[JSON.stringify({...completedPricing,result:{customer:{range:null},internal:{scopePricing:{issues:['Missing confirmed quantity']}}}}),draft.id,pricingKey]);
+ await background.queuedJob(pricingInput,true);
+ assert.equal(pricer.calls.length,1,'a real unresolved scope condition remains held');
  await db.database.close();console.log('PASS: durable queue, request-driven passes, live page status, continued work without browser polling, no duplicate finished work, expired-lease recovery, failure/retry, and no delivery side effects. SQL real, AI simulated.');
 }finally{await rm(dir,{recursive:true,force:true});}

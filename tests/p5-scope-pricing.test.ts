@@ -49,6 +49,15 @@ test('A malformed mapping answer is asked again, then repaired, instead of handi
  assert.ok(repaired.customer.range,'a repeat malformed answer keeps its well-formed additions');
  assert.equal((repaired.internal as any).lines.find((l:any)=>l.id==='scope-1').unitCost,100);
 });
+test('task-level mapping notes preserve the complete estimate and audit context',async()=>{
+ const note='Standard protective overlay selection; confirm color before ordering.';
+ const added={...extra,researchDescription:'',additions:[{code:'03-15-02-M',quantity:10,quantityEvidence:'Ten feet requested'}],notes:[{note}]};
+ let calls=0;const queued=replies([{tasks:[task,added],issues:[]},{coveredTaskIds:['cabinets','overlay'],issues:[]}]);
+ const result=await priceCompleteScope(scope,config,async(...args)=>{calls++;return queued(...args);},now);
+ assert.ok(result.customer.range,'the exact production failure shape must price');
+ assert.equal(calls,3,'explanatory task notes need no repair/provider retry');
+ assert.ok(result.internal.assumptions.some((value:string)=>value.includes(note)),'notes are retained, not silently discarded');
+});
 test('A finding about a task already carried out of the total is disclosed, not a reason to withhold the range',async()=>{
  const {carriedOutRemark}=await import('../lib/p5/scopePricing.ts');
  const carried=[{id:'chimney-cap-repair',description:'Repair chimney cap'}],priced=[{id:'gfci',description:'GFCI receptacles'}];

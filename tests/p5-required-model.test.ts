@@ -33,6 +33,19 @@ test('legacy model settings are disclosed but cannot change estimation',()=>conf
   for(const search of [true,false]){
     const {model,body}=openAiPricingRequestEnvelope('Synthetic audit',{},search);
     assert.equal(model,'gpt-4.1');assert.equal(body.model,model);assert.equal('reasoning' in body,false);
+    if(!search){
+      assert.equal(body.text?.format.strict,true,'pricing output must obey its declared schema');
+      const visit=(schema:any)=>{
+        if(schema.type==='object'){
+          assert.equal(schema.additionalProperties,false);
+          assert.deepEqual([...schema.required].sort(),Object.keys(schema.properties).sort());
+          Object.values(schema.properties).forEach(visit);
+        }
+        if(schema.items)visit(schema.items);
+        schema.anyOf?.forEach(visit);
+      };
+      visit(body.text?.format.schema);
+    }
   }
 }));
 test('reading rejects wrong or missing response identity without another provider call',()=>configured(async()=>{
