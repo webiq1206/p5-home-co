@@ -846,7 +846,7 @@ export function coreProjectTask(task:{description:string;evidence?:string},answe
 // was the wording the check actually used on a live revision (2026-09-23): the correction did not
 // recognise it, so two named priced lines went uncorrected and the customer got no estimate at all.
 // HEDGED still holds back anything tentative, including the "unresolved overlap" phrasing.
-const STATED_DUPLICATE=/double[- ]count|\b(?:is|are) duplicated\b|duplicatively|\bduplicates\b|confirmed duplicate|(?:charged|billed|priced) twice|\boverlaps?\b|\boverlapping\b/;
+const STATED_DUPLICATE=/double[- ]count|\b(?:is|are) duplicated\b|\bduplicat(?:e|ed) (?:charge|cost|pricing)\b|duplicatively|\bduplicates\b|confirmed duplicate|(?:charged|billed|priced) twice|\boverlaps?\b|\boverlapping\b/;
 const HARD_DEFECT=/does not match the explicit|disagrees with the (?:stated|explicit|confirmed)|contradicts the (?:stated|explicit|confirmed)|wrong (?:unit|uom)|out of scope|not (?:been )?requested|was not requested|does not reconcile with the confirmed|assign every priced component to a building|disagrees with|omitted from|not converted into a priced line|no positive priced line carries|^missing quantity:/;
 const HEDGED=/\b(?:may|might|could|possibl(?:e|y)|potential(?:ly)?|cannot be ruled out|verify whether|check whether|confirm whether|unresolved overlap)\b/;
 /** A positive parent task does not prove that its explicitly required component is priced. */
@@ -860,6 +860,24 @@ export function confirmedMissingComponent(issue:string):boolean{
 export function correctableDuplicate(issue:string):boolean{
   const t=issue.toLowerCase();
   return !confirmedMissingComponent(t)&&STATED_DUPLICATE.test(t)&&!HEDGED.test(t)&&!HARD_DEFECT.test(t);
+}
+/** An audit can name source tasks instead of generated line IDs. Resolve that
+ * case only when each task has one positive line and both are the exact same
+ * book component, quantity, unit and place. Bundled or ambiguous tasks still
+ * need the normal repair pass; they cannot authorize deleting unrelated work. */
+export function duplicateTaskLineIds(issue:string,tasks:{id:string;description:string}[],rules:CostRule[]):string[]{
+  if(!correctableDuplicate(issue))return [];
+  const named=tasks.filter(task=>namesTask(issue.toLowerCase(),task));
+  if(named.length<2)return [];
+  const groups=named.map(task=>rules.filter(rule=>rule.scopeTaskId===task.id&&Number(rule.quantity.fixed)>0&&rule.unitCost>0));
+  if(groups.some(group=>group.length!==1))return [];
+  const selected=groups.map(group=>group[0]);
+  const signature=(rule:CostRule)=>{
+    const code=rule.evidence?.reference?.match(/\bPB-\d{2}-\d{2}-\d{2}(?:-[ML])?\b/)?.[0];
+    return code?JSON.stringify([code,rule.unit,rule.quantity,rule.unitCost,rule.category,rule.building||'',rule.floor||'']):null;
+  };
+  const first=signature(selected[0]);
+  return first&&selected.every(rule=>signature(rule)===first)?selected.map(rule=>rule.id):[];
 }
 const namesTask=(text:string,task:{id:string;description:string})=>new RegExp(`(?:^|[^\\w-])${task.id.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g,'\\$&')}(?![\\w-])`).test(text)||text.includes(task.description.toLowerCase());
 export function findingBlocks(issue:string,tasks:{id:string;description:string}[],pricedTasks:{id:string;description:string}[],carried:{id:string;description:string}[]=[]):boolean{
@@ -1406,7 +1424,8 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
     for(const issue of findings){
       const t=issue.toLowerCase();
       if(!correctableDuplicate(issue))continue;
-      const named=finalLines.filter(line=>new RegExp(`(?:^|[^\\w-])${line.id.toLowerCase()}(?![\\w-])`).test(t)&&!resolution.removeLineIds?.includes(line.id));
+      const taskLineIds=duplicateTaskLineIds(issue,auditTrail.tasks as {id:string;description:string}[],resolution.rules);
+      const named=finalLines.filter(line=>(new RegExp(`(?:^|[^\\w-])${line.id.toLowerCase()}(?![\\w-])`).test(t)||taskLineIds.includes(line.id))&&!resolution.removeLineIds?.includes(line.id));
       if(named.length<2)continue;
       const keep=named.reduce((a,b)=>b.quantity*b.unitCost>a.quantity*a.unitCost?b:a);
       const drop=named.filter(line=>line!==keep).map(line=>line.id);

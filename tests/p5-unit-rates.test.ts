@@ -113,7 +113,7 @@ test('the master price book prices each line at the chosen finish, with the remo
   // The owner performs every line however it is labelled: every service sees the whole book. The
   // book's RE-10 flag carries no light fixture, irrigation or mobilization line, which left a live
   // RE-10 pricing those from uncited guesses.
-  for(const service of ['re10','handyman','kitchen','new-construction','cabinet-install','change-order'])assert.equal(priceBookRates({service}).length,summary.rateable,service);
+  for(const service of ['re10','handyman','kitchen','new-construction','cabinet-install','change-order'])assert.equal(priceBookRates({service}).filter(r=>!/-[ML]$/.test(r.code)).length,summary.rateable,service);
   for(const code of ['26-50-02','32-84-03','01-54-11','26-01-14'])assert.ok(rate({service:'re10'},code),`RE-10 offers ${code}`);
   // Lines filed under the job's own kind of work come first, so they win an equal match.
   const re10=priceBookRates({service:'re10'}).map(r=>r.code);

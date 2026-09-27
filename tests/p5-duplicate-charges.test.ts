@@ -71,7 +71,26 @@ test('a stated overlap between named priced lines is correctable, like a stated 
     'scope-5 and scope-6 are duplicated by planning-1.',
     'The shower tile assembly is priced twice: scope-2 and scope-7.',
     'Overlapping protection and cleanup scope between scope-9 and scope-11.',
+    "Duplicated charge: Both tasks 'remove_old_handles' and 'install_owner_supplied_handles' assign the same labor at quantity 2.",
   ])assert.equal(correctableDuplicate(stated),true,stated);
+});
+test('a live duplicate-charge finding triggers repair even when both tasks have positive prices',async()=>{
+  const {findingBlocks}=await import('../lib/p5/scopePricing.ts');
+  const tasks=[{id:'remove_old_handles',description:'Remove two existing handles'},{id:'install_owner_supplied_handles',description:'Install two owner-supplied handles'}];
+  const issue="Duplicated charge: Both tasks 'remove_old_handles' and 'install_owner_supplied_handles' assign at quantity 2. The same catalog line covers both removal and installation labor per door, a duplicated cost for one two-handle job.";
+  assert.equal(findingBlocks(issue,tasks,tasks),true,'a positive price does not excuse billing the same work twice');
+});
+test('task-named duplicates resolve only exact single-component charges',async()=>{
+  const {duplicateTaskLineIds}=await import('../lib/p5/scopePricing.ts');
+  const tasks=[{id:'remove_old_handles',description:'Remove two existing handles'},{id:'install_owner_supplied_handles',description:'Install two owner-supplied handles'}];
+  const issue="Duplicated charge: Both tasks 'remove_old_handles' and 'install_owner_supplied_handles' assign the same hardware labor at quantity 2.";
+  const rules=tasks.map((task,i)=>({id:`scope-${i+1}`,scopeTaskId:task.id,description:task.description,unit:'EA',quantity:{fixed:2,factor:1},unitCost:70,category:'field-labor',building:'Residence',floor:'First floor',evidence:{reference:'P5 master book; PB-08-71-01; two doors'}}));
+  assert.deepEqual(duplicateTaskLineIds(issue,tasks,rules as any),['scope-1','scope-2']);
+  for(const change of [{quantity:{fixed:3,factor:1}},{floor:'Second floor'},{unitCost:80},{evidence:{reference:'P5 master book; PB-08-71-02; different hardware'}}]){
+    assert.deepEqual(duplicateTaskLineIds(issue,tasks,[rules[0],{...rules[1],...change}] as any),[],'different charges cannot be removed as exact duplicates');
+  }
+  assert.deepEqual(duplicateTaskLineIds(issue,tasks,[...rules,{...rules[0],id:'scope-3'}] as any),[],'a task with multiple components is ambiguous');
+  assert.deepEqual(duplicateTaskLineIds('These tasks may overlap: remove_old_handles and install_owner_supplied_handles',tasks,rules as any),[]);
 });
 test('a tentative overlap, or a different defect, still withholds the estimate',async()=>{
   const {correctableDuplicate}=await import('../lib/p5/scopePricing.ts');

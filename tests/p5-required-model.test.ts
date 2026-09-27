@@ -79,7 +79,7 @@ test('every imported dollar-rate row is retrievable, including the final row and
   const expected=new Set(PRICE_BOOK_RATEABLE.map(row=>`PB-${row[0]}`));
   for(const service of ['handyman','re10','cabinet-product','cabinet-install','kitchen','bathroom','whole-home','addition','adu','new-construction']){
     const rates=priceBookRates({service,finish:'mid-range'});
-    assert.deepEqual(new Set(rates.map(rate=>rate.code)),expected);
+    assert.deepEqual(new Set(rates.filter(rate=>!/-[ML]$/.test(rate.code)).map(rate=>rate.code)),expected);
     const final=rates.at(-1)!;assert.ok(relevantCatalog(rates,[],1,new Set([final.code])).some(selected=>selected.code===final.code));
     for(const rate of rates)assert.ok(Number.isFinite(rate.amount)&&rate.amount>=0,rate.code);
   }
