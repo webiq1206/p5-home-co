@@ -6,3 +6,4 @@
 - [Pricing spend admission](pricing-spend-admission.md) — live pricing must reserve durable budget per billable request and stop on missing budget or ambiguous charges.
 - [Disposable database verification](disposable-database-verification.md) — never run destructive or concurrency verification through a production-marked runtime database URL.
 - [Plans-only qualification recovery](plans-only-qualification-recovery.md) — resume a preserved plans checkpoint directly; never let an unrelated historical short-file probe trigger new work.
+- [Estimator regression runner](estimator-regression-runner.md) — use the installed TS runner for isolated SQL regression scripts under Node 24; native stripping rejects their temporary modules.
