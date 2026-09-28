@@ -1,10 +1,43 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {generalInstallationRequirement,normalizeConsumableMapping,findingBlocks,correctableDuplicate,catalogResolution} from '../lib/p5/scopePricing.ts';
+import {generalInstallationRequirement,normalizeConsumableMapping,preserveScopeExclusions,findingBlocks,correctableDuplicate,catalogResolution} from '../lib/p5/scopePricing.ts';
 import {priceBookRates} from '../lib/p5/priceBook.ts';
 import {validateExtraction} from '../lib/p5/scope.ts';
 import {contractorConsumableIncluded} from '../lib/p5/contractorConsumables.ts';
 import {EMPTY_CONFIGURATION} from '../lib/p5/costBook.ts';
+import {supportedUnit,unitKey,reusableUnit} from '../lib/p5/unitRates.ts';
+
+test('installation kits keep their own unit and are not reused as a per-cabinet rate',()=>{
+ assert.equal(supportedUnit('kit'),true);
+ assert.equal(unitKey('kits'),'kit');
+ assert.notEqual(unitKey('kit'),unitKey('each'));
+ assert.equal(reusableUnit('kit'),false);
+});
+
+test('an unavailable catalog placeholder only yields to an explicitly requested pricing fallback',()=>{
+ const scope={text:'Install owner-supplied base cabinets with contractor-supplied screws and shims.',answers:{},extraction:null} as any;
+ const task={id:'base',description:'Install owner-supplied base cabinets',evidence:scope.text,existingLineIds:['labor'],additions:[{code:'INVENTED',quantity:1}],researchDescription:'Material purchase: installation screws and shims'};
+ normalizeConsumableMapping({tasks:[task]} as any,EMPTY_CONFIGURATION,[{id:'labor',category:'field-labor'}] as any,scope);
+ assert.deepEqual(task.additions,[]);
+ assert.deepEqual(task.existingLineIds,['labor']);
+ assert.match(task.researchDescription,/screws and shims/);
+ const noFallback={...task,additions:[{code:'INVENTED',quantity:1}],researchDescription:''};
+ normalizeConsumableMapping({tasks:[noFallback]} as any,EMPTY_CONFIGURATION,[],scope);
+ assert.equal(noFallback.additions.length,1,'without fallback the unknown rate still fails validation');
+});
+
+test('invalid exclusion edits preserve scope while exact generated defaults can still be corrected',()=>{
+ const scope={answers:{exclusions:'Finish painting the wall'},extraction:{instructions:{exclusions:['New circuits']}}} as any;
+ const mapping={removeExclusions:[
+  {text:'Exclude finish painting the wall',reason:'Spot priming is included'},
+  {text:'Finish painting the wall',reason:'Incorrect removal of user exclusion'},
+  {text:'New circuits',reason:'Incorrect removal of extracted exclusion'},
+  {text:'Permit fees',reason:'Explicitly requested and priced'},
+  {text:'Invented exclusion',reason:'Invalid reference'},
+ ]} as any;
+ preserveScopeExclusions(mapping,['Finish painting the wall','New circuits','Permit fees'],scope);
+ assert.deepEqual(mapping.removeExclusions,[{text:'Permit fees',reason:'Explicitly requested and priced'}]);
+});
 
 test('generic installation requirements do not become a second complete assembly',()=>{
   assert.equal(generalInstallationRequirement('Provide all necessary labor and installation materials for complete installation.'),true);

@@ -371,10 +371,23 @@ const vanitySizeIssue=(description:string)=>`${description}: catalog vanity size
  * quantities and separately named operations never match this narrow form. */
 export const generalInstallationRequirement=(description:string)=>/^(?:provide|include|supply) (?:all )?(?:(?:necessary|required) )?labor and installation materials(?: for (?:complete |the )?installation)?$/i.test(description.trim().replace(/[.]+$/,''));
 
+/** Preserve explicit exclusions and reject invalid model edits without deleting scope. */
+export function preserveScopeExclusions(mapping:Mapping,existing:string[],scope:ReviewedScope){
+  const key=(value:string)=>value.toLowerCase().replace(/^(?:exclude|excluding|excluded:)\s+/,'').replace(/[^a-z0-9]+/g,' ').trim();
+  const explicit=[...(scope.extraction?.instructions?.exclusions||[]),...(scope.answers.exclusions||'').split(/;|\n/)];
+  // An invalid model edit is a no-op. Keep the exclusion for the independent
+  // audit instead of guessing what to delete or aborting unrelated pricing.
+  mapping.removeExclusions=mapping.removeExclusions.filter(item=>existing.includes(item.text)&&!explicit.some(value=>key(value)&&key(value)===key(item.text)));
+}
+
 /** Labor-only book components cannot satisfy a requested material purchase.
  * Route that gap through the existing evidenced material-pricing workflow. */
 export function normalizeConsumableMapping(mapping:Mapping,configuration:EstimatorConfiguration,existing:ReturnType<typeof existingLines>,scope:ReviewedScope){
   for(const task of mapping.tasks){
+    // A made-up catalog identifier is never a rate. When this task already
+    // requests gap pricing, let that evidenced workflow price the missing work
+    // instead of retaining a failed lookup after a valid fallback is accepted.
+    if(task.researchDescription)task.additions=task.additions.filter(addition=>configuration.planningCatalog?.rates.some(rate=>rate.code===addition.code)||configuration.regionalRates?.some(rate=>rate.id===addition.code));
     // Correct the observed procurement/installation mix-up only when both
     // quantities and the owner's explicit component rates support the split.
     const area=Number(scope.answers.flooringSqft);
@@ -1179,8 +1192,8 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
     mapping.removeExclusions=mapping.removeExclusions.filter((r,i,all)=>all.findIndex(v=>v.text===r.text)===i);
     auditTrail.tasks=mapping.tasks;
     normalizeConsumableMapping(mapping,configuration,lines,pricingScope);
+    preserveScopeExclusions(mapping,base.customer.exclusions,pricingScope);
     const catalog=catalogResolution(mapping,configuration,lines,now,scope);
-    if(mapping.removeExclusions.some(e=>!base.customer.exclusions.some(value=>value===e.text)))throw new Error('Unknown default exclusion');
     resolution.removeLineIds=catalog.removeLineIds;resolution.removeExclusions=catalog.removeExclusions;
     auditTrail.adjustments={replacements:mapping.replacements,removeExclusions:mapping.removeExclusions};
     resolution.rules.push(...catalog.rules);resolution.assumptions.push(...catalog.assumptions);resolution.issues.push(...catalog.issues);
@@ -1325,8 +1338,8 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
         fixes.issues.push(...batch.issues);fixes.notes.push(...batch.notes);fixes.replacements.push(...batch.replacements);fixes.removeExclusions.push(...batch.removeExclusions);
       }
       normalizeConsumableMapping(fixes,configuration,pricedComponents,pricingScope);
+      preserveScopeExclusions(fixes,beforeRepair.customer.exclusions,pricingScope);
       const repaired=catalogResolution(fixes,configuration,pricedComponents,now,scope);
-      if(fixes.removeExclusions.some(e=>!beforeRepair.customer.exclusions.some(value=>value===e.text)))throw new Error('Unknown repair exclusion');
       // A repair may replace a priced component, never just delete it. On a live repair list the
       // repair named every approved labor line as a replacement and supplied no labor in return,
       // so the final check found outlets, traps and hose bibs with parts and nobody to fit them.

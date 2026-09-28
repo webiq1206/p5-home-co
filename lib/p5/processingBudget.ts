@@ -22,7 +22,7 @@ export const ANALYSIS_PASS_MS = Number(process.env.P5_ANALYSIS_PASS_MS||240_000)
 export const READ_ALLOWANCE_MS = Number(process.env.P5_READ_ALLOWANCE_MS||120_000);
 /** A new section read is only started when at least this much of the pass remains. */
 export const READ_START_MARGIN_MS = Number(process.env.P5_READ_START_MARGIN_MS||75_000);
-export const PROCESSING_PAUSED = 'We could not verify everything within 60 seconds. Your completed work is saved. Resume the check to continue where it stopped.';
+export const PROCESSING_PAUSED = 'This check needs more time. Your completed work is saved. Resume the check to continue where it stopped.';
 
 export class ProcessingDeadlineError extends Error {
   constructor() { super(PROCESSING_PAUSED); this.name = 'ProcessingDeadlineError'; }

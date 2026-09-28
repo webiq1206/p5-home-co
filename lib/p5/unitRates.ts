@@ -16,6 +16,7 @@ export const UNIT_REGISTRY:Record<string,{dimension:UnitDimension;label:string}>
  ton:{dimension:'weight',label:'ton'},
  acre:{dimension:'area',label:'acre'},watt:{dimension:'power',label:'watt'},
  ls:{dimension:'lump',label:'lump sum'},
+ kit:{dimension:'count',label:'kit'},
 };
 /** Things a repair list counts one at a time. "each vent", "per fixture" and "device location" are all a count of one. */
 const COUNTED='(?:items?|fixtures?|devices?|locations?|device locations?|assembl(?:y|ies)|terminations?|vents?|receptacles?|outlets?|switch(?:es)?|lights?|doors?|windows?|openings?|breakers?|valves?|hose bibs?|traps?|boots?|caps?|pumps?|units?|pieces?|pcs?|components?|repairs?|occurrences?|rooms?|bathrooms?|cabinets?|systems?|shelves|shelf|drawers?|panels?|fans?|detectors?|sinks?|faucets?|toilets?|vanit(?:y|ies)|appliances?|heaters?|fixture sets?|stops?|stations?)';
@@ -28,6 +29,7 @@ export const unitKey=(unit:string)=>{
   'hr':'hour','hrs':'hour','h':'hour','hour':'hour','hours':'hour','labor hour':'hour','labor hours':'hour','day':'day','days':'day','crew day':'day','wk':'week','week':'week','weeks':'week','mo':'month','month':'month','months':'month',
   'cy':'cy','cubic yard':'cy','cubic yards':'cy','gal':'gallon','gallon':'gallon','gallons':'gallon','ton':'ton','tons':'ton','rl':'roll','ac':'acre','acre':'acre','acres':'acre','w':'watt','watt':'watt','watts':'watt',
   'ls':'ls','lump sum':'ls','lumpsum':'ls','lot':'ls','job':'ls','allowance':'ls','package':'ls','trip':'ls','visit':'ls','service call':'ls','minimum charge':'ls'};
+ if(key==='kit'||key==='kits')return 'kit';
  if(aliases[key])return aliases[key];
  return COUNTED_UNIT.test(key)?'each':key;
 };
