@@ -90,6 +90,16 @@ export function applyPricingCorrections(input:CorrectionInput):CorrectionResult{
   };
   const dropRule=(rule:CostRule)=>{resolution.rules=resolution.rules.filter(r=>r!==rule);};
 
+  // The specific cabinet-run labor component already includes installation.
+  // A repair must not add generic cabinet installation again to that same task.
+  const cabinetRuns=resolution.rules.filter(rule=>rule.category==='field-labor'&&/\bPB-12-32-0[12]-L\b/.test(rule.evidence?.reference||'')&&direct(rule)>0);
+  for(const run of cabinetRuns){
+    if(!run.scopeTaskId)continue;
+    const extra=resolution.rules.filter(rule=>rule!==run&&rule.scopeTaskId===run.scopeTaskId&&sameBuilding(rule.building,run.building)&&rule.floor===run.floor&&rule.category==='field-labor'&&/\bPB-12-(?:39-06|01-01)\b/.test(rule.evidence?.reference||''));
+    for(const rule of extra)dropRule(rule);
+    if(extra.length)notes.push(`Cabinet installation is priced once for ${taskDescription(run.scopeTaskId)}; overlapping generic installation labor was removed. Separately scoped custom fitting remains separate.`);
+  }
+
   // 1. One complete assembly, priced once; a whole unit covers its own components.
   const assemblies=resolution.rules.filter(rule=>hasMarker(rule.description));
   const groups=new Map<string,CostRule[]>();

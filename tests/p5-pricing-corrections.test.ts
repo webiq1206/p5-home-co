@@ -23,6 +23,18 @@ const inputFor=(scope:ReviewedScope,tasks:{id:string;description:string;origin?:
   resolution:{rules,assumptions:[],issues:[]},pricingExtraction:null,configuration,now,...extra});
 const direct=(r:CostRule)=>r.unitCost*(r.quantity.fixed||0);
 
+test('a specific cabinet run does not also charge generic installation on the same task',()=>{
+ const tasks=[{id:'base',description:'Install 18 LF owner-supplied base cabinets'},{id:'custom',description:'Custom cabinet fitting'}];
+ const specific=rule('base',tasks[0].description,'12-32-01',18,{category:'field-labor',evidence:{basis:'owner-estimating-schedule',reference:'PB-12-32-01-L'} as any});
+ const generic=rule('base',tasks[0].description,'12-39-06',18);
+ const hourly=rule('base',tasks[0].description,'12-01-01',2);
+ const separate=rule('custom',tasks[1].description,'12-01-01',3);
+ const input=inputFor(scopeFor(tasks[0].description,{}),tasks,[specific,generic,hourly,separate]);
+ applyPricingCorrections(input);
+ assert.deepEqual(input.resolution.rules.map(r=>r.id),[specific.id,separate.id]);
+ assert.ok(input.resolution.assumptions.some(note=>/overlapping generic installation/.test(note)));
+});
+
 test('a whole-unit assembly is priced once and covers its own component lines; site work and permits stay',()=>{
   const scope=scopeFor('Build a complete detached 600 square foot ADU.',{service:'adu',sqft:'600',finish:'mid-range'});
   const tasks=[{id:'adu',description:'Construct one detached 600 sq ft ADU, complete',origin:'requested'},{id:'slab',description:'Construct the slab-on-grade foundation',origin:'required'},{id:'frame',description:'Frame the ADU',origin:'required'},{id:'kitchen',description:'Provide a complete kitchen',origin:'required'},{id:'sewer',description:'Extend the sewer 20 feet',origin:'required'},{id:'permit',description:'Obtain the building permit',origin:'required'},{id:'debris',description:'Haul construction debris',origin:'required'},{id:'roof',description:'Install the complete roofing assembly',origin:'required'},{id:'power',description:'Extend electrical service 20 feet with trenching',origin:'required'}];

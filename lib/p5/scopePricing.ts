@@ -375,9 +375,22 @@ export const generalInstallationRequirement=(description:string)=>/^(?:provide|i
  * Route that gap through the existing evidenced material-pricing workflow. */
 export function normalizeConsumableMapping(mapping:Mapping,configuration:EstimatorConfiguration,existing:ReturnType<typeof existingLines>,scope:ReviewedScope){
   for(const task of mapping.tasks){
+    // An installed product's explicit labor component is the same physical
+    // installation when the owner supplies the product. Never invent a split.
+    for(const addition of task.additions){
+      const rate=configuration.planningCatalog?.rates.find(rate=>rate.code===addition.code);
+      const labor=configuration.planningCatalog?.rates.find(candidate=>candidate.code===`${addition.code}-L`&&candidate.type==='Labor'&&candidate.unit===rate?.unit);
+      if(rate?.type==='Subcontractor'&&labor&&ownerSuppliesMaterial(task,addition.quantity,rate.unit,rate.description,scope,false))addition.code=labor.code;
+    }
     if(!contractorConsumableIncluded(scope,task.description))continue;
-    task.additions=task.additions.filter(addition=>configuration.planningCatalog?.rates.find(rate=>rate.code===addition.code)?.type!=='Labor');
-    task.existingLineIds=task.existingLineIds.filter(id=>existing.find(line=>line.id===id)?.category!=='field-labor');
+    task.additions=task.additions.filter(addition=>{
+      const rate=configuration.planningCatalog?.rates.find(rate=>rate.code===addition.code);
+      return rate?.type==='Material'&&contractorConsumableIncluded(scope,`${task.description}: ${rate.description}`);
+    });
+    task.existingLineIds=task.existingLineIds.filter(id=>{
+      const line=existing.find(line=>line.id===id);
+      return line?.category==='materials'&&contractorConsumableIncluded(scope,`${task.description}: ${line.description}`);
+    });
     const supplied=task.additions.some(addition=>configuration.planningCatalog?.rates.find(rate=>rate.code===addition.code)?.type==='Material')
       ||task.existingLineIds.some(id=>existing.some(line=>line.id===id&&line.category==='materials'&&line.quantity*line.unitCost>0));
     if(!supplied)task.researchDescription=`Material purchase only: ${task.description} Include only the expressly requested contractor-supplied consumables. Installation labor and owner-supplied products are already separate and must not be charged here.`;
@@ -709,6 +722,10 @@ export function marketResolution(raw:unknown,urls:string[],tasks:Mapping['tasks'
       result.issues.push(`${t.description}: unsupported pricing unit ${JSON.stringify(r.unit)}; provide a sourced supported unit or focused clarification.`);
       continue;
     }
+    if(scope&&contractorConsumableIncluded(scope,t.description)&&(r.basis!=='material-purchase'||!contractorConsumableIncluded(scope,r.description))){
+      result.issues.push(`${t.description}: requested installation consumables require a matching material-only rate, not labor, fixtures or cabinet products.`);
+      continue;
+    }
     if(r.basis!=='trade-labor'&&ownerSuppliesMaterial(t,r.quantity,r.unit,r.description,scope,r.basis==='material-purchase')){
       result.issues.push(`${t.description}: owner-supplied material permits a labor-only rate, not a material or supply-and-install package.`);
       continue;
@@ -772,6 +789,10 @@ export function planningResolution(raw:unknown,tasks:Mapping['tasks'],now:Date,o
       continue;
     }
     if(r.basis!=='trade-labor'&&ownerSuppliesMaterial(t,r.quantity,r.unit,r.description,scope,r.basis==='material-purchase')){result.issues.push(`${t.description}: owner-supplied material permits a labor-only rate, not a material or supply-and-install package.`);continue;}
+    if(scope&&contractorConsumableIncluded(scope,t.description)&&(r.basis!=='material-purchase'||!contractorConsumableIncluded(scope,r.description))){
+      result.issues.push(`${t.description}: requested installation consumables require a matching material-only rate, not labor, fixtures or cabinet products.`);
+      continue;
+    }
     const unresolved=unresolvedQuantityIssue(t);
     const hasAllowance=/^ALLOWANCE\s*:/i.test(r.quantityEvidence)&&Boolean(r.quantityRange);
     if(unresolved&&!hasAllowance)result.issues.push(unresolved);
@@ -1334,7 +1355,14 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
         return rate&&vanitySizeMatches(task.description,rate.description)===true&&repaired.rules.some(rule=>rule.scopeTaskId===task.id&&rule.unitCost===rate.amount&&rule.quantity.fixed===addition.quantity);
       })).map(task=>vanitySizeIssue(task.description)));
       const repairedReferenceIssues=new Set(fixes.tasks.filter(task=>task.existingLineIds.length>0&&task.existingLineIds.every(id=>pricedComponents.some(line=>line.id===id&&line.quantity*line.unitCost>0)&&!repaired.removeLineIds?.includes(id))&&!repaired.issues.includes(`${task.description}: invalid existing price reference.`)).map(task=>`${task.description}: invalid existing price reference.`));
-      const carriedIssues=resolution.issues.filter(issue=>!repairedNoPriceIssues.has(issue)&&!repairedDeviceIssues.has(issue)&&!repairedVanityIssues.has(issue)&&!repairedReferenceIssues.has(issue));
+      const repairedOwnerIssues=new Set(fixes.tasks.filter(task=>{
+        const active=resolution.rules.filter(rule=>rule.scopeTaskId===task.id&&!resolution.removeLineIds?.includes(rule.id));
+        const referenced=pricedComponents.filter(line=>task.existingLineIds.includes(line.id)&&!resolution.removeLineIds?.includes(line.id));
+        return [...active,...referenced].some(line=>line.category==='field-labor'&&line.unitCost>0)
+          &&[...active,...referenced].every(line=>!['materials','subcontractors'].includes(line.category)||!ownerSuppliesMaterial(task,typeof line.quantity==='number'?line.quantity:line.quantity.fixed||0,line.unit,line.description,pricingScope,line.category==='materials'))
+          &&!repaired.issues.includes(`${task.description}: owner-supplied material cannot be charged through a contractor material or supply-and-install package.`);
+      }).map(task=>`${task.description}: owner-supplied material cannot be charged through a contractor material or supply-and-install package.`));
+      const carriedIssues=resolution.issues.filter(issue=>!repairedNoPriceIssues.has(issue)&&!repairedDeviceIssues.has(issue)&&!repairedVanityIssues.has(issue)&&!repairedReferenceIssues.has(issue)&&!repairedOwnerIssues.has(issue));
       resolution.issues=[...new Set([...carriedIssues,...inventory.issues,...repaired.issues])];
       [...fixes.issues,...fixes.tasks.flatMap(t=>t.issues.map(issue=>`${t.description}: ${issue}`))].forEach(issue=>{modelIssues.add(issue);opinions.add(issue);});
       mapping.tasks=fixes.tasks;

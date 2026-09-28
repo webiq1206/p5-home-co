@@ -53,6 +53,10 @@ test('planning and sourced materials do not inherit owner supply from the basebo
  const marketRate=Object.fromEntries(Object.entries(rate).filter(([key])=>!['low','high','confidence','rationale'].includes(key)));
  const sourced={...marketRate,sources:urls.map(url=>({url,low:18,high:40,unit:'LS',costBasis:'material-purchase',sourceType:'regional-guide',dateBasis:'published',publishedAt:'2026-09-23',region:'Idaho',excerpt:'Synthetic material purchase price.'})),landedCost:{taxRate:0,freightPerUnit:0,taxOnFreight:false,taxEvidence:evidence,freightEvidence:evidence}};
  assert.equal(marketResolution({rates:[sourced],issues:[],notes:[]},urls,[task] as Parameters<typeof planningResolution>[1],now,0,'Boise',scope).rules.length,1);
+ for(const description of ['Sink base cabinet','Supplies, stops, and trap, per fixture']){
+  assert.equal(planningResolution({rates:[{...rate,description}],issues:[],notes:[]},[task] as Parameters<typeof planningResolution>[1],now,0,'Boise',scope).rules.length,0);
+  assert.equal(marketResolution({rates:[{...sourced,description}],issues:[],notes:[]},urls,[task] as Parameters<typeof planningResolution>[1],now,0,'Boise',scope).rules.length,0);
+ }
  // The exception applies only to consumable material. A combined installed package remains blocked.
  assert.equal(planningResolution({rates:[{...rate,basis:'subcontractor-installed'}],issues:[],notes:[]},[task] as Parameters<typeof planningResolution>[1],now,0,'Boise',scope).rules.length,0);
 });
