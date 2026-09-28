@@ -19,6 +19,7 @@ build = "npm run build:host"
 # correct outcome - a running app on a half-applied schema serves wrong numbers
 # quietly, and quiet wrong numbers are worse than a site that is plainly down.
 run = "npm run db:migrate && npm run start:host"
+ignorePorts = false
 
 [workflows]
 runButton = "Project"
