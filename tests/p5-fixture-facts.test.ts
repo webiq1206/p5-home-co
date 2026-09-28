@@ -20,3 +20,13 @@ test('same-type and ambiguous counts still require clarification',()=>{
  }
  const sameType=separateFixtureFacts([two,fact('3','Three 100-gallon water heaters.')],[conflict]);assert.deepEqual(sameType.conflicts,[conflict]);
 });
+
+test('a generic scheduled count uses the matching named fixture schedule, not the water-heater count',()=>{
+ const generic=fact('3','Quantity basis: Three scheduled fixtures');
+ const schedule={...fact('Mop sink, lobby sink, foyer fountain (3 scheduled fixtures; 5 additional fountains excluded)','Mop sink, lobby sink, foyer fountain'),'field':'fixtures' as const};
+ const result=separateFixtureFacts([generic,two,schedule],[conflict]);
+ assert.deepEqual(result.conflicts,[]);
+ assert.ok(result.facts.every(f=>f.field==='fixtures'));
+ const unrelated={...schedule,value:'Mop sink, lobby sink and foyer fountain'};
+ assert.deepEqual(separateFixtureFacts([generic,two,unrelated],[conflict]).conflicts,[conflict]);
+});

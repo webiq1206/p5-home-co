@@ -96,7 +96,7 @@ export function cabinetComponentRates(row:PriceBookRow,tier:FinishTier,remodel:b
   const installed=priceBookRate(row,tier,remodel);
   const labor=round(installed.amount*share),material=round(installed.amount-labor);
   const item=row[3].replace(/, installed$/i,'');
-  return ([['M','Material',material,'material only; excludes installation labor',1-share],['L','Labor',labor,'installation labor only; excludes product supply',share]] as const).map(([suffix,type,amount,includes,fraction])=>({
+  return ([['M','Material',material,'material only; excludes installation labor',1-share],['L','Labor',labor,'installation labor only; excludes product supply and all installation consumables; price screws, shims and fasteners as materials separately',share]] as const).map(([suffix,type,amount,includes,fraction])=>({
     ...installed,code:`${installed.code}-${suffix}`,type,amount,
     description:`${item} (${includes}; ${TIER_LABEL[tier]} finish; ${row[2]}, ${row[1]}). Component of ${installed.code}, calculated from the master book's stated ${round(share*100)}% labor share. Do not add to the complete installed line.`,
     source:`${installed.source}; ${installed.code} direct cost ${installed.amount} × ${round(fraction*100)}% ${type.toLowerCase()} share`,

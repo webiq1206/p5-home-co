@@ -366,6 +366,23 @@ function vanitySizeMatches(task:string,component:string):boolean|null{
   return wanted.length===1&&available.length===1?wanted[0][0]>=available[0][0]&&wanted[0][1]<=available[0][1]:null;
 }
 const vanitySizeIssue=(description:string)=>`${description}: catalog vanity size does not match the requested width.`;
+/** A general installation requirement applies to each real task, rather than
+ * authorizing another copy of every installed assembly. Specific materials,
+ * quantities and separately named operations never match this narrow form. */
+export const generalInstallationRequirement=(description:string)=>/^(?:provide|include|supply) (?:all )?(?:(?:necessary|required) )?labor and installation materials(?: for (?:complete |the )?installation)?$/i.test(description.trim().replace(/[.]+$/,''));
+
+/** Labor-only book components cannot satisfy a requested material purchase.
+ * Route that gap through the existing evidenced material-pricing workflow. */
+export function normalizeConsumableMapping(mapping:Mapping,configuration:EstimatorConfiguration,existing:ReturnType<typeof existingLines>,scope:ReviewedScope){
+  for(const task of mapping.tasks){
+    if(!contractorConsumableIncluded(scope,task.description))continue;
+    task.additions=task.additions.filter(addition=>configuration.planningCatalog?.rates.find(rate=>rate.code===addition.code)?.type!=='Labor');
+    task.existingLineIds=task.existingLineIds.filter(id=>existing.find(line=>line.id===id)?.category!=='field-labor');
+    const supplied=task.additions.some(addition=>configuration.planningCatalog?.rates.find(rate=>rate.code===addition.code)?.type==='Material')
+      ||task.existingLineIds.some(id=>existing.some(line=>line.id===id&&line.category==='materials'&&line.quantity*line.unitCost>0));
+    if(!supplied)task.researchDescription=`Material purchase only: ${task.description} Include only the expressly requested contractor-supplied consumables. Installation labor and owner-supplied products are already separate and must not be charged here.`;
+  }
+}
 export function catalogResolution(mapping:Mapping,configuration:EstimatorConfiguration,existing:ReturnType<typeof existingLines>,now:Date,scope?:ReviewedScope):ScopePriceResolution{
   const result:ScopePriceResolution={rules:[],assumptions:[...(mapping.notes||[])],issues:[...mapping.issues],removeLineIds:mapping.replacements.map(r=>r.lineId),removeExclusions:mapping.removeExclusions.map(e=>e.text)};
   for(const r of mapping.replacements)if(!existing.some(l=>l.id===r.lineId))throw new Error('Unknown replacement line');
@@ -878,7 +895,7 @@ export function coreProjectTask(task:{description:string;evidence?:string},answe
 // was the wording the check actually used on a live revision (2026-09-23): the correction did not
 // recognise it, so two named priced lines went uncorrected and the customer got no estimate at all.
 // HEDGED still holds back anything tentative, including the "unresolved overlap" phrasing.
-const STATED_DUPLICATE=/double[- ]count|\b(?:is|are) duplicated\b|\bduplicat(?:e|ed) (?:charge|cost|pricing)\b|duplicatively|\bduplicates\b|confirmed duplicate|(?:charged|billed|priced) twice|\boverlaps?\b|\boverlapping\b/;
+const STATED_DUPLICATE=/double[- ](?:count|charg)|\b(?:is|are) duplicated\b|\bduplicat(?:e|ed) (?:assembly |component )?(?:charge|cost|pricing)\b|duplicatively|\bduplicates\b|confirmed duplicate|(?:charged|billed|priced) twice|\boverlaps?\b|\boverlapping\b/;
 const HARD_DEFECT=/does not match the explicit|disagrees with the (?:stated|explicit|confirmed)|contradicts the (?:stated|explicit|confirmed)|wrong (?:unit|uom)|out of scope|not (?:been )?requested|was not requested|does not reconcile with the confirmed|assign every priced component to a building|disagrees with|omitted from|not converted into a priced line|no positive priced line carries|^missing quantity:/;
 const HEDGED=/\b(?:may|might|could|possibl(?:e|y)|potential(?:ly)?|cannot be ruled out|verify whether|check whether|confirm whether|unresolved overlap)\b/;
 /** A positive parent task does not prove that its explicitly required component is priced. */
@@ -915,7 +932,7 @@ const namesTask=(text:string,task:{id:string;description:string})=>new RegExp(`(
 export function findingBlocks(issue:string,tasks:{id:string;description:string}[],pricedTasks:{id:string;description:string}[],carried:{id:string;description:string}[]=[]):boolean{
   const t=issue.toLowerCase();
   if(HARD_DEFECT.test(t)||confirmedMissingComponent(t))return true;
-  if(STATED_DUPLICATE.test(t)&&!HEDGED.test(t))return true;
+  if(STATED_DUPLICATE.test(t))return true;
   return tasks.some(task=>namesTask(t,task)&&!pricedTasks.some(p=>p.id===task.id)&&!carried.some(c=>c.id===task.id));
 }
 /**
@@ -1087,6 +1104,11 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
         const t={...item,id:sourceParts.length===1?item.id:`${index+1}:${item.id}`};inventory.tasks.push(t);taskSources.set(t.id,index);
       }
     }
+    if(inventory.tasks.some(task=>!generalInstallationRequirement(task.description))){
+      const general=inventory.tasks.filter(task=>generalInstallationRequirement(task.description));
+      inventory.tasks=inventory.tasks.filter(task=>!generalInstallationRequirement(task.description));
+      if(general.length)inventory.notes.push('General labor and installation-material requirements apply within each requested installation task, not as a second assembly charge.');
+    }
     if(new Set(inventory.tasks.map(t=>t.id)).size!==inventory.tasks.length)throw new Error('Duplicate inventory task');
     // Nothing separately priceable in the source: the reviewed answers price the project (a new home from its
     // square footage through the book assemblies); a size nobody gave is asked for, never a handoff.
@@ -1116,6 +1138,7 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
     mapping.replacements=mapping.replacements.filter((r,i,all)=>all.findIndex(v=>v.lineId===r.lineId)===i);
     mapping.removeExclusions=mapping.removeExclusions.filter((r,i,all)=>all.findIndex(v=>v.text===r.text)===i);
     auditTrail.tasks=mapping.tasks;
+    normalizeConsumableMapping(mapping,configuration,lines,pricingScope);
     const catalog=catalogResolution(mapping,configuration,lines,now,scope);
     if(mapping.removeExclusions.some(e=>!base.customer.exclusions.some(value=>value===e.text)))throw new Error('Unknown default exclusion');
     resolution.removeLineIds=catalog.removeLineIds;resolution.removeExclusions=catalog.removeExclusions;
@@ -1261,6 +1284,7 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
         fixes.tasks.push(...batch.tasks.map(t=>({...t,...taskBatch.find(x=>x.id===t.id)!,existingLineIds:t.existingLineIds,additions:t.additions,researchDescription:t.researchDescription,issues:t.issues})));
         fixes.issues.push(...batch.issues);fixes.notes.push(...batch.notes);fixes.replacements.push(...batch.replacements);fixes.removeExclusions.push(...batch.removeExclusions);
       }
+      normalizeConsumableMapping(fixes,configuration,pricedComponents,pricingScope);
       const repaired=catalogResolution(fixes,configuration,pricedComponents,now,scope);
       if(fixes.removeExclusions.some(e=>!beforeRepair.customer.exclusions.some(value=>value===e.text)))throw new Error('Unknown repair exclusion');
       // A repair may replace a priced component, never just delete it. On a live repair list the
@@ -1309,7 +1333,8 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
         const rate=configuration.planningCatalog?.rates.find(candidate=>candidate.code===addition.code);
         return rate&&vanitySizeMatches(task.description,rate.description)===true&&repaired.rules.some(rule=>rule.scopeTaskId===task.id&&rule.unitCost===rate.amount&&rule.quantity.fixed===addition.quantity);
       })).map(task=>vanitySizeIssue(task.description)));
-      const carriedIssues=resolution.issues.filter(issue=>!repairedNoPriceIssues.has(issue)&&!repairedDeviceIssues.has(issue)&&!repairedVanityIssues.has(issue));
+      const repairedReferenceIssues=new Set(fixes.tasks.filter(task=>task.existingLineIds.length>0&&task.existingLineIds.every(id=>pricedComponents.some(line=>line.id===id&&line.quantity*line.unitCost>0)&&!repaired.removeLineIds?.includes(id))&&!repaired.issues.includes(`${task.description}: invalid existing price reference.`)).map(task=>`${task.description}: invalid existing price reference.`));
+      const carriedIssues=resolution.issues.filter(issue=>!repairedNoPriceIssues.has(issue)&&!repairedDeviceIssues.has(issue)&&!repairedVanityIssues.has(issue)&&!repairedReferenceIssues.has(issue));
       resolution.issues=[...new Set([...carriedIssues,...inventory.issues,...repaired.issues])];
       [...fixes.issues,...fixes.tasks.flatMap(t=>t.issues.map(issue=>`${t.description}: ${issue}`))].forEach(issue=>{modelIssues.add(issue);opinions.add(issue);});
       mapping.tasks=fixes.tasks;
@@ -1358,6 +1383,7 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
     const unpriced=mapping.tasks.filter(t=>billableTask(t)&&!t.existingLineIds.some(id=>positiveLine(id)&&!resolution.removeLineIds?.includes(id))&&!resolution.rules.some(r=>r.scopeTaskId===t.id&&positiveRule(r)));
     const pricedTaskCount=mapping.tasks.filter(billableTask).length-unpriced.length;
     for(const t of unpriced){
+      if(contractorConsumableIncluded(pricingScope,t.description)){resolution.issues.push(`${t.description}: no positive material line covers requested contractor-supplied installation consumables.`);continue;}
       if(!pricedTaskCount){resolution.issues.push(`${t.description}: no positive priced component or allowance was produced.`);continue;}
       // The core of the project is never carried out of the total. Live Construction (2026-09-22): the
       // "construct one new 2,400 SF residence" task went unpriced and was listed as excluded, so a new-home

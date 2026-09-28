@@ -20,7 +20,7 @@ export function contractorConsumableIncluded(scope:ReviewedScope,description:str
   return source.split(/;|\n|(?<=[.!?])\s+|\bbut\b/i).some(clause=>{
     if(/\b(?:no|not|exclude|excluding|without|owner supplies|owner provides|customer supplies)\b/i.test(clause))return false;
     const provided=/\bcontractor\s+(?:supplies|provides|furnishes)\b|\bcontractor[ -](?:supplied|provided)\b/i.test(clause);
-    const requested=/\b(?:include|including)\b/i.test(clause)&&CONSUMABLES.test(clause);
+    const requested=/\b(?:include|including)\b/i.test(clause)&&(CONSUMABLES.test(clause)||groups.some(group=>group.test(clause)));
     return (provided||requested)&&(CONSUMABLES.test(clause)||groups.some(group=>group.test(clause)));
   });
 }

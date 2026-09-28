@@ -1196,7 +1196,14 @@ test('a clean model audit cannot cover requested consumable material with labor 
  const restricted={...scope,text:'Install owner-supplied baseboard. Labor only. Contractor supplies nails and caulk.',answers:{service:'handyman'},extraction:{summary:'Trim installation',facts:[],conflicts:[],missingInformation:[],reviewNotes:[],instructions:{...emptyInstructions(),laborOnly:true}}};
  const labor={id:'trim',description:'Install owner-supplied baseboard',evidence:'Installation work',existingLineIds:[],additions:[{code:'REF-GENERAL-HOUR',quantity:4,quantityEvidence:'ALLOWANCE: Four installation hours.',quantityRange:{low:2,high:6}}],researchDescription:'',issues:[]};
  const consumables={...labor,id:'supplies',description:'Supply nails and caulk',evidence:restricted.text,additions:[{code:'REF-GENERAL-HOUR',quantity:1,quantityEvidence:'ALLOWANCE: One hour.',quantityRange:{low:1,high:1}}]};
- const result=await priceCompleteScope(restricted,config,replies([{tasks:[labor,consumables],issues:[]},{coveredTaskIds:['trim','supplies'],issues:[]}]),now);
+ const request:PricingRequest=async(_instructions,input)=>{
+  const data=input as any;
+  if(data.taskBatch)return {value:{tasks:[labor,consumables],issues:[]},sourceUrls:[]};
+  if('priorPricingIssues' in data)return {value:{coveredTaskIds:['trim','supplies'],issues:[]},sourceUrls:[]};
+  if(data.tasks&&data.region)return {value:{rates:[],issues:[]},sourceUrls:[]};
+  return {value:{tasks:[labor,consumables].map(({id,description,evidence})=>({id,description,evidence})),issues:[]},sourceUrls:[]};
+ };
+ const result=await priceCompleteScope(restricted,config,request,now);
  assert.equal(result.customer.range,null);
  assert.match(result.internal.scopePricing.issues.join(' '),/no positive material line covers requested contractor-supplied/);
 });
