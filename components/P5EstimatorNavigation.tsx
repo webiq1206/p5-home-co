@@ -8,10 +8,12 @@ interface EstimatorNavigationProps {
   embedded: boolean;
   onBack: () => void;
   onExit?: () => void;
+  onNewProject?: () => void;
+  disabled?: boolean;
 }
 
 /** Site navigation must remain available without relying on browser history. */
-export function P5EstimatorNavigation({brandName, stepLabel, showBack, frameActive, embedded, onBack, onExit}: EstimatorNavigationProps) {
+export function P5EstimatorNavigation({brandName, stepLabel, showBack, frameActive, embedded, onBack, onExit, onNewProject, disabled}: EstimatorNavigationProps) {
   return <nav className={styles.topbar} aria-label="Estimator navigation">
     {showBack
       ? <button type="button" className={styles.navBtn} onClick={onBack} aria-label="Back to the previous step">Back</button>
@@ -20,6 +22,7 @@ export function P5EstimatorNavigation({brandName, stepLabel, showBack, frameActi
       <span className={styles.brandLine}><span data-brand>{brandName}</span><span data-sep aria-hidden="true"> · </span><span data-title>Project estimator</span></span>
       <span className={styles.stepPill}>{stepLabel}</span>
     </a>
+    {onNewProject&&<button type="button" className={styles.navBtn} onClick={onNewProject} disabled={disabled} aria-label="Start a new project" title="Start a new project">New project</button>}
     {frameActive
       ? onExit
         ? <button type="button" className={styles.navBtn} onClick={onExit} aria-label={embedded ? 'Exit full screen. Your progress is saved.' : 'Close the estimator. Your progress is saved.'}>Exit</button>

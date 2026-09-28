@@ -34,12 +34,24 @@ test('embedded and modal exit calls their owner without changing browser history
   for (const embedded of [true, false]) {
     let exits = 0;
     const node = Navigation({...base, embedded, onExit: () => exits++});
-    const exit = node.props.children[2];
+    const exit = React.Children.toArray(node.props.children).find((child: any) => child.props.children === 'Exit') as any;
     assert.equal(exit.type, 'button');
     exit.props.onClick();
     assert.equal(exits, 1);
     assert.equal(node.props.children[1].props.href, '/');
   }
+});
+
+test('new project is a separate navigation action and respects the busy state', () => {
+  let starts = 0;
+  const node = Navigation({...base, onNewProject: () => starts++, disabled: true});
+  const button = React.Children.toArray(node.props.children).find((child: any) => child.props['aria-label'] === 'Start a new project') as any;
+  assert.equal(node.type, 'nav');
+  assert.equal(button.type, 'button');
+  assert.equal(button.props.disabled, true);
+  button.props.onClick();
+  assert.equal(starts, 1);
+  assert.doesNotMatch(render(), /Start a new project/);
 });
 
 test('standalone exit never guesses a destination from history length', () => {
