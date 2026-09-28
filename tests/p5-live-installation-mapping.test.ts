@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {generalInstallationRequirement,normalizeConsumableMapping,findingBlocks,correctableDuplicate} from '../lib/p5/scopePricing.ts';
+import {generalInstallationRequirement,normalizeConsumableMapping,findingBlocks,correctableDuplicate,catalogResolution} from '../lib/p5/scopePricing.ts';
+import {priceBookRates} from '../lib/p5/priceBook.ts';
+import {validateExtraction} from '../lib/p5/scope.ts';
 import {contractorConsumableIncluded} from '../lib/p5/contractorConsumables.ts';
 import {EMPTY_CONFIGURATION} from '../lib/p5/costBook.ts';
 
@@ -38,10 +40,57 @@ test('a vanity consumables task cannot purchase another cabinet or plumbing fixt
   assert.match(task.researchDescription!,/Material purchase only/);
 });
 
+test('an allowance for consumables is a material task rather than an unrelated cabinet allowance',()=>{
+ const scope={text:'Include labor, installation materials and cleanup.',answers:{},extraction:null,uploads:[],reviewedAt:'2026-09-28',corrections:[]} as any;
+ const task={id:'consumables',description:'Provide allowance for installation consumables (fasteners, caulk, shims, adhesives, sealants, supply lines, etc.), separate from product cost.',existingLineIds:[],additions:[{code:'FILLER',quantity:1}],researchDescription:null};
+ const configuration={...EMPTY_CONFIGURATION,planningCatalog:{rates:[{code:'FILLER',type:'Material',description:'Fillers / toe kick allowance'}]}} as any;
+ assert.equal(contractorConsumableIncluded(scope,task.description),true);
+ normalizeConsumableMapping({tasks:[task]} as any,configuration,[],scope);
+ assert.deepEqual(task.additions,[]);
+ assert.match(task.researchDescription!,/Material purchase only/);
+});
+
 test('owner-supplied cabinets use the explicit matching labor component, never an invented rate split',()=>{
  const scope={text:'Install 18 LF of owner-supplied base cabinets.',answers:{},extraction:null,uploads:[],reviewedAt:'2026-09-28',corrections:[]} as any;
  const task={id:'base',description:scope.text,evidence:scope.text,existingLineIds:[],additions:[{code:'PB-12-32-01',quantity:18}],researchDescription:null};
  const configuration={...EMPTY_CONFIGURATION,planningCatalog:{rates:[{code:'PB-12-32-01',type:'Subcontractor',unit:'LF',description:'Base cabinets, installed'},{code:'PB-12-32-01-L',type:'Labor',unit:'LF',description:'Base cabinets, installation labor only'}]}} as any;
  normalizeConsumableMapping({tasks:[task]} as any,configuration,[],scope);
  assert.equal(task.additions[0].code,'PB-12-32-01-L');
+});
+
+test('flooring waste increases purchased material without increasing installed labor',()=>{
+ const scope={text:'Install LVP flooring with 10% material waste.',answers:{flooringSqft:'300',sqft:'326.81'},extraction:null,uploads:[],reviewedAt:'2026-09-28',corrections:[]} as any;
+ const task={id:'floor',description:'Supply and install midrange LVP flooring in Room A, including 10% material waste.',evidence:'Confirmed 300 SF flooring area.',existingLineIds:[],issues:[],additions:[{code:'PB-09-65-01',quantity:330,quantityEvidence:'300 SF plus 10% material waste.'}],researchDescription:null};
+ const rates=priceBookRates({service:'change-order',finish:'mid-range'});
+ const configuration={...EMPTY_CONFIGURATION,planningCatalog:{rates,importedAt:'2026-09-28'}} as any;
+ const mapping={tasks:[task],issues:[],notes:[],replacements:[],removeExclusions:[]} as any;
+ normalizeConsumableMapping(mapping,configuration,[],scope);
+ assert.deepEqual(task.additions.map(a=>[a.code,a.quantity]),[['PB-09-65-01-L',300],['PB-09-65-01-M',330]]);
+ const result=catalogResolution(mapping,configuration,[],new Date('2026-09-28'),scope);
+ assert.deepEqual(result.issues,[]);
+ assert.deepEqual(result.rules.map(r=>[r.category,r.quantity.fixed]),[['field-labor',300],['materials',330]]);
+ const installed=rates.find(r=>r.code==='PB-09-65-01')!;
+ assert.equal(rates.find(r=>r.code==='PB-09-65-01-L')!.amount+rates.find(r=>r.code==='PB-09-65-01-M')!.amount,installed.amount);
+});
+
+test('confident raster dimensions require confirmation instead of silently pricing OCR mistakes',()=>{
+ const base={summary:'Flooring plan',facts:[{field:'length',value:'20.75',source:'drawing.png',evidence:'20 feet 9 inches',confidence:1,basis:'stated'}],conflicts:[],missingInformation:[],reviewNotes:[]};
+ const result=validateExtraction(base);
+ assert.equal(result.conflicts[0]?.field,'length');
+ assert.match(result.conflicts[0]?.explanation||'',/image readings can be mistaken/);
+ assert.equal(validateExtraction({...base,facts:[{...base.facts[0],source:'typed scope'}]}).conflicts.length,0);
+});
+
+test('a flooring area described as including waste cannot silently become installed area',()=>{
+ const result=validateExtraction({summary:'Flooring',facts:[{field:'flooringSqft',value:'330',source:'drawing.pdf',evidence:'300 SF plus 10% material waste',confidence:1,basis:'calculated'}],conflicts:[],missingInformation:[],reviewNotes:[]});
+ assert.equal(result.conflicts[0]?.field,'flooringSqft');
+ assert.match(result.conflicts[0]?.explanation||'',/before material waste/);
+});
+
+test('fresh estimate tolerates a catalog code mistakenly listed as a replacement without guessing line IDs',()=>{
+ const configuration={...EMPTY_CONFIGURATION,planningCatalog:{rates:priceBookRates({service:'cabinet-install'}),importedAt:'2026-09-28'}} as any;
+ const mapping={tasks:[],issues:[],notes:[],replacements:[{lineId:'PB-12-32-01-L',reason:'Replace product price with labor'}],removeExclusions:[]} as any;
+ assert.deepEqual(catalogResolution(mapping,configuration,[],new Date('2026-09-28')).removeLineIds,[]);
+ assert.throws(()=>catalogResolution(mapping,configuration,[{id:'actual-line'}] as any,new Date('2026-09-28')),/Unknown replacement line/);
+ assert.throws(()=>catalogResolution({...mapping,replacements:[{lineId:'invented-line'}]},configuration,[],new Date('2026-09-28')),/Unknown replacement line/);
 });

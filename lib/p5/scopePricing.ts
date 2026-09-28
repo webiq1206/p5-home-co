@@ -375,6 +375,19 @@ export const generalInstallationRequirement=(description:string)=>/^(?:provide|i
  * Route that gap through the existing evidenced material-pricing workflow. */
 export function normalizeConsumableMapping(mapping:Mapping,configuration:EstimatorConfiguration,existing:ReturnType<typeof existingLines>,scope:ReviewedScope){
   for(const task of mapping.tasks){
+    // Correct the observed procurement/installation mix-up only when both
+    // quantities and the owner's explicit component rates support the split.
+    const area=Number(scope.answers.flooringSqft);
+    const wasteText=[scope.text,task.description,task.evidence,...(scope.extraction?.facts||[]).map(f=>`${f.value} ${f.evidence}`)].join(' ');
+    const waste=[...wasteText.matchAll(/\b(\d+(?:\.\d+)?)\s*%\s+(?:material\s+)?waste\b/gi)].map(match=>Number(match[1]));
+    const wastePercent=[...new Set(waste)];
+    if(area>0&&wastePercent.length===1&&wastePercent[0]>0&&wastePercent[0]<=15)task.additions=task.additions.flatMap(addition=>{
+      const rate=configuration.planningCatalog?.rates.find(rate=>rate.code===addition.code);
+      const labor=configuration.planningCatalog?.rates.find(rate=>rate.code===`${addition.code}-L`&&rate.type==='Labor');
+      const material=configuration.planningCatalog?.rates.find(rate=>rate.code===`${addition.code}-M`&&rate.type==='Material');
+      if(!/^PB-09-65-\d+$/.test(addition.code)||rate?.type!=='Subcontractor'||!labor||!material||unitKey(rate.unit)!=='sf'||Math.abs(addition.quantity-area*(1+wastePercent[0]/100))>.001)return [addition];
+      return [{...addition,code:labor.code,quantity:area,quantityRange:null,quantityEvidence:`Confirmed installed flooring area: ${area} SF. Procurement waste is not installation work.`},{...addition,code:material.code,quantityRange:{low:addition.quantity,high:addition.quantity},quantityEvidence:`ALLOWANCE: ${area} SF installed area plus the requested ${wastePercent[0]}% material waste = ${addition.quantity} SF purchased.`}];
+    });
     // An installed product's explicit labor component is the same physical
     // installation when the owner supplies the product. Never invent a split.
     for(const addition of task.additions){
@@ -397,8 +410,12 @@ export function normalizeConsumableMapping(mapping:Mapping,configuration:Estimat
   }
 }
 export function catalogResolution(mapping:Mapping,configuration:EstimatorConfiguration,existing:ReturnType<typeof existingLines>,now:Date,scope?:ReviewedScope):ScopePriceResolution{
-  const result:ScopePriceResolution={rules:[],assumptions:[...(mapping.notes||[])],issues:[...mapping.issues],removeLineIds:mapping.replacements.map(r=>r.lineId),removeExclusions:mapping.removeExclusions.map(e=>e.text)};
-  for(const r of mapping.replacements)if(!existing.some(l=>l.id===r.lineId))throw new Error('Unknown replacement line');
+  // On a fresh estimate there is nothing to replace. Some reader replies put
+  // an approved catalog code here as well as in additions. Ignore only that
+  // provably harmless case; never guess an existing line's identity.
+  const replacements=mapping.replacements.filter(r=>existing.length>0||!configuration.planningCatalog?.rates.some(rate=>rate.code===r.lineId));
+  const result:ScopePriceResolution={rules:[],assumptions:[...(mapping.notes||[])],issues:[...mapping.issues],removeLineIds:replacements.map(r=>r.lineId),removeExclusions:mapping.removeExclusions.map(e=>e.text)};
+  for(const r of replacements)if(!existing.some(l=>l.id===r.lineId))throw new Error('Unknown replacement line');
   const ids=new Set<string>();
   for(const t of mapping.tasks){
     if(ids.has(t.id))throw new Error('Duplicate scope task');ids.add(t.id);
@@ -604,7 +621,9 @@ function knownScopeClaims(scope:ReviewedScope|undefined,task:Mapping['tasks'][nu
   addAnswer('countertopSqft','sf',/\bcountertop|bench\s+top|worktop\b/);
   addAnswer('demolitionSqft','sf',/\bdemolition|tear.?out\b/);
   addAnswer('trimLf','lf',/\btrim|baseboard\b/);
-  addAnswer('sqft','sf',/\b(?:drywall|paint(?:ing)?|floor(?:ing)?|tile|project\s+area)\b/);
+  // A dedicated trade measurement controls that trade. Generic project area
+  // may cover other rooms or remain from an earlier document revision.
+  if(!claims.some(claim=>claim.unit==='sf'))addAnswer('sqft','sf',/\b(?:drywall|paint(?:ing)?|floor(?:ing)?|tile|project\s+area)\b/);
   return claims;
 }
 function quantityIssues(task:Mapping['tasks'][number],addition:{quantity:number;quantityEvidence:string;quantityRange?:{low:number;high:number}|null},unit:string,scope:ReviewedScope|undefined,taskCount:number,componentDescription='',materialPurchase=false){

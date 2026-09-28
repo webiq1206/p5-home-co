@@ -6,7 +6,7 @@ const GROUPS=[/\b(?:nails?|screws?|fasteners?)\b|\bfastening\s+(?:materials?|sup
 const CONSUMABLES=/\b(?:consumables?|sundries|installation materials)\b/i;
 export function contractorConsumableIncluded(scope:ReviewedScope,description:string):boolean{
   const parts=description.split(':');
-  let component=parts.at(-1)!.split('(')[0].split(/\b(?:including|includes|with|for)\b/i)[0].trim();
+  let component=parts.at(-1)!.replace(/^(?:provide|include|supply|carry)\s+(?:an?\s+)?(?:separate\s+)?(?:materials?\s+)?allowance\s+for\s+/i,'').split('(')[0].split(/\b(?:including|includes|with|for)\b/i)[0].trim();
   // The approved generic hardware label can serve a specifically mapped
   // mounting-consumables task. Product or decorative-hardware labels cannot.
   if(parts.length>1&&/^(?:cabinet\s*(?:\+|&|and)\s*vanity\s+)?hardware(?:\s*-\s*materials?)?$/i.test(component)){

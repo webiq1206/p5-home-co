@@ -102,6 +102,16 @@ export function cabinetComponentRates(row:PriceBookRow,tier:FinishTier,remodel:b
     source:`${installed.source}; ${installed.code} direct cost ${installed.amount} × ${round(fraction*100)}% ${type.toLowerCase()} share`,
   }));
 }
+/** Flooring procurement waste belongs to material, not installation labor.
+ * Use only the labor share explicitly supplied by the owner's master book. */
+export function flooringComponentRates(row:PriceBookRow,tier:FinishTier,remodel:boolean):PlanningRate[]{
+ const share=row[7];
+ if(!/^09-65-/.test(row[0])||row[5]!=='Labor + Material (Installed)'||share===null||!Number.isFinite(share)||share<=0||share>=1)return [];
+ const installed=priceBookRate(row,tier,remodel),labor=round(installed.amount*share),material=round(installed.amount-labor);
+ return ([['M','Material',material,'flooring material only; excludes installation labor',1-share],['L','Labor',labor,'flooring installation labor only; measured installed area, excludes material purchase and waste',share]] as const).map(([suffix,type,amount,includes,fraction])=>({...installed,code:`${installed.code}-${suffix}`,type,amount,
+  description:`${row[3].replace(/, installed$/i,'')} (${includes}; ${TIER_LABEL[tier]} finish; ${row[2]}, ${row[1]}). Component of ${installed.code}, calculated from the master book's stated ${round(share*100)}% labor share. Do not add to the complete installed line.`,
+  source:`${installed.source}; ${installed.code} direct cost ${installed.amount} × ${round(fraction*100)}% ${type.toLowerCase()} share`}));
+}
 /**
  * Every line in the book, priced at this project's finish tier.
  *
@@ -117,7 +127,7 @@ export function priceBookRates(answers:{service?:string|null;finish?:string|null
   const tier=finishTier(answers.finish);
   const marked=PRICE_BOOK_RATEABLE.filter(row=>(row[8]&flags)!==0);
   const rest=PRICE_BOOK_RATEABLE.filter(row=>(row[8]&flags)===0);
-  return [...marked,...rest].flatMap(row=>[priceBookRate(row,tier,remodel),...cabinetComponentRates(row,tier,remodel)]);
+  return [...marked,...rest].flatMap(row=>[priceBookRate(row,tier,remodel),...cabinetComponentRates(row,tier,remodel),...flooringComponentRates(row,tier,remodel)]);
 }
 /** A content hash of the whole book: it changes whenever any line, price or flag changes, so an
  * estimate that records it can always be traced to the exact prices it used. */
