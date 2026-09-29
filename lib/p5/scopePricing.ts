@@ -972,7 +972,30 @@ export function assertResearchReportProducts(raw:unknown,report:string|undefined
   }
  }
 }
-export function marketResolution(raw:unknown,urls:string[],tasks:Mapping['tasks'],now:Date,offset=0,location='',scope?:ReviewedScope):ScopePriceResolution{
+/** Convert a cited package price to the requested unit only when the excerpt
+ * states both the package count and the unconverted price. Never infer counts
+ * from a product name or treat a box price as a per-pound/piece price. */
+export function normalizedMarketObservation(source:z.infer<typeof observation>,rateUnit:string){
+  if(unitKey(source.unit)===unitKey(rateUnit))return source;
+  const packageUnit=source.unit.trim().match(/^(\d+(?:\.\d+)?)\s*[- ]?\s*(lb|lbs?|pounds?|pieces?|pcs?|count|ct|ea|each|box|pack)(?:\s*(?:box|pack))?$/i);
+  const packageDimension=packageUnit&&/^(?:lb|lbs?|pounds?)$/i.test(packageUnit[2])?'pound':'each';
+  if(!packageUnit||!['pound','each'].includes(unitKey(rateUnit))||packageDimension!==unitKey(rateUnit))
+    throw new ResearchEvidenceError('Incompatible benchmark unit or cost basis');
+  const count=Number(packageUnit[1]);
+  const excerpt=source.excerpt.replace(/[\u00a0\u202f]/g,' ');
+  const countAlias=unitKey(rateUnit)==='pound'?'(?:lb|lbs|pounds?)':'(?:pieces?|pcs|count|ct|ea|each)';
+  const statedCount=new RegExp(`\\b${packageUnit[1].replace('.','\\.')}\\s*${countAlias}\\b`,'i').test(excerpt)
+    ||unitKey(rateUnit)==='each'&&new RegExp(`\\b${packageUnit[1].replace('.','\\.')}\\s*[- ]\\s*(?:pack|count|ct)\\b`,'i').test(excerpt);
+  const priceShown=(price:number)=>new RegExp(`\\$\\s*${price.toFixed(2).replace('.','\\.')}\\b`).test(excerpt.replace(/,/g,''));
+  if(!Number.isSafeInteger(count)||count<1||count>100000||!statedCount||!priceShown(source.low)||!priceShown(source.high))
+    throw new ResearchEvidenceError('Package count and price must match the cited source excerpt');
+  const perUnit=(price:number)=>Number((price/count).toFixed(6));
+  return {...source,unit:rateUnit,low:perUnit(source.low),high:perUnit(source.high),
+    // Keep the original package and price in the audit trail, not a fabricated
+    // quotation at the converted unit price.
+    excerpt:`${source.excerpt} (published ${source.low}–${source.high} USD/${source.unit} package; converted to ${perUnit(source.low)}–${perUnit(source.high)} USD/${rateUnit})`};
+}
+export function marketResolution(raw:unknown,urls:string[],tasks:Mapping['tasks'],now:Date,offset=0,location='',scope?:ReviewedScope,singleSourceBudget=false):ScopePriceResolution{
   const market=marketSchema.parse(raw);const result:ScopePriceResolution={rules:[],assumptions:[...market.notes],issues:[...market.issues]};
   for(const r of market.rates){
     const t=tasks.find(t=>t.id===r.taskId&&t.researchDescription);
@@ -1011,28 +1034,38 @@ export function marketResolution(raw:unknown,urls:string[],tasks:Mapping['tasks'
     if(unresolved&&!hasAllowance)result.issues.push(unresolved);
     const quantityFindings=quantityIssues(t,{quantity:r.quantity,quantityEvidence:r.quantityEvidence,quantityRange:r.quantityRange},r.unit,scope,Math.max(tasks.length,2),r.description,r.basis==='material-purchase');
     if(quantityFindings.length){result.issues.push(...quantityFindings);continue;}
+    const normalizedSources=r.sources.map(s=>normalizedMarketObservation(s,r.unit));
+    if(r.basis==='material-purchase'&&['pack','box'].includes(unitKey(r.unit))){
+      const sizes=r.sources.map(s=>s.excerpt.match(/\b(\d+(?:\.\d+)?)\s*(?:lb|lbs|pounds?|pieces?|pcs|count|ct|[- ]?pack)\b/i)?.[1]||'unknown');
+      if(new Set(sizes).size>1)throw new ResearchEvidenceError('Incompatible package sizes require a common per-item or per-weight unit');
+    }
     const hosts=new Set<string>();
-    for(const s of r.sources){
+    for(const s of normalizedSources){
       const u=new URL(s.url);const date=Date.parse(s.publishedAt);
       if(unitKey(s.unit)!==unitKey(r.unit)||s.costBasis!==r.basis)throw new ResearchEvidenceError('Incompatible benchmark unit or cost basis');
-      if(u.protocol!=='https:'||!verifiedResearchUrl(s.url,urls)||s.dateBasis!=='retrieved'&&(!Number.isFinite(date)||date>now.getTime()||now.getTime()-date>365*86400000)||s.high<s.low||s.excerpt.split(/\s+/).length>25)throw new ResearchEvidenceError('Unsupported market source');
+      if(u.protocol!=='https:'||!verifiedResearchUrl(s.url,urls)||s.dateBasis!=='retrieved'&&(!Number.isFinite(date)||date>now.getTime()||now.getTime()-date>365*86400000)||s.high<s.low||r.sources[normalizedSources.indexOf(s)].excerpt.split(/\s+/).length>25)throw new ResearchEvidenceError('Unsupported market source');
       hosts.add(u.hostname.replace(/^www\./,''));
     }
-    if(hosts.size<2)throw new ResearchEvidenceError('Independent market sources required');
-    if(boiseArea(location)&&!r.sources.every(source=>boiseArea(source.region)&&!/\b(?:likely|probably|assum(?:ed|ing)|unverified|unknown|not verified)\b/i.test(source.region)))throw new MissingResearchRateError('Published observations do not establish Boise / Treasure Valley pricing for this item');
+    if(hosts.size<2&&(!singleSourceBudget||r.basis!=='material-purchase'||!atomic))
+      throw new ResearchEvidenceError('Independent market sources required');
+    if(boiseArea(location)&&!normalizedSources.every(source=>boiseArea(source.region)&&!/\b(?:likely|probably|assum(?:ed|ing)|unverified|unknown|not verified)\b/i.test(source.region)))throw new MissingResearchRateError('Published observations do not establish Boise / Treasure Valley pricing for this item');
+    const provisional=hosts.size<2;
+    const observations=provisional?[normalizedSources[0]]:normalizedSources;
     if(r.basis!=='material-purchase'&&r.landedCost)throw new ResearchEvidenceError('Purchase adjustments cannot apply to a labor or installed offering');
     if(r.landedCost)for(const evidence of [r.landedCost.taxEvidence,r.landedCost.freightEvidence]){
       const date=Date.parse(evidence.publishedAt);
       if(new URL(evidence.url).protocol!=='https:'||!verifiedResearchUrl(evidence.url,urls)||evidence.dateBasis==='published'&&(!Number.isFinite(date)||date>now.getTime()||now.getTime()-date>365*86400000)||evidence.excerpt.split(/\s+/).length>25)throw new ResearchEvidenceError('Unsupported purchase adjustment evidence');
     }
     const landed=(product:number)=>r.landedCost?product*(1+r.landedCost.taxRate)+r.landedCost.freightPerUnit*(1+(r.landedCost.taxOnFreight?r.landedCost.taxRate:0)):product;
-    const amount=r.sources.reduce((sum,s)=>sum+landed((s.low+s.high)/2),0)/r.sources.length;
+    const amount=observations.reduce((sum,s)=>sum+landed((s.low+s.high)/2),0)/observations.length;
     const purchaseNote=r.landedCost?`Purchase calculation per ${r.unit}: product price plus ${(r.landedCost.taxRate*100).toFixed(4)}% tax, plus $${r.landedCost.freightPerUnit.toFixed(2)} freight${r.landedCost.taxOnFreight?' with tax on freight':''}. Tax evidence: ${JSON.stringify(r.landedCost.taxEvidence)}. Freight evidence: ${JSON.stringify(r.landedCost.freightEvidence)}. Retrieved ${now.toISOString()}.`:'';
 
     const sourceDate=(s:z.infer<typeof observation>)=>s.dateBasis==='retrieved'?now.toISOString().slice(0,10):s.publishedAt;
-    const sources=r.sources.map(s=>`${s.url} (${s.dateBasis==='retrieved'?'retrieved':'published'} ${sourceDate(s)}; ${s.region}; ${s.low} to ${s.high} USD/${r.unit})`).join('; ');
-    result.rules.push({scopeTaskId:t.id,id:`market-${offset+result.rules.length+1}`,unitRateContext:{currency:'USD',basis:r.basis,includes:r.includes,excludes:r.excludes,assumptions:['Regional average unit-cost allowance; not a supplier quote. Benchmark locality and purchase incidentals require verification.',...(purchaseNote?[purchaseNote]:[])]},description:r.description,unit:r.unit,building:r.building,floor:r.floor,quantityRange:r.quantityRange||undefined,allowance:true,unitCostRange:{low:Math.min(...r.sources.map(s=>landed(s.low))),high:Math.max(...r.sources.map(s=>landed(s.high)))},quantity:{fixed:r.quantity,factor:1},unitCost:Math.round(amount*10000)/10000,category:r.basis==='material-purchase'?'materials':r.basis==='trade-labor'?'field-labor':'subcontractors',priceBasis:'direct-cost',estimatingBasis:'sourced-market-average',evidence:{basis:'sourced-market-average',provenance:{status:'estimated',location:location||r.sources.map(s=>s.region).join('; '),retrievedAt:now.toISOString(),assumptions:[r.quantityEvidence,'Regional average unit-cost allowance; not a supplier quote. Benchmark locality and purchase incidentals require verification.',...(purchaseNote?[purchaseNote]:[]),'Includes: '+r.includes,'Excludes: '+r.excludes],sources:r.sources.map(s=>({url:s.url,date:sourceDate(s),dateBasis:s.dateBasis||'published',region:s.region,low:s.low,high:s.high}))},reference:`Mean of published source midpoints with sourced purchase adjustments: ${sources}. ${purchaseNote} Includes: ${r.includes}. Excludes: ${r.excludes}. ${r.quantityEvidence}`,verifiedAt:now.toISOString(),validUntil:new Date(now.getTime()+30*86400000).toISOString()}});
-    result.assumptions.push(`${r.description}: sourced average-cost allowance for ${r.quantity} ${r.unit}. Includes ${r.includes}. ${purchaseNote} ${r.excludes?`Excludes ${r.excludes}.`:""} Basis: ${r.sources.map(s=>`${s.region} (${s.sourceType})`).join('; ')}. ${r.sources.some(s=>s.dateBasis==='retrieved')?'Publication date unavailable; freshness requires verification. ':''}Preliminary unit-cost benchmark, not a supplier quote. Verify selections and any incidental charges not specified in the benchmark. Sources: ${r.sources.map(s=>s.url).join("; ")}`);
+    const sources=observations.map(s=>`${s.url} (${s.dateBasis==='retrieved'?'retrieved':'published'} ${sourceDate(s)}; ${s.region}; ${s.low} to ${s.high} USD/${r.unit}; ${s.excerpt})`).join('; ');
+    const label=provisional?'Single-supplier preliminary budget allowance; not an independently verified market average or a supplier quote. Confirm product suitability, local availability and purchase incidentals before a firm proposal.':'Regional average unit-cost allowance; not a supplier quote. Benchmark locality and purchase incidentals require verification.';
+    const basis=provisional?'regional-planning-average':'sourced-market-average';
+    result.rules.push({scopeTaskId:t.id,id:`market-${offset+result.rules.length+1}`,unitRateContext:{currency:'USD',basis:r.basis,includes:r.includes,excludes:r.excludes,assumptions:[label,...(purchaseNote?[purchaseNote]:[])]},description:r.description,unit:r.unit,building:r.building,floor:r.floor,quantityRange:r.quantityRange||undefined,allowance:true,unitCostRange:{low:Math.min(...observations.map(s=>landed(s.low))),high:Math.max(...observations.map(s=>landed(s.high)))},quantity:{fixed:r.quantity,factor:1},unitCost:Math.round(amount*10000)/10000,category:r.basis==='material-purchase'?'materials':r.basis==='trade-labor'?'field-labor':'subcontractors',priceBasis:'direct-cost',estimatingBasis:basis,evidence:{basis,provenance:{status:'estimated',location:location||observations.map(s=>s.region).join('; '),retrievedAt:now.toISOString(),assumptions:[r.quantityEvidence,label,...(purchaseNote?[purchaseNote]:[]),'Includes: '+r.includes,'Excludes: '+r.excludes],sources:observations.map(s=>({url:s.url,date:sourceDate(s),dateBasis:s.dateBasis||'published',region:s.region,low:s.low,high:s.high}))},reference:`${provisional?'Single cited supplier budget allowance':'Mean of independent published source midpoints'} with sourced purchase adjustments: ${sources}. ${purchaseNote} Includes: ${r.includes}. Excludes: ${r.excludes}. ${r.quantityEvidence}`,verifiedAt:now.toISOString(),validUntil:provisional?now.toISOString():new Date(now.getTime()+30*86400000).toISOString()}});
+    result.assumptions.push(`${r.description}: ${provisional?'single-supplier preliminary budget allowance, not independently verified':'sourced average-cost allowance'} for ${r.quantity} ${r.unit}. ${label} Includes ${r.includes}. ${purchaseNote} ${r.excludes?`Excludes ${r.excludes}.`:""} Basis: ${observations.map(s=>`${s.region} (${s.sourceType})`).join('; ')}. ${observations.some(s=>s.dateBasis==='retrieved')?'Publication date unavailable; freshness requires verification. ':''}Preliminary unit-cost benchmark, not a supplier quote. Verify selections and any incidental charges not specified in the benchmark. Sources: ${observations.map(s=>s.url).join("; ")}`);
   }
   for(const t of tasks.filter(t=>t.researchDescription))if(!market.rates.some(r=>r.taskId===t.id))result.issues.push(`${t.description}: no defensible average rate found.`);
   return result;
@@ -1490,13 +1523,18 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
     const priceGapBatch=async(gapBatch:Mapping['tasks'],batchIndex:number,covered:(task:Mapping['tasks'][number])=>unknown[],priorIssues?:string[]):Promise<{replies:PricingReply[];resolution:ScopePriceResolution;modelIssues:string[]}>=>{
       const replies:PricingReply[]=[];const offset=batchIndex*100;
       const tasksInput=gapBatch.map(t=>({id:t.id,description:t.researchDescription,application:scope.answers.service||'construction',quantityEvidence:t.evidence,alreadyCovered:covered(t)}));
+      const provisionalCandidates:{rates:ReturnType<typeof parseResearchRates>;urls:string[];report:string}[]=[];
+      let currentSourceUrls:string[]=[],currentReport='';
       const validateReply=(value:unknown)=>{
         const rates=parseResearchRates(value);
+        if(currentReport){
+          assertResearchReportProducts(rates,currentReport,gapBatch);
+          provisionalCandidates.push({rates,urls:[...currentSourceUrls],report:currentReport});
+        }
         const priced=marketResolution(rates,currentSourceUrls,gapBatch,now,offset,region,scope);
         if(gapBatch.some(task=>!priced.rules.some(rule=>rule.scopeTaskId===task.id&&rule.unitCost>0)))
           throw new MissingResearchRateError(['Published research did not price every requested task',...priced.issues,...rates.issues].join('; ').slice(0,5000));
       };
-      let currentSourceUrls:string[]=[];
       let researchFailure='',researchTimedOut=false;
       let previousResearch:PricingReply|undefined;
       // Every missing item must attempt published research, including late
@@ -1507,6 +1545,7 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
         let researched=await request(RESEARCH,{date:now.toISOString().slice(0,10),region,tasks:tasksInput,...(priorIssues?{priorIssues}:{})},true,Math.min(RESEARCH_STAGE_MS,deadline-Date.now()));
         previousResearch=researched;
         currentSourceUrls=researched.sourceUrls;
+        currentReport=researched.sourceReport||'';
         researched=await reconcileResearchReply(researched,gapBatch,request,()=>deadline-Date.now(),validateReply);
         const accepted=parseResearchRates(researched.value);
         const market=marketResolution(accepted,researched.sourceUrls,gapBatch,now,offset,region,scope);
@@ -1537,6 +1576,7 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
         let retried=await request(RESEARCH,{date:now.toISOString().slice(0,10),region,tasks:tasksInput,correction,retryInstruction:'Correct the prior evidence failure, not merely the formatting. Cite only exact URLs returned by this search; never invent a second source to meet the source count. Open and verify product prices for the specific missing supplies, not an unrelated whole-kitchen budget. Research these exact remaining items individually for Boise / Treasure Valley. Use published local trade rates and supplier product prices with local availability where appropriate. Break a service into evidenced labor and material components if no complete assembly price exists. No uncited planning averages.',priorIssues:[...(priorIssues||[]),researchFailure],previousResearch:previousResearch?{report:previousResearch.sourceReport,structured:previousResearch.value,sourceUrls:previousResearch.sourceUrls}:undefined,evidenceRequirements:'Keep the exact requested single product. Preserve useful valid observations from the previous research, verify their cited pages, and replace only unsupported observations. Find a different supplier if independence is missing. Verify Boise service-area applicability; do not say likely. Include a standalone Evidence: line for each source, at most 25 words naming its actual product, package and published price. Do not mix observations or invent an excerpt.'},true,Math.min(RESEARCH_STAGE_MS,deadline-Date.now()));
         previousResearch=retried;
         currentSourceUrls=retried.sourceUrls;
+        currentReport=retried.sourceReport||'';
         retried=await reconcileResearchReply(retried,gapBatch,request,()=>deadline-Date.now(),validateReply);
         const accepted=parseResearchRates(retried.value);
         const market=marketResolution(accepted,retried.sourceUrls,gapBatch,now,offset,region,scope);
@@ -1552,6 +1592,20 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
         researchFailure=error instanceof Error?error.message:'Research evidence remains incomplete';
       }
       if(researchTimedOut||pastWindow)throw new PricingPending('Research is temporarily unavailable. Your project and completed pricing steps are saved.',30000);
+      // A single cited, locally applicable product price can support a clearly
+      // disclosed preliminary budget, not an independently verified market
+      // average. It is never saved as a reusable market rate. No report, missing
+      // item, invalid package arithmetic or unsupported source still blocks.
+      for(const candidate of provisionalCandidates.reverse())try{
+        const provisional=marketResolution(candidate.rates,candidate.urls,gapBatch,now,offset,region,scope,true);
+        if(provisional.issues.length||candidate.rates.issues.length||gapBatch.some(task=>!provisional.rules.some(rule=>rule.scopeTaskId===task.id&&rule.unitCost>0)))continue;
+        const usedUrls=[...new Set(provisional.rules.flatMap(rule=>rule.evidence.provenance?.sources.map(source=>source.url)||[]))];
+        const accepted={...candidate.rates,rates:candidate.rates.rates.map(rate=>({
+          ...rate,sources:rate.sources.filter(source=>provisional.rules.some(rule=>rule.scopeTaskId===rate.taskId&&rule.evidence.provenance?.sources.some(cited=>cited.url===source.url)))
+        }))};
+        replies.push({value:accepted,sourceUrls:usedUrls,sourceReport:candidate.report});
+        return {replies,resolution:provisional,modelIssues:[]};
+      }catch(error){if(!(error instanceof MissingResearchRateError)&&!(error instanceof ResearchEvidenceError))throw error;}
       console.error('[p5-pricing] researched evidence exhausted:',researchFailure.slice(0,1500));
       // All three distinct requests are saved. Replaying these same rejected
       // replies cannot improve the result; stop the job instead of showing
