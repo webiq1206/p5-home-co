@@ -270,6 +270,36 @@ test('unsupported research units are explained to the corrective search',async()
  assert.ok(supportedUnit('LB')&&supportedUnit('pack')&&supportedUnit('box'));
  assert.notEqual(unitKey('pack'),unitKey('EA'));assert.notEqual(unitKey('LB'),unitKey('LS'));
 });
+test('invalid normalized research quantities trigger corrective research instead of a schema crash',async()=>{
+ const invalid=structuredClone(researched);invalid.rates[0].quantity=0;
+ const queue=replies([{tasks:[task,extra],issues:[]},invalid,invalid,researched,{coveredTaskIds:['cabinets','overlay'],issues:[]}]);
+ let corrected=false;
+ const result=await priceCompleteScope(scope,config,async(instructions,input,search,remaining)=>{
+  if((input as any).retryInstruction){corrected=true;assert.match(JSON.stringify((input as any).priorIssues),/rates.0.quantity/);}
+  return queue(instructions,input,search,remaining);
+ },now);
+ assert.ok(corrected);assert.ok(result.customer.range);
+});
+test('two invalid research replies preserve pending work without accepting zero quantities',async()=>{
+ const invalid=structuredClone(researched);invalid.rates[0].quantity=0;
+ await assert.rejects(()=>priceCompleteScope(scope,config,replies([{tasks:[task,extra],issues:[]},invalid,invalid,invalid,invalid]),now),PricingPending);
+});
+test('consumable research separates unlike products and retains parent coverage without duplicate fasteners',async()=>{
+ const {researchTaskBatches}=await import('../lib/p5/scopePricing.ts');
+ const local={...scope,text:'Install 9 LF base and 12 LF wall cabinets. Contractor supplies screws, fasteners and shims.',answers:{location:'Boise'}};
+ const supplies={...extra,id:'supplies',description:'Supply mounting screws, fasteners and shims',evidence:local.text,researchDescription:'Material purchase only: mounting screws, fasteners and shims'};
+ const batches=researchTaskBatches([supplies],local);
+ assert.equal(batches.length,2);
+ assert.deepEqual(batches.map(batch=>batch[0].description),['Supply contractor installation screws','Supply contractor installation shims']);
+ assert.ok(batches.every(batch=>batch.length===1&&batch[0].id==='supplies'&&batch[0].evidence.includes(local.text)&&batch[0].evidence.includes(supplies.description)));
+ const rate={...researched.rates[0],taskId:'supplies',description:'Contractor screws and shims',unit:'LS',quantity:1,quantityEvidence:'ALLOWANCE: one installation supply package.',quantityRange:{low:1,high:1},sources:researched.rates[0].sources.map(source=>({...source,unit:'LS'}))};
+ const rejected=marketResolution({rates:[rate],issues:[]},urls,batches[0],now,0,'Boise',local);
+ assert.equal(rejected.rules.length,0);assert.match(rejected.issues.join(' '),/atomic material research/);
+ assert.equal(supplies.description,'Supply mounting screws, fasteners and shims');
+ assert.equal(researchTaskBatches([extra],local)[0][0],extra);
+ const ownerOnly={...local,text:'Owner supplies all screws and shims.'};
+ assert.equal(researchTaskBatches([supplies],ownerOnly).length,1);
+});
 test('source verification ignores tracking but preserves product and region identity',async()=>{
  const {verifiedResearchUrl}=await import('../lib/p5/scopePricing.ts');
  assert.ok(verifiedResearchUrl(urls[0],[urls[0]+'?utm_source=openai#price']));
@@ -322,8 +352,9 @@ test('Incorrect assembly lines can be replaced without charging both, but cannot
 });
 test('Invalid catalog references and zero-quantity output never release a range',async()=>{
  for(const a of [{code:'missing',quantity:10,quantityEvidence:'ten feet'},{code:'03-15-02-M',quantity:0,quantityEvidence:'ten feet'}]){
-  const r=await priceCompleteScope(scope,config,replies([{tasks:[task,{...extra,researchDescription:'',additions:[a]}],issues:[]},{coveredTaskIds:['cabinets','overlay'],issues:[]}]),now);
-  assert.equal(r.customer.range,null);
+  const run=()=>priceCompleteScope(scope,config,replies([{tasks:[task,{...extra,researchDescription:'',additions:[a]}],issues:[]},{coveredTaskIds:['cabinets','overlay'],issues:[]}]),now);
+  if(a.code==='missing')await assert.rejects(run,PricingPending);
+  else assert.equal((await run()).customer.range,null);
  }
 });
 test('completed OpenAI search prose retains actual citations for strict normalization',async()=>{
@@ -484,10 +515,8 @@ test('Malformed researched evidence blocks instead of becoming an invented plann
     if(instructions.startsWith('Convert the supplied research report'))return {value:{rates:[{taskId:'overlay'}],issues:[],notes:[]},sourceUrls:[]};
     planningCalls++;return {value:{rates:[],issues:[],notes:[]},sourceUrls:[]};
   };
-  const result=await priceCompleteScope(scope,config,request,now);
-  assert.equal(result.customer.range,null);
+  await assert.rejects(()=>priceCompleteScope(scope,config,request,now),PricingPending);
   assert.equal(planningCalls,0,'invalid evidence is not replaced by an unsupported model value');
-  assert.ok(result.internal.scopePricing.issues.some((issue:string)=>/ZodError|pricing did not complete/i.test(issue)));
 });
 
 test('An audit finding is repaired with a labeled quantity allowance, then audited again',async()=>{
@@ -1335,9 +1364,19 @@ test('omitted contractor consumables become one researched task instead of free 
  normalizeConsumableMapping(included,assembled,[],restricted);
  assert.equal(included.tasks.length,1,'installed assembly inclusions are not duplicated');
  const gap={rates:[{taskId:'required-contractor-consumables',description:'Contractor screws and shims',unit:'LS',quantity:1,quantityEvidence:'ALLOWANCE: One job package for the stated cabinet runs; verify actual usage.',quantityRange:{low:1,high:1},basis:'material-purchase',includes:'screws and shims',excludes:'cabinet products and labor',landedCost:null,sources:urls.map(url=>({...source(url,30,50),unit:'LS'}))}],issues:[]};
- const priced=await priceCompleteScope(restricted,configuration,replies([{tasks:[install],issues:[]},gap,{coveredTaskIds:[install.id,'required-contractor-consumables'],issues:[]}]),now);
+ const queue=replies([{tasks:[install],issues:[]},{coveredTaskIds:[install.id,'required-contractor-consumables'],issues:[]}]);
+ const products:string[]=[];
+ const priced=await priceCompleteScope(restricted,configuration,async(instructions,input,search,remaining)=>{
+  if(search){
+   const product=(input as any).tasks[0].description.includes('ONLY contractor-supplied screws')?'screws':'shims';
+   products.push(product);
+   return {value:{...gap,rates:[{...gap.rates[0],description:'Contractor '+product,includes:product}]},sourceUrls:urls};
+  }
+  return queue(instructions,input,search,remaining);
+ },now);
  assert.ok(priced.customer.range,JSON.stringify(priced.internal.scopePricing));
- assert.ok((priced.internal as any).lines.some((line:any)=>line.category==='materials'&&line.unitCost===40));
+ assert.deepEqual(products.sort(),['screws','shims']);
+ assert.equal((priced.internal as any).lines.filter((line:any)=>line.category==='materials'&&line.unitCost===40).length,2);
 });
 test('labor-only pricing retains requested contractor consumables through final release',async()=>{
  const restricted={...scope,text:'Install owner-supplied baseboard. Labor only. Contractor supplies nails and caulk.',answers:{service:'handyman',ownerSupplied:'Owner supplies baseboard'},extraction:{summary:'Trim installation',facts:[],conflicts:[],missingInformation:[],reviewNotes:[],instructions:{...emptyInstructions(),laborOnly:true}}};
