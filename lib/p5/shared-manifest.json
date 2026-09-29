@@ -1,7 +1,7 @@
 {
  "source": "boise-remodeling-co",
- "commit": "f31afdc1ee453265db87a139db09d3d094beae4b",
- "generatedAt": "2026-09-29T18:22:23.935Z",
+ "commit": "a5f772f59b8c17d782b7863e1c05d76294e916ff",
+ "generatedAt": "2026-09-29T18:23:32.422Z",
  "note": "Shared estimator files. Edit them in boise-remodeling-co and run scripts/p5-sync.mjs; never edit them in one brand.",
  "files": {
   "app/admin/p5-estimators/page.tsx": "a2401f2a29c22dd1a5631fa2c065114275b4e7c1d99ba6c97a8ff0f26cb6a3ad",
@@ -141,7 +141,7 @@
   "lib/p5/scopeEndpoint.ts": "ef252b529b3fadbc2cf6677046b689abee8c7bc9e84466c809547a7eeacf7ce4",
   "lib/p5/scopeFields.ts": "7f107282a7bf8b505d8d76da01a2cf18a8c17b3d33b91878b09fba582fd36fdf",
   "lib/p5/scopeInventory.ts": "823baac9f40357847a8f6afd9a905058298dfc8dab553d584223bcd3f890d64a",
-  "lib/p5/scopePricing.ts": "94dac7f29a68c4ae418cf8f9f44ed59c16c021c2a7aefa77eef9ad9c321b91eb",
+  "lib/p5/scopePricing.ts": "9a8d34b44b4027f40c99b656ec004b4beba9211b792baca64fb1e1594e9573aa",
   "lib/p5/scopeReplacement.ts": "077808649a22705cca5ddbbb585524ac5faf8a8925caf30485992e036e334d91",
   "lib/p5/serviceSignals.ts": "86f2d8dd6b19650a6541b5cc747ee2170e0bb858a185b68c5cd75df9297fa708",
   "lib/p5/sourceResponsibilities.ts": "ef1a9b3d23e13ed1ecae53eebf12695995b2a4c85223d0e31e3fe99951c7889b",
@@ -303,7 +303,7 @@
   "tests/p5-review-schema.test.mjs": "aa87ddc79b7cf745cb3c898e321afc36496e86dfea658e2c08e5aa1212b44b28",
   "tests/p5-save-return.test.ts": "dc3c1dd2194d9b9db047047de35af252d19df0b567bc3a8fac9782dce8d4adfc",
   "tests/p5-scope-inventory.test.ts": "7f66957ff37ecd0d67dec62619103882575fb4f21bbe6d98d8eabd18d369969b",
-  "tests/p5-scope-pricing.test.ts": "81b3aff043803dec7d1f665bf22e24c434faed8cfa40cc011bc5819d0ee1beb0",
+  "tests/p5-scope-pricing.test.ts": "fe3a0953f4339baa674056d00635fd8c97422fcde829428fa5b29236f0f91e33",
   "tests/p5-scope-replacement.test.ts": "66d3a86fa98851f06790a243ee0606f724a054fcc733da2b1f5220138f7b1d51",
   "tests/p5-service-signals.test.ts": "c016b3ea8dea787c3f26d7a7527ed69bc547ece3167b52f8bb8e97c0b8a8285f",
   "tests/p5-shared-engine.test.ts": "20ae2674d22f093301f9745f81d81e5135985e9ffa7ac1a0708c9ece1cc33ed4",

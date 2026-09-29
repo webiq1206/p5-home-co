@@ -79,7 +79,7 @@ const marketSchema=z.object({rates:z.array(z.object({taskId:text,description:pro
  * conversion factor. */
 function quotedPackage(excerpt:string,unit:string){
  const weight=/\b(\d+(?:\.\d+)?|five)[\s-]*(?:lb|lbs|pounds?)\b/i;
- const count=/\b(\d+(?:\.\d+)?)\s*[- ](?:pack|count|ct)\b|\b(?:pack|box) of (\d+(?:\.\d+)?)\s*(?:pieces?|pcs?|screws?|shims?|nails?)\b|\b(\d+(?:\.\d+)?)\s*(?:pieces?|pcs?)\s*(?:per\s+)?(?:pack|box)\b/i;
+ const count=/\b(\d+(?:\.\d+)?)\s*[- ](?:pack|pk|count|ct|pieces?|pcs?)\b|\b(?:pack|box) of (\d+(?:\.\d+)?)\s*(?:pieces?|pcs?|screws?|shims?|nails?)\b|\b(\d+(?:\.\d+)?)\s*(?:pieces?|pcs?)\s*(?:per\s+)?(?:pack|box)\b/i;
  const match=unit==='pound'?excerpt.match(weight):unit==='each'?excerpt.match(count):null;
  if(!match)return null;
  const number=(match[1]||match[2]||match[3]).toLowerCase();
@@ -123,6 +123,12 @@ function parseResearchRates(raw:unknown){
    const original={unit:source.unit,low:source.low,high:source.high};
    source.low=Number((source.low/factor).toPrecision(12));source.high=Number((source.high/factor).toPrecision(12));source.unit=rate.unit;
    market.notes.push('Source unit conversion: '+source.url+'; '+original.low+' to '+original.high+' USD/'+original.unit+' divided by '+factor+' = '+source.low+' to '+source.high+' USD/'+rate.unit+'.');
+  }else if(sameUnit&&source.low===source.high&&citedPrices.filter(price=>Math.abs(Math.round(price/factor*100)/100-source.low)<.000001).length===1){
+   // Reports commonly display 8.44 / 60 as 0.14 each. Keep the exact
+   // cited package arithmetic instead of rejecting a rounded display value.
+   const packagePrice=citedPrices.find(price=>Math.abs(Math.round(price/factor*100)/100-source.low)<.000001)!;
+   source.low=source.high=Number((packagePrice/factor).toPrecision(12));
+   market.notes.push('Exact package arithmetic retained: '+source.url+'; '+packagePrice+' USD divided by '+factor+' = '+source.low+' USD/'+rate.unit+'.');
   }else if(!sameUnit||!citedPrices.some(price=>Math.abs(price/factor-source.low)<.000001&&Math.abs(price/factor-source.high)<.000001)){
    throw new ResearchEvidenceError('Package price does not match the cited supplier excerpt');
   }

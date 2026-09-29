@@ -1988,3 +1988,16 @@ test('unmapped standard cabinet alignment links to complete installation labor o
  assert.deepEqual(repair.existingLineIds,[],'separate repair work cannot inherit new-installation coverage');
  assert.ok(held.issues.some(issue=>issue.includes('no supported price')));
 });
+
+test('rounded per-piece display values retain exact quoted package arithmetic',()=>{
+ const raw=structuredClone(researched),rate=raw.rates[0];
+ rate.unit='EA';rate.quantity=60;rate.quantityEvidence='ALLOWANCE: 60 screws';rate.quantityRange={low:40,high:80};
+ rate.sources=[{...source(urls[0],0.14,0.14),unit:'EA',excerpt:'Cabinet screws, 60-piece pack, $8.44 (14 cents each).'},
+  {...source(urls[1],0.12,0.12),unit:'EA',excerpt:'Cabinet screws, 100-pk, $11.98 (12 cents each).'}];
+ const result=marketResolution(raw,urls,[extra],now);
+ assert.equal(result.rules[0].unitCost,0.1302);
+ assert.match(result.assumptions.join(' '),/8.44 USD divided by 60/);
+ assert.match(result.assumptions.join(' '),/11.98 USD divided by 100/);
+ rate.sources[0].low=rate.sources[0].high=0.5;
+ assert.throws(()=>marketResolution(raw,urls,[extra],now),/Package price does not match/,'a materially different amount cannot be repaired as display rounding');
+});
