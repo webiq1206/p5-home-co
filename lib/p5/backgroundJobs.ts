@@ -1,3 +1,4 @@
+import {ESTIMATOR_VERSION} from './version.ts';
 import {MODEL_POLICY_VERSION,hasVerifiedAnalysis} from './modelPolicy.ts';
 import {ANALYSIS_PASS_MS,BACKGROUND_JOB_LIMIT_MS,PRICING_PASS_MS,PROCESSING_PAUSED,ProcessingDeadlineError,remainingBudget,isProcessingDeadline} from './processingBudget.ts';
 import {recordEvent,describeError} from './events.ts';
@@ -111,8 +112,10 @@ export async function queuedJob(input:Input,retry=false,holdMs=JOB_HOLD_MS){
   if(SOURCE_COVERAGE_REQUIRED&&input.kind==='pricing')assertProjectSourceCoverage(input.draft.reviewed?.uploads||input.draft.uploads,input.draft.reviewed?.extraction);
   if(input.kind==='analysis'&&input.draft.uploads.length)await assertAnalysisMigrationSafe(input.draft,input.text,input.answers,(await import('./analysisWork.ts')).analysisWorkKey(input.draft,input.text,input.answers));
   rejectQuiescedAdmission();
-  // Keep the deployed v1 queue identity and its attempt/lifetime accounting.
-  const canonicalKey=backgroundKey(input.kind==='analysis'?analysisQueueIdentity(input):{engineVersion:9,modelPolicy:MODEL_POLICY_VERSION,kind:input.kind,id:input.draft.id,reviewed:input.draft.reviewed,configuration:input.configuration,date:new Date().toISOString().slice(0,10)});
+  // Analysis keeps its deployed identity and attempt accounting. Pricing must
+  // follow the release, just like its inner checkpoint: otherwise a completed
+  // no-range result from an older engine prevents deployed fixes from running.
+  const canonicalKey=backgroundKey(input.kind==='analysis'?analysisQueueIdentity(input):{engineVersion:9,estimatorVersion:ESTIMATOR_VERSION,modelPolicy:MODEL_POLICY_VERSION,kind:input.kind,id:input.draft.id,reviewed:input.draft.reviewed,configuration:input.configuration,date:new Date().toISOString().slice(0,10)});
   const key=input.kind==='analysis'?await analysisQueueKey(input,canonicalKey):canonicalKey;
   rejectQuiescedAdmission();
   const initial:Job={input,state:'queued',progress:input.kind==='analysis'?(input.draft.uploads.length?'Your project files are saved and queued for review.':'Your project details are saved and queued for review.'):'Your scope is queued for pricing.',attempts:0,createdAt:new Date().toISOString()};
