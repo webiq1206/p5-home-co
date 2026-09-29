@@ -270,6 +270,17 @@ test('unsupported research units are explained to the corrective search',async()
  assert.ok(supportedUnit('LB')&&supportedUnit('pack')&&supportedUnit('box'));
  assert.notEqual(unitKey('pack'),unitKey('EA'));assert.notEqual(unitKey('LB'),unitKey('LS'));
 });
+test('live research keeps one request in flight and stops on provider backoff',async()=>{
+ const {mapResearchTasks,openAiPricingRequestEnvelope}=await import('../lib/p5/scopePricing.ts');
+ let active=0,peak=0;
+ const result=await mapResearchTasks([1,2,3],async n=>{active++;peak=Math.max(peak,active);await new Promise(resolve=>setTimeout(resolve,5));active--;return n*2;});
+ assert.deepEqual(result,[2,4,6]);assert.equal(peak,1);
+ const attempted:number[]=[];
+ await assert.rejects(()=>mapResearchTasks([1,2,3],async n=>{attempted.push(n);throw new PricingPending('Rate limited',30000);}),PricingPending);
+ assert.deepEqual(attempted,[1]);
+ const envelope=openAiPricingRequestEnvelope('Synthetic research',{},true);
+ assert.equal(envelope.body.max_output_tokens,6000);assert.equal(envelope.body.tool_choice,'required');
+});
 test('invalid normalized research quantities trigger corrective research instead of a schema crash',async()=>{
  const invalid=structuredClone(researched);invalid.rates[0].quantity=0;
  const queue=replies([{tasks:[task,extra],issues:[]},invalid,invalid,researched,{coveredTaskIds:['cabinets','overlay'],issues:[]}]);

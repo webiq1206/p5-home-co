@@ -205,7 +205,7 @@ export type OpenAiPricingOptions={serviceTier?:'default';maxOutputTokens?:number
 export const openAiPricingRequestEnvelope=(instructions:string,input:unknown,search:boolean,options:OpenAiPricingOptions={})=>{
   const task=search?'research':instructions===INVENTORY?'inventory':instructions===MAP||instructions===PLANNING_AVERAGE||instructions===normalizeResearch?'map':'audit';
   const model=ESTIMATOR_MODEL;
-  const body={model,...reasoningFor(model,task),instructions,input:'Return JSON only.\n'+JSON.stringify(input),max_output_tokens:options.maxOutputTokens||(search?24000:task==='map'?28000:16000),store:false,...(options.serviceTier?{service_tier:options.serviceTier}:{}),...(search?{tools:[{type:'web_search'}],tool_choice:'required',include:['web_search_call.action.sources']}:{text:{format:{type:'json_schema',name:'pricing_stage',strict:true,schema:stageSchema(instructions)}}})};
+  const body={model,...reasoningFor(model,task),instructions,input:'Return JSON only.\n'+JSON.stringify(input),max_output_tokens:options.maxOutputTokens||(search||instructions===normalizeResearch?6000:task==='map'?28000:16000),store:false,...(options.serviceTier?{service_tier:options.serviceTier}:{}),...(search?{tools:[{type:'web_search'}],tool_choice:'required',include:['web_search_call.action.sources']}:{text:{format:{type:'json_schema',name:'pricing_stage',strict:true,schema:stageSchema(instructions)}}})};
   return {model,body};
 };
 /** One provider exchange without charge accounting. `requestPricingWith` adds the ledger. */
@@ -280,7 +280,7 @@ const requestPricingWithUnsafe=async(provider:'anthropic'|'openai',instructions:
   const parts=(body.output||[]).flatMap((o:any)=>o.content||[]);
   const raw=parts.filter((p:any)=>p.type==='output_text').map((p:any)=>p.text).join('\n');
   const sourceUrls:string[]=[...(body.output||[]).filter((o:any)=>o.type==='web_search_call').flatMap((o:any)=>(o.action?.sources||[]).map((s:any)=>s.url)),...parts.flatMap((p:any)=>(p.annotations||[]).filter((a:any)=>a.type==='url_citation').map((a:any)=>a.url))];
-  if(search&&!sourceUrls.length)throw new Error('pricing-search-unavailable');
+  if(search&&!sourceUrls.length){console.error('[p5-pricing] research returned no citations',JSON.stringify({provider:'openai',status:body.status,outputTypes:(body.output||[]).map((item:any)=>String(item.type||'')),textCharacters:raw.length}));throw new Error('pricing-search-unavailable');}
   const usage=body.usage||{},details=usage.input_tokens_details||{};
   const tokens={inputTokens:Math.max(0,Number(usage.input_tokens||0)),cachedInputTokens:Math.max(0,Number(details.cached_tokens||0)),outputTokens:Math.max(0,Number(usage.output_tokens||0)),totalTokens:Math.max(0,Number(usage.total_tokens||0))};
   const providerIdentity:PricingProviderIdentity|undefined=integrated&&openAiOptions.serviceTier==='default'?{provider:'openai',endpoint:'replit-managed',responseId:String(body.id||''),requestedModel:model,returnedModel:String(body.model||''),requestedServiceTier:'default',returnedServiceTier:String(body.service_tier||''),usage:tokens}:undefined;
@@ -351,10 +351,15 @@ const MAX_MAP_CALLS=Math.max(1,Number(process.env.P5_MAX_MAP_CALLS||8));
  * Genuine large takeoffs need additional bounded-concurrency batches, not truncated scope. */
 export const mappingBatchSize=(tasks:number,batch=MAP_BATCH,ceiling=MAX_MAP_CALLS)=>
   Math.min(32,Math.max(1,batch,Math.ceil(Math.max(0,tasks)/Math.max(1,ceiling))));
-async function mapLimit<T,R>(items:T[],run:(item:T,index:number)=>Promise<R>):Promise<R[]>{
+async function mapLimit<T,R>(items:T[],run:(item:T,index:number)=>Promise<R>,concurrency=PRICING_FANOUT):Promise<R[]>{
   const results:R[]=new Array(items.length);let next=0;
-  await Promise.all(Array.from({length:Math.min(PRICING_FANOUT,items.length)},async()=>{while(next<items.length){const index=next++;results[index]=await run(items[index],index);}}));
+  await Promise.all(Array.from({length:Math.min(concurrency,items.length)},async()=>{while(next<items.length){const index=next++;results[index]=await run(items[index],index);}}));
   return results;
+}
+/** Live web research is serialized per job to avoid multiplying provider
+ * rate-limit reservations. A rejected stage stops dispatching later searches. */
+export function mapResearchTasks<T,R>(items:T[],run:(item:T,index:number)=>Promise<R>):Promise<R[]>{
+ return mapLimit(items,run,1);
 }
 function existingLines(priced:ReturnType<typeof priceReviewedScope>){
   return 'lines' in priced.internal?priced.internal.lines:[];
@@ -1394,7 +1399,7 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
       for(const priced of results){research.push(...priced.replies);priced.modelIssues.forEach(issue=>modelIssues.add(issue));resolution.rules.push(...priced.resolution.rules);resolution.assumptions.push(...priced.resolution.assumptions);resolution.issues.push(...priced.resolution.issues);}
     };
     const mappedLines=existingLines(priceReviewedScope(scope,configuration,now,resolution));
-    mergeGapResults(await mapLimit(researchTaskBatches(gaps,pricingScope),(gapBatch,index)=>priceGapBatch(gapBatch,index,t=>coveredWork(t,mappedLines,resolution.rules))));
+    mergeGapResults(await mapResearchTasks(researchTaskBatches(gaps,pricingScope),(gapBatch,index)=>priceGapBatch(gapBatch,index,t=>coveredWork(t,mappedLines,resolution.rules))));
     const audit:z.infer<typeof auditSchema>={coveredTaskIds:[],issues:[],notes:[],resolvedIssues:[]};
     const reconcileIssues=()=>{
       if(audit.issues.length||mapping.tasks.some(t=>!audit.coveredTaskIds.includes(t.id)))return;
@@ -1551,7 +1556,7 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
       const replaced=new Set(repairGaps.map(t=>t.id));
       resolution.rules=resolution.rules.filter(rule=>!(researchRule(rule)&&replaced.has(rule.scopeTaskId!)));
       const repairedLines=existingLines(priceReviewedScope(scope,configuration,now,resolution));
-      mergeGapResults(await mapLimit(researchTaskBatches(repairGaps,pricingScope),(gapBatch,index)=>priceGapBatch(gapBatch,1000+index,t=>coveredWork(t,repairedLines,resolution.rules),priorIssues)));
+      mergeGapResults(await mapResearchTasks(researchTaskBatches(repairGaps,pricingScope),(gapBatch,index)=>priceGapBatch(gapBatch,1000+index,t=>coveredWork(t,repairedLines,resolution.rules),priorIssues)));
       audit.coveredTaskIds=[];audit.issues=[];audit.resolvedIssues=[];
       const checkedParts=await Promise.all(sourceParts.map((part,index)=>requestPricingAudit(request,{original:part,tasks:mapping.tasks.filter(t=>sourceParts.length===1||taskSources.get(t.id)===index),priorPricingIssues:resolution.issues,existingLines:lines.filter(l=>!resolution.removeLineIds?.includes(l.id)),additionalRules:resolution.rules,priorAuditIssues:priorIssues,removedLines:pricedComponents.filter(l=>resolution.removeLineIds?.includes(l.id)),existingExclusions:base.customer.exclusions.filter(e=>!resolution.removeExclusions?.includes(e)),research,allTaskDescriptions:mapping.tasks.map(t=>({id:t.id,description:t.description}))},()=>deadline-Date.now())));
       for(const checked of checkedParts){
