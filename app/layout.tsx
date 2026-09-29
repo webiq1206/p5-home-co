@@ -1,6 +1,7 @@
 import {withBrandPageMetadata} from '@/lib/brand-page-metadata';
 import type { Metadata, Viewport } from "next";
 import Script from "next/script";
+import { googleTagBootstrap } from "@/lib/analyticsBootstrap";
 import HubSpotScript from "./HubSpotScript";
 import MobileActionBar from "@/components/MobileActionBar";
 import "./globals.css";
@@ -81,22 +82,11 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: serializeJsonLd(siteSchema) }}
         />
-        {/* Analytics runs in production only, so local development never
-            reports into the property. */}
+        {/* Check the browser hostname too: local QA also runs production builds. */}
         {process.env.NODE_ENV === "production" && (
-          <>
-            <Script
-              src={`https://www.googletagmanager.com/gtag/js?id=${gaMeasurementId}`}
-              strategy="afterInteractive"
-            />
-            <Script id="ga4-init" strategy="afterInteractive">
-              {`window.dataLayer = window.dataLayer || [];
-function gtag(){dataLayer.push(arguments);}
-gtag('js', new Date());
-gtag('config', '${gaMeasurementId}');
-gtag('config', '${googleAdsDestinationId}');`}
-            </Script>
-          </>
+          <Script id="ga4-init" strategy="afterInteractive">
+            {googleTagBootstrap({ hostname: "p5homeco.com", measurementId: gaMeasurementId, adsId: googleAdsDestinationId })}
+          </Script>
         )}
         {process.env.NODE_ENV === "production" && <HubSpotScript />}
         {children}
