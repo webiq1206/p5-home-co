@@ -358,6 +358,20 @@ test('consumable research separates unlike products and retains parent coverage 
  const ownerOnly={...local,text:'Owner supplies all screws and shims.'};
  assert.equal(researchTaskBatches([supplies],ownerOnly).length,1);
 });
+test('consumables attached to cabinet installation tasks are researched as separate products',async()=>{
+ const {researchTaskBatches}=await import('../lib/p5/scopePricing.ts');
+ const local={...scope,text:'Install 9 LF base and 12 LF wall cabinets. Owner supplies fully assembled cabinets. Contractor supplies screws and shims.',answers:{service:'cabinet-install',cabinetBaseLf:'9',cabinetUpperLf:'12',location:'Boise'}};
+ const parent={...extra,id:'install_base_cabinets',description:'Install 9 linear feet of owner-supplied, fully assembled base cabinets in the existing kitchen.',evidence:local.text,researchDescription:"Material purchase only: shims, screws needed for cabinet installation. Price only these contractor-supplied installation consumables for this task's stated quantity. Owner-supplied products and separately priced installation labor are excluded."};
+ const batches=researchTaskBatches([parent],local);
+ assert.equal(batches.length,2);
+ assert.deepEqual(batches.map(batch=>batch[0].description),['Supply contractor installation screws','Supply contractor installation shims']);
+ assert.ok(batches.every(batch=>batch[0].id===parent.id&&batch[0].researchDescription.startsWith('Research ONLY contractor-supplied')&&batch[0].researchDescription.includes('prefer EA')));
+ const screwsOnly={...parent,researchDescription:'Material purchase only: screws needed for this installation. Shims are already priced.'};
+ // An explicit remaining component list must not reopen already priced supplies.
+ assert.deepEqual(researchTaskBatches([screwsOnly],local).map(batch=>batch[0].description),['Supply contractor installation screws']);
+ const ordinary={...parent,researchDescription:'Research cabinet installation labor only; contractor supplies screws and shims separately.'};
+ assert.equal(researchTaskBatches([ordinary],{...local,text:'Owner supplies cabinets, screws and shims.'})[0][0],ordinary);
+});
 test('source verification ignores tracking but preserves product and region identity',async()=>{
  const {verifiedResearchUrl}=await import('../lib/p5/scopePricing.ts');
  assert.ok(verifiedResearchUrl(urls[0],[urls[0]+'?utm_source=openai#price']));
