@@ -68,34 +68,59 @@ const observation=z.object({url:z.string().url(),low:positive,high:positive,unit
 const costEvidence=z.object({url:z.string().url(),publishedAt:z.string(),dateBasis:z.enum(['published','retrieved']),region:text,excerpt:z.string().min(1).max(220)}).strict();
 const landedCost=z.object({taxRate:z.number().finite().min(0).max(1),freightPerUnit:z.number().finite().min(0).max(10000000),taxOnFreight:z.boolean(),taxEvidence:costEvidence,freightEvidence:costEvidence}).strict();
 const marketSchema=z.object({rates:z.array(z.object({taskId:text,description:text,unit:text,quantity:positive,quantityEvidence:text,quantityRange:quantityRange.nullish(),building:z.string().optional(),floor:z.string().optional(),basis:z.enum(['material-purchase','subcontractor-installed','trade-labor']),includes:text,excludes:z.string().max(2000),landedCost:landedCost.nullish(),sources:z.array(observation).min(1).max(4)}).strict()).max(60),issues:remarks(100),notes:remarks(100).default([])}).strict();
+/** A package may be converted only when its size AND purchase price appear in
+ * the same cited excerpt. Product identity is checked separately against the
+ * research report; neither a modeled run length nor an unrelated listing is a
+ * conversion factor. */
+function quotedPackage(excerpt:string,unit:string){
+ const weight=/\b(\d+(?:\.\d+)?|five)[\s-]*(?:lb|lbs|pounds?)\b/i;
+ const count=/\b(\d+(?:\.\d+)?)\s*[- ](?:pack|count|ct)\b|\b(?:pack|box) of (\d+(?:\.\d+)?)\s*(?:pieces?|pcs?|screws?|shims?|nails?)\b|\b(\d+(?:\.\d+)?)\s*(?:pieces?|pcs?)\s*(?:per\s+)?(?:pack|box)\b/i;
+ const match=unit==='pound'?excerpt.match(weight):unit==='each'?excerpt.match(count):null;
+ if(!match)return null;
+ const number=(match[1]||match[2]||match[3]).toLowerCase();
+ const factor=number==='five'?5:Number(number);
+ return Number.isFinite(factor)&&factor>=1?factor:null;
+}
+function sourcePackage(unit:string,base:string){
+ const value=unit.trim().toLowerCase().replace(/-/g,' ');
+ const match=base==='pound'?value.match(/^(\d+(?:\.\d+)?)\s*(?:lb|lbs|pounds?)(?:\s+(?:box|bag|pack|package))?$/)
+  :base==='each'?value.match(/^(\d+(?:\.\d+)?)\s*(?:pieces?|pcs?|count|ct)(?:\s+(?:box|pack|package))?$|^(\d+(?:\.\d+)?)\s+(?:pack|box)$/):null;
+ return match?Number(match[1]||match[2]):null;
+}
 /** Invalid model rates are research findings, not a terminal application exception. */
 function parseResearchRates(raw:unknown){
  const parsed=marketSchema.safeParse(raw);
  if(!parsed.success)throw new ResearchEvidenceError('Invalid researched rate: '+parsed.error.issues.map(issue=>issue.path.join('.')+': '+issue.message).join('; ').slice(0,3000));
  const market=parsed.data;
  for(const rate of market.rates)for(const source of rate.sources){
-  if(unitKey(source.unit)===unitKey(rate.unit))continue;
-  // Material packages require their literal count AND dollar price in the
-  // source excerpt. This also prevents double-converting a previously divided
-  // price when the source still carries its original package label.
-  if(['pound','each'].includes(unitKey(rate.unit))){
-   const original={unit:source.unit,low:source.low,high:source.high};
-   const converted=normalizedMarketObservation(source,rate.unit);
-   const count=Number(original.unit.match(/^(\d+(?:\.\d+)?)/)?.[1]);
-   Object.assign(source,converted);
-   market.notes.push(`Source unit conversion: ${source.url}; ${original.low} to ${original.high} USD/${original.unit} divided by ${count} = ${source.low} to ${source.high} USD/${rate.unit}.`);
-   continue;
-  }
-  // Convert only an explicit quantity of the SAME physical unit. Package
-  // counts and cross-dimensional conversions must never be guessed.
+  const base=unitKey(rate.unit),sameUnit=unitKey(source.unit)===base;
+  // Explicit quantity units outside product packaging retain the old,
+  // dimension-preserving path (e.g. 10 SF -> SF).
   const quantity=source.unit.trim().match(/^(\d+(?:\.\d+)?)\s+(.+)$/);
-  const factor=Number(quantity?.[1]),base=quantity?unitKey(quantity[2]):'';
-  if(!quantity||!Number.isFinite(factor)||factor<=0||base!==unitKey(rate.unit)||!['pound','sf','lf','cy','gallon'].includes(base))continue;
-  const publishedNumbers=[...source.excerpt.matchAll(/\d[\d,]*(?:\.\d+)?/g)].map(match=>Number(match[0].replace(/,/g,'')));
-  if(!publishedNumbers.includes(source.low)||!publishedNumbers.includes(source.high)||!publishedNumbers.includes(factor))continue;
-  const original={unit:source.unit,low:source.low,high:source.high};
-  source.low=Number((source.low/factor).toPrecision(12));source.high=Number((source.high/factor).toPrecision(12));source.unit=rate.unit;
-  market.notes.push('Source unit conversion: '+source.url+'; '+original.low+' to '+original.high+' USD/'+original.unit+' divided by '+factor+' = '+source.low+' to '+source.high+' USD/'+rate.unit+'.');
+  const measured=quantity?unitKey(quantity[2]):'';
+  const measuredFactor=quantity&&measured===base&&['sf','lf','cy','gallon'].includes(base)?Number(quantity[1]):null;
+  const packageFactor=['pound','each'].includes(base)?sourcePackage(source.unit,base):null;
+  const citedFactor=quotedPackage(source.excerpt,base);
+  const packageSold=['pound','each'].includes(base)&&['pack','box'].includes(unitKey(source.unit));
+  const factor=packageFactor||(!sameUnit?measuredFactor||packageSold&&citedFactor:citedFactor);
+  if(!factor)continue;
+  if(!Number.isFinite(factor)||factor<=0)throw new ResearchEvidenceError('Invalid package size for researched product');
+  if(packageFactor&&citedFactor!==packageFactor)throw new ResearchEvidenceError('Package size does not match the cited supplier excerpt');
+  if(!sameUnit&&!packageFactor&&!measuredFactor&&!packageSold)continue;
+  // A source already sold per pound is not a package-price conversion merely
+  // because its description also mentions the package size.
+  if(sameUnit&&/\$\s*[\d,.]+\s*(?:\/|per\s+)(?:lb|lbs|pound|each|ea)\b/i.test(source.excerpt))continue;
+  const citedPrices=[...source.excerpt.matchAll(/\$\s*([\d,]+(?:\.\d+)?)\b|(\d[\d,]*(?:\.\d+)?)\s*USD\b/gi)].map(match=>Number((match[1]||match[2]).replace(/,/g,'')));
+  const citedNumbers=[...source.excerpt.matchAll(/\d[\d,]*(?:\.\d+)?/g)].map(match=>Number(match[0].replace(/,/g,'')));
+  const cited=(price:number)=>packageFactor||citedFactor?citedPrices.includes(price):citedNumbers.includes(price);
+  if((packageFactor||citedFactor)&&!citedFactor)throw new ResearchEvidenceError('Package quantity is not evidenced in the cited supplier excerpt');
+  if(cited(source.low)&&cited(source.high)){
+   const original={unit:source.unit,low:source.low,high:source.high};
+   source.low=Number((source.low/factor).toPrecision(12));source.high=Number((source.high/factor).toPrecision(12));source.unit=rate.unit;
+   market.notes.push('Source unit conversion: '+source.url+'; '+original.low+' to '+original.high+' USD/'+original.unit+' divided by '+factor+' = '+source.low+' to '+source.high+' USD/'+rate.unit+'.');
+  }else if(!sameUnit||!citedPrices.some(price=>Math.abs(price/factor-source.low)<.000001&&Math.abs(price/factor-source.high)<.000001)){
+   throw new ResearchEvidenceError('Package price does not match the cited supplier excerpt');
+  }
  }
  market.notes=[...new Set(market.notes)];
  return market;

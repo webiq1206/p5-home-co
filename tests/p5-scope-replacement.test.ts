@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {answersForEditedScope,answersForReplacedScope,analyzedScopeMatches,displayScopeText,normalizeScopeText,refreshAnalyzedScope,replaceAnalyzedScope,scopeFingerprint} from '../lib/p5/scopeReplacement.ts';
+import {answersForEditedScope,answersForReplacedScope,analyzedScopeMatches,displayScopeText,normalizeScopeText,refreshAnalyzedScope,replaceAnalyzedScope,scopeFingerprint,scopeForRevision} from '../lib/p5/scopeReplacement.ts';
 import {archiveBrowserDraft,listBrowserDraftRecoveries,replaceBrowserDraft,restoreBrowserDraft,type BrowserDraft} from '../lib/p5/browserDraft.ts';
 
 const extraction=()=>({
@@ -12,6 +12,26 @@ const extraction=()=>({
   conflicts:[{field:'sqft' as const,values:['800','900'],explanation:'Old conflict'}],
   missingInformation:[],
   reviewNotes:[],
+});
+
+test('unrelated cabinet-installation revision retains reviewed 9 LF base and 12 LF wall runs',()=>{
+ const old='Install 9 LF owner-supplied assembled base cabinets and 12 LF owner-supplied assembled wall cabinets in a Boise kitchen.';
+ const facts=[
+  {field:'cabinetBaseLf' as const,value:'9',confidence:1,source:'typed scope',evidence:'9 LF base cabinets'},
+  {field:'cabinetUpperLf' as const,value:'12',confidence:1,source:'typed scope',evidence:'12 LF wall cabinets'},
+ ];
+ const draft={text:old,answers:{service:'cabinet-install',cabinetBaseLf:'9',cabinetUpperLf:'12',location:'Boise'},extraction:{summary:'Cabinet installation',facts,conflicts:[],missingInformation:[],reviewNotes:[]}};
+ const revision=scopeForRevision(draft,old+'\n\nRequested change: add a note about scheduling.','Add a note about scheduling.');
+ assert.equal(revision.answers.service,'cabinet-install');
+ assert.equal(revision.answers.cabinetBaseLf,'9');
+ assert.equal(revision.answers.cabinetUpperLf,'12');
+ assert.equal(revision.extraction,null,'new text is still reanalyzed');
+ const changed=scopeForRevision(draft,old+'\n\nChange the base run to 11 LF.','Change the base run to 11 LF.');
+ assert.equal(changed.answers.service,'cabinet-install');
+ assert.equal(changed.answers.cabinetBaseLf,undefined,'a changed measurement needs fresh confirmation');
+ assert.equal(changed.answers.cabinetUpperLf,undefined);
+ const replaced=scopeForRevision(draft,'Replace the entire project scope with a bathroom.','Replace the entire project scope with a bathroom.');
+ assert.equal(replaced.answers.service,undefined);
 });
 
 test('scope text normalization covers the combined legacy instruction display',()=>{

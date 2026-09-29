@@ -334,8 +334,8 @@ test('cabinet nail package observations convert to a common pound rate without h
  assert.match(priced.assumptions.join(' '),/18\.52.*5 lb.*divided by 5.*3\.704/);
  assert.equal(priced.rules[0].estimatingBasis,'sourced-market-average');
  const bad={...product,sources:[product.sources[0],{...product.sources[1],excerpt:'Cabinet nails 1 lb box $18.52.'}]};
- assert.throws(()=>marketResolution({rates:[bad],issues:[]},urls,[requested],now,0,'Boise',local),/Package count and price/);
- assert.throws(()=>marketResolution({rates:[{...product,sources:[product.sources[0],{...product.sources[1],unit:'box'}]}],issues:[]},urls,[requested],now,0,'Boise',local),/Incompatible benchmark unit/);
+ assert.throws(()=>marketResolution({rates:[bad],issues:[]},urls,[requested],now,0,'Boise',local),/Package size does not match/);
+ assert.throws(()=>marketResolution({rates:[{...product,sources:[product.sources[0],{...product.sources[1],unit:'box',excerpt:'Cabinet nails box $18.52.'}]}],issues:[]},urls,[requested],now,0,'Boise',local),/Incompatible benchmark unit/);
  const sameSeller={...product,sources:product.sources.map(s=>({...s,url:urls[0]}))};
  assert.throws(()=>marketResolution({rates:[sameSeller],issues:[]},[urls[0]],[requested],now,0,'Boise',local),/Independent market sources required/);
  const provisional=marketResolution({rates:[sameSeller],issues:[]},[urls[0]],[requested],now,0,'Boise',local,true);
@@ -1527,6 +1527,41 @@ test('omitted contractor consumables become one researched task instead of free 
  assert.deepEqual(products.sort(),['screws','shims']);
  assert.equal((priced.internal as any).lines.filter((line:any)=>line.category==='materials'&&line.unitCost===40).length,2);
 });
+test('9 LF base and 12 LF wall installation prices labor, cleanup and evidenced supplies only',async()=>{
+ const restricted:ReviewedScope={...scope,text:'Install 9 LF owner-supplied fully assembled base cabinets and 12 LF owner-supplied fully assembled wall cabinets in an existing Boise kitchen. Contractor supplies normal cabinet screws, shims and cleanup. Exclude cabinet purchase, demolition, plumbing, electrical, countertops, flooring and all other trades.',answers:{service:'cabinet-install',location:'Boise',cabinetBaseLf:'9',cabinetUpperLf:'12',ownerSupplied:'Fully assembled base and wall cabinets',exclusions:'Cabinet purchase, demolition, plumbing, electrical, countertops, flooring and all other trades'}};
+ const labor=(code:string,description:string,unit:string,amount:number)=>({code,description,type:'Labor' as const,unit,amount,source:'Synthetic approved fixture only',basis:'owner-average-cost' as const});
+ const configuration=createPlanningConfiguration({...catalog,rates:[...catalog.rates,labor('QA-BASE','Base cabinet installation labor only; excludes screws and shims','LF',70),labor('QA-WALL','Wall cabinet installation labor only; excludes screws and shims','LF',80),labor('QA-CLEAN','Minor job cleanup labor only; excludes demolition','LS',90)]});
+ const make=(id:string,description:string,code:string,quantity:number,evidence:string)=>({id,description,evidence,existingLineIds:[],additions:[{code,quantity,quantityEvidence:evidence}],researchDescription:'',issues:[]});
+ const tasks=[
+  make('base','Install 9 LF owner-supplied fully assembled base cabinets','QA-BASE',9,'9 LF base cabinets'),
+  make('wall','Install 12 LF owner-supplied fully assembled wall cabinets','QA-WALL',12,'12 LF wall cabinets'),
+  make('cleanup','Minor cleanup after installation, no demolition','QA-CLEAN',1,'ALLOWANCE: One small cleanup visit for the stated installation'),
+ ];
+ let researchedProducts:string[]=[];
+ const response:PricingRequest=async(_instructions,input,search)=>{
+  const data=input as any;
+  if(search){
+   const product=data.tasks[0].description.includes('ONLY contractor-supplied screws')?'screws':'shims';
+   researchedProducts.push(product);
+   const screws=product==='screws';
+   const sources=urls.map((url,index)=>({...source(url,0,0),unit:screws?(index?'5 lb':'lb'):'pack',low:screws?(index?18.52:7.37):(index?4.5:3.5),high:screws?(index?18.52:7.37):(index?4.5:3.5),costBasis:'material-purchase' as const,sourceType:'supplier-price' as const,excerpt:screws?(index?'Cabinet screws: 5 lb box for $18.52.':'Cabinet screws: $7.37 per pound.'):`Cabinet shims: $${index?4.5:3.5} per pack.`}));
+   return {value:{rates:[{taskId:data.tasks[0].id,description:'Contractor cabinet '+product,unit:screws?'lb':'pack',quantity:1,quantityEvidence:`ALLOWANCE: One ${screws?'pound':'pack'} of ${product} for the stated runs; verify consumption.`,quantityRange:{low:1,high:2},basis:'material-purchase',includes:product+' only',excludes:'Cabinet products, labor and unrelated work',landedCost:null,sources}],issues:[]},sourceUrls:urls};
+  }
+  if(data.taskBatch)return {value:{tasks:data.taskBatch.map((item:any)=>tasks.find(task=>task.id===item.id)),issues:[]},sourceUrls:[]};
+  if(data.priorPricingIssues)return {value:{coveredTaskIds:[...tasks.map(task=>task.id),'required-contractor-consumables'],issues:[]},sourceUrls:[]};
+  return {value:{tasks:tasks.map(({id,description,evidence})=>({id,description,evidence})),issues:[]},sourceUrls:[]};
+ };
+ const result=await priceCompleteScope(restricted,configuration,response,now);
+ assert.ok(result.customer.range,JSON.stringify(result.internal.scopePricing));
+ assert.deepEqual(researchedProducts.sort(),['screws','shims']);
+ const lines=(result.internal as any).lines as {description:string;quantity:number;unit:string;category:string;unitCost:number}[];
+ assert.ok(lines.some(line=>line.quantity===9&&line.unit.toLowerCase()==='lf'&&line.category==='field-labor'));
+ assert.ok(lines.some(line=>line.quantity===12&&line.unit.toLowerCase()==='lf'&&line.category==='field-labor'));
+ assert.ok(lines.some(line=>/cleanup/i.test(line.description)&&line.unitCost>0));
+ assert.equal(lines.filter(line=>line.category==='materials').length,2);
+ assert.equal(lines.length,5,'only the two installation runs, cleanup, screws and shims may be charged');
+ assert.ok(!lines.some(line=>/^(?:countertop|flooring|demolition|plumbing|electrical)\b/i.test(line.description)));
+});
 test('labor-only pricing retains requested contractor consumables through final release',async()=>{
  const restricted={...scope,text:'Install owner-supplied baseboard. Labor only. Contractor supplies nails and caulk.',answers:{service:'handyman',ownerSupplied:'Owner supplies baseboard'},extraction:{summary:'Trim installation',facts:[],conflicts:[],missingInformation:[],reviewNotes:[],instructions:{...emptyInstructions(),laborOnly:true}}};
  const configuration=createPlanningConfiguration({...catalog,rates:[...catalog.rates,{code:'QA-CONSUMABLE-M',description:'Nails, interior trim caulk, and nail-hole filler for 100 LF of owner-supplied primed MDF baseboard',type:'Material',unit:'LS',amount:25,source:'Synthetic fixture',basis:'owner-average-cost'}]});
@@ -1766,12 +1801,43 @@ test('explicit source package weights are converted once before averaging',()=>{
  assert.match(result.assumptions.join(' '),/18.52.*5 lb.*divided by 5.*3.704/);
  assert.equal(input.rates[0].sources[1].low,18.52,'source input is retained unchanged');
  rate.sources[1].low=3.704;rate.sources[1].high=3.704;
- assert.throws(()=>marketResolution(input,urls,[extra],now),/Incompatible benchmark unit/,'a price already converted must not be divided again under a stale package label');
+ assert.throws(()=>marketResolution(input,urls,[extra],now),/Package price does not match|Incompatible benchmark unit/,'a price already converted must not be divided again under a stale package label');
  rate.sources[1].low=18.52;rate.sources[1].high=18.52;
  rate.sources[1].unit='5 SF';
  assert.throws(()=>marketResolution(input,urls,[extra],now),/Incompatible benchmark unit/);
  rate.sources[1].unit='5 lb';rate.sources[1].url=rate.sources[0].url;
  assert.throws(()=>marketResolution(input,urls,[extra],now),/Independent market sources/);
+});
+test('a supplier five-pound package cannot masquerade as a per-pound observation',()=>{
+ const input=structuredClone(researched),rate=input.rates[0];
+ rate.unit='lb';rate.quantity=2;rate.quantityEvidence='ALLOWANCE: two pounds of contractor supplies; verify usage';rate.quantityRange={low:1,high:3};
+ rate.sources[0]={...rate.sources[0],unit:'per pound',low:7.37,high:7.37,excerpt:'Cabinet screws: $7.37 per pound.'};
+ rate.sources[1]={...rate.sources[1],unit:'lb',low:18.52,high:18.52,excerpt:'Cabinet screws: five-pound package for $18.52.'};
+ const result=marketResolution(input,urls,[extra],now,0,'Boise');
+ assert.equal(result.rules[0].unitCost,5.537);
+ assert.match(result.assumptions.join(' '),/18.52.*divided by 5.*3.704/);
+ assert.equal(input.rates[0].sources[1].low,18.52,'research input is never rewritten');
+ rate.sources[1].low=3.704;rate.sources[1].high=3.704;
+ assert.equal(marketResolution(input,urls,[extra],now).rules[0].unitCost,5.537,'a correctly evidenced unit price is not divided twice');
+ rate.sources[1].low=18.52;rate.sources[1].high=18.52;
+ rate.sources[1].excerpt='Cabinet screws: five-pound package for $19.52.';
+ assert.throws(()=>marketResolution(input,urls,[extra],now),/Package price does not match/);
+ rate.sources[1].excerpt='Cabinet screws: five-pound package for $18.52.';
+ rate.sources[1].unit='6 lb';
+ assert.throws(()=>marketResolution(input,urls,[extra],now),/Package size does not match/);
+});
+test('piece packages use evidenced counts, not cabinet run lengths or unrelated products',()=>{
+ const input=structuredClone(researched),rate=input.rates[0];
+ rate.unit='EA';rate.quantity=24;rate.quantityEvidence='ALLOWANCE: 24 cabinet screws; confirm fastener schedule';rate.quantityRange={low:16,high:32};
+ rate.sources[0]={...rate.sources[0],unit:'each',low:.12,high:.12,excerpt:'Cabinet screws: $0.12 each.'};
+ rate.sources[1]={...rate.sources[1],unit:'box',low:12,high:12,excerpt:'Cabinet screws: 100-pack for $12.00.'};
+ assert.equal(marketResolution(input,urls,[extra],now,0,'Boise').rules[0].unitCost,.12);
+ rate.sources[1].excerpt='Cabinet screws: 200-pack for $12.00.';
+ assert.equal(marketResolution(input,urls,[extra],now).rules[0].unitCost,.09);
+ rate.sources[1].excerpt='Cabinet screws: box for $12.00.';
+ assert.throws(()=>marketResolution(input,urls,[extra],now),/Incompatible benchmark unit/);
+ rate.sources[1].unit='100-pack';rate.sources[1].excerpt='Cabinet screws: 200-pack for $12.00.';
+ assert.throws(()=>marketResolution(input,urls,[extra],now),/Package size does not match/);
 });
 test('corrective research keeps prior observed evidence and excludes only a repeated supplier',async()=>{
  const {combineResearchEvidence,repeatedResearchSupplier,openAiPricingRequestEnvelope,reconcileResearchReply}=await import('../lib/p5/scopePricing.ts');

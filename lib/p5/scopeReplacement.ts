@@ -42,7 +42,7 @@ export function scopeTextChanged(previous: string, incoming: string): boolean {
 /** Only an explicit replacement of the whole scope discards the old brief.
  * "Replace the cabinets" is an ordinary edit, not a different project. */
 export function replacesEntireScope(request:string):boolean{
-  return /\breplace\s+(?:(?:this|the|my|our|previous|existing|current)\s+){0,2}(?:(?:entire|whole|complete)\s+)?(?:project|scope)(?:\s+of\s+work)?\s+with\b/i.test(request);
+  return /\breplace\s+(?:(?:this|the|my|our|previous|existing|current)\s+){0,2}(?:(?:entire|whole|complete)\s+)?(?:project(?:\s+scope)?|scope)(?:\s+of\s+work)?\s+with\b/i.test(request);
 }
 
 export interface ScopeSourceSnapshot {
@@ -263,6 +263,15 @@ export function scopeForRevision<T extends AnalyzedScopeState>(state:T,text:stri
  if(replacesEntireScope(request))return replaceAnalyzedScope(state,text);
  const next=refreshAnalyzedScope(state,text);
  if(state.answers.service)next.answers={...next.answers,service:state.answers.service};
+ // A submitted cabinet-installation estimate has already had its measured
+ // runs reviewed. An unrelated same-project edit must not silently turn those
+ // measurements back into unknowns just because their old extraction is
+ // invalidated. A changed plan or cabinet quantity must be read afresh instead.
+ const changesCabinetDimensions=/\b(?:revised|updated|new)\s+(?:plans?|drawings?|dimensions?|measurements?)\b|\b(?:add|remove|change|replace|resize|extend|shorten|increase|decrease)\b.{0,80}\b(?:base|lower|wall|upper|cabinet)\b|\b\d+(?:\.\d+)?\s*(?:lf|linear feet)\b/i.test(request);
+ if(state.answers.service==='cabinet-install'&&!changesCabinetDimensions){
+  for(const field of ['cabinetBaseLf','cabinetUpperLf'] as const)
+   if(state.answers[field]&&!next.answers[field])next.answers[field]=state.answers[field];
+ }
  return next;
 }
 
