@@ -148,6 +148,7 @@ export function scopeAssumptions(answers:ScopeAnswers,skipped:ScopeField[]=[],ex
 const SERVICE_HOME:Record<string,{id:string;name:string;url:string;work:string}>={
   'new-construction':{id:'construction',name:'Boise Construction Co',url:'https://boiseconstruction.co/estimate',work:'new construction'},
   kitchen:{id:'remodeling',name:'Boise Remodeling Co',url:'https://boiseremodeling.co/estimate',work:'remodel work'},
+  remodel:{id:'remodeling',name:'Boise Remodeling Co',url:'https://boiseremodeling.co/estimate',work:'interior remodel work'},
   bathroom:{id:'remodeling',name:'Boise Remodeling Co',url:'https://boiseremodeling.co/estimate',work:'remodel work'},
   'whole-home':{id:'remodeling',name:'Boise Remodeling Co',url:'https://boiseremodeling.co/estimate',work:'remodel work'},
   addition:{id:'remodeling',name:'Boise Remodeling Co',url:'https://boiseremodeling.co/estimate',work:'additions'},

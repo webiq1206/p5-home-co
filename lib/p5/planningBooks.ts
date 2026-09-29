@@ -84,6 +84,9 @@ export function planningQuestionFields(a:ScopeAnswers):ScopeField[]{
 }
 export function materializePlanningBook(book:ServiceCostBook,catalog:PlanningCatalog,scope:ReviewedScope,now=new Date()){
  validatePlanningCatalog(catalog);
+ // Component remodels are itemized from the requested scope, never expanded
+ // into a whole-home or whole-room planning assembly.
+ if(book.service==='remodel')return {book:{...book,rules:[],assumptions:[],exclusions:[]},missing:[] as string[]};
  const rates=new Map(catalog.rates.map(r=>[r.code,r]));const rules:CostRule[]=[];const missing:string[]=[];
  const assumptions=['This preliminary budget uses estimated material and installation costs. A site review, final selections and current trade quotes are required before a firm proposal.'];
  const exclusions:string[]=["Appliance purchases and installation are excluded unless separately itemized after scope review."]; const a=scope.answers;const service=book.service;const text=words(scope);

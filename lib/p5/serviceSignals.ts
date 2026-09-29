@@ -46,3 +46,10 @@ export function impliedRepairService(text:string|null|undefined,services:readonl
   if(signalledService(text))return null;
   return 'handyman';
 }
+
+/** A flooring-only remodel needs no misleading whole-home or RE-10 label. */
+export function impliedComponentRemodel(text:string|null|undefined,services:readonly string[]):'remodel'|null{
+ const value=String(text||'');
+ if(!services.includes('remodel')||signalledService(value))return null;
+ return /\bflooring[ -]only\s+(?:interior\s+)?remodel(?:ing)?\b/i.test(value)?'remodel':null;
+}

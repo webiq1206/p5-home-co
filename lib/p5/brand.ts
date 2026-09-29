@@ -12,6 +12,7 @@ export const ESTIMATOR_BRAND = {
     "cabinet-install",
     "kitchen",
     "bathroom",
+    "remodel",
     "whole-home",
     "addition",
     "adu",

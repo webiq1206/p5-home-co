@@ -14,6 +14,7 @@ export const SERVICE_MATRIX = {
   "cabinet-install": { target: .12, floor: .10, stretch: .15, contingency: [0, 0], method: "Fixed price after measurement and supplier confirmation" },
   kitchen: { target: .12, floor: .10, stretch: .15, contingency: [.10, .10], method: "Paid planning followed by fixed price or guaranteed maximum price" },
   bathroom: { target: .12, floor: .10, stretch: .15, contingency: [.10, .10], method: "Paid planning followed by fixed price or guaranteed maximum price" },
+  remodel: { target: .12, floor: .10, stretch: .15, contingency: [.10, .10], method: "Written scope and fixed price after selections and site conditions are confirmed" },
   "whole-home": { target: .12, floor: .10, stretch: .15, contingency: [.10, .10], method: "Paid preconstruction followed by a guaranteed maximum price" },
   addition: { target: .12, floor: .10, stretch: .15, contingency: [.10, .10], method: "Paid preconstruction followed by a guaranteed maximum price" },
   adu: { target: .12, floor: .10, stretch: .15, contingency: [.10, .10], method: "Paid preconstruction followed by a guaranteed maximum price" },

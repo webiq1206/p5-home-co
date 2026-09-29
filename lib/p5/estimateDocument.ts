@@ -28,7 +28,7 @@ const REPAIR_SERVICES=new Set(['handyman','re10','change-order','rush']);
 const CABINET_SERVICES=new Set(['cabinet-product','cabinet-install']);
 const CONSTRUCTION_SERVICES=new Set(['new-construction','addition','adu']);
 export const SERVICE_TITLE:Record<string,string>={
-  'kitchen':'Kitchen remodel estimate','bathroom':'Bathroom remodel estimate','whole-home':'Whole-home remodel estimate',
+  'kitchen':'Kitchen remodel estimate','bathroom':'Bathroom remodel estimate','remodel':'Interior remodel estimate','whole-home':'Whole-home remodel estimate',
   'addition':'Home addition estimate','adu':'ADU estimate','new-construction':'New home construction estimate',
   'cabinet-product':'Cabinet estimate','cabinet-install':'Cabinet installation estimate','handyman':'Handyman estimate',
   're10':'RE-10 repair estimate','change-order':'Change order estimate','rush':'Priority repair estimate',

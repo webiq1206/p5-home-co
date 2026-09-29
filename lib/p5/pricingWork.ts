@@ -1,4 +1,5 @@
 import {MODEL_POLICY_VERSION} from './modelPolicy.ts';
+import {ESTIMATOR_VERSION} from './version.ts';
 import {SERVER_BUDGET_MS,remainingBudget,withinDeadline,ProcessingDeadlineError,isProcessingDeadline} from './processingBudget.ts';
 import {createHash} from 'node:crypto';
 import {recordEvent} from './events.ts';
@@ -16,8 +17,8 @@ import type {PricingIdentity} from './pricingLedger.ts';
 import {assertProjectSourceCoverage,SOURCE_COVERAGE_REQUIRED} from './documentServiceClient.ts';
 import {shortlistBook,type ShortlistTask,type ShortlistRate} from './bookShortlist.ts';
 
-export function pricingWorkKey(scope:ReviewedScope,configuration:EstimatorConfiguration,pricingAt:Date){
- const signature={modelPolicy:MODEL_POLICY_VERSION,pricingDate:pricingAt.toISOString().slice(0,10),text:scope.text,answers:scope.answers,extraction:scope.extraction,uploads:scope.uploads,uncertainFields:scope.uncertainFields,configuration};
+export function pricingWorkKey(scope:ReviewedScope,configuration:EstimatorConfiguration,pricingAt:Date,estimatorVersion=ESTIMATOR_VERSION){
+ const signature={estimatorVersion,modelPolicy:MODEL_POLICY_VERSION,pricingDate:pricingAt.toISOString().slice(0,10),text:scope.text,answers:scope.answers,extraction:scope.extraction,uploads:scope.uploads,uncertainFields:scope.uncertainFields,configuration};
  return 'pricing-v11-'+createHash('sha256').update(JSON.stringify(signature)).digest('hex');
 }
 /** Saved replies are keyed by stage content, so independent stages may run in

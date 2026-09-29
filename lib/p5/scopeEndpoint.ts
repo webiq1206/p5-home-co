@@ -15,7 +15,7 @@ import { ESTIMATOR_BRAND } from "./brand.ts";
 import {recordEvent,describeError} from './events.ts';
 import {blockingReviewNote} from './costBook.ts';
 import {selectReusableAnalysis} from './analysisReuse.ts';
-import {impliedRepairService,serviceEvidenceSupports} from './serviceSignals.ts';
+import {impliedComponentRemodel,impliedRepairService,serviceEvidenceSupports} from './serviceSignals.ts';
 import {query} from './database.ts';
 
 /** Guard multipart analysis/upload requests before they can mutate files. */
@@ -152,7 +152,7 @@ export async function postScope(request:Request){
       // reader gave no usable type (nothing, a low-confidence guess, or an RE-10/rush/change-order
       // claim without the customer's signal) does the repair-only default apply.
       const supported=facts.some(f=>f.field==='service'&&f.confidence>=.7&&f.basis!=='inferred'&&f.basis!=='visual'&&(SCOPE_FIELDS.service.options as readonly string[]).includes(f.value)&&serviceEvidenceSupports(f.value,f.evidence));
-      const implied=supported?null:impliedRepairService([text,...facts.map(f=>f.evidence)].join('\n'),ESTIMATOR_BRAND.services as readonly string[]);
+      const implied=supported?null:(impliedComponentRemodel(text,ESTIMATOR_BRAND.services as readonly string[])||impliedRepairService([text,...facts.map(f=>f.evidence)].join('\n'),ESTIMATOR_BRAND.services as readonly string[]));
       if(implied)analysis={...analysis,extraction:{...analysis.extraction,facts:[...facts.filter(f=>f.field!=='service'),{field:'service',value:implied,confidence:1,source:'typed scope',evidence:text.slice(0,4000),basis:'stated'}]}};
     }
     const extraction=analysis?.extraction||analysisDraft.extraction;

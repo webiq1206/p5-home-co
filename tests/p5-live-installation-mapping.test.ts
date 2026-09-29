@@ -6,6 +6,29 @@ import {validateExtraction} from '../lib/p5/scope.ts';
 import {contractorConsumableIncluded} from '../lib/p5/contractorConsumables.ts';
 import {EMPTY_CONFIGURATION} from '../lib/p5/costBook.ts';
 import {supportedUnit,unitKey,reusableUnit} from '../lib/p5/unitRates.ts';
+import {pricingWorkKey} from '../lib/p5/pricingWork.ts';
+import {impliedComponentRemodel} from '../lib/p5/serviceSignals.ts';
+import {createPlanningConfiguration,materializePlanningBook,PLANNING_MODEL_VERSION} from '../lib/p5/planningBooks.ts';
+
+test('a deployed pricing fix cannot inherit an earlier release’s exhausted repair clock',()=>{
+ const scope={text:'Install owner-supplied cabinets',answers:{service:'cabinet-install'},extraction:null,uploads:[]} as any;
+ const date=new Date('2026-09-28');
+ assert.equal(pricingWorkKey(scope,EMPTY_CONFIGURATION,date,'release-a'),pricingWorkKey(scope,EMPTY_CONFIGURATION,date,'release-a'));
+ assert.notEqual(pricingWorkKey(scope,EMPTY_CONFIGURATION,date,'release-a'),pricingWorkKey(scope,EMPTY_CONFIGURATION,date,'release-b'));
+});
+
+test('flooring-only remodel has a supported type without a whole-home assembly',()=>{
+ assert.equal(impliedComponentRemodel('A flooring-only remodeling project in Boise.',['remodel','whole-home']),'remodel');
+ assert.equal(impliedComponentRemodel('Urgent flooring-only remodel.',['remodel']),null);
+ assert.equal(impliedComponentRemodel('A flooring-only remodel.',['cabinet-install']),null);
+ const rates=priceBookRates({service:'remodel',finish:'mid-range'});
+ for(const code of ['03-17-01-M','03-17-01-L','03-15-02-M','03-15-02-L','03-16-01-M','03-16-01-L','03-14-01-M','03-14-01-L','03-04-01','03-04-02','03-04-03','03-05-02-M','03-05-02-L','REF-GENERAL-HOUR','REF-PLUMBING-HOUR','REF-ELECTRICAL-HOUR'])rates.push({code,description:'Synthetic legacy fixture',type:code.endsWith('-M')?'Material':'Labor',unit:code.includes('HOUR')?'HR':'LF',amount:10,source:'Test fixture',basis:'owner-average-cost'});
+ const catalog={version:PLANNING_MODEL_VERSION,source:'Owner book fixture',authorizedBy:'Test',importedAt:'2026-09-28',rates};
+ const configuration=createPlanningConfiguration(catalog,['remodel']);
+ const result=materializePlanningBook(configuration.costBooks[0],catalog,{text:'Install flooring',answers:{service:'remodel',sqft:'300'}} as any);
+ assert.deepEqual(result.book.rules,[],'generic remodel classification must not invent work');
+ assert.deepEqual(result.missing,[]);
+});
 
 test('installation kits keep their own unit and are not reused as a per-cabinet rate',()=>{
  assert.equal(supportedUnit('kit'),true);
@@ -89,6 +112,15 @@ test('owner-supplied cabinets use the explicit matching labor component, never a
  const configuration={...EMPTY_CONFIGURATION,planningCatalog:{rates:[{code:'PB-12-32-01',type:'Subcontractor',unit:'LF',description:'Base cabinets, installed'},{code:'PB-12-32-01-L',type:'Labor',unit:'LF',description:'Base cabinets, installation labor only'}]}} as any;
  normalizeConsumableMapping({tasks:[task]} as any,configuration,[],scope);
  assert.equal(task.additions[0].code,'PB-12-32-01-L');
+});
+
+test('cabinet product material cannot be relabeled as contractor mounting supplies',()=>{
+ const scope={text:'Install 18 LF of owner-supplied assembled base cabinets. Include installation labor, shims, screws and fastening.',answers:{},extraction:null} as any;
+ const task={id:'base',description:'Install 18 LF owner-supplied base cabinets',evidence:scope.text,existingLineIds:[],additions:[{code:'BASE-L',quantity:18,quantityEvidence:'18 LF installation'},{code:'BASE-M',quantity:18,quantityEvidence:'Use only for shims, screws and fasteners; owner supplies cabinets.'}],researchDescription:''};
+ const configuration={...EMPTY_CONFIGURATION,planningCatalog:{rates:[{code:'BASE-L',type:'Labor',unit:'LF',description:'Base cabinet installation labor'},{code:'BASE-M',type:'Material',unit:'LF',description:'Base cabinets, material only'}]}} as any;
+ normalizeConsumableMapping({tasks:[task]} as any,configuration,[],scope);
+ assert.deepEqual(task.additions.map(a=>a.code),['BASE-L']);
+ assert.match(task.researchDescription,/Material purchase only: shims, screws, fasteners/);
 });
 
 test('flooring waste increases purchased material without increasing installed labor',()=>{

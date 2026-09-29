@@ -37,7 +37,7 @@ export function serviceContext(service?:string|null):{flags:number;remodel:boole
   switch(service){
     case 'new-construction':case 'adu':return {flags:NC,remodel:false};
     case 'addition':return {flags:NC|RM,remodel:false};
-    case 'kitchen':case 'bathroom':case 'whole-home':return {flags:RM,remodel:true};
+    case 'kitchen':case 'bathroom':case 'whole-home':case 'remodel':return {flags:RM,remodel:true};
     case 're10':return {flags:RE10,remodel:true};
     case 'handyman':return {flags:HM,remodel:false};
     case 'cabinet-product':case 'cabinet-install':return {flags:CAB,remodel:false};

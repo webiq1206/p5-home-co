@@ -408,6 +408,16 @@ export function normalizeConsumableMapping(mapping:Mapping,configuration:Estimat
       const labor=configuration.planningCatalog?.rates.find(candidate=>candidate.code===`${addition.code}-L`&&candidate.type==='Labor'&&candidate.unit===rate?.unit);
       if(rate?.type==='Subcontractor'&&labor&&ownerSuppliesMaterial(task,addition.quantity,rate.unit,rate.description,scope,false))addition.code=labor.code;
     }
+    task.additions=task.additions.filter(addition=>{
+      const rate=configuration.planningCatalog?.rates.find(rate=>rate.code===addition.code);
+      if(rate?.type!=='Material'||!ownerSuppliesMaterial(task,addition.quantity,rate.unit,rate.description,scope,true))return true;
+      const supplies=['shims','screws','fasteners','caulk','adhesives','sealants','consumables'].filter(word=>new RegExp(`\\b${word}s?\\b`,'i').test(addition.quantityEvidence||'')&&contractorConsumableIncluded(scope,`Supply ${word}`));
+      if(!supplies.length)return true;
+      // The model cannot relabel a cabinet-product rate as mounting supplies.
+      // Keep installation labor and price only the expressly requested supplies.
+      task.researchDescription=`Material purchase only: ${supplies.join(', ')} needed for ${task.description}. Price only these contractor-supplied installation consumables for this task's stated quantity. Owner-supplied products and separately priced installation labor are excluded.`;
+      return false;
+    });
     if(!contractorConsumableIncluded(scope,task.description))continue;
     task.additions=task.additions.filter(addition=>{
       const rate=configuration.planningCatalog?.rates.find(rate=>rate.code===addition.code);
@@ -1116,7 +1126,7 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
   const pricingSource=activePricingSource(scope);
   const pricingExtraction=pricingSource.extraction;
   const pricingScope={...scope,answers:pricingSource.answers,extraction:pricingExtraction};
-  const replaceBase=hasRestrictedScope(scope.answers,pricingExtraction?.instructions);
+  const replaceBase=scope.answers.service==='remodel'||hasRestrictedScope(scope.answers,pricingExtraction?.instructions);
   const resolution:ScopePriceResolution={rules:[],assumptions:[],issues:[],replaceBase};
   const base=priceReviewedScope(scope,configuration,now,replaceBase?resolution:undefined);
   // A whole-building budget typed without documents is priced by the owner's
