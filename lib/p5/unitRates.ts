@@ -14,7 +14,8 @@ export const UNIT_REGISTRY:Record<string,{dimension:UnitDimension;label:string}>
  each:{dimension:'count',label:'EA'},pair:{dimension:'count',label:'pair'},set:{dimension:'count',label:'set'},load:{dimension:'count',label:'load'},sheet:{dimension:'count',label:'sheet'},roll:{dimension:'count',label:'roll'},
  hour:{dimension:'time',label:'HR'},day:{dimension:'time',label:'day'},week:{dimension:'time',label:'week'},month:{dimension:'time',label:'month'},
  cy:{dimension:'volume',label:'CY'},gallon:{dimension:'volume',label:'gallon'},
- ton:{dimension:'weight',label:'ton'},
+ ton:{dimension:'weight',label:'ton'},pound:{dimension:'weight',label:'LB'},
+ box:{dimension:'count',label:'box'},pack:{dimension:'count',label:'pack'},
  acre:{dimension:'area',label:'acre'},watt:{dimension:'power',label:'watt'},
  ls:{dimension:'lump',label:'lump sum'},
  kit:{dimension:'count',label:'kit'},
@@ -30,6 +31,9 @@ export const unitKey=(unit:string)=>{
   'hr':'hour','hrs':'hour','h':'hour','hour':'hour','hours':'hour','labor hour':'hour','labor hours':'hour','day':'day','days':'day','crew day':'day','wk':'week','week':'week','weeks':'week','mo':'month','month':'month','months':'month',
   'cy':'cy','cubic yard':'cy','cubic yards':'cy','gal':'gallon','gallon':'gallon','gallons':'gallon','ton':'ton','tons':'ton','rl':'roll','ac':'acre','acre':'acre','acres':'acre','w':'watt','watt':'watt','watts':'watt',
   'ls':'ls','lump sum':'ls','lumpsum':'ls','lot':'ls','job':'ls','allowance':'ls','package':'ls','trip':'ls','visit':'ls','service call':'ls','minimum charge':'ls'};
+ if(/^(?:lb|lbs|pound|pounds)$/.test(key))return 'pound';
+ if(/^(?:box|boxes)$/.test(key))return 'box';
+ if(/^(?:pack|packs)$/.test(key))return 'pack';
  if(key==='kit'||key==='kits')return 'kit';
  if(aliases[key])return aliases[key];
  return COUNTED_UNIT.test(key)?'each':key;

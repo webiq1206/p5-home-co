@@ -255,6 +255,21 @@ test('supplier research survives normalization with aligned source types and pol
  },now);
  assert.ok(normalized);assert.ok(result.customer.range);
 });
+test('unsupported research units are explained to the corrective search',async()=>{
+ const invalid=structuredClone(researched);invalid.rates[0].unit='each-job (consumables bundle)';
+ const queue=replies([{tasks:[task,extra],issues:[]},invalid,researched,{coveredTaskIds:['cabinets','overlay'],issues:[]}]);
+ let corrected=false;
+ const result=await priceCompleteScope(scope,config,async(instructions,input,search,remaining)=>{
+  if(search){assert.match(instructions,/Allowed pricing units:/);assert.match(instructions,/packs of shims as separate rates/);}
+  if((input as any).retryInstruction){corrected=true;assert.match(JSON.stringify((input as any).priorIssues),/unsupported pricing unit/);}
+  return queue(instructions,input,search,remaining);
+ },now);
+ assert.ok(corrected);assert.ok(result.customer.range);
+ const {unitKey,supportedUnit}=await import('../lib/p5/unitRates.ts');
+ assert.equal(unitKey('lbs'),'pound');assert.equal(unitKey('boxes'),'box');assert.equal(unitKey('packs'),'pack');
+ assert.ok(supportedUnit('LB')&&supportedUnit('pack')&&supportedUnit('box'));
+ assert.notEqual(unitKey('pack'),unitKey('EA'));assert.notEqual(unitKey('LB'),unitKey('LS'));
+});
 test('source verification ignores tracking but preserves product and region identity',async()=>{
  const {verifiedResearchUrl}=await import('../lib/p5/scopePricing.ts');
  assert.ok(verifiedResearchUrl(urls[0],[urls[0]+'?utm_source=openai#price']));
