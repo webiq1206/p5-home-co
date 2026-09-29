@@ -2105,3 +2105,63 @@ test('a sourced installation caulk cartridge has a positive price without changi
  const incompatible=structuredClone(product);incompatible.sources[1].unit='gallon';
  assert.throws(()=>marketResolution({rates:[incompatible],issues:[]},urls,[requested],now,0,'Boise',local),/Incompatible benchmark unit/);
 });
+
+test('mixed remaining-material tasks retain every cited product after supplier comparison is exhausted',async()=>{
+ const local={...scope,text:'Supply 10 LF cabinetry. Contractor supplies cabinet screws and shims.'};
+ const supplies={...extra,id:'supplies',description:'Supply contractor installation materials',evidence:local.text,researchDescription:'Price the remaining contractor installation materials only.'};
+ const make=(description:string,quantity:number,price:number)=>({...researched.rates[0],taskId:'supplies',description,unit:'EA',quantity,quantityEvidence:'ALLOWANCE: '+quantity+' pieces for the 10 LF installation; confirm consumption',quantityRange:{low:quantity,high:quantity+10},includes:description,excludes:'labor and cabinetry',landedCost:null,sources:[{...source(urls[0],price,price),unit:'EA',excerpt:description+' $'+price.toFixed(2)+' each.'}]});
+ const rates=[make('Cabinet mounting screws',30,.2),make('Wood leveling shims',20,.1)];
+ const value={rates,issues:[],notes:[]},report=rates.map(rate=>rate.sources[0].excerpt).join('\n\n');
+ let searches=0;
+ const result=await priceCompleteScope(local,config,async(_instructions,input,search)=>{
+  const data=input as any;
+  if(search){searches++;return {value,sourceUrls:[urls[0]],sourceReport:report};}
+  if(data.correctionInstruction)return {value,sourceUrls:[]};
+  if(data.taskBatch)return {value:{tasks:[task,supplies].filter(t=>data.taskBatch.some((x:any)=>x.id===t.id)),issues:[]},sourceUrls:[]};
+  if(data.priorPricingIssues)return {value:{coveredTaskIds:['cabinets','supplies'],issues:[]},sourceUrls:[]};
+  return {value:{tasks:[task,supplies].map(({id,description,evidence})=>({id,description,evidence})),issues:[]},sourceUrls:[]};
+ },now);
+ assert.equal(searches,3);
+ assert.ok(result.customer.range,JSON.stringify(result.internal.scopePricing));
+ const saved=(result.internal as any).costBookSnapshot.rules.filter((rule:any)=>rule.scopeTaskId==='supplies');
+ assert.equal(saved.length,2,'both screws and shims stay priced');
+ assert.deepEqual(saved.map((rule:any)=>rule.unitCost),[.2,.1]);
+ assert.ok(saved.every((rule:any)=>rule.evidence.reference.includes('Single cited supplier budget allowance')));
+ const {learnableLines,learnedCostRules,learnedRates}=await import('../lib/p5/learnedBook.ts');
+ const retained=learnableLines(saved,'cabinet-install','synthetic-qa',[],now,{location:'Boise'});
+ assert.equal(retained.length,2);
+ assert.deepEqual(learnedRates(retained),[],'supplier allowances are never promoted into owner-approved rates');
+ const reusable=learnedCostRules(retained,'cabinet-install',{location:'Boise'},new Date(now.getTime()+86400000));
+ assert.ok(reusable.length>0,'fresh cited per-unit material budgets remain usable with their provenance');
+ assert.equal(reusable.length,retained.filter(line=>line.status==='provisional').length,'a supplier alternative overlapping the approved book remains retained for review, without overriding its approved rate');
+ assert.ok(reusable.every(rule=>rule.unitRateContext?.assumptions.some(note=>note.includes('Single-supplier'))));
+ assert.deepEqual(learnedCostRules(retained,'cabinet-install',{location:'Boise'},new Date(now.getTime()+31*86400000)),[],'expiry requires refresh without deleting the permanent record');
+});
+test('generic material-budget recovery rejects fabricated prices, missing components, and store-only evidence',async()=>{
+ const {materialBudgetCandidate}=await import('../lib/p5/scopePricing.ts');
+ const materials={...extra,description:'Supply installation materials',researchDescription:'Price remaining materials'};
+ const row={...researched.rates[0],description:'Floor expansion spacers',unit:'pack',quantity:1,quantityEvidence:'ALLOWANCE: one pack for the stated room perimeter; verify usage',quantityRange:{low:1,high:2},landedCost:null,sources:[{...source(urls[0],13.97,13.97),unit:'pack',excerpt:'Floor expansion spacers 48-pack $13.97.'}]};
+ const raw={rates:[row],issues:[],notes:[]};
+ const report=row.sources[0].excerpt;
+ assert.ok(materialBudgetCandidate(raw,report,[urls[0]],[materials],now,0,'Boise'));
+ assert.equal(materialBudgetCandidate(raw,'Boise store location, hours and address.',[urls[0]],[materials],now,0,'Boise'),null);
+ assert.equal(materialBudgetCandidate({rates:[{...row,sources:[{...row.sources[0],low:10,high:10}]}],issues:[]},report,[urls[0]],[materials],now,0,'Boise'),null);
+ assert.equal(materialBudgetCandidate({rates:[row,{...row,description:'Missing adhesive',sources:[{...row.sources[0],excerpt:'Adhesive $9.00.'}]}],issues:[]},report,[urls[0]],[materials],now,0,'Boise'),null);
+ assert.equal(materialBudgetCandidate({rates:[{...row,basis:'trade-labor'}],issues:[]},report,[urls[0]],[materials],now,0,'Boise'),null);
+ assert.equal(materialBudgetCandidate({rates:[{...row,sources:[{...row.sources[0],region:'Moscow, Idaho (Boise regional supply)'}]}],issues:[]},report,[urls[0]],[materials],now,0,'Boise'),null);
+});
+
+test('generic consumables do not invent a second repair-material task because cleanup is labor',async()=>{
+ const {normalizeConsumableMapping}=await import('../lib/p5/scopePricing.ts');
+ const local={...scope,text:'Replace two GFCIs, one P-trap and repair one drywall patch. Include normal installation consumables and minor cleanup.',answers:{service:'re10',location:'Boise'}};
+ const entries=[
+  {code:'QA-GFCI-L',description:'GFCI outlet replacement, labor only',type:'Labor',unit:'EA',amount:130},
+  {code:'QA-TRAP',description:'P-trap replacement, labor with consumables',type:'Labor',unit:'EA',amount:190},
+  {code:'QA-PATCH',description:'Drywall patch 1-2 SF, labor with consumables',type:'Labor',unit:'EA',amount:300},
+  {code:'QA-CLEAN',description:'Minor cleanup labor only',type:'Labor',unit:'HR',amount:45},
+ ].map(rate=>({...rate,source:'Synthetic fixture',basis:'owner-average-cost'}));
+ const configuration=createPlanningConfiguration({...catalog,rates:[...catalog.rates,...entries as PlanningCatalog['rates']]});
+ const mapping={tasks:entries.map((rate,index)=>({...extra,id:'repair-'+index,description:rate.description,evidence:local.text,researchDescription:'',additions:[{code:rate.code,quantity:index===0?2:1,quantityEvidence:'Explicit repair quantity'}]})),issues:[],notes:[],replacements:[],removeExclusions:[]};
+ normalizeConsumableMapping(mapping,configuration,[],local);
+ assert.equal(mapping.tasks.length,4,'the audit still checks GFCI product coverage; no invented extra compound or PVC kit');
+});

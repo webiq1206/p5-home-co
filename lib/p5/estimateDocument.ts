@@ -201,7 +201,9 @@ export function buildEstimateDocument(input:{id:string;result:unknown;brand:Esti
 
   const toConfirm=[...unpriced.map(u=>`${u}: not priced yet; we will quote it after a site visit.`),...((result.verificationItems||[]) as string[]).map(v=>clean(v,Infinity)),...((result.instructions?.questions||[]) as string[]).map(v=>clean(v,Infinity))]
     .filter(Boolean).filter(v=>!/^to confirm:.*not priced in this estimate/i.test(v));
-  const assumptions=((result.assumptions||[]) as string[]).map(v=>clean(v,Infinity)).filter(v=>v&&!/^to confirm:.*not priced in this estimate/i.test(v));
+  const noteKey=(value:string)=>value.toLowerCase().replace(/^to confirm:\s*/,'').replace(/\s+/g,' ').replace(/[.\s]+$/,'').trim();
+  const confirmationKeys=new Set(toConfirm.map(noteKey));
+  const assumptions=((result.assumptions||[]) as string[]).map(v=>clean(v,Infinity)).filter(v=>v&&!/^to confirm:.*not priced in this estimate/i.test(v)&&!confirmationKeys.has(noteKey(v)));
   const sources=(issue.sources||[]).map(s=>clean(s,120)).filter(Boolean);
   const assumptionRows:[string,string[]][]=([
     ['Pricing basis',[`Your online submission${sources.length?` and ${sources.length===1?'the document':'the documents'} you uploaded: ${sources.join('; ')}`:''}.`]],

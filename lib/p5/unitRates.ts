@@ -63,7 +63,8 @@ export function reusableUnitRate(rule:CostRule,location:string,now=new Date()):C
  const basis=rule.estimatingBasis;
  if(!context||context.currency!=='USD'||!provenance||provenance.status!=='estimated'||rule.priceBasis!=='direct-cost')return null;
  if(!['sourced-market-average','regional-planning-average'].includes(basis||''))return null;
- if(basis==='sourced-market-average'&&(provenance.sources.length<2||boiseArea(rateLocation(location))&&!provenance.sources.every(source=>boisePriceRegion(source.region))))return null;
+ if(basis==='sourced-market-average'&&provenance.sources.length<2)return null;
+ if(provenance.sources.length&&boiseArea(rateLocation(location))&&!provenance.sources.every(source=>boisePriceRegion(source.region)))return null;
  const categories={'material-purchase':'materials','trade-labor':'field-labor','subcontractor-installed':'subcontractors'};
  if(categories[context.basis]!==rule.category||!context.includes.trim())return null;
  const unit=unitKey(rule.unit),expires=Date.parse(rule.evidence.validUntil),retrieved=Date.parse(provenance.retrievedAt);

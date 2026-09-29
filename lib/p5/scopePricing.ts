@@ -212,13 +212,13 @@ Only when NO book line describes the same kind of work (for example a pool, an e
 /** Exported so a test can hold the scope-completion rules to account without a provider. */
 export const INVENTORY_INSTRUCTIONS=INVENTORY;
 const BENCHMARK_POLICY=`REGIONAL UNIT-COST ALLOWANCES: Use published local estimating guides, construction cost databases and contractor rates for services. For products and materials, use current published supplier prices for the requested specification with evidenced Boise / Treasure Valley availability. Product SKUs may establish specification and package quantity. A national price alone does not establish Boise applicability; do not relabel it as local. Use two independent comparable observations for the same item and direct-cost basis. Never claim a broader benchmark is a measured local cost or invent a locality multiplier. Preserve the requested specification and responsibility. A reasonable comparable assembly may support a preliminary allowance when its differences and verification needs are disclosed; do not silently substitute a cheaper specification. Use material-only averages for owner-installed materials, labor-only averages for owner-supplied materials, or a complete specialty trade's installed cost when P5 purchases that trade's work. A general contractor's customer selling price containing the same overhead/profit is NOT a direct cost and must not receive P5 markup again. If a guide separates materials and labor from general-contractor markup, use only the appropriate direct-cost components. Do not reverse-engineer a selling price using guessed margins. Do not invent a supplier quote or require a checkout transaction. Verify material-price applicability to the project area from public evidence. When supplies are sold in boxes or packs, convert the published price using its stated package count and show the arithmetic; never pretend a package price is a per-item price. Separate different products into distinct researched rates and use explicitly disclosed modeled purchase quantities when the scope does not state counts. Preserve the benchmark's stated tax/delivery treatment in assumptions and flag unconfirmed incidental purchase charges for verification, never falsely claim an all-in supplier quote. Explicitly requested separate delivery or other work remains included scope and requires its own supported allowance.`;
-const COVERED_POLICY=`Each task's alreadyCovered lists components of that task already priced from the catalog (description, quantity, unit). Price ONLY the remaining components of the task and describe only those; never restate or re-price covered work. If nothing remains, return no rate for that task and explain in notes.`;
+const COVERED_POLICY=`Each task's alreadyCovered lists components of that task already priced from the catalog (description, quantity, unit). projectAlreadyPriced, when supplied, is other accepted work on this project: do not buy its included repair materials again. A repair line labeled labor with consumables already includes ordinary minor materials for that repair, but not unrelated or expressly excluded work. Price ONLY the remaining components of the task and describe only those; never restate or re-price covered work. If nothing remains, return no rate for that task and explain in notes.`;
 const RESEARCH=`Research average construction UNIT COSTS for the supplied tasks and project area. ${COVERED_POLICY} ${UNTRUSTED} ${ALLOWANCE_POLICY} ${DIMENSION_POLICY} ${BENCHMARK_POLICY} ${ISSUE_POLICY}
 Return an ordinary prose research report with inline web citations, NOT JSON. Organize by taskId and product. For every proposed rate state description, unit, quantity and its evidence, any modeled quantity range, building/floor if supplied, direct-cost basis, inclusions and exclusions. For each independent source cite its URL and record the supported unit-price low/high, unit, cost basis, actual date if known, Boise-area applicability, a short supporting excerpt, source type and date basis. Distinguish unresolved issues from nonblocking notes. For every source include a short factual excerpt, at most 25 words, that names the actual product, published unit/package and its price, so the formatter can copy it without changing the product. Write that evidence as a standalone line beginning Evidence: followed by the actual product name, package count and published price, at most 25 words. Keep its source URL and evidenced local applicability beside it. Do not make the formatter reconstruct an excerpt from headings and disconnected bullets. Each supplied description defines the exact research boundary; task IDs and original quantity evidence are context, never permission to add other products. If the description says Research ONLY screws, research only screws even when the original scope also names shims. Different listings from the same retailer are not independent sources. A likely local stock assertion is not evidence; verify the retailer serves Boise and disclose item-stock uncertainty separately. A later tool-free stage converts this cited report to structured records; do not suppress citation annotations to format JSON.
 Put undated-source freshness, standard profile assumptions and unconfirmed incidental charges in notes, NOT issues, when they do not prevent a supported preliminary allowance. National-only evidence is not a substitute for the required Boise-area applicability. Do not label an explicitly allowed benchmark limitation as missing scope.
 Never put private names, street addresses, contact details, document identifiers or project-specific narrative into a search query. Search only the generic work, unit and broad region. Find two independent published sources for comparable work in Boise / Treasure Valley, Idaho. Prefer local estimating guides and published contractor rates for services. For products and materials, use current supplier prices with Boise-area availability, excluding temporary promotions. Search the specific product specification or generic assembly, correct unit and requested area. Never label national or nonlocal prices as Boise-local. A manufacturer named Boise Cascade is not evidence that a retailer or price is in Boise. For common installation supplies, begin with independent retailers that demonstrably serve Boise: verify official location pages such as https://www.lowes.com/store/ID-Boise/0688 and https://www.homedepot.com/l/Boise/ID/Boise/83704/1801, then open the actual requested product listing from each retailer. These location URLs establish neither a product price nor SKU stock. Cite current product-price evidence separately; disclose store-price and stock uncertainty rather than inventing an inventory confirmation. Do not use a distant-only retailer without evidenced delivery to the project area. Verify the actual store, delivery region or geographic rate coverage from the cited page. A regional adjustment requires cited numeric evidence, not an invented multiplier. Fetch a guide only when necessary to verify the cost breakdown. Stop when sufficient comparable evidence is available; do not repeatedly shop alternatives. Each source must support its own numeric range in USD per the rate's unit and the same material/labor responsibility. Source unit and costBasis MUST match the proposed rate; normalize known unit aliases, and disclose any evidenced conversion arithmetic. Never average prices per hour with prices per square foot, total-project budgets with per-unit rates, or materials with installed prices.
 Use sourceType regional-guide, national-guide, supplier-price or contractor-rate as appropriate. Boise-local pricing must have source evidence of Boise / Treasure Valley applicability; national benchmarks alone do not establish it. For a dated guide, publishedAt must be its actual publication/update date within the last 365 days and dateBasis=published. For an undated accessible guide, use publishedAt='' and dateBasis=retrieved, explicitly noting that publication freshness requires verification. Never manufacture dates, URLs, numeric averages, quotes or geographic factors. Use only URLs returned by the tools, and excerpts of at most 25 words. Prefer original cost-guide publishers, not articles repeating another guide's numbers as independent evidence.
-Allowed pricing units: ${Object.values(UNIT_REGISTRY).map(unit=>unit.label).join(', ')}. Do not invent descriptive units such as each-job (consumables bundle). Keep pounds of screws and packs of shims as separate rates, never averaged together. For pack or box prices, specify the contents and package size and compare equivalent packages, or convert to per-piece EA prices using each source's stated count. Each product needs its own comparable source observations. State each source's actual city or county first in region. An out-of-area store does not become Boise-local by adding a parenthetical claim of regional supply; verify a local observation or disclose that the price is not local. Return separate supported material and labor components when needed. Source low/high are comparable UNIT costs, not extended totals or tax percentages. The calculator takes the mean of source midpoints, multiplies by quantity and applies the owner's approved financial policy once. Use quantityRange only for a clearly labeled modeled quantity; measured quantities retain their supplied evidence. Keep building/floor labels for requested separate totals. includes/excludes describe the benchmark, not permission to exclude requested work. Missing supplier selection alone is a verification assumption, not an unpriced task. Unsupported work remains an explicit issue. Do not fabricate a rate to release a total.`;
+Allowed pricing units: ${Object.values(UNIT_REGISTRY).map(unit=>unit.label).join(', ')}. Do not invent descriptive units such as each-job (consumables bundle). Keep pounds of screws and packs of shims as separate rates, never averaged together. For pack or box prices, specify the contents and package size and compare equivalent packages, or convert to per-piece EA prices using each source's stated count. Each product needs its own comparable source observations. Package piece count is not square-foot coverage. Derive consumable usage from the installation, disclose modeled quantities with ALLOWANCE: and positive quantityRange, and do not charge ordinary reusable contractor tools as job materials unless specifically requested. If only one genuine local supplier price is available after comparison attempts, retain it with its actual evidence and clearly disclose the missing independent comparison; never fabricate a second source. State each source's actual city or county first in region. An out-of-area store does not become Boise-local by adding a parenthetical claim of regional supply; verify a local observation or disclose that the price is not local. Return separate supported material and labor components when needed. Source low/high are comparable UNIT costs, not extended totals or tax percentages. The calculator takes the mean of source midpoints, multiplies by quantity and applies the owner's approved financial policy once. Use quantityRange only for a clearly labeled modeled quantity; measured quantities retain their supplied evidence. Keep building/floor labels for requested separate totals. includes/excludes describe the benchmark, not permission to exclude requested work. Missing supplier selection alone is a verification assumption, not an unpriced task. Unsupported work remains an explicit issue. Do not fabricate a rate to release a total.`;
 const PLANNING_AVERAGE=`Provide a defensible REGIONAL PLANNING AVERAGE unit cost for each supplied task, without web research. ${COVERED_POLICY} ${UNTRUSTED} ${ALLOWANCE_POLICY} ${DIMENSION_POLICY} ${ISSUE_POLICY}
 Return JSON only: {rates:[{taskId,description,unit,quantity,quantityEvidence,quantityRange,building,floor,basis,includes,excludes,low,high,confidence,rationale}],issues:[],notes:[]}.
 These are preliminary planning allowances for the supplied region (default Boise / Treasure Valley, Idaho), NOT verified local pricing, supplier quotes or published benchmarks. Give a direct-cost low/high range in USD per the stated unit for the same material/labor responsibility as the task. Use general construction estimating knowledge of typical regional unit costs; do not cite URLs, dates or sources, and never fabricate any. rationale states what the range assumes (typical materials grade, labor basis, what is included and excluded). Set confidence to medium only for common, well-understood work; otherwise low. Keep quantities exactly as supplied unless a clearly labeled ALLOWANCE modeled quantity is needed. Contradictory work, or work outside construction, remains an explicit issue rather than a guessed number. A general contractor selling price is not a direct cost.
@@ -231,7 +231,7 @@ This is a preliminary allowance audit, not final supplier procurement approval. 
 Explicitly audit every item named in allowance/selection notes. Each must be linked to actual priced components, including product, tax, freight, delivery, installation and waste where required. Descriptive notes about selections do not themselves require a hold when full scope is costed. Monetary allowance budgets of unclear cost-versus-selling-price basis must remain an issue. Never mark an allowance covered by a generic contingency.
 Verify every requested item, including items the prior inventory missed. Check quantity, unit conversions, material quality, labor, supply/install responsibilities, minimum charges, demolition, disposal, specialty conditions and the combined quantities assigned to shared assemblies. Detect duplicated costs and requested work hidden in exclusions. A Project Assemblies (90-) line referenced from more than one task, or charged alongside component lines it already includes, is a duplicated charge; a removal line that includes haul-off plus a separate debris line for the same debris is a duplicated charge; a whole-house protection or cleanup package on a one-room job is an oversized allowance. A generic labor line, contingency or broad trade label does not cover unknown materials or specialist work.
 For sourced averages, verify the cited observations support the SAME scope, unit, date, geography and direct-cost basis. Reject customer project selling prices presented as direct costs, fabricated evidence, noncomparable averages, insufficient labor/material coverage and unrealistic substitutions. Check research evidence, not only the proposed numeric amount.
-A line explicitly labeled Single cited supplier budget allowance is a provisional material budget for a named installation consumable after independent-source research was exhausted. It is not a market average. Verify its actual cited product, package conversion, Boise applicability and modeled consumption. If those match, disclose the single-source limitation in notes; do not demand a second source as a release condition for that labeled exception. Do not apply this exception to other research rates.\nLines whose id starts with planning- are regional planning average allowances: the approved preliminary basis used when published research does not finish in time. They carry no citations by design. A task priced by them is covered when the allowance's scope, unit and quantity match the request; put the preliminary-basis caveat in notes, never in issues, and do not fault a planning allowance for lacking published observations, a quantity range, an ALLOWANCE prefix or building/floor labels. Only put a task ID in coveredTaskIds when ALL its requested components have positive, defensible pricing. List all missing work, ambiguity, overlap, insufficient quantities or unsupported assumptions in issues. A missing original task is an issue even if all inventory IDs are covered. Do not waive issues to return a total.`;
+A line explicitly labeled Single cited supplier budget allowance is a provisional material budget for each separately identified product after independent-source research was exhausted. It is not a market average. Verify its actual cited product, package conversion, Boise applicability and modeled consumption. If those match, disclose the single-source limitation in notes; do not demand a second source as a release condition for that labeled exception. Do not apply this exception to labor, installed-service or unsupported research rates. A parent task may contain multiple separately priced products; verify every required product has a positive supported line.\nLines whose id starts with planning- are regional planning average allowances: the approved preliminary basis used when published research does not finish in time. They carry no citations by design. A task priced by them is covered when the allowance's scope, unit and quantity match the request; put the preliminary-basis caveat in notes, never in issues, and do not fault a planning allowance for lacking published observations, a quantity range, an ALLOWANCE prefix or building/floor labels. Only put a task ID in coveredTaskIds when ALL its requested components have positive, defensible pricing. List all missing work, ambiguity, overlap, insufficient quantities or unsupported assumptions in issues. A missing original task is an issue even if all inventory IDs are covered. Do not waive issues to return a total.`;
 
 const jsText={type:'string'},jsNumber={type:'number'};
 const jsArray=(items:unknown)=>({type:'array',items});
@@ -487,7 +487,13 @@ export function normalizeConsumableMapping(mapping:Mapping,configuration:Estimat
   const requested=['nails','screws','fasteners','shims','caulk','adhesives','sealants','consumables'].filter(word=>new RegExp(`\\b${word.replace(/s$/,'')}s?\\b`,'i').test(source)&&contractorConsumableIncluded(scope,`Supply ${word}`));
   if(/\binstallation (?:materials|supplies)\b/i.test(source)&&contractorConsumableIncluded(scope,'Supply installation supplies'))requested.push('consumables');
   const excludesSupplies=(description:string)=>/exclud[^.]*\b(?:consumables?|installation materials|screws?|shims?|fasteners?)\b/i.test(description);
-  const explicitLaborGap=scope.extraction?.instructions?.laborOnly||mapping.tasks.some(task=>task.additions.some(a=>{const rate=configuration.planningCatalog?.rates.find(rate=>rate.code===a.code);return rate?.type==='Labor'&&(excludesSupplies(rate.description)||!/\blabor with consumables\b/i.test(rate.description));})||task.existingLineIds.some(id=>existing.some(line=>line.id===id&&line.category==='field-labor'&&(excludesSupplies(line.description)||!/\blabor with consumables\b/i.test(line.description)))));
+  const namedSupplies=requested.some(word=>word!=='consumables');
+  const hasSupplyGap=(description:string)=>excludesSupplies(description)||!/\blabor with consumables\b/i.test(description)&&(namedSupplies||!/\b(?:replac\w*|repair\w*|clean(?:ing|up)|remov\w*|demolition|haul\w*)\b/i.test(description));
+  // Generic installation-supplies wording does not create a new purchasing
+  // task merely because cleanup or a repair visit contains a labor line.
+  // Explicit named supplies/exclusions still require material coverage, and
+  // the independent scope audit still checks every repair's actual parts.
+  const explicitLaborGap=scope.extraction?.instructions?.laborOnly||mapping.tasks.some(task=>task.additions.some(a=>{const rate=configuration.planningCatalog?.rates.find(rate=>rate.code===a.code);return rate?.type==='Labor'&&hasSupplyGap(rate.description);})||task.existingLineIds.some(id=>existing.some(line=>line.id===id&&line.category==='field-labor'&&hasSupplyGap(line.description))));
   if(explicitLaborGap&&requested.length&&!mapping.tasks.some(task=>contractorConsumableIncluded(scope,task.description))){
     const materialIds=existing.filter(line=>line.category==='materials'&&line.quantity*line.unitCost>0&&contractorConsumableIncluded(scope,line.description)).map(line=>line.id);
     const id='required-contractor-consumables';
@@ -1119,7 +1125,7 @@ export async function reconcileResearchReply(reply:PricingReply,tasks:Mapping['t
  accepted={...accepted,value:requestedResearchRates(accepted.value,tasks)};
  let problems=failures();
  if(problems.length&&accepted.sourceReport){
-   const corrected=await request(normalizeResearch,{...input,correctionInstruction:'Repair every listed failure that the saved report supports. Prefer the exact Evidence: line; otherwise copy exact product-name and price fragments from one source paragraph, preserving their order, at most 25 words. Do not reword an excerpt or append location claims. Use canonical units and retain exact package counts. Do not invent another supplier, local availability, or missing evidence. Omit unsupported rates and explain the remaining evidence needed. Do not search again.',validationFailure:problems.join('; '),priorStructuredReply:accepted.value},false,remaining());
+   const corrected=await request(normalizeResearch,{...input,correctionInstruction:'Repair every listed failure that the saved report supports. Prefer the exact Evidence: line; otherwise copy exact product-name and price fragments from one source paragraph, preserving their order, at most 25 words. Do not reword an excerpt or append location claims. Use canonical units and retain exact package counts. Do not invent another supplier, local availability, or missing evidence. For a required material with unstated consumption, model a reasonable positive purchase quantity from the actual installation scope, disclose ALLOWANCE: quantityEvidence and a positive quantityRange. Package piece count is not square-foot coverage; do not invent product coverage. Ordinary reusable contractor tools are not purchased job consumables unless explicitly requested. Omit unsupported rates and explain the remaining evidence needed. Do not search again.',validationFailure:problems.join('; '),priorStructuredReply:accepted.value},false,remaining());
    accepted={...reply,value:requestedResearchRates(corrected.value,tasks)};
    problems=failures();
  }
@@ -1227,7 +1233,7 @@ export function marketResolution(raw:unknown,urls:string[],tasks:Mapping['tasks'
       if(u.protocol!=='https:'||!verifiedResearchUrl(s.url,urls)||s.dateBasis!=='retrieved'&&(!Number.isFinite(date)||date>now.getTime()||now.getTime()-date>365*86400000)||s.high<s.low||r.sources[normalizedSources.indexOf(s)].excerpt.split(/\s+/).length>25)throw new ResearchEvidenceError('Unsupported market source');
       hosts.add(u.hostname.replace(/^www\./,''));
     }
-    if(hosts.size<2&&(!singleSourceBudget||r.basis!=='material-purchase'||!atomic))
+    if(hosts.size<2&&(!singleSourceBudget||r.basis!=='material-purchase'))
       throw new ResearchEvidenceError('Independent market sources required');
     if(boiseArea(location)&&!normalizedSources.every(source=>boisePriceRegion(source.region)&&!/\b(?:likely|probably|assum(?:ed|ing)|unverified|unknown|not verified)\b/i.test(source.region)))throw new MissingResearchRateError('Published observations do not establish Boise / Treasure Valley pricing for this item');
     const provisional=hosts.size<2;
@@ -1245,11 +1251,50 @@ export function marketResolution(raw:unknown,urls:string[],tasks:Mapping['tasks'
     const sources=observations.map(s=>`${s.url} (${s.dateBasis==='retrieved'?'retrieved':'published'} ${sourceDate(s)}; ${s.region}; ${s.low} to ${s.high} USD/${r.unit}; ${s.excerpt})`).join('; ');
     const label=provisional?'Single-supplier preliminary budget allowance; not an independently verified market average or a supplier quote. Confirm product suitability, local availability and purchase incidentals before a firm proposal.':'Regional average unit-cost allowance; not a supplier quote. Benchmark locality and purchase incidentals require verification.';
     const basis=provisional?'regional-planning-average':'sourced-market-average';
-    result.rules.push({scopeTaskId:t.id,id:`market-${offset+result.rules.length+1}`,unitRateContext:{currency:'USD',basis:r.basis,includes:r.includes,excludes:r.excludes,assumptions:[label,...(purchaseNote?[purchaseNote]:[])]},description:r.description,unit:r.unit,building:r.building,floor:r.floor,quantityRange:r.quantityRange||undefined,allowance:true,unitCostRange:{low:Math.min(...observations.map(s=>landed(s.low))),high:Math.max(...observations.map(s=>landed(s.high)))},quantity:{fixed:r.quantity,factor:1},unitCost:Math.round(amount*10000)/10000,category:r.basis==='material-purchase'?'materials':r.basis==='trade-labor'?'field-labor':'subcontractors',priceBasis:'direct-cost',estimatingBasis:basis,evidence:{basis,provenance:{status:'estimated',location:location||observations.map(s=>s.region).join('; '),retrievedAt:now.toISOString(),assumptions:[r.quantityEvidence,label,...(purchaseNote?[purchaseNote]:[]),'Includes: '+r.includes,'Excludes: '+r.excludes],sources:observations.map(s=>({url:s.url,date:sourceDate(s),dateBasis:s.dateBasis||'published',region:s.region,low:s.low,high:s.high}))},reference:`${provisional?'Single cited supplier budget allowance':'Mean of independent published source midpoints'} with sourced purchase adjustments: ${sources}. ${purchaseNote} Includes: ${r.includes}. Excludes: ${r.excludes}. ${r.quantityEvidence}`,verifiedAt:now.toISOString(),validUntil:provisional?now.toISOString():new Date(now.getTime()+30*86400000).toISOString()}});
+    result.rules.push({scopeTaskId:t.id,id:`market-${offset+result.rules.length+1}`,unitRateContext:{currency:'USD',basis:r.basis,includes:r.includes,excludes:r.excludes,assumptions:[label,...(purchaseNote?[purchaseNote]:[])]},description:r.description,unit:r.unit,building:r.building,floor:r.floor,quantityRange:r.quantityRange||undefined,allowance:true,unitCostRange:{low:Math.min(...observations.map(s=>landed(s.low))),high:Math.max(...observations.map(s=>landed(s.high)))},quantity:{fixed:r.quantity,factor:1},unitCost:Math.round(amount*10000)/10000,category:r.basis==='material-purchase'?'materials':r.basis==='trade-labor'?'field-labor':'subcontractors',priceBasis:'direct-cost',estimatingBasis:basis,evidence:{basis,provenance:{status:'estimated',location:location||observations.map(s=>s.region).join('; '),retrievedAt:now.toISOString(),assumptions:[r.quantityEvidence,label,...(purchaseNote?[purchaseNote]:[]),'Includes: '+r.includes,'Excludes: '+r.excludes],sources:observations.map(s=>({url:s.url,date:sourceDate(s),dateBasis:s.dateBasis||'published',region:s.region,low:s.low,high:s.high}))},reference:`${provisional?'Single cited supplier budget allowance':'Mean of independent published source midpoints'} with sourced purchase adjustments: ${sources}. ${purchaseNote} Includes: ${r.includes}. Excludes: ${r.excludes}. ${r.quantityEvidence}`,verifiedAt:now.toISOString(),validUntil:new Date(now.getTime()+30*86400000).toISOString()}});
     result.assumptions.push(`${r.description}: ${provisional?'single-supplier preliminary budget allowance, not independently verified':'sourced average-cost allowance'} for ${r.quantity} ${r.unit}. ${label} Includes ${r.includes}. ${purchaseNote} ${r.excludes?`Excludes ${r.excludes}.`:""} Basis: ${observations.map(s=>`${s.region} (${s.sourceType})`).join('; ')}. ${observations.some(s=>s.dateBasis==='retrieved')?'Publication date unavailable; freshness requires verification. ':''}Preliminary unit-cost benchmark, not a supplier quote. Verify selections and any incidental charges not specified in the benchmark. Sources: ${observations.map(s=>s.url).join("; ")}`);
   }
   for(const t of tasks.filter(t=>t.researchDescription))if(!market.rates.some(r=>r.taskId===t.id))result.issues.push(`${t.description}: no defensible average rate found.`);
   return result;
+}
+
+/** Preserve a complete set of cited material budgets when independent supplier
+ * comparison fails. Eligibility follows the actual products and evidence, not
+ * a model-generated task title or a fixed list of consumable nouns. */
+export function materialBudgetCandidate(raw:unknown,report:string,urls:string[],tasks:Mapping['tasks'],now:Date,offset=0,location='',scope?:ReviewedScope){
+ if(!report.trim())return null;
+ const market=parseResearchRates(raw);
+ if(market.issues.length||!market.rates.length)return null;
+ const canonical=(value:string)=>value.toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
+ const text=canonical(report);
+ const rates:typeof market.rates=[];
+ for(const rate of market.rates){
+  const task=tasks.find(task=>task.id===rate.taskId);
+  if(!task||rate.basis!=='material-purchase')return null;
+  const atomic=/^Research ONLY contractor-supplied /.test(task.researchDescription);
+  const sources=rate.sources.filter(source=>{
+   const candidate={rates:[{...rate,sources:[source]}],issues:[],notes:[]};
+   try{
+    assertResearchReportProducts(candidate,report,[task]);
+    if(!atomic){
+     // Store-location pages and prose with a copied invented price cannot
+     // become a second price observation or a provisional product quote.
+     const excerpt=canonical(source.excerpt);
+     const words=affirmativeProductDescription(rate.description).toLowerCase().match(/[a-z]{4,}/g)||[];
+     const productWords=words.filter(word=>!/^(?:supply|supplies|provide|provided|contractor|installation|material|materials|purchase|allowance|budget|standard|only|included|includes|required|local|boise|pack|package|quantity|unit|price|cost)$/.test(word));
+     const quotedPrices=[...source.excerpt.replace(/,/g,'').matchAll(/(?:[$]\s*|USD\s*)(\d+(?:\.\d+)?)/gi)].map(match=>Number(match[1]));
+     if(!excerpt||!text.includes(excerpt)||!productWords.some(word=>excerpt.includes(word.replace(/s$/,'')))||![source.low,source.high].every(price=>quotedPrices.some(quoted=>Math.abs(quoted-price)<0.000001)))return false;
+    }
+    const checked=marketResolution(candidate,urls,[task],now,offset,location,scope,true);
+    return !checked.issues.length&&checked.rules.some(rule=>rule.scopeTaskId===task.id&&rule.unitCost>0);
+   }catch{return false;}
+  });
+  // A bad comparison may be dropped, but a missing component may not.
+  if(!sources.length)return null;
+  rates.push({...rate,sources});
+ }
+ if(tasks.some(task=>!rates.some(rate=>rate.taskId===task.id)))return null;
+ return {...market,rates};
 }
 
 /** A planning range the estimate can carry: positive, ordered, and no wider than six to one.
@@ -1699,6 +1744,26 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
     resolution.rules.push(...catalog.rules);resolution.assumptions.push(...catalog.assumptions);resolution.issues.push(...catalog.issues);
     const modelIssues=new Set([...mapping.issues,...mapping.tasks.flatMap(t=>t.issues.map(issue=>`${t.description}: ${issue}`))]);
     modelIssues.forEach(issue=>opinions.add(issue));inventory.issues.forEach(issue=>opinions.add(issue));
+    // Apply already-approved assembly coverage before asking for a missing
+    // price. Otherwise a covered sink/cabinet can enter research and fail
+    // before the same deterministic correction at the end ever runs.
+    const reconcileAssemblyCoverage=()=>{
+      const assemblies=resolution.rules.filter(rule=>rule.unitCost>0&&(rule.quantity.fixed||0)>0&&rule.description.includes('complete assembly, do not add its component lines'));
+      if(!assemblies.length)return;
+      const corrected=applyPricingCorrections({scope:pricingScope,inventoryTasks:inventory.tasks,mappingTasks:mapping.tasks,lines,resolution,pricingExtraction,configuration,now});
+      const liveAssemblies=new Set(resolution.rules.filter(rule=>assemblies.includes(rule)).map(rule=>rule.id));
+      for(const task of mapping.tasks){
+        if(!corrected.coveredTaskIds.includes(task.id)||!task.existingLineIds.some(id=>liveAssemblies.has(id)))continue;
+        task.researchDescription='';
+        // These findings concern a component rejected before it was assigned
+        // to the assembly. The positive catalog assembly now
+        // supplies that component; unrelated quantity/evidence issues remain.
+        const noPrice=task.description+': no supported price.';
+        const rejectedQuantity=task.description+': mapped ';
+        resolution.issues=resolution.issues.filter(issue=>issue!==noPrice&&!(issue.startsWith(rejectedQuantity)&&issue.endsWith(' does not match the explicit quantity in the reviewed scope.')));
+      }
+    };
+    reconcileAssemblyCoverage();
     const gaps=mapping.tasks.filter(t=>t.researchDescription);
     const research:PricingReply[]=[];auditTrail.research=research;
     const region=scope.answers.location||'Boise / Treasure Valley, Idaho';
@@ -1706,32 +1771,15 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
      * batches run in parallel; saved replies prevent repeated provider charges. */
     const priceGapBatch=async(gapBatch:Mapping['tasks'],batchIndex:number,covered:(task:Mapping['tasks'][number])=>unknown[],priorIssues?:string[]):Promise<{replies:PricingReply[];resolution:ScopePriceResolution;modelIssues:string[]}>=>{
       const replies:PricingReply[]=[];const offset=batchIndex*100;
-      const tasksInput=gapBatch.map(t=>({id:t.id,description:t.researchDescription,application:scope.answers.service||'construction',quantityEvidence:researchQuantityEvidence(t,pricingScope),projectExclusions:[...(pricingScope.extraction?.instructions?.exclusions||[]),pricingScope.answers.exclusions||''],alreadyCovered:covered(t)}));
+      const tasksInput=gapBatch.map(t=>({id:t.id,description:t.researchDescription,application:scope.answers.service||'construction',quantityEvidence:researchQuantityEvidence(t,pricingScope),projectExclusions:[...(pricingScope.extraction?.instructions?.exclusions||[]),pricingScope.answers.exclusions||''],alreadyCovered:covered(t),projectAlreadyPriced:t.id==='required-contractor-consumables'?mapping.tasks.filter(task=>task.id!==t.id).flatMap(task=>covered(task)):undefined}));
       const provisionalCandidates:{rates:ReturnType<typeof parseResearchRates>;urls:string[];report:string}[]=[];
       let currentSourceUrls:string[]=[],currentReport='';
       const validateReply=(value:unknown)=>{
         const rates=parseResearchRates(value);
         if(currentReport){
-          // An invalid second observation must not erase a valid cited
-          // observation for the same atomic product. Retain only sources that
-          // individually pass product, price, unit, locality and quantity checks.
-          // They still seek an independent comparison before any labeled
-          // single-supplier budget can be used.
-          if(gapBatch.length===1&&/^Research ONLY contractor-supplied /.test(gapBatch[0].researchDescription)){
-            for(const rate of rates.rates){
-              const sources=rate.sources.filter(source=>{
-                const candidate={rates:[{...rate,sources:[source]}],issues:[],notes:rates.notes};
-                try{
-                  assertResearchReportProducts(candidate,currentReport,gapBatch);
-                  const checked=marketResolution(candidate,currentSourceUrls,gapBatch,now,offset,region,scope,true);
-                  return !checked.issues.length&&checked.rules.some(rule=>rule.scopeTaskId===gapBatch[0].id&&rule.unitCost>0);
-                }catch{return false;}
-              });
-              if(sources.length)provisionalCandidates.push({rates:{...rates,rates:[{...rate,sources}]},urls:[...currentSourceUrls],report:currentReport});
-            }
-          }
+          const provisional=materialBudgetCandidate(rates,currentReport,currentSourceUrls,gapBatch,now,offset,region,scope);
+          if(provisional)provisionalCandidates.push({rates:provisional,urls:[...currentSourceUrls],report:currentReport});
           assertResearchReportProducts(rates,currentReport,gapBatch);
-          provisionalCandidates.push({rates,urls:[...currentSourceUrls],report:currentReport});
         }
         const priced=marketResolution(rates,currentSourceUrls,gapBatch,now,offset,region,scope);
         if(gapBatch.some(task=>!priced.rules.some(rule=>rule.scopeTaskId===task.id&&rule.unitCost>0)))
@@ -1797,7 +1845,7 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
       if(researchTimedOut||pastWindow)throw new PricingPending('Research is temporarily unavailable. Your project and completed pricing steps are saved.',30000);
       // A single cited, locally applicable product price can support a clearly
       // disclosed preliminary budget, not an independently verified market
-      // average. It is never saved as a reusable market rate. No report, missing
+      // average. A valid per-unit material allowance may be reused with its single-source disclosure for at most 30 days. No report, missing
       // item, invalid package arithmetic or unsupported source still blocks.
       for(const candidate of provisionalCandidates.reverse())try{
         const provisional=marketResolution(candidate.rates,candidate.urls,gapBatch,now,offset,region,scope,true);
@@ -1972,6 +2020,7 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
       resolution.issues=[...new Set([...carriedIssues,...inventory.issues,...repaired.issues])];
       [...fixes.issues,...fixes.tasks.flatMap(t=>t.issues.map(issue=>`${t.description}: ${issue}`))].forEach(issue=>{modelIssues.add(issue);opinions.add(issue);});
       mapping.tasks=fixes.tasks;
+      reconcileAssemblyCoverage();
       // Research already priced a task's gap in the first pass. The repair round
       // researches a gap again only when the audit named that task; those
       // earlier rules are replaced, not counted a second time. Every other

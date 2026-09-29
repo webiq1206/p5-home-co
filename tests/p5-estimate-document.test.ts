@@ -131,7 +131,7 @@ test('long customer assumptions and verification notes retain their complete mea
  const note='The estimate assumes normal access and the installation conditions described in the reviewed scope. '.repeat(5)+'Finish painting is excluded.';
  const result={...re10,exclusions:[],assumptions:[note],verificationItems:[note]};
  const doc=buildEstimateDocument({id:ID,result,brand:site,issue:{service:'handyman'}});
- assert.deepEqual(doc.assumptionRows.find(([title])=>title==='Assumptions')?.[1],[note]);
+ assert.equal(doc.assumptionRows.find(([title])=>title==='Assumptions'),undefined,'the same full paragraph is retained once under To confirm');
  assert.deepEqual(doc.assumptionRows.find(([title])=>title==='To confirm')?.[1],[note]);
  const output=(await pdfTextLayers(await customerPdf(ID,result))).join('\n');
  assert.match(output,/Finish painting is excluded\./);
@@ -145,4 +145,11 @@ test('all scope descriptions and customer notes survive PDF document preparation
  assert.match(doc.categories[0].allowances.join(' '),/END OF SCOPE/);
  assert.equal(doc.assumptionRows.find(([title])=>title==='Assumptions')?.[1].length,25);
  assert.equal(doc.assumptionRows.find(([title])=>title==='To confirm')?.[1].length,22);
+});
+
+test('repeated verification paragraphs appear once without removing quantities or distinct assumptions',()=>{
+ const note='Confirm the 42 shim allowance (range 24–56 pieces) and local pickup before ordering.';
+ const doc=buildEstimateDocument({id:ID,result:{...re10,assumptions:[note,'Existing walls are sound.'],verificationItems:[note]},brand:brand('cabinet'),issue:{service:'cabinet-install'}});
+ assert.deepEqual(doc.assumptionRows.find(([key])=>key==='Assumptions')?.[1],['Existing walls are sound.']);
+ assert.equal(doc.assumptionRows.find(([key])=>key==='To confirm')?.[1].filter(value=>value===note).length,1);
 });
