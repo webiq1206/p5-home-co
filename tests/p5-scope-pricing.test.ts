@@ -237,6 +237,24 @@ test('Complete-scope mapper and audit receive active scope without retained alte
  assert.ok(!JSON.stringify(seen).includes('Unselected quartz top'));
  assert.ok(seen.every(payload=>!JSON.stringify(payload).includes('clarificationProvenance')&&!JSON.stringify(payload).includes('sourceHistory')));
 });
+test('supplier research survives normalization with aligned source types and policies',async()=>{
+ const {openAiPricingRequestEnvelope}=await import('../lib/p5/scopePricing.ts');
+ let normalized=false;
+ const supplier=structuredClone(researched);supplier.rates[0].sources.forEach(source=>source.sourceType='supplier-price');
+ const queue=replies([{tasks:[task,extra],issues:[]},null,supplier,{coveredTaskIds:['cabinets','overlay'],issues:[]}]);
+ const result=await priceCompleteScope(scope,config,async(instructions,input,search,remaining)=>{
+  if(search){assert.ok(instructions.includes('current published supplier prices'));assert.ok(!instructions.includes('not supplier shopping'));}
+  if((input as any).report!==undefined){
+   normalized=true;
+   const envelope=openAiPricingRequestEnvelope(instructions,input,false);
+   const schema=(envelope.body as any).text.format.schema;
+   assert.deepEqual(schema.properties.rates.items.properties.sources.items.properties.sourceType.enum,['regional-guide','national-guide','supplier-price','contractor-rate']);
+   assert.ok(!instructions.includes('not supplier shopping'));
+  }
+  return queue(instructions,input,search,remaining);
+ },now);
+ assert.ok(normalized);assert.ok(result.customer.range);
+});
 test('source verification ignores tracking but preserves product and region identity',async()=>{
  const {verifiedResearchUrl}=await import('../lib/p5/scopePricing.ts');
  assert.ok(verifiedResearchUrl(urls[0],[urls[0]+'?utm_source=openai#price']));
