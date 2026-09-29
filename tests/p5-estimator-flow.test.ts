@@ -4,7 +4,7 @@ import {missingScopeFields,missingNoteField} from '../lib/p5/missingFields.ts';
 import {categoryBreakdown,fieldCategory} from '../lib/p5/presentation.ts';
 import {questionForField,questionReason} from '../lib/p5/adaptive.ts';
 import {priceCompleteScope,planningResolution,RESEARCH_STAGE_MS,PRICING_STAGE_MAX_MS,type PricingRequest,HANDOFF_ISSUE} from '../lib/p5/scopePricing.ts';
-import {PricingStageTimeout} from '../lib/p5/pricingProgress.ts';
+import {PricingPending,PricingStageTimeout} from '../lib/p5/pricingProgress.ts';
 import {BACKGROUND_JOB_LIMIT_MS,CLIENT_BUDGET_MS,PRICING_PASS_MS} from '../lib/p5/processingBudget.ts';
 import {createPlanningConfiguration,PLANNING_MODEL_VERSION,type PlanningCatalog} from '../lib/p5/planningBooks.ts';
 import type {ReviewedScope} from '../lib/p5/scope.ts';
@@ -100,7 +100,7 @@ test('a slow or unavailable web search preserves progress without uncited pricin
     if(stage==='PLANNING')return {value:planned,sourceUrls:[]};
     return {value:{coveredTaskIds:['cabinets','overlay'],issues:[],notes:[],resolvedIssues:[]},sourceUrls:[]};
   };
-  await assert.rejects(()=>priceCompleteScope(scope,config,request,now),/Researching Boise-area prices/);
+  await assert.rejects(()=>priceCompleteScope(scope,config,request,now),error=>error instanceof PricingPending&&!error.fatal&&error.retryAfterMs>0);
   assert.equal(stages.filter(stage=>stage==='RESEARCH').length,2);
   assert.ok(!stages.includes('PLANNING'),'an outage never turns model knowledge into a researched local price');
 });

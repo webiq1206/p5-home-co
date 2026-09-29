@@ -1,7 +1,7 @@
 {
  "source": "boise-remodeling-co",
- "commit": "5dddba62496b8c5b415042fe960b5442bd682b71",
- "generatedAt": "2026-09-29T12:17:50.505Z",
+ "commit": "ad667eeef5b7e1faa29537cb6e837e5802a2a138",
+ "generatedAt": "2026-09-29T12:19:23.367Z",
  "note": "Shared estimator files. Edit them in boise-remodeling-co and run scripts/p5-sync.mjs; never edit them in one brand.",
  "files": {
   "app/admin/p5-estimators/page.tsx": "a2401f2a29c22dd1a5631fa2c065114275b4e7c1d99ba6c97a8ff0f26cb6a3ad",
@@ -253,7 +253,7 @@
   "tests/p5-entry-point-model.test.ts": "449403aa0343283c20ae2f70a5d4a7609d3fdef846b9c131636bb0fd6ee37f53",
   "tests/p5-estimate-document.test.ts": "ff7e962df826e4b24b462a5e2e623ddbee13237150a44484aac99806bfbb3e2e",
   "tests/p5-estimator-chrome.test.ts": "78a95b5158f3375008cc34c54148cab8a5c06ea1518cd0d5a2a132564268608b",
-  "tests/p5-estimator-flow.test.ts": "f341da038191c43410db1d57907f202002832e0c1c417719a53cbd8737823301",
+  "tests/p5-estimator-flow.test.ts": "d42f7a213e896d84eef32cbe681be69a432d8f032c8350e08fd492f03ca38502",
   "tests/p5-explicit-labor.test.ts": "2333a7a897f81021c3112780174938efda2873fdff56db61810a7c77f426cb2a",
   "tests/p5-extraction-values.test.ts": "8b211c0acf2c42056e57912d9db8caaa1b0a241ff02f85644b6979e97f8e3985",
   "tests/p5-file-snapshot.test.ts": "5a55110d87ee2fa57494ef51b72804d3bbd4551113dae763e7e9d6dc0a9387b4",
