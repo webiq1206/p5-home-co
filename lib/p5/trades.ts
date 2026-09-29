@@ -46,7 +46,8 @@ export function suggestedTrade(description: string): TradeCategory {
   // Catalog descriptions append broad section names in parentheses. "Cabinet
   // install labor only (... Cabinet Refacing, Refinishing & Install ...)" is
   // cabinet installation, not the refinishing trade named in that section.
-  const item=work.split('(')[0];
+  // The substrate under new flooring is context, not a separate concrete trade.
+  const item=work.split('(')[0].replace(/\b(?:over|on)\s+(?:an?\s+)?(?:existing\s+)?concrete\s+(?:slab|subfloor)\b/gi,' ');
   return patterns.find(([, pattern]) => pattern.test(item))?.[0] ?? patterns.find(([, pattern]) => pattern.test(work))?.[0] ?? patterns.find(([, pattern]) => pattern.test(included))?.[0] ?? "Other Project Work";
 }
 export function tradeForLine(line: { trade?: string; description: string }): TradeCategory {
