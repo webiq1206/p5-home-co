@@ -44,3 +44,20 @@ test('a confirmed installation answer stays resolved without a new PDF',()=>{
  const safe=groundSourceResponsibilities(extraction,undefined,'Owner handles installation',{});
  assert.equal(safe,extraction);
 });
+
+test('retained appliance detach and reset does not ask who installs new appliances',()=>{
+ const source='Existing owner appliances remain and are not replaced; detach and reset only as needed.';
+ const input:ScopeExtraction={summary:'Kitchen',facts:[{field:'installation',value:'Owner responsible for appliance installation.',confidence:1,source:'kitchen.pdf',evidence:source,basis:'stated'}],conflicts:[],reviewNotes:[],missingInformation:[],instructions:{...emptyInstructions(),responsibilities:['Owner responsible for appliance installation']}};
+ const safe=groundSourceResponsibilities(input,source,'',{});
+ assert.equal(safe.facts.length,0);
+ assert.equal(safe.instructions?.responsibilities.length,0);
+ assert.deepEqual(safe.instructions?.questions,[]);
+});
+
+test('saved installer question is retired when retained-appliance reset is explicit',()=>{
+ const source='Existing owner appliances remain and are not replaced; detach and reset only as needed.';
+ const input:ScopeExtraction={summary:'Kitchen',facts:[],conflicts:[],reviewNotes:[],missingInformation:[],instructions:{...emptyInstructions(),questions:['Who should install the appliances?','Which countertop edge is requested?']}};
+ const safe=groundSourceResponsibilities(input,source,'',{});
+ assert.deepEqual(safe.instructions?.questions,['Which countertop edge is requested?']);
+ assert.deepEqual(groundSourceResponsibilities(safe,source,'',{}),safe);
+});

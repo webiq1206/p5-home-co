@@ -44,7 +44,10 @@ export function groundSourceResponsibilities(extraction:ScopeExtraction,nativeTe
   return [...extraction.facts.map(fact=>fact.value),...(extraction.instructions?.responsibilities||[])].some(value=>clauses(value).some(clause=>owner.test(clause)&&installation.test(clause)&&item.pattern.test(clause)));
  });
  const allowanceBoundary=/\bproduct(?:[- ]only| allowance)\b/i.test(nativeText)&&/\bancillary costs\b.{0,80}\bseparately\b/i.test(nativeText);
- if(!affected.length&&!allowanceBoundary)return extraction;
+ const retainedResetItems=items.filter(item=>sourceClauses.some((clause,index)=>item.pattern.test(clause)
+   && /\b(?:existing|remain|retain|keep)\b/i.test(clause)
+   && /\b(?:detach|disconnect)\b.{0,35}\b(?:reset|reconnect)\b/i.test(clause+' '+(sourceClauses[index+1]||''))));
+ if(!affected.length&&!allowanceBoundary&&!retainedResetItems.length)return extraction;
  const unsupportedOwner=(clause:string)=>owner.test(clause)&&installation.test(clause)&&affected.some(item=>item.pattern.test(clause));
  const explicitOwnerSupply=(item:typeof items[number])=>Boolean(previous.ownerSupplied&&item.pattern.test(previous.ownerSupplied)&&!/\b(?:no|not|none)\b/i.test(previous.ownerSupplied))||sourceClauses.some(clause=>item.pattern.test(clause)&&(owner.test(clause)||/\b(?:I|we)\b/i.test(clause))&&/\b(?:suppl\w*|purchas\w*|furnish\w*|provid\w*|have|own)\b/i.test(clause)&&!/\b(?:select\w*|allowance|no|not|none|without)\b/i.test(clause));
  const globalAllowanceExclusion=(clause:string)=>allowanceBoundary&&items.some(item=>item.pattern.test(clause)&&!clauses(direct).some(user=>item.pattern.test(user)&&/\bexclud\w*\b/i.test(user)))&&/\b(?:install\w*|shipping|tax|delivery|hookups?)\b/i.test(clause)&&!/\b(?:allowance|product[- ]only)\b/i.test(clause);
@@ -54,7 +57,14 @@ export function groundSourceResponsibilities(extraction:ScopeExtraction,nativeTe
   return value?[{...fact,value}]:[];
  });
  const instructions=extraction.instructions||emptyInstructions();
- const questions=[...instructions.questions];
- for(const item of affected){const question=`Who should install the ${item.label}?`;if(!questions.includes(question))questions.push(question);}
+ const questions=instructions.questions.filter(question=>!retainedResetItems.some(item=>question===`Who should install the ${item.label}?`));
+ for(const item of affected){
+  // Retaining an existing appliance and explicitly detaching/resetting it
+  // is a specified task, not an unanswered new-appliance installation.
+  // Remove the model's unsupported owner assignment above, but do not ask
+  // the customer to repeat this already supplied scope.
+  if(retainedResetItems.includes(item))continue;
+  const question=`Who should install the ${item.label}?`;if(!questions.includes(question))questions.push(question);
+ }
  return {...extraction,facts,instructions:{...instructions,responsibilities:instructions.responsibilities.filter(value=>!unsupportedOwner(value)),exclusions:instructions.exclusions.filter(value=>!globalAllowanceExclusion(value)),questions}};
 }

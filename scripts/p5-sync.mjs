@@ -17,6 +17,10 @@ import {fileURLToPath} from 'node:url';
 
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const args=process.argv.slice(2);const dry=args.includes('--dry');
+// P5 is the isolated qualification site until its acceptance matrix passes.
+// Refreshing its own integrity manifest is allowed; copying experimental
+// changes into another brand is not. Do not use this fork for fleet rollout.
+if(!args.includes('--manifest'))throw new Error('P5 qualification only: child estimator synchronization is paused.');
 const SIBLINGS=['p5-home-co','Boise-Construction-Co','Boise-Handyman-Co','Boise-Cabinet-Co'];
 
 /** Files each brand owns. They are never copied and never listed in the manifest. */
@@ -47,7 +51,7 @@ export const hashOf=file=>createHash('sha256').update(normalized(file)).digest('
 
 function manifest(files){
   let commit='';try{commit=execSync('git rev-parse HEAD',{cwd:root,stdio:['ignore','pipe','ignore']}).toString().trim();}catch{}
-  return {source:'boise-remodeling-co',commit,generatedAt:new Date().toISOString(),note:'Shared estimator files. Edit them in boise-remodeling-co and run scripts/p5-sync.mjs; never edit them in one brand.',files:Object.fromEntries(files.map(file=>[file,hashOf(path.join(root,file))]))};
+  return {source:'p5-home-co',commit,generatedAt:new Date().toISOString(),note:'P5-only qualification baseline. Child rollout is paused until live acceptance is verified. Hash checks remain mandatory.',files:Object.fromEntries(files.map(file=>[file,hashOf(path.join(root,file))]))};
 }
 function writeManifest(target,files){const data=manifest(files);if(!dry)writeFileSync(path.join(target,'lib/p5/shared-manifest.json'),JSON.stringify(data,null,1)+'\n');return data;}
 

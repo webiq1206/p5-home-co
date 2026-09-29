@@ -198,6 +198,21 @@ export function validateExtraction(raw: unknown): ScopeExtraction {
     if (f.basis !== undefined && !["stated", "calculated", "visual", "inferred"].includes(String(f.basis))) throw new Error("Invalid fact basis");
     // A model's confidence is not evidence that an assumption was supplied by the user.
     let confidence = fact.confidence;
+    // Live P5 qualification: a 30-inch vanity became a 2.08 SF countertop
+    // with confidence 1, while the evidence assumed a depth and said 2.5 SF.
+    // Arithmetic involving an invented operand is an assumption, not a
+    // verified measurement. Preserve it for review without promoting it to
+    // an answer or discarding the rest of the successfully read scope.
+    if (SCOPE_FIELDS[fact.field].kind === 'number' && f.basis === 'calculated') {
+      const assumedOperand = /\b(?:assum(?:e|ed|ing|ption)|default(?:ed)?|typical(?:ly)?|presum(?:e|ed)|estimated\s+(?:depth|width|length|height))\b/i.test(fact.evidence);
+      const resultMatches = [...fact.evidence.matchAll(/=\s*(\d+(?:,\d{3})*(?:\.\d+)?)/g)];
+      const lastResult = resultMatches.at(-1)?.[1];
+      const disagrees = lastResult !== undefined && Math.abs(Number(lastResult.replaceAll(',', '')) - Number(fact.value.replaceAll(',', ''))) > .011;
+      if (assumedOperand || disagrees) {
+        f.basis = 'inferred';
+        confidence = Math.min(confidence, .2);
+      }
+    }
     if (f.basis === "inferred") confidence = Math.min(confidence, .2);
     if (f.basis === "visual") confidence = Math.min(confidence, SCOPE_FIELDS[f.field as ScopeField].kind === "number" ? 0 : .6);
     const value=SCOPE_FIELDS[f.field as ScopeField].kind === "number" ? String(Number(fact.value.replaceAll(",", ""))) : fact.value.trim();
@@ -219,7 +234,11 @@ export function validateExtraction(raw: unknown): ScopeExtraction {
     }
     return [{ ...f, value, confidence } as unknown as ExtractedFact];
   });
-  const conflicts = r.conflicts.map((item: unknown): ScopeConflict => {
+  // Rebuild only our own raster-confirmation records from the validated facts.
+  // A saved confirmation must not resurrect a measurement now rejected as inferred.
+  const retainedConflicts = r.conflicts.filter((item: any) => !(typeof item?.explanation === 'string'
+    && /^Please confirm .+ read from the image: .+ Check the drawing label and enter a correction if needed; image readings can be mistaken\.$/.test(item.explanation)));
+  const conflicts = retainedConflicts.map((item: unknown): ScopeConflict => {
     if (!item || typeof item !== "object") throw new Error("Invalid conflict");
     const c = item as Record<string, unknown>;
     if (typeof c.field !== "string" || !Object.hasOwn(SCOPE_FIELDS,c.field) || typeof c.explanation !== "string" || c.explanation.length > 4000) throw new Error("Invalid conflict");

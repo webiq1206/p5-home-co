@@ -1,0 +1,74 @@
+[
+  {
+    "id": "new-home",
+    "service": "new-construction",
+    "title": "New home with separate garage and porch",
+    "scope": "Build a new one-story home in Boise, Idaho. Conditioned living area is 50 by 40 feet, exactly 2000 SF. Attached unconditioned garage is 20 by 22 feet, exactly 440 SF, in addition to living area. Covered porch is 8 by 10 feet, exactly 80 SF, also additional. Three bedrooms, two bathrooms, 9-foot ceilings, standard wood framing, slab-on-grade, asphalt shingle roof, mid-range finishes. Include complete house construction and normal MEP, kitchen, bathrooms, garage and porch. Kitchen has 18 LF base and 12 LF wall cabinets, 45 SF quartz. Bathrooms each have one toilet and one vanity; one has a tub/shower and one a shower. Level cleared lot, normal access and working hours, utilities stubbed at building perimeter. Exclude land, design, engineering, permit fees, utility extensions beyond building perimeter, landscaping and appliances. Do not add kitchen or bathroom components again if included in a complete house assembly.",
+    "expectedFacts": {"sqft":"2000", "garageSqft":"440", "coveredOutdoorSqft":"80", "stories":"1", "bathrooms":"2"},
+    "mustExclude": ["land purchase", "landscaping", "appliance supply"],
+    "criticalChecks": ["Living area must not become 2520 SF", "Garage and porch must be priced separately from conditioned living area", "No duplicate kitchen or bathroom assembly charges"]
+  },
+  {
+    "id": "bathroom",
+    "service": "bathroom",
+    "title": "60 SF bathroom remodel, unchanged fixture locations",
+    "scope": "Remodel one 6 by 10 foot bathroom, 60 SF, in Boise, Idaho. Existing fixture locations stay unchanged. Remove existing finishes and fixtures. Supply and install 60 SF porcelain floor tile, 84 SF shower wall tile with waterproofing, one 30-inch vanity, one integrated vanity top and sink, one faucet, one toilet, one shower valve and trim, one shower pan, and one framed shower door. Paint 120 SF of non-tiled walls and 60 SF ceiling. Mid-range materials. Include normal plumbing reconnections, demolition disposal, installation supplies, protection and cleanup. Ground-floor normal access, unoccupied room. No structural work, electrical changes, whole-home work, concealed damage remediation or whole-house plumbing. Exclude permit fees and design. Shower footprint is 3 by 4 feet; shower walls are 7 feet high with 12 LF of tiled wall perimeter.",
+    "expectedFacts": {"sqft":"60", "flooringSqft":"60", "cabinetBaseLf":"2.5"},
+    "mustExclude": ["whole-home remodeling", "electrical rewiring", "structural work"],
+    "criticalChecks": ["Floor tile 60 SF and shower walls 84 SF are distinct quantities", "Do not multiply fixtures by bathroom area", "Do not ask for already supplied vanity width or shower dimensions"]
+  },
+  {
+    "id": "kitchen",
+    "service": "kitchen",
+    "title": "Kitchen remodel retaining flooring and appliances",
+    "scope": "Remodel a 200 SF kitchen in Boise, Idaho. Supply and install 18 LF base cabinets, 12 LF wall cabinets, zero tall cabinets, 45 SF quartz countertop, 30 SF tile backsplash, one sink and one faucet. Mid-range painted shaker cabinets with plywood boxes and soft-close hardware. Remove and dispose of existing cabinets, counters, backsplash, sink and faucet. Reconnect plumbing at existing locations. Existing owner appliances remain and are not replaced; detach and reset only as needed. Existing flooring remains untouched; no flooring supply or installation. No structural changes, electrical upgrades, wall painting or HVAC work. Include normal consumables, protection and cleanup. Ground-floor standard access, normal schedule. Exclude permit fees, design, concealed damage and all other rooms.",
+    "expectedFacts": {"sqft":"200", "cabinetBaseLf":"18", "cabinetUpperLf":"12", "cabinetTallLf":"0", "countertopSqft":"45"},
+    "mustExclude": ["new flooring", "new appliances", "whole-house MEP"],
+    "criticalChecks": ["No full kitchen package plus duplicate cabinets and countertop", "No flooring charge from 200 SF room size", "One sink and one faucet only"]
+  },
+  {
+    "id": "whole-home",
+    "service": "whole-home",
+    "title": "Selected whole-home interior remodel, not reconstruction",
+    "scope": "Selected interior remodel of an existing 1800 SF one-story home in Boise, Idaho, not a gut renovation and not new construction. Replace 1600 SF flooring with contractor-supplied LVP and 80 SF bathroom floor tile; retain 120 SF utility-room flooring untouched. Paint 4000 SF wall surface and 1800 SF ceilings. Replace 12 interior doors and 550 LF baseboard. Kitchen: supply/install 18 LF base cabinets, 12 LF wall cabinets, 45 SF quartz, one sink and one faucet. Two bathrooms: each supply/install one 30-inch vanity with integrated top/sink, one faucet and one toilet; existing tub/showers stay untouched. Existing plumbing locations remain. Include removal/disposal of replaced finishes, minor prep, reconnects, normal materials and cleanup. Mid-range finishes, unoccupied, normal access and schedule. Exclude roof, windows, exterior, structural work, full rewiring, HVAC, shower remodeling, appliances, permit fees and design.",
+    "expectedFacts": {"sqft":"1800", "bathrooms":"2", "trimLf":"550"},
+    "mustExclude": ["roof replacement", "new windows", "new construction", "shower replacement"],
+    "criticalChecks": ["1600 SF LVP plus 80 SF tile, not 1800 SF flooring", "Retain 120 SF utility floor", "Wall paint 4000 SF is surface area, not living area", "Scope is selected interior work, not complete reconstruction"]
+  },
+  {
+    "id": "adu",
+    "service": "adu",
+    "title": "600 SF detached ADU with separate utility extension",
+    "scope": "Build a detached one-story 20 by 30 foot ADU, exactly 600 SF conditioned space, in Boise, Idaho. One bedroom and one bathroom, 8-foot ceilings, slab foundation, standard wood framing, asphalt shingle roof, mid-range finishes. Include complete ADU construction with kitchen, bathroom, electrical, plumbing and mini-split HVAC. Kitchen has 8 LF base and 6 LF wall cabinets, 20 SF laminate counter, one sink and faucet. Bathroom has one toilet, one 30-inch vanity with sink/faucet and one acrylic shower. No garage or covered porch. Level cleared site and normal access. Include a separate 20 LF sewer extension and 20 LF water extension across open soil; utility capacity is available. Exclude land, landscaping, permit/impact fees, design, engineering and appliance supply. Do not charge included kitchen/bath components a second time on top of complete ADU assembly.",
+    "expectedFacts": {"sqft":"600", "stories":"1", "bathrooms":"1", "garageIncluded":"no"},
+    "mustExclude": ["garage", "land purchase", "appliance supply"],
+    "criticalChecks": ["600 SF living space", "Separate water and sewer runs are 20 LF each, not one shared 20 LF", "Included cabinets and fixtures are not duplicated"]
+  },
+  {
+    "id": "cabinet-only",
+    "service": "cabinet-product",
+    "title": "Cabinet supply only, owner installation",
+    "scope": "Supply cabinets only for a kitchen in Boise, Idaho: exactly 12 LF base cabinets, 8 LF wall cabinets and zero tall cabinets. Mid-range painted shaker, plywood boxes, soft-close hinges and drawer slides. Standard widths, no custom millwork, no island. Owner will collect and install all cabinets and provide installation supplies. Exclude delivery, installation labor, demolition, countertops, sink, plumbing, electrical, flooring, appliances, design and permits. No other work requested.",
+    "expectedFacts": {"cabinetBaseLf":"12", "cabinetUpperLf":"8", "cabinetTallLf":"0"},
+    "mustExclude": ["installation labor", "countertops", "plumbing", "demolition"],
+    "criticalChecks": ["Supply only must not become cabinet installation", "No installation screws/shims charge", "No room square footage dependency"]
+  },
+  {
+    "id": "handyman",
+    "service": "handyman",
+    "title": "Three owner-supplied interior lever handles",
+    "scope": "Handyman work in Boise, Idaho: replace exactly three existing interior door lever handles with three owner-supplied matching passage lever handle sets. Existing holes, latches and doors are sound; no door replacement, drilling, painting, trim repair or locksmith work. Include removal of old handles, installation, adjustment and functional testing of all three sets, small debris removal and cleanup. All parts are provided by owner. Single visit, ground floor, ordinary access and normal working hours. Exclude all other work.",
+    "expectedFacts": {},
+    "mustExclude": ["new doors", "contractor-supplied handle sets", "painting", "locksmith work"],
+    "criticalChecks": ["Exactly three handle replacements", "Owner hardware is not charged again", "No room size or finish-level questions needed"]
+  },
+  {
+    "id": "re10",
+    "service": "re10",
+    "title": "Synthetic RE10 repair addendum",
+    "scope": "RE-10 SYNTHETIC QA REPAIR SCOPE, NOT A REAL TRANSACTION. Boise, Idaho. Existing house, ground floor, normal working hours and access. Repair item 1: replace exactly two existing GFCI receptacles with contractor-supplied standard GFCI receptacles at the same locations; include installation and functional testing. Existing wiring is sound. No new circuits. Repair item 2: replace exactly one leaking 1-1/2 inch PVC sink P-trap, including trap, normal fittings, installation and leak testing; existing sink remains. Repair item 3: repair exactly one 12 by 12 inch hole in 5/8-inch Type X drywall, including backing, drywall, tape, compound, sanding and spot priming only. No whole-room painting. Include normal installation supplies, small debris removal and cleanup. Exclude all other work, permits, structural changes and concealed-damage remediation.",
+    "expectedFacts": {},
+    "mustExclude": ["new circuits", "new sink", "whole-room painting", "structural work"],
+    "criticalChecks": ["Two GFCI devices, one P-trap, one 1 SF patch", "12 inches by 12 inches is 1 SF, not 144 SF", "Do not duplicate minor materials already included in repair assembly", "No legal form text treated as construction work"]
+  }
+]

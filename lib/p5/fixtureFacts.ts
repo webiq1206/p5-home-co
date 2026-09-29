@@ -1,9 +1,17 @@
 import type {ExtractedFact,ScopeConflict} from './scope.ts';
 
-const TYPES=[/\bwater[ -]heaters?\b/i,/\bexhaust fans?\b/i,/\b(?:toilets?|water closets?)\b/i,/\burinals?\b/i,/\blavator(?:y|ies)\b/i,/\bshowers?\b/i,/\bmop\s+sinks?\b/i,/\blobby\s+sinks?\b/i,/\b(?:drinking\s+)?fountains?\b/i];
+const TYPES=[/\bwater[ -]heaters?\b/i,/\bexhaust fans?\b/i,/\b(?:toilets?|water closets?)\b/i,/\burinals?\b/i,/\blavator(?:y|ies)\b/i,/\bshowers?\b/i,/\bmop\s+sinks?\b/i,/\blobby\s+sinks?\b/i,/\b(?:drinking\s+)?fountains?\b/i,/\b(?:gfci|receptacles?|outlets?)\b/i,/\bp[ -]?traps?\b/i,/\bfaucets?\b/i,/\b(?:doors?|handles?|lever sets?)\b/i];
 /** A global scalar cannot represent independent fixture schedules. Retain their
  * original counts and evidence as descriptive facts; never sum unlike groups. */
 export function separateFixtureFacts(facts:ExtractedFact[],conflicts:ScopeConflict[]){
+ // One model-calculated total across unlike fixtures is not a billable
+ // quantity. Live P5 returned seven for a scope containing sinks, faucets
+ // and toilets. Keep its component wording, not the unsupported total.
+ // Explicit stated totals and single-type counts retain existing behavior.
+ const mixedTypes=[/\bsinks?\b/i,/\bfaucets?\b/i,/\btoilets?\b/i,/\bshowers?\b/i,/\btubs?\b/i,/\breceptacles?\b/i,/\bfans?\b/i];
+ facts=facts.map(f=>f.field==='fixtureCount'&&f.basis==='calculated'&&mixedTypes.filter(pattern=>pattern.test(f.evidence)).length>1
+   ? {...f,field:'fixtures' as const,value:f.evidence}
+   : f);
  const counts=facts.filter(f=>f.field==='fixtureCount');
  if(counts.length<2)return {facts,conflicts};
  const groups=counts.map(f=>{

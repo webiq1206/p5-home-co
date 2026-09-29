@@ -46,10 +46,10 @@ const ASSEMBLY_MARKER='complete assembly, do not add its component lines';
 const WHOLE_UNIT_SECTIONS=/Whole-House New Build|Additions & ADUs|Whole-House & Conversions/;
 const WHOLE_UNIT_ITEMS=/new home construction|\bADU\b|addition|suite|second-story|whole-home renovation|garage conversion|attic conversion|basement finishing|detached garage/i;
 /** Work a whole-unit assembly does not include, by the book's own division and section names. */
-const OUTSIDE_WHOLE_UNIT=/Pre-Construction & Fees|Permits|Impact Fee|Design & Engineering|Survey|Earthwork|Excavation|Grading|Site (?:Work|Prep|Clearing|Utilities|Improvements)|Utilit|Sewer|Septic|Well\b|Water (?:service|line|meter|lateral)|Service (?:extension|lateral)|Trench|Landscap|Exterior Improvements|Driveway|Sidewalk|Fenc|Existing Conditions|Demolition|Tree|Land\b|Temporary Facilities|Cleaning & Waste|Dumpster/i;
+const OUTSIDE_WHOLE_UNIT=/Pre-Construction & Fees|Permits|Impact Fee|Design & Engineering|Survey|Earthwork|Excavation|Grading|Site (?:Work|Prep|Clearing|Utilities|Improvements)|Utilit|Sewer|Septic|Well\b|Water (?:service|line|meter|lateral)|Service (?:extension|lateral)|Trench|Landscap|Exterior Improvements|Decks & Outdoor Structures|Porch|Patio|Deck\b|Driveway|Sidewalk|Fenc|Existing Conditions|Demolition|Tree|Land\b|Temporary Facilities|Cleaning & Waste|Dumpster/i;
 /** Task wording for work a whole-unit assembly includes, and for work that stays outside it. */
 const COMPONENT_TASK=/\b(?:foundation|slab|footings?|fram(?:e|ing)|roof(?:ing)?|envelope|siding|cladding|insulat\w*|air[- ]seal\w*|drywall|paint\w*|floor(?:ing)?|finish(?:es)?|trim|casing|cabinet\w*|kitchen|bath(?:room)?|plumbing|electrical system|wiring|hvac|mini-?split|heating|cooling|ventilat\w*|windows?|doors?|life-safety|smoke|carbon|egress|clean(?:up|ing)?|protect\w*|debris|haul)\b/i;
-const OUTSIDE_TASK=/\b(?:site (?:prep\w*|work|clearing|grading|layout)|excavat\w*|grad(?:e|ing) the|utilit(?:y|ies)|sewer|septic|well\b|water (?:line|service|main|lateral)|(?:electrical|power) service|trench\w*|permits?|fees?|impact|design|engineer\w*|architect\w*|survey\w*|land\b|lot\b|driveway|sidewalk|landscap\w*|fenc\w*|tree)\b/i;
+const OUTSIDE_TASK=/\b(?:site (?:prep\w*|work|clearing|grading|layout)|excavat\w*|grad(?:e|ing) the|utilit(?:y|ies)|sewer|septic|well\b|water (?:line|service|main|lateral)|(?:electrical|power) service|trench\w*|permits?|fees?|impact|design|engineer\w*|architect\w*|survey\w*|land\b|lot\b|porch|patio|deck|driveway|sidewalk|landscap\w*|fenc\w*|tree)\b/i;
 const HAUL_OFF_INCLUDED=/removal labor with haul-off and dump fees/i;
 const DEMOLITION_LIKE=/\b(?:demo(?:lition)?|removal|remove|tear-?(?:out|off))\b/i;
 const DEBRIS_TASK=/\b(?:debris|haul|junk|dumpster|dispos\w*|waste)\b/i;
@@ -143,7 +143,7 @@ export function applyPricingCorrections(input:CorrectionInput):CorrectionResult{
     const {section}=sectionOf(assembly.description);
     if(!WHOLE_UNIT_SECTIONS.test(section)||!WHOLE_UNIT_ITEMS.test(itemOf(assembly.description)))continue;
     const components=resolution.rules.filter(rule=>rule!==assembly&&!hasMarker(rule.description)&&sameBuilding(rule.building,assembly.building)&&!OUTSIDE_WHOLE_UNIT.test(ratePart(rule.description)));
-    const roomAssemblies=resolution.rules.filter(rule=>rule!==assembly&&hasMarker(rule.description)&&sameBuilding(rule.building,assembly.building)&&!WHOLE_UNIT_SECTIONS.test(sectionOf(rule.description).section));
+    const roomAssemblies=resolution.rules.filter(rule=>rule!==assembly&&hasMarker(rule.description)&&sameBuilding(rule.building,assembly.building)&&!WHOLE_UNIT_SECTIONS.test(sectionOf(rule.description).section)&&!OUTSIDE_WHOLE_UNIT.test(ratePart(rule.description)));
     const drop=[...components,...roomAssemblies];
     const total=drop.reduce((n,rule)=>n+direct(rule),0);
     for(const rule of drop){dropRule(rule,assembly.id);cover(rule.scopeTaskId,assembly.id);}

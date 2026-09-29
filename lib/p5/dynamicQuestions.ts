@@ -8,7 +8,7 @@ const TOPICS = {
   flooring: /\b(?:flooring|lvp|lvt|hardwood|laminate|carpet)\b|\b(?:install|replace|refinish|sand|new|repair) (?:the )?floors?\b/i,
   tile: /\b(?:tile|tiling|backsplash)\b/i,
   demolition: /\b(?:demolition|demolish|tear[ -]?out|remove|removal)\b/i,
-  trim: /\b(?:trim|baseboards?|crown moulding|crown molding)\b/i,
+  trim: /(?<!shower )(?<!valve )(?<!valve and )(?<!valve\/)\btrim\b|\b(?:baseboards?|crown moulding|crown molding)\b/i,
   base: /\b(?:base cabinets?|lower cabinets?|vanit(?:y|ies))\b/i,
   upper: /\b(?:upper cabinets?|wall cabinets?)\b/i,
   tall: /\b(?:tall cabinets?|pantry cabinets?|full.height cabinets?)\b/i,
@@ -32,7 +32,7 @@ const FIELD_TOPIC: Partial<Record<ScopeField, Topic>> = {
   mechanical: 'mechanical', structural: 'structural',
 };
 const NEGATIVE = /\b(?:no|not|without|exclude[ds]?|excluding|retain|keep|reuse|unchanged|remain|existing .{0,20} stays?|do not|don't)\b/i;
-const AREA_UNIT = /^(?:sf|sq\.?\s*ft|sqft|square\s*feet|ft2|ft²)$/i;
+const AREA_UNIT = /^(?:sf|sq\.?\s*ft|sqft|square\s*(?:feet|foot)|ft2|ft²)$/i;
 const LENGTH_UNIT = /^(?:lf|lin\.?\s*ft|linear\s*feet|ft|feet)$/i;
 const COUNT_UNIT = /^(?:ea|each|unit|units|cabinet|cabinets|door|doors)$/i;
 const clauses = (text: string): string[] => text.split(/\n|;|\.(?:\s|$)|\bbut\b/i).map(s => s.trim()).filter(Boolean);
@@ -41,6 +41,9 @@ const completedClause = /\b(?:has|have)\s+(?:already\s+)?been\s+completed\b|\b(?
 const retainedSurfaceClause = /^(?:the\s+)?(?:existing\s+)?(?:flooring|floors?|walls?|ceilings?)(?:\s*(?:,|and)\s*(?:the\s+)?(?:existing\s+)?(?:flooring|floors?|walls?|ceilings?))*\s+(?:stay|remain)s?(?:\s+(?:unchanged|as[ -]is))?[.!]?$/i;
 const positiveClauses = (text: string) => clauses(text)
   .filter(s => !excludedClause.test(s) && !completedClause.test(s) && !retainedSurfaceClause.test(s))
+  // Preserve the fixture context before splitting conjunctions. Otherwise
+  // "shower valve and trim" becomes a standalone architectural "trim".
+  .map(s => s.replace(/\b((?:shower\s+)?valve|shower|faucet)\s+and\s+trim\b/gi, '$1'))
   .flatMap(s => s.split(/,|\band\b/i)).filter(s => !NEGATIVE.test(s));
 const joined = (values: (string | undefined)[]) => values.filter(Boolean).join('\n');
 
@@ -128,6 +131,9 @@ function topicActive(context: QuestionContext, topic: Topic): boolean {
 /** Painting measured trim or cabinet doors does not require whole-room area. */
 function paintedAreaApplies(context: QuestionContext): boolean {
  if (!topicActive(context,'paint')) return false;
+ // Measured patches or measured wall/ceiling surfaces already provide the
+ // area needed for this work. Do not ask for unrelated whole-project area.
+ if (measuredTopic(context,'paint')) return false;
  const text=context.restriction||context.positive;
  if (/\b(?:walls?(?! cabinets?)|ceilings?|drywall|plaster|interior walls|exterior siding)\b/i.test(text)) return true;
  return !/\b(?:trim|baseboards?|moulding|molding|cabinets?|cabinetry|doors?|fence|gate|railings?)\b/i.test(text);
@@ -204,8 +210,14 @@ export function scopeFieldApplies(field: ScopeField, context: QuestionContext): 
   if (field === 'garageSqft') return BUILDS.has(context.service) && context.answers.garageIncluded !== 'no'
     && (context.answers.garageIncluded === 'yes' || topicActive(context, 'garage'));
   if (field === 'cabinetRoom') return context.service.startsWith('cabinet-') && cabinetPackage(context);
+  // A shower valve's trim is a plumbing fixture, never a baseboard length.
+  // The service label alone must not introduce an unrequested trim trade.
+  if (field === 'trimLf') return topicActive(context, 'trim');
   // "Remove debris from the crawl space" on a repair list is cleanup, not demolition of an area:
   // the area question needs a demolition word, or a removal aimed at a building surface.
+  if (field === 'demolitionSqft' && REMODELS.has(context.service) && sourceAnswered(context,'sqft')
+    && clauses(context.text).some(clause=>!excludedClause.test(clause) && /\bremov\w*\s+(?:all\s+|the\s+)?existing\s+finishes\s+and\s+fixtures\b/i.test(clause))
+    && !/\b(?:structural demolition|remove\s+(?:the\s+)?(?:walls?|slabs?)|gut(?:ted|ting)?)\b/i.test(context.positive)) return false;
   if (field === 'demolitionSqft') return topicActive(context, 'demolition')
     && /\b(?:demolition|demolish\w*|tear[ -]?out|gut(?:ted|ting)?)\b|\bremov\w*\s+(?:the\s+|all\s+|existing\s+|old\s+)*(?:walls?|drywall|floors?|flooring|tile|ceilings?|slabs?|plaster|paneling)\b/i.test(context.restriction || context.positive)
     &&/\b(?:walls?|floors?|flooring|ceilings?|tile|rooms?|drywall|slabs?|house|home)\b/i.test(context.restriction || context.positive);

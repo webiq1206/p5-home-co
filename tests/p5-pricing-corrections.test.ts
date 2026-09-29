@@ -74,6 +74,19 @@ test('a single kitchen assembly and its separately requested appliance allowance
   applyPricingCorrections(input);
   assert.equal(input.resolution.rules.length,2);
 });
+
+test('new home keeps the separately measured porch, patio and garage outside conditioned living area',()=>{
+ const scope=scopeFor('Build 2000 SF home, plus 440 SF garage and 80 SF covered porch.',{service:'new-construction',sqft:'2000',garageSqft:'440',coveredOutdoorSqft:'80'});
+ const tasks=[{id:'home',description:'Construct 2000 SF new home'},{id:'garage',description:'Construct 440 SF garage'},{id:'porch',description:'Construct 80 SF covered porch'},{id:'roof',description:'Roofing for house'},{id:'patio',description:'Build separate covered patio roof'}];
+ const rules=[rule('home',tasks[0].description,'90-10-01',2000),rule('garage',tasks[1].description,'90-10-03',440),rule('porch',tasks[2].description,'06-15-06',80),rule('roof',tasks[3].description,'07-31-01',2000)];
+ const input=inputFor(scope,tasks,rules);
+ const result=applyPricingCorrections(input);
+ assert.ok(input.resolution.rules.some(r=>r.scopeTaskId==='porch'&&r.quantity.fixed===80));
+ assert.ok(input.resolution.rules.some(r=>r.scopeTaskId==='garage'&&r.quantity.fixed===440));
+ assert.ok(!input.resolution.rules.some(r=>r.scopeTaskId==='roof'));
+ assert.ok(!result.coveredTaskIds.includes('patio'),'unpriced exterior work cannot be marked covered by the house');
+ assert.ok(!result.coveredTaskIds.includes('porch'));
+});
 test('invented building labels are dropped for a one-building project and kept when the customer named two',()=>{
   const scope=scopeFor('Two bathrooms in a Boise home.',{service:'bathroom',finish:'mid-range'});
   const tasks=[{id:'t1',description:'Tile shower one',origin:'requested'},{id:'t2',description:'Tile shower two',origin:'requested'}];
