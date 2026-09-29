@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {createPlanningConfiguration,PLANNING_MODEL_VERSION,materializePlanningBook,planningQuestionFields,type PlanningCatalog} from '../lib/p5/planningBooks.ts';
 import {priceReviewedScope,blockingReviewNote} from '../lib/p5/costBook.ts';
 import {emptyInstructions} from '../lib/p5/instructions.ts';
+import {SERVICE_MATRIX} from '../lib/p5/pricing.ts';
 import type {ReviewedScope} from '../lib/p5/scope.ts';
 const date='2026-09-11T00:00:00.000Z';
 const codes=['03-17-01-M','03-17-01-L','03-19-02-M','03-15-02-M','03-15-02-L','03-16-01-M','03-16-01-L','03-14-01-M','03-14-01-L','03-04-01','03-04-02','03-04-03','03-05-02-M','03-05-02-L','REF-GENERAL-HOUR','REF-PLUMBING-HOUR','REF-ELECTRICAL-HOUR','REF-TOILET'];
@@ -22,7 +23,13 @@ test('Whole-build cabinet allowance avoids a late measurement blocker and preser
  assert.equal(cabinetQuantity(measured)-cabinetQuantity(zero),14);
  assert.ok(!zero.book.assumptions.some(note=>/Tall cabinet run.*modeled allowance/.test(note)));
 });
-test('Every service has an explicit owner-planning book; rates remain in private configuration',()=>{const config=createPlanningConfiguration(catalog);assert.equal(config.costBooks.length,12);assert.equal(new Set(config.costBooks.map(b=>b.service)).size,12);assert.ok(config.costBooks.every(b=>b.mode==='owner-planning'));});
+test('Every service has an explicit owner-planning book; rates remain in private configuration',()=>{
+ const config=createPlanningConfiguration(catalog);
+ const services=config.costBooks.map(book=>book.service);
+ assert.deepEqual([...services].sort(),Object.keys(SERVICE_MATRIX).sort(),'every supported service has exactly one planning book');
+ assert.equal(new Set(services).size,services.length,'duplicate service books are rejected');
+ assert.ok(config.costBooks.every(book=>book.mode==='owner-planning'));
+});
 test('Cabinet supply and installation use distinct scope and preserve the overhead/profit reconciliation',()=>{
  const config=createPlanningConfiguration(catalog);
  const answers={cabinetBaseLf:'10',cabinetUpperLf:'5',cabinetTallLf:'0',cabinetRoom:'kitchen',location:'Boise'};

@@ -1,7 +1,7 @@
 {
  "source": "boise-remodeling-co",
- "commit": "6a26fc904db6edb3dfde8c6d4339aafd5f259713",
- "generatedAt": "2026-09-29T00:00:15.617Z",
+ "commit": "083cb43bb9468ef05cdb1f30151bf4d7d4c5c144",
+ "generatedAt": "2026-09-29T01:24:06.452Z",
  "note": "Shared estimator files. Edit them in boise-remodeling-co and run scripts/p5-sync.mjs; never edit them in one brand.",
  "files": {
   "app/admin/p5-estimators/page.tsx": "a2401f2a29c22dd1a5631fa2c065114275b4e7c1d99ba6c97a8ff0f26cb6a3ad",
@@ -279,7 +279,7 @@
   "tests/p5-outbox.test.ts": "d4833856fd69136241326690156d0b8f3495c144ed0227d1160f302279048cbd",
   "tests/p5-page-limit.test.ts": "7482b83b220c6706f1fdbb2775a5b66cd54ad2c20a2d29df8ee397c5804eaffc",
   "tests/p5-pdf-access.test.ts": "2008c53369a31c62e35c87f3c26c6e70d876d1dc9af43bc8cf3ecaba65f0d410",
-  "tests/p5-planning-books.test.ts": "c4bbc54864ead9a5663b0aa820be3cbc903fd643751f4a221f3b7c557a6775e2",
+  "tests/p5-planning-books.test.ts": "4f87a2d63eed9a83bd42499bb230c26e19e44301650b84ab727a52f31a2b242b",
   "tests/p5-presentation.test.ts": "cdc89aa2984bdb9efbac7cb0a588df6437bf19ea60a7871e755f6a90e35e4006",
   "tests/p5-price-book-import.test.ts": "85de00525e2955c7417aa5f6af1063cdbfb68ee11ae37cee5ca1ac5235e9f0c4",
   "tests/p5-pricing-corrections.test.ts": "cdd30173b91b8ed53ff1c68a6a578b36fffd50d6bdc37a6ded2d6b979fa8b6e4",
