@@ -7,6 +7,15 @@
       "topic": "project_scope_checklist",
       "published_at": "2026-09-29",
       "status": "published_verified"
+    },
+    {
+      "platform": "google_business_profile",
+      "brand": "P5 Home Co",
+      "id": "2574885514041937288",
+      "topic": "gbp_project_preparation",
+      "published_at": "2026-09-29",
+      "status": "published_verified",
+      "destination_url": "https://p5homeco.com/quote?utm_source=google&utm_medium=organic&utm_campaign=p5_free_growth_2026q4&utm_content=gbp_project_preparation"
     }
   ],
   "scheduled": [
@@ -16,7 +25,9 @@
       "utm_content": "cabinet_storage_plan",
       "scheduled_epoch": 1790784000,
       "id": "1228704823655951_122135640783385974",
-      "status": "scheduled_verified"
+      "status": "scheduled_verified",
+      "estimator_url": "https://boisecabinet.co/estimate?utm_source=facebook&utm_medium=organic_social&utm_campaign=p5_free_growth_2026q4&utm_content=cabinet_storage_plan_estimator",
+      "estimator_link_updated_at": "2026-09-29"
     },
     {
       "brand": "Boise Handyman Co",
@@ -24,7 +35,9 @@
       "utm_content": "fall_repair_list",
       "scheduled_epoch": 1790870400,
       "id": "1228704823655951_122135640855385974",
-      "status": "scheduled_verified"
+      "status": "scheduled_verified",
+      "estimator_url": "https://boisehandyman.co/estimate?utm_source=facebook&utm_medium=organic_social&utm_campaign=p5_free_growth_2026q4&utm_content=fall_repair_list_estimator",
+      "estimator_link_updated_at": "2026-09-29"
     },
     {
       "brand": "Boise Remodeling Co",
@@ -32,7 +45,9 @@
       "utm_content": "kitchen_scope_compare",
       "scheduled_epoch": 1790956800,
       "id": "1228704823655951_122135640939385974",
-      "status": "scheduled_verified"
+      "status": "scheduled_verified",
+      "estimator_url": "https://boiseremodeling.co/estimate?utm_source=facebook&utm_medium=organic_social&utm_campaign=p5_free_growth_2026q4&utm_content=kitchen_scope_compare_estimator",
+      "estimator_link_updated_at": "2026-09-29"
     },
     {
       "brand": "Boise Construction Co",
@@ -40,7 +55,9 @@
       "utm_content": "before_buying_lot",
       "scheduled_epoch": 1791216000,
       "id": "1228704823655951_122135641017385974",
-      "status": "scheduled_verified"
+      "status": "scheduled_verified",
+      "estimator_url": "https://boiseconstruction.co/estimate?utm_source=facebook&utm_medium=organic_social&utm_campaign=p5_free_growth_2026q4&utm_content=before_buying_lot_estimator",
+      "estimator_link_updated_at": "2026-09-29"
     },
     {
       "brand": "Boise ADU Co",
