@@ -1531,3 +1531,122 @@ test('an invalid evidence excerpt is repaired from the saved report without anot
  const result=await reconcileResearchReply({value:make('GRK cabinet screws cost $19.99 per box.'),sourceUrls:urls,sourceReport:quote},[requested],request,()=>60000);
  assert.equal(calls,1);assert.equal((result.value as any).rates[0].sources[0].excerpt,quote);
 });
+
+test('explicitly excluded work is not displayed under included customer categories',async()=>{
+ const {finishScopePricing}=await import('../lib/p5/scopePricing.ts');
+ const omitted={...extra,id:'exclusions',description:'Explicitly excluded work: no demolition, rock excavation, retaining walls, landscaping, fencing, garage, appliances, permit/utility connection fees.',evidence:'These items are excluded.'};
+ const priced=finishScopePricing(scope,config,now,{rules:[],assumptions:[],issues:[]},{tasks:[task,omitted]},null);
+ assert.ok(priced.customer.scopeTasks.some(t=>t.description===task.description));
+ assert.ok(!priced.customer.scopeTasks.some(t=>t.description===omitted.description));
+ assert.deepEqual(priced.internal.scopePricing.tasks,[task,omitted]);
+});
+
+test('a one-square-foot repair uses the approved patch service instead of bulk wall pricing',async()=>{
+ const {priceBookRates}=await import('../lib/p5/priceBook.ts');
+ const configured={...config,planningCatalog:{...catalog,rates:priceBookRates({service:'re10'})}};
+ const repair={id:'patch',description:'Patch one 12x12 inch hole in the garage wall with 5/8 inch Type X drywall, tape, finish, and spot-prime.',evidence:'One patch requested',existingLineIds:[],additions:[{code:'PB-09-29-05',quantity:1,quantityEvidence:'1 SF patch'},{code:'PB-09-91-12',quantity:1,quantityEvidence:'1 SF spot prime'}],researchDescription:'',issues:[]};
+ const mapping={tasks:[repair],issues:[],notes:[],replacements:[],removeExclusions:[]};
+ const result=catalogResolution(mapping,configured,[],now);
+ assert.equal(result.rules.length,2);
+ assert.ok(result.rules.some(rule=>rule.evidence.reference.includes('PB-09-01-08')&&rule.unitCost===300&&rule.quantity.fixed===1));
+ assert.ok(!result.rules.some(rule=>rule.evidence.reference.includes('PB-09-29-05')));
+ assert.ok(result.rules.some(rule=>rule.evidence.reference.includes('PB-09-91-12')));
+ const wall={...repair,id:'wall',description:'Install garage drywall over a 12 by 12 foot new wall.',additions:[{code:'PB-09-29-05',quantity:144,quantityEvidence:'144 SF'}]};
+ const unchanged=catalogResolution({...mapping,tasks:[wall]},configured,[],now);
+ assert.ok(unchanged.rules.some(rule=>rule.evidence.reference.includes('PB-09-29-05')));
+});
+
+test('research recovery reports evidence formatting and supplier independence together',async()=>{
+ const {reconcileResearchReply}=await import('../lib/p5/scopePricing.ts');
+ const report='Everbilt cabinet screws, 60-pack, $8.44.\nHome Depot alternate cabinet screws, 60-pack, $12.98.';
+ const requested={...extra,researchDescription:'Research ONLY contractor-supplied screws for cabinet installation.'};
+ const duplicate={...researched,rates:[{...researched.rates[0],description:'Cabinet screws',sources:researched.rates[0].sources.map((source,i)=>({...source,url:urls[0],excerpt:'Everbilt cabinet screws with rewritten unsupported price $99.'}))}]};
+ let corrections=0;
+ await assert.rejects(()=>reconcileResearchReply({value:duplicate,sourceUrls:urls,sourceReport:report},[requested],async(_instructions,input)=>{
+   corrections++;assert.match((input as any).validationFailure,/Source excerpt/);assert.match((input as any).validationFailure,/Independent market sources/);
+   return {value:duplicate,sourceUrls:urls};
+ },()=>60000,value=>{marketResolution(value,urls,[requested],now,0,'Boise');}),/Source excerpt.*Independent market sources/s);
+ assert.equal(corrections,1);
+});
+
+test('corrective research retains paid findings and requests the exact missing evidence',async()=>{
+ const report='Supplier observations for protective overlay: one retailer only; second independent supplier still needed.';
+ const invalid=structuredClone(researched);invalid.rates[0].sources.forEach(s=>s.url=urls[0]);
+ let searches=0,phase=0;
+ const result=await priceCompleteScope(scope,config,async(instructions,input,search)=>{
+   if(search){
+     searches++;
+     if(searches===1)return {value:invalid,sourceUrls:urls,sourceReport:report};
+     assert.equal((input as any).previousResearch.report,report);
+     assert.deepEqual((input as any).previousResearch.sourceUrls,urls);
+     assert.match(JSON.stringify((input as any).priorIssues),/Independent market sources/);
+     assert.match((input as any).evidenceRequirements,/different supplier/);
+     return {value:researched,sourceUrls:urls};
+   }
+   if((input as any).report)return {value:invalid,sourceUrls:urls};
+   phase++;
+   if(phase===1)return {value:{tasks:[task,extra].map(({id,description,evidence})=>({id,description,evidence})),issues:[]},sourceUrls:[]};
+   if(phase===2)return {value:{tasks:[task,extra],issues:[]},sourceUrls:[]};
+   return {value:{coveredTaskIds:['cabinets','overlay'],issues:[]},sourceUrls:[]};
+ },now);
+ assert.equal(searches,2);assert.ok(result.customer.range);
+});
+
+test('likely Boise availability is not accepted as verified regional evidence',()=>{
+ const invalid=structuredClone(researched);invalid.rates[0].sources[0].region='Boise-area stock likely';
+ assert.throws(()=>marketResolution(invalid,urls,[extra],now,0,'Boise'),/do not establish Boise/);
+});
+
+test('a removed overlapping vanity package is remapped to approved components before research',async()=>{
+ const {priceBookRates}=await import('../lib/p5/priceBook.ts');
+ const configuration={...config,planningCatalog:{...catalog,rates:priceBookRates({service:'bathroom'})}};
+ const vanityScope={...scope,text:'Supply and install one 60-inch vanity cabinet and a separate 8.33 SF quartz countertop. No other work.',answers:{service:'remodel',cabinetBaseLf:'5',countertopSqft:'8.33',location:'Boise',exclusions:'All other work'}};
+ const vanity={...extra,id:'vanity',description:'Supply and install one 60-inch vanity cabinet',evidence:'One 60-inch cabinet, 5 LF',researchDescription:'',additions:[{code:'PB-12-41-02',quantity:1,quantityEvidence:'One vanity'}]};
+ const top={...extra,id:'top',description:'Supply and install quartz countertop',evidence:'8.33 SF',researchDescription:'',additions:[{code:'PB-12-36-02',quantity:8.33,quantityEvidence:'8.33 SF stated'}]};
+ const repaired={...vanity,additions:[{code:'PB-12-32-01',quantity:5,quantityEvidence:'Confirmed 5 LF of cabinet'}]};
+ let calls=0;
+ const result=await priceCompleteScope(vanityScope,configuration,async(_instructions,input,search)=>{
+   calls++;assert.equal(search,false,'available approved component rates require no web research');
+   if(calls===1)return {value:{tasks:[vanity,top].map(({id,description,evidence})=>({id,description,evidence})),issues:[]},sourceUrls:[]};
+   if(calls===2)return {value:{tasks:[vanity,top],issues:[]},sourceUrls:[]};
+   if(calls===3){
+     assert.match((input as any).repairInstruction,/complete approved catalog/);
+     assert.deepEqual((input as any).remainingComponents[0].rejectedCodes,['PB-12-41-02']);
+     assert.ok((input as any).catalog.some((rate:any)=>rate.code==='PB-12-32-01'));
+     return {value:{tasks:[repaired],issues:[]},sourceUrls:[]};
+   }
+   return {value:{coveredTaskIds:['vanity','top'],issues:[]},sourceUrls:[]};
+ },now);
+ assert.equal(calls,4);assert.ok(result.customer.range);
+ const rules=(result.internal as any).costBookSnapshot.rules;
+ assert.ok(rules.some((rule:any)=>rule.evidence.reference.includes('PB-12-32-01')&&rule.quantity.fixed===5));
+ assert.ok(!rules.some((rule:any)=>rule.evidence.reference.includes('PB-12-41-02')));
+});
+
+test('invalid flooring references recover approved supplies and cleanup instead of searching zero quantities',async()=>{
+ const {priceBookRates}=await import('../lib/p5/priceBook.ts');
+ const configuration={...config,planningCatalog:{...catalog,rates:priceBookRates({service:'remodel'})}};
+ const floorScope={...scope,text:'Supply and install 300 SF LVP, purchase 330 SF including 10% waste. Include ordinary installation supplies and minor job cleanup. All other work excluded.',answers:{service:'remodel',flooringSqft:'300',location:'Boise',exclusions:'All other work'}};
+ const make=(id:string,description:string,additions:any[],existingLineIds:string[]=[])=>({...extra,id,description,evidence:floorScope.text,researchDescription:'',additions,existingLineIds});
+ const add=(code:string,quantity:number)=>({code,quantity,quantityEvidence:'Confirmed '+quantity+' SF'});
+ const floor=make('floor','LVP flooring supply and install',[add('PB-09-60-01',330),add('PB-09-61-01',300)]);
+ const supplies=make('supplies','Provide ordinary installation supplies',[],['PB-09-65-01']);
+ const cleanup=make('cleanup','Minor job cleanup',[],['PB-09-65-01']);
+ const fixedSupplies=make('supplies',supplies.description,[{...add('PB-09-60-06',300),quantityEvidence:'ALLOWANCE: pad for 300 SF of installed flooring, if required',quantityRange:{low:300,high:300}}]);
+ const fixedCleanup=make('cleanup',cleanup.description,[add('PB-01-74-05',300)]);
+ let calls=0;
+ const result=await priceCompleteScope(floorScope,configuration,async(_instructions,input,search)=>{
+  calls++;assert.equal(search,false);
+  if(calls===1)return {value:{tasks:[floor,supplies,cleanup].map(({id,description,evidence})=>({id,description,evidence})),issues:[]},sourceUrls:[]};
+  if(calls===2)return {value:{tasks:[floor,supplies,cleanup],issues:[]},sourceUrls:[]};
+  if(calls===3){assert.match((input as any).repairInstruction,/coverage reference/);return {value:{tasks:[fixedSupplies,fixedCleanup],issues:[]},sourceUrls:[]};}
+  return {value:{coveredTaskIds:['floor','supplies','cleanup'],issues:[]},sourceUrls:[]};
+ },now);
+ assert.equal(calls,4);assert.ok(result.customer.range);
+ const rules=(result.internal as any).costBookSnapshot.rules;
+ for(const code of ['PB-09-60-01','PB-09-61-01','PB-09-60-06','PB-01-74-05'])assert.equal(rules.filter((r:any)=>r.evidence.reference.includes(code)).length,1);
+ const explicit={...fixedSupplies,evidence:'Purchase 330 SF underlayment for this floor.',additions:[add('PB-09-60-06',300)]};
+ const wrong=catalogResolution({tasks:[explicit],issues:[],notes:[],replacements:[],removeExclusions:[]},configuration,[],now,floorScope);
+ assert.ok(wrong.issues.some(issue=>/does not match the explicit quantity/.test(issue)),'a stated underlayment quantity still controls that material');
+
+});
