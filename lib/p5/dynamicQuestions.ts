@@ -106,7 +106,7 @@ function excluded(context: QuestionContext, topic: Topic): boolean {
   const pattern = TOPICS[topic];
   const excludedTopic = context.exclusions.some(s => pattern.test(s)
     // Excluding purchase of a material is not excluding its installation.
-    && !/\b(?:purchase|supply|material|owner.supplied)\b/i.test(s));
+    && !/\b(?:purchases?|supply|materials?|owner.supplied)\b/i.test(s));
   // "Floor tile only, no wall tile" excludes part of a trade, not the trade.
   // Work the customer positively asked for stays active when a narrower
   // exclusion names the same trade.

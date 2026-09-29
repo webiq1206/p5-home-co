@@ -28,7 +28,7 @@ export function unaskedQuestions<Q extends Question>(questions:readonly Q[],tran
   const priced=new Set(pricedFields);
   // The review step can still require a price question, a contradiction or a handoff (draftEndpoint.ts);
   // hiding one of those left a customer blocked by a question they could not see.
-  const required=(question:Q)=>priced.has(question.field)||Boolean(question.conflict)||Boolean(question.handoff);
+  const required=(question:Q)=>question.field==='service'||priced.has(question.field)||Boolean(question.conflict)||Boolean(question.handoff);
   const fresh=questions.filter(question=>{
     if(required(question))return true;
     if(asked.some(entry=>similar(entry.text,question.reason)))return false;

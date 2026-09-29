@@ -23,6 +23,17 @@ const inputFor=(scope:ReviewedScope,tasks:{id:string;description:string;origin?:
   resolution:{rules,assumptions:[],issues:[]},pricingExtraction:null,configuration,now,...extra});
 const direct=(r:CostRule)=>r.unitCost*(r.quantity.fixed||0);
 
+test('one vanity installed package cannot be charged again as installation labor',()=>{
+ const tasks=[{id:'supply',description:'Supply one vanity'},{id:'install',description:'Install the vanity'},{id:'tap',description:'Install two faucets'}];
+ const rules=[rule('supply',tasks[0].description,'12-41-02',1),rule('install',tasks[1].description,'12-41-02',1),rule('tap',tasks[2].description,'22-41-08',2)];
+ const input=inputFor(scopeFor('Replace one 60-inch double-sink bathroom vanity.',{service:'bathroom'}),tasks,rules);
+ const result=applyPricingCorrections(input);
+ assert.deepEqual(input.resolution.rules.map(r=>r.id),[rules[0].id,rules[2].id]);
+ assert.ok(result.coveredTaskIds.includes('install'));
+ assert.deepEqual(input.mappingTasks[1].existingLineIds,[rules[0].id]);
+ const multiple=inputFor(scopeFor('Replace two bathroom vanities.',{service:'bathroom'}),tasks,rules);
+ applyPricingCorrections(multiple);assert.equal(multiple.resolution.rules.length,3);
+});
 test('a specific cabinet run does not also charge generic installation on the same task',()=>{
  const tasks=[{id:'base',description:'Install 18 LF owner-supplied base cabinets'},{id:'custom',description:'Custom cabinet fitting'}];
  const specific=rule('base',tasks[0].description,'12-32-01',18,{category:'field-labor',evidence:{basis:'owner-estimating-schedule',reference:'PB-12-32-01-L'} as any});

@@ -62,6 +62,19 @@ test('a sixty-inch vanity cannot use a smaller cabinet assembly rate',async()=>{
  assert.equal(held.customer.range,null,'model approval cannot override the size mismatch');
 
 });
+test('a repaired catalog reference can be replaced by a real positive addition',async()=>{
+ const broken={...extra,researchDescription:'',existingLineIds:['03-15-02-M'],additions:[]};
+ const fixed={...broken,existingLineIds:[],additions:[{code:'03-15-02-M',quantity:10,quantityEvidence:'Ten feet requested'}]};
+ const result=await priceCompleteScope(scope,config,replies([{tasks:[task,broken],issues:[]},{coveredTaskIds:['cabinets','overlay'],issues:[]},{tasks:[task,fixed],issues:[]},{coveredTaskIds:['cabinets','overlay'],issues:[]}]),now);
+ assert.ok(result.customer.range,'a supported added line resolves the old bad reference');
+ assert.ok(!(result.internal as any).scopePricing.issues.some((issue:string)=>issue.includes('invalid existing price reference')));
+});
+test('a repair may cover an unpriced task through a positive existing component',async()=>{
+ const broken={...extra,researchDescription:'',existingLineIds:[],additions:[]};
+ const fixed={...broken,existingLineIds:ids};
+ const result=await priceCompleteScope(scope,config,replies([{tasks:[task,broken],issues:[]},{coveredTaskIds:['cabinets','overlay'],issues:[]},{tasks:[task,fixed],issues:[]},{coveredTaskIds:['cabinets','overlay'],issues:[]}]),now);
+ assert.ok(result.customer.range,'verified positive references resolve the placeholder');
+});
 test('Semantic mapping uses the existing cost amount without inventing a rate',async()=>{
  const r=await priceCompleteScope(scope,config,replies([{tasks:[task,{...extra,researchDescription:'',additions:[{code:'03-15-02-M',quantity:10,quantityEvidence:'Ten feet fixture conversion'}]}],issues:[]},{coveredTaskIds:['cabinets','overlay'],issues:[]}]),now);
  assert.ok(r.customer.range);assert.equal((r.internal as any).lines.find((l:any)=>l.id==='scope-1').unitCost,100);

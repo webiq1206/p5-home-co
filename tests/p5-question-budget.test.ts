@@ -12,6 +12,10 @@ test('a question already asked is never asked again, even reworded by a later do
   const reworded=[q('otherDetails','Other details','How many square feet is the crawl space area?')];
   assert.deepEqual(unaskedQuestions(reworded,transcript),[],'nearly the same wording is not asked twice');
 });
+test('a missing required service survives the earlier revision transcript',()=>{
+ const question=q('service','Project type','What work would you like estimated?');
+ assert.deepEqual(unaskedQuestions([question],[asked(question.label,question.reason)]),[question]);
+});
 test('one round never offers the same field or wording twice',()=>{
   const open=[q('bathrooms','Bathrooms','How many bathrooms need exhaust vent corrections?'),q('bathrooms','Bathrooms','How many bathroom fans vent into the attic?')];
   assert.equal(unaskedQuestions(open,[]).length,1);

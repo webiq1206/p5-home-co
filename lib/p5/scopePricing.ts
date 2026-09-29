@@ -398,8 +398,9 @@ export function normalizeConsumableMapping(mapping:Mapping,configuration:Estimat
       const rate=configuration.planningCatalog?.rates.find(rate=>rate.code===addition.code);
       const labor=configuration.planningCatalog?.rates.find(rate=>rate.code===`${addition.code}-L`&&rate.type==='Labor');
       const material=configuration.planningCatalog?.rates.find(rate=>rate.code===`${addition.code}-M`&&rate.type==='Material');
-      if(!/^PB-09-65-\d+$/.test(addition.code)||rate?.type!=='Subcontractor'||!labor||!material||unitKey(rate.unit)!=='sf'||Math.abs(addition.quantity-area*(1+wastePercent[0]/100))>.001)return [addition];
-      return [{...addition,code:labor.code,quantity:area,quantityRange:null,quantityEvidence:`Confirmed installed flooring area: ${area} SF. Procurement waste is not installation work.`},{...addition,code:material.code,quantityRange:{low:addition.quantity,high:addition.quantity},quantityEvidence:`ALLOWANCE: ${area} SF installed area plus the requested ${wastePercent[0]}% material waste = ${addition.quantity} SF purchased.`}];
+      const purchased=Math.round(area*(1+wastePercent[0]/100)*1000)/1000;
+      if(!/^PB-09-65-\d+$/.test(addition.code)||rate?.type!=='Subcontractor'||!labor||!material||unitKey(rate.unit)!=='sf'||(Math.abs(addition.quantity-purchased)>.001&&Math.abs(addition.quantity-area)>.001))return [addition];
+      return [{...addition,code:labor.code,quantity:area,quantityRange:null,quantityEvidence:`Confirmed installed flooring area: ${area} SF. Procurement waste is not installation work.`},{...addition,code:material.code,quantity:purchased,quantityRange:{low:purchased,high:purchased},quantityEvidence:`ALLOWANCE: ${area} SF installed area plus the requested ${wastePercent[0]}% material waste = ${purchased} SF purchased.`}];
     });
     // An installed product's explicit labor component is the same physical
     // installation when the owner supplies the product. Never invent a split.
@@ -1380,7 +1381,8 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
       // Keep inventory findings as well; the final audit can still resolve a
       // specific issue through its existing evidence-backed path.
       const repairedTaskIds=new Set(repaired.rules.filter(rule=>rule.scopeTaskId&&rule.quantity.fixed!==undefined&&rule.quantity.fixed>0).map(rule=>rule.scopeTaskId));
-      const repairedDescriptions=new Set(fixes.tasks.filter(task=>repairedTaskIds.has(task.id)).map(task=>task.description));
+      const hasRepairedReferences=(task:Mapping['tasks'][number])=>task.existingLineIds.length>0&&task.existingLineIds.every(id=>pricedComponents.some(line=>line.id===id&&line.quantity*line.unitCost>0)&&!repaired.removeLineIds?.includes(id));
+      const repairedDescriptions=new Set(fixes.tasks.filter(task=>repairedTaskIds.has(task.id)||hasRepairedReferences(task)).map(task=>task.description));
       // A positive repair resolves only the exact no-price placeholder that
       // it replaces. Quantity mismatches, unknown components, audit failures
       // and other blockers remain attached to the repaired scope.
@@ -1396,7 +1398,7 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
         const rate=configuration.planningCatalog?.rates.find(candidate=>candidate.code===addition.code);
         return rate&&vanitySizeMatches(task.description,rate.description)===true&&repaired.rules.some(rule=>rule.scopeTaskId===task.id&&rule.unitCost===rate.amount&&rule.quantity.fixed===addition.quantity);
       })).map(task=>vanitySizeIssue(task.description)));
-      const repairedReferenceIssues=new Set(fixes.tasks.filter(task=>task.existingLineIds.length>0&&task.existingLineIds.every(id=>pricedComponents.some(line=>line.id===id&&line.quantity*line.unitCost>0)&&!repaired.removeLineIds?.includes(id))&&!repaired.issues.includes(`${task.description}: invalid existing price reference.`)).map(task=>`${task.description}: invalid existing price reference.`));
+      const repairedReferenceIssues=new Set(fixes.tasks.filter(task=>(hasRepairedReferences(task)||repairedTaskIds.has(task.id)&&!task.existingLineIds.length)&&!repaired.issues.includes(`${task.description}: invalid existing price reference.`)).map(task=>`${task.description}: invalid existing price reference.`));
       const repairedOwnerIssues=new Set(fixes.tasks.filter(task=>{
         const active=resolution.rules.filter(rule=>rule.scopeTaskId===task.id&&!resolution.removeLineIds?.includes(rule.id));
         const referenced=pricedComponents.filter(line=>task.existingLineIds.includes(line.id)&&!resolution.removeLineIds?.includes(line.id));

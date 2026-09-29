@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {createPlanningConfiguration,PLANNING_MODEL_VERSION,materializePlanningBook,planningQuestionFields,type PlanningCatalog} from '../lib/p5/planningBooks.ts';
+import {createPlanningConfiguration,withInteriorRemodelBook,PLANNING_MODEL_VERSION,materializePlanningBook,planningQuestionFields,type PlanningCatalog} from '../lib/p5/planningBooks.ts';
 import {priceReviewedScope,blockingReviewNote} from '../lib/p5/costBook.ts';
 import {emptyInstructions} from '../lib/p5/instructions.ts';
 import {SERVICE_MATRIX} from '../lib/p5/pricing.ts';
@@ -29,6 +29,20 @@ test('Every service has an explicit owner-planning book; rates remain in private
  assert.deepEqual([...services].sort(),Object.keys(SERVICE_MATRIX).sort(),'every supported service has exactly one planning book');
  assert.equal(new Set(services).size,services.length,'duplicate service books are rejected');
  assert.ok(config.costBooks.every(book=>book.mode==='owner-planning'));
+});
+test('Older approved remodel policies gain an empty component-only book without mutation',()=>{
+ const saved=createPlanningConfiguration(catalog,['kitchen','bathroom','whole-home']);
+ const before=JSON.stringify(saved),active=withInteriorRemodelBook(saved);
+ assert.equal(JSON.stringify(saved),before);
+ assert.equal(active.finance,saved.finance);assert.equal(active.planningCatalog,saved.planningCatalog);
+ assert.equal(active.costBooks.length,4);assert.deepEqual(active.costBooks.at(-1)?.rules,[]);
+ assert.equal(withInteriorRemodelBook(active),active);
+ const unconfigured={...saved,costBooks:[]};assert.equal(withInteriorRemodelBook(unconfigured),unconfigured);
+ const custom={...saved,costBooks:saved.costBooks.map(book=>({...book,mode:undefined}))};
+ assert.equal(withInteriorRemodelBook(custom),custom);
+ const result=priceReviewedScope(scope({service:'remodel',flooringSqft:'300',location:'Boise'}),saved,now);
+ assert.ok(!JSON.stringify(result.internal).includes('cost-book-missing'));
+ assert.equal(result.customer.range,null,'the empty service shell cannot invent a price');
 });
 test('Cabinet supply and installation use distinct scope and preserve the overhead/profit reconciliation',()=>{
  const config=createPlanningConfiguration(catalog);

@@ -17,6 +17,13 @@ test('a deployed pricing fix cannot inherit an earlier release’s exhausted rep
  assert.notEqual(pricingWorkKey(scope,EMPTY_CONFIGURATION,date,'release-a'),pricingWorkKey(scope,EMPTY_CONFIGURATION,date,'release-b'));
 });
 
+test('excluding cabinet purchases preserves requested owner-supplied installation',async()=>{
+ const {applyCabinetIntent}=await import('../lib/p5/projectIntent.ts');
+ const text='Install 18 LF of owner-supplied assembled base cabinets and 12 LF of wall cabinets. Include installation labor, shims, screws and cleanup. Exclude cabinet purchases, demolition and countertops.';
+ const result=applyCabinetIntent(text,['cabinet-install','cabinet-product'],{service:'cabinet-install'} as any);
+ assert.equal(result.answers.service,'cabinet-install');
+});
+
 test('flooring-only remodel has a supported type without a whole-home assembly',()=>{
  assert.equal(impliedComponentRemodel('A flooring-only remodeling project in Boise.',['remodel','whole-home']),'remodel');
  assert.equal(impliedComponentRemodel('Urgent flooring-only remodel.',['remodel']),null);
@@ -123,9 +130,9 @@ test('cabinet product material cannot be relabeled as contractor mounting suppli
  assert.match(task.researchDescription,/Material purchase only: shims, screws, fasteners/);
 });
 
-test('flooring waste increases purchased material without increasing installed labor',()=>{
+for(const mappedArea of [300,330])test(`flooring waste splits a ${mappedArea} SF installed assembly into material and labor`,()=>{
  const scope={text:'Install LVP flooring with 10% material waste.',answers:{flooringSqft:'300',sqft:'326.81'},extraction:null,uploads:[],reviewedAt:'2026-09-28',corrections:[]} as any;
- const task={id:'floor',description:'Supply and install midrange LVP flooring in Room A, including 10% material waste.',evidence:'Confirmed 300 SF flooring area.',existingLineIds:[],issues:[],additions:[{code:'PB-09-65-01',quantity:330,quantityEvidence:'300 SF plus 10% material waste.'}],researchDescription:null};
+ const task={id:'floor',description:'Supply and install midrange LVP flooring in Room A, including 10% material waste.',evidence:'Confirmed 300 SF flooring area.',existingLineIds:[],issues:[],additions:[{code:'PB-09-65-01',quantity:mappedArea,quantityEvidence:'300 SF plus 10% material waste.'}],researchDescription:null};
  const rates=priceBookRates({service:'change-order',finish:'mid-range'});
  const configuration={...EMPTY_CONFIGURATION,planningCatalog:{rates,importedAt:'2026-09-28'}} as any;
  const mapping={tasks:[task],issues:[],notes:[],replacements:[],removeExclusions:[]} as any;

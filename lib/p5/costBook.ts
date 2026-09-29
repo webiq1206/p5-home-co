@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import { calculateP5Estimate,customerEstimate,customerSafeProjection,DEFAULT_FINANCE,POLICY_VERSION,COST_CATEGORIES,SERVICE_MATRIX,type FinancePolicy,type DirectCostLine,type ScopeCoverage,type PricingInput,type Service,type RiskFactor } from "./pricing.ts";
 import { scopeText,blockingReviewNote,type ReviewedScope,type ScopeField } from "./scope.ts";
 export { blockingReviewNote };
-import {materializePlanningBook,type PlanningCatalog} from './planningBooks.ts';
+import {materializePlanningBook,withInteriorRemodelBook,type PlanningCatalog} from './planningBooks.ts';
 export interface UnitRateContext {currency:'USD';basis:'material-purchase'|'trade-labor'|'subcontractor-installed';includes:string;excludes:string;assumptions:string[]}
 export interface CostRule extends Omit<DirectCostLine,"quantity"|"quantitySource"> {unitRateContext?:UnitRateContext;
   scopeTaskId?:string;
@@ -26,7 +26,8 @@ export function isRe10Scope(scope:{answers:{service?:string|null};text?:string;e
  * review-required results that quote book notes verbatim, passes the same
  * customer-safe boundary. Internal records are returned unchanged. */
 export function priceReviewedScope(scope:ReviewedScope,configuration:EstimatorConfiguration,now=new Date(),resolution?:ScopePriceResolution) {
-  const priced=priceReviewedScopeInternal(scope,configuration,now,resolution);
+  const active=scope.answers.service==='remodel'?withInteriorRemodelBook(configuration):configuration;
+  const priced=priceReviewedScopeInternal(scope,active,now,resolution);
   return {...priced,customer:customerSafeProjection(priced.customer)};
 }
 function priceReviewedScopeInternal(scope:ReviewedScope,configuration:EstimatorConfiguration,now:Date,resolution?:ScopePriceResolution) {

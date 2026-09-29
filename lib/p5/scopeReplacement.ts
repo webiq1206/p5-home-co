@@ -257,6 +257,15 @@ export function refreshAnalyzedScope<T extends AnalyzedScopeState>(state: T, tex
   };
 }
 
+/** A same-project revision keeps its selected service. Fresh measured facts
+ * are still reread; an explicit entire-project replacement clears everything. */
+export function scopeForRevision<T extends AnalyzedScopeState>(state:T,text:string,request:string):T{
+ if(replacesEntireScope(request))return replaceAnalyzedScope(state,text);
+ const next=refreshAnalyzedScope(state,text);
+ if(state.answers.service)next.answers={...next.answers,service:state.answers.service};
+ return next;
+}
+
 /** Whether a draft's saved analysis still belongs to the supplied text. */
 export function analyzedScopeMatches(state: Pick<AnalyzedScopeState, 'text'|'analyzedText'|'analyzedFingerprint'>, text = state.text): boolean {
   if (state.analyzedFingerprint) return state.analyzedFingerprint === scopeFingerprint(text);

@@ -100,6 +100,23 @@ export function applyPricingCorrections(input:CorrectionInput):CorrectionResult{
     if(extra.length)notes.push(`Cabinet installation is priced once for ${taskDescription(run.scopeTaskId)}; overlapping generic installation labor was removed. Separately scoped custom fitting remains separate.`);
   }
 
+  // A single expressly requested vanity cannot be bought as an installed
+  // package twice, once for supply and once for installation. Do not combine
+  // separate bathrooms, buildings or multi-vanity scopes.
+  const oneVanity=/\b(?:one|1|a single)\s+[^.\n]{0,70}\bvanity\b/i.test(scope.text)
+    &&!/\b(?:two|three|four|[2-9])\s+[^.\n]{0,40}\bvanit(?:y|ies)\b/i.test(scope.text)
+    &&!pricingExtraction?.instructions?.separateBuildings;
+  if(oneVanity){
+    const vanity=resolution.rules.filter(rule=>/\bPB-12-41-0[12]\b/.test(rule.evidence?.reference||'')&&rule.category==='subcontractors'&&rule.quantity.fixed===1&&direct(rule)>0);
+    const keep=vanity[0];
+    if(keep)for(const extra of vanity.slice(1)){
+      if(itemOf(extra.description)!==itemOf(keep.description)||!sameBuilding(extra.building,keep.building)||extra.floor!==keep.floor)continue;
+      dropRule(extra);cover(extra.scopeTaskId,keep.id);
+      for(const task of mappingTasks)task.existingLineIds=task.existingLineIds.map(id=>id===extra.id?keep.id:id);
+      notes.push('The single requested vanity package includes its installation and is priced once, not separately for supply and installation. Other requested fixtures and connections remain separate.');
+    }
+  }
+
   // 1. One complete assembly, priced once; a whole unit covers its own components.
   const assemblies=resolution.rules.filter(rule=>hasMarker(rule.description));
   const groups=new Map<string,CostRule[]>();

@@ -56,6 +56,14 @@ test('the time range follows the actual workload and shrinks as work finishes; p
   assert.match(remainingLabel({low:90,high:240},true),/Taking longer than usual/);
   assert.doesNotMatch(remainingLabel({low:90,high:240}),/%/,'never a percentage');
 });
+test('same-project revision retains service but refreshes measured facts',async()=>{
+ const {scopeForRevision}=await import('../lib/p5/scopeReplacement.ts');
+ const state={text:'Install 18 LF base cabinets',answers:{service:'cabinet-install',cabinetBaseLf:'18'},extraction:{summary:'Cabinets',facts:[{field:'service' as const,value:'cabinet-install',source:'typed scope',confidence:1,evidence:'Install cabinets'},{field:'cabinetBaseLf' as const,value:'18',source:'typed scope',confidence:1,evidence:'18 LF'}],conflicts:[],missingInformation:[],reviewNotes:[]}};
+ const next=scopeForRevision(state,'Install 9 LF base cabinets','Change base run to 9 LF');
+ assert.equal(next.answers.service,'cabinet-install');assert.equal(next.answers.cabinetBaseLf,undefined);
+ const replacement=scopeForRevision(state,'Repair a door','Replace this project with a door repair');
+ assert.equal(replacement.answers.service,undefined);
+});
 test('a revision keeps the request in the description and says what changed from the prior version',async()=>{
   const {revisedDescription,changeSummary}=await import('../lib/p5/estimateRevisions.ts');
   assert.equal(revisedDescription('Remodel the hall bath.','Remove painting',2),'Remodel the hall bath.\n\nRequested change for revision 3: Remove painting');
