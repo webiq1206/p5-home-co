@@ -50,3 +50,14 @@ test('non-numeric fields and fractional counts are left alone',()=>{
   assert.equal(parseNumericAnswer('materials','40 square feet'),null);
   assert.equal(parseNumericAnswer('bathrooms','2.5'),null);
 });
+
+test('inch dimensions convert to square feet before pricing',()=>{
+  assert.equal(value('sqft','Only the drywall patch has an area: 12 by 12 inches = 1 square foot. The other repairs are exactly two GFCI receptacles and one P-trap; no whole-room work.'),'1');
+  assert.equal(value('sqft','12 x 12 inches'),'1');
+  assert.equal(value('sqft','12" x 24"'),'2');
+  assert.equal(value('sqft','2 feet by 12 inches'),'2');
+  assert.equal(value('sqft','12 inches by 2 feet'),'2');
+  assert.equal(value('sqft','60 by 20 inches'),'8.33');
+  assert.deepEqual(parseNumericAnswer('sqft','12 by 12 inches = 144 SF'),{choices:['1','144'],note:'12 by 12 inches = 144 SF'});
+  assert.equal(parseNumericAnswer('sqft','12 by 12 cm'),null);
+});

@@ -88,7 +88,16 @@ export function applyPricingCorrections(input:CorrectionInput):CorrectionResult{
     if(task&&!task.existingLineIds.includes(byLineId))task.existingLineIds.push(byLineId);
     covered.add(taskId);
   };
-  const dropRule=(rule:CostRule)=>{resolution.rules=resolution.rules.filter(r=>r!==rule);};
+  const dropRule=(rule:CostRule,coveredBy?:string)=>{
+    resolution.rules=resolution.rules.filter(r=>r!==rule);
+    // Coverage can be nested: an install task references a vanity package,
+    // then that package is consolidated into the whole-building assembly.
+    // Keep every dependent reference attached to the surviving priced line.
+    if(coveredBy)for(const task of mappingTasks){
+      if(task.existingLineIds.includes(rule.id))
+        task.existingLineIds=[...new Set(task.existingLineIds.map(id=>id===rule.id?coveredBy:id))];
+    }
+  };
 
   // The specific cabinet-run labor component already includes installation.
   // A repair must not add generic cabinet installation again to that same task.
@@ -127,7 +136,7 @@ export function applyPricingCorrections(input:CorrectionInput):CorrectionResult{
     const keep=[...group].sort((a,b)=>order(a)-order(b))[0];kept.push(keep);
     const extra=group.filter(rule=>rule!==keep);
     if(!extra.length)continue;
-    for(const rule of extra){dropRule(rule);cover(rule.scopeTaskId,keep.id);}
+    for(const rule of extra){dropRule(rule,keep.id);cover(rule.scopeTaskId,keep.id);}
     notes.push(`To confirm: the ${itemOf(keep.description)} assembly is priced once for the whole project; ${extra.length} other ${extra.length===1?'task referenced it and is':'tasks referenced it and are'} covered by that one price (${[...new Set(extra.map(r=>taskDescription(r.scopeTaskId||'')))].join('; ').slice(0,300)}).`);
   }
   for(const assembly of kept){
@@ -137,7 +146,7 @@ export function applyPricingCorrections(input:CorrectionInput):CorrectionResult{
     const roomAssemblies=resolution.rules.filter(rule=>rule!==assembly&&hasMarker(rule.description)&&sameBuilding(rule.building,assembly.building)&&!WHOLE_UNIT_SECTIONS.test(sectionOf(rule.description).section));
     const drop=[...components,...roomAssemblies];
     const total=drop.reduce((n,rule)=>n+direct(rule),0);
-    for(const rule of drop){dropRule(rule);cover(rule.scopeTaskId,assembly.id);}
+    for(const rule of drop){dropRule(rule,assembly.id);cover(rule.scopeTaskId,assembly.id);}
     // A component task the mapping left unpriced (roofing, insulation, the envelope) is inside the
     // unit's price too; otherwise it would be carried out of the total as "not priced" and the
     // finished unit shown as a partial estimate.

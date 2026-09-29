@@ -364,6 +364,14 @@ export function mapResearchTasks<T,R>(items:T[],run:(item:T,index:number)=>Promi
 function existingLines(priced:ReturnType<typeof priceReviewedScope>){
   return 'lines' in priced.internal?priced.internal.lines:[];
 }
+
+/** Models sometimes return a catalog code where a priced-line ID is requested.
+ * Resolve only an exact, unique evidenced code; ambiguous matches stay unresolved. */
+export function resolvePricedLineId(id:string,lines:{id:string;evidence?:{reference?:string}}[]):string{
+ if(lines.some(line=>line.id===id))return id;
+ const matches=lines.filter(line=>(line.evidence?.reference||'').split(';').some(part=>part.trim()===id));
+ return matches.length===1?matches[0].id:id;
+}
 // Two distinct device families were treated as interchangeable in a live
 // RE-10. A shared unit and labor responsibility do not establish scope fit.
 function deviceKind(value:string):'life-safety'|'doorbell'|null{
@@ -560,18 +568,6 @@ export function catalogResolution(mapping:Mapping,configuration:EstimatorConfigu
     const unresolved=unresolvedQuantityIssue(t);
     const hasAllowance=t.additions.some(a=>/^ALLOWANCE\s*:/i.test(a.quantityEvidence)&&Boolean(a.quantityRange));
     if(unresolved&&!hasAllowance)result.issues.push(unresolved);
-    for(const id of t.existingLineIds){
-      const line=existing.find(l=>l.id===id);
-      if(result.removeLineIds?.includes(id)||!line||line.quantity*line.unitCost<=0)result.issues.push(`${t.description}: invalid existing price reference.`);
-      else if(incompatibleDevice(t.description,line.description))result.issues.push(deviceMismatchIssue(t.description));
-      else if(vanitySizeMatches(t.description,line.description)===false)result.issues.push(vanitySizeIssue(t.description));
-      else if(['materials','subcontractors'].includes(line.category)&&ownerSuppliesMaterial(t,line.quantity,line.unit,line.description,scope,line.category==='materials'))result.issues.push(`${t.description}: owner-supplied material cannot be charged through a contractor material or supply-and-install package.`);
-      else{
-        const overage=purchasingOverage(t,line,scope,mapping.tasks.length);
-        if(overage)result.assumptions.push(`${line.description}: ${line.quantity} ${line.unit} purchased for ${overage.installed} ${line.unit} installed, which includes about ${overage.percent}% for cuts and waste.`);
-        else if(!sharedMaterialQuantity(line,mapping.tasks))result.issues.push(...existingQuantityIssues(t,line,scope,mapping.tasks.length));
-      }
-    }
     for(const a of t.additions){
       const rate=configuration.planningCatalog?.rates.find(r=>r.code===a.code);
       const regional=configuration.regionalRates?.find(r=>r.id===a.code);
@@ -599,6 +595,27 @@ export function catalogResolution(mapping:Mapping,configuration:EstimatorConfigu
       result.assumptions.push(`${t.description}: mapped to ${rate.description}, ${a.quantity} ${rate.unit}. ${a.quantityEvidence}`);
     }
     if(!t.existingLineIds.length&&!t.additions.length&&!t.researchDescription)result.issues.push(`${t.description}: no supported price.`);
+  }
+  // Resolve against all accepted additions, including components mapped by a
+  // different task in this same pass. This must happen after rates are validated.
+  // Repair additions receive new IDs when merged; only the already persisted
+  // components are valid reference targets during a repair.
+  const pricedLines=existing.length?existing:result.rules.map(rule=>({...rule,quantity:rule.quantity.fixed||0,quantitySource:'Accepted mapped quantity'}));
+  for(const t of mapping.tasks){
+    if(taskSelectionStatus(t,mapping.tasks)!=='billable')continue;
+    t.existingLineIds=[...new Set(t.existingLineIds.map(id=>resolvePricedLineId(id,pricedLines)))];
+    for(const id of t.existingLineIds){
+      const line=pricedLines.find(l=>l.id===id);
+      if(result.removeLineIds?.includes(id)||!line||line.quantity*line.unitCost<=0)result.issues.push(`${t.description}: invalid existing price reference.`);
+      else if(incompatibleDevice(t.description,line.description))result.issues.push(deviceMismatchIssue(t.description));
+      else if(vanitySizeMatches(t.description,line.description)===false)result.issues.push(vanitySizeIssue(t.description));
+      else if(['materials','subcontractors'].includes(line.category)&&ownerSuppliesMaterial(t,line.quantity,line.unit,line.description,scope,line.category==='materials'))result.issues.push(`${t.description}: owner-supplied material cannot be charged through a contractor material or supply-and-install package.`);
+      else{
+        const overage=purchasingOverage(t,line,scope,mapping.tasks.length);
+        if(overage)result.assumptions.push(`${line.description}: ${line.quantity} ${line.unit} purchased for ${overage.installed} ${line.unit} installed, which includes about ${overage.percent}% for cuts and waste.`);
+        else if(!sharedMaterialQuantity(line,mapping.tasks))result.issues.push(...existingQuantityIssues(t,line,scope,mapping.tasks.length));
+      }
+    }
   }
   return result;
 }
@@ -637,7 +654,14 @@ function taskSelectionStatus(task:Mapping['tasks'][number],tasks:Mapping['tasks'
   // Only the main clause names the task. A trailing "specialty devices are excluded" or "painting is excluded"
   // excludes a PART of it; live Moonglow RE-10 (2026-09-22) had six smoke detectors and a firewall patch
   // treated as unrequested, never priced, and holding the estimate because their descriptions said so.
-  const description=task.description.trim().split(/\s*[;.]\s+|\s*;\s*|,\s*(?:but|excluding|except|with(?:out)?)\b|\s+-\s+/)[0]||task.description.trim();
+  // A parenthetical exclusion of another component does not exclude this
+  // requested task: "drywall patch (paint excluded)" still buys a drywall patch.
+  const primary=task.description.replace(/\([^()]*\)/g,'');
+  const selectedDescription=task.description.replace(/\(([^()]*)\)/g,(full,clause:string)=>{
+    const objects=componentTerms(clause).filter(term=>!['excluded','excluding','unselected','selected','not','included','include','except','without','by','others'].includes(term));
+    return UNSELECTED_SCOPE.test(clause)&&objects.length&&!clauseHasComponent(primary,objects)?'':full;
+  });
+  const description=selectedDescription.trim().split(/\s*[;.]\s+|\s*;\s*|,\s*(?:but|excluding|except|with(?:out)?)\b|\s+-\s+/)[0]||selectedDescription.trim();
   const allTerms=componentTerms(description);
   const siblingTerms=new Set(tasks.filter(other=>other!==task).flatMap(other=>componentTerms(other.description)));
   // Prefer terms unique to this task. Shared words such as "tile" or "door"
@@ -853,6 +877,25 @@ export function coveredWork(task:{id:string;existingLineIds:string[]},priced:{id
     .map(({description,quantity,unit})=>({description,quantity,unit}));
 }
 /** Normalization may format evidence, never rename a source's product. */
+/** Repair evidence formatting against the saved report before buying another
+ * search. The corrected reply must pass the same product/source validation. */
+export async function reconcileResearchReply(reply:PricingReply,tasks:Mapping['tasks'],request:PricingRequest,remaining:()=>number,validate:(value:unknown)=>void=()=>{}):Promise<PricingReply>{
+ const input={requested:{tasks:tasks.map(task=>({id:task.id,description:task.researchDescription||task.description,quantityEvidence:task.evidence}))},report:reply.sourceReport||JSON.stringify(reply.value),sourceUrls:reply.sourceUrls};
+ let accepted=reply;
+ if(!marketSchema.safeParse(accepted.value).success){
+   const normalized=await request(normalizeResearch,input,false,remaining());
+   accepted={...reply,value:parseResearchRates(normalized.value)};
+ }
+ try{assertResearchReportProducts(accepted.value,accepted.sourceReport,tasks);validate(accepted.value);}
+ catch(error){
+   if(!(error instanceof ResearchEvidenceError)&&!(error instanceof MissingResearchRateError)||!accepted.sourceReport)throw error;
+   const corrected=await request(normalizeResearch,{...input,correctionInstruction:'Repair the exact evidence failure using this saved report. Use at most 25 words per source excerpt. Copy exact product-name and price fragments from the same source paragraph, preserving their order. Do not alter a price or product identity. Use canonical supported units (for example box), retaining exact package counts and specifications in description and includes; source quantities must remain comparable. Do not invent missing evidence. Do not search again.',validationFailure:error.message,priorStructuredReply:accepted.value},false,remaining());
+   accepted={...reply,value:parseResearchRates(corrected.value)};
+   assertResearchReportProducts(accepted.value,accepted.sourceReport,tasks);validate(accepted.value);
+ }
+ return accepted;
+}
+
 export function assertResearchReportProducts(raw:unknown,report:string|undefined,tasks:Mapping['tasks']){
  if(!report)return;
  const rates=parseResearchRates(raw).rates;
@@ -862,11 +905,20 @@ export function assertResearchReportProducts(raw:unknown,report:string|undefined
   const task=tasks.find(task=>task.id===rate.taskId);
   const product=task?.researchDescription.match(/^Research ONLY contractor-supplied (screws|nails|fasteners|shims|caulk|adhesives|sealants)\b/)?.[1];
   if(!product)continue;
-  const word=new RegExp('\\b'+product.replace(/s$/,'')+'s?\\b','i');
+  const word=product==='fasteners'?/\b(?:fasteners?|screws?|nails?|bolts?|anchors?)\b/i:new RegExp('\\b'+product.replace(/s$/,'')+'s?\\b','i');
   for(const source of rate.sources){
    const excerpt=canonical(source.excerpt);
-   if(!word.test(source.excerpt)||!excerpt||!original.includes(excerpt))
-    throw new ResearchEvidenceError('Source excerpt for '+product+' must name that product and occur verbatim in the cited research report; another product price cannot be relabeled.');
+   // A formatter may join a product heading and its price bullet into two
+   // sentences. Permit exact, ordered fragments within ONE source paragraph,
+   // never fragments collected across products or supplier observations.
+   const fragments=source.excerpt.split(/[.!?](?:\s+|$)/).map(canonical).filter(Boolean);
+   const paragraph=fragments.length>1&&word.test(fragments[0])
+    ?report.split(/\n\s*\n/).find(block=>{
+      const text=canonical(block);let cursor=0;
+      return fragments.every(fragment=>{const index=text.indexOf(fragment,cursor);if(index<0)return false;cursor=index+fragment.length;return true;});
+    }):undefined;
+   if(!word.test(source.excerpt)||!excerpt||(!original.includes(excerpt)&&!paragraph))
+    throw new ResearchEvidenceError('Source excerpt for '+product+' must name that product and match exact text within one source paragraph in the cited research report; another product price cannot be relabeled.');
   }
  }
 }
@@ -894,8 +946,8 @@ export function marketResolution(raw:unknown,urls:string[],tasks:Mapping['tasks'
     const atomic=t.researchDescription.match(/^Research ONLY contractor-supplied (screws|nails|fasteners|shims|caulk|adhesives|sealants)\b/);
     if(atomic){
       const named=['screws','nails','shims','caulk','adhesives','sealants'].filter(word=>new RegExp('\\b'+word.replace(/s$/,'')+'s?\\b','i').test(r.description));
-      const matches=new RegExp('\\b'+atomic[1].replace(/s$/,'')+'s?\\b','i').test(r.description);
-      if(!matches||named.some(word=>word!==atomic[1])){
+      const matches=atomic[1]==='fasteners'?/\b(?:fasteners?|screws?|nails?|bolts?|anchors?)\b/i.test(r.description):new RegExp('\\b'+atomic[1].replace(/s$/,'')+'s?\\b','i').test(r.description);
+      if(!matches||(atomic[1]==='fasteners'?named.length>1:named.some(word=>word!==atomic[1]))){
         result.issues.push(t.description+': atomic material research must price only the requested product, without substituting or bundling other supplies.');
         continue;
       }
@@ -1360,6 +1412,13 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
     const priceGapBatch=async(gapBatch:Mapping['tasks'],batchIndex:number,covered:(task:Mapping['tasks'][number])=>unknown[],priorIssues?:string[]):Promise<{replies:PricingReply[];resolution:ScopePriceResolution;modelIssues:string[]}>=>{
       const replies:PricingReply[]=[];const offset=batchIndex*100;
       const tasksInput=gapBatch.map(t=>({id:t.id,description:t.researchDescription,application:scope.answers.service||'construction',quantityEvidence:t.evidence,alreadyCovered:covered(t)}));
+      const validateReply=(value:unknown)=>{
+        const rates=parseResearchRates(value);
+        const priced=marketResolution(rates,currentSourceUrls,gapBatch,now,offset,region,scope);
+        if(gapBatch.some(task=>!priced.rules.some(rule=>rule.scopeTaskId===task.id&&rule.unitCost>0)))
+          throw new MissingResearchRateError(['Published research did not price every requested task',...priced.issues,...rates.issues].join('; ').slice(0,5000));
+      };
+      let currentSourceUrls:string[]=[];
       let researchFailure='',researchTimedOut=false;
       // Every missing item must attempt published research, including late
       // stages in a large plan. Job age must never substitute an uncited price.
@@ -1367,15 +1426,9 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
       if(pastWindow)researchFailure='published cost research is temporarily disabled';
       if(!pastWindow)try{
         let researched=await request(RESEARCH,{date:now.toISOString().slice(0,10),region,tasks:tasksInput,...(priorIssues?{priorIssues}:{})},true,Math.min(RESEARCH_STAGE_MS,deadline-Date.now()));
-        // JSON syntax alone does not ensure the research schema is valid. Save a
-        // separate formatting stage for valid JSON with arrays/objects in string
-        // fields, retaining the original report and tool-returned source URLs.
-        if(!marketSchema.safeParse(researched.value).success){
-          const normalized=await request(normalizeResearch,{requested:{tasks:gapBatch.map(t=>({id:t.id,description:t.researchDescription,quantityEvidence:t.evidence}))},report:researched.sourceReport||JSON.stringify(researched.value),sourceUrls:researched.sourceUrls},false,deadline-Date.now());
-          researched={...researched,value:parseResearchRates(normalized.value)};
-        }
+        currentSourceUrls=researched.sourceUrls;
+        researched=await reconcileResearchReply(researched,gapBatch,request,()=>deadline-Date.now(),validateReply);
         const accepted=parseResearchRates(researched.value);
-        assertResearchReportProducts(accepted,researched.sourceReport,gapBatch);
         const market=marketResolution(accepted,researched.sourceUrls,gapBatch,now,offset,region,scope);
         if(gapBatch.some(task=>!market.rules.some(rule=>rule.scopeTaskId===task.id&&rule.unitCost>0)))throw new MissingResearchRateError(['Published research did not price every requested task',...market.issues,...accepted.issues].join('; ').slice(0,5000));
         // The audit needs the accepted observations, not every URL visited by
@@ -1402,12 +1455,9 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
       // The durable request cache prevents paying repeatedly for the same stage.
       for(let correction=1;!pastWindow&&correction<=(researchTimedOut?1:2);correction++)try{
         let retried=await request(RESEARCH,{date:now.toISOString().slice(0,10),region,tasks:tasksInput,correction,retryInstruction:'Correct the prior evidence failure, not merely the formatting. Cite only exact URLs returned by this search; never invent a second source to meet the source count. Open and verify product prices for the specific missing supplies, not an unrelated whole-kitchen budget. Research these exact remaining items individually for Boise / Treasure Valley. Use published local trade rates and supplier product prices with local availability where appropriate. Break a service into evidenced labor and material components if no complete assembly price exists. No uncited planning averages.',priorIssues:[...(priorIssues||[]),researchFailure]},true,Math.min(RESEARCH_STAGE_MS,deadline-Date.now()));
-        if(!marketSchema.safeParse(retried.value).success){
-          const normalized=await request(normalizeResearch,{requested:{tasks:tasksInput},report:retried.sourceReport||JSON.stringify(retried.value),sourceUrls:retried.sourceUrls},false,deadline-Date.now());
-          retried={...retried,value:parseResearchRates(normalized.value)};
-        }
+        currentSourceUrls=retried.sourceUrls;
+        retried=await reconcileResearchReply(retried,gapBatch,request,()=>deadline-Date.now(),validateReply);
         const accepted=parseResearchRates(retried.value);
-        assertResearchReportProducts(accepted,retried.sourceReport,gapBatch);
         const market=marketResolution(accepted,retried.sourceUrls,gapBatch,now,offset,region,scope);
         if(gapBatch.every(task=>market.rules.some(rule=>rule.scopeTaskId===task.id&&rule.unitCost>0))){
           replies.push({value:accepted,sourceUrls:retried.sourceUrls});
@@ -1435,8 +1485,10 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
     const audit:z.infer<typeof auditSchema>={coveredTaskIds:[],issues:[],notes:[],resolvedIssues:[]};
     const reconcileIssues=()=>{
       if(audit.issues.length||mapping.tasks.some(t=>!audit.coveredTaskIds.includes(t.id)))return;
-      const positiveLines=new Set(existingLines(priceReviewedScope(scope,configuration,now,resolution)).filter(line=>line.quantity*line.unitCost>0).map(line=>line.id));
+      const acceptedLines=existingLines(priceReviewedScope(scope,configuration,now,resolution)).filter(line=>line.quantity*line.unitCost>0);
+      const positiveLines=new Set(acceptedLines.map(line=>line.id));
       for(const resolved of audit.resolvedIssues){
+        resolved.lineIds=[...new Set(resolved.lineIds.map(id=>resolvePricedLineId(id,acceptedLines)))];
         if(!resolution.issues.includes(resolved.issue))continue;
         // The check may only clear a finding an earlier model stage raised, and only by
         // pointing at priced lines. Anything else is ignored: the finding stays open and

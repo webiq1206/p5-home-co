@@ -126,3 +126,6 @@ tsconfig.tsbuildinfo
 !/scripts/lib/pricingQualification.ts
 !/scripts/lib/syntheticPlanSet.ts
 !/scripts/lib/syntheticRe10Pdf.ts
+
+# Maintained production analytics hostname guard.
+!/lib/analyticsBootstrap.ts
