@@ -80,3 +80,14 @@ test('owner-supplied cabinets leave nothing to budget a finish tier for (live Ca
   const supplied='Supply and install 10 linear feet of new base cabinets and 10 linear feet of upper cabinets in the kitchen.';
   assert.ok(fields(owned,null,[],supplied).includes('finish'),'cabinets the contractor supplies still ask which tier');
 });
+
+test('retained flooring and walls do not revive an excluded trade',()=>{
+ const text='Supply and install one double-sink vanity. Existing flooring and walls stay. Exclude painting, flooring, lighting and tile.';
+ const a={service:'cabinet-install',taskList:text,cabinetBaseLf:'5',finish:'mid-range'};
+ assert.equal(scopeFieldApplies('flooringSqft',questionContext(a,null,text)),false);
+ assert.ok(!fields(a,null,['flooringSqft'],text).includes('flooringSqft'));
+});
+test('retained surfaces do not hide positively requested flooring in another clause',()=>{
+ const text='Existing walls stay. Install LVP flooring.';
+ assert.equal(scopeFieldApplies('flooringSqft',questionContext({service:'handyman',taskList:text},null,text)),true);
+});

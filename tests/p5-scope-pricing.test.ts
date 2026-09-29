@@ -1474,3 +1474,60 @@ test('a clean model audit cannot cover requested consumable material with labor 
  };
  await assert.rejects(()=>priceCompleteScope(restricted,config,request,now),PricingPending);
 });
+
+test('research excerpts may join exact heading and price fragments within one source paragraph',async()=>{
+ const {assertResearchReportProducts}=await import('../lib/p5/scopePricing.ts');
+ const requested={...extra,researchDescription:'Research ONLY contractor-supplied screws for cabinet installation.'};
+ const report='GRK cabinet screws (100-Pack)\nUnit: BOX (100 screws)\nPrice: $16.98 per box\nSpecification: cabinet mounting.\n\nWood shims\nPrice: $4.99 per pack.';
+ const make=(excerpt:string)=>({...researched,rates:[{...researched.rates[0],sources:researched.rates[0].sources.map(source=>({...source,excerpt}))}]});
+ assert.doesNotThrow(()=>assertResearchReportProducts(make('GRK cabinet screws (100-Pack). Price: $16.98 per box.'),report,[requested]));
+ assert.throws(()=>assertResearchReportProducts(make('GRK cabinet screws (100-Pack). Price: $4.99 per pack.'),report,[requested]),/cannot be relabeled/);
+ assert.throws(()=>assertResearchReportProducts(make('GRK cabinet screws (100-Pack). Price: $19.99 per box.'),report,[requested]),/cannot be relabeled/);
+});
+
+test('a requested drywall patch survives a parenthetical paint exclusion',async()=>{
+ const {priceBookRates}=await import('../lib/p5/priceBook.ts');
+ const configured={...config,planningCatalog:{...catalog,rates:priceBookRates({service:'re10'})}};
+ const patch={id:'patch-drywall',description:'Patch one 12x12 inch hole in garage wall with 5/8 inch Type X drywall, tape, finish and spot-prime (paint excluded).',evidence:'Patch one 12x12 garage wall hole with 5/8 inch Type X, tape, finish, spot-prime. Paint excluded. Applies only to specified patch area.',existingLineIds:[],additions:[{code:'PB-09-01-08',quantity:1,quantityEvidence:'One patch, 1 square foot'}],researchDescription:'',issues:[]};
+ const mapping={tasks:[patch],issues:[],notes:[],replacements:[],removeExclusions:[]};
+ const result=catalogResolution(mapping,configured,[],now,{...scope,answers:{service:'re10',location:'Boise',area:'1'},text:patch.evidence});
+ assert.equal(result.rules.length,1);assert.equal(result.rules[0].unitCost,300);
+ assert.ok(!result.assumptions.some(a=>a.includes('not billable')));
+ const excluded={...patch,description:'Drywall patch excluded',evidence:'Drywall patch excluded.'};
+ assert.equal(catalogResolution({...mapping,tasks:[excluded]},configured,[],now).rules.length,0);
+});
+
+test('exact unique catalog references resolve to retained lines across tasks',async()=>{
+ const {resolvePricedLineId}=await import('../lib/p5/scopePricing.ts');
+ const lines=[{id:'scope-1',evidence:{reference:'Owner source; QA-CODE; 300 SF'}}];
+ assert.equal(resolvePricedLineId('QA-CODE',lines),'scope-1');
+ assert.equal(resolvePricedLineId('scope-1',lines),'scope-1');
+ assert.equal(resolvePricedLineId('QA-CODE',[...lines,{id:'scope-2',evidence:lines[0].evidence}]),'QA-CODE');
+ assert.equal(resolvePricedLineId('QA-COD',lines),'QA-COD');
+ const priced={...extra,id:'priced',description:'Protective overlay material',researchDescription:'',additions:[{code:'03-15-02-M',quantity:10,quantityEvidence:'10 LF'}]};
+ const covered={...extra,id:'covered',description:'Protective overlay material already included',researchDescription:'',existingLineIds:['03-15-02-M']};
+ const mapping={tasks:[covered,priced],issues:[],notes:[],replacements:[],removeExclusions:[]};
+ const result=catalogResolution(mapping,config,[],now,scope);
+ assert.deepEqual(covered.existingLineIds,['scope-1']);
+ assert.ok(!result.issues.some(issue=>issue.includes('invalid existing')));
+ assert.equal(result.rules.length,1);
+});
+
+test('a fastener research task accepts exact screw product evidence',async()=>{
+ const {assertResearchReportProducts}=await import('../lib/p5/scopePricing.ts');
+ const requested={...extra,researchDescription:'Research ONLY contractor-supplied fasteners for cabinet installation.'};
+ const quote='GRK cabinet screws (100-Pack), price $16.98 per box.';
+ const valid={...researched,rates:[{...researched.rates[0],sources:researched.rates[0].sources.map(source=>({...source,excerpt:quote}))}]};
+ assert.doesNotThrow(()=>assertResearchReportProducts(valid,quote,[requested]));
+});
+
+test('an invalid evidence excerpt is repaired from the saved report without another search',async()=>{
+ const {reconcileResearchReply}=await import('../lib/p5/scopePricing.ts');
+ const quote='GRK cabinet screws cost $16.98 per box of 100 screws.';
+ const make=(excerpt:string)=>({...researched,rates:[{...researched.rates[0],sources:researched.rates[0].sources.map(source=>({...source,excerpt}))}]});
+ const requested={...extra,researchDescription:'Research ONLY contractor-supplied screws for cabinet installation.'};
+ let calls=0;
+ const request:PricingRequest=async(_instructions,input,search)=>{calls++;assert.equal(search,false);assert.match((input as any).validationFailure,/excerpt/);return {value:make(quote),sourceUrls:urls};};
+ const result=await reconcileResearchReply({value:make('GRK cabinet screws cost $19.99 per box.'),sourceUrls:urls,sourceReport:quote},[requested],request,()=>60000);
+ assert.equal(calls,1);assert.equal((result.value as any).rates[0].sources[0].excerpt,quote);
+});

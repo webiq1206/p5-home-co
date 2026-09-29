@@ -145,3 +145,16 @@ test('an unpriced protection, cleanup or debris task on a small job is absorbed 
   assert.ok(direct(debris)<=direct(input.resolution.rules[0])*0.15+0.01,'a full truckload for cutoffs is capped');
   assert.ok(input.resolution.assumptions.some(a=>/included within the installation labor/.test(a)));
 });
+
+test('nested assembly consolidation preserves every dependent task reference',()=>{
+ const tasks=[{id:'adu',description:'Construct a complete ADU'},{id:'vanity-supply',description:'Supply one bathroom vanity'},{id:'vanity-install',description:'Install bathroom vanity and hardware'}];
+ const rules=[rule('adu',tasks[0].description,'90-50-10',1),rule('vanity-supply',tasks[1].description,'12-41-01',1),rule('vanity-install',tasks[2].description,'12-41-01',1)];
+ const input=inputFor(scopeFor('Construct one ADU with one bathroom vanity.',{service:'adu',sqft:'600'}),tasks,rules);
+ applyPricingCorrections(input);
+ const live=new Set(input.resolution.rules.map(r=>r.id));
+ assert.deepEqual([...live],[rules[0].id]);
+ for(const task of input.mappingTasks.filter(t=>t.id!=='adu')){
+  assert.ok(task.existingLineIds.includes(rules[0].id),task.id+' must point to the retained ADU assembly');
+  assert.ok(task.existingLineIds.every(id=>live.has(id)),task.id+' cannot reference a removed component');
+ }
+});

@@ -66,9 +66,21 @@ export function parseNumericAnswer(field:ScopeField,answer:string):NumericAnswer
   const dimension=DIMENSIONS[field]||'count';const text=answer.trim();if(!text||text.length>600)return null;
   if(/^(?:none|no|nope|n\/a|zero|0|nothing|not any|there (?:is|are) (?:none|no\b.*))[\s.!]*$/i.test(text)||/^no\s+(?:garage|tall|upper|base|tile|trim|covered|outdoor)\b/i.test(text))return {value:'0',note:/^(?:none|no|nope|n\/a|zero|0|nothing)[\s.!]*$/i.test(text)?undefined:text};
   if(dimension==='area'){
-    // "12 x 10", "12 by 10 feet", "12' x 10'"
-    const m=text.match(/(\d+(?:\.\d+)?)\s*(?:'|ft\.?|f(?:ee|oo)t)?\s*(?:x|×|by)\s*(\d+(?:\.\d+)?)\s*(?:'|ft\.?|f(?:ee|oo)t)?/i);
-    if(m&&m.index!==undefined)return {value:clean(Number(m[1])*Number(m[2])),note:noteFrom(text,[{start:m.index,end:m.index+m[0].length}])||`${m[1]} by ${m[2]} feet`};
+    // A trailing unit applies to both dimensions: 12 by 12 inches is 1 SF.
+    // Explicit mixed units are converted independently; unlabelled dimensions
+    // retain the field's established feet convention.
+    const m=text.match(/(\d+(?:\.\d+)?)\s*(inches\b|inch\b|in\b\.?|"|feet\b|foot\b|ft\b\.?|')?\s*(?:x|×|by)\s*(\d+(?:\.\d+)?)\s*(inches\b|inch\b|in\b\.?|"|feet\b|foot\b|ft\b\.?|')?/i);
+    if(m&&m.index!==undefined){
+      const trailing=text.slice(m.index+m[0].length).trimStart();
+      if(/^(?:mm|cm|m|meters?|metres?|yards?|yd)\b/i.test(trailing))return null;
+      const firstUnit=m[2]||m[4]||'ft',secondUnit=m[4]||m[2]||'ft';
+      const feet=(n:string,unit:string)=>Number(n)*(/^(?:in|")/i.test(unit)?1/12:1);
+      const computed=clean(feet(m[1],firstUnit)*feet(m[3],secondUnit));
+      const stated=numbersIn(text,'area').filter(n=>n.matches).map(n=>clean(n.value));
+      const choices=[...new Set([computed,...stated])];
+      if(choices.length>1)return {choices:choices.slice(0,4),note:text};
+      return {value:computed,note:text};
+    }
   }
   if(dimension==='length'){const mixed=feetInches(text);if(mixed)return {value:clean(mixed.value),note:noteFrom(text,[mixed])};}
   // A stated range ("35 to 40 square feet") is two possible answers, not one.

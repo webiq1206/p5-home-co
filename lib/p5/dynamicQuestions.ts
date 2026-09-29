@@ -38,8 +38,9 @@ const COUNT_UNIT = /^(?:ea|each|unit|units|cabinet|cabinets|door|doors)$/i;
 const clauses = (text: string): string[] => text.split(/\n|;|\.(?:\s|$)|\bbut\b/i).map(s => s.trim()).filter(Boolean);
 const excludedClause = /^(?:please\s+)?(?:exclude\w*|no|without|do not|don't)\b/i;
 const completedClause = /\b(?:has|have)\s+(?:already\s+)?been\s+completed\b|\b(?:is|was)\s+already\s+complete(?:d)?\b/i;
+const retainedSurfaceClause = /^(?:the\s+)?(?:existing\s+)?(?:flooring|floors?|walls?|ceilings?)(?:\s*(?:,|and)\s*(?:the\s+)?(?:existing\s+)?(?:flooring|floors?|walls?|ceilings?))*\s+(?:stay|remain)s?(?:\s+(?:unchanged|as[ -]is))?[.!]?$/i;
 const positiveClauses = (text: string) => clauses(text)
-  .filter(s => !excludedClause.test(s) && !completedClause.test(s))
+  .filter(s => !excludedClause.test(s) && !completedClause.test(s) && !retainedSurfaceClause.test(s))
   .flatMap(s => s.split(/,|\band\b/i)).filter(s => !NEGATIVE.test(s));
 const joined = (values: (string | undefined)[]) => values.filter(Boolean).join('\n');
 
