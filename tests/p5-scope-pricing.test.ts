@@ -281,6 +281,34 @@ test('live research keeps one request in flight and stops on provider backoff',a
  const envelope=openAiPricingRequestEnvelope('Synthetic research',{},true);
  assert.equal(envelope.body.max_output_tokens,6000);assert.equal(envelope.body.tool_choice,'required');
 });
+test('research requests cited prose and normalizes it before pricing',async()=>{
+ const {openAiPricingRequestEnvelope}=await import('../lib/p5/scopePricing.ts');
+ const queued=replies([{tasks:[task,extra],issues:[]},researched,{coveredTaskIds:['cabinets','overlay'],issues:[]}]);
+ let searches=0,normalizations=0;
+ const report='Synthetic cited research report for ten LF of protective overlay.';
+ const result=await priceCompleteScope(scope,config,async(instructions,input,search,remaining)=>{
+  if(search){
+   searches++;
+   const envelope=openAiPricingRequestEnvelope(instructions,input,true);
+   assert.doesNotMatch(envelope.body.instructions,/Return JSON only/i);
+   assert.doesNotMatch(envelope.body.input,/Return JSON only/i);
+   assert.match(envelope.body.instructions,/inline web citations/i);
+   assert.equal('text' in envelope.body,false);
+   return {value:null,sourceUrls:urls,sourceReport:report};
+  }
+  if((input as any).report){
+   normalizations++;
+   assert.equal((input as any).report,report);
+   assert.deepEqual((input as any).sourceUrls,urls);
+   const envelope=openAiPricingRequestEnvelope(instructions,input,false);
+   assert.match(envelope.body.input,/Return JSON only/);
+   assert.equal(envelope.body.text?.format.type,'json_schema');
+  }
+  return queued(instructions,input,search,remaining);
+ },now);
+ assert.equal(searches,1);assert.equal(normalizations,1);assert.ok(result.customer.range);
+ assert.ok((result.internal as any).costBookSnapshot.rules.some((rule:any)=>rule.id.startsWith('market-')&&rule.unitCost===20));
+});
 test('invalid normalized research quantities trigger corrective research instead of a schema crash',async()=>{
  const invalid=structuredClone(researched);invalid.rates[0].quantity=0;
  const queue=replies([{tasks:[task,extra],issues:[]},invalid,invalid,researched,{coveredTaskIds:['cabinets','overlay'],issues:[]}]);
