@@ -51,7 +51,7 @@ The Google tag now requires the exact public hostname, skips automated browsers,
 
 Track accepted inquiry events separately from estimator starts, contact views, downloads and phone clicks. A phone click is not a connected call. Do not assign estimated revenue to leads. Match qualified leads, booked work and revenue against actual business records when available.
 
-The Analytics connection lacked analytics.edit on September 29. Creating generate_lead as a key event was rejected with HTTP 403 and no mutation occurred. Google Business Profile, Apple and Nextdoor management access were not verified. Do not claim listing edits were performed.
+The Analytics connection lacked analytics.edit on September 29. Creating generate_lead as a key event was rejected with HTTP 403 and no mutation occurred. Google Business Profile management access is now verified for the existing P5 profile. Apple and Nextdoor management access remain unverified. Distinguish submitted edits from approved public changes.
 
 Code changes in main require separate production deployment verification. Never publish an old Replit workspace, force-push, overwrite concurrent changes, run production migrations or invoke paid Replit AI for this workflow. User authority includes ordinary commits and pushes to main.
 
@@ -66,4 +66,12 @@ The public P5 /estimate route inherited the preview title and noindex,nofollow m
 
 The existing P5 Nextdoor page is https://nextdoor.com/pages/boise-remodeling-co-meridian-id/. Its public name, phone, email and tracked parent-site link were verified. Do not create a duplicate page based on the old URL slug.
 
-Facebook accepted an expanded service description update, but the integration then returned upstream errors during read-back. Verify the current description before any retry. The five scheduled posts were read back unchanged; no extra posts or estimator links were added during this continuation.
+Facebook's expanded service description was successfully read back after the temporary integration errors cleared. Four existing scheduled service posts now also contain verified, tracked estimator links. Their existing dates and guide/service-page attachments remain unchanged; the ADU post continues to use P5's live ADU inquiry form.
+
+## September 29 Google profile execution
+
+The existing verified P5 profile was updated without creating new division listings. Six service additions were submitted: Cabinet design, Custom cabinet design and installation, Custom bathroom vanities, Built-in storage and shelving, Home maintenance and repairs, and Lot evaluation and site feasibility. A useful custom-cabinet service description was also submitted. Google initially marked the services pending review; check their status before editing again.
+
+A project-preparation update is published on Google, post ID 2574885514041937288. Its Learn more button routes to the P5 quote form with utm_source=google, utm_medium=organic, campaign p5_free_growth_2026q4 and content gbp_project_preparation. Do not duplicate it. The existing ADU division product's website link was changed from the parent homepage to the live /quote/adu intake with content gbp_adu_inquiry. Verify current approval status before further changes.
+
+The parent business description already has a correct P5 replacement pending Google's review. Preserve that pending correction; the public description still referred to Boise Remodeling Co when inspected. Do not manufacture reviews or project photos to complete profile prompts.
