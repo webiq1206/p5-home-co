@@ -2,6 +2,12 @@ import {ESTIMATOR_MODEL,assertEstimatorModel,EstimatorModelError} from './modelP
 import {unitKey,reusableUnitRate,supportedUnit,boiseArea} from './unitRates.ts';
 import {reasoningFor,rejectsReasoning} from './openaiReasoning.ts';
 class MissingResearchRateError extends Error {}
+class ResearchEvidenceError extends Error {}
+/** Tracking tags do not change the cited page; product/region queries do. */
+export function verifiedResearchUrl(value:string,observed:readonly string[]):boolean{
+ const key=(raw:string)=>{try{const url=new URL(raw);if(url.protocol!=='https:'||url.username||url.password)return null;url.hash='';for(const name of [...url.searchParams.keys()])if(/^utm_/i.test(name)||['gclid','fbclid'].includes(name.toLowerCase()))url.searchParams.delete(name);return url.href;}catch{return null;}};
+ const canonical=key(value);return canonical!==null&&observed.some(url=>key(url)===canonical);
+}
 export {unitKey} from './unitRates.ts';
 import {retainedScopeInventory} from './scopeInventory.ts';
 import {SERVER_BUDGET_MS,ProcessingDeadlineError,fetchWithinDeadline,isProcessingDeadline} from './processingBudget.ts';
@@ -272,7 +278,11 @@ const requestPricingWithUnsafe=async(provider:'anthropic'|'openai',instructions:
   const usage=body.usage||{},details=usage.input_tokens_details||{};
   const tokens={inputTokens:Math.max(0,Number(usage.input_tokens||0)),cachedInputTokens:Math.max(0,Number(details.cached_tokens||0)),outputTokens:Math.max(0,Number(usage.output_tokens||0)),totalTokens:Math.max(0,Number(usage.total_tokens||0))};
   const providerIdentity:PricingProviderIdentity|undefined=integrated&&openAiOptions.serviceTier==='default'?{provider:'openai',endpoint:'replit-managed',responseId:String(body.id||''),requestedModel:model,returnedModel:String(body.model||''),requestedServiceTier:'default',returnedServiceTier:String(body.service_tier||''),usage:tokens}:undefined;
-  return {value:JSON.parse(raw.replace(/^\s*```(?:json)?\s*/,'').replace(/\s*```\s*$/,'')),sourceUrls,provider,model,providerRequestIds:body.id?[String(body.id)]:[],responseModel:body.model?String(body.model):undefined,serviceTier:body.service_tier?String(body.service_tier):undefined,usage:tokens,...(providerIdentity?{providerIdentity}:{})};
+  let value:unknown;
+  try{value=parseJson(raw);}catch(error){if(!search)throw error;value=null;}
+  // A completed cited search may return prose. Preserve it for the existing
+  // strict formatting stage instead of discarding paid research as a timeout.
+  return {value,sourceUrls,...(search?{sourceReport:raw}:{}),provider,model,providerRequestIds:body.id?[String(body.id)]:[],responseModel:body.model?String(body.model):undefined,serviceTier:body.service_tier?String(body.service_tier):undefined,usage:tokens,...(providerIdentity?{providerIdentity}:{})};
 };
 /** Reserve before a provider request and settle only after a complete response.
  * Ambiguous failures are parked and cannot silently fall back or retry. The
@@ -833,16 +843,16 @@ export function marketResolution(raw:unknown,urls:string[],tasks:Mapping['tasks'
     const hosts=new Set<string>();
     for(const s of r.sources){
       const u=new URL(s.url);const date=Date.parse(s.publishedAt);
-      if(unitKey(s.unit)!==unitKey(r.unit)||s.costBasis!==r.basis)throw new Error('Incompatible benchmark unit or cost basis');
-      if(u.protocol!=='https:'||!urls.includes(s.url)||s.dateBasis!=='retrieved'&&(!Number.isFinite(date)||date>now.getTime()||now.getTime()-date>365*86400000)||s.high<s.low||s.excerpt.split(/\s+/).length>25)throw new Error('Unsupported market source');
+      if(unitKey(s.unit)!==unitKey(r.unit)||s.costBasis!==r.basis)throw new ResearchEvidenceError('Incompatible benchmark unit or cost basis');
+      if(u.protocol!=='https:'||!verifiedResearchUrl(s.url,urls)||s.dateBasis!=='retrieved'&&(!Number.isFinite(date)||date>now.getTime()||now.getTime()-date>365*86400000)||s.high<s.low||s.excerpt.split(/\s+/).length>25)throw new ResearchEvidenceError('Unsupported market source');
       hosts.add(u.hostname.replace(/^www\./,''));
     }
-    if(hosts.size<2)throw new Error('Independent market sources required');
+    if(hosts.size<2)throw new ResearchEvidenceError('Independent market sources required');
     if(boiseArea(location)&&!r.sources.every(source=>boiseArea(source.region)))throw new MissingResearchRateError('Published observations do not establish Boise / Treasure Valley pricing for this item');
-    if(r.basis!=='material-purchase'&&r.landedCost)throw new Error('Purchase adjustments cannot apply to a labor or installed offering');
+    if(r.basis!=='material-purchase'&&r.landedCost)throw new ResearchEvidenceError('Purchase adjustments cannot apply to a labor or installed offering');
     if(r.landedCost)for(const evidence of [r.landedCost.taxEvidence,r.landedCost.freightEvidence]){
       const date=Date.parse(evidence.publishedAt);
-      if(new URL(evidence.url).protocol!=='https:'||!urls.includes(evidence.url)||evidence.dateBasis==='published'&&(!Number.isFinite(date)||date>now.getTime()||now.getTime()-date>365*86400000)||evidence.excerpt.split(/\s+/).length>25)throw new Error('Unsupported purchase adjustment evidence');
+      if(new URL(evidence.url).protocol!=='https:'||!verifiedResearchUrl(evidence.url,urls)||evidence.dateBasis==='published'&&(!Number.isFinite(date)||date>now.getTime()||now.getTime()-date>365*86400000)||evidence.excerpt.split(/\s+/).length>25)throw new ResearchEvidenceError('Unsupported purchase adjustment evidence');
     }
     const landed=(product:number)=>r.landedCost?product*(1+r.landedCost.taxRate)+r.landedCost.freightPerUnit*(1+(r.landedCost.taxOnFreight?r.landedCost.taxRate:0)):product;
     const amount=r.sources.reduce((sum,s)=>sum+landed((s.low+s.high)/2),0)/r.sources.length;
@@ -1302,17 +1312,20 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
         return {replies,resolution:market,modelIssues:accepted.issues};
       }catch(error){
         if(isPricingPending(error)||isProcessingDeadline(error))throw error;
-        // An unavailable search or a valid response with missing rates may take
-        // the preliminary planning path. A malformed schema, incompatible unit or
-        // rejected citation is a concrete evidence failure and stays blocking.
-        if(!isPricingStageTimeout(error)&&!(error instanceof MissingResearchRateError))throw error;
-        researchFailure=error instanceof MissingResearchRateError?error.message:'published cost research did not finish within its time allowance';
+        // Missing rates and rejected evidence get a distinct corrective search.
+        // Validation remains mandatory: neither failure releases an unchecked price.
+        if(!isPricingStageTimeout(error)&&!(error instanceof MissingResearchRateError)&&!(error instanceof ResearchEvidenceError))throw error;
+        researchFailure=error instanceof MissingResearchRateError||error instanceof ResearchEvidenceError?error.message:'published cost research did not finish within its time allowance';
       }
       // Owner policy: never replace failed research with an uncited AI average.
       // A second, distinct saved search can recover a failed broad batch.
       // The durable request cache prevents paying repeatedly for the same stage.
       if(!pastWindow)try{
-        const retried=await request(RESEARCH,{date:now.toISOString().slice(0,10),region,tasks:tasksInput,retryInstruction:'Research these exact remaining items individually for Boise / Treasure Valley. Use published local trade rates and supplier product prices with local availability where appropriate. Break a service into evidenced labor and material components if no complete assembly price exists. No uncited planning averages.',priorIssues:[...(priorIssues||[]),researchFailure]},true,Math.min(RESEARCH_STAGE_MS,deadline-Date.now()));
+        let retried=await request(RESEARCH,{date:now.toISOString().slice(0,10),region,tasks:tasksInput,retryInstruction:'Correct the prior evidence failure, not merely the formatting. Cite only exact URLs returned by this search; never invent a second source to meet the source count. Open and verify product prices for the specific missing supplies, not an unrelated whole-kitchen budget. Research these exact remaining items individually for Boise / Treasure Valley. Use published local trade rates and supplier product prices with local availability where appropriate. Break a service into evidenced labor and material components if no complete assembly price exists. No uncited planning averages.',priorIssues:[...(priorIssues||[]),researchFailure]},true,Math.min(RESEARCH_STAGE_MS,deadline-Date.now()));
+        if(!marketSchema.safeParse(retried.value).success){
+          const normalized=await request(normalizeResearch,{requested:{tasks:tasksInput},report:retried.sourceReport||JSON.stringify(retried.value),sourceUrls:retried.sourceUrls},false,deadline-Date.now());
+          retried={...retried,value:marketSchema.parse(normalized.value)};
+        }
         const accepted=marketSchema.parse(retried.value);
         const market=marketResolution(accepted,retried.sourceUrls,gapBatch,now,offset,region,scope);
         if(gapBatch.every(task=>market.rules.some(rule=>rule.scopeTaskId===task.id&&rule.unitCost>0))){
@@ -1321,7 +1334,7 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
         }
       }catch(error){
         if(isPricingPending(error)||isProcessingDeadline(error))throw error;
-        if(!isPricingStageTimeout(error)&&!(error instanceof MissingResearchRateError))throw error;
+        if(!isPricingStageTimeout(error)&&!(error instanceof MissingResearchRateError)&&!(error instanceof ResearchEvidenceError))throw error;
       }
       throw new PricingPending('Researching Boise-area prices for the remaining items. Your project and completed pricing steps are saved.',30000);
     };

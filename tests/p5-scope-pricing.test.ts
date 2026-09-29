@@ -237,6 +237,27 @@ test('Complete-scope mapper and audit receive active scope without retained alte
  assert.ok(!JSON.stringify(seen).includes('Unselected quartz top'));
  assert.ok(seen.every(payload=>!JSON.stringify(payload).includes('clarificationProvenance')&&!JSON.stringify(payload).includes('sourceHistory')));
 });
+test('source verification ignores tracking but preserves product and region identity',async()=>{
+ const {verifiedResearchUrl}=await import('../lib/p5/scopePricing.ts');
+ assert.ok(verifiedResearchUrl(urls[0],[urls[0]+'?utm_source=openai#price']));
+ assert.ok(verifiedResearchUrl(urls[0]+'?sku=123',[urls[0]+'?sku=123&utm_source=openai']));
+ assert.equal(verifiedResearchUrl(urls[0]+'?sku=124',[urls[0]+'?sku=123']),false);
+ assert.equal(verifiedResearchUrl(urls[0]+'?region=Boise',[urls[0]+'?region=Seattle']),false);
+ assert.equal(verifiedResearchUrl('https://invented.example/pricing',urls),false);
+ assert.equal(verifiedResearchUrl('http://supplier-a.example/pricing',urls),false);
+ assert.equal(marketResolution(researched,urls.map(url=>url+'?utm_source=openai'),[extra],now).rules[0].unitCost,20);
+});
+test('an unsupported market citation triggers corrected research without accepting the invented rate',async()=>{
+ const unsupported=structuredClone(researched);
+ unsupported.rates[0].sources[0].url='https://invented.example/pricing';
+ let searches=0;
+ const queue=replies([{tasks:[task,extra],issues:[]},unsupported,researched,{coveredTaskIds:['cabinets','overlay'],issues:[]}]);
+ const result=await priceCompleteScope(scope,config,async(...args)=>{if(args[2])searches++;return queue(...args);},now);
+ assert.equal(searches,2);
+ assert.ok(result.customer.range);
+ assert.ok((result.internal as any).costBookSnapshot.rules.some((rule:any)=>rule.id.startsWith('market-')&&rule.unitCost===20));
+ assert.ok(!JSON.stringify(result).includes('https://invented.example'));
+});
 test('Regional unit-cost benchmarks reject incompatible units, responsibility and supplier offers',()=>{
  const priced=marketResolution(researched,urls,[extra],now).rules[0];assert.equal(priced.unitCost,20);assert.equal(priced.quantity.fixed,10);
  const aliases=structuredClone(researched);aliases.rates[0].sources[0].unit='per linear foot';aliases.rates[0].sources[1].unit='linear-ft';assert.equal(marketResolution(aliases,urls,[extra],now).rules[0].unitCost,20);
@@ -271,6 +292,24 @@ test('Invalid catalog references and zero-quantity output never release a range'
   const r=await priceCompleteScope(scope,config,replies([{tasks:[task,{...extra,researchDescription:'',additions:[a]}],issues:[]},{coveredTaskIds:['cabinets','overlay'],issues:[]}]),now);
   assert.equal(r.customer.range,null);
  }
+});
+test('completed OpenAI search prose retains actual citations for strict normalization',async()=>{
+ const names=['OPENAI_API_KEY','AI_INTEGRATIONS_OPENAI_API_KEY','AI_INTEGRATIONS_OPENAI_BASE_URL','P5_PRICING_PROVIDER'];
+ const saved=names.map(n=>process.env[n]);const oldFetch=globalThis.fetch;
+ try{
+  for(const n of names)delete process.env[n];
+  process.env.OPENAI_API_KEY='synthetic-test-key';
+  const {ESTIMATOR_MODEL}=await import('../lib/p5/modelPolicy.ts');
+  const report='Synthetic Boise supplier report with published product prices.';
+  let calls=0;
+  globalThis.fetch=async()=>{calls++;return Response.json({status:'completed',model:ESTIMATOR_MODEL,output:[
+   {type:'web_search_call',action:{sources:urls.map(url=>({url}))}},
+   {type:'message',content:[{type:'output_text',text:report}]}
+  ]});};
+  const result=await requestPricingWith('openai','Synthetic prose recovery regression',{},true,5000);
+  assert.equal(calls,1);assert.equal(result.value,null);
+  assert.equal(result.sourceReport,report);assert.deepEqual(result.sourceUrls,urls);
+ }finally{globalThis.fetch=oldFetch;names.forEach((n,i)=>{if(saved[i]===undefined)delete process.env[n];else process.env[n]=saved[i]});}
 });
 test('legacy provider parser retains historical source extraction support',async()=>{
  const names=['OPENAI_API_KEY','AI_INTEGRATIONS_OPENAI_API_KEY','AI_INTEGRATIONS_OPENAI_BASE_URL','ANTHROPIC_API_KEY','P5_PRICING_MODEL','P5_PRICING_RESEARCH_MODEL','P5_PRICING_PROVIDER'];
