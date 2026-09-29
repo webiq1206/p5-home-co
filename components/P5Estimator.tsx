@@ -519,7 +519,8 @@ export function P5Estimator({defaultService='',headingAs='h1',projectSource,layo
       if(definition.kind==='number'){const issue=validateScopeAnswer(active.field,text);if(!issue){answer(active.field,text);logExchange(active,text);void advance();return;}
         const parsed=parseNumericAnswer(active.field,text);
         if(parsed&&'value' in parsed&&!validateScopeAnswer(active.field,parsed.value)){answer(active.field,parsed.value);if(parsed.note){const kept=current.current?.answers.otherDetails||'';if(!kept.includes(parsed.note))answer('otherDetails',[kept,`${SCOPE_FIELDS[active.field].label}: ${parsed.note}`].filter(Boolean).join(String.fromCharCode(10)));}logExchange(active,text);setReply('');void advance();return;}
-        if(parsed&&'choices' in parsed){setError(`I found ${parsed.choices.join(' and ')} in your answer. Which number should I use? You can also tap Not sure yet.`);return;}
+        // Several numbers may describe distinct roles, such as installed versus purchased area.
+        // Preserve the full answer for scope analysis instead of rejecting it in the composer.
         addToProject(contextualCustomerAnswer(active.reason,text));return;}
       if(active.conflict&&active.values?.length){answer(active.field,text);logExchange(active,text);void advance();return;}answer(active.field,text);logExchange(active,text);void advance();return;
     }

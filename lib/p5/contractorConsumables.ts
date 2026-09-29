@@ -19,7 +19,7 @@ export function contractorConsumableIncluded(scope:ReviewedScope,description:str
   if(/\b(?:owner|customer|client)[ -](?:supplied|provided)\b/i.test(component))return false;
   const groups=GROUPS.filter(group=>group.test(component));
   if(!groups.length)return false;
-  const source=[scope.text,scope.answers.estimatingInstructions,scope.answers.ownerSupplied,scope.answers.installation,...(scope.extraction?.instructions?.responsibilities||[]),...(scope.extraction?.instructions?.inclusions||[])].filter(Boolean).join('\n');
+  const source=[scope.text,scope.extraction?.sourceText,scope.answers.estimatingInstructions,scope.answers.ownerSupplied,scope.answers.installation,...(scope.extraction?.instructions?.responsibilities||[]),...(scope.extraction?.instructions?.inclusions||[])].filter(Boolean).join('\n');
   return source.split(/;|\n|(?<=[.!?])\s+|\bbut\b/i).some(clause=>{
     if(/\b(?:no|not|exclude|excluding|without|owner supplies|owner provides|customer supplies)\b/i.test(clause))return false;
     const provided=/\bcontractor\s+(?:supplies|provides|furnishes)\b|\bcontractor[ -](?:supplied|provided)\b/i.test(clause);

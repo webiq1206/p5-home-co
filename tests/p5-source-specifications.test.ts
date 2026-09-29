@@ -1,8 +1,9 @@
 import test from 'node:test';
+import {validateExtraction} from '../lib/p5/scope.ts';
 import assert from 'node:assert/strict';
 import {PDFDocument,StandardFonts} from 'pdf-lib';
 import {readSpecificationSource,specificationSource,unsupportedSpecifications,retainUnspecifiedRatings} from '../lib/p5/sourceSpecificationGuard.ts';
-import {analyzeBatch} from '../lib/p5/extraction.ts';
+import {analyzeBatch,EXTRACTION_JSON_SCHEMA} from '../lib/p5/extraction.ts';
 import {scopeQuestionsForBrand} from '../lib/p5/adaptive.ts';
 import {ESTIMATOR_BRAND} from '../lib/p5/brand.ts';
 import {combineScopeExtractions,type ScopeExtraction} from '../lib/p5/scope.ts';
@@ -132,4 +133,13 @@ test('partial siding numbers are removed while valid references and negation rem
  assert.doesNotMatch(safe.summary,/T1|Level 5|30-year/);assert.match(safe.summary,/40-year/);assert.match(safe.summary,/excluded/);
  assert.equal(safe.documentCoverage,record.documentCoverage);assert.match(record.summary,/T1-/);
  assert.deepEqual(unsupportedSpecifications(safe,source),[]);
+});
+
+test('image source transcription survives review validation even when its interpreted summary omits procurement',()=>{
+ const raw={...empty,summary:'Install 300 SF LVP.',sourceText:'Install 300 SF LVP. Purchase 330 SF including 10% material waste. Exclude floor preparation.'};
+ const restored=validateExtraction(JSON.parse(JSON.stringify(raw)));
+ assert.equal(restored.sourceText,raw.sourceText);
+ const active=pricingSourceParts({text:'',answers:{flooringSqft:'300'},extraction:restored,uploads:[],reviewedAt:'2026-09-29',corrections:[]})[0] as {extraction?:ScopeExtraction};
+ assert.equal(active.extraction?.sourceText,raw.sourceText);
+ assert.ok(EXTRACTION_JSON_SCHEMA.required.includes('sourceText'),'the image reader must return retained source details, not only interpreted fields');
 });

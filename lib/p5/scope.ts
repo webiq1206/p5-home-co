@@ -305,6 +305,7 @@ export function validateExtraction(raw: unknown): ScopeExtraction {
   }))throw new Error('Labor coverage does not match its active component takeoffs');
   return preserveIndependentQuestions({
     summary: r.summary, facts, conflicts,clarifications,
+    ...(typeof r.sourceText==='string'&&r.sourceText.trim()?{sourceText:r.sourceText}:{}),
     ...(r.instructions?{instructions:validateInstructions(r.instructions)}:{}),
     ...(hasPages?{documentCoverage:{pages,expectedPages,complete:savedCoverage?.complete!==false&&pages.length===expectedPages&&pages.every(p=>p.status==='read')}}:{}),
     ...(takeoffs?{takeoffs}:{}),

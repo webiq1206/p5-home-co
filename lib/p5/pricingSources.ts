@@ -7,7 +7,7 @@ import {retainedPricingScopeProjection} from './retainedClarification.ts';
  */
 export function activePricingSource(scope:ReviewedScope){
   const active=retainedPricingScopeProjection(scope);
-  return {text:active.text,answers:active.answers,extraction:active.extraction,...(active.extraction?.sourceText?{sourceNotice:'sourceText is original native document evidence. Reconcile all scope details and responsibilities against it. The visitor’s selections and exclusions define the requested subset; unselected alternatives remain excluded. Missing numbers are unknown.'}:{})};
+  return {text:active.text,answers:active.answers,extraction:active.extraction,...(active.extraction?.sourceText?{sourceNotice:'sourceText is retained document evidence (native text or visual transcription), not an independently verified site measurement. Reconcile all scope details and responsibilities against it. The visitor’s selections and exclusions define the requested subset; unselected alternatives remain excluded. Missing numbers are unknown.'}:{})};
 }
 /** Every character is covered. Overlap preserves sentences across boundaries;
  * inventory and the final audit reconcile repeated descriptions, not quantities.
