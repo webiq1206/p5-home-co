@@ -1531,3 +1531,68 @@ test('an invalid evidence excerpt is repaired from the saved report without anot
  const result=await reconcileResearchReply({value:make('GRK cabinet screws cost $19.99 per box.'),sourceUrls:urls,sourceReport:quote},[requested],request,()=>60000);
  assert.equal(calls,1);assert.equal((result.value as any).rates[0].sources[0].excerpt,quote);
 });
+
+test('explicitly excluded work is not displayed under included customer categories',async()=>{
+ const {finishScopePricing}=await import('../lib/p5/scopePricing.ts');
+ const omitted={...extra,id:'exclusions',description:'Explicitly excluded work: no demolition, rock excavation, retaining walls, landscaping, fencing, garage, appliances, permit/utility connection fees.',evidence:'These items are excluded.'};
+ const priced=finishScopePricing(scope,config,now,{rules:[],assumptions:[],issues:[]},{tasks:[task,omitted]},null);
+ assert.ok(priced.customer.scopeTasks.some(t=>t.description===task.description));
+ assert.ok(!priced.customer.scopeTasks.some(t=>t.description===omitted.description));
+ assert.deepEqual(priced.internal.scopePricing.tasks,[task,omitted]);
+});
+
+test('a one-square-foot repair uses the approved patch service instead of bulk wall pricing',async()=>{
+ const {priceBookRates}=await import('../lib/p5/priceBook.ts');
+ const configured={...config,planningCatalog:{...catalog,rates:priceBookRates({service:'re10'})}};
+ const repair={id:'patch',description:'Patch one 12x12 inch hole in the garage wall with 5/8 inch Type X drywall, tape, finish, and spot-prime.',evidence:'One patch requested',existingLineIds:[],additions:[{code:'PB-09-29-05',quantity:1,quantityEvidence:'1 SF patch'},{code:'PB-09-91-12',quantity:1,quantityEvidence:'1 SF spot prime'}],researchDescription:'',issues:[]};
+ const mapping={tasks:[repair],issues:[],notes:[],replacements:[],removeExclusions:[]};
+ const result=catalogResolution(mapping,configured,[],now);
+ assert.equal(result.rules.length,2);
+ assert.ok(result.rules.some(rule=>rule.evidence.reference.includes('PB-09-01-08')&&rule.unitCost===300&&rule.quantity.fixed===1));
+ assert.ok(!result.rules.some(rule=>rule.evidence.reference.includes('PB-09-29-05')));
+ assert.ok(result.rules.some(rule=>rule.evidence.reference.includes('PB-09-91-12')));
+ const wall={...repair,id:'wall',description:'Install garage drywall over a 12 by 12 foot new wall.',additions:[{code:'PB-09-29-05',quantity:144,quantityEvidence:'144 SF'}]};
+ const unchanged=catalogResolution({...mapping,tasks:[wall]},configured,[],now);
+ assert.ok(unchanged.rules.some(rule=>rule.evidence.reference.includes('PB-09-29-05')));
+});
+
+test('research recovery reports evidence formatting and supplier independence together',async()=>{
+ const {reconcileResearchReply}=await import('../lib/p5/scopePricing.ts');
+ const report='Everbilt cabinet screws, 60-pack, $8.44.\nHome Depot alternate cabinet screws, 60-pack, $12.98.';
+ const requested={...extra,researchDescription:'Research ONLY contractor-supplied screws for cabinet installation.'};
+ const duplicate={...researched,rates:[{...researched.rates[0],description:'Cabinet screws',sources:researched.rates[0].sources.map((source,i)=>({...source,url:urls[0],excerpt:'Everbilt cabinet screws with rewritten unsupported price $99.'}))}]};
+ let corrections=0;
+ await assert.rejects(()=>reconcileResearchReply({value:duplicate,sourceUrls:urls,sourceReport:report},[requested],async(_instructions,input)=>{
+   corrections++;assert.match((input as any).validationFailure,/Source excerpt/);assert.match((input as any).validationFailure,/Independent market sources/);
+   return {value:duplicate,sourceUrls:urls};
+ },()=>60000,value=>{marketResolution(value,urls,[requested],now,0,'Boise');}),/Source excerpt.*Independent market sources/s);
+ assert.equal(corrections,1);
+});
+
+test('corrective research retains paid findings and requests the exact missing evidence',async()=>{
+ const report='Supplier observations for protective overlay: one retailer only; second independent supplier still needed.';
+ const invalid=structuredClone(researched);invalid.rates[0].sources.forEach(s=>s.url=urls[0]);
+ let searches=0,phase=0;
+ const result=await priceCompleteScope(scope,config,async(instructions,input,search)=>{
+   if(search){
+     searches++;
+     if(searches===1)return {value:invalid,sourceUrls:urls,sourceReport:report};
+     assert.equal((input as any).previousResearch.report,report);
+     assert.deepEqual((input as any).previousResearch.sourceUrls,urls);
+     assert.match(JSON.stringify((input as any).priorIssues),/Independent market sources/);
+     assert.match((input as any).evidenceRequirements,/different supplier/);
+     return {value:researched,sourceUrls:urls};
+   }
+   if((input as any).report)return {value:invalid,sourceUrls:urls};
+   phase++;
+   if(phase===1)return {value:{tasks:[task,extra].map(({id,description,evidence})=>({id,description,evidence})),issues:[]},sourceUrls:[]};
+   if(phase===2)return {value:{tasks:[task,extra],issues:[]},sourceUrls:[]};
+   return {value:{coveredTaskIds:['cabinets','overlay'],issues:[]},sourceUrls:[]};
+ },now);
+ assert.equal(searches,2);assert.ok(result.customer.range);
+});
+
+test('likely Boise availability is not accepted as verified regional evidence',()=>{
+ const invalid=structuredClone(researched);invalid.rates[0].sources[0].region='Boise-area stock likely';
+ assert.throws(()=>marketResolution(invalid,urls,[extra],now,0,'Boise'),/do not establish Boise/);
+});
