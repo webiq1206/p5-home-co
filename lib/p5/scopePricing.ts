@@ -494,6 +494,10 @@ export function normalizeConsumableMapping(mapping:Mapping,configuration:Estimat
       const labor=configuration.planningCatalog?.rates.find(rate=>rate.code===`${addition.code}-L`&&rate.type==='Labor');
       const material=configuration.planningCatalog?.rates.find(rate=>rate.code===`${addition.code}-M`&&rate.type==='Material');
       const purchased=Math.round(area*(1+wastePercent[0]/100)*1000)/1000;
+      // Procurement waste belongs to the flooring product, never to a
+      // preparation/removal assembly merely because it shares the floor code
+      // prefix and its task happens to mention the same room's waste.
+      if(!/\b(?:lvp|lvt|vinyl|laminate|hardwood|carpet|flooring)\b/i.test(rate?.description||'')||/\b(?:prep|preparation|removal|grind|level|demo)\b/i.test(rate?.description||''))return [addition];
       if(!/^PB-09-65-\d+$/.test(addition.code)||rate?.type!=='Subcontractor'||!labor||!material||unitKey(rate.unit)!=='sf'||(Math.abs(addition.quantity-purchased)>.001&&Math.abs(addition.quantity-area)>.001))return [addition];
       return [{...addition,code:labor.code,quantity:area,quantityRange:null,quantityEvidence:`Confirmed installed flooring area: ${area} SF. Procurement waste is not installation work.`},{...addition,code:material.code,quantity:purchased,quantityRange:{low:purchased,high:purchased},quantityEvidence:`ALLOWANCE: ${area} SF installed area plus the requested ${wastePercent[0]}% material waste = ${purchased} SF purchased.`}];
     });

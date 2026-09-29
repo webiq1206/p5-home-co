@@ -68,7 +68,10 @@ test('flooring supplies cannot be priced as preparation or adhesive removal',()=
  for(const component of ['Floor prep / adhesive removal (grind)','Provide installation supplies: Floor prep / adhesive removal (grind)','Demolition of glued flooring'])
   assert.equal(contractorConsumableIncluded(floor,component),false,component);
  assert.equal(suggestedTrade('Install mid-range LVP flooring in 300 sqft room over concrete slab.'),'Flooring');
+ assert.equal(suggestedTrade('Install 300 SF LVP on the existing concrete floor.'),'Flooring');
+ assert.equal(suggestedTrade('Install LVP over concrete.'),'Flooring');
  assert.equal(suggestedTrade('Repair concrete slab before flooring installation.'),'Concrete');
+ assert.equal(suggestedTrade('Grind and level the concrete slab before installing LVP.'),'Concrete');
 });
 
 test('an incompatible flooring supply mapping returns to pricing without retaining preparation cost',async()=>{
@@ -86,4 +89,31 @@ test('an incompatible flooring supply mapping returns to pricing without retaini
  normalizeConsumableMapping(mapping,config,[],floor);
  assert.equal(task.additions[0].code,'PB-09-60-06');
  assert.equal(task.researchDescription,'');
+});
+
+test('ready-slab ordinary supplies cannot consume a grinding rate, but expressly requested preparation remains billable',async()=>{
+ const {normalizeConsumableMapping}=await import('../lib/p5/scopePricing.ts');
+ const {priceBookRates}=await import('../lib/p5/priceBook.ts');
+ const config={planningCatalog:{rates:priceBookRates({service:'remodel'})}} as any;
+ const text='Owner removed old flooring. Supply 330 SF mid-range LVP including 10% waste and install over sound level existing concrete slab in one 300 SF room. Contractor provides ordinary installation supplies and minor cleanup. Exclude demolition, leveling, floor prep, adhesive removal, grinding, baseboard, transitions, painting, plumbing, electrical and cabinetry.';
+ const floor={...scope,text,answers:{service:'remodel',flooringSqft:'300',exclusions:'Demolition; leveling; floor prep; adhesive removal; grinding; baseboard; transitions; painting; plumbing; electrical; cabinetry'}};
+ const addition=(code:string,quantity:number)=>({code,quantity,quantityEvidence:`${quantity} SF from reviewed scope`});
+ const task=(id:string,description:string,additions:ReturnType<typeof addition>[])=>({id,description,evidence:text,additions,existingLineIds:[],researchDescription:'',issues:[]});
+ const supply=task('ordinary-supplies','Provide ordinary LVP installation supplies in 300 SF room',[addition('PB-09-65-13-M',300)]);
+ const install=task('install-lvp','Install 300 SF LVP over existing concrete slab',[addition('PB-09-65-01-L',300)]);
+ const purchase=task('purchase-lvp','Supply 330 SF LVP including 10% waste',[addition('PB-09-65-01-M',330)]);
+ const mapping={tasks:[purchase,install,supply],issues:[],notes:[],replacements:[],removeExclusions:[]};
+ normalizeConsumableMapping(mapping,config,[],floor);
+ assert.deepEqual(purchase.additions.map(a=>[a.code,a.quantity]),[['PB-09-65-01-M',330]]);
+ assert.deepEqual(install.additions.map(a=>[a.code,a.quantity]),[['PB-09-65-01-L',300]]);
+ assert.equal(suggestedTrade(install.description),'Flooring');
+ assert.deepEqual(supply.additions,[],'excluded grinding is never billed as ordinary supplies');
+ assert.match(supply.researchDescription,/Material purchase only/,'unpriced materials remain explicit rather than receiving an invented rate');
+ assert.equal(contractorConsumableIncluded(floor,'Supply ordinary installation supplies: Floor prep / adhesive removal (grind)'),false);
+ const prep={...floor,text:'Owner requests grinding adhesive residue from 300 SF of concrete slab before new LVP installation. Contractor also provides ordinary installation supplies.',answers:{service:'remodel',flooringSqft:'300'}};
+ const requestedPrep=task('requested-prep','Grind adhesive residue from 300 SF concrete slab before LVP installation',[addition('PB-09-65-13',300)]);
+ const prepMapping={tasks:[requestedPrep],issues:[],notes:[],replacements:[],removeExclusions:[]};
+ normalizeConsumableMapping(prepMapping,config,[],prep);
+ assert.deepEqual(requestedPrep.additions.map(a=>[a.code,a.quantity]),[['PB-09-65-13',300]],'a real, expressly requested preparation task is retained');
+ assert.equal(suggestedTrade(requestedPrep.description),'Concrete');
 });

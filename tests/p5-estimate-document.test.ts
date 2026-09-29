@@ -126,3 +126,13 @@ test('work the contractor does is never listed as supplied by the owner (owner r
  assert.ok(!doc.exclusions.some(e=>/Contractor supplies|Provide and install all listed/.test(e)));
  assert.ok(doc.exclusions.includes('By others or supplied by the owner: Owner supplies the appliances'));
 });
+
+test('long customer assumptions and verification notes retain their complete meaning in the PDF',async()=>{
+ const note='The estimate assumes normal access and the installation conditions described in the reviewed scope. '.repeat(5)+'Finish painting is excluded.';
+ const result={...re10,exclusions:[],assumptions:[note],verificationItems:[note]};
+ const doc=buildEstimateDocument({id:ID,result,brand:site,issue:{service:'handyman'}});
+ assert.deepEqual(doc.assumptionRows.find(([title])=>title==='Assumptions')?.[1],[note]);
+ assert.deepEqual(doc.assumptionRows.find(([title])=>title==='To confirm')?.[1],[note]);
+ const output=(await pdfTextLayers(await customerPdf(ID,result))).join('\n');
+ assert.match(output,/Finish painting is excluded\./);
+});

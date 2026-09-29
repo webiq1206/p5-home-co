@@ -199,15 +199,15 @@ export function buildEstimateDocument(input:{id:string;result:unknown;brand:Esti
   const finish=repair?{heading:'Finish / repair standard',name:'Standard repair',detail:'Repairs completed to a sound, working condition with materials comparable to what is there now. Repaired areas are finished to blend with the surrounding surfaces; an exact match to existing finishes is not guaranteed.',basis:'Basis: estimating standard for repair work. Tell us if you expect a different result.'}
     :{heading:'Finish level & materials',name:finishDef?.name||'Not applicable',detail:finishDef?.detail||'Finish selections do not apply to this work.',basis:BASIS_TEXT[(issue.finish?issue.finishBasis:'assumed')||'assumed']};
 
-  const toConfirm=[...unpriced.map(u=>`${u}: not priced yet; we will quote it after a site visit.`),...((result.verificationItems||[]) as string[]).map(v=>clean(v)),...((result.instructions?.questions||[]) as string[]).map(v=>clean(v))]
+  const toConfirm=[...unpriced.map(u=>`${u}: not priced yet; we will quote it after a site visit.`),...((result.verificationItems||[]) as string[]).map(v=>clean(v,Infinity)),...((result.instructions?.questions||[]) as string[]).map(v=>clean(v,Infinity))]
     .filter(Boolean).filter(v=>!/^to confirm:.*not priced in this estimate/i.test(v));
-  const assumptions=((result.assumptions||[]) as string[]).map(v=>clean(v)).filter(v=>v&&!/^to confirm:.*not priced in this estimate/i.test(v));
+  const assumptions=((result.assumptions||[]) as string[]).map(v=>clean(v,Infinity)).filter(v=>v&&!/^to confirm:.*not priced in this estimate/i.test(v));
   const sources=(issue.sources||[]).map(s=>clean(s,120)).filter(Boolean);
   const assumptionRows:[string,string[]][]=([
     ['Pricing basis',[`Your online submission${sources.length?` and ${sources.length===1?'the document':'the documents'} you uploaded: ${sources.join('; ')}`:''}.`]],
     ['Assumptions',[...new Set(assumptions)].slice(0,12)],
-    ['Changes in this version',((result.revisionSummary||[]) as string[]).map(v=>clean(v,300)).filter(Boolean).slice(0,8)],
-    ['Included to complete the work',tasks.filter(t=>t.origin==='required'&&clean(t.basis)).map(t=>`${clean(t.description,160)}: ${clean(t.basis,240)}`).slice(0,12)],
+    ['Changes in this version',((result.revisionSummary||[]) as string[]).map(v=>clean(v,Infinity)).filter(Boolean).slice(0,8)],
+    ['Included to complete the work',tasks.filter(t=>t.origin==='required'&&clean(t.basis)).map(t=>`${clean(t.description,Infinity)}: ${clean(t.basis,Infinity)}`).slice(0,12)],
     ['To confirm',[...new Set(toConfirm)].slice(0,16)],
     ['Timing',[issue.timing?`Requested: ${clean(issue.timing,160)}. Availability is confirmed with your final proposal.`:'Start and completion dates are confirmed with your final proposal.']],
   ] as [string,string[]][]).filter(([,v])=>v.length);
