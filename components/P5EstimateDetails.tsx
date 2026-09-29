@@ -1,6 +1,5 @@
 'use client';
-import {useRef} from 'react';
-import {categoryBreakdown,estimateSections,groupSections,money,scopeBullets,KIND_LABEL,type EstimateSection,type SectionKind} from '../lib/p5/presentation';
+import {categoryBreakdown,estimateSections,groupSections,money,scopeBullets,type EstimateSection,type SectionKind} from '../lib/p5/presentation';
 import styles from './P5Estimator.module.css';
 
 type Kind='included'|'excluded'|'allowance'|'assumption'|'';
@@ -13,7 +12,7 @@ function Section({section,open}:{section:EstimateSection;open?:boolean}){
  const kind=badgeKind(section.kind);
  const count=(section.bullets?.length||0)+(section.rows?.length||0);
  return <details className={styles.accordion} open={open} data-kind={kind||undefined}>
-  <summary><span className={styles.accordionTitle}>{section.title}</span>{kind&&<span className={styles.badge} data-kind={kind}>{KIND_LABEL[section.kind!]}</span>}{count>0&&<span className={styles.accordionMeta}>{count} {count===1?'item':'items'}</span>}</summary>
+  <summary><span className={styles.accordionTitle}>{section.title}</span>{count>0&&<span className={styles.accordionMeta}>{count} {count===1?'item':'items'}</span>}</summary>
   <div className={styles.accordionBody}>
    {section.text&&<p className={styles.hint} style={{marginBottom:count?10:0}}>{section.text}</p>}
    {Boolean(section.bullets?.length)&&<ul className={styles.bullets}>{section.bullets!.map((item,i)=><li key={i}>{item}</li>)}</ul>}
@@ -31,7 +30,6 @@ function Section({section,open}:{section:EstimateSection;open?:boolean}){
  * readable on a phone while every item remains one tap away.
  */
 export default function P5EstimateDetails({result,openFirst=false,showGlance=true}:{result:any;openFirst?:boolean;showGlance?:boolean}){
- const root=useRef<HTMLDivElement>(null);
  const sections=estimateSections(result);
  const grouped=groupSections(sections);
  const breakdown=categoryBreakdown(result);
@@ -39,17 +37,15 @@ export default function P5EstimateDetails({result,openFirst=false,showGlance=tru
  const hasCategories=breakdown.length>0;
  const costDrivers=priced?[...breakdown].filter(group=>Number.isFinite(group.high)).sort((a,b)=>(b.high||0)-(a.high||0)).slice(0,3):[];
  const checks=[...new Set(grouped.assumptions.flatMap(section=>section.bullets||[]))];
- const setAll=(open:boolean)=>root.current?.querySelectorAll('details').forEach(detail=>{detail.open=open;});
- return <div ref={root} className={styles.result}>
+ return <div className={styles.result}>
   {priced&&(costDrivers.length>0||checks.length>0)&&<section className={styles.card} aria-label="Estimate highlights">
    {costDrivers.length>0&&<><h3>Largest budget categories</h3><dl className={styles.rows}>{costDrivers.map(group=><div key={group.category}><dt>{group.category}</dt><dd>{range(group.low,group.high)}</dd></div>)}</dl></>}
    {checks.length>0&&<><h3>Start by checking these assumptions</h3><ul className={styles.bullets}>{checks.slice(0,3).map(item=><li key={item}>{item}</li>)}</ul>{checks.length>3&&<p className={styles.hint}>{checks.length-3} more assumptions are listed below. Review all of them before planning the work.</p>}</>}
   </section>}
-  <div className={styles.actions}><button type="button" className={styles.secondary} onClick={()=>setAll(true)}>Expand all details</button><button type="button" className={styles.ghost} onClick={()=>setAll(false)}>Collapse all details</button></div>
   {showGlance&&grouped.glance&&<Section section={grouped.glance} open={openFirst}/>}
   {grouped.brief&&<Section section={grouped.brief}/>}
-  {(grouped.included.length>0||hasCategories)&&<p className={styles.sectionLabel}>{priced?'What is included':'Requested work'}</p>}
-  {grouped.included.map((s,i)=><Section key={s.title+i} section={s}/>)}
+  {(grouped.included.length>1||hasCategories)&&<p className={styles.sectionLabel}>{priced?'What is included':'Requested work'}</p>}
+  {grouped.included.map((s,i)=><Section key={s.title+i} section={s} open={!priced}/>)}
   {hasCategories&&<>
    {grouped.categoriesIntro?.text&&<p className={styles.hint} style={{marginBottom:10}}>{grouped.categoriesIntro.text}</p>}
    {breakdown.map(group=><details key={group.category} className={styles.accordion} data-kind="included">
@@ -66,9 +62,9 @@ export default function P5EstimateDetails({result,openFirst=false,showGlance=tru
     </div>
    </details>)}
   </>}
-  {grouped.excluded.length>0&&<><p className={styles.sectionLabel}>Not included</p>{grouped.excluded.map((s,i)=><Section key={s.title+i} section={s}/>)}</>}
-  {grouped.allowances.length>0&&<><p className={styles.sectionLabel}>Allowances</p>{grouped.allowances.map((s,i)=><Section key={s.title+i} section={s}/>)}</>}
-  {grouped.assumptions.length>0&&<><p className={styles.sectionLabel}>Assumptions and items to confirm</p>{grouped.assumptions.map((s,i)=><Section key={s.title+i} section={s}/>)}</>}
-  {grouped.info.length>0&&<><p className={styles.sectionLabel}>Supporting details</p>{grouped.info.map((s,i)=><Section key={s.title+i} section={s}/>)}</>}
+  {grouped.excluded.length>0&&<>{grouped.excluded.length>1&&<p className={styles.sectionLabel}>Not included</p>}{grouped.excluded.map((s,i)=><Section key={s.title+i} section={s}/>)}</>}
+  {grouped.allowances.length>0&&<>{grouped.allowances.length>1&&<p className={styles.sectionLabel}>Allowances</p>}{grouped.allowances.map((s,i)=><Section key={s.title+i} section={s}/>)}</>}
+  {grouped.assumptions.length>0&&<>{grouped.assumptions.length>1&&<p className={styles.sectionLabel}>Assumptions and items to confirm</p>}{grouped.assumptions.map((s,i)=><Section key={s.title+i} section={s}/>)}</>}
+  {grouped.info.length>0&&<>{grouped.info.length>1&&<p className={styles.sectionLabel}>Supporting details</p>}{grouped.info.map((s,i)=><Section key={s.title+i} section={s}/>)}</>}
  </div>;
 }

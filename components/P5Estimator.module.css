@@ -361,3 +361,18 @@
 .root .topCenter{text-decoration:none;min-height:44px;justify-content:center}
 .root .navBtn{min-height:44px;min-width:44px;flex-shrink:0;text-decoration:none}
 @media(max-width:380px){.topbar{gap:4px;padding-inline:8px}.brandLine{font-size:9px;letter-spacing:.04em}.root .navBtn{padding-inline:6px;font-size:13px}}
+
+/* Shared review: visible overview, quiet dividers, one clear reading order. */
+.projectOverview{padding:20px 22px;background:var(--p5-surface-3);border-radius:12px;margin:4px 0 24px}
+.result .accordion{background:transparent;border:0;border-bottom:1px solid var(--p5-line);border-radius:0;margin:0}
+.result .accordion>summary{padding:18px 2px;gap:16px;min-height:60px}
+.result .accordion[open]>summary{border-bottom:0}
+.result .accordionBody{padding:0 2px 22px}
+.result .accordionTitle{font-size:16px}
+.result .bullets{line-height:1.7}
+.result .bullets li+li{margin-top:8px}
+.editDetails{border-top:1px solid var(--p5-line);border-bottom:1px solid var(--p5-line);margin:12px 0 24px}
+.editDetails>summary{cursor:pointer;padding:18px 2px;font-weight:600;font-size:16px}
+.editDetails>summary span{float:right;font-size:13px;font-weight:400;color:var(--p5-ink-muted)}
+.editDetails>div{padding:8px 0 16px}
+@media(max-width:600px){.projectOverview{padding:18px 16px}.result .accordion>summary{gap:10px}.result .accordionMeta{white-space:normal;text-align:right;max-width:42%}}

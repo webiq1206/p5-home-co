@@ -1,7 +1,7 @@
 {
  "source": "boise-remodeling-co",
- "commit": "ad667eeef5b7e1faa29537cb6e837e5802a2a138",
- "generatedAt": "2026-09-29T12:19:23.367Z",
+ "commit": "b903ae5b653cc1cf4db50c9a672a72dd25ffa2b9",
+ "generatedAt": "2026-09-29T13:59:42.817Z",
  "note": "Shared estimator files. Edit them in boise-remodeling-co and run scripts/p5-sync.mjs; never edit them in one brand.",
  "files": {
   "app/admin/p5-estimators/page.tsx": "a2401f2a29c22dd1a5631fa2c065114275b4e7c1d99ba6c97a8ff0f26cb6a3ad",
@@ -18,9 +18,9 @@
   "app/api/p5-estimator/scope/route.ts": "4b64ecfd940f9e9589eb68b369e4beead35b7b25aa369b49a8290311b0265a3e",
   "app/api/p5-estimator/submit/route.ts": "e1f58ea430692d73df1c72f51b05f33c72caaec6c30687ea2b187c509c64184c",
   "app/api/p5-estimator/upload/route.ts": "30513ebab4a4f175e0f31d03efceaf020ac3f6cc0d104a6d1779fe5580a14907",
-  "components/P5EstimateDetails.tsx": "d03b532e732dea5c662db03e1aa37ea2e25c6f6d67b3e6af100ce91a6903157c",
-  "components/P5Estimator.module.css": "ac6b2b62b4de73a90cffa56962610acdb5647d3dfcf64af1c0f8404705e07fdb",
-  "components/P5Estimator.tsx": "744ac076f5c8cb3616259229bae221e9ac7f2e2a8c2fcb125a1eb97a12592aac",
+  "components/P5EstimateDetails.tsx": "f1c3f3087391b27682c50b87d71f7ca56084bc826083ecdf4c413d23918362c8",
+  "components/P5Estimator.module.css": "5c97d398ec147bd59d459dec12a974097d1e8b40c60acec933c88e9a0c65f8cf",
+  "components/P5Estimator.tsx": "906bfd3a83f0c419de7c6c2c0dfb6e46a180a4903e706ba4e3a4b88e4112a6b2",
   "components/P5EstimatorNavigation.tsx": "e203317513965f77dc314e3ef8aa2be0e9fca1e7ca72494b3a23f3741cabbe83",
   "components/P5LazyEstimator.tsx": "237e404e81442499d54bf8668134e77b36513898b91503d5f275af80e6b8019a",
   "components/P5LinePricing.tsx": "9e0359cd6bff8226f491daab60c5ef468cc2f60dda67ee632910eaf5094b741d",
