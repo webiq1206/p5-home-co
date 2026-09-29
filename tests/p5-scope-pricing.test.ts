@@ -319,9 +319,27 @@ test('invalid normalized research quantities trigger corrective research instead
  },now);
  assert.ok(corrected);assert.ok(result.customer.range);
 });
-test('two invalid research replies preserve pending work without accepting zero quantities',async()=>{
+test('three invalid research attempts end without replaying rejected evidence indefinitely',async()=>{
  const invalid=structuredClone(researched);invalid.rates[0].quantity=0;
- await assert.rejects(()=>priceCompleteScope(scope,config,replies([{tasks:[task,extra],issues:[]},invalid,invalid,invalid,invalid]),now),PricingPending);
+ const queued=replies([{tasks:[task,extra],issues:[]},invalid,invalid,invalid,invalid,invalid,invalid]);
+ const corrections:number[]=[];let searches=0;
+ await assert.rejects(()=>priceCompleteScope(scope,config,async(...args)=>{
+  if(args[2]){searches++;if((args[1] as any).correction)corrections.push((args[1] as any).correction);}
+  return queued(...args);
+ },now),error=>error instanceof PricingPending&&error.fatal&&error.retryAfterMs===0);
+ assert.equal(searches,3);assert.deepEqual(corrections,[1,2]);
+});
+test('a normalizer cannot relabel screw evidence as shim pricing',async()=>{
+ const {assertResearchReportProducts}=await import('../lib/p5/scopePricing.ts');
+ const requested={...extra,researchDescription:'Research ONLY contractor-supplied shims for cabinet installation.'};
+ const quote='Cabinet screws cost 10 USD per pound.';
+ const bad={...researched,rates:[{...researched.rates[0],description:'Wood shims',sources:researched.rates[0].sources.map(source=>({...source,excerpt:quote}))}]};
+ assert.throws(()=>assertResearchReportProducts(bad,quote,[requested]),/cannot be relabeled/);
+ const invented={...bad,rates:[{...bad.rates[0],sources:bad.rates[0].sources.map(source=>({...source,excerpt:'Wood shims cost 10 USD per pound.'}))}]};
+ assert.throws(()=>assertResearchReportProducts(invented,quote,[requested]),/cannot be relabeled/);
+ const validQuote='Wood shims cost 10 USD per 12-piece pack.';
+ const valid={...bad,rates:[{...bad.rates[0],sources:bad.rates[0].sources.map(source=>({...source,excerpt:validQuote}))}]};
+ assert.doesNotThrow(()=>assertResearchReportProducts(valid,'Supplier report: '+validQuote,[requested]));
 });
 test('consumable research separates unlike products and retains parent coverage without duplicate fasteners',async()=>{
  const {researchTaskBatches}=await import('../lib/p5/scopePricing.ts');
@@ -329,6 +347,7 @@ test('consumable research separates unlike products and retains parent coverage 
  const supplies={...extra,id:'supplies',description:'Supply mounting screws, fasteners and shims',evidence:local.text,researchDescription:'Material purchase only: mounting screws, fasteners and shims'};
  const batches=researchTaskBatches([supplies],local);
  assert.equal(batches.length,2);
+ assert.ok(batches.every(batch=>batch[0].researchDescription.includes('Cabinet installation:')));
  assert.deepEqual(batches.map(batch=>batch[0].description),['Supply contractor installation screws','Supply contractor installation shims']);
  assert.ok(batches.every(batch=>batch.length===1&&batch[0].id==='supplies'&&batch[0].evidence.includes(local.text)&&batch[0].evidence.includes(supplies.description)));
  const rate={...researched.rates[0],taskId:'supplies',description:'Contractor screws and shims',unit:'LS',quantity:1,quantityEvidence:'ALLOWANCE: one installation supply package.',quantityRange:{low:1,high:1},sources:researched.rates[0].sources.map(source=>({...source,unit:'LS'}))};
