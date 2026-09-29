@@ -60,3 +60,30 @@ test('planning and sourced materials do not inherit owner supply from the basebo
  // The exception applies only to consumable material. A combined installed package remains blocked.
  assert.equal(planningResolution({rates:[{...rate,basis:'subcontractor-installed'}],issues:[],notes:[]},[task] as Parameters<typeof planningResolution>[1],now,0,'Boise',scope).rules.length,0);
 });
+
+test('flooring supplies cannot be priced as preparation or adhesive removal',()=>{
+ const floor={...scope,text:'Supply and install 300 SF LVP. Include ordinary installation supplies. Exclude floor preparation, grinding and leveling.',answers:{}};
+ for(const component of ['Provide ordinary installation supplies for LVP flooring','Flooring underlayment / pad','Flooring adhesive'])
+  assert.equal(contractorConsumableIncluded(floor,component),true,component);
+ for(const component of ['Floor prep / adhesive removal (grind)','Provide installation supplies: Floor prep / adhesive removal (grind)','Demolition of glued flooring'])
+  assert.equal(contractorConsumableIncluded(floor,component),false,component);
+ assert.equal(suggestedTrade('Install mid-range LVP flooring in 300 sqft room over concrete slab.'),'Flooring');
+ assert.equal(suggestedTrade('Repair concrete slab before flooring installation.'),'Concrete');
+});
+
+test('an incompatible flooring supply mapping returns to pricing without retaining preparation cost',async()=>{
+ const {normalizeConsumableMapping}=await import('../lib/p5/scopePricing.ts');
+ const {priceBookRates}=await import('../lib/p5/priceBook.ts');
+ const floor={...scope,text:'Supply and install 300 SF LVP. Include ordinary installation supplies. Exclude floor preparation, grinding and leveling.',answers:{service:'remodel',flooringSqft:'300'}};
+ const task={id:'supplies',description:'Provide ordinary installation supplies for LVP flooring installation in 300 sqft room.',evidence:floor.text,additions:[{code:'PB-09-65-13-M',quantity:300,quantityEvidence:'ALLOWANCE: ordinary installation supplies',quantityRange:{low:300,high:300}}],existingLineIds:[],researchDescription:'',issues:[]};
+ const mapping={tasks:[task],issues:[],notes:[],replacements:[],removeExclusions:[]};
+ const config={planningCatalog:{rates:priceBookRates({service:'remodel'})}} as any;
+ normalizeConsumableMapping(mapping,config,[],floor);
+ assert.equal(task.additions.length,0);
+ assert.match(task.researchDescription,/Material purchase only/);
+ task.additions=[{code:'PB-09-60-06',quantity:300,quantityEvidence:'ALLOWANCE: underlayment if required by the selected LVP',quantityRange:{low:300,high:300}}];
+ task.researchDescription='';
+ normalizeConsumableMapping(mapping,config,[],floor);
+ assert.equal(task.additions[0].code,'PB-09-60-06');
+ assert.equal(task.researchDescription,'');
+});

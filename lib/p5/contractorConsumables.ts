@@ -2,8 +2,8 @@ import type {ReviewedScope} from './scope.ts';
 
 // A labor-only request can still expressly include contractor-provided installation
 // consumables. Match the priced component, not its parent task or catalog section.
-const GROUPS=[/\b(?:nails?|screws?|fasteners?)\b|\bfastening\s+(?:materials?|supplies)\b/i,/\b(?:caulk|caulking)\b/i,/\bshims?\b|\bleveling\s+(?:materials?|supplies)\b/i,/\badhesives?\b|\bglue\b/i,/\bsealants?\b/i,/\b(?:consumables?|sundries|installation materials)\b/i];
-const CONSUMABLES=/\b(?:consumables?|sundries|installation materials)\b/i;
+const GROUPS=[/\b(?:nails?|screws?|fasteners?)\b|\bfastening\s+(?:materials?|supplies)\b/i,/\b(?:caulk|caulking)\b/i,/\bshims?\b|\bleveling\s+(?:materials?|supplies)\b/i,/\badhesives?\b|\bglue\b/i,/\bsealants?\b/i,/\b(?:underlayment|flooring pad)\b/i,/\b(?:consumables?|sundries|installation (?:materials|supplies))\b/i];
+const CONSUMABLES=/\b(?:consumables?|sundries|installation (?:materials|supplies))\b/i;
 export function contractorConsumableIncluded(scope:ReviewedScope,description:string):boolean{
   const parts=description.split(':');
   let component=parts.at(-1)!.replace(/^(?:provide|include|supply|carry)\s+(?:an?\s+)?(?:separate\s+)?(?:materials?\s+)?allowance\s+for\s+/i,'').split('(')[0].split(/\b(?:including|includes|with|for)\b/i)[0].trim();
@@ -13,6 +13,9 @@ export function contractorConsumableIncluded(scope:ReviewedScope,description:str
     const purpose=parts.slice(0,-1).join(':').split(/\bfor\b/i)[0].trim();
     if(/^(?:supply|provide|furnish)\b/i.test(purpose))component=purpose;
   }
+  // Removal/preparation work is not an adhesive or consumable purchase merely
+  // because its title names the material being removed.
+  if(/\b(?:floor\s+prep(?:aration)?|adhesive\s+removal|grind(?:ing)?|demolition)\b/i.test(component))return false;
   if(/\b(?:owner|customer|client)[ -](?:supplied|provided)\b/i.test(component))return false;
   const groups=GROUPS.filter(group=>group.test(component));
   if(!groups.length)return false;
