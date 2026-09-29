@@ -1596,3 +1596,57 @@ test('likely Boise availability is not accepted as verified regional evidence',(
  const invalid=structuredClone(researched);invalid.rates[0].sources[0].region='Boise-area stock likely';
  assert.throws(()=>marketResolution(invalid,urls,[extra],now,0,'Boise'),/do not establish Boise/);
 });
+
+test('a removed overlapping vanity package is remapped to approved components before research',async()=>{
+ const {priceBookRates}=await import('../lib/p5/priceBook.ts');
+ const configuration={...config,planningCatalog:{...catalog,rates:priceBookRates({service:'bathroom'})}};
+ const vanityScope={...scope,text:'Supply and install one 60-inch vanity cabinet and a separate 8.33 SF quartz countertop. No other work.',answers:{service:'remodel',cabinetBaseLf:'5',countertopSqft:'8.33',location:'Boise',exclusions:'All other work'}};
+ const vanity={...extra,id:'vanity',description:'Supply and install one 60-inch vanity cabinet',evidence:'One 60-inch cabinet, 5 LF',researchDescription:'',additions:[{code:'PB-12-41-02',quantity:1,quantityEvidence:'One vanity'}]};
+ const top={...extra,id:'top',description:'Supply and install quartz countertop',evidence:'8.33 SF',researchDescription:'',additions:[{code:'PB-12-36-02',quantity:8.33,quantityEvidence:'8.33 SF stated'}]};
+ const repaired={...vanity,additions:[{code:'PB-12-32-01',quantity:5,quantityEvidence:'Confirmed 5 LF of cabinet'}]};
+ let calls=0;
+ const result=await priceCompleteScope(vanityScope,configuration,async(_instructions,input,search)=>{
+   calls++;assert.equal(search,false,'available approved component rates require no web research');
+   if(calls===1)return {value:{tasks:[vanity,top].map(({id,description,evidence})=>({id,description,evidence})),issues:[]},sourceUrls:[]};
+   if(calls===2)return {value:{tasks:[vanity,top],issues:[]},sourceUrls:[]};
+   if(calls===3){
+     assert.match((input as any).repairInstruction,/complete approved catalog/);
+     assert.deepEqual((input as any).remainingComponents[0].rejectedCodes,['PB-12-41-02']);
+     assert.ok((input as any).catalog.some((rate:any)=>rate.code==='PB-12-32-01'));
+     return {value:{tasks:[repaired],issues:[]},sourceUrls:[]};
+   }
+   return {value:{coveredTaskIds:['vanity','top'],issues:[]},sourceUrls:[]};
+ },now);
+ assert.equal(calls,4);assert.ok(result.customer.range);
+ const rules=(result.internal as any).costBookSnapshot.rules;
+ assert.ok(rules.some((rule:any)=>rule.evidence.reference.includes('PB-12-32-01')&&rule.quantity.fixed===5));
+ assert.ok(!rules.some((rule:any)=>rule.evidence.reference.includes('PB-12-41-02')));
+});
+
+test('invalid flooring references recover approved supplies and cleanup instead of searching zero quantities',async()=>{
+ const {priceBookRates}=await import('../lib/p5/priceBook.ts');
+ const configuration={...config,planningCatalog:{...catalog,rates:priceBookRates({service:'remodel'})}};
+ const floorScope={...scope,text:'Supply and install 300 SF LVP, purchase 330 SF including 10% waste. Include ordinary installation supplies and minor job cleanup. All other work excluded.',answers:{service:'remodel',flooringSqft:'300',location:'Boise',exclusions:'All other work'}};
+ const make=(id:string,description:string,additions:any[],existingLineIds:string[]=[])=>({...extra,id,description,evidence:floorScope.text,researchDescription:'',additions,existingLineIds});
+ const add=(code:string,quantity:number)=>({code,quantity,quantityEvidence:'Confirmed '+quantity+' SF'});
+ const floor=make('floor','LVP flooring supply and install',[add('PB-09-60-01',330),add('PB-09-61-01',300)]);
+ const supplies=make('supplies','Provide ordinary installation supplies',[],['PB-09-65-01']);
+ const cleanup=make('cleanup','Minor job cleanup',[],['PB-09-65-01']);
+ const fixedSupplies=make('supplies',supplies.description,[{...add('PB-09-60-06',300),quantityEvidence:'ALLOWANCE: pad for 300 SF of installed flooring, if required',quantityRange:{low:300,high:300}}]);
+ const fixedCleanup=make('cleanup',cleanup.description,[add('PB-01-74-05',300)]);
+ let calls=0;
+ const result=await priceCompleteScope(floorScope,configuration,async(_instructions,input,search)=>{
+  calls++;assert.equal(search,false);
+  if(calls===1)return {value:{tasks:[floor,supplies,cleanup].map(({id,description,evidence})=>({id,description,evidence})),issues:[]},sourceUrls:[]};
+  if(calls===2)return {value:{tasks:[floor,supplies,cleanup],issues:[]},sourceUrls:[]};
+  if(calls===3){assert.match((input as any).repairInstruction,/coverage reference/);return {value:{tasks:[fixedSupplies,fixedCleanup],issues:[]},sourceUrls:[]};}
+  return {value:{coveredTaskIds:['floor','supplies','cleanup'],issues:[]},sourceUrls:[]};
+ },now);
+ assert.equal(calls,4);assert.ok(result.customer.range);
+ const rules=(result.internal as any).costBookSnapshot.rules;
+ for(const code of ['PB-09-60-01','PB-09-61-01','PB-09-60-06','PB-01-74-05'])assert.equal(rules.filter((r:any)=>r.evidence.reference.includes(code)).length,1);
+ const explicit={...fixedSupplies,evidence:'Purchase 330 SF underlayment for this floor.',additions:[add('PB-09-60-06',300)]};
+ const wrong=catalogResolution({tasks:[explicit],issues:[],notes:[],replacements:[],removeExclusions:[]},configuration,[],now,floorScope);
+ assert.ok(wrong.issues.some(issue=>/does not match the explicit quantity/.test(issue)),'a stated underlayment quantity still controls that material');
+
+});

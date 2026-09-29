@@ -815,7 +815,12 @@ function quantityIssues(task:Mapping['tasks'][number],addition:{quantity:number;
   const taskText=`${task.description} ${task.evidence}`;
   const evidence=addition.quantityEvidence.trim();
   let claims=[...quantityClaims(taskText),...(taskCount===1?knownScopeClaims(scope,task):[])];
-  const actionSpecific=actionClaims(taskText,unit,materialPurchase?'supply':'install',materialPurchase);
+  let actionSpecific=actionClaims(taskText,unit,materialPurchase?'supply':'install',materialPurchase);
+  // A flooring purchase quantity describes the flooring product, not every
+  // ancillary material copied into the same evidence paragraph. Consumables
+  // inherit an action-specific quantity only when that clause names them.
+  const accessoryTerms=componentDescription.split('(')[0].match(/\b(?:underlayment|pads?|adhesives?|shims?|screws?|fasteners?|sealants?|caulk)\b/gi)||[];
+  if(materialPurchase&&accessoryTerms.length)actionSpecific=actionSpecific.filter(claim=>clauseHasComponent(claim.clause,accessoryTerms));
   if(actionSpecific.some(claim=>unitKey(claim.unit)===unitKey(unit)))claims=actionSpecific;
   const unknown=UNKNOWN_QUANTITY.test(taskText);
   const allowance=/^ALLOWANCE\s*:/i.test(evidence);
@@ -1438,7 +1443,35 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
     mapping.removeExclusions=mapping.removeExclusions.filter((r,i,all)=>all.findIndex(v=>v.text===r.text)===i);
     auditTrail.tasks=mapping.tasks;
     routeUnpricedTasks(mapping,configuration,lines);
+    const beforeNormalization=new Map(mapping.tasks.map(task=>[task.id,[...task.additions.map(addition=>addition.code),...task.existingLineIds].filter(code=>configuration.planningCatalog?.rates.some(rate=>rate.code===code))]));
     normalizeConsumableMapping(mapping,configuration,lines,pricingScope);
+    // Removing an incompatible assembly changes the catalog question. Give
+    // the remaining component one focused full-book mapping pass before web
+    // research; an existing approved component must not become a false gap.
+    const remapTasks=mapping.tasks.filter(task=>{
+      if(taskSelectionStatus(task,mapping.tasks)!=='billable')return false;
+      const invalidCatalogReference=!task.additions.length&&task.existingLineIds.some(id=>configuration.planningCatalog?.rates.some(rate=>rate.code===id)&&!lines.some(line=>line.id===resolvePricedLineId(id,lines)));
+      return (task.researchDescription||invalidCatalogReference)&&(beforeNormalization.get(task.id)||[]).some(code=>!task.additions.some(addition=>addition.code===code));
+    });
+    if(remapTasks.length){
+      const remapped=await mapLimit(batchesOf(remapTasks,3),batch=>mapBatch(request,batch,taskBatch=>({
+        original,taskBatch:taskBatch.map(task=>({id:task.id,description:task.description,evidence:task.evidence})),
+        repairInstruction:'A previously selected book assembly or coverage reference is unusable: it prices the wrong responsibility, overlaps a separately priced component, or references a catalog code without an actual compatible priced line. Reconsider the exact remaining component against the complete approved catalog before requesting web research. Use compatible approved component rates with evidenced quantities; do not recreate the rejected package or invent a credit. Research only a component genuinely absent from the complete book.',
+        remainingComponents:taskBatch.map(task=>({id:task.id,request:task.researchDescription||task.description,rejectedCodes:(beforeNormalization.get(task.id)||[]).filter(code=>!task.additions.some(addition=>addition.code===code))})),
+        priorMappedTasks:mapping.tasks.filter(task=>!taskBatch.some(target=>target.id===task.id)),
+        priorReplacements:mapping.replacements,existingLines:lines,defaultExclusions:base.customer.exclusions,catalog:configuration.planningCatalog?.rates||[],regionalRates:configuration.regionalRates,date:now.toISOString()
+      }),()=>deadline-Date.now()));
+      for(const batch of remapped){
+        for(const replacement of batch.tasks){
+          const target=remapTasks.find(task=>task.id===replacement.id);
+          if(!target)continue;
+          target.additions=replacement.additions;target.existingLineIds=replacement.existingLineIds;target.researchDescription=replacement.researchDescription;target.issues=replacement.issues;
+        }
+        mapping.issues.push(...batch.issues);mapping.notes.push(...batch.notes);
+        mapping.replacements.push(...batch.replacements);mapping.removeExclusions.push(...batch.removeExclusions);
+      }
+      normalizeConsumableMapping(mapping,configuration,lines,pricingScope);
+    }
     preserveScopeExclusions(mapping,base.customer.exclusions,pricingScope);
     const catalog=catalogResolution(mapping,configuration,lines,now,scope);
     resolution.removeLineIds=catalog.removeLineIds;resolution.removeExclusions=catalog.removeExclusions;
