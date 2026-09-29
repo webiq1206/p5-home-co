@@ -23,6 +23,22 @@ const adjustmentEvidence={url:urls[0],publishedAt:'',dateBasis:'retrieved' as co
 const purchaseAdjustments={taxRate:0,freightPerUnit:0,taxOnFreight:false,taxEvidence:adjustmentEvidence,freightEvidence:adjustmentEvidence};
 const researched={rates:[{taskId:'overlay',description:'Protective overlay',unit:'LF',quantity:10,quantityEvidence:'Ten feet requested',basis:'material-purchase',includes:'overlay material',excludes:'',landedCost:purchaseAdjustments,sources:[source(urls[0],10,20),source(urls[1],20,30)]}],issues:[]};
 const replies=(values:unknown[]):PricingRequest=>{const first=values[0] as {tasks:typeof task[]};const queue=[{tasks:first.tasks.map(({id,description,evidence})=>({id,description,evidence})),issues:[]},...values];return async()=>({value:queue.shift(),sourceUrls:urls});};
+test('an unmapped missing rate automatically enters evidenced research without a model opt-in',async()=>{
+ const mapping={tasks:[task,{...extra,researchDescription:'',additions:[{code:'MISSING',quantity:10,quantityEvidence:'10 LF'}]}],issues:[]};
+ const result=await priceCompleteScope(scope,config,replies([mapping,researched,{coveredTaskIds:['cabinets','overlay'],issues:[]}]),now);
+ assert.ok(result.customer.range);
+ assert.ok((result.internal as any).costBookSnapshot.rules.some((rule:any)=>rule.id.startsWith('market-')&&rule.unitCost===20));
+});
+test('missing-rate routing preserves existing prices, exclusions and quantity validation',async()=>{
+ const {routeUnpricedTasks}=await import('../lib/p5/scopePricing.ts');
+ const missing={...extra,researchDescription:'',existingLineIds:[],additions:[]};
+ const excluded={...missing,id:'excluded',description:'Protective overlay not included'};
+ const mapped={...missing,id:'mapped',additions:[{code:'03-15-02-M',quantity:999,quantityEvidence:'999 LF'}]};
+ const mapping={tasks:[missing,excluded,mapped,{...task}],notes:[],issues:[],replacements:[],removeExclusions:[]};
+ routeUnpricedTasks(mapping,config,(base.internal as any).lines,true);
+ assert.equal(missing.researchDescription,missing.description);assert.equal(excluded.researchDescription,'');assert.equal(mapped.researchDescription,'');assert.equal(mapping.tasks[3].researchDescription,'');
+ assert.ok(catalogResolution(mapping as any,config,(base.internal as any).lines,now,scope).issues.some(issue=>issue.includes('mapped 999')));
+});
 test('Provider failure cannot publish the otherwise available partial range',async()=>{
  assert.ok(base.customer.range);
  const r=await priceCompleteScope(scope,config,async()=>{throw new Error('offline')},now);
@@ -875,21 +891,20 @@ test('A remark about a task that is priced becomes a confirmation note, not a wi
  assert.ok(result.customer.range,JSON.stringify((result.internal as any).scopePricing.issues));
  assert.ok(result.customer.verificationItems?.some((v:string)=>/edge sealing/i.test(v)),'the remark is disclosed');
 });
-test('An item nobody can price is named and carried out of the total; the rest still prices',async()=>{
- const {advisoryIssue}=await import('../lib/p5/scopePricing.ts');
- assert.equal(advisoryIssue('Exterior GFCI scope may be duplicated between planning-103 and planning-201; the locations should be reconciled before procurement.'),true);
- assert.equal(advisoryIssue('planning-103 duplicates planning-201 and the exterior devices are charged twice'),false);
+test('an unmapped repair receives a disclosed fallback allowance instead of being excluded',async()=>{
  const priced0={...extra,researchDescription:'',additions:[{code:'03-15-02-M',quantity:10,quantityEvidence:'Ten feet requested'}]};
- const unpriceable={id:'chimney',description:'Repair the cracked chimney cap',evidence:'severe cracking',existingLineIds:[],additions:[],researchDescription:'',issues:[]};
+ const missing={id:'chimney',description:'Repair the cracked chimney cap',evidence:'severe cracking',existingLineIds:[],additions:[],researchDescription:'',issues:[]};
  const result=await priceCompleteScope(scope,config,replies([
-   {tasks:[task,priced0,unpriceable],issues:[]},
+   {tasks:[task,priced0,missing],issues:[]},
    {coveredTaskIds:['cabinets','overlay','chimney'],issues:[]},
-   {tasks:[task,priced0,unpriceable],issues:[]},
+   {tasks:[task,priced0,missing],issues:[]},
+   {rates:[],issues:[],notes:[]},
+   {rates:[{taskId:'chimney',description:'Typical masonry chimney cap repair',unit:'LS',quantity:1,quantityEvidence:'ALLOWANCE: One typical repair, verify condition',quantityRange:{low:1,high:1},basis:'subcontractor-installed',includes:'Incremental repair labor and common materials',excludes:'Company overhead and profit',low:100,high:200,confidence:'low',rationale:'Synthetic test allowance, not a real price'}],issues:[],notes:[]},
    {coveredTaskIds:['cabinets','overlay','chimney'],issues:[]},
  ]),now);
  assert.ok(result.customer.range,JSON.stringify((result.internal as any).scopePricing.issues));
- assert.ok(result.customer.exclusions.some((e:string)=>/cracked chimney cap/i.test(e)),'the unpriced item is named as not included');
- assert.ok(result.customer.assumptions.some((a:string)=>/not priced in this estimate/.test(a)));
+ assert.ok(!result.customer.exclusions.some((e:string)=>/cracked chimney cap/i.test(e)));
+ assert.ok((result.internal as any).costBookSnapshot.rules.some((rule:any)=>rule.scopeTaskId==='chimney'&&rule.estimatingBasis==='regional-planning-average'));
 });
 test('The same document answered the same way prices to the same number, without asking the provider again',async()=>{
  const {pricingScopeFingerprint,reusableResolution}=await import('../lib/p5/pricingCache.ts');

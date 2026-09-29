@@ -54,10 +54,12 @@ export function learnableLines(rules:readonly CostRule[],service:string,draftId:
   for(const rule of rules){
     if(!/^(?:repair-)?(?:planning|market)-\d+$/.test(rule.id))continue;
     const unitCost=(rule as {unitCost?:number}).unitCost;
-    if(!(typeof unitCost==='number'&&Number.isFinite(unitCost)&&unitCost>0)||!dimension(rule.unit)||dimension(rule.unit)==='lump')continue;
+    if(!(typeof unitCost==='number'&&Number.isFinite(unitCost)&&unitCost>0)||!dimension(rule.unit))continue;
     const candidate={description:name(rule.description),unit:rule.unit};
     if(!candidate.description||candidate.description.length<4)continue;
     const location=rateLocation(context.location),finish=finishTier(context.finish);
+    // Every accepted allowance is retained permanently. Project-specific
+    // packages remain review-required records, never portable unit prices.
     const reusable=reusableUnitRate(rule,context.location,now);
     const sameContext=(line:{description:string;unit:string})=>{
       const learned=line as Partial<LearnedLine>;

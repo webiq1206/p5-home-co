@@ -89,10 +89,9 @@ export function hasRepairBudget(sinceStartMs:number,busyWaitMs=0):boolean{
   return !(worked>REPAIR_BUDGET_MS&&sinceStartMs<6*60*60*1000);
 }
 /** Elapsed time from the job's start after which published research is no longer attempted and the planning average is used directly. */
-/** Live web cost research while the customer waits. On production every search batch
- * ran to its 60 s limit and the estimate used the planning allowance anyway, so the
- * default goes straight to that allowance. Set P5_PRICING_WEB_RESEARCH=on to search live. */
-export const LIVE_RESEARCH=process.env.P5_PRICING_WEB_RESEARCH==='on'||Boolean(process.env.NODE_TEST_CONTEXT)&&process.env.P5_PRICING_WEB_RESEARCH!=='off';
+/** Missing book items use bounded live research by default. An explicit operational
+ * opt-out still permits a clearly labeled provisional planning allowance. */
+export const LIVE_RESEARCH=process.env.P5_PRICING_WEB_RESEARCH!=='off';
 export const RESEARCH_WINDOW_MS=Number(process.env.P5_RESEARCH_WINDOW_MS||180000);
 export const RESEARCH_STAGE_MS=Number(process.env.P5_RESEARCH_STAGE_MS||60000);
 /** Longest single provider stage. A stage is one saved unit of work; the pass window in backgroundJobs bounds the whole attempt. */
@@ -142,7 +141,7 @@ const COVERED_POLICY=`Each task's alreadyCovered lists components of that task a
 const RESEARCH=`Research average construction UNIT COSTS for the supplied tasks and project area. ${COVERED_POLICY} ${UNTRUSTED} ${ALLOWANCE_POLICY} ${DIMENSION_POLICY} ${BENCHMARK_POLICY} ${ISSUE_POLICY}
 Return JSON only: {rates:[{taskId,description,unit,quantity,quantityEvidence,quantityRange,building,floor,basis,includes,excludes,landedCost:null,sources:[{url,low,high,unit,costBasis,publishedAt,region,excerpt,sourceType,dateBasis}]}],issues:[],notes:[]}.
 Put disclosed national fallback, undated-source freshness, standard profile assumptions and unconfirmed incidental charges in notes, NOT issues, when they do not prevent a supported preliminary allowance. Do not label an explicitly allowed benchmark limitation as missing scope.
-Find two independent estimating-guide or cost-database sources for comparable work. Do not search retailers, suppliers, model numbers or promotions. Search the generic assembly, correct unit and requested area. Fetch a guide only when necessary to verify the cost breakdown. Stop when sufficient comparable evidence is available; do not repeatedly shop alternatives. Each source must support its own numeric range in USD per the rate's unit and the same material/labor responsibility. Source unit and costBasis MUST match the proposed rate; normalize known unit aliases, and disclose any evidenced conversion arithmetic. Never average prices per hour with prices per square foot, total-project budgets with per-unit rates, or materials with installed prices.
+Never put private names, street addresses, contact details, document identifiers or project-specific narrative into a search query. Search only the generic work, unit and broad region. Find two independent estimating-guide or cost-database sources for comparable work. Do not search retailers, suppliers, model numbers or promotions. Search the generic assembly, correct unit and requested area. Fetch a guide only when necessary to verify the cost breakdown. Stop when sufficient comparable evidence is available; do not repeatedly shop alternatives. Each source must support its own numeric range in USD per the rate's unit and the same material/labor responsibility. Source unit and costBasis MUST match the proposed rate; normalize known unit aliases, and disclose any evidenced conversion arithmetic. Never average prices per hour with prices per square foot, total-project budgets with per-unit rates, or materials with installed prices.
 Use sourceType regional-guide or national-guide. For a dated guide, publishedAt must be its actual publication/update date within the last 365 days and dateBasis=published. For an undated accessible guide, use publishedAt='' and dateBasis=retrieved, explicitly noting that publication freshness requires verification. Never manufacture dates, URLs, numeric averages, quotes or geographic factors. Use only URLs returned by the tools, and excerpts of at most 25 words. Prefer original cost-guide publishers, not articles repeating another guide's numbers as independent evidence.
 Return separate supported material and labor components when needed. Source low/high are comparable UNIT costs, not extended totals or tax percentages. The calculator takes the mean of source midpoints, multiplies by quantity and applies the owner's approved financial policy once. Use quantityRange only for a clearly labeled modeled quantity; measured quantities retain their supplied evidence. Keep building/floor labels for requested separate totals. includes/excludes describe the benchmark, not permission to exclude requested work. Missing supplier selection alone is a verification assumption, not an unpriced task. Unsupported work remains an explicit issue. Do not fabricate a rate to release a total.`;
 const PLANNING_AVERAGE=`Provide a defensible REGIONAL PLANNING AVERAGE unit cost for each supplied task, without web research. ${COVERED_POLICY} ${UNTRUSTED} ${ALLOWANCE_POLICY} ${DIMENSION_POLICY} ${ISSUE_POLICY}
@@ -433,6 +432,26 @@ export function normalizeConsumableMapping(mapping:Mapping,configuration:Estimat
     if(!supplied)task.researchDescription=`Material purchase only: ${task.description} Include only the expressly requested contractor-supplied consumables. Installation labor and owner-supplied products are already separate and must not be charged here.`;
   }
 }
+/** A missing rate is a routing decision, not a reason to silently omit work.
+ * Only an entirely unmapped, billable task enters automatic gap pricing here.
+ * Invalid quantities, incompatible known rates and exclusions retain their checks. */
+export function routeUnpricedTasks(mapping:Mapping,configuration:EstimatorConfiguration,existing:ReturnType<typeof existingLines>,afterRepair=false){
+  for(const task of mapping.tasks){
+    if(taskSelectionStatus(task,mapping.tasks)!=='billable'||task.researchDescription)continue;
+    // Give a blank mapping or mistaken existing reference one catalog-repair
+    // opportunity before paying for research. Never stop at that blank result.
+    if(!afterRepair&&(!task.additions.length||task.existingLineIds.length))continue;
+    const hasRate=task.additions.some(addition=>configuration.planningCatalog?.rates.some(rate=>rate.code===addition.code)||configuration.regionalRates?.some(rate=>rate.id===addition.code));
+    const hasReference=task.existingLineIds.some(id=>existing.some(line=>line.id===id&&line.quantity*line.unitCost>0));
+    if(hasRate||hasReference)continue;
+    // Unknown identifiers have no value to preserve. The evidence-backed
+    // fallback still validates units, quantities, ownership and full coverage.
+    task.additions=[];task.existingLineIds=[];
+    task.researchDescription=task.description.slice(0,1000);
+    mapping.notes.push(`No compatible saved rate was mapped for ${task.description}; obtain an item-specific average-cost allowance and retain its evidence for reuse.`);
+  }
+}
+
 export function catalogResolution(mapping:Mapping,configuration:EstimatorConfiguration,existing:ReturnType<typeof existingLines>,now:Date,scope?:ReviewedScope):ScopePriceResolution{
   // On a fresh estimate there is nothing to replace. Some reader replies put
   // an approved catalog code here as well as in additions. Ignore only that
@@ -1202,6 +1221,7 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
     mapping.replacements=mapping.replacements.filter((r,i,all)=>all.findIndex(v=>v.lineId===r.lineId)===i);
     mapping.removeExclusions=mapping.removeExclusions.filter((r,i,all)=>all.findIndex(v=>v.text===r.text)===i);
     auditTrail.tasks=mapping.tasks;
+    routeUnpricedTasks(mapping,configuration,lines);
     normalizeConsumableMapping(mapping,configuration,lines,pricingScope);
     preserveScopeExclusions(mapping,base.customer.exclusions,pricingScope);
     const catalog=catalogResolution(mapping,configuration,lines,now,scope);
@@ -1348,6 +1368,7 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
         fixes.tasks.push(...batch.tasks.map(t=>({...t,...taskBatch.find(x=>x.id===t.id)!,existingLineIds:t.existingLineIds,additions:t.additions,researchDescription:t.researchDescription,issues:t.issues})));
         fixes.issues.push(...batch.issues);fixes.notes.push(...batch.notes);fixes.replacements.push(...batch.replacements);fixes.removeExclusions.push(...batch.removeExclusions);
       }
+      routeUnpricedTasks(fixes,configuration,pricedComponents,true);
       normalizeConsumableMapping(fixes,configuration,pricedComponents,pricingScope);
       preserveScopeExclusions(fixes,beforeRepair.customer.exclusions,pricingScope);
       const repaired=catalogResolution(fixes,configuration,pricedComponents,now,scope);
@@ -1443,31 +1464,6 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
     // Work needed to complete the job that the customer excluded or limited out: named, never priced.
     const neededButExcluded=inventory.dependencies.map(d=>d.replace(/\s*;?\s*not priced\.?\s*$/i,'').replace(/\.\s*$/,'').trim()).filter(Boolean);
     if(neededButExcluded.length)resolution.addExclusions=[...new Set([...(resolution.addExclusions||[]),...neededButExcluded.map(d=>`Needed to complete the work but excluded as you asked: ${d}`)])];
-    // An item nobody could put a defensible number on is named and carried OUT of the total, the
-    // way the rest of this codebase treats measured-but-unpriced work. Withholding the whole
-    // estimate instead tells a visitor nothing and hides the twenty items that did price. If
-    // nothing priced at all there is no estimate to publish, and that still blocks.
-    // Only a POSITIVE price counts. Live Moonglow RE-10 (2026-09-22): smoke detectors and a firewall patch
-    // each had a line with no unit cost, so they were neither priced nor carried out, and held the estimate.
-    // The same test the priced-task list uses; a looser one left the Moonglow firewall patch neither priced nor carried out.
-    const positiveRule=(r:CostRule)=>r.unitCost>0&&r.quantity.fixed!==undefined&&r.quantity.fixed>0;
-    const positiveLine=(id:string)=>lines.some(l=>l.id===id&&l.unitCost>0&&(typeof l.quantity!=='number'||l.quantity>0))||resolution.rules.some(r=>r.id===id&&positiveRule(r));
-    const unpriced=mapping.tasks.filter(t=>billableTask(t)&&!t.existingLineIds.some(id=>positiveLine(id)&&!resolution.removeLineIds?.includes(id))&&!resolution.rules.some(r=>r.scopeTaskId===t.id&&positiveRule(r)));
-    const pricedTaskCount=mapping.tasks.filter(billableTask).length-unpriced.length;
-    for(const t of unpriced){
-      if(contractorConsumableIncluded(pricingScope,t.description)){resolution.issues.push(`${t.description}: no positive material line covers requested contractor-supplied installation consumables.`);continue;}
-      if(!pricedTaskCount){resolution.issues.push(`${t.description}: no positive priced component or allowance was produced.`);continue;}
-      // The core of the project is never carried out of the total. Live Construction (2026-09-22): the
-      // "construct one new 2,400 SF residence" task went unpriced and was listed as excluded, so a new-home
-      // estimate published $154k for the garage and plumbing alone. Carrying out a side item is honest;
-      // carrying out the house is a misleading number, so that still holds the price.
-      if(coreProjectTask(t,scope.answers)){resolution.issues.push(`${t.description}: the main scope of the project has no supported price.`);continue;}
-      resolution.issues=resolution.issues.filter(issue=>issue!==`${t.description}: no supported price.`&&issue!==`${t.description}: no defensible planning average could be supported.`);
-      resolution.addExclusions=[...new Set([...(resolution.addExclusions||[]),`${t.description} (not included in this price; we will quote it after a site visit)`])];
-      resolution.assumptions.push(`To confirm: ${t.description} is listed but not priced in this estimate; it needs a site visit before we can put a number on it.`);
-      carriedOut.push({id:t.id,description:t.description});
-      console.error(`[p5-pricing] carried an unpriced item out of the total: ${t.description.slice(0,120)}`);
-    }
     // Deterministic corrections come before the integrity checks: what the
     // code can prove wrong it fixes, and discloses; only judgement calls ride
     // along as items to confirm.
@@ -1483,6 +1479,15 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
       for(const id of corrected.coveredTaskIds)if(!audit.coveredTaskIds.includes(id))audit.coveredTaskIds.push(id);
       for(const note of corrected.notes)console.error(`[p5-pricing] correction: ${note.slice(0,200)}`);
     }catch(error){console.error('[p5-pricing] deterministic corrections skipped:',error instanceof Error?error.message:error);}
+    // Owner rule: requested work receives a price or a disclosed supported
+    // allowance, never an automatic exclusion. Check after assembly coverage
+    // has been reconciled, so a genuinely included component is not charged twice.
+    const positiveRule=(r:CostRule)=>r.unitCost>0&&r.quantity.fixed!==undefined&&r.quantity.fixed>0;
+    const positiveLine=(id:string)=>!resolution.removeLineIds?.includes(id)&&(lines.some(l=>l.id===id&&l.unitCost>0&&l.quantity>0)||resolution.rules.some(r=>r.id===id&&positiveRule(r)));
+    for(const task of mapping.tasks.filter(billableTask)){
+      if(task.existingLineIds.some(positiveLine)||resolution.rules.some(rule=>rule.scopeTaskId===task.id&&positiveRule(rule)))continue;
+      resolution.issues.push(`${task.description}: no positive priced component or allowance was produced.`);
+    }
     const offCategory=(category:string,keep:(c:string|undefined,description:string)=>boolean)=>{
       const removeBase=lines.filter(l=>!resolution.removeLineIds?.includes(l.id)&&!keep(l.category,l.description)).map(l=>l.id);
       const removeRules=resolution.rules.filter(rule=>!keep(rule.category,rule.description)).map(rule=>rule.description);
