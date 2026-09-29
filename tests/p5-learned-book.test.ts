@@ -22,10 +22,13 @@ test('an allowance for work the book lacks is learned once, as a direct cost',()
   const again=learnableLines([rule('planning-7','Replace clothesline posts','EA',900)],'handyman','draft-2',lines);
   assert.equal(again.length,0,'the same work is never learned twice');
 });
-test('nothing that resembles a book line is ever added',()=>{
-  // The book already has GFCI outlets, hose bib vacuum breakers and vent boots.
-  for(const [description,unit] of [['GFCI outlet replacement','EA'],['Hose bib vacuum breaker install','EA'],['Replace plumbing vent pipe boot','EA']])
-    assert.equal(learnableLines([rule('planning-2',description,unit,120)],'re10','draft-3',[]).length,0,description);
+test('similar approved-book wording cannot discard a newly researched pricing option',()=>{
+  for(const [description,unit] of [['GFCI outlet replacement','EA'],['Hose bib vacuum breaker install','EA'],['Replace plumbing vent pipe boot','EA']]){
+    const lines=learnableLines([rule('market-2',description,unit,120)],'re10','draft-3',[]);
+    assert.equal(lines.length,1,description);
+    assert.equal(lines[0].status,'review-required','retain evidence without overwriting an approved rate');
+    assert.deepEqual(learnedRates(lines),[]);
+  }
 });
 test('project-specific allowances are retained but never become portable or approved prices',()=>{
   const rules=[rule('scope-1','Custom brass door knocker','EA',60),rule('planning-3','Custom brass door knocker install','LS',60),rule('planning-4','Custom brass door knocker install','EA',0)];

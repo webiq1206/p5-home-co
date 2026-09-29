@@ -71,6 +71,13 @@ export function withInteriorRemodelBook(configuration:EstimatorConfiguration):Es
  const added=createPlanningConfiguration(configuration.planningCatalog,['remodel'],configuration.finance).costBooks[0];
  return {...configuration,costBooks:[...configuration.costBooks,added]};
 }
+/** Missing supported service books are seeded from the existing approved
+ * schedule and finance policy, never from guessed rates or default margins. */
+export function withSupportedServiceBook(configuration:EstimatorConfiguration,service:string):EstimatorConfiguration{
+ if(!Object.hasOwn(SERVICE_MATRIX,service)||configuration.costBooks.some(book=>book.service===service)||!configuration.planningCatalog||!configuration.costBooks.some(book=>book.mode==='owner-planning'))return configuration;
+ const added=createPlanningConfiguration(configuration.planningCatalog,[service],configuration.finance).costBooks[0];
+ return {...configuration,costBooks:[...configuration.costBooks,added]};
+}
 const fieldNumber=(a:ScopeAnswers,k:ScopeField)=>a[k]?.trim()?Number(a[k]!.replaceAll(',','')):undefined;
 const words=(scope:ReviewedScope)=>[scope.text,...Object.entries(scope.answers).filter(([k])=>!['service','exclusions','ownerSupplied'].includes(k)).map(([,v])=>v)].join(' ').toLowerCase();
 const mentions=(s:string,term:RegExp)=>term.test(s);

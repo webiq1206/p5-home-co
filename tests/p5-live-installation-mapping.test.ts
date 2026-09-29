@@ -77,7 +77,7 @@ test('generic installation requirements do not become a second complete assembly
 test('explicitly included screws and shims need material pricing, never another cabinet labor line',()=>{
   const scope={text:'Install owner-supplied assembled cabinets. Include installation labor, shims, screws, fastening, alignment and cleanup.',answers:{},extraction:null,uploads:[],reviewedAt:'2026-09-28',corrections:[]} as any;
   assert.equal(contractorConsumableIncluded(scope,'Supply cabinet shims and screws'),true);
-  const task={id:'consumables',description:'Supply cabinet shims and screws',existingLineIds:['labor'],additions:[{code:'PB-12-39-06',quantity:30}],researchDescription:null};
+  const task={id:'consumables',evidence:'Requested installation consumables',description:'Supply cabinet shims and screws',existingLineIds:['labor'],additions:[{code:'PB-12-39-06',quantity:30}],researchDescription:null};
   const mapping={tasks:[task]} as any;
   const configuration={...EMPTY_CONFIGURATION,planningCatalog:{rates:[{code:'PB-12-39-06',type:'Labor'}]}} as any;
   normalizeConsumableMapping(mapping,configuration,[{id:'labor',category:'field-labor',quantity:30,unitCost:100}] as any,scope);
@@ -96,7 +96,7 @@ test('duplicate assembly findings and unresolved overlap cannot release an infla
 
 test('a vanity consumables task cannot purchase another cabinet or plumbing fixtures',()=>{
   const scope={text:'Supply and install a vanity. Include labor, installation materials and cleanup.',answers:{},extraction:null,uploads:[],reviewedAt:'2026-09-28',corrections:[]} as any;
-  const task={id:'consumables',description:'Supply all necessary installation consumables (e.g., caulk, shims, fasteners) for vanity, countertop, sinks, and faucets.',existingLineIds:[],additions:[{code:'CABINET',quantity:1},{code:'TRAPS',quantity:2}],researchDescription:null};
+  const task={id:'consumables',evidence:'Requested installation consumables',description:'Supply all necessary installation consumables (e.g., caulk, shims, fasteners) for vanity, countertop, sinks, and faucets.',existingLineIds:[],additions:[{code:'CABINET',quantity:1},{code:'TRAPS',quantity:2}],researchDescription:null};
   const configuration={...EMPTY_CONFIGURATION,planningCatalog:{rates:[{code:'CABINET',type:'Material',description:'Sink base (material only)'},{code:'TRAPS',type:'Material',description:'Supplies, stops, and trap, per fixture'}]}} as any;
   normalizeConsumableMapping({tasks:[task]} as any,configuration,[],scope);
   assert.deepEqual(task.additions,[]);
@@ -105,7 +105,7 @@ test('a vanity consumables task cannot purchase another cabinet or plumbing fixt
 
 test('an allowance for consumables is a material task rather than an unrelated cabinet allowance',()=>{
  const scope={text:'Include labor, installation materials and cleanup.',answers:{},extraction:null,uploads:[],reviewedAt:'2026-09-28',corrections:[]} as any;
- const task={id:'consumables',description:'Provide allowance for installation consumables (fasteners, caulk, shims, adhesives, sealants, supply lines, etc.), separate from product cost.',existingLineIds:[],additions:[{code:'FILLER',quantity:1}],researchDescription:null};
+ const task={id:'consumables',evidence:'Requested installation consumables',description:'Provide allowance for installation consumables (fasteners, caulk, shims, adhesives, sealants, supply lines, etc.), separate from product cost.',existingLineIds:[],additions:[{code:'FILLER',quantity:1}],researchDescription:null};
  const configuration={...EMPTY_CONFIGURATION,planningCatalog:{rates:[{code:'FILLER',type:'Material',description:'Fillers / toe kick allowance'}]}} as any;
  assert.equal(contractorConsumableIncluded(scope,task.description),true);
  normalizeConsumableMapping({tasks:[task]} as any,configuration,[],scope);

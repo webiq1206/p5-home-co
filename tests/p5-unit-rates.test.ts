@@ -41,6 +41,13 @@ test('stale, wrong-location, package, selling-price, unsupported and nonpositive
  const reused=reusableUnitRate(original,'Boise',new Date('2026-09-25'))!;
  assert.equal(reused.evidence.validUntil,original.evidence.validUntil,'reusing a rate must not refresh its evidence date');
 });
+test('a saved national benchmark cannot be reused as Boise-local evidence',()=>{
+ const original=rule();
+ const sourced={...original,estimatingBasis:'sourced-market-average',evidence:{...original.evidence,provenance:{...original.evidence.provenance!,sources:[{url:'https://a.invalid',date:'2026-09-17',region:'United States',low:2,high:4},{url:'https://b.invalid',date:'2026-09-17',region:'United States',low:2,high:4}]}}} as CostRule;
+ assert.equal(reusableUnitRate(sourced,'Boise',now),null);
+ sourced.evidence.provenance!.sources.forEach(source=>source.region='Boise, Idaho');
+ assert.ok(reusableUnitRate(sourced,'Boise',now));
+});
 test('current project quantities and exclusions still govern a saved allowance',()=>{
  const saved=reusableUnitRate(rule(),'Boise',now)!,mapped=mapping(saved);
  mapped.tasks[0].additions[0].quantity=120;

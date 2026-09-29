@@ -89,7 +89,7 @@ test('planning averages are labeled allowances with the same quantity defenses',
   assert.ok(missing.issues.some(issue=>/no defensible planning average/.test(issue)));
 });
 
-test('a slow or unavailable web search falls back to a labeled planning average and still prices',async()=>{
+test('a slow or unavailable web search preserves progress without uncited pricing',async()=>{
   const stages:string[]=[];
   const request:PricingRequest=async(instructions,input,search)=>{
     const stage=search?'RESEARCH':instructions.startsWith('Inventory')?'INVENTORY':instructions.startsWith('You are a construction estimator')?'MAP':instructions.startsWith('Provide a defensible REGIONAL PLANNING AVERAGE')?'PLANNING':'AUDIT';
@@ -100,17 +100,9 @@ test('a slow or unavailable web search falls back to a labeled planning average 
     if(stage==='PLANNING')return {value:planned,sourceUrls:[]};
     return {value:{coveredTaskIds:['cabinets','overlay'],issues:[],notes:[],resolvedIssues:[]},sourceUrls:[]};
   };
-  const r=await priceCompleteScope(scope,config,request,now);
-  assert.ok(r.customer.range,'a planning average allowance can complete a preliminary range');
-  assert.ok(stages.includes('RESEARCH')&&stages.includes('PLANNING'));
-  const line=(r.internal as any).lines.find((l:any)=>l.id==='planning-1');
-  assert.ok(line);assert.equal(line.evidence.basis,'regional-planning-average');
-  const item=r.customer.lineItems.find((l:any)=>l.id==='planning-1') as any;
-  assert.equal(item.pricingStatus,'estimated-allowance');assert.match(item.verification,/Budget allowance; final selection to be confirmed/);
-  assert.ok(r.customer.assumptions.some((a:string)=>a.includes('Budget allowance; final selection to be confirmed.')));
-  assert.doesNotMatch(JSON.stringify(r.customer),/published cost research|planning average|local pricing/i);
-  assert.ok((r.internal as any).warnings.some((w:any)=>w.code==='planning-average-preliminary'&&w.severity==='review'));
-  assert.ok(!JSON.stringify(r.customer).includes('unitCost'));
+  await assert.rejects(()=>priceCompleteScope(scope,config,request,now),/Researching Boise-area prices/);
+  assert.equal(stages.filter(stage=>stage==='RESEARCH').length,2);
+  assert.ok(!stages.includes('PLANNING'),'an outage never turns model knowledge into a researched local price');
 });
 
 test('legacy race settings cannot dispatch another provider',async()=>{

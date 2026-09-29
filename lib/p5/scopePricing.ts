@@ -1,5 +1,5 @@
 import {ESTIMATOR_MODEL,assertEstimatorModel,EstimatorModelError} from './modelPolicy.ts';
-import {unitKey,reusableUnitRate,supportedUnit} from './unitRates.ts';
+import {unitKey,reusableUnitRate,supportedUnit,boiseArea} from './unitRates.ts';
 import {reasoningFor,rejectsReasoning} from './openaiReasoning.ts';
 class MissingResearchRateError extends Error {}
 export {unitKey} from './unitRates.ts';
@@ -57,7 +57,7 @@ type Mapping=z.infer<typeof mappingSchema>;
 // A section may hold nothing priceable (live 2026-09-21: a budget with every quantity removed); requiring a
 // task there threw a validation error and handed the whole estimate to a person.
 const inventorySchema=z.object({tasks:z.array(z.object({id:text,description:z.string().min(1).max(400),evidence:z.string().min(1).max(600),origin:z.enum(['requested','required']).default('requested'),basis:z.string().max(400).default('')}).strict()).max(5000),issues:remarks(100),notes:remarks(100).default([]),dependencies:z.array(z.string().max(400)).max(40).default([])}).strict();
-const observation=z.object({url:z.string().url(),low:positive,high:positive,unit:text,costBasis:z.enum(['material-purchase','subcontractor-installed','trade-labor']),publishedAt:z.string(),region:text,excerpt:z.string().min(1).max(220),sourceType:z.enum(['regional-guide','national-guide']),dateBasis:z.enum(['published','retrieved'])}).strict();
+const observation=z.object({url:z.string().url(),low:positive,high:positive,unit:text,costBasis:z.enum(['material-purchase','subcontractor-installed','trade-labor']),publishedAt:z.string(),region:text,excerpt:z.string().min(1).max(220),sourceType:z.enum(['regional-guide','national-guide','supplier-price','contractor-rate']),dateBasis:z.enum(['published','retrieved'])}).strict();
 const costEvidence=z.object({url:z.string().url(),publishedAt:z.string(),dateBasis:z.enum(['published','retrieved']),region:text,excerpt:z.string().min(1).max(220)}).strict();
 const landedCost=z.object({taxRate:z.number().finite().min(0).max(1),freightPerUnit:z.number().finite().min(0).max(10000000),taxOnFreight:z.boolean(),taxEvidence:costEvidence,freightEvidence:costEvidence}).strict();
 const marketSchema=z.object({rates:z.array(z.object({taskId:text,description:text,unit:text,quantity:positive,quantityEvidence:text,quantityRange:quantityRange.nullish(),building:z.string().optional(),floor:z.string().optional(),basis:z.enum(['material-purchase','subcontractor-installed','trade-labor']),includes:text,excludes:z.string().max(2000),landedCost:landedCost.nullish(),sources:z.array(observation).min(1).max(4)}).strict()).max(60),issues:remarks(100),notes:remarks(100).default([])}).strict();
@@ -141,8 +141,8 @@ const COVERED_POLICY=`Each task's alreadyCovered lists components of that task a
 const RESEARCH=`Research average construction UNIT COSTS for the supplied tasks and project area. ${COVERED_POLICY} ${UNTRUSTED} ${ALLOWANCE_POLICY} ${DIMENSION_POLICY} ${BENCHMARK_POLICY} ${ISSUE_POLICY}
 Return JSON only: {rates:[{taskId,description,unit,quantity,quantityEvidence,quantityRange,building,floor,basis,includes,excludes,landedCost:null,sources:[{url,low,high,unit,costBasis,publishedAt,region,excerpt,sourceType,dateBasis}]}],issues:[],notes:[]}.
 Put disclosed national fallback, undated-source freshness, standard profile assumptions and unconfirmed incidental charges in notes, NOT issues, when they do not prevent a supported preliminary allowance. Do not label an explicitly allowed benchmark limitation as missing scope.
-Never put private names, street addresses, contact details, document identifiers or project-specific narrative into a search query. Search only the generic work, unit and broad region. Find two independent estimating-guide or cost-database sources for comparable work. Do not search retailers, suppliers, model numbers or promotions. Search the generic assembly, correct unit and requested area. Fetch a guide only when necessary to verify the cost breakdown. Stop when sufficient comparable evidence is available; do not repeatedly shop alternatives. Each source must support its own numeric range in USD per the rate's unit and the same material/labor responsibility. Source unit and costBasis MUST match the proposed rate; normalize known unit aliases, and disclose any evidenced conversion arithmetic. Never average prices per hour with prices per square foot, total-project budgets with per-unit rates, or materials with installed prices.
-Use sourceType regional-guide or national-guide. For a dated guide, publishedAt must be its actual publication/update date within the last 365 days and dateBasis=published. For an undated accessible guide, use publishedAt='' and dateBasis=retrieved, explicitly noting that publication freshness requires verification. Never manufacture dates, URLs, numeric averages, quotes or geographic factors. Use only URLs returned by the tools, and excerpts of at most 25 words. Prefer original cost-guide publishers, not articles repeating another guide's numbers as independent evidence.
+Never put private names, street addresses, contact details, document identifiers or project-specific narrative into a search query. Search only the generic work, unit and broad region. Find two independent published sources for comparable work in Boise / Treasure Valley, Idaho. Prefer local estimating guides and published contractor rates for services. For products and materials, use current supplier prices with Boise-area availability, excluding temporary promotions. Search the specific product specification or generic assembly, correct unit and requested area. Never label national or nonlocal prices as Boise-local. A regional adjustment requires cited numeric evidence, not an invented multiplier. Fetch a guide only when necessary to verify the cost breakdown. Stop when sufficient comparable evidence is available; do not repeatedly shop alternatives. Each source must support its own numeric range in USD per the rate's unit and the same material/labor responsibility. Source unit and costBasis MUST match the proposed rate; normalize known unit aliases, and disclose any evidenced conversion arithmetic. Never average prices per hour with prices per square foot, total-project budgets with per-unit rates, or materials with installed prices.
+Use sourceType regional-guide, national-guide, supplier-price or contractor-rate as appropriate. Boise-local pricing must have source evidence of Boise / Treasure Valley applicability; national benchmarks alone do not establish it. For a dated guide, publishedAt must be its actual publication/update date within the last 365 days and dateBasis=published. For an undated accessible guide, use publishedAt='' and dateBasis=retrieved, explicitly noting that publication freshness requires verification. Never manufacture dates, URLs, numeric averages, quotes or geographic factors. Use only URLs returned by the tools, and excerpts of at most 25 words. Prefer original cost-guide publishers, not articles repeating another guide's numbers as independent evidence.
 Return separate supported material and labor components when needed. Source low/high are comparable UNIT costs, not extended totals or tax percentages. The calculator takes the mean of source midpoints, multiplies by quantity and applies the owner's approved financial policy once. Use quantityRange only for a clearly labeled modeled quantity; measured quantities retain their supplied evidence. Keep building/floor labels for requested separate totals. includes/excludes describe the benchmark, not permission to exclude requested work. Missing supplier selection alone is a verification assumption, not an unpriced task. Unsupported work remains an explicit issue. Do not fabricate a rate to release a total.`;
 const PLANNING_AVERAGE=`Provide a defensible REGIONAL PLANNING AVERAGE unit cost for each supplied task, without web research. ${COVERED_POLICY} ${UNTRUSTED} ${ALLOWANCE_POLICY} ${DIMENSION_POLICY} ${ISSUE_POLICY}
 Return JSON only: {rates:[{taskId,description,unit,quantity,quantityEvidence,quantityRange,building,floor,basis,includes,excludes,low,high,confidence,rationale}],issues:[],notes:[]}.
@@ -382,7 +382,32 @@ export function preserveScopeExclusions(mapping:Mapping,existing:string[],scope:
 /** Labor-only book components cannot satisfy a requested material purchase.
  * Route that gap through the existing evidenced material-pricing workflow. */
 export function normalizeConsumableMapping(mapping:Mapping,configuration:EstimatorConfiguration,existing:ReturnType<typeof existingLines>,scope:ReviewedScope){
+  const separatelyPricedTop=mapping.tasks.some(task=>taskSelectionStatus(task,mapping.tasks)==='billable'&&task.additions.some(a=>/^PB-12-36-0[1-5]$/.test(a.code)))
+    ||existing.some(line=>line.quantity*line.unitCost>0&&/\b(?:quartz|granite|solid surface|laminate)\b/i.test(line.description)&&/\b(?:countertop|counter top)\b/i.test(line.description));
   for(const task of mapping.tasks){
+    if(taskSelectionStatus(task,mapping.tasks)!=='billable')continue;
+    // A cabinet-only task cannot buy a second top through an installed vanity
+    // package when the requested countertop is already separately priced.
+    // Obtain a cabinet-only rate instead of guessing a credit for the top.
+    if(separatelyPricedTop&&/\bvanity\s+cabinet\b/i.test(task.description)){
+      const before=task.additions.length;
+      task.additions=task.additions.filter(a=>!/^PB-12-41-0[12]$/.test(a.code));
+      if(task.additions.length!==before)task.researchDescription=`Cabinet only: ${task.description} Exclude countertop, sink cutouts, sinks, faucets and plumbing connections, which are separate tasks. Do not use an installed vanity package that includes the top.`;
+    }
+    // A faucet request mentioning its vanity location is not a request to
+    // replace the vanity again. Use the explicit faucet labor schedule only
+    // when the same task's fixture line establishes the count.
+    const faucetPrefix=task.description.split(/\bfaucets?\b/i)[0];
+    if(/\bfaucets?\b/i.test(task.description)&&!/\bvanit(?:y|ies)\b/i.test(faucetPrefix)){
+      const fixture=task.additions.find(a=>a.code==='PB-22-41-08'&&a.quantity>0);
+      const labor=configuration.planningCatalog?.rates.find(rate=>rate.code==='PB-22-42-02'&&rate.type==='Labor'&&unitKey(rate.unit)==='each');
+      task.additions=task.additions.flatMap(a=>{
+        if(a.code!=='PB-22-01-09')return [a];
+        if(fixture&&labor)return [{...a,code:labor.code,quantity:fixture.quantity,quantityRange:fixture.quantityRange,quantityEvidence:`Install the ${fixture.quantity} EA faucets explicitly supplied in this task. ${fixture.quantityEvidence}`}];
+        task.researchDescription=`Faucet installation labor only: ${task.description} Exclude separately priced faucet materials and all vanity cabinet replacement work.`;
+        return [];
+      });
+    }
     // A made-up catalog identifier is never a rate. When this task already
     // requests gap pricing, let that evidenced workflow price the missing work
     // instead of retaining a failed lookup after a valid fallback is accepted.
@@ -438,6 +463,14 @@ export function normalizeConsumableMapping(mapping:Mapping,configuration:Estimat
 export function routeUnpricedTasks(mapping:Mapping,configuration:EstimatorConfiguration,existing:ReturnType<typeof existingLines>,afterRepair=false){
   for(const task of mapping.tasks){
     if(taskSelectionStatus(task,mapping.tasks)!=='billable'||task.researchDescription)continue;
+    const available=(code:string)=>Boolean(configuration.planningCatalog?.rates.some(rate=>rate.code===code)||configuration.regionalRates?.some(rate=>rate.id===code));
+    const missing=task.additions.filter(addition=>!available(addition.code));
+    if(missing.length){
+      task.additions=task.additions.filter(addition=>available(addition.code));
+      task.researchDescription=`Price only the still-unpriced components of: ${task.description}. Preserve all alreadyCovered components without charging them again, respect owner-supplied products, and include expressly requested contractor consumables not covered by installation labor.`.slice(0,1000);
+      mapping.notes.push(`Unavailable rate references for ${task.description} were routed to item-specific published research; valid components remain priced once.`);
+      continue;
+    }
     // Give a blank mapping or mistaken existing reference one catalog-repair
     // opportunity before paying for research. Never stop at that blank result.
     if(!afterRepair&&(!task.additions.length||task.existingLineIds.length))continue;
@@ -805,6 +838,7 @@ export function marketResolution(raw:unknown,urls:string[],tasks:Mapping['tasks'
       hosts.add(u.hostname.replace(/^www\./,''));
     }
     if(hosts.size<2)throw new Error('Independent market sources required');
+    if(boiseArea(location)&&!r.sources.every(source=>boiseArea(source.region)))throw new MissingResearchRateError('Published observations do not establish Boise / Treasure Valley pricing for this item');
     if(r.basis!=='material-purchase'&&r.landedCost)throw new Error('Purchase adjustments cannot apply to a labor or installed offering');
     if(r.landedCost)for(const evidence of [r.landedCost.taxEvidence,r.landedCost.freightEvidence]){
       const date=Date.parse(evidence.publishedAt);
@@ -1233,16 +1267,16 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
     const gaps=mapping.tasks.filter(t=>t.researchDescription);
     const research:PricingReply[]=[];auditTrail.research=research;
     const region=scope.answers.location||'Boise / Treasure Valley, Idaho';
-    /** Published cost research first, within a bounded time; otherwise a clearly
-     * labeled regional planning average. Independent batches run in parallel and
-     * every provider reply is saved by content, so a resumed request reuses them. */
+    /** Published local cost research is required for missing rates. Independent
+     * batches run in parallel; saved replies prevent repeated provider charges. */
     const priceGapBatch=async(gapBatch:Mapping['tasks'],batchIndex:number,covered:(task:Mapping['tasks'][number])=>unknown[],priorIssues?:string[]):Promise<{replies:PricingReply[];resolution:ScopePriceResolution;modelIssues:string[]}>=>{
       const replies:PricingReply[]=[];const offset=batchIndex*100;
       const tasksInput=gapBatch.map(t=>({id:t.id,description:t.researchDescription,quantityEvidence:t.evidence,alreadyCovered:covered(t)}));
       let researchFailure='';
-      // Past the research window the job goes straight to the labeled planning average; the visitor is not kept waiting on a second search.
-      const age=Date.now()-now.getTime();const pastWindow=!LIVE_RESEARCH||age>RESEARCH_WINDOW_MS&&age<6*60*60*1000;
-      if(pastWindow)researchFailure=LIVE_RESEARCH?'the pricing job passed its research window':'live cost research is not run while a customer waits';
+      // Every missing item must attempt published research, including late
+      // stages in a large plan. Job age must never substitute an uncited price.
+      const pastWindow=!LIVE_RESEARCH;
+      if(pastWindow)researchFailure='published cost research is temporarily disabled';
       if(!pastWindow)try{
         let researched=await request(RESEARCH,{date:now.toISOString().slice(0,10),region,tasks:tasksInput,...(priorIssues?{priorIssues}:{})},true,Math.min(RESEARCH_STAGE_MS,deadline-Date.now()));
         // JSON syntax alone does not ensure the research schema is valid. Save a
@@ -1274,12 +1308,22 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
         if(!isPricingStageTimeout(error)&&!(error instanceof MissingResearchRateError))throw error;
         researchFailure=error instanceof MissingResearchRateError?error.message:'published cost research did not finish within its time allowance';
       }
-      const planned=await request(PLANNING_AVERAGE,{date:now.toISOString().slice(0,10),region,tasks:tasksInput,...(priorIssues?{priorIssues}:{})},false,deadline-Date.now());
-      const accepted=planningSchema.parse(planned.value);
-      replies.push({value:accepted,sourceUrls:[]});
-      const planning=planningResolution(accepted,gapBatch,now,offset,region,scope);
-      planning.assumptions.unshift(`Published cost research was not used for ${gapBatch.map(t=>t.description).join('; ')} (${researchFailure}). A regional planning average allowance is included instead; it is not verified local pricing.`);
-      return {replies,resolution:planning,modelIssues:accepted.issues};
+      // Owner policy: never replace failed research with an uncited AI average.
+      // A second, distinct saved search can recover a failed broad batch.
+      // The durable request cache prevents paying repeatedly for the same stage.
+      if(!pastWindow)try{
+        const retried=await request(RESEARCH,{date:now.toISOString().slice(0,10),region,tasks:tasksInput,retryInstruction:'Research these exact remaining items individually for Boise / Treasure Valley. Use published local trade rates and supplier product prices with local availability where appropriate. Break a service into evidenced labor and material components if no complete assembly price exists. No uncited planning averages.',priorIssues:[...(priorIssues||[]),researchFailure]},true,Math.min(RESEARCH_STAGE_MS,deadline-Date.now()));
+        const accepted=marketSchema.parse(retried.value);
+        const market=marketResolution(accepted,retried.sourceUrls,gapBatch,now,offset,region,scope);
+        if(gapBatch.every(task=>market.rules.some(rule=>rule.scopeTaskId===task.id&&rule.unitCost>0))){
+          replies.push({value:accepted,sourceUrls:retried.sourceUrls});
+          return {replies,resolution:market,modelIssues:accepted.issues};
+        }
+      }catch(error){
+        if(isPricingPending(error)||isProcessingDeadline(error))throw error;
+        if(!isPricingStageTimeout(error)&&!(error instanceof MissingResearchRateError))throw error;
+      }
+      throw new PricingPending('Researching Boise-area prices for the remaining items. Your project and completed pricing steps are saved.',30000);
     };
     const mergeGapResults=(results:Awaited<ReturnType<typeof priceGapBatch>>[])=>{
       for(const priced of results){research.push(...priced.replies);priced.modelIssues.forEach(issue=>modelIssues.add(issue));resolution.rules.push(...priced.resolution.rules);resolution.assumptions.push(...priced.resolution.assumptions);resolution.issues.push(...priced.resolution.issues);}

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {createPlanningConfiguration,withInteriorRemodelBook,PLANNING_MODEL_VERSION,materializePlanningBook,planningQuestionFields,type PlanningCatalog} from '../lib/p5/planningBooks.ts';
+import {createPlanningConfiguration,withInteriorRemodelBook,withSupportedServiceBook,PLANNING_MODEL_VERSION,materializePlanningBook,planningQuestionFields,type PlanningCatalog} from '../lib/p5/planningBooks.ts';
 import {priceReviewedScope,blockingReviewNote} from '../lib/p5/costBook.ts';
 import {emptyInstructions} from '../lib/p5/instructions.ts';
 import {SERVICE_MATRIX} from '../lib/p5/pricing.ts';
@@ -43,6 +43,19 @@ test('Older approved remodel policies gain an empty component-only book without 
  const result=priceReviewedScope(scope({service:'remodel',flooringSqft:'300',location:'Boise'}),saved,now);
  assert.ok(!JSON.stringify(result.internal).includes('cost-book-missing'));
  assert.equal(result.customer.range,null,'the empty service shell cannot invent a price');
+});
+test('a missing supported service uses the existing schedule without changing approved policy',()=>{
+ const saved=createPlanningConfiguration(catalog,['kitchen']);
+ const before=JSON.stringify(saved);
+ const active=withSupportedServiceBook(saved,'handyman');
+ assert.equal(JSON.stringify(saved),before);
+ assert.equal(active.finance,saved.finance);
+ assert.equal(active.planningCatalog,saved.planningCatalog);
+ assert.equal(active.costBooks.at(-1)?.service,'handyman');
+ assert.equal(withSupportedServiceBook(active,'handyman'),active);
+ assert.equal(withSupportedServiceBook(saved,'invented-service'),saved);
+ const priced=priceReviewedScope(scope({service:'handyman',taskList:'Replace two toilets',ownerSupplied:'Toilets supplied by owner',location:'Boise'}),saved,now);
+ assert.ok(priced.customer.range);
 });
 test('Cabinet supply and installation use distinct scope and preserve the overhead/profit reconciliation',()=>{
  const config=createPlanningConfiguration(catalog);

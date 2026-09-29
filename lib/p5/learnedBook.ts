@@ -4,7 +4,8 @@ import {PRICE_BOOK_RATEABLE} from './priceBook.ts';
 import {meaningfulWords,conceptsOf} from './catalogSelection.ts';
 import {unitKey,UNIT_REGISTRY,rateLocation,reusableUnitRate} from './unitRates.ts';
 import {finishTier} from './priceBook.ts';
-import type {CostRule} from './costBook.ts';
+import type {CostRule,EstimatorConfiguration} from './costBook.ts';
+import {withSupportedServiceBook} from './planningBooks.ts';
 import type {PlanningRate} from './planningBooks.ts';
 
 /**
@@ -65,11 +66,28 @@ export function learnableLines(rules:readonly CostRule[],service:string,draftId:
       const learned=line as Partial<LearnedLine>;
       return learned.version===2&&(learned.status==='review-required'&&!reusable||learned.status==='provisional'&&Boolean(learned.rule&&reusableUnitRate(learned.rule,context.location,now)))&&learned.location===location&&learned.finish===finish&&learned.service===service;
     };
-    if(resemblesExisting(candidate,[...book,...known.filter(sameContext),...accepted]))continue;
+    // Similar wording is not proof of the same scope. Retain a researched
+    // alternative permanently, but do not silently override an approved rate.
+    const overlapsApproved=resemblesExisting(candidate,book);
+    const duplicate=[...known.filter(sameContext),...accepted].some(line=>name(line.description).toLowerCase()===candidate.description.toLowerCase()&&unitKey(line.unit)===unitKey(rule.unit)&&JSON.stringify((line as Partial<LearnedLine>).rule?.unitRateContext||null)===JSON.stringify(rule.unitRateContext||null));
+    if(duplicate)continue;
     const hash=createHash('sha256').update(JSON.stringify([candidate.description.toLowerCase(),unitKey(rule.unit),service,location,finish,rule.unitRateContext||null])).digest('hex').slice(0,10);
-    accepted.push({version:2,status:reusable?'provisional':'review-required',location,finish,rule:reusable||structuredClone(rule),code:`PB-L-${hash}`,description:candidate.description,unit:UNIT_REGISTRY[unitKey(rule.unit)].label,amount:Math.round(unitCost*100)/100,type:TYPE[String(rule.category)]||'Other',service,source:`Learned from estimate ${draftId} (${rule.id}); direct cost`,learnedAt:now.toISOString(),uses:1});
+    accepted.push({version:2,status:reusable&&!overlapsApproved?'provisional':'review-required',location,finish,rule:reusable||structuredClone(rule),code:`PB-L-${hash}`,description:candidate.description,unit:UNIT_REGISTRY[unitKey(rule.unit)].label,amount:Math.round(unitCost*100)/100,type:TYPE[String(rule.category)]||'Other',service,source:`Learned from estimate ${draftId} (${rule.id}); direct cost`,learnedAt:now.toISOString(),uses:1});
   }
   return accepted;
+}
+/** Persist a missing supported service shell without touching rates, margins,
+ * existing books or table structure. The SQL guard handles concurrent jobs. */
+export async function saveSupportedServiceBook(configuration:EstimatorConfiguration,service:string){
+ const active=withSupportedServiceBook(configuration,service);
+ if(active===configuration)return;
+ const book=active.costBooks.find(item=>item.service===service)!;
+ await query(`UPDATE p5_estimator_policy SET
+   payload=jsonb_set(payload,'{costBooks}',COALESCE(payload->'costBooks','[]'::jsonb)||jsonb_build_array($2::jsonb)),
+   version=version+1,updated_at=now(),updated_by='learned-service'
+   WHERE id='current' AND payload->'planningCatalog' IS NOT NULL
+   AND EXISTS(SELECT 1 FROM jsonb_array_elements(COALESCE(payload->'costBooks','[]'::jsonb)) b WHERE b->>'mode'='owner-planning')
+   AND NOT EXISTS(SELECT 1 FROM jsonb_array_elements(COALESCE(payload->'costBooks','[]'::jsonb)) b WHERE b->>'service'=$1)`,[service,JSON.stringify(book)]);
 }
 export async function readLearnedLines():Promise<LearnedLine[]>{
   try{return (await query("SELECT payload FROM p5_estimator_policy WHERE id LIKE 'book-learned:%' ORDER BY updated_at")).map(row=>row.payload as LearnedLine);}

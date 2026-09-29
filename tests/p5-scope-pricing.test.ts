@@ -1,4 +1,4 @@
-import {PricingStageTimeout} from '../lib/p5/pricingProgress.ts';
+import {PricingPending,PricingStageTimeout} from '../lib/p5/pricingProgress.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {priceCompleteScope,marketResolution,planningResolution,catalogResolution,requestPricing,requestPricingWith,advisoryIssue,type PricingRequest,HANDOFF_ISSUE} from '../lib/p5/scopePricing.ts';
@@ -17,8 +17,10 @@ const base=priceReviewedScope(scope,config,now);
 const ids=(base.internal as any).lines.map((l:any)=>l.id);
 const task={id:'cabinets',description:'Cabinet supply',evidence:'ten feet',existingLineIds:ids,additions:[],researchDescription:'',issues:[]};
 const extra={id:'overlay',description:'Protective overlay',evidence:'ten feet',existingLineIds:[],additions:[],researchDescription:'Protective cabinet overlay',issues:[]};
-const source=(url:string,low:number,high:number)=>({url,low,high,unit:'LF',costBasis:'material-purchase',sourceType:'regional-guide',dateBasis:'published',publishedAt:'2026-09-01',region:'Idaho',excerpt:`Material price ${low} to ${high} dollars per linear foot.`});
+const source=(url:string,low:number,high:number)=>({url,low,high,unit:'LF',costBasis:'material-purchase',sourceType:'regional-guide',dateBasis:'published',publishedAt:'2026-09-01',region:'Boise, Idaho',excerpt:`Material price ${low} to ${high} dollars per linear foot.`});
 const urls=['https://supplier-a.example/pricing','https://supplier-b.example/pricing'];
+// Synthetic published observations for tests only, never business price data.
+const publishedFixture=(value:any)=>({...value,rates:value.rates.map(({low,high,confidence,rationale,...rate}:any)=>({...rate,sources:urls.map(url=>({...source(url,low,high),unit:rate.unit,costBasis:rate.basis,region:'Boise, Idaho',excerpt:'Synthetic test price observation only.'}))}))});
 const adjustmentEvidence={url:urls[0],publishedAt:'',dateBasis:'retrieved' as const,region:'Synthetic test region',excerpt:'Synthetic fixture price includes tax and pickup with no additional freight charge.'};
 const purchaseAdjustments={taxRate:0,freightPerUnit:0,taxOnFreight:false,taxEvidence:adjustmentEvidence,freightEvidence:adjustmentEvidence};
 const researched={rates:[{taskId:'overlay',description:'Protective overlay',unit:'LF',quantity:10,quantityEvidence:'Ten feet requested',basis:'material-purchase',includes:'overlay material',excludes:'',landedCost:purchaseAdjustments,sources:[source(urls[0],10,20),source(urls[1],20,30)]}],issues:[]};
@@ -39,6 +41,17 @@ test('missing-rate routing preserves existing prices, exclusions and quantity va
  assert.equal(missing.researchDescription,missing.description);assert.equal(excluded.researchDescription,'');assert.equal(mapped.researchDescription,'');assert.equal(mapping.tasks[3].researchDescription,'');
  assert.ok(catalogResolution(mapping as any,config,(base.internal as any).lines,now,scope).issues.some(issue=>issue.includes('mapped 999')));
 });
+test('a mixed task researches its unavailable components while retaining valid labor once',async()=>{
+ const {routeUnpricedTasks,coveredWork}=await import('../lib/p5/scopePricing.ts');
+ const mixed={...extra,description:'Install 9 LF owner-supplied cabinets including contractor screws and shims',researchDescription:'',additions:[{code:'03-15-02-L',quantity:9,quantityEvidence:'9 LF'},{code:'PB-12-19-02-M',quantity:9,quantityEvidence:'9 LF'}]};
+ const mapping={tasks:[mixed],notes:[],issues:[],replacements:[],removeExclusions:[]};
+ routeUnpricedTasks(mapping,config,[],false);
+ assert.deepEqual(mixed.additions.map(addition=>addition.code),['03-15-02-L']);
+ assert.match(mixed.researchDescription,/still-unpriced components/);
+ assert.match(mixed.researchDescription,/without charging them again/);
+ const labor={id:'scope-1',scopeTaskId:mixed.id,description:'9 LF installation labor',quantity:{fixed:9,factor:1},unit:'LF',unitCost:100};
+ assert.deepEqual(coveredWork(mixed,[{...labor,quantity:9}], [labor as any]),[{description:labor.description,quantity:9,unit:'LF'}]);
+});
 test('Provider failure cannot publish the otherwise available partial range',async()=>{
  assert.ok(base.customer.range);
  const r=await priceCompleteScope(scope,config,async()=>{throw new Error('offline')},now);
@@ -55,6 +68,36 @@ test('an excluded permit needs no positive price or covered-task ID',async()=>{
  assert.ok(result.customer.range,'nonbillable inventory commentary cannot hold a complete estimate');
  assert.equal(calls,3,'no futile repair request for a price on excluded work');
  assert.ok(!(result.internal as any).lines.some((line:any)=>line.scopeTaskId==='permit'),'the exclusion is never charged');
+});
+test('a separately priced vanity top cannot overlap its cabinet package and faucets use fixture labor',async()=>{
+ const {normalizeConsumableMapping}=await import('../lib/p5/scopePricing.ts');
+ const rates=[
+  {code:'PB-12-41-02',description:'Double vanity 60-72 in, installed incl. top',type:'Subcontractor',unit:'EA',amount:3850},
+  {code:'PB-12-36-02',description:'Quartz countertop',type:'Subcontractor',unit:'SF',amount:78.75},
+  {code:'PB-22-41-08',description:'Bath faucet material',type:'Material',unit:'EA',amount:225},
+  {code:'PB-22-01-09',description:'Vanity replacement labor',type:'Labor',unit:'EA',amount:400},
+  {code:'PB-22-42-02',description:'Faucet install labor',type:'Labor',unit:'EA',amount:190},
+ ].map(rate=>({...rate,source:'Synthetic approved fixture',basis:'owner-average-cost'}));
+ const configuration=createPlanningConfiguration({...catalog,rates:[...catalog.rates,...rates as PlanningCatalog['rates']]});
+ const addition=(code:string,quantity:number)=>({code,quantity,quantityEvidence:`${quantity} units expressly requested`});
+ const tasks=[
+  {...extra,id:'vanity',description:'Supply and install one mid-range 60-inch double-sink bathroom vanity cabinet',researchDescription:'',additions:[addition('PB-12-41-02',1)]},
+  {...extra,id:'top',description:'Supply and install 8.33 SF quartz countertop',researchDescription:'',additions:[addition('PB-12-36-02',8.33)]},
+  {...extra,id:'faucets',description:'Supply and install two standard lavatory faucets for the new double-sink vanity',researchDescription:'',additions:[addition('PB-22-41-08',2),addition('PB-22-01-09',1)]},
+ ];
+ const mapping={tasks,notes:[],issues:[],replacements:[],removeExclusions:[]};
+ normalizeConsumableMapping(mapping,configuration,[],{...scope,answers:{service:'bathroom',location:'Boise'}});
+ assert.deepEqual(tasks[0].additions,[]);
+ assert.match(tasks[0].researchDescription,/Cabinet only/);
+ assert.match(tasks[0].researchDescription,/Exclude countertop/);
+ assert.equal(tasks[1].additions[0].code,'PB-12-36-02');
+ assert.deepEqual(tasks[2].additions.map(a=>[a.code,a.quantity]),[['PB-22-41-08',2],['PB-22-42-02',2]]);
+ // An unbundled installation task lacking a defensible count gets researched,
+ // not a guessed count and not the cost of a second vanity.
+ const laborOnly={...tasks[2],researchDescription:'',additions:[addition('PB-22-01-09',1)]};
+ normalizeConsumableMapping({...mapping,tasks:[laborOnly]},configuration,[],scope);
+ assert.deepEqual(laborOnly.additions,[]);
+ assert.match(laborOnly.researchDescription,/Faucet installation labor only/);
 });
 test('a sixty-inch vanity cannot use a smaller cabinet assembly rate',async()=>{
  const vanityScope:ReviewedScope={...scope,text:'Install one 60-inch single-sink vanity.',answers:{service:'bathroom',location:'Boise'}};
@@ -410,11 +453,11 @@ test('Separate building prices require every component to be assigned to a build
  const held=await priceCompleteScope(restricted,config,replies([{tasks:missing,issues:[]},{coveredTaskIds:['Main','ADU'],issues:[]}]),now);assert.equal(held.customer.range,null,'separate totals require building assignments');assert.ok(held.customer.verificationItems?.some((a:string)=>/building/i.test(a)));assert.ok(held.internal.scopePricing.issues.some(i=>/building/i.test(i)));
 });
 test('Undated independent guide averages retain retrieval date and freshness limitations',()=>{
- const guides={...researched,rates:[{...researched.rates[0],sources:researched.rates[0].sources.map(s=>({...s,publishedAt:'',dateBasis:'retrieved',sourceType:'national-guide',region:'United States'}))}]};
+ const guides={...researched,rates:[{...researched.rates[0],sources:researched.rates[0].sources.map(s=>({...s,publishedAt:'',dateBasis:'retrieved',sourceType:'regional-guide',region:'Boise, Idaho'}))}]};
  const result=marketResolution(guides,urls,[extra],now,0,'Boise'),rate=result.rules[0];
  assert.equal(rate.evidence.provenance?.status,'estimated');assert.equal(rate.evidence.provenance?.location,'Boise');
  assert.equal(rate.evidence.provenance?.sources[0].date,'2026-09-11');assert.equal(rate.evidence.provenance?.sources[0].dateBasis,'retrieved');
- assert.match(rate.evidence.reference,/retrieved 2026-09-11/);assert.match(result.assumptions[0],/United States.*national-guide/);assert.match(result.assumptions[0],/freshness requires verification/);
+ assert.match(rate.evidence.reference,/retrieved 2026-09-11/);assert.match(result.assumptions[0],/Boise, Idaho.*regional-guide/);assert.match(result.assumptions[0],/freshness requires verification/);
 });
 
 test('Preliminary regional benchmark verification notes persist without becoming unpriced work',async()=>{
@@ -637,14 +680,14 @@ test('A repair round keeps first-pass research and never prices the same gap twi
   const request:PricingRequest=async(_i,input,search)=>{const d=input as any;calls++;
    if(calls===1)return {value:{tasks:tasks.map(({id,description,evidence})=>({id,description,evidence})),issues:[]},sourceUrls:[]};
    if(d.taskBatch)return {value:{tasks:d.taskBatch.map((t:any)=>({...tasks.find(x=>x.id===t.id)!,...t})),issues:[],notes:[],replacements:[],removeExclusions:[]},sourceUrls:[]};
-   if(search)throw new PricingStageTimeout('pricing-stage-timeout');
+   if(search){researchedFor.push(d.tasks.map((t:any)=>t.id));return {value:publishedFixture(planned(d.tasks.map((t:any)=>t.id))),sourceUrls:urls};}
    if('priorPricingIssues' in d){audits++;return {value:{coveredTaskIds:tasks.map(t=>t.id),issues:audits===1?[flagged?'Ceiling texture: the allowance area disagrees with the stated 30 sf.':'Patch drywall: the patch count disagrees with the description.']:[],notes:[],resolvedIssues:[]},sourceUrls:[]};}
    if(d.tasks&&d.region){researchedFor.push(d.tasks.map((t:any)=>t.id));return {value:planned(d.tasks.map((t:any)=>t.id)),sourceUrls:[]};}
    throw new Error('unexpected request');
   };
   const r=await priceCompleteScope(scope,config,request,now);
   const rules=(r.internal as any).scopePricing?.rules||(r.internal as any).lines;
-  const lines=(r.internal as any).lines.filter((l:any)=>l.id.startsWith('planning-'));
+  const lines=(r.internal as any).lines.filter((l:any)=>l.id.startsWith('market-'));
   assert.equal(lines.filter((l:any)=>l.description.startsWith('caulk')).length,1,'the caulk allowance is priced once');
   assert.equal(lines.filter((l:any)=>l.description.startsWith('texture')).length,1,'the texture allowance is priced once');
   assert.deepEqual(researchedFor[0].sort(),['caulk','texture'],'first pass researches both gaps');
@@ -653,7 +696,7 @@ test('A repair round keeps first-pass research and never prices the same gap twi
   assert.ok(r.customer.range,'the range is released');
  }
 });
-test('An audit that faults a planning allowance for being uncited cannot withhold the range; a duplicate on the same line still can',async()=>{
+test('two research timeouts preserve progress without substituting an uncited planning price',async()=>{
  const live='T01 remains only partially defensibly priced. planning-100001 prices required selective demolition using uncited general estimating knowledge, with no published estimating-guide or cost-database observations. The approximately 30 SF demolition quantity also lacks the required positive quantityRange and an ALLOWANCE-prefixed quantity explanation.';
  assert.equal(advisoryIssue(live),true,'the audit note about the planning basis is disclosed');
  assert.equal(advisoryIssue('planning-2 duplicates the drywall labor already carried on scope-1 (double count).'),false,'a duplicate on a planning line still blocks');
@@ -668,12 +711,8 @@ test('An audit that faults a planning allowance for being uncited cannot withhol
   if(d.tasks&&d.region)return {value:planned,sourceUrls:[]};
   throw new Error('unexpected request');
  };
- const r=await priceCompleteScope(scope,config,request,now);
- assert.ok(r.customer.range,'the range is released with the planning allowance disclosed');
- assert.ok(r.customer.assumptions.some((a:string)=>/Budget allowance; final selection to be confirmed/.test(a)),'the uncovered task is disclosed as allowance-priced');
- assert.ok(r.customer.assumptions.some((a:string)=>/uncited general estimating knowledge/.test(a)),'the audit note travels as an item to confirm');
- assert.ok((r.internal as any).scopePricing.issues.some((i:string)=>/uncited general estimating knowledge/.test(i)),'the audit note stays in the audit trail for staff');
- assert.equal(calls,5,'inventory, mapping, research (timed out), planning and one audit: no repair round for a planning-basis note');
+ await assert.rejects(()=>priceCompleteScope(scope,config,request,now),PricingPending);
+ assert.equal(calls,4,'inventory, mapping and two bounded research attempts; no uncited average is requested');
 });
 test('Unresolved duplicate pricing blocks release, and missing measurements remain questions',async()=>{
  const tasks=[{...task,id:'drywall',description:'Patch drywall',researchDescription:''}];
@@ -716,7 +755,7 @@ test('A partial finishing allowance cannot release a total that omits baseboard 
   const data=input as {taskBatch?:unknown;tasks?:unknown;region?:unknown};
   if(data.taskBatch)return {value:{tasks:[trim],issues:[]},sourceUrls:[]};
   if('priorPricingIssues' in data){audits++;return {value:{coveredTaskIds:[],issues:[omission]},sourceUrls:[]};}
-  if(data.tasks&&data.region)return {value:{rates:[{taskId:trim.id,description:'Baseboard finishing allowance',unit:'LF',quantity:120,quantityEvidence:'120 LF',basis:'trade-labor',includes:'caulk, filler, paint and finishing labor only',excludes:'baseboard material',low:3,high:6,confidence:'low',rationale:'Synthetic fixture only.'}],issues:[]},sourceUrls:[]};
+  if(data.tasks&&data.region)return {value:publishedFixture({rates:[{taskId:trim.id,description:'Baseboard finishing allowance',unit:'LF',quantity:120,quantityEvidence:'120 LF',basis:'trade-labor',includes:'caulk, filler, paint and finishing labor only',excludes:'baseboard material',low:3,high:6,confidence:'low',rationale:'Synthetic fixture only.'}],issues:[]}),sourceUrls:urls};
   return {value:{tasks:[{id:trim.id,description:trim.description,evidence:trim.evidence}],issues:[]},sourceUrls:[]};
  };
  const expiredRepairAt=Date.now()-6*60*1000;
@@ -727,21 +766,20 @@ test('A partial finishing allowance cannot release a total that omits baseboard 
  assert.ok(!result.customer.assumptions.some(item=>item.includes(omission)),'missing work cannot become a routine assumption');
  assert.ok(result.internal.scopePricing.issues.some(item=>/full pricing coverage/.test(item)));
 });
-test('Past the research window a gap goes straight to the planning average without a web search',async()=>{
+test('late pricing stages still research instead of substituting an uncited average',async()=>{
  const tasks=[{...task,id:'drywall',description:'Patch drywall',researchDescription:''},{...extra,id:'texture',description:'Ceiling texture',researchDescription:'Matching ceiling texture over 30 sf'}];
  const planned={rates:[{taskId:'texture',description:'Ceiling texture allowance',unit:'SF',quantity:30,quantityEvidence:'30 sf',basis:'trade-labor',includes:'labor',excludes:'',low:3,high:6,confidence:'low',rationale:'Regional planning average.'}],issues:[],notes:[]};
  const run=async(startedAt:Date)=>{let searches=0;const request:PricingRequest=async(_i,input,search)=>{const d=input as any;
-  if(search){searches++;throw new PricingStageTimeout('pricing-stage-timeout');}
+  if(search){searches++;return {value:publishedFixture(planned),sourceUrls:urls};}
   if(d.taskBatch)return {value:{tasks:d.taskBatch.map((t:any)=>({...tasks.find(x=>x.id===t.id)!,...t})),issues:[],notes:[],replacements:[],removeExclusions:[]},sourceUrls:[]};
   if('priorPricingIssues' in d)return {value:{coveredTaskIds:tasks.map(t=>t.id),issues:[],notes:[],resolvedIssues:[]},sourceUrls:[]};
   if(d.tasks&&d.region)return {value:planned,sourceUrls:[]};
   return {value:{tasks:tasks.map(({id,description,evidence})=>({id,description,evidence})),issues:[]},sourceUrls:[]};};
   const r=await priceCompleteScope(scope,config,request,startedAt);return {r,searches};};
  const fresh=await run(new Date(Date.now()-1000));assert.equal(fresh.searches,1,'a fresh job attempts published research');assert.ok(fresh.r.customer.range);
- const late=await run(new Date(Date.now()-4*60*1000));assert.equal(late.searches,0,'an old job does not start another search');assert.ok(late.r.customer.range,'the planning average releases the range');
- assert.ok(late.r.customer.assumptions.some((a:string)=>/Budget allowance; final selection to be confirmed/.test(a)),'the allowance is disclosed to the customer in plain words');
- assert.doesNotMatch(JSON.stringify(late.r.customer),/research window|published cost research/i,'the internal cause stays out of customer output');
- assert.match(JSON.stringify(late.r.internal),/passed its research window/,'the cause is kept in the staff record');
+ const late=await run(new Date(Date.now()-4*60*1000));assert.equal(late.searches,1,'a late stage still researches its missing item');assert.ok(late.r.customer.range);
+ assert.ok((late.r.internal as any).costBookSnapshot.rules.some((rule:any)=>rule.estimatingBasis==='sourced-market-average'));
+ assert.ok(!(late.r.internal as any).costBookSnapshot.rules.some((rule:any)=>rule.estimatingBasis==='regional-planning-average'));
 });
 test('Advisory-only issues release the range without a repair round',async()=>{
  const tasks=Array.from({length:12},(_,i)=>({...task,id:`task-${i}`,description:`Assembly component ${i}`}));
@@ -791,7 +829,7 @@ test('A provider failure reads as a handoff to the customer and a cause to staff
  assert.ok(r.internal.scopePricing.issues.some((i:string)=>i.includes('offline')));
 });
 
-test('Empty completed research uses an audited planning allowance instead of leaving a requested task unpriced',async()=>{
+test('empty research does not invent a price or silently drop the requested item',async()=>{
  const tasks=[task,extra];let planned=0,audited=0;
  const request:PricingRequest=async(_i,input,search)=>{const d=input as any;
   if(search)return {value:{rates:[],issues:['No matching published rate found'],notes:[]},sourceUrls:[]};
@@ -799,9 +837,16 @@ test('Empty completed research uses an audited planning allowance instead of lea
   if('priorPricingIssues' in d){audited++;return {value:{coveredTaskIds:tasks.map(t=>t.id),issues:[],notes:[],resolvedIssues:[]},sourceUrls:[]};}
   if(d.tasks&&d.region){planned++;return {value:{rates:[{taskId:'overlay',description:'Protective overlay',unit:'LF',quantity:10,quantityEvidence:'ten feet',basis:'material-purchase',includes:'overlay material',excludes:'installation',low:3,high:6,confidence:'low',rationale:'Synthetic planning allowance.'}],issues:[],notes:[]},sourceUrls:[]};}
   return {value:{tasks:tasks.map(({id,description,evidence})=>({id,description,evidence})),issues:[]},sourceUrls:[]};};
- const result=await priceCompleteScope(scope,config,request,now);
- assert.equal(planned,1);assert.equal(audited,1);assert.ok(result.customer.range);
- assert.ok(result.customer.verificationItems.some((note:string)=>/budget allowance/i.test(note)));
+ await assert.rejects(()=>priceCompleteScope(scope,config,request,now),PricingPending);
+ assert.equal(planned,0);assert.equal(audited,0);
+});
+test('national averages alone cannot be presented as Boise researched pricing',()=>{
+ const national=structuredClone(researched);
+ national.rates[0].sources.forEach(source=>source.region='United States national average');
+ assert.throws(()=>marketResolution(national,urls,[extra],now,0,'Boise'),/do not establish Boise/);
+ const local=marketResolution(researched,urls,[extra],now,0,'Boise');
+ assert.equal(local.rules.length,1);
+ assert.equal(local.rules[0].unitCost,20);
 });
 test('Unsupported market and planning output units remain visibly unpriced',()=>{
   const market=structuredClone(researched);market.rates[0].unit='project';market.rates[0].sources.forEach(s=>s.unit='project');
@@ -899,12 +944,12 @@ test('an unmapped repair receives a disclosed fallback allowance instead of bein
    {coveredTaskIds:['cabinets','overlay','chimney'],issues:[]},
    {tasks:[task,priced0,missing],issues:[]},
    {rates:[],issues:[],notes:[]},
-   {rates:[{taskId:'chimney',description:'Typical masonry chimney cap repair',unit:'LS',quantity:1,quantityEvidence:'ALLOWANCE: One typical repair, verify condition',quantityRange:{low:1,high:1},basis:'subcontractor-installed',includes:'Incremental repair labor and common materials',excludes:'Company overhead and profit',low:100,high:200,confidence:'low',rationale:'Synthetic test allowance, not a real price'}],issues:[],notes:[]},
+   publishedFixture({rates:[{taskId:'chimney',description:'Typical masonry chimney cap repair',unit:'LS',quantity:1,quantityEvidence:'ALLOWANCE: One typical repair, verify condition',quantityRange:{low:1,high:1},basis:'subcontractor-installed',includes:'Incremental repair labor and common materials',excludes:'Company overhead and profit',low:100,high:200,confidence:'low',rationale:'Synthetic test allowance, not a real price'}],issues:[],notes:[]}),
    {coveredTaskIds:['cabinets','overlay','chimney'],issues:[]},
  ]),now);
  assert.ok(result.customer.range,JSON.stringify((result.internal as any).scopePricing.issues));
  assert.ok(!result.customer.exclusions.some((e:string)=>/cracked chimney cap/i.test(e)));
- assert.ok((result.internal as any).costBookSnapshot.rules.some((rule:any)=>rule.scopeTaskId==='chimney'&&rule.estimatingBasis==='regional-planning-average'));
+ assert.ok((result.internal as any).costBookSnapshot.rules.some((rule:any)=>rule.scopeTaskId==='chimney'&&rule.estimatingBasis==='sourced-market-average'));
 });
 test('The same document answered the same way prices to the same number, without asking the provider again',async()=>{
  const {pricingScopeFingerprint,reusableResolution}=await import('../lib/p5/pricingCache.ts');
@@ -1231,7 +1276,5 @@ test('a clean model audit cannot cover requested consumable material with labor 
   if(data.tasks&&data.region)return {value:{rates:[],issues:[]},sourceUrls:[]};
   return {value:{tasks:[labor,consumables].map(({id,description,evidence})=>({id,description,evidence})),issues:[]},sourceUrls:[]};
  };
- const result=await priceCompleteScope(restricted,config,request,now);
- assert.equal(result.customer.range,null);
- assert.match(result.internal.scopePricing.issues.join(' '),/no positive material line covers requested contractor-supplied/);
+ await assert.rejects(()=>priceCompleteScope(restricted,config,request,now),PricingPending);
 });

@@ -51,7 +51,7 @@ test('planning and sourced materials do not inherit owner supply from the basebo
  const urls=['https://fixture-a.invalid','https://fixture-b.invalid'];
  const evidence={url:urls[0],publishedAt:'2026-09-23',dateBasis:'published',region:'Idaho',excerpt:'Synthetic tax and pickup included.'};
  const marketRate=Object.fromEntries(Object.entries(rate).filter(([key])=>!['low','high','confidence','rationale'].includes(key)));
- const sourced={...marketRate,sources:urls.map(url=>({url,low:18,high:40,unit:'LS',costBasis:'material-purchase',sourceType:'regional-guide',dateBasis:'published',publishedAt:'2026-09-23',region:'Idaho',excerpt:'Synthetic material purchase price.'})),landedCost:{taxRate:0,freightPerUnit:0,taxOnFreight:false,taxEvidence:evidence,freightEvidence:evidence}};
+ const sourced={...marketRate,sources:urls.map(url=>({url,low:18,high:40,unit:'LS',costBasis:'material-purchase',sourceType:'regional-guide',dateBasis:'published',publishedAt:'2026-09-23',region:'Boise, Idaho',excerpt:'Synthetic material purchase price.'})),landedCost:{taxRate:0,freightPerUnit:0,taxOnFreight:false,taxEvidence:evidence,freightEvidence:evidence}};
  assert.equal(marketResolution({rates:[sourced],issues:[],notes:[]},urls,[task] as Parameters<typeof planningResolution>[1],now,0,'Boise',scope).rules.length,1);
  for(const description of ['Sink base cabinet','Supplies, stops, and trap, per fixture']){
   assert.equal(planningResolution({rates:[{...rate,description}],issues:[],notes:[]},[task] as Parameters<typeof planningResolution>[1],now,0,'Boise',scope).rules.length,0);

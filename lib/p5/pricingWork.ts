@@ -3,7 +3,7 @@ import {ESTIMATOR_VERSION} from './version.ts';
 import {SERVER_BUDGET_MS,remainingBudget,withinDeadline,ProcessingDeadlineError,isProcessingDeadline} from './processingBudget.ts';
 import {createHash} from 'node:crypto';
 import {recordEvent} from './events.ts';
-import {saveLearnedLines,readLearnedLines,learnedCostRules} from './learnedBook.ts';
+import {saveLearnedLines,readLearnedLines,learnedCostRules,saveSupportedServiceBook} from './learnedBook.ts';
 import {databasePricingCache,pricingCacheEnabled} from './pricingCache.ts';
 import {claimWork,writeWork,releaseWork,renewWork} from './workStore.ts';
 import {priceCompleteScope,requestPricing,type PricingReply,type PricingRequest,PRICING_STAGE_MAX_MS} from './scopePricing.ts';
@@ -32,6 +32,7 @@ export async function priceSavedScope(id:string,scope:ReviewedScope,configuratio
  // the other brands return a partial read for manual review instead.
  if(SOURCE_COVERAGE_REQUIRED)assertProjectSourceCoverage(scope.uploads,scope.extraction);
  remainingBudget(deadline);
+ await saveSupportedServiceBook(configuration,scope.answers.service||'');
  const workKey=pricingWorkKey(scope,configuration,pricingAt);
  const [regional,learned]=await Promise.all([readRegionalRates(scope.answers.location||'',pricingAt),readLearnedLines()]);
  const claimed=await claimWork(id,workKey,{replies:{},regionalRates:[...regional,...learnedCostRules(learned,scope.answers.service||'',{location:scope.answers.location||'',finish:scope.answers.finish},pricingAt)]},290);
@@ -42,7 +43,7 @@ export async function priceSavedScope(id:string,scope:ReviewedScope,configuratio
  if(payload.pricingAt)pricingAt=new Date(payload.pricingAt);
  else payload.pricingAt=pricingAt.toISOString();
  if(!payload.replies||Array.isArray(payload.replies))payload.replies={};
- configuration={...configuration,regionalRates:payload.regionalRates||[]};
+ configuration={...configuration,regionalRates:(payload.regionalRates||[]).filter(rule=>rule.estimatingBasis==='sourced-market-average')};
  let saving=Promise.resolve();
  const persist=()=>{saving=saving.then(async()=>{try{await writeWork(id,workKey,claimed.token,payload);}catch{throw new PricingPending('Pricing progress could not be saved yet. Please retry to continue.',0);}});return saving;};
  // A new shortlist changes the mapping request hash even when the scope is

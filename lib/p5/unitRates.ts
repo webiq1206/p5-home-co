@@ -2,6 +2,7 @@ import {createHash} from 'node:crypto';
 import type {CostRule} from './costBook.ts';
 
 export const rateLocation=(value:string)=>value.trim().toLowerCase().replace(/\s+/g,' ')||'boise / treasure valley, idaho';
+export const boiseArea=(value:string)=>/\b(?:boise|treasure valley|ada county|canyon county)\b/i.test(value)||/\b(?:idaho|id)\b/i.test(value)&&/\b(?:meridian|nampa|eagle|kuna|caldwell|star)\b/i.test(value);
 /** Units of measure the estimator prices in. Each has a dimension, so a unit is
  * never converted into one of another kind: square feet never becomes linear
  * feet, a roofing square (100 SF) is not a square foot, and an unfamiliar unit
@@ -44,7 +45,7 @@ export function reusableUnitRate(rule:CostRule,location:string,now=new Date()):C
  const basis=rule.estimatingBasis;
  if(!context||context.currency!=='USD'||!provenance||provenance.status!=='estimated'||rule.priceBasis!=='direct-cost')return null;
  if(!['sourced-market-average','regional-planning-average'].includes(basis||''))return null;
- if(basis==='sourced-market-average'&&provenance.sources.length<2)return null;
+ if(basis==='sourced-market-average'&&(provenance.sources.length<2||boiseArea(rateLocation(location))&&!provenance.sources.every(source=>boiseArea(source.region))))return null;
  const categories={'material-purchase':'materials','trade-labor':'field-labor','subcontractor-installed':'subcontractors'};
  if(categories[context.basis]!==rule.category||!context.includes.trim())return null;
  const unit=unitKey(rule.unit),expires=Date.parse(rule.evidence.validUntil),retrieved=Date.parse(provenance.retrievedAt);
