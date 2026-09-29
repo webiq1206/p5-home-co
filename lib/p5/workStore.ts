@@ -26,7 +26,7 @@ export async function releaseWork(draftId:string,workKey:string,token:string){
 export const SAVED_WORK_REPLY_QUERY = `
  SELECT reply FROM (
    SELECT w.updated_at, w.payload->'replies'->k.key AS reply
-   FROM p5_estimator_work w CROSS JOIN unnest($2::text[]) AS k(key)
+   FROM p5_estimator_work w CROSS JOIN jsonb_array_elements_text($2::jsonb) AS k(key)
    WHERE w.draft_id=$1 AND w.payload->'replies' ? k.key
  ) saved
  WHERE COALESCE(reply->>'timeouts','0')='0'
@@ -37,6 +37,6 @@ export const SAVED_WORK_REPLY_QUERY = `
      OR length(btrim(COALESCE(reply->>'sourceReport','')))>0)
  ORDER BY updated_at DESC LIMIT 1`;
 export async function readSavedWorkReply(draftId:string,keys:string[]):Promise<unknown>{
- const rows=await query(SAVED_WORK_REPLY_QUERY,[draftId,keys]);
+ const rows=await query(SAVED_WORK_REPLY_QUERY,[draftId,JSON.stringify(keys)]);
  return rows[0]?.reply;
 }

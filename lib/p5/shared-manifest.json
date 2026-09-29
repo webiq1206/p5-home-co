@@ -1,7 +1,7 @@
 {
  "source": "boise-remodeling-co",
- "commit": "dec90640cd24993d87430d9230f0f195bdbf1bde",
- "generatedAt": "2026-09-29T19:22:02.372Z",
+ "commit": "b718a4c7de4e49a8ce29537dadaacfb8ebc9df23",
+ "generatedAt": "2026-09-29T19:40:02.064Z",
  "note": "Shared estimator files. Edit them in boise-remodeling-co and run scripts/p5-sync.mjs; never edit them in one brand.",
  "files": {
   "app/admin/p5-estimators/page.tsx": "a2401f2a29c22dd1a5631fa2c065114275b4e7c1d99ba6c97a8ff0f26cb6a3ad",
@@ -155,9 +155,9 @@
   "lib/p5/trades.ts": "d7043c0eaeb86866b435247fc340a2c9474b9688d95640bfcaea709ceaa0fc86",
   "lib/p5/unitRates.ts": "daf472d443c6a8186c9fe9a022afd8fcba13ff3e684909350961b0384b2ca506",
   "lib/p5/uploadTransfer.ts": "4699b9644174a9aad530c5179f3932baef23aafccb9491ec937d7dac737fd4e5",
-  "lib/p5/version.ts": "379beaef299c444d7fcadad7bb7a6456756a8c36110a438465be127e120e9e51",
+  "lib/p5/version.ts": "d2eb37413f0990c0f6366c7918ffdce01fe4cb35f5702468c721d5102ac7f3b3",
   "lib/p5/wizardResume.ts": "e1e70d2a8fa0362661afe7fb9bd94b9dd2d78fd99d4e8e9df54955104ceb320a",
-  "lib/p5/workStore.ts": "4d5fa1f1be047f0bcb2b6926aab5c272ac82072cb7c0484d8ebd76a1ad650b71",
+  "lib/p5/workStore.ts": "0692a8f5872c5c02e9bdb2bb2ef9c866d687e075945cd0f683485e28227b1a8f",
   "scripts/check-p5-document-fixtures.mts": "d11796244aaff3911c3b0b186991fe48de61a65cad3f9b96e7e30487021ec97c",
   "scripts/check-p5-document-read.mts": "a84d056e2f8d35d187d77558885811f04e7a62f55e09acf1832e00c50627246f",
   "scripts/check-p5-latency.mts": "866f4465a193f0822fe53af7bd7e5538988ceddb98793b89ba5d4e3401494fb8",
@@ -316,6 +316,6 @@
   "tests/p5-upload-transfer.test.ts": "57046bd3c25bb27b905dcca03ac6f41484812501fa4ad719fc2baf99d54e1c1c",
   "tests/p5-with-timeout.test.ts": "19144aa63a2d3e7991a67ec19e2f1ae867b40d55a499a3b7ad98e45ce8c3284e",
   "tests/p5-wizard-resume.test.ts": "423176433a701f191c5e88c99924a28748c001da3b4a746b892843cf52319085",
-  "tests/p5-work-recovery.test.ts": "75d06724f4e868761801a58ccc3be7e891f828303190c6bb0399a2c8eef522af"
+  "tests/p5-work-recovery.test.ts": "ef035f0257de7b9ddb4f8736044a72276a90d5599866587542f229db30debfdb"
  }
 }
