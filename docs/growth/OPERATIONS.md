@@ -24,9 +24,9 @@ P5 Facebook page: 1228704823655951. First campaign post is live: https://www.fac
 Campaign: utm_source=facebook, utm_medium=organic_social, utm_campaign=p5_free_growth_2026q4, with a unique utm_content for each topic. Link to a relevant working service page or project request. Never imply a preliminary estimate is a binding quote or promise an unverified turnaround.
 
 September 29 sitemap actions:
-- Registered https://p5homeco.com/sitemap.xml in Google Search Console. Verified processed with six submitted URLs, no errors or warnings.
+- Registered https://p5homeco.com/sitemap.xml in Google Search Console. Originally processed with six submitted URLs. After the public estimator went live, the changed sitemap was submitted again and verified with seven submitted URLs, no errors or warnings.
 - Refreshed https://boisecabinet.co/sitemap.xml in Google. Verified 136 submitted URLs, no errors or warnings.
-- Registered P5 and Construction sitemaps in Bing. Construction processed 161 URLs successfully. P5 subsequently processed six URLs successfully.
+- Registered P5 and Construction sitemaps in Bing. Construction processed 161 URLs successfully. P5 originally processed six URLs successfully; the changed seven-URL sitemap was submitted and processed successfully later the same day.
 - Other existing healthy sitemap registrations were preserved. Do not resubmit unchanged sitemaps routinely.
 
 ## Recurring execution
@@ -62,7 +62,7 @@ Record action date, exact destination, confirmation, status, measured result and
 
 The owner confirms the five primary sites are live and Boise ADU is the only prelaunch site. Do not report ADU as a production outage or launch it without a separate readiness decision.
 
-The public P5 /estimate route inherited the preview title and noindex,nofollow metadata. Source now gives the public route its own descriptive title, canonical URL and index,follow setting and includes it in the shared sitemap inventory. Preview and service quote variants retain their existing exclusions. Verify deployment before submitting the updated sitemap.
+The public P5 /estimate route inherited the preview title and noindex,nofollow metadata. Source now gives the public route its own descriptive title, canonical URL and index,follow setting and includes it in the shared sitemap inventory. Preview and service quote variants retain their existing exclusions. The live page now has the corrected title, own canonical and index,follow setting. The seven-URL sitemap is live and has been processed successfully by both Google and Bing. Google's URL Inspection still reports /estimate as unknown; processing is not indexing.
 
 The existing P5 Nextdoor page is https://nextdoor.com/pages/boise-remodeling-co-meridian-id/. Its public name, phone, email and tracked parent-site link were verified. Do not create a duplicate page based on the old URL slug.
 
@@ -75,3 +75,15 @@ The existing verified P5 profile was updated without creating new division listi
 A project-preparation update is published on Google, post ID 2574885514041937288. Its Learn more button routes to the P5 quote form with utm_source=google, utm_medium=organic, campaign p5_free_growth_2026q4 and content gbp_project_preparation. Do not duplicate it. The existing ADU division product's website link was changed from the parent homepage to the live /quote/adu intake with content gbp_adu_inquiry. Verify current approval status before further changes.
 
 The parent business description already has a correct P5 replacement pending Google's review. Preserve that pending correction; the public description still referred to Boise Remodeling Co when inspected. Do not manufacture reviews or project photos to complete profile prompts.
+
+## September 29 local search follow-up
+
+Live HTML on all five active domains now contains the analytics hostname, automation and QA guard. Historical analytics contamination remains in past reports. The earlier implementation is deployed; this does not establish the quality of future leads.
+
+Eight source updates were committed to current main across Construction, Remodeling and Cabinet. The shared city-area templates now direct homeowners to confirm the actual property's permitting authority instead of universally sending them to the county. Eagle pages link to the official city building department. Service/city wording and Cabinet's builder terms now avoid unsupported county-specific permit claims. Remodeling city-area descriptions now explain relevant services and the estimate/consultation next steps without repeating the city and phone number.
+
+The official Eagle reference is https://www.cityofeagle.org/153/Building. Keep regulatory guidance general and property-specific; verify official sources before adding detailed requirements.
+
+Changes are in Construction 7467ccf, de83316 and 918efe3; Remodeling bce81d7, 3458266, fa5fbf3 and 751c56a; Cabinet 2f903f8. All eight changed TypeScript/TSX files passed syntax transpilation. Production spot checks still showed the prior local-page copy, so these eight changes are committed, not yet confirmed deployed. Verify current-source synchronization before any deployment; do not publish a stale workspace. Allow complete reporting periods after deployment before evaluating the description changes.
+
+Pinterest expansion is paused. Automatic approval review rejected creation of a P5-branded public board on the connected WebIQ @webiqco account because this specific destination's authorization for P5 was ambiguous. No board or pin was created. Do not retry through another tool or change existing client boards. Resume only if Jared explicitly confirms using that account for P5 or supplies an authorized P5 account.
