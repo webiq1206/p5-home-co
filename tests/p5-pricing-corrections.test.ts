@@ -158,3 +158,20 @@ test('nested assembly consolidation preserves every dependent task reference',()
   assert.ok(task.existingLineIds.every(id=>live.has(id)),task.id+' cannot reference a removed component');
  }
 });
+
+
+test('explicitly requested cabinet-install cleanup cannot bypass the supporting-work scale guard',()=>{
+ const tasks=[{id:'base',description:'Install owner-supplied base cabinets',origin:'requested'},{id:'clean',description:'Perform job cleanup after cabinet installation.',origin:'requested'}];
+ const scope=scopeFor('Install 9 LF owner-supplied base cabinets. Contractor supplies job cleanup.',{service:'cabinet-install'});
+ const input=inputFor(scope,tasks,[rule('base',tasks[0].description,'12-39-06',9),rule('clean',tasks[1].description,'01-74-04',1)]);
+ const core=direct(input.resolution.rules[0]);
+ applyPricingCorrections(input);
+ assert.ok(direct(input.resolution.rules[1])<=core*0.15+0.01);
+ assert.ok(input.resolution.assumptions.some(a=>/allowance of about 15%/.test(a)));
+ const standalone=inputFor(scopeFor('Rough construction clean of the whole home.',{service:'handyman'}),[{id:'clean',description:'Rough construction clean of the whole home.',origin:'requested'}],[rule('clean','Rough construction clean of the whole home.','01-74-04',1)]);
+ const before=JSON.stringify(standalone.resolution.rules);
+ applyPricingCorrections(standalone);
+ assert.equal(JSON.stringify(standalone.resolution.rules),before);
+ const unpriced=inputFor(scope,tasks,[rule('base',tasks[0].description,'12-39-06',9)]);
+ assert.ok(!applyPricingCorrections(unpriced).coveredTaskIds.includes('clean'),'explicitly requested unpriced cleanup is not silently absorbed');
+});

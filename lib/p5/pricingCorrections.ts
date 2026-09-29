@@ -209,7 +209,11 @@ export function applyPricingCorrections(input:CorrectionInput):CorrectionResult{
   //    than a reason to withhold the estimate (live Handyman trim-only job, 2026-09-25: held for an
   //    unpriced protection task and a full-truckload junk line for MDF cutoffs).
   const debrisWords=/\b(?:debris|junk|dumpster|waste|cutoffs?|packaging|haul\w*|dispos\w*)\b/i;
-  const supportingTasks=inventoryTasks.filter(t=>(t.origin||'requested')==='required'&&(PROTECT_OR_CLEAN.test(t.description)||debrisWords.test(t.description))
+  // Explicitly requested installation cleanup is still supporting work. The
+  // customer's wording must not bypass the same scale guard as inferred cleanup.
+  // Standalone cleaning remains outside this correction.
+  const requestedInstallCleanup=(t:CorrectionTask)=>PROTECT_OR_CLEAN.test(t.description)&&/\b(?:after|following|post)[ -]?(?:the\s+)?(?:cabinet\s+|flooring\s+|trim\s+)?install(?:ation)?\b|\b(?:job|installation)[ -]?(?:site[ -]?)?clean(?:up|ing|-up)\b/i.test(t.description);
+  const supportingTasks=inventoryTasks.filter(t=>((t.origin||'requested')==='required'||requestedInstallCleanup(t))&&(PROTECT_OR_CLEAN.test(t.description)||debrisWords.test(t.description))
     // "Remove the showers" is the removal itself; "remove cutoffs and packaging debris" is debris handling.
     &&!(/\b(?:demoli\w*|remov\w*|tear)\b/i.test(t.description)&&!/\b(?:debris|cutoffs?|packaging|waste|junk)\b/i.test(t.description)));
   if(supportingTasks.length){
@@ -223,7 +227,7 @@ export function applyPricingCorrections(input:CorrectionInput):CorrectionResult{
     for(const task of supportingTasks){
       const mapped=mappingTasks.find(m=>m.id===task.id);
       const priced=resolution.rules.some(rule=>rule.scopeTaskId===task.id&&direct(rule)>0)||Boolean(mapped?.existingLineIds.some(id=>lines.some(line=>line.id===id&&!removed.has(line.id)&&line.unitCost*line.quantity>0)));
-      if(priced||!anchor||covered.has(task.id))continue;
+      if(priced||!anchor||covered.has(task.id)||(task.origin||'requested')!=='required')continue;
       cover(task.id,anchor.id);absorbed.push(task.description.replace(/[.\s]+$/,''));
     }
     if(absorbed.length)notes.push(`To confirm: ${absorbed.join('; ')}: included within the installation labor for a job this size rather than priced as a separate line.`);
