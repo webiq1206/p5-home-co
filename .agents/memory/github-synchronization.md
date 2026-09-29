@@ -14,3 +14,9 @@ When the shell remote has no credential helper but an authorized GitHub connecto
 **Why:** Treating that normalized SHA as corruption can block an otherwise exact tree reconciliation, while assuming equality without checking can discard history.
 
 **How to apply:** Require the expected remote parent, exact tree, ordered parents, author metadata, and `force:false`; then fetch and align local history only after Git confirms the remote tree is byte-identical.
+
+When sending large local Git files through the connector, a CodeExecution shell response may return a shortened string even with a generous output limit and without flagging truncation. Load complete temporary files with the file callback instead, and compare the GitHub-created tree SHA to the expected local tree SHA before creating commits or moving a branch.
+
+**Why:** A shortened source file can be accepted by the Git tree API as a valid but incorrect blob; a successful API response alone does not establish exact source parity.
+
+**How to apply:** Materialize Git blobs outside the workspace, load their full bytes, create the candidate tree, and refuse the reference update unless the returned tree SHA matches local Git.
