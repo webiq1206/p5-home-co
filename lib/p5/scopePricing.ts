@@ -508,12 +508,15 @@ export function researchTaskBatches(tasks:Mapping['tasks'],scope:ReviewedScope):
  const application=cabinet?' Cabinet installation: use products explicitly sold for cabinet mounting or leveling; do not substitute drywall screws. Preserve manufacturer-stated application and package counts. Shims are counted pieces or specified packs unless the source explicitly prices shims by weight.':'';
  const measurements=cabinet?['cabinetBaseLf','cabinetUpperLf','cabinetTallLf'].map(key=>{const value=Number(scope.answers[key as keyof typeof scope.answers]);return Number.isFinite(value)&&value>0?key+'='+value+' LF':'';}).filter(Boolean).join('; '):'';
  for(const task of tasks){
-  if(!contractorConsumableIncluded(scope,task.description)){ordinary.push(task);continue;}
-  const named=task.description+' '+task.researchDescription;
+  // A missing component can belong to an installation task whose title does
+  // not name supplies. Route that component, not just its parent title.
+  const component=task.researchDescription||task.description;
+  if(!contractorConsumableIncluded(scope,task.description)&&!contractorConsumableIncluded(scope,component)){ordinary.push(task);continue;}
+  const named=component.split(/[.;]\s+/)[0];
   let products=['screws','nails','fasteners','shims','caulk','adhesives','sealants'].filter(word=>new RegExp('\\b'+word.replace(/s$/,'')+'s?\\b','i').test(named)&&contractorConsumableIncluded(scope,'Supply '+word));
   if(products.includes('screws')||products.includes('nails'))products=products.filter(word=>word!=='fasteners');
   if(!products.length){ordinary.push(task);continue;}
-  for(const product of products)batches.push([{...task,description:'Supply contractor installation '+product,researchDescription:'Research ONLY contractor-supplied '+product+' for this installation.'+application+(measurements?' Installation quantities: '+measurements+'.':'')+' One product type per rate. Other consumables are researched separately; exclude their costs and all installation labor. Preserve the stated specification. Use two comparable sourced prices with evidenced Boise-area applicability and the same unit. If consumption is not measured, model a positive purchase quantity from the stated installation scope, disclose assumptions with ALLOWANCE: quantityEvidence and positive quantityRange. Do not return quantity zero or mix units.',evidence:'Original requested supplies: '+task.description+'\n'+task.evidence}]);
+  for(const product of products)batches.push([{...task,description:'Supply contractor installation '+product,researchDescription:'Research ONLY contractor-supplied '+product+' for this installation.'+application+(measurements?' Installation quantities: '+measurements+'.':'')+' One product type per rate. Other consumables are researched separately; exclude their costs and all installation labor. Preserve the stated specification. Use two comparable sourced prices with evidenced Boise-area applicability and the same unit. For countable screws or shims, prefer EA: retain each published package price and exact piece count, show price divided by count for each observation, then model the number of pieces needed. A cabinet run length is context for the consumption allowance, never the unit of a supplier product price. Use only EA, pack, box or LB as appropriate; package contents belong in includes, not the unit name. If consumption is not measured, model a positive purchase quantity from the stated installation scope, disclose assumptions with ALLOWANCE: quantityEvidence and positive quantityRange. Do not return quantity zero or mix units.',evidence:'Original requested supplies: '+task.description+'\n'+task.evidence}]);
  }
  return [...batchesOf(ordinary,3),...batches];
 }
