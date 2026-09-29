@@ -1,3 +1,4 @@
+import {withSupportedServiceBook} from './planningBooks.ts';
 import {MODEL_POLICY_VERSION} from './modelPolicy.ts';
 import {ESTIMATOR_VERSION} from './version.ts';
 import {SERVER_BUDGET_MS,remainingBudget,withinDeadline,ProcessingDeadlineError,isProcessingDeadline} from './processingBudget.ts';
@@ -18,6 +19,9 @@ import {assertProjectSourceCoverage,SOURCE_COVERAGE_REQUIRED} from './documentSe
 import {shortlistBook,type ShortlistTask,type ShortlistRate} from './bookShortlist.ts';
 
 export function pricingWorkKey(scope:ReviewedScope,configuration:EstimatorConfiguration,pricingAt:Date,estimatorVersion=ESTIMATOR_VERSION){
+ // Persisting a recovered service must not change this job's identity and
+ // repeat provider work when the next status request reads the saved policy.
+ configuration=withSupportedServiceBook(configuration,scope.answers.service||'');
  const signature={estimatorVersion,modelPolicy:MODEL_POLICY_VERSION,pricingDate:pricingAt.toISOString().slice(0,10),text:scope.text,answers:scope.answers,extraction:scope.extraction,uploads:scope.uploads,uncertainFields:scope.uncertainFields,configuration};
  return 'pricing-v11-'+createHash('sha256').update(JSON.stringify(signature)).digest('hex');
 }

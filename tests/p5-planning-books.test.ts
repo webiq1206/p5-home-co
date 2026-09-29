@@ -44,7 +44,7 @@ test('Older approved remodel policies gain an empty component-only book without 
  assert.ok(!JSON.stringify(result.internal).includes('cost-book-missing'));
  assert.equal(result.customer.range,null,'the empty service shell cannot invent a price');
 });
-test('a missing supported service uses the existing schedule without changing approved policy',()=>{
+test('a missing supported service uses the existing schedule without changing approved policy',async()=>{
  const saved=createPlanningConfiguration(catalog,['kitchen']);
  const before=JSON.stringify(saved);
  const active=withSupportedServiceBook(saved,'handyman');
@@ -52,6 +52,9 @@ test('a missing supported service uses the existing schedule without changing ap
  assert.equal(active.finance,saved.finance);
  assert.equal(active.planningCatalog,saved.planningCatalog);
  assert.equal(active.costBooks.at(-1)?.service,'handyman');
+ const {pricingWorkKey}=await import('../lib/p5/pricingWork.ts');
+ const requested=scope({service:'handyman',taskList:'Replace two toilets',location:'Boise'});
+ assert.equal(pricingWorkKey(requested,saved,now),pricingWorkKey(requested,active,now),'saving the recovered service cannot restart paid research');
  assert.equal(withSupportedServiceBook(active,'handyman'),active);
  assert.equal(withSupportedServiceBook(saved,'invented-service'),saved);
  const priced=priceReviewedScope(scope({service:'handyman',taskList:'Replace two toilets',ownerSupplied:'Toilets supplied by owner',location:'Boise'}),saved,now);

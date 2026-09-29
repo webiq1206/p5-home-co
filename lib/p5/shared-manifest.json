@@ -1,7 +1,7 @@
 {
  "source": "boise-remodeling-co",
- "commit": "ab1e6d0d4ce226a1a887bdb2dd9f11a0a27a5520",
- "generatedAt": "2026-09-29T03:19:10.047Z",
+ "commit": "78f6ab36d4d8dd4fdf7021a9220c3c8d9885a8e4",
+ "generatedAt": "2026-09-29T03:24:34.058Z",
  "note": "Shared estimator files. Edit them in boise-remodeling-co and run scripts/p5-sync.mjs; never edit them in one brand.",
  "files": {
   "app/admin/p5-estimators/page.tsx": "a2401f2a29c22dd1a5631fa2c065114275b4e7c1d99ba6c97a8ff0f26cb6a3ad",
@@ -118,7 +118,7 @@
   "lib/p5/pricingProgress.ts": "bc41e712fc4646b0fac46fe4c8fa815dd6490778f70ab1212fda568edf445156",
   "lib/p5/pricingSources.ts": "a951d9d6faa3405f7c6bb4175242852d3d603f3ed89b5d330dbcc08ccc362b6b",
   "lib/p5/pricingSpend.ts": "a22283b37b119e84ebecd2dd27c36d1430b37fa446957e827f44dacc6672c9d9",
-  "lib/p5/pricingWork.ts": "dce78e67ba363e772638751010e8d2f889f03658030c2169355272401affe4ac",
+  "lib/p5/pricingWork.ts": "2cbc15ea801cec9d613abf21f4ddfd11e4a6bf86da6d6eeaada91fc6dcdbe282",
   "lib/p5/processingBudget.ts": "81a4757e195a8a633722576e301d8d4ca8bf7b023fab4d4ec864650ded8fe0b4",
   "lib/p5/processingStatus.ts": "93236d76c9044d2fb8109e0ebd86d9f71ff6fb8850e7a950c496fdb0339155af",
   "lib/p5/projectSource.ts": "77edf216923253458a562e08b4822bf6ede89952d001e968cd3bac2ab07b8cce",
@@ -279,7 +279,7 @@
   "tests/p5-outbox.test.ts": "d4833856fd69136241326690156d0b8f3495c144ed0227d1160f302279048cbd",
   "tests/p5-page-limit.test.ts": "7482b83b220c6706f1fdbb2775a5b66cd54ad2c20a2d29df8ee397c5804eaffc",
   "tests/p5-pdf-access.test.ts": "2008c53369a31c62e35c87f3c26c6e70d876d1dc9af43bc8cf3ecaba65f0d410",
-  "tests/p5-planning-books.test.ts": "b19999133a60e6f1315821d32403b6cffb09e1bbe3dfd74dda8b4284698db1bc",
+  "tests/p5-planning-books.test.ts": "53634769c42c6192b7cb139381d1ae82fb215ad0bb82b799ad5ada13ed5ddf5a",
   "tests/p5-presentation.test.ts": "cdc89aa2984bdb9efbac7cb0a588df6437bf19ea60a7871e755f6a90e35e4006",
   "tests/p5-price-book-import.test.ts": "85de00525e2955c7417aa5f6af1063cdbfb68ee11ae37cee5ca1ac5235e9f0c4",
   "tests/p5-pricing-corrections.test.ts": "793f5b2140724f45bec7c82a59a1de42b77923b9e154d2da1718c6f5a0f3c2c9",
