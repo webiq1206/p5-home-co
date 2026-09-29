@@ -34,6 +34,12 @@ export function learnedCostRules(lines:readonly LearnedLine[],service:string,con
     return rate?[{...rate,id:line.code}]:[];
   });
 }
+// Retained evidence is useful even when it is too old or too weak to reuse as
+// a rate. It is a research starting point, never an approved price.
+export function learnedResearchLeads(lines:readonly LearnedLine[],service:string,context:LearningContext):CostRule[]{
+ return lines.filter(line=>line.version===2&&line.service===service&&line.finish===finishTier(context.finish)&&line.location===rateLocation(context.location)&&line.rule?.evidence?.provenance?.sources?.length)
+  .map(line=>({...structuredClone(line.rule!),id:line.code}));
+}
 const name=(description:string)=>{const cut=description.indexOf(' (');return (cut>0?description.slice(0,cut):description).replace(/^[^:]{0,120}:\s*/,'').trim();};
 const dimension=(unit:string)=>UNIT_REGISTRY[unitKey(unit)]?.dimension;
 function overlap(a:Set<string|number>,b:Set<string|number>){if(!a.size||!b.size)return 0;let n=0;for(const x of a)if(b.has(x))n++;return n/Math.min(a.size,b.size);}

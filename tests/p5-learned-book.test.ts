@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {learnableLines,resemblesExisting,learnedRates,learnedCostRules} from '../lib/p5/learnedBook.ts';
+import {learnableLines,resemblesExisting,learnedRates,learnedCostRules,learnedResearchLeads} from '../lib/p5/learnedBook.ts';
 
 const rule=(id:string,description:string,unit:string,unitCost:number,category='subcontractors')=>({id,description,unit,unitCost,category,quantity:{fixed:1,factor:1}} as any);
 
@@ -44,4 +44,17 @@ test('unverified learned lines never masquerade as owner-approved catalog rates'
   const [line]=learnableLines([rule('market-1','Replace clothesline posts','EA',850)],'handyman','draft-5',[]);
   assert.equal(line.description,'Replace clothesline posts');assert.equal(line.status,'review-required');
   assert.deepEqual(learnedRates([line]),[]);
+});
+
+test('permanent single-source evidence is reusable as a research lead without becoming an approved rate',()=>{
+ const at=new Date('2026-09-29T00:00:00Z');
+ const priced={...rule('market-1','Cabinet mounting screws','EA',0.1698,'materials'),evidence:{basis:'regional-planning-average',verifiedAt:at.toISOString(),validUntil:at.toISOString(),provenance:{status:'estimated',location:'Boise',sources:[{url:'https://example.test/screws',low:0.1698,high:0.1698}]}}};
+ const saved=learnableLines([priced],'cabinet-install','qa',[],at,{location:'Boise',finish:'mid-range'});
+ assert.equal(saved[0].status,'review-required');
+ assert.deepEqual(learnedCostRules(saved,'cabinet-install',{location:'Boise',finish:'mid-range'},new Date('2026-10-01')),[]);
+ const leads=learnedResearchLeads(saved,'cabinet-install',{location:'Boise',finish:'mid-range'});
+ assert.equal(leads.length,1);assert.equal(leads[0].unitCost,0.1698);
+ assert.deepEqual(learnedResearchLeads(saved,'handyman',{location:'Boise',finish:'mid-range'}),[]);
+ assert.deepEqual(learnedResearchLeads(saved,'cabinet-install',{location:'Nampa',finish:'mid-range'}),[]);
+ assert.equal(saved[0].rule?.id,'market-1','lead projection does not mutate the permanent record');
 });

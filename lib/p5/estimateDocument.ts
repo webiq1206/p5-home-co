@@ -73,7 +73,7 @@ export interface EstimateDocument {
   nextSteps:[string,string][];legalLine:string;review:{label:string;email:string;phone:string;mailto:string;tel:string;url:string};notice:typeof PRELIMINARY_NOTICE;
 }
 const money=(n:number)=>new Intl.NumberFormat('en-US',{style:'currency',currency:'USD',maximumFractionDigits:0}).format(Math.round(n));
-const clean=(value:unknown,max=400)=>String(value??'').replace(/[\u0000-\u001f\u007f]+/g,' ').replace(/\s+/g,' ').trim().slice(0,max);
+const clean=(value:unknown,max=Infinity)=>String(value??'').replace(/[\u0000-\u001f\u007f]+/g,' ').replace(/\s+/g,' ').trim().slice(0,max);
 const dateLabel=(iso:string)=>{const d=new Date(iso);return Number.isFinite(d.getTime())?d.toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric',timeZone:'America/Boise'}):'';};
 /** The short reference printed on every channel: the first block of the draft id, stable forever. */
 export const estimateReference=(id:string)=>`P5-${id.replace(/[^0-9a-f]/gi,'').slice(0,8).toUpperCase()}`;
@@ -103,7 +103,7 @@ const lineQty=(x:any)=>{const q=Number(x.quantity);const unit=String(x.unit||'')
 const lineText=(x:any)=>{
   const q=Number(x.quantity);const unit=String(x.unit||'').trim();
   const qty=Number.isFinite(q)&&q>0&&!(q===1&&/^(ls|lump|package|job|ea)$/i.test(unit))?`, ${q.toLocaleString('en-US')} ${unit}`:'';
-  return `${clean(x.description,300)}${qty}`;
+  return `${clean(x.description,Infinity)}${qty}`;
 };
 
 /** Marks a task the estimator added because the requested work needs it (owner rule 2026-09-22). */
@@ -153,13 +153,13 @@ export function buildEstimateDocument(input:{id:string;result:unknown;brand:Esti
     // A priced line's description repeats its task ("Task: book item."). The task is listed once as the
     // work; the line contributes only its item and quantity, so nothing reads twice.
     // Work the estimator added to complete the job is marked, so requested and inferred scope read apart.
-    const taskTexts=tasks.filter(t=>t.category===name).map(t=>clean(t.description,300)).filter(Boolean);
-    const added=tasks.filter(t=>t.origin==='required').map(t=>clean(t.description,300)).filter(Boolean);
-    const allTasks=tasks.map(t=>clean(t.description,300)).filter(Boolean);
+    const taskTexts=tasks.filter(t=>t.category===name).map(t=>clean(t.description,Infinity)).filter(Boolean);
+    const added=tasks.filter(t=>t.origin==='required').map(t=>clean(t.description,Infinity)).filter(Boolean);
+    const allTasks=tasks.map(t=>clean(t.description,Infinity)).filter(Boolean);
     // A priced line reads "Residence / Floor Main level / Task: book item". The location prefix is split
     // off (shown as a small tag) so the line matches its task; before, each task printed twice (owner
     // report 2026-09-22: the text "just kind of mixes together").
-    const item=(l:any)=>{const {where,rest:d}=splitWhere(clean(l.description,300));const task=allTasks.find(t=>d.startsWith(`${t}:`)||d===t);const detail=task?d.slice(task.length+1).trim():d;return {task,where,detail:detail.replace(/\s*\((?:labor|material|installed|fee)[^)]*\)\s*$/i,'').replace(/\.$/,''),qty:lineQty(l),text:lineText({...l,description:task?detail||d:d})};};
+    const item=(l:any)=>{const {where,rest:d}=splitWhere(clean(l.description,Infinity));const task=allTasks.find(t=>d.startsWith(`${t}:`)||d===t);const detail=task?d.slice(task.length+1).trim():d;return {task,where,detail:detail.replace(/\s*\((?:labor|material|installed|fee)[^)]*\)\s*$/i,'').replace(/\.$/,''),qty:lineQty(l),text:lineText({...l,description:task?detail||d:d})};};
     const allowanceLines=own.filter(l=>l.pricingStatus==='estimated-allowance');
     const priced=own.filter(l=>l.pricingStatus!=='estimated-allowance').map(item);
     const items:EstimateWorkItem[]=[];
@@ -205,10 +205,10 @@ export function buildEstimateDocument(input:{id:string;result:unknown;brand:Esti
   const sources=(issue.sources||[]).map(s=>clean(s,120)).filter(Boolean);
   const assumptionRows:[string,string[]][]=([
     ['Pricing basis',[`Your online submission${sources.length?` and ${sources.length===1?'the document':'the documents'} you uploaded: ${sources.join('; ')}`:''}.`]],
-    ['Assumptions',[...new Set(assumptions)].slice(0,12)],
-    ['Changes in this version',((result.revisionSummary||[]) as string[]).map(v=>clean(v,Infinity)).filter(Boolean).slice(0,8)],
-    ['Included to complete the work',tasks.filter(t=>t.origin==='required'&&clean(t.basis)).map(t=>`${clean(t.description,Infinity)}: ${clean(t.basis,Infinity)}`).slice(0,12)],
-    ['To confirm',[...new Set(toConfirm)].slice(0,16)],
+    ['Assumptions',[...new Set(assumptions)]],
+    ['Changes in this version',((result.revisionSummary||[]) as string[]).map(v=>clean(v,Infinity)).filter(Boolean)],
+    ['Included to complete the work',tasks.filter(t=>t.origin==='required'&&clean(t.basis)).map(t=>`${clean(t.description,Infinity)}: ${clean(t.basis,Infinity)}`)],
+    ['To confirm',[...new Set(toConfirm)]],
     ['Timing',[issue.timing?`Requested: ${clean(issue.timing,160)}. Availability is confirmed with your final proposal.`:'Start and completion dates are confirmed with your final proposal.']],
   ] as [string,string[]][]).filter(([,v])=>v.length);
 

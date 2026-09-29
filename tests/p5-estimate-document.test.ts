@@ -136,3 +136,13 @@ test('long customer assumptions and verification notes retain their complete mea
  const output=(await pdfTextLayers(await customerPdf(ID,result))).join('\n');
  assert.match(output,/Finish painting is excluded\./);
 });
+
+test('all scope descriptions and customer notes survive PDF document preparation',()=>{
+ const longDescription='Cabinet mounting supplies '+('specific installation requirement '.repeat(16))+'END OF SCOPE';
+ const assumptions=Array.from({length:25},(_,i)=>'Assumption '+(i+1)+': standard access required.');
+ const verificationItems=Array.from({length:22},(_,i)=>'Confirm item '+(i+1)+' before ordering.');
+ const doc=buildEstimateDocument({id:ID,brand:site,result:{range:{low:100,high:200},lineItems:[line('s','Cabinets',longDescription,42,'EA',100,200,{pricingStatus:'estimated-allowance'})],assumptions,verificationItems}});
+ assert.match(doc.categories[0].allowances.join(' '),/END OF SCOPE/);
+ assert.equal(doc.assumptionRows.find(([title])=>title==='Assumptions')?.[1].length,25);
+ assert.equal(doc.assumptionRows.find(([title])=>title==='To confirm')?.[1].length,22);
+});

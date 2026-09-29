@@ -61,3 +61,25 @@ test('inch dimensions convert to square feet before pricing',()=>{
   assert.deepEqual(parseNumericAnswer('sqft','12 by 12 inches = 144 SF'),{choices:['1','144'],note:'12 by 12 inches = 144 SF'});
   assert.equal(parseNumericAnswer('sqft','12 by 12 cm'),null);
 });
+
+test('installed area is distinct from explicitly labelled material purchase quantity',()=>{
+  for(const text of [
+    '300 square feet installed. The plan specifies 330 square feet purchased, including 10% material waste.',
+    'Order 330 SF and install area is 300 SF.',
+    '300 SF net floor area; 330 SF ordered including waste.',
+    '330 SF purchased, 300 SF installed',
+  ])assert.deepEqual(parseNumericAnswer('flooringSqft',text),{value:'300',note:text});
+  assert.equal(value('tileSqft','40 SF installed and 44 SF purchased'),'40');
+});
+
+test('distinct unlabelled areas and conflicting installation quantities remain unresolved',()=>{
+  for(const text of [
+    '300 SF or 330 SF installed',
+    '300 SF installed; 330 SF installed',
+    '300 SF installed, 330 SF elsewhere',
+    '300 SF installed and purchased; 330 SF purchased',
+  ]){
+    const result=parseNumericAnswer('flooringSqft',text);
+    assert.ok(result&&'choices' in result,text);
+  }
+});

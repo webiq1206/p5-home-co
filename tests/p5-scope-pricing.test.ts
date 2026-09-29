@@ -705,7 +705,7 @@ test('Trim-only and labor-only instructions replace whole-project defaults and r
  // The material charge is removed per the labor-only instruction rather than flagged; with nothing priceable left, the estimator asks for quantities instead of inventing a range.
  assert.equal(refused.customer.range,null);assert.ok((refused.internal as any).pricingWarnings.includes('quantities-missing'));assert.ok(refused.customer.assumptions.some((a:string)=>/labor-only instruction, 1 component was left out/.test(a)),'the removal is disclosed');
 });
-test('Separate building prices require every component to be assigned to a building',async()=>{
+test('Missing building labels preserve priced costs in a disclosed allocation group',async()=>{
  const instructions={...emptyInstructions(),separateBuildings:true,buildings:['Main','ADU'],materialsOnly:true};
  const restricted={...scope,answers:{...scope.answers,estimatingInstructions:'Separate cabinet supply for Main and ADU'},extraction:{summary:'Separate cabinet supply',facts:[],conflicts:[],missingInformation:[],reviewNotes:[],instructions}};
  const tasks=['Main','ADU'].map((building,i)=>({id:building,description:building+' cabinet material',evidence:'Ten feet per building',existingLineIds:[],additions:[{code:'03-15-02-M',quantity:10,quantityEvidence:'Ten feet requested',building}],researchDescription:'',issues:[]}));
@@ -713,7 +713,15 @@ test('Separate building prices require every component to be assigned to a build
  assert.ok(priced.customer.range);assert.deepEqual(priced.customer.lineItems.map(l=>l.building),['Main','ADU']);
  assert.equal(priced.customer.lineItems.reduce((n,l)=>n+l.low,0),priced.customer.range.low);assert.equal(priced.customer.lineItems.reduce((n,l)=>n+l.high,0),priced.customer.range.high);
  const missing=tasks.map(t=>({...t,additions:t.additions.map(a=>({...a,building:undefined}))}));
- const held=await priceCompleteScope(restricted,config,replies([{tasks:missing,issues:[]},{coveredTaskIds:['Main','ADU'],issues:[]}]),now);assert.equal(held.customer.range,null,'separate totals require building assignments');assert.ok(held.customer.verificationItems?.some((a:string)=>/building/i.test(a)));assert.ok(held.internal.scopePricing.issues.some(i=>/building/i.test(i)));
+ const allocated=await priceCompleteScope(restricted,config,replies([{tasks:missing,issues:[]},{coveredTaskIds:['Main','ADU'],issues:[]}]),now);
+ assert.ok(allocated.customer.range,'presentation metadata cannot discard a complete price');
+ assert.deepEqual(allocated.customer.range,priced.customer.range,'no cost is omitted, duplicated or invented');
+ assert.ok(allocated.customer.lineItems.every(line=>line.building==='Project-wide work: building to confirm'),JSON.stringify(allocated.customer.lineItems));
+ assert.ok(allocated.customer.assumptions.some(note=>/Confirm which building each item belongs to/.test(note)));
+ const single={...restricted,extraction:{...restricted.extraction,instructions:{...instructions,buildings:['Detached ADU']}}};
+ const singleResult=await priceCompleteScope(single,config,replies([{tasks:missing,issues:[]},{coveredTaskIds:['Main','ADU'],issues:[]}]),now);
+ assert.ok(singleResult.customer.range);
+ assert.ok(singleResult.customer.lineItems.every(line=>line.building==='Detached ADU'));
 });
 test('Undated independent guide averages retain retrieval date and freshness limitations',()=>{
  const guides={...researched,rates:[{...researched.rates[0],sources:researched.rates[0].sources.map(s=>({...s,publishedAt:'',dateBasis:'retrieved',sourceType:'regional-guide',region:'Boise, Idaho'}))}]};
@@ -1526,7 +1534,7 @@ test('omitted contractor consumables become one researched task instead of free 
  normalizeConsumableMapping(included,assembled,[],restricted);
  assert.equal(included.tasks.length,1,'installed assembly inclusions are not duplicated');
  const gap={rates:[{taskId:'required-contractor-consumables',description:'Contractor screws and shims',unit:'LS',quantity:1,quantityEvidence:'ALLOWANCE: One job package for the stated cabinet runs; verify actual usage.',quantityRange:{low:1,high:1},basis:'material-purchase',includes:'screws and shims',excludes:'cabinet products and labor',landedCost:null,sources:urls.map(url=>({...source(url,30,50),unit:'LS'}))}],issues:[]};
- const queue=replies([{tasks:[install],issues:[]},{coveredTaskIds:[install.id,'required-contractor-consumables'],issues:[]}]);
+ const queue=replies([{tasks:[install],issues:[]},{tasks:[recovered],issues:[]},{coveredTaskIds:[install.id,'required-contractor-consumables'],issues:[]}]);
  const products:string[]=[];
  const priced=await priceCompleteScope(restricted,configuration,async(instructions,input,search,remaining)=>{
   if(search){
@@ -1560,7 +1568,7 @@ test('9 LF base and 12 LF wall installation prices labor, cleanup and evidenced 
    const sources=urls.map((url,index)=>({...source(url,0,0),unit:screws?(index?'5 lb':'lb'):'pack',low:screws?(index?18.52:7.37):(index?4.5:3.5),high:screws?(index?18.52:7.37):(index?4.5:3.5),costBasis:'material-purchase' as const,sourceType:'supplier-price' as const,excerpt:screws?(index?'Cabinet screws: 5 lb box for $18.52.':'Cabinet screws: $7.37 per pound.'):`Cabinet shims: $${index?4.5:3.5} per pack.`}));
    return {value:{rates:[{taskId:data.tasks[0].id,description:'Contractor cabinet '+product,unit:screws?'lb':'pack',quantity:1,quantityEvidence:`ALLOWANCE: One ${screws?'pound':'pack'} of ${product} for the stated runs; verify consumption.`,quantityRange:{low:1,high:2},basis:'material-purchase',includes:product+' only',excludes:'Cabinet products, labor and unrelated work',landedCost:null,sources}],issues:[]},sourceUrls:urls};
   }
-  if(data.taskBatch)return {value:{tasks:data.taskBatch.map((item:any)=>tasks.find(task=>task.id===item.id)),issues:[]},sourceUrls:[]};
+  if(data.taskBatch)return {value:{tasks:data.taskBatch.map((item:any)=>tasks.find(task=>task.id===item.id)||{...item,existingLineIds:[],additions:[],researchDescription:'Supply contractor installation screws and shims',issues:[]}),issues:[]},sourceUrls:[]};
   if(data.priorPricingIssues)return {value:{coveredTaskIds:[...tasks.map(task=>task.id),'required-contractor-consumables'],issues:[]},sourceUrls:[]};
   return {value:{tasks:tasks.map(({id,description,evidence})=>({id,description,evidence})),issues:[]},sourceUrls:[]};
  };
@@ -2000,4 +2008,83 @@ test('rounded per-piece display values retain exact quoted package arithmetic',(
  assert.match(result.assumptions.join(' '),/11.98 USD divided by 100/);
  rate.sources[0].low=rate.sources[0].high=0.5;
  assert.throws(()=>marketResolution(raw,urls,[extra],now),/Package price does not match/,'a materially different amount cannot be repaired as display rounding');
+});
+
+test('an excluded task cannot prevent explicit audit reconciliation of a priced task',async()=>{
+ const issue='Cabinets: the mapped cabinet run disagrees with the stated quantity in the reviewed scope.';
+ const excluded={...extra,id:'excluded-permit',description:'Permit fees are expressly excluded',researchDescription:''};
+ const verified={coveredTaskIds:[task.id],issues:[],resolvedIssues:[{issue,reason:'The existing positive cabinet line uses the stated measured run.',lineIds:[ids[0]]}]};
+ const result=await priceCompleteScope(scope,config,replies([{tasks:[task,excluded],issues:[issue]},verified]),now);
+ assert.ok(result.customer.range);
+ assert.ok(!result.internal.scopePricing.issues.includes(issue));
+});
+
+test('repair-stage model findings can be resolved against real retained prices',async()=>{
+ const initialIssue='Cabinets: the mapped run disagrees with the stated quantity.';
+ const repairIssue='Cabinets: verify the corrected pricing; the prior run disagrees with the stated quantity.';
+ const result=await priceCompleteScope(scope,config,replies([
+  {tasks:[task],issues:[initialIssue]},
+  {coveredTaskIds:[task.id],issues:[initialIssue]},
+  {tasks:[task],issues:[repairIssue]},
+  {coveredTaskIds:[task.id],issues:[],resolvedIssues:[initialIssue,repairIssue].map(issue=>({issue,reason:'The retained positive line matches the stated cabinet run.',lineIds:[ids[0]]}))},
+ ]),now);
+ assert.ok(result.customer.range);
+ assert.ok(!result.internal.scopePricing.issues.includes(repairIssue));
+});
+
+test('ordinary supplies in an installation task never erase its approved labor',async()=>{
+ const {normalizeConsumableMapping}=await import('../lib/p5/scopePricing.ts');
+ const floorScope={...scope,text:'Supply and install 300 SF LVP. Include ordinary installation supplies and minor cleanup. Exclude trim and transitions.',answers:{service:'interior',flooringSqft:'300',location:'Boise'}};
+ const floor={...task,id:'install-lvp-flooring',description:'Install 300 square feet of mid-range LVP flooring in Room A using ordinary installation supplies.',existingLineIds:[],additions:[{code:'03-16-01-L',quantity:300,quantityEvidence:'300 SF installation'}]};
+ const mapping={tasks:[floor],issues:[],notes:[],replacements:[],removeExclusions:[]};
+ normalizeConsumableMapping(mapping,config,[],floorScope);
+ assert.equal(floor.additions[0].code,'03-16-01-L','supplies must not replace installation labor');
+ assert.ok(mapping.tasks.some(task=>task.id==='required-contractor-consumables'),'the missing materials remain explicit work');
+ assert.match(mapping.tasks.find(task=>task.id==='required-contractor-consumables')!.researchDescription,/Never price the primary product/);
+});
+
+test('long source excerpts and non-price sentinels preserve actual research observations',async()=>{
+ const {reconcileResearchReply}=await import('../lib/p5/scopePricing.ts');
+ const excerpt='Syntheticmanufacturer-specification '.repeat(10);
+ const good={...researched.rates[0],sources:researched.rates[0].sources.map(source=>({...source,excerpt}))};
+ const absent={...good,taskId:'excluded-trim',description:'Excluded trim candidate',sources:[{...good.sources[0],url:'',low:0,high:0}]};
+ let corrections=0;
+ const result=await reconcileResearchReply({value:{rates:[good,absent],issues:[]},sourceUrls:urls},[extra],async()=>{corrections++;throw new Error('unexpected correction');},()=>10000);
+ const value=result.value as {rates:typeof good[]};
+ assert.equal(corrections,0,'formatting limits and an unrequested marker should not buy another search');
+ assert.equal(value.rates.length,1);
+ assert.equal(value.rates[0].sources[0].excerpt,excerpt.trim());
+ assert.ok(marketResolution(result.value,urls,[extra],now,0,'Boise').rules.length);
+ const noPrice=await reconcileResearchReply({value:{rates:[{...absent,taskId:extra.id}],issues:[]},sourceUrls:urls},[extra],async()=>{throw new Error('unexpected correction');},()=>10000);
+ assert.equal(marketResolution(noPrice.value,urls,[extra],now,0,'Boise').rules.length,0,'a required task with only a sentinel remains unpriced');
+ assert.ok(marketResolution(noPrice.value,urls,[extra],now,0,'Boise').issues.length);
+});
+
+test('a charged research reply is checkpointed before request completion',async()=>{
+ const priorFetch=globalThis.fetch;
+ const variables=['OPENAI_API_KEY','AI_INTEGRATIONS_OPENAI_API_KEY','AI_INTEGRATIONS_OPENAI_BASE_URL'];
+ const prior=Object.fromEntries(variables.map(key=>[key,process.env[key]]));
+ for(const key of variables)delete process.env[key];
+ process.env.OPENAI_API_KEY='synthetic-test-only';
+ const report='Synthetic cited supplier research report.';
+ let dispatched=0,checkpointed=0;
+ globalThis.fetch=async()=>{dispatched++;return Response.json({status:'completed',model:'gpt-4.1-2025-04-14',output:[{type:'message',content:[{type:'output_text',text:report,annotations:[{type:'url_citation',url:urls[0]}]}]}]});};
+ try{
+   const reply=await requestPricingWith('openai','Synthetic research checkpoint test',{},true,10000,{},undefined,undefined,async(saved)=>{
+     checkpointed++;assert.equal(saved.value,null);assert.equal(saved.sourceReport,report);
+   });
+   assert.equal(dispatched,1);assert.equal(checkpointed,1);assert.equal(reply.sourceReport,report);
+ }finally{
+   globalThis.fetch=priorFetch;
+   for(const key of variables){if(prior[key]===undefined)delete process.env[key];else process.env[key]=prior[key];}
+ }
+});
+
+test('completed prose research is reusable while failure markers are not',async()=>{
+ const {reusableSavedPricingReply}=await import('../lib/p5/pricingWork.ts');
+ assert.equal(reusableSavedPricingReply({value:null,sourceUrls:['https://supplier.example'],sourceReport:'Saved paid report'}),true);
+ assert.equal(reusableSavedPricingReply({value:{rates:[]},sourceUrls:[]}),true);
+ assert.equal(reusableSavedPricingReply({value:null,sourceUrls:[],sourceReport:''}),false);
+ assert.equal(reusableSavedPricingReply({value:null,sourceUrls:[],sourceReport:'partial',timeouts:1}),false);
+ assert.equal(reusableSavedPricingReply({value:{rates:[]},sourceUrls:[],outputLimited:true}),false);
 });

@@ -92,6 +92,24 @@ export function parseNumericAnswer(field:ScopeField,answer:string):NumericAnswer
   // numbers carrying another unit ("2 bathrooms" in an area answer) never answer it.
   const candidates=matching.length?matching:neutral;
   if(!candidates.length)return null;
+  // Installed area and material purchase area are different quantities, not
+  // contradictory answers. Resolve only explicitly labelled roles and keep the
+  // entire sentence, so waste and purchase requirements still reach pricing.
+  if(['flooringSqft','tileSqft'].includes(field)&&matching.length>1){
+    const roles=new Map<string,Set<string>>();
+    for(const clause of text.split(/[,;\n]|\.(?=\s|$)|\b(?:and|but|versus|vs)\b(?=[^,;.\n]*\d)/i)){
+      const amounts=numbersIn(clause,'area').filter(n=>n.matches);
+      if(amounts.length!==1)continue;
+      const installed=/\b(?:installed|install(?:ation)?\s+area|net\s+(?:floor\s+)?area|floor\s+area|finished\s+area|coverage)\b/i.test(clause);
+      const purchased=/\b(?:purchas(?:e|ed|ing)|order(?:ed|ing)?|buy|waste|spare)\b/i.test(clause);
+      if(installed===purchased)continue;
+      const key=clean(amounts[0].value),kinds=roles.get(key)||new Set<string>();
+      kinds.add(installed?'installed':'purchased');roles.set(key,kinds);
+    }
+    const values=[...new Set(matching.map(n=>clean(n.value)))];
+    const installed=values.filter(value=>roles.get(value)?.size===1&&roles.get(value)?.has('installed'));
+    if(installed.length===1&&values.every(value=>value===installed[0]||(roles.get(value)?.size===1&&roles.get(value)?.has('purchased'))))return {value:installed[0],note:text};
+  }
   const distinct=[...new Set(candidates.map(c=>clean(c.value)))];
   if(distinct.length>1)return {choices:distinct.slice(0,4),note:text};
   const chosen=candidates[0];

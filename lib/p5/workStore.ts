@@ -20,3 +20,23 @@ export async function renewWork(draftId:string,workKey:string,token:string,secon
 export async function releaseWork(draftId:string,workKey:string,token:string){
   await query('UPDATE p5_estimator_work SET lease_until=NULL,lease_token=NULL WHERE draft_id=$1 AND work_key=$2 AND lease_token=$3',[draftId,workKey,token]);
 }
+
+/** Exact content-addressed provider replies survive a new job/release key.
+ * Only this draft is searched; callers supply the full policy/content hash. */
+export const SAVED_WORK_REPLY_QUERY = `
+ SELECT reply FROM (
+   SELECT w.updated_at, w.payload->'replies'->k.key AS reply
+   FROM p5_estimator_work w CROSS JOIN unnest($2::text[]) AS k(key)
+   WHERE w.draft_id=$1 AND w.payload->'replies' ? k.key
+ ) saved
+ WHERE COALESCE(reply->>'timeouts','0')='0'
+   AND COALESCE(reply->>'timedOut','false')<>'true'
+   AND COALESCE(reply->>'outputLimited','false')<>'true'
+   AND jsonb_typeof(reply->'sourceUrls')='array'
+   AND ((reply ? 'value' AND reply->'value'<>'null'::jsonb)
+     OR length(btrim(COALESCE(reply->>'sourceReport','')))>0)
+ ORDER BY updated_at DESC LIMIT 1`;
+export async function readSavedWorkReply(draftId:string,keys:string[]):Promise<unknown>{
+ const rows=await query(SAVED_WORK_REPLY_QUERY,[draftId,keys]);
+ return rows[0]?.reply;
+}

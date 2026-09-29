@@ -4,9 +4,9 @@ import {ESTIMATOR_VERSION} from './version.ts';
 import {SERVER_BUDGET_MS,remainingBudget,withinDeadline,ProcessingDeadlineError,isProcessingDeadline} from './processingBudget.ts';
 import {createHash} from 'node:crypto';
 import {recordEvent} from './events.ts';
-import {saveLearnedLines,readLearnedLines,learnedCostRules,saveSupportedServiceBook} from './learnedBook.ts';
+import {saveLearnedLines,readLearnedLines,learnedCostRules,learnedResearchLeads,saveSupportedServiceBook} from './learnedBook.ts';
 import {databasePricingCache,pricingCacheEnabled} from './pricingCache.ts';
-import {claimWork,writeWork,releaseWork,renewWork} from './workStore.ts';
+import {claimWork,writeWork,releaseWork,renewWork,readSavedWorkReply} from './workStore.ts';
 import {priceCompleteScope,requestPricing,type PricingReply,type PricingRequest,PRICING_STAGE_MAX_MS} from './scopePricing.ts';
 import {PricingPending,PricingStageTimeout,PRICING_UNAVAILABLE,isPricingPending,retryablePricingProviderError,expiredResearchFailure} from './pricingProgress.ts';
 import {beginPricingRepair,type PricingRepairState} from './repairClock.ts';
@@ -30,7 +30,14 @@ export function pricingWorkKey(scope:ReviewedScope,configuration:EstimatorConfig
 export function pricingReplyKey(instructions:string,input:unknown,search:boolean){
  return createHash('sha256').update(JSON.stringify([MODEL_POLICY_VERSION,instructions,search,input])).digest('hex');
 }
-type Payload=PricingRepairState&{replies:Record<string,PricingReply>;shortlists?:Record<string,Record<string,string[]>>;failures?:number;completed?:number;regionalRates?:EstimatorConfiguration['regionalRates'];processing?:ProcessingStatus;pricingAt?:string;busyWaitMs?:number};
+/** A completed research stage is a prose report before JSON normalization. */
+export function reusableSavedPricingReply(value:unknown):value is PricingReply{
+ if(!value||typeof value!=='object')return false;
+ const reply=value as PricingReply&{timeouts?:number;timedOut?:boolean;outputLimited?:boolean};
+ return !reply.timeouts&&!reply.timedOut&&!reply.outputLimited&&Array.isArray(reply.sourceUrls)
+   &&(reply.value!==null&&reply.value!==undefined||typeof reply.sourceReport==='string'&&reply.sourceReport.trim().length>0);
+}
+type Payload=PricingRepairState&{replies:Record<string,PricingReply>;shortlists?:Record<string,Record<string,string[]>>;failures?:number;completed?:number;regionalRates?:EstimatorConfiguration['regionalRates'];researchLeads?:EstimatorConfiguration['researchLeads'];processing?:ProcessingStatus;pricingAt?:string;busyWaitMs?:number};
 export async function priceSavedScope(id:string,scope:ReviewedScope,configuration:EstimatorConfiguration,pricingAt=new Date(),deadline=Date.now()+SERVER_BUDGET_MS,identity?:PricingIdentity){
  // Construction prices only a project whose every source page was verified;
  // the other brands return a partial read for manual review instead.
@@ -39,7 +46,7 @@ export async function priceSavedScope(id:string,scope:ReviewedScope,configuratio
  await saveSupportedServiceBook(configuration,scope.answers.service||'');
  const workKey=pricingWorkKey(scope,configuration,pricingAt);
  const [regional,learned]=await Promise.all([readRegionalRates(scope.answers.location||'',pricingAt),readLearnedLines()]);
- const claimed=await claimWork(id,workKey,{replies:{},regionalRates:[...regional,...learnedCostRules(learned,scope.answers.service||'',{location:scope.answers.location||'',finish:scope.answers.finish},pricingAt)]},290);
+ const claimed=await claimWork(id,workKey,{replies:{},researchLeads:learnedResearchLeads(learned,scope.answers.service||'',{location:scope.answers.location||'',finish:scope.answers.finish}),regionalRates:[...regional,...learnedCostRules(learned,scope.answers.service||'',{location:scope.answers.location||'',finish:scope.answers.finish},pricingAt)]},290);
  if(!claimed)throw new PricingPending('Your pricing check is already running. Waiting for its saved result...',10000);
  const payload=claimed.payload as Payload;
  // Freeze the pricing timestamp across requests. Rate freshness and generated
@@ -47,7 +54,7 @@ export async function priceSavedScope(id:string,scope:ReviewedScope,configuratio
  if(payload.pricingAt)pricingAt=new Date(payload.pricingAt);
  else payload.pricingAt=pricingAt.toISOString();
  if(!payload.replies||Array.isArray(payload.replies))payload.replies={};
- configuration={...configuration,regionalRates:(payload.regionalRates||[]).filter(rule=>rule.estimatingBasis==='sourced-market-average')};
+ configuration={...configuration,researchLeads:payload.researchLeads||[],regionalRates:(payload.regionalRates||[]).filter(rule=>rule.estimatingBasis==='sourced-market-average')};
  let saving=Promise.resolve();
  const persist=()=>{saving=saving.then(async()=>{try{await writeWork(id,workKey,claimed.token,payload);}catch{throw new PricingPending('Pricing progress could not be saved yet. Please retry to continue.',0);}});return saving;};
  // A new shortlist changes the mapping request hash even when the scope is
@@ -80,7 +87,11 @@ export async function priceSavedScope(id:string,scope:ReviewedScope,configuratio
   const legacy=pricingReplyKey(instructions,input,search);
   const key=`content-v1:${legacy}`;
   const oldTimeout=payload.replies[positional] as (PricingReply&{timeouts?:number})|undefined;
-  const saved=payload.replies[key]||payload.replies[legacy]||(oldTimeout?.timeouts?oldTimeout:undefined);
+  let saved=payload.replies[key]||payload.replies[legacy]||(oldTimeout?.timeouts?oldTimeout:undefined);
+  if(!reusableSavedPricingReply(saved)){
+    const prior=await readSavedWorkReply(id,[key,legacy]);
+    if(reusableSavedPricingReply(prior)){saved=prior;payload.replies[key]=prior;await persist();}
+  }
   if(saved&&!(search&&expiredResearchFailure(saved))){
     // Research uses its existing allowance fallback and large mapping batches
     // keep their smaller saved children. A small batch or another stage must
@@ -90,7 +101,7 @@ export async function priceSavedScope(id:string,scope:ReviewedScope,configuratio
     if((saved as {outputLimited?:boolean}).outputLimited)throw new PricingStageTimeout('pricing-stage-output-limit');
     if(timeouts>=3)throw new PricingStageTimeout('pricing-stage-exhausted');
     if(timeouts&&(search||(batchIds&&batchIds.length>3)))throw new PricingStageTimeout('pricing-stage-timeout');
-    if(!timeouts)return saved;
+    if(!timeouts&&reusableSavedPricingReply(saved))return saved;
   }
   // A pass ends between stages, never inside one. A stage that has started
   // keeps its whole allowance and is saved, so the next pass resumes after it
@@ -104,8 +115,19 @@ export async function priceSavedScope(id:string,scope:ReviewedScope,configuratio
   const allowance=search?Math.max(5000,Math.min(remainingMs,PRICING_STAGE_MAX_MS)):PRICING_STAGE_MAX_MS;
   const started=Date.now();
   const elapsed=()=>((Date.now()-started)/1000).toFixed(1);
-  try{reply=await withinDeadline(()=>requestPricing(instructions,input,search,allowance,identity),started+allowance);}
+  const checkpoint=async(completedReply:PricingReply)=>{
+    const counted=reusableSavedPricingReply(payload.replies[key]);
+    payload.replies[key]=completedReply;
+    if(!counted)payload.completed=(payload.completed||0)+1;
+    if(payload.processing)payload.processing={...payload.processing,completedSteps:payload.completed};
+    await persist();
+  };
+  try{reply=await withinDeadline(()=>requestPricing(instructions,input,search,allowance,identity,undefined,checkpoint),started+allowance);}
   catch(error){
+   // A deadline or accounting failure may race the durable checkpoint. Never
+   // replace an already completed response with a timeout marker or buy it again.
+   const completedReply=payload.replies[key];
+   if(reusableSavedPricingReply(completedReply)){await persist();return completedReply;}
    if(isPricingPending(error))throw error;
    if(isProcessingDeadline(error)){
     console.error(`[p5-pricing] ${phase} stage exceeded its ${Math.round(allowance/1000)}s allowance after ${elapsed()}s`);
@@ -162,9 +184,8 @@ export async function priceSavedScope(id:string,scope:ReviewedScope,configuratio
   console.error(`[p5-pricing] ${phase} finished in ${elapsed()}s`);
   // Per-stage timings in the events log, so speed is reported as measured p50/p95 by stage.
   void recordEvent({draftId:id,estimator:scope.answers.service||null,kind:'pricing',stage:`price-${phase}`,durationMs:Date.now()-started,outcome:'ok',meta:{search:Boolean(search),repair:Boolean((input as {repairInstruction?:string}|null)?.repairInstruction)}}).catch(()=>{});
-  payload.failures=0;payload.replies[key]=reply;payload.completed=(payload.completed||0)+1;
-  if(payload.processing)payload.processing={...payload.processing,completedSteps:payload.completed};
-  await persist();
+  payload.failures=0;
+  await checkpoint(reply);
   return reply;
  };
  // The saved-stage lease outlives a pass; keep it renewed while this pass runs.

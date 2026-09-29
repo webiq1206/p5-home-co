@@ -174,3 +174,13 @@ test('an audit remark quoting a direct amount beside an internal line id never r
  assert.equal(withoutInternalIds('Tile setting materials for both showers (scope-4, PB-09-30-06).'),'Tile setting materials for both showers.');
  assert.equal(withoutInternalIds('Baseboard install labor, 100 LF.'),'Baseboard install labor, 100 LF.');
 });
+
+test('saved supplier notes never promise current local inventory or pickup',()=>{
+ const source={range:{low:100,high:200},assumptions:['Both sources are confirmed Boise-area Home Depot listings with local store inventory or pickup. Applicability to Boise is established.'],verificationItems:['Confirm screw suitability.']};
+ const result=customerPresentation(source);
+ assert.match(result.assumptions[0],/Confirm current local stock and pickup availability/);
+ assert.doesNotMatch(result.assumptions[0],/confirmed Boise-area|Applicability.*established/);
+ assert.deepEqual(result.verificationItems,['Confirm screw suitability.']);
+ assert.deepEqual(result.range,source.range);
+ assert.deepEqual(customerPresentation(result),result);
+});

@@ -113,6 +113,12 @@ export function publicPricingText(value:unknown):string{
  }).filter(Boolean).join('\n');
 }
 const publicTextList=(value:unknown):string[]=>Array.isArray(value)?value.map(publicPricingText).filter(Boolean):[];
+// Supplier citations do not establish real-time stock. Keep current availability
+// as a customer confirmation item, including in previously saved estimates.
+const publicPlanningNotes=(value:unknown):string[]=>[...new Set(publicTextList(value).map(note=>scopeBullets(note).filter(sentence=>!(/\b(?:inventory|pickup)\b/i.test(note)&&/^Applicability\b.*\bestablished\b/i.test(sentence))).map(sentence=>
+ /\b(?:confirmed|established)\b/i.test(sentence)&&/\b(?:inventory|pickup)\b/i.test(sentence)
+ ?'Confirm current local stock and pickup availability with the supplier before ordering.':sentence
+).join(' ')))];
 const finiteRange=(r:any)=>r&&Number.isFinite(r.low)&&Number.isFinite(r.high)?{low:Number(r.low),high:Number(r.high)}:null;
 export interface CustomerProjectionOptions{
  /**
@@ -170,9 +176,9 @@ export function customerPresentation(result:any,options:CustomerProjectionOption
  }).filter((x:any)=>x.description):[];
  return {
   status:String(source.status||''),range,summary:publicPricingText(source.summary),includedCategories:publicTextList(source.includedCategories),categoryRanges,lineItems,allowances,
-  assumptions:publicTextList(source.assumptions),exclusions:publicTextList(source.exclusions),factors:publicTextList(source.factors),
+  assumptions:publicPlanningNotes(source.assumptions),exclusions:publicTextList(source.exclusions),factors:publicTextList(source.factors),
   nextStep:publicPricingText(source.nextStep),message:publicPricingText(source.message),disclaimer:publicPricingText(source.disclaimer),
-  verificationItems:publicTextList(source.verificationItems),
+  verificationItems:publicPlanningNotes(source.verificationItems),
   // What changed from the prior version of a revised estimate (estimateRevisions.changeSummary).
   ...(Array.isArray(source.revisionSummary)?{revisionSummary:publicTextList(source.revisionSummary)}:{}),
   ...(Number.isInteger(source.revisionOf)?{revisionOf:Number(source.revisionOf)}:{}),
