@@ -1279,6 +1279,33 @@ test('a small single-component swap does not draw its own protection or disconne
  assert.match(text,/room-scale demolition, multi-item work/,'the exception for substantial work is preserved');
 });
 
+test('omitted contractor consumables become one researched task instead of free labor inclusions',async()=>{
+ const {normalizeConsumableMapping}=await import('../lib/p5/scopePricing.ts');
+ const restricted={...scope,text:'Install 9 LF owner-supplied base cabinets and 12 LF owner-supplied wall cabinets. Contractor supplies screws and shims.',answers:{service:'cabinet-install'}};
+ const rate={code:'QA-LABOR',description:'Cabinet installation labor. Excludes all installation consumables, screws and shims.',type:'Labor',unit:'LF',amount:70,source:'Synthetic fixture',basis:'owner-average-cost'};
+ const configuration=createPlanningConfiguration({...catalog,rates:[...catalog.rates,rate as PlanningCatalog['rates'][number]]});
+ const install={...task,description:'Install 9 LF owner-supplied base cabinets',evidence:'9 LF base cabinets',existingLineIds:[],additions:[{code:'QA-LABOR',quantity:9,quantityEvidence:'9 LF'}]};
+ const mapping={tasks:[install],notes:[],issues:[],replacements:[],removeExclusions:[]};
+ normalizeConsumableMapping(mapping,configuration,[],restricted);
+ normalizeConsumableMapping(mapping,configuration,[],restricted);
+ assert.equal(mapping.tasks.length,2,'one shared recovered task, even after repair');
+ const recovered=mapping.tasks.find(t=>t.id==='required-contractor-consumables')!;
+ assert.match(recovered.description,/screws, shims/);
+ assert.match(recovered.researchDescription,/Material purchase only/);
+ assert.deepEqual(mapping.tasks[0].additions,install.additions,'existing labor remains priced once');
+ const ownerOnly={...restricted,text:'Install owner-supplied cabinets. Owner supplies screws and shims.'};
+ const excluded={...mapping,tasks:[structuredClone(install)]};
+ normalizeConsumableMapping(excluded,configuration,[],ownerOnly);
+ assert.equal(excluded.tasks.length,1);
+ const assembled=createPlanningConfiguration({...catalog,rates:[...catalog.rates,{...rate,type:'Subcontractor',description:'Cabinet installation including all screws and shims.'} as PlanningCatalog['rates'][number]]});
+ const included={...mapping,tasks:[structuredClone(install)]};
+ normalizeConsumableMapping(included,assembled,[],restricted);
+ assert.equal(included.tasks.length,1,'installed assembly inclusions are not duplicated');
+ const gap={rates:[{taskId:'required-contractor-consumables',description:'Contractor screws and shims',unit:'LS',quantity:1,quantityEvidence:'ALLOWANCE: One job package for the stated cabinet runs; verify actual usage.',quantityRange:{low:1,high:1},basis:'material-purchase',includes:'screws and shims',excludes:'cabinet products and labor',landedCost:null,sources:urls.map(url=>({...source(url,30,50),unit:'LS'}))}],issues:[]};
+ const priced=await priceCompleteScope(restricted,configuration,replies([{tasks:[install],issues:[]},gap,{coveredTaskIds:[install.id,'required-contractor-consumables'],issues:[]}]),now);
+ assert.ok(priced.customer.range,JSON.stringify(priced.internal.scopePricing));
+ assert.ok((priced.internal as any).lines.some((line:any)=>line.category==='materials'&&line.unitCost===40));
+});
 test('labor-only pricing retains requested contractor consumables through final release',async()=>{
  const restricted={...scope,text:'Install owner-supplied baseboard. Labor only. Contractor supplies nails and caulk.',answers:{service:'handyman',ownerSupplied:'Owner supplies baseboard'},extraction:{summary:'Trim installation',facts:[],conflicts:[],missingInformation:[],reviewNotes:[],instructions:{...emptyInstructions(),laborOnly:true}}};
  const configuration=createPlanningConfiguration({...catalog,rates:[...catalog.rates,{code:'QA-CONSUMABLE-M',description:'Nails, interior trim caulk, and nail-hole filler for 100 LF of owner-supplied primed MDF baseboard',type:'Material',unit:'LS',amount:25,source:'Synthetic fixture',basis:'owner-average-cost'}]});

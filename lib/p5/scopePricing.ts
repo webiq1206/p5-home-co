@@ -392,6 +392,18 @@ export function preserveScopeExclusions(mapping:Mapping,existing:string[],scope:
 /** Labor-only book components cannot satisfy a requested material purchase.
  * Route that gap through the existing evidenced material-pricing workflow. */
 export function normalizeConsumableMapping(mapping:Mapping,configuration:EstimatorConfiguration,existing:ReturnType<typeof existingLines>,scope:ReviewedScope){
+  // Inventory omissions cannot turn explicitly requested contractor supplies
+  // into free labor inclusions. Recover one shared material task from the source.
+  const source=[scope.text,scope.answers.estimatingInstructions,scope.answers.ownerSupplied,scope.answers.installation,...(scope.extraction?.instructions?.responsibilities||[]),...(scope.extraction?.instructions?.inclusions||[])].filter(Boolean).join('\n');
+  const requested=['nails','screws','fasteners','shims','caulk','adhesives','sealants','consumables'].filter(word=>new RegExp(`\\b${word.replace(/s$/,'')}s?\\b`,'i').test(source)&&contractorConsumableIncluded(scope,`Supply ${word}`));
+  if(/\binstallation materials\b/i.test(source)&&contractorConsumableIncluded(scope,'Supply installation materials'))requested.push('installation materials');
+  const excludesSupplies=(description:string)=>/exclud[^.]*\b(?:consumables?|installation materials|screws?|shims?|fasteners?)\b/i.test(description);
+  const explicitLaborGap=scope.extraction?.instructions?.laborOnly||mapping.tasks.some(task=>task.additions.some(a=>{const rate=configuration.planningCatalog?.rates.find(rate=>rate.code===a.code);return rate?.type==='Labor'&&excludesSupplies(rate.description);})||task.existingLineIds.some(id=>existing.some(line=>line.id===id&&line.category==='field-labor'&&excludesSupplies(line.description))));
+  if(explicitLaborGap&&requested.length&&!mapping.tasks.some(task=>contractorConsumableIncluded(scope,task.description))){
+    const materialIds=existing.filter(line=>line.category==='materials'&&line.quantity*line.unitCost>0&&contractorConsumableIncluded(scope,line.description)).map(line=>line.id);
+    const id='required-contractor-consumables';
+    if(!mapping.tasks.some(task=>task.id===id))mapping.tasks.push({id,description:`Supply contractor installation ${requested.join(', ')}`,evidence:source,existingLineIds:materialIds,additions:[],researchDescription:'',issues:[]});
+  }
   const separatelyPricedTop=mapping.tasks.some(task=>taskSelectionStatus(task,mapping.tasks)==='billable'&&task.additions.some(a=>/^PB-12-36-0[1-5]$/.test(a.code)))
     ||existing.some(line=>line.quantity*line.unitCost>0&&/\b(?:quartz|granite|solid surface|laminate)\b/i.test(line.description)&&/\b(?:countertop|counter top)\b/i.test(line.description));
   for(const task of mapping.tasks){
