@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {reusableUnitRate,unitKey,supportedUnit} from '../lib/p5/unitRates.ts';
+import {reusableUnitRate,unitKey,supportedUnit,boisePriceRegion} from '../lib/p5/unitRates.ts';
 import {catalogResolution,planningResolution,priceCompleteScope,type PricingRequest} from '../lib/p5/scopePricing.ts';
 import {createPlanningConfiguration,PLANNING_MODEL_VERSION} from '../lib/p5/planningBooks.ts';
 import type {CostRule} from '../lib/p5/costBook.ts';
@@ -248,4 +248,17 @@ test('P5_MAP_MODEL moves only the mapping stage',async()=>{
     assert.equal(openAiPricingRequestEnvelope('anything at all',{},false).model,plain,'an audit keeps its model');
     assert.equal(openAiPricingRequestEnvelope('anything at all',{},true).model,plain,'so does research');
   }finally{if(before===undefined)delete process.env.P5_MAP_MODEL;else process.env.P5_MAP_MODEL=before;}
+});
+
+test('ordinary purchase containers retain their own count units without volume or pack conversion',()=>{
+ for(const label of ['cartridge','tube','bottle','can','bag','pail','bucket','bundle','carton','packet']){
+  assert.ok(supportedUnit(label));assert.ok(supportedUnit('per '+label+'s'));
+  assert.equal(unitKey(label+'s'),label);
+  for(const incompatible of ['EA','gallon','LB','pack'])assert.notEqual(unitKey(label),unitKey(incompatible));
+ }
+});
+
+test('an out-of-area supplier cannot become Boise-local through a parenthetical supply claim',()=>{
+ for(const region of ['Boise, ID','Treasure Valley, Idaho','Meridian, ID','Ada County'])assert.ok(boisePriceRegion(region),region);
+ for(const region of ['Moscow, ID (within Boise regional supply)','Moscow, ID ships to Boise','National online pricing for Boise','Spokane, WA (Boise pickup)'])assert.equal(boisePriceRegion(region),false,region);
 });

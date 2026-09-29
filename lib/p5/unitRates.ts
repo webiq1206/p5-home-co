@@ -3,6 +3,12 @@ import type {CostRule} from './costBook.ts';
 
 export const rateLocation=(value:string)=>value.trim().toLowerCase().replace(/\s+/g,' ')||'boise / treasure valley, idaho';
 export const boiseArea=(value:string)=>/\b(?:boise|treasure valley|ada county|canyon county)\b/i.test(value)||/\b(?:idaho|id)\b/i.test(value)&&/\b(?:meridian|nampa|eagle|kuna|caldwell|star)\b/i.test(value);
+// A supplier's stated city must be local itself. Appending a Boise-supply claim
+// to an out-of-area city does not establish a Boise price or delivery quote.
+export const boisePriceRegion=(value:string)=>{
+ const primary=value.replace(/\([^)]*\)|\[[^\]]*\]/g,'').trim();
+ return /^(?:greater\s+)?(?:boise|treasure valley|ada county|canyon county|meridian|nampa|eagle|kuna|caldwell|star)\b/i.test(primary)&&boiseArea(primary);
+};
 /** Units of measure the estimator prices in. Each has a dimension, so a unit is
  * never converted into one of another kind: square feet never becomes linear
  * feet, a roofing square (100 SF) is not a square foot, and an unfamiliar unit
@@ -19,6 +25,10 @@ export const UNIT_REGISTRY:Record<string,{dimension:UnitDimension;label:string}>
  acre:{dimension:'area',label:'acre'},watt:{dimension:'power',label:'watt'},
  ls:{dimension:'lump',label:'lump sum'},
  kit:{dimension:'count',label:'kit'},
+ cartridge:{dimension:'count',label:'cartridge'},tube:{dimension:'count',label:'tube'},
+ bottle:{dimension:'count',label:'bottle'},can:{dimension:'count',label:'can'},
+ bag:{dimension:'count',label:'bag'},pail:{dimension:'count',label:'pail'},bucket:{dimension:'count',label:'bucket'},
+ bundle:{dimension:'count',label:'bundle'},carton:{dimension:'count',label:'carton'},packet:{dimension:'count',label:'packet'},
 };
 /** Things a repair list counts one at a time. "each vent", "per fixture" and "device location" are all a count of one. */
 const COUNTED='(?:items?|fixtures?|devices?|locations?|device locations?|assembl(?:y|ies)|terminations?|vents?|receptacles?|outlets?|switch(?:es)?|lights?|doors?|windows?|openings?|breakers?|valves?|hose bibs?|traps?|boots?|caps?|pumps?|units?|pieces?|pcs?|components?|repairs?|occurrences?|rooms?|bathrooms?|cabinets?|systems?|shelves|shelf|drawers?|panels?|fans?|detectors?|sinks?|faucets?|toilets?|vanit(?:y|ies)|appliances?|heaters?|fixture sets?|stops?|stations?)';
@@ -35,6 +45,10 @@ export const unitKey=(unit:string)=>{
  if(/^(?:box|boxes)$/.test(key))return 'box';
  if(/^(?:pack|packs)$/.test(key))return 'pack';
  if(key==='kit'||key==='kits')return 'kit';
+ // Supplier purchase containers remain their own count unit. A cartridge is
+ // not converted to an ounce, gallon, generic item or a differently sized pack.
+ const container=key.match(/^(cartridge|tube|bottle|can|bag|pail|bucket|bundle|carton|packet)s?$/);
+ if(container)return container[1];
  if(aliases[key])return aliases[key];
  return COUNTED_UNIT.test(key)?'each':key;
 };
@@ -49,7 +63,7 @@ export function reusableUnitRate(rule:CostRule,location:string,now=new Date()):C
  const basis=rule.estimatingBasis;
  if(!context||context.currency!=='USD'||!provenance||provenance.status!=='estimated'||rule.priceBasis!=='direct-cost')return null;
  if(!['sourced-market-average','regional-planning-average'].includes(basis||''))return null;
- if(basis==='sourced-market-average'&&(provenance.sources.length<2||boiseArea(rateLocation(location))&&!provenance.sources.every(source=>boiseArea(source.region))))return null;
+ if(basis==='sourced-market-average'&&(provenance.sources.length<2||boiseArea(rateLocation(location))&&!provenance.sources.every(source=>boisePriceRegion(source.region))))return null;
  const categories={'material-purchase':'materials','trade-labor':'field-labor','subcontractor-installed':'subcontractors'};
  if(categories[context.basis]!==rule.category||!context.includes.trim())return null;
  const unit=unitKey(rule.unit),expires=Date.parse(rule.evidence.validUntil),retrieved=Date.parse(provenance.retrievedAt);

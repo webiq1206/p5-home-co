@@ -1123,9 +1123,9 @@ test('Unsupported market and planning output units remain visibly unpriced',()=>
   const market=structuredClone(researched);market.rates[0].unit='project';market.rates[0].sources.forEach(s=>s.unit='project');
   const rejectedMarket=marketResolution(market,urls,[extra],now);
   assert.equal(rejectedMarket.rules.length,0);assert.match(rejectedMarket.issues.join(' '),/unsupported pricing unit "project"/);
-  const planning={rates:[{taskId:'overlay',description:'Protective overlay allowance',unit:'bundle',quantity:1,quantityEvidence:'One requested scope package',basis:'material-purchase' as const,includes:'Overlay material',excludes:'Installation',low:100,high:200,confidence:'low' as const,rationale:'Synthetic unsupported-unit fixture.'}],issues:[]};
+  const planning={rates:[{taskId:'overlay',description:'Protective overlay allowance',unit:'project',quantity:1,quantityEvidence:'One requested scope package',basis:'material-purchase' as const,includes:'Overlay material',excludes:'Installation',low:100,high:200,confidence:'low' as const,rationale:'Synthetic unsupported-unit fixture.'}],issues:[]};
   const rejectedPlanning=planningResolution(planning,[extra],now);
-  assert.equal(rejectedPlanning.rules.length,0);assert.match(rejectedPlanning.issues.join(' '),/unsupported pricing unit "bundle"/);
+  assert.equal(rejectedPlanning.rules.length,0);assert.match(rejectedPlanning.issues.join(' '),/unsupported pricing unit "project"/);
 });
 test('Production pricing does not require QA-only spending allowance variables',async()=>{
  const names=['P5_LIVE_PRICING_ALLOWANCE_ID','P5_LIVE_PRICING_ALLOWANCE_USD','P5_LIVE_PRICING_RESERVE_USD'] as const;
@@ -2087,4 +2087,21 @@ test('completed prose research is reusable while failure markers are not',async(
  assert.equal(reusableSavedPricingReply({value:null,sourceUrls:[],sourceReport:''}),false);
  assert.equal(reusableSavedPricingReply({value:null,sourceUrls:[],sourceReport:'partial',timeouts:1}),false);
  assert.equal(reusableSavedPricingReply({value:{rates:[]},sourceUrls:[],outputLimited:true}),false);
+});
+
+test('a sourced installation caulk cartridge has a positive price without changing its package quantity',()=>{
+ const requested={...extra,id:'caulk',description:'Supply contractor installation caulk',evidence:'Contractor supplies installation caulk.',researchDescription:'Research ONLY contractor-supplied caulk for this installation.'};
+ const local={...scope,text:'Contractor supplies caulk for the vanity installation.',answers:{service:'bathroom',location:'Boise'}};
+ const product={taskId:'caulk',description:'Installation caulk, 10.1 oz cartridge',unit:'cartridge',quantity:1,quantityEvidence:'ALLOWANCE: One standard caulk cartridge for this vanity installation; verify consumption.',quantityRange:{low:1,high:2},basis:'material-purchase',includes:'One 10.1 oz caulk cartridge',excludes:'Labor and other supplies',landedCost:null,sources:[
+  {url:urls[0],low:8,high:8,unit:'cartridge',costBasis:'material-purchase',sourceType:'supplier-price',dateBasis:'retrieved',publishedAt:'',region:'Boise, Idaho',excerpt:'Caulk 10.1 oz cartridge $8.00.'},
+  {url:urls[1],low:10,high:10,unit:'cartridges',costBasis:'material-purchase',sourceType:'supplier-price',dateBasis:'retrieved',publishedAt:'',region:'Boise, Idaho',excerpt:'Caulk 10.1 oz cartridge $10.00.'}
+ ]};
+ const priced=marketResolution({rates:[product],issues:[]},urls,[requested],now,0,'Boise',local);
+ assert.deepEqual(priced.issues,[]);assert.equal(priced.rules.length,1);
+ assert.equal(priced.rules[0].unitCost,9);assert.equal(priced.rules[0].quantity.fixed,1);
+ assert.deepEqual(priced.rules[0].unitCostRange,{low:8,high:10});
+ const outside=structuredClone(product);outside.sources[1].region='Moscow, ID (within Boise regional supply)';
+ assert.throws(()=>marketResolution({rates:[outside],issues:[]},urls,[requested],now,0,'Boise',local),/Boise/);
+ const incompatible=structuredClone(product);incompatible.sources[1].unit='gallon';
+ assert.throws(()=>marketResolution({rates:[incompatible],issues:[]},urls,[requested],now,0,'Boise',local),/Incompatible benchmark unit/);
 });
