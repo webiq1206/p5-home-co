@@ -8,7 +8,7 @@ import {saveLearnedLines,readLearnedLines,learnedCostRules,saveSupportedServiceB
 import {databasePricingCache,pricingCacheEnabled} from './pricingCache.ts';
 import {claimWork,writeWork,releaseWork,renewWork} from './workStore.ts';
 import {priceCompleteScope,requestPricing,type PricingReply,type PricingRequest,PRICING_STAGE_MAX_MS} from './scopePricing.ts';
-import {PricingPending,PricingStageTimeout,PRICING_UNAVAILABLE} from './pricingProgress.ts';
+import {PricingPending,PricingStageTimeout,PRICING_UNAVAILABLE,isPricingPending,retryablePricingProviderError,expiredResearchFailure} from './pricingProgress.ts';
 import {beginPricingRepair,type PricingRepairState} from './repairClock.ts';
 import type {ReviewedScope} from './scope.ts';
 import type {EstimatorConfiguration} from './costBook.ts';
@@ -81,7 +81,7 @@ export async function priceSavedScope(id:string,scope:ReviewedScope,configuratio
   const key=`content-v1:${legacy}`;
   const oldTimeout=payload.replies[positional] as (PricingReply&{timeouts?:number})|undefined;
   const saved=payload.replies[key]||payload.replies[legacy]||(oldTimeout?.timeouts?oldTimeout:undefined);
-  if(saved){
+  if(saved&&!(search&&expiredResearchFailure(saved))){
     // Research uses its existing allowance fallback and large mapping batches
     // keep their smaller saved children. A small batch or another stage must
     // actually retry, or replaying its timeout marker loops forever without
@@ -106,6 +106,7 @@ export async function priceSavedScope(id:string,scope:ReviewedScope,configuratio
   const elapsed=()=>((Date.now()-started)/1000).toFixed(1);
   try{reply=await withinDeadline(()=>requestPricing(instructions,input,search,allowance,identity),started+allowance);}
   catch(error){
+   if(isPricingPending(error))throw error;
    if(isProcessingDeadline(error)){
     console.error(`[p5-pricing] ${phase} stage exceeded its ${Math.round(allowance/1000)}s allowance after ${elapsed()}s`);
     // Every timed-out stage is remembered with a count, so a replay never
@@ -115,8 +116,14 @@ export async function priceSavedScope(id:string,scope:ReviewedScope,configuratio
     payload.replies[key]={value:null,sourceUrls:[],timedOut:true,timeouts:prior+1} as unknown as PricingReply;await persist();
     throw new PricingStageTimeout(prior+1>=3?'pricing-stage-exhausted':'pricing-stage-timeout');
    }
-   // A failed published-cost search is not a reason to stop pricing: the caller may use a labeled planning average instead.
-   if(search){console.error(`[p5-pricing] research failed after ${elapsed()}s: ${error instanceof Error?error.message:String(error)}`);throw new PricingStageTimeout(error instanceof Error?error.message:'pricing-search-unavailable');}
+   // Remember unavailable searches instead of paying for identical failed
+   // requests on every job poll. A later attempt may retry after a cooldown.
+   // Rate limits and outages reach the bounded backoff below, never this path.
+   if(search&&!retryablePricingProviderError(error)){
+    payload.replies[key]={value:null,sourceUrls:[],timedOut:true,timeouts:1,researchFailedAt:Date.now()} as unknown as PricingReply;await persist();
+    console.error(`[p5-pricing] research failed after ${elapsed()}s: ${error instanceof Error?error.message:String(error)}`);
+    throw new PricingStageTimeout(error instanceof Error?error.message:'pricing-search-unavailable');
+   }
    const message=error instanceof Error?error.message:String(error);
    if(/^pricing-check-incomplete:(?:max_tokens|max_output_tokens)$/.test(message)){
     const prior=(saved as {timeouts?:number}|undefined)?.timeouts||0;
@@ -130,7 +137,7 @@ export async function priceSavedScope(id:string,scope:ReviewedScope,configuratio
    // second. They are one event: counting each ended an 18-item job in under a second.
    const state=payload as unknown as {failures?:number;lastFailureAt?:number;busyWaits?:number;busyWaitMs?:number};
    const burst=Date.now()-(state.lastFailureAt||0)<5000;state.lastFailureAt=Date.now();
-   const busy=/^pricing-provider-unavailable:(?:429|5\d\d)\b/.test(message);
+   const busy=retryablePricingProviderError(error);
    if(busy&&(state.busyWaits||0)<12){
     if(!burst)state.busyWaits=(state.busyWaits||0)+1;
     // A provider rate limit usually clears in tens of seconds, so a 20 s ceiling retried too early

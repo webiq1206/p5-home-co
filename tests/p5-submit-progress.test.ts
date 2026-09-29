@@ -26,6 +26,17 @@ test('HTML access denials do not trigger a retry loop',async()=>{
  await assert.rejects(()=>completeSubmission(async()=>{calls++;return new Response('<html>Forbidden</html>',{status:403});},()=>{},async()=>{}),/could not be accessed/);
  assert.equal(calls,1);
 });
+test('research rate limits use backoff and empty searches have a bounded cooldown',async()=>{
+ const {retryablePricingProviderError,expiredResearchFailure,RESEARCH_FAILURE_COOLDOWN_MS,isPricingPending}=await import('../lib/p5/pricingProgress.ts');
+ assert.ok(retryablePricingProviderError(new Error('pricing-provider-unavailable:429:RATELIMIT_EXCEEDED')));
+ assert.ok(retryablePricingProviderError(new Error('pricing-provider-unavailable:503:unavailable')));
+ assert.equal(retryablePricingProviderError(new Error('pricing-search-unavailable')),false);
+ const saved={researchFailedAt:1000,timeouts:1};
+ assert.equal(expiredResearchFailure(saved,1000+RESEARCH_FAILURE_COOLDOWN_MS-1),false);
+ assert.equal(expiredResearchFailure(saved,1000+RESEARCH_FAILURE_COOLDOWN_MS),true);
+ assert.equal(expiredResearchFailure({value:{rates:[]}},Number.MAX_SAFE_INTEGER),false);
+ assert.ok(isPricingPending(new PricingPending('Provider reservation pending',30000)));
+});
 test('Expected continuation never becomes an unpriced customer result',async()=>{
  const scope={text:'Synthetic',answers:{service:'handyman'},extraction:null,uploads:[],reviewedAt:'2026-09-11',corrections:[]};
  await assert.rejects(()=>priceCompleteScope(scope,EMPTY_CONFIGURATION,async()=>{throw new PricingPending();}),PricingPending);
