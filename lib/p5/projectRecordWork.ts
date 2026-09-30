@@ -22,7 +22,7 @@ type StoredWork={startedAt:string;replies:Record<string,PricingReply>;requests?:
 export async function publishProjectQualification(id:string,expectedRevision:number,result:QualificationResult,execute:typeof query=query){
  if(result.record&&!projectRecordIntegrity(result.record))throw new DraftError('The saved project review needs to be rebuilt from its current sources.',409);
  const rows=result.record?await execute(`INSERT INTO p5_estimator_work(draft_id,work_key,payload)
-  SELECT id,$2,$4::jsonb FROM p5_estimator_drafts WHERE id=$1 AND revision=$3
+  SELECT id,$2,$4::jsonb FROM p5_estimator_drafts WHERE id=$1 AND revision=$3 FOR UPDATE
   ON CONFLICT(draft_id,work_key) DO UPDATE SET payload=EXCLUDED.payload,updated_at=now() RETURNING work_key`,[id,LATEST,expectedRevision,JSON.stringify({draftRevision:expectedRevision,contractHash:PROJECT_WORKFLOW_CONTRACT_HASH,record:result.record,result})])
   :await execute('SELECT id FROM p5_estimator_drafts WHERE id=$1 AND revision=$2',[id,expectedRevision]);
  if(!rows.length)throw new DraftError('The project changed during review. Its newer information is preserved.',409);
