@@ -1,7 +1,7 @@
 import {createHash} from 'node:crypto';
 import type {ReviewedScope} from './scope.ts';
 import {unitKey,UNIT_REGISTRY} from './unitRates.ts';
-import {PROJECT_RECORD_VERSION,projectProposalSchema,type ProjectProposal,type ProjectQuantity,type ProjectQuestion} from './projectRecordContracts.ts';
+import {PROJECT_RECORD_VERSION,projectProposalSchema,type ProjectProposal,type ProjectQuantityValue,type ProjectQuestion} from './projectRecordContracts.ts';
 import type {ProjectChange} from './projectConversation.ts';
 
 export interface ProjectSource {
@@ -10,6 +10,7 @@ export interface ProjectSource {
  status:'read'|'partial'|'unreadable';
 }
 export interface ProjectInput {sources:ProjectSource[];sourceHash:string;documentIssues:string[]}
+export interface ProjectScope extends ReviewedScope {answerOrigins?:Record<string,'customer'|'reader'|'unconfirmed'>}
 export interface ProjectRecord extends ProjectProposal {
  version:typeof PROJECT_RECORD_VERSION;revision:number;sourceHash:string;recordHash:string;
  sources:ProjectSource[];createdAt:string;
@@ -36,7 +37,7 @@ function sourceBlocks(text:string,limit=18000){
  }
  return output;
 }
-export function projectInput(scope:ReviewedScope,changes:ProjectChange[]=[]):ProjectInput{
+export function projectInput(scope:ProjectScope,changes:ProjectChange[]=[]):ProjectInput{
  const sources:ProjectSource[]=[],documentIssues:string[]=[];
  const add=(kind:ProjectSource['kind'],name:string,text:string,fileId:string|null=null,page:number|null=null,status:ProjectSource['status']='read')=>{
   if(!text.trim())return;
@@ -46,7 +47,10 @@ export function projectInput(scope:ReviewedScope,changes:ProjectChange[]=[]):Pro
   }
  };
  add('customer-text','Current customer scope',scope.text);
- for(const [field,value]of Object.entries(scope.answers).sort(([a],[b])=>a.localeCompare(b)))if(value?.trim())add('reviewed-answer','Reviewed answer: '+field,field+': '+value);
+ for(const [field,value]of Object.entries(scope.answers).sort(([a],[b])=>a.localeCompare(b)))if(value?.trim()){
+  const origin=scope.answerOrigins?.[field]||'customer';
+  add(origin==='customer'?'reviewed-answer':'reader-observation',`${origin==='customer'?'Customer answer':origin==='reader'?'Previously extracted answer, not customer confirmation':'Saved answer with unconfirmed origin'}: ${field}`,field+': '+value);
+ }
  const extraction=scope.extraction;
  if(extraction?.sourceText)add('document-transcript','Retained reader transcript; verify against page observations',extraction.sourceText);
  for(const upload of scope.uploads){
@@ -76,7 +80,7 @@ const unitMeasure=(unit:string):{dimension:string;scale:number}|null=>{
  // Count units retain identity. A pack is never an each without its contents.
  return {dimension:['count','time'].includes(entry.dimension)?entry.dimension+':'+key:entry.dimension,scale:scales[key]||1};
 };
-export function computedProjectQuantity(quantity:ProjectQuantity,quantities:ProjectQuantity[],visiting=new Set<string>()):number|null{
+export function computedProjectQuantity(quantity:ProjectQuantityValue,quantities:ProjectQuantityValue[],visiting=new Set<string>()):number|null{
  if(visiting.has(quantity.id))throw new ProjectRecordError([{code:'quantity-cycle',ids:[quantity.id],message:'Quantity calculations contain a cycle.'}]);
  if(quantity.basis!=='calculated')return quantity.value;
  const expression=quantity.calculation;if(!expression)return null;
@@ -101,26 +105,14 @@ export function computedProjectQuantity(quantity:ProjectQuantity,quantities:Proj
  return result*expression.factor/output.scale;
 }
 
-export function validateProjectRecord(proposal:ProjectProposal,input:ProjectInput):RecordProblem[]{
- const issues:RecordProblem[]=[];
+/** Shared arithmetic/evidence validation. Physical quantities belong to
+ * subjects; estimating quantities belong to explicitly linked work groups. */
+export function validateProjectQuantities(values:ProjectQuantityValue[],entries:ProjectProposal['evidence']):RecordProblem[]{
+ const issues:RecordProblem[]=[],evidence=new Map(entries.map(e=>[e.id,e])),quantities=new Map(values.map(q=>[q.id,q]));
  const issue=(code:string,ids:string[],message:string)=>issues.push({code,ids,message});
- if(proposal.service==='unclassified'&&!proposal.questions.some(q=>q.kind==='scope'&&q.priority==='blocking'))issue('project-classification',[],'An unclear project purpose needs a specific scope question.');
- const collections=[proposal.evidence,proposal.subjects,proposal.quantities,proposal.requirements,proposal.questions];
- for(const collection of collections){const seen=new Set<string>();for(const item of collection){if(seen.has(item.id))issue('duplicate-id',[item.id],'IDs must be unique within their record type.');seen.add(item.id);}}
- const sources=new Map(input.sources.map(s=>[s.id,s])),evidence=new Map(proposal.evidence.map(e=>[e.id,e]));
- const subjects=new Set(proposal.subjects.map(s=>s.id)),quantities=new Map(proposal.quantities.map(q=>[q.id,q])),requirements=new Map(proposal.requirements.map(r=>[r.id,r]));
+ const seen=new Set<string>();for(const q of values){if(seen.has(q.id))issue('duplicate-id',[q.id],'Quantity IDs must be unique.');seen.add(q.id);}
  const checkEvidence=(ids:string[],owner:string)=>{for(const id of ids)if(!evidence.has(id))issue('unknown-evidence',[owner,id],'Referenced evidence does not exist.');};
- for(const e of proposal.evidence){
-  const source=sources.get(e.sourceId);
-  if(!source||!normalized(source.text).includes(normalized(e.quote)))issue('unsupported-quote',[e.id,e.sourceId],'Evidence must quote its identified source verbatim.');
-  if(source?.status==='unreadable')issue('unreadable-evidence',[e.id],'Unreadable content cannot establish a confirmed fact.');
- }
- for(const subject of proposal.subjects){
-  if(subject.parentId&&!subjects.has(subject.parentId))issue('unknown-subject',[subject.id,subject.parentId],'Parent subject does not exist.');
-  checkEvidence(subject.evidenceIds,subject.id);
- }
- for(const q of proposal.quantities){
-  if(!subjects.has(q.subjectId))issue('unknown-subject',[q.id,q.subjectId],'Quantity subject does not exist.');
+ for(const q of values){
   if(!unitMeasure(q.unit))issue('unsupported-unit',[q.id],'Quantity unit is not supported: '+q.unit);
   checkEvidence(q.evidenceIds,q.id);
   if(q.basis==='unknown'&&(q.value!==null||q.range!==null||q.calculation!==null))issue('invented-quantity',[q.id],'An unknown quantity cannot contain a measured value, range or calculation.');
@@ -137,12 +129,35 @@ export function validateProjectRecord(proposal:ProjectProposal,input:ProjectInpu
    if(q.calculation?.factor!==1)issue('unsupported-factor',[q.id],'Conversion is calculated from units; additional factors need explicit quantity operands.');
    if(q.range)issue('calculated-range',[q.id],'Calculated quantities use their cited operands, not an unrelated range.');
    try{
-    const result=computedProjectQuantity(q,proposal.quantities);
+    const result=computedProjectQuantity(q,values);
     if(result===null||q.value===null||Math.abs(result-q.value)>Math.max(.000001,Math.abs(result)*.000001))issue('quantity-calculation',[q.id],'Written quantity must agree with a dimensionally valid calculation.');
     if(q.calculation?.inputIds.some(id=>quantities.get(id)?.basis==='allowance'||quantities.get(id)?.basis==='unknown'))issue('uncertain-calculation',[q.id],'An uncertain operand cannot become a confirmed calculated measurement.');
    }catch(error){if(error instanceof ProjectRecordError)issues.push(...error.problems);else throw error;}
   }else if(q.calculation!==null)issue('unexpected-calculation',[q.id],'Only calculated quantities may have a formula.');
  }
+ return issues;
+}
+
+export function validateProjectRecord(proposal:ProjectProposal,input:ProjectInput):RecordProblem[]{
+ const issues:RecordProblem[]=[];
+ const issue=(code:string,ids:string[],message:string)=>issues.push({code,ids,message});
+ if(proposal.service==='unclassified'&&!proposal.questions.some(q=>q.kind==='scope'&&q.priority==='blocking'))issue('project-classification',[],'An unclear project purpose needs a specific scope question.');
+ const collections=[proposal.evidence,proposal.subjects,proposal.requirements,proposal.questions];
+ for(const collection of collections){const seen=new Set<string>();for(const item of collection){if(seen.has(item.id))issue('duplicate-id',[item.id],'IDs must be unique within their record type.');seen.add(item.id);}}
+ const sources=new Map(input.sources.map(s=>[s.id,s])),evidence=new Map(proposal.evidence.map(e=>[e.id,e]));
+ const subjects=new Set(proposal.subjects.map(s=>s.id)),quantities=new Map(proposal.quantities.map(q=>[q.id,q])),requirements=new Map(proposal.requirements.map(r=>[r.id,r]));
+ const checkEvidence=(ids:string[],owner:string)=>{for(const id of ids)if(!evidence.has(id))issue('unknown-evidence',[owner,id],'Referenced evidence does not exist.');};
+ for(const e of proposal.evidence){
+  const source=sources.get(e.sourceId);
+  if(!source||!normalized(source.text).includes(normalized(e.quote)))issue('unsupported-quote',[e.id,e.sourceId],'Evidence must quote its identified source verbatim.');
+  if(source?.status==='unreadable')issue('unreadable-evidence',[e.id],'Unreadable content cannot establish a confirmed fact.');
+ }
+ for(const subject of proposal.subjects){
+  if(subject.parentId&&!subjects.has(subject.parentId))issue('unknown-subject',[subject.id,subject.parentId],'Parent subject does not exist.');
+  checkEvidence(subject.evidenceIds,subject.id);
+ }
+ for(const q of proposal.quantities)if(!subjects.has(q.subjectId))issue('unknown-subject',[q.id,q.subjectId],'Quantity subject does not exist.');
+ issues.push(...validateProjectQuantities(proposal.quantities,proposal.evidence));
  for(const r of proposal.requirements){
   if(!subjects.has(r.subjectId))issue('unknown-subject',[r.id,r.subjectId],'Requirement subject does not exist.');
   checkEvidence(r.evidenceIds,r.id);

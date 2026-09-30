@@ -1,7 +1,7 @@
 import type {EstimatorConfiguration} from './costBook.ts';
 import {calculateP5Estimate,customerEstimate,customerSafeProjection,COST_CATEGORIES,SERVICE_MATRIX,type DirectCostLine,type PricingInput,type Service} from './pricing.ts';
 import {unitKey} from './unitRates.ts';
-import {projectHash,projectRecordIntegrity,validateProjectRecord,type ProjectRecord,type RecordProblem} from './projectRecord.ts';
+import {projectHash,projectRecordIntegrity,validateProjectQuantities,type ProjectRecord,type RecordProblem} from './projectRecord.ts';
 import {projectPricingProposalSchema,projectReviewSchema,type ProjectPricingProposal,type ProjectReview} from './projectRecordContracts.ts';
 
 export interface ProjectPriceSelection {recordHash:string;catalogHash:string;proposal:ProjectPricingProposal}
@@ -26,12 +26,12 @@ export function compileProjectPrices(record:ProjectRecord,selection:ProjectPrice
  const estimatingQuantities=selection.proposal.estimatingQuantities;
  const allQuantities=[...record.quantities,...estimatingQuantities.map(({requirementIds:_work,basedOnQuantityIds:_basis,...quantity})=>{void _work;void _basis;return quantity;})];
  const quantities=new Map(allQuantities.map(q=>[q.id,q]));
- problems.push(...validateProjectRecord({...record,quantities:allQuantities},{sources:record.sources,sourceHash:record.sourceHash,documentIssues:[]}));
+ problems.push(...validateProjectQuantities(allQuantities,record.evidence));
  for(const quantity of estimatingQuantities){
   if(record.quantities.some(q=>q.id===quantity.id))fail('measurement-overwrite',[quantity.id],'Costing cannot replace a physical project quantity.');
   if(!quantity.basedOnQuantityIds.length&&!quantity.evidenceIds.length)fail('estimating-basis',[quantity.id],'An estimating quantity needs physical scope references or source evidence.');
   for(const id of quantity.basedOnQuantityIds)if(!record.quantities.some(q=>q.id===id&&q.basis!=='unknown'))fail('estimating-basis',[quantity.id,id],'An estimating quantity must refer to a known physical scope quantity.');
-  for(const id of quantity.requirementIds){const requirement=requirements.get(id);if(!requirement||requirement.status!=='included'||requirement.responsibility!=='contractor'||requirement.subjectId!==quantity.subjectId)fail('estimating-scope',[quantity.id,id],'An estimating quantity must belong to the included contractor work it prices.');}
+  for(const id of quantity.requirementIds){const requirement=requirements.get(id);if(!requirement||requirement.status!=='included'||requirement.responsibility!=='contractor')fail('estimating-scope',[quantity.id,id],'An estimating quantity must explicitly identify the included contractor work it prices.');}
  }
  const rates=new Map((configuration.planningCatalog?.rates||[]).map(r=>[r.code,r]));
  const coverage=new Map<string,string[]>(),lineIds=new Set<string>(),purchases=new Set<string>();

@@ -42,7 +42,7 @@ export async function priceProjectRecord(record:ProjectRecord,configuration:Esti
   const compiled=compileProjectPrices(record,selection,configuration,now);
   if(compiled.problems.length){problems=compiled.problems;continue;}
   const selectedCatalogIds=new Set(selection.proposal.lines.map(line=>line.rateId));
-  const responseReview=await request(PROJECT_REVIEW_INSTRUCTIONS,{sources:record.sources,record,selectedPrices:selection,selectedCatalog:(configuration.planningCatalog?.rates||[]).filter(rate=>selectedCatalogIds.has(rate.code)),coverage:compiled.coverage},false,remaining());
+  const responseReview=await request(PROJECT_REVIEW_INSTRUCTIONS,{sources:record.sources,record,selectedPrices:selection,selectedCatalog:(configuration.planningCatalog?.rates||[]).filter(rate=>selectedCatalogIds.has(rate.code)),catalog:configuration.planningCatalog?.rates||[],coverage:compiled.coverage},false,remaining());
   try{
    const receipt=projectReviewReceipt(record,selection,responseReview.value);
    const result=calculateProjectEstimate(record,selection,configuration,receipt,now);

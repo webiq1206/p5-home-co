@@ -6,12 +6,11 @@ import {claimWork,writeWork,renewWork,releaseWork} from './workStore.ts';
 import {requestPricing,type PricingReply,type PricingRequest} from './scopePricing.ts';
 import {PricingPending} from './pricingProgress.ts';
 import {PROJECT_RECORD_VERSION,PROJECT_RECORD_INSTRUCTIONS,PROJECT_PRICE_INSTRUCTIONS,PROJECT_REVIEW_INSTRUCTIONS,projectContractSchema} from './projectRecordContracts.ts';
-import {projectHash,projectInput,projectRecordIntegrity,type ProjectRecord} from './projectRecord.ts';
+import {projectHash,projectInput,projectRecordIntegrity,type ProjectRecord,type ProjectScope} from './projectRecord.ts';
 import {interpretProjectRecord,priceProjectRecord} from './projectWorkflow.ts';
 import {EMPTY_CONFIGURATION,type EstimatorConfiguration} from './costBook.ts';
 import {priceBookRates,PRICE_BOOK_VERSION,finishTier} from './priceBook.ts';
 import {withRateCard} from './rateCard.ts';
-import type {ReviewedScope} from './scope.ts';
 import {readProjectConversation,activeProjectChanges} from './projectConversation.ts';
 
 const LATEST='project-record-latest-v1';
@@ -29,8 +28,16 @@ export async function publishProjectQualification(id:string,expectedRevision:num
  if(!rows.length)throw new DraftError('The project changed during review. Its newer information is preserved.',409);
  return result;
 }
-export function draftProjectScope(draft:Draft):ReviewedScope{
- return {text:draft.text,answers:draft.answers,extraction:draft.extraction,uploads:draft.uploads,reviewedAt:draft.updatedAt,corrections:[]};
+export function draftProjectScope(draft:Draft):ProjectScope{
+ let analyzed:Record<string,string>={};
+ try{const pairs=JSON.parse(draft.analyzedAnswers||'[]');if(Array.isArray(pairs)&&pairs.every(p=>Array.isArray(p)&&p.length===2&&p.every(v=>typeof v==='string')))analyzed=Object.fromEntries(pairs);}catch{/* A legacy snapshot with unknown provenance cannot attest an answer. */}
+ const answerOrigins:NonNullable<ProjectScope['answerOrigins']>={};
+ for(const [field,value]of Object.entries(draft.answers)){
+  const explicitlyConfirmed=Object.entries(draft.wizard?.resolutions||{}).some(([key,v])=>key===field&&v===value)||Boolean(draft.reviewed?.text===draft.text&&Object.entries(draft.reviewed.answers).some(([key,v])=>key===field&&v===value));
+  const extracted=analyzed[field]===value||Boolean(draft.extraction?.facts.some(f=>f.field===field&&f.value===value));
+  answerOrigins[field]=explicitlyConfirmed||!draft.extraction?'customer':extracted?'reader':'unconfirmed';
+ }
+ return {text:draft.text,answers:draft.answers,answerOrigins,extraction:draft.extraction,uploads:draft.uploads,reviewedAt:draft.updatedAt,corrections:[]};
 }
 export async function readProjectQualification(id:string){
  const [row]=await query('SELECT payload FROM p5_estimator_work WHERE draft_id=$1 AND work_key=$2',[id,LATEST]);

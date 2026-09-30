@@ -81,3 +81,21 @@ Focused reference verification: three owner-supplied handle replacements use $21
 Saved qualification work is now identified by the actual instructions and schemas as well as source/revision/catalog hashes. A prompt or contract change cannot silently reuse an old failed or accepted result. Exact stage inputs are checkpointed before provider dispatch, and completion receipts identify returned models and completed provider response IDs. This captures the application's dispatch arguments, not an independently captured gateway HTTP body.
 
 Current local evidence: `5a27f2c` main production build passed, with 1,648 tests total (1,633 passed, 15 database-dependent skips, zero failures), plus six database-safety tests. The next version has 18 focused tests passing and clean TypeScript. Its real-model retest, public interface, uploads, pricing research, independent bid comparisons and category matrix remain open.
+
+## Third real-model run and rate-choice review
+
+On `d19e302`, interpretation **passed its bounded workflow**: three handle sets, requested work, owner supply and exclusions, with no outstanding questions or findings. Pricing **failed**. Across both phases, four requests returned `gpt-4.1-2025-04-14` (two interpretation/review stages and two pricing attempts). No customer estimate was accepted, delivered or published.
+
+The pricing proposal grouped the work into a 1.5-hour allowance (range 1–2 hours) at approved generic handyman rate `PB-01-01-01`, $65/hour. Arithmetic alone would be $97.50 direct, range $65–$130; these were not accepted estimate amounts. The compiler rejected that estimating quantity because replacement work belonged to the handle fixture while cleanup belonged to its broader existing-door subject. The current fix gives estimating quantities explicit work-group ownership, separate from the physical subject ownership of measurements. Grouped effort must still name every included contractor requirement it covers, preserve physical quantities and pass complete coverage and independent review.
+
+The proposal also exposed a price-choice risk: a generic hourly assumption could replace the more specific approved per-door hardware labor rate. The selection and review policy now prefers a compatible approved task/assembly rate, requiring a scope-supported explanation for using generic labor instead. Independent price review now receives the full approved catalog, so it can evaluate competing rates instead of seeing only the model's selection. This does not assert that the approved book equals current market bids; independent price validation is still required.
+
+Host-local evidence for this run: `p5-verification/project-record-qualification/0a3523d2-be0e-4990-92df-0405fc36ab54-rev4-interpret-d19e302.json` and the corresponding `rev4-price-d19e302.json`.
+
+## Source provenance repair in progress
+
+The legacy draft can contain AI-populated answer fields alongside real customer answers. The migration boundary now labels those separately. A saved reader value is not silently promoted to a customer-confirmed answer. Explicit question resolutions and an unchanged customer-reviewed scope can establish customer confirmation; untracked legacy provenance is identified as unconfirmed. A regression preserves the explicitly answered three-handle count while keeping an extracted floor area labeled as a reader observation.
+
+A new signed, read-only document-service route exposes P5's original per-page native text, geometry and reader observations separately. It returns a page manifest or one complete requested page, preserving the source checksum and original page number. It does not enqueue reading, transfer a new document, run a model, summarize the text or claim unreadable content is verified. Other tenants cannot use this new P5-only route. Its HTTP tests verify signing and project boundaries, complete text retention, and preservation of partial-page status. This is not yet connected to the project interpreter; native-page integration and document qualification remain open.
+
+The `d19e302` main production build passed with 1,650 tests total, 1,635 passed, 15 database-dependent skips and zero failures, plus six database-safety passes. This remains software evidence, not acceptance of the full estimator.

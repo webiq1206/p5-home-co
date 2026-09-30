@@ -1,6 +1,7 @@
 import {createServer} from 'node:http';
 import {hash,verifyHeaders,identifier,ServiceError,publicJob,elapsedMs,VERSION} from './core.mjs';
 import {reviewForWebsite} from './website-review.mjs';
+import {projectSource} from './project-source.mjs';
 async function reviewResponse(row,store){
  const response=publicJob(row);
  if(response.state==='complete'&&response.kind==='review'&&response.result){
@@ -39,6 +40,9 @@ export function makeServer(store,pipeline,config){
     receiving++;try{const chunks=[];let size=0;for await(const chunk of req){size+=chunk.length;if(size>maximum)throw new ServiceError('payload-too-large',413);chunks.push(chunk);}body=Buffer.concat(chunks);}finally{receiving--;}
    }
    if(hash(body)!==auth.digest)throw new ServiceError('body-integrity-failed',401);
+   if(parts[3]==='documents'&&parts.length===6&&parts[5]==='evidence'&&req.method==='GET'){
+    send(200,await projectSource(store,auth.tenant,project,identifier(parts[4]),url.searchParams.has('page')?Number(url.searchParams.get('page')):null));return;
+   }
    if(['documents','reviews'].includes(parts[3])&&parts.length===6&&parts[5]==='metrics'&&req.method==='GET'){
     send(200,await store.metrics(auth.tenant,project,identifier(parts[4]),parts[3]));return;
    }
