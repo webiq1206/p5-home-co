@@ -5,8 +5,10 @@ import {projectHash,projectRecordIntegrity,validateProjectQuantities,type Projec
 import {projectPricingProposalSchema,projectPricingWireSchema,projectPricingWireFor,projectReviewSchema,type ProjectPricingProposal,type ProjectReview} from './projectRecordContracts.ts';
 import {completionReviewProblems,type ProjectCompletionPlan} from './projectCompletion.ts';
 import {projectSpecificationEvidence} from './projectSpecifications.ts';
+import {quotationFeedback} from './quotationFeedback.ts';
+import {verifiedReviewCatalog} from './projectReviewEvidence.ts';
 
-export const PROJECT_PRICE_COMPILER_VERSION='p5-project-price-compiler-v3';
+export const PROJECT_PRICE_COMPILER_VERSION='p5-project-price-compiler-v4';
 export interface ProjectPriceSelection {recordHash:string;catalogHash:string;proposal:ProjectPricingProposal}
 export function projectPriceProposalFromWire(record:ProjectRecord,configuration:EstimatorConfiguration,raw:unknown):ProjectPricingProposal{
  const wire=projectPricingWireSchema.parse(projectPricingWireFor(record,configuration.planningCatalog?.rates||[]).parse(raw));
@@ -63,7 +65,7 @@ export function compileProjectPrices(record:ProjectRecord,selection:ProjectPrice
   const rate=rates.get(proposed.rateId),quantity=quantities.get(proposed.quantityId);
   if(!rate){fail('unknown-rate',[proposed.id,proposed.rateId],'The selected price does not exist in the supplied approved catalog.');continue;}
   const normalize=(s:string)=>s.normalize('NFKC').replace(/\s+/g,' ').trim();
-  if(proposed.catalogQuote.trim().length<6||!normalize(rate.description).includes(normalize(proposed.catalogQuote))){fail('catalog-evidence',[proposed.id,rate.code],'Catalog coverage evidence must quote the selected rate verbatim.');continue;}
+  if(proposed.catalogQuote.trim().length<6||!normalize(rate.description).includes(normalize(proposed.catalogQuote))){fail('catalog-evidence',[proposed.id,rate.code],'Catalog coverage evidence must quote the selected rate verbatim. '+quotationFeedback(proposed.catalogQuote,rate.description));continue;}
   if(!Number.isFinite(rate.amount)||rate.amount<=0){fail('invalid-price',[proposed.id,rate.code],'The approved rate must be positive and finite.');continue;}
   if(!quantity||quantity.basis==='unknown'||!quantity.unit||quantity.value===null||quantity.value<=0){fail('unknown-priced-quantity',[proposed.id,proposed.quantityId],'The selected quantity is missing or unresolved.');continue;}
   if(unitKey(rate.unit)!==unitKey(quantity.unit)){fail('unit-mismatch',[proposed.id,quantity.id],'The catalog and quantity units differ; create a supported converted quantity before pricing.');continue;}
@@ -104,6 +106,7 @@ export function compileProjectPrices(record:ProjectRecord,selection:ProjectPrice
  * keyword correction or prose-based issue waiver can alter this input. */
 export function calculateProjectEstimate(record:ProjectRecord,selection:ProjectPriceSelection,configuration:EstimatorConfiguration,receipt:ProjectReviewReceipt,now=new Date(),completionPlan?:ProjectCompletionPlan){
  const review=receipt.review;
+ verifiedReviewCatalog(review,configuration.planningCatalog?.rates||[]);
  const compiled=compileProjectPrices(record,selection,configuration,now);
  const checked=validateProjectReview(record,review,completionPlan);
  const problems=[...compiled.problems,...checked.problems];

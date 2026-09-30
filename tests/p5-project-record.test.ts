@@ -18,6 +18,7 @@ import {saveProjectChange,readProjectConversation,activeProjectChanges} from '..
 import {ESTIMATOR_BRAND} from '../lib/p5/brand.ts';
 import {randomUUID} from 'node:crypto';
 import type {Draft} from '../lib/p5/store.ts';
+import {verifiedReviewCatalog} from '../lib/p5/projectReviewEvidence.ts';
 
 const now=new Date('2026-09-30T14:00:00Z');
 const scope:ReviewedScope={text:'Replace exactly 3 passage handles with owner-supplied matching sets in Boise. Existing holes are sound. Include adjustment and testing. Owner handles cleanup. No painting or door replacement.',answers:{service:'handyman',location:'Boise'},extraction:null,uploads:[],reviewedAt:now.toISOString(),corrections:[]};
@@ -405,9 +406,54 @@ test('malformed pricing proposals receive their actual validation feedback on re
 });
 test('a blocking review finding must state the required correction and cannot be waived through its wording',()=>{
  const r=record(),p=projectPriceSelection(r,config,proposal());
- const finding={id:'f1',code:'rate-fit',requirementIds:['replace-handles'],quantityIds:[],lineIds:['install'],evidenceIds:[],message:'No explicit defect; an alternative exists.'};
+ const finding={id:'f1',code:'rate-fit',requirementIds:['replace-handles'],quantityIds:[],lineIds:['install'],evidenceIds:[],catalogEvidence:[{rateId:'PB-08-71-01',quote:config.planningCatalog!.rates.find(r=>r.code==='PB-08-71-01')!.description}],message:'No explicit defect; an alternative exists.'};
  assert.equal(projectReviewSchema.safeParse({...review(r),findings:[finding]}).success,false);
  const receipt=projectReviewReceipt(r,p,{...review(r),findings:[{...finding,requiredCorrection:'Resolve the disputed match against the approved catalog.'}]});
  const result=calculateProjectEstimate(r,p,config,receipt,now);
  assert.equal(result.status,'needs-resolution');assert.ok(result.problems.some(p=>p.code==='rate-fit'&&p.message.includes('Required correction:')));
+});
+test('actual abbreviated completion citations stay rejected and receive the exact original wording for repair',()=>{
+ const cases=[
+  ['replace 420 LF of baseboards and eight interior doors, paint 4,000 SF of walls and 1,800 SF of ceilings.','paint 1,800 SF of ceilings'],
+  ['Supply 12 LF base cabinets and 8 LF wall cabinets, painted Shaker style with plywood boxes and soft-close hardware. The owner collects and installs the cabinets.','Supply ... 8 LF wall cabinets, painted Shaker style with plywood boxes and soft-close hardware.'],
+ ];
+ for(const [text,quote]of cases){
+  const input=projectInput({...scope,text}),raw=method(input);raw.steps[0].evidence[0].quote=quote;
+  assert.throws(()=>acceptProjectCompletion(raw,input),(error:unknown)=>error instanceof ProjectRecordError&&error.problems.some(p=>p.code==='completion-evidence'&&p.message.includes(JSON.stringify(text))&&p.message.includes(JSON.stringify(quote))));
+  raw.steps[0].evidence[0].quote=text;assert.equal(acceptProjectCompletion(raw,input).steps[0].evidence[0].quote,text);
+ }
+});
+test('an invented review alternative is repaired without redirecting the accepted price proposal',async()=>{
+ const r=record();let priceCalls=0,reviewCalls=0;let firstSelection:unknown;
+ const unsupported={...review(r),findings:[{id:'invented-alternative',code:'rate-fit',requirementIds:['replace-handles'],quantityIds:[],lineIds:['install'],evidenceIds:[],catalogEvidence:[{rateId:'PB-03-19-04-L',quote:'Door Hardware - Labor'}],message:'PB-03-19-04-L is a cheaper more specific alternative.',requiredCorrection:'Replace PB-08-71-01 with PB-03-19-04-L.'}]};
+ assert.throws(()=>verifiedReviewCatalog(unsupported,config.planningCatalog!.rates),ProjectRecordError);
+ const body=openAiPricingRequestEnvelope(PROJECT_REVIEW_INSTRUCTIONS,{catalog:config.planningCatalog!.rates},false).body as any;
+ const pattern=body.text.format.schema.properties.findings.items.properties.catalogEvidence.items.properties.rateId.pattern;
+ assert.equal(new RegExp(pattern).test('PB-03-19-04-L'),false);assert.equal(new RegExp(pattern).test('PB-08-71-01'),true);
+ const request:PricingRequest=async(instructions,input)=>{
+  const data=input as any;
+  if(instructions===PROJECT_CATALOG_INSTRUCTIONS)return {value:{requirements:[{requirementId:'replace-handles',candidates:[{rateId:'PB-08-71-01',reason:'Actual task rate'}],unmatchedReason:''}]},sourceUrls:[]};
+  if(instructions===PROJECT_PRICE_INSTRUCTIONS){priceCalls++;return {value:wireProposal(),sourceUrls:[]};}
+  assert.equal(instructions,PROJECT_REVIEW_INSTRUCTIONS);reviewCalls++;
+  if(reviewCalls===1){firstSelection=structuredClone(data.selectedPrices);return {value:unsupported,sourceUrls:[]};}
+  assert.deepEqual(data.selectedPrices,firstSelection);assert.deepEqual(data.previousReview,unsupported);
+  assert.ok(data.correctionsRequired.some((p:any)=>p.code==='review-catalog-evidence'));
+  return {value:review(r),sourceUrls:[]};
+ };
+ const result=await priceProjectRecord(r,config,{request,now});assert.equal(result.status,'estimated');assert.equal(priceCalls,1);assert.equal(reviewCalls,2);
+ assert.equal(result.status==='estimated'&&result.compiled.lines[0].unitCost,70);
+ // Omitting a false rate from the structured references does not conceal it.
+ unsupported.findings[0].catalogEvidence=[{rateId:'PB-08-71-01',quote:config.planningCatalog!.rates.find(rate=>rate.code==='PB-08-71-01')!.description}];
+ assert.throws(()=>verifiedReviewCatalog(unsupported,config.planningCatalog!.rates),ProjectRecordError);
+});
+test('repeated invalid review evidence stops with the unchanged selection and never becomes a pricing instruction',async()=>{
+ const r=record();let priceCalls=0,reviewCalls=0;
+ const invalid={...review(r),findings:[{id:'false-rate',code:'rate-fit',requirementIds:['replace-handles'],quantityIds:[],lineIds:['install'],evidenceIds:[],catalogEvidence:[{rateId:'PB-08-71-01',quote:'Fabricated description supporting a different cost'}],message:'Wrong quoted catalog coverage.',requiredCorrection:'Reprice.'}]};
+ const request:PricingRequest=async(instructions)=>{
+  if(instructions===PROJECT_CATALOG_INSTRUCTIONS)return {value:{requirements:[{requirementId:'replace-handles',candidates:[{rateId:'PB-08-71-01',reason:'Actual task rate'}],unmatchedReason:''}]},sourceUrls:[]};
+  if(instructions===PROJECT_PRICE_INSTRUCTIONS){priceCalls++;return {value:wireProposal(),sourceUrls:[]};}
+  reviewCalls++;return {value:invalid,sourceUrls:[]};
+ };
+ const result=await priceProjectRecord(r,config,{request,now});assert.equal(result.status,'needs-resolution');assert.equal(priceCalls,1);assert.equal(reviewCalls,2);
+ assert.ok(result.problems.some(p=>p.code==='review-catalog-evidence'));
 });

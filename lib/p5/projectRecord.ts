@@ -4,6 +4,7 @@ import {projectUnit,sameProjectDimension,combineProjectUnits,sourceNumbers} from
 import {PROJECT_RECORD_VERSION,projectProposalSchema,type ProjectProposal,type ProjectQuantityValue,type ProjectQuestion} from './projectRecordContracts.ts';
 import type {ProjectChange} from './projectConversation.ts';
 import type {ProjectPageEvidence} from './projectPageEvidence.ts';
+import {quotationFeedback} from './quotationFeedback.ts';
 
 export interface ProjectSource {
  id:string;kind:'customer-text'|'reviewed-answer'|'document-transcript'|'native-page-text'|'page-layout'|'reader-observation'|'customer-clarification'|'customer-revision';
@@ -171,7 +172,7 @@ export function validateProjectRecord(proposal:ProjectProposal,input:ProjectInpu
  const checkEvidence=(ids:string[],owner:string)=>{for(const id of ids)if(!evidence.has(id))issue('unknown-evidence',[owner,id],'Referenced evidence does not exist.');};
  for(const e of proposal.evidence){
   const source=sources.get(e.sourceId);
-  if(!source||!normalized(source.text).includes(normalized(e.quote)))issue('unsupported-quote',[e.id,e.sourceId],'Evidence must quote its identified source verbatim.');
+  if(!source||!normalized(source.text).includes(normalized(e.quote)))issue('unsupported-quote',[e.id,e.sourceId],'Evidence must quote its identified source verbatim. '+quotationFeedback(e.quote,source?.text));
   if(source?.status==='unreadable')issue('unreadable-evidence',[e.id],'Unreadable content cannot establish a confirmed fact.');
  }
  for(const subject of proposal.subjects){

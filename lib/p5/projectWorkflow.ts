@@ -6,6 +6,7 @@ import {checkedProjectCandidates,projectCatalogIndex} from './projectCatalog.ts'
 import {projectInput,acceptProjectRecord,ProjectRecordError,type ProjectRecord,type ProjectScope,type RecordProblem} from './projectRecord.ts';
 import {projectPriceSelection,projectPriceProposalFromWire,compileProjectPrices,calculateProjectEstimate,projectReviewReceipt,validateProjectReview,type ProjectPriceSelection} from './projectPricing.ts';
 import type {ProjectChange} from './projectConversation.ts';
+import {verifiedReviewCatalog} from './projectReviewEvidence.ts';
 
 export interface ProjectWorkflowOptions {request?:PricingRequest;previous?:ProjectRecord|null;changes?:ProjectChange[];now?:Date;deadline?:number;completionPlan?:ProjectCompletionPlan}
 export interface ProjectReadResult {status:'ready'|'questions'|'needs-resolution';record:ProjectRecord|null;problems:RecordProblem[];attempts:number;completionPlan?:ProjectCompletionPlan}
@@ -64,9 +65,16 @@ export async function priceProjectRecord(record:ProjectRecord,configuration:Esti
   const compiled=compileProjectPrices(record,selection,configuration,now);
   if(compiled.problems.length){problems=compiled.problems;continue;}
   const selectedCatalogIds=new Set(selection.proposal.lines.map(line=>line.rateId));
-  const responseReview=await request(PROJECT_REVIEW_INSTRUCTIONS,{stage:'priced-estimate',sources:record.sources,completionPlan:options.completionPlan||null,record,selectedPrices:selection,selectedCatalog:catalog.filter(rate=>selectedCatalogIds.has(rate.code)),catalogCandidates,catalog,coverage:compiled.coverage},false,remaining());
+  const reviewContext={stage:'priced-estimate',sources:record.sources,completionPlan:options.completionPlan||null,record,selectedPrices:selection,selectedCatalog:catalog.filter(rate=>selectedCatalogIds.has(rate.code)),catalogCandidates,catalog,coverage:compiled.coverage};
+  let verifiedReview:ReturnType<typeof verifiedReviewCatalog>|null=null,previousReview:unknown=null,reviewProblems:RecordProblem[]=[];
+  for(let reviewAttempt=1;reviewAttempt<=2&&!verifiedReview;reviewAttempt++){
+   const responseReview=await request(PROJECT_REVIEW_INSTRUCTIONS,{...reviewContext,...(reviewAttempt>1?{previousReview,correctionsRequired:reviewProblems,repairInstruction:'Repair the review only. Keep the current selected prices unchanged while verifying every catalog claim against the supplied catalog.'}:{})},false,remaining());
+   previousReview=responseReview.value;
+   try{verifiedReview=verifiedReviewCatalog(previousReview,catalog);}catch(error){reviewProblems=shapeProblems(error);}
+  }
+  if(!verifiedReview)return {status:'needs-resolution' as const,record,selection,problems:reviewProblems,attempts:attempt};
   try{
-   const receipt=projectReviewReceipt(record,selection,responseReview.value,options.completionPlan);
+   const receipt=projectReviewReceipt(record,selection,verifiedReview,options.completionPlan);
    const result=calculateProjectEstimate(record,selection,configuration,receipt,now,options.completionPlan);
    if(result.status==='estimated')return {...result,attempts:attempt};
    problems=result.problems;

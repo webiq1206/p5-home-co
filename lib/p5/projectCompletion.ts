@@ -1,5 +1,6 @@
 import {projectCompletionSchema,type ProjectCompletion,type ProjectReview} from './projectRecordContracts.ts';
 import {projectHash,ProjectRecordError,type ProjectInput,type ProjectRecord,type RecordProblem} from './projectRecord.ts';
+import {quotationFeedback} from './quotationFeedback.ts';
 
 export interface ProjectCompletionPlan extends ProjectCompletion {sourceHash:string;planHash:string}
 const normalize=(value:string)=>value.normalize('NFKC').replace(/\s+/g,' ').trim();
@@ -16,7 +17,7 @@ export function acceptProjectCompletion(raw:unknown,input:ProjectInput):ProjectC
  for(const step of plan.steps){
   if(seen.has(step.id))fail('completion-id',[step.id],'Work-method step IDs must be unique.');seen.add(step.id);
   for(const evidence of step.evidence){const source=sources.get(evidence.sourceId);
-   if(!source||!normalize(source.text).includes(normalize(evidence.quote)))fail('completion-evidence',[step.id,evidence.sourceId],'The work method must quote the actual identified source.');
+   if(!source||!normalize(source.text).includes(normalize(evidence.quote)))fail('completion-evidence',[step.id,evidence.sourceId],'The work method must quote the actual identified source. '+quotationFeedback(evidence.quote,source?.text));
    if(source?.status==='unreadable'&&step.kind!=='decision-needed')fail('completion-evidence',[step.id,evidence.sourceId],'An unreadable source cannot establish a confirmed operation; identify its actual uncertainty.');
   }
  }
