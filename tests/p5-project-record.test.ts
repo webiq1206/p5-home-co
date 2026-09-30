@@ -190,6 +190,23 @@ test('changing stored facts, source text or catalog prices invalidates the prior
  const changedBook=structuredClone(config);changedBook.planningCatalog!.rates.find(r=>r.code==='PB-08-71-01')!.amount=80;
  assert.ok(compileProjectPrices(original,selection,changedBook,now).problems.some(p=>p.code==='stale-catalog'));
 });
+test('generating later estimates cannot refresh old or missing owner price evidence',()=>{
+ const r=record(),selection=projectPriceSelection(r,config,proposal());
+ const later=new Date(now.getTime()+100*86400000);
+ const initial=compileProjectPrices(r,selection,config,now),aged=compileProjectPrices(r,selection,config,later);
+ assert.deepEqual(aged.lines[0].evidence,initial.lines[0].evidence);
+ assert.equal(aged.lines[0].evidence.validUntil,'2026-12-31T14:00:00.000Z');
+ const estimate=calculateProjectEstimate(r,selection,config,projectReviewReceipt(r,selection,review(r)),later);
+ assert.equal(estimate.status,'estimated','An overdue owner catalog remains a disclosed preliminary estimate under existing policy.');
+ assert.ok(estimate.internal!.warnings.some(w=>w.code==='cost-evidence-expired'));
+ assert.match(JSON.stringify(estimate.customer!.assumptions),/2026-09-30.*past its scheduled review/);
+ for(const date of ['', 'not-a-date',later.toISOString()]){
+  const invalid=structuredClone(config);invalid.planningCatalog!.importedAt=date;
+  const rejected=compileProjectPrices(r,projectPriceSelection(r,invalid,proposal()),invalid,now);
+  assert.ok(rejected.problems.some(p=>p.code==='catalog-date'));
+  assert.notEqual(rejected.lines[0].evidence.verifiedAt,now.toISOString(),'Missing evidence is never replaced by the estimate creation date.');
+ }
+});
 test('record and selection identity survives database JSON key reordering',()=>{
  const r=record();
  const reorder=(v:any):any=>Array.isArray(v)?v.map(reorder):v&&typeof v==='object'?Object.fromEntries(Object.entries(v).sort(([a],[b])=>b.localeCompare(a)).map(([k,value])=>[k,reorder(value)])):v;

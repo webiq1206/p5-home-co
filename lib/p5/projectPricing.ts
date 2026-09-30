@@ -4,6 +4,7 @@ import {unitKey} from './unitRates.ts';
 import {projectHash,projectRecordIntegrity,validateProjectQuantities,type ProjectRecord,type RecordProblem} from './projectRecord.ts';
 import {projectPricingProposalSchema,projectPricingWireSchema,projectPricingWireFor,projectReviewSchema,type ProjectPricingProposal,type ProjectReview} from './projectRecordContracts.ts';
 
+export const PROJECT_PRICE_COMPILER_VERSION='p5-project-price-compiler-v2';
 export interface ProjectPriceSelection {recordHash:string;catalogHash:string;proposal:ProjectPricingProposal}
 export function projectPriceProposalFromWire(record:ProjectRecord,configuration:EstimatorConfiguration,raw:unknown):ProjectPricingProposal{
  const wire=projectPricingWireSchema.parse(projectPricingWireFor(record,configuration.planningCatalog?.rates||[]).parse(raw));
@@ -34,6 +35,11 @@ export function compileProjectPrices(record:ProjectRecord,selection:ProjectPrice
  if(!projectRecordIntegrity(record))fail('record-integrity',[],'The saved project record changed without a new accepted revision.');
  if(selection.recordHash!==record.recordHash)fail('stale-pricing',[],'The project changed after these prices were selected.');
  if(selection.catalogHash!==projectCatalogHash(configuration))fail('stale-catalog',[],'The price book changed after these prices were selected.');
+ const importedAt=configuration.planningCatalog?.importedAt||'',importedTime=Date.parse(importedAt);
+ // Keep the existing owner catalog's 92-day review interval. Generating an
+ // estimate neither verifies its rates nor starts a new validity period.
+ const reviewDue=Number.isFinite(importedTime)?new Date(importedTime+92*86400000).toISOString():'';
+ if(!Number.isFinite(importedTime)||importedTime>now.getTime())fail('catalog-date',[],'The owner catalog needs its actual recorded import/review date; a missing or future date cannot establish price evidence.');
  const requirements=new Map(record.requirements.map(r=>[r.id,r]));
  const estimatingQuantities=selection.proposal.estimatingQuantities;
  const allQuantities=[...record.quantities,...estimatingQuantities.map(({requirementIds:_work,basedOnQuantityIds:_basis,...quantity})=>{void _work;void _basis;return quantity;})];
@@ -71,7 +77,7 @@ export function compileProjectPrices(record:ProjectRecord,selection:ProjectPrice
   for(const requirementId of proposed.requirementIds)coverage.set(requirementId,[...(coverage.get(requirementId)||[]),proposed.id]);
   const category:DirectCostLine['category']=rate.type==='Material'?'materials':rate.type==='Labor'?'field-labor':rate.type==='Equipment'?'equipment-rentals':rate.type==='Subcontractor'?'subcontractors':'other-direct';
   const references=quantity.evidenceIds.map(id=>record.evidence.find(e=>e.id===id)).filter(Boolean).map(e=>`${e!.sourceId}: ${e!.quote}`);
-  lines.push({id:proposed.id,description:covered.map(r=>r!.description).join('; '),trade:covered[0]!.trade,quantity:quantity.value,unit:rate.unit,unitCost:rate.amount,category,priceBasis:'direct-cost',estimatingBasis:rate.basis,allowance:quantity.basis==='allowance',...(quantity.range?{quantityRange:quantity.range}:{}),quantitySource:[quantity.description,...references,quantity.assumption].filter(Boolean).join(' | '),evidence:{basis:'owner-estimating-schedule',reference:`${rate.source}; ${rate.code}; ${rate.description}`,verifiedAt:configuration.planningCatalog?.importedAt||now.toISOString(),validUntil:new Date(now.getTime()+30*86400000).toISOString()}});
+  lines.push({id:proposed.id,description:covered.map(r=>r!.description).join('; '),trade:covered[0]!.trade,quantity:quantity.value,unit:rate.unit,unitCost:rate.amount,category,priceBasis:'direct-cost',estimatingBasis:rate.basis,allowance:quantity.basis==='allowance',...(quantity.range?{quantityRange:quantity.range}:{}),quantitySource:[quantity.description,...references,quantity.assumption].filter(Boolean).join(' | '),evidence:{basis:'owner-estimating-schedule',reference:`${rate.source}; ${rate.code}; ${rate.description}`,verifiedAt:importedAt,validUntil:reviewDue}});
  }
  for(const requirement of record.requirements){
   if(requirement.status!=='included'||requirement.responsibility!=='contractor')continue;
@@ -100,6 +106,7 @@ export function calculateProjectEstimate(record:ProjectRecord,selection:ProjectP
  if(!Object.hasOwn(SERVICE_MATRIX,record.service))problems.push({code:'project-classification',ids:[],message:'A supported project classification is required.'});
  if(problems.length||!compiled.lines.length)return {status:'needs-resolution' as const,problems,record,selection,review,compiled};
  const assumptions=[...new Set([...record.assumptions,...compiled.quantities.filter(q=>q.basis==='allowance').map(q=>`${q.description}: ${q.value} ${q.unit}, allowance range ${q.range!.low} to ${q.range!.high}. ${q.assumption}`),...review.notes])];
+ if(compiled.lines.some(line=>Date.parse(line.evidence.validUntil)<now.getTime()))assumptions.push(`Pricing uses the owner planning catalog recorded ${configuration.planningCatalog!.importedAt.slice(0,10)}, which is past its scheduled review. Current supplier and trade pricing must be confirmed before a firm proposal.`);
  const exclusions=record.requirements.filter(r=>r.status==='excluded').map(r=>r.description);
  const input:PricingInput={estimatePurpose:'preliminary',firmPrice:record.service==='re10',bookPriced:true,service:record.service as Service,revision:projectHash({record:record.recordHash,selection,finance:configuration.finance}),scopeSummary:record.summary,lines:compiled.lines,coverage:COST_CATEGORIES.map(category=>({category,status:compiled.lines.some(line=>line.category===category)?'included':'not-applicable',reason:'Coverage is recorded against individual project requirements.'})),risks:[],assumptions,exclusions,missingInformation:[],allowances:[],uncertainty:compiled.quantities.some(q=>q.basis==='allowance')?'high':'medium',locationProvided:Boolean(record.location)};
  const estimate=calculateP5Estimate(input,configuration.finance,[],now);

@@ -12,9 +12,10 @@ import {EMPTY_CONFIGURATION,type EstimatorConfiguration} from './costBook.ts';
 import {projectConfiguration} from './projectCatalog.ts';
 import {loadProjectPageEvidence} from './projectPageEvidence.ts';
 import {readProjectConversation,activeProjectChanges} from './projectConversation.ts';
+import {PROJECT_PRICE_COMPILER_VERSION} from './projectPricing.ts';
 
 const LATEST='project-record-latest-v1';
-export const PROJECT_WORKFLOW_CONTRACT_HASH=projectHash({version:PROJECT_RECORD_VERSION,stages:[PROJECT_RECORD_INSTRUCTIONS,PROJECT_CATALOG_INSTRUCTIONS,PROJECT_PRICE_INSTRUCTIONS,PROJECT_REVIEW_INSTRUCTIONS].map(instructions=>({instructions,schema:projectContractSchema(instructions)}))});
+export const PROJECT_WORKFLOW_CONTRACT_HASH=projectHash({version:PROJECT_RECORD_VERSION,compilerVersion:PROJECT_PRICE_COMPILER_VERSION,stages:[PROJECT_RECORD_INSTRUCTIONS,PROJECT_CATALOG_INSTRUCTIONS,PROJECT_PRICE_INSTRUCTIONS,PROJECT_REVIEW_INSTRUCTIONS].map(instructions=>({instructions,schema:projectContractSchema(instructions)}))});
 type QualificationResult=(Awaited<ReturnType<typeof interpretProjectRecord>>|Awaited<ReturnType<typeof priceProjectRecord>>)&{runEvidence?:{contractHash:string;completedStages:{requestHash:string;requestedModel:string|null;returnedModel:string|null;providerRequestIds:string[]}[]}};
 type StoredWork={startedAt:string;replies:Record<string,PricingReply>;requests?:Record<string,{instructions:string;input:unknown;startedAt:string}>;record?:ProjectRecord;result?:QualificationResult};
 /** Both a first completion and recovery of a saved completion pass through the
