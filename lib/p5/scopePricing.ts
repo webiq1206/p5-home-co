@@ -34,6 +34,7 @@ import {contractorConsumableIncluded,ownerSuppliesAllParts} from './contractorCo
 import {applyPricingCorrections} from './pricingCorrections.ts';
 import {specifiedShowerGlassRate} from './priceBook.ts';
 import {verifiedPermitContext} from './permitContext.ts';
+import {projectContractSchema} from './projectRecordContracts.ts';
 
 // This module runs only on the server at submission. No client-supplied mapping
 // or rate can authorize a price. The approved catalog is never mutated here.
@@ -329,7 +330,7 @@ export function validateManagedPricingOpenAI(env:Readonly<Record<string,string|u
 const providerBusy=(message:string)=>/^pricing-provider-unavailable:(?:429|5\d\d)\b/.test(message);
 const providerRefused=(message:string)=>/^pricing-provider-unavailable:4(0[0-3]|0[5-9]|1\d|2[0-8])\b/.test(message);
 /** The structured output each stage must return, shared by both providers so a fallback reply has the same shape. */
-const stageSchema=(instructions:string)=>instructions===normalizeResearch?marketJson:instructions===INVENTORY?inventoryJson:instructions===MAP?mappingJson:instructions===PLANNING_AVERAGE?planningJson:instructions===CONSUMABLE_COVERAGE?consumableJson:auditJson;
+const stageSchema=(instructions:string)=>projectContractSchema(instructions)||(instructions===normalizeResearch?marketJson:instructions===INVENTORY?inventoryJson:instructions===MAP?mappingJson:instructions===PLANNING_AVERAGE?planningJson:instructions===CONSUMABLE_COVERAGE?consumableJson:auditJson);
 export type OpenAiPricingOptions={serviceTier?:'default';maxOutputTokens?:number};
 export const openAiPricingRequestEnvelope=(instructions:string,input:unknown,search:boolean,options:OpenAiPricingOptions={})=>{
   const task=search?'research':instructions===INVENTORY?'inventory':instructions===MAP||instructions===PLANNING_AVERAGE||instructions===normalizeResearch?'map':'audit';
