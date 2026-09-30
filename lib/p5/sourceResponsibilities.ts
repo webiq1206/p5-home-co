@@ -34,6 +34,14 @@ export function groundCabinetExclusions(extraction:ScopeExtraction,nativeText:st
 /** Selecting products or separating product allowances from ancillary costs
  * does not make the owner responsible for installation. Ask when unsupported. */
 export function groundSourceResponsibilities(extraction:ScopeExtraction,nativeText:string|undefined,typedText:string,previous:ScopeAnswers):ScopeExtraction{
+ // An exclusion does not assign procurement or work to the owner. Apply this
+ // narrow guard to typed scopes too, when no source names an owner role.
+ const source=[nativeText,typedText,previous.estimatingInstructions,previous.installation].filter(Boolean).join('\n');
+ const explicitOwner=Boolean(previous.ownerSupplied?.trim())||owner.test(source)||/\b(?:I|we|our)\b/i.test(source);
+ if(!explicitOwner&&/\b(?:exclud\w*|not included|outside (?:the )?scope)\b/i.test(source)){
+  extraction={...extraction,facts:extraction.facts.filter(fact=>fact.field!=='ownerSupplied'),
+   ...(extraction.instructions?{instructions:{...extraction.instructions,responsibilities:extraction.instructions.responsibilities.flatMap(value=>clauses(value).filter(clause=>!owner.test(clause)))}}:{})};
+ }
  if(!nativeText)return extraction;
  extraction=groundCabinetExclusions(extraction,nativeText,typedText,previous);
  const direct=[typedText,previous.estimatingInstructions,previous.installation,previous.ownerSupplied,previous.exclusions].filter(Boolean).join('\n');

@@ -142,7 +142,9 @@ export function applyPricingCorrections(input:CorrectionInput):CorrectionResult{
   for(const assembly of kept){
     const {section}=sectionOf(assembly.description);
     if(!WHOLE_UNIT_SECTIONS.test(section)||!WHOLE_UNIT_ITEMS.test(itemOf(assembly.description)))continue;
-    const components=resolution.rules.filter(rule=>rule!==assembly&&!hasMarker(rule.description)&&sameBuilding(rule.building,assembly.building)&&!OUTSIDE_WHOLE_UNIT.test(ratePart(rule.description)));
+    const outsideUnit=(rule:CostRule)=>OUTSIDE_WHOLE_UNIT.test(ratePart(rule.description))
+      && !(PROTECT_OR_CLEAN.test(itemOf(rule.description))&&!OUTSIDE_TASK.test(taskDescription(rule.scopeTaskId||'')));
+    const components=resolution.rules.filter(rule=>rule!==assembly&&!hasMarker(rule.description)&&sameBuilding(rule.building,assembly.building)&&!outsideUnit(rule));
     const roomAssemblies=resolution.rules.filter(rule=>rule!==assembly&&hasMarker(rule.description)&&sameBuilding(rule.building,assembly.building)&&!WHOLE_UNIT_SECTIONS.test(sectionOf(rule.description).section)&&!OUTSIDE_WHOLE_UNIT.test(ratePart(rule.description)));
     const drop=[...components,...roomAssemblies];
     const total=drop.reduce((n,rule)=>n+direct(rule),0);

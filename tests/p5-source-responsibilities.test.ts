@@ -61,3 +61,17 @@ test('saved installer question is retired when retained-appliance reset is expli
  assert.deepEqual(safe.instructions?.questions,['Which countertop edge is requested?']);
  assert.deepEqual(groundSourceResponsibilities(safe,source,'',{}),safe);
 });
+
+test('ADU exclusions do not invent owner supply or responsibility in typed or uploaded scopes',()=>{
+ const source='Build a complete 600 SF ADU. Exclude land, landscaping, permits, design, engineering and appliance supply.';
+ const input:ScopeExtraction={summary:'ADU',facts:[{field:'ownerSupplied',value:'Appliances owner-supplied. Land, permits and design owner-responsibility.',confidence:1,source:'typed scope',evidence:'Exclude appliance supply',basis:'stated'}],conflicts:[],reviewNotes:[],missingInformation:[],instructions:{...emptyInstructions(),exclusions:['Appliance supply','Permit fees'],responsibilities:['Contractor: Complete ADU construction','Owner: land, permits, design and appliances']}};
+ for(const native of [undefined,source]){
+  const safe=groundSourceResponsibilities(input,native,source,{});
+  assert.equal(safe.facts.some(f=>f.field==='ownerSupplied'),false);
+  assert.deepEqual(safe.instructions?.responsibilities,['Contractor: Complete ADU construction']);
+  assert.deepEqual(safe.instructions?.exclusions,input.instructions?.exclusions);
+  assert.deepEqual(safe.instructions?.questions,[]);
+ }
+ assert.ok(groundSourceResponsibilities(input,undefined,source+' Owner supplies the appliances.',{}).facts.some(f=>f.field==='ownerSupplied'));
+ assert.ok(groundSourceResponsibilities(input,undefined,source,{ownerSupplied:'Appliances'}).facts.some(f=>f.field==='ownerSupplied'));
+});

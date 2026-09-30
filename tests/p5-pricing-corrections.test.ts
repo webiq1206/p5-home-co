@@ -188,3 +188,11 @@ test('explicitly requested cabinet-install cleanup cannot bypass the supporting-
  const unpriced=inputFor(scope,tasks,[rule('base',tasks[0].description,'12-39-06',9)]);
  assert.ok(!applyPricingCorrections(unpriced).coveredTaskIds.includes('clean'),'explicitly requested unpriced cleanup is not silently absorbed');
 });
+
+test('complete house covers normal protection and final clean while separate porch remains priced',()=>{
+ const tasks=[{id:'home',description:'Build complete home'},{id:'porch',description:'Build separate covered porch'},{id:'cleanup',description:'Project-wide protection of adjacent finishes and final cleanup',origin:'required'}];
+ const input=inputFor(scopeFor('Build a 2000 SF home and 80 SF covered porch.',{service:'new-construction',sqft:'2000'}),tasks,[rule('home',tasks[0].description,'90-10-01',2000),rule('porch',tasks[1].description,'06-15-06',80),rule('cleanup',tasks[2].description,'01-50-10',2080),rule('cleanup',tasks[2].description,'01-74-05',2000)]);
+ const result=applyPricingCorrections(input);
+ assert.deepEqual(input.resolution.rules.map(r=>r.scopeTaskId),['home','porch']);
+ assert.ok(result.coveredTaskIds.includes('cleanup'));assert.ok(!result.coveredTaskIds.includes('porch'));
+});

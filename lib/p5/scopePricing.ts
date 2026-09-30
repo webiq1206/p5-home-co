@@ -27,7 +27,7 @@ import {missingScopeFields} from './missingFields.ts';
 import {markPricingChargeUnknown,pricingFingerprint,pricingLedgerActive,recordPricingRequest,rejectPricingCharge,reservePricingCharge,settlePricingCharge,PricingChargeUnknownError,type PricingIdentity} from './pricingLedger.ts';
 import {customerSafeNotes,customerSafeProjection} from './pricing.ts';
 import {duplicateChargeNotes} from './duplicateCharges.ts';
-import {contractorConsumableIncluded} from './contractorConsumables.ts';
+import {contractorConsumableIncluded,ownerSuppliesAllParts} from './contractorConsumables.ts';
 import {applyPricingCorrections} from './pricingCorrections.ts';
 
 // This module runs only on the server at submission. No client-supplied mapping
@@ -97,6 +97,26 @@ function parseResearchRates(raw:unknown){
  const parsed=marketSchema.safeParse(raw);
  if(!parsed.success)throw new ResearchEvidenceError('Invalid researched rate: '+parsed.error.issues.map(issue=>issue.path.join('.')+': '+issue.message).join('; ').slice(0,3000));
  const market=parsed.data;
+ // A model may put an explicit supplier package inside EA parentheses. Keep
+ // its physical contents and quantities, then let the cited-package checks
+ // below validate every conversion; descriptive units are never price units.
+ const packageUnit=(value:string)=>{
+  const m=/^(?:EA|each)\s*\(\s*(\d+(?:\.\d+)?)\s*[- ]?\s*(lb|lbs|pounds?|pack|pk|count|ct)(?:\s+(?:box|bag|pack))?\s*\)$/i.exec(value.trim());
+  if(m&&(!Number.isFinite(Number(m[1]))||Number(m[1])<=0))throw new ResearchEvidenceError('Invalid package size for researched product');
+  return m?{size:Number(m[1]),unit:/^(?:lb|pound)/i.test(m[2])?'LB':'EA',source:`${m[1]} ${/^(?:lb|pound)/i.test(m[2])?'lb box':'pack'}`}:null;
+ };
+ for(const rate of market.rates){
+  if(rate.basis!=='material-purchase')continue;
+  const pack=packageUnit(rate.unit);
+  if(pack){
+   const original=rate.unit;rate.unit=pack.unit;rate.quantity*=pack.size;
+   if(rate.quantityRange)rate.quantityRange={low:rate.quantityRange.low*pack.size,high:rate.quantityRange.high*pack.size};
+   if(rate.landedCost)rate.landedCost.freightPerUnit/=pack.size;
+   rate.quantityEvidence+=` Package quantity conversion: ${original} contains ${pack.size} ${pack.unit} per package.`;
+   market.notes.push(`Modeled package count converted to ${pack.unit} using the stated ${original} contents; each source price still requires cited package evidence.`);
+  }
+  for(const source of rate.sources){const sourcePack=packageUnit(source.unit);if(sourcePack)source.unit=sourcePack.source;}
+ }
  for(const rate of market.rates)for(const source of rate.sources){
   const base=unitKey(rate.unit),sameUnit=unitKey(source.unit)===base;
   // Explicit quantity units outside product packaging retain the old,
@@ -586,16 +606,25 @@ export function normalizeConsumableMapping(mapping:Mapping,configuration:Estimat
       return false;
     });
     if(!contractorConsumableIncluded(scope,task.description))continue;
+    const supportingOperation=(description:string)=>/\b(?:protection|protect|cleanup|cleaning|clean-up)\b/i.test(task.description)
+      && /\b(?:floor protection|final clean|job-site cleanup)\b/i.test(description);
     task.additions=task.additions.filter(addition=>{
       const rate=configuration.planningCatalog?.rates.find(rate=>rate.code===addition.code);
-      return rate?.type==='Material'&&contractorConsumableIncluded(scope,`${task.description}: ${rate.description}`);
+      return rate&&(supportingOperation(rate.description)||rate.type==='Material'&&contractorConsumableIncluded(scope,`${task.description}: ${rate.description}`));
     });
+    const coveredMinorMaterials=(id:string)=>{
+      const line=existing.find(line=>line.id===id);
+      if(line&&line.quantity*line.unitCost>0&&/\blabor with consumables included\b/i.test(line.description))return true;
+      const rate=configuration.planningCatalog?.rates.find(rate=>rate.code===id);
+      return Boolean(rate&&/\blabor with consumables included\b/i.test(rate.description)
+        &&mapping.tasks.some(other=>other!==task&&other.additions.some(addition=>addition.code===id&&addition.quantity>0)));
+    };
     task.existingLineIds=task.existingLineIds.filter(id=>{
       const line=existing.find(line=>line.id===id);
-      return line?.category==='materials'&&contractorConsumableIncluded(scope,`${task.description}: ${line.description}`);
+      return coveredMinorMaterials(id)||line?.category==='materials'&&contractorConsumableIncluded(scope,`${task.description}: ${line.description}`);
     });
     const supplied=task.additions.some(addition=>configuration.planningCatalog?.rates.find(rate=>rate.code===addition.code)?.type==='Material')
-      ||task.existingLineIds.some(id=>existing.some(line=>line.id===id&&line.category==='materials'&&line.quantity*line.unitCost>0));
+      ||task.existingLineIds.some(id=>coveredMinorMaterials(id)||existing.some(line=>line.id===id&&line.category==='materials'&&line.quantity*line.unitCost>0));
     if(!supplied)task.researchDescription=`Material purchase only: ${task.description} Include only the expressly requested contractor-supplied consumables. Never price the primary product (such as cabinets or flooring) again. Respect all original project exclusions. Installation labor and primary products are already separate and must not be charged here.`;
   }
 }
@@ -1673,6 +1702,18 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
         const t={...item,id:sourceParts.length===1?item.id:`${index+1}:${item.id}`};inventory.tasks.push(t);taskSources.set(t.id,index);
       }
     }
+    const sourceConditions=[pricingScope.text,pricingScope.extraction?.sourceText].filter(Boolean).join('\n');
+    const readyLot=/\blevel\s+(?:and\s+)?cleared\s+(?:lot|site)\b/i.test(sourceConditions)
+      && !/\b(?:include|perform|provide|require\w*|need\w*)\b[^.;\n]{0,60}\b(?:grad\w*|site preparation|site prep)\b/i.test(sourceConditions);
+    const unsupportedSupporting=inventory.tasks.filter(task=>{
+      const supplyOnly=/^(?:supply|provide|furnish)\b/i.test(task.description)&&/\b(?:screws?|shims?|consumables?|installation supplies)\b/i.test(task.description)&&!/\b(?:install|repair|replace|clean|protect)\b/i.test(task.description);
+      const genericSite=task.origin==='required'&&readyLot&&/\b(?:rough grading|site and access preparation|site preparation)\b/i.test(task.description)&&!/\b(?:excavat\w*|trench\w*|sewer|water line|utility|utilit(?:y|ies)|driveway|retaining)\b/i.test(task.description);
+      return supplyOnly&&ownerSuppliesAllParts(pricingScope)||genericSite;
+    });
+    if(unsupportedSupporting.length){
+      inventory.tasks=inventory.tasks.filter(task=>!unsupportedSupporting.includes(task));
+      inventory.notes.push(...unsupportedSupporting.map(task=>`${task.description}: no separate contractor purchase or site operation is established by the original scope; retained source conditions control.`));
+    }
     if(inventory.tasks.some(task=>!generalInstallationRequirement(task.description))){
       const general=inventory.tasks.filter(task=>generalInstallationRequirement(task.description));
       inventory.tasks=inventory.tasks.filter(task=>!generalInstallationRequirement(task.description));
@@ -1771,7 +1812,7 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
      * batches run in parallel; saved replies prevent repeated provider charges. */
     const priceGapBatch=async(gapBatch:Mapping['tasks'],batchIndex:number,covered:(task:Mapping['tasks'][number])=>unknown[],priorIssues?:string[]):Promise<{replies:PricingReply[];resolution:ScopePriceResolution;modelIssues:string[]}>=>{
       const replies:PricingReply[]=[];const offset=batchIndex*100;
-      const tasksInput=gapBatch.map(t=>({id:t.id,description:t.researchDescription,application:scope.answers.service||'construction',quantityEvidence:researchQuantityEvidence(t,pricingScope),projectExclusions:[...(pricingScope.extraction?.instructions?.exclusions||[]),pricingScope.answers.exclusions||''],alreadyCovered:covered(t),projectAlreadyPriced:t.id==='required-contractor-consumables'?mapping.tasks.filter(task=>task.id!==t.id).flatMap(task=>covered(task)):undefined}));
+      const tasksInput=gapBatch.map(t=>({id:t.id,description:t.researchDescription,application:scope.answers.service||'construction',quantityEvidence:researchQuantityEvidence(t,pricingScope),projectExclusions:[...(pricingScope.extraction?.instructions?.exclusions||[]),pricingScope.answers.exclusions||''],alreadyCovered:covered(t),projectAlreadyPriced:contractorConsumableIncluded(pricingScope,t.description)||t.id==='required-contractor-consumables'?mapping.tasks.filter(task=>task.id!==t.id).flatMap(task=>covered(task)):undefined}));
       const provisionalCandidates:{rates:ReturnType<typeof parseResearchRates>;urls:string[];report:string}[]=[];
       let currentSourceUrls:string[]=[],currentReport='';
       const validateReply=(value:unknown)=>{

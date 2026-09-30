@@ -2165,3 +2165,23 @@ test('generic consumables do not invent a second repair-material task because cl
  normalizeConsumableMapping(mapping,configuration,[],local);
  assert.equal(mapping.tasks.length,4,'the audit still checks GFCI product coverage; no invented extra compound or PVC kit');
 });
+
+test('descriptive EA package units retain evidenced physical quantities and price arithmetic',()=>{
+ const raw=structuredClone(researched),rate=raw.rates[0];
+ rate.basis='material-purchase';rate.unit='EA (100-pack)';rate.quantity=2;rate.quantityEvidence='ALLOWANCE: two 100-pack boxes of cabinet screws';rate.quantityRange={low:1,high:3};
+ rate.sources=[{...source(urls[0],12,12),unit:'EA (100-pack)',excerpt:'Cabinet screws, 100-pack, $12.'},{...source(urls[1],14,14),unit:'EA (100-pack)',excerpt:'Cabinet screws, 100-pack, $14.'}];
+ const result=marketResolution(raw,urls,[extra],now);
+ assert.equal(result.rules[0].unit,'EA');assert.equal(result.rules[0].quantity.fixed,200);
+ assert.equal(result.rules[0].unitCost,0.13);assert.deepEqual(result.rules[0].quantityRange,{low:100,high:300});
+ rate.sources[0].excerpt='Cabinet screws, 50-pack, $12.';
+ assert.throws(()=>marketResolution(raw,urls,[extra],now),/Package size does not match/);
+});
+
+test('descriptive pound-box units compare equivalent weights and preserve modeled purchase amount',()=>{
+ const raw=structuredClone(researched),rate=raw.rates[0];
+ rate.basis='material-purchase';rate.unit='EA (5 lb box)';rate.quantity=2;rate.quantityEvidence='ALLOWANCE: two five-pound boxes of cabinet screws';rate.quantityRange={low:1,high:3};
+ rate.sources=[{...source(urls[0],12,12),unit:'EA (1 lb box)',excerpt:'Cabinet screws, 1 lb box, $12.'},{...source(urls[1],50,50),unit:'EA (5 lb box)',excerpt:'Cabinet screws, 5 lb box, $50.'}];
+ const result=marketResolution(raw,urls,[extra],now);
+ assert.equal(result.rules[0].unit,'LB');assert.equal(result.rules[0].quantity.fixed,10);assert.equal(result.rules[0].unitCost,11);
+ assert.deepEqual(result.rules[0].quantityRange,{low:5,high:15});
+});

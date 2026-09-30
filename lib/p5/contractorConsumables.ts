@@ -4,7 +4,15 @@ import type {ReviewedScope} from './scope.ts';
 // consumables. Match the priced component, not its parent task or catalog section.
 const GROUPS=[/\b(?:nails?|screws?|fasteners?)\b|\bfastening\s+(?:materials?|supplies)\b/i,/\b(?:caulk|caulking)\b/i,/\bshims?\b|\bleveling\s+(?:materials?|supplies)\b/i,/\badhesives?\b|\bglue\b/i,/\bsealants?\b/i,/\b(?:underlayment|flooring pad)\b/i,/\bspacers?\b/i,/\b(?:consumables?|sundries|installation (?:materials|supplies))\b/i];
 const CONSUMABLES=/\b(?:consumables?|sundries|installation (?:materials|supplies))\b/i;
+/** Original source ownership outranks a reader-generated incidental-supply claim. */
+export function ownerSuppliesAllParts(scope:ReviewedScope):boolean{
+  const original=[scope.text,scope.extraction?.sourceText,...(scope.corrections||[]).filter(c=>c.field==='ownerSupplied'||c.field==='installation').map(c=>c.value)].filter(Boolean).join('\n');
+  const all=/\b(?:owner|customer|client)\b[^.;\n]{0,35}\b(?:suppl\w*|provid\w*|furnish\w*)\b[^.;\n]{0,20}\ball\s+(?:installation\s+)?(?:parts|materials|consumables)\b|\ball\s+(?:installation\s+)?(?:parts|materials|consumables)\b[^.;\n]{0,45}\b(?:by\s+(?:the\s+)?owner|owner[- ]provided)\b/i.test(original);
+  const exception=/\bcontractor\s+(?:supplies|provides|furnishes)\b[^.;\n]{0,70}\b(?:screws?|nails?|shims?|caulk|supplies|consumables|parts)\b/i.test(original);
+  return all&&!exception;
+}
 export function contractorConsumableIncluded(scope:ReviewedScope,description:string):boolean{
+  if(ownerSuppliesAllParts(scope))return false;
   const parts=description.split(':');
   let component=parts.at(-1)!.replace(/^(?:provide|include|supply|carry)\s+(?:an?\s+)?(?:separate\s+)?(?:materials?\s+)?allowance\s+for\s+/i,'').split('(')[0].split(/\b(?:including|includes|with|for|using)\b/i)[0].trim();
   // The approved generic hardware label can serve a specifically mapped

@@ -91,3 +91,14 @@ test('retained surfaces do not hide positively requested flooring in another cla
  const text='Existing walls stay. Install LVP flooring.';
  assert.equal(scopeFieldApplies('flooringSqft',questionContext({service:'handyman',taskList:text},null,text)),true);
 });
+
+test('mid-range whole-home scope does not require brands and colors before pricing',()=>{
+ const a={service:'whole-home',sqft:'1800',finish:'mid-range'};
+ const question='What are the selected LVP, quartz, cabinet, baseboard, interior door and paint brands, colors and finish specifications?';
+ const x=extraction({clarifications:[{field:'materials',question,reason:'Material allowances'}]});
+ assert.deepEqual(scopeQuestions(a,x,[],[],[],'Replace 1600 SF LVP and 80 SF tile. Paint 4000 SF walls and 1800 SF ceilings.'),[]);
+ assert.equal(scopePromptApplies('materials',question,questionContext(a)),false);
+ assert.equal(scopePromptApplies('materials',question,questionContext({...a,finish:''})),true);
+ assert.equal(scopePromptApplies('materials','Is LVP or tile required, and what brand?',questionContext(a)),true);
+ assert.equal(scopePromptApplies('materials','What fire rating and manufacturer are required?',questionContext(a)),true);
+});

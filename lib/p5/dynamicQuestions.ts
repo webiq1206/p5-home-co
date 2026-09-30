@@ -266,6 +266,7 @@ export function dynamicScopeFields(answers: ScopeAnswers, extraction: ScopeExtra
   for (const field of pricedFields) if (scopeFieldApplies(field, context)) fields.add(field);
   for (const clarification of extraction?.clarifications || []) {
     const field = clarification.field;
+    if (selectionDetailsCovered(field, clarification.question, context)) continue;
     const optional = ['location','address','schedule','urgency','projectMonths','phasing'].includes(field);
     const numeric = ['fixtureCount','rooms','stories','bathrooms','laborHours','countertopSqft','length','width','sqft','flooringSqft','tileSqft','demolitionSqft','trimLf','cabinetBaseLf','cabinetUpperLf','cabinetTallLf','garageSqft','coveredOutdoorSqft'].includes(field);
     if (optional && !pricedFields.includes(field)) continue;
@@ -285,11 +286,22 @@ export function dynamicScopeFields(answers: ScopeAnswers, extraction: ScopeExtra
   });
 }
 
+/** A supplied price-book tier supports preliminary selection allowances.
+ * Brands and colors can be finalized later; material alternatives and technical
+ * requirements still need their actual scope decision. */
+function selectionDetailsCovered(field:ScopeField|undefined,question:string,context:QuestionContext):boolean {
+  return (field==='materials'||field==='finish')
+    && ['refresh','mid-range','high-end','luxury'].includes(context.answers.finish||'')
+    && /\b(?:brands?|colou?rs?|manufacturers?|model numbers?|finish specifications?)\b/i.test(question)
+    && !/\b(?:or|versus|rating|capacity|structural|fire|waterproofing)\b/i.test(question);
+}
+
 /** Remove only questions demonstrably answered or outside the selected scope. Unknown
  * specialist decisions stay visible rather than being silently treated as resolved. */
 export function scopePromptApplies(field: ScopeField | undefined, question: string, context: QuestionContext): boolean {
   // A pending source decision must not disappear merely because it has no answer.
   if (field === 'address') return false;
+  if (selectionDetailsCovered(field, question, context)) return false;
   const topic = field ? FIELD_TOPIC[field] : undefined;
   if (topic && excluded(context, topic)) return false;
   if (field && ['finish','sqft','rooms','bathrooms','stories'].includes(field) && !scopeFieldApplies(field, context)) return false;
