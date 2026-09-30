@@ -1,6 +1,6 @@
 import {createHash} from 'node:crypto';
 import type {ReviewedScope} from './scope.ts';
-import {unitKey,UNIT_REGISTRY} from './unitRates.ts';
+import {projectUnit,sameProjectDimension,combineProjectUnits,sourceNumbers} from './projectUnits.ts';
 import {PROJECT_RECORD_VERSION,projectProposalSchema,type ProjectProposal,type ProjectQuantityValue,type ProjectQuestion} from './projectRecordContracts.ts';
 import type {ProjectChange} from './projectConversation.ts';
 import type {ProjectPageEvidence} from './projectPageEvidence.ts';
@@ -26,6 +26,18 @@ export class ProjectRecordError extends Error {
 export const projectHash=(value:unknown):string=>createHash('sha256').update(JSON.stringify(value,(_key,item)=>item&&typeof item==='object'&&!Array.isArray(item)?Object.fromEntries(Object.entries(item).sort(([a],[b])=>a.localeCompare(b))):item)).digest('hex');
 const normalized=(value:string)=>value.normalize('NFKC').replace(/\s+/g,' ').trim();
 const unique=(values:string[])=>[...new Set(values)];
+/** Visit each dependency once. Shared prerequisites in a large project must
+ * not turn cycle validation into repeated traversal of every possible path. */
+function graphCycles(edges:Map<string,string[]>):string[][]{
+ const done=new Set<string>(),active=new Map<string,number>(),path:string[]=[],cycles:string[][]=[];
+ const visit=(id:string)=>{
+  const start=active.get(id);if(start!==undefined){cycles.push([...path.slice(start),id]);return;}
+  if(done.has(id))return;active.set(id,path.length);path.push(id);
+  for(const next of edges.get(id)||[])if(edges.has(next))visit(next);
+  path.pop();active.delete(id);done.add(id);
+ };
+ for(const id of edges.keys())visit(id);return cycles;
+}
 
 /** All characters are retained. Splitting is transport organization, never
  * page sampling. Each block remains independently addressable and hashed. */
@@ -89,37 +101,31 @@ export function projectInput(scope:ProjectScope,changes:ProjectChange[]=[]):Proj
  return {sources,sourceHash:projectHash(sources),documentIssues:unique(documentIssues)};
 }
 
-const unitMeasure=(unit:string):{dimension:string;scale:number}|null=>{
- const key=unitKey(unit);
- const extra:Record<string,{dimension:string;scale:number}>={in:{dimension:'length',scale:1/12},inch:{dimension:'length',scale:1/12},inches:{dimension:'length',scale:1/12},ft:{dimension:'length',scale:1},m:{dimension:'length',scale:3.280839895013123},mm:{dimension:'length',scale:.003280839895013123}};
- if(extra[key])return extra[key];
- const entry=UNIT_REGISTRY[key];if(!entry)return null;
- const scales:Record<string,number>={sy:9,square:100,acre:43560,ton:2000,cy:27,gallon:231/1728};
- // Count units retain identity. A pack is never an each without its contents.
- return {dimension:['count','time'].includes(entry.dimension)?entry.dimension+':'+key:entry.dimension,scale:scales[key]||1};
-};
 export function computedProjectQuantity(quantity:ProjectQuantityValue,quantities:ProjectQuantityValue[],visiting=new Set<string>()):number|null{
  if(visiting.has(quantity.id))throw new ProjectRecordError([{code:'quantity-cycle',ids:[quantity.id],message:'Quantity calculations contain a cycle.'}]);
  if(quantity.basis!=='calculated')return quantity.value;
  const expression=quantity.calculation;if(!expression)return null;
- const output=unitMeasure(quantity.unit);if(!output)return null;
+ const output=projectUnit(quantity.unit);if(!output)return null;
  const seen=new Set(visiting).add(quantity.id);
  const inputs=expression.inputIds.map(id=>quantities.find(q=>q.id===id));
  if(inputs.some(q=>!q)||!inputs.length)return null;
- const measures=inputs.map(q=>unitMeasure(q!.unit));if(measures.some(m=>!m))return null;
+ const measures=inputs.map(q=>projectUnit(q!.unit));if(measures.some(m=>!m))return null;
  const values=inputs.map(q=>computedProjectQuantity(q!,quantities,seen));if(values.some(v=>v===null))return null;
  const normalizedValues=values.map((v,i)=>v!*measures[i]!.scale);
  let result:number;
- if(expression.operation==='sum'){
-  if(measures.some(m=>m!.dimension!==output.dimension))return null;
-  result=normalizedValues.reduce((a,b)=>a+b,0);
- }else if(expression.operation==='product'){
-  if(inputs.length!==2||!measures.every(m=>m!.dimension==='length')||output.dimension!=='area')return null;
-  result=normalizedValues[0]*normalizedValues[1];
+ if(expression.operation==='sum'||expression.operation==='difference'){
+  if(measures.some(m=>!sameProjectDimension(m!,output))||(expression.operation==='difference'&&inputs.length!==2))return null;
+  result=expression.operation==='sum'?normalizedValues.reduce((a,b)=>a+b,0):normalizedValues[0]-normalizedValues[1];
  }else{
-  if(inputs.length!==2||measures[0]!.dimension!==measures[1]!.dimension||output.dimension!=='count:each'||normalizedValues[1]===0)return null;
-  result=normalizedValues[0]/normalizedValues[1];
+  if(expression.operation==='ratio'&&(inputs.length!==2||normalizedValues[1]===0))return null;
+  const dimension=measures.slice(1).reduce((unit,next)=>combineProjectUnits(unit!,next!,expression.operation==='ratio'),measures[0]);
+  // Equal physical dimensions divided by one another produce a count of
+  // units. Named packaging requires an explicit coverage unit such as SF/box.
+  const scalarCount=expression.operation==='ratio'&&Object.keys(dimension!.powers).length===0&&Object.keys(output.powers).length===1&&output.powers['count:each']===1;
+  if(!sameProjectDimension(dimension!,output)&&!scalarCount)return null;
+  result=expression.operation==='product'?normalizedValues.reduce((a,b)=>a*b,1):normalizedValues[0]/normalizedValues[1];
  }
+ if(!Number.isFinite(result)||result<0)return null;
  return result*expression.factor/output.scale;
 }
 
@@ -131,15 +137,13 @@ export function validateProjectQuantities(values:ProjectQuantityValue[],entries:
  const seen=new Set<string>();for(const q of values){if(seen.has(q.id))issue('duplicate-id',[q.id],'Quantity IDs must be unique.');seen.add(q.id);}
  const checkEvidence=(ids:string[],owner:string)=>{for(const id of ids)if(!evidence.has(id))issue('unknown-evidence',[owner,id],'Referenced evidence does not exist.');};
  for(const q of values){
-  if(!unitMeasure(q.unit))issue('unsupported-unit',[q.id],'Quantity unit is not supported: '+q.unit);
+  if(!projectUnit(q.unit))issue('unsupported-unit',[q.id],'Quantity unit is not supported: '+q.unit);
   checkEvidence(q.evidenceIds,q.id);
   if(q.basis==='unknown'&&(q.value!==null||q.range!==null||q.calculation!==null))issue('invented-quantity',[q.id],'An unknown quantity cannot contain a measured value, range or calculation.');
-  if(q.basis!=='unknown'&&(q.value===null||q.value<=0))issue('missing-quantity',[q.id],'A priced quantity must be positive.');
+  if(q.basis!=='unknown'&&(q.value===null||q.value<0))issue('missing-quantity',[q.id],'A known physical quantity must be nonnegative. Charged quantities must be positive.');
   if(q.basis==='stated'&&(!q.evidenceIds.length||q.range!==null||q.calculation!==null))issue('stated-evidence',[q.id],'Stated quantities require source evidence, without a modeled range or formula.');
   if(q.basis==='stated'&&q.value!==null){
-   const words:Record<string,number>={one:1,two:2,three:3,four:4,five:5,six:6,seven:7,eight:8,nine:9,ten:10,eleven:11,twelve:12,thirteen:13,fourteen:14,fifteen:15,sixteen:16,seventeen:17,eighteen:18,nineteen:19,twenty:20};
-   const quote=q.evidenceIds.map(id=>evidence.get(id)?.quote||'').join(' ').replace(/(\d),(?=\d{3}\b)/g,'$1').replace(/\b(?:one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty)\b/gi,word=>String(words[word.toLowerCase()]));
-   const values=[...quote.matchAll(/\b\d+(?:\.\d+)?\b/g)].map(match=>Number(match[0]));
+   const values=sourceNumbers(q.evidenceIds.map(id=>evidence.get(id)?.quote||'').join(' '));
    if(!values.includes(q.value))issue('unstated-value',[q.id],'This numeric value is absent from its cited evidence; use a supported calculation or disclose an allowance.');
   }
   if(q.basis==='allowance'&&(!q.assumption.trim()||!q.range||q.range.low<=0||q.value===null||q.range.low>q.value||q.range.high<q.value||q.calculation!==null))issue('allowance-basis',[q.id],'An allowance needs a reason and positive range containing the budget quantity.');
@@ -174,6 +178,7 @@ export function validateProjectRecord(proposal:ProjectProposal,input:ProjectInpu
   if(subject.parentId&&!subjects.has(subject.parentId))issue('unknown-subject',[subject.id,subject.parentId],'Parent subject does not exist.');
   checkEvidence(subject.evidenceIds,subject.id);
  }
+ for(const cycle of graphCycles(new Map(proposal.subjects.map(s=>[s.id,s.parentId?[s.parentId]:[]]))))issue('subject-cycle',cycle,'Physical subjects cannot contain themselves through a parent relationship.');
  for(const q of proposal.quantities)if(!subjects.has(q.subjectId))issue('unknown-subject',[q.id,q.subjectId],'Quantity subject does not exist.');
  issues.push(...validateProjectQuantities(proposal.quantities,proposal.evidence));
  for(const r of proposal.requirements){
@@ -190,8 +195,7 @@ export function validateProjectRecord(proposal:ProjectProposal,input:ProjectInpu
   if(r.origin==='dependency'&&!r.reason.trim())issue('unsupported-dependency',[r.id],`Requirement ${r.id}: origin dependency requires a nonempty reason explaining the actual condition that makes this supporting work necessary.`);
   for(const parentId of r.requiredBy){const parent=requirements.get(parentId);if(!parent||parent.id===r.id||r.status==='included'&&parent.status!=='included')issue('invalid-dependency',[r.id,parentId],'Required work must reference a distinct included parent.');}
  }
- const visit=(id:string,path:Set<string>)=>{if(path.has(id)){issue('dependency-cycle',[...path,id],'Work dependencies contain a cycle.');return;}const next=new Set(path).add(id);for(const parent of requirements.get(id)?.requiredBy||[])if(requirements.has(parent))visit(parent,next);};
- for(const r of proposal.requirements)visit(r.id,new Set());
+ for(const cycle of graphCycles(new Map(proposal.requirements.map(r=>[r.id,r.requiredBy]))))issue('dependency-cycle',cycle,'Work dependencies contain a cycle.');
  for(const q of proposal.questions){
   if(!q.requirementIds.length&&!q.quantityIds.length&&q.kind!=='scope'&&q.kind!=='unreadable-source')issue('unlinked-question',[q.id],'A question must identify the work or quantity it resolves.');
   for(const id of q.requirementIds)if(!requirements.has(id)||requirements.get(id)?.status==='excluded'||requirements.get(id)?.status==='existing')issue('unrelated-question',[q.id,id],'A question cannot concern absent, excluded or retained work.');

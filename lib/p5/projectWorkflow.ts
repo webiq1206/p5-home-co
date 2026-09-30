@@ -1,9 +1,9 @@
 import type {EstimatorConfiguration} from './costBook.ts';
 import {requestPricing,type PricingRequest} from './scopePricing.ts';
-import {PROJECT_RECORD_INSTRUCTIONS,PROJECT_PRICE_INSTRUCTIONS,PROJECT_REVIEW_INSTRUCTIONS,PROJECT_CATALOG_INSTRUCTIONS,projectPricingProposalSchema,type ProjectProposal} from './projectRecordContracts.ts';
+import {PROJECT_RECORD_INSTRUCTIONS,PROJECT_PRICE_INSTRUCTIONS,PROJECT_REVIEW_INSTRUCTIONS,PROJECT_CATALOG_INSTRUCTIONS,type ProjectProposal} from './projectRecordContracts.ts';
 import {checkedProjectCandidates,projectCatalogIndex} from './projectCatalog.ts';
 import {projectInput,acceptProjectRecord,ProjectRecordError,type ProjectRecord,type ProjectScope,type RecordProblem} from './projectRecord.ts';
-import {projectPriceSelection,compileProjectPrices,calculateProjectEstimate,projectReviewReceipt,validateProjectReview,type ProjectPriceSelection} from './projectPricing.ts';
+import {projectPriceSelection,projectPriceProposalFromWire,compileProjectPrices,calculateProjectEstimate,projectReviewReceipt,validateProjectReview,type ProjectPriceSelection} from './projectPricing.ts';
 import type {ProjectChange} from './projectConversation.ts';
 
 export interface ProjectWorkflowOptions {request?:PricingRequest;previous?:ProjectRecord|null;changes?:ProjectChange[];now?:Date;deadline?:number}
@@ -48,7 +48,7 @@ export async function priceProjectRecord(record:ProjectRecord,configuration:Esti
  for(let attempt=1;attempt<=2;attempt++){
   const response=await request(PROJECT_PRICE_INSTRUCTIONS,{record,catalogCandidates,catalog,...(attempt>1?{previousProposal:candidate,previousSelection:selection,correctionsRequired:problems}:{})},false,remaining());
   candidate=response.value;
-  try{projectPricingProposalSchema.parse(candidate);selection=projectPriceSelection(record,configuration,candidate);}catch(error){problems=shapeProblems(error);continue;}
+  try{selection=projectPriceSelection(record,configuration,projectPriceProposalFromWire(record,configuration,candidate));}catch(error){problems=shapeProblems(error);continue;}
   const compiled=compileProjectPrices(record,selection,configuration,now);
   if(compiled.problems.length){problems=compiled.problems;continue;}
   const selectedCatalogIds=new Set(selection.proposal.lines.map(line=>line.rateId));

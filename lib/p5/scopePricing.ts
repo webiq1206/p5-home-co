@@ -330,7 +330,7 @@ export function validateManagedPricingOpenAI(env:Readonly<Record<string,string|u
 const providerBusy=(message:string)=>/^pricing-provider-unavailable:(?:429|5\d\d)\b/.test(message);
 const providerRefused=(message:string)=>/^pricing-provider-unavailable:4(0[0-3]|0[5-9]|1\d|2[0-8])\b/.test(message);
 /** The structured output each stage must return, shared by both providers so a fallback reply has the same shape. */
-const stageSchema=(instructions:string)=>projectContractSchema(instructions)||(instructions===normalizeResearch?marketJson:instructions===INVENTORY?inventoryJson:instructions===MAP?mappingJson:instructions===PLANNING_AVERAGE?planningJson:instructions===CONSUMABLE_COVERAGE?consumableJson:auditJson);
+const stageSchema=(instructions:string,input?:unknown)=>projectContractSchema(instructions,input)||(instructions===normalizeResearch?marketJson:instructions===INVENTORY?inventoryJson:instructions===MAP?mappingJson:instructions===PLANNING_AVERAGE?planningJson:instructions===CONSUMABLE_COVERAGE?consumableJson:auditJson);
 export type OpenAiPricingOptions={serviceTier?:'default';maxOutputTokens?:number};
 export const openAiPricingRequestEnvelope=(instructions:string,input:unknown,search:boolean,options:OpenAiPricingOptions={})=>{
   const task=search?'research':instructions===INVENTORY?'inventory':instructions===MAP||instructions===PLANNING_AVERAGE||instructions===normalizeResearch?'map':'audit';
@@ -338,7 +338,7 @@ export const openAiPricingRequestEnvelope=(instructions:string,input:unknown,sea
   const context=input&&typeof input==='object'?input as {region?:string;searchControl?:{blockedDomains?:unknown}}:{};
   const blocked=Array.isArray(context.searchControl?.blockedDomains)?context.searchControl.blockedDomains.filter((value):value is string=>typeof value==='string'&&/^[a-z0-9.-]+\.[a-z]{2,}$/i.test(value)).slice(0,100):[];
   const searchTool={type:'web_search',...(boiseArea(context.region||'')?{user_location:{type:'approximate',country:'US',city:'Boise',region:'Idaho',timezone:'America/Boise'}}:{}),...(blocked.length?{filters:{blocked_domains:blocked}}:{})};
-  const body={model,...reasoningFor(model,task),instructions,input:(search?'Return a concise research report with inline web citations. Do not format as JSON.\n':'Return JSON only.\n')+JSON.stringify(input),max_output_tokens:options.maxOutputTokens||(search||instructions===normalizeResearch?6000:task==='map'?28000:16000),store:false,...(options.serviceTier?{service_tier:options.serviceTier}:{}),...(search?{tools:[searchTool],tool_choice:'required',include:['web_search_call.action.sources']}:{text:{format:{type:'json_schema',name:'pricing_stage',strict:true,schema:stageSchema(instructions)}}})};
+  const body={model,...reasoningFor(model,task),instructions,input:(search?'Return a concise research report with inline web citations. Do not format as JSON.\n':'Return JSON only.\n')+JSON.stringify(input),max_output_tokens:options.maxOutputTokens||(search||instructions===normalizeResearch?6000:task==='map'?28000:16000),store:false,...(options.serviceTier?{service_tier:options.serviceTier}:{}),...(search?{tools:[searchTool],tool_choice:'required',include:['web_search_call.action.sources']}:{text:{format:{type:'json_schema',name:'pricing_stage',strict:true,schema:stageSchema(instructions,input)}}})};
   return {model,body};
 };
 /** One provider exchange without charge accounting. `requestPricingWith` adds the ledger. */
@@ -368,7 +368,7 @@ const requestPricingWithUnsafe=async(provider:'anthropic'|'openai',instructions:
     const headers={'Content-Type':'application/json','x-api-key':anthropic,'anthropic-version':'2023-06-01'};
     const messages:any[]=[{role:'user',content:JSON.stringify(input)}];
     const model=search?(process.env.P5_PRICING_RESEARCH_MODEL||'claude-sonnet-5'):(process.env.P5_PRICING_MODEL||'claude-sonnet-5');
-    const requestBody={model,max_tokens:search?12000:10000,system:instructions,...(search?{tools:[{type:'web_search_20250305',name:'web_search',max_uses:5},{type:'web_fetch_20250910',name:'web_fetch',max_uses:4,max_content_tokens:15000}]}:{output_config:{format:{type:'json_schema',schema:stageSchema(instructions)}}})};
+    const requestBody={model,max_tokens:search?12000:10000,system:instructions,...(search?{tools:[{type:'web_search_20250305',name:'web_search',max_uses:5},{type:'web_fetch_20250910',name:'web_fetch',max_uses:4,max_content_tokens:15000}]}:{output_config:{format:{type:'json_schema',schema:stageSchema(instructions,input)}}})};
     const content:any[]=[],providerRequestIds:string[]=[];
     for(let continuation=0;;continuation++){
       const left=remainingMs-(Date.now()-started);if(left<=0)throw new Error('pricing-check-timeout');

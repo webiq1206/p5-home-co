@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {projectInput,projectHash,projectRecordIntegrity,acceptProjectRecord,validateProjectRecord,projectRecordChange,computedProjectQuantity,ProjectRecordError} from '../lib/p5/projectRecord.ts';
-import {compileProjectPrices,projectPriceSelection,calculateProjectEstimate,projectReviewReceipt} from '../lib/p5/projectPricing.ts';
+import {compileProjectPrices,projectPriceSelection,calculateProjectEstimate,projectReviewReceipt,projectPriceProposalFromWire} from '../lib/p5/projectPricing.ts';
 import {interpretProjectRecord,priceProjectRecord} from '../lib/p5/projectWorkflow.ts';
 import {PROJECT_RECORD_INSTRUCTIONS,PROJECT_PRICE_INSTRUCTIONS,PROJECT_REVIEW_INSTRUCTIONS,PROJECT_CATALOG_INSTRUCTIONS,projectProposalSchema,projectReviewSchema,type ProjectProposal,type ProjectQuantity} from '../lib/p5/projectRecordContracts.ts';
 import {checkedProjectCandidates,projectCatalogIndex,projectConfiguration} from '../lib/p5/projectCatalog.ts';
@@ -31,6 +31,7 @@ function example(input=projectInput(scope)):ProjectProposal{
 }
 const record=()=>acceptProjectRecord(example(),projectInput(scope),null,now);
 const proposal=()=>({estimatingQuantities:[],lines:[{id:'install',rateId:'PB-08-71-01',quantityId:'handle-count',requirementIds:['replace-handles'],catalogQuote:config.planningCatalog!.rates.find(r=>r.code==='PB-08-71-01')!.description,coverageEvidence:'Owner-supplied sets require only replacement labor.'}],gaps:[]});
+const wireProposal=()=>({lines:proposal().lines.map(({quantityId,...line})=>({...line,quantity:{origin:'project',quantityId}})),gaps:[]});
 const review=(r=record())=>({reviewedRequirementIds:r.requirements.map(x=>x.id),reviewedSourceIds:r.sources.map(x=>x.id),findings:[],notes:[]});
 test('all project provider contracts use their own strict schema instead of an unrelated audit response',()=>{
  for(const [instructions,key]of [[PROJECT_RECORD_INSTRUCTIONS,'requirements'],[PROJECT_CATALOG_INSTRUCTIONS,'requirements'],[PROJECT_PRICE_INSTRUCTIONS,'lines'],[PROJECT_REVIEW_INSTRUCTIONS,'findings']]){
@@ -100,6 +101,20 @@ test('computed dimensions check units, arithmetic, cycles and unsupported factor
  const bad=example();bad.quantities.push({...area,value:3},x,y);
  assert.ok(validateProjectRecord(bad,projectInput(scope)).some(p=>p.code==='quantity-calculation'));
 });
+test('physical containment cycles are rejected and shared work dependencies remain bounded',()=>{
+ const p=example();p.subjects.push({...p.subjects[0],id:'parent',parentId:'handles'});p.subjects[0].parentId='parent';
+ assert.ok(validateProjectRecord(p,projectInput(scope)).some(p=>p.code==='subject-cycle'));
+ p.subjects=p.subjects.slice(0,1);p.subjects[0].parentId=null;
+ let previous=['replace-handles'];
+ for(let level=0;level<35;level++){
+  const current=[`left-${level}`,`right-${level}`];
+  for(const id of current)p.requirements.push({...p.requirements[0],id,origin:'dependency',requiredBy:previous,reason:'Controlled shared-dependency graph for validation complexity.'});
+  previous=current;
+ }
+ assert.deepEqual(validateProjectRecord(p,projectInput(scope)),[]);
+ p.requirements[0].requiredBy=previous;
+ assert.ok(validateProjectRecord(p,projectInput(scope)).some(p=>p.code==='dependency-cycle'));
+});
 test('missing pages and partial observations cannot be certified as a complete project',async()=>{
  const uploaded={...scope,uploads:[{id:'pdf',name:'plan.pdf',type:'application/pdf',size:20,sha256:'fixture',status:'stored' as const}]};
  const input=projectInput(uploaded);assert.ok(input.documentIssues.length);
@@ -114,6 +129,22 @@ test('the real owner rate prices only the requested contractor labor',()=>{
  const result=calculateProjectEstimate(r,selection,config,projectReviewReceipt(r,selection,review(r)),now);
  assert.equal(result.status,'estimated',JSON.stringify(result));assert.ok('customer'in result&&result.customer.range);
  assert.ok(!JSON.stringify('customer'in result&&result.customer).includes('unitCost'));
+});
+test('the actual provider schema binds each price to a compatible existing quantity or a correctly unitized allowance',()=>{
+ const r=record(),raw=wireProposal();
+ assert.deepEqual(projectPriceProposalFromWire(r,config,raw),proposal());
+ raw.lines[0].rateId='PB-01-74-10';
+ assert.throws(()=>projectPriceProposalFromWire(r,config,raw),'An hourly rate cannot select the three-handle physical count.');
+ const hourly={...raw,lines:[{...raw.lines[0],catalogQuote:config.planningCatalog!.rates.find(rate=>rate.code==='PB-01-74-10')!.description,quantity:{origin:'estimate',description:'Bounded supporting labor',unit:'hour',basis:'allowance',value:.5,range:{low:.25,high:.75},evidenceIds:['e1'],calculation:null,assumption:'Controlled unit-binding test, not a market productivity reference.',basedOnQuantityIds:['handle-count']}}]};
+ const accepted=projectPriceProposalFromWire(r,config,hourly);
+ assert.equal(accepted.estimatingQuantities[0].unit,'hour');assert.deepEqual(accepted.estimatingQuantities[0].requirementIds,['replace-handles']);
+ assert.equal(accepted.lines[0].quantityId,accepted.estimatingQuantities[0].id);
+ hourly.lines[0].quantity.unit='each';assert.throws(()=>projectPriceProposalFromWire(r,config,hourly));
+ const body=openAiPricingRequestEnvelope(PROJECT_PRICE_INSTRUCTIONS,{record:r,catalog:config.planningCatalog!.rates},false).body as any;
+ const branches=body.text.format.schema.properties.lines.items.anyOf;
+ assert.ok(branches.length>1);assert.ok(branches.every((b:any)=>b.properties.rateId.pattern.startsWith('^(?:')));
+ const hourlyBranch=branches.find((b:any)=>new RegExp(b.properties.rateId.pattern).test('PB-01-74-10'));
+ assert.equal(hourlyBranch.properties.quantity.properties.unit.const,'hour');assert.equal(hourlyBranch.properties.quantity.properties.origin.const,'estimate');
 });
 test('bounded supporting effort is costed as a disclosed allowance without inventing a customer measurement',()=>{
  const s={...scope,text:scope.text.replace('Owner handles cleanup.','P5 handles small debris cleanup.')},input=projectInput(s),p=example(input);p.summary=s.text;
@@ -242,7 +273,7 @@ test('the workflow performs separate scope and pricing reviews with no legacy co
   calls.push(instructions);const data=input as any;
   if(instructions===PROJECT_RECORD_INSTRUCTIONS)return {value:example({sources:data.sources,sourceHash:'unused',documentIssues:[]}),sourceUrls:[]};
   if(instructions===PROJECT_CATALOG_INSTRUCTIONS){assert.equal(data.catalogIndex.length,config.planningCatalog!.rates.length);return {value:{requirements:[{requirementId:'replace-handles',candidates:[{rateId:'PB-08-71-01',reason:'Specific replacement labor'}],unmatchedReason:''}]},sourceUrls:[]};}
-  if(instructions===PROJECT_PRICE_INSTRUCTIONS)return {value:proposal(),sourceUrls:[]};
+  if(instructions===PROJECT_PRICE_INSTRUCTIONS)return {value:wireProposal(),sourceUrls:[]};
   assert.equal(instructions,PROJECT_REVIEW_INSTRUCTIONS);
   if(data.selectedPrices)assert.equal(data.catalog.length,config.planningCatalog!.rates.length,'Price review must see competing approved rates, not only the selected ones.');
   return {value:review(data.record),sourceUrls:[]};
@@ -282,9 +313,9 @@ test('malformed pricing proposals receive their actual validation feedback on re
   const data=input as any;
   if(instructions===PROJECT_CATALOG_INSTRUCTIONS)return {value:{requirements:[{requirementId:'replace-handles',candidates:[],unmatchedReason:'No match proposed in this controlled test.'}]},sourceUrls:[]};
   if(instructions===PROJECT_PRICE_INSTRUCTIONS){
-   if(++attempts===1)return {value:{lines:[],gaps:[]},sourceUrls:[]};
-   assert.deepEqual(data.previousProposal,{lines:[],gaps:[]});assert.ok(data.correctionsRequired.some((p:any)=>p.code==='record-shape'&&p.message.includes('estimatingQuantities')));
-   return {value:proposal(),sourceUrls:[]};
+   if(++attempts===1)return {value:{lines:[{id:'malformed'}],gaps:[]},sourceUrls:[]};
+   assert.deepEqual(data.previousProposal,{lines:[{id:'malformed'}],gaps:[]});assert.ok(data.correctionsRequired.some((p:any)=>p.code==='record-shape'&&p.message.includes('lines')));
+   return {value:wireProposal(),sourceUrls:[]};
   }
   return {value:review(r),sourceUrls:[]};
  };

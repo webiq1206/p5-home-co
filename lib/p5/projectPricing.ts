@@ -2,9 +2,21 @@ import type {EstimatorConfiguration} from './costBook.ts';
 import {calculateP5Estimate,customerEstimate,customerSafeProjection,COST_CATEGORIES,SERVICE_MATRIX,type DirectCostLine,type PricingInput,type Service} from './pricing.ts';
 import {unitKey} from './unitRates.ts';
 import {projectHash,projectRecordIntegrity,validateProjectQuantities,type ProjectRecord,type RecordProblem} from './projectRecord.ts';
-import {projectPricingProposalSchema,projectReviewSchema,type ProjectPricingProposal,type ProjectReview} from './projectRecordContracts.ts';
+import {projectPricingProposalSchema,projectPricingWireSchema,projectPricingWireFor,projectReviewSchema,type ProjectPricingProposal,type ProjectReview} from './projectRecordContracts.ts';
 
 export interface ProjectPriceSelection {recordHash:string;catalogHash:string;proposal:ProjectPricingProposal}
+export function projectPriceProposalFromWire(record:ProjectRecord,configuration:EstimatorConfiguration,raw:unknown):ProjectPricingProposal{
+ const wire=projectPricingWireSchema.parse(projectPricingWireFor(record,configuration.planningCatalog?.rates||[]).parse(raw));
+ const estimatingQuantities:ProjectPricingProposal['estimatingQuantities']=[];
+ const lines=wire.lines.map(({quantity,...line})=>{
+  if(quantity.origin==='project')return {...line,quantityId:quantity.quantityId};
+  const {origin:_origin,...value}=quantity;void _origin;
+  const id='estimate-'+projectHash({line:line.id}).slice(0,20);
+  estimatingQuantities.push({...value,id,requirementIds:line.requirementIds});
+  return {...line,quantityId:id};
+ });
+ return projectPricingProposalSchema.parse({lines,estimatingQuantities,gaps:wire.gaps});
+}
 export interface ProjectReviewReceipt {recordHash:string;selectionHash:string|null;review:ProjectReview}
 export const projectReviewReceipt=(record:ProjectRecord,selection:ProjectPriceSelection|null,raw:unknown):ProjectReviewReceipt=>({recordHash:record.recordHash,selectionHash:selection?projectHash(selection):null,review:projectReviewSchema.parse(raw)});
 export const projectCatalogHash=(configuration:EstimatorConfiguration)=>projectHash({catalog:configuration.planningCatalog,catalogVersion:configuration.catalogVersion});
