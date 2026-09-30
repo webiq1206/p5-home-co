@@ -5,7 +5,7 @@ import {analysisSegments} from '../lib/p5/analysisSegments.ts';
 import {SCOPE_MAX_PAGES} from '../lib/p5/scope.ts';
 import {analyzeBatch,visualFallbackFiles} from '../lib/p5/extraction.ts';
 import {pageTextFromItems} from '../lib/p5/pdfText.ts';
-import {unreadNotes,pageRanges,MAX_READ_ATTEMPTS} from '../lib/p5/analysisWork.ts';
+import {unreadNotes,pageRanges,MAX_READ_ATTEMPTS,analysisAttemptFiles} from '../lib/p5/analysisWork.ts';
 import {ANALYSIS_PASS_MS,READ_ALLOWANCE_MS,READ_START_MARGIN_MS,SERVER_BUDGET_MS} from '../lib/p5/processingBudget.ts';
 import {describeError,sanitizeEventMessage} from '../lib/p5/events.ts';
 import {analysisProgress} from '../lib/p5/analysisProgress.ts';
@@ -29,6 +29,19 @@ test('reading budgets let one dense page finish inside a pass and never cut a re
  assert.ok(ANALYSIS_PASS_MS>=READ_ALLOWANCE_MS+READ_START_MARGIN_MS/2);
  assert.ok(READ_START_MARGIN_MS<=READ_ALLOWANCE_MS);
  assert.ok(MAX_READ_ATTEMPTS>=3);
+});
+
+test('late PDF retries retain images and original page identities, including scans',async()=>{
+ const pdf=await PDFDocument.create();const page=pdf.addPage([300,300]);
+ page.drawRectangle({x:30,y:220,width:12,height:12,borderWidth:1});
+ const file={name:'form.pdf',type:'application/pdf',data:Buffer.from(await pdf.save()),pages:[{source:'original.pdf',page:7}],text:'Printed optional clause'};
+ assert.equal((await analysisAttemptFiles(file,2))[0],file);
+ for(const text of [file.text,undefined]){
+  const [image]=await analysisAttemptFiles({...file,text},3);
+  assert.equal(image.type,'image/png');assert.deepEqual(image.pages,file.pages);
+  assert.equal(image.text,text);assert.equal(image.data.subarray(1,4).toString(),'PNG');
+ }
+ await assert.rejects(analysisAttemptFiles({...file,data:Buffer.from('broken PDF')},3));
 });
 
 test('a text PDF is split into one unit per page, each carrying its own text layer and adjacent-page context',async()=>{

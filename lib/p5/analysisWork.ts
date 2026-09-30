@@ -3,7 +3,7 @@ import {ANALYSIS_PASS_MS,READ_ALLOWANCE_MS,READ_START_MARGIN_MS,remainingBudget,
 import {createHash} from 'node:crypto';
 import {openablePdf,PdfAccessError} from './pdfAccess.ts';
 import {Client} from '@replit/object-storage';
-import {analyzeBatch,AnalysisBusyError,retainScopeContext,type AnalysisFile,type AnalysisResult} from './extraction.ts';
+import {analyzeBatch,AnalysisBusyError,retainScopeContext,visualFallbackFiles,type AnalysisFile,type AnalysisResult} from './extraction.ts';
 import {prepareAnalysisFiles} from './documents.ts';
 import {SCOPE_MAX_PAGES,combineScopeExtractions,type ScopeAnswers,type ScopeExtraction} from './scope.ts';
 import {query} from './database.ts';
@@ -37,10 +37,12 @@ export class IncompleteAnalysisError extends DraftError {
 
 type Unit={name:string;type:string;object:string;uploadId?:string;pages?:AnalysisFile['pages'];text?:string;context?:string;detailViews?:boolean;detailRegions?:AnalysisFile['detailRegions'];result?:AnalysisResult;attempts?:number;rateLimitRetries?:number;error?:string;lastCode?:string;retryAt?:number;active?:boolean};
 type Job={prepared:number;units:Unit[];notes:string[];preparationFailures?:string[];textDone?:AnalysisResult;textPrepared?:boolean;cursor?:number;expected?:{source:string;page:number}[];progress?:string;processing?:ProcessingStatus;concurrency?:number;cooldownUntil?:number};
-/** Reads of one section before it is reported as unread. Each attempt may use
- * a different provider or the page's text layer, so this is several distinct
- * strategies, not the same call repeated. */
+/** Reads of one section before it is reported as unread. PDF retries may
+ * change transport, but must retain the visual source on every attempt. */
 export const MAX_READ_ATTEMPTS=Math.max(1,Number(process.env.P5_READ_ATTEMPTS||4));
+export async function analysisAttemptFiles(file:AnalysisFile,attempt:number):Promise<AnalysisFile[]>{
+ return attempt>=3&&file.type==='application/pdf'?visualFallbackFiles([file]):[file];
+}
 const pending=(u:Unit)=>!u.result&&(u.attempts||0)<MAX_READ_ATTEMPTS;
 export function analysisWorkKey(draft:Draft,text:string,answers:ScopeAnswers,route?:'remote'|'local'){
   const mode=(route?route==='remote':process.env.P5_DOCUMENT_SERVICE_MODE==='remote')?'document-service-v2':'v8';
@@ -245,10 +247,10 @@ async function advanceLocalAnalysis(draft:Draft,text:string,answers:ScopeAnswers
           const saved=await client.downloadAsBytes(unit.object);
           if(!saved.ok)throw new DraftError('A prepared document section could not be read. Retry to resume.',503);
           const allowance=Math.min(READ_ALLOWANCE_MS,absoluteDeadline-Date.now());
-          // Later attempts read from the text layer when the page has one, so a
-          // page whose bytes keep failing is still read.
+          // A text layer cannot represent checkmarks, strikeouts or geometry.
+          // If rendering fails, preserve the failed read rather than certify text.
           const file:AnalysisFile={name:unit.name,type:unit.type,data:saved.value[0],pages:unit.pages,text:unit.text,context:unit.context,detailViews:unit.detailViews,detailRegions:unit.detailRegions};
-          const input=unit.attempts>=3&&unit.type==='application/pdf'&&unit.text?[{...file,type:'text/plain',data:Buffer.from(unit.text,'utf8'),text:undefined,name:`${unit.name} (text layer)`}]:[file];
+          const input=await analysisAttemptFiles(file,unit.attempts);
           unit.result=await analyzeBatch(text.length>48000?'The complete typed scope is processed in saved sections; use the interpreted scope instructions.':text,input,context,request,allowance,Date.now()+allowance,{event:{draftId:draft.id,estimator:answers.service||null,file:unit.name}});
           delete unit.error;delete unit.retryAt;delete unit.lastCode;
           event('read-section','ok',{file:unit.name,provider:unit.result.provider,model:unit.result.model,durationMs:Date.now()-started,attempt:unit.attempts,fallback:unit.attempts>1});
