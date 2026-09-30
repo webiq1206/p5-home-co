@@ -2279,3 +2279,17 @@ test('live cabinet screw boxes reconcile supplier count formats without inventin
  const unsupported=structuredClone(raw);unsupported.rates[0].sources[1].excerpt='Cabinet screws, 1 box. $12.48';
  assert.throws(()=>marketResolution(unsupported,urls,[extra],now),/Incompatible benchmark unit|Package/);
 });
+
+test('a cartridge conversion defect uses the saved report repair before any new search',async()=>{
+ const {reconcileResearchReply}=await import('../lib/p5/scopePricing.ts');
+ const requested={...extra,researchDescription:'Research ONLY contractor-supplied caulk for one vanity perimeter.'};
+ const excerpt='Silicone caulk 10.1 oz cartridge $9.98 each.';
+ const valid={rates:[{...researched.rates[0],description:'Silicone caulk',unit:'10.1 oz tube',quantity:1,quantityEvidence:'ALLOWANCE: one cartridge for one vanity perimeter',quantityRange:{low:1,high:1},includes:'silicone caulk only',landedCost:null,sources:urls.map(url=>({...source(url,9.98,9.98),unit:'EA',excerpt}))}],issues:[]};
+ const invalid=structuredClone(valid);invalid.rates[0].sources[0].high=12;
+ let calls=0;
+ const reply=await reconcileResearchReply({value:invalid,sourceUrls:urls,sourceReport:excerpt},[requested],async(_instructions,input,search)=>{
+  calls++;assert.equal(search,false);assert.match(String((input as any).validationFailure),/Cartridge size and package price/);return {value:valid,sourceUrls:[]};
+ },()=>60000);
+ assert.equal(calls,1);assert.equal((reply.value as any).rates[0].sources[0].high,9.98);
+ await assert.rejects(reconcileResearchReply({value:invalid,sourceUrls:urls,sourceReport:excerpt},[requested],async()=>({value:invalid,sourceUrls:[]}),()=>60000),/Cartridge size and package price/,'unsupported source prices remain rejected after the bounded repair');
+});

@@ -161,7 +161,7 @@ export async function postScope(request:Request){
       const implied=supported?null:(impliedComponentRemodel(text,ESTIMATOR_BRAND.services as readonly string[])||impliedRepairService([text,...facts.map(f=>f.evidence)].join('\n'),ESTIMATOR_BRAND.services as readonly string[]));
       if(implied)analysis={...analysis,extraction:{...analysis.extraction,facts:[...facts.filter(f=>f.field!=='service'),{field:'service',value:implied,confidence:1,source:'typed scope',evidence:text.slice(0,4000),basis:'stated'}]}};
     }
-    if(analysis)analysis={...analysis,extraction:groundDocumentConditions(reconcileDocumentHierarchy(normalizeDimensionSubjects(normalizeCountSubjects(applyExplicitTypedCorrections(validateExtraction(normalizeTileSubjects(separateFootprintFromInstallation(analysis.extraction,text))),text))),text),text)};
+    if(analysis)analysis={...analysis,extraction:groundDocumentConditions(reconcileDocumentHierarchy(normalizeDimensionSubjects(normalizeCountSubjects(applyExplicitTypedCorrections(validateExtraction(normalizeTileSubjects(separateFootprintFromInstallation(analysis.extraction,text))),text)),text),text),text)};
     const extraction=analysis?.extraction||analysisDraft.extraction;
     const merged=analysis?reconcileScope(answersAfterTypedRevision(visitorAnswers,analysis.extraction,text,resolutions),analysis.extraction,resolutions):{answers:{...analysisDraft.answers,...visitorAnswers},conflicts:[]};
     const wizard={instructionAnswers:sourceChanged?[]:analysisDraft.wizard?.instructionAnswers||[],skipped:sourceChanged?[]:analysisDraft.wizard?.skipped||[],resolutions,sourceVersion:analysis?version:sourceChanged?undefined:analysisDraft.wizard?.sourceVersion};

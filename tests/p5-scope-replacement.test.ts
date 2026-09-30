@@ -176,3 +176,10 @@ test('explicit replacement fails closed when recovery cannot be written',()=>{
     else Object.defineProperty(globalThis,'localStorage',{configurable:true,value:previous});
   }
 });
+test('an area derived from old component dimensions is invalidated alongside those dimensions',()=>{
+ const old={...extraction(),facts:[{field:'length' as const,value:'3',source:'submittedScope',evidence:'each 3 feet wide by 4 feet high',basis:'stated' as const,confidence:1},{field:'width' as const,value:'4',source:'submittedScope',evidence:'each 3 feet wide by 4 feet high',basis:'stated' as const,confidence:1}],conflicts:[]};
+ const current={length:'3',width:'4',sqft:'12',location:'Boise'};
+ assert.deepEqual(answersForEditedScope(current,old),{location:'Boise'});
+ assert.equal(answersForEditedScope(current,old,{sqft:'12'}).sqft,'12','an independently confirmed area stays');
+ assert.equal(answersForEditedScope({...current,sqft:'120'},old).sqft,'120','an unrelated area stays');
+});

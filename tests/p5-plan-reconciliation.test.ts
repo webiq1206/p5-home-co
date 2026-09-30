@@ -159,3 +159,12 @@ test('an explicit new trim and window revision supersedes older manual answers w
  assert.equal(answersAfterTypedRevision({...current,trimLf:'7'},revised,text,{trimLf:'7'}).trimLf,'7','a later answer in the same source revision wins');
  assert.equal(answersAfterTypedRevision(current,revised,'Maybe change trim to 8 LF.').trimLf,'6');
 });
+
+test('short dimension quotes inherit only a unique containing typed component sentence',async()=>{
+ const {normalizeDimensionSubjects}=await import('../lib/p5/scopeInterpretation.ts');
+ const x=extraction([{...fact('length','3','each 3 feet wide by 4 feet high'),source:'submittedScope'},{...fact('width','4','each 3 feet wide by 4 feet high'),source:'submittedScope'}]);
+ const text='Supply two white vinyl double-pane windows, each 3 feet wide by 4 feet high, in their existing openings.';
+ assert.ok(normalizeDimensionSubjects(x,text).facts.every(f=>f.field==='otherDetails'));
+ assert.equal(normalizeDimensionSubjects(x,text+' '+text).facts[0].field,'length','ambiguous matching contexts are not guessed');
+ assert.equal(normalizeDimensionSubjects(x,'No matching source quote.').facts[0].field,'length');
+});

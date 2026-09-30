@@ -38,6 +38,16 @@ test('RE10 general supplies cannot acquire cabinet hardware or shims without cab
  assert.equal(consumableApplicationMatches('Cabinet mounting shims',[{description:'Remove existing vanity only'}]),false);
  assert.equal(consumableApplicationMatches('Cabinet mounting shims',[{description:'Replace two GFCIs. Retain cabinets.'}]),false);
 });
+test('paint preparation fills nail holes; it does not buy nails in proportion to wall area',async()=>{
+ const {wrongHoleFillingFastener}=await import('../lib/p5/scopePricing.ts');
+ const prep='Perform standard prep for all painted surfaces: fill nail holes and minor cracks, patch small holes, clean surfaces for 4000 SF walls and 1800 SF ceilings.';
+ const local={...scope,text:'Paint walls and ceilings. Include filling nail holes.',answers:{service:'remodel'}};
+ assert.equal(contractorConsumableIncluded(local,prep),false);
+ assert.equal(wrongHoleFillingFastener(prep,'Coated steel trim nails, 1020 count box'),true);
+ assert.equal(wrongHoleFillingFastener(prep,'Nail-hole filler'),false);
+ assert.equal(wrongHoleFillingFastener('Install 420 LF baseboard and fill nail holes.','Finish nails'),false);
+ assert.equal(wrongHoleFillingFastener('Reattach loose drywall with screws and fill screw holes.','Drywall screws'),false);
+});
 test('contractor consumables are item-specific and do not authorize owner products or extra materials',()=>{
  for(const component of ['Finish nails','Paintable caulk','Install baseboard: finish nails (materials)','Nails, interior trim caulk, and nail-hole filler for 100 LF of owner-supplied primed MDF baseboard'])assert.equal(contractorConsumableIncluded(scope,component),true,component);
  for(const component of ['Baseboard','Install nails and caulk: MDF baseboard','Owner-supplied nails','Adhesive','Supply and install baseboard','Cabinets including fasteners','Baseboard with nails'])assert.equal(contractorConsumableIncluded(scope,component),false,component);

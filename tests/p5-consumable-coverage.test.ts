@@ -50,3 +50,13 @@ test('a partial invalid response does not mutate earlier accepted parent referen
  const value=plan();value.tasks.push({...value.tasks[0],id:'other',covered:[{...covered(),lineId:'missing'}]});
  assert.throws(()=>applyConsumableCoverage(value,[first,second],[vanity],[tile]));assert.deepEqual(first,supplies());
 });
+
+test('the repaired coverage contract cannot replay or rebill the incompatible legacy audit request',async()=>{
+ const {pricingReplyKey}=await import('../lib/p5/pricingWork.ts');
+ const {pricingFingerprint}=await import('../lib/p5/pricingLedger.ts');
+ const old=CONSUMABLE_COVERAGE.replace('Response contract: consumable-coverage-v2 (tasks, covered, remaining). ','');
+ const input={gaps:[supplies()],operations:[vanity],pricedComponents:[tile]};
+ assert.notEqual(pricingReplyKey(CONSUMABLE_COVERAGE,input,false),pricingReplyKey(old,input,false));
+ assert.notEqual(pricingFingerprint('openai',CONSUMABLE_COVERAGE,input,false),pricingFingerprint('openai',old,input,false));
+ assert.equal(pricingReplyKey(CONSUMABLE_COVERAGE,input,false),pricingReplyKey(CONSUMABLE_COVERAGE,input,false),'a retry of the same repaired contract still reuses its completed work');
+});

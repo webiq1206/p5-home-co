@@ -366,3 +366,34 @@ The bounded synthetic-RE10 inspection confirmed the same wrong coverage schema a
 The incomplete whole-home case completed analysis at revision 10 with all controlled quantities and exclusions retained, no conflicts or questions. It was reviewed and submitted for .10 pricing. This is a scope substep pass, not an approved final estimate.
 
 The final .11 local suite passed 1,620 tests: 1,605 passes, 15 explicit environment-dependent skips, zero failures. TypeScript and diff whitespace checks passed. Production compilation and exact-source hosting checks remain required before publishing. These are software gates, not qualification of any failed live estimate.
+
+
+## Release 11 production retest and release 12 candidate — 2026-09-30
+
+**Not accepted. Other estimators remain untouched.** Release 11 published successfully. Production reported version `2026-09-30.11`, SHA `d2b363fd65a3c5fff4259c3953db5907158e57b1`, tree `3f602033c6052fa2b758557db6b7b5700722b0c1`, clean source digest `76d61ee76e22dcc1b33b19ffbe14853e9dd561c28d1307f1be01385a3f8e1adb`. The host completed its production build and 1,605 passing tests (15 skipped). The local prebuild gates passed; a corrupt Turbopack cache interrupted the local build. Fresh local compile/typecheck completed, but local logs did not establish completed static generation. The complete host build is the build evidence.
+
+| Production case | Observed result | Qualification |
+|---|---|---|
+| Bathroom, complete typed scope, revision 19 | Correct 60 SF floor, 84 SF shower walls, 120 SF wall paint and 60 SF ceiling; no questions or conflicts. Pricing failed at 12:09:15 UTC on cartridge-size/package-price evidence. | FAIL: no usable estimate. |
+| Bathroom, equivalent PDF, revision 18 | All ten supplied takeoffs retained, including one 30-inch vanity (1 EA). Pricing failed at 12:09:18 UTC on incompatible supplier package sizes. | FAIL: no usable estimate. |
+| Public existing-kitchen photo, window revision | Back → Send on unchanged text reused the browser's analyzed state; it did not establish a new analysis. The old answers stayed one window/6 LF despite saved facts two/8. A newly submitted confirmation ran analysis and captured two windows/8 LF without the quantity conflict. | Quantity correction subcheck passes on fresh submission; stale-state recovery and erroneous 12 SF project area remain failures. |
+| Synthetic RE10 PDF plus 18-by-18-inch revision | Revision 6 retains two GFCIs, one PVC trap and the exact 2.25 SF Type X patch in reviewed answers, no question/conflict. The patch is absent from the takeoff array. | Extraction is not fully qualified; final price not yet retested on 12. |
+| Whole-home incomplete scope completed by answers, release 10 | Issued $57,200–$70,700, but bought trim nails for filling old nail holes, added a permit without a supported trigger, omitted separate door/baseboard paint rates and lacked positive baseboard-removal coverage. | FAIL despite a displayed total. |
+
+Saved host diagnostics confirm the bathroom consumable stage now returns the correct `tasks` response schema. Thus its remaining failure is not the prior audit-schema bug. The text coverage reply had `remaining: []` but later research still had material gaps. The PDF reply requested vanity screws/shims/sealant, faucet mounting hardware, toilet wax ring/bolts/caulk and shower sealant. Coverage consistency and component inclusion still require live review. Do not declare those parts required solely because the model listed them: check the actual installed assemblies and supplied kits.
+
+Candidate 12 repairs:
+
+- Reject purchasing nails/screws for filling existing nail/screw holes; retain fasteners where actual installation/reattachment calls for them.
+- Reject a 1–2 SF per-patch service for the revised 2.25 SF patch. Keep the work explicit for compatible approved pricing or an evidenced allowance.
+- Supply dated City of Boise permit-applicability context only for an exact Boise jurisdiction and within 90 days of the check. This is guidance, not a fee or blanket exemption; a generic remodel label does not establish a permit trigger. Official source: https://www.cityofboise.org/departments/planning-and-development-services/building/homeowners-guide/ (checked 2026-09-30).
+- Preserve separately requested door/baseboard painting when the mapper selects only primed installed products. Use the owner's existing separate painting rates and the matched product quantity, once. Do not infer painting from “primed”/“paint grade,” add it to supply-only/labor-only work, or duplicate an existing finish allocation. Multiple separately located product quantities remain with the ordinary mapper/audit.
+- Recover explicitly requested existing-baseboard removal as an unpriced operation if the only positive demolition coverage is unrelated flooring/doors. Carry the measured LF; require approved service pricing or a supported time allowance/range. No invented hours or costs.
+- Include a coverage-response contract marker in the stage identity so incompatible legacy saved replies cannot be reused. This is a preventive compatibility fix; the observed release 11 bathroom failures already had the corrected shape.
+- Package validation failures now enter the bounded normalization-repair pass using the saved research report before another web search. The same evidence checks reject an unsupported correction; no price validation is weakened.
+- A rectangle area derived solely from old length/width facts is invalidated with those facts on scope edits; an explicitly resolved area is preserved. Short typed dimension quotes can inherit their noun only from one exact containing source sentence. No inferred window area may become the project footprint.
+
+Focused regression evidence: 162 scope-pricing tests passed including cartridge-error repair and continued rejection of unsupported prices; 27 scope-replacement/reconciliation tests passed; 6 consumable-coverage tests passed including distinct legacy/current reply and charge identities. Full release 12 tests/build and production retests are still required. Pricing benchmarks, actual private RE10 qualification, complete category/input matrix, delivery and customer-document quality remain open.
+
+
+Release 12 local gates: full suite 1,632 total / 1,617 pass / 15 skip / zero fail. The subsequent safeguard preserving finish painting during the final catalog-repair pass was checked with 171 passing pricing/mapping tests; final TypeScript check passed. Host build and live requalification are pending. In the browser window case, the review editor successfully removed the incorrect 12 SF value; a final estimate was requested with email blank. That manual correction is evidence of editing capability, not proof the automatic dimension bug is fixed in production.

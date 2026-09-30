@@ -141,6 +141,13 @@ export function answersForEditedScope(
     for(const field of ['estimatingInstructions','materials','cabinetConstruction','taskList','installation','exclusions','laborHours'] as ScopeField[])clarificationFields.add(field);
   }
   const sourceAnswers = previousExtraction ? mergeScopeFacts({}, previousExtraction).answers : {};
+  // Derived rectangular area is source-derived too, even when the reader
+  // returned only length/width facts. Otherwise an edited window keeps its
+  // old 12 SF “project area” after the component dimensions are corrected.
+  if(!sourceAnswers.sqft&&sourceAnswers.length&&sourceAnswers.width&&!previousResolutions.sqft){
+    const area=Number(sourceAnswers.length)*Number(sourceAnswers.width);
+    if(area>0&&Number.isFinite(area)&&Number(current.sqft)===Math.round(area*100)/100)sourceAnswers.sqft=String(Math.round(area*100)/100);
+  }
   for (const [field, value] of Object.entries(sourceAnswers) as [ScopeField, string][]) {
     const existing = answers[field];
     if (existing && !clarificationFields.has(field) && !previousResolutions[field] && sameScopeAnswer(field, existing, value)) delete answers[field];

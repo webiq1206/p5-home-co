@@ -77,12 +77,18 @@ export function normalizeCountSubjects(extraction:ScopeExtraction):ScopeExtracti
 /** A window, door or shower size belongs to that component. A reader may
  * correctly read 3 x 4 feet but assign it to the global project footprint.
  * Keep its source evidence without creating an unrelated 12 SF project. */
-export function normalizeDimensionSubjects(extraction:ScopeExtraction):ScopeExtraction{
+export function normalizeDimensionSubjects(extraction:ScopeExtraction,text=''):ScopeExtraction{
  const next=structuredClone(extraction);
  const fixture=/\b(?:windows?|doors?|shower|vanity|cabinets?|countertops?)\b/i;
  const project=/\b(?:room|bathroom|kitchen|home|house|building|project|ADU)\s+(?:area|footprint|dimensions?|measures?)\b|\b(?:area|footprint|dimensions?)\s+of\s+(?:the\s+)?(?:room|bathroom|kitchen|home|house|building|project|ADU)\b|\b\d[\d,.]*\s*(?:SF|square feet|sq\.?\s*ft)\s+(?:room|bathroom|kitchen|home|house|building|project|ADU)\b/i;
- next.facts=next.facts.map(f=>['length','width','sqft'].includes(f.field)&&fixture.test(f.evidence)&&!project.test(f.evidence)
-  ?{...f,field:'otherDetails',value:'Component dimensions: '+f.evidence}:f);
+ next.facts=next.facts.map(f=>{
+  if(!['length','width','sqft'].includes(f.field))return f;
+  // A short exact quote such as “each 3 feet wide by 4 feet high” may omit
+  // its noun. Bind it only to a unique containing customer sentence.
+  const contexts=/typed|submitted\s*scope/i.test(f.source)&&f.evidence.trim()?text.split(/(?<=[.!?])\s+|\n/).filter(sentence=>sentence.includes(f.evidence.trim())):[];
+  const evidence=contexts.length===1?contexts[0]:f.evidence;
+  return fixture.test(evidence)&&!project.test(evidence)?{...f,field:'otherDetails',value:'Component dimensions: '+evidence}:f;
+ });
  return next;
 }
 
