@@ -259,3 +259,36 @@ test('retained uploaded plumbing locations cannot acquire new rough-in charges',
  const input=inputFor(scope,tasks,[rule('plumbing',tasks[0].description,'22-10-02',5)]);applyPricingCorrections(input);
  assert.equal(input.resolution.rules[0].unit,'hour');assert.equal(input.resolution.rules[0].quantity.fixed,10);
 });
+
+test('unchanged fixture wording rejects rough-and-finish packages and subtracts already priced installations',()=>{
+ const tasks=[{id:'faucet',description:'Supply and install one faucet'},{id:'toilet',description:'Supply and install one toilet'},{id:'reconnect',description:'Normal plumbing reconnections'}];
+ const scope=scopeFor('Existing fixture locations stay unchanged. Include normal plumbing reconnections. No new rough-in or relocation.',{service:'bathroom'});
+ const input=inputFor(scope,tasks,[rule('faucet',tasks[0].description,'22-42-02',1),rule('toilet',tasks[1].description,'22-42-01',1),rule('reconnect',tasks[2].description,'22-10-02',3)]);
+ applyPricingCorrections(input);
+ assert.ok(!input.resolution.rules.some(r=>/Plumbing per fixture/.test(r.description)));
+ const remaining=input.resolution.rules.find(r=>r.unit==='hour')!;
+ assert.equal(remaining.quantity.fixed,2,'only the one remaining connection carries plumber time');
+ assert.equal(remaining.allowance,true);assert.deepEqual(remaining.quantityRange,{low:1.5,high:3});
+});
+test('whole-home reconnection summary does not repeat fixture labor and preserves residual sink connections across repeated passes',()=>{
+ const tasks=[{id:'kitchen',description:'Supply and install one kitchen sink and faucet'},{id:'bath1',description:'Supply and install vanity, faucet and toilet in bathroom 1'},{id:'bath2',description:'Supply and install vanity, faucet and toilet in bathroom 2'},{id:'reconnect',description:'Perform plumbing disconnects and reconnects at existing stub-outs for all replaced fixtures'}];
+ const rules=[rule('kitchen',tasks[0].description,'22-42-03',1),rule('kitchen',tasks[0].description,'22-42-02',1),...tasks.slice(1,3).flatMap(t=>[rule(t.id,t.description,'12-41-01',1),rule(t.id,t.description,'22-42-02',1),rule(t.id,t.description,'22-42-01',1)]),rule('reconnect',tasks[3].description,'22-42-03',3),rule('reconnect',tasks[3].description,'22-42-02',3),rule('reconnect',tasks[3].description,'22-42-01',2),rule('reconnect',tasks[3].description,'22-01-09',2)];
+ const input=inputFor(scopeFor('Existing plumbing locations remain. Include normal reconnects.',{service:'whole-home'}),tasks,rules);
+ applyPricingCorrections(input);applyPricingCorrections(input);
+ const reconnect=input.resolution.rules.filter(r=>r.scopeTaskId==='reconnect');
+ assert.equal(reconnect.length,1);assert.equal(reconnect[0].quantity.fixed,2);
+ assert.match(reconnect[0].evidence.reference,/22-42-03/);
+ assert.equal(input.resolution.rules.filter(r=>/Faucet install/.test(r.description)).reduce((n,r)=>n+(r.quantity.fixed||0),0),3);
+ assert.equal(input.resolution.rules.filter(r=>/Toilet set/.test(r.description)).reduce((n,r)=>n+(r.quantity.fixed||0),0),2);
+});
+
+test('explicit bathroom protection uses room-scale book components and disclosed quantities',()=>{
+ const task={id:'protect',description:'Provide protection of adjacent finishes and bathroom work area',origin:'requested'};
+ const input=inputFor(scopeFor('Remodel one 60 SF bathroom.',{service:'bathroom',sqft:'60'}),[task],[rule(task.id,task.description,'01-50-04',1)]);
+ applyPricingCorrections(input);applyPricingCorrections(input);
+ assert.deepEqual(input.resolution.rules.map(r=>[r.unit,r.quantity.fixed]),[['SF',60],['EA',1]]);
+ assert.deepEqual(input.resolution.rules.map(r=>r.quantityRange),[{low:60,high:120},{low:1,high:2}]);
+ assert.ok(input.resolution.rules.every(r=>r.allowance));
+ assert.equal(input.resolution.rules[0].unitCost,rate('01-50-10').amount);
+ assert.equal(input.resolution.rules[1].unitCost,rate('01-50-11').amount);
+});

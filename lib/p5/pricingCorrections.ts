@@ -224,22 +224,50 @@ export function applyPricingCorrections(input:CorrectionInput):CorrectionResult{
 
   // 4. Reconnecting existing plumbing is reconnection labor, not a rough-in package.
   const plumbingText=[scope.text,scope.extraction?.sourceText,scope.answers.plumbing,scope.answers.taskList,scope.answers.installation,...(instructions?.inclusions||[])].filter(Boolean).join('\n');
-  const retainedPlumbing=/\bexisting\s+plumbing\s+locations\s+(?:remain|stay|are unchanged)\b/i.test(plumbingText)&&/\bre-?connect\w*\b/i.test(plumbingText);
-  if((RECONNECT.test(plumbingText)||retainedPlumbing)&&!RELOCATE.test(plumbingText)){
+  const retainedPlumbing=/\bexisting\s+(?:plumbing|fixture)\s+locations\s+(?:remain|stay|are unchanged)\b/i.test(plumbingText)&&/\bre-?connect\w*\b/i.test(plumbingText);
+  const affirmativePlumbing=plumbingText.split(/(?<=[.!?])\s+|\n|;/).filter(part=>!/^\s*(?:no\b|exclude\w*\b|not\b)/i.test(part)).join('\n');
+  if((RECONNECT.test(plumbingText)||retainedPlumbing)&&!RELOCATE.test(affirmativePlumbing)){
+    const codeOf=(rule:CostRule)=>rule.evidence?.reference.match(/\bPB-(\d{2}-\d{2}-\d{2})(?![\d-])/)?.[1];
+    const reconnectTask=(rule:CostRule)=>/\bre-?connect\w*\b/i.test(taskDescription(rule.scopeTaskId||''))
+      &&!/\b(?:retained|untouched|additional|different)\s+(?:fixtures?|sinks?|faucets?|toilets?)\b/i.test(taskDescription(rule.scopeTaskId||''));
+    const compatible=(a:CostRule,b:CostRule)=>sameBuilding(a.building,b.building)&&(!a.floor||!b.floor||a.floor===b.floor);
+    // A project-wide reconnection row is a summary of the individual fixture
+    // installations. Remove only the quantity already bought for that same
+    // location; preserve a real residual (e.g. two vanity drain connections).
+    for(const extra of [...resolution.rules]){
+      const code=codeOf(extra);
+      if(!code||!/^22-(?:42-0[1-6]|01-09)$/.test(code)||!reconnectTask(extra)||extra.evidence?.reference.includes('[reconciled reconnect summary]'))continue;
+      const anchors=resolution.rules.filter(rule=>rule!==extra&&!reconnectTask(rule)&&compatible(rule,extra)
+        &&(codeOf(rule)===code||code==='22-01-09'&&/^12-41-0[12]$/.test(codeOf(rule)||''))&&direct(rule)>0);
+      const priced=anchors.reduce((sum,rule)=>sum+(rule.quantity.fixed||0),0);
+      if(!priced)continue;
+      const overlap=Math.min(priced,extra.quantity.fixed||0);
+      const remaining=Math.max(0,(extra.quantity.fixed||0)-priced);
+      if(!remaining){dropRule(extra,anchors[0].id);for(const anchor of anchors)cover(extra.scopeTaskId,anchor.id);}
+      else{extra.quantity={...extra.quantity,fixed:remaining};if(extra.quantityRange)extra.quantityRange={low:Math.max(remaining,extra.quantityRange.low-priced),high:Math.max(remaining,extra.quantityRange.high-priced)};if(extra.evidence)extra.evidence.reference+='; [reconciled reconnect summary]';}
+      notes.push(`${itemOf(extra.description)} is charged once per replaced fixture. ${overlap} overlapping installation${overlap===1?'':'s'} removed from the reconnection summary${remaining?`; ${remaining} additional connection${remaining===1?' remains':'s remain'} included`:''}.`);
+    }
     const row=PRICE_BOOK.find(r=>r[0]==='22-01-01');
     const packages=resolution.rules.filter(rule=>ROUGH_AND_FINISH.test(itemOf(rule.description)));
     if(row&&packages.length){
       const rate=priceBookRate(row,finishTier(scope.answers.finish),serviceContext(scope.answers.service).remodel);
       let hours=0;
       for(const rule of packages){
-        const fixtures=Math.max(1,Math.round(rule.quantity.fixed||1));
+        const installation=resolution.rules.filter(other=>other!==rule&&compatible(other,rule)&&/^22-42-0[1-69]$/.test(codeOf(other)||'')&&direct(other)>0);
+        const counts=new Map<string,number>();
+        for(const line of installation){const code=codeOf(line)!;const family=/22-42-0[59]/.test(code)?'shower':code;counts.set(family,(counts.get(family)||0)+(line.quantity.fixed||0));}
+        // Shower rough and trim are two operations on the same fixture.
+        if(counts.has('shower'))counts.set('shower',Math.max(...['22-42-05','22-42-09'].map(code=>installation.filter(line=>codeOf(line)===code).reduce((sum,line)=>sum+(line.quantity.fixed||0),0))));
+        const alreadyInstalled=[...counts.values()].reduce((sum,count)=>sum+count,0);
+        const fixtures=Math.max(0,Math.round(rule.quantity.fixed||1)-alreadyInstalled);
+        if(!fixtures&&installation.length){dropRule(rule,installation[0].id);for(const line of installation)cover(rule.scopeTaskId,line.id);continue;}
         const index=resolution.rules.indexOf(rule);
         const replacement:CostRule={scopeTaskId:rule.scopeTaskId,id:`${rule.id}-reconnect`,description:`${rule.description.slice(0,Math.max(0,rule.description.lastIndexOf(': ')))||taskDescription(rule.scopeTaskId||'')}: ${rate.description}`,trade:suggestedTrade(rate.description),unit:'hour',quantity:{fixed:fixtures*2,factor:1},unitCost:rate.amount,allowance:true,quantityRange:{low:fixtures*1.5,high:fixtures*3},building:rule.building,floor:rule.floor,category:'field-labor',priceBasis:'direct-cost',estimatingBasis:rate.basis,evidence:{basis:'owner-estimating-schedule',reference:`${rate.source}; ${rate.code}; ALLOWANCE: about 2 hours of licensed plumber time per fixture to reconnect ${fixtures} fixture${fixtures===1?'':'s'} to existing supply and drain locations`,verifiedAt:input.now.toISOString(),validUntil:new Date(input.now.getTime()+92*86400000).toISOString()}};
         resolution.rules.splice(index,1,replacement);
         for(const task of mappingTasks)if(task.existingLineIds.includes(rule.id))task.existingLineIds=task.existingLineIds.map(id=>id===rule.id?replacement.id:id);
         hours+=fixtures*2;
       }
-      notes.push(`To confirm: the request keeps the existing plumbing locations, so reconnection is priced as about ${hours} hours of licensed plumber time (an allowance) instead of a rough-in-plus-finish package per fixture. New or relocated plumbing would change this.`);
+      notes.push(`To confirm: existing plumbing locations remain. Fixture installation already priced is not charged again. Remaining reconnections carry ${hours} hours of licensed plumber time as an allowance, replacing full rough-in packages. Confirm the remaining connections before a firm proposal.`);
     }
   }
 
@@ -247,6 +275,23 @@ export function applyPricingCorrections(input:CorrectionInput):CorrectionResult{
   //    when the mapping left such a task unpriced it is part of the requested work's own labor rather
   //    than a reason to withhold the estimate (live Handyman trim-only job, 2026-09-25: held for an
   //    unpriced protection task and a full-truckload junk line for MDF cutoffs).
+  const roomArea=Number(scope.answers.sqft);
+  if(['bathroom','kitchen'].includes(scope.answers.service||'')&&roomArea>0&&roomArea<=500
+    &&!instructions?.separateBuildings&&!/\b(?:two|three|four|[2-9])\s+(?:bathrooms?|kitchens?)\b/i.test(scope.text)){
+    for(const packageRule of [...resolution.rules].filter(rule=>/\bPB-01-50-04\b/.test(rule.evidence?.reference||''))){
+      const components=[{code:'01-50-10',quantity:roomArea,range:{low:roomArea,high:roomArea*2}},{code:'01-50-11',quantity:1,range:{low:1,high:2}}];
+      const replacements=components.map((component,index)=>{
+        const row=PRICE_BOOK.find(row=>row[0]===component.code)!;
+        const rate=priceBookRate(row,finishTier(scope.answers.finish),serviceContext(scope.answers.service).remodel);
+        return {...packageRule,id:index?packageRule.id+'-dust-barrier':packageRule.id,
+          description:`${taskDescription(packageRule.scopeTaskId||'')}: ${rate.description}`,unit:rate.unit,
+          quantity:{fixed:component.quantity,factor:1},quantityRange:component.range,unitCost:rate.amount,unitCostRange:undefined,allowance:true,
+          evidence:{...packageRule.evidence,reference:`${rate.source}; ${rate.code}; ALLOWANCE: protection for one ${roomArea} SF room; confirm access-path area and dust-barrier count on site.`}} as CostRule;
+      });
+      const index=resolution.rules.indexOf(packageRule);resolution.rules.splice(index,1,...replacements);
+      notes.push(`Room protection uses the approved floor-protection rate for ${roomArea} to ${roomArea*2} SF and one to two dust barriers. These are allowances for the room and access path, replacing the whole-house protection package; confirm site layout.`);
+    }
+  }
   const debrisWords=/\b(?:debris|junk|dumpster|waste|cutoffs?|packaging|haul\w*|dispos\w*)\b/i;
   // Explicitly requested installation cleanup is still supporting work. The
   // customer's wording must not bypass the same scale guard as inferred cleanup.

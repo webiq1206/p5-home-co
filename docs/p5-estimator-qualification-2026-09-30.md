@@ -118,3 +118,32 @@ P5 now applies the existing complete-source guard to local reads and both pricin
 The final full production build passed 1,528 tests, with 15 explicit skips and zero failures. This includes both P5 source-admission paths rejecting unread content before database or provider work. The Next.js production build and type checks passed.
 
 The original two-page Marcliffe RE10 was recovered from an email attachment, along with a genuine multipage residential addition permit set. These are available for real-source qualification. The cabinet revision email is present in the P5 sender's Sent mailbox with the expected $7,675-8,500 range and PDF attachment. This establishes dispatch; recipient inbox receipt remains unverified.
+
+## Release .4 production findings and .5 repair candidate
+
+P5 is still **not qualified**. On .4, six previously blocked controlled cases were rechecked. Bathroom text and digital PDF still failed pricing. Bathroom scan, new-home scan, whole-home PDF and synthetic RE10 PDF returned numbers; the first three failed estimate-content review. Returning a range was not counted as acceptance.
+
+| Case | Actual .4 result | Failure and .5 response |
+| --- | --- | --- |
+| Bathroom text | No usable range | Research rejected drywall screws for cabinet mounting. Preserve that validation; correct application-specific sourcing. This remains a production release blocker until retested successfully. |
+| Bathroom digital PDF | No usable range | Supplier observations used incompatible package sizes. Normalize explicitly declared pack contents to physical pieces; continue rejecting unspecified or contradictory contents. |
+| Bathroom scan | $40,500–50,000 | Full rough-and-finish plumbing was added to unchanged fixture locations despite separately priced fixture labor. Recognize fixture-location wording, subtract existing installation coverage, retain only explicit remaining connection allowances. Whole-house protection is replaced by room-scale book components with disclosed site-layout quantities. |
+| New-home scan | $705,000–781,000 | Two lines covered the 2,000 SF house and 440 SF garage, but omitted the requested 80 SF porch. A broad building task now creates independent coverage obligations for separately measured garage/outdoor areas. A house line cannot satisfy the porch obligation. |
+| Whole-home PDF | $106,000–131,000 | Invented 15 electrical device replacements, repeated faucet/toilet/vanity labor in a generic reconnection task, and copied 45 SF countertop into 45 LF removal. Add scope authorization, reconnection-quantity reconciliation and dimensional rejection. The real residual bathroom sink connections are preserved across repeated correction passes. |
+| Synthetic RE10 PDF | $1,125 | Two GFCIs, one P-trap and a 1 SF patch reached a range. Assembly coverage for requested spot priming and cleanup still requires confirmation; not an overall RE10 pass. |
+| Cabinet combined input | Asked whether uppers should be 8 or 10 LF | Typed text explicitly said to change to 10 LF, superseding the PDF. Accept only a verbatim, component-specific, numeric customer correction with matching units; preserve genuine ambiguity. |
+| Cabinet browser revision | $7,375–8,175 | Live .4 correctly changed 10 LF uppers to 9 LF, retained 12 LF base, zero tall and supply-only exclusions. Both lines now display under Cabinets. Earlier estimate versions and PDFs remain listed. Screenshot retained privately. |
+
+The cabinet line totals reconcile exactly to the displayed category endpoints: $4,802 + $2,573 = $7,375 and $5,323 + $2,852 = $8,175. This verifies the displayed arithmetic for this case, not supplier-price certification. Delivery indicators report Sent; recipient inbox receipt is still unverified.
+
+The production .4 build reported dirty=true. Its later workspace was clean and matched the intended tree, but the build-time modified paths were not retained. Do not infer that the changes were harmless. Release .5 records a hash of actual tracked source contents and the changed paths at build time, alongside the commit/tree identity. This enables a direct comparison instead of relying on the commit name alone.
+
+Local .5 verification: the complete build gate passed 1,538 tests, 15 skips, zero failures; production compilation and TypeScript checks passed. New regression cases exercise the exact observed component omissions, duplicated reconnections, repeated-correction stability, SF/LF mismatch, room-scale protection, pack-size normalization and redundant revision question. These are local results; .5 production retests are pending.
+
+### Real-document access boundary
+
+Automatic approval review blocked uploading the retrieved private permit set to P5 because this particular disclosure was not specifically authorized. A genuine RE10 was then redacted to remove names, address, signatures, transaction identifiers, links and metadata. Both pages were visually inspected; every repair-text block matches the original exactly. The redacted file SHA-256 is `4b054b77ac18e66de71724a29034b9934910cc7d2ebd10fbfad1f1b1b0e17e89`. Automatic approval review also rejected that upload because the repair contents originated in a private third-party document. Neither rejected attempt created a test draft or uploaded the file. Explicit user approval is required before submitting either source to P5; no alternate route will be used to bypass this boundary.
+
+The redacted RE10 has eight repair groups with 20 requested actions. Expected coverage includes chimney repairs, plumbing vent boots, separate bathroom exhaust terminations and weatherproofing, crawlspace debris/vapor barrier/floor insulation, under-sink traps, hose-bib vacuum breakers, electrical repairs, a sprinkler pump and fireplace work. Counts, areas and several technical specifications are absent and must be asked or carried as clearly supported allowances. Overlapping exterior GFCI wording must be reconciled, and legal boilerplate must create no construction work.
+
+Still open: successful .5 production retests; remaining combined/incomplete/revision cases; real RE10 and permit-set authorization and tests; large realistic multipage/photo combinations; reference-bid and current local price reconciliation; complete delivery verification. No specialist website integration is authorized by a P5 pass yet because no such pass exists.

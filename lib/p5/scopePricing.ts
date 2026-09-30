@@ -10,6 +10,7 @@ export function verifiedResearchUrl(value:string,observed:readonly string[]):boo
 }
 export {unitKey} from './unitRates.ts';
 import {retainedScopeInventory} from './scopeInventory.ts';
+import {measuredBuildingComponents,incompatibleBuildingComponent,unsupportedElectricalTask} from './scopeComponents.ts';
 import {restoreReportedEvidence} from './reportedEvidence.ts';
 import {parseNumericAnswer} from './answerParsing.ts';
 import {SERVER_BUDGET_MS,ProcessingDeadlineError,fetchWithinDeadline,isProcessingDeadline} from './processingBudget.ts';
@@ -122,7 +123,12 @@ function parseResearchRates(raw:unknown){
    rate.quantityEvidence+=` Each purchased cartridge is ${rate.unit}; no volume or package-price conversion is applied.`;
    rate.unit='EA';
   }
-  const pack=packageUnit(rate.unit);
+  // A bare "pack" rate can still declare its exact modeled contents in the
+  // inclusion text. Preserve that requested purchase quantity while comparing
+  // different supplier packs per piece. If contents are absent, keep the
+  // ambiguity blocking rather than choosing the first supplier's pack size.
+  const contents=['pack','box'].includes(unitKey(rate.unit))?quotedPackage(rate.includes,'each'):null;
+  const pack=packageUnit(rate.unit)||(contents?{size:contents,unit:'EA',source:`${contents} pack`}:null);
   if(pack){
    const original=rate.unit;rate.unit=pack.unit;rate.quantity*=pack.size;
    if(rate.quantityRange)rate.quantityRange={low:rate.quantityRange.low*pack.size,high:rate.quantityRange.high*pack.size};
@@ -766,6 +772,9 @@ export function catalogResolution(mapping:Mapping,configuration:EstimatorConfigu
       const rate=configuration.planningCatalog?.rates.find(r=>r.code===a.code);
       const regional=configuration.regionalRates?.find(r=>r.id===a.code);
       const rateUnit=rate?.unit||regional?.unit||'';
+      if(incompatibleBuildingComponent(t.description,rate?.description||regional?.description||'')){
+        result.issues.push(`${t.description}: catalog component does not cover the separately measured space.`);continue;
+      }
       if(wrongCabinetFasteners(t.description,rate?.description||regional?.description||'')){
         result.issues.push(`${t.description}: drywall screws do not match the cabinet mounting application. Obtain matching cabinet fasteners.`);continue;
       }
@@ -824,6 +833,7 @@ export function catalogResolution(mapping:Mapping,configuration:EstimatorConfigu
     for(const id of t.existingLineIds){
       const line=pricedLines.find(l=>l.id===id);
       if(result.removeLineIds?.includes(id)||!line||line.quantity*line.unitCost<=0)result.issues.push(`${t.description}: invalid existing price reference.`);
+      else if(incompatibleBuildingComponent(t.description,line.description.startsWith(t.description+':')?line.description.slice(t.description.length+1):line.description))result.issues.push(`${t.description}: existing price does not cover the separately measured space.`);
       else if(incompatibleDevice(t.description,line.description))result.issues.push(deviceMismatchIssue(t.description));
       else if(vanitySizeMatches(t.description,line.description)===false)result.issues.push(vanitySizeIssue(t.description));
       else if(['materials','subcontractors'].includes(line.category)&&ownerSuppliesMaterial(t,line.quantity,line.unit,line.description,scope,line.category==='materials'))result.issues.push(`${t.description}: owner-supplied material cannot be charged through a contractor material or supply-and-install package.`);
@@ -1011,6 +1021,16 @@ function quantityIssues(task:Mapping['tasks'][number],addition:{quantity:number;
   const allowance=/^ALLOWANCE\s*:/i.test(evidence);
   const issues:string[]=[];
   const matching=matchingClaims(claims,unit);
+  // Copying an area into a length does not convert it. Parent demolition
+  // tasks often also contain cabinet LF, so inspect the actual countertop
+  // measurement instead of accepting an unrelated matching length.
+  if(unitKey(unit)==='lf'&&/\bcountertop\s+removal\b/i.test(componentDescription)){
+    const area=Number(scope?.answers.countertopSqft);
+    const counterText=[taskText,scope?.text,scope?.extraction?.sourceText].filter(Boolean).join('\n');
+    const statedLength=/\b\d+(?:\.\d+)?\s*(?:LF|linear feet|linear foot)\s+(?:of\s+)?(?:existing\s+)?countertops?\b|\bcountertops?[^.;\n]{0,30}\b\d+(?:\.\d+)?\s*(?:LF|linear feet|linear foot)\b/i.test(counterText);
+    if(area>0&&Math.abs(area-addition.quantity)<.0001&&!statedLength)
+      issues.push(`${task.description}: countertop area in SF cannot be copied into LF removal. Use measured length or an explicit depth conversion with a disclosed assumption and range.`);
+  }
   // Procurement overage changes purchased material, never installed work.
   // Require an explicit base quantity, waste percentage, labeled allowance
   // and range, and verify the arithmetic against the one reviewed quantity.
@@ -1289,7 +1309,7 @@ export function marketResolution(raw:unknown,urls:string[],tasks:Mapping['tasks'
     if(quantityFindings.length){result.issues.push(...quantityFindings);continue;}
     const normalizedSources=r.sources.map(s=>normalizedMarketObservation(s,r.unit));
     if(r.basis==='material-purchase'&&['pack','box'].includes(unitKey(r.unit))){
-      const sizes=r.sources.map(s=>s.excerpt.match(/\b(\d+(?:\.\d+)?)\s*(?:lb|lbs|pounds?|pieces?|pcs|count|ct|[- ]?pack)\b/i)?.[1]||'unknown');
+      const sizes=r.sources.map(s=>{const weight=quotedPackage(s.excerpt,'pound'),count=quotedPackage(s.excerpt,'each');return weight?`${weight} LB`:count?`${count} EA`:'unknown';});
       if(new Set(sizes).size>1)throw new ResearchEvidenceError('Incompatible package sizes require a common per-item or per-weight unit');
     }
     const hosts=new Set<string>();
@@ -1749,7 +1769,7 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
       const genericSite=task.origin==='required'&&readyLot&&/\b(?:rough grading|site and access preparation|site preparation|prepare\s+(?:the\s+)?level[,\s]+(?:and\s+)?cleared\s+(?:lot|site))\b/i.test(siteOperation)&&!/\b(?:excavat\w*|trench\w*|sewer|water line|utility|utilit(?:y|ies)|driveway|retaining)\b/i.test(siteOperation);
       const inventedClearing=task.origin==='required'&&readyLot&&/\b(?:clear(?:ing)?(?: and grubbing)?|demolition\/removal necessary to clear)\b/i.test(task.description)
         &&! /\b(?:demoli\w*|remove)\b[^.;\n]{0,60}\b(?:existing\s+(?:building|structure|slab)|trees?|stumps?)\b/i.test(sourceConditions);
-      return supplyOnly&&ownerSuppliesAllParts(pricingScope)||genericSite||inventedClearing;
+      return supplyOnly&&ownerSuppliesAllParts(pricingScope)||genericSite||inventedClearing||unsupportedElectricalTask(pricingScope,task);
     });
     if(unsupportedSupporting.length){
       inventory.tasks=inventory.tasks.filter(task=>!unsupportedSupporting.includes(task));
@@ -1759,6 +1779,10 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
       const general=inventory.tasks.filter(task=>generalInstallationRequirement(task.description));
       inventory.tasks=inventory.tasks.filter(task=>!generalInstallationRequirement(task.description));
       if(general.length)inventory.notes.push('General labor and installation-material requirements apply within each requested installation task, not as a second assembly charge.');
+    }
+    for(const component of measuredBuildingComponents(pricingScope,inventory.tasks)){
+      inventory.tasks.push({...component,origin:'requested',basis:component.basis||''});
+      taskSources.set(component.id,0);
     }
     if(new Set(inventory.tasks.map(t=>t.id)).size!==inventory.tasks.length)throw new Error('Duplicate inventory task');
     // Nothing separately priceable in the source: the reviewed answers price the project (a new home from its

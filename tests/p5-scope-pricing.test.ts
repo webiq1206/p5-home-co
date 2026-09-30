@@ -2238,3 +2238,27 @@ test('counted bag and sanding-sheet packages preserve total price and reject uns
   rate.sources[0].excerpt=`${count+1} ${noun} per pack, $10.`;assert.throws(()=>marketResolution(raw,urls,[extra],now),/Package size does not match/);
  }
 });
+
+test('countertop square feet cannot be copied into a linear-foot demolition price',()=>{
+ const rates=[{code:'PB-02-41-07',description:'Countertop removal',type:'Subcontractor',unit:'LF',amount:20,source:'Owner fixture',basis:'owner-average-cost'}];
+ const configuration=createPlanningConfiguration({...catalog,rates:[...catalog.rates,...rates] as any});
+ const local={...scope,text:'Replace 45 SF quartz countertop.',answers:{service:'kitchen',countertopSqft:'45'}};
+ const demolition={...extra,id:'demo',description:'Remove replaced finishes',evidence:local.text,additions:[{code:'PB-02-41-07',quantity:45,quantityEvidence:'ALLOWANCE: 45 LF for 45 SF countertop',quantityRange:{low:45,high:50}}],researchDescription:''};
+ const mapping={tasks:[demolition],notes:[],issues:[],replacements:[],removeExclusions:[]};
+ const result=catalogResolution(mapping as any,configuration,[],now,local);
+ assert.equal(result.rules.length,0);assert.ok(result.issues.some(issue=>/area in SF cannot be copied into LF/.test(issue)));
+ const stated={...local,text:'Remove 45 LF existing countertop, replace 45 SF countertop.'};
+ assert.equal(catalogResolution(mapping as any,configuration,[],now,stated).rules.length,1);
+});
+
+test('bare packs with explicitly declared contents compare different supplier sizes per piece',()=>{
+ const raw=structuredClone(researched),rate=raw.rates[0];
+ Object.assign(rate,{unit:'pack',quantity:2,quantityEvidence:'ALLOWANCE: two packs for installation',quantityRange:{low:1,high:3},includes:'Cabinet mounting shims, 12-piece pack only',landedCost:null});
+ rate.sources=[{...source(urls[0],6,6),unit:'pack',excerpt:'Cabinet shims, 12-piece pack, $6.'},{...source(urls[1],16,16),unit:'pack',excerpt:'Cabinet shims, 40-piece pack, $16.'}];
+ const result=marketResolution(raw,urls,[extra],now);
+ assert.equal(result.rules[0].unit,'EA');assert.equal(result.rules[0].quantity.fixed,24);assert.equal(result.rules[0].unitCost,.45);
+ assert.deepEqual(result.rules[0].quantityRange,{low:12,high:36});
+ const unknown=structuredClone(raw);unknown.rates[0].unit='pack';unknown.rates[0].includes='Cabinet shims only';
+ unknown.rates[0].sources=[{...source(urls[0],6,6),unit:'pack',excerpt:'Cabinet shims, 12-piece pack, $6.'},{...source(urls[1],16,16),unit:'pack',excerpt:'Cabinet shims, 40-piece pack, $16.'}];
+ assert.throws(()=>marketResolution(unknown,urls,[extra],now),/Incompatible package sizes/);
+});

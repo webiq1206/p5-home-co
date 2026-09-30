@@ -18,6 +18,7 @@ import {blockingReviewNote} from './costBook.ts';
 import {selectReusableAnalysis} from './analysisReuse.ts';
 import {impliedComponentRemodel,impliedRepairService,serviceEvidenceSupports} from './serviceSignals.ts';
 import {query} from './database.ts';
+import {applyExplicitTypedCorrections} from './typedCorrections.ts';
 
 /** Guard multipart analysis/upload requests before they can mutate files. */
 export function guardScopeRequestRevision(storedRevision:number,requestedRevision:unknown,storedText:string,incomingText:string){
@@ -156,6 +157,7 @@ export async function postScope(request:Request){
       const implied=supported?null:(impliedComponentRemodel(text,ESTIMATOR_BRAND.services as readonly string[])||impliedRepairService([text,...facts.map(f=>f.evidence)].join('\n'),ESTIMATOR_BRAND.services as readonly string[]));
       if(implied)analysis={...analysis,extraction:{...analysis.extraction,facts:[...facts.filter(f=>f.field!=='service'),{field:'service',value:implied,confidence:1,source:'typed scope',evidence:text.slice(0,4000),basis:'stated'}]}};
     }
+    if(analysis)analysis={...analysis,extraction:applyExplicitTypedCorrections(analysis.extraction,text)};
     const extraction=analysis?.extraction||analysisDraft.extraction;
     const merged=analysis?reconcileScope(visitorAnswers,analysis.extraction,resolutions):{answers:{...analysisDraft.answers,...visitorAnswers},conflicts:[]};
     const wizard={instructionAnswers:sourceChanged?[]:analysisDraft.wizard?.instructionAnswers||[],skipped:sourceChanged?[]:analysisDraft.wizard?.skipped||[],resolutions,sourceVersion:analysis?version:sourceChanged?undefined:analysisDraft.wizard?.sourceVersion};
