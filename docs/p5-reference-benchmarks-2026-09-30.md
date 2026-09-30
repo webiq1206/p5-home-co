@@ -114,3 +114,43 @@ The addition did not start replacement interpretation: its complete 13-page, 52-
 The actual uploaded Goeckner PDF passed this new native connection's parser check: 13 pages, 40,181 retained text characters, A201's 26/471 SF schedule and S101's separate 495 SF ventilation basis present, zero provider calls. Forty-four focused boundary tests and TypeScript passed. This does not yet establish correct model reconciliation, a qualified addition estimate, or a published customer-flow pass.
 
 The full local build passed 1,685 tests (1,670 passes, 15 database-dependent skips, zero failures), database safety, compilation, TypeScript and static generation. A final malformed-checkpoint input guard was then covered by two passing recovery tests and a fresh production compilation. Hosted model retests remain required before any production rollout.
+
+## Added real-file qualification corpus
+
+Owner supplied eight additional PDFs and authorized `brostjared@gmail.com` for QA delivery. An owner-issued final Goeckner bid is unavailable; competitor estimates remain comparison references, not a ground-truth approved bid. Do not ask for that unavailable bid again.
+
+| Reference | Pages | Local parse/render result | Required interpretation checks |
+| --- | ---: | --- | --- |
+| Marcliffe RE10 | 2 | Complete inventory | Selected repair request; unchecked termination clause must remain inactive. |
+| Squier plans | 18 | Complete inventory | Plans versus earlier inspection are different dates and purposes, not duplicate authorized repair lists. |
+| Greenway subdivision | 3 | Complete inventory, no native text on any page | Scanned plat, not building floor plans. Lot lines and easements cannot supply house floor areas. Ask which lot and requested construction scope. |
+| 5160 W Wylie plans | 7 | Complete inventory | Do not join with the 5126 W Wylie inspection based on a similar street name. |
+| Gambardella architectural plans | 27 | Complete inventory | Preserve every page; surface actual missing/conflicting sheets and specifications. |
+| Parkway inspection | 53 | Complete inventory | Conditions and recommendations do not automatically authorize all repairs. |
+| Squier inspection | 91 | Complete inventory | Preserve photo context and referenced sections; distinguish inspection conditions from proposed plan work. |
+| 5126 W Wylie inspection | 62 | Complete inventory | Separate project identity from 5160 W Wylie plans. |
+
+All 263 pages parsed and rendered using the document-service parser, with no failed files. Private per-page evidence, hashes, timing and renders: `qa-private/new-source-native`; independent Poppler text: `qa-private/new-source-audit`. Poppler/PDF.js emitted marked-content warnings for some architectural drawing content; rendering completed, but fine-detail visual/model accuracy is not certified by successful parsing. No AI OCR or semantic-model test was run for these 263 pages as a batch.
+
+### RE10 verified expected behavior
+
+Original SHA256: `01e461bcc00f28cac2d2f5198123b00189111233599768ff3929ce5487bb5d42`.
+Page 1 visually confirms the items-to-be-addressed and seller-repair selections. Page 2's printed termination provision is unchecked. Expected scope:
+
+* Professional radon mitigation, with actual system/site conditions unresolved.
+* Licensed plumbing repair/replacement at the documented defect location.
+* Expose the sewage lift pump for access, inspect the previously inaccessible downstream line and connection, and install a downstream cleanout.
+* Site-dependent excavation, access, restoration, testing and disposal must be accounted for when required, without duplicating a subcontractor assembly.
+* The 32-foot figure locates a defect from the camera entry. It is not repair length. The approximately 40-foot figure is the unevaluated inspection extent, not authorization to replace that full run.
+* Missing pipe size/material, repair extent, depth/access, surface restoration and mitigation configuration need useful questions or supported disclosed allowances. Do not ask the customer to supply contractor production hours.
+* No other property improvements are requested by the QA input. Other-property inspection reports do not fill missing Marcliffe conditions.
+
+### Live baseline failure, 2026-09-30
+
+Uploaded original RE10 at `https://p5homeco.com/estimate` with: `[QA] Please estimate the seller repair work requested in this RE-10, including the supporting work needed to complete those repairs. No other property improvements are requested.`
+
+Actual result: upload/read completed, seven details saved, no follow-up questions. Review showed five relevant repair inclusions, but also claimed the buyer terminated the agreement and excluded all repairs on that basis. This incorrectly activated unchecked boilerplate. The only displayed assumption was standard scheduling, leaving real scope unknowns unaddressed. Failed scope acceptance; no estimate requested or email sent. Evidence: `p5-re10-unchecked-clause-failure.jpg`, Library `libfile_0a9bac0699288191a714b8e2d7252dc4`.
+
+Direct repairs prepared: rejected PDF transport now falls back to rendered images plus original text on the same model, including scan-only PDFs. Previously it fell back to text alone. Source-reader, verifier, reconciliation and replacement project instructions now require selection-state verification, separation of property identities, inspection findings versus authorized work, and location/inspection distances versus actual repair quantities. These instructions are safeguards, not evidence that the observed semantic failure is fixed. No claim is made that the text-only fallback caused this particular live response; its request trace has not been inspected. A new live RE10 run on the updated build is still required.
+
+Verification of direct repairs: 48 focused reading/project-record tests passed. Actual two-page RE10 rendered through the new fallback with original page identities retained; page 2 visually verified to preserve the unchecked termination box. Full production build passed: 1,672 tests passed, 15 database-dependent tests skipped, zero failed; TypeScript and all 26 generated pages completed. These are local verification results, not a passed live retest or successful delivery.

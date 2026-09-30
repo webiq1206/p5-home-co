@@ -61,7 +61,7 @@ export async function inspectPdf(data:Buffer):Promise<PdfInspection>{
 
 /** One page of a viewable PDF as a fresh single-page PDF holding its rendered
  * image at about 200 DPI. Used only when pdf-lib cannot copy the page. */
-export async function renderedPagePdf(data:Buffer,pageNumber:number):Promise<Buffer>{
+export async function renderedPageImage(data:Buffer,pageNumber:number,format:'png'|'jpeg'='png'):Promise<{data:Buffer;width:number;height:number}>{
   const {library,options}=await pdfjs();
   const task=library.getDocument({data:new Uint8Array(data),...options});
   try{
@@ -72,9 +72,14 @@ export async function renderedPagePdf(data:Buffer,pageNumber:number):Promise<Buf
     const viewport=page.getViewport({scale});
     const canvas=createCanvas(Math.ceil(viewport.width),Math.ceil(viewport.height));
     await page.render({canvas:canvas as any,canvasContext:canvas.getContext('2d') as any,viewport,background:'white'}).promise;
-    const out=await PDFDocument.create();const image=await out.embedJpg(canvas.toBuffer('image/jpeg',92));
-    out.addPage([base.width,base.height]).drawImage(image,{x:0,y:0,width:base.width,height:base.height});
+    const image=format==='jpeg'?canvas.toBuffer('image/jpeg',92):canvas.toBuffer('image/png');
     canvas.width=1;page.cleanup();
-    return Buffer.from(await out.save());
+    return {data:image,width:base.width,height:base.height};
   }finally{await task.destroy().catch(()=>undefined);}
+}
+export async function renderedPagePdf(data:Buffer,pageNumber:number):Promise<Buffer>{
+ const rendered=await renderedPageImage(data,pageNumber,'jpeg'),out=await PDFDocument.create();
+ const image=await out.embedJpg(rendered.data);
+ out.addPage([rendered.width,rendered.height]).drawImage(image,{x:0,y:0,width:rendered.width,height:rendered.height});
+ return Buffer.from(await out.save());
 }
