@@ -77,3 +77,25 @@ test('progress lookup uses the persisted jsonb input hashed by the pricing worke
   assert.deepEqual(await jobProgressWorkKeys(saved as Parameters<typeof jobProgressWorkKeys>[0]),[workerKey]);
  }finally{await db.close();}
 });
+
+test('P5 reuses a verified complete source read when a supplied answer became an identical extracted fact',async()=>{
+ const {selectSourceEquivalentAnalysis}=await import('../lib/p5/analysisReuse.ts');
+ const {MODEL_POLICY_VERSION,ESTIMATOR_MODEL_SNAPSHOT}=await import('../lib/p5/modelPolicy.ts');
+ const uploads=[{id:'public-source',name:'public-plan.pdf',type:'application/pdf',size:100,sha256:'verified-source-hash',status:'stored' as const}];
+ const extraction={summary:'Complete public fixture',facts:[{field:'location' as const,value:'Boise, Idaho',evidence:'Boise, Idaho',source:'typed scope',basis:'stated' as const,confidence:1}],conflicts:[],reviewNotes:[],missingInformation:[],documentCoverage:{complete:true,expectedPages:1,pages:[{source:'public-plan.pdf',page:1,sheet:'A1',revision:'',status:'read' as const,notes:[]}]}};
+ const analysis={provider:'OpenAI',model:ESTIMATOR_MODEL_SNAPSHOT,modelPolicy:MODEL_POLICY_VERSION,analyzedAt:'2026-09-30',extraction};
+ const candidate={workKey:'saved',payload:{state:'complete',input:{kind:'analysis',text:'Build this ADU.',answers:{location:'Boise, Idaho'},draft:{uploads}},result:{analysis}}};
+ const input={text:'Build this ADU.',answers:{},uploads,extraction};
+ assert.equal(selectSourceEquivalentAnalysis([candidate],input)?.analysis,analysis);
+ assert.equal(selectSourceEquivalentAnalysis([candidate],{...input,text:'Build only the garage.'}),null);
+ assert.equal(selectSourceEquivalentAnalysis([candidate],{...input,answers:{location:'Nampa'}}),null);
+ assert.equal(selectSourceEquivalentAnalysis([candidate],{...input,answers:{location:'Nampa'},resolutions:{location:'Nampa'}}),null);
+ assert.equal(selectSourceEquivalentAnalysis([candidate],{...input,uploads:[{...uploads[0],sha256:'replaced-source'}]}),null);
+ assert.equal(selectSourceEquivalentAnalysis([candidate,candidate],input),null);
+ const wrong=structuredClone(candidate);wrong.payload.result.analysis.modelPolicy='unverified-legacy';
+ assert.equal(selectSourceEquivalentAnalysis([wrong],input),null);
+ const partial=structuredClone(candidate);partial.payload.result.analysis.extraction.documentCoverage.complete=false;
+ assert.equal(selectSourceEquivalentAnalysis([partial],input),null);
+ const conflict=structuredClone(extraction);conflict.facts[0].value='Meridian';
+ assert.equal(selectSourceEquivalentAnalysis([candidate],{...input,extraction:conflict}),null);
+});

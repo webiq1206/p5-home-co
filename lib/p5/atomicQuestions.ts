@@ -32,7 +32,7 @@ export function projectQuestionField(text:string,answers:ScopeAnswers):ScopeFiel
  const measured=/\b(?:how many|number of|count|total)\b/i;
  if(/\b(?:stories|story|levels)\b/i.test(text)&&/\b(?:how many|number of|single|multiple|one|two)\b/i.test(text))return 'stories';
  if(measured.test(text)&&/\b(?:GFCI|receptacles?|passage (?:door )?(?:handles?|levers?))\b/i.test(text)&&! /\b(?:toilets?|sinks?|faucets?)\b/i.test(text))return 'fixtureCount';
- if(/\b(?:which|what)\b/i.test(text)&&/\bfixtures?\b/i.test(text)&&/\b(?:replac\w*|include\w*)\b/i.test(text))return 'fixtures';
+ if(/\b(?:which|what)\b/i.test(text)&&!/\bappliances?\b/i.test(text)&&/\bfixtures?\b/i.test(text)&&/\b(?:replac\w*|include\w*)\b/i.test(text))return 'fixtures';
  if(/\b(?:finish|type)\b/i.test(text)&&/\b(?:select\w*|allowance)\b/i.test(text)&&! /\b(?:fire|waterproof|rating|capacity)\b/i.test(text))return 'materials';
  if(measured.test(text)&&/\bbathrooms?\b/i.test(text)&&!/\b(?:fixtures?|sinks?|toilets?|vanit|area|square)\b/i.test(text))return 'bathrooms';
  if(measured.test(text)&&/\brooms?\b/i.test(text)&&!/\bcabinets?\b/i.test(text))return 'rooms';
@@ -41,7 +41,7 @@ export function projectQuestionField(text:string,answers:ScopeAnswers):ScopeFiel
   if(/\b(?:area|square feet|square footage|sqft)\b/i.test(text)&&!/\b(?:will|does|is|include|included|should)\b[^?]*\?\s*if so/i.test(text))return 'garageSqft';
   if(/\b(?:will|does|is|include|included|should)\b/i.test(text))return 'garageIncluded';
  }
- if(/\b(?:utilit(?:y|ies)|water|sewer|electric(?:al)?|gas)\b/i.test(text)&&/\b(?:connect|connection|extension|distance|length|available|availability|stub)\w*\b/i.test(text))return 'utilities';
+ if(/\b(?:utilit(?:y|ies)|water|sewer|electric(?:al)?|gas)\b/i.test(text)&&/\b(?:connect|connection|extension|distance|length|available|availability|stub|runs?)\w*\b/i.test(text))return 'utilities';
  if(/\b(?:soil|slope|site conditions|grading|site access)\b/i.test(text))return 'site';
  if(/\b(?:what|which)\b[^?]*\b(?:work|changes|repairs)\b[^?]*\b(?:want|proposed|include|need|done)\w*\b/i.test(text))return 'taskList';
  return projectAreaQuestionField(text,answers);

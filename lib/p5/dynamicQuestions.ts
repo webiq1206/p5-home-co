@@ -56,6 +56,7 @@ export interface QuestionContext {
   text: string;
   positive: string;
   restriction: string;
+  customerRequested: string;
   exclusions: string[];
   takeoffs: NonNullable<ScopeExtraction['takeoffs']>;
   extraction: ScopeExtraction | null;
@@ -91,6 +92,7 @@ export function questionContext(answers: ScopeAnswers, extraction: ScopeExtracti
   // A general service label alone does not make every trade part of a repair request.
   const fullProject = !restriction && (BUILDS.has(service) || REMODELS.has(service) && !componentRemodel(authored,exclusions));
   return {answers, service, text, positive: positiveClauses(text).join('\n'), restriction,
+    customerRequested:positiveClauses(joined([sourceText,answers.taskList,answers.estimatingInstructions])).join('\n'),
     exclusions, takeoffs, extraction, fullProject,
     laborOnly: extraction?.instructions?.laborOnly === true || /\blabou?r[ -]only\b/i.test(directions)
       || clauses(joined([sourceText,answers.taskList,answers.installation])).some(clause=>/^(?:(?:price|estimate|quote|include|provide)\s+)?labou?r(?:\s+and\s+installation)?[ -]only\b(?!\s+(?:for|on)\b)/i.test(clause))};
@@ -101,6 +103,7 @@ export function questionContext(answers: ScopeAnswers, extraction: ScopeExtracti
  * Keep area questions for broad renovations and any stated wall/ceiling work. */
 function componentRemodel(text:string,exclusions:string[]):boolean {
  const positive=positiveClauses(text).join('\n');
+ if(/\b(?:selected|partial|limited)\s+(?:interior\s+)?(?:finishes|renovation|remodel|work)\b/i.test(positive))return true;
  const negative=[...exclusions,...clauses(text).filter(s=>/\b(?:exclude\w*|no|not|without|retain|keep|reuse)\b/i.test(s))].join('\n');
  if(!TOPICS.cabinets.test(positive)&&!TOPICS.countertops.test(positive))return false;
  const excludedTrades=['flooring','plumbing','electrical','mechanical','structural'].filter(t=>TOPICS[t as Topic].test(negative));
@@ -123,7 +126,7 @@ function excluded(context: QuestionContext, topic: Topic): boolean {
   const requested = (context.extraction?.instructions?.inclusions || []).some(s => pattern.test(s))
     || positiveClauses(context.text).some(s => pattern.test(s) && !excludedClause.test(s));
   if (excludedTopic && !requested) return true;
-  if (context.restriction && !pattern.test(context.restriction)) {
+  if (context.restriction && !pattern.test(context.restriction)&&!pattern.test(context.customerRequested)) {
     // Base/upper/tall are subdivisions of a genuinely requested cabinet package.
     if (['base', 'upper', 'tall'].includes(topic) && TOPICS.cabinets.test(context.restriction)) return false;
     return true;
@@ -132,7 +135,7 @@ function excluded(context: QuestionContext, topic: Topic): boolean {
 }
 function topicActive(context: QuestionContext, topic: Topic): boolean {
   if (excluded(context, topic)) return false;
-  return TOPICS[topic].test(context.restriction || context.positive);
+  return TOPICS[topic].test(context.restriction?context.restriction+'\n'+context.customerRequested:context.positive);
 }
 /** Painting measured trim or cabinet doors does not require whole-room area. */
 function paintedAreaApplies(context: QuestionContext): boolean {
@@ -186,7 +189,7 @@ function measuredTopic(context: QuestionContext, topic: Topic): boolean {
     : AREA_UNIT.test(t.unit)));
 }
 export function unresolvedScopeAnswer(value:string|undefined):boolean{
- return !value?.trim()||/\b(?:not specified|unspecified|unknown|not provided|not stated|to be determined|TBD)\b/i.test(value)
+ return !value?.trim()||/\b(?:not specified|unspecified|unknown|not provided|not stated|not shown|not known|details? (?:are )?missing|missing (?:site|utility|quantity|measurement|scope) (?:details|information)|to be determined|TBD)\b/i.test(value)
    ||/^(?:replace|new|update) (?:the )?(?:(?:bathroom|kitchen|plumbing)\s+)?fixtures?[.!]?$/i.test(value.trim());
 }
 /** Existing-condition photographs do not authorize construction. Resolve an

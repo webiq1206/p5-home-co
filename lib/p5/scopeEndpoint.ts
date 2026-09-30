@@ -15,7 +15,7 @@ import { failed,json,limitedBody,protectRequest } from "./http.ts";
 import { ESTIMATOR_BRAND } from "./brand.ts";
 import {recordEvent,describeError} from './events.ts';
 import {blockingReviewNote} from './costBook.ts';
-import {selectReusableAnalysis} from './analysisReuse.ts';
+import {selectReusableAnalysis,selectSourceEquivalentAnalysis} from './analysisReuse.ts';
 import {impliedComponentRemodel,impliedRepairService,serviceEvidenceSupports} from './serviceSignals.ts';
 import {query} from './database.ts';
 import {reconcileDocumentHierarchy,groundDocumentConditions,normalizeCountSubjects,normalizeTileSubjects} from './scopeInterpretation.ts';
@@ -111,9 +111,12 @@ export async function postScope(request:Request){
         // Cabinet only: a completed legacy read queued before the service answer
         // was inferred is reused when its full source identity is exact, instead
         // of spending a second read on the same typed scope.
-        const reuse=(ESTIMATOR_BRAND.id as string)==='cabinet'&&background&&form.get('retry')!=='true'?selectReusableAnalysis(
+        const candidates=background&&form.get('retry')!=='true'?(
           (await query("SELECT work_key,payload FROM p5_estimator_work WHERE draft_id=$1 AND work_key LIKE 'background-v1-%' AND payload->>'state'='complete' AND payload->'input'->>'kind'='analysis' ORDER BY updated_at DESC",[analysisDraft.id]))
-            .map(row=>({workKey:String(row.work_key),payload:row.payload})),
+            .map(row=>({workKey:String(row.work_key),payload:row.payload}))):[];
+        const reuse=(ESTIMATOR_BRAND.id as string)==='p5'?selectSourceEquivalentAnalysis(candidates,
+          {text,answers:visitorAnswers,uploads:analysisDraft.uploads,extraction:analysisDraft.extraction,resolutions:analysisDraft.wizard?.resolutions},
+        ):(ESTIMATOR_BRAND.id as string)==='cabinet'?selectReusableAnalysis(candidates,
           {text,answers:visitorAnswers,uploads:analysisDraft.uploads},
         ).reusable:null;
         const job=!reuse&&background?await queuedJob({kind:'analysis',draft:analysisDraft,text,answers:visitorAnswers},form.get('retry')==='true'):null;

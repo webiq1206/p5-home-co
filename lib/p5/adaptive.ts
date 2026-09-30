@@ -65,6 +65,8 @@ export function materialScopeFields(answers:ScopeAnswers,pricedFields:ScopeField
 }
 const detailQuestions:Partial<Record<ScopeField,string>>={
   fixtures:'Which fixtures are being replaced, and how many of each?',
+  utilities:'Which utility connections are needed, and approximately how long is each run? Include water, sewer and power; tell us if any details are unknown.',
+  site:'What are the actual site slope, soil and access conditions? Tell us what is known and what still needs verification.',
   cabinetRoom:'Which room are the cabinets for?',cabinetBaseLf:'How many linear feet of base cabinets are needed?',
   cabinetUpperLf:'How many linear feet of wall cabinets are needed?',cabinetTallLf:'How many linear feet of tall cabinets are needed? Enter 0 if there are none.',
   garageIncluded:'Does the new home estimate include a garage?',garageSqft:'How many square feet is the included garage?',
@@ -101,6 +103,12 @@ function conflictSourceDetail(conflict:ScopeConflict,extraction:ScopeExtraction|
   const evidence=[...new Set(facts.map(f=>`${f.value} (${f.source}): ${f.evidence}`).filter(Boolean))];
   return evidence.length?`Source details: ${evidence.join(' | ')}`:undefined;
 }
+/** The same source question can arrive as both an instruction and a field
+ * clarification. Compare its actual question, without its pricing explanation. */
+function sameQuestionWording(left:string,right:string):boolean{
+ const core=(value:string)=>value.split('?')[0].normalize('NFKC').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
+ return Boolean(core(left))&&core(left)===core(right);
+}
 export function scopeQuestions(input:ScopeAnswers,extraction:ScopeExtraction|null,conflicts:ScopeConflict[]=[],skipped:ScopeField[]=[],pricedFields:ScopeField[]=[],sourceText=''):ScopeQuestion[]{
   const answers=deriveScopeAnswers(input);
   if(extraction?.clarifications)extraction={...extraction,clarifications:extraction.clarifications.flatMap(q=>atomicInstructionQuestions(q.question,answers,conflicts).map(question=>({...q,question,field:cabinetQuestionField(question)||projectQuestionField(question,answers)||q.field})))};
@@ -129,13 +137,14 @@ export function scopeQuestions(input:ScopeAnswers,extraction:ScopeExtraction|nul
   // Keep the reader's project-specific wording, including which room or component
   // is missing. Replacing it with a generic numeric prompt loses that context.
   for(const q of extraction?.clarifications||[]){
-    if(relevant.has(q.field)&&unresolvedScopeAnswer(answers[q.field])&&!skipped.includes(q.field)&&!questions.some(x=>x.field===q.field))questions.push({field:q.field,label:clarificationLabel(q.field,q.question),reason:SCOPE_FIELDS[q.field].kind==='number'&&clarificationLabel(q.field,q.question)!=='Project detail'&&!/how (?:many|much|long|wide|large)|number of|square feet|linear feet|footage/i.test(q.question)?questionReason(q.field,answers):q.question,detail:q.reason});
+    if(relevant.has(q.field)&&unresolvedScopeAnswer(answers[q.field])&&!skipped.includes(q.field)&&!questions.some(x=>x.field===q.field||sameQuestionWording(x.reason,q.question)))questions.push({field:q.field,label:clarificationLabel(q.field,q.question),reason:SCOPE_FIELDS[q.field].kind==='number'&&clarificationLabel(q.field,q.question)!=='Project detail'&&!/how (?:many|much|long|wide|large)|number of|square feet|linear feet|footage/i.test(q.question)?questionReason(q.field,answers):q.question,detail:q.reason});
   }
   for(const field of relevant)if(!questions.some(q=>q.field===field)&&!skipped.includes(field))questions.push(questionForField(field,answers));
   return questions.map(q=>{
     const allowed=choiceValues(q.field,answers);
     const values=q.field==='finish'?allowed:q.values?.length?q.values:allowed;
-    return {...q,...(values?.length?{values}:{}),...(q.reason.length>240?{reason:`Please confirm ${q.label.toLowerCase()}.`,detail:[q.reason,q.detail].filter(Boolean).join(" ")}:{})};
+    const reason=q.field!=='estimatingInstructions'&&!q.conflict&&!/\?|^(?:what|which|how|where|is|are|do|does|will|can|could|would|should|please|confirm|describe|provide|select|choose)\b/i.test(q.reason)?questionReason(q.field,answers):q.reason;
+    return {...q,reason,...(values?.length?{values}:{}),...(reason!==q.reason?{detail:[q.reason,q.detail].filter(Boolean).join(' ')}:{}),...(q.reason.length>240?{reason:`Please confirm ${q.label.toLowerCase()}.`,detail:[q.reason,q.detail].filter(Boolean).join(" ")}:{})};
   });
 }
 export function validateScopeAnswer(field:ScopeField,value:string){

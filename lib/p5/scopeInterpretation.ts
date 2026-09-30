@@ -5,7 +5,15 @@ import type {ScopeExtraction} from './scope.ts';
  * stay intact so the reviewer can see the original values. */
 export function reconcileDocumentHierarchy(extraction:ScopeExtraction,text:string):ScopeExtraction{
  const next=structuredClone(extraction);
- const multi=next.instructions?.separateBuildings||/\b(?:main|primary|separate)\s+(?:house|home)\b|\b(?:two|multiple)\s+(?:homes|houses|buildings)\b/i.test(text);
+ const explicitMultiple=/\b(?:main|primary|separate)\s+(?:house|home)\b|\b(?:two|multiple)\s+(?:homes|houses|buildings)\b|\b(?:additional|another|separate)\s+(?:building|structure|ADU)\b/i.test(text);
+ const verticalAdu=/\b(?:ADU|dwelling|studio)\b[^.;\n]{0,40}\b(?:above|over)\s+(?:its\s+|a\s+|the\s+)?garage\b/i.test(text);
+ // Page readers can label the garage and the dwelling as separate buildings.
+ // A customer's explicit above/over relationship places them in one structure;
+ // it does not merge a separate main home or another requested building.
+ const otherBuilding=(next.instructions?.buildings||[]).some(label=>! /\b(?:ADU|garage|dwelling|studio)\b/i.test(label)||/\b(?:main|primary|pool|shed|barn|workshop)\b/i.test(label));
+ const oneStackedStructure=verticalAdu&&!explicitMultiple&&!otherBuilding;
+ const multi=explicitMultiple||otherBuilding||Boolean(next.instructions?.separateBuildings&&!oneStackedStructure);
+ if(oneStackedStructure&&next.instructions)next.instructions.separateBuildings=false;
  if(!multi&&/\bADU\b|accessory dwelling unit/i.test(text)){
   const types=next.facts.filter(f=>f.field==='service');
   if(types.some(f=>f.value==='adu')&&types.every(f=>['adu','new-construction'].includes(f.value))){
@@ -33,7 +41,7 @@ export function reconcileDocumentHierarchy(extraction:ScopeExtraction,text:strin
  * narrower count. A bathroom count does not establish the home's room count. */
 export function normalizeCountSubjects(extraction:ScopeExtraction):ScopeExtraction{
  const next=structuredClone(extraction);
- next.facts=next.facts.map(f=>f.field==='rooms'&&/\bbathrooms?\b/i.test(f.evidence)&&!/(?<!bath)\brooms?\b|\b(?:bedrooms?|living room|kitchen|total rooms)\b/i.test(f.evidence)?{...f,field:'bathrooms'}:f);
+ next.facts=next.facts.map(f=>f.field==='rooms'&&/\bbedrooms?\b/i.test(f.evidence)&&!/(?<!bed)(?<!bath)\brooms?\b|\btotal rooms\b/i.test(f.evidence)?{...f,field:'otherDetails',value:f.evidence}:f.field==='rooms'&&/\bbathrooms?\b/i.test(f.evidence)&&!/(?<!bath)\brooms?\b|\b(?:bedrooms?|living room|kitchen|total rooms)\b/i.test(f.evidence)?{...f,field:'bathrooms'}:f);
  return next;
 }
 
@@ -74,6 +82,20 @@ export function groundDocumentConditions(extraction:ScopeExtraction,text:string)
    next.reviewNotes.push('Utility work is not excluded merely because its route or length is missing. Confirm the requested connections or use a disclosed allowance.');
   }
  }
- next.facts=next.facts.map(f=>/^\s*(?:when|if)\b/i.test(f.evidence)&&!/^\s*(?:when|if)\b/i.test(f.value)?{...f,value:f.evidence,basis:'inferred',confidence:Math.min(f.confidence,.6)}:f);
+ const assumedSite=next.facts.some(f=>f.field==='site'&&/\b(?:assum\w*|must|shall|required|design(?:ed)?)\b/i.test(f.evidence+' '+f.value));
+ let siteNeedsConfirmation=false;
+ next.facts=next.facts.map(f=>{
+  if(f.field==='site'&&assumedSite&&(/\b(?:assum\w*|must|shall|required|design(?:ed)?)\b/i.test(f.evidence+' '+f.value)||/\b(?:site work within|compacted earth|site management|discharge water|not shown|missing|not specified)\b/i.test(f.evidence+' '+f.value))){
+   siteNeedsConfirmation=true;
+   return {...f,field:'otherDetails',value:'Site design requirement or assumption, not verified site conditions: '+f.value};
+  }
+  // Preserve conditional requirements wherever they occur, including a
+  // capitalized WHEN USING note after its equipment subject.
+  if(/\b(?:if|when)\s+(?:using|used|installed|the|a|an|gas|appliances|located)\b/i.test(f.evidence)&&! /\b(?:if|when)\b/i.test(f.value))return {...f,value:f.evidence,basis:'inferred',confidence:Math.min(f.confidence,.6)};
+  return f;
+ });
+ if(siteNeedsConfirmation){
+  next.clarifications=[...(next.clarifications||[]),{field:'site',question:'Do the actual site slope, soil and access match the design assumptions? Describe any differences, or say what is still unknown.',reason:'Plan design assumptions do not establish the construction site conditions.'}];
+ }
  return next;
 }

@@ -87,6 +87,21 @@ export function priceBookRate(row:PriceBookRow,tier:FinishTier,remodel:boolean):
     basis:'owner-average-cost',
   };
 }
+/** A project-wide finish tier fills unselected details. It cannot replace an
+ * explicitly requested product type with a different type from the book. */
+export function specifiedShowerGlassRate(rate:PlanningRate,task:string,service?:string):PlanningRate{
+ if(rate.code!=='PB-08-83-01'||!rate.source.startsWith(PRICE_BOOK_SOURCE))return rate;
+ const specified=task.replace(/\b(?:not|no|exclude|excluding)\s+(?:semi[- ]frameless|custom frameless|frameless|framed)\b/gi,'');
+ const custom=/\bcustom\s+frameless\b/i.test(specified),semi=/\bsemi[- ]frameless\b/i.test(specified);
+ const frameless=/\bframeless\b/i.test(specified.replace(/\b(?:custom\s+frameless|semi[- ]frameless)\b/gi,''));
+ const framed=/\bframed\b/i.test(specified);
+ if([custom,semi,frameless,framed].filter(Boolean).length!==1)return rate;
+ const tier:FinishTier=custom?'luxury':semi?'mid':frameless?'high':'builder';
+ const row=PRICE_BOOK.find(row=>row[0]==='08-83-01')!;
+ const selected=priceBookRate(row,tier,serviceContext(service).remodel);
+ const label=custom?'Custom frameless':semi?'Semi-frameless':frameless?'Frameless':'Framed';
+ return {...selected,description:`${label} shower glass enclosure (installed price, labor and material together; explicit enclosure type uses the book's ${TIER_LABEL[tier]} rate).`};
+}
 /** Cabinet supply and installation need separate costs. The master book
  * already supplies their labor share; expose that arithmetic as traceable
  * components without changing or replacing the original installed rate. */

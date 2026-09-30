@@ -16,6 +16,7 @@ const patterns: [TradeCategory, RegExp][] = [
   ["Cleanup & Disposal", /dumpster|disposal|haul.?off|cleanup|clean.?up|final clean/i],
   ["Excavation", /excavat|grading|backfill|trenching|site clearing|gravel base/i],
   ["Concrete", /concrete|rebar|formwork|epoxy|polyaspartic|tuxedo.*flake/i],
+  ["Windows & Doors", /\b(?:window|door)(?:\s*\/\s*(?:window|door))?\s+(?:flashing|perimeter caulk)\b/i],
   ["Roofing", /\broof|shingle|flashing|gutter/i],
   ["Siding", /siding|stucco|exterior cladding/i],
   ["Painting", /\b(?:painting|repainting|refinishing)\b|\b(?:paint|prime|refinish)\s+(?:(?:the|existing|new|upper|lower|base|wall|kitchen|bathroom|all|interior|exterior)\s+){0,4}(?:walls?|ceilings?|cabinets?|doors?|trim|baseboards?|crown|mou?ldings?)\b/i],

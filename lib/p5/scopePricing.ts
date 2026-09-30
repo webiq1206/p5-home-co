@@ -31,6 +31,7 @@ import {customerSafeNotes,customerSafeProjection} from './pricing.ts';
 import {duplicateChargeNotes} from './duplicateCharges.ts';
 import {contractorConsumableIncluded,ownerSuppliesAllParts} from './contractorConsumables.ts';
 import {applyPricingCorrections} from './pricingCorrections.ts';
+import {specifiedShowerGlassRate} from './priceBook.ts';
 
 // This module runs only on the server at submission. No client-supplied mapping
 // or rate can authorize a price. The approved catalog is never mutated here.
@@ -102,6 +103,15 @@ function parseResearchRates(raw:unknown){
  const parsed=marketSchema.safeParse(raw);
  if(!parsed.success)throw new ResearchEvidenceError('Invalid researched rate: '+parsed.error.issues.map(issue=>issue.path.join('.')+': '+issue.message).join('; ').slice(0,3000));
  const market=parsed.data;
+ const packageLabel=(value:string)=>value.trim()
+  .replace(/^(box|bag|pack)\s*\(\s*(\d+(?:\.\d+)?)\s*(lb|lbs|pounds?)\.?\s*\)$/i,'$2 $3 $1')
+  .replace(/^(tube|cartridge)\s*\(\s*(\d+(?:\.\d+)?)\s*(?:fl\.?\s*)?oz\.?\s*\)$/i,'$2 oz $1')
+  .replace(/^(?:EA|each)\s*\(\s*(tube|cartridge|bag|bottle|can|pail|bucket|bundle|carton|packet)\s*\)$/i,'$1');
+ for(const rate of market.rates){
+  if(rate.basis!=='material-purchase')continue;
+  rate.unit=packageLabel(rate.unit);
+  for(const source of rate.sources)source.unit=packageLabel(source.unit);
+ }
  // A model may put an explicit supplier package inside EA parentheses. Keep
  // its physical contents and quantities, then let the cited-package checks
  // below validate every conversion; descriptive units are never price units.
@@ -242,6 +252,7 @@ Add ONLY work that is necessary: never an optional upgrade, a nice-to-have, or a
 Explicit instructions win. If the customer excluded work or limited the scope ("only price the trim", "exclude plumbing", labor only, materials only, owner supplies X), do not add that work; when it is still needed to complete the job, list it in dependencies as a short sentence ("Plumbing connections are needed to complete the shower but are excluded; not priced.").`;
 const MAP=`You are a construction estimator checking COMPLETE scope coverage. ${UNTRUSTED} ${ALLOWANCE_POLICY} ${FOUNDATION_POLICY} ${ISSUE_POLICY}
 For material procurement with cutting waste, preserve the installed quantity for labor. Label the material quantity ALLOWANCE:, state the reviewed installed quantity and explicit percentage as, for example, "120 LF installed plus 10% cutting waste = 132 LF purchased", and provide a positive quantityRange containing the purchase quantity. Never apply procurement waste to installed labor quantities.
+Retained trim repair is not a full window trim replacement. Use an appropriate repair component, or finish-carpenter hours plus the actual required materials; disclose the modeled repair extent and hour range when not measured. Never silently price new casing and stool around every opening.
 Match the actual device before choosing an analogous task. Smoke/CO alarms use the smoke-detector installation or replacement line when available, never a video-doorbell line. Doorbells and life-safety alarms are different work even when both are owner-supplied battery devices. A shortlist suggestion is not evidence of compatibility; check the catalog name and original scope. Match stated assembly dimensions: a 60-inch vanity cannot use a 24-36 inch vanity rate. Use a dimension-compatible assembly or separately price the required compatible components; never silently substitute a smaller product.
 Return JSON only: {tasks:[{id,description,evidence,existingLineIds:[],additions:[{code,quantity,quantityEvidence}],researchDescription,issues:[]}],issues:[],notes:[],replacements:[{lineId,reason}],removeExclusions:[{text,reason}]}.
 Keep each task description and evidence concise, preserving exact quantities and specifications without repeating full source passages.\nMap ONLY the supplied taskBatch, returning exactly those task IDs once each. The complete inventory was prepared separately. Do not create or omit tasks. Retain each supplied description and evidence. Read priorMappedTasks to prevent duplicate additions or conflicting removals across batches. Original scope is context, not permission to expand this batch. Split mixed tasks and preserve each room, quantity, specification, preparation, supply, installation, demolition, disposal and specialist requirement. Honor only the customer's explicit exclusions and owner-supplied responsibilities. Default exclusions in an existing estimate DO NOT override requested work. Do not infer a new exclusion to make the estimate pass.
@@ -502,6 +513,13 @@ function incompatibleDevice(task:string,component:string):boolean{
   const scope=deviceKind(task),priced=deviceKind(component.startsWith(`${task}:`)?component.slice(task.length+1):component);
   return Boolean(scope&&priced&&scope!==priced);
 }
+/** Repairing retained trim does not authorize replacing every casing and stool. */
+const trimRepairScope=(task:string)=>/\b(?:repair|patch|touch[- ]?up|resecure)\b/i.test(task)&&/\btrim|casing|stool\b/i.test(task)&&!/\b(?:replace|replacement|new)\s+(?:(?:all|the|existing|interior|exterior|window|door)\s+)*(?:trim|casing|stool)\b/i.test(task);
+export function incompatibleRepairAssembly(task:string,component:string):boolean{
+ const priced=component.startsWith(`${task}:`)?component.slice(task.length+1):component;
+ return trimRepairScope(task)&&/\bwindow trim package\b|\bcasing\s*\+\s*stool\b/i.test(priced);
+}
+const repairAssemblyIssue=(task:string)=>`${task}: retained trim repair cannot use a full replacement trim package; price the actual repair using compatible repair or carpenter labor and material components, with a disclosed quantity allowance if unmeasured.`;
 function vanitySizeMatches(task:string,component:string):boolean|null{
   const priced=component.startsWith(`${task}:`)?component.slice(task.length+1):component;
   if(!/\bvanit(?:y|ies)\b/i.test(task)||!/\bvanit(?:y|ies)\b/i.test(priced))return null;
@@ -698,7 +716,7 @@ export function researchTaskBatches(tasks:Mapping['tasks'],scope:ReviewedScope):
   let products=['screws','nails','fasteners','shims','caulk','adhesives','sealants'].filter(word=>new RegExp('\\b'+word.replace(/s$/,'')+'s?\\b','i').test(named)&&contractorConsumableIncluded(scope,'Supply '+word));
   if(products.includes('screws')||products.includes('nails'))products=products.filter(word=>word!=='fasteners');
   if(!products.length){ordinary.push(task);continue;}
-  for(const product of products)batches.push([{...task,description:'Supply contractor installation '+product,researchDescription:'Research ONLY contractor-supplied '+product+' for this installation.'+application(product)+(measurements?' Installation quantities: '+measurements+'.':'')+' One product type per rate. Other consumables are researched separately; exclude their costs and all installation labor. Preserve the stated specification. Use two comparable sourced prices with evidenced Boise-area applicability and the same unit. For countable screws or shims, prefer EA: retain each published package price and exact piece count, show price divided by count for each observation, then model the number of pieces needed. A cabinet run length is context for the consumption allowance, never the unit of a supplier product price. Use EA, pack, box, LB, tube or gallon as supported by the actual product; package contents belong in includes, not the unit name. If consumption is not measured, model a positive purchase quantity from the stated installation scope, disclose assumptions with ALLOWANCE: quantityEvidence and positive quantityRange. Do not return quantity zero or mix units.',evidence:'Original requested supplies: '+task.description+'\n'+task.evidence}]);
+  for(const product of products)batches.push([{...task,description:'Supply contractor installation '+product,researchDescription:'Research ONLY contractor-supplied '+product+' for this installation.'+application(product)+(measurements?' Installation quantities: '+measurements+'.':'')+' One product type per rate. Other consumables are researched separately; exclude their costs and all installation labor. Preserve the stated specification. Use two comparable sourced prices with evidenced Boise-area applicability and the same unit. For countable screws or shims, prefer EA: retain each published package price and exact piece count, show price divided by count for each observation, then model the number of pieces needed from the actual number of cabinets or attachment points and stated fasteners per unit. State that consumption calculation separately from the supplier package count. A package size is not evidence of how many pieces the job consumes; do not multiply whole boxes without a supported consumption calculation. If purchasing whole packages, state the minimum purchase and unused remainder explicitly. A cabinet run length is context for the consumption allowance, never the unit of a supplier product price. Use EA, pack, box, LB, tube or gallon as supported by the actual product; package contents belong in includes, not the unit name. If consumption is not measured, model a positive purchase quantity from the stated installation scope, disclose assumptions with ALLOWANCE: quantityEvidence and positive quantityRange. Do not return quantity zero or mix units.',evidence:'Original requested supplies: '+task.description+'\n'+task.evidence}]);
  }
  return [...batchesOf(ordinary,3),...batches];
 }
@@ -778,6 +796,36 @@ export function normalizeRepairServices(mapping:Mapping,configuration:EstimatorC
 
 }
 
+/** One removal assembly can cover its explicitly included disposal once.
+ * Task IDs alone do not identify separate physical work: a mapper can name
+ * demolition and disposal separately for the same bathroom. Limit this rule
+ * to a confirmed single room and identical location/code/quantity. */
+function reconcileIncludedRemovalDisposal(mapping:Mapping,result:ScopePriceResolution,scope:ReviewedScope){
+ const service=scope.answers.service;
+ if(!['bathroom','kitchen'].includes(service||'')||scope.extraction?.instructions?.separateBuildings)return;
+ const source=[scope.text,scope.extraction?.summary].filter(Boolean).join(' ');
+ const oneRoom=new RegExp('\\b(?:one|single|1)\\s+(?:(?:[0-9.]+|by|x|foot|feet|square|SF|sqft|[-×])\\s+)*'+service+'\\b','i').test(source)
+  ||service==='bathroom'&&scope.answers.bathrooms==='1';
+ if(!oneRoom||service==='bathroom'&&Number(scope.answers.bathrooms)>1)return;
+ const code=service==='bathroom'?'PB-02-41-04':'PB-02-41-03';
+ const samePlace=(a:CostRule,b:CostRule)=>['building','floor'].every(key=>String(a[key as 'building'|'floor']||'').trim().toLowerCase()===String(b[key as 'building'|'floor']||'').trim().toLowerCase());
+ const assembly=(rule:CostRule)=>rule.quantity.fixed===1&&(rule.evidence?.reference||'').split(';').some(part=>part.trim()===code)
+  &&/removal labor with haul-off and dump fees/i.test(rule.description);
+ const disposalOnly=(description:string)=>/^(?:dispose|disposal|haul(?:ing)?(?:[- ]off)?|remove\s+demolition\s+debris)\b/i.test(description)
+  &&! /\b(?:hazardous|asbestos|lead|additional|other room|separate debris)\b/i.test(description);
+ for(const task of mapping.tasks.filter(task=>disposalOnly(task.description))){
+  const own=result.rules.filter(rule=>rule.scopeTaskId===task.id&&assembly(rule));
+  if(own.length!==1)continue;
+  const covered=result.rules.filter(rule=>rule.scopeTaskId!==task.id&&assembly(rule)&&samePlace(rule,own[0])
+   &&mapping.tasks.some(other=>other.id===rule.scopeTaskId&&!disposalOnly(other.description)&&/\b(?:remove|demol\w*|demo)\b/i.test(other.description)));
+  if(covered.length!==1)continue;
+  result.rules=result.rules.filter(rule=>rule!==own[0]);
+  task.additions=task.additions.filter(addition=>addition.code!==code);
+  task.existingLineIds=[...new Set([...task.existingLineIds,covered[0].id])];task.researchDescription='';
+  result.assumptions.push(`${task.description}: haul-off and dump fees are explicitly included in the single ${service} demolition assembly and are charged once.`);
+ }
+}
+
 export function catalogResolution(mapping:Mapping,configuration:EstimatorConfiguration,existing:ReturnType<typeof existingLines>,now:Date,scope?:ReviewedScope):ScopePriceResolution{
   normalizeRepairServices(mapping,configuration);
   // On a fresh estimate there is nothing to replace. Some reader replies put
@@ -803,7 +851,8 @@ export function catalogResolution(mapping:Mapping,configuration:EstimatorConfigu
     const hasAllowance=t.additions.some(a=>/^ALLOWANCE\s*:/i.test(a.quantityEvidence)&&Boolean(a.quantityRange));
     if(unresolved&&!hasAllowance)result.issues.push(unresolved);
     for(const a of t.additions){
-      const rate=configuration.planningCatalog?.rates.find(r=>r.code===a.code);
+      const catalogRate=configuration.planningCatalog?.rates.find(r=>r.code===a.code);
+      const rate=catalogRate?specifiedShowerGlassRate(catalogRate,t.description,scope?.answers.service):undefined;
       const regional=configuration.regionalRates?.find(r=>r.id===a.code);
       const rateUnit=rate?.unit||regional?.unit||'';
       if(incompatibleBuildingComponent(t.description,rate?.description||regional?.description||'')){
@@ -815,6 +864,9 @@ export function catalogResolution(mapping:Mapping,configuration:EstimatorConfigu
       if(incompatibleDevice(t.description,rate?.description||regional?.description||'')){
         result.issues.push(deviceMismatchIssue(t.description));
         continue;
+      }
+      if(incompatibleRepairAssembly(t.description,rate?.description||regional?.description||'')){
+        result.issues.push(repairAssemblyIssue(t.description));continue;
       }
       if(vanitySizeMatches(t.description,rate?.description||regional?.description||'')===false){
         result.issues.push(vanitySizeIssue(t.description));continue;
@@ -840,6 +892,7 @@ export function catalogResolution(mapping:Mapping,configuration:EstimatorConfigu
   // different task in this same pass. This must happen after rates are validated.
   // Repair additions receive new IDs when merged; only the already persisted
   // components are valid reference targets during a repair.
+  if(!existing.length&&scope)reconcileIncludedRemovalDisposal(mapping,result,scope);
   const pricedLines=existing.length?existing:result.rules.map(rule=>({...rule,quantity:rule.quantity.fixed||0,quantitySource:'Accepted mapped quantity'}));
   for(const t of mapping.tasks){
     if(taskSelectionStatus(t,mapping.tasks)!=='billable')continue;
@@ -869,6 +922,7 @@ export function catalogResolution(mapping:Mapping,configuration:EstimatorConfigu
       if(result.removeLineIds?.includes(id)||!line||line.quantity*line.unitCost<=0)result.issues.push(`${t.description}: invalid existing price reference.`);
       else if(incompatibleBuildingComponent(t.description,line.description.startsWith(t.description+':')?line.description.slice(t.description.length+1):line.description))result.issues.push(`${t.description}: existing price does not cover the separately measured space.`);
       else if(incompatibleDevice(t.description,line.description))result.issues.push(deviceMismatchIssue(t.description));
+      else if(incompatibleRepairAssembly(t.description,line.description))result.issues.push(repairAssemblyIssue(t.description));
       else if(vanitySizeMatches(t.description,line.description)===false)result.issues.push(vanitySizeIssue(t.description));
       else if(['materials','subcontractors'].includes(line.category)&&ownerSuppliesMaterial(t,line.quantity,line.unit,line.description,scope,line.category==='materials'))result.issues.push(`${t.description}: owner-supplied material cannot be charged through a contractor material or supply-and-install package.`);
       else{
@@ -1249,7 +1303,7 @@ export async function reconcileResearchReply(reply:PricingReply,tasks:Mapping['t
  accepted={...accepted,value:requestedResearchRates(accepted.value,tasks)};
  let problems=failures();
  if(problems.length&&accepted.sourceReport){
-   const corrected=await request(normalizeResearch,{...input,correctionInstruction:'Repair every listed failure that the saved report supports. Prefer the exact Evidence: line; otherwise copy exact product-name and price fragments from one source paragraph, preserving their order, at most 25 words. Do not reword an excerpt or append location claims. Use canonical units and retain exact package counts. Do not invent another supplier, local availability, or missing evidence. For a required material with unstated consumption, model a reasonable positive purchase quantity from the actual installation scope, disclose ALLOWANCE: quantityEvidence and a positive quantityRange. Package piece count is not square-foot coverage; do not invent product coverage. Ordinary reusable contractor tools are not purchased job consumables unless explicitly requested. Omit unsupported rates and explain the remaining evidence needed. Do not search again.',validationFailure:problems.join('; '),priorStructuredReply:accepted.value},false,remaining());
+   const corrected=await request(normalizeResearch,{...input,correctionInstruction:'Repair every listed failure that the saved report supports. Prefer the exact Evidence: line; otherwise copy exact product-name and price fragments from one source paragraph, preserving their order, at most 25 words. Do not reword an excerpt or append location claims. Use canonical units and retain exact package counts. Do not invent another supplier, local availability, or missing evidence. For a required material with unstated consumption, model a reasonable positive purchase quantity from the actual installation scope, disclose ALLOWANCE: quantityEvidence and a positive quantityRange. Countable fasteners require an application calculation (installed units or attachment points times fasteners per unit) separate from the package count. Whole purchased containers must have integer quantities; a fractional consumption estimate must be explicitly labeled as a prorated stock allocation, not a purchased package. Package piece count is not square-foot coverage; do not invent product coverage. Ordinary reusable contractor tools are not purchased job consumables unless explicitly requested. Omit unsupported rates and explain the remaining evidence needed. Do not search again.',validationFailure:problems.join('; '),priorStructuredReply:accepted.value},false,remaining());
    accepted={...reply,value:requestedResearchRates(corrected.value,tasks)};
    problems=failures();
  }
@@ -2161,6 +2215,10 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
         const rate=configuration.planningCatalog?.rates.find(candidate=>candidate.code===addition.code);
         return rate&&vanitySizeMatches(task.description,rate.description)===true&&repaired.rules.some(rule=>rule.scopeTaskId===task.id&&rule.unitCost===rate.amount&&rule.quantity.fixed===addition.quantity);
       })).map(task=>vanitySizeIssue(task.description)));
+      const repairedTrimIssues=new Set(fixes.tasks.filter(task=>trimRepairScope(task.description)&&repairedTaskIds.has(task.id)&&task.additions.some(addition=>{
+        const rate=configuration.planningCatalog?.rates.find(candidate=>candidate.code===addition.code);
+        return rate&&/repair|carpenter labor/i.test(rate.description)&&!incompatibleRepairAssembly(task.description,rate.description)&&repaired.rules.some(rule=>rule.scopeTaskId===task.id&&rule.unitCost===rate.amount&&rule.quantity.fixed===addition.quantity);
+      })&&!repaired.issues.includes(repairAssemblyIssue(task.description))).map(task=>repairAssemblyIssue(task.description)));
       const repairedReferenceIssues=new Set(fixes.tasks.filter(task=>(hasRepairedReferences(task)||repairedTaskIds.has(task.id)&&!task.existingLineIds.length)&&!repaired.issues.includes(`${task.description}: invalid existing price reference.`)).map(task=>`${task.description}: invalid existing price reference.`));
       const repairedOwnerIssues=new Set(fixes.tasks.filter(task=>{
         const active=resolution.rules.filter(rule=>rule.scopeTaskId===task.id&&!resolution.removeLineIds?.includes(rule.id));
@@ -2169,7 +2227,7 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
           &&[...active,...referenced].every(line=>!['materials','subcontractors'].includes(line.category)||!ownerSuppliesMaterial(task,typeof line.quantity==='number'?line.quantity:line.quantity.fixed||0,line.unit,line.description,pricingScope,line.category==='materials'))
           &&!repaired.issues.includes(`${task.description}: owner-supplied material cannot be charged through a contractor material or supply-and-install package.`);
       }).map(task=>`${task.description}: owner-supplied material cannot be charged through a contractor material or supply-and-install package.`));
-      const carriedIssues=resolution.issues.filter(issue=>!repairedNoPriceIssues.has(issue)&&!repairedDeviceIssues.has(issue)&&!repairedVanityIssues.has(issue)&&!repairedReferenceIssues.has(issue)&&!repairedOwnerIssues.has(issue));
+      const carriedIssues=resolution.issues.filter(issue=>!repairedNoPriceIssues.has(issue)&&!repairedDeviceIssues.has(issue)&&!repairedVanityIssues.has(issue)&&!repairedTrimIssues.has(issue)&&!repairedReferenceIssues.has(issue)&&!repairedOwnerIssues.has(issue));
       resolution.issues=[...new Set([...carriedIssues,...inventory.issues,...repaired.issues])];
       [...fixes.issues,...fixes.tasks.flatMap(t=>t.issues.map(issue=>`${t.description}: ${issue}`))].forEach(issue=>{modelIssues.add(issue);opinions.add(issue);});
       mapping.tasks=fixes.tasks;
