@@ -279,19 +279,17 @@ export function calculateP5Estimate(input: PricingInput, finance: FinancePolicy,
   const lowFloor = priceFromRiskAdjustedCost(riskAdjustedDirectCost, allocations.total, Math.min(matrix.floor, margin));
   const planningRange = { low: Math.ceil(Math.max(lowFloor, contractPrice * (1 - width)) / step) * step, high: Math.ceil(contractPrice * (1 + width) / step) * step };
   const planningBandHigh=planningRange.high;
-  // Extend observed direct-cost bounds before applying the same policy once. Each line's upside is
-  // its high quantity at its high cost, less its modeled cost. The uncertain lines of one job do
-  // not all land at their worst case together, so their upsides combine as independent errors
-  // (square root of the sum of squares) rather than stacking: a single uncertain allowance keeps
-  // its full upside, while twenty small ones no longer compound into a range the customer reads
-  // as a guess (live Marcliffe RE-10: $28,200 to $45,900).
+  // Quantity and price bounds are scenario limits, not standard deviations.
+  // Without evidence of distributions or independence, root-sum-square
+  // aggregation understates a job where several unknowns rise together.
+  // Keep the supported upper scenario and apply the approved policy once.
   const upsides=lines.map(line=>{
     const range=line.unitCostRange;
     if(range){finite(range.low,'Source cost low',true);finite(range.high,'Source cost high',true);if(range.low>line.unitCost||range.high<line.unitCost)throw new Error('The source range must contain the unit cost');}
     if(line.quantityRange){finite(line.quantityRange.low,'Quantity allowance low',true);finite(line.quantityRange.high,'Quantity allowance high',true);if(line.quantityRange.low>line.quantity||line.quantityRange.high<line.quantity)throw new Error('The quantity range must contain the modeled quantity');}
     return Math.max(0,(line.quantityRange?.high??line.quantity)*(range?.high??line.unitCost)-line.cost);
   });
-  const sourceHigh=directCost+Math.sqrt(upsides.reduce((total,upside)=>total+upside*upside,0));
+  const sourceHigh=directCost+sum(upsides);
   planningRange.high=Math.max(planningRange.high,Math.ceil(priceFromRiskAdjustedCost(sourceHigh*(1+contingencyRate),allocations.total,margin)/step)*step);
   // A firm price is the modeled, margin-correct contract price, rounded up to the step: the number the
   // range was built around, never its low end. Quantities a document leaves open are priced at the
@@ -427,14 +425,17 @@ export function customerEstimate(estimate: P5Estimate, summary: string) {
   const trades=[...new Set(estimate.lines.map(l=>tradeForLine(l)))];
   const weights=estimate.lines.map(line=>line.cost);
   const lows=apportionAmount(estimate.planningRange.low,weights);
-  // Spread the generic project band by cost. Only uncertainty beyond that
-  // band belongs to the actual uncertain components; a screw box must not
-  // absorb the bathroom's entire planning spread.
-  const genericDelta=Math.max(0,Math.min(estimate.planningRange.high,estimate.planningBandHigh??estimate.planningRange.high)-estimate.planningRange.low);
-  const generic=apportionAmount(genericDelta,weights);
+  // Reserve each line's supported upper quantity/cost first. Allocating the
+  // whole band by modeled cost hid 0.6-hour labor behind a 0.5-hour amount
+  // whenever the project band already covered that small upside. Only the
+  // residual generic spread is proportional to modeled cost; a small supply
+  // cannot absorb an unrelated project's entire uncertainty.
   const upsides=estimate.lines.map(line=>Math.max(0,(line.quantityRange?.high??line.quantity)*(line.unitCostRange?.high??line.unitCost)-line.cost));
-  const specific=apportionAmount(estimate.planningRange.high-estimate.planningRange.low-genericDelta,upsides.some(n=>n>0)?upsides:weights);
-  const highs=lows.map((low,i)=>low+generic[i]+specific[i]);
+  const highAmounts=estimate.lines.map((line,i)=>line.sellingAmount+upsides[i]*(1+estimate.contingencyRate)/estimate.divisor);
+  const residual=Math.max(0,estimate.planningRange.high-sum(highAmounts));
+  const totalWeight=sum(weights);
+  const highs=estimate.planningRange.low===estimate.planningRange.high?lows:
+    apportionAmount(estimate.planningRange.high,highAmounts.map((value,i)=>value+residual*weights[i]/totalWeight));
   const lineItems=estimate.publishable?estimate.lines.map((line,i)=>({id:line.id,category:tradeForLine(line),description:line.description,quantity:line.quantity,unit:line.unit,low:lows[i],high:highs[i],unitLow:lows[i]/line.quantity,unitHigh:highs[i]/line.quantity,...(line.building?{building:line.building}:{}),...(line.floor?{floor:line.floor}:{}),...(line.quantityRange?{quantityRange:line.quantityRange}:{}),pricingStatus:line.allowance||line.estimatingBasis==='sourced-market-average'||line.estimatingBasis==='regional-planning-average'?'estimated-allowance':line.evidence.basis==='owner-estimating-schedule'?'owner-planning-rate':'verified-cost',...(line.estimatingBasis==='regional-planning-average'?{verification:'Regional planning average, not verified local pricing. Confirm current local rates, quantities and selections before a firm proposal.'}:line.allowance||line.estimatingBasis==='sourced-market-average'||line.evidence.basis==='owner-estimating-schedule'?{verification:'Confirm quantities, selections and current supplier/trade pricing before a firm proposal.'}:{}),...(line.evidence.provenance?{rateLocation:line.evidence.provenance.location,rateDate:line.evidence.provenance.retrievedAt,rateSources:line.evidence.provenance.sources.map(s=>s.url)}:{})})):[];
   return customerSafeProjection({
     status: estimate.publishable ? "planning-range" as const : "review-required" as const,

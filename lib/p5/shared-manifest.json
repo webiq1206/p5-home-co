@@ -1,7 +1,7 @@
 {
  "source": "p5-home-co",
- "commit": "b1952180833a3d4fad09acfd822f49ba89b91b7e",
- "generatedAt": "2026-09-30T11:06:14.995Z",
+ "commit": "fbd9b6a1974aa934240befaad69762f576a9822f",
+ "generatedAt": "2026-09-30T11:10:07.380Z",
  "note": "P5-only qualification baseline. Child rollout is paused until live acceptance is verified. Hash checks remain mandatory.",
  "files": {
   "app/admin/p5-estimators/page.tsx": "a2401f2a29c22dd1a5631fa2c065114275b4e7c1d99ba6c97a8ff0f26cb6a3ad",
@@ -113,7 +113,7 @@
   "lib/p5/presentation.ts": "95910b43f1dd16383a0cb421b176c2a2d87d3ccac8ecea99106bf89e75a904c2",
   "lib/p5/priceBook.ts": "763800718909d5983f5dab9c551ac439d3f5ae619968323b095db9486c0eb904",
   "lib/p5/priceBookData.ts": "5b234a031ec4f31c96c91f139455673e347bfc83dfa0be9c9335031de5d4d16a",
-  "lib/p5/pricing.ts": "7a746d2ceec4f0beecd26cfd5d09ef941364ee227cbeab858603488ea91296f2",
+  "lib/p5/pricing.ts": "7bb4398a1127517a9d606bf198c1e326a6e94a712704ef861c5908b9b570354e",
   "lib/p5/pricingCache.ts": "b823ae6e428aef9edc169f5eb77acc5eb406d7d4ffefa8a916e1a5ec054c6b7d",
   "lib/p5/pricingCorrections.ts": "47b8aece9b8da5be82168418dfd4d9acdee7e966b572a135db022ba94187f1cf",
   "lib/p5/pricingLedger.ts": "c6a034d01f8b11fdc389a40de83d2de897d05bae8e927f8d6bd10e193f787aee",
@@ -308,7 +308,7 @@
   "tests/p5-pricing-corrections.test.ts": "5e4edc903d6603e11a6d9b9bcc439db890ae69642eaac115049ba2db83afb1a5",
   "tests/p5-pricing-ledger.test.ts": "289887fb29f37d4bf2caa56c97eb24e83e5e8d937d3f11a0db74dfd792a751bf",
   "tests/p5-pricing-source-history.test.ts": "7a2696abb429e65555da6b1bb43289e785661a05cdfdc258883ff7bdf8379be0",
-  "tests/p5-pricing.test.ts": "66559ae47a79f3ee881c128f68387c522921a8fe762bda359f1f0ec7475907a3",
+  "tests/p5-pricing.test.ts": "8c2d32093c1898a2ef01abe6c34e9b87dd173a5781fd28055b44f30f4869171e",
   "tests/p5-processing-budget.test.ts": "a74f86228dbfff9579ce58a28973887de8a2d99e530759b32d5eb1e636e71c1c",
   "tests/p5-processing-status.test.ts": "3b29c5e2fba43b1e9b03993ee8386b6f6f568e3f0da5cf92048694e28f180c83",
   "tests/p5-provider.test.ts": "81ac90bcbf3a7f3b001e709c287dfcae5f5eec287ceb3b2a6c1a289032b433a7",

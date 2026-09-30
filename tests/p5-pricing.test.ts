@@ -261,14 +261,13 @@ test("a labeled regional planning average is reviewed, never a reason to withhol
   assert.ok(customer.disclaimer.toLowerCase().includes("not a bid"), "and stays explicitly preliminary");
 });
 
-test("uncertain lines widen the high end as independent errors, not all at their worst case together", () => {
-  // Twenty small allowances, each with an unverified count of 1 to 5. Live on the Marcliffe RE-10 the
-  // stacked worst case produced $28,200 to $45,900 for a list of small repairs.
+test("supported upper scenarios do not assume independent quantity errors without evidence", () => {
+  // These are plausible counts, not a distribution or standard deviation.
   const base = input("re10");
   const line = (i: number) => ({ ...base.lines[0], id: `repair-${i}`, description: `Repair ${i}`, unit: "each", quantity: 3, unitCost: 200, quantityRange: { low: 1, high: 5 } });
   const many = calculateP5Estimate({ ...base, lines: Array.from({ length: 20 }, (_, i) => line(i)) }, finance, [], now);
   const worst = calculateP5Estimate({ ...base, lines: Array.from({ length: 20 }, (_, i) => ({ ...line(i), quantity: 5, quantityRange: undefined })) }, finance, [], now);
-  assert.ok(many.planningRange.high < worst.contractPrice, "twenty upsides no longer compound into every line at its worst case");
+  assert.ok(many.planningRange.high >= worst.contractPrice, "the range must cover the stated upper-count scenario for every included task");
   assert.ok(many.planningRange.high >= many.contractPrice, "the high end never falls below the modeled price");
   // One uncertain allowance keeps its whole upside.
   const one = calculateP5Estimate({ ...base, lines: [line(0)] }, finance, [], now);
@@ -332,4 +331,16 @@ test('small supply allowances cannot absorb an unrelated project planning band',
  const result=customerEstimate(estimated,'Bathroom');
  assert.ok(result.lineItems.find(l=>l.id==='screws')!.high<100,'a twelve-dollar screw box must not inherit project-wide uncertainty');
  assert.equal(result.lineItems.reduce((n,l)=>n+l.high,0),result.range!.high);
+});
+
+test('a small trim allowance retains its own upper labor quantity inside a larger project band',()=>{
+ const base=input('kitchen');
+ const lines=[{...base.lines[0],id:'window',description:'One replacement window',quantity:1,unit:'EA',unitCost:900},{...base.lines[0],id:'trim',description:'Repair 6 LF retained window trim',quantity:.5,unit:'hour',unitCost:70,quantityRange:{low:.4,high:.6},allowance:true}];
+ const estimate=calculateP5Estimate({...base,bookPriced:true,lines},finance,[],now);
+ const shown=customerEstimate(estimate,'One window with retained trim repair');
+ const trim=shown.lineItems.find(line=>line.id==='trim')!;
+ const supportedHigh=.6*70*(1+estimate.contingencyRate)/estimate.divisor;
+ assert.ok(trim.high>=supportedHigh-1,'whole-dollar allocation may round by under one dollar, but cannot ignore the upper labor allowance');
+ assert.equal(shown.lineItems.reduce((n,line)=>n+line.high,0),shown.range!.high);
+ assert.ok(shown.lineItems.every(line=>line.high>=line.low));
 });
