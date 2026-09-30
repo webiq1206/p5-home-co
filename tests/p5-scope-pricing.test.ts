@@ -2262,3 +2262,15 @@ test('bare packs with explicitly declared contents compare different supplier si
  unknown.rates[0].sources=[{...source(urls[0],6,6),unit:'pack',excerpt:'Cabinet shims, 12-piece pack, $6.'},{...source(urls[1],16,16),unit:'pack',excerpt:'Cabinet shims, 40-piece pack, $16.'}];
  assert.throws(()=>marketResolution(unknown,urls,[extra],now),/Incompatible package sizes/);
 });
+
+test('live cabinet screw boxes reconcile supplier count formats without inventing a weight conversion',()=>{
+ const raw=structuredClone(researched),rate=raw.rates[0];
+ Object.assign(rate,{unit:'box',quantity:1,quantityEvidence:'ALLOWANCE: one box',quantityRange:{low:1,high:1},includes:'1 lb box of cabinet-mounting screws, approximately 79 screws per box.',landedCost:null});
+ rate.sources=[{...source(urls[0],12.08,12.08),unit:'box',excerpt:'Cabinet mounting screws 1 lb. Box. Includes 79 screws. $12.08'},
+  {...source(urls[1],12.48,12.48),unit:'box',excerpt:'Cabinet screws 79‑Per Box. $12.48'}];
+ const result=marketResolution(raw,urls,[extra],now);
+ assert.equal(result.rules[0].unit,'EA');assert.equal(result.rules[0].quantity.fixed,79);
+ assert.ok(Math.abs(result.rules[0].unitCost-12.28/79)<.0001);
+ const unsupported=structuredClone(raw);unsupported.rates[0].sources[1].excerpt='Cabinet screws, 1 box. $12.48';
+ assert.throws(()=>marketResolution(unsupported,urls,[extra],now),/Incompatible benchmark unit|Package/);
+});

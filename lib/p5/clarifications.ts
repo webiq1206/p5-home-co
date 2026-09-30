@@ -1,7 +1,8 @@
 import {questionContext,scopePromptApplies} from './dynamicQuestions.ts';
-import {atomicInstructionQuestions,textBenchTopChoices,cabinetQuestionField,projectAreaQuestionField} from './atomicQuestions.ts';
+import {atomicInstructionQuestions,textBenchTopChoices,cabinetQuestionField,projectQuestionField} from './atomicQuestions.ts';
 import type {ScopeAnswers,ScopeExtraction,ScopeField} from './scope.ts';
 import type {ScopeInstructions} from './instructions.ts';
+import {isEstimateHandlingDirection} from './instructions.ts';
 import {isBenchTopClarificationQuestion,retainedBenchTopChoices,retainedChoiceValue} from './retainedClarification.ts';
 
 export interface InstructionAnswer {id:string;question:string;answer:string}
@@ -43,7 +44,7 @@ const questionParts=(raw:string)=>{
   const parts=(raw.match(/[^?]+\??/g)||[]).map(part=>part.trim()).filter(Boolean);
   const merged:string[]=[];
   for(const part of parts){
-    if(!part.endsWith('?')&&merged.length)merged[merged.length-1]+=' '+part;
+    if((!part.endsWith('?')||/^if so\b/i.test(part))&&merged.length)merged[merged.length-1]+=' '+part;
     else merged.push(part);
   }
   return merged;
@@ -57,15 +58,15 @@ export function instructionPrompts(extraction:ScopeExtraction|null,answers:Scope
     for(const part of questionParts(raw).flatMap(part=>atomicInstructionQuestions(part,answers,extraction?.conflicts))){
       const full=normalizeQuestionPart(part);if(!full)continue;
       // Filter each question separately so a legacy paragraph cannot lose a real scope decision.
-      if(serviceQuestion(full)||contractQuestion(full))continue;
-      const field=cabinetQuestionField(full)||projectAreaQuestionField(full,answers);
+      if(serviceQuestion(full)||contractQuestion(full)||isEstimateHandlingDirection(full))continue;
+      const field=cabinetQuestionField(full)||projectQuestionField(full,answers);
       // One decision is asked once, however many pages or wordings raised it.
       if(!field&&(result.some(q=>!q.field&&sameDecision(instructionPromptText(q),full))||answered.some(q=>sameDecision(q,full))))continue;
       if(field&&answers[field]?.trim()&&!extraction?.conflicts.some(conflict=>conflict.field===field))continue;
       const id=questionKey(full);
       if(result.some(q=>q.id===id))continue;
       const trailing=full.match(/^(.*\?)\s+([^?]+)$/);
-      const asked=trailing?trailing[1].trim():full;
+      const asked=field==='garageIncluded'?full.split('?')[0]+'?':trailing?trailing[1].trim():full;
       const question=asked.length<=240?asked:'What should we include for this part of your project?';
       const values=/^Who\b[^?]*\b(?:supply|supplies|provide|provides|purchase|purchases)\b[^?]*\?/i.test(asked)?["I'll supply all of them",'Please include all of them',"I'll supply some of them","I'm not sure yet"]:
         /labor.only/i.test(full)&&/materials.only/i.test(full)?['Labor only','Materials only','Labor and materials']:

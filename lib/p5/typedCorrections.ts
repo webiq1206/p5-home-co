@@ -9,17 +9,53 @@ const NUMERIC_COMPONENTS:Partial<Record<ScopeField,RegExp>>={
  coveredOutdoorSqft:/\b(?:porch|covered outdoor)\b/i,
  countertopSqft:/\bcountertops?\b/i,
  flooringSqft:/\b(?:flooring|LVP)\b/i,
+ tileSqft:/\b(?:tile|backsplash)\b/i,
  trimLf:/\b(?:baseboard|trim)\b/i,
 };
+const normalize=(value:string)=>value.toLowerCase().replace(/\b(one|two|three|four|five|six|seven|eight|nine|ten)\b/g,word=>String(['one','two','three','four','five','six','seven','eight','nine','ten'].indexOf(word)+1)).replace(/\bby\b/g,'x').replace(/\s+/g,' ').trim();
+/** Text fields can contain several unchanged components. Resolve only a
+ * named, explicit edit whose new quantity is actually present in the retained
+ * field. A fabricated quote or an explanation saying "superseded" is not enough. */
+function textRevisionValues(extraction:ScopeExtraction,text:string):Map<ScopeField,{value:string;component:RegExp;other?:RegExp}>{
+ const accepted=new Map<ScopeField,{value:string;component:RegExp;other?:RegExp}>();
+ const kinds:{field:ScopeField;component:RegExp;unit:RegExp;quantity:(value:string)=>string[]}[]=[
+  {field:'plumbing',component:/\bsewer\b/i,unit:/^(?:lf|linear feet)$/,quantity:value=>[...value.matchAll(/\b(\d+(?:\.\d+)?)\s*(?:lf|linear feet)\s+sewer\b|\bsewer(?:\s+extension)?\s*(?:of|to|:)?\s*(\d+(?:\.\d+)?)\s*(?:lf|linear feet)\b/g)].map(m=>m[1]||m[2])},
+  {field:'fixtures',component:/\b(?:lever|handle)\b/i,unit:/^$/,quantity:value=>[...value.matchAll(/\b(\d+)\s+(?:owner[- ]supplied\s+|matching\s+|passage\s+|interior\s+|door\s+)*(?:lever|handle)\b/g)].map(m=>m[1])},
+  {field:'otherDetails',component:/\bdrywall\b/i,unit:/^(?:inches|inch|in)$/,quantity:value=>[...value.matchAll(/\b(\d+(?:\.\d+)?\s*x\s*\d+(?:\.\d+)?)\s*(?:inch|inches|in)\b/g)].map(m=>m[1])},
+ ];
+ for(const original of text.split(/(?<=[.!?])\s+|\n|;/)){
+  const clause=normalize(original);
+  if(!/^\s*(?:please\s+)?(?:change|revise|update|correct)\b/.test(clause))continue;
+  const claim=clause.match(/\bto\s+(\d+(?:\.\d+)?(?:\s*x\s*\d+(?:\.\d+)?)?)\s*(lf|sf|linear feet|square feet|inches|inch|in)?\b/);
+  if(!claim)continue;
+  for(const kind of kinds){
+   if(!kind.component.test(clause)||!kind.unit.test(claim[2]||''))continue;
+   const facts=extraction.facts.filter(f=>f.field===kind.field&&f.basis==='stated'&&f.confidence>=.85&&kind.component.test(f.value));
+   const valid=facts.filter(f=>{const values=[...new Set(kind.quantity(normalize(f.value)))];return values.length===1&&values[0]===claim[1];});
+   if(valid.length===1)accepted.set(kind.field,{value:valid[0].value,component:kind.component,...(kind.field==='plumbing'?{other:/\b(?:water|gas|faucet|toilet|sink|shower)\b/i}:kind.field==='fixtures'?{other:/\b(?:faucet|toilet|sink|shower)\b/i}:{})});
+  }
+  // Wall height and perimeter can share the detail field with unchanged paint
+  // areas. An explicit perimeter in the tile revision resolves that detail only.
+  if(/\bshower\s+wall\s+tile\b/.test(clause)){
+   const perimeter=clause.match(/\b(\d+(?:\.\d+)?)\s*lf\s+(?:tiled\s+)?wall perimeter\b/);
+   if(perimeter){
+    const valid=extraction.facts.filter(f=>f.field==='otherDetails'&&f.basis==='stated'&&f.confidence>=.85&&new RegExp('\\b'+perimeter[1]+'\\s*lf\\s+(?:tiled\\s+)?(?:wall\\s+)?perimeter\\b').test(normalize(f.value)));
+    if(valid.length===1)accepted.set('otherDetails',{value:valid[0].value,component:/\b(?:perimeter|shower wall)\b/i,other:/\bpaint\b/i});
+   }
+  }
+ }
+ return accepted;
+}
 
 /** A verbatim, explicit customer revision resolves that one quantity. Merely
  * mentioning a different number, or a model calling a source "typed", does
  * not establish precedence. Original document takeoffs remain as provenance. */
 export function applyExplicitTypedCorrections(extraction:ScopeExtraction,text:string):ScopeExtraction{
+ const textAccepted=textRevisionValues(extraction,text);
  const accepted=new Map<ScopeField,string>();
  for(const fact of [...extraction.facts].sort((a,b)=>text.lastIndexOf(a.evidence)-text.lastIndexOf(b.evidence))){
   const component=NUMERIC_COMPONENTS[fact.field];
-  if(!component||fact.basis!=='stated'||fact.confidence<.85||!/typed/i.test(fact.source)||!fact.evidence.trim()||!text.includes(fact.evidence.trim()))continue;
+  if(!component||fact.basis!=='stated'||fact.confidence<.85||!/typed|submitted\s*scope/i.test(fact.source)||!fact.evidence.trim()||!text.includes(fact.evidence.trim()))continue;
   const clauses=fact.evidence.split(/(?<=[.!?])\s+|\n|;/);
   const value=Number(fact.value);if(!Number.isFinite(value)||value<0)continue;
   const matches=clauses.filter(clause=>component.test(clause)&&/\b(?:change|revise|update|correct)\b/i.test(clause));
@@ -29,7 +65,18 @@ export function applyExplicitTypedCorrections(extraction:ScopeExtraction,text:st
   });
   if(valid)accepted.set(fact.field,fact.value);
  }
- if(!accepted.size)return extraction;
- return {...extraction,facts:extraction.facts.filter(fact=>!accepted.has(fact.field)||fact.value===accepted.get(fact.field)),
-  conflicts:extraction.conflicts.filter(conflict=>!accepted.has(conflict.field))};
+ const excludedBacksplash=/\bexclude all backsplash\b/i.test(text)&&/\b(?:demolition|supply|installation)\b/i.test(text)
+  &&extraction.instructions?.exclusions.some(note=>/\bbacksplash\b/i.test(note));
+ if(!accepted.size&&!textAccepted.size&&!excludedBacksplash)return extraction;
+ return {...extraction,facts:extraction.facts.filter(fact=>{
+   if(accepted.has(fact.field))return fact.value===accepted.get(fact.field);
+   const revision=textAccepted.get(fact.field);
+   return !revision||!revision.component.test(fact.value)||fact.value===revision.value;
+  }),conflicts:extraction.conflicts.filter(conflict=>{
+   if(accepted.has(conflict.field))return false;
+   const revision=textAccepted.get(conflict.field);
+   const focus=revision?.component.test(conflict.explanation)?conflict.explanation:[conflict.explanation,...conflict.values].join(' ');
+   if(revision&&revision.component.test(focus)&&!revision.other?.test(focus))return false;
+   return !(excludedBacksplash&&['tileSqft','demolition'].includes(conflict.field)&&/\bbacksplash\b/i.test(conflict.explanation)&&/exclud|retain|supersed|updat/i.test(conflict.explanation));
+  })};
 }

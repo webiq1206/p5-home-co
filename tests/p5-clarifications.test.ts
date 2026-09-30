@@ -181,10 +181,12 @@ test('a skipped cabinet-run question from a document is not asked again (live Ca
   const extraction:ScopeExtraction={...scope(),instructions:{...emptyInstructions(),questions:['What are the cabinet base and upper run dimensions in linear feet?']}};
   const answers={service:'cabinets',location:'Boise'} as any;
   const first=scopeQuestions(answers,extraction,[],[],['cabinetBaseLf'] as any);
-  const field=first.find(q=>/cabinet base and upper run/i.test(q.reason))?.field;
-  assert.ok(field,'the question is asked once');
+  const field=first.find(q=>q.field==='cabinetBaseLf')?.field;
+  assert.ok(field,'the base run has its own question');
+  assert.equal(first.filter(q=>q.field==='cabinetUpperLf').length,1,'the upper run is a separate answer');
   const after=scopeQuestions(answers,extraction,[],[field as any],['cabinetBaseLf'] as any);
-  assert.ok(!after.some(q=>/cabinet base and upper run/i.test(q.reason)),'Not sure yet is an answer; the same question does not return');
+  assert.ok(!after.some(q=>q.field===field),'Not sure yet is an answer; the same question does not return');
+  assert.ok(after.some(q=>q.field==='cabinetUpperLf'),'skipping base does not answer upper');
 });
 test('a bench-top question without structured choices takes a typed answer (live Cabinet 2026-09-22)',async()=>{
   const {resolveInstructionAnswer}=await resolver();

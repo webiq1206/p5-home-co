@@ -147,6 +147,9 @@ export function applyPricingCorrections(input:CorrectionInput):CorrectionResult{
     for(const removal of hardware){
       if(removal===installation||!resolution.rules.includes(removal)||removal.quantity.fixed!==installation.quantity.fixed||!sameBuilding(removal.building,installation.building)||removal.floor!==installation.floor)continue;
       if(!/^remove\b/i.test(taskDescription(removal.scopeTaskId||''))||! /\b(?:handle|lever|hardware)\b/i.test(taskDescription(removal.scopeTaskId||'')))continue;
+      // "Remove and install the second handle" is a complete replacement of
+      // a different physical item, not a removal-only duplicate of the first.
+      if(/\b(?:install|replace)\b/i.test(taskDescription(removal.scopeTaskId||'')))continue;
       dropRule(removal,installation.id);cover(removal.scopeTaskId,installation.id);
       notes.push('Removal and replacement of the same door handles are covered by one per-door hardware replacement labor charge.');
     }

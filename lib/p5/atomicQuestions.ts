@@ -14,14 +14,39 @@ export function cabinetQuestionField(text:string):ScopeField|undefined{
  * already supplied. Only a clearly project-wide question binds to sqft;
  * component measurements must remain separate questions. */
 export function projectAreaQuestionField(text:string,answers:ScopeAnswers):ScopeField|undefined{
+ // Separating living area from garage/outdoor area clarifies the quantity;
+ // those exclusions must not turn the same living-area question into a new decision.
+ text=text.replace(/\([^)]*\bexclud(?:e|es|ing)\b[^)]*\)/gi,'').replace(/\bexcluding\b.*$/i,'');
  if(!/\b(?:square (?:feet|footage)|sq\.?\s*ft|area)\b/i.test(text)||!/\b(?:total|overall|entire|whole|project)\b/i.test(text))return;
  if(/\b(?:garage|outdoor|covered|roof|wall|flooring|tile|countertop|window|door|foundation|existing)\b/i.test(text))return;
  const subject:Record<string,RegExp>={addition:/\baddition\b/i,adu:/\badu\b/i,'new-construction':/\b(?:home|house|residence|living space)\b/i,'whole-home':/\b(?:home|house|residence|project)\b/i,kitchen:/\bkitchen\b/i,bathroom:/\bbathroom\b/i};
  if(/\bproject\b/i.test(text)||subject[answers.service||'']?.test(text))return 'sqft';
 }
 
+/** Bind ordinary project questions to their actual saved answer. Component
+ * quantities remain distinct; this is not fuzzy text deduplication. */
+export function projectQuestionField(text:string,answers:ScopeAnswers):ScopeField|undefined{
+ const measured=/\b(?:how many|number of|count|total)\b/i;
+ if(measured.test(text)&&/\bstori?es\b/i.test(text))return 'stories';
+ if(measured.test(text)&&/\bbathrooms?\b/i.test(text)&&!/\b(?:fixtures?|sinks?|toilets?|vanit|area|square)\b/i.test(text))return 'bathrooms';
+ if(measured.test(text)&&/\brooms?\b/i.test(text)&&!/\bcabinets?\b/i.test(text))return 'rooms';
+ if(/\bfinish (?:level|tier)\b/i.test(text))return 'finish';
+ if(/\bgarage\b/i.test(text)){
+  if(/\b(?:area|square feet|square footage|sqft)\b/i.test(text)&&!/\b(?:will|does|is|include)\b[^?]*\?\s*if so/i.test(text))return 'garageSqft';
+  if(/\b(?:will|does|is|include)\b/i.test(text))return 'garageIncluded';
+ }
+ return projectAreaQuestionField(text,answers);
+}
+
 /** Separate independent requests without splitting a list of answer choices. */
 export function atomicInstructionQuestions(text:string,answers:ScopeAnswers={},conflicts:ScopeConflict[]=[]):string[]{
+ // "linear feet for the base, upper and tall cabinets" puts the unit before
+ // the components. Each answer needs its own numeric control.
+ if(/\bcabinet\w*\b/i.test(text)&&/\b(?:linear feet|linear footage|lengths?|LF)\b/i.test(text)){
+  const named=[['base|lower','cabinetBaseLf','base'],['upper|wall','cabinetUpperLf','wall'],['tall','cabinetTallLf','tall']] as const;
+  const found=named.filter(([pattern])=>new RegExp('\\b(?:'+pattern+')\\b','i').test(text));
+  if(found.length>1)text+=' '+found.map(([,field,label])=>`${field==='cabinetBaseLf'?'base':label} cabinet linear feet`).join(', ');
+ }
  if(/\bcabinet\w*\s+(?:lengths?|measurements?|dimensions?)\b/i.test(text)&&!/\b(?:base|lower|upper|wall|tall)\b/i.test(text))text=text.replace(/\bcabinet\w*\s+(?:lengths?|measurements?|dimensions?)\b/i,'base cabinet linear feet, upper cabinet linear feet, tall cabinet linear feet');
  const topics:{pattern:RegExp;question:string;field?:ScopeField}[]=[
   {pattern:/\bbase\b.{0,30}\b(?:linear\s+(?:footage|feet)|length|LF)\b/i,question:'How many linear feet of base cabinets are included?',field:'cabinetBaseLf'},

@@ -3,6 +3,7 @@ import {ESTIMATOR_BRAND} from './brand.ts';
 import {SCOPE_FIELDS,mergeScopeFacts,validateAnswer,type ScopeAnswers,type ScopeField,type ScopeExtraction,type ScopeConflict} from './scope.ts';
 import {dynamicScopeFields,questionContext,scopeFieldApplies,scopePromptApplies} from './dynamicQuestions.ts';
 import {serviceEvidenceSupports} from './serviceSignals.ts';
+import {atomicInstructionQuestions,cabinetQuestionField} from './atomicQuestions.ts';
 
 export interface ScopeQuestion {field:ScopeField;label:string;reason:string;values?:string[];conflict?:boolean;instructionId?:string;detail?:string;handoff?:{label:string;url:string}}
 export function sameAnswer(field:ScopeField,a:string,b:string){
@@ -63,6 +64,7 @@ export function materialScopeFields(answers:ScopeAnswers,pricedFields:ScopeField
   return dynamicScopeFields(deriveScopeAnswers(answers),extraction,pricedFields,sourceText);
 }
 const detailQuestions:Partial<Record<ScopeField,string>>={
+  fixtures:'Which fixtures are being replaced, and how many of each?',
   cabinetRoom:'Which room are the cabinets for?',cabinetBaseLf:'How many linear feet of base cabinets are needed?',
   cabinetUpperLf:'How many linear feet of wall cabinets are needed?',cabinetTallLf:'How many linear feet of tall cabinets are needed? Enter 0 if there are none.',
   garageIncluded:'Does the new home estimate include a garage?',garageSqft:'How many square feet is the included garage?',
@@ -100,6 +102,7 @@ function conflictSourceDetail(conflict:ScopeConflict,extraction:ScopeExtraction|
 }
 export function scopeQuestions(input:ScopeAnswers,extraction:ScopeExtraction|null,conflicts:ScopeConflict[]=[],skipped:ScopeField[]=[],pricedFields:ScopeField[]=[],sourceText=''):ScopeQuestion[]{
   const answers=deriveScopeAnswers(input);
+  if(extraction?.clarifications)extraction={...extraction,clarifications:extraction.clarifications.flatMap(q=>atomicInstructionQuestions(q.question,answers,conflicts).map(question=>({...q,question,field:cabinetQuestionField(question)||q.field})))};
   const context=questionContext(answers,extraction,sourceText);
   const applicableConflicts=conflicts.filter(c=>scopeFieldApplies(c.field,context));
   // Resolve the project type before calculating the next service-specific question.
@@ -117,10 +120,15 @@ export function scopeQuestions(input:ScopeAnswers,extraction:ScopeExtraction|nul
     questions.push({field:q.field||'estimatingInstructions',label:q.field?SCOPE_FIELDS[q.field].label:'One scope detail',reason:q.question,detail:q.detail,values:q.values,...(!q.field?{instructionId:q.id}:{})});
   }
   const uncertain=(extraction?.facts||[]).filter(f=>Number.isFinite(f.confidence)&&f.confidence<.85&&f.confidence>=.4&&f.basis!=='visual'&&f.basis!=='inferred'&&!validateAnswer(f.field,f.value)&&!answers[f.field]?.trim()&&relevant.has(f.field)&&(f.field!=='service'||serviceEvidenceSupports(f.value,f.evidence)));
-  for(const fact of uncertain)if(!questions.some(q=>q.field===fact.field)&&!skipped.includes(fact.field))questions.push({field:fact.field,label:SCOPE_FIELDS[fact.field].label,reason:`${SCOPE_FIELDS[fact.field].label}: we found ${fact.value} in ${fact.source}. Is that correct?`,values:[fact.value]});
+  for(const fact of uncertain)if(!questions.some(q=>q.field===fact.field)&&!skipped.includes(fact.field)){
+    const unresolved=/\b(?:not specified|unspecified|unknown|not provided|to be determined|TBD)\b/i.test(fact.value);
+    questions.push(unresolved?questionForField(fact.field,answers):{field:fact.field,label:SCOPE_FIELDS[fact.field].label,reason:`${SCOPE_FIELDS[fact.field].label}: we found ${fact.value} in ${fact.source}. Is that correct?`,values:[fact.value]});
+  }
   // Keep the reader's project-specific wording, including which room or component
   // is missing. Replacing it with a generic numeric prompt loses that context.
-  for(const q of extraction?.clarifications||[])if(relevant.has(q.field)&&!answers[q.field]?.trim()&&!skipped.includes(q.field)&&!questions.some(x=>x.field===q.field))questions.push({field:q.field,label:clarificationLabel(q.field,q.question),reason:SCOPE_FIELDS[q.field].kind==='number'&&clarificationLabel(q.field,q.question)!=='Project detail'&&!/how (?:many|much|long|wide|large)|number of|square feet|linear feet|footage/i.test(q.question)?questionReason(q.field,answers):q.question,detail:q.reason});
+  for(const q of extraction?.clarifications||[]){
+    if(relevant.has(q.field)&&!answers[q.field]?.trim()&&!skipped.includes(q.field)&&!questions.some(x=>x.field===q.field))questions.push({field:q.field,label:clarificationLabel(q.field,q.question),reason:SCOPE_FIELDS[q.field].kind==='number'&&clarificationLabel(q.field,q.question)!=='Project detail'&&!/how (?:many|much|long|wide|large)|number of|square feet|linear feet|footage/i.test(q.question)?questionReason(q.field,answers):q.question,detail:q.reason});
+  }
   for(const field of relevant)if(!questions.some(q=>q.field===field)&&!skipped.includes(field))questions.push(questionForField(field,answers));
   return questions.map(q=>{
     const allowed=choiceValues(q.field,answers);

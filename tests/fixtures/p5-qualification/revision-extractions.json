@@ -1,0 +1,1161 @@
+[
+  {
+    "case": "bathroom",
+    "text": "Change only the shower wall tile to 98 SF, 7 feet high and 14 LF tiled wall perimeter. This supersedes the 84 SF and 12 LF in the PDF. Bathroom floor remains 60 SF. Everything else, including exclusions, remains.",
+    "extraction": {
+      "summary": "Remodel one 6x10 ft, 60 SF bathroom. Replace finishes, supply/install all fixtures & tile. Shower wall tile is 98 SF at 14 LF perimeter. No structural, electrical, or permit/design work.",
+      "facts": [
+        {
+          "basis": "stated",
+          "field": "service",
+          "value": "bathroom",
+          "source": "typed scope",
+          "evidence": "service: bathroom",
+          "confidence": 1
+        },
+        {
+          "basis": "stated",
+          "field": "location",
+          "value": "Boise, Idaho",
+          "source": "typed scope",
+          "evidence": "Boise, Idaho",
+          "confidence": 1
+        },
+        {
+          "basis": "stated",
+          "field": "sqft",
+          "value": "60",
+          "source": "bathroom.pdf",
+          "evidence": "Remodel one 6 by 10 foot bathroom, 60 SF, in Boise, Idaho.",
+          "confidence": 1
+        },
+        {
+          "basis": "stated",
+          "field": "length",
+          "value": "10",
+          "source": "bathroom.pdf",
+          "evidence": "6 by 10 foot bathroom",
+          "confidence": 1
+        },
+        {
+          "basis": "stated",
+          "field": "width",
+          "value": "6",
+          "source": "bathroom.pdf",
+          "evidence": "6 by 10 foot bathroom",
+          "confidence": 1
+        },
+        {
+          "basis": "stated",
+          "field": "rooms",
+          "value": "1",
+          "source": "bathroom.pdf",
+          "evidence": "Remodel one 6 by 10 foot bathroom",
+          "confidence": 1
+        },
+        {
+          "basis": "stated",
+          "field": "flooringSqft",
+          "value": "60",
+          "source": "bathroom.pdf",
+          "evidence": "Supply and install 60 SF porcelain floor tile",
+          "confidence": 1
+        },
+        {
+          "basis": "stated",
+          "field": "tileSqft",
+          "value": "98",
+          "source": "typed scope",
+          "evidence": "Change only the shower wall tile to 98 SF, 7 feet high and 14 LF tiled wall perimeter.",
+          "confidence": 1
+        },
+        {
+          "basis": "stated",
+          "field": "materials",
+          "value": "Mid-range materials. Porcelain floor tile; waterproofed shower wall tile.",
+          "source": "bathroom.pdf",
+          "evidence": "Mid-range materials. Supply and install 60 SF porcelain floor tile, 84 SF shower wall tile with waterproofing",
+          "confidence": 1
+        },
+        {
+          "basis": "calculated",
+          "field": "cabinetBaseLf",
+          "value": "2.5",
+          "source": "bathroom.pdf",
+          "evidence": "one 30-inch vanity; 30/12 = 2.5 LF",
+          "confidence": 1
+        },
+        {
+          "basis": "stated",
+          "field": "cabinetRoom",
+          "value": "bathroom",
+          "source": "bathroom.pdf",
+          "evidence": "one 30-inch vanity",
+          "confidence": 1
+        },
+        {
+          "basis": "stated",
+          "field": "fixtures",
+          "value": "30-inch vanity, integrated vanity top and sink, faucet, toilet, shower valve and trim, shower pan, framed shower door",
+          "source": "bathroom.pdf",
+          "evidence": "one 30-inch vanity, one integrated vanity top and sink, one faucet, one toilet, one shower valve and trim, one shower pan, and one framed shower door.",
+          "confidence": 1
+        },
+        {
+          "basis": "stated",
+          "field": "demolition",
+          "value": "Remove existing finishes and fixtures. Demolition disposal included.",
+          "source": "bathroom.pdf",
+          "evidence": "Remove existing finishes and fixtures. Include ... demolition disposal",
+          "confidence": 1
+        },
+        {
+          "basis": "stated",
+          "field": "plumbing",
+          "value": "Normal plumbing reconnections included. No whole-house plumbing.",
+          "source": "bathroom.pdf",
+          "evidence": "Include normal plumbing reconnections ... No ... whole-house plumbing.",
+          "confidence": 1
+        },
+        {
+          "basis": "stated",
+          "field": "installation",
+          "value": "Includes installation supplies, protection and cleanup.",
+          "source": "bathroom.pdf",
+          "evidence": "Include ... installation supplies, protection and cleanup.",
+          "confidence": 1
+        },
+        {
+          "basis": "stated",
+          "field": "finish",
+          "value": "mid-range",
+          "source": "bathroom.pdf",
+          "evidence": "Mid-range materials.",
+          "confidence": 1
+        },
+        {
+          "basis": "stated",
+          "field": "access",
+          "value": "Ground-floor normal access, unoccupied room.",
+          "source": "bathroom.pdf",
+          "evidence": "Ground-floor normal access, unoccupied room.",
+          "confidence": 1
+        },
+        {
+          "basis": "stated",
+          "field": "exclusions",
+          "value": "No structural work;  electrical changes;  whole-home work;  concealed damage remediation;  whole-house plumbing;  permit fees;  or design.",
+          "source": "bathroom.pdf",
+          "evidence": "No structural work, electrical changes, whole-home work, concealed damage remediation or whole-house plumbing. Exclude permit fees and design.",
+          "confidence": 1
+        },
+        {
+          "basis": "stated",
+          "field": "otherDetails",
+          "value": "Paint 120 SF non-tiled walls and 60 SF ceiling. Shower footprint: 3x4 ft; 7 ft high, 14 LF perimeter.",
+          "source": "bathroom.pdf",
+          "evidence": "Paint 120 SF of non-tiled walls and 60 SF ceiling. Shower footprint is 3 by 4 feet; ... 7 feet high with 12 LF of tiled wall perimeter. Change only the shower wall tile to 98 SF, 7 feet high and 14 LF tiled wall perimeter.",
+          "confidence": 1
+        }
+      ],
+      "conflicts": [
+        {
+          "field": "tileSqft",
+          "values": [],
+          "explanation": "Submitted scope supersedes PDF with increased shower wall tile to 98 SF and 14 LF perimeter."
+        },
+        {
+          "field": "otherDetails",
+          "values": [
+            "Shower wall perimeter: 12 LF (PDF)",
+            "Shower wall perimeter: 14 LF (submitted scope)"
+          ],
+          "explanation": "Submitted scope supersedes PDF with 14 LF perimeter for shower wall tile."
+        }
+      ],
+      "instructions": {
+        "inclusions": [
+          "Remodel existing 6x10 ft, 60 SF bathroom",
+          "Supply and install 60 SF porcelain floor tile",
+          "Supply and install 98 SF shower wall tile (supersedes prior 84 SF and 12 LF)",
+          "Supply and install one 30-in vanity, integrated top/sink, faucet, toilet, shower valve/trim, shower pan, framed door",
+          "Paint 120 SF non-tiled wall, 60 SF ceiling",
+          "Normal plumbing reconnections, demolition/disposal, installation supplies, protection, cleanup"
+        ],
+        "exclusions": [
+          "No structural work",
+          "No electrical changes",
+          "No whole-home work or whole-house plumbing",
+          "No concealed damage remediation",
+          "Exclude permit fees and design"
+        ],
+        "responsibilities": [
+          "Contractor to supply and install all included products",
+          "Contractor to remove/demo existing finishes and fixtures"
+        ],
+        "buildings": [
+          "Single 6x10 ft bathroom"
+        ],
+        "floors": [
+          "Ground floor"
+        ],
+        "separateBuildings": false,
+        "laborOnly": false,
+        "materialsOnly": false,
+        "questions": []
+      },
+      "missingInformation": [
+        "Page citation corrected to the page this section was read from; confirm against the document."
+      ],
+      "reviewNotes": []
+    }
+  },
+  {
+    "case": "kitchen",
+    "text": "Retain the existing backsplash untouched. Exclude all backsplash demolition, supply and installation. This supersedes the 30 SF backsplash replacement in the PDF. All other scope and exclusions remain.",
+    "extraction": {
+      "summary": "Remodel a 200 SF kitchen in Boise with mid-range painted shaker cabinets, 45 SF quartz countertop, a sink and faucet. Retain existing flooring, appliances, and backsplash. Exclude backsplash work, electrical, HVAC, painting, permits, design, other rooms.",
+      "facts": [
+        {
+          "basis": "stated",
+          "field": "service",
+          "value": "kitchen",
+          "source": "typed scope",
+          "evidence": "\"service\":\"kitchen\"",
+          "confidence": 1
+        },
+        {
+          "basis": "stated",
+          "field": "location",
+          "value": "Boise, Idaho",
+          "source": "typed scope",
+          "evidence": "\"location\":\"Boise, Idaho\"",
+          "confidence": 1
+        },
+        {
+          "basis": "stated",
+          "field": "sqft",
+          "value": "200",
+          "source": "kitchen.pdf",
+          "evidence": "Remodel a 200 SF kitchen in Boise, Idaho.",
+          "confidence": 1
+        },
+        {
+          "basis": "stated",
+          "field": "cabinetBaseLf",
+          "value": "18",
+          "source": "kitchen.pdf",
+          "evidence": "18 LF base cabinets",
+          "confidence": 1
+        },
+        {
+          "basis": "stated",
+          "field": "cabinetUpperLf",
+          "value": "12",
+          "source": "kitchen.pdf",
+          "evidence": "12 LF wall cabinets",
+          "confidence": 1
+        },
+        {
+          "basis": "stated",
+          "field": "cabinetTallLf",
+          "value": "0",
+          "source": "kitchen.pdf",
+          "evidence": "zero tall cabinets",
+          "confidence": 1
+        },
+        {
+          "basis": "stated",
+          "field": "cabinetConstruction",
+          "value": "Mid-range painted shaker cabinets with plywood boxes and soft-close hardware",
+          "source": "kitchen.pdf",
+          "evidence": "Mid-range painted shaker cabinets with plywood boxes and soft-close hardware.",
+          "confidence": 1
+        },
+        {
+          "basis": "stated",
+          "field": "countertopSqft",
+          "value": "45",
+          "source": "kitchen.pdf",
+          "evidence": "45 SF quartz countertop",
+          "confidence": 1
+        },
+        {
+          "basis": "stated",
+          "field": "fixtures",
+          "value": "one sink and one faucet",
+          "source": "kitchen.pdf",
+          "evidence": "one sink and one faucet",
+          "confidence": 1
+        },
+        {
+          "basis": "stated",
+          "field": "demolition",
+          "value": "Remove and dispose of existing cabinets, counters, sink and faucet.",
+          "source": "kitchen.pdf",
+          "evidence": "Remove and dispose of existing cabinets, counters, backsplash, sink and faucet. Retain the existing backsplash untouched. Exclude all backsplash demolition, supply and installation.",
+          "confidence": 1
+        },
+        {
+          "basis": "stated",
+          "field": "plumbing",
+          "value": "Reconnect plumbing at existing locations.",
+          "source": "kitchen.pdf",
+          "evidence": "Reconnect plumbing at existing locations.",
+          "confidence": 1
+        },
+        {
+          "basis": "stated",
+          "field": "appliances",
+          "value": "Existing owner appliances remain and are not replaced; detach and reset only as needed.",
+          "source": "kitchen.pdf",
+          "evidence": "Existing owner appliances remain and are not replaced; detach and reset only as needed.",
+          "confidence": 1
+        },
+        {
+          "basis": "stated",
+          "field": "flooringSqft",
+          "value": "0",
+          "source": "typed scope",
+          "evidence": "Existing flooring remains untouched; no flooring supply or installation.",
+          "confidence": 1
+        },
+        {
+          "basis": "stated",
+          "field": "installation",
+          "value": "Supply and install base and wall cabinets, countertop, sink and faucet. Include normal consumables, protection and cleanup.",
+          "source": "kitchen.pdf",
+          "evidence": "Supply and install 18 LF base cabinets, 12 LF wall cabinets, ... Include normal consumables, protection and cleanup.",
+          "confidence": 1
+        },
+        {
+          "basis": "stated",
+          "field": "access",
+          "value": "Ground-floor standard access",
+          "source": "kitchen.pdf",
+          "evidence": "Ground-floor standard access",
+          "confidence": 1
+        },
+        {
+          "basis": "stated",
+          "field": "schedule",
+          "value": "normal schedule",
+          "source": "kitchen.pdf",
+          "evidence": "normal schedule.",
+          "confidence": 1
+        },
+        {
+          "basis": "stated",
+          "field": "exclusions",
+          "value": "Retain the existing backsplash untouched. Exclude all backsplash demolition; supply and installation. Existing flooring remains untouched; no flooring supply or installation. Existing owner appliances remain and are not replaced. No structural changes; electrical upgrades; wall painting or HVAC work. Exclude permit fees; design; concealed damage and all other rooms.",
+          "source": "typed scope",
+          "evidence": "Retain the existing backsplash untouched. Exclude all backsplash demolition, supply and installation. ... Exclude permit fees, design, concealed damage and all other rooms.",
+          "confidence": 1
+        }
+      ],
+      "conflicts": [
+        {
+          "field": "tileSqft",
+          "values": [
+            "30",
+            "0"
+          ],
+          "explanation": "PDF specifies 30 SF backsplash tile; scope update excludes all backsplash work, requiring 0 SF."
+        },
+        {
+          "field": "demolition",
+          "values": [
+            "Remove and dispose of existing backsplash, sink and faucet.",
+            "Exclude all backsplash demolition; retain backsplash untouched."
+          ],
+          "explanation": "PDF requires backsplash removal; scope update excludes all backsplash demolition."
+        }
+      ],
+      "instructions": {
+        "inclusions": [
+          "Cabinet, counter, sink and faucet supply/installation",
+          "Demolition of cabinets, counters, sink and faucet",
+          "Plumbing reconnection",
+          "Detach/reset existing appliances as needed",
+          "Normal consumables, protection, cleanup"
+        ],
+        "exclusions": [
+          "All backsplash and backsplash tile work",
+          "All flooring supply and installation",
+          "Replacement of appliances",
+          "Structural changes",
+          "Electrical upgrades",
+          "Wall painting",
+          "HVAC work",
+          "Permit fees",
+          "Design",
+          "Concealed damage",
+          "All other rooms"
+        ],
+        "responsibilities": [
+          "Contractor: supply/install scope components",
+          "Owner: retain existing backsplash, flooring, appliances"
+        ],
+        "buildings": [],
+        "floors": [
+          "ground-floor kitchen"
+        ],
+        "separateBuildings": false,
+        "laborOnly": false,
+        "materialsOnly": false,
+        "questions": []
+      },
+      "missingInformation": [],
+      "reviewNotes": [
+        "1 quantity or page record from this section lacked a usable page reference and were not used. Confirm quantities against the document before pricing."
+      ]
+    }
+  },
+  {
+    "case": "whole-home",
+    "text": "Change LVP replacement to 1400 SF and retain 320 SF existing utility/living flooring untouched. Bathroom tile remains 80 SF, and total home area remains 1800 SF. This supersedes 1600 SF LVP and 120 SF retained flooring in the PDF. All other scope and exclusions remain.",
+    "extraction": {
+      "summary": "Interior remodel of 1800 SF home. Replace 1400 SF with LVP, 80 SF bathroom tile, retain 320 SF flooring. Paint 4000 SF walls, 1800 SF ceilings. New kitchen & bath cabinets, doors, baseboard. Permits, appliances, exterior, major systems excluded.",
+      "facts": [
+        {
+          "basis": "stated",
+          "field": "service",
+          "value": "whole-home",
+          "source": "typed scope",
+          "evidence": "Selected whole-home interior remodel, not reconstruction",
+          "confidence": 1
+        },
+        {
+          "basis": "stated",
+          "field": "location",
+          "value": "Boise, Idaho",
+          "source": "typed scope",
+          "evidence": "existing 1800 SF one-story home in Boise, Idaho",
+          "confidence": 1
+        },
+        {
+          "basis": "stated",
+          "field": "sqft",
+          "value": "1800",
+          "source": "typed scope",
+          "evidence": "total home area remains 1800 SF",
+          "confidence": 1
+        },
+        {
+          "basis": "stated",
+          "field": "flooringSqft",
+          "value": "1400",
+          "source": "submittedScope",
+          "evidence": "Change LVP replacement to 1400 SF",
+          "confidence": 1
+        },
+        {
+          "basis": "stated",
+          "field": "tileSqft",
+          "value": "80",
+          "source": "submittedScope",
+          "evidence": "Bathroom tile remains 80 SF",
+          "confidence": 1
+        },
+        {
+          "basis": "stated",
+          "field": "finish",
+          "value": "mid-range",
+          "source": "whole-home.pdf",
+          "evidence": "Mid-range finishes",
+          "confidence": 1
+        },
+        {
+          "basis": "stated",
+          "field": "demolition",
+          "value": "Removal/disposal of replaced finishes, minor prep, reconnects, and normal cleanup included",
+          "source": "whole-home.pdf",
+          "evidence": "Include removal/disposal of replaced finishes, minor prep, reconnects, normal materials and cleanup.",
+          "confidence": 1
+        },
+        {
+          "basis": "stated",
+          "field": "access",
+          "value": "Unoccupied, normal access",
+          "source": "whole-home.pdf",
+          "evidence": "unoccupied, normal access and schedule",
+          "confidence": 1
+        },
+        {
+          "basis": "stated",
+          "field": "schedule",
+          "value": "Normal schedule",
+          "source": "whole-home.pdf",
+          "evidence": "unoccupied, normal access and schedule",
+          "confidence": 1
+        },
+        {
+          "basis": "stated",
+          "field": "materials",
+          "value": "Contractor-supplied LVP, quartz counters, tile; paint for walls/ceilings, baseboard",
+          "source": "whole-home.pdf",
+          "evidence": "Replace 1600 SF flooring with contractor-supplied LVP and 80 SF bathroom floor tile",
+          "confidence": 1
+        },
+        {
+          "basis": "stated",
+          "field": "cabinetBaseLf",
+          "value": "18",
+          "source": "whole-home.pdf",
+          "evidence": "supply/install 18 LF base cabinets",
+          "confidence": 1
+        },
+        {
+          "basis": "stated",
+          "field": "cabinetUpperLf",
+          "value": "12",
+          "source": "whole-home.pdf",
+          "evidence": "12 LF wall cabinets",
+          "confidence": 1
+        },
+        {
+          "basis": "stated",
+          "field": "cabinetRoom",
+          "value": "kitchen",
+          "source": "whole-home.pdf",
+          "evidence": "Kitchen: supply/install 18 LF base cabinets, 12 LF wall cabinets",
+          "confidence": 1
+        },
+        {
+          "basis": "stated",
+          "field": "countertopSqft",
+          "value": "45",
+          "source": "whole-home.pdf",
+          "evidence": "45 SF quartz",
+          "confidence": 1
+        },
+        {
+          "basis": "stated",
+          "field": "fixtures",
+          "value": "One kitchen sink and faucet; two 30-in vanities (each with integrated top/sink), two faucets, two toilets",
+          "source": "whole-home.pdf",
+          "evidence": "one sink and one faucet. Two bathrooms: each supply/install one 30-inch vanity with integrated top/sink, one faucet and one toilet",
+          "confidence": 1
+        },
+        {
+          "basis": "stated",
+          "field": "rooms",
+          "value": "1",
+          "source": "whole-home.pdf",
+          "evidence": "one-story home",
+          "confidence": 1
+        },
+        {
+          "basis": "stated",
+          "field": "bathrooms",
+          "value": "2",
+          "source": "whole-home.pdf",
+          "evidence": "Two bathrooms",
+          "confidence": 1
+        },
+        {
+          "basis": "stated",
+          "field": "stories",
+          "value": "1",
+          "source": "whole-home.pdf",
+          "evidence": "one-story home",
+          "confidence": 1
+        },
+        {
+          "basis": "stated",
+          "field": "trimLf",
+          "value": "550",
+          "source": "whole-home.pdf",
+          "evidence": "550 LF baseboard",
+          "confidence": 1
+        },
+        {
+          "basis": "stated",
+          "field": "exclusions",
+          "value": "Roof;  windows;  exterior;  structural work;  full rewiring;  HVAC;  shower remodeling;  appliances;  permit fees and design excluded",
+          "source": "whole-home.pdf",
+          "evidence": "Exclude roof, windows, exterior, structural work, full rewiring, HVAC, shower remodeling, appliances, permit fees and design.",
+          "confidence": 1
+        },
+        {
+          "basis": "stated",
+          "field": "installation",
+          "value": "Contractor supplies/installs floors, cabinets, counters, vanities, doors, baseboard, painting, fixtures called out",
+          "source": "whole-home.pdf",
+          "evidence": "supply/install ... Include removal/disposal ... reconnects, normal materials and cleanup.",
+          "confidence": 1
+        }
+      ],
+      "conflicts": [
+        {
+          "field": "flooringSqft",
+          "values": [
+            "1400",
+            "1600"
+          ],
+          "explanation": "Submitted scope changes LVP from 1600 SF (source) to 1400 SF (latest user). 1400 SF supersedes prior value."
+        },
+        {
+          "field": "flooringSqft",
+          "values": [],
+          "explanation": "Submitted scope changes untouched flooring area from 120 SF (source) to 320 SF (user). 320 SF supersedes prior."
+        }
+      ],
+      "instructions": {
+        "inclusions": [
+          "Replace 1400 SF with contractor-supplied LVP",
+          "Replace 80 SF bathroom floor tile",
+          "Paint 4000 SF wall surface and 1800 SF ceilings",
+          "Replace 12 interior doors",
+          "Replace 550 LF baseboard",
+          "Kitchen: supply/install 18 LF base cabinets, 12 LF wall cabinets, 45 SF quartz, one sink, one faucet",
+          "Two bathrooms: each supply/install one 30-inch vanity with integrated top/sink, one faucet, one toilet",
+          "Include removal/disposal of replaced finishes, minor prep, reconnects, normal materials and cleanup"
+        ],
+        "exclusions": [
+          "Roof",
+          "Windows",
+          "Exterior",
+          "Structural work",
+          "Full rewiring",
+          "HVAC",
+          "Shower remodeling",
+          "Appliances",
+          "Permit fees",
+          "Design"
+        ],
+        "responsibilities": [
+          "Contractor supplies and installs all finishes, cabinets, fixtures, doors, baseboard, paint and tasks listed"
+        ],
+        "buildings": [
+          "Existing one-story home"
+        ],
+        "floors": [
+          "Entire one story"
+        ],
+        "separateBuildings": false,
+        "laborOnly": false,
+        "materialsOnly": false,
+        "questions": []
+      },
+      "missingInformation": [
+        "Page citation corrected to the page this section was read from; confirm against the document."
+      ],
+      "reviewNotes": []
+    }
+  },
+  {
+    "case": "adu",
+    "text": "Change only the separate sewer extension to 30 LF, superseding 20 LF in the PDF. Water extension remains 20 LF and ADU remains 600 SF. All other scope and exclusions remain.",
+    "extraction": {
+      "summary": "Construct a 600 SF detached 1-bed/1-bath ADU in Boise, ID with kitchen, bathroom, mini-split HVAC, slab, mid-range finishes. Extend sewer 30 LF & water 20 LF. No garage, porch, landscaping, permits, design, engineering, or appliances.",
+      "facts": [
+        {
+          "basis": "stated",
+          "field": "service",
+          "value": "adu",
+          "source": "typed scope",
+          "evidence": "Change only the separate sewer extension to 30 LF...ADU remains 600 SF; previousAnswers: adu",
+          "confidence": 1
+        },
+        {
+          "basis": "stated",
+          "field": "location",
+          "value": "Boise, Idaho",
+          "source": "typed scope",
+          "evidence": "in Boise, Idaho; previousAnswers: Boise, Idaho",
+          "confidence": 1
+        },
+        {
+          "basis": "stated",
+          "field": "sqft",
+          "value": "600",
+          "source": "typed scope",
+          "evidence": "exactly 600 SF conditioned space; ADU remains 600 SF",
+          "confidence": 1
+        },
+        {
+          "basis": "stated",
+          "field": "garageIncluded",
+          "value": "no",
+          "source": "adu.pdf",
+          "evidence": "No garage or covered porch.",
+          "confidence": 1
+        },
+        {
+          "basis": "stated",
+          "field": "length",
+          "value": "30",
+          "source": "adu.pdf",
+          "evidence": "20 by 30 foot ADU",
+          "confidence": 1
+        },
+        {
+          "basis": "stated",
+          "field": "width",
+          "value": "20",
+          "source": "adu.pdf",
+          "evidence": "20 by 30 foot ADU",
+          "confidence": 1
+        },
+        {
+          "basis": "stated",
+          "field": "rooms",
+          "value": "1",
+          "source": "adu.pdf",
+          "evidence": "One bedroom",
+          "confidence": 1
+        },
+        {
+          "basis": "stated",
+          "field": "bathrooms",
+          "value": "1",
+          "source": "adu.pdf",
+          "evidence": "one bathroom",
+          "confidence": 1
+        },
+        {
+          "basis": "stated",
+          "field": "stories",
+          "value": "1",
+          "source": "adu.pdf",
+          "evidence": "detached one-story",
+          "confidence": 1
+        },
+        {
+          "basis": "stated",
+          "field": "cabinetBaseLf",
+          "value": "8",
+          "source": "adu.pdf",
+          "evidence": "Kitchen has 8 LF base ... cabinets",
+          "confidence": 1
+        },
+        {
+          "basis": "stated",
+          "field": "cabinetUpperLf",
+          "value": "6",
+          "source": "adu.pdf",
+          "evidence": "6 LF wall cabinets",
+          "confidence": 1
+        },
+        {
+          "basis": "stated",
+          "field": "cabinetRoom",
+          "value": "kitchen",
+          "source": "adu.pdf",
+          "evidence": "Kitchen has 8 LF base and 6 LF wall cabinets",
+          "confidence": 1
+        },
+        {
+          "basis": "stated",
+          "field": "finish",
+          "value": "mid-range",
+          "source": "adu.pdf",
+          "evidence": "mid-range finishes",
+          "confidence": 1
+        },
+        {
+          "basis": "stated",
+          "field": "materials",
+          "value": "slab foundation, standard wood framing, asphalt shingle roof, laminate counter",
+          "source": "adu.pdf",
+          "evidence": "slab foundation, standard wood framing, asphalt shingle roof, 20 SF laminate counter",
+          "confidence": 1
+        },
+        {
+          "basis": "stated",
+          "field": "fixtures",
+          "value": "kitchen: one sink and faucet; bathroom: one toilet, one 30-inch vanity with sink/faucet, one acrylic shower",
+          "source": "adu.pdf",
+          "evidence": "Kitchen has...one sink and faucet. Bathroom has one toilet, one 30-inch vanity with sink/faucet and one acrylic shower.",
+          "confidence": 1
+        },
+        {
+          "basis": "stated",
+          "field": "appliances",
+          "value": "appliance supply excluded",
+          "source": "adu.pdf",
+          "evidence": "Exclude...appliance supply.",
+          "confidence": 1
+        },
+        {
+          "basis": "stated",
+          "field": "demolition",
+          "value": "none; new construction, level cleared site",
+          "source": "adu.pdf",
+          "evidence": "Level cleared site",
+          "confidence": 1
+        },
+        {
+          "basis": "stated",
+          "field": "structural",
+          "value": "slab foundation, standard wood framing, 8-foot ceilings",
+          "source": "adu.pdf",
+          "evidence": "slab foundation, standard wood framing, 8-foot ceilings",
+          "confidence": 1
+        },
+        {
+          "basis": "stated",
+          "field": "mechanical",
+          "value": "mini-split HVAC",
+          "source": "adu.pdf",
+          "evidence": "Include...mini-split HVAC",
+          "confidence": 1
+        },
+        {
+          "basis": "stated",
+          "field": "electrical",
+          "value": "complete ADU electrical included",
+          "source": "adu.pdf",
+          "evidence": "Include complete ADU construction with...electrical",
+          "confidence": 1
+        },
+        {
+          "basis": "stated",
+          "field": "plumbing",
+          "value": "complete ADU plumbing, 30 LF sewer extension, 20 LF water extension",
+          "source": "typed scope",
+          "evidence": "Include a separate 20 LF sewer extension...Change only the separate sewer extension to 30 LF...",
+          "confidence": 1
+        },
+        {
+          "basis": "stated",
+          "field": "site",
+          "value": "level cleared site, normal access, utility capacity available",
+          "source": "adu.pdf",
+          "evidence": "Level cleared site and normal access. Utility capacity is available.",
+          "confidence": 1
+        },
+        {
+          "basis": "stated",
+          "field": "access",
+          "value": "normal access",
+          "source": "adu.pdf",
+          "evidence": "normal access",
+          "confidence": 1
+        },
+        {
+          "basis": "stated",
+          "field": "exclusions",
+          "value": "Exclude land;  landscaping;  permit/impact fees;  design;  engineering and appliance supply.",
+          "source": "typed scope",
+          "evidence": "Exclude land, landscaping, permit/impact fees, design, engineering and appliance supply...",
+          "confidence": 1
+        },
+        {
+          "basis": "stated",
+          "field": "permits",
+          "value": "permit/impact fees excluded",
+          "source": "adu.pdf",
+          "evidence": "Exclude...permit/impact fees",
+          "confidence": 1
+        },
+        {
+          "basis": "stated",
+          "field": "engineering",
+          "value": "design, engineering excluded",
+          "source": "adu.pdf",
+          "evidence": "Exclude...design, engineering",
+          "confidence": 1
+        },
+        {
+          "basis": "stated",
+          "field": "utilities",
+          "value": "separate utility/utility capacity available",
+          "source": "adu.pdf",
+          "evidence": "Include a separate...sewer extension...water extension...utility capacity is available",
+          "confidence": 1
+        },
+        {
+          "basis": "stated",
+          "field": "countertopSqft",
+          "value": "20",
+          "source": "adu.pdf",
+          "evidence": "20 SF laminate counter",
+          "confidence": 1
+        }
+      ],
+      "conflicts": [
+        {
+          "field": "plumbing",
+          "values": [
+            "Include a separate 20 LF sewer extension...Change only the separate sewer extension to 30 LF. Water extension remains 20 LF...",
+            "Include a separate 20 LF sewer extension and 20 LF water extension"
+          ],
+          "explanation": "Sewer extension increased to 30 LF by the submitted typed scope, superseding 20 LF in the original PDF."
+        }
+      ],
+      "instructions": {
+        "inclusions": [
+          "Complete detached 600 SF one-story ADU construction with 8-foot ceilings, slab, wood framing, asphalt shingle roof, kitchen, bathroom, electrical, plumbing, mini-split HVAC.",
+          "Kitchen: 8 LF base & 6 LF wall cabinets, 20 SF laminate counter, sink/faucet.",
+          "Bathroom: toilet, 30-inch vanity with sink/faucet, acrylic shower.",
+          "30 LF separate sewer extension, 20 LF water extension.",
+          "Normal access, level cleared site, utility capacity available."
+        ],
+        "exclusions": [
+          "Garage and covered porch.",
+          "Land/lots.",
+          "Landscaping.",
+          "Permit/impact fees.",
+          "Design.",
+          "Engineering.",
+          "Appliance supply."
+        ],
+        "responsibilities": [],
+        "buildings": [
+          "Detached 1-story ADU"
+        ],
+        "floors": [
+          "1"
+        ],
+        "separateBuildings": true,
+        "laborOnly": false,
+        "materialsOnly": false,
+        "questions": []
+      },
+      "missingInformation": [],
+      "reviewNotes": [
+        "7 quantity or page records from this section lacked a usable page reference and were not used. Confirm quantities against the document before pricing."
+      ]
+    }
+  },
+  {
+    "case": "handyman",
+    "text": "Change only the number of passage lever replacements to two, superseding three in the PDF. The owner supplies both matching sets. Keep all other boundaries.",
+    "extraction": {
+      "summary": "Replace two owner-supplied passage lever handles on interior doors in Boise, Idaho. Excludes door, latch, or trim work. Includes removal, installation, testing, and cleanup.",
+      "facts": [
+        {
+          "basis": "stated",
+          "field": "service",
+          "value": "handyman",
+          "source": "typed scope",
+          "evidence": "\"handyman work in Boise, Idaho\"; confirmed by previousAnswers",
+          "confidence": 1
+        },
+        {
+          "basis": "stated",
+          "field": "location",
+          "value": "Boise, Idaho",
+          "source": "typed scope",
+          "evidence": "\"Boise, Idaho\"; confirmed by previousAnswers",
+          "confidence": 1
+        },
+        {
+          "basis": "stated",
+          "field": "fixtures",
+          "value": "Replace 2 owner-supplied passage lever sets",
+          "source": "submittedScope",
+          "evidence": "\"Change only the number of passage lever replacements to two...The owner supplies both matching sets\"",
+          "confidence": 1
+        },
+        {
+          "basis": "stated",
+          "field": "ownerSupplied",
+          "value": "Owner supplies both passage lever handle sets and all needed parts.",
+          "source": "submittedScope",
+          "evidence": "\"owner supplies both matching sets\"; \"All parts are provided by owner\"",
+          "confidence": 1
+        },
+        {
+          "basis": "stated",
+          "field": "installation",
+          "value": "Remove old handles, install, adjust, function test handle sets, minor debris removal, cleanup.",
+          "source": "handyman.pdf",
+          "evidence": "\"Include removal of old handles, installation, adjustment and functional testing...small debris removal and cleanup\"",
+          "confidence": 1
+        },
+        {
+          "basis": "stated",
+          "field": "exclusions",
+          "value": "No door replacement;  drilling;  painting;  trim repair;  or locksmith work. Exclude all other work.",
+          "source": "handyman.pdf",
+          "evidence": "\"no door replacement, drilling, painting, trim repair or locksmith work. Exclude all other work.\"",
+          "confidence": 1
+        },
+        {
+          "basis": "stated",
+          "field": "access",
+          "value": "Ground floor, ordinary access, normal working hours, single visit.",
+          "source": "handyman.pdf",
+          "evidence": "\"Single visit, ground floor, ordinary access and normal working hours\"",
+          "confidence": 1
+        }
+      ],
+      "conflicts": [
+        {
+          "field": "fixtures",
+          "values": [
+            "Replace 3 owner-supplied passage lever sets (handyman.pdf)",
+            "Replace 2 owner-supplied passage lever sets (submittedScope)"
+          ],
+          "explanation": "User submitted scope changes quantity to two, superseding three in the PDF."
+        }
+      ],
+      "instructions": {
+        "inclusions": [
+          "Removal of old handles",
+          "Installation of new (owner-supplied) passage lever sets",
+          "Adjustment and functional testing",
+          "Minor debris removal and cleanup"
+        ],
+        "exclusions": [
+          "No door replacement",
+          "No latch, drilling, painting, trim repair",
+          "No locksmith work",
+          "Exclude all other work"
+        ],
+        "responsibilities": [
+          "Owner supplies both passage lever handle sets and all required parts"
+        ],
+        "buildings": [],
+        "floors": [
+          "Ground floor"
+        ],
+        "separateBuildings": false,
+        "laborOnly": false,
+        "materialsOnly": false,
+        "questions": []
+      },
+      "missingInformation": [],
+      "reviewNotes": [
+        "1 quantity or page record from this section lacked a usable page reference and were not used. Confirm quantities against the document before pricing."
+      ]
+    }
+  },
+  {
+    "case": "re10",
+    "text": "Change only the drywall hole to 18 by 18 inches, superseding 12 by 12 inches in the PDF. Keep two GFCIs and one P-trap. Spot prime the repair, no whole-room painting. All other scope and exclusions remain.",
+    "extraction": {
+      "summary": "Replace 2 GFCIs; replace 1 PVC P-trap; patch 1 drywall hole (18x18 in), spot prime only. Excludes whole-room painting, other work, permits, structural or concealed-damage repair.",
+      "facts": [
+        {
+          "basis": "stated",
+          "field": "service",
+          "value": "re10",
+          "source": "typed scope",
+          "evidence": "RE-10 SYNTHETIC QA REPAIR SCOPE",
+          "confidence": 1
+        },
+        {
+          "basis": "stated",
+          "field": "location",
+          "value": "Boise, Idaho",
+          "source": "typed scope",
+          "evidence": "Boise, Idaho",
+          "confidence": 1
+        },
+        {
+          "basis": "stated",
+          "field": "electrical",
+          "value": "Replace two existing GFCI receptacles with contractor-supplied standard GFCI; install, test.",
+          "source": "typed scope",
+          "evidence": "replace exactly two existing GFCI receptacles with contractor-supplied standard GFCI receptacles at the same locations; include installation and functional testing.",
+          "confidence": 1
+        },
+        {
+          "basis": "stated",
+          "field": "plumbing",
+          "value": "Replace one leaking 1-1/2 inch PVC sink P-trap, with trap and normal fittings, installation and leak testing.",
+          "source": "typed scope",
+          "evidence": "replace exactly one leaking 1-1/2 inch PVC sink P-trap, including trap, normal fittings, installation and leak testing; existing sink remains.",
+          "confidence": 1
+        },
+        {
+          "basis": "stated",
+          "field": "demolition",
+          "value": "Small debris removal and cleanup included.",
+          "source": "typed scope",
+          "evidence": "Include normal installation supplies, small debris removal and cleanup.",
+          "confidence": 1
+        },
+        {
+          "basis": "stated",
+          "field": "installation",
+          "value": "Contractor supplies and installs all listed materials and disposes of small debris; includes installation supplies.",
+          "source": "typed scope",
+          "evidence": "contractor-supplied standard GFCI receptacles... Include normal installation supplies, small debris removal and cleanup.",
+          "confidence": 1
+        },
+        {
+          "basis": "stated",
+          "field": "materials",
+          "value": "Standard GFCI receptacles, 1-1/2 in PVC P-trap and fittings, 5/8\" Type X drywall, tape, compound, primer.",
+          "source": "typed scope",
+          "evidence": "contractor-supplied standard GFCI...1-1/2 inch PVC sink P-trap...5/8-inch Type X drywall, ... tape, compound, ... spot priming only.",
+          "confidence": 1
+        },
+        {
+          "basis": "stated",
+          "field": "exclusions",
+          "value": "Exclude all other work;  permits;  structural changes and concealed-damage remediation. No whole-room painting.",
+          "source": "typed scope",
+          "evidence": "Exclude all other work, permits, structural changes and concealed-damage remediation. No whole-room painting.",
+          "confidence": 1
+        },
+        {
+          "basis": "stated",
+          "field": "site",
+          "value": "Existing house, ground floor, normal working hours and access.",
+          "source": "typed scope",
+          "evidence": "Existing house, ground floor, normal working hours and access.",
+          "confidence": 1
+        },
+        {
+          "basis": "stated",
+          "field": "otherDetails",
+          "value": "Patch/repair one drywall hole, 18 x 18 inch, 5/8\" Type X, spot prime only.",
+          "source": "typed scope",
+          "evidence": "repair exactly one 18 by 18 inch hole in 5/8-inch Type X drywall ... spot priming only. No whole-room painting.",
+          "confidence": 1
+        }
+      ],
+      "conflicts": [
+        {
+          "field": "otherDetails",
+          "values": [
+            "repair exactly one 12 by 12 inch hole in 5/8-inch Type X drywall",
+            "repair exactly one 18 by 18 inch hole in 5/8-inch Type X drywall"
+          ],
+          "explanation": "PDF scope stated 12x12-inch drywall repair; user scope supersedes to 18x18 inches."
+        }
+      ],
+      "instructions": {
+        "inclusions": [
+          "Replace two GFCI receptacles.",
+          "Replace one 1-1/2 inch PVC sink P-trap.",
+          "Repair one drywall hole, 18 x 18 inches, spot prime only.",
+          "Functional testing of GFCIs and leak testing of P-trap.",
+          "All normal installation supplies.",
+          "Small debris removal and cleanup."
+        ],
+        "exclusions": [
+          "All other work.",
+          "Permits.",
+          "Structural changes.",
+          "Concealed-damage remediation.",
+          "No whole-room painting."
+        ],
+        "responsibilities": [
+          "Contractor supplies GFCIs, P-trap, drywall, tape, compound, and primer.",
+          "Contractor performs installation and removal/clean-up."
+        ],
+        "buildings": [
+          "Existing house"
+        ],
+        "floors": [
+          "Ground floor"
+        ],
+        "separateBuildings": false,
+        "laborOnly": false,
+        "materialsOnly": false,
+        "questions": []
+      },
+      "missingInformation": [
+        "Page citation corrected to the page this section was read from; confirm against the document."
+      ],
+      "reviewNotes": []
+    }
+  }
+]

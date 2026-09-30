@@ -71,7 +71,11 @@ test('a measured drywall patch does not ask for the house area',()=>{
  assert.ok(!dynamicScopeFields({service:'re10'},extraction,[],'Repair the drywall patch.').includes('sqft'));
  extraction.takeoffs[0].quantity=null;
  extraction.takeoffs[0].basis='uncertain';
- assert.ok(dynamicScopeFields({service:'re10'},extraction,[],'Repair the drywall patch.').includes('sqft'));
+ // An unreadable patch measurement still does not make the house floor area
+ // useful. The source clarification must request this patch's dimensions.
+ extraction.clarifications=[{field:'otherDetails',question:'What are the width and height of the drywall hole?',reason:'The patch measurement is unreadable.'}];
+ const missing=dynamicScopeFields({service:'re10'},extraction,[],'Repair the drywall patch.');
+ assert.ok(!missing.includes('sqft'));assert.ok(missing.includes('otherDetails'));
 });
 
 test('saved image confirmation cannot revive an unsupported countertop dimension',()=>{

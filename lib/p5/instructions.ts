@@ -8,12 +8,24 @@ export interface ScopeInstructions {
   laborOnly:boolean; materialsOnly:boolean; questions:string[];
 }
 export const emptyInstructions=():ScopeInstructions=>({inclusions:[],exclusions:[],responsibilities:[],buildings:[],floors:[],separateBuildings:false,laborOnly:false,materialsOnly:false,questions:[]});
+/** Document-handling directions constrain the estimate; they are never a
+ * construction item that can be bought or excluded. Preserve their wording. */
+export function isEstimateHandlingDirection(text:string):boolean{
+ const value=text.replace(/^Confirm whether to include or exclude\s+/i,'').trim();
+ return /^(?:please\s+)?(?:preserve|honou?r|respect|follow|apply)\b[^?]*\b(?:exclusions?|scope boundaries|sheet notes|document instructions)\b/i.test(value)
+  ||/^(?:please\s+)?do not\s+(?:duplicate|multiply|double[- ]count|count again)\b[^?]*\b(?:work|quantities|items|cross[- ]references?|sheets?)\b/i.test(value);
+}
 /** Preserve every interpreted clause. Conflicts are questions, never last-write-wins. */
 export function mergeInstructions(parts:ScopeInstructions[]):ScopeInstructions {
   const merged=emptyInstructions();
   for(const key of ['inclusions','exclusions','responsibilities','buildings','floors','questions'] as const)
     merged[key]=[...new Set(parts.flatMap(p=>p[key]||[]))];
   for(const key of ['separateBuildings','laborOnly','materialsOnly'] as const)merged[key]=parts.some(p=>p[key]);
+  const handling=[...merged.inclusions,...merged.exclusions].filter(isEstimateHandlingDirection);
+  merged.responsibilities=[...new Set([...merged.responsibilities,...handling])];
+  merged.inclusions=merged.inclusions.filter(s=>!isEstimateHandlingDirection(s));
+  merged.exclusions=merged.exclusions.filter(s=>!isEstimateHandlingDirection(s));
+  merged.questions=merged.questions.filter(s=>!isEstimateHandlingDirection(s));
   if(merged.laborOnly&&merged.materialsOnly)merged.questions.push('Instructions request both labor only and materials only. Confirm which responsibility applies to each scope item.');
   for(const included of merged.inclusions)if(merged.exclusions.some(e=>e.trim().toLowerCase()===included.trim().toLowerCase()))merged.questions.push(`Confirm whether to include or exclude ${included}.`);
   merged.questions=[...new Set(merged.questions)];return merged;

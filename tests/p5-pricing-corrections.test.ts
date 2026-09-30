@@ -208,6 +208,14 @@ test('one set of door handles is not charged once for removal and again for repl
  const separate=inputFor(input.scope,tasks,[rules[0],{...rules[1],floor:'Upstairs'}]);
  applyPricingCorrections(separate);assert.equal(separate.resolution.rules.length,2);
 });
+test('three individually enumerated handle replacements retain three units of labor',()=>{
+ const tasks=['first','second','third'].map((ordinal,index)=>({id:'handle-'+index,description:`Remove existing lever handle set from ${ordinal} interior door and install new owner-supplied passage lever handle set, adjust, test operation.`}));
+ const rules=tasks.map(task=>rule(task.id,task.description,'08-71-01',1));
+ const input=inputFor(scopeFor('Replace three existing interior door lever handles with owner-supplied passage lever sets.',{service:'handyman'}),tasks,rules);
+ applyPricingCorrections(input);
+ assert.equal(input.resolution.rules.length,3);
+ assert.equal(input.resolution.rules.reduce((n,r)=>n+(r.quantity.fixed||0),0),3);
+});
 test('integrated vanity top/sink references a positive installed package, never a separate faucet',()=>{
  const tasks=[{id:'vanity',description:'Supply and install one 30-inch vanity'},{id:'top',description:'Supply integrated top and sink'},{id:'tap',description:'Install faucet and reconnect plumbing'}];
  const vanity=rule('vanity',tasks[0].description,'12-41-01',1);

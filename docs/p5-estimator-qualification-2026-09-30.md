@@ -44,6 +44,15 @@ Skoper publishes a useful failure example: default partition heights understated
 11. https://help.handoff.ai/en/articles/9778395-how-do-i-get-local-pricing-in-my-estimates
 12. https://help.handoff.ai/en/articles/13251919-catalogs-a-smarter-way-to-control-pricing-in-handoff
 13. https://www.handoff.ai/pricing
+14. https://arxiv.org/abs/2608.15032
+15. https://arxiv.org/html/2608.15032v1
+16. https://www.handoff.ai/ai-takeoffs
+
+### Published architecture and verification limits
+
+Handoff's August 2026 Handoff-H1 paper describes typed visual detection, a persistent project hierarchy, trade-specific estimation and an independent check with source-drawing access. The authors report 86.1% material coverage and 78.8% quantity precision within 25%, using ten residential plan sets and 1,348 scored primary-material items. This is vendor-authored research with an LLM-assisted scoring method, not independent confirmation of every customer workflow. Model identities and detailed prompts are withheld. The practical lesson for P5 is to retain component facts and check scope and quantities separately; a benchmark aggregate cannot justify accepting an omitted porch, duplicated fixture labor or an incorrect unit.
+
+Live takeoff marketing and help pages retrieved during this review state a 5,000 SF residential limit. A search-index excerpt advertised 7,000 SF. The direct current pages are the documented basis here; eligibility above 5,000 SF remains unverified. Embedded demonstration links were identified, but video playback and authenticated takeoffs were not completed. No hands-on competitor accuracy claim is made.
 
 ## Root causes and repair decisions
 
@@ -140,6 +149,8 @@ The production .4 build reported dirty=true. Its later workspace was clean and m
 
 Local .5 verification: the complete build gate passed 1,538 tests, 15 skips, zero failures; production compilation and TypeScript checks passed. New regression cases exercise the exact observed component omissions, duplicated reconnections, repeated-correction stability, SF/LF mismatch, room-scale protection, pack-size normalization and redundant revision question. These are local results; .5 production retests are pending.
 
+The hosting workspace confirmed tree `16fde8013052ea7696650b35b4b592c89a62ceae`, no tracked modifications, and source digest `9ac8341fac011984ce106a5770e110d4bc3c9222933ae647e65812ace5712622`. Its merge commit is `e59361f38a500d5acf3099dbfcf87898d4748442`, containing reviewed commit `b8e1fd526c539151dc662c28e89d6df883bc34fc`. It independently reported the same full build totals and six passing database-safety checks. Publication was then scheduled. The separate repository lint command remains failing with 849 errors and 103 warnings; the changed production logic introduced no reported new lint location. This is not an all-checks-green claim.
+
 ### Real-document access boundary
 
 Automatic approval review blocked uploading the retrieved private permit set to P5 because this particular disclosure was not specifically authorized. A genuine RE10 was then redacted to remove names, address, signatures, transaction identifiers, links and metadata. Both pages were visually inspected; every repair-text block matches the original exactly. The redacted file SHA-256 is `4b054b77ac18e66de71724a29034b9934910cc7d2ebd10fbfad1f1b1b0e17e89`. Automatic approval review also rejected that upload because the repair contents originated in a private third-party document. Neither rejected attempt created a test draft or uploaded the file. Explicit user approval is required before submitting either source to P5; no alternate route will be used to bypass this boundary.
@@ -147,3 +158,33 @@ Automatic approval review blocked uploading the retrieved private permit set to 
 The redacted RE10 has eight repair groups with 20 requested actions. Expected coverage includes chimney repairs, plumbing vent boots, separate bathroom exhaust terminations and weatherproofing, crawlspace debris/vapor barrier/floor insulation, under-sink traps, hose-bib vacuum breakers, electrical repairs, a sprinkler pump and fireplace work. Counts, areas and several technical specifications are absent and must be asked or carried as clearly supported allowances. Overlapping exterior GFCI wording must be reconciled, and legal boilerplate must create no construction work.
 
 Still open: successful .5 production retests; remaining combined/incomplete/revision cases; real RE10 and permit-set authorization and tests; large realistic multipage/photo combinations; reference-bid and current local price reconciliation; complete delivery verification. No specialist website integration is authorized by a P5 pass yet because no such pass exists.
+
+### Further content review while publication is pending
+
+The synthetic RE10's $450 patch line uses PB-09-01-08. That source row describes a medium patch with minor materials; it does not explicitly state spot priming. The result nevertheless asserts that the book expressly includes spot priming. It also says cleanup carries a one-hour allowance while the three displayed lines contain no separate cleanup allowance. Treat these as unsupported inclusion claims, not verified assembly coverage. The estimate needs a supported component or a genuinely documented assembly inclusion before acceptance.
+
+Customer assumptions currently accumulate intermediate mapping and audit notes. A new-home result simultaneously states that interior utility connections are included and that they lack confirmed coverage. This is a presentation and trust defect. Audit history must remain available internally, while customer disclosures must describe the final priced state and retain actual unresolved assumptions. Merely hiding contradictory notes would not repair an underlying scope omission.
+
+Current supplier checking found a matching 100-piece GRK cabinet-fastener listing at Lowe's showing $16.98. The live page defaulted to Sterling, not Boise, so this is a product/specification and package-arithmetic reference, not verified Boise store pricing or stock. The same page contains unrelated recommended products and generic SF/LF boilerplate; these must not become evidence for the selected SKU. The lookup has not changed the owner price book or certified current local prices.
+
+## Release .5 production retest and .6 repair candidate
+
+The published .5 receipt identifies merge `e59361f38a500d5acf3099dbfcf87898d4748442`, the expected tree, but a different actual source digest `8432847074646d4bfe685bbebe8063fb882101c086a22acc0aa1caffe88d59a3`. Its sole changed tracked path was the root package lockfile. The later workspace lockfile matches the reviewed bytes; the ephemeral build copy is unavailable. The difference cannot be declared harmless. The next release retains baseline/build lock hashes and changed package keys without publishing source URLs or credentials.
+
+| Controlled case | Actual .5 production observation | Acceptance |
+| --- | --- | --- |
+| New-home scanned scope, revision 6 | $714,000–790,000. House 2,000 SF: $660,820–731,159; garage 440 SF: $44,999–49,789; porch 80 SF: $8,181–9,052. Both endpoint sums reconcile exactly. | Porch omission retest passes. Overall local-price and disclosure validation remains open. |
+| Bathroom text, digital PDF, scan | All remain without usable estimates. Saved failures respectively include incompatible screw-package evidence, substrate-preparation units, and drywall screws proposed for cabinet mounting. | Fail. Guarding against an invalid price is necessary but does not satisfy usable-estimate acceptance. |
+| Handyman scan | Audit/correction removed separately numbered second and third handles, treating their remove-and-install tasks as removal duplicates. | Fail. Local .6 correction retains distinct installation tasks; live retest pending. |
+| Whole-home PDF | Reconnection/install coverage remains disputed after correction; no usable estimate. | Fail; specific fixture coverage still requires reconciliation. |
+| Synthetic RE10 PDF | $1,175: two GFCI labor $387, one P-trap $283, patch $446, cleanup $1, GFCI materials $58. Endpoints sum correctly. | Fail. Requested primer coverage is unsupported and cleanup uses 1 SF rather than a justified job allowance. The labor-only GFCI book item genuinely requires separate devices. |
+
+Eight incomplete text cases and eight combined PDF-plus-revision cases were analyzed on .5. New-home intake repeated area/finish/garage questions under instruction wording; the cabinet prompt put base/upper/tall runs in one numeric answer; RE10 asked unrelated whole-project area; a bathroom fixture prompt offered an unspecified placeholder for confirmation; a component kitchen asked room area and omitted component quantities. Local .6 regressions reproduce and repair those question defects. Cabinet and garage typed revisions already superseded old PDF quantities correctly; six other explicit revisions (shower tile, backsplash exclusion, flooring, sewer extension, handle count, patch dimensions) produced redundant conflicts. Sanitized captured extractions now replay those exact six cases. Automatic conflict removal requires a verbatim explicit customer revision and a matching high-confidence extracted fact; unrelated conflicts remain.
+
+Controlled 32-page digital and rasterized plan sets both returned all 32 original pages as read. Both retained 2,000 SF living area, 50-by-40 dimensions, 440 SF garage, 80 SF porch, 18/12 LF cabinet runs, 45 SF counters, three bedrooms, two bathrooms, one story, midrange finishes and final-sheet exclusions. This verifies those controlled facts and page coverage only. These compact files are not a substitute for realistic large-byte permit plans or photographs. Both incorrectly turned document-handling directions into purchase inclusion/exclusion conflicts; the .6 repair keeps those directions as processing responsibilities.
+
+The screw-package failure contains a reproducible parser defect: one excerpt says a one-pound box includes 79 screws; another says 79-per-box using Unicode hyphens. Both can be compared per screw when the modeled box also states 79 pieces. The .6 parser supports those forms, preserves exact package arithmetic and still rejects missing counts or contradictory prices. The substrate-preparation failure is different: room/SF/job observations have no evidenced conversion. That rejection must remain until the task is decomposed into supported components or appropriately matched evidence is obtained.
+
+No .6 production pass is claimed here. The genuine private documents remain blocked pending specific approval. No specialized estimator has been modified or released as part of this qualification effort.
+
+The final local .6 build passed 1,548 tests, with 15 explicit skips and zero failures, plus all six database-safety checks. Production compilation and TypeScript checks passed. An older regression incorrectly demanded house area when a patch measurement was uncertain; it now requires the patch-dimension clarification and rejects unrelated house area. The .4 cabinet revision was independently found in the sender's Sent mailbox at 03:22:31 UTC with the matching $7,375–8,175 range and 176,609-byte PDF. This proves dispatch and matching envelope metadata, not recipient inbox receipt.

@@ -80,9 +80,12 @@ const marketSchema=z.object({rates:z.array(z.object({taskId:text,description:pro
  * research report; neither a modeled run length nor an unrelated listing is a
  * conversion factor. */
 function quotedPackage(excerpt:string,unit:string){
+ excerpt=excerpt.replace(/[\u2010-\u2015\u2212]/g,'-');
  const weight=/\b(\d+(?:\.\d+)?|five)[\s-]*(?:lb|lbs|pounds?)\b/i;
  const count=/\b(\d+(?:\.\d+)?)\s*[- ](?:pack|pk|count|ct|pieces?|pcs?|bags?|sheets?)\b|\b(?:pack|box) of (\d+(?:\.\d+)?)\s*(?:pieces?|pcs?|screws?|shims?|nails?|bags?|sheets?|spacers?)\b|\b(\d+(?:\.\d+)?)\s*(?:pieces?|pcs?)\s*(?:per\s+)?(?:pack|box)\b/i;
- const match=unit==='pound'?excerpt.match(weight):unit==='each'?excerpt.match(count):null;
+ const looseCount=/\b(\d+(?:\.\d+)?)\s*(?:-\s*)?per\s*[- ]\s*(?:box|pack)\b|\b(?:includes|contains)\s+(\d+(?:\.\d+)?)\s+(?:screws?|nails?|pieces?|shims?|spacers?)\b|\b(\d+(?:\.\d+)?)\s+(?:screws?|nails?|pieces?|shims?|spacers?)\s+per\s+(?:box|pack)\b/i;
+ const countExcerpt=excerpt.replace(/\$\s*[\d,.]+|[\d,.]+\s*USD\b/gi,'');
+ const match=unit==='pound'?excerpt.match(weight):unit==='each'?(countExcerpt.match(count)||countExcerpt.match(looseCount)):null;
  if(!match)return null;
  const number=(match[1]||match[2]||match[3]).toLowerCase();
  const factor=number==='five'?5:Number(number);
