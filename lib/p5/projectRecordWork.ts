@@ -14,11 +14,13 @@ import {projectConfiguration} from './projectCatalog.ts';
 import {loadProjectPageEvidence} from './projectPageEvidence.ts';
 import {readProjectConversation,activeProjectChanges} from './projectConversation.ts';
 import {PROJECT_PRICE_COMPILER_VERSION} from './projectPricing.ts';
+import {recoverProjectReply} from './projectReplyRecovery.ts';
+import {loadLocalProjectPages} from './projectLocalPages.ts';
 
 const LATEST='project-record-latest-v1';
 export const PROJECT_WORKFLOW_CONTRACT_HASH=projectHash({version:PROJECT_RECORD_VERSION,compilerVersion:PROJECT_PRICE_COMPILER_VERSION,stages:[PROJECT_COMPLETION_INSTRUCTIONS,PROJECT_RECORD_INSTRUCTIONS,PROJECT_CATALOG_INSTRUCTIONS,PROJECT_PRICE_INSTRUCTIONS,PROJECT_REVIEW_INSTRUCTIONS].map(instructions=>({instructions,schema:projectContractSchema(instructions)}))});
 type QualificationResult=(Awaited<ReturnType<typeof interpretProjectRecord>>|Awaited<ReturnType<typeof priceProjectRecord>>)&{completionPlan?:ProjectCompletionPlan;runEvidence?:{contractHash:string;completedStages:{requestHash:string;requestedModel:string|null;returnedModel:string|null;providerRequestIds:string[]}[]}};
-type StoredWork={startedAt:string;replies:Record<string,PricingReply>;requests?:Record<string,{instructions:string;input:unknown;startedAt:string}>;record?:ProjectRecord;result?:QualificationResult};
+type StoredWork={startedAt:string;replies:Record<string,PricingReply>;recoveredReplies?:Record<string,{workKey:string;recoveredAt:string}>;requests?:Record<string,{instructions:string;input:unknown;startedAt:string}>;record?:ProjectRecord;result?:QualificationResult};
 /** Both a first completion and recovery of a saved completion pass through the
  * same atomic revision guard. Saving provider work is not publication. */
 export async function publishProjectQualification(id:string,expectedRevision:number,result:QualificationResult,execute:typeof query=query){
@@ -55,7 +57,11 @@ export async function runProjectQualification(id:string,expectedRevision:number,
  if(draft.revision!==expectedRevision)throw new DraftError('The project changed. Reload before reviewing it.',409);
  const changes=activeProjectChanges((await readProjectConversation(id)).filter(change=>change.draftRevision<=expectedRevision));
  const scope=draftProjectScope(draft);
- if(draft.uploads.length)scope.pageEvidence=await loadProjectPageEvidence(draft,{deadline:Math.min(deadline,Date.now()+90000)});
+ if(draft.uploads.length){
+  const local=await loadLocalProjectPages(draft),localDigests=new Set(local.documents.map(document=>document.sha256));
+  const remote=await loadProjectPageEvidence({...draft,uploads:draft.uploads.filter(upload=>!localDigests.has(upload.sha256))},{deadline:Math.min(deadline,Date.now()+90000)});
+  scope.pageEvidence={documents:[...local.documents,...remote.documents],issues:[...local.issues,...remote.issues]};
+ }
  const input=projectInput(scope,changes);
  const prior=await readProjectQualification(id);
  const previous=prior?.record&&projectRecordIntegrity(prior.record)?prior.record:null;
@@ -78,6 +84,13 @@ export async function runProjectQualification(id:string,expectedRevision:number,
    if(search)throw new Error('Project-record qualification does not authorize implicit web research.');
    const key=projectHash({instructions,context,search});
    if(payload.replies[key])return payload.replies[key];
+   const savedReplies=await query("SELECT work_key,payload FROM p5_estimator_work WHERE draft_id=$1 AND work_key LIKE 'project-record-work:%' AND work_key<>$3 AND payload->'replies' ? $2 AND payload->'requests' ? $2",[id,key,workKey]);
+   const recovered=recoverProjectReply(savedReplies as {work_key:string;payload:unknown}[],key,instructions,context);
+   if(recovered){
+    payload.requests??={};payload.requests[key]={instructions,input:context,startedAt:new Date().toISOString()};
+    payload.replies[key]=recovered.reply;payload.recoveredReplies??={};payload.recoveredReplies[key]={workKey:recovered.workKey,recoveredAt:new Date().toISOString()};
+    await persist();return recovered.reply;
+   }
    const left=deadline-Date.now();if(left<15000)throw new PricingPending('The completed review stages are saved. Continue to finish the remaining stages.',2000);
    payload.requests??={};payload.requests[key]={instructions,input:context,startedAt:new Date().toISOString()};await persist();
    const checkpoint=async(reply:PricingReply)=>{payload.replies[key]=reply;await persist();};

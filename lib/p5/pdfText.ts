@@ -22,7 +22,7 @@ export async function pdfTextLayers(data:Buffer,expectedPages?:number):Promise<s
   }finally{await task.destroy();}
 }
 /** Rebuild lines from positioned text runs so tables keep their row structure. */
-export function pageTextFromItems(items:{str?:string;hasEOL?:boolean;transform?:number[]}[]):string{
+export function pageTextFromItems(items:{str?:string;hasEOL?:boolean;transform?:number[]}[],maxChars=60000):string{
   const lines:string[]=[];let line='';let lastY:number|null=null;let lastX:number|null=null;
   for(const item of items){
     const text=item.str||'';const y=item.transform?.[5];const x=item.transform?.[4];
@@ -36,5 +36,5 @@ export function pageTextFromItems(items:{str?:string;hasEOL?:boolean;transform?:
     if(item.hasEOL){lines.push(line);line='';lastX=null;}
   }
   if(line)lines.push(line);
-  return lines.map(value=>value.replace(/[ \t]+/g,' ').trimEnd()).filter((value,index,all)=>value||all[index-1]).join('\n').replace(/\n{3,}/g,'\n\n').trim().slice(0,60000);
+  return lines.map(value=>value.replace(/[ \t]+/g,' ').trimEnd()).filter((value,index,all)=>value||all[index-1]).join('\n').replace(/\n{3,}/g,'\n\n').trim().slice(0,maxChars);
 }
