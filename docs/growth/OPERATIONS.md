@@ -105,3 +105,8 @@ Keep new measurements in the private record. September 29 campaign traffic inclu
 Cabinet's cabinet_storage_plan is now published, verified at 16:00:54 UTC. Its entry has moved from scheduled to published in publications.json. Do not repost it. Six future posts remain in the recorded queue through October 9.
 
 Do not update Facebook's existing multiple-website field using FACEBOOK_UPDATE_PAGE_SETTINGS. A six-link payload was accepted but malformed the first link's tracking query, and restoring the original full string did not repair it. Other returned website destinations remain present. Repair individual entries in the native page editor with authorized access; do not replace the entire list with one URL. See the private operations record for the approval and access blockers.
+
+
+## September 30 Facebook link repair completed
+
+After the owner completed Facebook verification, the native P5 page editor allowed a narrow two-entry repair. Official Website is restored to the tracked P5 homepage. The ADU entry now points to https://p5homeco.com/quote/adu?utm_source=facebook&utm_medium=referral&utm_campaign=local_listings&utm_content=boise-adu-co. Remodeling, Construction, Cabinet and Handyman entries were preserved. Saved public link text verified all six destinations. This supersedes the earlier unresolved repair status. Continue using native individual-entry editing for website changes, not the integration's multiple-link website field.
