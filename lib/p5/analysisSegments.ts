@@ -1,6 +1,7 @@
 import {PDFDocument} from 'pdf-lib';
 import {drawingDetails} from './planRendering.ts';
 import {pdfTextLayers} from './pdfText.ts';
+import {withFormControlViews} from './formControlViews.ts';
 import {openablePdf,renderedPagePdf} from './pdfAccess.ts';
 import type {AnalysisFile} from './extraction.ts';
 import {SCOPE_MAX_PAGES} from './scope.ts';
@@ -55,7 +56,13 @@ export async function* analysisSegments(file:AnalysisFile,startPage=0,render:typ
       }
       const data=await singlePage(index);
       if(data.length>UNIT_BYTES){try{yield* detailPage(index);}catch(error){yield {...file,data:Buffer.alloc(0),pages:[{source:file.name,page:index+1}],preparationError:`Page ${index+1}: could not prepare its high-resolution content. ${error instanceof Error?error.message:''}`,nextPage:index+1};}}
-      else yield {...file,name:count===1?file.name:`${file.name} (page ${index+1} of ${count})`,pages:[{source:file.name,page:index+1}],data,text:layer(index)||undefined,context:context(index)||undefined,nextPage:index+1};
+      else {
+        // Supplemental views retain one original-page identity. An unavailable
+        // enhancement never discards the complete original page.
+        const prepared=await withFormControlViews(data,rendered?{data:file.data,page:index+1}:undefined).catch(error=>{console.error('[p5-analysis] form detail rendering unavailable:',error instanceof Error?error.message:String(error));return {data,formViews:undefined};});
+        const views=prepared.data.length<=UNIT_BYTES?prepared:{data,formViews:undefined};
+        yield {...file,name:count===1?file.name:`${file.name} (page ${index+1} of ${count})`,pages:[{source:file.name,page:index+1}],...views,text:layer(index)||undefined,context:context(index)||undefined,nextPage:index+1};
+      }
     }
   }else if(['text/plain','text/csv','application/json'].includes(file.type)){
     const text=file.data.toString('utf8');

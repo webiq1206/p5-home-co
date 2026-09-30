@@ -1,10 +1,11 @@
 import {createHash} from 'node:crypto';
 import type {ReviewedScope} from './scope.ts';
 import {projectUnit,sameProjectDimension,combineProjectUnits,sourceNumbers} from './projectUnits.ts';
-import {PROJECT_RECORD_VERSION,projectProposalSchema,type ProjectProposal,type ProjectQuantityValue,type ProjectQuestion} from './projectRecordContracts.ts';
+import {PROJECT_RECORD_VERSION,projectProposalSchema,projectProposalWireFor,type ProjectProposal,type ProjectQuantityValue,type ProjectQuestion} from './projectRecordContracts.ts';
 import type {ProjectChange} from './projectConversation.ts';
 import type {ProjectPageEvidence} from './projectPageEvidence.ts';
 import {quotationFeedback} from './quotationFeedback.ts';
+import {sourcePassageIndex} from './projectCitations.ts';
 
 export interface ProjectSource {
  id:string;kind:'customer-text'|'reviewed-answer'|'document-transcript'|'native-page-text'|'page-layout'|'reader-observation'|'customer-clarification'|'customer-revision';
@@ -224,7 +225,13 @@ export function validateProjectRecord(proposal:ProjectProposal,input:ProjectInpu
 }
 
 export function acceptProjectRecord(raw:unknown,input:ProjectInput,previous:ProjectRecord|null=null,now=new Date()):ProjectRecord{
- const proposal=projectProposalSchema.parse(raw),problems=validateProjectRecord(proposal,input);
+ const wire=raw&&typeof raw==='object'&&'sourceAssessments'in raw?projectProposalWireFor(input.sources).parse(raw):null;
+ const passages=sourcePassageIndex(input.sources);
+ const canonical=wire?(()=>{const {sourceAssessments,evidence,...body}=wire;return {...body,
+  evidence:evidence.map(reference=>({id:reference.id,...passages.get(reference.passageId)!})),
+  sourceReviews:input.sources.map(source=>({sourceId:source.id,...sourceAssessments[source.id]})),
+ };})():raw;
+ const proposal=projectProposalSchema.parse(canonical),problems=validateProjectRecord(proposal,input);
  if(problems.length)throw new ProjectRecordError(problems);
  const recordHash=projectHash({version:PROJECT_RECORD_VERSION,sourceHash:input.sourceHash,proposal});
  if(previous?.recordHash===recordHash)return previous;

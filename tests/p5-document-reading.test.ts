@@ -77,11 +77,12 @@ test('page text keeps row structure from positioned runs',()=>{
 test('the text layer and context travel to the provider and a page read keeps its whole allowance',async()=>{
  await withProviders({OPENAI_API_KEY:'fixture-only',ANTHROPIC_API_KEY:'fixture-only',P5_SCOPE_PROVIDER:'openai'},async()=>{
   const calls:string[]=[];
-  const result=await analyzeBatch('Price this build',[{name:'budget.pdf (page 2 of 3)',type:'application/pdf',data:Buffer.from('%PDF-synthetic'),pages:[{source:'budget.pdf',page:2}],text:'Roofing and Gutters: architectural shingles',context:'[Following page 3 excerpt] Allowance: septic system'}],{},async(url,options)=>{
+  const result=await analyzeBatch('Price this build',[{name:'budget.pdf (page 2 of 3)',type:'application/pdf',data:Buffer.from('%PDF-synthetic'),pages:[{source:'budget.pdf',page:2}],text:'Roofing and Gutters: architectural shingles',formViews:1,context:'[Following page 3 excerpt] Allowance: septic system'}],{},async(url,options)=>{
    calls.push(String(url));const body=JSON.parse(String(options?.body));
    const texts=body.input[0].content.filter((v:any)=>v.type==='input_text').map((v:any)=>v.text);
    assert.ok(texts.some((t:string)=>/Text layer extracted/.test(t)&&/architectural shingles/.test(t)),'text layer is supplied');
    assert.ok(texts.some((t:string)=>/Adjacent-page context/.test(t)&&/septic/.test(t)),'adjacent context is supplied');
+   assert.ok(texts.some((t:string)=>/FORM CONTROL EVIDENCE/.test(t)&&/not selected/.test(t)&&/same original page manifest/.test(t)),'form details carry selection and original-page instructions');
    assert.ok(body.input[0].content.some((v:any)=>v.type==='input_file'),'the page itself is still supplied');
    await new Promise(r=>setTimeout(r,60));
    return openAiReply([{source:'budget.pdf',page:2}]);

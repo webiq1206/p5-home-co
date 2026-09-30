@@ -7,6 +7,7 @@ import {projectInput,acceptProjectRecord,ProjectRecordError,type ProjectRecord,t
 import {projectPriceSelection,projectPriceProposalFromWire,compileProjectPrices,calculateProjectEstimate,projectReviewReceipt,validateProjectReview,type ProjectPriceSelection} from './projectPricing.ts';
 import type {ProjectChange} from './projectConversation.ts';
 import {verifiedReviewCatalog} from './projectReviewEvidence.ts';
+import {projectSourceContext} from './projectCitations.ts';
 
 export interface ProjectWorkflowOptions {request?:PricingRequest;previous?:ProjectRecord|null;changes?:ProjectChange[];now?:Date;deadline?:number;completionPlan?:ProjectCompletionPlan}
 export interface ProjectReadResult {status:'ready'|'questions'|'needs-resolution';record:ProjectRecord|null;problems:RecordProblem[];attempts:number;completionPlan?:ProjectCompletionPlan}
@@ -18,19 +19,20 @@ function shapeProblems(error:unknown):RecordProblem[]{
 function budget(options:ProjectWorkflowOptions){const deadline=options.deadline||Date.now()+600000;return ()=>{const left=deadline-Date.now();if(left<1000)throw new Error('project-workflow-paused');return left;};}
 export async function interpretProjectRecord(scope:ProjectScope,options:ProjectWorkflowOptions={}):Promise<ProjectReadResult>{
  const input=projectInput(scope,options.changes),request=options.request||requestPricing,remaining=budget(options),now=options.now||new Date();
+ const citedSources=projectSourceContext(input.sources);
  // Incomplete uploads are repaired by the document reader, never ignored by
  // asking a text model to certify pages it did not receive.
  if(input.documentIssues.length)return {status:'needs-resolution',record:null,problems:input.documentIssues.map(message=>({code:'document-coverage',ids:[],message})),attempts:0};
  let problems:RecordProblem[]=[],candidate:ProjectProposal|unknown=null,completionCandidate:unknown=null,completionPlan:ProjectCompletionPlan|undefined;
  for(let attempt=1;attempt<=2&&!completionPlan;attempt++){
-  const response=await request(PROJECT_COMPLETION_INSTRUCTIONS,{sources:input.sources,...(attempt>1?{previousProposal:completionCandidate,correctionsRequired:problems}:{})},false,remaining());
+  const response=await request(PROJECT_COMPLETION_INSTRUCTIONS,{sources:citedSources,...(attempt>1?{previousProposal:completionCandidate,correctionsRequired:problems}:{})},false,remaining());
   completionCandidate=response.value;
   try{completionPlan=acceptProjectCompletion(completionCandidate,input);}catch(error){problems=shapeProblems(error);}
  }
  if(!completionPlan)return {status:'needs-resolution',record:null,problems,attempts:2};
  problems=[];
  for(let attempt=1;attempt<=2;attempt++){
-  const response=await request(PROJECT_RECORD_INSTRUCTIONS,{sources:input.sources,completionPlan,previousRecord:options.previous||null,...(candidate?{previousProposal:candidate,correctionsRequired:problems}:{}),purpose:'Preliminary construction estimate; preserve exact project boundaries and disclose uncertainty.'},false,remaining());
+  const response=await request(PROJECT_RECORD_INSTRUCTIONS,{sources:citedSources,completionPlan,previousRecord:options.previous||null,...(candidate?{previousProposal:candidate,correctionsRequired:problems}:{}),purpose:'Preliminary construction estimate; preserve exact project boundaries and disclose uncertainty.'},false,remaining());
   candidate=response.value;
   let record:ProjectRecord;
   try{record=acceptProjectRecord(candidate,input,options.previous||null,now);}catch(error){problems=shapeProblems(error);continue;}

@@ -35,7 +35,7 @@ export class IncompleteAnalysisError extends DraftError {
   }
 }
 
-type Unit={name:string;type:string;object:string;uploadId?:string;pages?:AnalysisFile['pages'];text?:string;context?:string;detailViews?:boolean;detailRegions?:AnalysisFile['detailRegions'];result?:AnalysisResult;attempts?:number;rateLimitRetries?:number;error?:string;lastCode?:string;retryAt?:number;active?:boolean};
+type Unit={name:string;type:string;object:string;uploadId?:string;pages?:AnalysisFile['pages'];text?:string;context?:string;detailViews?:boolean;formViews?:number;detailRegions?:AnalysisFile['detailRegions'];result?:AnalysisResult;attempts?:number;rateLimitRetries?:number;error?:string;lastCode?:string;retryAt?:number;active?:boolean};
 type Job={prepared:number;units:Unit[];notes:string[];preparationFailures?:string[];textDone?:AnalysisResult;textPrepared?:boolean;cursor?:number;expected?:{source:string;page:number}[];progress?:string;processing?:ProcessingStatus;concurrency?:number;cooldownUntil?:number};
 /** Reads of one section before it is reported as unread. PDF retries may
  * change transport, but must retain the visual source on every attempt. */
@@ -215,7 +215,7 @@ async function advanceLocalAnalysis(draft:Draft,text:string,answers:ScopeAnswers
             if(segment.preparationError){fileFailed=true;prepareFailed(file.name);job.units.push({name:segment.name,type:segment.type,object:'',uploadId:upload.id,pages:segment.pages,error:segment.preparationError,lastCode:'preparation',attempts:MAX_READ_ATTEMPTS});event('prepare','failed',{file:segment.name,code:'preparation',message:segment.preparationError});job.cursor=segment.nextPage;await checkpoint();continue;}
             const saved=await client.uploadFromBytes(object,segment.data,{compress:false});
             if(!saved.ok)throw new DraftError('Document preparation was interrupted. Retry to resume.',503);
-            job.units.push({name:segment.name,type:segment.type,object,uploadId:upload.id,pages:segment.pages,text:segment.text,context:segment.context,detailViews:segment.detailViews,detailRegions:segment.detailRegions});
+            job.units.push({name:segment.name,type:segment.type,object,uploadId:upload.id,pages:segment.pages,text:segment.text,context:segment.context,detailViews:segment.detailViews,formViews:segment.formViews,detailRegions:segment.detailRegions});
             if(segment.nextPage!==undefined){job.cursor=segment.nextPage;await checkpoint();if(Date.now()-preparedAt>PREPARE_WINDOW_MS||job.units.filter(pending).length>=analysisConcurrency()*2){finished=false;break;}}
           }
         }catch(error){if(error instanceof DraftError||isProcessingDeadline(error))throw error;fileFailed=true;const message=`${file.name}: ${error instanceof Error?error.message:'Could not read this file.'} Review the original before pricing.`;job.notes.push(message);prepareFailed(file.name);job.units.push({name:file.name,type:file.type,object:'',uploadId:upload.id,error:message,lastCode:'preparation',attempts:MAX_READ_ATTEMPTS});event('prepare','failed',{file:file.name,code:'prepare-error',message:error instanceof Error?error.message:String(error),durationMs:Date.now()-preparing});}
@@ -249,7 +249,7 @@ async function advanceLocalAnalysis(draft:Draft,text:string,answers:ScopeAnswers
           const allowance=Math.min(READ_ALLOWANCE_MS,absoluteDeadline-Date.now());
           // A text layer cannot represent checkmarks, strikeouts or geometry.
           // If rendering fails, preserve the failed read rather than certify text.
-          const file:AnalysisFile={name:unit.name,type:unit.type,data:saved.value[0],pages:unit.pages,text:unit.text,context:unit.context,detailViews:unit.detailViews,detailRegions:unit.detailRegions};
+          const file:AnalysisFile={name:unit.name,type:unit.type,data:saved.value[0],pages:unit.pages,text:unit.text,context:unit.context,detailViews:unit.detailViews,formViews:unit.formViews,detailRegions:unit.detailRegions};
           const input=await analysisAttemptFiles(file,unit.attempts);
           unit.result=await analyzeBatch(text.length>48000?'The complete typed scope is processed in saved sections; use the interpreted scope instructions.':text,input,context,request,allowance,Date.now()+allowance,{event:{draftId:draft.id,estimator:answers.service||null,file:unit.name}});
           delete unit.error;delete unit.retryAt;delete unit.lastCode;

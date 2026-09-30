@@ -335,8 +335,15 @@ test('the workflow performs separate scope and pricing reviews with no legacy co
  const calls:string[]=[];
  const request:PricingRequest=async(instructions,input)=>{
   calls.push(instructions);const data=input as any;
-  if(instructions===PROJECT_COMPLETION_INSTRUCTIONS){assert.equal(data.record,undefined);assert.equal(data.catalog,undefined);return {value:method({sources:data.sources,sourceHash:'unused',documentIssues:[]}),sourceUrls:[]};}
-  if(instructions===PROJECT_RECORD_INSTRUCTIONS){const value=example({sources:data.sources,sourceHash:'unused',documentIssues:[]});value.requirements[0].operation='install';return {value,sourceUrls:[]};}
+  if(instructions===PROJECT_COMPLETION_INSTRUCTIONS){
+   assert.equal(data.record,undefined);assert.equal(data.catalog,undefined);assert.ok(data.sources.every((source:{id:string;passages:{id:string}[]})=>!('text'in source)&&source.passages.length));
+   const value=method(projectInput(scope));
+   return {value:{sourceChecks:Object.fromEntries(data.sources.map((source:{id:string;passages:{id:string}[]})=>[source.id,'Checked against current scope.'])),steps:value.steps.map(step=>({...step,evidence:[{passageId:data.sources[0].passages[0].id}]}))},sourceUrls:[]};
+  }
+  if(instructions===PROJECT_RECORD_INSTRUCTIONS){
+   const {sourceReviews,evidence,...value}=example(projectInput(scope));value.requirements[0].operation='install';
+   return {value:{...value,sourceAssessments:Object.fromEntries(sourceReviews.map(({sourceId,...assessment})=>[sourceId,assessment])),evidence:evidence.map(item=>({id:item.id,passageId:data.sources.find((source:{id:string;passages:{id:string}[]})=>source.id===item.sourceId).passages[0].id}))},sourceUrls:[]};
+  }
   if(instructions===PROJECT_CATALOG_INSTRUCTIONS){assert.equal(data.catalogIndex.length,config.planningCatalog!.rates.length);return {value:{requirements:[{requirementId:'replace-handles',candidates:[{rateId:'PB-08-71-01',reason:'Specific replacement labor'}],unmatchedReason:''}]},sourceUrls:[]};}
   if(instructions===PROJECT_PRICE_INSTRUCTIONS){assert.deepEqual(data.catalog.map((rate:any)=>rate.code),['PB-08-71-01'],'The first costing attempt sees semantic matches without unrelated catalog descriptions.');return {value:wireProposal(),sourceUrls:[]};}
   assert.equal(instructions,PROJECT_REVIEW_INSTRUCTIONS);
@@ -457,7 +464,7 @@ test('repeated invalid review evidence stops with the unchanged selection and ne
  const result=await priceProjectRecord(r,config,{request,now});assert.equal(result.status,'needs-resolution');assert.equal(priceCalls,1);assert.equal(reviewCalls,2);
  assert.ok(result.problems.some(p=>p.code==='review-catalog-evidence'));
 });
-test('a no-correction finding triggers review repair without repricing or automatic acceptance',async()=>{
+test('a no-correction finding, including the live explanatory continuation, requires a new review without repricing or automatic acceptance',async()=>{
  const r=record();let prices=0,reviews=0;
  const rate=config.planningCatalog!.rates.find(rate=>rate.code==='PB-08-71-01')!;
  const invalid={...review(r),findings:[{id:'confirmation',code:'rate-fit',requirementIds:['replace-handles'],quantityIds:[],lineIds:['install'],evidenceIds:[],catalogEvidence:[{rateId:rate.code,quote:rate.description}],message:'PB-08-71-01 is the most specific per-door rate.',requiredCorrection:'None required.'}]};
@@ -468,8 +475,11 @@ test('a no-correction finding triggers review repair without repricing or automa
   if(reviews===2)assert.ok((input as any).correctionsRequired.some((p:any)=>p.code==='review-nonactionable-finding'));
   return {value:repair&&reviews===2?review(r):invalid,sourceUrls:[]};
  }});
- assert.equal((await run(true)).status,'estimated');assert.equal(prices,1);assert.equal(reviews,2);
- prices=0;reviews=0;
- const blocked=await run(false);assert.equal(blocked.status,'needs-resolution');assert.equal(prices,1);assert.equal(reviews,2);
- assert.ok(blocked.problems.some(p=>p.code==='review-nonactionable-finding'));
+ for(const correction of ['None required.','None required\u2014both rates are scope-appropriate and the estimate matches task size.','No correction is needed because the selected rate fits.','No change to this line; reassess the other line.']){
+  invalid.findings[0].requiredCorrection=correction;prices=0;reviews=0;
+  assert.equal((await run(true)).status,'estimated');assert.equal(prices,1);assert.equal(reviews,2);
+  prices=0;reviews=0;
+  const blocked=await run(false);assert.equal(blocked.status,'needs-resolution');assert.equal(prices,1);assert.equal(reviews,2);
+  assert.ok(blocked.problems.some(p=>p.code==='review-nonactionable-finding'));
+ }
 });

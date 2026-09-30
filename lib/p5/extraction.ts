@@ -15,7 +15,7 @@ import {openablePdf,renderedPagePdf,renderedPageImage} from "./pdfAccess.ts";
 import {INSTRUCTION_POLICY} from './instructions.ts';
 import {coverageFor,combineCoverage} from './documentLedger.ts';
 
-export interface AnalysisFile { name: string; type: string; data: Buffer; pages?:{source:string;page:number}[];nextPage?:number;preparationError?:string;detailViews?:boolean;detailRegions?:{columns:number;rows:number;tiles:number[];blankTiles:number[];inspectedTiles:number};
+export interface AnalysisFile { name: string; type: string; data: Buffer; pages?:{source:string;page:number}[];nextPage?:number;preparationError?:string;detailViews?:boolean;formViews?:number;detailRegions?:{columns:number;rows:number;tiles:number[];blankTiles:number[];inspectedTiles:number};
   /** Text layer extracted locally from this page: exact strings for evidence, and a complete fallback when a provider cannot accept the page bytes. */
   text?:string;
   /** Excerpts of adjacent pages for continuity. No page or takeoff records are produced for them. */
@@ -135,6 +135,9 @@ const DOCUMENT_POLICY=`${INSTRUCTION_POLICY}  FORM AND INSPECTION SEMANTICS: Pri
 const OUTPUT_BREVITY='OUTPUT BREVITY: The record is read by software, not a person. sourceText preserves the full visible project requirements and is exempt from summary limits. Keep interpreted strings short: evidence is the shortest excerpt that supports the value (at most 200 characters, never a whole paragraph); summary at most 500 characters; each takeoff description at most 120 characters; each note, issue or question at most 200 characters. Apart from the required sourceText transcription, do not restate the document, repeat the same evidence in several places, or describe routine processing. Completeness of distinct facts, pages and takeoffs matters; length does not.';
 const FACT_VALUE_POLICY='CUSTOMER SOURCE CITATIONS: A quantity supplied or revised by the customer cites source "typed scope", page 0, with the actual instruction excerpt. Page 0 means no physical document page; never attribute a customer revision to an older drawing page. Cite the original drawing separately only for unchanged specifications it actually supports. FACT OUTPUT CONTRACT: facts is a sparse list, not a form to fill. Omit an entire fact record when its value is unknown, irrelevant, empty or whitespace. Never emit an empty-string value, including for cabinetRoom or cabinetBaseLf on non-cabinet work. Do not emit placeholders such as N/A or unknown. Retain all supported nonempty facts and every page/takeoff record; this does not permit dropping evidence, pages or uncertain takeoffs.';
 
+function formViewContext(file:AnalysisFile):string {
+ return `FORM CONTROL EVIDENCE: The first view is the complete original page. The appended contact sheets show ${file.formViews} enlarged candidate controls beside their original rows. Every view belongs to the same original page manifest ${JSON.stringify(file.pages||[])}; do not count contact sheets as new source pages or duplicate work. The text layer may encode checkbox outlines as registered signs or diaeresis, and checkmarks as digits. These symbols and digits are not quantities or proof of selection. Inspect every control close-up together with its label and original page. In sourceText explicitly label each applicable alternative [selected], [not selected], or [uncertain]. Empty boxes are not selected, including clauses next to signatures. An unchecked conditional clause cannot become an active instruction, exclusion or agreement status solely because its printed wording appears. Unclear controls remain uncertain. The software has not decided selection from the glyph or clause wording.`;
+}
 function detailViewContext(file:AnalysisFile):string|null {
   if(!file.detailViews||file.pages?.length!==1)return null;
   return `PREPARED DETAIL VIEWS: Every internal PDF page is an overlapping enlarged crop of the SAME original source ${JSON.stringify(file.pages[0])}. Internal PDF view numbers are NOT original page numbers. Use the exact original source and page above for EVERY takeoff source and page review record. Crop grid in row-major order: ${JSON.stringify(file.detailRegions||null)}. All omitted blankTiles were individually inspected pixel by pixel and are exactly opaque white. No region containing even one nonwhite pixel was omitted. Return one page review record for this supplied group. Review all supplied crops; other groups cover the rest of the sheet. Status read means every supplied crop is readable or visibly blank, not that unseen sibling crops were reviewed. A region containing only excluded work or a generic sheet label is NOT unreadable. Mark partial/unreadable only when actual content in these enlarged crops cannot be read, and identify it. The application requires ALL groups to pass before marking an original page fully read. Do not request information just because it is outside this group, and do not invent exclusions for other marks, rooms or sheets absent from this group.`;
@@ -208,6 +211,7 @@ function asInputContent(files: AnalysisFile[], text: string, previous: ScopeAnsw
   for (const file of files) {
     content.push({ type: "input_text", text: `Source filename: ${file.name}\nOriginal page manifest: ${JSON.stringify(file.pages||[])}` });
     const detailContext=detailViewContext(file);if(detailContext)content.push({type:'input_text',text:detailContext});
+    if(file.formViews)content.push({type:'input_text',text:formViewContext(file)});
     if(file.text&&!TEXT_TYPES.includes(file.type))content.push({type:'input_text',text:`${TEXT_LAYER_NOTE}\n${wellFormed(file.text)}`});
     if(file.context)content.push({type:'input_text',text:`${CONTEXT_NOTE}\n${wellFormed(file.context)}`});
     if (file.type === "application/pdf") content.push({ type: "input_file", filename: file.name, file_data: `data:application/pdf;base64,${file.data.toString("base64")}` });
@@ -266,6 +270,7 @@ async function analyzeWithAnthropic(provider: Provider, text: string, files: Ana
   for (const file of files) {
     content.push({ type: "text", text: `Source filename: ${file.name}\nOriginal page manifest: ${JSON.stringify(file.pages||[])}` });
     const detailContext=detailViewContext(file);if(detailContext)content.push({type:'text',text:detailContext});
+    if(file.formViews)content.push({type:'text',text:formViewContext(file)});
     if(file.text&&!TEXT_TYPES.includes(file.type))content.push({type:'text',text:`${TEXT_LAYER_NOTE}\n${wellFormed(file.text)}`});
     if(file.context)content.push({type:'text',text:`${CONTEXT_NOTE}\n${wellFormed(file.context)}`});
     if (file.type === "application/pdf") content.push({ type: "document", source: { type: "base64", media_type: "application/pdf", data: file.data.toString("base64") } });

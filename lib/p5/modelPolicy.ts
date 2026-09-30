@@ -1,7 +1,9 @@
 /** Required estimating model. Legacy host settings cannot silently change quality. */
 export const ESTIMATOR_MODEL = 'gpt-4.1';
 export const ESTIMATOR_MODEL_SNAPSHOT = 'gpt-4.1-2025-04-14';
-export const MODEL_POLICY_VERSION = 'gpt-4.1-required-2026-09-26';
+// Saved reads must also meet the current visual source-evidence policy. The
+// required model and accepted snapshot do not change when this policy advances.
+export const MODEL_POLICY_VERSION = 'gpt-4.1-required-form-evidence-2026-09-30';
 
 export class EstimatorModelError extends Error {
   readonly code: 'estimator-model-unverified' | 'estimator-model-mismatch';

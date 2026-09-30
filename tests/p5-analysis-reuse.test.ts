@@ -94,6 +94,8 @@ test('P5 reuses a verified complete source read when a supplied answer became an
  assert.equal(selectSourceEquivalentAnalysis([candidate,candidate],input),null);
  const wrong=structuredClone(candidate);wrong.payload.result.analysis.modelPolicy='unverified-legacy';
  assert.equal(selectSourceEquivalentAnalysis([wrong],input),null);
+ const oldReader=structuredClone(candidate);oldReader.payload.result.analysis.modelPolicy='gpt-4.1-required-2026-09-26';
+ assert.equal(selectSourceEquivalentAnalysis([oldReader],input),null,'A verified model from the earlier reading policy cannot hide the new form evidence path.');
  const partial=structuredClone(candidate);partial.payload.result.analysis.extraction.documentCoverage.complete=false;
  assert.equal(selectSourceEquivalentAnalysis([partial],input),null);
  const conflict=structuredClone(extraction);conflict.facts[0].value='Meridian';

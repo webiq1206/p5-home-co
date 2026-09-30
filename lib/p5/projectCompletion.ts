@@ -1,6 +1,7 @@
 import {projectCompletionSchema,projectCompletionWireFor,type ProjectCompletion,type ProjectReview} from './projectRecordContracts.ts';
 import {projectHash,ProjectRecordError,type ProjectInput,type ProjectRecord,type RecordProblem} from './projectRecord.ts';
 import {quotationFeedback} from './quotationFeedback.ts';
+import {sourcePassageIndex} from './projectCitations.ts';
 
 export interface ProjectCompletionPlan extends ProjectCompletion {sourceHash:string;planHash:string;sourceChecks?:Record<string,string>}
 const normalize=(value:string)=>value.normalize('NFKC').replace(/\s+/g,' ').trim();
@@ -8,7 +9,8 @@ const normalize=(value:string)=>value.normalize('NFKC').replace(/\s+/g,' ').trim
  * evidence. Keep its identity and original quotations available for audit. */
 export function acceptProjectCompletion(raw:unknown,input:ProjectInput):ProjectCompletionPlan{
  const wire=raw&&typeof raw==='object'&&'sourceChecks'in raw?projectCompletionWireFor(input.sources).parse(raw):null;
- const plan=wire?{reviewedSourceIds:Object.keys(wire.sourceChecks),sourceChecks:wire.sourceChecks,steps:wire.steps}:projectCompletionSchema.parse(raw),problems:RecordProblem[]=[],sources=new Map(input.sources.map(source=>[source.id,source]));
+ const passages=sourcePassageIndex(input.sources);
+ const plan=wire?{reviewedSourceIds:input.sources.map(source=>source.id),sourceChecks:wire.sourceChecks,steps:wire.steps.map(step=>({...step,evidence:step.evidence.map(reference=>({...passages.get(reference.passageId)!}))}))}:projectCompletionSchema.parse(raw),problems:RecordProblem[]=[],sources=new Map(input.sources.map(source=>[source.id,source]));
  const fail=(code:string,ids:string[],message:string)=>problems.push({code,ids,message});
  const reviewed=new Set(plan.reviewedSourceIds);
  if(reviewed.size!==plan.reviewedSourceIds.length)fail('completion-source',[],'Each source must be reviewed once in the work method.');

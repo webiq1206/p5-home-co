@@ -140,7 +140,7 @@ export async function queuedJob(input:Input,retry=false,holdMs=JOB_HOLD_MS){
   if(holdMs>0)await driveJob(input.draft.id,key,holdMs);else void ensureRunning(input.draft.id,key);
   const [row]=await query('SELECT payload FROM p5_estimator_work WHERE draft_id=$1 AND work_key=$2',[input.draft.id,key]);
   const job=row.payload as Job;
-  if(job.state==='complete'&&input.kind==='analysis'&&!hasVerifiedAnalysis(job.result?.analysis))throw new DraftError('This saved analysis predates verified GPT-4.1 processing. Your files are preserved. Use Retry to verify the project with the required model.',422);
+  if(job.state==='complete'&&input.kind==='analysis'&&!hasVerifiedAnalysis(job.result?.analysis))throw new DraftError('This saved analysis predates the current document-reading checks. Your files are preserved. Use Retry to verify the project with the required GPT-4.1 model and current source evidence.',422);
   if(SOURCE_COVERAGE_REQUIRED&&job.state==='complete'&&input.kind==='analysis'&&input.draft.uploads.length){
     const extraction=job.result?.analysis?.extraction;
     if(!extraction)throw new DraftError('Saved analysis result is missing; your files are preserved. Please retry.',503);
