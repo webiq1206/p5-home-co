@@ -2221,3 +2221,20 @@ test('generic consumable formatting retains reviewed installation quantities and
  },()=>60000,()=>{},[],local);
  assert.ok(called);assert.deepEqual((accepted.value as any).rates,[],'no rate is fabricated when evidence is absent');
 });
+
+test('four-decimal tile-spacer display prices preserve exact supplier package arithmetic',()=>{
+ const raw=structuredClone(researched),rate=raw.rates[0];rate.unit='EA';rate.quantity=400;rate.quantityEvidence='ALLOWANCE: 400 spacers';rate.quantityRange={low:200,high:400};
+ rate.sources=[{...source(urls[0],.0763,.0763),unit:'EA',excerpt:'Roto-Wedge Spacers (75 pack), $5.72 per package.'},{...source(urls[1],.0315,.0315),unit:'each',excerpt:'Tile spacers (400-Pack), $12.59 per set.'}];
+ const result=marketResolution(raw,urls,[extra],now);assert.equal(result.rules[0].unitCost,.0539);
+ assert.match(result.assumptions.join(' '),/5.72 USD divided by 75/);
+ rate.sources[0].low=rate.sources[0].high=.0768;assert.throws(()=>marketResolution(raw,urls,[extra],now),/Package price does not match/);
+});
+
+test('counted bag and sanding-sheet packages preserve total price and reject unsupported counts',()=>{
+ for(const [unit,noun,count] of [['pack (50 bags)','bags',50],['pack (5 sheets)','sheets',5]] as const){
+  const raw=structuredClone(researched),rate=raw.rates[0];rate.unit=unit;rate.quantity=1;rate.quantityEvidence='ALLOWANCE: one package';rate.quantityRange={low:1,high:2};
+  rate.sources=[{...source(urls[0],10,10),unit,excerpt:`${count} ${noun} per pack, $10.`},{...source(urls[1],12,12),unit,excerpt:`${count} ${noun} per pack, $12.`}];
+  const result=marketResolution(raw,urls,[extra],now);assert.equal(result.rules[0].quantity.fixed,count);assert.equal(result.rules[0].unitCost,11/count);
+  rate.sources[0].excerpt=`${count+1} ${noun} per pack, $10.`;assert.throws(()=>marketResolution(raw,urls,[extra],now),/Package size does not match/);
+ }
+});

@@ -140,7 +140,10 @@ export function applyPricingCorrections(input:CorrectionInput):CorrectionResult{
   // Require equal quantities, explicit same-door scope and complementary tasks.
   const hardware=resolution.rules.filter(r=>/\bPB-08-71-01\b/.test(r.evidence?.reference||'')&&direct(r)>0);
   for(const installation of hardware.filter(r=>/\b(?:install|replace)\b/i.test(taskDescription(r.scopeTaskId||'')))){
-    if(!/\bsame doors?\b/i.test(taskDescription(installation.scopeTaskId||'')))continue;
+    const source=[scope.text,scope.extraction?.sourceText].filter(Boolean).join('\n');
+    const sameReplacement=/\breplace\b[^.\n]{0,100}\bexisting\b[^.\n]{0,60}\b(?:lever handles?|handle sets?)\b\s+with\b/i.test(source)
+      &&! /\b(?:additional|different|other)\s+doors?\b/i.test(source);
+    if(!/\bsame doors?\b/i.test(taskDescription(installation.scopeTaskId||''))&&!sameReplacement)continue;
     for(const removal of hardware){
       if(removal===installation||!resolution.rules.includes(removal)||removal.quantity.fixed!==installation.quantity.fixed||!sameBuilding(removal.building,installation.building)||removal.floor!==installation.floor)continue;
       if(!/^remove\b/i.test(taskDescription(removal.scopeTaskId||''))||! /\b(?:handle|lever|hardware)\b/i.test(taskDescription(removal.scopeTaskId||'')))continue;
@@ -165,8 +168,14 @@ export function applyPricingCorrections(input:CorrectionInput):CorrectionResult{
   for(const assembly of kept){
     const {section}=sectionOf(assembly.description);
     if(!WHOLE_UNIT_SECTIONS.test(section)||!WHOLE_UNIT_ITEMS.test(itemOf(assembly.description)))continue;
+    const completionCleanup=(description:string)=>(PROTECT_OR_CLEAN.test(description)||DEBRIS_TASK.test(description))
+      && /\b(?:house|home|ADU|building|project-wide)\b/i.test(description)
+      && !/\b(?:excavat\w*|trench\w*|site clearing|sewer|septic|driveway|sidewalk|landscap\w*|external utilit\w*|off[- ]site)\b/i.test(description);
+    const measuredBuildingCleanup=(rule:CostRule)=>PROTECT_OR_CLEAN.test(itemOf(rule.description))&&/^SF$/i.test(rule.unit)
+      &&Number(scope.answers.sqft)>0&&rule.quantity.fixed===Number(scope.answers.sqft)
+      &&/\b(?:house|home|ADU|building)\b/i.test(taskDescription(rule.scopeTaskId||''));
     const outsideUnit=(rule:CostRule)=>OUTSIDE_WHOLE_UNIT.test(ratePart(rule.description))
-      && !(PROTECT_OR_CLEAN.test(itemOf(rule.description))&&!OUTSIDE_TASK.test(taskDescription(rule.scopeTaskId||'')));
+      && !((PROTECT_OR_CLEAN.test(itemOf(rule.description))||DEBRIS_LINE.test(itemOf(rule.description)))&&(!OUTSIDE_TASK.test(taskDescription(rule.scopeTaskId||''))||completionCleanup(taskDescription(rule.scopeTaskId||'')))||measuredBuildingCleanup(rule));
     const components=resolution.rules.filter(rule=>rule!==assembly&&!hasMarker(rule.description)&&sameBuilding(rule.building,assembly.building)&&!outsideUnit(rule));
     const roomAssemblies=resolution.rules.filter(rule=>rule!==assembly&&hasMarker(rule.description)&&sameBuilding(rule.building,assembly.building)&&!WHOLE_UNIT_SECTIONS.test(sectionOf(rule.description).section)&&!OUTSIDE_WHOLE_UNIT.test(ratePart(rule.description)));
     const drop=[...components,...roomAssemblies];
@@ -175,12 +184,12 @@ export function applyPricingCorrections(input:CorrectionInput):CorrectionResult{
     // A component task the mapping left unpriced (roofing, insulation, the envelope) is inside the
     // unit's price too; otherwise it would be carried out of the total as "not priced" and the
     // finished unit shown as a partial estimate.
-    const normalPerimeterConnection=(description:string)=>/\butilities\s+stubbed\s+at\s+(?:the\s+)?building perimeter\b/i.test(scope.text)
+    const normalPerimeterConnection=(description:string)=>/\butilities\s+stubbed\s+at\s+(?:the\s+)?building perimeter\b/i.test([scope.text,scope.extraction?.sourceText].filter(Boolean).join('\n'))
       &&/\b(?:connect|tie[- ]?in)\b/i.test(description)&&/\bat\s+(?:the\s+)?building perimeter\b/i.test(description)
       &&!/\b(?:extend|extension|trench|excavat|off[- ]site|street|\d+\s*(?:LF|feet|ft))\b/i.test(description);
     const unpricedComponents=mappingTasks.filter(task=>task.id!==assembly.scopeTaskId&&!covered.has(task.id)
       &&!resolution.rules.some(rule=>rule.scopeTaskId===task.id)&&!task.existingLineIds.some(id=>lines.some(line=>line.id===id&&!removed.has(line.id)))
-      &&(COMPONENT_TASK.test(task.description)&&!OUTSIDE_TASK.test(task.description)||normalPerimeterConnection(task.description)));
+      &&(COMPONENT_TASK.test(task.description)&&!OUTSIDE_TASK.test(task.description)||completionCleanup(task.description)||normalPerimeterConnection(task.description)));
     for(const task of unpricedComponents)cover(task.id,assembly.id);
     if(unpricedComponents.some(task=>normalPerimeterConnection(task.description)))notes.push('Normal building connections at the expressly provided perimeter utility stubs are included in the complete building. External utility extensions and trenching remain separate.');
     if(!drop.length&&!unpricedComponents.length)continue;
@@ -214,8 +223,9 @@ export function applyPricingCorrections(input:CorrectionInput):CorrectionResult{
   }
 
   // 4. Reconnecting existing plumbing is reconnection labor, not a rough-in package.
-  const plumbingText=[scope.text,scope.answers.plumbing,scope.answers.taskList,scope.answers.installation,...(instructions?.inclusions||[])].filter(Boolean).join('\n');
-  if(RECONNECT.test(plumbingText)&&!RELOCATE.test(plumbingText)){
+  const plumbingText=[scope.text,scope.extraction?.sourceText,scope.answers.plumbing,scope.answers.taskList,scope.answers.installation,...(instructions?.inclusions||[])].filter(Boolean).join('\n');
+  const retainedPlumbing=/\bexisting\s+plumbing\s+locations\s+(?:remain|stay|are unchanged)\b/i.test(plumbingText)&&/\bre-?connect\w*\b/i.test(plumbingText);
+  if((RECONNECT.test(plumbingText)||retainedPlumbing)&&!RELOCATE.test(plumbingText)){
     const row=PRICE_BOOK.find(r=>r[0]==='22-01-01');
     const packages=resolution.rules.filter(rule=>ROUGH_AND_FINISH.test(itemOf(rule.description)));
     if(row&&packages.length){

@@ -10,6 +10,7 @@ export function verifiedResearchUrl(value:string,observed:readonly string[]):boo
 }
 export {unitKey} from './unitRates.ts';
 import {retainedScopeInventory} from './scopeInventory.ts';
+import {restoreReportedEvidence} from './reportedEvidence.ts';
 import {parseNumericAnswer} from './answerParsing.ts';
 import {SERVER_BUDGET_MS,ProcessingDeadlineError,fetchWithinDeadline,isProcessingDeadline} from './processingBudget.ts';
 import {createHash} from 'node:crypto';
@@ -79,7 +80,7 @@ const marketSchema=z.object({rates:z.array(z.object({taskId:text,description:pro
  * conversion factor. */
 function quotedPackage(excerpt:string,unit:string){
  const weight=/\b(\d+(?:\.\d+)?|five)[\s-]*(?:lb|lbs|pounds?)\b/i;
- const count=/\b(\d+(?:\.\d+)?)\s*[- ](?:pack|pk|count|ct|pieces?|pcs?)\b|\b(?:pack|box) of (\d+(?:\.\d+)?)\s*(?:pieces?|pcs?|screws?|shims?|nails?)\b|\b(\d+(?:\.\d+)?)\s*(?:pieces?|pcs?)\s*(?:per\s+)?(?:pack|box)\b/i;
+ const count=/\b(\d+(?:\.\d+)?)\s*[- ](?:pack|pk|count|ct|pieces?|pcs?|bags?|sheets?)\b|\b(?:pack|box) of (\d+(?:\.\d+)?)\s*(?:pieces?|pcs?|screws?|shims?|nails?|bags?|sheets?|spacers?)\b|\b(\d+(?:\.\d+)?)\s*(?:pieces?|pcs?)\s*(?:per\s+)?(?:pack|box)\b/i;
  const match=unit==='pound'?excerpt.match(weight):unit==='each'?excerpt.match(count):null;
  if(!match)return null;
  const number=(match[1]||match[2]||match[3]).toLowerCase();
@@ -101,7 +102,7 @@ function parseResearchRates(raw:unknown){
  // its physical contents and quantities, then let the cited-package checks
  // below validate every conversion; descriptive units are never price units.
  const packageUnit=(value:string)=>{
-  const contents=value.trim().replace(/^(?:EA|each)\s*\(\s*(.*?)\s*\)$/i,'$1').replace(/\b(lbs?)\./gi,'$1');
+  const contents=value.trim().replace(/^(?:pack|box)\s*\(\s*(\d+(?:\.\d+)?)\s+(?:bags?|sheets?|pieces?|screws?|shims?|spacers?)\s*\)$/i,'$1 pack').replace(/^(?:EA|each)\s*\(\s*(.*?)\s*\)$/i,'$1').replace(/\b(lbs?)\./gi,'$1');
   const m=/^(\d+(?:\.\d+)?)\s*[- ]?\s*(lb|lbs|pounds?|pack|pk|count|ct)(?:\s+(?:box|bag|pack))?$/i.exec(contents);
   if(m&&(!Number.isFinite(Number(m[1]))||Number(m[1])<=0))throw new ResearchEvidenceError('Invalid package size for researched product');
   return m?{size:Number(m[1]),unit:/^(?:lb|pound)/i.test(m[2])?'LB':'EA',source:`${m[1]} ${/^(?:lb|pound)/i.test(m[2])?'lb box':'pack'}`}:null;
@@ -157,10 +158,10 @@ function parseResearchRates(raw:unknown){
    const original={unit:source.unit,low:source.low,high:source.high};
    source.low=Number((source.low/factor).toPrecision(12));source.high=Number((source.high/factor).toPrecision(12));source.unit=rate.unit;
    market.notes.push('Source unit conversion: '+source.url+'; '+original.low+' to '+original.high+' USD/'+original.unit+' divided by '+factor+' = '+source.low+' to '+source.high+' USD/'+rate.unit+'.');
-  }else if(sameUnit&&source.low===source.high&&citedPrices.filter(price=>Math.abs(Math.round(price/factor*100)/100-source.low)<.000001).length===1){
+  }else if(sameUnit&&source.low===source.high&&citedPrices.filter(price=>[2,3,4,5,6].some(digits=>Math.abs(Number((price/factor).toFixed(digits))-source.low)<1e-10)).length===1){
    // Reports commonly display 8.44 / 60 as 0.14 each. Keep the exact
    // cited package arithmetic instead of rejecting a rounded display value.
-   const packagePrice=citedPrices.find(price=>Math.abs(Math.round(price/factor*100)/100-source.low)<.000001)!;
+   const packagePrice=citedPrices.find(price=>[2,3,4,5,6].some(digits=>Math.abs(Number((price/factor).toFixed(digits))-source.low)<1e-10))!;
    source.low=source.high=Number((packagePrice/factor).toPrecision(12));
    market.notes.push('Exact package arithmetic retained: '+source.url+'; '+packagePrice+' USD divided by '+factor+' = '+source.low+' USD/'+rate.unit+'.');
   }else if(!sameUnit||!citedPrices.some(price=>Math.abs(price/factor-source.low)<.000001&&Math.abs(price/factor-source.high)<.000001)){
@@ -498,6 +499,7 @@ function vanitySizeMatches(task:string,component:string):boolean|null{
   return wanted.length===1&&available.length===1?wanted[0][0]>=available[0][0]&&wanted[0][1]<=available[0][1]:null;
 }
 const vanitySizeIssue=(description:string)=>`${description}: catalog vanity size does not match the requested width.`;
+const wrongCabinetFasteners=(task:string,product:string)=>/\bdrywall screws?\b/i.test(product)&&/\bcabinet(?:ry)?\s+(?:installation|mounting)|\b(?:install|mount)\w*\b[^.]{0,50}\bcabinets?\b/i.test(task+' '+product);
 /** A general installation requirement applies to each real task, rather than
  * authorizing another copy of every installed assembly. Specific materials,
  * quantities and separately named operations never match this narrow form. */
@@ -537,6 +539,16 @@ export function normalizeConsumableMapping(mapping:Mapping,configuration:Estimat
     ||existing.some(line=>line.quantity*line.unitCost>0&&/\b(?:quartz|granite|solid surface|laminate)\b/i.test(line.description)&&/\b(?:countertop|counter top)\b/i.test(line.description));
   for(const task of mapping.tasks){
     if(taskSelectionStatus(task,mapping.tasks)!=='billable')continue;
+    // Preserve technical device specifications and the selected-remodel boundary.
+    const genericGfci=task.additions.filter(a=>/\bGFCI\b/i.test(task.description)&&['PB-26-28-02','REF-DEVICE'].includes(a.code));
+    if(genericGfci.length){
+      task.additions=task.additions.filter(a=>!genericGfci.includes(a));
+      task.researchDescription='Material purchase only: standard GFCI receptacles for the stated replacement count. Preserve GFCI protection; a generic non-GFCI receptacle is not comparable. Installation labor is already priced. '+task.description;
+    }
+    if(/\bnot a gut renovation\b/i.test(source)&&task.additions.some(a=>a.code==='PB-02-41-02')){
+      task.additions=task.additions.filter(a=>a.code!=='PB-02-41-02');
+      task.researchDescription='Removal of only the specifically replaced finishes, doors, trim, cabinets and fixtures. Preserve existing walls and retained finishes. Reference already-priced flooring/tile removal and price only remaining component removal; no second whole-house area demolition. '+task.description;
+    }
     // A product installation price cannot prove that a separately requested
     // cleanup task is covered. Use the actual rate wording, not the mapper's
     // invented description of the assembly.
@@ -650,7 +662,7 @@ export function normalizeConsumableMapping(mapping:Mapping,configuration:Estimat
 export function researchTaskBatches(tasks:Mapping['tasks'],scope:ReviewedScope):Mapping['tasks'][]{
  const batches:Mapping['tasks'][]=[],ordinary:Mapping['tasks']=[];
  const cabinet=/cabinet/i.test(scope.answers.service||'')||!scope.answers.service&&/^\s*(?:install|supply(?: and install)?)\b[^.\n]{0,100}\bcabinets\b/i.test(scope.text);
- const application=cabinet?' Cabinet installation: use products explicitly sold for cabinet mounting or leveling; do not substitute drywall screws. Preserve manufacturer-stated application and package counts. Shims are counted pieces or specified packs unless the source explicitly prices shims by weight.':'';
+ const application=cabinet?' Cabinet installation: use products explicitly sold for cabinet mounting or leveling; do not substitute drywall screws. Preserve manufacturer-stated application and package counts. Shims are counted pieces or specified packs unless the source explicitly prices shims by weight.':' Match each supply to the actual remaining installation operation. Where fasteners mount cabinets or a vanity, use manufacturer-specified cabinet mounting fasteners, never drywall screws. Where screws are for drywall repair, preserve that application; do not buy consumables already included in the repair assembly.';
  const measurements=cabinet?['cabinetBaseLf','cabinetUpperLf','cabinetTallLf'].map(key=>{const value=Number(scope.answers[key as keyof typeof scope.answers]);return Number.isFinite(value)&&value>0?key+'='+value+' LF':'';}).filter(Boolean).join('; '):'';
  for(const task of tasks){
   // A missing component can belong to an installation task whose title does
@@ -699,8 +711,8 @@ export function routeUnpricedTasks(mapping:Mapping,configuration:EstimatorConfig
  * patch count fit its published size band. No minimum or new price is invented. */
 export function normalizeRepairServices(mapping:Mapping,configuration:EstimatorConfiguration){
  for(const task of mapping.tasks){
-  if(taskSelectionStatus(task,mapping.tasks)!=='billable'||!(/\bpatch\b/i.test(task.description)&&/\b(?:drywall|sheetrock|gypsum)\b/i.test(task.description)))continue;
-  const countMatch=task.description.match(/\bpatch\s+(one|two|three|four|five|six|\d+)\b/i);
+  if(taskSelectionStatus(task,mapping.tasks)!=='billable'||!(/\b(?:patch|repair)\b/i.test(task.description)&&/\b(?:drywall|sheetrock|gypsum)\b/i.test(task.description)))continue;
+  const countMatch=task.description.match(/\b(?:patch|repair)\s+(?:exactly\s+)?(one|two|three|four|five|six|\d+)\b/i);
   const count=countMatch?(NUMBER_WORDS[countMatch[1].toLowerCase()]||Number(countMatch[1])):0;
   if(!Number.isSafeInteger(count)||count<1)continue;
   const parsed=parseNumericAnswer('sqft',task.description);
@@ -715,7 +727,8 @@ export function normalizeRepairServices(mapping:Mapping,configuration:EstimatorC
   if(services.length!==1||task.additions.some(addition=>addition.code===services[0].code))continue;
   const bulk=task.additions.filter(addition=>{
     const rate=rates.find(rate=>rate.code===addition.code);
-    return rate&&unitKey(rate.unit)==='sf'&&/\bdrywall\b/i.test(rate.description)&&!(/\b(?:patch|primer|paint|demoli\w*|remov\w*)\b/i.test(rate.description));
+    return rate&&(unitKey(rate.unit)==='sf'&&/\bdrywall\b/i.test(rate.description)&&!(/\b(?:patch|primer|paint|demoli\w*|remov\w*)\b/i.test(rate.description))
+      ||/^Drywall patch, small \(under 6 in\)/i.test(rate.description)&&area>=1);
   });
   if(!bulk.length)continue;
   const selected=services[0],location=bulk[0];
@@ -753,6 +766,9 @@ export function catalogResolution(mapping:Mapping,configuration:EstimatorConfigu
       const rate=configuration.planningCatalog?.rates.find(r=>r.code===a.code);
       const regional=configuration.regionalRates?.find(r=>r.id===a.code);
       const rateUnit=rate?.unit||regional?.unit||'';
+      if(wrongCabinetFasteners(t.description,rate?.description||regional?.description||'')){
+        result.issues.push(`${t.description}: drywall screws do not match the cabinet mounting application. Obtain matching cabinet fasteners.`);continue;
+      }
       if(incompatibleDevice(t.description,rate?.description||regional?.description||'')){
         result.issues.push(deviceMismatchIssue(t.description));
         continue;
@@ -906,7 +922,8 @@ function actionClaims(textValue:string,unit:string,action:'supply'|'install',exc
       // A count such as "install one shower pan" is not one SF of wall
       // backer or one hour of labor. Only explicit units can assert an area,
       // length or duration; an omitted unit can describe an each-count only.
-      if(!match[2]&&unitKey(unit)!=='each')continue;
+      const dimensionAfterCount=/^\s*[-–]?\s*(?:["″]|inches?\b|in\b|mm\b|cm\b)/i.test(clause.slice((match.index||0)+match[0].length));
+      if(!match[2]&&(unitKey(unit)!=='each'||dimensionAfterCount))continue;
       const claimUnit=match[2]?semanticUnit(match[2]):unitKey(unit);
       result.push({quantity:Number(match[1]),unit:claimUnit,clause});
     }
@@ -1161,6 +1178,7 @@ export async function reconcileResearchReply(reply:PricingReply,tasks:Mapping['t
    accepted={...reply,value:requestedResearchRates(normalized.value,tasks)};
  }
  const failures=()=>{
+   accepted={...accepted,value:restoreReportedEvidence(accepted.value,accepted.sourceReport,verifiedResearchUrl)};
    const errors:string[]=[];
    for(const check of [()=>assertResearchReportProducts(accepted.value,accepted.sourceReport,tasks),()=>validate(accepted.value)])try{check();}
    catch(error){
@@ -1241,6 +1259,7 @@ export function marketResolution(raw:unknown,urls:string[],tasks:Mapping['tasks'
       if(selection==='ambiguous')result.issues.push(finding);else result.assumptions.push(finding);
       continue;
     }
+    if(wrongCabinetFasteners(t.description,r.description))throw new ResearchEvidenceError('Drywall screws do not match the cabinet mounting application; research manufacturer-specified cabinet fasteners.');
     if(!supportedUnit(r.unit)){
       result.issues.push(`${t.description}: unsupported pricing unit ${JSON.stringify(r.unit)}; provide a sourced supported unit or focused clarification.`);
       continue;
@@ -1367,6 +1386,7 @@ export function planningResolution(raw:unknown,tasks:Mapping['tasks'],now:Date,o
     if(!t){console.error(`[p5-pricing] dropped a planning rate for unknown task ${String(r.taskId).slice(0,60)}`);continue;}
     const selection=taskSelectionStatus(t,tasks);
     if(selection!=='billable'){const finding=`${t.description}: ${selection==='ambiguous'?'alternative selection is ambiguous or conflicting':'unselected alternative or excluded work is not billable'}.`;if(selection==='ambiguous')result.issues.push(finding);else result.assumptions.push(finding);continue;}
+    if(wrongCabinetFasteners(t.description,r.description))throw new ResearchEvidenceError('Drywall screws do not match the cabinet mounting application; research manufacturer-specified cabinet fasteners.');
     if(!supportedUnit(r.unit)){
       result.issues.push(`${t.description}: unsupported pricing unit ${JSON.stringify(r.unit)}; provide a sourced supported unit or focused clarification.`);
       continue;
@@ -1725,8 +1745,11 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
       && !/\b(?:include|perform|provide|require\w*|need\w*)\b[^.;\n]{0,60}\b(?:grad\w*|site preparation|site prep)\b/i.test(sourceConditions);
     const unsupportedSupporting=inventory.tasks.filter(task=>{
       const supplyOnly=/^(?:supply|provide|furnish)\b/i.test(task.description)&&/\b(?:screws?|shims?|consumables?|installation supplies)\b/i.test(task.description)&&!/\b(?:install|repair|replace|clean|protect)\b/i.test(task.description);
-      const genericSite=task.origin==='required'&&readyLot&&/\b(?:rough grading|site and access preparation|site preparation)\b/i.test(task.description)&&!/\b(?:excavat\w*|trench\w*|sewer|water line|utility|utilit(?:y|ies)|driveway|retaining)\b/i.test(task.description);
-      return supplyOnly&&ownerSuppliesAllParts(pricingScope)||genericSite;
+      const siteOperation=task.description.replace(/\b(?:adapt construction for\s+)?utilities\s+stubbed\s+at\s+(?:the\s+)?building perimeter\b|\bconnection of utilities at\s+(?:the\s+)?building perimeter\b/gi,'');
+      const genericSite=task.origin==='required'&&readyLot&&/\b(?:rough grading|site and access preparation|site preparation|prepare\s+(?:the\s+)?level[,\s]+(?:and\s+)?cleared\s+(?:lot|site))\b/i.test(siteOperation)&&!/\b(?:excavat\w*|trench\w*|sewer|water line|utility|utilit(?:y|ies)|driveway|retaining)\b/i.test(siteOperation);
+      const inventedClearing=task.origin==='required'&&readyLot&&/\b(?:clear(?:ing)?(?: and grubbing)?|demolition\/removal necessary to clear)\b/i.test(task.description)
+        &&! /\b(?:demoli\w*|remove)\b[^.;\n]{0,60}\b(?:existing\s+(?:building|structure|slab)|trees?|stumps?)\b/i.test(sourceConditions);
+      return supplyOnly&&ownerSuppliesAllParts(pricingScope)||genericSite||inventedClearing;
     });
     if(unsupportedSupporting.length){
       inventory.tasks=inventory.tasks.filter(task=>!unsupportedSupporting.includes(task));

@@ -26,3 +26,18 @@ test('a reader reply whose facts arrive as a JSON string is read, not rejected (
   assert.equal(x.facts.length,1);assert.equal(x.facts[0].value,'2400');
   assert.throws(()=>validateExtraction({summary:'Sheet A1',facts:'not json at all',conflicts:[],missingInformation:[],reviewNotes:[]}),/Invalid/,'a string that is not JSON is still rejected');
 });
+
+test('non-tile flooring never includes a separate floor tile area (live whole-home text)',()=>{
+ const x=validateExtraction(raw([{field:'flooringSqft',value:'1680',basis:'calculated',evidence:'Replace 1600 SF flooring with LVP and 80 SF bathroom floor tile'},{field:'tileSqft',value:'80',evidence:'80 SF bathroom floor tile'}]));
+ assert.equal(x.facts.find(f=>f.field==='flooringSqft')?.value,'1600');
+ assert.equal(x.facts.find(f=>f.field==='tileSqft')?.value,'80');
+ assert.deepEqual(validateExtraction(x),x,'saved extraction stays stable');
+ const unknown=validateExtraction(raw([{field:'flooringSqft',value:'1680',evidence:'1680 SF total flooring; materials not selected'}]));
+ assert.equal(unknown.facts[0].value,'1680','do not invent a material split');
+});
+test('raster confirmation displays the aggregated tile area, never its first part',()=>{
+ const input=raw([{field:'tileSqft',value:'60',evidence:'60 SF porcelain floor tile'},{field:'tileSqft',value:'84',evidence:'84 SF shower wall tile'}]);input.facts=input.facts.map(f=>({...f,source:'bathroom.png'}));
+ const x=validateExtraction(input);assert.equal(x.facts[0].value,'144');
+ assert.deepEqual(x.conflicts.find(c=>c.field==='tileSqft')?.values,['144']);
+ assert.deepEqual(validateExtraction(x),x);
+});

@@ -235,3 +235,27 @@ test('equal handle counts on different doors are not assumed to be one replaceme
  const input=inputFor(scopeFor('Remove existing garage handles and install bedroom handles.',{service:'handyman'}),tasks,[rule('remove',tasks[0].description,'08-71-01',3),rule('install',tasks[1].description,'08-71-01',3)]);
  applyPricingCorrections(input);assert.equal(input.resolution.rules.length,2);
 });
+
+test('whole-house completion cleanup stays covered when its description names garage and porch',()=>{
+ const description='Remove all construction debris generated during building of house, garage, and porch, and perform final cleanup at project end.';
+ const tasks=[{id:'home',description:'Build complete home'},{id:'porch',description:'Build covered porch'},{id:'clean',description,origin:'required'}];
+ const input=inputFor(scopeFor('Build 2000 SF home and 80 SF porch.',{service:'new-construction',sqft:'2000'}),tasks,[rule('home',tasks[0].description,'90-10-01',2000),rule('porch',tasks[1].description,'06-15-06',80),rule('clean',description,'01-74-05',2080)]);
+ const result=applyPricingCorrections(input);assert.deepEqual(input.resolution.rules.map(r=>r.scopeTaskId),['home','porch']);assert.ok(result.coveredTaskIds.includes('clean'));
+ const external='Final cleanup of driveway and external utility trenching for the house';
+ const other=inputFor(input.scope,[tasks[0],{id:'external',description:external}],[rule('home',tasks[0].description,'90-10-01',2000),rule('external',external,'01-74-05',100)]);
+ applyPricingCorrections(other);assert.ok(other.resolution.rules.some(r=>r.scopeTaskId==='external'));
+});
+
+test('uploaded replacement scope ties same-quantity handle removal and installation together',()=>{
+ const text='Replace exactly three existing interior door lever handles with three owner-supplied matching passage lever handle sets.';
+ const tasks=[{id:'remove',description:'Remove 3 existing interior door lever handles from ground floor doors.'},{id:'install',description:'Install 3 owner-supplied matching passage lever handle sets on ground floor doors.'}];
+ const scope={...scopeFor('Estimate the uploaded document.',{service:'handyman'}),extraction:{summary:'',facts:[],conflicts:[],missingInformation:[],reviewNotes:[],sourceText:text}};
+ const input=inputFor(scope,tasks,[rule('remove',tasks[0].description,'08-71-01',3),rule('install',tasks[1].description,'08-71-01',3)]);
+ applyPricingCorrections(input);assert.equal(input.resolution.rules.length,1);assert.equal(input.resolution.rules[0].quantity.fixed,3);
+});
+test('retained uploaded plumbing locations cannot acquire new rough-in charges',()=>{
+ const tasks=[{id:'plumbing',description:'Disconnect/reconnect and final connections of five replacement fixtures without moving their locations.'}];
+ const scope={...scopeFor('Estimate uploaded document.',{service:'whole-home'}),extraction:{summary:'',facts:[],conflicts:[],missingInformation:[],reviewNotes:[],sourceText:'Existing plumbing locations remain. Include removal of finishes, minor prep, reconnects and cleanup.'}};
+ const input=inputFor(scope,tasks,[rule('plumbing',tasks[0].description,'22-10-02',5)]);applyPricingCorrections(input);
+ assert.equal(input.resolution.rules[0].unit,'hour');assert.equal(input.resolution.rules[0].quantity.fixed,10);
+});

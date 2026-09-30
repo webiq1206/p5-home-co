@@ -4,6 +4,7 @@ import type {RetainedClarificationProvenance,RetainedLaborCoverage} from './reta
 import {aggregateLaborFacts} from './laborFacts.ts';
 import {separateFixtureFacts} from './fixtureFacts.ts';
 import {separateCabinetFacts} from './cabinetFacts.ts';
+import {separateFlooringFacts} from './flooringFacts.ts';
 import {verifiedCabinetWidth} from './cabinetMeasurements.ts';
 import {SCOPE_FIELDS,type ScopeField} from './scopeFields.ts';
 export {SCOPE_FIELDS,type ScopeField} from './scopeFields.ts';
@@ -165,7 +166,7 @@ export function validateExtraction(raw: unknown): ScopeExtraction {
   if (JSON.stringify(raw).length>SCOPE_TEXT_LIMIT) throw new Error("Scope analysis exceeds the safe response size; read this source in smaller sections.");
   const unreadValues: string[] = [];
   const takeoffs=r.takeoffs?readTakeoffs(r.takeoffs):undefined;
-  const factsBeforeLaborAggregation = r.facts.flatMap((item: unknown): ExtractedFact[] => {
+  const rawFactsBeforeLaborAggregation = r.facts.flatMap((item: unknown): ExtractedFact[] => {
     if (!item || typeof item !== "object") throw new Error("Invalid fact");
     const f = {...item} as Record<string, unknown>;
     // Accept an explicit JSON number without changing its value or evidence.
@@ -235,6 +236,7 @@ export function validateExtraction(raw: unknown): ScopeExtraction {
     }
     return [{ ...f, value, confidence } as unknown as ExtractedFact];
   });
+  const factsBeforeLaborAggregation=separateFlooringFacts(rawFactsBeforeLaborAggregation);
   // Rebuild only our own raster-confirmation records from the validated facts.
   // A saved confirmation must not resurrect a measurement now rejected as inferred.
   const retainedConflicts = r.conflicts.filter((item: any) => !(typeof item?.explanation === 'string'
@@ -247,18 +249,6 @@ export function validateExtraction(raw: unknown): ScopeExtraction {
     const values=[...new Set(strings(c.values,10).filter(v=>v.trim()&&!validateAnswer(field,v)).map(v=>SCOPE_FIELDS[field].kind === "number" ? String(Number(v.replaceAll(",", ""))) : v.trim()))];
     return { field, values, explanation: c.explanation };
   });
-  // A confident image transcription is not a verified measurement. A live
-  // drawing labeled 20'-0" by 15'-0" was read as 20'-9" by 15'-9" at 1.0
-  // confidence. Require confirmation of consequential raster measurements.
-  const geometricFields=new Set(['length','width','sqft','flooringSqft','tileSqft','countertopSqft','cabinetBaseLf','cabinetUpperLf','cabinetTallLf','garageSqft','coveredOutdoorSqft']);
-  for(const fact of factsBeforeLaborAggregation){
-    if(!geometricFields.has(fact.field)||fact.confidence<.85||fact.basis==='visual'||fact.basis==='inferred'||conflicts.some(c=>c.field===fact.field))continue;
-    if(/\.(?:png|jpe?g|webp|gif)\b/i.test(fact.source)&&!factsBeforeLaborAggregation.some(other=>other.field===fact.field&&other.source!==fact.source&&!/\.(?:png|jpe?g|webp|gif)\b/i.test(other.source)&&other.basis==='stated'&&other.confidence>=.85)){
-      conflicts.push({field:fact.field,values:[fact.value],explanation:`Please confirm ${SCOPE_FIELDS[fact.field].label.toLowerCase()} read from the image: ${fact.value}. Check the drawing label and enter a correction if needed; image readings can be mistaken.`});
-    }else if(fact.field==='flooringSqft'&&/\b(?:including|includes|plus|with)\b.{0,35}\bwaste\b|\bwaste\s+(?:included|allowance)\b/i.test(`${fact.value} ${fact.evidence}`)){
-      conflicts.push({field:fact.field,values:[],explanation:'What is the installed flooring area in square feet, before material waste? Purchased flooring and installation labor use separate quantities.'});
-    }
-  }
   const laborAggregation=aggregateLaborFacts(factsBeforeLaborAggregation,takeoffs,laborCoverage);
   const cabinetGroups=separateCabinetFacts(laborAggregation.facts,conflicts);
   const fixtureGroups=separateFixtureFacts(cabinetGroups.facts,cabinetGroups.conflicts);
@@ -301,6 +291,18 @@ export function validateExtraction(raw: unknown): ScopeExtraction {
       evidence: `${group.map(f => `${f.value} (${f.evidence.trim().slice(0, 80)})`).join(' + ')} = ${Math.round(total * 100) / 100}` };
     for (const f of group) facts.splice(facts.indexOf(f), 1);
     facts.push(combined);
+  }
+  // A confident image transcription is not a verified measurement. A live
+  // drawing labeled 20'-0" by 15'-0" was read as 20'-9" by 15'-9" at 1.0
+  // confidence. Require confirmation of consequential raster measurements.
+  const geometricFields=new Set(['length','width','sqft','flooringSqft','tileSqft','countertopSqft','cabinetBaseLf','cabinetUpperLf','cabinetTallLf','garageSqft','coveredOutdoorSqft']);
+  for(const fact of facts){
+    if(!geometricFields.has(fact.field)||fact.confidence<.85||fact.basis==='visual'||fact.basis==='inferred'||conflicts.some(c=>c.field===fact.field))continue;
+    if(/\.(?:png|jpe?g|webp|gif)\b/i.test(fact.source)&&!facts.some(other=>other.field===fact.field&&other.source!==fact.source&&!/\.(?:png|jpe?g|webp|gif)\b/i.test(other.source)&&other.basis==='stated'&&other.confidence>=.85)){
+      conflicts.push({field:fact.field,values:[fact.value],explanation:`Please confirm ${SCOPE_FIELDS[fact.field].label.toLowerCase()} read from the image: ${fact.value}. Check the drawing label and enter a correction if needed; image readings can be mistaken.`});
+    }else if(fact.field==='flooringSqft'&&/\b(?:including|includes|plus|with)\b.{0,35}\bwaste\b|\bwaste\s+(?:included|allowance)\b/i.test(`${fact.value} ${fact.evidence}`)){
+      conflicts.push({field:fact.field,values:[],explanation:'What is the installed flooring area in square feet, before material waste? Purchased flooring and installation labor use separate quantities.'});
+    }
   }
   // Independent conflict detection: never let a model overwrite two different measurements.
   for (const field of Object.keys(SCOPE_FIELDS) as ScopeField[]) {
