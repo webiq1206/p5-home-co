@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import {projectInput,projectHash,projectRecordIntegrity,acceptProjectRecord,validateProjectRecord,projectRecordChange,computedProjectQuantity,ProjectRecordError} from '../lib/p5/projectRecord.ts';
 import {compileProjectPrices,projectPriceSelection,calculateProjectEstimate,projectReviewReceipt,projectPriceProposalFromWire,validateProjectReview} from '../lib/p5/projectPricing.ts';
 import {interpretProjectRecord,priceProjectRecord} from '../lib/p5/projectWorkflow.ts';
-import {PROJECT_RECORD_INSTRUCTIONS,PROJECT_PRICE_INSTRUCTIONS,PROJECT_REVIEW_INSTRUCTIONS,PROJECT_CATALOG_INSTRUCTIONS,projectProposalSchema,projectReviewSchema,type ProjectProposal,type ProjectQuantity} from '../lib/p5/projectRecordContracts.ts';
+import {PROJECT_RECORD_INSTRUCTIONS,PROJECT_PRICE_INSTRUCTIONS,PROJECT_REVIEW_INSTRUCTIONS,PROJECT_CATALOG_INSTRUCTIONS,PROJECT_COMPLETION_INSTRUCTIONS,projectProposalSchema,projectReviewSchema,type ProjectProposal,type ProjectQuantity} from '../lib/p5/projectRecordContracts.ts';
+import {acceptProjectCompletion,type ProjectCompletionPlan} from '../lib/p5/projectCompletion.ts';
 import {checkedProjectCandidates,projectCatalogIndex,projectConfiguration} from '../lib/p5/projectCatalog.ts';
 import {openAiPricingRequestEnvelope,type PricingRequest} from '../lib/p5/scopePricing.ts';
 import {priceBookRates} from '../lib/p5/priceBook.ts';
@@ -32,9 +33,10 @@ function example(input=projectInput(scope)):ProjectProposal{
 const record=()=>acceptProjectRecord(example(),projectInput(scope),null,now);
 const proposal=()=>({estimatingQuantities:[],lines:[{id:'install',rateId:'PB-08-71-01',quantityId:'handle-count',requirementIds:['replace-handles'],catalogQuote:config.planningCatalog!.rates.find(r=>r.code==='PB-08-71-01')!.description,coverageEvidence:'Owner-supplied sets require only replacement labor.'}],gaps:[]});
 const wireProposal=()=>({lines:proposal().lines.map(({quantityId,...line})=>({...line,quantity:{origin:'project',quantityId}})),gaps:[]});
-const review=(r=record())=>({reviewedRequirementIds:r.requirements.map(x=>x.id),reviewedSourceIds:r.sources.map(x=>x.id),reviewedQuestionIds:r.questions.map(q=>q.id),findings:[],notes:[]});
+const method=(input=projectInput(scope),operation:'install'|'remove'|'repair'='install',kind:'requested'|'decision-needed'='requested')=>({reviewedSourceIds:input.sources.map(source=>source.id),steps:[{id:'method-'+operation,subject:'Items specified by the customer',description:'Perform the '+operation+' operation',operation,kind,responsibility:'contractor' as const,evidence:[{sourceId:input.sources[0].id,quote:input.sources[0].text}],reason:'Explicit current source instruction.'}]});
+const review=(r=record(),plan?:ProjectCompletionPlan)=>({reviewedRequirementIds:r.requirements.map(x=>x.id),reviewedSourceIds:r.sources.map(x=>x.id),reviewedQuestionIds:r.questions.map(q=>q.id),completionChecks:plan?plan.steps.map(step=>({stepId:step.id,outcome:'represented' as const,requirementIds:r.requirements.filter(requirement=>requirement.operation===step.operation).map(requirement=>requirement.id),questionIds:step.kind==='decision-needed'?r.questions.filter(question=>question.priority==='blocking').map(question=>question.id):[],reason:'Controlled test mapping to explicit operations.',evidenceIds:[]})):[],findings:[],notes:[]});
 test('all project provider contracts use their own strict schema instead of an unrelated audit response',()=>{
- for(const [instructions,key]of [[PROJECT_RECORD_INSTRUCTIONS,'requirements'],[PROJECT_CATALOG_INSTRUCTIONS,'requirements'],[PROJECT_PRICE_INSTRUCTIONS,'lines'],[PROJECT_REVIEW_INSTRUCTIONS,'findings']]){
+ for(const [instructions,key]of [[PROJECT_COMPLETION_INSTRUCTIONS,'steps'],[PROJECT_RECORD_INSTRUCTIONS,'requirements'],[PROJECT_CATALOG_INSTRUCTIONS,'requirements'],[PROJECT_PRICE_INSTRUCTIONS,'lines'],[PROJECT_REVIEW_INSTRUCTIONS,'findings']]){
   const body=openAiPricingRequestEnvelope(instructions,{},false).body as any;
   assert.equal(body.model,'gpt-4.1');assert.equal(body.text.format.strict,true);assert.ok(body.text.format.schema.properties[key]);
  }
@@ -82,9 +84,10 @@ test('an unknown physical measurement and unit can reach a reviewed clarificatio
  const invented=structuredClone(p);invented.quantities[0].value=3;
  assert.equal(projectProposalSchema.safeParse(invented).success,false);
  const request:PricingRequest=async(instructions,raw)=>{
+  if(instructions===PROJECT_COMPLETION_INSTRUCTIONS)return {value:method(input,'repair','decision-needed'),sourceUrls:[]};
   if(instructions===PROJECT_RECORD_INSTRUCTIONS)return {value:p,sourceUrls:[]};
   assert.equal(instructions,PROJECT_REVIEW_INSTRUCTIONS);const data=raw as any;assert.equal(data.stage,'scope-with-questions');
-  return {value:review(data.record),sourceUrls:[]};
+  return {value:review(data.record,data.completionPlan),sourceUrls:[]};
  };
  const result=await interpretProjectRecord(incomplete,{request,now});assert.equal(result.status,'questions');assert.equal(result.record!.quantities[0].unit,null);
  const unchecked=review(result.record!);unchecked.reviewedQuestionIds=[];
@@ -316,16 +319,34 @@ test('the workflow performs separate scope and pricing reviews with no legacy co
  const calls:string[]=[];
  const request:PricingRequest=async(instructions,input)=>{
   calls.push(instructions);const data=input as any;
-  if(instructions===PROJECT_RECORD_INSTRUCTIONS)return {value:example({sources:data.sources,sourceHash:'unused',documentIssues:[]}),sourceUrls:[]};
+  if(instructions===PROJECT_COMPLETION_INSTRUCTIONS){assert.equal(data.record,undefined);assert.equal(data.catalog,undefined);return {value:method({sources:data.sources,sourceHash:'unused',documentIssues:[]}),sourceUrls:[]};}
+  if(instructions===PROJECT_RECORD_INSTRUCTIONS){const value=example({sources:data.sources,sourceHash:'unused',documentIssues:[]});value.requirements[0].operation='install';return {value,sourceUrls:[]};}
   if(instructions===PROJECT_CATALOG_INSTRUCTIONS){assert.equal(data.catalogIndex.length,config.planningCatalog!.rates.length);return {value:{requirements:[{requirementId:'replace-handles',candidates:[{rateId:'PB-08-71-01',reason:'Specific replacement labor'}],unmatchedReason:''}]},sourceUrls:[]};}
   if(instructions===PROJECT_PRICE_INSTRUCTIONS){assert.deepEqual(data.catalog.map((rate:any)=>rate.code),['PB-08-71-01'],'The first costing attempt sees semantic matches without unrelated catalog descriptions.');return {value:wireProposal(),sourceUrls:[]};}
   assert.equal(instructions,PROJECT_REVIEW_INSTRUCTIONS);
   if(data.selectedPrices)assert.equal(data.catalog.length,config.planningCatalog!.rates.length,'Price review must see competing approved rates, not only the selected ones.');
-  return {value:review(data.record),sourceUrls:[]};
+  return {value:review(data.record,data.completionPlan||undefined),sourceUrls:[]};
  };
  const read=await interpretProjectRecord(scope,{request,now});assert.equal(read.status,'ready');
- const priced=await priceProjectRecord(read.record!,config,{request,now});assert.equal(priced.status,'estimated');
- assert.deepEqual(calls,[PROJECT_RECORD_INSTRUCTIONS,PROJECT_REVIEW_INSTRUCTIONS,PROJECT_CATALOG_INSTRUCTIONS,PROJECT_PRICE_INSTRUCTIONS,PROJECT_REVIEW_INSTRUCTIONS]);
+ const priced=await priceProjectRecord(read.record!,config,{request,now,completionPlan:read.completionPlan});assert.equal(priced.status,'estimated');
+ assert.deepEqual(calls,[PROJECT_COMPLETION_INSTRUCTIONS,PROJECT_RECORD_INSTRUCTIONS,PROJECT_REVIEW_INSTRUCTIONS,PROJECT_CATALOG_INSTRUCTIONS,PROJECT_PRICE_INSTRUCTIONS,PROJECT_REVIEW_INSTRUCTIONS]);
+});
+test('a favorable automated review cannot hide unrepresented operations from the source-first method',()=>{
+ const input=projectInput(scope),raw=method(input,'remove');raw.steps.push({...method(input,'install').steps[0]});
+ const plan=acceptProjectCompletion(raw,input),r=record(),unsupported={...review(r),completionChecks:plan.steps.map(step=>({stepId:step.id,outcome:'represented' as const,requirementIds:['replace-handles'],questionIds:[],reason:'Claiming the broad replacement includes every operation.',evidenceIds:[]}))};
+ assert.equal(unsupported.findings.length,0);
+ assert.equal(validateProjectReview(r,unsupported,plan).problems.filter(p=>p.code==='completion-operation').length,2);
+ const p=example(input);p.requirements[0].operation='install';p.requirements.push({...p.requirements[0],id:'remove-existing',operation:'remove',description:'Remove existing passage hardware'});
+ const complete=acceptProjectRecord(p,input,null,now);
+ assert.deepEqual(validateProjectReview(complete,review(complete,plan),plan).problems,[]);
+ const omitted=review(complete,plan);omitted.completionChecks.pop();
+ assert.ok(validateProjectReview(complete,omitted,plan).problems.some(p=>p.code==='completion-review'));
+ const forged=structuredClone(raw);forged.steps[0].evidence[0].quote='Unsupported demolition instructions';
+ assert.throws(()=>acceptProjectCompletion(forged,input),ProjectRecordError);
+ const changed=structuredClone(plan);changed.steps[0].description='Changed after review';
+ assert.ok(validateProjectReview(complete,review(complete,changed),changed).problems.some(p=>p.code==='stale-completion'));
+ const dismissed={...review(r),completionChecks:[{stepId:plan.steps[0].id,outcome:'not-required',requirementIds:[],questionIds:[],reason:'Assumed included in installed price.',evidenceIds:[]}]};
+ assert.equal(projectReviewSchema.safeParse(dismissed).success,false);
 });
 test('catalog discovery accounts for all work, rejects invented codes and never filters the full index by task keywords',()=>{
  const r=record(),rates=config.planningCatalog!.rates;

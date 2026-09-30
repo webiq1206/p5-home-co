@@ -3,6 +3,7 @@ import {calculateP5Estimate,customerEstimate,customerSafeProjection,COST_CATEGOR
 import {unitKey} from './unitRates.ts';
 import {projectHash,projectRecordIntegrity,validateProjectQuantities,type ProjectRecord,type RecordProblem} from './projectRecord.ts';
 import {projectPricingProposalSchema,projectPricingWireSchema,projectPricingWireFor,projectReviewSchema,type ProjectPricingProposal,type ProjectReview} from './projectRecordContracts.ts';
+import {completionReviewProblems,type ProjectCompletionPlan} from './projectCompletion.ts';
 
 export const PROJECT_PRICE_COMPILER_VERSION='p5-project-price-compiler-v2';
 export interface ProjectPriceSelection {recordHash:string;catalogHash:string;proposal:ProjectPricingProposal}
@@ -18,15 +19,17 @@ export function projectPriceProposalFromWire(record:ProjectRecord,configuration:
  });
  return projectPricingProposalSchema.parse({lines,estimatingQuantities,gaps:wire.gaps});
 }
-export interface ProjectReviewReceipt {recordHash:string;selectionHash:string|null;review:ProjectReview}
-export const projectReviewReceipt=(record:ProjectRecord,selection:ProjectPriceSelection|null,raw:unknown):ProjectReviewReceipt=>({recordHash:record.recordHash,selectionHash:selection?projectHash(selection):null,review:projectReviewSchema.parse(raw)});
+export interface ProjectReviewReceipt {recordHash:string;selectionHash:string|null;completionPlanHash:string|null;review:ProjectReview}
+export const projectReviewReceipt=(record:ProjectRecord,selection:ProjectPriceSelection|null,raw:unknown,completionPlan?:ProjectCompletionPlan):ProjectReviewReceipt=>({recordHash:record.recordHash,selectionHash:selection?projectHash(selection):null,completionPlanHash:completionPlan?.planHash||null,review:projectReviewSchema.parse(raw)});
 export const projectCatalogHash=(configuration:EstimatorConfiguration)=>projectHash({catalog:configuration.planningCatalog,catalogVersion:configuration.catalogVersion});
 export const projectPriceSelection=(record:ProjectRecord,configuration:EstimatorConfiguration,raw:unknown):ProjectPriceSelection=>({recordHash:record.recordHash,catalogHash:projectCatalogHash(configuration),proposal:projectPricingProposalSchema.parse(raw)});
-export function validateProjectReview(record:ProjectRecord,raw:unknown):{review:ProjectReview;problems:RecordProblem[]}{
+export function validateProjectReview(record:ProjectRecord,raw:unknown,completionPlan?:ProjectCompletionPlan):{review:ProjectReview;problems:RecordProblem[]}{
  const review=projectReviewSchema.parse(raw),problems:RecordProblem[]=[];
  for(const item of record.requirements)if(!review.reviewedRequirementIds.includes(item.id))problems.push({code:'review-coverage',ids:[item.id],message:'Independent review did not cover this requirement.'});
  for(const source of record.sources)if(!review.reviewedSourceIds.includes(source.id))problems.push({code:'review-source-coverage',ids:[source.id],message:'Independent review did not cover this source.'});
  for(const question of record.questions)if(!review.reviewedQuestionIds.includes(question.id))problems.push({code:'review-question-coverage',ids:[question.id],message:'The scope review must check this question and the uncertainty it resolves.'});
+ if(completionPlan)problems.push(...completionReviewProblems(record,review,completionPlan));
+ else if(review.completionChecks.length)problems.push({code:'completion-review',ids:[],message:'Completion claims require their original source-linked method plan.'});
  for(const finding of review.findings)problems.push({code:finding.code,ids:[...finding.requirementIds,...finding.quantityIds,...finding.lineIds],message:finding.message+' Required correction: '+finding.requiredCorrection});
  return {review,problems};
 }
@@ -96,12 +99,13 @@ export function compileProjectPrices(record:ProjectRecord,selection:ProjectPrice
 
 /** The existing financial calculator is retained. No legacy scope defaults,
  * keyword correction or prose-based issue waiver can alter this input. */
-export function calculateProjectEstimate(record:ProjectRecord,selection:ProjectPriceSelection,configuration:EstimatorConfiguration,receipt:ProjectReviewReceipt,now=new Date()){
+export function calculateProjectEstimate(record:ProjectRecord,selection:ProjectPriceSelection,configuration:EstimatorConfiguration,receipt:ProjectReviewReceipt,now=new Date(),completionPlan?:ProjectCompletionPlan){
  const review=receipt.review;
  const compiled=compileProjectPrices(record,selection,configuration,now);
- const checked=validateProjectReview(record,review);
+ const checked=validateProjectReview(record,review,completionPlan);
  const problems=[...compiled.problems,...checked.problems];
  if(receipt.recordHash!==record.recordHash||receipt.selectionHash!==projectHash(selection))problems.push({code:'stale-review',ids:[],message:'Independent review must cover this exact project record and price selection.'});
+ if(receipt.completionPlanHash!==(completionPlan?.planHash||null))problems.push({code:'stale-completion-review',ids:[],message:'The pricing review must cover the same source-linked work method.'});
  for(const question of record.questions.filter(q=>q.priority==='blocking'))problems.push({code:'customer-question',ids:[question.id],message:question.prompt});
  for(const source of record.sourceReviews.filter(s=>s.status!=='reviewed'&&s.status!=='resolved-by-customer'))problems.push({code:'unresolved-source',ids:[source.sourceId],message:source.reason});
  if(!Object.hasOwn(SERVICE_MATRIX,record.service))problems.push({code:'project-classification',ids:[],message:'A supported project classification is required.'});
@@ -113,5 +117,5 @@ export function calculateProjectEstimate(record:ProjectRecord,selection:ProjectP
  const estimate=calculateP5Estimate(input,configuration.finance,[],now);
  for(const warning of estimate.warnings.filter(w=>w.severity==='block'))problems.push({code:warning.code,ids:[],message:warning.message});
  const customer=customerSafeProjection({...customerEstimate(estimate,record.summary),scopeTasks:record.requirements.map(r=>({id:r.id,description:r.description,category:r.trade,status:r.status,origin:r.origin,basis:r.reason})),verificationItems:record.questions.filter(q=>q.priority==='budget-choice').map(q=>q.prompt),projectRecordRevision:record.revision});
- return {status:estimate.publishable?'estimated' as const:'needs-resolution' as const,problems,record,selection,review,compiled,internal:{...estimate,projectRecord:record,projectPrices:selection,projectReview:review},customer};
+ return {status:estimate.publishable?'estimated' as const:'needs-resolution' as const,problems,record,selection,review,compiled,internal:{...estimate,projectRecord:record,projectPrices:selection,projectReview:review,projectCompletion:completionPlan||null},customer};
 }

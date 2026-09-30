@@ -5,7 +5,8 @@ import {ESTIMATOR_BRAND} from './brand.ts';
 import {claimWork,writeWork,renewWork,releaseWork} from './workStore.ts';
 import {requestPricing,type PricingReply,type PricingRequest} from './scopePricing.ts';
 import {PricingPending} from './pricingProgress.ts';
-import {PROJECT_RECORD_VERSION,PROJECT_RECORD_INSTRUCTIONS,PROJECT_PRICE_INSTRUCTIONS,PROJECT_REVIEW_INSTRUCTIONS,PROJECT_CATALOG_INSTRUCTIONS,projectContractSchema} from './projectRecordContracts.ts';
+import {PROJECT_RECORD_VERSION,PROJECT_RECORD_INSTRUCTIONS,PROJECT_PRICE_INSTRUCTIONS,PROJECT_REVIEW_INSTRUCTIONS,PROJECT_CATALOG_INSTRUCTIONS,PROJECT_COMPLETION_INSTRUCTIONS,projectContractSchema} from './projectRecordContracts.ts';
+import type {ProjectCompletionPlan} from './projectCompletion.ts';
 import {projectHash,projectInput,projectRecordIntegrity,type ProjectRecord,type ProjectScope} from './projectRecord.ts';
 import {interpretProjectRecord,priceProjectRecord} from './projectWorkflow.ts';
 import {EMPTY_CONFIGURATION,type EstimatorConfiguration} from './costBook.ts';
@@ -15,8 +16,8 @@ import {readProjectConversation,activeProjectChanges} from './projectConversatio
 import {PROJECT_PRICE_COMPILER_VERSION} from './projectPricing.ts';
 
 const LATEST='project-record-latest-v1';
-export const PROJECT_WORKFLOW_CONTRACT_HASH=projectHash({version:PROJECT_RECORD_VERSION,compilerVersion:PROJECT_PRICE_COMPILER_VERSION,stages:[PROJECT_RECORD_INSTRUCTIONS,PROJECT_CATALOG_INSTRUCTIONS,PROJECT_PRICE_INSTRUCTIONS,PROJECT_REVIEW_INSTRUCTIONS].map(instructions=>({instructions,schema:projectContractSchema(instructions)}))});
-type QualificationResult=(Awaited<ReturnType<typeof interpretProjectRecord>>|Awaited<ReturnType<typeof priceProjectRecord>>)&{runEvidence?:{contractHash:string;completedStages:{requestHash:string;requestedModel:string|null;returnedModel:string|null;providerRequestIds:string[]}[]}};
+export const PROJECT_WORKFLOW_CONTRACT_HASH=projectHash({version:PROJECT_RECORD_VERSION,compilerVersion:PROJECT_PRICE_COMPILER_VERSION,stages:[PROJECT_COMPLETION_INSTRUCTIONS,PROJECT_RECORD_INSTRUCTIONS,PROJECT_CATALOG_INSTRUCTIONS,PROJECT_PRICE_INSTRUCTIONS,PROJECT_REVIEW_INSTRUCTIONS].map(instructions=>({instructions,schema:projectContractSchema(instructions)}))});
+type QualificationResult=(Awaited<ReturnType<typeof interpretProjectRecord>>|Awaited<ReturnType<typeof priceProjectRecord>>)&{completionPlan?:ProjectCompletionPlan;runEvidence?:{contractHash:string;completedStages:{requestHash:string;requestedModel:string|null;returnedModel:string|null;providerRequestIds:string[]}[]}};
 type StoredWork={startedAt:string;replies:Record<string,PricingReply>;requests?:Record<string,{instructions:string;input:unknown;startedAt:string}>;record?:ProjectRecord;result?:QualificationResult};
 /** Both a first completion and recovery of a saved completion pass through the
  * same atomic revision guard. Saving provider work is not publication. */
@@ -58,9 +59,10 @@ export async function runProjectQualification(id:string,expectedRevision:number,
  const input=projectInput(scope,changes);
  const prior=await readProjectQualification(id);
  const previous=prior?.record&&projectRecordIntegrity(prior.record)?prior.record:null;
- if(phase==='interpret'&&previous&&previous.sourceHash===input.sourceHash&&prior?.draftRevision===expectedRevision&&prior.contractHash===PROJECT_WORKFLOW_CONTRACT_HASH)
-  return {status:prior.record.questions.some(q=>q.priority==='blocking')?'questions':'ready',record:prior.record,problems:[],attempts:0,reused:true};
- if(phase==='price'&&(!previous||previous.sourceHash!==input.sourceHash||prior?.draftRevision!==expectedRevision||prior.contractHash!==PROJECT_WORKFLOW_CONTRACT_HASH))throw new DraftError('Interpret the current sources before selecting prices.',409);
+ const previousCompletion=(prior?.result as {completionPlan?:ProjectCompletionPlan}|undefined)?.completionPlan;
+ if(phase==='interpret'&&previous&&previousCompletion&&previous.sourceHash===input.sourceHash&&prior?.draftRevision===expectedRevision&&prior.contractHash===PROJECT_WORKFLOW_CONTRACT_HASH)
+  return {status:prior.record.questions.some(q=>q.priority==='blocking')?'questions':'ready',record:prior.record,completionPlan:previousCompletion,problems:[],attempts:0,reused:true};
+ if(phase==='price'&&(!previous||!previousCompletion||previous.sourceHash!==input.sourceHash||prior?.draftRevision!==expectedRevision||prior.contractHash!==PROJECT_WORKFLOW_CONTRACT_HASH))throw new DraftError('Interpret the current sources and work method before selecting prices.',409);
  const [policy]=await query("SELECT payload FROM p5_estimator_policy WHERE id='current'");
  const saved=(policy?.payload||EMPTY_CONFIGURATION) as EstimatorConfiguration;
  const configuration=phase==='price'?projectConfiguration(saved,previous!,draft.answers.finish):saved;
@@ -81,9 +83,10 @@ export async function runProjectQualification(id:string,expectedRevision:number,
    const checkpoint=async(reply:PricingReply)=>{payload.replies[key]=reply;await persist();};
    return requestPricing(instructions,context,false,Math.min(left,150000),{draftId:id,customerKey:createHash('sha256').update('project-record-qualification:'+id).digest('hex'),revision:expectedRevision},undefined,checkpoint);
   };
-  const options={request:staged,previous,changes,now:new Date(payload.startedAt),deadline};
+  const options={request:staged,previous,changes,now:new Date(payload.startedAt),deadline,completionPlan:phase==='price'?previousCompletion:undefined};
   const workflowResult=phase==='interpret'?await interpretProjectRecord(scope,options):await priceProjectRecord(previous!,configuration,options);
-  const result:QualificationResult={...workflowResult,runEvidence:{contractHash:PROJECT_WORKFLOW_CONTRACT_HASH,completedStages:Object.entries(payload.replies).map(([requestHash,reply])=>({requestHash,requestedModel:reply.model||null,returnedModel:reply.responseModel||null,providerRequestIds:reply.providerRequestIds||[]}))}};
+  const completionPlan='completionPlan'in workflowResult?workflowResult.completionPlan:phase==='price'?previousCompletion:undefined;
+  const result:QualificationResult={...workflowResult,completionPlan,runEvidence:{contractHash:PROJECT_WORKFLOW_CONTRACT_HASH,completedStages:Object.entries(payload.replies).map(([requestHash,reply])=>({requestHash,requestedModel:reply.model||null,returnedModel:reply.responseModel||null,providerRequestIds:reply.providerRequestIds||[]}))}};
   payload.result=result;payload.record=result.record||undefined;await persist();
   return await publishProjectQualification(id,expectedRevision,result);
  }finally{clearInterval(renewal);await releaseWork(id,workKey,claim.token);}

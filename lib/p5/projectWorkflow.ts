@@ -1,13 +1,14 @@
 import type {EstimatorConfiguration} from './costBook.ts';
 import {requestPricing,type PricingRequest} from './scopePricing.ts';
-import {PROJECT_RECORD_INSTRUCTIONS,PROJECT_PRICE_INSTRUCTIONS,PROJECT_REVIEW_INSTRUCTIONS,PROJECT_CATALOG_INSTRUCTIONS,type ProjectProposal} from './projectRecordContracts.ts';
+import {PROJECT_RECORD_INSTRUCTIONS,PROJECT_PRICE_INSTRUCTIONS,PROJECT_REVIEW_INSTRUCTIONS,PROJECT_CATALOG_INSTRUCTIONS,PROJECT_COMPLETION_INSTRUCTIONS,type ProjectProposal} from './projectRecordContracts.ts';
+import {acceptProjectCompletion,type ProjectCompletionPlan} from './projectCompletion.ts';
 import {checkedProjectCandidates,projectCatalogIndex} from './projectCatalog.ts';
 import {projectInput,acceptProjectRecord,ProjectRecordError,type ProjectRecord,type ProjectScope,type RecordProblem} from './projectRecord.ts';
 import {projectPriceSelection,projectPriceProposalFromWire,compileProjectPrices,calculateProjectEstimate,projectReviewReceipt,validateProjectReview,type ProjectPriceSelection} from './projectPricing.ts';
 import type {ProjectChange} from './projectConversation.ts';
 
-export interface ProjectWorkflowOptions {request?:PricingRequest;previous?:ProjectRecord|null;changes?:ProjectChange[];now?:Date;deadline?:number}
-export interface ProjectReadResult {status:'ready'|'questions'|'needs-resolution';record:ProjectRecord|null;problems:RecordProblem[];attempts:number}
+export interface ProjectWorkflowOptions {request?:PricingRequest;previous?:ProjectRecord|null;changes?:ProjectChange[];now?:Date;deadline?:number;completionPlan?:ProjectCompletionPlan}
+export interface ProjectReadResult {status:'ready'|'questions'|'needs-resolution';record:ProjectRecord|null;problems:RecordProblem[];attempts:number;completionPlan?:ProjectCompletionPlan}
 function shapeProblems(error:unknown):RecordProblem[]{
  if(error instanceof ProjectRecordError)return error.problems;
  if(error&&typeof error==='object'&&'issues'in error&&Array.isArray(error.issues))return error.issues.map((issue:{path?:unknown[];message?:string})=>({code:'record-shape',ids:[],message:(issue.path||[]).join('.')+': '+issue.message}));
@@ -19,17 +20,24 @@ export async function interpretProjectRecord(scope:ProjectScope,options:ProjectW
  // Incomplete uploads are repaired by the document reader, never ignored by
  // asking a text model to certify pages it did not receive.
  if(input.documentIssues.length)return {status:'needs-resolution',record:null,problems:input.documentIssues.map(message=>({code:'document-coverage',ids:[],message})),attempts:0};
- let problems:RecordProblem[]=[],candidate:ProjectProposal|unknown=null;
+ let problems:RecordProblem[]=[],candidate:ProjectProposal|unknown=null,completionCandidate:unknown=null,completionPlan:ProjectCompletionPlan|undefined;
+ for(let attempt=1;attempt<=2&&!completionPlan;attempt++){
+  const response=await request(PROJECT_COMPLETION_INSTRUCTIONS,{sources:input.sources,...(attempt>1?{previousProposal:completionCandidate,correctionsRequired:problems}:{})},false,remaining());
+  completionCandidate=response.value;
+  try{completionPlan=acceptProjectCompletion(completionCandidate,input);}catch(error){problems=shapeProblems(error);}
+ }
+ if(!completionPlan)return {status:'needs-resolution',record:null,problems,attempts:2};
+ problems=[];
  for(let attempt=1;attempt<=2;attempt++){
-  const response=await request(PROJECT_RECORD_INSTRUCTIONS,{sources:input.sources,previousRecord:options.previous||null,...(candidate?{previousProposal:candidate,correctionsRequired:problems}:{}),purpose:'Preliminary construction estimate; preserve exact project boundaries and disclose uncertainty.'},false,remaining());
+  const response=await request(PROJECT_RECORD_INSTRUCTIONS,{sources:input.sources,completionPlan,previousRecord:options.previous||null,...(candidate?{previousProposal:candidate,correctionsRequired:problems}:{}),purpose:'Preliminary construction estimate; preserve exact project boundaries and disclose uncertainty.'},false,remaining());
   candidate=response.value;
   let record:ProjectRecord;
   try{record=acceptProjectRecord(candidate,input,options.previous||null,now);}catch(error){problems=shapeProblems(error);continue;}
-  const audit=await request(PROJECT_REVIEW_INSTRUCTIONS,{stage:'scope-with-questions',sources:input.sources,record,selectedPrices:null,purpose:'Accept a faithful intermediate scope WITH useful questions. Missing source measurements or selections represented as unknown/conditional and addressed by necessary questions are expected, not defects. Check that no work or uncertainty is silently omitted.'},false,remaining());
-  try{problems=validateProjectReview(record,audit.value).problems;}catch(error){problems=shapeProblems(error);}
-  if(!problems.length)return {status:record.questions.some(q=>q.priority==='blocking')?'questions':'ready',record,problems:[],attempts:attempt};
+  const audit=await request(PROJECT_REVIEW_INSTRUCTIONS,{stage:'scope-with-questions',sources:input.sources,completionPlan,record,selectedPrices:null,purpose:'Accept a faithful intermediate scope WITH useful questions. Missing source measurements or selections represented as unknown/conditional and addressed by necessary questions are expected, not defects. Check that no work or uncertainty is silently omitted.'},false,remaining());
+  try{problems=validateProjectReview(record,audit.value,completionPlan).problems;}catch(error){problems=shapeProblems(error);}
+  if(!problems.length)return {status:record.questions.some(q=>q.priority==='blocking')?'questions':'ready',record,completionPlan,problems:[],attempts:attempt};
  }
- return {status:'needs-resolution',record:null,problems,attempts:2};
+ return {status:'needs-resolution',record:null,completionPlan,problems,attempts:2};
 }
 
 export async function priceProjectRecord(record:ProjectRecord,configuration:EstimatorConfiguration,options:ProjectWorkflowOptions={}){
@@ -56,10 +64,10 @@ export async function priceProjectRecord(record:ProjectRecord,configuration:Esti
   const compiled=compileProjectPrices(record,selection,configuration,now);
   if(compiled.problems.length){problems=compiled.problems;continue;}
   const selectedCatalogIds=new Set(selection.proposal.lines.map(line=>line.rateId));
-  const responseReview=await request(PROJECT_REVIEW_INSTRUCTIONS,{stage:'priced-estimate',sources:record.sources,record,selectedPrices:selection,selectedCatalog:catalog.filter(rate=>selectedCatalogIds.has(rate.code)),catalogCandidates,catalog,coverage:compiled.coverage},false,remaining());
+  const responseReview=await request(PROJECT_REVIEW_INSTRUCTIONS,{stage:'priced-estimate',sources:record.sources,completionPlan:options.completionPlan||null,record,selectedPrices:selection,selectedCatalog:catalog.filter(rate=>selectedCatalogIds.has(rate.code)),catalogCandidates,catalog,coverage:compiled.coverage},false,remaining());
   try{
-   const receipt=projectReviewReceipt(record,selection,responseReview.value);
-   const result=calculateProjectEstimate(record,selection,configuration,receipt,now);
+   const receipt=projectReviewReceipt(record,selection,responseReview.value,options.completionPlan);
+   const result=calculateProjectEstimate(record,selection,configuration,receipt,now,options.completionPlan);
    if(result.status==='estimated')return {...result,attempts:attempt};
    problems=result.problems;
   }catch(error){problems=shapeProblems(error);}
