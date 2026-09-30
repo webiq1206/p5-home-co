@@ -4,7 +4,7 @@ Authorization: Jared approved the rebuild on September 30, 2026 after reviewing 
 
 ## What changes
 
-The replacement workflow uses one versioned project record. Source evidence, physical subjects, quantities, requirements, responsibilities, dependencies and questions have explicit identities. Pricing selects catalog records and links their coverage to existing requirements. It cannot create scope, author a price or change a quantity. An independent review must cover the exact record and price-selection hashes. Revisions invalidate old pricing and review receipts.
+The replacement workflow uses one versioned project record. Source evidence, physical subjects, quantities, requirements, responsibilities, dependencies and questions have explicit identities. Pricing selects catalog records and links their coverage to existing requirements. It cannot create scope, author a price or overwrite a physical measurement. It can propose separate, explicitly linked purchase or effort quantities, using verified arithmetic or disclosed allowances. An independent review must cover the exact record and price-selection hashes. Revisions invalidate old pricing and review receipts.
 
 The existing financial calculator and approved cost data remain in use. The new compiler bypasses legacy scope defaults, keyword corrections and prose-based decisions about whether an issue should block a total. This is an architectural boundary, not a claim that AI interpretation is already reliable.
 
@@ -40,7 +40,7 @@ Initial unit-level reference: three owner-supplied passage handles use approved 
 
 ## Remaining implementation and evidence
 
-The current foundation has not passed a real-model qualification run. Document sources still depend on the existing reader’s transcripts and observations; quote verification does not prove the reader transcribed the original page correctly. Native per-page text/visual evidence and whole-plan-set reconciliation require further work. Missing catalog prices are explicit unresolved gaps; the new research-observation contract and validation path are not yet implemented. Dynamic questions are stored but are not yet wired into the public customer interface. Public adoption, delivery verification, local bid comparisons and the full matrix remain open.
+The current foundation has not passed a real-model qualification run. Document sources still depend on the existing reader’s transcripts and observations; quote verification does not prove the reader transcribed the original page correctly. Native per-page text/visual evidence and whole-plan-set reconciliation require further work. Missing catalog prices are explicit unresolved gaps; the new research-observation contract and validation path are not yet implemented. Dynamic questions and their answers now have revision-guarded persistence, but are not yet wired into the public customer interface. Public adoption, delivery verification, local bid comparisons and the full matrix remain open.
 
 GPT-4.1 remains the configured model. Model changes require measured evaluation and an explicit recorded policy change. No claim of perfect accuracy, competitor equivalence or completed P5 qualification is made.
 
@@ -66,3 +66,18 @@ Repairs awaiting host retest:
 The outgoing schema uses nested `anyOf` with minimum array lengths, supported in the official [Structured Outputs guide](https://developers.openai.com/api/docs/guides/structured-outputs), consulted September 30. Schema adherence does not establish semantic correctness.
 
 Implementation evidence: the main-checkout production build of `cc11b8f` passed, including 1,644 tests (1,629 passed, 15 database-dependent skips, zero failures) and six database-safety checks. The repaired core has 16 focused passing tests, including actual PostgreSQL-compatible JSONB persistence and revision-race checks. TypeScript passed. These results do not turn the failed real-model case into an accepted estimate.
+
+
+## Second real-model run and scope/costing separation
+
+The `5a27f2c` interpretation retest also **failed, needs-resolution**. The missing dependency links were resolved. Three provider requests (two proposals and one review) returned `gpt-4.1-2025-04-14`. Scope included the three owner-supplied handles, requested operations, cleanup and exclusions, but the reviewer demanded confirmations about applying adjustment/testing to all three handles and the unit of cleanup. The second proposal followed that criticism into unnecessary questions. No record or estimate was accepted. The public release remained unchanged.
+
+This revealed a design problem in the core: requiring every supporting operation to have its own customer-confirmed quantity conflated physical project extent with contractor effort. Contract version 3 separates them. Operations on the same known physical items may share that physical quantity. Supporting effort bounded by included work can be derived during costing. The costing proposal may add calculation-backed quantities or disclosed positive allowance ranges, linked to the exact requirements and known physical basis. It cannot replace physical measurements, invent approved prices, or charge owner/excluded work. Missing physical extent still needs clarification. Coverage remains mandatory before calculation.
+
+Focused reference verification: three owner-supplied handle replacements use $210 direct approved labor. A separately disclosed 0.5-hour cleanup allowance at the approved $45/hour rate adds $22.50, with a 0.25–0.75-hour effort range. This is a compiler test of an explicit estimating assumption, not an independently established production rate or passed live case. The original count stays three. The compiler rejects measurement replacement and owner-material charges.
+
+`projectConversation.ts` now saves the exact question, answer, affected work and sequence. Answers are free-form evidence rather than entries forced into the legacy answer-field list. Editing a resolved answer replaces its active value while preserving the audit history and unrelated answers. Ordered free-form scope revisions remain available. Each accepted change atomically advances the draft revision and invalidates prior interpretation/pricing. A lost-acknowledgement retry cannot duplicate a change; changing the same request ID is rejected. A simulated interruption between the revision write and answer write rolled back both in PostgreSQL-compatible tests.
+
+Saved qualification work is now identified by the actual instructions and schemas as well as source/revision/catalog hashes. A prompt or contract change cannot silently reuse an old failed or accepted result. Exact stage inputs are checkpointed before provider dispatch, and completion receipts identify returned models and completed provider response IDs. This captures the application's dispatch arguments, not an independently captured gateway HTTP body.
+
+Current local evidence: `5a27f2c` main production build passed, with 1,648 tests total (1,633 passed, 15 database-dependent skips, zero failures), plus six database-safety tests. The next version has 18 focused tests passing and clean TypeScript. Its real-model retest, public interface, uploads, pricing research, independent bid comparisons and category matrix remain open.

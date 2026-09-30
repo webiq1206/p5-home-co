@@ -2,9 +2,10 @@ import {createHash} from 'node:crypto';
 import type {ReviewedScope} from './scope.ts';
 import {unitKey,UNIT_REGISTRY} from './unitRates.ts';
 import {PROJECT_RECORD_VERSION,projectProposalSchema,type ProjectProposal,type ProjectQuantity,type ProjectQuestion} from './projectRecordContracts.ts';
+import type {ProjectChange} from './projectConversation.ts';
 
 export interface ProjectSource {
- id:string;kind:'customer-text'|'reviewed-answer'|'document-transcript'|'reader-observation';
+ id:string;kind:'customer-text'|'reviewed-answer'|'document-transcript'|'reader-observation'|'customer-clarification'|'customer-revision';
  name:string;fileId:string|null;page:number|null;text:string;sha256:string;
  status:'read'|'partial'|'unreadable';
 }
@@ -35,7 +36,7 @@ function sourceBlocks(text:string,limit=18000){
  }
  return output;
 }
-export function projectInput(scope:ReviewedScope):ProjectInput{
+export function projectInput(scope:ReviewedScope,changes:ProjectChange[]=[]):ProjectInput{
  const sources:ProjectSource[]=[],documentIssues:string[]=[];
  const add=(kind:ProjectSource['kind'],name:string,text:string,fileId:string|null=null,page:number|null=null,status:ProjectSource['status']='read')=>{
   if(!text.trim())return;
@@ -62,6 +63,7 @@ export function projectInput(scope:ReviewedScope):ProjectInput{
  // Facts from a reader are observations, not fresh customer answers. Keep all
  // details even when a legacy field cannot represent several rooms or items.
  if(extraction)add('reader-observation','Reader facts and takeoffs',JSON.stringify({summary:extraction.summary,facts:extraction.facts,takeoffs:extraction.takeoffs||[],conflicts:extraction.conflicts,instructions:extraction.instructions||null,reviewNotes:extraction.reviewNotes}));
+ for(const change of changes)add(change.kind==='answer'?'customer-clarification':'customer-revision',`Customer update ${change.sequence}, draft revision ${change.draftRevision}`,`Question: ${change.prompt}\nCustomer response: ${change.response}\nRelated requirement IDs: ${change.requirementIds.join(', ')}\nRelated quantity IDs: ${change.quantityIds.join(', ')}`);
  return {sources,sourceHash:projectHash(sources),documentIssues:unique(documentIssues)};
 }
 
@@ -102,6 +104,7 @@ export function computedProjectQuantity(quantity:ProjectQuantity,quantities:Proj
 export function validateProjectRecord(proposal:ProjectProposal,input:ProjectInput):RecordProblem[]{
  const issues:RecordProblem[]=[];
  const issue=(code:string,ids:string[],message:string)=>issues.push({code,ids,message});
+ if(proposal.service==='unclassified'&&!proposal.questions.some(q=>q.kind==='scope'&&q.priority==='blocking'))issue('project-classification',[],'An unclear project purpose needs a specific scope question.');
  const collections=[proposal.evidence,proposal.subjects,proposal.quantities,proposal.requirements,proposal.questions];
  for(const collection of collections){const seen=new Set<string>();for(const item of collection){if(seen.has(item.id))issue('duplicate-id',[item.id],'IDs must be unique within their record type.');seen.add(item.id);}}
  const sources=new Map(input.sources.map(s=>[s.id,s])),evidence=new Map(proposal.evidence.map(e=>[e.id,e]));
@@ -145,7 +148,7 @@ export function validateProjectRecord(proposal:ProjectProposal,input:ProjectInpu
   checkEvidence(r.evidenceIds,r.id);
   if(r.quantityId&&!quantities.has(r.quantityId))issue('unknown-quantity',[r.id,r.quantityId],'Requirement quantity does not exist.');
   if(r.quantityId&&quantities.has(r.quantityId)&&quantities.get(r.quantityId)!.subjectId!==r.subjectId)issue('quantity-subject',[r.id,r.quantityId],'A requirement must use a quantity of its own physical subject.');
-  if(r.status==='included'&&r.responsibility==='contractor'&&(!r.quantityId||quantities.get(r.quantityId)?.basis==='unknown')&&!proposal.questions.some(q=>q.priority==='blocking'&&(q.requirementIds.includes(r.id)||Boolean(r.quantityId&&q.quantityIds.includes(r.quantityId)))))issue('unresolved-work',[r.id],'Included work without a usable quantity needs a specific blocking question.');
+  if(r.status==='included'&&r.responsibility==='contractor'&&r.quantityId&&quantities.get(r.quantityId)?.basis==='unknown'&&!proposal.questions.some(q=>q.priority==='blocking'&&(q.requirementIds.includes(r.id)||q.quantityIds.includes(r.quantityId!))))issue('unresolved-work',[r.id],'A genuinely unknown physical scope quantity needs a specific blocking question. Supporting production effort is derived separately during costing.');
   if(r.status==='existing'&&r.operation!=='retain')issue('existing-work',[r.id],'Existing conditions must be retained observations; proposed operations need an included requirement.');
   if(r.status==='included'&&r.responsibility==='unassigned'&&!proposal.questions.some(q=>q.priority==='blocking'&&q.requirementIds.includes(r.id)&&['responsibility','scope','conflict'].includes(q.kind)))issue('unknown-responsibility',[r.id],'Included work needs an explicit responsibility or a linked blocking question.');
   if(r.status==='conditional'&&!proposal.questions.some(q=>q.priority==='blocking'&&q.requirementIds.includes(r.id)))issue('unresolved-condition',[r.id],'Conditional work needs a linked blocking question so it cannot disappear from the estimate.');

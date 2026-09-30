@@ -4,8 +4,9 @@ import {requestPricing,type PricingRequest} from './scopePricing.ts';
 import {PROJECT_RECORD_INSTRUCTIONS,PROJECT_PRICE_INSTRUCTIONS,PROJECT_REVIEW_INSTRUCTIONS,projectPricingProposalSchema,type ProjectProposal} from './projectRecordContracts.ts';
 import {projectInput,acceptProjectRecord,ProjectRecordError,type ProjectRecord,type RecordProblem} from './projectRecord.ts';
 import {projectPriceSelection,compileProjectPrices,calculateProjectEstimate,projectReviewReceipt,validateProjectReview,type ProjectPriceSelection} from './projectPricing.ts';
+import type {ProjectChange} from './projectConversation.ts';
 
-export interface ProjectWorkflowOptions {request?:PricingRequest;previous?:ProjectRecord|null;now?:Date;deadline?:number}
+export interface ProjectWorkflowOptions {request?:PricingRequest;previous?:ProjectRecord|null;changes?:ProjectChange[];now?:Date;deadline?:number}
 export interface ProjectReadResult {status:'ready'|'questions'|'needs-resolution';record:ProjectRecord|null;problems:RecordProblem[];attempts:number}
 function shapeProblems(error:unknown):RecordProblem[]{
  if(error instanceof ProjectRecordError)return error.problems;
@@ -14,7 +15,7 @@ function shapeProblems(error:unknown):RecordProblem[]{
 }
 function budget(options:ProjectWorkflowOptions){const deadline=options.deadline||Date.now()+600000;return ()=>{const left=deadline-Date.now();if(left<1000)throw new Error('project-workflow-paused');return left;};}
 export async function interpretProjectRecord(scope:ReviewedScope,options:ProjectWorkflowOptions={}):Promise<ProjectReadResult>{
- const input=projectInput(scope),request=options.request||requestPricing,remaining=budget(options),now=options.now||new Date();
+ const input=projectInput(scope,options.changes),request=options.request||requestPricing,remaining=budget(options),now=options.now||new Date();
  // Incomplete uploads are repaired by the document reader, never ignored by
  // asking a text model to certify pages it did not receive.
  if(input.documentIssues.length)return {status:'needs-resolution',record:null,problems:input.documentIssues.map(message=>({code:'document-coverage',ids:[],message})),attempts:0};
