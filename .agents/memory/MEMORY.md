@@ -7,3 +7,4 @@
 - [Disposable database verification](disposable-database-verification.md) — never run destructive or concurrency verification through a production-marked runtime database URL.
 - [Plans-only qualification recovery](plans-only-qualification-recovery.md) — resume a preserved plans checkpoint directly; never let an unrelated historical short-file probe trigger new work.
 - [Estimator regression runner](estimator-regression-runner.md) — use the installed TS runner for isolated SQL regression scripts under Node 24; native stripping rejects their temporary modules.
+- [Large database row transfer](large-database-row-transfer.md) — parse large read-only SQL rows as CSV-wrapped JSON in pure JS when cross-block base64 decoding fails internally.
