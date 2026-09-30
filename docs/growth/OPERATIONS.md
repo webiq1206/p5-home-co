@@ -98,3 +98,10 @@ Fresh production HTML now shows the corrected Eagle permit language and official
 Google URL Inspection now reports /estimate as Discovered - currently not indexed and attributes discovery to the sitemap. Google and Bing still report successful processing of the correct seven-URL P5 sitemap. A separate newly submitted /sitemap.xm registration returns 404 and has a Google error. Do not resubmit the valid /sitemap.xml or remove the site property. Clean up only the mistyped registration when an authorized sitemap-removal capability is available.
 
 Keep new measurements in the private record. September 29 campaign traffic includes visits before specialist posts publish and may include link validation or live QA, so it is not evidence of qualified customers or campaign lift. No new metadata rewrite was justified by the pre-change measurement window.
+
+
+## September 30 midday verification
+
+Cabinet's cabinet_storage_plan is now published, verified at 16:00:54 UTC. Its entry has moved from scheduled to published in publications.json. Do not repost it. Six future posts remain in the recorded queue through October 9.
+
+Do not update Facebook's existing multiple-website field using FACEBOOK_UPDATE_PAGE_SETTINGS. A six-link payload was accepted but malformed the first link's tracking query, and restoring the original full string did not repair it. Other returned website destinations remain present. Repair individual entries in the native page editor with authorized access; do not replace the entire list with one URL. See the private operations record for the approval and access blockers.
