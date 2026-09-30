@@ -1,7 +1,8 @@
 import type {ReviewedScope} from './scope.ts';
 import type {EstimatorConfiguration} from './costBook.ts';
 import {requestPricing,type PricingRequest} from './scopePricing.ts';
-import {PROJECT_RECORD_INSTRUCTIONS,PROJECT_PRICE_INSTRUCTIONS,PROJECT_REVIEW_INSTRUCTIONS,projectPricingProposalSchema,type ProjectProposal} from './projectRecordContracts.ts';
+import {PROJECT_RECORD_INSTRUCTIONS,PROJECT_PRICE_INSTRUCTIONS,PROJECT_REVIEW_INSTRUCTIONS,PROJECT_CATALOG_INSTRUCTIONS,projectPricingProposalSchema,type ProjectProposal} from './projectRecordContracts.ts';
+import {checkedProjectCandidates,projectCatalogIndex} from './projectCatalog.ts';
 import {projectInput,acceptProjectRecord,ProjectRecordError,type ProjectRecord,type RecordProblem} from './projectRecord.ts';
 import {projectPriceSelection,compileProjectPrices,calculateProjectEstimate,projectReviewReceipt,validateProjectReview,type ProjectPriceSelection} from './projectPricing.ts';
 import type {ProjectChange} from './projectConversation.ts';
@@ -35,14 +36,24 @@ export async function interpretProjectRecord(scope:ReviewedScope,options:Project
 export async function priceProjectRecord(record:ProjectRecord,configuration:EstimatorConfiguration,options:ProjectWorkflowOptions={}){
  const request=options.request||requestPricing,remaining=budget(options),now=options.now||new Date();
  if(record.questions.some(q=>q.priority==='blocking'))return {status:'questions' as const,record,problems:record.questions.filter(q=>q.priority==='blocking').map(q=>({code:'customer-question',ids:[q.id],message:q.prompt}))};
- let selection:ProjectPriceSelection|null=null,problems:RecordProblem[]=[];
+ const catalog=configuration.planningCatalog?.rates||[];
+ let catalogCandidates:ReturnType<typeof checkedProjectCandidates>|null=null,catalogCandidate:unknown=null,problems:RecordProblem[]=[];
+ for(let attempt=1;attempt<=2&&!catalogCandidates;attempt++){
+  const response=await request(PROJECT_CATALOG_INSTRUCTIONS,{record,catalogIndex:projectCatalogIndex(catalog),...(attempt>1?{previousProposal:catalogCandidate,correctionsRequired:problems}:{})},false,remaining());
+  catalogCandidate=response.value;
+  try{catalogCandidates=checkedProjectCandidates(record,catalog,catalogCandidate);}catch(error){problems=shapeProblems(error);}
+ }
+ if(!catalogCandidates)return {status:'needs-resolution' as const,record,selection:null,problems,attempts:2};
+ let selection:ProjectPriceSelection|null=null,candidate:unknown=null;
+ problems=[];
  for(let attempt=1;attempt<=2;attempt++){
-  const response=await request(PROJECT_PRICE_INSTRUCTIONS,{record,catalog:configuration.planningCatalog?.rates||[],...(selection?{previousSelection:selection,correctionsRequired:problems}:{})},false,remaining());
-  try{projectPricingProposalSchema.parse(response.value);selection=projectPriceSelection(record,configuration,response.value);}catch(error){problems=shapeProblems(error);continue;}
+  const response=await request(PROJECT_PRICE_INSTRUCTIONS,{record,catalogCandidates,catalog,...(attempt>1?{previousProposal:candidate,previousSelection:selection,correctionsRequired:problems}:{})},false,remaining());
+  candidate=response.value;
+  try{projectPricingProposalSchema.parse(candidate);selection=projectPriceSelection(record,configuration,candidate);}catch(error){problems=shapeProblems(error);continue;}
   const compiled=compileProjectPrices(record,selection,configuration,now);
   if(compiled.problems.length){problems=compiled.problems;continue;}
   const selectedCatalogIds=new Set(selection.proposal.lines.map(line=>line.rateId));
-  const responseReview=await request(PROJECT_REVIEW_INSTRUCTIONS,{sources:record.sources,record,selectedPrices:selection,selectedCatalog:(configuration.planningCatalog?.rates||[]).filter(rate=>selectedCatalogIds.has(rate.code)),catalog:configuration.planningCatalog?.rates||[],coverage:compiled.coverage},false,remaining());
+  const responseReview=await request(PROJECT_REVIEW_INSTRUCTIONS,{sources:record.sources,record,selectedPrices:selection,selectedCatalog:catalog.filter(rate=>selectedCatalogIds.has(rate.code)),catalogCandidates,catalog,coverage:compiled.coverage},false,remaining());
   try{
    const receipt=projectReviewReceipt(record,selection,responseReview.value);
    const result=calculateProjectEstimate(record,selection,configuration,receipt,now);

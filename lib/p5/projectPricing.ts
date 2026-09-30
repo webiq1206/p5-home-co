@@ -13,7 +13,7 @@ export function validateProjectReview(record:ProjectRecord,raw:unknown):{review:
  const review=projectReviewSchema.parse(raw),problems:RecordProblem[]=[];
  for(const item of record.requirements)if(!review.reviewedRequirementIds.includes(item.id))problems.push({code:'review-coverage',ids:[item.id],message:'Independent review did not cover this requirement.'});
  for(const source of record.sources)if(!review.reviewedSourceIds.includes(source.id))problems.push({code:'review-source-coverage',ids:[source.id],message:'Independent review did not cover this source.'});
- for(const finding of review.findings)problems.push({code:finding.code,ids:[...finding.requirementIds,...finding.quantityIds,...finding.lineIds],message:finding.message});
+ for(const finding of review.findings)problems.push({code:finding.code,ids:[...finding.requirementIds,...finding.quantityIds,...finding.lineIds],message:finding.message+' Required correction: '+finding.requiredCorrection});
  return {review,problems};
 }
 export function compileProjectPrices(record:ProjectRecord,selection:ProjectPriceSelection,configuration:EstimatorConfiguration,now=new Date()){

@@ -5,16 +5,15 @@ import {ESTIMATOR_BRAND} from './brand.ts';
 import {claimWork,writeWork,renewWork,releaseWork} from './workStore.ts';
 import {requestPricing,type PricingReply,type PricingRequest} from './scopePricing.ts';
 import {PricingPending} from './pricingProgress.ts';
-import {PROJECT_RECORD_VERSION,PROJECT_RECORD_INSTRUCTIONS,PROJECT_PRICE_INSTRUCTIONS,PROJECT_REVIEW_INSTRUCTIONS,projectContractSchema} from './projectRecordContracts.ts';
+import {PROJECT_RECORD_VERSION,PROJECT_RECORD_INSTRUCTIONS,PROJECT_PRICE_INSTRUCTIONS,PROJECT_REVIEW_INSTRUCTIONS,PROJECT_CATALOG_INSTRUCTIONS,projectContractSchema} from './projectRecordContracts.ts';
 import {projectHash,projectInput,projectRecordIntegrity,type ProjectRecord,type ProjectScope} from './projectRecord.ts';
 import {interpretProjectRecord,priceProjectRecord} from './projectWorkflow.ts';
 import {EMPTY_CONFIGURATION,type EstimatorConfiguration} from './costBook.ts';
-import {priceBookRates,PRICE_BOOK_VERSION,finishTier} from './priceBook.ts';
-import {withRateCard} from './rateCard.ts';
+import {projectConfiguration} from './projectCatalog.ts';
 import {readProjectConversation,activeProjectChanges} from './projectConversation.ts';
 
 const LATEST='project-record-latest-v1';
-export const PROJECT_WORKFLOW_CONTRACT_HASH=projectHash({version:PROJECT_RECORD_VERSION,stages:[PROJECT_RECORD_INSTRUCTIONS,PROJECT_PRICE_INSTRUCTIONS,PROJECT_REVIEW_INSTRUCTIONS].map(instructions=>({instructions,schema:projectContractSchema(instructions)}))});
+export const PROJECT_WORKFLOW_CONTRACT_HASH=projectHash({version:PROJECT_RECORD_VERSION,stages:[PROJECT_RECORD_INSTRUCTIONS,PROJECT_CATALOG_INSTRUCTIONS,PROJECT_PRICE_INSTRUCTIONS,PROJECT_REVIEW_INSTRUCTIONS].map(instructions=>({instructions,schema:projectContractSchema(instructions)}))});
 type QualificationResult=(Awaited<ReturnType<typeof interpretProjectRecord>>|Awaited<ReturnType<typeof priceProjectRecord>>)&{runEvidence?:{contractHash:string;completedStages:{requestHash:string;requestedModel:string|null;returnedModel:string|null;providerRequestIds:string[]}[]}};
 type StoredWork={startedAt:string;replies:Record<string,PricingReply>;requests?:Record<string,{instructions:string;input:unknown;startedAt:string}>;record?:ProjectRecord;result?:QualificationResult};
 /** Both a first completion and recovery of a saved completion pass through the
@@ -60,8 +59,7 @@ export async function runProjectQualification(id:string,expectedRevision:number,
  if(phase==='price'&&(!previous||previous.sourceHash!==input.sourceHash||prior?.draftRevision!==expectedRevision||prior.contractHash!==PROJECT_WORKFLOW_CONTRACT_HASH))throw new DraftError('Interpret the current sources before selecting prices.',409);
  const [policy]=await query("SELECT payload FROM p5_estimator_policy WHERE id='current'");
  const saved=(policy?.payload||EMPTY_CONFIGURATION) as EstimatorConfiguration;
- const rates=priceBookRates(draft.answers);
- const configuration:EstimatorConfiguration={...withRateCard(saved,rates),catalogVersion:`${saved.planningCatalog?.version||'missing'}+${PRICE_BOOK_VERSION}:${finishTier(draft.answers.finish)}`};
+ const configuration=phase==='price'?projectConfiguration(saved,previous!,draft.answers.finish):saved;
  const workKey='project-record-work:'+projectHash({contract:PROJECT_WORKFLOW_CONTRACT_HASH,phase,revision:expectedRevision,sourceHash:input.sourceHash,catalog:phase==='price'?configuration:null,previous:previous?.recordHash||null});
  const claim=await claimWork(id,workKey,{startedAt:new Date().toISOString(),replies:{}},210);
  if(!claim)throw new PricingPending('This project review is already running.',3000);
