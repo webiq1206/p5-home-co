@@ -11,6 +11,7 @@ const NUMERIC_COMPONENTS:Partial<Record<ScopeField,RegExp>>={
  countertopSqft:/\bcountertops?\b/i,
  flooringSqft:/\b(?:flooring|LVP)\b/i,
  tileSqft:/\b(?:tile|backsplash)\b/i,
+ wallTileSqft:/\b(?:shower|wall)\s+(?:wall\s+)?tile\b/i,
  trimLf:/\b(?:baseboard|trim)\b/i,
 };
 const normalize=(value:string)=>value.toLowerCase().replace(/\b(one|two|three|four|five|six|seven|eight|nine|ten)\b/g,word=>String(['one','two','three','four','five','six','seven','eight','nine','ten'].indexOf(word)+1)).replace(/\bby\b/g,'x').replace(/\s*x\s*/g,'x').replace(/\s+/g,' ').trim();

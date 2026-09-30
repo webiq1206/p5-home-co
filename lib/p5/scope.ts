@@ -94,7 +94,7 @@ export function validateAnswer(field: ScopeField, value: string): string | null 
   return null;
 }
 /** Quantity fields whose stated parts (a wall and a floor, two rooms) add up to the field's total. */
-const AREA_PART_FIELDS: ScopeField[] = ['tileSqft', 'flooringSqft', 'countertopSqft', 'demolitionSqft', 'trimLf'];
+const AREA_PART_FIELDS: ScopeField[] = ['tileSqft', 'wallTileSqft', 'flooringSqft', 'countertopSqft', 'demolitionSqft', 'trimLf'];
 const SURFACE_WORDS = /\b(?:walls?|floors?|backsplash|ceilings?|countertops?|island|niche|tub surround|shower pan|perimeter|casing|baseboards?|crown)\b/gi;
 const ROOM_WORDS = /\b(?:bedrooms?|living room|family room|great room|kitchen|bath(?:room)?s?|powder room|hall(?:way)?|basement|garage|master|primary|guest|main level|upper level|lower level|office|closets?|laundry|entry|dining|mudroom|pantry)\b/gi;
 const wordSet = (text: string, pattern: RegExp) => new Set((text.toLowerCase().match(pattern) || []).map(w => w.replace(/s$/, '')));
@@ -295,7 +295,7 @@ export function validateExtraction(raw: unknown): ScopeExtraction {
   // A confident image transcription is not a verified measurement. A live
   // drawing labeled 20'-0" by 15'-0" was read as 20'-9" by 15'-9" at 1.0
   // confidence. Require confirmation of consequential raster measurements.
-  const geometricFields=new Set(['length','width','sqft','flooringSqft','tileSqft','countertopSqft','cabinetBaseLf','cabinetUpperLf','cabinetTallLf','garageSqft','coveredOutdoorSqft']);
+  const geometricFields=new Set(['length','width','sqft','flooringSqft','tileSqft','wallTileSqft','countertopSqft','cabinetBaseLf','cabinetUpperLf','cabinetTallLf','garageSqft','coveredOutdoorSqft']);
   for(const fact of facts){
     if(!geometricFields.has(fact.field)||fact.confidence<.85||fact.basis==='visual'||fact.basis==='inferred'||conflicts.some(c=>c.field===fact.field))continue;
     if(/\.(?:png|jpe?g|webp|gif)\b/i.test(fact.source)&&!facts.some(other=>other.field===fact.field&&other.source!==fact.source&&!/\.(?:png|jpe?g|webp|gif)\b/i.test(other.source)&&other.basis==='stated'&&other.confidence>=.85)){

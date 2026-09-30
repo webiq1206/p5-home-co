@@ -74,7 +74,7 @@ test('typed revisions need the actual instruction and matching fact, not a verba
 test('incomplete bathroom retains the requested component questions, including placeholder fixtures',()=>{
  const x=extraction();x.clarifications=[{field:'tileSqft',question:'How much floor tile and shower wall tile are included?',reason:'Areas missing'},{field:'fixtures',question:'Which fixtures are being replaced?',reason:'Fixtures unspecified'}];
  const questions=scopeQuestions({service:'bathroom',sqft:'60',finish:'mid-range',fixtures:'Replace fixtures'},x,[],[],[],'Remodel bathroom with new floor and shower wall tile.');
- assert.ok(questions.some(q=>q.field==='flooringSqft'));assert.ok(questions.some(q=>q.field==='tileSqft'));assert.ok(questions.some(q=>q.field==='fixtures'));
+ assert.ok(questions.some(q=>q.field==='flooringSqft'));assert.ok(questions.some(q=>q.field==='wallTileSqft'));assert.ok(questions.some(q=>q.field==='fixtures'));
 });
 
 test('an existing-condition photograph asks what work is wanted before area or finish',()=>{

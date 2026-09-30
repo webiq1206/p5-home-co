@@ -685,7 +685,9 @@ export function normalizeConsumableMapping(mapping:Mapping,configuration:Estimat
 export function researchTaskBatches(tasks:Mapping['tasks'],scope:ReviewedScope):Mapping['tasks'][]{
  const batches:Mapping['tasks'][]=[],ordinary:Mapping['tasks']=[];
  const cabinet=/cabinet/i.test(scope.answers.service||'')||!scope.answers.service&&/^\s*(?:install|supply(?: and install)?)\b[^.\n]{0,100}\bcabinets\b/i.test(scope.text);
- const application=cabinet?' Cabinet installation: use products explicitly sold for cabinet mounting or leveling; do not substitute drywall screws. Preserve manufacturer-stated application and package counts. Shims are counted pieces or specified packs unless the source explicitly prices shims by weight.':' Match each supply to the actual remaining installation operation. Where fasteners mount cabinets or a vanity, use manufacturer-specified cabinet mounting fasteners, never drywall screws. Where screws are for drywall repair, preserve that application; do not buy consumables already included in the repair assembly.';
+ const application=(product:string)=>['screws','nails','fasteners','shims'].includes(product)
+  ?cabinet?' Cabinet installation: use products explicitly sold for cabinet mounting or leveling; do not substitute drywall screws. Preserve manufacturer-stated application and package counts. Shims are counted pieces or specified packs unless the source explicitly prices shims by weight.':' Match this supply to its actual remaining installation operation. If it mounts a cabinet or vanity, use manufacturer-specified cabinet mounting or leveling products. Do not buy materials already included in a repair assembly.'
+  :' Match this product to the actual remaining bonding or sealing operation and substrate. Do not research mounting hardware or redirect this request to another product from the project context. Do not buy tile thinset, grout or other materials already explicitly priced in setting-material or repair assemblies. State the uncovered application and any preliminary product-selection assumption. Use a supported matching adhesive or sealant product; never substitute another product category just to find a price.';
  const measurements=cabinet?['cabinetBaseLf','cabinetUpperLf','cabinetTallLf'].map(key=>{const value=Number(scope.answers[key as keyof typeof scope.answers]);return Number.isFinite(value)&&value>0?key+'='+value+' LF':'';}).filter(Boolean).join('; '):'';
  for(const task of tasks){
   // A missing component can belong to an installation task whose title does
@@ -696,7 +698,7 @@ export function researchTaskBatches(tasks:Mapping['tasks'],scope:ReviewedScope):
   let products=['screws','nails','fasteners','shims','caulk','adhesives','sealants'].filter(word=>new RegExp('\\b'+word.replace(/s$/,'')+'s?\\b','i').test(named)&&contractorConsumableIncluded(scope,'Supply '+word));
   if(products.includes('screws')||products.includes('nails'))products=products.filter(word=>word!=='fasteners');
   if(!products.length){ordinary.push(task);continue;}
-  for(const product of products)batches.push([{...task,description:'Supply contractor installation '+product,researchDescription:'Research ONLY contractor-supplied '+product+' for this installation.'+application+(measurements?' Installation quantities: '+measurements+'.':'')+' One product type per rate. Other consumables are researched separately; exclude their costs and all installation labor. Preserve the stated specification. Use two comparable sourced prices with evidenced Boise-area applicability and the same unit. For countable screws or shims, prefer EA: retain each published package price and exact piece count, show price divided by count for each observation, then model the number of pieces needed. A cabinet run length is context for the consumption allowance, never the unit of a supplier product price. Use only EA, pack, box or LB as appropriate; package contents belong in includes, not the unit name. If consumption is not measured, model a positive purchase quantity from the stated installation scope, disclose assumptions with ALLOWANCE: quantityEvidence and positive quantityRange. Do not return quantity zero or mix units.',evidence:'Original requested supplies: '+task.description+'\n'+task.evidence}]);
+  for(const product of products)batches.push([{...task,description:'Supply contractor installation '+product,researchDescription:'Research ONLY contractor-supplied '+product+' for this installation.'+application(product)+(measurements?' Installation quantities: '+measurements+'.':'')+' One product type per rate. Other consumables are researched separately; exclude their costs and all installation labor. Preserve the stated specification. Use two comparable sourced prices with evidenced Boise-area applicability and the same unit. For countable screws or shims, prefer EA: retain each published package price and exact piece count, show price divided by count for each observation, then model the number of pieces needed. A cabinet run length is context for the consumption allowance, never the unit of a supplier product price. Use EA, pack, box, LB, tube or gallon as supported by the actual product; package contents belong in includes, not the unit name. If consumption is not measured, model a positive purchase quantity from the stated installation scope, disclose assumptions with ALLOWANCE: quantityEvidence and positive quantityRange. Do not return quantity zero or mix units.',evidence:'Original requested supplies: '+task.description+'\n'+task.evidence}]);
  }
  return [...batchesOf(ordinary,3),...batches];
 }
@@ -1032,7 +1034,9 @@ function knownScopeClaims(scope:ReviewedScope|undefined,task:Mapping['tasks'][nu
   addAnswer('cabinetUpperLf','lf',/\b(?:upper|wall)\s+cabinet|\bcabinet\s+(?:upper|wall)/);
   addAnswer('cabinetTallLf','lf',/\b(?:tall|pantry)\s+cabinet/);
   addAnswer('flooringSqft','sf',/\bfloor(?:ing)?\b/);
-  addAnswer('tileSqft','sf',/\btile\b/);
+  addAnswer('wallTileSqft','sf',/\b(?:shower|wall)\s+(?:wall\s+)?tile\b|\btile\s+walls?\b/);
+  if(!scope.answers.wallTileSqft)addAnswer('tileSqft','sf',/\btile\b/);
+  else if(/\bbacksplash\b/i.test(taskText))addAnswer('tileSqft','sf',/\bbacksplash\b/);
   addAnswer('countertopSqft','sf',/\bcountertop|bench\s+top|worktop\b/);
   addAnswer('demolitionSqft','sf',/\bdemolition|tear.?out\b/);
   addAnswer('trimLf','lf',/\btrim|baseboard\b/);
@@ -1174,7 +1178,7 @@ export function researchQuantityEvidence(task:Mapping['tasks'][number],scope?:Re
  const atomic=/^Research ONLY contractor-supplied /.test(task.researchDescription);
  const material=atomic||Boolean(scope&&(contractorConsumableIncluded(scope,task.description)||contractorConsumableIncluded(scope,task.researchDescription)));
  if(!material)return task.evidence;
- const quantities=['cabinetBaseLf','cabinetUpperLf','cabinetTallLf','flooringSqft','tileSqft','countertopSqft','trimLf','sqft','fixtureCount'].flatMap(field=>{
+ const quantities=['cabinetBaseLf','cabinetUpperLf','cabinetTallLf','flooringSqft','tileSqft','wallTileSqft','countertopSqft','trimLf','sqft','fixtureCount'].flatMap(field=>{
    const value=Number(scope?.answers[field as keyof ReviewedScope['answers']]);
    return Number.isFinite(value)&&value>0?[field+'='+value]:[];
  });
@@ -1385,7 +1389,15 @@ export function marketResolution(raw:unknown,urls:string[],tasks:Mapping['tasks'
 export function materialBudgetCandidate(raw:unknown,report:string,urls:string[],tasks:Mapping['tasks'],now:Date,offset=0,location='',scope?:ReviewedScope){
  if(!report.trim())return null;
  const market=parseResearchRates(raw);
- if(market.issues.length||!market.rates.length)return null;
+ // Lack of an independent comparison is precisely the limitation this
+ // disclosed single-supplier budget handles. Other unresolved findings still
+ // block; every retained quote must independently pass the evidence checks.
+ const independenceOnly=(issue:string)=>/\b(?:independent|same (?:vendor|retailer|supplier)|secondary .*supplier|second .*supplier)\b/i.test(issue)
+  &&! /\b(?:wrong|mismatch|unpriced|no (?:defensible|supported|valid)|missing (?:price|product|quantity)|unverified (?:price|local|product))\b/i.test(issue)
+  &&! /;|\n/.test(issue);
+ if(market.issues.some(issue=>!independenceOnly(issue))||!market.rates.length)return null;
+ const limitations=[...market.issues];market.issues=[];
+ market.notes=[...market.notes,...limitations.map(issue=>'Single-supplier limitation: '+issue)];
  const canonical=(value:string)=>value.toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
  const text=canonical(report);
  const rates:typeof market.rates=[];

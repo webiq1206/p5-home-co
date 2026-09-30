@@ -42,6 +42,7 @@ export const SCOPE_FIELDS = {
   phasing: { label: "Project phasing", kind: "text" },
   flooringSqft: { label: "Flooring area in square feet", kind: "number" },
   tileSqft: { label: "Tile area in square feet", kind: "number" },
+  wallTileSqft: { label: "Wall tile area in square feet", kind: "number" },
   countertopSqft: { label: "Countertop area in square feet", kind: "number" },
   demolitionSqft: { label: "Demolition area in square feet", kind: "number" },
   fixtureCount: { label: "Number of fixtures", kind: "number" },

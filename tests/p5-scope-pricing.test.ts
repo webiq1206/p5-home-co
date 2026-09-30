@@ -2145,6 +2145,10 @@ test('generic material-budget recovery rejects fabricated prices, missing compon
  const raw={rates:[row],issues:[],notes:[]};
  const report=row.sources[0].excerpt;
  assert.ok(materialBudgetCandidate(raw,report,[urls[0]],[materials],now,0,'Boise'));
+ const independence=materialBudgetCandidate({...raw,issues:['Both observations are from the same vendor, not independent retailers. No secondary Boise supplier was found.']},report,[urls[0]],[materials],now,0,'Boise');
+ assert.ok(independence);assert.deepEqual(independence.issues,[]);assert.match(independence.notes.join(' '),/Single-supplier limitation/);
+ assert.equal(materialBudgetCandidate({...raw,issues:['Independent source unavailable; adhesive is unpriced.']},report,[urls[0]],[materials],now,0,'Boise'),null);
+ assert.equal(materialBudgetCandidate({...raw,issues:['Independent source unavailable','Wrong package count']},report,[urls[0]],[materials],now,0,'Boise'),null);
  assert.equal(materialBudgetCandidate(raw,'Boise store location, hours and address.',[urls[0]],[materials],now,0,'Boise'),null);
  assert.equal(materialBudgetCandidate({rates:[{...row,sources:[{...row.sources[0],low:10,high:10}]}],issues:[]},report,[urls[0]],[materials],now,0,'Boise'),null);
  assert.equal(materialBudgetCandidate({rates:[row,{...row,description:'Missing adhesive',sources:[{...row.sources[0],excerpt:'Adhesive $9.00.'}]}],issues:[]},report,[urls[0]],[materials],now,0,'Boise'),null);

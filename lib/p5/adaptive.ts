@@ -71,6 +71,7 @@ const detailQuestions:Partial<Record<ScopeField,string>>={
   coveredOutdoorSqft:'How many square feet of covered outdoor space are included?',laborHours:'How many hours should this hourly work allowance cover?',
   projectMonths:'What construction duration should this estimate allow for?',rooms:'How many rooms are included?',bathrooms:'How many bathrooms are included?',stories:'How many stories are included?',
   flooringSqft:'About how many square feet of flooring are being installed?',tileSqft:'How many square feet of tile are included? Keep floor, wall and backsplash areas clear in your answer.',
+  wallTileSqft:'How many square feet of wall tile are included? Keep floor tile separate.',
   demolitionSqft:'About how large is the area being demolished?',trimLf:'About how many linear feet of trim or baseboard are included?',
 };
 export function questionReason(field:ScopeField,answers:ScopeAnswers):string{

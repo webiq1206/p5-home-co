@@ -26,10 +26,14 @@ export function projectAreaQuestionField(text:string,answers:ScopeAnswers):Scope
 /** Bind ordinary project questions to their actual saved answer. Component
  * quantities remain distinct; this is not fuzzy text deduplication. */
 export function projectQuestionField(text:string,answers:ScopeAnswers):ScopeField|undefined{
+ if(/\b(?:shower|wall)\b/i.test(text)&&!/\bfloor\b/i.test(text)&&/\btile\b/i.test(text)&&/\b(?:area|square feet|square footage|SF)\b/i.test(text))return 'wallTileSqft';
  if(/\bfloor(?:ing)?\b/i.test(text)&&/\b(?:area|square feet|square footage|SF)\b/i.test(text))return 'flooringSqft';
  if(/\b(?:shower|backsplash)\b/i.test(text)&&/\b(?:area|square feet|square footage|SF)\b/i.test(text))return 'tileSqft';
  const measured=/\b(?:how many|number of|count|total)\b/i;
- if(measured.test(text)&&/\bstori?es\b/i.test(text))return 'stories';
+ if(/\b(?:stories|story|levels)\b/i.test(text)&&/\b(?:how many|number of|single|multiple|one|two)\b/i.test(text))return 'stories';
+ if(measured.test(text)&&/\b(?:GFCI|receptacles?|passage (?:door )?(?:handles?|levers?))\b/i.test(text)&&! /\b(?:toilets?|sinks?|faucets?)\b/i.test(text))return 'fixtureCount';
+ if(/\b(?:which|what)\b/i.test(text)&&/\bfixtures?\b/i.test(text)&&/\b(?:replac\w*|include\w*)\b/i.test(text))return 'fixtures';
+ if(/\b(?:finish|type)\b/i.test(text)&&/\b(?:select\w*|allowance)\b/i.test(text)&&! /\b(?:fire|waterproof|rating|capacity)\b/i.test(text))return 'materials';
  if(measured.test(text)&&/\bbathrooms?\b/i.test(text)&&!/\b(?:fixtures?|sinks?|toilets?|vanit|area|square)\b/i.test(text))return 'bathrooms';
  if(measured.test(text)&&/\brooms?\b/i.test(text)&&!/\bcabinets?\b/i.test(text))return 'rooms';
  if(/\bfinish (?:level|tier)\b/i.test(text))return 'finish';
@@ -47,7 +51,7 @@ export function projectQuestionField(text:string,answers:ScopeAnswers):ScopeFiel
 export function atomicInstructionQuestions(text:string,answers:ScopeAnswers={},conflicts:ScopeConflict[]=[]):string[]{
  if(/\bfloor\b/i.test(text)&&/\bshower\b/i.test(text)&&/\b(?:tile|area|square feet|SF)\b/i.test(text))return [
   ...(!answers.flooringSqft?['How many square feet of bathroom floor tile are included?']:[]),
-  ...(!answers.tileSqft?['How many square feet of shower wall tile are included?']:[]),
+  ...(!answers.wallTileSqft?['How many square feet of shower wall tile are included?']:[]),
  ];
  // "linear feet for the base, upper and tall cabinets" puts the unit before
  // the components. Each answer needs its own numeric control.
