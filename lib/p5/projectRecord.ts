@@ -70,15 +70,17 @@ export function projectInput(scope:ProjectScope,changes:ProjectChange[]=[]):Proj
  const seenFiles=new Set<string>();let legacyFiles=0;
  for(const upload of scope.uploads){
   if(seenFiles.has(upload.sha256))continue;seenFiles.add(upload.sha256);
-  const native=scope.pageEvidence?.documents.find(document=>document.sha256===upload.sha256&&document.fileId===upload.id);
+  // Identical uploads share immutable bytes. The completed read may belong
+  // to a later copy while this loop encounters the unread copy first.
+  const native=scope.pageEvidence?.documents.find(document=>document.sha256===upload.sha256);
   if(native){
    if(native.pages.length!==native.pageCount||native.pages.some((p,i)=>p.number!==i+1))documentIssues.push('Original page inventory is inconsistent for '+native.name);
    for(const page of native.pages){
     const status=page.status==='pending'?'partial':page.status;
     const name=`${native.name}, page ${page.number}`;
-    add('native-page-text',name+' original text',page.native.text,upload.id,page.number,status);
-    add('page-layout',name+' digital page geometry; not physical construction dimensions',JSON.stringify({fileSha256:native.sha256,readerRevision:native.revision,kind:page.native.kind,textQuality:page.native.textQuality,width:page.native.width,height:page.native.height,spanCoordinates:page.native.spanCoordinates,spans:page.native.spans}),upload.id,page.number,status);
-    add('reader-observation',name+' model interpretation; verify against original evidence',JSON.stringify({status:page.status,notes:page.notes,observation:page.readerObservation}),upload.id,page.number,status);
+    add('native-page-text',name+' original text',page.native.text,native.fileId,page.number,status);
+    add('page-layout',name+' digital page geometry; not physical construction dimensions',JSON.stringify({fileSha256:native.sha256,readerRevision:native.revision,kind:page.native.kind,textQuality:page.native.textQuality,width:page.native.width,height:page.native.height,spanCoordinates:page.native.spanCoordinates,spans:page.native.spans}),native.fileId,page.number,status);
+    add('reader-observation',name+' model interpretation; verify against original evidence',JSON.stringify({status:page.status,notes:page.notes,observation:page.readerObservation}),native.fileId,page.number,status);
    }
    continue;
   }

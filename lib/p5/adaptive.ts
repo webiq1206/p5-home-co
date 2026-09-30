@@ -5,7 +5,7 @@ import {dynamicScopeFields,questionContext,scopeFieldApplies,scopePromptApplies,
 import {serviceEvidenceSupports} from './serviceSignals.ts';
 import {atomicInstructionQuestions,cabinetQuestionField,projectQuestionField} from './atomicQuestions.ts';
 
-export interface ScopeQuestion {field:ScopeField;label:string;reason:string;values?:string[];conflict?:boolean;instructionId?:string;detail?:string;handoff?:{label:string;url:string}}
+export interface ScopeQuestion {field:ScopeField;label:string;reason:string;values?:string[];choiceEvidence?:{value:string;source:string;quote:string}[];conflict?:boolean;instructionId?:string;detail?:string;handoff?:{label:string;url:string}}
 export function sameAnswer(field:ScopeField,a:string,b:string){
   if(SCOPE_FIELDS[field].kind==='number')return Number(a.replaceAll(',',''))===Number(b.replaceAll(',',''));
   return a.trim().toLowerCase()===b.trim().toLowerCase();
@@ -98,10 +98,12 @@ export function questionForField(field:ScopeField,answers:ScopeAnswers):ScopeQue
  * only that a detail is needed, rather than naming the wrong thing. */
 const FIELD_WORDS:Partial<Record<ScopeField,RegExp>>={demolitionSqft:/demol|tear[- ]?out|gutt?(?:ed|ing)\b/i,tileSqft:/tile|backsplash/i,flooringSqft:/floor/i,trimLf:/trim|baseboard|crown|casing|mould|mold/i,cabinetBaseLf:/cabinet|vanit/i,cabinetUpperLf:/cabinet/i,cabinetTallLf:/cabinet|pantry/i,garageSqft:/garage/i,coveredOutdoorSqft:/patio|porch|deck|outdoor|covered/i,countertopSqft:/counter|worktop|bench/i,sqft:/area|square|size|living|footage|large|big/i};
 export const clarificationLabel=(field:ScopeField,question:string)=>FIELD_WORDS[field]&&!FIELD_WORDS[field]!.test(question)?'Project detail':SCOPE_FIELDS[field].label;
-function conflictSourceDetail(conflict:ScopeConflict,extraction:ScopeExtraction|null){
+function conflictQuestion(conflict:ScopeConflict,extraction:ScopeExtraction|null):ScopeQuestion{
   const facts=(extraction?.facts||[]).filter(f=>f.field===conflict.field&&conflict.values.some(value=>sameAnswer(f.field,value,f.value)));
-  const evidence=[...new Set(facts.map(f=>`${f.value} (${f.source}): ${f.evidence}`).filter(Boolean))];
-  return evidence.length?`Source details: ${evidence.join(' | ')}`:undefined;
+  const choiceEvidence=facts.filter((fact,index)=>facts.findIndex(other=>other.value===fact.value&&other.source===fact.source&&other.evidence===fact.evidence)===index)
+    .map(fact=>({value:fact.value,source:fact.source,quote:fact.evidence}));
+  const label=SCOPE_FIELDS[conflict.field].label;
+  return {field:conflict.field,label,reason:`Please confirm the ${label.toLowerCase()} to use for this estimate.`,values:conflict.values,conflict:true,choiceEvidence,detail:conflict.explanation};
 }
 /** The same source question can arrive as both an instruction and a field
  * clarification. Compare its actual question, without its pricing explanation. */
@@ -116,11 +118,11 @@ export function scopeQuestions(input:ScopeAnswers,extraction:ScopeExtraction|nul
   const applicableConflicts=conflicts.filter(c=>scopeFieldApplies(c.field,context));
   // Resolve the project type before calculating the next service-specific question.
   const serviceConflict=applicableConflicts.find(c=>c.field==='service');
-  if(serviceConflict)return [{field:'service',label:SCOPE_FIELDS.service.label,reason:serviceConflict.explanation,values:serviceConflict.values,conflict:true,detail:conflictSourceDetail(serviceConflict,extraction)}];
+  if(serviceConflict)return [conflictQuestion(serviceConflict,extraction)];
   if(!answers.service&&!applicableConflicts.length)return [questionForField('service',answers)];
   if(needsWorkDefinition(answers,extraction,sourceText))return [questionForField('taskList',answers)];
   const relevant=new Set(materialScopeFields(answers,pricedFields,extraction,sourceText));
-  const questions:ScopeQuestion[]=applicableConflicts.map(c=>({field:c.field,label:SCOPE_FIELDS[c.field].label,reason:c.explanation,values:c.values,conflict:true,detail:conflictSourceDetail(c,extraction)}));
+  const questions:ScopeQuestion[]=applicableConflicts.map(c=>conflictQuestion(c,extraction));
   for(const q of instructionPrompts(extraction,answers,sourceText)){
     if(!scopePromptApplies(q.field,instructionPromptText(q),context))continue;
     if(q.field&&questions.some(existing=>existing.field===q.field))continue;

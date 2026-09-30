@@ -30,8 +30,9 @@ test('conflicting quantities show their source context instead of unexplained nu
  ],conflicts:[{field:'fixtureCount',values:['3','2'],explanation:'The supplied information contains different values.'}]};
  const q=scopeQuestions({service:'new-construction'},e,e.conflicts).find(q=>q.field==='fixtureCount')!;
  assert.deepEqual(q.values,['3','2']);
- assert.match(q.detail||'',/3.*scope.pdf, page 8.*Three exhaust fans/);
- assert.match(q.detail||'',/2.*scope.pdf, page 9.*Two water heaters/);
+ assert.match(q.reason,/number of fixtures/i);
+ assert.deepEqual(q.choiceEvidence,[{value:'3',source:'scope.pdf, page 8',quote:'Three exhaust fans'},{value:'2',source:'scope.pdf, page 9',quote:'Two water heaters'}]);
+ assert.equal(q.detail,e.conflicts[0].explanation);
  assert.equal(q.conflict,true,'showing evidence must not silently resolve a quantity conflict');
 });
 test('low confidence is one clarification, never an accepted quantity',()=>{

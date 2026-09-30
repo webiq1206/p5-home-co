@@ -22,8 +22,12 @@ export function verifiedReviewCatalog(raw:unknown,catalog:{code:string;descripti
    if(!rate)problems.push({code:'review-catalog-evidence',ids:[finding.id,item.rateId],message:'This reviewer-cited rate is absent from the supplied catalog. Correct the review against actual entries; do not change pricing to use an invented alternative.'});
    else if(!normalize(rate.description).includes(normalize(item.quote)))problems.push({code:'review-catalog-evidence',ids:[finding.id,item.rateId],message:quotationFeedback(item.quote,rate.description)});
   }
-  for(const code of references?(finding.message+' '+finding.requiredCorrection).match(references)||[]:[])
-   if(!rates.has(code)||!cited.has(code))problems.push({code:'review-catalog-evidence',ids:[finding.id,code],message:'Every catalog code in a finding must exist in the supplied catalog and carry exact catalogEvidence. Repair this unsupported review claim before requesting a pricing correction.'});
+  for(const code of new Set(references?(finding.message+' '+finding.requiredCorrection).match(references)||[]:[])){
+   const rate=rates.get(code);
+   if(!rate||!cited.has(code))problems.push({code:'review-catalog-evidence',ids:[finding.id,code],message:rate
+    ?`Finding ${finding.id} mentions ${code} but omits its catalogEvidence. Its actual catalog description is ${JSON.stringify(rate.description)}. Add a literal supporting excerpt and verify the claim against it. Repair the review before requesting a pricing correction.`
+    :`Finding ${finding.id} mentions ${code}, which does not exist in the supplied catalog. Remove the unsupported claim or identify an actual entry with literal catalogEvidence. Do not change pricing to use an invented rate.`});
+  }
  }
  if(problems.length)throw new ProjectRecordError(problems);
  return review;

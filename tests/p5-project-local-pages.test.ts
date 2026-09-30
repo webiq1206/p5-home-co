@@ -4,6 +4,7 @@ import {createHash} from 'node:crypto';
 import {loadLocalProjectPages} from '../lib/p5/projectLocalPages.ts';
 import {pageTextFromItems} from '../lib/p5/pdfText.ts';
 import {ESTIMATOR_BRAND} from '../lib/p5/brand.ts';
+import {projectInput} from '../lib/p5/projectRecord.ts';
 function fixture(){
  const bytes=Buffer.from('Controlled immutable source bytes'),sha256=createHash('sha256').update(bytes).digest('hex');
  const draft={id:'controlled',brand:ESTIMATOR_BRAND.id,uploads:[{id:'file',name:'plan.pdf',type:'application/pdf',size:bytes.length,sha256,status:'stored' as const}]};
@@ -42,4 +43,10 @@ test('a first unread duplicate cannot hide a later copy with saved page evidence
  f.dependencies.query=async(_sql:string,params?:unknown[])=>params?.[1]==='file'?f.rows:[];
  const value=await loadLocalProjectPages(f.draft,f.dependencies);
  assert.equal(value.documents.length,1);assert.equal(value.documents[0].fileId,'file');assert.equal(f.reads,1);
+ const input=projectInput({text:'Estimate the addition.',answers:{},extraction:null,uploads:f.draft.uploads,reviewedAt:new Date().toISOString(),corrections:[],pageEvidence:value});
+ assert.deepEqual(input.documentIssues,[],'the completed duplicate also survives project-input assembly');
+ const originals=input.sources.filter(source=>source.kind==='native-page-text');
+ assert.equal(originals.length,1);assert.equal(originals[0].fileId,'file');assert.equal(originals[0].text,f.native.text);
+ const reversed=projectInput({text:'Estimate the addition.',answers:{},extraction:null,uploads:[...f.draft.uploads].reverse(),reviewedAt:new Date().toISOString(),corrections:[],pageEvidence:value});
+ assert.equal(input.sourceHash,reversed.sourceHash,'duplicate order cannot change source identity or replay work');
 });

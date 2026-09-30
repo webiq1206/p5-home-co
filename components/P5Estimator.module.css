@@ -183,6 +183,9 @@
 
 /* ---- Questions ----------------------------------------------------- */
 .question{padding:18px;border:1px solid var(--p5-line);border-radius:16px;background:var(--p5-surface-3);scroll-margin-top:12px}
+.choiceEvidence{display:flex;flex-direction:column;gap:6px;margin-top:6px;font-size:12px;line-height:1.45;font-weight:400;color:var(--p5-ink-muted);overflow-wrap:anywhere}
+.root[data-step="1"] .threadInner{gap:12px;padding-bottom:12px}
+@media(max-width:600px){.root[data-step="1"] .question{padding:12px}.root[data-step="1"] .question h2{font-size:18px;line-height:1.35}}
 .question h2{font-size:clamp(19px,2.6vw,23px);margin:6px 0 12px;max-width:40ch;line-height:1.3}
 .question .eyebrow{margin:0}
 .context{margin:0 0 12px}

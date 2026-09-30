@@ -1,23 +1,28 @@
-import {projectCompletionSchema,type ProjectCompletion,type ProjectReview} from './projectRecordContracts.ts';
+import {projectCompletionSchema,projectCompletionWireFor,type ProjectCompletion,type ProjectReview} from './projectRecordContracts.ts';
 import {projectHash,ProjectRecordError,type ProjectInput,type ProjectRecord,type RecordProblem} from './projectRecord.ts';
 import {quotationFeedback} from './quotationFeedback.ts';
 
-export interface ProjectCompletionPlan extends ProjectCompletion {sourceHash:string;planHash:string}
+export interface ProjectCompletionPlan extends ProjectCompletion {sourceHash:string;planHash:string;sourceChecks?:Record<string,string>}
 const normalize=(value:string)=>value.normalize('NFKC').replace(/\s+/g,' ').trim();
 /** An independent source-first method is a model proposal, never new source
  * evidence. Keep its identity and original quotations available for audit. */
 export function acceptProjectCompletion(raw:unknown,input:ProjectInput):ProjectCompletionPlan{
- const plan=projectCompletionSchema.parse(raw),problems:RecordProblem[]=[],sources=new Map(input.sources.map(source=>[source.id,source]));
+ const wire=raw&&typeof raw==='object'&&'sourceChecks'in raw?projectCompletionWireFor(input.sources).parse(raw):null;
+ const plan=wire?{reviewedSourceIds:Object.keys(wire.sourceChecks),sourceChecks:wire.sourceChecks,steps:wire.steps}:projectCompletionSchema.parse(raw),problems:RecordProblem[]=[],sources=new Map(input.sources.map(source=>[source.id,source]));
  const fail=(code:string,ids:string[],message:string)=>problems.push({code,ids,message});
  const reviewed=new Set(plan.reviewedSourceIds);
  if(reviewed.size!==plan.reviewedSourceIds.length)fail('completion-source',[],'Each source must be reviewed once in the work method.');
  for(const id of reviewed)if(!sources.has(id))fail('completion-source',[id],'The work method references an unknown source.');
- for(const source of input.sources)if(!reviewed.has(source.id))fail('completion-source',[source.id],'The work method must account for every source.');
+ for(const source of input.sources)if(!reviewed.has(source.id))fail('completion-source',[source.id],`The work method has not accounted for ${source.name} (${source.kind}, ${source.status}). Review this supplied source and reconcile it with the complete project before returning its ID. Do not silently omit it or assert that unreadable content was read.`);
  const seen=new Set<string>();
  for(const step of plan.steps){
   if(seen.has(step.id))fail('completion-id',[step.id],'Work-method step IDs must be unique.');seen.add(step.id);
   for(const evidence of step.evidence){const source=sources.get(evidence.sourceId);
-   if(!source||!normalize(source.text).includes(normalize(evidence.quote)))fail('completion-evidence',[step.id,evidence.sourceId],'The work method must quote the actual identified source. '+quotationFeedback(evidence.quote,source?.text));
+   if(!source||!normalize(source.text).includes(normalize(evidence.quote))){
+    const matches=input.sources.filter(candidate=>normalize(candidate.text).includes(normalize(evidence.quote)));
+    const hint=matches.length?` This exact quotation occurs in ${matches.map(candidate=>`${candidate.id} (${candidate.name})`).join(', ')}. Verify its meaning and correct the citation explicitly; it has not been reassigned automatically.`:'';
+    fail('completion-evidence',[step.id,evidence.sourceId],'The work method must quote the actual identified source. '+quotationFeedback(evidence.quote,source?.text)+hint);
+   }
    if(source?.status==='unreadable'&&step.kind!=='decision-needed')fail('completion-evidence',[step.id,evidence.sourceId],'An unreadable source cannot establish a confirmed operation; identify its actual uncertainty.');
   }
  }
