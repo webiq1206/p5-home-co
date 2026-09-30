@@ -6,6 +6,29 @@ export interface Takeoff {
   sources:{source:string;page:number;sheet:string;revision:string}[];
   supersedes:string[];issues:string[];
 }
+/** Page zero is a non-document citation, never a physical PDF page. */
+export const isTypedScopeSource=(source:string)=>/^(?:typed scope|submitted scope|typed instructions|customer instructions|user instructions|user revision|user|customer)$/i.test(source.trim());
+const sourceWords=(value:string)=>value.toLowerCase().replace(/\bby\b|×/g,'x').replace(/\s*x\s*/g,'x').replace(/\binches\b|\binch\b/g,'in').replace(/\bfeet\b|\bfoot\b/g,'ft').replace(/\s+/g,' ').trim();
+/** Typed revisions must not be rebound to an old drawing page. Preserve an
+ * exact customer quote, or an explicit rectangle with checked area arithmetic.
+ * An unsupported typed quantity remains unresolved rather than acquiring a
+ * false document citation. Physical file page coverage is unchanged. */
+export function bindTypedTakeoffSources(items:Takeoff[],text:string):void{
+ const submitted=sourceWords(text);
+ for(const item of items){
+  const refs=item.sources.filter(ref=>isTypedScopeSource(ref.source));if(!refs.length)continue;
+  const evidence=sourceWords(item.evidence).replace(/^(?:user|customer|typed scope):\s*/,'');
+  const direct=evidence.length>=12&&submitted.includes(evidence);
+  const rectangle=evidence.match(/\b(\d+(?:\.\d+)?)x(\d+(?:\.\d+)?)\s*(in|ft)\b/);
+  const subjects=['drywall','garage','porch','tile','floor','countertop','window','door','cabinet'].filter(word=>new RegExp('\\b'+word,'i').test(item.component+' '+item.description));
+  const dimensional=rectangle&&['sf','square feet','sqft'].includes(item.unit.toLowerCase())
+   &&Math.abs(Number(rectangle[1])*Number(rectangle[2])/(rectangle[3]==='in'?144:1)-Number(item.quantity))<.000001
+   &&submitted.split(/[.!?;\n]+/).some(clause=>clause.includes(rectangle[0])&&subjects.some(word=>clause.includes(word)));
+  for(const ref of refs){ref.source='typed scope';ref.page=0;ref.sheet='';}
+  const areaRectangle=rectangle&&['sf','square feet','sqft'].includes(item.unit.toLowerCase());
+  if(!(areaRectangle?dimensional:direct)){item.quantity=null;item.basis='uncertain';item.issues=[...new Set([...item.issues,'Confirm this quantity: its customer-instruction citation could not be verified; no drawing page is asserted for it.'])];}
+ }
+}
 /** A review note blocks a customer range only when a document, section or
  * page could not be read at all, so the quantities behind the price may be
  * missing. Other notes (a dropped takeoff, an unconfirmed photo observation,
@@ -61,7 +84,7 @@ export function readTakeoffs(raw:unknown):Takeoff[]{
   if(!Array.isArray(raw))throw new Error('Invalid quantity takeoff');
   return raw.map(v=>{
     if(!isObject(v)||!['id','description','building','floor','component','unit','evidence'].every(k=>typeof v[k]==='string')||!v.id||!v.evidence||!(v.quantity===null||typeof v.quantity==='number'&&Number.isFinite(v.quantity)&&v.quantity>0)||!['stated','calculated','uncertain'].includes(String(v.basis))||!strings(v.supersedes)||!strings(v.issues)||!Array.isArray(v.sources)||!v.sources.length)throw new Error('Invalid takeoff evidence');
-    for(const s of v.sources)if(!isObject(s)||!['source','sheet','revision'].every(k=>typeof s[k]==='string')||!Number.isInteger(s.page)||Number(s.page)<1)throw new Error('Invalid takeoff page reference');
+    for(const s of v.sources)if(!isObject(s)||!['source','sheet','revision'].every(k=>typeof s[k]==='string')||!Number.isInteger(s.page)||(Number(s.page)<1&&!(s.page===0&&isTypedScopeSource(String(s.source)))))throw new Error('Invalid takeoff page reference');
     if(v.basis==='uncertain'&&v.quantity!==null)throw new Error('An uncertain measurement must not masquerade as a measured quantity');
     return v as unknown as Takeoff;
   });

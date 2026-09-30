@@ -18,8 +18,8 @@ import {blockingReviewNote} from './costBook.ts';
 import {selectReusableAnalysis,selectSourceEquivalentAnalysis} from './analysisReuse.ts';
 import {impliedComponentRemodel,impliedRepairService,serviceEvidenceSupports} from './serviceSignals.ts';
 import {query} from './database.ts';
-import {reconcileDocumentHierarchy,groundDocumentConditions,normalizeCountSubjects,normalizeTileSubjects,separateFootprintFromInstallation} from './scopeInterpretation.ts';
-import {applyExplicitTypedCorrections} from './typedCorrections.ts';
+import {reconcileDocumentHierarchy,groundDocumentConditions,normalizeCountSubjects,normalizeDimensionSubjects,normalizeTileSubjects,separateFootprintFromInstallation} from './scopeInterpretation.ts';
+import {applyExplicitTypedCorrections,answersAfterTypedRevision} from './typedCorrections.ts';
 
 /** Guard multipart analysis/upload requests before they can mutate files. */
 export function guardScopeRequestRevision(storedRevision:number,requestedRevision:unknown,storedText:string,incomingText:string){
@@ -161,9 +161,9 @@ export async function postScope(request:Request){
       const implied=supported?null:(impliedComponentRemodel(text,ESTIMATOR_BRAND.services as readonly string[])||impliedRepairService([text,...facts.map(f=>f.evidence)].join('\n'),ESTIMATOR_BRAND.services as readonly string[]));
       if(implied)analysis={...analysis,extraction:{...analysis.extraction,facts:[...facts.filter(f=>f.field!=='service'),{field:'service',value:implied,confidence:1,source:'typed scope',evidence:text.slice(0,4000),basis:'stated'}]}};
     }
-    if(analysis)analysis={...analysis,extraction:groundDocumentConditions(reconcileDocumentHierarchy(normalizeCountSubjects(applyExplicitTypedCorrections(validateExtraction(normalizeTileSubjects(separateFootprintFromInstallation(analysis.extraction,text))),text)),text),text)};
+    if(analysis)analysis={...analysis,extraction:groundDocumentConditions(reconcileDocumentHierarchy(normalizeDimensionSubjects(normalizeCountSubjects(applyExplicitTypedCorrections(validateExtraction(normalizeTileSubjects(separateFootprintFromInstallation(analysis.extraction,text))),text))),text),text)};
     const extraction=analysis?.extraction||analysisDraft.extraction;
-    const merged=analysis?reconcileScope(visitorAnswers,analysis.extraction,resolutions):{answers:{...analysisDraft.answers,...visitorAnswers},conflicts:[]};
+    const merged=analysis?reconcileScope(answersAfterTypedRevision(visitorAnswers,analysis.extraction,text,resolutions),analysis.extraction,resolutions):{answers:{...analysisDraft.answers,...visitorAnswers},conflicts:[]};
     const wizard={instructionAnswers:sourceChanged?[]:analysisDraft.wizard?.instructionAnswers||[],skipped:sourceChanged?[]:analysisDraft.wizard?.skipped||[],resolutions,sourceVersion:analysis?version:sourceChanged?undefined:analysisDraft.wizard?.sourceVersion};
     // Partial analysis is visible and prevents unread documents from being priced.
     const safeExtraction=warning?{...extraction,summary:extraction?.summary||text,facts:extraction?.facts||[],conflicts:extraction?.conflicts||[],missingInformation:extraction?.missingInformation||[],reviewNotes:[...new Set([...(extraction?.reviewNotes||[]),...failedSourceNotes,warning])]}:extraction;

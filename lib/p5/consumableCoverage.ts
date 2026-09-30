@@ -13,6 +13,18 @@ const normalized=(text:string)=>text.toLowerCase().replace(/\s+/g,' ').trim();
 const namedProducts=(text:string)=>['screw','nail','fastener','shim','caulk','adhesive','sealant','thinset','grout'].filter(word=>new RegExp('\\b'+word+'s?\\b','i').test(text));
 const productPresent=(word:string,text:string)=>new RegExp('\\b'+(word==='adhesive'?'(?:adhesive|thinset|mortar)':word==='fastener'?'(?:fastener|screw|nail)':word==='sealant'?'(?:sealant|silicone|caulk)':word)+'s?\\b','i').test(text);
 
+/** Named cabinet supplies require cabinet work. A generic supplies task on a
+ * receptacle / P-trap / drywall repair cannot authorize a cabinet hardware
+ * allowance merely because both contain the word "fastener". */
+export function consumableApplicationMatches(description:string,operations:{description:string}[]):boolean{
+ const item=description.split(':').at(-1)!.split('(')[0];
+ if(!/\b(?:cabinet|vanity)\b/i.test(item))return true;
+ return operations.some(operation=>{
+  const included=operation.description.split(/\b(?:no|exclude[sd]?|retain)\b/i)[0];
+  return /\b(?:install|replace|mount|level|repair|resecure)\b/i.test(included)&&/\b(?:cabinets?|vanit(?:y|ies))\b/i.test(included);
+ });
+}
+
 /** A scope check may narrow a purchase, but cannot invent a price or erase a
  * named supply without citing real positive coverage. Original task evidence
  * remains intact for the subsequent independent whole-scope audit. Invalid
@@ -38,7 +50,9 @@ export function applyConsumableCoverage<T extends SupplyTask>(raw:unknown,gaps:T
    if(/\b(?:grout (?:application )?bag|trowel|drill|saw|caulk(?:ing)? gun)\b/i.test(item.material))throw new Error('Reusable tool is not an installation consumable');
   }
   const accounted=decision.covered.map(c=>c.excerpt).concat(decision.remaining.map(c=>c.material)).join(' ');
-  const explicit=namedProducts((task.researchDescription||task.description).split(/[.;]\s+/)[0]);
+  // Research wording is model-generated and can contain invented purchases.
+  // Only the retained source evidence establishes an explicit named supply.
+  const explicit=namedProducts(task.evidence);
   if(explicit.some(word=>!productPresent(word,accounted)))throw new Error('Named consumable disappeared from the coverage plan');
   const ids=[...new Set([...task.existingLineIds,...decision.covered.map(c=>c.lineId)])];
   return {task,ids,remaining:decision.remaining};

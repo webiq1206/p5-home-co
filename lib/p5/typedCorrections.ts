@@ -1,4 +1,4 @@
-import type {ScopeExtraction} from './scope.ts';
+import type {ScopeExtraction,ScopeAnswers} from './scope.ts';
 import type {ScopeField} from './scopeFields.ts';
 
 const NUMERIC_COMPONENTS:Partial<Record<ScopeField,RegExp>>={
@@ -18,7 +18,7 @@ const normalize=(value:string)=>value.toLowerCase().replace(/\b(one|two|three|fo
 const revisionClauses=(text:string)=>text.split(/(?<=[.!?])\s+|\n|;/).flatMap(original=>{
  const normalized=normalize(original);
  const at=normalized.search(/\b(?:change|revise|update|correct)\b/);
- if(at<0||/\b(?:not|never|don't|do not)\s*$/.test(normalized.slice(0,at)))return [];
+ if(at<0||/\b(?:not|never|don't|do not)\s*$/.test(normalized.slice(0,at))||/\b(?:maybe|possibly|either)\b/.test(normalized.slice(0,at)))return [];
  const clause=normalized.slice(at);
  if(/\b(?:maybe|possibly|either)\b|\bto\s+(?:exactly\s+)?\d+\s+or\s+\d+/.test(clause))return [];
  return [{original,clause}];
@@ -40,6 +40,7 @@ function textRevisionValues(extraction:ScopeExtraction,text:string):Map<ScopeFie
   {field:'plumbing',component:/\bsewer\b/i,unit:/^(?:lf|linear feet)$/,quantity:value=>[...value.matchAll(/\b(\d+(?:\.\d+)?)\s*(?:lf|linear feet)\s+sewer\b|\bsewer(?:\s+extension)?\s*(?:of|to|:)?\s*(\d+(?:\.\d+)?)\s*(?:lf|linear feet)\b/g)].map(m=>m[1]||m[2])},
   {field:'fixtures',component:/\b(?:levers?|handles?)\b/i,unit:/^$/,quantity:value=>[...value.matchAll(/\b(\d+)\s+(?:owner[- ]supplied\s+|matching\s+|passage\s+|interior\s+|door\s+)*(?:levers?|handles?)\b/g)].map(m=>m[1])},
   {field:'taskList',component:/\bdrywall\b/i,unit:/^(?:inches|inch|in)$/,quantity:value=>[...value.matchAll(/\b(\d+(?:\.\d+)?x\d+(?:\.\d+)?)\s*(?:inch|inches|in)\b/g)].map(m=>m[1])},
+  {field:'taskList',component:/\bwindows?\b/i,unit:/^$/,quantity:value=>[...value.matchAll(/\b(\d+)\s+(?:(?:replacement|existing|white|vinyl|double-pane|kitchen)\s+)*windows?\b/g)].map(m=>m[1])},
   {field:'otherDetails',component:/\bdrywall\b/i,unit:/^(?:inches|inch|in)$/,quantity:value=>[...value.matchAll(/\b(\d+(?:\.\d+)?\s*x\s*\d+(?:\.\d+)?)\s*(?:inch|inches|in)\b/g)].map(m=>m[1])},
  ];
  for(const {clause} of revisionClauses(text)){
@@ -71,11 +72,42 @@ function textRevisionValues(extraction:ScopeExtraction,text:string):Map<ScopeFie
  return accepted;
 }
 
+/** An explicit current revision can supersede an older manually answered
+ * question too. Reconciliation must not ask 6-vs-8 after validating the
+ * customer's instruction to change trim to 8 LF. Answers given after this
+ * same source was analyzed keep priority through current resolutions. */
+export function answersAfterTypedRevision(current:ScopeAnswers,extraction:ScopeExtraction,text:string,resolutions:ScopeAnswers={}):ScopeAnswers{
+ const answers={...current};
+ for(const [field,revision] of textRevisionValues(extraction,text))if(!resolutions[field])answers[field]=revision.value;
+ const clauses=revisionClauses(text).map(c=>c.clause);
+ for(const fact of extraction.facts){
+  const component=NUMERIC_COMPONENTS[fact.field];
+  if(!component||resolutions[fact.field]||fact.basis!=='stated'||fact.confidence<.85||!/typed|submitted\s*scope/i.test(fact.source))continue;
+  if(!clauses.some(clause=>{const claim=numericRevisionClaim(clause);return component.test(clause)&&claim&&Number(claim.value)===Number(fact.value)&&(fact.field==='fixtureCount'?/^(?:handles?|levers?)?$/i:/Lf$/.test(fact.field)?/^(LF|linear feet)$/i:/^(SF|square feet)$/i).test(claim.unit);} ))continue;
+  answers[fact.field]=fact.value;
+ }
+ if(answers.trimLf&&answers.trimLf!==current.trimLf&&current.trimLf){
+  const old=Number(current.trimLf);
+  for(const field of ['taskList','otherDetails','installation'] as const){
+   if(!answers[field])continue;
+   answers[field]=answers[field]!.split(/(?<=[.!?])\s+|\n/).map(clause=>{
+    if(!/\b(?:trim|baseboard)\b/i.test(clause))return clause;
+    const measures=[...clause.matchAll(/\b(\d+(?:\.\d+)?)\s*(?:LF|linear feet)\b/gi)];
+    if(measures.length!==1||Number(measures[0][1])!==old)return clause;
+    return clause.replace(measures[0][0],measures[0][0].replace(measures[0][1],answers.trimLf!));
+   }).join(' ');
+  }
+ }
+ return answers;
+}
+
 /** A verbatim, explicit customer revision resolves that one quantity. Merely
  * mentioning a different number, or a model calling a source "typed", does
  * not establish precedence. Original document takeoffs remain as provenance. */
 export function applyExplicitTypedCorrections(extraction:ScopeExtraction,text:string):ScopeExtraction{
  const textAccepted=textRevisionValues(extraction,text);
+ const drywallSizeRevision=textAccepted.has('taskList')&&textAccepted.get('taskList')!.component.test('drywall')
+  ?revisionClauses(text).map(({clause})=>clause).find(clause=>/\bdrywall\b/.test(clause)&&/\bto\s+\d+(?:\.\d+)?x\d+(?:\.\d+)?\s*(?:inches|inch|in)\b/.test(clause)):undefined;
  const directFacts:ScopeExtraction['facts']=[];
  for(const {original,clause} of revisionClauses(text)){
   const claim=numericRevisionClaim(clause);
@@ -116,6 +148,12 @@ export function applyExplicitTypedCorrections(extraction:ScopeExtraction,text:st
    return !revision||!revision.component.test(fact.value)||fact.value===revision.value;
   }),conflicts:extraction.conflicts.filter(conflict=>{
    if(accepted.has(conflict.field))return false;
+   // A reader may put the active 18x18 repair in taskList but file its old
+   // 12x12-vs-18x18 question under otherDetails. The same verified edit
+   // resolves that size question; thickness, rating and count remain distinct.
+   if(drywallSizeRevision&&conflict.field==='otherDetails'&&/\b(?:dimension|size)\b/i.test(conflict.explanation)
+    &&!/\b(?:thickness|rating|layers?|count|number)\b/i.test(conflict.explanation)
+    &&conflict.values.every(value=>/\b\d+(?:\.\d+)?x\d+(?:\.\d+)?\s*(?:inches|inch|in)\b/.test(normalize(value))))return false;
    const revision=textAccepted.get(conflict.field);
    const focus=revision?.component.test(conflict.explanation)?conflict.explanation:[conflict.explanation,...conflict.values].join(' ');
    if(revision&&revision.component.test(focus)&&!revision.other?.test(focus))return false;

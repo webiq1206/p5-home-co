@@ -170,6 +170,25 @@ export function applyPricingCorrections(input:CorrectionInput):CorrectionResult{
   for(const assembly of kept){
     const {section}=sectionOf(assembly.description);
     if(!WHOLE_UNIT_SECTIONS.test(section)||!WHOLE_UNIT_ITEMS.test(itemOf(assembly.description)))continue;
+    // A project-wide SF cleanup can span the separately priced garage/porch.
+    // Remove only the measured house share already included by the complete
+    // home. Never delete the other areas or charge the house a second time.
+    const houseArea=Number(scope.answers.sqft),garageArea=Number(scope.answers.garageSqft||0),porchArea=Number(scope.answers.coveredOutdoorSqft||0);
+    if(/\bPB-90-10-01\b/.test(assembly.evidence?.reference||'')&&assembly.quantity.fixed===houseArea&&houseArea>0
+      &&garageArea+porchArea>0&&kept.filter(r=>/\bPB-90-10-01\b/.test(r.evidence?.reference||'')).length===1){
+      for(const rule of resolution.rules){
+        if(!/\bPB-01-74-05\b/.test(rule.evidence?.reference||'')||rule.unit!=='SF'||rule.quantityRange
+          ||rule.quantity.fixed!==houseArea+garageArea+porchArea
+          ||!/\b(?:project|site|house|home|interiors)\b/i.test(taskDescription(rule.scopeTaskId||''))
+          ||/\b(?:trench|driveway|landscape|external utility)\b/i.test(taskDescription(rule.scopeTaskId||'')))continue;
+        const remaining=garageArea+porchArea;
+        rule.quantity={...rule.quantity,fixed:remaining};
+        rule.description=`Final cleanup of separately measured garage and covered porch; house cleanup included in the complete home: ${ratePart(rule.description)}`;
+        rule.building='garage and covered porch';
+        cover(rule.scopeTaskId,assembly.id);
+        notes.push(`Final cleanup is priced once: ${houseArea} SF of house cleanup is included in the complete home; the separate cleanup line covers only ${remaining} SF of garage and covered porch.`);
+      }
+    }
     const completionCleanup=(description:string)=>(PROTECT_OR_CLEAN.test(description)||DEBRIS_TASK.test(description))
       && /\b(?:house|home|ADU|building|project-wide)\b/i.test(description)
       && !/\b(?:excavat\w*|trench\w*|site clearing|sewer|septic|driveway|sidewalk|landscap\w*|external utilit\w*|off[- ]site)\b/i.test(description);
@@ -186,9 +205,12 @@ export function applyPricingCorrections(input:CorrectionInput):CorrectionResult{
     // A component task the mapping left unpriced (roofing, insulation, the envelope) is inside the
     // unit's price too; otherwise it would be carried out of the total as "not priced" and the
     // finished unit shown as a partial estimate.
-    const normalPerimeterConnection=(description:string)=>/\butilities\s+stubbed\s+at\s+(?:the\s+)?building perimeter\b/i.test([scope.text,scope.extraction?.sourceText].filter(Boolean).join('\n'))
-      &&/\b(?:connect|tie[- ]?in)\b/i.test(description)&&/\bat\s+(?:the\s+)?building perimeter\b/i.test(description)
-      &&!/\b(?:extend|extension|trench|excavat|off[- ]site|street|\d+\s*(?:LF|feet|ft))\b/i.test(description);
+    const normalPerimeterConnection=(description:string)=>{
+      const included=description.split(/\bexclud(?:e[sd]?|ing)\b/i)[0];
+      return /\butilities\s+stubbed\s+at\s+(?:the\s+)?building perimeter\b/i.test([scope.text,scope.extraction?.sourceText,scope.answers.utilities].filter(Boolean).join('\n'))
+        &&/\b(?:connect|tie[- ]?in)\b/i.test(included)&&/\b(?:at|within)\s+(?:the\s+)?building perimeter\b/i.test(included)
+        &&!/\b(?:extend|extension|trench|excavat|off[- ]site|street|\d+\s*(?:LF|feet|ft))\b/i.test(included);
+    };
     const unpricedComponents=mappingTasks.filter(task=>task.id!==assembly.scopeTaskId&&!covered.has(task.id)
       &&!resolution.rules.some(rule=>rule.scopeTaskId===task.id)&&!task.existingLineIds.some(id=>lines.some(line=>line.id===id&&!removed.has(line.id)))
       &&(COMPONENT_TASK.test(task.description)&&!OUTSIDE_TASK.test(task.description)||completionCleanup(task.description)||normalPerimeterConnection(task.description)));

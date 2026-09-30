@@ -8,6 +8,36 @@ import {advisoryIssue,pricedTaskRemark,findingBlocks,correctableDuplicate,planni
 import type {ReviewedScope} from '../lib/p5/scope.ts';
 const text='Install 100 linear feet of owner-supplied 3.25-inch primed MDF baseboard. Labor only. Owner supplies the baseboard; contractor supplies nails and caulk. No painting.';
 const scope:ReviewedScope={text,answers:{service:'handyman',ownerSupplied:'Owner supplies baseboard; contractor supplies nails and caulk'},extraction:null,uploads:[],reviewedAt:'2026-09-24',corrections:[]};
+test('live new-home missing utility coverage cannot become an assumption because the parent has a price',()=>{
+ const tasks=[{id:'project:utility-connections-within-perimeter',description:'Install and connect stubbed utilities within the building perimeter'}];
+ for(const issue of [
+  'project:utility-connections-within-perimeter is missing a positive priced line for required stub-to-building utility connection work.',
+  'There are no positive priced lines (/plumbing, /HVAC, /electric) included. This integral portion of the scope remains uncosted.',
+  tasks[0].description+': full pricing coverage has not been verified.'
+ ]){
+  assert.equal(advisoryIssue(issue),false,issue);
+  assert.equal(pricedTaskRemark(issue,tasks),false,issue);
+  assert.equal(findingBlocks(issue,tasks,tasks),true,issue);
+ }
+});
+test('RE10 general supplies cannot acquire cabinet hardware or shims without cabinet work',async()=>{
+ const {normalizeConsumableMapping}=await import('../lib/p5/scopePricing.ts');
+ const {priceBookRates}=await import('../lib/p5/priceBook.ts');
+ const rates=priceBookRates({service:'re10'});
+ const unrelated=rates.filter(rate=>rate.type==='Material'&&/cabinet|vanity/i.test(rate.description)&&/shim|hardware|fastener/i.test(rate.description));
+ assert.ok(unrelated.length>0);
+ const local={...scope,text:'Replace two GFCIs, one PVC P-trap and patch Type X drywall. Include normal installation supplies.',answers:{service:'re10'}};
+ const supplies={id:'supplies',description:'Supply normal installation consumables',evidence:'Include normal installation supplies.',additions:unrelated.map(rate=>({code:rate.code,quantity:1,quantityEvidence:'ALLOWANCE: general supplies',quantityRange:null})),existingLineIds:[],researchDescription:'',issues:[]};
+ const repair={...supplies,id:'repairs',description:'Replace two GFCI receptacles, replace one PVC P-trap and patch one drywall hole.',additions:[]};
+ const mapping={tasks:[supplies,repair],issues:[],notes:[],replacements:[],removeExclusions:[]};
+ normalizeConsumableMapping(mapping,{planningCatalog:{rates}} as any,[],local);
+ assert.deepEqual(supplies.additions,[]);
+ assert.match(supplies.researchDescription,/actual remaining supplies/);
+ const {consumableApplicationMatches}=await import('../lib/p5/consumableCoverage.ts');
+ assert.equal(consumableApplicationMatches('Cabinet mounting shims',[{description:'Install one 30-inch vanity'}]),true);
+ assert.equal(consumableApplicationMatches('Cabinet mounting shims',[{description:'Remove existing vanity only'}]),false);
+ assert.equal(consumableApplicationMatches('Cabinet mounting shims',[{description:'Replace two GFCIs. Retain cabinets.'}]),false);
+});
 test('contractor consumables are item-specific and do not authorize owner products or extra materials',()=>{
  for(const component of ['Finish nails','Paintable caulk','Install baseboard: finish nails (materials)','Nails, interior trim caulk, and nail-hole filler for 100 LF of owner-supplied primed MDF baseboard'])assert.equal(contractorConsumableIncluded(scope,component),true,component);
  for(const component of ['Baseboard','Install nails and caulk: MDF baseboard','Owner-supplied nails','Adhesive','Supply and install baseboard','Cabinets including fasteners','Baseboard with nails'])assert.equal(contractorConsumableIncluded(scope,component),false,component);

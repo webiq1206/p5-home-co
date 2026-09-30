@@ -55,6 +55,16 @@ test('window-only work still asks about explicitly requested trim repair, withou
  const q=scopeQuestions({service:'kitchen',taskList:text},null);
  assert.ok(q.some(q=>q.field==='trimLf'));assert.equal(q.some(q=>['cabinetBaseLf','sqft','flooringSqft'].includes(q.field)),false);
 });
+test('component dimensions cannot become the project footprint or erase a separately stated room area',async()=>{
+ const {normalizeDimensionSubjects}=await import('../lib/p5/scopeInterpretation.ts');
+ const evidence='Two white vinyl windows, each 3 feet wide by 4 feet high.';
+ const x=extraction([fact('length','3',evidence),fact('width','4',evidence),fact('sqft','12','Window area calculated: 3 x 4 feet = 12 SF.'),fact('sqft','120','120 SF kitchen with two windows.')]);
+ const out=normalizeDimensionSubjects(x);
+ assert.ok(out.facts.slice(0,3).every(f=>f.field==='otherDetails'));
+ assert.equal(reconcileScope({},out).answers.sqft,'120');
+ assert.match(out.facts[0].value,/3 feet wide by 4 feet high/);
+ assert.equal(normalizeDimensionSubjects(extraction([fact('length','12','Kitchen dimensions: 12 by 10 feet, includes two windows.')])).facts[0].field,'length');
+});
 test('window flashing stays under windows, while roof flashing stays under roofing',async()=>{
  const {suggestedTrade}=await import('../lib/p5/trades.ts');
  assert.equal(suggestedTrade('Window / door flashing, per opening.'),'Windows & Doors');
@@ -122,4 +132,30 @@ test('incidental debris cleanup does not classify an entire hardware replacement
  assert.equal(suggestedTrade('Perform final cleanup after the window replacement.'),'Cleanup & Disposal');
  assert.equal(suggestedTrade('Repair and resecure 6 linear feet of existing interior window trim. No new casing or stool package and no rot repair.'),'Trim & Finish Carpentry');
  assert.equal(suggestedTrade('Replace one window and repair its existing trim.'),'Windows & Doors');
+});
+
+test('a confirmed drywall size revision resolves an old-size question filed under another detail field',async()=>{
+ const {applyExplicitTypedCorrections}=await import('../lib/p5/typedCorrections.ts');
+ const text='Change the drywall hole to 18 by 18 inches, superseding the PDF 12 by 12 inches.';
+ const x=extraction([{...fact('taskList','Replace 2 GFCIs, replace 1 P-trap, repair 1 drywall hole (18x18 in, spot prime).',text),source:'typed scope'},fact('otherDetails','Ground floor, normal access.','Ground floor, normal access.')]);
+ x.conflicts=[{field:'otherDetails',values:['repair one 12 by 12 inch hole in 5/8-inch Type X drywall',text],explanation:'User revision supersedes PDF dimension for the drywall hole from 12x12 in to 18x18 in.'}];
+ const out=applyExplicitTypedCorrections(x,text);
+ assert.equal(out.conflicts.length,0);assert.deepEqual(out.facts,x.facts);
+ const rated=structuredClone(x);rated.conflicts[0].explanation='Conflicting drywall thickness and fire rating.';
+ assert.equal(applyExplicitTypedCorrections(rated,text).conflicts.length,1);
+ assert.equal(applyExplicitTypedCorrections(x,text.replace('Change','Maybe change')).conflicts.length,1);
+});
+
+test('an explicit new trim and window revision supersedes older manual answers without another conflict',async()=>{
+ const {answersAfterTypedRevision,applyExplicitTypedCorrections}=await import('../lib/p5/typedCorrections.ts');
+ const {reconcileScope}=await import('../lib/p5/adaptive.ts');
+ const text='Revise this estimate to exactly two replacement windows, superseding the one-window scope. Change the existing interior trim repair quantity to 8 linear feet TOTAL, replacing the previous 6 LF.';
+ const x=extraction([{...fact('trimLf','8','Change the existing interior trim repair quantity to 8 linear feet TOTAL.'),source:'typed scope'},{...fact('taskList','Replace two windows and repair 8 LF existing trim.',text),source:'typed scope'}]);
+ const current={trimLf:'6',taskList:'Exactly one replacement window.',otherDetails:'Repair 6 LF existing interior trim. No new casing or rot repair.',location:'Boise'};
+ const revised=applyExplicitTypedCorrections(x,text);
+ const answers=answersAfterTypedRevision(current,revised,text);
+ assert.equal(answers.trimLf,'8');assert.match(answers.taskList!,/two windows/);assert.match(answers.otherDetails!,/8 LF/);assert.match(answers.otherDetails!,/No new casing/);assert.equal(answers.location,'Boise');
+ assert.deepEqual(reconcileScope(answers,revised).conflicts,[]);
+ assert.equal(answersAfterTypedRevision({...current,trimLf:'7'},revised,text,{trimLf:'7'}).trimLf,'7','a later answer in the same source revision wins');
+ assert.equal(answersAfterTypedRevision(current,revised,'Maybe change trim to 8 LF.').trimLf,'6');
 });

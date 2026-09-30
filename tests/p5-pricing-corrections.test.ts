@@ -237,6 +237,22 @@ test('normal connections at provided building stubs are within the complete home
  assert.ok(!result.coveredTaskIds.includes('sewer'));
  const unknown=inputFor(scopeFor('Build complete home. Utility locations unknown.',{service:'new-construction'}),tasks,[house]);
  assert.ok(!applyPricingCorrections(unknown).coveredTaskIds.includes('stubs'));
+ const liveDescription='Install and connect all stubbed utilities (water, sewer, electric, gas if needed) within the building perimeter for house, garage, and porch; excludes extensions outside perimeter.';
+ const revised=inputFor({...input.scope,text:'Change the garage to 576 SF.',answers:{...input.scope.answers,utilities:'Utilities stubbed at building perimeter; exclude utility extensions beyond perimeter'}},[{...tasks[0]},{id:'stubs',description:liveDescription}],[house]);
+ assert.ok(applyPricingCorrections(revised).coveredTaskIds.includes('stubs'),'excluded outside extensions do not negate confirmed inside connections');
+});
+
+test('live project-wide cleanup retains only the measured area outside the complete house assembly',()=>{
+ const tasks=[{id:'home',description:'Build complete 2000 SF home'},{id:'clean',description:'Final construction cleanup and protection of finished areas, one-time per project, to deliver site and interiors broom-clean post construction.',origin:'required'}];
+ const home=rule('home',tasks[0].description,'90-10-01',2000,{building:'main house'});
+ const cleanup=rule('clean',tasks[1].description,'01-74-05',2656,{building:'multiple'});
+ const input=inputFor(scopeFor('Build home, garage and covered porch.',{service:'new-construction',sqft:'2000',garageSqft:'576',coveredOutdoorSqft:'80'}),tasks,[home,cleanup]);
+ const originalRate=cleanup.unitCost;
+ const result=applyPricingCorrections(input);
+ assert.equal(cleanup.quantity.fixed,656);assert.equal(cleanup.unitCost,originalRate);
+ assert.ok(result.coveredTaskIds.includes('clean'));assert.ok(input.mappingTasks[1].existingLineIds.includes(home.id));
+ assert.equal(input.resolution.rules.length,2);assert.match(cleanup.description,/house cleanup included/);
+ applyPricingCorrections(input);assert.equal(cleanup.quantity.fixed,656,'a second pass must not subtract the house twice');
 });
 
 test('equal handle counts on different doors are not assumed to be one replacement',()=>{

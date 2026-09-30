@@ -13,7 +13,6 @@ test('remarks about priced work are items to confirm, not reasons to withhold th
     'BATH-VAN-01 is only partially covered. Line scope-3 includes an installed vanity cabinet and top but does not explicitly include the required sink.',
     'Number of plumbing vent boots to replace',
     'Tiled shower wall area (tileSqft) is required to estimate tile labor/materials.',
-    'Install new vanity: full pricing coverage has not been verified.',
     'planning-103 may duplicate planning-201; reconcile before procurement.',
   ])assert.equal(findingBlocks(remark,tasks,priced),false,remark);
 });
@@ -21,6 +20,7 @@ test('facts still withhold the price',()=>{
   for(const defect of [
     'VEN-01 and VEN-02 have an unresolved overlap: scope-4 prices two terminations while scope-5 separately prices sealing three penetrations.',
     'Chimney cap repair: no supported price.',
+    'Install new vanity: full pricing coverage has not been verified.',
     'ELE-02 is duplicatively priced: planning-1 and repair-scope-4 charge the same troubleshooting.',
     'Install new vanity: mapped 3 EA does not match the explicit quantity in the reviewed scope.',
     'The patch count disagrees with the description.',

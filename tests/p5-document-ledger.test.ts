@@ -125,3 +125,16 @@ test('Text from a PDF is made well formed before it is sent to a reader (live Co
   assert.equal(out.isWellFormed(),true);assert.match(out,/Budget .* line kept\nnext/);
   assert.equal([...out].some(c=>c.charCodeAt(0)<9),false,'control bytes are removed');
 });
+
+test('a customer revision retains its own citation instead of becoming a claim about an old PDF',async()=>{
+ const {bindTypedTakeoffSources,readTakeoffs}=await import('../lib/p5/documentLedger.ts');
+ const text='Change the garage to 24 by 24 feet, 576 SF, superseding the PDF garage size.';
+ const garage={...takeoff,id:'garage',component:'garage',description:'Attached garage',quantity:576,unit:'SF',evidence:text,sources:[{source:'typed scope',page:1,sheet:'',revision:''}]};
+ bindTypedTakeoffSources([garage],text);assert.equal(garage.quantity,576);assert.deepEqual(garage.sources,[{source:'typed scope',page:0,sheet:'',revision:''}]);assert.doesNotThrow(()=>readTakeoffs([garage]));
+ const drywall={...garage,id:'patch',component:'drywall',quantity:2.25,evidence:'user: Change to 18x18 in; (18/12)x(18/12)=2.25 SF',sources:[{source:'user revision',page:1,sheet:'',revision:''}]};
+ bindTypedTakeoffSources([drywall],'Change the drywall hole to 18 by 18 inches, superseding the PDF 12 by 12 inches.');
+ assert.equal(drywall.quantity,2.25);assert.equal(drywall.sources[0].page,0);
+ const invented={...drywall,quantity:144,evidence:'user: Change to 18x18 in; area 144 SF'};
+ bindTypedTakeoffSources([invented],'Change the drywall hole to 18 by 18 inches.');assert.equal(invented.quantity,null);assert.equal(invented.basis,'uncertain');
+ assert.throws(()=>readTakeoffs([{...garage,sources:[{source:'drawing.pdf',page:0,sheet:'',revision:''}]}]),/page reference/);
+});
