@@ -1,15 +1,17 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {projectInput,acceptProjectRecord,validateProjectRecord,projectRecordChange,computedProjectQuantity,ProjectRecordError} from '../lib/p5/projectRecord.ts';
+import {projectInput,projectHash,projectRecordIntegrity,acceptProjectRecord,validateProjectRecord,projectRecordChange,computedProjectQuantity,ProjectRecordError} from '../lib/p5/projectRecord.ts';
 import {compileProjectPrices,projectPriceSelection,calculateProjectEstimate,projectReviewReceipt} from '../lib/p5/projectPricing.ts';
 import {interpretProjectRecord,priceProjectRecord} from '../lib/p5/projectWorkflow.ts';
-import {PROJECT_RECORD_INSTRUCTIONS,PROJECT_PRICE_INSTRUCTIONS,PROJECT_REVIEW_INSTRUCTIONS,type ProjectProposal,type ProjectQuantity} from '../lib/p5/projectRecordContracts.ts';
+import {PROJECT_RECORD_INSTRUCTIONS,PROJECT_PRICE_INSTRUCTIONS,PROJECT_REVIEW_INSTRUCTIONS,projectProposalSchema,type ProjectProposal,type ProjectQuantity} from '../lib/p5/projectRecordContracts.ts';
 import {openAiPricingRequestEnvelope,type PricingRequest} from '../lib/p5/scopePricing.ts';
 import {priceBookRates} from '../lib/p5/priceBook.ts';
 import {PLANNING_MODEL_VERSION} from '../lib/p5/planningBooks.ts';
 import {DEFAULT_FINANCE} from '../lib/p5/pricing.ts';
 import type {EstimatorConfiguration} from '../lib/p5/costBook.ts';
 import type {ReviewedScope} from '../lib/p5/scope.ts';
+import {PGlite} from '@electric-sql/pglite';
+import {publishProjectQualification} from '../lib/p5/projectRecordWork.ts';
 
 const now=new Date('2026-09-30T14:00:00Z');
 const scope:ReviewedScope={text:'Replace exactly 3 passage handles with owner-supplied matching sets in Boise. Existing holes are sound. Include adjustment and testing. Owner handles cleanup. No painting or door replacement.',answers:{service:'handyman',location:'Boise'},extraction:null,uploads:[],reviewedAt:now.toISOString(),corrections:[]};
@@ -30,6 +32,17 @@ test('all three provider contracts use their own strict schema instead of an unr
   const body=openAiPricingRequestEnvelope(instructions,{},false).body as any;
   assert.equal(body.model,'gpt-4.1');assert.equal(body.text.format.strict,true);assert.ok(body.text.format.schema.properties[key]);
  }
+});
+test('dependency prose cannot substitute for the required structured parent link',()=>{
+ const p=example();p.requirements.push({...p.requirements[0],id:'supporting',origin:'dependency',reason:'Necessary to complete replace-handles.',requiredBy:[]});
+ assert.equal(projectProposalSchema.safeParse(p).success,false);
+ p.requirements.at(-1)!.requiredBy=['replace-handles'];
+ assert.equal(projectProposalSchema.safeParse(p).success,true);
+ const body=openAiPricingRequestEnvelope(PROJECT_RECORD_INSTRUCTIONS,{},false).body as any;
+ const branches=body.text.format.schema.properties.requirements.items.anyOf;
+ const dependency=branches.find((b:any)=>b.properties.origin.const==='dependency');
+ assert.equal(dependency.properties.requiredBy.minItems,1);
+ assert.equal(dependency.properties.reason.minLength,1);
 });
 test('source blocks retain every typed character and quote identity',()=>{
  const text=('A distinct project instruction with measured quantities.\n').repeat(1000);
@@ -53,6 +66,16 @@ test('missing quantities produce linked questions without adding excluded work',
  assert.deepEqual(validateProjectRecord(incomplete,projectInput(scope)),[]);
  incomplete.questions[0].requirementIds=['paint'];
  assert.ok(validateProjectRecord(incomplete,projectInput(scope)).some(p=>p.code==='unrelated-question'));
+});
+test('unassigned and conditional work requires a question and cannot silently disappear from pricing',()=>{
+ const p=example(),r=p.requirements[0];r.responsibility='unassigned';
+ assert.ok(validateProjectRecord(p,projectInput(scope)).some(p=>p.code==='unknown-responsibility'));
+ p.questions=[{id:'who-installs',requirementIds:[r.id],quantityIds:[],kind:'responsibility',prompt:'Should P5 install the handles or will someone else install them?',reason:'Installation labor is included only when P5 performs it.',options:['P5 installs','Someone else installs'],priority:'blocking'}];
+ assert.deepEqual(validateProjectRecord(p,projectInput(scope)),[]);
+ r.status='conditional';p.questions=[];
+ assert.ok(validateProjectRecord(p,projectInput(scope)).some(p=>p.code==='unresolved-condition'));
+ p.sourceReviews[0]={...p.sourceReviews[0],status:'conflicting',reason:'Two scope instructions disagree.'};
+ assert.ok(validateProjectRecord(p,projectInput(scope)).some(p=>p.code==='unresolved-source'));
 });
 test('computed dimensions check units, arithmetic, cycles and unsupported factors',()=>{
  const q=(id:string,value:number,unit:string):ProjectQuantity=>({id,subjectId:'handles',description:id,unit,basis:'stated',value,range:null,evidenceIds:['e1'],calculation:null,assumption:''});
@@ -103,6 +126,34 @@ test('changing stored facts, source text or catalog prices invalidates the prior
  }
  const changedBook=structuredClone(config);changedBook.planningCatalog!.rates.find(r=>r.code==='PB-08-71-01')!.amount=80;
  assert.ok(compileProjectPrices(original,selection,changedBook,now).problems.some(p=>p.code==='stale-catalog'));
+});
+test('record and selection identity survives database JSON key reordering',()=>{
+ const r=record();
+ const reorder=(v:any):any=>Array.isArray(v)?v.map(reorder):v&&typeof v==='object'?Object.fromEntries(Object.entries(v).sort(([a],[b])=>b.localeCompare(a)).map(([k,value])=>[k,reorder(value)])):v;
+ const stored=reorder(r);
+ assert.equal(projectHash(stored),projectHash(r));assert.equal(projectRecordIntegrity(stored),true);
+ const selection=projectPriceSelection(r,config,proposal());
+ assert.deepEqual(compileProjectPrices(stored,reorder(selection),reorder(config),now).problems,[]);
+});
+test('saved completion recovers publication once and cannot overwrite a newer customer revision',async()=>{
+ const db=new PGlite();
+ try{
+  await db.exec('CREATE TABLE p5_estimator_drafts(id text PRIMARY KEY, revision integer); CREATE TABLE p5_estimator_work(draft_id text, work_key text, payload jsonb, updated_at timestamptz DEFAULT now(), PRIMARY KEY(draft_id,work_key));');
+  await db.query('INSERT INTO p5_estimator_drafts VALUES ($1,4)',['my-project']);
+  const execute=async(statement:string,values:unknown[]=[])=> (await db.query(statement,values)).rows as Record<string,any>[];
+  const result={status:'ready' as const,record:record(),problems:[],attempts:1};
+  // A crash left the paid result in the work checkpoint, but no latest record.
+  await db.query('INSERT INTO p5_estimator_work VALUES($1,$2,$3::jsonb,now())',['my-project','saved-work',JSON.stringify({result})]);
+  const saved=(await execute('SELECT payload FROM p5_estimator_work WHERE work_key=$1',['saved-work']))[0].payload.result;
+  await publishProjectQualification('my-project',4,saved,execute);
+  await publishProjectQualification('my-project',4,saved,execute);
+  const latest=await execute('SELECT payload FROM p5_estimator_work WHERE work_key=$1',['project-record-latest-v1']);
+  assert.equal(latest.length,1);assert.equal(projectRecordIntegrity(latest[0].payload.record),true);
+  await execute('UPDATE p5_estimator_drafts SET revision=5 WHERE id=$1',['my-project']);
+  await assert.rejects(publishProjectQualification('my-project',4,saved,execute),/project changed/);
+  await assert.rejects(publishProjectQualification('my-project',4,{status:'needs-resolution',record:null,problems:[],attempts:2},execute),/project changed/);
+  assert.deepEqual(await execute('SELECT payload FROM p5_estimator_work WHERE work_key=$1',['project-record-latest-v1']),latest);
+ }finally{await db.close();}
 });
 test('revisions invalidate old prices and review even when work-item identities remain stable',()=>{
  const old=record(),selection=projectPriceSelection(old,config,proposal()),receipt=projectReviewReceipt(old,selection,review(old));

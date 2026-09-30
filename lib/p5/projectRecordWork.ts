@@ -6,7 +6,7 @@ import {claimWork,writeWork,renewWork,releaseWork} from './workStore.ts';
 import {requestPricing,type PricingReply,type PricingRequest} from './scopePricing.ts';
 import {PricingPending} from './pricingProgress.ts';
 import {PROJECT_RECORD_VERSION} from './projectRecordContracts.ts';
-import {projectHash,projectInput,type ProjectRecord} from './projectRecord.ts';
+import {projectHash,projectInput,projectRecordIntegrity,type ProjectRecord} from './projectRecord.ts';
 import {interpretProjectRecord,priceProjectRecord} from './projectWorkflow.ts';
 import {EMPTY_CONFIGURATION,type EstimatorConfiguration} from './costBook.ts';
 import {priceBookRates,PRICE_BOOK_VERSION,finishTier} from './priceBook.ts';
@@ -14,7 +14,19 @@ import {withRateCard} from './rateCard.ts';
 import type {ReviewedScope} from './scope.ts';
 
 const LATEST='project-record-latest-v1';
-type StoredWork={startedAt:string;replies:Record<string,PricingReply>;record?:ProjectRecord;result?:unknown};
+type QualificationResult=Awaited<ReturnType<typeof interpretProjectRecord>>|Awaited<ReturnType<typeof priceProjectRecord>>;
+type StoredWork={startedAt:string;replies:Record<string,PricingReply>;record?:ProjectRecord;result?:QualificationResult};
+/** Both a first completion and recovery of a saved completion pass through the
+ * same atomic revision guard. Saving provider work is not publication. */
+export async function publishProjectQualification(id:string,expectedRevision:number,result:QualificationResult,execute:typeof query=query){
+ if(result.record&&!projectRecordIntegrity(result.record))throw new DraftError('The saved project review needs to be rebuilt from its current sources.',409);
+ const rows=result.record?await execute(`INSERT INTO p5_estimator_work(draft_id,work_key,payload)
+  SELECT id,$2,$4::jsonb FROM p5_estimator_drafts WHERE id=$1 AND revision=$3
+  ON CONFLICT(draft_id,work_key) DO UPDATE SET payload=EXCLUDED.payload,updated_at=now() RETURNING work_key`,[id,LATEST,expectedRevision,JSON.stringify({draftRevision:expectedRevision,record:result.record,result})])
+  :await execute('SELECT id FROM p5_estimator_drafts WHERE id=$1 AND revision=$2',[id,expectedRevision]);
+ if(!rows.length)throw new DraftError('The project changed during review. Its newer information is preserved.',409);
+ return result;
+}
 export function draftProjectScope(draft:Draft):ReviewedScope{
  return {text:draft.text,answers:draft.answers,extraction:draft.extraction,uploads:draft.uploads,reviewedAt:draft.updatedAt,corrections:[]};
 }
@@ -32,21 +44,22 @@ export async function runProjectQualification(id:string,expectedRevision:number,
  if(draft.revision!==expectedRevision)throw new DraftError('The project changed. Reload before reviewing it.',409);
  const scope=draftProjectScope(draft),input=projectInput(scope);
  const prior=await readProjectQualification(id);
- if(phase==='interpret'&&prior?.record?.version===PROJECT_RECORD_VERSION&&prior.record.sourceHash===input.sourceHash&&prior.draftRevision===expectedRevision)
+ const previous=prior?.record&&projectRecordIntegrity(prior.record)?prior.record:null;
+ if(phase==='interpret'&&previous&&previous.sourceHash===input.sourceHash&&prior?.draftRevision===expectedRevision)
   return {status:prior.record.questions.some(q=>q.priority==='blocking')?'questions':'ready',record:prior.record,problems:[],attempts:0,reused:true};
- if(phase==='price'&&(!prior?.record||prior.record.sourceHash!==input.sourceHash))throw new DraftError('Interpret the current sources before selecting prices.',409);
+ if(phase==='price'&&(!previous||previous.sourceHash!==input.sourceHash||prior?.draftRevision!==expectedRevision))throw new DraftError('Interpret the current sources before selecting prices.',409);
  const [policy]=await query("SELECT payload FROM p5_estimator_policy WHERE id='current'");
  const saved=(policy?.payload||EMPTY_CONFIGURATION) as EstimatorConfiguration;
  const rates=priceBookRates(draft.answers);
  const configuration:EstimatorConfiguration={...withRateCard(saved,rates),catalogVersion:`${saved.planningCatalog?.version||'missing'}+${PRICE_BOOK_VERSION}:${finishTier(draft.answers.finish)}`};
- const workKey='project-record-work:'+projectHash({contract:PROJECT_RECORD_VERSION,phase,revision:expectedRevision,sourceHash:input.sourceHash,catalog:phase==='price'?configuration:null,previous:prior?.record?.recordHash||null});
+ const workKey='project-record-work:'+projectHash({contract:PROJECT_RECORD_VERSION,phase,revision:expectedRevision,sourceHash:input.sourceHash,catalog:phase==='price'?configuration:null,previous:previous?.recordHash||null});
  const claim=await claimWork(id,workKey,{startedAt:new Date().toISOString(),replies:{}},210);
  if(!claim)throw new PricingPending('This project review is already running.',3000);
  const payload=claim.payload as StoredWork;
  const persist=()=>writeWork(id,workKey,claim.token,payload);
  const renewal=setInterval(()=>void renewWork(id,workKey,claim.token,210).catch(()=>{}),30000);
  try{
-  if(payload.result)return payload.result;
+  if(payload.result)return await publishProjectQualification(id,expectedRevision,payload.result);
   const staged:PricingRequest=async(instructions,context,search)=>{
    if(search)throw new Error('Project-record qualification does not authorize implicit web research.');
    const key=projectHash({instructions,context,search});
@@ -55,17 +68,9 @@ export async function runProjectQualification(id:string,expectedRevision:number,
    const checkpoint=async(reply:PricingReply)=>{payload.replies[key]=reply;await persist();};
    return requestPricing(instructions,context,false,Math.min(left,150000),{draftId:id,customerKey:createHash('sha256').update('project-record-qualification:'+id).digest('hex'),revision:expectedRevision},undefined,checkpoint);
   };
-  const options={request:staged,previous:prior?.record||null,now:new Date(payload.startedAt),deadline};
-  const result=phase==='interpret'?await interpretProjectRecord(scope,options):await priceProjectRecord(prior!.record,configuration,options);
+  const options={request:staged,previous,now:new Date(payload.startedAt),deadline};
+  const result=phase==='interpret'?await interpretProjectRecord(scope,options):await priceProjectRecord(previous!,configuration,options);
   payload.result=result;payload.record=result.record||undefined;await persist();
-  if(result.record){
-   // The SELECT guard makes revision checking and publication one statement.
-   // An answer arriving during an AI call cannot publish a stale record.
-   const rows=await query(`INSERT INTO p5_estimator_work(draft_id,work_key,payload)
-    SELECT id,$2,$4::jsonb FROM p5_estimator_drafts WHERE id=$1 AND revision=$3
-    ON CONFLICT(draft_id,work_key) DO UPDATE SET payload=EXCLUDED.payload,updated_at=now() RETURNING work_key`,[id,LATEST,expectedRevision,JSON.stringify({draftRevision:expectedRevision,record:result.record,result})]);
-   if(!rows.length)throw new DraftError('The project changed during review. Its newer information is preserved.',409);
-  }
-  return result;
+  return await publishProjectQualification(id,expectedRevision,result);
  }finally{clearInterval(renewal);await releaseWork(id,workKey,claim.token);}
 }

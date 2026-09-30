@@ -45,3 +45,24 @@ The current foundation has not passed a real-model qualification run. Document s
 GPT-4.1 remains the configured model. Model changes require measured evaluation and an explicit recorded policy change. No claim of perfect accuracy, competitor equivalence or completed P5 qualification is made.
 
 Local evidence at this checkpoint: 1,643 tests total, 1,628 passed, 15 database-dependent tests skipped, zero failures. A subsequent integrity regression increased the new-core focused suite to 12 passing tests. TypeScript and six database-safety tests passed. The worktree production build was blocked by Turbopack refusing a node_modules symlink outside its root; the main checkout build is the required build gate. These checks are implementation evidence, not live estimator acceptance.
+
+## First real-model run and repair, September 30
+
+The host ran the isolated interpretation path for existing text-only QA draft `0a3523d2-be0e-4990-92df-0405fc36ab54`, revision 4, on `cc11b8f`. Expected scope: replace three owner-supplied matching passage levers, remove old hardware, adjust/test, and perform small debris cleanup. Existing holes and doors are sound; no new doors or painting. Unlike the compiler unit fixture, the contractor performs cleanup here.
+
+Actual result: **failed, needs-resolution; no accepted record or price**. Two interpretation requests returned verified model `gpt-4.1-2025-04-14`. Both captured the count, owner supply, requested operations and exclusions. The first asked the customer to quantify small debris cleanup unnecessarily. The second removed that question, but adjustment, testing and cleanup still had `origin: dependency` with empty `requiredBy` arrays. Their prose reasons referred to installation `req-2`, which does not substitute for the missing structured relationship. Corrections were constructed by the workflow; the host's saved receipt did not independently retain the raw outgoing request body.
+
+Host evidence: `p5-verification/project-record-qualification/0a3523d2-be0e-4990-92df-0405fc36ab54-rev4-interpret-cc11b8f.json`. This is a host-local receipt, not a publicly accessible artifact. No public deployment, estimate delivery or rate promotion occurred.
+
+Repairs awaiting host retest:
+
+- Requested work and inferred dependencies have distinct schema branches. The dependency branch requires a parent ID and explanation; requested work requires source evidence. Validation now identifies the specific missing field. No task names or keyword exceptions are used.
+- The instructions distinguish desired outcomes from contractor production effort; bounded effort uses a disclosed allowance instead of asking the homeowner to estimate it.
+- Conditional work and unresolved responsibility require linked blocking questions; conflicting source reviews require clarification. They cannot silently disappear from pricing.
+- Record, source and catalog identities now use canonical object-key ordering. PostgreSQL JSONB reordering no longer makes unchanged content appear tampered. Contract version 2 prevents reuse of the earlier incompatible identity.
+- Recovery republishes saved completed work through the same atomic draft-revision check. A crash between checkpointing and publication cannot strand a completed review; an older result cannot overwrite a newer customer revision.
+- Zod 4.4.3 is declared as a direct production dependency, retaining the already locked version and integrity instead of relying on the development dependency tree.
+
+The outgoing schema uses nested `anyOf` with minimum array lengths, supported in the official [Structured Outputs guide](https://developers.openai.com/api/docs/guides/structured-outputs), consulted September 30. Schema adherence does not establish semantic correctness.
+
+Implementation evidence: the main-checkout production build of `cc11b8f` passed, including 1,644 tests (1,629 passed, 15 database-dependent skips, zero failures) and six database-safety checks. The repaired core has 16 focused passing tests, including actual PostgreSQL-compatible JSONB persistence and revision-race checks. TypeScript passed. These results do not turn the failed real-model case into an accepted estimate.

@@ -18,7 +18,9 @@ export class ProjectRecordError extends Error {
  readonly problems:RecordProblem[];
  constructor(problems:RecordProblem[]){super('Project record needs correction');this.name='ProjectRecordError';this.problems=problems;}
 }
-export const projectHash=(value:unknown):string=>createHash('sha256').update(JSON.stringify(value)).digest('hex');
+// Database JSON objects may return in a different key order. Identity depends
+// on content, never serialization order; array order still carries meaning.
+export const projectHash=(value:unknown):string=>createHash('sha256').update(JSON.stringify(value,(_key,item)=>item&&typeof item==='object'&&!Array.isArray(item)?Object.fromEntries(Object.entries(item).sort(([a],[b])=>a.localeCompare(b))):item)).digest('hex');
 const normalized=(value:string)=>value.normalize('NFKC').replace(/\s+/g,' ').trim();
 const unique=(values:string[])=>[...new Set(values)];
 
@@ -145,9 +147,11 @@ export function validateProjectRecord(proposal:ProjectProposal,input:ProjectInpu
   if(r.quantityId&&quantities.has(r.quantityId)&&quantities.get(r.quantityId)!.subjectId!==r.subjectId)issue('quantity-subject',[r.id,r.quantityId],'A requirement must use a quantity of its own physical subject.');
   if(r.status==='included'&&r.responsibility==='contractor'&&(!r.quantityId||quantities.get(r.quantityId)?.basis==='unknown')&&!proposal.questions.some(q=>q.priority==='blocking'&&(q.requirementIds.includes(r.id)||Boolean(r.quantityId&&q.quantityIds.includes(r.quantityId)))))issue('unresolved-work',[r.id],'Included work without a usable quantity needs a specific blocking question.');
   if(r.status==='existing'&&r.operation!=='retain')issue('existing-work',[r.id],'Existing conditions must be retained observations; proposed operations need an included requirement.');
-  if(r.status==='included'&&r.responsibility==='unassigned')issue('unknown-responsibility',[r.id],'Included work needs an explicit responsibility or a question.');
+  if(r.status==='included'&&r.responsibility==='unassigned'&&!proposal.questions.some(q=>q.priority==='blocking'&&q.requirementIds.includes(r.id)&&['responsibility','scope','conflict'].includes(q.kind)))issue('unknown-responsibility',[r.id],'Included work needs an explicit responsibility or a linked blocking question.');
+  if(r.status==='conditional'&&!proposal.questions.some(q=>q.priority==='blocking'&&q.requirementIds.includes(r.id)))issue('unresolved-condition',[r.id],'Conditional work needs a linked blocking question so it cannot disappear from the estimate.');
   if(r.origin==='requested'&&!r.evidenceIds.length)issue('unattributed-work',[r.id],'Requested work must cite the customer or document evidence.');
-  if(r.origin==='dependency'&&(!r.requiredBy.length||!r.reason.trim()))issue('unsupported-dependency',[r.id],'Supporting work must identify its parent work and why it is required.');
+  if(r.origin==='dependency'&&!r.requiredBy.length)issue('unsupported-dependency',[r.id],`Requirement ${r.id}: origin dependency requires nonempty requiredBy containing the included parent requirement IDs. If a source directly requests this work, use origin requested and cite that evidence.`);
+  if(r.origin==='dependency'&&!r.reason.trim())issue('unsupported-dependency',[r.id],`Requirement ${r.id}: origin dependency requires a nonempty reason explaining the actual condition that makes this supporting work necessary.`);
   for(const parentId of r.requiredBy){const parent=requirements.get(parentId);if(!parent||parent.id===r.id||r.status==='included'&&parent.status!=='included')issue('invalid-dependency',[r.id,parentId],'Required work must reference a distinct included parent.');}
  }
  const visit=(id:string,path:Set<string>)=>{if(path.has(id)){issue('dependency-cycle',[...path,id],'Work dependencies contain a cycle.');return;}const next=new Set(path).add(id);for(const parent of requirements.get(id)?.requiredBy||[])if(requirements.has(parent))visit(parent,next);};
@@ -163,7 +167,10 @@ export function validateProjectRecord(proposal:ProjectProposal,input:ProjectInpu
   if(reviews.length!==1)issue('source-coverage',[source.id],'Every source needs exactly one review record.');
   if(source.status!=='read'&&reviews[0]?.status==='reviewed')issue('source-status',[source.id],'An incomplete source cannot be certified as fully read.');
  }
- for(const review of proposal.sourceReviews)if(!sources.has(review.sourceId))issue('unknown-source',[review.sourceId],'Source review references an unknown input.');
+ for(const review of proposal.sourceReviews){
+  if(!sources.has(review.sourceId))issue('unknown-source',[review.sourceId],'Source review references an unknown input.');
+  if(review.status!=='reviewed'&&(!review.reason.trim()||!proposal.questions.some(q=>q.priority==='blocking'&&q.kind===(review.status==='conflicting'?'conflict':'unreadable-source'))))issue('unresolved-source',[review.sourceId],'A conflicting or unreadable source needs an explanation and a blocking clarification.');
+ }
  for(const message of input.documentIssues)issue('document-coverage',[],message);
  return issues;
 }
