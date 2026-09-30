@@ -26,7 +26,13 @@ export function blockingReviewNote(note:string):boolean{
  * page, each marked partial because the amounts were blank, and the estimator retried until it gave
  * up. A partial page whose note says part of it is unreadable still does not count.
  */
-export const pageCovered=(p:{status:string;notes?:string[]})=>p.status==='read'||p.status==='partial'&&!(p.notes||[]).some(blockingReviewNote);
+export const pageCovered=(p:{status:string;notes?:string[]})=>(p.status==='read'||p.status==='partial')&&!(p.notes||[]).some(blockingReviewNote);
+/** Status is evidence too. A successful view cannot erase an explicitly
+ * unreadable detail merely because its note uses different wording. */
+function mergedPageStatus(rows:PageRecord[]):PageRecord['status']{
+  if(rows.some(row=>row.status==='unreadable'))return 'unreadable';
+  return rows.every(row=>row.status==='read')?'read':'partial';
+}
 const isObject=(v:unknown):v is Record<string,unknown>=>Boolean(v&&typeof v==='object'&&!Array.isArray(v));
 const strings=(v:unknown):v is string[]=>Array.isArray(v)&&v.every(x=>typeof x==='string');
 /**
@@ -103,13 +109,19 @@ export function coverageFor(expected:{source:string;page:number}[],reported:Page
   const bind=(i:number,r:PageRecord)=>{used.add(r);bound.set(i,[...(bound.get(i)||[]),{...r,source:expected[i].source,page:expected[i].page}]);};
   expected.forEach((e,i)=>{for(const r of reported)if(r.source===e.source&&r.page===e.page)bind(i,r);});
   if(expected.length===1)for(const r of reported)if(!used.has(r))bind(0,r);
-  expected.forEach((e,i)=>{if(bound.has(i))return;for(const r of reported)if(!used.has(r)&&r.page===e.page)bind(i,r);});
+  expected.forEach((e,i)=>{
+    if(bound.has(i)||expected.filter(candidate=>candidate.page===e.page).length!==1)return;
+    for(const r of reported)if(!used.has(r)&&r.page===e.page)bind(i,r);
+  });
   const exact=reported.some(r=>expected.some(e=>e.source===r.source&&e.page===r.page));
-  if(!exact&&expected.length>1)for(const r of reported)if(!used.has(r)&&r.page>=1&&r.page<=expected.length&&!bound.has(r.page-1))bind(r.page-1,r);
+  // Section-relative numbering is safe only within one known source file.
+  // An unidentified page 1 must not be assigned arbitrarily to one of two PDFs.
+  const singleSource=new Set(expected.map(page=>page.source)).size===1;
+  if(!exact&&singleSource&&expected.length>1)for(const r of reported)if(!used.has(r)&&r.page>=1&&r.page<=expected.length&&!bound.has(r.page-1))bind(r.page-1,r);
   const pages=expected.map((e,i)=>{
     const rows=bound.get(i)||[];
     if(!rows.length)return {...e,sheet:'',revision:'',status:'unreadable' as const,notes:['No completed review record was returned for this page.']};
-    return {...rows[0],status:rows.every(r=>r.status==='read')?'read' as const:rows.some(r=>r.status==='read'||r.status==='partial')?'partial' as const:'unreadable' as const,notes:[...new Set(rows.flatMap(r=>r.notes))]};
+    return {...rows[0],status:mergedPageStatus(rows),notes:[...new Set(rows.flatMap(r=>r.notes))]};
   });
   return {pages,expectedPages:expected.length,complete:pages.length===expected.length&&pages.every(pageCovered)};
 }
@@ -121,7 +133,7 @@ export function combineCoverage(parts:DocumentCoverage[],expected?:{source:strin
   const pages=wanted.map(p=>{
     const rows=grouped.get(JSON.stringify([p.source,p.page]))||[];
     if(!rows.length)return {...p,sheet:'',revision:'',status:'unreadable' as const,notes:['This page was not processed. Review or retry it before relying on the takeoff.']};
-    return {...rows[0],status:rows.every(r=>r.status==='read')?'read' as const:rows.some(r=>r.status==='read'||r.status==='partial')?'partial' as const:'unreadable' as const,notes:[...new Set(rows.flatMap(r=>r.notes))]};
+    return {...rows[0],status:mergedPageStatus(rows),notes:[...new Set(rows.flatMap(r=>r.notes))]};
   });
   return {pages,expectedPages:wanted.length,complete:pages.every(pageCovered)};
 }

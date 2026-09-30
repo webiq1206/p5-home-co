@@ -18,7 +18,7 @@ const patterns: [TradeCategory, RegExp][] = [
   ["Concrete", /concrete|rebar|formwork|epoxy|polyaspartic|tuxedo.*flake/i],
   ["Roofing", /\broof|shingle|flashing|gutter/i],
   ["Siding", /siding|stucco|exterior cladding/i],
-  ["Painting", /\b(?:painting|repainting|refinishing)\b|\b(?:paint|prime|refinish)\s+(?:the\s+)?(?:walls?|ceilings?|cabinets?|trim|baseboards?|crown|mou?ldings?)\b/i],
+  ["Painting", /\b(?:painting|repainting|refinishing)\b|\b(?:paint|prime|refinish)\s+(?:(?:the|existing|new|upper|lower|base|wall|kitchen|bathroom|all|interior|exterior)\s+){0,4}(?:walls?|ceilings?|cabinets?|doors?|trim|baseboards?|crown|mou?ldings?)\b/i],
   ["Trim & Finish Carpentry", /\bcrown\b|\bbaseboards?\b|\bmou?ldings?\b/i],
   ["Cabinets", /cabinet|vanit|built.?ins?|bookshelf/i],
   ["Windows & Doors", /window|\bdoors?\b|glazing/i],
@@ -47,7 +47,12 @@ export function suggestedTrade(description: string): TradeCategory {
   // install labor only (... Cabinet Refacing, Refinishing & Install ...)" is
   // cabinet installation, not the refinishing trade named in that section.
   // The substrate under new flooring is context, not a separate concrete trade.
-  const item=work.split('(')[0].replace(/\b(?:over|on)\s+(?:(?:an?|the)\s+)?(?:existing\s+)?concrete(?:\s+(?:slab|subfloor|floor))?\b/gi,' ');
+  // An inline qualifier must not hide the actual item after it. Live cabinet
+  // revision: "painted shaker upper (wall) kitchen cabinets" was truncated at
+  // "(wall)" and incorrectly presented as a separate Painting scope.
+  let primary=work;
+  while(/\([^()]*\)/.test(primary))primary=primary.replace(/\([^()]*\)/g,' ');
+  const item=primary.replace(/\b(?:over|on)\s+(?:(?:an?|the)\s+)?(?:existing\s+)?concrete(?:\s+(?:slab|subfloor|floor))?\b/gi,' ');
   return patterns.find(([, pattern]) => pattern.test(item))?.[0] ?? patterns.find(([, pattern]) => pattern.test(work))?.[0] ?? patterns.find(([, pattern]) => pattern.test(included))?.[0] ?? "Other Project Work";
 }
 export function tradeForLine(line: { trade?: string; description: string }): TradeCategory {

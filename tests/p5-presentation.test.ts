@@ -7,6 +7,15 @@ import {estimateEmail} from '../lib/p5/estimateEmail.ts';
 import {administrativePdf,customerPdf} from '../lib/p5/pdf.ts';
 import {pdfTextLayers} from '../lib/p5/pdfText.ts';
 import {suggestedTrade} from '../lib/p5/trades.ts';
+
+test('inline cabinet qualifiers do not invent a painting trade in a supply-only revision',()=>{
+ const task='Supply 10 linear feet of mid-range painted shaker upper (wall) kitchen cabinets, plywood boxes, soft-close hinges and drawer slides, standard widths, no custom millwork, no island. Supply only.';
+ assert.equal(suggestedTrade(task),'Cabinets');
+ assert.equal(suggestedTrade('Supply painted upper (wall (30-inch)) kitchen cabinets'),'Cabinets');
+ assert.equal(suggestedTrade('Cabinet install labor only (Cabinet Refacing, Refinishing & Install)'),'Cabinets');
+ assert.equal(suggestedTrade('Paint the existing (upper) kitchen cabinets'),'Painting');
+ assert.equal(suggestedTrade('Supply primed (interior) doors'),'Windows & Doors');
+});
 const result={summary:'Project type: new-construction\nProject area in square feet: 4500\nPlumbing work: Supply fixtures. Install connections.\nExcluded work: Land and financing.',includedCategories:['Plumbing'],range:{low:100,high:200},lineItems:[{id:'p',category:'Plumbing',description:'Fixture installation',quantity:2,unit:'EA',low:100,high:200,unitLow:50,unitHigh:100}],categoryRanges:[{category:'Plumbing',low:100,high:200}],assumptions:[],exclusions:['Land'],allowances:[],factors:[],message:'Review your estimate.',nextStep:'Consultation',disclaimer:'Preliminary only.'};
 test('Customer outputs combine repeated exclusions and retain every distinct condition',()=>{
  const r={...result,summary:'Excluded work: Plumbing excluded.',instructions:{inclusions:['Install trim.'],exclusions:['Plumbing excluded.','Electrical excluded.']},exclusions:['Plumbing excluded','Electrical excluded.','Permits excluded.'],verificationItems:['Confirm door size.'],assumptions:['Confirm door size.','Confirm hardware responsibility.']};

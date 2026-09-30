@@ -13,12 +13,12 @@ import {PDFDocument} from 'pdf-lib';
 import {assertEstimatorModel,ESTIMATOR_MODEL,MODEL_POLICY_VERSION} from './modelPolicy.ts';
 const VERSION='p5-documents-gpt41-2026-09-26-v2';
 const digest=(value:string|Buffer)=>createHash('sha256').update(value).digest('hex');
-/** Brand policy. Construction refuses to complete a local read, or queue pricing,
+/** Brand policy. P5 and Construction refuse to complete a local read, or queue pricing,
  * while any uploaded source lacks verified page coverage. The other brands
  * return the partial read with blocking review notes and incomplete coverage,
  * so the visitor can still submit for manual review. Shared-reader (remote and
  * mixed) results always require complete verified coverage on every brand. */
-export const SOURCE_COVERAGE_REQUIRED=(ESTIMATOR_BRAND.id as string)==='construction';
+export const SOURCE_COVERAGE_REQUIRED=['p5','construction'].includes(ESTIMATOR_BRAND.id as string);
 type Environment=Readonly<Record<string,string|undefined>>;
 /** The client default equals the upload limit. It is a request, not a claim
  * about the host: /readyz must attest at least these limits before any

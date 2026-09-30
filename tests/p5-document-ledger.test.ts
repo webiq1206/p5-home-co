@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {coverageFor,reconcileTakeoffs,type Takeoff} from '../lib/p5/documentLedger.ts';
+import {coverageFor,combineCoverage,reconcileTakeoffs,type Takeoff} from '../lib/p5/documentLedger.ts';
 import {analysisProgress,analysisConcurrency} from '../lib/p5/analysisProgress.ts';
 import {emptyInstructions,mergeInstructions} from '../lib/p5/instructions.ts';
 import {pricingSourceParts} from '../lib/p5/pricingSources.ts';
@@ -22,6 +22,32 @@ test('Missing or conflicting page reports never claim completion',()=>{
   assert.equal(coverageFor([page],[read,read]).complete,true);
   assert.equal(coverageFor([page],[read,{...read,status:'partial',notes:['Section C is unreadable.']}]).complete,false);
   assert.equal(coverageFor([page],[{...read,status:'unreadable'}]).complete,false);
+  assert.equal(coverageFor([page],[{...read,status:'read',notes:['The repair notes could not be read.']}]).complete,false);
+});
+test('an unreadable detail stays unreadable regardless of note wording or merge order',()=>{
+  for(const notes of [[],['Detail text is too blurry to identify.'],['Drawing needs a clearer image.']]){
+    const failed={...read,status:'unreadable' as const,notes};
+    for(const rows of [[read,failed],[failed,read]]){
+      const reported=coverageFor([page],rows);
+      assert.equal(reported.complete,false);
+      assert.equal(reported.pages[0].status,'unreadable');
+      const tiles=combineCoverage(rows.map(row=>({pages:[row],expectedPages:1,complete:row.status==='read'})),[page]);
+      assert.equal(tiles.complete,false);
+      assert.equal(tiles.pages[0].status,'unreadable');
+      assert.deepEqual(tiles.pages[0].notes,notes);
+    }
+  }
+});
+test('unknown page records cannot be assigned to an arbitrary file with the same page number',()=>{
+  const wanted=[{source:'existing.pdf',page:1},{source:'proposed.pdf',page:1}];
+  const unknown={...read,source:'unidentified drawing'};
+  const result=coverageFor(wanted,[unknown]);
+  assert.equal(result.complete,false);
+  assert.deepEqual(result.pages.map(page=>page.status),['unreadable','unreadable']);
+  const oneKnown=coverageFor(wanted,[{...read,source:'existing.pdf'},unknown]);
+  assert.deepEqual(oneKnown.pages.map(page=>page.status),['read','unreadable']);
+  const identified=coverageFor(wanted,[{...read,source:'existing.pdf'},{...read,source:'proposed.pdf'}]);
+  assert.equal(identified.complete,true);
 });
 test('A read page labelled differently by the reader is bound to the page that was sent (live permit set, 2026-09-21)',()=>{
   const sent={source:'Permit Plans - Gambardella.pdf',page:8};

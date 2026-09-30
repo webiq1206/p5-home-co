@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import {documentServiceEligible,documentServiceHeaders,documentServiceUploads,documentServiceLimits,documentServiceConfiguration,checkDocumentServiceReadiness,validateDocumentServiceReadiness,validateRemotePageCount,remoteDocumentId,partitionDocumentServiceUploads,documentServiceReadiness,advanceMixedDocumentAnalysis,advanceDocumentService,assertCompleteSourceCoverage,assertProjectSourceCoverage,assertAnalysisMigrationSafe,readSavedSource,sourceIdentity,SOURCE_COVERAGE_REQUIRED,type DocumentAnalysisStep} from '../lib/p5/documentServiceClient.ts';
 import {analysisWorkKey,analysisProgressWorkKeys,partitionDocumentUploads} from '../lib/p5/analysisWork.ts';
 import {ESTIMATOR_BRAND} from '../lib/p5/brand.ts';
+import {priceSavedScope} from '../lib/p5/pricingWork.ts';
+import {queuedJob} from '../lib/p5/backgroundJobs.ts';
 const pdf:any={id:'file',name:'scope.pdf',type:'application/pdf',size:1000,sha256:'a'.repeat(64),status:'stored'};
 const tenant=ESTIMATOR_BRAND.domain;
 // Isolated fixtures only. Never read a live secret or call a network.
@@ -168,6 +170,7 @@ test('strict coverage rejects false-complete records without blocking unpaged ty
   {complete:true,expectedPages:2,pages:[page,page]},
   {complete:true,expectedPages:1,pages:[{...page,source:'unknown.pdf'}]},
   {complete:true,expectedPages:1,pages:[{...page,status:'partial',notes:['Part of the sheet is unreadable.']}]},
+  {complete:true,expectedPages:1,pages:[{...page,status:'read',notes:['Part of the sheet is unreadable.']}]},
   {complete:true,expectedPages:1,pages:[{...page,status:'unreadable'}]},
   {complete:true,expectedPages:1,pages:[{...page,page:0}]},
   {complete:true,expectedPages:0,pages:[]},
@@ -181,12 +184,22 @@ test('strict coverage rejects false-complete records without blocking unpaged ty
  assert.throws(()=>assertProjectSourceCoverage([pdf],null),/verification is missing/);
   assert.throws(()=>assertProjectSourceCoverage([pdf,{...pdf,id:'photo',sha256:'b'.repeat(64),name:'site.jpg',type:'image/jpeg'}],{...base,documentCoverage:{complete:true,expectedPages:1,pages:[page]}}),/coverage/);
 });
-test('partial project coverage is rejected by the shared guard; only Construction applies it to local reads and pricing',()=>{
+test('P5 requires complete source coverage for local reads and pricing',()=>{
  const partial=result('fixture',false,pdf.name);
  assert.equal(partial.pending,false);
  if(partial.pending)return;
  assert.throws(()=>assertProjectSourceCoverage([pdf],partial.analysis.extraction),/still unread/);
- assert.equal(SOURCE_COVERAGE_REQUIRED,ESTIMATOR_BRAND.id==='construction');
+ assert.equal(SOURCE_COVERAGE_REQUIRED,['p5','construction'].includes(ESTIMATOR_BRAND.id));
+});
+test('unread P5 uploads cannot enter either pricing path or spend provider work',async()=>{
+ if(!SOURCE_COVERAGE_REQUIRED)return;
+ const extraction=(result('fixture',false,pdf.name) as any).analysis.extraction;
+ const scope:any={text:'Repair items in the attached form',answers:{service:'re10'},uploads:[pdf],extraction};
+ const draft:any={id:'isolated-unread-fixture',uploads:[pdf],reviewed:scope};
+ // Both reject before touching the database or provider. No live credentials
+ // or request mocks are needed to prove admission is blocked.
+ await assert.rejects(priceSavedScope(draft.id,scope,{} as any),/still unread/);
+ await assert.rejects(queuedJob({kind:'pricing',draft,configuration:{} as any}),/still unread/);
 });
 test('duplicate PDF bytes make one host request and one progress/coverage contribution',async()=>{
  const keys=['P5_DOCUMENT_SERVICE_MODE','P5_DOCUMENT_SERVICE_URL','P5_DOCUMENT_SERVICE_KEY','P5_DOCUMENT_SERVICE_TENANT'];

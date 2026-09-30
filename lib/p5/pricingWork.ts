@@ -39,7 +39,7 @@ export function reusableSavedPricingReply(value:unknown):value is PricingReply{
 }
 type Payload=PricingRepairState&{replies:Record<string,PricingReply>;shortlists?:Record<string,Record<string,string[]>>;failures?:number;completed?:number;regionalRates?:EstimatorConfiguration['regionalRates'];researchLeads?:EstimatorConfiguration['researchLeads'];processing?:ProcessingStatus;pricingAt?:string;busyWaitMs?:number};
 export async function priceSavedScope(id:string,scope:ReviewedScope,configuration:EstimatorConfiguration,pricingAt=new Date(),deadline=Date.now()+SERVER_BUDGET_MS,identity?:PricingIdentity){
- // Construction prices only a project whose every source page was verified;
+ // P5 and Construction price only a project whose every source page was verified;
  // the other brands return a partial read for manual review instead.
  if(SOURCE_COVERAGE_REQUIRED)assertProjectSourceCoverage(scope.uploads,scope.extraction);
  remainingBudget(deadline);
