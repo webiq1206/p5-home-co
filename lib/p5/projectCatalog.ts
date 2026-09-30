@@ -12,11 +12,12 @@ export function projectCatalogIndex(rates:PlanningRate[]){
 }
 export function checkedProjectCandidates(record:ProjectRecord,rates:PlanningRate[],value:unknown){
  const result=projectCatalogSchema.parse(value),problems:RecordProblem[]=[];
- const wanted=new Set(record.requirements.filter(r=>r.status==='included'&&r.responsibility==='contractor').map(r=>r.id)),known=new Set(rates.map(r=>r.code)),seen=new Set<string>();
+ const wanted=new Set(record.requirements.filter(r=>r.status==='included'&&r.responsibility==='contractor').map(r=>r.id)),requirements=new Set(record.requirements.map(r=>r.id)),known=new Set(rates.map(r=>r.code)),seen=new Set<string>();
  for(const row of result.requirements){
-  if(!wanted.has(row.requirementId)||seen.has(row.requirementId))problems.push({code:'catalog-requirement',ids:[row.requirementId],message:'Catalog discovery must address each included contractor requirement exactly once.'});
+  if(!requirements.has(row.requirementId)||seen.has(row.requirementId))problems.push({code:'catalog-requirement',ids:[row.requirementId],message:'Catalog discovery must reference a known requirement no more than once.'});
   seen.add(row.requirementId);
-  if(!row.candidates.length&&!row.unmatchedReason.trim())problems.push({code:'catalog-gap',ids:[row.requirementId],message:'An unmatched requirement needs a reason explaining the catalog gap.'});
+  if(!wanted.has(row.requirementId)&&row.candidates.length)problems.push({code:'catalog-out-of-scope',ids:[row.requirementId],message:'Owner, other-party, excluded, conditional and existing work must have no candidate charge rates.'});
+  if(wanted.has(row.requirementId)&&!row.candidates.length&&!row.unmatchedReason.trim())problems.push({code:'catalog-gap',ids:[row.requirementId],message:'An unmatched contractor requirement needs a reason explaining the catalog gap.'});
   const codes=new Set<string>();
   for(const candidate of row.candidates){
    if(!known.has(candidate.rateId)||codes.has(candidate.rateId))problems.push({code:'catalog-candidate',ids:[row.requirementId,candidate.rateId],message:'Candidate rates must be distinct IDs from the approved catalog.'});

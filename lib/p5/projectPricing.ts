@@ -84,7 +84,7 @@ export function calculateProjectEstimate(record:ProjectRecord,selection:ProjectP
  const problems=[...compiled.problems,...checked.problems];
  if(receipt.recordHash!==record.recordHash||receipt.selectionHash!==projectHash(selection))problems.push({code:'stale-review',ids:[],message:'Independent review must cover this exact project record and price selection.'});
  for(const question of record.questions.filter(q=>q.priority==='blocking'))problems.push({code:'customer-question',ids:[question.id],message:question.prompt});
- for(const source of record.sourceReviews.filter(s=>s.status!=='reviewed'))problems.push({code:'unresolved-source',ids:[source.sourceId],message:source.reason});
+ for(const source of record.sourceReviews.filter(s=>s.status!=='reviewed'&&s.status!=='resolved-by-customer'))problems.push({code:'unresolved-source',ids:[source.sourceId],message:source.reason});
  if(!Object.hasOwn(SERVICE_MATRIX,record.service))problems.push({code:'project-classification',ids:[],message:'A supported project classification is required.'});
  if(problems.length||!compiled.lines.length)return {status:'needs-resolution' as const,problems,record,selection,review,compiled};
  const assumptions=[...new Set([...record.assumptions,...compiled.quantities.filter(q=>q.basis==='allowance').map(q=>`${q.description}: ${q.value} ${q.unit}, allowance range ${q.range!.low} to ${q.range!.high}. ${q.assumption}`),...review.notes])];

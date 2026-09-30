@@ -113,3 +113,19 @@ Review findings now require an actionable correction. Ordinary alternatives and 
 Implementation evidence: `4b5a74d` full build process exited 0 with 1,651 tests, 1,636 passes, 15 database-dependent skips and zero failures. The build log records successful compilation and TypeScript; its final static-page progress output is incomplete, so this is not evidence that the public deployment was validated. The new retrieval/retry boundary has 23 passing focused tests and clean TypeScript, awaiting its real-model retest.
 
 Host receipts: `p5-verification/project-record-qualification/0a3523d2-be0e-4990-92df-0405fc36ab54-rev4-interpret-4b5a74d.json` and the matching `rev4-price-4b5a74d.json`. No public deployment, customer delivery or other-site update occurred.
+
+## Fifth real-model run: candidates found, harmless acknowledgement rejected
+
+At `b4d95a3`, interpretation again passed without questions or findings. Both catalog proposals found PB-08-71-01 for removal/installation/adjustment and PB-01-74-10 for cleanup. They also acknowledged owner supply with an empty candidate list. The first included excluded-work acknowledgements too; after correction the second retained only the empty owner-supply acknowledgement. The validator rejected that extra row, so no price selection or pricing review occurred. Four requests returned verified GPT-4.1. No direct or customer totals were produced.
+
+The validator now distinguishes an empty acknowledgement of known nonchargeable work from an attempt to assign it a cost. Unknown IDs, duplicates, missing contractor coverage and nonempty candidate lists for owner/excluded work remain errors. No requirement is deleted from the project record and no pricing-coverage rule is relaxed. Regression evidence includes both an accepted empty owner acknowledgement and a rejected attempt to price it.
+
+Host receipts use the same qualification prefix with suffixes `interpret-b4d95a3.json` and `price-b4d95a3.json`.
+
+## Native page evidence connected to staff qualification
+
+Contract version 4 retrieves existing remote-PDF evidence before interpreting a draft. Retrieval is GET-only and signed for P5's tenant/project. It checks the upload digest, document ID, original page number/count and reader generation. Every page is independently checkpointed, with at most four page requests in flight. A failed later page leaves earlier pages reusable. Duplicate bytes are read once. Original text, digital layout and model observations remain distinct sources. Page coordinates are explicitly identified as digital geometry, not site dimensions.
+
+Known partial/unreadable pages now reach scope interpretation as unresolved sources, allowing a useful clarification rather than an unconditional pre-interpretation failure. Missing page inventory still blocks. A later customer clarification can explicitly resolve a source's material uncertainty through cited evidence, without claiming that the original became readable. A reader observation cannot provide that customer resolution. The independent reviewer must still assess whether the answer actually resolves the problem.
+
+Local evidence: complete text retention beyond 48,000 characters on a page; bounded concurrency; duplicate-file identity; interrupted retrieval/recovery; mismatched digest/page/generation and incomplete inventory rejection; signed cross-project/tenant restrictions; partial-page clarification; and rejection of a model observation presented as a customer resolution. These use synthetic fixtures. Actual plans, photographs, scanned documents and RE10 uploads have not passed this new path. Local-reader image/spreadsheet evidence still relies on legacy observations. Whole-plan reconciliation and measured takeoff remain open.

@@ -7,14 +7,14 @@ import {signedHeaders,ServiceError} from '../src/core.mjs';
 const tenant='p5homeco.com',secret='synthetic-project-source-signing-key-123456789';
 function fixture(){
  const text=('Original source dimensions 18 inches by 24 inches.\n').repeat(900);
- const document={id:'source-id',digest:'a'.repeat(64),name:'plan.pdf',state:'complete',page_count:2};
+ const document={id:'source-id',digest:'a'.repeat(64),name:'plan.pdf',state:'complete',page_count:2,updated_at:new Date('2026-09-30T12:00:00Z')};
  const coverage=[{page:1,status:'read',notes:[]},{page:2,status:'partial',notes:['Dimension illegible.']}];
  const calls=[];
  return {text,coverage,calls,store:{nonce:async()=>true,document:async(who,project,id)=>{if(who!==tenant||project!=='my-project'||id!=='source-id')throw new ServiceError('not-found',404);return document;},coverage:async()=>coverage,pages:async(id,numbers)=>{calls.push({id,numbers});return numbers.map(page=>({page,native:{text:page===1?text:'',textQuality:page===1?1:0,kind:page===1?'drawing':'scan',width:1728,height:2592,spans:[{text:'18 inches',x:10,y:20}]},evidence:{page,status:page===1?'read':'partial',notes:page===1?[]:['Dimension illegible.'],items:[{description:'Requested repair',quantity:null}]}}));}}};
 }
 test('source retrieval retains complete native text and original page observations without certifying unreadable pages',async()=>{
  const f=fixture(),manifest=await projectSource(f.store,tenant,'my-project','source-id');
- assert.equal(manifest.complete,false);assert.equal(manifest.pageCount,2);assert.equal(manifest.pages[1].status,'partial');assert.equal(f.calls.length,0);
+ assert.equal(manifest.complete,false);assert.equal(manifest.pageCount,2);assert.equal(manifest.pages[1].status,'partial');assert.equal(f.calls.length,0);assert.equal(manifest.revision,'2026-09-30T12:00:00.000Z');
  const page=await projectSource(f.store,tenant,'my-project','source-id',1);
  assert.equal(page.sha256,'a'.repeat(64));assert.equal(page.page.native.text,f.text);assert.equal(page.page.readerObservation.items[0].quantity,null);
  assert.deepEqual(f.calls,[{id:'source-id',numbers:[1]}]);

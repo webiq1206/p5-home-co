@@ -261,6 +261,10 @@ test('catalog discovery accounts for all work, rejects invented codes and never 
  assert.throws(()=>checkedProjectCandidates(r,rates,candidate),ProjectRecordError);
  candidate.requirements[0].requirementId='handle-supply';
  assert.throws(()=>checkedProjectCandidates(r,rates,candidate),ProjectRecordError);
+ const acknowledged={requirements:[{requirementId:'replace-handles',candidates:[{rateId:'PB-08-71-01',reason:'Matches replacement labor'}],unmatchedReason:''},{requirementId:'handle-supply',candidates:[],unmatchedReason:'Owner supplies; no charge.'}]};
+ assert.deepEqual(checkedProjectCandidates(r,rates,acknowledged),acknowledged);
+ acknowledged.requirements[1].candidates=[{rateId:'PB-08-71-01',reason:'Attempt to charge owner work'}];
+ assert.throws(()=>checkedProjectCandidates(r,rates,acknowledged),ProjectRecordError);
 });
 test('accepted project classification determines cost-book context without changing saved owner rates',()=>{
  const empty={...config,planningCatalog:{...config.planningCatalog!,rates:[]}};

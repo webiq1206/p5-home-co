@@ -8,7 +8,8 @@ export async function projectSource(store,tenant,project,id,page=null){
  const document=await store.document(tenant,project,id);
  const total=Number(document.page_count);
  if(page!==null&&(!Number.isSafeInteger(page)||page<1||!Number.isSafeInteger(total)||page>total))throw new ServiceError('invalid-source-page',400);
- const identity={version:'p5-page-evidence-v1',id,project,sha256:document.digest,name:document.name,state:document.state,pageCount:Number.isSafeInteger(total)&&total>0?total:null};
+ const revision=document.updated_at instanceof Date?document.updated_at.toISOString():String(document.updated_at||'');
+ const identity={version:'p5-page-evidence-v2',id,project,sha256:document.digest,name:document.name,state:document.state,revision,pageCount:Number.isSafeInteger(total)&&total>0?total:null};
  if(page===null){
   const pages=await store.coverage(id);
   return {...identity,pages:pages.map(p=>({page:p.page,status:p.status||'pending',notes:p.notes||[]})),complete:document.state==='complete'&&pages.length===total&&pages.every((p,index)=>p.page===index+1&&p.status==='read')};

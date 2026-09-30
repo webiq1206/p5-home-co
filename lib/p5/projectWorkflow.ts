@@ -1,9 +1,8 @@
-import type {ReviewedScope} from './scope.ts';
 import type {EstimatorConfiguration} from './costBook.ts';
 import {requestPricing,type PricingRequest} from './scopePricing.ts';
 import {PROJECT_RECORD_INSTRUCTIONS,PROJECT_PRICE_INSTRUCTIONS,PROJECT_REVIEW_INSTRUCTIONS,PROJECT_CATALOG_INSTRUCTIONS,projectPricingProposalSchema,type ProjectProposal} from './projectRecordContracts.ts';
 import {checkedProjectCandidates,projectCatalogIndex} from './projectCatalog.ts';
-import {projectInput,acceptProjectRecord,ProjectRecordError,type ProjectRecord,type RecordProblem} from './projectRecord.ts';
+import {projectInput,acceptProjectRecord,ProjectRecordError,type ProjectRecord,type ProjectScope,type RecordProblem} from './projectRecord.ts';
 import {projectPriceSelection,compileProjectPrices,calculateProjectEstimate,projectReviewReceipt,validateProjectReview,type ProjectPriceSelection} from './projectPricing.ts';
 import type {ProjectChange} from './projectConversation.ts';
 
@@ -15,7 +14,7 @@ function shapeProblems(error:unknown):RecordProblem[]{
  throw error;
 }
 function budget(options:ProjectWorkflowOptions){const deadline=options.deadline||Date.now()+600000;return ()=>{const left=deadline-Date.now();if(left<1000)throw new Error('project-workflow-paused');return left;};}
-export async function interpretProjectRecord(scope:ReviewedScope,options:ProjectWorkflowOptions={}):Promise<ProjectReadResult>{
+export async function interpretProjectRecord(scope:ProjectScope,options:ProjectWorkflowOptions={}):Promise<ProjectReadResult>{
  const input=projectInput(scope,options.changes),request=options.request||requestPricing,remaining=budget(options),now=options.now||new Date();
  // Incomplete uploads are repaired by the document reader, never ignored by
  // asking a text model to certify pages it did not receive.

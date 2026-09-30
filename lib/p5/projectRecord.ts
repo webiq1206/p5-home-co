@@ -3,14 +3,15 @@ import type {ReviewedScope} from './scope.ts';
 import {unitKey,UNIT_REGISTRY} from './unitRates.ts';
 import {PROJECT_RECORD_VERSION,projectProposalSchema,type ProjectProposal,type ProjectQuantityValue,type ProjectQuestion} from './projectRecordContracts.ts';
 import type {ProjectChange} from './projectConversation.ts';
+import type {ProjectPageEvidence} from './projectPageEvidence.ts';
 
 export interface ProjectSource {
- id:string;kind:'customer-text'|'reviewed-answer'|'document-transcript'|'reader-observation'|'customer-clarification'|'customer-revision';
+ id:string;kind:'customer-text'|'reviewed-answer'|'document-transcript'|'native-page-text'|'page-layout'|'reader-observation'|'customer-clarification'|'customer-revision';
  name:string;fileId:string|null;page:number|null;text:string;sha256:string;
  status:'read'|'partial'|'unreadable';
 }
 export interface ProjectInput {sources:ProjectSource[];sourceHash:string;documentIssues:string[]}
-export interface ProjectScope extends ReviewedScope {answerOrigins?:Record<string,'customer'|'reader'|'unconfirmed'>}
+export interface ProjectScope extends ReviewedScope {answerOrigins?:Record<string,'customer'|'reader'|'unconfirmed'>;pageEvidence?:ProjectPageEvidence}
 export interface ProjectRecord extends ProjectProposal {
  version:typeof PROJECT_RECORD_VERSION;revision:number;sourceHash:string;recordHash:string;
  sources:ProjectSource[];createdAt:string;
@@ -38,7 +39,7 @@ function sourceBlocks(text:string,limit=18000){
  return output;
 }
 export function projectInput(scope:ProjectScope,changes:ProjectChange[]=[]):ProjectInput{
- const sources:ProjectSource[]=[],documentIssues:string[]=[];
+ const sources:ProjectSource[]=[],documentIssues:string[]=[...(scope.pageEvidence?.issues||[])];
  const add=(kind:ProjectSource['kind'],name:string,text:string,fileId:string|null=null,page:number|null=null,status:ProjectSource['status']='read')=>{
   if(!text.trim())return;
   for(const block of sourceBlocks(text)){
@@ -53,17 +54,34 @@ export function projectInput(scope:ProjectScope,changes:ProjectChange[]=[]):Proj
  }
  const extraction=scope.extraction;
  if(extraction?.sourceText)add('document-transcript','Retained reader transcript; verify against page observations',extraction.sourceText);
+ const seenFiles=new Set<string>();let legacyFiles=0;
  for(const upload of scope.uploads){
-  const pages=(extraction?.documentCoverage?.pages||[]).filter(p=>p.source===upload.name);
+  if(seenFiles.has(upload.sha256))continue;seenFiles.add(upload.sha256);
+  const native=scope.pageEvidence?.documents.find(document=>document.sha256===upload.sha256&&document.fileId===upload.id);
+  if(native){
+   if(native.pages.length!==native.pageCount||native.pages.some((p,i)=>p.number!==i+1))documentIssues.push('Original page inventory is inconsistent for '+native.name);
+   for(const page of native.pages){
+    const status=page.status==='pending'?'partial':page.status;
+    const name=`${native.name}, page ${page.number}`;
+    add('native-page-text',name+' original text',page.native.text,upload.id,page.number,status);
+    add('page-layout',name+' digital page geometry; not physical construction dimensions',JSON.stringify({fileSha256:native.sha256,readerRevision:native.revision,kind:page.native.kind,textQuality:page.native.textQuality,width:page.native.width,height:page.native.height,spanCoordinates:page.native.spanCoordinates,spans:page.native.spans}),upload.id,page.number,status);
+    add('reader-observation',name+' model interpretation; verify against original evidence',JSON.stringify({status:page.status,notes:page.notes,observation:page.readerObservation}),upload.id,page.number,status);
+   }
+   continue;
+  }
+  legacyFiles++;
+  const name=scope.uploads.some(other=>other.sha256!==upload.sha256&&other.name===upload.name)?`${upload.name} [${upload.id.slice(0,8)}]`:upload.name;
+  const pages=(extraction?.documentCoverage?.pages||[]).filter(p=>p.source===name);
   if(upload.status!=='stored'||!pages.length)documentIssues.push('No completed page inventory for '+upload.name);
   for(const page of pages){
    const takeoffs=(extraction?.takeoffs||[]).filter(t=>t.sources.some(s=>s.source===upload.name&&s.page===page.page));
    const facts=(extraction?.facts||[]).filter(f=>f.source===upload.name);
    add('reader-observation',`${upload.name}, page ${page.page}`,JSON.stringify({page,takeoffs,...(pages.length===1?{facts}:{})}),upload.id,page.page,page.status);
-   if(page.status!=='read')documentIssues.push(`${upload.name}, page ${page.page}: ${page.status}; ${(page.notes||[]).join('; ')}`);
+   // A known partial page reaches interpretation as an unresolved source so
+   // it can produce a specific clarification. Missing inventory still blocks.
   }
  }
- if(scope.uploads.length&&(!extraction?.documentCoverage?.complete||extraction.documentCoverage.pages.length!==extraction.documentCoverage.expectedPages))documentIssues.push('Document page coverage is incomplete or inconsistent.');
+ if(legacyFiles&&(!extraction?.documentCoverage||extraction.documentCoverage.pages.length!==extraction.documentCoverage.expectedPages))documentIssues.push('Document page coverage is incomplete or inconsistent.');
  // Facts from a reader are observations, not fresh customer answers. Keep all
  // details even when a legacy field cannot represent several rooms or items.
  if(extraction)add('reader-observation','Reader facts and takeoffs',JSON.stringify({summary:extraction.summary,facts:extraction.facts,takeoffs:extraction.takeoffs||[],conflicts:extraction.conflicts,instructions:extraction.instructions||null,reviewNotes:extraction.reviewNotes}));
@@ -187,7 +205,12 @@ export function validateProjectRecord(proposal:ProjectProposal,input:ProjectInpu
  }
  for(const review of proposal.sourceReviews){
   if(!sources.has(review.sourceId))issue('unknown-source',[review.sourceId],'Source review references an unknown input.');
-  if(review.status!=='reviewed'&&(!review.reason.trim()||!proposal.questions.some(q=>q.priority==='blocking'&&q.kind===(review.status==='conflicting'?'conflict':'unreadable-source'))))issue('unresolved-source',[review.sourceId],'A conflicting or unreadable source needs an explanation and a blocking clarification.');
+  if(review.status==='resolved-by-customer'){
+   for(const id of review.resolutionEvidenceIds){
+    const entry=evidence.get(id),source=entry&&sources.get(entry.sourceId);
+    if(!source||!['customer-clarification','customer-revision'].includes(source.kind))issue('unsupported-source-resolution',[review.sourceId,id],'Source uncertainty can only be resolved by cited current customer clarification or revision evidence.');
+   }
+  }else if(review.status!=='reviewed'&&(!review.reason.trim()||!proposal.questions.some(q=>q.priority==='blocking'&&q.kind===(review.status==='conflicting'?'conflict':'unreadable-source'))))issue('unresolved-source',[review.sourceId],'A conflicting or unreadable source needs an explanation and a blocking clarification.');
  }
  for(const message of input.documentIssues)issue('document-coverage',[],message);
  return issues;

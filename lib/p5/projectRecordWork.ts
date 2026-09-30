@@ -10,6 +10,7 @@ import {projectHash,projectInput,projectRecordIntegrity,type ProjectRecord,type 
 import {interpretProjectRecord,priceProjectRecord} from './projectWorkflow.ts';
 import {EMPTY_CONFIGURATION,type EstimatorConfiguration} from './costBook.ts';
 import {projectConfiguration} from './projectCatalog.ts';
+import {loadProjectPageEvidence} from './projectPageEvidence.ts';
 import {readProjectConversation,activeProjectChanges} from './projectConversation.ts';
 
 const LATEST='project-record-latest-v1';
@@ -51,7 +52,9 @@ export async function runProjectQualification(id:string,expectedRevision:number,
  if(!draft||draft.brand!==ESTIMATOR_BRAND.id)throw new DraftError('Project not found.',404);
  if(draft.revision!==expectedRevision)throw new DraftError('The project changed. Reload before reviewing it.',409);
  const changes=activeProjectChanges((await readProjectConversation(id)).filter(change=>change.draftRevision<=expectedRevision));
- const scope=draftProjectScope(draft),input=projectInput(scope,changes);
+ const scope=draftProjectScope(draft);
+ if(draft.uploads.length)scope.pageEvidence=await loadProjectPageEvidence(draft,{deadline:Math.min(deadline,Date.now()+90000)});
+ const input=projectInput(scope,changes);
  const prior=await readProjectQualification(id);
  const previous=prior?.record&&projectRecordIntegrity(prior.record)?prior.record:null;
  if(phase==='interpret'&&previous&&previous.sourceHash===input.sourceHash&&prior?.draftRevision===expectedRevision&&prior.contractHash===PROJECT_WORKFLOW_CONTRACT_HASH)
