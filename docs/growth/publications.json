@@ -16,19 +16,23 @@
       "published_at": "2026-09-29",
       "status": "published_verified",
       "destination_url": "https://p5homeco.com/quote?utm_source=google&utm_medium=organic&utm_campaign=p5_free_growth_2026q4&utm_content=gbp_project_preparation"
-    }
-  ],
-  "scheduled": [
+    },
     {
       "brand": "Boise Cabinet Co",
       "url": "https://boisecabinet.co/guides/boise-kitchen-cabinet-guide",
       "utm_content": "cabinet_storage_plan",
       "scheduled_epoch": 1790784000,
       "id": "1228704823655951_122135640783385974",
-      "status": "scheduled_verified",
+      "status": "published_verified",
       "estimator_url": "https://boisecabinet.co/estimate?utm_source=facebook&utm_medium=organic_social&utm_campaign=p5_free_growth_2026q4&utm_content=cabinet_storage_plan_estimator",
-      "estimator_link_updated_at": "2026-09-29"
-    },
+      "estimator_link_updated_at": "2026-09-29",
+      "platform": "facebook",
+      "published_at": "2026-09-30T16:00:54+00:00",
+      "permalink_url": "https://www.facebook.com/122135638923385974/posts/122135640783385974",
+      "verified_at": "2026-09-30"
+    }
+  ],
+  "scheduled": [
     {
       "brand": "Boise Handyman Co",
       "url": "https://boisehandyman.co/services/home-maintenance",
