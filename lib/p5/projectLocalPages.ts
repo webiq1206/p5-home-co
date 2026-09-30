@@ -34,10 +34,13 @@ export async function loadLocalProjectPages(draft:Pick<Draft,'id'|'brand'|'uploa
  if(ESTIMATOR_BRAND.domain!=='p5homeco.com'||draft.brand!==ESTIMATOR_BRAND.id)throw new DraftError('Page evidence is restricted to this P5 project.',403);
  const documents:ProjectPageEvidence['documents']=[],issues:string[]=[],seen=new Set<string>();let total=0;
  for(const upload of draft.uploads){
-  if(upload.type!=='application/pdf'||seen.has(upload.sha256))continue;seen.add(upload.sha256);
+  if(upload.type!=='application/pdf'||seen.has(upload.sha256))continue;
   const rows=await dependencies.query("SELECT payload FROM p5_estimator_work WHERE draft_id=$1 AND work_key LIKE 'analysis:v8:%' AND EXISTS (SELECT 1 FROM jsonb_array_elements(COALESCE(payload->'units','[]'::jsonb)) u WHERE u->>'uploadId'=$2) ORDER BY work_key",[draft.id,upload.id]);
   const units=rows.flatMap(row=>((row.payload as {units?:Unit[]})?.units||[]).filter(unit=>unit.uploadId===upload.id));
   if(!units.length)continue;
+  // A duplicate uploaded earlier may have no saved reads. Only mark a digest
+  // handled once this copy actually supplies evidence.
+  seen.add(upload.sha256);
   const {bytes}=await dependencies.readSavedSource(upload,draft.id);
   if(createHash('sha256').update(bytes).digest('hex')!==upload.sha256)throw new DraftError('The saved original failed its checksum check.',422);
   const native=await dependencies.nativePages(bytes);total+=native.length;

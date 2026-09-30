@@ -457,3 +457,19 @@ test('repeated invalid review evidence stops with the unchanged selection and ne
  const result=await priceProjectRecord(r,config,{request,now});assert.equal(result.status,'needs-resolution');assert.equal(priceCalls,1);assert.equal(reviewCalls,2);
  assert.ok(result.problems.some(p=>p.code==='review-catalog-evidence'));
 });
+test('a no-correction finding triggers review repair without repricing or automatic acceptance',async()=>{
+ const r=record();let prices=0,reviews=0;
+ const rate=config.planningCatalog!.rates.find(rate=>rate.code==='PB-08-71-01')!;
+ const invalid={...review(r),findings:[{id:'confirmation',code:'rate-fit',requirementIds:['replace-handles'],quantityIds:[],lineIds:['install'],evidenceIds:[],catalogEvidence:[{rateId:rate.code,quote:rate.description}],message:'PB-08-71-01 is the most specific per-door rate.',requiredCorrection:'None required.'}]};
+ const run=(repair:boolean)=>priceProjectRecord(r,config,{now,request:async(instructions,input)=>{
+  if(instructions===PROJECT_CATALOG_INSTRUCTIONS)return {value:{requirements:[{requirementId:'replace-handles',candidates:[{rateId:rate.code,reason:'Actual task rate'}],unmatchedReason:''}]},sourceUrls:[]};
+  if(instructions===PROJECT_PRICE_INSTRUCTIONS){prices++;return {value:wireProposal(),sourceUrls:[]};}
+  reviews++;
+  if(reviews===2)assert.ok((input as any).correctionsRequired.some((p:any)=>p.code==='review-nonactionable-finding'));
+  return {value:repair&&reviews===2?review(r):invalid,sourceUrls:[]};
+ }});
+ assert.equal((await run(true)).status,'estimated');assert.equal(prices,1);assert.equal(reviews,2);
+ prices=0;reviews=0;
+ const blocked=await run(false);assert.equal(blocked.status,'needs-resolution');assert.equal(prices,1);assert.equal(reviews,2);
+ assert.ok(blocked.problems.some(p=>p.code==='review-nonactionable-finding'));
+});

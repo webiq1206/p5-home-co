@@ -37,3 +37,9 @@ test('native source text is not subject to the legacy 60000-character context ca
  assert.equal(pageTextFromItems([{str:original}],Infinity),original.trim());
  assert.equal(pageTextFromItems([{str:original}]).length,60000);
 });
+test('a first unread duplicate cannot hide a later copy with saved page evidence',async()=>{
+ const f=fixture();f.draft.uploads.unshift({...f.draft.uploads[0],id:'unread-copy'});
+ f.dependencies.query=async(_sql:string,params?:unknown[])=>params?.[1]==='file'?f.rows:[];
+ const value=await loadLocalProjectPages(f.draft,f.dependencies);
+ assert.equal(value.documents.length,1);assert.equal(value.documents[0].fileId,'file');assert.equal(f.reads,1);
+});

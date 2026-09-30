@@ -10,6 +10,11 @@ export function verifiedReviewCatalog(raw:unknown,catalog:{code:string;descripti
  const prefixes=[...new Set(catalog.map(rate=>rate.code.split('-')[0]).filter(prefix=>/^[A-Z][A-Z0-9]{0,11}$/.test(prefix)))];
  const references=prefixes.length?new RegExp('\\b(?:'+prefixes.join('|')+')-[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*\\b','g'):null;
  for(const finding of review.findings){
+  // Reject an explicitly non-actionable finding; do not silently drop it or
+  // approve the estimate. The workflow must obtain a corrected review.
+  const correction=normalize(finding.requiredCorrection).replace(/[.!]+$/,'');
+  if(/^(?:(?:required )?correction:\s*)?(?:none(?: (?:is )?(?:required|needed))?|no (?:correction|change|action)(?: (?:is )?(?:required|needed))?|n\/a)$/i.test(correction))
+   problems.push({code:'review-nonactionable-finding',ids:[finding.id],message:'This finding explicitly requires no correction. Review this selection again: place confirmations in notes, or identify the actual defect and a concrete required change. Do not reprice a justified selection merely to satisfy a contradictory review.'});
   const cited=new Set(finding.catalogEvidence.map(item=>item.rateId));
   if(finding.code==='rate-fit'&&!cited.size)problems.push({code:'review-catalog-evidence',ids:[finding.id],message:'A rate-fit objection must cite the actual supplied rate descriptions, including every proposed alternative.'});
   for(const item of finding.catalogEvidence){

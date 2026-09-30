@@ -397,3 +397,22 @@ Focused regression evidence: 162 scope-pricing tests passed including cartridge-
 
 
 Release 12 local gates: full suite 1,632 total / 1,617 pass / 15 skip / zero fail. The subsequent safeguard preserving finish painting during the final catalog-repair pass was checked with 171 passing pricing/mapping tests; final TypeScript check passed. Host build and live requalification are pending. In the browser window case, the review editor successfully removed the incorrect 12 SF value; a final estimate was requested with email blank. That manual correction is evidence of editing capability, not proof the automatic dimension bug is fixed in production.
+
+### Continuation: saved b4abbb12 results and direct repairs
+
+Read-only retrieval of hosted receipts reported:
+
+* Addition rev2: 13 original pages and 52 saved local sections loaded without another model page read. Completion proposal accounted for 94 of 101 source blocks; seven source omissions and three nonliteral evidence quotations blocked acceptance. No accepted scope, questions or price.
+* Whole-home rev1: unresolved floor-protection labor and wall/ceiling preparation coverage. Audit also questioned baseboard labor duplication and slab versus prehung-door labor. No accepted price.
+* Cabinets rev1: internal $7,402.99, displayed $7,100–$7,850 planning range, $4,960 direct material cost. Specified construction/hardware and current prices remain unconfirmed. This is not estimate-content acceptance.
+* Handyman rev4: exact prior provider response recovery succeeded. A rate-fit finding nevertheless blocked the selection while its correction said “None required”. No accepted total.
+* Saved Git repair completed, preserving the former local branch in recovery history. Later unrelated growth documentation commits were merged locally without alteration.
+
+Direct code repairs in this continuation:
+
+1. An explicitly non-actionable reviewer finding now fails review validation and enters the existing bounded review-only repair. It is never silently discarded and cannot redirect pricing. A corrected review is still mandatory. This narrow contradiction check does not claim to validate arbitrary semantic reasoning.
+2. Local PDF deduplication marks a digest handled only after locating saved evidence. An earlier copy without saved reads can no longer hide a later copy that has those reads.
+
+Verification: 39 focused project-record/local-page tests passed; TypeScript passed. Regression covers successful review-only correction, repeated invalid review remaining blocked, unchanged price-call count, and unread-first duplicate recovery. Hosted retesting of these new repairs is outstanding. No publish, customer delivery or other-estimator change performed.
+
+Remaining release blockers: addition source completeness and quotations, whole-home labor/rate fit, specification-supported cabinet pricing, hosted handyman retest, missing-rate research integration, public workflow integration, eight-category live acceptance and authorized delivery testing. Actual RE10 package and owner Goeckner bid remain unavailable. Do not describe P5 as finalized.
