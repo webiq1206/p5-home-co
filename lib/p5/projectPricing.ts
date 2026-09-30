@@ -26,6 +26,7 @@ export function validateProjectReview(record:ProjectRecord,raw:unknown):{review:
  const review=projectReviewSchema.parse(raw),problems:RecordProblem[]=[];
  for(const item of record.requirements)if(!review.reviewedRequirementIds.includes(item.id))problems.push({code:'review-coverage',ids:[item.id],message:'Independent review did not cover this requirement.'});
  for(const source of record.sources)if(!review.reviewedSourceIds.includes(source.id))problems.push({code:'review-source-coverage',ids:[source.id],message:'Independent review did not cover this source.'});
+ for(const question of record.questions)if(!review.reviewedQuestionIds.includes(question.id))problems.push({code:'review-question-coverage',ids:[question.id],message:'The scope review must check this question and the uncertainty it resolves.'});
  for(const finding of review.findings)problems.push({code:finding.code,ids:[...finding.requirementIds,...finding.quantityIds,...finding.lineIds],message:finding.message+' Required correction: '+finding.requiredCorrection});
  return {review,problems};
 }
@@ -60,7 +61,7 @@ export function compileProjectPrices(record:ProjectRecord,selection:ProjectPrice
   const normalize=(s:string)=>s.normalize('NFKC').replace(/\s+/g,' ').trim();
   if(proposed.catalogQuote.trim().length<6||!normalize(rate.description).includes(normalize(proposed.catalogQuote))){fail('catalog-evidence',[proposed.id,rate.code],'Catalog coverage evidence must quote the selected rate verbatim.');continue;}
   if(!Number.isFinite(rate.amount)||rate.amount<=0){fail('invalid-price',[proposed.id,rate.code],'The approved rate must be positive and finite.');continue;}
-  if(!quantity||quantity.basis==='unknown'||quantity.value===null||quantity.value<=0){fail('unknown-priced-quantity',[proposed.id,proposed.quantityId],'The selected quantity is missing or unresolved.');continue;}
+  if(!quantity||quantity.basis==='unknown'||!quantity.unit||quantity.value===null||quantity.value<=0){fail('unknown-priced-quantity',[proposed.id,proposed.quantityId],'The selected quantity is missing or unresolved.');continue;}
   if(unitKey(rate.unit)!==unitKey(quantity.unit)){fail('unit-mismatch',[proposed.id,quantity.id],'The catalog and quantity units differ; create a supported converted quantity before pricing.');continue;}
   const covered=proposed.requirementIds.map(id=>requirements.get(id));
   if(!covered.length||covered.some(r=>!r||r.status!=='included'||r.responsibility!=='contractor')){fail('out-of-scope-charge',[proposed.id,...proposed.requirementIds],'Charges may only cover included contractor requirements.');continue;}

@@ -25,7 +25,7 @@ export async function interpretProjectRecord(scope:ProjectScope,options:ProjectW
   candidate=response.value;
   let record:ProjectRecord;
   try{record=acceptProjectRecord(candidate,input,options.previous||null,now);}catch(error){problems=shapeProblems(error);continue;}
-  const audit=await request(PROJECT_REVIEW_INSTRUCTIONS,{sources:input.sources,record,selectedPrices:null,purpose:'Check scope completeness, quantity evidence, dependencies and question necessity before pricing.'},false,remaining());
+  const audit=await request(PROJECT_REVIEW_INSTRUCTIONS,{stage:'scope-with-questions',sources:input.sources,record,selectedPrices:null,purpose:'Accept a faithful intermediate scope WITH useful questions. Missing source measurements or selections represented as unknown/conditional and addressed by necessary questions are expected, not defects. Check that no work or uncertainty is silently omitted.'},false,remaining());
   try{problems=validateProjectReview(record,audit.value).problems;}catch(error){problems=shapeProblems(error);}
   if(!problems.length)return {status:record.questions.some(q=>q.priority==='blocking')?'questions':'ready',record,problems:[],attempts:attempt};
  }
@@ -43,16 +43,20 @@ export async function priceProjectRecord(record:ProjectRecord,configuration:Esti
   try{catalogCandidates=checkedProjectCandidates(record,catalog,catalogCandidate);}catch(error){problems=shapeProblems(error);}
  }
  if(!catalogCandidates)return {status:'needs-resolution' as const,record,selection:null,problems,attempts:2};
+ const candidateIds=new Set(catalogCandidates.requirements.flatMap(item=>item.candidates.map(candidate=>candidate.rateId)));
+ const focusedCatalog=catalog.filter(rate=>candidateIds.has(rate.code));
  let selection:ProjectPriceSelection|null=null,candidate:unknown=null;
  problems=[];
  for(let attempt=1;attempt<=2;attempt++){
-  const response=await request(PROJECT_PRICE_INSTRUCTIONS,{record,catalogCandidates,catalog,...(attempt>1?{previousProposal:candidate,previousSelection:selection,correctionsRequired:problems}:{})},false,remaining());
+  // Discovery searches the entire index. Keep the first costing context on
+  // those semantic matches; a failed proposal can still use the complete book.
+  const response=await request(PROJECT_PRICE_INSTRUCTIONS,{record,catalogCandidates,catalog:attempt===1?focusedCatalog:catalog,catalogCoverage:attempt===1?'Semantically retrieved candidates from the complete approved index. The reviewer checks the complete book, which is available on correction.':'Complete approved catalog for resolving the recorded corrections.',...(attempt>1?{previousProposal:candidate,previousSelection:selection,correctionsRequired:problems}:{})},false,remaining());
   candidate=response.value;
   try{selection=projectPriceSelection(record,configuration,projectPriceProposalFromWire(record,configuration,candidate));}catch(error){problems=shapeProblems(error);continue;}
   const compiled=compileProjectPrices(record,selection,configuration,now);
   if(compiled.problems.length){problems=compiled.problems;continue;}
   const selectedCatalogIds=new Set(selection.proposal.lines.map(line=>line.rateId));
-  const responseReview=await request(PROJECT_REVIEW_INSTRUCTIONS,{sources:record.sources,record,selectedPrices:selection,selectedCatalog:catalog.filter(rate=>selectedCatalogIds.has(rate.code)),catalogCandidates,catalog,coverage:compiled.coverage},false,remaining());
+  const responseReview=await request(PROJECT_REVIEW_INSTRUCTIONS,{stage:'priced-estimate',sources:record.sources,record,selectedPrices:selection,selectedCatalog:catalog.filter(rate=>selectedCatalogIds.has(rate.code)),catalogCandidates,catalog,coverage:compiled.coverage},false,remaining());
   try{
    const receipt=projectReviewReceipt(record,selection,responseReview.value);
    const result=calculateProjectEstimate(record,selection,configuration,receipt,now);

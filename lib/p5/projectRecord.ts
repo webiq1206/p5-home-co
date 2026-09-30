@@ -137,7 +137,7 @@ export function validateProjectQuantities(values:ProjectQuantityValue[],entries:
  const seen=new Set<string>();for(const q of values){if(seen.has(q.id))issue('duplicate-id',[q.id],'Quantity IDs must be unique.');seen.add(q.id);}
  const checkEvidence=(ids:string[],owner:string)=>{for(const id of ids)if(!evidence.has(id))issue('unknown-evidence',[owner,id],'Referenced evidence does not exist.');};
  for(const q of values){
-  if(!projectUnit(q.unit))issue('unsupported-unit',[q.id],'Quantity unit is not supported: '+q.unit);
+  if(!(q.basis==='unknown'&&q.unit===null)&&!projectUnit(q.unit))issue('unsupported-unit',[q.id],'Quantity unit is not supported: '+q.unit+'. Use a supported measurement unit, or null only while the physical quantity is unknown and requires clarification.');
   checkEvidence(q.evidenceIds,q.id);
   if(q.basis==='unknown'&&(q.value!==null||q.range!==null||q.calculation!==null))issue('invented-quantity',[q.id],'An unknown quantity cannot contain a measured value, range or calculation.');
   if(q.basis!=='unknown'&&(q.value===null||q.value<0))issue('missing-quantity',[q.id],'A known physical quantity must be nonnegative. Charged quantities must be positive.');

@@ -11,7 +11,8 @@ export function combineProjectUnits(a:ProjectUnit,b:ProjectUnit,divide=false):Pr
 /** Physical dimensional algebra, independent of project category. Counted
  * containers and working periods retain their identity: one box is not one
  * piece, and a labor day does not assert any number of working hours. */
-export function projectUnit(unit:string):ProjectUnit|null{
+export function projectUnit(unit:string|null):ProjectUnit|null{
+ if(unit===null)return null;
  const parts=unit.trim().split(/\s*\/\s*|\s+per\s+/i);
  if(parts.length===2){const a=projectUnit(parts[0]),b=projectUnit(parts[1]);return a&&b?combineProjectUnits(a,b,true):null;}
  if(parts.length!==1)return null;

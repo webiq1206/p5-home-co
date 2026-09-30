@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {projectInput,projectHash,projectRecordIntegrity,acceptProjectRecord,validateProjectRecord,projectRecordChange,computedProjectQuantity,ProjectRecordError} from '../lib/p5/projectRecord.ts';
-import {compileProjectPrices,projectPriceSelection,calculateProjectEstimate,projectReviewReceipt,projectPriceProposalFromWire} from '../lib/p5/projectPricing.ts';
+import {compileProjectPrices,projectPriceSelection,calculateProjectEstimate,projectReviewReceipt,projectPriceProposalFromWire,validateProjectReview} from '../lib/p5/projectPricing.ts';
 import {interpretProjectRecord,priceProjectRecord} from '../lib/p5/projectWorkflow.ts';
 import {PROJECT_RECORD_INSTRUCTIONS,PROJECT_PRICE_INSTRUCTIONS,PROJECT_REVIEW_INSTRUCTIONS,PROJECT_CATALOG_INSTRUCTIONS,projectProposalSchema,projectReviewSchema,type ProjectProposal,type ProjectQuantity} from '../lib/p5/projectRecordContracts.ts';
 import {checkedProjectCandidates,projectCatalogIndex,projectConfiguration} from '../lib/p5/projectCatalog.ts';
@@ -32,7 +32,7 @@ function example(input=projectInput(scope)):ProjectProposal{
 const record=()=>acceptProjectRecord(example(),projectInput(scope),null,now);
 const proposal=()=>({estimatingQuantities:[],lines:[{id:'install',rateId:'PB-08-71-01',quantityId:'handle-count',requirementIds:['replace-handles'],catalogQuote:config.planningCatalog!.rates.find(r=>r.code==='PB-08-71-01')!.description,coverageEvidence:'Owner-supplied sets require only replacement labor.'}],gaps:[]});
 const wireProposal=()=>({lines:proposal().lines.map(({quantityId,...line})=>({...line,quantity:{origin:'project',quantityId}})),gaps:[]});
-const review=(r=record())=>({reviewedRequirementIds:r.requirements.map(x=>x.id),reviewedSourceIds:r.sources.map(x=>x.id),findings:[],notes:[]});
+const review=(r=record())=>({reviewedRequirementIds:r.requirements.map(x=>x.id),reviewedSourceIds:r.sources.map(x=>x.id),reviewedQuestionIds:r.questions.map(q=>q.id),findings:[],notes:[]});
 test('all project provider contracts use their own strict schema instead of an unrelated audit response',()=>{
  for(const [instructions,key]of [[PROJECT_RECORD_INSTRUCTIONS,'requirements'],[PROJECT_CATALOG_INSTRUCTIONS,'requirements'],[PROJECT_PRICE_INSTRUCTIONS,'lines'],[PROJECT_REVIEW_INSTRUCTIONS,'findings']]){
   const body=openAiPricingRequestEnvelope(instructions,{},false).body as any;
@@ -72,6 +72,34 @@ test('unknown, invented and redundant quantities cannot pass as reviewed facts',
  assert.ok(validateProjectRecord(unknown,projectInput(scope)).some(p=>p.code==='invented-quantity'));
  const redundant=example();redundant.questions=[{id:'count-again',requirementIds:['replace-handles'],quantityIds:['handle-count'],kind:'quantity',prompt:'How many handles?',reason:'Need the count',options:[],priority:'blocking'}];
  assert.ok(validateProjectRecord(redundant,projectInput(scope)).some(p=>p.code==='redundant-question'));
+});
+test('an unknown physical measurement and unit can reach a reviewed clarification without being priced',async()=>{
+ const incomplete={...scope,text:'Repair the damaged surface in Boise. Its material and size need to be established.'},input=projectInput(incomplete),p=example(input);
+ p.summary=incomplete.text;p.subjects[0]={...p.subjects[0],name:'Damaged surface',kind:'surface',existingCondition:'Material and extent unresolved'};p.requirements=[{...p.requirements[0],description:'Repair damaged surface',operation:'repair',specifications:[]}];
+ p.quantities[0]={...p.quantities[0],description:'Extent of damaged surface',basis:'unknown',unit:null,value:null};
+ p.questions=[{id:'repair-extent',kind:'quantity',priority:'blocking',prompt:'What material is damaged and what are the damaged area’s dimensions?',reason:'The material and extent determine the repair method and quantity.',options:[],requirementIds:['replace-handles'],quantityIds:['handle-count']}];
+ assert.equal(projectProposalSchema.safeParse(p).success,true);
+ const invented=structuredClone(p);invented.quantities[0].value=3;
+ assert.equal(projectProposalSchema.safeParse(invented).success,false);
+ const request:PricingRequest=async(instructions,raw)=>{
+  if(instructions===PROJECT_RECORD_INSTRUCTIONS)return {value:p,sourceUrls:[]};
+  assert.equal(instructions,PROJECT_REVIEW_INSTRUCTIONS);const data=raw as any;assert.equal(data.stage,'scope-with-questions');
+  return {value:review(data.record),sourceUrls:[]};
+ };
+ const result=await interpretProjectRecord(incomplete,{request,now});assert.equal(result.status,'questions');assert.equal(result.record!.quantities[0].unit,null);
+ const unchecked=review(result.record!);unchecked.reviewedQuestionIds=[];
+ assert.ok(validateProjectReview(result.record!,unchecked).problems.some(p=>p.code==='review-question-coverage'));
+ const priced=await priceProjectRecord(result.record!,config,{request:async()=>{throw Error('Pricing must not run before the blocking answer');},now});
+ assert.equal(priced.status,'questions');
+ assert.ok(compileProjectPrices(result.record!,projectPriceSelection(result.record!,config,proposal()),config,now).problems.some(p=>p.code==='unknown-priced-quantity'));
+});
+test('an undecided inclusion is retained as conditional work with a required clarification',()=>{
+ const input=projectInput({...scope,text:'Whether to include the additional work is undecided.'}),p=example(input);
+ p.requirements=[{...p.requirements[0],status:'conditional',quantityId:null}];p.quantities=[];
+ assert.ok(validateProjectRecord(p,input).some(p=>p.code==='unresolved-condition'));
+ p.questions=[{id:'include-work',kind:'scope',priority:'blocking',prompt:'Should the additional work be included?',reason:'This decision sets the work boundary.',options:['Include','Exclude'],requirementIds:['replace-handles'],quantityIds:[]}];
+ const accepted=acceptProjectRecord(p,input,null,now);assert.equal(accepted.requirements[0].status,'conditional');
+ assert.equal(accepted.questions.length,1);
 });
 test('missing quantities produce linked questions without adding excluded work',()=>{
  const incomplete=example();incomplete.quantities[0]={...incomplete.quantities[0],basis:'unknown',value:null};
@@ -290,7 +318,7 @@ test('the workflow performs separate scope and pricing reviews with no legacy co
   calls.push(instructions);const data=input as any;
   if(instructions===PROJECT_RECORD_INSTRUCTIONS)return {value:example({sources:data.sources,sourceHash:'unused',documentIssues:[]}),sourceUrls:[]};
   if(instructions===PROJECT_CATALOG_INSTRUCTIONS){assert.equal(data.catalogIndex.length,config.planningCatalog!.rates.length);return {value:{requirements:[{requirementId:'replace-handles',candidates:[{rateId:'PB-08-71-01',reason:'Specific replacement labor'}],unmatchedReason:''}]},sourceUrls:[]};}
-  if(instructions===PROJECT_PRICE_INSTRUCTIONS)return {value:wireProposal(),sourceUrls:[]};
+  if(instructions===PROJECT_PRICE_INSTRUCTIONS){assert.deepEqual(data.catalog.map((rate:any)=>rate.code),['PB-08-71-01'],'The first costing attempt sees semantic matches without unrelated catalog descriptions.');return {value:wireProposal(),sourceUrls:[]};}
   assert.equal(instructions,PROJECT_REVIEW_INSTRUCTIONS);
   if(data.selectedPrices)assert.equal(data.catalog.length,config.planningCatalog!.rates.length,'Price review must see competing approved rates, not only the selected ones.');
   return {value:review(data.record),sourceUrls:[]};
@@ -330,7 +358,8 @@ test('malformed pricing proposals receive their actual validation feedback on re
   const data=input as any;
   if(instructions===PROJECT_CATALOG_INSTRUCTIONS)return {value:{requirements:[{requirementId:'replace-handles',candidates:[],unmatchedReason:'No match proposed in this controlled test.'}]},sourceUrls:[]};
   if(instructions===PROJECT_PRICE_INSTRUCTIONS){
-   if(++attempts===1)return {value:{lines:[{id:'malformed'}],gaps:[]},sourceUrls:[]};
+   if(++attempts===1){assert.equal(data.catalog.length,0);return {value:{lines:[{id:'malformed'}],gaps:[]},sourceUrls:[]};}
+   assert.equal(data.catalog.length,config.planningCatalog!.rates.length,'A failed retrieved selection can recover from the complete book.');
    assert.deepEqual(data.previousProposal,{lines:[{id:'malformed'}],gaps:[]});assert.ok(data.correctionsRequired.some((p:any)=>p.code==='record-shape'&&p.message.includes('lines')));
    return {value:wireProposal(),sourceUrls:[]};
   }
