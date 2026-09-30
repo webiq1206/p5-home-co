@@ -1,7 +1,7 @@
 {
  "source": "p5-home-co",
- "commit": "70ab14285145bcbf7a9f49a54ee197dcdfb22af1",
- "generatedAt": "2026-09-30T10:28:49.987Z",
+ "commit": "3188fc5ed730be909514ef7e88a668d0520e5b03",
+ "generatedAt": "2026-09-30T10:41:39.045Z",
  "note": "P5-only qualification baseline. Child rollout is paused until live acceptance is verified. Hash checks remain mandatory.",
  "files": {
   "app/admin/p5-estimators/page.tsx": "a2401f2a29c22dd1a5631fa2c065114275b4e7c1d99ba6c97a8ff0f26cb6a3ad",
@@ -20,7 +20,7 @@
   "app/api/p5-estimator/upload/route.ts": "30513ebab4a4f175e0f31d03efceaf020ac3f6cc0d104a6d1779fe5580a14907",
   "components/P5EstimateDetails.tsx": "f1c3f3087391b27682c50b87d71f7ca56084bc826083ecdf4c413d23918362c8",
   "components/P5Estimator.module.css": "5c97d398ec147bd59d459dec12a974097d1e8b40c60acec933c88e9a0c65f8cf",
-  "components/P5Estimator.tsx": "3abdb1651810ecd945720d7d2c6769d55c642827b8b0a2745c683f8e27cbea6f",
+  "components/P5Estimator.tsx": "5f5a0521597c8d4bf1b7b74a2ada06e2f2917fc2438d171e15547dd42e8e2023",
   "components/P5EstimatorNavigation.tsx": "e203317513965f77dc314e3ef8aa2be0e9fca1e7ca72494b3a23f3741cabbe83",
   "components/P5LazyEstimator.tsx": "237e404e81442499d54bf8668134e77b36513898b91503d5f275af80e6b8019a",
   "components/P5LinePricing.tsx": "9e0359cd6bff8226f491daab60c5ef468cc2f60dda67ee632910eaf5094b741d",
@@ -81,7 +81,7 @@
   "lib/p5/events.ts": "ac8749055b13f296f40e0426add9802d302c2c1a1873767a7c2714d25abcf1f0",
   "lib/p5/explicitLabor.ts": "9bdf1fc3a08c166ccef823d71a641ee650c995d701d9fc9c02808f43fb6e6929",
   "lib/p5/explicitSelections.ts": "08fefd82686094fbeb041ec74cf33b4022e326d325ce69595d90a7357b33fa56",
-  "lib/p5/extraction.ts": "a075dbcffdc11fa247740eb7197a840a95bb1b7c7b952666783001a2d42c0beb",
+  "lib/p5/extraction.ts": "facc74442baf852ce41a0537857656da978d545cddda8d4e96b29f5848bd0991",
   "lib/p5/fileDigest.ts": "0ca1a2a4ac278bed09e7ede9c4a0bb0b08501842cbf6611e5a399175c3a20753",
   "lib/p5/fileSnapshot.ts": "09dbb1e0aa57e9325c1a3946637ecfb9678918e1e54e9a40ba9977aeead85b09",
   "lib/p5/fixtureFacts.ts": "b48208aebd88847c5006a48ae7b48b20887f04fa118b788803bd73962e80a4bf",
