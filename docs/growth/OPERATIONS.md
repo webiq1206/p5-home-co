@@ -85,3 +85,16 @@ Eight source updates were committed to current main across Construction, Remodel
 The official Eagle reference is https://www.cityofeagle.org/153/Building. Keep regulatory guidance general and property-specific; verify official sources before adding detailed requirements.
 
 Changes are in Construction 7467ccf, de83316 and 918efe3; Remodeling bce81d7, 3458266, fa5fbf3 and 751c56a; Cabinet 2f903f8. All eight changed TypeScript/TSX files passed syntax transpilation. Production spot checks still showed the prior local-page copy, so these eight changes are committed, not yet confirmed deployed. Verify current-source synchronization before any deployment; do not publish a stale workspace. Allow complete reporting periods after deployment before evaluating the description changes.
+
+
+## September 30 execution
+
+Seven Facebook service posts are now scheduled through October 9. New topics are inspection_repair_handoff (October 8 at 10 a.m. America/Boise) and bathroom_layout_daily_use (October 9 at 10 a.m.). Exact messages, scheduled times and unpublished states were verified once after creation. Together with Construction on October 5 and ADU on October 6, these provide four posts for that week. Do not duplicate these topics or dates. The live page inventory had no unanswered comments at this check.
+
+P5 was submitted to Treasure Valley Contractor Guide through https://treasurevalleycontractorguide.com/verify-listing. The form confirmed receipt. This is submitted and awaiting review, not a published listing or acquired backlink. The request specifies one parent record, updating an existing record if found, no public street address, and no separate division listings. The directory states listings are free without a purchase requirement. Check for review/publication before resubmitting.
+
+Fresh production HTML now shows the corrected Eagle permit language and official city link on both Construction and Remodeling, the revised Remodeling Eagle description, and the corrected Cabinet builder permit terms. These spot checks supersede the previous deployment-pending status for those pages; do not imply a full deployment or estimator reliability audit.
+
+Google URL Inspection now reports /estimate as Discovered - currently not indexed and attributes discovery to the sitemap. Google and Bing still report successful processing of the correct seven-URL P5 sitemap. A separate newly submitted /sitemap.xm registration returns 404 and has a Google error. Do not resubmit the valid /sitemap.xml or remove the site property. Clean up only the mistyped registration when an authorized sitemap-removal capability is available.
+
+Keep new measurements in the private record. September 29 campaign traffic includes visits before specialist posts publish and may include link validation or live QA, so it is not evidence of qualified customers or campaign lift. No new metadata rewrite was justified by the pre-change measurement window.

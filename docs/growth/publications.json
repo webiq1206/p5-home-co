@@ -66,6 +66,39 @@
       "scheduled_epoch": 1791302400,
       "id": "1228704823655951_122135641161385974",
       "status": "scheduled_verified"
+    },
+    {
+      "brand": "Boise Handyman Co",
+      "url": "https://boisehandyman.co/re-10-repairs-boise",
+      "utm_content": "inspection_repair_handoff",
+      "scheduled_epoch": 1791475200,
+      "id": "1228704823655951_122135975319385974",
+      "status": "scheduled_verified",
+      "permalink_url": "https://www.facebook.com/122135638923385974/posts/122135975319385974",
+      "destination_url": "https://boisehandyman.co/re-10-repairs-boise?utm_source=facebook&utm_medium=organic_social&utm_campaign=p5_free_growth_2026q4&utm_content=inspection_repair_handoff",
+      "created_at": "2026-09-30"
+    },
+    {
+      "brand": "Boise Remodeling Co",
+      "url": "https://boiseremodeling.co/services/bathroom-remodel",
+      "utm_content": "bathroom_layout_daily_use",
+      "scheduled_epoch": 1791561600,
+      "id": "1228704823655951_122135975409385974",
+      "status": "scheduled_verified",
+      "permalink_url": "https://www.facebook.com/122135638923385974/posts/122135975409385974",
+      "destination_url": "https://boiseremodeling.co/services/bathroom-remodel?utm_source=facebook&utm_medium=organic_social&utm_campaign=p5_free_growth_2026q4&utm_content=bathroom_layout_daily_use",
+      "created_at": "2026-09-30"
+    }
+  ],
+  "directory_submissions": [
+    {
+      "platform": "Treasure Valley Contractor Guide",
+      "brand": "P5 Home Co",
+      "submission_url": "https://treasurevalleycontractorguide.com/verify-listing",
+      "submitted_at": "2026-09-30",
+      "status": "received_pending_review",
+      "confirmation": "Your request has been received",
+      "scope": "One free parent listing; update existing record if present; no public street address or separate division listings."
     }
   ]
 }
