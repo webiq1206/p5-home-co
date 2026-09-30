@@ -26,7 +26,16 @@ const measuredQuestion=(text:string)=>/how (?:many|much|long|wide|tall|large)|sq
 /** Two wordings of one decision ("is the chimney cap repair structural or cosmetic?" asked
  * once per page of the document). A measured quantity is never treated as a repeat: base
  * and wall cabinet lengths share almost every word and are different answers. */
+/** A repeated request for the same combined covered access area can arrive
+ * once per plan page. Keep named buildings, floors and other components
+ * separate rather than using broad word similarity for measurements. */
+function coveredAccessAreaQuestion(text:string):boolean{
+ if(!/\bcovered\b/i.test(text)||! /\bstairs?\b/i.test(text)||!/\blandings?\b/i.test(text)||!/\b(?:area|square|footage|dimensions)\b/i.test(text))return false;
+ const remainder=text.toLowerCase().replace(/\b(?:what|is|are|the|any|of|in|to|be|included|include|covered|exterior|stairs?|landings?|or|and|area|square|feet|footage|dimensions|please|provide)\b/g,'').replace(/[^a-z0-9]/g,'');
+ return !remainder;
+}
 export function sameDecision(a:string,b:string):boolean{
+  if(coveredAccessAreaQuestion(a)&&coveredAccessAreaQuestion(b))return true;
   if(measuredQuestion(a)||measuredQuestion(b))return false;
   // Compare the questions themselves; a shared helper sentence ("This affects cost.") is not a shared subject.
   const asked=(text:string)=>text.includes('?')?text.slice(0,text.indexOf('?')):text;

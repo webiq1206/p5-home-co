@@ -60,3 +60,58 @@ test('window flashing stays under windows, while roof flashing stays under roofi
  assert.equal(suggestedTrade('Window / door flashing, per opening.'),'Windows & Doors');
  assert.equal(suggestedTrade('Roof flashing at dormer window.'),'Roofing');
 });
+
+test('construction fill and splash-block notes cannot answer site or utility conditions',()=>{
+ const x=extraction([
+  fact('site','Assumes flat site and standard soil.'),
+  fact('site','Land purchase excluded. 4 inches of compacted granular fill under slab.'),
+  fact('site','No site, soil or slope data in this segment. Splash block at landscape areas.'),
+  fact('utilities','Utility scope not detailed; site and service information must be provided.')
+ ]);
+ const out=groundDocumentConditions(x,'Build a complete 376 SF ADU.');
+ const a=reconcileScope({service:'adu',sqft:'376',finish:'mid-range'},out).answers;
+ assert.equal(a.site,undefined);
+ x.clarifications=[{field:'site',question:'What are the actual site conditions?',reason:'Site-specific cost'},{field:'utilities',question:'Which utility connections and lengths?',reason:'Connections'}];
+ const updated=groundDocumentConditions(x,'Build a complete ADU.');
+ const q=scopeQuestions(reconcileScope({service:'adu',sqft:'376',finish:'mid-range'},updated).answers,updated);
+ assert.equal(q.filter(q=>q.field==='site').length,1);assert.equal(q.filter(q=>q.field==='utilities').length,1);
+ const actual=groundDocumentConditions(extraction([fact('site','Existing site is level; customer confirms granular fill is already placed.')]),'Build an ADU.');
+ assert.equal(actual.facts[0].field,'site');
+});
+
+test('repeated covered access area questions merge without merging named structures or components',async()=>{
+ const {sameDecision}=await import('../lib/p5/clarifications.ts');
+ const a='What is the square footage of any covered exterior landings or stairs to be included?';
+ const b='Dimensions of covered exterior stairs/landings?';
+ const c='What is the area in square feet of covered landings or exterior stairs to be included?';
+ assert.equal(sameDecision(a,b),true);assert.equal(sameDecision(a,c),true);
+ assert.equal(sameDecision(a,'What is the covered porch area in square feet?'),false);
+ assert.equal(sameDecision(a,'What is the area of the main home covered stairs and landings?'),false);
+ const x=extraction();x.instructions!.questions=[a,b,c];
+ assert.equal(scopeQuestions({service:'adu',sqft:'376',finish:'mid-range'},x).filter(q=>/covered.*(?:stairs|landings)/i.test(q.reason)).length,1);
+});
+
+test('partial flooring and bathroom tile cannot borrow their project footprint as measured installation',async()=>{
+ const {separateFootprintFromInstallation}=await import('../lib/p5/scopeInterpretation.ts');
+ for(const [size,field,text] of [['1800','flooringSqft','Remodel selected interior finishes of an 1800 SF Boise home: flooring, paint and doors.'],['60','tileSqft','Replace floor tile in one 60 SF bathroom.']] as const){
+  const x=extraction([fact('sqft',size,text),{...fact(field,size,text),source:'typed scope'}]);
+  const out=separateFootprintFromInstallation(x,text);
+  assert.equal(out.facts.some(f=>f.field===field),false);assert.match(out.facts[1].value,/unmeasured/);
+  assert.equal(scopeQuestions(reconcileScope({service:field==='tileSqft'?'bathroom':'whole-home'},out).answers,out,[],[],[],text).some(q=>q.field==='flooringSqft'),true);
+ }
+ const explicit='Remodel an 1800 SF home. Replace 1800 SF of LVP flooring.';
+ const x=extraction([fact('sqft','1800','1800 SF home'),{...fact('flooringSqft','1800','1800 SF of LVP flooring'),source:'typed scope'}]);
+ assert.equal(separateFootprintFromInstallation(x,explicit).facts[1].field,'flooringSqft');
+ const mixed=extraction([fact('sqft','1800','1800 SF home'),{...fact('flooringSqft','1800','1800 SF home: flooring'),source:'typed scope'}]);
+ mixed.takeoffs=[{id:'floor',description:'LVP flooring in house',component:'flooring',quantity:1800,unit:'SF',basis:'stated',evidence:'Measured house installation area: 1800 SF of LVP flooring.',building:'',floor:'',sources:[],supersedes:[],issues:[]}];
+ assert.equal(separateFootprintFromInstallation(mixed,'Remodel selected finishes in an 1800 SF home.').takeoffs![0].quantity,1800);
+});
+
+test('a revised garage rectangle resolves only with matching stated area and arithmetic',async()=>{
+ const {applyExplicitTypedCorrections}=await import('../lib/p5/typedCorrections.ts');
+ const text='Change the garage to 24 by 24 feet, 576 SF, superseding the PDF garage size. Keep the 2000 SF house unchanged.';
+ const x=extraction([{...fact('garageSqft','576',text),source:'typed scope'},fact('sqft','2000','2000 SF home')]);
+ x.conflicts=[{field:'garageSqft',values:['440','576'],explanation:'Revised garage size differs from PDF.'}];
+ const out=applyExplicitTypedCorrections(x,text);assert.equal(out.conflicts.length,0);assert.equal(out.facts.find(f=>f.field==='sqft')!.value,'2000');
+ assert.equal(applyExplicitTypedCorrections(x,text.replace('24 by 24','24 by 22')).conflicts.length,1);
+});

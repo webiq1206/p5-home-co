@@ -189,7 +189,7 @@ function measuredTopic(context: QuestionContext, topic: Topic): boolean {
     : AREA_UNIT.test(t.unit)));
 }
 export function unresolvedScopeAnswer(value:string|undefined):boolean{
- return !value?.trim()||/\b(?:not specified|unspecified|unknown|not provided|not stated|not shown|not known|details? (?:are )?missing|missing (?:site|utility|quantity|measurement|scope) (?:details|information)|to be determined|TBD)\b/i.test(value)
+ return !value?.trim()||/\b(?:not specified|unspecified|unknown|not provided|not stated|not shown|not known|not detailed|no (?:site|soil|slope|utility)[^.;]{0,35}(?:data|information|info)|(?:site|utility|service) (?:information|details) must be provided|details? (?:are )?missing|missing (?:site|utility|quantity|measurement|scope) (?:details|information)|to be determined|TBD)\b/i.test(value)
    ||/^(?:replace|new|update) (?:the )?(?:(?:bathroom|kitchen|plumbing)\s+)?fixtures?[.!]?$/i.test(value.trim());
 }
 /** Existing-condition photographs do not authorize construction. Resolve an

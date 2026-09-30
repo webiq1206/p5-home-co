@@ -42,7 +42,8 @@ export function projectQuestionField(text:string,answers:ScopeAnswers):ScopeFiel
   if(/\b(?:will|does|is|include|included|should)\b/i.test(text))return 'garageIncluded';
  }
  if(/\b(?:utilit(?:y|ies)|water|sewer|electric(?:al)?|gas)\b/i.test(text)&&/\b(?:connect|connection|extension|distance|length|available|availability|stub|runs?)\w*\b/i.test(text))return 'utilities';
- if(/\b(?:soil|slope|site conditions|grading|site access)\b/i.test(text))return 'site';
+ if(/\b(?:utility|utilities)\s*\/\s*site\b|\bsite\s*\/\s*(?:utility|utilities)\b/i.test(text)&&/\b(?:missing|special|requirements|details)\b/i.test(text))return 'site';
+ if(/\b(?:soils?|slope|site conditions|grading|site access)\b/i.test(text))return 'site';
  if(/\b(?:what|which)\b[^?]*\b(?:work|changes|repairs)\b[^?]*\b(?:want|proposed|include|need|done)\w*\b/i.test(text))return 'taskList';
  return projectAreaQuestionField(text,answers);
 }

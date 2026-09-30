@@ -23,6 +23,14 @@ const revisionClauses=(text:string)=>text.split(/(?<=[.!?])\s+|\n|;/).flatMap(or
  if(/\b(?:maybe|possibly|either)\b|\bto\s+(?:exactly\s+)?\d+\s+or\s+\d+/.test(clause))return [];
  return [{original,clause}];
 });
+/** Explicit rectangular revisions retain both supplied dimensions and their
+ * stated area. Accept the area only when the arithmetic agrees exactly. */
+function numericRevisionClaim(clause:string):{value:string;unit:string}|null{
+ const dimensions=clause.match(/\bto\s+(?:exactly\s+)?(\d+(?:\.\d+)?)x(\d+(?:\.\d+)?)\s*(?:feet|ft)\s*,?\s*(\d+(?:\.\d+)?)\s*(SF|square feet)\b/i);
+ if(dimensions)return Math.abs(Number(dimensions[1])*Number(dimensions[2])-Number(dimensions[3]))<.000001?{value:dimensions[3],unit:dimensions[4]}:null;
+ const values=[...clause.matchAll(/\bto\s+(?:exactly\s+)?(\d+(?:\.\d+)?)\s*(LF|SF|linear feet|square feet|handles?|levers?)?\b/gi)];
+ return values.length===1?{value:values[0][1],unit:values[0][2]||''}:null;
+}
 /** Text fields can contain several unchanged components. Resolve only a
  * named, explicit edit whose new quantity is actually present in the retained
  * field. A fabricated quote or an explanation saying "superseded" is not enough. */
@@ -70,11 +78,11 @@ export function applyExplicitTypedCorrections(extraction:ScopeExtraction,text:st
  const textAccepted=textRevisionValues(extraction,text);
  const directFacts:ScopeExtraction['facts']=[];
  for(const {original,clause} of revisionClauses(text)){
-  const claim=clause.match(/\bto\s+(?:exactly\s+)?(\d+(?:\.\d+)?)\s*(LF|SF|linear feet|square feet|handles?|levers?)?\b/i);
+  const claim=numericRevisionClaim(clause);
   if(!claim)continue;
   for(const [field,component] of Object.entries(NUMERIC_COMPONENTS) as [ScopeField,RegExp][]){
    if(!component.test(clause))continue;
-   const unit=claim[2]||'';
+   const unit=claim.unit;
    const validUnit=(field==='fixtureCount'?/^(?:handles?|levers?)?$/i:/Lf$/.test(field)?/^(LF|linear feet)$/i:/^(SF|square feet)$/i).test(unit);
    if(!validUnit)continue;
    // Derive an omitted correction from the customer's own words, but keep an
@@ -82,7 +90,7 @@ export function applyExplicitTypedCorrections(extraction:ScopeExtraction,text:st
    if(extraction.facts.some(f=>f.field===field&&/typed|submitted\s*scope/i.test(f.source)))continue;
    // A wall-tile revision must not replace the legacy combined tile total.
    if(field==='tileSqft'&&NUMERIC_COMPONENTS.wallTileSqft!.test(clause))continue;
-   directFacts.push({field,value:claim[1],basis:'stated',confidence:1,source:'typed scope',evidence:original.trim()});
+   directFacts.push({field,value:claim.value,basis:'stated',confidence:1,source:'typed scope',evidence:original.trim()});
   }
  }
  if(directFacts.length)extraction={...extraction,facts:[...extraction.facts,...directFacts]};
@@ -94,8 +102,8 @@ export function applyExplicitTypedCorrections(extraction:ScopeExtraction,text:st
   const value=Number(fact.value);if(!Number.isFinite(value)||value<0)continue;
   const matches=clauses.filter(clause=>component.test(clause)&&/\b(?:change|revise|update|correct)\b/i.test(clause));
   const valid=matches.some(clause=>{
-   const numbers=[...clause.matchAll(/\bto\s+(?:exactly\s+)?(\d+(?:\.\d+)?)\s*(LF|SF|linear feet|square feet|handles?|levers?)?\b/gi)];
-   return numbers.length===1&&Number(numbers[0][1])===value&&(fact.field==='fixtureCount'?/^(?:handles?|levers?)?$/i:/Lf$/.test(fact.field)?/^(LF|linear feet)$/i:/^(SF|square feet)$/i).test(numbers[0][2]||'');
+   const claim=numericRevisionClaim(clause);
+   return claim&&Number(claim.value)===value&&(fact.field==='fixtureCount'?/^(?:handles?|levers?)?$/i:/Lf$/.test(fact.field)?/^(LF|linear feet)$/i:/^(SF|square feet)$/i).test(claim.unit);
   });
   if(valid)accepted.set(fact.field,fact.value);
  }

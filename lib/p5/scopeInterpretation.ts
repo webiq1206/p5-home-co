@@ -37,6 +37,35 @@ export function reconcileDocumentHierarchy(extraction:ScopeExtraction,text:strin
  return next;
 }
 
+/** A building footprint is not a measured installation area for selected work.
+ * Preserve the quoted footprint while withholding the unsupported component
+ * measurement, including a takeoff copied from the same statement. */
+export function separateFootprintFromInstallation(extraction:ScopeExtraction,text:string):ScopeExtraction{
+ const next=structuredClone(extraction);
+ const disputed=new Set<string>();
+ const explicitArea=(value:string)=>{
+   const number=value.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+   const unit='(?:SF|square feet|sq\\.?\\s*ft)';
+   const material='(?:(?:new|installed|replacement|bathroom|ceramic|porcelain|LVP|LVT)\\s+)*(?:flooring|floor tile|tile flooring|tile)';
+   return new RegExp('\\b'+number+'\\s*'+unit+'\\s+(?:of\\s+)?'+material+'\\b|\\b'+material+'\\s*(?:area\\s*)?(?:is|=|:|of)?\\s*'+number+'\\s*'+unit+'\\b','i');
+ };
+
+ next.facts=next.facts.map(f=>{
+  if(!['flooringSqft','tileSqft'].includes(f.field)||!Number.isFinite(Number(f.value)))return f;
+  const footprint=next.facts.some(p=>p.field==='sqft'&&p.value===f.value);
+  const role=/\b(?:house|home|bathroom|room|kitchen)\b/i.test(f.evidence);
+  const authority=/typed|submitted/i.test(f.source)?text:f.evidence;
+  const entire=/\b(?:all (?:the )?floors?|entire floor(?:ing)?|flooring throughout)\b/i.test(authority);
+  if(!footprint||!role||explicitArea(f.value).test(authority)||entire)return f;
+  disputed.add(f.value);
+  next.clarifications=[...(next.clarifications||[]),{field:'flooringSqft',question:'How many square feet of flooring will actually be replaced? The stated room or home size may include retained areas.',reason:'Building footprint does not establish the included installation area.'}];
+  return {...f,field:'otherDetails',basis:'inferred',confidence:Math.min(f.confidence,.6),value:'Installation area remains unmeasured. Source describes project footprint: '+f.evidence};
+ });
+ next.takeoffs=next.takeoffs?.map(t=>t.quantity!==null&&disputed.has(String(t.quantity))&&/\bfloor(?:ing)?|floor tile\b/i.test(t.component+' '+t.description)&&/\b(?:house|home|bathroom|room|kitchen)\b/i.test(t.evidence)&&!explicitArea(String(t.quantity)).test(t.evidence)
+  ?{...t,quantity:null,basis:'uncertain',evidence:t.evidence+'; previously assigned '+t.quantity+' '+t.unit+' was a project footprint, not a measured installation area.',issues:[...t.issues,'Confirm included installation area; project footprint alone does not establish it.']}:t);
+ return next;
+}
+
 /** Correct a field identity only when its own quoted evidence identifies the
  * narrower count. A bathroom count does not establish the home's room count. */
 export function normalizeCountSubjects(extraction:ScopeExtraction):ScopeExtraction{
@@ -85,7 +114,7 @@ export function groundDocumentConditions(extraction:ScopeExtraction,text:string)
  const assumedSite=next.facts.some(f=>f.field==='site'&&/\b(?:assum\w*|must|shall|required|design(?:ed)?)\b/i.test(f.evidence+' '+f.value));
  let siteNeedsConfirmation=false;
  next.facts=next.facts.map(f=>{
-  if(f.field==='site'&&assumedSite&&(/\b(?:assum\w*|must|shall|required|design(?:ed)?)\b/i.test(f.evidence+' '+f.value)||/\b(?:site work within|compacted earth|site management|discharge water|not shown|missing|not specified)\b/i.test(f.evidence+' '+f.value))){
+  if(f.field==='site'&&(assumedSite&&(/\b(?:assum\w*|must|shall|required|design(?:ed)?)\b/i.test(f.evidence+' '+f.value)||/\b(?:site work within|compacted earth|site management|discharge water|not shown|missing|not specified)\b/i.test(f.evidence+' '+f.value))||/\b(?:granular fill|splash block|under (?:the )?slab|no site[\s\S]{0,35}(?:data|info)|site[\s\S]{0,35}(?:not detailed|must be provided))\b/i.test(f.evidence+' '+f.value))&&!/\b(?:observed|survey confirms|soil report confirms|customer confirms|owner confirms|existing site is)\b/i.test(f.evidence+' '+f.value)){
    siteNeedsConfirmation=true;
    return {...f,field:'otherDetails',value:'Site design requirement or assumption, not verified site conditions: '+f.value};
   }

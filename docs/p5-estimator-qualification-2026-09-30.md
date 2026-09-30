@@ -291,3 +291,22 @@ New regression fixtures exercise supplier-package conversion and rejection, disp
 Known unresolved acceptance items include whole-plan takeoff/specification verification, all eight final category workflows and incomplete scopes, realistic consumable usage and procurement, contradictory/overlong assumptions, complete revision/delivery coverage, independent estimate-level local-price validation and the specifically blocked private permit/RE10 uploads. P5 remains **not accepted**, and no other estimator has been edited or deployed.
 
 Preserved public/synthetic-only evidence: [live window estimate and download status](qualification-2026-09-30/window8-live.jpg), [downloaded window PDF — failed content audit](qualification-2026-09-30/window8-failed-audit.pdf). These are negative test evidence, not an approved reference estimate. Private draft credentials and customer documents are excluded from Git.
+
+
+## Additional plan-quality follow-up, not part of release .9
+
+Release .9 local and host validation both passed 1,584 tests, 15 explicit skips and zero failures, six database-safety checks, production compilation and TypeScript. Exact commit `70ab14285145bcbf7a9f49a54ee197dcdfb22af1`, tree `3102b5f5014e68e89ce884d4188085d05db4b515`, source digest `48016bc66ca9bb4e24b26ba6eb22783e6369fcf9d93a6955d8755ed98bf42eff`, 955 tracked files, clean. Publishing was initiated after matching the host receipt. Production retesting is separate and remains pending in this checkpoint.
+
+Further .8 live evidence exposed these problems, now addressed in a separate local follow-up:
+
+- A 4-inch granular-fill requirement and a splash-block note filled the actual-site-conditions field. They now remain construction evidence and cannot answer site slope, soils or access. Explicit observed/customer-confirmed existing conditions remain usable.
+- `Utility scope not detailed` and `No site, soil or slope data` suppressed questions. These now remain unresolved. The three Osprey representations all ask for actual site and utility information when locally reconciled; other source-dependent differences remain under audit.
+- Three differently worded questions asked the same covered exterior stair/landing area. The narrow repeated-area decision is consolidated; different components and named structures stay separate. Plural `soils` binds to the same site answer.
+- Incomplete whole-home scope assigned the 1,800 SF house footprint to replacement flooring, although only selected finishes were requested. Incomplete bathroom scope likewise assigned its 60 SF room footprint to tile. The follow-up retains the source footprint and asks for actual installation area, preserving independently stated component measurements. A room footprint may later support a disclosed allowance, not a purported measured takeoff.
+- The new-home combined revision still conflicted between 440 SF and explicitly revised 24×24 feet = 576 SF. The follow-up accepts the revised area only when the supplied dimensions and area agree arithmetically, and preserves the 2,000 SF living area.
+
+Combined revision extraction results on .8: bathroom 96 SF shower walls with 60 SF floor, kitchen backsplash excluded, whole-home LVP 1,500 SF while retaining 80 SF bathroom tile, ADU sewer 35 LF with separate water 20 LF, and cabinet upper 10 LF/base 12 LF all finalized without conflicts. New-home garage and handyman handle revisions failed and have focused repairs. These are extraction substeps, not final estimate passes.
+
+An automatic approval review paused the synthetic RE10 combined test because the payload was not visible and could have been confused with the blocked private documents. Local inspection verified the exact generated PDF: SHA-256 `4300b64e3632fb79d51cc2855124e07f4ec7bcfd2ae96932fcfb95b0579086a3`, marked synthetic/not a real transaction, with two GFCIs, one PVC trap and one drywall patch; no real customer or transaction data. A test-script guard now accepts only that hash and refuses any other existing attachment. The verified synthetic upload then started successfully. This does not authorize or qualify the previously blocked genuine RE10 or permit documents.
+
+Follow-up local gate: 1,603 tests, 1,588 passes, 15 explicit skips, zero failures, and TypeScript passed. This follow-up has not received a production build or deployment gate. No other website has changed.

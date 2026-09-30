@@ -143,7 +143,8 @@ export function scopeQuestions(input:ScopeAnswers,extraction:ScopeExtraction|nul
   return questions.map(q=>{
     const allowed=choiceValues(q.field,answers);
     const values=q.field==='finish'?allowed:q.values?.length?q.values:allowed;
-    const reason=q.field!=='estimatingInstructions'&&!q.conflict&&!/\?|^(?:what|which|how|where|is|are|do|does|will|can|could|would|should|please|confirm|describe|provide|select|choose)\b/i.test(q.reason)?questionReason(q.field,answers):q.reason;
+    const mixedSitePrompt=q.field==='site'&&/\butilit(?:y|ies)\s*\/\s*site\b|\bsite\s*\/\s*utilit(?:y|ies)\b/i.test(q.reason);
+    const reason=mixedSitePrompt||q.field!=='estimatingInstructions'&&!q.conflict&&!/\?|^(?:what|which|how|where|is|are|do|does|will|can|could|would|should|please|confirm|describe|provide|select|choose)\b/i.test(q.reason)?questionReason(q.field,answers):q.reason;
     return {...q,reason,...(values?.length?{values}:{}),...(reason!==q.reason?{detail:[q.reason,q.detail].filter(Boolean).join(' ')}:{}),...(q.reason.length>240?{reason:`Please confirm ${q.label.toLowerCase()}.`,detail:[q.reason,q.detail].filter(Boolean).join(" ")}:{})};
   });
 }
