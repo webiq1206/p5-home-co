@@ -481,6 +481,10 @@ function existingLines(priced:ReturnType<typeof priceReviewedScope>){
 
 /** Models sometimes return a catalog code where a priced-line ID is requested.
  * Resolve only an exact, unique evidenced code; ambiguous matches stay unresolved. */
+export function exactDuplicateCharge(a:{scopeTaskId?:string;description:string;quantity:number;unit:string;unitCost:number;category?:string;building?:string;floor?:string;evidence?:{reference?:string}},b:typeof a):boolean{
+ const key=(line:typeof a)=>JSON.stringify([line.scopeTaskId,line.description,line.quantity,line.unit,line.unitCost,line.category,line.building,line.floor,line.evidence?.reference]);
+ return Boolean(a.scopeTaskId&&a.evidence?.reference)&&key(a)===key(b);
+}
 export function resolvePricedLineId(id:string,lines:{id:string;evidence?:{reference?:string}}[]):string{
  if(lines.some(line=>line.id===id))return id;
  const matches=lines.filter(line=>(line.evidence?.reference||'').split(';').some(part=>part.trim()===id));
@@ -508,7 +512,12 @@ function vanitySizeMatches(task:string,component:string):boolean|null{
   return wanted.length===1&&available.length===1?wanted[0][0]>=available[0][0]&&wanted[0][1]<=available[0][1]:null;
 }
 const vanitySizeIssue=(description:string)=>`${description}: catalog vanity size does not match the requested width.`;
-const wrongCabinetFasteners=(task:string,product:string)=>/\bdrywall screws?\b/i.test(product)&&/\bcabinet(?:ry)?\s+(?:installation|mounting)|\b(?:install|mount)\w*\b[^.]{0,50}\bcabinets?\b/i.test(task+' '+product);
+/** Negated product exclusions are not product selections. Keep rejecting any
+ * affirmative drywall-screw mention, including descriptions with both kinds. */
+export function wrongCabinetFasteners(task:string,product:string):boolean{
+ const selected=product.replace(/\b(?:not|never|no|without|avoid|excluding|exclude|rather than|instead of|do not use|do not substitute)\s+(?:using\s+)?drywall screws?\b/gi,'');
+ return /\bdrywall screws?\b/i.test(selected)&&/\bcabinet(?:ry)?\s+(?:installation|mounting)|\b(?:install|mount)\w*\b[^.]{0,50}\b(?:cabinets?|vanit(?:y|ies))\b/i.test(task+' '+product);
+}
 /** A general installation requirement applies to each real task, rather than
  * authorizing another copy of every installed assembly. Specific materials,
  * quantities and separately named operations never match this narrow form. */
@@ -548,6 +557,11 @@ export function normalizeConsumableMapping(mapping:Mapping,configuration:Estimat
     ||existing.some(line=>line.quantity*line.unitCost>0&&/\b(?:quartz|granite|solid surface|laminate)\b/i.test(line.description)&&/\b(?:countertop|counter top)\b/i.test(line.description));
   for(const task of mapping.tasks){
     if(taskSelectionStatus(task,mapping.tasks)!=='billable')continue;
+    if(/\bclean(?:up|ing)\b/i.test(task.description)&&['handyman','re10','cabinet-install','cabinet-product','cabinet-replace'].includes(scope.answers.service||'')
+      &&!(Number(scope.answers.sqft||scope.answers.flooringSqft)>0)&&!/\b\d+(?:\.\d+)?\s*(?:SF|square feet)\b/i.test(source)){
+      const wrongArea=task.additions.filter(a=>/^PB-01-74-0[45]$/.test(a.code));
+      if(wrongArea.length){task.additions=task.additions.filter(a=>!wrongArea.includes(a));task.researchDescription='Job cleanup labor for the requested repairs or cabinet installation. No measured cleaning area was supplied. Consider approved PB-01-74-10 hourly cleanup with a clearly disclosed, scope-justified time allowance and range; do not substitute 1 SF for a job. '+task.description;}
+    }
     // Preserve technical device specifications and the selected-remodel boundary.
     const genericGfci=task.additions.filter(a=>/\bGFCI\b/i.test(task.description)&&['PB-26-28-02','REF-DEVICE'].includes(a.code));
     if(genericGfci.length){
@@ -745,6 +759,21 @@ export function normalizeRepairServices(mapping:Mapping,configuration:EstimatorC
   task.additions.push({code:selected.code,quantity:count,quantityEvidence:`Stated ${count} drywall patch(es), ${area} SF each, within this per-patch service's size band. Whole-wall production rates do not cover a small repair visit.`,building:location.building,floor:location.floor});
   mapping.notes.push(`${task.description}: use the approved ${selected.description} service for the stated patch count, replacing whole-wall square-foot production rates.`);
  }
+ // A patch service includes only its documented work. Preserve explicitly
+ // requested spot primer when the service does not include it.
+ const rates=configuration.planningCatalog?.rates||[];
+ const primer=rates.find(rate=>rate.code==='PB-09-91-12'&&unitKey(rate.unit)==='sf');
+ if(primer)for(const task of mapping.tasks){
+  const primerText=(task.description+' '+task.evidence)
+   .replace(/\b(?:no|without|exclude\w*|do not|don't)\s+(?:spot[ -])?prim(?:e|er|ing)\b/gi,'')
+   .replace(/\b(?:spot[ -])?prim(?:e|er|ing)\s+(?:is\s+)?(?:excluded|by\s+(?:owner|others))\b/gi,'');
+  if(taskSelectionStatus(task,mapping.tasks)!=='billable'||!/\b(?:patch|repair)\b/i.test(task.description)||!/\bdrywall\b/i.test(task.description)||!/\bprim(?:e|er|ing)\b/i.test(primerText))continue;
+  const patch=task.additions.find(a=>rates.some(r=>r.code===a.code&&/^Drywall patch,/i.test(r.description)&&! /\bprim(?:e|er|ing)\b/i.test(r.description)));
+  if(!patch||mapping.tasks.some(t=>t.additions.some(a=>a.code===primer.code)||t!==task&&/\bprim(?:e|er|ing)\b/i.test(t.description)))continue;
+  const parsed=parseNumericAnswer('sqft',task.description),area=parsed&&'value' in parsed?Number(parsed.value):0;
+  if(area>0)task.additions.push({code:primer.code,quantity:area*patch.quantity,quantityEvidence:`Spot prime the explicitly requested ${patch.quantity} patch(es) at ${area} SF each, ${area*patch.quantity} SF total. The selected patch service does not include primer.`,building:patch.building,floor:patch.floor});
+ }
+
 }
 
 export function catalogResolution(mapping:Mapping,configuration:EstimatorConfiguration,existing:ReturnType<typeof existingLines>,now:Date,scope?:ReviewedScope):ScopePriceResolution{
@@ -975,13 +1004,16 @@ function ownerSuppliesMaterial(task:Mapping['tasks'][number],quantity?:number,un
  * confirmed line.
  */
 function quantityClaims(textValue:string):QuantityClaim[]{
-  const textValueWithWords=withoutThousands(textValue).replace(/\b(one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty)\b/gi,(word)=>String(NUMBER_WORDS[word.toLowerCase()]));
+  const textValueWithWords=withoutThousands(textValue).replace(/\b(one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty)\b/gi,(word)=>String(NUMBER_WORDS[word.toLowerCase()]))
+    // Nominal width is a specification between count and component, never
+    // another count: "two 30-inch vanities" means two vanities.
+    .replace(/(\b\d+\s+)\d+(?:\.\d+)?\s*[- ]?\s*(?:inch(?:es)?|in|["″])\s+(?=vanit(?:y|ies)\b)/gi,'$1');
   const claims:QuantityClaim[]=[];
   const add=(quantity:number,unit:string)=>{if(Number.isFinite(quantity)&&quantity>0)claims.push({quantity,unit:unitKey(unit)});};
-  const pattern=/(?:^|[^\d.])(\d+(?:\.\d+)?)\s*(?:(?:labor|labour)\s*)?(hours?|hrs?|hr|h|feet?|ft|linear\s+feet?|lineal\s+feet?|lf|square\s+feet?|square\s+foot|sq\.?\s*ft|sf|cubic\s+yards?|cubic\s+yard|cy|each|units?|fixtures?|doors?|windows?|toilets?|faucets?|lights?)(?![\w/])(?!\s+(?:colou?rs?|styles?|types?|finish(?:es)?|hardware|swing|handing|selections?)\b)/gi;
+  const pattern=/(?:^|[^\d.])(\d+(?:\.\d+)?)\s*(?:(?:labor|labour)\s*)?(hours?|hrs?|hr|h|feet?|ft|linear\s+feet?|lineal\s+feet?|lf|square\s+feet?|square\s+foot|sq\.?\s*ft|sf|cubic\s+yards?|cubic\s+yard|cy|each|units?|fixtures?|doors?|windows?|toilets?|faucets?|lights?|vanit(?:y|ies)|sinks?|handles?|levers?)(?![\w/])(?!\s+(?:colou?rs?|styles?|types?|finish(?:es)?|hardware|swing|handing|selections?)\b)/gi;
   for(const match of textValueWithWords.matchAll(pattern)){
     const unit=match[2].toLowerCase();
-     add(Number(match[1]),/\bhours?\b|\bhrs?\b|\bhr\b|\bh\b/.test(unit)?'hour':/\b(?:square|sq|sf)\b/.test(unit)?'sf':/\b(?:cubic|cy)\b/.test(unit)?'cy':/\b(?:linear|lineal|lf|feet?|ft)\b/.test(unit)?'lf':/\b(?:doors?|windows?|fixtures?|toilets?|faucets?|lights?)\b/.test(unit)?'each':unit);
+     add(Number(match[1]),/\bhours?\b|\bhrs?\b|\bhr\b|\bh\b/.test(unit)?'hour':/\b(?:square|sq|sf)\b/.test(unit)?'sf':/\b(?:cubic|cy)\b/.test(unit)?'cy':/\b(?:linear|lineal|lf|feet?|ft)\b/.test(unit)?'lf':/\b(?:doors?|windows?|fixtures?|toilets?|faucets?|lights?|vanit(?:y|ies)|sinks?|handles?|levers?)\b/.test(unit)?'each':unit);
   }
   return claims;
 }
@@ -1995,7 +2027,7 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
     };
     const verifiedParts=await Promise.all(sourceParts.map((part,index)=>requestPricingAudit(request,{original:part,tasks:mapping.tasks.filter(t=>sourceParts.length===1||taskSources.get(t.id)===index),allTaskDescriptions:mapping.tasks.map(t=>({id:t.id,description:t.description})),priorPricingIssues:resolution.issues,existingLines:lines.filter(l=>!resolution.removeLineIds?.includes(l.id)),removedLines:lines.filter(l=>resolution.removeLineIds?.includes(l.id)),adjustments:auditTrail.adjustments,additionalRules:resolution.rules,existingExclusions:base.customer.exclusions.filter(e=>!resolution.removeExclusions?.includes(e)),research:auditTrail.research},()=>deadline-Date.now())));
     for(const verified of verifiedParts){
-      const section=auditSchema.parse(verified.value);audit.coveredTaskIds.push(...section.coveredTaskIds);audit.issues.push(...section.issues);section.issues.forEach(issue=>opinions.add(issue));audit.notes.push(...section.notes);resolution.assumptions.push(...section.notes);audit.resolvedIssues.push(...section.resolvedIssues);
+      const section=auditSchema.parse(verified.value);audit.coveredTaskIds.push(...section.coveredTaskIds);audit.issues.push(...section.issues);section.issues.forEach(issue=>opinions.add(issue));audit.notes.push(...section.notes);audit.resolvedIssues.push(...section.resolvedIssues);
     }
     audit.coveredTaskIds=[...new Set(audit.coveredTaskIds)];
     reconcileIssues();
@@ -2142,16 +2174,19 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
       resolution.rules=resolution.rules.filter(rule=>!(researchRule(rule)&&replaced.has(rule.scopeTaskId!)));
       const repairedLines=existingLines(priceReviewedScope(scope,configuration,now,resolution));
       mergeGapResults(await mapResearchTasks(researchTaskBatches(repairGaps,pricingScope),(gapBatch,index)=>priceGapBatch(gapBatch,1000+index,t=>coveredWork(t,repairedLines,resolution.rules),priorIssues)));
-      audit.coveredTaskIds=[];audit.issues=[];audit.resolvedIssues=[];
+      audit.coveredTaskIds=[];audit.issues=[];audit.notes=[];audit.resolvedIssues=[];
+      const repairedCoverage=applyPricingCorrections({scope:pricingScope,inventoryTasks:inventory.tasks,mappingTasks:mapping.tasks,lines,resolution,pricingExtraction,configuration,now});
+      for(const id of repairedCoverage.coveredTaskIds)if(!audit.coveredTaskIds.includes(id))audit.coveredTaskIds.push(id);
       const checkedParts=await Promise.all(sourceParts.map((part,index)=>requestPricingAudit(request,{original:part,tasks:mapping.tasks.filter(t=>sourceParts.length===1||taskSources.get(t.id)===index),priorPricingIssues:resolution.issues,existingLines:lines.filter(l=>!resolution.removeLineIds?.includes(l.id)),additionalRules:resolution.rules,priorAuditIssues:priorIssues,removedLines:pricedComponents.filter(l=>resolution.removeLineIds?.includes(l.id)),existingExclusions:base.customer.exclusions.filter(e=>!resolution.removeExclusions?.includes(e)),research,allTaskDescriptions:mapping.tasks.map(t=>({id:t.id,description:t.description}))},()=>deadline-Date.now())));
       for(const checked of checkedParts){
-        const section=auditSchema.parse(checked.value);audit.coveredTaskIds.push(...section.coveredTaskIds);audit.issues.push(...section.issues);section.issues.forEach(issue=>opinions.add(issue));audit.notes.push(...section.notes);resolution.assumptions.push(...section.notes);audit.resolvedIssues.push(...section.resolvedIssues);
+        const section=auditSchema.parse(checked.value);audit.coveredTaskIds.push(...section.coveredTaskIds);audit.issues.push(...section.issues);section.issues.forEach(issue=>opinions.add(issue));audit.notes.push(...section.notes);audit.resolvedIssues.push(...section.resolvedIssues);
       }
       auditTrail.tasks=mapping.tasks;
       auditTrail.adjustments={initial:auditTrail.adjustments,repairReplacements:fixes.replacements,repairExclusions:fixes.removeExclusions,priorAuditIssues:priorIssues};
       reconcileIssues();
     }
     auditTrail.verification=audit;
+    resolution.assumptions.push(...audit.notes);
     const ids=new Set(mapping.tasks.map(t=>t.id));
     // An unknown id in the check's coverage list is ignored; it cannot mark a real task covered.
     audit.coveredTaskIds=audit.coveredTaskIds.filter(id=>ids.has(id));
@@ -2275,9 +2310,8 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
       resolution.rules.some(rule=>rule.scopeTaskId===task.id&&rule.quantity.fixed!==undefined&&rule.quantity.fixed>0&&rule.unitCost>0)
       ||(task.existingLineIds||[]).some(id=>finalIds.has(id))).map(({id,description})=>({id,description}));
   }catch{/* keep the list computed during pricing */}
-  // A duplicate stated as fact that names two or more priced lines is corrected, not a reason to
-  // withhold the estimate: the costliest line stays, the others leave the total, and the change is
-  // disclosed for review. One naming fewer than two priced lines cannot be acted on and still blocks.
+  // A model allegation cannot delete distinct scope. Only identical charges
+  // for the same source task can be mechanically consolidated here.
   const resolvedDuplicates=new Set<string>();
   try{
     const finalLines=existingLines(priceReviewedScope(scope,configuration,now,resolution)).filter(line=>line.quantity*line.unitCost>0);
@@ -2287,7 +2321,8 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
       const taskLineIds=duplicateTaskLineIds(issue,auditTrail.tasks as {id:string;description:string}[],resolution.rules);
       const named=finalLines.filter(line=>(new RegExp(`(?:^|[^\\w-])${line.id.toLowerCase()}(?![\\w-])`).test(t)||taskLineIds.includes(line.id))&&!resolution.removeLineIds?.includes(line.id));
       if(named.length<2)continue;
-      const keep=named.reduce((a,b)=>b.quantity*b.unitCost>a.quantity*a.unitCost?b:a);
+      if(!named.every(line=>exactDuplicateCharge(named[0],line)))continue;
+      const keep=named[0];
       const drop=named.filter(line=>line!==keep).map(line=>line.id);
       resolution.rules=resolution.rules.filter(rule=>!drop.includes(rule.id));
       resolution.removeLineIds=[...new Set([...(resolution.removeLineIds||[]),...drop])];

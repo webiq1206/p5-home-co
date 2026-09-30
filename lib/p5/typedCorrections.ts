@@ -2,6 +2,7 @@ import type {ScopeExtraction} from './scope.ts';
 import type {ScopeField} from './scopeFields.ts';
 
 const NUMERIC_COMPONENTS:Partial<Record<ScopeField,RegExp>>={
+ fixtureCount:/\b(?:handles?|levers?)\b/i,
  cabinetBaseLf:/\b(?:base|lower)\s+cabinets?\b/i,
  cabinetUpperLf:/\b(?:upper|wall)\s+cabinets?\b/i,
  cabinetTallLf:/\b(?:tall|pantry)\s+cabinets?\b/i,
@@ -12,7 +13,7 @@ const NUMERIC_COMPONENTS:Partial<Record<ScopeField,RegExp>>={
  tileSqft:/\b(?:tile|backsplash)\b/i,
  trimLf:/\b(?:baseboard|trim)\b/i,
 };
-const normalize=(value:string)=>value.toLowerCase().replace(/\b(one|two|three|four|five|six|seven|eight|nine|ten)\b/g,word=>String(['one','two','three','four','five','six','seven','eight','nine','ten'].indexOf(word)+1)).replace(/\bby\b/g,'x').replace(/\s+/g,' ').trim();
+const normalize=(value:string)=>value.toLowerCase().replace(/\b(one|two|three|four|five|six|seven|eight|nine|ten)\b/g,word=>String(['one','two','three','four','five','six','seven','eight','nine','ten'].indexOf(word)+1)).replace(/\bby\b/g,'x').replace(/\s*x\s*/g,'x').replace(/\s+/g,' ').trim();
 /** Text fields can contain several unchanged components. Resolve only a
  * named, explicit edit whose new quantity is actually present in the retained
  * field. A fabricated quote or an explanation saying "superseded" is not enough. */
@@ -21,6 +22,7 @@ function textRevisionValues(extraction:ScopeExtraction,text:string):Map<ScopeFie
  const kinds:{field:ScopeField;component:RegExp;unit:RegExp;quantity:(value:string)=>string[]}[]=[
   {field:'plumbing',component:/\bsewer\b/i,unit:/^(?:lf|linear feet)$/,quantity:value=>[...value.matchAll(/\b(\d+(?:\.\d+)?)\s*(?:lf|linear feet)\s+sewer\b|\bsewer(?:\s+extension)?\s*(?:of|to|:)?\s*(\d+(?:\.\d+)?)\s*(?:lf|linear feet)\b/g)].map(m=>m[1]||m[2])},
   {field:'fixtures',component:/\b(?:lever|handle)\b/i,unit:/^$/,quantity:value=>[...value.matchAll(/\b(\d+)\s+(?:owner[- ]supplied\s+|matching\s+|passage\s+|interior\s+|door\s+)*(?:lever|handle)\b/g)].map(m=>m[1])},
+  {field:'taskList',component:/\bdrywall\b/i,unit:/^(?:inches|inch|in)$/,quantity:value=>[...value.matchAll(/\b(\d+(?:\.\d+)?x\d+(?:\.\d+)?)\s*(?:inch|inches|in)\b/g)].map(m=>m[1])},
   {field:'otherDetails',component:/\bdrywall\b/i,unit:/^(?:inches|inch|in)$/,quantity:value=>[...value.matchAll(/\b(\d+(?:\.\d+)?\s*x\s*\d+(?:\.\d+)?)\s*(?:inch|inches|in)\b/g)].map(m=>m[1])},
  ];
  for(const original of text.split(/(?<=[.!?])\s+|\n|;/)){
@@ -33,6 +35,12 @@ function textRevisionValues(extraction:ScopeExtraction,text:string):Map<ScopeFie
    const facts=extraction.facts.filter(f=>f.field===kind.field&&f.basis==='stated'&&f.confidence>=.85&&kind.component.test(f.value));
    const valid=facts.filter(f=>{const values=[...new Set(kind.quantity(normalize(f.value)))];return values.length===1&&values[0]===claim[1];});
    if(valid.length===1)accepted.set(kind.field,{value:valid[0].value,component:kind.component,...(kind.field==='plumbing'?{other:/\b(?:water|gas|faucet|toilet|sink|shower)\b/i}:kind.field==='fixtures'?{other:/\b(?:faucet|toilet|sink|shower)\b/i}:{})});
+  }
+  if(/\b(?:LVP|flooring)\b/i.test(clause)&&/^(?:sf|square feet)$/.test(claim[2]||'')){
+   for(const field of ['taskList','demolition'] as ScopeField[]){
+    const valid=extraction.facts.filter(f=>f.field===field&&f.basis==='stated'&&f.confidence>=.85&&/\b(?:LVP|flooring)\b/i.test(f.value)&&new RegExp('\\b'+claim[1]+'\\s*(?:SF|square feet)\\b','i').test(f.value));
+    if(valid.length===1)accepted.set(field,{value:valid[0].value,component:/\b(?:LVP|flooring|retained floor)\b/i,other:/\b(?:tile|doors?|cabinets?|fixtures?|walls?)\b/i});
+   }
   }
   // Wall height and perimeter can share the detail field with unchanged paint
   // areas. An explicit perimeter in the tile revision resolves that detail only.
@@ -55,13 +63,13 @@ export function applyExplicitTypedCorrections(extraction:ScopeExtraction,text:st
  const accepted=new Map<ScopeField,string>();
  for(const fact of [...extraction.facts].sort((a,b)=>text.lastIndexOf(a.evidence)-text.lastIndexOf(b.evidence))){
   const component=NUMERIC_COMPONENTS[fact.field];
-  if(!component||fact.basis!=='stated'||fact.confidence<.85||!/typed|submitted\s*scope/i.test(fact.source)||!fact.evidence.trim()||!text.includes(fact.evidence.trim()))continue;
-  const clauses=fact.evidence.split(/(?<=[.!?])\s+|\n|;/);
+  if(!component||fact.basis!=='stated'||fact.confidence<.85||!/typed|submitted\s*scope/i.test(fact.source))continue;
+  const clauses=text.split(/(?<=[.!?])\s+|\n|;/).map(normalize);
   const value=Number(fact.value);if(!Number.isFinite(value)||value<0)continue;
   const matches=clauses.filter(clause=>component.test(clause)&&/\b(?:change|revise|update|correct)\b/i.test(clause));
   const valid=matches.some(clause=>{
-   const numbers=[...clause.matchAll(/\bto\s+(\d+(?:\.\d+)?)\s*(LF|SF|linear feet|square feet)\b/gi)];
-   return numbers.length===1&&Number(numbers[0][1])===value&&(/Lf$/.test(fact.field)?/^(LF|linear feet)$/i:/^(SF|square feet)$/i).test(numbers[0][2]);
+   const numbers=[...clause.matchAll(/\bto\s+(\d+(?:\.\d+)?)\s*(LF|SF|linear feet|square feet|handles?|levers?)?\b/gi)];
+   return numbers.length===1&&Number(numbers[0][1])===value&&(fact.field==='fixtureCount'?/^(?:handles?|levers?)?$/i:/Lf$/.test(fact.field)?/^(LF|linear feet)$/i:/^(SF|square feet)$/i).test(numbers[0][2]||'');
   });
   if(valid)accepted.set(fact.field,fact.value);
  }

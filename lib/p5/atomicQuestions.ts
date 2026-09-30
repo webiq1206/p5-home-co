@@ -17,7 +17,7 @@ export function projectAreaQuestionField(text:string,answers:ScopeAnswers):Scope
  // Separating living area from garage/outdoor area clarifies the quantity;
  // those exclusions must not turn the same living-area question into a new decision.
  text=text.replace(/\([^)]*\bexclud(?:e|es|ing)\b[^)]*\)/gi,'').replace(/\bexcluding\b.*$/i,'');
- if(!/\b(?:square (?:feet|footage)|sq\.?\s*ft|area)\b/i.test(text)||!/\b(?:total|overall|entire|whole|project)\b/i.test(text))return;
+ if(!/\b(?:square (?:feet|footage)|sq\.?\s*ft|area)\b/i.test(text)||!/\b(?:total|overall|entire|whole|project|ADU)\b/i.test(text))return;
  if(/\b(?:garage|outdoor|covered|roof|wall|flooring|tile|countertop|window|door|foundation|existing)\b/i.test(text))return;
  const subject:Record<string,RegExp>={addition:/\baddition\b/i,adu:/\badu\b/i,'new-construction':/\b(?:home|house|residence|living space)\b/i,'whole-home':/\b(?:home|house|residence|project)\b/i,kitchen:/\bkitchen\b/i,bathroom:/\bbathroom\b/i};
  if(/\bproject\b/i.test(text)||subject[answers.service||'']?.test(text))return 'sqft';
@@ -26,20 +26,29 @@ export function projectAreaQuestionField(text:string,answers:ScopeAnswers):Scope
 /** Bind ordinary project questions to their actual saved answer. Component
  * quantities remain distinct; this is not fuzzy text deduplication. */
 export function projectQuestionField(text:string,answers:ScopeAnswers):ScopeField|undefined{
+ if(/\bfloor(?:ing)?\b/i.test(text)&&/\b(?:area|square feet|square footage|SF)\b/i.test(text))return 'flooringSqft';
+ if(/\b(?:shower|backsplash)\b/i.test(text)&&/\b(?:area|square feet|square footage|SF)\b/i.test(text))return 'tileSqft';
  const measured=/\b(?:how many|number of|count|total)\b/i;
  if(measured.test(text)&&/\bstori?es\b/i.test(text))return 'stories';
  if(measured.test(text)&&/\bbathrooms?\b/i.test(text)&&!/\b(?:fixtures?|sinks?|toilets?|vanit|area|square)\b/i.test(text))return 'bathrooms';
  if(measured.test(text)&&/\brooms?\b/i.test(text)&&!/\bcabinets?\b/i.test(text))return 'rooms';
  if(/\bfinish (?:level|tier)\b/i.test(text))return 'finish';
- if(/\bgarage\b/i.test(text)){
-  if(/\b(?:area|square feet|square footage|sqft)\b/i.test(text)&&!/\b(?:will|does|is|include)\b[^?]*\?\s*if so/i.test(text))return 'garageSqft';
-  if(/\b(?:will|does|is|include)\b/i.test(text))return 'garageIncluded';
+ if(/\bgarage\b/i.test(text)&&['new-construction','adu','addition'].includes(answers.service||'')&&!/\b(?:water heater|outlet|door opener)\b/i.test(text)){
+  if(/\b(?:area|square feet|square footage|sqft)\b/i.test(text)&&!/\b(?:will|does|is|include|included|should)\b[^?]*\?\s*if so/i.test(text))return 'garageSqft';
+  if(/\b(?:will|does|is|include|included|should)\b/i.test(text))return 'garageIncluded';
  }
+ if(/\b(?:utilit(?:y|ies)|water|sewer|electric(?:al)?|gas)\b/i.test(text)&&/\b(?:connect|connection|extension|distance|length|available|availability|stub)\w*\b/i.test(text))return 'utilities';
+ if(/\b(?:soil|slope|site conditions|grading|site access)\b/i.test(text))return 'site';
+ if(/\b(?:what|which)\b[^?]*\b(?:work|changes|repairs)\b[^?]*\b(?:want|proposed|include|need|done)\w*\b/i.test(text))return 'taskList';
  return projectAreaQuestionField(text,answers);
 }
 
 /** Separate independent requests without splitting a list of answer choices. */
 export function atomicInstructionQuestions(text:string,answers:ScopeAnswers={},conflicts:ScopeConflict[]=[]):string[]{
+ if(/\bfloor\b/i.test(text)&&/\bshower\b/i.test(text)&&/\b(?:tile|area|square feet|SF)\b/i.test(text))return [
+  ...(!answers.flooringSqft?['How many square feet of bathroom floor tile are included?']:[]),
+  ...(!answers.tileSqft?['How many square feet of shower wall tile are included?']:[]),
+ ];
  // "linear feet for the base, upper and tall cabinets" puts the unit before
  // the components. Each answer needs its own numeric control.
  if(/\bcabinet\w*\b/i.test(text)&&/\b(?:linear feet|linear footage|lengths?|LF)\b/i.test(text)){
@@ -47,7 +56,7 @@ export function atomicInstructionQuestions(text:string,answers:ScopeAnswers={},c
   const found=named.filter(([pattern])=>new RegExp('\\b(?:'+pattern+')\\b','i').test(text));
   if(found.length>1)text+=' '+found.map(([,field,label])=>`${field==='cabinetBaseLf'?'base':label} cabinet linear feet`).join(', ');
  }
- if(/\bcabinet\w*\s+(?:lengths?|measurements?|dimensions?)\b/i.test(text)&&!/\b(?:base|lower|upper|wall|tall)\b/i.test(text))text=text.replace(/\bcabinet\w*\s+(?:lengths?|measurements?|dimensions?)\b/i,'base cabinet linear feet, upper cabinet linear feet, tall cabinet linear feet');
+ if(/\bcabinet\w*\s+(?:run\s+)?(?:lengths?|measurements?|dimensions?)\b/i.test(text)&&!/\b(?:base|lower|upper|wall|tall)\b/i.test(text))text=text.replace(/\bcabinet\w*\s+(?:run\s+)?(?:lengths?|measurements?|dimensions?)\b/i,'base cabinet linear feet, upper cabinet linear feet, tall cabinet linear feet');
  const topics:{pattern:RegExp;question:string;field?:ScopeField}[]=[
   {pattern:/\bbase\b.{0,30}\b(?:linear\s+(?:footage|feet)|length|LF)\b/i,question:'How many linear feet of base cabinets are included?',field:'cabinetBaseLf'},
   {pattern:/\b(?:upper|wall)\s+cabinet\w*\b.{0,30}\b(?:linear\s+(?:footage|feet)|length|LF)\b/i,question:'How many linear feet of wall cabinets are included?',field:'cabinetUpperLf'},

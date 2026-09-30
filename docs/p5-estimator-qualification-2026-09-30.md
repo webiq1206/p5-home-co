@@ -188,3 +188,54 @@ The screw-package failure contains a reproducible parser defect: one excerpt say
 No .6 production pass is claimed here. The genuine private documents remain blocked pending specific approval. No specialized estimator has been modified or released as part of this qualification effort.
 
 The final local .6 build passed 1,548 tests, with 15 explicit skips and zero failures, plus all six database-safety checks. Production compilation and TypeScript checks passed. An older regression incorrectly demanded house area when a patch measurement was uncertain; it now requires the patch-dimension clarification and rejects unrelated house area. The .4 cabinet revision was independently found in the sender's Sent mailbox at 03:22:31 UTC with the matching $7,375–8,175 range and 176,609-byte PDF. This proves dispatch and matching envelope metadata, not recipient inbox receipt.
+
+## Current documentation reconciliation and deeper workflow findings
+
+The July 20 File Analysis versus Takeoff Mode explanation (updated during the current week) distinguishes reading printed dimensions and callouts from calibrated measurement. File Analysis is documented for small/simple sets and typically under ten minutes. Takeoff Mode separates sheets and drawing regions, scales them and produces annotated drawings over one to two hours. It now describes larger ground-up homes above 5,000 SF and 20/50/100+ pages. This conflicts with the June 10 guide's 5,000 SF ceiling, format list and Scale-only eligibility. The June 19 guide says multiple PDFs, limits shown by the uploader, and one non-expiring Pro credit. Account-specific limits and entitlement remain unverified. Do not combine different dated workflows into one asserted specification.
+
+The June 19 takeoff guide documents a missing-information/conflict report, editable estimate and report, and a new takeoff for revised plans. Its annotated colors/groupings are not editable. This establishes a review workflow, not proof that every conflict is correctly detected. The older quantity guide explicitly describes ratio-based assumptions when measurements are absent; those are budgeting inputs, not extracted facts. P5 must preserve that distinction in quantities and customer disclosures.
+
+Handoff's current catalog guide specifies custom catalog, then selected supplier catalog, then AI fallback priority. Its table guide documents room/group/item organization, direct quantity and rate edits, undo, and distinct markup versus margin calculations. Cost-type presets and estimate overrides are documented. Supplier refresh frequency, complete labor datasets, regional adjustment formula and proprietary conflict/duplicate algorithms remain undisclosed. Neither supplier integration nor a provider's statement about accuracy certifies a Boise bid.
+
+Skoper's direct FAQ currently says three free estimates, 150 pages per trial estimate, 600 pages generally and 500 MB per upload. Its documented output links summary to takeoff detail, labels quantity/price provenance and regenerates exports after browser edits. Its market-rate labels identify uncertainty, but its exact suppliers, update interval, regional calculation and adaptive-question policy are not published. Prior session observations of its public demo were vendor-selected UI examples, not independently run estimates.
+
+Additional primary references:
+
+17. https://help.handoff.ai/en/articles/16007034-explaining-the-differences-file-analysis-vs-takeoff-mode
+18. https://help.handoff.ai/en/articles/15442746-ai-takeoffs-in-handoff
+19. https://help.handoff.ai/en/articles/9778473-understand-quantity-calculations
+20. https://help.handoff.ai/en/articles/12630769-estimate-table-improvements
+21. https://help.handoff.ai/en/articles/9564130-does-handoff-separate-material-and-labor-costs
+22. https://help.handoff.ai/en/articles/9778543-ai-save-preferences-for-estimates
+23. https://help.handoff.ai/en/articles/10108654-advanced-ai-presets
+24. https://help.handoff.ai/en/articles/14711437-how-to-combine-estimates
+
+Combining estimates is separately documented: originals remain, each original becomes a room in the combined estimate, and later combined edits do not automatically flow back when uncombined. It is not evidence of automatic duplicate reconciliation across arbitrary uploaded plan sets. No authenticated competitor estimate has been run in this qualification.
+
+## Release .6 observed failures and .7 repair candidate
+
+The temporary workspace reset before the original uncommitted .7 candidate was saved. Git main `aeda06d` and 32 controlled draft credentials were recovered from durable records. Missing changes were rebuilt and tested; the interrupted original build is not counted as a pass. New checkpoints are retained outside the temporary workspace.
+
+A production read-only diagnosis traced bathroom text and PDF fatal errors at 04:48:53 and 04:48:46 UTC to the same fastener guard. It rejected descriptions explicitly saying that cabinet mounting screws were **not drywall screws**. Saved research excerpts named cabinet screws. Those excerpts establish the negation defect, not independently verified current supplier prices. The new guard ignores only explicit negative mentions and still rejects affirmative incompatible fasteners.
+
+| Case / defect | .6 observed outcome | .7 repair and required retest |
+| --- | --- | --- |
+| Bathroom text / PDF | No estimate; fatal fastener rejection | Negation-aware application check, retaining source/unit validation. Both must reach complete estimates after release. |
+| Whole-home PDF | No positive price for two 30-inch vanities; reconnect audit dispute | Distinguish count from nominal width and one-per-room wording; apply deterministic corrections before the final repair audit. Retest full fixture coverage and duplication. |
+| Bathroom scan | $23,300-28,700 with 22 lines; minor supply lines inherited excessive range spread | Allocate general range by cost and component-specific excess to affected items. All displayed endpoint sums must reconcile. Verify shower assembly/specification/preparation and reconnection coverage separately. |
+| Handyman scan | $300-325 for three handles | Distinct handle tasks stay distinct. Generic duplicate removal now requires matching task, source, quantity, rate and location. Reprice and revise to two handles. |
+| Synthetic RE10 PDF | $1,175 but spot-primer coverage unsupported and cleanup represented as 1 SF | Add explicitly requested primer using its existing approved component; remap cleanup without a measured area to a justified hourly allowance. Validate full labor/material coverage. |
+| Supporting work | Percentage discount and unsupported inclusion could conceal unpriced work | Remove arbitrary 15% cap and absorption into unrelated labor. Preserve actual approved rates and coverage obligations. |
+| Combined revisions | Handle count, drywall patch size and retained-floor changes could remain false conflicts | Parse the actual explicit instruction with matching retained facts, without demanding a verbatim model quotation. Preserve unrelated contradictions. |
+| Public Osprey plan | 376 SF living plus 528 SF garage incorrectly conflicted with 904 SF combined area; ADU versus new-construction false conflict | Reconcile exact whole/part arithmetic only, retain source takeoffs, and do not apply this to separate buildings or inconsistent sums. |
+| Questions | Component dimensions suppressed; generic placeholders considered answers; duplicate garage and cabinet prompts | Preserve relevant source questions, split independent measurements, bind answers to fields, and treat unresolved placeholders as missing. Regression checks retain unrelated-scope filtering. |
+| Build identity | Published .6 changed the root dependency lock during hosting bootstrap | Build from the committed lock using npm ci; retain bootstrap copy for diagnostics and reject other uncommitted source changes. Verify production SHA, tree and actual source digest after publish. |
+
+The .6 locked-dependency drift included @emnapi package version/dependency changes, not only harmless formatting. The reviewed local digest and production digest differed. The .7 host-build repair is required before claiming source equivalence.
+
+Remaining acceptance limits: actual private permit and genuine RE10 uploads still require the specific approval described above; large physical-page coverage is not yet realistic large-byte qualification; a production total is not a local-bid benchmark pass. Complete workflows, revisions, PDFs and delivery require release-specific retesting. The uncertainty aggregation policy and fixture/material specification choices still need estimate-level review. No child estimator has been changed.
+
+
+The final .7 local build passed 1,562 tests, with 15 explicit skips and zero failures, six database-safety checks, production compilation and TypeScript. Added regressions require existing-condition photo intake to ask what work is wanted before area/finish, and prevent excluded primer from becoming a charge. These local checks do not constitute a production pass.
+
+Official demonstration inspection: the Skoper video linked from its homepage (https://www.youtube.com/watch?v=G9u3QiFQbAQ) has a readable auto-generated transcript. It describes upload/takeoff, trade/category line items, quantities/pricing/assumptions, contractor line-by-line review, then Excel and Word exports. Its three-minute processing statement is the vendor's claim. The browser displayed captions but black video, so no new visual workflow verification is claimed. Handoff's official File Management Loom (https://www.loom.com/share/ddefa331fa8d459f8e7a28eb0d0d390f) visibly shows project files, document grid and photo/video list with uploader/date. The unrestricted initial transcript names drawings, specifications, inspections and vendor quotes; its later transcript requires sign-in. Neither demonstration proves extraction or pricing accuracy on our test set.

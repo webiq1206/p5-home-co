@@ -1638,7 +1638,8 @@ test('a requested drywall patch survives a parenthetical paint exclusion',async(
  const patch={id:'patch-drywall',description:'Patch one 12x12 inch hole in garage wall with 5/8 inch Type X drywall, tape, finish and spot-prime (paint excluded).',evidence:'Patch one 12x12 garage wall hole with 5/8 inch Type X, tape, finish, spot-prime. Paint excluded. Applies only to specified patch area.',existingLineIds:[],additions:[{code:'PB-09-01-08',quantity:1,quantityEvidence:'One patch, 1 square foot'}],researchDescription:'',issues:[]};
  const mapping={tasks:[patch],issues:[],notes:[],replacements:[],removeExclusions:[]};
  const result=catalogResolution(mapping,configured,[],now,{...scope,answers:{service:'re10',location:'Boise',area:'1'},text:patch.evidence});
- assert.equal(result.rules.length,1);assert.equal(result.rules[0].unitCost,300);
+ assert.equal(result.rules.length,2);assert.equal(result.rules[0].unitCost,300);
+ assert.ok(result.rules.some(r=>r.evidence?.reference.includes('PB-09-91-12')),'explicit primer has its own documented coverage');
  assert.ok(!result.assumptions.some(a=>a.includes('not billable')));
  const excluded={...patch,description:'Drywall patch excluded',evidence:'Drywall patch excluded.'};
  assert.equal(catalogResolution({...mapping,tasks:[excluded]},configured,[],now).rules.length,0);

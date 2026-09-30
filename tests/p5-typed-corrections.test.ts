@@ -32,3 +32,14 @@ test('a different number or fabricated typed evidence cannot silently override a
  const mismatch=extraction();mismatch.facts[1].value='12';assert.equal(applyExplicitTypedCorrections(mismatch,evidence).conflicts.length,1);
  const wrongUnit=extraction();wrongUnit.facts[1].evidence=evidence.replace('10 LF','10 SF');assert.equal(applyExplicitTypedCorrections(wrongUnit,wrongUnit.facts[1].evidence).conflicts.length,1);
 });
+
+test('a revised patch dimension resolves its retained task text even when the quote is paraphrased',()=>{
+ const x:ScopeExtraction={summary:'Patch',facts:[{field:'taskList',value:'Patch one 18x18 inch drywall hole and spot prime.',evidence:'Revised patch dimensions',confidence:1,basis:'stated',source:'typed scope'}],conflicts:[{field:'taskList',values:['12x12 inch','18x18 inch'],explanation:'Drywall patch dimension changed'}],missingInformation:[],reviewNotes:[]};
+ assert.equal(applyExplicitTypedCorrections(x,'Change only the drywall patch to 18 by 18 inches.').conflicts.length,0);
+});
+
+test('a flooring revision also updates the matching demolition while preserving unrelated wall conflicts',()=>{
+ const x:ScopeExtraction={summary:'Floors',facts:[{field:'flooringSqft',value:'1400',evidence:'Revised flooring area',confidence:1,basis:'stated',source:'typed scope'},{field:'demolition',value:'Remove 1400 SF LVP flooring and retain 320 SF other flooring.',evidence:'Revised flooring',confidence:1,basis:'stated',source:'typed scope'}],conflicts:[{field:'flooringSqft',values:['1600','1400'],explanation:'Flooring changed'},{field:'demolition',values:['1600','1400'],explanation:'LVP flooring removal changed'},{field:'demolition',values:['one wall','two walls'],explanation:'Wall demolition differs'}],missingInformation:[],reviewNotes:[]};
+ const out=applyExplicitTypedCorrections(x,'Change the LVP flooring to 1400 SF and retain 320 SF existing flooring.');
+ assert.equal(out.conflicts.length,1);assert.match(out.conflicts[0].explanation,/Wall demolition/);
+});

@@ -1,4 +1,4 @@
-import {questionContext,scopePromptApplies} from './dynamicQuestions.ts';
+import {questionContext,scopePromptApplies,unresolvedScopeAnswer} from './dynamicQuestions.ts';
 import {atomicInstructionQuestions,textBenchTopChoices,cabinetQuestionField,projectQuestionField} from './atomicQuestions.ts';
 import type {ScopeAnswers,ScopeExtraction,ScopeField} from './scope.ts';
 import type {ScopeInstructions} from './instructions.ts';
@@ -44,7 +44,7 @@ const questionParts=(raw:string)=>{
   const parts=(raw.match(/[^?]+\??/g)||[]).map(part=>part.trim()).filter(Boolean);
   const merged:string[]=[];
   for(const part of parts){
-    if((!part.endsWith('?')||/^if so\b/i.test(part))&&merged.length)merged[merged.length-1]+=' '+part;
+    if((!part.endsWith('?')||/^if (?:so|yes)\b/i.test(part))&&merged.length)merged[merged.length-1]+=' '+part;
     else merged.push(part);
   }
   return merged;
@@ -56,13 +56,13 @@ export function instructionPrompts(extraction:ScopeExtraction|null,answers:Scope
   const result:InstructionPrompt[]=[],answered=answeredQuestions(answers);
   for(const raw of extraction?.instructions?.questions||[]){
     for(const part of questionParts(raw).flatMap(part=>atomicInstructionQuestions(part,answers,extraction?.conflicts))){
-      const full=normalizeQuestionPart(part);if(!full)continue;
+      const full=normalizeQuestionPart(part).replace(/\bIf yes\b/gi,'If so');if(!full)continue;
       // Filter each question separately so a legacy paragraph cannot lose a real scope decision.
       if(serviceQuestion(full)||contractQuestion(full)||isEstimateHandlingDirection(full))continue;
       const field=cabinetQuestionField(full)||projectQuestionField(full,answers);
       // One decision is asked once, however many pages or wordings raised it.
       if(!field&&(result.some(q=>!q.field&&sameDecision(instructionPromptText(q),full))||answered.some(q=>sameDecision(q,full))))continue;
-      if(field&&answers[field]?.trim()&&!extraction?.conflicts.some(conflict=>conflict.field===field))continue;
+      if(field&&!unresolvedScopeAnswer(answers[field])&&!extraction?.conflicts.some(conflict=>conflict.field===field))continue;
       const id=questionKey(full);
       if(result.some(q=>q.id===id))continue;
       const trailing=full.match(/^(.*\?)\s+([^?]+)$/);

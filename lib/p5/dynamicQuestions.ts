@@ -105,7 +105,7 @@ function componentRemodel(text:string,exclusions:string[]):boolean {
  if(/\b(?:full|complete|whole|gut)\s+(?:kitchen|bathroom|home|renovation|remodel)|\b(?:walls?(?! cabinets?)|ceilings?|drywall|plaster)\b/i.test(positive))return false;
  // Counter replacement can include its sink/faucet and backsplash without
  // becoming a renovation of every room surface or building system.
- const broaderWork=positive.replace(/\b(?:backsplash|(?:one|a|\d+)\s+)?(?:sink|faucet)s?\b/gi,'').replace(/\bbacksplash\b/gi,'');
+ const broaderWork=positive.replace(/\b(?:tile|tiled|tiling)\s+backsplash\b|\bbacksplash\s+(?:tile|tiling)\b/gi,'').replace(/\b(?:backsplash|(?:one|a|\d+)\s+)?(?:sink|faucet)s?\b/gi,'').replace(/\bbacksplash\b/gi,'');
  return !(['flooring','tile','plumbing','electrical','mechanical','structural'] as Topic[]).some(t=>TOPICS[t].test(broaderWork)&&!TOPICS[t].test(negative));
 }
 
@@ -182,8 +182,23 @@ function measuredTopic(context: QuestionContext, topic: Topic): boolean {
     : ['base', 'upper', 'tall', 'cabinets'].includes(topic) ? LENGTH_UNIT.test(t.unit) || COUNT_UNIT.test(t.unit)
     : AREA_UNIT.test(t.unit)));
 }
+export function unresolvedScopeAnswer(value:string|undefined):boolean{
+ return !value?.trim()||/\b(?:not specified|unspecified|unknown|not provided|not stated|to be determined|TBD)\b/i.test(value)
+   ||/^(?:replace|new|update) (?:the )?fixtures?[.!]?$/i.test(value.trim());
+}
+/** Existing-condition photographs do not authorize construction. Resolve an
+ * explicitly missing work definition before asking quantities or selections. */
+export function needsWorkDefinition(answers:ScopeAnswers,extraction:ScopeExtraction|null,sourceText=''):boolean{
+ const intentQuestion=(extraction?.clarifications||[]).some(q=>q.field==='taskList'&&/\b(?:what|which)\b.*\b(?:work|changes|repairs|scope)\b/i.test(q.question));
+ if(!intentQuestion)return false;
+ const requestedWork=/\b(?:install|replace|repair|build|remodel|renovate|repaint|refinish|demolish|remove|supply|construct|patch)\b|\b(?:new construction|full[ -](?:home|kitchen|bathroom) remodel)\b/i;
+ const supplied=[sourceText,answers.taskList,answers.estimatingInstructions,
+ ...(extraction?.facts||[]).filter(f=>f.confidence>=.85&&f.basis==='stated'&&['taskList','demolition','installation'].includes(f.field)).map(f=>f.value),
+ ...(extraction?.instructions?.inclusions||[])].filter(Boolean).join('\n');
+ return !requestedWork.test(supplied);
+}
 function validQuestionValue(field:ScopeField,value:string|undefined):boolean {
-  if(!value?.trim()||validateAnswer(field,value))return false;
+  if(unresolvedScopeAnswer(value)||!value||validateAnswer(field,value))return false;
   return !['sqft','length','width','rooms','stories'].includes(field)||Number(value.replaceAll(',',''))>0;
 }
 function sourceAnswered(context: QuestionContext, field: ScopeField): boolean {
@@ -254,6 +269,7 @@ export function dynamicScopeFields(answers: ScopeAnswers, extraction: ScopeExtra
   pricedFields: ScopeField[] = [], sourceText = ''): ScopeField[] {
   const context = questionContext(answers, extraction, sourceText);
   if (!answers.service) return ['service'];
+  if(needsWorkDefinition(answers,extraction,sourceText))return ['taskList'];
   const fields = new Set<ScopeField>();
   const hasWork = Boolean(joined([sourceText, answers.taskList, answers.otherDetails, answers.demolition,
     answers.structural, answers.plumbing, answers.electrical, answers.installation]).trim()
@@ -281,7 +297,8 @@ export function dynamicScopeFields(answers: ScopeAnswers, extraction: ScopeExtra
     const optional = ['location','address','schedule','urgency','projectMonths','phasing'].includes(field);
     const numeric = ['fixtureCount','rooms','stories','bathrooms','laborHours','countertopSqft','length','width','sqft','flooringSqft','tileSqft','demolitionSqft','trimLf','cabinetBaseLf','cabinetUpperLf','cabinetTallLf','garageSqft','coveredOutdoorSqft'].includes(field);
     if (optional && !pricedFields.includes(field)) continue;
-    if (numeric && !pricedFields.includes(field) && !fields.has(field)) continue;
+    if(field==='fixtureCount'&&!/\b(?:how many|number of|count|quantity)\b/i.test(clarification.question)&&!pricedFields.includes(field)&&!fields.has(field))continue;
+    if (numeric && ['laborHours','length','width'].includes(field) && !pricedFields.includes(field) && !fields.has(field)) continue;
     if (scopeFieldApplies(field, context)) fields.add(field);
   }
   // Unknown production hours are an estimator's calculation. Ask about the

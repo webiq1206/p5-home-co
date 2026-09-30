@@ -278,6 +278,7 @@ export function calculateP5Estimate(input: PricingInput, finance: FinancePolicy,
   // The low endpoint cannot cut known direct costs below the approved floor.
   const lowFloor = priceFromRiskAdjustedCost(riskAdjustedDirectCost, allocations.total, Math.min(matrix.floor, margin));
   const planningRange = { low: Math.ceil(Math.max(lowFloor, contractPrice * (1 - width)) / step) * step, high: Math.ceil(contractPrice * (1 + width) / step) * step };
+  const planningBandHigh=planningRange.high;
   // Extend observed direct-cost bounds before applying the same policy once. Each line's upside is
   // its high quantity at its high cost, less its modeled cost. The uncertain lines of one job do
   // not all land at their worst case together, so their upsides combine as independent errors
@@ -312,7 +313,7 @@ export function calculateP5Estimate(input: PricingInput, finance: FinancePolicy,
     service, requestedService: input.service, matrix, lines:pricedLines, coverage: input.coverage,
     directByCategory, directCost, contingencyRate, contingency, riskAdjustedDirectCost,
     allocations, allocationDollars, targetOperatingProfit: margin, operatingProfit, divisor,
-    contractPrice, planningRange, assumptions: input.assumptions, allowances: input.allowances,
+    contractPrice, planningRange, planningBandHigh, assumptions: input.assumptions, allowances: input.allowances,
     exclusions: input.exclusions, missingInformation: input.missingInformation,
     riskFactors: [...riskSet], manualAdjustments: input.manualAdjustments ?? [],
     ownerApprovals: validApprovals, financeSnapshot: finance, warnings,
@@ -424,11 +425,14 @@ export function customerEstimate(estimate: P5Estimate, summary: string) {
   const trades=[...new Set(estimate.lines.map(l=>tradeForLine(l)))];
   const weights=estimate.lines.map(line=>line.cost);
   const lows=apportionAmount(estimate.planningRange.low,weights);
-  // Assign item-specific uncertainty to its actual item/building instead of
-  // spreading a well allowance's high bound over unrelated cabinetry, etc.
-  const highWeights=estimate.lines.some(l=>l.unitCostRange||l.quantityRange)?estimate.lines.map((line,i)=>Math.max(0,(line.quantityRange?.high??line.quantity)*(line.unitCostRange?.high??line.unitCost)*(1+estimate.contingencyRate)/estimate.divisor-lows[i])):weights;
-  const increases=apportionAmount(estimate.planningRange.high-estimate.planningRange.low,highWeights.some(n=>n>0)?highWeights:weights);
-  const highs=lows.map((low,i)=>low+increases[i]);
+  // Spread the generic project band by cost. Only uncertainty beyond that
+  // band belongs to the actual uncertain components; a screw box must not
+  // absorb the bathroom's entire planning spread.
+  const genericDelta=Math.max(0,Math.min(estimate.planningRange.high,estimate.planningBandHigh??estimate.planningRange.high)-estimate.planningRange.low);
+  const generic=apportionAmount(genericDelta,weights);
+  const upsides=estimate.lines.map(line=>Math.max(0,(line.quantityRange?.high??line.quantity)*(line.unitCostRange?.high??line.unitCost)-line.cost));
+  const specific=apportionAmount(estimate.planningRange.high-estimate.planningRange.low-genericDelta,upsides.some(n=>n>0)?upsides:weights);
+  const highs=lows.map((low,i)=>low+generic[i]+specific[i]);
   const lineItems=estimate.publishable?estimate.lines.map((line,i)=>({id:line.id,category:tradeForLine(line),description:line.description,quantity:line.quantity,unit:line.unit,low:lows[i],high:highs[i],unitLow:lows[i]/line.quantity,unitHigh:highs[i]/line.quantity,...(line.building?{building:line.building}:{}),...(line.floor?{floor:line.floor}:{}),...(line.quantityRange?{quantityRange:line.quantityRange}:{}),pricingStatus:line.allowance||line.estimatingBasis==='sourced-market-average'||line.estimatingBasis==='regional-planning-average'?'estimated-allowance':line.evidence.basis==='owner-estimating-schedule'?'owner-planning-rate':'verified-cost',...(line.estimatingBasis==='regional-planning-average'?{verification:'Regional planning average, not verified local pricing. Confirm current local rates, quantities and selections before a firm proposal.'}:line.allowance||line.estimatingBasis==='sourced-market-average'||line.evidence.basis==='owner-estimating-schedule'?{verification:'Confirm quantities, selections and current supplier/trade pricing before a firm proposal.'}:{}),...(line.evidence.provenance?{rateLocation:line.evidence.provenance.location,rateDate:line.evidence.provenance.retrievedAt,rateSources:line.evidence.provenance.sources.map(s=>s.url)}:{})})):[];
   return customerSafeProjection({
     status: estimate.publishable ? "planning-range" as const : "review-required" as const,

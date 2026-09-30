@@ -1,9 +1,9 @@
 import {instructionPrompts,instructionPromptText} from './clarifications.ts';
 import {ESTIMATOR_BRAND} from './brand.ts';
 import {SCOPE_FIELDS,mergeScopeFacts,validateAnswer,type ScopeAnswers,type ScopeField,type ScopeExtraction,type ScopeConflict} from './scope.ts';
-import {dynamicScopeFields,questionContext,scopeFieldApplies,scopePromptApplies} from './dynamicQuestions.ts';
+import {dynamicScopeFields,questionContext,scopeFieldApplies,scopePromptApplies,unresolvedScopeAnswer,needsWorkDefinition} from './dynamicQuestions.ts';
 import {serviceEvidenceSupports} from './serviceSignals.ts';
-import {atomicInstructionQuestions,cabinetQuestionField} from './atomicQuestions.ts';
+import {atomicInstructionQuestions,cabinetQuestionField,projectQuestionField} from './atomicQuestions.ts';
 
 export interface ScopeQuestion {field:ScopeField;label:string;reason:string;values?:string[];conflict?:boolean;instructionId?:string;detail?:string;handoff?:{label:string;url:string}}
 export function sameAnswer(field:ScopeField,a:string,b:string){
@@ -102,13 +102,14 @@ function conflictSourceDetail(conflict:ScopeConflict,extraction:ScopeExtraction|
 }
 export function scopeQuestions(input:ScopeAnswers,extraction:ScopeExtraction|null,conflicts:ScopeConflict[]=[],skipped:ScopeField[]=[],pricedFields:ScopeField[]=[],sourceText=''):ScopeQuestion[]{
   const answers=deriveScopeAnswers(input);
-  if(extraction?.clarifications)extraction={...extraction,clarifications:extraction.clarifications.flatMap(q=>atomicInstructionQuestions(q.question,answers,conflicts).map(question=>({...q,question,field:cabinetQuestionField(question)||q.field})))};
+  if(extraction?.clarifications)extraction={...extraction,clarifications:extraction.clarifications.flatMap(q=>atomicInstructionQuestions(q.question,answers,conflicts).map(question=>({...q,question,field:cabinetQuestionField(question)||projectQuestionField(question,answers)||q.field})))};
   const context=questionContext(answers,extraction,sourceText);
   const applicableConflicts=conflicts.filter(c=>scopeFieldApplies(c.field,context));
   // Resolve the project type before calculating the next service-specific question.
   const serviceConflict=applicableConflicts.find(c=>c.field==='service');
   if(serviceConflict)return [{field:'service',label:SCOPE_FIELDS.service.label,reason:serviceConflict.explanation,values:serviceConflict.values,conflict:true,detail:conflictSourceDetail(serviceConflict,extraction)}];
   if(!answers.service&&!applicableConflicts.length)return [questionForField('service',answers)];
+  if(needsWorkDefinition(answers,extraction,sourceText))return [questionForField('taskList',answers)];
   const relevant=new Set(materialScopeFields(answers,pricedFields,extraction,sourceText));
   const questions:ScopeQuestion[]=applicableConflicts.map(c=>({field:c.field,label:SCOPE_FIELDS[c.field].label,reason:c.explanation,values:c.values,conflict:true,detail:conflictSourceDetail(c,extraction)}));
   for(const q of instructionPrompts(extraction,answers,sourceText)){
@@ -127,7 +128,7 @@ export function scopeQuestions(input:ScopeAnswers,extraction:ScopeExtraction|nul
   // Keep the reader's project-specific wording, including which room or component
   // is missing. Replacing it with a generic numeric prompt loses that context.
   for(const q of extraction?.clarifications||[]){
-    if(relevant.has(q.field)&&!answers[q.field]?.trim()&&!skipped.includes(q.field)&&!questions.some(x=>x.field===q.field))questions.push({field:q.field,label:clarificationLabel(q.field,q.question),reason:SCOPE_FIELDS[q.field].kind==='number'&&clarificationLabel(q.field,q.question)!=='Project detail'&&!/how (?:many|much|long|wide|large)|number of|square feet|linear feet|footage/i.test(q.question)?questionReason(q.field,answers):q.question,detail:q.reason});
+    if(relevant.has(q.field)&&unresolvedScopeAnswer(answers[q.field])&&!skipped.includes(q.field)&&!questions.some(x=>x.field===q.field))questions.push({field:q.field,label:clarificationLabel(q.field,q.question),reason:SCOPE_FIELDS[q.field].kind==='number'&&clarificationLabel(q.field,q.question)!=='Project detail'&&!/how (?:many|much|long|wide|large)|number of|square feet|linear feet|footage/i.test(q.question)?questionReason(q.field,answers):q.question,detail:q.reason});
   }
   for(const field of relevant)if(!questions.some(q=>q.field===field)&&!skipped.includes(field))questions.push(questionForField(field,answers));
   return questions.map(q=>{

@@ -58,7 +58,6 @@ const RECONNECT=/\b(?:re-?connect(?:ion|ing|ed)?|hook(?:ing|ed)?\s+(?:back\s+)?u
 const RELOCATE=/\brelocat\w*|\bmov(?:e|ing)\s+(?:the\s+|a\s+)?(?:drain|plumbing|supply|toilet|sink|shower|tub|fixture)|\bnew\s+(?:drain|supply|plumbing)\s+(?:location|run|line)|\brough-?in\b|\badd(?:ing)?\s+(?:a\s+|an\s+|new\s+)?(?:bathroom|fixture|shower|sink|toilet)/i;
 const ROUGH_AND_FINISH=/^(?:Plumbing per fixture, rough \+ finish|Rough-in only, per fixture)\b/;
 const PROTECT_OR_CLEAN=/\bprotect\w*|\bdust\b|\bmask(?:ing)?\b|\bclean(?:ing|up|-up)?\b|\bbroom\b|\bfloor protection\b/i;
-const SUPPORTING_SHARE=0.15;
 
 const hasMarker=(d:string)=>d.includes(ASSEMBLY_MARKER);
 /** Where a book line's own text begins inside "task description: item (what it includes; section, division)". */
@@ -274,12 +273,10 @@ export function applyPricingCorrections(input:CorrectionInput):CorrectionResult{
     }
   }
 
-  // 5. Supporting protection, cleanup and debris handling are scaled to the work they support, and
-  //    when the mapping left such a task unpriced it is part of the requested work's own labor rather
-  //    than a reason to withhold the estimate (live Handyman trim-only job, 2026-09-25: held for an
-  //    unpriced protection task and a full-truckload junk line for MDF cutoffs).
-  const roomArea=Number(scope.answers.sqft);
-  if(['bathroom','kitchen'].includes(scope.answers.service||'')&&roomArea>0&&roomArea<=500
+  // Measured room protection uses actual book components. A percentage of
+  // unrelated work is not a supported price or proof of included cleanup.
+  const roomArea=Number(scope.answers.sqft||scope.answers.flooringSqft);
+  if(['bathroom','kitchen','handyman'].includes(scope.answers.service||'')&&roomArea>0&&roomArea<=500
     &&!instructions?.separateBuildings&&!/\b(?:two|three|four|[2-9])\s+(?:bathrooms?|kitchens?)\b/i.test(scope.text)){
     for(const packageRule of [...resolution.rules].filter(rule=>/\bPB-01-50-04\b/.test(rule.evidence?.reference||''))){
       const components=[{code:'01-50-10',quantity:roomArea,range:{low:roomArea,high:roomArea*2}},{code:'01-50-11',quantity:1,range:{low:1,high:2}}];
@@ -295,44 +292,6 @@ export function applyPricingCorrections(input:CorrectionInput):CorrectionResult{
       notes.push(`Room protection uses the approved floor-protection rate for ${roomArea} to ${roomArea*2} SF and one to two dust barriers. These are allowances for the room and access path, replacing the whole-house protection package; confirm site layout.`);
     }
   }
-  const debrisWords=/\b(?:debris|junk|dumpster|waste|cutoffs?|packaging|haul\w*|dispos\w*)\b/i;
-  // Explicitly requested installation cleanup is still supporting work. The
-  // customer's wording must not bypass the same scale guard as inferred cleanup.
-  // Standalone cleaning remains outside this correction.
-  const requestedInstallCleanup=(t:CorrectionTask)=>PROTECT_OR_CLEAN.test(t.description)&&/\b(?:after|following|post)[ -]?(?:the\s+)?(?:cabinet\s+|flooring\s+|trim\s+)?install(?:ation)?\b|\b(?:job|installation)[ -]?(?:site[ -]?)?clean(?:up|ing|-up)\b/i.test(t.description);
-  const supportingTasks=inventoryTasks.filter(t=>((t.origin||'requested')==='required'||requestedInstallCleanup(t))&&(PROTECT_OR_CLEAN.test(t.description)||debrisWords.test(t.description))
-    // "Remove the showers" is the removal itself; "remove cutoffs and packaging debris" is debris handling.
-    &&!(/\b(?:demoli\w*|remov\w*|tear)\b/i.test(t.description)&&!/\b(?:debris|cutoffs?|packaging|waste|junk)\b/i.test(t.description)));
-  if(supportingTasks.length){
-    const supportingIds=new Set(supportingTasks.map(t=>t.id));
-    const coreRules=resolution.rules.filter(rule=>!supportingIds.has(rule.scopeTaskId||''));
-    const coreLines=lines.filter(line=>!removed.has(line.id)&&!supportingTasks.some(t=>mappingTasks.find(m=>m.id===t.id)?.existingLineIds.includes(line.id)));
-    const core=coreRules.reduce((n,rule)=>n+direct(rule),0)+coreLines.reduce((n,line)=>n+line.unitCost*line.quantity,0);
-    const cap=core*SUPPORTING_SHARE;
-    const anchor=[...coreRules.map(r=>({id:r.id,value:direct(r)})),...coreLines.map(l=>({id:l.id,value:l.unitCost*l.quantity}))].sort((a,b)=>b.value-a.value)[0];
-    const absorbed:string[]=[];
-    for(const task of supportingTasks){
-      const mapped=mappingTasks.find(m=>m.id===task.id);
-      const priced=resolution.rules.some(rule=>rule.scopeTaskId===task.id&&direct(rule)>0)||Boolean(mapped?.existingLineIds.some(id=>lines.some(line=>line.id===id&&!removed.has(line.id)&&line.unitCost*line.quantity>0)));
-      if(priced||!anchor||covered.has(task.id)||(task.origin||'requested')!=='required')continue;
-      cover(task.id,anchor.id);absorbed.push(task.description.replace(/[.\s]+$/,''));
-    }
-    if(absorbed.length)notes.push(`To confirm: ${absorbed.join('; ')}: included within the installation labor for a job this size rather than priced as a separate line.`);
-    if(cap>0)for(const task of supportingTasks){
-      const rules=resolution.rules.filter(rule=>rule.scopeTaskId===task.id&&direct(rule)>0);
-      const total=rules.reduce((n,rule)=>n+direct(rule),0);
-      if(total<=cap)continue;
-      const factor=cap/total;
-      for(const rule of rules){
-        rule.unitCost=Math.round(rule.unitCost*factor*100)/100;
-        if(rule.unitCostRange)rule.unitCostRange={low:Math.round(rule.unitCostRange.low*factor*100)/100,high:Math.round(rule.unitCostRange.high*factor*100)/100};
-        rule.allowance=true;
-      }
-      console.error(`[p5-pricing] supporting work ${task.id} capped at ${money(cap)} direct (was ${money(total)})`);
-      notes.push(`To confirm: ${task.description.replace(/[.\s]+$/,'')} is carried as an allowance of about ${Math.round(SUPPORTING_SHARE*100)}% of the priced work, because the catalog package it matched is sized for a whole house; confirm on site.`);
-    }
-  }
-
   resolution.assumptions.push(...notes);
   return {coveredTaskIds:[...covered],notes};
 }

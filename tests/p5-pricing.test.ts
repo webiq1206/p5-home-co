@@ -325,3 +325,11 @@ test("a genuinely unusable range is still refused",()=>{
   // Not a packaging quirk: a non-finite bound says nothing about the work and cannot be repaired.
   assert.throws(()=>calculateP5Estimate({...base,lines:[{...line,quantityRange:{low:Number.NaN,high:15}}]},finance,[],now));
 });
+
+test('small supply allowances cannot absorb an unrelated project planning band',()=>{
+ const base=input('bathroom');
+ const estimated=calculateP5Estimate({...base,uncertainty:'high',lines:[{...base.lines[0],unitCost:15000},{...base.lines[0],id:'screws',description:'Cabinet screws',unit:'box',unitCost:12,quantity:1,quantityRange:{low:1,high:2},allowance:true}]},finance,[],now);
+ const result=customerEstimate(estimated,'Bathroom');
+ assert.ok(result.lineItems.find(l=>l.id==='screws')!.high<100,'a twelve-dollar screw box must not inherit project-wide uncertainty');
+ assert.equal(result.lineItems.reduce((n,l)=>n+l.high,0),result.range!.high);
+});

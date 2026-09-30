@@ -131,11 +131,12 @@ test('whole-house protection on a one-room job is scaled to a share of the price
   const core=direct(input.resolution.rules[0])+direct(input.resolution.rules[1]);
   applyPricingCorrections(input);
   const protection=input.resolution.rules.find(r=>r.scopeTaskId==='protect')!;
-  assert.ok(direct(protection)<=core*0.15+0.01,`protection ${direct(protection)} is within 15% of ${core}`);
+  assert.equal(protection.unitCost,rate('01-50-10').amount,'preserve the approved floor-protection rate');
+  assert.equal(protection.quantity.fixed,200);
   assert.equal(protection.allowance,true);
   const clean=input.resolution.rules.find(r=>r.scopeTaskId==='clean')!;
   assert.equal(clean.unitCost,rate('01-74-05').amount,'a small final-clean line keeps its book price');
-  assert.ok(input.resolution.assumptions.some(a=>/allowance of about 15%/.test(a)));
+  assert.ok(!input.resolution.assumptions.some(a=>/allowance of about 15%/.test(a)));
 });
 test('nothing changes on an ordinary estimate with no assemblies, one building and sized supporting work',()=>{
   const scope=scopeFor('Install 100 LF of baseboard.',{service:'handyman',trimLf:'100'});
@@ -147,16 +148,16 @@ test('nothing changes on an ordinary estimate with no assemblies, one building a
   assert.equal(JSON.stringify(input.resolution.rules),snapshot);
   assert.deepEqual(result.notes,[]);
 });
-test('an unpriced protection, cleanup or debris task on a small job is absorbed into the requested work, not a hold (live Handyman trim-only, 2026-09-25)',()=>{
+test('unpriced supporting work cannot be claimed as free coverage by unrelated installation labor',()=>{
   const scope=scopeFor('Only price the trim: 300 LF of MDF baseboard and casing for 8 doors.',{service:'handyman',trimLf:'300'});
   const tasks=[{id:'base',description:'Supply and install 300 LF of MDF baseboard',origin:'requested'},{id:'protect',description:'Protect adjacent completed basement surfaces during the trim installation',origin:'required'},{id:'debris',description:'Remove MDF cutoffs and packaging debris',origin:'required'},{id:'clean',description:'Final cleanup of the work area',origin:'required'}];
   const input=inputFor(scope,tasks,[rule('base','Supply and install 300 LF of MDF baseboard','06-20-26',300),rule('debris','Remove MDF cutoffs and packaging debris','01-74-13',1)]);
   const result=applyPricingCorrections(input);
-  assert.ok(result.coveredTaskIds.includes('protect')&&result.coveredTaskIds.includes('clean'),'unpriced supporting tasks are covered');
-  assert.ok(input.mappingTasks.find(t=>t.id==='protect')!.existingLineIds.includes(input.resolution.rules[0].id),'covered by the requested line');
+  assert.ok(!result.coveredTaskIds.includes('protect')&&!result.coveredTaskIds.includes('clean'),'unpriced required work remains a coverage obligation');
+  assert.deepEqual(input.mappingTasks.find(t=>t.id==='protect')!.existingLineIds,[]);
   const debris=input.resolution.rules.find(r=>r.scopeTaskId==='debris')!;
-  assert.ok(direct(debris)<=direct(input.resolution.rules[0])*0.15+0.01,'a full truckload for cutoffs is capped');
-  assert.ok(input.resolution.assumptions.some(a=>/included within the installation labor/.test(a)));
+  assert.equal(debris.unitCost,rate('01-74-13').amount,'a price cannot be cut to an unrelated percentage');
+  assert.ok(!input.resolution.assumptions.some(a=>/included within the installation labor/.test(a)));
 });
 
 test('nested assembly consolidation preserves every dependent task reference',()=>{
@@ -173,14 +174,14 @@ test('nested assembly consolidation preserves every dependent task reference',()
 });
 
 
-test('explicitly requested cabinet-install cleanup cannot bypass the supporting-work scale guard',()=>{
+test('explicit cleanup retains its actual rate and never receives a percentage discount',()=>{
  const tasks=[{id:'base',description:'Install owner-supplied base cabinets',origin:'requested'},{id:'clean',description:'Perform job cleanup after cabinet installation.',origin:'requested'}];
  const scope=scopeFor('Install 9 LF owner-supplied base cabinets. Contractor supplies job cleanup.',{service:'cabinet-install'});
  const input=inputFor(scope,tasks,[rule('base',tasks[0].description,'12-39-06',9),rule('clean',tasks[1].description,'01-74-04',1)]);
  const core=direct(input.resolution.rules[0]);
  applyPricingCorrections(input);
- assert.ok(direct(input.resolution.rules[1])<=core*0.15+0.01);
- assert.ok(input.resolution.assumptions.some(a=>/allowance of about 15%/.test(a)));
+ assert.equal(input.resolution.rules[1].unitCost,rate('01-74-04').amount);
+ assert.ok(!input.resolution.assumptions.some(a=>/allowance of about 15%/.test(a)));
  const standalone=inputFor(scopeFor('Rough construction clean of the whole home.',{service:'handyman'}),[{id:'clean',description:'Rough construction clean of the whole home.',origin:'requested'}],[rule('clean','Rough construction clean of the whole home.','01-74-04',1)]);
  const before=JSON.stringify(standalone.resolution.rules);
  applyPricingCorrections(standalone);
