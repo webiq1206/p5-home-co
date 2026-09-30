@@ -126,6 +126,29 @@ export function applyPricingCorrections(input:CorrectionInput):CorrectionResult{
     }
   }
 
+  // Integrated tops belong to the one installed vanity package already bought.
+  // Reconnection, faucets and separately selected countertops stay separate.
+  if(oneVanity){
+    const assembly=resolution.rules.find(r=>/\bPB-12-41-0[12]\b/.test(r.evidence?.reference||'')&&r.category==='subcontractors'&&r.quantity.fixed===1&&direct(r)>0);
+    if(assembly)for(const task of mappingTasks){
+      if(task.id===assembly.scopeTaskId||!task.existingLineIds.includes(assembly.id))continue;
+      if(/\b(?:integrated|integral)\b/i.test(task.description)&&/\b(?:top|sink)\b/i.test(task.description)&&!/\b(?:faucet|reconnect|plumbing|rough-in|drain connection)\b/i.test(task.description))cover(task.id,assembly.id);
+    }
+  }
+
+  // Removal and replacement of the same handles are one per-door operation.
+  // Require equal quantities, explicit same-door scope and complementary tasks.
+  const hardware=resolution.rules.filter(r=>/\bPB-08-71-01\b/.test(r.evidence?.reference||'')&&direct(r)>0);
+  for(const installation of hardware.filter(r=>/\b(?:install|replace)\b/i.test(taskDescription(r.scopeTaskId||'')))){
+    if(!/\bsame doors?\b/i.test(taskDescription(installation.scopeTaskId||'')))continue;
+    for(const removal of hardware){
+      if(removal===installation||!resolution.rules.includes(removal)||removal.quantity.fixed!==installation.quantity.fixed||!sameBuilding(removal.building,installation.building)||removal.floor!==installation.floor)continue;
+      if(!/^remove\b/i.test(taskDescription(removal.scopeTaskId||''))||! /\b(?:handle|lever|hardware)\b/i.test(taskDescription(removal.scopeTaskId||'')))continue;
+      dropRule(removal,installation.id);cover(removal.scopeTaskId,installation.id);
+      notes.push('Removal and replacement of the same door handles are covered by one per-door hardware replacement labor charge.');
+    }
+  }
+
   // 1. One complete assembly, priced once; a whole unit covers its own components.
   const assemblies=resolution.rules.filter(rule=>hasMarker(rule.description));
   const groups=new Map<string,CostRule[]>();
@@ -152,13 +175,17 @@ export function applyPricingCorrections(input:CorrectionInput):CorrectionResult{
     // A component task the mapping left unpriced (roofing, insulation, the envelope) is inside the
     // unit's price too; otherwise it would be carried out of the total as "not priced" and the
     // finished unit shown as a partial estimate.
+    const normalPerimeterConnection=(description:string)=>/\butilities\s+stubbed\s+at\s+(?:the\s+)?building perimeter\b/i.test(scope.text)
+      &&/\b(?:connect|tie[- ]?in)\b/i.test(description)&&/\bat\s+(?:the\s+)?building perimeter\b/i.test(description)
+      &&!/\b(?:extend|extension|trench|excavat|off[- ]site|street|\d+\s*(?:LF|feet|ft))\b/i.test(description);
     const unpricedComponents=mappingTasks.filter(task=>task.id!==assembly.scopeTaskId&&!covered.has(task.id)
       &&!resolution.rules.some(rule=>rule.scopeTaskId===task.id)&&!task.existingLineIds.some(id=>lines.some(line=>line.id===id&&!removed.has(line.id)))
-      &&COMPONENT_TASK.test(task.description)&&!OUTSIDE_TASK.test(task.description));
+      &&(COMPONENT_TASK.test(task.description)&&!OUTSIDE_TASK.test(task.description)||normalPerimeterConnection(task.description)));
     for(const task of unpricedComponents)cover(task.id,assembly.id);
+    if(unpricedComponents.some(task=>normalPerimeterConnection(task.description)))notes.push('Normal building connections at the expressly provided perimeter utility stubs are included in the complete building. External utility extensions and trenching remain separate.');
     if(!drop.length&&!unpricedComponents.length)continue;
     console.error(`[p5-pricing] whole-unit assembly kept ${assembly.id}; removed ${drop.length} component lines (${money(total)} direct)`);
-    notes.push(`To confirm: the ${itemOf(assembly.description)} price is a complete assembly that already includes its structure, envelope, systems, finishes and cleanup${drop.length?`, so ${drop.length} component ${drop.length===1?'line was':'lines were'} removed so nothing is charged twice`:''}${unpricedComponents.length?`; ${unpricedComponents.length} component ${unpricedComponents.length===1?'item is':'items are'} covered by it rather than priced separately`:''}. Site work, utility connections, permits, fees and design stay separate.`);
+    notes.push(`To confirm: the ${itemOf(assembly.description)} price is a complete assembly that already includes its structure, envelope, systems, finishes and cleanup${drop.length?`, so ${drop.length} component ${drop.length===1?'line was':'lines were'} removed so nothing is charged twice`:''}${unpricedComponents.length?`; ${unpricedComponents.length} component ${unpricedComponents.length===1?'item is':'items are'} covered by it rather than priced separately`:''}. Site work, external utility connections and extensions, permits, fees and design stay separate.`);
   }
 
   // 2. One building described means one building priced.

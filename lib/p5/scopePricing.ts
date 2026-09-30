@@ -101,12 +101,26 @@ function parseResearchRates(raw:unknown){
  // its physical contents and quantities, then let the cited-package checks
  // below validate every conversion; descriptive units are never price units.
  const packageUnit=(value:string)=>{
-  const m=/^(?:EA|each)\s*\(\s*(\d+(?:\.\d+)?)\s*[- ]?\s*(lb|lbs|pounds?|pack|pk|count|ct)(?:\s+(?:box|bag|pack))?\s*\)$/i.exec(value.trim());
+  const contents=value.trim().replace(/^(?:EA|each)\s*\(\s*(.*?)\s*\)$/i,'$1').replace(/\b(lbs?)\./gi,'$1');
+  const m=/^(\d+(?:\.\d+)?)\s*[- ]?\s*(lb|lbs|pounds?|pack|pk|count|ct)(?:\s+(?:box|bag|pack))?$/i.exec(contents);
   if(m&&(!Number.isFinite(Number(m[1]))||Number(m[1])<=0))throw new ResearchEvidenceError('Invalid package size for researched product');
   return m?{size:Number(m[1]),unit:/^(?:lb|pound)/i.test(m[2])?'LB':'EA',source:`${m[1]} ${/^(?:lb|pound)/i.test(m[2])?'lb box':'pack'}`}:null;
  };
  for(const rate of market.rates){
   if(rate.basis!=='material-purchase')continue;
+  const cartridge=/^(\d+(?:\.\d+)?)\s*(?:fl\.?\s*)?oz\.?\s+(?:tube|cartridge)$/i.exec(rate.unit.trim());
+  if(cartridge){
+   const size=Number(cartridge[1]);
+   for(const source of rate.sources){
+    const quoted=source.excerpt.match(/\b(\d+(?:\.\d+)?)\s*[- ]?\s*(?:fl\.?\s*)?oz\b/i);
+    const sourceSize=source.unit.match(/^(\d+(?:\.\d+)?)\s*(?:fl\.?\s*)?oz\.?\s+(?:tube|cartridge)$/i);
+    const prices=[...source.excerpt.matchAll(/\$\s*([\d,]+(?:\.\d+)?)/g)].map(m=>Number(m[1].replace(/,/g,'')));
+    if(!quoted||Number(quoted[1])!==size||sourceSize&&Number(sourceSize[1])!==size||!sourceSize&&unitKey(source.unit)!=='each'||!prices.includes(source.low)||!prices.includes(source.high))throw new ResearchEvidenceError('Cartridge size and package price must match each cited supplier excerpt');
+    source.unit='EA';
+   }
+   rate.quantityEvidence+=` Each purchased cartridge is ${rate.unit}; no volume or package-price conversion is applied.`;
+   rate.unit='EA';
+  }
   const pack=packageUnit(rate.unit);
   if(pack){
    const original=rate.unit;rate.unit=pack.unit;rate.quantity*=pack.size;
@@ -263,7 +277,7 @@ const mappingJson=jsObject({tasks:jsArray(jsObject({id:jsText,description:jsText
 const inventoryJson=jsObject({tasks:jsArray(jsObject({id:jsText,description:jsText,evidence:jsText,origin:{type:'string',enum:['requested','required']},basis:jsText})),issues:jsArray(jsText),notes:jsArray(jsText),dependencies:jsArray(jsText)});
 const planningJson=jsObject({rates:jsArray(jsObject({taskId:jsText,description:jsText,unit:jsText,quantity:jsNumber,quantityEvidence:jsText,quantityRange:{anyOf:[jsObject({low:jsNumber,high:jsNumber}),{type:'null'}]},building:jsText,floor:jsText,basis:{type:'string',enum:['material-purchase','subcontractor-installed','trade-labor']},includes:jsText,excludes:jsText,low:jsNumber,high:jsNumber,confidence:{type:'string',enum:['low','medium']},rationale:jsText})),issues:jsArray(jsText),notes:jsArray(jsText)});
 const auditJson=jsObject({coveredTaskIds:jsArray(jsText),issues:jsArray(jsText),notes:jsArray(jsText),resolvedIssues:jsArray(jsObject({issue:jsText,reason:jsText,lineIds:jsArray(jsText)}))});
-const normalizeResearch=`Convert the supplied research report to the required JSON schema using ONLY evidence in that report. ${UNTRUSTED} ${BENCHMARK_POLICY} ${ISSUE_POLICY} Put permitted benchmark limitations in notes, not issues. Do not invent missing dates, costs, quantities, units, or source excerpts. Copy each source excerpt verbatim from the research report, including the actual product name. Prefer the complete Evidence: line (without its label); do not reword, compress, append a location, convert a price inside the excerpt, or combine source observations. Unit conversion belongs in the structured numeric values and notes, while the excerpt preserves the published package price. Never rename a researched product to satisfy a requested task: screw prices cannot price shims. If the report researched the wrong product, omit its rate and state the mismatch. Preserve published package units and counts; never convert counts to weight without an explicit supported conversion. Use only supplied source URLs. If a task lacks the required evidence, omit its rate and state the missing evidence in issues. Preserve exact scope, units and direct-cost basis. Do not conduct new research or change the original requested tasks.`;
+const normalizeResearch=`Convert the supplied research report to the required JSON schema using the supplied report for every supplier observation and the supplied scope for quantities. ${UNTRUSTED} ${BENCHMARK_POLICY} ${ALLOWANCE_POLICY} ${ISSUE_POLICY} Put permitted benchmark limitations in notes, not issues. Never invent dates, costs, physical measurements, source units, product coverage or source excerpts. A purchase quantity is different from a supplier quote: when usage is unstated, use the supplied installation context to model a reasonable positive consumption allowance with ALLOWANCE: evidence and a positive quantityRange, preserving the verified supplier unit. Do not replace an unknown purchase quantity with zero. If there is no defensible consumption basis, omit the rate and explain the actual missing installation context. Copy each source excerpt verbatim from the research report, including the actual product name. Prefer the complete Evidence: line (without its label); do not reword, compress, append a location, convert a price inside the excerpt, or combine source observations. Unit conversion belongs in the structured numeric values and notes, while the excerpt preserves the published package price. Never rename a researched product to satisfy a requested task: screw prices cannot price shims. If the report researched the wrong product, omit its rate and state the mismatch. Preserve published package units and counts; never convert counts to weight without an explicit supported conversion. Use only supplied source URLs. If a task lacks the required evidence, omit its rate and state the missing evidence in issues. Preserve exact scope, units and direct-cost basis. Do not conduct new research or change the original requested tasks.`;
 const parseJson=(raw:string)=>JSON.parse(raw.replace(/^\s*```(?:json)?\s*/,'').replace(/\s*```\s*$/,''));
 
 const providerRuntime=globalThis as typeof globalThis & {p5AnthropicBlockedUntil?:number};
@@ -621,11 +635,13 @@ export function normalizeConsumableMapping(mapping:Mapping,configuration:Estimat
     };
     task.existingLineIds=task.existingLineIds.filter(id=>{
       const line=existing.find(line=>line.id===id);
-      return coveredMinorMaterials(id)||line?.category==='materials'&&contractorConsumableIncluded(scope,`${task.description}: ${line.description}`);
+      const proposed=configuration.planningCatalog?.rates.find(rate=>rate.code===id);
+      const supporting=Boolean(line&&line.quantity*line.unitCost>0&&supportingOperation(line.description))||Boolean(proposed&&supportingOperation(proposed.description)&&mapping.tasks.some(other=>other!==task&&other.additions.some(addition=>addition.code===id&&addition.quantity>0)));
+      return supporting||coveredMinorMaterials(id)||line?.category==='materials'&&contractorConsumableIncluded(scope,`${task.description}: ${line.description}`);
     });
     const supplied=task.additions.some(addition=>configuration.planningCatalog?.rates.find(rate=>rate.code===addition.code)?.type==='Material')
       ||task.existingLineIds.some(id=>coveredMinorMaterials(id)||existing.some(line=>line.id===id&&line.category==='materials'&&line.quantity*line.unitCost>0));
-    if(!supplied)task.researchDescription=`Material purchase only: ${task.description} Include only the expressly requested contractor-supplied consumables. Never price the primary product (such as cabinets or flooring) again. Respect all original project exclusions. Installation labor and primary products are already separate and must not be charged here.`;
+    if(!supplied)task.researchDescription=`Material purchase only: ${task.description} Include only the expressly requested contractor-supplied consumables. Never price the primary product (such as cabinets or flooring) again. Respect all original project exclusions. Installation labor and primary products are already separate and must not be charged here. Review alreadyCovered and projectAlreadyPriced first: do not buy drywall patch materials, P-trap repair consumables or other materials included by an accepted labor-with-consumables component again. Name and price only the actual remaining supplies for the uncovered operations.`;
   }
 }
 /** Separate explicitly requested consumables before research so unlike products
@@ -633,7 +649,7 @@ export function normalizeConsumableMapping(mapping:Mapping,configuration:Estimat
  * ownership; each component must complete its own validated research batch. */
 export function researchTaskBatches(tasks:Mapping['tasks'],scope:ReviewedScope):Mapping['tasks'][]{
  const batches:Mapping['tasks'][]=[],ordinary:Mapping['tasks']=[];
- const cabinet=/cabinet/i.test(scope.answers.service||'')||/\bcabinets?\b/i.test(scope.text);
+ const cabinet=/cabinet/i.test(scope.answers.service||'')||!scope.answers.service&&/^\s*(?:install|supply(?: and install)?)\b[^.\n]{0,100}\bcabinets\b/i.test(scope.text);
  const application=cabinet?' Cabinet installation: use products explicitly sold for cabinet mounting or leveling; do not substitute drywall screws. Preserve manufacturer-stated application and package counts. Shims are counted pieces or specified packs unless the source explicitly prices shims by weight.':'';
  const measurements=cabinet?['cabinetBaseLf','cabinetUpperLf','cabinetTallLf'].map(key=>{const value=Number(scope.answers[key as keyof typeof scope.answers]);return Number.isFinite(value)&&value>0?key+'='+value+' LF':'';}).filter(Boolean).join('; '):'';
  for(const task of tasks){
@@ -1083,12 +1099,14 @@ export function repeatedResearchSupplier(reply:PricingReply|undefined):string[]{
  * stays in the pricing audit, but must not invite the researcher to buy other
  * components that are being researched separately. */
 export function researchQuantityEvidence(task:Mapping['tasks'][number],scope?:ReviewedScope):string{
- if(!/^Research ONLY contractor-supplied /.test(task.researchDescription))return task.evidence;
- const quantities=['cabinetBaseLf','cabinetUpperLf','cabinetTallLf','flooringSqft','trimLf','sqft'].flatMap(field=>{
+ const atomic=/^Research ONLY contractor-supplied /.test(task.researchDescription);
+ const material=atomic||Boolean(scope&&(contractorConsumableIncluded(scope,task.description)||contractorConsumableIncluded(scope,task.researchDescription)));
+ if(!material)return task.evidence;
+ const quantities=['cabinetBaseLf','cabinetUpperLf','cabinetTallLf','flooringSqft','tileSqft','countertopSqft','trimLf','sqft','fixtureCount'].flatMap(field=>{
    const value=Number(scope?.answers[field as keyof ReviewedScope['answers']]);
    return Number.isFinite(value)&&value>0?[field+'='+value]:[];
  });
- return 'Research only the product in this request description. Other products and all labor are separate. '+(quantities.length?'Installation context: '+quantities.join('; ')+'. ':'')+'Consumption is not a measured product count. Model a positive item-specific purchase allowance for the stated work and disclose its quantity range.';
+ return (atomic?'Research only the product in this request description. Other products and all labor are separate. ':task.evidence+' Price only installation supplies still missing after already-covered work. ')+(quantities.length?'Installation context: '+quantities.join('; ')+'. ':'')+'Consumption is not a measured product count. Model a positive item-specific purchase allowance for the stated work and disclose its quantity range.';
 }
 /** Drop an unambiguously different product row, never relabel it as the requested
  * product. Missing requested products still fail coverage and get researched. */
@@ -1134,8 +1152,8 @@ function requestedResearchRates(raw:unknown,tasks:Mapping['tasks']){
 /** Normalization may format evidence, never rename a source's product. */
 /** Repair evidence formatting against the saved report before buying another
  * search. The corrected reply must pass the same product/source validation. */
-export async function reconcileResearchReply(reply:PricingReply,tasks:Mapping['tasks'],request:PricingRequest,remaining:()=>number,validate:(value:unknown)=>void=()=>{},projectExclusions:readonly string[]=[]):Promise<PricingReply>{
- const input={requested:{tasks:tasks.map(task=>({id:task.id,description:task.researchDescription||task.description,quantityEvidence:researchQuantityEvidence(task)})),projectExclusions},report:reply.sourceReport||JSON.stringify(reply.value),sourceUrls:reply.sourceUrls};
+export async function reconcileResearchReply(reply:PricingReply,tasks:Mapping['tasks'],request:PricingRequest,remaining:()=>number,validate:(value:unknown)=>void=()=>{},projectExclusions:readonly string[]=[],pricingScope?:ReviewedScope):Promise<PricingReply>{
+ const input={requested:{tasks:tasks.map(task=>({id:task.id,description:task.researchDescription||task.description,quantityEvidence:researchQuantityEvidence(task,pricingScope)})),projectExclusions},report:reply.sourceReport||JSON.stringify(reply.value),sourceUrls:reply.sourceUrls};
  let accepted={...reply,value:researchCandidates(reply.value,tasks)};
  const shape=marketSchema.safeParse(accepted.value);
  if(!shape.success){
@@ -1789,7 +1807,7 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
     // price. Otherwise a covered sink/cabinet can enter research and fail
     // before the same deterministic correction at the end ever runs.
     const reconcileAssemblyCoverage=()=>{
-      const assemblies=resolution.rules.filter(rule=>rule.unitCost>0&&(rule.quantity.fixed||0)>0&&rule.description.includes('complete assembly, do not add its component lines'));
+      const assemblies=resolution.rules.filter(rule=>rule.unitCost>0&&(rule.quantity.fixed||0)>0);
       if(!assemblies.length)return;
       const corrected=applyPricingCorrections({scope:pricingScope,inventoryTasks:inventory.tasks,mappingTasks:mapping.tasks,lines,resolution,pricingExtraction,configuration,now});
       const liveAssemblies=new Set(resolution.rules.filter(rule=>assemblies.includes(rule)).map(rule=>rule.id));
@@ -1837,7 +1855,7 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
         previousResearch=researched;
         currentSourceUrls=researched.sourceUrls;
         currentReport=researched.sourceReport||'';
-        researched=await reconcileResearchReply(researched,gapBatch,request,()=>deadline-Date.now(),validateReply,[...(pricingScope.extraction?.instructions?.exclusions||[]),pricingScope.answers.exclusions||'']);
+        researched=await reconcileResearchReply(researched,gapBatch,request,()=>deadline-Date.now(),validateReply,[...(pricingScope.extraction?.instructions?.exclusions||[]),pricingScope.answers.exclusions||''],pricingScope);
         const accepted=parseResearchRates(researched.value);
         const market=marketResolution(accepted,researched.sourceUrls,gapBatch,now,offset,region,scope);
         if(gapBatch.some(task=>!market.rules.some(rule=>rule.scopeTaskId===task.id&&rule.unitCost>0)))throw new MissingResearchRateError(['Published research did not price every requested task',...market.issues,...accepted.issues].join('; ').slice(0,5000));
@@ -1869,7 +1887,7 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
         previousResearch=retried;
         currentSourceUrls=retried.sourceUrls;
         currentReport=retried.sourceReport||'';
-        retried=await reconcileResearchReply(retried,gapBatch,request,()=>deadline-Date.now(),validateReply,[...(pricingScope.extraction?.instructions?.exclusions||[]),pricingScope.answers.exclusions||'']);
+        retried=await reconcileResearchReply(retried,gapBatch,request,()=>deadline-Date.now(),validateReply,[...(pricingScope.extraction?.instructions?.exclusions||[]),pricingScope.answers.exclusions||''],pricingScope);
         const accepted=parseResearchRates(retried.value);
         const market=marketResolution(accepted,retried.sourceUrls,gapBatch,now,offset,region,scope);
         if(gapBatch.every(task=>market.rules.some(rule=>rule.scopeTaskId===task.id&&rule.unitCost>0))){

@@ -3,6 +3,7 @@ import {readPageRecords,readTakeoffs,reconcileTakeoffs,combineCoverage,blockingR
 import type {RetainedClarificationProvenance,RetainedLaborCoverage} from './retainedClarification.ts';
 import {aggregateLaborFacts} from './laborFacts.ts';
 import {separateFixtureFacts} from './fixtureFacts.ts';
+import {separateCabinetFacts} from './cabinetFacts.ts';
 import {verifiedCabinetWidth} from './cabinetMeasurements.ts';
 import {SCOPE_FIELDS,type ScopeField} from './scopeFields.ts';
 export {SCOPE_FIELDS,type ScopeField} from './scopeFields.ts';
@@ -259,7 +260,8 @@ export function validateExtraction(raw: unknown): ScopeExtraction {
     }
   }
   const laborAggregation=aggregateLaborFacts(factsBeforeLaborAggregation,takeoffs,laborCoverage);
-  const fixtureGroups=separateFixtureFacts(laborAggregation.facts,conflicts);
+  const cabinetGroups=separateCabinetFacts(laborAggregation.facts,conflicts);
+  const fixtureGroups=separateFixtureFacts(cabinetGroups.facts,cabinetGroups.conflicts);
   const facts=fixtureGroups.facts;
   conflicts.splice(0,conflicts.length,...fixtureGroups.conflicts);
   conflicts.push(...laborAggregation.conflicts);

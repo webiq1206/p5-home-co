@@ -196,3 +196,42 @@ test('complete house covers normal protection and final clean while separate por
  assert.deepEqual(input.resolution.rules.map(r=>r.scopeTaskId),['home','porch']);
  assert.ok(result.coveredTaskIds.includes('cleanup'));assert.ok(!result.coveredTaskIds.includes('porch'));
 });
+
+test('one set of door handles is not charged once for removal and again for replacement',()=>{
+ const tasks=[{id:'remove',description:'Remove three existing interior lever handles'},{id:'install',description:'Install three passage lever sets on the same doors'}];
+ const rules=[rule('remove',tasks[0].description,'08-71-01',3),rule('install',tasks[1].description,'08-71-01',3)];
+ const input=inputFor(scopeFor('Replace three existing interior door lever handles with owner-supplied passage lever sets.',{service:'handyman'}),tasks,rules);
+ const result=applyPricingCorrections(input);
+ assert.deepEqual(input.resolution.rules.map(r=>r.id),[rules[1].id]);
+ assert.deepEqual(input.mappingTasks[0].existingLineIds,[rules[1].id]);
+ assert.ok(result.coveredTaskIds.includes('remove'));
+ const separate=inputFor(input.scope,tasks,[rules[0],{...rules[1],floor:'Upstairs'}]);
+ applyPricingCorrections(separate);assert.equal(separate.resolution.rules.length,2);
+});
+test('integrated vanity top/sink references a positive installed package, never a separate faucet',()=>{
+ const tasks=[{id:'vanity',description:'Supply and install one 30-inch vanity'},{id:'top',description:'Supply integrated top and sink'},{id:'tap',description:'Install faucet and reconnect plumbing'}];
+ const vanity=rule('vanity',tasks[0].description,'12-41-01',1);
+ const input=inputFor(scopeFor('Install one 30-inch vanity with integrated top and sink.',{service:'bathroom'}),tasks,[vanity]);
+ input.mappingTasks[1].existingLineIds=[vanity.id];input.mappingTasks[2].existingLineIds=[vanity.id];
+ const result=applyPricingCorrections(input);
+ assert.ok(result.coveredTaskIds.includes('top'));assert.ok(!result.coveredTaskIds.includes('tap'));
+ const unsupported=inputFor(input.scope,tasks,[{...vanity,unitCost:0}]);unsupported.mappingTasks[1].existingLineIds=[vanity.id];
+ assert.ok(!applyPricingCorrections(unsupported).coveredTaskIds.includes('top'));
+});
+
+test('normal connections at provided building stubs are within the complete home; utility extensions remain separate',()=>{
+ const tasks=[{id:'house',description:'Build complete 2000 SF house'},{id:'stubs',description:'Connect utilities at building perimeter as required for complete home'},{id:'sewer',description:'Extend sewer 20 LF beyond building perimeter'}];
+ const house=rule('house',tasks[0].description,'90-10-01',2000);
+ const input=inputFor(scopeFor('Build complete home. Utilities stubbed at building perimeter. Exclude utility extensions.',{service:'new-construction',sqft:'2000'}),tasks,[house]);
+ const result=applyPricingCorrections(input);
+ assert.ok(result.coveredTaskIds.includes('stubs'));
+ assert.ok(!result.coveredTaskIds.includes('sewer'));
+ const unknown=inputFor(scopeFor('Build complete home. Utility locations unknown.',{service:'new-construction'}),tasks,[house]);
+ assert.ok(!applyPricingCorrections(unknown).coveredTaskIds.includes('stubs'));
+});
+
+test('equal handle counts on different doors are not assumed to be one replacement',()=>{
+ const tasks=[{id:'remove',description:'Remove three garage door handles'},{id:'install',description:'Install three bedroom door handles'}];
+ const input=inputFor(scopeFor('Remove existing garage handles and install bedroom handles.',{service:'handyman'}),tasks,[rule('remove',tasks[0].description,'08-71-01',3),rule('install',tasks[1].description,'08-71-01',3)]);
+ applyPricingCorrections(input);assert.equal(input.resolution.rules.length,2);
+});

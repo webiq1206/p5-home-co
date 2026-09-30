@@ -1,5 +1,6 @@
 import type {ScopeAnswers,ScopeExtraction} from './scope.ts';
 import {emptyInstructions} from './instructions.ts';
+import {ownerSuppliesAllPartsText} from './contractorConsumables.ts';
 
 const items=[{label:'appliances',pattern:/\bappliances?\b/i},{label:'decorative lighting',pattern:/\b(?:decorative\s+(?:lighting|fixtures)|lighting)\b/i}];
 const owner=/\b(?:owner|homeowner|client|customer)\b/i;
@@ -37,9 +38,25 @@ export function groundSourceResponsibilities(extraction:ScopeExtraction,nativeTe
  // An exclusion does not assign procurement or work to the owner. Apply this
  // narrow guard to typed scopes too, when no source names an owner role.
  const source=[nativeText,typedText,previous.estimatingInstructions,previous.installation].filter(Boolean).join('\n');
+ if(ownerSuppliesAllPartsText(source+'\n'+(previous.ownerSupplied||''))){
+  const grounded=(value:string)=>clauses(value).flatMap(clause=>{
+   if(!/\bcontractor\b/i.test(clause)||!/\b(?:consumables|screws|installation supplies)\b/i.test(clause))return [clause];
+   const labor=clause.match(/^(.*?\blabor)\s+(?:and|plus|with)\s+(?:minor |normal |installation |incidental )*(?:consumables|supplies|screws)\b/i);
+   return labor?[labor[1]+'.']:[];
+  }).join(' ');
+  extraction={...extraction,facts:extraction.facts.flatMap(fact=>{
+   if(!['installation','ownerSupplied','otherDetails'].includes(fact.field))return [fact];
+   const value=grounded(fact.value);return value?[{...fact,value}]:[];
+  }),...(extraction.instructions?{instructions:{...extraction.instructions,responsibilities:extraction.instructions.responsibilities.map(grounded).filter(Boolean)}}:{})};
+ }
  const explicitOwner=Boolean(previous.ownerSupplied?.trim())||owner.test(source)||/\b(?:I|we|our)\b/i.test(source);
  if(!explicitOwner&&/\b(?:exclud\w*|not included|outside (?:the )?scope)\b/i.test(source)){
-  extraction={...extraction,facts:extraction.facts.filter(fact=>fact.field!=='ownerSupplied'),
+  extraction={...extraction,facts:extraction.facts.flatMap(fact=>{
+    if(fact.field==='ownerSupplied')return [];
+    if(!['appliances','installation','taskList','otherDetails'].includes(fact.field))return [fact];
+    const value=clauses(fact.value).filter(clause=>!owner.test(clause)).join(' ');
+    return value?[{...fact,value}]:[];
+   }),
    ...(extraction.instructions?{instructions:{...extraction.instructions,responsibilities:extraction.instructions.responsibilities.flatMap(value=>clauses(value).filter(clause=>!owner.test(clause)))}}:{})};
  }
  if(!nativeText)return extraction;

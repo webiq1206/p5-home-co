@@ -1,5 +1,6 @@
 import {ProcessingDeadlineError,PROCESSING_PAUSED,isProcessingDeadline} from './processingBudget.ts';
 import {applyCabinetIntent} from "./projectIntent.ts";
+import {groundSourceResponsibilities} from './sourceResponsibilities.ts';
 import {advanceAnalysis,IncompleteAnalysisError} from "./analysisWork.ts";
 import {queuedJob} from './backgroundJobs.ts';
 import {manualScopeAnswers,reconcileScope,scopeQuestionsForBrand as scopeQuestions} from "./adaptive.ts";
@@ -7,7 +8,7 @@ import {costQuestionFields} from "./questionPolicy.ts";
 import {createHash} from "node:crypto";
 import { analyzeScope } from "./extraction.ts";
 import { prepareAnalysisFiles,verifyPdfPageLimit,verifyUpload } from "./documents.ts";
-import { SCOPE_BATCH_LIMIT,SCOPE_TEXT_LIMIT,SCOPE_FILE_COUNT,SCOPE_UPLOAD_HELP,SCOPE_FIELDS } from "./scope.ts";
+import { SCOPE_BATCH_LIMIT,SCOPE_TEXT_LIMIT,SCOPE_FILE_COUNT,SCOPE_UPLOAD_HELP,SCOPE_FIELDS,validateExtraction } from "./scope.ts";
 import { draftCredentials,readDraft,readUploads,saveUpload,saveDraft,DraftError } from "./store.ts";
 import {answersForEditedScope,normalizeScopeText,scopeFingerprint,scopeTextChanged,sourceSnapshot,sourceSnapshotsEqual} from "./scopeReplacement.ts";
 import { failed,json,limitedBody,protectRequest } from "./http.ts";
@@ -138,7 +139,7 @@ export async function postScope(request:Request){
       if(error instanceof IncompleteAnalysisError)failedSourceNotes=error.reviewNotes;
     }
     // Copy before applying intent: a stored or reused result must never be mutated in place.
-    if(analysis)analysis={...analysis,extraction:applyCabinetIntent(text,ESTIMATOR_BRAND.services,visitorAnswers,analysis.extraction).extraction!};
+    if(analysis)analysis={...analysis,extraction:applyCabinetIntent(text,ESTIMATOR_BRAND.services,visitorAnswers,validateExtraction(groundSourceResponsibilities(analysis.extraction,analysis.extraction.sourceText,text,visitorAnswers))).extraction!};
     // A repair-only site prices a plain repair request as home repairs instead of asking the customer
     // to pick "Home repairs" from a menu of repair types (live Handyman baseboard, 2026-09-24/25). The
     // type is supplied as a source-derived fact, exactly like the Cabinet intent above, and it is

@@ -75,3 +75,17 @@ test('ADU exclusions do not invent owner supply or responsibility in typed or up
  assert.ok(groundSourceResponsibilities(input,undefined,source+' Owner supplies the appliances.',{}).facts.some(f=>f.field==='ownerSupplied'));
  assert.ok(groundSourceResponsibilities(input,undefined,source,{ownerSupplied:'Appliances'}).facts.some(f=>f.field==='ownerSupplied'));
 });
+
+test('an excluded appliance does not leak invented ownership through another fact field',()=>{
+ const source='Build an ADU. Exclude appliance supply.';
+ const input:ScopeExtraction={summary:'ADU',facts:[{field:'appliances',value:'Owner supplies all appliances.',confidence:1,source:'typed scope',evidence:'Exclude appliance supply',basis:'stated'}],conflicts:[],reviewNotes:[],missingInformation:[],instructions:emptyInstructions()};
+ assert.equal(groundSourceResponsibilities(input,undefined,source,{}).facts.length,0);
+ assert.equal(groundSourceResponsibilities(input,undefined,source+' Owner provides appliances.',{}).facts.length,1);
+});
+
+test('owner supplies all parts also removes invented incidental contractor supplies',()=>{
+ const input:ScopeExtraction={summary:'Handles',facts:[],conflicts:[],reviewNotes:[],missingInformation:[],instructions:{...emptyInstructions(),responsibilities:['Owner supplies passage levers','Contractor supplies installation labor and minor installation consumables only (e.g., screws as needed)']}};
+ const safe=groundSourceResponsibilities(input,undefined,'Replace 3 handles. All parts are provided by owner.',{});
+ assert.deepEqual(safe.instructions?.responsibilities,['Owner supplies passage levers','Contractor supplies installation labor.']);
+ assert.deepEqual(groundSourceResponsibilities(input,undefined,'Replace 3 handles. Owner provides handles. Contractor supplies screws.',{}),input);
+});

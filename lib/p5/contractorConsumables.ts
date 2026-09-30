@@ -7,6 +7,9 @@ const CONSUMABLES=/\b(?:consumables?|sundries|installation (?:materials|supplies
 /** Original source ownership outranks a reader-generated incidental-supply claim. */
 export function ownerSuppliesAllParts(scope:ReviewedScope):boolean{
   const original=[scope.text,scope.extraction?.sourceText,...(scope.corrections||[]).filter(c=>c.field==='ownerSupplied'||c.field==='installation').map(c=>c.value)].filter(Boolean).join('\n');
+  return ownerSuppliesAllPartsText(original);
+}
+export function ownerSuppliesAllPartsText(original:string):boolean{
   const all=/\b(?:owner|customer|client)\b[^.;\n]{0,35}\b(?:suppl\w*|provid\w*|furnish\w*)\b[^.;\n]{0,20}\ball\s+(?:installation\s+)?(?:parts|materials|consumables)\b|\ball\s+(?:installation\s+)?(?:parts|materials|consumables)\b[^.;\n]{0,45}\b(?:by\s+(?:the\s+)?owner|owner[- ]provided)\b/i.test(original);
   const exception=/\bcontractor\s+(?:supplies|provides|furnishes)\b[^.;\n]{0,70}\b(?:screws?|nails?|shims?|caulk|supplies|consumables|parts)\b/i.test(original);
   return all&&!exception;

@@ -1,4 +1,5 @@
 import {HANDOFF_ISSUE} from './scopePricing.ts';
+import {ESTIMATOR_VERSION} from './version.ts';
 import {withRateCard} from './rateCard.ts';
 import {finishTier,priceBookRates,PRICE_BOOK_VERSION} from './priceBook.ts';
 import { query } from "./database.ts";
@@ -49,23 +50,25 @@ export async function postSubmission(request:Request,schedule?:(task:()=>Promise
     // even if this page is closed: the estimate driver completes it without the browser.
     const notifyEmail=typeof body.notifyEmail==='string'?body.notifyEmail.trim().slice(0,200):'';
     if(notifyEmail&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(notifyEmail))throw new DraftError('Enter a valid email address.');
-    if(body.background===true){await recordSubmitRequest(id,draft.revision,body.notify===true,notifyEmail);kickDriver('submit');}
+    if(body.background===true){await recordSubmitRequest(id,draft.revision,body.notify===true,notifyEmail,body.retry===true);kickDriver('submit');}
     // "Email me when it's ready": the request is recorded and the customer may leave now.
     if(body.notifyOnly===true)return json({notified:true,email:notifyEmail||draft.contact.email||''});
     return await completeSubmission(id,draft,{background:body.background===true,retry:body.retry===true},schedule);
   }catch(error){if(isPricingPending(error))return error.retryAfterMs===0?json({error:error.message},503):json({pending:true,message:error.message,retryAfterMs:error.retryAfterMs},202);return failed(error);}
 }
 /** Record that the customer asked for this revision's estimate; the driver finishes it if they leave. */
-export async function recordSubmitRequest(id:string,revision:number,notify:boolean,notifyEmail=''){
-  const payload={state:'pending',revision,notify,...(notifyEmail?{notifyEmail}:{}),requestedAt:new Date().toISOString()};
-  // The same revision keeps its state and any address already given (the page's own status polls carry
-  // none); notify is sticky once asked for. A new revision starts a fresh request.
+export async function recordSubmitRequest(id:string,revision:number,notify:boolean,notifyEmail='',retry=false){
+  const payload={state:'pending',revision,engineVersion:ESTIMATOR_VERSION,notify,...(notifyEmail?{notifyEmail}:{}),requestedAt:new Date().toISOString()};
+  // Same-engine polls preserve state. A new engine or explicit retry restarts
+  // completion for this revision, keeping its requested delivery preferences.
   await query(`INSERT INTO p5_estimator_work(draft_id,work_key,payload) VALUES($1,'submit-request-v1',$2::jsonb)
     ON CONFLICT(draft_id,work_key) DO UPDATE SET payload=CASE
-      WHEN (p5_estimator_work.payload->>'revision')::int=$3 THEN p5_estimator_work.payload
+      WHEN (p5_estimator_work.payload->>'revision')::int=$3 THEN
+        (CASE WHEN p5_estimator_work.payload->>'engineVersion'=$6 AND NOT $7 THEN p5_estimator_work.payload
+          ELSE $2::jsonb || CASE WHEN p5_estimator_work.payload ? 'notifyEmail' THEN jsonb_build_object('notifyEmail',p5_estimator_work.payload->>'notifyEmail') ELSE '{}'::jsonb END END)
         ||jsonb_build_object('notify',coalesce((p5_estimator_work.payload->>'notify')::boolean,false) OR $4)
         ||CASE WHEN $5::text<>'' THEN jsonb_build_object('notifyEmail',$5::text) ELSE '{}'::jsonb END
-      ELSE $2::jsonb END,updated_at=now()`,[id,JSON.stringify(payload),revision,notify,notifyEmail]);
+      ELSE $2::jsonb END,updated_at=now()`,[id,JSON.stringify(payload),revision,notify,notifyEmail,ESTIMATOR_VERSION,retry]);
 }
 /** Price (or wait for) a revision and, once it has a validated range, save it and queue its delivery.
  * Shared by the customer's request and the background driver, so the outcome is the same either way. */

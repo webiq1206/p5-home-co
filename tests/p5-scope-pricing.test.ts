@@ -2185,3 +2185,39 @@ test('descriptive pound-box units compare equivalent weights and preserve modele
  assert.equal(result.rules[0].unit,'LB');assert.equal(result.rules[0].quantity.fixed,10);assert.equal(result.rules[0].unitCost,11);
  assert.deepEqual(result.rules[0].quantityRange,{low:5,high:15});
 });
+
+test('bare supplier package units retain evidenced weights and counts',()=>{
+ for(const [unit,excerpt,expectedUnit,expectedQty] of [['1 lb. box','Cabinet screws, 1 lb box, $12.','LB',2],['10-pack','Cabinet shims, 10-pack, $12.','EA',20]] as const){
+  const raw=structuredClone(researched),rate=raw.rates[0];
+  Object.assign(rate,{basis:'material-purchase',unit,quantity:2,quantityEvidence:'ALLOWANCE: two supplier packages',quantityRange:{low:1,high:3}});
+  rate.sources=urls.map(url=>({...source(url,12,12),unit,excerpt}));
+  const result=marketResolution(raw,urls,[extra],now);
+  assert.equal(result.rules[0].unit,expectedUnit);assert.equal(result.rules[0].quantity.fixed,expectedQty);
+  assert.equal(result.rules[0].unitCost*expectedQty,24);
+ }
+});
+test('descriptive caulk tubes retain one purchased cartridge and reject differing sizes',()=>{
+ const raw=structuredClone(researched),rate=raw.rates[0];
+ Object.assign(rate,{basis:'material-purchase',unit:'10.1 oz tube',quantity:2,quantityEvidence:'ALLOWANCE: two caulk cartridges',quantityRange:{low:1,high:3}});
+ rate.sources=urls.map(url=>({...source(url,8,8),unit:'10.1 oz tube',excerpt:'Installation caulk 10.1 oz tube, $8.'}));
+ const result=marketResolution(raw,urls,[extra],now);
+ assert.equal(result.rules[0].unit,'EA');assert.equal(result.rules[0].quantity.fixed,2);assert.equal(result.rules[0].unitCost,8);
+ rate.sources[1].excerpt='Installation caulk 28 oz tube, $8.';
+ assert.throws(()=>marketResolution(raw,urls,[extra],now),/Cartridge size/);
+});
+
+test('generic consumable formatting retains reviewed installation quantities and allowance policy',async()=>{
+ const {reconcileResearchReply}=await import('../lib/p5/scopePricing.ts');
+ const local={...scope,text:'Install finishes. Include normal installation consumables.',answers:{service:'whole-home',flooringSqft:'1600',tileSqft:'80',trimLf:'550',cabinetBaseLf:'18',cabinetUpperLf:'12'}};
+ const supplies={...extra,id:'supplies',description:'Normal installation consumables',researchDescription:'Material purchase only: installation consumables',evidence:'Normal materials included'};
+ let called=false;
+ const accepted=await reconcileResearchReply({value:null,sourceUrls:urls,sourceReport:'Installation caulk: supplier observations retained.'},[supplies],async(instructions,input,search)=>{
+  called=true;assert.equal(search,false);
+  const context=(input as any).requested.tasks[0].quantityEvidence;
+  for(const quantity of ['flooringSqft=1600','tileSqft=80','trimLf=550','cabinetBaseLf=18'])assert.ok(context.includes(quantity));
+  assert.match(instructions,/positive consumption allowance/);
+  assert.match(instructions,/Never invent dates, costs, physical measurements/);
+  return {value:{rates:[],issues:['Supplier observations incomplete'],notes:[]},sourceUrls:[]};
+ },()=>60000,()=>{},[],local);
+ assert.ok(called);assert.deepEqual((accepted.value as any).rates,[],'no rate is fabricated when evidence is absent');
+});
