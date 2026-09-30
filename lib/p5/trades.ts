@@ -64,6 +64,20 @@ export function tradeForLine(line: { trade?: string; description: string }): Tra
   }
   return suggestedTrade(line.description);
 }
+/** A multi-step task can mention disposal or a substrate without belonging
+ * to that trade. Display its summary beside its principal accepted price;
+ * all supporting line items remain in their own categories, charged once. */
+export function tradeForScopeTask(task:{id:string;description:string;existingLineIds?:string[]},lines:{id:string;category:string;low:number;high:number}[],rules:{id:string;scopeTaskId?:string}[]):TradeCategory{
+ const ids=new Set([...(task.existingLineIds||[]),...rules.filter(r=>r.scopeTaskId===task.id).map(r=>r.id)]);
+ const weights=new Map<TradeCategory,number>();
+ for(const line of lines){
+  if(!ids.has(line.id)||!TRADE_CATEGORIES.includes(line.category as TradeCategory)||line.low<0||line.high<=0||!Number.isFinite(line.low+line.high))continue;
+  const category=line.category as TradeCategory;
+  weights.set(category,(weights.get(category)||0)+line.low+line.high);
+ }
+ const suggested=suggestedTrade(task.description);
+ return [...weights].sort((a,b)=>b[1]-a[1]||(a[0]===suggested?-1:b[0]===suggested?1:0))[0]?.[0]||suggested;
+}
 /** Largest-remainder presentation rounding preserves the displayed range total. */
 export function apportionAmount(total: number, weights: number[]): number[] {
   const sum = weights.reduce((a,b) => a+b, 0);

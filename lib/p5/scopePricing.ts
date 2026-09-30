@@ -18,7 +18,7 @@ import {createHash} from 'node:crypto';
 import {applyConsumableCoverage} from './consumableCoverage.ts';
 import {z} from 'zod';
 import {PricingPending,PricingStageTimeout,isPricingPending,isPricingStageTimeout} from './pricingProgress.ts';
-import {suggestedTrade} from './trades.ts';
+import {suggestedTrade,tradeForScopeTask} from './trades.ts';
 import {priceReviewedScope,type CostRule,type EstimatorConfiguration,type ScopePriceResolution} from './costBook.ts';
 import type {ReviewedScope,ScopeExtraction} from './scope.ts';
 import {relevantCatalog} from './catalogSelection.ts';
@@ -2444,5 +2444,5 @@ export function finishScopePricing(scope:ReviewedScope,configuration:EstimatorCo
   const priced=priceReviewedScope(scope,configuration,now,resolution);
   const tasks=(auditTrail.tasks as Mapping['tasks']).map(task=>({...task,evidence:task.evidence||''}));
   const includedTasks=tasks.filter(task=>taskSelectionStatus(task,tasks)==='billable');
-  return {...priced,customer:customerSafeProjection({...priced.customer,instructions:pricingExtraction?.instructions,documentCoverage:pricingExtraction?.documentCoverage,verificationItems:customerSafeNotes([...resolution.assumptions.filter(a=>/allowance|preliminary|confirm/i.test(a)),...resolution.issues,...duplicateChargeNotes(resolution.rules)]),scopeTasks:(includedTasks as (Mapping['tasks'][number]&{origin?:string;basis?:string})[]).map(t=>({description:t.description,category:suggestedTrade(t.description),...(t.origin==='required'?{origin:'required',basis:t.basis||''}:{})}))}),internal:{...priced.internal,scopePricing:auditTrail}};
+  return {...priced,customer:customerSafeProjection({...priced.customer,instructions:pricingExtraction?.instructions,documentCoverage:pricingExtraction?.documentCoverage,verificationItems:customerSafeNotes([...resolution.assumptions.filter(a=>/allowance|preliminary|confirm/i.test(a)),...resolution.issues,...duplicateChargeNotes(resolution.rules)]),scopeTasks:(includedTasks as (Mapping['tasks'][number]&{origin?:string;basis?:string})[]).map(t=>({description:t.description,category:tradeForScopeTask(t,priced.customer.lineItems,resolution.rules),...(t.origin==='required'?{origin:'required',basis:t.basis||''}:{})}))}),internal:{...priced.internal,scopePricing:auditTrail}};
 }
