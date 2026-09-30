@@ -327,6 +327,8 @@ export type P5Estimate = ReturnType<typeof calculateP5Estimate>;
 export const PLANNING_DISCLAIMER = "Preliminary planning information only. This is not a bid, quote, offer or guaranteed price. A site or plan review, confirmed scope, current supplier and trade pricing, and written agreement are required before work proceeds.";
 const CUSTOMER_ALLOWANCE_DISCLOSURE="Preliminary allowance: confirm quantities, selections and current supplier or trade pricing before a firm proposal.";
 const INTERNAL_COMMERCIAL_NOTE=[
+  // Generated audit notes describe a direct-cost check, not the final selling policy.
+  /\boverhead(?:\s+(?:is|was|will be))?\s+(?:(?:not|never)\s+)?(?:included|excluded|added|charged)\b/i,
   /\bdirect[- ]costs?\b/i,
   /\bdirect[- ](?:materials?|labor|labour)\b/i,
   /\bunit costs?\b/i,

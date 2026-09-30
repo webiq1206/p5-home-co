@@ -115,3 +115,11 @@ test('a revised garage rectangle resolves only with matching stated area and ari
  const out=applyExplicitTypedCorrections(x,text);assert.equal(out.conflicts.length,0);assert.equal(out.facts.find(f=>f.field==='sqft')!.value,'2000');
  assert.equal(applyExplicitTypedCorrections(x,text.replace('24 by 24','24 by 22')).conflicts.length,1);
 });
+
+test('incidental debris cleanup does not classify an entire hardware replacement as cleanup',async()=>{
+ const {suggestedTrade}=await import('../lib/p5/trades.ts');
+ assert.equal(suggestedTrade('Remove existing and install two owner-supplied interior passage lever handles on doors, including adjustment, functional testing, and minor debris cleanup.'),'Windows & Doors');
+ assert.equal(suggestedTrade('Perform final cleanup after the window replacement.'),'Cleanup & Disposal');
+ assert.equal(suggestedTrade('Repair and resecure 6 linear feet of existing interior window trim. No new casing or stool package and no rot repair.'),'Trim & Finish Carpentry');
+ assert.equal(suggestedTrade('Replace one window and repair its existing trim.'),'Windows & Doors');
+});

@@ -43,7 +43,7 @@ export function suggestedTrade(description: string): TradeCategory {
   // Explicit exclusions describe what is NOT supplied and must not select its trade.
   const included = description.replace(/\b(?:no|without|exclud(?:e|es|ed|ing))\s+[^,;()\n]*/gi, ' ');
   // "...testing and cleanup" at the end of a repair is housekeeping, not the trade doing the work.
-  const work = included.replace(/(?:,|\band\b|\bincluding\b|\bwith\b)\s+(?:final\s+|incidental\s+)?clean.?up\b/gi, " ");
+  const work = included.replace(/(?:,|\band\b|\bincluding\b|\bwith\b)\s+(?:(?:final|incidental|minor|small|routine)\s+)?(?:debris\s+)?clean.?up\b/gi, " ");
   // Catalog descriptions append broad section names in parentheses. "Cabinet
   // install labor only (... Cabinet Refacing, Refinishing & Install ...)" is
   // cabinet installation, not the refinishing trade named in that section.
@@ -54,6 +54,7 @@ export function suggestedTrade(description: string): TradeCategory {
   let primary=work;
   while(/\([^()]*\)/.test(primary))primary=primary.replace(/\([^()]*\)/g,' ');
   const item=primary.replace(/\b(?:over|on)\s+(?:(?:an?|the)\s+)?(?:existing\s+)?concrete(?:\s+(?:slab|subfloor|floor))?\b/gi,' ');
+  if(/^\s*(?:repair|resecure|reattach|refasten)\b[^.]{0,100}\b(?:window|door)\s+trim\b/i.test(item))return "Trim & Finish Carpentry";
   return patterns.find(([, pattern]) => pattern.test(item))?.[0] ?? patterns.find(([, pattern]) => pattern.test(work))?.[0] ?? patterns.find(([, pattern]) => pattern.test(included))?.[0] ?? "Other Project Work";
 }
 export function tradeForLine(line: { trade?: string; description: string }): TradeCategory {

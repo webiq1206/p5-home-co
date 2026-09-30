@@ -64,3 +64,9 @@ test('retained window trim repair cannot purchase a full replacement trim packag
  const out=catalogResolution(mapping([task('trim',description,'PB-06-20-22')]),config,[],now,scope('Replace only two windows; repair retained interior trim.'));
  assert.equal(out.rules.length,0);assert.match(out.issues.join(' '),/retained trim repair cannot/);
 });
+
+test('direct-cost audit prose cannot falsely say the customer price excludes overhead',async()=>{
+ const {customerSafeNotes}=await import('../lib/p5/pricing.ts');
+ assert.deepEqual(customerSafeNotes(['No additional labor, material, tax, or overhead included.','Owner supplies both passage handles.']),['Owner supplies both passage handles.']);
+ assert.deepEqual(customerSafeNotes(['Repair the overhead garage door; normal hardware included.']),['Repair the overhead garage door; normal hardware included.']);
+});
