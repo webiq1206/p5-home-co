@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {projectInput,projectHash,projectRecordIntegrity,acceptProjectRecord,validateProjectRecord,projectRecordChange,computedProjectQuantity,ProjectRecordError} from '../lib/p5/projectRecord.ts';
 import {compileProjectPrices,projectPriceSelection,calculateProjectEstimate,projectReviewReceipt,projectPriceProposalFromWire,validateProjectReview} from '../lib/p5/projectPricing.ts';
 import {interpretProjectRecord,priceProjectRecord} from '../lib/p5/projectWorkflow.ts';
-import {PROJECT_RECORD_INSTRUCTIONS,PROJECT_PRICE_INSTRUCTIONS,PROJECT_REVIEW_INSTRUCTIONS,PROJECT_CATALOG_INSTRUCTIONS,PROJECT_COMPLETION_INSTRUCTIONS,projectProposalSchema,projectReviewSchema,type ProjectProposal,type ProjectQuantity} from '../lib/p5/projectRecordContracts.ts';
+import {PROJECT_RECORD_INSTRUCTIONS,PROJECT_PRICE_INSTRUCTIONS,PROJECT_REVIEW_INSTRUCTIONS,PROJECT_CATALOG_INSTRUCTIONS,PROJECT_COMPLETION_INSTRUCTIONS,projectProposalSchema,projectReviewSchema,type ProjectProposal,type ProjectQuantity,type ProjectPricingProposal} from '../lib/p5/projectRecordContracts.ts';
 import {acceptProjectCompletion,type ProjectCompletionPlan} from '../lib/p5/projectCompletion.ts';
 import {checkedProjectCandidates,projectCatalogIndex,projectConfiguration} from '../lib/p5/projectCatalog.ts';
 import {openAiPricingRequestEnvelope,type PricingRequest} from '../lib/p5/scopePricing.ts';
@@ -31,10 +31,25 @@ function example(input=projectInput(scope)):ProjectProposal{
  ],questions:[],sourceReviews:input.sources.map(s=>({sourceId:s.id,status:'reviewed',reason:''})),assumptions:[]};
 }
 const record=()=>acceptProjectRecord(example(),projectInput(scope),null,now);
-const proposal=()=>({estimatingQuantities:[],lines:[{id:'install',rateId:'PB-08-71-01',quantityId:'handle-count',requirementIds:['replace-handles'],catalogQuote:config.planningCatalog!.rates.find(r=>r.code==='PB-08-71-01')!.description,coverageEvidence:'Owner-supplied sets require only replacement labor.'}],gaps:[]});
+const proposal=():ProjectPricingProposal=>({estimatingQuantities:[],lines:[{id:'install',rateId:'PB-08-71-01',quantityId:'handle-count',requirementIds:['replace-handles'],catalogQuote:config.planningCatalog!.rates.find(r=>r.code==='PB-08-71-01')!.description,coverageEvidence:'Owner-supplied sets require only replacement labor.',specificationChecks:[{requirementId:'replace-handles',specificationIndex:0,basis:'scope-condition',evidenceIds:['e1'],explanation:'The customer supplies matching sets and confirms the existing holes are sound.'}]}],gaps:[]});
 const wireProposal=()=>({lines:proposal().lines.map(({quantityId,...line})=>({...line,quantity:{origin:'project',quantityId}})),gaps:[]});
 const method=(input=projectInput(scope),operation:'install'|'remove'|'repair'='install',kind:'requested'|'decision-needed'='requested')=>({reviewedSourceIds:input.sources.map(source=>source.id),steps:[{id:'method-'+operation,subject:'Items specified by the customer',description:'Perform the '+operation+' operation',operation,kind,responsibility:'contractor' as const,evidence:[{sourceId:input.sources[0].id,quote:input.sources[0].text}],reason:'Explicit current source instruction.'}]});
 const review=(r=record(),plan?:ProjectCompletionPlan)=>({reviewedRequirementIds:r.requirements.map(x=>x.id),reviewedSourceIds:r.sources.map(x=>x.id),reviewedQuestionIds:r.questions.map(q=>q.id),completionChecks:plan?plan.steps.map(step=>({stepId:step.id,outcome:'represented' as const,requirementIds:r.requirements.filter(requirement=>requirement.operation===step.operation).map(requirement=>requirement.id),questionIds:step.kind==='decision-needed'?r.questions.filter(question=>question.priority==='blocking').map(question=>question.id):[],reason:'Controlled test mapping to explicit operations.',evidenceIds:[]})):[],findings:[],notes:[]});
+test('a product specification cannot disappear behind a generic catalog description or a favorable review',()=>{
+ const p=example();p.requirements[0].specifications=['Requested finish and hardware not described in the planning rate'];
+ const r=acceptProjectRecord(p,projectInput(scope),null,now),raw=proposal();raw.lines[0].specificationChecks=[];
+ let selected=projectPriceSelection(r,config,raw);
+ assert.ok(calculateProjectEstimate(r,selected,config,projectReviewReceipt(r,selected,review(r)),now).problems.some(p=>p.code==='specification-evidence'));
+ raw.lines[0].specificationChecks=[{requirementId:'replace-handles',specificationIndex:0,basis:'catalog',catalogQuote:'Unstated specialty finish and hardware',explanation:'Claimed exact match.'}];
+ assert.ok(compileProjectPrices(r,projectPriceSelection(r,config,raw),config,now).problems.some(p=>p.code==='specification-evidence'));
+ const disclosure='Provisional planning allowance only. The requested finish and hardware are not established by this rate and require supplier confirmation.';
+ raw.lines[0].specificationChecks=[{requirementId:'replace-handles',specificationIndex:0,basis:'allowance',disclosure,explanation:'Controlled test of disclosure propagation, not a validated supplier quote.'}];
+ selected=projectPriceSelection(r,config,raw);const result=calculateProjectEstimate(r,selected,config,projectReviewReceipt(r,selected,review(r)),now);
+ assert.equal(result.status,'estimated');assert.equal(result.compiled.lines[0].allowance,true);
+ assert.ok(JSON.stringify(result.customer).includes(disclosure));
+ raw.lines[0].specificationChecks.push(raw.lines[0].specificationChecks[0]);
+ assert.ok(compileProjectPrices(r,projectPriceSelection(r,config,raw),config,now).problems.some(p=>p.code==='specification-evidence'));
+});
 test('all project provider contracts use their own strict schema instead of an unrelated audit response',()=>{
  for(const [instructions,key]of [[PROJECT_COMPLETION_INSTRUCTIONS,'steps'],[PROJECT_RECORD_INSTRUCTIONS,'requirements'],[PROJECT_CATALOG_INSTRUCTIONS,'requirements'],[PROJECT_PRICE_INSTRUCTIONS,'lines'],[PROJECT_REVIEW_INSTRUCTIONS,'findings']]){
   const body=openAiPricingRequestEnvelope(instructions,{},false).body as any;
@@ -185,7 +200,7 @@ test('bounded supporting effort is costed as a disclosed allowance without inven
  assert.equal(r.questions.length,0);
  const quantities=[{id:'cleanup-effort',description:'Cleanup effort for the known replacement work',unit:'HR',basis:'allowance' as const,value:.5,range:{low:.25,high:.75},evidenceIds:['e1'],calculation:null,assumption:'Budget 15 to 45 minutes for the small debris generated by the three replacements; this is estimated effort, not a measured site quantity.',requirementIds:['cleanup'],basedOnQuantityIds:['handle-count']}];
  const proposed={...proposal(),estimatingQuantities:quantities};
- proposed.lines.push({id:'cleanup-price',rateId:'PB-01-74-10',quantityId:'cleanup-effort',requirementIds:['cleanup'],catalogQuote:config.planningCatalog!.rates.find(rate=>rate.code==='PB-01-74-10')!.description,coverageEvidence:'Cleanup labor for the included work; no material purchase.'});
+ proposed.lines.push({id:'cleanup-price',rateId:'PB-01-74-10',quantityId:'cleanup-effort',requirementIds:['cleanup'],catalogQuote:config.planningCatalog!.rates.find(rate=>rate.code==='PB-01-74-10')!.description,coverageEvidence:'Cleanup labor for the included work; no material purchase.',specificationChecks:[{requirementId:'cleanup',specificationIndex:0,basis:'scope-condition',evidenceIds:['e1'],explanation:'Controlled fixture carries the same known installation conditions.'}]});
  const selection=projectPriceSelection(r,config,proposed),compiled=compileProjectPrices(r,selection,config,now);
  assert.deepEqual(compiled.problems,[]);assert.equal(compiled.lines.reduce((sum,line)=>sum+line.quantity*line.unitCost,0),232.5);
  assert.equal(r.quantities.length,1);assert.equal(r.quantities[0].value,3);
