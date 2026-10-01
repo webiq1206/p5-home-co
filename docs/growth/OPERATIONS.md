@@ -1,5 +1,10 @@
 # P5 free growth operations
 
+## Required contact identity and browser housekeeping
+
+Use Nick Perkins for every P5 owner/contact name in listings, registrations, forms and business-facing communications. Never use the user's personal name. Correct prepared forms before submission. Keep business email hello@p5homeco.com, phone (208) 477-1169 and the authorized public address unchanged. Close stale, duplicate and completed browser tabs as work finishes; retain only tabs required for active work or a specific pending handoff.
+
+
 Updated: 2026-09-29. The user authorizes autonomous, relevant, accurate, free growth work across P5 Home Co and its five specialist brands. Execute qualified opportunities; do not build an unpublished backlog.
 
 ## Brand and destinations
@@ -129,8 +134,8 @@ The existing weekday 8 a.m. America/Boise automation was expanded without creati
 
 ## October 1 directory and address follow-up
 
-Jared authorizes 4031 W Wapoot St, Meridian, ID 83646 whenever a public street address is needed. Use this exact address for future relevant P5 listings. Preserve service-area treatment where supported and do not imply a staffed walk-in storefront. This supersedes earlier no-public-street instructions; it does not authorize duplicate child profiles.
+the user authorizes 4031 W Wapoot St, Meridian, ID 83646 whenever a public street address is needed. Use this exact address for future relevant P5 listings. Preserve service-area treatment where supported and do not imply a staffed walk-in storefront. This supersedes earlier no-public-street instructions; it does not authorize duplicate child profiles.
 
 Boise Business Directory's free parent-listing submission returned CAPTCHA verification failed. No successful submission, listing or backlink is confirmed. Do not report the attempted form as submitted. EZlocal's free parent listing is prepared with P5's authorized contact details, General Contractor category and service-area address hiding, but is not submitted: explicit Terms of Use/Privacy Policy acceptance and CAPTCHA require action-time confirmation. Promotional SMS remains unchecked. No paid plan or trial was selected. Brownbook and ProMatcher remain unfinished.
 
-Treasure Valley Contractor Guide's existing review email and Jared's September 30 reply were found in the verified P5 inbox. The listing remains pending review. Check for publication or a new verification request before resubmitting or sending another response. Keep private inquiry content out of this public record.
+Treasure Valley Contractor Guide's existing review email and the user's September 30 reply were found in the verified P5 inbox. The listing remains pending review. Check for publication or a new verification request before resubmitting or sending another response. Keep private inquiry content out of this public record.
