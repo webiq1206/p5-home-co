@@ -53,9 +53,10 @@ test('clarification updates cannot invent work, change units or assert numbers a
  assert.throws(()=>clarificationTakeoffUpdates([{...item,quantity:100}],context),/evidence-unverified/);
  assert.throws(()=>clarificationTakeoffUpdates([corrected,corrected],context),/identity-invalid/);
  assert.throws(()=>clarificationTakeoffUpdates([corrected],{...context,prior:[item,{...item,building:'separate garage'}]}),/identity-invalid/);
- const update=clarificationTakeoffUpdates([{...item,quantity:12}],{prior:[item],answer:'12'});
+ const measuredItem:Takeoff={...item,unit:'LF',measurementRole:'work-quantity'};
+ const update=clarificationTakeoffUpdates([{...measuredItem,quantity:12}],{prior:[measuredItem],answer:'12'});
  assert.equal(update[0].quantity,12);assert.equal(update[0].evidence,'12');assert.equal(update[0].sources[0].page,0);
- assert.equal(clarificationTakeoffUpdates([{...item,quantity:12}],{prior:[item],answer:'Twelve feet.'})[0].quantity,12);
+ assert.equal(clarificationTakeoffUpdates([{...measuredItem,quantity:12}],{prior:[measuredItem],answer:'Twelve feet.'})[0].quantity,12);
  assert.equal(clarificationTakeoffUpdates([{id:item.id,quantity:null}],context)[0].unit,item.unit);
  assert.throws(()=>clarificationTakeoffUpdates([{id:'renamed',quantity:null}],context),/unknown-id at update 0/);
  assert.throws(()=>clarificationTakeoffUpdates([{id:item.id,quantity:null},{id:item.id,quantity:null}],context),/duplicate-update at update 1/);

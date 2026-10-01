@@ -1,7 +1,10 @@
-export interface PageRecord {source:string;page:number;sheet:string;revision:string;status:'read'|'unreadable'|'partial';notes:string[]}
+export type CoverageState='readable'|'blank'|'unspecified'|'illegible'|'outside-view';
+export interface PageRecord {coverageState?:CoverageState;source:string;page:number;sheet:string;revision:string;status:'read'|'unreadable'|'partial';notes:string[]}
 export interface DocumentCoverage {pages:PageRecord[];expectedPages:number;complete:boolean}
 export interface Takeoff {
   id:string;description:string;building:string;floor:string;component:string;
+  measurementRole?:'work-quantity'|'location'|'inspection-extent'|'existing-condition'|'unknown';
+  observation?:{quantity:number;unit:string};
   quantity:number|null;unit:string;basis:'stated'|'calculated'|'uncertain';evidence:string;
   sources:{source:string;page:number;sheet:string;revision:string}[];
   supersedes:string[];issues:string[];
@@ -49,7 +52,17 @@ export function blockingReviewNote(note:string):boolean{
  * page, each marked partial because the amounts were blank, and the estimator retried until it gave
  * up. A partial page whose note says part of it is unreadable still does not count.
  */
-export const pageCovered=(p:{status:string;notes?:string[]})=>(p.status==='read'||p.status==='partial')&&!(p.notes||[]).some(blockingReviewNote);
+export const pageCovered=(p:{status:string;notes?:string[];coverageState?:CoverageState})=>{
+ if(p.status==='unreadable')return false;
+ if(p.coverageState)return ['readable','blank','unspecified'].includes(p.coverageState);
+ return (p.status==='read'||p.status==='partial')&&!(p.notes||[]).some(blockingReviewNote);
+};
+function mergedCoverageState(rows:PageRecord[]):CoverageState|undefined{
+ if(rows.some(row=>!row.coverageState))return undefined;
+ if(rows.some(row=>row.coverageState==='illegible'))return 'illegible';
+ if(rows.some(row=>row.coverageState==='outside-view'))return 'outside-view';
+ return rows.some(row=>row.coverageState==='unspecified')?'unspecified':rows.every(row=>row.coverageState==='blank')?'blank':'readable';
+}
 /** Status is evidence too. A successful view cannot erase an explicitly
  * unreadable detail merely because its note uses different wording. */
 function mergedPageStatus(rows:PageRecord[]):PageRecord['status']{
@@ -77,6 +90,7 @@ export function readPageRecords(input:unknown):PageRecord[]{
   if(!Array.isArray(raw))throw new Error('Missing page-by-page review record');
   return raw.map(v=>{
     if(!isObject(v)||!['source','sheet','revision'].every(k=>typeof v[k]==='string')||!Number.isInteger(v.page)||Number(v.page)<1||!['read','unreadable','partial'].includes(String(v.status))||!strings(v.notes))throw new Error('Invalid page review record');
+    if(v.coverageState!==undefined&&!['readable','blank','unspecified','illegible','outside-view'].includes(String(v.coverageState)))throw new Error('Invalid coverage state');
     return v as unknown as PageRecord;
   });
 }
@@ -86,7 +100,23 @@ export function readTakeoffs(raw:unknown):Takeoff[]{
     if(!isObject(v)||!['id','description','building','floor','component','unit','evidence'].every(k=>typeof v[k]==='string')||!v.id||!v.evidence||!(v.quantity===null||typeof v.quantity==='number'&&Number.isFinite(v.quantity)&&v.quantity>0)||!['stated','calculated','uncertain'].includes(String(v.basis))||!strings(v.supersedes)||!strings(v.issues)||!Array.isArray(v.sources)||!v.sources.length)throw new Error('Invalid takeoff evidence');
     for(const s of v.sources)if(!isObject(s)||!['source','sheet','revision'].every(k=>typeof s[k]==='string')||!Number.isInteger(s.page)||(Number(s.page)<1&&!(s.page===0&&isTypedScopeSource(String(s.source)))))throw new Error('Invalid takeoff page reference');
     if(v.basis==='uncertain'&&v.quantity!==null)throw new Error('An uncertain measurement must not masquerade as a measured quantity');
-    return v as unknown as Takeoff;
+    const item={...v,issues:[...v.issues],sources:v.sources.map(source=>({...source}))} as unknown as Takeoff;
+    if(item.measurementRole&&!['work-quantity','location','inspection-extent','existing-condition','unknown'].includes(item.measurementRole))throw new Error('Invalid measurement role');
+    // Descriptive location units are never work units, including older records.
+    if(/\bfrom (?:entry|entrance|access|cleanout)|camera station|inspection (?:distance|extent)\b/i.test(item.unit))item.measurementRole='location';
+    const amount=item.quantity;
+    if(amount!==null){
+      const escaped=String(amount).replace('.', '\\.');
+      const station=new RegExp('\\b(?:at|located at)\\s+(?:approximately\\s+)?'+escaped+'\\s*(?:feet|ft)\\s+from\\s+(?:the\\s+)?(?:camera\\s+)?(?:entry|entrance|access|cleanout)', 'i');
+      if(station.test(item.evidence))item.measurementRole='location';
+      if(/could not be evaluated|not (?:been )?inspected|unevaluated/i.test(item.evidence)&&new RegExp('\\b(?:remaining|uninspected)\\s+(?:approximate(?:ly)?\\s+)?'+escaped+'\\s*(?:feet|ft)', 'i').test(item.evidence))item.measurementRole='inspection-extent';
+    }
+    if(item.measurementRole&&item.measurementRole!=='work-quantity'&&item.quantity!==null){
+      item.observation={quantity:item.quantity,unit:item.unit};
+      item.quantity=null;item.basis='uncertain';
+      item.issues=[...new Set([...item.issues,'Source observation is not a measured work quantity; establish the work extent or disclose a supported allowance.'])];
+    }
+    return item;
   });
 }
 const normalized=(s:string)=>s.trim().toLowerCase().replace(/\s+/g,' ');
@@ -144,7 +174,7 @@ export function coverageFor(expected:{source:string;page:number}[],reported:Page
   const pages=expected.map((e,i)=>{
     const rows=bound.get(i)||[];
     if(!rows.length)return {...e,sheet:'',revision:'',status:'unreadable' as const,notes:['No completed review record was returned for this page.']};
-    return {...rows[0],status:mergedPageStatus(rows),notes:[...new Set(rows.flatMap(r=>r.notes))]};
+    return {...rows[0],status:mergedPageStatus(rows),coverageState:mergedCoverageState(rows),notes:[...new Set(rows.flatMap(r=>r.notes))]};
   });
   return {pages,expectedPages:expected.length,complete:pages.length===expected.length&&pages.every(pageCovered)};
 }
@@ -156,7 +186,16 @@ export function combineCoverage(parts:DocumentCoverage[],expected?:{source:strin
   const pages=wanted.map(p=>{
     const rows=grouped.get(JSON.stringify([p.source,p.page]))||[];
     if(!rows.length)return {...p,sheet:'',revision:'',status:'unreadable' as const,notes:['This page was not processed. Review or retry it before relying on the takeoff.']};
-    return {...rows[0],status:mergedPageStatus(rows),notes:[...new Set(rows.flatMap(r=>r.notes))]};
+    return {...rows[0],status:mergedPageStatus(rows),coverageState:mergedCoverageState(rows),notes:[...new Set(rows.flatMap(r=>r.notes))]};
   });
   return {pages,expectedPages:wanted.length,complete:pages.every(pageCovered)};
+}
+
+/** Typed, complete coverage can retire its own contradictory prose note, but
+ * cannot retire unrelated preparation or transport failures. */
+export function blockingExtractionNotes(extraction:{reviewNotes:string[];documentCoverage?:DocumentCoverage}):string[]{
+ const coverage=extraction.documentCoverage;
+ const verified=coverage?.complete&&coverage.pages.every(page=>page.coverageState&&pageCovered(page));
+ const explained=new Set(verified?coverage.pages.flatMap(page=>page.notes.flatMap(note=>[note,`${page.source}, page ${page.page}: ${page.status}. ${note}`])):[]);
+ return extraction.reviewNotes.filter(note=>blockingReviewNote(note)&&!explained.has(note));
 }

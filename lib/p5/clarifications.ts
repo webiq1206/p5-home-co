@@ -5,8 +5,8 @@ import type {ScopeInstructions} from './instructions.ts';
 import {isEstimateHandlingDirection} from './instructions.ts';
 import {isBenchTopClarificationQuestion,retainedBenchTopChoices,retainedChoiceValue} from './retainedClarification.ts';
 
-export interface InstructionAnswer {id:string;question:string;answer:string}
-export interface InstructionPrompt {id:string;question:string;detail?:string;values?:string[];field?:ScopeField;sourceQuestion?:string}
+export interface InstructionAnswer {decisionId?:string;id:string;question:string;answer:string}
+export interface InstructionPrompt {decisionId?:string;id:string;question:string;detail?:string;values?:string[];field?:ScopeField;sourceQuestion?:string}
 /** Preserve the original decision for saving and answer resolution. Helper text
  * is display context, never a replacement for the question. */
 export function instructionPromptText(prompt:InstructionPrompt):string {
@@ -68,6 +68,8 @@ export function instructionPrompts(extraction:ScopeExtraction|null,answers:Scope
       const full=normalizeQuestionPart(part).replace(/\bIf yes\b/gi,'If so');if(!full)continue;
       // Filter each question separately so a legacy paragraph cannot lose a real scope decision.
       if(serviceQuestion(full)||contractQuestion(full)||isEstimateHandlingDirection(full))continue;
+      const decision=extraction?.instructions?.decisions?.find(item=>questionKey(item.question)===questionKey(full));
+      if(decision?.answer&&decision.status!=='pending')continue;
       const field=cabinetQuestionField(full)||projectQuestionField(full,answers);
       // One decision is asked once, however many pages or wordings raised it.
       if(!field&&(result.some(q=>!q.field&&sameDecision(instructionPromptText(q),full))||answered.some(q=>sameDecision(q,full))))continue;
@@ -86,7 +88,7 @@ export function instructionPrompts(extraction:ScopeExtraction|null,answers:Scope
        const retainedValues=isBenchTopClarificationQuestion(full)
          ?(extraction?retainedBenchTopChoices(extraction):[]).map(retainedChoiceValue)
          :undefined;
-       result.push({id,question,sourceQuestion:full,...(field?{field}:{}),...(question!==asked?{detail:full}:trailing?{detail:trailing[2].trim()}:{}),values:/^Who should install the /i.test(full)?['Include installation in this estimate','Owner handles installation']:retainedValues?.length?retainedValues:values?.length?values:textBenchTopChoices(extraction,full)});
+       result.push({id,...(decision?{decisionId:decision.id}:{}),question,sourceQuestion:full,...(field?{field}:{}),...(question!==asked?{detail:full}:trailing?{detail:trailing[2].trim()}:{}),values:/^Who should install the /i.test(full)?['Include installation in this estimate','Owner handles installation']:retainedValues?.length?retainedValues:values?.length?values:textBenchTopChoices(extraction,full)});
     }
   }
   const context=questionContext(answers,extraction,sourceText);

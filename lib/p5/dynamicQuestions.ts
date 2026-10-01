@@ -265,7 +265,12 @@ export function scopeFieldApplies(field: ScopeField, context: QuestionContext): 
   }
   if (field === 'sqft') return !context.restriction && (context.fullProject || paintedAreaApplies(context));
   if (field === 'rooms' || field === 'bathrooms' || field === 'stories') return context.fullProject;
-  if (field === 'laborHours') return /\b(?:time and materials|hourly|labor hours|labour hours)\b/i.test(context.positive);
+  if (field === 'laborHours') {
+    // Questions and model explanations are not customer billing instructions.
+    const authored=joined([context.answers.taskList,context.answers.otherDetails,
+      (context.answers.estimatingInstructions||'').replace(/^Question:[\s\S]*?^Answer:\s*/gm,'')]);
+    return clauses(authored).some(clause=>!NEGATIVE.test(clause)&&/\b(?:time\s+and\s+materials|hourly|(?:purchase|book|budget|allow)\s+(?:for\s+)?\d+\s+(?:labou?r\s+)?hours)\b/i.test(clause));
+  }
   // This field is requested only by a priced assembly or a source question.
   // Keep that dependency unless countertops are explicitly outside the scope.
   if (field === 'countertopSqft') return true;

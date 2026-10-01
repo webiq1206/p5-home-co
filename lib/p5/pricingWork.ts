@@ -107,6 +107,10 @@ export async function priceSavedScope(id:string,scope:ReviewedScope,configuratio
   // keeps its whole allowance and is saved, so the next pass resumes after it
   // instead of repeating it; the job lifetime bounds the total.
   remainingBudget(deadline);
+  // Corrective inputs have different fingerprints. Bound failed dispatches
+  // across the whole saved job, so changing inputs cannot reset recovery.
+  const failedDispatches=Object.values(payload.requests||{}).reduce((sum,trace)=>sum+(trace.failures?.length||0),0);
+  if(failedDispatches>=12)throw new PricingPending('Your project and completed work are saved. Automatic pricing recovery reached its limit and needs review.',0,true);
   let reply:PricingReply;
   // Stamp when THIS stage started and how many have finished, so a long
   // research call still visibly moves instead of sitting on one label.

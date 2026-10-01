@@ -22,6 +22,7 @@ export function clarificationTakeoffUpdates(raw:unknown,context:TakeoffRevisionC
   const reason=seen.has(value.id)?'duplicate-update':context.prior.filter(priorItem=>priorItem.id===value.id).length!==1?'ambiguous-prior-id':null;
   if(reason)throw new Error(`clarification-takeoff-identity-invalid: ${reason} at update ${index}`);
   seen.add(value.id);
+  if(typeof value.quantity==='number'&&!explicitAnswerNumbers(context.answer).includes(value.quantity))throw new Error('clarification-quantity-evidence-unverified');
   const compact=Object.keys(value).every(key=>key==='id'||key==='quantity');
   const item=readTakeoffs([compact?{...original,quantity:value.quantity,basis:value.quantity===null?'uncertain':'stated'}:value])[0];
   if(item.unit.trim().toLowerCase()!==original.unit.trim().toLowerCase())throw new Error('clarification-takeoff-unit-changed');

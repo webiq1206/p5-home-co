@@ -2307,3 +2307,16 @@ test('a cartridge conversion defect uses the saved report repair before any new 
  assert.equal(calls,1);assert.equal((reply.value as any).rates[0].sources[0].high,9.98);
  await assert.rejects(reconcileResearchReply({value:invalid,sourceUrls:urls,sourceReport:excerpt},[requested],async()=>({value:invalid,sourceUrls:[]}),()=>60000),/Cartridge size and package price/,'unsupported source prices remain rejected after the bounded repair');
 });
+
+
+test('the public pricing audit receives generated customer assumptions, not only priced lines',async()=>{
+ const note='Owner supplies cabinetry; contractor performs installation and disposal.';
+ const request=replies([{tasks:[task],issues:[],notes:[note]},{coveredTaskIds:['cabinets'],issues:[],notes:[]}]);
+ let sawAssumptions=false;
+ const result=await priceCompleteScope(scope,config,async(system,input,...rest)=>{
+  const payload=input as {customerAssumptions?:string[]};
+  if(payload.customerAssumptions){assert.ok(payload.customerAssumptions.includes(note));sawAssumptions=true;}
+  return request(system,input,...rest);
+ },now);
+ assert.equal(sawAssumptions,true);assert.ok(result.customer.range);
+});

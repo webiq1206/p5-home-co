@@ -74,3 +74,41 @@ The same historical PDF also contains a generated assumption assigning installat
 * Research checks cover serialized timeout markers and an exhausted research path through the full scope-pricing function. They do not qualify real provider timing or concurrent workers.
 
 The candidate remains Haiku by default, retains explicit OpenAI selection and does not roll out to child sites. Original measurement-role errors, source provenance, duplicate work, repeated decision identities, Goeckner regional coverage, generated assumption consistency, final pricing accuracy and delivery qualification remain open. The public workflow has not been declared finalized.
+
+
+## Production verification of 2026-10-01.3
+
+Release endpoint checked after the owner's republish: deployed SHA `8eb1e2128e758e701de6f7d75bc21659270ba4c9`, exact expected source tree `e6838f1d0458f015666a98736a8163de026b360d`, clean build at 12:11:09.236 UTC. Haiku 4.5 remains selected. This section reports production evidence; it is not a new repair release.
+
+### RE10: correction persistence passes, scope acceptance remains open
+
+One retry of the retained answer succeeded. Read-only production snapshot at 12:19:15 UTC found draft revision 8, updated at 12:18:10.190. The exact answer is in estimating instructions and clarification history. Four retained sewer IDs now have null quantities: sewer-damage-repair-32ft, sewer-line-repair-32ft-001, sewer-line-inspection-lift-pump and sewer-line-excavation-inspection-001. Original evidence and references remain. Both cleanout IDs still have quantity 1 and remain a duplicate-work concern.
+
+The directly draft-linked read-text event at 12:18:10.124 reports HTTP 200, 23,730 ms and outcome ok. The UI advanced to a generic estimated-labor-hours question. That question was not answered, and this draft was not submitted for pricing.
+
+Code inspection found the laborHours applicability regex accepts the phrase labor hours anywhere in mixed question context. The saved radon explanation contains “Radon system scope affects labor hours”. No saved answer establishes hourly billing. This explains a concrete false-positive mechanism; a full captured browser-selection trace was not retained. The correction should require customer billing intent and exclude generated question explanations, with regression cases preserving genuine hourly requests.
+
+### Cabinet: missing-source failures, not actual stage timeouts
+
+One retry created the 1.3 job at 12:17:48.187 UTC. At 12:23:59 UTC the job was still running, submission pending, 8 completed checks and no estimate. Its lease extended to 12:26:29 UTC. Two directly draft-linked research failures were retained:
+
+| Started UTC | Failed UTC | Duration | Fingerprint |
+| --- | --- | --- | --- |
+| 12:18:39.595 | 12:18:42.830 | 3,284 ms event duration | 8d476bfc127d0949ced147df32c9ece76fb527340d03fa284c333b46b9ac11a9 |
+| 12:19:10.504 | 12:19:15.245 | 4,772 ms event duration | a671944ae1a4e1e6688e0522bf6c6dfb41e888f3a7d5f6a35e73edcd40111e95 |
+
+Both show pricing-charge-unknown caused by pricing-search-unavailable. Each ledger row is unknown, request sequence 1 completed, attempt 1. Completed here means the fetch returned, not accepted research or reconciled billing.
+
+The Anthropic handler throws this exact error when collected search/fetch source URLs are empty, before checkpointing the report. Both checkpoints have null value, zero saved URLs and no saved report. Provider tool error, stop reason, block types/counts, HTTP status and request ID are absent. Therefore the original provider behavior cannot be established from retained evidence. Do not label it an outage, disabled tool, refusal or skipped search without new evidence.
+
+These are two different fingerprints: the corrective research input differs from the initial input. The 15-minute cooldown is per checkpoint and does not prohibit that correction. Both failures are incorrectly represented by timedOut:true/timeouts:1 despite finishing in seconds. Replaying those markers returns pending every 30 seconds; this is distinct from the true-deadline recovery repaired in 1.3.
+
+Next repair must preserve safe structured response diagnostics before throwing, distinguish empty-source/tool failures from deadlines, and end an exhausted evidence-recovery path explicitly rather than leaving a customer countdown running. No uncited price or automatic provider switch is authorized by these failures. No further paid retries were triggered during diagnosis.
+
+### PDF: rendering correction passes, saved assumption remains contradictory
+
+Downloaded existing P5-C5E58F7E again at 12:18:01 UTC and inspected both extracted text and rendered page 2. Contractor removal, installation and disposal are now in Responsibilities rather than exclusions. The existing saved generated assumption still assigns installation and disposal to the owner, contradicting the responsibilities. The estimate is not accepted as accurate merely because the rendering correction passes.
+
+Source inspection shows mapping/market/planning notes feed resolution assumptions, while the pricing audit input does not include those assumptions. The exact historical stage that generated this sentence has not been established. The repair needs to validate customer-facing assumptions against scope and actor responsibility, not just relocate or hide this one sentence.
+
+No Goeckner reread was triggered in this production pass. Its coverage/provenance issues, RE10 duplicate work and initial measurement-role defects remain open. The estimator is not finalized.

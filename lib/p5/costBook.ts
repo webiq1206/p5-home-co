@@ -1,3 +1,4 @@
+import {blockingExtractionNotes} from './documentLedger.ts';
 import {scopeAssumptions,deriveScopeAnswers} from "./adaptive.ts";
 import { createHash } from "node:crypto";
 import { calculateP5Estimate,customerEstimate,customerSafeProjection,DEFAULT_FINANCE,POLICY_VERSION,COST_CATEGORIES,SERVICE_MATRIX,type FinancePolicy,type DirectCostLine,type ScopeCoverage,type PricingInput,type Service,type RiskFactor } from "./pricing.ts";
@@ -91,7 +92,7 @@ function priceReviewedScopeInternal(scope:ReviewedScope,configuration:EstimatorC
   }
   const missingRate=missingInformation.some(x=>x.startsWith('Missing cost rate:'));const catalogReviewDue=missingInformation.some(x=>x.includes('catalog quarterly review'));if(missingRate||(catalogReviewDue&&!preliminaryModel)){estimate.publishable=false;estimate.warnings.push({code:'planning-catalog-incomplete',severity:'block',message:'The planning catalog needs the recorded missing rate or scheduled review.'});}else if(catalogReviewDue){/* Under the preliminary planning model a catalog past its quarterly review is disclosed with its date, not a reason to withhold the range. */estimate.warnings.push({code:'planning-catalog-review-due',severity:'review',message:`The owner planning catalog is past its quarterly review (imported ${String(configuration.planningCatalog?.importedAt||'').slice(0,10)||'earlier'}); its rates are disclosed as preliminary.`});}
   if(scope.uploads.length&&!scope.extraction){estimate.publishable=false;estimate.warnings.push({code:"uploads-unreviewed",severity:"block",message:"Supporting uploads have not been analyzed. Review them before publishing a price."});}
-  if(scope.extraction?.reviewNotes.some(blockingReviewNote)){estimate.publishable=false;estimate.warnings.push({code:"scope-review-required",severity:"block",message:"Resolve document and scope review notes, including unsupported uploads, before publishing a price."});}
+  if(scope.extraction&&blockingExtractionNotes(scope.extraction).length){estimate.publishable=false;estimate.warnings.push({code:"scope-review-required",severity:"block",message:"Resolve document and scope review notes, including unsupported uploads, before publishing a price."});}
   if(missingInformation.some(x=>x.startsWith("Missing quantity:")||x.startsWith("Missing cost condition:"))){
     estimate.publishable=false;estimate.warnings.push({code:"quantity-missing",severity:"block",message:"One or more cost-book quantities or scope conditions are missing."});
   }

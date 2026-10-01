@@ -1,3 +1,4 @@
+import {blockingExtractionNotes} from './documentLedger.ts';
 import {ProcessingDeadlineError,PROCESSING_PAUSED,isProcessingDeadline} from './processingBudget.ts';
 import {applyCabinetIntent} from "./projectIntent.ts";
 import {groundSourceResponsibilities} from './sourceResponsibilities.ts';
@@ -14,7 +15,6 @@ import {answersForEditedScope,normalizeScopeText,scopeFingerprint,scopeTextChang
 import { failed,json,limitedBody,protectRequest } from "./http.ts";
 import { ESTIMATOR_BRAND } from "./brand.ts";
 import {recordEvent,describeError} from './events.ts';
-import {blockingReviewNote} from './costBook.ts';
 import {selectReusableAnalysis,selectSourceEquivalentAnalysis} from './analysisReuse.ts';
 import {impliedComponentRemodel,impliedRepairService,serviceEvidenceSupports} from './serviceSignals.ts';
 import {query} from './database.ts';
@@ -133,7 +133,7 @@ export async function postScope(request:Request){
       // Only content that was not read blocks the estimate. A page the reader
       // finished with some values blank or redacted is a note to confirm, the
       // same rule the pricing engine applies.
-      const unread=[...new Set(analysis.extraction.reviewNotes.filter((note:string)=>blockingReviewNote(note)))];
+      const unread=[...new Set(blockingExtractionNotes(analysis.extraction))];
       if(unread.length)warning="Some files need review before pricing. "+unread.join(" ");
     }catch(error){
       if(isProcessingDeadline(error))throw new DraftError(PROCESSING_PAUSED,503);

@@ -12,7 +12,7 @@ import {ESTIMATOR_BRAND} from './brand.ts';
 import {claimWork,writeWork,releaseWork} from './workStore.ts';
 import {type Draft,DraftError} from './store.ts';
 import {isInstructionFile,mergeInstructions} from './instructions.ts';
-import {combineCoverage} from './documentLedger.ts';
+import {combineCoverage,pageCovered} from './documentLedger.ts';
 import {analysisConcurrency,analysisProgress} from './analysisProgress.ts';
 import {recordEvent,describeError} from './events.ts';
 import {analysisMessage,type ProcessingStatus} from './processingStatus.ts';
@@ -301,7 +301,7 @@ async function advanceLocalAnalysis(draft:Draft,text:string,answers:ScopeAnswers
     // Pages the reader did open but found partly illegible keep their own notes.
     const failedPages=new Set(unprocessed.map(p=>JSON.stringify([p.source,p.page])));
     extraction.reviewNotes.push(...job.notes,...unreadNotes(job.units));
-    extraction.reviewNotes.push(...(extraction.documentCoverage?.pages.filter(p=>p.status!=='read'&&!failedPages.has(JSON.stringify([p.source,p.page]))).map(p=>`${p.source}, page ${p.page}: ${p.status}. ${p.notes.join(' ')}`)||[]));
+    extraction.reviewNotes.push(...(extraction.documentCoverage?.pages.filter(p=>!pageCovered(p)&&!failedPages.has(JSON.stringify([p.source,p.page]))).map(p=>`${p.source}, page ${p.page}: ${p.status}. ${p.notes.join(' ')}`)||[]));
     extraction.reviewNotes=[...new Set(extraction.reviewNotes)];
     if(job.preparationFailures?.length){const coverage=extraction.documentCoverage||{pages:[],expectedPages:job.expected?.length||0,complete:false};extraction.documentCoverage={...coverage,complete:false};}
     const unread=job.units.filter(u=>!u.result).length;

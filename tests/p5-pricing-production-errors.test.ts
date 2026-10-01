@@ -12,7 +12,7 @@ test('persisted research deadline markers retry to a bounded limit instead of re
  for(const timeouts of [1,2])assert.equal(savedPricingTimeoutReason(persisted({value:null,sourceUrls:[],timedOut:true,timeouts}),true,false),undefined);
  assert.equal(savedPricingTimeoutReason(persisted({timedOut:true,timeouts:3}),true,false),'pricing-stage-exhausted');
  assert.equal(savedPricingTimeoutReason({timeouts:1},false,true),'pricing-stage-timeout','large mapping still splits its batch');
- assert.equal(savedPricingTimeoutReason({timeouts:1,researchFailedAt:1000},true,false,1001),'pricing-stage-timeout');
+ assert.equal(savedPricingTimeoutReason({timeouts:1,researchFailedAt:1000},true,false,1001),'pricing-search-unavailable');
  assert.equal(savedPricingTimeoutReason({timeouts:1,researchFailedAt:1000},true,false,1000+RESEARCH_FAILURE_COOLDOWN_MS),undefined);
 });
 
@@ -43,8 +43,18 @@ test('production pricing error and checkpoint paths with isolated SQL and contro
    assert.equal(calls,1,'a capped unknown charge cannot dispatch another request');
    delete process.env.P5_PRICING_BUDGET_USD;delete process.env.P5_PRICING_REQUEST_RESERVATION_USD;
   });
+  await t.test('HTTP 200 search errors retain provider metadata through the production ledger wrapper',async()=>{
+   const model=ESTIMATOR_PROVIDER==='anthropic'?ESTIMATOR_MODEL:'claude-sonnet-5';
+   globalThis.fetch=async()=>Response.json({id:'msg_search_failed',model,stop_reason:'end_turn',content:[{type:'web_search_tool_result',content:{type:'web_search_tool_result_error',error_code:'too_many_requests'}},{type:'text',text:'Private project response'}]},{headers:{'request-id':'req_search_failed'}});
+   const error=await failure('controlled-search-error');
+   const cause=pricingFailureDetails(error).at(-1)!;
+   assert.equal(cause.code,'pricing-search-unavailable');assert.equal(cause.status,200);assert.equal(cause.requestId,'req_search_failed');
+   assert.deepEqual(cause.research?.toolErrors,['too_many_requests']);assert.equal(retryablePricingProviderError(error),true);
+   assert.equal(JSON.stringify(cause).includes('Private project'),false);
+  });
   await t.test('memory transport tests preserve the same wrapper and cause as production',async()=>{
    process.env.P5_PRICING_LEDGER_TEST_MODE='memory';const before=sqlCalls;
+   globalThis.fetch=async()=>Response.json({error:{message:'synthetic'}},{status:429,headers:{'request-id':'req_controlled_429'}});
    const error=await failure('memory-429');
    assert.equal(retryablePricingProviderError(error),true);assert.equal(pricingFailureDetails(error)[1].status,429);
    assert.equal(sqlCalls,before);delete process.env.P5_PRICING_LEDGER_TEST_MODE;

@@ -4,7 +4,7 @@ import type {ScopeAnswers,ScopeUpload} from "./scope.ts";
 import type {ScopeExtraction} from './scope.ts';
 import {manualScopeAnswers} from './adaptive.ts';
 import {hasVerifiedAnalysis} from './modelPolicy.ts';
-import {blockingReviewNote} from './documentLedger.ts';
+import {blockingExtractionNotes} from './documentLedger.ts';
 
 type LegacyInput={kind?:string;draft?:{uploads?:Array<{id?:string;sha256?:string}>};text?:string;answers?:ScopeAnswers};
 export type CompletedAnalysisCandidate={workKey:string;payload:unknown};
@@ -71,7 +71,7 @@ export function selectSourceEquivalentAnalysis(candidates:CompletedAnalysisCandi
   const input=asLegacyInput(payload),analysis=payload?.result?.analysis;
   if(payload?.state!=='complete'||input?.kind!=='analysis'||input.text!==current.text
    ||uploadIdentity(input.draft?.uploads||[])!==uploadIdentity(current.uploads)||!hasVerifiedAnalysis(analysis)||!analysis)return [];
-  if(!analysis.extraction||analysis.extraction.reviewNotes.some(blockingReviewNote))return [];
+  if(!analysis.extraction||blockingExtractionNotes(analysis.extraction).length)return [];
   if(current.uploads.length&&(!analysis.extraction.documentCoverage?.complete||analysis.extraction.documentCoverage.pages.some(p=>p.status!=='read')))return [];
   const prior=manualScopeAnswers(input.answers||{},current.extraction,current.resolutions||{});
   if(stable(prior)!==stable(current.answers))return [];

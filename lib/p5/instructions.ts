@@ -2,7 +2,9 @@ import type {ScopeAnswers} from './scope.ts';
 
 export const INSTRUCTION_FILE_PREFIX='ESTIMATING-INSTRUCTIONS--';
 export const isInstructionFile=(name:string)=>name.startsWith(INSTRUCTION_FILE_PREFIX);
+export interface ScopeDecision {id:string;question:string;subject:string;aspect:string;status?:'pending'|'answered'|'deferred';answer?:string}
 export interface ScopeInstructions {
+  decisions?:ScopeDecision[];
   inclusions:string[]; exclusions:string[]; responsibilities:string[];
   buildings:string[]; floors:string[]; separateBuildings:boolean;
   laborOnly:boolean; materialsOnly:boolean; questions:string[];
@@ -18,6 +20,17 @@ export function isEstimateHandlingDirection(text:string):boolean{
 /** Preserve every interpreted clause. Conflicts are questions, never last-write-wins. */
 export function mergeInstructions(parts:ScopeInstructions[]):ScopeInstructions {
   const merged=emptyInstructions();
+  const decisions=parts.flatMap(part=>part.decisions||[]);
+  if(decisions.length){
+    const byId=new Map<string,ScopeDecision>();
+    for(const decision of decisions){
+      const prior=byId.get(decision.id);
+      // A later generated pending decision cannot erase a saved customer answer.
+      if(prior&&(prior.subject!==decision.subject||prior.aspect!==decision.aspect))throw new Error('Conflicting scope decision identity');
+      byId.set(decision.id,prior?.answer?{...decision,status:prior.status,answer:prior.answer}:{...decision});
+    }
+    merged.decisions=[...byId.values()];
+  }
   for(const key of ['inclusions','exclusions','responsibilities','buildings','floors','questions'] as const)
     merged[key]=[...new Set(parts.flatMap(p=>p[key]||[]))];
   for(const key of ['separateBuildings','laborOnly','materialsOnly'] as const)merged[key]=parts.some(p=>p[key]);
@@ -38,6 +51,15 @@ export function validateInstructions(raw:unknown):ScopeInstructions {
     result[key]=value[key] as string[];
   }
   for(const key of ['separateBuildings','laborOnly','materialsOnly'] as const){if(typeof value[key]!=='boolean')throw new Error('Invalid instruction responsibility');result[key]=value[key];}
+  if(value.decisions!==undefined){
+    if(!Array.isArray(value.decisions)||value.decisions.length>500)throw new Error('Invalid scope decisions');
+    result.decisions=value.decisions.map(raw=>{
+      if(!raw||typeof raw!=='object'||['id','question','subject','aspect'].some(key=>typeof raw[key]!=='string'||!raw[key].trim()||raw[key].length>4000))throw new Error('Invalid scope decision');
+      if(raw.status!==undefined&&!['pending','answered','deferred'].includes(raw.status))throw new Error('Invalid scope decision status');
+      if(raw.answer!==undefined&&typeof raw.answer!=='string')throw new Error('Invalid scope decision answer');
+      return {...raw};
+    });
+  }
   return mergeInstructions([result]);
 }
 const WHOLE_BUILDING_SERVICES=new Set(['new-construction','addition','adu']);

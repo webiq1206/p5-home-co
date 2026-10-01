@@ -7,7 +7,9 @@ export class PricingPending extends Error {
  constructor(message='Pricing progress is saved. Continuing the scope check...',retryAfterMs=1500,fatal=false){super(message);this.name='PricingPending';this.retryAfterMs=retryAfterMs;this.fatal=fatal;}
 }
 /** Rate limits and provider outages use the shared bounded backoff, including research. */
-export const retryablePricingProviderError=(error:unknown)=>{const cause=pricingRecoveryError(error);return cause instanceof Error&&/^pricing-provider-unavailable:(?:429|5\d\d)\b/.test(cause.message);};
+export const retryablePricingProviderError=(error:unknown)=>{const cause=pricingRecoveryError(error);if(!(cause instanceof Error))return false;
+ const toolErrors=(cause as Error&{researchDiagnostics?:{toolErrors?:string[]}}).researchDiagnostics?.toolErrors||[];
+ return /^pricing-provider-unavailable:(?:429|5\d\d)\b/.test(cause.message)||toolErrors.length>0&&toolErrors.every(code=>['too_many_requests','unavailable'].includes(code));};
 export const RESEARCH_FAILURE_COOLDOWN_MS=15*60_000;
 export const expiredResearchFailure=(reply:unknown,now=Date.now())=>Boolean(reply&&typeof reply==='object'&&typeof (reply as {researchFailedAt?:number}).researchFailedAt==='number'&&now-(reply as {researchFailedAt:number}).researchFailedAt>=RESEARCH_FAILURE_COOLDOWN_MS);
 /** A real deadline marker permits another bounded attempt. Replaying it as
@@ -17,7 +19,7 @@ export function savedPricingTimeoutReason(reply:unknown,search:boolean,largeMapp
  const saved=reply as {timeouts?:number;outputLimited?:boolean;researchFailedAt?:number};
  if(saved.outputLimited)return 'pricing-stage-output-limit';
  if((saved.timeouts||0)>=3)return 'pricing-stage-exhausted';
- if(saved.timeouts&&(largeMapping||search&&typeof saved.researchFailedAt==='number'&&!expiredResearchFailure(saved,now)))return 'pricing-stage-timeout';
+ if(saved.timeouts&&(largeMapping||search&&typeof saved.researchFailedAt==='number'&&!expiredResearchFailure(saved,now)))return search&&typeof saved.researchFailedAt==='number'?'pricing-search-unavailable':'pricing-stage-timeout';
 }
 export const PRICING_UNAVAILABLE='Our pricing service is temporarily unavailable. Your project and contact details are saved, and we will follow up with your estimate by email.';
 /** One pricing stage exceeded its own time allowance while the overall

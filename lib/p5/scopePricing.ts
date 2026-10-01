@@ -1,5 +1,5 @@
 import {ESTIMATOR_PROVIDER,ESTIMATOR_MODEL,assertEstimatorModel,EstimatorModelError} from './modelPolicy.ts';
-import {pricingHttpError} from './pricingDiagnostics.ts';
+import {pricingHttpError,missingResearchSources} from './pricingDiagnostics.ts';
 import {unitKey,reusableUnitRate,supportedUnit,boiseArea,boisePriceRegion,UNIT_REGISTRY} from './unitRates.ts';
 import {reasoningFor,rejectsReasoning} from './openaiReasoning.ts';
 class MissingResearchRateError extends Error {}
@@ -297,7 +297,7 @@ Keep the response concise: coveredTaskIds records successful checks, so do not r
 This is a preliminary allowance audit, not final supplier procurement approval. Put allowed broader-region evidence, disclosed undated-source freshness, unselected standard profiles and unconfirmed incidental tax/freight in notes. Boise-area projects require evidenced Boise / Treasure Valley applicability; national-only prices do not satisfy that requirement. A generic standard profile may be a disclosed comparable if it does not contradict a specified dimension, species or grade. Keep actual omitted work, wrong responsibility/UOM, duplicated charges, fabricated data and unsupported costs in issues. Do not put the same nonblocking note back into issues. Review priorPricingIssues explicitly. A prior model issue that is demonstrably an informational scope fact or has been resolved by positive priced components may be listed in resolvedIssues using its EXACT issue text, a specific evidence-based reason, and IDs of the positive priced lines that prove resolution. Never resolve missing or conflicting requested work merely to release a total. Unresolved findings stay in issues. A sourced regional average unit-cost allowance can pass preliminary review when its geography, requested assembly, unit and quantity are supported. Do not demand supplier SKUs, pickup inventory or exact checkout tax/freight evidence for that benchmark. Preserve those limitations as verification assumptions; separately requested work must still be priced.
 Explicitly audit every item named in allowance/selection notes. Each must be linked to actual priced components, including product, tax, freight, delivery, installation and waste where required. Descriptive notes about selections do not themselves require a hold when full scope is costed. Monetary allowance budgets of unclear cost-versus-selling-price basis must remain an issue. Never mark an allowance covered by a generic contingency.
 Verify every requested item, including items the prior inventory missed. Check quantity, unit conversions, material quality, labor, supply/install responsibilities, minimum charges, demolition, disposal, specialty conditions and the combined quantities assigned to shared assemblies. Detect duplicated costs and requested work hidden in exclusions. A Project Assemblies (90-) line referenced from more than one task, or charged alongside component lines it already includes, is a duplicated charge; a removal line that includes haul-off plus a separate debris line for the same debris is a duplicated charge; a whole-house protection or cleanup package on a one-room job is an oversized allowance. A generic labor line, contingency or broad trade label does not cover unknown materials or specialist work.
-For sourced averages, verify the cited observations support the SAME scope, unit, date, geography and direct-cost basis. Reject customer project selling prices presented as direct costs, fabricated evidence, noncomparable averages, insufficient labor/material coverage and unrealistic substitutions. Check research evidence, not only the proposed numeric amount.
+For sourced averages, verify the cited observations support the SAME scope, unit, date, geography and direct-cost basis. Reject customer project selling prices presented as direct costs, fabricated evidence, noncomparable averages, insufficient labor/material coverage and unrealistic substitutions. Check research evidence, not only the proposed numeric amount. Audit every customerAssumptions statement against the original scope, including owner versus contractor supply, installation and disposal. Contradictory assumptions are blocking issues; reference the exact statement and required correction. Never restate a contradiction as an accepted note.
 A line explicitly labeled Single cited supplier budget allowance is a provisional material budget for each separately identified product after independent-source research was exhausted. It is not a market average. Verify its actual cited product, package conversion, Boise applicability and modeled consumption. If those match, disclose the single-source limitation in notes; do not demand a second source as a release condition for that labeled exception. Do not apply this exception to labor, installed-service or unsupported research rates. A parent task may contain multiple separately priced products; verify every required product has a positive supported line.\nLines whose id starts with planning- are regional planning average allowances: the approved preliminary basis used when published research does not finish in time. They carry no citations by design. A task priced by them is covered when the allowance's scope, unit and quantity match the request; put the preliminary-basis caveat in notes, never in issues, and do not fault a planning allowance for lacking published observations, a quantity range, an ALLOWANCE prefix or building/floor labels. Only put a task ID in coveredTaskIds when ALL its requested components have positive, defensible pricing. List all missing work, ambiguity, overlap, insufficient quantities or unsupported assumptions in issues. A missing original task is an issue even if all inventory IDs are covered. Do not waive issues to return a total.`;
 
 const jsText={type:'string'},jsNumber={type:'number'};
@@ -370,6 +370,7 @@ const requestPricingWithUnsafe=async(provider:'anthropic'|'openai',instructions:
     const messages:any[]=[{role:'user',content:JSON.stringify(input)}];
     const model=ESTIMATOR_PROVIDER==='anthropic'?ESTIMATOR_MODEL:(search?(process.env.P5_PRICING_RESEARCH_MODEL||'claude-sonnet-5'):(process.env.P5_PRICING_MODEL||'claude-sonnet-5'));
     let responseModel:string|undefined;
+    let lastStopReason:unknown,lastRequestId:string|undefined;
     const usage={inputTokens:0,cachedInputTokens:0,outputTokens:0,totalTokens:0};
     const requestBody={model,max_tokens:openAiPricingRequestEnvelope(instructions,input,search).body.max_output_tokens,system:instructions,...(search?{tools:[{type:'web_search_20250305',name:'web_search',max_uses:5},{type:'web_fetch_20250910',name:'web_fetch',max_uses:4,max_content_tokens:15000}]}:{tools:[{name:'record_estimate',description:'Return the complete structured estimate record. No external action is performed.',input_schema:stageSchema(instructions,input)}],tool_choice:{type:'tool',name:'record_estimate',disable_parallel_tool_use:true}})};
     const content:any[]=[],providerRequestIds:string[]=[];
@@ -378,6 +379,7 @@ const requestPricingWithUnsafe=async(provider:'anthropic'|'openai',instructions:
       const response=await boundedFetch('https://api.anthropic.com/v1/messages',{method:'POST',signal:AbortSignal.timeout(Math.min(180000,left)),headers,body:JSON.stringify({...requestBody,messages})});
       if(!response.ok){const detail=await response.text().catch(()=>'');throw pricingHttpError(response,detail);}
       const body=await response.json();
+      lastStopReason=body.stop_reason;lastRequestId=response.headers.get('request-id')||body.id||undefined;
       if(ESTIMATOR_PROVIDER==='anthropic')assertEstimatorModel(body.model);
       responseModel=body.model;usage.inputTokens+=Number(body.usage?.input_tokens||0);usage.cachedInputTokens+=Number(body.usage?.cache_read_input_tokens||0);usage.outputTokens+=Number(body.usage?.output_tokens||0);usage.totalTokens=usage.inputTokens+usage.cachedInputTokens+usage.outputTokens;
       if(body.id)providerRequestIds.push(String(body.id));content.push(...(body.content||[]));
@@ -394,7 +396,7 @@ const requestPricingWithUnsafe=async(provider:'anthropic'|'openai',instructions:
     // Ignore pre-search narration, preserving all final answer text blocks.
     const lastTool=content.reduce((last:number,p:any,i:number)=>['web_search_tool_result','web_fetch_tool_result'].includes(p.type)?i:last,-1);
     const raw=content.slice(lastTool+1).filter((p:any)=>p.type==='text').map((p:any)=>p.text).join('');
-    if(search&&!sourceUrls.length)throw new Error('pricing-search-unavailable');
+    if(search&&!sourceUrls.length)throw missingResearchSources(content,lastStopReason,lastRequestId);
     try{return {value:parseJson(raw),sourceUrls,...(search?{sourceReport:raw}:{}),provider,model,responseModel,providerRequestIds,usage};}catch(error){
       if(!search)throw error;
       // Checkpoint completed research BEFORE the separately saved formatter
@@ -2137,7 +2139,7 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
         // Validation remains mandatory: neither failure releases an unchecked price.
         if(!isPricingStageTimeout(error)&&!(error instanceof MissingResearchRateError)&&!(error instanceof ResearchEvidenceError))throw error;
         researchTimedOut=isPricingStageTimeout(error);
-        researchFailure=error instanceof MissingResearchRateError||error instanceof ResearchEvidenceError?error.message:'published cost research did not finish within its time allowance';
+        researchFailure=error instanceof Error?error.message:'published cost research did not finish within its time allowance';
       }
       // Owner policy: never replace failed research with an uncited AI average.
       // A second, distinct saved search can recover a failed broad batch.
@@ -2162,7 +2164,7 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
         researchTimedOut=isPricingStageTimeout(error);
         researchFailure=error instanceof Error?error.message:'Research evidence remains incomplete';
       }
-      if(researchTimedOut&&researchFailure==='pricing-stage-exhausted')throw new PricingPending('Your project is saved. Pricing research could not finish after its bounded retries and needs review.',0,true);
+      if(researchTimedOut&&['pricing-stage-exhausted','pricing-search-unavailable'].includes(researchFailure))throw new PricingPending('Your project is saved. Pricing research could not produce supported sources after its bounded recovery attempts. Your completed work is saved for review.',0,true);
       if(researchTimedOut||pastWindow)throw new PricingPending('Research is temporarily unavailable. Your project and completed pricing steps are saved.',30000);
       // A single cited, locally applicable product price can support a clearly
       // disclosed preliminary budget, not an independently verified market
@@ -2221,7 +2223,7 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
         resolution.assumptions.push(`${resolved.issue} Review evidence: ${resolved.reason}`);
       }
     };
-    const verifiedParts=await Promise.all(sourceParts.map((part,index)=>requestPricingAudit(request,{original:part,tasks:mapping.tasks.filter(t=>sourceParts.length===1||taskSources.get(t.id)===index),allTaskDescriptions:mapping.tasks.map(t=>({id:t.id,description:t.description})),priorPricingIssues:resolution.issues,existingLines:lines.filter(l=>!resolution.removeLineIds?.includes(l.id)),removedLines:lines.filter(l=>resolution.removeLineIds?.includes(l.id)),adjustments:auditTrail.adjustments,additionalRules:resolution.rules,existingExclusions:base.customer.exclusions.filter(e=>!resolution.removeExclusions?.includes(e)),research:auditTrail.research},()=>deadline-Date.now())));
+    const verifiedParts=await Promise.all(sourceParts.map((part,index)=>requestPricingAudit(request,{original:part,tasks:mapping.tasks.filter(t=>sourceParts.length===1||taskSources.get(t.id)===index),allTaskDescriptions:mapping.tasks.map(t=>({id:t.id,description:t.description})),priorPricingIssues:resolution.issues,existingLines:lines.filter(l=>!resolution.removeLineIds?.includes(l.id)),removedLines:lines.filter(l=>resolution.removeLineIds?.includes(l.id)),adjustments:auditTrail.adjustments,additionalRules:resolution.rules,customerAssumptions:[...base.customer.assumptions,...resolution.assumptions],existingExclusions:base.customer.exclusions.filter(e=>!resolution.removeExclusions?.includes(e)),research:auditTrail.research},()=>deadline-Date.now())));
     for(const verified of verifiedParts){
       const section=auditSchema.parse(verified.value);audit.coveredTaskIds.push(...section.coveredTaskIds);audit.issues.push(...section.issues);section.issues.forEach(issue=>opinions.add(issue));audit.notes.push(...section.notes);audit.resolvedIssues.push(...section.resolvedIssues);
     }
@@ -2377,7 +2379,7 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
       audit.coveredTaskIds=[];audit.issues=[];audit.notes=[];audit.resolvedIssues=[];
       const repairedCoverage=applyPricingCorrections({scope:pricingScope,inventoryTasks:inventory.tasks,mappingTasks:mapping.tasks,lines,resolution,pricingExtraction,configuration,now});
       for(const id of repairedCoverage.coveredTaskIds)if(!audit.coveredTaskIds.includes(id))audit.coveredTaskIds.push(id);
-      const checkedParts=await Promise.all(sourceParts.map((part,index)=>requestPricingAudit(request,{original:part,tasks:mapping.tasks.filter(t=>sourceParts.length===1||taskSources.get(t.id)===index),priorPricingIssues:resolution.issues,existingLines:lines.filter(l=>!resolution.removeLineIds?.includes(l.id)),additionalRules:resolution.rules,priorAuditIssues:priorIssues,removedLines:pricedComponents.filter(l=>resolution.removeLineIds?.includes(l.id)),existingExclusions:base.customer.exclusions.filter(e=>!resolution.removeExclusions?.includes(e)),research,allTaskDescriptions:mapping.tasks.map(t=>({id:t.id,description:t.description}))},()=>deadline-Date.now())));
+      const checkedParts=await Promise.all(sourceParts.map((part,index)=>requestPricingAudit(request,{original:part,tasks:mapping.tasks.filter(t=>sourceParts.length===1||taskSources.get(t.id)===index),priorPricingIssues:resolution.issues,existingLines:lines.filter(l=>!resolution.removeLineIds?.includes(l.id)),additionalRules:resolution.rules,priorAuditIssues:priorIssues,removedLines:pricedComponents.filter(l=>resolution.removeLineIds?.includes(l.id)),customerAssumptions:[...base.customer.assumptions,...resolution.assumptions],existingExclusions:base.customer.exclusions.filter(e=>!resolution.removeExclusions?.includes(e)),research,allTaskDescriptions:mapping.tasks.map(t=>({id:t.id,description:t.description}))},()=>deadline-Date.now())));
       for(const checked of checkedParts){
         const section=auditSchema.parse(checked.value);audit.coveredTaskIds.push(...section.coveredTaskIds);audit.issues.push(...section.issues);section.issues.forEach(issue=>opinions.add(issue));audit.notes.push(...section.notes);audit.resolvedIssues.push(...section.resolvedIssues);
       }
