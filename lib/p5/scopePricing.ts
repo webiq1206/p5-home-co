@@ -1,4 +1,5 @@
 import {ESTIMATOR_PROVIDER,ESTIMATOR_MODEL,assertEstimatorModel,EstimatorModelError} from './modelPolicy.ts';
+import {pricingHttpError} from './pricingDiagnostics.ts';
 import {unitKey,reusableUnitRate,supportedUnit,boiseArea,boisePriceRegion,UNIT_REGISTRY} from './unitRates.ts';
 import {reasoningFor,rejectsReasoning} from './openaiReasoning.ts';
 class MissingResearchRateError extends Error {}
@@ -375,7 +376,7 @@ const requestPricingWithUnsafe=async(provider:'anthropic'|'openai',instructions:
     for(let continuation=0;;continuation++){
       const left=remainingMs-(Date.now()-started);if(left<=0)throw new Error('pricing-check-timeout');
       const response=await boundedFetch('https://api.anthropic.com/v1/messages',{method:'POST',signal:AbortSignal.timeout(Math.min(180000,left)),headers,body:JSON.stringify({...requestBody,messages})});
-      if(!response.ok){const detail=await response.text().catch(()=>'');throw new Error(`pricing-provider-unavailable:${response.status}:${detail.replace(/\s+/g,' ').slice(0,300)}`);}
+      if(!response.ok){const detail=await response.text().catch(()=>'');throw pricingHttpError(response,detail);}
       const body=await response.json();
       if(ESTIMATOR_PROVIDER==='anthropic')assertEstimatorModel(body.model);
       responseModel=body.model;usage.inputTokens+=Number(body.usage?.input_tokens||0);usage.cachedInputTokens+=Number(body.usage?.cache_read_input_tokens||0);usage.outputTokens+=Number(body.usage?.output_tokens||0);usage.totalTokens=usage.inputTokens+usage.cachedInputTokens+usage.outputTokens;
@@ -396,15 +397,10 @@ const requestPricingWithUnsafe=async(provider:'anthropic'|'openai',instructions:
     if(search&&!sourceUrls.length)throw new Error('pricing-search-unavailable');
     try{return {value:parseJson(raw),sourceUrls,...(search?{sourceReport:raw}:{}),provider,model,responseModel,providerRequestIds,usage};}catch(error){
       if(!search)throw error;
-      // Search citations cannot be combined with strict JSON output. Normalize
-      // the retrieved report in a separate constrained, tool-free request.
-      const left=remainingMs-(Date.now()-started);if(left<1000)throw new Error('pricing-check-timeout');
-      const normalized=await boundedFetch('https://api.anthropic.com/v1/messages',{method:'POST',signal:AbortSignal.timeout(Math.min(60000,left)),headers,body:JSON.stringify({model,max_tokens:12000,system:normalizeResearch,messages:[{role:'user',content:JSON.stringify({requested:input,report:raw,sourceUrls})}],tools:[{name:'record_market',description:'Return researched rates with evidence.',input_schema:marketJson}],tool_choice:{type:'tool',name:'record_market',disable_parallel_tool_use:true}})});
-      if(!normalized.ok)throw new Error('pricing-research-format-unavailable');
-      const body=await normalized.json();if(ESTIMATOR_PROVIDER==='anthropic')assertEstimatorModel(body.model);
-      if(body.id)providerRequestIds.push(String(body.id));const records=(body.content||[]).filter((p:any)=>p.type==='tool_use');
-      if(body.stop_reason!=='tool_use'||records.length!==1||records[0].name!=='record_market')throw new Error('pricing-research-format-unavailable');
-      return {value:records[0].input,sourceUrls,sourceReport:raw,provider,model,responseModel:body.model,providerRequestIds};
+      // Checkpoint completed research BEFORE the separately saved formatter
+      // runs in reconcileResearchReply. A formatting failure must not discard
+      // a paid report or force the next pass to purchase the search again.
+      return {value:null,sourceUrls,sourceReport:raw,provider,model,responseModel,providerRequestIds,usage};
     }
   }
   const {model,body:requestBody}=openAiPricingRequestEnvelope(instructions,input,search,openAiOptions);
@@ -414,7 +410,7 @@ const requestPricingWithUnsafe=async(provider:'anthropic'|'openai',instructions:
   if(!response.ok){let detail=await response.text().catch(()=>'');
     // A gateway that does not accept the reasoning setting is asked once more without it.
     if(rejectsReasoning(response.status,detail)&&'reasoning' in requestBody){const {reasoning:_omit,...plain}=requestBody as Record<string,unknown>;void _omit;console.error('[p5-pricing] OpenAI refused the reasoning setting; retrying without it.');response=await send(plain);detail=response.ok?'':await response.text().catch(()=>'');}
-    if(!response.ok)throw new Error(`pricing-provider-unavailable:${response.status}:${detail.replace(/\s+/g,' ').slice(0,300)}`);}
+    if(!response.ok)throw pricingHttpError(response,detail);}
   const body=await response.json();
   if(body.model!=='gpt-4.1'&&body.model!=='gpt-4.1-2025-04-14')throw new EstimatorModelError(body.model?'estimator-model-mismatch':'estimator-model-unverified');
   if(body.status!=='completed')throw new Error(`pricing-check-incomplete:${body.incomplete_details?.reason||body.status||'unknown'}`);
@@ -444,11 +440,10 @@ export const requestPricingWith=async(provider:'anthropic'|'openai',instructions
     // process loss between these steps can reuse the checkpoint without buying
     // the same provider work again.
     if(checkpoint)await checkpoint(reply);
-    await settlePricingCharge(fingerprint);
+    await settlePricingCharge(fingerprint,reply.providerRequestIds?.at(-1));
     return reply;
   } catch(error) {
     const message=error instanceof Error?error.message:String(error);
-    if(process.env.NODE_TEST_CONTEXT&&process.env.P5_PRICING_LEDGER_TEST_MODE==='memory')throw error;
     // A syntactically valid 4xx rejection before provider acceptance is
     // known non-chargeable (except 408/429, whose acknowledgement is not
     // reliable). Keep the existing provider fallback for those responses.

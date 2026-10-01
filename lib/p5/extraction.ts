@@ -1,4 +1,5 @@
 import {ESTIMATOR_PROVIDER,ESTIMATOR_MODEL,MODEL_POLICY_VERSION,estimatorModelConfiguration,assertEstimatorModel} from './modelPolicy.ts';
+import {clarificationTakeoffUpdates,type TakeoffRevisionContext} from './clarificationTakeoffs.ts';
 import {groundSourceResponsibilities} from './sourceResponsibilities.ts';
 import {openAiReadModel,preferredReadProvider,rateLimitWaitMs,RATE_LIMIT_RETRIES} from './readerRouting.ts';
 import {reasoningFor,rejectsReasoning} from './openaiReasoning.ts';
@@ -95,11 +96,11 @@ export function recordShape(value:unknown){
   if(!value||typeof value!=='object')return typeof value;
   return Object.entries(value as Record<string,unknown>).map(([key,item])=>`${key}:${Array.isArray(item)?`array(${item.length})`:typeof item==='string'?`string(${item.length})`:item===null?'null':typeof item}`).join(',');
 }
-function sanitizeRecord(value:unknown,files:AnalysisFile[]){
+function sanitizeRecord(value:unknown,files:AnalysisFile[],revisions?:TakeoffRevisionContext){
   if(!value||typeof value!=='object')return value;
   const record=normalizeRecordShape(value as Record<string,unknown>);
   if(!files.length){
-    if('takeoffs' in record)record.takeoffs=[];
+    if('takeoffs' in record)record.takeoffs=revisions?clarificationTakeoffUpdates(record.takeoffs,revisions):[];
     if('pages' in record)record.pages=[];
     return record;
   }
@@ -224,7 +225,7 @@ function asInputContent(files: AnalysisFile[], text: string, previous: ScopeAnsw
   return content;
 }
 
-async function analyzeWithOpenAI(provider: Provider, text: string, files: AnalysisFile[], previous: ScopeAnswers, request: RequestFunction, timeoutMs: number,sourceInstruction="",routeModel=true): Promise<AnalysisResult> {
+async function analyzeWithOpenAI(provider: Provider, text: string, files: AnalysisFile[], previous: ScopeAnswers, request: RequestFunction, timeoutMs: number,sourceInstruction="",routeModel=true,revisions?:TakeoffRevisionContext): Promise<AnalysisResult> {
   const started = Date.now();
   // Text and form pages read on the fast model, drawing tiles on the configured one (readerRouting.ts).
   const model=routeModel?openAiReadModel(provider.model,files):provider.model;
@@ -259,14 +260,14 @@ async function analyzeWithOpenAI(provider: Provider, text: string, files: Analys
   if (typeof resultText !== "string") throw errorForProvider(provider, response.status, "provider returned no structured text");
   let parsed:unknown;
   try {
-    parsed = extractionRecord(sanitizeRecord(JSON.parse(resultText),files));
+    parsed = extractionRecord(sanitizeRecord(JSON.parse(resultText),files,revisions));
     return { extraction: validateExtraction(parsed), provider: provider.kind, model: body.model, ...(routeModel?{modelPolicy:MODEL_POLICY_VERSION}:{}), analyzedAt: new Date().toISOString() };
   } catch (error) {
     throw errorForProvider(provider, response.status, `${error instanceof Error ? error.message : "provider returned invalid extraction"} [${recordShape(parsed)}]`);
   }
 }
 
-async function analyzeWithAnthropic(provider: Provider, text: string, files: AnalysisFile[], previous: ScopeAnswers, request: RequestFunction, timeoutMs: number,sourceInstruction="",verifyModel=true): Promise<AnalysisResult> {
+async function analyzeWithAnthropic(provider: Provider, text: string, files: AnalysisFile[], previous: ScopeAnswers, request: RequestFunction, timeoutMs: number,sourceInstruction="",verifyModel=true,revisions?:TakeoffRevisionContext): Promise<AnalysisResult> {
   const content: Record<string, unknown>[] = [];
   for (const file of files) {
     content.push({ type: "text", text: `Source filename: ${file.name}\nOriginal page manifest: ${JSON.stringify(file.pages||[])}` });
@@ -301,7 +302,7 @@ async function analyzeWithAnthropic(provider: Provider, text: string, files: Ana
   if (!records.length&&typeof resultText !== "string") throw errorForProvider(provider, response.status, "provider returned no structured text");
   let parsed:unknown;
   try {
-    parsed = extractionRecord(sanitizeRecord(records.length?records[0].input:JSON.parse(resultText),files));
+    parsed = extractionRecord(sanitizeRecord(records.length?records[0].input:JSON.parse(resultText),files,revisions));
     return { extraction: validateExtraction(parsed), provider: provider.kind, model: body.model, ...(verifyModel?{modelPolicy:MODEL_POLICY_VERSION}:{}), analyzedAt: new Date().toISOString() };
   } catch (error) {
     throw errorForProvider(provider, response.status, `${error instanceof Error ? error.message : "provider returned invalid extraction"} [${recordShape(parsed)}]`);
@@ -316,6 +317,8 @@ function publicProviderError(error: unknown): Error {
 }
 
 export type AnalyzeOptions={
+  /** Server-owned prior takeoffs. Only clarification calls may amend them. */
+  takeoffRevisions?:TakeoffRevisionContext;
   /** Read a typed scope with every configured provider at once and keep the first valid result. Only the first read of a project opts in; clarifications and document sections stay sequential. */
   race?:boolean;
   /** Identity for the durable event log (draft, estimator, file). Document contents are never logged. */
@@ -337,9 +340,13 @@ export async function analyzeBatch(text: string, files: AnalysisFile[], previous
   if (!configured.length) throw new Error("analysis-unconfigured");
   const source=await withinDeadline(()=>readSpecificationSource(files),Math.min(absoluteDeadline,Date.now()+5000)).catch(()=>null);
   let sourceInstruction=specificationHint(source),sourceRepair=false;
+  if(options.takeoffRevisions){
+    if(files.length)throw new Error('clarification-revisions-require-retained-sources');
+    sourceInstruction+='\nRETAINED TAKEOFF CORRECTIONS: This is an authorized clarification of existing priorTakeoffs, not a new text-only extraction. Return changed takeoffs with exactly the existing IDs and units, using quantity null / basis uncertain when the answer invalidates a prior measurement. Do not add work items or recreate document pages. Cite the actual customer answer as typed scope, page 0. Unchanged takeoffs are omitted.';
+  }
   let last: unknown;let busy:ProviderError|undefined;
   // Racing both providers doubles the spend on every first read; it is opt-in (P5_TEXT_RACE=true) for hosts that value latency over cost.
-  if(options.race&&!files.length&&configured.length>1&&process.env.P5_TEXT_RACE==='true'){
+  if(options.race&&!options.takeoffRevisions&&!files.length&&configured.length>1&&process.env.P5_TEXT_RACE==='true'){
     // A first typed-scope read is cheap to run twice and expensive to wait on.
     // Every configured provider reads it at once; the first valid result wins
     // and the rest are abandoned. Document sections and follow-up reads that
@@ -388,8 +395,8 @@ export async function analyzeBatch(text: string, files: AnalysisFile[], previous
     const started=Date.now();
     try {
       const result = provider.kind === "OpenAI"
-        ? await analyzeWithOpenAI(provider, text, inputFiles, previous, boundedRequest, providerTimeout,sourceInstruction)
-        : await analyzeWithAnthropic(provider, text, inputFiles, previous, boundedRequest, providerTimeout,sourceInstruction);
+        ? await analyzeWithOpenAI(provider, text, inputFiles, previous, boundedRequest, providerTimeout,sourceInstruction,true,options.takeoffRevisions)
+        : await analyzeWithAnthropic(provider, text, inputFiles, previous, boundedRequest, providerTimeout,sourceInstruction,true,options.takeoffRevisions);
       const confirmedSource=source?{...source,text:source.text+'\n'+text+'\n'+JSON.stringify(previous)}:null;
       result.extraction=retainUnspecifiedRatings(result.extraction,confirmedSource);
       result.extraction=retainExplicitSelections(result.extraction,text,previous);
@@ -399,7 +406,7 @@ export async function analyzeBatch(text: string, files: AnalysisFile[], previous
       if(unsupported.length)throw new UnsupportedSpecificationError(unsupported);
       if(source)result.extraction.sourceText=source.text;
       const expected=files.flatMap(f=>f.pages||[]);
-      bindTypedTakeoffSources(result.extraction.takeoffs||[],[text,...Object.values(previous)].filter(Boolean).join('\n'));
+      if(!options.takeoffRevisions)bindTypedTakeoffSources(result.extraction.takeoffs||[],[text,...Object.values(previous)].filter(Boolean).join('\n'));
       // Each prepared detail batch is physically derived from exactly one
       // source page. Bind its evidence to that known page, not provider-local
       // PDF view indices. Never apply this to a multi-page source document.

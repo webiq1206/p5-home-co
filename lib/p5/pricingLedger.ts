@@ -31,6 +31,13 @@ export class PricingChargeUnknownError extends Error {
   code='pricing-charge-unknown';
   constructor(message='Pricing provider acknowledgement is unknown; retry is blocked until it is reconciled.',options?:ErrorOptions){super(message,options);}
 }
+/** Retain charge uncertainty on the ledger while allowing the existing
+ * uncapped retry policy to classify the actual provider failure. A configured
+ * cap, or an unresolved reservation without a cause, remains a hard stop. */
+export function pricingRecoveryError(error:unknown):unknown{
+ if(error instanceof PricingChargeUnknownError&&!pricingReservationConfig()&&error.cause instanceof Error)return error.cause;
+ return error;
+}
 export const pricingFingerprint=(provider:string,instructions:string,input:unknown,search:boolean,identity?:PricingIdentity)=>{
   return createHash('sha256').update(JSON.stringify({identity:identity||null,provider,instructions,input,search})).digest('hex');
 };

@@ -11,7 +11,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
-    "test": "P5_ESTIMATOR_PROVIDER=openai node --experimental-strip-types --test --test-concurrency=1 tests/*.test.ts && P5_ESTIMATOR_PROVIDER=anthropic node --experimental-strip-types --test tests/providers/haiku.test.ts",
+    "test": "P5_ESTIMATOR_PROVIDER=openai node --experimental-strip-types --test --test-concurrency=1 tests/*.test.ts && P5_ESTIMATOR_PROVIDER=anthropic node --experimental-strip-types --test tests/providers/haiku.test.ts tests/p5-pricing-production-errors.test.ts tests/p5-clarification-takeoff-updates.test.ts",
     "acceptance:p5-runtime": "node --experimental-strip-types scripts/p5-runtime-acceptance.mts",
     "hubspot:setup": "node --experimental-strip-types --env-file-if-exists=.env.local tools/hubspot-setup.ts",
     "db:migrate": "node --experimental-strip-types --env-file-if-exists=.env.local tools/migrate.ts",

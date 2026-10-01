@@ -538,6 +538,7 @@ test('completed OpenAI search prose retains actual citations for strict normaliz
  }finally{globalThis.fetch=oldFetch;names.forEach((n,i)=>{if(saved[i]===undefined)delete process.env[n];else process.env[n]=saved[i]});}
 });
 test('legacy provider parser retains historical source extraction support',async()=>{
+ const causedBy=(message:string)=>(error:unknown)=>error instanceof Error&&error.cause instanceof Error&&error.cause.message===message;
  const names=['OPENAI_API_KEY','AI_INTEGRATIONS_OPENAI_API_KEY','AI_INTEGRATIONS_OPENAI_BASE_URL','ANTHROPIC_API_KEY','P5_PRICING_MODEL','P5_PRICING_RESEARCH_MODEL','P5_PRICING_PROVIDER'];
  const saved=names.map(n=>process.env[n]);const oldFetch=globalThis.fetch;
  try{
@@ -567,9 +568,9 @@ test('legacy provider parser retains historical source extraction support',async
   };
   const resumed=await requestPricingWith('anthropic','JSON',{},true,5000);assert.equal(pausedCalls,2);assert.deepEqual(resumed.sourceUrls,urls);assert.deepEqual(resumed.value,researched);
   pausedCalls=0;globalThis.fetch=async()=>{pausedCalls++;return Response.json({stop_reason:'pause_turn',content:pausedContent});};
-  await assert.rejects(()=>requestPricingWith('anthropic','JSON',{},true,5000),/pricing-check-incomplete:pause_turn/);assert.equal(pausedCalls,3);
+  await assert.rejects(()=>requestPricingWith('anthropic','JSON',{},true,5000),causedBy('pricing-check-incomplete:pause_turn'));assert.equal(pausedCalls,3);
   globalThis.fetch=async()=>Response.json({stop_reason:'max_tokens',content:[{type:'text',text:'{"rates":['}]});
-  await assert.rejects(()=>requestPricingWith('anthropic','JSON',{},true,5000),/pricing-check-incomplete:max_tokens/);
+  await assert.rejects(()=>requestPricingWith('anthropic','JSON',{},true,5000),causedBy('pricing-check-incomplete:max_tokens'));
   let calls=0;
   globalThis.fetch=async(_url,init)=>{
    calls++;const body=JSON.parse(String(init?.body));
@@ -577,9 +578,9 @@ test('legacy provider parser retains historical source extraction support',async
    assert.ok(body.tools[0].input_schema.properties.rates);assert.equal(body.tool_choice.name,'record_market');assert.ok(body.messages[0].content.includes(urls[0]));
    return Response.json({stop_reason:'tool_use',content:[{type:'tool_use',name:'record_market',id:'synthetic',input:researched}]});
   };
-  const normalized=await requestPricingWith('anthropic','JSON',{},true,5000);assert.equal(calls,2);assert.deepEqual(normalized.value,researched);assert.ok(normalized.sourceReport?.startsWith('# Research'));assert.deepEqual(normalized.sourceUrls,urls);
+  const retained=await requestPricingWith('anthropic','JSON',{},true,5000);assert.equal(calls,1);assert.equal(retained.value,null);assert.ok(retained.sourceReport?.startsWith('# Research'));assert.deepEqual(retained.sourceUrls,urls);
   globalThis.fetch=async()=>Response.json({stop_reason:'end_turn',content:[{type:'text',text:'{"rates":[],"issues":[]}'}]});
-  await assert.rejects(()=>requestPricingWith('anthropic','JSON',{},true,1000),/search-unavailable/);
+  await assert.rejects(()=>requestPricingWith('anthropic','JSON',{},true,1000),causedBy('pricing-search-unavailable'));
  }finally{globalThis.fetch=oldFetch;names.forEach((n,i)=>{if(saved[i]===undefined)delete process.env[n];else process.env[n]=saved[i]});}
 });
 test('Allowance notes release a range only after complete scope coverage passes the independent audit',async()=>{

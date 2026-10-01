@@ -740,9 +740,11 @@ export function retainedChoiceValue(choice:RetainedChoice){return `Option ${choi
 export function reconcileClarificationTakeoffs(previous:Takeoff[]|undefined,returned:Takeoff[]|undefined,changedFacts:ExtractedFact[]):Takeoff[]|undefined{
   if(!previous?.length&&!returned?.length)return previous||returned;
   const clone=(item:Takeoff)=>cloneTakeoff(item);
+  let merged=(previous||[]).map(clone);
+  const updatedIds=new Set((returned||[]).map(item=>item.id));
   if(returned?.length){
     const updates=new Map(returned.map(item=>[item.id,item]));
-    const merged=previous?previous.map(item=>{
+    merged=previous?previous.map(item=>{
       const next=updates.get(item.id);
       if(!next)return clone(item);
       const sources=[...new Map([...item.sources,...next.sources].map(source=>[JSON.stringify(source),source])).values()];
@@ -753,9 +755,7 @@ export function reconcileClarificationTakeoffs(previous:Takeoff[]|undefined,retu
       return {...clone(next),sources,evidence};
     }):[];
     merged.push(...[...updates.values()].map(clone));
-    return merged;
   }
-  const merged=(previous||[]).map(clone);
   for(const fact of changedFacts){
     const value=fact.value;
     const quantities=[
@@ -766,7 +766,7 @@ export function reconcileClarificationTakeoffs(previous:Takeoff[]|undefined,retu
       if(!quantity.match||fact.confidence<.85)continue;
       const parsed=Number(quantity.match[1]||quantity.match[2]);
       if(!Number.isFinite(parsed))continue;
-      for(const item of merged.filter(candidate=>/\b(?:ea|each|unit)\b/i.test(candidate.unit)&&quantity.term.test(`${candidate.description} ${candidate.component}`))){
+      for(const item of merged.filter(candidate=>!updatedIds.has(candidate.id)&&/\b(?:ea|each|unit)\b/i.test(candidate.unit)&&quantity.term.test(`${candidate.description} ${candidate.component}`))){
         item.quantity=parsed;
         item.basis='stated';
         item.evidence=`${item.evidence} Updated by typed clarification for ${quantity.label}: ${parsed}.`;
@@ -790,7 +790,7 @@ export function reconcileClarificationTakeoffs(previous:Takeoff[]|undefined,retu
     const quantity=Number(fact.value.replaceAll(',',''));
     if(!Number.isFinite(quantity)||quantity<0)continue;
     const [,unit,term]=mapping;
-    const matches=merged.filter(item=>unit.test(item.unit)&&term.test(`${item.description} ${item.component}`));
+    const matches=merged.filter(item=>!updatedIds.has(item.id)&&unit.test(item.unit)&&term.test(`${item.description} ${item.component}`));
     for(const item of matches){
       item.quantity=quantity;
       item.basis='stated';

@@ -46,6 +46,10 @@ function numbersIn(text:string,dimension:Dimension):Found[]{
   return found.sort((a,b)=>a.start-b.start);
 }
 
+/** Explicit numeric tokens, including the same spoken-number forms accepted
+ * by numeric questions. This establishes presence, not measurement role. */
+export const explicitAnswerNumbers=(text:string):number[]=>numbersIn(text,'count').map(item=>item.value);
+
 /** Feet and inches written as 12'6", 12 ft 6 in or 12 feet 6 inches. */
 function feetInches(text:string):{value:number;start:number;end:number}|null{
   const m=text.match(/(\d+(?:\.\d+)?)\s*(?:'|ft\.?|f(?:ee|oo)t)\s*(\d+(?:\.\d+)?)\s*(?:"|in\.?|inch(?:es)?)/i);

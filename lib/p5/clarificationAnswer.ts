@@ -56,7 +56,7 @@ export async function resolveInstructionAnswer(extraction:ScopeExtraction|null,a
       history:[...prior,record],
     };
   }
-   const result=await analyzeBatch(clarificationContext(extraction,question,answer,answers),[],answers,request,60000);
+   const result=await analyzeBatch(clarificationContext(extraction,question,answer,answers),[],answers,request,60000,Date.now()+60000,{takeoffRevisions:{prior:extraction.takeoffs||[],answer}});
   if(!result.extraction.instructions)throw new DraftError('Your answer is still here. We could not save its scope update. Please retry.',503);
   const instructions=result.extraction.instructions;
   // Owner rule (2026-09-21): never ask the same question twice. The customer's reply is kept word for

@@ -1,3 +1,4 @@
+import {pricingRecoveryError} from './pricingLedger.ts';
 /** Expected continuation, not an incomplete customer estimate. */
 export class PricingPending extends Error {
  readonly retryAfterMs:number;
@@ -6,7 +7,7 @@ export class PricingPending extends Error {
  constructor(message='Pricing progress is saved. Continuing the scope check...',retryAfterMs=1500,fatal=false){super(message);this.name='PricingPending';this.retryAfterMs=retryAfterMs;this.fatal=fatal;}
 }
 /** Rate limits and provider outages use the shared bounded backoff, including research. */
-export const retryablePricingProviderError=(error:unknown)=>error instanceof Error&&/^pricing-provider-unavailable:(?:429|5\d\d)\b/.test(error.message);
+export const retryablePricingProviderError=(error:unknown)=>{const cause=pricingRecoveryError(error);return cause instanceof Error&&/^pricing-provider-unavailable:(?:429|5\d\d)\b/.test(cause.message);};
 export const RESEARCH_FAILURE_COOLDOWN_MS=15*60_000;
 export const expiredResearchFailure=(reply:unknown,now=Date.now())=>Boolean(reply&&typeof reply==='object'&&typeof (reply as {researchFailedAt?:number}).researchFailedAt==='number'&&now-(reply as {researchFailedAt:number}).researchFailedAt>=RESEARCH_FAILURE_COOLDOWN_MS);
 export const PRICING_UNAVAILABLE='Our pricing service is temporarily unavailable. Your project and contact details are saved, and we will follow up with your estimate by email.';

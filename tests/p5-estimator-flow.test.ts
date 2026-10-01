@@ -277,9 +277,11 @@ test('an OpenAI rate limit is waited out, not ended by an Anthropic account with
   }) as typeof fetch;
   try{
     // The stage reports the OpenAI rate limit (a busy provider the job waits out), not the billing refusal.
-    await assert.rejects(()=>requestPricing('JSON',{},false,20000),/^Error: pricing-provider-unavailable:429/);
+    const {retryablePricingProviderError}=await import('../lib/p5/pricingProgress.ts');
+    const isRateLimit=(error:unknown)=>error instanceof Error&&error.cause instanceof Error&&/^pricing-provider-unavailable:429/.test(error.cause.message)&&retryablePricingProviderError(error);
+    await assert.rejects(()=>requestPricing('JSON',{},false,20000),isRateLimit);
     assert.equal(anthropicCalls,0);
-    await assert.rejects(()=>requestPricing('JSON',{},false,20000),/pricing-provider-unavailable:429/);
+    await assert.rejects(()=>requestPricing('JSON',{},false,20000),isRateLimit);
     assert.equal(anthropicCalls,0,'a rate limit never dispatches another provider');
   }finally{
     globalThis.fetch=realFetch;runtime.p5AnthropicBlockedUntil=0;

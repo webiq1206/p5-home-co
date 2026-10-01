@@ -1,5 +1,6 @@
 import {withSupportedServiceBook} from './planningBooks.ts';
-import {MODEL_POLICY_VERSION} from './modelPolicy.ts';
+import {MODEL_POLICY_VERSION,ESTIMATOR_MODEL,ESTIMATOR_PROVIDER} from './modelPolicy.ts';
+import {pricingFailureDetails} from './pricingDiagnostics.ts';
 import {ESTIMATOR_VERSION} from './version.ts';
 import {SERVER_BUDGET_MS,remainingBudget,withinDeadline,ProcessingDeadlineError,isProcessingDeadline} from './processingBudget.ts';
 import {createHash} from 'node:crypto';
@@ -14,7 +15,7 @@ import type {ReviewedScope} from './scope.ts';
 import type {EstimatorConfiguration} from './costBook.ts';
 import {readRegionalRates,saveRegionalRates} from './regionalRates.ts';
 import {pricingActivity,type ProcessingStatus} from './processingStatus.ts';
-import type {PricingIdentity} from './pricingLedger.ts';
+import {pricingFingerprint,pricingRecoveryError,PricingChargeUnknownError,type PricingIdentity} from './pricingLedger.ts';
 import {assertProjectSourceCoverage,SOURCE_COVERAGE_REQUIRED} from './documentServiceClient.ts';
 import {shortlistBook,type ShortlistTask,type ShortlistRate} from './bookShortlist.ts';
 
@@ -37,7 +38,9 @@ export function reusableSavedPricingReply(value:unknown):value is PricingReply{
  return !reply.timeouts&&!reply.timedOut&&!reply.outputLimited&&Array.isArray(reply.sourceUrls)
    &&(reply.value!==null&&reply.value!==undefined||typeof reply.sourceReport==='string'&&reply.sourceReport.trim().length>0);
 }
-type Payload=PricingRepairState&{replies:Record<string,PricingReply>;shortlists?:Record<string,Record<string,string[]>>;failures?:number;completed?:number;regionalRates?:EstimatorConfiguration['regionalRates'];researchLeads?:EstimatorConfiguration['researchLeads'];processing?:ProcessingStatus;pricingAt?:string;busyWaitMs?:number};
+type RequestFailure={attempt:number;failedAt:string;causes:ReturnType<typeof pricingFailureDetails>};
+type RequestTrace={fingerprint:string;provider:string;model:string;stage:string;attempt:number;startedAt:string;failedAt?:string;causes?:ReturnType<typeof pricingFailureDetails>;failures:RequestFailure[]};
+type Payload=PricingRepairState&{replies:Record<string,PricingReply>;requests?:Record<string,RequestTrace>;shortlists?:Record<string,Record<string,string[]>>;failures?:number;completed?:number;regionalRates?:EstimatorConfiguration['regionalRates'];researchLeads?:EstimatorConfiguration['researchLeads'];processing?:ProcessingStatus;pricingAt?:string;busyWaitMs?:number};
 export async function priceSavedScope(id:string,scope:ReviewedScope,configuration:EstimatorConfiguration,pricingAt=new Date(),deadline=Date.now()+SERVER_BUDGET_MS,identity?:PricingIdentity){
  // P5 and Construction price only a project whose every source page was verified;
  // the other brands return a partial read for manual review instead.
@@ -114,6 +117,11 @@ export async function priceSavedScope(id:string,scope:ReviewedScope,configuratio
   const phase=activity.phase;
   const allowance=search?Math.max(5000,Math.min(remainingMs,PRICING_STAGE_MAX_MS)):PRICING_STAGE_MAX_MS;
   const started=Date.now();
+  // Persist the exact link before dispatch. A response hash alone cannot be
+  // inverted into the separately hashed charge-ledger identity after failure.
+  payload.requests||={};
+  const trace:RequestTrace={fingerprint:pricingFingerprint(ESTIMATOR_PROVIDER,instructions,input,search,identity),provider:ESTIMATOR_PROVIDER,model:ESTIMATOR_MODEL,stage:phase,attempt:(payload.requests[key]?.attempt||0)+1,startedAt:new Date(started).toISOString(),failures:[...(payload.requests[key]?.failures||[])]};
+  payload.requests[key]=trace;await persist();
   const elapsed=()=>((Date.now()-started)/1000).toFixed(1);
   const checkpoint=async(completedReply:PricingReply)=>{
     const counted=reusableSavedPricingReply(payload.replies[key]);
@@ -124,10 +132,19 @@ export async function priceSavedScope(id:string,scope:ReviewedScope,configuratio
   };
   try{reply=await withinDeadline(()=>requestPricing(instructions,input,search,allowance,identity,undefined,checkpoint),started+allowance);}
   catch(error){
+   trace.failedAt=new Date().toISOString();trace.causes=pricingFailureDetails(error);
+   trace.failures.push({attempt:trace.attempt,failedAt:trace.failedAt,causes:trace.causes});
+   await persist();
+   const root=trace.causes.at(-1)!;
+   void recordEvent({draftId:id,estimator:scope.answers.service||null,kind:'pricing',stage:`price-${phase}`,provider:trace.provider,model:trace.model,code:root.code,status:root.status,durationMs:Date.now()-started,attempt:trace.attempt,outcome:'failed',meta:{checkpointKey:key,ledgerFingerprint:trace.fingerprint,causes:trace.causes}});
    // A deadline or accounting failure may race the durable checkpoint. Never
    // replace an already completed response with a timeout marker or buy it again.
    const completedReply=payload.replies[key];
    if(reusableSavedPricingReply(completedReply)){await persist();return completedReply;}
+   error=pricingRecoveryError(error);
+   // An unresolved reservation is not an empty search and cannot improve by
+   // waiting through a research cooldown. Preserve its trace and stop safely.
+   if(error instanceof PricingChargeUnknownError)throw new PricingPending('Your project is saved, but this pricing request needs review before it can continue.',0,true);
    if(isPricingPending(error))throw error;
    if(isProcessingDeadline(error)){
     console.error(`[p5-pricing] ${phase} stage exceeded its ${Math.round(allowance/1000)}s allowance after ${elapsed()}s`);
