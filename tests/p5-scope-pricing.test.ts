@@ -2191,7 +2191,7 @@ test('generic material-budget recovery rejects fabricated prices, missing compon
  assert.equal(materialBudgetCandidate({rates:[{...row,sources:[{...row.sources[0],region:'Moscow, Idaho (Boise regional supply)'}]}],issues:[]},report,[urls[0]],[materials],now,0,'Boise'),null);
 });
 
-test('generic consumables do not invent a second repair-material task because cleanup is labor',async()=>{
+test('generic consumables preserve a labor-only repair gap but not a cleanup-only gap',async()=>{
  const {normalizeConsumableMapping}=await import('../lib/p5/scopePricing.ts');
  const local={...scope,text:'Replace two GFCIs, one P-trap and repair one drywall patch. Include normal installation consumables and minor cleanup.',answers:{service:'re10',location:'Boise'}};
  const entries=[
@@ -2203,7 +2203,11 @@ test('generic consumables do not invent a second repair-material task because cl
  const configuration=createPlanningConfiguration({...catalog,rates:[...catalog.rates,...entries as PlanningCatalog['rates']]});
  const mapping={tasks:entries.map((rate,index)=>({...extra,id:'repair-'+index,description:rate.description,evidence:local.text,researchDescription:'',additions:[{code:rate.code,quantity:index===0?2:1,quantityEvidence:'Explicit repair quantity'}]})),issues:[],notes:[],replacements:[],removeExclusions:[]};
  normalizeConsumableMapping(mapping,configuration,[],local);
- assert.equal(mapping.tasks.length,4,'the audit still checks GFCI product coverage; no invented extra compound or PVC kit');
+ assert.equal(mapping.tasks.length,5,'the explicitly labor-only GFCI rate cannot establish consumables coverage');
+ assert.equal(mapping.tasks[4].id,'required-contractor-consumables');
+ const coveredRepairs={...mapping,tasks:mapping.tasks.slice(1,4)};
+ normalizeConsumableMapping(coveredRepairs,configuration,[],local);
+ assert.equal(coveredRepairs.tasks.length,3,'included repair supplies plus cleanup alone do not invent another material purchase');
 });
 
 test('descriptive EA package units retain evidenced physical quantities and price arithmetic',()=>{

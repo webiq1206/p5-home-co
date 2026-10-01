@@ -538,6 +538,14 @@ function deviceKind(value:string):'life-safety'|'doorbell'|null{
   return alarm===doorbell?null:alarm?'life-safety':'doorbell';
 }
 const deviceMismatchIssue=(description:string)=>`${description}: catalog device does not match the requested work.`;
+export function incompatibleDoorHardwareRemoval(task:string,component:string):boolean{
+ const priced=component.startsWith(`${task}:`)?component.slice(task.length+1):component;
+ return /\b(?:remov\w*|replac\w*|dispos\w*)\b/i.test(task)
+  &&/\b(?:door\s+)?(?:levers?|handles?|knobs?|locksets?|deadbolts?|door hardware)\b/i.test(task)
+  &&/\bdoor\s+(?:removal|demolition)\b|\b(?:remove|demolish)\s+(?:an? |the |existing )?doors?\b/i.test(priced)
+  &&!/\b(?:hardware|levers?|handles?|knobs?|locksets?|deadbolts?)\b/i.test(priced);
+}
+const doorHardwareIssue=(description:string)=>`${description}: whole-door removal does not price removal of door hardware; use a compatible hardware replacement or removal component and avoid duplicating removal already included in replacement.`;
 function incompatibleDevice(task:string,component:string):boolean{
   const scope=deviceKind(task),priced=deviceKind(component.startsWith(`${task}:`)?component.slice(task.length+1):component);
   return Boolean(scope&&priced&&scope!==priced);
@@ -598,7 +606,9 @@ export function normalizeConsumableMapping(mapping:Mapping,configuration:Estimat
   if(/\binstallation (?:materials|supplies)\b/i.test(source)&&contractorConsumableIncluded(scope,'Supply installation supplies'))requested.push('consumables');
   const excludesSupplies=(description:string)=>/exclud[^.]*\b(?:consumables?|installation materials|screws?|shims?|fasteners?)\b/i.test(description);
   const namedSupplies=requested.some(word=>word!=='consumables');
-  const hasSupplyGap=(description:string)=>excludesSupplies(description)||!/\blabor with consumables\b/i.test(description)&&(namedSupplies||!/\b(?:replac\w*|repair\w*|clean(?:ing|up)|remov\w*|demolition|haul\w*)\b/i.test(description));
+  const hasSupplyGap=(description:string)=>excludesSupplies(description)
+    ||/\b(?:install\w*|replac\w*|repair\w*)\b/i.test(description)&&/\b(?:labor|labour)[ -]only\b|\bmaterials? priced separately\b/i.test(description)
+    ||!/\blabor with consumables\b/i.test(description)&&(namedSupplies||!/\b(?:replac\w*|repair\w*|clean(?:ing|up)|remov\w*|demolition|haul\w*)\b/i.test(description));
   // Generic installation-supplies wording does not create a new purchasing
   // task merely because cleanup or a repair visit contains a labor line.
   // Explicit named supplies/exclusions still require material coverage, and
@@ -613,6 +623,14 @@ export function normalizeConsumableMapping(mapping:Mapping,configuration:Estimat
     ||existing.some(line=>line.quantity*line.unitCost>0&&/\b(?:quartz|granite|solid surface|laminate)\b/i.test(line.description)&&/\b(?:countertop|counter top)\b/i.test(line.description));
   for(const task of mapping.tasks){
     if(taskSelectionStatus(task,mapping.tasks)!=='billable')continue;
+    const wrongDoorRemoval=task.additions.filter(addition=>{
+      const rate=configuration.planningCatalog?.rates.find(rate=>rate.code===addition.code);
+      return rate&&incompatibleDoorHardwareRemoval(task.description,rate.description||'');
+    });
+    if(wrongDoorRemoval.length){
+      task.additions=task.additions.filter(addition=>!wrongDoorRemoval.includes(addition));
+      task.researchDescription=doorHardwareIssue(task.description);
+    }
     if(/\bclean(?:up|ing)\b/i.test(task.description)&&['handyman','re10','cabinet-install','cabinet-product','cabinet-replace'].includes(scope.answers.service||'')
       &&!(Number(scope.answers.sqft||scope.answers.flooringSqft)>0)&&!/\b\d+(?:\.\d+)?\s*(?:SF|square feet)\b/i.test(source)){
       const wrongArea=task.additions.filter(a=>/^PB-01-74-0[45]$/.test(a.code));
@@ -981,6 +999,9 @@ export function catalogResolution(mapping:Mapping,configuration:EstimatorConfigu
         result.issues.push(deviceMismatchIssue(t.description));
         continue;
       }
+      if(incompatibleDoorHardwareRemoval(t.description,rate?.description||regional?.description||'')){
+        result.issues.push(doorHardwareIssue(t.description));continue;
+      }
       if(incompatibleRepairAssembly(t.description,rate?.description||regional?.description||'')){
         result.issues.push(repairAssemblyIssue(t.description));continue;
       }
@@ -1038,6 +1059,7 @@ export function catalogResolution(mapping:Mapping,configuration:EstimatorConfigu
       if(result.removeLineIds?.includes(id)||!line||line.quantity*line.unitCost<=0)result.issues.push(`${t.description}: invalid existing price reference.`);
       else if(incompatibleBuildingComponent(t.description,line.description.startsWith(t.description+':')?line.description.slice(t.description.length+1):line.description))result.issues.push(`${t.description}: existing price does not cover the separately measured space.`);
       else if(incompatibleDevice(t.description,line.description))result.issues.push(deviceMismatchIssue(t.description));
+      else if(incompatibleDoorHardwareRemoval(t.description,line.description))result.issues.push(doorHardwareIssue(t.description));
       else if(incompatibleRepairAssembly(t.description,line.description))result.issues.push(repairAssemblyIssue(t.description));
       else if(wrongHoleFillingFastener(t.description,line.description))result.issues.push(`${t.description}: new fasteners do not fill existing nail holes; price compatible filling/preparation work.`);
       else if(vanitySizeMatches(t.description,line.description)===false)result.issues.push(vanitySizeIssue(t.description));

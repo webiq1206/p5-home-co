@@ -4,6 +4,22 @@ import {combineScopeExtractions,type ScopeExtraction,type ExtractedFact} from '.
 
 const page=(facts:ExtractedFact[]):ScopeExtraction=>({summary:'',facts,conflicts:[],missingInformation:[],reviewNotes:[]});
 const fact=(field:ExtractedFact['field'],value:string,evidence:string,basis:ExtractedFact['basis']='stated',source='estimate.pdf, page 1'):ExtractedFact=>({field,value,evidence,basis,source,confidence:.95});
+test('separately named fixture schedule rows retain quantities without a false aggregate conflict',()=>{
+ const rows=[fact('fixtureCount','1','Vanity light fixture (EA) 1'),fact('fixtureCount','3','Surface mount LED ceiling fixtures (EA) 3'),fact('fixtureCount','12','Duplex receptacles, switches and wall plates (EA) 12')];
+ const result=combineScopeExtractions([page(rows)]);
+ assert.equal(result.facts.filter(f=>f.field==='taskList').length,3);
+ assert.deepEqual(result.facts.map(f=>f.evidence),rows.map(f=>f.evidence));
+ assert.deepEqual(result.conflicts,[]);
+ const saved=page(rows);saved.conflicts=[{field:'fixtureCount',values:['1','3','12'],explanation:'Different document pages state different values. Confirm the intended project information.'}];
+ assert.deepEqual(combineScopeExtractions([saved]).conflicts,[]);
+});
+test('same-item discrepancies, totals, and different sources remain fixture conflicts',()=>{
+ for(const pair of [
+  [fact('fixtureCount','1','Vanity light fixture (EA) 1'),fact('fixtureCount','2','Vanity light fixture (EA) 2')],
+  [fact('fixtureCount','1','Vanity light fixture (EA) 1'),fact('fixtureCount','3','Total fixtures (EA) 3')],
+  [fact('fixtureCount','1','Vanity light fixture (EA) 1'),fact('fixtureCount','3','Ceiling lights (EA) 3','stated','revised.pdf')],
+ ])assert.equal(combineScopeExtractions([page(pair)]).conflicts[0]?.field,'fixtureCount');
+});
 test('flooring component does not conflict with its verified arithmetic total',()=>{
  const result=combineScopeExtractions([
   page([fact('flooringSqft','380','380 SF carpet in bedroom')]),

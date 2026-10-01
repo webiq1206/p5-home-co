@@ -146,6 +146,26 @@ function reconcileAreaTotals(facts:ExtractedFact[]):ExtractedFact[]{
  }
  return retained;
 }
+/** A source schedule's separately named EA rows are item quantities, not
+ * competing answers to one project-wide fixture count. Preserve every row as
+ * task detail. Never sum unrelated devices or erase disagreements for the
+ * same item, an aggregate total, or another source. */
+function retainTypedFixtureRows(facts:ExtractedFact[]):ExtractedFact[]{
+ const candidates=facts.filter(f=>f.field==='fixtureCount');
+ if(candidates.length<2||new Set(candidates.map(f=>f.source.replace(/,?\s*page\s+\d+.*$/i,'').trim())).size!==1)return facts;
+ const rows=candidates.map(f=>{
+  const match=f.evidence.match(/^([^\n]+?)\s*\(?\b(?:EA|each)\b\)?\s*(\d+)\b/i);
+  const label=match?.[1].trim();
+  return {fact:f,label,key:label?.toLowerCase().replace(/[^a-z0-9]+/g,' ').trim(),quantity:match?.[2]};
+ });
+ if(rows.some(({fact,label,quantity})=>!label||/\btotal\b/i.test(label)||fact.confidence<.85||fact.basis!=='stated'||Number(quantity)!==Number(fact.value)))return facts;
+ if(new Set(rows.map(r=>r.key)).size<2)return facts;
+ for(const row of rows)if(rows.some(other=>other.key===row.key&&other.quantity!==row.quantity))return facts;
+ return facts.map(f=>{
+  const row=rows.find(row=>row.fact===f);
+  return row?{...f,field:'taskList',value:`${row.quantity} EA ${row.label}`} as ExtractedFact:f;
+ });
+}
 /** Reply fields a reader sometimes returns as a JSON string instead of the structure itself. Live
  * Construction plan set (2026-09-25): two drawing pages came back with facts as a 1,900-character
  * string of JSON, were rejected as "Invalid scope analysis", and the whole 23-page read was held. */
@@ -517,8 +537,11 @@ export function combineScopeExtractions(parts:ScopeExtraction[]):ScopeExtraction
   if(clarificationProvenance)merged.clarificationProvenance=clarificationProvenance;
   const beforeAreaFacts=merged.facts;
   merged.facts=reconcileAreaTotals(merged.facts);
+  const beforeFixtureRows=merged.facts;
+  merged.facts=retainTypedFixtureRows(merged.facts);
+  const resolvedFixtureRows=beforeFixtureRows!==merged.facts&&!merged.facts.some(f=>f.field==='fixtureCount');
   const resolvedAreas=AREA_PART_FIELDS.filter(field=>new Set(beforeAreaFacts.filter(f=>f.field===field&&f.confidence>=.4).map(f=>f.value)).size>1&&new Set(merged.facts.filter(f=>f.field===field&&f.confidence>=.4).map(f=>f.value)).size===1);
-  merged.conflicts=merged.conflicts.filter(conflict=>!resolvedAreas.includes(conflict.field)||!['Different document pages state different values. Confirm the intended project information.','The supplied information contains different values. Please confirm the intended scope.'].includes(conflict.explanation));
+  merged.conflicts=merged.conflicts.filter(conflict=>!(resolvedAreas.includes(conflict.field)||resolvedFixtureRows&&conflict.field==='fixtureCount')||!['Different document pages state different values. Confirm the intended project information.','The supplied information contains different values. Please confirm the intended scope.'].includes(conflict.explanation));
   for(const field of Object.keys(SCOPE_FIELDS) as ScopeField[]){
     const values=[...new Set(merged.facts.filter(f=>f.field===field&&f.confidence>=.4).map(f=>f.value.trim()))];
     if(values.length>1&&SCOPE_FIELDS[field].kind!=="text"&&!merged.conflicts.some(c=>c.field===field))merged.conflicts.push({field,values,explanation:"Different document pages state different values. Confirm the intended project information."});
