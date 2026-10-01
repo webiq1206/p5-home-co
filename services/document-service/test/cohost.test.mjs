@@ -7,6 +7,15 @@ import {limitParser} from '../src/parser.mjs';
 import {signedHeaders,verifyHeaders,hash} from '../src/core.mjs';
 const listen=async server=>{server.listen(0,'127.0.0.1');await once(server,'listening');return server.address().port;};
 const close=server=>new Promise(resolve=>{server.close(resolve);server.closeAllConnections();});
+test('gateway diagnoses failed upstream without logging private request data',async()=>{
+ const unavailableServer=createServer(),unusedPort=await listen(unavailableServer);await close(unavailableServer);
+ const events=[];const gateway=makeGateway({webPort:unusedPort,workerPort:unusedPort,log:event=>events.push(event)}),port=await listen(gateway);
+ try{
+  const response=await fetch(`http://127.0.0.1:${port}/api/p5-estimator/scope?private=do-not-log`,{headers:{'x-p5-draft-key':'private-key'}});
+  assert.equal(response.status,503);assert.equal(events[0].upstream,'website');assert.equal(events[0].code,'ECONNREFUSED');
+  assert.ok(!JSON.stringify(events).includes('private'));
+ }finally{await close(gateway);}
+});
 test('P5 opt-in reuses only its own key and host; legacy and external hosts are not auto-enabled',()=>{
  const p5Key='synthetic-p5-tenant-secret-123456789',otherKey='synthetic-other-tenant-secret-123456789';
  const env={P5_DOCUMENT_HOST_ENABLED:'true',P5_DOCUMENT_TENANTS_JSON:JSON.stringify({'p5homeco.com':p5Key,'boiseconstruction.co':otherKey})};

@@ -25,7 +25,7 @@ test('document extraction sends native Haiku request and attests actual response
  let calls=0;
  const result=await analyzeBatch('Replace three levers',[],{},async(url,init)=>{
   calls++;assert.equal(url,'https://api.anthropic.com/v1/messages');
-  const body=JSON.parse(String(init?.body));assert.equal(body.model,model);assert.equal(body.tool_choice.name,'record_scope_analysis');
+  const body=JSON.parse(String(init?.body));assert.equal(body.model,model);assert.equal(body.tool_choice.name,'record_scope_analysis');assert.equal(body.tools[0].strict,true);assert.equal(body.tools[0].input_schema.properties.instructions.type,'object');assert.equal(body.tools[0].input_schema.properties.takeoffs.type,'array');assert.equal(body.tools[0].input_schema.properties.facts.items.properties.value.minLength,undefined);
   return reply(record,'record_scope_analysis');
  });assert.equal(calls,1);assert.equal(result.model,model);assert.equal(result.modelPolicy,MODEL_POLICY_VERSION);
  await assert.rejects(analyzeBatch('Replace levers',[],{},async()=>reply(record,'record_scope_analysis','claude-sonnet-4-6')),/model-mismatch/);
@@ -39,6 +39,16 @@ test('Haiku pricing never silently falls back to OpenAI',async()=>{
  const before=globalThis.fetch;let calls=0;
  globalThis.fetch=async()=>{calls++;return reply({},'record_estimate','claude-sonnet-4-6');};
  try{await assert.rejects(requestPricing('different audit',{},false,10000),/model-mismatch/);assert.equal(calls,1);}finally{globalThis.fetch=before;}
+});
+test('pricing research requires initial search but allows a paused search to finish',async()=>{
+ const before=globalThis.fetch;let calls=0;
+ globalThis.fetch=async(_url,init)=>{
+  const body=JSON.parse(String(init?.body));calls++;
+  if(calls===1){assert.deepEqual(body.tool_choice,{type:'tool',name:'web_search'});return Response.json({id:'search_one',model,stop_reason:'pause_turn',content:[{type:'web_search_tool_result',tool_use_id:'search',content:[{type:'web_search_result',url:'https://example.com/qa-price',title:'Synthetic price source'}]}],usage:{input_tokens:1,output_tokens:1}});}
+  assert.equal(body.tool_choice,undefined);assert.equal(body.messages.length,2);
+  return Response.json({id:'search_two',model,stop_reason:'end_turn',content:[{type:'text',text:'{"rates":[]}'}],usage:{input_tokens:1,output_tokens:1}});
+ };
+ try{const result=await requestPricing('Synthetic research continuation',{},true,10000);assert.equal(calls,2);assert.deepEqual(result.sourceUrls,['https://example.com/qa-price']);}finally{globalThis.fetch=before;}
 });
 test('retained tool loop preserves tool results on Anthropic transport',async()=>{
  const result=await createEstimatorModelClient({request:async(url,init)=>{assert.equal(url,'https://api.anthropic.com/v1/messages');const body=JSON.parse(String(init?.body));assert.equal(body.model,model);assert.equal(body.messages[0].content[0].type,'tool_result');return reply({ok:true},'finish');}}).messages.create({messages:[{role:'user',content:[{type:'tool_result',tool_use_id:'prior',content:'done'}]}]});assert.equal(result.stop_reason,'tool_use');

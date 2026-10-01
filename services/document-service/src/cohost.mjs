@@ -39,10 +39,13 @@ export function cohostConfig(env=process.env){
  return {enabled,port,webPort,workerPort,workerEnv,webEnv,rssLimitMb:integer(env,'P5_DOCUMENT_WORKER_RSS_MB',640,256,768)};
 }
 function unavailable(res){if(!res.headersSent){res.writeHead(503,{'content-type':'application/json','cache-control':'no-store','retry-after':'5'});res.end('{"error":"document-host-unavailable","retryAfterMs":5000}');}else res.destroy();}
-export function makeGateway({webPort,workerPort,workerAvailable=()=>true}){
+export function makeGateway({webPort,workerPort,workerAvailable=()=>true,log=event=>console.error(JSON.stringify(event))}){
  const server=createServer((req,res)=>{
   const documentRequest=req.url===PREFIX||req.url.startsWith(PREFIX+'/')||req.url.startsWith(PREFIX+'?');
-  if(documentRequest&&!workerAvailable()){unavailable(res);return;}
+  const started=Date.now();
+  // Log no URLs, headers, filenames, bodies or credentials.
+  const report=code=>log({event:'document-gateway',upstream:documentRequest?'document-worker':'website',code,durationMs:Date.now()-started});
+  if(documentRequest&&!workerAvailable()){report('worker-not-available');unavailable(res);return;}
   // Preserve raw bytes, query encoding, HMAC headers and streaming responses.
   // This gateway does not parse uploads, log URLs, authenticate customers, or
   // share source data. The worker checks every signed request itself.
@@ -53,7 +56,7 @@ export function makeGateway({webPort,workerPort,workerAvailable=()=>true}){
    res.writeHead(response.statusCode||502,responseHeaders);response.pipe(res);
    response.on('error',()=>res.destroy());
   });
-  upstream.on('error',()=>unavailable(res));upstream.setTimeout(documentRequest?95000:300000,()=>upstream.destroy());
+  upstream.on('error',error=>{report(['ECONNREFUSED','ECONNRESET','EPIPE','ETIMEDOUT'].includes(error.code)?error.code:'upstream-error');unavailable(res);});upstream.setTimeout(documentRequest?95000:300000,()=>{report('upstream-timeout');upstream.destroy(new Error('upstream-timeout'));});
   req.on('aborted',()=>upstream.destroy());req.on('error',()=>upstream.destroy());res.on('close',()=>{if(!res.writableEnded)upstream.destroy();});req.pipe(upstream);
  });
  server.headersTimeout=15000;server.requestTimeout=95000;server.keepAliveTimeout=5000;

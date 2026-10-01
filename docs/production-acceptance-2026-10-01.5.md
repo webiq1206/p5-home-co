@@ -2,6 +2,8 @@
 
 Run date: October 1, 2026. P5 only. Child-site qualification remains paused.
 
+Follow-up: explicit document-processing approval was received and GitHub authentication restored. The original report was published unchanged as `a75260c`. See [approved document follow-up](production-document-follow-up-2026-10-01.md) for the resumed run. Historical approval blockers below describe the earlier run, not the current authorization state.
+
 ## Outcome
 
 **Not accepted. All eight synthetic text scenarios completed scope analysis, but all eight public pricing submissions returned HTTP 422 and no customer estimate.** No PDF or delivery acceptance can be claimed for those scenarios.

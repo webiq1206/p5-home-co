@@ -16,6 +16,7 @@ import {restoreReportedEvidence} from './reportedEvidence.ts';
 import {parseNumericAnswer} from './answerParsing.ts';
 import {SERVER_BUDGET_MS,ProcessingDeadlineError,fetchWithinDeadline,isProcessingDeadline} from './processingBudget.ts';
 import {createHash} from 'node:crypto';
+import {compactCatalogInput,CATALOG_ENCODING_INSTRUCTION} from './compactCatalog.ts';
 import {applyConsumableCoverage,consumableApplicationMatches} from './consumableCoverage.ts';
 import {z} from 'zod';
 import {PricingPending,PricingStageTimeout,isPricingPending,isPricingStageTimeout} from './pricingProgress.ts';
@@ -374,7 +375,7 @@ const requestPricingWithUnsafe=async(provider:'anthropic'|'openai',instructions:
     const anthropic=process.env.ANTHROPIC_API_KEY;
     if(!anthropic)throw new Error('pricing-provider-unavailable');
     const headers={'Content-Type':'application/json','x-api-key':anthropic,'anthropic-version':'2023-06-01'};
-    const messages:any[]=[{role:'user',content:JSON.stringify(input)}];
+    const messages:any[]=[{role:'user',content:JSON.stringify(compactCatalogInput(input))}];
     const model=ESTIMATOR_PROVIDER==='anthropic'?ESTIMATOR_MODEL:(search?(process.env.P5_PRICING_RESEARCH_MODEL||'claude-sonnet-5'):(process.env.P5_PRICING_MODEL||'claude-sonnet-5'));
     let responseModel:string|undefined;
     let lastStopReason:unknown,lastRequestId:string|undefined;
@@ -386,7 +387,7 @@ const requestPricingWithUnsafe=async(provider:'anthropic'|'openai',instructions:
     const content:any[]=[],providerRequestIds:string[]=[];
     for(let continuation=0;;continuation++){
       const left=remainingMs-(Date.now()-started);if(left<=0)throw new Error('pricing-check-timeout');
-      const response=await boundedFetch('https://api.anthropic.com/v1/messages',{method:'POST',signal:AbortSignal.timeout(Math.min(180000,left)),headers,body:JSON.stringify({...requestBody,messages})});
+      const response=await boundedFetch('https://api.anthropic.com/v1/messages',{method:'POST',signal:AbortSignal.timeout(Math.min(180000,left)),headers,body:JSON.stringify({...requestBody,system:instructions+'\n'+CATALOG_ENCODING_INSTRUCTION,messages,...(search&&continuation===0?{tool_choice:{type:'tool',name:'web_search'}}:{})})});
       if(!response.ok){const detail=await response.text().catch(()=>'');throw pricingHttpError(response,detail);}
       const body=await response.json();
       lastStopReason=body.stop_reason;lastRequestId=response.headers.get('request-id')||body.id||undefined;
