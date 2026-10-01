@@ -1,5 +1,4 @@
 import {ESTIMATOR_PROVIDER,ESTIMATOR_MODEL,MODEL_POLICY_VERSION,estimatorModelConfiguration,assertEstimatorModel} from './modelPolicy.ts';
-import {strictExtractionSchema} from './strictExtractionSchema.ts';
 import {clarificationTakeoffSchema,clarificationTakeoffUpdates,type TakeoffRevisionContext} from './clarificationTakeoffs.ts';
 import {groundSourceResponsibilities} from './sourceResponsibilities.ts';
 import {openAiReadModel,preferredReadProvider,rateLimitWaitMs,RATE_LIMIT_RETRIES} from './readerRouting.ts';
@@ -77,7 +76,7 @@ export function extractionSchema(revisions?:TakeoffRevisionContext){
 export function anthropicExtractionSchema(revisions?:TakeoffRevisionContext){
   const schema=extractionSchema(revisions);
   for(const name of ['facts','conflicts','clarifications'])schema.properties[name].items.properties.field={type:'string',description:'Use one exact field identifier from the supplied field vocabulary.'};
-  return strictExtractionSchema(schema);
+  return schema;
 }
 
 /** Keep a provider reply usable. A text-only read describes no document, so
@@ -294,9 +293,9 @@ async function analyzeWithAnthropic(provider: Provider, text: string, files: Ana
     method: "POST", signal: AbortSignal.timeout(timeoutMs),
     headers: { "Content-Type": "application/json", "anthropic-version": "2023-06-01", "x-api-key": provider.key },
     // This formatting-only tool never executes code or an external action.
-    // Enforce record types at generation. Unsupported length constraints are
-    // described in the provider schema and still checked by local validation.
-    body: JSON.stringify({ model: provider.model, max_tokens: 16000, system: EXTRACTION_SYSTEM+'\n'+DOCUMENT_POLICY+'\n'+sourceInstruction+'\n'+FACT_VALUE_POLICY+'\n'+OUTPUT_BREVITY+' Return the final structured record through record_scope_analysis. It is only an output format, not an external action.', messages: [{ role: "user", content }], tools:[{name:'record_scope_analysis',strict:true,description:'Return the complete extracted scope, interpreted instructions, original-page coverage and evidence-linked takeoffs. This output record performs no actions and changes no data. Do not omit unreadable pages or excluded-scope instructions.',input_schema:anthropicExtractionSchema(revisions)}],tool_choice:{type:'tool',name:'record_scope_analysis',disable_parallel_tool_use:true} }),
+    // Local schema/evidence validation remains mandatory; avoiding compiled
+    // output grammars prevents rejection of the full, nested page ledger.
+    body: JSON.stringify({ model: provider.model, max_tokens: 16000, system: EXTRACTION_SYSTEM+'\n'+DOCUMENT_POLICY+'\n'+sourceInstruction+'\n'+FACT_VALUE_POLICY+'\n'+OUTPUT_BREVITY+' Return the final structured record through record_scope_analysis. It is only an output format, not an external action.', messages: [{ role: "user", content }], tools:[{name:'record_scope_analysis',description:'Return the complete extracted scope, interpreted instructions, original-page coverage and evidence-linked takeoffs. This output record performs no actions and changes no data. Do not omit unreadable pages or excluded-scope instructions.',input_schema:anthropicExtractionSchema(revisions)}],tool_choice:{type:'tool',name:'record_scope_analysis',disable_parallel_tool_use:true} }),
   });
   console.error(`[p5-analysis] Anthropic read replied in ${((Date.now()-started)/1000).toFixed(1)}s (${response.status}).`);
   if (!response.ok) throw await responseError(provider, response);

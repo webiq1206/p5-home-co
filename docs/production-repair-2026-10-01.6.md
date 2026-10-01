@@ -2,6 +2,8 @@
 
 This is a repair candidate, not production acceptance. Child-site rollout remains paused.
 
+Live follow-up: this release was deployed with the exact `699034e` tree. A fresh text-only extraction failed with provider HTTP 400. Version .7 restores the previous extraction request schema and removes strict extraction output. The local tests below did not establish provider acceptance.
+
 ## Changes
 
 - Encode large uniform catalogs without repeated field names and shared values. All rates and qualifications remain available in initial and corrective Anthropic requests. The repository's generated 1,645-rate catalog shrank from 586,404 to 451,660 JSON characters. This is a character measurement, not a token guarantee.

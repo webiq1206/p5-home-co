@@ -25,7 +25,7 @@ test('document extraction sends native Haiku request and attests actual response
  let calls=0;
  const result=await analyzeBatch('Replace three levers',[],{},async(url,init)=>{
   calls++;assert.equal(url,'https://api.anthropic.com/v1/messages');
-  const body=JSON.parse(String(init?.body));assert.equal(body.model,model);assert.equal(body.tool_choice.name,'record_scope_analysis');assert.equal(body.tools[0].strict,true);assert.equal(body.tools[0].input_schema.properties.instructions.type,'object');assert.equal(body.tools[0].input_schema.properties.takeoffs.type,'array');assert.equal(body.tools[0].input_schema.properties.facts.items.properties.value.minLength,undefined);
+  const body=JSON.parse(String(init?.body));assert.equal(body.model,model);assert.equal(body.tool_choice.name,'record_scope_analysis');assert.equal(body.tools[0].strict,undefined,'avoid provider grammar rejection on full extraction schema');assert.equal(body.tools[0].input_schema.properties.instructions.type,'object');assert.equal(body.tools[0].input_schema.properties.takeoffs.type,'array');assert.equal(body.tools[0].input_schema.properties.facts.items.properties.value.minLength,1);
   return reply(record,'record_scope_analysis');
  });assert.equal(calls,1);assert.equal(result.model,model);assert.equal(result.modelPolicy,MODEL_POLICY_VERSION);
  await assert.rejects(analyzeBatch('Replace levers',[],{},async()=>reply(record,'record_scope_analysis','claude-sonnet-4-6')),/model-mismatch/);
