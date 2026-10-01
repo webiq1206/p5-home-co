@@ -39,7 +39,7 @@ test('privacy cleanup preserves scope labels so installation cannot become an ex
  const historical=scope.replace('work and responsibilities','work, and responsibilities');
  for(const summary of [scope,historical]){
   const projected=customerPresentation({...result,summary});
-  assert.match(projected.summary,/\nInstallation work and responsibilities: Install two owner-supplied interior door handle sets\./);
+  assert.match(projected.summary,/\nInstallation work and responsibilities: Install two owner-supplied interior door handle sets, labor only\./);
   assert.deepEqual(customerPresentation(projected),projected);
   const sections=estimateSections(projected);
   assert.deepEqual(sections.find(s=>s.kind==='excluded')?.bullets,['Painting.','Land']);
@@ -48,6 +48,17 @@ test('privacy cleanup preserves scope labels so installation cannot become an ex
  const privateSummary=publicPricingText('Direct cost: $140\nInstallation work and responsibilities: Install two handles at $70 per each, labor only.');
  assert.doesNotMatch(privateSummary,/\$140|\$70|Direct cost/i);
  assert.match(privateSummary,/Installation work and responsibilities: Install two handles/);
+});
+test('customer privacy filtering preserves labor-only responsibility clauses',()=>{
+ const contractor='Contractor provides removal and installation labor only.';
+ const owner='Owner-supplied items and responsibilities: All interior passage door levers, mounting screws and installation consumables; contractor provides labor only for removal and installation';
+ assert.equal(publicPricingText(contractor),contractor);
+ assert.equal(publicPricingText(owner),owner);
+ assert.equal(publicPricingText('Supply material only; installation by owner.'),'Supply material only; installation by owner.');
+ const mixed=publicPricingText(contractor+' Direct labor cost: $145. Private margin: 30%.');
+ assert.match(mixed,/Contractor provides removal and installation labor only\./);
+ assert.doesNotMatch(mixed,/145|30%|direct labor cost|margin/i);
+ assert.equal(publicPricingText(mixed),mixed);
 });
 test('Formatted customer emails escape scope HTML and never include internal finance',()=>{
  const record={customer:{...result,summary:result.summary+'\n<script>alert(1)</script>'},internal:{directCost:98765,operatingProfit:12345},contact:{name:'Test'}};
