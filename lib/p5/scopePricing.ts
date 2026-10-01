@@ -331,7 +331,14 @@ export function validateManagedPricingOpenAI(env:Readonly<Record<string,string|u
 const providerBusy=(message:string)=>/^pricing-provider-unavailable:(?:429|5\d\d)\b/.test(message);
 const providerRefused=(message:string)=>/^pricing-provider-unavailable:4(0[0-3]|0[5-9]|1\d|2[0-8])\b/.test(message);
 /** The structured output each stage must return, shared by both providers so a fallback reply has the same shape. */
-const stageSchema=(instructions:string,input?:unknown)=>projectContractSchema(instructions,input)||(instructions===normalizeResearch?marketJson:instructions===INVENTORY?inventoryJson:instructions===MAP?mappingJson:instructions===PLANNING_AVERAGE?planningJson:instructions===CONSUMABLE_COVERAGE?consumableJson:auditJson);
+const mappingStageSchema=(input:unknown)=>{
+ const tasks=(input as {taskBatch?:{id:string}[]}|null)?.taskBatch;
+ if(!Array.isArray(tasks)||!tasks.length)return mappingJson;
+ const taskArray=mappingJson.properties.tasks as ReturnType<typeof jsArray>;
+ const item=taskArray.items as ReturnType<typeof jsObject>;
+ return jsObject({...mappingJson.properties,tasks:jsArray(jsObject({...item.properties,id:{type:'string',enum:[...new Set(tasks.map(task=>task.id))]}}))});
+};
+const stageSchema=(instructions:string,input?:unknown)=>projectContractSchema(instructions,input)||(instructions===normalizeResearch?marketJson:instructions===INVENTORY?inventoryJson:instructions===MAP?mappingStageSchema(input):instructions===PLANNING_AVERAGE?planningJson:instructions===CONSUMABLE_COVERAGE?consumableJson:auditJson);
 export type OpenAiPricingOptions={serviceTier?:'default';maxOutputTokens?:number};
 export const openAiPricingRequestEnvelope=(instructions:string,input:unknown,search:boolean,options:OpenAiPricingOptions={})=>{
   const task=search?'research':instructions===INVENTORY?'inventory':instructions===MAP||instructions===PLANNING_AVERAGE||instructions===normalizeResearch?'map':'audit';
@@ -372,7 +379,10 @@ const requestPricingWithUnsafe=async(provider:'anthropic'|'openai',instructions:
     let responseModel:string|undefined;
     let lastStopReason:unknown,lastRequestId:string|undefined;
     const usage={inputTokens:0,cachedInputTokens:0,outputTokens:0,totalTokens:0};
-    const requestBody={model,max_tokens:openAiPricingRequestEnvelope(instructions,input,search).body.max_output_tokens,system:instructions,...(search?{tools:[{type:'web_search_20250305',name:'web_search',max_uses:5},{type:'web_fetch_20250910',name:'web_fetch',max_uses:4,max_content_tokens:15000}]}:{tools:[{name:'record_estimate',description:'Return the complete structured estimate record. No external action is performed.',input_schema:stageSchema(instructions,input)}],tool_choice:{type:'tool',name:'record_estimate',disable_parallel_tool_use:true}})};
+    // Native pricing schemas use Claude's supported strict subset. The separate
+    // project-record Zod schemas still contain unsupported numeric/string
+    // constraints, so do not opt those into strict mode without adaptation.
+    const requestBody={model,max_tokens:openAiPricingRequestEnvelope(instructions,input,search).body.max_output_tokens,system:instructions,...(search?{tools:[{type:'web_search_20250305',name:'web_search',max_uses:5},{type:'web_fetch_20250910',name:'web_fetch',max_uses:4,max_content_tokens:15000}]}:{tools:[{name:'record_estimate',description:'Return the complete structured estimate record. No external action is performed.',...(!projectContractSchema(instructions,input)?{strict:true}:{}),input_schema:stageSchema(instructions,input)}],tool_choice:{type:'tool',name:'record_estimate',disable_parallel_tool_use:true}})};
     const content:any[]=[],providerRequestIds:string[]=[];
     for(let continuation=0;;continuation++){
       const left=remainingMs-(Date.now()-started);if(left<=0)throw new Error('pricing-check-timeout');
@@ -1827,19 +1837,34 @@ export function withoutMalformedAdditions(value:unknown):unknown{
  * pauses the job so the next pass resumes it, instead of counting as a failed
  * attempt; only a batch that has timed out three times is a real failure. */
 async function mapBatch<T extends {id:string}>(request:PricingRequest,taskBatch:T[],build:(batch:T[])=>unknown,remaining:()=>number):Promise<Mapping>{
+  // JSON shape alone does not establish scope coverage. A successful provider
+  // response can omit, duplicate or rename an inventory ID. Validate the exact
+  // batch before accepting either the first answer or its one bounded repair.
+  const expectedIds=taskBatch.map(task=>task.id);
+  const batchSchema=mappingSchema.superRefine((mapping,context)=>{
+    const returnedIds=mapping.tasks.map(task=>task.id);
+    const missing=expectedIds.filter(id=>!returnedIds.includes(id));
+    const unexpected=[...new Set(returnedIds.filter(id=>!expectedIds.includes(id)))];
+    const duplicates=[...new Set(returnedIds.filter((id,index)=>returnedIds.indexOf(id)!==index))];
+    if(missing.length||unexpected.length||duplicates.length)context.addIssue({code:'custom',path:['tasks'],message:`Incomplete mapping batch: ${JSON.stringify({expectedIds,returnedIds,missing,unexpected,duplicates})}`});
+  });
   try{
     const mapped=await request(MAP,build(taskBatch),false,remaining());
-    const first=mappingSchema.safeParse(mapped.value);
+    // JSONB changes object key order. Keep the corrective input byte-stable
+    // after checkpoint reload so a resume reuses the same paid repair.
+    const orderedResponse=JSON.stringify(mapped.value,(_key,value)=>value&&typeof value==='object'&&!Array.isArray(value)?Object.fromEntries(Object.keys(value).sort().map(key=>[key,value[key]])):value);
+    const priorResponse=orderedResponse===undefined?null:JSON.parse(orderedResponse);
+    const first=batchSchema.safeParse(priorResponse);
     if(first.success)return first.data;
     // A malformed answer (live: an addition with no code) used to throw and hand the whole
     // estimate off. Ask once more; if the second answer is malformed too, keep what is well formed.
     // A retry must have a different checkpoint/charge identity. Repeating the
     // same input replayed the invalid saved reply forever without a new call.
     const original=build(taskBatch);
-    const again=await request(MAP,{...(original as Record<string,unknown>),formatRepair:{attempt:1,errors:first.error.issues.map(issue=>({path:issue.path,code:issue.code,message:issue.message})),instruction:'Return the same complete task batch in the requested schema. Correct these format errors; preserve all scope, identifiers, quantities and evidence. Do not omit a task or invent a cost to repair formatting.'}},false,remaining());
-    const second=mappingSchema.safeParse(again.value);
+    const again=await request(MAP,{...(original as Record<string,unknown>),formatRepair:{attempt:1,errors:first.error.issues.map(issue=>({path:issue.path,code:issue.code,message:issue.message})),priorResponse,instruction:'Return the same complete task batch in the requested schema, with exactly one entry for each supplied task ID and no other task IDs. Correct the listed format or task-coverage errors; preserve all scope, identifiers, quantities and evidence. Do not merge separate IDs, omit a task or invent a cost to repair the response. If a task cannot be mapped, retain its exact ID and describe the unresolved work in researchDescription and issues.'}},false,remaining());
+    const second=batchSchema.safeParse(again.value);
     if(second.success)return second.data;
-    return mappingSchema.parse(withoutMalformedAdditions(again.value));
+    return batchSchema.parse(withoutMalformedAdditions(again.value));
   }catch(error){
     if(!isPricingStageTimeout(error))throw error;
     if(error.message==='pricing-stage-exhausted'||taskBatch.length<=3){

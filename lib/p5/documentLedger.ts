@@ -42,8 +42,9 @@ export function bindTypedTakeoffSources(items:Takeoff[],text:string):void{
  * table, not unreadable content"). Live 2026-09-21 these notes alone blocked a fully read
  * 27-page plan set. Only the negated phrase is removed; the rest of the note is still tested. */
 const NEGATED_UNREADABLE=/\b(?:no|not|nothing|none|without)\s+(?:[a-z]+\s+){0,2}?(?:unreadable|illegible)\b/gi;
+const NO_UNREADABLE_VIEWS=/\bno\s+(?:(?:supplied|reviewed)\s+)?(?:regions?|pages?|tiles?|sections?|crops?)\s+(?:were|was|are|is)\s+(?:blank\s+or\s+)?(?:unreadable|illegible)\b/gi;
 export function blockingReviewNote(note:string):boolean{
-  note=note.replace(NEGATED_UNREADABLE,' ');
+  note=note.replace(NO_UNREADABLE_VIEWS,' ').replace(NEGATED_UNREADABLE,' ');
   return /unread section|could not be read|was not processed|unsupported (?:file|upload|document|specification)|unreadable|not readable|failed to read|no pages? (?:were|was|could be) read|automatic reading could not finish|automatic read failed|saved for manual review|could not read this file/i.test(note);
 }
 /**
@@ -58,9 +59,13 @@ export const pageCovered=(p:{status:string;notes?:string[];coverageState?:Covera
  return (p.status==='read'||p.status==='partial')&&!(p.notes||[]).some(blockingReviewNote);
 };
 function mergedCoverageState(rows:PageRecord[]):CoverageState|undefined{
- if(rows.some(row=>!row.coverageState))return undefined;
  if(rows.some(row=>row.coverageState==='illegible'))return 'illegible';
  if(rows.some(row=>row.coverageState==='outside-view'))return 'outside-view';
+ // Assess each original view under its own contract before merging notes.
+ // A typed "unspecified" view may legitimately mention unreadable dimensions;
+ // losing that state beside a valid legacy view reclassified its prose as a
+ // new failure. A legacy view that actually fails still prevents promotion.
+ if(rows.some(row=>!pageCovered(row))||rows.every(row=>!row.coverageState))return undefined;
  return rows.some(row=>row.coverageState==='unspecified')?'unspecified':rows.every(row=>row.coverageState==='blank')?'blank':'readable';
 }
 /** Status is evidence too. A successful view cannot erase an explicitly
@@ -195,7 +200,7 @@ export function combineCoverage(parts:DocumentCoverage[],expected?:{source:strin
  * cannot retire unrelated preparation or transport failures. */
 export function blockingExtractionNotes(extraction:{reviewNotes:string[];documentCoverage?:DocumentCoverage}):string[]{
  const coverage=extraction.documentCoverage;
- const verified=coverage?.complete&&coverage.pages.every(page=>page.coverageState&&pageCovered(page));
- const explained=new Set(verified?coverage.pages.flatMap(page=>page.notes.flatMap(note=>[note,`${page.source}, page ${page.page}: ${page.status}. ${note}`])):[]);
+ const verified=coverage?.complete?coverage.pages.filter(page=>page.coverageState&&pageCovered(page)):[];
+ const explained=new Set(verified.flatMap(page=>page.notes.flatMap(note=>[note,`${page.source}, page ${page.page}: ${page.status}. ${note}`])));
  return extraction.reviewNotes.filter(note=>blockingReviewNote(note)&&!explained.has(note));
 }

@@ -37,13 +37,26 @@ function coveredAccessAreaQuestion(text:string):boolean{
 export function sameDecision(a:string,b:string):boolean{
   if(coveredAccessAreaQuestion(a)&&coveredAccessAreaQuestion(b))return true;
   if(measuredQuestion(a)||measuredQuestion(b))return false;
+  // Similar repair/method wording cannot transfer an answer between named
+  // utilities. In particular a sewer decision is not a water-service decision.
+  const utilities=(text:string)=>new Set((text.toLowerCase().match(/\b(?:sewer|water|gas|electrical?|radon)\b/g)||[]).map(word=>word.startsWith('electric')?'electrical':word));
+  const aUtilities=utilities(a),bUtilities=utilities(b);
+  if(aUtilities.size&&bUtilities.size&&![...aUtilities].some(subject=>bUtilities.has(subject)))return false;
   // Compare the questions themselves; a shared helper sentence ("This affects cost.") is not a shared subject.
   const asked=(text:string)=>text.includes('?')?text.slice(0,text.indexOf('?')):text;
   const left=topicStems(asked(a)),right=topicStems(asked(b));
   const shared=[...left].filter(stem=>right.has(stem)).length;
   return shared>=3&&shared/Math.min(left.size,right.size)>=0.55;
 }
-const answeredQuestions=(answers:ScopeAnswers)=>[...(answers.estimatingInstructions||'').matchAll(/^Question: (.+)$/gm)].map(match=>match[1]);
+/** Editing/recovery can fold the saved Q&A into authored project text. Both
+ * locations retain customer answers; a question label without an answer is
+ * not a resolution. Documents' generated sourceText is never supplied here. */
+const answeredQuestions=(answers:ScopeAnswers,sourceText='')=>[answers.estimatingInstructions||'',sourceText].flatMap(text=>
+ [...text.matchAll(/^Question: ([^\n]+)\r?\nAnswer: ([\s\S]*?)(?=^Question: |$(?![\s\S]))/gm)]
+  .filter(match=>match[2].trim()).map(match=>match[1]));
+export function answeredScopeQuestion(question:string,answers:ScopeAnswers,sourceText=''):boolean{
+ return answeredQuestions(answers,sourceText).some(prior=>questionKey(prior)===questionKey(question)||sameDecision(prior,question));
+}
 const RESPONSIBILITY_CHOICES=['Labor only','Materials only','Labor and materials'] as const;
 
 /** Split a stored paragraph into questions. A trailing statement such as
@@ -62,7 +75,7 @@ const normalizeQuestionPart=(part:string)=>part.replace(/\s+/g,' ').trim();
 
 /** One question per card, including older extractions that stored paragraphs. */
 export function instructionPrompts(extraction:ScopeExtraction|null,answers:ScopeAnswers,sourceText=''):InstructionPrompt[]{
-  const result:InstructionPrompt[]=[],answered=answeredQuestions(answers);
+  const result:InstructionPrompt[]=[];
   for(const raw of extraction?.instructions?.questions||[]){
     for(const part of questionParts(raw).flatMap(part=>atomicInstructionQuestions(part,answers,extraction?.conflicts))){
       const full=normalizeQuestionPart(part).replace(/\bIf yes\b/gi,'If so');if(!full)continue;
@@ -71,8 +84,9 @@ export function instructionPrompts(extraction:ScopeExtraction|null,answers:Scope
       const decision=extraction?.instructions?.decisions?.find(item=>questionKey(item.question)===questionKey(full));
       if(decision?.answer&&decision.status!=='pending')continue;
       const field=cabinetQuestionField(full)||projectQuestionField(full,answers);
+      if(!extraction?.conflicts.some(conflict=>conflict.field===field)&&answeredScopeQuestion(full,answers,sourceText))continue;
       // One decision is asked once, however many pages or wordings raised it.
-      if(!field&&(result.some(q=>!q.field&&sameDecision(instructionPromptText(q),full))||answered.some(q=>sameDecision(q,full))))continue;
+      if(!field&&result.some(q=>!q.field&&sameDecision(instructionPromptText(q),full)))continue;
       if(field&&!unresolvedScopeAnswer(answers[field])&&!extraction?.conflicts.some(conflict=>conflict.field===field))continue;
       const id=questionKey(full);
       if(result.some(q=>q.id===id))continue;

@@ -86,6 +86,47 @@ try{
  await run(formatted);
  assert.deepEqual([formattedInventory,formattedMapping,formattedAudit],[1,2,1],'resume reuses the successful repair without another paid call');
 
+ // A schema-valid response can still lose scope. Exercise the real saved SQL
+ // path for omitted, duplicate and invented IDs, including durable repair reuse.
+ for(const defect of ['missing','duplicate','unexpected','string-tasks'] as const){
+  const id=await newDraft();let maps=0,audits=0;
+  const batch=[task,{...task,id:'cabinet-second',description:'Second distinct cabinet component'}];
+  provider.setProvider(async(_instructions:string,value:unknown)=>{
+   const input=value as StageInput&{formatRepair?:{errors:{message:string}[];priorResponse:unknown}};
+   if(input.taskBatch){
+    maps++;
+    const mapped=input.taskBatch.map(item=>({...item,existingLineIds:lines,additions:[],researchDescription:'',issues:[]}));
+    if(!input.formatRepair)return reply({tasks:defect==='string-tasks'?'[not valid JSON':defect==='missing'?mapped.slice(0,1):defect==='duplicate'?[mapped[0],mapped[0]]:[mapped[0],{...mapped[1],id:'invented-task'}],issues:[]});
+    assert.ok(input.formatRepair.errors.some(issue=>defect==='string-tasks'?issue.message.includes('array'):issue.message.includes('Incomplete mapping batch')));
+    assert.ok(input.formatRepair.priorResponse,'the exact failed response accompanies the correction');
+    return reply({tasks:mapped,issues:[]});
+   }
+   if('priorPricingIssues' in input){audits++;return reply({coveredTaskIds:batch.map(item=>item.id),issues:[]});}
+   return reply({tasks:batch,issues:[]});
+  });
+  assert.ok((await run(id)).customer.range,`${defect} IDs receive one real corrective mapping`);
+  assert.deepEqual([maps,audits],[2,1]);
+  await run(id);assert.deepEqual([maps,audits],[2,1],'replayed bad answer reuses its saved successful repair');
+  const saved=await payload(id) as SavedPayload&{requests:Record<string,{stage:string;taskIds?:string[];repair?:string;mappingResult?:{tasksType:string;returnedTaskIds:string[]}}>};
+  const traces=Object.values(saved.requests).filter(trace=>trace.stage==='mapping');
+  assert.equal(traces.length,2);assert.ok(traces.every(trace=>JSON.stringify(trace.taskIds)===JSON.stringify(batch.map(item=>item.id).sort())));
+  assert.equal(traces.filter(trace=>trace.repair==='format').length,1);
+  assert.deepEqual(traces.find(trace=>trace.repair==='format')?.mappingResult,{tasksType:'array',returnedTaskIds:batch.map(item=>item.id)});
+  if(defect==='string-tasks')assert.equal(traces.find(trace=>!trace.repair)?.mappingResult?.tasksType,'string');
+ }
+
+ const incomplete=await newDraft();let incompleteMaps=0;
+ provider.setProvider(async(_instructions:string,value:unknown)=>{
+  const input=value as StageInput;
+  if(input.taskBatch){incompleteMaps++;return reply({tasks:[{...task,id:'wrong-task',existingLineIds:lines,additions:[],researchDescription:'',issues:[]}],issues:[]});}
+  if('priorPricingIssues' in input)throw Error('Invalid task coverage must not reach audit');
+  return reply({tasks:[task],issues:[]});
+ });
+ const held=await run(incomplete);
+ assert.equal(held.customer.range,null,'a second incomplete response cannot release a partial price');
+ assert.ok(held.internal.scopePricing.issues.some((issue:string)=>issue.includes('Incomplete mapping batch')&&issue.includes('wrong-task')),'the exact mismatched IDs survive in the saved result');
+ await run(incomplete);assert.equal(incompleteMaps,2,'repeated failures are bounded across resumes');
+
  const exhausted=await newDraft();let attempts=0,legacyKey='';
  provider.setProvider(async(_instructions:string,value:unknown)=>{
   const input=value as StageInput;

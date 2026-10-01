@@ -1,4 +1,4 @@
-import {instructionPrompts,instructionPromptText} from './clarifications.ts';
+import {instructionPrompts,instructionPromptText,answeredScopeQuestion} from './clarifications.ts';
 import {ESTIMATOR_BRAND} from './brand.ts';
 import {SCOPE_FIELDS,mergeScopeFacts,validateAnswer,type ScopeAnswers,type ScopeField,type ScopeExtraction,type ScopeConflict} from './scope.ts';
 import {dynamicScopeFields,questionContext,scopeFieldApplies,scopePromptApplies,unresolvedScopeAnswer,needsWorkDefinition} from './dynamicQuestions.ts';
@@ -113,7 +113,7 @@ function sameQuestionWording(left:string,right:string):boolean{
 }
 export function scopeQuestions(input:ScopeAnswers,extraction:ScopeExtraction|null,conflicts:ScopeConflict[]=[],skipped:ScopeField[]=[],pricedFields:ScopeField[]=[],sourceText=''):ScopeQuestion[]{
   const answers=deriveScopeAnswers(input);
-  if(extraction?.clarifications)extraction={...extraction,clarifications:extraction.clarifications.flatMap(q=>atomicInstructionQuestions(q.question,answers,conflicts).map(question=>({...q,question,field:cabinetQuestionField(question)||projectQuestionField(question,answers)||q.field})))};
+  if(extraction?.clarifications)extraction={...extraction,clarifications:extraction.clarifications.flatMap(q=>atomicInstructionQuestions(q.question,answers,conflicts).map(question=>({...q,question,field:cabinetQuestionField(question)||projectQuestionField(question,answers)||q.field}))).filter(q=>conflicts.some(conflict=>conflict.field===q.field)||extraction?.conflicts.some(conflict=>conflict.field===q.field)||!answeredScopeQuestion(q.question,answers,sourceText))};
   const context=questionContext(answers,extraction,sourceText);
   const applicableConflicts=conflicts.filter(c=>scopeFieldApplies(c.field,context));
   // Resolve the project type before calculating the next service-specific question.

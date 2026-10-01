@@ -39,7 +39,7 @@ export function reusableSavedPricingReply(value:unknown):value is PricingReply{
    &&(reply.value!==null&&reply.value!==undefined||typeof reply.sourceReport==='string'&&reply.sourceReport.trim().length>0);
 }
 type RequestFailure={attempt:number;failedAt:string;causes:ReturnType<typeof pricingFailureDetails>};
-type RequestTrace={fingerprint:string;provider:string;model:string;stage:string;attempt:number;startedAt:string;failedAt?:string;causes?:ReturnType<typeof pricingFailureDetails>;failures:RequestFailure[]};
+type RequestTrace={fingerprint:string;provider:string;model:string;stage:string;attempt:number;startedAt:string;taskIds?:string[];repair?:'format'|'scope';mappingResult?:{tasksType:string;returnedTaskIds:(string|null)[]};failedAt?:string;causes?:ReturnType<typeof pricingFailureDetails>;failures:RequestFailure[]};
 type Payload=PricingRepairState&{replies:Record<string,PricingReply>;requests?:Record<string,RequestTrace>;shortlists?:Record<string,Record<string,string[]>>;failures?:number;completed?:number;regionalRates?:EstimatorConfiguration['regionalRates'];researchLeads?:EstimatorConfiguration['researchLeads'];processing?:ProcessingStatus;pricingAt?:string;busyWaitMs?:number};
 export async function priceSavedScope(id:string,scope:ReviewedScope,configuration:EstimatorConfiguration,pricingAt=new Date(),deadline=Date.now()+SERVER_BUDGET_MS,identity?:PricingIdentity){
  // P5 and Construction price only a project whose every source page was verified;
@@ -84,7 +84,7 @@ export async function priceSavedScope(id:string,scope:ReviewedScope,configuratio
   // They now run concurrently, and a batch that times out is split in half
   // and retried; positional keys would make those halves collide with saved
   // replies of other batches. These old keys are used for timeout counts only.
-  const batch=(input as {taskBatch?:{id:string}[];repairInstruction?:string}|null);
+  const batch=(input as {taskBatch?:{id:string}[];repairInstruction?:string;formatRepair?:unknown}|null);
   const batchIds=activity.phase==='mapping'&&Array.isArray(batch?.taskBatch)?batch!.taskBatch.map(t=>t.id).sort():null;
   const positional=batchIds?`mapping:${batch?.repairInstruction?'repair:':''}${createHash('sha256').update(JSON.stringify(batchIds)).digest('hex').slice(0,24)}`:`${activity.phase}#${ordinal}`;
   const legacy=pricingReplyKey(instructions,input,search);
@@ -123,11 +123,15 @@ export async function priceSavedScope(id:string,scope:ReviewedScope,configuratio
   // Persist the exact link before dispatch. A response hash alone cannot be
   // inverted into the separately hashed charge-ledger identity after failure.
   payload.requests||={};
-  const trace:RequestTrace={fingerprint:pricingFingerprint(ESTIMATOR_PROVIDER,instructions,input,search,identity),provider:ESTIMATOR_PROVIDER,model:ESTIMATOR_MODEL,stage:phase,attempt:(payload.requests[key]?.attempt||0)+1,startedAt:new Date(started).toISOString(),failures:[...(payload.requests[key]?.failures||[])]};
+  const trace:RequestTrace={fingerprint:pricingFingerprint(ESTIMATOR_PROVIDER,instructions,input,search,identity),provider:ESTIMATOR_PROVIDER,model:ESTIMATOR_MODEL,stage:phase,attempt:(payload.requests[key]?.attempt||0)+1,startedAt:new Date(started).toISOString(),...(batchIds?{taskIds:batchIds}:{}),...(batch?.formatRepair?{repair:'format' as const}:batch?.repairInstruction?{repair:'scope' as const}:{}),failures:[...(payload.requests[key]?.failures||[])]};
   payload.requests[key]=trace;await persist();
   const elapsed=()=>((Date.now()-started)/1000).toFixed(1);
   const checkpoint=async(completedReply:PricingReply)=>{
     const counted=reusableSavedPricingReply(payload.replies[key]);
+    if(batchIds){
+      const tasks=(completedReply.value as {tasks?:unknown}|null)?.tasks;
+      trace.mappingResult={tasksType:Array.isArray(tasks)?'array':tasks===null?'null':typeof tasks,returnedTaskIds:Array.isArray(tasks)?tasks.map(task=>typeof task?.id==='string'?task.id:null):[]};
+    }
     payload.replies[key]=completedReply;
     if(!counted)payload.completed=(payload.completed||0)+1;
     if(payload.processing)payload.processing={...payload.processing,completedSteps:payload.completed};

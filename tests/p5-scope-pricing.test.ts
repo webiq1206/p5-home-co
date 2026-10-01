@@ -184,7 +184,13 @@ test('a sixty-inch vanity cannot use a smaller cabinet assembly rate',async()=>{
 test('a repaired catalog reference can be replaced by a real positive addition',async()=>{
  const broken={...extra,researchDescription:'',existingLineIds:['03-15-02-M'],additions:[]};
  const fixed={...broken,existingLineIds:[],additions:[{code:'03-15-02-M',quantity:10,quantityEvidence:'Ten feet requested'}]};
- const result=await priceCompleteScope(scope,config,replies([{tasks:[task,broken],issues:[]},{coveredTaskIds:['cabinets','overlay'],issues:[]},{tasks:[task,fixed],issues:[]},{coveredTaskIds:['cabinets','overlay'],issues:[]}]),now);
+ let mappings=0;
+ const result=await priceCompleteScope(scope,config,async(_instructions,input)=>{
+  const data=input as {taskBatch?:{id:string}[];priorPricingIssues?:unknown};
+  if(data.taskBatch){mappings++;return {value:{tasks:data.taskBatch.map(item=>item.id===task.id?task:mappings===1?broken:fixed),issues:[]},sourceUrls:[]};}
+  if('priorPricingIssues' in data)return {value:{coveredTaskIds:[task.id,extra.id],issues:[]},sourceUrls:[]};
+  return {value:{tasks:[task,broken].map(({id,description,evidence})=>({id,description,evidence})),issues:[]},sourceUrls:[]};
+ },now);
  assert.ok(result.customer.range,'a supported added line resolves the old bad reference');
  assert.ok(!(result.internal as any).scopePricing.issues.some((issue:string)=>issue.includes('invalid existing price reference')));
 });
@@ -233,6 +239,21 @@ test('A malformed mapping answer is asked again, then repaired, instead of handi
  const repaired=await priceCompleteScope(scope,config,replies([{tasks:[task,broken],issues:[]},{tasks:[task,broken],issues:[]},audit]),now);
  assert.ok(repaired.customer.range,'a repeat malformed answer keeps its well-formed additions');
  assert.equal((repaired.internal as any).lines.find((l:any)=>l.id==='scope-1').unitCost,100);
+});
+test('the mapping provider schema restricts IDs to the exact requested batch',async()=>{
+ const {openAiPricingRequestEnvelope}=await import('../lib/p5/scopePricing.ts');
+ const queued=replies([{tasks:[task],issues:[]},{coveredTaskIds:[task.id],issues:[]}]);let checked=false;
+ const result=await priceCompleteScope(scope,config,async(instructions,input,search,remaining)=>{
+  const batch=(input as {taskBatch?:{id:string}[]}).taskBatch;
+  if(batch){
+   const body=openAiPricingRequestEnvelope(instructions,input,false).body as {text?:{format:{schema:unknown}}};
+   const schema=body.text!.format.schema as {properties:{tasks:{type:string;items:{properties:{id:{enum:string[]}}}}}};
+   assert.equal(schema.properties.tasks.type,'array');
+   assert.deepEqual(schema.properties.tasks.items.properties.id.enum,batch.map(item=>item.id));checked=true;
+  }
+  return queued(instructions,input,search,remaining);
+ },now);
+ assert.ok(checked);assert.ok(result.customer.range);
 });
 test('task-level mapping notes preserve the complete estimate and audit context',async()=>{
  const note='Standard protective overlay selection; confirm color before ordering.';
@@ -623,7 +644,7 @@ test('Large scope maps bounded batches and audits every original task together',
 test('A missing or substituted batch task never releases a partial total',async()=>{
  let calls=0;
  const result=await priceCompleteScope(scope,config,async()=>({value:++calls===1?{tasks:[{id:task.id,description:task.description,evidence:task.evidence}],issues:[]}:{tasks:[{...task,id:'substituted'}],issues:[]},sourceUrls:[]}),now);
- assert.equal(result.customer.range,null);assert.equal(calls,2);
+ assert.equal(result.customer.range,null);assert.equal(calls,3,'one initial mapping and exactly one bounded repair');
 });
 test('Research batches retain unique rule IDs and all source evidence',async()=>{
  const tasks=Array.from({length:7},(_,i)=>({...extra,id:`gap-${i}`}));let calls=0;let searches=0;
@@ -1628,7 +1649,7 @@ test('a clean model audit cannot cover requested consumable material with labor 
  const consumables={...labor,id:'supplies',description:'Supply nails and caulk',evidence:restricted.text,additions:[{code:'REF-GENERAL-HOUR',quantity:1,quantityEvidence:'ALLOWANCE: One hour.',quantityRange:{low:1,high:1}}]};
  const request:PricingRequest=async(_instructions,input)=>{
   const data=input as any;
-  if(data.taskBatch)return {value:{tasks:[labor,consumables],issues:[]},sourceUrls:[]};
+  if(data.taskBatch)return {value:{tasks:data.taskBatch.map((item:{id:string})=>item.id===labor.id?labor:consumables),issues:[]},sourceUrls:[]};
   if('priorPricingIssues' in data)return {value:{coveredTaskIds:['trim','supplies'],issues:[]},sourceUrls:[]};
   if(data.tasks&&data.region)return {value:{rates:[],issues:[]},sourceUrls:[]};
   return {value:{tasks:[labor,consumables].map(({id,description,evidence})=>({id,description,evidence})),issues:[]},sourceUrls:[]};

@@ -32,7 +32,7 @@ test('document extraction sends native Haiku request and attests actual response
 });
 test('pricing returns native tool record with verified identity and saved checkpoint',async()=>{
  const before=globalThis.fetch;let calls=0,saved=false;
- globalThis.fetch=async(url,init)=>{calls++;assert.equal(url,'https://api.anthropic.com/v1/messages');const body=JSON.parse(String(init?.body));assert.equal(body.model,model);assert.equal(body.tool_choice.name,'record_estimate');return reply({tasks:[]});};
+ globalThis.fetch=async(url,init)=>{calls++;assert.equal(url,'https://api.anthropic.com/v1/messages');const body=JSON.parse(String(init?.body));assert.equal(body.model,model);assert.equal(body.tool_choice.name,'record_estimate');assert.equal(body.tools[0].strict,true,'native pricing opts into provider-enforced schema conformance');return reply({tasks:[]});};
  try{const result=await requestPricing('audit',{},false,10000,undefined,undefined,async r=>{saved=r.responseModel===model;});assert.equal(result.responseModel,model);assert.equal(result.provider,'anthropic');assert.equal(calls,1);assert.equal(saved,true);assert.deepEqual(result.value,{tasks:[]});}finally{globalThis.fetch=before;}
 });
 test('Haiku pricing never silently falls back to OpenAI',async()=>{
