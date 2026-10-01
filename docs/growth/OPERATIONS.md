@@ -139,3 +139,12 @@ the user authorizes 4031 W Wapoot St, Meridian, ID 83646 whenever a public stree
 Boise Business Directory's free parent-listing submission returned CAPTCHA verification failed. No successful submission, listing or backlink is confirmed. Do not report the attempted form as submitted. EZlocal's free parent listing is prepared with P5's authorized contact details, General Contractor category and service-area address hiding, but is not submitted: explicit Terms of Use/Privacy Policy acceptance and CAPTCHA require action-time confirmation. Promotional SMS remains unchecked. No paid plan or trial was selected. Brownbook and ProMatcher remain unfinished.
 
 Treasure Valley Contractor Guide's existing review email and the user's September 30 reply were found in the verified P5 inbox. The listing remains pending review. Check for publication or a new verification request before resubmitting or sending another response. Keep private inquiry content out of this public record.
+
+
+## October 1 browser recovery continuation
+
+Resetting the documented browser runtime restored access after the explicit error that native credential state could not safely resume. EZlocal's prepared contact name was changed to Nick Perkins and verified in the visible form and a saved screenshot. General Contractor was reselected. The approved address, hidden service-area setting, P5 website and contact email remained. No listing submission occurred; Terms and SMS remained unchecked.
+
+The reCAPTCHA frame displayed a crashed-frame icon. One ordinary reload was attempted, then Page.getFrameTree timed out. Post-reload state could not be verified. Recheck name, category and all details before submission. No CAPTCHA was solved or bypassed.
+
+Close calls succeeded for directory search tab 50, failed-form tab 48 and Analytics tabs 53 and 61. Analytics tabs 43 and 60 had Runtime.addBinding or attach-tab timeouts. Final tab inventory also timed out, so complete cleanup is not verified. Do not claim tab count caused the failures or the browser is permanently repaired. No metered browser or paid service was used.
