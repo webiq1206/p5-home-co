@@ -3,9 +3,18 @@ import assert from 'node:assert/strict';
 import {PGlite} from '@electric-sql/pglite';
 import {requestPricingWith,reconcileResearchReply,type PricingReply} from '../lib/p5/scopePricing.ts';
 import {configurePricingLedger,pricingRecoveryError,PricingChargeUnknownError,reservePricingCharge,pricingFingerprint} from '../lib/p5/pricingLedger.ts';
-import {retryablePricingProviderError} from '../lib/p5/pricingProgress.ts';
+import {retryablePricingProviderError,savedPricingTimeoutReason,RESEARCH_FAILURE_COOLDOWN_MS} from '../lib/p5/pricingProgress.ts';
 import {pricingFailureDetails} from '../lib/p5/pricingDiagnostics.ts';
 import {ESTIMATOR_MODEL,ESTIMATOR_PROVIDER} from '../lib/p5/modelPolicy.ts';
+
+test('persisted research deadline markers retry to a bounded limit instead of replaying a permanent pause',()=>{
+ const persisted=(value:unknown)=>JSON.parse(JSON.stringify(value));
+ for(const timeouts of [1,2])assert.equal(savedPricingTimeoutReason(persisted({value:null,sourceUrls:[],timedOut:true,timeouts}),true,false),undefined);
+ assert.equal(savedPricingTimeoutReason(persisted({timedOut:true,timeouts:3}),true,false),'pricing-stage-exhausted');
+ assert.equal(savedPricingTimeoutReason({timeouts:1},false,true),'pricing-stage-timeout','large mapping still splits its batch');
+ assert.equal(savedPricingTimeoutReason({timeouts:1,researchFailedAt:1000},true,false,1001),'pricing-stage-timeout');
+ assert.equal(savedPricingTimeoutReason({timeouts:1,researchFailedAt:1000},true,false,1000+RESEARCH_FAILURE_COOLDOWN_MS),undefined);
+});
 
 test('production pricing error and checkpoint paths with isolated SQL and controlled transport',async t=>{
  const names=['DATABASE_URL','ANTHROPIC_API_KEY','P5_PRICING_LEDGER_TEST_MODE','P5_PRICING_BUDGET_USD','P5_PRICING_REQUEST_RESERVATION_USD'] as const;

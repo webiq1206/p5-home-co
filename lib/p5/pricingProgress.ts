@@ -10,6 +10,15 @@ export class PricingPending extends Error {
 export const retryablePricingProviderError=(error:unknown)=>{const cause=pricingRecoveryError(error);return cause instanceof Error&&/^pricing-provider-unavailable:(?:429|5\d\d)\b/.test(cause.message);};
 export const RESEARCH_FAILURE_COOLDOWN_MS=15*60_000;
 export const expiredResearchFailure=(reply:unknown,now=Date.now())=>Boolean(reply&&typeof reply==='object'&&typeof (reply as {researchFailedAt?:number}).researchFailedAt==='number'&&now-(reply as {researchFailedAt:number}).researchFailedAt>=RESEARCH_FAILURE_COOLDOWN_MS);
+/** A real deadline marker permits another bounded attempt. Replaying it as
+ * another timeout without dispatching left research pending until job expiry. */
+export function savedPricingTimeoutReason(reply:unknown,search:boolean,largeMapping:boolean,now=Date.now()):string|undefined{
+ if(!reply||typeof reply!=='object')return;
+ const saved=reply as {timeouts?:number;outputLimited?:boolean;researchFailedAt?:number};
+ if(saved.outputLimited)return 'pricing-stage-output-limit';
+ if((saved.timeouts||0)>=3)return 'pricing-stage-exhausted';
+ if(saved.timeouts&&(largeMapping||search&&typeof saved.researchFailedAt==='number'&&!expiredResearchFailure(saved,now)))return 'pricing-stage-timeout';
+}
 export const PRICING_UNAVAILABLE='Our pricing service is temporarily unavailable. Your project and contact details are saved, and we will follow up with your estimate by email.';
 /** One pricing stage exceeded its own time allowance while the overall
  * deadline still stands. The caller may choose a bounded alternative. */

@@ -2162,6 +2162,7 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
         researchTimedOut=isPricingStageTimeout(error);
         researchFailure=error instanceof Error?error.message:'Research evidence remains incomplete';
       }
+      if(researchTimedOut&&researchFailure==='pricing-stage-exhausted')throw new PricingPending('Your project is saved. Pricing research could not finish after its bounded retries and needs review.',0,true);
       if(researchTimedOut||pastWindow)throw new PricingPending('Research is temporarily unavailable. Your project and completed pricing steps are saved.',30000);
       // A single cited, locally applicable product price can support a clearly
       // disclosed preliminary budget, not an independently verified market

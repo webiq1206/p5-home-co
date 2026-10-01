@@ -1,5 +1,5 @@
 import {ESTIMATOR_PROVIDER,ESTIMATOR_MODEL,MODEL_POLICY_VERSION,estimatorModelConfiguration,assertEstimatorModel} from './modelPolicy.ts';
-import {clarificationTakeoffUpdates,type TakeoffRevisionContext} from './clarificationTakeoffs.ts';
+import {clarificationTakeoffSchema,clarificationTakeoffUpdates,type TakeoffRevisionContext} from './clarificationTakeoffs.ts';
 import {groundSourceResponsibilities} from './sourceResponsibilities.ts';
 import {openAiReadModel,preferredReadProvider,rateLimitWaitMs,RATE_LIMIT_RETRIES} from './readerRouting.ts';
 import {reasoningFor,rejectsReasoning} from './openaiReasoning.ts';
@@ -68,8 +68,13 @@ export const EXTRACTION_JSON_SCHEMA = objectSchema({
 // Repeating the large field enum inside three nested arrays can exceed the
 // fallback provider's grammar compiler limit. The vocabulary stays in the
 // system prompt and the exact same local validator still enforces every field.
-export function anthropicExtractionSchema(){
+export function extractionSchema(revisions?:TakeoffRevisionContext){
   const schema=JSON.parse(JSON.stringify(EXTRACTION_JSON_SCHEMA));
+  if(revisions)schema.properties.takeoffs=clarificationTakeoffSchema(revisions);
+  return schema;
+}
+export function anthropicExtractionSchema(revisions?:TakeoffRevisionContext){
+  const schema=extractionSchema(revisions);
   for(const name of ['facts','conflicts','clarifications'])schema.properties[name].items.properties.field={type:'string',description:'Use one exact field identifier from the supplied field vocabulary.'};
   return schema;
 }
@@ -241,7 +246,7 @@ async function analyzeWithOpenAI(provider: Provider, text: string, files: Analys
     body: JSON.stringify({
       model, ...(withReasoning?reasoningFor(model,'read'):{}), instructions: EXTRACTION_SYSTEM+'\n'+DOCUMENT_POLICY+'\n'+sourceInstruction+'\n'+FACT_VALUE_POLICY+'\n'+OUTPUT_BREVITY+' Reply with one JSON object that matches the requested schema exactly; no prose.', max_output_tokens: 16000, store: false,
       input: [{ role: "user", content: asInputContent(files, text, previous) }],
-      text: { format: { type: "json_schema", name: "p5_scope_extraction", strict: false, schema: EXTRACTION_JSON_SCHEMA } },
+      text: { format: { type: "json_schema", name: "p5_scope_extraction", strict: false, schema: extractionSchema(revisions) } },
     }),
   });
   let response = await sendRead(true);
@@ -288,7 +293,7 @@ async function analyzeWithAnthropic(provider: Provider, text: string, files: Ana
     // This formatting-only tool never executes code or an external action.
     // Local schema/evidence validation remains mandatory; avoiding compiled
     // output grammars prevents rejection of the full, nested page ledger.
-    body: JSON.stringify({ model: provider.model, max_tokens: 16000, system: EXTRACTION_SYSTEM+'\n'+DOCUMENT_POLICY+'\n'+sourceInstruction+'\n'+FACT_VALUE_POLICY+'\n'+OUTPUT_BREVITY+' Return the final structured record through record_scope_analysis. It is only an output format, not an external action.', messages: [{ role: "user", content }], tools:[{name:'record_scope_analysis',description:'Return the complete extracted scope, interpreted instructions, original-page coverage and evidence-linked takeoffs. This output record performs no actions and changes no data. Do not omit unreadable pages or excluded-scope instructions.',input_schema:anthropicExtractionSchema()}],tool_choice:{type:'tool',name:'record_scope_analysis',disable_parallel_tool_use:true} }),
+    body: JSON.stringify({ model: provider.model, max_tokens: 16000, system: EXTRACTION_SYSTEM+'\n'+DOCUMENT_POLICY+'\n'+sourceInstruction+'\n'+FACT_VALUE_POLICY+'\n'+OUTPUT_BREVITY+' Return the final structured record through record_scope_analysis. It is only an output format, not an external action.', messages: [{ role: "user", content }], tools:[{name:'record_scope_analysis',description:'Return the complete extracted scope, interpreted instructions, original-page coverage and evidence-linked takeoffs. This output record performs no actions and changes no data. Do not omit unreadable pages or excluded-scope instructions.',input_schema:anthropicExtractionSchema(revisions)}],tool_choice:{type:'tool',name:'record_scope_analysis',disable_parallel_tool_use:true} }),
   });
   console.error(`[p5-analysis] Anthropic read replied in ${((Date.now()-started)/1000).toFixed(1)}s (${response.status}).`);
   if (!response.ok) throw await responseError(provider, response);
@@ -342,10 +347,11 @@ export async function analyzeBatch(text: string, files: AnalysisFile[], previous
   let sourceInstruction=specificationHint(source),sourceRepair=false;
   if(options.takeoffRevisions){
     if(files.length)throw new Error('clarification-revisions-require-retained-sources');
-    sourceInstruction+='\nRETAINED TAKEOFF CORRECTIONS: This is an authorized clarification of existing priorTakeoffs, not a new text-only extraction. Return changed takeoffs with exactly the existing IDs and units, using quantity null / basis uncertain when the answer invalidates a prior measurement. Do not add work items or recreate document pages. Cite the actual customer answer as typed scope, page 0. Unchanged takeoffs are omitted.';
+    sourceInstruction+='\nRETAINED TAKEOFF CORRECTIONS: This is an authorized clarification of existing priorTakeoffs, not a new text-only extraction. The takeoffs array is a correction list: each entry contains ONLY id and quantity. Choose id verbatim from the schema enum and priorTakeoffs; never rename it to describe the new quantity. Use quantity null when the answer invalidates a prior measurement. The server preserves units, physical identity and original evidence and binds the actual answer as typed evidence. Do not add work items or recreate document pages. Unchanged takeoffs are omitted.';
   }
   let last: unknown;let busy:ProviderError|undefined;
   // Racing both providers doubles the spend on every first read; it is opt-in (P5_TEXT_RACE=true) for hosts that value latency over cost.
+  const baseSourceInstruction=sourceInstruction;
   if(options.race&&!options.takeoffRevisions&&!files.length&&configured.length>1&&process.env.P5_TEXT_RACE==='true'){
     // A first typed-scope read is cheap to run twice and expensive to wait on.
     // Every configured provider reads it at once; the first valid result wins
@@ -447,7 +453,7 @@ export async function analyzeBatch(text: string, files: AnalysisFile[], previous
       // returns a valid record on the second try in a fraction of the time.
       if(error instanceof ProviderError&&error.status===200&&!invalidRepair.has(provider.kind)&&absoluteDeadline-Date.now()>5000){
         invalidRepair.add(provider.kind);
-        sourceInstruction=specificationHint(source)+' The preceding reply was rejected by the validator ('+error.message.slice(0,160)+'). Return one schema-exact record with short strings, valid page references and no empty values.';
+        sourceInstruction=baseSourceInstruction+' The preceding reply was rejected by the validator ('+error.message.slice(0,160)+'). Return one schema-exact record with short strings, valid page references and no empty values.';
         configured.splice(providerIndex+1,0,provider);
         console.error(`[p5-analysis] ${provider.kind} reply was invalid; asking the same provider once more.`);
         last=error;continue;
@@ -461,7 +467,7 @@ export async function analyzeBatch(text: string, files: AnalysisFile[], previous
         throw publicProviderError(error);
       }
       if(error instanceof UnsupportedSpecificationError&&!sourceRepair&&absoluteDeadline-Date.now()>1000){
-        sourceRepair=true;sourceInstruction=specificationHint(source)+' The preceding response incorrectly supplied '+error.specifications.join(', ')+'. Those claims are absent from the source. Re-read the supplied pages, omit unsupported work, and keep missing designations unspecified. Clearing, excavation and haul-off do not establish demolition work.';
+        sourceRepair=true;sourceInstruction=baseSourceInstruction+' The preceding response incorrectly supplied '+error.specifications.join(', ')+'. Those claims are absent from the source. Re-read the supplied pages, omit unsupported work, and keep missing designations unspecified. Clearing, excavation and haul-off do not establish demolition work.';
         // Keep semantic correction on the same provider and original deadline.
         configured.splice(providerIndex+1,0,provider);
       }

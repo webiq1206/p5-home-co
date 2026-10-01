@@ -124,7 +124,24 @@ test('a location prefix is shown as a tag, and the task still reads once (owner 
 test('work the contractor does is never listed as supplied by the owner (owner report 2026-09-22)',()=>{
  const doc=buildEstimateDocument({id:ID,brand:brand('cabinet'),issue:{service:'cabinet-install'},result:{...re10,instructions:{responsibilities:['Contractor supplies and installs all specified kitchen cabinets and hardware','Provide and install all listed materials and items','Owner supplies the appliances']}}});
  assert.ok(!doc.exclusions.some(e=>/Contractor supplies|Provide and install all listed/.test(e)));
- assert.ok(doc.exclusions.includes('By others or supplied by the owner: Owner supplies the appliances'));
+ assert.ok(doc.assumptionRows.find(([label])=>label==='Responsibilities')?.[1].includes('Owner supplies the appliances'));
+});
+
+test('live owner-supplied lever responsibility remains contractor work in the PDF and email',async()=>{
+ const responsibilities=['Contractor: labor to remove old levers, install new owner-supplied levers, and dispose of old hardware','Owner: supply three interior passage door levers','Owner supplies hardware; contractor installs it','Confirm who supplies replacement parts'];
+ const result={...re10,exclusions:['Door repairs','Door painting'],instructions:{responsibilities}};
+ const before=structuredClone(result);
+ const doc=buildEstimateDocument({id:ID,result,brand:site,issue:{service:'handyman'}});
+ assert.deepEqual(doc.exclusions,['Door repairs','Door painting']);
+ assert.deepEqual(doc.assumptionRows.find(([label])=>label==='Responsibilities')?.[1],responsibilities);
+ const output=(await pdfTextLayers(await customerPdf(ID,result))).join('\n').replace(/\s+/g,' ');
+ assert.match(output,/Responsibilities/);
+ assert.match(output,/Contractor: labor to remove old levers, install new owner-supplied levers/);
+ assert.doesNotMatch(output,/By others or supplied by the owner: Contractor/);
+ const mail=estimateEmail(ID,{customer:result,contact},false);
+ assert.match(mail.text,/Responsibilities/);
+ assert.doesNotMatch(mail.text,/By others or supplied by the owner: Contractor/);
+ assert.deepEqual(result,before,'presentation never rewrites the saved estimate');
 });
 
 test('long customer assumptions and verification notes retain their complete meaning in the PDF',async()=>{

@@ -11,7 +11,7 @@ import type {ScopeExtraction} from '../lib/p5/scope.ts';
 const item:Takeoff={id:'sewer-local',description:'Localized sewer repair',building:'house',floor:'',component:'sewer',quantity:32,unit:'feet from entry',basis:'stated',evidence:'Damage at 32 feet from entry',sources:[{source:'RE10.pdf',page:1,sheet:'',revision:''}],supersedes:[],issues:[]};
 const corrected:Takeoff={...item,quantity:null,basis:'uncertain'};
 
-test('public clarification path keeps a model correction to unknown work extent without reopening the document',async()=>{
+test('public clarification repairs an invalid identity with a bounded correction contract without reopening the document',async()=>{
  const keys=['OPENAI_API_KEY','AI_INTEGRATIONS_OPENAI_API_KEY','AI_INTEGRATIONS_OPENAI_BASE_URL','ANTHROPIC_API_KEY'] as const;
  const before=Object.fromEntries(keys.map(key=>[key,process.env[key]]));
  for(const key of keys)delete process.env[key];
@@ -24,15 +24,20 @@ test('public clarification path keeps a model correction to unknown work extent 
   const request:typeof fetch=async(_url,init)=>{
    calls++;const body=JSON.parse(String(init?.body));
    assert.match(JSON.stringify(body),/priorTakeoffs/);assert.match(JSON.stringify(body),/sewer-local/);
+   const schema=body.tools?.[0].input_schema||body.text.format.schema;
+   assert.deepEqual(schema.properties.takeoffs.items.properties.id.enum,['sewer-local']);
+   assert.deepEqual(schema.properties.takeoffs.items.required,['id','quantity']);
+   assert.equal(schema.properties.takeoffs.items.additionalProperties,false);
+   assert.match(body.system||body.instructions,/RETAINED TAKEOFF CORRECTIONS/,'repair retains the authorized correction contract');
    assert.ok(!JSON.stringify(body).includes('input_file'));assert.ok(!JSON.stringify(body).includes('base64'));
-   const record={summary:'Localized repair of unknown extent',facts:[],conflicts:[],missingInformation:[],reviewNotes:[],clarifications:[],instructions:{...emptyInstructions(),inclusions:['Localized sewer repair with extent to confirm']},pages:[],takeoffs:[corrected]};
+   const record={summary:'Localized repair of unknown extent',facts:[],conflicts:[],missingInformation:[],reviewNotes:[],clarifications:[],instructions:{...emptyInstructions(),inclusions:['Localized sewer repair with extent to confirm']},pages:[],takeoffs:[{id:calls===1?'sewer-repair-renamed':item.id,quantity:null}]};
    return body.model==='gpt-4.1'
     ?Response.json({status:'completed',model:'gpt-4.1',output:[{content:[{type:'output_text',text:JSON.stringify(record)}]}]})
     :Response.json({model:'claude-haiku-4-5-20251001',stop_reason:'tool_use',content:[{type:'tool_use',name:'record_scope_analysis',id:'synthetic',input:record}]});
   };
   const prompt=instructionPrompts(extraction,{})[0];
   const result=await resolveInstructionAnswer(extraction,{service:'handyman'},{id:prompt.id,answer},[],request);
-  assert.equal(calls,1);assert.equal(result.extraction?.takeoffs?.[0].quantity,null);assert.equal(result.extraction?.takeoffs?.[0].basis,'uncertain');
+  assert.equal(calls,2);assert.equal(result.extraction?.takeoffs?.[0].quantity,null);assert.equal(result.extraction?.takeoffs?.[0].basis,'uncertain');
   assert.equal(extraction.takeoffs?.[0].quantity,32,'original evidence is not mutated');
   assert.deepEqual(result.extraction?.documentCoverage,extraction.documentCoverage);
   assert.ok(result.extraction?.takeoffs?.[0].sources.some(source=>source.source==='typed scope'&&source.page===0));
@@ -51,6 +56,11 @@ test('clarification updates cannot invent work, change units or assert numbers a
  const update=clarificationTakeoffUpdates([{...item,quantity:12}],{prior:[item],answer:'12'});
  assert.equal(update[0].quantity,12);assert.equal(update[0].evidence,'12');assert.equal(update[0].sources[0].page,0);
  assert.equal(clarificationTakeoffUpdates([{...item,quantity:12}],{prior:[item],answer:'Twelve feet.'})[0].quantity,12);
+ assert.equal(clarificationTakeoffUpdates([{id:item.id,quantity:null}],context)[0].unit,item.unit);
+ assert.throws(()=>clarificationTakeoffUpdates([{id:'renamed',quantity:null}],context),/unknown-id at update 0/);
+ assert.throws(()=>clarificationTakeoffUpdates([{id:item.id,quantity:null},{id:item.id,quantity:null}],context),/duplicate-update at update 1/);
+ assert.throws(()=>clarificationTakeoffUpdates([{id:item.id}],context),/Invalid takeoff evidence/);
+ assert.throws(()=>clarificationTakeoffUpdates([{id:item.id,quantity:100}],context),/evidence-unverified/);
 });
 
 test('explicit takeoff corrections coexist with unrelated structured quantity corrections',()=>{

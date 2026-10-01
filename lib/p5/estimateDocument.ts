@@ -129,11 +129,10 @@ export function buildEstimateDocument(input:{id:string;result:unknown;brand:Esti
     const text=clean(item);if(!text)continue;
     if(UNPRICED.test(text))unpriced.push(text.replace(UNPRICED,''));else exclusions.push(text);
   }
-  // A responsibility that gives work TO the contractor ("Contractor supplies and installs all cabinets",
-  // "Provide and install all listed materials") is included work, not an exclusion; live estimates
-  // showed it to customers as "By others or supplied by the owner" (owner report 2026-09-22).
-  const contractorsOwn=(t:string)=>!/\b(?:owner|homeowner|customer|client|by others|others|tenant|seller|buyer)\b/i.test(t)&&(/\bcontractor\b/i.test(t)||/^(?:supply|provide|furnish|install)\b/i.test(t));
-  for(const item of (result.instructions?.responsibilities||[]) as string[])if(clean(item)&&!contractorsOwn(clean(item)))exclusions.push(`By others or supplied by the owner: ${clean(item)}`);
+  // Responsibilities may describe contractor work on owner-supplied materials,
+  // or both parties in one sentence. Their wording is not an exclusion flag.
+  // Preserve the assignment under its own label without guessing the actor.
+  const responsibilities=[...new Set(((result.instructions?.responsibilities||[]) as string[]).map(item=>clean(item)).filter(Boolean))];
   // Exclusions and owner responsibilities the customer stated in the reviewed scope travel too.
   for(const raw of String(result.summary||'').split(/\n/)){
     const excluded=raw.match(/^Excluded work: (.+)$/),owner=raw.match(/^Owner-supplied items and responsibilities: (.+)$/);
@@ -207,6 +206,7 @@ export function buildEstimateDocument(input:{id:string;result:unknown;brand:Esti
   const sources=(issue.sources||[]).map(s=>clean(s,120)).filter(Boolean);
   const assumptionRows:[string,string[]][]=([
     ['Pricing basis',[`Your online submission${sources.length?` and ${sources.length===1?'the document':'the documents'} you uploaded: ${sources.join('; ')}`:''}.`]],
+    ['Responsibilities',responsibilities],
     ['Assumptions',[...new Set(assumptions)]],
     ['Changes in this version',((result.revisionSummary||[]) as string[]).map(v=>clean(v,Infinity)).filter(Boolean)],
     ['Included to complete the work',tasks.filter(t=>t.origin==='required'&&clean(t.basis)).map(t=>`${clean(t.description,Infinity)}: ${clean(t.basis,Infinity)}`)],

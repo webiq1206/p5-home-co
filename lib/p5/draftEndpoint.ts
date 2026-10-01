@@ -121,7 +121,7 @@ export async function putDraft(request:Request){
     if(raw.clarification){
       if(replacing)throw new DraftError('This clarification belongs to the previous project text. Read the updated project before answering.',409);
       if(!existing||raw.revision!==existing.revision)throw new DraftError('Your project changed in another tab. Refresh to continue.',409);
-      const resolved=await resolveInstructionAnswer(extraction,answers,raw.clarification,wizard.instructionAnswers,undefined,incomingText);
+      const resolved=await resolveInstructionAnswer(extraction,answers,raw.clarification,wizard.instructionAnswers,undefined,incomingText,{draftId:id,estimator:answers.service||null});
       extraction=resolved.extraction;answers=resolved.answers;wizard.instructionAnswers=resolved.history;
       // An earlier correction cannot resolve a new contradiction automatically.
       if('unresolvedFields' in resolved)for(const field of resolved.unresolvedFields||[])delete wizard.resolutions[field];

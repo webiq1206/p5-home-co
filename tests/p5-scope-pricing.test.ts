@@ -986,6 +986,19 @@ test('two research timeouts preserve progress without substituting an uncited pl
  await assert.rejects(()=>priceCompleteScope(scope,config,request,now),PricingPending);
  assert.equal(calls,4,'inventory, mapping and two bounded research attempts; no uncited average is requested');
 });
+test('exhausted research ends bounded recovery without releasing invented prices or polling forever',async()=>{
+ let calls=0,searches=0;
+ const tasks=[task,extra];
+ const request:PricingRequest=async(_instructions,input,search)=>{
+  calls++;const data=input as {taskBatch?:{id:string}[]};
+  if(calls===1)return {value:{tasks:tasks.map(({id,description,evidence})=>({id,description,evidence})),issues:[]},sourceUrls:[]};
+  if(data.taskBatch)return {value:{tasks:data.taskBatch.map(t=>({...tasks.find(row=>row.id===t.id)!,...t})),issues:[],notes:[],replacements:[],removeExclusions:[]},sourceUrls:[]};
+  if(search){searches++;throw new PricingStageTimeout('pricing-stage-exhausted');}
+  throw new Error('No unsupported fallback price may be requested');
+ };
+ await assert.rejects(()=>priceCompleteScope(scope,config,request,now),(error:unknown)=>error instanceof PricingPending&&error.fatal&&error.retryAfterMs===0);
+ assert.equal(searches,2,'both saved research paths are checked before ending recovery');
+});
 test('Unresolved duplicate pricing blocks release, and missing measurements remain questions',async()=>{
  const tasks=[{...task,id:'drywall',description:'Patch drywall',researchDescription:''}];
  const run=async(auditIssue:string)=>{let calls=0;const request:PricingRequest=async(_i,input)=>{const d=input as any;calls++;

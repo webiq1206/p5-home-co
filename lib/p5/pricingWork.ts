@@ -8,8 +8,8 @@ import {recordEvent} from './events.ts';
 import {saveLearnedLines,readLearnedLines,learnedCostRules,learnedResearchLeads,saveSupportedServiceBook} from './learnedBook.ts';
 import {databasePricingCache,pricingCacheEnabled} from './pricingCache.ts';
 import {claimWork,writeWork,releaseWork,renewWork,readSavedWorkReply} from './workStore.ts';
-import {priceCompleteScope,requestPricing,type PricingReply,type PricingRequest,PRICING_STAGE_MAX_MS} from './scopePricing.ts';
-import {PricingPending,PricingStageTimeout,PRICING_UNAVAILABLE,isPricingPending,retryablePricingProviderError,expiredResearchFailure} from './pricingProgress.ts';
+import {priceCompleteScope,requestPricing,type PricingReply,type PricingRequest,PRICING_STAGE_MAX_MS,RESEARCH_STAGE_MS} from './scopePricing.ts';
+import {PricingPending,PricingStageTimeout,PRICING_UNAVAILABLE,isPricingPending,retryablePricingProviderError,expiredResearchFailure,savedPricingTimeoutReason} from './pricingProgress.ts';
 import {beginPricingRepair,type PricingRepairState} from './repairClock.ts';
 import type {ReviewedScope} from './scope.ts';
 import type {EstimatorConfiguration} from './costBook.ts';
@@ -74,7 +74,7 @@ export async function priceSavedScope(id:string,scope:ReviewedScope,configuratio
   return selected;
  };
  const ordinals:Record<string,number>={};
- const staged:PricingRequest=async(instructions,input,search,remainingMs)=>{
+ const staged:PricingRequest=async(instructions,input,search)=>{
   const activity=pricingActivity(instructions,input,search);
   // Keep old positions only to retain timeout counts during migration. A
   // successful reply requires an exact request identity, including evidence,
@@ -96,14 +96,11 @@ export async function priceSavedScope(id:string,scope:ReviewedScope,configuratio
     if(reusableSavedPricingReply(prior)){saved=prior;payload.replies[key]=prior;await persist();}
   }
   if(saved&&!(search&&expiredResearchFailure(saved))){
-    // Research uses its existing allowance fallback and large mapping batches
-    // keep their smaller saved children. A small batch or another stage must
-    // actually retry, or replaying its timeout marker loops forever without
-    // advancing the attempt count. Only actual provider timeouts count.
+    // Large mapping batches keep their smaller saved children. Deadline
+    // failures, including research, retry under the persisted attempt limit.
     const timeouts=(saved as {timeouts?:number}).timeouts||0;
-    if((saved as {outputLimited?:boolean}).outputLimited)throw new PricingStageTimeout('pricing-stage-output-limit');
-    if(timeouts>=3)throw new PricingStageTimeout('pricing-stage-exhausted');
-    if(timeouts&&(search||(batchIds&&batchIds.length>3)))throw new PricingStageTimeout('pricing-stage-timeout');
+    const timeoutReason=savedPricingTimeoutReason(saved,search,Boolean(batchIds&&batchIds.length>3));
+    if(timeoutReason)throw new PricingStageTimeout(timeoutReason);
     if(!timeouts&&reusableSavedPricingReply(saved))return saved;
   }
   // A pass ends between stages, never inside one. A stage that has started
@@ -115,7 +112,9 @@ export async function priceSavedScope(id:string,scope:ReviewedScope,configuratio
   // research call still visibly moves instead of sitting on one label.
   payload.processing={...activity,completedSteps:payload.completed||0,stageStartedAt:new Date().toISOString()};await persist();
   const phase=activity.phase;
-  const allowance=search?Math.max(5000,Math.min(remainingMs,PRICING_STAGE_MAX_MS)):PRICING_STAGE_MAX_MS;
+  // The pass deadline admits a stage; it must not shrink an admitted search
+  // to the last few seconds of the pass. Its completed reply is checkpointed.
+  const allowance=search?Math.max(5000,Math.min(RESEARCH_STAGE_MS,PRICING_STAGE_MAX_MS)):PRICING_STAGE_MAX_MS;
   const started=Date.now();
   // Persist the exact link before dispatch. A response hash alone cannot be
   // inverted into the separately hashed charge-ledger identity after failure.
