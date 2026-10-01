@@ -49,7 +49,7 @@ test('explicit basis, invalid values and other required fields are never rewritt
  assert.equal(result.facts[0].confidence,2,'invalid confidence must remain invalid for domain validation');
 });
 test('production review reserves its larger output budget while ordinary reading keeps its own ceiling',async()=>{
- const config=readConfig({DOCUMENT_PROVIDER:'anthropic',DOCUMENT_MODEL:'claude-sonnet-5',DOCUMENT_VERIFY_MODEL:'claude-sonnet-5',OPENAI_API_KEY:'synthetic',DOCUMENT_DATABASE_URL:'postgres://synthetic',P5_DOCUMENT_TENANTS_JSON:JSON.stringify({'p5homeco.com':'a'.repeat(64)})});
+ const config=readConfig({P5_ESTIMATOR_PROVIDER:'openai',DOCUMENT_PROVIDER:'anthropic',DOCUMENT_MODEL:'claude-sonnet-5',DOCUMENT_VERIFY_MODEL:'claude-sonnet-5',OPENAI_API_KEY:'synthetic',DOCUMENT_DATABASE_URL:'postgres://synthetic',P5_DOCUMENT_TENANTS_JSON:JSON.stringify({'p5homeco.com':'a'.repeat(64)})});
  assert.equal(config.maxOutput,10000);assert.equal(config.reviewMaxOutput,32000);assert.equal(config.streamMs,360000);assert.equal(config.jobMs,900000);
  const reservations=[],bodies=[];
  const reader=new Reader(config,{reserve:async n=>{reservations.push(n);return 'slot';},release:async()=>{},metric:async()=>{}},async(_url,options)=>{

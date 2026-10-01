@@ -1,4 +1,4 @@
-import {ESTIMATOR_MODEL,MODEL_POLICY_VERSION,estimatorModelConfiguration,assertEstimatorModel} from './modelPolicy.ts';
+import {ESTIMATOR_PROVIDER,ESTIMATOR_MODEL,MODEL_POLICY_VERSION,estimatorModelConfiguration,assertEstimatorModel} from './modelPolicy.ts';
 import {groundSourceResponsibilities} from './sourceResponsibilities.ts';
 import {openAiReadModel,preferredReadProvider,rateLimitWaitMs,RATE_LIMIT_RETRIES} from './readerRouting.ts';
 import {reasoningFor,rejectsReasoning} from './openaiReasoning.ts';
@@ -171,6 +171,7 @@ export function scopeModelSetting():{model:string;source:string;ignored?:string}
   return {model:policy.model,source:policy.source,...(policy.overriddenSettings.length?{ignored:policy.overriddenSettings.join(', ')}:{})};
 }
 function providers(_files:readonly AnalysisFile[]=[]): Provider[] {
+  if(ESTIMATOR_PROVIDER==='anthropic')return process.env.ANTHROPIC_API_KEY?[{kind:'Anthropic',key:process.env.ANTHROPIC_API_KEY,endpoint:'https://api.anthropic.com/v1',model:ESTIMATOR_MODEL}]:[];
   const integrated=Boolean(process.env.AI_INTEGRATIONS_OPENAI_API_KEY&&process.env.AI_INTEGRATIONS_OPENAI_BASE_URL);
   const key=integrated?process.env.AI_INTEGRATIONS_OPENAI_API_KEY:process.env.OPENAI_API_KEY;
   const endpoint=integrated?process.env.AI_INTEGRATIONS_OPENAI_BASE_URL:(process.env.OPENAI_BASE_URL||'https://api.openai.com/v1');
@@ -252,20 +253,20 @@ async function analyzeWithOpenAI(provider: Provider, text: string, files: Analys
   if (!response.ok) throw await responseError(provider, response);
   let body: any;
   try { body = await response.json(); } catch { throw errorForProvider(provider, response.status, "provider returned invalid JSON"); }
-  assertEstimatorModel(body.model);
+  if(routeModel)assertEstimatorModel(body.model);
   if (body.status && body.status !== "completed") throw errorForProvider(provider, response.status, "analysis-incomplete");
   const resultText = body.output?.flatMap((item: any) => item.content || []).find((part: any) => part.type === "output_text")?.text;
   if (typeof resultText !== "string") throw errorForProvider(provider, response.status, "provider returned no structured text");
   let parsed:unknown;
   try {
     parsed = extractionRecord(sanitizeRecord(JSON.parse(resultText),files));
-    return { extraction: validateExtraction(parsed), provider: provider.kind, model: body.model, modelPolicy:MODEL_POLICY_VERSION, analyzedAt: new Date().toISOString() };
+    return { extraction: validateExtraction(parsed), provider: provider.kind, model: body.model, ...(routeModel?{modelPolicy:MODEL_POLICY_VERSION}:{}), analyzedAt: new Date().toISOString() };
   } catch (error) {
     throw errorForProvider(provider, response.status, `${error instanceof Error ? error.message : "provider returned invalid extraction"} [${recordShape(parsed)}]`);
   }
 }
 
-async function analyzeWithAnthropic(provider: Provider, text: string, files: AnalysisFile[], previous: ScopeAnswers, request: RequestFunction, timeoutMs: number,sourceInstruction=""): Promise<AnalysisResult> {
+async function analyzeWithAnthropic(provider: Provider, text: string, files: AnalysisFile[], previous: ScopeAnswers, request: RequestFunction, timeoutMs: number,sourceInstruction="",verifyModel=true): Promise<AnalysisResult> {
   const content: Record<string, unknown>[] = [];
   for (const file of files) {
     content.push({ type: "text", text: `Source filename: ${file.name}\nOriginal page manifest: ${JSON.stringify(file.pages||[])}` });
@@ -292,6 +293,7 @@ async function analyzeWithAnthropic(provider: Provider, text: string, files: Ana
   if (!response.ok) throw await responseError(provider, response);
   let body: any;
   try { body = await response.json(); } catch { throw errorForProvider(provider, response.status, "provider returned invalid JSON"); }
+  if(verifyModel)assertEstimatorModel(body.model);
   if (!['end_turn','tool_use'].includes(body.stop_reason)) throw errorForProvider(provider, response.status, body.stop_reason || "analysis-incomplete");
   const records=body.content?.filter((part:any)=>part.type==='tool_use'&&part.name==='record_scope_analysis')||[];
   if(body.stop_reason==='tool_use'&&records.length!==1)throw errorForProvider(provider,response.status,'provider returned an invalid output record');
@@ -300,7 +302,7 @@ async function analyzeWithAnthropic(provider: Provider, text: string, files: Ana
   let parsed:unknown;
   try {
     parsed = extractionRecord(sanitizeRecord(records.length?records[0].input:JSON.parse(resultText),files));
-    return { extraction: validateExtraction(parsed), provider: provider.kind, model: body.model||provider.model, analyzedAt: new Date().toISOString() };
+    return { extraction: validateExtraction(parsed), provider: provider.kind, model: body.model, ...(verifyModel?{modelPolicy:MODEL_POLICY_VERSION}:{}), analyzedAt: new Date().toISOString() };
   } catch (error) {
     throw errorForProvider(provider, response.status, `${error instanceof Error ? error.message : "provider returned invalid extraction"} [${recordShape(parsed)}]`);
   }
@@ -525,5 +527,5 @@ export function benchmarkProvider(kind:ProviderKind,model:string):Provider|null{
   return key?{kind,key,endpoint:'https://api.anthropic.com/v1',model}:null;
 }
 export function benchmarkRead(provider:Provider,files:AnalysisFile[],text:string,timeoutMs:number):Promise<AnalysisResult>{
-  return provider.kind==='OpenAI'?analyzeWithOpenAI(provider,text,files,{},fetch,timeoutMs,'',false):analyzeWithAnthropic(provider,text,files,{},fetch,timeoutMs);
+  return provider.kind==='OpenAI'?analyzeWithOpenAI(provider,text,files,{},fetch,timeoutMs,'',false):analyzeWithAnthropic(provider,text,files,{},fetch,timeoutMs,"",false);
 }

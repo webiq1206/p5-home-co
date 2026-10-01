@@ -10,8 +10,8 @@ import {type Draft,DraftError} from './store.ts';
 import {fetchWithinDeadline,remainingBudget} from './processingBudget.ts';
 import type {ProcessingStatus} from './processingStatus.ts';
 import {PDFDocument} from 'pdf-lib';
-import {assertEstimatorModel,ESTIMATOR_MODEL,MODEL_POLICY_VERSION} from './modelPolicy.ts';
-const VERSION='p5-documents-gpt41-2026-09-26-v2';
+import {assertEstimatorModel,ESTIMATOR_PROVIDER,ESTIMATOR_MODEL,MODEL_POLICY_VERSION} from './modelPolicy.ts';
+const VERSION=ESTIMATOR_PROVIDER==='openai'?'p5-documents-gpt41-2026-09-26-v2':'p5-documents-haiku45-2026-10-01-v1';
 const digest=(value:string|Buffer)=>createHash('sha256').update(value).digest('hex');
 /** Brand policy. P5 and Construction refuse to complete a local read, or queue pricing,
  * while any uploaded source lacks verified page coverage. The other brands
@@ -212,9 +212,9 @@ export function documentServiceConfiguration(env:Environment=process.env){
  * provider or service health block that is present must be healthy. */
 export function validateDocumentServiceReadiness(value:unknown,limits=documentServiceLimits()){
  const ready=value as {ready?:boolean;ok?:boolean;providerConfigured?:boolean;tenant?:string;protocol?:string;limits?:{maxFileBytes?:number;maxPages?:number};capabilities?:{pdf?:boolean};pdf?:boolean;maxBytes?:number;maxPages?:number;provider?:{name?:string;model?:string;verifyModel?:string;configured?:boolean;ready?:boolean;health?:string};model?:string;service?:{healthy?:boolean;database?:string}}|null;
- const fail=()=>{throw new DraftError('Reader readiness is unverified: /readyz must confirm this tenant, a configured provider using full GPT-4.1, v1 PDF support, and the configured byte/page limits. No documents were sent; your files are saved.',503);};
+ const fail=()=>{throw new DraftError('Reader readiness is unverified: /readyz must confirm this tenant, a configured provider using the selected estimator model, v1 PDF support, and the configured byte/page limits. No documents were sent; your files are saved.',503);};
  if(!ready||typeof ready!=='object')return fail();
- if(ready.provider?.name!=='openai'||ready.provider.model!==ESTIMATOR_MODEL||ready.provider.verifyModel!==ESTIMATOR_MODEL)return fail();
+ if(ready.provider?.name!==ESTIMATOR_PROVIDER||ready.provider.model!==ESTIMATOR_MODEL||ready.provider.verifyModel!==ESTIMATOR_MODEL)return fail();
  const maxFileBytes=ready.limits?.maxFileBytes??ready.maxBytes,maxPages=ready.limits?.maxPages??ready.maxPages;
  const providerReady=ready.provider===undefined?ready.providerConfigured===true:ready.providerConfigured!==false&&ready.provider?.configured===true&&ready.provider.ready===true&&ready.provider.health==='configured';
  const serviceReady=ready.service===undefined||(ready.service?.healthy===true&&ready.service.database==='ok');
@@ -223,7 +223,7 @@ export function validateDocumentServiceReadiness(value:unknown,limits=documentSe
 }
 export function verifyDocumentModelEvidence(value:unknown):string{
  const evidence=value as {verified?:boolean;requestedModel?:string;responseModels?:unknown[];calls?:number}|null;
- if(!evidence?.verified||evidence.requestedModel!==ESTIMATOR_MODEL||!Number.isSafeInteger(evidence.calls)||evidence.calls!<1||!Array.isArray(evidence.responseModels)||!evidence.responseModels.length)throw new DraftError('Saved document model evidence is unverified. Your files are preserved; the reader must complete a verified GPT-4.1 review.',503);
+ if(!evidence?.verified||evidence.requestedModel!==ESTIMATOR_MODEL||!Number.isSafeInteger(evidence.calls)||evidence.calls!<1||!Array.isArray(evidence.responseModels)||!evidence.responseModels.length)throw new DraftError('Saved document model evidence is unverified. Your files are preserved; the reader must complete a verified review with the selected estimator model.',503);
  return [...new Set(evidence.responseModels.map(assertEstimatorModel))].join(' + ');
 }
 /** No-charge readiness check: GET only, no document upload or review creation. */
@@ -318,6 +318,6 @@ export async function advanceDocumentService(draft:Draft,text:string,answers:Sco
   // The host returns its page manifest as result.pages; validation normalizes it
   // (or a documentCoverage block) into one coverage record before the strict check.
   assertCompleteSourceCoverage(extraction,documents.map(d=>d.source),[...expectedPages].map(key=>{const [source,page]=JSON.parse(key);return {source,page};}),true);
-  return {pending:false as const,version:digest(JSON.stringify([MODEL_POLICY_VERSION,text,answers,draft.uploads.map(f=>[f.id,f.sha256])])),analysis:{modelPolicy:MODEL_POLICY_VERSION,extraction,provider:'P5 Document Service / OpenAI',model,analyzedAt:new Date().toISOString()}};
+  return {pending:false as const,version:digest(JSON.stringify([MODEL_POLICY_VERSION,text,answers,draft.uploads.map(f=>[f.id,f.sha256])])),analysis:{modelPolicy:MODEL_POLICY_VERSION,extraction,provider:`P5 Document Service / ${ESTIMATOR_PROVIDER==='anthropic'?'Anthropic':'OpenAI'}`,model,analyzedAt:new Date().toISOString()}};
  }finally{await dependencies.releaseWork(draft.id,workKey,lease.token);}
 }

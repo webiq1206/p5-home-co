@@ -11,7 +11,7 @@ export function requestBody(provider,model,system,input,images,schema,maxOutput,
   // Reconciliation exceeded Anthropic's grammar budget even after enum reduction.
   // A regular client tool returns data without constrained grammar compilation.
   // No tool is executed. Its input must pass the original schema and domain checks.
-  if(purpose==='review'){
+  if(purpose==='review'||model==='claude-haiku-4-5-20251001'){
    body.tools=[{name:REVIEW_TOOL,description:'Return the complete reconciled scope, evidence, quantities, exclusions and unresolved questions. This tool only submits structured data; it performs no external action. Include every required field, with empty arrays when absent.',input_schema:schema,strict:false}];
    body.tool_choice={type:'tool',name:REVIEW_TOOL,disable_parallel_tool_use:true};
    if(model==='claude-sonnet-5')body.output_config={effort:'medium'};
@@ -83,7 +83,7 @@ export class Reader{
    const text=c.provider==='anthropic'?await collectAnthropicResponse(response,{signal:combined,onProgress:onProviderProgress}):await response.text();if(text.length>8*1024*1024)throw new ServiceError('provider-response-too-large',422);
    let data;try{data=JSON.parse(text);}catch{throw new ServiceError('invalid-provider-json',422);}
    requestDetail.responseModel=data.model||null;
-   if(c.provider==='openai'&&!['gpt-4.1','gpt-4.1-2025-04-14'].includes(data.model))throw new ServiceError('provider-model-unverified',422);
+   if((c.provider==='openai'&&!['gpt-4.1','gpt-4.1-2025-04-14'].includes(data.model))||(c.provider==='anthropic'&&c.model==='claude-haiku-4-5-20251001'&&data.model!==(verify?c.verifyModel:c.model)))throw new ServiceError('provider-model-unverified',422);
    requestDetail.usage=data.usage||data.usageMetadata||{};
    requestDetail.stopReason=data.stop_reason||data.status||null;
    const parsed=parseReply(c.provider,data,built.outputTool);

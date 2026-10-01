@@ -1,5 +1,6 @@
 import {createHash} from 'node:crypto';
 import {ESTIMATOR_BRAND} from './brand.ts';
+import {MODEL_POLICY_VERSION} from './modelPolicy.ts';
 import {ESTIMATOR_VERSION} from './version.ts';
 import {POLICY_VERSION,SERVICE_MATRIX} from './pricing.ts';
 import type {ReviewedScope} from './scope.ts';
@@ -53,7 +54,7 @@ export const configurationIdentity=(configuration:EstimatorConfiguration)=>diges
  */
 export function pricingScopeFingerprint(scope:ReviewedScope,configuration:EstimatorConfiguration):string{
   return digest([
-    'p5-price-v2',ESTIMATOR_VERSION,ESTIMATOR_BRAND.id,
+    'p5-price-v2',MODEL_POLICY_VERSION,ESTIMATOR_VERSION,ESTIMATOR_BRAND.id,
     words(scope.text),
     answerEntries(scope),
     (scope.uploads||[]).filter(upload=>upload.status==='stored').map(upload=>upload.sha256).filter(Boolean).sort(),

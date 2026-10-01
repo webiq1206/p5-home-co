@@ -18,8 +18,9 @@ import {recoverProjectReply} from './projectReplyRecovery.ts';
 import {projectStageErrorCode,projectAttemptReport} from './projectDiagnostics.ts';
 import {loadLocalProjectPages} from './projectLocalPages.ts';
 
+import {MODEL_POLICY_VERSION} from './modelPolicy.ts';
 const LATEST='project-record-latest-v1';
-export const PROJECT_WORKFLOW_CONTRACT_HASH=projectHash({version:PROJECT_RECORD_VERSION,compilerVersion:PROJECT_PRICE_COMPILER_VERSION,stages:[PROJECT_COMPLETION_INSTRUCTIONS,PROJECT_RECORD_INSTRUCTIONS,PROJECT_CATALOG_INSTRUCTIONS,PROJECT_PRICE_INSTRUCTIONS,PROJECT_REVIEW_INSTRUCTIONS].map(instructions=>({instructions,schema:projectContractSchema(instructions)}))});
+export const PROJECT_WORKFLOW_CONTRACT_HASH=projectHash({modelPolicy:MODEL_POLICY_VERSION,version:PROJECT_RECORD_VERSION,compilerVersion:PROJECT_PRICE_COMPILER_VERSION,stages:[PROJECT_COMPLETION_INSTRUCTIONS,PROJECT_RECORD_INSTRUCTIONS,PROJECT_CATALOG_INSTRUCTIONS,PROJECT_PRICE_INSTRUCTIONS,PROJECT_REVIEW_INSTRUCTIONS].map(instructions=>({instructions,schema:projectContractSchema(instructions)}))});
 type QualificationResult=(Awaited<ReturnType<typeof interpretProjectRecord>>|Awaited<ReturnType<typeof priceProjectRecord>>)&{completionPlan?:ProjectCompletionPlan;runEvidence?:{contractHash:string;completedStages:{requestHash:string;requestedModel:string|null;returnedModel:string|null;providerRequestIds:string[]}[]}};
 type StoredWork={startedAt:string;phase?:'interpret'|'price';draftRevision?:number;contractHash?:string;errors?:Record<string,{code:string;at:string}>;replies:Record<string,PricingReply>;recoveredReplies?:Record<string,{workKey:string;recoveredAt:string}>;requests?:Record<string,{instructions:string;input:unknown;startedAt:string}>;record?:ProjectRecord;result?:QualificationResult};
 /** Both a first completion and recovery of a saved completion pass through the

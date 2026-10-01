@@ -545,7 +545,7 @@ test('legacy provider parser retains historical source extraction support',async
   let search=false;
   globalThis.fetch=async(url,init)=>{
    assert.equal(url,'https://api.anthropic.com/v1/messages');
-   const input=JSON.parse(String(init?.body));search=Boolean(input.tools);assert.equal(input.model,'claude-sonnet-5');
+   const input=JSON.parse(String(init?.body));search=Boolean(input.tools?.some((tool:{name:string})=>tool.name==='web_search'));assert.equal(input.model,'claude-sonnet-5');
    return Response.json({stop_reason:'end_turn',content:search?[{type:'text',text:'Searching now.'},{type:'web_search_tool_result',content:urls.map(url=>({type:'web_search_result',url}))},{type:'text',text:JSON.stringify(researched)}]:[{type:'text',text:'{"coveredTaskIds":["cabinets"],"issues":[]}'}]});
   };
   assert.deepEqual((await requestPricingWith('anthropic','JSON',{},false,1000)).value,{coveredTaskIds:['cabinets'],issues:[]});
@@ -574,8 +574,8 @@ test('legacy provider parser retains historical source extraction support',async
   globalThis.fetch=async(_url,init)=>{
    calls++;const body=JSON.parse(String(init?.body));
    if(calls===1)return Response.json({stop_reason:'end_turn',content:[{type:'web_search_tool_result',content:urls.map(url=>({type:'web_search_result',url}))},{type:'text',text:'# Research\nSynthetic cited report.'}]});
-   assert.ok(body.output_config.format.schema.properties.rates);assert.equal(body.tools,undefined);assert.ok(body.messages[0].content.includes(urls[0]));
-   return Response.json({stop_reason:'end_turn',content:[{type:'text',text:JSON.stringify(researched)}]});
+   assert.ok(body.tools[0].input_schema.properties.rates);assert.equal(body.tool_choice.name,'record_market');assert.ok(body.messages[0].content.includes(urls[0]));
+   return Response.json({stop_reason:'tool_use',content:[{type:'tool_use',name:'record_market',id:'synthetic',input:researched}]});
   };
   const normalized=await requestPricingWith('anthropic','JSON',{},true,5000);assert.equal(calls,2);assert.deepEqual(normalized.value,researched);assert.ok(normalized.sourceReport?.startsWith('# Research'));assert.deepEqual(normalized.sourceUrls,urls);
   globalThis.fetch=async()=>Response.json({stop_reason:'end_turn',content:[{type:'text',text:'{"rates":[],"issues":[]}'}]});

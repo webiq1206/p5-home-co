@@ -1,5 +1,5 @@
 import {projectHash} from './projectRecord.ts';
-import {assertEstimatorModel,ESTIMATOR_MODEL} from './modelPolicy.ts';
+import {assertEstimatorModel,ESTIMATOR_PROVIDER,ESTIMATOR_MODEL} from './modelPolicy.ts';
 import type {PricingReply} from './scopePricing.ts';
 
 /** Reuse the provider reply, never an old acceptance decision. The current
@@ -12,7 +12,7 @@ export function recoverProjectReply(rows:{work_key:string;payload:unknown}[],key
   const request=saved?.requests?.[key],reply=saved?.replies?.[key];
   if(!request||!Object.hasOwn(request,'input')||request.input===undefined||!reply||reply.value===undefined||request.instructions!==instructions||projectHash(request.input)!==projectHash(input))continue;
   if(projectHash({instructions:request.instructions,context:request.input,search:false})!==key)continue;
-  if(reply.provider!=='openai'||reply.model!==ESTIMATOR_MODEL||!Array.isArray(reply.sourceUrls)||!Array.isArray(reply.providerRequestIds)||!reply.providerRequestIds.length||reply.providerRequestIds.some(id=>typeof id!=='string'||!id.trim()))continue;
+  if(reply.provider!==ESTIMATOR_PROVIDER||reply.model!==ESTIMATOR_MODEL||!Array.isArray(reply.sourceUrls)||!Array.isArray(reply.providerRequestIds)||!reply.providerRequestIds.length||reply.providerRequestIds.some(id=>typeof id!=='string'||!id.trim()))continue;
   try{assertEstimatorModel(reply.responseModel);}catch{continue;}
   candidates.push({workKey:row.work_key,reply});
  }

@@ -4,10 +4,10 @@ import {readConfig} from '../src/core.mjs';
 import {Reader} from '../src/provider.mjs';
 import {Store,DDL} from '../src/store.mjs';
 import {PGlite} from '@electric-sql/pglite';
-const env={OPENAI_API_KEY:'synthetic',DOCUMENT_DATABASE_URL:'postgres://synthetic',P5_DOCUMENT_TENANTS_JSON:JSON.stringify({'p5homeco.com':'synthetic-key-not-a-real-credential-123456789'}),DOCUMENT_PROVIDER:'anthropic',DOCUMENT_MODEL:'gpt-4.1-mini',DOCUMENT_VERIFY_MODEL:'claude-sonnet-5'};
+const env={P5_ESTIMATOR_PROVIDER:'openai',OPENAI_API_KEY:'synthetic',DOCUMENT_DATABASE_URL:'postgres://synthetic',P5_DOCUMENT_TENANTS_JSON:JSON.stringify({'p5homeco.com':'synthetic-key-not-a-real-credential-123456789'}),DOCUMENT_PROVIDER:'anthropic',DOCUMENT_MODEL:'gpt-4.1-mini',DOCUMENT_VERIFY_MODEL:'claude-sonnet-5'};
 test('production worker pins full GPT-4.1 for reads and independent verification',()=>{
  const c=readConfig(env);assert.equal(c.provider,'openai');assert.equal(c.model,'gpt-4.1');assert.equal(c.verifyModel,'gpt-4.1');
- assert.throws(()=>readConfig({...env,OPENAI_API_KEY:undefined,ANTHROPIC_API_KEY:'synthetic'}),/missing-provider/);
+ assert.throws(()=>readConfig({P5_ESTIMATOR_PROVIDER:'openai',...env,OPENAI_API_KEY:undefined,ANTHROPIC_API_KEY:'synthetic'}),/missing-provider/);
 });
 test('actual response identities are recorded and a missing or substituted model fails',async()=>{
  for(const model of ['gpt-4.1-2025-04-14',undefined,'gpt-4.1-mini']){

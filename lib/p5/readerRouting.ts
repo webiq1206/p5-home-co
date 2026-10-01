@@ -1,6 +1,6 @@
 import type {AnalysisFile} from './extraction.ts';
-import {ESTIMATOR_MODEL} from './modelPolicy.ts';
-/** Drawings and text use the same required full GPT-4.1 model. */
+import {ESTIMATOR_PROVIDER,ESTIMATOR_MODEL} from './modelPolicy.ts';
+/** Drawings and text use the same selected estimator model. */
 export const isDrawingUnit=(files:readonly AnalysisFile[])=>files.some(f=>Boolean(f.detailViews)||/detail regions|detail views|supplied whole/i.test(f.name));
 export function openAiReadModel(_configured:string,_files:readonly AnalysisFile[]):string{return ESTIMATOR_MODEL;}
 /** Rate-limit replies (429) from the managed OpenAI connection arrive in bursts; wait briefly and resend. */
@@ -11,4 +11,4 @@ export const rateLimitWaitMs=(attempt:number,retryAfterHeader:string|null)=>{
 };
 
 /** Provider outages pause durable work; they never change the required model. */
-export function preferredReadProvider(_files:readonly AnalysisFile[],_configured=process.env.P5_SCOPE_PROVIDER):'OpenAI'|'Anthropic'{return 'OpenAI';}
+export function preferredReadProvider(_files:readonly AnalysisFile[],_configured=process.env.P5_SCOPE_PROVIDER):'OpenAI'|'Anthropic'{return ESTIMATOR_PROVIDER==='anthropic'?'Anthropic':'OpenAI';}

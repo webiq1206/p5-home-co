@@ -1,4 +1,4 @@
-import {ESTIMATOR_MODEL,assertEstimatorModel,EstimatorModelError} from './modelPolicy.ts';
+import {ESTIMATOR_PROVIDER,ESTIMATOR_MODEL,assertEstimatorModel,EstimatorModelError} from './modelPolicy.ts';
 /**
  * Full-book shortlist (owner request 2026-09-22: "the scope matching logic to the line items in the
  * cost book needs to be improved greatly").
@@ -47,6 +47,15 @@ type Fetch=typeof fetch;
 /** The whole-book shortlist, or an empty map when no OpenAI connection is configured or the call fails. */
 export async function shortlistBook(tasks:readonly ShortlistTask[],rates:readonly ShortlistRate[],request:Fetch=fetch,timeoutMs=Number(process.env.P5_SHORTLIST_TIMEOUT_MS||30000)):Promise<Map<string,string[]>>{
   if(!tasks.length||!rates.length||(process.env.P5_BOOK_SHORTLIST||'').toLowerCase()==='off')return new Map();
+  if(ESTIMATOR_PROVIDER==='anthropic'){
+   if(!process.env.ANTHROPIC_API_KEY)return new Map();
+   try{
+   const {createEstimatorModelClient}=await import('./estimatorModelClient.ts');
+   const reply=await createEstimatorModelClient({request,timeoutMs}).messages.create({system:SHORTLIST_INSTRUCTIONS,max_tokens:6000,messages:[{role:'user',content:JSON.stringify({tasks,bookIndex:bookIndex(rates)})}],tools:[{name:'record_shortlist',input_schema:schema}],tool_choice:{type:'tool',name:'record_shortlist'}});
+   const calls=reply.content.filter((part:{type:string})=>part.type==='tool_use');
+   return calls.length===1&&calls[0].name==='record_shortlist'?parseShortlist(calls[0].input,tasks,rates):new Map();
+   }catch(error){if(error instanceof EstimatorModelError)throw error;return new Map();}
+  }
   const integrated=Boolean(process.env.AI_INTEGRATIONS_OPENAI_API_KEY&&process.env.AI_INTEGRATIONS_OPENAI_BASE_URL);
   const key=integrated?process.env.AI_INTEGRATIONS_OPENAI_API_KEY:process.env.OPENAI_API_KEY;
   const endpoint=(integrated?process.env.AI_INTEGRATIONS_OPENAI_BASE_URL:(process.env.OPENAI_BASE_URL||'https://api.openai.com/v1'))?.replace(/\/+$/,'');
