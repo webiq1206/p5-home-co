@@ -16,6 +16,7 @@ function shapeProblems(error:unknown):RecordProblem[]{
  if(error&&typeof error==='object'&&'issues'in error&&Array.isArray(error.issues))return error.issues.map((issue:{path?:unknown[];message?:string})=>({code:'record-shape',ids:[],message:(issue.path||[]).join('.')+': '+issue.message}));
  throw error;
 }
+const reviewContractProblem=(problem:RecordProblem)=>problem.code==='record-shape'||problem.code==='stale-completion'||problem.code.startsWith('review-')||problem.code.startsWith('completion-');
 function budget(options:ProjectWorkflowOptions){const deadline=options.deadline||Date.now()+600000;return ()=>{const left=deadline-Date.now();if(left<1000)throw new Error('project-workflow-paused');return left;};}
 export async function interpretProjectRecord(scope:ProjectScope,options:ProjectWorkflowOptions={}):Promise<ProjectReadResult>{
  const input=projectInput(scope,options.changes),request=options.request||requestPricing,remaining=budget(options),now=options.now||new Date();
@@ -36,8 +37,15 @@ export async function interpretProjectRecord(scope:ProjectScope,options:ProjectW
   candidate=response.value;
   let record:ProjectRecord;
   try{record=acceptProjectRecord(candidate,input,options.previous||null,now);}catch(error){problems=shapeProblems(error);continue;}
-  const audit=await request(PROJECT_REVIEW_INSTRUCTIONS,{stage:'scope-with-questions',sources:input.sources,completionPlan,record,selectedPrices:null,purpose:'Accept a faithful intermediate scope WITH useful questions. Missing source measurements or selections represented as unknown/conditional and addressed by necessary questions are expected, not defects. Check that no work or uncertainty is silently omitted.'},false,remaining());
-  try{problems=validateProjectReview(record,audit.value,completionPlan).problems;}catch(error){problems=shapeProblems(error);}
+  const reviewContext={stage:'scope-with-questions',sources:input.sources,completionPlan,record,selectedPrices:null,purpose:'Accept a faithful intermediate scope WITH useful questions. Missing source measurements or selections represented as unknown/conditional and addressed by necessary questions are expected, not defects. Check that no work or uncertainty is silently omitted.'};
+  let previousReview:unknown=null,reviewValid=false;
+  for(let reviewAttempt=1;reviewAttempt<=2;reviewAttempt++){
+   const audit=await request(PROJECT_REVIEW_INSTRUCTIONS,{...reviewContext,...(reviewAttempt>1?{previousReview,correctionsRequired:problems,repairInstruction:'Repair the review only against the unchanged record. Correct invalid mappings or coverage claims. If work is actually absent, mark the method step missing with the required scope correction. Never approve omitted work or map it to an unrelated operation.'}:{})},false,remaining());
+   previousReview=audit.value;
+   try{problems=validateProjectReview(record,verifiedReviewCatalog(audit.value,[]),completionPlan).problems;}catch(error){problems=shapeProblems(error);}
+   if(!problems.some(reviewContractProblem)){reviewValid=true;break;}
+  }
+  if(!reviewValid)return {status:'needs-resolution',record:null,completionPlan,problems,attempts:attempt};
   if(!problems.length)return {status:record.questions.some(q=>q.priority==='blocking')?'questions':'ready',record,completionPlan,problems:[],attempts:attempt};
  }
  return {status:'needs-resolution',record:null,completionPlan,problems,attempts:2};
@@ -70,9 +78,13 @@ export async function priceProjectRecord(record:ProjectRecord,configuration:Esti
   const reviewContext={stage:'priced-estimate',sources:record.sources,completionPlan:options.completionPlan||null,record,selectedPrices:selection,selectedCatalog:catalog.filter(rate=>selectedCatalogIds.has(rate.code)),catalogCandidates,catalog,coverage:compiled.coverage};
   let verifiedReview:ReturnType<typeof verifiedReviewCatalog>|null=null,previousReview:unknown=null,reviewProblems:RecordProblem[]=[];
   for(let reviewAttempt=1;reviewAttempt<=2&&!verifiedReview;reviewAttempt++){
-   const responseReview=await request(PROJECT_REVIEW_INSTRUCTIONS,{...reviewContext,...(reviewAttempt>1?{previousReview,correctionsRequired:reviewProblems,repairInstruction:'Repair the review only. Keep the current selected prices unchanged while verifying every catalog claim against the supplied catalog.'}:{})},false,remaining());
+   const responseReview=await request(PROJECT_REVIEW_INSTRUCTIONS,{...reviewContext,...(reviewAttempt>1?{previousReview,correctionsRequired:reviewProblems,repairInstruction:'Repair the review only. Keep the current record and selected prices unchanged. Correct review mappings and verify every catalog claim against the supplied catalog. Mark genuinely absent method operations missing with the required correction.'}:{})},false,remaining());
    previousReview=responseReview.value;
-   try{verifiedReview=verifiedReviewCatalog(previousReview,catalog);}catch(error){reviewProblems=shapeProblems(error);}
+   try{
+    const checked=verifiedReviewCatalog(previousReview,catalog);
+    reviewProblems=validateProjectReview(record,checked,options.completionPlan).problems.filter(reviewContractProblem);
+    if(!reviewProblems.length)verifiedReview=checked;
+   }catch(error){reviewProblems=shapeProblems(error);}
   }
   if(!verifiedReview)return {status:'needs-resolution' as const,record,selection,problems:reviewProblems,attempts:attempt};
   try{

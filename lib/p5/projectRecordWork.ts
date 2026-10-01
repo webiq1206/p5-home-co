@@ -15,12 +15,13 @@ import {loadProjectPageEvidence} from './projectPageEvidence.ts';
 import {readProjectConversation,activeProjectChanges} from './projectConversation.ts';
 import {PROJECT_PRICE_COMPILER_VERSION} from './projectPricing.ts';
 import {recoverProjectReply} from './projectReplyRecovery.ts';
+import {projectStageErrorCode,projectAttemptReport} from './projectDiagnostics.ts';
 import {loadLocalProjectPages} from './projectLocalPages.ts';
 
 const LATEST='project-record-latest-v1';
 export const PROJECT_WORKFLOW_CONTRACT_HASH=projectHash({version:PROJECT_RECORD_VERSION,compilerVersion:PROJECT_PRICE_COMPILER_VERSION,stages:[PROJECT_COMPLETION_INSTRUCTIONS,PROJECT_RECORD_INSTRUCTIONS,PROJECT_CATALOG_INSTRUCTIONS,PROJECT_PRICE_INSTRUCTIONS,PROJECT_REVIEW_INSTRUCTIONS].map(instructions=>({instructions,schema:projectContractSchema(instructions)}))});
 type QualificationResult=(Awaited<ReturnType<typeof interpretProjectRecord>>|Awaited<ReturnType<typeof priceProjectRecord>>)&{completionPlan?:ProjectCompletionPlan;runEvidence?:{contractHash:string;completedStages:{requestHash:string;requestedModel:string|null;returnedModel:string|null;providerRequestIds:string[]}[]}};
-type StoredWork={startedAt:string;replies:Record<string,PricingReply>;recoveredReplies?:Record<string,{workKey:string;recoveredAt:string}>;requests?:Record<string,{instructions:string;input:unknown;startedAt:string}>;record?:ProjectRecord;result?:QualificationResult};
+type StoredWork={startedAt:string;phase?:'interpret'|'price';draftRevision?:number;contractHash?:string;errors?:Record<string,{code:string;at:string}>;replies:Record<string,PricingReply>;recoveredReplies?:Record<string,{workKey:string;recoveredAt:string}>;requests?:Record<string,{instructions:string;input:unknown;startedAt:string}>;record?:ProjectRecord;result?:QualificationResult};
 /** Both a first completion and recovery of a saved completion pass through the
  * same atomic revision guard. Saving provider work is not publication. */
 export async function publishProjectQualification(id:string,expectedRevision:number,result:QualificationResult,execute:typeof query=query){
@@ -46,6 +47,12 @@ export function draftProjectScope(draft:Draft):ProjectScope{
 export async function readProjectQualification(id:string){
  const [row]=await query('SELECT payload FROM p5_estimator_work WHERE draft_id=$1 AND work_key=$2',[id,LATEST]);
  return row?.payload as {draftRevision:number;contractHash?:string;record:ProjectRecord;result?:unknown}|undefined;
+}
+/** Inspection never publishes or approves a saved candidate. Old attempts with
+ * no revision metadata remain explicitly unverified. */
+export async function readProjectAttempts(id:string){
+ const rows=await query("SELECT work_key,payload,updated_at FROM p5_estimator_work WHERE draft_id=$1 AND work_key LIKE 'project-record-work:%' ORDER BY updated_at DESC LIMIT 3",[id]);
+ return rows.map(row=>projectAttemptReport(row));
 }
 /** Authenticated staff qualification only. The public submit path is not
  * switched until real-model and estimate-content acceptance passes. No email,
@@ -73,7 +80,7 @@ export async function runProjectQualification(id:string,expectedRevision:number,
  const saved=(policy?.payload||EMPTY_CONFIGURATION) as EstimatorConfiguration;
  const configuration=phase==='price'?projectConfiguration(saved,previous!,draft.answers.finish):saved;
  const workKey='project-record-work:'+projectHash({contract:PROJECT_WORKFLOW_CONTRACT_HASH,phase,revision:expectedRevision,sourceHash:input.sourceHash,catalog:phase==='price'?configuration:null,previous:previous?.recordHash||null});
- const claim=await claimWork(id,workKey,{startedAt:new Date().toISOString(),replies:{}},210);
+ const claim=await claimWork(id,workKey,{startedAt:new Date().toISOString(),phase,draftRevision:expectedRevision,contractHash:PROJECT_WORKFLOW_CONTRACT_HASH,replies:{}},210);
  if(!claim)throw new PricingPending('This project review is already running.',3000);
  const payload=claim.payload as StoredWork;
  const persist=()=>writeWork(id,workKey,claim.token,payload);
@@ -94,7 +101,9 @@ export async function runProjectQualification(id:string,expectedRevision:number,
    const left=deadline-Date.now();if(left<15000)throw new PricingPending('The completed review stages are saved. Continue to finish the remaining stages.',2000);
    payload.requests??={};payload.requests[key]={instructions,input:context,startedAt:new Date().toISOString()};await persist();
    const checkpoint=async(reply:PricingReply)=>{payload.replies[key]=reply;await persist();};
-   return requestPricing(instructions,context,false,Math.min(left,150000),{draftId:id,customerKey:createHash('sha256').update('project-record-qualification:'+id).digest('hex'),revision:expectedRevision},undefined,checkpoint);
+   try{return await requestPricing(instructions,context,false,Math.min(left,150000),{draftId:id,customerKey:createHash('sha256').update('project-record-qualification:'+id).digest('hex'),revision:expectedRevision},undefined,checkpoint);}catch(error){
+    payload.errors??={};payload.errors[key]={code:projectStageErrorCode(error),at:new Date().toISOString()};await persist();throw error;
+   }
   };
   const options={request:staged,previous,changes,now:new Date(payload.startedAt),deadline,completionPlan:phase==='price'?previousCompletion:undefined};
   const workflowResult=phase==='interpret'?await interpretProjectRecord(scope,options):await priceProjectRecord(previous!,configuration,options);

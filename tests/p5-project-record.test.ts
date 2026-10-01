@@ -483,3 +483,41 @@ test('a no-correction finding, including the live explanatory continuation, requ
   assert.ok(blocked.problems.some(p=>p.code==='review-nonactionable-finding'));
  }
 });
+
+test('invalid review mapping is repaired against the unchanged scope, without regenerating work',async()=>{
+ let scopeCalls=0,reviewCalls=0;let firstRecord:unknown;
+ const request:PricingRequest=async(instructions,raw)=>{
+  const data=raw as {record:ReturnType<typeof record>;completionPlan:ProjectCompletionPlan;repairInstruction?:string;correctionsRequired?:{code:string}[]};
+  if(instructions===PROJECT_COMPLETION_INSTRUCTIONS)return {value:method(),sourceUrls:[]};
+  if(instructions===PROJECT_RECORD_INSTRUCTIONS){scopeCalls++;const p=example();p.requirements[0].operation='install';return {value:p,sourceUrls:[]};}
+  reviewCalls++;const value=review(data.record,data.completionPlan);
+  if(reviewCalls===1){firstRecord=structuredClone(data.record);value.completionChecks[0].requirementIds=['handle-supply'];}
+  else {assert.deepEqual(data.record,firstRecord);assert.ok(data.repairInstruction);assert.ok(data.correctionsRequired?.some((p)=>p.code==='completion-operation'));}
+  return {value,sourceUrls:[]};
+ };
+ const result=await interpretProjectRecord(scope,{request,now});
+ assert.equal(result.status,'ready');assert.equal(scopeCalls,1);assert.equal(reviewCalls,2);
+});
+test('persistent invalid review mappings block acceptance without modifying valid scope',async()=>{
+ let scopeCalls=0,reviewCalls=0;
+ const request:PricingRequest=async(instructions,raw)=>{
+  const data=raw as {record:ReturnType<typeof record>;completionPlan:ProjectCompletionPlan;repairInstruction?:string;correctionsRequired?:{code:string}[]};
+  if(instructions===PROJECT_COMPLETION_INSTRUCTIONS)return {value:method(),sourceUrls:[]};
+  if(instructions===PROJECT_RECORD_INSTRUCTIONS){scopeCalls++;const p=example();p.requirements[0].operation='install';return {value:p,sourceUrls:[]};}
+  reviewCalls++;const value=review(data.record,data.completionPlan);value.completionChecks[0].requirementIds=['handle-supply'];return {value,sourceUrls:[]};
+ };
+ const result=await interpretProjectRecord(scope,{request,now});
+ assert.equal(result.status,'needs-resolution');assert.equal(result.record,null);assert.equal(scopeCalls,1);assert.equal(reviewCalls,2);
+});
+test('a reviewer reports genuinely missing work and the next scope must actually represent it',async()=>{
+ let scopeCalls=0;
+ const request:PricingRequest=async(instructions,raw)=>{
+  const data=raw as {record:ReturnType<typeof record>;completionPlan:ProjectCompletionPlan;repairInstruction?:string;correctionsRequired?:{code:string}[]};
+  if(instructions===PROJECT_COMPLETION_INSTRUCTIONS)return {value:method(),sourceUrls:[]};
+  if(instructions===PROJECT_RECORD_INSTRUCTIONS){scopeCalls++;const p=example();if(scopeCalls===2){assert.ok(data.correctionsRequired?.some((p)=>p.code==='scope-omission'));p.requirements[0].operation='install';}return {value:p,sourceUrls:[]};}
+  const value=review(data.record,data.completionPlan);
+  if(scopeCalls===1)return {value:{...value,completionChecks:value.completionChecks.map(check=>({...check,outcome:'missing',reason:'Represent the requested installation explicitly.'}))},sourceUrls:[]};
+  return {value,sourceUrls:[]};
+ };
+ const result=await interpretProjectRecord(scope,{request,now});assert.equal(result.status,'ready');assert.equal(scopeCalls,2);assert.equal(result.record?.requirements[0].operation,'install');
+});

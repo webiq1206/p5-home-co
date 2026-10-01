@@ -2,7 +2,7 @@ import {requireEstimatorAdmin} from './adminAuth.ts';
 import {DraftError,readDraftById} from './store.ts';
 import {protectRequest,limitedBody,json,failed} from './http.ts';
 import {isPricingPending} from './pricingProgress.ts';
-import {readProjectQualification,runProjectQualification,PROJECT_WORKFLOW_CONTRACT_HASH} from './projectRecordWork.ts';
+import {readProjectAttempts,readProjectQualification,runProjectQualification,PROJECT_WORKFLOW_CONTRACT_HASH} from './projectRecordWork.ts';
 import {ESTIMATOR_BRAND} from './brand.ts';
 import {readProjectConversation,saveProjectChange} from './projectConversation.ts';
 
@@ -12,7 +12,7 @@ export async function getProjectQualification(request:Request){try{
  const id=idValue(new URL(request.url).searchParams.get('id')),draft=await readDraftById(id);
  if(!draft||draft.brand!==ESTIMATOR_BRAND.id)throw new DraftError('Project not found.',404);
  const saved=await readProjectQualification(id)||null;
- return json({qualification:true,draftRevision:draft.revision,current:Boolean(saved&&saved.draftRevision===draft.revision&&saved.contractHash===PROJECT_WORKFLOW_CONTRACT_HASH),saved,changes:await readProjectConversation(id)});
+ return json({qualification:true,draftRevision:draft.revision,current:Boolean(saved&&saved.draftRevision===draft.revision&&saved.contractHash===PROJECT_WORKFLOW_CONTRACT_HASH),saved,attempts:await readProjectAttempts(id),changes:await readProjectConversation(id)});
  }catch(error){return failed(error);}}
 export async function postProjectQualification(request:Request){try{
  protectRequest(request);await requireEstimatorAdmin();

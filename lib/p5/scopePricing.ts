@@ -449,7 +449,7 @@ export const requestPricingWith=async(provider:'anthropic'|'openai',instructions
     if(error instanceof PricingChargeUnknownError)throw error;
     if(knownRejection){await rejectPricingCharge(fingerprint,message);throw error;}
     if(reservation)await markPricingChargeUnknown(fingerprint,message);
-    throw new PricingChargeUnknownError();
+    throw new PricingChargeUnknownError(undefined,{cause:error});
   }
 };
 /** Qualification-only single paid boundary. It deliberately has no provider

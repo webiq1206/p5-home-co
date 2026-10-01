@@ -29,7 +29,7 @@ export type PricingIdentity={draftId:string;customerKey:string;revision:number};
 export class PricingBudgetError extends Error { code='pricing-budget-unavailable'; }
 export class PricingChargeUnknownError extends Error {
   code='pricing-charge-unknown';
-  constructor(message='Pricing provider acknowledgement is unknown; retry is blocked until it is reconciled.'){super(message);}
+  constructor(message='Pricing provider acknowledgement is unknown; retry is blocked until it is reconciled.',options?:ErrorOptions){super(message,options);}
 }
 export const pricingFingerprint=(provider:string,instructions:string,input:unknown,search:boolean,identity?:PricingIdentity)=>{
   return createHash('sha256').update(JSON.stringify({identity:identity||null,provider,instructions,input,search})).digest('hex');

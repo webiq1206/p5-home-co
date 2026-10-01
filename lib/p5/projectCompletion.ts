@@ -43,6 +43,7 @@ export function completionReviewProblems(record:ProjectRecord,review:ProjectRevi
   if(checks.length!==1){fail('completion-review',[step.id],'Every independently proposed method step needs exactly one explicit coverage decision.');continue;}
   const check=checks[0];
   for(const id of check.evidenceIds)if(!evidenceIds.has(id))fail('completion-evidence',[step.id,id],'The coverage decision must cite actual record evidence.');
+  if(check.outcome==='missing'){fail('scope-omission',[step.id],`Missing ${step.operation} for ${step.subject}. Required correction: ${check.reason}`);continue;}
   if(check.outcome==='not-required')continue; // Its source-supported rationale is checked by the semantic reviewer.
   for(const id of check.requirementIds)if(!requirements.has(id))fail('completion-requirement',[step.id,id],'Completion coverage references an unknown requirement.');
   for(const id of check.questionIds)if(!questions.has(id)||questions.get(id)!.priority!=='blocking')fail('completion-question',[step.id,id],'A pending method decision must link a current blocking question.');
