@@ -1,10 +1,20 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {groundSourceResponsibilities,groundCabinetExclusions} from '../lib/p5/sourceResponsibilities.ts';
+import {groundSourceResponsibilities,groundCabinetExclusions,groundConsumableExamples} from '../lib/p5/sourceResponsibilities.ts';
 import {emptyInstructions} from '../lib/p5/instructions.ts';
 import {instructionPrompts} from '../lib/p5/clarifications.ts';
 import type {ScopeExtraction} from '../lib/p5/scope.ts';
 const source='Owner-selected decorative fixtures; recessed, utility and standard exterior fixtures are carried separately. Appliance allowances are product-only and exclude shipping, sales/use tax, delivery, installation and hookups. Anticipated ancillary costs are carried separately within Division .';
+test('generic consumables never become a customer-specified shopping list',()=>{
+ const description='Contractor provides labor and consumables (nails, screws, shims, caulk).';
+ const input:ScopeExtraction={summary:description,facts:[{field:'installation',value:description,source:'typed scope',evidence:'Contractor provides labor and consumables.',confidence:1,basis:'stated'}],conflicts:[],missingInformation:[],reviewNotes:[],instructions:{...emptyInstructions(),inclusions:[description],responsibilities:[description]}};
+ const safe=groundConsumableExamples(input,'Install three owner-supplied levers. Contractor provides labor and consumables.');
+ assert.equal(safe.summary,'Contractor provides labor and consumables.');
+ assert.equal(safe.facts[0].value,safe.summary);
+ assert.deepEqual(safe.instructions?.responsibilities,[safe.summary]);
+ assert.deepEqual(groundConsumableExamples(safe,'Contractor provides labor and consumables.'),safe);
+ assert.deepEqual(groundConsumableExamples(input,description),input);
+});
 const extraction:ScopeExtraction={summary:'New house',sourceText:source,facts:[
  {field:'installation',value:'Standard installation and waterproofing for engineered wood and tile. Owner responsible for appliance and decorative lighting installation.',confidence:1,source:'scope.pdf',evidence:'Flooring installation included. Appliance allowances are product-only.',basis:'stated'},
  {field:'ownerSupplied',value:'Decorative lighting and all appliances are product-only allowances.',confidence:1,source:'scope.pdf',evidence:source,basis:'stated'},

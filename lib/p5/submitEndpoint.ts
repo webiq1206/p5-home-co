@@ -19,6 +19,7 @@ import {customerPresentation,HIDE_CUSTOMER_UNIT_RATES} from './presentation.ts';
 import {recordEvent} from './events.ts';
 import {issueRecord,buildEstimateDocument,type EstimateBrand} from './estimateDocument.ts';
 import {legalIdentityLine} from './brandIdentity.ts';
+import {restoreSavedCustomerCopy} from './savedCustomerCopy.ts';
 // Every public response uses the one customer boundary, including responses
 // rebuilt from a previously saved estimate.
 const publicResult=(estimate:unknown)=>customerPresentation(estimate,{hideUnitRates:HIDE_CUSTOMER_UNIT_RATES});
@@ -32,7 +33,8 @@ export async function postSubmission(request:Request,schedule?:(task:()=>Promise
     if(!draft)throw new DraftError("Draft not found.",404);
     requireEstimateContact(draft.contact);
     if(draft.status==="submitted"){
-      const [row]=await query("SELECT customer_estimate,submitted_at FROM p5_estimator_drafts WHERE id=$1",[id]);
+      const [row]=await query("SELECT customer_estimate,internal_estimate,submitted_at FROM p5_estimator_drafts WHERE id=$1",[id]);
+      if(row?.customer_estimate)row.customer_estimate=restoreSavedCustomerCopy(row.customer_estimate,row.internal_estimate);
       // A status check after submission drives any delivery still queued; an autoscale host has no CPU between requests.
       // Delivery is scoped to this saved revision so a status check never drives another revision's queue.
       await processOutbox({draftId:id,revision:draft.revision,limit:12}).catch(()=>undefined);

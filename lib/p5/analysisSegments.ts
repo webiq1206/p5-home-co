@@ -7,15 +7,15 @@ import type {AnalysisFile} from './extraction.ts';
 import {SCOPE_MAX_PAGES} from './scope.ts';
 
 const UNIT_BYTES=16*1024*1024;
-/** Characters of neighbouring-page text supplied as context to a page read. */
-const CONTEXT_CHARS=2500;
 /** Split a document into independent read units.
  *
  * Ordinary pages become one unit each, so a document is read in parallel and
  * progress advances page by page instead of one long call for four pages.
  * Every page unit carries the page's own text layer (extracted locally, so a
  * provider that cannot accept PDF input still reads the page) and a short
- * excerpt of the adjacent pages for continuity. Large drawings keep their
+ * source page only. Adjacent text caused duplicate takeoffs and false page
+ * citations in live estimates; continuity is reconciled after all pages read.
+ * Large drawings keep their
  * full-resolution detail path and source identity. */
 export async function* analysisSegments(file:AnalysisFile,startPage=0,render:typeof drawingDetails=drawingDetails):AsyncGenerator<AnalysisFile>{
   if(file.type==='application/pdf'){
@@ -29,12 +29,6 @@ export async function* analysisSegments(file:AnalysisFile,startPage=0,render:typ
     // absent and the page is still read from its PDF bytes.
     const layers=await pdfTextLayers(file.data,count).catch(error=>{console.error(`[p5-analysis] text layer unavailable for ${file.name}: ${error instanceof Error?error.message:String(error)}`);return [] as string[];});
     const layer=(index:number)=>(layers[index]||'').trim();
-    const context=(index:number)=>{
-      const parts:string[]=[];
-      if(index>0&&layer(index-1))parts.push(`[Preceding page ${index} excerpt] ${layer(index-1).slice(-CONTEXT_CHARS)}`);
-      if(index+1<count&&layer(index+1))parts.push(`[Following page ${index+2} excerpt] ${layer(index+1).slice(0,CONTEXT_CHARS)}`);
-      return parts.join('\n');
-    };
     // Do not re-open a complete high-resolution plan set for every sheet.
     // Render one isolated source page while retaining its original identity.
     const singlePage=async(index:number)=>{if(!document)return renderedPagePdf(file.data,index+1);const single=await PDFDocument.create();single.addPage((await single.copyPages(document,[index]))[0]);return Buffer.from(await single.save());};
@@ -46,7 +40,7 @@ export async function* analysisSegments(file:AnalysisFile,startPage=0,render:typ
       console.error(`[p5-analysis] detail rendering failed for ${file.name} page ${index+1}:`,error instanceof Error?error.stack||error.message:String(error));
       const data=await singlePage(index);
       if(data.length>UNIT_BYTES){yield {...file,data:Buffer.alloc(0),pages:[{source:file.name,page:index+1}],nextPage:index+1,preparationError:`Page ${index+1}: detail rendering failed and the page is too large to send whole. ${error instanceof Error?error.message:'Review the original drawing.'}`};return;}
-      yield {...file,name:`${file.name} (original page ${index+1} of ${count}; supplied whole because detail rendering was unavailable)`,pages:[{source:file.name,page:index+1}],data,text:layer(index)||undefined,context:context(index)||undefined,nextPage:index+1};
+      yield {...file,name:`${file.name} (original page ${index+1} of ${count}; supplied whole because detail rendering was unavailable)`,pages:[{source:file.name,page:index+1}],data,text:layer(index)||undefined,context:undefined,nextPage:index+1};
     };
     const large=(i:number)=>{const p=inspection.sizes[i];return Boolean(p)&&(p.width>1200||p.height>1200);};
     for(let index=startPage;index<count;index++){
@@ -61,7 +55,7 @@ export async function* analysisSegments(file:AnalysisFile,startPage=0,render:typ
         // enhancement never discards the complete original page.
         const prepared=await withFormControlViews(data,rendered?{data:file.data,page:index+1}:undefined).catch(error=>{console.error('[p5-analysis] form detail rendering unavailable:',error instanceof Error?error.message:String(error));return {data,formViews:undefined};});
         const views=prepared.data.length<=UNIT_BYTES?prepared:{data,formViews:undefined};
-        yield {...file,name:count===1?file.name:`${file.name} (page ${index+1} of ${count})`,pages:[{source:file.name,page:index+1}],...views,text:layer(index)||undefined,context:context(index)||undefined,nextPage:index+1};
+        yield {...file,name:count===1?file.name:`${file.name} (page ${index+1} of ${count})`,pages:[{source:file.name,page:index+1}],...views,text:layer(index)||undefined,context:undefined,nextPage:index+1};
       }
     }
   }else if(['text/plain','text/csv','application/json'].includes(file.type)){

@@ -26,6 +26,7 @@ export function projectAreaQuestionField(text:string,answers:ScopeAnswers):Scope
 /** Bind ordinary project questions to their actual saved answer. Component
  * quantities remain distinct; this is not fuzzy text deduplication. */
 export function projectQuestionField(text:string,answers:ScopeAnswers):ScopeField|undefined{
+ if(/\b(?:concrete|driveway|slab|patio)\b/i.test(text)&&/\b(?:broom|smooth|stamped|exposed aggregate|trowel)\b/i.test(text))return 'materials';
  if(/\b(?:shower|wall)\b/i.test(text)&&!/\bfloor\b/i.test(text)&&/\btile\b/i.test(text)&&/\b(?:area|square feet|square footage|SF)\b/i.test(text))return 'wallTileSqft';
  if(/\bfloor(?:ing)?\b/i.test(text)&&/\b(?:area|square feet|square footage|SF)\b/i.test(text))return 'flooringSqft';
  if(/\b(?:shower|backsplash)\b/i.test(text)&&/\b(?:area|square feet|square footage|SF)\b/i.test(text))return 'tileSqft';

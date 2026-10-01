@@ -44,16 +44,15 @@ test('late PDF retries retain images and original page identities, including sca
  await assert.rejects(analysisAttemptFiles({...file,data:Buffer.from('broken PDF')},3));
 });
 
-test('a text PDF is split into one unit per page, each carrying its own text layer and adjacent-page context',async()=>{
+test('a text PDF is split into isolated pages without neighboring takeoff text',async()=>{
  const units=[];for await(const unit of analysisSegments({name:'budget.pdf',type:'application/pdf',data:await budgetPdf()}))units.push(unit);
  assert.equal(units.length,3);
  assert.deepEqual(units.map(u=>u.pages?.[0].page),[1,2,3]);
  assert.match(units[0].text||'',/Structural Framing/);
  assert.match(units[0].text||'',/PRELIMINARY CONSTRUCTION BUDGET/);
  assert.match(units[1].text||'',/Roofing and Gutters/);
- assert.match(units[1].context||'',/Following page 3 excerpt/);
- assert.match(units[1].context||'',/Preceding page 1 excerpt/);
- assert.ok(!units[0].context?.includes('Preceding'));
+ assert.ok(units.every(unit=>unit.context===undefined));
+ assert.ok(!units[1].text?.includes('Cabinetry is paint-grade Shaker'));
  for(const unit of units)assert.equal((await PDFDocument.load(unit.data)).getPageCount(),1);
  const layered=await visualFallbackFiles(units);
  assert.equal(layered[2].type,'image/png');assert.match(layered[2].text||'',/Cabinetry is paint-grade Shaker/);assert.deepEqual(layered.map(f=>f.pages),units.map(f=>f.pages));

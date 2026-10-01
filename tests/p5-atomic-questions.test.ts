@@ -1,8 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {instructionPrompts} from '../lib/p5/clarifications.ts';
-import {atomicInstructionQuestions,textBenchTopChoices} from '../lib/p5/atomicQuestions.ts';
+import {atomicInstructionQuestions,textBenchTopChoices,projectQuestionField} from '../lib/p5/atomicQuestions.ts';
 import type {ScopeExtraction} from '../lib/p5/scope.ts';
+test('concrete finish choices belong to materials, not budget tiers',()=>{
+ assert.equal(projectQuestionField('What concrete finish is requested: broom, smooth or stamped?',{service:'remodel'}),'materials');
+ assert.equal(projectQuestionField('What finish level should we budget for?',{service:'addition'}),'finish');
+});
 const scope:ScopeExtraction={summary:'Choose one bench top: butcher block 5 hours, painted MDF/wood 4 hours, laminate 2 hours, quartz 5 hours.',facts:[],conflicts:[],reviewNotes:[],missingInformation:[],instructions:{inclusions:[],exclusions:[],responsibilities:[],buildings:[],floors:[],separateBuildings:false,laborOnly:false,materialsOnly:false,questions:['Confirm cabinet base linear footage, room(s), and chosen bench top option.']}};
 test('a document cannot ask again for the confirmed total project area',()=>{
  const question='What is the total square footage of the new addition?';

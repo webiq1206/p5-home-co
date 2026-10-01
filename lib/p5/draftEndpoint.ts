@@ -11,6 +11,7 @@ import {draftEvents,recordEvent} from './events.ts';
 import {query} from './database.ts';
 import {listVersions} from './estimateRevisions.ts';
 import {customerPresentation,HIDE_CUSTOMER_UNIT_RATES} from './presentation.ts';
+import {restoreSavedCustomerCopy} from './savedCustomerCopy.ts';
 
 function stable(value:unknown):string{return JSON.stringify(value,(key,item)=>item&&typeof item==="object"&&!Array.isArray(item)?Object.fromEntries(Object.entries(item).sort(([a],[b])=>a.localeCompare(b))):item);}
 function withoutInstructions(answers:ScopeAnswers){const copy={...answers};delete copy.estimatingInstructions;return copy;}
@@ -55,7 +56,8 @@ export async function getDraft(request:Request){try{protectRequest(request);cons
   // The draft owner may read its own processing events (sanitized, no document
   // contents) so a failed read can be explained and verified from the browser.
   const withEvents=new URL(request.url).searchParams.get('events')==='1'&&draft;
-  const [stored]=draft?.status==='submitted'?await query('SELECT customer_estimate FROM p5_estimator_drafts WHERE id=$1',[id]):[];
+  const [stored]=draft?.status==='submitted'?await query('SELECT customer_estimate,internal_estimate FROM p5_estimator_drafts WHERE id=$1',[id]):[];
+  if(stored?.customer_estimate)stored.customer_estimate=restoreSavedCustomerCopy(stored.customer_estimate,stored.internal_estimate);
   // A submission still being prepared for THIS revision: a returning visitor (same browser or an emailed
   // link) sees its live progress instead of a form asking them to submit again.
   const [requested]=draft&&draft.status!=='submitted'?await query("SELECT payload FROM p5_estimator_work WHERE draft_id=$1 AND work_key='submit-request-v1'",[id]):[];

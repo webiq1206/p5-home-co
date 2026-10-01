@@ -112,7 +112,7 @@ test('a separately priced vanity top cannot overlap its cabinet package and fauc
  assert.deepEqual(laborOnly.additions,[]);
  assert.match(laborOnly.researchDescription,/Faucet installation labor only/);
 });
-test('the 60-inch double vanity prices one cabinet, separate quartz, two sinks and faucets with a cited nail allowance',async()=>{
+for(const retryTimeout of [false,true])test(`the double vanity retains a cited nail allowance when comparison ${retryTimeout?'times out':'lacks independence'}`,async()=>{
  const vanityScope:ReviewedScope={...scope,text:'Supply and install one 60-inch double-sink vanity cabinet, separate 8.33 SF quartz top, two sinks and two faucets. Contractor supplies installation nails.',answers:{service:'bathroom',location:'Boise'}};
  const fixtureRates=[
   {code:'PB-12-41-03',description:'Double vanity cabinet-only 60-72 in, installed, excludes top and sinks',type:'Subcontractor',unit:'LF',amount:350},
@@ -142,13 +142,13 @@ test('the 60-inch double vanity prices one cabinet, separate quartz, two sinks a
  let searches=0;
  const priced=await priceCompleteScope(vanityScope,vanityConfig,async(_instructions,input,search)=>{
   const data=input as Record<string,unknown>;
-  if(search){searches++;return {value:cited,sourceReport:report,sourceUrls:cited.rates[0].sources.map(s=>s.url)};}
+  if(search){searches++;if(retryTimeout&&searches>1)throw new PricingStageTimeout('pricing-stage-exhausted');return {value:cited,sourceReport:report,sourceUrls:cited.rates[0].sources.map(s=>s.url)};}
   if(data.correctionInstruction)return {value:cited,sourceUrls:[]};
   if(data.taskBatch)return {value:{tasks:mapped.filter(t=>(data.taskBatch as {id:string}[]).some(i=>i.id===t.id)),issues:[],notes:[],replacements:[],removeExclusions:[]},sourceUrls:[]};
   if(data.priorPricingIssues)return {value:{coveredTaskIds:mapped.map(t=>t.id),issues:[],notes:[],resolvedIssues:[]},sourceUrls:[]};
   return {value:{tasks:mapped.map(({id,description,evidence})=>({id,description,evidence})),issues:[],notes:[],dependencies:[]},sourceUrls:[]};
  },now);
- assert.equal(searches,3,'independent evidence is sought before using the provisional fallback');
+ assert.equal(searches,retryTimeout?2:3,'independent evidence is sought before using the provisional fallback');
  assert.ok(priced.customer.range,'supported preliminary allowance must not end in a manual handoff: '+JSON.stringify({issues:(priced.internal as any).scopePricing?.issues,verificationItems:priced.customer.verificationItems}));
  const rules=(priced.internal as any).costBookSnapshot.rules.filter((r:any)=>mapped.some(t=>t.id===r.scopeTaskId));
  assert.deepEqual(rules.filter((r:any)=>r.scopeTaskId==='vanity').map((r:any)=>r.quantity.fixed),[5]);

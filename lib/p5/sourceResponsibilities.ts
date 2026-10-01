@@ -6,6 +6,19 @@ const items=[{label:'appliances',pattern:/\bappliances?\b/i},{label:'decorative 
 const owner=/\b(?:owner|homeowner|client|customer)\b/i;
 const installation=/\b(?:install\w*|hookups?)\b/i;
 const clauses=(text:string)=>text.split(/(?<=[.;!?])\s+|\n+/).map(clause=>clause.trim()).filter(Boolean);
+/** Generic consumables specify responsibility, not a shopping list. Pricing
+ * identifies necessary supplies separately, with an explicit basis. */
+export function groundConsumableExamples(extraction:ScopeExtraction,source:string):ScopeExtraction{
+ if(!/\bconsumables?\b/i.test(source))return extraction;
+ const words=(value:string)=>value.toLowerCase().match(/[a-z]+/g)||[];
+ const sourceWords=new Set(words(source));
+ const clean=(value:string)=>value.replace(/\b(consumables?)\s*\(([^)]+)\)/gi,(whole,label,detail)=>{
+  const substantive=words(detail).filter(word=>!['and','or','e','g','such','as','including','installation','minor','normal','incidental','required','any'].includes(word));
+  return substantive.length&&substantive.every(word=>sourceWords.has(word))?whole:label;
+ });
+ const instructions=extraction.instructions;
+ return {...extraction,summary:clean(extraction.summary),facts:extraction.facts.map(fact=>({...fact,value:clean(fact.value)})),...(instructions?{instructions:{...instructions,inclusions:instructions.inclusions.map(clean),responsibilities:instructions.responsibilities.map(clean)}}:{})};
+}
 const cabinetFamilies=[
  {name:/^(?:base|lower) cabinets?\.?$/i,subject:/\b(?:base|lower) cabinets?\b/i},
  {name:/^(?:upper|wall) cabinets?\.?$/i,subject:/\b(?:upper|wall) cabinets?\b/i},
@@ -38,6 +51,7 @@ export function groundSourceResponsibilities(extraction:ScopeExtraction,nativeTe
  // An exclusion does not assign procurement or work to the owner. Apply this
  // narrow guard to typed scopes too, when no source names an owner role.
  const source=[nativeText,typedText,previous.estimatingInstructions,previous.installation].filter(Boolean).join('\n');
+ extraction=groundConsumableExamples(extraction,source+'\n'+(previous.ownerSupplied||''));
  if(ownerSuppliesAllPartsText(source+'\n'+(previous.ownerSupplied||''))){
   const grounded=(value:string)=>clauses(value).flatMap(clause=>{
    if(!/\bcontractor\b/i.test(clause)||!/\b(?:consumables|screws|installation supplies)\b/i.test(clause))return [clause];

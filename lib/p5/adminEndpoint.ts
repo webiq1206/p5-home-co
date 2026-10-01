@@ -1,4 +1,5 @@
 import {createHash,timingSafeEqual} from "node:crypto";
+import {restoreSavedCustomerCopy} from './savedCustomerCopy.ts';
 import {readStoredBytes} from "./objectStorage.ts";
 import {requireEstimatorAdmin} from "./adminAuth.ts";
 import {query} from "./database.ts";
@@ -23,6 +24,7 @@ export async function getAdminEstimates(request:Request){try{
     if(!current)throw new DraftError("Estimate not found.",404);
     let row=current;let historical=false;
     if(requestedRevision!==null&&Number(current.revision)!==requestedRevision){const [saved]=await query("SELECT revision,record,created_at FROM p5_estimator_history WHERE draft_id=$1 AND revision=$2",[id,requestedRevision]);if(!saved)throw new DraftError("Saved estimate revision not found.",404);row={id:current.id,brand:current.brand,revision:Number(saved.revision),status:"historical",payload:saved.record.payload,internal_estimate:saved.record.internal,customer_estimate:saved.record.customer,updated_at:saved.created_at};historical=true;}
+    if(row.customer_estimate)row.customer_estimate=restoreSavedCustomerCopy(row.customer_estimate,row.internal_estimate);
     if(url.searchParams.get("analysisReuse")==="true"){
       // Read-only diagnostic: would the saved completed analysis be reused for this draft as it stands?
       const draft=row.payload||{};

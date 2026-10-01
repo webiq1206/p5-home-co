@@ -13,6 +13,17 @@ const base=(over:Partial<ScopeExtraction>={}):ScopeExtraction=>({
   takeoffs:[takeoff('Rebar for driveway slab','rebar',1580,'LF'),takeoff('Concrete placement/finishing labor','concrete',24,'HRS')],
   ...over,
 });
+test('completed page reads retire reader workflow questions and stale page-local reasons',()=>{
+ const extraction=base({clarifications:[
+  {field:'service',question:'Should we extract and re-estimate the project from all 6 pages?',reason:'Page 3 is one segment.'},
+  {field:'bathrooms',question:'How many bathrooms are included?',reason:'Fixture details are not yet visible on page 1.'},
+ ]});
+ const result=combineScopeExtractions([extraction]);
+ assert.equal(result.clarifications?.some(q=>q.field==='service'),false);
+ assert.equal(result.clarifications?.find(q=>q.field==='bathrooms')?.reason,'');
+ const incomplete=combineScopeExtractions([{...extraction,documentCoverage:{expectedPages:3,complete:false,pages:[page('d.pdf',1)]}}]);
+ assert.equal(incomplete.clarifications?.length,2);
+});
 
 test('a quantified takeoff retires the question its own document answered',()=>{
   const kept=reconcileMissingInformation(base({missingInformation:['Reinforcement (rebar/mesh) not specified']}));

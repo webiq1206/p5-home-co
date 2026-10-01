@@ -24,6 +24,9 @@ const REVISION_NOTE=/\brequested change for revision \d+\s*:?/gi;
 const withoutRevisionNotes=(text:string|null|undefined)=>String(text||'').replace(REVISION_NOTE,' ');
 /** True unless the service is one that needs a signal and the text carries none. */
 export function serviceEvidenceSupports(service:string|null|undefined,text:string|null|undefined):boolean{
+  // Constructing a driveway or fence is not constructing a new home. This
+  // guard affects acceptance only, not signalledService's repair-policy routing.
+  if(service==='new-construction')return /\b(?:new|build|construct\w*|ground[- ]up)\b[^.;\n]{0,90}\b(?:home|house|residence|dwelling|building)\b|\b(?:home|house|residen\w*|dwelling|building)\b[^.;\n]{0,60}\b(?:new construction|new build|construction)\b/i.test(String(text||''));
   const signal=SERVICE_SIGNALS[String(service||'')];
   return !signal||signal.test(withoutRevisionNotes(text));
 }

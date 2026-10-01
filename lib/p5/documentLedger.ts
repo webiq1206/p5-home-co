@@ -193,7 +193,15 @@ export function combineCoverage(parts:DocumentCoverage[],expected?:{source:strin
     if(!rows.length)return {...p,sheet:'',revision:'',status:'unreadable' as const,notes:['This page was not processed. Review or retry it before relying on the takeoff.']};
     return {...rows[0],status:mergedPageStatus(rows),coverageState:mergedCoverageState(rows),notes:[...new Set(rows.flatMap(r=>r.notes))]};
   });
-  return {pages,expectedPages:wanted.length,complete:pages.every(pageCovered)};
+  // Partial receipts can name fewer pages than their declared document size.
+  // Combining them must not redefine that smaller set as the whole upload.
+  const sourceCounts=new Map<string,number>();
+  if(!expected)for(const part of parts){
+    const sources=[...new Set(part.pages.map(page=>page.source))];
+    if(sources.length===1)sourceCounts.set(sources[0],Math.max(sourceCounts.get(sources[0])||0,part.expectedPages));
+  }
+  const expectedPages=expected?wanted.length:Math.max(wanted.length,...parts.map(part=>part.expectedPages),[...sourceCounts.values()].reduce((a,b)=>a+b,0));
+  return {pages,expectedPages,complete:pages.length===expectedPages&&pages.every(pageCovered)};
 }
 
 /** Typed, complete coverage can retire its own contradictory prose note, but

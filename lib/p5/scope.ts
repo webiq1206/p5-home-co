@@ -114,6 +114,38 @@ function distinctAreaParts(group: ExtractedFact[]): boolean {
   }
   return true;
 }
+/** A cited arithmetic total already includes its explicitly named components.
+ * Keep component detail in the takeoff ledger without presenting it as a
+ * competing project-wide quantity. Never infer totals from insulation/roofing. */
+function reconcileAreaTotals(facts:ExtractedFact[]):ExtractedFact[]{
+ let retained=[...facts];
+ const document=(source:string)=>source.replace(/,?\s*page\s+\d+.*$/i,'').trim();
+ for(const field of AREA_PART_FIELDS){
+  const group=retained.filter(f=>f.field===field&&f.confidence>=.85&&f.basis!=='inferred'&&f.basis!=='visual');
+  for(const total of group.filter(f=>f.basis==='calculated'&&/\+/.test(f.evidence)&&/\btotal\b|=/.test(f.evidence)&&!/[\$]/.test(f.evidence))){
+   const terms=[...total.evidence.matchAll(/\b(\d+(?:\.\d+)?)\s*(?:SF|LF|square feet|linear feet)\b/gi)].map(m=>Number(m[1]));
+   const amount=Number(total.value.replaceAll(',',''));
+   // Exclude the written result, when repeated with units after '='.
+   if(terms.at(-1)===amount)terms.pop();
+   if(terms.length<2||Math.abs(terms.reduce((a,b)=>a+b,0)-amount)>.01)continue;
+   retained=retained.filter(f=>{
+    if(f===total||f.field!==field||document(f.source)!==document(total.source)||!terms.includes(Number(f.value.replaceAll(',',''))))return true;
+    const subjects=(f.evidence.toLowerCase().match(/\b(?:carpet|lvp|tile|baseboard|casing|crown|backsplash|countertop)\b/g)||[]);
+    return !subjects.length||!subjects.some(subject=>new RegExp('\\b'+subject+'\\b','i').test(total.evidence));
+   });
+  }
+ }
+ const trim=retained.filter(f=>f.field==='trimLf'&&f.confidence>=.85&&f.basis!=='inferred'&&f.basis!=='visual');
+ const exterior=trim.filter(f=>/\bexterior\b/i.test(f.evidence)&&!/\b(?:interior|baseboard|casing)\b/i.test(f.evidence));
+ const interior=trim.filter(f=>/\b(?:interior|baseboard|casing)\b/i.test(f.evidence)&&!/\bexterior\b/i.test(f.evidence));
+ if(exterior.length&&interior.length&&exterior.length+interior.length===trim.length
+   &&new Set(exterior.map(f=>f.value)).size===1&&new Set(interior.map(f=>f.value)).size===1
+   &&new Set(trim.map(f=>document(f.source))).size===1){
+  const a=Number(exterior[0].value.replaceAll(',','')),b=Number(interior[0].value.replaceAll(',',''));
+  if(Number.isFinite(a+b))retained=[...retained.filter(f=>!trim.includes(f)),{field:'trimLf',value:String(a+b),confidence:Math.min(...trim.map(f=>f.confidence)),source:document(trim[0].source),basis:'calculated',evidence:`Exterior trim ${a} LF + interior trim ${b} LF = ${a+b} LF. Separate trade quantities retained in the source takeoffs.`}];
+ }
+ return retained;
+}
 /** Reply fields a reader sometimes returns as a JSON string instead of the structure itself. Live
  * Construction plan set (2026-09-25): two drawing pages came back with facts as a 1,900-character
  * string of JSON, were rejected as "Invalid scope analysis", and the whole 23-page read was held. */
@@ -483,6 +515,10 @@ export function combineScopeExtractions(parts:ScopeExtraction[]):ScopeExtraction
     } as RetainedClarificationProvenance;
   }
   if(clarificationProvenance)merged.clarificationProvenance=clarificationProvenance;
+  const beforeAreaFacts=merged.facts;
+  merged.facts=reconcileAreaTotals(merged.facts);
+  const resolvedAreas=AREA_PART_FIELDS.filter(field=>new Set(beforeAreaFacts.filter(f=>f.field===field&&f.confidence>=.4).map(f=>f.value)).size>1&&new Set(merged.facts.filter(f=>f.field===field&&f.confidence>=.4).map(f=>f.value)).size===1);
+  merged.conflicts=merged.conflicts.filter(conflict=>!resolvedAreas.includes(conflict.field)||!['Different document pages state different values. Confirm the intended project information.','The supplied information contains different values. Please confirm the intended scope.'].includes(conflict.explanation));
   for(const field of Object.keys(SCOPE_FIELDS) as ScopeField[]){
     const values=[...new Set(merged.facts.filter(f=>f.field===field&&f.confidence>=.4).map(f=>f.value.trim()))];
     if(values.length>1&&SCOPE_FIELDS[field].kind!=="text"&&!merged.conflicts.some(c=>c.field===field))merged.conflicts.push({field,values,explanation:"Different document pages state different values. Confirm the intended project information."});
@@ -490,6 +526,12 @@ export function combineScopeExtractions(parts:ScopeExtraction[]):ScopeExtraction
   // Missing questions from one page may be answered on another.
   merged.reviewNotes=reconcileReviewNotes(merged);
   merged.missingInformation=reconcileMissingInformation(merged);
+  if(merged.documentCoverage?.complete&&merged.documentCoverage.pages.every(page=>page.status==='read')){
+    // Asking whether the reader should process its other segments is an
+    // internal workflow question. All uploaded pages have already been read.
+    merged.clarifications=merged.clarifications.filter(q=>!(q.field==='service'&&/\b(?:pages?|segments?)\b/i.test(q.question)&&/\b(?:extract|re-estimate|read)\b/i.test(q.question)));
+    merged.clarifications=merged.clarifications.map(q=>({...q,reason:q.reason.split(/(?<=[.!?])\s+/).filter(sentence=>!PAGE_LOCAL.test(sentence)).join(' ')}));
+  }
   return preserveIndependentQuestions(merged);
 }
 /** blockingReviewNote lives in documentLedger.ts so page coverage and pricing share one rule. */
@@ -499,7 +541,7 @@ export {blockingReviewNote};
 const GENERIC_SUBJECT=new Set(['work','works','item','items','material','materials','labor','labour','hours','install','installation','installed','finish','finishes','finishing','spec','specs','specification','specifications','detail','details','scope','project','area','size','sizes','type','types','system','systems','concrete','wood','metal','paint','trim','unit','units','total','totals','quantity','quantities','dimension','dimensions','not','and','the','for','with','only','shown','stated','specified','provided','required','page','pages','per','this','that','from','all','new','existing']);
 /** A note referring to the reader's own page or excerpt, meaningless once every
  * page of the document has been read. */
-const PAGE_LOCAL=/\b(?:on|in|to|for)\s+this\s+(?:page|segment|section|sheet|excerpt|crop|view|group)\b|\bnot\s+(?:included|shown|present|visible|legible)\s+(?:in|on)\s+this\b|\bthis\s+(?:page|segment|section|excerpt)\s+(?:does\s+not|only)\b|\bpage\s+\d+[^.;]*\b(?:not\s+included|may\s+continue|continues?\s+(?:on|elsewhere))\b|\b(?:on|to)\s+(?:a\s+|the\s+)?(?:later|next|following|subsequent|other)\s+pages?\b|\b(?:may|might|could)\s+continue\b/i;
+const PAGE_LOCAL=/\b(?:on|in|to|for)\s+this\s+(?:page|segment|section|sheet|excerpt|crop|view|group)\b|\bnot\s+(?:yet\s+)?(?:included|shown|present|visible|legible)\s+(?:in|on)\s+(?:this\b|page\s+\d+\b)|\bthis\s+(?:page|segment|section|excerpt)\s+(?:does\s+not|only)\b|\bpage\s+\d+[^.;]*\b(?:not\s+included|may\s+continue|continues?\s+(?:on|elsewhere))\b|\b(?:on|to)\s+(?:a\s+|the\s+)?(?:later|next|following|subsequent|other)\s+pages?\b|\b(?:may|might|could)\s+continue\b/i;
 /** A note about money in the source document. The estimator never prices from a
  * number printed on an upload, so a missing or redacted price is not missing
  * project information. */

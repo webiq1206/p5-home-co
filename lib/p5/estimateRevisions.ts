@@ -1,6 +1,7 @@
 import {query} from './database.ts';
 import {DraftError} from './store.ts';
 import {scopeForRevision,replacesEntireScope} from './scopeReplacement.ts';
+import {restoreSavedCustomerCopy} from './savedCustomerCopy.ts';
 /**
  * Saved estimates and revisions (owner request 2026-09-22): a customer returns to a saved estimate and
  * asks for a change in plain words ("Remove painting", "Use upgraded cabinets", "Update this using the
@@ -58,6 +59,7 @@ export async function listVersions(id:string):Promise<VersionSummary[]>{
 }
 export async function archivedVersion(id:string,revision:number){
   const [row]=await query("SELECT payload FROM p5_estimator_work WHERE draft_id=$1 AND work_key=$2",[id,VERSION_KEY(revision)]);
+  if(row?.payload?.customer)row.payload={...row.payload,customer:restoreSavedCustomerCopy(row.payload.customer,row.payload.internal)};
   return row?.payload as {revision:number;submittedAt:string|null;customer:any;change:string}|undefined;
 }
 /** What changed from the prior version, in the customer's terms: the request, the total, work added or removed. */

@@ -2190,8 +2190,6 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
         researchTimedOut=isPricingStageTimeout(error);
         researchFailure=error instanceof Error?error.message:'Research evidence remains incomplete';
       }
-      if(researchTimedOut&&['pricing-stage-exhausted','pricing-search-unavailable'].includes(researchFailure))throw new PricingPending('Your project is saved. Pricing research could not produce supported sources after its bounded recovery attempts. Your completed work is saved for review.',0,true);
-      if(researchTimedOut||pastWindow)throw new PricingPending('Research is temporarily unavailable. Your project and completed pricing steps are saved.',30000);
       // A single cited, locally applicable product price can support a clearly
       // disclosed preliminary budget, not an independently verified market
       // average. A valid per-unit material allowance may be reused with its single-source disclosure for at most 30 days. No report, missing
@@ -2206,6 +2204,11 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
         replies.push({value:accepted,sourceUrls:usedUrls,sourceReport:candidate.report});
         return {replies,resolution:provisional,modelIssues:[]};
       }catch(error){if(!(error instanceof MissingResearchRateError)&&!(error instanceof ResearchEvidenceError))throw error;}
+      // A comparison search timing out does not invalidate a previously
+      // verified single-source material allowance. Check saved candidates
+      // before pausing; every existing product and quantity guard still applies.
+      if(researchTimedOut&&['pricing-stage-exhausted','pricing-search-unavailable'].includes(researchFailure))throw new PricingPending('Your project is saved. Pricing research could not produce supported sources after its bounded recovery attempts. Your completed work is saved for review.',0,true);
+      if(researchTimedOut||pastWindow)throw new PricingPending('Research is temporarily unavailable. Your project and completed pricing steps are saved.',30000);
       console.error('[p5-pricing] researched evidence exhausted:',researchFailure.slice(0,1500));
       // All three distinct requests are saved. Replaying these same rejected
       // replies cannot improve the result; stop the job instead of showing

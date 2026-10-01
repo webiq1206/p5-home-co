@@ -5,6 +5,11 @@ import {reconcileScope,scopeQuestions} from '../lib/p5/adaptive.ts';
 import type {ScopeExtraction} from '../lib/p5/scope.ts';
 
 const flooring='Supply and install about 200 square feet of luxury vinyl plank flooring in one bedroom in Boise. Remove the existing carpet and pad and haul it away.';
+test('component construction does not imply a new home',()=>{
+ assert.equal(serviceEvidenceSupports('new-construction','New concrete driveway construction, 20 x 60 feet'),false);
+ assert.equal(serviceEvidenceSupports('new-construction','Build a new 2400 SF home'),true);
+ assert.equal(serviceEvidenceSupports('new-construction','New residential construction'),true);
+});
 test('an RE-10, rush or change-order type needs the customer to have said so',()=>{
   assert.equal(serviceEvidenceSupports('re10',flooring),false);
   assert.equal(serviceEvidenceSupports('re10','Repairs from the buyer inspection report, RE-10 items 1 to 8.'),true);

@@ -1,5 +1,6 @@
 import {estimateEmail} from './estimateEmail.ts';
 import {estimateReference} from './estimateDocument.ts';
+import {restoreSavedCustomerCopy} from './savedCustomerCopy.ts';
 import { randomUUID,createHash } from "node:crypto";
 import { query } from "./database.ts";
 import { ensureSchema } from "./store.ts";
@@ -43,6 +44,7 @@ export async function processOutbox(options:{draftId?:string;revision?:number;li
   const results:Record<string,string>[]=[];
   for(const row of rows){
     const record=row.payload;const destination=String(row.destination);
+    if(record.customer)record.customer=restoreSavedCustomerCopy(record.customer,record.internal);
     const key=`p5-${row.draft_id}-${row.revision}-${createHash("sha256").update(destination).digest("hex").slice(0,20)}`;
     try{
       let providerId:string;
