@@ -1,3 +1,4 @@
+import {pricingBasisNotes} from './pricingBasis.ts';
 import {SCOPE_FIELDS} from './scope.ts';
 import {splitWhere} from './estimateDocument.ts';
 import {suggestedTrade} from './trades.ts';
@@ -143,7 +144,8 @@ export function estimateSections(result:any,hideUnitRates=HIDE_CUSTOMER_UNIT_RAT
  const severalBuildings=Boolean(instructions?.separateBuildings)||(instructions?.buildings?.length||0)>1||buildings.length>1&&buildings.some(b=>!oneHouseLabel(b));
  if(buildings.length>1&&severalBuildings)sections.push({title:SECTION_TITLES.buildingPrices,kind:'included',rows:buildings.map(b=>[b,`${money(lines.filter(l=>l.building===b).reduce((n,l)=>n+l.low,0))} to ${money(lines.filter(l=>l.building===b).reduce((n,l)=>n+l.high,0))}`]),text:'Building totals are included in, not added to, the overall estimate.'});
  const estimated=lines.filter(l=>l.pricingStatus==='estimated-allowance');
- if(lines.some(l=>l.pricingStatus==='owner-planning-rate'))sections.push({title:SECTION_TITLES.pricingBasis,kind:'assumption',text:'Owner planning rates provide the foundation for this preliminary range. They are not current supplier quotes; verify local availability, selections and trade pricing before a firm proposal.'});
+ const basis=pricingBasisNotes({lineItems:lines});
+ if(basis.length)sections.push({title:SECTION_TITLES.pricingBasis,kind:'assumption',text:basis.join(' ')});
  if(estimated.length){
   const notes=[...new Set<string>(estimated.map(l=>l.verification).filter(Boolean))];
   sections.push({title:SECTION_TITLES.allowances,kind:'allowance',text:`These amounts are included in the range as preliminary allowances. ${notes.length===1?notes[0]:'Confirm quantities, selections and current supplier and trade pricing before a firm proposal.'}`,rows:estimated.map(l=>[lineLabel(l.description,[namedBuilding(l.building),namedFloor(l.floor)]),`${money(l.low)} to ${money(l.high)}${l.rateLocation?` · cost location: ${l.rateLocation}`:''}${l.rateDate?` · researched ${String(l.rateDate).slice(0,10)}`:''}`])});

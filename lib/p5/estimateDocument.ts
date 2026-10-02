@@ -1,3 +1,4 @@
+import {pricingBasisNotes} from './pricingBasis.ts';
 import {customerPresentation} from './customerProjection.ts';
 /**
  * The approved preliminary online estimate (owner template, 2026-09-21), as data.
@@ -205,7 +206,8 @@ export function buildEstimateDocument(input:{id:string;result:unknown;brand:Esti
   const assumptions=((result.assumptions||[]) as string[]).map(v=>clean(v,Infinity)).filter(v=>v&&!/^to confirm:.*not priced in this estimate/i.test(v)&&!confirmationKeys.has(noteKey(v)));
   const sources=(issue.sources||[]).map(s=>clean(s,120)).filter(Boolean);
   const assumptionRows:[string,string[]][]=([
-    ['Pricing basis',[`Your online submission${sources.length?` and ${sources.length===1?'the document':'the documents'} you uploaded: ${sources.join('; ')}`:''}.`]],
+    ['Pricing basis',pricingBasisNotes(result)],
+    ['Scope source',[`Your online submission${sources.length?` and ${sources.length===1?'the document':'the documents'} you uploaded: ${sources.join('; ')}`:''}.`]],
     ['Responsibilities',responsibilities],
     ['Assumptions',[...new Set(assumptions)]],
     ['Changes in this version',((result.revisionSummary||[]) as string[]).map(v=>clean(v,Infinity)).filter(Boolean)],

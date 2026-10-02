@@ -1,4 +1,5 @@
 import {estimateEmail} from './estimateEmail.ts';
+import {suppressSyntheticEstimateNotifications} from './estimatorNotifications.ts';
 import {estimateReference} from './estimateDocument.ts';
 import {restoreSavedCustomerCopy} from './savedCustomerCopy.ts';
 import { randomUUID,createHash } from "node:crypto";
@@ -15,8 +16,9 @@ export function deliveryRetryDecision(destination:string,emailIdempotent:boolean
  * P5_CRM_DELIVERY=on turns it back on; no CRM job is queued or sent otherwise. */
 export const CRM_DELIVERY_ENABLED=process.env.P5_CRM_DELIVERY==='on';
 export async function enqueueSubmission(id:string,revision:number,record:any){
-  const recipients=await adminRecipients();if(!recipients.length)throw new Error("No estimate administrator is configured");
-  const jobs=[...recipients.map(email=>({id:randomUUID(),destination:`admin:${email}`,payload:record})),
+  const suppressed=suppressSyntheticEstimateNotifications(record);
+  const recipients=suppressed?[]:await adminRecipients();if(!suppressed&&!recipients.length)throw new Error("No estimate administrator is configured");
+  const jobs=suppressed?[{id:randomUUID(),destination:'suppressed:synthetic-qa',payload:record,status:'suppressed'}]:[...recipients.map(email=>({id:randomUUID(),destination:`admin:${email}`,payload:record})),
     // A customer who waited on screen without an email address gets no customer email; one who asked to be
     // emailed is recorded on the submission request (submitEndpoint) and arrives here as the contact email.
     ...(/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(record.contact?.email||'').trim())?[{id:randomUUID(),destination:`customer:${String(record.contact.email).trim()}`,payload:record}]:[]),
@@ -25,8 +27,8 @@ export async function enqueueSubmission(id:string,revision:number,record:any){
     UPDATE p5_estimator_drafts SET status='submitted',submitted_at=now(),internal_estimate=$1::jsonb,customer_estimate=$2::jsonb
     WHERE id=$3 AND revision=$4 AND status='draft' RETURNING id
   ), queued AS (
-    INSERT INTO p5_estimator_outbox(id,draft_id,revision,destination,payload)
-    SELECT j.id::uuid,a.id,$4,j.destination,j.payload FROM accepted a CROSS JOIN jsonb_to_recordset($5::jsonb) AS j(id text,destination text,payload jsonb)
+    INSERT INTO p5_estimator_outbox(id,draft_id,revision,destination,payload,status)
+    SELECT j.id::uuid,a.id,$4,j.destination,j.payload,coalesce(j.status,'pending') FROM accepted a CROSS JOIN jsonb_to_recordset($5::jsonb) AS j(id text,destination text,payload jsonb,status text)
     ON CONFLICT(draft_id,revision,destination) DO NOTHING RETURNING id
   ) SELECT id FROM accepted`,[JSON.stringify(record.internal),JSON.stringify(record.customer),id,revision,JSON.stringify(jobs)]);
   return rows.length>0;
@@ -46,7 +48,20 @@ export async function processOutbox(options:{draftId?:string;revision?:number;li
     const record=row.payload;const destination=String(row.destination);
     if(record.customer)record.customer=restoreSavedCustomerCopy(record.customer,record.internal);
     const key=`p5-${row.draft_id}-${row.revision}-${createHash("sha256").update(destination).digest("hex").slice(0,20)}`;
+    let suppressed=suppressSyntheticEstimateNotifications(record);
     try{
+      // Error alerts store a reference to the failed delivery, rather than a
+      // full customer record. Resolve that exact revision before sending it.
+      if(destination.startsWith('alert:')&&typeof record.failedDestination==='string'){
+        const [failed]=await query('SELECT payload FROM p5_estimator_outbox WHERE draft_id=$1 AND revision=$2 AND destination=$3',[row.draft_id,row.revision,record.failedDestination]);
+        suppressed=suppressed||suppressSyntheticEstimateNotifications(failed?.payload);
+      }
+      // Defend older queued synthetic records too, without retrying a sent or
+      // ambiguous record or claiming that a prior send never happened.
+      if(suppressed){
+        await query("UPDATE p5_estimator_outbox SET status='suppressed',locked_until=NULL,last_error=NULL WHERE id=$1 AND status='sending'",[row.id]);
+        results.push({id:row.id,status:'suppressed'});continue;
+      }
       let providerId:string;
       if(destination==="crm"){if(!CRM_DELIVERY_ENABLED)throw new Error("CRM delivery is turned off");providerId=await syncCrm(record,key);}
       else {
@@ -65,7 +80,7 @@ export async function processOutbox(options:{draftId?:string;revision?:number;li
       // The reason is otherwise visible only in the database. Addresses are reduced to the channel name.
       console.error(`[p5-delivery] ${destination.split(':')[0]} ${status} for draft ${row.draft_id} revision ${row.revision} (attempt ${row.attempts}): ${message.slice(0,200)}`);
       await query("UPDATE p5_estimator_outbox SET status=$1,last_error=$2,locked_until=NULL,next_attempt_at=now()+($3*interval '1 second') WHERE id=$4",[status,message.slice(0,500),Math.min(3600,60*2**row.attempts),row.id]);
-      if(!destination.startsWith("alert:"))for(const email of await adminRecipients())await query("INSERT INTO p5_estimator_outbox(id,draft_id,revision,destination,payload) VALUES($1,$2,$3,$4,$5::jsonb) ON CONFLICT(draft_id,revision,destination) DO NOTHING",[randomUUID(),row.draft_id,row.revision,`alert:${email}`,JSON.stringify({error:message,failedDestination:destination})]);
+      if(!suppressed&&!destination.startsWith("alert:"))for(const email of await adminRecipients())await query("INSERT INTO p5_estimator_outbox(id,draft_id,revision,destination,payload) VALUES($1,$2,$3,$4,$5::jsonb) ON CONFLICT(draft_id,revision,destination) DO NOTHING",[randomUUID(),row.draft_id,row.revision,`alert:${email}`,JSON.stringify({error:message,failedDestination:destination})]);
       results.push({id:row.id,status});
     }
   }
