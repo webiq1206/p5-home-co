@@ -19,6 +19,7 @@ import {createHash} from 'node:crypto';
 import {compactCatalogInput,CATALOG_ENCODING_INSTRUCTION} from './compactCatalog.ts';
 import {applyConsumableCoverage,consumableApplicationMatches} from './consumableCoverage.ts';
 import {applyMinorWorkAllowance} from './minorWorkAllowance.ts';
+import {reconcileMinorWorkAudit} from './minorWorkAudit.ts';
 import {z} from 'zod';
 import {PricingPending,PricingStageTimeout,isPricingPending,isPricingStageTimeout} from './pricingProgress.ts';
 import {suggestedTrade,tradeForScopeTask} from './trades.ts';
@@ -2016,7 +2017,7 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
   const opinions=new Set<string>();
   // Tasks carried OUT of the total as "to confirm, quote after a site visit".
   let carriedOut:{id:string;description:string}[]=[];
-  const auditTrail:{version:string;catalog:{version:string|null;importedAt:string|null;rates:number};scopeHash:string;tasks:unknown[];adjustments:unknown;research:unknown;verification:unknown;issues:string[]}={version:'complete-scope-v3',
+  const auditTrail:{version:string;catalog:{version:string|null;importedAt:string|null;rates:number};scopeHash:string;tasks:unknown[];adjustments:unknown;research:unknown;verification:unknown;issues:string[];policyDecisions?:unknown[]}={version:'complete-scope-v3',
     // The catalog snapshot this estimate was priced from, so a later price book edit never makes an old estimate unexplainable.
     catalog:{version:configuration.catalogVersion||configuration.planningCatalog?.version||null,importedAt:configuration.planningCatalog?.importedAt||null,rates:configuration.planningCatalog?.rates.length||0},scopeHash:createHash('sha256').update(JSON.stringify({scope:pricingScope,configuration})).digest('hex'),tasks:[],adjustments:null,research:null,verification:null,issues:[]};
   try{
@@ -2273,6 +2274,8 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
     mergeGapResults(await mapResearchTasks(researchTaskBatches(await reconcileSupplies(gaps,mappedLines),pricingScope),(gapBatch,index)=>priceGapBatch(gapBatch,index,t=>coveredWork(t,mappedLines,resolution.rules))));
     const audit:z.infer<typeof auditSchema>={coveredTaskIds:[],issues:[],notes:[],resolvedIssues:[]};
     const reconcileIssues=()=>{
+      const policyDecisions=reconcileMinorWorkAudit(mapping.tasks.filter(t=>taskSelectionStatus(t,mapping.tasks)==='billable'),resolution,existingLines(priceReviewedScope(scope,configuration,now,resolution)),audit,modelIssues);
+      if(policyDecisions.length)auditTrail.policyDecisions=[...(auditTrail.policyDecisions||[]),...policyDecisions];
       if(audit.issues.length||mapping.tasks.some(t=>taskSelectionStatus(t,mapping.tasks)!=='unselected'&&!audit.coveredTaskIds.includes(t.id)))return;
       const acceptedLines=existingLines(priceReviewedScope(scope,configuration,now,resolution)).filter(line=>line.quantity*line.unitCost>0);
       const positiveLines=new Set(acceptedLines.map(line=>line.id));

@@ -60,6 +60,17 @@ test('a requested shared allowance exists before its first audit and carries no 
  assert.ok(result.customer.range,JSON.stringify(result.internal.scopePricing));
  assert.equal(result.customer.lineItems.filter(line=>line.id==='minor-work-allowance').length,1);
 });
+test('a separate-evidence demand cannot veto a real shared minor-work budget or trigger another research loop',async()=>{
+ const cleanup={...extra,id:'cleanup',description:'Minor cleanup and packaging disposal',evidence:'Minor cleanup and packaging disposal',researchDescription:'Minor cleanup and packaging disposal'};
+ const issue='cleanup: No independently supported labor price. Must research a separate labor rate despite the shared allowance.';
+ const request=replies([{tasks:[task,cleanup],issues:[]},{coveredTaskIds:['cabinets'],issues:[issue]}]);
+ let calls=0;
+ const result=await priceCompleteScope({...scope,text:scope.text+' Include minor cleanup and packaging disposal.'},config,async(...args)=>{calls++;assert.equal(args[2],false);assert.ok(calls<=3,'No unnecessary repair or research request');return request(...args);},now);
+ assert.ok(result.customer.range,JSON.stringify(result.internal.scopePricing));
+ assert.equal(result.customer.lineItems.filter(line=>line.id==='minor-work-allowance').length,1);
+ assert.equal((result.internal.scopePricing as any).policyDecisions[0].issue,issue);
+ assert.ok(!JSON.stringify(result.customer).includes('No independently supported'));
+});
 test('an unmapped missing rate automatically enters evidenced research without a model opt-in',async()=>{
  const mapping={tasks:[task,{...extra,researchDescription:'',additions:[{code:'MISSING',quantity:10,quantityEvidence:'10 LF'}]}],issues:[]};
  const result=await priceCompleteScope(scope,config,replies([mapping,researched,{coveredTaskIds:['cabinets','overlay'],issues:[]}]),now);
