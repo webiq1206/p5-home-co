@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {validateAnswer,validateExtraction,combineScopeExtractions,protectPricingFacts} from "../lib/p5/scope.ts";
-import {reconcileScope} from "../lib/p5/adaptive.ts";
+import {reconcileScope,scopeQuestions} from "../lib/p5/adaptive.ts";
 test("malformed numeric extraction cannot become a zero or a clarification option",()=>{
  for(const value of [",","1,,000","0x50","Infinity","80 feet"]){assert.ok(validateAnswer("sqft",value));}
  const fact=(value:string)=>({field:"sqft",value,confidence:.98,source:"scope.pdf",evidence:"Room area 80 square feet",basis:"stated"});
@@ -41,6 +41,25 @@ test("retained clarification metadata survives extraction validation and page co
  const combined=combineScopeExtractions([validated]);
  assert.deepEqual(combined.clarificationProvenance,metadata);
  assert.deepEqual(combined.sourceHistory,metadata);
+});
+
+test('explicit numeric cabinet absence survives validation, saved replay and question selection',()=>{
+ for(const evidence of ['0 tall cabinets','Zero tall cabinets','No tall cabinets are shown','Tall cabinets: 0','Tall cabinets are none']){
+  const raw={summary:'Install 9 LF base and 12 LF wall cabinets',facts:[{field:'cabinetTallLf',value:'0',confidence:1,source:'typed scope',evidence,basis:'stated'}],conflicts:[],missingInformation:[],reviewNotes:[]};
+  const saved=validateExtraction(JSON.parse(JSON.stringify(validateExtraction(raw))));
+  const safe=protectPricingFacts(saved);
+  assert.equal(safe.facts[0]?.value,'0',evidence);
+  const result=reconcileScope({service:'cabinet-install',cabinetBaseLf:'9',cabinetUpperLf:'12'},safe);
+  assert.equal(result.answers.cabinetTallLf,'0',evidence);
+  assert.equal(scopeQuestions(result.answers,safe).some(q=>q.field==='cabinetTallLf'),false,evidence);
+ }
+});
+
+test('zero cabinet claims cannot borrow another family absence or substitute for missing quantities',()=>{
+ for(const evidence of ['No base cabinets','0 upper cabinets','Tall cabinet length not documented','Tall cabinets: unknown; assume 0','Maybe 0 tall cabinets']){
+  const raw={summary:'Cabinet scope',facts:[{field:'cabinetTallLf',value:'0',confidence:1,source:'typed scope',evidence,basis:'stated'}],conflicts:[],missingInformation:[],reviewNotes:[]};
+  assert.equal(protectPricingFacts(validateExtraction(raw)).facts.length,0,evidence);
+ }
 });
 
 const laborFact=(value:string,evidence:string,source='driveway.pdf')=>({

@@ -1,0 +1,40 @@
+# Supported service bundles — candidate 2026-10-02.13
+
+## Exact saved failure
+
+Release `.12` synthetic project `9ee02af1-5b07-4ba2-a8ef-10c301b1e1b7`, revision 3, finished in needs-review after 15 completed pricing stages. There were no request failures. No customer/internal estimate, submission, PDF or outbox delivery was saved.
+
+The immutable export is `tests/fixtures/p5-main12-saved-failure.json`, SHA-256 `ec9e47c5806c9c387c1bd05734aa50296a790e083dfd7e2a82a026d9789dbaebb` (verify against the fixture test). It includes the frozen configuration and saved stage replies. The offline test orders saved replies by request time, checks stage and mapping task identities, and injects the saved shortlist. It does not call a provider or use a production database. This is not a fingerprint-identical replay of each historical input: the current code reconstructs inputs, and 14 recorded replies reproduce the same terminal research failure before the final saved reply is used.
+
+Before repair, the retained ledger was $210 installation labor (three units at $70), plus one $75 supporting-work allowance. Removal and installation consumables had explicit policy assignments. The audit nevertheless demanded separately priced removal labor and materials. Repair then returned this already-budgeted work to research, which exhausted on incompatible benchmark evidence.
+
+The prompt already contained a general minor-work policy. The defect was not a complete absence of instructions: the current audit context still mixed model task classifications and old price requests with server-established coverage, and offered raw policy assignments without an explicit validated budget contract. In particular the mapper classified the supporting tasks as primary work, retained requests for catalog/market prices, and put research imperatives inside assignment evidence. A second defect would persist after a corrected audit: final rendering unconditionally reintroduced every mapper task issue, even when the typed audit had positively resolved that exact issue.
+
+## Deterministic final pricing path
+
+The general invariant is: complete supported scope + an explicit, consistent item quantity + approved per-item direct labor + one authorized ancillary budget produces a preliminary range through the normal financial calculator. A pricing model is not allowed to reinterpret or invalidate that certificate. No pricing-provider request or granular supply research runs on this path.
+
+`serviceBundles.ts` is a conservative scope parser paired with the existing master-book rates. It supports one family of owner-supplied door levers/knobs, cabinet pulls/knobs, towel bars/rings, toilet-paper holders or robe hooks per request, with 1–12 explicitly counted items. Installation is charged once per item; ordinary consumables and small supporting work receive one shared policy allowance. The normal calculator still applies cost/finance checks, margin policy, risk treatment and contingency. The result retains the approved source/rate, quantity evidence, source/configuration hash and deterministic coverage certificate.
+
+This is not a generic fallback that assigns $75 to arbitrary missing work. Unknown words/operations, multiple independently counted work groups, conflicting or missing quantities, contractor-supplied primary products, special conditions, additional hinges/doors/structural work, restrictions, uploads, takeoffs, unresolved clarifications and other services fall through to the detailed estimator. It does not borrow one count for different rooms or material families. Owner products are never purchased again. A certificate is unavailable with an expired rate or when the ordinary calculator withholds its range.
+
+The saved `.8`–`.12` **scopes** now complete through `priceCompleteScope` with the provider disabled, at $285 direct cost and a preliminary range; the `.9` range differs because its saved risk answers differ. Earlier final-render fixtures omit their original planning catalog, so these scope replays explicitly use the frozen `.12` approved configuration. The separate immutable saved-reply replay still proves why the old detailed path failed. Neither test claims to be a fresh production/provider acceptance.
+
+## Detailed-path audit corrections
+
+- Expose the owner policy as a server-validated audit contract: one direct-cost job budget, minimum $75 or 3% of positive primary direct cost, cap $750, and exact eligible task assignments. Validate positive primary cost, amount, unit, quantity, allowance flag, price basis, evidence basis and task identity/link. Deduplicate retained line identities before computing the primary-cost basis.
+- State explicitly that assigned incidental labor and supplies do not require separate hours, catalog rows or supplier quotes. Preserve independent review of actual scope, scale, quantities, hazards, exclusions and overlaps. The allowance contains no reserve; normal project contingency is still applied once downstream.
+- Move mapper classifications and task warnings into historical context. Every warning remains in the typed prior-issue ledger; nothing is discarded by phrase matching. Require the existing audit to resolve it or keep it blocking.
+- Retire a final mapper task warning only when its exact description-prefixed ledger entry has a validated superseded disposition. Current blockers, omitted/changed decisions and new warnings remain blocking. Include structured policy assignments in the audit evidence signature so later assignment changes invalidate old resolutions.
+
+No rate, finance configuration, contingency calculation, customer data, credentials or tracking integration was changed. PR84 was not merged. Its two quantity fixes and their two regression-test files were inspected and applied selectively after the requested matrix reproduced five failures: explicit cabinet zero values and flooring totals through saved replay. Its CI, browser scripts and unrelated changes are excluded. No Replit Agent was used.
+
+## Evidence and limits
+
+The new tests replay the unchanged failed `.12` replies and require the failure to remain. Additional tests validate the new contract, reject invalid budgets/links/hazardous components, and exercise exact typed resolution plus changed assignments, prices, quantities and genuine current blockers. These are offline checks, not a successful provider acceptance. The saved `.8`–`.11` fixtures remain in the full regression suite. The new complete-pipeline matrix includes all five saved scopes, eight supported item/count variants, distinct room/count refusals, missing quantities, extra materials, scope restrictions, upload boundaries, provider outage, deterministic retry, JSON saved-result round-trip and actual customer PDF rendering. Existing whole-building/remodel, contingency, upload, request retry and delivery regressions are also run. Synthetic PDF rendering is not proof of a production email/outbox delivery.
+
+No production estimate or publication was run. A fresh provider response has **not** been obtained; certified bundle pricing no longer requires one, although upstream analysis and out-of-bound detailed scopes may still use providers. This change must not be described as a proven live estimate or a guarantee that every mapper/audit interpretation is correct. Publication and any next bounded synthetic acceptance remain coordinated with the production publisher; no production test or publication was initiated from this task.
+
+## Local validation receipt
+
+`npm run build` passed with 1,920 main-suite passes, zero failures and 16 existing skips; 19 provider-specific passes; six database-safety passes; and successful Next.js production compilation and TypeScript checking. The bundle/quantity focused run passed 62 cases. The earlier combined bundle/audit-contract run passed 64 cases. Five PR84 quantity regressions failed on unchanged main before the selective corrections and passed afterward. No live SQL or provider request was used. GitHub CI and production acceptance are separate checks and are not claimed by this receipt.

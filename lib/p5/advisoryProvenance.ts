@@ -11,7 +11,7 @@ export const advisoryReviewSchema=z.object({
  advisories:z.array(notice),blockers:z.array(notice),
 }).strict();
 export type AdvisoryReview=z.infer<typeof advisoryReviewSchema>;
-type Line={id:string;description:string;category:string;unit?:string;quantity:number|{fixed?:number;factor?:number};unitCost:number;evidence?:{reference:string};scopeTaskId?:string};
+type Line={id:string;description:string;category:string;unit?:string;quantity:number|{fixed?:number;factor?:number};unitCost:number;evidence?:{reference:string};scopeTaskId?:string;minorWorkCoverage?:{taskId:string;description:string;remainingComponent:string}[]};
 type Task={id:string;description:string;existingLineIds?:string[]};
 export type AssumptionEntry={id:string;text:string;origin:'assumption'|'prior-issue'|'pricing-history'};
 export type AdvisoryReviewRecord={version:'advisory-provenance-v1';ledger:AssumptionEntry[];review:AdvisoryReview;lineSignatures:Record<string,string>;taskSignatures:Record<string,string>;issues:string[];notes:string[]};
@@ -19,7 +19,7 @@ const unique=(values:string[])=>[...new Set(values)];
 const hash=(value:unknown)=>createHash('sha256').update(JSON.stringify(value)).digest('hex');
 const quantity=(line:Line)=>typeof line.quantity==='number'?line.quantity:(line.quantity.fixed??NaN)*(line.quantity.factor??1);
 const live=(lines:Line[])=>[...new Map(lines.filter(line=>quantity(line)>0&&line.unitCost>0).map(line=>[line.id,line])).values()];
-const signature=(line:Line)=>hash({id:line.id,description:line.description,category:line.category,unit:line.unit,quantity:quantity(line),unitCost:line.unitCost,reference:line.evidence?.reference||''});
+const signature=(line:Line)=>hash({id:line.id,description:line.description,category:line.category,unit:line.unit,quantity:quantity(line),unitCost:line.unitCost,reference:line.evidence?.reference||'',...(line.minorWorkCoverage?{minorWorkCoverage:line.minorWorkCoverage}:{})});
 const taskSignature=(task:Task,lines:Line[])=>hash({id:task.id,description:task.description,lineIds:unique([...(task.existingLineIds||[]),...lines.filter(line=>line.scopeTaskId===task.id).map(line=>line.id)]).sort()});
 export function assumptionLedger(assumptions:string[],priorIssues:string[],pricingHistory:string[]=[]):AssumptionEntry[]{
  const issues=new Set(priorIssues),history=new Set(pricingHistory);

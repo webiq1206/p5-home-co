@@ -48,7 +48,7 @@ export function finalMinorWorkExplanation(resolution:ScopePriceResolution,lines:
   // serves a different physical component. Keep both prices and flag overlap.
   const material=lineIds.filter(id=>live.some(line=>line.id===id&&(line.category==='materials'||line.category==='subcontractors')));
   if(assigned&&material.length)add({kind:'overlap',message:`Confirm the separate material or installed charge and shared allowance do not cover the same work: ${task.description}`,taskIds:[task.id],lineIds});
-  for(const original of task.issues||[])add({kind:'current-issue',message:original,original,taskIds:[task.id],lineIds});
+
  }
  if(!pool)add({kind:'coverage',message:'The shared job-support allowance has no valid positive policy assignment. Confirm supporting-work pricing.',lineIds:live.filter(line=>line.id==='minor-work-allowance').map(line=>line.id),taskIds:coverage.filter(item=>item.lineIds.includes('minor-work-allowance')).map(item=>item.taskId)});
  for(const line of live){
@@ -74,7 +74,14 @@ export function finalMinorWorkExplanation(resolution:ScopePriceResolution,lines:
   notes.push(associated.length?`One shared preliminary job-support allowance budgets supporting work associated with: ${associated.join('; ')}. Primary labor and products remain separately itemized. Confirm the budget against actual site conditions before a firm proposal.`:'The shared preliminary job-support allowance has no verified task assignment; review is required.');
  }
  for(const original of resolution.issues)add({kind:'current-issue',message:original,original,lineIds:[...ids],taskIds:[]});
- const disposition=audit.advisoryProvenance?.length?resolveAdvisoryProvenance(audit.advisoryProvenance,live,audit.tasks,new Set(live.filter(line=>canonical(line)).map(line=>line.id)),coverage):undefined;
+ const disposition=audit.advisoryProvenance?.length?resolveAdvisoryProvenance(audit.advisoryProvenance,live.map(line=>({...line,minorWorkCoverage:rules.find(rule=>rule.id===line.id)?.minorWorkCoverage})),audit.tasks,new Set(live.filter(line=>canonical(line)).map(line=>line.id)),coverage):undefined;
+ // Mapper task issues are historical claims, but only an exact, validated
+ // disposition may retire one. A task's policy link alone never clears it.
+ const superseded=new Set(disposition?.superseded.map(item=>item.original)||[]);
+ for(const task of audit.tasks)for(const original of task.issues||[]){
+  if(superseded.has(`${task.description}: ${original}`))continue;
+  add({kind:'current-issue',message:original,original,taskIds:[task.id],lineIds:links(task)});
+ }
  for(const advisory of disposition?.advisories||[])notes.push(advisory.message);
  for(const blocker of disposition?.blockers||[])add({kind:'current-issue',...blocker,lineIds:blocker.lineIds.length?blocker.lineIds:[...ids]});
  const reviewed=new Set(disposition?.reviewedTexts||[]);

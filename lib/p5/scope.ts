@@ -5,7 +5,7 @@ import {aggregateLaborFacts} from './laborFacts.ts';
 import {separateFixtureFacts} from './fixtureFacts.ts';
 import {separateCabinetFacts} from './cabinetFacts.ts';
 import {separateFlooringFacts} from './flooringFacts.ts';
-import {verifiedCabinetWidth} from './cabinetMeasurements.ts';
+import {verifiedCabinetWidth,explicitCabinetAbsence} from './cabinetMeasurements.ts';
 import {SCOPE_FIELDS,type ScopeField} from './scopeFields.ts';
 export {SCOPE_FIELDS,type ScopeField} from './scopeFields.ts';
 export type ScopeAnswers = Partial<Record<ScopeField, string>>;
@@ -98,10 +98,12 @@ const AREA_PART_FIELDS: ScopeField[] = ['tileSqft', 'wallTileSqft', 'flooringSqf
 const SURFACE_WORDS = /\b(?:walls?|floors?|backsplash|ceilings?|countertops?|island|niche|tub surround|shower pan|perimeter|casing|baseboards?|crown)\b/gi;
 const ROOM_WORDS = /\b(?:bedrooms?|living room|family room|great room|kitchen|bath(?:room)?s?|powder room|hall(?:way)?|basement|garage|master|primary|guest|main level|upper level|lower level|office|closets?|laundry|entry|dining|mudroom|pantry)\b/gi;
 const wordSet = (text: string, pattern: RegExp) => new Set((text.toLowerCase().match(pattern) || []).map(w => w.replace(/s$/, '')));
+const sourceDocument=(source:string)=>source.replace(/,?\s*page\s+\d+.*$/i,'').trim();
+const AUTOMATIC_QUANTITY_CONFLICTS=new Set(['Different document pages state different values. Confirm the intended project information.','The supplied information contains different values. Please confirm the intended scope.']);
 const disjoint = (a: Set<string>, b: Set<string>) => a.size > 0 && b.size > 0 && [...a].every(w => !b.has(w));
 /** True when every stated fact in the group names its own surface (or, on the same surface, its own room). */
 function distinctAreaParts(group: ExtractedFact[]): boolean {
-  if (group.length < 2 || group.length > 6) return false;
+  if (group.length < 2 || group.length > 6 || new Set(group.map(f=>sourceDocument(f.source))).size!==1) return false;
   if (group.some(f => f.basis === 'calculated' || f.basis === 'inferred' || f.basis === 'visual' || !/\d/.test(f.evidence) || /\btotal\b/i.test(f.evidence) || !Number.isFinite(Number(f.value.replace(/,/g, ''))))) return false;
   if (new Set(group.map(f => f.value.trim())).size !== group.length) return false;
   for (let i = 0; i < group.length; i++) for (let j = i + 1; j < group.length; j++) {
@@ -119,11 +121,12 @@ function distinctAreaParts(group: ExtractedFact[]): boolean {
  * competing project-wide quantity. Never infer totals from insulation/roofing. */
 function reconcileAreaTotals(facts:ExtractedFact[]):ExtractedFact[]{
  let retained=[...facts];
- const document=(source:string)=>source.replace(/,?\s*page\s+\d+.*$/i,'').trim();
+ const document=sourceDocument;
  for(const field of AREA_PART_FIELDS){
   const group=retained.filter(f=>f.field===field&&f.confidence>=.85&&f.basis!=='inferred'&&f.basis!=='visual');
   for(const total of group.filter(f=>f.basis==='calculated'&&/\+/.test(f.evidence)&&/\btotal\b|=/.test(f.evidence)&&!/[\$]/.test(f.evidence))){
-   const terms=[...total.evidence.matchAll(/\b(\d+(?:\.\d+)?)\s*(?:SF|LF|square feet|linear feet)\b/gi)].map(m=>Number(m[1]));
+   const unit=field==='trimLf'?'(?:LF|linear feet|linear foot)':'(?:SF|sq\\.?\\s*ft\\.?|square feet|square foot)';
+   const terms=[...total.evidence.matchAll(new RegExp('(?<![\\d,.])(\\d+(?:,\\d{3})*(?:\\.\\d+)?)\\s*'+unit+'(?=\\s|[.,;:=+]|$)','gi'))].map(m=>Number(m[1].replaceAll(',','')));
    const amount=Number(total.value.replaceAll(',',''));
    // Exclude the written result, when repeated with units after '='.
    if(terms.at(-1)===amount)terms.pop();
@@ -279,7 +282,7 @@ export function validateExtraction(raw: unknown): ScopeExtraction {
     const numericEvidence=NUMERIC_EVIDENCE[f.field as ScopeField];
     const assemblyMeasurement=f.field==="cabinetBaseLf"||f.field==="cabinetUpperLf"||f.field==="cabinetTallLf";
     const verifiedWidth=verifiedCabinetWidth(fact.field,value,fact.evidence);
-    const explicitAbsence=value==="0"&&/\b(?:no|none|zero|without)\b.{0,30}\b(?:base|lower|upper|wall|tall|pantry|cabinet)\b/i.test(fact.evidence);
+    const explicitAbsence=explicitCabinetAbsence(fact.field,value,fact.evidence);
     if(assemblyMeasurement&&
       (numericEvidence&&!numericEvidence.test(fact.evidence)&&!explicitAbsence&&!verifiedWidth||
        value==="0"&&UNDOCUMENTED_QUANTITY.test(fact.evidence))){
@@ -343,6 +346,9 @@ export function validateExtraction(raw: unknown): ScopeExtraction {
       evidence: `${group.map(f => `${f.value} (${f.evidence.trim().slice(0, 80)})`).join(' + ')} = ${Math.round(total * 100) / 100}` };
     for (const f of group) facts.splice(facts.indexOf(f), 1);
     facts.push(combined);
+    // Validation can follow cross-page merging or restore a saved record.
+    // Retire only our own stale part-versus-part conflict after proving the sum.
+    for(let i=conflicts.length-1;i>=0;i--)if(conflicts[i].field===field&&AUTOMATIC_QUANTITY_CONFLICTS.has(conflicts[i].explanation))conflicts.splice(i,1);
   }
   // A confident image transcription is not a verified measurement. A live
   // drawing labeled 20'-0" by 15'-0" was read as 20'-9" by 15'-9" at 1.0
@@ -433,7 +439,7 @@ export function protectPricingFacts(extraction: ScopeExtraction): ScopeExtractio
       continue;
     }
     const numericEvidence=NUMERIC_EVIDENCE[fact.field];
-    const explicitAbsence=fact.value.trim()==='0'&&/\b(?:no|none|zero|without)\b.{0,30}\b(?:base|lower|upper|wall|tall|pantry|cabinet)\b/i.test(fact.evidence);
+    const explicitAbsence=explicitCabinetAbsence(fact.field,fact.value,fact.evidence);
     if(numericEvidence&&!verifiedCabinetWidth(fact.field,fact.value,fact.evidence)&&(!numericEvidence.test(fact.evidence)&&!explicitAbsence||DERIVED_MEASUREMENT.test(fact.evidence))){
       heldDerivedMeasurement=true;
       reviewNotes.push(`Unconfirmed derived measurement - ${SCOPE_FIELDS[fact.field].label}: ${fact.value}. The source evidence does not explicitly label this measurement, so it is not a pricing fact.`);
@@ -541,7 +547,7 @@ export function combineScopeExtractions(parts:ScopeExtraction[]):ScopeExtraction
   merged.facts=retainTypedFixtureRows(merged.facts);
   const resolvedFixtureRows=beforeFixtureRows!==merged.facts&&!merged.facts.some(f=>f.field==='fixtureCount');
   const resolvedAreas=AREA_PART_FIELDS.filter(field=>new Set(beforeAreaFacts.filter(f=>f.field===field&&f.confidence>=.4).map(f=>f.value)).size>1&&new Set(merged.facts.filter(f=>f.field===field&&f.confidence>=.4).map(f=>f.value)).size===1);
-  merged.conflicts=merged.conflicts.filter(conflict=>!(resolvedAreas.includes(conflict.field)||resolvedFixtureRows&&conflict.field==='fixtureCount')||!['Different document pages state different values. Confirm the intended project information.','The supplied information contains different values. Please confirm the intended scope.'].includes(conflict.explanation));
+  merged.conflicts=merged.conflicts.filter(conflict=>!(resolvedAreas.includes(conflict.field)||resolvedFixtureRows&&conflict.field==='fixtureCount')||!AUTOMATIC_QUANTITY_CONFLICTS.has(conflict.explanation));
   for(const field of Object.keys(SCOPE_FIELDS) as ScopeField[]){
     const values=[...new Set(merged.facts.filter(f=>f.field===field&&f.confidence>=.4).map(f=>f.value.trim()))];
     if(values.length>1&&SCOPE_FIELDS[field].kind!=="text"&&!merged.conflicts.some(c=>c.field===field))merged.conflicts.push({field,values,explanation:"Different document pages state different values. Confirm the intended project information."});
