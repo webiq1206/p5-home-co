@@ -3,6 +3,7 @@ import type {ReviewedScope,ScopeExtraction} from './scope.ts';
 import {PRICE_BOOK} from './priceBookData.ts';
 import {finishTier,priceBookRate,serviceContext} from './priceBook.ts';
 import {suggestedTrade} from './trades.ts';
+import {applyMinorWorkAllowance,minorWorkEligible} from './minorWorkAllowance.ts';
 
 /**
  * Deterministic corrections to a priced scope, applied after the model's mapping and audit and
@@ -135,21 +136,38 @@ export function applyPricingCorrections(input:CorrectionInput):CorrectionResult{
     }
   }
 
-  // Removal and replacement of the same handles are one per-door operation.
-  // Require equal quantities, explicit same-door scope and complementary tasks.
-  const hardware=resolution.rules.filter(r=>/\bPB-08-71-01\b/.test(r.evidence?.reference||'')&&direct(r)>0);
-  for(const installation of hardware.filter(r=>/\b(?:install|replace)\b/i.test(taskDescription(r.scopeTaskId||'')))){
+  // One unambiguous remove/install pair for the same handles uses the book's
+  // replacement labor once. A labor-only rate never supplies disposal for free.
+  const hardware=resolution.rules.filter(r=>/\bPB-08-71-01\b/.test(r.evidence?.reference||'')&&r.category==='field-labor'&&direct(r)>0);
+  const installations=hardware.filter(r=>/\b(?:install|replace)\b/i.test(taskDescription(r.scopeTaskId||'')));
+  const removals=hardware.filter(r=>/^remove\b/i.test(taskDescription(r.scopeTaskId||''))
+    &&/\b(?:handles?|levers?|hardware)\b/i.test(taskDescription(r.scopeTaskId||''))
+    &&!/\b(?:install|replace)\b/i.test(taskDescription(r.scopeTaskId||'')));
+  if(installations.length===1&&removals.length===1){
+    const installation=installations[0],removal=removals[0];
     const source=[scope.text,scope.extraction?.sourceText].filter(Boolean).join('\n');
-    const sameReplacement=/\breplace\b[^.\n]{0,100}\bexisting\b[^.\n]{0,60}\b(?:lever handles?|handle sets?)\b\s+with\b/i.test(source)
-      &&! /\b(?:additional|different|other)\s+doors?\b/i.test(source);
-    if(!/\bsame doors?\b/i.test(taskDescription(installation.scopeTaskId||''))&&!sameReplacement)continue;
-    for(const removal of hardware){
-      if(removal===installation||!resolution.rules.includes(removal)||removal.quantity.fixed!==installation.quantity.fixed||!sameBuilding(removal.building,installation.building)||removal.floor!==installation.floor)continue;
-      if(!/^remove\b/i.test(taskDescription(removal.scopeTaskId||''))||! /\b(?:handle|lever|hardware)\b/i.test(taskDescription(removal.scopeTaskId||'')))continue;
-      // "Remove and install the second handle" is a complete replacement of
-      // a different physical item, not a removal-only duplicate of the first.
-      if(/\b(?:install|replace)\b/i.test(taskDescription(removal.scopeTaskId||'')))continue;
+    const conflicting=/\b(?:additional|different|other)\s+(?:\w+\s+)?doors?\b|\bnot\s+(?:on\s+)?(?:the\s+)?same\b/i.test(source);
+    const sameReplacement=/\breplace\b[^.\n]{0,100}\bexisting\b[^.\n]{0,60}\b(?:lever handles?|handle sets?)\b\s+with\b/i.test(source);
+    const sameExplicit=/\bremove\b[^.\n]{0,120}\b(?:levers?|handles?)\b[^.\n]{0,40}\band install\b[^.\n]{0,120}\b(?:levers?|handles?)\b[^.\n]{0,40}\bon (?:the )?same (?:\d+|one|two|three|four|five|six|seven|eight|nine|ten)?\s*doors?\b/i.test(source);
+    const sameMapped=/\bsame doors?\b/i.test(taskDescription(installation.scopeTaskId||''));
+    const identical=removal.quantity.fixed===installation.quantity.fixed&&(removal.quantity.fixed||0)>0
+      &&JSON.stringify(removal.quantity)===JSON.stringify(installation.quantity)
+      &&JSON.stringify(removal.quantityRange)===JSON.stringify(installation.quantityRange)
+      &&removal.unit===installation.unit&&removal.unitCost===installation.unitCost
+      &&(removal.building||'').trim().toLowerCase()===(installation.building||'').trim().toLowerCase()
+      &&removal.floor===installation.floor;
+    const removalDescription=taskDescription(removal.scopeTaskId||'');
+    const disposal=/\b(?:dispos\w*|haul[- ]?off)\b/i.test(removalDescription);
+    const residual={id:removal.scopeTaskId||removal.id,description:removalDescription,evidence:source,researchDescription:'Dispose of the removed door levers or handles',existingLineIds:[installation.id]};
+    const extraRemoval=/\b(?:hinges?|frames?|drilling|patching|structural)\b/i.test(removalDescription);
+    if(!conflicting&&!extraRemoval&&(sameReplacement||sameExplicit||sameMapped)&&identical&&(!disposal||minorWorkEligible(residual))){
       dropRule(removal,installation.id);cover(removal.scopeTaskId,installation.id);
+      if(disposal){
+        residual.description=residual.researchDescription;
+        applyMinorWorkAllowance([residual],resolution,lines,input.now);
+        for(const id of residual.existingLineIds)cover(removal.scopeTaskId,id);
+      }
+      installation.description=`Remove existing handles and install their replacements on the same doors: ${ratePart(installation.description)}`;
       notes.push('Removal and replacement of the same door handles are covered by one per-door hardware replacement labor charge.');
     }
   }

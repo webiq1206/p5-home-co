@@ -20,6 +20,7 @@ import {compactCatalogInput,CATALOG_ENCODING_INSTRUCTION} from './compactCatalog
 import {applyConsumableCoverage,consumableApplicationMatches} from './consumableCoverage.ts';
 import {applyMinorWorkAllowance} from './minorWorkAllowance.ts';
 import {reconcileMinorWorkAudit} from './minorWorkAudit.ts';
+import {retainedConsumablesCopy} from './consumablesCopy.ts';
 import {z} from 'zod';
 import {PricingPending,PricingStageTimeout,isPricingPending,isPricingStageTimeout} from './pricingProgress.ts';
 import {suggestedTrade,tradeForScopeTask} from './trades.ts';
@@ -2626,7 +2627,8 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
  * replay of a saved one, so a replayed estimate is built the same way, from THIS draft's scope. */
 export function finishScopePricing(scope:ReviewedScope,configuration:EstimatorConfiguration,now:Date,resolution:ScopePriceResolution,auditTrail:{tasks:unknown[]},pricingExtraction:ScopeExtraction|null|undefined){
   const priced=priceReviewedScope(scope,configuration,now,resolution);
+  priced.customer.assumptions=retainedConsumablesCopy(priced.customer.assumptions,resolution);
   const tasks=(auditTrail.tasks as Mapping['tasks']).map(task=>({...task,evidence:task.evidence||''}));
   const includedTasks=tasks.filter(task=>taskSelectionStatus(task,tasks)==='billable');
-  return {...priced,customer:customerSafeProjection({...priced.customer,instructions:pricingExtraction?.instructions,documentCoverage:pricingExtraction?.documentCoverage,verificationItems:customerSafeNotes([...resolution.assumptions.filter(a=>/allowance|preliminary|confirm/i.test(a)),...resolution.issues,...duplicateChargeNotes(resolution.rules)]),scopeTasks:(includedTasks as (Mapping['tasks'][number]&{origin?:string;basis?:string})[]).map(t=>({description:t.description,category:tradeForScopeTask(t,priced.customer.lineItems,resolution.rules),...(t.origin==='required'?{origin:'required',basis:t.basis||''}:{})}))}),internal:{...priced.internal,scopePricing:auditTrail}};
+  return {...priced,customer:customerSafeProjection({...priced.customer,instructions:pricingExtraction?.instructions,documentCoverage:pricingExtraction?.documentCoverage,verificationItems:customerSafeNotes([...retainedConsumablesCopy(resolution.assumptions,resolution).filter(a=>/allowance|preliminary|confirm/i.test(a)),...resolution.issues,...duplicateChargeNotes(resolution.rules)]),scopeTasks:(includedTasks as (Mapping['tasks'][number]&{origin?:string;basis?:string})[]).map(t=>({description:t.description,category:tradeForScopeTask(t,priced.customer.lineItems,resolution.rules),...(t.origin==='required'?{origin:'required',basis:t.basis||''}:{})}))}),internal:{...priced.internal,scopePricing:auditTrail}};
 }
