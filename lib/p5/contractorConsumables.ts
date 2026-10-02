@@ -20,6 +20,10 @@ export function contractorConsumableIncluded(scope:ReviewedScope,description:str
   if(ownerSuppliesAllParts(scope))return false;
   const parts=description.split(':');
   let component=parts.at(-1)!.replace(/^(?:provide|include|supply|carry)\s+(?:an?\s+)?(?:separate\s+)?(?:materials?\s+)?allowance\s+for\s+/i,'').split('(')[0].split(/\b(?:including|includes|with|for|using)\b/i)[0].trim();
+  // A physical installation/repair task may mention its supporting supplies
+  // later in the sentence. That does not turn the whole operation into a
+  // material purchase or authorize deleting its labor component.
+  if(/^(?:(?:provide|perform)\s+)?(?:install|replace|repair|remove)\b|^(?:provide|perform)\s+(?:installation|replacement|removal)\b|^(?:installation|replacement|removal)\s+of\b/i.test(component))return false;
   // The approved generic hardware label can serve a specifically mapped
   // mounting-consumables task. Product or decorative-hardware labels cannot.
   if(parts.length>1&&/^(?:cabinet\s*(?:\+|&|and)\s*vanity\s+)?hardware(?:\s*-\s*materials?)?$/i.test(component)){

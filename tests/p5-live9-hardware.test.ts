@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import {catalogResolution,incompatibleDoorHardwareRemoval,normalizeConsumableMapping} from '../lib/p5/scopePricing.ts';
 import {EMPTY_CONFIGURATION} from '../lib/p5/costBook.ts';
 import type {ReviewedScope} from '../lib/p5/scope.ts';
+import {applyMinorWorkAllowance} from '../lib/p5/minorWorkAllowance.ts';
+import {contractorConsumableIncluded} from '../lib/p5/contractorConsumables.ts';
 
 const now=new Date('2026-10-01T12:00:00Z');
 const scope:ReviewedScope={text:'Replace three owner-supplied door levers. Remove and dispose of old levers. Contractor provides labor and consumables.',answers:{service:'handyman',location:'Nampa'},extraction:null,uploads:[],reviewedAt:now.toISOString(),corrections:[]};
@@ -43,4 +45,29 @@ test('explicit labor-only replacement rate cannot erase requested generic consum
  const ownerMap=mapping([structuredClone(install)]);
  normalizeConsumableMapping(ownerMap,config,[],ownerOnly);
  assert.equal(ownerMap.tasks.length,1);
+});
+
+test('combined installation wording retains labor and creates one separately covered consumables task',()=>{
+ const description='Install three interior passage door levers on existing predrilled doors; remove and dispose of existing levers; contractor provides labor and installation consumables (fasteners, lubricant, shims as needed). Owner supplies three door levers.';
+ const install=task('install',description,'QA-HARDWARE');
+ const disposal={...task('disposal','Remove and dispose of three existing interior passage door levers and associated hardware.','QA-HARDWARE'),additions:[],researchDescription:'Task merged with installation; removal labor and disposal are ancillary to installation work.'};
+ const m=mapping([install,disposal]);
+ assert.equal(contractorConsumableIncluded(scope,description),false);
+ normalizeConsumableMapping(m,config,[],scope);normalizeConsumableMapping(m,config,[],scope);
+ assert.equal(m.tasks[0].additions[0].code,'QA-HARDWARE');
+ assert.equal(m.tasks.filter(t=>t.id==='required-contractor-consumables').length,1);
+ const r=catalogResolution(m,config,[],now,scope);applyMinorWorkAllowance(m.tasks,r,[],now);
+ assert.equal(r.rules.filter(rule=>rule.category==='field-labor').length,1);
+ assert.equal(r.rules.find(rule=>rule.category==='field-labor')?.quantity.fixed,3);
+ assert.equal(r.rules.filter(rule=>rule.id==='minor-work-allowance').length,1);
+ assert.ok(m.tasks.every(t=>!t.researchDescription));
+ assert.ok(m.tasks.slice(1).every(t=>t.existingLineIds.includes('minor-work-allowance')));
+ assert.deepEqual(r.issues,[]);
+});
+
+test('physical operation verbs cannot classify a combined task as a consumables purchase',()=>{
+ for(const verb of ['Install','Replace','Repair','Remove','Perform installation','Provide replacement'])assert.equal(contractorConsumableIncluded(scope,`${verb} fixtures; contractor provides labor and consumables.`),false);
+ assert.equal(contractorConsumableIncluded(scope,'Supply contractor installation consumables'),true);
+ assert.equal(contractorConsumableIncluded(scope,'Installation consumables'),true);
+ assert.equal(contractorConsumableIncluded(scope,'Install levers: Supply contractor installation consumables'),true,'a separately named material component remains eligible');
 });
