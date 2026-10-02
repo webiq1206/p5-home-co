@@ -326,6 +326,7 @@ const INTERNAL_COMMERCIAL_NOTE=[
   // when the model omits the words "direct cost" around their dollar amounts.
   /\b(?:minor-work-allowance|minor-work-v\d+|owner-authorized (?:preliminary )?(?:job-support )?budget|shared minimum)\b/i,
   /\b(?:map to|map this to|catalog entry|price basis:)\b/i,
+  /\b(?:embedded reserve|standard project contingency applies|verifiedAt|validUntil|owner-average-cost)\b/i,
   // Generated audit notes describe a direct-cost check, not the final selling policy.
   /\boverhead(?:\s+(?:is|was|will be))?\s+(?:(?:not|never)\s+)?(?:included|excluded|added|charged)\b/i,
   /\bdirect[- ]costs?\b/i,

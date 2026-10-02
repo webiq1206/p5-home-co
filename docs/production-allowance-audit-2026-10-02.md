@@ -36,4 +36,10 @@ Release `2026-10-02.6` preserves the distinction between physical operations and
 
 Validation: 1,770 main tests passed, 16 skipped, all 19 provider tests passed, and the production build including TypeScript passed. Live verification remains necessary after pull and publication. Document, mobile and independent delivery acceptance remain open. No changes were requested from Replit Agent.
 
+## Live follow-up on release 2026-10-02.6
+
+Published and verified source tree `e04f5a87aac00f1d5fc69f12921ccaa349bb8b24`. A fresh three-lever test completed without clarification questions and produced a $450 to $555 estimate and a PDF. There are exactly two charges: three units of installation labor, including old-lever removal/disposal, and one shared minor-work allowance. The line-item amounts sum to both range endpoints. No separate removal charge or contingency line appears. This live pricing regression passes; it does not establish comprehensive service/document/mobile/delivery acceptance.
+
+Customer notes still exposed internal reserve-policy and rate-evidence metadata. Release `2026-10-02.7` extends the existing customer-copy filter to remove those fragments. A replay of the actual live customer result confirms their removal with identical line items and totals. Targeted pricing/presentation/saved-copy validation: 67 passed, 1 skipped, 0 failures. The production build including TypeScript passed. No estimating arithmetic changed. Publication of the copy cleanup remains pending.
+
 The first cabinet scope request immediately after deployment returned a gateway 503; its saved draft succeeded on retry. Mobile behavior, comprehensive document accuracy, independent email arrival and full service acceptance remain open. No private documents, raw extractions, access keys, contacts or screenshots are included. No Replit code-edit request was made. Child-estimator rollout remains paused.

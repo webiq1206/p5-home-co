@@ -14,8 +14,10 @@ test('minor policy audit amounts and mapping instructions never enter customer n
   'Minor-work-allowance ($75 job): Owner-authorized preliminary allowance (minor-work-v1). Base: $210; shared minimum $75; 3% basis capped at $750. Confirm site conditions.',
   'T003 (cleanup): Map to minor cleanup allowance or daily job-site cleanup labor at 0.5-1 hour if separate line needed.',
   'Owner supplies three levers. Contractor removes the old hardware.',
+  'no embedded reserve; standard project contingency applies once.',
+  'sourced from owner-average-cost per P5 Cost Database 2026; verifiedAt 2026-09-11, validUntil 2026-12-12.',
  ]).join(' ');
- assert.doesNotMatch(notes,/\$|minor-work-v1|minor-work-allowance|map to|3%/i);
+ assert.doesNotMatch(notes,/\$|minor-work-v1|minor-work-allowance|map to|3%|reserve|project contingency|verifiedAt|validUntil|owner-average-cost/i);
  assert.match(notes,/removal of three existing levers/);
  assert.match(notes,/Owner supplies three levers/);
  assert.equal(customerSafeProjection({id:'minor-work-allowance'}).id,'minor-work-allowance','stable line identifiers are not prose');
