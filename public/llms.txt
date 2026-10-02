@@ -64,15 +64,21 @@ City, across Ada and Canyon counties in Idaho's Treasure Valley.
 
 ## Requesting a quote
 
-Quotes and estimates from the P5 companies are free and carry no
-obligation. A homeowner does not need to know which of the five companies
-does the work: the quote form at https://p5homeco.com/quote asks what the
-project is and P5 routes the request to the company whose craft matches
-it. New homes go to Boise Construction Co, renovations and additions to
-Boise Remodeling Co, accessory dwellings to Boise ADU Co, cabinetry to
-Boise Cabinet Co, and repairs to Boise Handyman Co. A specialist then
-follows up during business hours and provides a written scope stating
-what is included, what is not, and the cost. Urgent work should go to
+The quote form at https://p5homeco.com/quote lets a homeowner select the
+project type, describe the work, review the interpreted scope, and request
+an estimate. New homes route to Boise Construction Co, renovations and
+additions to Boise Remodeling Co, accessory dwellings to Boise ADU Co,
+cabinetry to Boise Cabinet Co, and repairs to Boise Handyman Co.
+
+The estimator provides a preliminary planning range when the reviewed
+scope has supported pricing. It may require clarification or further review
+instead of displaying a range. A preliminary estimate is not a firm bid or
+an agreement to perform work; quantities, selections, site conditions,
+and current pricing require confirmation before a firm proposal.
+
+A name is required to request the estimate. Email is optional; homeowners
+can wait for the result on screen without providing an email address.
+Completed estimates can be downloaded as a PDF. Urgent work should go to
 (208) 477-1169 rather than the form.
 
 ## Contact
@@ -90,4 +96,4 @@ Telephone: (208) 477-1169
   paid-search landing variants of the same form and are not indexed; use
   https://p5homeco.com/quote as the canonical request page.
 
-Last updated: 2026-09-08.
+Last updated: 2026-10-02.
