@@ -39,3 +39,12 @@ test('major work, hazards, already priced tasks and an entirely unpriced job can
  assert.equal(minorWorkEligible({...task('a','Protective overlay'),researchDescription:'Price only the still-unpriced components of: Protective overlay. Include expressly requested contractor consumables not covered by installation labor.'}),false,'generic research instructions cannot turn primary work into supplies');
  const r=resolution();applyMinorWorkAllowance([task('a','Minor cleanup')],r,[],now);assert.equal(r.rules.length,0);
 });
+test('an explicitly requested shared policy reference is materialized before audit without covering primary work',()=>{
+ const minor={...task('disposal','Remove and dispose of three old passage levers'),researchDescription:'',existingLineIds:['minor-work-allowance']};
+ const primary={...task('main','Purchase kitchen cabinets'),researchDescription:'',existingLineIds:['minor-work-allowance']};
+ const r=resolution();r.issues=[`${minor.description}: invalid existing price reference.`,`${primary.description}: invalid existing price reference.`];
+ assert.deepEqual(applyMinorWorkAllowance([minor,primary],r,[{id:'labor',quantity:3,unitCost:70}],now),['disposal']);
+ assert.equal(r.rules.length,1);assert.equal(r.rules[0].unitCost,75);
+ assert.match(r.rules[0].evidence.reference,/Remove and dispose of three old passage levers/);
+ assert.deepEqual(r.issues,[`${primary.description}: invalid existing price reference.`]);
+});

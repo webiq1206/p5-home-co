@@ -45,6 +45,21 @@ test('minor support work produces an audited estimate without item-specific web 
  assert.equal(result.customer.lineItems.find(line=>line.id==='minor-work-allowance')?.pricingStatus,'estimated-allowance');
  assert.equal((result.internal as any).currentCostsConfirmed,false);
 });
+test('a requested shared allowance exists before its first audit and carries no stale invalid-reference finding',async()=>{
+ const cleanup={...extra,id:'cleanup',description:'Minor cleanup and packaging disposal',evidence:'Include minor cleanup and packaging disposal',researchDescription:'',existingLineIds:['minor-work-allowance']};
+ const request=replies([{tasks:[task,cleanup],issues:[]},{coveredTaskIds:['cabinets','cleanup'],issues:[]}]);
+ const result=await priceCompleteScope({...scope,text:scope.text+' Include minor cleanup and packaging disposal.'},config,async(system,input,search,...rest)=>{
+  assert.equal(search,false);
+  if((input as any).priorPricingIssues){
+   assert.ok(!(input as any).priorPricingIssues.some((issue:string)=>issue.includes('invalid existing price reference')));
+   const pool=(input as any).additionalRules.find((rule:any)=>rule.id==='minor-work-allowance');
+   assert.ok(pool.unitCost>0);assert.match(pool.evidence.reference,/Minor cleanup and packaging disposal/);
+  }
+  return request(system,input,search,...rest);
+ },now);
+ assert.ok(result.customer.range,JSON.stringify(result.internal.scopePricing));
+ assert.equal(result.customer.lineItems.filter(line=>line.id==='minor-work-allowance').length,1);
+});
 test('an unmapped missing rate automatically enters evidenced research without a model opt-in',async()=>{
  const mapping={tasks:[task,{...extra,researchDescription:'',additions:[{code:'MISSING',quantity:10,quantityEvidence:'10 LF'}]}],issues:[]};
  const result=await priceCompleteScope(scope,config,replies([mapping,researched,{coveredTaskIds:['cabinets','overlay'],issues:[]}]),now);

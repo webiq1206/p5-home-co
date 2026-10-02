@@ -19,7 +19,11 @@ export function minorWorkEligible(task:MinorTask):boolean{
 /** One shared job allowance covers its retained task IDs, regardless of how
  * many tiny rows the model emits. Never stack one minimum per incidental. */
 export function applyMinorWorkAllowance(tasks:MinorTask[],resolution:ScopePriceResolution,existing:{id:string;quantity:number;unitCost:number}[],now:Date):string[]{
- const eligible=tasks.filter(minorWorkEligible);
+ // A mapper can request the shared policy line before it has been created.
+ // Treat that explicit reference as a request for eligible minor coverage,
+ // not as verified pricing or an orphaned identifier. Primary work still
+ // fails the same eligibility check, and a positive project base is required.
+ const eligible=tasks.filter(task=>minorWorkEligible(task)||!task.researchDescription&&task.existingLineIds.includes('minor-work-allowance')&&minorWorkEligible({...task,researchDescription:task.description}));
  if(!eligible.length)return [];
  const prior=resolution.rules.find(r=>r.id==='minor-work-allowance');
  const priced=[...existing.filter(l=>l.id!=='minor-work-allowance'&&!resolution.removeLineIds?.includes(l.id)),...resolution.rules.filter(r=>r!==prior).map(r=>({id:r.id,quantity:r.quantity.fixed||0,unitCost:r.unitCost}))];
