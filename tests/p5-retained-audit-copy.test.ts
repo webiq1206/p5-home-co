@@ -1,10 +1,19 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {finishScopePricing} from '../lib/p5/scopePricing.ts';
+import {priceReviewedScope} from '../lib/p5/costBook.ts';
+import {reconcileRetainedAuditCopy} from '../lib/p5/retainedAuditCopy.ts';
 const saved=JSON.parse(readFileSync(new URL('./fixtures/p5-retained-audit-copy.json',import.meta.url),'utf8'));
 const fixture=()=>structuredClone(saved);
-const render=(f:any)=>finishScopePricing(f.scope,f.configuration,new Date('2026-10-02T08:40:35.608Z'),f.resolution,f.auditTrail,f.scope.extraction);
+// Retain the old reconciler's conservative unit tests. The final-renderer
+// integration and all three live records are tested in p5-final-explanation.
+const render=(f:any)=>{
+ const now=new Date('2026-10-02T08:40:35.608Z');
+ const original=priceReviewedScope(f.scope,f.configuration,now,f.resolution);
+ const copy=reconcileRetainedAuditCopy(f.resolution.assumptions,f.scope,f.auditTrail.tasks,f.resolution,'lines' in original.internal?original.internal.lines:[]);
+ const out=priceReviewedScope(f.scope,f.configuration,now,{...f.resolution,assumptions:copy.notes});
+ return {...out,customer:{...out.customer,verificationItems:[...copy.notes,...f.resolution.issues]},internal:{...out.internal,scopePricing:{...f.auditTrail,customerCopyDecisions:copy.decisions}}};
+};
 const notes=(out:ReturnType<typeof render>)=>JSON.stringify([...out.customer.assumptions,...out.customer.verificationItems]);
 
 test('saved .9 shared-line allegation is reconciled to final one-charge evidence with raw audit intact',()=>{

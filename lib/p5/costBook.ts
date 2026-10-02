@@ -6,7 +6,10 @@ import { scopeText,blockingReviewNote,type ReviewedScope,type ScopeField } from 
 export { blockingReviewNote };
 import {materializePlanningBook,withSupportedServiceBook,type PlanningCatalog} from './planningBooks.ts';
 export interface UnitRateContext {currency:'USD';basis:'material-purchase'|'trade-labor'|'subcontractor-installed';includes:string;excludes:string;assumptions:string[]}
+export interface MinorWorkCoverage {taskId:string;description:string;remainingComponent:string}
 export interface CostRule extends Omit<DirectCostLine,"quantity"|"quantitySource"> {unitRateContext?:UnitRateContext;
+  /** Server-created policy assignments, never a model's claim of full scope coverage. */
+  minorWorkCoverage?:MinorWorkCoverage[];
   scopeTaskId?:string;
   quantity: { field?: ScopeField; factor: number; fixed?: number };
   when?: {field:ScopeField;equals:string};

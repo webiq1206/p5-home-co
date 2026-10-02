@@ -158,7 +158,7 @@ export function applyPricingCorrections(input:CorrectionInput):CorrectionResult{
       &&removal.floor===installation.floor;
     const removalDescription=taskDescription(removal.scopeTaskId||'');
     const disposal=/\b(?:dispos\w*|haul[- ]?off)\b/i.test(removalDescription);
-    const residual={id:removal.scopeTaskId||removal.id,description:removalDescription,evidence:source,researchDescription:'Dispose of the removed door levers or handles',existingLineIds:[installation.id]};
+    const residual={id:removal.scopeTaskId||removal.id,description:removalDescription,policyParentDescription:removalDescription,evidence:source,researchDescription:'Dispose of the removed door levers or handles',existingLineIds:[installation.id]};
     const extraRemoval=/\b(?:hinges?|frames?|drilling|patching|structural)\b/i.test(removalDescription);
     if(!conflicting&&!extraRemoval&&(sameReplacement||sameExplicit||sameMapped)&&identical&&(!disposal||minorWorkEligible(residual))){
       dropRule(removal,installation.id);cover(removal.scopeTaskId,installation.id);

@@ -20,8 +20,7 @@ import {compactCatalogInput,CATALOG_ENCODING_INSTRUCTION} from './compactCatalog
 import {applyConsumableCoverage,consumableApplicationMatches} from './consumableCoverage.ts';
 import {applyMinorWorkAllowance} from './minorWorkAllowance.ts';
 import {reconcileMinorWorkAudit} from './minorWorkAudit.ts';
-import {retainedConsumablesCopy} from './consumablesCopy.ts';
-import {reconcileRetainedAuditCopy} from './retainedAuditCopy.ts';
+import {finalMinorWorkExplanation} from './finalMinorWorkExplanation.ts';
 import {z} from 'zod';
 import {PricingPending,PricingStageTimeout,isPricingPending,isPricingStageTimeout} from './pricingProgress.ts';
 import {suggestedTrade,tradeForScopeTask} from './trades.ts';
@@ -2629,10 +2628,10 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
 export function finishScopePricing(scope:ReviewedScope,configuration:EstimatorConfiguration,now:Date,resolution:ScopePriceResolution,auditTrail:{tasks:unknown[]},pricingExtraction:ScopeExtraction|null|undefined){
   const tasks=(auditTrail.tasks as Mapping['tasks']).map(task=>({...task,evidence:task.evidence||''}));
   const originalPriced=priceReviewedScope(scope,configuration,now,resolution);
-  const copy=reconcileRetainedAuditCopy(resolution.assumptions,scope,tasks,resolution,existingLines(originalPriced));
-  const displayResolution=copy.decisions.length?{...resolution,assumptions:copy.notes}:resolution;
-  const priced=copy.decisions.length?priceReviewedScope(scope,configuration,now,displayResolution):originalPriced;
-  priced.customer.assumptions=retainedConsumablesCopy(priced.customer.assumptions,resolution);
   const includedTasks=tasks.filter(task=>taskSelectionStatus(task,tasks)==='billable');
-  return {...priced,customer:customerSafeProjection({...priced.customer,instructions:pricingExtraction?.instructions,documentCoverage:pricingExtraction?.documentCoverage,verificationItems:customerSafeNotes([...retainedConsumablesCopy(displayResolution.assumptions,resolution).filter(a=>/allowance|preliminary|confirm/i.test(a)),...resolution.issues,...duplicateChargeNotes(resolution.rules)]),scopeTasks:(includedTasks as (Mapping['tasks'][number]&{origin?:string;basis?:string})[]).map(t=>({description:t.description,category:tradeForScopeTask(t,priced.customer.lineItems,resolution.rules),...(t.origin==='required'?{origin:'required',basis:t.basis||''}:{})}))}),internal:{...priced.internal,scopePricing:{...auditTrail,...(copy.decisions.length?{customerCopyDecisions:copy.decisions}:{})}}};
+  const explanation=finalMinorWorkExplanation(resolution,existingLines(originalPriced),{...auditTrail,tasks:includedTasks},scope.answers,configuration.planningCatalog?.rates);
+  const currentIssues=explanation?.findings.filter(f=>f.kind!=='historical-review').map(f=>f.message)||[];
+  const displayResolution=explanation?{...resolution,assumptions:explanation.notes,issues:[...new Set([...resolution.issues,...currentIssues])]}:resolution;
+  const priced=displayResolution!==resolution?priceReviewedScope(scope,configuration,now,displayResolution):originalPriced;
+  return {...priced,customer:customerSafeProjection({...priced.customer,instructions:pricingExtraction?.instructions,documentCoverage:pricingExtraction?.documentCoverage,verificationItems:customerSafeNotes([...displayResolution.assumptions.filter(a=>/allowance|preliminary|confirm/i.test(a)),...displayResolution.issues,...(explanation?.findings.map(f=>f.message)||[]),...duplicateChargeNotes(resolution.rules)]),scopeTasks:(includedTasks as (Mapping['tasks'][number]&{origin?:string;basis?:string})[]).map(t=>({description:t.description,category:tradeForScopeTask(t,priced.customer.lineItems,resolution.rules),...(t.origin==='required'?{origin:'required',basis:t.basis||''}:{})}))}),internal:{...priced.internal,scopePricing:{...auditTrail,...(explanation?{finalExplanation:explanation,originalResolution:resolution}:{})}}};
 }

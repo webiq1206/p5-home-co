@@ -3,7 +3,7 @@ import type {CostRule,ScopePriceResolution} from './costBook.ts';
 /** Owner-authorized estimating policy, October 1, 2026. These are budget
  * allowances, not claimed supplier quotes or reusable market observations. */
 export const MINOR_WORK_POLICY={version:'minor-work-v1',minimum:75,maximum:750,share:.03} as const;
-export type MinorTask={id:string;description:string;evidence:string;researchDescription:string;existingLineIds:string[];costClass?:string};
+export type MinorTask={id:string;description:string;evidence:string;researchDescription:string;existingLineIds:string[];costClass?:string;policyParentDescription?:string};
 const substantive=/\b(?:asbestos|lead paint|hazardous|mold remediation|structural|engineering|foundation|excavat\w*|roof replacement|whole[- ]house|dumpster|roll[- ]off|truckload|tons?|cubic yards?|permits?|electrical panel|rewir\w*|gas line|sewer|utility connection)\b/i;
 /** Classify the remaining component, not a list of products that happens to
  * occur elsewhere in a project. Expensive or regulated work stays separate. */
@@ -33,7 +33,12 @@ export function applyMinorWorkAllowance(tasks:MinorTask[],resolution:ScopePriceR
  const amount=Math.ceil(Math.min(MINOR_WORK_POLICY.maximum,Math.max(MINOR_WORK_POLICY.minimum,base*MINOR_WORK_POLICY.share))/5)*5;
  const descriptions=[...new Set([...(prior?.evidence.reference.split('\nCovered work:\n')[1]?.split('\n')||[]),...eligible.map(t=>t.description)])];
  const reference=`${MINOR_WORK_POLICY.version}; owner-authorized job-support budget. Base: ${base.toFixed(2)}. Shared minimum ${MINOR_WORK_POLICY.minimum}; ${MINOR_WORK_POLICY.share*100}% basis, capped at ${MINOR_WORK_POLICY.maximum}. No embedded reserve; standard project contingency applies once. Not supplier pricing.\nCovered work:\n${descriptions.join('\n')}`;
- const rule:CostRule={id:'minor-work-allowance',description:'Minor work, job supplies and handling allowance',category:'other-direct',unit:'job',quantity:{fixed:1,factor:1},unitCost:Math.max(prior?.unitCost||0,amount),allowance:true,priceBasis:'direct-cost',evidence:{basis:'owner-budget-allowance',reference,verifiedAt:now.toISOString(),validUntil:new Date(now.getTime()+90*86400000).toISOString()}};
+ const assignments=[...(prior?.minorWorkCoverage||[])];
+ for(const task of eligible){
+  const assignment={taskId:task.id,description:task.policyParentDescription||task.description,remainingComponent:task.researchDescription||task.description};
+  if(!assignments.some(item=>item.taskId===assignment.taskId&&item.description===assignment.description))assignments.push(assignment);
+ }
+ const rule:CostRule={id:'minor-work-allowance',description:'Minor work, job supplies and handling allowance',category:'other-direct',unit:'job',quantity:{fixed:1,factor:1},unitCost:Math.max(prior?.unitCost||0,amount),allowance:true,priceBasis:'direct-cost',minorWorkCoverage:assignments,evidence:{basis:'owner-budget-allowance',reference,verifiedAt:now.toISOString(),validUntil:new Date(now.getTime()+90*86400000).toISOString()}};
  if(prior)Object.assign(prior,rule);else resolution.rules.push(rule);
  const pricedIds=new Set(priced.filter(line=>line.quantity>0&&line.unitCost>0).map(line=>line.id));
  for(const task of eligible){task.existingLineIds=[...new Set([...task.existingLineIds.filter(id=>pricedIds.has(id)),rule.id])];task.researchDescription='';}
