@@ -33,6 +33,7 @@ import {missingScopeFields} from './missingFields.ts';
 import {markPricingChargeUnknown,pricingFingerprint,pricingLedgerActive,recordPricingRequest,rejectPricingCharge,reservePricingCharge,settlePricingCharge,PricingChargeUnknownError,type PricingIdentity} from './pricingLedger.ts';
 import {customerSafeNotes,customerSafeProjection} from './pricing.ts';
 import {duplicateChargeNotes} from './duplicateCharges.ts';
+import {reconcileIncludedWork} from './includedWork.ts';
 import {contractorConsumableIncluded,ownerSuppliesAllParts} from './contractorConsumables.ts';
 import {applyPricingCorrections} from './pricingCorrections.ts';
 import {specifiedShowerGlassRate} from './priceBook.ts';
@@ -1039,6 +1040,7 @@ export function catalogResolution(mapping:Mapping,configuration:EstimatorConfigu
   // Repair additions receive new IDs when merged; only the already persisted
   // components are valid reference targets during a repair.
   if(!existing.length&&scope)reconcileIncludedRemovalDisposal(mapping,result,scope);
+  if(!existing.length&&!scope?.extraction?.instructions?.separateBuildings)reconcileIncludedWork(mapping.tasks,result);
   const pricedLines=existing.length?existing:result.rules.map(rule=>({...rule,quantity:rule.quantity.fixed||0,quantitySource:'Accepted mapped quantity'}));
   for(const t of mapping.tasks){
     if(taskSelectionStatus(t,mapping.tasks)!=='billable')continue;
