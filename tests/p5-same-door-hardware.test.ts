@@ -30,7 +30,7 @@ test('saved .8 consumables copy reflects retained allowance without changing ori
  const copy=JSON.stringify(notes);
  assert.ok(!notes.some((n:string)=>/^Contractor supplies .*consumables.*as part of (?:the )?(?:installation )?labor/i.test(n)));
  assert.ok(out.internal.scopePricing.finalExplanation?.historicalAssumptions.some((n:string)=>/not expected to absorb these costs as part of labor/.test(n)),'negated warning is preserved internally');
- assert.match(JSON.stringify(out.customer.verificationItems),/Historical pricing assumptions.*Review/,'unknown legacy caveats remain explicitly pending');
+ assert.match(JSON.stringify(out.customer.verificationItems),/Earlier scope and pricing assumptions.*pending review/,'unknown legacy caveats remain explicitly pending');
  assert.match(copy,/shared[^.]*allowance[^.]*consumables/i);
  assert.equal(JSON.stringify(audit),original);
  assert.equal(out.internal.directCost,495,'copy repair does not change prices');

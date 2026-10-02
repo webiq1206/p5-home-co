@@ -21,6 +21,7 @@ import {applyConsumableCoverage,consumableApplicationMatches} from './consumable
 import {applyMinorWorkAllowance} from './minorWorkAllowance.ts';
 import {reconcileMinorWorkAudit} from './minorWorkAudit.ts';
 import {finalMinorWorkExplanation} from './finalMinorWorkExplanation.ts';
+import {advisoryReviewSchema,assumptionLedger,stampAdvisoryReview,type AdvisoryReviewRecord} from './advisoryProvenance.ts';
 import {z} from 'zod';
 import {PricingPending,PricingStageTimeout,isPricingPending,isPricingStageTimeout} from './pricingProgress.ts';
 import {suggestedTrade,tradeForScopeTask} from './trades.ts';
@@ -207,7 +208,7 @@ function parseResearchRates(raw:unknown){
  market.notes=[...new Set(market.notes)];
  return market;
 }
-const auditSchema=z.object({coveredTaskIds:z.array(text),issues:remarks(1000),notes:remarks(1000).default([]),resolvedIssues:z.preprocess(value=>Array.isArray(value)?value.filter(item=>item&&typeof item==='object'&&Array.isArray((item as {lineIds?:unknown}).lineIds)&&(item as {lineIds:unknown[]}).lineIds.length>0):value,z.array(z.object({issue:text,reason:prose,lineIds:z.array(text).min(1)}).strict()).default([]))}).strict();
+const auditSchema=z.object({coveredTaskIds:z.array(text),issues:remarks(1000),notes:remarks(1000).default([]),advisoryReview:advisoryReviewSchema.optional(),resolvedIssues:z.preprocess(value=>Array.isArray(value)?value.filter(item=>item&&typeof item==='object'&&Array.isArray((item as {lineIds?:unknown}).lineIds)&&(item as {lineIds:unknown[]}).lineIds.length>0):value,z.array(z.object({issue:text,reason:prose,lineIds:z.array(text).min(1)}).strict()).default([]))}).strict();
 const planningRate=z.object({taskId:text,description:prose,unit:text,quantity:positive,quantityEvidence:prose,quantityRange:quantityRange.nullish(),building:z.string().optional(),floor:z.string().optional(),basis:z.enum(['material-purchase','subcontractor-installed','trade-labor']),includes:prose,excludes:optionalProse,low:positive,high:positive,confidence:z.enum(['low','medium']),rationale:prose}).strict();
 const planningSchema=z.object({rates:z.array(planningRate).max(60),issues:remarks(100),notes:remarks(100).default([])}).strict();
 /** Web research gets this long per batch before a labeled planning average is used instead. */
@@ -245,7 +246,7 @@ export const PRICING_STAGE_MAX_MS=150_000;
 /** Provider acknowledgement of one managed OpenAI qualification request. */
 export interface PricingProviderIdentity {provider:'openai';endpoint:'replit-managed';responseId:string;requestedModel:string;returnedModel:string;requestedServiceTier:'default';returnedServiceTier:string;usage:{inputTokens:number;outputTokens:number;totalTokens:number;cachedInputTokens:number}}
 /** Provenance is optional audit evidence. Pricing never reads it. */
-export interface PricingReply {value:unknown;sourceUrls:string[];sourceReport?:string;provider?:'anthropic'|'openai';model?:string;providerRequestIds?:string[];responseModel?:string;serviceTier?:string;usage?:{inputTokens:number;cachedInputTokens:number;outputTokens:number;totalTokens:number};providerIdentity?:PricingProviderIdentity}
+export interface PricingReply {value:unknown;sourceUrls:string[];sourceReport?:string;advisoryProvenance?:AdvisoryReviewRecord[];provider?:'anthropic'|'openai';model?:string;providerRequestIds?:string[];responseModel?:string;serviceTier?:string;usage?:{inputTokens:number;cachedInputTokens:number;outputTokens:number;totalTokens:number};providerIdentity?:PricingProviderIdentity}
 export type PricingRequest=(instructions:string,input:unknown,search:boolean,remainingMs:number,identity?:PricingIdentity)=>Promise<PricingReply>;
 export interface PricingRequestPolicy {
   /** Qualification-only fail-closed policy. Ordinary production calls omit it. */
@@ -306,6 +307,7 @@ SERVICE AND REPAIR ITEMS: A repair list routinely leaves the product model, fixt
 ONE VISIT, DIRECT COST: Every task in one request is carried out by the same crew during the same mobilization. Price only the incremental direct labor time and materials of each task. Never put a trip charge, minimum service call, mobilization, setup day, diagnostic visit fee, permit, overhead, profit or contingency inside a task's rate; trip, setup and mobilization are recovered by the company overhead that the established calculation applies once to the whole job after direct costs, so no separate trip line is carried and none is missing. Say exactly that in a line's excludes text; never say a trip line is carried separately. A small repair (one receptacle, one vacuum breaker, one vent boot, one trap) is a fraction of an hour of trade labor plus a common part, so its direct cost is tens of dollars to low hundreds, not a contractor's advertised per-visit price. Retail "cost to hire a pro" figures are selling prices with a visit minimum built in; do not use them as direct costs.`;
 const AUDIT=`Independently audit this PRELIMINARY UNIT-COST ALLOWANCE against the ORIGINAL requested scope. ${UNTRUSTED} ${ALLOWANCE_POLICY} ${FOUNDATION_POLICY} ${DIMENSION_POLICY} ${BENCHMARK_POLICY} ${ISSUE_POLICY}
 Return JSON only: {coveredTaskIds:[],issues:[],notes:[],resolvedIssues:[{issue,reason,lineIds:[]}]}.
+When assumptionLedger is supplied, also return advisoryReview:{assumptions:[{id,kind,basis,message,taskIds:[],lineIds:[],retiredCodes:[]}],advisories:[{message,taskIds:[],lineIds:[]}],blockers:[{message,taskIds:[],lineIds:[]}]}. Classify EVERY supplied assumption ID exactly once; do not repeat its original text. kind is advisory, current-blocker, or superseded-proposal. basis is scope-assumption, removed-proposal, canonical-rate-inclusions, retained-charge-count, or policy-assignment. Use advisory/scope-assumption for a still-valid condition, selection or site caveat, and write its concise customer-facing meaning in message. Use current-blocker for genuine missing, ambiguous, conflicting or unsupported work. A prior issue cannot become a nonblocking advisory without positive resolution evidence; retain it as a blocker or supersede it with that proof and separately state any remaining advisory. Use superseded-proposal ONLY for an outdated pricing claim positively contradicted by final retained prices: name all relevant taskIds and positive lineIds, and retiredCodes for a removed catalog proposal. Canonical rate inclusions come from the approved catalog type, never model-authored quantity prose. A shared reference to one positive charge is not two charges. An allowance assignment covers only the named supporting component, not every component of its parent task. Mixed notes containing an unresolved warning must remain advisory or blocking; never discard the warning because another sentence describes an outdated proposal. Include every genuine current issue in blockers with the EXACT same message as issues. Put new nonblocking customer notices in advisories, keep notes empty, and never emit generic alarming review language merely because historical pricing proposals existed. The server checks current line/task references and invalidates dispositions when their evidence changes.
 Keep the response concise: coveredTaskIds records successful checks, so do not repeat a successful explanation for every task or line. Describe each distinct defect once with its task or line IDs and the specific missing or conflicting component. Do not repeat the original scope or policy. When auditTaskSubset is true, check coverage only for supplied tasks, using the complete original scope, allTaskDescriptions and all priced lines as context. Still identify omissions from the complete inventory and cross-task duplicate charges involving the supplied tasks. Do not claim other task IDs as covered or call another inventoried task missing merely because it belongs to another audit subset.
 This is a preliminary allowance audit, not final supplier procurement approval. Put allowed broader-region evidence, disclosed undated-source freshness, unselected standard profiles and unconfirmed incidental tax/freight in notes. Boise-area projects require evidenced Boise / Treasure Valley applicability; national-only prices do not satisfy that requirement. A generic standard profile may be a disclosed comparable if it does not contradict a specified dimension, species or grade. Keep actual omitted work, wrong responsibility/UOM, duplicated charges, fabricated data and unsupported costs in issues. Do not put the same nonblocking note back into issues. Review priorPricingIssues explicitly. A prior model issue that is demonstrably an informational scope fact or has been resolved by positive priced components may be listed in resolvedIssues using its EXACT issue text, a specific evidence-based reason, and IDs of the positive priced lines that prove resolution. Never resolve missing or conflicting requested work merely to release a total. Unresolved findings stay in issues. A sourced regional average unit-cost allowance can pass preliminary review when its geography, requested assembly, unit and quantity are supported. Do not demand supplier SKUs, pickup inventory or exact checkout tax/freight evidence for that benchmark. Preserve those limitations as verification assumptions; separately requested work must still be priced.
 Explicitly audit every item named in allowance/selection notes. Each must be linked to actual priced components, including product, tax, freight, delivery, installation and waste where required. Descriptive notes about selections do not themselves require a hold when full scope is costed. Monetary allowance budgets of unclear cost-versus-selling-price basis must remain an issue. Never mark an allowance covered by a generic contingency.
@@ -324,6 +326,9 @@ const inventoryJson=jsObject({tasks:jsArray(jsObject({id:jsText,description:jsTe
 const planningJson=jsObject({rates:jsArray(jsObject({taskId:jsText,description:jsText,unit:jsText,quantity:jsNumber,quantityEvidence:jsText,quantityRange:{anyOf:[jsObject({low:jsNumber,high:jsNumber}),{type:'null'}]},building:jsText,floor:jsText,basis:{type:'string',enum:['material-purchase','subcontractor-installed','trade-labor']},includes:jsText,excludes:jsText,low:jsNumber,high:jsNumber,confidence:{type:'string',enum:['low','medium']},rationale:jsText})),issues:jsArray(jsText),notes:jsArray(jsText)});
 const consumableJson=jsObject({tasks:jsArray(jsObject({id:jsText,covered:jsArray(jsObject({lineId:jsText,excerpt:jsText,reason:jsText})),remaining:jsArray(jsObject({material:jsText,application:jsText,operationTaskId:jsText,operationEvidence:jsText,quantityEvidence:jsText}))}))});
 const auditJson=jsObject({coveredTaskIds:jsArray(jsText),issues:jsArray(jsText),notes:jsArray(jsText),resolvedIssues:jsArray(jsObject({issue:jsText,reason:jsText,lineIds:jsArray(jsText)}))});
+const noticeJson=jsObject({message:jsText,taskIds:jsArray(jsText),lineIds:jsArray(jsText)});
+const advisoryReviewJson=jsObject({assumptions:jsArray(jsObject({id:jsText,kind:{type:'string',enum:['advisory','current-blocker','superseded-proposal']},basis:{type:'string',enum:['scope-assumption','removed-proposal','canonical-rate-inclusions','retained-charge-count','policy-assignment']},message:jsText,taskIds:jsArray(jsText),lineIds:jsArray(jsText),retiredCodes:jsArray(jsText)})),advisories:jsArray(noticeJson),blockers:jsArray(noticeJson)});
+const auditStageSchema=(input:unknown)=>input&&typeof input==='object'&&'assumptionLedger' in input?jsObject({...auditJson.properties,advisoryReview:advisoryReviewJson}):auditJson;
 const normalizeResearch=`Convert the supplied research report to the required JSON schema using the supplied report for every supplier observation and the supplied scope for quantities. ${UNTRUSTED} ${BENCHMARK_POLICY} ${ALLOWANCE_POLICY} ${ISSUE_POLICY} Put permitted benchmark limitations in notes, not issues. Never invent dates, costs, physical measurements, source units, product coverage or source excerpts. A purchase quantity is different from a supplier quote: when usage is unstated, use the supplied installation context to model a reasonable positive consumption allowance with ALLOWANCE: evidence and a positive quantityRange, preserving the verified supplier unit. Do not replace an unknown purchase quantity with zero. If there is no defensible consumption basis, omit the rate and explain the actual missing installation context. Copy each source excerpt verbatim from the research report, including the actual product name. Prefer the complete Evidence: line (without its label); do not reword, compress, append a location, convert a price inside the excerpt, or combine source observations. Unit conversion belongs in the structured numeric values and notes, while the excerpt preserves the published package price. Never rename a researched product to satisfy a requested task: screw prices cannot price shims. If the report researched the wrong product, omit its rate and state the mismatch. Preserve published package units and counts; never convert counts to weight without an explicit supported conversion. Use only supplied source URLs. If a task lacks the required evidence, omit its rate and state the missing evidence in issues. Preserve exact scope, units and direct-cost basis. Do not conduct new research or change the original requested tasks.`;
 const parseJson=(raw:string)=>JSON.parse(raw.replace(/^\s*```(?:json)?\s*/,'').replace(/\s*```\s*$/,''));
 
@@ -351,7 +356,7 @@ const mappingStageSchema=(input:unknown)=>{
  const item=taskArray.items as ReturnType<typeof jsObject>;
  return jsObject({...mappingJson.properties,tasks:jsArray(jsObject({...item.properties,id:{type:'string',enum:[...new Set(tasks.map(task=>task.id))]}}))});
 };
-const stageSchema=(instructions:string,input?:unknown)=>projectContractSchema(instructions,input)||(instructions===normalizeResearch?marketJson:instructions===INVENTORY?inventoryJson:instructions===MAP?mappingStageSchema(input):instructions===PLANNING_AVERAGE?planningJson:instructions===CONSUMABLE_COVERAGE?consumableJson:auditJson);
+const stageSchema=(instructions:string,input?:unknown)=>projectContractSchema(instructions,input)||(instructions===normalizeResearch?marketJson:instructions===INVENTORY?inventoryJson:instructions===MAP?mappingStageSchema(input):instructions===PLANNING_AVERAGE?planningJson:instructions===CONSUMABLE_COVERAGE?consumableJson:auditStageSchema(input));
 export type OpenAiPricingOptions={serviceTier?:'default';maxOutputTokens?:number};
 export const openAiPricingRequestEnvelope=(instructions:string,input:unknown,search:boolean,options:OpenAiPricingOptions={})=>{
   const task=search?'research':instructions===INVENTORY?'inventory':instructions===MAP||instructions===PLANNING_AVERAGE||instructions===normalizeResearch?'map':'audit';
@@ -1931,11 +1936,15 @@ type AuditInput=Record<string,unknown>&{tasks:{id:string;description:string}[];a
  * its task responsibilities while keeping all scope and line context, so the
  * provider does not repeat the same oversized response on every job resume. */
 export async function requestPricingAudit(request:PricingRequest,input:AuditInput,remaining:()=>number):Promise<PricingReply>{
+  const priced=[...(Array.isArray(input.existingLines)?input.existingLines:[]),...(Array.isArray(input.additionalRules)?input.additionalRules:[])] as Parameters<typeof stampAdvisoryReview>[2];
+  const minorWork=priced.some(line=>line.id==='minor-work-allowance');
+  const ledger=minorWork?assumptionLedger(Array.isArray(input.customerAssumptions)?input.customerAssumptions:[],[...(Array.isArray(input.priorPricingIssues)?input.priorPricingIssues:[]),...(Array.isArray(input.priorAuditIssues)?input.priorAuditIssues:[])]):[];
+  const requestInput=minorWork?{...input,assumptionLedger:ledger}:input;
   try{
-    const reply=await request(AUDIT,input,false,remaining());
+    const reply=await request(AUDIT,requestInput,false,remaining());
     const checked=auditSchema.parse(reply.value);
     if(input.auditTaskSubset)checked.coveredTaskIds=checked.coveredTaskIds.filter(id=>input.tasks.some(task=>task.id===id));
-    return {...reply,value:checked};
+    return {...reply,value:checked,advisoryProvenance:checked.advisoryReview?[stampAdvisoryReview(ledger,checked.advisoryReview,priced,input.tasks,checked.issues,checked.notes)]:undefined};
   }
   catch(error){
     const message=error instanceof Error?error.message:String(error);
@@ -1954,7 +1963,7 @@ export async function requestPricingAudit(request:PricingRequest,input:AuditInpu
       issues:[...new Set(audited.flatMap(part=>part.issues))],
       notes:[...new Set(audited.flatMap(part=>part.notes))],
       resolvedIssues:audited.flatMap(part=>part.resolvedIssues),
-    },sourceUrls:[]};
+    },sourceUrls:[],advisoryProvenance:parts.flatMap(part=>part.advisoryProvenance||[])};
   }
 }
 /** Shown to a visitor when pricing genuinely could not finish automatically.
@@ -2018,7 +2027,7 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
   const opinions=new Set<string>();
   // Tasks carried OUT of the total as "to confirm, quote after a site visit".
   let carriedOut:{id:string;description:string}[]=[];
-  const auditTrail:{version:string;catalog:{version:string|null;importedAt:string|null;rates:number};scopeHash:string;tasks:unknown[];adjustments:unknown;research:unknown;verification:unknown;issues:string[];policyDecisions?:unknown[]}={version:'complete-scope-v3',
+  const auditTrail:{version:string;catalog:{version:string|null;importedAt:string|null;rates:number};scopeHash:string;tasks:unknown[];adjustments:unknown;research:unknown;verification:unknown;issues:string[];policyDecisions?:unknown[];advisoryProvenance?:AdvisoryReviewRecord[]}={version:'complete-scope-v3',
     // The catalog snapshot this estimate was priced from, so a later price book edit never makes an old estimate unexplainable.
     catalog:{version:configuration.catalogVersion||configuration.planningCatalog?.version||null,importedAt:configuration.planningCatalog?.importedAt||null,rates:configuration.planningCatalog?.rates.length||0},scopeHash:createHash('sha256').update(JSON.stringify({scope:pricingScope,configuration})).digest('hex'),tasks:[],adjustments:null,research:null,verification:null,issues:[]};
   try{
@@ -2297,6 +2306,7 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
     };
     const verifiedParts=await Promise.all(sourceParts.map((part,index)=>requestPricingAudit(request,{original:part,tasks:mapping.tasks.filter(t=>sourceParts.length===1||taskSources.get(t.id)===index),allTaskDescriptions:mapping.tasks.map(t=>({id:t.id,description:t.description})),priorPricingIssues:resolution.issues,existingLines:lines.filter(l=>!resolution.removeLineIds?.includes(l.id)),removedLines:lines.filter(l=>resolution.removeLineIds?.includes(l.id)),adjustments:auditTrail.adjustments,additionalRules:resolution.rules,customerAssumptions:[...base.customer.assumptions,...resolution.assumptions],existingExclusions:base.customer.exclusions.filter(e=>!resolution.removeExclusions?.includes(e)),research:auditTrail.research},()=>deadline-Date.now())));
     for(const verified of verifiedParts){
+      if(verified.advisoryProvenance)auditTrail.advisoryProvenance=[...(auditTrail.advisoryProvenance||[]),...verified.advisoryProvenance];
       const section=auditSchema.parse(verified.value);audit.coveredTaskIds.push(...section.coveredTaskIds);audit.issues.push(...section.issues);section.issues.forEach(issue=>opinions.add(issue));audit.notes.push(...section.notes);audit.resolvedIssues.push(...section.resolvedIssues);
     }
     audit.coveredTaskIds=[...new Set(audit.coveredTaskIds)];
@@ -2451,10 +2461,12 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
       const repairedLines=existingLines(priceReviewedScope(scope,configuration,now,resolution));
       mergeGapResults(await mapResearchTasks(researchTaskBatches(await reconcileSupplies(repairGaps,repairedLines),pricingScope),(gapBatch,index)=>priceGapBatch(gapBatch,1000+index,t=>coveredWork(t,repairedLines,resolution.rules),priorIssues)));
       audit.coveredTaskIds=[];audit.issues=[];audit.notes=[];audit.resolvedIssues=[];
+      auditTrail.advisoryProvenance=[];
       const repairedCoverage=applyPricingCorrections({scope:pricingScope,inventoryTasks:inventory.tasks,mappingTasks:mapping.tasks,lines,resolution,pricingExtraction,configuration,now});
       for(const id of repairedCoverage.coveredTaskIds)if(!audit.coveredTaskIds.includes(id))audit.coveredTaskIds.push(id);
       const checkedParts=await Promise.all(sourceParts.map((part,index)=>requestPricingAudit(request,{original:part,tasks:mapping.tasks.filter(t=>sourceParts.length===1||taskSources.get(t.id)===index),priorPricingIssues:resolution.issues,existingLines:lines.filter(l=>!resolution.removeLineIds?.includes(l.id)),additionalRules:resolution.rules,priorAuditIssues:priorIssues,removedLines:pricedComponents.filter(l=>resolution.removeLineIds?.includes(l.id)),customerAssumptions:[...base.customer.assumptions,...resolution.assumptions],existingExclusions:base.customer.exclusions.filter(e=>!resolution.removeExclusions?.includes(e)),research,allTaskDescriptions:mapping.tasks.map(t=>({id:t.id,description:t.description}))},()=>deadline-Date.now())));
       for(const checked of checkedParts){
+        if(checked.advisoryProvenance)auditTrail.advisoryProvenance=[...(auditTrail.advisoryProvenance||[]),...checked.advisoryProvenance];
         const section=auditSchema.parse(checked.value);audit.coveredTaskIds.push(...section.coveredTaskIds);audit.issues.push(...section.issues);section.issues.forEach(issue=>opinions.add(issue));audit.notes.push(...section.notes);audit.resolvedIssues.push(...section.resolvedIssues);
       }
       auditTrail.tasks=mapping.tasks;

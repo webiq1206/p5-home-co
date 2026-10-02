@@ -3,13 +3,14 @@ import type {DirectCostLine} from './pricing.ts';
 import {MINOR_WORK_POLICY,minorWorkEligible} from './minorWorkAllowance.ts';
 import {priceBookRates} from './priceBook.ts';
 import type {PlanningRate} from './planningBooks.ts';
+import {resolveAdvisoryProvenance,type AdvisoryReviewRecord,type AdvisoryDisposition} from './advisoryProvenance.ts';
 
 type Task={id:string;description:string;evidence?:string;researchDescription?:string;existingLineIds?:string[];issues?:string[]};
-type Audit={tasks:Task[];issues?:string[];verification?:{issues?:string[];resolvedIssues?:{issue:string;reason:string;lineIds:string[]}[]}};
+type Audit={tasks:Task[];issues?:string[];advisoryProvenance?:AdvisoryReviewRecord[];verification?:{issues?:string[];resolvedIssues?:{issue:string;reason:string;lineIds:string[]}[]}};
 export type CurrentFinding={kind:'coverage'|'overlap'|'current-issue'|'historical-review';message:string;lineIds:string[];taskIds:string[];original?:string};
 export type FinalMinorWorkExplanation={version:'retained-minor-work-v1';notes:string[];findings:CurrentFinding[];
   coverage:{taskId:string;lineIds:string[];allowanceComponents:string[];source:'structured-policy'|'legacy-exact-match'|'none'}[];
-  historicalAssumptions:string[]};
+  historicalAssumptions:string[];advisoryDisposition?:AdvisoryDisposition};
 const unique=(values:string[])=>[...new Set(values)];
 
 /** A current-state explanation is not another interpretation of old prose.
@@ -73,19 +74,27 @@ export function finalMinorWorkExplanation(resolution:ScopePriceResolution,lines:
   notes.push(associated.length?`One shared preliminary job-support allowance budgets supporting work associated with: ${associated.join('; ')}. Primary labor and products remain separately itemized. Confirm the budget against actual site conditions before a firm proposal.`:'The shared preliminary job-support allowance has no verified task assignment; review is required.');
  }
  for(const original of resolution.issues)add({kind:'current-issue',message:original,original,lineIds:[...ids],taskIds:[]});
+ const disposition=audit.advisoryProvenance?.length?resolveAdvisoryProvenance(audit.advisoryProvenance,live,audit.tasks,new Set(live.filter(line=>canonical(line)).map(line=>line.id)),coverage):undefined;
+ for(const advisory of disposition?.advisories||[])notes.push(advisory.message);
+ for(const blocker of disposition?.blockers||[])add({kind:'current-issue',...blocker,lineIds:blocker.lineIds.length?blocker.lineIds:[...ids]});
+ const reviewed=new Set(disposition?.reviewedTexts||[]);
+ const pending='Earlier scope and pricing assumptions remain pending review before a firm proposal.';
  // Preserve all historical audit concerns as pending. Matching live line IDs
  // alone cannot prove that a quantity, hazard, or scope concern was resolved.
  const historical=unique([...(audit.issues||[]),...(audit.verification?.issues||[])]);
  for(const original of historical){
   if(resolution.issues.includes(original))continue;
+  if(reviewed.has(original))continue;
   const taskIds=audit.tasks.filter(task=>original.includes(task.id)||original.includes(task.description)).map(task=>task.id);
   const lineIds=unique([...live.filter(line=>original.includes(line.id)).map(line=>line.id),...coverage.filter(item=>taskIds.includes(item.taskId)).flatMap(item=>item.lineIds)]);
   add({kind:'historical-review',original,lineIds:lineIds.length?lineIds:[...ids],taskIds,
-   message:`A historical pricing-audit concern remains pending review against the current itemized work${taskIds.length?': '+audit.tasks.filter(task=>taskIds.includes(task.id)).map(task=>task.description).join('; '):''}. The historical proposal is not the final price basis.`});
+   message:pending});
  }
  // Unknown prose has no trustworthy proposal/advisory discriminator. Keep it
  // internally and disclose the review requirement, rather than guessing which
  // of its assertions is still true. No broad keyword suppression is used.
- if(resolution.assumptions.length) add({kind:'historical-review',message:'Historical pricing assumptions have not been individually verified against the retained charges. Review their remaining scope and site-condition caveats before a firm proposal.',lineIds:[...ids],taskIds:[]});
- return {version:'retained-minor-work-v1',notes,findings,coverage,historicalAssumptions:[...resolution.assumptions]};
+ const unresolved=resolution.assumptions.filter(note=>!reviewed.has(note)&&!reviewed.has(note.replace(/^To confirm:\s*/i,''))
+  &&!audit.verification?.resolvedIssues?.some(item=>reviewed.has(item.issue)&&note===`${item.issue} Review evidence: ${item.reason}`));
+ if(unresolved.length||disposition?.invalid.length)add({kind:'historical-review',message:pending,lineIds:[...ids],taskIds:[]});
+ return {version:'retained-minor-work-v1',notes:[...new Set(notes)],findings,coverage,historicalAssumptions:[...resolution.assumptions],...(disposition?{advisoryDisposition:disposition}:{})};
 }

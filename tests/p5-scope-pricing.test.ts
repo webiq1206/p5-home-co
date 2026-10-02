@@ -45,6 +45,27 @@ test('minor support work produces an audited estimate without item-specific web 
  assert.equal(result.customer.lineItems.find(line=>line.id==='minor-work-allowance')?.pricingStatus,'estimated-allowance');
  assert.equal((result.internal as any).currentCostsConfirmed,false);
 });
+test('fresh minor-work pricing carries typed advisories through the complete audit pipeline',async()=>{
+ const cleanup={...extra,id:'cleanup',description:'Minor cleanup and packaging disposal',evidence:'Include minor cleanup and packaging disposal',researchDescription:'Minor cleanup and packaging disposal'};
+ const fallback=replies([{tasks:[task,cleanup],issues:[]},{coveredTaskIds:['cabinets','cleanup'],issues:[]}]);
+ let audits=0,searches=0;
+ const result=await priceCompleteScope({...scope,text:scope.text+' Include minor cleanup and packaging disposal.'},config,async(system,input,search,...rest)=>{
+  if(search)searches++;
+  const data=input as Record<string,unknown>;
+  if(Array.isArray(data.assumptionLedger)){
+   audits++;
+   return {value:{coveredTaskIds:['cabinets','cleanup'],issues:[],notes:[],resolvedIssues:[],advisoryReview:{
+    assumptions:(data.assumptionLedger as {id:string}[]).map(entry=>({id:entry.id,kind:'advisory',basis:'scope-assumption',message:'Confirm the supporting-work budget against actual site conditions before a firm proposal.',taskIds:[],lineIds:[],retiredCodes:[]})),
+    advisories:[{message:'Confirm convenient access for cleanup.',taskIds:['cleanup'],lineIds:['minor-work-allowance']}],blockers:[],
+   }},sourceUrls:[]};
+  }
+  return fallback(system,input,search,...rest);
+ },now);
+ assert.equal(audits,1);assert.equal(searches,0);assert.ok(result.customer.range);
+ assert.match(JSON.stringify(result.customer),/Confirm convenient access/);
+ assert.doesNotMatch(JSON.stringify(result.customer),/Earlier scope and pricing assumptions remain pending/);
+ assert.equal((result.internal as any).scopePricing.advisoryProvenance.length,1);
+});
 test('a requested shared allowance exists before its first audit and carries no stale invalid-reference finding',async()=>{
  const cleanup={...extra,id:'cleanup',description:'Minor cleanup and packaging disposal',evidence:'Include minor cleanup and packaging disposal',researchDescription:'',existingLineIds:['minor-work-allowance']};
  const request=replies([{tasks:[task,cleanup],issues:[]},{coveredTaskIds:['cabinets','cleanup'],issues:[]}]);
