@@ -58,3 +58,9 @@ Live homepage-to-quote navigation and desktop initial estimator rendering worked
 No new paid estimator runs, customer messages, mailbox tests, CRM writes, credential changes or Replit Agent prompts were initiated. Independent inbox arrival and broad production uploads remain open. The existing synthetic text/PDF/scan fixtures are available for the authorized next acceptance run, but repository tests are not a substitute for live model accuracy.
 
 Changes are preserved separately because another conversation is actively diagnosing and publishing P5. Before integration: fetch current main, compare overlapping changes, reconcile release identifier and shared manifest, run relevant regressions, and verify exact Replit source tree before a single necessary publication.
+
+## Subsequent CI stage recovery
+
+PR #84's first estimator run passed its financial-policy stage and then failed at `scripts/test-p5-pricing-work.mts`: the isolated `scopePricing` replacement exported `PRICING_STAGE_MAX_MS` but omitted the newly required `RESEARCH_STAGE_MS`. The real orchestration consequently calculated a `NaN` research deadline. Both isolated pricing mocks now export the research-stage bound. This changes test harnesses only, without changing production timeout or pricing behavior.
+
+The identity, pricing-work, background-worker, repair-persistence, resumable upload, scanned-plan rendering, upload and unit-rate-store scripts subsequently passed locally. The rendering case covers a synthetic 36×24-inch scan with 24 overlapping detail views in four requests, not live AI interpretation. Local runtime was macOS / Node 22.22.1; GitHub's Linux / Node 24 run remains a separate acceptance gate.
