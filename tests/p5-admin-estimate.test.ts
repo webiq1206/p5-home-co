@@ -54,3 +54,23 @@ test('a priced estimate lists no "Not priced" work; the check\'s remarks are rev
  const t=buildAdminSummary({id:ID,record:{...released,customer:carried,contact},brand});
  assert.deepEqual(t.notPriced,['Chimney cap repair'],'work carried out of the total is listed');
 });
+
+test('a saved publishable range never claims customer delivery in the internal summary, PDF or email',async()=>{
+ const priced={...internal,publishable:true,warnings:[]};
+ for(const name of ['SYNTHETIC QA — DO NOT CONTACT','Ordinary Customer']){
+  const recipient={name,email:'',phone:''};
+  const saved={...customer,issue:{...customer.issue,contact:recipient,projectName:name}};
+  const record={...priced,customer:saved,contact:recipient};
+  const summary=buildAdminSummary({id:ID,record,brand});
+  assert.match(summary.status,/range saved; delivery tracked separately/);
+  assert.equal(summary.status.startsWith('Synthetic test'),name.startsWith('SYNTHETIC QA'));
+  const pdf=(await pdfTextLayers(await administrativePdf(ID,record))).join('\n');
+  const email=estimateEmail(ID,{internal:priced,customer:saved,contact:recipient},true);
+  for(const output of [summary.status,pdf,email.text,email.html]){
+   assert.doesNotMatch(output,/Released to the customer|notification suppressed|email sent/i);
+   assert.match(output,/delivery tracked separately/);
+  }
+  assert.equal(summary.contractPrice,'$7,166');
+  assert.equal(summary.customerPrice,'$6,800 to $7,500');
+ }
+});

@@ -4,6 +4,7 @@ import {PDFDocument,rgb,type PDFFont,type PDFPage,type RGB} from 'pdf-lib';
 import fontkit from '@pdf-lib/fontkit';
 import {buildEstimateDocument,SERVICE_TITLE,estimateReference,type EstimateBrand,type EstimateDocument,type EstimateIssue} from './estimateDocument.ts';
 import {ASSETS,clean,hex,mix,wrap} from './estimatePdf.ts';
+import {suppressSyntheticEstimateNotifications} from './estimatorNotifications.ts';
 /**
  * The internal estimate record (owner request, 2026-09-21): the approved template's look, cut down to
  * what an estimator needs to review a job in a minute. Internal numbers only live here, never in a
@@ -73,7 +74,10 @@ export function buildAdminSummary(input:{id:string;record:any;brand:EstimateBran
   const notPriced=[...new Set([...carriedOut,...holding])].filter(Boolean).slice(0,12);
   const reviewNotes:string[]=[...new Set<string>(((Array.isArray(r.scopePricing?.issues)?r.scopePricing.issues:[]) as unknown[]).map(i=>clean(String(i))))].filter(i=>i&&!notPriced.includes(i)).slice(0,6);
   return {
-    doc,released,status:released?'Released to the customer':doc.total?`Customer price saved; ${blocking} blocking check${blocking===1?'':'s'} to clear before a firm proposal`:`Withheld from the customer${blocking?`: ${blocking} blocking check${blocking===1?'':'s'}`:''}`,
+    // Publishable means the saved range can be shown. It does not prove a
+    // customer email, staff email or CRM delivery occurred. Historical sends
+    // remain represented by their outbox receipts, including synthetic tests.
+    doc,released,status:released?`${suppressSyntheticEstimateNotifications(r)?'Synthetic test range':'Preliminary range'} saved; delivery tracked separately`:doc.total?`Customer price saved; ${blocking} blocking check${blocking===1?'':'s'} to clear before a firm proposal`:`Withheld from the customer${blocking?`: ${blocking} blocking check${blocking===1?'':'s'}`:''}`,
     build,contractPrice:money(r.contractPrice),customerPrice:doc.total?.amount||'Not released',
     trades:[...byTrade.entries()].sort((a,b)=>b[1].cost-a[1].cost).map(([trade,g])=>({trade,lines:g.lines,cost:money(g.cost),share:direct>0?`${Math.round(g.cost/direct*100)}%`:''})),
     lines:lines.map(l=>({item:clean(String(l.description||'')).replace(/\s+/g,' ').slice(0,160),qty:`${Number(l.quantity).toLocaleString('en-US')} ${l.unit||''}`.trim(),unitCost:money(l.unitCost,true),cost:money(l.cost,true),basis:basisOf(l)})),
