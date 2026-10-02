@@ -1,0 +1,60 @@
+# P5 independent overnight verification — 2026-10-02 UTC
+
+## Source and ownership
+
+Started from GitHub `main` at `bbf1870c454e2ee86edfa609f11209585d23beae`. Existing checkout instructions and `.agents/memory` were read. Historical local checkouts were stale and were not modified. Main remained at this commit at the 04:26 UTC fetch.
+
+Production initially reported `2026-10-02.6`, clean tree `e04f5a87aac00f1d5fc69f12921ccaa349bb8b24`. Another active estimator conversation published `.7` during this investigation. The subsequent public release receipt reports `.7`, clean tree `7b84cc6711b40f8756a03037c7046574597fccc1`, Replit SHA `6ce37cfd5780df67233c772898dfea8921a114d4`, built at `2026-10-02T04:13:45.586Z`. The tree equals GitHub main's tree. This investigation did not publish or mutate Replit source.
+
+A new Replit read-only diagnostic from the other conversation became visible around 04:23 UTC. It concerns synthetic draft `d05c6c74-33a2-4f8a-ba85-9df3565cf8b0` and a fresh `.7` HTTP 422. Its visible diagnostic reports retained $210 installation labor plus $75 shared allowance, no retained hinge-material line, but final audit findings still discussing a discarded hinge charge and removal-only labor. All task IDs were covered while blocking issues remained. This is a second-hand saved-record diagnostic, not an independent database replay or evidence of a corrected result. No request was sent to Replit Agent by this investigation. The other diagnosis remains the owner of that failure.
+
+## Independent corrections
+
+1. Numeric `0 tall cabinets` was reproducibly discarded by `validateExtraction`, producing `Confirm tall cabinet run in linear feet from an explicit measurement before pricing.` Spelled `zero tall cabinets` survived. A shared, family-specific absence check now accepts numeric and written absence through validation and pricing protection. Tests cover saved replay and question selection; unknown, speculative, and another cabinet family's absence remain unusable. This reproduces a plausible mechanism for the previously recorded repeated tall-cabinet question; the exact historical raw cabinet extraction was not available for replay.
+2. CI legacy provider fixtures lacked `P5_ESTIMATOR_PROVIDER=openai`, unlike the existing `npm test` command. The new production Haiku default therefore broke their intercepted OpenAI transport/model assertions. Pinning the legacy fixture jobs aligns them with the established test contract. Their later `npm run build` still invokes the separate Haiku suite through prebuild; production provider configuration is unchanged.
+3. The real document readiness response now includes the configured model. Its exact-object integration assertion was stale. It now requires that model value rather than weakening the response assertion.
+
+The numeric-zero change needs a fresh estimator release identifier when integrated for publication. This branch intentionally retains main's `.7` identifier to avoid claiming the next release number while another conversation is preparing fixes. No child-site rollout occurred.
+
+## Verification
+
+| Check | Result | Boundary |
+| --- | --- | --- |
+| `npm test` | 1,772 passed, 16 skipped; separate provider suite 19 passed | Offline/intercepted transports; skips remain explicit |
+| `npm run build` | Passed prebuild database safety, same suites, TypeScript and production build | Candidate temporarily had `.8`; identifier restored to `.7` before preservation; no executable logic changed after build |
+| CI-style `P5_ESTIMATOR_PROVIDER=openai node --import tsx --test --test-concurrency=1 tests/p5-*.test.ts` | 1,156 passed, 15 skipped | Matches conversation job's runner and selection |
+| Complete document service `node --test test/*.test.mjs` | 380 passed, 0 skipped | New loopback-only PostgreSQL cluster, synthetic providers, real HTTP/PDF/parser/SQL; test database dropped and server stopped |
+| Document integration alone | 13 passed | Includes exact readiness model and real PDF parsing |
+| Saved-file adapter | Passed | Real isolated SQL, signed request integrity, source reuse, no delivery |
+| Pricing recovery | Passed | Saved results reused; bounded retries; incomplete prices withheld; no live provider calls |
+| Captured delivery workflow | Passed | Simulated email/CRM failure and acknowledgement loss, generated PDF workflow; not inbox arrival |
+| Receipt persistence | Passed | SQL receipts and optimistic revision checks |
+| Upload adversarial matrix | 31 passed, 0 failed | Synthetic uploads only |
+| Document adversarial matrix | Passed all 17 listed cases | Wrong/missing/duplicate/out-of-order pages, wrong sources, oversized counts, 401/429/503 |
+| Final extraction/shared-manifest checks | Passed | After restoring the release identifier and refreshing manifest |
+| Git diff whitespace checks | Passed | No credentials or customer documents added |
+
+GitHub failures inspected: document run `36963135249`, conversation run `36963135226`, estimator run `36963135257`. Conversation had 44 failures consistent with provider selection; estimator financial stage had 3; document service had one outdated readiness expectation. These exact remote jobs are not claimed rerun or green. Later CI stages may expose additional failures after the initial blockers are repaired.
+
+## Service acceptance matrix
+
+| Case | Current evidence | Remaining gate |
+| --- | --- | --- |
+| New construction | Local scope, quantity, exclusion and pricing tests pass; approved synthetic fixtures are present | Fresh production extraction, pricing, PDF and delivery acceptance |
+| Addition | Historical six-page reads completed; local component/total and conflict tests pass | Historical combined-flooring accuracy remains unaccepted; exact saved raw extraction needed before a targeted correction |
+| ADU | Local scope ownership, separate garage/living area and clarification tests pass | Production complete-scope acceptance |
+| Kitchen | Local scope replacement, exclusion and retained-appliance tests pass | Production text/upload end-to-end acceptance |
+| Bathroom / whole-home | Local tile surface and quantity-preservation tests pass | Production text/upload end-to-end acceptance |
+| Cabinet-only | Historical `.5` $2,075–$2,550 result with separate 9/12 LF runs; numeric-zero bug reproduced and locally fixed | Integrate fix, then verify question-free current production result and exclusions |
+| Handyman | Historical `.6` $450–$555, two charges, no separate contingency; fresh `.7` 422 visible in other diagnostic | Active stale-audit repair and fresh production acceptance; prior pass is insufficient |
+| RE10 | Local source-boundary, fixture quantities and clarification tests pass | Current production extraction, pricing and delivery acceptance |
+
+The contingency policy already implemented in main is 10% of direct project cost, with the reserve incorporated in small-job line prices and no separate small-job contingency line. This investigation did not change arithmetic or invent prices. Historical emails can reflect older saved estimates; they do not establish current regenerated presentation.
+
+## Browser and deployment limits
+
+Live homepage-to-quote navigation and desktop initial estimator rendering worked. Reload reached the normal loading shell; a complete persisted-project recovery journey was not performed in this fresh browser session. A requested 390×844 viewport override did not change the observed 1920×1080 page viewport and was reset; mobile and keyboard acceptance is therefore unverified. No file chooser was used.
+
+No new paid estimator runs, customer messages, mailbox tests, CRM writes, credential changes or Replit Agent prompts were initiated. Independent inbox arrival and broad production uploads remain open. The existing synthetic text/PDF/scan fixtures are available for the authorized next acceptance run, but repository tests are not a substitute for live model accuracy.
+
+Changes are preserved separately because another conversation is actively diagnosing and publishing P5. Before integration: fetch current main, compare overlapping changes, reconcile release identifier and shared manifest, run relevant regressions, and verify exact Replit source tree before a single necessary publication.

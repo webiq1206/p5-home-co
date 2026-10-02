@@ -16,6 +16,8 @@ jobs:
     timeout-minutes: 30
     env:
       NEXT_TELEMETRY_DISABLED: '1'
+      # Historical fixtures mock OpenAI; npm test separately checks production Haiku.
+      P5_ESTIMATOR_PROVIDER: openai
     steps:
       - uses: actions/checkout@v6
         with:
