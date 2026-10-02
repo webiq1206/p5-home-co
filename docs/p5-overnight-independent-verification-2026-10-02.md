@@ -64,3 +64,11 @@ Changes are preserved separately because another conversation is actively diagno
 PR #84's first estimator run passed its financial-policy stage and then failed at `scripts/test-p5-pricing-work.mts`: the isolated `scopePricing` replacement exported `PRICING_STAGE_MAX_MS` but omitted the newly required `RESEARCH_STAGE_MS`. The real orchestration consequently calculated a `NaN` research deadline. Both isolated pricing mocks now export the research-stage bound. This changes test harnesses only, without changing production timeout or pricing behavior.
 
 The identity, pricing-work, background-worker, repair-persistence, resumable upload, scanned-plan rendering, upload and unit-rate-store scripts subsequently passed locally. The rendering case covers a synthetic 36×24-inch scan with 24 overlapping detail views in four requests, not live AI interpretation. Local runtime was macOS / Node 22.22.1; GitHub's Linux / Node 24 run remains a separate acceptance gate.
+
+## Current-main integration check
+
+Main advanced to `9d50aa3` (`2026-10-02.8`, superseded-material audit repair). Its runtime edits are in `minorWorkAudit.ts` and `scopePricing.ts`; independent cabinet changes are in `cabinetMeasurements.ts` and `scope.ts`. No runtime or CI file conflict occurred. Only `shared-manifest.json` conflicted and was regenerated from the combined tree. This preserves the other conversation's repair rather than duplicating it.
+
+The combined source passed `npm run build`: 1,778 main tests passed, 16 skipped; 19 provider tests passed; six database-safety tests passed; TypeScript and production compilation passed. The branch now inherits `.8` from main; publication of the independent cabinet change still requires coordinating a fresh release identity with the active owner. At the subsequent public-release check, live remained `.7`.
+
+Additional live desktop evidence: a clearly labeled, unsent synthetic cabinet scope survived page reload with its exact text. Tab from the textarea focused Attach files. Only that unsent QA text was then cleared; Send was never pressed. This establishes initial local draft recovery, not persisted server-analysis recovery, mobile keyboard behavior, or live extraction accuracy.
