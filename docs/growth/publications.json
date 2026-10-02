@@ -30,19 +30,23 @@
       "published_at": "2026-09-30T16:00:54+00:00",
       "permalink_url": "https://www.facebook.com/122135638923385974/posts/122135640783385974",
       "verified_at": "2026-09-30"
-    }
-  ],
-  "scheduled": [
+    },
     {
       "brand": "Boise Handyman Co",
       "url": "https://boisehandyman.co/services/home-maintenance",
       "utm_content": "fall_repair_list",
       "scheduled_epoch": 1790870400,
       "id": "1228704823655951_122135640855385974",
-      "status": "scheduled_verified",
+      "status": "published_verified",
       "estimator_url": "https://boisehandyman.co/estimate?utm_source=facebook&utm_medium=organic_social&utm_campaign=p5_free_growth_2026q4&utm_content=fall_repair_list_estimator",
-      "estimator_link_updated_at": "2026-09-29"
-    },
+      "estimator_link_updated_at": "2026-09-29",
+      "platform": "facebook",
+      "published_at": "2026-10-01T16:00:00+0000",
+      "permalink_url": "https://www.facebook.com/122135638923385974/posts/122135640855385974",
+      "verified_at": "2026-10-02"
+    }
+  ],
+  "scheduled": [
     {
       "brand": "Boise Remodeling Co",
       "url": "https://boiseremodeling.co/services/kitchen-remodel",
