@@ -13,7 +13,7 @@ export const advisoryReviewSchema=z.object({
 export type AdvisoryReview=z.infer<typeof advisoryReviewSchema>;
 type Line={id:string;description:string;category:string;unit?:string;quantity:number|{fixed?:number;factor?:number};unitCost:number;evidence?:{reference:string};scopeTaskId?:string};
 type Task={id:string;description:string;existingLineIds?:string[]};
-export type AssumptionEntry={id:string;text:string;origin:'assumption'|'prior-issue'};
+export type AssumptionEntry={id:string;text:string;origin:'assumption'|'prior-issue'|'pricing-history'};
 export type AdvisoryReviewRecord={version:'advisory-provenance-v1';ledger:AssumptionEntry[];review:AdvisoryReview;lineSignatures:Record<string,string>;taskSignatures:Record<string,string>;issues:string[];notes:string[]};
 const unique=(values:string[])=>[...new Set(values)];
 const hash=(value:unknown)=>createHash('sha256').update(JSON.stringify(value)).digest('hex');
@@ -21,9 +21,9 @@ const quantity=(line:Line)=>typeof line.quantity==='number'?line.quantity:(line.
 const live=(lines:Line[])=>[...new Map(lines.filter(line=>quantity(line)>0&&line.unitCost>0).map(line=>[line.id,line])).values()];
 const signature=(line:Line)=>hash({id:line.id,description:line.description,category:line.category,unit:line.unit,quantity:quantity(line),unitCost:line.unitCost,reference:line.evidence?.reference||''});
 const taskSignature=(task:Task,lines:Line[])=>hash({id:task.id,description:task.description,lineIds:unique([...(task.existingLineIds||[]),...lines.filter(line=>line.scopeTaskId===task.id).map(line=>line.id)]).sort()});
-export function assumptionLedger(assumptions:string[],priorIssues:string[]):AssumptionEntry[]{
- const issues=new Set(priorIssues);
- return unique([...assumptions,...priorIssues]).map(text=>({id:'assumption-'+hash(text).slice(0,20),text,origin:issues.has(text)?'prior-issue':'assumption'}));
+export function assumptionLedger(assumptions:string[],priorIssues:string[],pricingHistory:string[]=[]):AssumptionEntry[]{
+ const issues=new Set(priorIssues),history=new Set(pricingHistory);
+ return unique([...assumptions,...pricingHistory,...priorIssues]).map(text=>({id:'assumption-'+hash(text).slice(0,20),text,origin:issues.has(text)?'prior-issue':history.has(text)?'pricing-history':'assumption'}));
 }
 /** Stamp the exact audit input on the server, never accept a model-supplied
  * snapshot. Replayed stage replies are stamped against their original input. */
@@ -44,7 +44,7 @@ export function resolveAdvisoryProvenance(records:AdvisoryReviewRecord[],lines:L
  const taskById=new Map(tasks.map(task=>[task.id,task]));
  for(const record of records){
   if(!record||record.version!=='advisory-provenance-v1'||!Array.isArray(record.ledger)||!record.lineSignatures||!record.taskSignatures||!Array.isArray(record.issues)||!Array.isArray(record.notes)
-   ||!advisoryReviewSchema.safeParse(record.review).success||record.ledger.some(entry=>!entry||typeof entry.text!=='string'||entry.id!=='assumption-'+hash(entry.text).slice(0,20)||!['assumption','prior-issue'].includes(entry.origin))){
+   ||!advisoryReviewSchema.safeParse(record.review).success||record.ledger.some(entry=>!entry||typeof entry.text!=='string'||entry.id!=='assumption-'+hash(entry.text).slice(0,20)||!['assumption','prior-issue','pricing-history'].includes(entry.origin))){
    result.invalid.push({message:'The saved advisory review could not be validated.',lineIds:[...ids],taskIds:[]});continue;
   }
   const entries=new Map(record.ledger.map(entry=>[entry.id,entry]));

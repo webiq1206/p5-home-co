@@ -8,6 +8,8 @@ const now=new Date('2026-10-02T09:09:27.443Z');
 const saved=JSON.parse(readFileSync(new URL('./fixtures/p5-final-minor-work-copy.json',import.meta.url),'utf8'));
 function fixture(){
  const f=structuredClone(saved);
+ // This synthetic review supplies its own complete assumption ledger.
+ f.auditTrail.tasks.forEach((task:any)=>task.notes=[]);
  f.resolution.assumptions=['Owner supplies three compatible replacement levers.','PB-08-72-07 is proposed for installation consumables.','PB-08-71-01 allegedly includes consumables.'];
  f.auditTrail.issues=[];f.auditTrail.verification.issues=[];
  return f;
