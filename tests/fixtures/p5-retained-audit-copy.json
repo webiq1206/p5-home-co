@@ -1,0 +1,481 @@
+{
+  "provenance": "Synthetic QA P5-E86EC872 on release 2026-10-02.9; exact submitted scope, final mapping, resolution and audit; no customer contact data.",
+  "scope": {
+    "text": "SYNTHETIC QA \u2014 release 2026-10-02.9 acceptance only, not a real customer job. Boise, Idaho 83702. Remove and dispose of three existing interior passage door levers and install three owner-supplied compatible replacement passage levers on the same three doors. All doors have existing compatible predrilled holes and are in good condition. Contractor supplies normal installation consumables. No new doors, hinges, drilling, patching, painting, electrical work, or structural work. Easy ground-floor access and standard scheduling. Please estimate only this handyman replacement scope.",
+    "answers": {
+      "access": "Easy ground-floor access; standard occupied-home conditions",
+      "service": "handyman",
+      "location": "Boise, Idaho 83702",
+      "exclusions": "New doors; door hinges; drilling; patching; painting; electrical work; structural work",
+      "installation": "Remove and dispose of three existing interior passage door levers; install three owner-supplied replacement passage levers on existing predrilled holes. Contractor supplies normal installation consumables.",
+      "ownerSupplied": "Three owner-supplied compatible replacement passage door levers",
+      "estimatingInstructions": ""
+    },
+    "uploads": [],
+    "extraction": {
+      "facts": [
+        {
+          "basis": "stated",
+          "field": "service",
+          "value": "handyman",
+          "source": "previousAnswers and typed scope",
+          "evidence": "Request states 'Please estimate only this handyman replacement scope.'",
+          "confidence": 1
+        },
+        {
+          "basis": "stated",
+          "field": "location",
+          "value": "Boise, Idaho 83702",
+          "source": "typed scope",
+          "evidence": "Boise, Idaho 83702",
+          "confidence": 1
+        },
+        {
+          "basis": "stated",
+          "field": "access",
+          "value": "Easy ground-floor access; standard occupied-home conditions",
+          "source": "typed scope",
+          "evidence": "Easy ground-floor access and standard scheduling.",
+          "confidence": 1
+        },
+        {
+          "basis": "stated",
+          "field": "ownerSupplied",
+          "value": "Three owner-supplied compatible replacement passage door levers",
+          "source": "typed scope",
+          "evidence": "install three owner-supplied compatible replacement passage levers",
+          "confidence": 1
+        },
+        {
+          "basis": "stated",
+          "field": "installation",
+          "value": "Remove and dispose of three existing interior passage door levers; install three owner-supplied replacement passage levers on existing predrilled holes. Contractor supplies normal installation consumables.",
+          "source": "typed scope",
+          "evidence": "Remove and dispose of three existing interior passage door levers and install three owner-supplied compatible replacement passage levers on the same three doors. Contractor supplies normal installation consumables.",
+          "confidence": 1
+        },
+        {
+          "basis": "stated",
+          "field": "exclusions",
+          "value": "New doors; door hinges; drilling; patching; painting; electrical work; structural work",
+          "source": "typed scope",
+          "evidence": "No new doors, hinges, drilling, patching, painting, electrical work, or structural work.",
+          "confidence": 1
+        }
+      ],
+      "summary": "Handyman replacement of three interior passage door levers. Owner supplies replacement levers; contractor removes existing levers, disposes of them, and installs owner-supplied levers on existing predrilled holes. No structural, finishing, or MEP work. Standard access and schedule.",
+      "conflicts": [],
+      "sourceText": "SYNTHETIC QA \u2014 release 2026-10-02.9 acceptance only, not a real customer job. Boise, Idaho 83702. Remove and dispose of three existing interior passage door levers and install three owner-supplied compatible replacement passage levers on the same three doors. All doors have existing compatible predrilled holes and are in good condition. Contractor supplies normal installation consumables. No new doors, hinges, drilling, patching, painting, electrical work, or structural work. Easy ground-floor access and standard scheduling. Please estimate only this handyman replacement scope.",
+      "reviewNotes": [],
+      "instructions": {
+        "floors": [
+          "Ground floor"
+        ],
+        "buildings": [
+          "Single residential building"
+        ],
+        "laborOnly": false,
+        "questions": [],
+        "exclusions": [
+          "New doors",
+          "Door hinges",
+          "Drilling (doors have existing predrilled holes)",
+          "Patching",
+          "Painting",
+          "Electrical work",
+          "Structural work"
+        ],
+        "inclusions": [
+          "Removal and disposal of three existing interior passage door levers",
+          "Installation of three owner-supplied replacement passage door levers",
+          "Contractor-supplied normal installation consumables"
+        ],
+        "materialsOnly": false,
+        "responsibilities": [
+          "Contractor: removal, disposal, and installation of replacement levers on existing predrilled holes; supply of normal installation consumables",
+          "Owner: supply of three compatible replacement passage door levers"
+        ],
+        "separateBuildings": false
+      },
+      "clarifications": [],
+      "documentCoverage": {
+        "pages": [],
+        "complete": true,
+        "expectedPages": 0
+      },
+      "missingInformation": []
+    },
+    "reviewedAt": "2026-10-02T08:40:35.215Z",
+    "corrections": [],
+    "uncertainFields": []
+  },
+  "resolution": {
+    "rules": [
+      {
+        "id": "scope-2",
+        "unit": "EA",
+        "floor": "",
+        "trade": "Windows & Doors",
+        "building": "",
+        "category": "field-labor",
+        "evidence": {
+          "basis": "owner-estimating-schedule",
+          "reference": "P5 Cost Database 2026.xlsx (Master sheet), Mid-Range direct cost; PB-08-71-01; Three doors stated in scope; labor only at $70/door per catalog",
+          "validUntil": "2026-12-12T00:00:00.000Z",
+          "verifiedAt": "2026-09-11T00:00:00.000Z"
+        },
+        "quantity": {
+          "fixed": 3,
+          "factor": 1
+        },
+        "unitCost": 70,
+        "allowance": false,
+        "priceBasis": "direct-cost",
+        "description": "Remove existing handles and install their replacements on the same doors: Door hardware install / replace, per door (labor) (labor only; price materials separately; Door Hardware Installation (Labor), Openings). Labor only; material priced separately",
+        "scopeTaskId": "install-new-levers",
+        "quantityRange": {
+          "low": 3,
+          "high": 3
+        },
+        "estimatingBasis": "owner-average-cost"
+      },
+      {
+        "id": "minor-work-allowance",
+        "unit": "job",
+        "category": "other-direct",
+        "evidence": {
+          "basis": "owner-budget-allowance",
+          "reference": "minor-work-v1; owner-authorized job-support budget. Base: 210.00. Shared minimum 75; 3% basis, capped at 750. No embedded reserve; standard project contingency applies once. Not supplier pricing.\nCovered work:\nDispose of the removed door levers or handles\nRemove and dispose of three existing interior passage door levers\nSupply contractor installation consumables",
+          "validUntil": "2026-12-31T08:40:35.608Z",
+          "verifiedAt": "2026-10-02T08:40:35.608Z"
+        },
+        "quantity": {
+          "fixed": 1,
+          "factor": 1
+        },
+        "unitCost": 75,
+        "allowance": true,
+        "priceBasis": "direct-cost",
+        "description": "Minor work, job supplies and handling allowance"
+      }
+    ],
+    "issues": [],
+    "assumptions": [
+      "Owner supplies three compatible replacement passage door levers; contractor does not purchase these.",
+      "All three doors have existing compatible predrilled holes in good condition; no drilling or door preparation is required.",
+      "Contractor supplies normal installation consumables (e.g., screws, washers, lubricant) as part of installation labor.",
+      "Ground-floor access, standard occupied-home conditions, and standard scheduling.",
+      "Scope explicitly excludes new doors, hinges, drilling, patching, painting, electrical work, and structural work.",
+      "Location: Boise, Idaho 83702.",
+      "Service type: handyman.",
+      "Owner-supplied: three compatible replacement passage door levers (material cost not included; contractor installs only)",
+      "Contractor supplies normal installation consumables per stated scope",
+      "All doors have existing compatible predrilled holes; no drilling, patching, or painting required",
+      "Ground-floor access with standard occupied-home conditions",
+      "Exclusions confirmed: no new doors, hinges, drilling, patching, painting, electrical, or structural work",
+      "Handyman scope: replacement of three interior passage door levers only",
+      "All doors have existing compatible predrilled holes; no structural, drilling, patching, or finishing work required",
+      "Owner-supplied levers; contractor handles removal of old levers, disposal, and installation of replacements",
+      "Ground-floor access; standard occupied-home conditions",
+      "Installation consumables (fasteners, shims) supplied by contractor as stated in scope",
+      "Supply contractor installation consumables for door hardware replacement: Owner supplies three compatible replacement passage door levers; contractor installs on existing predrilled holes",
+      "Supply contractor installation consumables for door hardware replacement: Consumables cover normal fasteners, shims, and fitting materials required for installation",
+      "Supply contractor installation consumables for door hardware replacement: No drilling, patching, or finishing work included",
+      "Remove and dispose of three existing interior passage door levers: mapped to Door hardware install / replace, per door (labor) (labor only; price materials separately; Door Hardware Installation (Labor), Openings). Labor only; material priced separately, 3 EA. Three doors stated in scope; labor only at $70/door per catalog",
+      "Install three owner-supplied replacement passage door levers on existing predrilled holes; include contractor-supplied normal installation consumables: mapped to Door hardware install / replace, per door (labor) (labor only; price materials separately; Door Hardware Installation (Labor), Openings). Labor only; material priced separately, 3 EA. Three doors stated in scope; labor only at $70/door per catalog",
+      "A shared preliminary allowance covers minor job supplies, handling, cleanup and other small supporting work listed in this estimate. Larger repairs, hazardous waste and major demolition are priced separately. Confirm actual conditions before a firm proposal.",
+      "Removal and replacement of the same door handles are covered by one per-door hardware replacement labor charge.",
+      "Scope is limited to handyman replacement of three interior passage door levers.",
+      "Owner supplies three compatible replacement passage door levers; contractor does not supply the levers themselves.",
+      "All three doors have existing compatible predrilled holes in good condition; no new drilling, patching, or painting required.",
+      "Removal and installation labor is covered by PB-08-71-01 at $70/door ($210 total for three doors, which equals the quantity in scope-2).",
+      "Contractor-supplied normal installation consumables (fasteners, shims, minor hardware) are included within the labor-only rate and the minor-work-allowance job-support budget.",
+      "No structural, finishing (paint/patch), MEP, or specialty work is in scope.",
+      "Standard ground-floor access and occupied-home conditions are assumed.",
+      "Exclusions confirmed: New doors, door hinges, drilling, patching, painting, electrical work, structural work.",
+      "Supply contractor installation consumables (screws, fasteners, shims, minor materials for door lever installation): Installation consumables (screws, fasteners, shims) are included within the labor-only rate PB-08-71-01 (Door Hardware Installation, Labor). The minor-work-allowance (minor-work-v1) covers job supplies and handling as a combined allowance and is the appropriate allocation for consumables supporting this handyman task.",
+      "Owner supplies three compatible replacement passage door levers; contractor supplies only normal installation consumables (screws, fasteners, shims).",
+      "All three doors have existing compatible predrilled holes in good condition; no drilling, patching, painting, or door preparation required.",
+      "Labor rate PB-08-71-01 ($70/door, 3 EA) is sourced as owner-average-cost (direct cost, not supplier quote), valid through 2026-12-12.",
+      "Minor-work-allowance (minor-work-v1, $75 lump-sum job allowance) covers job supplies, handling, and debris disposal; no embedded reserve; standard project contingency applies once.",
+      "Ground-floor access with standard occupied-home conditions; standard scheduling.",
+      "Scope explicitly excludes new doors, hinges, drilling, patching, painting, electrical work, and structural work.",
+      "Location: Boise, Idaho 83702; service type: handyman.",
+      "To confirm: Task remove-old-levers and install-new-levers: Duplicate labor charge. Line scope-2 (PB-08-71-01, Door Hardware Installation Labor at $70/door, 3 EA = $210) is assigned to BOTH remove-old-levers and install-new-levers. The scope explicitly requires ONE action per door: remove existing lever AND install replacement on the same door with existing predrilled holes. The catalog description 'Door Hardware Installation (Labor), Openings' is ambiguous as to whether it covers removal, installation, or both. This single labor line should be assigned to ONE task (either combined removal+installation as a single operation, or removal only, or installation only), not duplicated across two tasks. Clarify the scope of PB-08-71-01 and consolidate to one per-door charge."
+    ],
+    "replaceBase": true,
+    "removeLineIds": [],
+    "removeExclusions": [],
+    "completeScopeVerified": true
+  },
+  "auditTrail": {
+    "tasks": [
+      {
+        "id": "remove-old-levers",
+        "basis": "",
+        "notes": [],
+        "issues": [],
+        "origin": "requested",
+        "evidence": "Stated scope: 'Remove and dispose of three existing interior passage door levers'",
+        "additions": [],
+        "costClass": "primary-work",
+        "description": "Remove and dispose of three existing interior passage door levers",
+        "existingLineIds": [
+          "scope-2"
+        ],
+        "researchDescription": ""
+      },
+      {
+        "id": "install-new-levers",
+        "basis": "",
+        "notes": [],
+        "issues": [],
+        "origin": "requested",
+        "evidence": "Stated scope: 'install three owner-supplied compatible replacement passage levers on the same three doors. Contractor supplies normal installation consumables.'",
+        "additions": [],
+        "costClass": "primary-work",
+        "description": "Install three owner-supplied replacement passage door levers on existing predrilled holes; include contractor-supplied normal installation consumables",
+        "existingLineIds": [
+          "scope-2"
+        ],
+        "researchDescription": ""
+      },
+      {
+        "id": "required-contractor-consumables",
+        "notes": [
+          "Installation consumables (screws, fasteners, shims) are included within the labor-only rate PB-08-71-01 (Door Hardware Installation, Labor). The minor-work-allowance (minor-work-v1) covers job supplies and handling as a combined allowance and is the appropriate allocation for consumables supporting this handyman task."
+        ],
+        "issues": [],
+        "evidence": "SYNTHETIC QA \u2014 release 2026-10-02.9 acceptance only, not a real customer job. Boise, Idaho 83702. Remove and dispose of three existing interior passage door levers and install three owner-supplied compatible replacement passage levers on the same three doors. All doors have existing compatible predrilled holes and are in good condition. Contractor supplies normal installation consumables. No new doors, hinges, drilling, patching, painting, electrical work, or structural work. Easy ground-floor access and standard scheduling. Please estimate only this handyman replacement scope.\nSYNTHETIC QA \u2014 release 2026-10-02.9 acceptance only, not a real customer job. Boise, Idaho 83702. Remove and dispose of three existing interior passage door levers and install three owner-supplied compatible replacement passage levers on the same three doors. All doors have existing compatible predrilled holes and are in good condition. Contractor supplies normal installation consumables. No new doors, hinges, drilling, patching, painting, electrical work, or structural work. Easy ground-floor access and standard scheduling. Please estimate only this handyman replacement scope.\nThree owner-supplied compatible replacement passage door levers\nRemove and dispose of three existing interior passage door levers; install three owner-supplied replacement passage levers on existing predrilled holes. Contractor supplies normal installation consumables.\nContractor: removal, disposal, and installation of replacement levers on existing predrilled holes; supply of normal installation consumables\nOwner: supply of three compatible replacement passage door levers\nRemoval and disposal of three existing interior passage door levers\nInstallation of three owner-supplied replacement passage door levers\nContractor-supplied normal installation consumables",
+        "additions": [],
+        "description": "Supply contractor installation consumables",
+        "existingLineIds": [
+          "minor-work-allowance"
+        ],
+        "researchDescription": ""
+      }
+    ],
+    "issues": [
+      "Task remove-old-levers and install-new-levers: Duplicate labor charge. Line scope-2 (PB-08-71-01, Door Hardware Installation Labor at $70/door, 3 EA = $210) is assigned to BOTH remove-old-levers and install-new-levers. The scope explicitly requires ONE action per door: remove existing lever AND install replacement on the same door with existing predrilled holes. The catalog description 'Door Hardware Installation (Labor), Openings' is ambiguous as to whether it covers removal, installation, or both. This single labor line should be assigned to ONE task (either combined removal+installation as a single operation, or removal only, or installation only), not duplicated across two tasks. Clarify the scope of PB-08-71-01 and consolidate to one per-door charge."
+    ],
+    "catalog": {
+      "rates": 1830,
+      "version": "owner-schedule-2026-09-11+price-book:aafe22e09883:mid",
+      "importedAt": "2026-09-11T00:00:00.000Z"
+    },
+    "version": "complete-scope-v3",
+    "research": [],
+    "scopeHash": "1c25a37d6466010137408626db20131c82daf2eaa3d7e6080997e596894c43f8",
+    "adjustments": {
+      "initial": {
+        "replacements": [],
+        "removeExclusions": []
+      },
+      "priorAuditIssues": [
+        "Task install-new-levers: Duplicate charge detected. Line PB-08-71-01 (3 EA \u00d7 $70 labor) is already assigned to remove-old-levers. The scope requirement\u2014remove existing levers AND install replacements on the same three doors\u2014should be covered by a single per-door labor rate, not charged twice. Verify that PB-08-71-01 description 'Door Hardware Installation (Labor), Openings' encompasses both removal and installation, or provide separate, non-overlapping labor codes for removal versus installation."
+      ],
+      "repairExclusions": [],
+      "repairReplacements": []
+    },
+    "verification": {
+      "notes": [
+        "Owner supplies three compatible replacement passage door levers; contractor supplies only normal installation consumables (screws, fasteners, shims).",
+        "All three doors have existing compatible predrilled holes in good condition; no drilling, patching, painting, or door preparation required.",
+        "Labor rate PB-08-71-01 ($70/door, 3 EA) is sourced as owner-average-cost (direct cost, not supplier quote), valid through 2026-12-12.",
+        "Minor-work-allowance (minor-work-v1, $75 lump-sum job allowance) covers job supplies, handling, and debris disposal; no embedded reserve; standard project contingency applies once.",
+        "Ground-floor access with standard occupied-home conditions; standard scheduling.",
+        "Scope explicitly excludes new doors, hinges, drilling, patching, painting, electrical work, and structural work.",
+        "Location: Boise, Idaho 83702; service type: handyman."
+      ],
+      "issues": [
+        "Task remove-old-levers and install-new-levers: Duplicate labor charge. Line scope-2 (PB-08-71-01, Door Hardware Installation Labor at $70/door, 3 EA = $210) is assigned to BOTH remove-old-levers and install-new-levers. The scope explicitly requires ONE action per door: remove existing lever AND install replacement on the same door with existing predrilled holes. The catalog description 'Door Hardware Installation (Labor), Openings' is ambiguous as to whether it covers removal, installation, or both. This single labor line should be assigned to ONE task (either combined removal+installation as a single operation, or removal only, or installation only), not duplicated across two tasks. Clarify the scope of PB-08-71-01 and consolidate to one per-door charge."
+      ],
+      "coveredTaskIds": [
+        "remove-old-levers",
+        "install-new-levers",
+        "required-contractor-consumables"
+      ],
+      "resolvedIssues": []
+    }
+  },
+  "configuration": {
+    "finance": {
+      "approvedBy": [
+        "hello@p5homeco.com"
+      ],
+      "reviewedAt": "2026-09-11T18:32:39.183Z",
+      "overheadRate": 0.2,
+      "annualRevenue": null,
+      "annualOverhead": 420000,
+      "forecastSource": ""
+    },
+    "costBooks": [
+      {
+        "mode": "owner-planning",
+        "rules": [
+          {
+            "id": "scope-2",
+            "unit": "EA",
+            "floor": "",
+            "trade": "Windows & Doors",
+            "building": "",
+            "category": "field-labor",
+            "evidence": {
+              "basis": "owner-estimating-schedule",
+              "reference": "P5 Cost Database 2026.xlsx (Master sheet), Mid-Range direct cost; PB-08-71-01; Three doors stated in scope; labor only at $70/door per catalog",
+              "validUntil": "2026-12-12T00:00:00.000Z",
+              "verifiedAt": "2026-09-11T00:00:00.000Z"
+            },
+            "quantity": {
+              "fixed": 3,
+              "factor": 1
+            },
+            "unitCost": 70,
+            "allowance": false,
+            "priceBasis": "direct-cost",
+            "description": "Remove existing handles and install their replacements on the same doors: Door hardware install / replace, per door (labor) (labor only; price materials separately; Door Hardware Installation (Labor), Openings). Labor only; material priced separately",
+            "scopeTaskId": "install-new-levers",
+            "quantityRange": {
+              "low": 3,
+              "high": 3
+            },
+            "estimatingBasis": "owner-average-cost"
+          },
+          {
+            "id": "minor-work-allowance",
+            "unit": "job",
+            "category": "other-direct",
+            "evidence": {
+              "basis": "owner-budget-allowance",
+              "reference": "minor-work-v1; owner-authorized job-support budget. Base: 210.00. Shared minimum 75; 3% basis, capped at 750. No embedded reserve; standard project contingency applies once. Not supplier pricing.\nCovered work:\nDispose of the removed door levers or handles\nRemove and dispose of three existing interior passage door levers\nSupply contractor installation consumables",
+              "validUntil": "2026-12-31T08:40:35.608Z",
+              "verifiedAt": "2026-10-02T08:40:35.608Z"
+            },
+            "quantity": {
+              "fixed": 1,
+              "factor": 1
+            },
+            "unitCost": 75,
+            "allowance": true,
+            "priceBasis": "direct-cost",
+            "description": "Minor work, job supplies and handling allowance"
+          }
+        ],
+        "service": "handyman",
+        "coverage": [
+          {
+            "reason": "Only the explicitly requested scope is priced; see itemized scope.",
+            "status": "not-applicable",
+            "category": "materials"
+          },
+          {
+            "reason": "Itemized scope pricing includes this category.",
+            "status": "included",
+            "category": "field-labor"
+          },
+          {
+            "reason": "Only the explicitly requested scope is priced; see itemized scope.",
+            "status": "not-applicable",
+            "category": "owner-production"
+          },
+          {
+            "reason": "Only the explicitly requested scope is priced; see itemized scope.",
+            "status": "not-applicable",
+            "category": "subcontractors"
+          },
+          {
+            "reason": "Only the explicitly requested scope is priced; see itemized scope.",
+            "status": "not-applicable",
+            "category": "permits-inspections"
+          },
+          {
+            "reason": "Only the explicitly requested scope is priced; see itemized scope.",
+            "status": "not-applicable",
+            "category": "engineering-design"
+          },
+          {
+            "reason": "Only the explicitly requested scope is priced; see itemized scope.",
+            "status": "not-applicable",
+            "category": "equipment-rentals"
+          },
+          {
+            "reason": "Only the explicitly requested scope is priced; see itemized scope.",
+            "status": "not-applicable",
+            "category": "disposal"
+          },
+          {
+            "reason": "Only the explicitly requested scope is priced; see itemized scope.",
+            "status": "not-applicable",
+            "category": "travel-mobilization"
+          },
+          {
+            "reason": "Only the explicitly requested scope is priced; see itemized scope.",
+            "status": "not-applicable",
+            "category": "protection-cleanup"
+          },
+          {
+            "reason": "Only the explicitly requested scope is priced; see itemized scope.",
+            "status": "not-applicable",
+            "category": "project-supervision"
+          },
+          {
+            "reason": "Only the explicitly requested scope is priced; see itemized scope.",
+            "status": "not-applicable",
+            "category": "closeout"
+          },
+          {
+            "reason": "Itemized scope pricing includes this category.",
+            "status": "included",
+            "category": "other-direct"
+          }
+        ],
+        "exclusions": [],
+        "reviewedAt": "2026-09-11T00:00:00.000Z",
+        "assumptions": [
+          "Owner supplies three compatible replacement passage door levers; contractor does not purchase these.",
+          "All three doors have existing compatible predrilled holes in good condition; no drilling or door preparation is required.",
+          "Contractor supplies normal installation consumables (e.g., screws, washers, lubricant) as part of installation labor.",
+          "Ground-floor access, standard occupied-home conditions, and standard scheduling.",
+          "Scope explicitly excludes new doors, hinges, drilling, patching, painting, electrical work, and structural work.",
+          "Location: Boise, Idaho 83702.",
+          "Service type: handyman.",
+          "Owner-supplied: three compatible replacement passage door levers (material cost not included; contractor installs only)",
+          "Contractor supplies normal installation consumables per stated scope",
+          "All doors have existing compatible predrilled holes; no drilling, patching, or painting required",
+          "Ground-floor access with standard occupied-home conditions",
+          "Exclusions confirmed: no new doors, hinges, drilling, patching, painting, electrical, or structural work",
+          "Handyman scope: replacement of three interior passage door levers only",
+          "All doors have existing compatible predrilled holes; no structural, drilling, patching, or finishing work required",
+          "Owner-supplied levers; contractor handles removal of old levers, disposal, and installation of replacements",
+          "Ground-floor access; standard occupied-home conditions",
+          "Installation consumables (fasteners, shims) supplied by contractor as stated in scope",
+          "Supply contractor installation consumables for door hardware replacement: Owner supplies three compatible replacement passage door levers; contractor installs on existing predrilled holes",
+          "Supply contractor installation consumables for door hardware replacement: Consumables cover normal fasteners, shims, and fitting materials required for installation",
+          "Supply contractor installation consumables for door hardware replacement: No drilling, patching, or finishing work included",
+          "Remove and dispose of three existing interior passage door levers: mapped to Door hardware install / replace, per door (labor) (labor only; price materials separately; Door Hardware Installation (Labor), Openings). Labor only; material priced separately, 3 EA. Three doors stated in scope; labor only at $70/door per catalog",
+          "Install three owner-supplied replacement passage door levers on existing predrilled holes; include contractor-supplied normal installation consumables: mapped to Door hardware install / replace, per door (labor) (labor only; price materials separately; Door Hardware Installation (Labor), Openings). Labor only; material priced separately, 3 EA. Three doors stated in scope; labor only at $70/door per catalog",
+          "A shared preliminary allowance covers minor job supplies, handling, cleanup and other small supporting work listed in this estimate. Larger repairs, hazardous waste and major demolition are priced separately. Confirm actual conditions before a firm proposal.",
+          "Removal and replacement of the same door handles are covered by one per-door hardware replacement labor charge.",
+          "Scope is limited to handyman replacement of three interior passage door levers.",
+          "Owner supplies three compatible replacement passage door levers; contractor does not supply the levers themselves.",
+          "All three doors have existing compatible predrilled holes in good condition; no new drilling, patching, or painting required.",
+          "Removal and installation labor is covered by PB-08-71-01 at $70/door ($210 total for three doors, which equals the quantity in scope-2).",
+          "Contractor-supplied normal installation consumables (fasteners, shims, minor hardware) are included within the labor-only rate and the minor-work-allowance job-support budget.",
+          "No structural, finishing (paint/patch), MEP, or specialty work is in scope.",
+          "Standard ground-floor access and occupied-home conditions are assumed.",
+          "Exclusions confirmed: New doors, door hinges, drilling, patching, painting, electrical work, structural work.",
+          "Supply contractor installation consumables (screws, fasteners, shims, minor materials for door lever installation): Installation consumables (screws, fasteners, shims) are included within the labor-only rate PB-08-71-01 (Door Hardware Installation, Labor). The minor-work-allowance (minor-work-v1) covers job supplies and handling as a combined allowance and is the appropriate allocation for consumables supporting this handyman task.",
+          "Owner supplies three compatible replacement passage door levers; contractor supplies only normal installation consumables (screws, fasteners, shims).",
+          "All three doors have existing compatible predrilled holes in good condition; no drilling, patching, painting, or door preparation required.",
+          "Labor rate PB-08-71-01 ($70/door, 3 EA) is sourced as owner-average-cost (direct cost, not supplier quote), valid through 2026-12-12.",
+          "Minor-work-allowance (minor-work-v1, $75 lump-sum job allowance) covers job supplies, handling, and debris disposal; no embedded reserve; standard project contingency applies once.",
+          "Ground-floor access with standard occupied-home conditions; standard scheduling.",
+          "Scope explicitly excludes new doors, hinges, drilling, patching, painting, electrical work, and structural work.",
+          "Location: Boise, Idaho 83702; service type: handyman.",
+          "To confirm: Task remove-old-levers and install-new-levers: Duplicate labor charge. Line scope-2 (PB-08-71-01, Door Hardware Installation Labor at $70/door, 3 EA = $210) is assigned to BOTH remove-old-levers and install-new-levers. The scope explicitly requires ONE action per door: remove existing lever AND install replacement on the same door with existing predrilled holes. The catalog description 'Door Hardware Installation (Labor), Openings' is ambiguous as to whether it covers removal, installation, or both. This single labor line should be assigned to ONE task (either combined removal+installation as a single operation, or removal only, or installation only), not duplicated across two tasks. Clarify the scope of PB-08-71-01 and consolidate to one per-door charge."
+        ],
+        "verifiedScope": "Owner-authorized preliminary estimating model; project takeoff and current procurement costs require confirmation."
+      }
+    ]
+  }
+}
