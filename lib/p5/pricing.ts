@@ -322,6 +322,10 @@ export type P5Estimate = ReturnType<typeof calculateP5Estimate>;
 export const PLANNING_DISCLAIMER = "Preliminary planning information only. This is not a bid, quote, offer or guaranteed price. A site or plan review, confirmed scope, current supplier and trade pricing, and written agreement are required before work proceeds.";
 const CUSTOMER_ALLOWANCE_DISCLOSURE="Preliminary allowance: confirm quantities, selections and current supplier or trade pricing before a firm proposal.";
 const INTERNAL_COMMERCIAL_NOTE=[
+  // Policy budgets and mapper instructions are internal audit material, even
+  // when the model omits the words "direct cost" around their dollar amounts.
+  /\b(?:minor-work-allowance|minor-work-v\d+|owner-authorized (?:preliminary )?(?:job-support )?budget|shared minimum)\b/i,
+  /\b(?:map to|map this to|catalog entry|price basis:)\b/i,
   // Generated audit notes describe a direct-cost check, not the final selling policy.
   /\boverhead(?:\s+(?:is|was|will be))?\s+(?:(?:not|never)\s+)?(?:included|excluded|added|charged)\b/i,
   /\bdirect[- ]costs?\b/i,
@@ -405,6 +409,7 @@ const PROSE_KEYS=new Set(['verificationItems','assumptions','exclusions','allowa
 /** One final recursive projection protects every prose field later rendered by
  * the customer page, PDF, email, or public API response. */
 export function customerSafeProjection<T>(value:T,key=''):T{
+  if(key==='id'&&typeof value==='string')return value;
   if(typeof value==="string"){const safe=customerSafeText(value);return (PROSE_KEYS.has(key)?withoutInternalIds(safe):safe) as T;}
   if(Array.isArray(value))return value.map(item=>customerSafeProjection(item,key)).filter(item=>item!==''&&item!==null&&item!==undefined) as T;
   if(value&&typeof value==="object")return Object.fromEntries(Object.entries(value).map(([k,item])=>[k,customerSafeProjection(item,k)])) as T;

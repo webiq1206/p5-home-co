@@ -31,10 +31,11 @@ export function applyMinorWorkAllowance(tasks:MinorTask[],resolution:ScopePriceR
  const reference=`${MINOR_WORK_POLICY.version}; owner-authorized job-support budget. Base: ${base.toFixed(2)}. Shared minimum ${MINOR_WORK_POLICY.minimum}; ${MINOR_WORK_POLICY.share*100}% basis, capped at ${MINOR_WORK_POLICY.maximum}. No embedded reserve; standard project contingency applies once. Not supplier pricing.\nCovered work:\n${descriptions.join('\n')}`;
  const rule:CostRule={id:'minor-work-allowance',description:'Minor work, job supplies and handling allowance',category:'other-direct',unit:'job',quantity:{fixed:1,factor:1},unitCost:Math.max(prior?.unitCost||0,amount),allowance:true,priceBasis:'direct-cost',evidence:{basis:'owner-budget-allowance',reference,verifiedAt:now.toISOString(),validUntil:new Date(now.getTime()+90*86400000).toISOString()}};
  if(prior)Object.assign(prior,rule);else resolution.rules.push(rule);
- for(const task of eligible){task.existingLineIds=[...new Set([...task.existingLineIds,rule.id])];task.researchDescription='';}
+ const pricedIds=new Set(priced.filter(line=>line.quantity>0&&line.unitCost>0).map(line=>line.id));
+ for(const task of eligible){task.existingLineIds=[...new Set([...task.existingLineIds.filter(id=>pricedIds.has(id)),rule.id])];task.researchDescription='';}
  const disclosure='A shared preliminary allowance covers minor job supplies, handling, cleanup and other small supporting work listed in this estimate. Larger repairs, hazardous waste and major demolition are priced separately. Confirm actual conditions before a firm proposal.';
  if(!resolution.assumptions.includes(disclosure))resolution.assumptions.push(disclosure);
  const ids=new Set(eligible.map(t=>t.id));
- resolution.issues=resolution.issues.filter(issue=>!eligible.some(t=>issue===`${t.description}: no supported price.`));
+ resolution.issues=resolution.issues.filter(issue=>!eligible.some(t=>issue===`${t.description}: no supported price.`||issue===`${t.description}: invalid existing price reference.`));
  return [...ids];
 }

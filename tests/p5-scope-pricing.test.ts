@@ -25,6 +25,15 @@ const adjustmentEvidence={url:urls[0],publishedAt:'',dateBasis:'retrieved' as co
 const purchaseAdjustments={taxRate:0,freightPerUnit:0,taxOnFreight:false,taxEvidence:adjustmentEvidence,freightEvidence:adjustmentEvidence};
 const researched={rates:[{taskId:'overlay',description:'Protective overlay',unit:'LF',quantity:10,quantityEvidence:'Ten feet requested',basis:'material-purchase',includes:'overlay material',excludes:'',landedCost:purchaseAdjustments,sources:[source(urls[0],10,20),source(urls[1],20,30)]}],issues:[]};
 const replies=(values:unknown[]):PricingRequest=>{const first=values[0] as {tasks:typeof task[]};const queue=[{tasks:first.tasks.map(({id,description,evidence})=>({id,description,evidence})),issues:[]},...values];return async()=>({value:queue.shift(),sourceUrls:urls});};
+test('remaining-component remaps retain priced labor instead of replacing it with unpriced catalog references',async()=>{
+ const {retainMappedComponents}=await import('../lib/p5/scopePricing.ts');
+ const prior={...task,existingLineIds:[],additions:[{code:'BASE-L',quantity:9,quantityEvidence:'9 LF'},{code:'WALL-L',quantity:12,quantityEvidence:'12 LF'}]};
+ const next={...prior,additions:[],existingLineIds:['BASE-L','WALL-L'],researchDescription:'Contractor-supplied installation consumables'};
+ const kept=retainMappedComponents(prior,next);
+ assert.deepEqual(kept.additions,prior.additions);assert.deepEqual(kept.existingLineIds,[]);
+ const corrected=retainMappedComponents(prior,{...next,additions:[{code:'BASE-L',quantity:10,quantityEvidence:'Revised 10 LF'}]});
+ assert.deepEqual(corrected.additions.map(item=>item.quantity),[12,10]);
+});
 test('minor support work produces an audited estimate without item-specific web research',async()=>{
  const cleanup={...extra,id:'cleanup',description:'Minor cleanup and packaging disposal',evidence:'Include minor cleanup and packaging disposal',researchDescription:'Minor cleanup and packaging disposal'};
  const request=replies([{tasks:[task,cleanup],issues:[]},{coveredTaskIds:['cabinets','cleanup'],issues:[]}]);

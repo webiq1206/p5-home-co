@@ -75,6 +75,14 @@ const addition=z.object({code:text,quantity:positive,quantityEvidence:prose,buil
 const task=z.object({id:text,description:prose,evidence:prose,existingLineIds:z.array(text).max(150),additions:z.array(addition).max(30),researchDescription:optionalProse,issues:remarks(20),notes:remarks(20).nullish()}).strict();
 const mappingSchema=z.object({tasks:z.array(task).min(1).max(150),issues:remarks(100),notes:remarks(100).default([]),replacements:z.array(z.object({lineId:text,reason:prose}).strict()).max(150).default([]),removeExclusions:z.array(z.object({text:text,reason:prose}).strict()).max(50).default([])}).strict().transform(mapping=>({...mapping,notes:[...new Set([...mapping.notes,...mapping.tasks.flatMap(item=>(item.notes||[]).map(note=>`${item.description}: ${note}`))])]}));
 type Mapping=z.infer<typeof mappingSchema>;
+/** A focused remaining-component remap must not erase compatible additions
+ * retained by normalization. Replacements can correct the same component;
+ * absent components retain their evidenced quantities for the final audit. */
+export function retainMappedComponents(target:Mapping['tasks'][number],replacement:Mapping['tasks'][number],pricedLineIds:string[]=[]){
+ const key=(item:Mapping['tasks'][number]['additions'][number])=>JSON.stringify([item.code,item.building||'',item.floor||'']);
+ const additions=[...target.additions.filter(item=>!replacement.additions.some(other=>key(other)===key(item))),...replacement.additions];
+ return {...replacement,additions,existingLineIds:[...new Set([...target.existingLineIds.filter(id=>pricedLineIds.includes(id)),...replacement.existingLineIds])].filter(id=>!additions.some(item=>item.code===id))};
+}
 // A section may hold nothing priceable (live 2026-09-21: a budget with every quantity removed); requiring a
 // task there threw a validation error and handed the whole estimate to a person.
 const inventorySchema=z.object({tasks:z.array(z.object({id:text,description:prose,evidence:prose,origin:z.enum(['requested','required']).default('requested'),basis:optionalProse.default(''),costClass:z.enum(['primary-work','minor-job-support']).default('primary-work')}).strict()).max(5000),issues:remarks(100),notes:remarks(100).default([]),dependencies:z.array(optionalProse).max(40).default([])}).strict();
@@ -2100,7 +2108,8 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
         for(const replacement of batch.tasks){
           const target=remapTasks.find(task=>task.id===replacement.id);
           if(!target)continue;
-          target.additions=replacement.additions;target.existingLineIds=replacement.existingLineIds;target.researchDescription=replacement.researchDescription;target.issues=replacement.issues;
+          const retained=retainMappedComponents(target,replacement,lines.filter(line=>line.quantity*line.unitCost>0).map(line=>line.id));
+          target.additions=retained.additions;target.existingLineIds=retained.existingLineIds;target.researchDescription=retained.researchDescription;target.issues=retained.issues;
         }
         mapping.issues.push(...batch.issues);mapping.notes.push(...batch.notes);
         mapping.replacements.push(...batch.replacements);mapping.removeExclusions.push(...batch.removeExclusions);

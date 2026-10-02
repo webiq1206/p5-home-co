@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {instructionPrompts} from '../lib/p5/clarifications.ts';
+import {instructionPrompts,answeredScopeQuestion} from '../lib/p5/clarifications.ts';
 import {atomicInstructionQuestions,textBenchTopChoices,projectQuestionField} from '../lib/p5/atomicQuestions.ts';
 test('conditioned-area and project-type paraphrases bind to existing answers',()=>{
  assert.equal(projectQuestionField('What is the total conditioned area in square feet?',{service:'addition'}),'sqft');
@@ -10,6 +10,10 @@ test('conditioned-area and project-type paraphrases bind to existing answers',()
  assert.equal(projectQuestionField('Is this project an addition or remodel, or a combination of both?',{service:'addition'}),undefined);
 });
 import type {ScopeExtraction} from '../lib/p5/scope.ts';
+test('internal pricing methodology is not a customer scope decision',()=>{
+ assert.equal(answeredScopeQuestion('Should this re-estimate use the labeled unit prices as internal reference rates, or develop independent contractor labor and material costs from first principles?',{}),true);
+ assert.equal(answeredScopeQuestion('Should the countertop use quartz or laminate?',{}),false);
+});
 test('concrete finish choices belong to materials, not budget tiers',()=>{
  assert.equal(projectQuestionField('What concrete finish is requested: broom, smooth or stamped?',{service:'remodel'}),'materials');
  assert.equal(projectQuestionField('What finish level should we budget for?',{service:'addition'}),'finish');

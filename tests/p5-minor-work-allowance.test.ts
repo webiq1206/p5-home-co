@@ -26,6 +26,13 @@ test('budget scales with priced work without multiplying minimums or compounding
  const large=resolution();applyMinorWorkAllowance([task('a','Minor cleanup')],large,[{id:'work',quantity:1,unitCost:100000}],now);
  assert.equal(large.rules[0].unitCost,750,'one shared cap');
 });
+test('unresolved supporting references are replaced by positive policy coverage without clearing quantity errors',()=>{
+ const item={...task('supplies','Supply ordinary installation consumables'),existingLineIds:['invented-research-id','labor']};
+ const r=resolution();r.issues=[`${item.description}: invalid existing price reference.`,`${item.description}: mapped 999 does not match quantity.`];
+ applyMinorWorkAllowance([item],r,[{id:'labor',quantity:3,unitCost:75}],now);
+ assert.deepEqual(item.existingLineIds,['labor','minor-work-allowance']);
+ assert.deepEqual(r.issues,[`${item.description}: mapped 999 does not match quantity.`]);
+});
 test('major work, hazards, already priced tasks and an entirely unpriced job cannot use the minor budget',()=>{
  for(const description of ['Hazardous waste disposal','Remove structural beam','Minor asbestos cleanup','Dumpster and three cubic yards of debris','Purchase kitchen cabinets','Foundation excavation'])assert.equal(minorWorkEligible({...task('a',description),costClass:'minor-job-support'}),false,description);
  assert.equal(minorWorkEligible({...task('a','Minor cleanup'),researchDescription:''}),false);

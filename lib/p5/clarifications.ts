@@ -55,6 +55,7 @@ const answeredQuestions=(answers:ScopeAnswers,sourceText='')=>[answers.estimatin
  [...text.matchAll(/^Question: ([^\n]+)\r?\nAnswer: ([\s\S]*?)(?=^Question: |$(?![\s\S]))/gm)]
   .filter(match=>match[2].trim()).map(match=>match[1]));
 export function answeredScopeQuestion(question:string,answers:ScopeAnswers,sourceText=''):boolean{
+ if(/\b(?:internal reference rates|cost methodology|from first principles|contractor overhead application)\b/i.test(question))return true;
  return answeredQuestions(answers,sourceText).some(prior=>questionKey(prior)===questionKey(question)||sameDecision(prior,question));
 }
 const RESPONSIBILITY_CHOICES=['Labor only','Materials only','Labor and materials'] as const;

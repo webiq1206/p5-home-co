@@ -5,9 +5,21 @@ import {validateReferences,compareReference,referenceDirectCostBudget,type Price
 import {combineScopeExtractions,mergeScopeFacts} from "../lib/p5/scope.ts";
 import {analyzeScope} from "../lib/p5/extraction.ts";
 import {PDFDocument} from "pdf-lib";
-import { COST_CATEGORIES, SERVICE_MATRIX, UNCONFIGURED_FINANCE, allowanceAdjustment, calculateP5Estimate, companyAllocation, customerEstimate, customerSafeNotes, landedUnitCost, loadedHourlyCost, priceFromRiskAdjustedCost, type FinancePolicy, type PricingInput, type Service } from "../lib/p5/pricing.ts";
+import { COST_CATEGORIES, SERVICE_MATRIX, UNCONFIGURED_FINANCE, allowanceAdjustment, calculateP5Estimate, companyAllocation, customerEstimate, customerSafeNotes, customerSafeProjection, landedUnitCost, loadedHourlyCost, priceFromRiskAdjustedCost, type FinancePolicy, type PricingInput, type Service } from "../lib/p5/pricing.ts";
 
 const now = new Date("2026-09-10T12:00:00Z");
+test('minor policy audit amounts and mapping instructions never enter customer notes',()=>{
+ const notes=customerSafeNotes([
+  'T001 (Removal & Disposal): Covered by minor-work-allowance ($75 job allowance). Scope includes removal of three existing levers and disposal of removed hardware.',
+  'Minor-work-allowance ($75 job): Owner-authorized preliminary allowance (minor-work-v1). Base: $210; shared minimum $75; 3% basis capped at $750. Confirm site conditions.',
+  'T003 (cleanup): Map to minor cleanup allowance or daily job-site cleanup labor at 0.5-1 hour if separate line needed.',
+  'Owner supplies three levers. Contractor removes the old hardware.',
+ ]).join(' ');
+ assert.doesNotMatch(notes,/\$|minor-work-v1|minor-work-allowance|map to|3%/i);
+ assert.match(notes,/removal of three existing levers/);
+ assert.match(notes,/Owner supplies three levers/);
+ assert.equal(customerSafeProjection({id:'minor-work-allowance'}).id,'minor-work-allowance','stable line identifiers are not prose');
+});
 const finance: FinancePolicy = { annualOverhead: 420000, annualRevenue: 6000000, forecastSource: "TEST FIXTURE ONLY: conservative forecast", reviewedAt: "2026-09-10", approvedBy: ["Nick"] };
 function input(service: Service = "kitchen"): PricingInput {
   return { service, revision: "fixture-revision-1", scopeSummary: "Test project scope", uncertainty: "low", locationProvided: true,
