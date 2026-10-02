@@ -20,12 +20,14 @@ export function projectAreaQuestionField(text:string,answers:ScopeAnswers):Scope
  if(!/\b(?:square (?:feet|footage)|sq\.?\s*ft|area)\b/i.test(text)||!/\b(?:total|overall|entire|whole|project|ADU)\b/i.test(text))return;
  if(/\b(?:garage|outdoor|covered|roof|wall|flooring|tile|countertop|window|door|foundation|existing)\b/i.test(text))return;
  const subject:Record<string,RegExp>={addition:/\baddition\b/i,adu:/\badu\b/i,'new-construction':/\b(?:home|house|residence|living space)\b/i,'whole-home':/\b(?:home|house|residence|project)\b/i,kitchen:/\bkitchen\b/i,bathroom:/\bbathroom\b/i};
+ if(['addition','adu','new-construction','whole-home'].includes(answers.service||'')&&/\btotal\s+conditioned\s+(?:(?:living\s+)?space\s+)?area\b/i.test(text))return 'sqft';
  if(/\bproject\b/i.test(text)||subject[answers.service||'']?.test(text))return 'sqft';
 }
 
 /** Bind ordinary project questions to their actual saved answer. Component
  * quantities remain distinct; this is not fuzzy text deduplication. */
 export function projectQuestionField(text:string,answers:ScopeAnswers):ScopeField|undefined{
+ if(/^is this project (?:an? )?(?:addition|new construction|remodel)(?:,|\s+or\s)/i.test(text)&&! /\b(?:both|include|combination|portion|part)\b/i.test(text))return 'service';
  if(/\b(?:concrete|driveway|slab|patio)\b/i.test(text)&&/\b(?:broom|smooth|stamped|exposed aggregate|trowel)\b/i.test(text))return 'materials';
  if(/\b(?:shower|wall)\b/i.test(text)&&!/\bfloor\b/i.test(text)&&/\btile\b/i.test(text)&&/\b(?:area|square feet|square footage|SF)\b/i.test(text))return 'wallTileSqft';
  if(/\bfloor(?:ing)?\b/i.test(text)&&/\b(?:area|square feet|square footage|SF)\b/i.test(text))return 'flooringSqft';

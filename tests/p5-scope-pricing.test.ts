@@ -25,6 +25,17 @@ const adjustmentEvidence={url:urls[0],publishedAt:'',dateBasis:'retrieved' as co
 const purchaseAdjustments={taxRate:0,freightPerUnit:0,taxOnFreight:false,taxEvidence:adjustmentEvidence,freightEvidence:adjustmentEvidence};
 const researched={rates:[{taskId:'overlay',description:'Protective overlay',unit:'LF',quantity:10,quantityEvidence:'Ten feet requested',basis:'material-purchase',includes:'overlay material',excludes:'',landedCost:purchaseAdjustments,sources:[source(urls[0],10,20),source(urls[1],20,30)]}],issues:[]};
 const replies=(values:unknown[]):PricingRequest=>{const first=values[0] as {tasks:typeof task[]};const queue=[{tasks:first.tasks.map(({id,description,evidence})=>({id,description,evidence})),issues:[]},...values];return async()=>({value:queue.shift(),sourceUrls:urls});};
+test('minor support work produces an audited estimate without item-specific web research',async()=>{
+ const cleanup={...extra,id:'cleanup',description:'Minor cleanup and packaging disposal',evidence:'Include minor cleanup and packaging disposal',researchDescription:'Minor cleanup and packaging disposal'};
+ const request=replies([{tasks:[task,cleanup],issues:[]},{coveredTaskIds:['cabinets','cleanup'],issues:[]}]);
+ let searches=0;
+ const result=await priceCompleteScope({...scope,text:scope.text+' Include minor cleanup and packaging disposal.'},config,async(system,input,search,...rest)=>{if(search)searches++;return request(system,input,search,...rest);},now);
+ assert.ok(result.customer.range);
+ assert.equal(searches,0);
+ assert.equal(result.customer.lineItems.filter(line=>line.id==='minor-work-allowance').length,1);
+ assert.equal(result.customer.lineItems.find(line=>line.id==='minor-work-allowance')?.pricingStatus,'estimated-allowance');
+ assert.equal((result.internal as any).currentCostsConfirmed,false);
+});
 test('an unmapped missing rate automatically enters evidenced research without a model opt-in',async()=>{
  const mapping={tasks:[task,{...extra,researchDescription:'',additions:[{code:'MISSING',quantity:10,quantityEvidence:'10 LF'}]}],issues:[]};
  const result=await priceCompleteScope(scope,config,replies([mapping,researched,{coveredTaskIds:['cabinets','overlay'],issues:[]}]),now);
@@ -112,7 +123,7 @@ test('a separately priced vanity top cannot overlap its cabinet package and fauc
  assert.deepEqual(laborOnly.additions,[]);
  assert.match(laborOnly.researchDescription,/Faucet installation labor only/);
 });
-for(const retryTimeout of [false,true])test(`the double vanity retains a cited nail allowance when comparison ${retryTimeout?'times out':'lacks independence'}`,async()=>{
+for(const retryTimeout of [false,true])test(`the double vanity budgets minor nails without a comparison that ${retryTimeout?'times out':'lacks independence'}`,async()=>{
  const vanityScope:ReviewedScope={...scope,text:'Supply and install one 60-inch double-sink vanity cabinet, separate 8.33 SF quartz top, two sinks and two faucets. Contractor supplies installation nails.',answers:{service:'bathroom',location:'Boise'}};
  const fixtureRates=[
   {code:'PB-12-41-03',description:'Double vanity cabinet-only 60-72 in, installed, excludes top and sinks',type:'Subcontractor',unit:'LF',amount:350},
@@ -148,15 +159,16 @@ for(const retryTimeout of [false,true])test(`the double vanity retains a cited n
   if(data.priorPricingIssues)return {value:{coveredTaskIds:mapped.map(t=>t.id),issues:[],notes:[],resolvedIssues:[]},sourceUrls:[]};
   return {value:{tasks:mapped.map(({id,description,evidence})=>({id,description,evidence})),issues:[],notes:[],dependencies:[]},sourceUrls:[]};
  },now);
- assert.equal(searches,retryTimeout?2:3,'independent evidence is sought before using the provisional fallback');
+ assert.equal(searches,0,'minor supplies do not require supplier comparison or encounter its timeout');
  assert.ok(priced.customer.range,'supported preliminary allowance must not end in a manual handoff: '+JSON.stringify({issues:(priced.internal as any).scopePricing?.issues,verificationItems:priced.customer.verificationItems}));
  const rules=(priced.internal as any).costBookSnapshot.rules.filter((r:any)=>mapped.some(t=>t.id===r.scopeTaskId));
  assert.deepEqual(rules.filter((r:any)=>r.scopeTaskId==='vanity').map((r:any)=>r.quantity.fixed),[5]);
  assert.deepEqual(rules.filter((r:any)=>r.scopeTaskId==='top').map((r:any)=>r.quantity.fixed),[8.33]);
  assert.deepEqual(rules.filter((r:any)=>r.scopeTaskId==='sinks').map((r:any)=>r.quantity.fixed),[2,2]);
  assert.deepEqual(rules.filter((r:any)=>r.scopeTaskId==='faucets').map((r:any)=>r.quantity.fixed),[2,2]);
- assert.equal(rules.filter((r:any)=>r.scopeTaskId==='nails').length,1);
- assert.match(rules.find((r:any)=>r.scopeTaskId==='nails').evidence.reference,/Single cited supplier budget allowance/);
+ const allowance=(priced.internal as any).costBookSnapshot.rules.find((r:any)=>r.id==='minor-work-allowance');
+ assert.ok(allowance.unitCost>=75);
+ assert.equal(allowance.evidence.basis,'owner-budget-allowance');
  assert.ok(!rules.some((r:any)=>r.evidence.reference.includes('PB-12-41-02')),'no included-top vanity or second vanity labor');
 });
 test('a sixty-inch vanity cannot use a smaller cabinet assembly rate',async()=>{
@@ -1546,7 +1558,7 @@ test('a small single-component swap does not draw its own protection or disconne
  assert.match(text,/room-scale demolition, multi-item work/,'the exception for substantial work is preserved');
 });
 
-test('omitted contractor consumables become one researched task instead of free labor inclusions',async()=>{
+test('omitted contractor consumables receive one budget instead of free labor inclusions',async()=>{
  const {normalizeConsumableMapping}=await import('../lib/p5/scopePricing.ts');
  const restricted={...scope,text:'Install 9 LF owner-supplied base cabinets and 12 LF owner-supplied wall cabinets. Contractor supplies screws and shims.',answers:{service:'cabinet-install'}};
  const rate={code:'QA-LABOR',description:'Cabinet installation labor. Excludes all installation consumables, screws and shims.',type:'Labor',unit:'LF',amount:70,source:'Synthetic fixture',basis:'owner-average-cost'};
@@ -1580,10 +1592,10 @@ test('omitted contractor consumables become one researched task instead of free 
   return queue(instructions,input,search,remaining);
  },now);
  assert.ok(priced.customer.range,JSON.stringify(priced.internal.scopePricing));
- assert.deepEqual(products.sort(),['screws','shims']);
- assert.equal((priced.internal as any).lines.filter((line:any)=>line.category==='materials'&&line.unitCost===40).length,2);
+ assert.deepEqual(products,[]);
+ assert.equal((priced.internal as any).lines.filter((line:any)=>line.id==='minor-work-allowance'&&line.unitCost>=75).length,1);
 });
-test('9 LF base and 12 LF wall installation prices labor, cleanup and evidenced supplies only',async()=>{
+test('9 LF base and 12 LF wall installation prices labor, cleanup and one supplies budget only',async()=>{
  const restricted:ReviewedScope={...scope,text:'Install 9 LF owner-supplied fully assembled base cabinets and 12 LF owner-supplied fully assembled wall cabinets in an existing Boise kitchen. Contractor supplies normal cabinet screws, shims and cleanup. Exclude cabinet purchase, demolition, plumbing, electrical, countertops, flooring and all other trades.',answers:{service:'cabinet-install',location:'Boise',cabinetBaseLf:'9',cabinetUpperLf:'12',ownerSupplied:'Fully assembled base and wall cabinets',exclusions:'Cabinet purchase, demolition, plumbing, electrical, countertops, flooring and all other trades'}};
  const labor=(code:string,description:string,unit:string,amount:number)=>({code,description,type:'Labor' as const,unit,amount,source:'Synthetic approved fixture only',basis:'owner-average-cost' as const});
  const configuration=createPlanningConfiguration({...catalog,rates:[...catalog.rates,labor('QA-BASE','Base cabinet installation labor only; excludes screws and shims','LF',70),labor('QA-WALL','Wall cabinet installation labor only; excludes screws and shims','LF',80),labor('QA-CLEAN','Minor job cleanup labor only; excludes demolition','LS',90)]});
@@ -1609,13 +1621,13 @@ test('9 LF base and 12 LF wall installation prices labor, cleanup and evidenced 
  };
  const result=await priceCompleteScope(restricted,configuration,response,now);
  assert.ok(result.customer.range,JSON.stringify(result.internal.scopePricing));
- assert.deepEqual(researchedProducts.sort(),['screws','shims']);
+ assert.deepEqual(researchedProducts,[]);
  const lines=(result.internal as any).lines as {description:string;quantity:number;unit:string;category:string;unitCost:number}[];
  assert.ok(lines.some(line=>line.quantity===9&&line.unit.toLowerCase()==='lf'&&line.category==='field-labor'));
  assert.ok(lines.some(line=>line.quantity===12&&line.unit.toLowerCase()==='lf'&&line.category==='field-labor'));
  assert.ok(lines.some(line=>/cleanup/i.test(line.description)&&line.unitCost>0));
- assert.equal(lines.filter(line=>line.category==='materials').length,2);
- assert.equal(lines.length,5,'only the two installation runs, cleanup, screws and shims may be charged');
+ assert.equal(lines.filter(line=>line.category==='other-direct'&&line.unitCost>=75).length,1);
+ assert.equal(lines.length,4,'two installation runs, priced cleanup and one shared supplies allowance');
  assert.ok(!lines.some(line=>/^(?:countertop|flooring|demolition|plumbing|electrical)\b/i.test(line.description)));
 });
 test('labor-only pricing retains requested contractor consumables through final release',async()=>{
@@ -1654,7 +1666,11 @@ test('a clean model audit cannot cover requested consumable material with labor 
   if(data.tasks&&data.region)return {value:{rates:[],issues:[]},sourceUrls:[]};
   return {value:{tasks:[labor,consumables].map(({id,description,evidence})=>({id,description,evidence})),issues:[]},sourceUrls:[]};
  };
- await assert.rejects(()=>priceCompleteScope(restricted,config,request,now),PricingPending);
+ const result=await priceCompleteScope(restricted,config,request,now);
+ assert.ok(result.customer.range);
+ assert.ok('lines' in result.internal);
+ assert.equal(result.internal.lines.filter(line=>line.category==='field-labor').length,1,'supply cannot become another labor hour');
+ assert.equal(result.internal.lines.find(line=>line.id==='minor-work-allowance')?.unitCost,75);
 });
 
 test('research excerpts may join exact heading and price fragments within one source paragraph',async()=>{
@@ -1983,7 +1999,7 @@ test('a zero consumption formatter defect gets one explicit corrective request a
  assert.equal(calls,1);assert.equal((reply.value as any).rates[0].quantity,24);
 });
 
-test('one rejected source does not erase an independently valid cited consumable allowance',async()=>{
+test('minor supplies use a disclosed policy budget without relying on mismatched product sources',async()=>{
  const local={...scope,text:'Supply 10 LF cabinetry. Contractor supplies cabinet screws.'};
  const screws={...extra,id:'screws',description:'Supply contractor screws',evidence:'Contractor supplies cabinet screws',researchDescription:'Research ONLY contractor-supplied screws for cabinet mounting.'};
  const good='Cabinet screws $0.20 each.',wrong='Cabinet shims $0.30 each.';
@@ -1997,12 +2013,11 @@ test('one rejected source does not erase an independently valid cited consumable
   if(data.priorPricingIssues)return {value:{coveredTaskIds:['cabinets','screws'],issues:[]},sourceUrls:[]};
   return {value:{tasks:[task,screws].map(({id,description,evidence})=>({id,description,evidence})),issues:[]},sourceUrls:[]};
  },now);
- assert.equal(searches,3);assert.ok(result.customer.range,JSON.stringify(result.internal.scopePricing));
- const priced=(result.internal as any).costBookSnapshot.rules.find((r:any)=>r.scopeTaskId==='screws');
- assert.equal(priced.unitCost,0.2);
- assert.equal(priced.evidence.provenance.sources.length,1);
- assert.equal(priced.evidence.provenance.sources[0].url,urls[0]);
- assert.match(priced.evidence.reference,/Single cited supplier budget allowance/);
+ assert.equal(searches,0);assert.ok(result.customer.range,JSON.stringify(result.internal.scopePricing));
+ const priced=(result.internal as any).costBookSnapshot.rules.find((r:any)=>r.id==='minor-work-allowance');
+ assert.ok(priced.unitCost>=75);
+ assert.equal(priced.evidence.provenance,undefined,'policy is not supplier evidence');
+ assert.equal(priced.evidence.basis,'owner-budget-allowance');
 });
 
 test('a screw allowance that expressly excludes shims is not rejected as a bundled product',()=>{

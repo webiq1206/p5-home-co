@@ -294,11 +294,12 @@ test("an RE-10 gets one firm price: the modeled contract price, shown as a singl
   assert.ok(!isRe10Scope({ answers: { service: "handyman" }, text: "Replace two exterior outlets and fix a leaking trap." }));
 });
 
-test("contingency is a flat 10% on remodels and new construction and none on cabinet or handyman work", () => {
+test("contingency is exactly 10% of direct project cost across services and is embedded in small-job prices", () => {
   for (const service of ["kitchen", "bathroom", "whole-home", "addition", "adu", "new-construction"] as Service[])
     assert.equal(calculateP5Estimate({ ...input(service), risks: ["hidden-conditions", "occupied-home"] }, finance, [], now).contingencyRate, .10, service);
   for (const service of ["handyman", "re10", "cabinet-product", "cabinet-install", "change-order", "rush"] as Service[])
-    assert.equal(calculateP5Estimate({ ...input(service), risks: ["hidden-conditions"] }, finance, [], now).contingency, 0, service);
+    {const r=calculateP5Estimate({ ...input(service), risks: ["hidden-conditions"] }, finance, [], now);assert.equal(r.contingency,6000,service);assert.ok(!JSON.stringify(customerEstimate(r,'Repair work')).toLowerCase().includes('contingency'));}
+  for(const override of [0,.20])assert.equal(calculateP5Estimate({...input('handyman'),contingencyRate:override},finance,[],now).contingencyRate,.10,'stale overrides do not stack or remove the policy');
   assert.equal(calculateP5Estimate({ ...input("new-construction"), urgency: "emergency" }, finance, [], now).contingencyRate, .10, "a rushed new build keeps its contingency");
 });
 

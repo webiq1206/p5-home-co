@@ -1,17 +1,17 @@
 import {publicPricingText} from './customerProjection.ts';
 import {tradeForLine,apportionAmount,type TradeCategory} from "./trades.ts";
 /** Internal policy. Import only from server entry points, never client components. */
-export const POLICY_VERSION = "p5-2026-09-21-business-plan";
+export const POLICY_VERSION = "p5-2026-10-01-contingency-and-minor-work";
 export const STANDARD_OVERHEAD_RATE = .20;
 /** Operating profit targets. Owner business plan (P5 Comprehensive Business Planning Roadmap, 2026):
  * a 32% planning gross margin with a 30% hard floor, company-wide. The engine prices as
  * cost / (1 - overhead - profit), so 20% overhead + 12% profit = the 32% gross margin target,
  * 20% + 10% = the 30% floor, and risk may add up to 3 points (35%). Rush keeps its urgency premium. */
 export const SERVICE_MATRIX = {
-  handyman: { target: .12, floor: .10, stretch: .15, contingency: [0, 0], method: "Flat-rate menu or fixed-price package" },
-  re10: { target: .12, floor: .10, stretch: .15, contingency: [0, 0], method: "Flat-rate menu or fixed-price package" },
-  "cabinet-product": { target: .12, floor: .10, stretch: .15, contingency: [0, 0], method: "Quoted product price with design and delivery separated" },
-  "cabinet-install": { target: .12, floor: .10, stretch: .15, contingency: [0, 0], method: "Fixed price after measurement and supplier confirmation" },
+  handyman: { target: .12, floor: .10, stretch: .15, contingency: [.10, .10], method: "Flat-rate menu or fixed-price package" },
+  re10: { target: .12, floor: .10, stretch: .15, contingency: [.10, .10], method: "Flat-rate menu or fixed-price package" },
+  "cabinet-product": { target: .12, floor: .10, stretch: .15, contingency: [.10, .10], method: "Quoted product price with design and delivery separated" },
+  "cabinet-install": { target: .12, floor: .10, stretch: .15, contingency: [.10, .10], method: "Fixed price after measurement and supplier confirmation" },
   kitchen: { target: .12, floor: .10, stretch: .15, contingency: [.10, .10], method: "Paid planning followed by fixed price or guaranteed maximum price" },
   bathroom: { target: .12, floor: .10, stretch: .15, contingency: [.10, .10], method: "Paid planning followed by fixed price or guaranteed maximum price" },
   remodel: { target: .12, floor: .10, stretch: .15, contingency: [.10, .10], method: "Written scope and fixed price after selections and site conditions are confirmed" },
@@ -19,8 +19,8 @@ export const SERVICE_MATRIX = {
   addition: { target: .12, floor: .10, stretch: .15, contingency: [.10, .10], method: "Paid preconstruction followed by a guaranteed maximum price" },
   adu: { target: .12, floor: .10, stretch: .15, contingency: [.10, .10], method: "Paid preconstruction followed by a guaranteed maximum price" },
   "new-construction": { target: .12, floor: .10, stretch: .15, contingency: [.10, .10], method: "Paid preconstruction followed by a guaranteed maximum price or controlled cost-plus agreement" },
-  "change-order": { target: .12, floor: .10, stretch: .15, contingency: [0, 0], method: "Written price and schedule approval before changed work proceeds" },
-  rush: { target: .25, floor: .20, stretch: .30, contingency: [0, 0], method: "Written fixed-price scope and schedule approval before work proceeds" },
+  "change-order": { target: .12, floor: .10, stretch: .15, contingency: [.10, .10], method: "Written price and schedule approval before changed work proceeds" },
+  rush: { target: .25, floor: .20, stretch: .30, contingency: [.10, .10], method: "Written fixed-price scope and schedule approval before work proceeds" },
 } as const;
 export type Service = keyof typeof SERVICE_MATRIX;
 export const COST_CATEGORIES = ["materials", "field-labor", "owner-production", "subcontractors", "permits-inspections", "engineering-design", "equipment-rentals", "disposal", "travel-mobilization", "protection-cleanup", "project-supervision", "closeout", "other-direct"] as const;
@@ -48,7 +48,7 @@ export const DEFAULT_FINANCE: FinancePolicy = {
 export const UNCONFIGURED_FINANCE = DEFAULT_FINANCE;
 export interface CostEvidence {
   provenance?:{status:'estimated'|'verified';location:string;retrievedAt:string;assumptions:string[];sources:{url:string;date:string;dateBasis?:'published'|'retrieved';region:string;low:number;high:number}[]};
-  basis: "written-quote" | "payroll" | "market-replacement" | "approved-cost-book" | "planning-assumption" | "owner-estimating-schedule" | "sourced-market-average" | "regional-planning-average";
+  basis: "written-quote" | "payroll" | "market-replacement" | "approved-cost-book" | "planning-assumption" | "owner-estimating-schedule" | "sourced-market-average" | "regional-planning-average" | "owner-budget-allowance";
   reference: string;
   verifiedAt: string;
   validUntil: string;
@@ -194,19 +194,16 @@ export function calculateP5Estimate(input: PricingInput, finance: FinancePolicy,
   if (margin < matrix.target) warn("below-target", "Value-engineer the scope first. Record the reason for using a target below the standard service target.");
   const validApprovals = approvals.filter(a => ["Nick", "Jared"].includes(a.owner) && a.estimateRevision === input.revision && a.recordId.trim() && a.writtenReason.trim().length >= 20 && Number.isFinite(dateValue(a.approvedAt)) && dateValue(a.approvedAt) <= now.getTime());
   if (margin < matrix.floor && !["Nick", "Jared"].every(owner => validApprovals.some(a => a.owner === owner))) warn("owner-approval-required", "Below-floor pricing requires written approval from both owners for this exact estimate revision.", "block");
-  // Owner rule 2026-09-21: a flat 10% contingency on remodels and new construction, none on cabinet,
-  // handyman, RE-10, change-order or rush work. Risk is reflected in the range, not a larger reserve.
-  // Keyed to the kind of project, not its urgency: a rushed new build is still new construction.
-  const projectContingency = SERVICE_MATRIX[input.service].contingency;
-  const contingencyRate = input.contingencyRate ?? projectContingency[0];
-  finite(contingencyRate, "Contingency rate");
-  if (contingencyRate < projectContingency[0]) warn("contingency-below-policy", "Contingency is below the service starting range.", "block");
-  if (contingencyRate > projectContingency[1]) warn("elevated-contingency", "Risk factors require contingency above the service starting range. Keep this reserve until closeout and warranty review.");
+  // Owner rule October 1: one 10% reserve on estimated direct project cost.
+  // For non-remodel/non-construction work it is embedded in customer items.
+  // Stale saved policy overrides cannot add another reserve or remove this one.
+  const contingencyRate = .10;
   const ids = new Set<string>();
   const directByCategory = Object.fromEntries(COST_CATEGORIES.map(c => [c, 0])) as Record<CostCategory, number>;
   const lines = input.lines.map(line => {
     const trade=tradeForLine(line);
     const modeled=input.estimatePurpose==='preliminary'&&((line.evidence?.basis==='owner-estimating-schedule'&&['owner-average-cost','historical-cost-budget'].includes(line.estimatingBasis||''))||(line.evidence?.basis==='sourced-market-average'&&line.estimatingBasis==='sourced-market-average')||(line.evidence?.basis==='regional-planning-average'&&line.estimatingBasis==='regional-planning-average'));
+    if(line.evidence?.basis==='owner-budget-allowance')warn(input.estimatePurpose==='preliminary'?'minor-work-budget':'minor-work-budget-preliminary-only',`${line.id}: owner-authorized preliminary job-support allowance; confirm conditions before a firm proposal.`,input.estimatePurpose==='preliminary'?'review':'block');
     if(line.evidence?.basis==='regional-planning-average')warn(modeled?'planning-average-preliminary':'planning-average-preliminary-only',`${line.id}: regional planning average, not verified local pricing. Confirm current local rates before a firm proposal.`,modeled?'review':'block');
     if(line.evidence?.basis==='sourced-market-average'&&!modeled)warn('market-average-preliminary-only',`${line.id}: sourced averages require current quotes before a firm proposal.`,'block');
     if(line.evidence?.basis==='owner-estimating-schedule'&&!modeled)warn('estimating-purpose-required',`${line.id}: owner estimating rates are restricted to the configured preliminary model.`,'block');
@@ -307,7 +304,7 @@ export function calculateP5Estimate(input: PricingInput, finance: FinancePolicy,
   return {
     policyVersion: POLICY_VERSION, revision: input.revision, evaluatedAt: now.toISOString(),
     estimatePurpose: input.estimatePurpose||'verified-cost-review',
-    currentCostsConfirmed: !lines.some(line=>['owner-estimating-schedule','sourced-market-average','regional-planning-average'].includes(line.evidence.basis)),
+    currentCostsConfirmed: !lines.some(line=>['owner-estimating-schedule','sourced-market-average','regional-planning-average','owner-budget-allowance'].includes(line.evidence.basis)),
     service, requestedService: input.service, matrix, lines:pricedLines, coverage: input.coverage,
     directByCategory, directCost, contingencyRate, contingency, riskAdjustedDirectCost,
     allocations, allocationDollars, targetOperatingProfit: margin, operatingProfit, divisor,
