@@ -8,6 +8,14 @@ const assemblies:Partial<Record<ScopeField,string>>={
 const number='(\\d+(?:\\.\\d+)?)';
 const inches='\\s*(?:["″]|[- ]?inch(?:es)?\\b|\\s+in\\.?(?=\\s|$))';
 const counts:Record<string,number>={one:1,two:2,three:3,four:4,five:5,six:6,seven:7,eight:8,nine:9,ten:10};
+/** Explicit absence is a quantity, including a numeric zero without LF.
+ * Match the named family; absence of base cabinets says nothing about tall ones. */
+export function explicitCabinetAbsence(field:ScopeField,value:string,evidence:string):boolean{
+ const assembly=assemblies[field];
+ if(!assembly||value.trim()!=='0'||/\b(?:unknown|undocumented|unmeasured|tbd|maybe|possibly|assum\w*|not\s+(?:0|zero)|not\s+(?:known|documented|specified|provided|measured|shown))\b/i.test(evidence))return false;
+ return new RegExp('\\b(?:no|zero|0|without)\\s+(?:any\\s+)?'+assembly+'\\b','i').test(evidence)
+  ||new RegExp('\\b'+assembly+'\\s*(?::|are)\\s*(?:none|zero|0)\\b','i').test(evidence);
+}
 /** Accept only arithmetic grounded in an explicitly attributed cabinet width.
  * Heights, counts alone, room dimensions and estimates remain unconfirmed. */
 export function verifiedCabinetWidth(field:ScopeField,value:string,evidence:string):boolean{

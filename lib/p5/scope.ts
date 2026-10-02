@@ -5,7 +5,7 @@ import {aggregateLaborFacts} from './laborFacts.ts';
 import {separateFixtureFacts} from './fixtureFacts.ts';
 import {separateCabinetFacts} from './cabinetFacts.ts';
 import {separateFlooringFacts} from './flooringFacts.ts';
-import {verifiedCabinetWidth} from './cabinetMeasurements.ts';
+import {verifiedCabinetWidth,explicitCabinetAbsence} from './cabinetMeasurements.ts';
 import {SCOPE_FIELDS,type ScopeField} from './scopeFields.ts';
 export {SCOPE_FIELDS,type ScopeField} from './scopeFields.ts';
 export type ScopeAnswers = Partial<Record<ScopeField, string>>;
@@ -279,7 +279,7 @@ export function validateExtraction(raw: unknown): ScopeExtraction {
     const numericEvidence=NUMERIC_EVIDENCE[f.field as ScopeField];
     const assemblyMeasurement=f.field==="cabinetBaseLf"||f.field==="cabinetUpperLf"||f.field==="cabinetTallLf";
     const verifiedWidth=verifiedCabinetWidth(fact.field,value,fact.evidence);
-    const explicitAbsence=value==="0"&&/\b(?:no|none|zero|without)\b.{0,30}\b(?:base|lower|upper|wall|tall|pantry|cabinet)\b/i.test(fact.evidence);
+    const explicitAbsence=explicitCabinetAbsence(fact.field,value,fact.evidence);
     if(assemblyMeasurement&&
       (numericEvidence&&!numericEvidence.test(fact.evidence)&&!explicitAbsence&&!verifiedWidth||
        value==="0"&&UNDOCUMENTED_QUANTITY.test(fact.evidence))){
@@ -433,7 +433,7 @@ export function protectPricingFacts(extraction: ScopeExtraction): ScopeExtractio
       continue;
     }
     const numericEvidence=NUMERIC_EVIDENCE[fact.field];
-    const explicitAbsence=fact.value.trim()==='0'&&/\b(?:no|none|zero|without)\b.{0,30}\b(?:base|lower|upper|wall|tall|pantry|cabinet)\b/i.test(fact.evidence);
+    const explicitAbsence=explicitCabinetAbsence(fact.field,fact.value,fact.evidence);
     if(numericEvidence&&!verifiedCabinetWidth(fact.field,fact.value,fact.evidence)&&(!numericEvidence.test(fact.evidence)&&!explicitAbsence||DERIVED_MEASUREMENT.test(fact.evidence))){
       heldDerivedMeasurement=true;
       reviewNotes.push(`Unconfirmed derived measurement - ${SCOPE_FIELDS[fact.field].label}: ${fact.value}. The source evidence does not explicitly label this measurement, so it is not a pricing fact.`);
