@@ -17,6 +17,27 @@ const findings=[
  'Remove and dispose of old door levers from three interior passage doors: Removal labor not matched to existing priced line. Must research removal-and-disposal labor rate or include within DLV-002 installation labor.',
  'DLV-001 (Remove and dispose of old door levers): No independently supported labor price. The minor-work-allowance is cited as covering both removal labor AND consumables, but removal labor is a substantive operation distinct from consumables. Provide explicit evidence that the budget includes measured removal labor.',
 ];
+test('an obsolete material proposal cannot block its replacement by a verified supplies allowance',()=>{
+ const f=fixture();f.task.description='Supply contractor installation consumables';
+ f.resolution.rules[0].evidence.reference+='\n'+f.task.description;
+ Object.assign(f.live[0],{category:'field-labor',description:'Installation labor only; materials priced separately',evidence:{reference:'Book; LABOR-1'}});
+ const issue='Task DLV-001: PART-1 has a semantic mismatch and creates a duplicate charge with labor. Replace the material with a supported consumables allowance.';
+ f.audit.issues=[issue];f.resolution.issues=[issue];f.resolution.assumptions=['PART-1: nine units proposed','Consumables are included in the labor cost.','Owner supplies the main products.'];
+ const decisions=reconcileMinorWorkAudit([f.task,f.other],f.resolution,f.live,f.audit,new Set([issue]),new Map([[f.task.id,new Set(['PART-1'])]]));
+ assert.deepEqual(f.audit.issues,[]);assert.deepEqual(f.resolution.issues,[]);assert.equal(decisions.length,1);assert.match(decisions[0].reason,/absent from all positive/);
+ assert.deepEqual(f.resolution.assumptions,['Owner supplies the main products.']);
+});
+for(const variant of ['still priced','never proposed','labor includes supplies','mixed task defect','quantity conflict'])test('obsolete-proposal reconciliation refuses '+variant,()=>{
+ const f=fixture();f.task.description='Supply contractor installation consumables';f.resolution.rules[0].evidence.reference+='\n'+f.task.description;
+ Object.assign(f.live[0],{category:'field-labor',description:variant==='labor includes supplies'?'Installed package with supplies included':'Labor only; materials priced separately',evidence:{reference:'Book; LABOR-1'}});
+ let issue='Task DLV-001: PART-1 has a semantic mismatch and creates a duplicate charge.';
+ if(variant==='still priced')f.live.push({id:'part',quantity:1,unitCost:25,...{evidence:{reference:'Book; PART-1'}}});
+ if(variant==='mixed task defect')issue+=' DLV-002 also lacks coverage.';
+ if(variant==='quantity conflict')issue+=' Quantity conflicts with the scope.';
+ f.audit.issues=[issue];
+ reconcileMinorWorkAudit([f.task,f.other],f.resolution,f.live,f.audit,new Set(),variant==='never proposed'?new Map():new Map([[f.task.id,new Set(['PART-1'])]]));
+ assert.deepEqual(f.audit.issues,[issue]);
+});
 test('owner policy resolves separate-evidence demands for positively budgeted incidental labor, with an internal decision trail',()=>{
  const f=fixture();f.resolution.issues=[...findings];f.audit.issues=[findings[2]];
  const decisions=reconcileMinorWorkAudit([f.task,f.other],f.resolution,f.live,f.audit,new Set(findings));

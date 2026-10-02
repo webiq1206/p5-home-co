@@ -2087,6 +2087,9 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
     mapping.replacements=mapping.replacements.filter((r,i,all)=>all.findIndex(v=>v.lineId===r.lineId)===i);
     mapping.removeExclusions=mapping.removeExclusions.filter((r,i,all)=>all.findIndex(v=>v.text===r.text)===i);
     auditTrail.tasks=mapping.tasks;
+    const proposedMinorCodes=new Map<string,Set<string>>();
+    const rememberProposals=(tasks:Mapping['tasks'])=>{for(const task of tasks){const codes=proposedMinorCodes.get(task.id)||new Set<string>();for(const code of [...task.additions.map(item=>item.code),...task.existingLineIds])if(configuration.planningCatalog?.rates.some(rate=>rate.code===code))codes.add(code);proposedMinorCodes.set(task.id,codes);}};
+    rememberProposals(mapping.tasks);
     routeUnpricedTasks(mapping,configuration,lines);
     const beforeNormalization=new Map(mapping.tasks.map(task=>[task.id,[...task.additions.map(addition=>addition.code),...task.existingLineIds].filter(code=>configuration.planningCatalog?.rates.some(rate=>rate.code===code))]));
     normalizeConsumableMapping(mapping,configuration,lines,pricingScope);
@@ -2108,6 +2111,7 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
         priorReplacements:mapping.replacements,existingLines:lines,defaultExclusions:base.customer.exclusions,catalog:configuration.planningCatalog?.rates||[],regionalRates:configuration.regionalRates,date:now.toISOString()
       }),()=>deadline-Date.now()));
       for(const batch of remapped){
+        rememberProposals(batch.tasks);
         for(const replacement of batch.tasks){
           const target=remapTasks.find(task=>task.id===replacement.id);
           if(!target)continue;
@@ -2274,7 +2278,7 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
     mergeGapResults(await mapResearchTasks(researchTaskBatches(await reconcileSupplies(gaps,mappedLines),pricingScope),(gapBatch,index)=>priceGapBatch(gapBatch,index,t=>coveredWork(t,mappedLines,resolution.rules))));
     const audit:z.infer<typeof auditSchema>={coveredTaskIds:[],issues:[],notes:[],resolvedIssues:[]};
     const reconcileIssues=()=>{
-      const policyDecisions=reconcileMinorWorkAudit(mapping.tasks.filter(t=>taskSelectionStatus(t,mapping.tasks)==='billable'),resolution,existingLines(priceReviewedScope(scope,configuration,now,resolution)),audit,modelIssues);
+      const policyDecisions=reconcileMinorWorkAudit(mapping.tasks.filter(t=>taskSelectionStatus(t,mapping.tasks)==='billable'),resolution,existingLines(priceReviewedScope(scope,configuration,now,resolution)),audit,modelIssues,proposedMinorCodes);
       if(policyDecisions.length)auditTrail.policyDecisions=[...(auditTrail.policyDecisions||[]),...policyDecisions];
       if(audit.issues.length||mapping.tasks.some(t=>taskSelectionStatus(t,mapping.tasks)!=='unselected'&&!audit.coveredTaskIds.includes(t.id)))return;
       const acceptedLines=existingLines(priceReviewedScope(scope,configuration,now,resolution)).filter(line=>line.quantity*line.unitCost>0);
@@ -2358,6 +2362,7 @@ export async function priceCompleteScope(scope:ReviewedScope,configuration:Estim
         fixes.tasks.push(...batch.tasks.map(t=>({...t,...taskBatch.find(x=>x.id===t.id)!,existingLineIds:t.existingLineIds,additions:t.additions,researchDescription:t.researchDescription,issues:t.issues})));
         fixes.issues.push(...batch.issues);fixes.notes.push(...batch.notes);fixes.replacements.push(...batch.replacements);fixes.removeExclusions.push(...batch.removeExclusions);
       }
+      rememberProposals(fixes.tasks);
       routeUnpricedTasks(fixes,configuration,pricedComponents,true);
       normalizeConsumableMapping(fixes,configuration,pricedComponents,pricingScope);
       preserveScopeExclusions(fixes,beforeRepair.customer.exclusions,pricingScope);
