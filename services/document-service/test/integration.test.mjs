@@ -49,7 +49,7 @@ test('authenticated readiness reports effective tenant protocol and capacity',{s
  assert.equal(response.status,200);const value=await response.json();
  assert.deepEqual(value,{ok:true,version:VERSION,protocol:'v1',tenant,pdf:true,maxBytes:config.maxBytes,maxPages:config.maxPages,
   providerConfigured:true,capabilities:{pdf:true},limits:{maxFileBytes:config.maxBytes,maxPages:config.maxPages},
-  provider:{name:'anthropic',configured:true,ready:true,health:'configured'},service:{healthy:true,database:'ok'}});
+  provider:{name:'anthropic',model:config.model,configured:true,ready:true,health:'configured'},service:{healthy:true,database:'ok'}});
 });
 test('modified body rejected before document ingestion',{skip:!available},async()=>{
  const path='/v1/projects/integrity/documents?name=x.pdf',original=await fixture(1);const headers={...signedHeaders(secret,'POST',path,tenant,original),'content-type':'application/pdf'};

@@ -14,6 +14,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     container: mcr.microsoft.com/playwright:v1.60.0-noble
+    env:
+      # Historical fixtures mock OpenAI; npm test separately checks production Haiku.
+      P5_ESTIMATOR_PROVIDER: openai
     steps:
       - uses: actions/checkout@v6
         with:

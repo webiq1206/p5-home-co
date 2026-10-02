@@ -11,7 +11,7 @@ try{
  await cp('lib/p5',dir,{recursive:true});
  await writeFile(path.join(dir,'database.ts'),`import {PGlite} from '@electric-sql/pglite';export const database=new PGlite();export async function query(s:string,v:unknown[]=[]){return (await database.query(s,v)).rows;}`);
  await writeFile(path.join(dir,'scopePricing.ts'),`
- export const PRICING_STAGE_MAX_MS=150000;
+ export const PRICING_STAGE_MAX_MS=150000;export const RESEARCH_STAGE_MS=60000;
  export let calls=0;let variant=0;let reverse=false;
  export function scenario(v:number,r=false){variant=v;reverse=r;}
  export async function requestPricing(instructions:string,input:any){calls++;return {value:{instructions,input},sourceUrls:[]};}

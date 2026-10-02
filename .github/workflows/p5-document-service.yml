@@ -50,6 +50,8 @@ jobs:
     env:
       DOCUMENT_TEST_DATABASE_URL: postgres://p5_test:disposable_ci_only@127.0.0.1:5432/p5_documents_test
       NEXT_TELEMETRY_DISABLED: '1'
+      # Historical fixtures mock OpenAI; npm test separately checks production Haiku.
+      P5_ESTIMATOR_PROVIDER: openai
     steps:
       - uses: actions/checkout@v6
         with:

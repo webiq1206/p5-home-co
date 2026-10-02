@@ -98,10 +98,10 @@ for(const width of progressOnly?[]:[320,390,430,768,1024,1440,1920]){
   await estimator.getByRole('button',{name:'Talk instead',exact:true}).click();assert.match(await description.inputValue(),/Repair three interior doors\./);
   await description.fill('Repair three interior doors. '+('LongUnbrokenProjectSpecification'.repeat(90)));
   await estimator.getByLabel('Upload project files',{exact:true}).setInputFiles({name:'scope.txt',mimeType:'text/plain',buffer:Buffer.from('Repair three interior doors.')});
-  await estimator.getByRole('button',{name:'Continue',exact:true}).click({timeout:120000});await estimator.getByRole('alert').filter({hasText:'Your project save was not confirmed'}).waitFor();
-  await estimator.getByRole('button',{name:'Continue',exact:true}).click({timeout:120000});await estimator.getByRole('alert').filter({hasText:'Synthetic upload interruption'}).waitFor();
+  await estimator.getByRole('button',{name:'Send message',exact:true}).click({timeout:120000});await estimator.getByRole('alert').filter({hasText:'Your project save was not confirmed'}).waitFor();
+  await estimator.getByRole('button',{name:'Send message',exact:true}).click({timeout:120000});await estimator.getByRole('alert').filter({hasText:'Synthetic upload interruption'}).waitFor();
   await page.reload();await estimator.getByRole('button',{name:'Remove scope.txt'}).waitFor();assert.match(await description.inputValue(),/LongUnbrokenProjectSpecification/);await overflow(page);await capture(page,`${width}-scope`);
-  await estimator.getByRole('button',{name:'Continue',exact:true}).click({timeout:120000});await answerBrandQuestions(page,estimator,estimator.getByRole('heading',{name:'Review your project',exact:true}));assert.equal(await estimator.getByRole('region',{name:'Project question'}).count(),0,'Known facts were asked again');
+  await estimator.getByRole('button',{name:'Send message',exact:true}).click({timeout:120000});await answerBrandQuestions(page,estimator,estimator.getByRole('heading',{name:'Review your project',exact:true}));assert.equal(await estimator.getByRole('region',{name:'Project question'}).count(),0,'Known facts were asked again');
   // The approved bottom action remains reachable while the details scroll.
   // The first width runs against a cold server; the contact form is given a full minute to render after review.
   await estimator.getByLabel('Your name',{exact:true}).waitFor({timeout:60000});await estimator.getByLabel('Your name',{exact:true}).fill('Synthetic Test');await estimator.getByLabel(/^Email/).fill('customer@example.invalid');
@@ -113,9 +113,10 @@ for(const width of progressOnly?[]:[320,390,430,768,1024,1440,1920]){
   assert.equal(await estimator.getByRole('region',{name:'Project question'}).count(),0,'Restored known facts were asked again');
   await estimator.getByLabel('Your name',{exact:true}).fill('Synthetic Test');await estimator.getByLabel(/^Email/).fill('customer@example.invalid');
   await estimator.getByRole('button',{name:'Back to the previous step',exact:true}).click();await page.waitForTimeout(400);/* Back lands on the previous step, which on a brand with its own questions is the last question, not the description; what must survive is the saved project text. */assert.match(await page.evaluate(()=>JSON.parse(localStorage.getItem('p5-project-draft-v2')||'{}').text||''),/LongUnbroken/,'the project description survives going back');
-  const calls=state.scopeCalls;const resume=estimator.getByRole('button',{name:'Continue',exact:true});if(await resume.count())await resume.click({timeout:120000});else await answerBrandQuestions(page,estimator,estimator.getByLabel(/^Email/));await estimator.getByLabel(/^Email/).waitFor();assert.equal(await estimator.getByLabel(/^Email/).inputValue(),'customer@example.invalid');assert.equal(state.scopeCalls,calls,'Going back unnecessarily repeated analysis');
+  const calls=state.scopeCalls;const resume=estimator.getByRole('button',{name:'Send message',exact:true});if(await resume.count())await resume.click({timeout:120000});else await answerBrandQuestions(page,estimator,estimator.getByLabel(/^Email/));await estimator.getByLabel(/^Email/).waitFor();assert.equal(await estimator.getByLabel(/^Email/).inputValue(),'customer@example.invalid');assert.equal(state.scopeCalls,calls,'Going back unnecessarily repeated analysis');
   // Details are grouped in accordions; editing one detail re-reads the scope before pricing.
-  const details=estimator.locator('details',{hasText:'Additional scope details'}).first();if(!(await details.evaluate(el=>el.open)))await details.locator('summary').first().click();
+  const details=estimator.locator('details',{hasText:'Edit project details'}).first();if(!(await details.evaluate(el=>el.open)))await details.locator('summary').first().click();
+  const taskGroup=details.locator('details').filter({has:page.getByRole('button',{name:'Edit Tasks and quantities',exact:true,includeHidden:true})});if(!(await taskGroup.evaluate(el=>el.open)))await taskGroup.locator('summary').click();
   await estimator.getByRole('button',{name:'Edit Tasks and quantities',exact:true}).click();const tasks=estimator.getByLabel('Tasks and quantities',{exact:true});await tasks.fill(fullAnswers.taskList+' '+('LongMaterialSpecification'.repeat(80)));await page.setViewportSize({width,height:500});await overflow(page);await page.setViewportSize({width,height:900});await estimator.getByRole('button',{name:'Done',exact:true}).click();
   await estimator.getByRole('checkbox').check();await Promise.all([page.waitForResponse('**/api/p5-estimator/scope'),estimator.getByRole('button',{name:'Get my estimate',exact:true}).click()]);await settled(page);assert.ok(state.scopeCalls>calls);
   await overflow(page);await capture(page,`${width}-review`);await estimator.getByRole('checkbox').check();await estimator.getByRole('button',{name:'Get my estimate',exact:true}).click();await estimator.getByText('Synthetic planning range.',{exact:true}).waitFor();
@@ -136,14 +137,14 @@ for(const width of progressOnly?[]:[320,390,430,768,1024,1440,1920]){
   await overflow(page);assert.ok(!/overheadRecovery|operatingProfit|unitCost/.test(await estimator.innerText()));await capture(page,`${width}-result`);
   await page.waitForTimeout(2100);assert.equal(state.postSubmissionSaves,0);await page.reload();await estimator.getByText('Synthetic planning range.',{exact:true}).waitFor();assert.equal(state.submissions,1);assert.deepEqual(errors,[]);
   results.push({width,passed:true,checks:['null receipt preserves files','talk to text','typed and uploaded mixed input','failed upload and reload recovery','known facts skipped','visible unobstructed bottom action','back and contact preservation','manual text reanalysis','category accordions','line-item privacy','single submission','result restoration','overflow']});
- }catch(error){const state=await page.evaluate(()=>{const r=document.querySelector('[data-p5-estimator]');if(!r)return {missingEstimator:true,url:location.href,body:document.body.innerText.slice(0,400)};const vis=e=>{const b=e.getBoundingClientRect();return b.width>0&&b.height>0;};return {labels:[...r.querySelectorAll('label')].map(e=>e.innerText.trim().slice(0,40)+(vis(e)?'':' [hidden]')),headings:[...r.querySelectorAll('h1,h2,h3')].map(e=>e.innerText.trim().slice(0,50)),buttons:[...r.querySelectorAll('button')].map(e=>(e.getAttribute('aria-label')||e.innerText).trim().slice(0,40)),text:r.innerText.slice(0,400),url:location.href};}).catch(e=>({captureFailed:String(e).slice(0,200),url:page.url()}));results.push({width,passed:false,error:String(error),pageErrors:errors,state});await capture(page,`${width}-failure`).catch(()=>{});}await context.close();
+ }catch(error){console.error('Browser scenario failed',width,error);const state=await page.evaluate(()=>{const r=document.querySelector('[data-p5-estimator]');if(!r)return {missingEstimator:true,url:location.href,body:document.body.innerText.slice(0,400)};const vis=e=>{const b=e.getBoundingClientRect();return b.width>0&&b.height>0;};return {labels:[...r.querySelectorAll('label')].map(e=>e.innerText.trim().slice(0,40)+(vis(e)?'':' [hidden]')),headings:[...r.querySelectorAll('h1,h2,h3')].map(e=>e.innerText.trim().slice(0,50)),buttons:[...r.querySelectorAll('button')].map(e=>(e.getAttribute('aria-label')||e.innerText).trim().slice(0,40)),text:r.innerText.slice(0,400),url:location.href};}).catch(e=>({captureFailed:String(e).slice(0,200),url:page.url()}));results.push({width,passed:false,error:String(error),pageErrors:errors,state});await capture(page,`${width}-failure`).catch(()=>{});}await context.close();
 }
 // Reproduce two clarification questions, a failed save, same-answer retry and reload.
 for(const width of progressOnly?[]:[390,1440]){
  const context=await browser.newContext({viewport:{width,height:900}});const state=await mock(context,{scenario:'instructions'});const page=await context.newPage();
  try{
   await page.goto(base+'/estimate/p5-preview');const est=page.locator('[data-p5-estimator]');
-  await est.getByLabel('Tell us about your project',{exact:true}).fill('Price the trim package.');await est.getByRole('button',{name:'Continue',exact:true}).click({timeout:120000});
+  await est.getByLabel('Tell us about your project',{exact:true}).fill('Price the trim package.');await est.getByRole('button',{name:'Send message',exact:true}).click({timeout:120000});
   const question=est.getByRole('region',{name:'Project question'});await question.getByText('Labor only or materials only?',{exact:true}).waitFor();
   assert.equal(await est.getByText('Should we include or exclude painting?',{exact:true}).count(),0,'Only one question is rendered');
   await question.getByRole('button',{name:'Please include labor only',exact:true}).click();
@@ -164,7 +165,7 @@ for(const scenario of progressOnly?[]:['manual','conflict','unavailable']){
   await page.goto(base+'/estimate/p5-preview');const est=page.locator('[data-p5-estimator]');
   if(scenario==='conflict')await est.getByLabel('Tell us about your project',{exact:true}).fill('Two documents disagree about door repairs.');
   else await est.getByLabel('Tell us about your project',{exact:true}).fill('Repair three interior doors.');
-  await est.getByRole('button',{name:'Continue',exact:true}).click({timeout:120000});
+  await est.getByRole('button',{name:'Send message',exact:true}).click({timeout:120000});
   if(scenario!=='conflict'){
    await settled(page);
    // Answer the service choice if asked, then only this project material questions; unknown numeric details remain explicit.
@@ -178,7 +179,7 @@ for(const scenario of progressOnly?[]:['manual','conflict','unavailable']){
     await settled(page);
    }
   }else{
-   await est.getByText('The documents disagree. Which work should be included?',{exact:true}).waitFor();await est.getByRole('button',{name:'Replace three doors',exact:true}).click();await est.getByRole('button',{name:'Send answer',exact:true}).click();
+   await est.getByText('The documents disagree. Which work should be included?',{exact:true}).waitFor();await est.getByRole('button',{name:/^Replace three doors/}).click();await est.getByRole('button',{name:'Send answer',exact:true}).click();
   }
   await answerBrandQuestions(page,est,est.getByRole('heading',{name:'Review your project',exact:true}));await overflow(page);results.push({scenario,passed:true});
  }catch(error){results.push({scenario,passed:false,error:String(error)});await capture(page,`${scenario}-failure`).catch(()=>{});}await context.close();
@@ -188,7 +189,7 @@ for(const width of progressOnly?[]:[390,1440]){
  const context=await browser.newContext({viewport:{width,height:900}});const state=await mock(context,{scenario:'missing'});const page=await context.newPage();
  try{
   await page.goto(base+'/estimate/p5-preview');const est=page.locator('[data-p5-estimator]');
-  await est.getByLabel('Tell us about your project',{exact:true}).fill('Install new baseboard trim.');await est.getByRole('button',{name:'Continue',exact:true}).click({timeout:120000});
+  await est.getByLabel('Tell us about your project',{exact:true}).fill('Install new baseboard trim.');await est.getByRole('button',{name:'Send message',exact:true}).click({timeout:120000});
   // Brands that price trim ask for its length before review; the others discover the gap at submission and ask then.
   const trimQuestion=est.getByText('About how many linear feet of trim or baseboard are included?',{exact:true});const review=est.getByRole('heading',{name:'Review your project',exact:true});
   await answerBrandQuestions(page,est,review.or(trimQuestion));const askedUpFront=(await trimQuestion.count())>0;
@@ -217,7 +218,7 @@ for(const width of [320,390,1440]){
   // Page progress only applies when this project actually has an attachment.
   await est.getByLabel('Upload project files',{exact:true}).setInputFiles({name:'Plans.pdf',mimeType:'application/pdf',buffer:pdfBytes});
   // Allow bounded preparation to finish before Continue enables on a loaded runner.
-  await est.getByRole('button',{name:'Continue',exact:true}).click({timeout:120000});
+  await est.getByRole('button',{name:'Send message',exact:true}).click({timeout:120000});
   await page.getByText('8 of 250 pages checked',{exact:true}).waitFor();
   assert.equal(await page.getByRole('progressbar',{name:'Original pages checked'}).getAttribute('value'),'8');
   await page.getByRole('heading',{name:'Reviewing your documents',exact:true}).waitFor();await page.getByTestId('p5-eta').waitFor();await overflow(page);await capture(page,`${width}-live-reading`);
