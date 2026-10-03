@@ -95,7 +95,22 @@ export class Store{
  async renew(job){const r=await this.pool.query("UPDATE p5ds_jobs SET lease_until=now()+interval '90 seconds' WHERE id=$1 AND lease_token=$2 AND state='running' AND lease_until>now()",[job.id,job.lease_token]);return r.rowCount===1;}
  async progress(job,progress){const r=await this.pool.query("UPDATE p5ds_jobs SET progress=$3::jsonb,updated_at=now() WHERE id=$1 AND lease_token=$2 AND state='running' AND lease_until>now()",[job.id,job.lease_token,JSON.stringify(progress)]);if(!r.rowCount)throw new ServiceError('lease-lost',409);}
  async checkpoint(job,result){return this.transaction(async c=>{await this.fence(c,job);if(Buffer.byteLength(JSON.stringify(result))>8*1024*1024)throw new ServiceError('evidence-checkpoint-too-large',422);await c.query('SELECT pg_advisory_xact_lock(hashtext($1))',['p5ds-quota:'+job.tenant]);await c.query('UPDATE p5ds_jobs SET result=$3::jsonb,updated_at=now() WHERE id=$1 AND lease_token=$2',[job.id,job.lease_token,JSON.stringify(result)]);await this.checkStorage(c,job.tenant);job.result=result;});}
- async complete(job,result,extra){return this.transaction(async c=>{await this.fence(c,job);if(extra)await extra(c);await c.query("UPDATE p5ds_jobs SET state='complete',result=$3::jsonb,lease_until=null,lease_token=null,updated_at=now() WHERE id=$1 AND lease_token=$2",[job.id,job.lease_token,JSON.stringify(result)]);});}
+ async complete(job,result,extra){return this.transaction(async c=>{
+  await this.fence(c,job);
+  // Completion metadata must not discard successful reader/verifier replies.
+  // Read the fenced durable row, rather than trusting a possibly stale caller.
+  if(job.kind==='read'){
+   const saved=await c.query('SELECT result FROM p5ds_jobs WHERE id=$1',[job.id]);
+   result={...saved.rows[0]?.result,...result};
+   if(Buffer.byteLength(JSON.stringify(result))>8*1024*1024)throw new ServiceError('evidence-checkpoint-too-large',422);
+  }
+  if(extra)await extra(c);
+  await c.query("UPDATE p5ds_jobs SET state='complete',result=$3::jsonb,lease_until=null,lease_token=null,updated_at=now() WHERE id=$1 AND lease_token=$2",[job.id,job.lease_token,JSON.stringify(result)]);
+  if(job.kind==='read'){
+   await c.query('SELECT pg_advisory_xact_lock(hashtext($1))',['p5ds-quota:'+job.tenant]);
+   await this.checkStorage(c,job.tenant);
+  }
+ });}
  async fail(job,error){
   const code=error.code||'internal-processing-error';const transient=error.status===429||error.status>=500||['provider-timeout','parse-timeout'].includes(code);
   const waiting=code==='source-reading-pending';
