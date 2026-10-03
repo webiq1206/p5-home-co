@@ -13,19 +13,20 @@ export function reconcileVerification(page,checked){
  const factValue=value=>stable({field:value.field,value:value.value});
  const itemValue=value=>stable({id:value.id,description:value.description,building:value.building,floor:value.floor,component:value.component,quantity:value.quantity,unit:value.unit});
  const facts=page.facts.map(fact=>{
-  const index=checked.facts.findIndex(value=>factIdentity(value)===factIdentity(fact));
+  const matches=checked.facts.map((value,index)=>({value,index})).filter(({value,index})=>!acceptedFacts.has(index)&&factIdentity(value)===factIdentity(fact));
+  const index=(matches.find(({value})=>factValue(value)===factValue(fact)&&value.basis===fact.basis)||matches.find(({value})=>factValue(value)===factValue(fact))||matches[0])?.index??-1;
   if(index<0){findings.push(`Independent verification omitted ${fact.field}; the supported source claim was retained and the disagreement remains unresolved.`);return fact;}
   const candidate=checked.facts[index];acceptedFacts.add(index);
-  if(stable(candidate)===stable(fact))return fact;
+  if(factValue(candidate)===factValue(fact)&&candidate.basis===fact.basis)return fact;
   if(candidate.basis==='uncertain'&&['visual','calculated'].includes(fact.basis)||candidate.basis==='stated'&&factValue(candidate)===factValue(fact))return candidate;
   findings.push(`Independent verification disagreed with ${fact.field}; the supported source claim was retained and the disagreement remains unresolved.`);
   return fact;
  });
  const items=page.items.map(item=>{
-  const index=checked.items.findIndex(value=>itemIdentity(value)===itemIdentity(item));
+  const index=checked.items.findIndex((value,index)=>!acceptedItems.has(index)&&itemIdentity(value)===itemIdentity(item));
   if(index<0){findings.push(`Independent verification omitted item ${item.id}; the supported physical claim was retained and the disagreement remains unresolved.`);return item;}
   const candidate=checked.items[index];acceptedItems.add(index);
-  if(stable(candidate)===stable(item))return item;
+  if(itemValue(candidate)===itemValue(item)&&candidate.basis===item.basis)return item;
   if(candidate.basis==='uncertain'&&['visual','calculated'].includes(item.basis)||candidate.basis==='stated'&&itemValue(candidate)===itemValue(item))return candidate;
   findings.push(`Independent verification changed item ${item.id}; the supported physical claim was retained and the disagreement remains unresolved.`);
   return item;
@@ -41,11 +42,14 @@ export function reconcileVerification(page,checked){
   const item=checked.items[index];
   findings.push(`Independent verification introduced or relabeled item ${item.id}; it remains unresolved and was not accepted as source evidence.`);
  }
- for(const collection of ['inclusions','exclusions','responsibilities'])if(stable(checked[collection])!==stable(page[collection]))findings.push(`Independent verification changed ${collection}; the supported source statements were retained and the difference remains unresolved.`);
+ // Order and layout whitespace do not change a statement. Keep duplicates,
+ // punctuation, values and negation significant; do not infer semantic equivalence.
+ const statements=values=>stable(values.map(value=>value.trim().replace(/\s+/g,' ')).sort());
+ for(const collection of ['inclusions','exclusions','responsibilities'])if(statements(checked[collection])!==statements(page[collection]))findings.push(`Independent verification changed ${collection}; the supported source statements were retained and the difference remains unresolved.`);
  result.facts=structuredClone(facts);result.items=structuredClone(items);
  result.inclusions=structuredClone(page.inclusions);result.exclusions=structuredClone(page.exclusions);result.responsibilities=structuredClone(page.responsibilities);
  result.notes=[...new Set([...page.notes,...checked.notes,...findings])];
- if(findings.length||result.regions.length)result.status='partial';
+ if(findings.length||result.regions.length||[...facts,...items].some(value=>value.basis==='uncertain'))result.status='partial';
  if(result.regions.length)result.notes=[...new Set([...result.notes,'Some detail regions still require confirmation.'])];
  return result;
 }
@@ -161,6 +165,13 @@ export class Pipeline{
   let original;
   for(let i=0;i<reply.pages.length;i++){
    const page=reply.pages[i],source=stored.find(p=>p.page===page.page);const needs=page.regions.length||[...page.facts,...page.items].some(f=>['visual','calculated'].includes(f.basis));
+   const completedKey=evidenceCheckpointKey({source:source.native,prior:page,readerKey:job.result?.evidenceCheckpoint?.key,provider:this.config.provider,model:this.config.verifyModel},VERIFIER_SYSTEM,EVIDENCE_SCHEMA);
+   const completed=job.result?.completedPages?.[page.page];
+   if(completed){
+    if(completed.key!==completedKey)throw new ServiceError('completed-page-source-changed',422);
+    reply.pages[i]=validateEvidence({pages:[structuredClone(completed.evidence)]},[source.native]).pages[0];
+    continue;
+   }
    if(needs){
     const crops=[];let native=source.native;
     const refresh=!!native.spans?.length&&native.spanCoordinates!==SPAN_COORDINATES;
@@ -172,7 +183,7 @@ export class Pipeline{
         if(include)crops.push({label:`Original page ${page.page}, normalized top-left crop ${JSON.stringify(region)}`,bytes:p.image});
        }});
       }catch(error){
-       if(!include||!['parser-worker-failed','parse-timeout','pdf-cannot-be-parsed'].includes(error.code))throw error;
+       if(!include||refresh||!['parser-worker-failed','parse-timeout','pdf-cannot-be-parsed','parser-process-failed','parser-attempt-timeout','parser-memory-limit','parser-render-failed','renderer-timeout','renderer-process-failed'].includes(error.code))throw error;
        crops.push({label:`Original saved page ${page.page} crop ${JSON.stringify(region)}; PDF rerender failed, so this crop adds no detail beyond the authenticated saved overview. Retain uncertainty if insufficient.`,bytes:await cropSavedPageImage(source.image,region)});
       }
     };
@@ -198,6 +209,10 @@ export class Pipeline{
     // Preserve both versions when a verifier disagrees; do not silently pick one.
     reply.pages[i]=reconcileVerification(page,checked);
    }
+   // Save each reconciled page before the next page can fail. Replays retain
+   // the original batch identity and skip completed crop/verifier work.
+   reply.pages[i]=validateEvidence({pages:[reply.pages[i]]},[source.native]).pages[0];
+   await this.store.checkpoint(job,{...job.result,completedPages:{...job.result?.completedPages,[page.page]:{key:completedKey,evidence:reply.pages[i]}}});
   }
   await this.store.complete(job,{pages:reply.pages.map(p=>p.page)},async c=>{
    await c.query('SELECT pg_advisory_xact_lock(hashtext($1))',['p5ds-quota:'+job.tenant]);

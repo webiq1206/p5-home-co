@@ -5,6 +5,12 @@ import {once} from 'node:events';
 import {cohostConfig,makeGateway,PREFIX} from '../src/cohost.mjs';
 import {limitParser} from '../src/parser.mjs';
 import {signedHeaders,verifyHeaders,hash} from '../src/core.mjs';
+import {workerRssMb} from '../src/cohost.mjs';
+test('cohost memory accounting includes renderer descendants and tolerates reaped children',async()=>{
+ const tree={1:{rss:100,children:'2 3'},2:{rss:200,children:'4'},4:{rss:20,children:''}};
+ const read=async filename=>{const pid=Number(filename.split('/')[2]),entry=tree[pid];if(!entry){const e=Error();e.code='ENOENT';throw e;}return filename.endsWith('status')?`VmRSS: ${entry.rss*1024} kB\n`:entry.children;};
+ assert.equal(await workerRssMb(1,read),320);await assert.rejects(workerRssMb(9,read));
+});
 const listen=async server=>{server.listen(0,'127.0.0.1');await once(server,'listening');return server.address().port;};
 const close=server=>new Promise(resolve=>{server.close(resolve);server.closeAllConnections();});
 test('gateway diagnoses failed upstream without logging private request data',async()=>{

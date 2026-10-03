@@ -28,7 +28,7 @@ export function makeServer(store,pipeline,config){
       providerConfigured,capabilities:{pdf:true},limits:{maxFileBytes:config.maxBytes,maxPages:config.maxPages},
       pdf:true,maxBytes:config.maxBytes,maxPages:config.maxPages,
       provider:{name:config.provider,model:config.model,verifyModel:config.verifyModel,configured:true,ready:true,health:'configured'},
-      service:{healthy:true,database:'ok'}});
+      service:{healthy:true,database:'ok'},...(config.renderer?{renderer:config.renderer}:{})});
      return;
     }
    const parts=url.pathname.split('/').filter(Boolean);if(parts[0]!=='v1'||parts[1]!=='projects')throw new ServiceError('not-found',404);

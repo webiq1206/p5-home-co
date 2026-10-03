@@ -5,6 +5,14 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {execFileSync} from 'node:child_process';
 import {prepareReviewedLock} from '../scripts/p5-host-build.mjs';
+import {rendererBuildCommands,buildRenderer} from '../scripts/p5-renderer-build.mjs';
+test('host renderer build pins wheel hashes, keeps installation project-local, and probes before release',()=>{
+ const commands=rendererBuildCommands('/project','linux');
+ assert.deepEqual(commands[0],['python3',['-m','venv',join('/project','.p5-renderer')]]);
+ assert.ok(commands[1][1].includes('--require-hashes'));assert.ok(commands[1][1].includes('--no-deps'));assert.ok(commands[1][1].includes('--only-binary=:all:'));
+ assert.equal(commands[2][1].at(-1),'--probe');
+ let calls=0;assert.throws(()=>buildRenderer('/project',()=>{calls++;return {status:1} as any;}),/renderer build/);assert.equal(calls,1);
+});
 test('host build restores bootstrap lock drift but refuses unreviewed source changes',()=>{
  const dir=mkdtempSync(join(tmpdir(),'p5-host-fixture-'));
  try{
