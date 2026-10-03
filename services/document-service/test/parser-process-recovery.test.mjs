@@ -5,11 +5,28 @@ import {tmpdir} from 'node:os';
 import path from 'node:path';
 import {PDFDocument} from 'pdf-lib';
 import {createParser} from '../src/parser.mjs';
-import {runPrimary} from '../src/renderer-runtime.mjs';
+import {runPrimary,createPrimaryPool} from '../src/renderer-runtime.mjs';
 import {Store} from '../src/store.mjs';
 import {Pipeline} from '../src/pipeline.mjs';
 import {isolatedPool} from '../scripts/model-qa-support.mjs';
 const processFile=new URL('./fixtures/parser-exit.mjs',import.meta.url);
+test('small Wasm allocations work inside the unchanged guarded address-space budget',async()=>{
+ const result=await runPrimary({fault:'wasm'},{processFile,timeoutMs:3000});assert.equal(result.value.bytes,65536);
+});
+test('engine initialization reuse is serial and recycles after eight requests',async()=>{
+ const pool=createPrimaryPool({processFile}),pids=[];
+ try{for(let i=0;i<17;i++)pids.push((await pool.run({fault:'respond'},{timeoutMs:3000})).value.pid);}
+ finally{await pool.close();}
+ assert.equal(new Set(pids.slice(0,8)).size,1);assert.equal(new Set(pids.slice(8,16)).size,1);
+ assert.notEqual(pids[0],pids[8]);assert.notEqual(pids[8],pids[16]);
+ for(const pid of new Set(pids))assert.throws(()=>process.kill(pid,0));
+});
+test('controlled native allocation pressure is contained in the guarded child',async()=>{
+ let peak=0;
+ await assert.rejects(runPrimary({fault:'memory'},{processFile,timeoutMs:10000,onNative:value=>{peak=Math.max(peak,value.rss);}}),error=>['parser-memory-limit','parser-process-failed'].includes(error.code));
+ assert.ok(peak>32*1024*1024);assert.ok(peak<512*1024*1024);
+ console.log(`Controlled allocation fixture maximum reported child RSS: ${Math.ceil(peak/1024)} KiB; sampled evidence, not a universal hard RSS bound.`);
+});
 for(const fault of ['exit','timeout'])test('real child '+fault+' preserves durable successful pages across a new worker and lease',async()=>{
  const pdf=await PDFDocument.create();for(let i=1;i<=2;i++)pdf.addPage([300,200]).drawText('Source page '+i,{x:30,y:100,size:12});
  const bytes=Buffer.from(await pdf.save()),pool=await isolatedPool();

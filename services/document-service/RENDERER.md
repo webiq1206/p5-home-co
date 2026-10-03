@@ -37,8 +37,10 @@ Upstream references:
 
 ## Failure boundary and evidence
 
-The controller writes a private, unmodified original PDF once, then uses a fresh
-PDF.js process for the manifest and each uncached page/crop. It captures native
+The controller writes a private, unmodified original PDF once, then uses a guarded
+PDF.js process for at most eight sequential manifest/page requests. It reuses only
+engine initialization; every request opens and destroys its own PDF document.
+The process is replaced after eight requests or any failure. It captures native
 text/spans and page geometry before operator decoding and rasterization. Only
 validated completed PNG/native records reach the awaited durable page callback.
 Previously stored pages are skipped on restart; PR85's verifier checkpoints and
@@ -76,10 +78,16 @@ stand in for a failed native-coordinate refresh.
   mappings can become resident. Windows uses a hard 384 MiB process-memory job.
   Container/host memory limits still matter; actual peak/cgroup evidence is a
   release gate. The existing cohost monitor now counts descendant renderer RSS.
+  The child disables V8's Wasm trap-handler reservation optimization, using
+  explicit bounds checks instead of a multi-GiB virtual-memory cage under the
+  address-space cap (https://nodejs.org/api/cli.html#--disable-wasm-trap-handler).
+  Fallback metadata records the primary exit code/signal, phase and numeric
+  Linux memory samples/limits; no stderr or source content is exposed.
 - Children get a minimal environment without provider/database credentials.
   PDF.js exits on controller IPC disconnect; Python uses a parent-death boundary.
   Child stderr/source details are not forwarded to public logs.
-- Fresh processes add startup overhead. The unchanged 100-page test and original
+- Bounded initialization reuse amortizes startup without keeping document/page
+  caches alive. The unchanged 100-page test and original
   plan validation must measure elapsed time; this is not a speed/accuracy claim.
 
 ## Required validation

@@ -3,7 +3,7 @@ import {tmpdir} from 'node:os';
 import path from 'node:path';
 import {ServiceError,hash} from './core.mjs';
 import {SPAN_COORDINATES} from './page-geometry.mjs';
-import {runPrimary,runPdfium} from './renderer-runtime.mjs';
+import {createPrimaryPool,runPdfium} from './renderer-runtime.mjs';
 const FULL={x:0,y:0,width:1,height:1};
 const fallbackErrors=new Set(['parser-render-failed','parser-process-failed','parser-memory-limit','parser-attempt-timeout']);
 function regionOf(crop){
@@ -22,7 +22,7 @@ async function readImage(filename,render){
  return image;
 }
 /** Factory is also the deterministic fault-injection seam; no production env bypass. */
-export function createParser({primary=runPrimary,alternate=runPdfium}={}){
+export function createParser({primary,alternate=runPdfium}={}){
  return async function parse(bytes,{maxPages=250,timeoutMs=60000,signal,onManifest=()=>{},onPage=()=>{},crop,skipPages=[]}={}){
   bytes=Buffer.from(bytes);
   if(!bytes.subarray(0,1024).includes(Buffer.from('%PDF-')))throw new ServiceError('not-a-pdf');
@@ -32,9 +32,10 @@ export function createParser({primary=runPrimary,alternate=runPdfium}={}){
   const remaining=()=>{if(signal?.aborted)throw new ServiceError('processing-cancelled',503);const left=timeoutMs-(Date.now()-started);if(left<=0)throw new ServiceError('parse-timeout',503);return left;};
   remaining();
   const prefix=path.join(tmpdir(),'p5-parser-'),directory=await mkdtemp(prefix),input=path.join(directory,'original.pdf');
+  const pool=primary?null:createPrimaryPool(),run=primary||pool.run;
   try{
    await writeFile(input,bytes,{flag:'wx',mode:0o600});
-   const {count}=await primary({input,maxPages},{timeoutMs:Math.min(15000,remaining()),signal});
+   const {count}=await run({input,maxPages},{timeoutMs:Math.min(15000,remaining()),signal});
    if(!Number.isInteger(count)||count<1||count>maxPages)throw new ServiceError('parser-manifest-invalid',503);
    await onManifest(count);remaining();
    if(crop&&(!Number.isInteger(crop.page)||crop.page<1||crop.page>count))throw new ServiceError('invalid-crop-page',422);
@@ -42,7 +43,7 @@ export function createParser({primary=runPrimary,alternate=runPdfium}={}){
    for(const page of indices){
     let native,result;const pageStarted=Date.now(),output=path.join(directory,`primary-${page}.png`);
     try{
-     const attempt=await primary({input,output,maxPages,page,region,crop:Boolean(crop)},{timeoutMs:Math.min(15000,remaining()),signal,onNative:value=>{native=value;}});
+     const attempt=await run({input,output,maxPages,page,region,crop:Boolean(crop)},{timeoutMs:Math.min(15000,remaining()),signal,onNative:value=>{native=value;}});
      if(attempt.count!==count||!attempt.value)throw new ServiceError('parser-protocol-failed',503);
      result=attempt.value;result.image=await readImage(output,result.render);
     }catch(error){
@@ -53,7 +54,7 @@ export function createParser({primary=runPrimary,alternate=runPdfium}={}){
       view:native.geometry.view,rotation:native.geometry.rotation,region,scale}),{flag:'wx',mode:0o600});
      const renderStarted=Date.now(),render=await alternate([requestFile],{timeoutMs:Math.min(25000,remaining()),signal});
      if(render.engine!=='pdfium'||render.binding!=='5.3.0'||render.version!=='145.0.7616.0'||render.sourceSha256!==sourceSha256||render.page!==page||JSON.stringify(render.region)!==JSON.stringify(region)||render.scale!==scale||render.rotation!==native.geometry.rotation||render.view.length!==4||render.view.some((v,i)=>Math.abs(v-native.geometry.view[i])>.01))throw new ServiceError('renderer-provenance-mismatch',503);
-     result={...native,render:{...render,fallbackReason:error.code},image:await readImage(alternateOutput,render),renderMs:Date.now()-renderStarted,parseMs:Date.now()-pageStarted};
+     result={...native,render:{...render,fallbackReason:error.code,...(error.diagnostics?{primaryFailure:error.diagnostics}:{})},image:await readImage(alternateOutput,render),renderMs:Date.now()-renderStarted,parseMs:Date.now()-pageStarted};
     }
     remaining();result.sourceSha256=sourceSha256;
     result.render={...result.render,sourceSha256,page,region,geometry:result.geometry};
@@ -62,6 +63,7 @@ export function createParser({primary=runPrimary,alternate=runPdfium}={}){
    }
    remaining();
   }finally{
+   await pool?.close();
    const resolved=path.resolve(directory);if(resolved.startsWith(path.resolve(prefix))&&path.dirname(resolved)===path.resolve(tmpdir()))await rm(resolved,{recursive:true,force:true});
   }
  };

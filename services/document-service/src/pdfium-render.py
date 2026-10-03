@@ -65,6 +65,7 @@ def own_limits():
 
 def guard(pid):
     global JOB
+    limits = {'kind': 'process-commit', 'bytes': 384*MIB}
     if sys.platform == 'linux':
         import resource
         with open('/proc/%d/status' % pid) as f:
@@ -74,16 +75,21 @@ def guard(pid):
         ceiling = int(fields['VmSize'].split()[0])*1024 + 256*MIB
         resource.prlimit(pid, resource.RLIMIT_AS, (ceiling, ceiling))
         resource.prlimit(pid, resource.RLIMIT_CORE, (0, 0))
+        limits = {'kind': 'address-space-growth-and-rss-poll', 'addressSpaceBytes': ceiling,
+                  'bootVmSizeKiB': int(fields['VmSize'].split()[0]), 'rssStopKiB': 320*1024, 'pollMs': 20}
     elif sys.platform == 'win32':
         JOB = windows_limit(pid, 384*MIB)
     else:
         raise RuntimeError('memory-limit-unavailable')
-    print(json.dumps({'ready': True}), flush=True)
+    print(json.dumps({'ready': True, 'limits': limits}), flush=True)
     if sys.platform == 'linux':
         while True:
             try:
                 with open('/proc/%d/status' % pid) as f:
                     fields = dict(line.split(':', 1) for line in f if ':' in line)
+                sample = {name: int(fields.get(key, '0 kB').split()[0]) for name, key in
+                          [('rssKiB','VmRSS'), ('highWaterRssKiB','VmHWM'), ('vmSizeKiB','VmSize'), ('vmPeakKiB','VmPeak')]}
+                print(json.dumps({'sample': sample}), flush=True)
                 if int(fields.get('VmRSS', '0 kB').split()[0])*1024 > 320*MIB:
                     print(json.dumps({'limit': True}), flush=True)
                     os.kill(pid, 9)

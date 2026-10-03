@@ -75,6 +75,7 @@ test('unique 100-sheet native blueprint fixture keeps every page, exact quantity
  const elapsed=Math.round(performance.now()-started);assert.equal(pages.length,100);assert.equal(new Set(pages.map(p=>p.page)).size,100);
  await mkdir('verification',{recursive:true});await writeFile('verification/native-100-pages.json',JSON.stringify({fixture:'100 unique generated 24x36-inch sheets, not a real customer plan set',scope:'Native text/layout extraction and overview rendering ONLY. No live model, semantic or accuracy certification.',pages:pages.length,elapsedMs:elapsed,within60Seconds:elapsed<=60000,sourceBytes:bytes.length,missingPages:0},null,2));
  console.log(`Native-only synthetic 100-sheet benchmark: ${elapsed}ms. NOT a live AI benchmark.`);
+ assert.ok(elapsed<=60000,'The synthetic 100-sheet native preparation target is 60 seconds');
 });
 test('corrupt PDF fails rather than returning an empty successful record',async()=>{await assert.rejects(parsePdf(Buffer.from('%PDF-1.7 invalid data'),{timeoutMs:5000}),/parsed/);});
 

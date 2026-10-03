@@ -9,6 +9,7 @@ const {getDocument,OPS,version}=await import('pdfjs-dist/legacy/build/pdf.mjs');
 const assets=path.dirname(createRequire(import.meta.url).resolve('pdfjs-dist/package.json'));
 process.send({type:'boot'});
 // The controller installs the OS memory guard before untrusted input is opened.
+while(true){
 const request=await new Promise(resolve=>process.once('message',resolve));
 let task,phase='native';
 try{
@@ -47,8 +48,9 @@ try{
   await writeFile(request.output,image,{flag:'wx',mode:0o600});
   process.send({type:'page',value:{...native,render:{width:w,height:h,scale,engine:'pdfjs',version,pixelTransform:{fullWidth:viewport.width,fullHeight:viewport.height,offsetX:region.x*viewport.width,offsetY:region.y*viewport.height}},renderMs:Math.round(performance.now()-renderStarted),parseMs:Math.round(performance.now()-started)}});
  }
- process.send({type:'done'});
 }catch(error){
  const explicit=['page-limit-exceeded','unsafe-page-size','page-content-capacity','render-pixel-capacity','render-output-capacity'];
  process.send({type:'error',code:explicit.includes(error.message)?error.message:error.name==='InvalidPDFException'?'pdf-cannot-be-parsed':phase==='render'?'parser-render-failed':'parser-native-failed'});
-}finally{await task?.destroy();process.disconnect();}
+}finally{await task?.destroy();}
+process.send({type:'done'});
+}
