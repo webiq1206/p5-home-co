@@ -29,6 +29,7 @@ export function pricingSourceIdentity() {
     'package.json','package-lock.json','tsconfig.json',
     'scripts/check-p5-live-pricing.mts','scripts/lib/pricingQualification.ts',
     'scripts/lib/capturedPricingDelivery.ts','scripts/p5-pricing-qualification-ledger.mts',
+    'scripts/lib/recoveryEpoch.mjs','scripts/lib/exactPricingReplay.mjs','scripts/check-p5-original-plan-replay.mts',
     'scripts/test-p5-pricing-qualification.mts',
     ...[brand.font,brand.headingFont,brand.logo].map(asset=>path.join('public',asset))].sort();
   return digest(JSON.stringify({runtime:process.version,files:files.map(f=>[f,digest(readFileSync(f))])}));

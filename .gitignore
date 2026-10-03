@@ -126,6 +126,9 @@ tsconfig.tsbuildinfo
 !/scripts/lib/pricingQualification.ts
 !/scripts/lib/syntheticPlanSet.ts
 !/scripts/lib/syntheticRe10Pdf.ts
+!/scripts/lib/recoveryEpoch.mjs
+!/scripts/lib/exactPricingReplay.mjs
+!/scripts/P5-ORIGINAL-PLAN-ACCEPTANCE.md
 
 # Maintained production analytics hostname guard.
 !/lib/analyticsBootstrap.ts

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import {mkdtemp,writeFile,rm,readFile} from 'node:fs/promises';
+import {mkdtemp,writeFile,rm,readFile,cp,mkdir} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import path from 'node:path';
 import {pathToFileURL} from 'node:url';
@@ -7,6 +7,9 @@ import {spawnSync} from 'node:child_process';
 import {PricingQualification,digest,DOCUMENT_LIMITS,type PricingAllowance} from './lib/pricingQualification.ts';
 import {capturePricingDelivery,isolatedCaptureFetch} from './lib/capturedPricingDelivery.ts';
 import {calculateP5Estimate,customerEstimate,COST_CATEGORIES} from '../lib/p5/pricing.ts';
+import {validateExtraction} from '../lib/p5/scope.ts';
+import {ESTIMATOR_MODEL} from '../lib/p5/modelPolicy.ts';
+import {PDFDocument} from 'pdf-lib';
 
 // All providers below are local callbacks. No credentials, environment mutation,
 // application database, HTTP, email or CRM transports are used.
@@ -199,14 +202,25 @@ try {
   await assert.rejects(isolated('https://provider.example.invalid/asset.wasm'),/network-fetch-denied/);
   assert.equal(assetCalls,1);assert.equal(httpCalls,0);
   guardCalls=0;assetCalls=0;globalThis.fetch=pricingGuard;
+  const sourceDocument=await PDFDocument.create();sourceDocument.addPage().drawText('SYNTHETIC ONLY - no original plan acceptance claim');
+  const sourceBytes=Buffer.from(await sourceDocument.save()),sourceName='synthetic-source.pdf';
+  const expectedPages=[{source:sourceName,page:1}];
+  const extraction=validateExtraction({summary:pricing.scopeSummary,facts:[],conflicts:[],missingInformation:[],reviewNotes:[],
+    pages:[{source:sourceName,page:1,sheet:'',revision:'',status:'read',notes:[],coverageState:'readable'}]});
+  const capturedScope={text:pricing.scopeSummary,answers:{service:'kitchen'},extraction,reviewedAt:new Date().toISOString(),corrections:[],
+    uploads:[{id:'synthetic-source',name:sourceName,type:'application/pdf',size:sourceBytes.length,sha256:digest(sourceBytes),status:'stored'}]};
   let manifest:any;
   try {
     manifest=await capturePricingDelivery({internal,customer},
-      {text:pricing.scopeSummary,answers:{service:'kitchen'}},path.join(dir,'captured'),localAssetFetch);
+      capturedScope,path.join(dir,'captured'),localAssetFetch,{uploads:[{name:sourceName,type:'application/pdf',data:sourceBytes}],expectedPages,
+        modelEvidence:{verified:true,requestedModel:ESTIMATOR_MODEL,responseModels:[ESTIMATOR_MODEL],calls:1}});
     assert.equal(globalThis.fetch,pricingGuard);
   } finally {globalThis.fetch=nativeFetch;}
   assert.equal(guardCalls,0);assert.equal(httpCalls,0);
   assert.equal(manifest.priceConsistency,true);assert.equal(manifest.externalSends,0);checks++;
+  assert.equal(manifest.persistedAfterReopen,true);assert.equal(manifest.semanticCoverageVerified,true);
+  assert.equal(manifest.crmEnabled,false);assert.deepEqual(manifest.sourceHashes,[digest(sourceBytes)]);
   assert.ok((await readFile(path.join(dir,'captured','customer.pdf'))).length>0);
+  if(process.env.P5_CAPTURE_ARTIFACT_DIR){await mkdir(process.env.P5_CAPTURE_ARTIFACT_DIR,{recursive:true});await cp(path.join(dir,'captured'),process.env.P5_CAPTURE_ARTIFACT_DIR,{recursive:true});}
   console.log(JSON.stringify({passed:true,checks,providerNetworkCalls:0,businessWrites:0,externalSends:0}));
 }finally{await rm(dir,{recursive:true,force:true});}
