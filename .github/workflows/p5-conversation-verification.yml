@@ -27,6 +27,9 @@ jobs:
     timeout-minutes: 20
     env:
       NEXT_TELEMETRY_DISABLED: '1'
+      # Legacy compatibility fixtures match the first phase of npm test.
+      # Production Haiku is exercised separately below; no deployed selector changes.
+      P5_ESTIMATOR_PROVIDER: 'openai'
       ANTHROPIC_API_KEY: ''
       OPENAI_API_KEY: ''
       DATABASE_URL: ''
@@ -42,6 +45,10 @@ jobs:
       - run: npm ci --no-audit --no-fund
       - name: Offline estimator and conversation checks
         run: node --import tsx --test --test-concurrency=1 tests/p5-*.test.ts
+      - name: Production Haiku policy and error checks
+        env:
+          P5_ESTIMATOR_PROVIDER: 'anthropic'
+        run: node --import tsx --test tests/providers/haiku.test.ts tests/p5-pricing-production-errors.test.ts tests/p5-clarification-takeoff-updates.test.ts
       - name: Isolated saved-file adapter checks
         run: node --import tsx scripts/test-p5-document-adapter.mts
       - name: Upload faults and hostile document replies
