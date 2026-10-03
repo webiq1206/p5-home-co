@@ -5,6 +5,8 @@ on:
       - 'scripts/lib/capturedPricingDelivery.ts'
       - 'scripts/lib/pricingQualification.ts'
       - 'scripts/lib/recoveryEpoch.mjs'
+      - 'scripts/check-p5-recovery-request.mjs'
+      - 'scripts/test-p5-recovery-request.mjs'
       - 'scripts/lib/recoveryTransport.mjs'
       - 'scripts/test-p5-recovery-transport.mjs'
       - 'scripts/lib/exactPricingReplay.mjs'
@@ -36,7 +38,7 @@ jobs:
           cache: npm
       - run: npm ci --no-audit --no-fund
       - name: Crash, liability, identity and exact-replay guards
-        run: node --test scripts/test-p5-recovery-epoch.mjs scripts/test-p5-pricing-replay.mjs scripts/test-p5-recovery-transport.mjs
+        run: node --test scripts/test-p5-recovery-epoch.mjs scripts/test-p5-pricing-replay.mjs scripts/test-p5-recovery-transport.mjs scripts/test-p5-recovery-request.mjs
       - name: Actual persistence, PDF and CRM-off checks (synthetic only)
         run: node --import tsx scripts/test-p5-pricing-qualification.mts
       - name: Actual pricing engine through exact replay and persistence (synthetic only)

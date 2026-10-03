@@ -107,3 +107,27 @@ These tests use synthetic inputs only and authorize no real spending. Set
 `P5_CAPTURE_ARTIFACT_DIR` to a private workspace directory to retain synthetic PDFs
 for visual regression review. Passing them is wiring evidence, not original-plan
 semantic or price acceptance.
+
+## Single reviewed request entry point
+
+`check-p5-recovery-request.mjs` executes exactly one reviewed request from an
+existing provisioned epoch. It does not run a scheduler, retry a job, generate a
+new allowance, call production databases, or declare semantic/pricing acceptance.
+A private bundle contains the exact request prepared by the unchanged pipeline,
+original Lot29 PDF path/hash, configuration snapshot and input-evidence digest.
+`recoveryExecutionBindings` computes all tracked source bytes, lock/runtime,
+document, model-policy and configuration identities in the execution runtime.
+Those identities must equal the immutable epoch attestation. The native reviewer
+must independently verify provenance and usefulness; hashes alone do not do so.
+
+Run `node scripts/check-p5-recovery-request.mjs preflight BUNDLE BUNDLE_HASH
+ATTESTATION ATTESTATION_HASH` for a zero-dispatch projection. The native review
+approval contains `request` equal to that projection excluding `ledger`,
+`exactSavedReceipt` and `providerCallsAdded`, plus genuine `reviewerEvidenceSha256`
+and `expiresAt`. Only after native GO, execute with the same first five arguments
+but mode `execute`, followed by `APPROVAL APPROVAL_HASH NEW_OUTPUT_DIRECTORY`.
+The supplied approval hash is an external trust anchor, not self-authorization.
+Request, preflight, approval, response and result are preserved privately; the
+SQLite ledger durably preserves the receipt before output handoff. Replay uses
+the exact receipt without credentials. Original-plan delivery still requires
+actual domain validation and the separate pricing/persistence replay gates.
