@@ -16,12 +16,16 @@ function validate(a,expected,file){
  if(!digest(expected)||sha(canonical(a))!==expected)fail('attestation-identity');
  if(a.version!==1||!text(a.epochId)||!text(a.umbrellaId)||!text(a.authorizationEvidence)||
   a.umbrellaMicros!==UMBRELLA_MICROS||a.crmEnabled!==false||!text(a.ledgerPath)||path.resolve(a.ledgerPath)!==path.resolve(file)||
-  !Number.isFinite(Date.parse(a.expiresAt))||!digest(a.historicalLedgerSha256)||!integer(a.historicalUpperBoundMicros)||
+  !Number.isFinite(Date.parse(a.expiresAt))||!integer(a.historicalUpperBoundMicros)||
   !a.oldWorkers||!['stopped','bounded'].includes(a.oldWorkers.state)||!digest(a.oldWorkers.evidenceSha256)||
   !integer(a.oldWorkers.upperBoundMicros)||(a.oldWorkers.state==='stopped'&&a.oldWorkers.upperBoundMicros!==0)||
   !integer(a.epochCeilingMicros)||!a.epochCeilingMicros||!a.bindings||!Object.keys(a.bindings).length||
   !['source','dependencies','runtime','documents','models'].every(key=>digest(a.bindings[key]))||
   !Object.values(a.bindings).every(digest)||!Array.isArray(a.cases)||!a.cases.length)fail('attestation-invalid');
+ const liability=a.historicalLiability;
+ if(!liability||!['original-ledger','attested-carryforward'].includes(liability.mode)||!digest(liability.evidenceSha256)||
+  !text(liability.description)||!integer(liability.unknownHoldMicros)||liability.unknownHoldMicros>a.historicalUpperBoundMicros||
+  (liability.mode==='original-ledger'&&!digest(liability.ledgerSha256)))fail('historical-liability-evidence-required');
  if(a.historicalUpperBoundMicros+a.oldWorkers.upperBoundMicros+a.epochCeilingMicros>UMBRELLA_MICROS)fail('umbrella-exceeded');
  let allocations=0,prior=0;const cases=new Set();
  for(const c of a.cases){
@@ -99,13 +103,13 @@ export class RecoveryEpochLedger{
    return id;
   });
  }
- settle(id,{actualMicros,response,usageEvidenceSha256}){
+ settle(id,{actualMicros,response,usageEvidenceSha256,stop=false}){
   if(!integer(actualMicros)||!digest(usageEvidenceSha256)||!(response instanceof Uint8Array)||!response.length||response.length>16*1024*1024)fail('complete-receipt-required');
   const bytes=Buffer.from(response);
   return this.transaction(()=>{
    const row=this.db.prepare('SELECT * FROM attempts WHERE id=?').get(id);
    if(!row||row.owner!==this.owner||!['reserved','unknown'].includes(row.state))fail('settlement-fenced');
-   const state=actualMicros>row.reserved?'overrun':'settled';
+   const state=actualMicros>row.reserved?'overrun':stop?'stopped':'settled';
    this.db.prepare('UPDATE attempts SET state=?,actual=?,response=?,response_hash=?,usage_evidence=? WHERE id=?')
     .run(state,actualMicros,bytes,sha(bytes),usageEvidenceSha256,id);
    this.db.prepare('INSERT INTO events(attempt_id,state,created) VALUES(?,?,?)').run(id,state,new Date().toISOString());
@@ -115,6 +119,7 @@ export class RecoveryEpochLedger{
  unknown(id){
   this.transaction(()=>{const result=this.db.prepare("UPDATE attempts SET state='unknown' WHERE id=? AND owner=? AND state='reserved'").run(id,this.owner);if(result.changes!==1)fail('settlement-fenced');this.db.prepare('INSERT INTO events(attempt_id,state,created) VALUES(?,?,?)').run(id,'unknown',new Date().toISOString());});
  }
+ stop(id){this.transaction(()=>{const result=this.db.prepare("UPDATE attempts SET state='stopped' WHERE id=? AND owner=? AND state='settled'").run(id,this.owner);if(result.changes!==1)fail('settlement-fenced');this.db.prepare('INSERT INTO events(attempt_id,state,created) VALUES(?,?,?)').run(id,'stopped',new Date().toISOString());});}
  replay(context){
   this.stage(context);const row=this.db.prepare('SELECT * FROM attempts WHERE id=?').get(this.identity(context));
   if(!row)return null;
@@ -124,7 +129,7 @@ export class RecoveryEpochLedger{
  report(){
   const attempts=this.db.prepare('SELECT id,case_id,stage_id,state,reserved,actual,response_hash,usage_evidence FROM attempts ORDER BY created,id').all();
   const liability=attempts.reduce((n,a)=>n+(a.state==='settled'?a.actual:Math.max(a.reserved,a.actual||0)),0);
-  return {epochId:this.attestation.epochId,umbrellaMicros:UMBRELLA_MICROS,historicalUpperBoundMicros:this.attestation.historicalUpperBoundMicros,
+  return {epochId:this.attestation.epochId,umbrellaMicros:UMBRELLA_MICROS,historicalUpperBoundMicros:this.attestation.historicalUpperBoundMicros,historicalLiability:this.attestation.historicalLiability,
    oldWorkerUpperBoundMicros:this.attestation.oldWorkers.upperBoundMicros,newLiabilityMicros:liability,
    aggregateUpperBoundMicros:this.attestation.historicalUpperBoundMicros+this.attestation.oldWorkers.upperBoundMicros+liability,
    frozen:attempts.some(a=>a.state!=='settled'),attempts};
