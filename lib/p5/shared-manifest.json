@@ -1,7 +1,7 @@
 {
  "source": "p5-home-co",
- "commit": "f83d609b0fb243eff42365caf1e14f76d8cae002",
- "generatedAt": "2026-10-03T10:07:31.890Z",
+ "commit": "f8e48b6a6aeb460af192fae4da08c14507938a7f",
+ "generatedAt": "2026-10-03T10:12:26.510Z",
  "note": "P5-only qualification baseline. Child rollout is paused until live acceptance is verified. Hash checks remain mandatory.",
  "files": {
   "app/admin/p5-estimators/page.tsx": "8e81e1ac475dadb7eee9af396c963ee369de593a5a8d165d40dd97f2dab7ca32",
@@ -214,7 +214,7 @@
   "scripts/check-p5-mobile-acceptance.mjs": "0291448b5c6d399be658d99d704779239038976a7863c7db82e174457f20d5c2",
   "scripts/check-p5-original-plan-replay.mts": "2634fe3c74263fecd55a4aa9ecbb25e79b53327639f78e5f9b816fbc46c1d8f1",
   "scripts/check-p5-reader-models.mts": "1d5a9fbf7909a5d59ab7ebaa8afcbda64abf9664d105bab838a44fc4050943dd",
-  "scripts/check-p5-recovery-request.mjs": "c1542445d475b42b8581c664842c4e0aadd449de39fac12ee83db63150b7a169",
+  "scripts/check-p5-recovery-request.mjs": "3fb5667f64dbe16ccf8cbdf90430d2d4a21f614d2c3d82d39467df41f3acfaf8",
   "scripts/check-p5-scope-extraction.ts": "6c1f6d77d5d769bea9fee4f821d59c552aae9a8a8a68253f4b55fd17a3280fda",
   "scripts/lib/capturedPricingDelivery.ts": "e67829d74ac53586a6b8f4e4e4990e7ac2723c1bcc6bd89e63ffaddbe54c413d",
   "scripts/lib/exactPricingReplay.mjs": "afe928f32fd51c81bc4346ce854e49a5dfc14665953aef19affdec6bf3d244d9",

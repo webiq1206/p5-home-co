@@ -29,6 +29,8 @@ export async function runRecoveryRequest({mode,root=process.cwd(),bundleFile,bun
  demand(digest(attestationSha256)&&sha(canonical(authority))===attestationSha256,'authority-identity');
  demand(bundle.version===1&&bundle.caseId==='lot29'&&['read','review','pricing'].includes(bundle.stageId),'case-stage');
  demand(authority.historicalUpperBoundMicros===3250000&&authority.historicalLiability?.unknownHoldMicros===390000&&authority.epochCeilingMicros<=2000000,'initial-recovery-cap');
+ demand(Number.isSafeInteger(authority.oldWorkers?.upperBoundMicros)&&authority.oldWorkers.upperBoundMicros>=0&&
+  authority.historicalUpperBoundMicros+authority.oldWorkers.upperBoundMicros+authority.epochCeilingMicros<=5250000,'combined-recovery-cap');
  const lot=authority.cases.find(c=>c.id==='lot29');
  demand(lot?.priorUpperBoundMicros===1000000&&lot.ceilingMicros<=3000000,'lot29-cap');
  demand(Array.isArray(bundle.documents)&&bundle.documents.length===1,'one-original-document');
