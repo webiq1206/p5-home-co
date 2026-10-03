@@ -69,6 +69,12 @@ jobs:
       - name: Install standalone dependencies
         working-directory: services/document-service
         run: npm ci --no-audit --no-fund
+      - name: Install pinned offline PDF renderer
+        run: |
+          python3 -m venv "$RUNNER_TEMP/p5-renderer"
+          "$RUNNER_TEMP/p5-renderer/bin/pip" install --only-binary=:all: --no-deps --require-hashes -r services/document-service/requirements-renderer.txt
+          echo "DOCUMENT_PDFIUM_PYTHON=$RUNNER_TEMP/p5-renderer/bin/python" >> "$GITHUB_ENV"
+          "$RUNNER_TEMP/p5-renderer/bin/python" -I -B services/document-service/src/pdfium-render.py --probe
       - name: Real database, HTTP, PDF and source-coverage tests
         working-directory: services/document-service
         run: |

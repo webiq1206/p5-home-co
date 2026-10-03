@@ -4,7 +4,11 @@ import {Store} from './store.mjs';
 import {Reader} from './provider.mjs';
 import {Pipeline} from './pipeline.mjs';
 import {makeServer} from './server.mjs';
+import {checkRendererRuntime} from './renderer-runtime.mjs';
 const config=readConfig();
+// Fail startup/readiness before accepting work when the pinned renderer or its
+// OS memory boundary is absent. This probe makes no provider/network call.
+config.renderer=await checkRendererRuntime();
 const pool=new pg.Pool({connectionString:config.databaseUrl,max:config.poolMax,connectionTimeoutMillis:10000,statement_timeout:20000});
 pool.on('error',()=>console.error(JSON.stringify({event:'database-pool',code:'connection-error'})));
 const store=new Store(pool,config);await store.init();
