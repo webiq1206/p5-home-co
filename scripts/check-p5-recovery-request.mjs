@@ -44,7 +44,7 @@ export async function runRecoveryRequest({mode,root=process.cwd(),bundleFile,bun
  demand(canonical(bindings)===canonical(authority.bindings),'execution-bindings');
  demand(!['on','true'].includes(process.env.P5_CRM_DELIVERY),'crm-must-remain-off');
  demand(process.env.P5_ESTIMATOR_PROVIDER!=='openai','runtime-provider-mismatch');
- const requestSha256=sha(canonical(bundle.request));
+ const requestSha256=sha(canonical({...bundle.request,service_tier:HAIKU_POLICY.serviceTier}));
  const projection={version:1,attestationSha256,bundleSha256,bindings,caseId:bundle.caseId,stageId:bundle.stageId,documentSha256:lot.documentSha256,requestSha256,
   inputEvidenceSha256:bundle.inputEvidenceSha256,endpoint:HAIKU_POLICY.endpoint,model:HAIKU_POLICY.model,requestPolicySha256:recoveryRequestPolicySha256,
   maxOutputTokens:bundle.request.max_tokens,maxReservationMicros:400000+5*bundle.request.max_tokens,automaticRetries:0,maxInflight:1,crmEnabled:false};
@@ -66,7 +66,7 @@ export async function runRecoveryRequest({mode,root=process.cwd(),bundleFile,bun
   demand(relative(out,resolve(root))!==''&&out!==dirname(authority.ledgerPath),'separate-output-directory');
   mkdirSync(out,{mode:0o700}); // exclusive: preserve every previous run
   const save=(name,value)=>writeFileSync(resolve(out,name),canonical(value),{flag:'wx',mode:0o600});
-  save('request.json',bundle.request);save('preflight.json',preflight);save('review-approval.json',approval);
+  save('request.json',{...bundle.request,service_tier:HAIKU_POLICY.serviceTier});save('preflight.json',preflight);save('review-approval.json',approval);
   const send=recoveryTransport({ledger,context,transport});
   let passed=false;
   try{

@@ -16,10 +16,10 @@ function setup(t,reply,edit=()=>{}){
  stages:['read','review','pricing'].map(id=>({id,envelopeMicros:id==='read'?800000:600000,maxCalls:30,requestPolicySha256:recoveryRequestPolicySha256,endpoint,model:policy.model,billingBoundEvidenceSha256:sha(canonical([policy.pricingEvidenceSha256,policy.modelEvidenceSha256]))}))}]};
  edit(attestation);const args={file,attestation,expectedSha256:sha(canonical(attestation)),bindings:attestation.bindings};provisionRecoveryEpoch(args);q=new RecoveryEpochLedger(args);
  const context={caseId:'lot29',stageId:'read',documentSha256:h};
- const send=recoveryTransport({ledger:q,context,credential:()=> 'SYNTHETIC-NOT-A-KEY',transport:async(url,init)=>{calls++;assert.equal(q.report().attempts.at(-1).state,'reserved');assert.equal(init.redirect,'error');return reply(url,init);}});
+ const send=recoveryTransport({ledger:q,context,credential:()=> 'SYNTHETIC-NOT-A-KEY',transport:async(url,init)=>{calls++;assert.equal(q.report().attempts.at(-1).state,'reserved');assert.equal(init.redirect,'error');assert.equal(JSON.parse(init.body).service_tier,'standard_only');return reply(url,init);}});
  return {q,send,calls:()=>calls,body:{model:policy.model,max_tokens:1000,messages:[{role:'user',content:[{type:'text',text:'SYNTHETIC ONLY'}]}]}};
 }
-const success=()=>Response.json({model:policy.model,type:'message',content:[{type:'text',text:'{}'}],stop_reason:'end_turn',usage:{input_tokens:100,output_tokens:10,cache_creation_input_tokens:0,cache_read_input_tokens:0}});
+const success=()=>Response.json({model:policy.model,type:'message',content:[{type:'text',text:'{}'}],stop_reason:'end_turn',usage:{service_tier:'standard',input_tokens:100,output_tokens:10,cache_creation_input_tokens:0,cache_read_input_tokens:0}});
 const request=body=>({method:'POST',body:JSON.stringify(body)});
 test('durable predispatch bound, usage settlement, exact replay and protected completion envelopes',async t=>{
  const f=setup(t,success);assert.equal((await f.send(endpoint,request(f.body))).status,200);
@@ -34,7 +34,7 @@ test('unbounded routes, tools, cache, beta and changed models never dispatch',as
  await assert.rejects(f.send('https://other.invalid',request(f.body)),/request-route/);assert.equal(f.calls(),0);
 });
 test('network loss, bad usage and incomplete output freeze without any retry',async t=>{
- for(const reply of [async()=>{throw Error('secret must not persist');},()=>Response.json({model:policy.model,stop_reason:'end_turn',content:[]}),()=>Response.json({model:policy.model,stop_reason:'max_tokens',content:[],usage:{input_tokens:100,output_tokens:1000}})]){
+ for(const reply of [async()=>{throw Error('secret must not persist');},()=>Response.json({model:policy.model,stop_reason:'end_turn',content:[]}),()=>Response.json({model:policy.model,stop_reason:'max_tokens',content:[],usage:{service_tier:'standard',input_tokens:100,output_tokens:1000}})]){
   const f=setup(t,reply);await assert.rejects(f.send(endpoint,request(f.body)),/held-or-stopped/);
   await assert.rejects(f.send(endpoint,request({...f.body,max_tokens:2000})),/stopped-until-review/);
   assert.equal(f.calls(),1);assert.equal(f.q.report().frozen,true);assert.doesNotMatch(JSON.stringify(f.q.report()),/secret must/);
@@ -47,18 +47,26 @@ test('second request is denied while first response is outstanding',async t=>{
 test('unchanged production reader body accepts bounded ephemeral caching and client schema tools',async t=>{
  const schema={type:'object',properties:{facts:{type:'array',items:{type:'string'}}},required:['facts'],additionalProperties:false};
  const built=requestBody('anthropic',policy.model,'SYNTHETIC ONLY',{page:1},[],schema,1000,'read');
- const f=setup(t,()=>Response.json({model:policy.model,type:'message',stop_reason:'tool_use',content:[{type:'tool_use',id:'synthetic',name:built.body.tool_choice.name,input:{facts:[]}}],usage:{input_tokens:100,output_tokens:10,cache_creation_input_tokens:20,cache_read_input_tokens:0}}));
+ const f=setup(t,()=>Response.json({model:policy.model,type:'message',stop_reason:'tool_use',content:[{type:'tool_use',id:'synthetic',name:built.body.tool_choice.name,input:{facts:[]}}],usage:{service_tier:'standard',input_tokens:100,output_tokens:10,cache_creation_input_tokens:20,cache_read_input_tokens:0}}));
  await f.send(endpoint,request(built.body));assert.equal(f.calls(),1);assert.equal(f.q.report().attempts[0].actual,190);
 });
 
 test('invalid structured output is durably stopped with its response preserved',async t=>{
  const schema={type:'object',properties:{facts:{type:'array',items:{type:'string'}}},required:['facts'],additionalProperties:false};
  const built=requestBody('anthropic',policy.model,'SYNTHETIC ONLY',{page:1},[],schema,1000,'read');
- const f=setup(t,()=>Response.json({model:policy.model,stop_reason:'tool_use',content:[{type:'tool_use',id:'synthetic',name:built.body.tool_choice.name,input:{facts:42}}],usage:{input_tokens:100,output_tokens:10}}));
+ const f=setup(t,()=>Response.json({model:policy.model,stop_reason:'tool_use',content:[{type:'tool_use',id:'synthetic',name:built.body.tool_choice.name,input:{facts:42}}],usage:{service_tier:'standard',input_tokens:100,output_tokens:10}}));
  await assert.rejects(f.send(endpoint,request(built.body)),/held-or-stopped/);
  const report=f.q.report();assert.equal(report.frozen,true);assert.equal(report.attempts[0].state,'stopped');assert.equal(report.newLiabilityMicros,405000);assert.ok(report.attempts[0].response_hash);
  const fresh=recoveryTransport({ledger:f.q,context:{caseId:'lot29',stageId:'read',documentSha256:h},credential:()=>assert.fail('must not read credential'),transport:()=>assert.fail('must not dispatch')});
  await assert.rejects(fresh(endpoint,request(built.body)),/receipt-unavailable/);
  await assert.rejects(fresh(endpoint,request({...built.body,max_tokens:500})),/unresolved/);
  assert.equal(f.calls(),1);
+});
+
+test('unverified service tier keeps its full reservation instead of settling at standard rates',async t=>{
+ for(const service_tier of [undefined,'priority','batch']){
+  const f=setup(t,()=>Response.json({model:policy.model,stop_reason:'end_turn',content:[],usage:{service_tier,input_tokens:100,output_tokens:10}}));
+  await assert.rejects(f.send(endpoint,request(f.body)),/held-or-stopped/);
+  assert.equal(f.q.report().frozen,true);assert.equal(f.q.report().newLiabilityMicros,405000);assert.equal(f.calls(),1);
+ }
 });

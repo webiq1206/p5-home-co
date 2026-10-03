@@ -21,7 +21,7 @@ test('exact one-request runner requires independent approval, preserves receipts
   put('bundle.json',bundle);put('authority.json',a);
   const args={bundleFile:join(directory,'bundle.json'),bundleSha256:sha(canonical(bundle)),attestationFile:join(directory,'authority.json'),attestationSha256:sha(canonical(a))};
   provisionRecoveryEpoch({file:a.ledgerPath,attestation:a,expectedSha256:args.attestationSha256});
-  let calls=0;const transport=async()=>{calls++;return Response.json({model:policy.model,stop_reason:'end_turn',content:[{type:'text',text:'{}'}],usage:{input_tokens:100,output_tokens:10}});};
+  let calls=0;const transport=async()=>{calls++;return Response.json({model:policy.model,stop_reason:'end_turn',content:[{type:'text',text:'{}'}],usage:{service_tier:'standard',input_tokens:100,output_tokens:10}});};
   const preflight=await runRecoveryRequest({...args,mode:'preflight',transport});assert.equal(calls,0);assert.equal(preflight.ledger.attempts.length,0);
   const {exactSavedReceipt,ledger,providerCallsAdded,...request}=preflight;
   const approval={request,reviewerEvidenceSha256:h,expiresAt:new Date(Date.now()+600000).toISOString()};put('approval.json',approval);

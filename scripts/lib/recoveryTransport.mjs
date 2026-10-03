@@ -1,10 +1,11 @@
 import {canonical,sha} from './recoveryEpoch.mjs';
 import {collectAnthropicResponse} from '../../services/document-service/src/anthropic-stream.mjs';
 import {validateSchema} from '../../services/document-service/src/schema.mjs';
-export const HAIKU_POLICY=Object.freeze({version:1,endpoint:'https://api.anthropic.com/v1/messages',model:'claude-haiku-4-5-20251001',
+export const HAIKU_POLICY=Object.freeze({version:2,endpoint:'https://api.anthropic.com/v1/messages',model:'claude-haiku-4-5-20251001',serviceTier:'standard_only',
  contextTokens:200000,maxOutputTokens:32000,inputMicrosPerToken:1,outputMicrosPerToken:5,maxCacheWriteMicrosPerToken:2,
  pricingEvidenceSha256:'245b5d0472659075015551126902de479990475fa61deb58c5fc20ef5e51a909',
- modelEvidenceSha256:'9d3c37c0d62e0d466d461fad29a3cba34e7ea54a1d313e2a2c025864acdfe7f3'});
+ modelEvidenceSha256:'9d3c37c0d62e0d466d461fad29a3cba34e7ea54a1d313e2a2c025864acdfe7f3',
+ messagesEvidenceSha256:'92277dad318dd407c1f99683317ecc6b7540def12e2d6bc84f0a7bf02751febc'});
 export const recoveryRequestPolicySha256=sha(canonical(HAIKU_POLICY));
 const fail=code=>{throw Error('recovery-transport:'+code);};
 const integer=n=>Number.isSafeInteger(n)&&n>=0;
@@ -20,8 +21,12 @@ export function recoveryTransport({ledger,context,transport=fetch,credential=()=
   if(endpoint!==HAIKU_POLICY.endpoint||init.method!=='POST'||typeof init.body!=='string'||Buffer.byteLength(init.body)>32*1024*1024)fail('request-route-or-size');
   const headers=new Headers(init.headers);if(headers.has('anthropic-beta'))fail('beta-forbidden');
   let body;try{body=JSON.parse(init.body);}catch{fail('invalid-json');}
-  const allowed=new Set(['model','max_tokens','messages','system','stream','tools','tool_choice','output_config','temperature','top_p','top_k','stop_sequences']);
+  const allowed=new Set(['model','max_tokens','messages','system','stream','tools','tool_choice','output_config','temperature','top_p','top_k','stop_sequences','service_tier']);
   if(Object.keys(body).some(key=>!allowed.has(key))||body.model!==HAIKU_POLICY.model||!integer(body.max_tokens)||body.max_tokens<1||body.max_tokens>HAIKU_POLICY.maxOutputTokens)fail('unsupported-request-policy');
+  if(body.service_tier!==undefined&&body.service_tier!=='standard_only')fail('standard-tier-required');
+  // Omission permits automatic priority capacity. Force the reviewed standard
+  // rate before hashing/reserving; the wire body is part of request identity.
+  body.service_tier='standard_only';
   if(!Array.isArray(body.messages)||!body.messages.length)fail('messages-required');
   if(body.tools!==undefined&&(!Array.isArray(body.tools)||body.tools.some(tool=>tool.type||!tool.input_schema||!tool.name)))fail('server-tools-forbidden');
   function inspect(value){
@@ -42,7 +47,7 @@ export function recoveryTransport({ledger,context,transport=fetch,credential=()=
   const signal=AbortSignal.any([...(init.signal?[init.signal]:[]),AbortSignal.timeout(360000)]);
   try{
    // Ignore incoming authentication; use only the existing execution-runtime key.
-   const response=await transport(endpoint,{method:'POST',body:init.body,signal,redirect:'error',
+   const response=await transport(endpoint,{method:'POST',body:JSON.stringify(body),signal,redirect:'error',
     headers:{'content-type':'application/json','anthropic-version':'2023-06-01','x-api-key':key}});
    if(!response.ok)throw Error('provider-http');
    const raw=await collectAnthropicResponse(response,{signal,onProgress:init.onProviderProgress});
@@ -51,7 +56,7 @@ export function recoveryTransport({ledger,context,transport=fetch,credential=()=
     !integer(u.cache_creation_input_tokens??0)||!integer(u.cache_read_input_tokens??0)||
     u.input_tokens+(u.cache_creation_input_tokens||0)+(u.cache_read_input_tokens||0)>HAIKU_POLICY.contextTokens||u.output_tokens>body.max_tokens||
     (u.server_tool_use&&Object.values(u.server_tool_use).some(value=>value!==0))||
-    (u.service_tier&&u.service_tier!=='standard'))throw Error('unverified-usage');
+    u.service_tier!=='standard')throw Error('unverified-usage');
    // Cache writes conservatively use the higher 1-hour price, without claiming
    // exact lower-rate cache attribution that the response does not establish.
    const actualMicros=u.input_tokens+u.output_tokens*5+(u.cache_creation_input_tokens||0)*2+Math.ceil((u.cache_read_input_tokens||0)/10);

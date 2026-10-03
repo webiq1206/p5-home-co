@@ -131,3 +131,10 @@ Request, preflight, approval, response and result are preserved privately; the
 SQLite ledger durably preserves the receipt before output handoff. Replay uses
 the exact receipt without credentials. Original-plan delivery still requires
 actual domain validation and the separate pricing/persistence replay gates.
+
+The transport explicitly adds `service_tier: "standard_only"` before hashing,
+reserving and dispatching the wire request. Anthropic's documented omission can
+select priority capacity. Receipt usage must say `service_tier: "standard"`;
+missing/priority/batch usage retains the full reservation and freezes admission.
+API reference: https://platform.claude.com/docs/en/api/messages/create.md,
+SHA256 `92277dad318dd407c1f99683317ecc6b7540def12e2d6bc84f0a7bf02751febc`.
