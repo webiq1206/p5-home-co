@@ -1,8 +1,10 @@
 import {spawn,fork} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
 import {ServiceError} from './core.mjs';
+import {existsSync} from 'node:fs';
 const helper=fileURLToPath(new URL('./pdfium-render.py',import.meta.url));
-export const python=()=>process.env.DOCUMENT_PDFIUM_PYTHON||(process.platform==='win32'?'python':'python3');
+export const bundledPython=fileURLToPath(new URL(process.platform==='win32'?'../../../.p5-renderer/Scripts/python.exe':'../../../.p5-renderer/bin/python',import.meta.url));
+export const python=()=>process.env.DOCUMENT_PDFIUM_PYTHON||(existsSync(bundledPython)?bundledPython:(process.platform==='win32'?'python':'python3'));
 export function engineEnv(){return Object.fromEntries(['PATH','SystemRoot','WINDIR','TEMP','TMP','TMPDIR','LANG','LC_ALL'].filter(k=>process.env[k]).map(k=>[k,process.env[k]]));}
 export function runPdfium(args,{timeoutMs=25000,signal}={}){
  return new Promise((resolve,reject)=>{

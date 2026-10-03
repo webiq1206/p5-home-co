@@ -10,7 +10,14 @@ Node 24 plus Python 3.11+ on Linux amd64/arm64 (production) or Windows amd64
 official PyPI pypdfium2 5.3.0 wheel, including PDFium 145.0.7616.0. No Pillow,
 OCR engine, source build, runtime download or network rendering is used.
 
-For a non-container host, create a dedicated virtual environment and run:
+The Replit `npm run build:host` path now installs this same pinned runtime into
+the deployment's project-local `.p5-renderer` directory and runs its probe before
+the website build. The renderer automatically resolves that bundled executable;
+an explicitly configured `DOCUMENT_PDFIUM_PYTHON` still takes precedence. The
+virtual environment and its complete license tree must remain in the deployment
+image. The build does not enable the document host or change tenant credentials.
+
+For another non-container host, create a dedicated virtual environment and run:
 
 ```
 python3 -m venv /path/to/p5-renderer

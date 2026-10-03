@@ -60,11 +60,19 @@ reader/ledger receipts and inspect source-critical quantities and PDF output.
 
 ## Recovery budget prerequisite
 
-`scripts/lib/recoveryEpoch.mjs` is an offline ledger primitive, not a paid runner.
+`scripts/lib/recoveryEpoch.mjs` is a ledger primitive, not a paid runner.
 No production path imports it. It has no credentials or network transport and does
 not automatically provision an allowance. Provision only after the controller
 verifies authentic historical liability plus a finite bound on old workers under
 the existing $12 umbrella. No historical ledger is reconstructed here.
+
+Historical evidence is explicit: `historicalLiability.mode` is either
+`original-ledger` (requiring its actual `ledgerSha256`) or
+`attested-carryforward` (a genuine `evidenceSha256`, description and included
+`unknownHoldMicros`). Carryforward does not invent a hash for missing ledger bytes
+or rewrite legacy charges. The initial authorized new epoch is at most $2.00,
+with a $3.25 conservative historical carryforward including the $0.39 unknown
+hold; the parent's final attestation must bind the actual evidence and case caps.
 
 The pinned attestation contains immutable source/dependency/runtime/document/model
 digests, individual case caps, historical case spend, finite old-worker exposure,
@@ -80,8 +88,14 @@ privileged actor rolling back trusted storage.
 The caller must derive each request's proven upper bound from the pinned billing
 policy and actual request bytes, including images/tools/retries. Supplying an
 estimate or a self-asserted receipt does not make a hard spending guarantee. No
-live transport is wired until that bound, credential route and old-worker exposure
-are genuinely verified. Missing authentic evidence remains a live-run blocker.
+live transport may be activated until that bound, credential route and old-worker
+exposure are verified. `recoveryTransport.mjs` implements the review candidate for
+first-party Haiku4.5 only: standard API, 200K full-context input reservation at the
+highest cache-write price plus bounded output, no server tools/URL images/beta
+headers/geo/speed/tier extensions, one in-flight reservation, zero retries and
+freeze on ambiguous charge. Credential values stay inside the existing runtime.
+Its existence is not paid GO. The native reviewer must approve the exact runner,
+source/document/config/rate bindings and useful completion target before dispatch.
 
 ## Offline regressions
 

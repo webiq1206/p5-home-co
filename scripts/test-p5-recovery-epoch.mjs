@@ -16,7 +16,7 @@ function fixture(t,mutate=()=>{}) {
  const file=path.join(dir,'ledger.sqlite');
  const attestation={version:1,epochId:'offline-only',umbrellaId:'synthetic',authorizationEvidence:'TEST ONLY; authorizes no real spending',
   umbrellaMicros:12_000_000,crmEnabled:false,ledgerPath:file,expiresAt:new Date(Date.now()+3600000).toISOString(),
-  historicalLedgerSha256:hash,historicalUpperBoundMicros:3_250_000,oldWorkers:{state:'stopped',evidenceSha256:hash,upperBoundMicros:0},
+  historicalLiability:{mode:'attested-carryforward',evidenceSha256:hash,description:'SYNTHETIC evidence only; no real spending authority',unknownHoldMicros:390_000},historicalUpperBoundMicros:3_250_000,oldWorkers:{state:'stopped',evidenceSha256:hash,upperBoundMicros:0},
   epochCeilingMicros:6_400_000,bindings:{source:hash,dependencies:hash,runtime:hash,documents:hash,models:hash},
   cases:[{id:'plans',documentSha256:hash,priorUpperBoundMicros:1_000_000,ceilingMicros:7_500_000,
    stages:['read','review','pricing'].map(id=>({id,envelopeMicros:2_000_000,maxCalls:2,requestPolicySha256:hash,
@@ -41,7 +41,8 @@ test('invalid authority cannot provision any ledger',t=>{
  for(const mutate of [a=>a.oldWorkers.state='unbounded',a=>a.oldWorkers.upperBoundMicros=1,a=>a.historicalUpperBoundMicros=6_000_000,
   a=>a.crmEnabled=true,a=>a.expiresAt='2000-01-01',a=>a.cases[0].stages.pop(),a=>a.cases[0].ceilingMicros=1,
   a=>a.cases[0].stages[0].envelopeMicros=NaN,a=>a.cases[0].stages[0].endpoint='https://user:secret@example.invalid',
-  a=>a.epochCeilingMicros=5_000_000,a=>a.ledgerPath=undefined,a=>delete a.bindings.models]) {
+  a=>a.epochCeilingMicros=5_000_000,a=>a.ledgerPath=undefined,a=>delete a.bindings.models,a=>delete a.historicalLiability,
+  a=>a.historicalLiability.unknownHoldMicros=3_250_001,a=>a.historicalLiability.mode='original-ledger']) {
   const f=fixture(t,mutate);assert.throws(f.provision,/recovery-epoch:/);
  }
 });
