@@ -62,7 +62,21 @@ export function makeGateway({webPort,workerPort,workerAvailable=()=>true,log=eve
  server.headersTimeout=15000;server.requestTimeout=95000;server.keepAliveTimeout=5000;
  return server;
 }
-export async function workerRssMb(pid){const status=await readFile(`/proc/${pid}/status`,'utf8');const match=status.match(/^VmRSS:\s+(\d+)\s+kB/m);if(!match)throw Error('rss-unavailable');return Number(match[1])/1024;}
+export async function workerRssMb(pid,read=readFile){
+ // Include isolated rendering children; moving work out of process must not
+ // make it disappear from the existing cohost memory/restart budget.
+ const seen=new Set();
+ async function visit(current,root=false){
+  if(seen.has(current))return 0;if(seen.size>=32)throw Error('process-tree-capacity');seen.add(current);
+  let status,children;try{status=await read(`/proc/${current}/status`,'utf8');children=await read(`/proc/${current}/task/${current}/children`,'utf8');}
+  catch(error){if(!root&&error.code==='ENOENT')return 0;throw error;}
+  const match=status.match(/^VmRSS:\s+(\d+)\s+kB/m);if(!match){if(/^State:\s+Z/m.test(status))return 0;throw Error('rss-unavailable');}
+  let total=Number(match[1])/1024;
+  for(const child of children.trim().split(/\s+/).filter(Boolean)){if(!/^\d+$/.test(child))throw Error('process-tree-invalid');total+=await visit(Number(child));}
+  return total;
+ }
+ return visit(pid,true);
+}
 export async function runHost(env=process.env,{spawnProcess=spawn,readRss=workerRssMb,log=event=>console.log(JSON.stringify(event)),monitorMs=2000,restartDelayMs=10000}={}){
  let config;try{config=cohostConfig(env);}catch{log({event:'document-host',code:'invalid-cohost-configuration-worker-disabled'});config=cohostConfig({...env,P5_DOCUMENT_HOST_ENABLED:'false'});}
  let closing=false,worker=null,workerOnline=false,restartTimer=null,watch=null,workerStarts=0,windowStart=Date.now();
