@@ -1,3 +1,4 @@
+import {assertQaProvidersAllowed} from './qaProviderPolicy.ts';
 import {ESTIMATOR_VERSION} from './version.ts';
 import {MODEL_POLICY_VERSION,hasVerifiedAnalysis} from './modelPolicy.ts';
 import {ANALYSIS_PASS_MS,BACKGROUND_JOB_LIMIT_MS,PRICING_PASS_MS,PROCESSING_PAUSED,ProcessingDeadlineError,remainingBudget,isProcessingDeadline} from './processingBudget.ts';
@@ -106,6 +107,7 @@ export async function jobProgressWorkKeys(job:Pick<Job,'input'|'createdAt'>){
   return input.kind==='analysis'?(await import('./analysisWork.ts')).analysisProgressWorkKeys(input.draft,input.text,input.answers):[(await import('./pricingWork.ts')).pricingWorkKey(input.draft.reviewed!,input.configuration,new Date(job.createdAt))];
 }
 export async function queuedJob(input:Input,retry=false,holdMs=JOB_HOLD_MS){
+  await assertQaProvidersAllowed(input.draft.id);
   // A quiescing process admits neither new rows nor explicit retries. This is
   // deliberately checked before validation that can call a provider.
   rejectQuiescedAdmission();
@@ -233,6 +235,7 @@ async function runJob(draftId:string,workKey:string){
 /** One bounded pass over a job. Returns the delay before the next pass, or
  * null when nothing further should run here. */
 async function runPass(draftId:string,workKey:string):Promise<number|null>{
+  await assertQaProvidersAllowed(draftId);
   await assertQueueUnambiguous(draftId,workKey);
   const lease=await claimWork(draftId,workKey,{},JOB_LEASE_S);if(!lease)return null;
   if(isQuiescing()){await releaseWork(draftId,workKey,lease.token);return null;}

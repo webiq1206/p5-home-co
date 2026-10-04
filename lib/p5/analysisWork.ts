@@ -1,3 +1,4 @@
+import {assertQaProvidersAllowed} from './qaProviderPolicy.ts';
 import {MODEL_POLICY_VERSION} from './modelPolicy.ts';
 import {ANALYSIS_PASS_MS,READ_ALLOWANCE_MS,READ_START_MARGIN_MS,remainingBudget,ProcessingDeadlineError,isProcessingDeadline} from './processingBudget.ts';
 import {createHash} from 'node:crypto';
@@ -96,6 +97,7 @@ export async function advanceMixedSources(draft:Draft,text:string,answers:ScopeA
 }
 /** Each request checkpoints work before returning. Reloading resumes the same source fingerprint. */
 export async function advanceAnalysis(draft:Draft,text:string,answers:ScopeAnswers,request=fetch,retryFailed=false,absoluteDeadline=Date.now()+ANALYSIS_PASS_MS):Promise<DocumentAnalysisStep>{
+  await assertQaProvidersAllowed(draft.id);
   remainingBudget(absoluteDeadline);
   const key=analysisWorkKey(draft,text,answers);
   if(draft.uploads.length)await assertAnalysisMigrationSafe(draft,text,answers,key);

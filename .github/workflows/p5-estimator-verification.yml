@@ -38,6 +38,7 @@ jobs:
         run: node --import tsx --test tests/providers/haiku.test.ts tests/p5-pricing-production-errors.test.ts tests/p5-clarification-takeoff-updates.test.ts
       - name: Isolated persistence, delivery failure and PDF checks
         run: |
+          node --import tsx scripts/test-p5-qa-deterministic.mts
           node --import tsx scripts/test-p5-repair-persistence.mts
           node --import tsx scripts/test-p5-pricing-work.mts
           node --import tsx scripts/test-p5-background.mts

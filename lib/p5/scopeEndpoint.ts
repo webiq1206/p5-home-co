@@ -1,3 +1,4 @@
+import {assertQaProvidersAllowed} from './qaProviderPolicy.ts';
 import {blockingExtractionNotes} from './documentLedger.ts';
 import {ProcessingDeadlineError,PROCESSING_PAUSED,isProcessingDeadline} from './processingBudget.ts';
 import {applyCabinetIntent} from "./projectIntent.ts";
@@ -96,6 +97,7 @@ export async function postScope(request:Request){
       draft=reset;analysisDraft=reset;
     }else analysisDraft=draft;
     if(form.get("analyze")==="false")return json({draft:await readDraft(id,key),analysis:null});
+    await assertQaProvidersAllowed(id);
     const checkpointed=form.get("resumable")==="true"&&process.env.P5_OBJECT_STORAGE_ENABLED==="true";
     const stored=checkpointed?[]:await readUploads(id,key);if(stored.reduce((n,f)=>n+f.data.length,0)>SCOPE_BATCH_LIMIT)throw new DraftError(SCOPE_UPLOAD_HELP,413);
     const version=createHash("sha256").update(JSON.stringify([text,analysisDraft.uploads.map(f=>f.sha256)])).digest("hex");

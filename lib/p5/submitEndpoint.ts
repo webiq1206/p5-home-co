@@ -1,3 +1,6 @@
+import {qaProvidersRestricted,QA_PROVIDER_HOLD} from './qaProviderPolicy.ts';
+import {priceDeterministicScope} from './scopePricing.ts';
+import {withSupportedServiceBook} from './planningBooks.ts';
 import {HANDOFF_ISSUE} from './scopePricing.ts';
 import {ESTIMATOR_VERSION} from './version.ts';
 import {withRateCard} from './rateCard.ts';
@@ -52,6 +55,8 @@ export async function postSubmission(request:Request,schedule?:(task:()=>Promise
     // even if this page is closed: the estimate driver completes it without the browser.
     const notifyEmail=typeof body.notifyEmail==='string'?body.notifyEmail.trim().slice(0,200):'';
     if(notifyEmail&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(notifyEmail))throw new DraftError('Enter a valid email address.');
+    const deterministicOnly=await qaProvidersRestricted(id);
+    if(deterministicOnly&&(body.background===true||body.notifyOnly===true))return json({qaProviderHold:true,error:QA_PROVIDER_HOLD},422);
     if(body.background===true){await recordSubmitRequest(id,draft.revision,body.notify===true,notifyEmail,body.retry===true);kickDriver('submit');}
     // "Email me when it's ready": the request is recorded and the customer may leave now.
     if(body.notifyOnly===true)return json({notified:true,email:notifyEmail||draft.contact.email||''});
@@ -90,6 +95,10 @@ export async function completeSubmission(id:string,draft:Awaited<ReturnType<type
     // Ask for a quantity the planning model cannot work without now, before any pricing work starts.
     const needed=pricingPreflight(draft.reviewed,configuration);
     if(needed.length)return json({pricingReviewRequired:true,needsCustomerInput:true,handoff:false,preflight:true,missingFields:needed,verificationItems:[],error:PREFLIGHT_MESSAGE},422);
+    const deterministicOnly=await qaProvidersRestricted(id);
+    if(deterministicOnly&&opts.background)return json({qaProviderHold:true,error:QA_PROVIDER_HOLD},422);
+    const deterministic=deterministicOnly?priceDeterministicScope(draft.reviewed,withSupportedServiceBook(configuration,draft.reviewed.answers.service||'')):null;
+    if(deterministicOnly&&!deterministic)return json({qaProviderHold:true,providerCalls:0,error:QA_PROVIDER_HOLD},422);
     const job=opts.background?await queuedJob({kind:'pricing',draft,configuration},opts.retry,opts.holdMs):null;
     // A stopped job preserves the draft. Do not promise a human follow-up: this branch creates no delivery record.
     if(job&&job.state==='failed'){console.error(`[p5-pricing] handoff for draft ${id}: ${job.progress}`);return json({pricingReviewRequired:true,needsCustomerInput:false,handoff:true,missingFields:[],verificationItems:[],error:HANDOFF_ISSUE},422);}
@@ -99,7 +108,7 @@ export async function completeSubmission(id:string,draft:Awaited<ReturnType<type
     // priced inline (no background job) may use the route's own time allowance.
     const customerKey=`${draft.contact.email.trim().toLowerCase()}|${draft.contact.name.trim().toLowerCase()}`;
     const pricingIdentity={draftId:id,customerKey,revision:draft.revision};
-    const priced=job?job.result:await priceSavedScope(id,draft.reviewed,configuration,new Date(),Date.now()+250_000,pricingIdentity);
+    const priced=deterministic|| (job?job.result:await priceSavedScope(id,draft.reviewed,configuration,new Date(),Date.now()+250_000,pricingIdentity));
     const publicCustomer=publicResult(priced.customer);
     if(!priced.customer.range){
       // Keep incomplete pricing available to the authenticated admin, but do
