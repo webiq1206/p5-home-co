@@ -1,3 +1,4 @@
+import {assertQaProvidersAllowed} from './qaProviderPolicy.ts';
 import {withSupportedServiceBook} from './planningBooks.ts';
 import {MODEL_POLICY_VERSION,ESTIMATOR_MODEL,ESTIMATOR_PROVIDER} from './modelPolicy.ts';
 import {pricingFailureDetails} from './pricingDiagnostics.ts';
@@ -45,6 +46,7 @@ export async function priceSavedScope(id:string,scope:ReviewedScope,configuratio
  // P5 and Construction price only a project whose every source page was verified;
  // the other brands return a partial read for manual review instead.
  if(SOURCE_COVERAGE_REQUIRED)assertProjectSourceCoverage(scope.uploads,scope.extraction);
+ await assertQaProvidersAllowed(id);
  remainingBudget(deadline);
  await saveSupportedServiceBook(configuration,scope.answers.service||'');
  const workKey=pricingWorkKey(scope,configuration,pricingAt);

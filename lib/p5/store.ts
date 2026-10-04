@@ -9,6 +9,7 @@ import type { ReviewedScope, ScopeAnswers, ScopeExtraction, ScopeUpload } from "
 const LEDGER_TABLES=(ESTIMATOR_BRAND.id as string)==='p5'||process.env.P5_PRICING_LEDGER==='on'||Boolean(process.env.P5_PRICING_BUDGET_USD||process.env.P5_PRICING_REQUEST_RESERVATION_USD);
 const QUALIFICATION_TABLES=(ESTIMATOR_BRAND.id as string)==='handyman'||process.env.P5_PROVIDER_BUDGET==='on';
 const hash = (value: string | Buffer) => createHash("sha256").update(value).digest("hex");
+export const QA_NO_PROVIDER_KEY="qa-no-provider-v1";
 export class DraftError extends Error { status: number; constructor(message: string, status = 400) { super(message); this.status=status; } }
 export interface Draft {
   id: string; revision: number; status: "draft" | "submitted"; updatedAt: string;
@@ -97,12 +98,25 @@ export async function readDraft(id: string,key: string): Promise<Draft|null> {
     uploads:files.map(f=>({id:f.id,name:f.name,type:f.mime_type,size:f.size_bytes,sha256:f.sha256,status:"stored"})),
   };
 }
-export async function saveDraft(id: string,key: string,brand: string,payload: Omit<Draft,"id"|"brand"|"revision"|"status"|"updatedAt"|"uploads">,expectedRevision: number): Promise<Draft> {
+export async function saveDraft(id: string,key: string,brand: string,payload: Omit<Draft,"id"|"brand"|"revision"|"status"|"updatedAt"|"uploads">,expectedRevision: number,qaDeterministicOnly=false): Promise<Draft> {
   const existing=await rowFor(id,key);
   if(existing?.status==="submitted")throw new DraftError("This submission is already saved. Start a new revision to change the scope.",409);
   if(existing && existing.revision!==expectedRevision)throw new DraftError("This project was updated elsewhere. Reload the saved version before overwriting it.",409);
   let result;
-  if(!existing)result=await query("INSERT INTO p5_estimator_drafts(id,key_hash,brand,payload,revision) VALUES($1,$2,$3,$4::jsonb,1) ON CONFLICT DO NOTHING RETURNING *",[id,hash(key),brand,JSON.stringify(payload)]);
+  if(qaDeterministicOnly){
+    if(existing||!/^\[QA\](?:\s|$)/i.test(payload.contact.name)||payload.contact.email||payload.contact.phone)throw new DraftError('Deterministic QA mode requires a new labelled draft without delivery details.',422);
+    // One statement commits both rows, or neither. A concurrent request cannot
+    // observe a new QA draft before its permanent provider restriction.
+    result=await query(`WITH saved AS (
+      INSERT INTO p5_estimator_drafts(id,key_hash,brand,payload,revision)
+      VALUES($1,$2,$3,$4::jsonb,1) ON CONFLICT DO NOTHING RETURNING *
+    ), restricted AS (
+      INSERT INTO p5_estimator_work(draft_id,work_key,payload)
+      SELECT id,$5,'{"providerCallsAllowed":0,"createdRevision":1}'::jsonb FROM saved
+      RETURNING draft_id
+    ) SELECT saved.* FROM saved JOIN restricted ON restricted.draft_id=saved.id`,[id,hash(key),brand,JSON.stringify(payload),QA_NO_PROVIDER_KEY]);
+  }
+  else if(!existing)result=await query("INSERT INTO p5_estimator_drafts(id,key_hash,brand,payload,revision) VALUES($1,$2,$3,$4::jsonb,1) ON CONFLICT DO NOTHING RETURNING *",[id,hash(key),brand,JSON.stringify(payload)]);
   else result=await query("UPDATE p5_estimator_drafts SET payload=$1::jsonb,revision=revision+1,updated_at=now() WHERE id=$2 AND revision=$3 AND status='draft' RETURNING *",[JSON.stringify(payload),id,expectedRevision]);
   if(!result.length)throw new DraftError("The draft changed while saving. Reload before retrying.",409);
   // Return the acknowledged write itself. A second read is not a write receipt.

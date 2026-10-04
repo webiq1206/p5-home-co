@@ -1,3 +1,4 @@
+import {qaProvidersRestricted} from './qaProviderPolicy.ts';
 import {createHash} from 'node:crypto';
 import {draftCredentials,readDraft,DraftError} from './store.ts';
 import {query} from './database.ts';
@@ -31,6 +32,7 @@ export function projectReviewHandler(dependencies={readDraft,query,adminRecipien
     const {id,key}=draftCredentials(request);
     const draft=await readDraft(id,key);
     if(!draft||draft.brand!==brand.id)throw new DraftError('Save your project before requesting a review.',404);
+    if(await qaProvidersRestricted(id,query))return json({qaReviewHold:true,error:'This restricted QA draft cannot request external review or send notifications.'},422);
     const body=JSON.parse(new TextDecoder().decode(await limitedBody(request,2048)));
     const contact=reviewContact(body);
     const reference=estimateReference(id);

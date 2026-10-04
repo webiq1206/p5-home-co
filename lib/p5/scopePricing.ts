@@ -1993,6 +1993,25 @@ export function wholeBuildingPlanningBudget(scope:ReviewedScope,extraction:Revie
   const answers=scope.answers;
   return !['exclusions','ownerSupplied','alternates','taskList','estimatingInstructions','allowances'].some(field=>String(answers[field as keyof typeof answers]||'').trim());
 }
+/** Pure deterministic pricing: no cache, provider, shortlist or research fallback. */
+export function priceDeterministicScope(scope:ReviewedScope,configuration:EstimatorConfiguration,now=new Date()){
+  const bundle=supportedServiceBundle(scope,configuration,now);
+  if(bundle)return bundle;
+  return planningBudgetOnly(scope,configuration,now);
+}
+function planningBudgetOnly(scope:ReviewedScope,configuration:EstimatorConfiguration,now:Date){
+  const pricingSource=activePricingSource(scope);
+  const pricingExtraction=pricingSource.extraction;
+  const pricingScope={...scope,answers:pricingSource.answers,extraction:pricingExtraction};
+  const replaceBase=scope.answers.service==='remodel'||hasRestrictedScope(scope.answers,pricingExtraction?.instructions);
+  if(!wholeBuildingPlanningBudget(scope,pricingExtraction,replaceBase))return null;
+  const base=priceReviewedScope(scope,configuration,now);
+  if(wholeBuildingPlanningBudget(scope,pricingExtraction,replaceBase)&&base.customer.range){
+    const note='This preliminary budget is based on the home size, stories, garage and finish level you gave. Room counts, fixtures, site conditions and selections are budget allowances until plans are available.';
+    return {...base,customer:customerSafeProjection({...base.customer,assumptions:[note,...base.customer.assumptions],instructions:pricingExtraction?.instructions,documentCoverage:pricingExtraction?.documentCoverage,verificationItems:[],scopeTasks:[]}),internal:{...base.internal,scopePricing:{version:'planning-model-direct-v1',scopeHash:createHash('sha256').update(JSON.stringify({scope:pricingScope,configuration})).digest('hex'),tasks:[],adjustments:null,research:null,verification:null,issues:[]}}};
+  }
+  return null;
+}
 export async function priceCompleteScope(...args:Parameters<typeof priceDetailedScope>){
   const bundle=supportedServiceBundle(args[0],args[1],args[3]||new Date());
   if(bundle)return bundle;
@@ -2022,17 +2041,8 @@ export async function priceDetailedScope(scope:ReviewedScope,configuration:Estim
   const replaceBase=scope.answers.service==='remodel'||hasRestrictedScope(scope.answers,pricingExtraction?.instructions);
   const resolution:ScopePriceResolution={rules:[],assumptions:[],issues:[],replaceBase};
   const base=priceReviewedScope(scope,configuration,now,replaceBase?resolution:undefined);
-  // A whole-building budget typed without documents is priced by the owner's
-  // planning model from size, stories, garage and finish. Item-by-item model
-  // stages add nothing the model does not already carry, took four to six
-  // minutes on production, and then withheld the budget over details (bathroom
-  // count, soil) that a planning budget treats as allowances. They still run
-  // whenever the customer supplied documents, exclusions, responsibilities or a
-  // restricted scope, because those change what is priced.
-  if(wholeBuildingPlanningBudget(scope,pricingExtraction,replaceBase)&&base.customer.range){
-    const note='This preliminary budget is based on the home size, stories, garage and finish level you gave. Room counts, fixtures, site conditions and selections are budget allowances until plans are available.';
-    return {...base,customer:customerSafeProjection({...base.customer,assumptions:[note,...base.customer.assumptions],instructions:pricingExtraction?.instructions,documentCoverage:pricingExtraction?.documentCoverage,verificationItems:[],scopeTasks:[]}),internal:{...base.internal,scopePricing:{version:'planning-model-direct-v1',scopeHash:createHash('sha256').update(JSON.stringify({scope:pricingScope,configuration})).digest('hex'),tasks:[],adjustments:null,research:null,verification:null,issues:[]}}};
-  }
+  const planning=planningBudgetOnly(scope,configuration,now);
+  if(planning)return planning;
   // The caller bounds the pass; stages are saved individually so a pass that
   // ends between stages loses nothing. Capping here at one browser budget
   // aborted any stage longer than the remaining pass and restarted it forever.

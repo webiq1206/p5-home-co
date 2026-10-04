@@ -1,3 +1,4 @@
+import {assertQaProvidersAllowed,qaProvidersRestricted} from './qaProviderPolicy.ts';
 import {instructionPrompts,instructionPromptText} from './clarifications.ts';
 import {resolveInstructionAnswer} from './clarificationAnswer.ts';
 import {deriveScopeAnswers,reconcileScope,scopeQuestionsForBrand as scopeQuestions} from "./adaptive.ts";
@@ -81,6 +82,7 @@ export async function putDraft(request:Request){
     const raw=JSON.parse(new TextDecoder().decode(await limitedBody(request,24*1024*1024)));
     if(typeof raw.text!=="string"||raw.text.length>SCOPE_TEXT_LIMIT||!Number.isInteger(raw.revision)||raw.revision<0)throw new DraftError("Invalid draft.");
     const existing=await readDraft(id,key);
+    if(raw.qaDeterministicOnly===true&&(existing||!/^\[QA\](?:\s|$)/i.test(String(raw.contact?.name||''))||raw.clarification))throw new DraftError('Deterministic QA mode requires a new labelled QA draft without clarification.',422);
     const incomingText=normalizeScopeText(raw.text);
     if(raw.scopeFingerprint!==undefined&&raw.scopeFingerprint!==scopeFingerprint(incomingText))throw new DraftError("The project source fingerprint does not match its text. Refresh before continuing.",409);
     const analyzedMismatch=Boolean(existing?.analyzedFingerprint&&existing.extraction&&existing.analyzedFingerprint!==scopeFingerprint(incomingText));
@@ -92,6 +94,8 @@ export async function putDraft(request:Request){
     const resolutions=parseAnswers(raw.wizard?.resolutions||{});
     let wizard={skipped,resolutions,sourceVersion:existing?.wizard?.sourceVersion,instructionAnswers:existing?.wizard?.instructionAnswers||[]};
     const contact={name:String(raw.contact?.name||"").trim(),email:String(raw.contact?.email||"").trim().toLowerCase(),phone:String(raw.contact?.phone||"").trim()};
+    if(existing&&await qaProvidersRestricted(id)&&(!/^\[QA\](?:\s|$)/i.test(contact.name)||contact.email||contact.phone))throw new DraftError('Keep this restricted QA draft labelled and without customer delivery details.',422);
+    if(raw.qaDeterministicOnly===true&&(contact.email||contact.phone))throw new DraftError('Restricted QA drafts must not contain customer delivery details.',422);
     if(contact.name.length>120||contact.email.length>200||contact.phone.length>40)throw new DraftError("Contact details are too long.");
     // A response can be lost after the server commits the clarification. If
     // the retry is byte-equivalent apart from the server's acknowledged
@@ -121,6 +125,7 @@ export async function putDraft(request:Request){
       if(raw.reviewed===true)throw new DraftError('Read the updated project before continuing.');
     }
     if(raw.clarification){
+      await assertQaProvidersAllowed(id);
       if(replacing)throw new DraftError('This clarification belongs to the previous project text. Read the updated project before answering.',409);
       if(!existing||raw.revision!==existing.revision)throw new DraftError('Your project changed in another tab. Refresh to continue.',409);
       const resolved=await resolveInstructionAnswer(extraction,answers,raw.clarification,wizard.instructionAnswers,undefined,incomingText,{draftId:id,estimator:answers.service||null});
@@ -148,7 +153,7 @@ export async function putDraft(request:Request){
         corrections:Object.entries(answers).filter(([field,value])=>{const fact=extraction?.facts.find(f=>f.field===field);return fact&&fact.value!==value;}).map(([field,value])=>({field:field as keyof ScopeAnswers,previous:extraction!.facts.find(f=>f.field===field)!.value,value:value!})),
       };
     }
-    const [draft,pricedFields]=await Promise.all([saveDraft(id,key,ESTIMATOR_BRAND.id,{text:incomingText,answers,extraction,reviewed,contact,wizard,analyzedFingerprint:replacing?undefined:existing?.analyzedFingerprint,analyzedAnswers:replacing?undefined:existing?.analyzedAnswers,...((existing as {revisionOf?:number}|null)?.revisionOf!==undefined?{revisionOf:(existing as {revisionOf?:number}).revisionOf}:{})} as Parameters<typeof saveDraft>[3],raw.revision),costQuestionFields(answers)]);
+    const [draft,pricedFields]=await Promise.all([saveDraft(id,key,ESTIMATOR_BRAND.id,{text:incomingText,answers,extraction,reviewed,contact,wizard,analyzedFingerprint:replacing?undefined:existing?.analyzedFingerprint,analyzedAnswers:replacing?undefined:existing?.analyzedAnswers,...((existing as {revisionOf?:number}|null)?.revisionOf!==undefined?{revisionOf:(existing as {revisionOf?:number}).revisionOf}:{})} as Parameters<typeof saveDraft>[3],raw.revision,raw.qaDeterministicOnly===true),costQuestionFields(answers)]);
     const conflicts=extraction?reconcileScope(answers,extraction,resolutions).conflicts:[];
     return json({draft,conflicts,questions:scopeQuestions(answers,extraction,conflicts,skipped,pricedFields,incomingText),pricedFields});
   }catch(error){
