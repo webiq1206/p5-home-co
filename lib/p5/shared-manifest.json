@@ -1,7 +1,7 @@
 {
  "source": "p5-home-co",
- "commit": "5d00c70fed28c6fb230575c9df657ceb2bd75dd8",
- "generatedAt": "2026-10-04T08:09:26.610Z",
+ "commit": "6bf6c42223e93f2bd5b8d56ffb6db524b2ebfeda",
+ "generatedAt": "2026-10-04T08:27:42.774Z",
  "note": "P5-only qualification baseline. Child rollout is paused until live acceptance is verified. Hash checks remain mandatory.",
  "files": {
   "app/admin/p5-estimators/page.tsx": "8e81e1ac475dadb7eee9af396c963ee369de593a5a8d165d40dd97f2dab7ca32",
@@ -186,7 +186,7 @@
   "lib/p5/scopeFields.ts": "939f4f1a873bc3e170fbacffceb22806f7bd5664637e870e8a1528c98cede441",
   "lib/p5/scopeInterpretation.ts": "ec6595e1254cf3d0981eb5e357b865587f2f57a5d06a1af093467b794fe847c4",
   "lib/p5/scopeInventory.ts": "823baac9f40357847a8f6afd9a905058298dfc8dab553d584223bcd3f890d64a",
-  "lib/p5/scopePricing.ts": "9f05f8193202a18eefb57d0b400437883c216e5a0f4a59a66ff80eac5bf55300",
+  "lib/p5/scopePricing.ts": "420e0531c38713d535e49775ee3b5b3f0b48ee7be8dcfd742dce5b524e176f74",
   "lib/p5/scopeReplacement.ts": "1a00315d2962f30dd7abbce85dcd33ce096e9f9b305cac0130d127e0e53c5a99",
   "lib/p5/serviceBundles.ts": "5a3bfcb2f2b75f85d9c0041458a8367905bb69174a82f161d3124725f6dd2f5a",
   "lib/p5/serviceSignals.ts": "d947fb37da918c04ae04c1fbd4eaebe617bb3cee1ca87173c83d434574b7ce5f",
@@ -273,7 +273,7 @@
   "scripts/test-p5-pricing-work.mts": "bde13aed2448fb84dd70fc47ff8f54c5aba14c130022016d5faf3ff1daa68b6c",
   "scripts/test-p5-provider-budget.mts": "a2d6f3a468171fd0f97a12c05aeda64d05d3a60b72313788e09cfeca79fc29ec",
   "scripts/test-p5-qa-deterministic.mts": "b9f3353ff87776aef584e644def63584fec86b871decf80652e530b7253ada5c",
-  "scripts/test-p5-qa-paid.mts": "dbef32e5ef5a777b19fc169b95dc272fbbdc3a85bf8acbd8fdbaef74f1a90b15",
+  "scripts/test-p5-qa-paid.mts": "67365050c37a9aaf83711d0f14490955ed75a9c3c57f0966d7585a3f6d42379e",
   "scripts/test-p5-receipt.mts": "e2e6b3df95282a88d8b87efd98e788cb0bad6f93d37ec9da0475e23dd477c1bd",
   "scripts/test-p5-recovery-epoch.mjs": "16a01e3e5fa8233db298e2f937bd8bcd592c596658e4e460764e015e6a592e5b",
   "scripts/test-p5-recovery-request.mjs": "f4b63689f60c4f2704523f19e4e1b39dd481fdf5562fd39bacbe2d0082f20400",

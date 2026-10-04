@@ -529,6 +529,9 @@ const MAX_MAP_CALLS=Math.max(1,Number(process.env.P5_MAX_MAP_CALLS||8));
 export const mappingBatchSize=(tasks:number,batch=MAP_BATCH,ceiling=MAX_MAP_CALLS)=>
   Math.min(32,Math.max(1,batch,Math.ceil(Math.max(0,tasks)/Math.max(1,ceiling))));
 async function mapLimit<T,R>(items:T[],run:(item:T,index:number)=>Promise<R>,concurrency=PRICING_FANOUT):Promise<R[]>{
+  // A QA permit covers one exact request. Finish/checkpoint that request before
+  // a sibling can hold for review and release the enclosing pricing lease.
+  if(qaPaidContext())concurrency=1;
   const results:R[]=new Array(items.length);let next=0;
   await Promise.all(Array.from({length:Math.min(concurrency,items.length)},async()=>{while(next<items.length){const index=next++;results[index]=await run(items[index],index);}}));
   return results;
@@ -1919,7 +1922,7 @@ async function mapBatch<T extends {id:string}>(request:PricingRequest,taskBatch:
       throw new PricingPending('Pricing is taking longer than usual on part of your scope. Your finished steps are saved; continuing.',1500);
     }
     const middle=Math.ceil(taskBatch.length/2);
-    const halves=await Promise.all([taskBatch.slice(0,middle),taskBatch.slice(middle)].map(half=>mapBatch(request,half,build,remaining)));
+    const halves=await mapLimit([taskBatch.slice(0,middle),taskBatch.slice(middle)],half=>mapBatch(request,half,build,remaining),2);
     return mergeMappings(halves);
   }
 }
@@ -2335,7 +2338,7 @@ export async function priceDetailedScope(scope:ReviewedScope,configuration:Estim
         resolution.assumptions.push(`${resolved.issue} Review evidence: ${resolved.reason}`);
       }
     };
-    const verifiedParts=await Promise.all(sourceParts.map((part,index)=>requestPricingAudit(request,{original:part,tasks:mapping.tasks.filter(t=>sourceParts.length===1||taskSources.get(t.id)===index),allTaskDescriptions:mapping.tasks.map(t=>({id:t.id,description:t.description})),priorPricingIssues:resolution.issues,existingLines:lines.filter(l=>!resolution.removeLineIds?.includes(l.id)),removedLines:lines.filter(l=>resolution.removeLineIds?.includes(l.id)),adjustments:auditTrail.adjustments,additionalRules:resolution.rules,customerAssumptions:[...base.customer.assumptions,...resolution.assumptions],pricingHistory:[...mappingHistory],approvedRates:configuration.planningCatalog?.rates,existingExclusions:base.customer.exclusions.filter(e=>!resolution.removeExclusions?.includes(e)),research:auditTrail.research},()=>deadline-Date.now())));
+    const verifiedParts=await mapLimit(sourceParts,(part,index)=>requestPricingAudit(request,{original:part,tasks:mapping.tasks.filter(t=>sourceParts.length===1||taskSources.get(t.id)===index),allTaskDescriptions:mapping.tasks.map(t=>({id:t.id,description:t.description})),priorPricingIssues:resolution.issues,existingLines:lines.filter(l=>!resolution.removeLineIds?.includes(l.id)),removedLines:lines.filter(l=>resolution.removeLineIds?.includes(l.id)),adjustments:auditTrail.adjustments,additionalRules:resolution.rules,customerAssumptions:[...base.customer.assumptions,...resolution.assumptions],pricingHistory:[...mappingHistory],approvedRates:configuration.planningCatalog?.rates,existingExclusions:base.customer.exclusions.filter(e=>!resolution.removeExclusions?.includes(e)),research:auditTrail.research},()=>deadline-Date.now()),sourceParts.length);
     for(const verified of verifiedParts){
       if(verified.advisoryProvenance)auditTrail.advisoryProvenance=[...(auditTrail.advisoryProvenance||[]),...verified.advisoryProvenance];
       const section=auditSchema.parse(verified.value);audit.coveredTaskIds.push(...section.coveredTaskIds);audit.issues.push(...section.issues);section.issues.forEach(issue=>opinions.add(issue));audit.notes.push(...section.notes);audit.resolvedIssues.push(...section.resolvedIssues);
@@ -2496,7 +2499,7 @@ export async function priceDetailedScope(scope:ReviewedScope,configuration:Estim
       auditTrail.advisoryProvenance=[];
       const repairedCoverage=applyPricingCorrections({scope:pricingScope,inventoryTasks:inventory.tasks,mappingTasks:mapping.tasks,lines,resolution,pricingExtraction,configuration,now});
       for(const id of repairedCoverage.coveredTaskIds)if(!audit.coveredTaskIds.includes(id))audit.coveredTaskIds.push(id);
-      const checkedParts=await Promise.all(sourceParts.map((part,index)=>requestPricingAudit(request,{original:part,tasks:mapping.tasks.filter(t=>sourceParts.length===1||taskSources.get(t.id)===index),priorPricingIssues:resolution.issues,existingLines:lines.filter(l=>!resolution.removeLineIds?.includes(l.id)),additionalRules:resolution.rules,priorAuditIssues:priorIssues,removedLines:pricedComponents.filter(l=>resolution.removeLineIds?.includes(l.id)),customerAssumptions:[...base.customer.assumptions,...resolution.assumptions],pricingHistory:[...mappingHistory],approvedRates:configuration.planningCatalog?.rates,existingExclusions:base.customer.exclusions.filter(e=>!resolution.removeExclusions?.includes(e)),research,allTaskDescriptions:mapping.tasks.map(t=>({id:t.id,description:t.description}))},()=>deadline-Date.now())));
+      const checkedParts=await mapLimit(sourceParts,(part,index)=>requestPricingAudit(request,{original:part,tasks:mapping.tasks.filter(t=>sourceParts.length===1||taskSources.get(t.id)===index),priorPricingIssues:resolution.issues,existingLines:lines.filter(l=>!resolution.removeLineIds?.includes(l.id)),additionalRules:resolution.rules,priorAuditIssues:priorIssues,removedLines:pricedComponents.filter(l=>resolution.removeLineIds?.includes(l.id)),customerAssumptions:[...base.customer.assumptions,...resolution.assumptions],pricingHistory:[...mappingHistory],approvedRates:configuration.planningCatalog?.rates,existingExclusions:base.customer.exclusions.filter(e=>!resolution.removeExclusions?.includes(e)),research,allTaskDescriptions:mapping.tasks.map(t=>({id:t.id,description:t.description}))},()=>deadline-Date.now()),sourceParts.length);
       for(const checked of checkedParts){
         if(checked.advisoryProvenance)auditTrail.advisoryProvenance=[...(auditTrail.advisoryProvenance||[]),...checked.advisoryProvenance];
         const section=auditSchema.parse(checked.value);audit.coveredTaskIds.push(...section.coveredTaskIds);audit.issues.push(...section.issues);section.issues.forEach(issue=>opinions.add(issue));audit.notes.push(...section.notes);audit.resolvedIssues.push(...section.resolvedIssues);

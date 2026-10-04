@@ -77,6 +77,65 @@ try{
  const [shortIntent]=(await db.query('SELECT request FROM p5ds_qa_intents ORDER BY created_at DESC LIMIT 1')).rows;
  assert.equal(shortIntent.request.tools[0].name,'record_shortlist','real pricing retains QA context into shortlist');
  assert.equal((await db.query('SELECT * FROM p5_estimator_policy')).rows.length,0,'QA cannot mutate customer pricing policy');
+ // Two real repair batches must drain through the signed broker in order.
+ // A sibling cannot release the pricing lease while the permitted call runs.
+ const repairId=randomUUID(),repairProject='qa-paid-'+repairId;
+ await site.saveDraft(repairId,randomBytes(32).toString('hex'),'p5',{...payload,text:scope.text,answers:scope.answers},0,'bounded-paid');
+ await remote.qa.provision([{tenant,project:repairProject}]);
+ const costBook=await load('costBook');
+ const lineIds=costBook.priceReviewedScope(scope,configBook,date).internal.lines.map((line:any)=>line.id);
+ const repairTasks=Array.from({length:6},(_,i)=>({id:'cabinet-'+i,description:'Synthetic cabinet component '+i,evidence:'Ten feet requested'}));
+ const repairSeen:string[]=[];let audits=0,releaseRepair:any,enteredRepair:any;
+ const entered=new Promise<void>(resolve=>{enteredRepair=resolve;});
+ const drain=new Promise<void>(resolve=>{releaseRepair=resolve;});
+ remote.qa.request=async(_url:any,init:any)=>{
+  providerCalls++;const wire=JSON.parse(init.body),input=JSON.parse(wire.messages[0].content),name=wire.tools[0].name;
+  let value:any;
+  if(name==='record_shortlist')value={tasks:input.tasks.map((t:any)=>({id:t.id,codes:[]}))};
+  else if(input.taskBatch){
+   if(input.repairInstruction){repairSeen.push(input.taskBatch[0].id);if(repairSeen.length===1){enteredRepair();await drain;}}
+   value={tasks:input.taskBatch.map((t:any)=>({...t,existingLineIds:lineIds,additions:[],researchDescription:'',issues:[]})),issues:[]};
+  }else if('priorPricingIssues' in input){audits++;value={coveredTaskIds:repairTasks.map(t=>t.id),issues:audits===1?repairTasks.map(t=>t.id+': wrong unit does not match the explicit requested quantity.'):[]};}
+  else value={tasks:repairTasks,issues:[]};
+  return Response.json({id:'msg_'+providerCalls,model:QA_MODEL,stop_reason:'tool_use',usage:{input_tokens:100,output_tokens:20,cache_creation_input_tokens:0,cache_read_input_tokens:0},content:[{type:'tool_use',id:'tool_test',name,input:value}]},{headers:{'request-id':'req_'+providerCalls}});
+ };
+ const realNow=Date.now;let fakeNow=realNow();Date.now=()=>fakeNow;
+ const repairPrice=()=>pricing.priceSavedScope(repairId,scope,configBook,date,Date.now()+30000);
+ const repairPayload=async()=>(await db.query('SELECT payload FROM p5_estimator_work WHERE draft_id=$1 AND work_key=$2',[repairId,pricing.pricingWorkKey(scope,configBook,date)])).rows[0].payload;
+ const pendingIntent=async()=>{
+  const rows=(await db.query('SELECT i.* FROM p5ds_qa_intents i LEFT JOIN p5ds_qa_calls c USING(request_hash) WHERE i.project=$1 AND c.slot IS NULL ORDER BY i.created_at DESC',[repairProject])).rows;
+  assert.equal(rows.length,1,'only the next sequential batch awaits review');return rows[0];
+ };
+ try{
+  let firstRepair:any;
+  for(let n=0;n<12;n++){
+   await assert.rejects(repairPrice(),(e:any)=>qa.isQaReviewWait(e));
+   const intent=await pendingIntent();
+   if(JSON.parse(intent.request.messages[0].content).repairInstruction){firstRepair=intent;break;}
+   await remote.qa.permit(intent.request_hash,'repair-prelude-'+n,'Offline native intent inspected; synthetic provider only.');
+  }
+  assert.ok(firstRepair,'fixture must reach a real two-batch repair');
+  const before=await repairPayload();assert.ok(before.repairClock);assert.equal(before.qaReviewWaitStartedAt,fakeNow);
+  fakeNow+=240000;
+  await remote.qa.permit(firstRepair.request_hash,'repair-batch-a','Offline exact first repair batch inspected; fake provider only.');
+  let finished=false;const active=repairPrice().finally(()=>{finished=true;});active.catch(()=>{});
+  await entered;await new Promise(resolve=>setTimeout(resolve,75));
+  assert.equal(finished,false,'pricing cannot return a sibling hold before permitted work settles');
+  assert.equal((await db.query('SELECT 1 FROM p5_estimator_work WHERE draft_id=$1 AND lease_token IS NOT NULL',[repairId])).rows.length,1,'lease remains owned during the active paid boundary');
+  assert.equal((await db.query("SELECT 1 FROM p5ds_qa_calls WHERE status='in_flight'")).rows.length,1);
+  releaseRepair();await assert.rejects(active,(e:any)=>qa.isQaReviewWait(e));
+  assert.equal((await db.query("SELECT 1 FROM p5ds_qa_calls WHERE status IN ('permitted','in_flight','unknown')")).rows.length,0);
+  const between=await repairPayload();assert.equal(between.qaReviewWaitStartedAt,fakeNow);
+  const second=await pendingIntent();assert.equal(JSON.parse(second.request.messages[0].content).taskBatch[0].id,'cabinet-4');
+  fakeNow+=240000;
+  await remote.qa.permit(second.request_hash,'repair-batch-b','Offline exact second repair batch inspected; fake provider only.');
+  await assert.rejects(repairPrice(),(e:any)=>qa.isQaReviewWait(e));
+  assert.deepEqual(repairSeen,['cabinet-0','cabinet-4'],'each reviewed repair batch dispatches once');
+  const finalAudit=await pendingIntent();await remote.qa.permit(finalAudit.request_hash,'repair-final-audit','Offline final repaired estimate audit inspected; fake provider only.');
+  const completed=await repairPrice();assert.ok(completed.customer.range,'both repair batches survive separate waits longer than210s');
+  const after=await repairPayload();assert.equal(after.repairClock.startedAt,before.repairClock.startedAt+480000);assert.equal(after.qaReviewWaitStartedAt,undefined);
+  await repairPrice();assert.deepEqual(repairSeen,['cabinet-0','cabinet-4'],'reopen cannot repeat settled repair charges');
+ }finally{releaseRepair();Date.now=realNow;}
  const evidence=await load('projectPageEvidence'),documents=await load('documentServiceClient');
  const sha='a'.repeat(64),documentId=documents.remoteDocumentId(tenant,project,sha),upload={id:randomUUID(),name:'QA source.pdf',status:'stored',type:'application/pdf',size:100,sha256:sha};
  let evidenceRequests=0;const base={version:'p5-page-evidence-v2',id:documentId,project,sha256:sha,name:upload.name,state:'complete',revision:'fixture-v1',pageCount:1};
