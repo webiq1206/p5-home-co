@@ -1,3 +1,4 @@
+import {documentSchemaStatements} from '../services/document-service/src/database-schema.mjs';
 // Additive snapshot of runtime estimator DDL. The safety tests enforce coverage.
 // Preserve unused tables: removing application code must never remove stored data.
 export const estimatorSchemaStatements = [
@@ -43,3 +44,5 @@ export const estimatorSchemaStatements = [
   "CREATE TABLE IF NOT EXISTS p5_estimator_review_requests (\n      draft_id uuid NOT NULL, revision integer NOT NULL, contact jsonb NOT NULL,\n      scope jsonb NOT NULL, status text NOT NULL DEFAULT 'saved', created_at timestamptz NOT NULL DEFAULT now(),\n      PRIMARY KEY(draft_id,revision))"
 ];
 estimatorSchemaStatements.push("CREATE TABLE IF NOT EXISTS p5_estimator_policy_imports (id text PRIMARY KEY, prior_payload jsonb, imported_payload jsonb NOT NULL, actor text NOT NULL, created_at timestamptz NOT NULL DEFAULT now())");
+
+estimatorSchemaStatements.push(...documentSchemaStatements);

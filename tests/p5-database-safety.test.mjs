@@ -6,6 +6,8 @@ import {PGlite} from '@electric-sql/pglite';
 import {assertAdditiveSql, verifyMigrationFiles} from '../scripts/p5-schema-safety.mjs';
 import {estimatorSchemaStatements} from '../scripts/p5-schema-statements.mjs';
 import {prepareEstimatorDatabase, main} from '../scripts/p5-prepare-database.mjs';
+import {DDL, QA_DDL, documentSchemaStatements} from '../services/document-service/src/database-schema.mjs';
+import {readMigrationState} from '../scripts/p5-migration-state.mjs';
 
 test('destructive and dynamic migrations are rejected before execution', () => {
   for (const sql of [
@@ -36,6 +38,91 @@ test('all runtime estimator table creation is covered before publishing', () => 
     visit(ast);
   }
   assert.ok(estimatorSchemaStatements.some(sql => /CREATE TABLE IF NOT EXISTS p5_estimator_policy_imports\b/.test(sql)));
+});
+
+test('document service runtime, preparation and checked migration share exact additive DDL', async () => {
+  const normalize = sql => sql.replace(/--[^\n]*/g, '').replace(/\s+/g, ' ').trim();
+  const statements = sql => sql.split(';').map(normalize).filter(Boolean);
+  const migration = readFileSync('migrations/017_document_service_schema.sql', 'utf8');
+  assert.deepEqual(statements(migration), [...statements(DDL), ...statements(QA_DDL)]);
+  assert.deepEqual(documentSchemaStatements.map(normalize), statements(migration));
+  for (const statement of documentSchemaStatements) {
+    assertAdditiveSql(statement, 'document service');
+    assert.ok(estimatorSchemaStatements.includes(statement));
+  }
+  // Check actual runtime imports rather than a second hand-maintained table list.
+  assert.equal((await import('../services/document-service/src/store.mjs')).DDL, DDL);
+  assert.equal((await import('../services/document-service/src/qa-budget.mjs')).QA_DDL, QA_DDL);
+  const declared = new Set(documentSchemaStatements.map(normalize));
+  for (const file of readdirSync('services/document-service/src').filter(name => name.endsWith('.mjs'))) {
+    const ast = ts.createSourceFile(file, readFileSync(`services/document-service/src/${file}`, 'utf8'), ts.ScriptTarget.Latest, true);
+    const visit = node => {
+      if (ts.isStringLiteralLike(node) && /CREATE\s+(?:TABLE|(?:UNIQUE\s+)?INDEX)\s+IF NOT EXISTS/i.test(node.text)) {
+        for (const statement of statements(node.text)) assert.ok(declared.has(statement), `Missing document-service DDL from ${file}`);
+      }
+      ts.forEachChild(node, visit);
+    };
+    visit(ast);
+  }
+});
+
+test('document migration and repeated preparation preserve rows and never provision QA', async () => {
+  const db = new PGlite();
+  try {
+    await db.exec("CREATE TABLE customer_legacy(id integer PRIMARY KEY, note text); INSERT INTO customer_legacy VALUES(1, 'preserve');");
+    const migration = readFileSync('migrations/017_document_service_schema.sql', 'utf8');
+    await db.exec(migration);
+    await db.query("INSERT INTO p5ds_documents(id,tenant,project,digest,name,bytes,size_bytes) VALUES('sentinel','test','existing','digest','keep.pdf',$1,3)", [new Uint8Array([1,2,3])]);
+    const before = (await db.query('SELECT * FROM p5ds_documents')).rows;
+    await prepareEstimatorDatabase(db);
+    await db.exec(migration);
+    await prepareEstimatorDatabase(db);
+    assert.deepEqual((await db.query('SELECT * FROM p5ds_documents')).rows, before);
+    assert.deepEqual((await db.query('SELECT * FROM customer_legacy')).rows, [{id:1,note:'preserve'}]);
+    for (const table of ['p5ds_qa_runs','p5ds_qa_projects','p5ds_qa_intents','p5ds_qa_calls']) {
+      assert.equal((await db.query(`SELECT count(*)::integer AS n FROM ${table}`)).rows[0].n, 0);
+    }
+    const index = (await db.query("SELECT indexdef FROM pg_indexes WHERE indexname='p5ds_qa_one_active'")).rows;
+    assert.equal(index.length, 1);
+    assert.match(index[0].indexdef, /CREATE UNIQUE INDEX/);
+    assert.match(index[0].indexdef, /\(run_id\).*WHERE.*permitted.*in_flight/);
+  } finally { await db.close(); }
+});
+
+test('dry migration state reads leave empty and populated databases unchanged', async () => {
+  const db = new PGlite();
+  try {
+    const queryLog = [];
+    const readOnly = {query: async sql => {
+      assert.match(sql, /^SELECT /);
+      queryLog.push(sql);
+      return db.query(sql);
+    }};
+    const tables = () => db.query("SELECT tablename FROM pg_tables WHERE schemaname='public' ORDER BY tablename");
+    const empty = (await tables()).rows;
+    assert.deepEqual([...await readMigrationState(readOnly, {dry:true})], []);
+    assert.deepEqual((await tables()).rows, empty);
+    await readMigrationState(db);
+    await db.query("INSERT INTO schema_migration(version) VALUES('existing.sql')");
+    const before = (await db.query('SELECT * FROM schema_migration')).rows;
+    assert.deepEqual([...await readMigrationState(readOnly, {dry:true})], ['existing.sql']);
+    assert.deepEqual((await db.query('SELECT * FROM schema_migration')).rows, before);
+    assert.equal(queryLog.length, 3);
+  } finally { await db.close(); }
+});
+
+test('document setup failure rolls back actual partially created schema and preserves unrelated data', async () => {
+  const db = new PGlite();
+  try {
+    await db.exec("CREATE TABLE customer_legacy(id integer); INSERT INTO customer_legacy VALUES(7)");
+    const failing = {query: async sql => {
+      if (sql.startsWith('CREATE TABLE IF NOT EXISTS p5ds_qa_projects')) throw Error('injected schema failure');
+      return db.query(sql);
+    }};
+    await assert.rejects(prepareEstimatorDatabase(failing), /injected schema failure/);
+    assert.deepEqual((await db.query("SELECT tablename FROM pg_tables WHERE schemaname='public'")).rows, [{tablename:'customer_legacy'}]);
+    assert.deepEqual((await db.query('SELECT * FROM customer_legacy')).rows, [{id:7}]);
+  } finally { await db.close(); }
 });
 
 test('fresh setup and repeated setup preserve review records and unrelated tables', async () => {

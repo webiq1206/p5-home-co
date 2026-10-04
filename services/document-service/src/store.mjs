@@ -1,30 +1,8 @@
 import {randomUUID} from 'node:crypto';
 import {QaBudget} from './qa-budget.mjs';
 import {documentId,jobId,hash,ServiceError,VERSION,providerCallLimit} from './core.mjs';
-export const DDL=`
-CREATE TABLE IF NOT EXISTS p5ds_documents (
- id text PRIMARY KEY,tenant text NOT NULL,project text NOT NULL,digest text NOT NULL,name text NOT NULL,
- bytes bytea NOT NULL,size_bytes bigint NOT NULL,state text NOT NULL DEFAULT 'queued',page_count integer,
- created_at timestamptz NOT NULL DEFAULT now(),updated_at timestamptz NOT NULL DEFAULT now(),error_code text
-);
-CREATE TABLE IF NOT EXISTS p5ds_pages (
- document_id text NOT NULL REFERENCES p5ds_documents(id) ON DELETE CASCADE,page integer NOT NULL,
- native jsonb NOT NULL,image bytea NOT NULL,evidence jsonb,PRIMARY KEY(document_id,page)
-);
-CREATE TABLE IF NOT EXISTS p5ds_jobs (
- id text PRIMARY KEY,tenant text NOT NULL,project text NOT NULL,kind text NOT NULL,document_id text REFERENCES p5ds_documents(id) ON DELETE CASCADE,
- state text NOT NULL DEFAULT 'queued',priority integer NOT NULL DEFAULT 5,payload jsonb NOT NULL,progress jsonb NOT NULL DEFAULT '{}',result jsonb,
- attempts integer NOT NULL DEFAULT 0,available_at timestamptz NOT NULL DEFAULT now(),lease_until timestamptz,lease_token text,error_code text,
- created_at timestamptz NOT NULL DEFAULT now(),updated_at timestamptz NOT NULL DEFAULT now()
-);
-CREATE INDEX IF NOT EXISTS p5ds_jobs_ready ON p5ds_jobs(state,available_at,lease_until);
-CREATE TABLE IF NOT EXISTS p5ds_nonces(tenant text NOT NULL,nonce text NOT NULL,created_at timestamptz NOT NULL DEFAULT now(),PRIMARY KEY(tenant,nonce));
-CREATE TABLE IF NOT EXISTS p5ds_capacity(
- name text PRIMARY KEY,window_at timestamptz NOT NULL,requests integer NOT NULL,tokens bigint NOT NULL,cooldown_until timestamptz
-);
-CREATE TABLE IF NOT EXISTS p5ds_provider_leases(token text PRIMARY KEY,expires_at timestamptz NOT NULL);
-CREATE TABLE IF NOT EXISTS p5ds_metrics(id bigserial PRIMARY KEY,job_id text NOT NULL,stage text NOT NULL,duration_ms integer NOT NULL,detail jsonb NOT NULL DEFAULT '{}',created_at timestamptz NOT NULL DEFAULT now());
-`;
+import {DDL} from './database-schema.mjs';
+export {DDL} from './database-schema.mjs';
 export class Store{
  constructor(pool,config){this.pool=pool;this.config=config;this.qa=new QaBudget(this,config);}
  async init(){await this.pool.query(DDL);await this.qa.init();}
