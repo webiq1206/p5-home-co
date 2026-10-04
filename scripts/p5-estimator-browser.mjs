@@ -183,7 +183,7 @@ for(const scenario of progressOnly?[]:['manual','conflict','unavailable']){
     await settled(page);
    }
   }else{
-   await est.getByText('The documents disagree. Which work should be included?',{exact:true}).waitFor();await est.getByRole('button',{name:'Replace three doors',exact:true}).click();await est.getByRole('button',{name:'Send answer',exact:true}).click();
+   await est.getByText('The documents disagree. Which work should be included?',{exact:true}).waitFor();await est.getByRole('button',{name:/^Replace three doors(?:\s|$)/}).click();await est.getByRole('button',{name:'Send answer',exact:true}).click();
   }
   await answerBrandQuestions(page,est,est.getByRole('heading',{name:'Review your project',exact:true}));await overflow(page);results.push({scenario,passed:true});
  }catch(error){console.error(error);results.push({scenario,passed:false,error:String(error)});await capture(page,`${scenario}-failure`).catch(()=>{});}await context.close();
