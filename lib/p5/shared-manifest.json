@@ -1,7 +1,7 @@
 {
  "source": "p5-home-co",
- "commit": "185f1e7b8c502e5ba47a22d9407d5c5f11df88c5",
- "generatedAt": "2026-10-04T05:41:12.653Z",
+ "commit": "d8bd607bd655d67f7e24297928e65d5ed752f018",
+ "generatedAt": "2026-10-04T05:51:14.864Z",
  "note": "P5-only qualification baseline. Child rollout is paused until live acceptance is verified. Hash checks remain mandatory.",
  "files": {
   "app/admin/p5-estimators/page.tsx": "8e81e1ac475dadb7eee9af396c963ee369de593a5a8d165d40dd97f2dab7ca32",
@@ -44,7 +44,7 @@
   "lib/p5/assistantContinuation.ts": "2990139f6bc41a17014338abc819207b02fce2bed37504294e8e8f908934d3c2",
   "lib/p5/atomicQuestions.ts": "94a1b8ee2c813f38d98b0209096f1137fa4b6e852ee8d8b6f0195a2ee2984015",
   "lib/p5/auditPricingState.ts": "e66c9272d882c033c045a83f124aafafd81972fe460b25544d20a94b8ba82adb",
-  "lib/p5/backgroundJobs.ts": "04702e5394b536b5dd3923f6a57a80fefb4ac4e1394f2b97b53f5022fd4aa21f",
+  "lib/p5/backgroundJobs.ts": "4c2a6c3c5ab9d8efbdc8daca41bef1c7fecfdab3e4f724691a1c5b81e1f64542",
   "lib/p5/bookShortlist.ts": "380e8ce721516a559a6609589f170ed5b10241e078f89360fb6e0bf1e6834553",
   "lib/p5/boundedCrmPayload.ts": "fe5a9737fa99b57f8fc9767a6db8c6cae7fcb65320221463ce5b14d2ab45e7a0",
   "lib/p5/brandIdentity.ts": "c8c36a736ee5e4bb9d3e53570005f2890f892e8c625a295efa3ed84ba186c5a0",
@@ -138,7 +138,7 @@
   "lib/p5/pricingProgress.ts": "9434c7394467d4260fd0a33b75b62c30215ba12aa8ec360b3bffaa4235212b77",
   "lib/p5/pricingSources.ts": "5d7df38934e9d4d9f15cf0a3616b13e87f83303e98d1202bdc0d0cfe7ee1f3d1",
   "lib/p5/pricingSpend.ts": "a22283b37b119e84ebecd2dd27c36d1430b37fa446957e827f44dacc6672c9d9",
-  "lib/p5/pricingWork.ts": "c2caad65bdd6699b7b77ad824ac980f38c084165785493557d2f9ef479341059",
+  "lib/p5/pricingWork.ts": "782e8eb49d18546a33ddb7b5f5bd5e111cf459074825737297b1f9a3815cd2be",
   "lib/p5/processingBudget.ts": "81a4757e195a8a633722576e301d8d4ca8bf7b023fab4d4ec864650ded8fe0b4",
   "lib/p5/processingStatus.ts": "93236d76c9044d2fb8109e0ebd86d9f71ff6fb8850e7a950c496fdb0339155af",
   "lib/p5/projectCatalog.ts": "b5d07ac8d9b29b2bb3b99831ff1dbe16acf14abd9613805a46e09c270bf33e0c",

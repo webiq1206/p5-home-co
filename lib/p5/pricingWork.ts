@@ -43,10 +43,10 @@ type RequestFailure={attempt:number;failedAt:string;causes:ReturnType<typeof pri
 type RequestTrace={fingerprint:string;provider:string;model:string;stage:string;attempt:number;startedAt:string;taskIds?:string[];repair?:'format'|'scope';mappingResult?:{tasksType:string;returnedTaskIds:(string|null)[]};failedAt?:string;causes?:ReturnType<typeof pricingFailureDetails>;failures:RequestFailure[]};
 type Payload=PricingRepairState&{replies:Record<string,PricingReply>;requests?:Record<string,RequestTrace>;shortlists?:Record<string,Record<string,string[]>>;failures?:number;completed?:number;regionalRates?:EstimatorConfiguration['regionalRates'];researchLeads?:EstimatorConfiguration['researchLeads'];processing?:ProcessingStatus;pricingAt?:string;busyWaitMs?:number};
 export async function priceSavedScope(id:string,scope:ReviewedScope,configuration:EstimatorConfiguration,pricingAt=new Date(),deadline=Date.now()+SERVER_BUDGET_MS,identity?:PricingIdentity){
- await assertQaProvidersAllowed(id);
  // P5 and Construction price only a project whose every source page was verified;
  // the other brands return a partial read for manual review instead.
  if(SOURCE_COVERAGE_REQUIRED)assertProjectSourceCoverage(scope.uploads,scope.extraction);
+ await assertQaProvidersAllowed(id);
  remainingBudget(deadline);
  await saveSupportedServiceBook(configuration,scope.answers.service||'');
  const workKey=pricingWorkKey(scope,configuration,pricingAt);

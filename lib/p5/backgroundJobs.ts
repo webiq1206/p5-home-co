@@ -107,11 +107,11 @@ export async function jobProgressWorkKeys(job:Pick<Job,'input'|'createdAt'>){
   return input.kind==='analysis'?(await import('./analysisWork.ts')).analysisProgressWorkKeys(input.draft,input.text,input.answers):[(await import('./pricingWork.ts')).pricingWorkKey(input.draft.reviewed!,input.configuration,new Date(job.createdAt))];
 }
 export async function queuedJob(input:Input,retry=false,holdMs=JOB_HOLD_MS){
-  await assertQaProvidersAllowed(input.draft.id);
   // A quiescing process admits neither new rows nor explicit retries. This is
   // deliberately checked before validation that can call a provider.
   rejectQuiescedAdmission();
   if(SOURCE_COVERAGE_REQUIRED&&input.kind==='pricing')assertProjectSourceCoverage(input.draft.reviewed?.uploads||input.draft.uploads,input.draft.reviewed?.extraction);
+  await assertQaProvidersAllowed(input.draft.id);
   if(input.kind==='analysis'&&input.draft.uploads.length)await assertAnalysisMigrationSafe(input.draft,input.text,input.answers,(await import('./analysisWork.ts')).analysisWorkKey(input.draft,input.text,input.answers));
   rejectQuiescedAdmission();
   // Analysis keeps its deployed identity and attempt accounting. Pricing must
