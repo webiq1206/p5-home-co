@@ -3,6 +3,7 @@ on:
   workflow_dispatch:
   pull_request:
     paths:
+      - 'next.config.ts'
       - 'components/P5Estimator.tsx'
       - 'components/P5ProcessingStatus.tsx'
       - 'lib/p5/**'
@@ -11,6 +12,7 @@ on:
   push:
     branches: [main]
     paths:
+      - 'next.config.ts'
       - 'components/P5Estimator.tsx'
       - 'components/P5ProcessingStatus.tsx'
       - 'lib/p5/**'
