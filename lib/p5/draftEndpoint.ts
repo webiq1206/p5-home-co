@@ -1,4 +1,4 @@
-import {restrictQaProviders,assertQaProvidersAllowed,qaProvidersRestricted} from './qaProviderPolicy.ts';
+import {assertQaProvidersAllowed,qaProvidersRestricted} from './qaProviderPolicy.ts';
 import {instructionPrompts,instructionPromptText} from './clarifications.ts';
 import {resolveInstructionAnswer} from './clarificationAnswer.ts';
 import {deriveScopeAnswers,reconcileScope,scopeQuestionsForBrand as scopeQuestions} from "./adaptive.ts";
@@ -153,8 +153,7 @@ export async function putDraft(request:Request){
         corrections:Object.entries(answers).filter(([field,value])=>{const fact=extraction?.facts.find(f=>f.field===field);return fact&&fact.value!==value;}).map(([field,value])=>({field:field as keyof ScopeAnswers,previous:extraction!.facts.find(f=>f.field===field)!.value,value:value!})),
       };
     }
-    const [draft,pricedFields]=await Promise.all([saveDraft(id,key,ESTIMATOR_BRAND.id,{text:incomingText,answers,extraction,reviewed,contact,wizard,analyzedFingerprint:replacing?undefined:existing?.analyzedFingerprint,analyzedAnswers:replacing?undefined:existing?.analyzedAnswers,...((existing as {revisionOf?:number}|null)?.revisionOf!==undefined?{revisionOf:(existing as {revisionOf?:number}).revisionOf}:{})} as Parameters<typeof saveDraft>[3],raw.revision),costQuestionFields(answers)]);
-    if(raw.qaDeterministicOnly===true)await restrictQaProviders(id,draft.revision);
+    const [draft,pricedFields]=await Promise.all([saveDraft(id,key,ESTIMATOR_BRAND.id,{text:incomingText,answers,extraction,reviewed,contact,wizard,analyzedFingerprint:replacing?undefined:existing?.analyzedFingerprint,analyzedAnswers:replacing?undefined:existing?.analyzedAnswers,...((existing as {revisionOf?:number}|null)?.revisionOf!==undefined?{revisionOf:(existing as {revisionOf?:number}).revisionOf}:{})} as Parameters<typeof saveDraft>[3],raw.revision,raw.qaDeterministicOnly===true),costQuestionFields(answers)]);
     const conflicts=extraction?reconcileScope(answers,extraction,resolutions).conflicts:[];
     return json({draft,conflicts,questions:scopeQuestions(answers,extraction,conflicts,skipped,pricedFields,incomingText),pricedFields});
   }catch(error){

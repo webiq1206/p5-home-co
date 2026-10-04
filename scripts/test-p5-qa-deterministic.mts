@@ -8,16 +8,24 @@ import path from 'node:path';
 
 // Delivery is replaced below; exercise both normal CRM delivery and QA suppression.
 process.env.P5_CRM_DELIVERY='on';
+// No provider sidecar is required. Refuse and count every fetch, including
+// loopback, and clear inherited managed-provider configuration before imports.
+for(const key of Object.keys(process.env))if(key.startsWith('AI_INTEGRATIONS_'))delete process.env[key];
+Object.assign(process.env,{OPENAI_API_KEY:'offline-test-key-not-a-secret',ANTHROPIC_API_KEY:'offline-test-key-not-a-secret',GEMINI_API_KEY:'offline-test-key-not-a-secret',DATABASE_URL:'',P5_DOCUMENT_SERVICE_MODE:''});
+let networkAttempts=0;
+globalThis.fetch=async()=>{networkAttempts++;throw new Error('QA acceptance forbids every network dispatch, including loopback');};
 
 await mkdir('node_modules/.cache',{recursive:true});
 const dir=await mkdtemp(path.join(process.cwd(),'node_modules/.cache/p5-submit-'));
 let db:any;
 try{
   await cp('lib/p5',dir,{recursive:true});
-  await writeFile(path.join(dir,'database.ts'),`import {PGlite} from '@electric-sql/pglite';export const database=new PGlite();export async function query(s:string,v:unknown[]=[]){return (await database.query(s,v)).rows;}`);
-  // Only replace the paid-provider boundary; priceCompleteScope stays genuine.
+  await writeFile(path.join(dir,'database.ts'),`import {PGlite} from '@electric-sql/pglite';export const database=new PGlite();export let queryHook:any;export const setQueryHook=(hook:any)=>{queryHook=hook;};export async function query(s:string,v:unknown[]=[]){const hook=queryHook;if(hook)await hook('before',s,v);const rows=(await database.query(s,v)).rows;if(hook)await hook('after',s,v);return rows;}`);
+  // Replace and count both paid pricing boundaries; priceCompleteScope stays genuine.
   await rename(path.join(dir,'scopePricing.ts'),path.join(dir,'scopePricingReal.ts'));
   await writeFile(path.join(dir,'scopePricing.ts'),`export * from './scopePricingReal.ts';let provider:any;export let calls=0;export const setProvider=(fn:any)=>provider=fn;export const requestPricing=(...args:any[])=>{calls++;return provider(...args);};`);
+  await rename(path.join(dir,'bookShortlist.ts'),path.join(dir,'bookShortlistReal.ts'));
+  await writeFile(path.join(dir,'bookShortlist.ts'),`export * from './bookShortlistReal.ts';export let shortlistCalls=0;export async function shortlistBook(){shortlistCalls++;return new Map();}`);
   await writeFile(path.join(dir,'deliveryAdapter.ts'),`
     import {buildCrmPayload} from './crmPayload.ts';
     export const EMAIL_SUPPORTS_IDEMPOTENCY=true;
@@ -29,7 +37,7 @@ try{
   const load=(name:string)=>import(pathToFileURL(path.join(dir,name+'.ts')).href);
   db=await load('database');
   const draft=await load('draftEndpoint'),submit=await load('submitEndpoint'),pdf=await load('customerPdfEndpoint');
-  const provider=await load('scopePricing'),transport=await load('deliveryAdapter'),store=await load('store');
+  const provider=await load('scopePricing'),shortlist=await load('bookShortlist'),transport=await load('deliveryAdapter'),store=await load('store');
   const {createPlanningConfiguration,PLANNING_MODEL_VERSION}=await load('planningBooks');
   const {priceReviewedScope}=await load('costBook');
   const date=new Date();
@@ -90,14 +98,46 @@ try{
   const qaContact={name:'[QA] Deterministic boundary',email:'',phone:''};
   const qaText='New two-story home, 3,500 SF plus a 1,000 SF garage, premium finishes.';
   const qaAnswers={service:'new-construction',location:'Boise',sqft:'3500',stories:'2',garageIncluded:'yes',garageSqft:'1000',finish:'high-end'};
+  const beforeQaShortlistCalls=shortlist.shortlistCalls;
+  const beforeQaCalls=provider.calls,beforeQaEmails=transport.emails.length,beforeQaCrm=transport.crm.length;
+  // A real database error in the restriction insertion rolls back draft creation.
+  const faultId=randomUUID(),faultKey=randomBytes(32).toString('hex');
+  const creation={text:qaText,answers:qaAnswers,contact:qaContact,revision:0,qaDeterministicOnly:true};
+  await db.database.exec(`CREATE FUNCTION qa_policy_fail() RETURNS trigger LANGUAGE plpgsql AS $qa$ BEGIN IF NEW.work_key='qa-no-provider-v1' THEN RAISE EXCEPTION 'Injected QA policy write failure'; END IF; RETURN NEW; END $qa$; CREATE TRIGGER qa_policy_fail BEFORE INSERT ON p5_estimator_work FOR EACH ROW EXECUTE FUNCTION qa_policy_fail();`);
+  response=await draft.putDraft(makeRequest('draft',faultId,faultKey,creation));assert.equal(response.status,503);
+  assert.equal(await store.readDraft(faultId,faultKey),null,'failed policy insertion must not leave a draft');
+  assert.equal((await db.query('SELECT * FROM p5_estimator_work WHERE draft_id=$1',[faultId])).length,0);
+  await db.database.exec('DROP TRIGGER qa_policy_fail ON p5_estimator_work; DROP FUNCTION qa_policy_fail();');
+  response=await draft.putDraft(makeRequest('draft',faultId,faultKey,creation));assert.equal(response.status,200,'same-ID protected creation can retry after rollback');
+  assert.equal((await db.query("SELECT * FROM p5_estimator_work WHERE draft_id=$1 AND work_key='qa-no-provider-v1'",[faultId])).length,1);
+  // Pause around the actual atomic statement: another authenticated request
+  // sees no draft before commit, then the restriction even before PUT returns.
+  const concurrentId=randomUUID(),concurrentKey=randomBytes(32).toString('hex');
+  let beforeReached!:()=>void,afterReached!:()=>void,allowWrite!:()=>void,allowReturn!:()=>void;
+  const before=new Promise<void>(r=>{beforeReached=r;}),after=new Promise<void>(r=>{afterReached=r;});
+  const writing=new Promise<void>(r=>{allowWrite=r;}),returning=new Promise<void>(r=>{allowReturn=r;});
+  db.setQueryHook(async(phase:string,sql:string,values:unknown[])=>{if(!sql.startsWith('WITH saved AS')||values[0]!==concurrentId)return;if(phase==='before'){db.setQueryHook(undefined);beforeReached();await writing;}else{afterReached();await returning;}});
+  const creating=draft.putDraft(makeRequest('draft',concurrentId,concurrentKey,creation));
+  await before;
+  response=await submit.postSubmission(makeRequest('submit',concurrentId,concurrentKey,{revision:1}));assert.equal(response.status,404);
+  allowWrite();await after;
+  response=await submit.postSubmission(makeRequest('submit',concurrentId,concurrentKey,{revision:1,background:true}));assert.equal(response.status,422);assert.equal((await response.json()).qaProviderHold,true);
+  allowReturn();assert.equal((await creating).status,200);
+  response=await draft.putDraft(makeRequest('draft',concurrentId,concurrentKey,creation));assert.equal(response.status,422,'lost-response creation retry cannot replace its permanent policy');
+  assert.equal(provider.calls,beforeQaCalls);
   const fixture=JSON.parse(await (await import('node:fs/promises')).readFile('tests/fixtures/p5-main12-saved-failure.json','utf8'));
   const actualFixture=fixture.find((row:any)=>row.source==='work').evidence.find((row:any)=>row.payload.input?.kind==='pricing').payload.input.configuration;
   await db.query("UPDATE p5_estimator_policy SET payload=$1 WHERE id='current'",[JSON.stringify(actualFixture)]);
-  const beforeQaCalls=provider.calls,beforeQaEmails=transport.emails.length,beforeQaCrm=transport.crm.length;
+
   response=await draft.putDraft(makeRequest('draft',qaId,qaKey,{text:qaText,answers:qaAnswers,contact:qaContact,revision:0,qaDeterministicOnly:true,reviewed:true}));
   assert.equal(response.status,200,await response.clone().text());
   let qa=await store.readDraft(qaId,qaKey);
   const qaPolicy=await load('qaProviderPolicy');
+  const reviewEndpoint=await load('reviewRequest');
+  response=await reviewEndpoint.requestProjectReview(makeRequest('review',qaId,qaKey,{name:'Separate contact',email:'review@example.invalid'}));
+  assert.equal(response.status,422);assert.equal((await response.json()).qaReviewHold,true);
+  assert.equal((await db.query("SELECT to_regclass('p5_estimator_review_requests') AS relation"))[0].relation,null,'review hold precedes even review-table creation');
+
   assert.equal(await qaPolicy.qaProvidersRestricted(qaId),true);
   response=await submit.postSubmission(makeRequest('submit',qaId,qaKey,{revision:qa.revision,background:true,retry:true}));
   assert.equal(response.status,422);assert.equal((await response.json()).qaProviderHold,true);
@@ -127,6 +167,8 @@ try{
   const qaPdf=await pdf.getCustomerPdf(makeRequest('pdf',qaId,qaKey));assert.equal(qaPdf.status,200);assert.equal(Buffer.from(await qaPdf.arrayBuffer()).subarray(0,5).toString(),'%PDF-');
   response=await submit.postSubmission(makeRequest('submit',qaId,qaKey,{revision:qa.revision,background:true}));assert.equal((await response.json()).duplicate,true);
   assert.equal(provider.calls,beforeQaCalls);assert.equal(transport.emails.length,beforeQaEmails);assert.equal(transport.crm.length,beforeQaCrm);
+  assert.equal(shortlist.shortlistCalls,beforeQaShortlistCalls,'restricted QA never enters the separate paid shortlist boundary');
+  assert.equal(networkAttempts,0,'no fetch attempts, including shortlist and local provider sidecars');
   console.log('PASS: persisted QA restriction, analysis/clarification/background/pricing holds, ineligible edit, deterministic submit/reload/PDF/duplicate; zero provider calls and notifications.');
   console.log('PASS: genuine authenticated review, pricing, PDF/outbox, wrong-key/stale guards, duplicate fencing; isolated PGlite and fake provider/transports only.');
 }finally{

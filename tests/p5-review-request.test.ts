@@ -13,7 +13,7 @@ test('human review requires a name and at least one valid contact method',()=>{
 });
 
 test('review request saves its scope and contact once, without duplicate notifications',async()=>{
-  const db=new PGlite();let sends=0;
+  const db=new PGlite();await db.exec('CREATE TABLE p5_estimator_work(draft_id uuid,work_key text,payload jsonb)');let sends=0;
   const id='12345678-1234-4234-8234-123456789abc';const key='a'.repeat(64);
   const draft={id,brand:ESTIMATOR_BRAND.id,revision:3,status:'draft' as const,updatedAt:new Date().toISOString(),text:'Repair two drywall holes',answers:{service:'handyman'},extraction:null,reviewed:null,uploads:[],contact:{name:'Original',email:'',phone:''}};
   const handler=projectReviewHandler({
@@ -36,7 +36,7 @@ test('review request saves its scope and contact once, without duplicate notific
 });
 
 test('notification failure never masquerades as a notified team',async()=>{
-  const db=new PGlite();let attempts=0;
+  const db=new PGlite();await db.exec('CREATE TABLE p5_estimator_work(draft_id uuid,work_key text,payload jsonb)');let attempts=0;
   const handler=projectReviewHandler({
     readDraft:async()=>({id:'12345678-1234-4234-8234-123456789abc',brand:ESTIMATOR_BRAND.id,revision:1,status:'draft' as const,updatedAt:'',text:'Test scope',answers:{},extraction:null,reviewed:null,uploads:[],contact:{name:'Test',email:'',phone:''}}),
     query:async(sql,values=[])=> (await db.query(sql,values)).rows as Record<string,any>[],
