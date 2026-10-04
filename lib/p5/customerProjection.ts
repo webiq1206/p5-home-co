@@ -65,6 +65,10 @@ export function publicPricingText(value:unknown):string{
  const text=typeof value==='string'?value.trim():'';
  if(!text)return '';
  const repairSentence=(sentence:string):string[]=>{
+   // Rate-book benchmark annotations are internal evidence, not physical scope.
+   // Remove the entire annotation, including old saved text whose dollar band
+   // was already stripped, instead of printing an orphan "typical band" label.
+   if(/^[\w\s-]{0,60}\btypical (?:price |cost )?band(?:\s+\$[\d,.]+[^;]*)?[.;]?\s*$/i.test(sentence.trim()))return [];
    // Component derivation notes are useful to the pricing engine, never to
    // the customer. Remove the full note rather than leaving "Component" or
    // "calculated" fragments beside the actual cabinet scope and quantities.
@@ -97,7 +101,7 @@ export function publicPricingText(value:unknown):string{
  };
  // Removing a private figure can leave its connector behind ("allowance based on; confirm ...").
  const mend=(line:string)=>line.replace(/\s+(?:based on|at|using|from|with|of)\s*(?=[,;:.!?]|$)/gi,'').replace(/\s*[;,:]\s*(?=[.!?]?$)/,'').replace(/\s+([,;:.!?])/g,'$1').trim();
- const clean=(line:string)=>mend(scopeBullets(line).flatMap(repairSentence).flatMap(sentence=>{const safe=customerSentence(sentence);return safe?[safe]:[];}).join(' '));
+ const clean=(line:string)=>mend(scopeBullets(line).flatMap(repairSentence).flatMap(sentence=>{const safe=customerSentence(sentence);return safe?[safe]:[];}).join(' ').replace(/(?:^|(?<=[.!?;]))\s*[\w -]{0,60}\btypical (?:price |cost )?band(?=[.;]|$)[.;]?/gi,''));
  return text.split('\n').map(raw=>{
   const line=plainCustomerLine(raw);
   // A scope label is structure, not part of the prose being redacted. Splitting

@@ -176,7 +176,12 @@ export function buildEstimateDocument(input:{id:string;result:unknown;brand:Esti
       return `${amount?`${amount} for `:''}${item(l).text}${amount?'':' (included in this category amount)'}; selection and final quantity to confirm.`;
     });
     const low=priceKind==='single'?split[i]:Math.round(ranges[i].low),high=priceKind==='single'?split[i]:Math.round(ranges[i].high);
-    return {number:String(i+1).padStart(2,'0'),title:clean(name,120),amount:priceKind==='none'?'':priceKind==='single'?money(low):`${money(low)} to ${money(high)}`,low,high,work,items,allowances};
+    // A whole-building assembly spans trades. Give its existing category a
+    // meaningful display name without inventing a trade breakdown or changing
+    // any saved amounts. Mixed miscellaneous work keeps its original label.
+    const assemblyTitles:Record<string,string>={'new-construction':'New Home Construction',adu:'ADU Construction',addition:'Home Addition'};
+    const assembly=name==='Other Project Work'&&assemblyTitles[service]&&own.length>0&&own.every(l=>/^PB-90-(?:10|50)-\d+-\d+$/.test(String(l.id)));
+    return {number:String(i+1).padStart(2,'0'),title:assembly?assemblyTitles[service]:clean(name,120),amount:priceKind==='none'?'':priceKind==='single'?money(low):`${money(low)} to ${money(high)}`,low,high,work,items,allowances};
   });
   // Structured allowances carry their own coverage; each sits in the category it best matches.
   for(const a of (result.allowances||[]) as any[]){

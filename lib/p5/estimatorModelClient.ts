@@ -1,3 +1,4 @@
+import {qaProviderFetch,qaPaidContext} from './qaPaid.ts';
 import {ESTIMATOR_PROVIDER,ESTIMATOR_MODEL,assertEstimatorModel} from './modelPolicy.ts';
 
 type Block=Record<string,any>;
@@ -38,14 +39,14 @@ export function createEstimatorModelClient(options:{timeoutMs?:number;request?:t
  const create=async(args:Request)=>{
   const connection=estimatorConnection();if(!connection.key)throw new Error('estimator-provider-unconfigured');
   if(ESTIMATOR_PROVIDER==='anthropic'){
-   const response=await (options.request||fetch)(connection.endpoint+'/messages',{method:'POST',headers:{'content-type':'application/json','x-api-key':connection.key,'anthropic-version':'2023-06-01'},body:JSON.stringify({...args,model:ESTIMATOR_MODEL,max_tokens:Math.min(args.max_tokens||4000,64000)}),signal:AbortSignal.timeout(options.timeoutMs||80000),redirect:'error'});
+   const response=await qaProviderFetch(options.request||fetch,connection.endpoint+'/messages',{method:'POST',headers:{'content-type':'application/json','x-api-key':connection.key,'anthropic-version':'2023-06-01'},body:JSON.stringify({...args,model:ESTIMATOR_MODEL,max_tokens:Math.min(args.max_tokens||4000,64000)}),signal:AbortSignal.timeout(options.timeoutMs||80000),redirect:'error'});
    if(!response.ok)throw Object.assign(new Error(`estimator-provider-http-${response.status}`),{status:response.status});
    const data=await response.json();assertEstimatorModel(data.model);
    if(!['end_turn','tool_use'].includes(data.stop_reason))throw new Error('estimator-provider-incomplete');
    if(!Array.isArray(data.content)||!data.content.length)throw new Error('estimator-provider-empty');
    return data;
   }
-  const response=await (options.request||fetch)(connection.endpoint+'/responses',{method:'POST',headers:{'content-type':'application/json',authorization:`Bearer ${connection.key}`},body:JSON.stringify(estimatorRequestBody(args)),signal:AbortSignal.timeout(options.timeoutMs||40000),redirect:'error'});
+  const response=await qaProviderFetch(options.request||fetch,connection.endpoint+'/responses',{method:'POST',headers:{'content-type':'application/json',authorization:`Bearer ${connection.key}`},body:JSON.stringify(estimatorRequestBody(args)),signal:AbortSignal.timeout(options.timeoutMs||40000),redirect:'error'});
   if(!response.ok)throw Object.assign(new Error(`estimator-provider-http-${response.status}`),{status:response.status});
   const data=await response.json();const model=assertEstimatorModel(data.model);
   if(data.status!=='completed')throw new Error('estimator-provider-incomplete');

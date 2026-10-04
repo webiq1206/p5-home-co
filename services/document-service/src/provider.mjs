@@ -61,10 +61,14 @@ export class Reader{
   let slot;const waitStart=performance.now();
   while(!(slot=await this.store.reserve(estimated))){signal.throwIfAborted();await sleep(250,signal);}
   const start=performance.now();
-  const deadline=responseDeadline(signal,c.callMs,providerCallLimit(c));
+  const qa=String(job.project||'').startsWith('qa-paid-');
+  // The QA broker returns one retained JSON response, so it has no stream
+  // heartbeat. Keep a bounded total deadline without the normal idle timer.
+  const totalMs=qa?Math.min(180000,providerCallLimit(c)):providerCallLimit(c),idleMs=qa?totalMs:c.callMs;
+  const deadline=responseDeadline(signal,idleMs,totalMs);
   const requestDetail={provider:c.provider,model:verify?c.verifyModel:c.model,attempt:job.attempts,
    pages:Array.isArray(input.pages)?input.pages.map(p=>p.page):[],imageCount:images.length,
-   inputCharacters:JSON.stringify(input).length,maxOutputTokens:maxOutput,timeoutMs:providerCallLimit(c),idleTimeoutMs:c.callMs};
+   inputCharacters:JSON.stringify(input).length,maxOutputTokens:maxOutput,timeoutMs:totalMs,idleTimeoutMs:idleMs};
   try{
    const built=requestBody(c.provider,verify?c.verifyModel:c.model,system,input,images,schema,purpose==='citation'?Math.min(maxOutput,2048):maxOutput,purpose);
    requestDetail.purpose=purpose;requestDetail.maxOutputTokens=built.body.max_tokens||built.body.max_output_tokens||c.maxOutput;
@@ -72,7 +76,9 @@ export class Reader{
    const headers={'content-type':'application/json',...(c.provider==='anthropic'?{'x-api-key':c.key,'anthropic-version':'2023-06-01'}:c.provider==='gemini'?{'x-goog-api-key':c.key}:{authorization:`Bearer ${c.key}`})};
    const combined=deadline.signal;
    const onProviderProgress=progress=>{deadline.touch();if(progress.streaming)requestDetail.stream=progress;};
-   const response=await this.request(c.provider==='openai'&&c.endpoint?`${c.endpoint}/responses`:built.url,{method:'POST',headers,body:JSON.stringify(built.body),signal:combined,redirect:'error',onProviderProgress});
+   if(qa&&!this.store.qa)throw new ServiceError('qa-ledger-unavailable',422);
+   const response=qa?Response.json(await this.store.qa.dispatch(job.tenant,job.project,`document:${job.id}:${purpose}`,built.body,combined)):
+    await this.request(c.provider==='openai'&&c.endpoint?`${c.endpoint}/responses`:built.url,{method:'POST',headers,body:JSON.stringify(built.body),signal:combined,redirect:'error',onProviderProgress});
    if(!response.ok){
     const requested=response.headers.get('retry-after');const seconds=Number(requested);const retryMs=Number.isFinite(seconds)?Math.min(120000,Math.max(1000,seconds*1000)):Math.max(1000,Math.min(120000,Date.parse(requested||'')-Date.now()||1000));
     if(response.status===429){await this.store.cooldown(retryMs);throw new ServiceError('provider-rate-limit',429,retryMs);}

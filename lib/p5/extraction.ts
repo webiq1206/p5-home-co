@@ -1,3 +1,4 @@
+import {qaProviderFetch,qaPaidContext} from './qaPaid.ts';
 import {ESTIMATOR_PROVIDER,ESTIMATOR_MODEL,MODEL_POLICY_VERSION,estimatorModelConfiguration,assertEstimatorModel} from './modelPolicy.ts';
 import {clarificationTakeoffSchema,clarificationTakeoffUpdates,type TakeoffRevisionContext} from './clarificationTakeoffs.ts';
 import {groundSourceResponsibilities} from './sourceResponsibilities.ts';
@@ -332,6 +333,7 @@ export type AnalyzeOptions={
   event?:Pick<EstimatorEvent,'draftId'|'estimator'|'file'>;
 };
 export async function analyzeBatch(text: string, files: AnalysisFile[], previous: ScopeAnswers, request: RequestFunction = fetch, timeoutMs = READ_ALLOWANCE_MS, absoluteDeadline = Date.now() + timeoutMs, options: AnalyzeOptions = {}): Promise<AnalysisResult> {
+  const originalRequest=request;request=(input,init)=>qaProviderFetch(originalRequest,input,init);
   // Failed preparation is a document exception, never a valid provider input.
   // Reject before even selecting a provider so retries cannot send empty PDFs.
   if (files.some(file => file.preparationError || file.data.length === 0)) throw new Error("analysis-file-preparation-failed");
@@ -354,7 +356,7 @@ export async function analyzeBatch(text: string, files: AnalysisFile[], previous
   let last: unknown;let busy:ProviderError|undefined;
   // Racing both providers doubles the spend on every first read; it is opt-in (P5_TEXT_RACE=true) for hosts that value latency over cost.
   const baseSourceInstruction=sourceInstruction;
-  if(options.race&&!options.takeoffRevisions&&!files.length&&configured.length>1&&process.env.P5_TEXT_RACE==='true'){
+  if(!qaPaidContext()&&options.race&&!options.takeoffRevisions&&!files.length&&configured.length>1&&process.env.P5_TEXT_RACE==='true'){
     // A first typed-scope read is cheap to run twice and expensive to wait on.
     // Every configured provider reads it at once; the first valid result wins
     // and the rest are abandoned. Document sections and follow-up reads that
@@ -440,6 +442,7 @@ export async function analyzeBatch(text: string, files: AnalysisFile[], previous
       return result;
     } catch (error) {
       report(provider,started,'failed',error,provider.kind!==primaryKind||visualRetry.has(providerIndex),{visualFallback:visualRetry.has(providerIndex)});
+      if(qaPaidContext())throw error;
       if(isProcessingDeadline(error)&&Date.now()>=absoluteDeadline)throw error;
       // The page bytes were refused (unsupported input, too large, bad request):
       // read the same page visually with the same provider before
@@ -542,5 +545,6 @@ export function benchmarkProvider(kind:ProviderKind,model:string):Provider|null{
   return key?{kind,key,endpoint:'https://api.anthropic.com/v1',model}:null;
 }
 export function benchmarkRead(provider:Provider,files:AnalysisFile[],text:string,timeoutMs:number):Promise<AnalysisResult>{
-  return provider.kind==='OpenAI'?analyzeWithOpenAI(provider,text,files,{},fetch,timeoutMs,'',false):analyzeWithAnthropic(provider,text,files,{},fetch,timeoutMs,"",false);
+  const request:typeof fetch=(input,init)=>qaProviderFetch(fetch,input,init);
+  return provider.kind==='OpenAI'?analyzeWithOpenAI(provider,text,files,{},request,timeoutMs,'',false):analyzeWithAnthropic(provider,text,files,{},request,timeoutMs,"",false);
 }

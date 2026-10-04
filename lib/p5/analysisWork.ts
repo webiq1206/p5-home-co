@@ -1,3 +1,4 @@
+import {withQaPaidDraft,qaPaidContext} from './qaPaid.ts';
 import {assertQaProvidersAllowed} from './qaProviderPolicy.ts';
 import {MODEL_POLICY_VERSION} from './modelPolicy.ts';
 import {ANALYSIS_PASS_MS,READ_ALLOWANCE_MS,READ_START_MARGIN_MS,remainingBudget,ProcessingDeadlineError,isProcessingDeadline} from './processingBudget.ts';
@@ -96,7 +97,10 @@ export async function advanceMixedSources(draft:Draft,text:string,answers:ScopeA
  return {pending:false,version:createHash('sha256').update(JSON.stringify([MODEL_POLICY_VERSION,text,answers,draft.uploads.map(f=>[f.id,f.sha256])])).digest('hex'),analysis:{modelPolicy:MODEL_POLICY_VERSION,extraction,provider:[read.analysis.provider,additional.analysis.provider].join(' + '),model:[read.analysis.model,additional.analysis.model].join(' + '),analyzedAt:new Date().toISOString()}};
 }
 /** Each request checkpoints work before returning. Reloading resumes the same source fingerprint. */
-export async function advanceAnalysis(draft:Draft,text:string,answers:ScopeAnswers,request=fetch,retryFailed=false,absoluteDeadline=Date.now()+ANALYSIS_PASS_MS):Promise<DocumentAnalysisStep>{
+export async function advanceAnalysis(...args:Parameters<typeof advanceAnalysisImpl>):Promise<DocumentAnalysisStep>{
+ return withQaPaidDraft(args[0].id,()=>advanceAnalysisImpl(...args));
+}
+async function advanceAnalysisImpl(draft:Draft,text:string,answers:ScopeAnswers,request=fetch,retryFailed=false,absoluteDeadline=Date.now()+ANALYSIS_PASS_MS):Promise<DocumentAnalysisStep>{
   await assertQaProvidersAllowed(draft.id);
   remainingBudget(absoluteDeadline);
   const key=analysisWorkKey(draft,text,answers);
@@ -261,6 +265,7 @@ async function advanceLocalAnalysis(draft:Draft,text:string,answers:ScopeAnswers
             // The pass ran out, not the read. Give the attempt back and let the next pass resume it.
             unit.attempts=Math.max(0,(unit.attempts||1)-1);unit.active=false;await checkpoint();break;
           }
+          if(qaPaidContext()){unit.attempts=Math.max(0,(unit.attempts||1)-1);unit.active=false;await checkpoint();throw error;}
           const detail=describeError(error);
           unit.lastCode=detail.code;
           unit.error=`${unit.name}: automatic reading could not finish (${detail.code}).`;
