@@ -1,5 +1,7 @@
 import {AsyncLocalStorage} from 'node:async_hooks';
 import {createHash} from 'node:crypto';
+import {qaBrokerEnvironment} from './qaBrokerConfiguration.ts';
+import {ESTIMATOR_BRAND} from './brand.ts';
 
 export const QA_PAID_KEY='qa-bounded-provider-v1';
 type Context={draftId:string};
@@ -31,7 +33,7 @@ export async function qaProviderFetch(request:typeof fetch,input:Parameters<type
  if(String(input)!=='https://api.anthropic.com/v1/messages'||init?.method!=='POST'||typeof init.body!=='string')throw new QaPaidHold('This QA request uses an unsupported provider boundary.');
  const parsed=JSON.parse(init.body);
  const {documentServiceConfiguration,documentServiceHeaders}=await import('./documentServiceClient.ts');
- const config=documentServiceConfiguration();
+ const config=documentServiceConfiguration(qaBrokerEnvironment(process.env,ESTIMATOR_BRAND.domain));
  const path='/v1/projects/'+encodeURIComponent('qa-paid-'+context.draftId)+'/qa-provider';
  // The immutable request hash is a dedupe identity, never permission to spend.
  // Only a server-provisioned one-use native review permits the exact intent.

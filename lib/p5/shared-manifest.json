@@ -1,6 +1,6 @@
 {
  "source": "p5-home-co",
- "commit": "c86e7f3414c6a6a80c3896984b94962cbd0f41e0",
+ "commit": "e05fbe08aaf7d55adea88611e5906d63273e68cd",
  "generatedAt": "2026-10-04T08:52:07.358Z",
  "note": "P5-only qualification baseline. Child rollout is paused until live acceptance is verified. Hash checks remain mandatory.",
  "files": {
@@ -160,7 +160,7 @@
   "lib/p5/projectUnits.ts": "53953807731aff9ad2495cbed31d78e36703ebf35128d1b4bb296af858adb0a0",
   "lib/p5/projectWorkflow.ts": "9ff050be8daa3ba235246ef14c2a6a7b3c6fb751992f0c8e206901e192f63dd5",
   "lib/p5/providerBudget.ts": "fd22c8b40001da8149b92e8993ae7466ccebca6cb27026d61174aaa0c3e1522f",
-  "lib/p5/qaPaid.ts": "46d76b0cf32b624cd3d2d749146640c9605610400a09be02378e404eaa3357f8",
+  "lib/p5/qaPaid.ts": "42efd56ab902f066074b611692088447458ac3931cab875b33b7aecfb080f943",
   "lib/p5/qaProviderPolicy.ts": "78ade205594cc5cc8e09e068f20be3b48d41a6fd8547184e038b3d2e033a0b22",
   "lib/p5/questionBudget.ts": "b8f4727d64fd8859405721a4632aef141638b67d817e45901ad2b0a6cc94478a",
   "lib/p5/questionPolicy.ts": "85dbc5b5fe7c77093a29ef1da780dca2ae0e0a9a32bcfd784e98a554b8fda2f5",
@@ -438,6 +438,8 @@
   "tests/p5-upload-transfer.test.ts": "57046bd3c25bb27b905dcca03ac6f41484812501fa4ad719fc2baf99d54e1c1c",
   "tests/p5-with-timeout.test.ts": "19144aa63a2d3e7991a67ec19e2f1ae867b40d55a499a3b7ad98e45ce8c3284e",
   "tests/p5-wizard-resume.test.ts": "423176433a701f191c5e88c99924a28748c001da3b4a746b892843cf52319085",
-  "tests/p5-work-recovery.test.ts": "ef035f0257de7b9ddb4f8736044a72276a90d5599866587542f229db30debfdb"
+  "tests/p5-work-recovery.test.ts": "ef035f0257de7b9ddb4f8736044a72276a90d5599866587542f229db30debfdb",
+  "lib/p5/qaBrokerConfiguration.ts": "058e66ee4bb0e95423f05d7e6f74abd844bcc7c795b1ec57f783596a213943af",
+  "tests/p5-qa-broker-configuration.test.ts": "34ce403579bd2a84ed9369be7ce97add2c2d1a07a64fea33fb4d8bc6b6e71517"
  }
 }
