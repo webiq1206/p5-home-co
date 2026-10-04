@@ -65,7 +65,7 @@ export function qaWire(input){
 
 export class QaBudget{
  constructor(store,config,request=fetch){this.store=store;this.config=config;this.request=request;}
- async init(){await this.store.pool.query(QA_DDL);}
+ async init(){for(const statement of QA_DDL.split(';').map(s=>s.trim()).filter(Boolean))await this.store.pool.query(statement);}
  async binding(tenant,project){return (await this.store.pool.query('SELECT * FROM p5ds_qa_projects WHERE tenant=$1 AND project=$2',[tenant,project])).rows[0]||null;}
  // Server-side operator function only. Immutable singleton prevents fresh-run
  // recreation from resetting lifetime usage. Historical unknown remains held.

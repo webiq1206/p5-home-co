@@ -98,7 +98,10 @@ export class Pipeline{
    if(citations.statements.length&&!saved.repair){
     // One bounded correction per saved response. An interrupted correction is
     // inspected instead of silently paying for another on a job retry.
-    if(saved.repairStarted)throw new ServiceError('citation-repair-needs-inspection',422);
+    // QA may resume this checkpoint only through its exact one-use broker.
+    // A review hold has not dispatched; settled replies replay, and unknown
+    // charges remain blocked by the durable ledger. Legacy guards stay intact.
+    if(saved.repairStarted&&!String(job.project||'').startsWith('qa-paid-'))throw new ServiceError('citation-repair-needs-inspection',422);
     signal.throwIfAborted();saved.repairStarted=true;
     await save();
     saved.repair=await this.reader.call(job,CITATION_SYSTEM,citations,[],CITATION_SCHEMA,signal,verify,'citation');

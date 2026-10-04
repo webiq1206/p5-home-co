@@ -6,6 +6,7 @@ type Context={draftId:string};
 const current=new AsyncLocalStorage<Context>();
 export const qaPaidContext=()=>current.getStore();
 export class QaPaidHold extends Error {status=422;code='qa-paid-review-required';}
+export const isQaReviewWait=(error:unknown)=>error instanceof QaPaidHold&&error.message==='qa-exact-request-review-required';
 /** Server-owned markers only. The public draft API never creates this policy.
  * Inherited context cannot be cleared by an inner helper missing identity. */
 export async function withQaPaidDraft<T>(draftId:string|undefined,work:()=>Promise<T>):Promise<T>{

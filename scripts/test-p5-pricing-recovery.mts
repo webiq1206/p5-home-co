@@ -188,6 +188,29 @@ try{
  assert.equal((await run(auditExhausted)).customer.range,null,'an incomplete single-task audit cannot release pricing');
  assert.equal((await run(auditExhausted)).customer.range,null);
  assert.equal(singleAuditCalls,1,'an unsplittable output failure does not repeat paid work');
+
+ // QA native review wait must not consume the durable repair working budget.
+ const qa=await mod('qaPaid'),qaId=randomUUID();
+ await store.saveDraft(qaId,randomBytes(32).toString('hex'),ESTIMATOR_BRAND.id,{text:scope.text,answers:scope.answers,extraction:null,reviewed:null,contact:{name:'[QA] Repair wait',email:'',phone:''}},0,'bounded-paid');
+ let permit=false,repairAttempts=0,repairCompletions=0,qaAudits=0;
+ const realNow=Date.now;let fakeNow=realNow();Date.now=()=>fakeNow;
+ try{
+  provider.setProvider(async(_instructions:string,value:unknown)=>{
+   const input=value as StageInput&{repairInstruction?:string};
+   if(input.taskBatch){
+    if(input.repairInstruction){repairAttempts++;if(!permit)throw new qa.QaPaidHold('qa-exact-request-review-required');repairCompletions++;}
+    return reply({tasks:input.taskBatch.map(item=>({...item,existingLineIds:lines,additions:[],researchDescription:'',issues:[]})),issues:[]});
+   }
+   if('priorPricingIssues' in input){qaAudits++;return reply({coveredTaskIds:[task.id],issues:qaAudits===1?['cabinets: wrong unit does not match the explicit requested quantity.']:[]});}
+   return reply({tasks:[task],issues:[]});
+  });
+  await assert.rejects(run(qaId),/review-required/);
+  const before=await payload(qaId) as any;assert.ok(before.repairClock);assert.equal(before.qaReviewWaitStartedAt,fakeNow);
+  fakeNow+=240000;permit=true;
+  const repaired=await run(qaId);assert.equal(repairCompletions,1,'reviewed repair resumes after more than the210s work budget');
+  const after=await payload(qaId) as any;assert.equal(after.qaReviewWaitStartedAt,undefined);assert.equal(after.repairClock.startedAt,before.repairClock.startedAt+240000);assert.equal(repairAttempts,2);assert.ok(repaired.customer.range);
+ }finally{Date.now=realNow;}
+
  assert.equal((await db!.query('SELECT * FROM p5_estimator_work WHERE lease_token IS NOT NULL')).length,0);
  assert.equal((await db!.query('SELECT * FROM p5_estimator_outbox')).length,0);
  assert.equal(unexpectedNetwork,0,'every provider boundary is isolated');

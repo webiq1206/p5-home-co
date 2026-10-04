@@ -1,4 +1,4 @@
-import {withQaPaidDraft,qaPaidContext} from './qaPaid.ts';
+import {withQaPaidDraft,qaPaidContext,isQaReviewWait} from './qaPaid.ts';
 import {assertQaProvidersAllowed} from './qaProviderPolicy.ts';
 import {withSupportedServiceBook} from './planningBooks.ts';
 import {MODEL_POLICY_VERSION,ESTIMATOR_MODEL,ESTIMATOR_PROVIDER} from './modelPolicy.ts';
@@ -42,7 +42,7 @@ export function reusableSavedPricingReply(value:unknown):value is PricingReply{
 }
 type RequestFailure={attempt:number;failedAt:string;causes:ReturnType<typeof pricingFailureDetails>};
 type RequestTrace={fingerprint:string;provider:string;model:string;stage:string;attempt:number;startedAt:string;taskIds?:string[];repair?:'format'|'scope';mappingResult?:{tasksType:string;returnedTaskIds:(string|null)[]};failedAt?:string;causes?:ReturnType<typeof pricingFailureDetails>;failures:RequestFailure[]};
-type Payload=PricingRepairState&{replies:Record<string,PricingReply>;requests?:Record<string,RequestTrace>;shortlists?:Record<string,Record<string,string[]>>;failures?:number;completed?:number;regionalRates?:EstimatorConfiguration['regionalRates'];researchLeads?:EstimatorConfiguration['researchLeads'];processing?:ProcessingStatus;pricingAt?:string;busyWaitMs?:number};
+type Payload=PricingRepairState&{replies:Record<string,PricingReply>;requests?:Record<string,RequestTrace>;shortlists?:Record<string,Record<string,string[]>>;failures?:number;completed?:number;regionalRates?:EstimatorConfiguration['regionalRates'];researchLeads?:EstimatorConfiguration['researchLeads'];processing?:ProcessingStatus;pricingAt?:string;busyWaitMs?:number;qaReviewWaitStartedAt?:number};
 export async function priceSavedScope(...args:Parameters<typeof priceSavedScopeImpl>){
  // Preserve the existing source-coverage gate before any database operation.
  if(SOURCE_COVERAGE_REQUIRED)assertProjectSourceCoverage(args[1].uploads,args[1].extraction);
@@ -68,6 +68,12 @@ async function priceSavedScopeImpl(id:string,scope:ReviewedScope,configuration:E
  configuration={...configuration,researchLeads:payload.researchLeads||[],regionalRates:(payload.regionalRates||[]).filter(rule=>rule.estimatingBasis==='sourced-market-average')};
  let saving=Promise.resolve();
  const persist=()=>{saving=saving.then(async()=>{try{await writeWork(id,workKey,claimed.token,payload);}catch{throw new PricingPending('Pricing progress could not be saved yet. Please retry to continue.',0);}});return saving;};
+ // Only time awaiting a verified pre-dispatch QA review is excluded. Real
+ // provider work, unknown charges and ordinary customer clocks keep their bounds.
+ if(qaPaidContext()&&payload.qaReviewWaitStartedAt!==undefined){
+  if(payload.repairClock)payload.repairClock.startedAt+=Math.max(0,Date.now()-payload.qaReviewWaitStartedAt);
+  delete payload.qaReviewWaitStartedAt;await persist();
+ }
  // A new shortlist changes the mapping request hash even when the scope is
  // unchanged. Persist it before mapping so retries reuse finished work and
  // retain their actual attempt counts. An empty fallback is stable too.
@@ -224,5 +230,5 @@ async function priceSavedScopeImpl(id:string,scope:ReviewedScope,configuration:E
  };
  // The saved-stage lease outlives a pass; keep it renewed while this pass runs.
  const renew=setInterval(()=>{void renewWork(id,workKey,claimed.token,290).catch(()=>{});},60_000);renew.unref?.();
- try{const priced=await priceCompleteScope(scope,configuration,staged,pricingAt,deadline,!qaPaidContext()&&pricingCacheEnabled()?databasePricingCache():undefined,payload.busyWaitMs||0,()=>beginPricingRepair(payload,persist,payload.busyWaitMs||0),selectBook);if(!qaPaidContext()&&priced.customer.range&&priced.internal&&'costBookSnapshot' in priced.internal){await saveRegionalRates(id,scope.answers.location||'',priced.internal.costBookSnapshot?.rules||[]);await saveLearnedLines(priced.internal.costBookSnapshot?.rules||[],scope.answers.service||'',id,{location:scope.answers.location||'',finish:scope.answers.finish},pricingAt).catch(error=>{console.error('[p5-book] learned lines could not be saved:',error instanceof Error?error.message:error);throw new PricingPending('Your estimate is priced. Saving its new cost-book rates before completing the estimate.',4000);});}return priced;}finally{clearInterval(renew);await releaseWork(id,workKey,claimed.token);}
+ try{const priced=await priceCompleteScope(scope,configuration,staged,pricingAt,deadline,!qaPaidContext()&&pricingCacheEnabled()?databasePricingCache():undefined,payload.busyWaitMs||0,()=>beginPricingRepair(payload,persist,payload.busyWaitMs||0),selectBook);if(!qaPaidContext()&&priced.customer.range&&priced.internal&&'costBookSnapshot' in priced.internal){await saveRegionalRates(id,scope.answers.location||'',priced.internal.costBookSnapshot?.rules||[]);await saveLearnedLines(priced.internal.costBookSnapshot?.rules||[],scope.answers.service||'',id,{location:scope.answers.location||'',finish:scope.answers.finish},pricingAt).catch(error=>{console.error('[p5-book] learned lines could not be saved:',error instanceof Error?error.message:error);throw new PricingPending('Your estimate is priced. Saving its new cost-book rates before completing the estimate.',4000);});}return priced;}catch(error){if(qaPaidContext()&&isQaReviewWait(error)&&payload.repairClock){payload.qaReviewWaitStartedAt??=Date.now();await persist();}throw error;}finally{clearInterval(renew);await releaseWork(id,workKey,claimed.token);}
 }
