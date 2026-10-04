@@ -1,0 +1,45 @@
+name: P5 offline original-plan acceptance harness
+on:
+  pull_request:
+    paths:
+      - 'scripts/lib/capturedPricingDelivery.ts'
+      - 'scripts/lib/pricingQualification.ts'
+      - 'scripts/lib/recoveryEpoch.mjs'
+      - 'scripts/check-p5-recovery-request.mjs'
+      - 'scripts/test-p5-recovery-request.mjs'
+      - 'scripts/lib/recoveryTransport.mjs'
+      - 'scripts/test-p5-recovery-transport.mjs'
+      - 'scripts/lib/exactPricingReplay.mjs'
+      - 'scripts/check-p5-original-plan-replay.mts'
+      - 'scripts/test-p5-original-plan-replay.mts'
+      - 'scripts/test-p5-pricing-qualification.mts'
+      - 'scripts/test-p5-pricing-replay.mjs'
+      - 'scripts/test-p5-recovery-epoch.mjs'
+      - '.github/workflows/p5-original-plan-acceptance.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  offline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      P5_CRM_DELIVERY: 'off'
+      P5_OBJECT_STORAGE_ENABLED: 'false'
+      P5_ESTIMATOR_PROVIDER: 'openai'
+      NEXT_TELEMETRY_DISABLED: '1'
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Crash, liability, identity and exact-replay guards
+        run: node --test scripts/test-p5-recovery-epoch.mjs scripts/test-p5-pricing-replay.mjs scripts/test-p5-recovery-transport.mjs scripts/test-p5-recovery-request.mjs
+      - name: Actual persistence, PDF and CRM-off checks (synthetic only)
+        run: node --import tsx scripts/test-p5-pricing-qualification.mts
+      - name: Actual pricing engine through exact replay and persistence (synthetic only)
+        run: node --import tsx scripts/test-p5-original-plan-replay.mts

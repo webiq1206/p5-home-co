@@ -18,20 +18,20 @@ export function explicitCabinetAbsence(field:ScopeField,value:string,evidence:st
 }
 /** Accept only arithmetic grounded in an explicitly attributed cabinet width.
  * Heights, counts alone, room dimensions and estimates remain unconfirmed. */
-export function verifiedCabinetWidth(field:ScopeField,value:string,evidence:string):boolean{
+export function cabinetWidthFeet(field:ScopeField,evidence:string):number|null{
  const assembly=assemblies[field];
- if(!assembly||/\b(?:assum\w*|infer\w*|estimated|unknown|not (?:specified|measured|shown))\b/i.test(evidence))return false;
- const expected=Number(value.replaceAll(',',''));if(!Number.isFinite(expected)||expected<=0)return false;
- const same=(width:number,count=1)=>Math.abs(width*count/12-expected)<.005;
+ if(!assembly||/\b(?:assum\w*|infer\w*|estimated|unknown|not (?:specified|measured|shown))\b/i.test(evidence))return null;
+ const feet=(width:number,count=1)=>width>0&&count>0?width*count/12:null;
  const many=new RegExp('\\b(\\d+|'+Object.keys(counts).join('|')+')\\s+'+assembly+'s?\\s*[,;:]?\\s*(?:each\\s+|at\\s+)'+number+inches+'\\s*(?:wide|width)\\b','gi');
  const groups=[...evidence.matchAll(many)];
- if(groups.length)return groups.length===1&&same(Number(groups[0][2]),counts[groups[0][1].toLowerCase()]||Number(groups[0][1]));
+ if(groups.length)return groups.length===1?feet(Number(groups[0][2]),counts[groups[0][1].toLowerCase()]||Number(groups[0][1])):null;
  const sizedAssembly='(?:[- ]wide\\s+'+assembly+(field==='cabinetBaseLf'?'|\\s+vanit(?:y|ies)(?: cabinets?)?':'')+')';
  const sizedSet=new RegExp('\\b(\\d+|'+Object.keys(counts).join('|')+')\\s+'+number+inches+sizedAssembly+'s?\\b','gi');
  const sets=[...evidence.matchAll(sizedSet)];
- if(sets.length)return sets.length===1&&same(Number(sets[0][2]),counts[sets[0][1].toLowerCase()]||Number(sets[0][1]));
+ if(sets.length)return sets.length===1?feet(Number(sets[0][2]),counts[sets[0][1].toLowerCase()]||Number(sets[0][1])):null;
  // An explicitly plural set needs an attributed count, not one cabinet's width.
- if(/\beach\b/i.test(evidence))return false;
+ if(/\beach\b/i.test(evidence))return null;
+ if([...evidence.matchAll(new RegExp('\\b'+assembly+'\\b','gi'))].some(match=>match[0].toLowerCase().endsWith('s')))return null;
  const widths=[
   new RegExp('\\b'+assembly+"(?:'s)?\\s*(?:[:,-]\\s*|(?:is|measures?)\\s+)?"+number+inches+'\\s*(?:wide|width)\\b','gi'),
   new RegExp('\\b'+number+inches+'(?:[- ]wide)?\\s+'+assembly+'\\s+(?:width|wide)\\b','gi'),
@@ -40,5 +40,9 @@ export function verifiedCabinetWidth(field:ScopeField,value:string,evidence:stri
  // A nominal vanity size is a cabinet width, as in a specified 48-inch vanity.
  if(field==='cabinetBaseLf')widths.push(new RegExp('\\b'+number+inches+'\\s+vanity\\b(?!\\s+(?:height|tall|deep|depth))','gi'));
  const matches=[...new Map(widths.flatMap(pattern=>[...evidence.matchAll(pattern)].map(match=>[match.index,Number(match[1])] as const))).values()];
- return matches.length===1&&same(matches[0]);
+ return matches.length===1?feet(matches[0]):null;
+}
+export function verifiedCabinetWidth(field:ScopeField,value:string,evidence:string):boolean{
+ const feet=cabinetWidthFeet(field,evidence),expected=Number(value.replaceAll(',',''));
+ return feet!==null&&Number.isFinite(expected)&&expected>0&&Math.abs(feet-expected)<.005;
 }

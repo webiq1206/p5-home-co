@@ -12,7 +12,9 @@ const database=new URL(process.env.DOCUMENT_TEST_DATABASE_URL);database.pathname
 database.searchParams.set('sslmode','disable'); // This fixture uses the disposable local CI PostgreSQL server.
 const shared=new pg.Pool({connectionString:database.href});
 await shared.query('CREATE TABLE website_sentinel(value text); INSERT INTO website_sentinel VALUES(\'preserved\')');
-const child=spawn(process.execPath,['services/document-service/src/cohost.mjs'],{stdio:'inherit',env:{...process.env,PORT:'5090',P5_DOCUMENT_HOST_ENABLED:'true',P5_DOCUMENT_WEB_PORT:'5091',P5_DOCUMENT_WORKER_PORT:'5092',DATABASE_URL:database.href,DOCUMENT_DATABASE_URL:'',P5_DOCUMENT_TENANTS_JSON:JSON.stringify({[tenant]:key}),DOCUMENT_MODEL:'ci-placeholder-no-provider-calls',DOCUMENT_PROVIDER:'anthropic',ANTHROPIC_API_KEY:'ci-placeholder-no-provider-calls'}});
+// Select the provider that owns this fixture's synthetic key, independently
+// of the parent process's adapter-test selector. No inference request is sent.
+const child=spawn(process.execPath,['services/document-service/src/cohost.mjs'],{stdio:'inherit',env:{...process.env,PORT:'5090',P5_DOCUMENT_HOST_ENABLED:'true',P5_DOCUMENT_WEB_PORT:'5091',P5_DOCUMENT_WORKER_PORT:'5092',DATABASE_URL:database.href,DOCUMENT_DATABASE_URL:'',P5_DOCUMENT_TENANTS_JSON:JSON.stringify({[tenant]:key}),P5_ESTIMATOR_PROVIDER:'anthropic',DOCUMENT_MODEL:'ci-placeholder-no-provider-calls',DOCUMENT_PROVIDER:'anthropic',ANTHROPIC_API_KEY:'ci-placeholder-no-provider-calls'}});
 const exited=once(child,'exit');
 try{
  let ready=false;

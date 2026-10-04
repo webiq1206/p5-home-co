@@ -4,6 +4,7 @@ import {join,resolve} from 'node:path';
 import {tmpdir} from 'node:os';
 import {fileURLToPath} from 'node:url';
 import {createHash} from 'node:crypto';
+import {buildRenderer} from './p5-renderer-build.mjs';
 
 /** Hosting may run npm install before our build command. Restore only the
  * committed lock, retaining the bootstrap copy for diagnostics. Uncommitted
@@ -27,6 +28,7 @@ export function prepareReviewedLock(cwd=process.cwd()){
 }
 if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url)){
  const receipt=prepareReviewedLock();console.log('[p5-build] Reviewed dependency lock',receipt);
+ buildRenderer();
  for(const args of [['ci','--no-audit','--no-fund'],['ci','--prefix','services/document-service','--omit=dev','--no-audit','--no-fund'],['run','build']]){
   const result=spawnSync('npm',args,{stdio:'inherit',env:process.env});
   if(result.error||result.status!==0)process.exit(result.status||1);

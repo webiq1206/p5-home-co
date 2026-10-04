@@ -1,0 +1,6 @@
+# Official PyPI 5.3.0 wheels: Linux amd64/arm64 and Windows amd64 only.
+# No source builds, dependency resolution, or runtime downloads.
+pypdfium2==5.3.0 \
+    --hash=sha256:b3ff1071e9a782625822658dfe6e29e3a644a66960f8713bb17819f5a0ac5987 \
+    --hash=sha256:35e205f537ddb4069e4b4e22af7ffe84fcf2d686c3fee5e5349f73268a0ef1ca \
+    --hash=sha256:8365af22a39d4373c265f8e90e561cd64d4ddeaf5e6a66546a8caed216ab9574

@@ -1,4 +1,5 @@
 import {SCOPE_FIELDS,type ScopeField} from './scope.ts';
+import {cabinetWidthFeet} from './cabinetMeasurements.ts';
 
 /** What a customer's sentence said about one numeric question.
  *
@@ -86,7 +87,19 @@ export function parseNumericAnswer(field:ScopeField,answer:string):NumericAnswer
       return {value:computed,note:text};
     }
   }
-  if(dimension==='length'){const mixed=feetInches(text);if(mixed)return {value:clean(mixed.value),note:noteFrom(text,[mixed])};}
+  if(dimension==='length'){
+    const cabinetWidth=cabinetWidthFeet(field,text);
+    if(cabinetWidth!==null){
+      const statedFeet=numbersIn(text,'length').filter(item=>item.matches);
+      if(statedFeet.some(item=>Math.abs(item.value-cabinetWidth)>.005))return null;
+      return {value:clean(cabinetWidth),note:text};
+    }
+    // A standalone inch answer is a length in the field's canonical feet.
+    // Keep compound dimensions for attributed-width parsing or clarification.
+    const inches=text.match(/^(\d+(?:\.\d+)?)\s*(?:inches|inch|in\.?|")[\s.]*$/i);
+    if(inches)return {value:clean(Number(inches[1])/12)};
+    const mixed=feetInches(text);if(mixed)return {value:clean(mixed.value),note:noteFrom(text,[mixed])};
+  }
   // A stated range ("35 to 40 square feet") is two possible answers, not one.
   const range=text.match(/(\d+(?:\.\d+)?)\s*(?:to|or|-|–)\s*(\d+(?:\.\d+)?)/i);
   if(range&&range[1]!==range[2])return {choices:[clean(Number(range[1])),clean(Number(range[2]))],note:text};

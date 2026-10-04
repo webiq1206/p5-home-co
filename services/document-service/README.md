@@ -34,7 +34,7 @@ elapsed times stop at the stored terminal timestamp instead of increasing on pol
 This folder is a Node 24 app requiring an always-on process. For the existing P5 Reserved VM, use the cohosting section below; it requires no separate server or database. The following steps apply only if a separate host is explicitly chosen and approved. Do not run the queue as a background timer in an Autoscale website.
 
 1. Import the reviewed GitHub source into the separate worker workspace. Set its working directory to `services/document-service`.
-2. Install with `npm ci`; start with `npm start`. A Dockerfile is also provided, with this folder as its build context.
+2. Install with `npm ci` and install the pinned Python/PDFium runtime described in [RENDERER.md](RENDERER.md); start with `npm start`. The Dockerfile includes both runtimes, with this folder as its build context.
 3. Provision the service's own PostgreSQL database. Populate `DOCUMENT_DATABASE_URL`, unique server-side tenant secrets, provider key and explicit model names using the host's secret manager. `.env.example` intentionally contains no usable credentials.
 4. Use HTTPS at the service ingress. Health checks use `/healthz`; a signed `/readyz` request checks database connectivity and configuration. Configuration readiness is not a live provider benchmark.
 5. Run the real benchmark and validate its source output before switching a website to the remote reader.
