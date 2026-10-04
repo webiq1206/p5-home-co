@@ -72,7 +72,10 @@ export class Reader{
    const headers={'content-type':'application/json',...(c.provider==='anthropic'?{'x-api-key':c.key,'anthropic-version':'2023-06-01'}:c.provider==='gemini'?{'x-goog-api-key':c.key}:{authorization:`Bearer ${c.key}`})};
    const combined=deadline.signal;
    const onProviderProgress=progress=>{deadline.touch();if(progress.streaming)requestDetail.stream=progress;};
-   const response=await this.request(c.provider==='openai'&&c.endpoint?`${c.endpoint}/responses`:built.url,{method:'POST',headers,body:JSON.stringify(built.body),signal:combined,redirect:'error',onProviderProgress});
+   const qa=String(job.project||'').startsWith('qa-paid-');
+   if(qa&&!this.store.qa)throw new ServiceError('qa-ledger-unavailable',422);
+   const response=qa?Response.json(await this.store.qa.dispatch(job.tenant,job.project,`document:${job.id}:${purpose}`,built.body,combined)):
+    await this.request(c.provider==='openai'&&c.endpoint?`${c.endpoint}/responses`:built.url,{method:'POST',headers,body:JSON.stringify(built.body),signal:combined,redirect:'error',onProviderProgress});
    if(!response.ok){
     const requested=response.headers.get('retry-after');const seconds=Number(requested);const retryMs=Number.isFinite(seconds)?Math.min(120000,Math.max(1000,seconds*1000)):Math.max(1000,Math.min(120000,Date.parse(requested||'')-Date.now()||1000));
     if(response.status===429){await this.store.cooldown(retryMs);throw new ServiceError('provider-rate-limit',429,retryMs);}

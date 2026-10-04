@@ -1,4 +1,5 @@
 import {randomUUID} from 'node:crypto';
+import {QaBudget} from './qa-budget.mjs';
 import {documentId,jobId,hash,ServiceError,VERSION,providerCallLimit} from './core.mjs';
 export const DDL=`
 CREATE TABLE IF NOT EXISTS p5ds_documents (
@@ -25,8 +26,8 @@ CREATE TABLE IF NOT EXISTS p5ds_provider_leases(token text PRIMARY KEY,expires_a
 CREATE TABLE IF NOT EXISTS p5ds_metrics(id bigserial PRIMARY KEY,job_id text NOT NULL,stage text NOT NULL,duration_ms integer NOT NULL,detail jsonb NOT NULL DEFAULT '{}',created_at timestamptz NOT NULL DEFAULT now());
 `;
 export class Store{
- constructor(pool,config){this.pool=pool;this.config=config;}
- async init(){await this.pool.query(DDL);}
+ constructor(pool,config){this.pool=pool;this.config=config;this.qa=new QaBudget(this,config);}
+ async init(){await this.pool.query(DDL);await this.qa.init();}
  async transaction(fn){const c=await this.pool.connect();try{await c.query('BEGIN');const v=await fn(c);await c.query('COMMIT');return v;}catch(e){await c.query('ROLLBACK').catch(()=>{});throw e;}finally{c.release();}}
  async nonce(tenant,nonce){const r=await this.pool.query('INSERT INTO p5ds_nonces(tenant,nonce) VALUES($1,$2) ON CONFLICT DO NOTHING RETURNING nonce',[tenant,nonce]);return r.rowCount===1;}
  async putDocument(tenant,project,name,bytes){

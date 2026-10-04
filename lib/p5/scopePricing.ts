@@ -1,3 +1,4 @@
+import {qaProviderFetch,qaPaidContext,QaPaidHold} from './qaPaid.ts';
 import {ESTIMATOR_PROVIDER,ESTIMATOR_MODEL,assertEstimatorModel,EstimatorModelError} from './modelPolicy.ts';
 import {pricingHttpError,missingResearchSources} from './pricingDiagnostics.ts';
 import {unitKey,reusableUnitRate,supportedUnit,boiseArea,boisePriceRegion,UNIT_REGISTRY} from './unitRates.ts';
@@ -380,7 +381,7 @@ const requestPricingWithUnsafe=async(provider:'anthropic'|'openai',instructions:
     const sequence=++requestSequence;
     if(requestIdentity)await recordPricingRequest(requestIdentity,sequence,'started');
     try {
-      const response=await fetchWithinDeadline(fetch,input,init||{},started+remainingMs);
+      const response=await fetchWithinDeadline((url,options)=>qaProviderFetch(fetch,url,options),input,init||{},started+remainingMs);
       if(requestIdentity)await recordPricingRequest(requestIdentity,sequence,'completed');
       return response;
     } catch(error) {
@@ -429,7 +430,7 @@ const requestPricingWithUnsafe=async(provider:'anthropic'|'openai',instructions:
     const lastTool=content.reduce((last:number,p:any,i:number)=>['web_search_tool_result','web_fetch_tool_result'].includes(p.type)?i:last,-1);
     const raw=content.slice(lastTool+1).filter((p:any)=>p.type==='text').map((p:any)=>p.text).join('');
     if(search&&!sourceUrls.length)throw missingResearchSources(content,lastStopReason,lastRequestId);
-    try{return {value:parseJson(raw),sourceUrls,...(search?{sourceReport:raw}:{}),provider,model,responseModel,providerRequestIds,usage};}catch(error){
+    try{return {value:parseJson(raw),sourceUrls,...(search?{sourceReport:raw}:{}),provider,model,responseModel,providerRequestIds,usage};}catch(error){if(error instanceof QaPaidHold)throw error;
       if(!search)throw error;
       // Checkpoint completed research BEFORE the separately saved formatter
       // runs in reconcileResearchReply. A formatting failure must not discard
@@ -456,7 +457,7 @@ const requestPricingWithUnsafe=async(provider:'anthropic'|'openai',instructions:
   const tokens={inputTokens:Math.max(0,Number(usage.input_tokens||0)),cachedInputTokens:Math.max(0,Number(details.cached_tokens||0)),outputTokens:Math.max(0,Number(usage.output_tokens||0)),totalTokens:Math.max(0,Number(usage.total_tokens||0))};
   const providerIdentity:PricingProviderIdentity|undefined=integrated&&openAiOptions.serviceTier==='default'?{provider:'openai',endpoint:'replit-managed',responseId:String(body.id||''),requestedModel:model,returnedModel:String(body.model||''),requestedServiceTier:'default',returnedServiceTier:String(body.service_tier||''),usage:tokens}:undefined;
   let value:unknown;
-  try{value=parseJson(raw);}catch(error){if(!search)throw error;value=null;}
+  try{value=parseJson(raw);}catch(error){if(error instanceof QaPaidHold)throw error;if(!search)throw error;value=null;}
   // A completed cited search may return prose. Preserve it for the existing
   // strict formatting stage instead of discarding paid research as a timeout.
   return {value,sourceUrls,...(search?{sourceReport:raw}:{}),provider,model,providerRequestIds:body.id?[String(body.id)]:[],responseModel:body.model?String(body.model):undefined,serviceTier:body.service_tier?String(body.service_tier):undefined,usage:tokens,...(providerIdentity?{providerIdentity}:{})};
@@ -465,6 +466,7 @@ const requestPricingWithUnsafe=async(provider:'anthropic'|'openai',instructions:
  * Ambiguous failures are parked and cannot silently fall back or retry. The
  * ledger is always on for P5 Home Co and opt-in elsewhere (see pricingLedger). */
 export const requestPricingWith=async(provider:'anthropic'|'openai',instructions:string,input:unknown,search:boolean,remainingMs:number,openAiOptions:OpenAiPricingOptions={},identity?:PricingIdentity,beforeOpenAIDispatch?:()=>Promise<void>,checkpoint?:(reply:PricingReply)=>Promise<void>):Promise<PricingReply>=>{
+  if(qaPaidContext()){const reply=await requestPricingWithUnsafe(provider,instructions,input,search,remainingMs,openAiOptions,undefined,beforeOpenAIDispatch);if(checkpoint)await checkpoint(reply);return reply;}
   if(!await pricingLedgerActive())return requestPricingWithUnsafe(provider,instructions,input,search,remainingMs,openAiOptions,undefined,beforeOpenAIDispatch);
   const fingerprint=pricingFingerprint(provider,instructions,input,search,identity);
   const reservation=await reservePricingCharge(fingerprint,provider,provider==='anthropic'?4:1);
@@ -1458,9 +1460,9 @@ export async function reconcileResearchReply(reply:PricingReply,tasks:Mapping['t
    // Previously a valid JSON shape with an invalid cartridge/pack conversion
    // threw before this pass, buying another search for a formatting defect.
    try{accepted={...accepted,value:requestedResearchRates(accepted.value,tasks)};}
-   catch(error){if(!(error instanceof ResearchEvidenceError))throw error;return [error.message];}
+   catch(error){if(error instanceof QaPaidHold)throw error;if(!(error instanceof ResearchEvidenceError))throw error;return [error.message];}
    for(const check of [()=>assertResearchReportProducts(accepted.value,accepted.sourceReport,tasks),()=>validate(accepted.value)])try{check();}
-   catch(error){
+   catch(error){if(error instanceof QaPaidHold)throw error;
      if(!(error instanceof ResearchEvidenceError)&&!(error instanceof MissingResearchRateError))throw error;
      errors.push(error.message);
    }
@@ -1910,7 +1912,7 @@ async function mapBatch<T extends {id:string}>(request:PricingRequest,taskBatch:
     const second=batchSchema.safeParse(again.value);
     if(second.success)return second.data;
     return batchSchema.parse(withoutMalformedAdditions(again.value));
-  }catch(error){
+  }catch(error){if(error instanceof QaPaidHold)throw error;
     if(!isPricingStageTimeout(error))throw error;
     if(error.message==='pricing-stage-exhausted'||taskBatch.length<=3){
       if(error.message==='pricing-stage-exhausted')throw error;
@@ -1957,7 +1959,7 @@ export async function requestPricingAudit(request:PricingRequest,input:AuditInpu
     if(input.auditTaskSubset)checked.coveredTaskIds=checked.coveredTaskIds.filter(id=>input.tasks.some(task=>task.id===id));
     return {...reply,value:checked,advisoryProvenance:checked.advisoryReview?[stampAdvisoryReview(ledger,checked.advisoryReview,priced,input.tasks,checked.issues,checked.notes)]:undefined};
   }
-  catch(error){
+  catch(error){if(error instanceof QaPaidHold)throw error;
     const message=error instanceof Error?error.message:String(error);
     const limited=/^pricing-check-incomplete:(?:max_tokens|max_output_tokens)$/.test(message)
       ||isPricingStageTimeout(error)&&error.message==='pricing-stage-output-limit';
@@ -2238,7 +2240,7 @@ export async function priceDetailedScope(scope:ReviewedScope,configuration:Estim
         ]))];
         replies.push({value:accepted,sourceUrls:usedUrls});
         return {replies,resolution:market,modelIssues:accepted.issues};
-      }catch(error){
+      }catch(error){if(error instanceof QaPaidHold)throw error;
         if(isPricingPending(error)||isProcessingDeadline(error))throw error;
         // Missing rates and rejected evidence get a distinct corrective search.
         // Validation remains mandatory: neither failure releases an unchecked price.
@@ -2263,7 +2265,7 @@ export async function priceDetailedScope(scope:ReviewedScope,configuration:Estim
           return {replies,resolution:market,modelIssues:accepted.issues};
         }
         throw new MissingResearchRateError(['Published research did not price every requested task',...market.issues,...accepted.issues].join('; ').slice(0,5000));
-      }catch(error){
+      }catch(error){if(error instanceof QaPaidHold)throw error;
         if(isPricingPending(error)||isProcessingDeadline(error))throw error;
         if(!isPricingStageTimeout(error)&&!(error instanceof MissingResearchRateError)&&!(error instanceof ResearchEvidenceError))throw error;
         researchTimedOut=isPricingStageTimeout(error);
@@ -2282,7 +2284,7 @@ export async function priceDetailedScope(scope:ReviewedScope,configuration:Estim
         }))};
         replies.push({value:accepted,sourceUrls:usedUrls,sourceReport:candidate.report});
         return {replies,resolution:provisional,modelIssues:[]};
-      }catch(error){if(!(error instanceof MissingResearchRateError)&&!(error instanceof ResearchEvidenceError))throw error;}
+      }catch(error){if(error instanceof QaPaidHold)throw error;if(!(error instanceof MissingResearchRateError)&&!(error instanceof ResearchEvidenceError))throw error;}
       // A comparison search timing out does not invalidate a previously
       // verified single-source material allowance. Check saved candidates
       // before pausing; every existing product and quantity guard still applies.
@@ -2307,7 +2309,7 @@ export async function priceDetailedScope(scope:ReviewedScope,configuration:Estim
       try{
         const remaining=applyConsumableCoverage(reply.value,supplies,mapping.tasks,priced);
         return [...candidates.filter(t=>!supplies.includes(t)),...remaining];
-      }catch(error){
+      }catch(error){if(error instanceof QaPaidHold)throw error;
         // Invalid scope claims cannot delete or release required work. The
         // prior gap remains available to research and the independent audit.
         console.error('[p5-pricing] consumable coverage left unchanged:',error instanceof Error?error.message:error);
@@ -2530,7 +2532,7 @@ export async function priceDetailedScope(scope:ReviewedScope,configuration:Estim
       const corrected=applyPricingCorrections({scope:pricingScope,inventoryTasks:inventory.tasks,mappingTasks:mapping.tasks,lines,resolution,pricingExtraction,configuration,now});
       for(const id of corrected.coveredTaskIds)if(!audit.coveredTaskIds.includes(id))audit.coveredTaskIds.push(id);
       for(const note of corrected.notes)console.error(`[p5-pricing] correction: ${note.slice(0,200)}`);
-    }catch(error){console.error('[p5-pricing] deterministic corrections skipped:',error instanceof Error?error.message:error);}
+    }catch(error){if(error instanceof QaPaidHold)throw error;console.error('[p5-pricing] deterministic corrections skipped:',error instanceof Error?error.message:error);}
     // Owner rule: requested work receives a price or a disclosed supported
     // allowance, never an automatic exclusion. Check after assembly coverage
     // has been reconciled, so a genuinely included component is not charged twice.
@@ -2596,7 +2598,7 @@ export async function priceDetailedScope(scope:ReviewedScope,configuration:Estim
       if(allowancePriced&&!audit.issues.some(issue=>blocks(issue)&&named(issue)))resolution.assumptions.push(`${t.description}: priced by a preliminary allowance pending published research; confirm current local rates before a firm proposal.`);
       else resolution.issues.push(`${t.description}: full pricing coverage has not been verified.`);
     }
-  }catch(error){
+  }catch(error){if(error instanceof QaPaidHold)throw error;
     if(isPricingPending(error)||isProcessingDeadline(error))throw error;
     // A stage that ran out of time is not a verdict on the scope. The job
     // pauses and resumes from its saved stages; only a stage that has timed
@@ -2650,7 +2652,7 @@ export async function priceDetailedScope(scope:ReviewedScope,configuration:Estim
       console.error(`[p5-pricing] removed a stated duplicate ${drop.join(', ')}; kept ${keep.id}`);
       resolvedDuplicates.add(issue);
     }
-  }catch(error){console.error('[p5-pricing] duplicate correction skipped:',error instanceof Error?error.message:error);}
+  }catch(error){if(error instanceof QaPaidHold)throw error;console.error('[p5-pricing] duplicate correction skipped:',error instanceof Error?error.message:error);}
   const allTasks=(auditTrail.tasks as {id:string;description:string}[]).map(({id,description})=>({id,description}));
   // A research gap ("no supported price", "no defensible planning average") is computed per task, but
   // the task may already be priced from the owner's book. Live Neilsen (2026-09-21): framing, well and

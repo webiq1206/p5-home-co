@@ -80,6 +80,8 @@ jobs:
           npm test 2>&1 | tee ../../document-service-verification/service-tests.log
       - name: Install existing website dependencies
         run: npm ci --no-audit --no-fund
+      - name: QA cumulative broker integration (fake provider only)
+        run: node --import tsx scripts/test-p5-qa-paid.mts
       - name: Saved-file adapter integration
         run: |
           set -o pipefail

@@ -1,3 +1,4 @@
+import {qaDocumentProject} from './qaPaid.ts';
 import {createHash,createHmac,randomUUID} from 'node:crypto';
 import {pageCovered} from './documentLedger.ts';
 import {query} from './database.ts';
@@ -249,7 +250,8 @@ export async function advanceDocumentService(draft:Draft,text:string,answers:Sco
  // Authenticated, no-charge preflight: the host must attest this tenant and
  // at least the configured limits before any document bytes leave the site.
  const {tenant,secret,origin,limits}=await checkDocumentServiceReadiness(request,process.env,Math.min(deadline,Date.now()+10000));
- const base=`/v1/projects/${encodeURIComponent(draft.id)}`;
+ const project=await qaDocumentProject(draft.id);
+ const base=`/v1/projects/${encodeURIComponent(project)}`;
  const send=async(method:string,path:string,body:Buffer=Buffer.alloc(0),contentType='application/json')=>{
   const response=await fetchWithinDeadline(request,origin.origin+origin.pathname.replace(/\/$/,'')+path,{method,headers:{...documentServiceHeaders(method,path,tenant,secret,body),'content-type':contentType},...(method==='POST'?{body:body as unknown as BodyInit}:{}),redirect:'error'},Math.min(deadline,Date.now()+60000));
   let value:any;try{value=await response.json();}catch{throw new DraftError('The document service returned an invalid response. Saved files are preserved.',503);}
@@ -266,7 +268,7 @@ export async function advanceDocumentService(draft:Draft,text:string,answers:Sco
  try{
   const documents:{id:string;source:string}[]=[],expectedPages=new Set<string>();let complete=true,readPages=0,totalPages=0;
   for(const upload of draft.uploads){
-   remainingBudget(deadline);const id=remoteDocumentId(tenant,draft.id,upload.sha256),path=base+'/documents/'+id;
+   remainingBudget(deadline);const id=remoteDocumentId(tenant,project,upload.sha256),path=base+'/documents/'+id;
    // One request, progress count and coverage identity per physical PDF.
    if(documents.some(d=>d.id===id))continue;
    let response=await send('GET',path);

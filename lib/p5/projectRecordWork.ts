@@ -1,3 +1,4 @@
+import {withQaPaidDraft} from './qaPaid.ts';
 import {createHash} from 'node:crypto';
 import {query} from './database.ts';
 import {readDraftById,DraftError,type Draft} from './store.ts';
@@ -58,7 +59,8 @@ export async function readProjectAttempts(id:string){
 /** Authenticated staff qualification only. The public submit path is not
  * switched until real-model and estimate-content acceptance passes. No email,
  * lead delivery, owner-policy mutation or learned-rate promotion occurs. */
-export async function runProjectQualification(id:string,expectedRevision:number,phase:'interpret'|'price',deadline=Date.now()+170000){
+export async function runProjectQualification(...args:Parameters<typeof runProjectQualificationImpl>){return withQaPaidDraft(args[0],()=>runProjectQualificationImpl(...args));}
+async function runProjectQualificationImpl(id:string,expectedRevision:number,phase:'interpret'|'price',deadline=Date.now()+170000){
  if(ESTIMATOR_BRAND.domain!=='p5homeco.com')throw new DraftError('Project-record qualification is restricted to P5 Home Co.',403);
  const draft=await readDraftById(id);
  if(!draft||draft.brand!==ESTIMATOR_BRAND.id)throw new DraftError('Project not found.',404);

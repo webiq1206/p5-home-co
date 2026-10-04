@@ -1,3 +1,4 @@
+import {withQaPaidDraft} from './qaPaid.ts';
 import {assertQaProvidersAllowed} from './qaProviderPolicy.ts';
 import {blockingExtractionNotes} from './documentLedger.ts';
 import {ProcessingDeadlineError,PROCESSING_PAUSED,isProcessingDeadline} from './processingBudget.ts';
@@ -129,7 +130,7 @@ export async function postScope(request:Request){
       }else{
       const {readable,manualReview}=await prepareAnalysisFiles(stored);
       if(!text.trim()&&!readable.length&&!Object.values(analysisDraft.answers).some(v=>v?.trim()))throw new Error(manualReview.join(" ")||"Add a project description or a document.");
-      analysis=await analyzeScope(text,readable,visitorAnswers);
+      analysis=await withQaPaidDraft(draft.id,()=>analyzeScope(text,readable,visitorAnswers));
       analysis.extraction.reviewNotes.push(...manualReview);
       }
       // Only content that was not read blocks the estimate. A page the reader

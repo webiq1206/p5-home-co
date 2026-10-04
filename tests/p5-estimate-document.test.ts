@@ -12,6 +12,16 @@ const site=ESTIMATOR_BRAND as unknown as EstimateBrand;
 const brand=(id:string):EstimateBrand=>({...site,id,name:id==='p5'?'P5 Home Co':`Boise ${id} Co`});
 const ID='0f1e2d3c-4b5a-4000-8000-00000000abcd';
 const contact={name:'[QA] Test Customer',email:'qa@example.invalid',phone:'(208) 555-0100'};
+
+test('whole-building assembly category names explain the scope without changing prices or mixed categories',()=>{
+ for(const [service,title,code] of [['new-construction','New Home Construction','10-01'],['adu','ADU Construction','50-10'],['addition','Home Addition','50-01']]){
+  const result={range:{low:227000,high:257000},categoryRanges:[{category:'Other Project Work',low:227000,high:257000}],lineItems:[{id:`PB-90-${code}-1`,category:'Other Project Work',description:'Complete project',quantity:1,unit:'EA',low:227000,high:257000}]};
+  const issue=issueRecord({brandId:'p5',id:ID,revision:1,now:new Date('2026-10-04T00:00:00Z'),contact,scope:{text:'Test scope',answers:{service,location:'Boise'},uploads:[],uncertainFields:[]}});
+  const doc=buildEstimateDocument({id:ID,result:{...result,issue},brand:brand('p5')});
+  assert.equal(doc.categories[0].title,title);assert.equal(doc.categories[0].low,227000);assert.equal(doc.categories[0].high,257000);
+  result.lineItems[0].id='miscellaneous';assert.equal(buildEstimateDocument({id:ID,result:{...result,issue},brand:brand('p5')}).categories[0].title,'Other Project Work');
+ }
+});
 const line=(id:string,category:string,description:string,quantity:number,unit:string,low:number,high:number,extra={})=>({id,category,description,quantity,unit,low,high,...extra});
 const re10={range:{low:29266,high:29266},categoryRanges:[{category:'Roofing',low:6100,high:6900},{category:'Plumbing',low:3900,high:4400},{category:'Crawl space',low:7100,high:8000}],
  lineItems:[line('1','Roofing','Replace damaged shingles (RE-10 item 1)',4,'SQ',6100,6900),line('2','Plumbing','Repair supply line (item 2)',1,'EA',3900,4400),line('3','Crawl space','Install vapor barrier (item 3)',1400,'SF',7100,8000)],

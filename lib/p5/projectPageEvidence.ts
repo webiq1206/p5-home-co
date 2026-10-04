@@ -1,3 +1,4 @@
+import {qaDocumentProject} from './qaPaid.ts';
 import {z} from 'zod';
 import {documentServiceConfiguration,documentServiceHeaders,remoteDocumentId,partitionDocumentServiceUploads,sourceIdentity} from './documentServiceClient.ts';
 import {fetchWithinDeadline} from './processingBudget.ts';
@@ -27,6 +28,7 @@ export async function loadProjectPageEvidence(draft:Pick<Draft,'id'|'brand'|'upl
  const env=options.env||process.env,remote=partitionDocumentServiceUploads(draft.uploads,env).remote;
  if(!remote.length)return {documents:[],issues:[]};
  const {tenant,secret,origin,limits}=documentServiceConfiguration(env),request=options.request||fetch,deadline=options.deadline||Date.now()+60000,cache=options.cache||pageCache(draft.id);
+ const project=await qaDocumentProject(draft.id);
  const documents:ProjectDocumentEvidence[]=[],issues:string[]=[];let total=0;
  const get=async(path:string)=>{
   const response=await fetchWithinDeadline(request,origin.origin+origin.pathname.replace(/\/$/,'')+path,{method:'GET',redirect:'error',headers:documentServiceHeaders('GET',path,tenant,secret,Buffer.alloc(0))},Math.min(deadline,Date.now()+20000));
@@ -34,11 +36,11 @@ export async function loadProjectPageEvidence(draft:Pick<Draft,'id'|'brand'|'upl
   try{return await response.json();}catch{throw new DraftError('The original page response could not be verified. Saved files are preserved.',503);}
  };
  for(const upload of remote){
-  const id=remoteDocumentId(tenant,draft.id,upload.sha256),path=`/v1/projects/${encodeURIComponent(draft.id)}/documents/${id}/evidence`;
+  const id=remoteDocumentId(tenant,project,upload.sha256),path=`/v1/projects/${encodeURIComponent(project)}/documents/${id}/evidence`;
   const parsed=manifestSchema.safeParse(await get(path));
   if(!parsed.success)throw new DraftError('The document reader must provide a valid original-page manifest before qualification.',503);
   const manifest=parsed.data;
-  if(manifest.id!==id||manifest.project!==draft.id||manifest.sha256!==upload.sha256)throw new DraftError('The page manifest does not belong to this uploaded file.',503);
+  if(manifest.id!==id||manifest.project!==project||manifest.sha256!==upload.sha256)throw new DraftError('The page manifest does not belong to this uploaded file.',503);
   total+=manifest.pageCount;
   if(total>limits.maxPages)throw new DraftError('The combined original-page inventory exceeds the configured project limit.',422);
   if(manifest.pages.length!==manifest.pageCount||manifest.pages.some((p,i)=>p.page!==i+1))throw new DraftError('The original-page inventory is missing, repeated or out of order. Saved reads are preserved.',503);
@@ -46,9 +48,9 @@ export async function loadProjectPageEvidence(draft:Pick<Draft,'id'|'brand'|'upl
   if(manifest.state!=='complete'||manifest.pages.some(p=>p.status==='pending'))issues.push(`${name}: original page reading has not finished.`);
   for(let start=0;start<manifest.pageCount;start+=4){
    const results=await Promise.allSettled(manifest.pages.slice(start,start+4).map(async entry=>{
-    const key='project-page:'+projectHash({tenant,project:draft.id,id,revision:manifest.revision,page:entry.page});
+    const key='project-page:'+projectHash({tenant,project,id,revision:manifest.revision,page:entry.page});
     const saved=await cache.read(key),raw=saved??await get(path+'?page='+entry.page),page=pageSchema.safeParse(raw);
-    if(!page.success||page.data.id!==id||page.data.project!==draft.id||page.data.sha256!==upload.sha256||page.data.revision!==manifest.revision||page.data.pageCount!==manifest.pageCount||page.data.page.number!==entry.page)throw new DraftError('The original page changed during retrieval or failed identity checks. Resume with its current manifest.',503);
+    if(!page.success||page.data.id!==id||page.data.project!==project||page.data.sha256!==upload.sha256||page.data.revision!==manifest.revision||page.data.pageCount!==manifest.pageCount||page.data.page.number!==entry.page)throw new DraftError('The original page changed during retrieval or failed identity checks. Resume with its current manifest.',503);
     if(saved===undefined||saved===null)await cache.write(key,page.data);
     return {...page.data.page,status:entry.status,notes:entry.notes};
    }));

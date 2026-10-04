@@ -1,3 +1,4 @@
+import {QaPaidHold} from './qaPaid.ts';
 import { ESTIMATOR_BRAND } from "./brand.ts";
 import { DraftError } from "./store.ts";
 const buckets=new Map<string,{count:number;until:number}>();
@@ -34,6 +35,7 @@ export async function limitedBody(request:Request,max:number) {
 }
 export function json(data:unknown,status=200){return Response.json(data,{status,headers:{"Cache-Control":"no-store","X-Content-Type-Options":"nosniff"}});}
 export function failed(error:unknown){
+  if(error instanceof QaPaidHold)return json({error:error.message,qaPaidHold:true},422);
   if(error instanceof DraftError)return json({error:error.message},error.status);
   console.error("[p5-estimator]",error instanceof Error?error.message:"request failed");
   const code=error instanceof Error?error.message:"";

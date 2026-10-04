@@ -1,3 +1,4 @@
+import {qaProviderFetch,qaPaidContext} from './qaPaid.ts';
 import {ESTIMATOR_PROVIDER,ESTIMATOR_MODEL,assertEstimatorModel,EstimatorModelError} from './modelPolicy.ts';
 /**
  * Full-book shortlist (owner request 2026-09-22: "the scope matching logic to the line items in the
@@ -54,7 +55,7 @@ export async function shortlistBook(tasks:readonly ShortlistTask[],rates:readonl
    const reply=await createEstimatorModelClient({request,timeoutMs}).messages.create({system:SHORTLIST_INSTRUCTIONS,max_tokens:6000,messages:[{role:'user',content:JSON.stringify({tasks,bookIndex:bookIndex(rates)})}],tools:[{name:'record_shortlist',input_schema:schema}],tool_choice:{type:'tool',name:'record_shortlist'}});
    const calls=reply.content.filter((part:{type:string})=>part.type==='tool_use');
    return calls.length===1&&calls[0].name==='record_shortlist'?parseShortlist(calls[0].input,tasks,rates):new Map();
-   }catch(error){if(error instanceof EstimatorModelError)throw error;return new Map();}
+   }catch(error){if(qaPaidContext()||error instanceof EstimatorModelError)throw error;return new Map();}
   }
   const integrated=Boolean(process.env.AI_INTEGRATIONS_OPENAI_API_KEY&&process.env.AI_INTEGRATIONS_OPENAI_BASE_URL);
   const key=integrated?process.env.AI_INTEGRATIONS_OPENAI_API_KEY:process.env.OPENAI_API_KEY;
@@ -64,7 +65,7 @@ export async function shortlistBook(tasks:readonly ShortlistTask[],rates:readonl
   try{
     const input={tasks:tasks.map(t=>({id:t.id,task:`${t.description}${t.evidence&&t.evidence!==t.description?` (${String(t.evidence).slice(0,300)})`:''}`})),bookIndex:bookIndex(rates)};
     const body={model:ESTIMATOR_MODEL,instructions:SHORTLIST_INSTRUCTIONS,input:'Return JSON only.\n'+JSON.stringify(input),max_output_tokens:6000,store:false,text:{format:{type:'json_schema',name:'book_shortlist',strict:true,schema}}};
-    const response=await request(`${endpoint}/responses`,{method:'POST',signal:AbortSignal.timeout(timeoutMs),headers:{'Content-Type':'application/json',Authorization:`Bearer ${key}`},body:JSON.stringify(body)});
+    const response=await qaProviderFetch(request,`${endpoint}/responses`,{method:'POST',signal:AbortSignal.timeout(timeoutMs),headers:{'Content-Type':'application/json',Authorization:`Bearer ${key}`},body:JSON.stringify(body)});
     if(!response.ok){console.error(`[p5-pricing] book shortlist unavailable (${response.status}); retaining the complete book for mapping.`);return new Map();}
     const reply=await response.json() as {model?:string;output?:{content?:{type?:string;text?:string}[]}[]};
     const responseModel=assertEstimatorModel(reply.model);
@@ -74,7 +75,7 @@ export async function shortlistBook(tasks:readonly ShortlistTask[],rates:readonl
     console.error(`[p5-pricing] book shortlist: ${shortlist.size}/${tasks.length} tasks matched in ${((Date.now()-started)/1000).toFixed(1)}s`);
     return shortlist;
   }catch(error){
-    if(error instanceof EstimatorModelError)throw error;
+    if(qaPaidContext()||error instanceof EstimatorModelError)throw error;
     console.error(`[p5-pricing] book shortlist failed; retaining the complete book for mapping: ${error instanceof Error?error.message.slice(0,160):String(error).slice(0,160)}`);
     return new Map();
   }

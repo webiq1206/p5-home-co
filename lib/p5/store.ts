@@ -98,7 +98,7 @@ export async function readDraft(id: string,key: string): Promise<Draft|null> {
     uploads:files.map(f=>({id:f.id,name:f.name,type:f.mime_type,size:f.size_bytes,sha256:f.sha256,status:"stored"})),
   };
 }
-export async function saveDraft(id: string,key: string,brand: string,payload: Omit<Draft,"id"|"brand"|"revision"|"status"|"updatedAt"|"uploads">,expectedRevision: number,qaDeterministicOnly=false): Promise<Draft> {
+export async function saveDraft(id: string,key: string,brand: string,payload: Omit<Draft,"id"|"brand"|"revision"|"status"|"updatedAt"|"uploads">,expectedRevision: number,qaDeterministicOnly:boolean|'bounded-paid'=false): Promise<Draft> {
   const existing=await rowFor(id,key);
   if(existing?.status==="submitted")throw new DraftError("This submission is already saved. Start a new revision to change the scope.",409);
   if(existing && existing.revision!==expectedRevision)throw new DraftError("This project was updated elsewhere. Reload the saved version before overwriting it.",409);
@@ -112,9 +112,9 @@ export async function saveDraft(id: string,key: string,brand: string,payload: Om
       VALUES($1,$2,$3,$4::jsonb,1) ON CONFLICT DO NOTHING RETURNING *
     ), restricted AS (
       INSERT INTO p5_estimator_work(draft_id,work_key,payload)
-      SELECT id,$5,'{"providerCallsAllowed":0,"createdRevision":1}'::jsonb FROM saved
+      SELECT id,$5,$6::jsonb FROM saved
       RETURNING draft_id
-    ) SELECT saved.* FROM saved JOIN restricted ON restricted.draft_id=saved.id`,[id,hash(key),brand,JSON.stringify(payload),QA_NO_PROVIDER_KEY]);
+    ) SELECT saved.* FROM saved JOIN restricted ON restricted.draft_id=saved.id`,[id,hash(key),brand,JSON.stringify(payload),qaDeterministicOnly==='bounded-paid'?'qa-bounded-provider-v1':QA_NO_PROVIDER_KEY,JSON.stringify(qaDeterministicOnly==='bounded-paid'?{brokerRequired:true,createdRevision:1}:{providerCallsAllowed:0,createdRevision:1})]);
   }
   else if(!existing)result=await query("INSERT INTO p5_estimator_drafts(id,key_hash,brand,payload,revision) VALUES($1,$2,$3,$4::jsonb,1) ON CONFLICT DO NOTHING RETURNING *",[id,hash(key),brand,JSON.stringify(payload)]);
   else result=await query("UPDATE p5_estimator_drafts SET payload=$1::jsonb,revision=revision+1,updated_at=now() WHERE id=$2 AND revision=$3 AND status='draft' RETURNING *",[JSON.stringify(payload),id,expectedRevision]);

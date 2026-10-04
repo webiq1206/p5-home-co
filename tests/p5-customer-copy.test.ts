@@ -6,6 +6,12 @@ import {publicPricingText,customerPresentation} from '../lib/p5/customerProjecti
 import {processingTitles,pricingActivity} from '../lib/p5/processingStatus.ts';
 import {customerPricingQuestions} from '../lib/p5/missingFields.ts';
 
+test('rate-book typical bands do not leave orphan customer scope text, including saved projections',()=>{
+ assert.equal(publicPricingText('New home construction, complete (excl. land). Boise metro typical band $150-$350/SF; Builder OH&P (~15%) removed from published pricing'),'New home construction, complete (excl. land).');
+ assert.equal(publicPricingText('New home construction, complete (excl. land). Boise metro typical band'),'New home construction, complete (excl. land).');
+ assert.equal(publicPricingText('Install a decorative band around the entry.'),'Install a decorative band around the entry.');
+});
+
 test('progress cards use the approved plain wording',()=>{
   for(const title of Object.values(processingTitles))assert.equal(bannedCustomerCopy(title),null,title);
   for(const [instructions,search] of [['Inventory the scope',false],['You are a construction estimator',false],['Convert the supplied research',false],['anything',true],['Audit',false]] as const){

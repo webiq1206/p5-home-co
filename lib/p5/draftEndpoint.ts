@@ -1,4 +1,5 @@
-import {assertQaProvidersAllowed,qaProvidersRestricted} from './qaProviderPolicy.ts';
+import {withQaPaidDraft} from './qaPaid.ts';
+import {assertQaProvidersAllowed,qaContactRestricted} from './qaProviderPolicy.ts';
 import {instructionPrompts,instructionPromptText} from './clarifications.ts';
 import {resolveInstructionAnswer} from './clarificationAnswer.ts';
 import {deriveScopeAnswers,reconcileScope,scopeQuestionsForBrand as scopeQuestions} from "./adaptive.ts";
@@ -94,7 +95,7 @@ export async function putDraft(request:Request){
     const resolutions=parseAnswers(raw.wizard?.resolutions||{});
     let wizard={skipped,resolutions,sourceVersion:existing?.wizard?.sourceVersion,instructionAnswers:existing?.wizard?.instructionAnswers||[]};
     const contact={name:String(raw.contact?.name||"").trim(),email:String(raw.contact?.email||"").trim().toLowerCase(),phone:String(raw.contact?.phone||"").trim()};
-    if(existing&&await qaProvidersRestricted(id)&&(!/^\[QA\](?:\s|$)/i.test(contact.name)||contact.email||contact.phone))throw new DraftError('Keep this restricted QA draft labelled and without customer delivery details.',422);
+    if(existing&&await qaContactRestricted(id)&&(!/^\[QA\](?:\s|$)/i.test(contact.name)||contact.email||contact.phone))throw new DraftError('Keep this restricted QA draft labelled and without customer delivery details.',422);
     if(raw.qaDeterministicOnly===true&&(contact.email||contact.phone))throw new DraftError('Restricted QA drafts must not contain customer delivery details.',422);
     if(contact.name.length>120||contact.email.length>200||contact.phone.length>40)throw new DraftError("Contact details are too long.");
     // A response can be lost after the server commits the clarification. If
@@ -128,7 +129,7 @@ export async function putDraft(request:Request){
       await assertQaProvidersAllowed(id);
       if(replacing)throw new DraftError('This clarification belongs to the previous project text. Read the updated project before answering.',409);
       if(!existing||raw.revision!==existing.revision)throw new DraftError('Your project changed in another tab. Refresh to continue.',409);
-      const resolved=await resolveInstructionAnswer(extraction,answers,raw.clarification,wizard.instructionAnswers,undefined,incomingText,{draftId:id,estimator:answers.service||null});
+      const resolved=await withQaPaidDraft(id,()=>resolveInstructionAnswer(extraction,answers,raw.clarification,wizard.instructionAnswers,undefined,incomingText,{draftId:id,estimator:answers.service||null}));
       extraction=resolved.extraction;answers=resolved.answers;wizard.instructionAnswers=resolved.history;
       // An earlier correction cannot resolve a new contradiction automatically.
       if('unresolvedFields' in resolved)for(const field of resolved.unresolvedFields||[])delete wizard.resolutions[field];

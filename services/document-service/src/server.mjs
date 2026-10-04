@@ -40,6 +40,12 @@ export function makeServer(store,pipeline,config){
     receiving++;try{const chunks=[];let size=0;for await(const chunk of req){size+=chunk.length;if(size>maximum)throw new ServiceError('payload-too-large',413);chunks.push(chunk);}body=Buffer.concat(chunks);}finally{receiving--;}
    }
    if(hash(body)!==auth.digest)throw new ServiceError('body-integrity-failed',401);
+   if(parts[3]==='qa-provider'&&parts.length===4&&req.method==='POST'){
+    let data;try{data=JSON.parse(body);}catch{throw new ServiceError('invalid-json');}
+    if(!project.startsWith('qa-paid-')||!store.qa)throw new ServiceError('qa-binding-required',422);
+    const result=await store.qa.dispatch(auth.tenant,project,data.boundary,data.body,AbortSignal.timeout(180000));
+    send(200,result);return;
+   }
    if(parts[3]==='documents'&&parts.length===6&&parts[5]==='evidence'&&req.method==='GET'){
     send(200,await projectSource(store,auth.tenant,project,identifier(parts[4]),url.searchParams.has('page')?Number(url.searchParams.get('page')):null));return;
    }
