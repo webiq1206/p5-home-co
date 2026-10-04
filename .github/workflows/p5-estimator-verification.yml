@@ -3,7 +3,7 @@ on:
   push:
     branches: [fix/estimator-flow-20260913,release/estimator-overhaul-20260912,wip/estimator-overhaul-20260912,fix/research-format,fix/pricing-batches,fix/pricing-latency,fix/readable-estimates,fix/complete-scope-pricing, codex/activate-cost-books-20260911, codex/finalize-estimators-20260911, codex/p5-upload-receipt-fix-20260910, codex/p5-intelligent-wizard-20260910, main, codex/p5-estimator-policy-20260910, codex/p5-merge-all-20260910, codex/p5-complete-main-20260910]
   pull_request:
-    paths: ['components/P5Estimator.tsx', 'scripts/p5-estimator-browser.mjs', '.github/workflows/p5-estimator-verification.yml']
+    paths: ['components/P5Estimator.tsx', 'lib/p5/**', 'tests/p5-*.test.ts', 'tests/providers/**', 'scripts/test-p5-*', 'scripts/p5-estimator-browser.mjs', 'scripts/p5-mobile-navigation.mjs', '.github/workflows/p5-estimator-verification.yml']
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -14,6 +14,14 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     container: mcr.microsoft.com/playwright:v1.60.0-noble
+    env:
+      # Historical compatibility fixtures use the first provider phase of npm test.
+      # The production Haiku policy is checked separately below, with its guards intact.
+      P5_ESTIMATOR_PROVIDER: 'openai'
+      ANTHROPIC_API_KEY: ''
+      OPENAI_API_KEY: ''
+      DATABASE_URL: ''
+      P5_DOCUMENT_SERVICE_MODE: ''
     steps:
       - uses: actions/checkout@v6
         with:
@@ -24,6 +32,10 @@ jobs:
       - run: npm ci --no-audit --no-fund
       - name: Financial policy regression tests
         run: node --import tsx --test tests/p5-legacy-entrypoints.test.ts tests/p5-repair-regressions.test.ts tests/p5-pricing.test.ts tests/p5-planning-books.test.ts tests/p5-scope-pricing.test.ts tests/p5-presentation.test.ts tests/p5-submit-progress.test.ts tests/p5-document-ledger.test.ts tests/p5-processing-status.test.ts
+      - name: Production Haiku policy and error checks
+        env:
+          P5_ESTIMATOR_PROVIDER: 'anthropic'
+        run: node --import tsx --test tests/providers/haiku.test.ts tests/p5-pricing-production-errors.test.ts tests/p5-clarification-takeoff-updates.test.ts
       - name: Isolated persistence, delivery failure and PDF checks
         run: |
           node --import tsx scripts/test-p5-repair-persistence.mts
