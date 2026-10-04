@@ -101,7 +101,7 @@ export function publicPricingText(value:unknown):string{
  };
  // Removing a private figure can leave its connector behind ("allowance based on; confirm ...").
  const mend=(line:string)=>line.replace(/\s+(?:based on|at|using|from|with|of)\s*(?=[,;:.!?]|$)/gi,'').replace(/\s*[;,:]\s*(?=[.!?]?$)/,'').replace(/\s+([,;:.!?])/g,'$1').trim();
- const clean=(line:string)=>mend(scopeBullets(line).flatMap(repairSentence).flatMap(sentence=>{const safe=customerSentence(sentence);return safe?[safe]:[];}).join(' ').replace(/(?:^|(?<=[.!?;]))\s*[\w -]{0,60}\btypical (?:price |cost )?band(?=[.;]|$)[.;]?/gi,''));
+ const clean=(line:string)=>mend(scopeBullets(line).flatMap(repairSentence).flatMap(sentence=>{const safe=customerSentence(sentence);return safe?[safe]:[];}).join(' ').replace(/(?:^|(?<=[,.!?;]))\s*[\w -]{0,60}\btypical (?:price |cost )?band(?=[.;]|$)[.;]?/gi,''));
  return text.split('\n').map(raw=>{
   const line=plainCustomerLine(raw);
   // A scope label is structure, not part of the prose being redacted. Splitting

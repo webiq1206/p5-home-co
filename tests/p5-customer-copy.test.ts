@@ -9,6 +9,8 @@ import {customerPricingQuestions} from '../lib/p5/missingFields.ts';
 test('rate-book typical bands do not leave orphan customer scope text, including saved projections',()=>{
  assert.equal(publicPricingText('New home construction, complete (excl. land). Boise metro typical band $150-$350/SF; Builder OH&P (~15%) removed from published pricing'),'New home construction, complete (excl. land).');
  assert.equal(publicPricingText('New home construction, complete (excl. land). Boise metro typical band'),'New home construction, complete (excl. land).');
+ // Exact comma-joined text observed in a previously saved production PDF.
+ assert.equal(publicPricingText('New home construction, complete (excl., land)., Boise metro typical band'),'New home construction, complete (excl., land).');
  assert.equal(publicPricingText('Install a decorative band around the entry.'),'Install a decorative band around the entry.');
 });
 
