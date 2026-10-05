@@ -22,6 +22,7 @@ import {impliedComponentRemodel,impliedRepairService,serviceEvidenceSupports} fr
 import {query} from './database.ts';
 import {reconcileDocumentHierarchy,groundDocumentConditions,normalizeCountSubjects,normalizeDimensionSubjects,normalizeTileSubjects,separateFootprintFromInstallation} from './scopeInterpretation.ts';
 import {applyExplicitTypedCorrections,answersAfterTypedRevision} from './typedCorrections.ts';
+import {readCompletedAnalysis,saveCompletedAnalysis,recoverTypedAnalysis} from './savedAnalysis.ts';
 
 /** Guard multipart analysis/upload requests before they can mutate files. */
 export function guardScopeRequestRevision(storedRevision:number,requestedRevision:unknown,storedText:string,incomingText:string){
@@ -58,6 +59,8 @@ export async function postScope(request:Request){
     const requestIdentity=guardScopeRequestRevision(draft.revision,form.get("revision"),draft.text,text);
     const analyzedMismatch=Boolean(draft.analyzedFingerprint&&draft.extraction&&draft.analyzedFingerprint!==scopeFingerprint(text));
     const sourceChanged=requestIdentity.changed||analyzedMismatch;
+    const hint=form.get('savedAnalysisAnswers');
+    if(hint!==null&&((ESTIMATOR_BRAND.id as string)!=='p5'||typeof hint!=='string'||sourceChanged||form.getAll('files').length))throw new DraftError('This saved reading cannot be restored for a changed source.',409);
     // Keep the authored source snapshot from the request's validated read.
     // Uploads may race another tab; the reread below must not be allowed to
     // launder that newer revision into this request's old source.
@@ -107,9 +110,15 @@ export async function postScope(request:Request){
     // derived from these same documents are re-derived, so a retry after a
     // partial read keeps the same work key and never re-bills finished pages.
     const visitorAnswers=applyCabinetIntent(text,ESTIMATOR_BRAND.services,manualScopeAnswers(analysisDraft.answers,analysisDraft.extraction,analysisDraft.wizard?.resolutions||{})).answers;
+    const savedInput={text,answers:visitorAnswers,uploads:analysisDraft.uploads,extraction:analysisDraft.extraction,resolutions:analysisDraft.wizard?.resolutions};
+    // An explicit historical recovery must fail before any provider branch.
+    const recovered=typeof hint==='string'?await recoverTypedAnalysis(analysisDraft,savedInput,hint):null;
     let analysis=null;let warning="";let failedSourceNotes:string[]=[];
     try{
-      if(checkpointed){
+      const completed=recovered||((ESTIMATOR_BRAND.id as string)==='p5'?await readCompletedAnalysis(analysisDraft.id,savedInput):null);
+      if(completed){
+        analysis=structuredClone(completed.analysis);
+      }else if(checkpointed){
         const background=form.get('background')==='true';
         // Cabinet only: a completed legacy read queued before the service answer
         // was inferred is reused when its full source identity is exact, instead
@@ -133,6 +142,7 @@ export async function postScope(request:Request){
       analysis=await withQaPaidDraft(draft.id,()=>analyzeScope(text,readable,visitorAnswers));
       analysis.extraction.reviewNotes.push(...manualReview);
       }
+      if(analysis&&(!completed||recovered)&&(ESTIMATOR_BRAND.id as string)==='p5')await saveCompletedAnalysis(analysisDraft.id,savedInput,analysis);
       // Only content that was not read blocks the estimate. A page the reader
       // finished with some values blank or redacted is a note to confirm, the
       // same rule the pricing engine applies.

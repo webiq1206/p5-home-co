@@ -1,7 +1,7 @@
 {
  "source": "p5-home-co",
- "commit": "a079a84e6e85c6acc506accf7a55c58e557a00ee",
- "generatedAt": "2026-10-05T04:14:55.098Z",
+ "commit": "adb6f0bcada52191742c69f552eab89da7e9847f",
+ "generatedAt": "2026-10-05T16:52:44.430Z",
  "note": "P5-only qualification baseline. Child rollout is paused until live acceptance is verified. Hash checks remain mandatory.",
  "files": {
   "app/admin/p5-estimators/page.tsx": "8e81e1ac475dadb7eee9af396c963ee369de593a5a8d165d40dd97f2dab7ca32",
@@ -37,7 +37,7 @@
   "lib/p5/adminEstimate.ts": "f35f529614dbb4c01ec7df4598b5485ca00ad9ff2f8961cbf19c333061dd3718",
   "lib/p5/advisoryProvenance.ts": "460df392ecd625d9dbe037309367eef65b2b52b1e5b43889a0eb9dd746ac1fcc",
   "lib/p5/analysisProgress.ts": "2f41c2b12c5b6551241967b63c6f36479e5b41f799811b81b55e92ab8a6eb539",
-  "lib/p5/analysisReuse.ts": "50f0dcd38b4907921969895893dbd4013ddc4fe83714efcfc6a91cf7e71160ca",
+  "lib/p5/analysisReuse.ts": "ff2ddb4e4afa143d829b0822a07a12ff50dbf7bf9a3d8c6240dce4b8fbe3ff10",
   "lib/p5/analysisSegments.ts": "9df166d287fb3e764929ec8a66f0427d3daa7edc97314fa7f0de152cab6e4601",
   "lib/p5/analysisWork.ts": "a265cb728c199593112847226f2b17a60cd7057a138b730d7d4c684af53a12bf",
   "lib/p5/answerParsing.ts": "bfd7ad9c00986a3f1136b46075ad03b2aa69286f2dea784a846f66cd4d91d142",
@@ -182,7 +182,7 @@
   "lib/p5/savedCustomerCopy.ts": "78e26e278431286c8bece4b56c2119c3b55fa6c846cb63f68b33890018ddac89",
   "lib/p5/scope.ts": "bd2d67bef49769dad6ecf02300d78cf4f6a1eb2a1e24c29a471f58dba34a8baa",
   "lib/p5/scopeComponents.ts": "e82f4fb6f54d1c905428eef93a2a42562edf68b575473f50de95567f20c85680",
-  "lib/p5/scopeEndpoint.ts": "9ad21186935ca75111ca95c7f6e9be5dc4c76a659c29a25a3d79ccdfd2984301",
+  "lib/p5/scopeEndpoint.ts": "ea089977e376223c6c5449397c9a1d3d2ed77cc83bc68cb8f2baab38f5e0be60",
   "lib/p5/scopeFields.ts": "939f4f1a873bc3e170fbacffceb22806f7bd5664637e870e8a1528c98cede441",
   "lib/p5/scopeInterpretation.ts": "57fa1a260817ddbf9bf6116a4a5195317960a798d623b23628d40ca669fe20c9",
   "lib/p5/scopeInventory.ts": "823baac9f40357847a8f6afd9a905058298dfc8dab553d584223bcd3f890d64a",
@@ -440,6 +440,9 @@
   "tests/p5-wizard-resume.test.ts": "423176433a701f191c5e88c99924a28748c001da3b4a746b892843cf52319085",
   "tests/p5-work-recovery.test.ts": "ef035f0257de7b9ddb4f8736044a72276a90d5599866587542f229db30debfdb",
   "lib/p5/qaBrokerConfiguration.ts": "058e66ee4bb0e95423f05d7e6f74abd844bcc7c795b1ec57f783596a213943af",
-  "tests/p5-qa-broker-configuration.test.ts": "34ce403579bd2a84ed9369be7ce97add2c2d1a07a64fea33fb4d8bc6b6e71517"
+  "tests/p5-qa-broker-configuration.test.ts": "34ce403579bd2a84ed9369be7ce97add2c2d1a07a64fea33fb4d8bc6b6e71517",
+  "lib/p5/savedAnalysis.ts": "a28d6929ea4ac525af27034df24c0113ca72ee6b0045f46036f1877b3fc47969",
+  "tests/p5-saved-analysis.test.ts": "693dba3ac566fce8a6d033f35d27ae9dd6c733bf94380c5fb35848f4ddfe9879",
+  "tests/p5-saved-analysis-handler.test.ts": "e94dce7038b6472d7346bd4409f8cb453e21b082d64611a2b23cb744350423d8"
  }
 }
