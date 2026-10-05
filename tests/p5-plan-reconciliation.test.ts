@@ -71,6 +71,21 @@ test('window flashing stays under windows, while roof flashing stays under roofi
  assert.equal(suggestedTrade('Roof flashing at dormer window.'),'Roofing');
 });
 
+test('wall-paint perimeter does not create trim work, while explicit trim scope retains its quantity',async()=>{
+ const {normalizeDimensionSubjects}=await import('../lib/p5/scopeInterpretation.ts');
+ const text='Prime and paint all four walls of a 10 by 12 foot room (44 LF perimeter, eight-foot height). Retain the existing floor, doors and windows.';
+ const x=extraction([{...fact('trimLf','44','44 LF perimeter'),source:'typed scope'},fact('sqft','120','120 SF room')]);
+ const out=normalizeDimensionSubjects(x,text);
+ assert.equal(reconcileScope({},out).answers.trimLf,undefined);
+ assert.equal(reconcileScope({},out).answers.sqft,'120');
+ assert.ok(out.facts.some(f=>f.field==='otherDetails'&&f.value.includes('44 LF perimeter')));
+ assert.equal(x.facts[0].field,'trimLf','saved provider receipt is not mutated');
+ for(const scope of [text+' Install baseboard around the room.',text+' Repair the existing trim along this perimeter.'])assert.equal(reconcileScope({},normalizeDimensionSubjects(x,scope)).answers.trimLf,'44');
+ const pdf=extraction([fact('trimLf','44','44 LF perimeter')]);pdf.sourceText=text;
+ assert.equal(reconcileScope({},normalizeDimensionSubjects(pdf)).answers.trimLf,undefined);
+ assert.equal(normalizeDimensionSubjects(extraction([fact('trimLf','8','Repair 8 LF of door casing')]),text).facts[0].field,'trimLf');
+});
+
 test('construction fill and splash-block notes cannot answer site or utility conditions',()=>{
  const x=extraction([
   fact('site','Assumes flat site and standard soil.'),
