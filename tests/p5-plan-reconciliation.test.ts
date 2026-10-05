@@ -83,6 +83,7 @@ test('wall-paint perimeter does not create trim work, while explicit trim scope 
  for(const scope of [text+' Install baseboard around the room.',text+' Repair the existing trim along this perimeter.'])assert.equal(reconcileScope({},normalizeDimensionSubjects(x,scope)).answers.trimLf,'44');
  const pdf=extraction([fact('trimLf','44','44 LF perimeter')]);pdf.sourceText=text;
  assert.equal(reconcileScope({},normalizeDimensionSubjects(pdf)).answers.trimLf,undefined);
+ assert.equal(reconcileScope({},normalizeDimensionSubjects(pdf,'Install baseboard around the room perimeter shown on the attached plan.')).answers.trimLf,'44');
  assert.equal(normalizeDimensionSubjects(extraction([fact('trimLf','8','Repair 8 LF of door casing')]),text).facts[0].field,'trimLf');
 });
 

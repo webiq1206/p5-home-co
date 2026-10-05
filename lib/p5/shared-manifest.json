@@ -1,7 +1,7 @@
 {
  "source": "p5-home-co",
  "commit": "a079a84e6e85c6acc506accf7a55c58e557a00ee",
- "generatedAt": "2026-10-05T04:10:06.122Z",
+ "generatedAt": "2026-10-05T04:12:43.964Z",
  "note": "P5-only qualification baseline. Child rollout is paused until live acceptance is verified. Hash checks remain mandatory.",
  "files": {
   "app/admin/p5-estimators/page.tsx": "8e81e1ac475dadb7eee9af396c963ee369de593a5a8d165d40dd97f2dab7ca32",
@@ -184,7 +184,7 @@
   "lib/p5/scopeComponents.ts": "e82f4fb6f54d1c905428eef93a2a42562edf68b575473f50de95567f20c85680",
   "lib/p5/scopeEndpoint.ts": "9ad21186935ca75111ca95c7f6e9be5dc4c76a659c29a25a3d79ccdfd2984301",
   "lib/p5/scopeFields.ts": "939f4f1a873bc3e170fbacffceb22806f7bd5664637e870e8a1528c98cede441",
-  "lib/p5/scopeInterpretation.ts": "fc38b81bc50d18abdc90151ba082241f9447b8b5030ca53e3d457f97c9784b79",
+  "lib/p5/scopeInterpretation.ts": "9cdd377047ab559a4082bb67a41031067a34df28bff6928735bd112ba047b8f8",
   "lib/p5/scopeInventory.ts": "823baac9f40357847a8f6afd9a905058298dfc8dab553d584223bcd3f890d64a",
   "lib/p5/scopePricing.ts": "420e0531c38713d535e49775ee3b5b3f0b48ee7be8dcfd742dce5b524e176f74",
   "lib/p5/scopeReplacement.ts": "1a00315d2962f30dd7abbce85dcd33ce096e9f9b305cac0130d127e0e53c5a99",
@@ -379,7 +379,7 @@
   "tests/p5-page-quantity-totals.test.ts": "dc3ddaa1413e6a72cce7042b5573c2fdf475647fce0a3ddc42ca1e9220e4ba5a",
   "tests/p5-pdf-access.test.ts": "2008c53369a31c62e35c87f3c26c6e70d876d1dc9af43bc8cf3ecaba65f0d410",
   "tests/p5-permit-context.test.ts": "f796bc57acf85e44e1997ace31876b67a54349a88a520ff9fd4f1a3478e2e0d3",
-  "tests/p5-plan-reconciliation.test.ts": "dda931ef6f5f2c275cda81c7aebdfc0955d7a91d6b50fa094e8269cb1775168d",
+  "tests/p5-plan-reconciliation.test.ts": "01eb2242d8571ca821c08545a01d3e5ddea2906e6332e5811f2eaa2bbd5abb30",
   "tests/p5-planning-books.test.ts": "53634769c42c6192b7cb139381d1ae82fb215ad0bb82b799ad5ada13ed5ddf5a",
   "tests/p5-presentation.test.ts": "d06e135999e8ae28187f798bb15431cd8a9301bd60a082b24c750ab96f9c6c49",
   "tests/p5-price-book-import.test.ts": "85de00525e2955c7417aa5f6af1063cdbfb68ee11ae37cee5ca1ac5235e9f0c4",
