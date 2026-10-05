@@ -64,17 +64,18 @@ export function selectReusableAnalysis(candidates:CompletedAnalysisCandidate[],c
  * the saved extraction, while preserving every explicit customer correction.
  * Text, upload identity, model verification and complete coverage stay exact. */
 export function selectSourceEquivalentAnalysis(candidates:CompletedAnalysisCandidate[],current:AnalysisReuseInput&{extraction:ScopeExtraction|null;resolutions?:ScopeAnswers}):ReusableAnalysis|null{
- if(!current.extraction)return null;
  const stable=(answers:ScopeAnswers)=>JSON.stringify(Object.entries(answers).sort(([a],[b])=>a.localeCompare(b)));
  const matches=candidates.flatMap(candidate=>{
   const payload=candidate.payload as {state?:string;result?:{analysis?:AnalysisResult}};
   const input=asLegacyInput(payload),analysis=payload?.result?.analysis;
   if(payload?.state!=='complete'||input?.kind!=='analysis'||input.text!==current.text
    ||uploadIdentity(input.draft?.uploads||[])!==uploadIdentity(current.uploads)||!hasVerifiedAnalysis(analysis)||!analysis)return [];
+  if(typeof analysis.provider!=='string'||!analysis.provider.trim()||typeof analysis.analyzedAt!=='string'||!Number.isFinite(Date.parse(analysis.analyzedAt)))return [];
   if(!analysis.extraction||blockingExtractionNotes(analysis.extraction).length)return [];
   if(current.uploads.length&&(!analysis.extraction.documentCoverage?.complete||analysis.extraction.documentCoverage.pages.some(p=>p.status!=='read')))return [];
-  const prior=manualScopeAnswers(input.answers||{},current.extraction,current.resolutions||{});
-  if(stable(prior)!==stable(current.answers))return [];
+  const exact=stable(input.answers||{})===stable(current.answers);
+  const prior=current.extraction?manualScopeAnswers(input.answers||{},current.extraction,current.resolutions||{}):null;
+  if(!exact&&(!prior||stable(prior)!==stable(current.answers)))return [];
   return [{version:hashVersion(current),analysis}];
  });
  // Ambiguity falls back to the ordinary exact-key checkpoint lookup. Never
