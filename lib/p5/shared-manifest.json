@@ -1,7 +1,7 @@
 {
  "source": "p5-home-co",
- "commit": "adb6f0bcada52191742c69f552eab89da7e9847f",
- "generatedAt": "2026-10-05T05:04:37.091Z",
+ "commit": "af91813c24a5eb2ca5910410dae3fb8ab8932a48",
+ "generatedAt": "2026-10-05T05:08:26.179Z",
  "note": "P5-only qualification baseline. Child rollout is paused until live acceptance is verified. Hash checks remain mandatory.",
  "files": {
   "app/admin/p5-estimators/page.tsx": "8e81e1ac475dadb7eee9af396c963ee369de593a5a8d165d40dd97f2dab7ca32",
@@ -265,7 +265,7 @@
   "scripts/test-p5-origin.mts": "9d1023bfb4fe9da2a28a583074a347d7aeb47d3c6a9e585fe3f329aab4e8acb5",
   "scripts/test-p5-original-plan-replay.mts": "661cebd24702b63aa1512572c40d94de6f25ae5b568895c5aad1452fea7813d4",
   "scripts/test-p5-plan-rendering.mts": "9ddafb4401376c667dfc78e0ac9ac293d6df6bc73691c0a5c9aa19d7fc4a6770",
-  "scripts/test-p5-pricing-identity.mts": "6311ec4282a1649ab70601976eee164f0763047e6f419dd46d0d84d28a6213a1",
+  "scripts/test-p5-pricing-identity.mts": "66e4f13d3363971f264431cbda410ea6c1a86c54227a3f0c0b5cff3ff9cf1fa5",
   "scripts/test-p5-pricing-qualification.mts": "8c5ce7769f42bff37293d2a263d0595f030e60b9fa08a45e2114d822d812667f",
   "scripts/test-p5-pricing-recovery.mts": "c1b98a19d9d783e4a24ad1dddd112924082e65b2a0baf7cc17b5ca5832511571",
   "scripts/test-p5-pricing-replay.mjs": "0f7fbc42a668309a37dad761ac1157cc643ddd49ce54223fe1bdfef1d037d478",
