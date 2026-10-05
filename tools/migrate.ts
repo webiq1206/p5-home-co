@@ -17,6 +17,7 @@ import path from "node:path";
 
 import { Client } from "pg";
 import { verifyMigrationFiles } from "../scripts/p5-schema-safety.mjs";
+import { readMigrationState } from "../scripts/p5-migration-state.mjs";
 
 const DRY = process.argv.includes("--dry");
 const MIGRATIONS = path.join(process.cwd(), "migrations");
@@ -62,20 +63,7 @@ async function main(): Promise<void> {
   }
 
   try {
-    // The tracking table has to exist before it can be consulted, and it is
-    // also created by 001, so create it here independently.
-    await client.query(
-      `CREATE TABLE IF NOT EXISTS schema_migration (
-         version TEXT PRIMARY KEY,
-         applied_at TIMESTAMPTZ NOT NULL DEFAULT now()
-       )`,
-    );
-
-    const applied = new Set(
-      (await client.query<{ version: string }>("SELECT version FROM schema_migration")).rows.map(
-        (r) => r.version,
-      ),
-    );
+    const applied = await readMigrationState(client, {dry: DRY});
 
     const files = (await readdir(MIGRATIONS)).filter((f) => f.endsWith(".sql")).sort();
     if (!files.length) {

@@ -10,35 +10,8 @@ export const QA_URL='https://api.anthropic.com/v1/messages';
 export const QA_LIMITS=Object.freeze({historical:3250000,historicalUnknown:390000,fresh:2000000,umbrella:12000000,firstCall:450000,lot29Historical:1000000,lot29Ceiling:3000000});
 const digest=value=>createHash('sha256').update(JSON.stringify(value)).digest('hex');
 const hold=code=>new ServiceError('qa-'+code,422);
-export const QA_DDL=`
-CREATE TABLE IF NOT EXISTS p5ds_qa_runs (
- run_id text PRIMARY KEY CHECK(run_id='p5-acceptance-20261004'),
- historical_microusd bigint NOT NULL CHECK(historical_microusd=3250000),
- historical_unknown_microusd bigint NOT NULL CHECK(historical_unknown_microusd=390000),
- allowance_microusd bigint NOT NULL CHECK(allowance_microusd=2000000),
- liability_microusd bigint NOT NULL DEFAULT 0 CHECK(liability_microusd>=0),
- blocked boolean NOT NULL DEFAULT false, created_at timestamptz NOT NULL DEFAULT now()
-);
-CREATE TABLE IF NOT EXISTS p5ds_qa_projects (
- tenant text NOT NULL,project text NOT NULL,run_id text NOT NULL REFERENCES p5ds_qa_runs(run_id),
- lot29 boolean NOT NULL DEFAULT false,PRIMARY KEY(tenant,project)
-);
-CREATE TABLE IF NOT EXISTS p5ds_qa_intents (
- request_hash text PRIMARY KEY,run_id text NOT NULL REFERENCES p5ds_qa_runs(run_id),
- tenant text NOT NULL,project text NOT NULL,boundary text NOT NULL,request jsonb NOT NULL,
- maximum_microusd bigint NOT NULL CHECK(maximum_microusd>0),created_at timestamptz NOT NULL DEFAULT now()
-);
-CREATE TABLE IF NOT EXISTS p5ds_qa_calls (
- slot text PRIMARY KEY,run_id text NOT NULL REFERENCES p5ds_qa_runs(run_id),
- request_hash text NOT NULL UNIQUE REFERENCES p5ds_qa_intents(request_hash),
- review_note text NOT NULL,status text NOT NULL CHECK(status IN ('permitted','in_flight','settled','unknown')),
- reserved_microusd bigint NOT NULL CHECK(reserved_microusd>0),actual_microusd bigint,
- response jsonb,provider_request_id text,boundary_token text,created_at timestamptz NOT NULL DEFAULT now(),
- started_at timestamptz,settled_at timestamptz
-);
-CREATE UNIQUE INDEX IF NOT EXISTS p5ds_qa_one_active ON p5ds_qa_calls(run_id)
- WHERE status IN ('permitted','in_flight');
-`;
+import {QA_DDL} from './database-schema.mjs';
+export {QA_DDL} from './database-schema.mjs';
 
 /** Conservative FULL context-window bound, not a heuristic text-token estimate.
  * Official Haiku4.5: 200K context, $1/MTok input and $5/MTok output (reviewed

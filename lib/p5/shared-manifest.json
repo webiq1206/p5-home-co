@@ -1,7 +1,7 @@
 {
  "source": "p5-home-co",
- "commit": "adb6f0bcada52191742c69f552eab89da7e9847f",
- "generatedAt": "2026-10-05T05:02:58.394Z",
+ "commit": "af91813c24a5eb2ca5910410dae3fb8ab8932a48",
+ "generatedAt": "2026-10-05T05:08:26.179Z",
  "note": "P5-only qualification baseline. Child rollout is paused until live acceptance is verified. Hash checks remain mandatory.",
  "files": {
   "app/admin/p5-estimators/page.tsx": "8e81e1ac475dadb7eee9af396c963ee369de593a5a8d165d40dd97f2dab7ca32",
@@ -250,7 +250,7 @@
   "scripts/p5-runtime-acceptance.mjs": "7b872dc7be1b8226a679d63ea93d8679a62905a8462a04a6eff4bec2dd2a9824",
   "scripts/p5-runtime-acceptance.mts": "feac60f3e0300f6de0be2f3f71a76f182364cc580f3517dd05e772f669ed8be5",
   "scripts/p5-schema-safety.mjs": "0bb3e004ef3a75718430de5a6f4f4f9a0aee8ff6c387aaee360818a6c89831b1",
-  "scripts/p5-schema-statements.mjs": "f80fc20f55ccd79576e421414084e6ddf942c3a2945828a7b8c25ba1234f9d2f",
+  "scripts/p5-schema-statements.mjs": "c78da0c3a33ccd32f4966d67b1d3fec844dce572942eacdca707c1faea720713",
   "scripts/p5-storage-check.ts": "87dcfbb0b77f53b08e220c51729323a06851837232c30a8b179ec0aed2807e4b",
   "scripts/p5-sync.mjs": "f541e23540c67e01eee719edca185fd7877b8196027eb8d84731eb895f8269d7",
   "scripts/p5-verify-visual.mjs": "67363630ae7fb0ef3748a377a193495ff1427dfca34e0c9c655e1a02c71ca61d",
@@ -326,7 +326,7 @@
   "tests/p5-crm-payload.test.ts": "21c31060786e5499f046efa882c3e955d930d782fdd14fbbedf6a81a52e8eb2a",
   "tests/p5-customer-copy.test.ts": "491eae671053ca8df68a4837fdf2af7b2890f09729e48ca47c14542d9cafabe4",
   "tests/p5-customer-privacy.test.ts": "42927e675c6f74d895e19d6d7a53d341f1516fa161dbf4b9e6d8f919c86c7842",
-  "tests/p5-database-safety.test.mjs": "7552b8bba5477496106a4199c3b62a534bafbffa42bbbfc91d7ceed0ebebcb45",
+  "tests/p5-database-safety.test.mjs": "c66bcb2a23ad7d191ef964fdcdb183b2fd1e379b47ea508b2203f433c07e48c4",
   "tests/p5-document-followups.test.ts": "04b4e58a6dd196ec55ec296ce825f425d61f2f69d9a320d13c5e806c3f507f4a",
   "tests/p5-document-ledger.test.ts": "2eb6d1bcedd7537564be7e63faf986656c0b9675f7627e24912ee05937243ff8",
   "tests/p5-document-reading.test.ts": "1f7bda8d565bb248bcd5e62bfee7534e134cb717e69f363e58f6814d8334f2db",
