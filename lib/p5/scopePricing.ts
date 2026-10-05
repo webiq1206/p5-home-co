@@ -410,7 +410,7 @@ const requestPricingWithUnsafe=async(provider:'anthropic'|'openai',instructions:
     for(let continuation=0;;continuation++){
       const left=remainingMs-(Date.now()-started);if(left<=0)throw new Error('pricing-check-timeout');
       const response=await boundedFetch('https://api.anthropic.com/v1/messages',{method:'POST',signal:AbortSignal.timeout(Math.min(180000,left)),headers,body:JSON.stringify({...requestBody,system:instructions+'\n'+CATALOG_ENCODING_INSTRUCTION,messages,...(search&&continuation===0?{tool_choice:{type:'tool',name:'web_search'}}:{})})});
-      if(!response.ok){const detail=await response.text().catch(()=>'');throw pricingHttpError(response,detail);}
+      if(!response.ok){const detail=await response.text().catch(()=>'');throw Object.assign(pricingHttpError(response,detail),{pricingPriorRequestCount:requestSequence-1});}
       const body=await response.json();
       lastStopReason=body.stop_reason;lastRequestId=response.headers.get('request-id')||body.id||undefined;
       if(ESTIMATOR_PROVIDER==='anthropic')assertEstimatorModel(body.model);
@@ -423,7 +423,9 @@ const requestPricingWithUnsafe=async(provider:'anthropic'|'openai',instructions:
         // assistant content and tool definitions so its evidence can resume.
         messages.push({role:'assistant',content:body.content});continue;
       }
-      throw new Error(`pricing-check-incomplete:${body.stop_reason||'unknown'}`);
+      // Keep the acknowledgement identity for reconciliation, but do not
+      // accept a truncated report as evidence or silently buy it again.
+      throw Object.assign(new Error(`pricing-check-incomplete:${body.stop_reason||'unknown'}`),{providerRequestId:lastRequestId,providerStatus:response.status});
     }
     const sourceUrls:string[]=[...new Set<string>(content.flatMap((p:any)=>p.type==='web_search_tool_result'&&Array.isArray(p.content)?p.content.filter((s:any)=>s.type==='web_search_result').map((s:any)=>s.url):p.type==='web_fetch_tool_result'&&p.content?.type==='web_fetch_result'?[p.content.url]:[]).filter((url:unknown)=>typeof url==='string'))];
     // Ignore pre-search narration, preserving all final answer text blocks.
@@ -445,10 +447,10 @@ const requestPricingWithUnsafe=async(provider:'anthropic'|'openai',instructions:
   if(!response.ok){let detail=await response.text().catch(()=>'');
     // A gateway that does not accept the reasoning setting is asked once more without it.
     if(rejectsReasoning(response.status,detail)&&'reasoning' in requestBody){const {reasoning:_omit,...plain}=requestBody as Record<string,unknown>;void _omit;console.error('[p5-pricing] OpenAI refused the reasoning setting; retrying without it.');response=await send(plain);detail=response.ok?'':await response.text().catch(()=>'');}
-    if(!response.ok)throw pricingHttpError(response,detail);}
+    if(!response.ok)throw Object.assign(pricingHttpError(response,detail),{pricingPriorRequestCount:requestSequence-1});}
   const body=await response.json();
   if(body.model!=='gpt-4.1'&&body.model!=='gpt-4.1-2025-04-14')throw new EstimatorModelError(body.model?'estimator-model-mismatch':'estimator-model-unverified');
-  if(body.status!=='completed')throw new Error(`pricing-check-incomplete:${body.incomplete_details?.reason||body.status||'unknown'}`);
+  if(body.status!=='completed')throw Object.assign(new Error(`pricing-check-incomplete:${body.incomplete_details?.reason||body.status||'unknown'}`),{providerRequestId:response.headers.get('x-request-id')||body.id||undefined,providerStatus:response.status});
   const parts=(body.output||[]).flatMap((o:any)=>o.content||[]);
   const raw=parts.filter((p:any)=>p.type==='output_text').map((p:any)=>p.text).join('\n');
   const sourceUrls:string[]=[...(body.output||[]).filter((o:any)=>o.type==='web_search_call').flatMap((o:any)=>(o.action?.sources||[]).map((s:any)=>s.url)),...parts.flatMap((p:any)=>(p.annotations||[]).filter((a:any)=>a.type==='url_citation').map((a:any)=>a.url))];
@@ -483,7 +485,10 @@ export const requestPricingWith=async(provider:'anthropic'|'openai',instructions
     // A syntactically valid 4xx rejection before provider acceptance is
     // known non-chargeable (except 408/429, whose acknowledgement is not
     // reliable). Keep the existing provider fallback for those responses.
-    const knownRejection=/^pricing-provider-unavailable:4(?:0[0-3]|0[5-7])\b/.test(message);
+    // A rejected continuation cannot establish that earlier requests in the
+    // same reservation were free. Preserve the whole uncertain reservation.
+    const knownRejection=/^pricing-provider-unavailable:4(?:0[0-3]|0[5-7])\b/.test(message)
+      &&(error as {pricingPriorRequestCount?:number})?.pricingPriorRequestCount===0;
     if(error instanceof EstimatorModelError){await settlePricingCharge(fingerprint);throw error;}
     if(error instanceof PricingChargeUnknownError)throw error;
     if(knownRejection){await rejectPricingCharge(fingerprint,message);throw error;}

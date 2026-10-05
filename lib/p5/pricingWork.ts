@@ -4,7 +4,7 @@ import {withSupportedServiceBook} from './planningBooks.ts';
 import {MODEL_POLICY_VERSION,ESTIMATOR_MODEL,ESTIMATOR_PROVIDER} from './modelPolicy.ts';
 import {pricingFailureDetails} from './pricingDiagnostics.ts';
 import {ESTIMATOR_VERSION} from './version.ts';
-import {SERVER_BUDGET_MS,remainingBudget,withinDeadline,ProcessingDeadlineError,isProcessingDeadline} from './processingBudget.ts';
+import {SERVER_BUDGET_MS,remainingBudget,ProcessingDeadlineError,isProcessingDeadline} from './processingBudget.ts';
 import {createHash} from 'node:crypto';
 import {recordEvent} from './events.ts';
 import {saveLearnedLines,readLearnedLines,learnedCostRules,learnedResearchLeads,saveSupportedServiceBook} from './learnedBook.ts';
@@ -151,7 +151,10 @@ async function priceSavedScopeImpl(id:string,scope:ReviewedScope,configuration:E
     if(payload.processing)payload.processing={...payload.processing,completedSteps:payload.completed};
     await persist();
   };
-  try{reply=await withinDeadline(()=>requestPricing(instructions,input,search,allowance,identity,undefined,checkpoint),started+allowance);}
+  // The provider transport already bounds headers and body by allowance.
+  // Await its accounting/checkpoint outcome too: an outer racing timer could
+  // schedule a retry while the original request was still being marked unknown.
+  try{reply=await requestPricing(instructions,input,search,allowance,identity,undefined,checkpoint);}
   catch(error){
    // A held QA intent is awaiting native review, not a failed provider attempt.
    if(qaPaidContext()){trace.attempt=Math.max(0,trace.attempt-1);await persist();throw error;}

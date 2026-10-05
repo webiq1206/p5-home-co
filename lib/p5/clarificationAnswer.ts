@@ -100,7 +100,8 @@ export async function resolveInstructionAnswer(...args:Parameters<typeof resolve
   for(const item of instructions.decisions||[]){
    const prior=saved.get(item.id);
    if(prior&&(prior.subject!==item.subject||prior.aspect!==item.aspect))throw new DraftError('The scope decision identity changed. Your answer is preserved; please retry.',503);
-   saved.set(item.id,prior?.answer?{...item,status:prior.status,answer:prior.answer}:item);
+   if(prior?.answer&&item.answer&&prior.answer!==item.answer)throw new DraftError('The saved scope answers conflict. Your answer is preserved for review.',409);
+   saved.set(item.id,prior?.answer?{...prior}:item);
   }
   if(prompt?.decisionId&&input.answer){
    const decision=saved.get(prompt.decisionId);
