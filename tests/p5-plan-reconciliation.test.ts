@@ -85,6 +85,11 @@ test('wall-paint perimeter does not create trim work, while explicit trim scope 
  assert.equal(reconcileScope({},normalizeDimensionSubjects(pdf)).answers.trimLf,undefined);
  assert.equal(reconcileScope({},normalizeDimensionSubjects(pdf,'Install baseboard around the room perimeter shown on the attached plan.')).answers.trimLf,'44');
  assert.equal(normalizeDimensionSubjects(extraction([fact('trimLf','8','Repair 8 LF of door casing')]),text).facts[0].field,'trimLf');
+ for(const component of ['chair rail','shoe molding','quarter-round','crown moulding','picture rail','skirting']){
+  const scope=`Install 44 LF of ${component} around the room perimeter.`;
+  const explicit=extraction([{...fact('trimLf','44',scope),source:'typed scope'}]);
+  assert.equal(reconcileScope({},normalizeDimensionSubjects(explicit,scope)).answers.trimLf,'44',component);
+ }
 });
 
 test('construction fill and splash-block notes cannot answer site or utility conditions',()=>{

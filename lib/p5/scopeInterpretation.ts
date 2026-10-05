@@ -87,7 +87,7 @@ export function normalizeDimensionSubjects(extraction:ScopeExtraction,text=''):S
    // Room perimeter can support wall-paint arithmetic without requesting any
    // trim work. Preserve the measurement, but not an invented trim quantity.
    // Explicit trim scope may refer back to a perimeter in another sentence.
-   if(!/\b(?:trim|baseboards?|base\s+mouldings?|base\s+moldings?|casing|crown\s+mouldings?|crown\s+moldings?)\b/i.test(authority+' '+f.evidence))return {...f,field:'otherDetails',value:'Room perimeter: '+f.evidence};
+   if(!/\b(?:trim|baseboards?|mouldings?|moldings?|casing|millwork|skirting|architraves?|cornices?|jambs?|(?:chair|picture|dado)[\s-]+rails?|quarter[\s-]+round)\b/i.test(authority+' '+f.evidence))return {...f,field:'otherDetails',value:'Room perimeter: '+f.evidence};
   }
   if(!['length','width','sqft'].includes(f.field))return f;
   // A short exact quote such as “each 3 feet wide by 4 feet high” may omit
