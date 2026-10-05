@@ -82,6 +82,13 @@ export function normalizeDimensionSubjects(extraction:ScopeExtraction,text=''):S
  const fixture=/\b(?:windows?|doors?|shower|vanity|cabinets?|countertops?)\b/i;
  const project=/\b(?:room|bathroom|kitchen|home|house|building|project|ADU)\s+(?:area|footprint|dimensions?|measures?)\b|\b(?:area|footprint|dimensions?)\s+of\s+(?:the\s+)?(?:room|bathroom|kitchen|home|house|building|project|ADU)\b|\b\d[\d,.]*\s*(?:SF|square feet|sq\.?\s*ft)\s+(?:room|bathroom|kitchen|home|house|building|project|ADU)\b/i;
  next.facts=next.facts.map(f=>{
+  if(f.field==='trimLf'&&/\bperimeter\b/i.test(f.evidence)){
+   const authority=/typed|submitted\s*scope/i.test(f.source)?text:[text,next.sourceText||f.evidence].join('\n');
+   // Room perimeter can support wall-paint arithmetic without requesting any
+   // trim work. Preserve the measurement, but not an invented trim quantity.
+   // Explicit trim scope may refer back to a perimeter in another sentence.
+   if(!/\b(?:trim|baseboards?|mouldings?|moldings?|casing|millwork|skirting|architraves?|cornices?|jambs?|(?:chair|picture|dado)[\s-]+rails?|quarter[\s-]+round)\b/i.test(authority+' '+f.evidence))return {...f,field:'otherDetails',value:'Room perimeter: '+f.evidence};
+  }
   if(!['length','width','sqft'].includes(f.field))return f;
   // A short exact quote such as “each 3 feet wide by 4 feet high” may omit
   // its noun. Bind it only to a unique containing customer sentence.
