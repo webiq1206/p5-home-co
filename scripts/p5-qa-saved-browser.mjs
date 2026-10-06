@@ -211,6 +211,13 @@ try {
       storageState: {cookies: [], origins: [{origin, localStorage: storageSeed}]},
     });
     await context.addCookies([{name: 'qa_fixture_session', value: 'synthetic-only', url: origin, httpOnly: true, sameSite: 'Lax'}]);
+    async function fixtureSession() {
+      const cookies = await context.cookies(origin);
+      assert.deepEqual(cookies.map(({name, value, httpOnly, sameSite}) => ({name, value, httpOnly, sameSite})), [
+        {name: 'qa_fixture_session', value: 'synthetic-only', httpOnly: true, sameSite: 'Lax'},
+      ], 'The existing synthetic browser session must remain intact.');
+    }
+    await fixtureSession();
     const page = await context.newPage();
     page.setDefaultTimeout(10000);
     await page.clock.install({time: new Date('2026-10-06T12:00:00Z')});
@@ -239,7 +246,12 @@ try {
         const headers = await request.allHeaders();
         assert.equal(headers['x-p5-draft-key'], undefined);
         assert.equal(headers['x-p5-draft-id'], undefined);
-        assert.match(headers.cookie || '', /qa_fixture_session=synthetic-only/);
+        // Routing runs before WebKit attaches network-stack headers. The mock
+        // never sends a wire request: verify the existing browser cookie jar
+        // and the adapter's same-origin credentials at every checkpoint below.
+        // https://playwright.dev/docs/next/network#headers-owned-by-the-network-stack
+        await fixtureSession();
+        if (headers.cookie !== undefined) assert.match(headers.cookie, /qa_fixture_session=synthetic-only/);
         assert.equal(request.postData(), null);
         requests.push({method: request.method(), url: url.pathname + url.search, mode: isPdf ? pdfMode : readMode});
         if (isPdf) {
@@ -269,6 +281,7 @@ try {
         else delete document.visibilityState;
       });
       await page.clock.fastForward(65000);
+      await fixtureSession();
       const snapshot = await page.evaluate(() => window.__qaSnapshot());
       checkpoints.push({stage, ...snapshot});
       assert.deepEqual(snapshot.counts, {localStorage: 0, sessionStorage: 0, indexedDB: 0, crypto: 0, sendBeacon: 0, analytics: 0, publicApi: 0}, `${stage}: forbidden browser side effect`);
