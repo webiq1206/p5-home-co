@@ -40,3 +40,25 @@ test('questions the review step can require are never hidden by the cap or the r
   // contradiction still are, even though the contradiction shares an asked label.
   assert.deepEqual(shown,['sqft','finish']);
 });
+
+test('an unresolved pending reply survives an interrupted save, transcript filtering and the optional question cap',()=>{
+ const pending={...q('estimatingInstructions','One scope detail','Labor only or materials only?'),instructionId:'labor-only'};
+ const next={...q('estimatingInstructions','One scope detail','Should we include or exclude painting?'),instructionId:'painting'};
+ const transcript=[asked(pending.label,pending.reason),...Array.from({length:MAX_OTHER_QUESTIONS},(_,i)=>asked(`Earlier ${i}`,`Earlier question number ${i} about another topic`))];
+ assert.deepEqual(unaskedQuestions([next,pending],transcript,[],pending.instructionId),[pending],'restore the exact pending question once even after the normal cap');
+ assert.deepEqual(unaskedQuestions([pending,next],[asked(pending.label,pending.reason)],[],pending.instructionId),[pending,next]);
+ assert.deepEqual(unaskedQuestions([pending,next],[],[],pending.instructionId),[pending,next],'do not duplicate a pending question that is already eligible');
+ assert.deepEqual(unaskedQuestions([pending,next],[asked(pending.label,pending.reason)]),[next],'successful save clears pending state and keeps answered questions suppressed');
+});
+
+test('pending recovery never fabricates removed questions or matches a different question sharing a field',()=>{
+ const pending={...q('estimatingInstructions','One scope detail','Labor only or materials only?'),instructionId:'labor-only'};
+ const next={...q('estimatingInstructions','One scope detail','Should we include or exclude painting?'),instructionId:'painting'};
+ const transcript=[asked(next.label,next.reason)];
+ assert.deepEqual(unaskedQuestions([next],transcript,[],pending.instructionId),[],'an absent instruction must not resurrect another question with the same field');
+ assert.deepEqual(unaskedQuestions([pending,next],[],[],'stale-id'),[pending,next]);
+ const ordinary=q('sqft','Project area','What is the project area?');
+ const key=JSON.stringify([ordinary.field,ordinary.reason]);
+ assert.deepEqual(unaskedQuestions([ordinary],[asked(ordinary.label,ordinary.reason)],[],key),[ordinary]);
+ assert.deepEqual(unaskedQuestions([],[asked(ordinary.label,ordinary.reason)],[],key),[],'a locally resolved answer is retained, not asked again');
+});
