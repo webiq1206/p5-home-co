@@ -2,7 +2,7 @@ import {QaPaidHold} from './qaPaid.ts';
 import { ESTIMATOR_BRAND } from "./brand.ts";
 import { DraftError } from "./store.ts";
 const buckets=new Map<string,{count:number;until:number}>();
-function configuredOrigins() {
+export function configuredOrigins() {
   const values=[`https://${ESTIMATOR_BRAND.domain}`,`https://www.${ESTIMATOR_BRAND.domain}`,process.env.APP_BASE_URL,process.env.REPLIT_DEV_DOMAIN];
   return new Set(values.flatMap(value=>{
     if(!value)return [];

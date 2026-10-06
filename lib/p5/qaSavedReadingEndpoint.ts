@@ -1,5 +1,6 @@
+import {protectQaAction} from './qaOrigin.ts';
 import {DraftError} from './store.ts';
-import {json,limitedBody,protectRequest,failed} from './http.ts';
+import {json,limitedBody,failed} from './http.ts';
 import {inspectQaSavedReading,applyQaSavedReading} from './qaSavedReading.ts';
 
 /** Authentication is supplied by the route's existing administrator session.
@@ -12,8 +13,7 @@ export function qaSavedReadingHandlers(authorize:()=>Promise<{id:string}>,operat
     }catch(error){return failed(error);}},
     POST:async(request:Request)=>{try{
       const actor=await authorize();
-      if(request.headers.get('origin')!==new URL(request.url).origin)throw new DraftError('Use the signed-in QA recovery page.',403);
-      protectRequest(request);
+      protectQaAction(request,'Use the signed-in QA recovery page.');
       const raw=JSON.parse(new TextDecoder().decode(await limitedBody(request,2048)));
       if(!raw||Object.keys(raw).sort().join(',')!=='case,operation,revision')throw new DraftError('Invalid saved-reading action.',400);
       return json(await operations.apply(raw.case,raw.revision,raw.operation,actor.id));
