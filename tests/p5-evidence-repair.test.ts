@@ -50,6 +50,31 @@ test('a persisted decision answer survives rewording while different decisions r
  assert.equal(prompts.some(prompt=>prompt.sourceQuestion==='Who supplies the radon fan?'),true);
  assert.throws(()=>mergeInstructions([{...emptyInstructions(),decisions:[old,{...old,subject:'garage radon'}]}]),/identity/);
 });
+test('decision aliases preserve original answers in either merge order without mutating source evidence',()=>{
+ const saved={id:'radon-design',subject:'house radon',aspect:'system design',question:'Include interior ductwork?',status:'answered' as const,answer:'No'};
+ const newer={...saved,question:'Exclude interior ductwork?',status:'pending' as const,answer:undefined};
+ const parts=[{...emptyInstructions(),questions:[saved.question],decisions:[saved]},{...emptyInstructions(),questions:[newer.question],decisions:[newer]}];
+ const before=structuredClone(parts);
+ for(const ordered of [parts,[...parts].reverse()]){
+  const instructions=mergeInstructions(ordered);
+  assert.deepEqual(instructions.decisions,[saved]);
+  assert.deepEqual(instructions.questions,[saved.question]);
+  const prompts=instructionPrompts({summary:'Radon',facts:[],conflicts:[],missingInformation:[],reviewNotes:[],instructions},{service:'re10',taskList:'Mitigate radon'});
+  assert.equal(prompts.some(prompt=>prompt.sourceQuestion===newer.question),false);
+ }
+ assert.deepEqual(parts,before);
+});
+test('unanswered aliases retain identity while unrelated questions remain separate and ambiguous aliases fail closed',()=>{
+ const original={id:'radon-design',subject:'house radon',aspect:'system design',question:'Which radon system?',status:'pending' as const};
+ const revised={...original,question:'Which radon system design is required?'};
+ const instructions=mergeInstructions([{...emptyInstructions(),questions:[original.question],decisions:[original]},{...emptyInstructions(),questions:[revised.question,'Who supplies the radon fan?'],decisions:[revised]}]);
+ assert.deepEqual(instructions.questions,[revised.question,'Who supplies the radon fan?']);
+ assert.equal(instructions.decisions?.[0].id,original.id);
+ const repeated=mergeInstructions([{...emptyInstructions(),questions:[original.question],decisions:[original,{...original,id:'second-observation'}]}]);
+ assert.equal(repeated.decisions?.length,2,'matching physical identities from separate observations stay valid');
+ assert.deepEqual(repeated.questions,[original.question]);
+ assert.throws(()=>mergeInstructions([{...emptyInstructions(),decisions:[original,{...original,id:'garage-radon',subject:'garage radon',question:'WHICH radon system!'}]}]),/identity/);
+});
 test('complete typed coverage retires only its own prose, never a preparation failure',()=>{
  const note='Blank tiles (unreadable regions) were inspected and contain no content.';
  const extraction={reviewNotes:[note,'Another file was not processed'],documentCoverage:{complete:true,expectedPages:1,pages:[{source:'plans.pdf',page:6,sheet:'A301',revision:'',status:'read' as const,coverageState:'readable' as const,notes:[note]}]}};

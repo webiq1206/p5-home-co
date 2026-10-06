@@ -21,6 +21,10 @@ export function isEstimateHandlingDirection(text:string):boolean{
 export function mergeInstructions(parts:ScopeInstructions[]):ScopeInstructions {
   const merged=emptyInstructions();
   const decisions=parts.flatMap(part=>part.decisions||[]);
+  const questionAliases=new Map<string,string>();
+  // Match the prompt lookup's normalization without treating similar wording
+  // as evidence that two different decisions share an answer.
+  const questionKey=(text:string)=>text.toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
   if(decisions.length){
     const byId=new Map<string,ScopeDecision>();
     for(const decision of decisions){
@@ -33,9 +37,20 @@ export function mergeInstructions(parts:ScopeInstructions[]):ScopeInstructions {
       byId.set(decision.id,prior?.answer?{...prior}:{...decision});
     }
     merged.decisions=[...byId.values()];
+    const questionOwners=new Map<string,ScopeDecision>();
+    for(const decision of decisions){
+      const key=questionKey(decision.question),owner=questionOwners.get(key);
+      const target=byId.get(decision.id)!.question;
+      if(owner&&(owner.subject!==decision.subject||owner.aspect!==decision.aspect||questionKey(questionAliases.get(key)!)!==questionKey(target)))throw new Error('Conflicting scope decision question identity');
+      questionOwners.set(key,decision);
+      questionAliases.set(key,target);
+    }
   }
   for(const key of ['inclusions','exclusions','responsibilities','buildings','floors','questions'] as const)
     merged[key]=[...new Set(parts.flatMap(p=>p[key]||[]))];
+  // A later same-ID wording must still resolve to the saved original question
+  // and answer. Never rewrite that answered question or infer a fuzzy alias.
+  merged.questions=merged.questions.map(question=>questionAliases.get(questionKey(question))??question);
   for(const key of ['separateBuildings','laborOnly','materialsOnly'] as const)merged[key]=parts.some(p=>p[key]);
   const handling=[...merged.inclusions,...merged.exclusions].filter(isEstimateHandlingDirection);
   merged.responsibilities=[...new Set([...merged.responsibilities,...handling])];
