@@ -51,3 +51,15 @@ test('unavailable session storage does not break real visitor analytics', () => 
   vm.runInContext(googleTagBootstrap(options), b.context);
   assert.equal(b.nodes.length, 1);
 });
+
+
+test('the private saved-estimate QA path never touches analytics or session storage', () => {
+  for (const path of ['/estimate/qa-saved', '/estimate/qa-saved/child']) {
+    const b = browser('example.com');b.window.location.pathname=path;
+    vm.runInContext("sessionStorage.getItem = sessionStorage.setItem = function () { throw new Error('storage must not be accessed'); }", b.context);
+    vm.runInContext(googleTagBootstrap(options), b.context);
+    assert.equal(b.nodes.length,0);assert.equal(b.window.dataLayer.length,1);
+  }
+  const normal=browser('example.com');normal.window.location.pathname='/estimate';
+  vm.runInContext(googleTagBootstrap(options),normal.context);assert.equal(normal.nodes.length,1);
+});

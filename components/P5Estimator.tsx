@@ -29,6 +29,7 @@ import {reportProgress,trackScopeEvent} from '@/lib/p5/progress';
 import {trackGoogleAdsLeadConversion} from '@/lib/googleAdsConversion';
 import {displayScopeText,refreshAnalyzedScope,replaceAnalyzedScope,replacesEntireScope,scopeFingerprint,scopeTextChanged,sourceSnapshot,sourceSnapshotsEqual} from '@/lib/p5/scopeReplacement';
 import {ESTIMATOR_VERSION,estimatorRelease} from '@/lib/p5/version';
+import type {SavedEstimatePreview} from '@/lib/p5/qaSavedEstimateView';
 import {parseNumericAnswer} from '@/lib/p5/answerParsing';
 
 const textAnswers=(a:ScopeAnswers)=>JSON.stringify(Object.entries(a).filter(([k,v])=>SCOPE_FIELDS[k as ScopeField].kind==='text'&&v?.trim()).sort(([a],[b])=>a.localeCompare(b)));
@@ -61,10 +62,13 @@ const EMAIL=/^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const newEntry=(role:TranscriptEntry['role'],text:string,extra:Partial<TranscriptEntry>={}):TranscriptEntry=>({id:`${Date.now().toString(36)}-${Math.random().toString(36).slice(2,8)}`,role,text,at:Date.now(),...extra});
 function Message({role,children,last}:{role:'user'|'assistant';children:React.ReactNode;last?:boolean}){return <div className={styles.msg} data-role={role} data-last-user={last?'':undefined}><div className={styles.bubble}>{children}</div></div>;}
 
-export interface P5EstimatorProps {defaultService?:string;headingAs?:'h1'|'h2';projectSource?:ProjectSource;layout?:'page'|'embedded';onExit?:()=>void;}
+export interface P5EstimatorProps {defaultService?:string;headingAs?:'h1'|'h2';projectSource?:ProjectSource;layout?:'page'|'embedded';onExit?:()=>void;savedPreview?:SavedEstimatePreview;}
 
-export function P5Estimator({defaultService='',headingAs='h1',projectSource,layout='embedded',onExit}:P5EstimatorProps){
-  const [draft,setDraft]=useState<BrowserDraft|null>(null);const current=useRef<BrowserDraft|null>(null);
+export function P5Estimator({defaultService='',headingAs='h1',projectSource,layout='embedded',onExit,savedPreview}:P5EstimatorProps){
+  const readOnly=Boolean(savedPreview);
+  const initialView=savedPreview?.view;
+  const initialDraft:BrowserDraft|null=initialView?{id:initialView.id,key:'',revision:initialView.revision,text:'',answers:{service:initialView.document.service},extraction:null,contact:{name:'',email:'',phone:''},step:2,updatedAt:0,uploads:[],wizard:{skipped:[],resolutions:{}},dirty:false,transcript:[]}:null;
+  const [draft,setDraft]=useState<BrowserDraft|null>(initialDraft);const current=useRef<BrowserDraft|null>(initialDraft);
   const [files,setFiles]=useState<File[]>([]);const filesRef=useRef<File[]>([]);const fileInput=useRef<HTMLInputElement|null>(null);const composerRef=useRef<HTMLTextAreaElement|null>(null);
   // What the PDF card claims is what actually happened: nothing is called "Ready" before it exists.
   const [pdfState,setPdfState]=useState<'available'|'preparing'|'downloaded'|'failed'>('available');
@@ -75,7 +79,7 @@ export function P5Estimator({defaultService='',headingAs='h1',projectSource,layo
   // Which operation is running, declared by its caller rather than guessed from the progress message.
   const [runKind,setRunKind]=useState<Paused['kind']|null>(null);const [error,setErrorText]=useState('');const [manualReviewAvailable,setManualReviewAvailable]=useState(false);const [warning,setWarning]=useState('');const [status,setStatus]=useState('');
   const setError=(message:string,manualReview=false)=>{setErrorText(message);setManualReviewAvailable(Boolean(message)&&manualReview);};
-  const [uploadPercent,setUploadPercent]=useState<number|null>(null);const [preparingFiles,setPreparingFiles]=useState(true);const [dragging,setDragging]=useState(false);
+  const [uploadPercent,setUploadPercent]=useState<number|null>(null);const [preparingFiles,setPreparingFiles]=useState(!savedPreview);const [dragging,setDragging]=useState(false);
   const [processing,setProcessing]=useState<ProcessingStatus|null>(null);const lastProcessing=useRef<ProcessingStatus|null>(null);
   const [paused,setPaused]=useState<Paused|null>(null);const resuming=useRef(false);
   const [missingFields,setMissingFields]=useState<MissingField[]>([]);const [verificationItems,setVerificationItems]=useState<string[]>([]);
@@ -85,7 +89,7 @@ export function P5Estimator({defaultService='',headingAs='h1',projectSource,layo
   const [recoveries,setRecoveries]=useState<BrowserDraftRecovery[]>([]);
   // Defense in depth: whatever a current or historical response carries, the page
   // only ever renders the allowlisted customer projection of it.
-  const [rawResult,setResult]=useState<any>(null);const [estimateDoc,setEstimateDoc]=useState<EstimateDocument|null>(null);const result=useMemo(()=>rawResult?customerPresentation(rawResult,{hideUnitRates:HIDE_CUSTOMER_UNIT_RATES}):null,[rawResult]);const [delivery,setDelivery]=useState<any[]>([]);const deliveryChecks=useRef(0);const [confirmed,setConfirmed]=useState(false);
+  const [rawResult,setResult]=useState<any>(initialView?.result||null);const [estimateDoc,setEstimateDoc]=useState<EstimateDocument|null>(initialView?.document||null);const result=useMemo(()=>rawResult?customerPresentation(rawResult,{hideUnitRates:HIDE_CUSTOMER_UNIT_RATES}):null,[rawResult]);const [delivery,setDelivery]=useState<any[]>(initialView?.delivery||[]);const deliveryChecks=useRef(0);const [confirmed,setConfirmed]=useState(false);
   const [active,setActive]=useState<ScopeQuestion|null>(null);const [editField,setEditField]=useState<ScopeField|''>('');
   const [listening,setListening]=useState(false);const [speechAvailable,setSpeechAvailable]=useState(false);const recognition=useRef<Recognition|null>(null);
   const [expanded,setExpanded]=useState(false);const [topInset,setTopInset]=useState(0);const [bottomInset,setBottomInset]=useState(0);
@@ -93,7 +97,7 @@ export function P5Estimator({defaultService='',headingAs='h1',projectSource,layo
   const pendingUserMessage=useRef<{text:string;files:string[];caption?:string}|null>(null);
   const [validationTarget,setValidationTarget]=useState<'confirmation'|'contact'|''>('');
   const frameActive=layout==='page'||expanded;
-  const apply=(next:BrowserDraft)=>{current.current=next;setDraft(next);if(!persistBrowserDraft(next))setStatus('Keep this page open. This browser cannot save your work on this device.');};
+  const apply=useCallback((next:BrowserDraft)=>{if(readOnly)return;current.current=next;setDraft(next);if(!persistBrowserDraft(next))setStatus('Keep this page open. This browser cannot save your work on this device.');},[readOnly]);
   const change=(update:Partial<BrowserDraft>)=>{if(!current.current)return;apply({...current.current,...update,dirty:true,updatedAt:Date.now()});setConfirmed(false);};
   const changeContact=(key:keyof BrowserDraft['contact'],value:string)=>{const latest=current.current;if(latest)change({contact:{...latest.contact,[key]:value}});};
   const log=(...entries:TranscriptEntry[])=>{const d=current.current;if(!d||!entries.length)return;apply({...d,transcript:[...(d.transcript||[]),...entries]});};
@@ -123,7 +127,14 @@ export function P5Estimator({defaultService='',headingAs='h1',projectSource,layo
     answers=deriveScopeAnswers(answers);
     change({answers,conflicts:(d.conflicts||[]).filter(c=>c.field!==key),wizard:{...d.wizard,skipped:(d.wizard?.skipped||[]).filter(k=>k!==key),resolutions:{...d.wizard?.resolutions,[key]:value}}});
   };
+  const operationBudget=useRef<{deadline:number;controller:AbortController}|null>(null);
+  const operationFetch=useCallback<typeof fetch>((input,init)=>{if(readOnly)return Promise.reject(new Error('This saved QA view is read-only.'));const budget=operationBudget.current;return fetchWithinDeadline(fetch,input,{...init,...(budget?{signal:budget.controller.signal}:{})},budget?.deadline||Date.now()+CLIENT_BUDGET_MS);},[readOnly]);
   useEffect(()=>{
+    if(savedPreview){
+      // Keyed read-only instances are initialized in memory, without device recovery.
+      mounted.current=true;
+      return()=>{mounted.current=false;};
+    }
     // An emailed estimate link (?estimate=<id>&t=<signed token>) is exchanged once for a key for this
     // device, saved like any draft, and the page reloads on a clean address; the saved estimate or its
     // live progress then loads through the normal restore below. A bad or expired link says so.
@@ -179,14 +190,14 @@ export function P5Estimator({defaultService='',headingAs='h1',projectSource,layo
     const preventFileNavigation=(event:DragEvent)=>{if(event.dataTransfer?.types.includes('Files'))event.preventDefault();};
     window.addEventListener("drop",preventFileNavigation);window.addEventListener("dragover",preventFileNavigation);
     return()=>{mounted.current=false;recognition.current?.stop();window.removeEventListener("drop",preventFileNavigation);window.removeEventListener("dragover",preventFileNavigation);};
-  },[defaultService,projectSource?.id]);
-  useEffect(()=>{if(projectSource&&current.current&&!current.current.sourceDetached){const next=mergeProjectSource(current.current,projectSource);if(next!==current.current){resume(next);setConfirmed(false);}}},[JSON.stringify(projectSource)]);
+  },[defaultService,projectSource?.id,savedPreview,apply,operationFetch]);
+  useEffect(()=>{if(readOnly)return;if(projectSource&&current.current&&!current.current.sourceDetached){const next=mergeProjectSource(current.current,projectSource);if(next!==current.current){resume(next);setConfirmed(false);}}},[JSON.stringify(projectSource),readOnly]);
   useEffect(()=>{
-    if(!draft)return;
+    if(readOnly||!draft)return;
     const engaged=Boolean(draft.text||files.length||Object.keys(draft.answers).length);
     if(engaged&&!started.current){started.current=true;trackScopeEvent('started',draft.answers.service);}
     if(engaged)reportProgress(draft,result?'completed':'active');
-  },[draft?.step,JSON.stringify(draft?.answers),Boolean(draft?.text),files.length,Boolean(result)]);
+  },[draft?.step,JSON.stringify(draft?.answers),Boolean(draft?.text),files.length,Boolean(result),readOnly]);
   useEffect(()=>{
     if(!frameActive)return;
     const html=document.documentElement;const body=document.body;
@@ -222,11 +233,10 @@ export function P5Estimator({defaultService='',headingAs='h1',projectSource,layo
     const frame=requestAnimationFrame(()=>scrollThread(focused,'center'));
     return()=>cancelAnimationFrame(frame);
   },[bottomInset,frameActive]);
-  const operationBudget=useRef<{deadline:number;controller:AbortController}|null>(null);
-  const operationFetch:typeof fetch=(input,init)=>{const budget=operationBudget.current;return fetchWithinDeadline(fetch,input,{...init,...(budget?{signal:budget.controller.signal}:{})},budget?.deadline||Date.now()+CLIENT_BUDGET_MS);};
   const checkOperation=()=>{const budget=operationBudget.current;if(budget){if(budget.controller.signal.aborted)throw new ProcessingDeadlineError();remainingBudget(budget.deadline);}};
   const serialized=<T,>(operation:()=>Promise<T>):Promise<T>=>{const task=queue.current.catch(()=>undefined).then(operation);queue.current=task;return task;};
   async function adoptServerDraft(){
+    if(readOnly)throw new Error('This saved QA view is read-only.');
     const d=current.current;if(!d)return false;
     try{
       const response=await operationFetch('/api/p5-estimator/draft',{headers:draftHeaders(d),cache:'no-store'});
@@ -239,6 +249,7 @@ export function P5Estimator({defaultService='',headingAs='h1',projectSource,layo
     }catch{return false;}
   }
   async function save(reviewed=false,clarification?:{id:string;answer:string}){
+    if(readOnly)throw new Error('This saved QA view is read-only.');
     const initiated=operationBudget.current;
     const d=current.current;if(!d)throw new Error('Your project is still loading.');
     const requestSource=sourceSnapshot(d);
@@ -255,13 +266,13 @@ export function P5Estimator({defaultService='',headingAs='h1',projectSource,layo
     return saved;
   }
   useEffect(()=>{
-    if(!draft?.contact.email||busy||result||!draft.dirty||paused)return;
+    if(readOnly||!draft?.contact.email||busy||result||!draft.dirty||paused)return;
     const timer=setTimeout(()=>{if(!busyRef.current)void serialized(()=>save()).then(()=>setStatus('Project saved.')).catch(()=>setStatus('Saved on this device. We will retry saving when connected.'));},1800);
     return()=>clearTimeout(timer);
-  },[draft?.text,JSON.stringify(draft?.answers),JSON.stringify(draft?.contact),busy,Boolean(result),Boolean(draft?.dirty),Boolean(paused)]);
+  },[draft?.text,JSON.stringify(draft?.answers),JSON.stringify(draft?.contact),busy,Boolean(result),Boolean(draft?.dirty),Boolean(paused),readOnly]);
   const preflightField=useRef<ScopeField|null>(null);
   async function run(label:string,operation:()=>Promise<void>,kind:Paused['kind']|null=null){
-    if(busyRef.current)return;busyRef.current=true;setBusy(label);setRunKind(kind);setProcessing(null);lastProcessing.current=null;setError('');setPaused(null);recognition.current?.stop();
+    if(readOnly||busyRef.current)return;busyRef.current=true;setBusy(label);setRunKind(kind);setProcessing(null);lastProcessing.current=null;setError('');setPaused(null);recognition.current?.stop();
     const budget={deadline:Date.now()+(kind?CLIENT_BACKGROUND_BUDGET_MS:CLIENT_BUDGET_MS),controller:new AbortController()};operationBudget.current=budget;
     try{await withinDeadline(()=>serialized(async()=>{checkOperation();await withinDeadline(operation,budget.deadline);checkOperation();}),budget.deadline);}
     catch(e){
@@ -279,7 +290,7 @@ export function P5Estimator({defaultService='',headingAs='h1',projectSource,layo
     finally{budget.controller.abort();if(operationBudget.current===budget)operationBudget.current=null;busyRef.current=false;setBusy('');setRunKind(null);setUploadPercent(null);setProcessing(null);}
   }
   useEffect(()=>{
-    if(!paused||busy)return;
+    if(readOnly||!paused||busy)return;
     let cancelled=false;const kind=paused.kind;let inFlight=false;
     const tick=async()=>{const d=current.current;if(!d||cancelled||inFlight||busyRef.current)return;inFlight=true;try{await check(d);}finally{inFlight=false;}};
     const check=async(d:NonNullable<typeof current.current>)=>{
@@ -306,7 +317,7 @@ export function P5Estimator({defaultService='',headingAs='h1',projectSource,layo
     };
     const timer=setInterval(()=>{void tick();},4000);void tick();
     return()=>{cancelled=true;clearInterval(timer);};
-  },[paused?.kind,busy]);
+  },[paused?.kind,busy,readOnly,apply]);
   const parseMissing=(value:unknown):MissingField[]=>Array.isArray(value)?value.filter((f:any)=>f&&typeof f.field==='string'&&Object.hasOwn(SCOPE_FIELDS,f.field)).map((f:any)=>({field:f.field as ScopeField,label:String(f.label||SCOPE_FIELDS[f.field as ScopeField].label)})):[];
   const parseItems=(value:unknown):string[]=>Array.isArray(value)?value.filter((item):item is string=>typeof item==='string'&&item.trim().length>0).slice(0,8):[];
   const track=(detail:ProcessingStatus|null|undefined)=>{if(detail){lastProcessing.current=detail;setProcessing(detail);}};
@@ -371,11 +382,11 @@ export function P5Estimator({defaultService='',headingAs='h1',projectSource,layo
   }
   const needsAnalysis=()=>{const d=current.current;return Boolean(d&&(d.analysisWarning||!d.sourceDetached&&projectSource?.imageUrl&&d.sourceImageUrl!==projectSource.imageUrl||filesRef.current.length||d.text.trim()&&d.text!==d.analyzedText||textAnswers(d.answers)!=='[]'&&textAnswers(d.answers)!==d.analyzedAnswers));};
   useEffect(()=>{
-    if(!result||!delivery.length||!delivery.some(d=>d.status==='pending'||d.status==='retry'||d.status==='sending')||deliveryChecks.current>=10)return;
+    if(readOnly||!result||!delivery.length||!delivery.some(d=>d.status==='pending'||d.status==='retry'||d.status==='sending')||deliveryChecks.current>=10)return;
     const d=current.current;if(!d)return;let cancelled=false;
     const timer=setTimeout(async()=>{deliveryChecks.current+=1;try{const response=await fetch('/api/p5-estimator/submit',{method:'POST',headers:{...draftHeaders(d),'Content-Type':'application/json'},body:JSON.stringify({revision:d.revision})});const value=await readJson(response);if(!cancelled&&mounted.current&&Array.isArray(value.delivery)&&value.delivery.length)setDelivery(value.delivery);}catch{}},6000);
     return()=>{cancelled=true;clearTimeout(timer);};
-  },[result,delivery]);
+  },[result,delivery,readOnly]);
   useEffect(()=>{const el=composerRef.current;if(!el)return;el.style.height='auto';el.style.height=Math.min(el.scrollHeight,220)+'px';},[draft?.text,draft?.answers.estimatingInstructions,draft?.step,reply,editText,addingDetails]);
   /** Files chosen before a reload that this device could not give back. */
   function requireRecoveredFiles(){
@@ -388,7 +399,7 @@ export function P5Estimator({defaultService='',headingAs='h1',projectSource,layo
     if(needsAnalysis()||(current.current?.uploads?.length&&!current.current.extraction))await analyze();else{pendingUserMessage.current=null;await save();showQuestions(current.current!);}
   },'analysis');
   async function addFiles(selected:FileList|File[]|null){
-    if(!selected||!current.current||busyRef.current||preparingFiles)return;
+    if(readOnly||!selected||!current.current||busyRef.current||preparingFiles)return;
     const incoming=Array.from(selected);const next=[...filesRef.current];
     for(const f of incoming){if(!accept.split(',').includes('.'+f.name.split('.').pop()?.toLowerCase())){setError(`${f.name}: use a supported document or photo format.`);return;}if(!next.some(v=>v.name===f.name&&v.size===f.size&&v.lastModified===f.lastModified))next.push(f);}
     const uploaded=current.current.uploads||[];
@@ -402,6 +413,7 @@ export function P5Estimator({defaultService='',headingAs='h1',projectSource,layo
     try{await withTimeout(cacheFiles(current.current.id,copied),60000,'Device storage did not respond.');requireRecoveredFiles();setStatus('Files saved on this device. Send your message to upload and read them with your project details.');}catch(error){const message=error instanceof Error?error.message:'';if(missingPendingFiles(current.current,copied).length)setError(message);setStatus(copied.reduce((n,f)=>n+f.size,0)>DEVICE_CACHE_LIMIT?'Files are ready in this tab. Large files stay in this tab until upload; keep it open, or after a reload reselect the original files to resume saved server segments.':`Files remain in this tab. Device storage may be full or unavailable. Keep this tab open until upload completes; after a reload, reselect the original files to resume saved server segments. ${message}`);}finally{setPreparingFiles(false);}
   }
   function speak(){
+    if(readOnly)return;
     if(listening){recognition.current?.stop();return;}
     const Constructor=(window as any).SpeechRecognition||(window as any).webkitSpeechRecognition;if(!Constructor)return;
     const r:Recognition=new Constructor();recognition.current=r;r.continuous=true;r.interimResults=false;r.lang='en-US';
@@ -424,6 +436,7 @@ export function P5Estimator({defaultService='',headingAs='h1',projectSource,layo
   const jumpToField=(field:ScopeField)=>{const d=current.current;if(!d)return;engage();change({wizard:{...d.wizard,resolutions:d.wizard?.resolutions||{},skipped:(d.wizard?.skipped||[]).filter(k=>k!==field)}});setActive(questionForField(field,d.answers));setMissingFields([]);setVerificationItems([]);setError('');setAddingDetails(false);apply({...current.current!,step:1});};
   /** A failed transfer leaves the complete source project available to retry. */
   async function carryProject(fallback:string){
+    if(readOnly)return;
     const d=current.current;if(!d)return;
     const requiredFiles=[...(d.uploads||[]),...(d.pendingFiles||[]),...filesRef.current].map(({name,size})=>({name,size}));
     try{
@@ -452,7 +465,20 @@ export function P5Estimator({defaultService='',headingAs='h1',projectSource,layo
     await run('Preparing your PDF...',async()=>{const response=await operationFetch(`/api/p5-estimator/pdf?version=${revision}`,{headers:draftHeaders(d)});if(!response.ok)throw new Error('That version could not be downloaded. Please retry.');
       const url=URL.createObjectURL(await response.blob());const link=document.createElement('a');link.href=url;link.download=`${brand.id}-estimate-version-${revision}.pdf`;link.hidden=true;document.body.appendChild(link);try{link.click();}finally{link.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);}});
   }
-  async function downloadPdf(){let saved=false;setPdfState('preparing');await run('Preparing your PDF...',async()=>{const response=await operationFetch('/api/p5-estimator/pdf',{headers:draftHeaders(current.current!)});if(!response.ok)throw new Error('The PDF could not be downloaded. Your submission is saved; please retry.');const blob=await response.blob();if(!blob.size||!blob.type.toLowerCase().includes('application/pdf'))throw new Error('The PDF is not ready. Your estimate is saved; please retry.');const url=URL.createObjectURL(blob);const link=document.createElement('a');link.href=url;link.download=`${brand.id}-estimate.pdf`;link.hidden=true;document.body.appendChild(link);try{link.click();saved=true;}finally{link.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);}});setPdfState(saved?'downloaded':'failed');}
+  async function downloadPdf(){
+    if(savedPreview){
+      if(busyRef.current)return;busyRef.current=true;setPdfState('preparing');setError('');
+      try{
+        const blob=await savedPreview.downloadPdf();
+        if(!blob.size||!blob.type.toLowerCase().includes('application/pdf'))throw new Error('The saved PDF could not be verified. Reload this saved estimate and try again.');
+        if(!mounted.current)return;
+        const url=URL.createObjectURL(blob),link=document.createElement('a');link.href=url;link.download=`${brand.id}-estimate.pdf`;link.hidden=true;document.body.appendChild(link);
+        try{link.click();setPdfState('downloaded');}finally{link.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);}
+      }catch(error){if(mounted.current){setPdfState('failed');setError(error instanceof Error?error.message:'The saved PDF could not be downloaded.');}}
+      finally{busyRef.current=false;}
+      return;
+    }
+    let saved=false;setPdfState('preparing');await run('Preparing your PDF...',async()=>{const response=await operationFetch('/api/p5-estimator/pdf',{headers:draftHeaders(current.current!)});if(!response.ok)throw new Error('The PDF could not be downloaded. Your submission is saved; please retry.');const blob=await response.blob();if(!blob.size||!blob.type.toLowerCase().includes('application/pdf'))throw new Error('The PDF is not ready. Your estimate is saved; please retry.');const url=URL.createObjectURL(blob);const link=document.createElement('a');link.href=url;link.download=`${brand.id}-estimate.pdf`;link.hidden=true;document.body.appendChild(link);try{link.click();saved=true;}finally{link.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);}});setPdfState(saved?'downloaded':'failed');}
   const focusCorrection=(element:HTMLElement|null)=>{
     if(!element)return;
     // The invalid field already exists. Focus it before returning from submit:
@@ -461,7 +487,7 @@ export function P5Estimator({defaultService='',headingAs='h1',projectSource,layo
     requestAnimationFrame(()=>{if(document.activeElement===element)scrollThread(element,'center');});
   };
   async function submit(event:React.FormEvent){
-    event.preventDefault();if(busyRef.current)return;if(draft?.step!==2){await begin();return;}
+    event.preventDefault();if(readOnly||busyRef.current)return;if(draft?.step!==2){await begin();return;}
     try{requireRecoveredFiles();}catch(error){setError(error instanceof Error?error.message:'Reselect your original files before continuing.');return;}
     if(current.current?.analysisWarning&&!filesRef.current.length&&(current.current.text||'')===(current.current.analyzedText||'')){setError('Some of your files could not be read, so they cannot be priced yet. Use Retry document reading, or remove the file to price the rest of your project.');return;}
     if(needsAnalysis()){await begin();return;}
@@ -487,7 +513,7 @@ export function P5Estimator({defaultService='',headingAs='h1',projectSource,layo
   const continuePaused=()=>{const kind=paused?.kind;setPaused(null);resuming.current=true;if(kind==='pricing'){const form=document.getElementById(`${id}-form`) as HTMLFormElement|null;if(form)form.requestSubmit();else void begin();}else void begin();};
   const changeProjectText=(text:string)=>{const d=current.current;if(!d)return;if(!scopeTextChanged(displayScopeText(d.text,d.answers.estimatingInstructions),text)){change({text,answers:{...d.answers,estimatingInstructions:''}});return;}change({...refreshAnalyzedScope(d,text),text,pendingReply:undefined});setReply('');setActive(null);setWarning('');setRecoveries(listBrowserDraftRecoveries(d.namespace));};
   const switchProject=async(recovery?:BrowserDraftRecovery)=>{
-    if(busyRef.current||preparingFiles||!current.current)return;const d=current.current;
+    if(readOnly||busyRef.current||preparingFiles||!current.current)return;const d=current.current;
     if(!window.confirm(recovery?'Restore this saved project? Your current project will be kept in recovery.':'Start a new project with no previous answers or files? Your current project and files will be kept in recovery.'))return;
     await run('Preserving your project...',async()=>{
       if(filesRef.current.length)await cacheFiles(d.id,filesRef.current);const archived=replaceBrowserDraft(d,'');let next=recovery?restoreBrowserDraft(recovery):archived.draft;if(!next)throw new Error('This saved project could not be restored. Your current project is unchanged.');
@@ -575,10 +601,11 @@ export function P5Estimator({defaultService='',headingAs='h1',projectSource,layo
   const contactReady=draft.contact.name.trim().length>=2&&(!hasEmail||EMAIL.test(draft.contact.email));
   const submitErrorId=`${id}-submit-error`;const formId=`${id}-form`;
   const transcript=draft.transcript||[];const hasProgress=transcript.length>0||draft.step>0||Boolean(result)||uploadedCount>0;
-  const locked=Boolean(busy)||preparingFiles;
+  const locked=Boolean(busy)||preparingFiles||readOnly&&pdfState==='preparing';
   const canSend=!locked&&(composerMode==='project'?Boolean(composerText.trim()||files.length||uploadedCount||attachedProjectSource):composerMode==='answer'?Boolean(reply.trim()||files.length):Boolean(editText.trim()||files.length));
   const customerDelivery=delivery.find(d=>d.channel==='customer');
-  const {staffState,customerState:deliveryState}=estimateDeliveryStates(delivery,hasEmail);
+  const {staffState,customerState}=estimateDeliveryStates(delivery,hasEmail);
+  const deliveryState=readOnly&&delivery.some(row=>row.channel==='suppressed'&&row.status==='suppressed')?'suppressed':customerState;
   const assumptions=scopeAssumptions(draft.answers,draft.wizard?.skipped,draft.extraction,draft.text);const lastUserIndex=transcript.map(e=>e.role).lastIndexOf('user');
   const exit=()=>{if(layout==='embedded'){setExpanded(false);return;}if(onExit){onExit();return;}window.location.assign('/');};
   const back=()=>{const d=current.current;if(!d||busyRef.current)return;setError('');setMissingFields([]);setVerificationItems([]);if(d.step===2){const remaining=questions(d);if(remaining.length){setActive(remaining[0]);apply({...d,step:1});}else apply({...d,step:0});}else if(d.step===1){setActive(null);apply({...d,step:0});}};
@@ -599,6 +626,7 @@ export function P5Estimator({defaultService='',headingAs='h1',projectSource,layo
   // customer lost both the ETA and the stay-or-email choice for the whole wait (live 2026-09-23).
   const operationKind=runKind||undefined;
   const waitChoice:WaitChoice|null={email:draft.contact.email||'',onEmail:async(email:string)=>{
+    if(readOnly)throw new Error('This saved QA view is read-only.');
     const d=current.current;if(!d)return 'Your project is not saved yet.';
     try{const response=await fetch('/api/p5-estimator/submit',{method:'POST',headers:{...draftHeaders(d),'Content-Type':'application/json'},body:JSON.stringify({revision:d.revision,background:true,notify:true,notifyEmail:email,notifyOnly:true})});
       const data=await readJson(response);if(!response.ok)return data.error||'That did not save. Please try again.';
@@ -629,7 +657,7 @@ export function P5Estimator({defaultService='',headingAs='h1',projectSource,layo
   // The result screen shows the same estimate document as the PDF and email (reference, date, finish,
   // total and next steps come from the server's saved estimate, never recomputed here).
   const doc=estimateDoc;
-  const resultStage=result&&<Message role="assistant"><div className={styles.stageHeading} ref={el=>{stageRef.current=el;}}>{doc&&<p className={styles.eyebrow}>Preliminary online estimate</p>}<h2 tabIndex={-1} data-stage-heading>{doc?.title||'Your project estimate'}</h2><p className={styles.lead}>{doc?.projectName||'Your planning range and project scope are organized below.'}</p>{doc&&<p className={styles.hint}>Estimate {doc.reference}{doc.issuedLabel?` | Prepared ${doc.issuedLabel}`:''}</p>}</div><div className={styles.rangeCard}><p className={styles.eyebrow}>{doc?.total?.label||priceLabel(result.range)}</p><h2>{doc?.total?.amount||(result.range?priceText(result.range):"Your scope is ready for pricing review")}</h2>{doc?.partialNote?<p><strong>{doc.partialNote}</strong></p>:<p>{result.message}</p>}</div>{doc&&<div className={styles.finishCard}><p className={styles.eyebrow}>{doc.finish.heading}</p><p className={styles.finishName}>{doc.finish.name}</p><p>{doc.finish.detail}</p><p className={styles.hint}>{doc.finish.basis}</p></div>}<p className={styles.delivery} role="status" data-state={deliveryState}>{deliveryState==='notRequested'?'Your estimate is saved here. You can download your PDF below.':deliveryState==='suppressed'?'This test estimate is saved. Automatic notifications were not sent.':deliveryState==='sent'?`Your estimate was sent to ${draft.contact.email}. Your project record is saved.`:deliveryState==='review'?'Your estimate is saved. The email could not be delivered automatically, so the team will check it and follow up. You do not need to submit again.':customerDelivery?`Your estimate is saved. We are sending a copy to ${draft.contact.email}.`:'Your estimate is saved. We are sending a copy to your email.'}</p><ul className={styles.deliveryList} aria-label="Delivery status"><li data-state="sent">Estimate saved<span>Saved</span></li><li data-state={deliveryState}>Email to you<span>{DELIVERY_LABEL[deliveryState]}</span></li><li data-state={staffState}>Team notification<span>{DELIVERY_LABEL[staffState]}</span></li></ul><details className={styles.accordion} open aria-label="Estimate PDF attachment"><summary><span className={styles.accordionTitle}>Your estimate PDF</span><span className={styles.badge} data-kind={pdfState==='failed'?'excluded':'included'}>{PDF_STATE_LABEL[pdfState]}</span></summary><div className={styles.accordionBody}><p className={styles.hint} style={{marginBottom:12}}>Your branded PDF includes the planning range, scope, inclusions, exclusions, allowances and assumptions shown here.</p><button type="button" className={styles.secondary} onClick={downloadPdf} disabled={locked}><FileGlyph/> Download estimate PDF</button></div></details><P5EstimateDetails result={result} openFirst={false}/>{doc?<section className={styles.nextSteps} aria-label="Next steps"><h3>Next steps</h3><ol>{doc.nextSteps.map(([title,body])=><li key={title}><strong>{title}</strong><span>{body}</span></li>)}</ol><div id="p5-project-review" className={styles.reviewCard}><P5ReviewRequest draft={draft}/><p><a href={doc.review.mailto}>{doc.review.email}</a> | <a href={doc.review.tel}>{doc.review.phone}</a></p></div></section>:<details className={styles.accordion}><summary><span className={styles.accordionTitle}>Recommended next step</span></summary><div className={styles.accordionBody}><p>{result.nextStep}</p></div></details>}<p className={styles.disclaimer}>{doc?<><strong>{doc.notice.lead}</strong> {doc.notice.text}</>:result.disclaimer}</p><section className={styles.reviseCard} aria-labelledby={`${id}-revise`}><h3 id={`${id}-revise`}>Change this estimate</h3><p className={styles.hint}>Describe the change in your own words, for example &ldquo;Remove painting&rdquo;, &ldquo;Use upgraded cabinets&rdquo; or &ldquo;Update this using the revised plans&rdquo;. We keep this version and prepare an updated one; you can attach revised files next.</p><label className={styles.field} htmlFor={`${id}-revise-text`}><span>What would you like to change?</span><textarea id={`${id}-revise-text`} rows={3} maxLength={2000} value={reviseText} onChange={e=>setReviseText(e.target.value)}/></label><div className={styles.actions}><button type="button" className={styles.primary} disabled={Boolean(busy)} onClick={()=>void reviseEstimate()}>Update my estimate</button></div>{versions.length>0&&<div className={styles.versionList}><p className={styles.eyebrow}>Earlier versions</p><ul>{versions.map(v=><li key={v.revision}><span>Version {v.revision}{v.total?` · ${v.total}`:''}{v.submittedAt?` · ${new Date(v.submittedAt).toLocaleDateString()}`:''}</span><button type="button" className={styles.ghost} onClick={()=>void downloadVersionPdf(v.revision)}>PDF</button></li>)}</ul></div>}</section>{alertCard}</Message>;
+  const resultStage=result&&<Message role="assistant"><div className={styles.stageHeading} ref={el=>{stageRef.current=el;}}>{doc&&<p className={styles.eyebrow}>Preliminary online estimate</p>}<h2 tabIndex={-1} data-stage-heading>{doc?.title||'Your project estimate'}</h2><p className={styles.lead}>{doc?.projectName||'Your planning range and project scope are organized below.'}</p>{doc&&<p className={styles.hint}>Estimate {doc.reference}{doc.issuedLabel?` | Prepared ${doc.issuedLabel}`:''}</p>}</div><div className={styles.rangeCard}><p className={styles.eyebrow}>{doc?.total?.label||priceLabel(result.range)}</p><h2>{doc?.total?.amount||(result.range?priceText(result.range):"Your scope is ready for pricing review")}</h2>{doc?.partialNote?<p><strong>{doc.partialNote}</strong></p>:<p>{result.message}</p>}</div>{doc&&<div className={styles.finishCard}><p className={styles.eyebrow}>{doc.finish.heading}</p><p className={styles.finishName}>{doc.finish.name}</p><p>{doc.finish.detail}</p><p className={styles.hint}>{doc.finish.basis}</p></div>}<p className={styles.delivery} role="status" data-state={deliveryState}>{deliveryState==='notRequested'?'Your estimate is saved here. You can download your PDF below.':deliveryState==='suppressed'?'This test estimate is saved. Automatic notifications were not sent.':deliveryState==='sent'?`Your estimate was sent to ${draft.contact.email}. Your project record is saved.`:deliveryState==='review'?'Your estimate is saved. The email could not be delivered automatically, so the team will check it and follow up. You do not need to submit again.':customerDelivery?`Your estimate is saved. We are sending a copy to ${draft.contact.email}.`:'Your estimate is saved. We are sending a copy to your email.'}</p><ul className={styles.deliveryList} aria-label="Delivery status"><li data-state="sent">Estimate saved<span>Saved</span></li><li data-state={deliveryState}>Email to you<span>{DELIVERY_LABEL[deliveryState]}</span></li><li data-state={staffState}>Team notification<span>{DELIVERY_LABEL[staffState]}</span></li></ul><details className={styles.accordion} open aria-label="Estimate PDF attachment"><summary><span className={styles.accordionTitle}>Your estimate PDF</span><span className={styles.badge} data-kind={pdfState==='failed'?'excluded':'included'}>{PDF_STATE_LABEL[pdfState]}</span></summary><div className={styles.accordionBody}><p className={styles.hint} style={{marginBottom:12}}>Your branded PDF includes the planning range, scope, inclusions, exclusions, allowances and assumptions shown here.</p><button type="button" className={styles.secondary} onClick={downloadPdf} disabled={locked}><FileGlyph/> Download estimate PDF</button></div></details><P5EstimateDetails result={result} openFirst={false}/>{doc?<section className={styles.nextSteps} aria-label="Next steps"><h3>Next steps</h3><ol>{doc.nextSteps.map(([title,body])=><li key={title}><strong>{title}</strong><span>{body}</span></li>)}</ol>{!readOnly&&<div id="p5-project-review" className={styles.reviewCard}><P5ReviewRequest draft={draft}/><p><a href={doc.review.mailto}>{doc.review.email}</a> | <a href={doc.review.tel}>{doc.review.phone}</a></p></div>}</section>:<details className={styles.accordion}><summary><span className={styles.accordionTitle}>Recommended next step</span></summary><div className={styles.accordionBody}><p>{result.nextStep}</p></div></details>}<p className={styles.disclaimer}>{doc?<><strong>{doc.notice.lead}</strong> {doc.notice.text}</>:result.disclaimer}</p>{!readOnly&&<section className={styles.reviseCard} aria-labelledby={`${id}-revise`}><h3 id={`${id}-revise`}>Change this estimate</h3><p className={styles.hint}>Describe the change in your own words, for example &ldquo;Remove painting&rdquo;, &ldquo;Use upgraded cabinets&rdquo; or &ldquo;Update this using the revised plans&rdquo;. We keep this version and prepare an updated one; you can attach revised files next.</p><label className={styles.field} htmlFor={`${id}-revise-text`}><span>What would you like to change?</span><textarea id={`${id}-revise-text`} rows={3} maxLength={2000} value={reviseText} onChange={e=>setReviseText(e.target.value)}/></label><div className={styles.actions}><button type="button" className={styles.primary} disabled={Boolean(busy)} onClick={()=>void reviseEstimate()}>Update my estimate</button></div>{versions.length>0&&<div className={styles.versionList}><p className={styles.eyebrow}>Earlier versions</p><ul>{versions.map(v=><li key={v.revision}><span>Version {v.revision}{v.total?` · ${v.total}`:''}{v.submittedAt?` · ${new Date(v.submittedAt).toLocaleDateString()}`:''}</span><button type="button" className={styles.ghost} onClick={()=>void downloadVersionPdf(v.revision)}>PDF</button></li>)}</ul></div>}</section>}{alertCard}</Message>;
   // Mounted for as long as the operation runs, not for as long as `busy` happens to hold a sentence.
   // The server's progress message goes briefly empty between steps, and the card was mounted on it:
   // it vanished and came back, and because it holds the stay-or-email choice, that reset the choice,
@@ -637,7 +665,7 @@ export function P5Estimator({defaultService='',headingAs='h1',projectSource,layo
   // too quickly"). Keeping one instance mounted keeps the customer's own input alive.
   const processingStage=(busy||preparingFiles||runKind)&&<Message role="assistant">{preparingFiles?<section className={styles.processing} role="status" aria-live="polite"><h2>Preparing your saved project on this device</h2><p>Loading or saving text and attachments in this browser.</p></section>:<P5ProcessingStatus hasAttachments={Boolean(draft.uploads?.length||files.length||attachedProjectSource?.imageUrl)} message={busy||(runKind==='pricing'?'Preparing your estimate...':'Reviewing your project...')} processing={processing} uploadPercent={uploadPercent} materials={materials} kind={operationKind} waitChoice={operationKind==='pricing'?waitChoice:null} onPause={busy?()=>operationBudget.current?.controller.abort(new ProcessingDeadlineError()):undefined}/>}</Message>;
   const stepLabel=result?'Estimate ready':`Step ${draft.step+1} of 3 · ${STEP_LABELS[draft.step]}`;const showBack=!result&&!busy&&draft.step>0;const collapsedWithProgress=layout==='embedded'&&!expanded&&hasProgress;
-  const dock=locked&&stage!==2&&stage!==3?<div className={styles.dockHint} role="status">{preparingFiles?'Preparing saved text and files on this device.':'Working on your project. Your progress is saved.'}</div>
+  const dock=readOnly?<div className={styles.dockBar}><button type="button" className={styles.secondary} disabled={locked} onClick={()=>savedPreview?.restore()}>Reload saved estimate</button><a className={styles.secondary} href="/admin/p5-estimators/qa-recovery?case=case-1">Return to QA</a></div>:locked&&stage!==2&&stage!==3?<div className={styles.dockHint} role="status">{preparingFiles?'Preparing saved text and files on this device.':'Working on your project. Your progress is saved.'}</div>
     :stage===3?<div className={styles.dockBar}><a className={styles.primary} href="#p5-project-review" onClick={()=>trackScopeEvent("onsiteRequested",draft.answers.service)}>{estimateDoc?estimateDoc.review.label:'Schedule a consultation'}</a><a className={styles.secondary} href={`tel:${brand.phone.replace(/[^\d+]/g,'').replace(/^(?!\+)(\d{10})$/,'+1$1')}`}>Call {brand.phone}</a></div>
     :stage===2?<>{addingDetails&&composer}<div className={styles.dockBar} data-final-action><button type="submit" form={formId} className={styles.primary} disabled={locked} aria-describedby={error?submitErrorId:undefined}>{busy?'Preparing your estimate…':'Get my estimate'}</button></div><div className={styles.dockRow}><span className={styles.dockHint}>{contactReady?(confirmed?(hasEmail?'Your estimate opens right here and is emailed to you.':'Your estimate opens right here. You can download a PDF when it is ready.'):'Confirm your project details above, then get your estimate.'):'Add your name above. Email is optional; check it or leave it blank.'}</span><button type="button" className={styles.ghost} disabled={locked} onClick={()=>setAddingDetails(v=>!v)} aria-expanded={addingDetails}>{addingDetails?'Cancel editing':'Add or edit details'}</button></div></>
     :stage===1&&active?.handoff?<div className={styles.dockBar}><a className={styles.primary} href={active.handoff.url} onClick={e=>{e.preventDefault();void carryProject(active.handoff!.url);}}>{active.handoff.label}</a></div>
@@ -645,12 +673,12 @@ export function P5Estimator({defaultService='',headingAs='h1',projectSource,layo
     // button. The only thing this line adds is that written limits are obeyed, so that is all it says
     // now: on a phone the old sentence ran to three lines of text the customer had just read.
     :<>{composer}{stage===0&&<p className={styles.dockHint}>Tell us things like “price only the trim” or “leave out plumbing” and we will follow them.</p>}</>;
-  return <div ref={rootRef} role="region" aria-label="Project estimator" className={styles.root} data-p5-estimator data-version={ESTIMATOR_VERSION} data-release={estimatorRelease().sha.slice(0,12)} data-theme={theme.mode} data-layout={layout} data-expanded={frameActive?'true':undefined} data-step={stage} aria-busy={Boolean(busy)} style={{...(estimatorThemeStyle(theme) as React.CSSProperties),'--p5-top':`${topInset}px`,'--p5-bottom':`${bottomInset}px`} as React.CSSProperties}>
+  return <div ref={rootRef} role="region" aria-label="Project estimator" className={styles.root} data-p5-estimator onDragOver={readOnly?event=>event.preventDefault():undefined} onDrop={readOnly?event=>event.preventDefault():undefined} data-qa-saved-preview={readOnly?'true':undefined} data-version={ESTIMATOR_VERSION} data-release={estimatorRelease().sha.slice(0,12)} data-theme={theme.mode} data-layout={layout} data-expanded={frameActive?'true':undefined} data-step={stage} aria-busy={Boolean(busy)} style={{...(estimatorThemeStyle(theme) as React.CSSProperties),'--p5-top':`${topInset}px`,'--p5-bottom':`${bottomInset}px`} as React.CSSProperties}>
     <form id={formId} className={styles.app} onSubmit={submit} noValidate>
-      <P5EstimatorNavigation brandName={brand.name} stepLabel={stepLabel} showBack={showBack} frameActive={frameActive} embedded={layout==='embedded'} onBack={back} onExit={layout==='embedded'||onExit?exit:undefined} onNewProject={hasProgress?()=>void switchProject():undefined} disabled={locked}/>
+      <P5EstimatorNavigation brandName={brand.name} stepLabel={stepLabel} showBack={showBack} frameActive={frameActive} embedded={layout==='embedded'} onBack={back} onExit={layout==='embedded'||onExit?exit:undefined} onNewProject={!readOnly&&hasProgress?()=>void switchProject():undefined} disabled={locked}/>
       {!result&&<div className={styles.rail} aria-hidden="true">{STEP_LABELS.map((label,index)=><span key={label} data-state={index===draft.step?'current':index<draft.step?'done':'upcoming'}/>)}</div>}
       <p className={styles.srOnly} aria-live="polite">{stepLabel}</p>
-      <div ref={threadRef} className={styles.thread} data-p5-thread><div className={styles.threadInner}>{collapsedWithProgress?<Message role="assistant"><div className={styles.stageHeading}><Heading tabIndex={-1} className={styles.title}>{result?'Your estimate is ready':'Continue your estimate'}</Heading><p className={styles.lead}>{result?'Your planning range and project summary are saved on this device.':`Your project is saved on this device: ${known.length} ${known.length===1?'detail':'details'}${uploadedCount?` and ${uploadedCount} ${uploadedCount===1?'file':'files'}`:''}. ${stepLabel}.`}</p></div><div className={styles.actions}><button type="button" className={styles.primary} onClick={()=>setExpanded(true)}>{result?'Open my estimate':'Continue'} <span aria-hidden="true">→</span></button></div></Message>:<>{intro}{history}{stage===0&&!busy&&!preparingFiles&&<>{pausedCard&&<Message role="assistant">{pausedCard}</Message>}{(warning||error)&&<Message role="assistant">{warningCard}{alertCard}</Message>}</>}{questionStage}{reviewStage}{resultStage}{processingStage}{paused&&stage!==0&&!busy&&<Message role="assistant">{pausedCard}</Message>}{status&&!busy&&!preparingFiles&&!error&&<p className={styles.status} role="status">{status}</p>}</>}</div></div>
+      <div ref={threadRef} className={styles.thread} data-p5-thread><div className={styles.threadInner}>{savedPreview&&<p className={styles.notice} role="note">Synthetic QA · {savedPreview.view.label} · revision {savedPreview.view.revision}. Read-only saved result and PDF.</p>}{collapsedWithProgress?<Message role="assistant"><div className={styles.stageHeading}><Heading tabIndex={-1} className={styles.title}>{result?'Your estimate is ready':'Continue your estimate'}</Heading><p className={styles.lead}>{result?'Your planning range and project summary are saved on this device.':`Your project is saved on this device: ${known.length} ${known.length===1?'detail':'details'}${uploadedCount?` and ${uploadedCount} ${uploadedCount===1?'file':'files'}`:''}. ${stepLabel}.`}</p></div><div className={styles.actions}><button type="button" className={styles.primary} onClick={()=>setExpanded(true)}>{result?'Open my estimate':'Continue'} <span aria-hidden="true">→</span></button></div></Message>:<>{intro}{history}{stage===0&&!busy&&!preparingFiles&&<>{pausedCard&&<Message role="assistant">{pausedCard}</Message>}{(warning||error)&&<Message role="assistant">{warningCard}{alertCard}</Message>}</>}{questionStage}{reviewStage}{resultStage}{processingStage}{paused&&stage!==0&&!busy&&<Message role="assistant">{pausedCard}</Message>}{status&&!busy&&!preparingFiles&&!error&&<p className={styles.status} role="status">{status}</p>}</>}</div></div>
       {!collapsedWithProgress&&<div className={styles.dock}><div className={styles.dockInner}>{dock}</div></div>}
     </form>
   </div>;

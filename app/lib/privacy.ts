@@ -15,7 +15,7 @@
  * customer or subcontractor, so indexing one would reveal who P5 works with
  * before a crawler ever reached the login.
  */
-export const PRIVATE_PREFIXES = ["/admin", "/portal", "/api"] as const;
+export const PRIVATE_PREFIXES = ["/admin", "/portal", "/api", "/estimate/qa-saved"] as const;
 
 /**
  * noindex stops it being listed. nofollow stops links inside it being crawled

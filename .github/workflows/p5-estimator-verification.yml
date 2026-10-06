@@ -62,6 +62,8 @@ jobs:
           node scripts/p5-admin-pricing-browser.mjs
           node scripts/p5-qa-recovery-browser.mjs
           P5_TEST_BROWSER=webkit node scripts/p5-qa-recovery-browser.mjs
+          node scripts/p5-qa-saved-browser.mjs
+          P5_TEST_BROWSER=webkit node scripts/p5-qa-saved-browser.mjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:
