@@ -65,7 +65,8 @@ test('real typed handler: inspect/capture costs zero, explicit exact approval sp
     expireCapture=false;
     assert.equal(paidCalls,0);
     assert.equal((await pool.query("SELECT count(*)::int n FROM p5_estimator_work WHERE work_key='qa-next-stage-v1' OR work_key LIKE 'qa-transition-v1:%'")).rows[0].n,0,'Expired operations cannot publish a next action or completion receipt');
-    const captured=await continueQaCase(prepare,'synthetic-admin');assert.equal(paidCalls,0);assert.equal(captured.intent?.status,'captured');assert.equal(captured.intent?.maximum,280000);
+    const proxyResponse=await qaContinuationHandlers(async()=>({id:'synthetic-admin'})).POST(new Request('http://0.0.0.0:3000/api/admin/p5-estimators/qa-continuation',{method:'POST',headers:{origin:'https://p5homeco.com',host:'0.0.0.0:3000','x-forwarded-host':'p5homeco.com','x-forwarded-proto':'https','content-type':'application/json'},body:JSON.stringify(prepare)}));
+    assert.equal(proxyResponse.status,200);const captured=await proxyResponse.json();assert.equal(paidCalls,0);assert.equal(captured.intent?.status,'captured');assert.equal(captured.intent?.maximum,280000);
     const draftBefore=await readDraft(ID,KEY);assert.equal(draftBefore?.revision,1);assert.equal(draftBefore?.extraction,null,'capture must not save a misleading partial extraction');
     await continueQaCase(prepare,'synthetic-admin');assert.equal(paidCalls,0,'repeating a completed prepare is idempotent');
     wireSuffix='\nSynthetic updated prompt policy';
