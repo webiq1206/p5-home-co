@@ -1030,6 +1030,22 @@ export function catalogResolution(mapping:Mapping,configuration:EstimatorConfigu
       if(selection==='ambiguous')result.issues.push(finding);else result.assumptions.push(finding);
       continue;
     }
+    // A complete spray-refinishing package is not the localized touch-up
+    // requested around a factory-finished installation. Reconcile the saved
+    // proposal here, after mapping, so unchanged paid mapping replies remain
+    // reusable. The existing shared minor-work policy supplies the budget;
+    // this does not invent a supplier rate or cover a full refinish.
+    if(localizedCabinetTouchup(t)){
+      const rejected=t.additions.filter(addition=>{
+        const rate=configuration.planningCatalog?.rates.find(candidate=>candidate.code===addition.code);
+        return rate?.code==='PB-12-39-02'&&/cabinet painting, professional spray/i.test(rate.description);
+      });
+      if(rejected.length){
+        t.additions=t.additions.filter(addition=>!rejected.includes(addition));
+        t.researchDescription='Minor localized cabinet touch-up at installation edges and small finish damage only, including incidental labor and supplies. Full cabinet refinishing and other painting remain separate.';
+        result.assumptions.push(`${t.description}: limited to localized installation touch-up; a full professional cabinet-spray package is not charged. Confirm the extent and color match before a firm proposal.`);
+      }
+    }
     result.issues.push(...t.issues.map(i=>`${t.description}: ${i}`));
     const unresolved=unresolvedQuantityIssue(t);
     const hasAllowance=t.additions.some(a=>/^ALLOWANCE\s*:/i.test(a.quantityEvidence)&&Boolean(a.quantityRange));
@@ -1152,6 +1168,34 @@ const clauseHasComponent=(clause:string,terms:string[])=>terms.some(term=>{
   const stem=term.replace(/(?:ing|ed|es|s)$/,'');
   return new RegExp(`\\b(?:${term}|${stem})\\b`,'i').test(clause);
 });
+/** An exclusion of work outside a named component does not exclude that
+ * component. Require its specific words to match, rather than treating any
+ * mention of "outside" or a different trade as permission to include work. */
+function excludesOutsideComponent(clause:string,description:string):boolean{
+  if(/\b(?:outside|other than)\b/i.test(description))return false;
+  const match=clause.match(/\b(?:outside|other than)\s+(.+?)\s*(?:\[\s*)?(?:excluded|not included)(?:\s*\])?["']?\s*$/i);
+  if(!match)return false;
+  // Only the exception span is complementary. A separate exclusion before
+  // it still applies ("touch-up excluded and painting outside it excluded").
+  if(UNSELECTED_SCOPE.test(clause.slice(0,match.index)))return false;
+  const terms=componentTerms(match[1]).filter(term=>!['is','are'].includes(term));
+  return terms.length>=2&&terms.every(term=>clauseHasComponent(description,[term]));
+}
+function localizedCabinetTouchup(task:{description:string;evidence:string}):boolean{
+  const primary=task.description.replace(/\([^()]*\)/g,'').trim().replace(/[.;:]+$/,'').trim();
+  // Accept only a single, explicitly named touch-up operation. A mixed task
+  // needs component mapping, even when its other painting is not called full.
+  if(!/^(?:(?:provide|perform|include)\s+)?(?:(?:minor|small|localized|incidental)\s+)?(?:cabinet(?:ry)?\s+touch[- ]?up(?:\s+paint(?:ing)?)?|touch[- ]?up(?:\s+painting)?\s+(?:(?:of|on)\s+)?(?:factory[- ](?:painted|finished)\s+)?cabinets?)$/i.test(primary))return false;
+  if(!/\b(?:minor|small|localized|incidental|factory[- ](?:painted|finished))\b/i.test(task.description+' '+task.evidence))return false;
+  const affirmative=(task.description+' '+task.evidence).replace(/\b(?:not|no|excluding|exclude|without)\s+(?:(?:full|complete|professional)\s+){1,2}(?:cabinet\s+)?(?:spray\s+)?(?:painting|paint|refinishing)\b/gi,'');
+  if(/\b(?:refinish\w*|repaint\w*|strip(?:ping)?|respray\w*|spray\w*)\b|\bnew\s+colou?r\b|\b(?:and|plus|also)\s+(?:paint\w*|coat\w*)\b|\b(?:full|complete|entire|all)\b[^.;\n]{0,45}\b(?:paint\w*|finish\w*)\b|\bpaint\w*\b[^.;\n]{0,45}\b(?:all|entire|every)\b/i.test(affirmative))return false;
+  // Remove only the recognized operation and directly excluded painting.
+  // Any remaining painting mention could be a second responsibility, even
+  // inside parentheses or a clause that also mentions touch-up.
+  const remaining=affirmative.replace(/\b(?:cabinet(?:ry)?\s+)?touch[- ]?up(?:\s+paint(?:ing)?)?\b/gi,'')
+    .replace(/\b(?:paint|painting|coating)\s+(?:outside\s*)?(?:(?:is|are)\s+)?(?:\[\s*)?(?:excluded|not included)(?:\s*\])?/gi,'');
+  return !/\b(?:paint|painting|coating)\b/i.test(remaining);
+}
 /**
  * Status is scoped to a mapped component. "Appliances are excluded; painting
  * is included" must not suppress a painting task merely because the evidence
@@ -1177,7 +1221,7 @@ function taskSelectionStatus(task:Mapping['tasks'][number],tasks:Mapping['tasks'
   const terms=allTerms.filter(term=>!siblingTerms.has(term));
   const identityTerms=terms.length?terms:allTerms;
   const evidenceClauses=task.evidence.split(/[.;\n]+|\s*,\s*/).map(clause=>clause.trim()).filter(Boolean);
-  const statusClauses=evidenceClauses.filter(clause=>UNSELECTED_SCOPE.test(clause)&&clauseHasComponent(clause,identityTerms));
+  const statusClauses=evidenceClauses.filter(clause=>UNSELECTED_SCOPE.test(clause)&&clauseHasComponent(clause,identityTerms)&&!excludesOutsideComponent(clause,primary));
   const included=(clause:string)=>INCLUDED_SCOPE.test(clause)&&!/\bnot\s+(?:selected|included)\b/i.test(clause);
   const positive=statusClauses.some(included);
   const negative=statusClauses.some(clause=>!included(clause));
@@ -2223,7 +2267,7 @@ export async function priceDetailedScope(scope:ReviewedScope,configuration:Estim
     };
     reconcileAssemblyCoverage();
     applyMinorWorkAllowance(mapping.tasks.filter(t=>taskSelectionStatus(t,mapping.tasks)==='billable'),resolution,lines,now);
-    const gaps=mapping.tasks.filter(t=>t.researchDescription);
+    const gaps=mapping.tasks.filter(t=>t.researchDescription&&taskSelectionStatus(t,mapping.tasks)==='billable');
     const research:PricingReply[]=[];auditTrail.research=research;
     const region=scope.answers.location||'Boise / Treasure Valley, Idaho';
     /** Published local cost research is required for missing rates. Independent
@@ -2517,7 +2561,7 @@ export async function priceDetailedScope(scope:ReviewedScope,configuration:Estim
       const researchRule=(rule:{id:string;scopeTaskId?:string})=>Boolean(rule.scopeTaskId)&&(rule.id.startsWith('market-')||rule.id.startsWith('planning-'));
       const researchedTaskIds=new Set(resolution.rules.filter(researchRule).map(rule=>rule.scopeTaskId));
       const namedByAudit=(task:{description:string})=>priorIssues.some(issue=>issue.toLowerCase().includes(task.description.toLowerCase()));
-      const repairGaps=fixes.tasks.filter(t=>t.researchDescription&&(!researchedTaskIds.has(t.id)||namedByAudit(t)));
+      const repairGaps=fixes.tasks.filter(t=>t.researchDescription&&taskSelectionStatus(t,fixes.tasks)==='billable'&&(!researchedTaskIds.has(t.id)||namedByAudit(t)));
       const replaced=new Set(repairGaps.map(t=>t.id));
       resolution.rules=resolution.rules.filter(rule=>!(researchRule(rule)&&replaced.has(rule.scopeTaskId!)));
       const repairedLines=existingLines(priceReviewedScope(scope,configuration,now,resolution));
