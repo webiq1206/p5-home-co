@@ -120,7 +120,8 @@ for(const width of progressOnly?[]:[390,1440]){
   assert.equal(await est.getByRole('heading',{name:'Understanding your project',exact:true}).count(),0);
   assert.equal(await est.locator('[data-testid="p5-processing"]').count(),0,'Local recovery is not provider processing');
   assert.equal(state.scopeCalls,0);assert.equal(state.submissions,0);
-  await page.waitForFunction(()=>typeof window.__p5ReleaseRecovery==='function');await page.evaluate(()=>window.__p5ReleaseRecovery());await settled(page);
+  await page.waitForFunction(()=>typeof window.__p5ReleaseRecovery==='function');await page.evaluate(()=>window.__p5ReleaseRecovery());
+  await est.getByRole('heading',{name:'Preparing your saved project on this device',exact:true}).waitFor({state:'detached'});await settled(page);
   assert.equal(await est.getByRole('heading',{name:'Preparing your saved project on this device',exact:true}).count(),0);
   await est.getByLabel('Tell us about your project',{exact:true}).fill('Synthetic keyboard check.');
   for(const mode of ['light','dark']){
@@ -138,7 +139,7 @@ for(const width of progressOnly?[]:[390,1440]){
   }
   assert.equal(state.scopeCalls,0);assert.equal(state.submissions,0);
   results.push({scenario:'local-cache-restoration-and-focus-contrast',width,passed:true});
- }catch(error){results.push({scenario:'local-cache-restoration-copy',width,passed:false,error:String(error)});}
+ }catch(error){console.error(error);results.push({scenario:'local-cache-restoration-copy',width,passed:false,error:String(error)});}
  await context.close();
 }
 for(const width of progressOnly?[]:[390,1440])for(const scenario of ['fresh','resumed','back','questions']){
