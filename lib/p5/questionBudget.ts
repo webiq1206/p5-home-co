@@ -11,8 +11,10 @@
  * - Questions whose answer changes the price come first and are never capped.
  * - Everything else is capped at MAX_OTHER_QUESTIONS for the whole project.
  */
+import {customerQuestionKey} from './customerAnswers.ts';
+
 export const MAX_OTHER_QUESTIONS=6;
-interface Question {field:string;label:string;reason:string;conflict?:boolean;handoff?:unknown}
+interface Question {field:string;label:string;reason:string;instructionId?:string;conflict?:boolean;handoff?:unknown}
 interface AskedEntry {kind?:string;text:string;label?:string}
 const words=(value:string)=>new Set(value.toLowerCase().replace(/[^a-z0-9 ]+/g,' ').split(/\s+/).filter(word=>word.length>2));
 /** Nearly the same question: most of the words of the shorter one appear in the other. */
@@ -22,7 +24,7 @@ function similar(a:string,b:string){
   return shared/Math.min(x.size,y.size)>=0.8;
 }
 const FREE_FORM=new Set(['otherDetails','taskList','estimatingInstructions']);
-export function unaskedQuestions<Q extends Question>(questions:readonly Q[],transcript:readonly AskedEntry[]|undefined,pricedFields:readonly string[]=[]):Q[]{
+export function unaskedQuestions<Q extends Question>(questions:readonly Q[],transcript:readonly AskedEntry[]|undefined,pricedFields:readonly string[]=[],pendingQuestionId?:string):Q[]{
   const asked=(transcript||[]).filter(entry=>entry.kind==='question');
   const askedLabels=new Set(asked.map(entry=>(entry.label||'').trim().toLowerCase()).filter(Boolean));
   const priced=new Set(pricedFields);
@@ -40,5 +42,10 @@ export function unaskedQuestions<Q extends Question>(questions:readonly Q[],tran
   const pricing=unique.filter(required);
   const others=unique.filter(question=>!required(question));
   // Every question already asked counts against the cap, so the total a customer sees stays small.
-  return [...pricing,...others.slice(0,Math.max(0,MAX_OTHER_QUESTIONS-asked.length))];
+  const selected=[...pricing,...others.slice(0,Math.max(0,MAX_OTHER_QUESTIONS-asked.length))];
+  // A sent answer is logged before its save is confirmed. After an interruption,
+  // restore that exact still-unresolved question instead of treating the logged
+  // attempt as completion. Never recreate a question no longer in this scope.
+  const pending=pendingQuestionId?questions.find(question=>customerQuestionKey(question)===pendingQuestionId):undefined;
+  return pending?[pending,...selected.filter(question=>customerQuestionKey(question)!==pendingQuestionId)]:selected;
 }
