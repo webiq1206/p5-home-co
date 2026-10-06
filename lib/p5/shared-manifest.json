@@ -1,7 +1,7 @@
 {
  "source": "p5-home-co",
  "commit": "44bded0477a106d5db75ed7d21a8d3e0b06ef0c5",
- "generatedAt": "2026-10-06T05:07:02.547Z",
+ "generatedAt": "2026-10-06T05:50:49.840Z",
  "note": "P5-only qualification baseline. Child rollout is paused until live acceptance is verified. Hash checks remain mandatory.",
  "files": {
   "app/admin/p5-estimators/page.tsx": "8e81e1ac475dadb7eee9af396c963ee369de593a5a8d165d40dd97f2dab7ca32",
@@ -389,7 +389,7 @@
   "tests/p5-price-book-import.test.ts": "85de00525e2955c7417aa5f6af1063cdbfb68ee11ae37cee5ca1ac5235e9f0c4",
   "tests/p5-pricing-basis-consistency.test.ts": "d8bb01b8282a20d569dd0d36a2004957d085de5e0c9fb50b35b0e71a88925cf4",
   "tests/p5-pricing-corrections.test.ts": "30d8da0d3d39347307e9cc62ad03e971ea5c490d50d63d0ed31841a7649e3395",
-  "tests/p5-pricing-ledger.test.ts": "289887fb29f37d4bf2caa56c97eb24e83e5e8d937d3f11a0db74dfd792a751bf",
+  "tests/p5-pricing-ledger.test.ts": "8134de19d94dd66974c928626eff3d93b963b2087e1509c4294096681bd837c6",
   "tests/p5-pricing-production-errors.test.ts": "b7ea0ae0b4b8ebdf2f898afac3404ebe991e4c12305dc16f492772044f645c5b",
   "tests/p5-pricing-source-history.test.ts": "7a2696abb429e65555da6b1bb43289e785661a05cdfdc258883ff7bdf8379be0",
   "tests/p5-pricing.test.ts": "463caa4e7397b4e9de94a80183c9ac06a79244a77fa974275753d2e90fa5baa8",
