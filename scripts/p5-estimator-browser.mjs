@@ -108,7 +108,7 @@ async function focusedHeading(page,text){
 }
 // Hold the real local-cache open receipt so the restoration state is visible.
 // This never mocks provider processing or writes a server draft.
-for(const width of progressOnly?[]:[390,1440]){
+for(const width of progressOnly?[]:[320,390,1440]){
  const context=await browser.newContext({viewport:{width,height:900}}),state=await mock(context),page=await context.newPage();
  await context.addInitScript(()=>{
   const open=indexedDB.open.bind(indexedDB),success=Object.getOwnPropertyDescriptor(IDBRequest.prototype,'onsuccess').set;
@@ -124,6 +124,23 @@ for(const width of progressOnly?[]:[390,1440]){
   await est.getByRole('heading',{name:'Preparing your saved project on this device',exact:true}).waitFor({state:'detached'});await settled(page);
   assert.equal(await est.getByRole('heading',{name:'Preparing your saved project on this device',exact:true}).count(),0);
   await est.getByLabel('Tell us about your project',{exact:true}).fill('Synthetic keyboard check.');
+  const nav=est.getByRole('navigation',{name:'Estimator navigation'});
+  const step=nav.getByRole('link',{name:brand.name+', back to the homepage',exact:true}).locator('span').last();
+  const originalStep=await step.innerText();
+  // Exercise every header label in the actual rendered component and fonts,
+  // including the short-lived saved-estimate restoration label.
+  for(const label of ['Loading your project','Step 1 of 3 · Project','Step 2 of 3 · Details','Step 3 of 3 · Estimate','Estimate ready']){
+   await step.evaluate((node,label)=>{node.textContent=label;},label);
+   const layout=await step.evaluate(node=>{
+    const range=document.createRange();range.selectNodeContents(node);const owner=node.parentElement.getBoundingClientRect();
+    const controls=[...node.closest('nav').children].filter(child=>child!==node.parentElement).map(child=>child.getBoundingClientRect());
+    const lines=[...range.getClientRects()];
+    return {contained:lines.every(line=>line.left>=owner.left-1&&line.right<=owner.right+1),overlap:lines.some(line=>controls.some(button=>Math.min(line.right,button.right)-Math.max(line.left,button.left)>1&&Math.min(line.bottom,button.bottom)-Math.max(line.top,button.top)>1))};
+   });
+   assert.ok(layout.contained&&!layout.overlap,`${width}px navigation label must stay separate from all actions: ${label}`);
+   assert.equal(await step.innerText(),label);
+  }
+  await step.evaluate((node,label)=>{node.textContent=label;},originalStep);
   for(const mode of ['light','dark']){
    await est.evaluate((root,mode)=>root.setAttribute('data-theme',mode),mode);
    for(const control of [est.getByRole('button',{name:'Attach files',exact:true}),est.getByRole('button',{name:'Talk instead',exact:true}),est.getByRole('button',{name:'Send message',exact:true}),est.getByLabel('Tell us about your project',{exact:true})]){

@@ -1,7 +1,7 @@
 {
  "source": "p5-home-co",
  "commit": "6f085cec12da86a598991f44fda838401f69e511",
- "generatedAt": "2026-10-06T16:41:28.605Z",
+ "generatedAt": "2026-10-06T17:06:19.564Z",
  "note": "P5-only qualification baseline. Child rollout is paused until live acceptance is verified. Hash checks remain mandatory.",
  "files": {
   "app/admin/p5-estimators/page.tsx": "8e81e1ac475dadb7eee9af396c963ee369de593a5a8d165d40dd97f2dab7ca32",
@@ -19,7 +19,7 @@
   "app/api/p5-estimator/submit/route.ts": "e1f58ea430692d73df1c72f51b05f33c72caaec6c30687ea2b187c509c64184c",
   "app/api/p5-estimator/upload/route.ts": "30513ebab4a4f175e0f31d03efceaf020ac3f6cc0d104a6d1779fe5580a14907",
   "components/P5EstimateDetails.tsx": "f1c3f3087391b27682c50b87d71f7ca56084bc826083ecdf4c413d23918362c8",
-  "components/P5Estimator.module.css": "506ba980f7c62e070e1d2ea494801ff9f5ba957b6f07f45620ed55754161fead",
+  "components/P5Estimator.module.css": "e78080317c009904060fcc4a306b3abaf44c0c67205bd7a076c5d53241798d15",
   "components/P5Estimator.tsx": "765274dddd9aa58aacc5c78f857e2a16304eef81ffeb5b70a17f3960bfd7da0d",
   "components/P5EstimatorNavigation.tsx": "e203317513965f77dc314e3ef8aa2be0e9fca1e7ca72494b3a23f3741cabbe83",
   "components/P5LazyEstimator.tsx": "237e404e81442499d54bf8668134e77b36513898b91503d5f275af80e6b8019a",
@@ -244,7 +244,7 @@
   "scripts/p5-build-price-book.mjs": "714a76f8a9f29077d052304456aca38769fc9485022774856eae816b2e847450",
   "scripts/p5-cli-acceptance.mts": "ed5b8fc80231c03b3c2b54de486fb6db7f259947e855ecf4985a9caf6f4ea6b8",
   "scripts/p5-component-review.mjs": "7035921690a6dc0648b1c3142b054ad09d67535c706e108817369e9e6de6ab26",
-  "scripts/p5-estimator-browser.mjs": "45a2a655da16a3f737c803da3311b2f3b81e33b71ef4d3815e9ff385ae86c03a",
+  "scripts/p5-estimator-browser.mjs": "15c76c8717cfb2e590c22585a912bd1bd9ba5521fdd2077fe59780a558a229e9",
   "scripts/p5-host-build.mjs": "1d83b593096c24575847b9f290253c7d32e74dfaa640d22ac68b427307599b3f",
   "scripts/p5-hub-notification-check.mjs": "e2d4216777feeb2e4099b93986ca257e4760f671312a6b343014ef7677148f06",
   "scripts/p5-launcher-forms.mjs": "601862a5ec30750ab4acc20e69d86d51165fd235b38d5e5ab8fc77b6eaa4ffa7",

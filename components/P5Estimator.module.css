@@ -67,7 +67,7 @@
 .topbar>div{min-width:0}
 .topCenter{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;gap:2px;text-align:center}
 .brandLine{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--p5-accent-ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
-.stepPill{font-size:12px;color:var(--p5-ink-muted);font-variant-numeric:tabular-nums;white-space:nowrap}
+.stepPill{font-size:12px;color:var(--p5-ink-muted);font-variant-numeric:tabular-nums;white-space:normal;overflow-wrap:anywhere}
 .root .navBtn{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:40px;min-width:40px;padding:6px 10px;border-radius:10px;border:1px solid transparent;background:transparent;color:var(--p5-ink-muted);font-size:14px;font-weight:600;white-space:nowrap}
 .root .navBtn:hover{background:var(--p5-surface-3);color:var(--p5-ink)}
 .root .navBtn[hidden]{display:none}
