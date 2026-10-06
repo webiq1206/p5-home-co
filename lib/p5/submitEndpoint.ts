@@ -23,6 +23,8 @@ import {recordEvent} from './events.ts';
 import {issueRecord,buildEstimateDocument,type EstimateBrand} from './estimateDocument.ts';
 import {legalIdentityLine} from './brandIdentity.ts';
 import {restoreSavedCustomerCopy} from './savedCustomerCopy.ts';
+import {withQaWriteFence} from './qaOperationFence.ts';
+import {qaOperationContext} from './qaOperationContext.ts';
 // Every public response uses the one customer boundary, including responses
 // rebuilt from a previously saved estimate.
 const publicResult=(estimate:unknown)=>customerPresentation(estimate,{hideUnitRates:HIDE_CUSTOMER_UNIT_RATES});
@@ -68,14 +70,14 @@ export async function recordSubmitRequest(id:string,revision:number,notify:boole
   const payload={state:'pending',revision,engineVersion:ESTIMATOR_VERSION,notify,...(notifyEmail?{notifyEmail}:{}),requestedAt:new Date().toISOString()};
   // Same-engine polls preserve state. A new engine or explicit retry restarts
   // completion for this revision, keeping its requested delivery preferences.
-  await query(`INSERT INTO p5_estimator_work(draft_id,work_key,payload) VALUES($1,'submit-request-v1',$2::jsonb)
+  await withQaWriteFence(id,()=>query(`INSERT INTO p5_estimator_work(draft_id,work_key,payload) VALUES($1,'submit-request-v1',$2::jsonb)
     ON CONFLICT(draft_id,work_key) DO UPDATE SET payload=CASE
       WHEN (p5_estimator_work.payload->>'revision')::int=$3 THEN
         (CASE WHEN p5_estimator_work.payload->>'engineVersion'=$6 AND NOT $7 THEN p5_estimator_work.payload
           ELSE $2::jsonb || CASE WHEN p5_estimator_work.payload ? 'notifyEmail' THEN jsonb_build_object('notifyEmail',p5_estimator_work.payload->>'notifyEmail') ELSE '{}'::jsonb END END)
         ||jsonb_build_object('notify',coalesce((p5_estimator_work.payload->>'notify')::boolean,false) OR $4)
         ||CASE WHEN $5::text<>'' THEN jsonb_build_object('notifyEmail',$5::text) ELSE '{}'::jsonb END
-      ELSE $2::jsonb END,updated_at=now()`,[id,JSON.stringify(payload),revision,notify,notifyEmail,ESTIMATOR_VERSION,retry]);
+      ELSE $2::jsonb END,updated_at=now()`,[id,JSON.stringify(payload),revision,notify,notifyEmail,ESTIMATOR_VERSION,retry]));
 }
 /** Price (or wait for) a revision and, once it has a validated range, save it and queue its delivery.
  * Shared by the customer's request and the background driver, so the outcome is the same either way. */
@@ -113,7 +115,7 @@ export async function completeSubmission(id:string,draft:Awaited<ReturnType<type
     if(!priced.customer.range){
       // Keep incomplete pricing available to the authenticated admin, but do
       // not submit it or create customer-email/CRM delivery records.
-      const retained=await query("UPDATE p5_estimator_drafts SET internal_estimate=$2 WHERE id=$1 AND revision=$3 AND status='draft' RETURNING id",[id,JSON.stringify(priced.internal),draft.revision]);
+      const retained=await withQaWriteFence(id,()=>query("UPDATE p5_estimator_drafts SET internal_estimate=$2 WHERE id=$1 AND revision=$3 AND status='draft' RETURNING id",[id,JSON.stringify(priced.internal),draft.revision]));
       if(!retained.length)throw new DraftError("Your project changed during pricing. Save the latest details and retry.",409);
       const missing=('missingInformation' in priced.internal?priced.internal.missingInformation:[])||[];
       const missingFields=missingScopeFields(missing);
@@ -156,9 +158,11 @@ export async function completeSubmission(id:string,draft:Awaited<ReturnType<type
     // An autoscale host gives a request no CPU after its response, so delivery
     // runs inside this request within a bounded wait; anything left continues
     // after the response and on the visitor's next status check.
-    const started=deliver();
-    await Promise.race([started,new Promise<void>(resolve=>setTimeout(resolve,DELIVERY_WAIT_MS))]);
-    if(schedule)schedule(()=>started);
+    if(!qaOperationContext()){
+      const started=deliver();
+      await Promise.race([started,new Promise<void>(resolve=>setTimeout(resolve,DELIVERY_WAIT_MS))]);
+      if(schedule)schedule(()=>started);
+    }
     return json({accepted,duplicate:!accepted,id,result:publicCustomer,document:estimateDocument(id,record.customer),delivery:await deliveryStatus(id)});
   }catch(error){if(isPricingPending(error))return error.retryAfterMs===0?json({error:error.message},503):json({pending:true,message:error.message,retryAfterMs:error.retryAfterMs},202);return failed(error);}
 }

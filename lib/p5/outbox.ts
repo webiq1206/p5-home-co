@@ -8,6 +8,8 @@ import { ensureSchema } from "./store.ts";
 import { adminRecipients,sendEmail,syncCrm,EMAIL_SUPPORTS_IDEMPOTENCY } from "./deliveryAdapter.ts";
 import { customerPdf,administrativePdf,pdfFilename } from "./pdf.ts";
 import { ESTIMATOR_BRAND as brand } from "./brand.ts";
+import {qaOperationContext} from './qaOperationContext.ts';
+import {withQaWriteFence} from './qaOperationFence.ts';
 export function deliveryRetryDecision(destination:string,emailIdempotent:boolean,attempts:number,createdAt:Date,now=Date.now()){
   const canRetry=destination!=="crm"&&emailIdempotent&&now-createdAt.getTime()<23*3600000&&attempts<6;
   return canRetry?"retry":"needs-review";
@@ -15,7 +17,10 @@ export function deliveryRetryDecision(destination:string,emailIdempotent:boolean
 /** Owner instruction 2026-09-21: nothing goes to the CRM for now (it will move to the P5 site).
  * P5_CRM_DELIVERY=on turns it back on; no CRM job is queued or sent otherwise. */
 export const CRM_DELIVERY_ENABLED=process.env.P5_CRM_DELIVERY==='on';
-export async function enqueueSubmission(id:string,revision:number,record:any){
+export async function enqueueSubmission(...args:Parameters<typeof enqueueSubmissionImpl>){return withQaWriteFence(args[0],()=>enqueueSubmissionImpl(...args));}
+async function enqueueSubmissionImpl(id:string,revision:number,record:any){
+  const operator=qaOperationContext();
+  if(operator&&(operator.draftId!==id||!suppressSyntheticEstimateNotifications(record)||record.contact?.email||record.contact?.phone))throw new Error('QA submission contact safeguards failed.');
   const suppressed=suppressSyntheticEstimateNotifications(record);
   const recipients=suppressed?[]:await adminRecipients();if(!suppressed&&!recipients.length)throw new Error("No estimate administrator is configured");
   const jobs=suppressed?[{id:randomUUID(),destination:'suppressed:synthetic-qa',payload:record,status:'suppressed'}]:[...recipients.map(email=>({id:randomUUID(),destination:`admin:${email}`,payload:record})),
@@ -37,6 +42,7 @@ export async function deliveryStatus(id:string){
   return (await query("SELECT destination,status,attempts,last_error,provider_id FROM p5_estimator_outbox WHERE draft_id=$1 AND revision=(SELECT revision FROM p5_estimator_drafts WHERE id=$1) ORDER BY created_at",[id])).map(row=>({channel:String(row.destination).split(":")[0],status:row.status}));
 }
 export async function processOutbox(options:{draftId?:string;revision?:number;limit?:number}={}){
+  if(qaOperationContext())return [];
   await ensureSchema();const limit=Math.min(30,Math.max(1,options.limit||10));
   const rows=await query(`WITH due AS (
     SELECT id FROM p5_estimator_outbox WHERE status IN ('pending','retry') AND next_attempt_at<=now() AND (locked_until IS NULL OR locked_until<now()) AND ($1::uuid IS NULL OR draft_id=$1::uuid) AND ($3::integer IS NULL OR revision=$3::integer)

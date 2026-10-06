@@ -43,7 +43,7 @@ export function makeServer(store,pipeline,config){
    if(parts[3]==='qa-provider'&&parts.length===4&&req.method==='POST'){
     let data;try{data=JSON.parse(body);}catch{throw new ServiceError('invalid-json');}
     if(!project.startsWith('qa-paid-')||!store.qa)throw new ServiceError('qa-binding-required',422);
-    const result=await store.qa.dispatch(auth.tenant,project,data.boundary,data.body,AbortSignal.timeout(180000));
+    const result=await store.qa.dispatch(auth.tenant,project,data.boundary,data.body,AbortSignal.timeout(180000),data.control);
     send(200,result);return;
    }
    if(parts[3]==='documents'&&parts.length===6&&parts[5]==='evidence'&&req.method==='GET'){
@@ -73,7 +73,7 @@ export function makeServer(store,pipeline,config){
    }
    if(parts[3]==='reviews'&&parts.length===5&&req.method==='GET'){send(200,await reviewResponse(await store.job(auth.tenant,project,identifier(parts[4])),store));return;}
    throw new ServiceError('not-found',404);
-  }catch(error){const status=error instanceof ServiceError?error.status:500;if(error.retryMs)res.setHeader('retry-after',String(Math.ceil(error.retryMs/1000)));send(status,{error:error instanceof ServiceError?error.code:'internal-error',retryAfterMs:error.retryMs||undefined});}
+  }catch(error){const status=error instanceof ServiceError?error.status:500;if(error.retryMs)res.setHeader('retry-after',String(Math.ceil(error.retryMs/1000)));send(status,{error:error instanceof ServiceError?error.code:'internal-error',retryAfterMs:error.retryMs||undefined,...(error instanceof ServiceError&&error.code==='qa-exact-request-review-required'&&error.capturedIntent?{capturedIntent:error.capturedIntent}:{})});}
  });
  server.requestTimeout=90000;server.headersTimeout=15000;server.keepAliveTimeout=5000;return server;
 }

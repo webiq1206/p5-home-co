@@ -34,7 +34,7 @@ test('real outbox SQL saves synthetic results atomically with a terminal suppres
   const query=async(sql:string,params:any[]=[]) => (await db.query(sql,params)).rows;
   const exports:any={};
   const dependencies:Record<string,unknown>={
-   'node:crypto':crypto,'./database.ts':{query},'./store.ts':{ensureSchema:async()=>{}},'./estimatorNotifications.ts':policy,
+   'node:crypto':crypto,'./database.ts':{query},'./qaOperationContext.ts':await import('../lib/p5/qaOperationContext.ts'),'./qaOperationFence.ts':await import('../lib/p5/qaOperationFence.ts'),'./store.ts':{ensureSchema:async()=>{}},'./estimatorNotifications.ts':policy,
    './estimateEmail.ts':{estimateEmail:()=>({text:'Isolated fixture'})},'./estimateDocument.ts':{estimateReference:()=> 'P5-FIXTURE'},
    './savedCustomerCopy.ts':{restoreSavedCustomerCopy:(customer:any)=>customer},'./brand.ts':{ESTIMATOR_BRAND:{name:'Fixture',domain:'fixture.invalid'}},
    './pdf.ts':{customerPdf:async()=>Buffer.from('fixture'),administrativePdf:async()=>Buffer.from('fixture'),pdfFilename:()=> 'fixture.pdf'},

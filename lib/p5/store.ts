@@ -4,6 +4,9 @@ import { storeObject, readStoredBytes } from "./objectStorage.ts";
 import { ESTIMATOR_BRAND } from "./brand.ts";
 import { EVENTS_TABLE_SQL, EVENTS_INDEX_SQL } from "./events.ts";
 import type { ReviewedScope, ScopeAnswers, ScopeExtraction, ScopeUpload } from "./scope.ts";
+import {qaOperationContext} from './qaOperationContext.ts';
+import {assertQaOperationAccess,withQaWriteFence} from './qaOperationFence.ts';
+import {isOperatorQaCase} from './qaCases.ts';
 // Optional tables exist only where they are used. A table created on a site that
 // never writes to it is a production schema change (and a publish review) for nothing.
 const LEDGER_TABLES=(ESTIMATOR_BRAND.id as string)==='p5'||process.env.P5_PRICING_LEDGER==='on'||Boolean(process.env.P5_PRICING_BUDGET_USD||process.env.P5_PRICING_REQUEST_RESERVATION_USD);
@@ -31,6 +34,7 @@ export function requireEstimateContact(contact:Draft['contact']) {
 }
 let schemaReady: Promise<void> | null = null;
 export function ensureSchema(): Promise<void> {
+  if(qaOperationContext())return Promise.resolve();
   if (!schemaReady) schemaReady = (async () => {
     for (const statement of [
       `CREATE TABLE IF NOT EXISTS p5_estimator_drafts (id uuid PRIMARY KEY, key_hash text NOT NULL, brand text NOT NULL, revision integer NOT NULL DEFAULT 0, status text NOT NULL DEFAULT 'draft', payload jsonb NOT NULL DEFAULT '{}', internal_estimate jsonb, customer_estimate jsonb, submitted_at timestamptz, updated_at timestamptz NOT NULL DEFAULT now(), created_at timestamptz NOT NULL DEFAULT now())`,
@@ -57,11 +61,18 @@ export function ensureSchema(): Promise<void> {
 }
 export function draftCredentials(request: Request) {
   const id = request.headers.get("x-p5-draft-id") || "";
+  const operator=qaOperationContext();
+  if(operator){if(!operator.active||id!==operator.draftId)throw new DraftError('QA operation identity changed.',409);return {id,key:''};}
   const key = request.headers.get("x-p5-draft-key") || "";
   if (!/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(id) || !/^[a-f0-9]{64}$/i.test(key)) throw new DraftError("Invalid draft credentials",401);
   return {id,key};
 }
 async function rowFor(id: string, key: string) {
+  if(qaOperationContext()){
+    await assertQaOperationAccess(id);
+    const [row]=await query('SELECT id,brand,revision,status,payload,updated_at,submitted_at FROM p5_estimator_drafts WHERE id=$1',[id]);
+    return row;
+  }
   await ensureSchema();
   const [row]=await query("SELECT * FROM p5_estimator_drafts WHERE id=$1",[id]);
   if (!row) return null;
@@ -71,6 +82,7 @@ async function rowFor(id: string, key: string) {
     const [linked]=await query("SELECT 1 FROM p5_estimator_work WHERE draft_id=$1 AND work_key=$2",[id,`access-key-v1:${hash(key)}`]);
     if(!linked)throw new DraftError("Draft not found",404);
   }
+  await assertQaOperationAccess(id);
   return row;
 }
 /** A fresh key for a draft, issued only after a signed estimate link was verified. The original key keeps working. */
@@ -83,6 +95,7 @@ export async function issueLinkKey(id:string):Promise<string>{
 /** A draft read by the server itself (the background driver finishing a submission). Never exposed to a request. */
 export async function readDraftById(id:string):Promise<Draft|null>{
   await ensureSchema();
+  await assertQaOperationAccess(id);
   const [row]=await query("SELECT * FROM p5_estimator_drafts WHERE id=$1",[id]);if(!row)return null;
   const files=await query("SELECT id,name,mime_type,size_bytes,sha256 FROM p5_estimator_files WHERE draft_id=$1 ORDER BY created_at",[id]);
   return {id,revision:Number(row.revision),status:row.status,updatedAt:new Date(row.updated_at).toISOString(),brand:row.brand,
@@ -98,7 +111,11 @@ export async function readDraft(id: string,key: string): Promise<Draft|null> {
     uploads:files.map(f=>({id:f.id,name:f.name,type:f.mime_type,size:f.size_bytes,sha256:f.sha256,status:"stored"})),
   };
 }
-export async function saveDraft(id: string,key: string,brand: string,payload: Omit<Draft,"id"|"brand"|"revision"|"status"|"updatedAt"|"uploads">,expectedRevision: number,qaDeterministicOnly:boolean|'bounded-paid'=false): Promise<Draft> {
+export async function saveDraft(...args:Parameters<typeof saveDraftImpl>):Promise<Draft>{
+  if(isOperatorQaCase(args[0])&&!qaOperationContext())await rowFor(args[0],args[1]);
+  return withQaWriteFence(args[0],()=>saveDraftImpl(...args));
+}
+async function saveDraftImpl(id: string,key: string,brand: string,payload: Omit<Draft,"id"|"brand"|"revision"|"status"|"updatedAt"|"uploads">,expectedRevision: number,qaDeterministicOnly:boolean|'bounded-paid'=false): Promise<Draft> {
   const existing=await rowFor(id,key);
   if(existing?.status==="submitted")throw new DraftError("This submission is already saved. Start a new revision to change the scope.",409);
   if(existing && existing.revision!==expectedRevision)throw new DraftError("This project was updated elsewhere. Reload the saved version before overwriting it.",409);
@@ -133,7 +150,7 @@ export async function saveUpload(id:string,key:string,file:{name:string;type:str
   const fileId=duplicate[0]?.id||randomUUID();
   if(!duplicate.length){
     const location=await storeObject(ESTIMATOR_BRAND.domain,id,file.data);
-    await query("INSERT INTO p5_estimator_files(id,draft_id,name,mime_type,size_bytes,sha256,data_base64,storage_bucket,storage_key) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) ON CONFLICT(draft_id,sha256) DO NOTHING",[fileId,id,file.name,file.type,file.data.length,digest,location?"":file.data.toString("base64"),location?.bucketId||null,location?.objectKey||null]);
+    await withQaWriteFence(id,()=>query("INSERT INTO p5_estimator_files(id,draft_id,name,mime_type,size_bytes,sha256,data_base64,storage_bucket,storage_key) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) ON CONFLICT(draft_id,sha256) DO NOTHING",[fileId,id,file.name,file.type,file.data.length,digest,location?"":file.data.toString("base64"),location?.bucketId||null,location?.objectKey||null]));
   }
   const [stored]=await query("SELECT id,name,mime_type,size_bytes,sha256 FROM p5_estimator_files WHERE draft_id=$1 AND sha256=$2",[id,digest]);
   return {id:stored.id,name:stored.name,type:stored.mime_type,size:stored.size_bytes,sha256:stored.sha256,status:"stored"};

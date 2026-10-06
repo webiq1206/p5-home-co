@@ -1,3 +1,4 @@
+import {withQaWriteFence} from './qaOperationFence.ts';
 import {createHash} from 'node:crypto';
 import {query} from './database.ts';
 import {selectSourceEquivalentAnalysis,type AnalysisReuseInput,type CompletedAnalysisCandidate} from './analysisReuse.ts';
@@ -19,7 +20,7 @@ export async function saveCompletedAnalysis(draftId:string,input:AnalysisReuseIn
  if(!hasVerifiedAnalysis(analysis))return;
  const payload={state:'complete',input:{kind:'analysis',text:input.text,answers:input.answers,draft:{uploads:input.uploads.map(({id,sha256})=>({id,sha256}))}},result:{analysis}};
  const key='completed-analysis-v1-'+createHash('sha256').update(stable(payload)).digest('hex');
- await write('INSERT INTO p5_estimator_work(draft_id,work_key,payload) VALUES($1,$2,$3::jsonb) ON CONFLICT DO NOTHING',[draftId,key,JSON.stringify(payload)]);
+ await withQaWriteFence(draftId,()=>write('INSERT INTO p5_estimator_work(draft_id,work_key,payload) VALUES($1,$2,$3::jsonb) ON CONFLICT DO NOTHING',[draftId,key,JSON.stringify(payload)]));
 }
 
 /** Both synchronous and background retries consult the same draft-local saved

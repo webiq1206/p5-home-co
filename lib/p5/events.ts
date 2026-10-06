@@ -1,5 +1,6 @@
 import {query} from './database.ts';
 import {ESTIMATOR_BRAND} from './brand.ts';
+import {qaOperationContext} from './qaOperationContext.ts';
 
 /** One durable record per processing outcome so a live failure can be traced
  * without host log access: which site and estimator, which file and stage,
@@ -35,6 +36,7 @@ export function sanitizeEventMessage(value:unknown):string|null{
 }
 let schemaReady:Promise<void>|null=null;
 export function ensureEventsSchema(){
+  if(qaOperationContext())return Promise.resolve();
   if(!schemaReady)schemaReady=(async()=>{await query(EVENTS_TABLE_SQL);await query(EVENTS_INDEX_SQL);})().catch(error=>{schemaReady=null;throw error;});
   return schemaReady;
 }

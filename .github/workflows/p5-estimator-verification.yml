@@ -3,7 +3,7 @@ on:
   push:
     branches: [fix/estimator-flow-20260913,release/estimator-overhaul-20260912,wip/estimator-overhaul-20260912,fix/research-format,fix/pricing-batches,fix/pricing-latency,fix/readable-estimates,fix/complete-scope-pricing, codex/activate-cost-books-20260911, codex/finalize-estimators-20260911, codex/p5-upload-receipt-fix-20260910, codex/p5-intelligent-wizard-20260910, main, codex/p5-estimator-policy-20260910, codex/p5-merge-all-20260910, codex/p5-complete-main-20260910]
   pull_request:
-    paths: ['components/P5Estimator.tsx', 'lib/p5/**', 'tests/p5-*.test.ts', 'tests/providers/**', 'scripts/test-p5-*', 'scripts/p5-estimator-browser.mjs', 'scripts/p5-mobile-navigation.mjs', '.github/workflows/p5-estimator-verification.yml']
+    paths: ['components/P5Estimator.tsx', 'components/P5QaSavedReading.tsx', 'components/P5QaContinuation.tsx', 'app/api/admin/p5-estimators/qa-continuation/**', 'app/admin/p5-estimators/qa-recovery/**', 'app/api/admin/p5-estimators/qa-recovery/**', 'lib/p5/**', 'tests/p5-*.test.ts', 'tests/providers/**', 'scripts/test-p5-*', 'scripts/p5-estimator-browser.mjs', 'scripts/p5-qa-recovery-browser.mjs', 'scripts/p5-mobile-navigation.mjs', '.github/workflows/p5-estimator-verification.yml']
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -60,6 +60,8 @@ jobs:
           node --import tsx scripts/p5-estimator-browser.mjs
           P5_TEST_BROWSER=webkit node --import tsx scripts/p5-estimator-browser.mjs
           node scripts/p5-admin-pricing-browser.mjs
+          node scripts/p5-qa-recovery-browser.mjs
+          P5_TEST_BROWSER=webkit node scripts/p5-qa-recovery-browser.mjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -101,3 +103,5 @@ jobs:
         run: node tools/migrate.ts
       - name: Verify watchdog and HubSpot task lifecycle with intercepted transports
         run: node --test --test-concurrency=1 tests/watchdog.integration.test.ts tests/hubspot-tasks.integration.test.ts
+      - name: Verify QA saved-reading recovery with real PostgreSQL locks
+        run: QA_RECOVERY_TEST_DATABASE_URL="$TEST_DATABASE_URL" node --test --test-concurrency=1 tests/p5-qa-saved-reading.test.ts tests/p5-qa-continuation.test.ts
