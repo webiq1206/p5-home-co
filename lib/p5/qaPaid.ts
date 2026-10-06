@@ -10,7 +10,10 @@ type Context={draftId:string};
 const current=new AsyncLocalStorage<Context>();
 export const qaPaidContext=()=>current.getStore();
 export class QaPaidHold extends Error {status=422;code='qa-paid-review-required';capturedIntent?:QaIntent;}
-export const isQaReviewWait=(error:unknown)=>error instanceof QaPaidHold&&error.message==='qa-exact-request-review-required';
+// Both broker guards stop before provider dispatch. Preserve their idle review
+// time without forgiving provider work, uncertain charges or receipt failures.
+export const isQaReviewWait=(error:unknown)=>error instanceof QaPaidHold
+ &&['qa-exact-request-review-required','qa-server-tools-not-budgeted'].includes(error.message);
 /** Server-owned markers only. The public draft API never creates this policy.
  * Inherited context cannot be cleared by an inner helper missing identity. */
 export async function withQaPaidDraft<T>(draftId:string|undefined,work:()=>Promise<T>):Promise<T>{

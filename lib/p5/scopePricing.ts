@@ -47,6 +47,7 @@ import {applyPricingCorrections} from './pricingCorrections.ts';
 import {specifiedShowerGlassRate} from './priceBook.ts';
 import {verifiedPermitContext} from './permitContext.ts';
 import {projectContractSchema} from './projectRecordContracts.ts';
+import {validateCabinetCountEvidence} from './cabinetCountEvidence.ts';
 
 // This module runs only on the server at submission. No client-supplied mapping
 // or rate can authorize a price. The approved catalog is never mutated here.
@@ -647,6 +648,73 @@ export function preserveScopeExclusions(mapping:Mapping,existing:string[],scope:
   mapping.removeExclusions=mapping.removeExclusions.filter(item=>existing.includes(item.text)&&!explicit.some(value=>key(value)&&key(value)===key(item.text)));
 }
 
+/** Retained components need handling and reinstallation, not a disposal
+ * package. Keep compatible work and let the existing full-book mapper price
+ * the remaining operation with supported units and disclosed effort. */
+function retainedComponents(task:Mapping['tasks'][number],scope:ReviewedScope){
+ const fragments=[scope.text,scope.extraction?.sourceText,...(scope.extraction?.instructions?.inclusions||[]),...(scope.extraction?.instructions?.responsibilities||[])]
+  .filter((value):value is string=>typeof value==='string').flatMap(value=>value.split(/[.;\n]+|\b(?:and|but)\s+(?=(?:retain|keep|reuse|remove|discard|dispose|replace|install|supply|provide)\b)/i));
+ const components=[{label:'countertop',pattern:/\bcountertops?\b/i},{label:'appliances',pattern:/\bappliances?\b/i}];
+ if(!/\b(?:reinstall|refit|reset|reconnect)\b|\bremoval\s*(?:and|\/)\s*reinstallation\b/i.test(task.description)
+  ||/\b(?:dispose|discard|demolish|haul[- ]?off)\b|\b(?:no|not|never|without)\b[^.;\n]{0,25}\b(?:reinstall|reuse|retain)\b/i.test(task.description))return [];
+ const described=components.filter(item=>item.pattern.test(task.description));
+ if(described.some(item=>fragments.some(fragment=>item.pattern.test(fragment)&&/\b(?:dispose|disposal|discard|haul[- ]?off)\b/i.test(fragment)&&!/^\s*(?:no|exclude\w*|without)\b/i.test(fragment))))throw new Error('retained-component-scope-conflict');
+ return described.filter(item=>fragments.some(fragment=>{
+  if(/\b(?:no|not|never|without|exclude\w*)\b[^.;\n]{0,25}\b(?:retain|reuse|keep|reinstall)\b/i.test(fragment))return false;
+  const objects=fragment.match(/\b(?:retain|reuse|keep)\s+(.+)/i)?.[1]
+   ||fragment.match(/\b(?:remove|detach|disconnect)\s+and\s+(?:reinstall|refit|reset|reconnect)\s+(.+)/i)?.[1]
+   ||fragment.match(/\b(?:reinstall|refit|reset|reconnect)\s+(?:the\s+)?existing\s+(.+)/i)?.[1];
+  return Boolean(objects&&item.pattern.test(objects.split(/\b(?:except|excluding|other than)\b/i)[0]));
+ }));
+}
+const retainedDisposal=(description:string,component:ReturnType<typeof retainedComponents>[number])=>component.pattern.test(description)&&/removal labor with haul-off and dump fees|includes haul-off|labor (?:and|with) disposal/i.test(description);
+export function normalizeRetainedComponentMapping(mapping:Mapping,configuration:EstimatorConfiguration,existing:ReturnType<typeof existingLines>,scope:ReviewedScope):Set<string>{
+ const changed=new Set<string>();
+ for(const task of mapping.tasks){
+  if(taskSelectionStatus(task,mapping.tasks)!=='billable')continue;
+  const components=retainedComponents(task,scope);
+  if(!components.length)continue;
+  const disposal=(description:string)=>components.some(component=>retainedDisposal(description,component));
+  const rejected=task.additions.filter(addition=>disposal(configuration.planningCatalog?.rates.find(rate=>rate.code===addition.code)?.description||configuration.regionalRates?.find(rate=>rate.id===addition.code)?.description||''));
+  const rejectedRefs=task.existingLineIds.filter(id=>{
+   const line=existing.find(candidate=>candidate.id===resolvePricedLineId(id,existing));
+   return Boolean(line&&disposal(line.description));
+  });
+  if(!rejected.length&&!rejectedRefs.length)continue;
+  for(const id of rejectedRefs){
+   const line=existing.find(candidate=>candidate.id===resolvePricedLineId(id,existing))!;
+   if(mapping.replacements.some(replacement=>replacement.lineId===line.id))continue;
+   if((line as {scopeTaskId?:string}).scopeTaskId!==task.id)throw new Error('retained-component-disposal-ownership-unverified');
+   mapping.replacements.push({lineId:line.id,reason:'This task retains the same component for reinstallation; its permanent disposal charge is incompatible.'});
+  }
+  task.additions=task.additions.filter(addition=>!rejected.includes(addition));
+  task.existingLineIds=task.existingLineIds.filter(id=>!rejectedRefs.includes(id));
+  task.researchDescription=`Temporary handling of the retained ${components.map(component=>component.label).join(' and ')}: remove or disconnect only as necessary, protect for reinstallation, then reinstall or reconnect the same components. Disclose any storage or handling assumption; do not assume permanent disposal, haul-off or new purchases. Use a compatible approved labor rate and a scope-supported, explicitly labeled effort allowance with a positive range if hours are unmeasured. Preserve each stated unit; never copy countertop SF into LF. Do not duplicate compatible labor already retained. Regulated connections need their appropriate trade, not an assumed cabinet-labor inclusion.`;
+  mapping.notes.push(`${task.description}: existing components are retained for reinstallation; permanent disposal is not included in this operation.`);
+  changed.add(task.id);
+ }
+ return changed;
+}
+
+/** A linear run cannot silently become a confirmed count of tall cabinets. */
+export function normalizeCabinetCountMapping(mapping:Mapping,configuration:EstimatorConfiguration,scope:ReviewedScope):Set<string>{
+ const changed=new Set<string>();
+ for(const task of mapping.tasks){
+  if(taskSelectionStatus(task,mapping.tasks)!=='billable')continue;
+  const rejected=task.additions.flatMap(addition=>{
+   const rate=configuration.planningCatalog?.rates.find(candidate=>candidate.code===addition.code)||configuration.regionalRates?.find(candidate=>candidate.id===addition.code);
+   if(!rate)return [];
+   const result=validateCabinetCountEvidence({scope,task,rate,addition});
+   return result.applicable&&!result.valid?[{addition,issue:result.issue}]:[];
+  });
+  if(!rejected.length)continue;
+  task.additions=task.additions.filter(addition=>!rejected.some(item=>item.addition===addition));
+  task.researchDescription=rejected.map(item=>item.issue).join(' ')+' Reconsider the complete approved catalog. Use an original stated cabinet count, or disclose a dimensionally correct cabinet-width/count allowance with a positive uncertainty range. Do not turn LF into EA, infer a one-foot cabinet width or price a different cabinet type. Preserve compatible components already retained.';
+  changed.add(task.id);
+ }
+ return changed;
+}
+
 /** Labor-only book components cannot satisfy a requested material purchase.
  * Route that gap through the existing evidenced material-pricing workflow. */
 export function normalizeConsumableMapping(mapping:Mapping,configuration:EstimatorConfiguration,existing:ReturnType<typeof existingLines>,scope:ReviewedScope){
@@ -1011,6 +1079,7 @@ function reconcileIncludedRemovalDisposal(mapping:Mapping,result:ScopePriceResol
 
 export function catalogResolution(mapping:Mapping,configuration:EstimatorConfiguration,existing:ReturnType<typeof existingLines>,now:Date,scope?:ReviewedScope):ScopePriceResolution{
   normalizeRepairServices(mapping,configuration);
+  if(scope){normalizeRetainedComponentMapping(mapping,configuration,existing,scope);normalizeCabinetCountMapping(mapping,configuration,scope);}
   if(scope)normalizeExplicitFinishOperations(mapping,configuration,existing.filter(line=>!mapping.replacements.some(replacement=>replacement.lineId===line.id)),scope,false);
   // On a fresh estimate there is nothing to replace. Some reader replies put
   // an approved catalog code here as well as in additions. Ignore only that
@@ -1613,6 +1682,11 @@ export function marketResolution(raw:unknown,urls:string[],tasks:Mapping['tasks'
       if(selection==='ambiguous')result.issues.push(finding);else result.assumptions.push(finding);
       continue;
     }
+    if(scope&&retainedComponents(t,scope).some(component=>retainedDisposal(r.description+' includes '+r.includes,component))){
+      result.issues.push(`${t.description}: retained components require handling and reinstallation, not permanent disposal.`);continue;
+    }
+    const cabinetCount=validateCabinetCountEvidence({scope,task:t,rate:r,addition:r});
+    if(cabinetCount.applicable&&!cabinetCount.valid){result.issues.push(cabinetCount.issue);continue;}
     if(wrongHoleFillingFastener(t.description,r.description))throw new ResearchEvidenceError('New fasteners do not fill existing nail holes; use compatible filling/preparation work.');
     if(wrongCabinetFasteners(t.description,r.description))throw new ResearchEvidenceError('Drywall screws do not match the cabinet mounting application; research manufacturer-specified cabinet fasteners.');
     if(!supportedUnit(r.unit)){
@@ -1749,6 +1823,11 @@ export function planningResolution(raw:unknown,tasks:Mapping['tasks'],now:Date,o
     if(!t){console.error(`[p5-pricing] dropped a planning rate for unknown task ${String(r.taskId).slice(0,60)}`);continue;}
     const selection=taskSelectionStatus(t,tasks);
     if(selection!=='billable'){const finding=`${t.description}: ${selection==='ambiguous'?'alternative selection is ambiguous or conflicting':'unselected alternative or excluded work is not billable'}.`;if(selection==='ambiguous')result.issues.push(finding);else result.assumptions.push(finding);continue;}
+    if(scope&&retainedComponents(t,scope).some(component=>retainedDisposal(r.description+' includes '+r.includes,component))){
+      result.issues.push(`${t.description}: retained components require handling and reinstallation, not permanent disposal.`);continue;
+    }
+    const cabinetCount=validateCabinetCountEvidence({scope,task:t,rate:r,addition:r});
+    if(cabinetCount.applicable&&!cabinetCount.valid){result.issues.push(cabinetCount.issue);continue;}
     if(wrongHoleFillingFastener(t.description,r.description))throw new ResearchEvidenceError('New fasteners do not fill existing nail holes; use compatible filling/preparation work.');
     if(wrongCabinetFasteners(t.description,r.description))throw new ResearchEvidenceError('Drywall screws do not match the cabinet mounting application; research manufacturer-specified cabinet fasteners.');
     if(!supportedUnit(r.unit)){
@@ -2206,6 +2285,8 @@ export async function priceDetailedScope(scope:ReviewedScope,configuration:Estim
     rememberProposals(mapping.tasks);
     routeUnpricedTasks(mapping,configuration,lines);
     const beforeNormalization=new Map(mapping.tasks.map(task=>[task.id,[...task.additions.map(addition=>addition.code),...task.existingLineIds].filter(code=>configuration.planningCatalog?.rates.some(rate=>rate.code===code))]));
+    const retainedRemaps=normalizeRetainedComponentMapping(mapping,configuration,lines,pricingScope);
+    const cabinetCountRemaps=normalizeCabinetCountMapping(mapping,configuration,pricingScope);
     normalizeConsumableMapping(mapping,configuration,lines,pricingScope);
     normalizeExplicitFinishOperations(mapping,configuration,lines,pricingScope);
     // Removing an incompatible assembly changes the catalog question. Give
@@ -2214,7 +2295,7 @@ export async function priceDetailedScope(scope:ReviewedScope,configuration:Estim
     const remapTasks=mapping.tasks.filter(task=>{
       if(taskSelectionStatus(task,mapping.tasks)!=='billable')return false;
       const invalidCatalogReference=!task.additions.length&&task.existingLineIds.some(id=>configuration.planningCatalog?.rates.some(rate=>rate.code===id)&&!lines.some(line=>line.id===resolvePricedLineId(id,lines)));
-      return (task.researchDescription||invalidCatalogReference)&&(!beforeNormalization.has(task.id)||(beforeNormalization.get(task.id)||[]).some(code=>!task.additions.some(addition=>addition.code===code)));
+      return (task.researchDescription||invalidCatalogReference)&&(retainedRemaps.has(task.id)||cabinetCountRemaps.has(task.id)||!beforeNormalization.has(task.id)||(beforeNormalization.get(task.id)||[]).some(code=>!task.additions.some(addition=>addition.code===code)));
     });
     if(remapTasks.length){
       const remapped=await mapLimit(batchesOf(remapTasks,3),batch=>mapBatch(request,batch,taskBatch=>({
