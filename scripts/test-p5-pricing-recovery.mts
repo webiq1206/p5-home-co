@@ -17,6 +17,7 @@ await mkdir('node_modules/.cache',{recursive:true});
 const dir=await mkdtemp(path.join(process.cwd(),'node_modules/.cache/p5-pricing-recovery-'));
 const previous=process.env.DATABASE_URL;
 type SavedPayload={replies:Record<string,{timeouts?:number;outputLimited?:boolean}>};
+type QaRepairPayload=SavedPayload&{repairClock:{startedAt:number;busyWaitMs:number};qaReviewWaitStartedAt?:number;requests:Record<string,{repair?:string;attempt:number;failures:unknown[]}>;shortlists?:Record<string,Record<string,string[]>>};
 type StageInput={taskBatch?:{id:string;description:string;evidence:string}[]};
 let db:{database:{close():Promise<void>};query(sql:string,values?:unknown[]):Promise<{payload:SavedPayload}[]>}|undefined;
 try{
@@ -189,31 +190,78 @@ try{
  assert.equal((await run(auditExhausted)).customer.range,null);
  assert.equal(singleAuditCalls,1,'an unsplittable output failure does not repeat paid work');
 
- // QA native review wait must not consume the durable repair working budget.
- const qa=await mod('qaPaid'),qaId=randomUUID();
- await store.saveDraft(qaId,randomBytes(32).toString('hex'),ESTIMATOR_BRAND.id,{text:scope.text,answers:scope.answers,extraction:null,reviewed:null,contact:{name:'[QA] Repair wait',email:'',phone:''}},0,'bounded-paid');
- let permit=false,repairAttempts=0,repairCompletions=0,qaAudits=0;
- const realNow=Date.now;let fakeNow=realNow();Date.now=()=>fakeNow;
- try{
-  provider.setProvider(async(_instructions:string,value:unknown)=>{
-   const input=value as StageInput&{repairInstruction?:string};
-   if(input.taskBatch){
-    if(input.repairInstruction){repairAttempts++;if(!permit)throw new qa.QaPaidHold('qa-exact-request-review-required');repairCompletions++;}
-    return reply({tasks:input.taskBatch.map(item=>({...item,existingLineIds:lines,additions:[],researchDescription:'',issues:[]})),issues:[]});
-   }
-   if('priorPricingIssues' in input){qaAudits++;return reply({coveredTaskIds:[task.id],issues:qaAudits===1?['cabinets: wrong unit does not match the explicit requested quantity.']:[]});}
-   return reply({tasks:[task],issues:[]});
-  });
-  await assert.rejects(run(qaId),/review-required/);
-  const before=await payload(qaId) as any;assert.ok(before.repairClock);assert.equal(before.qaReviewWaitStartedAt,fakeNow);
-  fakeNow+=240000;permit=true;
-  const repaired=await run(qaId);assert.equal(repairCompletions,1,'reviewed repair resumes after more than the210s work budget');
-  const after=await payload(qaId) as any;assert.equal(after.qaReviewWaitStartedAt,undefined);assert.equal(after.repairClock.startedAt,before.repairClock.startedAt+240000);assert.equal(repairAttempts,2);assert.ok(repaired.customer.range);
- }finally{Date.now=realNow;}
+ // Only these two QA holds prove that the boundary stopped before dispatch.
+ // Exercise the real broker wire guard, not a made-up successful research reply.
+ const qa=await mod('qaPaid');
+ const {qaWire,QA_MODEL}=await import('../services/document-service/src/qa-budget.mjs');
+ const serverToolHold=()=>{
+  try{qaWire({model:QA_MODEL,max_tokens:1000,messages:[{role:'user',content:'Synthetic repair research'}],tools:[{type:'web_search_20250305',name:'web_search'}]});}
+  catch(error){assert.equal((error as {code:string}).code,'qa-server-tools-not-budgeted');return new qa.QaPaidHold((error as {code:string}).code);}
+  throw new Error('The existing server-tool guard must remain closed');
+ };
+ const excludedPauseHolds=['qa-provider-http-503','qa-usage-unverified','qa-usage-over-reservation','qa-receipt-not-saved','qa-saved-receipt-unverified','qa-response-not-json','qa-response-too-large','qa-run-held','qa-run-blocked','qa-settlement-state-changed','qa-budget-exhausted','qa-provider-held'];
+ for(const code of excludedPauseHolds)assert.equal(qa.isQaReviewWait(new qa.QaPaidHold(code)),false,code+' must not grant more repair time');
+ assert.equal(qa.isQaReviewWait(new Error('qa-server-tools-not-budgeted')),false,'ordinary errors cannot create QA pause evidence');
+ const pauseReceipts=[];
+ for(const scenario of [
+  {code:'qa-exact-request-review-required',pause:true,worked:30000},
+  {code:'qa-server-tools-not-budgeted',pause:true,worked:30000},
+  {code:'qa-server-tools-not-budgeted',pause:true,worked:provider.REPAIR_BUDGET_MS+1},
+  {code:'qa-usage-unverified',pause:false,worked:30000},
+  {code:'qa-run-held',pause:false,worked:30000},
+ ]){
+  const qaId=randomUUID();
+  await store.saveDraft(qaId,randomBytes(32).toString('hex'),ESTIMATOR_BRAND.id,{text:scope.text,answers:scope.answers,extraction:null,reviewed:null,contact:{name:'[QA] Repair wait',email:'',phone:''}},0,'bounded-paid');
+  let permit=false,repairAttempts=0,repairCompletions=0,qaAudits=0,qaInventories=0,qaMappings=0;
+  const realNow=Date.now;let fakeNow=realNow();Date.now=()=>fakeNow;
+  const idle=240000;
+  try{
+   provider.setProvider(async(_instructions:string,value:unknown)=>{
+    const input=value as StageInput&{repairInstruction?:string};
+    if(input.taskBatch){
+     if(input.repairInstruction){
+      repairAttempts++;
+      if(!permit){fakeNow+=scenario.worked;throw scenario.code==='qa-server-tools-not-budgeted'?serverToolHold():new qa.QaPaidHold(scenario.code);}
+      repairCompletions++;fakeNow+=20000;
+     }else qaMappings++;
+     return reply({tasks:input.taskBatch.map(item=>({...item,existingLineIds:lines,additions:[],researchDescription:'',issues:[]})),issues:[]});
+    }
+    if('priorPricingIssues' in input){qaAudits++;return reply({coveredTaskIds:[task.id],issues:qaAudits===1?['cabinets: wrong unit does not match the explicit requested quantity.']:[]});}
+    qaInventories++;return reply({tasks:[task],issues:[]});
+   });
+   await assert.rejects(run(qaId),(error:unknown)=>error instanceof qa.QaPaidHold&&(error as Error).message===scenario.code);
+   const before=await payload(qaId) as QaRepairPayload;assert.ok(before.repairClock);
+   assert.equal(before.qaReviewWaitStartedAt,scenario.pause?fakeNow:undefined,scenario.code+' pause evidence must match the proven boundary');
+   assert.equal(fakeNow-before.repairClock.startedAt,scenario.worked,'work before the hold remains on the clock');
+   assert.deepEqual([qaInventories,qaMappings,qaAudits,repairAttempts,repairCompletions],[1,1,1,1,0],'the hold returns without an automatic retry');
+   const heldTrace=Object.values(before.requests).find(trace=>trace.repair==='scope');assert.ok(heldTrace);
+   assert.equal(heldTrace.attempt,0);assert.deepEqual(heldTrace.failures,[],'QA holds retain their existing attempt accounting');
+   // SQL JSONB reload is the continuation boundary. Explicitly serialize the
+   // saved payload again so an in-memory pause cannot make this fixture pass.
+   await db!.query('UPDATE p5_estimator_work SET payload=$1::jsonb WHERE draft_id=$2 AND work_key=$3',[JSON.stringify(before),qaId,work.pricingWorkKey(scope,config,date)]);
+   fakeNow+=idle;permit=true;
+   const repaired=await run(qaId),after=await payload(qaId) as QaRepairPayload;
+   assert.equal(after.qaReviewWaitStartedAt,undefined);
+   assert.equal(after.repairClock.startedAt,before.repairClock.startedAt+(scenario.pause?idle:0),'credit only the proven idle interval');
+   assert.equal(after.repairClock.busyWaitMs,before.repairClock.busyWaitMs);
+   for(const [key,value] of Object.entries(before.replies))assert.deepEqual(after.replies[key],value,'retained paid stages must remain unchanged');
+   assert.deepEqual(after.shortlists,before.shortlists);
+   const eligible=scenario.pause&&scenario.worked<=provider.REPAIR_BUDGET_MS;
+   assert.equal(Boolean(repaired.customer.range),eligible);
+   assert.equal(repairCompletions,eligible?1:0);
+   assert.equal(repairAttempts,eligible?2:1,'spent work and unverified holds cannot reopen repair');
+   assert.deepEqual([qaInventories,qaMappings,qaAudits],[1,1,eligible?2:1],'completed stages are reused after the pause');
+   assert.equal(fakeNow-after.repairClock.startedAt,scenario.worked+(scenario.pause?0:idle)+(eligible?20000:0),'actual work and non-pause time still count');
+   if(eligible){await run(qaId);assert.deepEqual([qaInventories,qaMappings,qaAudits,repairAttempts],[1,1,2,2],'reopening reuses the completed repair and audit');}
+   else assert.ok(repaired.internal.scopePricing.issues.some((issue:string)=>issue.startsWith('Repair round skipped:')));
+   pauseReceipts.push({code:scenario.code,workedMs:scenario.worked,creditedIdleMs:scenario.pause?idle:0,repairCompleted:eligible});
+  }finally{Date.now=realNow;}
+ }
 
  assert.equal((await db!.query('SELECT * FROM p5_estimator_work WHERE lease_token IS NOT NULL')).length,0);
  assert.equal((await db!.query('SELECT * FROM p5_estimator_outbox')).length,0);
  assert.equal(unexpectedNetwork,0,'every provider boundary is isolated');
+ console.log(JSON.stringify({qaPauseReceipts:pauseReceipts,realProviderCalls:unexpectedNetwork,outboxRows:0}));
  console.log('PASS: saved SQL pricing timeout recovers, completed work is reused, actual retries stop at three, large mappings and output-limited audits stay split, unsplittable output remains held, and incomplete pricing creates no delivery. No live provider calls.');
 }finally{
  globalThis.fetch=network;

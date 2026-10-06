@@ -53,8 +53,10 @@ export const configurationIdentity=(configuration:EstimatorConfiguration)=>diges
  * including it would defeat the whole purpose.
  */
 export function pricingScopeFingerprint(scope:ReviewedScope,configuration:EstimatorConfiguration):string{
+  // Retained-component and EA-count validation invalidates old completed
+  // totals only. Durable draft work, reply and charge identities are unchanged.
   return digest([
-    'p5-price-v2',MODEL_POLICY_VERSION,ESTIMATOR_VERSION,ESTIMATOR_BRAND.id,
+    'p5-price-v3',MODEL_POLICY_VERSION,ESTIMATOR_VERSION,ESTIMATOR_BRAND.id,
     words(scope.text),
     answerEntries(scope),
     (scope.uploads||[]).filter(upload=>upload.status==='stored').map(upload=>upload.sha256).filter(Boolean).sort(),
@@ -73,7 +75,7 @@ export function pricingScopeFingerprint(scope:ReviewedScope,configuration:Estima
  */
 export function documentScopeFingerprint(scope:ReviewedScope,configuration:EstimatorConfiguration):string{
   return digest([
-    'p5-price-doc-v2',ESTIMATOR_VERSION,ESTIMATOR_BRAND.id,
+    'p5-price-doc-v3',ESTIMATOR_VERSION,ESTIMATOR_BRAND.id,
     words(scope.answers?.service),
     words(scope.text),
     (scope.uploads||[]).filter(upload=>upload.status==='stored').map(upload=>upload.sha256).filter(Boolean).sort(),
