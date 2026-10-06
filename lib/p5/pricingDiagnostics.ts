@@ -9,9 +9,10 @@ export function pricingFailureDetails(error:unknown){
   const message=typeof item.message==='string'?item.message:'';
   const status=Number(/^pricing-provider-unavailable:(\d{3})(?::|$)/.exec(message)?.[1])||(Number.isInteger(item.providerStatus)?Number(item.providerStatus):null);
   const incomplete=/^pricing-check-incomplete:([a-z_]+)$/.exec(message);
+  const incompleteReason=incomplete&&['max_tokens','max_output_tokens','pause_turn','refusal','length','content_filter','incomplete','failed','cancelled','in_progress','queued','unknown'].includes(incomplete[1])?incomplete[1]:'unknown';
   const declared=typeof item.code==='string'&&/^(?:pricing|estimator-model)-[a-z-]+$/.test(item.code)?item.code:null;
   const exact=/^pricing-(?:check-timeout|search-unavailable|research-format-unavailable|invalid-tool-output|provider-unavailable)$/.test(message)?message:null;
-  const code=declared||exact||(status?`provider-http-${status}`:incomplete?`provider-incomplete:${incomplete[1]}`:exact)||
+  const code=declared||exact||(incomplete?`provider-incomplete:${incompleteReason}`:status?`provider-http-${status}`:null)||
    (item.name==='ProcessingDeadlineError'?'deadline':item.name==='AbortError'||item.name==='TimeoutError'?'provider-timeout':item.name==='SyntaxError'?'provider-invalid-json':'request-failed');
   const requestId=typeof item.providerRequestId==='string'&&/^[\w-]{1,160}$/.test(item.providerRequestId)?item.providerRequestId:null;
   causes.push({code,status,requestId,...(item.researchDiagnostics?{research:item.researchDiagnostics}:{})});

@@ -82,12 +82,16 @@ export function instructionPrompts(extraction:ScopeExtraction|null,answers:Scope
       const full=normalizeQuestionPart(part).replace(/\bIf yes\b/gi,'If so');if(!full)continue;
       // Filter each question separately so a legacy paragraph cannot lose a real scope decision.
       if(serviceQuestion(full)||contractQuestion(full)||isEstimateHandlingDirection(full))continue;
-      const decision=extraction?.instructions?.decisions?.find(item=>questionKey(item.question)===questionKey(full));
+      const matches=(extraction?.instructions?.decisions||[]).filter(item=>questionKey(item.question)===questionKey(full));
+      // The wording alone must not attach an answer to one of several
+      // distinct physical decisions. Keep the ambiguity for review.
+      if(new Set(matches.map(item=>JSON.stringify([item.subject,item.aspect]))).size>1)throw new Error('Ambiguous scope decision question');
+      const decision=matches[0];
       if(decision?.answer&&decision.status!=='pending')continue;
       const field=cabinetQuestionField(full)||projectQuestionField(full,answers);
       if(!extraction?.conflicts.some(conflict=>conflict.field===field)&&answeredScopeQuestion(full,answers,sourceText))continue;
       // One decision is asked once, however many pages or wordings raised it.
-      if(!field&&result.some(q=>!q.field&&sameDecision(instructionPromptText(q),full)))continue;
+      if(!field&&result.some(q=>!q.field&&(!decision||!q.decisionId||q.decisionId===decision.id)&&sameDecision(instructionPromptText(q),full)))continue;
       if(field&&!unresolvedScopeAnswer(answers[field])&&!extraction?.conflicts.some(conflict=>conflict.field===field))continue;
       const id=questionKey(full);
       if(result.some(q=>q.id===id))continue;

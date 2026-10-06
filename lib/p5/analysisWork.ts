@@ -13,7 +13,7 @@ import {ESTIMATOR_BUCKETS} from './objectStorage.ts';
 import {ESTIMATOR_BRAND} from './brand.ts';
 import {claimWork,writeWork,releaseWork} from './workStore.ts';
 import {type Draft,DraftError} from './store.ts';
-import {isInstructionFile,mergeInstructions} from './instructions.ts';
+import {isInstructionFile,mergeInstructions,emptyInstructions,type ScopeInstructions} from './instructions.ts';
 import {combineCoverage,pageCovered} from './documentLedger.ts';
 import {analysisConcurrency,analysisProgress} from './analysisProgress.ts';
 import {recordEvent,describeError} from './events.ts';
@@ -39,6 +39,28 @@ export class IncompleteAnalysisError extends DraftError {
 
 type Unit={name:string;type:string;object:string;uploadId?:string;pages?:AnalysisFile['pages'];text?:string;context?:string;detailViews?:boolean;formViews?:number;detailRegions?:AnalysisFile['detailRegions'];result?:AnalysisResult;attempts?:number;rateLimitRetries?:number;error?:string;lastCode?:string;retryAt?:number;active?:boolean};
 type Job={prepared:number;units:Unit[];notes:string[];preparationFailures?:string[];textDone?:AnalysisResult;textPrepared?:boolean;cursor?:number;expected?:{source:string;page:number}[];progress?:string;processing?:ProcessingStatus;concurrency?:number;cooldownUntil?:number};
+/** Independent page readers can reuse a generated ID for different decisions.
+ * Disambiguate only those collisions before aggregation. Keep every question,
+ * preserve saved customer identities, and never transfer an answer by ID alone. */
+function disambiguateReaderDecisions(parts:ScopeInstructions[]):ScopeInstructions[]{
+  const identity=(decision:NonNullable<ScopeInstructions['decisions']>[number])=>JSON.stringify([decision.subject,decision.aspect]);
+  const groups=new Map<string,Set<string>>(),answered=new Map<string,Set<string>>();
+  for(const part of parts)for(const decision of part.decisions||[]){
+    const identities=groups.get(decision.id)||new Set<string>();identities.add(identity(decision));groups.set(decision.id,identities);
+    if(decision.answer||decision.status==='answered'||decision.status==='deferred'){
+      const retained=answered.get(decision.id)||new Set<string>();retained.add(identity(decision));answered.set(decision.id,retained);
+    }
+  }
+  return parts.map(part=>({...part,decisions:part.decisions?.map(decision=>{
+    if((groups.get(decision.id)?.size||0)<2)return decision;
+    const retained=answered.get(decision.id);
+    // Conflicting saved answers require review; changing their identity would
+    // detach them from the customer's saved clarification record.
+    if(retained&&retained.size>1)throw new Error('Conflicting scope decision identity');
+    if(retained?.has(identity(decision)))return decision;
+    return {...decision,id:'reader-decision-'+createHash('sha256').update(JSON.stringify([decision.id,decision.subject,decision.aspect])).digest('hex')};
+  })}));
+}
 /** Reads of one section before it is reported as unread. PDF retries may
  * change transport, but must retain the visual source on every attempt. */
 export const MAX_READ_ATTEMPTS=Math.max(1,Number(process.env.P5_READ_ATTEMPTS||4));
@@ -247,7 +269,7 @@ async function advanceLocalAnalysis(draft:Draft,text:string,answers:ScopeAnswers
         const unit=ready[position++];unit.active=true;await checkpoint();
         unit.attempts=(unit.attempts||0)+1;
         const context={...answers};if((context.estimatingInstructions?.length||0)>48000)delete context.estimatingInstructions;
-        if(instructionUnits.some(u=>u.result?.extraction.instructions))context.estimatingInstructions=[context.estimatingInstructions,JSON.stringify(mergeInstructions(instructionUnits.flatMap(u=>u.result?.extraction.instructions?[u.result.extraction.instructions]:[])))].filter(Boolean).join('\n');
+        if(instructionUnits.some(u=>u.result?.extraction.instructions))context.estimatingInstructions=[context.estimatingInstructions,JSON.stringify(mergeInstructions(disambiguateReaderDecisions(instructionUnits.flatMap(u=>u.result?.extraction.instructions?[u.result.extraction.instructions]:[]))))].filter(Boolean).join('\n');
         const started=Date.now();
         try{
           const saved=await client.downloadAsBytes(unit.object);
@@ -300,7 +322,8 @@ async function advanceLocalAnalysis(draft:Draft,text:string,answers:ScopeAnswers
     // result. Return an explicit incomplete extraction instead of dereferencing
     // an absent result (or, worse, letting callers treat it as complete).
     const last=results[results.length-1]||{provider:'P5 document reader',model:'none',analyzedAt:new Date().toISOString(),extraction:combineScopeExtractions([])};
-    const extraction:ScopeExtraction=combineScopeExtractions(results.map(r=>r.extraction));
+    const instructions=disambiguateReaderDecisions(results.map(r=>r.extraction.instructions||emptyInstructions()));
+    const extraction:ScopeExtraction=combineScopeExtractions(results.map((r,index)=>({...r.extraction,...(r.extraction.instructions?{instructions:instructions[index]}:{})})));
     const unprocessed=job.units.filter(u=>!u.result).flatMap(u=>(u.pages||[]).map(p=>({...p,sheet:'',revision:'',status:'unreadable' as const,notes:[u.error||'Page analysis did not finish.']})));
     if(unprocessed.length){const c=extraction.documentCoverage||{pages:[],expectedPages:0,complete:false};extraction.documentCoverage={pages:[...c.pages,...unprocessed],expectedPages:c.expectedPages+unprocessed.length,complete:false};}
     if(job.expected?.length)extraction.documentCoverage=combineCoverage(extraction.documentCoverage?[extraction.documentCoverage]:[],job.expected);
