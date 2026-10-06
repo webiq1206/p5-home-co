@@ -69,7 +69,7 @@ test("every crawler is allowed the public site and refused the private areas", (
   assert.ok(Array.isArray(rules));
   for (const rule of rules) {
     assert.equal(rule.allow, "/");
-    assert.deepEqual(rule.disallow, ["/admin", "/portal", "/api/"]);
+    assert.deepEqual(rule.disallow, ["/admin", "/portal", "/api/", "/estimate/qa-saved"]);
   }
 });
 

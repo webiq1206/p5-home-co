@@ -2,6 +2,7 @@
 
 import Script from "next/script";
 import { usePathname } from "next/navigation";
+import { isPrivatePath } from "./lib/privacy";
 import { hubspotPortalId } from "./site";
 
 // HubSpot is a marketing tool, so it loads on the public site only. The
@@ -9,7 +10,7 @@ import { hubspotPortalId } from "./site";
 // form data into the CRM.
 export default function HubSpotScript() {
   const pathname = usePathname();
-  if (pathname.startsWith("/admin") || pathname.startsWith("/portal")) return null;
+  if (pathname.startsWith("/admin") || pathname.startsWith("/portal") || isPrivatePath(pathname)) return null;
   return (
     <Script
       id="hs-script-loader"

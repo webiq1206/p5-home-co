@@ -26,6 +26,8 @@ test("every private area is recognised, including pages that do not exist yet", 
     "/portal/vendor",
     "/api",
     "/api/qbo/webhook",
+    "/estimate/qa-saved",
+    "/estimate/qa-saved/child",
   ]) {
     assert.equal(isPrivatePath(path), true, `${path} must be treated as private`);
   }
@@ -36,6 +38,8 @@ test("the public site is not accidentally caught", () => {
   // failure nobody notices until traffic is gone.
   for (const path of [
     "/",
+    "/estimate",
+    "/estimate/qa-saved-project",
     "/legal/terms",
     "/legal/privacy",
     "/legal/quickbooks-disconnect",
@@ -70,7 +74,7 @@ test("robots.txt disallows every private area", () => {
         ? [rule.disallow]
         : [];
     // Every agent, named AI crawlers included - not just the wildcard rule.
-    for (const prefix of ["/admin", "/portal", "/api"]) {
+    for (const prefix of ["/admin", "/portal", "/api", "/estimate/qa-saved"]) {
       assert.ok(
         disallow.some((d) => d.startsWith(prefix)),
         `${rule.userAgent}: nothing disallows ${prefix}`,
@@ -132,4 +136,11 @@ test("every section under /admin gates on a signed-in user", () => {
     });
     assert.ok(gated, `app/admin/${section} has a layout but no server-side auth gate`);
   }
+});
+
+
+test('saved synthetic QA is gated and excluded from public page inventories', () => {
+  const page=readFileSync(join('app','estimate','qa-saved','page.tsx'),'utf8');
+  assert.match(page,/requireEstimatorAdmin/);assert.match(page,/index:false/);
+  for(const file of ['app/siteUrls.ts','public/llms.txt'])assert.doesNotMatch(readFileSync(file,'utf8'),/estimate\/qa-saved/);
 });

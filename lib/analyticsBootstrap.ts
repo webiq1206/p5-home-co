@@ -12,6 +12,7 @@ export function googleTagBootstrap(options: {
   var host = window.location.hostname.toLowerCase();
   if (host !== config.hostname && host !== 'www.' + config.hostname) return;
   if (navigator.webdriver === true) return;
+  if (window.location.pathname === '/estimate/qa-saved' || window.location.pathname.indexOf('/estimate/qa-saved/') === 0) return;
   try { if (sessionStorage.getItem('p5_analytics_disabled') === '1') return; } catch (e) {}
   if (document.getElementById('p5-google-tag')) return;
   window.dataLayer = window.dataLayer || [];

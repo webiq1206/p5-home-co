@@ -36,10 +36,17 @@ const STATE=`SELECT pg_is_in_recovery() AS replica,now()::text AS checked_at,
  EXISTS(SELECT 1 FROM p5_estimator_work WHERE draft_id=$1 AND work_key='qa-bounded-provider-v1' AND payload->>'brokerRequired'='true') AS bounded,
  EXISTS(SELECT 1 FROM p5_estimator_work WHERE draft_id=$1 AND work_key='qa-no-provider-v1') AS deterministic,
  EXISTS(SELECT 1 FROM p5_estimator_work WHERE draft_id=$1 AND (lease_until>now() OR (work_key LIKE 'background-v1-%' AND payload->>'state' IN ('queued','running')) OR (work_key='submit-request-v1' AND payload->>'state'='pending'))) AS busy,
- EXISTS(SELECT 1 FROM p5_estimator_work WHERE draft_id=$1 AND work_key='submit-request-v1' AND coalesce(payload->>'notifyEmail','')<>'') AS contactRequest,
+ EXISTS(SELECT 1 FROM p5_estimator_work WHERE draft_id=$1 AND work_key='submit-request-v1' AND coalesce(payload->>'notifyEmail','')<>'') AS "contactRequest",
  COALESCE((SELECT jsonb_agg(jsonb_build_object('hash',request_hash,'status',status)) FROM p5ds_qa_calls WHERE run_id=$2 AND status<>'settled'),'[]'::jsonb) AS held,
  (SELECT payload FROM p5_estimator_work WHERE draft_id=$1 AND work_key='qa-next-stage-v1') AS next,
- COALESCE((SELECT jsonb_agg(jsonb_build_object('key',work_key,'payload',payload)) FROM p5_estimator_work WHERE draft_id=$1 AND work_key LIKE 'qa-transition-v1:%'),'[]'::jsonb) AS receipts`;
+ COALESCE((SELECT jsonb_agg(jsonb_build_object('key',work_key,'payload',payload)) FROM p5_estimator_work WHERE draft_id=$1 AND work_key LIKE 'qa-transition-v1:%'),'[]'::jsonb) AS receipts,
+ COALESCE((SELECT jsonb_agg(jsonb_build_object('revision',o.revision,'status',o.status,
+   'suppressed',o.destination='suppressed:synthetic-qa',
+   'untouched',o.attempts=0 AND o.provider_id IS NULL AND o.sent_at IS NULL AND o.locked_until IS NULL,
+   'matchesSaved',o.payload->>'draftId'=$1::text AND o.payload->>'revision'=o.revision::text
+     AND o.payload->>'brand'='P5 Home Co' AND o.payload->'contact'=o.payload->'customer'->'issue'->'contact'
+     AND o.payload->'customer'=(SELECT customer_estimate FROM p5_estimator_drafts WHERE id=$1)))
+   FROM p5_estimator_outbox o WHERE o.draft_id=$1 AND o.revision=(SELECT revision FROM p5_estimator_drafts WHERE id=$1)),'[]'::jsonb) AS delivery`;
 async function readState(name:unknown,read:Read=query){
   const identity=identify(name),[row]=await read(STATE,[identity.id,RUN,TENANT,identity.project]);
   if(!row||row.replica!==false)throw new DraftError('A current application primary snapshot is required.',409);
@@ -53,6 +60,8 @@ async function readState(name:unknown,read:Read=query){
   const token=hash([identity.id,d,row.next,r,row.held]);
   return {identity,row,draft,token};
 }
+/** Existing SELECT-only primary snapshot; never bootstraps or acquires a lease. */
+export {readState as readQaContinuationSnapshot};
 type State=Awaited<ReturnType<typeof readState>>;
 async function questions(draft:Draft){
   if(!draft.extraction)return [];
