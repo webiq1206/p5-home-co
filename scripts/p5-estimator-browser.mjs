@@ -10,7 +10,8 @@ import {ESTIMATOR_BRAND as brand} from '../lib/p5/brand.ts';
 const base=process.env.P5_TEST_BASE_URL||'http://127.0.0.1:5000';
 const output=process.env.P5_TEST_OUTPUT_DIR||'p5-verification';
 const progressOnly=process.env.P5_TEST_SCENARIO==='live-progress';
-if(process.env.P5_TEST_SCENARIO&&!progressOnly)throw new Error('Unsupported P5_TEST_SCENARIO');
+const focusOnly=process.env.P5_TEST_SCENARIO==='keyboard-focus';
+if(process.env.P5_TEST_SCENARIO&&!progressOnly&&!focusOnly)throw new Error('Unsupported P5_TEST_SCENARIO');
 await mkdir(output,{recursive:true});
 const browser=await (process.env.P5_TEST_BROWSER==='webkit'?webkit:chromium).launch({
  ...(process.env.P5_TEST_BROWSER!=='webkit'&&process.env.P5_TEST_CHROMIUM_PATH?{executablePath:process.env.P5_TEST_CHROMIUM_PATH}:{}),
@@ -88,12 +89,84 @@ async function overflow(page){assert.ok(await page.evaluate(()=>document.documen
 async function usableAction(action){await action.scrollIntoViewIfNeeded();assert.ok(await action.evaluate(el=>{const r=el.getBoundingClientRect(),x=r.left+r.width/2,y=r.top+r.height/2;return r.width>0&&r.height>0&&x>=0&&x<innerWidth&&y>=0&&y<innerHeight&&el.contains(document.elementFromPoint(x,y));}),'The current estimator action must be visible and unobstructed');}
 async function capture(page,name){await page.evaluate(async()=>{await document.fonts.ready;document.documentElement.style.scrollBehavior='auto';if(document.activeElement instanceof HTMLElement)document.activeElement.blur();window.scrollTo(0,0);});await page.screenshot({path:`${output}/${name}.png`,fullPage:true,animations:'disabled'});}
 async function settled(page){await page.waitForFunction(()=>!document.querySelector('[data-p5-estimator][aria-busy=true]'));}
-for(const width of progressOnly?[]:[320,390,430,768,1024,1440,1920]){
+// Send real key events to the already-focused element. Locator.fill/type can
+// refocus between calls and speech clears the latent question before typing,
+// hiding the first-character regression. Check every character and saved draft.
+async function typeWithoutRefocusing(page,input,text,field='text'){
+ await input.click();await page.keyboard.press('End');let expected=await input.inputValue();
+ for(const character of text){
+  await page.keyboard.type(character);expected+=character;
+  await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
+  assert.equal(await input.evaluate(el=>document.activeElement===el),true,`Typing ${JSON.stringify(character)} must keep composer focus`);
+  assert.equal(await input.inputValue(),expected,'No typed characters may be lost');
+  assert.equal(await page.evaluate(field=>{const d=JSON.parse(localStorage.getItem('p5-project-draft-v2'));return field==='reply'?d.pendingReply?.answer:d.text;},field),expected,'The current draft must contain every typed character');
+ }
+ return expected;
+}
+async function focusedHeading(page,text){
+ await page.waitForFunction(text=>document.activeElement?.matches('[data-stage-heading]')&&document.activeElement.textContent===text,text);
+}
+for(const width of progressOnly?[]:[390,1440])for(const scenario of ['fresh','resumed','back','questions']){
+ const context=await browser.newContext({viewport:{width,height:900},hasTouch:width<768});
+ const state=await mock(context,{scenario:'instructions'});const page=await context.newPage();page.setDefaultTimeout(15000);
+ const errors=[];page.on('pageerror',error=>errors.push(error.message));
+ try{
+  if(scenario!=='fresh'){
+   const questionScenario=scenario==='back'||scenario==='questions';
+   const saved={id:'11111111-1111-4111-8111-111111111111',key:'1'.repeat(64),revision:questionScenario?1:0,text:'Repair three interior doors.',answers:questionScenario?fullAnswers:{},contact:{name:'Synthetic Test',email:'',phone:''},step:questionScenario?1:0,updatedAt:Date.now(),wizard:{skipped:[],resolutions:{}},uploads:[],dirty:!questionScenario,transcript:questionScenario?[{id:'synthetic-scope',role:'user',text:'Repair three interior doors.',at:Date.now(),kind:'scope'}]:[],extraction:questionScenario?{summary:'Synthetic project',facts:[],conflicts:[],missingInformation:[],reviewNotes:[],clarifications:[],instructions:{...emptyInstructions(),questions:['Labor only or materials only?','Should we include or exclude painting?']}}:null};
+   state.saved=questionScenario?saved:null;
+   await context.addInitScript(saved=>{if(!localStorage.getItem('p5-project-draft-v2'))localStorage.setItem('p5-project-draft-v2',JSON.stringify(saved));},saved);
+  }
+  await page.goto(base+'/estimate/p5-preview');const est=page.locator('[data-p5-estimator]');await settled(page);
+  if(scenario==='fresh'||scenario==='resumed'){
+   const input=est.getByLabel('Tell us about your project',{exact:true});
+   const expected=await typeWithoutRefocusing(page,input,scenario==='fresh'?'Repair the door.':' Add new hinges.');
+   await page.reload();await settled(page);assert.equal(await input.inputValue(),expected,'Reload retains the typed project');
+   await typeWithoutRefocusing(page,input,' Keep the frame.');
+   assert.equal(state.scopeCalls,0,'Typing and restoring must not call the provider');
+  }else if(scenario==='back'){
+   await focusedHeading(page,'Labor only or materials only?');
+   await est.getByRole('button',{name:'Back to the previous step',exact:true}).click();await settled(page);
+   const heading=est.locator('[data-stage-heading]');assert.equal(await heading.count(),1,'Returning to the project must have a current focus target');
+   await focusedHeading(page,await heading.innerText());
+   const input=est.getByLabel('Tell us about your project',{exact:true});
+   const expected=await typeWithoutRefocusing(page,input,' Add new hinges.');
+   await page.reload();await settled(page);assert.equal(await input.inputValue(),expected);
+   await typeWithoutRefocusing(page,input,' Keep the frame.');
+  }else{
+   const input=est.getByLabel('Your answer',{exact:true});
+   await focusedHeading(page,'Labor only or materials only?');
+   await typeWithoutRefocusing(page,input,'Please include labor only','reply');
+   await est.getByRole('button',{name:'Send answer',exact:true}).click();
+   await est.getByRole('alert').filter({hasText:'Temporary answer-save interruption'}).waitFor();await settled(page);
+   assert.equal(await input.inputValue(),'Please include labor only','Interrupted answer saves retain the composer');
+   await page.reload();await settled(page);await focusedHeading(page,'Labor only or materials only?');
+   assert.equal(await input.inputValue(),'Please include labor only','Reload retains the interrupted answer');
+   await typeWithoutRefocusing(page,input,' please','reply');
+   await est.getByRole('button',{name:'Send answer',exact:true}).click();await settled(page);
+   await focusedHeading(page,'Should we include or exclude painting?');
+   assert.equal(await input.inputValue(),'','A new question about the same field starts a fresh answer');
+   await typeWithoutRefocusing(page,input,'Please leave it out','reply');
+   await page.reload();await settled(page);await focusedHeading(page,'Should we include or exclude painting?');
+   assert.equal(await input.inputValue(),'Please leave it out','Reload restores the current question answer');
+   await typeWithoutRefocusing(page,input,' please','reply');
+   await est.getByRole('button',{name:'Send answer',exact:true}).click();await settled(page);
+   await answerBrandQuestions(page,est,est.getByRole('heading',{name:'Review your project',exact:true}));
+   await focusedHeading(page,'Review your project');
+   assert.equal(state.scopeCalls,0,'Answer retries must not reread the project');
+  }
+  await overflow(page);assert.deepEqual(errors,[]);results.push({scenario:`keyboard-focus-${scenario}`,width,passed:true});
+ }catch(error){console.error(error);results.push({scenario:`keyboard-focus-${scenario}`,width,passed:false,error:String(error),pageErrors:errors});await capture(page,`${width}-keyboard-${scenario}-failure`).catch(()=>{});}
+ await context.close();
+}
+for(const width of progressOnly||focusOnly?[]:[320,390,430,768,1024,1440,1920]){
  const context=await browser.newContext({viewport:{width,height:900},hasTouch:width<768});const state=await mock(context,{interruptions:true});
  const page=await context.newPage();page.setDefaultTimeout(15000);const errors=[];page.on('pageerror',e=>errors.push(e.message));
  try{
   await page.goto(base+'/estimate/p5-preview');const estimator=page.locator('[data-p5-estimator]');const description=estimator.getByLabel('Tell us about your project',{exact:true});await description.waitFor();
   assert.equal(await estimator.locator('input[type=file]').count(),1);assert.equal(await estimator.locator('textarea').count(),1);
+  // Verify real sequential typing before speech can clear the latent question.
+  await typeWithoutRefocusing(page,description,'Repair the door.');
   // Talk to text appends the final transcript; typing remains available.
   await estimator.getByRole('button',{name:'Talk instead',exact:true}).click();assert.match(await description.inputValue(),/Repair three interior doors\./);
   await description.fill('Repair three interior doors. '+('LongUnbrokenProjectSpecification'.repeat(90)));
@@ -144,7 +217,7 @@ for(const width of progressOnly?[]:[320,390,430,768,1024,1440,1920]){
  }catch(error){console.error(error);const state=await page.evaluate(()=>{const r=document.querySelector('[data-p5-estimator]');if(!r)return {missingEstimator:true,url:location.href,body:document.body.innerText.slice(0,400)};const vis=e=>{const b=e.getBoundingClientRect();return b.width>0&&b.height>0;};return {labels:[...r.querySelectorAll('label')].map(e=>e.innerText.trim().slice(0,40)+(vis(e)?'':' [hidden]')),headings:[...r.querySelectorAll('h1,h2,h3')].map(e=>e.innerText.trim().slice(0,50)),buttons:[...r.querySelectorAll('button')].map(e=>(e.getAttribute('aria-label')||e.innerText).trim().slice(0,40)),text:r.innerText.slice(0,400),url:location.href};}).catch(e=>({captureFailed:String(e).slice(0,200),url:page.url()}));results.push({width,passed:false,error:String(error),pageErrors:errors,state});await capture(page,`${width}-failure`).catch(()=>{});}await context.close();
 }
 // Reproduce two clarification questions, a failed save, same-answer retry and reload.
-for(const width of progressOnly?[]:[390,1440]){
+for(const width of progressOnly||focusOnly?[]:[390,1440]){
  const context=await browser.newContext({viewport:{width,height:900}});const state=await mock(context,{scenario:'instructions'});const page=await context.newPage();
  try{
   await page.goto(base+'/estimate/p5-preview');const est=page.locator('[data-p5-estimator]');
@@ -163,7 +236,7 @@ for(const width of progressOnly?[]:[390,1440]){
  }catch(error){console.error(error);results.push({scenario:'sequential-instructions',width,passed:false,error:String(error)});await capture(page,`${width}-instructions-failure`).catch(()=>{});}await context.close();
 }
 // Project-specific missing questions and a single conflicting fact.
-for(const scenario of progressOnly?[]:['manual','conflict','unavailable']){
+for(const scenario of progressOnly||focusOnly?[]:['manual','conflict','unavailable']){
  const context=await browser.newContext({viewport:{width:390,height:844}});await mock(context,{scenario});const page=await context.newPage();
  try{
   await page.goto(base+'/estimate/p5-preview');const est=page.locator('[data-p5-estimator]');
@@ -189,7 +262,7 @@ for(const scenario of progressOnly?[]:['manual','conflict','unavailable']){
  }catch(error){console.error(error);results.push({scenario,passed:false,error:String(error)});await capture(page,`${scenario}-failure`).catch(()=>{});}await context.close();
 }
 // Missing information after Get my estimate links straight to the missing field, keeps progress, and completes.
-for(const width of progressOnly?[]:[390,1440]){
+for(const width of progressOnly||focusOnly?[]:[390,1440]){
  const context=await browser.newContext({viewport:{width,height:900}});const state=await mock(context,{scenario:'missing'});const page=await context.newPage();
  try{
   await page.goto(base+'/estimate/p5-preview');const est=page.locator('[data-p5-estimator]');
@@ -214,7 +287,7 @@ for(const width of progressOnly?[]:[390,1440]){
   results.push({scenario:'missing-information',width,passed:true});
  }catch(error){console.error(error);results.push({scenario:'missing-information',width,passed:false,error:String(error)});await capture(page,`${width}-missing-failure`).catch(()=>{});}await context.close();
 }
-for(const width of [320,390,1440]){
+for(const width of focusOnly?[]:[320,390,1440]){
  const context=await browser.newContext({viewport:{width,height:900}});const progressState=await mock(context,{scenario:'progress'});const page=await context.newPage();
  try{
   await page.goto(base+'/estimate/p5-preview');const est=page.locator('[data-p5-estimator]');
@@ -250,7 +323,7 @@ for(const width of [320,390,1440]){
  }catch(error){console.error(error);results.push({width,scenario:'live-progress',passed:false,error:String(error)});await capture(page,`${width}-progress-failure`).catch(()=>{});}await context.close();
 }
 const paths=brand.id==='p5'?['/estimate','/estimate/scope','/quote',...['kitchen-remodel','bathroom-remodel','home-addition','adu','custom-home','custom-cabinets','handyman'].map(s=>'/quote/'+s)]:['/estimate','/estimate/scope','/#calculator',...(brand.services.includes('re10')?['/re-10-repairs-boise']:[]),...(brand.id==='remodeling'?['/remodel-plans-boise']:[])];
-for(const width of progressOnly?[]:[390,768,1440])for(const path of paths){
+for(const width of progressOnly||focusOnly?[]:[390,768,1440])for(const path of paths){
  const context=await browser.newContext({viewport:{width,height:900}});await mock(context);const page=await context.newPage();
  try{const response=await page.goto(base+path);assert.ok(response?.ok(),`HTTP ${response?.status()}`);const est=page.locator('[data-p5-estimator]').first();if(path.includes('#calculator')){await page.locator('#calculator').first().scrollIntoViewIfNeeded();}await est.getByLabel('Tell us about your project',{exact:true}).waitFor();await overflow(page);assert.ok(!/Continue manually|Upload Scope|Manual Estimate/.test(await est.innerText()));results.push({width,path,passed:true});}
  catch(error){results.push({width,path,passed:false,error:String(error)});await capture(page,`route-${width}-${path.replace(/[^a-z0-9]/gi,'_')}`).catch(()=>{});}await context.close();
