@@ -15,7 +15,7 @@ Workspace SPF is one TXT at @: `v=spf1 include:_spf.google.com ~all`. Google DKI
 
 The September 19, 2026 repairs were verified publicly and all five Workspace domains showed DKIM authenticating. DMARC remains p=none with aggregate reporting. Child domains report to their corresponding hello@ aliases, which route to the central P5 mailbox without cross-domain reporting authorization.
 
-Before quarantine: account for every legitimate sender, complete DNS/account repairs, inspect fresh externally received Workspace and actual website emails for all five domains, and review at least seven representative clean reporting days. Missing reports or low volume are not proof of success. Before reject: review approximately another month of clean reporting after quarantine. Retain the working monitoring records for rollback. Never advance policy just because time has elapsed.
+Before quarantine: account for every legitimate sender, complete DNS/account repairs, inspect fresh externally received Workspace and actual website emails for all five domains, and review at least seven representative reporting days with no unexplained legitimate authentication failures. Missing reports or low volume are not proof of success. Before reject: review approximately another month of clean reporting after quarantine. Retain the working monitoring records for rollback. Never advance policy just because time has elapsed.
 
 ## Deployment and received-message tests
 
@@ -28,3 +28,17 @@ For commercial outreach, use an owned verified outreach subdomain, an accurate f
 Google Postmaster registration is a separate remaining account step. A dashboard with no data does not establish successful delivery.
 
 References: [Google sender guidelines](https://support.google.com/a/answer/81126), [Google DKIM](https://support.google.com/a/answer/174124), [Resend domains](https://resend.com/docs/dashboard/domains/introduction).
+
+## October 6 authentication follow-up
+
+The DNS check now prints the active DMARC policy and warns when it only monitors.
+Use `node scripts/email-dns-health.mjs --require-enforcement` when checking whether
+quarantine or reject has actually been published. The ordinary check still tests
+record health independently of policy readiness. Neither check changes DNS.
+
+Assess rollout readiness separately for each domain and each legitimate sender.
+Confirmed spoofed messages are the reason to enforce DMARC, and do not reset the
+observation period for legitimate senders. Investigate unknown sources before
+classifying them. A forged source must never be added to SPF or another allowlist.
+Postmaster visibility and inbox placement are separate from authentication;
+missing Postmaster data alone is not evidence of a signing failure.

@@ -1,6 +1,7 @@
 // Read-only DNS checks. These do not send mail or establish inbox placement.
 const DOMAIN = "p5homeco.com";
 const RESEND = false;
+const requireEnforcement = process.argv.includes("--require-enforcement");
 let failures = 0;
 async function lookup(name, type) {
   const response = await fetch("https://dns.google/resolve?name=" + encodeURIComponent(name) + "&type=" + type, { signal: AbortSignal.timeout(10000) });
@@ -32,8 +33,15 @@ await Promise.all([
     values.length === 1 && /(?:^|;)\s*p=[A-Za-z0-9+/=]+/.test(values[0])),
   check("_dmarc." + DOMAIN, "TXT", "one DMARC record with aggregate reporting", values => {
     const records = values.filter(value => /^v=DMARC1;/i.test(value));
-    return records.length === 1 && /(?:^|;)\s*p=(none|quarantine|reject)(?:;|$)/.test(records[0]) &&
-      /(?:^|;)\s*rua=mailto:[^;\s]+/.test(records[0]);
+    if (records.length !== 1) return false;
+    const policy = records[0].match(/(?:^|;)\s*p=(none|quarantine|reject)(?:;|$)/)?.[1];
+    if (!policy || !/(?:^|;)\s*rua=mailto:[^;\s]+/.test(records[0])) return false;
+    console.log("INFO DMARC policy at " + DOMAIN + ": " + policy);
+    if (policy === "none") {
+      console.warn("WARN Monitoring only: DMARC does not request quarantine or rejection of spoofed mail.");
+      if (requireEnforcement) return false;
+    }
+    return true;
   }),
   check(DOMAIN, "MX", "Workspace MX", values => values.some(value => /\s(?:smtp\.google\.com|(?:alt[1-4]\.)?aspmx\.l\.google\.com)\.?$/i.test(value))),
   ...(RESEND ? [
