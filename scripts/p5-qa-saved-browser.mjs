@@ -3,6 +3,7 @@ import {build} from 'esbuild';
 import {mkdir, readFile, writeFile} from 'node:fs/promises';
 import {PDFDocument} from 'pdf-lib';
 import assert from 'node:assert/strict';
+import ts from 'typescript';
 
 // Component regression only: the real adapter and estimator, synthetic saved
 // customer data, and fail-closed interception of every browser network request.
@@ -33,10 +34,20 @@ const built = await build({
   bundle: true, write: false, metafile: true, outfile: 'saved-fixture.js',
   format: 'iife', platform: 'browser', jsx: 'automatic',
   // Development mode is intentional: production React does not replay effects.
-  define: {'process.env.NODE_ENV': '"development"'},
+  define: {'process.env.NODE_ENV': '"development"', 'process.env': '{}'},
 });
 const code = built.outputFiles.find(file => file.path.endsWith('.js')).text;
 const css = built.outputFiles.find(file => file.path.endsWith('.css'))?.text || '';
+// Ignore strings/comments such as esbuild's <define:process.env> label, but
+// reject a real unresolved Node environment read before launching the browser.
+let nodeEnvironmentReads = 0;
+const browserSyntax = ts.createSourceFile('saved-fixture.js', code, ts.ScriptTarget.Latest, true, ts.ScriptKind.JS);
+function inspectBrowserSyntax(node) {
+  if (ts.isPropertyAccessExpression(node) && ts.isIdentifier(node.expression) && node.expression.text === 'process' && node.name.text === 'env') nodeEnvironmentReads += 1;
+  ts.forEachChild(node, inspectBrowserSyntax);
+}
+inspectBrowserSyntax(browserSyntax);
+assert.equal(nodeEnvironmentReads, 0, 'The standalone browser fixture must not depend on Node process.env.');
 const inputs = Object.keys(built.metafile.inputs).map(path => path.replaceAll('\\', '/'));
 assert.ok(inputs.includes('components/P5QaSavedEstimate.tsx'));
 assert.ok(inputs.includes('components/P5Estimator.tsx'));
@@ -442,5 +453,5 @@ await writeFile(`${output}/${engine}-qa-saved-results.json`, JSON.stringify({
   scope: 'Synthetic saved Case 1 component regression. All network intercepted. No live login, customer data, database, provider or production calls.',
   engine, results,
 }, null, 2));
-console.log(JSON.stringify(results.map(({engine, width, passed, error, stages}) => ({engine, width, passed, error, stages}))));
+console.log(JSON.stringify(results.map(({engine, width, passed, error, stages, errors, violations}) => ({engine, width, passed, error, stages, errors, violations}))));
 if (results.some(result => !result.passed)) process.exitCode = 1;
