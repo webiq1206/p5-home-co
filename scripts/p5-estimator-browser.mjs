@@ -93,7 +93,7 @@ async function settled(page){await page.waitForFunction(()=>!document.querySelec
 // refocus between calls and speech clears the latent question before typing,
 // hiding the first-character regression. Check every character and saved draft.
 async function typeWithoutRefocusing(page,input,text,field='text'){
- await input.click();await page.keyboard.press('End');let expected=await input.inputValue();
+ await input.click();await page.keyboard.press('ControlOrMeta+End');let expected=await input.inputValue();
  for(const character of text){
   await page.keyboard.type(character);expected+=character;
   await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
