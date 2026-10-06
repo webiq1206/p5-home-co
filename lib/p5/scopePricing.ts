@@ -386,8 +386,13 @@ const requestPricingWithUnsafe=async(provider:'anthropic'|'openai',instructions:
     await retain(pricingCallEvidence(sequence,continuationIndex,remainingMs,JSON.parse(String(init?.body||'{}'))));
     if(requestIdentity)await recordPricingRequest(requestIdentity,sequence,'started');
     try {
-      const response=await fetchWithinDeadline((url,options)=>qaProviderFetch(fetch,url,options),input,init||{},started+remainingMs);
-      await retain(pricingResponseEvidence(currentCall!,response));
+      const response=await fetchWithinDeadline(async(url,options)=>{
+        const received=await qaProviderFetch(fetch,url,options);
+        // Capture acknowledgement before the bounded transport reads the body.
+        // A body timeout must not discard a request ID already returned in headers.
+        await retain(pricingResponseEvidence(currentCall!,received));
+        return received;
+      },input,init||{},started+remainingMs);
       if(requestIdentity)await recordPricingRequest(requestIdentity,sequence,'completed');
       return response;
     } catch(error) {

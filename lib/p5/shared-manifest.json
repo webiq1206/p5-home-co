@@ -1,7 +1,7 @@
 {
  "source": "p5-home-co",
- "commit": "f0aca280f57a322d053dea689ecdd6e75feacc45",
- "generatedAt": "2026-10-06T02:51:10.998Z",
+ "commit": "aab2121eb60d1425db3cc971471c377b83eed126",
+ "generatedAt": "2026-10-06T03:00:39.480Z",
  "note": "P5-only qualification baseline. Child rollout is paused until live acceptance is verified. Hash checks remain mandatory.",
  "files": {
   "app/admin/p5-estimators/page.tsx": "8e81e1ac475dadb7eee9af396c963ee369de593a5a8d165d40dd97f2dab7ca32",
@@ -189,7 +189,7 @@
   "lib/p5/scopeFields.ts": "939f4f1a873bc3e170fbacffceb22806f7bd5664637e870e8a1528c98cede441",
   "lib/p5/scopeInterpretation.ts": "57fa1a260817ddbf9bf6116a4a5195317960a798d623b23628d40ca669fe20c9",
   "lib/p5/scopeInventory.ts": "823baac9f40357847a8f6afd9a905058298dfc8dab553d584223bcd3f890d64a",
-  "lib/p5/scopePricing.ts": "be15ca17e40fb34d47527a86254714d382caa6b71b4b2c3962a808f429f2a9ed",
+  "lib/p5/scopePricing.ts": "272e6e53f4499b5fdf70f03fa8827a640845afdff64422b77a29d3dfa9df3478",
   "lib/p5/scopeReplacement.ts": "1a00315d2962f30dd7abbce85dcd33ce096e9f9b305cac0130d127e0e53c5a99",
   "lib/p5/serviceBundles.ts": "5a3bfcb2f2b75f85d9c0041458a8367905bb69174a82f161d3124725f6dd2f5a",
   "lib/p5/serviceSignals.ts": "d947fb37da918c04ae04c1fbd4eaebe617bb3cee1ca87173c83d434574b7ce5f",
