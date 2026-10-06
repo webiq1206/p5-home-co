@@ -3,9 +3,10 @@ import {assertQaProvidersAllowed} from './qaProviderPolicy.ts';
 import {withSupportedServiceBook} from './planningBooks.ts';
 import {MODEL_POLICY_VERSION,ESTIMATOR_MODEL,ESTIMATOR_PROVIDER} from './modelPolicy.ts';
 import {pricingFailureDetails} from './pricingDiagnostics.ts';
+import {pricingTaskEvidence,type PricingCallEvidence,type PricingEvidenceSink,type PricingEvidenceUpdate} from './pricingEvidence.ts';
 import {ESTIMATOR_VERSION} from './version.ts';
 import {SERVER_BUDGET_MS,remainingBudget,ProcessingDeadlineError,isProcessingDeadline} from './processingBudget.ts';
-import {createHash} from 'node:crypto';
+import {createHash,randomUUID} from 'node:crypto';
 import {recordEvent} from './events.ts';
 import {saveLearnedLines,readLearnedLines,learnedCostRules,learnedResearchLeads,saveSupportedServiceBook} from './learnedBook.ts';
 import {databasePricingCache,pricingCacheEnabled} from './pricingCache.ts';
@@ -41,7 +42,8 @@ export function reusableSavedPricingReply(value:unknown):value is PricingReply{
    &&(reply.value!==null&&reply.value!==undefined||typeof reply.sourceReport==='string'&&reply.sourceReport.trim().length>0);
 }
 type RequestFailure={attempt:number;failedAt:string;causes:ReturnType<typeof pricingFailureDetails>};
-type RequestTrace={fingerprint:string;provider:string;model:string;stage:string;attempt:number;startedAt:string;taskIds?:string[];repair?:'format'|'scope';mappingResult?:{tasksType:string;returnedTaskIds:(string|null)[]};failedAt?:string;causes?:ReturnType<typeof pricingFailureDetails>;failures:RequestFailure[]};
+type EvidenceAttempt=ReturnType<typeof pricingTaskEvidence>&{startedAt:string;calls:Record<string,PricingCallEvidence>;accounting?:Extract<PricingEvidenceUpdate,{kind:'accounting'}>['state']};
+type RequestTrace={fingerprint:string;provider:string;model:string;stage:string;attempt:number;startedAt:string;taskIds?:string[];repair?:'format'|'scope';mappingResult?:{tasksType:string;returnedTaskIds:(string|null)[]};failedAt?:string;causes?:ReturnType<typeof pricingFailureDetails>;failures:RequestFailure[];evidenceAttempts?:Record<string,EvidenceAttempt>};
 type Payload=PricingRepairState&{replies:Record<string,PricingReply>;requests?:Record<string,RequestTrace>;shortlists?:Record<string,Record<string,string[]>>;failures?:number;completed?:number;regionalRates?:EstimatorConfiguration['regionalRates'];researchLeads?:EstimatorConfiguration['researchLeads'];processing?:ProcessingStatus;pricingAt?:string;busyWaitMs?:number;qaReviewWaitStartedAt?:number};
 export async function priceSavedScope(...args:Parameters<typeof priceSavedScopeImpl>){
  // Preserve the existing source-coverage gate before any database operation.
@@ -138,7 +140,19 @@ async function priceSavedScopeImpl(id:string,scope:ReviewedScope,configuration:E
   // inverted into the separately hashed charge-ledger identity after failure.
   payload.requests||={};
   const trace:RequestTrace={fingerprint:pricingFingerprint(ESTIMATOR_PROVIDER,instructions,input,search,identity),provider:ESTIMATOR_PROVIDER,model:ESTIMATOR_MODEL,stage:phase,attempt:(payload.requests[key]?.attempt||0)+1,startedAt:new Date(started).toISOString(),...(batchIds?{taskIds:batchIds}:{}),...(batch?.formatRepair?{repair:'format' as const}:batch?.repairInstruction?{repair:'scope' as const}:{}),failures:[...(payload.requests[key]?.failures||[])]};
+  const savedEvidenceAttempts=payload.requests[key]?.evidenceAttempts;
+  trace.evidenceAttempts={...(savedEvidenceAttempts||{})};
   payload.requests[key]=trace;await persist();
+  // Evidence identity is separate from paid request identity. Preserve prior
+  // attempts, including QA review holds that do not increment attempt counts.
+  const evidenceAttemptId=randomUUID();
+  const evidenceAttempt:EvidenceAttempt={...pricingTaskEvidence(input),startedAt:trace.startedAt,calls:{}};
+  trace.evidenceAttempts[evidenceAttemptId]=evidenceAttempt;
+  const retainEvidence:PricingEvidenceSink=async(update)=>{
+    if(update.kind==='call')evidenceAttempt.calls[String(update.call.sequence)]=update.call;
+    else evidenceAttempt.accounting=update.state;
+    await persist();
+  };
   const elapsed=()=>((Date.now()-started)/1000).toFixed(1);
   const checkpoint=async(completedReply:PricingReply)=>{
     const counted=reusableSavedPricingReply(payload.replies[key]);
@@ -154,15 +168,19 @@ async function priceSavedScopeImpl(id:string,scope:ReviewedScope,configuration:E
   // The provider transport already bounds headers and body by allowance.
   // Await its accounting/checkpoint outcome too: an outer racing timer could
   // schedule a retry while the original request was still being marked unknown.
-  try{reply=await requestPricing(instructions,input,search,allowance,identity,undefined,checkpoint);}
+  try{reply=await requestPricing(instructions,input,search,allowance,identity,undefined,checkpoint,retainEvidence);}
   catch(error){
    // A held QA intent is awaiting native review, not a failed provider attempt.
-   if(qaPaidContext()){trace.attempt=Math.max(0,trace.attempt-1);await persist();throw error;}
+   if(qaPaidContext()){
+    trace.attempt=Math.max(0,trace.attempt-1);await persist();
+    if(Object.keys(evidenceAttempt.calls).length)await recordEvent({draftId:id,estimator:scope.answers.service||null,kind:'pricing',stage:`price-${phase}`,provider:trace.provider,model:trace.model,code:'pricing-call-evidence',outcome:'failed',meta:{checkpointKey:key,ledgerFingerprint:trace.fingerprint,evidenceAttemptId,evidence:evidenceAttempt}}).catch(()=>{});
+    throw error;
+   }
    trace.failedAt=new Date().toISOString();trace.causes=pricingFailureDetails(error);
    trace.failures.push({attempt:trace.attempt,failedAt:trace.failedAt,causes:trace.causes});
    await persist();
    const root=trace.causes.at(-1)!;
-   void recordEvent({draftId:id,estimator:scope.answers.service||null,kind:'pricing',stage:`price-${phase}`,provider:trace.provider,model:trace.model,code:root.code,status:root.status,durationMs:Date.now()-started,attempt:trace.attempt,outcome:'failed',meta:{checkpointKey:key,ledgerFingerprint:trace.fingerprint,causes:trace.causes}});
+   void recordEvent({draftId:id,estimator:scope.answers.service||null,kind:'pricing',stage:`price-${phase}`,provider:trace.provider,model:trace.model,code:root.code,status:root.status,durationMs:Date.now()-started,attempt:trace.attempt,outcome:'failed',meta:{checkpointKey:key,ledgerFingerprint:trace.fingerprint,causes:trace.causes,evidenceAttemptId,evidence:evidenceAttempt}}).catch(()=>{});
    // A deadline or accounting failure may race the durable checkpoint. Never
    // replace an already completed response with a timeout marker or buy it again.
    const completedReply=payload.replies[key];

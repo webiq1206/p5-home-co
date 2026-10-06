@@ -1,6 +1,7 @@
 import {qaProviderFetch,qaPaidContext,QaPaidHold} from './qaPaid.ts';
 import {ESTIMATOR_PROVIDER,ESTIMATOR_MODEL,assertEstimatorModel,EstimatorModelError} from './modelPolicy.ts';
 import {pricingHttpError,missingResearchSources,pricingFailureDetails} from './pricingDiagnostics.ts';
+import {pricingCallEvidence,pricingResponseEvidence,type PricingCallEvidence,type PricingEvidenceSink} from './pricingEvidence.ts';
 import {unitKey,reusableUnitRate,supportedUnit,boiseArea,boisePriceRegion,UNIT_REGISTRY} from './unitRates.ts';
 import {reasoningFor,rejectsReasoning} from './openaiReasoning.ts';
 class MissingResearchRateError extends Error {}
@@ -373,18 +374,24 @@ export const openAiPricingRequestEnvelope=(instructions:string,input:unknown,sea
   return {model,body};
 };
 /** One provider exchange without charge accounting. `requestPricingWith` adds the ledger. */
-const requestPricingWithUnsafe=async(provider:'anthropic'|'openai',instructions:string,input:unknown,search:boolean,remainingMs:number,openAiOptions:OpenAiPricingOptions={},requestIdentity?:string,beforeOpenAIDispatch?:()=>Promise<void>):Promise<PricingReply>=>{
+const requestPricingWithUnsafe=async(provider:'anthropic'|'openai',instructions:string,input:unknown,search:boolean,remainingMs:number,openAiOptions:OpenAiPricingOptions={},requestIdentity?:string,beforeOpenAIDispatch?:()=>Promise<void>,evidence?:PricingEvidenceSink):Promise<PricingReply>=>{
   const started=Date.now();
   remainingMs=Math.min(remainingMs,PRICING_STAGE_MAX_MS);
   let requestSequence=0;
+  let continuationIndex=0;
+  let currentCall:PricingCallEvidence|undefined;
+  const retain=async(call:PricingCallEvidence)=>{currentCall=call;if(evidence)await evidence({kind:'call',call});};
   const boundedFetch:typeof fetch=async(input,init)=>{
     const sequence=++requestSequence;
+    await retain(pricingCallEvidence(sequence,continuationIndex,remainingMs,JSON.parse(String(init?.body||'{}'))));
     if(requestIdentity)await recordPricingRequest(requestIdentity,sequence,'started');
     try {
       const response=await fetchWithinDeadline((url,options)=>qaProviderFetch(fetch,url,options),input,init||{},started+remainingMs);
+      await retain(pricingResponseEvidence(currentCall!,response));
       if(requestIdentity)await recordPricingRequest(requestIdentity,sequence,'completed');
       return response;
     } catch(error) {
+      await retain({...currentCall!,state:'unknown',observedAt:new Date().toISOString()});
       if(requestIdentity)await recordPricingRequest(requestIdentity,sequence,'unknown');
       throw error;
     }
@@ -408,10 +415,12 @@ const requestPricingWithUnsafe=async(provider:'anthropic'|'openai',instructions:
     const requestBody={model,max_tokens:openAiPricingRequestEnvelope(instructions,input,search).body.max_output_tokens,system:instructions,...(search?{tools:[{type:'web_search_20250305',name:'web_search',max_uses:5},{type:'web_fetch_20250910',name:'web_fetch',max_uses:4,max_content_tokens:15000}]}:{tools:[{name:'record_estimate',description:'Return the complete structured estimate record. No external action is performed.',...(!projectContractSchema(instructions,input)?{strict:true}:{}),input_schema:stageSchema(instructions,input)}],tool_choice:{type:'tool',name:'record_estimate',disable_parallel_tool_use:true}})};
     const content:any[]=[],providerRequestIds:string[]=[];
     for(let continuation=0;;continuation++){
+      continuationIndex=continuation;
       const left=remainingMs-(Date.now()-started);if(left<=0)throw new Error('pricing-check-timeout');
       const response=await boundedFetch('https://api.anthropic.com/v1/messages',{method:'POST',signal:AbortSignal.timeout(Math.min(180000,left)),headers,body:JSON.stringify({...requestBody,system:instructions+'\n'+CATALOG_ENCODING_INSTRUCTION,messages,...(search&&continuation===0?{tool_choice:{type:'tool',name:'web_search'}}:{})})});
       if(!response.ok){const detail=await response.text().catch(()=>'');throw Object.assign(pricingHttpError(response,detail),{pricingPriorRequestCount:requestSequence-1});}
       const body=await response.json();
+      await retain(pricingResponseEvidence(currentCall!,response,body));
       lastStopReason=body.stop_reason;lastRequestId=response.headers.get('request-id')||body.id||undefined;
       if(ESTIMATOR_PROVIDER==='anthropic')assertEstimatorModel(body.model);
       responseModel=body.model;usage.inputTokens+=Number(body.usage?.input_tokens||0);usage.cachedInputTokens+=Number(body.usage?.cache_read_input_tokens||0);usage.outputTokens+=Number(body.usage?.output_tokens||0);usage.totalTokens=usage.inputTokens+usage.cachedInputTokens+usage.outputTokens;
@@ -449,6 +458,7 @@ const requestPricingWithUnsafe=async(provider:'anthropic'|'openai',instructions:
     if(rejectsReasoning(response.status,detail)&&'reasoning' in requestBody){const {reasoning:_omit,...plain}=requestBody as Record<string,unknown>;void _omit;console.error('[p5-pricing] OpenAI refused the reasoning setting; retrying without it.');response=await send(plain);detail=response.ok?'':await response.text().catch(()=>'');}
     if(!response.ok)throw Object.assign(pricingHttpError(response,detail),{pricingPriorRequestCount:requestSequence-1});}
   const body=await response.json();
+  await retain(pricingResponseEvidence(currentCall!,response,body));
   if(body.model!=='gpt-4.1'&&body.model!=='gpt-4.1-2025-04-14')throw new EstimatorModelError(body.model?'estimator-model-mismatch':'estimator-model-unverified');
   if(body.status!=='completed')throw Object.assign(new Error(`pricing-check-incomplete:${body.incomplete_details?.reason||body.status||'unknown'}`),{providerRequestId:response.headers.get('x-request-id')||body.id||undefined,providerStatus:response.status});
   const parts=(body.output||[]).flatMap((o:any)=>o.content||[]);
@@ -467,20 +477,26 @@ const requestPricingWithUnsafe=async(provider:'anthropic'|'openai',instructions:
 /** Reserve before a provider request and settle only after a complete response.
  * Ambiguous failures are parked and cannot silently fall back or retry. The
  * ledger is always on for P5 Home Co and opt-in elsewhere (see pricingLedger). */
-export const requestPricingWith=async(provider:'anthropic'|'openai',instructions:string,input:unknown,search:boolean,remainingMs:number,openAiOptions:OpenAiPricingOptions={},identity?:PricingIdentity,beforeOpenAIDispatch?:()=>Promise<void>,checkpoint?:(reply:PricingReply)=>Promise<void>):Promise<PricingReply>=>{
-  if(qaPaidContext()){const reply=await requestPricingWithUnsafe(provider,instructions,input,search,remainingMs,openAiOptions,undefined,beforeOpenAIDispatch);if(checkpoint)await checkpoint(reply);return reply;}
-  if(!await pricingLedgerActive())return requestPricingWithUnsafe(provider,instructions,input,search,remainingMs,openAiOptions,undefined,beforeOpenAIDispatch);
+export const requestPricingWith=async(provider:'anthropic'|'openai',instructions:string,input:unknown,search:boolean,remainingMs:number,openAiOptions:OpenAiPricingOptions={},identity?:PricingIdentity,beforeOpenAIDispatch?:()=>Promise<void>,checkpoint?:(reply:PricingReply)=>Promise<void>,evidence?:PricingEvidenceSink):Promise<PricingReply>=>{
+  if(qaPaidContext()){await evidence?.({kind:'accounting',state:'qa-broker'});const reply=await requestPricingWithUnsafe(provider,instructions,input,search,remainingMs,openAiOptions,undefined,beforeOpenAIDispatch,evidence);if(checkpoint)await checkpoint(reply);return reply;}
+  if(!await pricingLedgerActive()){await evidence?.({kind:'accounting',state:'ledger-disabled'});return requestPricingWithUnsafe(provider,instructions,input,search,remainingMs,openAiOptions,undefined,beforeOpenAIDispatch,evidence);}
   const fingerprint=pricingFingerprint(provider,instructions,input,search,identity);
   const reservation=await reservePricingCharge(fingerprint,provider,provider==='anthropic'?4:1);
+  let accountingState:'reserved'|'settled'|'rejected'|'unknown'='reserved';
   try {
-    const reply=await requestPricingWithUnsafe(provider,instructions,input,search,remainingMs,openAiOptions,fingerprint,beforeOpenAIDispatch);
+    await evidence?.({kind:'accounting',state:'reserved'});
+    const reply=await requestPricingWithUnsafe(provider,instructions,input,search,remainingMs,openAiOptions,fingerprint,beforeOpenAIDispatch,evidence);
     // Persist a complete reply before recording its charge as settled. A
     // process loss between these steps can reuse the checkpoint without buying
     // the same provider work again.
     if(checkpoint)await checkpoint(reply);
     await settlePricingCharge(fingerprint,reply.providerRequestIds?.at(-1));
+    accountingState='settled';
+    await evidence?.({kind:'accounting',state:'settled'});
     return reply;
   } catch(error) {
+    // A post-settlement evidence failure cannot change the charge's state.
+    if(accountingState!=='reserved')throw error;
     const message=error instanceof Error?error.message:String(error);
     // A syntactically valid 4xx rejection before provider acceptance is
     // known non-chargeable (except 408/429, whose acknowledgement is not
@@ -489,11 +505,11 @@ export const requestPricingWith=async(provider:'anthropic'|'openai',instructions
     // same reservation were free. Preserve the whole uncertain reservation.
     const knownRejection=/^pricing-provider-unavailable:4(?:0[0-3]|0[5-7])\b/.test(message)
       &&(error as {pricingPriorRequestCount?:number})?.pricingPriorRequestCount===0;
-    if(error instanceof EstimatorModelError){await settlePricingCharge(fingerprint);throw error;}
+    if(error instanceof EstimatorModelError){await settlePricingCharge(fingerprint);accountingState='settled';await evidence?.({kind:'accounting',state:'settled'});throw error;}
     if(error instanceof PricingChargeUnknownError)throw error;
     const accountingCode=pricingFailureDetails(error).map(detail=>detail.code).join(' > ');
-    if(knownRejection){await rejectPricingCharge(fingerprint,accountingCode);throw error;}
-    if(reservation)await markPricingChargeUnknown(fingerprint,accountingCode);
+    if(knownRejection){await rejectPricingCharge(fingerprint,accountingCode);accountingState='rejected';await evidence?.({kind:'accounting',state:'rejected'});throw error;}
+    if(reservation){await markPricingChargeUnknown(fingerprint,accountingCode);accountingState='unknown';await evidence?.({kind:'accounting',state:'unknown'});}
     throw new PricingChargeUnknownError(undefined,{cause:error});
   }
 };
@@ -504,12 +520,12 @@ export const requestPricingOpenAI=async(instructions:string,input:unknown,search
   return requestPricingWith('openai',instructions,input,search,remainingMs,{serviceTier:'default'},undefined,beforeDispatch);
 };
 /** The selected estimator provider is mandatory. Retries never substitute another model. */
-export const requestPricing=async(instructions:string,input:unknown,search:boolean,remainingMs:number,identity?:PricingIdentity,policy?:PricingRequestPolicy,checkpoint?:(reply:PricingReply)=>Promise<void>):Promise<PricingReply>=>{
+export const requestPricing=async(instructions:string,input:unknown,search:boolean,remainingMs:number,identity?:PricingIdentity,policy?:PricingRequestPolicy,checkpoint?:(reply:PricingReply)=>Promise<void>,evidence?:PricingEvidenceSink):Promise<PricingReply>=>{
   if(policy&&(policy.provider!=='openai'||policy.noFallback!==true||policy.toolFree!==true||search||!Number.isSafeInteger(policy.maxOutputTokens)||policy.maxOutputTokens<1||policy.maxOutputTokens>4096))throw new Error('pricing-qualification-policy-invalid');
-  if(!policy&&ESTIMATOR_PROVIDER==='anthropic'){if(!process.env.ANTHROPIC_API_KEY)throw new Error('pricing-provider-unavailable');return requestPricingWith('anthropic',instructions,input,search,remainingMs,{},identity,undefined,checkpoint);}
+  if(!policy&&ESTIMATOR_PROVIDER==='anthropic'){if(!process.env.ANTHROPIC_API_KEY)throw new Error('pricing-provider-unavailable');return requestPricingWith('anthropic',instructions,input,search,remainingMs,{},identity,undefined,checkpoint,evidence);}
   const integrated=Boolean(process.env.AI_INTEGRATIONS_OPENAI_API_KEY&&process.env.AI_INTEGRATIONS_OPENAI_BASE_URL);
   if(!(integrated?process.env.AI_INTEGRATIONS_OPENAI_API_KEY:process.env.OPENAI_API_KEY))throw new Error('pricing-provider-unavailable');
-  return requestPricingWith('openai',instructions,input,search,remainingMs,policy?{maxOutputTokens:policy.maxOutputTokens,serviceTier:policy.serviceTier}:{},identity,undefined,checkpoint);
+  return requestPricingWith('openai',instructions,input,search,remainingMs,policy?{maxOutputTokens:policy.maxOutputTokens,serviceTier:policy.serviceTier}:{},identity,undefined,checkpoint,evidence);
 };
 
 /** Independent batches run together, but only a few at a time: a burst of a dozen
