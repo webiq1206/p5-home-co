@@ -1,27 +1,25 @@
-import {withQaPaidDraft} from './qaPaid.ts';
+import {withQaPaidDraft,QaPaidHold} from './qaPaid.ts';
+import {qaOperationContext} from './qaOperationContext.ts';
 import {assertQaProvidersAllowed} from './qaProviderPolicy.ts';
 import {blockingExtractionNotes} from './documentLedger.ts';
 import {ProcessingDeadlineError,PROCESSING_PAUSED,isProcessingDeadline} from './processingBudget.ts';
 import {applyCabinetIntent} from "./projectIntent.ts";
-import {groundSourceResponsibilities} from './sourceResponsibilities.ts';
+import {reconcileScopeReading} from './reconcileScopeReading.ts';
 import {advanceAnalysis,IncompleteAnalysisError} from "./analysisWork.ts";
 import {queuedJob} from './backgroundJobs.ts';
-import {manualScopeAnswers,reconcileScope,scopeQuestionsForBrand as scopeQuestions} from "./adaptive.ts";
+import {manualScopeAnswers,scopeQuestionsForBrand as scopeQuestions} from "./adaptive.ts";
 import {costQuestionFields} from "./questionPolicy.ts";
 import {createHash} from "node:crypto";
 import { analyzeScope } from "./extraction.ts";
 import { prepareAnalysisFiles,verifyPdfPageLimit,verifyUpload } from "./documents.ts";
-import { SCOPE_BATCH_LIMIT,SCOPE_TEXT_LIMIT,SCOPE_FILE_COUNT,SCOPE_UPLOAD_HELP,SCOPE_FIELDS,validateExtraction } from "./scope.ts";
+import { SCOPE_BATCH_LIMIT,SCOPE_TEXT_LIMIT,SCOPE_FILE_COUNT,SCOPE_UPLOAD_HELP } from "./scope.ts";
 import { draftCredentials,readDraft,readUploads,saveUpload,saveDraft,DraftError } from "./store.ts";
 import {answersForEditedScope,normalizeScopeText,scopeFingerprint,scopeTextChanged,sourceSnapshot,sourceSnapshotsEqual} from "./scopeReplacement.ts";
 import { failed,json,limitedBody,protectRequest } from "./http.ts";
 import { ESTIMATOR_BRAND } from "./brand.ts";
 import {recordEvent,describeError} from './events.ts';
 import {selectReusableAnalysis,selectSourceEquivalentAnalysis} from './analysisReuse.ts';
-import {impliedComponentRemodel,impliedRepairService,serviceEvidenceSupports} from './serviceSignals.ts';
 import {query} from './database.ts';
-import {reconcileDocumentHierarchy,groundDocumentConditions,normalizeCountSubjects,normalizeDimensionSubjects,normalizeTileSubjects,separateFootprintFromInstallation} from './scopeInterpretation.ts';
-import {applyExplicitTypedCorrections,answersAfterTypedRevision} from './typedCorrections.ts';
 import {readCompletedAnalysis,saveCompletedAnalysis,recoverTypedAnalysis} from './savedAnalysis.ts';
 
 /** Guard multipart analysis/upload requests before they can mutate files. */
@@ -104,8 +102,6 @@ export async function postScope(request:Request){
     await assertQaProvidersAllowed(id);
     const checkpointed=form.get("resumable")==="true"&&process.env.P5_OBJECT_STORAGE_ENABLED==="true";
     const stored=checkpointed?[]:await readUploads(id,key);if(stored.reduce((n,f)=>n+f.data.length,0)>SCOPE_BATCH_LIMIT)throw new DraftError(SCOPE_UPLOAD_HELP,413);
-    const version=createHash("sha256").update(JSON.stringify([text,analysisDraft.uploads.map(f=>f.sha256)])).digest("hex");
-    const resolutions=analysisDraft.wizard?.sourceVersion===version?analysisDraft.wizard.resolutions:{};
     // Only visitor-authored answers shape the read. Facts the previous read
     // derived from these same documents are re-derived, so a retry after a
     // partial read keeps the same work key and never re-bills finished pages.
@@ -149,6 +145,7 @@ export async function postScope(request:Request){
       const unread=[...new Set(blockingExtractionNotes(analysis.extraction))];
       if(unread.length)warning="Some files need review before pricing. "+unread.join(" ");
     }catch(error){
+      if(qaOperationContext()&&error instanceof QaPaidHold)throw error;
       if(isProcessingDeadline(error))throw new DraftError(PROCESSING_PAUSED,503);
       console.error("[p5-scope-analysis]",error instanceof Error?error.message:"analysis failed");
       const detail=describeError(error);
@@ -156,35 +153,12 @@ export async function postScope(request:Request){
       warning=scopeAnalysisFailureWarning(Boolean(analysisDraft.uploads.length));
       if(error instanceof IncompleteAnalysisError)failedSourceNotes=error.reviewNotes;
     }
-    // Copy before applying intent: a stored or reused result must never be mutated in place.
-    if(analysis)analysis={...analysis,extraction:applyCabinetIntent(text,ESTIMATOR_BRAND.services,visitorAnswers,validateExtraction(groundSourceResponsibilities(analysis.extraction,analysis.extraction.sourceText,text,visitorAnswers))).extraction!};
-    // A repair-only site prices a plain repair request as home repairs instead of asking the customer
-    // to pick "Home repairs" from a menu of repair types (live Handyman baseboard, 2026-09-24/25). The
-    // type is supplied as a source-derived fact, exactly like the Cabinet intent above, and it is
-    // part of the SAVED extraction: a manual answer would change the analysis identity on the next
-    // request and re-read every finished section (CI resumable check, 2026-09-25). Any RE-10, rush or
-    // change-order signal keeps the question, and the type stays editable on the review screen.
-    if(analysis&&!visitorAnswers.service&&!analysis.extraction.conflicts.some((c:{field:string})=>c.field==='service')){
-      const facts:{field:string;value:string;confidence:number;source:string;evidence:string;basis?:string}[]=analysis.extraction.facts;
-      // A reader classification stands whether or not this site offers it: a bathroom remodel typed on
-      // the Handyman site is handed to Remodeling, never re-labelled as home repairs. Only when the
-      // reader gave no usable type (nothing, a low-confidence guess, or an RE-10/rush/change-order
-      // claim without the customer's signal) does the repair-only default apply.
-      const supported=facts.some(f=>f.field==='service'&&f.confidence>=.7&&f.basis!=='inferred'&&f.basis!=='visual'&&(SCOPE_FIELDS.service.options as readonly string[]).includes(f.value)&&serviceEvidenceSupports(f.value,f.evidence));
-      const implied=supported?null:(impliedComponentRemodel(text,ESTIMATOR_BRAND.services as readonly string[])||impliedRepairService([text,...facts.map(f=>f.evidence)].join('\n'),ESTIMATOR_BRAND.services as readonly string[]));
-      if(implied)analysis={...analysis,extraction:{...analysis.extraction,facts:[...facts.filter(f=>f.field!=='service'),{field:'service',value:implied,confidence:1,source:'typed scope',evidence:text.slice(0,4000),basis:'stated'}]}};
-    }
-    if(analysis)analysis={...analysis,extraction:groundDocumentConditions(reconcileDocumentHierarchy(normalizeDimensionSubjects(normalizeCountSubjects(applyExplicitTypedCorrections(validateExtraction(normalizeTileSubjects(separateFootprintFromInstallation(analysis.extraction,text))),text)),text),text),text)};
-    const extraction=analysis?.extraction||analysisDraft.extraction;
-    const merged=analysis?reconcileScope(answersAfterTypedRevision(visitorAnswers,analysis.extraction,text,resolutions),analysis.extraction,resolutions):{answers:{...analysisDraft.answers,...visitorAnswers},conflicts:[]};
-    const wizard={instructionAnswers:sourceChanged?[]:analysisDraft.wizard?.instructionAnswers||[],skipped:sourceChanged?[]:analysisDraft.wizard?.skipped||[],resolutions,sourceVersion:analysis?version:sourceChanged?undefined:analysisDraft.wizard?.sourceVersion};
-    // Partial analysis is visible and prevents unread documents from being priced.
-    const safeExtraction=warning?{...extraction,summary:extraction?.summary||text,facts:extraction?.facts||[],conflicts:extraction?.conflicts||[],missingInformation:extraction?.missingInformation||[],reviewNotes:[...new Set([...(extraction?.reviewNotes||[]),...failedSourceNotes,warning])]}:extraction;
-    const analyzedAnswers=analysis?JSON.stringify(Object.entries(merged.answers).filter(([field,value])=>SCOPE_FIELDS[field as keyof typeof SCOPE_FIELDS].kind==='text'&&value?.trim()).sort(([a],[b])=>a.localeCompare(b))):undefined;
-    const saved=await saveDraft(id,key,ESTIMATOR_BRAND.id,{text,answers:merged.answers,extraction:safeExtraction,reviewed:null,contact:analysisDraft.contact,wizard,analyzedFingerprint:analysis?scopeFingerprint(text):undefined,analyzedAnswers},draft.revision);
+    const reconciled=reconcileScopeReading(analysisDraft,text,visitorAnswers,analysis,{sourceChanged,warning,failedSourceNotes});
+    analysis=reconciled.analysis;
+    const saved=await saveDraft(id,key,ESTIMATOR_BRAND.id,reconciled.payload,draft.revision);
     if(requested.some(digest=>!saved.uploads.some(file=>file.sha256===digest)))throw new DraftError("Some files could not be confirmed. Please retry; duplicate files will not be added twice.",503);
     const pricedFields=await costQuestionFields(saved.answers);
-    return json({draft:saved,analysis,warning,conflicts:merged.conflicts,pricedFields,questions:scopeQuestions(saved.answers,safeExtraction,merged.conflicts,wizard.skipped,pricedFields,text)});
+    return json({draft:saved,analysis,warning,conflicts:reconciled.conflicts,pricedFields,questions:scopeQuestions(saved.answers,reconciled.payload.extraction,reconciled.conflicts,reconciled.payload.wizard.skipped,pricedFields,text)});
   }catch(error){
     if(error instanceof DraftError&&error.status===409){try{const {id}=draftCredentials(request);void recordEvent({draftId:id,kind:'draft',stage:'scope-revision',status:409,code:'revision-conflict',message:error.message,outcome:'failed'});}catch{}}
     return failed(error);

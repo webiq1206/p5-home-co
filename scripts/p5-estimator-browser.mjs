@@ -106,6 +106,41 @@ async function typeWithoutRefocusing(page,input,text,field='text'){
 async function focusedHeading(page,text){
  await page.waitForFunction(text=>document.activeElement?.matches('[data-stage-heading]')&&document.activeElement.textContent===text,text);
 }
+// Hold the real local-cache open receipt so the restoration state is visible.
+// This never mocks provider processing or writes a server draft.
+for(const width of progressOnly?[]:[390,1440]){
+ const context=await browser.newContext({viewport:{width,height:900}}),state=await mock(context),page=await context.newPage();
+ await context.addInitScript(()=>{
+  const open=indexedDB.open.bind(indexedDB),success=Object.getOwnPropertyDescriptor(IDBRequest.prototype,'onsuccess').set;
+  indexedDB.open=(...args)=>{const request=open(...args);Object.defineProperty(request,'onsuccess',{configurable:true,set(callback){success.call(request,event=>{window.__p5ReleaseRecovery=()=>callback.call(request,event);});}});return request;};
+ });
+ try{
+  await page.goto(base+'/estimate');const est=page.locator('[data-p5-estimator]');
+  await est.getByRole('heading',{name:'Preparing your saved project on this device',exact:true}).waitFor();
+  assert.equal(await est.getByRole('heading',{name:'Understanding your project',exact:true}).count(),0);
+  assert.equal(await est.locator('[data-testid="p5-processing"]').count(),0,'Local recovery is not provider processing');
+  assert.equal(state.scopeCalls,0);assert.equal(state.submissions,0);
+  await page.waitForFunction(()=>typeof window.__p5ReleaseRecovery==='function');await page.evaluate(()=>window.__p5ReleaseRecovery());await settled(page);
+  assert.equal(await est.getByRole('heading',{name:'Preparing your saved project on this device',exact:true}).count(),0);
+  await est.getByLabel('Tell us about your project',{exact:true}).fill('Synthetic keyboard check.');
+  for(const mode of ['light','dark']){
+   await est.evaluate((root,mode)=>root.setAttribute('data-theme',mode),mode);
+   for(const control of [est.getByRole('button',{name:'Attach files',exact:true}),est.getByRole('button',{name:'Talk instead',exact:true}),est.getByRole('button',{name:'Send message',exact:true}),est.getByLabel('Tell us about your project',{exact:true})]){
+    await page.keyboard.press('Tab');await control.focus();
+    const indicator=await control.evaluate(element=>{
+     const style=getComputedStyle(element);let parent=element.parentElement,bg='';
+     while(parent){bg=getComputedStyle(parent).backgroundColor;if(bg!=='rgba(0, 0, 0, 0)'&&bg!=='transparent')break;parent=parent.parentElement;}
+     const luminance=color=>{const channels=color.match(/[\d.]+/g).slice(0,3).map(Number).map(x=>x/255).map(x=>x<=0.04045?x/12.92:((x+0.055)/1.055)**2.4);return channels[0]*0.2126+channels[1]*0.7152+channels[2]*0.0722;};
+     const a=luminance(style.outlineColor),b=luminance(bg);return {ratio:(Math.max(a,b)+0.05)/(Math.min(a,b)+0.05),width:parseFloat(style.outlineWidth),style:style.outlineStyle};
+    });
+    assert.ok(indicator.ratio>=3&&indicator.width>=2&&indicator.style!=='none',mode+' keyboard focus must contrast with its surrounding surface: '+JSON.stringify(indicator));
+   }
+  }
+  assert.equal(state.scopeCalls,0);assert.equal(state.submissions,0);
+  results.push({scenario:'local-cache-restoration-and-focus-contrast',width,passed:true});
+ }catch(error){results.push({scenario:'local-cache-restoration-copy',width,passed:false,error:String(error)});}
+ await context.close();
+}
 for(const width of progressOnly?[]:[390,1440])for(const scenario of ['fresh','resumed','back','questions']){
  const context=await browser.newContext({viewport:{width,height:900},hasTouch:width<768});
  const state=await mock(context,{scenario:'instructions'});const page=await context.newPage();page.setDefaultTimeout(15000);

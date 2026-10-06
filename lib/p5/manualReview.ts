@@ -1,3 +1,4 @@
+import {withQaWriteFence} from './qaOperationFence.ts';
 import {CRM_DELIVERY_ENABLED} from './outbox.ts';
 import {createHash,randomUUID} from "node:crypto";
 import {query} from "./database.ts";
@@ -78,7 +79,7 @@ export async function publishManualReview(body:any,actor:Actor){
   // upstream update/idempotency contract is verified. Never create a second lead.
   const [priorCrm]=await query("SELECT status,provider_id FROM p5_estimator_outbox WHERE draft_id=$1 AND destination='crm' ORDER BY revision DESC LIMIT 1",[draft.id]);
   const jobs=[...recipients.map(email=>({id:randomUUID(),destination:`admin:${email}`,payload:record,status:"pending"})),{id:randomUUID(),destination:`customer:${contact.email}`,payload:record,status:"pending"},...(CRM_DELIVERY_ENABLED?[{id:randomUUID(),destination:"crm",payload:record,status:priorCrm?"needs-review":"pending"}]:[])];
-  const rows=await query(`WITH accepted AS (
+  const rows=await withQaWriteFence(draft.id,()=>query(`WITH accepted AS (
     UPDATE p5_estimator_drafts SET revision=revision+1,status='submitted',submitted_at=now(),updated_at=now(),internal_estimate=$1::jsonb,customer_estimate=$2::jsonb
     WHERE id=$3 AND revision=$4 AND NOT EXISTS(SELECT 1 FROM p5_estimator_outbox WHERE draft_id=$3 AND status='sending') AND COALESCE((SELECT payload->'finance' FROM p5_estimator_policy WHERE id='current'),$9::jsonb)=$8::jsonb RETURNING id
   ), superseded AS (
@@ -90,7 +91,7 @@ export async function publishManualReview(body:any,actor:Actor){
     SELECT j.id::uuid,a.id,$6,j.destination,j.payload,j.status,CASE WHEN j.status='needs-review' THEN 'Update the linked CRM record and reconcile its acknowledgement; do not create another lead.' ELSE NULL END
     FROM accepted a CROSS JOIN jsonb_to_recordset($7::jsonb) AS j(id text,destination text,payload jsonb,status text)
     ON CONFLICT(draft_id,revision,destination) DO NOTHING
-  ) SELECT id FROM accepted`,[JSON.stringify(internal),JSON.stringify(customer),draft.id,draft.revision,JSON.stringify({payload:draft.payload,internal:draft.internal_estimate,customer:draft.customer_estimate}),revision,JSON.stringify(jobs),JSON.stringify(finance),JSON.stringify(EMPTY_CONFIGURATION.finance)]);
+  ) SELECT id FROM accepted`,[JSON.stringify(internal),JSON.stringify(customer),draft.id,draft.revision,JSON.stringify({payload:draft.payload,internal:draft.internal_estimate,customer:draft.customer_estimate}),revision,JSON.stringify(jobs),JSON.stringify(finance),JSON.stringify(EMPTY_CONFIGURATION.finance)]));
   if(!rows.length)throw new DraftError("Another review was published first. Reload the saved project.",409);
   return {published:true,revision,result:customer,crmNeedsReview:Boolean(priorCrm)};
 }

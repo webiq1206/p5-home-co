@@ -2,14 +2,47 @@ import {createHash,randomUUID} from 'node:crypto';
 import {ServiceError} from './core.mjs';
 
 // QA only. This ledger is authoritative for BOTH the website broker and reader.
-// No HTTP endpoint provisions runs, bindings or permits. Ordinary customers do
-// not acquire a binding and continue through their existing provider path.
+// No document-service HTTP endpoint provisions runs, bindings or permits.
+// Ordinary customers do not acquire a binding and keep their provider path.
 export const QA_RUN='p5-acceptance-20261004';
 export const QA_MODEL='claude-haiku-4-5-20251001';
 export const QA_URL='https://api.anthropic.com/v1/messages';
 export const QA_LIMITS=Object.freeze({historical:3250000,historicalUnknown:390000,fresh:2000000,umbrella:12000000,firstCall:450000,lot29Historical:1000000,lot29Ceiling:3000000});
 const digest=value=>createHash('sha256').update(JSON.stringify(value)).digest('hex');
 const hold=code=>new ServiceError('qa-'+code,422);
+const summaryKeys=['requestHash','tenant','project','boundary','model','maximum'];
+const exactKeys=(value,keys)=>value&&typeof value==='object'&&!Array.isArray(value)&&Object.keys(value).length===keys.length&&keys.every(key=>Object.hasOwn(value,key));
+const canonical=value=>JSON.stringify(value,(_key,item)=>item&&typeof item==='object'&&!Array.isArray(item)?Object.fromEntries(Object.entries(item).sort(([a],[b])=>a.localeCompare(b))):item);
+function expectedIntent(value){
+ if(!exactKeys(value,summaryKeys)||typeof value.requestHash!=='string'||! /^[a-f0-9]{64}$/.test(value.requestHash)||typeof value.tenant!=='string'||typeof value.project!=='string'||typeof value.boundary!=='string'||!value.boundary||value.boundary.length>180||value.model!==QA_MODEL||!Number.isSafeInteger(value.maximum)||value.maximum<1||value.maximum>QA_LIMITS.firstCall)throw hold('invalid-request-control');
+ // Copy only primitive fields before any await; a caller cannot swap the
+ // reviewed identity while capture/ledger checks are in progress.
+ return Object.freeze(Object.fromEntries(summaryKeys.map(key=>[key,value[key]])));
+}
+function requestControl(value){
+ if(value===undefined)return null;
+ if(exactKeys(value,['mode'])&&value.mode==='capture')return {mode:'capture'};
+ if(exactKeys(value,['mode','expected'])&&value.mode==='exact')return {mode:'exact',expected:expectedIntent(value.expected)};
+ throw hold('invalid-request-control');
+}
+const intentSummary=intent=>({requestHash:intent.requestHash,tenant:intent.tenant,project:intent.project,boundary:intent.boundary,model:intent.body.model,maximum:intent.maximum});
+const matchesIntent=(intent,expected)=>{const actual=intentSummary(intent);return summaryKeys.every(key=>actual[key]===expected[key]);};
+function capturedHold(intent){
+ const error=hold('exact-request-review-required');error.capturedIntent=intentSummary(intent);return error;
+}
+function receiptCost(intent,data,requestId){
+ const u=data?.usage,valid=n=>Number.isSafeInteger(n)&&n>=0;
+ const noCache=['cache_creation_input_tokens','cache_read_input_tokens'].every(key=>u?.[key]===undefined||(valid(u[key])&&u[key]===0));
+ const noTools=u?.server_tool_use===undefined||(u.server_tool_use!==null&&typeof u.server_tool_use==='object'&&!Array.isArray(u.server_tool_use)&&Object.values(u.server_tool_use).every(n=>valid(n)&&n===0));
+ if(data?.model!==QA_MODEL||typeof requestId!=='string'||!requestId||!u||!valid(u.input_tokens)||!valid(u.output_tokens)||u.input_tokens>200000||u.output_tokens>intent.body.max_tokens||!noCache||!noTools)throw hold('usage-unverified');
+ return u.input_tokens+u.output_tokens*5;
+}
+function verifiedReplay(prior,intent){
+ try{
+  if(prior.tenant!==intent.tenant||prior.project!==intent.project||prior.boundary!==intent.boundary||canonical(prior.request)!==canonical(intent.body)||Number(prior.maximum_microusd)!==intent.maximum||Number(prior.reserved_microusd)!==intent.maximum||prior.actual_microusd===null||!Number.isSafeInteger(Number(prior.actual_microusd))||Number(prior.actual_microusd)<0||Number(prior.actual_microusd)>intent.maximum||receiptCost(intent,prior.response,prior.provider_request_id)!==Number(prior.actual_microusd))throw hold('saved-receipt-unverified');
+ }catch{throw hold('saved-receipt-unverified');}
+ return prior.response;
+}
 import {QA_DDL} from './database-schema.mjs';
 export {QA_DDL} from './database-schema.mjs';
 
@@ -61,18 +94,20 @@ export class QaBudget{
   const {body,maximum}=qaWire(input),requestHash=digest({tenant,project,boundary,body});
   await this.store.pool.query(`INSERT INTO p5ds_qa_intents(request_hash,run_id,tenant,project,boundary,request,maximum_microusd)
    VALUES($1,$2,$3,$4,$5,$6::jsonb,$7) ON CONFLICT DO NOTHING`,[requestHash,binding.run_id,tenant,project,boundary,JSON.stringify(body),maximum]);
-  return {binding,body,maximum,requestHash};
+  return {binding,body,maximum,requestHash,tenant,project,boundary};
  }
  // Each permit is an independently reviewed exact wire. There is no automatic
  // permit issuer or caller-chosen retry slot, even when a changed prompt hashes
  // differently. A second call stops until its saved intent is inspected.
- async permit(requestHash,slot,reviewNote){
+ async permit(requestHash,slot,reviewNote,expected){
   if(!/^[a-z0-9][a-z0-9._:-]{5,120}$/.test(slot)||typeof reviewNote!=='string'||reviewNote.trim().length<30)throw hold('review-required');
+  const reviewed=expected===undefined?null:expectedIntent(expected);
   return this.store.transaction(async c=>{
    const run=(await c.query('SELECT * FROM p5ds_qa_runs WHERE run_id=$1 FOR UPDATE',[QA_RUN])).rows[0];
    if(!run||run.blocked)throw hold('run-blocked');
    const intent=(await c.query('SELECT * FROM p5ds_qa_intents WHERE request_hash=$1 AND run_id=$2',[requestHash,QA_RUN])).rows[0];
    if(!intent)throw hold('intent-required');
+   if(reviewed&&!matchesIntent({requestHash:intent.request_hash,tenant:intent.tenant,project:intent.project,boundary:intent.boundary,body:intent.request,maximum:Number(intent.maximum_microusd)},reviewed))throw hold('reviewed-intent-changed');
    if((await c.query("SELECT 1 FROM p5ds_qa_calls WHERE run_id=$1 AND status IN ('permitted','in_flight','unknown')",[QA_RUN])).rows.length)throw hold('prior-call-held');
    const maximum=Number(intent.maximum_microusd);
    if(maximum>QA_LIMITS.firstCall||Number(run.liability_microusd)+maximum>QA_LIMITS.fresh||QA_LIMITS.historical+Number(run.liability_microusd)+maximum>QA_LIMITS.umbrella)throw hold('budget-exhausted');
@@ -102,9 +137,7 @@ export class QaBudget{
   // Persist the complete response BEFORE interpreting usage or reducing liability.
   const saved=await this.store.pool.query("UPDATE p5ds_qa_calls SET response=$2::jsonb,provider_request_id=$3 WHERE slot=$1 AND status='in_flight' AND boundary_token=$4 RETURNING slot",[call.slot,JSON.stringify(data),requestId,call.boundary_token]);
   if(saved.rows.length!==1)throw hold('receipt-not-saved');
-  const u=data?.usage,valid=n=>Number.isSafeInteger(n)&&n>=0;
-  if(data.model!==QA_MODEL||!requestId||!u||!valid(u.input_tokens)||!valid(u.output_tokens)||u.input_tokens>200000||u.output_tokens>intent.body.max_tokens||Number(u.cache_creation_input_tokens||0)!==0||Number(u.cache_read_input_tokens||0)!==0||u.server_tool_use&&Object.values(u.server_tool_use).some(Number))throw hold('usage-unverified');
-  const actual=u.input_tokens+u.output_tokens*5;if(actual>Number(call.reserved_microusd))throw hold('usage-over-reservation');
+  const actual=receiptCost(intent,data,requestId);if(actual>Number(call.reserved_microusd))throw hold('usage-over-reservation');
   await this.store.transaction(async c=>{
    const run=(await c.query('SELECT * FROM p5ds_qa_runs WHERE run_id=$1 FOR UPDATE',[call.run_id])).rows[0];
    if(run.blocked)throw hold('run-blocked');
@@ -113,10 +146,19 @@ export class QaBudget{
    await c.query('UPDATE p5ds_qa_runs SET liability_microusd=liability_microusd-$2+$3 WHERE run_id=$1',[call.run_id,Number(call.reserved_microusd),actual]);
   });
  }
- async dispatch(tenant,project,boundary,input,signal){
+ async dispatch(tenant,project,boundary,input,signal,control){
+  const reviewed=requestControl(control);
   const intent=await this.capture(tenant,project,boundary,input);
-  const prior=(await this.store.pool.query("SELECT response FROM p5ds_qa_calls WHERE request_hash=$1 AND status='settled'",[intent.requestHash])).rows[0];
+  const prior=(await this.store.pool.query(`SELECT c.response,c.provider_request_id,c.actual_microusd,c.reserved_microusd,
+   i.tenant,i.project,i.boundary,i.request,i.maximum_microusd FROM p5ds_qa_calls c
+   JOIN p5ds_qa_intents i ON i.request_hash=c.request_hash AND i.run_id=c.run_id
+   WHERE c.request_hash=$1 AND c.status='settled'`,[intent.requestHash])).rows[0];
+  if(prior&&reviewed)return verifiedReplay(prior,intent);
   if(prior?.response)return prior.response;
+  // The signed control is only a restriction, never a permit issuer. Capture
+  // can traverse verified paid checkpoints, but never consumes even an already
+  // permitted call. Exact mode can reach only the separately reviewed hash.
+  if(reviewed&&(reviewed.mode==='capture'||!matchesIntent(intent,reviewed.expected)))throw capturedHold(intent);
   if(this.config.provider!=='anthropic'||this.config.model!==QA_MODEL||!this.config.key)throw hold('resident-provider-unavailable');
   signal?.throwIfAborted();
   const call=await this.begin(intent);

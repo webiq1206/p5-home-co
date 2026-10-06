@@ -1,3 +1,4 @@
+import {withQaWriteFence} from './qaOperationFence.ts';
 import {assertQaProvidersAllowed} from './qaProviderPolicy.ts';
 import {ESTIMATOR_VERSION} from './version.ts';
 import {MODEL_POLICY_VERSION,hasVerifiedAnalysis} from './modelPolicy.ts';
@@ -121,7 +122,7 @@ export async function queuedJob(input:Input,retry=false,holdMs=JOB_HOLD_MS){
   const key=input.kind==='analysis'?await analysisQueueKey(input,canonicalKey):canonicalKey;
   rejectQuiescedAdmission();
   const initial:Job={input,state:'queued',progress:input.kind==='analysis'?(input.draft.uploads.length?'Your project files are saved and queued for review.':'Your project details are saved and queued for review.'):'Your scope is queued for pricing.',attempts:0,createdAt:new Date().toISOString()};
-  await query('INSERT INTO p5_estimator_work(draft_id,work_key,payload) VALUES($1,$2,$3::jsonb) ON CONFLICT DO NOTHING',[input.draft.id,key,JSON.stringify(initial)]);
+  await withQaWriteFence(input.draft.id,()=>query('INSERT INTO p5_estimator_work(draft_id,work_key,payload) VALUES($1,$2,$3::jsonb) ON CONFLICT DO NOTHING',[input.draft.id,key,JSON.stringify(initial)]));
   rejectQuiescedAdmission();
   if(retry){
     const lease=await claimWork(input.draft.id,key,initial,30);

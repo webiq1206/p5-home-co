@@ -2,6 +2,7 @@ import {query,transaction} from './database.ts';
 import {DraftError} from './store.ts';
 import {ESTIMATOR_BRAND} from './brand.ts';
 import {projectHash,projectRecordIntegrity,type ProjectRecord} from './projectRecord.ts';
+import {assertQaOperationAccess} from './qaOperationFence.ts';
 
 const KEY='project-conversation-v1';
 export interface ProjectChange {
@@ -31,6 +32,7 @@ export async function saveProjectChange(id:string,request:ProjectChangeRequest,w
  const response=request.response.trim(),requestHash=projectHash({...request,response});
  return within(async execute=>{
   const [draft]=await execute('SELECT revision,status,brand FROM p5_estimator_drafts WHERE id=$1 FOR UPDATE',[id]);
+  await assertQaOperationAccess(id,execute);
   if(!draft||draft.brand!==ESTIMATOR_BRAND.id)throw new DraftError('Project not found.',404);
   if(draft.status!=='draft')throw new DraftError('Start a new project revision before changing this submitted estimate.',409);
   const changes=await readProjectConversation(id,execute),repeated=changes.find(change=>change.requestId===request.requestId);

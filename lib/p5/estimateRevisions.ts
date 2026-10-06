@@ -2,6 +2,7 @@ import {query} from './database.ts';
 import {DraftError} from './store.ts';
 import {scopeForRevision,replacesEntireScope} from './scopeReplacement.ts';
 import {restoreSavedCustomerCopy} from './savedCustomerCopy.ts';
+import {withQaWriteFence} from './qaOperationFence.ts';
 /**
  * Saved estimates and revisions (owner request 2026-09-22): a customer returns to a saved estimate and
  * asks for a change in plain words ("Remove painting", "Use upgraded cabinets", "Update this using the
@@ -22,7 +23,8 @@ export function revisedDescription(text:string,change:string,revision:number):st
   return !request?text:replacesEntireScope(request)?request:`${text.trim()}\n\nRequested change for revision ${revision+1}: ${request}`;
 }
 /** Archive the submitted version and reopen the project as the next revision. */
-export async function startRevision(id:string,change:string){
+export async function startRevision(id:string,change:string){return withQaWriteFence(id,()=>startRevisionImpl(id,change));}
+async function startRevisionImpl(id:string,change:string){
   const {ensureReviewSchema}=await import('./manualReview.ts');
   await ensureReviewSchema();
   const request=String(change||'').trim();
