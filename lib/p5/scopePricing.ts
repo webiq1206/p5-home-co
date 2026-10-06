@@ -1,6 +1,6 @@
 import {qaProviderFetch,qaPaidContext,QaPaidHold} from './qaPaid.ts';
 import {ESTIMATOR_PROVIDER,ESTIMATOR_MODEL,assertEstimatorModel,EstimatorModelError} from './modelPolicy.ts';
-import {pricingHttpError,missingResearchSources} from './pricingDiagnostics.ts';
+import {pricingHttpError,missingResearchSources,pricingFailureDetails} from './pricingDiagnostics.ts';
 import {unitKey,reusableUnitRate,supportedUnit,boiseArea,boisePriceRegion,UNIT_REGISTRY} from './unitRates.ts';
 import {reasoningFor,rejectsReasoning} from './openaiReasoning.ts';
 class MissingResearchRateError extends Error {}
@@ -491,8 +491,9 @@ export const requestPricingWith=async(provider:'anthropic'|'openai',instructions
       &&(error as {pricingPriorRequestCount?:number})?.pricingPriorRequestCount===0;
     if(error instanceof EstimatorModelError){await settlePricingCharge(fingerprint);throw error;}
     if(error instanceof PricingChargeUnknownError)throw error;
-    if(knownRejection){await rejectPricingCharge(fingerprint,message);throw error;}
-    if(reservation)await markPricingChargeUnknown(fingerprint,message);
+    const accountingCode=pricingFailureDetails(error).map(detail=>detail.code).join(' > ');
+    if(knownRejection){await rejectPricingCharge(fingerprint,accountingCode);throw error;}
+    if(reservation)await markPricingChargeUnknown(fingerprint,accountingCode);
     throw new PricingChargeUnknownError(undefined,{cause:error});
   }
 };

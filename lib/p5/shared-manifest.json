@@ -1,7 +1,7 @@
 {
  "source": "p5-home-co",
- "commit": "7d0b5d3c79c72a6b39fc97e4c9267013b4212167",
- "generatedAt": "2026-10-05T20:27:32.685Z",
+ "commit": "993ef1218f25e38b964d160367228979d0697ff4",
+ "generatedAt": "2026-10-06T02:02:55.654Z",
  "note": "P5-only qualification baseline. Child rollout is paused until live acceptance is verified. Hash checks remain mandatory.",
  "files": {
   "app/admin/p5-estimators/page.tsx": "8e81e1ac475dadb7eee9af396c963ee369de593a5a8d165d40dd97f2dab7ca32",
@@ -132,7 +132,7 @@
   "lib/p5/pricingBasis.ts": "77f7407be492bf9b4278ffdd2a9aec8939fc22771a34614704a2887435cb68d3",
   "lib/p5/pricingCache.ts": "e63bd03098379f26a788c15871710655a6e698e1a81ca4bf65639306a09256b8",
   "lib/p5/pricingCorrections.ts": "ac2fa7c2c760d3d42a920b6c2d2fdfd5ad6f294c3323d901303ef57a4dbd631e",
-  "lib/p5/pricingDiagnostics.ts": "810297f72d7def028a727c59eebcc50552b16b2a194d5fa741958eb6c520c41b",
+  "lib/p5/pricingDiagnostics.ts": "0a21bf0760f6088bc64be6c30a703156fbadcc0d2c039e295ee7d600102b9161",
   "lib/p5/pricingLedger.ts": "3084fe6c3f27ef4f3bd128d18a2d0f2972ae8eb151a924fb48e4f10efaadc94d",
   "lib/p5/pricingPreflight.ts": "3024bb6d9e5d3e6831964a9f2ba734718d20c7855bf946292b0a8037bdfd77c8",
   "lib/p5/pricingProgress.ts": "9434c7394467d4260fd0a33b75b62c30215ba12aa8ec360b3bffaa4235212b77",
@@ -188,7 +188,7 @@
   "lib/p5/scopeFields.ts": "939f4f1a873bc3e170fbacffceb22806f7bd5664637e870e8a1528c98cede441",
   "lib/p5/scopeInterpretation.ts": "57fa1a260817ddbf9bf6116a4a5195317960a798d623b23628d40ca669fe20c9",
   "lib/p5/scopeInventory.ts": "823baac9f40357847a8f6afd9a905058298dfc8dab553d584223bcd3f890d64a",
-  "lib/p5/scopePricing.ts": "1b4f717b8869112a4d682b5668734f2b9b0c7231d4dda5fa156019ffe75cc57a",
+  "lib/p5/scopePricing.ts": "d036ad196b78a6ccac2d1958c7d9d601519a4083a254a12c121c1a3244f21d8a",
   "lib/p5/scopeReplacement.ts": "1a00315d2962f30dd7abbce85dcd33ce096e9f9b305cac0130d127e0e53c5a99",
   "lib/p5/serviceBundles.ts": "5a3bfcb2f2b75f85d9c0041458a8367905bb69174a82f161d3124725f6dd2f5a",
   "lib/p5/serviceSignals.ts": "d947fb37da918c04ae04c1fbd4eaebe617bb3cee1ca87173c83d434574b7ce5f",
