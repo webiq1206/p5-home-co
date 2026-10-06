@@ -29,19 +29,26 @@ test('production pricing error and checkpoint paths with isolated SQL and contro
  delete process.env.P5_PRICING_LEDGER_TEST_MODE;delete process.env.P5_PRICING_BUDGET_USD;delete process.env.P5_PRICING_REQUEST_RESERVATION_USD;
  const failure=async(name:string)=>{try{await requestPricingWith('anthropic',name,{},true,10000);assert.fail('Expected a controlled failure');}catch(error){assert.ok(error instanceof PricingChargeUnknownError);return error;}};
  try{
-  await t.test('an uncapped 429 retains uncertainty, request ID and actual backoff classification',async()=>{
+  // PGlite boots a WASM database on its first query. Complete fixture startup
+  // before starting the unchanged 10-second production request deadline.
+  const setupStarted=performance.now();await db.waitReady;
+  t.diagnostic(`Isolated database startup: ${Math.round(performance.now()-setupStarted)}ms`);
+  await t.test('an uncapped 429 retains its diagnostic cause but cannot replay an unknown charge',async t=>{
+   t.after(()=>{delete process.env.P5_PRICING_BUDGET_USD;delete process.env.P5_PRICING_REQUEST_RESERVATION_USD;});
    let calls=0;globalThis.fetch=async()=>{calls++;return Response.json({error:{message:'synthetic-private-provider-detail'}},{status:429,headers:{'request-id':'req_controlled_429'}});};
    const error=await failure('controlled-429');
-   assert.equal(calls,1);assert.equal(retryablePricingProviderError(error),true);
+   assert.equal(calls,1);assert.equal(retryablePricingProviderError(error),false);assert.equal(pricingRecoveryError(error),error);
    assert.deepEqual(pricingFailureDetails(error),[{code:'pricing-charge-unknown',status:null,requestId:null},{code:'provider-http-429',status:429,requestId:'req_controlled_429'}]);
    const rows=await db.query('SELECT state,last_error FROM p5_pricing_ledger WHERE fingerprint=$1',[pricingFingerprint('anthropic','controlled-429',{},true)]);
    assert.equal(rows.rows[0].state,'unknown');assert.match(String(rows.rows[0].last_error),/429/);
    assert.ok(!JSON.stringify(pricingFailureDetails(error)).includes('synthetic-private'));
+   await failure('controlled-429');
+   assert.equal(calls,1,'an uncapped unknown charge cannot dispatch another request');
+   assert.deepEqual((await db.query('SELECT state,last_error FROM p5_pricing_ledger WHERE fingerprint=$1',[pricingFingerprint('anthropic','controlled-429',{},true)])).rows,rows.rows,'replay cannot clear the retained hold');
    process.env.P5_PRICING_BUDGET_USD='1';process.env.P5_PRICING_REQUEST_RESERVATION_USD='0.01';
    assert.equal(pricingRecoveryError(error),error);assert.equal(retryablePricingProviderError(error),false);
    await assert.rejects(()=>reservePricingCharge(pricingFingerprint('anthropic','controlled-429',{},true),'anthropic'),PricingChargeUnknownError);
    assert.equal(calls,1,'a capped unknown charge cannot dispatch another request');
-   delete process.env.P5_PRICING_BUDGET_USD;delete process.env.P5_PRICING_REQUEST_RESERVATION_USD;
   });
   await t.test('HTTP 200 search errors retain provider metadata through the production ledger wrapper',async()=>{
    const model=ESTIMATOR_PROVIDER==='anthropic'?ESTIMATOR_MODEL:'claude-sonnet-5';
@@ -49,21 +56,24 @@ test('production pricing error and checkpoint paths with isolated SQL and contro
    const error=await failure('controlled-search-error');
    const cause=pricingFailureDetails(error).at(-1)!;
    assert.equal(cause.code,'pricing-search-unavailable');assert.equal(cause.status,200);assert.equal(cause.requestId,'req_search_failed');
-   assert.deepEqual(cause.research?.toolErrors,['too_many_requests']);assert.equal(retryablePricingProviderError(error),true);
+   assert.deepEqual(cause.research?.toolErrors,['too_many_requests']);assert.equal(retryablePricingProviderError(error),false);assert.equal(pricingRecoveryError(error),error);
    assert.equal(JSON.stringify(cause).includes('Private project'),false);
   });
-  await t.test('memory transport tests preserve the same wrapper and cause as production',async()=>{
+  await t.test('memory transport tests preserve the same wrapper and cause as production',async t=>{
+   t.after(()=>{delete process.env.P5_PRICING_LEDGER_TEST_MODE;});
    process.env.P5_PRICING_LEDGER_TEST_MODE='memory';const before=sqlCalls;
    globalThis.fetch=async()=>Response.json({error:{message:'synthetic'}},{status:429,headers:{'request-id':'req_controlled_429'}});
    const error=await failure('memory-429');
-   assert.equal(retryablePricingProviderError(error),true);assert.equal(pricingFailureDetails(error)[1].status,429);
-   assert.equal(sqlCalls,before);delete process.env.P5_PRICING_LEDGER_TEST_MODE;
+   assert.equal(retryablePricingProviderError(error),false);assert.equal(pricingRecoveryError(error),error);assert.equal(pricingFailureDetails(error)[1].status,429);
+   assert.equal(sqlCalls,before);
   });
   await t.test('completed research is checkpointed before a failing formatter and remains reusable',async()=>{
    let calls=0;let checkpoint:PricingReply|undefined;
    const model=ESTIMATOR_PROVIDER==='anthropic'?ESTIMATOR_MODEL:'claude-sonnet-5';
    globalThis.fetch=async()=>{calls++;return Response.json({id:'msg_saved_research',model,stop_reason:'end_turn',content:[{type:'web_search_tool_result',content:[{type:'web_search_result',url:'https://example.com/cabinet-screws'}]},{type:'text',text:'Completed research report about cabinet mounting screws.'}]});};
+   const checkpointStarted=performance.now();
    const result=await requestPricingWith('anthropic','research-checkpoint',{},true,10000,{},undefined,undefined,async reply=>{checkpoint=structuredClone(reply);});
+   t.diagnostic(`Checkpoint request after fixture startup: ${Math.round(performance.now()-checkpointStarted)}ms`);
    assert.equal(calls,1);assert.equal(result.value,null);assert.equal(checkpoint?.sourceReport,result.sourceReport);
    const rows=await db.query('SELECT state,provider_id FROM p5_pricing_ledger WHERE fingerprint=$1',[pricingFingerprint('anthropic','research-checkpoint',{},true)]);
    assert.deepEqual(rows.rows,[{state:'settled',provider_id:'msg_saved_research'}]);

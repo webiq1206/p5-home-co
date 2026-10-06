@@ -263,7 +263,7 @@ test('an unknown floor or model is not an unknown quantity; evidence remarks on 
   assert.equal(advisoryIssue('scope-1 is uncited and duplicates scope-2'),false);
   assert.equal(advisoryIssue('The sprinkler pump task has no positive priced line.'),false);
 });
-test('an OpenAI rate limit is waited out, not ended by an Anthropic account with no credit (live 2026-09-21)',async()=>{
+test('an OpenAI rate limit retains its unknown-charge hold without falling back to Anthropic',async()=>{
   const {requestPricing}=await import('../lib/p5/scopePricing.ts');
   const names=['OPENAI_API_KEY','AI_INTEGRATIONS_OPENAI_API_KEY','AI_INTEGRATIONS_OPENAI_BASE_URL','ANTHROPIC_API_KEY','OPENAI_BASE_URL','P5_PRICING_PROVIDER'] as const;
   const saved=Object.fromEntries(names.map(n=>[n,process.env[n]]));
@@ -276,13 +276,14 @@ test('an OpenAI rate limit is waited out, not ended by an Anthropic account with
     return new Response(JSON.stringify({error:{code:'RATELIMIT_EXCEEDED',message:'Rate limit exceeded.'}}),{status:429});
   }) as typeof fetch;
   try{
-    // The stage reports the OpenAI rate limit (a busy provider the job waits out), not the billing refusal.
+    // The diagnostic cause remains visible, but cannot authorize a paid retry.
     const {retryablePricingProviderError}=await import('../lib/p5/pricingProgress.ts');
-    const isRateLimit=(error:unknown)=>error instanceof Error&&error.cause instanceof Error&&/^pricing-provider-unavailable:429/.test(error.cause.message)&&retryablePricingProviderError(error);
+    const {PricingChargeUnknownError}=await import('../lib/p5/pricingLedger.ts');
+    const isRateLimit=(error:unknown)=>error instanceof PricingChargeUnknownError&&error.cause instanceof Error&&/^pricing-provider-unavailable:429/.test(error.cause.message)&&!retryablePricingProviderError(error);
     await assert.rejects(()=>requestPricing('JSON',{},false,20000),isRateLimit);
     assert.equal(anthropicCalls,0);
-    await assert.rejects(()=>requestPricing('JSON',{},false,20000),isRateLimit);
-    assert.equal(anthropicCalls,0,'a rate limit never dispatches another provider');
+    // SQL-backed replay rejection is exercised in p5-pricing-production-errors;
+    // this transport-only memory fixture does not persist accounting holds.
   }finally{
     globalThis.fetch=realFetch;runtime.p5AnthropicBlockedUntil=0;
     for(const n of names){if(saved[n]===undefined)delete process.env[n];else process.env[n]=saved[n]!;}
