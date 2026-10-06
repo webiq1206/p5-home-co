@@ -1,7 +1,7 @@
 {
  "source": "p5-home-co",
- "commit": "48ad35a5e9e688daca82f069012f474da6fab93e",
- "generatedAt": "2026-10-06T18:06:17.017Z",
+ "commit": "2f3bda72c6c3e5338615a2379d15689cf0904cd1",
+ "generatedAt": "2026-10-06T19:29:40.728Z",
  "note": "P5-only qualification baseline. Child rollout is paused until live acceptance is verified. Hash checks remain mandatory.",
  "files": {
   "app/admin/p5-estimators/page.tsx": "8e81e1ac475dadb7eee9af396c963ee369de593a5a8d165d40dd97f2dab7ca32",
@@ -200,7 +200,7 @@
   "lib/p5/scopeFields.ts": "939f4f1a873bc3e170fbacffceb22806f7bd5664637e870e8a1528c98cede441",
   "lib/p5/scopeInterpretation.ts": "57fa1a260817ddbf9bf6116a4a5195317960a798d623b23628d40ca669fe20c9",
   "lib/p5/scopeInventory.ts": "823baac9f40357847a8f6afd9a905058298dfc8dab553d584223bcd3f890d64a",
-  "lib/p5/scopePricing.ts": "272e6e53f4499b5fdf70f03fa8827a640845afdff64422b77a29d3dfa9df3478",
+  "lib/p5/scopePricing.ts": "25a7d8968a48f8d774b1b0dbdc856cdf6c0af38af67f29bdfb7fefaf6925bf56",
   "lib/p5/scopeReplacement.ts": "1a00315d2962f30dd7abbce85dcd33ce096e9f9b305cac0130d127e0e53c5a99",
   "lib/p5/serviceBundles.ts": "5a3bfcb2f2b75f85d9c0041458a8367905bb69174a82f161d3124725f6dd2f5a",
   "lib/p5/serviceSignals.ts": "d947fb37da918c04ae04c1fbd4eaebe617bb3cee1ca87173c83d434574b7ce5f",
@@ -454,6 +454,8 @@
   "tests/p5-submit-progress.test.ts": "295b5da2bffb0565c38e1a4fa058e090648fae3362307a48c66f3e7e00dfb97e",
   "tests/p5-synthetic-crm.test.ts": "12eaf2c245659f8d14e109f0ed5b7214c9c59cb0e0a2aaefe4d1f7d91c175e57",
   "tests/p5-task-trades.test.ts": "61956be23848cf51cbb43bdd0bde38b27fb14619580347a54f4a6e03027452cb",
+  "tests/p5-touchup-research-flow.test.ts": "f11951b05ed07cd6ea7d1e3ed199e3a05bae76a82f95927d35029873d7dff1b8",
+  "tests/p5-touchup-selection.test.ts": "c0c8e6b2fe16fad29326ee7ca28222b751ceeb71ea4144c3233b1e27711cc716",
   "tests/p5-typed-corrections.test.ts": "5e7613acdd33f9b8bdc7131546c22210f93f1519f00c04df04e1cfea435139b5",
   "tests/p5-unit-rates.test.ts": "f78f40c0543626068446ce60c8264c3e84f31caed5ff72184d924b62a2ec040d",
   "tests/p5-upload-capacity.test.ts": "0c8d9b922c1d99a78140be286944a5923b4fbf849a9610f64c49146fea3a1500",
