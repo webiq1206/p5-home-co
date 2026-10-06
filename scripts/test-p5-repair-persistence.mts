@@ -60,12 +60,14 @@ try {
   delete process.env.P5_PRICING_BUDGET_USD;delete process.env.P5_PRICING_REQUEST_RESERVATION_USD;
   await ledger.reservePricingCharge('isolated-retry','openai');
   await ledger.markPricingChargeUnknown('isolated-retry','synthetic timeout');
+  const held=await db.query("SELECT state,amount,provider_id,last_error FROM p5_pricing_ledger WHERE fingerprint='isolated-retry'");
   const retried=await Promise.allSettled(Array.from({length:5},()=>ledger.reservePricingCharge('isolated-retry','openai')));
-  assert.equal(retried.filter(r=>r.status==='fulfilled').length,1,'one owner for an uncapped provider retry');
+  assert.equal(retried.filter(r=>r.status==='fulfilled').length,0,'no concurrent caller may replay an uncapped unknown charge');
   for(const r of retried)if(r.status==='rejected')assert.ok(r.reason instanceof ledger.PricingChargeUnknownError);
-  await ledger.markPricingChargeUnknown('isolated-retry','synthetic timeout');
+  assert.deepEqual(await db.query("SELECT state,amount,provider_id,last_error FROM p5_pricing_ledger WHERE fingerprint='isolated-retry'"),held,'uncapped replay cannot change the hold');
   process.env.P5_PRICING_BUDGET_USD='1';process.env.P5_PRICING_REQUEST_RESERVATION_USD='0.25';
   await assert.rejects(()=>ledger.reservePricingCharge('isolated-retry','openai'),ledger.PricingChargeUnknownError);
+  assert.deepEqual(await db.query("SELECT state,amount,provider_id,last_error FROM p5_pricing_ledger WHERE fingerprint='isolated-retry'"),held,'adding a cap cannot clear the same hold');
   delete process.env.P5_PRICING_BUDGET_USD;delete process.env.P5_PRICING_REQUEST_RESERVATION_USD;
-  console.log('PASS: revision race/archive parity, single-use full-scope handoff, retryable completion, superseded revision fencing and serialized pricing admission.');
+  console.log('PASS: revision race/archive parity, single-use full-scope handoff, retryable completion, superseded revision fencing and concurrent unknown-charge holds.');
 } finally {await db?.database.close();await rm(dir,{recursive:true,force:true});}

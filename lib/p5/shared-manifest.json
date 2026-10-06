@@ -1,7 +1,7 @@
 {
  "source": "p5-home-co",
  "commit": "44bded0477a106d5db75ed7d21a8d3e0b06ef0c5",
- "generatedAt": "2026-10-06T04:36:01.277Z",
+ "generatedAt": "2026-10-06T05:07:02.547Z",
  "note": "P5-only qualification baseline. Child rollout is paused until live acceptance is verified. Hash checks remain mandatory.",
  "files": {
   "app/admin/p5-estimators/page.tsx": "8e81e1ac475dadb7eee9af396c963ee369de593a5a8d165d40dd97f2dab7ca32",
@@ -282,7 +282,7 @@
   "scripts/test-p5-recovery-epoch.mjs": "16a01e3e5fa8233db298e2f937bd8bcd592c596658e4e460764e015e6a592e5b",
   "scripts/test-p5-recovery-request.mjs": "f4b63689f60c4f2704523f19e4e1b39dd481fdf5562fd39bacbe2d0082f20400",
   "scripts/test-p5-recovery-transport.mjs": "34d59e209ee50f15e110a0fac70eb22fecff6f92a99fe3d6b37b0caa62d0e6ae",
-  "scripts/test-p5-repair-persistence.mts": "1ab51c9dcc75fb9666315b470284bd2285e98778d5e2b1f0936d15059f4e0b83",
+  "scripts/test-p5-repair-persistence.mts": "cb467b2a2b7162a95aea40af8207e9c0f21216c48260399f68083626bac4b21e",
   "scripts/test-p5-resumable.mts": "4506d8547352889b017fe12fdabbe2e0b60ddf44bf83a2862d944235026f7faa",
   "scripts/test-p5-runtime-acceptance.mjs": "db174a35f39d93986988fae2c4989f5ed3529d59e7190fad691f45291c2b8eb1",
   "scripts/test-p5-submit-endpoint.mts": "61be7f2148573bd6ec2268b9b85203b7a1f92b3af0fee725facc253c2782f5ac",
