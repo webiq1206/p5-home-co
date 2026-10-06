@@ -17,7 +17,7 @@ import path from "node:path";
 
 import { Client } from "pg";
 import { verifyMigrationFiles } from "../scripts/p5-schema-safety.mjs";
-import { readMigrationState } from "../scripts/p5-migration-state.mjs";
+import { readMigrationState, migrationDeferred } from "../scripts/p5-migration-state.mjs";
 
 const DRY = process.argv.includes("--dry");
 const MIGRATIONS = path.join(process.cwd(), "migrations");
@@ -73,6 +73,10 @@ async function main(): Promise<void> {
 
     let ran = 0;
     for (const file of files) {
+      if (migrationDeferred(file)) {
+        console.log(`  deferred ${file}  (production schema review required; ledger unchanged)`);
+        continue;
+      }
       if (applied.has(file)) {
         console.log(`  skip   ${file}  (already applied)`);
         continue;

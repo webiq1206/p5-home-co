@@ -27,7 +27,10 @@ export function mergeInstructions(parts:ScopeInstructions[]):ScopeInstructions {
       const prior=byId.get(decision.id);
       // A later generated pending decision cannot erase a saved customer answer.
       if(prior&&(prior.subject!==decision.subject||prior.aspect!==decision.aspect))throw new Error('Conflicting scope decision identity');
-      byId.set(decision.id,prior?.answer?{...decision,status:prior.status,answer:prior.answer}:{...decision});
+      if(prior?.answer&&decision.answer&&prior.answer!==decision.answer)throw new Error('Conflicting saved scope answers');
+      // Retain the actual question that was answered, not a later model's
+      // rewording (which may change the meaning of a yes/no answer).
+      byId.set(decision.id,prior?.answer?{...prior}:{...decision});
     }
     merged.decisions=[...byId.values()];
   }

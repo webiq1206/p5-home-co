@@ -1,3 +1,8 @@
+// Source integration is not production DDL approval. Keep this reviewed file
+// on main, but never execute or mark it applied until a separate source change
+// follows the exact target catalog review. No environment/CLI bypass.
+export const migrationDeferred = name => name === '017_document_service_schema.sql';
+
 // Dry inspection must work on an empty database without creating its ledger.
 export async function readMigrationState(client, {dry = false} = {}) {
   if (dry) {

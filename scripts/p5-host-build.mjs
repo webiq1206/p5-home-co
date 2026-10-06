@@ -1,10 +1,12 @@
 import {execFileSync,spawnSync} from 'node:child_process';
-import {readFileSync,writeFileSync,mkdtempSync} from 'node:fs';
+import {readFileSync,writeFileSync,mkdtempSync,readdirSync} from 'node:fs';
 import {join,resolve} from 'node:path';
 import {tmpdir} from 'node:os';
 import {fileURLToPath} from 'node:url';
 import {createHash} from 'node:crypto';
 import {buildRenderer} from './p5-renderer-build.mjs';
+import {verifyMigrationFiles} from './p5-schema-safety.mjs';
+import {migrationDeferred} from './p5-migration-state.mjs';
 
 /** Hosting may run npm install before our build command. Restore only the
  * committed lock, retaining the bootstrap copy for diagnostics. Uncommitted
@@ -28,11 +30,21 @@ export function prepareReviewedLock(cwd=process.cwd()){
 }
 if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url)){
  const receipt=prepareReviewedLock();console.log('[p5-build] Reviewed dependency lock',receipt);
+ const migration17=readdirSync(resolve('migrations')).filter(name=>/^017(?:_|\.)/.test(name));
+ if(migration17.some(name=>!migrationDeferred(name)))throw Error('P5 release permits only the explicitly deferred migration017 source.');
+ if(migration17.length)console.log('[p5-build] Migration017 retained as deferred source; startup migrator will not execute or record it.');
+ // Retain the non-destructive SQL source gate without npm prebuild's tests.
+ // This only reads migration files; it never connects to a database.
+ verifyMigrationFiles();
  buildRenderer();
- for(const args of [['ci','--no-audit','--no-fund'],['ci','--prefix','services/document-service','--omit=dev','--no-audit','--no-fund'],['run','build']]){
+ for(const args of [['ci','--no-audit','--no-fund'],['ci','--prefix','services/document-service','--omit=dev','--no-audit','--no-fund']]){
   const result=spawnSync('npm',args,{stdio:'inherit',env:process.env});
   if(result.error||result.status!==0)process.exit(result.status||1);
  }
+ // Deployment compilation only. Normal npm build/prebuild and CI retain
+ // their existing checks; P5 functional acceptance runs on the live site.
+ const compiled=spawnSync(process.execPath,[resolve('node_modules/next/dist/bin/next'),'build'],{stdio:'inherit',env:process.env});
+ if(compiled.error||compiled.status!==0)process.exit(compiled.status||1);
  const changed=execFileSync('git',['diff','--name-only','HEAD'],{encoding:'utf8'}).trim();
  if(changed)throw Error('Build changed reviewed inputs: '+changed);
 }
