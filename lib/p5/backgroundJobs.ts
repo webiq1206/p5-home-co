@@ -7,6 +7,7 @@ import {recordEvent,describeError} from './events.ts';
 import {kickDriver} from './estimateDriver.ts';
 import {isPricingPending} from './pricingProgress.ts';
 import {createHash} from 'node:crypto';
+import {isDeepStrictEqual} from 'node:util';
 import {query} from './database.ts';
 import {claimWork,writeWork,releaseWork,renewWork} from './workStore.ts';
 import {DraftError,type Draft} from './store.ts';
@@ -65,7 +66,24 @@ const rejectQuiescedAdmission=()=>{
   if(isQuiescing())throw new DraftError('Estimator processing is temporarily draining for maintenance. Your saved work is preserved; please retry shortly.',503);
 };
 const analysisQueueIdentity=(input:Extract<Input,{kind:'analysis'}>)=>({engineVersion:11,kind:input.kind,id:input.draft.id,text:input.text,answers:input.answers,uploads:input.draft.uploads});
+const pricingDraftIdentity=(draft:Draft)=>({draftId:draft.id,customerKey:`${draft.contact.email.trim().toLowerCase()}|${draft.contact.name.trim().toLowerCase()}`,revision:draft.revision});
+const pricingQueueIdentity=(input:Extract<Input,{kind:'pricing'}>)=>({engineVersion:9,estimatorVersion:ESTIMATOR_VERSION,modelPolicy:MODEL_POLICY_VERSION,kind:input.kind,id:input.draft.id,reviewed:input.draft.reviewed,configuration:input.configuration});
 const backgroundKey=(identity:unknown)=>'background-v1-'+createHash('sha256').update(JSON.stringify(identity)).digest('hex');
+async function pricingQueueKey(input:Extract<Input,{kind:'pricing'}>,canonicalKey:string){
+  // Keep a proven deployed queue in place, including its attempts and result.
+  // Its saved server input must match the current revision/customer as well as
+  // the entire scope/configuration. The old daily key alone did not bind them.
+  const rows=await query("SELECT work_key,payload FROM p5_estimator_work WHERE draft_id=$1 AND work_key LIKE 'background-v1-%'",[input.draft.id]);
+  const matches=rows.filter(row=>{
+    const prior=row.payload as Job;
+    if(prior?.input?.kind!=='pricing'||!isDeepStrictEqual(pricingDraftIdentity(prior.input.draft),pricingDraftIdentity(input.draft))||!isDeepStrictEqual(pricingQueueIdentity(prior.input),pricingQueueIdentity(input)))return false;
+    if(row.work_key===canonicalKey)return true;
+    const started=new Date(prior.createdAt);if(!Number.isFinite(started.getTime()))return false;
+    return row.work_key===backgroundKey({...pricingQueueIdentity(input),date:started.toISOString().slice(0,10)});
+  });
+  if(matches.length>1)throw new DraftError('Multiple saved pricing ledgers match this revision. Pricing is paused for safe reconciliation; no saved work was changed.',409);
+  return (matches[0]?.work_key as string|undefined)||canonicalKey;
+}
 const matchingAnalysisRows=(rows:Record<string,any>[],canonicalKey:string)=>rows.filter(row=>{
   const prior=row.payload as Job;
   return prior?.input?.kind==='analysis'&&backgroundKey(analysisQueueIdentity(prior.input))===canonicalKey;
@@ -106,8 +124,7 @@ export async function bootEstimatorWorker(){
 export async function jobProgressWorkKeys(job:Pick<Job,'input'|'createdAt'>){
   const input=job.input;
   if(input.kind==='analysis')return (await import('./analysisWork.ts')).analysisProgressWorkKeys(input.draft,input.text,input.answers);
-  const contact=input.draft.contact;
-  const identity={draftId:input.draft.id,customerKey:`${contact.email.trim().toLowerCase()}|${contact.name.trim().toLowerCase()}`,revision:input.draft.revision};
+  const identity=pricingDraftIdentity(input.draft);
   return [(await (await import('./pricingWork.ts')).pricingWorkSnapshot(input.draft.id,input.draft.reviewed!,input.configuration,new Date(job.createdAt),identity)).workKey];
 }
 export async function queuedJob(input:Input,retry=false,holdMs=JOB_HOLD_MS){
@@ -121,8 +138,8 @@ export async function queuedJob(input:Input,retry=false,holdMs=JOB_HOLD_MS){
   // Analysis keeps its deployed identity and attempt accounting. Pricing must
   // follow the release, just like its inner checkpoint: otherwise a completed
   // no-range result from an older engine prevents deployed fixes from running.
-  const canonicalKey=backgroundKey(input.kind==='analysis'?analysisQueueIdentity(input):{engineVersion:9,estimatorVersion:ESTIMATOR_VERSION,modelPolicy:MODEL_POLICY_VERSION,kind:input.kind,id:input.draft.id,reviewed:input.draft.reviewed,configuration:input.configuration,date:new Date().toISOString().slice(0,10)});
-  const key=input.kind==='analysis'?await analysisQueueKey(input,canonicalKey):canonicalKey;
+  const canonicalKey=backgroundKey(input.kind==='analysis'?analysisQueueIdentity(input):{...pricingQueueIdentity(input),pricingIdentity:pricingDraftIdentity(input.draft)});
+  const key=input.kind==='analysis'?await analysisQueueKey(input,canonicalKey):await pricingQueueKey(input,canonicalKey);
   rejectQuiescedAdmission();
   const initial:Job={input,state:'queued',progress:input.kind==='analysis'?(input.draft.uploads.length?'Your project files are saved and queued for review.':'Your project details are saved and queued for review.'):'Your scope is queued for pricing.',attempts:0,createdAt:new Date().toISOString()};
   await withQaWriteFence(input.draft.id,()=>query('INSERT INTO p5_estimator_work(draft_id,work_key,payload) VALUES($1,$2,$3::jsonb) ON CONFLICT DO NOTHING',[input.draft.id,key,JSON.stringify(initial)]));
@@ -263,7 +280,7 @@ async function runPass(draftId:string,workKey:string):Promise<number|null>{
       else{job.result=step;job.state='complete';job.progress=job.input.draft.uploads.length?'Source review finished. Review the page coverage and any unreadable content.':'Project review finished. Review your scope and any missing details.';}
     }else{
       const {priceSavedScope}=await import('./pricingWork.ts');
-      try{const contact=job.input.draft.contact;const pricingIdentity={draftId:job.input.draft.id,customerKey:`${contact.email.trim().toLowerCase()}|${contact.name.trim().toLowerCase()}`,revision:job.input.draft.revision};job.result=await priceSavedScope(job.input.draft.id,job.input.draft.reviewed!,job.input.configuration,new Date(job.createdAt),deadline,pricingIdentity);job.state='complete';job.progress='Pricing calculation saved.';}
+      try{const identity=pricingDraftIdentity(job.input.draft);job.result=await priceSavedScope(job.input.draft.id,job.input.draft.reviewed!,job.input.configuration,new Date(job.createdAt),deadline,identity);job.state='complete';job.progress='Pricing calculation saved.';}
       catch(error){
         if(!isPricingPending(error))throw error;
         if(error.fatal){job.state='failed';job.progress=error.message;job.attempts=3;again=null;console.error(`[p5-worker] pricing stopped: ${error.message}`);void recordEvent({draftId,estimator:job.input.draft.answers?.service||null,kind:'pricing',stage:'job',code:'fatal',message:error.message,outcome:'failed'});}

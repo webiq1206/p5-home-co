@@ -113,6 +113,36 @@ try{
  await db.query('UPDATE p5_estimator_work SET payload=$1::jsonb WHERE draft_id=$2 AND work_key=$3',[JSON.stringify({...completedPricing,result:{customer:{range:null},internal:{scopePricing:{issues:['Missing confirmed quantity']}}}}),draft.id,pricingKey]);
  await background.queuedJob(pricingInput,true);
  assert.equal(pricer.calls.length,1,'a real unresolved scope condition remains held');
+ const callsBeforeIdentity=pricer.calls.length;
+ const revisionInput={...pricingInput,draft:{...pricingInput.draft,revision:pricingInput.draft.revision+1}};
+ const revisedJob=await background.queuedJob(revisionInput);
+ assert.deepEqual(revisedJob.result.customer.range,{low:100,high:150},'a revision-only change cannot reuse the earlier completed queue result');
+ assert.equal(revisedJob.input.draft.revision,revisionInput.draft.revision,'the worker receives the new server revision');
+ assert.equal(pricer.calls.length,callsBeforeIdentity+1);
+ await background.queuedJob(revisionInput,true);
+ assert.equal(pricer.calls.length,callsBeforeIdentity+1,'repeated same-revision polls and retries remain idempotent');
+ const customerInput={...pricingInput,draft:{...pricingInput.draft,contact:{...pricingInput.draft.contact,name:'Synthetic customer',email:'synthetic@example.invalid'}}};
+ const customerJob=await background.queuedJob(customerInput);
+ assert.deepEqual(customerJob.result.customer.range,{low:100,high:150},'a customer-only identity change cannot return the earlier result');
+ assert.equal(customerJob.input.draft.contact.email,'synthetic@example.invalid');
+ assert.equal(pricer.calls.length,callsBeforeIdentity+2);
+ await background.queuedJob({...customerInput,draft:{...customerInput.draft,contact:{...customerInput.draft.contact,name:'  SYNTHETIC CUSTOMER ',email:' SYNTHETIC@EXAMPLE.INVALID '}}},true);
+ assert.equal(pricer.calls.length,callsBeforeIdentity+2,'customer identity follows the same trim/case rules as the pricing ledger');
+ const changedConfiguration={...customerInput,configuration:{finance:{rate:99}}};
+ await background.queuedJob(changedConfiguration);
+ assert.equal(pricer.calls.length,callsBeforeIdentity+3,'a real configuration change creates separate queued pricing work');
+ const ActualDate=Date;
+ const laterQueueDate=new ActualDate(ActualDate.now()+3*24*60*60*1000);
+ globalThis.Date=class extends ActualDate{constructor(...args:[]|[string|number]){super(args.length?args[0]:laterQueueDate.getTime());}} as DateConstructor;
+ try{
+  const resumedQueue=await background.queuedJob(customerInput,true);
+  assert.deepEqual(resumedQueue.result.customer.range,{low:100,high:150});
+  assert.equal(resumedQueue.createdAt,customerJob.createdAt,'multi-day queue resume preserves its original attempt/lifetime ledger');
+  assert.equal(pricer.calls.length,callsBeforeIdentity+3,'an overnight queue poll cannot create another completed pricing pass');
+ }finally{globalThis.Date=ActualDate;}
+ const [originalQueue]=await db.query('SELECT payload FROM p5_estimator_work WHERE draft_id=$1 AND work_key=$2',[draft.id,pricingKey]);
+ assert.equal(originalQueue.payload.input.draft.revision,pricingInput.draft.revision,'earlier revision checkpoints remain inspection evidence');
+ assert.equal(originalQueue.payload.result.customer.range,null,'genuine holds are never edited by another identity');
  // A release change must get past BOTH legacy and versioned completed holds.
  // Old rows remain intact, and repeated polls within this release reuse success.
  const releaseId=randomUUID(),releaseDraft=await store.saveDraft(releaseId,key,'test',{text:'Release recovery fixture',answers:{},extraction:null,reviewed:null,contact:{name:'',email:'',phone:''}},0);
@@ -128,5 +158,24 @@ try{
  await background.queuedJob(releaseInput,true);
  assert.equal(pricer.calls.length,callsBeforeRelease+1,'same-release retries reuse the successful price');
  for(const oldKey of historicalKeys){const [old]=await db.query('SELECT payload FROM p5_estimator_work WHERE draft_id=$1 AND work_key=$2',[releaseId,oldKey]);assert.deepEqual(old.payload,obsolete,'historical job and accounting are retained');}
+ const ambiguousPricingId=randomUUID(),ambiguousPricingDraft=await store.saveDraft(ambiguousPricingId,key,'test',{text:'Ambiguous pricing fixture',answers:{},extraction:null,reviewed:null,contact:{name:'',email:'',phone:''}},0);
+ const ambiguousPricingInput={...pricingInput,draft:{...ambiguousPricingDraft,reviewed:pricingInput.draft.reviewed}};
+ const duplicatePricingRows=[0,1].map(days=>{
+  const createdAt=new Date(Date.now()-days*24*60*60*1000).toISOString();
+  const identity={engineVersion:9,estimatorVersion:ESTIMATOR_VERSION,modelPolicy:MODEL_POLICY_VERSION,kind:'pricing',id:ambiguousPricingId,reviewed:ambiguousPricingInput.draft.reviewed,configuration:{},date:createdAt.slice(0,10)};
+  return {key:'background-v1-'+createHash('sha256').update(JSON.stringify(identity)).digest('hex'),payload:{...completedPricing,input:ambiguousPricingInput,createdAt}};
+ });
+ for(const duplicate of duplicatePricingRows)await db.query('INSERT INTO p5_estimator_work(draft_id,work_key,payload) VALUES($1,$2,$3::jsonb)',[ambiguousPricingId,duplicate.key,JSON.stringify(duplicate.payload)]);
+ const callsBeforeAmbiguity=pricer.calls.length;
+ await assert.rejects(background.queuedJob(ambiguousPricingInput),/Multiple saved pricing ledgers/);
+ assert.equal(pricer.calls.length,callsBeforeAmbiguity,'ambiguous pricing queues are held before worker dispatch');
+ for(const duplicate of duplicatePricingRows){const [row]=await db.query('SELECT payload,lease_token FROM p5_estimator_work WHERE draft_id=$1 AND work_key=$2',[ambiguousPricingId,duplicate.key]);assert.deepEqual(row.payload,duplicate.payload);assert.equal(row.lease_token,null);}
+ const racePricingId=randomUUID(),racePricingDraft=await store.saveDraft(racePricingId,key,'test',{text:'Concurrent pricing fixture',answers:{},extraction:null,reviewed:null,contact:{name:'',email:'',phone:''}},0);
+ const racePricingInput={...pricingInput,draft:{...racePricingDraft,reviewed:pricingInput.draft.reviewed}};
+ const callsBeforeRace=pricer.calls.length;
+ const raceJobs=await Promise.all([background.queuedJob(racePricingInput),background.queuedJob(racePricingInput)]);
+ assert.ok(raceJobs.every(job=>job.state==='complete'));
+ assert.equal(pricer.calls.length,callsBeforeRace+1,'simultaneous pricing admissions share one queue/worker');
+ assert.equal((await db.query("SELECT work_key FROM p5_estimator_work WHERE draft_id=$1 AND work_key LIKE 'background-v1-%'",[racePricingId])).length,1);
  await db.database.close();console.log('PASS: durable queue, request-driven passes, live page status, continued work without browser polling, no duplicate finished work, expired-lease recovery, failure/retry, and no delivery side effects. SQL real, AI simulated.');
 }finally{await rm(dir,{recursive:true,force:true});}
