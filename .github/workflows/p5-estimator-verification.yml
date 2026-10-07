@@ -41,6 +41,7 @@ jobs:
           node --import tsx scripts/test-p5-qa-deterministic.mts
           node --import tsx scripts/test-p5-repair-persistence.mts
           node --import tsx scripts/test-p5-pricing-work.mts
+          node --import tsx scripts/test-p5-pricing-identity.mts
           node --import tsx scripts/test-p5-background.mts
           node --import tsx scripts/test-p5-workflow.mts
           node --import tsx scripts/test-p5-receipt.mts

@@ -105,7 +105,10 @@ export async function bootEstimatorWorker(){
  * Preserve existing keys and paid replies; only the status lookup changes. */
 export async function jobProgressWorkKeys(job:Pick<Job,'input'|'createdAt'>){
   const input=job.input;
-  return input.kind==='analysis'?(await import('./analysisWork.ts')).analysisProgressWorkKeys(input.draft,input.text,input.answers):[(await import('./pricingWork.ts')).pricingWorkKey(input.draft.reviewed!,input.configuration,new Date(job.createdAt))];
+  if(input.kind==='analysis')return (await import('./analysisWork.ts')).analysisProgressWorkKeys(input.draft,input.text,input.answers);
+  const contact=input.draft.contact;
+  const identity={draftId:input.draft.id,customerKey:`${contact.email.trim().toLowerCase()}|${contact.name.trim().toLowerCase()}`,revision:input.draft.revision};
+  return [(await (await import('./pricingWork.ts')).pricingWorkSnapshot(input.draft.id,input.draft.reviewed!,input.configuration,new Date(job.createdAt),identity)).workKey];
 }
 export async function queuedJob(input:Input,retry=false,holdMs=JOB_HOLD_MS){
   // A quiescing process admits neither new rows nor explicit retries. This is

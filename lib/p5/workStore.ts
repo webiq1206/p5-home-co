@@ -24,6 +24,16 @@ export async function releaseWork(draftId:string,workKey:string,token:string){
   await withQaWriteFence(draftId,()=>query('UPDATE p5_estimator_work SET lease_until=NULL,lease_token=NULL WHERE draft_id=$1 AND work_key=$2 AND lease_token=$3',[draftId,workKey,token]));
 }
 
+/** Server-owned snapshot and revision records only, scoped to one draft. The
+ * caller must verify the complete work hash before reusing a pricing date. */
+export async function readPricingSnapshots(draftId:string){
+ return query(`SELECT w.work_key,w.payload,d.revision,d.payload->'contact' AS contact,d.updated_at AS revision_started_at
+   FROM p5_estimator_work w JOIN p5_estimator_drafts d ON d.id=w.draft_id
+   WHERE w.draft_id=$1 AND w.work_key LIKE 'pricing-v11-%'
+     AND jsonb_typeof(w.payload->'pricingAt')='string'
+   ORDER BY w.payload->>'pricingAt',w.work_key`,[draftId]);
+}
+
 /** Exact content-addressed provider replies survive a new job/release key.
  * Only this draft is searched; callers supply the full policy/content hash. */
 export const SAVED_WORK_REPLY_QUERY = `
