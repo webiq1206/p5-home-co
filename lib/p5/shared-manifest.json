@@ -1,7 +1,7 @@
 {
  "source": "p5-home-co",
- "commit": "77b290c99654fec8d7b6eaf6d995af4260b7bed3",
- "generatedAt": "2026-10-07T04:58:52.447Z",
+ "commit": "f9b999c6f1e17de904b5f362c200400281fec228",
+ "generatedAt": "2026-10-07T05:23:18.937Z",
  "note": "P5-only qualification baseline. Child rollout is paused until live acceptance is verified. Hash checks remain mandatory.",
  "files": {
   "app/admin/p5-estimators/page.tsx": "8e81e1ac475dadb7eee9af396c963ee369de593a5a8d165d40dd97f2dab7ca32",
@@ -47,7 +47,7 @@
   "lib/p5/assistantContinuation.ts": "2990139f6bc41a17014338abc819207b02fce2bed37504294e8e8f908934d3c2",
   "lib/p5/atomicQuestions.ts": "94a1b8ee2c813f38d98b0209096f1137fa4b6e852ee8d8b6f0195a2ee2984015",
   "lib/p5/auditPricingState.ts": "e66c9272d882c033c045a83f124aafafd81972fe460b25544d20a94b8ba82adb",
-  "lib/p5/backgroundJobs.ts": "1cdb118bfab393a52bab8f84a1aeb96c1a1d6b582652a49a82840152e81113fc",
+  "lib/p5/backgroundJobs.ts": "3dde467964f0f8314e2e268683a13b60fe460bf179301112c71d1969350cfca2",
   "lib/p5/bookShortlist.ts": "0e0f10d6c883d5d55c11c00b6e7fd4c30fe050101d482fb0c0a2bdb41a871444",
   "lib/p5/boundedCrmPayload.ts": "fe5a9737fa99b57f8fc9767a6db8c6cae7fcb65320221463ce5b14d2ab45e7a0",
   "lib/p5/brandIdentity.ts": "c8c36a736ee5e4bb9d3e53570005f2890f892e8c625a295efa3ed84ba186c5a0",
@@ -280,7 +280,7 @@
   "scripts/p5-visual-review.mjs": "9918874379624da97ddb3b6bff056ddd5f27242c3dbf58c5dea84a077a66a12f",
   "scripts/p5-visual-routes.json": "670468cb7925d2b5b049e0b52f4e05f911b72474e76d376b5492b69ba51cf8bc",
   "scripts/test-p5-background-drain.mts": "d409f3c13b5d832091b711f2b1787b30f076e98d372b78ea6148d84d54b2361e",
-  "scripts/test-p5-background.mts": "5e84a8752b6ea0d229babd151fd2fc8be78b7cb7c9093f25eec91bda44d070dc",
+  "scripts/test-p5-background.mts": "654cd783a6e9ddb749a8ef2d0dda3c7d4719d58bf5ee9dabee4469916d484ebe",
   "scripts/test-p5-database-regression.mts": "9e4cbeffd7f5931e1d077925842f8547b7da461738f958ba909494390e7a7fee",
   "scripts/test-p5-document-adapter.mts": "7a2cd0481e4977fbffe8b409ddbeb4ba906050e66bdafcbc65748803d6578e4d",
   "scripts/test-p5-document-adversarial.mts": "31d6fbfb1afb38b99fb96ec5da48d76b15c4205c3d59696986539a5c47c445fd",
