@@ -1,7 +1,7 @@
 {
  "source": "p5-home-co",
  "commit": "7b40582343e2efa9433a26d7c474c45b92cfbf26",
- "generatedAt": "2026-10-07T00:30:06.677Z",
+ "generatedAt": "2026-10-07T00:54:29.178Z",
  "note": "P5-only qualification baseline. Child rollout is paused until live acceptance is verified. Hash checks remain mandatory.",
  "files": {
   "app/admin/p5-estimators/page.tsx": "8e81e1ac475dadb7eee9af396c963ee369de593a5a8d165d40dd97f2dab7ca32",
@@ -264,7 +264,7 @@
   "scripts/p5-project-review-ui.test.mts": "71b79d377a646aa1b68f9d5819a413e769cef00800f96d070ef6fa37995b4660",
   "scripts/p5-qa-recovery-browser.mjs": "c3df2f5dd97f0260abc8afe7e5a5d8fb3b72e4cc3726aaae6f81791fa7ba7e38",
   "scripts/p5-qa-saved-auth-fixture.mjs": "5d851d0d41426995b38ab756854035f8cfe94e957ee1873f9b427455b82f6cb0",
-  "scripts/p5-qa-saved-browser.mjs": "c714ca7ac07ac0e1c5cbaa70752a5e0f2f471aaeaa18252511206e647b69997c",
+  "scripts/p5-qa-saved-browser.mjs": "592d14bb714f1c7fab9dc12947e48627da0a27bdcceabf75d9ca012eca5ac99d",
   "scripts/p5-read-benchmark.mjs": "9117998dfa507d4aaf3799140f7d2194ac8c92e407f4fce4d570f671572d2555",
   "scripts/p5-reference-files.mts": "d71086b5ed62f8e1df4007b037d7ca5fceba890ee3744c7d59c4d64270ed554a",
   "scripts/p5-release-identity.mjs": "312bad8be6a85ddf33f138b0aed74cd2aa9ef617eb3c087ce2b6df08897e0e89",

@@ -487,7 +487,7 @@ try {
       for (const mode of ['stale', 'mismatch']) {
         readMode = mode;
         await est.getByRole('button', {name: 'Reload saved estimate', exact: true}).click();
-        await expect(page.getByRole('alert')).toContainText(mode === 'stale' ? 'Synthetic saved revision changed.' : 'identity could not be verified');
+        await expect(page.getByRole('main').getByRole('alert')).toContainText(mode === 'stale' ? 'Synthetic saved revision changed.' : 'identity could not be verified');
         await expect(est).toHaveCount(0);
         await expect(downloadButton).toHaveCount(0);
         const requestCount = requests.length;
@@ -499,7 +499,7 @@ try {
       }
       readMode = 'error';
       await page.reload();
-      await expect(page.getByRole('alert')).toContainText('Synthetic saved estimate temporarily unavailable.');
+      await expect(page.getByRole('main').getByRole('alert')).toContainText('Synthetic saved estimate temporarily unavailable.');
       await expect(est).toHaveCount(0);
       const requestCount = requests.length;
       await checkpoint('reload read error stays closed');
