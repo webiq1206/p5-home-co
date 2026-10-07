@@ -5,10 +5,16 @@ import {PDFDocument} from 'pdf-lib';
 import assert from 'node:assert/strict';
 import ts from 'typescript';
 
-// Component regression only: the real adapter and estimator, synthetic saved
-// customer data, and fail-closed interception of every browser network request.
-// Authentication/authorization and server revision fencing have separate tests.
-const origin = 'http://qa-saved-fixture.test';
+// The isolated component mode exercises development StrictMode. The full-page
+// mode loads the actual local production route with a synthetic in-memory admin
+// session. Both use invented saved data and block unapproved browser requests;
+// server revision fencing has separate isolated database tests.
+const realPage = process.env.P5_QA_REAL_PAGE === '1';
+const origin = realPage ? 'http://127.0.0.1:5001' : 'http://qa-saved-fixture.test';
+const fixtureCookie = realPage ? {name: 'p5_session', value: 'p5-qa-saved-layout-synthetic-session'} : {name: 'qa_fixture_session', value: 'synthetic-only'};
+// Exact static metadata assets declared by RootLayout and site.webmanifest.
+// WebKit requests the manifest even when Chromium does not.
+const fullPageAssets = new Set(['/site.webmanifest', '/favicon.ico', '/favicon-16x16.png', '/favicon-32x32.png', '/apple-touch-icon.png', '/safari-pinned-tab.svg', '/android-chrome-192x192.png', '/android-chrome-512x512.png']);
 const api = '/api/admin/p5-estimators/qa-saved-estimate';
 const revision = 6;
 const endpoint = `${api}?case=case-1&revision=${revision}`;
@@ -65,10 +71,10 @@ const presenter = await build({
 const {buildEstimateDocument, customerPresentation} = await import(`data:text/javascript;base64,${Buffer.from(presenter.outputFiles[0].text).toString('base64')}`);
 const result = customerPresentation({
   status: 'preliminary', range: {low: 12345, high: 12345},
-  categoryRanges: [{category: 'Carpentry', low: 12345, high: 12345}],
-  lineItems: [{id: 'synthetic-repair', category: 'Carpentry', description: 'Repair three interior doors', quantity: 3, unit: 'EA', low: 12345, high: 12345, unitLow: 4115, unitHigh: 4115, pricingStatus: 'owner-planning-rate'}],
-  scopeTasks: [{description: 'Repair three interior doors', category: 'Carpentry'}],
-  summary: 'Synthetic saved Case 1 browser fixture.', includedCategories: ['Carpentry'],
+  categoryRanges: [{category: 'Other Project Work', low: 12345, high: 12345}],
+  lineItems: [{id: 'synthetic-repair', category: 'Other Project Work', description: 'Repair three interior doors', quantity: 3, unit: 'EA', low: 12345, high: 12345, unitLow: 4115, unitHigh: 4115, pricingStatus: 'owner-planning-rate'}],
+  scopeTasks: [{description: 'Repair three interior doors', category: 'Other Project Work'}],
+  summary: 'Synthetic saved Case 1 browser fixture.', includedCategories: ['Other Project Work'],
   allowances: [], assumptions: ['Synthetic doors are standard interior slabs.'],
   exclusions: ['Painting is excluded.'], factors: [], nextStep: 'Review the saved synthetic scope.',
   message: 'Synthetic saved planning amount.', disclaimer: 'This is not a bid or contract.',
@@ -104,6 +110,7 @@ const malicious = new URLSearchParams({
   estimate: 'untrusted-estimate-id', t: 'untrusted-signed-token',
   continue: 'untrusted-transfer-code', case: 'other-case', revision: '999',
 });
+if (realPage) { malicious.set('case', 'case-1'); malicious.set('revision', String(revision)); }
 const pageUrl = `${origin}/estimate/qa-saved?${malicious}`;
 await writeFile(`${output}/qa-saved-bundle-results.json`, JSON.stringify({
   passed: true, reactMode: 'development', strictMode: true,
@@ -205,16 +212,30 @@ function installTraps() {
 const browser = await (engine === 'webkit' ? webkit : chromium).launch();
 const results = [];
 try {
-  for (const width of [320, 390, 1440]) {
+  if (realPage) {
+    const loggedOut = await browser.newContext({serviceWorkers: 'block'});
+    try {
+      await loggedOut.route('**/*', route => {
+        const request = route.request(), url = new URL(request.url());
+        if (url.origin !== origin || request.method() !== 'GET' || url.pathname.startsWith('/api/')) return route.abort('blockedbyclient');
+        return route.continue();
+      });
+      const page = await loggedOut.newPage();
+      await page.goto(pageUrl);
+      await expect(page.getByText('Administrator sign-in is required.', {exact: true})).toBeVisible();
+      await expect(page.getByRole('region', {name: 'Project estimator', exact: true})).toHaveCount(0);
+    } finally { await loggedOut.close(); }
+  }
+  for (const width of (realPage ? [320, 390, 1904] : [320, 390, 1440])) {
     const context = await browser.newContext({
-      viewport: {width, height: 900}, acceptDownloads: true, serviceWorkers: 'block',
+      viewport: {width, height: width === 1904 ? 867 : 900}, acceptDownloads: true, serviceWorkers: 'block',
       storageState: {cookies: [], origins: [{origin, localStorage: storageSeed}]},
     });
-    await context.addCookies([{name: 'qa_fixture_session', value: 'synthetic-only', url: origin, httpOnly: true, sameSite: 'Lax'}]);
+    await context.addCookies([{...fixtureCookie, url: origin, httpOnly: true, sameSite: 'Lax'}]);
     async function fixtureSession() {
       const cookies = await context.cookies(origin);
       assert.deepEqual(cookies.map(({name, value, httpOnly, sameSite}) => ({name, value, httpOnly, sameSite})), [
-        {name: 'qa_fixture_session', value: 'synthetic-only', httpOnly: true, sameSite: 'Lax'},
+        {...fixtureCookie, httpOnly: true, sameSite: 'Lax'},
       ], 'The existing synthetic browser session must remain intact.');
     }
     await fixtureSession();
@@ -234,7 +255,12 @@ try {
         }
         if (request.isNavigationRequest() && url.pathname === '/estimate/qa-saved') {
           assert.equal(request.method(), 'GET');
+          if (realPage) return await route.continue();
           return await route.fulfill({contentType: 'text/html', body: '<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{margin:0;font:16px Arial}*{box-sizing:border-box;min-width:0}button,select{max-width:100%}</style><link rel="stylesheet" href="/fixture.css"></head><body><div id="root"></div><script src="/fixture.js"></script></body></html>'});
+        }
+        if (realPage && (url.pathname.startsWith('/_next/static/') || url.pathname.startsWith('/fonts/') || fullPageAssets.has(url.pathname))) {
+          assert.equal(request.method(), 'GET');
+          return await route.continue();
         }
         if (url.pathname === '/fixture.js') return await route.fulfill({contentType: 'application/javascript', body: code});
         if (url.pathname === '/fixture.css') return await route.fulfill({contentType: 'text/css', body: css});
@@ -251,7 +277,7 @@ try {
         // and the adapter's same-origin credentials at every checkpoint below.
         // https://playwright.dev/docs/next/network#headers-owned-by-the-network-stack
         await fixtureSession();
-        if (headers.cookie !== undefined) assert.match(headers.cookie, /qa_fixture_session=synthetic-only/);
+        if (headers.cookie !== undefined) assert.ok(headers.cookie.split(';').some(pair => pair.trim() === `${fixtureCookie.name}=${fixtureCookie.value}`));
         assert.equal(request.postData(), null);
         requests.push({method: request.method(), url: url.pathname + url.search, mode: isPdf ? pdfMode : readMode});
         if (isPdf) {
@@ -270,6 +296,27 @@ try {
     const est = page.getByRole('region', {name: 'Project estimator', exact: true});
     const pdfCard = est.locator('details[aria-label="Estimate PDF attachment"]');
     const downloadButton = est.getByRole('button', {name: 'Download estimate PDF', exact: true});
+    async function bannerLayout() {
+      if (!await est.count()) return null;
+      const geometry = await est.evaluate(root => {
+        const note = root.querySelector('[role="note"]');
+        const nav = root.querySelector('nav[aria-label="Estimator navigation"]');
+        const thread = root.querySelector('[data-p5-thread]');
+        const box = element => {
+          const {top, bottom, left, right, width, height} = element.getBoundingClientRect();
+          return {top, bottom, left, right, width, height};
+        };
+        const n = box(note);
+        const points = [[n.left + n.width / 2, n.top + n.height / 2], [n.left + 4, n.top + 4], [n.right - 4, n.bottom - 4]];
+        return {note: n, nav: box(nav), thread: box(thread), viewport: {width: innerWidth, height: innerHeight},
+          unobscured: points.every(([x, y]) => { const hit = document.elementFromPoint(x, y); return hit === note || note.contains(hit); })};
+      });
+      assert.ok(geometry.note.top >= geometry.nav.bottom - 1, 'Synthetic QA notice must be below the estimator navigation.');
+      assert.ok(geometry.thread.top >= geometry.note.bottom - 1, 'Results must scroll below the complete QA notice.');
+      assert.ok(geometry.note.top >= 0 && geometry.note.bottom <= geometry.viewport.height && geometry.note.left >= 0 && geometry.note.right <= geometry.viewport.width, 'The entire QA notice must remain inside the viewport.');
+      assert.ok(geometry.unobscured, 'The synthetic/read-only notice must not be covered by navigation or other content.');
+      return geometry;
+    }
     async function checkpoint(stage, requireStrict = true) {
       // Trigger the actual lifecycle listeners that would flush progress/beacons.
       await page.evaluate(() => {
@@ -282,13 +329,14 @@ try {
       });
       await page.clock.fastForward(65000);
       await fixtureSession();
+      const geometry = await bannerLayout();
       const snapshot = await page.evaluate(() => window.__qaSnapshot());
-      checkpoints.push({stage, ...snapshot});
+      checkpoints.push({stage, geometry, ...snapshot});
       assert.deepEqual(snapshot.counts, {localStorage: 0, sessionStorage: 0, indexedDB: 0, crypto: 0, sendBeacon: 0, analytics: 0, publicApi: 0}, `${stage}: forbidden browser side effect`);
       assert.deepEqual(snapshot.local, storageSeed, `${stage}: the existing local draft changed`);
       assert.deepEqual(snapshot.session, [], `${stage}: session storage changed`);
       assert.deepEqual(snapshot.files, [fileSeed], `${stage}: the existing IndexedDB file cache changed`);
-      if (requireStrict) {
+      if (requireStrict && !realPage) {
         assert.ok(snapshot.strictMode.mounts >= 2, 'React development StrictMode must replay the mount effect.');
         assert.ok(snapshot.strictMode.cleanups >= 1, 'StrictMode cleanup must run.');
       }
@@ -310,6 +358,7 @@ try {
       await expect(est).toHaveAttribute('data-step', '3');
       await expect(est.getByRole('note')).toHaveText(`Synthetic QA · ${fixture.label} · revision ${revision}. Read-only saved result and PDF.`);
       await expect(est.getByRole('heading', {name: document.title, exact: true})).toBeVisible();
+      await page.evaluate(() => document.fonts.ready);
       await expect(est.getByRole('heading', {name: document.total.amount, exact: true})).toBeVisible();
       await expect(est.getByText(`Estimate ${document.reference} | Prepared ${document.issuedLabel}`, {exact: true})).toBeVisible();
       await expect(est.getByText('This test estimate is saved. Automatic notifications were not sent.', {exact: true})).toBeVisible();
@@ -325,6 +374,15 @@ try {
       }
       assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), 'Saved QA page overflows the viewport.');
       assert.equal(page.url(), pageUrl, 'Saved preview must not claim or remove customer continuation tokens.');
+      const categoryHeading = est.locator('summary').filter({hasText: 'Other Project Work'}).locator('span').first();
+      const heading = await categoryHeading.evaluate(element => {
+        const bounds = element.getBoundingClientRect();
+        const range = document.createRange();
+        range.selectNodeContents(element);
+        return {width: bounds.width, lines: Array.from(range.getClientRects()).map(rect => ({top: rect.top, width: rect.width}))};
+      });
+      assert.ok(heading.width >= 120, 'The category heading needs readable width beside status and price.');
+      assert.ok(new Set(heading.lines.map(line => Math.round(line.top))).size <= 2, 'Other Project Work must not be squeezed into fragmented lines.');
     }
     async function downloadPdf() {
       if (!await pdfCard.evaluate(node => node.open)) await pdfCard.locator('summary').click();
@@ -361,7 +419,13 @@ try {
       await context.addInitScript(installTraps);
       await page.goto(pageUrl);
       await savedIsExact();
-      await checkpoint('strict-mode initial saved restoration');
+      await checkpoint(realPage ? 'production page initial saved restoration' : 'strict-mode initial saved restoration');
+      await page.screenshot({path: `${output}/${engine}-${width}-qa-saved${realPage ? '-page' : ''}-initial.png`, fullPage: true});
+      const beforeScroll = await bannerLayout();
+      await est.locator('[data-p5-thread]').evaluate(thread => { thread.scrollTop = thread.scrollHeight; });
+      await checkpoint('QA notice remains visible while results scroll');
+      const afterScroll = await bannerLayout();
+      assert.ok(Math.abs(beforeScroll.note.top - afterScroll.note.top) < 1, 'The QA notice must not scroll with result content.');
       const accordions = est.locator('details');
       assert.ok(await accordions.count() >= 3, 'Exercise real estimate detail accordions.');
       for (let index = 0; index < await accordions.count(); index += 1) {
@@ -426,7 +490,7 @@ try {
       for (const mode of ['stale', 'mismatch']) {
         readMode = mode;
         await est.getByRole('button', {name: 'Reload saved estimate', exact: true}).click();
-        await expect(page.getByRole('alert')).toContainText(mode === 'stale' ? 'Synthetic saved revision changed.' : 'identity could not be verified');
+        await expect(page.getByRole('main').getByRole('alert')).toContainText(mode === 'stale' ? 'Synthetic saved revision changed.' : 'identity could not be verified');
         await expect(est).toHaveCount(0);
         await expect(downloadButton).toHaveCount(0);
         const requestCount = requests.length;
@@ -438,7 +502,7 @@ try {
       }
       readMode = 'error';
       await page.reload();
-      await expect(page.getByRole('alert')).toContainText('Synthetic saved estimate temporarily unavailable.');
+      await expect(page.getByRole('main').getByRole('alert')).toContainText('Synthetic saved estimate temporarily unavailable.');
       await expect(est).toHaveCount(0);
       const requestCount = requests.length;
       await checkpoint('reload read error stays closed');
@@ -448,13 +512,13 @@ try {
       await savedIsExact();
       await downloadPdf();
       await checkpoint('final exact saved identity and unchanged local draft');
-      await page.screenshot({path: `${output}/${engine}-${width}-qa-saved.png`, fullPage: true});
-      results.push({engine, width, passed: true, strictMode: 'development effect replay verified', case: fixture.case, revision, reference: document.reference, total: document.total.amount, advancedMillisecondsPerCheckpoint: 65000, stages, requests, checkpoints});
+      await page.screenshot({path: `${output}/${engine}-${width}-qa-saved${realPage ? '-page' : ''}.png`, fullPage: true});
+      results.push({engine, width, realPage, passed: true, strictMode: realPage ? 'compiled production page' : 'development effect replay verified', case: fixture.case, revision, reference: document.reference, total: document.total.amount, advancedMillisecondsPerCheckpoint: 65000, stages, requests, checkpoints});
     } catch (error) {
       const snapshot = await page.evaluate(() => window.__qaSnapshot?.()).catch(() => null);
       if (snapshot) checkpoints.push({stage: 'failure diagnostics', ...snapshot});
       results.push({engine, width, passed: false, error: String(error), stages, requests, checkpoints, violations, errors});
-      await page.screenshot({path: `${output}/${engine}-${width}-qa-saved-failed.png`, fullPage: true}).catch(() => {});
+      await page.screenshot({path: `${output}/${engine}-${width}-qa-saved${realPage ? '-page' : ''}-failed.png`, fullPage: true}).catch(() => {});
     } finally {
       await context.close();
     }
@@ -462,9 +526,9 @@ try {
 } finally {
   await browser.close();
 }
-await writeFile(`${output}/${engine}-qa-saved-results.json`, JSON.stringify({
-  scope: 'Synthetic saved Case 1 component regression. All network intercepted. No live login, customer data, database, provider or production calls.',
-  engine, results,
+await writeFile(`${output}/${engine}-qa-saved${realPage ? '-page' : ''}-results.json`, JSON.stringify({
+  scope: realPage ? 'Actual local Next production route, shared layout and client. Isolated synthetic administrator/session SELECT only; saved JSON/PDF mocked. No live credentials, customer data, provider or production calls.' : 'Synthetic saved Case 1 component regression. All network intercepted. No live login, customer data, database, provider or production calls.',
+  engine, realPage, results,
 }, null, 2));
-console.log(JSON.stringify(results.map(({engine, width, passed, error, stages, errors, violations}) => ({engine, width, passed, error, stages, errors, violations}))));
+console.log(JSON.stringify(results.map(({engine, width, realPage, passed, error, stages, errors, violations}) => ({engine, width, realPage, passed, error, stages, errors, violations}))));
 if (results.some(result => !result.passed)) process.exitCode = 1;

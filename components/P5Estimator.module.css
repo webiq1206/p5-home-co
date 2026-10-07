@@ -72,6 +72,8 @@
 .root .navBtn:hover{background:var(--p5-surface-3);color:var(--p5-ink)}
 .root .navBtn[hidden]{display:none}
 .navSpacer{width:40px;height:40px;flex-shrink:0}
+.savedPreviewBanner{flex-shrink:0;padding:8px 16px;border-bottom:1px solid var(--p5-line);background:var(--p5-surface)}
+.savedPreviewBanner .notice{max-width:728px;margin:0 auto;padding:8px 12px;font-size:12px;line-height:1.4}
 .rail{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;flex-shrink:0;padding:0 12px;margin-top:-1px}
 .rail span{display:block;height:3px;border-radius:3px;background:var(--p5-line)}
 .rail span[data-state=done]{background:var(--p5-accent)}
@@ -377,3 +379,10 @@
 .editDetails>summary span{float:right;font-size:13px;font-weight:400;color:var(--p5-ink-muted)}
 .editDetails>div{padding:8px 0 16px}
 @media(max-width:600px){.projectOverview{padding:18px 16px}.result .accordion>summary{gap:10px}.result .accordionMeta{white-space:normal;text-align:right;max-width:42%}}
+@media(max-width:600px){
+  .result .accordion>summary.categorySummary{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px 12px}
+  .categorySummary .accordionTitle{grid-column:1;grid-row:1}
+  .categorySummary::after{grid-column:2;grid-row:1;justify-self:end}
+  .categorySummary .badge{grid-column:1;grid-row:2;justify-self:start}
+  .result .categorySummary .accordionMeta{grid-column:2;grid-row:2;max-width:none}
+}

@@ -64,6 +64,12 @@ jobs:
           P5_TEST_BROWSER=webkit node scripts/p5-qa-recovery-browser.mjs
           node scripts/p5-qa-saved-browser.mjs
           P5_TEST_BROWSER=webkit node scripts/p5-qa-saved-browser.mjs
+          NODE_ENV=production DATABASE_URL=postgres://offline.invalid/isolated NEXT_PHASE=phase-production-build WATCHDOG_IN_PROCESS=false FINANCE_JOB_IN_PROCESS=false node --import ./scripts/p5-qa-saved-auth-fixture.mjs node_modules/next/dist/bin/next start -p 5001 > /tmp/p5-saved-page-server.log 2>&1 &
+          qa_saved_pid=$!
+          trap 'kill "$qa_saved_pid" 2>/dev/null || true' EXIT
+          node -e 'const u="http://127.0.0.1:5001/estimate/qa-saved?case=case-1&revision=6";let n=0;const t=setInterval(async()=>{try{const r=await fetch(u);if(r.ok){clearInterval(t)}}catch{}if(++n>90){clearInterval(t);process.exit(1)}},1000)'
+          P5_QA_REAL_PAGE=1 node scripts/p5-qa-saved-browser.mjs
+          P5_QA_REAL_PAGE=1 P5_TEST_BROWSER=webkit node scripts/p5-qa-saved-browser.mjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -71,6 +77,7 @@ jobs:
           path: |
             p5-verification
             /tmp/p5-estimator-server.log
+            /tmp/p5-saved-page-server.log
           retention-days: 14
 
   lead-integrations:
