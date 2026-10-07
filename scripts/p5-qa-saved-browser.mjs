@@ -12,6 +12,9 @@ import ts from 'typescript';
 const realPage = process.env.P5_QA_REAL_PAGE === '1';
 const origin = realPage ? 'http://127.0.0.1:5001' : 'http://qa-saved-fixture.test';
 const fixtureCookie = realPage ? {name: 'p5_session', value: 'p5-qa-saved-layout-synthetic-session'} : {name: 'qa_fixture_session', value: 'synthetic-only'};
+// Exact static metadata assets declared by RootLayout and site.webmanifest.
+// WebKit requests the manifest even when Chromium does not.
+const fullPageAssets = new Set(['/site.webmanifest', '/favicon.ico', '/favicon-16x16.png', '/favicon-32x32.png', '/apple-touch-icon.png', '/safari-pinned-tab.svg', '/android-chrome-192x192.png', '/android-chrome-512x512.png']);
 const api = '/api/admin/p5-estimators/qa-saved-estimate';
 const revision = 6;
 const endpoint = `${api}?case=case-1&revision=${revision}`;
@@ -255,7 +258,7 @@ try {
           if (realPage) return await route.continue();
           return await route.fulfill({contentType: 'text/html', body: '<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{margin:0;font:16px Arial}*{box-sizing:border-box;min-width:0}button,select{max-width:100%}</style><link rel="stylesheet" href="/fixture.css"></head><body><div id="root"></div><script src="/fixture.js"></script></body></html>'});
         }
-        if (realPage && (url.pathname.startsWith('/_next/static/') || url.pathname.startsWith('/fonts/'))) {
+        if (realPage && (url.pathname.startsWith('/_next/static/') || url.pathname.startsWith('/fonts/') || fullPageAssets.has(url.pathname))) {
           assert.equal(request.method(), 'GET');
           return await route.continue();
         }
