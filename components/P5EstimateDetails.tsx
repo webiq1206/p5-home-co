@@ -49,7 +49,7 @@ export default function P5EstimateDetails({result,openFirst=false,showGlance=tru
   {hasCategories&&<>
    {grouped.categoriesIntro?.text&&<p className={styles.hint} style={{marginBottom:10}}>{grouped.categoriesIntro.text}</p>}
    {breakdown.map(group=><details key={group.category} className={styles.accordion} data-kind="included">
-    <summary><span className={styles.accordionTitle}>{group.category}</span><span className={styles.badge} data-kind="included">Included</span>{priced&&group.low!==undefined&&<span className={styles.accordionMeta}>{range(group.low,group.high)}</span>}{!priced&&<span className={styles.accordionMeta}>{group.tasks.length} {group.tasks.length===1?'item':'items'}</span>}</summary>
+    <summary className={styles.categorySummary}><span className={styles.accordionTitle}>{group.category}</span><span className={styles.badge} data-kind="included">Included</span>{priced&&group.low!==undefined&&<span className={styles.accordionMeta}>{range(group.low,group.high)}</span>}{!priced&&<span className={styles.accordionMeta}>{group.tasks.length} {group.tasks.length===1?'item':'items'}</span>}</summary>
     <div className={styles.accordionBody}>
      {group.tasks.length>0&&<ul className={styles.bullets} style={{marginBottom:group.items.length?12:0}}>{group.tasks.map((task,i)=><li key={i}>{task}</li>)}</ul>}
      {group.items.length>0&&<ul className={styles.lineItems}>{group.items.map(item=><li key={item.id} className={styles.lineItem}>
