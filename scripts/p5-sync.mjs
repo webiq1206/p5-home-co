@@ -34,7 +34,9 @@ export const P5_ONLY=['lib/p5/qaContinuation.ts','lib/p5/qaContinuationEndpoint.
   'scripts/check-p5-live-pricing-guarded.mts','scripts/check-p5-recovery-request.mjs','scripts/lib/recoveryTransport.mjs','scripts/p5-qa-recovery-browser.mjs','scripts/p5-qa-saved-auth-fixture.mjs','scripts/p5-qa-saved-browser.mjs','scripts/p5-reference-files.mts','scripts/test-p5-qa-paid.mts','scripts/test-p5-recovery-request.mjs','scripts/test-p5-recovery-transport.mjs',
   'tests/p5-document-followups.test.ts','tests/p5-qa-continuation.test.ts','tests/p5-qa-origin.test.ts','tests/p5-qa-saved-estimate.test.ts','tests/p5-qa-saved-reading.test.ts','tests/p5-synthetic-crm.test.ts',
   // Project-record qualification (page evidence, source contracts, JSON Schema contracts) runs on p5homeco.com only.
-  'tests/p5-project-local-pages.test.ts','tests/p5-project-page-evidence.test.ts','tests/p5-project-record.test.ts','tests/p5-project-source-contract.test.ts'];
+  'tests/p5-project-local-pages.test.ts','tests/p5-project-page-evidence.test.ts','tests/p5-project-record.test.ts','tests/p5-project-source-contract.test.ts',
+  // The pricing ledger is active by default on P5 alone, and saved-analysis reuse is a P5 path.
+  'tests/p5-pricing-production-errors.test.ts','tests/p5-saved-analysis-handler.test.ts'];
 /** Site modules every brand provides at the same path, so shared files may import them. */
 const SITE_MODULES=['lib/googleAdsConversion.ts','lib/brand-page-metadata.ts'];
 /** Shared files a brand may be missing on purpose (never deleted, never required). */
