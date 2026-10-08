@@ -229,6 +229,7 @@ async function applyEvaluation(
  */
 export async function runWatchdog(now: Date = new Date()): Promise<WatchdogSummary> {
   const owner = randomUUID();
+  const lockRequestedAt = Date.now();
 
   if (!(await acquireLock(owner))) {
     return {
@@ -299,6 +300,14 @@ export async function runWatchdog(now: Date = new Date()): Promise<WatchdogSumma
       if (swept.sent || swept.failed) console.info("[watchdog] abandonment sweep", swept);
     } catch (error) {
       console.error("[watchdog] abandonment sweep failed", error instanceof Error ? error.message : error);
+    }
+
+    // Leave two minutes of the existing lease for the 90-second optional pass
+    // and bounded cleanup. A slow core pass defers inbox work to the next tick.
+    // Its separate health/receipts expose failures without changing counters.
+    if (process.env.P5_INBOX_SYNC_ENABLED === "true" && Date.now() + 120_000 < lockRequestedAt + LOCK_TTL_MS) {
+      const { runInboxSync } = await import("../integrations/inbox-sync.ts");
+      await runInboxSync();
     }
 
     await query(
