@@ -2,7 +2,7 @@ import test from 'node:test';
 import type {IntakeRow} from '../lib/p5/intakeStore.ts';
 import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
-import {PGlite} from '@electric-sql/pglite';
+import {isolatedDatabase} from './fixtures/p5-pglite.ts';
 import {intakeAdminHandlers} from '../lib/p5/intakeAdmin.ts';
 import {intakeStore} from '../lib/p5/intakeStore.ts';
 import {emptyIntakeDetails} from '../lib/p5/intakeContract.ts';
@@ -12,7 +12,7 @@ import {ESTIMATOR_BUCKETS,uploadObjectKey} from '../lib/p5/objectStorage.ts';
 const draftId='12345678-1234-4234-8234-123456789abc',fileId='12345678-1234-4234-8234-123456789abd';
 const bytes=Buffer.from('[QA] fictional original file'),digest=createHash('sha256').update(bytes).digest('hex');
 async function fixture(){
- const db=new PGlite();await db.exec(`CREATE TABLE p5_estimator_drafts(id uuid PRIMARY KEY,revision integer,brand text,status text);
+ const db=await isolatedDatabase();await db.exec(`CREATE TABLE p5_estimator_drafts(id uuid PRIMARY KEY,revision integer,brand text,status text);
  CREATE TABLE p5_estimator_work(draft_id uuid,work_key text,payload jsonb,updated_at timestamptz DEFAULT now(),PRIMARY KEY(draft_id,work_key));
  CREATE TABLE p5_estimator_files(id uuid PRIMARY KEY,draft_id uuid,name text,mime_type text,size_bytes integer,sha256 text,data_base64 text,storage_bucket text,storage_key text);`);
  const query=async(sql:string,values:unknown[]=[])=> (await db.query<IntakeRow>(sql,values)).rows;

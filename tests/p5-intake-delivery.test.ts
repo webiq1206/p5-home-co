@@ -1,7 +1,7 @@
 /** MOCK TRANSPORTS ONLY. This suite proves state transitions, not provider/inbox/CRM receipt. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {PGlite} from '@electric-sql/pglite';
+import {isolatedDatabase} from './fixtures/p5-pglite.ts';
 import {intakeDeliveryWorker,INTAKE_DRIVER_PENDING_SQL,independentDeliveryPasses,type IntakeTransport,type IntakeChannelState} from '../lib/p5/intakeDelivery.ts';
 import {intakeDeliveryEnvelope,intakeLeadKey,intakeOperationKey,intakeLocalCrmRecord,type IntakeDeliveryEnvelope} from '../lib/p5/intakeDeliveryPayload.ts';
 import {INTAKE_CHANNELS,INTAKE_RUNTIME_PROOF,type IntakeChannel} from '../lib/p5/intakeDeliveryPolicy.ts';
@@ -14,7 +14,7 @@ function request(site:IntakeSite='p5',revision=1):Omit<IntakeSnapshot,'savedAt'>
  contact:{name:'Fictional Customer',email:'customer@example.invalid',phone:'',preferredContact:'email'},details:{...emptyIntakeDetails(),transcript:[{id:'fictional-message',role:'user',text:'Fictional project details',at:start,label:'Fictional question',caption:'Fictional caption',files:['fictional-plan.txt']}]},
  scope:{text:'A fictional kitchen in Fictional Region. Unknown budget.',answers:{service:'kitchen',exclusions:'Retain the fictional sink'},extraction:null,uploads:[{id:'12345678-1234-4234-8234-123456789abd',name:'fictional-plan.txt',type:'text/plain',size:1,sha256:'a'.repeat(64),status:'stored'}]},routing:routeIntake(site,'kitchen',['cabinetry']),unresolved:['Site visit may be needed.']};}
 async function fixture(site:IntakeSite='p5'){
- const db=new PGlite();await db.exec(`CREATE TABLE p5_estimator_drafts(id uuid PRIMARY KEY,revision integer,brand text,status text);
+ const db=await isolatedDatabase();await db.exec(`CREATE TABLE p5_estimator_drafts(id uuid PRIMARY KEY,revision integer,brand text,status text);
  CREATE TABLE p5_estimator_work(draft_id uuid REFERENCES p5_estimator_drafts(id),work_key text,payload jsonb,lease_token text,lease_until timestamptz,updated_at timestamptz DEFAULT now(),PRIMARY KEY(draft_id,work_key));`);
  const query=async(s:string,v:unknown[]=[])=> (await db.query<IntakeRow>(s,v)).rows;
  await query("INSERT INTO p5_estimator_drafts VALUES($1,1,$2,'draft')",[id,site]);
