@@ -1,0 +1,10 @@
+.root { display: grid; gap: .5rem; width: 100%; min-width: 0; }
+.root label { font-weight: 600; }
+.root input { box-sizing: border-box; width: 100%; min-height: 48px; font: inherit; font-size: 16px; border: 1px solid #aaa; border-radius: 8px; padding: .75rem; color: #202925; background: #fff; }
+.root input:focus-visible, .panel button:focus-visible { outline: 3px solid #466b60; outline-offset: 2px; }
+.panel { border: 1px solid #aaa; border-radius: 8px; background: #fff; color: #202925; }
+.panel ul { list-style: none; padding: 0; margin: 0; max-height: min(220px, 28dvh); overflow-y: auto; overscroll-behavior: contain; }
+.panel button { width: 100%; min-height: 48px; padding: .75rem; text-align: left; background: transparent; border: 0; border-bottom: 1px solid #eee; color: inherit; font: inherit; overflow-wrap: anywhere; cursor: pointer; }
+.panel button[aria-selected=true], .panel button:hover { background: #edf3ef; }
+.attribution { margin: .5rem .75rem; font-size: 12px; }
+.help { margin: 0; font-size: .875rem; line-height: 1.45; }

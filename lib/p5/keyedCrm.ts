@@ -24,7 +24,11 @@ async function readJson(response:Response) {
 function matching(body:any,payload:any) {
   return body.source===payload.source&&body.externalLeadId===payload.externalLeadId
     &&body.acceptanceMode===payload.deliveryMode&&typeof body.leadId==='string'
-    &&/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(body.leadId);
+    &&/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(body.leadId)
+    &&(payload.requestType!=='project_review_v1'||(body.requestType==='project_review_v1'&&body.status==='accepted'
+      &&body.revision===payload.request?.revision&&body.snapshotDigest===payload.snapshotDigest
+      &&typeof body.appliedAtAcceptance==='boolean'
+      &&body.downstreamStatus===(payload.deliveryMode==='synthetic_qa'?'suppressed':'source_site_managed')));
 }
 
 /** A lost POST receipt is reconciled with one authenticated read, never replayed. */

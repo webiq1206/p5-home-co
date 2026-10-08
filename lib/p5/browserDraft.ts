@@ -1,8 +1,9 @@
+import type {IntakeContext} from './intakeContract.ts';
 import {SCOPE_FIELDS,SCOPE_FILE_LIMIT,SCOPE_BATCH_LIMIT,SCOPE_FILE_COUNT,SCOPE_UPLOAD_HELP,type ScopeAnswers,type ScopeExtraction,type ScopeConflict,type ScopeField,type ScopeUpload} from './scope.ts';
 /** One turn of the conversation, kept with the draft on this device so a
- * reload shows the same exchange. Never sent to the server. */
+ * reload shows the same exchange. Review intake also persists this untrusted display history with the authenticated server draft. */
 export interface TranscriptEntry {id:string;role:'user'|'assistant';text:string;at:number;kind?:'scope'|'ack'|'question'|'answer'|'note';label?:string;caption?:string;files?:string[]}
-export interface BrowserDraft {pendingFiles?:Array<{name:string;size:number}>}
+export interface BrowserDraft {intake?:IntakeContext;intakeTransfer?:import('./intakeTransferBrowser.ts').BrowserSourceTransfer;pendingFiles?:Array<{name:string;size:number}>;analyzedUploads?:Array<{sha256:string;size:number}>}
 export interface BrowserDraft {transcript?:TranscriptEntry[];/** Revision confirmed with reviewed=true; cleared by any later change. */reviewedRevision?:number;pendingReply?:{id:string;answer:string};namespace?:string;sourceImageUrl?:string;/** Set when an explicit replacement must not reattach route-provided design data. */sourceDetached?:boolean;projectSource?:{id:string;answers:ScopeAnswers;imageUrl?:string};id:string;key:string;revision:number;text:string;answers:ScopeAnswers;extraction:ScopeExtraction|null;contact:{name:string;email:string;phone:string};step:number;updatedAt:number;conflicts?:ScopeConflict[];uploads?:ScopeUpload[];wizard?:{skipped:ScopeField[];resolutions:ScopeAnswers;sourceVersion?:string;instructionAnswers?:import('./clarifications.ts').InstructionAnswer[]} ;analysisWarning?:string;analyzedText?:string;analyzedAnswers?:string;analyzedFingerprint?:string;scopeFingerprint?:string;dirty?:boolean;pricedFields?:ScopeField[]}
 const storageKey='p5-project-draft-v2';
 export const BROWSER_DRAFT_RECOVERY_KEY=`${storageKey}:recovery-v1`;
@@ -53,7 +54,16 @@ export function loadBrowserDraft(defaultService:string,namespace?:string):Browse
   return {...newBrowserDraft(defaultService),namespace};
 }
 function browserStorage():Storage|null{try{return typeof localStorage==='undefined'?null:localStorage;}catch{return null;}}
-export function persistBrowserDraft(draft:BrowserDraft){try{const storage=browserStorage();if(!storage)return false;storage.setItem(draftStorageKey(draft.namespace),JSON.stringify({...draft,updatedAt:Date.now()}));return true;}catch{return false;}}
+/** Read the actual active storage value before a transfer replaces it. Unlike
+ * ordinary boot recovery, malformed data must not silently become a blank draft. */
+export function persistedBrowserDraft(namespace?:string):BrowserDraft|null {
+ const storage=browserStorage();if(!storage)throw new Error('Device storage is unavailable.');
+ const raw=storage.getItem(draftStorageKey(namespace));if(raw===null)return null;
+ const value=JSON.parse(raw),loaded=loadBrowserDraft('',namespace);
+ if(!value||value.id!==loaded.id||value.key!==loaded.key)throw new Error('The existing saved project could not be verified. It has not been replaced.');
+ return loaded;
+}
+export function persistBrowserDraft(draft:BrowserDraft){try{const storage=browserStorage();if(!storage)return false;const key=draftStorageKey(draft.namespace),raw=JSON.stringify({...draft,updatedAt:Date.now()});storage.setItem(key,raw);return storage.getItem(key)===raw;}catch{return false;}}
 export function draftHeaders(draft:BrowserDraft){return {'x-p5-draft-id':draft.id,'x-p5-draft-key':draft.key};}
 /** Validate the server receipt before reading its revision or clearing local files. */
 export function requireDraftReceipt(data:unknown):{revision:number;answers:ScopeAnswers;extraction:ScopeExtraction|null;uploads:ScopeUpload[];[key:string]:any}{
@@ -156,7 +166,7 @@ export function archiveBrowserDraft(draft:BrowserDraft):BrowserDraftRecovery|nul
     const record={key,archivedAt:Date.now(),draft:JSON.parse(snapshot) as BrowserDraft};
     // Never silently evict a visitor's recovery. If storage is full, fail closed.
     const next=[record,...records];
-    storage.setItem(BROWSER_DRAFT_RECOVERY_KEY,JSON.stringify(next));
+    const raw=JSON.stringify(next);storage.setItem(BROWSER_DRAFT_RECOVERY_KEY,raw);if(storage.getItem(BROWSER_DRAFT_RECOVERY_KEY)!==raw)return null;
     return record;
   }catch{return null;}
 }

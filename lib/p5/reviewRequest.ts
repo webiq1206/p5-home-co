@@ -1,4 +1,5 @@
 import {qaContactRestricted} from './qaProviderPolicy.ts';
+import {isIntakeTransferStatus,TRANSFER_HOLD_MESSAGE} from './intakeTransferGuards.ts';
 import {createHash} from 'node:crypto';
 import {draftCredentials,readDraft,DraftError} from './store.ts';
 import {query} from './database.ts';
@@ -32,6 +33,7 @@ export function projectReviewHandler(dependencies={readDraft,query,adminRecipien
     const {id,key}=draftCredentials(request);
     const draft=await readDraft(id,key);
     if(!draft||draft.brand!==brand.id)throw new DraftError('Save your project before requesting a review.',404);
+    if(isIntakeTransferStatus(draft.status))throw new DraftError(TRANSFER_HOLD_MESSAGE,409);
     if(await qaContactRestricted(id,query))return json({qaReviewHold:true,error:'This restricted QA draft cannot request external review or send notifications.'},422);
     const body=JSON.parse(new TextDecoder().decode(await limitedBody(request,2048)));
     const contact=reviewContact(body);
@@ -40,13 +42,16 @@ export function projectReviewHandler(dependencies={readDraft,query,adminRecipien
       draft_id uuid NOT NULL, revision integer NOT NULL, contact jsonb NOT NULL,
       scope jsonb NOT NULL, status text NOT NULL DEFAULT 'saved', created_at timestamptz NOT NULL DEFAULT now(),
       PRIMARY KEY(draft_id,revision))`);
-    const accepted=await query(`INSERT INTO p5_estimator_review_requests(draft_id,revision,contact,scope)
-      VALUES($1,$2,$3::jsonb,$4::jsonb) ON CONFLICT(draft_id,revision) DO NOTHING RETURNING draft_id`,
+    await query(`WITH owned AS (SELECT id FROM p5_estimator_drafts WHERE id=$1 AND revision=$2 AND status IN ('draft','submitted') FOR UPDATE)
+      INSERT INTO p5_estimator_review_requests(draft_id,revision,contact,scope)
+      SELECT id,$2,$3::jsonb,$4::jsonb FROM owned ON CONFLICT(draft_id,revision) DO NOTHING RETURNING draft_id`,
       [id,draft.revision,JSON.stringify(contact),JSON.stringify({text:draft.text,answers:draft.answers,uploads:draft.uploads.map(f=>({id:f.id,name:f.name}))})]);
-    if(accepted.length){
-      // Commit the durable request before attempting notification. Claim exactly once.
-      const claimed=await query(`UPDATE p5_estimator_review_requests SET status='sending'
-        WHERE draft_id=$1 AND revision=$2 AND status='saved' RETURNING draft_id`,[id,draft.revision]);
+    {
+      // Commit before notification. A saved request whose first claim was interrupted
+      // remains claimable; sending/uncertain/completed requests are never blindly resent.
+      const claimed=await query(`WITH owned AS (SELECT id FROM p5_estimator_drafts WHERE id=$1 AND revision=$2 AND status IN ('draft','submitted') FOR UPDATE)
+        UPDATE p5_estimator_review_requests SET status='sending'
+        WHERE draft_id IN (SELECT id FROM owned) AND revision=$2 AND status='saved' RETURNING draft_id`,[id,draft.revision]);
       if(claimed.length){
         try{
           const recipients=await adminRecipients();
@@ -65,6 +70,7 @@ export function projectReviewHandler(dependencies={readDraft,query,adminRecipien
       }
     }
     const [saved]=await query(`SELECT status FROM p5_estimator_review_requests WHERE draft_id=$1 AND revision=$2`,[id,draft.revision]);
+    if(!saved)throw new DraftError('Your project changed before the review request was saved. Your work is retained; reload before retrying.',409);
     return json({accepted:true,reference,notified:saved?.status==='sent'});
   }catch(error){return failed(error);}
  };

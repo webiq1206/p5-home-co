@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import {mkdtemp,cp,writeFile,rm,mkdir} from 'node:fs/promises';
+import {mkdtemp,cp,writeFile,rm,mkdir,rename} from 'node:fs/promises';
 import {randomUUID,randomBytes} from 'node:crypto';
 import {pathToFileURL} from 'node:url';
 import path from 'node:path';
@@ -8,6 +8,11 @@ const dir=await mkdtemp(path.join(process.cwd(),'node_modules/.cache/p5-pricing-
 try{
  await cp('lib/p5',dir,{recursive:true});
  await writeFile(path.join(dir,'database.ts'),`import {PGlite} from '@electric-sql/pglite';export const database=new PGlite();export async function query(s:string,v:unknown[]=[]){return (await database.query(s,v)).rows;}`);
+ // Public sites hold every new project for team review (lib/p5/intakePolicy.ts). The
+ // preserved pricing route is exercised behind an explicit harness-only switch once the
+ // public gate itself has been proven against the genuine policy.
+ await rename(path.join(dir,'intakePolicy.ts'),path.join(dir,'intakePolicyReal.ts'));
+ await writeFile(path.join(dir,'intakePolicy.ts'),`export * from './intakePolicyReal.ts';import {publicProjectMode as reviewed} from './intakePolicyReal.ts';let automated=false;export const setAutomatedPricingForTest=(value:boolean)=>{automated=value;};export function publicProjectMode(site:string,service=''){return automated?'automated':reviewed(site,service);}`);
  await writeFile(path.join(dir,'scopePricing.ts'),`export const PRICING_STAGE_MAX_MS=150000;export const RESEARCH_STAGE_MS=150000;export const calls:string[]=[];let blocked=false;export function block(){blocked=true;}export async function requestPricing(stage:string){calls.push(stage);await new Promise(r=>setTimeout(r,40));return {value:{stage},sourceUrls:[]};}export async function priceCompleteScope(scope:any,configuration:any,request:any){for(const stage of ['MAP','RESEARCH','AUDIT'])await request(stage,{text:scope.text,answers:scope.answers},stage==='RESEARCH',255000);return blocked?{customer:{range:null},internal:{missingInformation:["Missing quantity: tileSqft for tile work"],privateCostDetail:"INTERNAL_ONLY"}}:{customer:{range:{low:100,high:150}}};}`);
  const load=(name:string)=>import(pathToFileURL(path.join(dir,name+'.ts')).href);
  const {saveDraft}=await load('store');const {priceSavedScope}=await load('pricingWork');const {PricingPending}=await load('pricingProgress');const provider=await load('scopePricing');const db=await load('database');
@@ -62,6 +67,9 @@ try{
  const blockedDraft=await saveDraft(blockedId,blockedKey,'test',{text:reviewed.text,answers:reviewed.answers,extraction:null,reviewed,contact:{name:'Test Customer',email:'customer@example.invalid',phone:''}},0);
  provider.block();
  const submit=()=>postSubmission(new Request('https://example.test/api/p5-estimator/submit',{method:'POST',headers:{'x-p5-draft-id':blockedId,'x-p5-draft-key':blockedKey,'Content-Type':'application/json'},body:JSON.stringify({revision:blockedDraft.revision})}));
+ const gated=await submit();assert.equal(gated.status,409,'public review mode never starts pricing');assert.equal((await gated.json()).reviewRequired,true);
+ assert.equal(provider.calls.length,beforeContactCalls,'the review gate makes no provider calls');assert.equal((await db.query('SELECT * FROM p5_estimator_outbox')).length,0);
+ (await load('intakePolicy')).setAutomatedPricingForTest(true);
  let held=await submit();for(let n=0;n<4&&held.status===202;n++)held=await submit();
  assert.equal(held.status,422,"incomplete pricing is held for review once every stage has run");const message=await held.json();assert.equal(message.pricingReviewRequired,true);assert.ok(!JSON.stringify(message).includes('INTERNAL_ONLY'));assert.ok(!message.error.includes('tileSqft'));
  const [retained]=await db.query('SELECT status,internal_estimate,customer_estimate FROM p5_estimator_drafts WHERE id=$1',[blockedId]);assert.equal(retained.status,'draft');assert.equal(retained.customer_estimate,null);assert.equal(retained.internal_estimate.privateCostDetail,'INTERNAL_ONLY');assert.equal((await db.query('SELECT * FROM p5_estimator_outbox')).length,0);

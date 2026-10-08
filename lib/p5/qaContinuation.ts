@@ -1,3 +1,4 @@
+import {intakeQuestions} from './intakeQuestions.ts';
 import {createHash,randomUUID} from 'node:crypto';
 import {query,transaction} from './database.ts';
 import {getPool,transaction as siteTransaction} from '../../app/lib/db.ts';
@@ -66,6 +67,7 @@ type State=Awaited<ReturnType<typeof readState>>;
 async function questions(draft:Draft){
   if(!draft.extraction)return [];
   const conflicts=reconcileScope(draft.answers,draft.extraction,draft.wizard?.resolutions||{}).conflicts;
+  if(draft.intake?.questionMemory?.entries.length)return intakeQuestions({...draft,conflicts,transcript:draft.intake.transcript});
   return scopeQuestionsForBrand(draft.answers,draft.extraction,conflicts,draft.wizard?.skipped||[],await costQuestionFields(draft.answers),draft.text);
 }
 function nextIsCurrent(state:State){return state.row.next?.revision===state.draft.revision&&state.row.next?.sourceHash===sourceHash(state.draft);}

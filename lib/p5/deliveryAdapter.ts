@@ -5,6 +5,8 @@ import {ingestLead} from "../../app/lib/leads/intake.ts";
 import {estimatorDeliveryMode} from "../../app/lib/leads/synthetic-qa.ts";
 import {loadSettings} from "../../app/lib/leads/settings.ts";
 import {ESTIMATOR_BRAND as brand} from "./brand.ts";
+/** Readiness only: configuration values never leave this adapter. */
+export function emailTransportReady(){try{getSmtpConfig();return true;}catch{return false;}}
 export async function adminRecipients(){return [...new Set((await peopleWithRole(["administrator"])).map(p=>p.email))];}
 export const EMAIL_SUPPORTS_IDEMPOTENCY=false;
 export const deliveryBrand=(record:any)=>typeof record?.brand==="string"&&record.brand.trim()?record.brand:brand.name;

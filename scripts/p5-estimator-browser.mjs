@@ -7,6 +7,8 @@ import {scopeQuestions,reconcileScope} from '../lib/p5/adaptive.ts';
 import {instructionPrompts} from '../lib/p5/clarifications.ts';
 import {emptyInstructions} from '../lib/p5/instructions.ts';
 import {ESTIMATOR_BRAND as brand} from '../lib/p5/brand.ts';
+import {publicProjectMode,routeIntake,intakeSite,INTAKE_COPY} from '../lib/p5/intakePolicy.ts';
+import {intakeScopeReviewed} from '../lib/p5/intakeContract.ts';
 const base=process.env.P5_TEST_BASE_URL||'http://127.0.0.1:5000';
 const output=process.env.P5_TEST_OUTPUT_DIR||'p5-verification';
 const progressOnly=process.env.P5_TEST_SCENARIO==='live-progress';
@@ -22,8 +24,24 @@ const pdfBytes=Buffer.from(await fixturePdf.save());
 // A choice is answered with its first option; an unknown quantity stays explicit with Not sure yet.
 const answerBrandQuestions=async(page,est,then)=>{for(let i=0;i<8;i++){const q=est.locator('section[aria-label="Project question"]');await then.or(q).first().waitFor();if(await then.count())return;const chips=q.locator('[aria-label="Suggested answers"] button');const unsure=q.getByRole('button',{name:'Not sure yet',exact:true});if(await chips.count()){await chips.first().click();await est.getByRole('button',{name:'Send answer',exact:true}).click();}else if(await unsure.count())await unsure.click();else throw new Error('Unexpected brand question: '+(await q.innerText()).slice(0,120));await settled(page);}await then.waitFor();};
 
+// Public review intake (lib/p5/intakePolicy.ts): every new project is saved for team review and
+// nothing is priced in the browser. Brands still in automated mode keep the legacy estimate checks.
+const intake=publicProjectMode(brand.id)==='review';
+const site=intakeSite(brand.id)||'p5';
+const LOCATION_QUESTION='Where is the project? A city or ZIP code is enough for now.';
+const SCHEDULE_QUESTION='Do you have a preferred start date or deadline? It is fine if you do not know yet.';
+const ADDRESS_LABEL='Project address, city or ZIP code';
+const SCOPE_REVIEW_LABEL='I checked the whole project type, supporting work and exclusions against this description.';
+const INTAKE_CONFIRM_LABEL='These details reflect my project. I understand the team will review them before preparing an estimate.';
+const RECEIPT_HEADING='Your project request is saved';
+const SUBMIT_LABEL=intake?INTAKE_COPY.submit:'Get my estimate';
 const service=brand.services.includes('bathroom')?'bathroom':brand.services.includes('handyman')?'handyman':brand.services.includes('cabinet-install')?'cabinet-install':'new-construction';
 const serviceLabel=service==='handyman'?'Home repairs':service==='cabinet-install'?'Cabinet installation':service==='new-construction'?'New home':'Bathroom remodel';
+const intakeTeam=routeIntake(site,service,[]);
+if(intake)assert.equal(intakeTeam.handoff,null,`${brand.name} must finish the fixture service ${service} on its own site`);
+// Intake review: the whole-project confirmation and the customer confirmation are separate, labelled checkboxes.
+const confirmIntake=async est=>{await est.getByLabel(SCOPE_REVIEW_LABEL,{exact:true}).check();await est.getByLabel(INTAKE_CONFIRM_LABEL,{exact:true}).check();};
+const noPricePromise=text=>assert.ok(!/instant|within \d+ (?:hours|days|minutes)|business days|\$\s?\d/i.test(text),'The review intake must not show a price or an unsupported response deadline: '+text.slice(0,200));
 const fullAnswers={service,taskList:'Complete the specified work. Repair three interior doors.',...(service.startsWith('cabinet-')?{cabinetRoom:'kitchen',cabinetBaseLf:'20',cabinetUpperLf:'0',finish:'mid-range'}:service==='handyman'?{}:{sqft:'80',materials:'Porcelain tile',demolition:'Remove old finishes',...(service==='new-construction'?{garageIncluded:'no'}:{})})};
 const result={status:'preliminary',range:{low:1000,high:1800},categoryRanges:[{category:'Carpentry',low:1000,high:1800}],lineItems:[{id:'repair',category:'Carpentry',description:'Repair three interior doors',quantity:3,unit:'EA',low:1000,high:1800,unitLow:1000/3,unitHigh:600,pricingStatus:'owner-planning-rate'}],scopeTasks:[{description:'Repair three interior doors',category:'Carpentry'}],summary:'Synthetic fixture scope.',includedCategories:['Carpentry'],allowances:[],assumptions:['Doors are standard interior slabs.'],exclusions:['Painting is excluded.'],factors:[],nextStep:'Schedule a scope review.',message:'Synthetic planning range.',disclaimer:'This is not a bid, quote, offer or guaranteed price.'};
 async function mock(context,{interruptions=false,scenario='full'}={}){
@@ -37,7 +55,9 @@ async function mock(context,{interruptions=false,scenario='full'}={}){
  // Keep synthetic estimator sessions out of production analytics and isolate third-party network failures.
  await context.route(/^https:\/\/([a-z0-9-]+\.)*clarity\.ms\//, route=>route.fulfill({status:200,contentType:'application/javascript',body:''}));
  await context.route('**/api/estimator-session',route=>route.fulfill({status:200,contentType:'application/json',body:'{}'}));
- const state={saved:null,nullReceipt:interruptions,failUpload:interruptions,submissions:0,postSubmissionSaves:0,scopeCalls:0,pricingPolls:0,readStage:1,finishReading:false,pricingStage:'mapping',failClarification:scenario==='instructions',holdPricing:scenario==='missing',invalidPdf:false,pdfRequests:0};
+ const state={saved:null,receipt:null,nullReceipt:interruptions,failUpload:interruptions,failIntake:interruptions,failNextSave:false,submissions:0,intakeRequests:0,postSubmissionSaves:0,scopeCalls:0,pricingPolls:0,readStage:1,finishReading:false,pricingStage:'mapping',failClarification:scenario==='instructions',holdPricing:scenario==='missing',invalidPdf:false,pdfRequests:0};
+ // The server derives intake identity and origin from its own saved state, never from the browser's metadata (lib/p5/intakeDraft.ts).
+ const intakeContext=(input,old,draftId)=>({desiredOutcome:'',workContext:'',budget:'',supportingServices:[],transcript:[],...(old?.intake||{}),...(input.intake||{}),projectId:old?.intake?.projectId||`${site}:${draftId}`,originSite:old?.intake?.originSite||site,currentSite:site,version:old?.revision||0,contact:{...input.contact,preferredContact:input.intake?.preferredContact??input.intake?.contact?.preferredContact??old?.intake?.contact?.preferredContact??'either'}});
  await context.addInitScript(()=>{window.SpeechRecognition=class{start(){this.onresult?.({resultIndex:0,results:[Object.assign([{transcript:'Repair three interior doors.'}],{isFinal:true})]});this.onend?.();}stop(){this.onend?.();}};});
  await context.route('**/api/p5-estimator/**',async route=>{
   const request=route.request();const endpoint=new URL(request.url()).pathname.split('/').at(-1);
@@ -51,12 +71,13 @@ async function mock(context,{interruptions=false,scenario='full'}={}){
    if(request.method()==='GET')return send({draft:state.saved});
    if(state.nullReceipt){state.nullReceipt=false;return send({draft:null});}
    if(state.saved?.status==='submitted'){state.postSubmissionSaves++;return send({error:'Already submitted'},409);}
+   if(state.failNextSave){state.failNextSave=false;return send({error:'Temporary answer-save interruption. Please retry.'},503);}
    const input=request.postDataJSON();const old=state.saved;
    if(input.clarification){
     if(state.failClarification){state.failClarification=false;return send({error:'Temporary answer-save interruption. Please retry.'},503);}
     const prompt=instructionPrompts(old.extraction,old.answers).find(q=>q.id===input.clarification.id);
     old.extraction={...old.extraction,instructions:{...old.extraction.instructions,questions:old.extraction.instructions.questions.filter(q=>q!==(prompt.detail||prompt.question))}};
-   }state.saved={...old,...input,revision:(old?.revision||0)+1,status:'draft',extraction:old?.extraction||null,uploads:old?.uploads||[]};
+   }state.saved={...old,...input,revision:(old?.revision||0)+1,status:'draft',extraction:old?.extraction||null,uploads:old?.uploads||[],...(old?.analyzedUploads?{analyzedUploads:old.analyzedUploads}:{}),intake:intakeContext(input,old,request.headers()['x-p5-draft-id'])};
    const conflicts=state.saved.extraction?reconcileScope(state.saved.answers,state.saved.extraction,state.saved.wizard?.resolutions).conflicts:[];
    return send({draft:state.saved,conflicts,pricedFields:[],questions:scopeQuestions(state.saved.answers,state.saved.extraction,conflicts,state.saved.wizard?.skipped)});
   }
@@ -72,11 +93,27 @@ async function mock(context,{interruptions=false,scenario='full'}={}){
    const extraction={summary:'Synthetic project',facts:Object.entries(desired).map(([field,value])=>({field,value,confidence:.98,source:'scope.txt',evidence:value})),conflicts:scenario==='conflict'?[{field:'taskList',values:['Repair three doors','Replace three doors'],explanation:'The documents disagree. Which work should be included?'}]:[],missingInformation:[],reviewNotes:[],clarifications:[]};
    if(scenario==='instructions')extraction.instructions={...emptyInstructions(),questions:['Labor only or materials only?','Should we include or exclude painting?']};
    const merged=reconcileScope(state.saved.answers,extraction,state.saved.wizard?.resolutions||{});
-   state.saved={...state.saved,revision:state.saved.revision+1,answers:merged.answers,uploads:scenario==='manual'?[]:[{id:'test-upload',name:'scope.txt',size:30,type:'text/plain',sha256:'test',status:'stored'}],extraction};
+   const uploads=scenario==='manual'?[]:[{id:'test-upload',name:'scope.txt',size:30,type:'text/plain',sha256:'test',status:'stored'}];
+   // A completed reading attests the exact file bytes it covered; an unavailable reading leaves them for the team.
+   state.saved={...state.saved,revision:state.saved.revision+1,answers:merged.answers,uploads,extraction,...(scenario==='unavailable'?{}:{analyzedUploads:uploads.map(f=>({sha256:f.sha256,size:f.size}))})};
    return send({draft:state.saved,analysis:{extraction},conflicts:merged.conflicts,pricedFields:[],warning:scenario==='unavailable'?'Your files are saved, but automatic reading could not finish. Retry or add the key details.':''});
+  }
+  if(endpoint==='intake'){
+   if(request.method()==='GET')return send({receipt:state.receipt});
+   state.intakeRequests++;const body=request.postDataJSON();
+   if(!state.saved)return send({error:'Save your project before sending it.'},404);
+   if(body.revision!==state.saved.revision||body.confirmed!==true)return send({error:'Review and confirm the latest project details before sending.'},409);
+   if(!intakeScopeReviewed(state.saved))return send({error:'Confirm the whole project type, supporting work and exclusions against the current description before sending.'},409);
+   if(state.failIntake){state.failIntake=false;return send({error:'Synthetic request interruption. Your work is retained; please retry.'},503);}
+   if(!state.receipt||state.receipt.revision!==state.saved.revision){
+    state.submissions++;const routing=routeIntake(site,state.saved.answers.service||'',state.saved.intake.supportingServices),email=Boolean(state.saved.contact.email);
+    state.receipt={accepted:true,projectId:state.saved.intake.projectId,reference:'P5-SYNTHETIC1',revision:state.saved.revision,team:routing,unresolved:['Synthetic detail left for the team.'],savedAt:new Date().toISOString(),delivery:{customer:email?'blocked':'not-requested',team:'blocked',crm:'blocked'},deliveryDetails:{customer:email?'Delivery awaits verification of the receiving site, sender and original-file access.':'',team:'Delivery awaits verification of the receiving site, sender and original-file access.',crm:''}};
+   }
+   return send(state.receipt);
   }
   if(endpoint==='submit'){
    state.pricingPolls++;
+   if(intake)return send({reviewRequired:true,error:'Review your project request and send it to the team before an estimate is prepared.'},409);
    if(scenario==='progress'&&state.pricingStage!=='done'){const phase=state.pricingStage;return send({pending:true,message:'Checking the requested scope.',processing:{phase,message:phase==='mapping'?'Matching the trim package to established rates.':'Checking published cost evidence for the trim package.',currentItems:['First-floor trim package'],updatedAt:new Date().toISOString()},retryAfterMs:2000},202);}
    if(state.holdPricing&&!state.saved?.answers?.trimLf){return send({pricingReviewRequired:true,missingFields:[{field:'trimLf',label:'Trim or baseboard length in feet'}],error:'Your project is saved and remains editable. Please confirm: Trim or baseboard length in feet. A complete price range is required before the estimate can be finalized and emailed.'},422);}
    const duplicate=state.saved?.status==='submitted';if(!duplicate)state.submissions++;
@@ -178,7 +215,7 @@ for(const width of progressOnly?[]:[390,1440])for(const scenario of ['fresh','re
    await typeWithoutRefocusing(page,input,' Keep the frame.');
    assert.equal(state.scopeCalls,0,'Typing and restoring must not call the provider');
   }else if(scenario==='back'){
-   await focusedHeading(page,'Labor only or materials only?');
+   await focusedHeading(page,intake?LOCATION_QUESTION:'Labor only or materials only?');
    await est.getByRole('button',{name:'Back to the previous step',exact:true}).click();await settled(page);
    const heading=est.locator('[data-stage-heading]');assert.equal(await heading.count(),1,'Returning to the project must have a current focus target');
    await focusedHeading(page,await heading.innerText());
@@ -186,6 +223,27 @@ for(const width of progressOnly?[]:[390,1440])for(const scenario of ['fresh','re
    const expected=await typeWithoutRefocusing(page,input,' Add new hinges.');
    await page.reload();await settled(page);assert.equal(await input.inputValue(),expected);
    await typeWithoutRefocusing(page,input,' Keep the frame.');
+  }else if(intake){
+   // Intake asks for the relevant whole-project context first; model clarifications it cannot classify go to the team.
+   const address=est.getByLabel(ADDRESS_LABEL,{exact:true}),input=est.getByLabel('Your answer',{exact:true});
+   await focusedHeading(page,LOCATION_QUESTION);assert.equal(await est.getByText('Labor only or materials only?',{exact:true}).count(),0,'Unclassified clarifications are not asked');
+   await typeWithoutRefocusing(page,address,'Boise, Idaho','reply');
+   state.failNextSave=true;await est.getByRole('button',{name:'Send answer',exact:true}).click();
+   await est.getByRole('alert').filter({hasText:'Temporary answer-save interruption'}).waitFor();await settled(page);
+   assert.equal(await address.inputValue(),'Boise, Idaho','Interrupted answer saves retain the composer');
+   assert.equal(await page.evaluate(()=>JSON.parse(localStorage.getItem('p5-project-draft-v2')).answers.location),'Boise, Idaho','The answer is kept on this device for the retry');
+   await page.reload();await settled(page);await focusedHeading(page,SCHEDULE_QUESTION);
+   assert.equal(await page.evaluate(()=>JSON.parse(localStorage.getItem('p5-project-draft-v2')).answers.location),'Boise, Idaho','Reload retains the interrupted answer');
+   assert.equal(await input.inputValue(),'','A new question starts a fresh answer');
+   await typeWithoutRefocusing(page,input,'Next spring','reply');
+   await page.reload();await settled(page);await focusedHeading(page,SCHEDULE_QUESTION);
+   assert.equal(await input.inputValue(),'Next spring','Reload restores the current question answer');
+   await typeWithoutRefocusing(page,input,' if possible','reply');
+   await est.getByRole('button',{name:'Send answer',exact:true}).click();await settled(page);
+   await answerBrandQuestions(page,est,est.getByRole('heading',{name:'Review your project',exact:true}));
+   await focusedHeading(page,'Review your project');
+   assert.equal(state.scopeCalls,0,'Answer retries must not reread the project');
+   assert.ok((await est.getByRole('region',{name:'Saved project files'}).innerText()).includes('Team to review'),'Unclassified clarifications are listed for the team');
   }else{
    const input=est.getByLabel('Your answer',{exact:true});
    await focusedHeading(page,'Labor only or materials only?');
@@ -231,11 +289,11 @@ for(const width of progressOnly||focusOnly?[]:[320,390,430,768,1024,1440,1920]){
   // The approved bottom action remains reachable while the details scroll.
   // The first width runs against a cold server; the contact form is given a full minute to render after review.
   await estimator.getByLabel('Your name',{exact:true}).waitFor({timeout:60000});await estimator.getByLabel('Your name',{exact:true}).fill('Synthetic Test');await estimator.getByLabel(/^Email/).fill('customer@example.invalid');
-  const action=estimator.getByRole('button',{name:'Get my estimate',exact:true});
+  const action=estimator.getByRole('button',{name:SUBMIT_LABEL,exact:true});
   await usableAction(action);
   // Reproduce an older saved question step after all its questions become known.
   await page.evaluate(()=>{const key='p5-project-draft-v2';const draft=JSON.parse(localStorage.getItem(key));draft.step=1;localStorage.setItem(key,JSON.stringify(draft));});
-  await page.reload();await estimator.getByRole('button',{name:'Get my estimate',exact:true}).waitFor();await estimator.getByRole('checkbox').waitFor();
+  await page.reload();await estimator.getByRole('button',{name:SUBMIT_LABEL,exact:true}).waitFor();await (intake?estimator.getByLabel(INTAKE_CONFIRM_LABEL,{exact:true}):estimator.getByRole('checkbox')).waitFor();
   assert.equal(await estimator.getByRole('region',{name:'Project question'}).count(),0,'Restored known facts were asked again');
   await estimator.getByLabel('Your name',{exact:true}).fill('Synthetic Test');await estimator.getByLabel(/^Email/).fill('customer@example.invalid');
   await estimator.getByRole('button',{name:'Back to the previous step',exact:true}).click();await page.waitForTimeout(400);/* Back lands on the previous step, which on a brand with its own questions is the last question, not the description; what must survive is the saved project text. */assert.match(await page.evaluate(()=>JSON.parse(localStorage.getItem('p5-project-draft-v2')||'{}').text||''),/LongUnbroken/,'the project description survives going back');
@@ -244,10 +302,32 @@ for(const width of progressOnly||focusOnly?[]:[320,390,430,768,1024,1440,1920]){
   // Open both disclosure levels: a broad hasText match selects the outer
   // edit panel and leaves the nested scope fields hidden.
   const editSummary=estimator.locator('summary').filter({hasText:/^Edit project details/});
-  if(!(await editSummary.evaluate(el=>el.parentElement.open)))await editSummary.click();
+  if(await editSummary.count()&&!(await editSummary.evaluate(el=>el.parentElement.open)))await editSummary.click();
   const scopeSummary=estimator.locator('summary').filter({hasText:/^Additional scope details/});
   if(!(await scopeSummary.evaluate(el=>el.parentElement.open)))await scopeSummary.click();
   await estimator.getByRole('button',{name:'Edit Tasks and quantities',exact:true}).click();const tasks=estimator.getByLabel('Tasks and quantities',{exact:true});await tasks.fill(fullAnswers.taskList+' '+('LongMaterialSpecification'.repeat(80)));await page.setViewportSize({width,height:500});await overflow(page);await page.setViewportSize({width,height:900});await estimator.getByRole('button',{name:'Done',exact:true}).click();
+  if(intake){
+   // A material edit withdraws the earlier whole-project confirmation; the customer re-checks it, then sends.
+   await overflow(page);await capture(page,`${width}-review`);
+   assert.equal(await estimator.getByLabel(SCOPE_REVIEW_LABEL,{exact:true}).isChecked(),false,'Changed scope requires a fresh whole-project review');
+   await confirmIntake(estimator);
+   await action.click();await estimator.getByRole('alert').filter({hasText:'Synthetic request interruption'}).waitFor();await settled(page);
+   assert.equal(state.submissions,0,'An unconfirmed request is not a saved request');
+   assert.equal(await estimator.getByLabel(/^Email/).inputValue(),'customer@example.invalid','Contact details survive a failed send');
+   await action.click();await estimator.getByRole('heading',{name:RECEIPT_HEADING,exact:true}).waitFor();
+   assert.equal(state.submissions,1);assert.equal(state.pricingPolls,0,'Public intake never starts pricing');assert.equal(state.scopeCalls,calls,'Sending the request does not reread the project');
+   assert.match(state.saved.answers.taskList,/LongMaterialSpecification/,'The saved request carries the edited detail');
+   assert.equal(state.saved.contact.email,'customer@example.invalid');assert.equal(state.saved.intake.contact.preferredContact,'either');
+   assert.ok(state.saved.intake.transcript.length>0,'The conversation is saved with the request');
+   const receipt=await estimator.innerText();noPricePromise(receipt);
+   assert.ok(/request p5-synthetic1/i.test(receipt)&&receipt.includes(INTAKE_COPY.next)&&receipt.includes(intakeTeam.teamName),'The receipt names the reference, the responsible team and the review process');
+   assert.ok(receipt.includes('Synthetic detail left for the team.'),'Outstanding details are shown to the customer');
+   assert.ok(receipt.includes('Customer confirmation')&&receipt.includes('Awaiting configuration review'),'Notification status is reported separately from the saved request');
+   await overflow(page);await capture(page,`${width}-request`);
+   await page.waitForTimeout(2100);assert.equal(state.postSubmissionSaves,0);await page.reload();await estimator.getByRole('heading',{name:RECEIPT_HEADING,exact:true}).waitFor();assert.equal(state.submissions,1,'Reload shows the saved request without resending it');assert.deepEqual(errors,[]);
+   results.push({width,passed:true,checks:['null receipt preserves files','talk to text','typed and uploaded mixed input','failed upload and reload recovery','known facts skipped','visible unobstructed bottom action','back and contact preservation','edited detail withdraws whole-project confirmation','failed send retried without duplicate','no pricing or price promise','receipt names team and open details','request restoration','overflow']});
+   await context.close();continue;
+  }
   await estimator.getByRole('checkbox').check();await Promise.all([page.waitForResponse('**/api/p5-estimator/scope'),estimator.getByRole('button',{name:'Get my estimate',exact:true}).click()]);await settled(page);assert.ok(state.scopeCalls>calls);
   await overflow(page);await capture(page,`${width}-review`);await estimator.getByRole('checkbox').check();await estimator.getByRole('button',{name:'Get my estimate',exact:true}).click();await estimator.getByText('Synthetic planning range.',{exact:true}).waitFor();
   // The result is organized into category accordions with subtotals and labeled exclusions.
@@ -275,7 +355,25 @@ for(const width of progressOnly||focusOnly?[]:[390,1440]){
  try{
   await page.goto(base+'/estimate/p5-preview');const est=page.locator('[data-p5-estimator]');
   await est.getByLabel('Tell us about your project',{exact:true}).fill('Price the trim package.');await est.getByRole('button',{name:'Send message',exact:true}).click({timeout:120000});
-  const question=est.getByRole('region',{name:'Project question'});await question.getByText('Labor only or materials only?',{exact:true}).waitFor();
+  const question=est.getByRole('region',{name:'Project question'});
+  if(intake){
+   // Unclassified model clarifications are never reworded into a second question; they go to the team.
+   await question.getByText(LOCATION_QUESTION,{exact:true}).waitFor();
+   assert.equal(await est.getByText('Labor only or materials only?',{exact:true}).count(),0,'Unclassified clarifications are not asked');
+   const address=est.getByLabel(ADDRESS_LABEL,{exact:true});await address.fill('Boise, Idaho');
+   state.failNextSave=true;await est.getByRole('button',{name:'Send answer',exact:true}).click();
+   await est.getByRole('alert').filter({hasText:'Temporary answer-save interruption'}).waitFor();assert.equal(await address.inputValue(),'Boise, Idaho');
+   await est.getByRole('button',{name:'Send answer',exact:true}).click({timeout:120000});await question.getByText(SCHEDULE_QUESTION,{exact:true}).waitFor();
+   assert.equal(await est.getByLabel('Your answer',{exact:true}).inputValue(),'','The next question starts with a fresh answer');
+   await page.reload();await question.getByText(SCHEDULE_QUESTION,{exact:true}).waitFor();
+   await capture(page,`${width}-clarification`);await question.getByRole('button',{name:'Not sure yet',exact:true}).click();
+   await answerBrandQuestions(page,est,est.getByLabel('Your name',{exact:true}));assert.equal(state.scopeCalls,1,'Answers never reread documents');await overflow(page);
+   const files=await est.getByRole('region',{name:'Saved project files'}).innerText();
+   assert.ok(files.includes('Team to review'),'Clarifications the visitor was not asked are listed for the team');
+   assert.ok(files.includes('Requested schedule: not known yet.'),'An unknown answer is remembered, not asked again');
+   results.push({scenario:'sequential-instructions',width,passed:true});await context.close();continue;
+  }
+  await question.getByText('Labor only or materials only?',{exact:true}).waitFor();
   assert.equal(await est.getByText('Should we include or exclude painting?',{exact:true}).count(),0,'Only one question is rendered');
   await question.getByRole('button',{name:'Please include labor only',exact:true}).click();
   await est.getByRole('button',{name:'Send answer',exact:true}).click();
@@ -309,13 +407,34 @@ for(const scenario of progressOnly||focusOnly?[]:['manual','conflict','unavailab
     await settled(page);
    }
   }else{
-   await est.getByText('The documents disagree. Which work should be included?',{exact:true}).waitFor();await est.getByRole('button',{name:/^Replace three doors(?:\s|$)/}).click();await est.getByRole('button',{name:'Send answer',exact:true}).click();
+   await est.getByText(/^The documents disagree\. Which work should be included\?/).first().waitFor();await est.getByRole('button',{name:/^Replace three doors(?:\s|$)/}).click();await est.getByRole('button',{name:'Send answer',exact:true}).click();
   }
   await answerBrandQuestions(page,est,est.getByRole('heading',{name:'Review your project',exact:true}));await overflow(page);results.push({scenario,passed:true});
  }catch(error){console.error(error);results.push({scenario,passed:false,error:String(error)});await capture(page,`${scenario}-failure`).catch(()=>{});}await context.close();
 }
+// Intake: a visitor can skip the questions, choose the whole project on the review screen, and send with a phone number only.
+for(const width of progressOnly||focusOnly||!intake?[]:[390,1440]){
+ const context=await browser.newContext({viewport:{width,height:900}});const state=await mock(context);const page=await context.newPage();
+ try{
+  await page.goto(base+'/estimate/p5-preview');const est=page.locator('[data-p5-estimator]');
+  await est.getByLabel('Tell us about your project',{exact:true}).fill('Install new baseboard trim.');
+  await est.getByRole('button',{name:'Review with the details I have',exact:true}).click();
+  await est.getByRole('heading',{name:'Review your project',exact:true}).waitFor();assert.equal(state.scopeCalls,0,'Reviewing with the details given does not call the reader');
+  await est.getByLabel('What best describes the whole project?').selectOption({label:serviceLabel});
+  await est.getByRole('heading',{name:new RegExp(intakeTeam.teamName)}).waitFor();
+  await est.getByLabel('Your name',{exact:true}).fill('Synthetic Test');await est.getByLabel('Phone',{exact:true}).fill('2085550100');
+  await est.getByLabel('Preferred contact method').selectOption('phone');
+  await confirmIntake(est);await est.getByRole('button',{name:SUBMIT_LABEL,exact:true}).click();
+  await est.getByRole('heading',{name:RECEIPT_HEADING,exact:true}).waitFor();
+  assert.equal(state.submissions,1);assert.equal(state.pricingPolls,0);assert.equal(state.saved.answers.service,service);assert.equal(state.saved.intake.contact.preferredContact,'phone');assert.equal(state.saved.contact.email,'');
+  const text=await est.innerText();noPricePromise(text);
+  assert.ok(text.includes('No email requested'),'A phone-only request never claims an email was sent');
+  assert.ok(text.includes(intakeTeam.teamName),'The receipt names the responsible team');
+  await overflow(page);await capture(page,`${width}-manual-review`);results.push({scenario:'manual-review-phone-only',width,passed:true});
+ }catch(error){console.error(error);results.push({scenario:'manual-review-phone-only',width,passed:false,error:String(error)});await capture(page,`${width}-manual-review-failure`).catch(()=>{});}await context.close();
+}
 // Missing information after Get my estimate links straight to the missing field, keeps progress, and completes.
-for(const width of progressOnly||focusOnly?[]:[390,1440]){
+for(const width of progressOnly||focusOnly||intake?[]:[390,1440]){
  const context=await browser.newContext({viewport:{width,height:900}});const state=await mock(context,{scenario:'missing'});const page=await context.newPage();
  try{
   await page.goto(base+'/estimate/p5-preview');const est=page.locator('[data-p5-estimator]');
@@ -358,6 +477,20 @@ for(const width of focusOnly?[]:[320,390,1440]){
   await answerBrandQuestions(page,est,est.getByLabel('Your name',{exact:true}));
   assert.equal(await est.getByRole('button',{name:'Download your project summary',exact:true}).count(),0,'No PDF before contact capture');
   assert.equal(await est.getByText('Synthetic planning range.',{exact:true}).count(),0,'No estimate result before contact capture');
+  if(intake){
+   // Contact is required before a request is saved; one valid method is enough, and nothing is priced.
+   await confirmIntake(est);await est.getByRole('button',{name:SUBMIT_LABEL,exact:true}).click();
+   await est.getByRole('alert').filter({hasText:'Enter your name.'}).waitFor();assert.equal(progressState.pricingPolls,0);assert.equal(progressState.submissions,0,'Contact is required before a request is saved');
+   await est.getByLabel('Your name',{exact:true}).fill('Synthetic Test');
+   if(width===390){await est.getByLabel('Phone',{exact:true}).fill('2085550100');await est.getByLabel('Preferred contact method').selectOption('phone');}
+   else await est.getByLabel(/^Email/).fill('customer@example.invalid');
+   assert.equal(await est.getByLabel('Your name',{exact:true}).inputValue(),'Synthetic Test','Contact name must survive adjacent field edits');
+   await est.getByLabel(INTAKE_CONFIRM_LABEL,{exact:true}).check();await est.getByRole('button',{name:SUBMIT_LABEL,exact:true}).click();
+   await est.getByRole('heading',{name:RECEIPT_HEADING,exact:true}).waitFor();assert.equal(progressState.pricingPolls,0);assert.equal(progressState.submissions,1);
+   assert.equal(await page.getByRole('heading',{name:'Applying pricing',exact:true}).count(),0,'No pricing stage in the review intake');
+   if(width===390)assert.ok((await est.innerText()).includes('No email requested'));
+   await overflow(page);await capture(page,`${width}-live-request`);results.push({width,scenario:'live-progress',passed:true});await context.close();continue;
+  }
   // The action remains visible and validates the required name before starting pricing.
   await est.getByRole('checkbox').check();await est.getByRole('button',{name:'Get my estimate',exact:true}).click();
   assert.equal(await est.getByLabel('Your name',{exact:true}).getAttribute('required'),'');

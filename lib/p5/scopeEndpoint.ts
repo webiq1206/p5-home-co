@@ -1,4 +1,6 @@
+import {intakeQuestions} from './intakeQuestions.ts';
 import {withQaPaidDraft,QaPaidHold} from './qaPaid.ts';
+import {isIntakeTransferStatus,TRANSFER_HOLD_MESSAGE} from './intakeTransferGuards.ts';
 import {qaOperationContext} from './qaOperationContext.ts';
 import {assertQaProvidersAllowed} from './qaProviderPolicy.ts';
 import {blockingExtractionNotes} from './documentLedger.ts';
@@ -47,6 +49,7 @@ export async function postScope(request:Request){
   try{
     protectRequest(request,1000);const {id,key}=draftCredentials(request);let draft=await readDraft(id,key);
     if(!draft)throw new DraftError("Save your draft before analyzing.",404);
+    if(isIntakeTransferStatus(draft.status))throw new DraftError(TRANSFER_HOLD_MESSAGE,409);
     const bytes=await limitedBody(request,24*1024*1024);
     const form=await new Response(bytes as BodyInit,{headers:{"Content-Type":request.headers.get("content-type")||""}}).formData();
     const text=normalizeScopeText(String(form.get("text")??draft.text));if(text.length>SCOPE_TEXT_LIMIT)throw new DraftError("Upload this scope as a document so every section can be processed.");
@@ -155,10 +158,10 @@ export async function postScope(request:Request){
     }
     const reconciled=reconcileScopeReading(analysisDraft,text,visitorAnswers,analysis,{sourceChanged,warning,failedSourceNotes});
     analysis=reconciled.analysis;
-    const saved=await saveDraft(id,key,ESTIMATOR_BRAND.id,reconciled.payload,draft.revision);
+    const saved=await saveDraft(id,key,ESTIMATOR_BRAND.id,{...reconciled.payload,...(analysis?{analyzedUploads:analysisDraft.uploads.filter(file=>Boolean(file.sha256)).map(file=>({sha256:file.sha256!,size:file.size}))}:{})},draft.revision);
     if(requested.some(digest=>!saved.uploads.some(file=>file.sha256===digest)))throw new DraftError("Some files could not be confirmed. Please retry; duplicate files will not be added twice.",503);
     const pricedFields=await costQuestionFields(saved.answers);
-    return json({draft:saved,analysis,warning,conflicts:reconciled.conflicts,pricedFields,questions:scopeQuestions(saved.answers,reconciled.payload.extraction,reconciled.conflicts,reconciled.payload.wizard.skipped,pricedFields,text)});
+    return json({draft:saved,analysis,warning,conflicts:reconciled.conflicts,pricedFields,questions:saved.intake?.questionMemory?.entries.length?intakeQuestions({...saved,conflicts:reconciled.conflicts,transcript:saved.intake.transcript}):scopeQuestions(saved.answers,reconciled.payload.extraction,reconciled.conflicts,reconciled.payload.wizard.skipped,pricedFields,text)});
   }catch(error){
     if(error instanceof DraftError&&error.status===409){try{const {id}=draftCredentials(request);void recordEvent({draftId:id,kind:'draft',stage:'scope-revision',status:409,code:'revision-conflict',message:error.message,outcome:'failed'});}catch{}}
     return failed(error);

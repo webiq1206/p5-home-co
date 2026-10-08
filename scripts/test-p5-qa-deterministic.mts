@@ -25,6 +25,11 @@ try{
   await rename(path.join(dir,'scopePricing.ts'),path.join(dir,'scopePricingReal.ts'));
   await writeFile(path.join(dir,'scopePricing.ts'),`export * from './scopePricingReal.ts';let provider:any;export let calls=0;export const setProvider=(fn:any)=>provider=fn;export const requestPricing=(...args:any[])=>{calls++;return provider(...args);};`);
   await rename(path.join(dir,'bookShortlist.ts'),path.join(dir,'bookShortlistReal.ts'));
+  // Public sites hold every new project for team review (lib/p5/intakePolicy.ts). The
+  // preserved pricing engine is exercised below behind an explicit harness-only switch,
+  // after the public gate itself has been proven against the genuine policy.
+  await rename(path.join(dir,'intakePolicy.ts'),path.join(dir,'intakePolicyReal.ts'));
+  await writeFile(path.join(dir,'intakePolicy.ts'),`export * from './intakePolicyReal.ts';import {publicProjectMode as reviewed} from './intakePolicyReal.ts';let automated=false;export const setAutomatedPricingForTest=(value:boolean)=>{automated=value;};export function publicProjectMode(site:string,service=''){return automated?'automated':reviewed(site,service);}`);
   await writeFile(path.join(dir,'bookShortlist.ts'),`export * from './bookShortlistReal.ts';export let shortlistCalls=0;export async function shortlistBook(){shortlistCalls++;return new Map();}`);
   await writeFile(path.join(dir,'deliveryAdapter.ts'),`
     import {buildCrmPayload} from './crmPayload.ts';
@@ -37,7 +42,7 @@ try{
   const load=(name:string)=>import(pathToFileURL(path.join(dir,name+'.ts')).href);
   db=await load('database');
   const draft=await load('draftEndpoint'),submit=await load('submitEndpoint'),pdf=await load('customerPdfEndpoint');
-  const provider=await load('scopePricing'),shortlist=await load('bookShortlist'),transport=await load('deliveryAdapter'),store=await load('store');
+  const provider=await load('scopePricing'),shortlist=await load('bookShortlist'),transport=await load('deliveryAdapter'),store=await load('store'),intakePolicy=await load('intakePolicy');
   const {createPlanningConfiguration,PLANNING_MODEL_VERSION}=await load('planningBooks');
   const {priceReviewedScope}=await load('costBook');
   const date=new Date();
@@ -71,6 +76,15 @@ try{
   assert.equal((await submit.postSubmission(makeRequest('submit',id,wrongKey,{revision:reviewed.revision}))).status,404);
   assert.equal((await submit.postSubmission(makeRequest('submit',id,key,{revision:reviewed.revision-1}))).status,409);
   assert.equal(provider.calls,0);assert.equal(transport.emails.length,0);assert.equal(transport.crm.length,0);
+  // The public review gate: a confirmed, contactable project never prices or notifies on its own.
+  for(const body of [{revision:reviewed.revision},{revision:reviewed.revision,background:true},{revision:reviewed.revision,notifyOnly:true,notifyEmail:'customer@example.invalid'}]){
+    response=await submit.postSubmission(makeRequest('submit',id,key,body));
+    assert.equal(response.status,409,await response.clone().text());assert.equal((await response.json()).reviewRequired,true);
+  }
+  assert.equal(provider.calls,0);assert.equal(transport.emails.length,0);assert.equal(transport.crm.length,0);
+  assert.equal((await db.query('SELECT * FROM p5_estimator_work WHERE draft_id=$1',[id])).length,0,'a held public submission records no pricing or submit-request work');
+  assert.equal((await store.readDraft(id,key)).status,'draft');
+  intakePolicy.setAutomatedPricingForTest(true);
   response=await submit.postSubmission(makeRequest('submit',id,key,{revision:reviewed.revision}));
   assert.equal(response.status,200,await response.clone().text());
   const result=await response.json();assert.equal(result.accepted,true);assert.ok(result.result.range);
@@ -169,6 +183,7 @@ try{
   assert.equal(provider.calls,beforeQaCalls);assert.equal(transport.emails.length,beforeQaEmails);assert.equal(transport.crm.length,beforeQaCrm);
   assert.equal(shortlist.shortlistCalls,beforeQaShortlistCalls,'restricted QA never enters the separate paid shortlist boundary');
   assert.equal(networkAttempts,0,'no fetch attempts, including shortlist and local provider sidecars');
+  console.log('PASS: public review gate holds confirmed projects with zero pricing, work records or notifications before the harness-only automated switch.');
   console.log('PASS: persisted QA restriction, analysis/clarification/background/pricing holds, ineligible edit, deterministic submit/reload/PDF/duplicate; zero provider calls and notifications.');
   console.log('PASS: genuine authenticated review, pricing, PDF/outbox, wrong-key/stale guards, duplicate fencing; isolated PGlite and fake provider/transports only.');
 }finally{
