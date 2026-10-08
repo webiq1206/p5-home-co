@@ -7,6 +7,47 @@ import {EMPTY_CONFIGURATION,type EstimatorConfiguration} from '../lib/p5/costBoo
 import {priceBookRates} from '../lib/p5/priceBook.ts';
 import type {ReviewedScope} from '../lib/p5/scope.ts';
 
+for(const corrected of [false,true])test('split tall-cabinet proposals are rejected after mapping and revalidated after remap: '+corrected,async()=>{
+ const now=new Date('2026-10-06T12:00:00Z'),stamp=now.toISOString();
+ const scope:ReviewedScope={text:'Supply and install 8 LF base cabinets and 3 LF of tall pantry cabinets. Exclude all other work.',answers:{service:'change-order',location:'Boise',cabinetBaseLf:'8',cabinetTallLf:'3',exclusions:'All other work'},extraction:null,uploads:[],reviewedAt:stamp,corrections:[]};
+ const rates=priceBookRates(scope.answers);
+ const configuration:EstimatorConfiguration={...EMPTY_CONFIGURATION,costBooks:[{service:'change-order',mode:'owner-planning',rules:[],coverage:[],assumptions:[],exclusions:[],verifiedScope:'Synthetic split-cabinet replay',reviewedAt:stamp}],planningCatalog:{version:'synthetic-split-cabinet-replay',source:'Public master book',authorizedBy:'Synthetic test',importedAt:stamp,rates}};
+ const codes=['PB-12-32-04-M','PB-12-32-04-L'];
+ const pantry={id:'pantry',description:'Supply and install 3 LF of tall pantry cabinets.',evidence:'3 LF of tall pantry cabinets.',existingLineIds:[] as string[],additions:codes.map(code=>({code,quantity:3,quantityEvidence:'Modeled as 3 cabinet units at 1 LF each = 3 EA.',quantityRange:{low:3,high:3}})),researchDescription:'',issues:[] as string[]};
+ const base={...pantry,id:'base',description:'Supply and install 8 LF base cabinets.',evidence:'8 LF base cabinets.',additions:[{code:'PB-12-32-01',quantity:8,quantityEvidence:'8 LF base cabinets explicitly requested.',quantityRange:{low:8,high:8}}]};
+ const raw={tasks:[base,pantry],issues:[]},untouched=structuredClone(raw);
+ const calls={inventory:0,mapping:0,remap:0,research:0,audit:0,network:0};
+ const stop=new QaPaidHold('synthetic-revalidation-boundary');
+ const request:PricingRequest=async(_instructions,value,search)=>{
+  const input=value as {taskBatch?:typeof raw.tasks;remainingComponents?:{id:string;rejectedCodes:string[]}[];catalog?:typeof rates;priorMappedTasks?:typeof raw.tasks;priorPricingIssues?:string[];additionalRules?:{scopeTaskId?:string;quantity:{fixed?:number};unit:string;unitCost:number;allowance?:boolean}[]};
+  if(search){calls.research++;assert.equal(corrected,false,'valid width allowances use approved costs');assert.equal(calls.remap,1);throw stop;}
+  if(input.remainingComponents){
+   calls.remap++;assert.equal(calls.mapping,1,'normalize only after the ordinary mapping has completed');
+   assert.deepEqual(input.remainingComponents,[{id:'pantry',request:input.remainingComponents[0].request,rejectedCodes:codes}]);
+   assert.deepEqual(input.taskBatch?.map(task=>task.id),['pantry']);assert.deepEqual(input.catalog,rates);
+   assert.deepEqual(input.priorMappedTasks?.map(task=>task.additions),[base.additions],'valid base pricing is retained');
+   const replacement=structuredClone(pantry);
+   if(corrected)replacement.additions=replacement.additions.map(addition=>({...addition,quantity:2,quantityEvidence:'ALLOWANCE: 3 LF tall pantry run / assumed 18-inch-wide cabinet = 2 EA; confirm count and widths before ordering.',quantityRange:{low:1,high:3}}));
+   return {value:{tasks:[replacement],issues:[]},sourceUrls:[]};
+  }
+  if('priorPricingIssues' in input){
+   calls.audit++;assert.equal(corrected,true,'repeated unsupported EA proposals cannot reach verification as priced work');
+   assert.equal(calls.remap,1);const accepted=input.additionalRules?.filter(rule=>rule.scopeTaskId==='pantry')||[];
+   assert.equal(accepted.length,2);assert.deepEqual(accepted.map(rule=>rule.quantity.fixed),[2,2]);
+   assert.ok(accepted.every(rule=>/^(?:EA|each)$/i.test(rule.unit)&&rule.allowance));
+   assert.deepEqual(accepted.map(rule=>rule.unitCost),codes.map(code=>rates.find(rate=>rate.code===code)!.amount),'approved material and labor costs are unchanged');
+   throw stop;
+  }
+  if(input.taskBatch){calls.mapping++;return {value:structuredClone(raw),sourceUrls:[]};}
+  calls.inventory++;return {value:{tasks:raw.tasks.map(({id,description,evidence})=>({id,description,evidence})),issues:[]},sourceUrls:[]};
+ };
+ const oldFetch=globalThis.fetch;globalThis.fetch=async()=>{calls.network++;throw Error('Offline replay only');};
+ try{await assert.rejects(priceCompleteScope(scope,configuration,request,now,Date.now()+30_000,undefined,0,undefined,async()=>new Map(raw.tasks.map(task=>[task.id,task.additions.map(addition=>addition.code)]))),error=>error===stop);}
+ finally{globalThis.fetch=oldFetch;}
+ assert.deepEqual(calls,{inventory:1,mapping:1,remap:1,research:corrected?0:1,audit:corrected?1:0,network:0});
+ assert.deepEqual(raw,untouched,'retained raw proposals remain inspection evidence, not a final price');
+});
+
 // Deliberately small synthetic records, not copied provider receipts or a
 // production policy. Stop at the new request: there is no invented repair or
 // audit answer with which this test could claim completed pricing.

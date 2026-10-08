@@ -20,6 +20,22 @@ test('wire bounds full context and rejects unpriced server tools/models; no cach
  assert.equal(w.maximum,250000);assert.equal(w.body.stream,false);assert.equal(w.body.service_tier,'standard_only');assert.equal(w.body.system[0].cache_control,undefined);
  for(const bad of [{...body,model:'other'},{...body,tools:[{type:'web_search_20250305',name:'web_search'}]},{...body,max_tokens:64000},{...body,thinking:{type:'enabled'}}])assert.throws(()=>qaWire(bad),/qa-/);
 });
+test('research server tools stop before capturing an intent, reserving money or dispatching',async()=>{
+ let calls=0;const {db,budget}=await fixture(async()=>{calls++;throw Error('An unbudgeted tool reached transport');});
+ const tools=[{type:'web_search_20250305',name:'web_search',max_uses:5},{type:'web_fetch_20250910',name:'web_fetch',max_uses:4,max_content_tokens:15000}];
+ try{
+  const before=(await db.query('SELECT liability_microusd,allowance_microusd,blocked FROM p5ds_qa_runs')).rows;
+  for(const selected of [[tools[0]],[tools[1]],tools]){
+   const input={...body,tools:selected};
+   for(const operation of [()=>budget.capture(tenant,project,'site:research',input),()=>budget.dispatch(tenant,project,'site:research',input,undefined,{mode:'capture'})])
+    await assert.rejects(operation(),error=>error.code==='qa-server-tools-not-budgeted'&&!error.capturedIntent);
+  }
+  assert.equal(calls,0);
+  assert.equal((await db.query('SELECT count(*)::int n FROM p5ds_qa_intents')).rows[0].n,0);
+  assert.equal((await db.query('SELECT count(*)::int n FROM p5ds_qa_calls')).rows[0].n,0);
+  assert.deepEqual((await db.query('SELECT liability_microusd,allowance_microusd,blocked FROM p5ds_qa_runs')).rows,before);
+ }finally{await db.close();}
+});
 test('capture is zero-call; exact one-use review permits dispatch and durable replay without another charge',async()=>{
  let calls=0;const {db,budget}=await fixture(async()=>{calls++;return Response.json(reply,{headers:{'request-id':'req_test'}});});
  try{
