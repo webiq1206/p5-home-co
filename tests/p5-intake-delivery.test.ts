@@ -85,7 +85,7 @@ test('payload: all five exact recipients, origin/primary/supporting scope, safe 
  const url=new URL(copy.files[0].authenticatedOriginal);assert.equal(url.hostname,INTAKE_SITES[site].domain);assert.deepEqual([...url.searchParams.keys()],['draftId','revision','fileId']);assert.ok(!url.href.includes('customer'));const customerCopy=Buffer.from(customer.email!.attachments[0].base64,'base64').toString();assert.ok(!customerCopy.includes('authenticatedOriginal'));assert.ok(!customerCopy.includes('/api/admin'));
  assert.equal(team.leadKey,intakeLeadKey(s.projectId));assert.notEqual(team.key,intakeOperationKey(s,'customer'));assert.match(team.email!.text,/not embedded/);
  }
- assert.deepEqual(INTAKE_RUNTIME_PROOF,{email:null,crm:null});
+ assert.deepEqual(INTAKE_RUNTIME_PROOF,{email:'fleet-release-2026-10-08',crm:null});
  assert.equal(intakeDigest({a:1,b:{c:2,d:3}}),intakeDigest({b:{d:3,c:2},a:1}));
 });
 test('mock: oversized request is retained and requires payload review without a transport call',async()=>{

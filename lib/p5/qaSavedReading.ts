@@ -20,7 +20,7 @@ const canonical=(value:unknown):string=>JSON.stringify(value,(_key,item)=>item&&
 const digest=(value:unknown)=>createHash('sha256').update(canonical(value)).digest('hex');
 const deny=(message:string):never=>{throw new DraftError(message,409);};
 function identify(name:unknown){
-  if((ESTIMATOR_BRAND.id as string)!=='p5'||ESTIMATOR_BRAND.domain!==TENANT||typeof name!=='string'||!Object.hasOwn(CASES,name))throw new DraftError('Unknown QA recovery case.',404);
+  if((ESTIMATOR_BRAND.id as string)!=='p5'||(ESTIMATOR_BRAND.domain as string)!==TENANT||typeof name!=='string'||!Object.hasOwn(CASES,name))throw new DraftError('Unknown QA recovery case.',404);
   const [id,label]=CASES[name as keyof typeof CASES];return {name,id,label,project:'qa-paid-'+id};
 }
 

@@ -31,7 +31,7 @@ export async function nativeProjectPdfPages(bytes:Buffer){
  * documents. All overlapping saved observations remain interpretations, never
  * additive takeoffs or replacements for the immutable original page text. */
 export async function loadLocalProjectPages(draft:Pick<Draft,'id'|'brand'|'uploads'>,dependencies={query,readSavedSource,nativePages:nativeProjectPdfPages}):Promise<ProjectPageEvidence>{
- if(ESTIMATOR_BRAND.domain!=='p5homeco.com'||draft.brand!==ESTIMATOR_BRAND.id)throw new DraftError('Page evidence is restricted to this P5 project.',403);
+ if(String(ESTIMATOR_BRAND.domain)!=='p5homeco.com'||draft.brand!==ESTIMATOR_BRAND.id)throw new DraftError('Page evidence is restricted to this P5 project.',403);
  const documents:ProjectPageEvidence['documents']=[],issues:string[]=[],seen=new Set<string>();let total=0;
  for(const upload of draft.uploads){
   if(upload.type!=='application/pdf'||seen.has(upload.sha256))continue;

@@ -61,7 +61,7 @@ export async function readProjectAttempts(id:string){
  * lead delivery, owner-policy mutation or learned-rate promotion occurs. */
 export async function runProjectQualification(...args:Parameters<typeof runProjectQualificationImpl>){return withQaPaidDraft(args[0],()=>runProjectQualificationImpl(...args));}
 async function runProjectQualificationImpl(id:string,expectedRevision:number,phase:'interpret'|'price',deadline=Date.now()+170000){
- if(ESTIMATOR_BRAND.domain!=='p5homeco.com')throw new DraftError('Project-record qualification is restricted to P5 Home Co.',403);
+ if(String(ESTIMATOR_BRAND.domain)!=='p5homeco.com')throw new DraftError('Project-record qualification is restricted to P5 Home Co.',403);
  const draft=await readDraftById(id);
  if(!draft||draft.brand!==ESTIMATOR_BRAND.id)throw new DraftError('Project not found.',404);
  if(draft.revision!==expectedRevision)throw new DraftError('The project changed. Reload before reviewing it.',409);

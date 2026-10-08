@@ -12,7 +12,7 @@ import { homePageSchema, serializeJsonLd } from "./structuredData";
 type CompanyKey = "construction" | "remodeling" | "adu" | "handyman" | "cabinetry";
 
 /** The quote page that matches each company, so the matcher can end in a request, not only a link out. */
-const quotePath: Record<CompanyKey, string> = { construction: "/estimate", remodeling: "/estimate", adu: "/quote/adu", handyman: "/estimate", cabinetry: "/estimate" };
+const quotePath: Record<CompanyKey, string> = { construction: "/estimate", remodeling: "/estimate", adu: "/estimate", handyman: "/estimate", cabinetry: "/estimate" };
 
 const companyDetails: Record<CompanyKey, { name: string; reason: string; url: string; cta: string; label: string; options: string[] }> = {
   construction: { name: "Boise Construction Co", reason: "The design-build team for new homes, land evaluation, plans, permitting, and construction from the ground up.", url: "https://boiseconstruction.co", cta: "Visit Boise Construction Co", label: "Build a new home", options: ["Custom home", "Semi-custom home", "Build on land I own", "Home plans or lot evaluation"] },

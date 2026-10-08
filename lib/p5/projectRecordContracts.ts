@@ -121,7 +121,8 @@ export function projectPricingWireFor(record:Pick<ProjectProposal,'quantities'>,
   const derived=derivedPriceQuantity.extend({unit:z.literal(unit)});
   return priceWireLine.extend({rateId:choices(codes),quantity:physical.length?z.union([existingPriceQuantity.extend({quantityId:choices(physical)}),derived]):derived});
  });
- return projectPricingWireSchema.extend({lines:branches.length?z.array(branches.length===1?branches[0]:z.union(branches)):z.array(priceWireLine).max(0)});
+ type Branch=(typeof branches)[number];
+ return projectPricingWireSchema.extend({lines:branches.length?z.array(branches.length===1?branches[0]:z.union(branches as [Branch,Branch,...Branch[]])):z.array(priceWireLine).max(0)});
 }
 export const projectReviewSchema=z.object({
  reviewedRequirementIds:ids,reviewedSourceIds:ids,reviewedQuestionIds:ids.describe('Every question checked for relevance, necessity and whether it resolves the represented uncertainty.'),completionChecks:z.array(completionCheckSchema),findings:z.array(findingSchema),notes:z.array(text),
@@ -188,8 +189,12 @@ When price lines are supplied, compare the selected rates with the supplied appr
 Check every specificationCheck against the exact referenced specification. Quotation existence alone does not prove semantic support. Reject generic catalog wording presented as proof of unstated attributes, supplied-product attributes mislabeled as scope-condition, and known incompatible rates presented as allowances. A supported provisional allowance must preserve the customer's requested product and disclose what its price evidence does not establish.
 Return every reviewed requirement and source ID. Return structured findings for actual defects, with affected IDs, evidence and a concrete requiredCorrection. A finding must identify what is wrong and what must change; do not place a justified selection, acceptable alternative or statement of no defect in findings. Put ordinary confirmation reminders in notes. Check factual assertions in coverageEvidence against the supplied catalog, including claims that no specific rate exists. A compatible main-task rate need not cover all supporting operations: evaluate separate supporting coverage before accepting a generic replacement for the whole job. Do not edit the record, waive a finding to release a total, or assume that a price proves scope completeness. Return the specified JSON only.`;
 
+// Sibling brands still ship zod 3, which has no JSON Schema export. Project-record stages are
+// restricted to P5 Home Co, so the legacy pricing stages there never reach this conversion.
+const toJsonSchema=(z as unknown as {toJSONSchema?:(schema:z.ZodType)=>Record<string,unknown>}).toJSONSchema;
 const json=(schema:z.ZodType)=>{
- const { $schema:_dialect,...result}=z.toJSONSchema(schema);void _dialect;return result;
+ if(!toJsonSchema)throw new Error('Project-record contracts require the zod JSON Schema export.');
+ const { $schema:_dialect,...result}=toJsonSchema(schema);void _dialect;return result;
 };
 export function projectContractSchema(instructions:string,input?:unknown){
  if(instructions===PROJECT_COMPLETION_INSTRUCTIONS){
