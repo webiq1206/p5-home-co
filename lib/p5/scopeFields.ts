@@ -1,5 +1,8 @@
 /** Public scope vocabulary. No internal prices or financial policy belongs here. */
 export const SCOPE_FIELDS = {
+  desiredOutcome: {label: "What you want to accomplish", kind: "text"},
+  workContext: {label: "Existing space, addition, or new construction", kind: "text"},
+  budget: {label: "Budget range, if known", kind: "text"},
   estimatingInstructions: {label: "Custom estimating instructions", kind: "text"},
   service: { label: "Project type", kind: "choice", options: ["handyman", "re10", "cabinet-product", "cabinet-install", "kitchen", "bathroom", "remodel", "whole-home", "addition", "adu", "new-construction", "change-order", "rush"] },
   location: { label: "City, ZIP code, county or general location", kind: "text" },

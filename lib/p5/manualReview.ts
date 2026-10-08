@@ -81,7 +81,7 @@ export async function publishManualReview(body:any,actor:Actor){
   const jobs=[...recipients.map(email=>({id:randomUUID(),destination:`admin:${email}`,payload:record,status:"pending"})),{id:randomUUID(),destination:`customer:${contact.email}`,payload:record,status:"pending"},...(CRM_DELIVERY_ENABLED?[{id:randomUUID(),destination:"crm",payload:record,status:priorCrm?"needs-review":"pending"}]:[])];
   const rows=await withQaWriteFence(draft.id,()=>query(`WITH accepted AS (
     UPDATE p5_estimator_drafts SET revision=revision+1,status='submitted',submitted_at=now(),updated_at=now(),internal_estimate=$1::jsonb,customer_estimate=$2::jsonb
-    WHERE id=$3 AND revision=$4 AND NOT EXISTS(SELECT 1 FROM p5_estimator_outbox WHERE draft_id=$3 AND status='sending') AND COALESCE((SELECT payload->'finance' FROM p5_estimator_policy WHERE id='current'),$9::jsonb)=$8::jsonb RETURNING id
+    WHERE id=$3 AND revision=$4 AND status IN ('draft','submitted') AND NOT EXISTS(SELECT 1 FROM p5_estimator_outbox WHERE draft_id=$3 AND status='sending') AND COALESCE((SELECT payload->'finance' FROM p5_estimator_policy WHERE id='current'),$9::jsonb)=$8::jsonb RETURNING id
   ), superseded AS (
     UPDATE p5_estimator_outbox SET status='superseded',last_error='A newer reviewed result replaces this undelivered revision.' WHERE draft_id IN (SELECT id FROM accepted) AND revision<$6 AND status IN ('pending','retry')
   ), history AS (

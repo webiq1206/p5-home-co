@@ -5,7 +5,7 @@ import {dynamicScopeFields,questionContext,scopeFieldApplies,scopePromptApplies,
 import {serviceEvidenceSupports} from './serviceSignals.ts';
 import {atomicInstructionQuestions,cabinetQuestionField,projectQuestionField} from './atomicQuestions.ts';
 
-export interface ScopeQuestion {field:ScopeField;label:string;reason:string;values?:string[];choiceEvidence?:{value:string;source:string;quote:string}[];conflict?:boolean;instructionId?:string;detail?:string;handoff?:{label:string;url:string}}
+export interface ScopeQuestion {semanticId?:string;field:ScopeField;label:string;reason:string;values?:string[];choiceEvidence?:{value:string;source:string;quote:string}[];conflict?:boolean;instructionId?:string;detail?:string;handoff?:{label:string;url:string}}
 export function sameAnswer(field:ScopeField,a:string,b:string){
   if(SCOPE_FIELDS[field].kind==='number')return Number(a.replaceAll(',',''))===Number(b.replaceAll(',',''));
   return a.trim().toLowerCase()===b.trim().toLowerCase();

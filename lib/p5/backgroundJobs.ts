@@ -1,4 +1,5 @@
 import {withQaWriteFence} from './qaOperationFence.ts';
+import {hasIntakeTransferHold,TRANSFER_HOLD_MESSAGE} from './intakeTransferGuards.ts';
 import {assertQaProvidersAllowed} from './qaProviderPolicy.ts';
 import {ESTIMATOR_VERSION} from './version.ts';
 import {MODEL_POLICY_VERSION,hasVerifiedAnalysis} from './modelPolicy.ts';
@@ -112,6 +113,7 @@ export async function queuedJob(input:Input,retry=false,holdMs=JOB_HOLD_MS){
   // deliberately checked before validation that can call a provider.
   rejectQuiescedAdmission();
   if(SOURCE_COVERAGE_REQUIRED&&input.kind==='pricing')assertProjectSourceCoverage(input.draft.reviewed?.uploads||input.draft.uploads,input.draft.reviewed?.extraction);
+  if(await hasIntakeTransferHold(input.draft.id,query))throw new DraftError(TRANSFER_HOLD_MESSAGE,409);
   await assertQaProvidersAllowed(input.draft.id);
   if(input.kind==='analysis'&&input.draft.uploads.length)await assertAnalysisMigrationSafe(input.draft,input.text,input.answers,(await import('./analysisWork.ts')).analysisWorkKey(input.draft,input.text,input.answers));
   rejectQuiescedAdmission();
@@ -236,6 +238,7 @@ async function runJob(draftId:string,workKey:string){
 /** One bounded pass over a job. Returns the delay before the next pass, or
  * null when nothing further should run here. */
 async function runPass(draftId:string,workKey:string):Promise<number|null>{
+  if(await hasIntakeTransferHold(draftId,query))return null;
   await assertQaProvidersAllowed(draftId);
   await assertQueueUnambiguous(draftId,workKey);
   const lease=await claimWork(draftId,workKey,{},JOB_LEASE_S);if(!lease)return null;

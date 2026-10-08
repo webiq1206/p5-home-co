@@ -1,3 +1,5 @@
+import {INTAKE_DRIVER_PENDING_SQL} from './intakeDelivery.ts';
+import {ESTIMATOR_BRAND} from './brand.ts';
 import {createHmac,randomUUID,timingSafeEqual} from 'node:crypto';
 import {query} from './database.ts';
 import {ensureSchema} from './store.ts';
@@ -32,7 +34,8 @@ export async function pendingWork():Promise<{jobs:number;submissions:number;deli
   const [row]=await query(`SELECT
     (SELECT count(*) FROM p5_estimator_work WHERE work_key LIKE 'background-v1-%' AND payload->>'state' IN ('queued','running'))::int AS jobs,
     (SELECT count(*) FROM p5_estimator_work WHERE work_key='submit-request-v1' AND payload->>'state'='pending')::int AS submissions,
-    (SELECT count(*) FROM p5_estimator_outbox WHERE status IN ('pending','retry'))::int AS deliveries`);
+    ((SELECT count(*) FROM p5_estimator_outbox WHERE status IN ('pending','retry'))+
+     ${INTAKE_DRIVER_PENDING_SQL})::int AS deliveries`,[ESTIMATOR_BRAND.id]);
   return {jobs:Number(row?.jobs||0),submissions:Number(row?.submissions||0),deliveries:Number(row?.deliveries||0)};
 }
 const idle=(p:{jobs:number;submissions:number;deliveries:number})=>!p.jobs&&!p.submissions&&!p.deliveries;

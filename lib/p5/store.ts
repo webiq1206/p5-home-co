@@ -1,3 +1,5 @@
+import type {IntakeContext} from './intakeContract.ts';
+import {REGISTER_DRAFT_UPLOAD_SQL,TRANSFER_HOLD_MESSAGE} from './intakeTransferGuards.ts';
 import { createHash, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import { query } from "./database.ts";
 import { storeObject, readStoredBytes } from "./objectStorage.ts";
@@ -15,11 +17,13 @@ const hash = (value: string | Buffer) => createHash("sha256").update(value).dige
 export const QA_NO_PROVIDER_KEY="qa-no-provider-v1";
 export class DraftError extends Error { status: number; constructor(message: string, status = 400) { super(message); this.status=status; } }
 export interface Draft {
-  id: string; revision: number; status: "draft" | "submitted"; updatedAt: string;
+  intake?:IntakeContext;
+  id: string; revision: number; status: "draft" | "submitted" | "intake-transferring" | "intake-importing" | "intake-transferred"; updatedAt: string;
   text: string; answers: ScopeAnswers; extraction: ScopeExtraction | null;
   wizard?: {skipped: (keyof ScopeAnswers)[]; resolutions: ScopeAnswers; sourceVersion?:string;instructionAnswers?:import('./clarifications.ts').InstructionAnswer[]} ;
   /** Fingerprint of the source text used for the current extraction. */
   analyzedFingerprint?: string;
+  analyzedUploads?:Array<{sha256:string;size:number}>;
   analyzedAnswers?: string;
   reviewed: ReviewedScope | null; uploads: ScopeUpload[];
   contact: { name: string; email: string; phone: string }; brand: string;
@@ -117,7 +121,11 @@ export async function saveDraft(...args:Parameters<typeof saveDraftImpl>):Promis
 }
 async function saveDraftImpl(id: string,key: string,brand: string,payload: Omit<Draft,"id"|"brand"|"revision"|"status"|"updatedAt"|"uploads">,expectedRevision: number,qaDeterministicOnly:boolean|'bounded-paid'=false): Promise<Draft> {
   const existing=await rowFor(id,key);
+  // Preserve conversational context when extraction or a clarification saves its own scope fields.
+  if(existing?.payload?.intake&&!payload.intake)payload={...payload,intake:existing.payload.intake};
+  if(payload.extraction&&payload.analyzedUploads===undefined&&existing?.payload?.analyzedUploads)payload={...payload,analyzedUploads:existing.payload.analyzedUploads};
   if(existing?.status==="submitted")throw new DraftError("This submission is already saved. Start a new revision to change the scope.",409);
+  if(existing&&existing.status!=='draft')throw new DraftError(TRANSFER_HOLD_MESSAGE,409);
   if(existing && existing.revision!==expectedRevision)throw new DraftError("This project was updated elsewhere. Reload the saved version before overwriting it.",409);
   let result;
   if(qaDeterministicOnly){
@@ -150,9 +158,10 @@ export async function saveUpload(id:string,key:string,file:{name:string;type:str
   const fileId=duplicate[0]?.id||randomUUID();
   if(!duplicate.length){
     const location=await storeObject(ESTIMATOR_BRAND.domain,id,file.data);
-    await withQaWriteFence(id,()=>query("INSERT INTO p5_estimator_files(id,draft_id,name,mime_type,size_bytes,sha256,data_base64,storage_bucket,storage_key) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) ON CONFLICT(draft_id,sha256) DO NOTHING",[fileId,id,file.name,file.type,file.data.length,digest,location?"":file.data.toString("base64"),location?.bucketId||null,location?.objectKey||null]));
+    await withQaWriteFence(id,()=>query(REGISTER_DRAFT_UPLOAD_SQL,[fileId,id,file.name,file.type,file.data.length,digest,location?"":file.data.toString("base64"),location?.bucketId||null,location?.objectKey||null]));
   }
   const [stored]=await query("SELECT id,name,mime_type,size_bytes,sha256 FROM p5_estimator_files WHERE draft_id=$1 AND sha256=$2",[id,digest]);
+  if(!stored)throw new DraftError(TRANSFER_HOLD_MESSAGE,409);
   return {id:stored.id,name:stored.name,type:stored.mime_type,size:stored.size_bytes,sha256:stored.sha256,status:"stored"};
 }
 export async function readUploads(id:string,key:string) {

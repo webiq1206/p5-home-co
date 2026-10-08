@@ -62,23 +62,23 @@ mounting, finish work, and punch-list items.
 Boise, Meridian, Eagle, Nampa, Kuna, Star, Middleton, Caldwell, and Garden
 City, across Ada and Canyon counties in Idaho's Treasure Valley.
 
-## Requesting a quote
+## Starting a project
 
-The quote form at https://p5homeco.com/quote lets a homeowner select the
-project type, describe the work, review the interpreted scope, and request
-an estimate. New homes route to Boise Construction Co, renovations and
-additions to Boise Remodeling Co, accessory dwellings to Boise ADU Co,
-cabinetry to Boise Cabinet Co, and repairs to Boise Handyman Co.
+The project intake at https://p5homeco.com/estimate lets a homeowner describe
+the whole project, add plans or photos, answer relevant questions, and review
+the details before sending a request to P5. Unknown measurements or selections
+can remain open for the team; more information or a site visit may be needed
+before an estimate is prepared. Submitting the request does not promise an
+instant price or a firm bid.
 
-The estimator provides a preliminary planning range when the reviewed
-scope has supported pricing. It may require clarification or further review
-instead of displaying a range. A preliminary estimate is not a firm bid or
-an agreement to perform work; quantities, selections, site conditions,
-and current pricing require confirmation before a firm proposal.
+P5 keeps the request in place with the appropriate discipline recorded:
+new homes and additions with Construction, kitchen or broader renovation work
+with Remodeling, cabinet-only work with Cabinet, and repairs with Handyman.
+Boise ADU Co remains prelaunch and is not a live intake destination.
 
-A name is required to request the estimate. Email is optional; homeowners
-can wait for the result on screen without providing an email address.
-Completed estimates can be downloaded as a PDF. Urgent work should go to
+The request needs a name and a valid email address or phone number, with a
+preferred contact method. A saved receipt confirms the recorded request;
+notification and CRM delivery have separate status. Urgent work should go to
 (208) 477-1169 rather than the form.
 
 ## Contact
@@ -89,11 +89,13 @@ Telephone: (208) 477-1169
 
 - [P5 Home Co](https://p5homeco.com): The parent company, the five
   companies, the shared operating standard, and the service area.
-- [Request a quote](https://p5homeco.com/quote): Free, no-obligation
-  quote requests for remodeling, new home construction, ADUs, cabinetry,
-  and home repair anywhere in the Treasure Valley.
+- [Start a project](https://p5homeco.com/estimate): Describe construction,
+  remodeling, cabinetry or repair work, share files, and review the scope
+  before sending it to P5.
+- [Legacy quote form](https://p5homeco.com/quote): Existing quote request form.
 - The seven service-specific quote pages (/quote/kitchen-remodel and so on) are
-  paid-search landing variants of the same form and are not indexed; use
-  https://p5homeco.com/quote as the canonical request page.
+  paid-search landing variants of the legacy form and are not indexed;
+  their canonical page remains https://p5homeco.com/quote. The main
+  conversational intake is https://p5homeco.com/estimate.
 
-Last updated: 2026-10-02.
+Last updated: 2026-10-07.

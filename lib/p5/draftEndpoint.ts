@@ -1,3 +1,6 @@
+import {intakeQuestions} from './intakeQuestions.ts';
+import {intakeDraftContext} from './intakeDraft.ts';
+import {isIntakeTransferStatus,TRANSFER_HOLD_MESSAGE} from './intakeTransferGuards.ts';
 import {withQaPaidDraft} from './qaPaid.ts';
 import {assertQaProvidersAllowed,qaContactRestricted} from './qaProviderPolicy.ts';
 import {instructionPrompts,instructionPromptText} from './clarifications.ts';
@@ -83,6 +86,7 @@ export async function putDraft(request:Request){
     const raw=JSON.parse(new TextDecoder().decode(await limitedBody(request,24*1024*1024)));
     if(typeof raw.text!=="string"||raw.text.length>SCOPE_TEXT_LIMIT||!Number.isInteger(raw.revision)||raw.revision<0)throw new DraftError("Invalid draft.");
     const existing=await readDraft(id,key);
+    if(isIntakeTransferStatus(existing?.status))throw new DraftError(TRANSFER_HOLD_MESSAGE,409);
     if(raw.qaDeterministicOnly===true&&(existing||!/^\[QA\](?:\s|$)/i.test(String(raw.contact?.name||''))||raw.clarification))throw new DraftError('Deterministic QA mode requires a new labelled QA draft without clarification.',422);
     const incomingText=normalizeScopeText(raw.text);
     if(raw.scopeFingerprint!==undefined&&raw.scopeFingerprint!==scopeFingerprint(incomingText))throw new DraftError("The project source fingerprint does not match its text. Refresh before continuing.",409);
@@ -106,7 +110,7 @@ export async function putDraft(request:Request){
       const currentAnswers=existing.answers,currentExtraction=existing.extraction,currentResolutions=existing.wizard?.resolutions||{};
       const pricedFields=await costQuestionFields(currentAnswers);
       const conflicts=currentExtraction?reconcileScope(currentAnswers,currentExtraction,currentResolutions).conflicts:[];
-      return json({draft:existing,conflicts,questions:scopeQuestions(currentAnswers,currentExtraction,conflicts,existing.wizard?.skipped||[],pricedFields,existing.text),pricedFields});
+      return json({draft:existing,conflicts,questions:existing.intake?.questionMemory?.entries.length?intakeQuestions({...existing,conflicts,transcript:existing.intake.transcript}):scopeQuestions(currentAnswers,currentExtraction,conflicts,existing.wizard?.skipped||[],pricedFields,existing.text),pricedFields});
     }
     if(existing&&raw.clarification&&!replacing&&existing.wizard?.instructionAnswers?.some(item=>item.id===raw.clarification?.id&&item.answer===String(raw.clarification?.answer||"").trim())){
       throw new DraftError('This clarification retry includes other changes. Refresh the saved project before continuing.',409);
@@ -154,9 +158,9 @@ export async function putDraft(request:Request){
         corrections:Object.entries(answers).filter(([field,value])=>{const fact=extraction?.facts.find(f=>f.field===field);return fact&&fact.value!==value;}).map(([field,value])=>({field:field as keyof ScopeAnswers,previous:extraction!.facts.find(f=>f.field===field)!.value,value:value!})),
       };
     }
-    const [draft,pricedFields]=await Promise.all([saveDraft(id,key,ESTIMATOR_BRAND.id,{text:incomingText,answers,extraction,reviewed,contact,wizard,analyzedFingerprint:replacing?undefined:existing?.analyzedFingerprint,analyzedAnswers:replacing?undefined:existing?.analyzedAnswers,...((existing as {revisionOf?:number}|null)?.revisionOf!==undefined?{revisionOf:(existing as {revisionOf?:number}).revisionOf}:{})} as Parameters<typeof saveDraft>[3],raw.revision,raw.qaDeterministicOnly===true),costQuestionFields(answers)]);
+    const [draft,pricedFields]=await Promise.all([saveDraft(id,key,ESTIMATOR_BRAND.id,{text:incomingText,answers,extraction,reviewed,contact,wizard,intake:intakeDraftContext(id,ESTIMATOR_BRAND.id,existing,raw.intake,contact),analyzedFingerprint:replacing?undefined:existing?.analyzedFingerprint,analyzedAnswers:replacing?undefined:existing?.analyzedAnswers,...((existing as {revisionOf?:number}|null)?.revisionOf!==undefined?{revisionOf:(existing as {revisionOf?:number}).revisionOf}:{})} as Parameters<typeof saveDraft>[3],raw.revision,raw.qaDeterministicOnly===true),costQuestionFields(answers)]);
     const conflicts=extraction?reconcileScope(answers,extraction,resolutions).conflicts:[];
-    return json({draft,conflicts,questions:scopeQuestions(answers,extraction,conflicts,skipped,pricedFields,incomingText),pricedFields});
+    return json({draft,conflicts,questions:draft.intake?.questionMemory?.entries.length?intakeQuestions({...draft,conflicts,transcript:draft.intake.transcript}):scopeQuestions(answers,extraction,conflicts,skipped,pricedFields,incomingText),pricedFields});
   }catch(error){
     if(error instanceof DraftError&&error.status===409){try{const {id}=draftCredentials(request);void recordEvent({draftId:id,kind:'draft',stage:'save-revision',status:409,code:'revision-conflict',message:error.message,outcome:'failed'});}catch{}}
     return failed(error);

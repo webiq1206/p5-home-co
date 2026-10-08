@@ -24,12 +24,13 @@ if(!args.includes('--manifest'))throw new Error('P5 qualification only: child es
 const SIBLINGS=['p5-home-co','Boise-Construction-Co','Boise-Handyman-Co','Boise-Cabinet-Co'];
 
 /** Files each brand owns. They are never copied and never listed in the manifest. */
-export const BRAND_OWNED=['lib/p5/brand.ts','lib/p5/deliveryAdapter.ts','lib/p5/database.ts','lib/p5/adminAuth.ts','lib/p5/progress.ts','lib/p5/projectIntent.ts','lib/p5/typedAlternatives.ts','lib/p5/crmRecords.ts','lib/p5/shared-manifest.json'];
+export const BRAND_OWNED=['lib/p5/brand.ts','lib/p5/deliveryAdapter.ts','lib/p5/intakeDeliveryRuntime.ts','lib/p5/intakeCrmValidation.ts','tests/p5-intake-local-crm.test.ts','lib/p5/database.ts','lib/p5/adminAuth.ts','lib/p5/progress.ts','lib/p5/projectIntent.ts','lib/p5/typedAlternatives.ts','lib/p5/crmRecords.ts','lib/p5/shared-manifest.json'];
 /** Shared files a brand may be missing on purpose (never deleted, never required). */
 const SHARED_ROOTS=[
   {dir:'lib/p5',match:name=>/\.(ts|json)$/.test(name)},
   {dir:'components',match:name=>/^P5[A-Za-z]*\.(tsx|module\.css)$/.test(name),flat:true},
   {dir:'app/api/p5-estimator',match:name=>name==='route.ts'},
+  {dir:'app/api/admin/p5-intake',match:name=>name==='route.ts'},
   {dir:'app/admin/p5-estimators',match:name=>name==='page.tsx',flat:true},
   {dir:'tests',match:name=>/^p5-.*\.test\.(ts|mjs)$/.test(name),flat:true},
   {dir:'tests/fixtures',match:name=>/^(p5-|crm)/.test(name),flat:true},

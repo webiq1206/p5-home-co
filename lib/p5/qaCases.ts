@@ -8,5 +8,5 @@ export const QA_CASES={
   'case-6':['df96b75c-07ec-4833-a6f2-aabe01a5bf97','Synthetic case 6'],
 } as const;
 const ids=new Set<string>(Object.values(QA_CASES).map(([id])=>id));
-export const isOperatorQaCase=(id:string)=>ESTIMATOR_BRAND.domain==='p5homeco.com'&&ids.has(id);
+export const isOperatorQaCase=(id:string)=>String(ESTIMATOR_BRAND.domain)==='p5homeco.com'&&ids.has(id);
 export const QA_OPERATION_KEY='qa-operator-lease-v1';

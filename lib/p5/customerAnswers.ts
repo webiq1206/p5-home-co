@@ -29,6 +29,6 @@ export function exactCustomerChoice(answer:string,values:readonly string[],label
   const text=answer.trim().toLowerCase();
   return values.find(value=>value.toLowerCase()===text||label(value).toLowerCase()===text)||null;
 }
-export function customerQuestionKey(question:{instructionId?:string;field:string;reason:string}|null){
-  return question?(question.instructionId||JSON.stringify([question.field,question.reason])):undefined;
+export function customerQuestionKey(question:{semanticId?:string;instructionId?:string;field:string;reason:string}|null){
+  return question?(question.semanticId||question.instructionId||JSON.stringify([question.field,question.reason])):undefined;
 }
