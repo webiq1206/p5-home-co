@@ -67,3 +67,12 @@ test('valid signature cannot select a different saved site, recipient or origina
  f.s.contact.email='customer@example.invalid';f.s.currentSite='cabinet';assert.equal((await handler(new Request(url))).status,404);
  f.s.currentSite='p5';f.row.sha256='b'.repeat(64);assert.equal((await handler(new Request(url))).status,404);
 });
+
+test('email uses truthful friendly labels, explicit UTC time and channel-appropriate conversation roles',()=>{
+ for(const site of Object.keys(INTAKE_SITES) as IntakeSite[]){const f=fixture(site);f.s.contact.preferredContact='either';f.s.scope.answers.service='cabinet-product';f.s.scope.answers.finish='mid-range';f.s.savedAt='2099-01-02T05:00:00.123-07:00';
+  for(const team of [true,false]){const email=renderIntakeEmail(f.s,team,[]);for(const content of [email.text,email.html]){
+   assert.match(content,/Email or phone/);assert.match(content,/Cabinets, supply only/);assert.match(content,/Mid-range/);assert.match(content,/January 2, 2099/);assert.match(content,/12:00:00\.123 PM UTC/);assert.ok(!content.includes('cabinet-product'));assert.ok(!content.includes(f.s.savedAt));assert.ok(content.includes(team?'Customer: Keep the sink':'You: Keep the sink'));
+  }
+  const record=JSON.parse(Buffer.from(intakeDeliveryEnvelope(f.s,team?'team':'customer','digest').email!.attachments[0].base64,'base64').toString());assert.equal(record.answers.service,'cabinet-product');assert.equal(record.savedAt,f.s.savedAt);assert.equal(record.contact.preferredContact,'either');assert.deepEqual(record.conversation,f.s.details.transcript);
+ }}
+});
