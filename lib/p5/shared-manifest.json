@@ -26,10 +26,10 @@
     "components/P5AddressInput.tsx": "6cff5902e7c8b3baa05be120cfc7eb3778f4ac3b0654c7b6ee8466a42560b091",
     "components/P5EstimateDetails.tsx": "ad36be0cb27f55e51ee63f222af7c749b3037e1fb12ff7131be62a6db93565d0",
     "components/P5Estimator.module.css": "238f6f6056a35c2076041e90a3e845203e013f3b8a657bafb01b98fa397ae1f0",
-    "components/P5Estimator.tsx": "b57699bc5c0bee86de4abcf431d534f35c5f4313a408683ae4fd12f96c24e8ca",
+    "components/P5Estimator.tsx": "e0e220d8413172bc05e0b3cb083cc8f35877642131149b021dc37e9422772901",
     "components/P5EstimatorNavigation.tsx": "e203317513965f77dc314e3ef8aa2be0e9fca1e7ca72494b3a23f3741cabbe83",
     "components/P5IntakeQueue.tsx": "25b0e4cb34de7c93fd028787221a837d1bb6e7bcddf6cd4606dd27d69c096526",
-    "components/P5IntakeReview.tsx": "3eb6a75aeb53cc62f04b2c978caf1d204f30b7b211c81103da5bbcf22498eca5",
+    "components/P5IntakeReview.tsx": "86e512eebdaf02f3ee6666557e747d686f594fd5d6b332e1c3540f7c647f876a",
     "components/P5LazyEstimator.tsx": "237e404e81442499d54bf8668134e77b36513898b91503d5f275af80e6b8019a",
     "components/P5LinePricing.tsx": "9e0359cd6bff8226f491daab60c5ef468cc2f60dda67ee632910eaf5094b741d",
     "components/P5MobileActions.tsx": "abfb9d4c6f7fe60c975c3d65da946450ecacf62236df14151b92baa41dab3bf5",
@@ -114,9 +114,9 @@
     "lib/p5/includedWork.ts": "f8ee1334dab33fb2c1c17c19ac749f6e18f9e10598fb0a2e3fcdffe84c6a7d31",
     "lib/p5/instructions.ts": "cf47c8082be4c999b072fb5071bd3ae7419ae942c3518bdf584e03481d93188d",
     "lib/p5/intakeAdmin.ts": "018191d8f3d114ce182748833981b4ab644772a3c5b48ac063153b928cf59657",
-    "lib/p5/intakeContract.ts": "7fc3f6742236e1a8d6ccfc1cdc90f2a39e84e8f7106b196aafe7e49f5d588dea",
+    "lib/p5/intakeContract.ts": "96bf69d09361a2a2b001e6cf5d4139a5688b8bb8c30213c24291611e5d2c7847",
     "lib/p5/intakeDelivery.ts": "417f176e20238a09b9c1cba070e91c9025368b8439298e2bd16245f5d19a94da",
-    "lib/p5/intakeDeliveryPayload.ts": "43521e7c6af69978f484db4d06df239fbc429d92cee0b8d578ee1b5349ae36ba",
+    "lib/p5/intakeDeliveryPayload.ts": "a20be84214c0d1e0153cbe6ed1e60fb1625783000297154dcb9428f9f7391ad5",
     "lib/p5/intakeDeliveryPolicy.ts": "a992846e078a7926d515f6ab21bd8cc2a132cc237a4682ab532739cfde742cb8",
     "lib/p5/intakeDraft.ts": "7b02a7d8f3ee59c1d10c8203a09a4aa9f7059c29c7cda98b0e46355dde1b3bfd",
     "lib/p5/intakeEndpoint.ts": "3892caf64bc2ebdeb0501aa02b013a50a8ef572f11511b1690b51f85fc78bac0",
@@ -265,7 +265,7 @@
     "scripts/p5-build-price-book.mjs": "714a76f8a9f29077d052304456aca38769fc9485022774856eae816b2e847450",
     "scripts/p5-cli-acceptance.mts": "ed5b8fc80231c03b3c2b54de486fb6db7f259947e855ecf4985a9caf6f4ea6b8",
     "scripts/p5-component-review.mjs": "7035921690a6dc0648b1c3142b054ad09d67535c706e108817369e9e6de6ab26",
-    "scripts/p5-estimator-browser.mjs": "cf4ac4c8bcd9f394aa8530c6e218d41d92412b4b6a6f306cb3a38ee9989f52b7",
+    "scripts/p5-estimator-browser.mjs": "7837e9e2580e3d19c1b1d2c411c1c0cab3eff32add9735d7085f1a93cfe358b1",
     "scripts/p5-host-build.mjs": "1d83b593096c24575847b9f290253c7d32e74dfaa640d22ac68b427307599b3f",
     "scripts/p5-hub-notification-check.mjs": "e2d4216777feeb2e4099b93986ca257e4760f671312a6b343014ef7677148f06",
     "scripts/p5-intake-browser-fixture.mts": "7d970f466dcf77c7f4435457de34dfb4da96da8877ad4b587e3ffea2dd01d5da",
@@ -484,10 +484,14 @@
     "tests/p5-wizard-resume.test.ts": "423176433a701f191c5e88c99924a28748c001da3b4a746b892843cf52319085",
     "tests/p5-work-recovery.test.ts": "ef035f0257de7b9ddb4f8736044a72276a90d5599866587542f229db30debfdb",
     "app/api/p5-estimator/intake-file/route.ts": "076a2777043cd2a097d63882d95495967fdab7a11abb050364dccf9b6ec9542a",
-    "lib/p5/intakeEmail.ts": "b754c527c6f3292827708e8aece166eb72c286dd19e05b474dad369ca84babd6",
+    "lib/p5/intakeEmail.ts": "04c2ebf8152ba07d31d7452a1eb168bf5bcb7a10db390e97a1b42ed40174c259",
     "lib/p5/intakeEmailDelivery.ts": "9a58125e22c83fd007febffe8b53c864b7384fcb24cc038bdd43ca5e7c336556",
     "lib/p5/intakeFileAccess.ts": "54c5a4f524d5d3cd666f0fa3a3adc44adf8688368cbecd776c69fcd98ca99620",
-    "tests/p5-intake-email-files.test.ts": "62ab08843deaa3fb5e428150e65d65685b2c7d4816f278d518de0f201375111c"
+    "tests/p5-intake-email-files.test.ts": "ddaab5497b1741b0a426fcacc039eac8995b040879ffc71cb182af2ce517bd67",
+    "lib/p5/emailReplyTo.ts": "9d57d9f21181422a73d97f127649c94c296ca488f18b6ceebec18e6e2feb0abf",
+    "lib/p5/intakeDisplay.ts": "5cd5a9158575e8ef2c0a4d8c40f721dca28fad0a584c1ca3f10f9ac9ff1fb7c5",
+    "tests/p5-intake-reply-to.test.ts": "8d7e6a19c75a25568ea1ca280416d97d6004149dc4f39859fd8382482e87b888",
+    "tests/p5-intake-contact-fields.test.ts": "2e50258d54258ee988206a3c5d91bee2aeab1521a614bae5d1db37d0cc2f0b6b"
   },
   "coordinatedIntakeBatch": {
     "base": "e6e125b83468a402264be2f1e82e5c0466baa178",
@@ -510,6 +514,11 @@
   "publicEstimateCopyBatch": {
     "source": "p5-home-co/components/P5Estimator.tsx",
     "scope": "Targeted shared copy synchronization only; retained all previously reviewed brand-local patches",
+    "date": "2026-10-08"
+  },
+  "intakeContactEmailPolishBatch": {
+    "source": "p5-home-co",
+    "scope": "Targeted shared contact validation metadata, accessible correction focus, email display and frozen Reply-To; brand adapters edited individually; prior brand-local patches retained",
     "date": "2026-10-08"
   }
 }

@@ -3,16 +3,16 @@ import {P5AddressInput} from './P5AddressInput';
 import type {ReactNode,Ref} from 'react';
 import type {BrowserDraft} from '../lib/p5/browserDraft';
 import {INTAKE_COPY,SUPPORTING_SERVICES,intakeSite,routeIntake} from '../lib/p5/intakePolicy';
-import {intakeUnresolved,type IntakeContact,type IntakeReceipt} from '../lib/p5/intakeContract';
+import {intakeUnresolved,type IntakeContact,type IntakeContactField,type IntakeReceipt} from '../lib/p5/intakeContract';
 import {SCOPE_FIELDS,type ScopeField} from '../lib/p5/scope';
 import styles from './P5Estimator.module.css';
 
-const serviceLabel=(value:string)=>({kitchen:'Kitchen remodel',bathroom:'Bathroom remodel',remodel:'Interior remodel','whole-home':'Whole-home remodel',addition:'Home addition','new-construction':'New home','cabinet-product':'Cabinets, supply only','cabinet-install':'Cabinet installation',handyman:'Home repairs',re10:'Inspection repairs',adu:'ADU : team to confirm','change-order':'Change to an existing project',rush:'Urgent work : team to confirm'}[value]||value);
-export function P5IntakeReview({draft,brandId,id,onContact,onPreference,onAnswer,onText,onSupporting,details,error,headingRef,contactNameRef,contactEmailRef}:{
+import {intakeServiceLabel as serviceLabel} from '../lib/p5/intakeDisplay';
+export function P5IntakeReview({draft,brandId,id,onContact,onPreference,onAnswer,onText,onSupporting,details,error,headingRef,contactNameRef,contactEmailRef,contactPhoneRef,contactPreferenceRef,contactErrorFields=[],contactErrorId}:{
   draft:BrowserDraft;brandId:string;id:string;
   onContact:(field:keyof BrowserDraft['contact'],value:string)=>void;onPreference:(value:IntakeContact['preferredContact'])=>void;
   onAnswer:(field:ScopeField,value:string)=>void;onText:(value:string)=>void;onSupporting:(value:string[])=>void;
-  details:ReactNode;error:ReactNode;headingRef:Ref<HTMLDivElement>;contactNameRef:Ref<HTMLInputElement>;contactEmailRef:Ref<HTMLInputElement>;
+  details:ReactNode;error:ReactNode;headingRef:Ref<HTMLDivElement>;contactNameRef:Ref<HTMLInputElement>;contactEmailRef:Ref<HTMLInputElement>;contactPhoneRef?:Ref<HTMLInputElement>;contactPreferenceRef?:Ref<HTMLSelectElement>;contactErrorFields?:IntakeContactField[];contactErrorId?:string;
 }){
   const site=intakeSite(brandId)||'p5',routing=routeIntake(site,draft.answers.service||'',draft.intake?.supportingServices);
   const unresolved=[...new Set([...routing.unresolved,...intakeUnresolved(draft,SCOPE_FIELDS),...(draft.analysisWarning?[draft.analysisWarning]:[])])];
@@ -34,8 +34,8 @@ export function P5IntakeReview({draft,brandId,id,onContact,onPreference,onAnswer
       </details>
       <details className={styles.editDetails}><summary>Files ({draft.uploads?.length||0}) and details to confirm</summary><section aria-label="Saved project files">{draft.uploads?.length?<ul className={styles.files}>{draft.uploads.map(file=><li key={file.id}><span>{file.name}</span><small>Saved for review</small></li>)}</ul>:<p className={styles.hint}>No files attached. You can add photos, plans, an inspection report or scope documents below.</p>}{unresolved.length>0&&<><h3 style={{marginTop:16}}>Details still to confirm</h3><ul className={styles.bullets}>{unresolved.map((item,index)=><li key={index}>{item}</li>)}</ul></>}</section></details></section>
     <section className={styles.card} aria-label="Contact details"><h3>How should the team reach you?</h3><p className={styles.hint}>Share your email and phone number so we can discuss your project and send your estimate. You can provide either one and choose how we contact you. An email address also lets us send a confirmation copy.</p>
-      <div className={styles.contactGrid}>{([['name','Your name','text'],['email','Email','email'],['phone','Phone','tel']] as const).map(([field,label,type])=><label key={field} className={styles.field} htmlFor={`${id}-contact-${field}`}><span>{label}</span><input ref={field==='name'?contactNameRef:field==='email'?contactEmailRef:undefined} id={`${id}-contact-${field}`} autoComplete={field} type={type} value={draft.contact[field]} maxLength={field==='name'?120:field==='email'?200:40} onChange={e=>onContact(field,e.target.value)}/></label>)}</div>
-      <label className={styles.field} htmlFor={`${id}-preferred-contact`}><span>Preferred contact method</span><select id={`${id}-preferred-contact`} value={draft.intake?.contact.preferredContact||'either'} onChange={e=>onPreference(e.target.value as IntakeContact['preferredContact'])}><option value="either">Email or phone</option><option value="email">Email</option><option value="phone">Phone</option></select></label>
+      <div className={styles.contactGrid}>{([['name','Your name','text'],['email','Email','email'],['phone','Phone','tel']] as const).map(([field,label,type])=><label key={field} className={styles.field} htmlFor={`${id}-contact-${field}`}><span>{label}</span><input ref={field==='name'?contactNameRef:field==='email'?contactEmailRef:contactPhoneRef} id={`${id}-contact-${field}`} aria-invalid={contactErrorFields.includes(field)||undefined} aria-describedby={contactErrorFields.includes(field)?contactErrorId:undefined} autoComplete={field} type={type} value={draft.contact[field]} maxLength={field==='name'?120:field==='email'?200:40} onChange={e=>onContact(field,e.target.value)}/></label>)}</div>
+      <label className={styles.field} htmlFor={`${id}-preferred-contact`}><span>Preferred contact method</span><select ref={contactPreferenceRef} aria-invalid={contactErrorFields.includes('preferredContact')||undefined} aria-describedby={contactErrorFields.includes('preferredContact')?contactErrorId:undefined} id={`${id}-preferred-contact`} value={draft.intake?.contact.preferredContact||'either'} onChange={e=>onPreference(e.target.value as IntakeContact['preferredContact'])}><option value="either">Email or phone</option><option value="email">Email</option><option value="phone">Phone</option></select></label>
     </section>
     <p className={styles.hint}>By sending, you confirm these project details for team review. This is a request, not a priced estimate. We will use your details to respond to this request; this does not subscribe you to marketing.</p>
     {error}

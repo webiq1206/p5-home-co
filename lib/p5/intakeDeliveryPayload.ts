@@ -2,9 +2,10 @@ import {createHash} from 'node:crypto';
 import {intakeReference,type IntakeSnapshot} from './intakeContract.ts';
 import {INTAKE_SITES,INTAKE_RECIPIENTS} from './intakePolicy.ts';
 import type {IntakeChannel} from './intakeDeliveryPolicy.ts';
+import {safeEmailReplyTo} from './emailReplyTo.ts';
 import {renderIntakeEmail} from './intakeEmail.ts';
 
-export interface IntakeEmail {to:string;subject:string;text:string;html?:string;attachments:{filename:string;base64:string}[]}
+export interface IntakeEmail {to:string;replyTo?:string;subject:string;text:string;html?:string;attachments:{filename:string;base64:string}[]}
 export interface IntakeDeliveryEnvelope {schema:1;channel:IntakeChannel;key:string;leadKey:string;snapshotDigest:string;email?:IntakeEmail;request?:IntakeSnapshot}
 const hash=(value:string)=>createHash('sha256').update(value).digest('hex');
 /** One lead across revisions; each channel/revision has a distinct immutable operation. */
@@ -34,5 +35,5 @@ export function intakeDeliveryEnvelope(s:IntakeSnapshot,channel:IntakeChannel,sn
  // Conservative local message bound. Never truncate a customer's scope or silently drop files.
  if(attachment.length>2*1024*1024)throw new Error('payload-review');
  const rendered=renderIntakeEmail(s,team,s.scope.uploads.map(f=>({name:f.name,size:f.size})));
- return {...envelope,email:{to:team?INTAKE_RECIPIENTS[s.currentSite]:s.contact.email,...rendered,attachments:[{filename:`${reference}-revision-${s.revision}.json`,base64:attachment.toString('base64')}]}};
+ return {...envelope,email:{to:team?INTAKE_RECIPIENTS[s.currentSite]:s.contact.email,replyTo:team?safeEmailReplyTo(s.contact.email,INTAKE_RECIPIENTS[s.currentSite]):INTAKE_RECIPIENTS[s.currentSite],...rendered,attachments:[{filename:`${reference}-revision-${s.revision}.json`,base64:attachment.toString('base64')}]}};
 }

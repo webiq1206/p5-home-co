@@ -483,7 +483,20 @@ for(const width of focusOnly?[]:[320,390,1440]){
    // Contact is required before a request is saved; one valid method is enough, and nothing is priced.
    await confirmIntake(est);await est.getByRole('button',{name:SUBMIT_LABEL,exact:true}).click();
    await est.getByRole('alert').filter({hasText:'Enter your name.'}).waitFor();assert.equal(progressState.pricingPolls,0);assert.equal(progressState.submissions,0,'Contact is required before a request is saved');
-   await est.getByLabel('Your name',{exact:true}).fill('Synthetic Test');
+   const nameInput=est.getByLabel('Your name',{exact:true}),emailInput=est.getByLabel('Email',{exact:true}),phoneInput=est.getByLabel('Phone',{exact:true});
+   assert.equal(await nameInput.evaluate(el=>el===document.activeElement),true);assert.equal(await nameInput.getAttribute('aria-invalid'),'true');
+   await nameInput.fill('Synthetic Test');
+   const invalidContact=async(field,message)=>{
+    await est.getByRole('button',{name:SUBMIT_LABEL,exact:true}).click();await est.getByRole('alert').filter({hasText:message}).waitFor();
+    assert.equal(await field.evaluate(el=>el===document.activeElement),true,'Focus the actual invalid field');assert.equal(await field.getAttribute('aria-invalid'),'true');
+    const errorId=await field.getAttribute('aria-describedby');assert.ok(errorId);assert.ok((await page.locator(`[id="${errorId}"]`).innerText()).includes(message));assert.equal(progressState.submissions,0);
+   };
+   await invalidContact(emailInput,'Add an email address or phone number');assert.equal(await phoneInput.getAttribute('aria-invalid'),'true');
+   await emailInput.fill('invalid');await invalidContact(emailInput,'Enter a valid email address');
+   await emailInput.fill('customer@example.invalid');await phoneInput.fill('123');await invalidContact(phoneInput,'Enter a valid phone number');
+   await phoneInput.fill('');await est.getByLabel('Preferred contact method').selectOption('phone');await invalidContact(phoneInput,'Add your phone number');
+   await phoneInput.fill('2085550100');await emailInput.fill('');await est.getByLabel('Preferred contact method').selectOption('email');await invalidContact(emailInput,'Add your email address');
+   await phoneInput.fill('');await est.getByLabel('Preferred contact method').selectOption('either');
    if(width===390){await est.getByLabel('Phone',{exact:true}).fill('2085550100');await est.getByLabel('Preferred contact method').selectOption('phone');}
    else await est.getByLabel(/^Email/).fill('customer@example.invalid');
    assert.equal(await est.getByLabel('Your name',{exact:true}).inputValue(),'Synthetic Test','Contact name must survive adjacent field edits');

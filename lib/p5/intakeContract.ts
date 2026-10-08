@@ -6,6 +6,11 @@ import {sameAnswer,scopeQuestions} from './adaptive.ts';
 import {pageCovered} from './documentLedger.ts';
 import {scopeFingerprint,normalizeScopeText} from './scopeReplacement.ts';
 
+export type IntakeContactField='name'|'email'|'phone'|'preferredContact';
+export class IntakeContactError extends Error {
+ readonly fields:IntakeContactField[];
+ constructor(message:string,fields:IntakeContactField[]){super(message);this.name='IntakeContactError';this.fields=fields;}
+}
 export interface IntakeContact {name:string;email:string;phone:string;preferredContact:'email'|'phone'|'either'}
 export interface IntakeMessage {id:string;role:'user'|'assistant';text:string;at:number;kind?:string;label?:string;caption?:string;files?:string[]}
 export interface IntakeDetails {questionMemory?:QuestionMemory;desiredOutcome:string;workContext:string;budget:string;supportingServices:SupportingService[];transcript:IntakeMessage[];reviewedScopeFingerprint?:string}
@@ -21,17 +26,18 @@ function text(value:unknown,label:string,max:number):string {
   return value.trim();
 }
 export function intakeContact(raw:unknown,required=true):IntakeContact {
-  if(!raw||typeof raw!=='object'||Array.isArray(raw))throw new Error('Enter your contact details.');
+  if(!raw||typeof raw!=='object'||Array.isArray(raw))throw new IntakeContactError('Enter your contact details.',['name']);
   const c=raw as Record<string,unknown>;
-  const name=text(c.name??'','Name',120),email=text(c.email??'','Email',200).toLowerCase(),phone=text(c.phone??'','Phone',40);
+  const fieldText=(field:'name'|'email'|'phone',label:string,max:number)=>{try{return text(c[field]??'',label,max);}catch(error){throw new IntakeContactError((error as Error).message,[field]);}};
+  const name=fieldText('name','Name',120),email=fieldText('email','Email',200).toLowerCase(),phone=fieldText('phone','Phone',40);
   const preferredContact=c.preferredContact??'either';
-  if(!['email','phone','either'].includes(String(preferredContact)))throw new Error('Choose email, phone, or either for follow-up.');
-  if(required&&!name)throw new Error('Enter your name.');
-  if(required&&email&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))throw new Error('Enter a valid email address, or leave it blank.');
-  if(required&&phone&&(phone.replace(/\D/g,'').length<10||phone.replace(/\D/g,'').length>15))throw new Error('Enter a valid phone number, or leave it blank.');
-  if(required&&!email&&!phone)throw new Error('Add an email address or phone number so the team can respond.');
-  if(required&&preferredContact==='email'&&!email)throw new Error('Add your email address or choose phone for follow-up.');
-  if(required&&preferredContact==='phone'&&!phone)throw new Error('Add your phone number or choose email for follow-up.');
+  if(!['email','phone','either'].includes(String(preferredContact)))throw new IntakeContactError('Choose email, phone, or either for follow-up.',['preferredContact']);
+  if(required&&!name)throw new IntakeContactError('Enter your name.',['name']);
+  if(required&&email&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))throw new IntakeContactError('Enter a valid email address, or leave it blank.',['email']);
+  if(required&&phone&&(phone.replace(/\D/g,'').length<10||phone.replace(/\D/g,'').length>15))throw new IntakeContactError('Enter a valid phone number, or leave it blank.',['phone']);
+  if(required&&!email&&!phone)throw new IntakeContactError('Add an email address or phone number so the team can respond.',['email', 'phone']);
+  if(required&&preferredContact==='email'&&!email)throw new IntakeContactError('Add your email address or choose phone for follow-up.',['email']);
+  if(required&&preferredContact==='phone'&&!phone)throw new IntakeContactError('Add your phone number or choose email for follow-up.',['phone']);
   return {name,email,phone,preferredContact:preferredContact as IntakeContact['preferredContact']};
 }
 export function intakeDetails(raw:unknown):IntakeDetails {
