@@ -26,7 +26,7 @@
     "components/P5AddressInput.tsx": "6cff5902e7c8b3baa05be120cfc7eb3778f4ac3b0654c7b6ee8466a42560b091",
     "components/P5EstimateDetails.tsx": "ad36be0cb27f55e51ee63f222af7c749b3037e1fb12ff7131be62a6db93565d0",
     "components/P5Estimator.module.css": "238f6f6056a35c2076041e90a3e845203e013f3b8a657bafb01b98fa397ae1f0",
-    "components/P5Estimator.tsx": "ff2ae1293d1afdb39f3c38b6519a4eb3bfd13d66a9af258c2b0d7587423b2897",
+    "components/P5Estimator.tsx": "b57699bc5c0bee86de4abcf431d534f35c5f4313a408683ae4fd12f96c24e8ca",
     "components/P5EstimatorNavigation.tsx": "e203317513965f77dc314e3ef8aa2be0e9fca1e7ca72494b3a23f3741cabbe83",
     "components/P5IntakeQueue.tsx": "25b0e4cb34de7c93fd028787221a837d1bb6e7bcddf6cd4606dd27d69c096526",
     "components/P5IntakeReview.tsx": "3eb6a75aeb53cc62f04b2c978caf1d204f30b7b211c81103da5bbcf22498eca5",
@@ -506,5 +506,10 @@
       "tests/p5-intake-delivery.test.ts"
     ],
     "note": "Narrow intake UX and email delivery batch; preserves brand adapters, other shared files, and Cabinet localPatchProvenance."
+  },
+  "publicEstimateCopyBatch": {
+    "source": "p5-home-co/components/P5Estimator.tsx",
+    "scope": "Targeted shared copy synchronization only; retained all previously reviewed brand-local patches",
+    "date": "2026-10-08"
   }
 }
