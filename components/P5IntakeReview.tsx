@@ -3,17 +3,16 @@ import {P5AddressInput} from './P5AddressInput';
 import type {ReactNode,Ref} from 'react';
 import type {BrowserDraft} from '../lib/p5/browserDraft';
 import {INTAKE_COPY,SUPPORTING_SERVICES,intakeSite,routeIntake} from '../lib/p5/intakePolicy';
-import {intakeUnresolved,intakeScopeReviewed,type IntakeContact,type IntakeReceipt} from '../lib/p5/intakeContract';
+import {intakeUnresolved,type IntakeContact,type IntakeReceipt} from '../lib/p5/intakeContract';
 import {SCOPE_FIELDS,type ScopeField} from '../lib/p5/scope';
 import styles from './P5Estimator.module.css';
 
 const serviceLabel=(value:string)=>({kitchen:'Kitchen remodel',bathroom:'Bathroom remodel',remodel:'Interior remodel','whole-home':'Whole-home remodel',addition:'Home addition','new-construction':'New home','cabinet-product':'Cabinets, supply only','cabinet-install':'Cabinet installation',handyman:'Home repairs',re10:'Inspection repairs',adu:'ADU : team to confirm','change-order':'Change to an existing project',rush:'Urgent work : team to confirm'}[value]||value);
-export function P5IntakeReview({draft,brandId,id,confirmed,onConfirm,onContact,onPreference,onAnswer,onText,onSupporting,onScopeReview,details,error,headingRef,confirmationRef,contactNameRef,contactEmailRef}:{
-  draft:BrowserDraft;brandId:string;id:string;confirmed:boolean;onConfirm:(value:boolean)=>void;
+export function P5IntakeReview({draft,brandId,id,onContact,onPreference,onAnswer,onText,onSupporting,details,error,headingRef,contactNameRef,contactEmailRef}:{
+  draft:BrowserDraft;brandId:string;id:string;
   onContact:(field:keyof BrowserDraft['contact'],value:string)=>void;onPreference:(value:IntakeContact['preferredContact'])=>void;
   onAnswer:(field:ScopeField,value:string)=>void;onText:(value:string)=>void;onSupporting:(value:string[])=>void;
-  onScopeReview:(value:boolean)=>void;
-  details:ReactNode;error:ReactNode;headingRef:Ref<HTMLDivElement>;confirmationRef:Ref<HTMLInputElement>;contactNameRef:Ref<HTMLInputElement>;contactEmailRef:Ref<HTMLInputElement>;
+  details:ReactNode;error:ReactNode;headingRef:Ref<HTMLDivElement>;contactNameRef:Ref<HTMLInputElement>;contactEmailRef:Ref<HTMLInputElement>;
 }){
   const site=intakeSite(brandId)||'p5',routing=routeIntake(site,draft.answers.service||'',draft.intake?.supportingServices);
   const unresolved=[...new Set([...routing.unresolved,...intakeUnresolved(draft,SCOPE_FIELDS),...(draft.analysisWarning?[draft.analysisWarning]:[])])];
@@ -26,21 +25,18 @@ export function P5IntakeReview({draft,brandId,id,confirmed,onConfirm,onContact,o
       <P5AddressInput id={`${id}-intake-location`} value={Object.hasOwn(draft.answers,'address')?draft.answers.address||'':draft.answers.location||''} onChange={value=>onAnswer(Object.hasOwn(draft.answers,'address')?'address':'location',value)}/>
       {(['desiredOutcome','schedule','workContext','budget'] as const).map(field=><label className={styles.field} key={field} htmlFor={`${id}-intake-${field}`}><span>{field==='budget'?'Budget range':SCOPE_FIELDS[field].label} <span className={styles.optional}>(if known)</span></span><textarea id={`${id}-intake-${field}`} rows={2} value={draft.answers[field]||''} onChange={e=>onAnswer(field,e.target.value)} placeholder={field==='schedule'?'A target date, a deadline, or not sure yet':field==='workContext'?'Existing home, addition, or new construction':field==='budget'?'A target or range, if you have one':'What would a successful project change for you?'}/></label>)}
       </details>
-      {details}
-    </section>
-    <section className={styles.card} aria-label="Project team"><h3>{intakeScopeReviewed(draft)?'Primary team':'Suggested primary team'}: {routing.teamName}</h3><p className={styles.hint}>{site==='p5'?'Your request stays with P5 Home Co. One primary team coordinates the supporting work.':routing.handoff?`This project type belongs with ${routing.teamName}. Review the whole scope before continuing there with your saved conversation, contact details and files.`:'This team will review your whole project.'}</p>
-      <details className={styles.editDetails}><summary>Supporting work, if included</summary><div>{SUPPORTING_SERVICES.map(value=><label key={value} className={styles.check}><input type="checkbox" checked={routing.supportingServices.includes(value)} onChange={e=>onSupporting(e.target.checked?[...routing.supportingServices,value]:routing.supportingServices.filter(v=>v!==value))}/><span>{value.replaceAll('-',' ')}</span></label>)}</div></details>
+      <details className={styles.editDetails}><summary>All saved answers</summary>{details}</details>
+      <details className={styles.editDetails}><summary>Project team and supporting work</summary><h3>Primary team: {routing.teamName}</h3><p className={styles.hint}>{site==='p5'?'Your request stays with P5 Home Co. One primary team coordinates the supporting work.':routing.handoff?`This project type belongs with ${routing.teamName}. Review the whole scope before continuing there with your saved conversation, contact details and files.`:'This team will review your whole project.'}</p>
+      <div>{SUPPORTING_SERVICES.map(value=><label key={value} className={styles.check}><input type="checkbox" checked={routing.supportingServices.includes(value)} onChange={e=>onSupporting(e.target.checked?[...routing.supportingServices,value]:routing.supportingServices.filter(v=>v!==value))}/><span>{value.replaceAll('-',' ')}</span></label>)}</div>
       <p className={styles.hint}>Included supporting work: {routing.supportingServices.map(value=>value.replaceAll('-',' ')).join(', ')||'None selected'}</p>
       <label className={styles.field} htmlFor={`${id}-intake-exclusions`}><span>Work to leave out or keep unchanged (if known)</span><textarea id={`${id}-intake-exclusions`} rows={2} value={draft.answers.exclusions||''} onChange={e=>onAnswer('exclusions',e.target.value)}/></label>
-      {!intakeScopeReviewed(draft)&&<p role="status">Check the project type, supporting work and exclusions against your current description. Earlier choices are retained for you to review.</p>}
-      <label className={styles.check}><input type="checkbox" checked={intakeScopeReviewed(draft)} onChange={e=>onScopeReview(e.target.checked)}/><span>I checked the whole project type, supporting work and exclusions against this description.</span></label>
-    </section>
-    <section className={styles.card} aria-label="Saved project files"><h3>Files for review</h3>{draft.uploads?.length?<ul className={styles.files}>{draft.uploads.map(file=><li key={file.id}><span>{file.name}</span><small>Saved for review</small></li>)}</ul>:<p className={styles.hint}>No files attached. You can add photos, plans, an inspection report or scope documents below.</p>}{unresolved.length>0&&<><h3 style={{marginTop:16}}>Details still to confirm</h3><ul className={styles.bullets}>{unresolved.map((item,index)=><li key={index}>{item}</li>)}</ul></>}</section>
+      </details>
+      <details className={styles.editDetails}><summary>Files ({draft.uploads?.length||0}) and details to confirm</summary>{draft.uploads?.length?<ul className={styles.files}>{draft.uploads.map(file=><li key={file.id}><span>{file.name}</span><small>Saved for review</small></li>)}</ul>:<p className={styles.hint}>No files attached. You can add photos, plans, an inspection report or scope documents below.</p>}{unresolved.length>0&&<><h3 style={{marginTop:16}}>Details still to confirm</h3><ul className={styles.bullets}>{unresolved.map((item,index)=><li key={index}>{item}</li>)}</ul></>}</details></section>
     <section className={styles.card} aria-label="Contact details"><h3>How should the team reach you?</h3><p className={styles.hint}>Share your email and phone number so we can discuss your project and send your estimate. You can provide either one and choose how we contact you. An email address also lets us send a confirmation copy.</p>
       <div className={styles.contactGrid}>{([['name','Your name','text'],['email','Email','email'],['phone','Phone','tel']] as const).map(([field,label,type])=><label key={field} className={styles.field} htmlFor={`${id}-contact-${field}`}><span>{label}</span><input ref={field==='name'?contactNameRef:field==='email'?contactEmailRef:undefined} id={`${id}-contact-${field}`} autoComplete={field} type={type} value={draft.contact[field]} maxLength={field==='name'?120:field==='email'?200:40} onChange={e=>onContact(field,e.target.value)}/></label>)}</div>
       <label className={styles.field} htmlFor={`${id}-preferred-contact`}><span>Preferred contact method</span><select id={`${id}-preferred-contact`} value={draft.intake?.contact.preferredContact||'either'} onChange={e=>onPreference(e.target.value as IntakeContact['preferredContact'])}><option value="either">Email or phone</option><option value="email">Email</option><option value="phone">Phone</option></select></label>
-      <label className={styles.check}><input ref={confirmationRef} type="checkbox" checked={confirmed} onChange={e=>onConfirm(e.target.checked)}/><span>These details reflect my project. I understand the team will review them before preparing an estimate.</span></label>
     </section>
+    <p className={styles.hint}>By sending, you confirm these project details for team review. This is a request, not a priced estimate. We will use your details to respond to this request; this does not subscribe you to marketing.</p>
     {error}
   </>;
 }

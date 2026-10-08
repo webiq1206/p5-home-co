@@ -1,3 +1,6 @@
+import {prepareIntakeEmail} from './intakeEmailDelivery.ts';
+import {readStoredBytes} from './objectStorage.ts';
+import {linkSecret} from './estimateLinks.ts';
 import {query} from './database.ts';
 import {ESTIMATOR_BRAND} from './brand.ts';
 import {intakeSite} from './intakePolicy.ts';
@@ -17,6 +20,7 @@ export async function runtimeIntakeTransports():Promise<Record<'customer'|'team'
   // The brand adapter owns SMTP configuration. Loaded lazily, like send, so an
   // isolated harness that replaces the adapter never needs the site's notification modules.
   readiness:async()=>{const adapter=await import('./deliveryAdapter.ts');if(typeof adapter.emailTransportReady!=='function'||!adapter.emailTransportReady())return 'configuration-missing';return INTAKE_RUNTIME_PROOF.email?null:'runtime-proof-pending';},
+  prepare:(snapshot,envelope)=>prepareIntakeEmail(snapshot,envelope,{query,readBytes:readStoredBytes,secret:linkSecret}),
   send:async envelope=>{if(!envelope.email)throw new Error('payload-review');const {sendEmail}=await import('./deliveryAdapter.ts');return sendEmail({...envelope.email,attachments:envelope.email.attachments.map(f=>({filename:f.filename,content:Buffer.from(f.base64,'base64')})),key:envelope.key});},
  };
  const crm:IntakeTransport={retryWindowMs:0,identityScope:'p5-ingest-lead-no-automatic-replay',

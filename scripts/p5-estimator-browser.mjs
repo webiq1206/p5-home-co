@@ -39,8 +39,8 @@ const service=brand.services.includes('bathroom')?'bathroom':brand.services.incl
 const serviceLabel=service==='handyman'?'Home repairs':service==='cabinet-install'?'Cabinet installation':service==='new-construction'?'New home':'Bathroom remodel';
 const intakeTeam=routeIntake(site,service,[]);
 if(intake)assert.equal(intakeTeam.handoff,null,`${brand.name} must finish the fixture service ${service} on its own site`);
-// Intake review: the whole-project confirmation and the customer confirmation are separate, labelled checkboxes.
-const confirmIntake=async est=>{await est.getByLabel(SCOPE_REVIEW_LABEL,{exact:true}).check();await est.getByLabel(INTAKE_CONFIRM_LABEL,{exact:true}).check();};
+// Sending the visible review is the confirmation; redundant checkboxes must stay absent.
+const confirmIntake=async est=>{assert.equal(await est.getByLabel(SCOPE_REVIEW_LABEL,{exact:true}).count(),0);assert.equal(await est.getByLabel(INTAKE_CONFIRM_LABEL,{exact:true}).count(),0);};
 const noPricePromise=text=>assert.ok(!/instant|within \d+ (?:hours|days|minutes)|business days|\$\s?\d/i.test(text),'The review intake must not show a price or an unsupported response deadline: '+text.slice(0,200));
 const fullAnswers={service,taskList:'Complete the specified work. Repair three interior doors.',...(service.startsWith('cabinet-')?{cabinetRoom:'kitchen',cabinetBaseLf:'20',cabinetUpperLf:'0',finish:'mid-range'}:service==='handyman'?{}:{sqft:'80',materials:'Porcelain tile',demolition:'Remove old finishes',...(service==='new-construction'?{garageIncluded:'no'}:{})})};
 const result={status:'preliminary',range:{low:1000,high:1800},categoryRanges:[{category:'Carpentry',low:1000,high:1800}],lineItems:[{id:'repair',category:'Carpentry',description:'Repair three interior doors',quantity:3,unit:'EA',low:1000,high:1800,unitLow:1000/3,unitHigh:600,pricingStatus:'owner-planning-rate'}],scopeTasks:[{description:'Repair three interior doors',category:'Carpentry'}],summary:'Synthetic fixture scope.',includedCategories:['Carpentry'],allowances:[],assumptions:['Doors are standard interior slabs.'],exclusions:['Painting is excluded.'],factors:[],nextStep:'Schedule a scope review.',message:'Synthetic planning range.',disclaimer:'This is not a bid, quote, offer or guaranteed price.'};
@@ -293,7 +293,7 @@ for(const width of progressOnly||focusOnly?[]:[320,390,430,768,1024,1440,1920]){
   await usableAction(action);
   // Reproduce an older saved question step after all its questions become known.
   await page.evaluate(()=>{const key='p5-project-draft-v2';const draft=JSON.parse(localStorage.getItem(key));draft.step=1;localStorage.setItem(key,JSON.stringify(draft));});
-  await page.reload();await estimator.getByRole('button',{name:SUBMIT_LABEL,exact:true}).waitFor();await (intake?estimator.getByLabel(INTAKE_CONFIRM_LABEL,{exact:true}):estimator.getByRole('checkbox')).waitFor();
+  await page.reload();await estimator.getByRole('button',{name:SUBMIT_LABEL,exact:true}).waitFor();await (intake?estimator.getByLabel('Your name',{exact:true}):estimator.getByRole('checkbox')).waitFor();
   assert.equal(await estimator.getByRole('region',{name:'Project question'}).count(),0,'Restored known facts were asked again');
   await estimator.getByLabel('Your name',{exact:true}).fill('Synthetic Test');await estimator.getByLabel(/^Email/).fill('customer@example.invalid');
   await estimator.getByRole('button',{name:'Back to the previous step',exact:true}).click();await page.waitForTimeout(400);/* Back lands on the previous step, which on a brand with its own questions is the last question, not the description; what must survive is the saved project text. */assert.match(await page.evaluate(()=>JSON.parse(localStorage.getItem('p5-project-draft-v2')||'{}').text||''),/LongUnbroken/,'the project description survives going back');
@@ -301,7 +301,7 @@ for(const width of progressOnly||focusOnly?[]:[320,390,430,768,1024,1440,1920]){
   // Details are grouped in accordions; editing one detail re-reads the scope before pricing.
   // Open both disclosure levels: a broad hasText match selects the outer
   // edit panel and leaves the nested scope fields hidden.
-  const editSummary=estimator.locator('summary').filter({hasText:/^Edit project details/});
+  const editSummary=estimator.locator('summary').filter({hasText:intake?/^All saved answers$/:/^Edit project details/});
   if(await editSummary.count()&&!(await editSummary.evaluate(el=>el.parentElement.open)))await editSummary.click();
   const scopeSummary=estimator.locator('summary').filter({hasText:/^Additional scope details/});
   if(!(await scopeSummary.evaluate(el=>el.parentElement.open)))await scopeSummary.click();
@@ -309,7 +309,7 @@ for(const width of progressOnly||focusOnly?[]:[320,390,430,768,1024,1440,1920]){
   if(intake){
    // A material edit withdraws the earlier whole-project confirmation; the customer re-checks it, then sends.
    await overflow(page);await capture(page,`${width}-review`);
-   assert.equal(await estimator.getByLabel(SCOPE_REVIEW_LABEL,{exact:true}).isChecked(),false,'Changed scope requires a fresh whole-project review');
+   assert.equal(await estimator.getByRole('region',{name:'Project summary',exact:true}).count(),1,'One editable summary contains the saved project');
    await confirmIntake(estimator);
    await action.click();await estimator.getByRole('alert').filter({hasText:'Synthetic request interruption'}).waitFor();await settled(page);
    assert.equal(state.submissions,0,'An unconfirmed request is not a saved request');
@@ -325,7 +325,7 @@ for(const width of progressOnly||focusOnly?[]:[320,390,430,768,1024,1440,1920]){
    assert.ok(receipt.includes('Customer confirmation')&&receipt.includes('Awaiting configuration review'),'Notification status is reported separately from the saved request');
    await overflow(page);await capture(page,`${width}-request`);
    await page.waitForTimeout(2100);assert.equal(state.postSubmissionSaves,0);await page.reload();await estimator.getByRole('heading',{name:RECEIPT_HEADING,exact:true}).waitFor();assert.equal(state.submissions,1,'Reload shows the saved request without resending it');assert.deepEqual(errors,[]);
-   results.push({width,passed:true,checks:['null receipt preserves files','talk to text','typed and uploaded mixed input','failed upload and reload recovery','known facts skipped','visible unobstructed bottom action','back and contact preservation','edited detail withdraws whole-project confirmation','failed send retried without duplicate','no pricing or price promise','receipt names team and open details','request restoration','overflow']});
+   results.push({width,passed:true,checks:['null receipt preserves files','talk to text','typed and uploaded mixed input','failed upload and reload recovery','known facts skipped','visible unobstructed bottom action','back and contact preservation','edited detail is confirmed by explicit Send with no redundant checkboxes','failed send retried without duplicate','no pricing or price promise','receipt names team and open details','request restoration','overflow']});
    await context.close();continue;
   }
   await estimator.getByRole('checkbox').check();await Promise.all([page.waitForResponse('**/api/p5-estimator/scope'),estimator.getByRole('button',{name:'Get my estimate',exact:true}).click()]);await settled(page);assert.ok(state.scopeCalls>calls);
@@ -485,7 +485,7 @@ for(const width of focusOnly?[]:[320,390,1440]){
    if(width===390){await est.getByLabel('Phone',{exact:true}).fill('2085550100');await est.getByLabel('Preferred contact method').selectOption('phone');}
    else await est.getByLabel(/^Email/).fill('customer@example.invalid');
    assert.equal(await est.getByLabel('Your name',{exact:true}).inputValue(),'Synthetic Test','Contact name must survive adjacent field edits');
-   await est.getByLabel(INTAKE_CONFIRM_LABEL,{exact:true}).check();await est.getByRole('button',{name:SUBMIT_LABEL,exact:true}).click();
+   await confirmIntake(est);await est.getByRole('button',{name:SUBMIT_LABEL,exact:true}).click();
    await est.getByRole('heading',{name:RECEIPT_HEADING,exact:true}).waitFor();assert.equal(progressState.pricingPolls,0);assert.equal(progressState.submissions,1);
    assert.equal(await page.getByRole('heading',{name:'Applying pricing',exact:true}).count(),0,'No pricing stage in the review intake');
    if(width===390)assert.ok((await est.innerText()).includes('No email requested'));

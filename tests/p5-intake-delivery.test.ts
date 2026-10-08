@@ -83,7 +83,7 @@ test('payload: all five exact recipients, origin/primary/supporting scope, safe 
  for(const site of Object.keys(INTAKE_SITES) as IntakeSite[]){const s={...request(site),savedAt:new Date(start).toISOString()},team=intakeDeliveryEnvelope(s,'team','digest'),customer=intakeDeliveryEnvelope(s,'customer','digest');assert.equal(team.email?.to,INTAKE_RECIPIENTS[site]);assert.equal(customer.email?.to,s.contact.email);
  const copy=JSON.parse(Buffer.from(team.email!.attachments[0].base64,'base64').toString());assert.equal(copy.origin,'P5 Home Co');assert.equal(copy.primaryTeam,'Boise Remodeling Co');assert.deepEqual(copy.supportingServices,['cabinetry']);assert.deepEqual(copy.conversation,s.details.transcript);assert.equal(copy.answers.exclusions,s.scope.answers.exclusions);
  const url=new URL(copy.files[0].authenticatedOriginal);assert.equal(url.hostname,INTAKE_SITES[site].domain);assert.deepEqual([...url.searchParams.keys()],['draftId','revision','fileId']);assert.ok(!url.href.includes('customer'));const customerCopy=Buffer.from(customer.email!.attachments[0].base64,'base64').toString();assert.ok(!customerCopy.includes('authenticatedOriginal'));assert.ok(!customerCopy.includes('/api/admin'));
- assert.equal(team.leadKey,intakeLeadKey(s.projectId));assert.notEqual(team.key,intakeOperationKey(s,'customer'));assert.match(team.email!.text,/not embedded/);
+ assert.equal(team.leadKey,intakeLeadKey(s.projectId));assert.notEqual(team.key,intakeOperationKey(s,'customer'));assert.match(team.email!.text,/delivery access is pending/);
  }
  assert.deepEqual(INTAKE_RUNTIME_PROOF,{email:'fleet-release-2026-10-08',crm:null});
  assert.equal(intakeDigest({a:1,b:{c:2,d:3}}),intakeDigest({b:{d:3,c:2},a:1}));
@@ -111,4 +111,8 @@ test('mock: closed-browser future retry and interrupted lease keep the driver aw
 });
 test('mock: intake failure does not skip the preserved legacy delivery pass',async()=>{
  let legacy=0;await assert.rejects(independentDeliveryPasses(async()=>{throw Error('mock intake SQL failure');},async()=>{legacy++;}),/mock intake SQL failure/);assert.equal(legacy,1);
+});
+
+test('mock: unavailable originals block without attempts and recover without duplicate sibling sends',async()=>{
+ const f=await fixture();try{let available=false;f.transports.customer.prepare=async(_s,e)=>{if(!available)throw Error('file-delivery-unavailable');return e;};await f.run();let c=await f.channels();assert.equal(c.customer.status,'blocked');assert.equal(c.customer.reason,'file-delivery-unavailable');assert.equal(c.customer.attempts,0);assert.equal(f.calls.length,2);available=true;f.advance(3600001);await f.run();c=await f.channels();assert.equal(c.customer.status,'accepted');assert.equal(c.customer.attempts,1);assert.equal(f.calls.length,3);await f.run();assert.equal(f.calls.length,3);}finally{await f.db.close();}
 });

@@ -16,6 +16,8 @@ export interface IntakeTransport {
  readiness:(snapshot:IntakeSnapshot)=>Promise<IntakeDeliveryReason|null>;
  /** Deterministic validation only; it must not perform I/O or side effects. */
  validate?:(envelope:IntakeDeliveryEnvelope)=>IntakeDeliveryReason|null;
+ /** Read/verify originals and freeze the complete message before recording send intent. */
+ prepare?:(snapshot:IntakeSnapshot,envelope:IntakeDeliveryEnvelope)=>Promise<IntakeDeliveryEnvelope>;
  send:(envelope:IntakeDeliveryEnvelope)=>Promise<string>;
 }
 export interface IntakeDeliveryDependencies {query:IntakeQuery;site:IntakeSite;transports:Record<IntakeChannel,IntakeTransport>;now?:()=>number;suppressed?:(s:IntakeSnapshot)=>boolean;timeoutMs?:number;budgetMs?:number}
@@ -76,11 +78,18 @@ export function intakeDeliveryWorker(deps:IntakeDeliveryDependencies){
      if(reason){state.status='blocked';state.reason=reason;state.nextAttemptAt=iso(at+60*60*1000);await persist();continue;}
      try{
       if(!state.envelope){
-       state.envelope=intakeDeliveryEnvelope(s,channel,stored!.payload.digest);state.envelopeDigest=intakeDigest(state.envelope);
+       const envelope=intakeDeliveryEnvelope(s,channel,stored!.payload.digest);
+       state.envelope=transport.prepare?await transport.prepare(s,envelope):envelope;
+       state.envelopeDigest=intakeDigest(state.envelope);
       }
       if(state.envelopeDigest!==intakeDigest(state.envelope)||state.envelope.snapshotDigest!==stored!.payload.digest||state.envelope.key!==intakeOperationKey(s,channel)||state.envelope.leadKey!==intakeLeadKey(s.projectId)||state.envelope.channel!==channel||state.envelope.email?.to!==expected)throw new Error('snapshot-conflict');
       const invalid=transport.validate?.(state.envelope);if(invalid){state.status='failed';state.reason=invalid;await persist();continue;}
-     }catch(error){state.status='failed';state.reason=error instanceof Error&&error.message==='snapshot-conflict'?'snapshot-conflict':'payload-review';await persist();continue;}
+     }catch(error){
+      const fileUnavailable=error instanceof Error&&['file-delivery-unavailable','estimate-link-secret-unavailable'].includes(error.message);
+      state.status=fileUnavailable?'blocked':'failed';state.reason=fileUnavailable?'file-delivery-unavailable':error instanceof Error&&error.message==='snapshot-conflict'?'snapshot-conflict':'payload-review';
+      if(fileUnavailable)state.nextAttemptAt=iso(now()+60*60*1000);
+      await persist();continue;
+     }
      // Persist the exact provider payload, key and transport retry contract before calling the adapter.
      state.retryWindowMs=state.retryWindowMs===undefined?transport.retryWindowMs:Math.min(state.retryWindowMs,transport.retryWindowMs);
      const replay=state.attempts>0;
