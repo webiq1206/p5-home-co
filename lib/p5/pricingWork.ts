@@ -10,7 +10,7 @@ import {createHash,randomUUID} from 'node:crypto';
 import {recordEvent} from './events.ts';
 import {saveLearnedLines,readLearnedLines,learnedCostRules,learnedResearchLeads,saveSupportedServiceBook} from './learnedBook.ts';
 import {databasePricingCache,pricingCacheEnabled} from './pricingCache.ts';
-import {claimWork,writeWork,releaseWork,renewWork,readSavedWorkReply} from './workStore.ts';
+import {claimWork,writeWork,releaseWork,renewWork,readSavedWorkReply,readPricingSnapshots} from './workStore.ts';
 import {priceCompleteScope,requestPricing,type PricingReply,type PricingRequest,PRICING_STAGE_MAX_MS,RESEARCH_STAGE_MS} from './scopePricing.ts';
 import {PricingPending,PricingStageTimeout,PRICING_UNAVAILABLE,isPricingPending,retryablePricingProviderError,expiredResearchFailure,savedPricingTimeoutReason} from './pricingProgress.ts';
 import {beginPricingRepair,type PricingRepairState} from './repairClock.ts';
@@ -22,12 +22,43 @@ import {pricingFingerprint,pricingRecoveryError,PricingChargeUnknownError,type P
 import {assertProjectSourceCoverage,SOURCE_COVERAGE_REQUIRED} from './documentServiceClient.ts';
 import {shortlistBook,type ShortlistTask,type ShortlistRate} from './bookShortlist.ts';
 
-export function pricingWorkKey(scope:ReviewedScope,configuration:EstimatorConfiguration,pricingAt:Date,estimatorVersion=ESTIMATOR_VERSION){
+const pricingIdentityKey=(identity?:PricingIdentity)=>createHash('sha256').update(JSON.stringify(identity?{draftId:identity.draftId,customerKey:identity.customerKey,revision:identity.revision}:null)).digest('hex');
+export function pricingWorkKey(scope:ReviewedScope,configuration:EstimatorConfiguration,pricingAt:Date,estimatorVersion=ESTIMATOR_VERSION,identity?:PricingIdentity){
  // Persisting a recovered service must not change this job's identity and
  // repeat provider work when the next status request reads the saved policy.
  configuration=withSupportedServiceBook(configuration,scope.answers.service||'');
- const signature={estimatorVersion,modelPolicy:MODEL_POLICY_VERSION,pricingDate:pricingAt.toISOString().slice(0,10),text:scope.text,answers:scope.answers,extraction:scope.extraction,uploads:scope.uploads,uncertainFields:scope.uncertainFields,configuration};
+ // Revision-bound new work has one lease even when its first two requests
+ // race across midnight. The server payload owns the actual pricing date.
+ // Preserve the original daily hash verbatim for legacy checkpoint lookup.
+ const signature={estimatorVersion,modelPolicy:MODEL_POLICY_VERSION,...(!identity?{pricingDate:pricingAt.toISOString().slice(0,10)}:{}),text:scope.text,answers:scope.answers,extraction:scope.extraction,uploads:scope.uploads,uncertainFields:scope.uncertainFields,configuration,...(identity?{pricingIdentity:pricingIdentityKey(identity)}:{})};
  return 'pricing-v11-'+createHash('sha256').update(JSON.stringify(signature)).digest('hex');
+}
+/** Keep the original server pricing snapshot across midnight. Legacy work is
+ * adopted only with its exact scope/configuration hash and, when an identity
+ * is supplied, server request traces that began in the current draft revision.
+ * A later revision write cannot authenticate an older inline checkpoint. */
+export async function pricingWorkSnapshot(id:string,scope:ReviewedScope,configuration:EstimatorConfiguration,pricingAt:Date,identity?:PricingIdentity){
+ const rows=await readPricingSnapshots(id),identityKey=pricingIdentityKey(identity);
+ for(const row of rows){
+  const payload=row.payload as Payload;
+  if(typeof payload.pricingAt!=='string'||payload.identityKey&&payload.identityKey!==identityKey)continue;
+  const savedAt=new Date(payload.pricingAt);
+  if(!Number.isFinite(savedAt.getTime()))continue;
+  const key=pricingWorkKey(scope,configuration,savedAt,ESTIMATOR_VERSION,identity);
+  const legacy=pricingWorkKey(scope,configuration,savedAt);
+  if(row.work_key!==key&&row.work_key!==legacy)continue;
+  if(identity&&!payload.identityKey){
+   const contact=row.contact,revisionStartedAt=new Date(row.revision_started_at).getTime();
+   const traces=Object.values(payload.requests||{});
+   const proven=identity.draftId===id&&Number(row.revision)===identity.revision
+    &&contact&&`${contact.email.trim().toLowerCase()}|${contact.name.trim().toLowerCase()}`===identity.customerKey
+    &&Number.isFinite(revisionStartedAt)&&traces.length>0
+    &&traces.every(trace=>Number.isFinite(Date.parse(trace.startedAt))&&Date.parse(trace.startedAt)>=revisionStartedAt);
+   if(!proven)continue;
+  }
+  return {workKey:row.work_key as string,pricingAt:savedAt};
+ }
+ return {workKey:pricingWorkKey(scope,configuration,pricingAt,ESTIMATOR_VERSION,identity),pricingAt};
 }
 /** Saved replies are keyed by stage content, so independent stages may run in
  * parallel and a resumed request reuses exactly the work that finished. */
@@ -44,7 +75,7 @@ export function reusableSavedPricingReply(value:unknown):value is PricingReply{
 type RequestFailure={attempt:number;failedAt:string;causes:ReturnType<typeof pricingFailureDetails>};
 type EvidenceAttempt=ReturnType<typeof pricingTaskEvidence>&{startedAt:string;calls:Record<string,PricingCallEvidence>;accounting?:Extract<PricingEvidenceUpdate,{kind:'accounting'}>['state']};
 type RequestTrace={fingerprint:string;provider:string;model:string;stage:string;attempt:number;startedAt:string;taskIds?:string[];repair?:'format'|'scope';mappingResult?:{tasksType:string;returnedTaskIds:(string|null)[]};failedAt?:string;causes?:ReturnType<typeof pricingFailureDetails>;failures:RequestFailure[];evidenceAttempts?:Record<string,EvidenceAttempt>};
-type Payload=PricingRepairState&{replies:Record<string,PricingReply>;requests?:Record<string,RequestTrace>;shortlists?:Record<string,Record<string,string[]>>;failures?:number;completed?:number;regionalRates?:EstimatorConfiguration['regionalRates'];researchLeads?:EstimatorConfiguration['researchLeads'];processing?:ProcessingStatus;pricingAt?:string;busyWaitMs?:number;qaReviewWaitStartedAt?:number};
+type Payload=PricingRepairState&{replies:Record<string,PricingReply>;requests?:Record<string,RequestTrace>;shortlists?:Record<string,Record<string,string[]>>;failures?:number;completed?:number;regionalRates?:EstimatorConfiguration['regionalRates'];researchLeads?:EstimatorConfiguration['researchLeads'];processing?:ProcessingStatus;pricingAt?:string;identityKey?:string;busyWaitMs?:number;qaReviewWaitStartedAt?:number};
 export async function priceSavedScope(...args:Parameters<typeof priceSavedScopeImpl>){
  // Preserve the existing source-coverage gate before any database operation.
  if(SOURCE_COVERAGE_REQUIRED)assertProjectSourceCoverage(args[1].uploads,args[1].extraction);
@@ -57,9 +88,10 @@ async function priceSavedScopeImpl(id:string,scope:ReviewedScope,configuration:E
  await assertQaProvidersAllowed(id);
  remainingBudget(deadline);
  if(!qaPaidContext())await saveSupportedServiceBook(configuration,scope.answers.service||'');
- const workKey=pricingWorkKey(scope,configuration,pricingAt);
+ const snapshot=await pricingWorkSnapshot(id,scope,configuration,pricingAt,identity);
+ const {workKey}=snapshot;pricingAt=snapshot.pricingAt;
  const [regional,learned]=await Promise.all([readRegionalRates(scope.answers.location||'',pricingAt),readLearnedLines()]);
- const claimed=await claimWork(id,workKey,{replies:{},researchLeads:learnedResearchLeads(learned,scope.answers.service||'',{location:scope.answers.location||'',finish:scope.answers.finish}),regionalRates:[...regional,...learnedCostRules(learned,scope.answers.service||'',{location:scope.answers.location||'',finish:scope.answers.finish},pricingAt)]},290);
+ const claimed=await claimWork(id,workKey,{replies:{},pricingAt:pricingAt.toISOString(),identityKey:pricingIdentityKey(identity),researchLeads:learnedResearchLeads(learned,scope.answers.service||'',{location:scope.answers.location||'',finish:scope.answers.finish}),regionalRates:[...regional,...learnedCostRules(learned,scope.answers.service||'',{location:scope.answers.location||'',finish:scope.answers.finish},pricingAt)]},290);
  if(!claimed)throw new PricingPending('Your pricing check is already running. Waiting for its saved result...',10000);
  const payload=claimed.payload as Payload;
  // Freeze the pricing timestamp across requests. Rate freshness and generated
@@ -70,6 +102,7 @@ async function priceSavedScopeImpl(id:string,scope:ReviewedScope,configuration:E
  configuration={...configuration,researchLeads:payload.researchLeads||[],regionalRates:(payload.regionalRates||[]).filter(rule=>rule.estimatingBasis==='sourced-market-average')};
  let saving=Promise.resolve();
  const persist=()=>{saving=saving.then(async()=>{try{await writeWork(id,workKey,claimed.token,payload);}catch{throw new PricingPending('Pricing progress could not be saved yet. Please retry to continue.',0);}});return saving;};
+ if(!payload.identityKey){payload.identityKey=pricingIdentityKey(identity);await persist();}
  // Only time awaiting a verified pre-dispatch QA review is excluded. Real
  // provider work, unknown charges and ordinary customer clocks keep their bounds.
  if(qaPaidContext()&&payload.qaReviewWaitStartedAt!==undefined){

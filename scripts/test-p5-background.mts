@@ -14,8 +14,8 @@ process.env.P5_JOB_HOLD_MS='200';
 // this script unable to observe the state it asserts.
 try{
  await cp('lib/p5',dir,{recursive:true});
- await writeFile(path.join(dir,'database.ts'),`import {PGlite} from '@electric-sql/pglite';export const database=new PGlite();export async function query(s:string,v:unknown[]=[]){return (await database.query(s,v)).rows;}`);
- await writeFile(path.join(dir,'pricingWork.ts'),`export const calls:string[]=[];export function pricingWorkKey(){return 'pricing-fixture';}export async function priceSavedScope(id:string){calls.push(id);return {customer:{range:{low:100,high:150}},internal:{scopePricing:{issues:[]}}};}`);
+ await writeFile(path.join(dir,'database.ts'),`import {PGlite} from '@electric-sql/pglite';export const database=new PGlite();let leaseHook:(()=>Promise<void>)|undefined;export function onNextLease(hook:()=>Promise<void>){leaseHook=hook;}export async function query(s:string,v:unknown[]=[]){const rows=(await database.query(s,v)).rows;if(leaseHook&&s.startsWith('UPDATE p5_estimator_work SET lease_token=')&&rows.length){const hook=leaseHook;leaseHook=undefined;await hook();}return rows;}`);
+ await writeFile(path.join(dir,'pricingWork.ts'),`export const calls:string[]=[];export function pricingWorkKey(){return 'pricing-fixture';}export async function pricingWorkSnapshot(){return {workKey:'pricing-fixture'};}export async function priceSavedScope(id:string){calls.push(id);return {customer:{range:{low:100,high:150}},internal:{scopePricing:{issues:[]}}};}`);
  await writeFile(path.join(dir,'analysisWork.ts'),`import {query} from './database';import {DraftError} from './store';import {MODEL_POLICY_VERSION,ESTIMATOR_MODEL_SNAPSHOT} from './modelPolicy';export const calls:string[]=[];export let fail:boolean|'unread'=false;export function failure(value:boolean|'unread'){fail=value;}export function analysisWorkKey(draft:any,text:string){return 'analysis-fixture-'+text;}export function analysisProgressWorkKeys(draft:any,text:string){return [analysisWorkKey(draft,text)];}export async function advanceAnalysis(draft:any,text:string){const key=analysisWorkKey(draft,text);const [row]=await query('SELECT payload FROM p5_estimator_work WHERE draft_id=$1 AND work_key=$2',[draft.id,key]);const stage=row?.payload?.stage||0;if(stage>=2)return {pending:false,analysis:{modelPolicy:MODEL_POLICY_VERSION,model:ESTIMATOR_MODEL_SNAPSHOT,extraction:{reviewNotes:[]}}};calls.push(text+stage);if(fail==='unread')throw new DraftError('large-plan.pdf: automatic reading could not finish for page 9. Use Retry document reading.',422);if(fail)throw new Error('Synthetic provider outage');const processing={phase:'reading',message:'Reading original pages '+(stage*8+1)+' to '+(stage*8+8),readPages:stage*8,totalPages:16,updatedAt:new Date().toISOString()};await query('INSERT INTO p5_estimator_work(draft_id,work_key,payload) VALUES($1,$2,$3::jsonb) ON CONFLICT(draft_id,work_key) DO UPDATE SET payload=EXCLUDED.payload',[draft.id,key,JSON.stringify({stage:stage+1,processing})]);await new Promise(r=>setTimeout(r,350));return {pending:true,progress:processing.message};}`);
  const mod=(n:string)=>import(pathToFileURL(path.join(dir,n+'.ts')).href);
  const {MODEL_POLICY_VERSION,ESTIMATOR_MODEL_SNAPSHOT}=await mod('modelPolicy');
@@ -113,6 +113,36 @@ try{
  await db.query('UPDATE p5_estimator_work SET payload=$1::jsonb WHERE draft_id=$2 AND work_key=$3',[JSON.stringify({...completedPricing,result:{customer:{range:null},internal:{scopePricing:{issues:['Missing confirmed quantity']}}}}),draft.id,pricingKey]);
  await background.queuedJob(pricingInput,true);
  assert.equal(pricer.calls.length,1,'a real unresolved scope condition remains held');
+ const callsBeforeIdentity=pricer.calls.length;
+ const revisionInput={...pricingInput,draft:{...pricingInput.draft,revision:pricingInput.draft.revision+1}};
+ const revisedJob=await background.queuedJob(revisionInput);
+ assert.deepEqual(revisedJob.result.customer.range,{low:100,high:150},'a revision-only change cannot reuse the earlier completed queue result');
+ assert.equal(revisedJob.input.draft.revision,revisionInput.draft.revision,'the worker receives the new server revision');
+ assert.equal(pricer.calls.length,callsBeforeIdentity+1);
+ await background.queuedJob(revisionInput,true);
+ assert.equal(pricer.calls.length,callsBeforeIdentity+1,'repeated same-revision polls and retries remain idempotent');
+ const customerInput={...pricingInput,draft:{...pricingInput.draft,contact:{...pricingInput.draft.contact,name:'Synthetic customer',email:'synthetic@example.invalid'}}};
+ const customerJob=await background.queuedJob(customerInput);
+ assert.deepEqual(customerJob.result.customer.range,{low:100,high:150},'a customer-only identity change cannot return the earlier result');
+ assert.equal(customerJob.input.draft.contact.email,'synthetic@example.invalid');
+ assert.equal(pricer.calls.length,callsBeforeIdentity+2);
+ await background.queuedJob({...customerInput,draft:{...customerInput.draft,contact:{...customerInput.draft.contact,name:'  SYNTHETIC CUSTOMER ',email:' SYNTHETIC@EXAMPLE.INVALID '}}},true);
+ assert.equal(pricer.calls.length,callsBeforeIdentity+2,'customer identity follows the same trim/case rules as the pricing ledger');
+ const changedConfiguration={...customerInput,configuration:{finance:{rate:99}}};
+ await background.queuedJob(changedConfiguration);
+ assert.equal(pricer.calls.length,callsBeforeIdentity+3,'a real configuration change creates separate queued pricing work');
+ const ActualDate=Date;
+ const laterQueueDate=new ActualDate(ActualDate.now()+3*24*60*60*1000);
+ globalThis.Date=class extends ActualDate{constructor(...args:[]|[string|number]){super(args.length?args[0]:laterQueueDate.getTime());}} as DateConstructor;
+ try{
+  const resumedQueue=await background.queuedJob(customerInput,true);
+  assert.deepEqual(resumedQueue.result.customer.range,{low:100,high:150});
+  assert.equal(resumedQueue.createdAt,customerJob.createdAt,'multi-day queue resume preserves its original attempt/lifetime ledger');
+  assert.equal(pricer.calls.length,callsBeforeIdentity+3,'an overnight queue poll cannot create another completed pricing pass');
+ }finally{globalThis.Date=ActualDate;}
+ const [originalQueue]=await db.query('SELECT payload FROM p5_estimator_work WHERE draft_id=$1 AND work_key=$2',[draft.id,pricingKey]);
+ assert.equal(originalQueue.payload.input.draft.revision,pricingInput.draft.revision,'earlier revision checkpoints remain inspection evidence');
+ assert.equal(originalQueue.payload.result.customer.range,null,'genuine holds are never edited by another identity');
  // A release change must get past BOTH legacy and versioned completed holds.
  // Old rows remain intact, and repeated polls within this release reuse success.
  const releaseId=randomUUID(),releaseDraft=await store.saveDraft(releaseId,key,'test',{text:'Release recovery fixture',answers:{},extraction:null,reviewed:null,contact:{name:'',email:'',phone:''}},0);
@@ -128,5 +158,59 @@ try{
  await background.queuedJob(releaseInput,true);
  assert.equal(pricer.calls.length,callsBeforeRelease+1,'same-release retries reuse the successful price');
  for(const oldKey of historicalKeys){const [old]=await db.query('SELECT payload FROM p5_estimator_work WHERE draft_id=$1 AND work_key=$2',[releaseId,oldKey]);assert.deepEqual(old.payload,obsolete,'historical job and accounting are retained');}
+ for(const legacyState of ['failed','running']){
+ const legacyRetryId=randomUUID(),legacyRetryDraft=await store.saveDraft(legacyRetryId,key,'test',{text:'Overnight legacy retry fixture',answers:{},extraction:null,reviewed:null,contact:{name:'',email:'',phone:''}},0);
+ const legacyRetryInput={...pricingInput,draft:{...legacyRetryDraft,reviewed:pricingInput.draft.reviewed}};
+ const originalCreatedAt=new Date(Date.now()-24*60*60*1000).toISOString();
+ const legacyRetryIdentity={engineVersion:9,estimatorVersion:ESTIMATOR_VERSION,modelPolicy:MODEL_POLICY_VERSION,kind:'pricing',id:legacyRetryId,reviewed:legacyRetryInput.draft.reviewed,configuration:{},date:originalCreatedAt.slice(0,10)};
+ const legacyRetryKey='background-v1-'+createHash('sha256').update(JSON.stringify(legacyRetryIdentity)).digest('hex');
+ await db.query('INSERT INTO p5_estimator_work(draft_id,work_key,payload) VALUES($1,$2,$3::jsonb)',[legacyRetryId,legacyRetryKey,JSON.stringify({...completedPricing,input:legacyRetryInput,state:legacyState,attempts:3,createdAt:originalCreatedAt})]);
+ const callsBeforeLegacyRetry=pricer.calls.length;
+ const overnightRetry=await background.queuedJob(legacyRetryInput,true);
+ const [storedRetry]=await db.query('SELECT payload FROM p5_estimator_work WHERE draft_id=$1 AND work_key=$2',[legacyRetryId,legacyRetryKey]);
+ const nextPoll=await background.queuedJob(storedRetry.payload.input);
+ assert.deepEqual(nextPoll.result.customer.range,{low:100,high:150});
+ assert.equal(nextPoll.createdAt,overnightRetry.createdAt);
+ assert.equal(pricer.calls.length,callsBeforeLegacyRetry+1,'an overnight legacy retry and its next poll use one original queue');
+ const originalRetryRows=await db.query("SELECT work_key FROM p5_estimator_work WHERE draft_id=$1 AND work_key LIKE 'background-v1-%'",[legacyRetryId]);
+ assert.deepEqual(originalRetryRows.map(row=>row.work_key),[legacyRetryKey],'a retry timestamp change cannot create a fresh accounting row');
+ }
+ const ambiguousPricingId=randomUUID(),ambiguousPricingDraft=await store.saveDraft(ambiguousPricingId,key,'test',{text:'Ambiguous pricing fixture',answers:{},extraction:null,reviewed:null,contact:{name:'',email:'',phone:''}},0);
+ const ambiguousPricingInput={...pricingInput,draft:{...ambiguousPricingDraft,reviewed:pricingInput.draft.reviewed}};
+ const duplicatePricingRows=[0,1].map(days=>{
+  const createdAt=new Date(Date.now()-days*24*60*60*1000).toISOString();
+  const identity={engineVersion:9,estimatorVersion:ESTIMATOR_VERSION,modelPolicy:MODEL_POLICY_VERSION,kind:'pricing',id:ambiguousPricingId,reviewed:ambiguousPricingInput.draft.reviewed,configuration:{},date:createdAt.slice(0,10)};
+  return {key:'background-v1-'+createHash('sha256').update(JSON.stringify(identity)).digest('hex'),payload:{...completedPricing,input:ambiguousPricingInput,createdAt,state:days?'running':'queued',attempts:days+1}};
+ });
+ for(const duplicate of duplicatePricingRows)await db.query('INSERT INTO p5_estimator_work(draft_id,work_key,payload) VALUES($1,$2,$3::jsonb)',[ambiguousPricingId,duplicate.key,JSON.stringify(duplicate.payload)]);
+ const callsBeforeAmbiguity=pricer.calls.length;
+ await assert.rejects(background.queuedJob(ambiguousPricingInput),/Multiple saved pricing ledgers/);
+ assert.equal(pricer.calls.length,callsBeforeAmbiguity,'ambiguous pricing queues are held before worker dispatch');
+ await background.drainEstimatorJobs();
+ assert.equal(pricer.calls.length,callsBeforeAmbiguity,'periodic drain also holds ambiguous pricing queues before worker dispatch');
+ for(const duplicate of duplicatePricingRows){const [row]=await db.query('SELECT payload,lease_token FROM p5_estimator_work WHERE draft_id=$1 AND work_key=$2',[ambiguousPricingId,duplicate.key]);assert.deepEqual(row.payload,duplicate.payload);assert.equal(row.lease_token,null);}
+ const leaseRaceId=randomUUID(),leaseRaceDraft=await store.saveDraft(leaseRaceId,key,'test',{text:'Pricing lease ambiguity fixture',answers:{},extraction:null,reviewed:null,contact:{name:'',email:'',phone:''}},0);
+ const leaseRaceInput={...pricingInput,draft:{...leaseRaceDraft,reviewed:pricingInput.draft.reviewed}};
+ const leaseRaceRows=[0,1].map(days=>{
+  const createdAt=new Date(Date.now()-days*24*60*60*1000).toISOString();
+  const identity={engineVersion:9,estimatorVersion:ESTIMATOR_VERSION,modelPolicy:MODEL_POLICY_VERSION,kind:'pricing',id:leaseRaceId,reviewed:leaseRaceInput.draft.reviewed,configuration:{},date:createdAt.slice(0,10)};
+  return {key:'background-v1-'+createHash('sha256').update(JSON.stringify(identity)).digest('hex'),payload:{...completedPricing,input:leaseRaceInput,createdAt,state:days?'running':'queued',attempts:days+1}};
+ });
+ const insertLeaseRace=(row:typeof leaseRaceRows[number])=>db.query('INSERT INTO p5_estimator_work(draft_id,work_key,payload) VALUES($1,$2,$3::jsonb)',[leaseRaceId,row.key,JSON.stringify(row.payload)]);
+ await insertLeaseRace(leaseRaceRows[0]);
+ db.onNextLease(async()=>{await insertLeaseRace(leaseRaceRows[1]);});
+ await background.drainEstimatorJobs();
+ assert.equal(pricer.calls.length,callsBeforeAmbiguity,'a matching queue inserted during lease acquisition is held before pricing work');
+ for(const row of leaseRaceRows){const [saved]=await db.query('SELECT payload,lease_token FROM p5_estimator_work WHERE draft_id=$1 AND work_key=$2',[leaseRaceId,row.key]);assert.deepEqual(saved.payload,row.payload,'the post-lease guard preserves both attempt ledgers');assert.equal(saved.lease_token,null,'the post-lease guard releases its own claim');}
+ const racePricingId=randomUUID(),racePricingDraft=await store.saveDraft(racePricingId,key,'test',{text:'Concurrent pricing fixture',answers:{},extraction:null,reviewed:null,contact:{name:'',email:'',phone:''}},0);
+ const racePricingInput={...pricingInput,draft:{...racePricingDraft,reviewed:pricingInput.draft.reviewed}};
+ const callsBeforeRace=pricer.calls.length;
+ const raceJobs=await Promise.all([background.queuedJob(racePricingInput),background.queuedJob(racePricingInput)]);
+ assert.ok(raceJobs.every(job=>job.state==='complete'));
+ assert.equal(pricer.calls.length,callsBeforeRace+1,'simultaneous pricing admissions share one queue/worker');
+ assert.equal((await db.query("SELECT work_key FROM p5_estimator_work WHERE draft_id=$1 AND work_key LIKE 'background-v1-%'",[racePricingId])).length,1);
+ const [storedRace]=await db.query("SELECT payload FROM p5_estimator_work WHERE draft_id=$1 AND work_key LIKE 'background-v1-%'",[racePricingId]);
+ await background.queuedJob(storedRace.payload.input);
+ assert.equal(pricer.calls.length,callsBeforeRace+1,'jsonb object ordering on a later poll cannot change the bound original queue hash');
  await db.database.close();console.log('PASS: durable queue, request-driven passes, live page status, continued work without browser polling, no duplicate finished work, expired-lease recovery, failure/retry, and no delivery side effects. SQL real, AI simulated.');
 }finally{await rm(dir,{recursive:true,force:true});}

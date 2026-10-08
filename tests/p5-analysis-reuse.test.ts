@@ -69,13 +69,17 @@ test('progress lookup uses the persisted jsonb input hashed by the pricing worke
  const {pricingWorkKey}=await import('../lib/p5/pricingWork.ts');
  const {EMPTY_CONFIGURATION}=await import('../lib/p5/costBook.ts');
  const db=new PGlite();
+ const oldPool=globalThis.__p5Pool,oldUrl=process.env.DATABASE_URL;
+ process.env.DATABASE_URL='postgres://offline.invalid/isolated';
+ globalThis.__p5Pool={query:async()=>({rows:[]})} as unknown as NonNullable<typeof globalThis.__p5Pool>;
  try{
-  const job={createdAt:'2026-09-24T12:00:00Z',input:{kind:'pricing',draft:{id:'qa',reviewed:{text:'Trim',answers:{service:'handyman',location:'Boise'},extraction:null,uploads:[],reviewedAt:'2026-09-24',corrections:[]}},configuration:EMPTY_CONFIGURATION}};
+  const job={createdAt:'2026-09-24T12:00:00Z',input:{kind:'pricing',draft:{id:'qa',revision:1,contact:{email:'',name:'Synthetic',phone:''},reviewed:{text:'Trim',answers:{service:'handyman',location:'Boise'},extraction:null,uploads:[],reviewedAt:'2026-09-24',corrections:[]}},configuration:EMPTY_CONFIGURATION}};
   const {rows}=await db.query<{payload:typeof job}>('SELECT $1::jsonb AS payload',[JSON.stringify(job)]);const saved=rows[0].payload;
-  const workerKey=pricingWorkKey(saved.input.draft.reviewed,saved.input.configuration,new Date(saved.createdAt));
-  assert.notEqual(pricingWorkKey(job.input.draft.reviewed,job.input.configuration,new Date(job.createdAt)),workerKey,'jsonb reproduces the original key-order mismatch');
+  const identity={draftId:'qa',customerKey:'|synthetic',revision:1};
+  const workerKey=pricingWorkKey(saved.input.draft.reviewed,saved.input.configuration,new Date(saved.createdAt),undefined,identity);
+  assert.notEqual(pricingWorkKey(job.input.draft.reviewed,job.input.configuration,new Date(job.createdAt),undefined,identity),workerKey,'jsonb reproduces the original key-order mismatch');
   assert.deepEqual(await jobProgressWorkKeys(saved as Parameters<typeof jobProgressWorkKeys>[0]),[workerKey]);
- }finally{await db.close();}
+ }finally{globalThis.__p5Pool=oldPool;if(oldUrl===undefined)delete process.env.DATABASE_URL;else process.env.DATABASE_URL=oldUrl;await db.close();}
 });
 
 test('P5 reuses a verified complete source read when a supplied answer became an identical extracted fact',async()=>{
