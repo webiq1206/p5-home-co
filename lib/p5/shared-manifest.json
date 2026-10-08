@@ -1,7 +1,7 @@
 {
   "source": "p5-home-co",
-  "commit": "f93ca47291f9ae8ee701441126cfcc971cccdea0",
-  "generatedAt": "2026-10-08T13:38:07.623Z",
+  "commit": "ef9a07a46a68bf5ae26823f59c295a57c47299b9",
+  "generatedAt": "2026-10-08T13:44:17.742Z",
   "note": "Shared estimator engine published from p5-home-co. Edit shared files there and run scripts/p5-sync.mjs; hash checks remain mandatory in every brand.",
   "files": {
     "app/admin/p5-estimators/page.tsx": "f9b7f729daa74f542cdece161d2bf158fb784f5a8c55356fe7283e73db2c139d",
@@ -178,7 +178,7 @@
     "lib/p5/projectPageEvidence.ts": "0dd9e77031593eca9b3fbbdaf74bda252552598ead19fd7dd1816ff0a53cffe4",
     "lib/p5/projectPricing.ts": "27f645a2fe46d33130f564ba558dc3e0e55cb5e2c0883b53508594d05b80079a",
     "lib/p5/projectRecord.ts": "68a6b50c6f8b776687b3125d17bbea91c02937289de8111dddcf19f4b6a0b020",
-    "lib/p5/projectRecordContracts.ts": "d3fb0a1c524d97b743e8f91a834c3513d58500144265307180f03655f00569e0",
+    "lib/p5/projectRecordContracts.ts": "b4a2b25b421dc42120c612f894a33411427cfab351b52e43c617a8c7c95b0ddb",
     "lib/p5/projectRecordEndpoint.ts": "ff9621d7ee86f7b4c6531c7f9f99427340151ad3213c073dd42d929fbf16704a",
     "lib/p5/projectRecordWork.ts": "12e81d74f9801d50f0dd790c7576eaef69189435d8a21a580e93ead9472930e9",
     "lib/p5/projectReplyRecovery.ts": "2a0d06f1959366cbdd3aa860553a018d61a4d4e837f6ed9e4ad2c054cabf2f7e",

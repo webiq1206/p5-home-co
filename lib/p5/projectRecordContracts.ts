@@ -191,7 +191,8 @@ Return every reviewed requirement and source ID. Return structured findings for 
 
 // Sibling brands still ship zod 3, which has no JSON Schema export. Project-record stages are
 // restricted to P5 Home Co, so the legacy pricing stages there never reach this conversion.
-const toJsonSchema=(z as unknown as {toJSONSchema?:(schema:z.ZodType)=>Record<string,unknown>}).toJSONSchema;
+// Looked up by computed key so a zod 3 bundle does not warn about a missing named export.
+const toJsonSchema=(z as unknown as Record<string,((schema:z.ZodType)=>Record<string,unknown>)|undefined>)['toJSON'+'Schema'];
 const json=(schema:z.ZodType)=>{
  if(!toJsonSchema)throw new Error('Project-record contracts require the zod JSON Schema export.');
  const { $schema:_dialect,...result}=toJsonSchema(schema);void _dialect;return result;
