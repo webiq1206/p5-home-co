@@ -32,7 +32,9 @@ export const BRAND_OWNED=['lib/p5/brand.ts','lib/p5/deliveryAdapter.ts','lib/p5/
 export const P5_ONLY=['lib/p5/qaContinuation.ts','lib/p5/qaContinuationEndpoint.ts','lib/p5/qaOrigin.ts','lib/p5/qaSavedEstimate.ts','lib/p5/qaSavedEstimateEndpoint.ts','lib/p5/qaSavedReadingEndpoint.ts',
   'components/P5QaContinuation.tsx','components/P5QaSavedEstimate.tsx','components/P5QaSavedReading.tsx',
   'scripts/check-p5-live-pricing-guarded.mts','scripts/check-p5-recovery-request.mjs','scripts/lib/recoveryTransport.mjs','scripts/p5-qa-recovery-browser.mjs','scripts/p5-qa-saved-auth-fixture.mjs','scripts/p5-qa-saved-browser.mjs','scripts/p5-reference-files.mts','scripts/test-p5-qa-paid.mts','scripts/test-p5-recovery-request.mjs','scripts/test-p5-recovery-transport.mjs',
-  'tests/p5-document-followups.test.ts','tests/p5-qa-continuation.test.ts','tests/p5-qa-origin.test.ts','tests/p5-qa-saved-estimate.test.ts','tests/p5-qa-saved-reading.test.ts','tests/p5-synthetic-crm.test.ts'];
+  'tests/p5-document-followups.test.ts','tests/p5-qa-continuation.test.ts','tests/p5-qa-origin.test.ts','tests/p5-qa-saved-estimate.test.ts','tests/p5-qa-saved-reading.test.ts','tests/p5-synthetic-crm.test.ts',
+  // Project-record qualification (page evidence, source contracts, JSON Schema contracts) runs on p5homeco.com only.
+  'tests/p5-project-local-pages.test.ts','tests/p5-project-page-evidence.test.ts','tests/p5-project-record.test.ts','tests/p5-project-source-contract.test.ts'];
 /** Site modules every brand provides at the same path, so shared files may import them. */
 const SITE_MODULES=['lib/googleAdsConversion.ts','lib/brand-page-metadata.ts'];
 /** Shared files a brand may be missing on purpose (never deleted, never required). */
@@ -44,6 +46,7 @@ const SHARED_ROOTS=[
   {dir:'app/admin/p5-estimators',match:name=>name==='page.tsx',flat:true},
   {dir:'tests',match:name=>/^p5-.*\.test\.(ts|mjs)$/.test(name),flat:true},
   {dir:'tests/fixtures',match:name=>/^(p5-|crm)/.test(name),flat:true},
+  {dir:'tests/fixtures/p5-qualification',match:name=>/\.json$/.test(name),flat:true},
   {dir:'scripts',match:name=>/^(test-p5-|check-p5-|p5-|offline-network-guard)/.test(name)&&!/p5-sync\.mjs$/.test(name)||name==='p5-sync.mjs',flat:true},
   {dir:'scripts/lib',match:name=>/\.(ts|mts|mjs)$/.test(name),flat:true},
 ];
