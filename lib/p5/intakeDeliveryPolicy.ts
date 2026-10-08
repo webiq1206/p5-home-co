@@ -5,6 +5,7 @@ export const INTAKE_DELIVERY_REASONS={
  'crm-contract-pending':'CRM awaits a verified unpriced-request contract, target and revision reconciliation.',
  'crm-disabled':'CRM delivery remains disabled by the existing site setting.',
  'payload-review':'The saved request needs a delivery-format review; its complete contents are retained.',
+ 'file-delivery-unavailable':'The request is saved, but an original file could not be verified for delivery. No incomplete email was sent; the team must check the retained files.',
  'contact-review':'CRM requires review of the saved contact details. The original request and other delivery channels are retained.',
  'snapshot-conflict':'The saved delivery identity needs operator review before processing.',
  'safe-retry':'A retry with the same delivery identity is scheduled.',
