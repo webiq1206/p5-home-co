@@ -1,7 +1,7 @@
-import { MAILBOX, OWNER, PORTAL, email, phone, type Identity, type Mail } from "./inbox-policy.ts";
+import { MAILBOX, OWNER, PORTAL, email, phone, emailDirection, emailTimestamp, type Identity, type Mail } from "./inbox-policy.ts";
 import { emailContent, htmlMatches, sourcePrefix } from "./inbox-content.ts";
 
-type RecordResult = { id: string; properties: Record<string, string | null>; associations?: Record<string, { results: { id: string }[]; paging?: unknown }> };
+type RecordResult = { id: string; archived?: boolean; properties: Record<string, string | null>; associations?: Record<string, { results: { id: string }[]; paging?: unknown }> };
 type Results = { total: number; results: RecordResult[]; paging?: { next?: { after: string } } };
 export class InboxApiError extends Error {
   status: number;
@@ -37,7 +37,7 @@ export class InboxHubSpot {
     await this.call("/crm/v3/objects/contacts?limit=1&properties=email,phone,mobilephone,hs_additional_emails");
   }
   async readEmail(id: string): Promise<RecordResult> {
-    return this.call(`/crm/v3/objects/emails/${encodeURIComponent(id)}?properties=hs_email_message_id,hs_email_subject,hs_email_text,hs_email_html,hs_email_headers,hs_email_from_email,hs_email_to_email,hs_email_cc_email,hs_timestamp&associations=contacts,companies,deals,tickets`);
+    return this.call(`/crm/v3/objects/emails/${encodeURIComponent(id)}?properties=hs_email_message_id,hs_email_subject,hs_email_text,hs_email_html,hs_email_headers,hs_email_from_email,hs_email_to_email,hs_email_cc_email,hs_email_direction,hs_timestamp&associations=contacts,companies,deals,tickets`);
   }
   async findEmail(mail: Mail): Promise<RecordResult | null> {
     const matches = await this.call<Results>("/crm/v3/objects/emails/search", "POST", {
@@ -51,6 +51,8 @@ export class InboxHubSpot {
     const record = await this.readEmail(id);
     if (record.properties.hs_email_message_id !== mail.messageId || record.properties.hs_email_subject !== mail.subject) throw new Error("crm-source-conflict");
     if (!headersMatch(record.properties, mail)) throw new Error("crm-header-conflict");
+    if (emailDirection(mail) === "EMAIL" && (record.properties.hs_email_direction !== "EMAIL"
+      || Date.parse(record.properties.hs_timestamp || "") !== Date.parse(emailTimestamp(mail)))) throw new Error("crm-sent-metadata-conflict");
     // Search result alone is never proof. A full read must return original
     // metadata and body content; existing native records are never overwritten.
     if (mail.text && !sourcePrefix(mail.text, record.properties.hs_email_text || "")) throw new Error("crm-body-conflict");
@@ -86,10 +88,10 @@ export class InboxHubSpot {
     const address = (a: { email: string; name: string }) => ({ email: a.email, firstName: a.name });
     const content = emailContent(mail, sourceId);
     const properties = {
-      hs_email_message_id: mail.messageId, hs_timestamp: mail.receivedAt,
+      hs_email_message_id: mail.messageId, hs_timestamp: emailTimestamp(mail),
       hs_email_subject: mail.subject, hs_email_text: content.text, hs_email_html: content.html,
-      hs_email_status: "SENT", hs_email_direction: "INCOMING_EMAIL", hubspot_owner_id: OWNER,
-      hs_email_headers: JSON.stringify({ from: address(mail.from[0]), to: mail.to.map(address), cc: mail.cc.map(address), bcc: [] }),
+      hs_email_status: "SENT", hs_email_direction: emailDirection(mail), hubspot_owner_id: OWNER,
+      hs_email_headers: JSON.stringify({ from: address(mail.from[0]), to: mail.to.map(address), cc: mail.cc.map(address), bcc: (mail.bcc || []).map(address) }),
     };
     const result = await this.call<{ id: string }>("/crm/v3/objects/emails", "POST", { properties,
       associations: contactId ? [{ to: { id: contactId }, types: [{ associationCategory: "HUBSPOT_DEFINED", associationTypeId: 198 }] }] : [] });
@@ -100,17 +102,36 @@ export class InboxHubSpot {
     const content = emailContent(mail, sourceId);
     if (p.hs_email_message_id !== mail.messageId || p.hs_email_subject !== mail.subject || (p.hs_email_text || "") !== content.text
       || !htmlMatches(content.html, p.hs_email_html || "")
-      || Date.parse(p.hs_timestamp || "") !== Date.parse(mail.receivedAt)) throw new Error("created-email-readback-mismatch");
+      || p.hs_email_direction !== emailDirection(mail)
+      || Date.parse(p.hs_timestamp || "") !== Date.parse(emailTimestamp(mail))) throw new Error("created-email-readback-mismatch");
     if (!headersMatch(p, mail)) throw new Error("created-email-header-mismatch");
-    const contacts = record.associations?.contacts?.results.map(x => x.id).sort() || [];
+    const contacts = [...new Set(record.associations?.contacts?.results.map(x => x.id) || [])].sort();
     if (JSON.stringify(contacts) !== JSON.stringify(contactId ? [contactId] : [])) throw new Error("created-email-contact-mismatch");
-    if (Object.entries(record.associations || {}).some(([kind, data]) => data.paging || (kind !== "contacts" && data.results.length))) throw new Error("unexpected-email-association");
+    if (Object.entries(record.associations || {}).some(([kind, data]) => data.paging || (!["contacts", "companies"].includes(kind) && data.results.length))) throw new Error("unexpected-email-association");
+    const companies = [...new Set(record.associations?.companies?.results.map(x => x.id) || [])];
+    if (companies.length) {
+      if (!contactId) throw new Error("unexpected-email-association");
+      // HubSpot can add the contact's companies during EMAIL creation. Accept
+      // only freshly read relationships of this exact contact, not a domain
+      // guess or a company inherited from another native activity.
+      const contact = await this.call<RecordResult>(`/crm/v3/objects/contacts/${encodeURIComponent(contactId)}?properties=email&associations=companies`);
+      const linked = contact.associations?.companies;
+      if (contact.id !== contactId || contact.archived || linked?.paging
+        || companies.some(id => !linked?.results.some(company => company.id === id))) throw new Error("unexpected-email-association");
+    }
   }
 }
 
 function headersMatch(properties: Record<string, string | null>, mail: Mail) {
   const addresses = (value: string | null | undefined) => [...new Set((value || "").toLowerCase().match(/[^\s<>,;]+@[^\s<>,;]+/g) || [])].sort();
+  let bcc: string[];
+  try {
+    const headers = JSON.parse(properties.hs_email_headers || "{}");
+    if (headers.bcc !== undefined && !Array.isArray(headers.bcc)) return false;
+    bcc = [...new Set((headers.bcc || []).map((a: { email?: string }) => String(a.email || "").toLowerCase()))].sort() as string[];
+  } catch { return false; }
   return JSON.stringify(addresses(properties.hs_email_from_email)) === JSON.stringify(mail.from.map(a => a.email).sort())
     && JSON.stringify(addresses(properties.hs_email_to_email)) === JSON.stringify([...new Set(mail.to.map(a => a.email))].sort())
-    && JSON.stringify(addresses(properties.hs_email_cc_email)) === JSON.stringify([...new Set(mail.cc.map(a => a.email))].sort());
+    && JSON.stringify(addresses(properties.hs_email_cc_email)) === JSON.stringify([...new Set(mail.cc.map(a => a.email))].sort())
+    && JSON.stringify(bcc) === JSON.stringify([...new Set((mail.bcc || []).map(a => a.email))].sort());
 }

@@ -4,11 +4,12 @@ export const MAILBOX = "hello@p5homeco.com";
 export const PORTAL = 247066159;
 export const OWNER = "97300513";
 export const DOMAINS = ["p5homeco.com", "boisecabinet.co", "boiseconstruction.co", "boiseremodeling.co", "boisehandyman.co", "boiseadu.co"];
+export const VERIFIED_HELLO_ALIASES = DOMAINS.map(domain => `hello@${domain}`);
 export const MAX_SOURCE_BYTES = 10 * 1024 * 1024;
 export type Address = { email: string; name: string };
 export type Mail = {
   messageId: string; subject: string; receivedAt: string; sentAt: string | null;
-  from: Address[]; to: Address[]; cc: Address[]; text: string; html: string;
+  from: Address[]; to: Address[]; cc: Address[]; bcc?: Address[]; text: string; html: string;
   headers: { key: string; line: string }[]; attachments: { name: string; size: number; type: string }[];
   labels: string[];
 };
@@ -36,7 +37,7 @@ export async function parseMail(source: Buffer, receivedAt: Date, labels: string
   return {
     messageId: parsed.messageId || "", subject: parsed.subject || "", receivedAt: receivedAt.toISOString(),
     sentAt: parsed.date && Number.isFinite(parsed.date.getTime()) ? parsed.date.toISOString() : null,
-    from: addresses(parsed.from), to: addresses(parsed.to), cc: addresses(parsed.cc),
+    from: addresses(parsed.from), to: addresses(parsed.to), cc: addresses(parsed.cc), bcc: addresses(parsed.bcc),
     text: parsed.text ?? "", html: typeof parsed.html === "string" ? parsed.html : "",
     headers: [...(parsed.headerLines || [])], labels,
     attachments: parsed.attachments.map(a => ({ name: a.filename || "unnamed", size: a.size, type: a.contentType })),
@@ -44,6 +45,40 @@ export async function parseMail(source: Buffer, receivedAt: Date, labels: string
 }
 function header(mail: Mail, key: string): string {
   return mail.headers.find(h => h.key.toLowerCase() === key)?.line.replace(/^[^:]+:\s*/, "") || "";
+}
+const websiteSubject = /^(?:New consultation request\b|New lead\b|Project review requested\b)/i;
+function recipients(mail: Mail) { return [...mail.to, ...mail.cc, ...(mail.bcc || [])]; }
+function receivedByUs(mail: Mail) {
+  return recipients(mail).some(a => ourAddress(a.email)) || ourAddress(header(mail, "delivered-to").trim());
+}
+function websiteNotification(mail: Mail) {
+  return mail.from.length === 1 && ourAddress(mail.from[0].email) && receivedByUs(mail) && websiteSubject.test(mail.subject);
+}
+function loggingAddress(address: string) {
+  // Dedicated forwarding/logging addresses are never customers. A logging
+  // Bcc on a genuine customer message is retained without choosing that Bcc.
+  return /^[^@]+@(?:forward|bcc)(?:\.[a-z0-9-]+)?\.hubspot\.com$/i.test(address);
+}
+function sentEnvelope(mail: Mail) {
+  return mail.labels.includes("\\Sent") && mail.from.length === 1 && VERIFIED_HELLO_ALIASES.includes(mail.from[0].email)
+    && recipients(mail).some(a => !ourAddress(a.email) && !loggingAddress(a.email)) && !websiteNotification(mail);
+}
+/** The actual portal's supported outgoing enum is EMAIL, not OUTGOING_EMAIL. */
+export function emailDirection(mail: Mail): "EMAIL" | "INCOMING_EMAIL" {
+  return sentEnvelope(mail) ? "EMAIL" : "INCOMING_EMAIL";
+}
+export function emailTimestamp(mail: Mail) {
+  if (emailDirection(mail) === "INCOMING_EMAIL") return mail.receivedAt;
+  if (!mail.sentAt || !Number.isFinite(Date.parse(mail.sentAt))) throw new Error("missing-original-sent-date");
+  return mail.sentAt;
+}
+function sentTemplate(mail: Mail) {
+  // Observed producers include Gmail SMTP templates with no Auto-Submitted
+  // header. Match their concrete new-message subjects, not human Re:/Fwd:.
+  return /^\[Partial\]\s|^\[Outreach reply\]\s|^Callback requested:|^Project request\b|^P5 Daily Snapshot\b|^P5 URGENT:/i.test(mail.subject)
+    || /: (?:internal estimate record|estimate delivery needs attention) \(ref /i.test(mail.subject)
+    || /^P5: .*(?:has no owner|needs attention|follow-up overdue)/i.test(mail.subject)
+    || websiteSubject.test(mail.subject);
 }
 /** Trust only Gmail's first Authentication-Results, never a later injected copy. */
 function authenticated(mail: Mail, domain: string): boolean {
@@ -61,8 +96,21 @@ export function classify(mail: Mail): Decision {
   if (mail.labels.includes("\\Draft")) return { status: "ignored", reason: "draft" };
   if (mail.from.length !== 1 || !email(mail.from[0].email)) return { status: "review", reason: "ambiguous-sender" };
   const sender = mail.from[0].email, domain = sender.split("@")[1];
-  const receivedByUs = [...mail.to, ...mail.cc].some(a => ourAddress(a.email)) || ourAddress(header(mail, "delivered-to").trim());
-  if (!receivedByUs) return { status: "ignored", reason: "not-addressed-to-p5" };
+  if (mail.labels.includes("\\Sent") && !websiteNotification(mail)) {
+    if (!VERIFIED_HELLO_ALIASES.includes(sender)) return { status: "review", reason: "unverified-sent-alias" };
+    if (header(mail, "list-unsubscribe") || header(mail, "list-unsubscribe-post") || header(mail, "list-id")
+      || /^(?:bulk|list|junk)$/i.test(header(mail, "precedence").trim())
+      || (header(mail, "auto-submitted") && header(mail, "auto-submitted").trim().toLowerCase() !== "no")) return { status: "ignored", reason: "bulk-or-automated-sent" };
+    if (sentTemplate(mail)) return { status: "ignored", reason: "known-automated-sent-template" };
+    const all = recipients(mail);
+    const external = [...new Set(all.map(a => email(a.email)).filter((a): a is string => Boolean(a && !ourAddress(a) && !loggingAddress(a))))];
+    if (!all.length || all.some(a => !email(a.email))) return { status: "review", reason: "malformed-sent-recipients" };
+    if (!external.length) return { status: "ignored", reason: "internal-or-logging-sent" };
+    if (!mail.sentAt || !Number.isFinite(Date.parse(mail.sentAt))) return { status: "review", reason: "missing-original-sent-date" };
+    return { status: "pending", reason: external.length === 1 ? "sent-correspondence" : "ambiguous-sent-recipients",
+      ...(external.length === 1 ? { identity: { kind: "email", value: external[0], create: false } as Identity } : {}) };
+  }
+  if (!receivedByUs(mail)) return { status: "ignored", reason: "not-addressed-to-p5" };
   if (sender === "voice-noreply@google.com" || /@txt\.voice\.google\.com$/.test(sender)) {
     if (!authenticated(mail, domain)) return { status: "review", reason: "unverified-voice-transport" };
     const relay = sender.match(/^\d+\.(\d+)\.[^@]+@txt\.voice\.google\.com$/)?.[1];
@@ -76,7 +124,7 @@ export function classify(mail: Mail): Decision {
   }
   if (ourAddress(sender)) {
     if (!authenticated(mail, domain)) return { status: "review", reason: "unverified-website-transport" };
-    if (!/^(?:New consultation request\b|New lead\b|Project review requested\b)/i.test(mail.subject)) return { status: "ignored", reason: "internal-or-outgoing" };
+    if (!websiteSubject.test(mail.subject)) return { status: "ignored", reason: "internal-or-outgoing" };
     // Website form values can contain newlines. Inspect ALL explicit field
     // lines, including invalid/empty ones: a forged early block must never
     // hide the real contact field later in the notification. Ambiguity holds

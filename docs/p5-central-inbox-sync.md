@@ -30,13 +30,62 @@ database's additive migration; the current token's portal, EMAIL list/search,
 owner and association reads; and a controlled EMAIL create/readback with the
 expected customer association. Keep the feature off until these checks pass.
 
+### Obtain evidence before activation
+
+An active administrator can use the existing production **Automation health**
+page, `/admin/finance/health`. The two server actions independently re-check
+administrator authorization, require the canonical production Origin, and
+retain the existing request protection. Neither invokes the watchdog or
+changes activation settings. Both refuse while ongoing inbox sync is enabled.
+
+1. **Check production inbox binding** uses the credentials loaded by that
+   actual web process. It runs HubSpot read preflight and verifies the exact
+   owner contact, then opens Gmail read-only and fetches only approved owner
+   diagnostic `1a11c535bd394396`. Its RFC ID, subject, sender
+   `hello@webiq.co`, recipient and sent date must match the fixed approval.
+   Its body and metadata must also match native EMAIL `405857171192`, whose
+   contacts must include fixed owner `566594721482`. Existing native internal
+   recipient, company and QA deal links are returned as an observed baseline,
+   including any incomplete association lists; they are not exclusive-owner
+   proof or associations to copy. No source is selected by browser input.
+   This probe makes no mailbox, CRM or receipt/cursor writes. Its response
+   reports nonsecret source/UID/body-hash proof and the executing build receipt;
+   it does not return message bodies, headers or credentials.
+2. **Create or verify owner test activity** requires a separate explicit
+   administrator confirmation and repeats the fresh binding/read checks.
+   It creates at most one clearly labeled synthetic connection-test copy of
+   that owner source, with a deterministic separate RFC ID. It preserves
+   the original native EMAIL and never represents the copy as another
+   customer recovery or sends a message. Strict readback requires the exact
+   content, original-source footer and only the fixed owner contact. Automatic
+   company links are accepted only when a fresh read of that exact contact
+   verifies every observed company ID without pagination. Extra contacts,
+   deals, tickets, unrelated companies and incomplete reads fail verification.
+
+The test uses a reserved `owner-diagnostic:...` receipt in the existing new
+receipt table. It never advances a folder cursor or claims ordinary work, and
+normal synchronization/counts exclude its reason. A durable search fence is
+saved before the first copy search; if a process dies after acquiring that
+fence but before an actual creation intent, later requests require review
+instead of making a new POST after a negative search. A separate creation
+intent precedes the actual POST. Lost responses reconcile without another
+POST, while known returned IDs are saved before readback. A preexisting copy
+without local creation evidence does not prove this runtime has write access.
+
+These controls deliberately do not require `P5_INBOX_SYNC_VERIFIED_BINDING`
+or a cutover date: they obtain the evidence needed to set those values
+truthfully afterward. They do not set them. The production deployment and
+additive schema still require the existing release review; `.replit` runs
+pending migrations at boot, so default-OFF does not itself defer migration 018.
+No separate public route, credential, automation or execution service is added.
+
 Only then set these **server-only** values:
 
 | Variable | Meaning |
 | --- | --- |
 | `P5_INBOX_SYNC_ENABLED` | Must be exactly `true`; otherwise no mailbox, HubSpot or database operation occurs. |
 | `P5_INBOX_SYNC_VERIFIED_BINDING` | Must be exactly `247066159:hello@p5homeco.com`, an operator attestation of the completed production and write checks. This is not a credential and does not replace live preflight. |
-| `P5_INBOX_SYNC_START_AT` | Explicit UTC ISO timestamp ending in `Z`. Choose the approved cutover after historical recovery. No implicit all-time backfill. |
+| `P5_INBOX_SYNC_START_AT` | Explicit UTC ISO timestamp ending in `Z`, at or before the last fully reviewed mailbox snapshot boundary. Include a deliberate overlap covered by existing Gmail/RFC/native deduplication so messages arriving during historical recovery are not missed. Do not use recovery-completion or activation time as the cutoff. No implicit all-time backfill. |
 
 The existing `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_HOST` and `HUBSPOT_TOKEN` are
 used in place. They are never copied, emitted, placed in URLs, or written to
@@ -71,8 +120,28 @@ Spam/Trash. Spam/Trash messages are held for review and never relabeled.
 | Authenticated P5 brand notification with a supported consultation/lead/project-review subject | Parse explicit `Name:`, `Email:` and `Phone:` field lines. Multiple field lines anywhere in the body are ambiguous, preventing multiline-name/section injection. Only one unambiguous external customer email may create a contact. A phone-only submission can match an existing exact contact; it cannot create one. |
 | Authenticated Google Voice SMS or voicemail notice | Extract caller phone from the subject/relay, reject conflicting callback numbers, then compare the complete normalized number with existing CRM candidates. No contact is created from a Voice relay, notification sender, phone number or guessed name. |
 | Other non-bulk external correspondence | Match an existing contact by exact primary/secondary email. Unknown senders are saved as unassociated EMAIL activities; this worker does not create contacts for them. |
+| Gmail Sent correspondence from the six verified `hello@` aliases | Require Gmail's actual `\\Sent` label, an exact verified sender and an external To/Cc/Bcc recipient. Match one distinct external recipient to an existing exact contact; unknown or multiple recipients remain unassociated. No Sent contact is created. Customer-facing preliminary estimates and saved-project receipts qualify; internal notifications, campaign/list mail and observed provider-forward wrappers do not. |
 | Ambiguous customer identity | Preserve the activity unassociated. Do not invent identities, contact details or relationships. |
-| Existing native or previously recovered RFC message | Full-read original metadata/body and verify the customer association. Preserve the EMAIL without mutation. Wrong or unverifiable customer links become review receipts. |
+| Existing native or previously recovered RFC message | Full-read original metadata/body and verify the expected external customer. Additional contacts require fresh primary-email reads matching internal addresses in the actual envelope, or the central mailbox when an exact verified hello alias is present. Preserve all native associations without mutation and retain verified internal context separately in the receipt. Extra external/unrelated contacts or any paged association list require review. |
+
+The verified Sent senders are `hello@p5homeco.com`, `hello@boisecabinet.co`,
+`hello@boiseconstruction.co`, `hello@boiseremodeling.co`,
+`hello@boisehandyman.co` and `hello@boiseadu.co`. Other localparts and subdomains
+are not verified sending identities. Incoming delivery still accepts any
+localpart under these six domains. The actual portal schema uses `EMAIL` for
+outgoing activity and `INCOMING_EMAIL` for incoming; `OUTGOING_EMAIL` is not a
+supported value. Sent activities use their original sent timestamp and retain
+From/To/Cc/Bcc, including display names and logging Bcc without treating the
+HubSpot logging address as a customer. All Mail captures Sent messages through
+their provider label; the same Gmail source ID cannot create a second receipt.
+
+Newly created activities require exactly the intended contact, or no contact
+when identity is unknown. Automatic company associations are verified with a
+fresh read of that exact contact's company links, without needing company
+writes or inferring domain relationships. Unexpected contacts, deals, tickets,
+unrelated companies and incomplete association reads remain review cases.
+This stricter creation rule does not remove native CRM context from records
+that existed before reconciliation.
 
 The native HubSpot Gmail connection, aliases, logging rule and optional beta
 remain unchanged. If native new-contact logging is enabled later, it may
@@ -106,7 +175,7 @@ uniqueness guarantee across two independent writers.
 
 Decoded original plaintext and HTML are kept separately without generating
 one from the other or rewriting CID links. New EMAILs preserve the complete
-sender/recipient display names in header JSON. A clearly separated source
+sender/recipient display names and original Bcc in header JSON. A clearly separated source
 footer follows the intact original text/HTML, with the Gmail message link
 bound to the central mailbox, original Date header, parsed sent date, received
 timestamp, RFC Message-ID and attachment names/sizes. The Gmail link uses the
@@ -125,7 +194,9 @@ not represented as imported. This includes messages with large plan PDFs.
 Missing RFC IDs, unsafe or absent body content, unsupported notifier templates,
 ambiguous matches and unexpected automatic CRM associations also have explicit
 hold/ignore reasons. Newsletter/list mail, drafts, most automated senders and
-unsupported internal/outgoing templates are outside this narrow worker's scope.
+unsupported internal templates and campaign/list mail are outside this narrow
+worker's scope. An automatically generated client estimate or saved-project
+receipt is not excluded solely because it was generated by the application.
 
 HTTP calls have deadlines and pacing; IMAP, pool acquisition and inbox SQL
 queries have timeouts. Each pass targets a 90-second processing budget, fetches
@@ -147,6 +218,13 @@ sources, stale claims after Spam classification, uncertain creates, provider-ID
 recovery, and existing native records with incorrect contact associations.
 They also cover preserved names and source links, attachment references,
 64-bit Gmail IDs, sanitized HTML verification and truncated/changed content.
+The separate diagnostic tests cover administrator/Origin authorization, the
+OFF-state probe, exact owner-source refusals, concurrent clicks, isolated
+receipts, durable search/POST fences, lost responses and zero recovery counts.
+Sent tests cover exact aliases, genuine correspondence and client receipts,
+internal/bulk/wrapper exclusions, Bcc, supported direction and original dates.
+Association tests cover native internal-recipient context, exact-contact
+company evidence and foreign contact/company/deal/pagination refusal.
 The IMAP adapter test uses a fake read-only client, not a live mailbox.
 
 Relevant official references:

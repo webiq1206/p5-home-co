@@ -1,6 +1,6 @@
 import { ImapFlow, type ListResponse, type ImapFlowOptions } from "imapflow";
 import { getPool, transaction } from "../db.ts";
-import { MAILBOX, PORTAL, MAX_SOURCE_BYTES, parseMail, classify, type Mail } from "./inbox-policy.ts";
+import { MAILBOX, PORTAL, MAX_SOURCE_BYTES, VERIFIED_HELLO_ALIASES, email, ourAddress, parseMail, classify, type Mail } from "./inbox-policy.ts";
 import { InboxStore, type Receipt, type Read } from "./inbox-store.ts";
 import { InboxApiError, InboxHubSpot } from "./inbox-hubspot.ts";
 
@@ -42,9 +42,28 @@ async function preserveExisting(store: InboxStore, crm: InboxHubSpot, row: Recei
     }
   }
   const association = record.associations?.contacts;
-  const contacts = association?.results.map(x => x.id) || [];
-  const verified = expected && !association?.paging && contacts.length === 1 && contacts[0] === expected;
-  if (verified && expected) await store.finish(row, "existing", now, { emailId: record.id, contactId: expected });
+  const contacts = [...new Set(association?.results.map(x => x.id) || [])];
+  let verified = Boolean(expected && contacts.includes(expected) && !Object.values(record.associations || {}).some(data => data.paging));
+  const internalContacts: { id: string; email: string }[] = [];
+  const envelope = [...row.payload.from, ...row.payload.to, ...row.payload.cc, ...(row.payload.bcc || [])].map(a => a.email);
+  const allowedInternal = new Set(envelope.filter(address => email(address) && ourAddress(address)));
+  if (envelope.some(address => VERIFIED_HELLO_ALIASES.includes(address))) allowedInternal.add(MAILBOX);
+  if (verified) for (const id of contacts.filter(id => id !== expected)) {
+    const contact = await crm.call<{ id: string; archived?: boolean; properties: { email?: string } }>(`/crm/v3/objects/contacts/${encodeURIComponent(id)}?properties=email`);
+    const address = email(contact.properties.email || "");
+    if (contact.id !== id || contact.archived || !address || !allowedInternal.has(address)) { verified = false; break; }
+    internalContacts.push({ id, email: address });
+  }
+  if (verified && expected) {
+    // Preserve native recipient context separately from the one independently
+    // matched customer. Never create/remove native CRM associations.
+    const baseline = Object.fromEntries(Object.entries(record.associations || {}).map(([kind, data]) =>
+      [kind, [...new Set(data.results.map(item => item.id))].sort()]));
+    await store.read(`UPDATE p5_inbox_message SET locations=(SELECT jsonb_agg(DISTINCT item) FROM jsonb_array_elements(locations || $4::jsonb) item)
+      WHERE mailbox=$1 AND source_id=$2 AND lease_token=$3 AND status='processing'`,
+    [MAILBOX, row.source_id, row.lease_token, JSON.stringify([{ nativeAssociationContext: { emailId: record.id, customerContactId: expected, internalContacts, baseline } }])]);
+    await store.finish(row, "existing", now, { emailId: record.id, contactId: expected });
+  }
   else await store.finish(row, "review", now, { emailId: record.id, error: "native-email-customer-association-unverified" });
 }
 export async function deliverReceipt(store: InboxStore, crm: InboxHubSpot, row: Receipt, now: () => Date = () => new Date()) {
@@ -150,7 +169,7 @@ export async function captureMailbox(store: InboxStore, config: NonNullable<Retu
           let mail: Mail, decision: ReturnType<typeof classify>;
           const addresses = (items: { address?: string; name?: string }[] | undefined) => (items || []).map(a => ({ email: a.address || "", name: a.name || "" }));
           const empty = (): Mail => ({ messageId: metadata.envelope?.messageId || "", subject: metadata.envelope?.subject || "", receivedAt: received.toISOString(), sentAt: null,
-            from: addresses(metadata.envelope?.from), to: addresses(metadata.envelope?.to), cc: addresses(metadata.envelope?.cc), text: "", html: "", headers: [], attachments: [], labels });
+            from: addresses(metadata.envelope?.from), to: addresses(metadata.envelope?.to), cc: addresses(metadata.envelope?.cc), bcc: addresses(metadata.envelope?.bcc), text: "", html: "", headers: [], attachments: [], labels });
           if (received < config.start) {
             mail = empty(); decision = { status: "ignored", reason: "before-explicit-start" };
           } else if (!metadata.size || metadata.size > MAX_SOURCE_BYTES) {
@@ -206,7 +225,7 @@ export async function runInboxSync(env: Environment = process.env) {
       await deliverReceipt(store, crm, row);
       processed++;
     }
-    const [backlog] = await boundedRead(`SELECT count(*)::integer AS unresolved FROM p5_inbox_message WHERE mailbox=$1 AND status IN ('review','retry','uncertain')`, [MAILBOX]);
+    const [backlog] = await boundedRead(`SELECT count(*)::integer AS unresolved FROM p5_inbox_message WHERE mailbox=$1 AND reason<>'owner-connection-diagnostic' AND status IN ('review','retry','uncertain')`, [MAILBOX]);
     const unresolved = Number(backlog?.unresolved || 0);
     await boundedRead(`INSERT INTO integration_health(name,state,last_attempt_at,last_success_at,records_processed,last_error)
       VALUES('hubspot-inbox',$2,now(),now(),$1,$3) ON CONFLICT(name) DO UPDATE SET

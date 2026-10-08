@@ -57,6 +57,7 @@ export class InboxStore {
     const token = randomUUID();
     const [row] = await this.read(`WITH candidate AS (
       SELECT mailbox,source_id FROM p5_inbox_message WHERE mailbox=$1
+      AND reason<>'owner-connection-diagnostic'
       AND status IN ('pending','retry','uncertain','processing') AND next_attempt_at <= $2
       AND (lease_until IS NULL OR lease_until <= $2)
       ORDER BY next_attempt_at,source_id LIMIT 1 FOR UPDATE SKIP LOCKED)

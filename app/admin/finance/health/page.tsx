@@ -11,6 +11,7 @@ import { checkDatabase } from "../../../lib/db.ts";
 import { isQboConfigured, isQboConnected } from "../../../lib/finance/qbo/oauth.ts";
 import { syncNow } from "../actions.ts";
 import { healthBoard } from "../queries.ts";
+import InboxDiagnostics from "./InboxDiagnostics.tsx";
 
 export const dynamic = "force-dynamic";
 
@@ -38,6 +39,8 @@ export default async function HealthPage() {
       <p className="admin-sub">
         Every integration and scheduled job, with its last success and failure.
       </p>
+
+      {user?.role === "administrator" && <InboxDiagnostics />}
 
       <section className="fin-section">
         <h2>QuickBooks connection</h2>
