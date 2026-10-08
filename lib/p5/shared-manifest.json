@@ -1,7 +1,7 @@
 {
   "source": "p5-home-co",
-  "commit": "491480adab9528ae9e385e5527c17698321dfe5c",
-  "generatedAt": "2026-10-08T13:54:01.938Z",
+  "commit": "d2d67bc1f67891b4f9928bf27487e462b3135382",
+  "generatedAt": "2026-10-08T13:57:57.817Z",
   "note": "Shared estimator engine published from p5-home-co. Edit shared files there and run scripts/p5-sync.mjs; hash checks remain mandatory in every brand.",
   "files": {
     "app/admin/p5-estimators/page.tsx": "f9b7f729daa74f542cdece161d2bf158fb784f5a8c55356fe7283e73db2c139d",
@@ -265,7 +265,7 @@
     "scripts/p5-build-price-book.mjs": "714a76f8a9f29077d052304456aca38769fc9485022774856eae816b2e847450",
     "scripts/p5-cli-acceptance.mts": "ed5b8fc80231c03b3c2b54de486fb6db7f259947e855ecf4985a9caf6f4ea6b8",
     "scripts/p5-component-review.mjs": "7035921690a6dc0648b1c3142b054ad09d67535c706e108817369e9e6de6ab26",
-    "scripts/p5-estimator-browser.mjs": "0bac4e583b1a6f3d5b285edd583302a020da9508f0727cf4dea1220cf63d992f",
+    "scripts/p5-estimator-browser.mjs": "a34df30b7f0015f6cee9dc57bd6c6d07e57f26b2a68b71d206db24f7fb132336",
     "scripts/p5-host-build.mjs": "1d83b593096c24575847b9f290253c7d32e74dfaa640d22ac68b427307599b3f",
     "scripts/p5-hub-notification-check.mjs": "e2d4216777feeb2e4099b93986ca257e4760f671312a6b343014ef7677148f06",
     "scripts/p5-intake-browser-fixture.mts": "7d970f466dcf77c7f4435457de34dfb4da96da8877ad4b587e3ffea2dd01d5da",
