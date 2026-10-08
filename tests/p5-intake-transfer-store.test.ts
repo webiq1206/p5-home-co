@@ -4,7 +4,7 @@ import {emptyIntakeDetails,intakeUnresolved} from '../lib/p5/intakeContract.ts';
 import {SCOPE_FIELDS,type ScopeAnswers} from '../lib/p5/scope.ts';
 import type {IntakeRow} from '../lib/p5/intakeStore.ts';
 import assert from 'node:assert/strict';
-import {PGlite} from '@electric-sql/pglite';
+import {isolatedDatabase} from './fixtures/p5-pglite.ts';
 import {REGISTER_DRAFT_UPLOAD_SQL} from '../lib/p5/intakeTransferGuards.ts';
 import {intakeTransferStore,transferSecretHash,transferredFileId,requireTransferBundle,requireTransferReceipt,TRANSFER_KEY,IMPORT_KEY,TRANSFER_ADMISSION_MS,IntakeTransferConflict,type TransferBinding} from '../lib/p5/intakeTransferStore.ts';
 import {sourceIdentity,assertCompleteSourceCoverage} from '../lib/p5/documentServiceClient.ts';
@@ -36,7 +36,7 @@ test('retiring a seed after preparation cancels only before destination claim',a
  }finally{await x.db.close();}}
 });
 async function database(){
- const db=new PGlite();let now=Date.parse('2099-01-02T12:00:00Z');
+ const db=await isolatedDatabase();let now=Date.parse('2099-01-02T12:00:00Z');
  await db.exec(`CREATE TABLE p5_estimator_drafts(id uuid PRIMARY KEY,key_hash text,revision integer,brand text,status text,payload jsonb,updated_at timestamptz DEFAULT now());
  CREATE TABLE p5_estimator_work(draft_id uuid REFERENCES p5_estimator_drafts(id),work_key text,payload jsonb,updated_at timestamptz DEFAULT now(),PRIMARY KEY(draft_id,work_key));
  CREATE TABLE p5_estimator_files(id uuid PRIMARY KEY,draft_id uuid REFERENCES p5_estimator_drafts(id),name text,mime_type text,size_bytes integer,sha256 text,created_at timestamptz DEFAULT now(),UNIQUE(draft_id,sha256));`);

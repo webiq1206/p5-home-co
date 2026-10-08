@@ -21,7 +21,7 @@ const numbers:Record<string,number>={one:1,two:2,three:3,four:4,five:5,six:6,sev
 const vocabulary=`a an the and or of on in at to for from with by only all each per same existing old replacement replace replaced replacing install installing installation remove removed removal dispose disposal supply supplies supplied supplying provide provided owner homeowner customer contractor normal ordinary minor small incidental routine standard compatible predrilled pre drilled holes hole good condition conditions hardware fasteners screws washers finishing materials consumables clean cleanup handling included include includes including required requireds as needed no new easy ground floor access scheduling schedule home occupied residential interior room rooms bedroom bedrooms bathroom bathrooms hallway hall kitchen living dining item items unit units total count stated explicitly work scope handyman service please estimate this these those is are have has remain remains will be then labor material materialonly laboronly confirm before firm proposal products product primary supported not independent separately price priced prices cost budget greater less than quantity mounting anchors mount mounted basic light duty existinghome you your our us it its`.split(/\s+/);
 const action=/\b(?:install|installation|replace|replacing|replacement|remove|removal|dispose|disposal|supply|supplies|supplied|provide)\b/i;
 const clauses=(text:string)=>text.split(/[;\n]|\.(?:\s|$)/).map(part=>part.trim()).filter(Boolean);
-const normalized=(text:string)=>text.toLowerCase().replace(/[’']/g,'').replace(/[-–—/]/g,' ');
+const normalized=(text:string)=>text.toLowerCase().replace(/[’']/g,'').replace(/[-\u2013-\u2015/]/g,' ');
 const inert=(text:string)=>/^(?:please\s+)?estimate only this handyman replacement scope$/i.test(text)
  ||/^(?:boise|meridian|nampa|eagle|garden city|star|kuna),?\s*(?:idaho|id)?\s*\d{5}?$/i.test(text);
 const exclusion=(text:string)=>/^(?:no|exclude|excluding)\b/i.test(text)&&! /\b(?:but|except|also|then|install|repair|replace|add|provide|include)\b/i.test(text);
@@ -41,7 +41,7 @@ export function supportedServiceBundle(scope:ReviewedScope,configuration:Estimat
   const source=extraction.sourceText.trim().replace(/^Typed scope:\s*"([\s\S]*)"$/, '$1');
   if(source!==scope.text.trim())return null;
  }
- const raw=scope.text.replace(/SYNTHETIC QA\s*[—–-]\s*release \d{4}-\d{2}-\d{2}\.\d+ acceptance only, not a real customer job\.?/gi,'');
+ const raw=scope.text.replace(/SYNTHETIC QA\s*[\u2013-\u2015-]\s*release \d{4}-\d{2}-\d{2}\.\d+ acceptance only, not a real customer job\.?/gi,'');
  const active=clauses(raw).filter(part=>!inert(part)&&!exclusion(part));
  const answerWork=['installation','demolition','ownerSupplied','access','schedule'].flatMap(key=>clauses(String((scope.answers as any)[key]||'')));
  const included=instructions?.inclusions||[];

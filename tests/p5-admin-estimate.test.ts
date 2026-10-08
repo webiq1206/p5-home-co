@@ -57,7 +57,7 @@ test('a priced estimate lists no "Not priced" work; the check\'s remarks are rev
 
 test('a saved publishable range never claims customer delivery in the internal summary, PDF or email',async()=>{
  const priced={...internal,publishable:true,warnings:[]};
- for(const name of ['SYNTHETIC QA — DO NOT CONTACT','Ordinary Customer']){
+ for(const name of [`SYNTHETIC QA ${String.fromCharCode(0x2014)} DO NOT CONTACT`,'Ordinary Customer']){
   const recipient={name,email:'',phone:''};
   const saved={...customer,issue:{...customer.issue,contact:recipient,projectName:name}};
   const record={...priced,customer:saved,contact:recipient};

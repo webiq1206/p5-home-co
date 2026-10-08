@@ -1,7 +1,7 @@
 import test from 'node:test';
 import type {IntakeRow} from '../lib/p5/intakeStore.ts';
 import assert from 'node:assert/strict';
-import {PGlite} from '@electric-sql/pglite';
+import {isolatedDatabase} from './fixtures/p5-pglite.ts';
 import {intakeStore,deliveryKey,snapshotKey,IntakeConflict} from '../lib/p5/intakeStore.ts';
 import {emptyIntakeDetails,intakeContact,intakeDetails,requireIntakeReceipt,type IntakeSnapshot} from '../lib/p5/intakeContract.ts';
 import {routeIntake} from '../lib/p5/intakePolicy.ts';
@@ -11,7 +11,7 @@ const clock=()=> '2099-01-02T12:00:00.000Z';
 function request():Omit<IntakeSnapshot,'savedAt'>{return {schema:1,projectId:`p5:${id}`,originSite:'p5',currentSite:'p5',draftId:id,revision:1,contextVersion:0,
  contact:{name:'[QA] Fictional Request',email:'inquiry@example.invalid',phone:'',preferredContact:'email'},details:emptyIntakeDetails(),
  scope:{text:'A fictional kitchen project in Fictional Region. Budget unknown.',answers:{service:'kitchen'},extraction:null,uploads:[]},routing:routeIntake('p5','kitchen',['cabinetry']),unresolved:['Budget is not known yet.']};}
-async function database(){const db=new PGlite();await db.exec(`
+async function database(){const db=await isolatedDatabase();await db.exec(`
  CREATE TABLE p5_estimator_drafts(id uuid PRIMARY KEY,revision integer NOT NULL,brand text NOT NULL,status text NOT NULL);
  CREATE TABLE p5_estimator_work(draft_id uuid REFERENCES p5_estimator_drafts(id),work_key text,payload jsonb,updated_at timestamptz DEFAULT now(),PRIMARY KEY(draft_id,work_key));
  INSERT INTO p5_estimator_drafts VALUES('${id}',1,'p5','draft');`);

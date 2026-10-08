@@ -39,7 +39,7 @@ export function routeIntake(site:IntakeSite,service:string,supporting:readonly s
     handoff:site==='p5'||site===primaryTeam?null:primaryTeam,
     unresolved:Object.hasOwn(PRIMARY_TEAM,service)?[]:['Confirm the primary project team during review.']};
 }
-export const INTAKE_COPY={heading:'Tell us about your project',
+export const INTAKE_COPY={heading:'Tell us about your project in just a few minutes',
   introduction:'Share your scope, add photos or plans, and we’ll review the details to prepare your estimate.',
   submit:'Send project request',
   next:'The team will review your scope and uploaded files before preparing an estimate. A site visit or additional information may be needed. We will use your preferred contact method to follow up.'};

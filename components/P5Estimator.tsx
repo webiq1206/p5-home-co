@@ -764,6 +764,12 @@ export function P5Estimator({defaultService='',headingAs='h1',projectSource,layo
   const transcript=draft.transcript||[];const hasProgress=transcript.length>0||draft.step>0||Boolean(result)||uploadedCount>0;
   const locked=Boolean(busy)||preparingFiles||readOnly&&pdfState==='preparing';
   const canSend=!locked&&(composerMode==='project'?Boolean(composerText.trim()||files.length||uploadedCount||attachedProjectSource):composerMode==='answer'?Boolean(reply.trim()||files.length):Boolean(editText.trim()||files.length));
+  // Back from review intentionally opens the project composer. When the saved
+  // analysis still matches, the customer returns to it without re-reading the
+  // same scope or attaching the same files again; an edited description is
+  // analyzed again. Intake mode keeps its own "Review with the details I have" action.
+  const canContinueSaved=!intakeMode&&stage===0&&hasProgress;
+  const continueSaved=()=>{if(!current.current)return;if(needsAnalysis())void begin();else showQuestions(current.current);};
   const customerDelivery=delivery.find(d=>d.channel==='customer');
   const {staffState,customerState}=estimateDeliveryStates(delivery,hasEmail);
   const deliveryState=readOnly&&delivery.some(row=>row.channel==='suppressed'&&row.status==='suppressed')?'suppressed':customerState;
@@ -831,6 +837,7 @@ export function P5Estimator({defaultService='',headingAs='h1',projectSource,layo
     :intakeReceipt?<div className={styles.dockBar}><button type="button" className={styles.secondary} onClick={()=>{setIntakeReceipt(null);setConfirmed(false);apply({...draft,step:2});}}>Review saved details</button><a className={styles.secondary} href={`tel:${brand.phone.replace(/[^\d+]/g,'')}`}>Call {brand.phone}</a></div>:stage===3?<div className={styles.dockBar}><a className={styles.primary} href="#p5-project-review" onClick={()=>trackScopeEvent("onsiteRequested",draft.answers.service)}>{estimateDoc?estimateDoc.review.label:'Schedule a consultation'}</a><a className={styles.secondary} href={`tel:${brand.phone.replace(/[^\d+]/g,'').replace(/^(?!\+)(\d{10})$/,'+1$1')}`}>Call {brand.phone}</a></div>
     :stage===2?<>{addingDetails&&composer}<div className={styles.dockBar} data-final-action><button type="submit" form={formId} className={styles.primary} disabled={locked} aria-describedby={error?submitErrorId:undefined}>{intakeMode?(busy?'Saving your request…':intakeRouting.handoff?`Continue with ${intakeRouting.teamName}`:INTAKE_COPY.submit):busy?'Preparing your estimate…':'Get my estimate'}</button></div><div className={styles.dockRow}><span className={styles.dockHint}>{intakeMode?'Review your details and choose how the team should contact you.':contactReady?(confirmed?(hasEmail?'Your estimate opens right here and is emailed to you.':'Your estimate opens right here. You can download a PDF when it is ready.'):'Confirm your project details above, then get your estimate.'):'Add your name above. Email is optional; check it or leave it blank.'}</span><button type="button" className={styles.ghost} disabled={locked} onClick={()=>setAddingDetails(v=>!v)} aria-expanded={addingDetails}>{addingDetails?'Cancel editing':'Add or edit details'}</button></div></>
     :stage===1&&active?.handoff?<div className={styles.dockBar}><a className={styles.primary} href={active.handoff.url} onClick={e=>{e.preventDefault();void carryProject(active.handoff!.url);}}>{active.handoff.label}</a></div>
+    :canContinueSaved?<>{composer}<div className={styles.dockBar}><button type="button" className={styles.primary} disabled={locked} onClick={continueSaved}>Continue</button></div><p className={styles.dockHint}>Your reviewed project is saved. Edit the description above to update it, or continue where you left off.</p></>
     // What the customer can attach is already said by the field's own placeholder and the attach
     // button. The only thing this line adds is that written limits are obeyed, so that is all it says
     // now: on a phone the old sentence ran to three lines of text the customer had just read.

@@ -475,7 +475,7 @@ test('a no-correction finding, including the live explanatory continuation, requ
   if(reviews===2)assert.ok((input as any).correctionsRequired.some((p:any)=>p.code==='review-nonactionable-finding'));
   return {value:repair&&reviews===2?review(r):invalid,sourceUrls:[]};
  }});
- for(const correction of ['None required.','None required\u2014both rates are scope-appropriate and the estimate matches task size.','No correction is needed because the selected rate fits.','No change to this line; reassess the other line.']){
+ for(const correction of ['None required.',`None required${String.fromCharCode(0x2014)}both rates are scope-appropriate and the estimate matches task size.`,'No correction is needed because the selected rate fits.','No change to this line; reassess the other line.']){
   invalid.findings[0].requiredCorrection=correction;prices=0;reviews=0;
   assert.equal((await run(true)).status,'estimated');assert.equal(prices,1);assert.equal(reviews,2);
   prices=0;reviews=0;

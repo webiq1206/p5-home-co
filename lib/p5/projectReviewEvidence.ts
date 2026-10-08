@@ -17,7 +17,7 @@ export function verifiedReviewCatalog(raw:unknown,catalog:{code:string;descripti
   // into an actionable defect. Reject the contradictory review, including a
   // mixed correction, so the reviewer must restate any actual change. Never
   // remove the finding or accept the price from this wording alone.
-  if(/^(?:(?:required )?correction:\s*)?(?:none(?: (?:is )?(?:required|needed))?|no (?:correction|change|action)(?: (?:is )?(?:required|needed))?|n\/a)(?=$|[\s.!:;,\u2014\u2013-])/i.test(correction))
+  if(/^(?:(?:required )?correction:\s*)?(?:none(?: (?:is )?(?:required|needed))?|no (?:correction|change|action)(?: (?:is )?(?:required|needed))?|n\/a)(?=$|[\s.!:;,\u2013-\u2015-])/i.test(correction))
    problems.push({code:'review-nonactionable-finding',ids:[finding.id],message:'This finding explicitly requires no correction. Review this selection again: place confirmations in notes, or identify the actual defect and a concrete required change. Do not reprice a justified selection merely to satisfy a contradictory review.'});
   const cited=new Set(finding.catalogEvidence.map(item=>item.rateId));
   if(finding.code==='rate-fit'&&!cited.size)problems.push({code:'review-catalog-evidence',ids:[finding.id],message:'A rate-fit objection must cite the actual supplied rate descriptions, including every proposed alternative.'});

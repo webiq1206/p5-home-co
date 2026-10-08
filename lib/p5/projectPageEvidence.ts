@@ -24,7 +24,7 @@ function pageCache(draftId:string):ProjectPageCache{return {
  * Original pages are fetched in bounded batches and cached independently, so
  * an interrupted large retrieval resumes without losing completed pages. */
 export async function loadProjectPageEvidence(draft:Pick<Draft,'id'|'brand'|'uploads'>,options:{request?:typeof fetch;env?:Readonly<Record<string,string|undefined>>;deadline?:number;cache?:ProjectPageCache}={}):Promise<ProjectPageEvidence>{
- if(ESTIMATOR_BRAND.domain!=='p5homeco.com'||draft.brand!==ESTIMATOR_BRAND.id)throw new DraftError('Page evidence is restricted to this P5 project.',403);
+ if(String(ESTIMATOR_BRAND.domain)!=='p5homeco.com'||draft.brand!==ESTIMATOR_BRAND.id)throw new DraftError('Page evidence is restricted to this P5 project.',403);
  const env=options.env||process.env,remote=partitionDocumentServiceUploads(draft.uploads,env).remote;
  if(!remote.length)return {documents:[],issues:[]};
  const {tenant,secret,origin,limits}=documentServiceConfiguration(env),request=options.request||fetch,deadline=options.deadline||Date.now()+60000,cache=options.cache||pageCache(draft.id);

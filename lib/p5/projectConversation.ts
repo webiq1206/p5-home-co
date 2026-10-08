@@ -27,7 +27,7 @@ export function activeProjectChanges(changes:ProjectChange[]):ProjectChange[]{
 /** No fixed answer-field list and no scenario parser. The exact question and
  * answer become evidence for a newly interpreted project revision. */
 export async function saveProjectChange(id:string,request:ProjectChangeRequest,within:typeof transaction=transaction){
- if(ESTIMATOR_BRAND.domain!=='p5homeco.com')throw new DraftError('Project-record qualification is restricted to P5 Home Co.',403);
+ if(String(ESTIMATOR_BRAND.domain)!=='p5homeco.com')throw new DraftError('Project-record qualification is restricted to P5 Home Co.',403);
  if(!request||!Number.isSafeInteger(request.revision)||request.revision<1||!['answer','revision'].includes(request.kind)||!/^[-a-f0-9]{36}$/i.test(request.requestId||'')||typeof request.response!=='string'||!request.response.trim()||request.response.length>10000||!/^([a-f0-9]{64})$/.test(request.recordHash||''))throw new DraftError('A current project, question and nonempty response are required.');
  const response=request.response.trim(),requestHash=projectHash({...request,response});
  return within(async execute=>{
