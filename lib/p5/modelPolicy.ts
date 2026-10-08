@@ -1,5 +1,9 @@
-/** Required estimating model. Legacy host settings cannot silently change quality. */
-export const ESTIMATOR_PROVIDER = process.env.P5_ESTIMATOR_PROVIDER === 'openai' ? 'openai' : 'anthropic';
+import {ESTIMATOR_BRAND} from './brand.ts';
+/** Required estimating model. Legacy host settings cannot silently change quality. The
+ * provider default is brand-owned: each site keeps the provider its secrets are configured for
+ * unless P5_ESTIMATOR_PROVIDER names one explicitly. */
+const brandProvider=(ESTIMATOR_BRAND as {estimatorProvider?:string}).estimatorProvider;
+export const ESTIMATOR_PROVIDER = process.env.P5_ESTIMATOR_PROVIDER === 'openai' ? 'openai' : process.env.P5_ESTIMATOR_PROVIDER === 'anthropic' ? 'anthropic' : brandProvider === 'openai' ? 'openai' : 'anthropic';
 export const ESTIMATOR_MODEL = ESTIMATOR_PROVIDER === 'openai' ? 'gpt-4.1' : 'claude-haiku-4-5-20251001';
 export const ESTIMATOR_MODEL_SNAPSHOT = ESTIMATOR_PROVIDER === 'openai' ? 'gpt-4.1-2025-04-14' : 'claude-haiku-4-5-20251001';
 // Saved reads must also meet the current visual source-evidence policy. The

@@ -1,7 +1,7 @@
 {
   "source": "p5-home-co",
-  "commit": "2b07b96420006eadc5bb4116cd51641fe5b10db8",
-  "generatedAt": "2026-10-08T13:34:36.367Z",
+  "commit": "f93ca47291f9ae8ee701441126cfcc971cccdea0",
+  "generatedAt": "2026-10-08T13:38:07.623Z",
   "note": "Shared estimator engine published from p5-home-co. Edit shared files there and run scripts/p5-sync.mjs; hash checks remain mandatory in every brand.",
   "files": {
     "app/admin/p5-estimators/page.tsx": "f9b7f729daa74f542cdece161d2bf158fb784f5a8c55356fe7283e73db2c139d",
@@ -139,7 +139,7 @@
     "lib/p5/minorWorkAllowance.ts": "ea07a899a831f87f03c7fbdbdd4f46cb94350bf995afa6feb29a504b29151009",
     "lib/p5/minorWorkAudit.ts": "f3fd7940d0c62b2cb0bcfd4c20ab8333f94139f7d70c5940c0b5858ba1c8b784",
     "lib/p5/missingFields.ts": "5a4c67c25f91e3751d9f8f8b1453fa4724791a6493c8e4e800888ba7e8affb34",
-    "lib/p5/modelPolicy.ts": "497518488c27127b884ae08b44f6ed98aaa71dfc75b0248515e023d96059a63d",
+    "lib/p5/modelPolicy.ts": "303f2956edc9841031c80ca893048732b0d758b4098d246aa050ed72f215f3fd",
     "lib/p5/multipart.ts": "7a6fc7409f7d2eb79e6d95ebde4232a88f4a5c3e0b0f0eb01d6caa3cbaa991f2",
     "lib/p5/objectStorage.ts": "85847be9ed74090540c80ee54a5dfb14e4bd96c796f9d1e3fee6ab29e6fcacb5",
     "lib/p5/openaiReasoning.ts": "442b2b32a9ab65eadf64e7dd69034bb76a2ec9855718b91c976e59bb821160ed",
