@@ -22,7 +22,6 @@ export const metadata: Metadata = withBrandPageMetadata(({
   metadataBase: new URL(siteUrl),
   title,
   description,
-  alternates: { canonical: "/" },
   icons: {
     icon: [
       { url: "/favicon.ico", sizes: "any" },
