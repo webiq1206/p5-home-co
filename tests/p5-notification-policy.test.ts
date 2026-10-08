@@ -9,7 +9,7 @@ import * as policy from '../lib/p5/estimatorNotifications.ts';
 import {estimateDeliveryStates,DELIVERY_LABEL} from '../lib/p5/deliveryPresentation.ts';
 
 test('explicit QA labels suppress automatic delivery without classifying ordinary customers',()=>{
- for(const name of ['[QA] Fixture','SYNTHETIC QA .13 — DO NOT CONTACT',' synthetic qa — acceptance '])
+ for(const name of ['[QA] Fixture',`SYNTHETIC QA .13 ${String.fromCharCode(0x2014)} DO NOT CONTACT`,` synthetic qa ${String.fromCharCode(0x2014)} acceptance `])
   assert.equal(policy.suppressSyntheticEstimateNotifications({contact:{name,email:'',phone:''}}),true);
  assert.equal(policy.suppressSyntheticEstimateNotifications({contact:{name:'Customer'},customer:{issue:{projectName:'SYNTHETIC QA .13'}}}),true);
  for(const name of ['Customer','Quality Homeowner','Synthetic Stone Company','QA Builders','Ordinary DO NOT CONTACT surname'])
@@ -42,7 +42,7 @@ test('real outbox SQL saves synthetic results atomically with a terminal suppres
   };
   vm.runInNewContext(ts.transpileModule(readFileSync('lib/p5/outbox.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,
    {exports,require:(name:string)=>{assert.ok(name in dependencies,name);return dependencies[name];},process:{env:{P5_CRM_DELIVERY:'on'}},console,Date});
-  const id=crypto.randomUUID(),record={contact:{name:'SYNTHETIC QA .13 — DO NOT CONTACT',email:'',phone:''},internal:{directCost:285},customer:{range:{low:450,high:555}}};
+  const id=crypto.randomUUID(),record={contact:{name:`SYNTHETIC QA .13 ${String.fromCharCode(0x2014)} DO NOT CONTACT`,email:'',phone:''},internal:{directCost:285},customer:{range:{low:450,high:555}}};
   await query("INSERT INTO p5_estimator_drafts VALUES($1,1,'draft',null,null,null)",[id]);
   assert.equal(await exports.enqueueSubmission(id,1,record),true);
   assert.equal(await exports.enqueueSubmission(id,1,record),false);
