@@ -4,6 +4,7 @@ import type {ScopeAnswers,ScopeExtraction,ScopeConflict} from './scope.ts';
  * It never invents prices, dimensions, file findings or service eligibility. */
 export interface IntakeIntent {service?: string; clarification?: string; evidence: string; area?: string; land?: string}
 const HOME=/\b(?:home|house|farm\s?house|town\s?house|townhome|residence|dwelling|barndominium)\b/;
+const REPAIR=/\b(?:repair\w*|fix\w*|patch\w*|touch[- ]up|sagging|broken|sticking|drywall holes?|doorknob|door handle|leak\w*)\b/;
 const PART=/\b(?:driveways?|fences?|decks?|patios?|cabinets?|sheds?|garages?|basement|addition|wing|room|doors?|windows?|kitchens?|bathrooms?|baseboards?|trim|flooring|counters?|countertops?|roof|siding|plumbing|painting)\b/;
 function normalize(text:string){return text.normalize('NFKC').toLowerCase().replace(/[’‘]/g,"'").replace(/\b(?:bild|bulid|biuld|buid)\b/g,'build').replace(/\bhosue\b/g,'house').replace(/\b(?:remodle|remodell|remodelingg)\b/g,'remodel').replace(/\b(?:additon|addtion)\b/g,'addition').replace(/\b(?:kitchn|kithcen)\b/g,'kitchen').replace(/\b(?:cabnets|cabients)\b/g,'cabinets').replace(/\b(sq|ft)\./g,'$1').replace(/square[- ](?:foot|feet)/g,'sqft');}
 function currentClauses(text:string){
@@ -20,13 +21,13 @@ function classify(text:string):IntakeIntent {
   for(const match of clause.matchAll(/\b(?:build(?:ing)?|construct(?:ing)?|erect(?:ing)?)\s+([^;]{0,110}?)(home|house|farm\s?house|town\s?house|townhome|residence|dwelling|barndominium)\b/g)){
    if(!PART.test(match[1])&&!/\b(?:friend|neighbor|used to|previously|last year)\b/.test(clause.slice(0,match.index)))return true;
   }
-  return /\b(?:new|custom|ground[- ]up)\s+(?:(?:modern|single[- ]family|detached)\s+)*(?:home|house|farm\s?house|residence|dwelling)\b|\bnew residential construction\b/.test(clause)&&!PART.test(clause.split(/\b(?:new|custom)\b/)[0]);
+  return /\b(?:new|custom|ground[- ]up)\s+(?:(?:modern|single[- ]family|detached)\s+)*(?:home|house|farm\s?house|residence|dwelling)\b|\bnew residential construction\b/.test(clause)&&!PART.test(clause)&&!REPAIR.test(clause)&&!/\b(?:bought|purchased|moved|living|live)\b/.test(clause);
  });
  const addition=/\b(?:addition|bedroom wing|add (?:a |an )?(?:\d[\d,]*[- ]?(?:sqft|sf)\s+)?(?:bedroom|room|wing|second story|second storey)|extend (?:my |our |the )?(?:house|home))\b/.test(positive);
  const adu=/\b(?:adu|accessory dwelling)\b/.test(positive);
  const renovation=/\b(?:remodel\w*|renovat\w*|gut\w*|open\s+(?:the |my |our )?kitchen|move\s+(?:the |my |our |a )?sink|new layout|finish(?:ing)?\s+(?:my |our |the )?basement|build out\s+(?:my |our |the )?basement)\b/.test(positive);
  const kitchen=/\bkitchen\b/.test(positive)||(cabinet&&/\bcounter(?:s|tops?)\b/.test(positive)&&/\b(?:move|relocat\w*)\b.*\bsink\b/.test(positive)),bath=/\bbath(?:room)?\b/.test(positive);
- const repair=/\b(?:repair\w*|fix\w*|patch\w*|touch[- ]up|sagging|broken|sticking|drywall holes?|doorknob|door handle|leak\w*)\b/.test(positive);
+ const repair=REPAIR.test(positive);
  const install=/\binstall\w*\b/.test(positive),supplyOnly=/\bsupply[- ]only\b|\b(?:contractor|someone else)\s+installs?\b|\b(?:do not|don't|no|without)\s+install\w*\b/.test(normalize(text));
  const refacing=cabinet&&/\b(?:refac\w*|keep\s+(?:the )?boxes|replace\s+(?:the )?(?:doors|fronts))\b/.test(positive);
  const options=[newHome&&!cabinetOnly&&'new-construction',addition&&'addition',adu&&'adu',renovation&&!cabinetOnly&&'remodel'].filter(Boolean);
