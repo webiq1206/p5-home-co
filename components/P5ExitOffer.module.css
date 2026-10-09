@@ -1,0 +1,15 @@
+.dialog { border: 1px solid #c7c7c7; border-radius: 16px; padding: 24px; width: min(440px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); overflow-y: auto; box-sizing: border-box; color: #242827; background: #fff; font: 16px/1.5 system-ui, sans-serif; }
+.dialog::backdrop { background: rgb(0 0 0 / .5); }
+.dialog h2 { margin: 0 0 10px; font-size: 24px; line-height: 1.25; }
+.dialog p { margin: 10px 0; }
+.dialog a, .dialog button { min-height: 44px; display: inline-flex; align-items: center; justify-content: center; border-radius: 8px; padding: 10px 14px; font: inherit; cursor: pointer; }
+.dialog a { color: #fff; background: #303b36; text-decoration: none; width: 100%; box-sizing: border-box; }
+.dialog button { border: 1px solid #5c655f; background: #fff; color: #242827; }
+.dialog button:disabled { opacity: .65; cursor: wait; }
+.dialog :is(a,button,input):focus-visible { outline: 3px solid #276acf; outline-offset: 3px; }
+.dialog form { margin-top: 20px; }
+.dialog label { display: block; font-weight: 600; }
+.dialog input { display: block; width: 100%; min-height: 44px; box-sizing: border-box; border: 1px solid #747b76; border-radius: 6px; padding: 10px; font: inherit; margin: 6px 0; }
+.consent { font-size: 14px; }
+.actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 20px; }
+.error { color: #a01818; }

@@ -60,6 +60,8 @@ jobs:
           P5_PARENT=1 node scripts/p5-mobile-navigation.mjs
           node --import tsx scripts/p5-estimator-browser.mjs
           P5_TEST_BROWSER=webkit node --import tsx scripts/p5-estimator-browser.mjs
+          P5_TEST_BASE_URL=http://127.0.0.1:5000 node scripts/p5-exit-browser.mjs
+          P5_TEST_BASE_URL=http://127.0.0.1:5000 P5_TEST_BROWSER=webkit node scripts/p5-exit-browser.mjs
           node scripts/p5-admin-pricing-browser.mjs
           node scripts/p5-qa-recovery-browser.mjs
           P5_TEST_BROWSER=webkit node scripts/p5-qa-recovery-browser.mjs

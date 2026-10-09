@@ -26,8 +26,8 @@
     "components/P5AddressInput.tsx": "6cff5902e7c8b3baa05be120cfc7eb3778f4ac3b0654c7b6ee8466a42560b091",
     "components/P5EstimateDetails.tsx": "ad36be0cb27f55e51ee63f222af7c749b3037e1fb12ff7131be62a6db93565d0",
     "components/P5Estimator.module.css": "238f6f6056a35c2076041e90a3e845203e013f3b8a657bafb01b98fa397ae1f0",
-    "components/P5Estimator.tsx": "e0e220d8413172bc05e0b3cb083cc8f35877642131149b021dc37e9422772901",
-    "components/P5EstimatorNavigation.tsx": "e203317513965f77dc314e3ef8aa2be0e9fca1e7ca72494b3a23f3741cabbe83",
+    "components/P5Estimator.tsx": "895428f0abe14652428ba540285080803c1e5a6c3ba961676d4276789c47a361",
+    "components/P5EstimatorNavigation.tsx": "1043742ccb1ea5e3bd13dc7a6fe0b3ad2e80cca7d84588647388e77b061381be",
     "components/P5IntakeQueue.tsx": "25b0e4cb34de7c93fd028787221a837d1bb6e7bcddf6cd4606dd27d69c096526",
     "components/P5IntakeReview.tsx": "86e512eebdaf02f3ee6666557e747d686f594fd5d6b332e1c3540f7c647f876a",
     "components/P5LazyEstimator.tsx": "237e404e81442499d54bf8668134e77b36513898b91503d5f275af80e6b8019a",
@@ -491,7 +491,12 @@
     "lib/p5/emailReplyTo.ts": "9d57d9f21181422a73d97f127649c94c296ca488f18b6ceebec18e6e2feb0abf",
     "lib/p5/intakeDisplay.ts": "5cd5a9158575e8ef2c0a4d8c40f721dca28fad0a584c1ca3f10f9ac9ff1fb7c5",
     "tests/p5-intake-reply-to.test.ts": "8d7e6a19c75a25568ea1ca280416d97d6004149dc4f39859fd8382482e87b888",
-    "tests/p5-intake-contact-fields.test.ts": "2e50258d54258ee988206a3c5d91bee2aeab1521a614bae5d1db37d0cc2f0b6b"
+    "tests/p5-intake-contact-fields.test.ts": "2e50258d54258ee988206a3c5d91bee2aeab1521a614bae5d1db37d0cc2f0b6b",
+    "lib/p5/exitCallback.ts": "9ab0cb2118925362f718de369cab17a1e176340a155f971b75458015df22e28f",
+    "components/P5ExitOffer.tsx": "26987fb86fd485f94ecff23b41781c03032855e0e302e0c33746f9e7eff17b29",
+    "components/P5ExitOffer.module.css": "1e36b1e4af398a47b96cc83ab3bde4522cdf5a47a8cf138a934b34e03299e912",
+    "tests/p5-exit-callback.test.ts": "fb985b096b8397d0d424d3ec31cd48a444c0546cfbc012736343cd5b94b450a3",
+    "scripts/p5-exit-browser.mjs": "c6897d0453c2b1d2d7840ad84f041130b102162ecc5879098466b62f1f5bf9ee"
   },
   "coordinatedIntakeBatch": {
     "base": "e6e125b83468a402264be2f1e82e5c0466baa178",
@@ -520,5 +525,10 @@
     "source": "p5-home-co",
     "scope": "Targeted shared contact validation metadata, accessible correction focus, email display and frozen Reply-To; brand adapters edited individually; prior brand-local patches retained",
     "date": "2026-10-08"
+  },
+  "exitCallbackBatch": {
+    "source": "p5-home-co",
+    "date": "2026-10-09",
+    "scope": "Targeted exit offer and phone validation; callback adapters retain each brand routing. Existing patches and schema safety preserved."
   }
 }

@@ -8,6 +8,7 @@ import {intakeQuestions} from '../lib/p5/intakeQuestions';
 import {emptyIntakeDetails,intakeContact,IntakeContactError,type IntakeContactField,requireIntakeReceipt,intakeReviewFingerprint,intakeScopeReviewed,type IntakeReceipt} from '../lib/p5/intakeContract';
 import {estimateDeliveryStates,DELIVERY_LABEL} from '../lib/p5/deliveryPresentation.ts';
 import {P5EstimatorNavigation} from './P5EstimatorNavigation';
+import {P5ExitOffer,type ExitOfferHandle} from './P5ExitOffer';
 import {CLIENT_BUDGET_MS,CLIENT_BACKGROUND_BUDGET_MS,ProcessingDeadlineError,remainingBudget,withinDeadline,fetchWithinDeadline,isProcessingDeadline} from '@/lib/p5/processingBudget';
 import {completeSubmission} from '@/lib/p5/submitProgress';
 import P5EstimateDetails from './P5EstimateDetails';
@@ -108,6 +109,7 @@ export function P5Estimator({defaultService='',headingAs='h1',projectSource,layo
   const [contactErrorFields,setContactErrorFields]=useState<IntakeContactField[]>([]);
   const [validationTarget,setValidationTarget]=useState<'confirmation'|'contact'|''>('');
   const frameActive=layout==='page'||expanded;
+  const exitOffer=useRef<ExitOfferHandle|null>(null);
   const apply=useCallback((next:BrowserDraft)=>{if(readOnly)return;current.current=next;setDraft(next);if(!persistBrowserDraft(next))setStatus('Keep this page open. This browser cannot save your work on this device.');},[readOnly]);
   const change=(update:Partial<BrowserDraft>)=>{if(!current.current)return;apply({...current.current,...update,dirty:true,updatedAt:Date.now()});setConfirmed(false);};
   const changeContact=(key:keyof BrowserDraft['contact'],value:string)=>{const latest=current.current;if(latest)change({contact:{...latest.contact,[key]:value}});};
@@ -846,12 +848,13 @@ export function P5Estimator({defaultService='',headingAs='h1',projectSource,layo
     :<>{composer}{intakeMode&&stage<2&&<button type="button" className={styles.secondary} disabled={locked} onClick={()=>void manualIntakeReview()}>Review with the details I have</button>}{stage===0&&<p className={styles.dockHint}>Tell us what work you want included and what should stay unchanged.</p>}</>;
   return <div ref={rootRef} role="region" aria-label="Project estimator" className={styles.root} data-p5-estimator onDragOver={readOnly?event=>event.preventDefault():undefined} onDrop={readOnly?event=>event.preventDefault():undefined} data-qa-saved-preview={readOnly?'true':undefined} data-version={ESTIMATOR_VERSION} data-release={estimatorRelease().sha.slice(0,12)} data-theme={theme.mode} data-layout={layout} data-expanded={frameActive?'true':undefined} data-step={stage} aria-busy={Boolean(busy)} style={{...(estimatorThemeStyle(theme) as React.CSSProperties),'--p5-top':`${topInset}px`,'--p5-bottom':`${bottomInset}px`} as React.CSSProperties}>
     <form id={formId} className={styles.app} onSubmit={submit} noValidate>
-      <P5EstimatorNavigation brandName={brand.name} stepLabel={stepLabel} showBack={showBack} frameActive={frameActive} embedded={layout==='embedded'} onBack={back} onExit={layout==='embedded'||onExit?exit:undefined} onNewProject={!readOnly&&hasProgress?()=>void switchProject():undefined} disabled={locked}/>
+      <P5EstimatorNavigation brandName={brand.name} stepLabel={stepLabel} showBack={showBack} frameActive={frameActive} embedded={layout==='embedded'} onBack={back} onExit={event=>{if(exitOffer.current)exitOffer.current.requestExit(exit,event.currentTarget);else exit();}} onNewProject={!readOnly&&hasProgress?()=>void switchProject():undefined} disabled={locked}/>
       {savedPreview&&<div className={styles.savedPreviewBanner}><p className={styles.notice} role="note">Synthetic QA · {savedPreview.view.label} · revision {savedPreview.view.revision}. Read-only saved result and PDF.</p></div>}
       {!result&&!intakeReceipt&&<div className={styles.rail} aria-hidden="true">{STEP_LABELS.map((label,index)=><span key={label} data-state={index===draft.step?'current':index<draft.step?'done':'upcoming'}/>)}</div>}
       <p className={styles.srOnly} aria-live="polite">{stepLabel}</p>
       <div ref={threadRef} className={styles.thread} data-p5-thread><div className={styles.threadInner}>{collapsedWithProgress?<Message role="assistant"><div className={styles.stageHeading}><Heading tabIndex={-1} className={styles.title}>{result?'Your estimate is ready':'Continue your estimate'}</Heading><p className={styles.lead}>{result?'Your planning range and project summary are saved on this device.':`Your project is saved on this device: ${known.length} ${known.length===1?'detail':'details'}${uploadedCount?` and ${uploadedCount} ${uploadedCount===1?'file':'files'}`:''}. ${stepLabel}.`}</p></div><div className={styles.actions}><button type="button" className={styles.primary} onClick={()=>setExpanded(true)}>{result?'Open my estimate':'Continue'} <span aria-hidden="true">→</span></button></div></Message>:<>{intro}{history}{stage===0&&!busy&&!preparingFiles&&<>{pausedCard&&<Message role="assistant">{pausedCard}</Message>}{(warning||error)&&<Message role="assistant">{warningCard}{alertCard}</Message>}</>}{questionStage}{reviewStage}{intakeResultStage}{resultStage}{processingStage}{paused&&stage!==0&&!busy&&<Message role="assistant">{pausedCard}</Message>}{status&&!busy&&!preparingFiles&&!error&&<p className={styles.status} role="status">{status}</p>}</>}</div></div>
       {!collapsedWithProgress&&<div className={styles.dock}><div className={styles.dockInner}>{dock}</div></div>}
     </form>
+    <P5ExitOffer ref={exitOffer} enabled={frameActive&&!readOnly&&!busy&&!intakeReceipt&&!result} engaged={hasProgress||Boolean(draft.text.trim())||files.length>0} onLeave={exit} draft={draft}/>
   </div>;
 }
