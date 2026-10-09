@@ -26,6 +26,50 @@ function dependencies(overrides: Partial<DiagnosticDependencies> = {}): Diagnost
   return { env, read: async () => { throw new Error("Probe must not use database receipts"); }, crm: () => fixtureCrm(),
     source: async () => ({ mail: source(), uid: 42, uidValidity: "1" }), ...overrides };
 }
+
+test("probe identifies each failed HTTP read, stops immediately, and never writes or leaks provider data", async () => {
+  const routes = ["GET /account-info/v3/details", "GET /crm/v3/objects/emails", "POST /crm/v3/objects/emails/search",
+    "GET /crm/v3/owners/{ownerId}", "GET /crm/v4/associations/emails/contacts/labels",
+    "GET /crm/v3/objects/contacts", "GET /crm/v3/objects/contacts/{recordId}", "GET /crm/v3/objects/emails/{recordId}"];
+  const replies = [{ portalId: 247066159 }, { results: [] }, { results: [], total: 0 },
+    { id: "97300513", email: MAILBOX, archived: false }, { results: [{ category: "HUBSPOT_DEFINED", typeId: 198 }] },
+    { results: [] }, { id: approved.contactId, properties: { email: approved.sender } }];
+  for (let failure = 0; failure < routes.length; failure++) {
+    let calls = 0;
+    const crm = new InboxHubSpot(env.HUBSPOT_TOKEN, (async (_url, init) => {
+      const index = calls++;
+      assert.ok(init?.method === "GET" || (index === 2 && init?.method === "POST"), "only read/search requests allowed");
+      crm.lastRequest = 0; // No pacing needed for offline responses.
+      return new Response(JSON.stringify(index === failure ? { message: "PRIVATE RESPONSE synthetic-token customer@example.invalid" } : replies[index]),
+        { status: index === failure ? 403 : 200 });
+    }) as typeof fetch);
+    const result = await runOwnerDiagnostic("probe", context, dependencies({ crm: () => crm }));
+    assert.equal(result.code, "hubspot-http-403");
+    assert.equal(result.hubspotRequest, routes[failure]);
+    assert.equal(calls, failure + 1, "no retries or subsequent endpoints after denial");
+    assert.equal(result.writeVerified, false);
+    for (const secret of [env.HUBSPOT_TOKEN, "PRIVATE RESPONSE", "customer@example.invalid", approved.contactId, approved.nativeEmailId]) {
+      assert.ok(!JSON.stringify(result).includes(secret));
+    }
+  }
+});
+
+test("API errors strip identifiers, query strings, unknown routes/methods and network error text", async () => {
+  for (const [path, method, expected] of [
+    ["/crm/v3/objects/contacts/private%40example.invalid?token=SECRET", "GET", "GET /crm/v3/objects/contacts/{recordId}"],
+    ["/unknown/SECRET?email=private", "GET", "unclassified-hubspot-request"],
+    ["/crm/v3/objects/emails", "SECRET", "unclassified-hubspot-request"],
+  ]) {
+    const crm = new InboxHubSpot("SECRET", (async () => { throw Error("SECRET private provider text"); }) as typeof fetch);
+    await assert.rejects(crm.call(path, method), (error: unknown) => {
+      assert.ok(error instanceof InboxApiError);
+      assert.equal(error.status, 0); assert.equal(error.request, expected);
+      assert.ok(!JSON.stringify(error).includes("SECRET"));
+      assert.equal(error.message, "hubspot-http-network");
+      return true;
+    });
+  }
+});
 async function database(fn: (read: Read, db: PGlite) => Promise<void>) {
   const db = new PGlite();
   await db.exec(readFileSync("migrations/018_inbox_sync.sql", "utf8"));
