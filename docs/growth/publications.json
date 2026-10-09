@@ -84,20 +84,24 @@
       "published_at": "2026-10-06T16:01:26+0000",
       "permalink_url": "https://www.facebook.com/122135638923385974/posts/122135641161385974",
       "verified_at": "2026-10-08"
-    }
-  ],
-  "scheduled": [
+    },
     {
       "brand": "Boise Handyman Co",
       "url": "https://boisehandyman.co/re-10-repairs-boise",
       "utm_content": "inspection_repair_handoff",
       "scheduled_epoch": 1791475200,
       "id": "1228704823655951_122135975319385974",
-      "status": "scheduled_verified",
+      "status": "published_verified",
       "permalink_url": "https://www.facebook.com/122135638923385974/posts/122135975319385974",
       "destination_url": "https://boisehandyman.co/re-10-repairs-boise?utm_source=facebook&utm_medium=organic_social&utm_campaign=p5_free_growth_2026q4&utm_content=inspection_repair_handoff",
-      "created_at": "2026-09-30"
-    },
+      "created_at": "2026-09-30",
+      "platform": "facebook",
+      "published_at": "2026-10-08T16:00:24+0000",
+      "verified_at": "2026-10-09",
+      "link_attributes": "Facebook platform redirect; no crawlability or indexing claim"
+    }
+  ],
+  "scheduled": [
     {
       "brand": "Boise Remodeling Co",
       "url": "https://boiseremodeling.co/services/bathroom-remodel",
