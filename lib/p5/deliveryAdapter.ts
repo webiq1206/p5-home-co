@@ -1,3 +1,4 @@
+import {collectAttribution,sourceFromAttribution} from "../../app/lib/leads/attribution.ts";
 import {safeEmailReplyTo} from './emailReplyTo.ts';
 import {createTransport} from "nodemailer";
 import {getSmtpConfig, assertSmtpAccepted} from "../../app/lib/notifications/smtp-config.ts";
@@ -21,10 +22,11 @@ export async function sendEmail(input:{to:string;replyTo?:string;subject:string;
 export async function syncCrm(record:any,key:string){
   const mode=estimatorDeliveryMode(record.contact.name,record.contact.email);
   const names=record.contact.name.trim().split(/\s+/);
-  const result=await ingestLead({firstName:names.shift()||null,lastName:names.join(" ")||null,email:record.contact.email,phone:record.contact.phone||null,
-    brand:deliveryBrand(record),projectType:record.scope.answers.service,source:"Organic Website",sourceDetail:`p5-estimator:${record.draftId}`,
+  const attribution=collectAttribution(record.attribution||{});
+ const result=await ingestLead({firstName:names.shift()||null,lastName:names.join(" ")||null,email:record.contact.email,phone:record.contact.phone||null,
+    brand:deliveryBrand(record),projectType:record.scope.answers.service,source:sourceFromAttribution(attribution),sourceDetail:`p5-estimator:${record.draftId}`,
     propertyAddress:record.scope.answers.address||null,propertyCity:record.scope.answers.location||null,
-    summary:record.customer.summary,externalLeadId:mode==='synthetic_qa'?'qa-'+key:key,originalForm:"p5-estimator",originalCampaign:null,utm:null,receivedAt:new Date()},await loadSettings(),null,{estimatorDeliveryMode:mode});
+    summary:record.customer.summary,externalLeadId:mode==='synthetic_qa'?'qa-'+key:key,originalForm:"p5-estimator",originalCampaign:attribution?.utm_campaign||null,utm:attribution,receivedAt:new Date()},await loadSettings(),null,{estimatorDeliveryMode:mode});
   if(result.status==="rejected")throw new Error("CRM rejected the estimate lead");
   if(!Number.isInteger(result.dealId)||result.dealId<=0)throw new Error("CRM duplicate acknowledgement has no resolved lead identifier; reconcile before retrying");
   return String(result.dealId);

@@ -5,6 +5,7 @@ import {publicProjectMode,intakeSite,routeIntake,intakeRoutingContext,INTAKE_COP
 import {incomingTransfer,clearIncomingTransfer,persistOutgoingTransfer,outgoingTransfer,recoverOutgoingTransfer,clearOutgoingTransfer,newTransferSeed,browserTransferProof,openTransferredProject,acceptTransferredDraft,persistTransferredDraft,type BrowserTransferView,type BrowserTransferProof} from '../lib/p5/intakeTransferBrowser';
 import {reconcileQuestionMemory,recordQuestion,answerState,mergeQuestionMemory,type QuestionState} from '../lib/p5/intakeQuestionMemory';
 import {intakeQuestions} from '../lib/p5/intakeQuestions';
+import {captureAttribution} from "../app/quote/attribution";
 import {emptyIntakeDetails,intakeContact,IntakeContactError,type IntakeContactField,requireIntakeReceipt,intakeReviewFingerprint,intakeScopeReviewed,type IntakeReceipt} from '../lib/p5/intakeContract';
 import {estimateDeliveryStates,DELIVERY_LABEL} from '../lib/p5/deliveryPresentation.ts';
 import {P5EstimatorNavigation} from './P5EstimatorNavigation';
@@ -156,6 +157,7 @@ export function P5Estimator({defaultService='',headingAs='h1',projectSource,layo
       mounted.current=true;
       return()=>{mounted.current=false;};
     }
+    captureAttribution();
     // An emailed estimate link (?estimate=<id>&t=<signed token>) is exchanged once for a key for this
     // device, saved like any draft, and the page reloads on a clean address; the saved estimate or its
     // live progress then loads through the normal restore below. A bad or expired link says so.
@@ -305,7 +307,7 @@ export function P5Estimator({defaultService='',headingAs='h1',projectSource,layo
     const d=current.current;if(!d)throw new Error('Your project is still loading.');
     const remembered=remember(d);
     const requestSource=sourceSnapshot(d);
-    const put=(revision:number)=>operationFetch('/api/p5-estimator/draft',{method:'PUT',headers:{...draftHeaders(d),'Content-Type':'application/json'},body:JSON.stringify({text:d.text,answers:d.answers,contact:d.contact,revision,wizard:d.wizard,intake:{...(remembered.intake||emptyIntakeDetails()),transcript:d.transcript||[],desiredOutcome:d.answers.desiredOutcome||'',workContext:d.answers.workContext||'',budget:d.answers.budget||''},reviewed,clarification,scopeFingerprint:scopeFingerprint(d.text)})});
+    const put=(revision:number)=>operationFetch('/api/p5-estimator/draft',{method:'PUT',headers:{...draftHeaders(d),'Content-Type':'application/json'},body:JSON.stringify({text:d.text,answers:d.answers,contact:d.contact,revision,wizard:d.wizard,intake:{...(remembered.intake||emptyIntakeDetails()),attribution:remembered.intake?.attribution||captureAttribution(),transcript:d.transcript||[],desiredOutcome:d.answers.desiredOutcome||'',workContext:d.answers.workContext||'',budget:d.answers.budget||''},reviewed,clarification,scopeFingerprint:scopeFingerprint(d.text)})});
     let response=await put(d.revision);
     let data=await readJson(response);
     if(response.status===409&&intakeMode)throw new Error('This project changed in another tab. Your local edits are retained. Reload and review the saved project before sending.');

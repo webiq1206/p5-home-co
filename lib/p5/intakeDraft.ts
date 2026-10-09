@@ -10,7 +10,7 @@ export function intakeDraftContext(id:string,brand:string,existing:Draft|null,ra
   const value=raw&&typeof raw==='object'&&!Array.isArray(raw)?raw as Record<string,unknown>:{};
   try{
     const details=intakeDetails(raw===undefined?prior||emptyIntakeDetails():value);
-    return {...details,questionMemory:mergeQuestionMemory(prior?.questionMemory,details.questionMemory),projectId:prior?.projectId||`${site}:${id}`,originSite:prior?.originSite||site,currentSite:site,
+    return {...details,...(prior?.attribution?{attribution:prior.attribution}:{}),questionMemory:mergeQuestionMemory(prior?.questionMemory,details.questionMemory),projectId:prior?.projectId||`${site}:${id}`,originSite:prior?.originSite||site,currentSite:site,
       version:existing?.revision||0,contact:intakeContact({...contact,preferredContact:value.preferredContact??(value.contact as Record<string,unknown>|undefined)?.preferredContact??prior?.contact.preferredContact??'either'},false)};
   }catch(error){throw new DraftError(error instanceof Error?error.message:'Project details are invalid.');}
 }
