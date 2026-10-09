@@ -1,3 +1,4 @@
+import {collectAttribution} from "../../app/lib/leads/attribution.ts";
 import {readQuestionMemory,questionHistoryNotes,reconcileQuestionMemory,questionTopic,type QuestionMemory} from './intakeQuestionMemory.ts';
 import {INTAKE_SITES,routeIntake,type IntakeSite,type IntakeRouting,type SupportingService,SUPPORTING_SERVICES} from './intakePolicy.ts';
 import type {ScopeAnswers,ScopeExtraction,ScopeUpload} from './scope.ts';
@@ -13,7 +14,7 @@ export class IntakeContactError extends Error {
 }
 export interface IntakeContact {name:string;email:string;phone:string;preferredContact:'email'|'phone'|'either'}
 export interface IntakeMessage {id:string;role:'user'|'assistant';text:string;at:number;kind?:string;label?:string;caption?:string;files?:string[]}
-export interface IntakeDetails {questionMemory?:QuestionMemory;desiredOutcome:string;workContext:string;budget:string;supportingServices:SupportingService[];transcript:IntakeMessage[];reviewedScopeFingerprint?:string}
+export interface IntakeDetails {attribution?:Record<string,string>;questionMemory?:QuestionMemory;desiredOutcome:string;workContext:string;budget:string;supportingServices:SupportingService[];transcript:IntakeMessage[];reviewedScopeFingerprint?:string}
 export interface IntakeContext extends IntakeDetails {projectId:string;originSite:IntakeSite;currentSite:IntakeSite;version:number;contact:IntakeContact}
 export interface IntakeSnapshot {schema:1;projectId:string;originSite:IntakeSite;currentSite:IntakeSite;draftId:string;revision:number;contextVersion:number;contact:IntakeContact;details:IntakeDetails;scope:{text:string;answers:ScopeAnswers;extraction:ScopeExtraction|null;uploads:ScopeUpload[]};routing:IntakeRouting;unresolved:string[];savedAt:string}
 export interface IntakeReceipt {accepted:true;projectId:string;reference:string;revision:number;team:IntakeRouting;unresolved:string[];savedAt:string;delivery:{customer:string;team:string;crm:string};deliveryDetails?:{customer:string;team:string;crm:string}}
@@ -56,7 +57,8 @@ export function intakeDetails(raw:unknown):IntakeDetails {
       ...(m.kind?{kind:text(m.kind,'Message kind',40)}:{}),...(m.label?{label:text(m.label,'Message label',200)}:{}),...(m.caption?{caption:text(m.caption,'Message caption',500)}:{}),
       ...(Array.isArray(m.files)?{files:m.files.map(f=>text(f,'File name',4096))}:{})};
   });
-  return {...(d.questionMemory!==undefined?{questionMemory:readQuestionMemory(d.questionMemory)}:{}),desiredOutcome:text(d.desiredOutcome??'','Desired outcome',4000),workContext:text(d.workContext??'','Project context',1000),budget:text(d.budget??'','Budget',500),supportingServices:[...new Set(supporting)] as SupportingService[],transcript,...(d.reviewedScopeFingerprint?{reviewedScopeFingerprint:text(d.reviewedScopeFingerprint,'Scope review',120)}:{})};
+  const attribution=d.attribution&&typeof d.attribution==='object'&&!Array.isArray(d.attribution)?collectAttribution(d.attribution as Record<string,unknown>):null;
+  return {...(attribution?{attribution}:{}),...(d.questionMemory!==undefined?{questionMemory:readQuestionMemory(d.questionMemory)}:{}),desiredOutcome:text(d.desiredOutcome??'','Desired outcome',4000),workContext:text(d.workContext??'','Project context',1000),budget:text(d.budget??'','Budget',500),supportingServices:[...new Set(supporting)] as SupportingService[],transcript,...(d.reviewedScopeFingerprint?{reviewedScopeFingerprint:text(d.reviewedScopeFingerprint,'Scope review',120)}:{})};
 }
 type IntakeScopeReview={text:string;answers:ScopeAnswers;uploads?:ScopeUpload[];intake?:Pick<IntakeDetails,'supportingServices'|'reviewedScopeFingerprint'>};
 /** A freshness marker, not an authorization secret. A material change requires

@@ -17,7 +17,7 @@ export function intakeLocalCrmRecord(s:IntakeSnapshot){
  const summary=JSON.stringify({request:'Unpriced project request',revision:s.revision,originSite:s.originSite,receivingSite:s.currentSite,primaryTeam:s.routing.primaryTeam,supportingServices:s.routing.supportingServices,preferredContact:s.contact.preferredContact,scope:s.scope.text,answers:s.scope.answers,details:s.details,unresolved:s.unresolved,files:s.scope.uploads,
   staffRecord:`https://${site.domain}/api/admin/p5-intake?draftId=${s.draftId}&revision=${s.revision}`});
  if(Buffer.byteLength(summary)>90000)throw new Error('payload-review');
- return {draftId:s.draftId,contact:s.contact,scope:s.scope,brand:site.name,customer:{summary}};
+ return {attribution:s.details.attribution,draftId:s.draftId,contact:s.contact,scope:s.scope,brand:site.name,customer:{summary}};
 }
 export function intakeDeliveryEnvelope(s:IntakeSnapshot,channel:IntakeChannel,snapshotDigest:string):IntakeDeliveryEnvelope {
  const envelope:IntakeDeliveryEnvelope={schema:1,channel,key:intakeOperationKey(s,channel),leadKey:intakeLeadKey(s.projectId),snapshotDigest};
