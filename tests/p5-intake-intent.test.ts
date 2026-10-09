@@ -77,3 +77,7 @@ test('uncertainty stays on every current site; P5 retains every discipline and c
  assert.equal(routeIntake('cabinet','handyman',[],{text:examples[16][0]}).handoff,null);
  assert.equal(routeIntake('handyman','kitchen').handoff,'remodeling');
 });
+
+test('inspection, urgent and change-order choices can contain the same trades without a false conflict',()=>{
+ for(const service of ['re10','rush','change-order']){const result=applyIntakeIntent('Change order: supply and install ten feet of base cabinetry. No other work.',{service},null);assert.equal(result.answers.service,service);assert.equal(result.extraction,null);assert.equal(result.clearServiceResolution,undefined);}
+});

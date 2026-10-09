@@ -74,6 +74,9 @@ export function interpretIntakeIntent(text:string):IntakeIntent {
  return classify(text);
 }
 export function applyIntakeIntent(text:string,answers:ScopeAnswers,extraction:ScopeExtraction|null,resolutions:ScopeAnswers={}):{answers:ScopeAnswers;extraction:ScopeExtraction|null;clearServiceResolution?:boolean}{
+ // These choices describe an inspection, urgency or an existing contract, not a competing trade.
+ // Preserve them; their separate evidence and eligibility guards remain authoritative.
+ if(['re10','rush','change-order'].includes(answers.service||''))return {answers,extraction};
  const intent=interpretIntakeIntent([text,answers.workContext,answers.taskList].filter(Boolean).join('\n'));
  const conflicts:ScopeConflict[]=[...(extraction?.conflicts||[])];
  const existingServiceConflict=conflicts.some(c=>c.field==='service');
