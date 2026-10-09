@@ -4,7 +4,7 @@ import {query} from './database.ts';
 import {ESTIMATOR_BRAND} from './brand.ts';
 import {draftCredentials,readDraft,DraftError} from './store.ts';
 import {protectRequest,limitedBody,json,failed} from './http.ts';
-import {intakeSite,routeIntake,type IntakeSite} from './intakePolicy.ts';
+import {intakeSite,routeIntake,intakeRoutingContext,type IntakeSite} from './intakePolicy.ts';
 import {intakeScopeReviewed} from './intakeContract.ts';
 import {intakeTransferStore,IntakeTransferConflict,requireTransferBinding,requireTransferBundle,requireTransferReceipt,transferOrigin,transferSecretHash,type TransferBinding,type TransferBundle,type TransferReadyReceipt} from './intakeTransferStore.ts';
 import {originalTransferStream,importTransferFile,importedFiles} from './intakeTransferStorage.ts';
@@ -73,7 +73,7 @@ async function postIntakeTransfer(request:Request){try{
    if(body.revision!==draft.revision)throw new DraftError('Save and review the latest project before transferring.',409);
    if(!intakeScopeReviewed(draft))throw new DraftError('Confirm the current whole project type, supporting work and exclusions before transferring.',409);
    const site=intakeSite(draft.brand);if(!site)throw new DraftError('This site cannot transfer projects.',503);
-   const routing=routeIntake(site,draft.answers.service||'',draft.intake?.supportingServices);
+   const routing=routeIntake(site,draft.answers.service||'',draft.intake?.supportingServices,intakeRoutingContext(draft));
    if(!routing.handoff)throw new DraftError('This project should be completed on the current site.',409);
    if(!secretPattern.test(body.destinationKey)||!secretPattern.test(body.grant))throw new DraftError('Invalid project transfer credentials.');
    const binding:TransferBinding={transferId:body.transferId,projectId:draft.intake?.projectId||`${site}:${draft.id}`,sourceSite:site,sourceOrigin:request.headers.get('origin')||'',destinationSite:routing.handoff,sourceDraftId:draft.id,sourceRevision:draft.revision,destinationDraftId:body.destinationDraftId,destinationKeyHash:transferSecretHash(body.destinationKey),grantHash:transferSecretHash(body.grant)};

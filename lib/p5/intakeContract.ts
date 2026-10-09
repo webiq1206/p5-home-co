@@ -88,4 +88,4 @@ export function requireIntakeReceipt(value:unknown):IntakeReceipt {
   if(!r||r.accepted!==true||typeof r.projectId!=='string'||typeof r.reference!=='string'||!Number.isInteger(r.revision)||r.revision<1||!r.team||!Object.hasOwn(INTAKE_SITES,r.team.primaryTeam)||!Array.isArray(r.unresolved)||!r.savedAt||!r.delivery)throw new Error('The saved request could not be confirmed. Your details are retained. Retry to check the same request.');
   return r;
 }
-export function snapshotRouting(site:IntakeSite,answers:ScopeAnswers,details:IntakeDetails){return routeIntake(site,answers.service||'',details.supportingServices);}
+export function snapshotRouting(site:IntakeSite,answers:ScopeAnswers,details:IntakeDetails,context?:Parameters<typeof routeIntake>[3]){return routeIntake(site,answers.service||'',details.supportingServices,context);}

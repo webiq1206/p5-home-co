@@ -1,3 +1,4 @@
+import {interpretIntakeIntent} from './intakeIntent.ts';
 /**
  * Project types that need evidence before a reader may assert them.
  *
@@ -26,7 +27,7 @@ const withoutRevisionNotes=(text:string|null|undefined)=>String(text||'').replac
 export function serviceEvidenceSupports(service:string|null|undefined,text:string|null|undefined):boolean{
   // Constructing a driveway or fence is not constructing a new home. This
   // guard affects acceptance only, not signalledService's repair-policy routing.
-  if(service==='new-construction')return /\b(?:new|build|construct\w*|ground[- ]up)\b[^.;\n]{0,90}\b(?:home|house|residence|dwelling|building)\b|\b(?:home|house|residen\w*|dwelling|building)\b[^.;\n]{0,60}\b(?:new construction|new build|construction)\b/i.test(String(text||''));
+  if(service==='new-construction')return interpretIntakeIntent(String(text||'')).service==='new-construction';
   const signal=SERVICE_SIGNALS[String(service||'')];
   return !signal||signal.test(withoutRevisionNotes(text));
 }

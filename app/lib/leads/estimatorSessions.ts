@@ -187,10 +187,15 @@ export async function recordCallbackRequest(req: CallbackRequest, now = new Date
      ON CONFLICT (id) DO UPDATE SET last_activity_at = $6, engaged = true, prompt_shown = true, requested_callback = true,
        contact_name = COALESCE($7, estimator_sessions.contact_name), contact_phone = $8,
        callback_note = COALESCE($9, estimator_sessions.callback_note),
-       callback_requested_at = COALESCE(estimator_sessions.callback_requested_at, $6), updated_at = $6`,
+       callback_requested_at = COALESCE(estimator_sessions.callback_requested_at, $6), updated_at = $6
+       WHERE NOT (EXCLUDED.flow = 'p5-exit' AND estimator_sessions.requested_callback)`,
     [req.sessionId, SITE, STEP_RE.test(req.flow) ? req.flow : "unknown", sanitizePath(req.pagePath),
       req.device && /^(phone|tablet|desktop)$/.test(req.device) ? req.device : "unknown", now, name, phone, note],
   );
+  if(req.flow === "p5-exit") {
+    const saved = await queryOne<{contact_phone:string}>(`SELECT contact_phone FROM estimator_sessions WHERE id = $1`,[req.sessionId]);
+    if(saved?.contact_phone !== phone)return {stored:false,notified:false,error:"callback_conflict"};
+  }
   const claimed = await queryOne<SessionRow>(
     `UPDATE estimator_sessions SET callback_notified_at = $2 WHERE id = $1 AND callback_notified_at IS NULL RETURNING *`,
     [req.sessionId, now],

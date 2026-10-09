@@ -1,4 +1,5 @@
-import { NextResponse } from "next/server";
+import {callbackPhone,EXIT_CALLBACK_FLOW} from "../../../../lib/p5/exitCallback.ts";
+import { NextResponse } from "next/server.js";
 import { SESSION_ID_RE, recordCallbackRequest } from "../../../lib/leads/estimatorSessions.ts";
 
 export const dynamic = "force-dynamic";
@@ -22,8 +23,9 @@ export async function POST(request: Request) {
   if (typeof r.sessionId !== "string" || !SESSION_ID_RE.test(r.sessionId) || typeof r.flow !== "string" || typeof r.phone !== "string" || (typeof r.website === "string" && r.website.length > 0)) {
     return NextResponse.json({ ok: false, error: "invalid_payload", message: "Please enter a valid phone number." }, { status: 400 });
   }
-  const digits = r.phone.replace(/\D/g, "");
-  if (digits.length < 10) return NextResponse.json({ ok: false, error: "invalid_phone", message: "Please enter a 10-digit phone number." }, { status: 400 });
+  if(r.flow === EXIT_CALLBACK_FLOW && r.callbackConsent !== true)return NextResponse.json({ok:false,error:"callback_consent_required"},{status:400});
+  const digits = r.flow === EXIT_CALLBACK_FLOW ? callbackPhone(r.phone) : r.phone.replace(/\D/g, "");
+  if (!digits || digits.length < 10) return NextResponse.json({ ok: false, error: "invalid_phone", message: "Please enter a 10-digit phone number." }, { status: 400 });
   const result = await recordCallbackRequest({
     sessionId: r.sessionId,
     flow: r.flow.slice(0, 40),
@@ -33,6 +35,7 @@ export async function POST(request: Request) {
     pagePath: typeof r.pagePath === "string" ? r.pagePath.slice(0, 400) : undefined,
     device: typeof r.device === "string" ? r.device.slice(0, 10) : undefined,
   });
+  if(result.error === "callback_conflict")return NextResponse.json({ok:false,error:result.error,message:"A callback was already requested for this project. Please call us to change the number."},{status:409});
   if (!result.stored) return NextResponse.json({ ok: false, error: result.error ?? "persistence_failed", message: "We could not save your request. Please call (208) 477-1169." }, { status: 503 });
   return NextResponse.json({ ok: true, notified: result.notified });
 }

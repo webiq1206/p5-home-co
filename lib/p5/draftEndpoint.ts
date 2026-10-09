@@ -1,3 +1,5 @@
+import {applyIntakeIntent} from './intakeIntent.ts';
+import {publicProjectMode} from './intakePolicy.ts';
 import {intakeQuestions} from './intakeQuestions.ts';
 import {intakeDraftContext} from './intakeDraft.ts';
 import {isIntakeTransferStatus,TRANSFER_HOLD_MESSAGE} from './intakeTransferGuards.ts';
@@ -138,6 +140,10 @@ export async function putDraft(request:Request){
       // An earlier correction cannot resolve a new contradiction automatically.
       if('unresolvedFields' in resolved)for(const field of resolved.unresolvedFields||[])delete wizard.resolutions[field];
       wizard.resolutions.estimatingInstructions=answers.estimatingInstructions;
+    }
+    if(publicProjectMode(ESTIMATOR_BRAND.id,answers.service)==='review'){
+      const interpreted=applyIntakeIntent(incomingText,answers,extraction,wizard.resolutions);answers=interpreted.answers;extraction=interpreted.extraction;
+      if(interpreted.clearServiceResolution){delete wizard.resolutions.service;delete resolutions.service;}
     }
     if(extraction?.instructions)extraction={...extraction,instructions:{...extraction.instructions,questions:instructionPrompts(extraction,answers,incomingText).map(instructionPromptText)}};
     let reviewed:ReviewedScope|null=null;

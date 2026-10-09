@@ -26,20 +26,26 @@ export function intakeSite(value:unknown):IntakeSite|null {
  * The existing scope reader proposes it; the review screen always permits a correction. */
 const PRIMARY_TEAM:Record<string,IntakeSite>={
   kitchen:'remodeling',bathroom:'remodeling',remodel:'remodeling','whole-home':'remodeling',
-  addition:'construction','new-construction':'construction',
+  addition:'construction',adu:'construction','new-construction':'construction',
   'cabinet-product':'cabinet','cabinet-install':'cabinet',handyman:'handyman',
 };
 export const SUPPORTING_SERVICES=['cabinetry','plumbing','electrical','heating-and-cooling','flooring-and-tile','painting','site-work','design-and-permits'] as const;
 export type SupportingService=typeof SUPPORTING_SERVICES[number];
 export interface IntakeRouting {primaryTeam:IntakeSite;teamName:string;supportingServices:SupportingService[];handoff:IntakeSite|null;unresolved:string[]}
-export function routeIntake(site:IntakeSite,service:string,supporting:readonly string[]=[]):IntakeRouting {
-  const primaryTeam=Object.hasOwn(PRIMARY_TEAM,service)?PRIMARY_TEAM[service]:'p5';
+export function routeIntake(site:IntakeSite,service:string,supporting:readonly string[]=[],context?:{text?:string;serviceConflict?:boolean}):IntakeRouting {
+  const cabinetRepair=site==='cabinet'&&service==='handyman'&&/\b(?:cabinets?|hinges?|boxes|built[- ]ins?)\b/i.test(context?.text||'');
+  const primaryTeam=context?.serviceConflict||cabinetRepair?site:Object.hasOwn(PRIMARY_TEAM,service)?PRIMARY_TEAM[service]:site;
   return {primaryTeam,teamName:INTAKE_SITES[primaryTeam].name,
     supportingServices:[...new Set(supporting)].filter((s):s is SupportingService=>(SUPPORTING_SERVICES as readonly string[]).includes(s)),
     handoff:site==='p5'||site===primaryTeam?null:primaryTeam,
-    unresolved:Object.hasOwn(PRIMARY_TEAM,service)?[]:['Confirm the primary project team during review.']};
+    unresolved:context?.serviceConflict?['Confirm the main project type with this team before considering a handoff.']:Object.hasOwn(PRIMARY_TEAM,service)?[]:['Confirm the primary project team during review.']};
 }
 export const INTAKE_COPY={heading:'Tell us about your project in just a few minutes',
   introduction:'Share your scope, add photos or plans, and we’ll review the details to prepare your estimate.',
   submit:'Send project request',
   next:'The team will review your scope and uploaded files before preparing an estimate. A site visit or additional information may be needed. We will use your preferred contact method to follow up.'};
+
+/** Shared by the displayed review, submission and transfer authorization. */
+export function intakeRoutingContext(draft:{text:string;answers:{service?:string};extraction?:{conflicts?:Array<{field:string}>}|null;conflicts?:Array<{field:string}>;wizard?:{resolutions?:{service?:string}}}) {
+ return {text:draft.text,serviceConflict:Boolean([...(draft.conflicts||[]),...(draft.extraction?.conflicts||[])].some(c=>c.field==='service')&&draft.wizard?.resolutions?.service!==draft.answers.service)};
+}

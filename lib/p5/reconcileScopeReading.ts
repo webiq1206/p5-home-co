@@ -1,3 +1,5 @@
+import {applyIntakeIntent} from './intakeIntent.ts';
+import {publicProjectMode} from './intakePolicy.ts';
 import {createHash} from 'node:crypto';
 import {applyCabinetIntent} from './projectIntent.ts';
 import {groundSourceResponsibilities} from './sourceResponsibilities.ts';
@@ -16,7 +18,7 @@ import type {AnalysisResult} from './extraction.ts';
 export function reconcileScopeReading(analysisDraft:Draft,text:string,visitorAnswers:ScopeAnswers,reading:AnalysisResult|null,{sourceChanged=false,warning='',failedSourceNotes=[]}:{sourceChanged?:boolean;warning?:string;failedSourceNotes?:string[]}={}){
     let analysis=reading?structuredClone(reading):null;
     const version=createHash('sha256').update(JSON.stringify([text,analysisDraft.uploads.map(f=>f.sha256)])).digest('hex');
-    const resolutions=analysisDraft.wizard?.sourceVersion===version?analysisDraft.wizard.resolutions:{};
+    const resolutions=analysisDraft.wizard?.sourceVersion===version?{...analysisDraft.wizard.resolutions}:{};
     // Copy before applying intent: a stored or reused result must never be mutated in place.
     if(analysis)analysis={...analysis,extraction:applyCabinetIntent(text,ESTIMATOR_BRAND.services,visitorAnswers,validateExtraction(groundSourceResponsibilities(analysis.extraction,analysis.extraction.sourceText,text,visitorAnswers))).extraction!};
     // A repair-only site prices a plain repair request as home repairs instead of asking the customer
@@ -36,8 +38,13 @@ export function reconcileScopeReading(analysisDraft:Draft,text:string,visitorAns
       if(implied)analysis={...analysis,extraction:{...analysis.extraction,facts:[...facts.filter(f=>f.field!=='service'),{field:'service',value:implied,confidence:1,source:'typed scope',evidence:text.slice(0,4000),basis:'stated'}]}};
     }
     if(analysis)analysis={...analysis,extraction:groundDocumentConditions(reconcileDocumentHierarchy(normalizeDimensionSubjects(normalizeCountSubjects(applyExplicitTypedCorrections(validateExtraction(normalizeTileSubjects(separateFootprintFromInstallation(analysis.extraction,text))),text)),text),text),text)};
-    const extraction=analysis?.extraction||analysisDraft.extraction;
+    let extraction=analysis?.extraction||analysisDraft.extraction;
     const merged=analysis?reconcileScope(answersAfterTypedRevision(visitorAnswers,analysis.extraction,text,resolutions),analysis.extraction,resolutions):{answers:{...analysisDraft.answers,...visitorAnswers},conflicts:[]};
+    if(publicProjectMode(ESTIMATOR_BRAND.id,merged.answers.service)==='review'){
+      const interpreted=applyIntakeIntent(text,merged.answers,extraction,resolutions);merged.answers=interpreted.answers;extraction=interpreted.extraction;
+      if(interpreted.clearServiceResolution)delete resolutions.service;
+      merged.conflicts=extraction?reconcileScope(merged.answers,extraction,resolutions).conflicts:merged.conflicts;
+    }
     const wizard={instructionAnswers:sourceChanged?[]:analysisDraft.wizard?.instructionAnswers||[],skipped:sourceChanged?[]:analysisDraft.wizard?.skipped||[],resolutions,sourceVersion:analysis?version:sourceChanged?undefined:analysisDraft.wizard?.sourceVersion};
     // Partial analysis is visible and prevents unread documents from being priced.
     const safeExtraction=warning?{...extraction,summary:extraction?.summary||text,facts:extraction?.facts||[],conflicts:extraction?.conflicts||[],missingInformation:extraction?.missingInformation||[],reviewNotes:[...new Set([...(extraction?.reviewNotes||[]),...failedSourceNotes,warning])]}:extraction;

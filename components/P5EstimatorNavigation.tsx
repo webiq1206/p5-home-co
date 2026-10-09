@@ -7,7 +7,7 @@ interface EstimatorNavigationProps {
   frameActive: boolean;
   embedded: boolean;
   onBack: () => void;
-  onExit?: () => void;
+  onExit?: (event: React.MouseEvent<HTMLButtonElement>) => void;
   onNewProject?: () => void;
   disabled?: boolean;
 }
