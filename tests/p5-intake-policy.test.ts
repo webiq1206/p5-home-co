@@ -27,7 +27,7 @@ test('P5 completes all projects in place, including unresolved classifications',
 });
 test('unknown classifications and untrusted supporting values cannot invent a recipient',()=>{
   const route=routeIntake('cabinet','https://outside.invalid',['outside@example.invalid','cabinetry']);
-  assert.equal(route.primaryTeam,'p5');assert.deepEqual(route.supportingServices,['cabinetry']);
+  assert.equal(route.primaryTeam,'cabinet');assert.equal(route.handoff,null);assert.deepEqual(route.supportingServices,['cabinetry']);
 });
 
 import {intakeQuestions} from '../lib/p5/intakeQuestions.ts';

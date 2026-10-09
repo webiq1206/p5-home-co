@@ -1,5 +1,5 @@
-import {callbackPhone,EXIT_CALLBACK_FLOW} from "@/lib/p5/exitCallback";
-import { NextResponse } from "next/server";
+import {callbackPhone,EXIT_CALLBACK_FLOW} from "../../../../lib/p5/exitCallback.ts";
+import { NextResponse } from "next/server.js";
 import { SESSION_ID_RE, recordCallbackRequest } from "../../../lib/leads/estimatorSessions.ts";
 
 export const dynamic = "force-dynamic";

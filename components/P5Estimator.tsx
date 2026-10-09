@@ -1,7 +1,7 @@
 "use client";
 import {P5AddressInput} from './P5AddressInput';
 import {P5IntakeReview,P5IntakeReceipt} from './P5IntakeReview';
-import {publicProjectMode,intakeSite,routeIntake,INTAKE_COPY,INTAKE_SITES,type SupportingService} from '../lib/p5/intakePolicy';
+import {publicProjectMode,intakeSite,routeIntake,intakeRoutingContext,INTAKE_COPY,INTAKE_SITES,type SupportingService} from '../lib/p5/intakePolicy';
 import {incomingTransfer,clearIncomingTransfer,persistOutgoingTransfer,outgoingTransfer,recoverOutgoingTransfer,clearOutgoingTransfer,newTransferSeed,browserTransferProof,openTransferredProject,acceptTransferredDraft,persistTransferredDraft,type BrowserTransferView,type BrowserTransferProof} from '../lib/p5/intakeTransferBrowser';
 import {reconcileQuestionMemory,recordQuestion,answerState,mergeQuestionMemory,type QuestionState} from '../lib/p5/intakeQuestionMemory';
 import {intakeQuestions} from '../lib/p5/intakeQuestions';
@@ -628,7 +628,7 @@ export function P5Estimator({defaultService='',headingAs='h1',projectSource,layo
     // Sending the visible review is the explicit confirmation. Keep the exact
     // scope fingerprint and server revision checks, without duplicate checkboxes.
     updateIntake({reviewedScopeFingerprint:intakeReviewFingerprint(d)});
-    const routing=routeIntake(intakeSite(brandId)||'p5',d.answers.service||'',d.intake?.supportingServices);
+    const routing=routeIntake(intakeSite(brandId)||'p5',d.answers.service||'',d.intake?.supportingServices,intakeRoutingContext(d));
     if(routing.handoff){await startIntakeTransfer();return;}
     await run('Saving your project request...',async()=>{
       await saveMaterials();const latest=current.current!;
@@ -762,7 +762,7 @@ export function P5Estimator({defaultService='',headingAs='h1',projectSource,layo
   const knownGroups=[...new Set(known.map(fieldCategory))].map(title=>({title,fields:known.filter(k=>fieldCategory(k)===title)}));
   const uploadedCount=draft.uploads?.length||0;const missingFiles=preparingFiles?[]:missingPendingFiles(draft,files);
   const hasEmail=Boolean(draft.contact.email.trim());
-  const intakeRouting=routeIntake(intakeSite(brandId)||'p5',draft.answers.service||'',draft.intake?.supportingServices);
+  const intakeRouting=routeIntake(intakeSite(brandId)||'p5',draft.answers.service||'',draft.intake?.supportingServices,intakeRoutingContext(draft));
   const contactReady=draft.contact.name.trim().length>=2&&(!hasEmail||EMAIL.test(draft.contact.email));
   const submitErrorId=`${id}-submit-error`;const formId=`${id}-form`;
   const transcript=draft.transcript||[];const hasProgress=transcript.length>0||draft.step>0||Boolean(result)||uploadedCount>0;

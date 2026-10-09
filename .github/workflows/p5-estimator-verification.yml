@@ -49,6 +49,10 @@ jobs:
           node --import tsx scripts/test-p5-resumable.mts
           node --import tsx scripts/test-p5-plan-rendering.mts
           node --import tsx --test tests/p5-adaptive.test.ts tests/p5-clarifications.test.ts tests/p5-provider.test.ts tests/p5-wizard-resume.test.ts tests/p5-extraction-values.test.ts tests/p5-multipart.test.ts tests/p5-object-storage.test.ts tests/p5-file-snapshot.test.ts tests/p5-upload-transfer.test.ts
+      - name: Contextual intake and actual draft persistence (offline)
+        run: |
+          node --import tsx --test tests/p5-intake-intent.test.ts tests/p5-service-signals.test.ts tests/p5-intake-policy.test.ts
+          node --import tsx scripts/test-p5-intake-intent.mts
       - name: TypeScript verification
         run: npx tsc --noEmit
       - name: Production build and existing repository gates
@@ -60,6 +64,8 @@ jobs:
           P5_PARENT=1 node scripts/p5-mobile-navigation.mjs
           node --import tsx scripts/p5-estimator-browser.mjs
           P5_TEST_BROWSER=webkit node --import tsx scripts/p5-estimator-browser.mjs
+          P5_TEST_BASE_URL=http://127.0.0.1:5000 node --import tsx scripts/p5-intake-intent-browser.mjs
+          P5_TEST_BASE_URL=http://127.0.0.1:5000 P5_TEST_BROWSER=webkit node --import tsx scripts/p5-intake-intent-browser.mjs
           P5_TEST_BASE_URL=http://127.0.0.1:5000 node scripts/p5-exit-browser.mjs
           P5_TEST_BASE_URL=http://127.0.0.1:5000 P5_TEST_BROWSER=webkit node scripts/p5-exit-browser.mjs
           node scripts/p5-admin-pricing-browser.mjs

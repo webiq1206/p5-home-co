@@ -1,3 +1,4 @@
+import {interpretIntakeIntent} from './intakeIntent.ts';
 import {scopeQuestions,type ScopeQuestion} from './adaptive.ts';
 import {unaskedQuestions} from './questionBudget.ts';
 import type {BrowserDraft} from './browserDraft.ts';
@@ -14,9 +15,9 @@ export function intakeQuestions(draft:Pick<BrowserDraft,'answers'|'extraction'|'
     return conflict?`${questionTopic(question,draft.answers)}:conflict:${scopeFingerprint(JSON.stringify([...new Set(conflict.values)].sort()))}`:undefined;
   };
   if(latest.has('intake-review'))return [];
-  const questions=scopeQuestions(draft.answers,draft.extraction,draft.conflicts||[],draft.wizard?.skipped||[],[],draft.text)
+  const questions=scopeQuestions(draft.answers,draft.extraction,(draft.conflicts??draft.extraction?.conflicts??[]),draft.wizard?.skipped||[],[],draft.text)
     .filter(q=>!['laborHours','projectMonths'].includes(q.field)&&(q.field!=='estimatingInstructions'||Boolean(q.instructionId)))
-    .map(q=>q.field==='service'?{...q,reason:'Which best describes the whole project?',values:[...SCOPE_FIELDS.service.options],handoff:undefined}:q);
+    .map(q=>q.field==='service'?{...q,reason:interpretIntakeIntent(draft.text||'').clarification||'Which best describes the whole project?',values:[...SCOPE_FIELDS.service.options],handoff:undefined}:q);
   const contextual:ScopeQuestion[]=[];
   if(draft.answers.service){
     if(!draft.answers.location?.trim()&&!draft.answers.address?.trim()&&!draft.wizard?.skipped.includes('location'))contextual.push({field:'location',label:SCOPE_FIELDS.location.label,reason:'Where is the project? A city or ZIP code is enough for now.'});

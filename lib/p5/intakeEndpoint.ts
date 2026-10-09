@@ -2,7 +2,7 @@ import {draftCredentials,readDraft,DraftError} from './store.ts';
 import {query} from './database.ts';
 import {protectRequest,limitedBody,json,failed} from './http.ts';
 import {ESTIMATOR_BRAND} from './brand.ts';
-import {intakeSite} from './intakePolicy.ts';
+import {intakeSite,intakeRoutingContext} from './intakePolicy.ts';
 import {intakeContact,intakeUnresolved,snapshotRouting,emptyIntakeDetails,intakeDetails,intakeScopeReviewed} from './intakeContract.ts';
 import {intakeStore,IntakeConflict} from './intakeStore.ts';
 import {SCOPE_FIELDS} from './scope.ts';
@@ -23,7 +23,7 @@ export async function postIntake(request:Request){try{
   const site=intakeSite(draft.brand);if(!site)throw new DraftError('Project intake is not configured.',503);
   let contact;try{contact=intakeContact({...draft.contact,preferredContact:draft.intake?.contact.preferredContact||'either'});}catch(error){throw new DraftError(error instanceof Error?error.message:'Check your contact details.');}
   if(!draft.text.trim()&&!draft.uploads.length&&!Object.values(draft.answers).some(v=>v?.trim()))throw new DraftError('Describe your project or add a supporting file.');
-  const details=intakeDetails(draft.intake||emptyIntakeDetails()),routing=snapshotRouting(site,draft.answers,details);
+  const details=intakeDetails(draft.intake||emptyIntakeDetails()),routing=snapshotRouting(site,draft.answers,details,intakeRoutingContext(draft));
   if(routing.handoff)throw new DraftError(`Continue with ${routing.teamName} to send this project. Your saved details and files are retained.`,409);
   const receipt=await intakeStore(query).save({schema:1,projectId:draft.intake?.projectId||`${site}:${id}`,originSite:draft.intake?.originSite||site,currentSite:site,draftId:id,revision:draft.revision,contextVersion:draft.intake?.version||0,
     contact,details,scope:{text:draft.text,answers:draft.answers,extraction:draft.extraction,uploads:draft.uploads},routing,

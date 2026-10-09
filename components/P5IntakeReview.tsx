@@ -2,7 +2,7 @@
 import {P5AddressInput} from './P5AddressInput';
 import type {ReactNode,Ref} from 'react';
 import type {BrowserDraft} from '../lib/p5/browserDraft';
-import {INTAKE_COPY,SUPPORTING_SERVICES,intakeSite,routeIntake} from '../lib/p5/intakePolicy';
+import {INTAKE_COPY,SUPPORTING_SERVICES,intakeSite,routeIntake,intakeRoutingContext} from '../lib/p5/intakePolicy';
 import {intakeUnresolved,type IntakeContact,type IntakeContactField,type IntakeReceipt} from '../lib/p5/intakeContract';
 import {SCOPE_FIELDS,type ScopeField} from '../lib/p5/scope';
 import styles from './P5Estimator.module.css';
@@ -14,7 +14,7 @@ export function P5IntakeReview({draft,brandId,id,onContact,onPreference,onAnswer
   onAnswer:(field:ScopeField,value:string)=>void;onText:(value:string)=>void;onSupporting:(value:string[])=>void;
   details:ReactNode;error:ReactNode;headingRef:Ref<HTMLDivElement>;contactNameRef:Ref<HTMLInputElement>;contactEmailRef:Ref<HTMLInputElement>;contactPhoneRef?:Ref<HTMLInputElement>;contactPreferenceRef?:Ref<HTMLSelectElement>;contactErrorFields?:IntakeContactField[];contactErrorId?:string;
 }){
-  const site=intakeSite(brandId)||'p5',routing=routeIntake(site,draft.answers.service||'',draft.intake?.supportingServices);
+  const site=intakeSite(brandId)||'p5',routing=routeIntake(site,draft.answers.service||'',draft.intake?.supportingServices,intakeRoutingContext(draft));
   const unresolved=[...new Set([...routing.unresolved,...intakeUnresolved(draft,SCOPE_FIELDS),...(draft.analysisWarning?[draft.analysisWarning]:[])])];
   return <>
     <div className={styles.stageHeading} ref={headingRef}><h2 tabIndex={-1} data-stage-heading>Review your project</h2><p className={styles.lead}>Check your scope, files and contact details. Unknown details can stay open for the team to review.</p></div>
