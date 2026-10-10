@@ -1,4 +1,4 @@
-import {readQuestionMemory,questionHistoryNotes,reconcileQuestionMemory,questionTopic,type QuestionMemory} from './intakeQuestionMemory.ts';
+import {readQuestionMemory,currentQuestionEntries,questionHistoryNotes,reconcileQuestionMemory,questionTopic,type QuestionMemory} from './intakeQuestionMemory.ts';
 import {INTAKE_SITES,routeIntake,type IntakeSite,type IntakeRouting,type SupportingService,SUPPORTING_SERVICES} from './intakePolicy.ts';
 import type {ScopeAnswers,ScopeExtraction,ScopeUpload} from './scope.ts';
 import {SCOPE_TEXT_LIMIT} from './scope.ts';
@@ -67,11 +67,15 @@ export function intakeReviewFingerprint(scope:IntakeScopeReview){
 export function intakeScopeReviewed(scope:IntakeScopeReview){return scope.intake?.reviewedScopeFingerprint===intakeReviewFingerprint(scope);}
 /** Only actual unanswered questions and observed reading gaps become outstanding details. */
 export function intakeUnresolved(scope:{answers:ScopeAnswers;extraction:ScopeExtraction|null;uploads?:ScopeUpload[];analyzedUploads?:Array<{sha256:string;size:number}>;text?:string;transcript?:IntakeMessage[];intake?:Pick<IntakeDetails,'supportingServices'|'questionMemory'>;wizard?:{skipped:Array<keyof ScopeAnswers>;resolutions?:ScopeAnswers}},labels:Record<string,{label:string}>):string[] {
-  const memory=reconcileQuestionMemory(scope);
+  const memory=reconcileQuestionMemory(scope),latest=currentQuestionEntries(memory);
   return [...new Set([
     ...questionHistoryNotes(memory),
     ...(scope.wizard?.skipped||[]).filter(f=>!scope.answers[f]?.trim()).map(f=>`${labels[f]?.label||f}: not known yet.`),
-    ...(scope.extraction?.conflicts||[]).filter(c=>!scope.wizard?.resolutions?.[c.field]||!sameAnswer(c.field,scope.wizard.resolutions[c.field]!,scope.answers[c.field]||'')).map(c=>c.explanation),
+    // A free-form answer supplies context without silently changing the selected trade.
+    // Match the exact competing values; a different conflict still needs review.
+    ...(scope.extraction?.conflicts||[]).filter(c=>!scope.wizard?.resolutions?.[c.field]||!sameAnswer(c.field,scope.wizard.resolutions[c.field]!,scope.answers[c.field]||'')).map(c=>c.field==='service'&&latest.get(`service:conflict:${scopeFingerprint(JSON.stringify([...new Set(c.values)].sort()))}`)?.state==='answered'
+      ? `${labels[c.field]?.label||c.field}: clarification supplied; see the saved answer for team review.`
+      : c.explanation),
     ...(scope.extraction?.reviewNotes||[]),
     ...scopeQuestions(scope.answers,scope.extraction,[],scope.wizard?.skipped||[]).filter(question=>question.instructionId&&!['laborHours','projectMonths'].includes(question.field)).flatMap(question=>{const topic=questionTopic(question,scope.answers);return topic&&memory.entries.some(e=>e.topic===topic)?[]:[topic?`Team to review: ${topic.replaceAll('-', ' ')}.`:'Team to review additional notes in the supplied materials.'];}),
     ...(scope.extraction?.documentCoverage?.pages||[]).filter(page=>!pageCovered(page)).map(page=>`${page.source}, page ${page.page}: ${page.status}; ${page.notes.join(' ')}`),
