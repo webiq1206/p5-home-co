@@ -777,7 +777,7 @@ export function P5Estimator({defaultService='',entryLabel,headingAs='h1',project
   const intakeRouting=routeIntake(intakeSite(brandId)||'p5',draft.answers.service||'',draft.intake?.supportingServices,intakeRoutingContext(draft));
   let intakeContactIssue:IntakeContactError|null=null;
   try{intakeContact({...draft.contact,preferredContact:draft.intake?.contact.preferredContact||'either'});}catch(error){if(error instanceof IntakeContactError)intakeContactIssue=error;}
-  const continueToContact=()=>{const field=intakeContactIssue?.fields[0]||'name';setContactReached(true);focusCorrection({name:contactNameRef,email:contactEmailRef,phone:contactPhoneRef,preferredContact:contactPreferenceRef}[field].current);};
+  const continueToContact=()=>{const field=intakeContactIssue?.fields[0]||'name';setContactReached(true);if(intakeContactIssue){setValidationTarget('contact');setContactErrorFields(intakeContactIssue.fields);setError(intakeContactIssue.message);}focusCorrection({name:contactNameRef,email:contactEmailRef,phone:contactPhoneRef,preferredContact:contactPreferenceRef}[field].current);};
   const contactReady=draft.contact.name.trim().length>=2&&(!hasEmail||EMAIL.test(draft.contact.email));
   const submitErrorId=`${id}-submit-error`;const formId=`${id}-form`;
   const transcript=draft.transcript||[];const hasProgress=transcript.length>0||draft.step>0||Boolean(result)||uploadedCount>0;

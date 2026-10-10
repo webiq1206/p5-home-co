@@ -295,7 +295,7 @@ for(const width of progressOnly||focusOnly?[]:[320,390,430,768,1024,1440,1920]){
   await usableAction(action);
   // Reproduce an older saved question step after all its questions become known.
   await page.evaluate(()=>{const key='p5-project-draft-v2';const draft=JSON.parse(localStorage.getItem(key));draft.step=1;localStorage.setItem(key,JSON.stringify(draft));});
-  await page.reload();await estimator.getByRole('button',{name:SUBMIT_LABEL,exact:true}).waitFor();await (intake?estimator.getByLabel('Your name',{exact:true}):estimator.getByRole('checkbox')).waitFor();
+  await page.reload();await estimator.getByRole('button',{name:intake?'Continue to contact details':SUBMIT_LABEL,exact:true}).waitFor();await (intake?estimator.getByLabel('Your name',{exact:true}):estimator.getByRole('checkbox')).waitFor();
   assert.equal(await estimator.getByRole('region',{name:'Project question'}).count(),0,'Restored known facts were asked again');
   await estimator.getByLabel('Your name',{exact:true}).fill('Synthetic Test');await estimator.getByLabel(/^Email/).fill('customer@example.invalid');
   await estimator.getByRole('button',{name:/^Back to project (description|questions)$/}).click();await page.waitForTimeout(400);/* Back lands on the previous step, which on a brand with its own questions is the last question, not the description; what must survive is the saved project text. */assert.match(await page.evaluate(()=>JSON.parse(localStorage.getItem('p5-project-draft-v2')||'{}').text||''),/LongUnbroken/,'the project description survives going back');
@@ -481,13 +481,13 @@ for(const width of focusOnly?[]:[320,390,1440]){
   assert.equal(await est.getByText('Synthetic planning range.',{exact:true}).count(),0,'No estimate result before contact capture');
   if(intake){
    // Contact is required before a request is saved; one valid method is enough, and nothing is priced.
-   await confirmIntake(est);await est.getByRole('button',{name:SUBMIT_LABEL,exact:true}).click();
+   await confirmIntake(est);await est.getByRole('button',{name:'Continue to contact details',exact:true}).click();
    await est.getByRole('alert').filter({hasText:'Enter your name.'}).waitFor();assert.equal(progressState.pricingPolls,0);assert.equal(progressState.submissions,0,'Contact is required before a request is saved');
    const nameInput=est.getByLabel('Your name',{exact:true}),emailInput=est.getByLabel('Email',{exact:true}),phoneInput=est.getByLabel('Phone',{exact:true});
    assert.equal(await nameInput.evaluate(el=>el===document.activeElement),true);assert.equal(await nameInput.getAttribute('aria-invalid'),'true');
    await nameInput.fill('Synthetic Test');
    const invalidContact=async(field,message)=>{
-    await est.getByRole('button',{name:SUBMIT_LABEL,exact:true}).click();await est.getByRole('alert').filter({hasText:message}).waitFor();
+    await est.getByRole('button',{name:'Continue to contact details',exact:true}).click();await est.getByRole('alert').filter({hasText:message}).waitFor();
     assert.equal(await field.evaluate(el=>el===document.activeElement),true,'Focus the actual invalid field');assert.equal(await field.getAttribute('aria-invalid'),'true');
     const errorId=await field.getAttribute('aria-describedby');assert.ok(errorId);assert.ok((await page.locator(`[id="${errorId}"]`).innerText()).includes(message));assert.equal(progressState.submissions,0);
    };
