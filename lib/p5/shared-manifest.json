@@ -265,7 +265,7 @@
     "scripts/p5-build-price-book.mjs": "714a76f8a9f29077d052304456aca38769fc9485022774856eae816b2e847450",
     "scripts/p5-cli-acceptance.mts": "ed5b8fc80231c03b3c2b54de486fb6db7f259947e855ecf4985a9caf6f4ea6b8",
     "scripts/p5-component-review.mjs": "7035921690a6dc0648b1c3142b054ad09d67535c706e108817369e9e6de6ab26",
-    "scripts/p5-estimator-browser.mjs": "dce35fb128154a7bb4dcf47d358b6510c754c502cd4f3719b0fb37ecc9f821f9",
+    "scripts/p5-estimator-browser.mjs": "766ae99cdd2852285cb26c82561f91dabe1c8cfa11dc6323b69735a894327159",
     "scripts/p5-host-build.mjs": "1d83b593096c24575847b9f290253c7d32e74dfaa640d22ac68b427307599b3f",
     "scripts/p5-hub-notification-check.mjs": "e2d4216777feeb2e4099b93986ca257e4760f671312a6b343014ef7677148f06",
     "scripts/p5-intake-browser-fixture.mts": "438c997dfdf18d8f11383059cdb93df31de0275f79dfb43af845c143a10f0872",
@@ -501,7 +501,7 @@
     "tests/p5-intake-intent.test.ts": "b7be17dd3d8c5a7e7b15f5bbd205ebaa719617ef25791294825570e1679c1513",
     "scripts/test-p5-intake-intent.mts": "cf2ec47bdf7a5cf5cab221991ca2d45c96c479fad9f160427d14d16dc8e95425",
     "scripts/p5-intake-intent-browser.mjs": "40ba115deb0e6bfadf5c75b402f7c3b324d281a6403f16c325dda7a2c2b0145e",
-    "scripts/p5-intake-progression-browser.mjs": "f1b70fcca81cfa3b634997d26844181cc7704a87af17ccdbf97a47dcbb17f5bb"
+    "scripts/p5-intake-progression-browser.mjs": "1bc84b7107d0fce80cf61f0747f8a2da2b11754554112392e1192247456c66a2"
   },
   "coordinatedIntakeBatch": {
     "base": "e6e125b83468a402264be2f1e82e5c0466baa178",

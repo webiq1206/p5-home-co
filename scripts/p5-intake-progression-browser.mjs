@@ -24,6 +24,7 @@ try{
   const heading=question.locator('h2');assert(await heading.evaluate(el=>el===document.activeElement),'Next question gets focus');
   let rect=await heading.boundingBox();assert(rect.y>=64&&rect.y+rect.height<height,'Current question clears sticky header');
   const choice=question.locator('[aria-label="Suggested answers"] button').first();
+  assert(await choice.count()>0,'Fixture exercises a suggested answer');
   if(await choice.count()){
    const previous=await heading.innerText();
    const answer=estimator.locator('textarea').last();
@@ -52,8 +53,8 @@ try{
   await email.fill('ux@example.invalid');
   await page.getByRole('button',{name:/^(Send project request|Continue with Boise)/}).waitFor();
   // Supporting work is intentionally multi-select and never advances or submits.
-  const details=estimator.locator('details').filter({has:page.getByText('Supporting work', {exact:false})});
   const checkbox=estimator.locator('input[type=checkbox]').first();
+  assert(await checkbox.count()>0,'Fixture exercises a supporting-work checkbox');
   if(await checkbox.count()) {await checkbox.evaluate(el=>{let p=el.parentElement;while(p){if(p.tagName==='DETAILS')p.open=true;p=p.parentElement;}});await checkbox.check();assert.equal(await estimator.getAttribute('data-step'),'2');}
   await page.screenshot({path:`${output}/${process.env.P5_TEST_BROWSER||'chromium'}-${width}x${height}.png`});
   const state=await (await page.request.get(base+'/__state')).json();assert.equal(state.submissions,0);assert.equal(state.pricingCalls,0);

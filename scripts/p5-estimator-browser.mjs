@@ -313,6 +313,8 @@ for(const width of progressOnly||focusOnly?[]:[320,390,430,768,1024,1440,1920]){
    await overflow(page);await capture(page,`${width}-review`);
    assert.equal(await estimator.getByRole('region',{name:'Project summary',exact:true}).count(),1,'One editable summary contains the saved project');
    await confirmIntake(estimator);
+   await estimator.getByRole('button',{name:'Continue to contact details',exact:true}).click();
+   await action.waitFor();
    await action.click();await estimator.getByRole('alert').filter({hasText:'Synthetic request interruption'}).waitFor();await settled(page);
    assert.equal(state.submissions,0,'An unconfirmed request is not a saved request');
    assert.equal(await estimator.getByLabel(/^Email/).inputValue(),'customer@example.invalid','Contact details survive a failed send');
