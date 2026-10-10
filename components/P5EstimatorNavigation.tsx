@@ -7,16 +7,17 @@ interface EstimatorNavigationProps {
   frameActive: boolean;
   embedded: boolean;
   onBack: () => void;
+  backLabel?: string;
   onExit?: (event: React.MouseEvent<HTMLButtonElement>) => void;
   onNewProject?: () => void;
   disabled?: boolean;
 }
 
 /** Site navigation must remain available without relying on browser history. */
-export function P5EstimatorNavigation({brandName, stepLabel, showBack, frameActive, embedded, onBack, onExit, onNewProject, disabled}: EstimatorNavigationProps) {
+export function P5EstimatorNavigation({brandName, stepLabel, showBack, frameActive, embedded, onBack, onExit, onNewProject, disabled, backLabel="Back to the previous step"}: EstimatorNavigationProps) {
   return <nav className={styles.topbar} aria-label="Estimator navigation">
     {showBack
-      ? <button type="button" className={styles.navBtn} onClick={onBack} aria-label="Back to the previous step">Back</button>
+      ? <button type="button" className={styles.navBtn} onClick={onBack} disabled={disabled} aria-label={backLabel}>Back</button>
       : <a className={styles.navBtn} href="/" aria-label="Back to the homepage">Home</a>}
     <a className={styles.topCenter} href="/" aria-label={`${brandName}, back to the homepage`}>
       <span className={styles.brandLine}><span data-brand>{brandName}</span><span data-sep aria-hidden="true"> · </span><span data-title>Project estimator</span></span>

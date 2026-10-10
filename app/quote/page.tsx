@@ -36,6 +36,8 @@ export const metadata: Metadata = withBrandPageMetadata(({
   robots: { index: true, follow: true },
 }), "/quote");
 
-export default function QuotePage() {
-  return <QuoteLanding service={null} />;
+export default async function QuotePage({searchParams}:{searchParams:Promise<{project?:string|string[]}>}) {
+  const {project}=await searchParams;
+  const selected=project==='whole-home'?{label:'Whole-home remodel',service:'whole-home'}:project==='addition-adu-basement'?{label:'Addition, ADU, or basement',service:''}:null;
+  return <QuoteLanding service={null} entryLabel={selected?.label} defaultService={selected?.service} />;
 }
