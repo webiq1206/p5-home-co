@@ -22,7 +22,7 @@ const fixturePdf=await PDFDocument.create();fixturePdf.addPage().drawText('Synth
 const pdfBytes=Buffer.from(await fixturePdf.save());
 // Brands ask their own extra questions before review (finish level for cabinets, trim length when trim is priced).
 // A choice is answered with its first option; an unknown quantity stays explicit with Not sure yet.
-const answerBrandQuestions=async(page,est,then)=>{for(let i=0;i<8;i++){const q=est.locator('section[aria-label="Project question"]');await then.or(q).first().waitFor();if(await then.count())return;const chips=q.locator('[aria-label="Suggested answers"] button');const unsure=q.getByRole('button',{name:'Not sure yet',exact:true});if(await chips.count()){await chips.first().click();await est.getByRole('button',{name:'Send answer',exact:true}).click();}else if(await unsure.count())await unsure.click();else throw new Error('Unexpected brand question: '+(await q.innerText()).slice(0,120));await settled(page);}await then.waitFor();};
+const answerBrandQuestions=async(page,est,then)=>{for(let i=0;i<8;i++){const q=est.locator('section[aria-label="Project question"]');await then.or(q).first().waitFor();if(await then.count())return;const chips=q.locator('[aria-label="Suggested answers"] button');const unsure=q.getByRole('button',{name:'Not sure yet',exact:true});if(await chips.count()){await chips.first().click();}else if(await unsure.count())await unsure.click();else throw new Error('Unexpected brand question: '+(await q.innerText()).slice(0,120));await settled(page);}await then.waitFor();};
 
 // Public review intake (lib/p5/intakePolicy.ts): every new project is saved for team review and
 // nothing is priced in the browser. Brands still in automated mode keep the legacy estimate checks.
@@ -217,7 +217,7 @@ for(const width of progressOnly?[]:[390,1440])for(const scenario of ['fresh','re
    assert.equal(state.scopeCalls,0,'Typing and restoring must not call the provider');
   }else if(scenario==='back'){
    await focusedHeading(page,intake?LOCATION_QUESTION:'Labor only or materials only?');
-   await est.getByRole('button',{name:'Back to the previous step',exact:true}).click();await settled(page);
+   await est.getByRole('button',{name:/^Back to project (description|questions)$/}).click();await settled(page);
    const heading=est.locator('[data-stage-heading]');assert.equal(await heading.count(),1,'Returning to the project must have a current focus target');
    await focusedHeading(page,await heading.innerText());
    const input=est.getByLabel('Tell us about your project',{exact:true});
@@ -298,7 +298,7 @@ for(const width of progressOnly||focusOnly?[]:[320,390,430,768,1024,1440,1920]){
   await page.reload();await estimator.getByRole('button',{name:SUBMIT_LABEL,exact:true}).waitFor();await (intake?estimator.getByLabel('Your name',{exact:true}):estimator.getByRole('checkbox')).waitFor();
   assert.equal(await estimator.getByRole('region',{name:'Project question'}).count(),0,'Restored known facts were asked again');
   await estimator.getByLabel('Your name',{exact:true}).fill('Synthetic Test');await estimator.getByLabel(/^Email/).fill('customer@example.invalid');
-  await estimator.getByRole('button',{name:'Back to the previous step',exact:true}).click();await page.waitForTimeout(400);/* Back lands on the previous step, which on a brand with its own questions is the last question, not the description; what must survive is the saved project text. */assert.match(await page.evaluate(()=>JSON.parse(localStorage.getItem('p5-project-draft-v2')||'{}').text||''),/LongUnbroken/,'the project description survives going back');
+  await estimator.getByRole('button',{name:/^Back to project (description|questions)$/}).click();await page.waitForTimeout(400);/* Back lands on the previous step, which on a brand with its own questions is the last question, not the description; what must survive is the saved project text. */assert.match(await page.evaluate(()=>JSON.parse(localStorage.getItem('p5-project-draft-v2')||'{}').text||''),/LongUnbroken/,'the project description survives going back');
   const calls=state.scopeCalls;const resume=estimator.getByRole('button',{name:'Send message',exact:true});if(await resume.count())await resume.click({timeout:120000});else await answerBrandQuestions(page,estimator,estimator.getByLabel(/^Email/));await estimator.getByLabel(/^Email/).waitFor();assert.equal(await estimator.getByLabel(/^Email/).inputValue(),'customer@example.invalid');assert.equal(state.scopeCalls,calls,'Going back unnecessarily repeated analysis');
   // Details are grouped in accordions; editing one detail re-reads the scope before pricing.
   // Open both disclosure levels: a broad hasText match selects the outer
@@ -383,7 +383,7 @@ for(const width of progressOnly||focusOnly?[]:[390,1440]){
   await est.getByRole('button',{name:'Send answer',exact:true}).click({timeout:120000});await question.getByText('Should we include or exclude painting?',{exact:true}).waitFor();
   assert.equal(await est.getByLabel('Your answer',{exact:true}).inputValue(),'','The next question starts with a fresh answer');
   await page.reload();await question.getByText('Should we include or exclude painting?',{exact:true}).waitFor();
-  await capture(page,`${width}-clarification`);await question.getByRole('button',{name:'Please leave it out',exact:true}).click();await est.getByRole('button',{name:'Send answer',exact:true}).click();
+  await capture(page,`${width}-clarification`);await question.getByRole('button',{name:'Please leave it out',exact:true}).click();
   await answerBrandQuestions(page,est,est.getByLabel('Your name',{exact:true}));assert.equal(state.scopeCalls,1,'Clarification answers never reread documents');await overflow(page);
   results.push({scenario:'sequential-instructions',width,passed:true});
  }catch(error){console.error(error);results.push({scenario:'sequential-instructions',width,passed:false,error:String(error)});await capture(page,`${width}-instructions-failure`).catch(()=>{});}await context.close();
@@ -402,14 +402,14 @@ for(const scenario of progressOnly||focusOnly?[]:['manual','conflict','unavailab
    for(let i=0;i<10&&await est.locator('section[aria-label="Project question"]').count();i++){
     const q=est.locator('section[aria-label="Project question"]');const text=q.locator('textarea');const choice=q.getByRole('button',{name:serviceLabel,exact:true});
     // Every question now shares the composer: chips answer a choice, unknown numeric details stay explicit via Not sure yet, and only free-text questions are typed.
-    if(await choice.count()){await choice.click();await est.getByRole('button',{name:'Send answer',exact:true}).click();}
+    if(await choice.count()){await choice.click();}
     else if(await q.getByRole('button',{name:'Not sure yet',exact:true}).count())await q.getByRole('button',{name:'Not sure yet',exact:true}).click();
     else if(await est.getByLabel('Your answer',{exact:true}).count()){await est.getByLabel('Your answer',{exact:true}).fill('Repair three interior doors');await est.getByRole('button',{name:'Send answer',exact:true}).click({timeout:120000});}
     else throw new Error('Unexpected required section');
     await settled(page);
    }
   }else{
-   await est.getByText(/^The documents disagree\. Which work should be included\?/).first().waitFor();await est.getByRole('button',{name:/^Replace three doors(?:\s|$)/}).click();await est.getByRole('button',{name:'Send answer',exact:true}).click();
+   await est.getByText(/^The documents disagree\. Which work should be included\?/).first().waitFor();await est.getByRole('button',{name:/^Replace three doors(?:\s|$)/}).click();
   }
   await answerBrandQuestions(page,est,est.getByRole('heading',{name:'Review your project',exact:true}));await overflow(page);results.push({scenario,passed:true});
  }catch(error){console.error(error);results.push({scenario,passed:false,error:String(error)});await capture(page,`${scenario}-failure`).catch(()=>{});}await context.close();

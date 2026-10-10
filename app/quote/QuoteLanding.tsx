@@ -22,7 +22,7 @@ import TrackedPhoneLink from "./TrackedPhoneLink";
  * the longer trust and process content sits below it. Nobody should have to
  * scroll past six paragraphs to reach the field they came to fill in.
  */
-export default function QuoteLanding({ service }: { service: QuoteService | null }) {
+export default function QuoteLanding({ service, entryLabel, defaultService }: { service: QuoteService | null;entryLabel?:string;defaultService?:string }) {
   const faqs = faqsFor(service);
   const heroImage = service ? service.image : "/images/p5-hero.webp";
   const heroAlt = service
@@ -55,7 +55,7 @@ export default function QuoteLanding({ service }: { service: QuoteService | null
           </TrackedPhoneLink>
         </header>
 
-        <section id="quote-form-heading" style={{padding:"12px 16px 36px",scrollMarginTop:100}}><P5Estimator headingAs="h1" layout="embedded" defaultService={({"kitchen-remodel":"kitchen","bathroom-remodel":"bathroom","home-addition":"addition","adu":"adu","custom-home":"new-construction","new-construction":"new-construction","custom-cabinets":"cabinet-install","handyman":"handyman","re-10":"re10"} as Record<string,string>)[service?.slug||""]||""} /></section>
+        <section id="quote-form-heading" style={{padding:"12px 16px 36px",scrollMarginTop:100}}><P5Estimator headingAs="h1" layout="embedded" entryLabel={entryLabel} defaultService={defaultService??(({"kitchen-remodel":"kitchen","bathroom-remodel":"bathroom","home-addition":"addition","adu":"adu","custom-home":"new-construction","new-construction":"new-construction","custom-cabinets":"cabinet-install","handyman":"handyman","re-10":"re10"} as Record<string,string>)[service?.slug||""]||"")} /></section>
 
         <section className="quote-hero">
           <img

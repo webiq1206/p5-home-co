@@ -24,7 +24,7 @@ try{
   assert.equal(await page.getByRole('combobox',{name:/^What best describes the whole project/}).inputValue(),service);
   assert.equal(await page.getByRole('textbox',{name:/^Your project description/}).inputValue(),text);
   const routing=routeIntake(intakeSite(brand.id)||'p5',service);
-  await page.getByRole('button',{name:routing.handoff?`Continue with ${routing.teamName}`:'Send project request',exact:true}).waitFor();
+  await page.getByRole('button',{name:'Continue to contact details',exact:true}).waitFor();
   assert.equal(blocked.filter(p=>/scope|intake|callback/.test(p)).length,0);
   await page.screenshot({path:`${output}/${service||'unknown'}-${process.env.P5_TEST_BROWSER||'chromium'}.png`});
   results.push({service,site:brand.id,cta:routing.handoff||'current-site',passed:true});await context.close();
