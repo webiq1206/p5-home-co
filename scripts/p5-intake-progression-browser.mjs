@@ -56,6 +56,11 @@ try{
   const checkbox=estimator.locator('input[type=checkbox]').first();
   assert(await checkbox.count()>0,'Fixture exercises a supporting-work checkbox');
   if(await checkbox.count()) {await checkbox.evaluate(el=>{let p=el.parentElement;while(p){if(p.tagName==='DETAILS')p.open=true;p=p.parentElement;}});await checkbox.check();assert.equal(await estimator.getAttribute('data-step'),'2');}
+  await page.reload();
+  await estimator.getByRole('button',{name:'Continue to contact details',exact:true}).click();
+  await page.getByRole('button',{name:/^(Send project request|Continue with Boise)/}).waitFor();
+  await page.waitForFunction(()=>!document.querySelector('[data-p5-estimator][aria-busy=true]'));
+  assert.equal((await (await page.request.get(base+'/__state')).json()).submissions,0,'Continue with restored valid contact must never submit');
   await page.screenshot({path:`${output}/${process.env.P5_TEST_BROWSER||'chromium'}-${width}x${height}.png`});
   const state=await (await page.request.get(base+'/__state')).json();assert.equal(state.submissions,0);assert.equal(state.pricingCalls,0);
   const savedText=await estimator.getByRole('textbox',{name:'Your project description',exact:true}).inputValue();

@@ -131,7 +131,8 @@ async function settled(page){await page.waitForFunction(()=>!document.querySelec
 // refocus between calls and speech clears the latent question before typing,
 // hiding the first-character regression. Check every character and saved draft.
 async function typeWithoutRefocusing(page,input,text,field='text'){
- await input.click();await page.keyboard.press('ControlOrMeta+End');let expected=await input.inputValue();
+ await input.click();await input.evaluate(el=>el.setSelectionRange(el.value.length,el.value.length));let expected=await input.inputValue();
+ assert.deepEqual(await input.evaluate(el=>[el.selectionStart,el.selectionEnd]),[expected.length,expected.length],'Typing begins at the end without replacing saved text');
  for(const character of text){
   await page.keyboard.type(character);expected+=character;
   await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
@@ -315,6 +316,7 @@ for(const width of progressOnly||focusOnly?[]:[320,390,430,768,1024,1440,1920]){
    await confirmIntake(estimator);
    await estimator.getByRole('button',{name:'Continue to contact details',exact:true}).click();
    await action.waitFor();
+   assert.equal(state.intakeRequests,0,'Visiting saved valid contact details must not submit the request');
    await action.click();await estimator.getByRole('alert').filter({hasText:'Synthetic request interruption'}).waitFor();await settled(page);
    assert.equal(state.submissions,0,'An unconfirmed request is not a saved request');
    assert.equal(await estimator.getByLabel(/^Email/).inputValue(),'customer@example.invalid','Contact details survive a failed send');
