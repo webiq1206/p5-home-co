@@ -99,20 +99,23 @@
       "published_at": "2026-10-08T16:00:24+0000",
       "verified_at": "2026-10-09",
       "link_attributes": "Facebook platform redirect; no crawlability or indexing claim"
-    }
-  ],
-  "scheduled": [
+    },
     {
       "brand": "Boise Remodeling Co",
       "url": "https://boiseremodeling.co/services/bathroom-remodel",
       "utm_content": "bathroom_layout_daily_use",
       "scheduled_epoch": 1791561600,
       "id": "1228704823655951_122135975409385974",
-      "status": "scheduled_verified",
+      "status": "published_verified",
       "permalink_url": "https://www.facebook.com/122135638923385974/posts/122135975409385974",
       "destination_url": "https://boiseremodeling.co/services/bathroom-remodel?utm_source=facebook&utm_medium=organic_social&utm_campaign=p5_free_growth_2026q4&utm_content=bathroom_layout_daily_use",
-      "created_at": "2026-09-30"
-    },
+      "created_at": "2026-09-30",
+      "published_at": "2026-10-09T16:00:00+0000",
+      "verified_at": "2026-10-12",
+      "link_attributes": "Facebook platform redirect; public post readback verified, crawlability and indexing not claimed"
+    }
+  ],
+  "scheduled": [
     {
       "platform": "facebook",
       "brand": "Boise Construction Co",
