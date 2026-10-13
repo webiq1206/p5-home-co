@@ -25,8 +25,8 @@
     "components/P5AddressInput.module.css": "5b1405323494f7768282a8302b15f8ca51b6d332819ec9f7b0246e2f1dad697f",
     "components/P5AddressInput.tsx": "6cff5902e7c8b3baa05be120cfc7eb3778f4ac3b0654c7b6ee8466a42560b091",
     "components/P5EstimateDetails.tsx": "ad36be0cb27f55e51ee63f222af7c749b3037e1fb12ff7131be62a6db93565d0",
-    "components/P5Estimator.module.css": "238f6f6056a35c2076041e90a3e845203e013f3b8a657bafb01b98fa397ae1f0",
-    "components/P5Estimator.tsx": "6b7972bff6fec352d9a4240fa54ba967c7c571048be6ca2f3042fe22a4ae2107",
+    "components/P5Estimator.module.css": "de718fbbe031ff6497f873cfded0f0fb736af93e681c234ca47751f734b7e0c6",
+    "components/P5Estimator.tsx": "ba0908972046deb615326eb8d982c68f074295741cc6e6bef70ef3d67a7d8ba5",
     "components/P5EstimatorNavigation.tsx": "427346f6a31453e01f54900b1350c222c59a74d9c23691a6fc346b5cc26da8f3",
     "components/P5IntakeQueue.tsx": "25b0e4cb34de7c93fd028787221a837d1bb6e7bcddf6cd4606dd27d69c096526",
     "components/P5IntakeReview.tsx": "1bcb8ea3d6919ea418f8f2ad6f047342d3bbd8a04e440447436e2eeafba03759",
@@ -493,7 +493,7 @@
     "tests/p5-intake-reply-to.test.ts": "8d7e6a19c75a25568ea1ca280416d97d6004149dc4f39859fd8382482e87b888",
     "tests/p5-intake-contact-fields.test.ts": "2e50258d54258ee988206a3c5d91bee2aeab1521a614bae5d1db37d0cc2f0b6b",
     "lib/p5/exitCallback.ts": "9ab0cb2118925362f718de369cab17a1e176340a155f971b75458015df22e28f",
-    "components/P5ExitOffer.tsx": "26987fb86fd485f94ecff23b41781c03032855e0e302e0c33746f9e7eff17b29",
+    "components/P5ExitOffer.tsx": "5b5e76460bbee7577cfa8ce092bfb67e31bdc11ba07d7df815b2c7bfbf06fbce",
     "components/P5ExitOffer.module.css": "1e36b1e4af398a47b96cc83ab3bde4522cdf5a47a8cf138a934b34e03299e912",
     "tests/p5-exit-callback.test.ts": "fb985b096b8397d0d424d3ec31cd48a444c0546cfbc012736343cd5b94b450a3",
     "scripts/p5-exit-browser.mjs": "c6897d0453c2b1d2d7840ad84f041130b102162ecc5879098466b62f1f5bf9ee",
@@ -502,7 +502,8 @@
     "scripts/test-p5-intake-intent.mts": "cf2ec47bdf7a5cf5cab221991ca2d45c96c479fad9f160427d14d16dc8e95425",
     "scripts/p5-intake-intent-browser.mjs": "40ba115deb0e6bfadf5c75b402f7c3b324d281a6403f16c325dda7a2c2b0145e",
     "scripts/p5-intake-progression-browser.mjs": "04bad0ff80bb43e9306c09aea428272707e370822d5c03a0a6c9f66bf7b8ae5d",
-    "scripts/p5-intake-conflict-browser.mjs": "24baa3da4aafb51b3201622667bee1ec2b6cd41e809dc51d02201c2251763d29"
+    "scripts/p5-intake-conflict-browser.mjs": "24baa3da4aafb51b3201622667bee1ec2b6cd41e809dc51d02201c2251763d29",
+    "scripts/p5-contact-first-browser.mjs": "92f3646a7736ddf0169e8d700134ae1f4789c6eb01f6d28394deebaa792564f2"
   },
   "coordinatedIntakeBatch": {
     "base": "e6e125b83468a402264be2f1e82e5c0466baa178",
@@ -541,5 +542,16 @@
     "source": "p5-home-co",
     "date": "2026-10-09",
     "scope": "Narrow source-backed typed intent, ambiguity-safe routing and offline verification. Preserve all prior brand-local patches and schema protections."
+  },
+  "contactFirstBatch": {
+    "date": "2026-10-13",
+    "source": "p5-home-co",
+    "files": [
+      "components/P5Estimator.tsx",
+      "components/P5Estimator.module.css",
+      "components/P5ExitOffer.tsx",
+      "scripts/p5-contact-first-browser.mjs"
+    ],
+    "note": "Explicit phone-only callback entry preserves drafts and reuses the existing retry-safe callback endpoint."
   }
 }

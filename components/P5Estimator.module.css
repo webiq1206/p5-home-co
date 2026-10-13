@@ -65,6 +65,11 @@
 /* ---- Top bar ------------------------------------------------------- */
 .topbar{display:flex;align-items:center;gap:10px;flex-shrink:0;padding:10px 12px;border-bottom:1px solid var(--p5-line);background:var(--p5-surface)}
 .topbar>div{min-width:0}
+.contactShortcut{display:flex;align-items:center;justify-content:center;gap:12px;flex-shrink:0;padding:6px 12px;border-bottom:1px solid var(--p5-line);background:var(--p5-surface-2);font-size:13px;color:var(--p5-ink-muted)}
+.root .contactShortcut button{min-height:36px;padding:6px 12px;white-space:nowrap}
+@media(max-width:480px){.contactShortcut{justify-content:space-between;gap:8px;font-size:11px}.contactShortcut>span{max-width:125px}}
+/* Keep room for the scrollable project and recovery controls on landscape phones. */
+@media(max-height:500px){.root .dock{padding:4px 12px}.root .dockInner{gap:4px}.root .dockHint{display:none}.root .composer{padding:4px 8px}.root .composerText{max-height:64px}}
 .topCenter{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;gap:2px;text-align:center}
 .brandLine{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--p5-accent-ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
 .stepPill{font-size:12px;color:var(--p5-ink-muted);font-variant-numeric:tabular-nums;white-space:normal;overflow-wrap:anywhere}
