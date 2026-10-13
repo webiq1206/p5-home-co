@@ -266,7 +266,7 @@
     "scripts/p5-cli-acceptance.mts": "ed5b8fc80231c03b3c2b54de486fb6db7f259947e855ecf4985a9caf6f4ea6b8",
     "scripts/p5-component-review.mjs": "7035921690a6dc0648b1c3142b054ad09d67535c706e108817369e9e6de6ab26",
     "scripts/p5-estimator-browser.mjs": "72a2e98ff42522f78bb2b4e8ddbbb121a71695c6f2adc6388eb6bac7704f7ca5",
-    "scripts/p5-host-build.mjs": "1d83b593096c24575847b9f290253c7d32e74dfaa640d22ac68b427307599b3f",
+    "scripts/p5-host-build.mjs": "2ac9f40425e0c279d930a54b56b47dda3b15e3841933a076ddc751e8275c9967",
     "scripts/p5-hub-notification-check.mjs": "e2d4216777feeb2e4099b93986ca257e4760f671312a6b343014ef7677148f06",
     "scripts/p5-intake-browser-fixture.mts": "438c997dfdf18d8f11383059cdb93df31de0275f79dfb43af845c143a10f0872",
     "scripts/p5-launcher-forms.mjs": "601862a5ec30750ab4acc20e69d86d51165fd235b38d5e5ab8fc77b6eaa4ffa7",
@@ -379,7 +379,7 @@
     "tests/p5-fixture-facts.test.ts": "18fe7a3628b99b48d6de2462fa10dc0baecf420c14a3fe090d2b8b577ca95a75",
     "tests/p5-form-control-views.test.ts": "a25a7a5dd16e5f98d8ca2c33a1285da36cdd14e5c6bd26615e4d062cb99030f4",
     "tests/p5-handoff-routes.test.ts": "67f7e7373349f5a5a103c98e4f500671bd5e16a5d02c246c56e2a71a3ee5fb57",
-    "tests/p5-host-build.test.ts": "5aa22a790f79cdeca541b9d180569fcdf8a2336b14277c0d591a9e6dad5ee269",
+    "tests/p5-host-build.test.ts": "8603ee8be1ea452cc2d908cac85adefd091e493e72f48fda401406f4f9226eec",
     "tests/p5-included-work.test.ts": "9a53ad28298033fc66dd8ef9c37bd2df307382c7b840fb3774e805788decf7f5",
     "tests/p5-input-progress.test.ts": "0b8ce3d16ae06a66c2e5e32eee69db38335fa5913b32ce6359740db164a10250",
     "tests/p5-intake-admin.test.ts": "82cc3e996cb7cba7d83ba6536c345f4ad6dbb1609a4d945e78acdd76f1eaf34b",
@@ -553,5 +553,10 @@
       "scripts/p5-contact-first-browser.mjs"
     ],
     "note": "Explicit phone-only callback entry preserves drafts and reuses the existing retry-safe callback endpoint."
+  },
+  "hostBuildRepair": {
+    "date": "2026-10-13",
+    "scope": "P5 isolated production host build",
+    "reason": "Preserve interrupted .next/dev output before production type checking"
   }
 }
