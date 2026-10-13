@@ -4,7 +4,10 @@ import {ESTIMATOR_BRAND as brand} from '../lib/p5/brand';
 import {callbackContext,callbackPhone,EXIT_CALLBACK_FLOW,EXIT_OFFER_SESSION_KEY} from '../lib/p5/exitCallback';
 import styles from './P5ExitOffer.module.css';
 
-export interface ExitOfferHandle {requestExit: (leave: () => void, trigger?: HTMLElement) => void}
+export interface ExitOfferHandle {
+  requestExit: (leave: () => void, trigger?: HTMLElement) => void;
+  requestContact: (trigger?: HTMLElement) => void;
+}
 interface Props {
   enabled: boolean;
   engaged: boolean;
@@ -18,25 +21,32 @@ export const P5ExitOffer = forwardRef<ExitOfferHandle, Props>(function P5ExitOff
   const dialog = useRef<HTMLDialogElement>(null), stayButton = useRef<HTMLButtonElement>(null), phoneInput = useRef<HTMLInputElement>(null);
   const leaveRef = useRef(onLeave);leaveRef.current = onLeave;
   const previousFocus = useRef<HTMLElement|null>(null), pendingLeave = useRef<(()=>void)|null>(null);
+  const directRequest = useRef(false);
   const [open,setOpen] = useState(false);
   const [phone,setPhone] = useState(''), [state,setState] = useState<'idle'|'sending'|'saved'|'error'>('idle');
   const [error,setError] = useState(''), [notified,setNotified] = useState(false);
   const submitting = useRef(false), requestPhone = useRef<string|null>(null), requestBody = useRef<string|null>(null), id = useId();
-  const show = useCallback((leave?: () => void, trigger?: HTMLElement) => {
+  const show = useCallback((leave?: () => void, trigger?: HTMLElement, direct = false) => {
     let seen = shownThisPage;
     try {seen ||= sessionStorage.getItem(EXIT_OFFER_SESSION_KEY) === '1';} catch { /* In-memory fallback; never block navigation. */ }
-    if (!enabled || seen) return false;
+    // An explicit contact request remains available after dismissing the exit offer,
+    // and in the collapsed embedded form. Only automatic offers are once per session.
+    if ((!enabled || seen) && !direct) return false;
+    directRequest.current = direct;
     shownThisPage = true;
     try {sessionStorage.setItem(EXIT_OFFER_SESSION_KEY,'1');} catch { /* optional */ }
     previousFocus.current = trigger || (document.activeElement instanceof HTMLElement ? document.activeElement : null);
     pendingLeave.current = leave || (()=>leaveRef.current()); setOpen(true); return true;
   },[enabled]);
-  useImperativeHandle(ref,()=>({requestExit: (leave,trigger)=>{if(!show(leave,trigger))leave();}}),[show]);
+  useImperativeHandle(ref,()=>({
+    requestExit: (leave,trigger)=>{if(!show(leave,trigger))leave();},
+    requestContact: trigger=>{show(undefined,trigger,true);},
+  }),[show]);
   const stay = () => {pendingLeave.current = null;setOpen(false);};
   const leave = () => {const next = pendingLeave.current; pendingLeave.current = null;setOpen(false);next?.();};
   useEffect(()=>{
     const node = dialog.current;
-    if(open && node && !node.open){node.showModal();stayButton.current?.focus();}
+    if(open && node && !node.open){node.showModal();(directRequest.current&&state!=='saved'?phoneInput.current:stayButton.current)?.focus();}
     if(!open && node?.open){node.close();previousFocus.current?.isConnected && previousFocus.current.focus();}
   },[open]);
   useEffect(()=>{
