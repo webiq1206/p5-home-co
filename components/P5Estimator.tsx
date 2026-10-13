@@ -107,6 +107,8 @@ export function P5Estimator({defaultService='',entryLabel,headingAs='h1',project
   const queue=useRef<Promise<unknown>>(Promise.resolve());const mounted=useRef(false);const rootRef=useRef<HTMLDivElement>(null);const threadRef=useRef<HTMLDivElement>(null);const stageRef=useRef<HTMLElement|null>(null);const confirmationRef=useRef<HTMLInputElement>(null);const contactNameRef=useRef<HTMLInputElement>(null);const contactEmailRef=useRef<HTMLInputElement>(null);const contactPhoneRef=useRef<HTMLInputElement>(null);const contactPreferenceRef=useRef<HTMLSelectElement>(null);const id=useId();const Heading=headingAs;
   const pendingUserMessage=useRef<{text:string;files:string[];caption?:string}|null>(null);
   const [contactReached,setContactReached]=useState(false);
+  const [restoringDraft,setRestoringDraft]=useState(false);
+  const [draftConflict,setDraftConflict]=useState<BrowserDraft|null>(null);
   const [contactErrorFields,setContactErrorFields]=useState<IntakeContactField[]>([]);
   const [validationTarget,setValidationTarget]=useState<'confirmation'|'contact'|''>('');
   const frameActive=layout==='page'||expanded;
@@ -211,9 +213,11 @@ export function P5Estimator({defaultService='',entryLabel,headingAs='h1',project
     // never send a project while files chosen earlier are silently missing.
     setPreparingFiles(true);
     withTimeout(loadCachedFiles(d.id),15000,'File recovery did not respond. Reload or select your original files again before continuing.').then(f=>{if(mounted.current&&current.current?.id===d.id){filesRef.current=f;setFiles(f);requireRecoveredFiles();}}).catch(error=>{if(mounted.current&&current.current?.id===d.id)setError(error instanceof Error?error.message:'File recovery is unavailable. Select your original files again before continuing; your saved answers are retained.');}).finally(()=>{if(mounted.current&&current.current?.id===d.id)setPreparingFiles(false);});
-    if(d.revision>0)fetch('/api/p5-estimator/draft',{headers:draftHeaders(d),cache:'no-store'}).then(r=>r.ok?r.text().then(b=>{try{return JSON.parse(b);}catch{return null;}}):null).then(async data=>{
+    // A committed first save can lose its acknowledgement, leaving local revision zero.
+    // Read before enabling another save, including that recoverable zero-revision state.
+    if(d.revision>0||intakeMode){setRestoringDraft(true);withTimeout(fetch('/api/p5-estimator/draft',{headers:draftHeaders(d),cache:'no-store'}),15000,'Saved project recovery did not respond.').then(r=>r.ok?r.text().then(b=>{try{return JSON.parse(b);}catch{return null;}}):null).then(async data=>{
       if(!mounted.current||!data?.draft||current.current?.id!==d.id)return;
-      checkOperation();const saved=requireDraftReceipt(data);setVersions(Array.isArray(data.versions)?data.versions:[]);
+      checkOperation();const saved=requireDraftReceipt(data);if(current.current.revision>saved.revision)return;setVersions(Array.isArray(data.versions)?data.versions:[]);
       if(['intake-transferring','intake-transferred','intake-importing'].includes(saved.status)){
         setTransferView({role:'source',state:'recovering'});setPreparingFiles(false);
         const response=await fetch('/api/p5-estimator/intake-transfer/status',{headers:draftHeaders(d),cache:'no-store'});const value=await readJson(response);
@@ -235,10 +239,14 @@ export function P5Estimator({defaultService='',entryLabel,headingAs='h1',project
           apply({...d,...saved,key:d.key,transcript:saved.intake?.transcript||d.transcript,step:3,dirty:false} as BrowserDraft);setActive(null);setIntakeReceipt(requireIntakeReceipt(value.receipt));return;
         }}
       }
+      if(intakeMode&&d.dirty&&saved.revision>d.revision&&!sourceSnapshotsEqual(sourceSnapshot(d),sourceSnapshot({...saved,text:String(saved.text||'')}))){
+        setDraftConflict({...d,...saved,key:d.key,transcript:saved.intake?.transcript||[],step:0,dirty:false} as BrowserDraft);
+        setError('The saved project has different details. Your local edits are retained. Open the saved version to review it; this device copy will remain in saved recovery.');return;
+      }
       if(!d.dirty&&current.current.updatedAt===d.updatedAt&&saved.revision>=d.revision){const restored={...d,...saved,key:d.key,step:d.step,updatedAt:d.updatedAt,transcript:saved.intake?.transcript||d.transcript} as BrowserDraft;resume(restored);}
       else apply({...current.current,revision:saved.revision,uploads:saved.uploads,analyzedUploads:saved.analyzedUploads,extraction:current.current.extraction||saved.extraction||null});
       if(intakeMode){const response=await fetch('/api/p5-estimator/intake',{headers:draftHeaders(d),cache:'no-store'});if(response.ok){const value=await readJson(response);if(value.receipt&&!current.current?.dirty&&value.receipt.revision===saved.revision)setIntakeReceipt(requireIntakeReceipt(value.receipt));}}
-    }).catch(()=>setStatus('Your saved answers are available on this device. Reconnect to save online.'));
+    }).catch(()=>setStatus('Your saved answers are available on this device. Reconnect to save online.')).finally(()=>{if(mounted.current&&current.current?.id===d.id)setRestoringDraft(false);});}
     const preventFileNavigation=(event:DragEvent)=>{if(event.dataTransfer?.types.includes('Files'))event.preventDefault();};
     window.addEventListener("drop",preventFileNavigation);window.addEventListener("dragover",preventFileNavigation);
     return()=>{mounted.current=false;recognition.current?.stop();window.removeEventListener("drop",preventFileNavigation);window.removeEventListener("dragover",preventFileNavigation);};
@@ -309,7 +317,7 @@ export function P5Estimator({defaultService='',entryLabel,headingAs='h1',project
     const put=(revision:number)=>operationFetch('/api/p5-estimator/draft',{method:'PUT',headers:{...draftHeaders(d),'Content-Type':'application/json'},body:JSON.stringify({text:d.text,answers:d.answers,contact:d.contact,revision,wizard:d.wizard,intake:{...(remembered.intake||emptyIntakeDetails()),transcript:d.transcript||[],desiredOutcome:d.answers.desiredOutcome||'',workContext:d.answers.workContext||'',budget:d.answers.budget||''},reviewed,clarification,scopeFingerprint:scopeFingerprint(d.text)})});
     let response=await put(d.revision);
     let data=await readJson(response);
-    if(response.status===409&&intakeMode)throw new Error('This project changed in another tab. Your local edits are retained. Reload and review the saved project before sending.');
+    if(response.status===409&&intakeMode)throw new Error(data.error||'The saved project could not be updated. Your local edits are retained. Reload and review the saved project before sending.');
     if(response.status===409&&!clarification&&await adoptServerDraft()){const refreshed=current.current;if(refreshed&&refreshed.id===d.id){response=await put(refreshed.revision);data=await readJson(response);}}
     if(!response.ok)throw new Error(data.error||'Your project could not be saved. Please retry.');checkOperation();const saved=requireDraftReceipt(data);
     if(initiated&&initiated!==operationBudget.current)throw new ProcessingDeadlineError();
@@ -320,10 +328,10 @@ export function P5Estimator({defaultService='',entryLabel,headingAs='h1',project
     return saved;
   }
   useEffect(()=>{
-    if(readOnly||!draft||transferView||draft.intakeTransfer||(!intakeMode&&!draft.contact.email)||busy||result||intakeReceipt||!draft.dirty||paused)return;
+    if(readOnly||restoringDraft||draftConflict||!draft||transferView||draft.intakeTransfer||(!intakeMode&&!draft.contact.email)||busy||result||intakeReceipt||!draft.dirty||paused)return;
     const timer=setTimeout(()=>{if(!busyRef.current)void serialized(()=>save()).then(()=>setStatus('Project saved.')).catch(()=>setStatus('Saved on this device. We will retry saving when connected.'));},1800);
     return()=>clearTimeout(timer);
-  },[draft?.text,JSON.stringify(draft?.answers),JSON.stringify(draft?.contact),draft?.updatedAt,busy,Boolean(result),Boolean(intakeReceipt),Boolean(draft?.dirty),Boolean(paused),Boolean(transferView),readOnly]);
+  },[draft?.text,JSON.stringify(draft?.answers),JSON.stringify(draft?.contact),draft?.updatedAt,busy,Boolean(result),Boolean(intakeReceipt),Boolean(draft?.dirty),Boolean(paused),Boolean(transferView),readOnly,restoringDraft,Boolean(draftConflict)]);
   const preflightField=useRef<ScopeField|null>(null);
   async function run(label:string,operation:()=>Promise<void>,kind:Paused['kind']|null=null){
     if(readOnly||busyRef.current)return;busyRef.current=true;setBusy(label);setRunKind(kind);setProcessing(null);lastProcessing.current=null;setError('');setPaused(null);recognition.current?.stop();
@@ -639,7 +647,10 @@ export function P5Estimator({defaultService='',entryLabel,headingAs='h1',project
     try{intakeContact({...d.contact,preferredContact:d.intake?.contact.preferredContact||'either'});}catch(error){setValidationTarget('contact');setError(error instanceof Error?error.message:'Check your contact details.');const fields=error instanceof IntakeContactError?error.fields:['name' as const];setContactErrorFields(fields);focusCorrection({name:contactNameRef,email:contactEmailRef,phone:contactPhoneRef,preferredContact:contactPreferenceRef}[fields[0]].current);return;}
     // Sending the visible review is the explicit confirmation. Keep the exact
     // scope fingerprint and server revision checks, without duplicate checkboxes.
-    updateIntake({reviewedScopeFingerprint:intakeReviewFingerprint(d)});
+    // An unchanged retry must retain its revision so the immutable receipt and
+    // delivery job are reused if the first submission reply was lost.
+    const reviewedFingerprint=intakeReviewFingerprint(d);
+    if(d.intake?.reviewedScopeFingerprint!==reviewedFingerprint)updateIntake({reviewedScopeFingerprint:reviewedFingerprint});
     const routing=routeIntake(intakeSite(brandId)||'p5',d.answers.service||'',d.intake?.supportingServices,intakeRoutingContext(d));
     if(routing.handoff){await startIntakeTransfer();return;}
     await run('Saving your project request...',async()=>{
@@ -781,7 +792,7 @@ export function P5Estimator({defaultService='',entryLabel,headingAs='h1',project
   const contactReady=draft.contact.name.trim().length>=2&&(!hasEmail||EMAIL.test(draft.contact.email));
   const submitErrorId=`${id}-submit-error`;const formId=`${id}-form`;
   const transcript=draft.transcript||[];const hasProgress=transcript.length>0||draft.step>0||Boolean(result)||uploadedCount>0;
-  const locked=Boolean(busy)||preparingFiles||readOnly&&pdfState==='preparing';
+  const locked=Boolean(busy)||preparingFiles||restoringDraft||Boolean(draftConflict)||readOnly&&pdfState==='preparing';
   const canSend=!locked&&(composerMode==='project'?Boolean(composerText.trim()||files.length||uploadedCount||attachedProjectSource):composerMode==='answer'?Boolean(reply.trim()||files.length):Boolean(editText.trim()||files.length));
   // Back from review intentionally opens the project composer. When the saved
   // analysis still matches, the customer returns to it without re-reading the
@@ -822,6 +833,7 @@ export function P5Estimator({defaultService='',entryLabel,headingAs='h1',project
   // The waiting surface while a background job runs: the same honest progress card (stage named for the
   // materials, live ETA) and the same stay-or-email choice the customer sees during the first wait.
   const pausedCard=paused&&<section className={styles.notice} role="status" aria-live="polite"><P5ProcessingStatus message={paused.processing?.message||(paused.kind==='analysis'?'Reviewing your project...':'Preparing your estimate...')} processing={paused.processing} uploadPercent={null} hasAttachments={Boolean(draft.uploads?.length||files.length)} materials={materials} kind={paused.kind} waitChoice={paused.kind==='pricing'?waitChoice:null}/><div className={styles.actions}><button type="button" className={styles.primary} onClick={continuePaused}>Keep going</button><button type="button" className={styles.ghost} onClick={()=>setPaused(null)}>Come back later</button></div></section>;
+  const conflictRecovery=draftConflict&&<button type="button" className={styles.secondary} onClick={()=>{const local=current.current;if(!local||!archiveBrowserDraft(local)){setError('This device could not preserve your local edits. Keep this page open.');return;}const saved=draftConflict;setDraftConflict(null);setRecoveries(listBrowserDraftRecoveries(local.namespace));resume(saved);setError('');setStatus('Saved project opened. Your earlier device copy is in saved recovery.');}}>Open saved version and keep my edits</button>;
   const questionAlert=error&&<div id={submitErrorId} className={styles.alert} role="alert" aria-live="assertive"><p>{error}</p></div>;
   const alertCard=error&&<div id={submitErrorId} className={styles.alert} role="alert" aria-live="assertive">{missingFields.length>0||verificationItems.length>0?<><h3>{missingFields.length>0?'A few more details are needed':'A few items to confirm'}</h3><p>{error}</p>{verificationItems.length>0&&<ul>{verificationItems.map(item=><li key={item}>{item}</li>)}</ul>}{missingFields.length>0&&<ul className={styles.missingList}>{missingFields.map(m=><li key={m.field}><button type="button" className={styles.secondary} onClick={()=>jumpToField(m.field)}><span>{m.label}</span><span aria-hidden="true">→</span></button></li>)}</ul>}</>:<p>{error}</p>}{!intakeMode&&manualReviewAvailable&&!busy&&draft.revision>0&&<P5ReviewRequest draft={draft} manual/>}</div>;
   const warningCard=warning&&!busy&&<div className={styles.notice}><p>{warning}</p><div className={styles.actions}><button type="button" className={styles.secondary} onClick={()=>{engage();void run(analysisMessage(Boolean(draft.uploads?.length),'retry'),analyze,'analysis');}}>{draft.uploads?.length?'Retry document reading':'Retry scope review'}</button></div></div>;
@@ -867,7 +879,7 @@ export function P5Estimator({defaultService='',entryLabel,headingAs='h1',project
       {savedPreview&&<div className={styles.savedPreviewBanner}><p className={styles.notice} role="note">Synthetic QA · {savedPreview.view.label} · revision {savedPreview.view.revision}. Read-only saved result and PDF.</p></div>}
       {!result&&!intakeReceipt&&<div className={styles.rail} aria-hidden="true">{STEP_LABELS.map((label,index)=><span key={label} data-state={index===draft.step?'current':index<draft.step?'done':'upcoming'}/>)}</div>}
       <p className={styles.srOnly} aria-live="polite">{stepLabel}</p>
-      <div ref={threadRef} className={styles.thread} data-p5-thread><div className={styles.threadInner}>{entryLabel&&<p className={styles.notice} role="note">You selected {entryLabel} in the company finder. Review your project description and project type before sending; saved work is retained.</p>}{defaultService&&<p className={styles.notice} role="note">This page is for {readable('service',defaultService)}.{draft.answers.service!==defaultService?<> You are continuing your saved {draft.answers.service?readable('service',draft.answers.service):'unclassified'} project. Your current project will be kept in saved recovery if you start a separate request. <button type="button" className={styles.secondary} disabled={locked} onClick={()=>void switchProject(undefined,defaultService)}>Start a new {readable('service',defaultService)} request</button></>:<> Your request starts with this project type; you can review and change it before sending.</>}</p>}{collapsedWithProgress?<Message role="assistant"><div className={styles.stageHeading}><Heading tabIndex={-1} className={styles.title}>{result?'Your estimate is ready':'Continue your estimate'}</Heading><p className={styles.lead}>{result?'Your planning range and project summary are saved on this device.':`Your project is saved on this device: ${known.length} ${known.length===1?'detail':'details'}${uploadedCount?` and ${uploadedCount} ${uploadedCount===1?'file':'files'}`:''}. ${stepLabel}.`}</p></div><div className={styles.actions}><button type="button" className={styles.primary} onClick={()=>setExpanded(true)}>{result?'Open my estimate':'Continue'} <span aria-hidden="true">→</span></button></div></Message>:<>{intro}{history}{stage===0&&!busy&&!preparingFiles&&<>{pausedCard&&<Message role="assistant">{pausedCard}</Message>}{(warning||error)&&<Message role="assistant">{warningCard}{alertCard}</Message>}</>}{questionStage}{reviewStage}{intakeResultStage}{resultStage}{processingStage}{paused&&stage!==0&&!busy&&<Message role="assistant">{pausedCard}</Message>}{status&&!busy&&!preparingFiles&&!error&&<p className={styles.status} role="status">{status}</p>}</>}</div></div>
+      <div ref={threadRef} className={styles.thread} data-p5-thread><div className={styles.threadInner}>{entryLabel&&<p className={styles.notice} role="note">You selected {entryLabel} in the company finder. Review your project description and project type before sending; saved work is retained.</p>}{defaultService&&<p className={styles.notice} role="note">This page is for {readable('service',defaultService)}.{draft.answers.service!==defaultService?<> You are continuing your saved {draft.answers.service?readable('service',draft.answers.service):'unclassified'} project. Your current project will be kept in saved recovery if you start a separate request. <button type="button" className={styles.secondary} disabled={locked} onClick={()=>void switchProject(undefined,defaultService)}>Start a new {readable('service',defaultService)} request</button></>:<> Your request starts with this project type; you can review and change it before sending.</>}</p>}{conflictRecovery}{collapsedWithProgress?<Message role="assistant"><div className={styles.stageHeading}><Heading tabIndex={-1} className={styles.title}>{result?'Your estimate is ready':'Continue your estimate'}</Heading><p className={styles.lead}>{result?'Your planning range and project summary are saved on this device.':`Your project is saved on this device: ${known.length} ${known.length===1?'detail':'details'}${uploadedCount?` and ${uploadedCount} ${uploadedCount===1?'file':'files'}`:''}. ${stepLabel}.`}</p></div><div className={styles.actions}><button type="button" className={styles.primary} onClick={()=>setExpanded(true)}>{result?'Open my estimate':'Continue'} <span aria-hidden="true">→</span></button></div></Message>:<>{intro}{history}{stage===0&&!busy&&!preparingFiles&&<>{pausedCard&&<Message role="assistant">{pausedCard}</Message>}{(warning||error)&&<Message role="assistant">{warningCard}{alertCard}</Message>}</>}{questionStage}{reviewStage}{intakeResultStage}{resultStage}{processingStage}{paused&&stage!==0&&!busy&&<Message role="assistant">{pausedCard}</Message>}{status&&!busy&&!preparingFiles&&!error&&<p className={styles.status} role="status">{status}</p>}</>}</div></div>
       {!collapsedWithProgress&&<div className={styles.dock}><div className={styles.dockInner}>{dock}</div></div>}
     </form>
     {!readOnly&&!intakeReceipt&&!result&&<P5ExitOffer ref={exitOffer} enabled={frameActive&&!busy} engaged={hasProgress||Boolean(draft.text.trim())||files.length>0} onLeave={exit} draft={draft}/>}
