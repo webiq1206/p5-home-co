@@ -1,5 +1,5 @@
 import {execFileSync,spawnSync} from 'node:child_process';
-import {readFileSync,writeFileSync,mkdtempSync,readdirSync} from 'node:fs';
+import {readFileSync,writeFileSync,mkdtempSync,readdirSync,existsSync,lstatSync,cpSync,rmSync} from 'node:fs';
 import {join,resolve} from 'node:path';
 import {tmpdir} from 'node:os';
 import {fileURLToPath} from 'node:url';
@@ -28,6 +28,25 @@ export function prepareReviewedLock(cwd=process.cwd()){
  }
  return {restored:false,reviewedHash:hash(reviewed)};
 }
+
+/** Deployment snapshots can contain interrupted next dev output. Next's
+ * production type check includes .next/dev/types via tsconfig, so preserve
+ * that generated directory outside the build input instead of compiling it.
+ * This runs only in the isolated host build; it does not stop a workspace dev
+ * server, delete its history, or weaken production type checking. */
+export function preserveDevelopmentBuild(cwd=process.cwd()){
+ const generated=join(cwd,'.next','dev');
+ if(!existsSync(generated))return {preserved:false};
+ if(!lstatSync(generated).isDirectory())throw Error('Expected a generated development-build directory.');
+ const tracked=execFileSync('git',['ls-files','--','.next/dev'],{cwd,encoding:'utf8'}).trim();
+ if(tracked)throw Error('Refusing to move tracked development-build files.');
+ const backup=mkdtempSync(join(tmpdir(),'p5-development-build-'));
+ // /tmp and the hosting workspace may be different filesystems. Finish the
+ // backup before removing the generated input; a copy failure leaves it intact.
+ cpSync(generated,join(backup,'dev'),{recursive:true,errorOnExist:true,force:false});
+ rmSync(generated,{recursive:true});
+ return {preserved:true,backup};
+}
 if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url)){
  const receipt=prepareReviewedLock();console.log('[p5-build] Reviewed dependency lock',receipt);
  const migration17=readdirSync(resolve('migrations')).filter(name=>/^017(?:_|\.)/.test(name));
@@ -43,6 +62,7 @@ if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url)){
  }
  // Deployment compilation only. Normal npm build/prebuild and CI retain
  // their existing checks; P5 functional acceptance runs on the live site.
+ console.log('[p5-build] Preserved generated development output',preserveDevelopmentBuild());
  const compiled=spawnSync(process.execPath,[resolve('node_modules/next/dist/bin/next'),'build'],{stdio:'inherit',env:process.env});
  if(compiled.error||compiled.status!==0)process.exit(compiled.status||1);
  const changed=execFileSync('git',['diff','--name-only','HEAD'],{encoding:'utf8'}).trim();
