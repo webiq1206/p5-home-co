@@ -1,8 +1,8 @@
 {
   "source": "p5-home-co",
-  "commit": "04d9a6b8059c09a1602e2133a7d2f37d21865eff",
+  "commit": "b3256f7b46c5c89a9f9991c33397d4a1e83a0d33",
   "generatedAt": "2026-10-08T14:27:21.941Z",
-  "note": "Shared estimator engine published from p5-home-co. Edit shared files there and run scripts/p5-sync.mjs; hash checks remain mandatory in every brand.",
+  "note": "Canonical receiver batch: refreshed only seven verified identical release files from P5; all pre-existing unrelated shared hashes validated and preserved.",
   "files": {
     "app/admin/p5-estimators/page.tsx": "f9b7f729daa74f542cdece161d2bf158fb784f5a8c55356fe7283e73db2c139d",
     "app/api/admin/p5-intake/file/route.ts": "e8b49e0f2e19508d1f21903445fdcd36b2e3f6aa95edbc6ecdac110a625b11dc",
@@ -121,7 +121,7 @@
     "lib/p5/intakeDraft.ts": "7b02a7d8f3ee59c1d10c8203a09a4aa9f7059c29c7cda98b0e46355dde1b3bfd",
     "lib/p5/intakeEndpoint.ts": "9db37ce0bff8025f5db57fcc8e4b104edd241409ab11efd233fb343cd2b7fca5",
     "lib/p5/intakePolicy.ts": "84c359b00f85ef245ed39de8ad98e2a3e4502eddf5f50b9ea78163c7db8634bd",
-    "lib/p5/intakeProjectReview.ts": "07e1b8867e92bd58a6a0adf330539fcac2b3972dbd25ddb60839b8c1a7e6de95",
+    "lib/p5/intakeProjectReview.ts": "a15e588b62582f20b7119d435c16eab9cae51ac2ed9f43d6ccdbd5c0a338262b",
     "lib/p5/intakeQuestionMemory.ts": "8e05a9fa67756ba83415575887fcf271ca8dc1c08852e75cf8bd8d5e485eaa1f",
     "lib/p5/intakeQuestions.ts": "e6fad84a86ab792221c1eaadcc03eeba627e06c0bf5b3c658040339c62c2b972",
     "lib/p5/intakeStore.ts": "69ec5a5d516f984a8b0a189778e256917fd46e2cc0e82a10e2deb3ce59b8d69c",
@@ -182,7 +182,7 @@
     "lib/p5/projectRecordEndpoint.ts": "ff9621d7ee86f7b4c6531c7f9f99427340151ad3213c073dd42d929fbf16704a",
     "lib/p5/projectRecordWork.ts": "12e81d74f9801d50f0dd790c7576eaef69189435d8a21a580e93ead9472930e9",
     "lib/p5/projectReplyRecovery.ts": "2a0d06f1959366cbdd3aa860553a018d61a4d4e837f6ed9e4ad2c054cabf2f7e",
-    "lib/p5/projectReviewContract.ts": "6f317550cac04474cf4a00087752fa0c439601e22f414db12e324346722a3620",
+    "lib/p5/projectReviewContract.ts": "0a0f256488c90c4be25da3cfc8559a7f2cb928d96bd00d4c85f9f742a272f8fb",
     "lib/p5/projectReviewEvidence.ts": "48fcd5589c6cf6e33fcddd7a8fe541041e62e3cb5e9aaccd6adf50680f4cc640",
     "lib/p5/projectSource.ts": "77edf216923253458a562e08b4822bf6ede89952d001e968cd3bac2ab07b8cce",
     "lib/p5/projectSpecifications.ts": "8b274d67c2a76960b0318c64bea8d27eea002495c39473182d020d9caa1f389c",
@@ -285,7 +285,7 @@
     "scripts/p5-runtime-acceptance.mts": "feac60f3e0300f6de0be2f3f71a76f182364cc580f3517dd05e772f669ed8be5",
     "scripts/p5-schema-safety.mjs": "0bb3e004ef3a75718430de5a6f4f4f9a0aee8ff6c387aaee360818a6c89831b1",
     "scripts/p5-storage-check.ts": "87dcfbb0b77f53b08e220c51729323a06851837232c30a8b179ec0aed2807e4b",
-    "scripts/p5-sync.mjs": "69fa99249f5bff1337e3621b60ef30669134cbadd0bfa487d91947a12c847c51",
+    "scripts/p5-sync.mjs": "9def5618c2b7c26606dad76ddd78aa9577ab7620b5df6206bd1be80714bcde40",
     "scripts/p5-verify-visual.mjs": "67363630ae7fb0ef3748a377a193495ff1427dfca34e0c9c655e1a02c71ca61d",
     "scripts/p5-visual-review.mjs": "9918874379624da97ddb3b6bff056ddd5f27242c3dbf58c5dea84a077a66a12f",
     "scripts/p5-visual-routes.json": "670468cb7925d2b5b049e0b52f4e05f911b72474e76d376b5492b69ba51cf8bc",
@@ -503,7 +503,11 @@
     "scripts/p5-intake-intent-browser.mjs": "40ba115deb0e6bfadf5c75b402f7c3b324d281a6403f16c325dda7a2c2b0145e",
     "scripts/p5-intake-progression-browser.mjs": "04bad0ff80bb43e9306c09aea428272707e370822d5c03a0a6c9f66bf7b8ae5d",
     "scripts/p5-intake-conflict-browser.mjs": "24baa3da4aafb51b3201622667bee1ec2b6cd41e809dc51d02201c2251763d29",
-    "scripts/p5-contact-first-browser.mjs": "92f3646a7736ddf0169e8d700134ae1f4789c6eb01f6d28394deebaa792564f2"
+    "scripts/p5-contact-first-browser.mjs": "92f3646a7736ddf0169e8d700134ae1f4789c6eb01f6d28394deebaa792564f2",
+    "lib/p5/canonicalJson.ts": "a219fb883590bc6938a76f31e675cbed09f508857f0a79fc4d2e5aba54b64334",
+    "lib/p5/canonicalReviewReceiver.ts": "b33bb61f9691a60f253b33add2864540c5f41b33fc384d7f5bb02a99ff3e0431",
+    "lib/p5/canonicalReviewTransport.ts": "00b51caabb05bdf4cb3510d538faf03caceb961ebb65f30c6ab8d120f2034451",
+    "tests/p5-canonical-transport.test.ts": "d00a2cf9cf382f220a64968c62a6c05df5ed350191759f0e59ab97ab549a3933"
   },
   "coordinatedIntakeBatch": {
     "base": "e6e125b83468a402264be2f1e82e5c0466baa178",

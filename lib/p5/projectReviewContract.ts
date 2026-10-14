@@ -29,13 +29,13 @@ export const projectReviewFileSchema = z.object({
 }).strict();
 export const projectReviewSchema = z.object({
   schema: z.literal(1), requestType: z.literal(PROJECT_REVIEW_KIND),
-  source: z.enum(["boiseconstruction.co", "boiseremodeling.co", "boisehandyman.co", "boisecabinet.co"]),
+  source: z.enum(["p5homeco.com", "boiseconstruction.co", "boiseremodeling.co", "boisehandyman.co", "boisecabinet.co"]),
   externalLeadId: z.string().regex(/^(?:qa-)?p5-intake-[a-f0-9]{64}$/),
   snapshotDigest: digest,
   deliveryMode: z.enum(["live", "synthetic_qa"]),
   request: z.object({
     projectId: z.string().min(1).max(200), draftId: z.string().uuid(), revision: z.number().int().positive().max(2147483647),
-    savedAt: z.string().datetime(), originSite: site, currentSite: specialty,
+    savedAt: z.string().datetime(), originSite: site, currentSite: site,
     contact,
     scope: z.object({ text, answers: z.record(z.string(), text), uploads: z.array(projectReviewFileSchema).max(500) }).strict(),
     details: z.object({
@@ -46,12 +46,12 @@ export const projectReviewSchema = z.object({
         files: z.array(z.string().max(4096)).max(50).optional(),
       }).strict()).max(500),
     }).strict(),
-    routing: z.object({ primaryTeam: specialty, supportingServices: z.array(z.string().min(1).max(100)).max(30) }).strict(),
+    routing: z.object({ primaryTeam: site, supportingServices: z.array(z.string().min(1).max(100)).max(30) }).strict(),
     unresolved: z.array(text).max(1000),
   }).strict(),
 }).strict().superRefine((p, ctx) => {
   const r = p.request;
-  if (REVIEW_DOMAINS[r.currentSite] !== p.source || r.routing.primaryTeam !== r.currentSite)
+  if (REVIEW_DOMAINS[r.currentSite] !== p.source || (r.currentSite !== "p5" && r.routing.primaryTeam !== r.currentSite))
     ctx.addIssue({ code: "custom", message: "Source and receiving team must agree" });
   if (new Set(r.scope.uploads.map(f => f.id)).size !== r.scope.uploads.length)
     ctx.addIssue({ code: "custom", message: "Duplicate file identity" });
