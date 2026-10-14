@@ -44,10 +44,13 @@ function externalReferrer(referrer: string, location: Location): string | null {
 }
 
 export function inferLeadSource(context: Attribution): string {
-  if (context.gclid || context.gbraid || context.wbraid || context.utm_medium?.toLowerCase() === "cpc") {
+  if (/^(facebook|fb|instagram|ig|meta|tiktok|linkedin)$/i.test(context.utm_source ?? "") ||
+      context.utm_medium?.toLowerCase().includes("social")) return "Social Media";
+  if (context.gclid || context.gbraid || context.wbraid ||
+      context.first_gclid || context.first_gbraid || context.first_wbraid ||
+      ["cpc", "ppc", "paidsearch", "paid_search"].includes(context.utm_medium?.toLowerCase() ?? "")) {
     return "Paid Search";
   }
-  if (context.utm_medium?.toLowerCase().includes("social")) return "Social Media";
   return "Organic Website";
 }
 
@@ -88,7 +91,16 @@ export function captureAttribution(): Attribution {
 
   const stored = (() => {
     try {
-      return JSON.parse(sessionStorage.getItem(STORAGE_KEY) ?? "{}") as Attribution;
+      const quoteStored = JSON.parse(sessionStorage.getItem(STORAGE_KEY) ?? "{}") as Attribution;
+      // An ad may land on / or a service page before the prospect opens /quote.
+      // The shared live-host bootstrap remembers those earlier campaign details.
+      const first = JSON.parse(sessionStorage.getItem("p5_attribution_first_v1") ?? "{}") as Attribution;
+      const latest = JSON.parse(sessionStorage.getItem("p5_attribution_latest_v1") ?? "{}") as Attribution;
+      const firstFields = Object.fromEntries(
+        Object.entries(first).filter(([k, v]) => /^(gclid|gbraid|wbraid|utm_|landing_page|referrer)/.test(k) && typeof v === "string")
+          .map(([k, v]) => ["first_" + k, v]),
+      );
+      return { ...latest, ...quoteStored, ...firstFields };
     } catch {
       return {};
     }

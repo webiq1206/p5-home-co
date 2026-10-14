@@ -87,9 +87,12 @@ function collectAttribution(body: Record<string, unknown>): Record<string, strin
 }
 
 function sourceFromAttribution(attribution: Record<string, string> | null): LeadSource {
+  if (/^(facebook|fb|instagram|ig|meta|tiktok|linkedin)$/i.test(attribution?.utm_source ?? "") ||
+      attribution?.utm_medium?.toLowerCase().includes("social")) return "Social Media";
   if (
     attribution?.gclid || attribution?.gbraid || attribution?.wbraid ||
-    attribution?.utm_medium?.toLowerCase() === "cpc"
+    attribution?.first_gclid || attribution?.first_gbraid || attribution?.first_wbraid ||
+    ["cpc", "ppc", "paidsearch", "paid_search"].includes(attribution?.utm_medium?.toLowerCase() ?? "")
   ) return "Paid Search";
   if (attribution?.utm_medium?.toLowerCase().includes("social")) return "Social Media";
   return "Organic Website";
@@ -162,6 +165,13 @@ export async function POST(request: Request): Promise<NextResponse> {
   // Quote pages are public campaign destinations. Their source must reflect
   // retained click context, not a hardcoded label supplied by the browser.
   const isQuoteForm = str(body.form) === "Quote Landing Page";
+  // The contact channel (form/email/phone) is not itself the marketing source.
+  // Respect explicit non-organic integrations, but correct a default "Organic
+  // Website" label when the same submission carries paid campaign evidence.
+  const declaredSource = pickSource(body.source);
+  const attributedSource = sourceFromAttribution(attribution);
+  const resolvedSource = (isQuoteForm || (declaredSource === "Organic Website" &&
+    attributedSource !== "Organic Website")) ? attributedSource : declaredSource;
 
   try {
     const result = await ingestLead(
@@ -172,17 +182,18 @@ export async function POST(request: Request): Promise<NextResponse> {
         phone: str(body.phone ?? body.telephone),
         brand,
          projectType: str(body.projectType ?? body.project_type ?? body.project),
-         source: isQuoteForm ? sourceFromAttribution(attribution) : pickSource(body.source),
-         sourceDetail: isQuoteForm
-           ? attribution?.gclid ?? attribution?.gbraid ?? attribution?.wbraid ?? attribution?.utm_campaign ?? null
+         source: resolvedSource,
+         sourceDetail: (isQuoteForm || resolvedSource !== declaredSource)
+           ? attribution?.gclid ?? attribution?.gbraid ?? attribution?.wbraid ??
+              attribution?.first_gclid ?? attribution?.utm_campaign ?? null
            : str(body.sourceDetail ?? body.source_detail),
         propertyAddress: str(body.address ?? body.propertyAddress),
         propertyCity: str(body.city ?? body.propertyCity),
         summary: str(body.summary ?? body.message ?? body.description),
         externalLeadId: str(body.externalLeadId ?? body.external_lead_id),
         originalForm: str(body.form ?? body.originalForm),
-         originalCampaign: isQuoteForm
-           ? attribution?.utm_campaign ?? null
+         originalCampaign: (isQuoteForm || resolvedSource !== declaredSource)
+           ? attribution?.first_utm_campaign ?? attribution?.utm_campaign ?? null
            : str(body.campaign ?? body.originalCampaign),
           utm: (() => {
             const values = {

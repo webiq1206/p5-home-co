@@ -63,3 +63,31 @@ test('the private saved-estimate QA path never touches analytics or session stor
   const normal=browser('example.com');normal.window.location.pathname='/estimate';
   vm.runInContext(googleTagBootstrap(options),normal.context);assert.equal(normal.nodes.length,1);
 });
+
+
+test('campaign attribution uses the same tag bootstrap with one business phone', () => {
+  const b = browser('example.com');
+  (b.context as Record<string, unknown>).URLSearchParams = URLSearchParams;
+  (b.context as Record<string, unknown>).URL = URL;
+  vm.runInContext("window.location.pathname='/services'; window.location.search='?gclid=click123&utm_source=google&utm_medium=cpc&email=ignore%40example.com'", b.context);
+  vm.runInContext(googleTagBootstrap(options), b.context);
+  const first = JSON.parse(b.storage.get('p5_attribution_first_v1') ?? '{}');
+  const initialLatest = JSON.parse(b.storage.get('p5_attribution_latest_v1') ?? '{}');
+  assert.equal(first.gclid, 'click123');
+  assert.equal(initialLatest.landing_page, '/services');
+  assert.equal(first.email, undefined);
+  assert.equal(first.phone, undefined);
+  // A subsequent on-site navigation must not clear attribution to direct.
+  b.nodes.length = 0;
+  vm.runInContext("window.location.pathname='/quote'; window.location.search=''", b.context);
+  vm.runInContext(googleTagBootstrap(options), b.context);
+  assert.equal(JSON.parse(b.storage.get('p5_attribution_first_v1') ?? '{}').gclid, 'click123');
+  assert.equal(JSON.parse(b.storage.get('p5_attribution_latest_v1') ?? '{}').gclid, 'click123');
+  b.nodes.length = 0;
+  vm.runInContext("window.location.search='?utm_source=newsletter&utm_medium=email'; window.location.pathname='/contact'", b.context);
+  vm.runInContext(googleTagBootstrap(options), b.context);
+  assert.equal(JSON.parse(b.storage.get('p5_attribution_first_v1') ?? '{}').gclid, 'click123');
+  const latest = JSON.parse(b.storage.get('p5_attribution_latest_v1') ?? '{}');
+  assert.equal(latest.utm_source, 'newsletter');
+  assert.equal(latest.gclid, undefined);
+});
