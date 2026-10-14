@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {reasoningFor,rejectsReasoning,isReasoningModel} from '../lib/p5/openaiReasoning.ts';
+import {reasoningFor,rejectsReasoning,isReasoningModel,mayRetryWithoutReasoning} from '../lib/p5/openaiReasoning.ts';
 
 // Speed (owner request 2026-09-21): reasoning models read pages and map scope at a low effort; the
 // accuracy check keeps medium; a non-reasoning model gets no setting; a refusal is retried without it.
@@ -16,4 +16,27 @@ test('reasoning effort is low for reads and mapping, medium for the audit, absen
   }finally{if(saved===undefined)delete process.env.P5_OPENAI_REASONING_EFFORT;else process.env.P5_OPENAI_REASONING_EFFORT=saved;}
   assert.equal(rejectsReasoning(400,'Unsupported parameter: reasoning.effort'),true);
   assert.equal(rejectsReasoning(400,'Invalid schema'),false);assert.equal(rejectsReasoning(429,'reasoning'),false);
+});
+
+
+test('candidate none survives environment overrides and gateway rejection cannot enable default reasoning',()=>{
+ const saved=process.env.P5_OPENAI_REASONING_EFFORT;
+ try {
+  for(const configured of ['default','medium','high','']) {
+   process.env.P5_OPENAI_REASONING_EFFORT=configured;
+   for(const model of ['gpt-6-luna','gpt-6-sol']) {
+    for(const task of ['read','inventory','map','research','audit'] as const) {
+     const request=reasoningFor(model,task);
+     assert.deepEqual(request,{reasoning:{effort:'none'}});
+     assert.equal(mayRetryWithoutReasoning(400,'Unsupported reasoning.effort',request),false);
+    }
+   }
+  }
+  assert.throws(()=>reasoningFor('gpt-6.1-sol','read'),/unqualified/);
+  assert.throws(()=>reasoningFor('gpt-6-unknown','read'),/unqualified/);
+  assert.deepEqual(reasoningFor('gpt-4.1','audit'),{});
+  assert.equal(mayRetryWithoutReasoning(400,'Unsupported reasoning',{}),false);
+  assert.equal(mayRetryWithoutReasoning(400,'Unsupported reasoning',{reasoning:{effort:'low'}}),true);
+  assert.equal(mayRetryWithoutReasoning(429,'reasoning',{reasoning:{effort:'low'}}),false);
+ } finally {if(saved===undefined)delete process.env.P5_OPENAI_REASONING_EFFORT;else process.env.P5_OPENAI_REASONING_EFFORT=saved;}
 });

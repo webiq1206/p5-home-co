@@ -25,3 +25,23 @@ test('retained entry points validate actual replies before a tool can execute',a
   }
  }finally{if(saved===undefined)delete process.env.OPENAI_API_KEY;else process.env.OPENAI_API_KEY=saved;}
 });
+
+test('compatibility preparation preserves schema and output cap',()=>{
+ const schema={type:'object',properties:{quantity:{type:'number'}},required:['quantity']};
+ const body=estimatorRequestBody({messages:[{role:'user',content:'fixture'}],max_tokens:999999,output_config:{format:{schema}}});
+ assert.equal(body.max_output_tokens,32768);
+ assert.equal(body.store,false);
+ assert.deepEqual(body.text?.format,{type:'json_schema',name:'estimator_result',schema,strict:false});
+});
+
+test('incomplete and refusal responses cannot become successful retained outputs',async()=>{
+ const saved=process.env.OPENAI_API_KEY;process.env.OPENAI_API_KEY='synthetic';
+ try {
+  for(const status of ['incomplete','failed']) {
+   const client=createEstimatorModelClient({request:async()=>Response.json({model:'gpt-4.1',status,output:[{type:'message',content:[{type:'output_text',text:'partial'}]}]})});
+   await assert.rejects(()=>client.messages.create({messages:[]}),/incomplete/);
+  }
+  const client=createEstimatorModelClient({request:async()=>Response.json({model:'gpt-4.1',status:'completed',output:[{type:'message',content:[{type:'refusal',refusal:'fixture'}]}]})});
+  const result=await client.messages.create({messages:[]});assert.equal(result.stop_reason,'refusal');assert.deepEqual(result.content,[]);
+ } finally {if(saved===undefined)delete process.env.OPENAI_API_KEY;else process.env.OPENAI_API_KEY=saved;}
+});
