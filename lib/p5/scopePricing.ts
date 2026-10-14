@@ -3,7 +3,7 @@ import {ESTIMATOR_PROVIDER,ESTIMATOR_MODEL,assertEstimatorModel,EstimatorModelEr
 import {pricingHttpError,missingResearchSources,pricingFailureDetails} from './pricingDiagnostics.ts';
 import {pricingCallEvidence,pricingResponseEvidence,type PricingCallEvidence,type PricingEvidenceSink} from './pricingEvidence.ts';
 import {unitKey,reusableUnitRate,supportedUnit,boiseArea,boisePriceRegion,UNIT_REGISTRY} from './unitRates.ts';
-import {reasoningFor,rejectsReasoning} from './openaiReasoning.ts';
+import {reasoningFor,mayRetryWithoutReasoning} from './openaiReasoning.ts';
 class MissingResearchRateError extends Error {}
 class ResearchEvidenceError extends Error {}
 /** Tracking tags do not change the cited page; product/region queries do. */
@@ -460,8 +460,8 @@ const requestPricingWithUnsafe=async(provider:'anthropic'|'openai',instructions:
   const send=(payload:unknown)=>boundedFetch(`${endpoint}/responses`,{method:'POST',signal:AbortSignal.timeout(Math.min(search?150000:180000,remainingMs-(Date.now()-started))),headers:{'Content-Type':'application/json',Authorization:`Bearer ${key}`},body:JSON.stringify(payload)});
   let response=await send(requestBody);
   if(!response.ok){let detail=await response.text().catch(()=>'');
-    // A gateway that does not accept the reasoning setting is asked once more without it.
-    if(rejectsReasoning(response.status,detail)&&'reasoning' in requestBody){const {reasoning:_omit,...plain}=requestBody as Record<string,unknown>;void _omit;console.error('[p5-pricing] OpenAI refused the reasoning setting; retrying without it.');response=await send(plain);detail=response.ok?'':await response.text().catch(()=>'');}
+    // Only legacy optional effort may be omitted; required none must fail safely.
+    if(mayRetryWithoutReasoning(response.status,detail,requestBody)){const {reasoning:_omit,...plain}=requestBody as Record<string,unknown>;void _omit;console.error('[p5-pricing] OpenAI refused the reasoning setting; retrying without it.');response=await send(plain);detail=response.ok?'':await response.text().catch(()=>'');}
     if(!response.ok)throw Object.assign(pricingHttpError(response,detail),{pricingPriorRequestCount:requestSequence-1});}
   const body=await response.json();
   await retain(pricingResponseEvidence(currentCall!,response,body));
