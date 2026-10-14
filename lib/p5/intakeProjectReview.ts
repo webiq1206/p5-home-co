@@ -17,9 +17,9 @@ class ReviewValidationError extends Error{
 }
 /** Explicit source-owned projection. Retain full submitted material; omit storage credentials,
  * engine extraction and binary files. The receiver derives authenticated staff references. */
-export function intakeProjectReview(envelope:IntakeDeliveryEnvelope,qaAllowlist=''):ProjectReview{
+export function intakeProjectReview(envelope:IntakeDeliveryEnvelope,qaAllowlist='',allowP5=false):ProjectReview{
  const s=envelope.request;
- if(!s||s.currentSite==='p5')throw new ReviewValidationError('payload-review');
+ if(!s||(!allowP5&&s.currentSite==='p5'))throw new ReviewValidationError('payload-review');
  if(envelope.channel!=='crm'||envelope.leadKey!==intakeLeadKey(s.projectId)||envelope.key!==intakeOperationKey(s,'crm'))throw new ReviewValidationError('snapshot-conflict');
  const qa=[s.contact.name,(s.scope.answers as Record<string,unknown>).projectName].some(value=>typeof value==='string'&&/^(?:\[QA\](?:\s|$)|SYNTHETIC\s+QA\b)/i.test(value.trim()));
  const email=s.contact.email.toLowerCase();
