@@ -29,7 +29,7 @@ export const BRAND_OWNED=['lib/p5/brand.ts','lib/p5/deliveryAdapter.ts','lib/p5/
   'scripts/p5-schema-statements.mjs','scripts/p5-prepare-database.mjs','tests/p5-database-safety.test.mjs','scripts/test-p5-pricing-recovery.mts'];
 /** Modules that exist only in p5-home-co: its QA continuation service, the document service and
  * the local lead receiver. They are never copied or listed, and no shared file may import them. */
-export const P5_ONLY=['lib/p5/qaContinuation.ts','lib/p5/qaContinuationEndpoint.ts','lib/p5/qaOrigin.ts','lib/p5/qaSavedEstimate.ts','lib/p5/qaSavedEstimateEndpoint.ts','lib/p5/qaSavedReadingEndpoint.ts',
+export const P5_ONLY=['lib/p5/canonicalReviewHttp.ts','lib/p5/canonicalReviewHubspot.ts','lib/p5/canonicalReviewStore.ts','tests/p5-canonical-receiver.test.ts','lib/p5/qaContinuation.ts','lib/p5/qaContinuationEndpoint.ts','lib/p5/qaOrigin.ts','lib/p5/qaSavedEstimate.ts','lib/p5/qaSavedEstimateEndpoint.ts','lib/p5/qaSavedReadingEndpoint.ts',
   'components/P5QaContinuation.tsx','components/P5QaSavedEstimate.tsx','components/P5QaSavedReading.tsx',
   'scripts/check-p5-live-pricing-guarded.mts','scripts/check-p5-recovery-request.mjs','scripts/lib/recoveryTransport.mjs','scripts/p5-qa-recovery-browser.mjs','scripts/p5-qa-saved-auth-fixture.mjs','scripts/p5-qa-saved-browser.mjs','scripts/p5-reference-files.mts','scripts/test-p5-qa-paid.mts','scripts/test-p5-recovery-request.mjs','scripts/test-p5-recovery-transport.mjs',
   'tests/p5-document-followups.test.ts','tests/p5-qa-continuation.test.ts','tests/p5-qa-origin.test.ts','tests/p5-qa-saved-estimate.test.ts','tests/p5-qa-saved-reading.test.ts','tests/p5-synthetic-crm.test.ts',
