@@ -40,7 +40,7 @@ export function googleTagBootstrap(options: {
       }
     }
     var ref = document.referrer ? new URL(document.referrer) : null;
-    if (ref && /^https?:$/.test(ref.protocol) && ref.hostname.replace(/^www\\./, '') !== config.hostname) touch.referrer = ref.origin;
+    if (ref && /^https?:$/.test(ref.protocol) && ref.hostname.replace(/^www[.]/, '') !== config.hostname) touch.referrer = ref.origin;
     var firstKey = 'p5_attribution_first_v1';
     var latestKey = 'p5_attribution_latest_v1';
     if (!sessionStorage.getItem(firstKey)) sessionStorage.setItem(firstKey, JSON.stringify(touch));
