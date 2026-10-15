@@ -9,7 +9,10 @@
 .dialog :is(a,button,input):focus-visible { outline: 3px solid #276acf; outline-offset: 3px; }
 .dialog form { margin-top: 20px; }
 .dialog label { display: block; font-weight: 600; }
-.dialog input { display: block; width: 100%; min-height: 44px; box-sizing: border-box; border: 1px solid #747b76; border-radius: 6px; padding: 10px; font: inherit; margin: 6px 0; }
+.dialog input { color-scheme: light; color: #242827; background: #fff; caret-color: #242827; display: block; width: 100%; min-height: 44px; box-sizing: border-box; border: 1px solid #747b76; border-radius: 6px; padding: 10px; font: inherit; margin: 6px 0; }
 .consent { font-size: 14px; }
 .actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 20px; }
 .error { color: #a01818; }
+
+.dialog input::placeholder { color: #62645f; opacity: 1; }
+.dialog input:autofill { -webkit-text-fill-color: #242827; caret-color: #242827; }
