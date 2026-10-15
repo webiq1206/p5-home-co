@@ -9,7 +9,7 @@ import {renderIntakeEmail} from '../lib/p5/intakeEmail.ts';
 import {emptyIntakeDetails,intakeReceipt,type IntakeSnapshot} from '../lib/p5/intakeContract.ts';
 import {routeIntake} from '../lib/p5/intakePolicy.ts';
 
-function fixture():IntakeSnapshot{return {schema:1,projectId:'p5:12345678-1234-4234-8234-123456789abc',draftId:'12345678-1234-4234-8234-123456789abc',originSite:'p5',currentSite:'p5',revision:78,contextVersion:1,savedAt:'2026-10-15T01:02:03.000Z',contact:{name:'PDF TEST ONLY — Zoë García',email:'fixture@example.invalid',phone:'',preferredContact:'email'},details:emptyIntakeDetails(),scope:{text:'Café entry\nKeep the existing door.\nDo not change the baño.',answers:{service:'handyman'},uploads:[],extraction:{privateNote:'DO_NOT_DISCLOSE_INTERNAL_DATA'} as never},routing:routeIntake('p5','handyman'),unresolved:[]};}
+function fixture():IntakeSnapshot{return {schema:1,projectId:'p5:12345678-1234-4234-8234-123456789abc',draftId:'12345678-1234-4234-8234-123456789abc',originSite:'p5',currentSite:'p5',revision:78,contextVersion:1,savedAt:'2026-10-15T01:02:03.000Z',contact:{name:'PDF TEST ONLY - Zoë García',email:'fixture@example.invalid',phone:'',preferredContact:'email'},details:emptyIntakeDetails(),scope:{text:'Café entry\nKeep the existing door.\nDo not change the baño.',answers:{service:'handyman'},uploads:[],extraction:{privateNote:'DO_NOT_DISCLOSE_INTERNAL_DATA'} as never},routing:routeIntake('p5','handyman'),unresolved:[]};}
 
 test('received request is a real readable PDF with reference and no invented price or internal data',async()=>{
  const s=fixture(),bytes=await renderIntakePdf(s);
