@@ -1,4 +1,4 @@
-import {intakeDeliveryEnvelope,intakeOperationKey} from '../lib/p5/intakeDeliveryPayload.ts';
+import {intakeDeliveryEnvelope,intakeOperationKey,intakeLocalCrmRecord} from '../lib/p5/intakeDeliveryPayload.ts';
 import {intakeProjectReview} from '../lib/p5/intakeProjectReview.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -43,7 +43,10 @@ test('unsupported Unicode fails closed instead of issuing an incomplete PDF',asy
 });
 
 test('one assigned reference is consistent across receipt, both emails, PDF and CRM without changing operation identity',async()=>{
- const s=fixture(),priorKey=intakeOperationKey(s,'crm');s.reference='P5-P-ABCD2345';
+ const s=fixture(),priorKey=intakeOperationKey(s,'crm');
+ assert.equal(Object.hasOwn(JSON.parse(intakeLocalCrmRecord(s).customer.summary),'reference'),false);
+ s.reference='P5-P-ABCD2345';
+ assert.equal(JSON.parse(intakeLocalCrmRecord(s).customer.summary).reference,s.reference);
  assert.equal(intakeReceipt(s,{customer:'pending',team:'pending',crm:'pending'}).reference,s.reference);
  for(const team of [false,true]){const email=renderIntakeEmail(s,team,[]);assert.ok(email.subject.includes(s.reference));assert.ok(email.text.includes(s.reference));}
  assert.ok((await pdfTextLayers(await renderIntakePdf(s))).join('\n').includes(s.reference));
