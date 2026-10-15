@@ -15,7 +15,7 @@ export interface IntakeContact {name:string;email:string;phone:string;preferredC
 export interface IntakeMessage {id:string;role:'user'|'assistant';text:string;at:number;kind?:string;label?:string;caption?:string;files?:string[]}
 export interface IntakeDetails {questionMemory?:QuestionMemory;desiredOutcome:string;workContext:string;budget:string;supportingServices:SupportingService[];transcript:IntakeMessage[];reviewedScopeFingerprint?:string}
 export interface IntakeContext extends IntakeDetails {projectId:string;originSite:IntakeSite;currentSite:IntakeSite;version:number;contact:IntakeContact}
-export interface IntakeSnapshot {schema:1;projectId:string;originSite:IntakeSite;currentSite:IntakeSite;draftId:string;revision:number;contextVersion:number;contact:IntakeContact;details:IntakeDetails;scope:{text:string;answers:ScopeAnswers;extraction:ScopeExtraction|null;uploads:ScopeUpload[]};routing:IntakeRouting;unresolved:string[];savedAt:string}
+export interface IntakeSnapshot {schema:1;projectId:string;reference?:string;originSite:IntakeSite;currentSite:IntakeSite;draftId:string;revision:number;contextVersion:number;contact:IntakeContact;details:IntakeDetails;scope:{text:string;answers:ScopeAnswers;extraction:ScopeExtraction|null;uploads:ScopeUpload[]};routing:IntakeRouting;unresolved:string[];savedAt:string}
 export interface IntakeReceipt {accepted:true;projectId:string;reference:string;revision:number;team:IntakeRouting;unresolved:string[];savedAt:string;delivery:{customer:string;team:string;crm:string};deliveryDetails?:{customer:string;team:string;crm:string}}
 export const INTAKE_CONTEXT_KEY='intake-context-v1';
 export const INTAKE_SUBMISSION_KEY='intake-submission-v1';
@@ -83,9 +83,9 @@ export function intakeUnresolved(scope:{answers:ScopeAnswers;extraction:ScopeExt
     ...(scope.answers.exclusions?.trim()&&scope.intake?.supportingServices.length?[`Confirm the selected supporting work (${scope.intake.supportingServices.join(', ')}) against these exclusions: ${scope.answers.exclusions.trim()}`]:[]),
   ])];
 }
-export function intakeReference(projectId:string){return 'P5-'+projectId.split(':').at(-1)!.replace(/-/g,'').slice(0,10).toUpperCase();}
+export function intakeReference(projectId:string,reference?:string){if(reference)return reference;return 'P5-'+projectId.split(':').at(-1)!.replace(/-/g,'').slice(0,10).toUpperCase();}
 export function intakeReceipt(snapshot:IntakeSnapshot,delivery:IntakeReceipt['delivery']):IntakeReceipt {
-  return {accepted:true,projectId:snapshot.projectId,reference:intakeReference(snapshot.projectId),revision:snapshot.revision,team:snapshot.routing,unresolved:snapshot.unresolved,savedAt:snapshot.savedAt,delivery};
+  return {accepted:true,projectId:snapshot.projectId,reference:intakeReference(snapshot.projectId,snapshot.reference),revision:snapshot.revision,team:snapshot.routing,unresolved:snapshot.unresolved,savedAt:snapshot.savedAt,delivery};
 }
 export function requireIntakeReceipt(value:unknown):IntakeReceipt {
   const r=value as IntakeReceipt;

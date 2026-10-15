@@ -5,7 +5,7 @@ import {intakeReference} from '../lib/p5/intakeContract';
 import {INTAKE_SITES,INTAKE_RECIPIENTS,type IntakeSite,type IntakeRouting} from '../lib/p5/intakePolicy';
 import {deliveryReason} from '../lib/p5/intakeDeliveryPolicy';
 import {SCOPE_FIELDS} from '../lib/p5/scope';
-type Summary=Pick<IntakeSnapshot,'draftId'|'projectId'|'originSite'|'currentSite'|'revision'|'contact'|'savedAt'>&{routing:IntakeRouting;fileCount:number};
+type Summary=Pick<IntakeSnapshot,'draftId'|'projectId'|'reference'|'originSite'|'currentSite'|'revision'|'contact'|'savedAt'>&{routing:IntakeRouting;fileCount:number};
 type Detail={snapshot:IntakeSnapshot;delivery:Record<string,{status?:string;recipient?:string;providerId?:string;reason?:string;attempts?:number;nextAttemptAt?:string}>};
 async function read(url:string){const response=await fetch(url,{cache:'no-store'});const body=await response.json();if(!response.ok)throw new Error(body.error||'The saved project requests could not be loaded.');return body;}
 export default function P5IntakeQueue(){
@@ -21,11 +21,11 @@ export default function P5IntakeQueue(){
   <button style={{minHeight:44}} disabled={busy} onClick={()=>void load()}>Refresh project requests</button>
   {error&&<p role="alert">{error}</p>}
   {!requests.length&&!busy&&!error&&<p>No submitted intake requests yet.</p>}
-  <ul>{requests.map(r=><li key={r.projectId} style={{padding:'12px 0'}}><button style={{minHeight:44,textAlign:'left'}} disabled={busy} onClick={()=>void inspect(r.draftId,r.revision)}>{intakeReference(r.projectId)} · {r.contact.name} · {r.routing.teamName}</button><p>{r.fileCount} saved files · Revision {r.revision} · {new Date(r.savedAt).toLocaleString()}</p></li>)}</ul>
+  <ul>{requests.map(r=><li key={r.projectId} style={{padding:'12px 0'}}><button style={{minHeight:44,textAlign:'left'}} disabled={busy} onClick={()=>void inspect(r.draftId,r.revision)}>{intakeReference(r.projectId,r.reference)} · {r.contact.name} · {r.routing.teamName}</button><p>{r.fileCount} saved files · Revision {r.revision} · {new Date(r.savedAt).toLocaleString()}</p></li>)}</ul>
   {nextCursor&&<button style={{minHeight:44}} disabled={busy} onClick={()=>void load(nextCursor)}>Load older project requests</button>}
   {requests.length>0&&<p>{requests.length} requests shown{nextCursor?'. More requests are available.':'. End of the saved request list.'} Refresh to check for new submissions.</p>}
   {saved&&<article aria-label="Submitted project details">
-   <h3>{intakeReference(saved.projectId)} · Submitted revision {saved.revision}</h3>
+   <h3>{intakeReference(saved.projectId,saved.reference)} · Submitted revision {saved.revision}</h3>
    <p>Origin: {name(saved.originSite)}. Receiving site: {name(saved.currentSite)}. Primary project team: {saved.routing.teamName}.</p>
    <p>Team recipient: {INTAKE_RECIPIENTS[saved.currentSite]}</p>
    <p>Supporting work: {saved.routing.supportingServices.join(', ')||'None selected'}</p>

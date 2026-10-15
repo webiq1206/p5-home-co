@@ -1,3 +1,4 @@
+import {intakePdfSections} from '../lib/p5/intakePdf.ts';
 /** MOCK TRANSPORTS ONLY. This suite proves state transitions, not provider/inbox/CRM receipt. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -79,10 +80,11 @@ test('mock: synthetic suppression, phone-only contact and site boundary perform 
  const f=await fixture();try{await intakeDeliveryWorker({...f.deps,suppressed:()=>true}).run();assert.equal(f.calls.length,0);assert.equal((await f.channels()).team.status,'suppressed');}finally{await f.db.close();}
  const g=await fixture();try{await intakeDeliveryWorker({...g.deps,site:'cabinet'}).run();assert.equal(g.calls.length,0);await g.query('DELETE FROM p5_estimator_work');const s=request();s.contact={name:'Fictional phone contact',email:'',phone:'2085550100',preferredContact:'phone'};await g.store.save(s);await g.run();assert.equal((await g.channels()).customer.status,'not-requested');assert.equal(g.calls.length,2);}finally{await g.db.close();}
 });
-test('payload: all five exact recipients, origin/primary/supporting scope, safe staff links and complete attachment',()=>{
+test('payload: all five recipients and customer-safe PDF projection preserve complete submitted scope',()=>{
  for(const site of Object.keys(INTAKE_SITES) as IntakeSite[]){const s={...request(site),savedAt:new Date(start).toISOString()},team=intakeDeliveryEnvelope(s,'team','digest'),customer=intakeDeliveryEnvelope(s,'customer','digest');assert.equal(team.email?.to,INTAKE_RECIPIENTS[site]);assert.equal(customer.email?.to,s.contact.email);
- const copy=JSON.parse(Buffer.from(team.email!.attachments[0].base64,'base64').toString());assert.equal(copy.origin,'P5 Home Co');assert.equal(copy.primaryTeam,'Boise Remodeling Co');assert.deepEqual(copy.supportingServices,['cabinetry']);assert.deepEqual(copy.conversation,s.details.transcript);assert.equal(copy.answers.exclusions,s.scope.answers.exclusions);
- const url=new URL(copy.files[0].authenticatedOriginal);assert.equal(url.hostname,INTAKE_SITES[site].domain);assert.deepEqual([...url.searchParams.keys()],['draftId','revision','fileId']);assert.ok(!url.href.includes('customer'));const customerCopy=Buffer.from(customer.email!.attachments[0].base64,'base64').toString();assert.ok(!customerCopy.includes('authenticatedOriginal'));assert.ok(!customerCopy.includes('/api/admin'));
+ const copy=intakePdfSections(s).map(([title,body])=>title+'\n'+body).join('\n');
+ assert.ok(copy.includes('P5 Home Co'));assert.ok(copy.includes('Boise Remodeling Co'));assert.ok(copy.includes('cabinetry'));assert.ok(copy.includes(s.scope.answers.exclusions!));
+ assert.ok(!copy.includes('authenticatedOriginal'));assert.ok(!copy.includes('/api/admin'));assert.equal(team.email!.attachments.length,0);assert.equal(customer.email!.attachments.length,0);
  assert.equal(team.leadKey,intakeLeadKey(s.projectId));assert.notEqual(team.key,intakeOperationKey(s,'customer'));assert.match(team.email!.text,/delivery access is pending/);
  }
  assert.deepEqual(INTAKE_RUNTIME_PROOF,{email:'fleet-release-2026-10-08',crm:null});

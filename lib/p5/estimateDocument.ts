@@ -215,7 +215,6 @@ export function buildEstimateDocument(input:{id:string;result:unknown;brand:Esti
     ['Scope source',[`Your online submission${sources.length?` and ${sources.length===1?'the document':'the documents'} you uploaded: ${sources.join('; ')}`:''}.`]],
     ['Responsibilities',responsibilities],
     ['Assumptions',[...new Set(assumptions)]],
-    ['Changes in this version',((result.revisionSummary||[]) as string[]).map(v=>clean(v,Infinity)).filter(Boolean)],
     ['Included to complete the work',tasks.filter(t=>t.origin==='required'&&clean(t.basis)).map(t=>`${clean(t.description,Infinity)}: ${clean(t.basis,Infinity)}`)],
     ['To confirm',[...new Set(toConfirm)]],
     ['Timing',[issue.timing?`Requested: ${clean(issue.timing,160)}. Availability is confirmed with your final proposal.`:'Start and completion dates are confirmed with your final proposal.']],

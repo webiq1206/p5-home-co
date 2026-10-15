@@ -34,7 +34,7 @@ test('both contact methods and each preference survive validation, CRM and confi
   assert.deepEqual(intakeContact(s.contact),s.contact);assert.deepEqual(intakeProjectReview(env(s)).request.contact,s.contact);
   for(const channel of ['customer','team'] as const){
    const email=intakeDeliveryEnvelope(s,channel,digest).email!;
-   assert.deepEqual(JSON.parse(Buffer.from(email.attachments[0].base64,'base64').toString()).contact,s.contact);
+   assert.equal(email.attachments.length,0); // PDFs and verified originals are assembled before sending.
    assert.match(email.text,/2085550100/);assert.match(email.text,/fictional@example.invalid/);
   }
  }
