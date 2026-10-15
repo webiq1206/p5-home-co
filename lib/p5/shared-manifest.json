@@ -2,7 +2,7 @@
   "source": "p5-home-co",
   "commit": "b3256f7b46c5c89a9f9991c33397d4a1e83a0d33",
   "generatedAt": "2026-10-15T04:58:46.718594+00:00",
-  "note": "Bounded UI/request-PDF/reference batch: refreshed changed shared files and registered new PDF/reference modules and tests. Existing model-specific baselines and every prior manifest entry retained; unrelated shared source remains unchanged.",
+  "note": "Bounded UI/request-PDF/reference batch: refreshed changed shared files and registered new PDF/reference modules and tests. Existing model-specific baselines and every prior manifest entry retained; unrelated shared source remains unchanged. Reviewed callback contrast correction synchronized with canonical P5; refreshed only changed file hashes. Existing site extensions retained.",
   "files": {
     "app/admin/p5-estimators/page.tsx": "f9b7f729daa74f542cdece161d2bf158fb784f5a8c55356fe7283e73db2c139d",
     "app/api/admin/p5-intake/file/route.ts": "e8b49e0f2e19508d1f21903445fdcd36b2e3f6aa95edbc6ecdac110a625b11dc",
@@ -494,7 +494,7 @@
     "tests/p5-intake-contact-fields.test.ts": "2e50258d54258ee988206a3c5d91bee2aeab1521a614bae5d1db37d0cc2f0b6b",
     "lib/p5/exitCallback.ts": "9ab0cb2118925362f718de369cab17a1e176340a155f971b75458015df22e28f",
     "components/P5ExitOffer.tsx": "5b5e76460bbee7577cfa8ce092bfb67e31bdc11ba07d7df815b2c7bfbf06fbce",
-    "components/P5ExitOffer.module.css": "1e36b1e4af398a47b96cc83ab3bde4522cdf5a47a8cf138a934b34e03299e912",
+    "components/P5ExitOffer.module.css": "88f45092817c319fa06ee60b102a8b439412f29747f25bd95ebdf9ea28b99461",
     "tests/p5-exit-callback.test.ts": "fb985b096b8397d0d424d3ec31cd48a444c0546cfbc012736343cd5b94b450a3",
     "scripts/p5-exit-browser.mjs": "c6897d0453c2b1d2d7840ad84f041130b102162ecc5879098466b62f1f5bf9ee",
     "lib/p5/intakeIntent.ts": "5f77bf876278b307a1fee4e49e8ac4a144e99bd7bd4e5f6b186491fd0888b360",
