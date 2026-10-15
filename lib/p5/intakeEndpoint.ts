@@ -1,3 +1,4 @@
+import {reserveIntakeReference} from './intakeReferenceStore.ts';
 import {draftCredentials,readDraft,DraftError} from './store.ts';
 import {query} from './database.ts';
 import {protectRequest,limitedBody,json,failed} from './http.ts';
@@ -25,7 +26,9 @@ export async function postIntake(request:Request){try{
   if(!draft.text.trim()&&!draft.uploads.length&&!Object.values(draft.answers).some(v=>v?.trim()))throw new DraftError('Describe your project or add a supporting file.');
   const details=intakeDetails(draft.intake||emptyIntakeDetails()),routing=snapshotRouting(site,draft.answers,details,intakeRoutingContext(draft));
   if(routing.handoff)throw new DraftError(`Continue with ${routing.teamName} to send this project. Your saved details and files are retained.`,409);
-  const receipt=await intakeStore(query).save({schema:1,projectId:draft.intake?.projectId||`${site}:${id}`,originSite:draft.intake?.originSite||site,currentSite:site,draftId:id,revision:draft.revision,contextVersion:draft.intake?.version||0,
+  const projectId=draft.intake?.projectId||`${site}:${id}`;
+  const reference=await reserveIntakeReference(query,projectId,site);
+  const receipt=await intakeStore(query).save({schema:1,projectId,reference,originSite:draft.intake?.originSite||site,currentSite:site,draftId:id,revision:draft.revision,contextVersion:draft.intake?.version||0,
     contact,details,scope:{text:draft.text,answers:draft.answers,extraction:draft.extraction,uploads:draft.uploads},routing,
     unresolved:[...new Set([...routing.unresolved,...intakeUnresolved(draft,SCOPE_FIELDS)])]});
   kickDriver('intake-saved');

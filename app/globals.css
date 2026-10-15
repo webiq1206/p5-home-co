@@ -422,3 +422,10 @@ body[data-p5-estimator-active="true"] .p5-mobile-actionbar { display: none !impo
 
 /* Keep the secondary mobile action labeled and easy to tap. */
 .p5-mobile-call{min-width:76px;flex-direction:column;gap:4px}.p5-mobile-call span{font-size:12px;font-weight:600;line-height:1.2}
+
+/* Keep small labels and supporting copy legible on each brand panel. */
+.brand-topline { font-size:10px; }
+.brand-remodeling { --brand-muted:#555d54; --brand-topline:#555d54; }
+.brand-cabinetry,.brand-adu { --brand-topline:#605d57; }
+.brand-handyman { --brand-topline:#d3d6d2; }
+.handoff-step > b,.handoff-step small,.service-area-grid .eyebrow { color:#596158; }

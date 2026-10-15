@@ -18,7 +18,7 @@ export async function runtimeIntakeTransports():Promise<Record<'customer'|'team'
   // isolated harness that replaces the adapter never needs the site's notification modules.
   readiness:async()=>{const adapter=await import('./deliveryAdapter.ts');if(typeof adapter.emailTransportReady!=='function'||!adapter.emailTransportReady())return 'configuration-missing';return INTAKE_RUNTIME_PROOF.email?null:'runtime-proof-pending';},
   prepare:(snapshot,envelope)=>prepareIntakeEmail(snapshot,envelope,{query,readBytes:readStoredBytes,secret:linkSecret}),
-  send:async envelope=>{if(!envelope.email)throw new Error('payload-review');const {sendEmail}=await import('./deliveryAdapter.ts');return sendEmail({...envelope.email,attachments:envelope.email.attachments.map(f=>({filename:f.filename,content:Buffer.from(f.base64,'base64')})),key:envelope.key});},
+  send:async envelope=>{if(!envelope.email)throw new Error('payload-review');const {sendEmail}=await import('./deliveryAdapter.ts');return sendEmail({...envelope.email,attachments:envelope.email.attachments.map(f=>({filename:f.filename,content:Buffer.from(f.base64,'base64'),contentType:f.contentType})),key:envelope.key});},
  };
  const crm=canonicalReviewTransport({enabled:process.env.P5_CRM_DELIVERY==='on',token:process.env.P5_CANONICAL_REVIEW_TOKEN||'',proof:INTAKE_RUNTIME_PROOF.crm});
  return {customer:email,team:email,crm};

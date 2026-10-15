@@ -70,8 +70,9 @@ export const metadata: Metadata = withBrandPageMetadata(({
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <body>
+        {/* The intentional pre-hydration root class enables progressive reveal effects. */}
         <Script id="p5-js-class" strategy="beforeInteractive">{'document.documentElement.classList.add("js")'}</Script>
         {/* Next preloads the hero and the logo marks on its own, but not the
             fonts, and the hero headline is set in the display serif. */}

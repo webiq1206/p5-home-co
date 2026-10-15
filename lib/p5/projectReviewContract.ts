@@ -34,7 +34,7 @@ export const projectReviewSchema = z.object({
   snapshotDigest: digest,
   deliveryMode: z.enum(["live", "synthetic_qa"]),
   request: z.object({
-    projectId: z.string().min(1).max(200), draftId: z.string().uuid(), revision: z.number().int().positive().max(2147483647),
+    projectId: z.string().min(1).max(200), reference: z.string().regex(/^P5-(?:[PCRHB]-[2-9A-HJ-NP-Z]{8}|[A-F0-9]{10})$/).optional(), draftId: z.string().uuid(), revision: z.number().int().positive().max(2147483647),
     savedAt: z.string().datetime(), originSite: site, currentSite: site,
     contact,
     scope: z.object({ text, answers: z.record(z.string(), text), uploads: z.array(projectReviewFileSchema).max(500) }).strict(),

@@ -3,7 +3,7 @@ import type {IntakeRow} from '../lib/p5/intakeStore.ts';
 import assert from 'node:assert/strict';
 import {isolatedDatabase} from './fixtures/p5-pglite.ts';
 import {intakeStore,deliveryKey,snapshotKey,IntakeConflict} from '../lib/p5/intakeStore.ts';
-import {emptyIntakeDetails,intakeContact,intakeDetails,requireIntakeReceipt,type IntakeSnapshot} from '../lib/p5/intakeContract.ts';
+import {emptyIntakeDetails,intakeReference,intakeContact,intakeDetails,requireIntakeReceipt,type IntakeSnapshot} from '../lib/p5/intakeContract.ts';
 import {routeIntake} from '../lib/p5/intakePolicy.ts';
 
 const id='12345678-1234-4234-8234-123456789abc';
@@ -66,4 +66,16 @@ test('contact preferences validate available channels without requiring both',()
 test('oversized conversation is rejected rather than silently truncated; forged receipt is rejected',()=>{
  assert.throws(()=>intakeDetails({...emptyIntakeDetails(),transcript:[{id:'x',role:'user',text:'x'.repeat(8*1024*1024+1),at:1}]}),/too long/);
  assert.throws(()=>requireIntakeReceipt({accepted:true}),/could not be confirmed/);
+});
+
+test('registry migration preserves historical retries without accepting changed input or reference',async()=>{
+ const {db,query,store}=await database();try{
+  const original=await store.save(request());
+  const before=await query('SELECT work_key,payload FROM p5_estimator_work ORDER BY work_key');
+  const retry={...request(),reference:intakeReference(request().projectId)};
+  assert.deepEqual(await store.save(retry),original);
+  assert.deepEqual(await query('SELECT work_key,payload FROM p5_estimator_work ORDER BY work_key'),before);
+  await assert.rejects(store.save({...retry,reference:'P5-P-ABCDEFGH'}),IntakeConflict);
+  await assert.rejects(store.save({...retry,contact:{...retry.contact,name:'Changed'}}),IntakeConflict);
+ }finally{await db.close();}
 });

@@ -1,5 +1,5 @@
 import {createHash} from 'node:crypto';
-import {INTAKE_SUBMISSION_KEY,intakeReceipt,type IntakeSnapshot,type IntakeReceipt} from './intakeContract.ts';
+import {INTAKE_SUBMISSION_KEY,intakeReceipt,intakeReference,type IntakeSnapshot,type IntakeReceipt} from './intakeContract.ts';
 import {INTAKE_RECIPIENTS} from './intakePolicy.ts';
 import {deliveryReason} from './intakeDeliveryPolicy.ts';
 
@@ -46,7 +46,12 @@ export function intakeStore(query:IntakeQuery,now=()=>new Date().toISOString()) 
       customer:{status:input.contact.email?'pending':'not-requested',recipient:input.contact.email,attempts:0,reason:input.contact.email?'runtime-proof-pending':undefined},team:{status:'pending',recipient:INTAKE_RECIPIENTS[input.currentSite],attempts:0,reason:'runtime-proof-pending'},crm:{status:'pending',attempts:0,reason:'crm-contract-pending'}}};
     await query(SAVE_INTAKE_SQL,[input.draftId,input.revision,input.currentSite,snapshotKey(input.revision),JSON.stringify({digest,snapshot}),deliveryKey(input.revision),JSON.stringify(job),INTAKE_SUBMISSION_KEY]);
     const [saved]=await query('SELECT payload FROM p5_estimator_work WHERE draft_id=$1 AND work_key=$2',[input.draftId,snapshotKey(input.revision)]);
-    if(!saved?.payload||saved.payload.digest!==digest)throw new IntakeConflict('Your project changed before submission was confirmed. Refresh the saved project before retrying.');
+    // A historical retry may acquire its existing display reference after the registry migration.
+    // Compare every original field and keep the immutable snapshot/delivery bytes unchanged.
+    const {reference,...legacyInput}=input;
+    const legacyRetry=!!saved?.payload?.snapshot&&!saved.payload.snapshot.reference
+      &&reference===intakeReference(input.projectId)&&saved.payload.digest===intakeDigest(legacyInput);
+    if(!saved?.payload||(saved.payload.digest!==digest&&!legacyRetry))throw new IntakeConflict('Your project changed before submission was confirmed. Refresh the saved project before retrying.');
     const receipt=await read(input.draftId,input.revision);
     if(!receipt)throw new Error('intake-receipt-unavailable');
     return receipt;

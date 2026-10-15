@@ -7,7 +7,7 @@ import {type ReviewProvider} from './canonicalReviewReceiver.ts';
  * Never guesses, merges or overwrites a person's existing HubSpot contact record. */
 export function canonicalDealProperties(p:ProjectReview,ownerId:string){
  const digest=createHash('sha256').update(canonicalJson(p)).digest('hex');
- const description=canonicalJson({operation:'project_review_v1',snapshotDigest:p.snapshotDigest,bodyDigest:digest,source:p.source,originSite:p.request.originSite,revision:p.request.revision,contact:p.request.contact,scope:p.request.scope.text,answers:p.request.scope.answers,details:p.request.details,routing:p.request.routing,unresolved:p.request.unresolved,staff:projectReviewLinks(p)});
+ const description=canonicalJson({operation:'project_review_v1',...(p.request.reference?{reference:p.request.reference}:{}),snapshotDigest:p.snapshotDigest,bodyDigest:digest,source:p.source,originSite:p.request.originSite,revision:p.request.revision,contact:p.request.contact,scope:p.request.scope.text,answers:p.request.scope.answers,details:p.request.details,routing:p.request.routing,unresolved:p.request.unresolved,staff:projectReviewLinks(p)});
  // HubSpot's bounded text fields cannot carry an arbitrarily large transcript.
  // Do not truncate or claim a full receipt if this projection cannot be retained.
  if(description.length>60000)throw new Error('projection-too-large');
