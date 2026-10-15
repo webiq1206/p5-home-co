@@ -93,6 +93,14 @@ receipt records. Only the Gmail SMTP host and exact central mailbox are
 accepted. The IMAP destination is fixed to `imap.gmail.com:993` with verified
 TLS. No OAuth sign-in, credential creation, or permission expansion occurs.
 
+## Google Voice Premier Gemini call notes (verified October 15, 2026)
+
+The P5 Workspace Admin policy showed Automatic call recording and notes: All calls, Gemini notes: On, and on-demand recording/notes: On. The P5 inbox received an authenticated Google Voice message from gemini-call-notes-noreply@google.com, subject "Notes from call with (208) XXX-XXXX", with an X-Notifications header ending -automatic_call_recording. Google's content said the call was too short to create notes. This confirms the notification format and that one automatic recording generated mail. It does not establish full transcript availability, call handling under every circumstance, or a successful construction scope.
+
+The source classifier distinguishes authenticated Gemini notes from generic no-reply messages and matches only the explicit caller phone. Malformed or insufficient notes stay in review. Usable notes may enter the existing deduplicated EMAIL receipt reconciliation only after all production preflight and activation conditions above are satisfied. An EMAIL timeline receipt is not a HubSpot CALL or NOTE activity; the scope-draft helper is not an authorized, delivered project scope. Do not claim these are operational until independently verified.
+
+The voice-call-notes.ts helper produces only internal source-grounded drafts for sufficiently detailed construction notes; it never infers measurements, prices or approvals. An administrator must review customer/project identity and scope before any client-facing version. Do not log the short-call sample as a customer project, create a new contact from Google's sender, or reuse the P5 business phone number as the customer identity.
+
 ## Capture and identity behavior
 
 Each pass first requires the public `GET /account-info/v3/details` to identify
