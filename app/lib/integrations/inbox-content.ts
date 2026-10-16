@@ -4,8 +4,16 @@ import { MAILBOX, type Mail } from "./inbox-policy.ts";
 const escapeHtml = (value: string) => value.replace(/[&<>"']/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[char]!));
 
 export function sourcePrefix(expected: string, actual: string) {
-  return actual === expected || (actual.startsWith(expected) &&
-    (!expected || /\s$/.test(expected) || /^\s/.test(actual.slice(expected.length))));
+  // HubSpot's native email logger canonicalizes line wrapping/blank lines
+  // independently from Gmail's original decoded MIME plaintext. This comparison
+  // preserves *all* non-whitespace characters and their order, including numbers,
+  // punctuation, recipient addresses and the message's original wording.
+  // Only whitespace runs may differ, never semantic content. We continue to
+  // require the exact RFC Message-ID, subject and original header evidence.
+  const normalize = (value: string) => value.replace(/\s+/g, " ").trim();
+  const source = normalize(expected);
+  const stored = normalize(actual);
+  return stored === source || (Boolean(source) && stored.startsWith(source + " "));
 }
 
 /** Append provenance after the intact decoded source. Never convert the
