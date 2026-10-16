@@ -231,7 +231,7 @@
     "lib/p5/sourceSpecificationGuard.ts": "a52b5fbd623696aa37160a72780c9c5711232f4237855f02d07f64ddde356fc3",
     "lib/p5/spreadsheetValues.ts": "35a63345db960eb6a1df96311dfde8f9862cc99b3806f848f53133af46f19bdc",
     "lib/p5/spreadsheetXml.ts": "ec3cf6c55c81c361c71007ad9f07bd16c8bc9d00c4f805be0884a10e7f1b0128",
-    "lib/p5/store.ts": "9780148bdcd0568337acfc52d31dc0c61516e71bc9551d29158265ac1e2ef52a",
+    "lib/p5/store.ts": "06c49f4b951e5758cac52fe0663900cfee481acbf3f65dd17725b25375f02fef",
     "lib/p5/submitEndpoint.ts": "b31ebb0613bc8d3e5b0cd11b35b693d86d43ffdc81e0ed833975346c9e26dcc7",
     "lib/p5/submitProgress.ts": "777d5a5d9b5c4045107589654f5215f5b82f73c5fe712918c6ea581d0674b414",
     "lib/p5/theme.ts": "0b2cd965c0baf52e46ef6e3a8400c747bf75156f32f5da42a9ad0aca54fb478e",
