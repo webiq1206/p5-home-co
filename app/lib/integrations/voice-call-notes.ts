@@ -54,13 +54,23 @@ export function preliminaryScopeDraft(summary: string): string | null {
   if (summary.length < 80) return null;
   if (!/\b(remodel|renovat|construct|add(?:ition)?|build|install|replace|repair|demolish|frame|paint|floor|cabinet|tile|plumb|electrical|roof|foundation|drywall|countertop|bathroom|kitchen)\w*/i.test(summary)) return null;
   if (!/\b(want(?:s|ed)?|need(?:s|ed)?|request(?:s|ed)?|plan(?:s|ned)?|propos(?:e|ed)|install|replace|repair|remodel|renovate|build|construct|finish|remove|update|convert)\w*/i.test(summary)) return null;
+  // Include only the source's own construction-related clauses. Never rewrite
+  // a speculative customer statement into an authorized construction task.
+  const candidates=summary.replace(/\r/g,"").split(/(?<=[.!?])\s+|\n+/).map(part=>part.trim())
+    .filter(part=>part.length>=18 && /\b(remodel|renovat|construct|addition|building|install|replac|repair|demoli|fram|paint|floor|cabinet|tile|plumb|electric|roof|foundation|drywall|countertop|bathroom|kitchen)\w*/i.test(part))
+    .filter(part=>/\b(want|need|request|plan|propos|install|replac|repair|remodel|renovat|build|construct|finish|remove|update|convert|discuss)\w*/i.test(part))
+    .slice(0,30);
+  if(!candidates.length)return null;
   return [
-    "PRELIMINARY DRAFT SCOPE - INTERNAL REVIEW ONLY",
+    "PRELIMINARY DRAFT SCOPE OF WORK - INTERNAL REVIEW ONLY",
     "Source: Google Voice auto-generated AI call notes. Not a signed scope, estimate, bid or authorization.",
     "",
-    "Customer discussion (verbatim from Google Voice notes):",
+    "Potential work components discussed (not approved or priced):",
+    ...candidates.map(item=>"- "+item),
+    "",
+    "Full customer discussion for context (verbatim Gemini summary):",
     summary,
     "",
-    "Review required: Confirm customer identity, property/project association, requested work, quantities, materials, selections, site conditions and any exclusions before preparing a client scope."
+    "Review required: Verify the actual requested work versus options/negations, customer identity, property/project association, quantities, materials, selections, site conditions and exclusions. Price only after review."
   ].join("\n");
 }

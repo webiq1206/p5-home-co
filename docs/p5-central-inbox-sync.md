@@ -101,6 +101,38 @@ The source classifier distinguishes authenticated Gemini notes from generic no-r
 
 The voice-call-notes.ts helper produces only internal source-grounded drafts for sufficiently detailed construction notes; it never infers measurements, prices or approvals. An administrator must review customer/project identity and scope before any client-facing version. Do not log the short-call sample as a customer project, create a new contact from Google's sender, or reuse the P5 business phone number as the customer identity.
 
+## Automatic call timeline activities and review-only scope drafts (October 16, 2026)
+
+The P5 inbox watchdog now contains an additional **gated** stage in the *same*
+worker, database and HubSpot portal. When the central inbox worker has
+authenticated a usable Google Gemini email, mirrored the original as one
+HubSpot EMAIL receipt, and verified a **unique existing contact by exact phone
+number**, it can write one native HubSpot NOTE and one CALL associated with
+that contact. If the source mentions proposed construction work, the NOTE
+contains a trade/work-item-oriented **internal draft scope**, quoting only
+work described in the original AI summary. It is explicitly not a bid,
+signed scope, change order or authorization.
+
+The additive table p5_voice_activity holds a durable per-Gmail-message write
+ledger. Every HubSpot POST is preceded by a persisted create intent. When a
+response is lost, the corresponding activity is held for human review and
+**never blindly reposted**; re-runs cannot create duplicate CALL or NOTE
+records. Missing/ambiguous customer identities are held for review rather
+than guessed. No customer email or text is sent automatically. No new service,
+public endpoint, mailbox queue, app, or HubSpot account is created.
+
+The original Gemini email generally contains an AI summary, **not guaranteed
+audio or a verbatim transcript**. HubSpot activities link to the Gmail source
+and make this distinction explicit. If no genuine substantive notes arrive,
+the call cannot support a construction scope and will remain on hold.
+
+**Activation is still gated** by P5_INBOX_SYNC_ENABLED and the prior required
+production diagnostic create/readback check, actual live deployment
+verification, and review of eligible call/recording disclosures. Do not claim
+this feature is live from tests or source code alone. Because note and call
+activities have additional HubSpot API permissions, their live preflight must
+also succeed. Logs and the existing Automation health page expose failure.
+
 ## Capture and identity behavior
 
 Each pass first requires the public `GET /account-info/v3/details` to identify

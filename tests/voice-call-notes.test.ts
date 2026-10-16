@@ -27,6 +27,8 @@ test("construction request produces source-grounded internal scope with no fabri
   assert.equal(notes?.usable,true);
   assert.ok(notes?.scopeDraft?.includes(summary));
   assert.match(notes?.scopeDraft||"",/INTERNAL REVIEW ONLY/);
+  assert.match(notes?.scopeDraft||"",/Potential work components discussed/);
+  assert.match(notes?.scopeDraft||"",/- The caller requested a kitchen remodel/);
   assert.ok(!/\$\d/.test(notes?.scopeDraft||""));
 });
 test("ordinary call summaries and unspecified details do not create a construction scope", () => {
