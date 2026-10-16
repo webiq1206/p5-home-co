@@ -31,7 +31,7 @@ const COPY:Record<string,Record<string,Copy>>={
   '/contact':{title:'Contact Our Boise Cabinet Team',description:'Discuss cabinet layouts, finishes, supply or installation with Boise Cabinet Co. Call our team or request help with your Treasure Valley cabinet project.'},
   '/resources':{title:'Cabinet Planning Worksheets & Guides',description:'Plan your cabinetry with budget worksheets, kitchen and bath checklists, and local permit guidance from Boise Cabinet Co in Idaho’s Treasure Valley.'}},
  p5:{
-  '/':{title:'Boise Home Construction, Remodeling & Repairs',description:'Find the P5 Home Co team for new construction, remodeling, home repairs or cabinets in Boise and the Treasure Valley. Compare services and plan your project.'},
+  '/':{title:'Boise Home Construction, Remodeling & Repairs',description:'Find the P5 Home Co team for new construction, remodeling, home repairs or cabinets in Boise and the Treasure Valley. Compare services and plan a project.'},
   '/quote':{title:'Get a Home Project Estimate in Boise',description:'Describe your remodel, new home, cabinet or repair project and attach plans or a scope. Start your Treasure Valley estimate with the right P5 Home Co team.'},
   '/sitemap':{title:'P5 Home Co Pages & Company Directory',description:'Find P5 Home Co pages, project estimate forms and links to our Boise construction, remodeling, handyman and cabinet companies in Idaho’s Treasure Valley.'}}
 };

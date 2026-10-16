@@ -43,7 +43,7 @@ export const QUOTE_SERVICES: readonly QuoteService[] = [
     metaDescription:
       "Free kitchen remodeling quotes across Boise, Meridian, Eagle, and the Treasure Valley. One written scope covering layout, cabinetry, and every trade.",
     image: "/images/p5-remodel.webp",
-    imageAlt: "A renovated kitchen interior with custom cabinetry and an island.",
+    imageAlt: "Kitchen with white flat-panel cabinets, a dark island, wood stools, and a marble backsplash.",
     project: "Kitchen remodel",
     brand: "Boise Remodeling Co",
     covers: [
@@ -61,7 +61,7 @@ export const QUOTE_SERVICES: readonly QuoteService[] = [
     metaDescription:
       "Free bathroom remodeling quotes across Boise, Meridian, Eagle, and the Treasure Valley. Written scopes covering tile, fixtures, and waterproofing.",
     image: "/images/p5-bathroom.webp",
-    imageAlt: "Bathroom with a glass shower, freestanding tub, and wood vanity.",
+    imageAlt: "Bathroom with a glass walk-in shower, a freestanding tub, and a light wood vanity.",
     project: "Bathroom remodel",
     brand: "Boise Remodeling Co",
     covers: [
@@ -79,7 +79,7 @@ export const QUOTE_SERVICES: readonly QuoteService[] = [
     metaDescription:
       "Free home addition quotes across the Treasure Valley. One written scope covering foundation, framing, roof tie-in, mechanicals, and permits. No obligation.",
     image: "/images/p5-addition.webp",
-    imageAlt: "Living room addition with a vaulted ceiling and stone fireplace.",
+    imageAlt: "Living room with a vaulted wood ceiling and a floor-to-ceiling stone fireplace.",
     project: "Home addition",
     brand: "Boise Remodeling Co",
     covers: [
@@ -95,9 +95,9 @@ export const QUOTE_SERVICES: readonly QuoteService[] = [
     lead: "Whether you have land, plans, or just an idea, Boise Construction Co will price the build and tell you what the site actually allows. Free, no obligation, and honest about feasibility before you spend money on drawings that will not work.",
     metaTitle: "Custom Home Building Quote, Treasure Valley | P5 Home Co",
     metaDescription:
-      "Free custom home building quotes across Ada and Canyon counties. Land evaluation, plans, engineering, permitting, and construction under one accountable team.",
+      "Free custom home building quotes in Ada and Canyon counties. Land evaluation, plans, engineering, permitting, and construction under one accountable team.",
     image: "/images/p5-construction-branded.webp",
-    imageAlt: "Timber framing at a home construction site with Boise Construction Co branding.",
+    imageAlt: "Wood-framed house under construction with exposed roof trusses and a Boise Construction Co logo.",
     project: "New custom home",
     brand: "Boise Construction Co",
     covers: [
@@ -113,9 +113,9 @@ export const QUOTE_SERVICES: readonly QuoteService[] = [
     lead: "Accessory dwelling units turn on what your lot and your city will allow, so Boise ADU Co starts with feasibility and then prices the build. Free, no obligation, covering detached units, garage conversions, and basement or interior conversions.",
     metaTitle: "ADU & Garage Conversion Quote, Boise | P5 Home Co",
     metaDescription:
-      "Free ADU quotes across the Treasure Valley: detached units, garage conversions, and basement conversions, with feasibility and permits handled by one P5 team.",
+      "Free ADU quotes in the Treasure Valley: detached units, garage conversions, and basement conversions, with feasibility and permits handled by one P5 team.",
     image: "/images/p5-adu.webp",
-    imageAlt: "Detached ADU with a covered entry and landscaped yard.",
+    imageAlt: "Small modern building with light board-and-batten siding, a dark metal roof, cedar trim, and a covered entry.",
     project: "Accessory dwelling unit (ADU)",
     brand: "Boise ADU Co",
     covers: [
@@ -133,7 +133,7 @@ export const QUOTE_SERVICES: readonly QuoteService[] = [
     metaDescription:
       "Free custom cabinetry quotes across the Treasure Valley. Frameless kitchen cabinets, vanities, and built-ins, designed and built to order. No obligation.",
     image: "/images/p5-cabinet.webp",
-    imageAlt: "Wood cabinetry with brass pulls and a light countertop.",
+    imageAlt: "Light wood kitchen cabinets with slim brass bar pulls, a white countertop, and a marble backsplash.",
     project: "Custom cabinets or built-ins",
     brand: "Boise Cabinet Co",
     covers: [
@@ -151,7 +151,7 @@ export const QUOTE_SERVICES: readonly QuoteService[] = [
     metaDescription:
       "Free handyman and home repair quotes across the Treasure Valley. Drywall and trim repair, mounting, installation, deck and exterior work.",
     image: "/images/p5-handyman-branded.webp",
-    imageAlt: "Trim installation in progress with Boise Handyman Co branding.",
+    imageAlt: "White baseboard and door casing being installed, with a Boise Handyman Co logo.",
     project: "Home repairs or handyman work",
     brand: "Boise Handyman Co",
     covers: [

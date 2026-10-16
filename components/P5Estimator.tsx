@@ -769,7 +769,10 @@ export function P5Estimator({defaultService='',entryLabel,headingAs='h1',project
   useEffect(()=>{if(!busy||!sentMessageRef.current)return;sentMessageRef.current=false;requestAnimationFrame(()=>{const last=threadRef.current?.querySelector<HTMLElement>('[data-last-user]');if(last)scrollThread(last,'start');});},[busy]);
   useEffect(()=>{if(error&&!missingFields.length){if(validationTarget==='contact'&&contactErrorFields.length&&[contactNameRef,contactEmailRef,contactPhoneRef,contactPreferenceRef].some(ref=>ref.current===document.activeElement))return;const el=threadRef.current?.querySelector<HTMLElement>('[role=alert]');if(el)requestAnimationFrame(()=>scrollThread(el,'center'));}},[error]);
   useEffect(()=>{if(addingDetails){setEditText(composerText);requestAnimationFrame(()=>composerRef.current?.focus());}},[addingDetails]);
-  if(!draft)return <div ref={rootRef} className={styles.root} data-p5-estimator data-theme={theme.mode} data-layout={layout} style={estimatorThemeStyle(theme) as React.CSSProperties}><P5EstimatorNavigation brandName={brand.name} stepLabel="Loading your project" showBack={false} frameActive={layout==='page'} embedded={layout==='embedded'} onBack={()=>{}} onExit={onExit}/><div className={styles.loading} role="status">Loading your project...</div></div>;
+  if(!draft){
+    const openingHeading=!readOnly&&publicProjectMode(brandId,'')==='review'?INTAKE_COPY.heading:'Let’s estimate your project';
+    return <div ref={rootRef} className={styles.root} data-p5-estimator data-theme={theme.mode} data-layout={layout} style={estimatorThemeStyle(theme) as React.CSSProperties}><P5EstimatorNavigation brandName={brand.name} stepLabel="Loading your project" showBack={false} frameActive={layout==='page'} embedded={layout==='embedded'} onBack={()=>{}} onExit={onExit}/><div className={styles.thread}><div className={styles.threadInner}><div className={styles.stageHeading}><Heading className={styles.title}>{openingHeading}</Heading><p className={styles.loading} role="status">Loading your project...</p></div></div></div></div>;
+  }
   if(transferView){
     const destination=transferView.binding?.destinationSite,target=destination?INTAKE_SITES[destination].name:'the receiving team';
     const sourceCanCancel=transferView.role==='source'&&['recovering','freezing','prepared','cancelled'].includes(transferView.state);
