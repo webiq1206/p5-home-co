@@ -1,4 +1,13 @@
+import { ESTIMATOR_BRAND } from "../lib/p5/brand.ts";
 import { citiesServed, companies, faqs, siteUrl } from "./site.ts";
+
+/** Authorized public contact. The phone, email, and street line match the
+ * brand brief, docs/growth/OPERATIONS.md, and the constants already on the
+ * site. The street does not make this a staffed storefront. */
+const publicRepresentative = "Nick Perkins";
+const authorizedPublicAddress = "4031 W Wapoot St, Meridian, ID 83646";
+const [streetAddress, addressLocality, regionAndPostal] = authorizedPublicAddress.split(", ");
+const [addressRegion, postalCode] = regionAndPostal.split(" ");
 
 export const siteTitle = "P5 Home Co | Five Specialized Home-Service Companies";
 export const siteDescription =
@@ -17,16 +26,26 @@ export const siteSchema = {
       description: siteDescription,
       slogan: "One home. Five specialized teams.",
       foundingDate: "2020",
-      telephone: "+1-208-477-1169",
+      telephone: ESTIMATOR_BRAND.phone,
+      email: ESTIMATOR_BRAND.email,
       image: `${siteUrl}/images/p5-og.jpg`,
       logo: { "@type": "ImageObject", url: `${siteUrl}/android-chrome-512x512.png` },
+      contactPoint: {
+        "@type": "ContactPoint",
+        name: publicRepresentative,
+        contactType: "Public representative",
+        telephone: ESTIMATOR_BRAND.phone,
+        email: ESTIMATOR_BRAND.email,
+      },
       // Service-area business. HomeAndConstructionBusiness is the LocalBusiness
-      // subtype. One locality address, no street and no storefront: the cities
-      // below are areaServed, not additional PostalAddress locations.
+      // subtype. The street is the authorized public address; the cities below
+      // stay areaServed and are not additional locations.
       address: {
         "@type": "PostalAddress",
-        addressLocality: "Meridian",
-        addressRegion: "ID",
+        streetAddress,
+        addressLocality,
+        addressRegion,
+        postalCode,
         addressCountry: "US",
       },
       areaServed: [

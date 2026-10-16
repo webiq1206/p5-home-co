@@ -27,7 +27,7 @@ export default function QuoteLanding({ service, entryLabel, defaultService }: { 
   const heroImage = service ? service.image : "/images/p5-hero.webp";
   const heroAlt = service
     ? service.imageAlt
-    : "Contemporary Treasure Valley home exterior.";
+    : "Modern two-story house with dark vertical siding, a flat roof, and warm window light at dusk.";
   const others = QUOTE_SERVICES.filter((s) => !service || s.slug !== service.slug);
 
   return (
@@ -55,7 +55,7 @@ export default function QuoteLanding({ service, entryLabel, defaultService }: { 
           </TrackedPhoneLink>
         </header>
 
-        <section id="quote-form-heading" style={{padding:"12px 16px 36px",scrollMarginTop:100}}><P5Estimator headingAs="h1" layout="embedded" entryLabel={entryLabel} defaultService={defaultService??(({"kitchen-remodel":"kitchen","bathroom-remodel":"bathroom","home-addition":"addition","adu":"adu","custom-home":"new-construction","new-construction":"new-construction","custom-cabinets":"cabinet-install","handyman":"handyman","re-10":"re10"} as Record<string,string>)[service?.slug||""]||"")} /></section>
+        <section id="quote-form-heading" style={{padding:"12px 16px 36px",scrollMarginTop:100}}><P5Estimator headingAs={service ? "h1" : "h2"} layout="embedded" entryLabel={entryLabel} defaultService={defaultService??(({"kitchen-remodel":"kitchen","bathroom-remodel":"bathroom","home-addition":"addition","adu":"adu","custom-home":"new-construction","new-construction":"new-construction","custom-cabinets":"cabinet-install","handyman":"handyman","re-10":"re10"} as Record<string,string>)[service?.slug||""]||"")} /></section>
 
         <section className="quote-hero">
           <img
@@ -76,7 +76,7 @@ export default function QuoteLanding({ service, entryLabel, defaultService }: { 
                   ? `${service.label} · Treasure Valley`
                   : "Free quote · Treasure Valley, Idaho"}
               </p>
-              <h2>{service ? service.h1 : "A specialist team for your home project"}</h2>
+              {service ? <h2>{service.h1}</h2> : <h1>A specialist team for your home project</h1>}
               <p className="quote-lead">
                 {service
                   ? service.lead

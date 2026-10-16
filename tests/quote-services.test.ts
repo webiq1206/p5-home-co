@@ -77,9 +77,9 @@ test("titles and descriptions are unique and within sensible search limits", () 
     titles.add(service.metaTitle);
     descriptions.add(service.metaDescription);
 
-    assert.ok(service.metaTitle.length <= 65, `${service.slug} title is ${service.metaTitle.length}`);
+    assert.ok(service.metaTitle.length <= 60, `${service.slug} title is ${service.metaTitle.length}`);
     assert.ok(
-      service.metaDescription.length >= 110 && service.metaDescription.length <= 175,
+      service.metaDescription.length >= 110 && service.metaDescription.length <= 155,
       `${service.slug} description is ${service.metaDescription.length}`,
     );
   }
