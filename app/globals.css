@@ -75,11 +75,11 @@ a:hover .arrow-diagonal, a:focus-visible .arrow-diagonal { transform: translate(
 
 .hero { position: relative; min-height: min(820px, 100svh); height: 100svh; max-height: 1020px; overflow: hidden; color: #fff; background: var(--forest); }
 .hero-image, .hero-shade, .hero-grain { position: absolute; inset: 0; height: 100%; }
-.hero-image { object-fit: cover; object-position: center; animation: heroReveal 1300ms ease both; }
+.hero-image { object-fit: cover; object-position: center; }
 .hero-shade { background: linear-gradient(90deg,rgba(16,22,18,.92) 0%,rgba(17,23,19,.72) 38%,rgba(15,21,17,.24) 72%,rgba(15,20,17,.2)),linear-gradient(0deg,rgba(11,16,13,.6),transparent 50%); }
 .hero-grain { opacity: .13; background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.72' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.34'/%3E%3C/svg%3E"); mix-blend-mode: soft-light; pointer-events: none; }
 .hero-content { position: relative; z-index: 2; display: flex; align-items: flex-end; justify-content: space-between; height: 100%; padding-top: 160px; padding-bottom: 108px; }
-.hero-copy { max-width: 880px; animation: contentRise 900ms 180ms ease both; }
+.hero-copy { max-width: 880px; }
 .hero h1 { max-width: 12ch; margin: 0; font-family: "P5 Serif", Georgia, serif; font-size: clamp(54px,7.2vw,108px); font-weight: 400; letter-spacing: -.045em; line-height: .94; text-wrap: balance; }
 .hero-subhead { max-width: 28rem; margin: 18px 0 0; color: rgba(255,255,255,.9); font-size: 16px; font-weight: 550; line-height: 1.45; letter-spacing: 0; text-transform: none; }
 .hero-lede { max-width: 630px; margin: 22px 0 0; color: rgba(255,255,255,.75); font-size: 16px; line-height: 1.85; }
@@ -262,7 +262,6 @@ a:hover .arrow-diagonal, a:focus-visible .arrow-diagonal { transform: translate(
 .sitemap-soon { min-height: 40px; display: flex; align-items: center; color: var(--ink-2); }
 .site-footer .footer-bottom a { color: inherit; }
 
-@keyframes heroReveal { from { opacity:0; transform:scale(1.04); } to { opacity:1; transform:scale(1); } }
 @keyframes contentRise { from { opacity:0; transform:translateY(22px); } to { opacity:1; transform:translateY(0); } }
 @keyframes matcherIn { from { opacity:0; transform:translateY(15px) scale(.99); } to { opacity:1; transform:translateY(0) scale(1); } }
 
