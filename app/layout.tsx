@@ -4,6 +4,7 @@ import Script from "next/script";
 import { googleTagBootstrap } from "@/lib/analyticsBootstrap";
 import HubSpotScript from "./HubSpotScript";
 import MobileActionBar from "@/components/MobileActionBar";
+import StripUtmLinks from "@/components/StripUtmLinks";
 import "./globals.css";
 import { gaMeasurementId, googleAdsDestinationId, siteUrl } from "./site";
 import { serializeJsonLd, siteDescription, siteSchema, siteTitle } from "./structuredData";
@@ -72,6 +73,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html lang="en" suppressHydrationWarning>
       <body>
+        <StripUtmLinks />
         {/* The intentional pre-hydration root class enables progressive reveal effects. */}
         <Script id="p5-js-class" strategy="beforeInteractive">{'document.documentElement.classList.add("js")'}</Script>
         {/* Next preloads the hero and the logo marks on its own, but not the
