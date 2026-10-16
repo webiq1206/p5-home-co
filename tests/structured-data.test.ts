@@ -1,9 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { readFileSync } from "node:fs";
 
 import { schemaFor } from "../app/quote/schema.ts";
 import { QUOTE_SERVICES } from "../app/quote/services.ts";
 import { homePageSchema, serializeJsonLd, siteSchema } from "../app/structuredData.ts";
+import { ESTIMATOR_BRAND } from "../lib/p5/brand.ts";
 
 function types(value: unknown): string[] {
   if (!value || typeof value !== "object") return [];
@@ -29,16 +31,31 @@ test("the root schema contains only site-wide entities", () => {
   assert.ok(!serializeJsonLd(siteSchema).includes("FAQPage"));
 });
 
-test("the only postal address is the Meridian service-area locality", () => {
+test("the business address is the authorized Meridian street, and cities stay service areas", () => {
   const organization = siteSchema["@graph"][0];
   assert.ok(types(organization).includes("HomeAndConstructionBusiness"));
-  assert.deepEqual(organization.address, {
+  const address = organization.address;
+  const published = `${address.streetAddress}, ${address.addressLocality}, ${address.addressRegion} ${address.postalCode}`;
+  const operations = readFileSync("docs/growth/OPERATIONS.md", "utf8");
+  const legal = readFileSync("app/legal/layout.tsx", "utf8");
+  assert.equal(operations.includes(published), true);
+  assert.equal(legal.includes(published), true);
+  assert.equal(ESTIMATOR_BRAND.phone, "(208) 477-1169");
+  assert.equal(operations.includes(ESTIMATOR_BRAND.phone), true);
+  assert.deepEqual(address, {
     "@type": "PostalAddress",
+    streetAddress: "4031 W Wapoot St",
     addressLocality: "Meridian",
     addressRegion: "ID",
+    postalCode: "83646",
     addressCountry: "US",
   });
-  assert.equal("streetAddress" in organization.address, false);
+  assert.equal(organization.telephone, ESTIMATOR_BRAND.phone);
+  assert.equal(organization.contactPoint.name, "Nick Perkins");
+  assert.equal(organization.contactPoint.contactType, "Public representative");
+  assert.equal(organization.contactPoint.telephone, ESTIMATOR_BRAND.phone);
+  assert.equal(organization.contactPoint.email, ESTIMATOR_BRAND.email);
+  assert.equal(JSON.stringify(organization).includes("Jared"), false);
 
   const addresses = records(siteSchema).filter((record) => record["@type"] === "PostalAddress");
   assert.equal(addresses.length, 1);
@@ -50,7 +67,6 @@ test("the only postal address is the Meridian service-area locality", () => {
   }
 
   const serialized = serializeJsonLd(siteSchema) + serializeJsonLd(homePageSchema) + serializeJsonLd(schemaFor(null));
-  assert.equal(serialized.includes("streetAddress"), false);
   assert.equal(serialized.toLowerCase().includes("storefront"), false);
   assert.equal(serialized.includes('"addressLocality":"Boise"'), false);
   assert.equal(serialized.includes('"addressLocality":"Meridian"'), true);
