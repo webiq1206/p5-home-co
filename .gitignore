@@ -108,6 +108,7 @@ tsconfig.tsbuildinfo
 
 # Maintained branded metadata and browser verification.
 !/lib/brand-page-metadata.ts
+!/lib/canonicalUrl.ts
 !/scripts/verify-p5-mobile-seo.mjs
 /p5-mobile-seo-verification/
 

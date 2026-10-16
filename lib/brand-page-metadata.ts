@@ -1,4 +1,5 @@
 import type {Metadata} from 'next';
+import {selfCanonical} from './canonicalUrl.ts';
 import {ESTIMATOR_BRAND as brand} from './p5/brand.ts';
 
 /** Branded sharing previews are the owner's preference. Product/article schema
@@ -44,7 +45,13 @@ function pagePath(meta:Metadata,hint?:string):string{
  if(value){try{return new URL(value,`https://${brand.domain}`).pathname.replace(/\/$/,'')||'/';}catch{}}
  return hint&&!hint.includes('[')&&hint!=='__layout__'?(hint.replace(/\/$/,'')||'/'):'';
 }
-export function withBrandPageMetadata(meta:Metadata,routeHint?:string):Metadata{
+function withoutCampaignCanonical(meta:Metadata):Metadata{
+ const canonical=meta.alternates?.canonical;
+ if(typeof canonical!=='string'||!/[?&]utm_/i.test(canonical))return meta;
+ return {...meta,alternates:{...meta.alternates,canonical:selfCanonical(canonical)}};
+}
+export function withBrandPageMetadata(input:Metadata,routeHint?:string):Metadata{
+ const meta=withoutCampaignCanonical(input);
  const override=routeHint==='__layout__'?undefined:COPY[brand.id]?.[pagePath(meta,routeHint)];
  const original=titleText(meta);
  const title=override?`${override.title} | ${brand.name}`:original.includes(brand.name)?original:`${original} | ${brand.name}`;

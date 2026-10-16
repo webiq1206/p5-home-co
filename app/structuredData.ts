@@ -20,9 +20,12 @@ export const siteSchema = {
       telephone: "+1-208-477-1169",
       image: `${siteUrl}/images/p5-og.jpg`,
       logo: { "@type": "ImageObject", url: `${siteUrl}/android-chrome-512x512.png` },
+      // Service-area business. HomeAndConstructionBusiness is the LocalBusiness
+      // subtype. One locality address, no street and no storefront: the cities
+      // below are areaServed, not additional PostalAddress locations.
       address: {
         "@type": "PostalAddress",
-        addressLocality: "Boise",
+        addressLocality: "Meridian",
         addressRegion: "ID",
         addressCountry: "US",
       },
@@ -32,12 +35,6 @@ export const siteSchema = {
         ...citiesServed.map((name) => ({
           "@type": "City",
           name,
-          address: {
-            "@type": "PostalAddress",
-            addressLocality: name,
-            addressRegion: "ID",
-            addressCountry: "US",
-          },
         })),
       ],
       subOrganization: companies.map((company) => ({
