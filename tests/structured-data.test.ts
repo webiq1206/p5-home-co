@@ -4,7 +4,8 @@ import { readFileSync } from "node:fs";
 
 import { schemaFor } from "../app/quote/schema.ts";
 import { QUOTE_SERVICES } from "../app/quote/services.ts";
-import { homePageSchema, serializeJsonLd, siteSchema } from "../app/structuredData.ts";
+import { NICK_PERKINS_ID, SCHEMA_LEGAL_NAME, SCHEMA_TELEPHONE } from "../app/publicIdentity.ts";
+import { homePageSchema, serializeJsonLd, siteSchema, siteTitle } from "../app/structuredData.ts";
 import { ESTIMATOR_BRAND } from "../lib/p5/brand.ts";
 
 function types(value: unknown): string[] {
@@ -50,12 +51,24 @@ test("the business address is the authorized Meridian street, and cities stay se
     postalCode: "83646",
     addressCountry: "US",
   });
-  assert.equal(organization.telephone, ESTIMATOR_BRAND.phone);
+  assert.equal(organization.legalName, SCHEMA_LEGAL_NAME);
+  assert.equal(organization.telephone, SCHEMA_TELEPHONE);
+  assert.equal(organization.email, ESTIMATOR_BRAND.email);
+  assert.equal(organization.employee["@id"], NICK_PERKINS_ID);
+  assert.equal(organization.employee.name, "Nick Perkins");
+  assert.equal(organization.employee.jobTitle, "Public representative");
+  assert.equal(organization.employee.worksFor["@id"], "https://p5homeco.com/#organization");
   assert.equal(organization.contactPoint.name, "Nick Perkins");
-  assert.equal(organization.contactPoint.contactType, "Public representative");
-  assert.equal(organization.contactPoint.telephone, ESTIMATOR_BRAND.phone);
-  assert.equal(organization.contactPoint.email, ESTIMATOR_BRAND.email);
+  assert.equal(organization.contactPoint.contactType, "customer service");
+  assert.equal(organization.contactPoint.telephone, SCHEMA_TELEPHONE);
+  assert.equal(organization.contactPoint.areaServed, "US-ID");
+  assert.equal(organization.contactPoint.availableLanguage, "English");
+  assert.equal("email" in organization.contactPoint, false);
+  assert.equal(organization.hasCredential.identifier, "8381215");
+  assert.equal(organization.hasCredential.name, "Idaho contractor registration");
   assert.equal(JSON.stringify(organization).includes("Jared"), false);
+  assert.equal(siteTitle, "P5 Home Co | Five Home-Service Companies in Boise, ID");
+  assert.ok(siteTitle.length <= 60);
 
   const addresses = records(siteSchema).filter((record) => record["@type"] === "PostalAddress");
   assert.equal(addresses.length, 1);

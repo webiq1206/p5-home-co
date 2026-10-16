@@ -3,6 +3,7 @@ import test from "node:test";
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 
+import { LLMS_CONTACT } from "../app/publicIdentity.ts";
 import { faqs } from "../app/site.ts";
 import { homePageSchema, siteDescription, siteTitle } from "../app/structuredData.ts";
 import { QUOTE_SERVICES } from "../app/quote/services.ts";
@@ -52,12 +53,16 @@ test("public titles stay at 60 characters or fewer and descriptions at 155 or fe
     const description = descriptionOf(meta);
     assert.ok(title.length > 0 && title.length <= 60, `${name} title is ${title.length}: ${title}`);
     assert.ok(description.length > 0 && description.length <= 155, `${name} description is ${description.length}: ${description}`);
+    assert.match(description, /^[A-Z0-9]/, `${name} description starts lowercase: ${description}`);
   }
 });
 
 test("llms-full.txt is the fact sheet plus the homepage FAQ and nothing invented", () => {
   const llms = readFileSync("public/llms.txt", "utf8");
   const full = readFileSync("public/llms-full.txt", "utf8");
+  const flat = (value: string) => value.replace(/\s+/g, " ");
+  assert.ok(flat(llms).includes(LLMS_CONTACT), "llms.txt contact block");
+  assert.ok(flat(full).includes(LLMS_CONTACT), "llms-full.txt contact block");
   assert.match(llms, /https:\/\/p5homeco\.com\/llms-full\.txt/);
   assert.match(full, /Established 2020\. Bonded and insured\./);
   assert.match(full, /Boise, Meridian, Eagle, Nampa, Kuna, Star, Middleton, Caldwell, and Garden/);
@@ -86,6 +91,7 @@ test("/quote has a server-rendered H1 and /estimate renders one before the draft
 test("/quote/adu stays noindex with the other paid quote variants, and is not in the sitemap", () => {
   const source = readFileSync("app/quote/[service]/page.tsx", "utf8");
   assert.match(source, /robots:\s*\{\s*index:\s*false,\s*follow:\s*true\s*\}/);
+  assert.match(source, /canonical:\s*"\/quote"/);
   const urls = sitemap().map((entry) => entry.url);
   assert.equal(urls.some((url) => url.includes("/quote/adu")), false);
   assert.ok(urls.includes("https://p5homeco.com/quote"));

@@ -583,6 +583,11 @@
   line-height: 1.6;
 }
 
+.quote-footer .public-identity p {
+  max-width: none;
+  color: rgba(255, 255, 255, 0.82);
+}
+
 .quote-footer-brand {
   color: #fff !important;
   font-family: "P5 Serif", Georgia, serif;
