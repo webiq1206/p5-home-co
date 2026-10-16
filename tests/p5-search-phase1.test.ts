@@ -76,8 +76,12 @@ test("/quote has a server-rendered H1 and /estimate renders one before the draft
   const quote = readFileSync("app/quote/QuoteLanding.tsx", "utf8");
   assert.match(quote, /<h1>A specialist team for your home project<\/h1>/);
   assert.match(quote, /headingAs=\{service \? "h1" : "h2"\}/);
-  const estimator = readFileSync("components/P5Estimator.tsx", "utf8");
-  assert.match(estimator, /<Heading className=\{styles\.title\}>\{openingHeading\}<\/Heading>/);
+  const preview = readFileSync("app/estimate/p5-preview/page.tsx", "utf8");
+  assert.match(preview, /<EstimateDocumentTitle \/>/);
+  const title = readFileSync("app/estimate/EstimateDocumentTitle.tsx", "utf8");
+  assert.match(title, /INTAKE_COPY\.heading/);
+  assert.match(title, /<h1>\{heading\}<\/h1>/);
+  assert.match(title, /data-stage-heading/);
 });
 
 test("/quote/adu stays noindex with the other paid quote variants, and is not in the sitemap", () => {
