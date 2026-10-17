@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import {
+  IDAHO_DOPL_LICENSE_SEARCH,
   PUBLIC_EMAIL,
   PUBLIC_NAP,
   PUBLIC_PHONE_DISPLAY,
@@ -42,8 +43,15 @@ function withLinks(text: string, labels: readonly { label: string; href: string 
   return nodes;
 }
 
-/** The approved NAP, registration, and sister-company row. Text content matches the audit strings. */
-export default function PublicIdentity({ tone = "inherit" }: { tone?: "inherit" | "ink" }) {
+/** The approved NAP, registration, and sister-company row. Text content matches the audit strings.
+ * Funnel pages pass linkRegistration={false} so the credential stays plain text. */
+export default function PublicIdentity({
+  tone = "inherit",
+  linkRegistration = true,
+}: {
+  tone?: "inherit" | "ink";
+  linkRegistration?: boolean;
+}) {
   return (
     <div className={`public-identity${tone === "ink" ? " public-identity-ink" : ""}`}>
       <p className="public-nap">
@@ -52,7 +60,15 @@ export default function PublicIdentity({ tone = "inherit" }: { tone?: "inherit" 
           { label: PUBLIC_EMAIL, href: `mailto:${PUBLIC_EMAIL}` },
         ])}
       </p>
-      <p className="public-registration">{PUBLIC_REGISTRATION}</p>
+      <p className="public-registration">
+        {linkRegistration ? (
+          <a href={IDAHO_DOPL_LICENSE_SEARCH} target="_blank" rel="noopener noreferrer">
+            {PUBLIC_REGISTRATION}
+          </a>
+        ) : (
+          PUBLIC_REGISTRATION
+        )}
+      </p>
       <p className="sister-sites">{withLinks(SISTER_LINE, SISTER_LINKS)}</p>
     </div>
   );
