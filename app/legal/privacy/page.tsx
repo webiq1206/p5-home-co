@@ -136,6 +136,19 @@ export default function PrivacyPage() {
         The portals use a strictly necessary cookie to keep you signed in, which
         cannot be turned off without ending your session.
       </p>
+      <p>
+        When you successfully submit a form or finish the estimator with your
+        contact details, our site passes whichever of these you provide (your
+        email address, phone number, first name, last name and ZIP code) to
+        Google&apos;s advertising tag, which converts them into a scrambled code
+        (a SHA-256 hash) before sending them to Google. Google matches that code
+        against its own records to tell us which of our ads lead to inquiries.
+        We do not send your street address or your project description to
+        Google. Google Analytics receives only the type of project you choose
+        (for example, Home addition or ADU) when you use the estimator or send
+        an inquiry. Google Ads receives a random reference number for your
+        inquiry so each lead is counted only once.
+      </p>
 
       <h2>6. How long we keep it</h2>
       <p>
