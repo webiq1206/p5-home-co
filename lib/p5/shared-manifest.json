@@ -26,7 +26,7 @@
     "components/P5AddressInput.tsx": "6cff5902e7c8b3baa05be120cfc7eb3778f4ac3b0654c7b6ee8466a42560b091",
     "components/P5EstimateDetails.tsx": "ad36be0cb27f55e51ee63f222af7c749b3037e1fb12ff7131be62a6db93565d0",
     "components/P5Estimator.module.css": "de718fbbe031ff6497f873cfded0f0fb736af93e681c234ca47751f734b7e0c6",
-    "components/P5Estimator.tsx": "4f2b113f1150d0e41f11b82caf3cb509d4ba256da6022c58fd7f2ef78c3868ea",
+    "components/P5Estimator.tsx": "8bc08f2a0c590794a408f57301b9a00de3a1559bfcfde55731c0e22fb06fddff",
     "components/P5EstimatorNavigation.tsx": "427346f6a31453e01f54900b1350c222c59a74d9c23691a6fc346b5cc26da8f3",
     "components/P5IntakeQueue.tsx": "cb9638fa46c9e88bf6f7609cd08e4cf26c24564c20bba50d124dc1c3bf5c8fab",
     "components/P5IntakeReview.tsx": "1bcb8ea3d6919ea418f8f2ad6f047342d3bbd8a04e440447436e2eeafba03759",
@@ -513,7 +513,9 @@
     "lib/p5/intakeReferenceStore.ts": "2c023fd0c62dd4583021db6f1767df8b8bfe4813cd9d6933d445c4fb31a97216",
     "tests/p5-intake-pdf.test.ts": "cb331ce30787d6df4154885531aaa05c2dec4e29e51cea3315392636bb0d1758",
     "lib/p5/phoneHref.ts": "28ebd210b381550490c42cbfeb0d0aa02059132bb48c34bdfb76ea6204d39e33",
-    "tests/p5-phone-href.test.ts": "5171c5fb4c1457b356df25b40078ad75113bda13b7fd07473378b067f4413bcf"
+    "tests/p5-phone-href.test.ts": "5171c5fb4c1457b356df25b40078ad75113bda13b7fd07473378b067f4413bcf",
+    "lib/p5/finishConversion.ts": "5b73e79531ebbc802455e9bc9d52b0b2f0881b1de7b5fedbde104c58ff814c70",
+    "tests/p5-estimator-conversion-acceptance.test.ts": "ebb62240bad8b27280393d436605e2e7d6feda47e5528bd4bcb2040d10a7f0bb"
   },
   "coordinatedIntakeBatch": {
     "base": "e6e125b83468a402264be2f1e82e5c0466baa178",

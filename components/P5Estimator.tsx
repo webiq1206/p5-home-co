@@ -659,7 +659,7 @@ export function P5Estimator({defaultService='',entryLabel,headingAs='h1',project
       const response=await operationFetch('/api/p5-estimator/intake',{method:'POST',headers:{...draftHeaders(latest),'Content-Type':'application/json'},body:JSON.stringify({revision:latest.revision,confirmed:true})});
       const value=await readJson(response);if(!response.ok)throw new Error(value.error||'Your request was not confirmed. Your work is retained; please retry.');
       const receipt=requireIntakeReceipt(value);if(receipt.revision!==latest.revision)throw new Error('The saved request version could not be confirmed. Retry to check the same request.');
-      setIntakeReceipt(receipt);setStatus('');trackGoogleAdsLeadConversion({service:latest.answers.service},`intake:${receipt.projectId}`);
+      setIntakeReceipt(receipt);setStatus('');trackGoogleAdsLeadConversion({service:latest.answers.service},`intake:${receipt.projectId}`,{accepted:true});
     });
   }
   async function submit(event:React.FormEvent){
@@ -684,7 +684,7 @@ export function P5Estimator({defaultService='',entryLabel,headingAs='h1',project
         // A quantity needed before pricing can start opens its own question straight away.
         if(details?.preflight){const needed=parseMissing(details.missingFields);if(needed.length){preflightField.current=needed[0].field;throw new Error('p5-preflight');}}
         if(details?.pricingReviewRequired){setMissingFields(parseMissing(details.missingFields));setVerificationItems(parseItems(details.verificationItems));throw new Error(details.error||'A few more details are needed before pricing.');}throw failure;}
-      checkSubmission();setResult(data.result);setEstimateDoc(data.document||null);setDelivery(data.delivery||[]);trackGoogleAdsLeadConversion({service:d.answers.service},`estimator:${d.id}`);if(data.result?.range)trackScopeEvent('estimateGenerated',d.answers.service);if(data.delivery?.some((v:any)=>v.channel==='customer'&&v.status==='sent'))trackScopeEvent('estimateEmailed',d.answers.service);setStatus('');
+      checkSubmission();setResult(data.result);setEstimateDoc(data.document||null);setDelivery(data.delivery||[]);trackGoogleAdsLeadConversion({service:d.answers.service},`estimator:${d.id}`,{accepted:data.accepted===true});if(data.result?.range)trackScopeEvent('estimateGenerated',d.answers.service);if(data.delivery?.some((v:any)=>v.channel==='customer'&&v.status==='sent'))trackScopeEvent('estimateEmailed',d.answers.service);setStatus('');
     },'pricing');
   }
   const continuePaused=()=>{const kind=paused?.kind;setPaused(null);resuming.current=true;if(kind==='pricing'){const form=document.getElementById(`${id}-form`) as HTMLFormElement|null;if(form)form.requestSubmit();else void begin();}else void begin();};
