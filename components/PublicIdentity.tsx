@@ -44,7 +44,14 @@ function withLinks(text: string, labels: readonly { label: string; href: string 
 }
 
 /** The approved NAP, registration, and sister-company row. Text content matches the audit strings. */
-export default function PublicIdentity({ tone = "inherit" }: { tone?: "inherit" | "ink" }) {
+export default function PublicIdentity({
+  tone = "inherit",
+  doplLink = true,
+}: {
+  tone?: "inherit" | "ink";
+  /** When false, the registration line is plain text. Footer and legal pages leave this on. */
+  doplLink?: boolean;
+}) {
   return (
     <div className={`public-identity${tone === "ink" ? " public-identity-ink" : ""}`}>
       <p className="public-nap">
@@ -54,9 +61,13 @@ export default function PublicIdentity({ tone = "inherit" }: { tone?: "inherit" 
         ])}
       </p>
       <p className="public-registration">
-        <a href={IDAHO_DOPL_PUBLIC_SEARCH} target="_blank" rel="noopener">
-          {PUBLIC_REGISTRATION}
-        </a>
+        {doplLink ? (
+          <a href={IDAHO_DOPL_PUBLIC_SEARCH} target="_blank" rel="noopener">
+            {PUBLIC_REGISTRATION}
+          </a>
+        ) : (
+          PUBLIC_REGISTRATION
+        )}
       </p>
       <p className="sister-sites">{withLinks(SISTER_LINE, SISTER_LINKS)}</p>
     </div>

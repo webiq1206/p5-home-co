@@ -227,7 +227,7 @@ export default function QuoteLanding({ service, entryLabel, defaultService }: { 
               <Link href="/">P5 Home Co home</Link>
               <Link href="/legal/privacy">Privacy policy</Link>
             </p>
-            <PublicIdentity />
+            <PublicIdentity doplLink={false} />
             <p className="quote-footer-bottom">© 2026 P5 Home Co. All rights reserved.</p>
           </div>
         </footer>

@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
+import { createRequire } from "node:module";
+import React from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import ts from "typescript";
 
 import {
   IDAHO_DOPL_PUBLIC_SEARCH,
@@ -51,6 +55,38 @@ test("the visible registration phrase links to the Idaho DOPL public search", ()
   assert.equal(schema.includes(IDAHO_DOPL_PUBLIC_SEARCH), false);
   assert.equal(schema.includes(PUBLIC_REGISTRATION), false);
   assert.match(schema, /identifier: CONTRACTOR_REGISTRATION/);
+});
+
+test("the registration line links to DOPL unless doplLink is off", () => {
+  const require = createRequire(import.meta.url);
+  const source = readFileSync(new URL("../components/PublicIdentity.tsx", import.meta.url), "utf8");
+  const compiled = ts.transpileModule(source, {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, target: ts.ScriptTarget.ES2022 },
+  }).outputText;
+  const exported: { default?: React.ComponentType<{ tone?: "inherit" | "ink"; doplLink?: boolean }> } = {};
+  new Function("require", "exports", "React", compiled)(
+    (id: string) => id === "@/app/publicIdentity"
+      ? require(new URL("../app/publicIdentity.ts", import.meta.url).pathname)
+      : require(id),
+    exported,
+    React,
+  );
+  const PublicIdentity = exported.default!;
+  const linked = renderToStaticMarkup(React.createElement(PublicIdentity, {}));
+  const plain = renderToStaticMarkup(React.createElement(PublicIdentity, { doplLink: false, tone: "ink" }));
+  const registrationLink = `<a href="${IDAHO_DOPL_PUBLIC_SEARCH}" target="_blank" rel="noopener">${PUBLIC_REGISTRATION}</a>`;
+  assert.equal(linked.includes(registrationLink), true);
+  assert.equal(plain.includes(IDAHO_DOPL_PUBLIC_SEARCH), false);
+  assert.equal(plain.includes(`<p class="public-registration">${PUBLIC_REGISTRATION}</p>`), true);
+  assert.match(plain, /public-identity-ink/);
+
+  const quote = readFileSync("app/quote/QuoteLanding.tsx", "utf8");
+  const thanks = readFileSync("app/quote/thanks/page.tsx", "utf8");
+  assert.match(quote, /<PublicIdentity doplLink=\{false\} \/>/);
+  assert.match(thanks, /<PublicIdentity tone="ink" doplLink=\{false\} \/>/);
+  for (const file of ["app/HomePageClient.tsx", "app/legal/layout.tsx"]) {
+    assert.equal(readFileSync(file, "utf8").includes("doplLink={false}"), false, file);
+  }
 });
 
 test("every public page renders the shared identity block", () => {
