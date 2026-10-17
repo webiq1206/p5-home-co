@@ -37,7 +37,7 @@ export const companies = [
     image: "/images/p5-cabinet.webp",
     url: "https://boisecabinet.co",
     description:
-      "Custom frameless cabinetry, including kitchen cabinets, bathroom vanities, built-ins, and whole-home cabinetry.",
+      "Custom cabinetry, including kitchen cabinets, bathroom vanities, built-ins, and whole-home cabinetry.",
   },
 ] as const;
 
@@ -103,7 +103,7 @@ export const faqs = [
   },
   {
     q: "Who handles cabinetry, vanities, built-ins, and coordinated storage?",
-    a: "Boise Cabinet Co. That work includes premium frameless kitchen cabinetry, bathroom vanities, built-ins and storage, and whole-home cabinetry, designed, sourced, and installed.",
+    a: "Boise Cabinet Co. That work includes premium kitchen cabinetry, bathroom vanities, built-ins and storage, and whole-home cabinetry, designed, sourced, and installed.",
   },
   {
     q: "Can one project involve more than one company?",
