@@ -162,6 +162,33 @@ test('staff phone links do not count as ad clicks', () => {
   assert.equal(conversions(b.window.dataLayer).length, 0);
 });
 
+const TAP_DISCLOSURE = "When you tap Call or Text on our site, Google Ads is told that the tap happened, on which page, and the ad click identifier Google's tag saved if you arrived from one of our ads, so we can count calls and texts that come from our ads. The tap itself doesn't send Google your name, phone number or what you say or write.";
+const CALL_LINK_DISCLOSURE = "On some of our Call links, Google Analytics also records which link you used, such as the one in the header or footer.";
+const FORWARDING_DISCLOSURE = "If your call goes through a Google forwarding number, Google connects the call and can see the calling number and call length, but not what's said.";
+
+function privacyText(): string {
+  return readFileSync(new URL('../app/legal/privacy/page.tsx', import.meta.url), 'utf8').replace(/&apos;/g, "'").replace(/\s+/g, ' ');
+}
+
+/** The value passed to googleTagBootstrap in the production layout, if any. */
+function layoutPhoneConversionLabel(): string | undefined {
+  const layout = readFileSync(new URL('../app/layout.tsx', import.meta.url), 'utf8');
+  const call = layout.match(/googleTagBootstrap\(\{([\s\S]*?)\}\)/);
+  const value = call?.[1].match(/phoneConversionLabel\s*:\s*([^,\n}]+)/)?.[1].trim();
+  if (!value || value === 'false' || value === 'null' || value === 'undefined' || value === '""' || value === "''") return undefined;
+  return value;
+}
+
+test('call and text privacy disclosure states what the tap sends', () => {
+  const privacy = privacyText();
+  assert.ok(privacy.includes(`${TAP_DISCLOSURE} ${CALL_LINK_DISCLOSURE}`));
+});
+
+test('forwarding disclosure is required when phoneConversionLabel is set', () => {
+  const label = layoutPhoneConversionLabel();
+  if (label) assert.ok(privacyText().includes(FORWARDING_DISCLOSURE), `phoneConversionLabel is ${label}, so the privacy page must include the forwarding sentence`);
+});
+
 test('the forwarding-number snippet is not installed on the page', () => {
   const layout = readFileSync(new URL('../app/layout.tsx', import.meta.url), 'utf8');
   const bootstrap = readFileSync(new URL('../lib/analyticsBootstrap.ts', import.meta.url), 'utf8');

@@ -136,6 +136,15 @@ export default function PrivacyPage() {
         The portals use a strictly necessary cookie to keep you signed in, which
         cannot be turned off without ending your session.
       </p>
+      <p>
+        When you tap Call or Text on our site, Google Ads is told that the tap
+        happened, on which page, and the ad click identifier Google&apos;s tag
+        saved if you arrived from one of our ads, so we can count calls and
+        texts that come from our ads. The tap itself doesn&apos;t send Google
+        your name, phone number or what you say or write. On some of our Call
+        links, Google Analytics also records which link you used, such as the
+        one in the header or footer.
+      </p>
 
       <h2>6. How long we keep it</h2>
       <p>
