@@ -28,7 +28,7 @@ test("the approved NAP and sister row are the audit strings", () => {
     SISTER_LINE,
     "Part of P5 Home Co: Boise Construction Co · Boise Remodeling Co · Boise Handyman Co · Boise Cabinet Co · Boise ADU Co (launching soon)",
   );
-  assert.equal(PUBLIC_REGISTRATION, "Idaho contractor registration 8381215.");
+  assert.equal(PUBLIC_REGISTRATION, "Idaho Registered Contractor #8381215");
   assert.match(LLMS_CONTACT, /Nick Perkins/);
   assert.match(LLMS_CONTACT, /4031 W Wapoot St, Meridian, ID 83646/);
   assert.match(LLMS_CONTACT, /hello@p5homeco\.com/);
