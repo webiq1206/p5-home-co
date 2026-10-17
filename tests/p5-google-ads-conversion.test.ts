@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { googleAdsDestinationId, googleAdsLeadLabel } from "../app/site.ts";
-import { trackGoogleAdsLeadConversion } from "../lib/googleAdsConversion.ts";
+import { adsConversionsToSend, projectIdentity, trackGoogleAdsLeadConversion } from "../lib/googleAdsConversion.ts";
 
 const ESTIMATOR = "AW-18354188204/cEzmCPOagKAdEKzf-q9E";
 const FORM = `${googleAdsDestinationId}/${googleAdsLeadLabel}`;
@@ -127,6 +127,45 @@ test("the tag is polled for about five seconds and a late tag is not used", asyn
     view.gtag = (...args: unknown[]) => { calls.push(args as Calls[number]); };
     await new Promise((resolve) => setTimeout(resolve, 80));
     assert.equal(calls.length, 0);
+  } finally { cleanup(); }
+});
+
+test("one accepted lead gets one form label across both finishes, and each finish keeps its own estimator label", () => {
+  const project = "11111111-1111-4111-8111-111111111111";
+  const intakeKey = `intake:p5:${project}`;
+  const estimatorKey = `estimator:${project}`;
+  assert.equal(projectIdentity(intakeKey), project);
+  assert.equal(projectIdentity(estimatorKey), project);
+  const { calls } = install();
+  try {
+    const intake = adsConversionsToSend(intakeKey, true);
+    const estimator = adsConversionsToSend(estimatorKey, true);
+    const repeated = adsConversionsToSend(intakeKey, true);
+    assert.deepEqual(intake, [
+      { sendTo: ESTIMATOR, transactionId: intakeKey },
+      { sendTo: FORM, transactionId: project },
+    ]);
+    assert.deepEqual(estimator, [
+      { sendTo: ESTIMATOR, transactionId: estimatorKey },
+    ]);
+    assert.deepEqual(repeated, []);
+    assert.equal(intake.filter((event) => event.sendTo === FORM).length, 1);
+    assert.equal(estimator.some((event) => event.sendTo === FORM), false);
+    assert.equal(calls.length, 0);
+  } finally { cleanup(); }
+});
+
+test("a finish that did not create an accepted lead fires only the estimator label", () => {
+  const project = "22222222-2222-4222-8222-222222222222";
+  const { calls } = install();
+  try {
+    assert.deepEqual(adsConversionsToSend(`intake:p5:${project}`, false), [
+      { sendTo: ESTIMATOR, transactionId: `intake:p5:${project}` },
+    ]);
+    assert.deepEqual(adsConversionsToSend(`estimator:${project}`, false), [
+      { sendTo: ESTIMATOR, transactionId: `estimator:${project}` },
+    ]);
+    assert.equal(calls.some((call) => call[2].send_to === FORM), false);
   } finally { cleanup(); }
 });
 

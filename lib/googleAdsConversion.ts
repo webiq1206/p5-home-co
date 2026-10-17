@@ -1,13 +1,19 @@
 /** Google Ads conversions for the shared estimator.
  *
- * Finishing /estimate on p5homeco.com does not submit a lead. Public mode is
- * review, so the finish POSTs /api/p5-estimator/intake and stores a project
- * review. It does not call ingestLead or POST /api/leads/intake. The priced
- * `estimator:` path can queue CRM only when P5_CRM_DELIVERY=on, and that flag
- * is off. Keys that start with `intake:` or `estimator:` therefore fire the
- * estimator label only. Any other key is a lead conversion and fires the form
- * label only.
+ * Finishing /estimate on p5homeco.com does not create an accepted lead. Public
+ * mode is review, so the finish POSTs /api/p5-estimator/intake and stores a
+ * project review. It does not call ingestLead or POST /api/leads/intake. The
+ * priced path can queue CRM only when P5_CRM_DELIVERY=on, and that flag is off.
+ * An intake: or estimator: finish therefore fires only the estimator label.
+ *
+ * If a finish does create an accepted lead, the form label fires once for that
+ * project across both finish paths. The estimator label still fires once per
+ * distinct completion key. Any other key is a lead conversion and fires the
+ * form label only.
  */
+
+/** False on p5homeco.com: neither finish path creates an accepted lead. */
+export const ESTIMATOR_FINISH_CREATES_ACCEPTED_LEAD = false;
 
 const ESTIMATOR_SEND_TO = "AW-18354188204/cEzmCPOagKAdEKzf-q9E";
 const FORM_SEND_TO = "AW-18354188204/LE2vCPXstO8cEKzf-q9E";
@@ -40,9 +46,19 @@ function analyticsAllowed(): boolean {
   return true;
 }
 
-function labelsFor(key: string): string[] {
-  if (key.startsWith("intake:") || key.startsWith("estimator:")) return [ESTIMATOR_SEND_TO];
-  return [FORM_SEND_TO];
+/** Draft id shared by `intake:p5:<id>` and `estimator:<id>`, or the suffix of a shorter key. */
+export function projectIdentity(completionKey: string): string {
+  const match = /^(?:intake:|estimator:)(?:(?:p5|construction|remodeling|handyman|cabinet):)?(.+)$/i.exec(completionKey);
+  return (match?.[1] || completionKey).toLowerCase();
+}
+
+export function plannedAdsConversions(completionKey: string, createsAcceptedLead: boolean): Array<{ sendTo: string; transactionId: string }> {
+  if (completionKey.startsWith("intake:") || completionKey.startsWith("estimator:")) {
+    const events = [{ sendTo: ESTIMATOR_SEND_TO, transactionId: completionKey }];
+    if (createsAcceptedLead) events.push({ sendTo: FORM_SEND_TO, transactionId: projectIdentity(completionKey) });
+    return events;
+  }
+  return [{ sendTo: FORM_SEND_TO, transactionId: completionKey }];
 }
 
 function claim(sendTo: string, transactionId: string): boolean {
@@ -79,13 +95,21 @@ async function fireWhenReady(sendTo: string, transactionId: string) {
   }
 }
 
+/** Events still owed for this completion. Records the claim, so a later call does not repeat one. */
+export function adsConversionsToSend(completionKey: string, createsAcceptedLead: boolean): Array<{ sendTo: string; transactionId: string }> {
+  return plannedAdsConversions(completionKey, createsAcceptedLead).filter((event) => claim(event.sendTo, event.transactionId));
+}
+
 export function trackGoogleAdsLeadConversion(context: { service?: string } = {}, dedupeKey?: string): boolean {
   void context;
   try {
     if (!dedupeKey || !analyticsAllowed()) return false;
-    const pending = labelsFor(dedupeKey).filter((sendTo) => claim(sendTo, dedupeKey));
+    const createsLead = dedupeKey.startsWith("intake:") || dedupeKey.startsWith("estimator:")
+      ? ESTIMATOR_FINISH_CREATES_ACCEPTED_LEAD
+      : true;
+    const pending = adsConversionsToSend(dedupeKey, createsLead);
     if (!pending.length) return false;
-    for (const sendTo of pending) void fireWhenReady(sendTo, dedupeKey);
+    for (const event of pending) void fireWhenReady(event.sendTo, event.transactionId);
     return true;
   } catch {
     return false;
