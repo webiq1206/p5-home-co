@@ -77,6 +77,7 @@ build/contracts/
 # P5 estimator source and verification scripts are application code.
 !/lib/
 /lib/*
+!/lib/businessHours.ts
 !/lib/p5/
 !/lib/googleAdsConversion.ts
 !/scripts/
