@@ -22,15 +22,6 @@ export type SuppressionContact = {
   phone?: string | null;
 };
 
-const TABLE_SQL = `CREATE TABLE IF NOT EXISTS enhanced_conversion_suppression (
-  kind TEXT NOT NULL,
-  value_hash TEXT NOT NULL,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  PRIMARY KEY (kind, value_hash)
-)`;
-
-let tableReady: Promise<void> | null = null;
-
 function sha256(value: string): string {
   return createHash("sha256").update(value).digest("hex");
 }
@@ -56,14 +47,8 @@ export function suppressionRecords(contact: SuppressionContact | null | undefine
   return records;
 }
 
-async function ensureTable(): Promise<void> {
-  tableReady ??= query(TABLE_SQL).then(() => undefined);
-  return tableReady;
-}
-
 async function findSuppressionMatch(records: SuppressionRecord[]): Promise<boolean> {
   if (!records.length) return false;
-  await ensureTable();
   const values: string[] = [];
   const clauses = records.map((record, index) => {
     values.push(record.kind, record.valueHash);
@@ -106,7 +91,6 @@ export async function insertSuppression(
 }
 
 async function writeSuppression(records: SuppressionRecord[]): Promise<void> {
-  await ensureTable();
   for (const record of records) {
     await query(
       `INSERT INTO enhanced_conversion_suppression (kind, value_hash) VALUES ($1, $2) ON CONFLICT (kind, value_hash) DO NOTHING`,
