@@ -155,6 +155,12 @@ export default function PrivacyPage() {
         On some of our Call and Text links, Google Analytics also records which
         link you used, such as the one in the header or footer.
       </p>
+      <p>
+        When you tap Call or Text on our site, Google Ads is told that the tap
+        happened and on which page, so we can count calls and texts that come
+        from our ads. We don&apos;t send Google your name, phone number or the
+        content of your call or message.
+      </p>
 
       <h2>6. How long we keep it</h2>
       <p>

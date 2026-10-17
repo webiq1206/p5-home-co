@@ -193,6 +193,8 @@ const SHARE_SENTENCE = "We do not sell personal information. We share limited in
 const GOOGLE_TOOLS_SENTENCE = "We use Google Analytics to understand how visitors use this site and Google Ads to measure which of our ads lead to quote requests, calls and texts. These tools set cookies and receive information about your visit, including your IP address, which Google processes under its own privacy policy (https://policies.google.com/privacy).";
 const TAP_DISCLOSURE = "When you tap Call or Text on our site, Google Ads is told that the tap happened, on which page, and the ad click identifier Google's tag saved if you arrived from one of our ads, so we can count calls and texts that come from our ads. The tap itself doesn't send Google your name, your own phone number or what you say or write.";
 const CALL_AND_TEXT_DISCLOSURE = "On some of our Call and Text links, Google Analytics also records which link you used, such as the one in the header or footer.";
+const QA_TAP_SENTENCE = "When you tap Call or Text on our site, Google Ads is told that the tap happened and on which page, so we can count calls and texts that come from our ads. We don't send Google your name, phone number or the content of your call or message.";
+const K1_REFERENCE_SENTENCE = "Google Ads receives a random reference number for your inquiry so each lead is counted only once.";
 const FORWARDING_DISCLOSURE = "If your call goes through a Google forwarding number, Google connects the call and can see the calling number and call length, but not what's said.";
 
 function privacySource(): string {
@@ -238,6 +240,19 @@ test('approved privacy sentences name the Google share, the tools, and the tap',
   assert.ok(links > tap, 'call and text link sentence comes after the tap sentence');
   assert.match(privacySource(), /href="https:\/\/policies\.google\.com\/privacy"/);
   assert.equal(privacy.includes('we do not share it for advertising'), false);
+});
+
+test('qa tap sentence follows the K1 reference sentence when that sentence is on the page', () => {
+  const privacy = privacyText();
+  const qa = privacy.indexOf(QA_TAP_SENTENCE);
+  assert.ok(qa >= 0, 'QA tap sentence');
+  const k1 = privacy.indexOf(K1_REFERENCE_SENTENCE);
+  if (k1 >= 0) {
+    assert.ok(qa > k1, 'QA tap sentence must follow the K1 reference sentence');
+  } else {
+    const links = privacy.indexOf(CALL_AND_TEXT_DISCLOSURE);
+    assert.ok(links >= 0 && qa > links, 'until the K1 sentence is present, the QA tap sentence stays at the end of the Google section');
+  }
 });
 
 test('forwarding disclosure is required when phoneConversionLabel is set', () => {
