@@ -12,7 +12,7 @@ export default function PrivacyPage() {
   return (
     <>
       <h1>Privacy Policy</h1>
-      <p className="legal-updated">Last updated 23 August 2026</p>
+      <p className="legal-updated">Last updated 17 October 2026</p>
 
       <p className="legal-lead">
         P5 Home Co. LLC operates p5homeco.com and the private finance platform
@@ -135,6 +135,14 @@ export default function PrivacyPage() {
         or delete cookies in your browser settings; the site will still work.
         The portals use a strictly necessary cookie to keep you signed in, which
         cannot be turned off without ending your session.
+      </p>
+      <p>
+        The public website uses Google Analytics 4 and Google Ads conversion
+        tracking. Google Analytics records pages and how the site is used.
+        Google Ads receives a conversion event when a quote inquiry is accepted,
+        and a separate conversion event when a project estimate is finished.
+        Those events do not include your name, email, phone number, or project
+        details.
       </p>
 
       <h2>6. How long we keep it</h2>
