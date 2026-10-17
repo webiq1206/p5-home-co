@@ -63,7 +63,7 @@ export const citiesServed = [
 export const faqs = [
   {
     q: "Is P5 Home Co a contractor or a referral service?",
-    a: "P5 Home Co is an operating family of companies, not a directory or a referral network. Each of the five companies has its own craft and team, and does the work itself, under one shared standard for scopes, communication, and accountability.",
+    a: "P5 Home Co is an operating family of companies, not a directory or a referral network. Each of the five companies has its own specialty and team, and does the work itself, under one shared standard for scopes, communication, and accountability.",
   },
   {
     q: "Which P5 company should I start with?",
@@ -103,11 +103,11 @@ export const faqs = [
   },
   {
     q: "Who handles cabinetry, vanities, built-ins, and coordinated storage?",
-    a: "Boise Cabinet Co. That work includes premium frameless kitchen cabinetry, bathroom vanities, built-ins and storage, and whole-home cabinetry, designed, built, and installed.",
+    a: "Boise Cabinet Co. That work includes premium frameless kitchen cabinetry, bathroom vanities, built-ins and storage, and whole-home cabinetry, designed, sourced, and installed.",
   },
   {
     q: "Can one project involve more than one company?",
-    a: "Yes. A complete kitchen transformation, for example, runs through Boise Remodeling Co for layout, permits, demolition, and construction; Boise Cabinet Co for cabinet design, fabrication, and installation; and Boise Handyman Co for final mounting, finish work, and punch-list items.",
+    a: "Yes. A complete kitchen transformation, for example, runs through Boise Remodeling Co for layout, permits, demolition, and construction; Boise Cabinet Co for cabinet design, sourcing, and installation; and Boise Handyman Co for final mounting, finish work, and punch-list items.",
   },
 ] as const;
 
