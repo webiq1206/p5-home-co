@@ -67,8 +67,10 @@ test("unproven claims stay in source and are hidden by default", () => {
   assert.equal(schema.includes("p5-construction-branded"), false);
   assert.equal(schema.includes("p5-handyman-branded"), false);
   assert.match(readFileSync("app/structuredData.ts", "utf8"), /foundingDate: "2020"/);
-  assert.match(readFileSync("app/HomePageClient.tsx", "utf8"), /100\+ projects/);
-  assert.match(readFileSync("app/HomePageClient.tsx", "utf8"), /Est\. 2020/);
+  const home = readFileSync("app/HomePageClient.tsx", "utf8");
+  assert.match(home, /import \{[\s\S]*SHOW_UNPROVEN_SELF_PERFORM[\s\S]*\} from "\.\/publicClaims"/);
+  assert.match(home, /100\+ projects/);
+  assert.match(home, /Est\. 2020/);
 
   const claimsSource = readFileSync("app/publicClaims.ts", "utf8");
   assert.match(claimsSource, /TOP_RATED_PHRASE = "top-rated"/);
