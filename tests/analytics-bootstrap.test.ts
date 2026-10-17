@@ -193,8 +193,7 @@ const SHARE_SENTENCE = "We do not sell personal information. We share limited in
 const GOOGLE_TOOLS_SENTENCE = "We use Google Analytics to understand how visitors use this site and Google Ads to measure which of our ads lead to quote requests, calls and texts. These tools set cookies and receive information about your visit, including your IP address, which Google processes under its own privacy policy (https://policies.google.com/privacy).";
 const TAP_DISCLOSURE = "When you tap Call or Text on our site, Google Ads is told that the tap happened, on which page, and the ad click identifier Google's tag saved if you arrived from one of our ads, so we can count calls and texts that come from our ads. The tap itself doesn't send Google your name, your own phone number or what you say or write.";
 const CALL_AND_TEXT_DISCLOSURE = "On some of our Call and Text links, Google Analytics also records which link you used, such as the one in the header or footer.";
-const QA_TAP_SENTENCE = "When you tap Call or Text on our site, Google Ads is told that the tap happened and on which page, so we can count calls and texts that come from our ads. We don't send Google your name, phone number or the content of your call or message.";
-const K1_REFERENCE_SENTENCE = "Google Ads receives a random reference number for your inquiry so each lead is counted only once.";
+const STALE_TAP_SENTENCE = "When you tap Call or Text on our site, Google Ads is told that the tap happened and on which page, so we can count calls and texts that come from our ads. We don't send Google your name, phone number or the content of your call or message.";
 const FORWARDING_DISCLOSURE = "If your call goes through a Google forwarding number, Google connects the call and can see the calling number and call length, but not what's said.";
 
 function privacySource(): string {
@@ -238,44 +237,31 @@ test('approved privacy sentences name the Google share, the tools, and the tap',
   assert.ok(tools > share, 'Google tools paragraph comes after the share sentence');
   assert.ok(tap > tools, 'tap sentence comes after the Google tools paragraph');
   assert.ok(links > tap, 'call and text link sentence comes after the tap sentence');
+  const forwarding = privacy.indexOf(FORWARDING_DISCLOSURE);
+  assert.ok(forwarding > links, 'forwarding sentence comes right after the call and text link sentence');
+  assert.equal(privacy.slice(links + CALL_AND_TEXT_DISCLOSURE.length, forwarding).trim(), '');
+  assert.equal(privacy.includes(STALE_TAP_SENTENCE), false);
   assert.match(privacySource(), /href="https:\/\/policies\.google\.com\/privacy"/);
   assert.equal(privacy.includes('we do not share it for advertising'), false);
 });
 
-test('qa tap sentence follows the K1 reference sentence when that sentence is on the page', () => {
-  const privacy = privacyText();
-  const qa = privacy.indexOf(QA_TAP_SENTENCE);
-  assert.ok(qa >= 0, 'QA tap sentence');
-  const k1 = privacy.indexOf(K1_REFERENCE_SENTENCE);
-  if (k1 >= 0) {
-    assert.ok(qa > k1, 'QA tap sentence must follow the K1 reference sentence');
-  } else {
-    const links = privacy.indexOf(CALL_AND_TEXT_DISCLOSURE);
-    assert.ok(links >= 0 && qa > links, 'until the K1 sentence is present, the QA tap sentence stays at the end of the Google section');
-  }
+test('the call-forwarding label and the forwarding disclosure stay paired', () => {
+  assert.equal(tagSetupEnablesCallForwarding(), true);
+  assert.equal(privacyText().includes(FORWARDING_DISCLOSURE), true);
 });
 
-test('forwarding disclosure is required when phoneConversionLabel is set', () => {
-  const enabled = tagSetupEnablesCallForwarding();
-  const present = privacyText().includes(FORWARDING_DISCLOSURE);
-  assert.equal(
-    present,
-    enabled,
-    enabled
-      ? 'call forwarding is in the tag setup, so the privacy page must include the forwarding sentence'
-      : 'call forwarding is not in the tag setup, so the privacy page must not include the forwarding sentence',
-  );
-});
-
-test('the forwarding-number snippet is not installed on the page', () => {
+test('the forwarding-number snippet is installed behind the analytics gates', () => {
   const layout = readFileSync(new URL('../app/layout.tsx', import.meta.url), 'utf8');
   const bootstrap = readFileSync(new URL('../lib/analyticsBootstrap.ts', import.meta.url), 'utf8');
-  assert.equal(layout.includes('phoneConversionLabel'), false);
-  assert.equal(layout.includes('phone_conversion_number'), false);
+  assert.match(layout, /phoneConversionLabel:\s*googleAdsPhoneConversionLabel/);
+  assert.match(layout, /phoneNumber:\s*"\(208\) 477-1169"/);
   assert.match(layout, /callClickLabel: googleAdsCallClickLabel/);
   assert.match(layout, /textClickLabel: googleAdsTextClickLabel/);
-  assert.match(bootstrap, /phone_conversion_number/);
+  const gate = bootstrap.indexOf("p5_analytics_disabled");
+  const snippet = bootstrap.indexOf("phone_conversion_number");
+  assert.ok(gate >= 0 && snippet > gate, 'phone_conversion_number stays after the analytics gates');
   const site = readFileSync(new URL('../app/site.ts', import.meta.url), 'utf8');
+  assert.match(site, /YHR0CIaPz_ccEKzf-q9E/);
   assert.match(site, new RegExp(googleAdsCallClickLabel));
   assert.match(site, new RegExp(googleAdsTextClickLabel));
 });

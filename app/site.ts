@@ -119,6 +119,7 @@ export const googleAdsDestinationId = "AW-18354188204";
 export const googleAdsLeadLabel = "LE2vCPXstO8cEKzf-q9E";
 export const googleAdsCallClickLabel = "ng9fCPiOhaAdEKzf-q9E";
 export const googleAdsTextClickLabel = "lTxsCOqahaAdEKzf-q9E";
+export const googleAdsPhoneConversionLabel = "YHR0CIaPz_ccEKzf-q9E";
 
 // HubSpot portal ID for the "P5 Home Co" account (NA2 region). Portal IDs are
 // public by design, so this is not a secret and does not belong in an env var.
