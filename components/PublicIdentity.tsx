@@ -44,7 +44,7 @@ function withLinks(text: string, labels: readonly { label: string; href: string 
 }
 
 /** The approved NAP, registration, and sister-company row. Text content matches the audit strings.
- * Funnel pages pass linkRegistration={false} so the credential stays plain text. */
+ * Estimator pages pass linkRegistration={false} so the credential stays plain text. */
 export default function PublicIdentity({
   tone = "inherit",
   linkRegistration = true,

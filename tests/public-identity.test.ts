@@ -55,8 +55,6 @@ test("the registration line is linked in the footer and plain text on funnel pag
   assert.match(identity, /\{PUBLIC_REGISTRATION\}/);
   assert.equal(identity.includes("Idaho contractor registration"), false);
   const plain = [
-    "app/quote/QuoteLanding.tsx",
-    "app/quote/thanks/page.tsx",
     "app/estimate/p5-preview/page.tsx",
     "app/estimate/scope/page.tsx",
   ];
@@ -64,7 +62,7 @@ test("the registration line is linked in the footer and plain text on funnel pag
     assert.match(readFileSync(file, "utf8"), /linkRegistration=\{false\}/, file);
   }
   assert.match(readFileSync("app/estimate/page.tsx", "utf8"), /from "\.\/p5-preview\/page"/);
-  for (const file of ["app/HomePageClient.tsx", "app/sitemap/page.tsx", "app/legal/layout.tsx"]) {
+  for (const file of ["app/HomePageClient.tsx", "app/sitemap/page.tsx", "app/legal/layout.tsx", "app/quote/QuoteLanding.tsx", "app/quote/thanks/page.tsx"]) {
     const source = readFileSync(file, "utf8");
     assert.match(source, /<PublicIdentity\b/, file);
     assert.equal(source.includes("linkRegistration={false}"), false, file);
