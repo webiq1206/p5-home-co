@@ -1,7 +1,11 @@
-/** US dial links. Callers keep their own display text; the href is always E.164. */
+/** Dial links. Callers keep their own display text.
+ * 10 digits are a US number (`+1`). 11 digits starting with 1 keep that country code.
+ * A leading `+` with 8–15 digits is kept. Anything else is no link. */
 export function phoneHref(value: string, scheme: 'tel' | 'sms' = 'tel'): string {
-  const digits = value.replace(/\D/g, '');
-  const national = digits.length === 11 && digits.startsWith('1') ? digits.slice(1) : digits;
-  if (!/^[2-9]\d{2}[2-9]\d{6}$/.test(national)) throw new Error('Phone links use a 10-digit US number.');
-  return `${scheme}:+1${national}`;
+  const raw = String(value ?? '').trim();
+  const digits = raw.replace(/\D/g, '');
+  if (raw.startsWith('+') && digits.length >= 8 && digits.length <= 15) return `${scheme}:+${digits}`;
+  if (digits.length === 10) return `${scheme}:+1${digits}`;
+  if (digits.length === 11 && digits.startsWith('1')) return `${scheme}:+${digits}`;
+  return '';
 }

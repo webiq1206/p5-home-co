@@ -11,7 +11,7 @@ import {buildEstimateDocument,issueRecord,type EstimateBrand,type EstimateDocume
  * margins appear only in the internal email.
  */
 const escape=(value:unknown)=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]!));
-const customerPhoneLink=(phone:string)=>{const visible=escape(phone);try{return `<a href="${escape(phoneHref(phone))}" style="color:${C.ink}">${visible}</a>`;}catch{return visible;}};
+const customerPhoneLink=(phone:string)=>{const visible=escape(phone);const href=phoneHref(phone);return href?`<a href="${escape(href)}" style="color:${C.ink}">${visible}</a>`:visible;};
 const FONT="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
 /**
  * The customer email is the approved preliminary online estimate in email form. It is built from the

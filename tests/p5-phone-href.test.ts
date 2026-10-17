@@ -14,12 +14,17 @@ function assertDialLinks(label: string, rendered: string) {
   for (const href of links) assert.match(href, DIAL, `${label} rendered ${href}`);
 }
 
-test('phone links are always tel:+1XXXXXXXXXX and sms:+1XXXXXXXXXX', () => {
-  for (const value of ['(208) 477-1169', '208-477-1169', '2084771169', '1 (208) 477-1169', '+1 208-477-1169']) {
+test('phone links use +1 for 10 digits, + for 11 digits starting with 1, and + for a plus with 8 to 15 digits', () => {
+  for (const value of ['(208) 477-1169', '208-477-1169', '2084771169']) {
     assert.equal(phoneHref(value), 'tel:+12084771169');
     assert.equal(phoneHref(value, 'sms'), 'sms:+12084771169');
   }
-  assert.throws(() => phoneHref('555'), /10-digit/);
+  assert.equal(phoneHref('1 (208) 477-1169'), 'tel:+12084771169');
+  assert.equal(phoneHref('+442079460958'), 'tel:+442079460958');
+  for (const value of ['x12', '555-0100', '5550100', 'call me', '011', '0112084771169', '2084771169 2085550100', '']) {
+    assert.equal(phoneHref(value), '', value);
+    assert.equal(phoneHref(value, 'sms'), '', value);
+  }
 });
 
 test('rendered estimator phone links include + and keep the visible number', () => {

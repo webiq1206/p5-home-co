@@ -659,7 +659,7 @@ export function P5Estimator({defaultService='',entryLabel,headingAs='h1',project
       const response=await operationFetch('/api/p5-estimator/intake',{method:'POST',headers:{...draftHeaders(latest),'Content-Type':'application/json'},body:JSON.stringify({revision:latest.revision,confirmed:true})});
       const value=await readJson(response);if(!response.ok)throw new Error(value.error||'Your request was not confirmed. Your work is retained; please retry.');
       const receipt=requireIntakeReceipt(value);if(receipt.revision!==latest.revision)throw new Error('The saved request version could not be confirmed. Retry to check the same request.');
-      setIntakeReceipt(receipt);setStatus('');trackGoogleAdsLeadConversion({service:latest.answers.service},`intake:${receipt.projectId}`,{accepted:true});
+      setIntakeReceipt(receipt);setStatus('');trackGoogleAdsLeadConversion({service:latest.answers.service},`intake:${receipt.projectId}`,{accepted:receipt.accepted===true});
     });
   }
   async function submit(event:React.FormEvent){

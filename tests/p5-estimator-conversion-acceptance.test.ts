@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {completeSubmission} from '../lib/p5/submitProgress.ts';
-import {finishConversionLabels} from '../lib/p5/finishConversion.ts';
+import {ESTIMATOR_CONVERSION_SEND_TO, finishConversionLabels, finishConversionSendTargets} from '../lib/p5/finishConversion.ts';
 import {trackGoogleAdsLeadConversion} from '../lib/googleAdsConversion.ts';
 
 const source = readFileSync(new URL('../components/P5Estimator.tsx', import.meta.url), 'utf8');
@@ -15,6 +15,7 @@ test('an accepted submit passes accepted true and selects the estimator and form
   assert.deepEqual(acceptance, {accepted: true});
   assert.deepEqual(finishConversionLabels(acceptance.accepted), ['estimator', 'form']);
   assert.match(submit, /trackGoogleAdsLeadConversion\(\{service:d\.answers\.service\},`estimator:\$\{d\.id\}`,\{accepted:data\.accepted===true\}\)/);
+  assert.deepEqual(finishConversionSendTargets('estimator:draft-1', true, 'AW-18354188204/LE2vCPXstO8cEKzf-q9E'), [ESTIMATOR_CONVERSION_SEND_TO, 'AW-18354188204/LE2vCPXstO8cEKzf-q9E']);
   assert.equal(trackGoogleAdsLeadConversion({service: 'kitchen'}, 'estimator:draft-1', acceptance), false);
 });
 
@@ -23,6 +24,7 @@ test('a replay with accepted false selects only the estimator label', async () =
   const acceptance = {accepted: data.accepted === true};
   assert.deepEqual(acceptance, {accepted: false});
   assert.deepEqual(finishConversionLabels(acceptance.accepted), ['estimator']);
+  assert.deepEqual(finishConversionSendTargets('estimator:draft-1', false, 'AW-18354188204/LE2vCPXstO8cEKzf-q9E'), [ESTIMATOR_CONVERSION_SEND_TO]);
   assert.match(submit, /\{accepted:data\.accepted===true\}/);
   assert.equal(trackGoogleAdsLeadConversion({service: 'kitchen'}, 'estimator:draft-1', acceptance), false);
 });
@@ -42,6 +44,6 @@ test('a 409 does not reach the conversion call', async () => {
   }, /not confirmed/);
   assert.deepEqual(calls, []);
   const throwAt = intake.indexOf('if(!response.ok)throw');
-  const intakeTrackAt = intake.indexOf('trackGoogleAdsLeadConversion({service:latest.answers.service},`intake:${receipt.projectId}`,{accepted:true})');
+  const intakeTrackAt = intake.indexOf('trackGoogleAdsLeadConversion({service:latest.answers.service},`intake:${receipt.projectId}`,{accepted:receipt.accepted===true})');
   assert.ok(throwAt > 0 && intakeTrackAt > throwAt);
 });

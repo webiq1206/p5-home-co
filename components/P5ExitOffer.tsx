@@ -1,6 +1,7 @@
 'use client';
 import {forwardRef,useCallback,useEffect,useId,useImperativeHandle,useRef,useState} from 'react';
 import {ESTIMATOR_BRAND as brand} from '../lib/p5/brand';
+import {phoneHref} from '../lib/p5/phoneHref';
 import {callbackContext,callbackPhone,EXIT_CALLBACK_FLOW,EXIT_OFFER_SESSION_KEY} from '../lib/p5/exitCallback';
 import styles from './P5ExitOffer.module.css';
 
@@ -93,10 +94,11 @@ export const P5ExitOffer = forwardRef<ExitOfferHandle, Props>(function P5ExitOff
     finally {clearTimeout(timeout);submitting.current=false;}
   }
   const number = callbackPhone(brand.phone);
+  const dial = phoneHref(brand.phone);
   return <dialog ref={dialog} className={styles.dialog} aria-labelledby={`${id}-title`} aria-describedby={`${id}-desc`} onCancel={event=>{event.preventDefault();stay();}} onClick={event=>{if(event.target===dialog.current){const rect=dialog.current.getBoundingClientRect();if(event.clientX<rect.left||event.clientX>rect.right||event.clientY<rect.top||event.clientY>rect.bottom)stay();}}}>
     <h2 id={`${id}-title`}>Prefer to talk about your project?</h2>
     <p id={`${id}-desc`}>Call us, or leave your number and we’ll call you.</p>
-    {number && <a href={`tel:+1${number}`} aria-label={`Call ${brand.name} at ${brand.phone}`}>Call us</a>}
+    {number && dial && <a href={dial} aria-label={`Call ${brand.name} at ${brand.phone}`}>Call us</a>}
     {state==='saved' ? <p role="status">Your callback request is saved. {notified?'The team notification was accepted.':'The team notification has not been confirmed.'} You can continue your form or leave.</p> : <form onSubmit={event=>void requestCallback(event)} noValidate>
       <label htmlFor={`${id}-phone`}>Your phone number</label>
       <input ref={phoneInput} id={`${id}-phone`} type="tel" inputMode="tel" autoComplete="tel" value={phone} readOnly={Boolean(requestPhone.current)} onChange={event=>{setPhone(event.target.value);setError('');}} aria-invalid={Boolean(error)} aria-describedby={`${id}-consent${error?` ${id}-error`:''}`} required maxLength={30}/>
