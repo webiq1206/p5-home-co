@@ -141,7 +141,7 @@ export default function PrivacyPage() {
         contact details, our site passes whichever of these you provide (your
         email address, phone number, first name, last name and ZIP code) to
         Google&apos;s advertising tag, which converts them into a scrambled code
-        (a SHA-256 hash) before sending them to Google, which matches that code
+        (a SHA-256 hash) before sending them to Google. Google matches that code
         against its own records to tell us which of our ads lead to inquiries.
         We do not send your street address or your project description to
         Google. Google Analytics receives only the type of project you choose

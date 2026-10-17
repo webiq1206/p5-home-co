@@ -204,6 +204,8 @@ test("quote and estimator call sites pass only collected contact fields", () => 
   const privacy = readFileSync(new URL("../app/legal/privacy/page.tsx", import.meta.url), "utf8").replace(/\s+/g, " ");
   assert.match(privacy, /When you successfully submit a form or finish the estimator with your contact details/);
   assert.match(privacy, /for example, Home addition or ADU\) when you use the estimator or send an inquiry\./);
+  assert.match(privacy, /before sending them to Google\. Google matches that code against its own records/);
+  assert.equal(privacy.includes("before sending them to Google, which matches"), false);
   assert.match(privacy, /We do not send your street address or your project description to Google\./);
   assert.match(privacy, /Google Ads receives a random reference number for your inquiry so each lead is counted only once\./);
   assert.equal(privacy.includes("TODO: Enhanced conversions disclosure"), false);
