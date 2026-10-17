@@ -7,6 +7,7 @@ import { faqsFor, schemaFor, STEPS } from "./schema";
 import { QUOTE_SERVICES, type QuoteService } from "./services";
 import { serializeJsonLd } from "../structuredData";
 import TrackedPhoneLink from "./TrackedPhoneLink";
+import PublicIdentity from "@/components/PublicIdentity";
 
 /* eslint-disable @next/next/no-img-element */
 
@@ -210,6 +211,7 @@ export default function QuoteLanding({ service, entryLabel, defaultService }: { 
               <Link href="/">P5 Home Co home</Link>
               <Link href="/legal/privacy">Privacy policy</Link>
             </p>
+            <PublicIdentity />
             <p className="quote-footer-bottom">© 2026 P5 Home Co. All rights reserved.</p>
           </div>
         </footer>

@@ -88,3 +88,5 @@
   border-top: 1px solid var(--line);
 }
 .legal-contact p { margin: 4px 0; }
+.legal-contact .public-identity { margin-top: 22px; }
+.legal-contact .public-identity p { text-transform: none; letter-spacing: normal; }

@@ -32,7 +32,9 @@ export async function generateMetadata({
   if (!service) return {};
 
   const path = `/quote/${service.slug}`;
-  return withBrandPageMetadata(await ({
+  // Look up metadata from the variant path, then point the canonical at /quote.
+  // Passing /quote into withBrandPageMetadata would replace the variant title.
+  const metadata = withBrandPageMetadata(await ({
     title: service.metaTitle,
     description: service.metaDescription,
     alternates: { canonical: path },
@@ -66,6 +68,10 @@ export async function generateMetadata({
      */
     robots: { index: false, follow: true },
   }), "/quote/[service]");
+  return {
+    ...metadata,
+    alternates: { ...metadata.alternates, canonical: "/quote" },
+  };
 }
 
 export default async function ServiceQuotePage({
