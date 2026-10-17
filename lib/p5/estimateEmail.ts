@@ -1,4 +1,5 @@
 import {ESTIMATOR_BRAND as brand} from './brand.ts';
+import {phoneHref} from './phoneHref.ts';
 import {estimateLinkUrl} from './estimateLinks.ts';
 import {legalIdentityLine} from './brandIdentity.ts';
 import {buildAdminSummary,adminBasis} from './adminEstimate.ts';
@@ -10,6 +11,7 @@ import {buildEstimateDocument,issueRecord,type EstimateBrand,type EstimateDocume
  * margins appear only in the internal email.
  */
 const escape=(value:unknown)=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]!));
+const customerPhoneLink=(phone:string)=>{const visible=escape(phone);try{return `<a href="${escape(phoneHref(phone))}" style="color:${C.ink}">${visible}</a>`;}catch{return visible;}};
 const FONT="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
 /**
  * The customer email is the approved preliminary online estimate in email form. It is built from the
@@ -126,7 +128,7 @@ function adminEmail(id:string,record:any){
  parts.push(`<p style="margin:0 0 4px;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:${C.soft}">Internal estimate record</p><h1 style="margin:0 0 4px;font-size:24px;line-height:1.25;font-weight:700;color:${C.ink};${FONT}">${escape(doc.title)}</h1>${doc.projectName?`<p style="margin:0 0 4px;font-size:15px;color:${C.muted}">${escape(doc.projectName)}</p>`:''}<p style="margin:0 0 14px;font-size:13px;color:${C.soft}">Estimate ${escape(doc.reference)}${doc.issuedLabel?` &nbsp;|&nbsp; ${escape(doc.issuedLabel)}`:''}</p>`);
  parts.push(`<p style="margin:0;padding:10px 14px;background:${s.released?tint:alertTint};border-left:3px solid ${s.released?accent:alert};font-size:14px;font-weight:700;color:${s.released?C.ink:alert}">${escape(s.status)}</p>`);
  parts.push(h2('Lead'));
- parts.push(`<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse">${([['Customer',escape(doc.customer.name||'Not supplied')],['Email',doc.customer.email?`<a href="mailto:${escape(doc.customer.email)}" style="color:${C.ink}">${escape(doc.customer.email)}</a>`:'Not supplied'],['Phone',doc.customer.phone?`<a href="tel:${escape(doc.customer.phone.replace(/[^\d+]/g,''))}" style="color:${C.ink}">${escape(doc.customer.phone)}</a>`:'Not supplied'],['Location',escape(doc.location.join(', ')||'Not stated')],['Finish',escape(`${doc.finish.name} (${adminBasis(doc)})`)]] as [string,string][]).map(([k,v])=>`<tr><td style="padding:6px 12px 6px 0;border-bottom:1px solid ${C.line};font-size:13px;color:${C.soft};width:90px;vertical-align:top">${k}</td><td style="padding:6px 0;border-bottom:1px solid ${C.line};font-size:14px;color:${C.ink}">${v}</td></tr>`).join('')}</table>`);
+ parts.push(`<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse">${([['Customer',escape(doc.customer.name||'Not supplied')],['Email',doc.customer.email?`<a href="mailto:${escape(doc.customer.email)}" style="color:${C.ink}">${escape(doc.customer.email)}</a>`:'Not supplied'],['Phone',doc.customer.phone?customerPhoneLink(doc.customer.phone):'Not supplied'],['Location',escape(doc.location.join(', ')||'Not stated')],['Finish',escape(`${doc.finish.name} (${adminBasis(doc)})`)]] as [string,string][]).map(([k,v])=>`<tr><td style="padding:6px 12px 6px 0;border-bottom:1px solid ${C.line};font-size:13px;color:${C.soft};width:90px;vertical-align:top">${k}</td><td style="padding:6px 0;border-bottom:1px solid ${C.line};font-size:14px;color:${C.ink}">${v}</td></tr>`).join('')}</table>`);
  parts.push(h2('Price build-up'));
  parts.push(table([...s.build.map(([k,v])=>[k,v] as [string,string]),['Contract price',s.contractPrice,true],[`Customer ${doc.priceKind==='range'?'range':'price'}${doc.status==='partial'?' (partial)':''}`,s.customerPrice,true]]));
  if(s.trades.length){parts.push(h2('Direct cost by trade'));parts.push(table(trades.shown.map(t=>{const [trade,cost,share]=t.split('|');return [trade,`${cost}${share?`  (${share})`:''}`] as [string,string];})));if(trades.note)parts.push(`<p style="margin:6px 0 0;font-size:12px;color:${C.soft}">${escape(trades.note)}</p>`);}
