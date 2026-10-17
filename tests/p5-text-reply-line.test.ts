@@ -13,15 +13,34 @@ const compiled = ts.transpileModule(source, {
   compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, target: ts.ScriptTarget.ES2022 },
 }).outputText;
 
+type ReplyElement = {
+  type?: unknown;
+  props?: {
+    children?: ReplyElement | readonly ReplyElement[];
+    "data-testid"?: string;
+    href?: string;
+    onClick?: () => void;
+  };
+};
+
 const events: Array<[string, Record<string, unknown> | undefined]> = [];
-const promptExports: Record<string, any> = {};
+const promptExports: Record<string, unknown> = {};
 new Function("require", "exports", compiled)((id: string) => {
   if (id.endsWith("analytics.ts")) return { track: (event: string, params?: Record<string, unknown>) => { events.push([event, params]); } };
   if (id.endsWith("estimatorSession.ts")) return { recordRecoveryAction() {}, deviceCategory: () => "desktop", getEstimatorSessionId: () => "session" };
   return require(id);
 }, promptExports);
 
-const { TEXT_REPLY_HOURS, RecoveryReply, AbandonmentPrompt } = promptExports;
+const TEXT_REPLY_HOURS = promptExports.TEXT_REPLY_HOURS;
+if (typeof TEXT_REPLY_HOURS !== "string") throw new Error("TEXT_REPLY_HOURS missing");
+const RecoveryReply = promptExports.RecoveryReply as (props: { sent: boolean }) => ReplyElement;
+const AbandonmentPrompt = promptExports.AbandonmentPrompt as React.ComponentType<{
+  open: boolean;
+  method: null;
+  leaving: boolean;
+  onStay: () => void;
+  onContinue: () => void;
+}>;
 const TEXT_REPLY_LINE = `Prefer to text? Text (208) 477-1169. We reply in minutes during business hours (${TEXT_REPLY_HOURS}).`;
 const IDLE_LINE = "A quick call or text answers most questions in a minute. Or leave a number and we will call you back within one business day.";
 const SENT_LINE = "Thanks. Someone from the team will call within one business day. You can keep going here or close this window.";
@@ -30,16 +49,17 @@ function visible(html: string): string {
   return html.replace(/<[^>]+>/g, "");
 }
 
-function findElement(node: any, testId: string): any {
+function findElement(node: ReplyElement | readonly ReplyElement[] | null | undefined, testId: string): ReplyElement | null {
   if (!node || typeof node !== "object") return null;
-  if (node.props?.["data-testid"] === testId) return node;
-  const children = node.props?.children;
-  const list = Array.isArray(children) ? children : children == null ? [] : [children];
-  for (const child of list) {
-    const found = findElement(child, testId);
-    if (found) return found;
+  if (Array.isArray(node)) {
+    for (const child of node) {
+      const found = findElement(child, testId);
+      if (found) return found;
+    }
+    return null;
   }
-  return null;
+  if (node.props?.["data-testid"] === testId) return node;
+  return findElement(node.props?.children, testId);
 }
 
 test("text-reply hours live in one constant", () => {
