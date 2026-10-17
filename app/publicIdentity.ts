@@ -13,6 +13,8 @@ export const PUBLIC_PHONE_DISPLAY = "(208) 477-1169";
 
 export const PUBLIC_PHONE_TEL = "tel:+12084771169";
 
+export const PUBLIC_PHONE_SMS = "sms:+12084771169";
+
 export const PUBLIC_EMAIL = "hello@p5homeco.com";
 
 export const SCHEMA_TELEPHONE = "+1-208-477-1169";
