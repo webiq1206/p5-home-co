@@ -2,7 +2,7 @@ import Link from "next/link";
 
 import {P5Estimator} from "@/components/P5Estimator";
 
-import { CREW_AND_TRADES, QUOTE_SELF_PERFORM, SHOW_UNPROVEN_SELF_PERFORM } from "../publicClaims";
+import { CREW_AND_TRADES, QUOTE_SELF_PERFORM, QUOTE_SPECIALTY, SHOW_UNPROVEN_SELF_PERFORM } from "../publicClaims";
 import { PROOF_POINTS, TESTIMONIALS } from "./proof";
 import { faqsFor, schemaFor, STEPS } from "./schema";
 import { QUOTE_SERVICES, type QuoteService } from "./services";
@@ -179,7 +179,7 @@ export default function QuoteLanding({ service, entryLabel, defaultService }: { 
             </ul>
             <p className="quote-section-lead quote-others-note">
               P5 Home Co is an operating family of five companies, not a directory or a referral
-              network. {SHOW_UNPROVEN_SELF_PERFORM ? QUOTE_SELF_PERFORM : `${CREW_AND_TRADES}.`}{" "}
+              network. {SHOW_UNPROVEN_SELF_PERFORM ? QUOTE_SELF_PERFORM : `${QUOTE_SPECIALTY} ${CREW_AND_TRADES}`}{" "}
               <Link href="/#p5-standard">Read the P5 standard</Link>.
             </p>
           </div>

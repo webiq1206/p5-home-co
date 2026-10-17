@@ -18,7 +18,10 @@ import {
   CONSTRUCTION_STAFF_IMAGE,
   HANDYMAN_NEUTRAL_IMAGE,
   HANDYMAN_STAFF_IMAGE,
+  FABRICATION_COVER,
+  SHOW_CABINET_FABRICATION,
   SHOW_FAKE_STAFF_IMAGES,
+  SOURCING_COVER,
 } from "../publicClaims.ts";
 
 export interface QuoteService {
@@ -148,7 +151,7 @@ export const QUOTE_SERVICES: readonly QuoteService[] = [
     covers: [
       "Kitchens, vanities, built-ins, and storage",
       "Built to order for out-of-square walls",
-      "Design, fabrication, and installation",
+      SHOW_CABINET_FABRICATION ? FABRICATION_COVER : SOURCING_COVER,
     ],
   },
   {

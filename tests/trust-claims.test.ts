@@ -9,14 +9,19 @@ import {
   CABINET_WARRANTY,
   CREW_AND_TRADES,
   ESTABLISHED_2020_LINE,
-  SELF_PERFORM_CLAUSE,
+  SELF_PERFORM_FAQ,
   SHOW_FAKE_STAFF_IMAGES,
   SHOW_FOUNDING_YEAR,
   SHOW_UNPROVEN_FINISH_COUNT,
   SHOW_UNPROVEN_PROJECT_COUNT,
+  SHOW_UNPROVEN_SATISFACTION_GUARANTEE,
   SHOW_UNPROVEN_SELF_PERFORM,
+  SHOW_UNPROVEN_TOP_RATED,
   SHOW_UNPROVEN_TRUSTED,
   SHOW_UNPROVEN_WARRANTY,
+  SPECIALTY_FAQ,
+  SATISFACTION_GUARANTEED_PHRASE,
+  TOP_RATED_PHRASE,
   cabinetProof,
   constructionImage,
   handymanImage,
@@ -36,18 +41,21 @@ test("unproven claims stay in source and are hidden by default", () => {
   assert.equal(CABINET_WARRANTY, "Lifetime workmanship warranty");
   assert.equal(cabinetProof, "");
   assert.equal(ESTABLISHED_2020_LINE.startsWith("Established 2020"), true);
-  assert.match(SELF_PERFORM_CLAUSE, /does the work itself/);
+  assert.match(SELF_PERFORM_FAQ, /does the work itself/);
+  assert.equal(SHOW_UNPROVEN_TOP_RATED, false);
+  assert.equal(SHOW_UNPROVEN_SATISFACTION_GUARANTEE, false);
   assert.equal(
     CREW_AND_TRADES,
-    "Cabinets sourced and installed by our own crew; trusted trade partners where needed",
+    "Cabinets sourced and installed by our own crew, with trade partners where needed.",
   );
+  assert.equal(SPECIALTY_FAQ.endsWith(CREW_AND_TRADES), true);
   assert.equal(constructionImage, "/images/p5-hero.webp");
   assert.equal(handymanImage, "/images/p5-closing-v2.webp");
   assert.match(readFileSync("app/publicClaims.ts", "utf8"), /p5-construction-branded\.webp/);
   assert.match(readFileSync("app/publicClaims.ts", "utf8"), /p5-handyman-branded\.webp/);
 
   const family = faqs.find((item) => item.q === "Is P5 Home Co a contractor or a referral service?")?.a ?? "";
-  assert.equal(family.includes(CREW_AND_TRADES), true);
+  assert.equal(family, SPECIALTY_FAQ);
   assert.equal(family.includes("does the work itself"), false);
   const bonded = faqs.find((item) => item.q === "Are the P5 companies bonded and insured?")?.a ?? "";
   assert.equal(bonded, "Yes. The P5 companies are bonded and insured and handle permits in-house where a project requires them.");
@@ -61,4 +69,22 @@ test("unproven claims stay in source and are hidden by default", () => {
   assert.match(readFileSync("app/structuredData.ts", "utf8"), /foundingDate: "2020"/);
   assert.match(readFileSync("app/HomePageClient.tsx", "utf8"), /100\+ projects/);
   assert.match(readFileSync("app/HomePageClient.tsx", "utf8"), /Est\. 2020/);
+
+  const claimsSource = readFileSync("app/publicClaims.ts", "utf8");
+  assert.match(claimsSource, /TOP_RATED_PHRASE = "top-rated"/);
+  assert.match(claimsSource, /SATISFACTION_GUARANTEED_PHRASE = "satisfaction guaranteed"/);
+  const published = [
+    "app/HomePageClient.tsx",
+    "app/site.ts",
+    "app/structuredData.ts",
+    "app/quote/QuoteLanding.tsx",
+    "app/quote/proof.ts",
+    "app/quote/services.ts",
+    "public/llms.txt",
+    "public/llms-full.txt",
+  ].map((file) => readFileSync(file, "utf8")).join("\n");
+  assert.equal(/top[ -]?rated/i.test(published), false);
+  assert.equal(/satisfaction guarante/i.test(published), false);
+  assert.equal(SHOW_UNPROVEN_TOP_RATED ? TOP_RATED_PHRASE : "", "");
+  assert.equal(SHOW_UNPROVEN_SATISFACTION_GUARANTEE ? SATISFACTION_GUARANTEED_PHRASE : "", "");
 });

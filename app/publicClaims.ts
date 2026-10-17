@@ -9,18 +9,46 @@ export const SHOW_UNPROVEN_PROJECT_COUNT = false;
 export const SHOW_FOUNDING_YEAR = false;
 export const SHOW_UNPROVEN_SELF_PERFORM = false;
 export const SHOW_UNPROVEN_TRUSTED = false;
+export const SHOW_UNPROVEN_TOP_RATED = false;
+export const SHOW_UNPROVEN_SATISFACTION_GUARANTEE = false;
+export const SHOW_CABINET_FABRICATION = false;
 
 /** AI staff-in-shirt photos stay in the repo and render only when this is on. */
 export const SHOW_FAKE_STAFF_IMAGES = false;
 
 export const CREW_AND_TRADES =
-  "Cabinets sourced and installed by our own crew; trusted trade partners where needed";
+  "Cabinets sourced and installed by our own crew, with trade partners where needed.";
 
-export const SELF_PERFORM_CLAUSE =
-  "Each of the five companies has its own craft and team, and does the work itself";
+export const SELF_PERFORM_FAQ =
+  "P5 Home Co is an operating family of companies, not a directory or a referral network. Each of the five companies has its own craft and team, and does the work itself, under one shared standard for scopes, communication, and accountability.";
 
-export const QUOTE_SELF_PERFORM =
-  "Each one does its own craft under one shared standard.";
+export const SPECIALTY_FAQ =
+  "P5 Home Co is an operating family of companies, not a directory or a referral network. Each company has its own specialty and team, under one shared standard for scopes, communication, and accountability. Cabinets sourced and installed by our own crew, with trade partners where needed.";
+
+export const CRAFT_EXPERTISE = "Each company has its own craft, team, and expertise.";
+export const SPECIALTY_EXPERTISE = "Each company has its own specialty, team, and expertise.";
+
+export const QUOTE_SELF_PERFORM = "Each one does its own craft under one shared standard.";
+export const QUOTE_SPECIALTY = "Each one focuses on its own specialty under one shared standard.";
+
+export const OWN_CRAFT_DETAIL = "Each company does its own craft. P5 coordinates the handoff between them.";
+export const OWN_SPECIALTY_DETAIL = "Each company focuses on its own specialty. P5 coordinates the handoff between them.";
+
+export const FABRICATION_HANDOFF = "Cabinet design, fabrication, and installation";
+export const SOURCING_HANDOFF = "Cabinet design, sourcing, and installation";
+
+export const FABRICATION_COVER = "Design, fabrication, and installation";
+export const SOURCING_COVER = "Design, sourcing, and installation";
+
+export const FABRICATION_FAQ =
+  "Yes. A complete kitchen transformation, for example, runs through Boise Remodeling Co for layout, permits, demolition, and construction; Boise Cabinet Co for cabinet design, fabrication, and installation; and Boise Handyman Co for final mounting, finish work, and punch-list items.";
+
+export const SOURCING_FAQ =
+  "Yes. A complete kitchen transformation, for example, runs through Boise Remodeling Co for layout, permits, demolition, and construction; Boise Cabinet Co for cabinet design, sourcing, and installation; and Boise Handyman Co for final mounting, finish work, and punch-list items.";
+
+/** Kept so a later proof can turn them back on. Neither phrase is published today. */
+export const TOP_RATED_PHRASE = "top-rated";
+export const SATISFACTION_GUARANTEED_PHRASE = "satisfaction guaranteed";
 
 export const CABINET_FINISH_COUNT = "299 finishes";
 export const CABINET_WARRANTY = "Lifetime workmanship warranty";

@@ -16,7 +16,7 @@
  * adding real, attributable reviews is a data change and nothing else.
  */
 
-import { SHOW_FOUNDING_YEAR, SHOW_UNPROVEN_SELF_PERFORM } from "../publicClaims.ts";
+import { OWN_CRAFT_DETAIL, OWN_SPECIALTY_DETAIL, SHOW_FOUNDING_YEAR, SHOW_UNPROVEN_SELF_PERFORM } from "../publicClaims.ts";
 
 export interface ProofPoint {
   readonly label: string;
@@ -30,7 +30,12 @@ const WORKING_HERE_SINCE_2020: ProofPoint = {
 
 const FIVE_SPECIALIST_TEAMS: ProofPoint = {
   label: "Five specialist teams",
-  detail: "Each company does its own craft. P5 coordinates the handoff between them.",
+  detail: OWN_CRAFT_DETAIL,
+};
+
+const SPECIALIST_TEAMS: ProofPoint = {
+  label: "Specialist teams",
+  detail: OWN_SPECIALTY_DETAIL,
 };
 
 export const PROOF_POINTS: readonly ProofPoint[] = [
@@ -47,7 +52,7 @@ export const PROOF_POINTS: readonly ProofPoint[] = [
     label: "Permits handled in-house",
     detail: "We deal with Ada and Canyon County permitting where a project requires it.",
   },
-  ...(SHOW_UNPROVEN_SELF_PERFORM ? [FIVE_SPECIALIST_TEAMS] : []),
+  ...(SHOW_UNPROVEN_SELF_PERFORM ? [FIVE_SPECIALIST_TEAMS] : [SPECIALIST_TEAMS]),
   {
     label: "Free to ask",
     detail: "Quotes and site visits cost nothing and carry no obligation to proceed.",
