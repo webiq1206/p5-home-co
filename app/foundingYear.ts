@@ -5,6 +5,20 @@
  */
 export const SHOW_FOUNDING_YEAR = false;
 
+/** Every founding phrase stays here for the guard test. The flag publishes at most one badge. */
+export const FOUNDING_PHRASES = [
+  "Est. 2020",
+  "Established 2020",
+  "founded in 2020",
+  "since 2020",
+  "Working here since 2020",
+] as const;
+
+/** Flag on adds one badge. It does not add the other phrases as extra badges. */
+export function visibleFoundingBadges(): readonly string[] {
+  return SHOW_FOUNDING_YEAR ? ["Est. 2020"] : [];
+}
+
 export const ESTABLISHED_2020_LINE =
   "Established 2020. Bonded and insured. Serving Ada and Canyon counties.";
 

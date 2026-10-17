@@ -45,7 +45,7 @@ test("homepage keeps the existing claims and adds the location subhead", () => {
   const home = readFileSync("app/HomePageClient.tsx", "utf8");
   assert.match(home, /Boise’s Trusted Home Specialists/);
   assert.match(home, /Serving Boise, Meridian and the Treasure Valley/);
-  assert.match(home, /SHOW_FOUNDING_YEAR \? <div><strong>Est\. 2020<\/strong>/);
+  assert.match(home, /visibleFoundingBadges\(\)/);
   assert.match(home, /100\+ projects/);
   assert.match(home, /Bonded and insured/);
   assert.equal(home.includes("Jared"), false);
