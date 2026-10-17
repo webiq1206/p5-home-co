@@ -201,8 +201,12 @@ test("quote and estimator call sites pass only collected contact fields", () => 
     assert.equal(estimatorAds.includes(forbidden), false, forbidden);
   }
 
-  const privacy = readFileSync(new URL("../app/legal/privacy/page.tsx", import.meta.url), "utf8");
-  assert.match(privacy, /TODO: Enhanced conversions disclosure pending Priya/);
+  const privacy = readFileSync(new URL("../app/legal/privacy/page.tsx", import.meta.url), "utf8").replace(/\s+/g, " ");
+  assert.match(privacy, /When you successfully submit a form or finish the estimator with your contact details/);
+  assert.match(privacy, /for example, Home addition or ADU\) when you use the estimator or send an inquiry\./);
+  assert.match(privacy, /We do not send your street address or your project description to Google\./);
+  assert.match(privacy, /Google Ads receives a random reference number for your inquiry so each lead is counted only once\./);
+  assert.equal(privacy.includes("TODO: Enhanced conversions disclosure"), false);
   const layout = readFileSync(new URL("../app/layout.tsx", import.meta.url), "utf8");
   assert.match(layout, /googleTagBootstrap\(\{ hostname: "p5homeco\.com", measurementId: gaMeasurementId, adsId: googleAdsDestinationId \}\)/);
   assert.equal(layout.includes("cEzmCPOagKAdEKzf-q9E"), false);
