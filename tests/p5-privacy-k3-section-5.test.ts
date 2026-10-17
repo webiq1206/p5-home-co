@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync, statSync } from "node:fs";
+import { join } from "node:path";
 
 const source = readFileSync(new URL("../app/legal/privacy/page.tsx", import.meta.url), "utf8");
 const visible = source.replace(/<[^>]+>/g, "").replace(/\{`|`\}/g, "").replace(/\s+/g, " ");
@@ -24,4 +25,37 @@ test("privacy section 5 keeps the existing cookie sentences after the new disclo
 test("the privacy page date shows this wording change", () => {
   assert.match(source, /Last updated 17 October 2026/);
   assert.equal(source.includes("Last updated 23 August 2026"), false);
+});
+
+test("section 5 names neither Microsoft Clarity nor Meta", () => {
+  const section = visible.slice(visible.indexOf("5. Cookies and analytics"), visible.indexOf("6. How long we keep it"));
+  for (const sentence of [
+    "Microsoft Clarity",
+    "We also use the Meta Pixel",
+    "Meta's pixel",
+    "https://www.facebook.com/privacy/policy",
+  ]) {
+    assert.equal(section.includes(sentence), false, sentence);
+  }
+});
+
+test("the public site does not load Clarity or a Meta pixel", () => {
+  const root = new URL("..", import.meta.url);
+  const hits: string[] = [];
+  const skip = new Set(["node_modules", ".next"]);
+  const visit = (dir: string) => {
+    for (const name of readdirSync(dir)) {
+      if (skip.has(name)) continue;
+      const path = join(dir, name);
+      if (statSync(path).isDirectory()) {
+        visit(path);
+        continue;
+      }
+      if (!/\.(?:ts|tsx|js|mjs|jsx|html)$/.test(name)) continue;
+      const text = readFileSync(path, "utf8");
+      if (/clarity\.ms|js\.clarity\.ms|fbevents|connect\.facebook|facebook\.net|fbq\s*\(/.test(text)) hits.push(path);
+    }
+  };
+  for (const dir of ["app", "components", "lib", "public"]) visit(new URL(dir, root).pathname);
+  assert.deepEqual(hits, []);
 });
