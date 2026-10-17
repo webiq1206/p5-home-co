@@ -1,3 +1,5 @@
+import { BUSINESS_HOURS_LABEL } from "../lib/businessHours.ts";
+
 /** Shared public identity for p5homeco.com.
  *
  * The strings are the audit's canonical wording (F1, F8, F10, F11). Visible
@@ -34,7 +36,7 @@ export const SISTER_LINE =
   "Part of P5 Home Co: Boise Construction Co · Boise Remodeling Co · Boise Handyman Co · Boise Cabinet Co · Boise ADU Co (launching soon)";
 
 export const LLMS_CONTACT =
-  "Public representative: Nick Perkins. Service-area business based at 4031 W Wapoot St, Meridian, ID 83646 (not a staffed storefront). Phone (208) 477-1169. Email hello@p5homeco.com.";
+  `Public representative: Nick Perkins. Service-area business based at 4031 W Wapoot St, Meridian, ID 83646 (not a staffed storefront). Phone (208) 477-1169. Email hello@p5homeco.com. Hours: ${BUSINESS_HOURS_LABEL}.`;
 
 export const SISTER_LINKS = [
   { label: "Boise Construction Co", href: "https://boiseconstruction.co" },
