@@ -136,6 +136,8 @@ export default function PrivacyPage() {
         The portals use a strictly necessary cookie to keep you signed in, which
         cannot be turned off without ending your session.
       </p>
+      {/* TODO(Priya): Replace this placeholder with Priya's exact enhanced-conversions disclosure. Keep this pull request in draft until that wording arrives. */}
+      <p>TODO: Enhanced conversions disclosure pending Priya&apos;s exact wording.</p>
 
       <h2>6. How long we keep it</h2>
       <p>

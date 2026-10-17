@@ -155,7 +155,7 @@ export default function QuoteForm({ defaultProject = "" }: { defaultProject?: st
         accepted.current = true;
         setAcceptedState(true);
         markEstimatorCompleted("quote");
-        trackAcceptedInquiry();
+        trackAcceptedInquiry({ name: values.name, email: values.email, phone: values.phone });
         try {
           sessionStorage.setItem("p5.quote-accepted", "1");
         } catch {

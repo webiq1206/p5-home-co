@@ -1,5 +1,6 @@
 "use client";
 
+import { enhancedConversionUserData, queueGtag, type EnhancedConversionContact } from "../lib/googleAdsConversion.ts";
 import { googleAdsDestinationId, googleAdsLeadLabel } from "./site.ts";
 
 // Thin wrapper so components never touch gtag directly and nothing breaks
@@ -25,7 +26,9 @@ export function track(event: string, params?: GtagParams) {
 }
 
 /** Native Google Ads conversion, called only after the API created a lead. */
-export function trackAcceptedInquiry() {
+export function trackAcceptedInquiry(contact?: EnhancedConversionContact) {
+  const userData = enhancedConversionUserData(contact);
+  if (userData) queueGtag("set", "user_data", userData as unknown as Record<string, unknown>);
   track("generate_lead", { form: "quote_landing_page" });
   track("conversion", { send_to: `${googleAdsDestinationId}/${googleAdsLeadLabel}` });
 }
