@@ -64,6 +64,7 @@ test("the business address is the authorized Meridian street, and cities stay se
   assert.equal(organization.contactPoint.areaServed, "US-ID");
   assert.equal(organization.contactPoint.availableLanguage, "English");
   assert.equal("email" in organization.contactPoint, false);
+  assert.equal(organization.hasCredential.credentialCategory, "registration");
   assert.equal(organization.hasCredential.identifier, "8381215");
   assert.equal(organization.hasCredential.name, "Idaho contractor registration");
   assert.equal(JSON.stringify(organization).includes("Jared"), false);
