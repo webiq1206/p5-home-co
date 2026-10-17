@@ -148,14 +148,17 @@ export default function QuoteForm({ defaultProject = "" }: { defaultProject?: st
       });
 
       const body: unknown = await response.json().catch(() => null);
-      const payload = (body ?? {}) as { accepted?: unknown; errors?: unknown; error?: unknown };
+      const payload = (body ?? {}) as { accepted?: unknown; errors?: unknown; error?: unknown; allowEnhancedConversions?: unknown };
       // 201 is the server's only proof that this callback created a nonspam
       // inquiry. Duplicates and every other response deliberately do not fire.
       if (isNewAcceptedInquiry(response.status, payload, accepted.current)) {
         accepted.current = true;
         setAcceptedState(true);
         markEstimatorCompleted("quote");
-        trackAcceptedInquiry({ name: values.name, email: values.email, phone: values.phone });
+        trackAcceptedInquiry(
+          { name: values.name, email: values.email, phone: values.phone },
+          payload.allowEnhancedConversions !== false,
+        );
         try {
           sessionStorage.setItem("p5.quote-accepted", "1");
         } catch {

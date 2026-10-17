@@ -26,8 +26,8 @@ export function track(event: string, params?: GtagParams) {
 }
 
 /** Native Google Ads conversion, called only after the API created a lead. */
-export function trackAcceptedInquiry(contact?: EnhancedConversionContact) {
-  const userData = enhancedConversionUserData(contact);
+export function trackAcceptedInquiry(contact?: EnhancedConversionContact, allowEnhancedConversions = true) {
+  const userData = allowEnhancedConversions ? enhancedConversionUserData(contact) : null;
   if (userData) queueGtag("set", "user_data", userData as unknown as Record<string, unknown>);
   track("generate_lead", { form: "quote_landing_page" });
   track("conversion", { send_to: `${googleAdsDestinationId}/${googleAdsLeadLabel}` });
