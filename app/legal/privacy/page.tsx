@@ -160,6 +160,13 @@ export default function PrivacyPage() {
         call and can see the calling number and call length, but not what&apos;s
         said.
       </p>
+      <p>
+        If you arrive from one of our ads or a link with campaign tags, our site
+        saves the ad click identifier from that link (such as gclid, gbraid or
+        wbraid) and the campaign tags in your browser for the rest of that visit.
+        If you then send an inquiry, we keep them with your inquiry in our
+        customer records so we can tell which ad or campaign led to it.
+      </p>
 
       <h2>6. How long we keep it</h2>
       <p>
