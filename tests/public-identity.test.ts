@@ -8,6 +8,7 @@ import {
   PUBLIC_REGISTRATION,
   SISTER_LINE,
 } from "../app/publicIdentity.ts";
+import { TRUSTED_H1 } from "../app/publicClaims.ts";
 
 const pages = [
   "app/HomePageClient.tsx",
@@ -43,7 +44,8 @@ test("every public page renders the shared identity block", () => {
 
 test("homepage keeps the existing claims and adds the location subhead", () => {
   const home = readFileSync("app/HomePageClient.tsx", "utf8");
-  assert.match(home, /Boise’s Trusted Home Specialists/);
+  assert.equal(TRUSTED_H1, "Boise’s Trusted Home Specialists");
+  assert.match(home, /SHOW_UNPROVEN_TRUSTED \? TRUSTED_H1 : PLAIN_H1/);
   assert.match(home, /Serving Boise, Meridian and the Treasure Valley/);
   assert.match(home, /Est\. 2020/);
   assert.match(home, /100\+ projects/);

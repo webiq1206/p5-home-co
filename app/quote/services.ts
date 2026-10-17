@@ -13,6 +13,13 @@
  */
 
 import type { Brand } from "../lib/leads/types.ts";
+import {
+  CONSTRUCTION_NEUTRAL_IMAGE,
+  CONSTRUCTION_STAFF_IMAGE,
+  HANDYMAN_NEUTRAL_IMAGE,
+  HANDYMAN_STAFF_IMAGE,
+  SHOW_FAKE_STAFF_IMAGES,
+} from "../publicClaims.ts";
 
 export interface QuoteService {
   /** URL segment: /quote/<slug>. */
@@ -96,8 +103,10 @@ export const QUOTE_SERVICES: readonly QuoteService[] = [
     metaTitle: "Custom Home Building Quote, Treasure Valley | P5 Home Co",
     metaDescription:
       "Free custom home building quotes in Ada and Canyon counties. Land evaluation, plans, engineering, permitting, and construction under one accountable team.",
-    image: "/images/p5-construction-branded.webp",
-    imageAlt: "Wood-framed house under construction with exposed roof trusses and a Boise Construction Co logo.",
+    image: SHOW_FAKE_STAFF_IMAGES ? CONSTRUCTION_STAFF_IMAGE : CONSTRUCTION_NEUTRAL_IMAGE,
+    imageAlt: SHOW_FAKE_STAFF_IMAGES
+      ? "Wood-framed house under construction with exposed roof trusses and a Boise Construction Co logo."
+      : "Modern two-story house with dark vertical siding, a flat roof, and warm window light at dusk.",
     project: "New custom home",
     brand: "Boise Construction Co",
     covers: [
@@ -150,8 +159,10 @@ export const QUOTE_SERVICES: readonly QuoteService[] = [
     metaTitle: "Handyman & Home Repair Quote, Boise | P5 Home Co",
     metaDescription:
       "Free handyman and home repair quotes across the Treasure Valley. Drywall and trim repair, mounting, installation, deck and exterior work.",
-    image: "/images/p5-handyman-branded.webp",
-    imageAlt: "White baseboard and door casing being installed, with a Boise Handyman Co logo.",
+    image: SHOW_FAKE_STAFF_IMAGES ? HANDYMAN_STAFF_IMAGE : HANDYMAN_NEUTRAL_IMAGE,
+    imageAlt: SHOW_FAKE_STAFF_IMAGES
+      ? "White baseboard and door casing being installed, with a Boise Handyman Co logo."
+      : "Modern house with dark vertical siding, a flat roof, and warmly lit windows at blue hour.",
     project: "Home repairs or handyman work",
     brand: "Boise Handyman Co",
     covers: [

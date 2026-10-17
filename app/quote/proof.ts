@@ -16,20 +16,29 @@
  * adding real, attributable reviews is a data change and nothing else.
  */
 
+import { SHOW_FOUNDING_YEAR, SHOW_UNPROVEN_SELF_PERFORM } from "../publicClaims.ts";
+
 export interface ProofPoint {
   readonly label: string;
   readonly detail: string;
 }
+
+const WORKING_HERE_SINCE_2020: ProofPoint = {
+  label: "Working here since 2020",
+  detail: "Building, remodeling, and repairing homes across Ada and Canyon counties.",
+};
+
+const FIVE_SPECIALIST_TEAMS: ProofPoint = {
+  label: "Five specialist teams",
+  detail: "Each company does its own craft. P5 coordinates the handoff between them.",
+};
 
 export const PROOF_POINTS: readonly ProofPoint[] = [
   {
     label: "Bonded and insured",
     detail: "Idaho contractor registration 8381215, carried across all five companies.",
   },
-  {
-    label: "Working here since 2020",
-    detail: "Building, remodeling, and repairing homes across Ada and Canyon counties.",
-  },
+  ...(SHOW_FOUNDING_YEAR ? [WORKING_HERE_SINCE_2020] : []),
   {
     label: "A written scope, before work starts",
     detail: "What is included, what is not, and the price - in writing, so you can compare it.",
@@ -38,10 +47,7 @@ export const PROOF_POINTS: readonly ProofPoint[] = [
     label: "Permits handled in-house",
     detail: "We deal with Ada and Canyon County permitting where a project requires it.",
   },
-  {
-    label: "Five specialist teams",
-    detail: "Each company does its own craft. P5 coordinates the handoff between them.",
-  },
+  ...(SHOW_UNPROVEN_SELF_PERFORM ? [FIVE_SPECIALIST_TEAMS] : []),
   {
     label: "Free to ask",
     detail: "Quotes and site visits cost nothing and carry no obligation to proceed.",
