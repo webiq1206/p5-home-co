@@ -1,3 +1,4 @@
+import { officeOpeningHours } from "../lib/businessHours.ts";
 import { ESTIMATOR_BRAND } from "../lib/p5/brand.ts";
 import {
   NICK_PERKINS_ID,
@@ -45,6 +46,7 @@ export const siteSchema = {
         jobTitle: "Public representative",
         worksFor: { "@id": `${siteUrl}/#organization` },
       },
+      openingHoursSpecification: officeOpeningHours(),
       contactPoint: {
         "@type": "ContactPoint",
         name: PUBLIC_REPRESENTATIVE,

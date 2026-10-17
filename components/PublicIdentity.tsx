@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { BUSINESS_HOURS_LABEL } from "@/lib/businessHours";
 import {
   PUBLIC_EMAIL,
   PUBLIC_NAP,
@@ -52,6 +53,7 @@ export default function PublicIdentity({ tone = "inherit" }: { tone?: "inherit" 
           { label: PUBLIC_EMAIL, href: `mailto:${PUBLIC_EMAIL}` },
         ])}
       </p>
+      <p className="public-nap">{BUSINESS_HOURS_LABEL}</p>
       <p className="public-registration">{PUBLIC_REGISTRATION}</p>
       <p className="sister-sites">{withLinks(SISTER_LINE, SISTER_LINKS)}</p>
     </div>
