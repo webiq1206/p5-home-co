@@ -12,6 +12,7 @@ import { isDatabaseConfigured } from "../../../lib/db.ts";
 import { ingestLead } from "../../../lib/leads/intake.ts";
 import { loadSettings } from "../../../lib/leads/settings.ts";
 import { BRANDS, LEAD_SOURCES, type Brand, type LeadSource } from "../../../lib/leads/types.ts";
+import { allowEnhancedConversions } from "../../../../lib/p5/enhancedConversionSuppression.ts";
 import { allowIntakeRequest } from "./abuse.ts";
 
 export const dynamic = "force-dynamic";
@@ -214,11 +215,18 @@ export async function POST(request: Request): Promise<NextResponse> {
 
     // A duplicate is a success from the visitor's point of view: their enquiry
     // is on file. Saying otherwise would invite them to submit again.
+    // The flag only tells the browser whether to attach enhanced-conversion
+    // user_data. It does not change the lead that was just saved.
+    const enhancedConversionsAllowed = await allowEnhancedConversions({
+      email: str(body.email),
+      phone: str(body.phone ?? body.telephone),
+    });
     return NextResponse.json(
       {
         ok: true,
         duplicate: result.status === "duplicate",
         accepted: result.status === "created",
+        allowEnhancedConversions: enhancedConversionsAllowed,
         message: "Thanks. Your enquiry is with the right team and someone will be in touch.",
       },
       { status: result.status === "created" ? 201 : 200 },

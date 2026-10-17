@@ -39,6 +39,8 @@ export type AdsLeadContext = EnhancedConversionContact & {
   projectType?: string;
   /** False skips the p5 conversion. Brands that do not read this field are unchanged. */
   accepted?: boolean;
+  /** False skips user_data only. The conversion still fires. */
+  allowEnhancedConversions?: boolean;
   transactionId?: string;
 };
 
@@ -109,7 +111,7 @@ export function trackGoogleAdsLeadConversion(context: AdsLeadContext = {}, dedup
     if (!transactionId) return false;
     if (sentEstimatorIds.has(transactionId)) return false;
     if (typeof window === "undefined") return false;
-    const userData = enhancedConversionUserData(context);
+    const userData = context.allowEnhancedConversions === false ? null : enhancedConversionUserData(context);
     if (userData) queueGtag("set", "user_data", userData as unknown as Record<string, unknown>);
     queueGtag("event", "conversion", {
       send_to: ESTIMATOR_CONVERSION_SEND_TO,

@@ -194,7 +194,7 @@ test("quote and estimator call sites pass only collected contact fields", () => 
   assert.equal(call.includes("project"), false);
 
   const estimator = readFileSync(new URL("../components/P5Estimator.tsx", import.meta.url), "utf8");
-  assert.match(estimator, /estimatorAds=\{service:d\.answers\.service,name:d\.contact\?\.name,email:d\.contact\?\.email,phone:d\.contact\?\.phone,accepted:data\.accepted!==false,transactionId:/);
+  assert.match(estimator, /estimatorAds=\{service:d\.answers\.service,name:d\.contact\?\.name,email:d\.contact\?\.email,phone:d\.contact\?\.phone,accepted:data\.accepted!==false,allowEnhancedConversions:data\.allowEnhancedConversions!==false,transactionId:/);
   assert.match(estimator, /trackGoogleAdsLeadConversion\(estimatorAds,`estimator:\$\{d\.id\}`\)/);
   const estimatorAds = estimator.slice(estimator.indexOf("const estimatorAds"), estimator.indexOf("trackGoogleAdsLeadConversion(estimatorAds"));
   for (const forbidden of ["text:", "summary:", "description:", "address:", "street:", "city:", "postal"]) {
