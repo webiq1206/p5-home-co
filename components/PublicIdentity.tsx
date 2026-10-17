@@ -62,7 +62,13 @@ export default function PublicIdentity({
       </p>
       <p className="public-registration">
         {linkRegistration ? (
-          <a href={IDAHO_DOPL_LICENSE_SEARCH} target="_blank" rel="noopener noreferrer">
+          <a
+            href={IDAHO_DOPL_LICENSE_SEARCH}
+            target="_blank"
+            rel="noopener noreferrer"
+            title="Look up registration 8381215 on Idaho DOPL"
+            aria-label="Verify with Idaho DOPL: look up registration 8381215, opens in a new tab"
+          >
             {PUBLIC_REGISTRATION}
           </a>
         ) : (

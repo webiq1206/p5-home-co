@@ -55,9 +55,14 @@ export const siteSchema = {
       },
       hasCredential: {
         "@type": "EducationalOccupationalCredential",
-        credentialCategory: "license",
+        credentialCategory: "registration",
         identifier: CONTRACTOR_REGISTRATION,
-        name: "Idaho contractor registration",
+        name: "Idaho Registered Contractor",
+        recognizedBy: {
+          "@type": "GovernmentOrganization",
+          name: "Idaho Division of Occupational and Professional Licenses",
+          url: "https://dopl.idaho.gov/con/",
+        },
       },
       // Service-area business. HomeAndConstructionBusiness is the LocalBusiness
       // subtype. The street is the authorized public address; the cities below

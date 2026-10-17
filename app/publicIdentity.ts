@@ -32,7 +32,7 @@ export const PUBLIC_NAP =
 
 export const PUBLIC_REGISTRATION = "Idaho Registered Contractor #8381215";
 
-/** Idaho DOPL public license search. Footer links use this. Estimator pages do not. */
+/** Idaho DOPL public registration search. Footer links use this. Estimator pages do not. */
 export const IDAHO_DOPL_LICENSE_SEARCH = "https://edopl.idaho.gov/OnlineServices/?link=PubSearch";
 
 export const SISTER_LINE =

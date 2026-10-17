@@ -47,8 +47,13 @@ test("the registration line is linked in the footer and plain text on funnel pag
   const identity = readFileSync("components/PublicIdentity.tsx", "utf8");
   assert.equal(IDAHO_DOPL_LICENSE_SEARCH, "https://edopl.idaho.gov/OnlineServices/?link=PubSearch");
   assert.match(identity, /href=\{IDAHO_DOPL_LICENSE_SEARCH\}/);
+  assert.match(identity, /target="_blank"/);
+  assert.match(identity, /rel="noopener noreferrer"/);
+  assert.match(identity, /title="Look up registration 8381215 on Idaho DOPL"/);
+  assert.match(identity, /aria-label="Verify with Idaho DOPL: look up registration 8381215, opens in a new tab"/);
   assert.equal(identity.includes("process.env"), false);
   assert.match(identity, /\{PUBLIC_REGISTRATION\}/);
+  assert.equal(identity.includes("Idaho contractor registration"), false);
   const plain = [
     "app/quote/QuoteLanding.tsx",
     "app/quote/thanks/page.tsx",
@@ -58,6 +63,7 @@ test("the registration line is linked in the footer and plain text on funnel pag
   for (const file of plain) {
     assert.match(readFileSync(file, "utf8"), /linkRegistration=\{false\}/, file);
   }
+  assert.match(readFileSync("app/estimate/page.tsx", "utf8"), /from "\.\/p5-preview\/page"/);
   for (const file of ["app/HomePageClient.tsx", "app/sitemap/page.tsx", "app/legal/layout.tsx"]) {
     const source = readFileSync(file, "utf8");
     assert.match(source, /<PublicIdentity\b/, file);
@@ -65,8 +71,19 @@ test("the registration line is linked in the footer and plain text on funnel pag
     assert.equal(source.includes("edopl.idaho.gov"), false, file);
   }
   const schema = readFileSync("app/structuredData.ts", "utf8");
+  assert.match(schema, /credentialCategory: "registration"/);
   assert.match(schema, /identifier: CONTRACTOR_REGISTRATION/);
-  assert.match(schema, /name: "Idaho contractor registration"/);
+  assert.match(schema, /name: "Idaho Registered Contractor"/);
+  assert.match(schema, /"@type": "GovernmentOrganization"/);
+  assert.match(schema, /name: "Idaho Division of Occupational and Professional Licenses"/);
+  assert.match(schema, /url: "https:\/\/dopl\.idaho\.gov\/con\/"/);
+  assert.equal(schema.includes('credentialCategory: "license"'), false);
+  const proof = readFileSync("app/quote/proof.ts", "utf8");
+  assert.match(proof, /Idaho Registered Contractor #8381215, carried across all five companies\./);
+  assert.equal(proof.includes("Idaho contractor registration"), false);
+  for (const file of ["app/site.ts", "app/HomePageClient.tsx", "public/llms.txt", "public/llms-full.txt"]) {
+    assert.equal(/licen[cs]e/i.test(readFileSync(file, "utf8")), false, file);
+  }
 });
 
 test("homepage keeps the existing claims and adds the location subhead", () => {
