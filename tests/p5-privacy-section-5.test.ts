@@ -10,8 +10,8 @@ test("privacy section 5 states enhanced conversions are off and remarketing is o
   assert.ok(section.includes("<h2>5. Cookies and analytics</h2>"));
   assert.match(section, /The public website uses analytics and marketing cookies/);
   assert.match(section, /The portals use a strictly necessary cookie to keep you signed in/);
-  assert.ok(section.includes("We do not currently send your name, email, phone number or project details to Google."));
-  assert.ok(section.includes("Google's tag also adds visitors to remarketing lists, and Google may use this data to show you relevant ads on other websites (remarketing)."));
+  assert.ok(section.includes("We do not currently send your name, email, phone number or project details to Google.{\" \"}"));
+  assert.ok(section.includes("Google's tag also adds visitors to remarketing lists, and Google may use this data to show you relevant ads on other websites (remarketing).\"}{\" \"}"));
   assert.equal(section.includes("Google may also use information collected by its tags to personalise ads."), false);
   assert.equal(/meta|facebook|pixel/i.test(section), false);
 });

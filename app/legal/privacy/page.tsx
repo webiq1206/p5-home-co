@@ -137,8 +137,8 @@ export default function PrivacyPage() {
         cannot be turned off without ending your session.
       </p>
       <p>
-        We do not currently send your name, email, phone number or project details to Google.
-        {"Google's tag also adds visitors to remarketing lists, and Google may use this data to show you relevant ads on other websites (remarketing)."}
+        We do not currently send your name, email, phone number or project details to Google.{" "}
+        {"Google's tag also adds visitors to remarketing lists, and Google may use this data to show you relevant ads on other websites (remarketing)."}{" "}
         You can opt out of Google Analytics with the <a href="https://tools.google.com/dlpage/gaoptout">Google Analytics opt-out browser add-on</a>,
         and you can opt out of Google ads at <a href="https://adssettings.google.com">Google Ads Settings</a>.
       </p>
