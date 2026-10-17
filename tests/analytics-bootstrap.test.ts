@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
+import { join } from 'node:path';
 import test from 'node:test';
 import vm from 'node:vm';
 import { googleAdsCallClickLabel, googleAdsTextClickLabel } from '../app/site.ts';
@@ -162,31 +163,67 @@ test('staff phone links do not count as ad clicks', () => {
   assert.equal(conversions(b.window.dataLayer).length, 0);
 });
 
-const TAP_DISCLOSURE = "When you tap Call or Text on our site, Google Ads is told that the tap happened, on which page, and the ad click identifier Google's tag saved if you arrived from one of our ads, so we can count calls and texts that come from our ads. The tap itself doesn't send Google your name, phone number or what you say or write.";
-const CALL_LINK_DISCLOSURE = "On some of our Call links, Google Analytics also records which link you used, such as the one in the header or footer.";
+const SHARE_SENTENCE = "We do not sell personal information. We share limited information with Google to measure our ads, as described in section 5.";
+const GOOGLE_TOOLS_SENTENCE = "We use Google Analytics to understand how visitors use this site and Google Ads to measure which of our ads lead to quote requests, calls and texts. These tools set cookies and receive information about your visit, including your IP address, which Google processes under its own privacy policy (https://policies.google.com/privacy).";
+const TAP_DISCLOSURE = "When you tap Call or Text on our site, Google Ads is told that the tap happened, on which page, and the ad click identifier Google's tag saved if you arrived from one of our ads, so we can count calls and texts that come from our ads. The tap itself doesn't send Google your name, your own phone number or what you say or write.";
+const CALL_AND_TEXT_DISCLOSURE = "On some of our Call and Text links, Google Analytics also records which link you used, such as the one in the header or footer.";
 const FORWARDING_DISCLOSURE = "If your call goes through a Google forwarding number, Google connects the call and can see the calling number and call length, but not what's said.";
 
+function privacySource(): string {
+  return readFileSync(new URL('../app/legal/privacy/page.tsx', import.meta.url), 'utf8');
+}
+
 function privacyText(): string {
-  return readFileSync(new URL('../app/legal/privacy/page.tsx', import.meta.url), 'utf8').replace(/&apos;/g, "'").replace(/\s+/g, ' ');
+  return privacySource().replace(/&apos;/g, "'").replace(/<[^>]+>/g, '').replace(/\s+/g, ' ');
 }
 
-/** The value passed to googleTagBootstrap in the production layout, if any. */
-function layoutPhoneConversionLabel(): string | undefined {
-  const layout = readFileSync(new URL('../app/layout.tsx', import.meta.url), 'utf8');
-  const call = layout.match(/googleTagBootstrap\(\{([\s\S]*?)\}\)/);
-  const value = call?.[1].match(/phoneConversionLabel\s*:\s*([^,\n}]+)/)?.[1].trim();
-  if (!value || value === 'false' || value === 'null' || value === 'undefined' || value === '""' || value === "''") return undefined;
-  return value;
+function sourceFiles(dir: string): string[] {
+  const found: string[] = [];
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const path = join(dir, entry.name);
+    if (entry.isDirectory()) found.push(...sourceFiles(path));
+    else if (/\.(tsx|ts|jsx|js)$/.test(entry.name)) found.push(path);
+  }
+  return found;
 }
 
-test('call and text privacy disclosure states what the tap sends', () => {
+/** True when app/ or components/ actually configure Google call forwarding. */
+function tagSetupEnablesCallForwarding(): boolean {
+  const root = new URL('..', import.meta.url);
+  for (const name of ['app', 'components']) {
+    for (const file of sourceFiles(new URL(`${name}/`, root).pathname)) {
+      const source = readFileSync(file, 'utf8');
+      if (source.includes('phone_conversion_number')) return true;
+      if (/googleTagBootstrap\s*\([\s\S]*?phoneConversionLabel/.test(source)) return true;
+    }
+  }
+  return false;
+}
+
+test('approved privacy sentences name the Google share, the tools, and the tap', () => {
   const privacy = privacyText();
-  assert.ok(privacy.includes(`${TAP_DISCLOSURE} ${CALL_LINK_DISCLOSURE}`));
+  const share = privacy.indexOf(SHARE_SENTENCE);
+  const tools = privacy.indexOf(GOOGLE_TOOLS_SENTENCE);
+  const tap = privacy.indexOf(TAP_DISCLOSURE);
+  const links = privacy.indexOf(CALL_AND_TEXT_DISCLOSURE);
+  assert.ok(share >= 0, 'section 4 share sentence');
+  assert.ok(tools > share, 'Google tools paragraph comes after the share sentence');
+  assert.ok(tap > tools, 'tap sentence comes after the Google tools paragraph');
+  assert.ok(links > tap, 'call and text link sentence comes after the tap sentence');
+  assert.match(privacySource(), /href="https:\/\/policies\.google\.com\/privacy"/);
+  assert.equal(privacy.includes('we do not share it for advertising'), false);
 });
 
 test('forwarding disclosure is required when phoneConversionLabel is set', () => {
-  const label = layoutPhoneConversionLabel();
-  if (label) assert.ok(privacyText().includes(FORWARDING_DISCLOSURE), `phoneConversionLabel is ${label}, so the privacy page must include the forwarding sentence`);
+  const enabled = tagSetupEnablesCallForwarding();
+  const present = privacyText().includes(FORWARDING_DISCLOSURE);
+  assert.equal(
+    present,
+    enabled,
+    enabled
+      ? 'call forwarding is in the tag setup, so the privacy page must include the forwarding sentence'
+      : 'call forwarding is not in the tag setup, so the privacy page must not include the forwarding sentence',
+  );
 });
 
 test('the forwarding-number snippet is not installed on the page', () => {
