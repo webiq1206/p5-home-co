@@ -55,7 +55,7 @@ export const siteSchema = {
       },
       hasCredential: {
         "@type": "EducationalOccupationalCredential",
-        credentialCategory: "license",
+        credentialCategory: "registration",
         identifier: CONTRACTOR_REGISTRATION,
         name: "Idaho contractor registration",
       },
