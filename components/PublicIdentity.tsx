@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import {
+  IDAHO_DOPL_PUBLIC_SEARCH,
   PUBLIC_EMAIL,
   PUBLIC_NAP,
   PUBLIC_PHONE_DISPLAY,
@@ -52,7 +53,11 @@ export default function PublicIdentity({ tone = "inherit" }: { tone?: "inherit" 
           { label: PUBLIC_EMAIL, href: `mailto:${PUBLIC_EMAIL}` },
         ])}
       </p>
-      <p className="public-registration">{PUBLIC_REGISTRATION}</p>
+      <p className="public-registration">
+        <a href={IDAHO_DOPL_PUBLIC_SEARCH} target="_blank" rel="noopener">
+          {PUBLIC_REGISTRATION}
+        </a>
+      </p>
       <p className="sister-sites">{withLinks(SISTER_LINE, SISTER_LINKS)}</p>
     </div>
   );

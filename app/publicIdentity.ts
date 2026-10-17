@@ -28,7 +28,10 @@ export const CONTRACTOR_REGISTRATION = "8381215";
 export const PUBLIC_NAP =
   "Public representative: Nick Perkins · 4031 W Wapoot St, Meridian, ID 83646 · Service-area business, not a staffed storefront. · (208) 477-1169 · hello@p5homeco.com";
 
-export const PUBLIC_REGISTRATION = "Idaho contractor registration 8381215.";
+export const PUBLIC_REGISTRATION = "Idaho Registered Contractor #8381215";
+
+/** Official public search linked from https://dopl.idaho.gov/con/ (Search for a Registration). */
+export const IDAHO_DOPL_PUBLIC_SEARCH = "https://edopl.idaho.gov/OnlineServices/?link=PubSearch";
 
 export const SISTER_LINE =
   "Part of P5 Home Co: Boise Construction Co · Boise Remodeling Co · Boise Handyman Co · Boise Cabinet Co · Boise ADU Co (launching soon)";

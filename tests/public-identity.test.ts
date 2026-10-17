@@ -3,6 +3,7 @@ import test from "node:test";
 import { readFileSync } from "node:fs";
 
 import {
+  IDAHO_DOPL_PUBLIC_SEARCH,
   LLMS_CONTACT,
   PUBLIC_NAP,
   PUBLIC_REGISTRATION,
@@ -29,11 +30,27 @@ test("the approved NAP and sister row are the audit strings", () => {
     SISTER_LINE,
     "Part of P5 Home Co: Boise Construction Co · Boise Remodeling Co · Boise Handyman Co · Boise Cabinet Co · Boise ADU Co (launching soon)",
   );
-  assert.equal(PUBLIC_REGISTRATION, "Idaho contractor registration 8381215.");
+  assert.equal(PUBLIC_REGISTRATION, "Idaho Registered Contractor #8381215");
+  assert.equal(PUBLIC_REGISTRATION.includes("("), false);
+  assert.equal(IDAHO_DOPL_PUBLIC_SEARCH, "https://edopl.idaho.gov/OnlineServices/?link=PubSearch");
   assert.match(LLMS_CONTACT, /Nick Perkins/);
   assert.match(LLMS_CONTACT, /4031 W Wapoot St, Meridian, ID 83646/);
   assert.match(LLMS_CONTACT, /hello@p5homeco\.com/);
   assert.equal(PUBLIC_NAP.includes("Jared") || SISTER_LINE.includes("Jared") || LLMS_CONTACT.includes("Jared"), false);
+});
+
+test("the visible registration phrase links to the Idaho DOPL public search", () => {
+  const identity = readFileSync("components/PublicIdentity.tsx", "utf8");
+  const quote = readFileSync("app/quote/QuoteLanding.tsx", "utf8");
+  const schema = readFileSync("app/structuredData.ts", "utf8");
+  for (const source of [identity, quote]) {
+    assert.match(source, /href=\{IDAHO_DOPL_PUBLIC_SEARCH\}/);
+    assert.match(source, /rel="noopener"/);
+    assert.match(source, /\{PUBLIC_REGISTRATION\}/);
+  }
+  assert.equal(schema.includes(IDAHO_DOPL_PUBLIC_SEARCH), false);
+  assert.equal(schema.includes(PUBLIC_REGISTRATION), false);
+  assert.match(schema, /identifier: CONTRACTOR_REGISTRATION/);
 });
 
 test("every public page renders the shared identity block", () => {
