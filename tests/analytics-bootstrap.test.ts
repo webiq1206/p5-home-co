@@ -139,6 +139,32 @@ test('a tel or sms click fires one matching conversion and a second bind does no
   assert.equal(b.window.dataLayer.some((args) => Array.from(args as ArrayLike<unknown>)[1] === 'phone_click'), false);
 });
 
+test('call and text conversions set no user_data and send no personal data', () => {
+  const tapOnly = {
+    hostname: 'example.com',
+    measurementId: 'G-EXAMPLE',
+    adsId: 'AW-EXAMPLE',
+    callClickLabel: googleAdsCallClickLabel,
+    textClickLabel: googleAdsTextClickLabel,
+  };
+  const b = clickBrowser('example.com');
+  const source = googleTagBootstrap(tapOnly);
+  assert.equal(source.includes('user_data'), false);
+  vm.runInContext(source, b.context);
+  click(b.listeners[0][1], 'tel:+12084771169');
+  click(b.listeners[0][1], 'sms:+12084771169?body=Please%20call%20Nick');
+  const queued = b.window.dataLayer.map((args) => Array.from(args as ArrayLike<unknown>));
+  assert.equal(queued.some((args) => args[0] === 'set' && args[1] === 'user_data'), false);
+  const fired = conversions(b.window.dataLayer);
+  assert.equal(fired.length, 2);
+  for (const args of fired) {
+    const payload = args[2] as Record<string, unknown>;
+    assert.deepEqual(Object.keys(payload), ['send_to']);
+    const serialized = JSON.stringify(payload);
+    assert.equal(/user_data|email|phone|name|address|postal|12084771169|Nick/i.test(serialized), false);
+  }
+});
+
 test('call and text clicks send nothing when analytics is off', () => {
   const cases = [
     clickBrowser('localhost'),
