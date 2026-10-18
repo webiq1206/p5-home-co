@@ -195,6 +195,7 @@ const TAP_DISCLOSURE = "When you tap Call or Text on our site, Google Ads is tol
 const CALL_AND_TEXT_DISCLOSURE = "On some of our Call and Text links, Google Analytics also records which link you used, such as the one in the header or footer.";
 const STALE_TAP_SENTENCE = "When you tap Call or Text on our site, Google Ads is told that the tap happened and on which page, so we can count calls and texts that come from our ads. We don't send Google your name, phone number or the content of your call or message.";
 const FORWARDING_DISCLOSURE = "If your call goes through a Google forwarding number, Google connects the call and can see the calling number and call length, but not what's said.";
+const ATTRIBUTION_DISCLOSURE = "If you arrive from one of our ads or a link with campaign tags, our site saves the ad click identifier from that link (such as gclid, gbraid or wbraid) and the campaign tags in your browser for the rest of that visit. If you then send an inquiry, we keep them with your inquiry in our customer records so we can tell which ad or campaign led to it.";
 const SECTION_FIVE_PARAGRAPH = `${GOOGLE_TOOLS_SENTENCE} ${TAP_DISCLOSURE} ${CALL_AND_TEXT_DISCLOSURE}`;
 
 function privacySource(): string {
@@ -244,6 +245,9 @@ test('approved privacy sentences name the Google share, the tools, and the tap',
   const forwarding = privacy.indexOf(FORWARDING_DISCLOSURE);
   assert.ok(forwarding > paragraph, 'forwarding sentence comes after the section 5 paragraph');
   assert.equal(privacy.slice(paragraph + SECTION_FIVE_PARAGRAPH.length, forwarding).trim(), '');
+  const attribution = privacy.indexOf(ATTRIBUTION_DISCLOSURE);
+  assert.ok(attribution > forwarding, 'visit-length click id sentence comes after the forwarding sentence');
+  assert.equal(privacy.slice(forwarding + FORWARDING_DISCLOSURE.length, attribution).trim(), '');
   assert.equal(privacy.includes('dclid'), false);
   assert.equal(privacy.includes('90 days'), false);
   assert.equal(privacy.includes(STALE_TAP_SENTENCE), false);
