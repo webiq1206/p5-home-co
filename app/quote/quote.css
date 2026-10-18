@@ -820,3 +820,14 @@
   align-items: center;
   min-height: 44px;
 }
+
+/* Design quality pass 2026-10-18: on a phone the headline explains the page before the estimator asks for anything. */
+@media (max-width: 719px) {
+  .quote-page { display: flex; flex-direction: column; }
+  .quote-page > .quote-header { order: -3; }
+  .quote-page > .quote-hero { order: -2; padding: 26px 0 30px; }
+  .quote-page > #quote-form-heading { order: -1; }
+  .quote-page > .quote-hero .quote-covers,
+  .quote-page > .quote-hero .quote-hero-call { display: none; }
+  .quote-page > .quote-hero .quote-lead { margin-bottom: 0; }
+}

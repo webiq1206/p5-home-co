@@ -144,7 +144,7 @@ a:hover .arrow-diagonal, a:focus-visible .arrow-diagonal { transform: translate(
 .brand-proof { display: flex; align-items: center; gap: 10px; margin-top: 22px; color: var(--brand-muted); font-size: 11px; font-weight: 750; letter-spacing: .04em; }
 .brand-proof span { display: grid; width: 19px; height: 19px; place-items: center; border: 1px solid var(--brand-accent); border-radius: 50%; color: var(--brand-accent); font-size: 9px; }
 .brand-link { display: flex; align-items: center; justify-content: space-between; width: 100%; max-width: 330px; margin-top: 35px; padding: 15px 0; border-bottom: 1px solid currentColor; font-size: 12px; font-weight: 800; }
-.launch-note { margin-top: 10px; color: var(--brand-muted); font-size: 10px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
+.launch-note { display: inline-block; margin-top: 14px; padding: 7px 11px 6px; border: 1px solid var(--bronze-ink); color: var(--bronze-ink); font-size: 10px; font-weight: 700; letter-spacing: .12em; line-height: 1; text-transform: uppercase; }
 .brand-construction { --brand-accent:#d09a5c; --brand-muted:rgba(255,255,255,.61); --brand-line:rgba(255,255,255,.17); --brand-topline:rgba(255,255,255,.5); color:#fff; background:#202822; }
 .brand-remodeling { --brand-accent:#9aa098; --brand-muted:#646962; --brand-line:rgba(32,35,31,.15); --brand-topline:#777d76; color:var(--ink); background:#e7e3d8; }
 .brand-cabinetry { --brand-accent:#7aaaaa; --brand-muted:#66635d; --brand-line:rgba(32,35,31,.15); --brand-topline:#77746e; color:var(--ink); background:#f2eee5; }
