@@ -148,7 +148,7 @@ a:hover .arrow-diagonal, a:focus-visible .arrow-diagonal { transform: translate(
 .brand-construction { --brand-accent:#d09a5c; --brand-muted:rgba(255,255,255,.61); --brand-line:rgba(255,255,255,.17); --brand-topline:rgba(255,255,255,.5); color:#fff; background:#202822; }
 .brand-remodeling { --brand-accent:#9aa098; --brand-muted:#646962; --brand-line:rgba(32,35,31,.15); --brand-topline:#777d76; color:var(--ink); background:#e7e3d8; }
 .brand-cabinetry { --brand-accent:#7aaaaa; --brand-muted:#66635d; --brand-line:rgba(32,35,31,.15); --brand-topline:#77746e; color:var(--ink); background:#f2eee5; }
-.brand-adu { --brand-accent:#cc929a; --brand-muted:#66635d; --brand-line:rgba(32,35,31,.15); --brand-topline:#77746e; color:var(--ink); background:#f1ede4; }
+.brand-adu { --brand-accent:#cc929a; --brand-muted:#4f5450; --brand-line:rgba(32,35,31,.15); --brand-topline:#77746e; color:var(--ink); background:#f1ede4; }
 .brand-handyman { --brand-accent:#8faec4; --brand-muted:rgba(255,255,255,.62); --brand-line:rgba(255,255,255,.17); --brand-topline:rgba(255,255,255,.5); color:#fff; background:#3b403e; }
 
 .standard { color: #fff; background: var(--forest); }
@@ -444,3 +444,5 @@ body[data-p5-estimator-active="true"] .p5-mobile-actionbar { display: none !impo
 .brand-handyman { --brand-topline:#d3d6d2; }
 .handoff-step > b,.handoff-step small,.service-area-grid .eyebrow { color:#596158; }
 /* Design audit 2026-10-17: labels that sat at 7 to 10px were raised to 10 to 12px above, tracking unchanged. */
+/* Phone vertical rhythm 2026-10-18: standard cards keep the number beside the title instead of 32px above it. */
+@media (max-width:560px) { .standard-grid article { display:grid; grid-template-columns:2.25rem minmax(0,1fr); column-gap:6px; align-items:baseline; } .standard-grid span { grid-column:1; } .standard-grid h3 { grid-column:2; margin-top:0; } .standard-grid p { grid-column:2; margin-top:8px; } }
