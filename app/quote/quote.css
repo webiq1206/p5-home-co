@@ -56,7 +56,18 @@
   height: 32px;
 }
 
-.quote-header-phone {
+.quote-header-actions {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 14px;
+}
+
+.quote-header-phone,
+.quote-header-text {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
   color: var(--ink);
   font-size: 15px;
   font-weight: 750;
@@ -65,7 +76,9 @@
 }
 
 .quote-header-phone:hover,
-.quote-header-phone:focus-visible {
+.quote-header-phone:focus-visible,
+.quote-header-text:hover,
+.quote-header-text:focus-visible {
   color: var(--bronze-ink);
 }
 
