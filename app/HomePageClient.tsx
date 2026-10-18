@@ -5,6 +5,14 @@
 import Link from "next/link";
 import Reveal from "@/components/Reveal";
 import { useEffect, useRef, useState } from "react";
+import {
+  HOMEPAGE_H1,
+  HOMEPAGE_LEDE,
+  SHOW_FOUNDING_YEAR,
+  SHOW_UNPROVEN_TRUSTED,
+  TRUSTED_H1,
+  TRUSTED_LEDE,
+} from "./publicClaims";
 import { citiesServed, faqs } from "./site";
 import { track } from "./analytics";
 import { homePageSchema, serializeJsonLd } from "./structuredData";
@@ -105,11 +113,11 @@ export default function Home() {
 
       <section className="hero" aria-labelledby="hero-heading">
         <img className="hero-image" src="/images/p5-hero.webp" alt="Modern two-story house with dark vertical siding, a flat roof, and warm window light at dusk" fetchPriority="high" decoding="async" /><div className="hero-shade" /><div className="hero-grain" />
-        <div className="hero-content content-shell"><div className="hero-copy"><p className="eyebrow eyebrow-light">The P5 Home Co family of companies</p><h1 id="hero-heading">Boise’s Trusted Home Specialists</h1><p className="hero-subhead">Serving Boise, Meridian and the Treasure Valley</p><p className="hero-lede">Build it. Remodel it. Expand it. Care for it. Finish it. P5 brings every chapter of homeownership under one trusted family of specialized Treasure Valley companies.</p><div className="hero-actions" data-suppress-mobile-bar=""><button className="button button-light" type="button" onClick={openMatcher}>Find the right team <Arrow /></button><Link className="text-link text-link-light" href="/estimate" onClick={() => track("quote_click", { location: "hero" })}>Request a free quote <Arrow /></Link></div></div><div className="hero-side-note"><span>Serving</span><strong>Boise and the<br />Treasure Valley</strong></div></div>
+        <div className="hero-content content-shell"><div className="hero-copy"><p className="eyebrow eyebrow-light">The P5 Home Co family of companies</p><h1 id="hero-heading">{SHOW_UNPROVEN_TRUSTED ? TRUSTED_H1 : HOMEPAGE_H1}</h1><p className="hero-subhead">Serving Boise, Meridian and the Treasure Valley</p><p className="hero-lede">{SHOW_UNPROVEN_TRUSTED ? TRUSTED_LEDE : HOMEPAGE_LEDE}</p><div className="hero-actions" data-suppress-mobile-bar=""><button className="button button-light" type="button" onClick={openMatcher}>Find the right team <Arrow /></button><Link className="text-link text-link-light" href="/estimate" onClick={() => track("quote_click", { location: "hero" })}>Request a free quote <Arrow /></Link></div></div><div className="hero-side-note"><span>Serving</span><strong>Boise and the<br />Treasure Valley</strong></div></div>
         <Link className="scroll-cue" href="/#about" aria-label="Explore P5 Home Co"><span>Explore</span><i /></Link>
       </section>
 
-      <section className="trust-strip" aria-label="P5 Home Co credentials"><div className="content-shell trust-grid"><div><strong>Est. 2020</strong><span>Local experience</span></div><div><strong>100+ projects</strong><span>Across the Treasure Valley</span></div><div><strong>Bonded and insured</strong><span>Professional protection</span></div><div><strong>Ada and Canyon</strong><span>Local permit knowledge</span></div></div></section>
+      <section className="trust-strip" aria-label="P5 Home Co credentials"><div className="content-shell trust-grid">{SHOW_FOUNDING_YEAR ? <div><strong>Est. 2020</strong><span>Local experience</span></div> : null}<div><strong>100+ projects</strong><span>Across the Treasure Valley</span></div><div><strong>Bonded and insured</strong><span>Professional protection</span></div><div><strong>Ada and Canyon</strong><span>Local permit knowledge</span></div></div></section>
 
       <section id="about" className="manifesto section-pad"><Reveal className="content-shell manifesto-layout"><div className="manifesto-title"><p className="eyebrow">More than a holding company</p><h2>The right specialist.<br />One shared standard.</h2></div><div className="manifesto-copy"><p className="lead-copy">P5 Home Co is the operating family behind five focused home-service companies. It is not a directory or referral network.</p><p>Each company has its own craft, team, and expertise. What connects them is the way the work is handled: clear scopes, accountable communication, local knowledge, and respect for the home.</p><p>You get a specialist for the project in front of you, with an established family of companies ready for whatever your home needs next.</p><button className="text-link" type="button" onClick={openMatcher}>Match me with a company <Arrow /></button></div></Reveal></section>
 

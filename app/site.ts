@@ -1,3 +1,5 @@
+import { BONDED_ANSWER, BONDED_SINCE_2020_ANSWER, SHOW_FOUNDING_YEAR } from "./publicClaims.ts";
+
 // Single source of truth for the production origin. Used by the metadata,
 // the JSON-LD entity graph, robots.txt, and the sitemap. Change it here
 // only; nothing else should hardcode the domain.
@@ -83,7 +85,7 @@ export const faqs = [
   },
   {
     q: "Are the P5 companies bonded and insured?",
-    a: "Yes. The P5 companies are bonded and insured, have worked across the Treasure Valley since 2020, and handle permits in-house where a project requires them.",
+    a: SHOW_FOUNDING_YEAR ? BONDED_SINCE_2020_ANSWER : BONDED_ANSWER,
   },
   {
     q: "Who builds a new home, or builds on land you already own?",

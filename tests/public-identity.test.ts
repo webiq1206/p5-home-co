@@ -86,7 +86,8 @@ test("the registration line is linked in the footer and plain text on funnel pag
 
 test("homepage keeps the existing claims and adds the location subhead", () => {
   const home = readFileSync("app/HomePageClient.tsx", "utf8");
-  assert.match(home, /Boise’s Trusted Home Specialists/);
+  assert.match(readFileSync("app/publicClaims.ts", "utf8"), /Boise’s Trusted Home Specialists/);
+  assert.match(home, /SHOW_UNPROVEN_TRUSTED \? TRUSTED_H1 : HOMEPAGE_H1/);
   assert.match(home, /Serving Boise, Meridian and the Treasure Valley/);
   assert.match(home, /Est\. 2020/);
   assert.match(home, /100\+ projects/);
