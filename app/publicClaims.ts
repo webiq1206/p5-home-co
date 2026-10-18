@@ -4,7 +4,7 @@
  */
 export const SHOW_FOUNDING_YEAR = false;
 
-/** TODO: Priya's neutral homepage rewrite. Flag off must not publish the trusted lines. */
+/** Flag off publishes the neutral homepage lines. The trusted sentences stay below. */
 export const SHOW_UNPROVEN_TRUSTED = false;
 
 export const BONDED_SINCE_2020_ANSWER =
@@ -20,14 +20,13 @@ export const ESTABLISHED_LINE = "Bonded and insured. Serving Ada and Canyon coun
 
 export const TRUSTED_H1 = "Boise’s Trusted Home Specialists";
 
-/** TODO: Priya's neutral homepage H1. */
-export const HOMEPAGE_H1_PLACEHOLDER = "TODO: neutral homepage headline";
+export const HOMEPAGE_H1 = "Boise’s Home Specialists";
 
 export const TRUSTED_LEDE =
   "Build it. Remodel it. Expand it. Care for it. Finish it. P5 brings every chapter of homeownership under one trusted family of specialized Treasure Valley companies.";
 
-/** TODO: Priya's neutral homepage lede. */
-export const HOMEPAGE_LEDE_PLACEHOLDER = "TODO: neutral homepage lede";
+export const HOMEPAGE_LEDE =
+  "Build it. Remodel it. Expand it. Care for it. Finish it. P5 brings every chapter of homeownership under one family of specialized Treasure Valley companies.";
 
 export const WORKING_HERE_SINCE_2020 = {
   label: "Working here since 2020",

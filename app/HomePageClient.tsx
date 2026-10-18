@@ -6,8 +6,8 @@ import Link from "next/link";
 import Reveal from "@/components/Reveal";
 import { useEffect, useRef, useState } from "react";
 import {
-  HOMEPAGE_H1_PLACEHOLDER,
-  HOMEPAGE_LEDE_PLACEHOLDER,
+  HOMEPAGE_H1,
+  HOMEPAGE_LEDE,
   SHOW_FOUNDING_YEAR,
   SHOW_UNPROVEN_TRUSTED,
   TRUSTED_H1,
@@ -108,7 +108,7 @@ export default function Home() {
 
       <section className="hero" aria-labelledby="hero-heading">
         <img className="hero-image" src="/images/p5-hero.webp" alt="Modern two-story house with dark vertical siding, a flat roof, and warm window light at dusk" fetchPriority="high" decoding="async" /><div className="hero-shade" /><div className="hero-grain" />
-        <div className="hero-content content-shell"><div className="hero-copy"><p className="eyebrow eyebrow-light">The P5 Home Co family of companies</p><h1 id="hero-heading">{SHOW_UNPROVEN_TRUSTED ? TRUSTED_H1 : HOMEPAGE_H1_PLACEHOLDER}</h1><p className="hero-subhead">Serving Boise, Meridian and the Treasure Valley</p><p className="hero-lede">{SHOW_UNPROVEN_TRUSTED ? TRUSTED_LEDE : HOMEPAGE_LEDE_PLACEHOLDER}</p><div className="hero-actions" data-suppress-mobile-bar=""><button className="button button-light" type="button" onClick={openMatcher}>Find the right team <Arrow /></button><Link className="text-link text-link-light" href="/estimate" onClick={() => track("quote_click", { location: "hero" })}>Request a free quote <Arrow /></Link></div></div><div className="hero-side-note"><span>Serving</span><strong>Boise and the<br />Treasure Valley</strong></div></div>
+        <div className="hero-content content-shell"><div className="hero-copy"><p className="eyebrow eyebrow-light">The P5 Home Co family of companies</p><h1 id="hero-heading">{SHOW_UNPROVEN_TRUSTED ? TRUSTED_H1 : HOMEPAGE_H1}</h1><p className="hero-subhead">Serving Boise, Meridian and the Treasure Valley</p><p className="hero-lede">{SHOW_UNPROVEN_TRUSTED ? TRUSTED_LEDE : HOMEPAGE_LEDE}</p><div className="hero-actions" data-suppress-mobile-bar=""><button className="button button-light" type="button" onClick={openMatcher}>Find the right team <Arrow /></button><Link className="text-link text-link-light" href="/estimate" onClick={() => track("quote_click", { location: "hero" })}>Request a free quote <Arrow /></Link></div></div><div className="hero-side-note"><span>Serving</span><strong>Boise and the<br />Treasure Valley</strong></div></div>
         <Link className="scroll-cue" href="/#about" aria-label="Explore P5 Home Co"><span>Explore</span><i /></Link>
       </section>
 

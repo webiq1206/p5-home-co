@@ -8,8 +8,8 @@ import {
   BONDED_ANSWER,
   BONDED_SINCE_2020_ANSWER,
   ESTABLISHED_2020_LINE,
-  HOMEPAGE_H1_PLACEHOLDER,
-  HOMEPAGE_LEDE_PLACEHOLDER,
+  HOMEPAGE_H1,
+  HOMEPAGE_LEDE,
   SHOW_FOUNDING_YEAR,
   SHOW_UNPROVEN_TRUSTED,
   TRUSTED_H1,
@@ -17,7 +17,7 @@ import {
   WORKING_HERE_SINCE_2020,
 } from "../app/publicClaims.ts";
 import { faqs } from "../app/site.ts";
-import { homePageSchema, siteSchema } from "../app/structuredData.ts";
+import { homePageSchema, siteDescription, siteSchema, siteTitle } from "../app/structuredData.ts";
 
 const BANNED_STRINGS = [
   "designed, built, and installed",
@@ -43,8 +43,10 @@ function published(): string {
     readFileSync("public/llms.txt", "utf8"),
     readFileSync("public/llms-full.txt", "utf8"),
     JSON.stringify(PROOF_POINTS),
-    HOMEPAGE_H1_PLACEHOLDER,
-    HOMEPAGE_LEDE_PLACEHOLDER,
+    siteTitle,
+    siteDescription,
+    HOMEPAGE_H1,
+    HOMEPAGE_LEDE,
   ].join("\n");
 }
 
@@ -71,8 +73,9 @@ test("banned claim strings stay in source and stay out of the published page", (
   );
   assert.match(ESTABLISHED_2020_LINE, /Established 2020/);
   assert.equal(WORKING_HERE_SINCE_2020.label, "Working here since 2020");
-  assert.equal(HOMEPAGE_H1_PLACEHOLDER, "TODO: neutral homepage headline");
-  assert.equal(HOMEPAGE_LEDE_PLACEHOLDER, "TODO: neutral homepage lede");
+  assert.equal(HOMEPAGE_H1, "Boise’s Home Specialists");
+  assert.equal(HOMEPAGE_LEDE, TRUSTED_LEDE.replace(" trusted", ""));
+  assert.equal(HOMEPAGE_LEDE.includes("trusted"), false);
 
   const bonded = faqs.find((item) => item.q === "Are the P5 companies bonded and insured?");
   assert.equal(bonded?.a, BONDED_ANSWER);
@@ -84,4 +87,7 @@ test("banned claim strings stay in source and stay out of the published page", (
   }
   const hits = visibleHits(page);
   assert.deepEqual(hits, []);
+  const terms = readFileSync("app/legal/terms/page.tsx", "utf8");
+  const trustedHits = [...page.replace(terms, "").matchAll(/trusted/gi)].map((match) => match[0]);
+  assert.deepEqual(trustedHits, []);
 });
