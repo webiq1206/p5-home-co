@@ -99,6 +99,8 @@ test("the registration number renders outside showVerifyLink and only the funnel
   const falseFiles = [
     "app/quote/QuoteLanding.tsx",
     "app/quote/thanks/page.tsx",
+    "app/estimate/scope/page.tsx",
+    "app/estimate/p5-preview/page.tsx",
   ];
   for (const file of falseFiles) {
     const source = readFileSync(file, "utf8");
