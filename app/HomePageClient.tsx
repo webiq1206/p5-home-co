@@ -27,6 +27,7 @@ import {
 import { citiesServed, faqs } from "./site";
 import { track } from "./analytics";
 import { homePageSchema, serializeJsonLd } from "./structuredData";
+import Arrow from "@/components/Arrow";
 import PublicIdentity from "@/components/PublicIdentity";
 
 type CompanyKey = "construction" | "remodeling" | "adu" | "handyman" | "cabinetry";
@@ -41,12 +42,6 @@ const companyDetails: Record<CompanyKey, { name: string; reason: string; url: st
   handyman: { name: "Boise Handyman Co", reason: "The skilled home-repair team for finish work, installations, maintenance, and the smaller projects that still deserve professional care.", url: "https://boisehandyman.co", cta: "Visit Boise Handyman Co", label: "Complete repairs", options: ["Drywall or trim repair", "Mounting or installation", "Deck or exterior repair", "A multi-item home list"] },
   cabinetry: { name: "Boise Cabinet Co", reason: "The cabinetry specialists for made-to-order kitchens, vanities, built-ins, and coordinated storage throughout the home.", url: "https://boisecabinet.co", cta: "Visit Boise Cabinet Co", label: "Plan custom cabinets", options: ["Kitchen cabinets", "Bathroom vanity", "Built-ins or storage", "Whole-home cabinetry"] },
 };
-
-const Arrow = ({ diagonal = false, reverse = false }: { diagonal?: boolean; reverse?: boolean }) => (
-  <svg aria-hidden="true" className={`arrow${diagonal ? " arrow-diagonal" : ""}${reverse ? " arrow-reverse" : ""}`} viewBox="0 0 24 16" fill="none">
-    {diagonal ? <><line x1="3" y1="13" x2="20" y2="2" /><polyline points="13 2 20 2 20 9" /></> : reverse ? <><line x1="21" y1="8" x2="3" y2="8" /><polyline points="9 2 3 8 9 14" /></> : <><line x1="3" y1="8" x2="21" y2="8" /><polyline points="15 2 21 8 15 14" /></>}
-  </svg>
-);
 
 const HeaderWordmark = () => (
   <Link className="wordmark" href="/#top" aria-label="P5 Home Co, back to top">

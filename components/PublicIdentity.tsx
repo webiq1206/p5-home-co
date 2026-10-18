@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import Arrow from "@/components/Arrow";
 import {
   IDAHO_DOPL_PUBLIC_SEARCH,
   PUBLIC_EMAIL,
@@ -46,11 +47,11 @@ function withLinks(text: string, labels: readonly { label: string; href: string 
 /** The approved NAP, registration, and sister-company row. Text content matches the audit strings. */
 export default function PublicIdentity({
   tone = "inherit",
-  doplLink = true,
+  showVerifyLink = true,
 }: {
   tone?: "inherit" | "ink";
-  /** When false, the registration line is plain text. Footer and legal pages leave this on. */
-  doplLink?: boolean;
+  /** When false, the registration number stays and the DOPL link is omitted. */
+  showVerifyLink?: boolean;
 }) {
   return (
     <div className={`public-identity${tone === "ink" ? " public-identity-ink" : ""}`}>
@@ -61,12 +62,20 @@ export default function PublicIdentity({
         ])}
       </p>
       <p className="public-registration">
-        {doplLink ? (
-          <a href={IDAHO_DOPL_PUBLIC_SEARCH} target="_blank" rel="noopener">
-            {PUBLIC_REGISTRATION}
-          </a>
-        ) : (
-          PUBLIC_REGISTRATION
+        {PUBLIC_REGISTRATION}
+        {showVerifyLink && (
+          <>
+            {" · "}
+            <a
+              href={IDAHO_DOPL_PUBLIC_SEARCH}
+              target="_blank"
+              rel="noopener noreferrer"
+              title="Look up registration 8381215 on Idaho DOPL"
+              aria-label="Verify with Idaho DOPL: look up registration 8381215, opens in a new tab"
+            >
+              Verify with Idaho DOPL <Arrow diagonal />
+            </a>
+          </>
         )}
       </p>
       <p className="sister-sites">{withLinks(SISTER_LINE, SISTER_LINKS)}</p>

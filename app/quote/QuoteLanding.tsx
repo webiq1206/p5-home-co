@@ -3,7 +3,6 @@ import Link from "next/link";
 import {P5Estimator} from "@/components/P5Estimator";
 
 import { CREW_AND_TRADES, QUOTE_SELF_PERFORM, QUOTE_SPECIALTY, SHOW_UNPROVEN_SELF_PERFORM } from "../publicClaims";
-import { IDAHO_DOPL_PUBLIC_SEARCH, PUBLIC_REGISTRATION } from "../publicIdentity";
 import { PROOF_POINTS, TESTIMONIALS } from "./proof";
 import { faqsFor, schemaFor, STEPS } from "./schema";
 import { QUOTE_SERVICES, type QuoteService } from "./services";
@@ -12,20 +11,6 @@ import TrackedPhoneLink from "./TrackedPhoneLink";
 import PublicIdentity from "@/components/PublicIdentity";
 
 /* eslint-disable @next/next/no-img-element */
-
-function registrationDetail(detail: string) {
-  const at = detail.indexOf(PUBLIC_REGISTRATION);
-  if (at === -1) return detail;
-  return (
-    <>
-      {detail.slice(0, at)}
-      <a href={IDAHO_DOPL_PUBLIC_SEARCH} target="_blank" rel="noopener">
-        {PUBLIC_REGISTRATION}
-      </a>
-      {detail.slice(at + PUBLIC_REGISTRATION.length)}
-    </>
-  );
-}
 
 /**
  * The quote landing page, shared by /quote and every /quote/<service> variant.
@@ -125,7 +110,7 @@ export default function QuoteLanding({ service, entryLabel, defaultService }: { 
               {PROOF_POINTS.map((point) => (
                 <li key={point.label}>
                   <b>{point.label}</b>
-                  <span>{registrationDetail(point.detail)}</span>
+                  <span>{point.detail}</span>
                 </li>
               ))}
             </ul>
@@ -227,7 +212,7 @@ export default function QuoteLanding({ service, entryLabel, defaultService }: { 
               <Link href="/">P5 Home Co home</Link>
               <Link href="/legal/privacy">Privacy policy</Link>
             </p>
-            <PublicIdentity doplLink={false} />
+            <PublicIdentity showVerifyLink={false} />
             <p className="quote-footer-bottom">© 2026 P5 Home Co. All rights reserved.</p>
           </div>
         </footer>

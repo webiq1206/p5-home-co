@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
+import { join } from "node:path";
 import { createRequire } from "node:module";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -43,49 +44,69 @@ test("the approved NAP and sister row are the audit strings", () => {
   assert.equal(PUBLIC_NAP.includes("Jared") || SISTER_LINE.includes("Jared") || LLMS_CONTACT.includes("Jared"), false);
 });
 
-test("the visible registration phrase links to the Idaho DOPL public search", () => {
-  const identity = readFileSync("components/PublicIdentity.tsx", "utf8");
-  const quote = readFileSync("app/quote/QuoteLanding.tsx", "utf8");
-  const schema = readFileSync("app/structuredData.ts", "utf8");
-  for (const source of [identity, quote]) {
-    assert.match(source, /href=\{IDAHO_DOPL_PUBLIC_SEARCH\}/);
-    assert.match(source, /rel="noopener"/);
-    assert.match(source, /\{PUBLIC_REGISTRATION\}/);
+function sourceFiles(dir: string): string[] {
+  const found: string[] = [];
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const path = join(dir, entry.name);
+    if (entry.isDirectory()) found.push(...sourceFiles(path));
+    else if (/\.(tsx|ts)$/.test(entry.name)) found.push(path);
   }
+  return found;
+}
+
+test("the registration number renders outside showVerifyLink and only the funnel turns the link off", () => {
+  const identity = readFileSync("components/PublicIdentity.tsx", "utf8");
+  const numberAt = identity.indexOf("{PUBLIC_REGISTRATION}");
+  const conditionAt = identity.indexOf("showVerifyLink &&");
+  assert.ok(numberAt >= 0 && conditionAt > numberAt, "the number is outside the showVerifyLink condition");
+  const schema = readFileSync("app/structuredData.ts", "utf8");
   assert.equal(schema.includes(IDAHO_DOPL_PUBLIC_SEARCH), false);
   assert.equal(schema.includes(PUBLIC_REGISTRATION), false);
   assert.match(schema, /identifier: CONTRACTOR_REGISTRATION/);
-});
 
-test("the registration line links to DOPL unless doplLink is off", () => {
   const require = createRequire(import.meta.url);
-  const source = readFileSync(new URL("../components/PublicIdentity.tsx", import.meta.url), "utf8");
-  const compiled = ts.transpileModule(source, {
+  const compile = (fileUrl: URL) => ts.transpileModule(readFileSync(fileUrl, "utf8"), {
     compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, target: ts.ScriptTarget.ES2022 },
   }).outputText;
-  const exported: { default?: React.ComponentType<{ tone?: "inherit" | "ink"; doplLink?: boolean }> } = {};
-  new Function("require", "exports", "React", compiled)(
-    (id: string) => id === "@/app/publicIdentity"
-      ? require(new URL("../app/publicIdentity.ts", import.meta.url).pathname)
-      : require(id),
-    exported,
-    React,
-  );
-  const PublicIdentity = exported.default!;
+  const cache = new Map<string, unknown>();
+  const load = (id: string): unknown => {
+    if (cache.has(id)) return cache.get(id);
+    if (id === "@/app/publicIdentity") {
+      const loaded = require(new URL("../app/publicIdentity.ts", import.meta.url).pathname);
+      cache.set(id, loaded);
+      return loaded;
+    }
+    if (!id.startsWith("@/")) return require(id);
+    const exported: Record<string, unknown> = {};
+    new Function("require", "exports", "React", compile(new URL(`../${id.slice(2)}.tsx`, import.meta.url)))(load, exported, React);
+    cache.set(id, exported);
+    return exported;
+  };
+  const identityExports: { default?: React.ComponentType<{ tone?: "inherit" | "ink"; showVerifyLink?: boolean }> } = {};
+  new Function("require", "exports", "React", compile(new URL("../components/PublicIdentity.tsx", import.meta.url)))(load, identityExports, React);
+  const PublicIdentity = identityExports.default!;
   const linked = renderToStaticMarkup(React.createElement(PublicIdentity, {}));
-  const plain = renderToStaticMarkup(React.createElement(PublicIdentity, { doplLink: false, tone: "ink" }));
-  const registrationLink = `<a href="${IDAHO_DOPL_PUBLIC_SEARCH}" target="_blank" rel="noopener">${PUBLIC_REGISTRATION}</a>`;
-  assert.equal(linked.includes(registrationLink), true);
+  const plain = renderToStaticMarkup(React.createElement(PublicIdentity, { showVerifyLink: false }));
+  const registration = linked.slice(linked.indexOf('class="public-registration"'));
+  assert.ok(registration.startsWith(`class="public-registration">${PUBLIC_REGISTRATION}`));
+  assert.equal(linked.includes(`href="${IDAHO_DOPL_PUBLIC_SEARCH}" target="_blank" rel="noopener noreferrer"`), true);
+  assert.match(linked, /title="Look up registration 8381215 on Idaho DOPL"/);
+  assert.match(linked, /aria-label="Verify with Idaho DOPL: look up registration 8381215, opens in a new tab"/);
+  assert.match(linked, /Verify with Idaho DOPL/);
   assert.equal(plain.includes(IDAHO_DOPL_PUBLIC_SEARCH), false);
-  assert.equal(plain.includes(`<p class="public-registration">${PUBLIC_REGISTRATION}</p>`), true);
-  assert.match(plain, /public-identity-ink/);
+  assert.match(plain, new RegExp(`class="public-registration">${PUBLIC_REGISTRATION}</p>`));
 
-  const quote = readFileSync("app/quote/QuoteLanding.tsx", "utf8");
-  const thanks = readFileSync("app/quote/thanks/page.tsx", "utf8");
-  assert.match(quote, /<PublicIdentity doplLink=\{false\} \/>/);
-  assert.match(thanks, /<PublicIdentity tone="ink" doplLink=\{false\} \/>/);
-  for (const file of ["app/HomePageClient.tsx", "app/legal/layout.tsx"]) {
-    assert.equal(readFileSync(file, "utf8").includes("doplLink={false}"), false, file);
+  const falseFiles = ["app/quote/QuoteLanding.tsx", "app/quote/thanks/page.tsx"];
+  for (const file of falseFiles) {
+    const source = readFileSync(file, "utf8");
+    assert.match(source, /showVerifyLink=\{false\}/, file);
+    assert.equal(source.includes("edopl.idaho.gov"), false, file);
+  }
+  for (const root of ["app", "components"]) {
+    for (const file of sourceFiles(root)) {
+      if (!readFileSync(file, "utf8").includes("showVerifyLink={false}")) continue;
+      assert.ok(falseFiles.includes(file), file);
+    }
   }
 });
 
