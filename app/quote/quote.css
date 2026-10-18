@@ -125,7 +125,7 @@
 .quote-eyebrow {
   margin: 0 0 14px;
   color: #d3ae89;
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 750;
   letter-spacing: 0.16em;
   text-transform: uppercase;
@@ -811,3 +811,12 @@
 }
 
 .quote-thanks .quote-eyebrow { color:#79532f; }
+
+/* Design audit 2026-10-17: header and footer links measured 22 to 32px tall on phones. */
+.quote-wordmark,
+.quote-header-phone,
+.quote-footer-links a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+}
