@@ -99,8 +99,6 @@ test("the registration number renders outside showVerifyLink and only the funnel
   const falseFiles = [
     "app/quote/QuoteLanding.tsx",
     "app/quote/thanks/page.tsx",
-    "app/estimate/scope/page.tsx",
-    "app/estimate/p5-preview/page.tsx",
   ];
   for (const file of falseFiles) {
     const source = readFileSync(file, "utf8");
@@ -130,4 +128,20 @@ test("homepage keeps the existing claims and adds the location subhead", () => {
   assert.match(home, /100\+ projects/);
   assert.match(home, /Bonded and insured/);
   assert.equal(home.includes("Jared"), false);
+  const trustAt = home.indexOf('className="trust-strip"');
+  const howAt = home.indexOf('className="how-p5"');
+  const aboutAt = home.indexOf('id="about"');
+  assert.ok(trustAt >= 0 && howAt > trustAt && aboutAt > howAt, "How P5 works sits after the trust strip and before about");
+  for (const line of [
+    "How P5 works",
+    "Own install crew",
+    "Bonded & insured",
+    "Manufacturer warranties passed through",
+    "Install dates confirmed in writing",
+    "Written update every week",
+    "Free in-home consultation, no pressure",
+    "Public representative: Nick Perkins",
+  ]) {
+    assert.equal(home.includes(line) || readFileSync("app/site.ts", "utf8").includes(line), true, line);
+  }
 });

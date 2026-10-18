@@ -24,7 +24,7 @@ import {
   constructionImage,
   handymanImage,
 } from "./publicClaims";
-import { citiesServed, faqs } from "./site";
+import { citiesServed, faqs, HOW_P5_WORKS, HOW_P5_WORKS_TITLE } from "./site";
 import { track } from "./analytics";
 import { homePageSchema, serializeJsonLd } from "./structuredData";
 import Arrow from "@/components/Arrow";
@@ -119,6 +119,8 @@ export default function Home() {
       </section>
 
       <section className="trust-strip" aria-label="P5 Home Co credentials"><div className="content-shell trust-grid">{SHOW_FOUNDING_YEAR ? <div><strong>Est. 2020</strong><span>Local experience</span></div> : null}{SHOW_UNPROVEN_PROJECT_COUNT ? <div><strong>100+ projects</strong><span>Across the Treasure Valley</span></div> : null}<div><strong>Bonded and insured</strong><span>Professional protection</span></div><div><strong>Ada and Canyon</strong><span>Local permit knowledge</span></div></div></section>
+
+      <section className="how-p5" aria-labelledby="how-p5-heading"><div className="content-shell"><h2 id="how-p5-heading">{HOW_P5_WORKS_TITLE}</h2><ul>{HOW_P5_WORKS.map((line) => <li key={line}>{line}</li>)}</ul></div></section>
 
       <section id="about" className="manifesto section-pad"><Reveal className="content-shell manifesto-layout"><div className="manifesto-title"><p className="eyebrow">More than a holding company</p><h2>The right specialist.<br />One shared standard.</h2></div><div className="manifesto-copy"><p className="lead-copy">P5 Home Co is the operating family behind five focused home-service companies. It is not a directory or referral network.</p><p>{SHOW_UNPROVEN_SELF_PERFORM ? CRAFT_EXPERTISE : SPECIALTY_EXPERTISE} What connects them is the way the work is handled: clear scopes, accountable communication, local knowledge, and respect for the home.</p><p>You get a specialist for the project in front of you, with an established family of companies ready for whatever your home needs next.</p><button className="text-link" type="button" onClick={openMatcher}>Match me with a company <Arrow /></button></div></Reveal></section>
 

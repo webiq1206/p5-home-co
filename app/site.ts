@@ -17,6 +17,17 @@ import {
 
 export const siteUrl = "https://p5homeco.com";
 
+export const HOW_P5_WORKS_TITLE = "How P5 works";
+export const HOW_P5_WORKS = [
+  "Own install crew",
+  "Bonded & insured",
+  "Manufacturer warranties passed through",
+  "Install dates confirmed in writing",
+  "Written update every week",
+  "Free in-home consultation, no pressure",
+  "Public representative: Nick Perkins",
+] as const;
+
 export const companies = [
   {
     name: "Boise Construction Co",
