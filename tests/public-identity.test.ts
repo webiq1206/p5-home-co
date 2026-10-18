@@ -96,7 +96,12 @@ test("the registration number renders outside showVerifyLink and only the funnel
   assert.equal(plain.includes(IDAHO_DOPL_PUBLIC_SEARCH), false);
   assert.match(plain, new RegExp(`class="public-registration">${PUBLIC_REGISTRATION}</p>`));
 
-  const falseFiles = ["app/quote/QuoteLanding.tsx", "app/quote/thanks/page.tsx"];
+  const falseFiles = [
+    "app/quote/QuoteLanding.tsx",
+    "app/quote/thanks/page.tsx",
+    "app/estimate/scope/page.tsx",
+    "app/estimate/p5-preview/page.tsx",
+  ];
   for (const file of falseFiles) {
     const source = readFileSync(file, "utf8");
     assert.match(source, /showVerifyLink=\{false\}/, file);
