@@ -195,7 +195,7 @@ const TAP_DISCLOSURE = "When you tap Call or Text on our site, Google Ads is tol
 const CALL_AND_TEXT_DISCLOSURE = "On some of our Call and Text links, Google Analytics also records which link you used, such as the one in the header or footer.";
 const STALE_TAP_SENTENCE = "When you tap Call or Text on our site, Google Ads is told that the tap happened and on which page, so we can count calls and texts that come from our ads. We don't send Google your name, phone number or the content of your call or message.";
 const FORWARDING_DISCLOSURE = "If your call goes through a Google forwarding number, Google connects the call and can see the calling number and call length, but not what's said.";
-const ATTRIBUTION_DISCLOSURE = "If you arrive from one of our ads or a link with campaign tags, our site saves the ad click identifier from that link (such as gclid, gbraid or wbraid) and the campaign tags in your browser for the rest of that visit. If you then send an inquiry, we keep them with your inquiry in our customer records so we can tell which ad or campaign led to it.";
+const SECTION_FIVE_PARAGRAPH = `${GOOGLE_TOOLS_SENTENCE} ${TAP_DISCLOSURE} ${CALL_AND_TEXT_DISCLOSURE}`;
 
 function privacySource(): string {
   return readFileSync(new URL('../app/legal/privacy/page.tsx', import.meta.url), 'utf8');
@@ -228,31 +228,35 @@ function tagSetupEnablesCallForwarding(): boolean {
   return false;
 }
 
+function privacyParagraphs(): string[] {
+  return [...privacySource().matchAll(/<p>([\s\S]*?)<\/p>/g)].map((match) =>
+    match[1].replace(/&apos;/g, "'").replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim(),
+  );
+}
+
 test('approved privacy sentences name the Google share, the tools, and the tap', () => {
   const privacy = privacyText();
   const share = privacy.indexOf(SHARE_SENTENCE);
-  const tools = privacy.indexOf(GOOGLE_TOOLS_SENTENCE);
-  const tap = privacy.indexOf(TAP_DISCLOSURE);
-  const links = privacy.indexOf(CALL_AND_TEXT_DISCLOSURE);
   assert.ok(share >= 0, 'section 4 share sentence');
-  assert.ok(tools > share, 'Google tools paragraph comes after the share sentence');
-  assert.ok(tap > tools, 'tap sentence comes after the Google tools paragraph');
-  assert.ok(links > tap, 'call and text link sentence comes after the tap sentence');
+  assert.ok(privacyParagraphs().includes(SECTION_FIVE_PARAGRAPH), 'section 5 is one paragraph: Google tools, then the tap sentence, then the call and text link sentence');
+  const paragraph = privacy.indexOf(SECTION_FIVE_PARAGRAPH);
+  assert.ok(paragraph > share, 'section 5 paragraph comes after the share sentence');
   const forwarding = privacy.indexOf(FORWARDING_DISCLOSURE);
-  assert.ok(forwarding > links, 'forwarding sentence comes right after the call and text link sentence');
-  assert.equal(privacy.slice(links + CALL_AND_TEXT_DISCLOSURE.length, forwarding).trim(), '');
-  const attribution = privacy.indexOf(ATTRIBUTION_DISCLOSURE);
-  assert.ok(attribution > forwarding, 'campaign attribution sentence comes after the Google forwarding sentence');
+  assert.ok(forwarding > paragraph, 'forwarding sentence comes after the section 5 paragraph');
+  assert.equal(privacy.slice(paragraph + SECTION_FIVE_PARAGRAPH.length, forwarding).trim(), '');
   assert.equal(privacy.includes('dclid'), false);
   assert.equal(privacy.includes('90 days'), false);
   assert.equal(privacy.includes(STALE_TAP_SENTENCE), false);
+  assert.equal(privacy.includes('Microsoft Clarity'), false);
+  assert.equal(privacy.includes('Meta Pixel'), false);
   assert.match(privacySource(), /href="https:\/\/policies\.google\.com\/privacy"/);
   assert.equal(privacy.includes('we do not share it for advertising'), false);
 });
 
 test('the call-forwarding label and the forwarding disclosure stay paired', () => {
-  assert.equal(tagSetupEnablesCallForwarding(), true);
-  assert.equal(privacyText().includes(FORWARDING_DISCLOSURE), true);
+  const configured = tagSetupEnablesCallForwarding();
+  assert.equal(configured, true);
+  assert.equal(privacyText().includes(FORWARDING_DISCLOSURE), configured);
 });
 
 test('the forwarding-number snippet is installed behind the analytics gates', () => {

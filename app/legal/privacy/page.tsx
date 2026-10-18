@@ -143,29 +143,18 @@ export default function PrivacyPage() {
         and texts. These tools set cookies and receive information about your
         visit, including your IP address, which Google processes under its own
         privacy policy (<a href="https://policies.google.com/privacy">https://policies.google.com/privacy</a>).
-      </p>
-      <p>
         When you tap Call or Text on our site, Google Ads is told that the tap
         happened, on which page, and the ad click identifier Google&apos;s tag
         saved if you arrived from one of our ads, so we can count calls and
         texts that come from our ads. The tap itself doesn&apos;t send Google
-        your name, your own phone number or what you say or write.
-      </p>
-      <p>
-        On some of our Call and Text links, Google Analytics also records which
-        link you used, such as the one in the header or footer.
+        your name, your own phone number or what you say or write. On some of
+        our Call and Text links, Google Analytics also records which link you
+        used, such as the one in the header or footer.
       </p>
       <p>
         If your call goes through a Google forwarding number, Google connects the
         call and can see the calling number and call length, but not what&apos;s
         said.
-      </p>
-      <p>
-        If you arrive from one of our ads or a link with campaign tags, our site
-        saves the ad click identifier from that link (such as gclid, gbraid or
-        wbraid) and the campaign tags in your browser for the rest of that visit.
-        If you then send an inquiry, we keep them with your inquiry in our
-        customer records so we can tell which ad or campaign led to it.
       </p>
 
       <h2>6. How long we keep it</h2>
