@@ -157,6 +157,20 @@
       "published_at": "2026-10-15T14:27:00+0000",
       "verified_at": "2026-10-15",
       "link_attributes": "Facebook platform redirect; public post and tracked destination read back, crawlability and indexing not claimed"
+    },
+    {
+      "platform": "facebook",
+      "brand": "Boise Remodeling Co",
+      "url": "https://boiseremodeling.co/guides/whole-home-remodeling-guide",
+      "utm_content": "whole_home_phasing_20261019",
+      "id": "1228704823655951_122141843973385974",
+      "status": "published_verified",
+      "permalink_url": "https://www.facebook.com/122135638923385974/posts/122141843973385974",
+      "destination_url": "https://boiseremodeling.co/guides/whole-home-remodeling-guide?utm_source=facebook&utm_medium=organic_social&utm_campaign=p5_free_growth_2026q4&utm_content=whole_home_phasing_20261019",
+      "created_at": "2026-10-19T14:46:53+0000",
+      "published_at": "2026-10-19T14:46:53+0000",
+      "verified_at": "2026-10-19",
+      "link_attributes": "Facebook platform redirect; public post and tracked destination read back, crawlability and indexing not claimed"
     }
   ],
   "scheduled": [],
