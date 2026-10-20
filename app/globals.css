@@ -446,3 +446,18 @@ body[data-p5-estimator-active="true"] .p5-mobile-actionbar { display: none !impo
 /* Design audit 2026-10-17: labels that sat at 7 to 10px were raised to 10 to 12px above, tracking unchanged. */
 /* Phone vertical rhythm 2026-10-18: standard cards keep the number beside the title instead of 32px above it. */
 @media (max-width:560px) { .standard-grid article { display:grid; grid-template-columns:2.25rem minmax(0,1fr); column-gap:6px; align-items:baseline; } .standard-grid span { grid-column:1; } .standard-grid h3 { grid-column:2; margin-top:0; } .standard-grid p { grid-column:2; margin-top:8px; } }
+/* Design plan 2026-10-20, phase 2. */
+/* Desktop sections stacked 130px + 130px at every transition. One step down;
+   tablet and phone values are unchanged. (P5-14) */
+@media (min-width:821px) { .section-pad { padding:104px 0; } }
+/* The phone action bar's clearance moves from the cream body onto the dark
+   footer, so the page no longer ends in a light stripe. Pages without the site
+   footer keep the body padding. (P5-10) */
+@media (max-width:1023px) {
+  body:has(.p5-mobile-actionbar):has(.site-footer) { padding-bottom:0; }
+  body:has(.p5-mobile-actionbar) .site-footer { padding-bottom:calc(28px + 80px + env(safe-area-inset-bottom,0px)); }
+}
+/* The display serif sets old-style figures, so "P5" read as "P" and a low 5.
+   Lining figures everywhere; balanced headings. (P5-21) */
+html { font-variant-numeric:lining-nums; }
+h1, h2, h3 { text-wrap:balance; }
