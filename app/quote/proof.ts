@@ -40,7 +40,7 @@ export const PROOF_POINTS: readonly ProofPoint[] = [
   },
   {
     label: "Five specialist teams",
-    detail: "Each company does its own craft. P5 coordinates the handoff between them.",
+    detail: "Each company does its own specialty. P5 coordinates the handoff between them.",
   },
   {
     label: "Free to ask",

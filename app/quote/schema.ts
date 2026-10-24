@@ -38,7 +38,7 @@ export const STEPS = [
   {
     n: "01",
     h: "We read it and route it",
-    p: "Your request goes to the P5 company whose craft matches the work, so the first person who calls already knows the job.",
+    p: "Your request goes to the P5 company whose specialty matches the work, so the first person who calls already knows the job.",
   },
   {
     n: "02",

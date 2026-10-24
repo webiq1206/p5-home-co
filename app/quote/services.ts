@@ -128,18 +128,18 @@ export const QUOTE_SERVICES: readonly QuoteService[] = [
     slug: "custom-cabinets",
     label: "Custom cabinets",
     h1: "Custom cabinetry quotes in the Treasure Valley",
-    lead: "Boise Cabinet Co designs, builds, and installs frameless cabinetry to order, so a quote starts from your actual room rather than a catalogue size. Free, no obligation, covering kitchens, vanities, built-ins, and whole-home cabinetry.",
+    lead: "Boise Cabinet Co designs, sources, and installs cabinetry sized to fit, so a quote starts from your actual room rather than a catalogue size. Free, no obligation, covering kitchens, vanities, built-ins, and whole-home cabinetry.",
     metaTitle: "Custom Cabinet Quote, Boise & Meridian | P5 Home Co",
     metaDescription:
-      "Free custom cabinetry quotes across the Treasure Valley. Frameless kitchen cabinets, vanities, and built-ins, designed and built to order. No obligation.",
+      "Free custom cabinetry quotes across the Treasure Valley. Kitchen cabinets, vanities, and built-ins, designed and sized to fit. No obligation.",
     image: "/images/p5-cabinet.webp",
     imageAlt: "Light wood kitchen cabinets with slim brass bar pulls, a white countertop, and a marble backsplash.",
     project: "Custom cabinets or built-ins",
     brand: "Boise Cabinet Co",
     covers: [
       "Kitchens, vanities, built-ins, and storage",
-      "Built to order for out-of-square walls",
-      "Design, fabrication, and installation",
+      "Sized to fit out-of-square walls",
+      "Design, sourcing, and installation",
     ],
   },
   {
@@ -192,7 +192,7 @@ export const SERVICE_FAQ: Record<string, { q: string; a: string }> = {
   },
   "custom-cabinets": {
     q: "Can you match cabinetry to what is already in the house?",
-    a: "Usually. Because the cabinetry is built to order rather than ordered in catalogue sizes, doors, finishes, and dimensions can be matched to existing work, and out-of-square walls and uneven floors in older Treasure Valley homes are handled in the build.",
+    a: "Usually. Because the cabinetry is sized to fit rather than limited to catalogue sizes, doors, finishes, and dimensions can be matched to existing work, and out-of-square walls and uneven floors in older Treasure Valley homes are handled during design and installation.",
   },
   handyman: {
     q: "Is there a minimum job size?",

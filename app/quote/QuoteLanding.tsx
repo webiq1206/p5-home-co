@@ -184,7 +184,7 @@ export default function QuoteLanding({ service, entryLabel, defaultService }: { 
             </ul>
             <p className="quote-section-lead quote-others-note">
               P5 Home Co is an operating family of five companies, not a directory or a referral
-              network. Each one does its own craft under one shared standard.{" "}
+              network. Each one does its own specialty under one shared standard.{" "}
               <Link href="/#p5-standard">Read the P5 standard</Link>.
             </p>
           </div>
