@@ -128,7 +128,7 @@ export const faqs = [
   },
   {
     q: "Who handles cabinetry, vanities, built-ins, and coordinated storage?",
-    a: "Boise Cabinet Co. That work includes premium frameless kitchen cabinetry, bathroom vanities, built-ins and storage, and whole-home cabinetry, designed, built, and installed.",
+    a: "Boise Cabinet Co. That work includes premium frameless kitchen cabinetry, bathroom vanities, built-ins and storage, and whole-home cabinetry, designed, sourced, and installed.",
   },
   {
     q: "Can one project involve more than one company?",
