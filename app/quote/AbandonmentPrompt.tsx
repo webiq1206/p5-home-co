@@ -8,6 +8,30 @@ import type { ExitMethod } from "./useAbandonmentRecovery.ts";
 const PHONE_DISPLAY = "(208) 477-1169";
 const PHONE_TEL = "tel:+12084771169";
 const PHONE_SMS = "sms:+12084771169";
+/** Hours named in the Prefer-to-text line. Edit this string to change that line. */
+export const TEXT_REPLY_HOURS = "Mon–Fri 9–6, Sat 9–4 MT";
+
+const ONE_BUSINESS_DAY_SENT = "Thanks. Someone from the team will call within one business day. You can keep going here or close this window.";
+const ONE_BUSINESS_DAY_IDLE = "A quick call or text answers most questions in a minute. Or leave a number and we will call you back within one business day.";
+
+function trackTextClick() {
+  recordRecoveryAction("quote", { text: true });
+  track("text_click", { location: "recovery_prompt" });
+}
+
+/** The one-business-day promise, with the text-reply line immediately after it. */
+export function RecoveryReply({ sent }: { sent: boolean }) {
+  return (
+    <>
+      <p id="recovery-desc" className="recovery-lede">
+        {sent ? ONE_BUSINESS_DAY_SENT : ONE_BUSINESS_DAY_IDLE}
+      </p>
+      <p className="recovery-lede">
+        Prefer to text? Text <a href={PHONE_SMS} data-testid="recovery-text-reply" onClick={trackTextClick}>{PHONE_DISPLAY}</a>. We reply in minutes during business hours ({TEXT_REPLY_HOURS}).
+      </p>
+    </>
+  );
+}
 
 export interface AbandonmentPromptProps {
   open: boolean;
@@ -84,16 +108,12 @@ export function AbandonmentPrompt({ open, method, leaving, onStay, onContinue }:
       <div className="recovery-panel">
         <p className="eyebrow">{leaving ? "Before you go" : "Need a hand?"}</p>
         <h2 id="recovery-title">{state === "sent" ? "We will call you back." : "Prefer to talk it through instead?"}</h2>
-        <p id="recovery-desc" className="recovery-lede">
-          {state === "sent"
-            ? "Thanks. Someone from the team will call within one business day. You can keep going here or close this window."
-            : "A quick call or text answers most questions in a minute. Or leave a number and we will call you back within one business day."}
-        </p>
+        <RecoveryReply sent={state === "sent"} />
         {state !== "sent" && (
           <>
             <div className="recovery-actions">
               <a className="button button-dark" href={PHONE_TEL} data-testid="recovery-call" onClick={() => { recordRecoveryAction("quote", { call: true }); track("phone_click", { location: "recovery_prompt" }); }}>Call {PHONE_DISPLAY}</a>
-              <a className="button" href={PHONE_SMS} data-testid="recovery-text" onClick={() => { recordRecoveryAction("quote", { text: true }); track("text_click", { location: "recovery_prompt" }); }}>Text us</a>
+              <a className="button" href={PHONE_SMS} data-testid="recovery-text" onClick={trackTextClick}>Text us</a>
             </div>
             <form className="recovery-form" onSubmit={submitCallback} noValidate data-testid="recovery-callback-form">
               <p className="eyebrow">Or request a callback</p>
