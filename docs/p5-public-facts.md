@@ -10,7 +10,7 @@ This file records claims already published on p5homeco.com and where the backing
 - GBP, local SEO, and NAP citations for founding year or Bonded: leave blank until documented.
 - Homepage H1: "Boise's Trusted Home Specialists".
 - Schema `foundingDate`: leave blank until documented.
-- Quote-page proof: "Idaho contractor registration 8381215, carried across all five companies." (`app/quote/proof.ts`).
+- Quote-page proof: "Idaho Registered Contractor #8381215, carried across all five companies." (`app/quote/proof.ts`).
 - Visible NAP: Nick Perkins, 4031 W Wapoot St, Meridian, ID 83646, service-area business, (208) 477-1169, hello@p5homeco.com.
 
 ## Backing on file in this repository
