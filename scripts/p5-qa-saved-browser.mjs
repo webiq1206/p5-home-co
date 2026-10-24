@@ -14,7 +14,8 @@ const origin = realPage ? 'http://127.0.0.1:5001' : 'http://qa-saved-fixture.tes
 const fixtureCookie = realPage ? {name: 'p5_session', value: 'p5-qa-saved-layout-synthetic-session'} : {name: 'qa_fixture_session', value: 'synthetic-only'};
 // Exact static metadata assets declared by RootLayout and site.webmanifest.
 // WebKit requests the manifest even when Chromium does not.
-const fullPageAssets = new Set(['/site.webmanifest', '/favicon.ico', '/favicon-16x16.png', '/favicon-32x32.png', '/apple-touch-icon.png', '/safari-pinned-tab.svg', '/android-chrome-192x192.png', '/android-chrome-512x512.png']);
+// The production shell renders this static brand lockup; API traffic remains restricted below.
+const fullPageAssets = new Set(['/brands/p5-home-co-lockup-dark.svg', '/site.webmanifest', '/favicon.ico', '/favicon-16x16.png', '/favicon-32x32.png', '/apple-touch-icon.png', '/safari-pinned-tab.svg', '/android-chrome-192x192.png', '/android-chrome-512x512.png']);
 const api = '/api/admin/p5-estimators/qa-saved-estimate';
 const revision = 6;
 const endpoint = `${api}?case=case-1&revision=${revision}`;
