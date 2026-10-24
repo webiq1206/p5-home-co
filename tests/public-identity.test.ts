@@ -37,6 +37,26 @@ test("the approved NAP and sister row are the audit strings", () => {
   assert.equal(PUBLIC_NAP.includes("Jared") || SISTER_LINE.includes("Jared") || LLMS_CONTACT.includes("Jared"), false);
 });
 
+test("the downloadable vCard carries the full Meridian street address", () => {
+  const card = readFileSync("public/p5homeco.vcf", "utf8");
+  assert.equal(
+    card,
+    [
+      "BEGIN:VCARD",
+      "VERSION:3.0",
+      "FN:P5 Home Co",
+      "ORG:P5 Home Co",
+      "TEL;TYPE=WORK,VOICE:+12084771169",
+      "EMAIL;TYPE=WORK:hello@p5homeco.com",
+      "URL:https://p5homeco.com",
+      "ADR;TYPE=WORK:;;4031 W Wapoot St;Meridian;ID;83646;USA",
+      "NOTE:Boise's trusted home specialists. Five specialized home-service companies serving the Treasure Valley.",
+      "END:VCARD",
+      "",
+    ].join("\n"),
+  );
+});
+
 test("every public page renders the shared identity block", () => {
   for (const file of pages) {
     assert.match(readFileSync(file, "utf8"), /<PublicIdentity\b/, file);
