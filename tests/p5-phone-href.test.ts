@@ -33,14 +33,14 @@ test('rendered estimator phone links include + and keep the visible number', () 
     id: '0f1e2d3c-4b5a-4000-8000-00000000abcd',
     result: {summary: 'Paint the hall.', range: null, lineItems: []},
     brand,
-    issue: {brandId: 'p5', service: 'handyman', reference: 'P5-PHONE', revision: 1, issuedAt: '2026-10-17T00:00:00.000Z', contact: {name: 'A', email: 'a@example.invalid', phone: '(208) 555-0100'}},
+    issue: {brandId: ESTIMATOR_BRAND.id, service: 'handyman', reference: 'P5-PHONE', revision: 1, issuedAt: '2026-10-17T00:00:00.000Z', contact: {name: 'A', email: 'a@example.invalid', phone: '(208) 555-0100'}},
   });
   assert.equal(doc.review.label, 'Request a project review');
   assert.equal(doc.review.phone, ESTIMATOR_BRAND.phone);
   assert.equal(doc.review.tel, 'tel:+12084771169');
   assertDialLinks('estimate document', JSON.stringify(doc.review));
 
-  const record = {customer: {summary: 'Paint the hall.', range: {low: 100, high: 200}, lineItems: [], issue: {brandId: 'p5', service: 'handyman', contact: {name: 'A', email: 'a@example.invalid', phone: '(208) 555-0100'}}}, contact: {name: 'A', email: 'a@example.invalid', phone: '(208) 555-0100'}};
+  const record = {customer: {summary: 'Paint the hall.', range: {low: 100, high: 200}, lineItems: [], issue: {brandId: ESTIMATOR_BRAND.id, service: 'handyman', contact: {name: 'A', email: 'a@example.invalid', phone: '(208) 555-0100'}}}, contact: {name: 'A', email: 'a@example.invalid', phone: '(208) 555-0100'}};
   const customer = estimateEmail('phone-href', record, false);
   const admin = estimateEmail('phone-href', {...record, internal: {directCost: 1}}, true);
   assert.match(customer.html, />\(208\) 477-1169</);

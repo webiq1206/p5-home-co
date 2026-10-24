@@ -1,7 +1,7 @@
 {
   "source": "p5-home-co",
-  "commit": "beaedb1d3ef52314a144eee83e0f77c9c9c1362f",
-  "generatedAt": "2026-10-24T14:38:42.626Z",
+  "commit": "1d0894c23abfd63bbafc6d7dcfbea2a7d5d7986b",
+  "generatedAt": "2026-10-24T18:52:08.741Z",
   "note": "Shared estimator engine published from p5-home-co. Edit shared files there and run scripts/p5-sync.mjs; hash checks remain mandatory in every brand.",
   "files": {
     "app/admin/p5-estimators/page.tsx": "f9b7f729daa74f542cdece161d2bf158fb784f5a8c55356fe7283e73db2c139d",
@@ -27,7 +27,7 @@
     "components/P5AddressInput.tsx": "6cff5902e7c8b3baa05be120cfc7eb3778f4ac3b0654c7b6ee8466a42560b091",
     "components/P5EstimateDetails.tsx": "ad36be0cb27f55e51ee63f222af7c749b3037e1fb12ff7131be62a6db93565d0",
     "components/P5Estimator.module.css": "c973c32412f8b29cbbe29ab7b1a310695686f9828d375e770f9e45eb99f5fc3b",
-    "components/P5Estimator.tsx": "49a9a491077d3fd1b3ef4344b7c6023f083e9aebd81a75ba729a94b8cb30dafb",
+    "components/P5Estimator.tsx": "23f12c710629947bde1e2e9a61c985fcb31e36285385b170e206f127e0dedeae",
     "components/P5EstimatorNavigation.tsx": "427346f6a31453e01f54900b1350c222c59a74d9c23691a6fc346b5cc26da8f3",
     "components/P5ExitOffer.module.css": "88f45092817c319fa06ee60b102a8b439412f29747f25bd95ebdf9ea28b99461",
     "components/P5ExitOffer.tsx": "4e33f292fcb09f5cb1486b0d10b69e272af0153c504174e06205b446f4f2013d",
@@ -59,6 +59,7 @@
     "lib/p5/bookShortlist.ts": "0e0f10d6c883d5d55c11c00b6e7fd4c30fe050101d482fb0c0a2bdb41a871444",
     "lib/p5/boundedCrmPayload.ts": "fe5a9737fa99b57f8fc9767a6db8c6cae7fcb65320221463ce5b14d2ab45e7a0",
     "lib/p5/brandIdentity.ts": "c8c36a736ee5e4bb9d3e53570005f2890f892e8c625a295efa3ed84ba186c5a0",
+    "lib/p5/browserAttribution.ts": "0bd946602e2c18f98a5b4b77b7752980efa9ceb0218100f4fa650355a6459c6e",
     "lib/p5/browserDraft.ts": "7cdd80419d30b9b5ac1a0f2d5c148ba415d52b6d20c3003fb06401f51c8973a8",
     "lib/p5/cabinetCountEvidence.ts": "1eb49a6e6a2a99e969dcab10e2f3cbe345735fb75bdd8f139e6cb1214719de78",
     "lib/p5/cabinetFacts.ts": "bf6ea1cbb67c40fd596af9650bf46d6a7705320369d35efa92ee34d8a9fa7fd6",
@@ -123,12 +124,12 @@
     "lib/p5/includedWork.ts": "f8ee1334dab33fb2c1c17c19ac749f6e18f9e10598fb0a2e3fcdffe84c6a7d31",
     "lib/p5/instructions.ts": "cf47c8082be4c999b072fb5071bd3ae7419ae942c3518bdf584e03481d93188d",
     "lib/p5/intakeAdmin.ts": "e604416fdd6124c45294a11aa82752dbfbf921ded7f369b50f87dd640074ed1a",
-    "lib/p5/intakeContract.ts": "3464a0fb0db61071a9138c258169aae0bb80a1df0dacdf55c8e20ca37ae3555f",
+    "lib/p5/intakeContract.ts": "9cffbd668fd6799eb117fd51c20fb24c92adc7acf831e1190ffa0601deb0fb96",
     "lib/p5/intakeDelivery.ts": "417f176e20238a09b9c1cba070e91c9025368b8439298e2bd16245f5d19a94da",
-    "lib/p5/intakeDeliveryPayload.ts": "9289a656e5b3ba9a30d5c9e36e25dbd254c3af22d00d4e1248f8f698850b0d54",
+    "lib/p5/intakeDeliveryPayload.ts": "8c9e0f5a036f34298f0f86618608e234226e61bd053a8592f4f6012a27718a3b",
     "lib/p5/intakeDeliveryPolicy.ts": "a992846e078a7926d515f6ab21bd8cc2a132cc237a4682ab532739cfde742cb8",
     "lib/p5/intakeDisplay.ts": "5cd5a9158575e8ef2c0a4d8c40f721dca28fad0a584c1ca3f10f9ac9ff1fb7c5",
-    "lib/p5/intakeDraft.ts": "7b02a7d8f3ee59c1d10c8203a09a4aa9f7059c29c7cda98b0e46355dde1b3bfd",
+    "lib/p5/intakeDraft.ts": "e0809fa14e774daf98e8f3c89313b15b623b0b2e06ac263ac334d4fe847b3577",
     "lib/p5/intakeEmail.ts": "ee08af2e66d2dade28a20e53d038765a7de9a498c72e089a87c5912418a44acd",
     "lib/p5/intakeEmailDelivery.ts": "900c312d877b98e385fe38e30e702cebaeb0b5ba457c4eb55a63c35a4b8151df",
     "lib/p5/intakeEndpoint.ts": "778ac7dfa0de16d0613fa607d95628e45685bd16147c37bbec9c67df5a176453",
@@ -149,6 +150,7 @@
     "lib/p5/intakeTransferStore.ts": "aa83a5f4e3b2e6dd83161573fa68b304a9182bd7c66f9c7b337c3f4d65f9158b",
     "lib/p5/keyedCrm.ts": "80e4e92dca5659215d41135d0f26a01588ee67cec0214ac318a1720ad84d850b",
     "lib/p5/laborFacts.ts": "fdd04d11d9528b2a514279be2996526c4c64c362bbcbfdd2be301282c9e140bb",
+    "lib/p5/leadAttribution.ts": "0eeeef1b47f85bc04fc3174adf45b636ae79b88ba5350ee1276865a0d813626b",
     "lib/p5/learnedBook.ts": "99f1672ba668be013adeeb787274f2993978fb8ba976bd85206181636ca11eeb",
     "lib/p5/legacyContinuation.ts": "dd26a7c83008fcf38fa1fc98ca6799c9b3be92755167ac2f14b1d86566e73300",
     "lib/p5/manualReview.ts": "e3ed20a0be818321c4f722b355c0c93e795227e18ab40388a596271fe8246c2d",
@@ -307,7 +309,7 @@
     "scripts/p5-runtime-acceptance.mts": "feac60f3e0300f6de0be2f3f71a76f182364cc580f3517dd05e772f669ed8be5",
     "scripts/p5-schema-safety.mjs": "0bb3e004ef3a75718430de5a6f4f4f9a0aee8ff6c387aaee360818a6c89831b1",
     "scripts/p5-storage-check.ts": "87dcfbb0b77f53b08e220c51729323a06851837232c30a8b179ec0aed2807e4b",
-    "scripts/p5-sync.mjs": "7005d9290000fd99f8264c04d788f2a5d17378e8fa0f9d24233654a473c13cc0",
+    "scripts/p5-sync.mjs": "38b9d4c81d82f07186df52c7a5f15d93a5d5ea8785fd588f4b50a5979d777120",
     "scripts/p5-verify-visual.mjs": "67363630ae7fb0ef3748a377a193495ff1427dfca34e0c9c655e1a02c71ca61d",
     "scripts/p5-visual-review.mjs": "9918874379624da97ddb3b6bff056ddd5f27242c3dbf58c5dea84a077a66a12f",
     "scripts/p5-visual-routes.json": "670468cb7925d2b5b049e0b52f4e05f911b72474e76d376b5492b69ba51cf8bc",
@@ -409,6 +411,7 @@
     "tests/p5-included-work.test.ts": "9a53ad28298033fc66dd8ef9c37bd2df307382c7b840fb3774e805788decf7f5",
     "tests/p5-input-progress.test.ts": "0b8ce3d16ae06a66c2e5e32eee69db38335fa5913b32ce6359740db164a10250",
     "tests/p5-intake-admin.test.ts": "82cc3e996cb7cba7d83ba6536c345f4ad6dbb1609a4d945e78acdd76f1eaf34b",
+    "tests/p5-intake-attribution.test.ts": "6ac3c6f2993652797e9ef95998e410cf4958eef3f513b1fc2600b0d24f459494",
     "tests/p5-intake-contact-fields.test.ts": "2e50258d54258ee988206a3c5d91bee2aeab1521a614bae5d1db37d0cc2f0b6b",
     "tests/p5-intake-delivery.test.ts": "78c2d13ef91bac66917098a174b350b23c02697822e5430975cbb25efaf7d7ac",
     "tests/p5-intake-email-files.test.ts": "81175b192b1328b9324d8b815904f680067a196c0debadbe5b67973fa75f07fb",
@@ -419,12 +422,12 @@
     "tests/p5-intake-question-memory.test.ts": "6111a16f2d5e03c51a01a91fb97a7bdd9710c4a01ad9e8869ff5a6e51ce294a4",
     "tests/p5-intake-question-state.test.ts": "e6db8df9e27e557393f0542a67bc2e30c4ecd3bc4d1a3f7397ce0e1f23bf4e56",
     "tests/p5-intake-reference.test.ts": "213a0fc884e14971513fe8d0f9d7d7a2571e2a7b650ed157ab8ccab3a59fda23",
-    "tests/p5-intake-reply-to.test.ts": "8d7e6a19c75a25568ea1ca280416d97d6004149dc4f39859fd8382482e87b888",
+    "tests/p5-intake-reply-to.test.ts": "e378c9f7d1b13b6a109baf617e86c894877bfa2effc9c9d6ce1bbb872c785184",
     "tests/p5-intake-store.test.ts": "316683e4f9098c97e7df495fbcd9db6064d94ef5d48cf2a8cf0aea5e569adc4b",
     "tests/p5-intake-transfer-browser.test.ts": "e6a53a2addac43bd42cb6148232138839f11a234234b13f9524ed09149092bd3",
     "tests/p5-intake-transfer-files.test.ts": "f2dc24f141f5fa9b18a8caf72bb34a95f4cc9f95eb0fcce0752adf781cae7f6b",
     "tests/p5-intake-transfer-http.test.ts": "89ac03c05474055ec930cd8e73e83f13ebc6893866b157a59bbb1977955d674c",
-    "tests/p5-intake-transfer-store.test.ts": "3622022402913e41136b4a293774c13e02863e10520b1465cc5580ab978bd123",
+    "tests/p5-intake-transfer-store.test.ts": "a6648abc5bc1fda724c9a6464c3567aac5a9b26fbba9c3f1a744010daa865fb4",
     "tests/p5-keyed-crm.test.ts": "ffd30b0748a3d39474ea8a23eb20ef22b07014d430932d41fb739e895748e2bb",
     "tests/p5-latency.test.ts": "19d4d0e7972ad73d3a032ecf80108d38defbbe370c289cac660ad765c096dfc0",
     "tests/p5-learned-book.test.ts": "b9a2b1758862066a91fb9dd5a4cde30c7f994e6f41f40645ddad5d36ba6ea202",
@@ -453,7 +456,7 @@
     "tests/p5-page-quantity-totals.test.ts": "dc3ddaa1413e6a72cce7042b5573c2fdf475647fce0a3ddc42ca1e9220e4ba5a",
     "tests/p5-pdf-access.test.ts": "2008c53369a31c62e35c87f3c26c6e70d876d1dc9af43bc8cf3ecaba65f0d410",
     "tests/p5-permit-context.test.ts": "f796bc57acf85e44e1997ace31876b67a54349a88a520ff9fd4f1a3478e2e0d3",
-    "tests/p5-phone-href.test.ts": "22c2ca9f1ac2226ad3fe4e6d017da0077f00a850907a829310d5e7355905312e",
+    "tests/p5-phone-href.test.ts": "c1041f82d8bf1f570ce8e7a1d999282637d199b43933b189d5c637fc19c6be06",
     "tests/p5-plan-reconciliation.test.ts": "89b33449c987b6d350e0de9dbf6ce80d174d0389662f22065581dd677ac8244f",
     "tests/p5-planning-books.test.ts": "53634769c42c6192b7cb139381d1ae82fb215ad0bb82b799ad5ada13ed5ddf5a",
     "tests/p5-presentation.test.ts": "d06e135999e8ae28187f798bb15431cd8a9301bd60a082b24c750ab96f9c6c49",
@@ -464,6 +467,7 @@
     "tests/p5-pricing-ledger.test.ts": "8134de19d94dd66974c928626eff3d93b963b2087e1509c4294096681bd837c6",
     "tests/p5-pricing-source-history.test.ts": "7a2696abb429e65555da6b1bb43289e785661a05cdfdc258883ff7bdf8379be0",
     "tests/p5-pricing.test.ts": "463caa4e7397b4e9de94a80183c9ac06a79244a77fa974275753d2e90fa5baa8",
+    "tests/p5-privacy-ads-disclosure.test.ts": "2e11be8dbe2427149ba07cfdaa8ba52aa2557eaceefddd4f457a02747b6aceba",
     "tests/p5-processing-budget.test.ts": "a74f86228dbfff9579ce58a28973887de8a2d99e530759b32d5eb1e636e71c1c",
     "tests/p5-processing-status.test.ts": "3b29c5e2fba43b1e9b03993ee8386b6f6f568e3f0da5cf92048694e28f180c83",
     "tests/p5-project-diagnostics.test.ts": "05a50933b927c78c5dc7640c866ab8fbea66a28c8e983b63e7d0e663f65ecba4",
@@ -516,63 +520,5 @@
     "tests/p5-with-timeout.test.ts": "19144aa63a2d3e7991a67ec19e2f1ae867b40d55a499a3b7ad98e45ce8c3284e",
     "tests/p5-wizard-resume.test.ts": "423176433a701f191c5e88c99924a28748c001da3b4a746b892843cf52319085",
     "tests/p5-work-recovery.test.ts": "ef035f0257de7b9ddb4f8736044a72276a90d5599866587542f229db30debfdb"
-  },
-  "coordinatedIntakeBatch": {
-    "base": "e6e125b83468a402264be2f1e82e5c0466baa178",
-    "files": [
-      "app/api/p5-estimator/intake-file/route.ts",
-      "components/P5Estimator.tsx",
-      "components/P5IntakeReview.tsx",
-      "lib/p5/intakeDelivery.ts",
-      "lib/p5/intakeDeliveryPayload.ts",
-      "lib/p5/intakeEmail.ts",
-      "lib/p5/intakeEmailDelivery.ts",
-      "lib/p5/intakeFileAccess.ts",
-      "tests/p5-intake-email-files.test.ts",
-      "scripts/p5-estimator-browser.mjs",
-      "lib/p5/intakeDeliveryPolicy.ts",
-      "tests/p5-intake-delivery.test.ts"
-    ],
-    "note": "Narrow intake UX and email delivery batch; preserves brand adapters, other shared files, and Cabinet localPatchProvenance."
-  },
-  "publicEstimateCopyBatch": {
-    "source": "p5-home-co/components/P5Estimator.tsx",
-    "scope": "Targeted shared copy synchronization only; retained all previously reviewed brand-local patches",
-    "date": "2026-10-08"
-  },
-  "intakeContactEmailPolishBatch": {
-    "source": "p5-home-co",
-    "scope": "Targeted shared contact validation metadata, accessible correction focus, email display and frozen Reply-To; brand adapters edited individually; prior brand-local patches retained",
-    "date": "2026-10-08"
-  },
-  "exitCallbackBatch": {
-    "source": "p5-home-co",
-    "date": "2026-10-09",
-    "scope": "Targeted exit offer and phone validation; callback adapters retain each brand routing. Existing patches and schema safety preserved."
-  },
-  "contextualIntakeBatch": {
-    "source": "p5-home-co",
-    "date": "2026-10-09",
-    "scope": "Narrow source-backed typed intent, ambiguity-safe routing and offline verification. Preserve all prior brand-local patches and schema protections."
-  },
-  "contactFirstBatch": {
-    "date": "2026-10-13",
-    "source": "p5-home-co",
-    "files": [
-      "components/P5Estimator.tsx",
-      "components/P5Estimator.module.css",
-      "components/P5ExitOffer.tsx",
-      "scripts/p5-contact-first-browser.mjs"
-    ],
-    "note": "Explicit phone-only callback entry preserves drafts and reuses the existing retry-safe callback endpoint."
-  },
-  "hostBuildRepair": {
-    "date": "2026-10-13",
-    "scope": "P5 isolated production host build",
-    "reason": "Preserve interrupted .next/dev output before production type checking"
-  },
-  "acceptedFlagReconciliation": {
-    "base": "6242884db3114826a83d727bf99ba6a8fd8fad84",
-    "note": "Preserves newer P5 main and explicit accepted flag, safe phone links, canonical source manifest."
   }
 }
