@@ -10,6 +10,7 @@ import { track } from "./analytics";
 import { homePageSchema, serializeJsonLd } from "./structuredData";
 import PublicIdentity from "@/components/PublicIdentity";
 import { imageVariantFor, BASEBOARD_TRIM_FIT, FRAMING_FOOTHILLS } from "./imageVariants.ts";
+import { PUBLIC_PHONE_DISPLAY, PUBLIC_PHONE_SMS, PUBLIC_PHONE_TEL } from "./publicIdentity";
 
 type CompanyKey = "construction" | "remodeling" | "adu" | "handyman" | "cabinetry";
 
@@ -94,6 +95,10 @@ export default function Home() {
           <HeaderWordmark />
           <nav className="desktop-nav" aria-label="Primary navigation"><Link href="/#companies">Our companies</Link><Link href="/#p5-standard">The P5 standard</Link><Link href="/#about">About</Link><Link href="/#service-area">Service area</Link><Link href="/estimate">Request a quote</Link></nav>
           <button className="nav-cta" type="button" onClick={openMatcher}>Find your team <Arrow /></button>
+          <nav className="header-contact" aria-label="Call or text">
+            <a href={PUBLIC_PHONE_TEL} aria-label={`Call ${PUBLIC_PHONE_DISPLAY}`}>Call</a>
+            <a href={PUBLIC_PHONE_SMS} aria-label={`Text ${PUBLIC_PHONE_DISPLAY}`}>Text</a>
+          </nav>
           <button ref={menuButtonRef} className={`menu-button ${menuOpen ? "menu-button-open" : ""}`} type="button" onClick={() => setMenuOpen((value) => !value)} aria-expanded={menuOpen} aria-controls="mobile-menu" aria-label={menuOpen ? "Close menu" : "Open menu"}><span /><span /></button>
         </div>
       </header>

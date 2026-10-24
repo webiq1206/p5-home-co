@@ -24,7 +24,7 @@ export interface ProofPoint {
 export const PROOF_POINTS: readonly ProofPoint[] = [
   {
     label: "Bonded and insured",
-    detail: "Idaho contractor registration 8381215, carried across all five companies.",
+    detail: "Idaho Registered Contractor #8381215, carried across all five companies.",
   },
   {
     label: "Working here since 2020",
