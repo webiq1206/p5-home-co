@@ -1,3 +1,4 @@
+import {phoneHref as dialHref} from './phoneHref.ts';
 import {intakeContactLabel,intakeChoiceLabel,intakeSavedAt} from './intakeDisplay.ts';
 import {ESTIMATOR_BRAND as brand} from './brand.ts';
 import {INTAKE_SITES,INTAKE_RECIPIENTS} from './intakePolicy.ts';
@@ -18,7 +19,7 @@ export function renderIntakeEmail(s:IntakeSnapshot,team:boolean,files:IntakeEmai
  const fileText=files.map(f=>`${f.name} (${f.size.toLocaleString('en-US')} bytes)${f.attached?': attached original':''}${f.url?`\nPrivate download: ${f.url}`:': saved with your request; delivery access is pending'}`).join('\n');
  const conversation=s.details.transcript.map(m=>`${m.role==='user'?(team?'Customer':'You'):'Project assistant'}${m.label?` · ${m.label}`:''}: ${m.text}${m.caption?`\n${m.caption}`:''}${m.files?.length?`\nFiles: ${m.files.join(', ')}`:''}`).join('\n\n');
  const title=team?'New project request':'Your project request has been received';
- const phone=brand.phone,phoneDigits=phone.replace(/\D/g,''),phoneHref=`tel:${phoneDigits.length===10?'+1':''}${phoneDigits}`;
+ const phone=brand.phone,phoneHref=dialHref(phone);
  const text=[site.name,title,`Request ${ref}`,`Received: ${intakeSavedAt(s.savedAt)}`,'','WHAT HAPPENS NEXT',next,`Call ${phone}: ${phoneHref}`,'',...rows.map(([k,v])=>`${k}: ${v||'Not provided'}`),'','PROJECT SCOPE',s.scope.text||'See submitted answers and files.','',...answers.concat(details).map(([k,v])=>`${k}: ${v}`),'','FILES',fileNote,fileText,...(s.unresolved.length?['','DETAILS TO CONFIRM',...s.unresolved]:[]),...(conversation?['',team?'CUSTOMER SUBMITTED CONVERSATION':'YOUR SUBMITTED CONVERSATION',conversation]:[]),'',`Contact ${INTAKE_RECIPIENTS[s.currentSite]} about this request.`,...(!s.contact.email?['No customer confirmation email was requested; follow up using the supplied phone number.']:[])].join('\n');
  const paragraph=(v:string)=>`<p style="margin:0 0 16px;white-space:pre-wrap;overflow-wrap:anywhere">${escape(v)}</p>`;
  const heading=(v:string)=>`<h2 style="font-size:19px;margin:28px 0 12px;color:#2C302F">${escape(v)}</h2>`;

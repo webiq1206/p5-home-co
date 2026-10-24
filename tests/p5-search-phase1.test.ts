@@ -64,7 +64,10 @@ test("llms-full.txt is the fact sheet plus the homepage FAQ and nothing invented
   assert.ok(flat(llms).includes(LLMS_CONTACT), "llms.txt contact block");
   assert.ok(flat(full).includes(LLMS_CONTACT), "llms-full.txt contact block");
   assert.match(llms, /https:\/\/p5homeco\.com\/llms-full\.txt/);
-  assert.match(full, /Established 2020\. Bonded and insured\./);
+  assert.match(full, /Bonded and insured\. Serving Ada and Canyon counties\./);
+  assert.equal(full.includes("Established 2020"), false);
+  assert.equal(full.includes("since 2020"), false);
+  assert.equal(full.includes("does the work itself"), false);
   assert.match(full, /Boise, Meridian, Eagle, Nampa, Kuna, Star, Middleton, Caldwell, and Garden/);
   for (const item of faqs) {
     assert.ok(full.includes(item.q), item.q);

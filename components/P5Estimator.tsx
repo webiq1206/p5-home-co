@@ -5,6 +5,7 @@ import {publicProjectMode,intakeSite,routeIntake,intakeRoutingContext,INTAKE_COP
 import {incomingTransfer,clearIncomingTransfer,persistOutgoingTransfer,outgoingTransfer,recoverOutgoingTransfer,clearOutgoingTransfer,newTransferSeed,browserTransferProof,openTransferredProject,acceptTransferredDraft,persistTransferredDraft,type BrowserTransferView,type BrowserTransferProof} from '../lib/p5/intakeTransferBrowser';
 import {reconcileQuestionMemory,recordQuestion,answerState,mergeQuestionMemory,type QuestionState} from '../lib/p5/intakeQuestionMemory';
 import {intakeQuestions} from '../lib/p5/intakeQuestions';
+import {captureAttribution} from "../lib/p5/browserAttribution";
 import {emptyIntakeDetails,intakeContact,IntakeContactError,type IntakeContactField,requireIntakeReceipt,intakeReviewFingerprint,intakeScopeReviewed,type IntakeReceipt} from '../lib/p5/intakeContract';
 import {estimateDeliveryStates,DELIVERY_LABEL} from '../lib/p5/deliveryPresentation.ts';
 import {P5EstimatorNavigation} from './P5EstimatorNavigation';
@@ -18,6 +19,7 @@ import {analysisMessage,projectMaterials,type ProcessingStatus} from '@/lib/p5/p
 import {customerChoiceLabel,selectCustomerAnswer,contextualCustomerAnswer,exactCustomerChoice,customerQuestionKey} from '@/lib/p5/customerAnswers';
 import {useCallback,useEffect,useId,useLayoutEffect,useMemo,useRef,useState} from 'react';
 import {ESTIMATOR_BRAND as brand} from '@/lib/p5/brand';
+import {phoneHref} from '@/lib/p5/phoneHref';
 import {estimatorTheme,estimatorThemeStyle} from '@/lib/p5/theme';
 import {SCOPE_FIELDS,SCOPE_FILE_LIMIT,SCOPE_MAX_PAGES,SCOPE_BATCH_LIMIT,SCOPE_FILE_COUNT,SCOPE_UPLOAD_HELP,type ScopeField,type ScopeAnswers,type ScopeUpload} from '@/lib/p5/scope';
 import {questionContext,scopeFieldApplies} from '@/lib/p5/dynamicQuestions';
@@ -159,6 +161,7 @@ export function P5Estimator({defaultService='',entryLabel,headingAs='h1',project
       mounted.current=true;
       return()=>{mounted.current=false;};
     }
+    captureAttribution();
     // An emailed estimate link (?estimate=<id>&t=<signed token>) is exchanged once for a key for this
     // device, saved like any draft, and the page reloads on a clean address; the saved estimate or its
     // live progress then loads through the normal restore below. A bad or expired link says so.
@@ -314,7 +317,7 @@ export function P5Estimator({defaultService='',entryLabel,headingAs='h1',project
     const d=current.current;if(!d)throw new Error('Your project is still loading.');
     const remembered=remember(d);
     const requestSource=sourceSnapshot(d);
-    const put=(revision:number)=>operationFetch('/api/p5-estimator/draft',{method:'PUT',headers:{...draftHeaders(d),'Content-Type':'application/json'},body:JSON.stringify({text:d.text,answers:d.answers,contact:d.contact,revision,wizard:d.wizard,intake:{...(remembered.intake||emptyIntakeDetails()),transcript:d.transcript||[],desiredOutcome:d.answers.desiredOutcome||'',workContext:d.answers.workContext||'',budget:d.answers.budget||''},reviewed,clarification,scopeFingerprint:scopeFingerprint(d.text)})});
+    const put=(revision:number)=>operationFetch('/api/p5-estimator/draft',{method:'PUT',headers:{...draftHeaders(d),'Content-Type':'application/json'},body:JSON.stringify({text:d.text,answers:d.answers,contact:d.contact,revision,wizard:d.wizard,intake:{...(remembered.intake||emptyIntakeDetails()),attribution:remembered.intake?.attribution||captureAttribution(),transcript:d.transcript||[],desiredOutcome:d.answers.desiredOutcome||'',workContext:d.answers.workContext||'',budget:d.answers.budget||''},reviewed,clarification,scopeFingerprint:scopeFingerprint(d.text)})});
     let response=await put(d.revision);
     let data=await readJson(response);
     if(response.status===409&&intakeMode)throw new Error(data.error||'The saved project could not be updated. Your local edits are retained. Reload and review the saved project before sending.');
@@ -658,7 +661,7 @@ export function P5Estimator({defaultService='',entryLabel,headingAs='h1',project
       const response=await operationFetch('/api/p5-estimator/intake',{method:'POST',headers:{...draftHeaders(latest),'Content-Type':'application/json'},body:JSON.stringify({revision:latest.revision,confirmed:true})});
       const value=await readJson(response);if(!response.ok)throw new Error(value.error||'Your request was not confirmed. Your work is retained; please retry.');
       const receipt=requireIntakeReceipt(value);if(receipt.revision!==latest.revision)throw new Error('The saved request version could not be confirmed. Retry to check the same request.');
-      setIntakeReceipt(receipt);setStatus('');trackGoogleAdsLeadConversion({service:latest.answers.service},`intake:${receipt.projectId}`);
+      setIntakeReceipt(receipt);setStatus('');trackGoogleAdsLeadConversion({service:latest.answers.service},`intake:${receipt.projectId}`,{accepted:receipt.accepted===true});
     });
   }
   async function submit(event:React.FormEvent){
@@ -683,7 +686,7 @@ export function P5Estimator({defaultService='',entryLabel,headingAs='h1',project
         // A quantity needed before pricing can start opens its own question straight away.
         if(details?.preflight){const needed=parseMissing(details.missingFields);if(needed.length){preflightField.current=needed[0].field;throw new Error('p5-preflight');}}
         if(details?.pricingReviewRequired){setMissingFields(parseMissing(details.missingFields));setVerificationItems(parseItems(details.verificationItems));throw new Error(details.error||'A few more details are needed before pricing.');}throw failure;}
-      checkSubmission();setResult(data.result);setEstimateDoc(data.document||null);setDelivery(data.delivery||[]);trackGoogleAdsLeadConversion({service:d.answers.service},`estimator:${d.id}`);if(data.result?.range)trackScopeEvent('estimateGenerated',d.answers.service);if(data.delivery?.some((v:any)=>v.channel==='customer'&&v.status==='sent'))trackScopeEvent('estimateEmailed',d.answers.service);setStatus('');
+      checkSubmission();setResult(data.result);setEstimateDoc(data.document||null);setDelivery(data.delivery||[]);trackGoogleAdsLeadConversion({service:d.answers.service},`estimator:${d.id}`,{accepted:data.accepted===true});if(data.result?.range)trackScopeEvent('estimateGenerated',d.answers.service);if(data.delivery?.some((v:any)=>v.channel==='customer'&&v.status==='sent'))trackScopeEvent('estimateEmailed',d.answers.service);setStatus('');
     },'pricing');
   }
   const continuePaused=()=>{const kind=paused?.kind;setPaused(null);resuming.current=true;if(kind==='pricing'){const form=document.getElementById(`${id}-form`) as HTMLFormElement|null;if(form)form.requestSubmit();else void begin();}else void begin();};
@@ -865,7 +868,7 @@ export function P5Estimator({defaultService='',entryLabel,headingAs='h1',project
   const processingStage=(busy||preparingFiles||runKind)&&<Message role="assistant">{preparingFiles?<section className={styles.processing} role="status" aria-live="polite"><h2>Preparing your saved project on this device</h2><p>Loading or saving text and attachments in this browser.</p></section>:<P5ProcessingStatus hasAttachments={Boolean(draft.uploads?.length||files.length||attachedProjectSource?.imageUrl)} message={busy||(runKind==='pricing'?'Preparing your estimate...':'Reviewing your project...')} processing={processing} uploadPercent={uploadPercent} materials={materials} kind={operationKind} waitChoice={operationKind==='pricing'?waitChoice:null} onPause={busy?()=>operationBudget.current?.controller.abort(new ProcessingDeadlineError()):undefined}/>}</Message>;
   const stepLabel=intakeReceipt?'Request saved':result?'Estimate ready':`Step ${draft.step+1} of 3 · ${intakeMode&&draft.step===2?'Review':STEP_LABELS[draft.step]}`;const showBack=!intakeReceipt&&!result&&!busy&&draft.step>0;const collapsedWithProgress=layout==='embedded'&&!expanded&&hasProgress;
   const dock=readOnly?<div className={styles.dockBar}><button type="button" className={styles.secondary} disabled={locked} onClick={()=>savedPreview?.restore()}>Reload saved estimate</button><a className={styles.secondary} href="/admin/p5-estimators/qa-recovery?case=case-1">Return to QA</a></div>:locked&&stage!==2&&stage!==3?<div className={styles.dockHint} role="status">{preparingFiles?'Preparing saved text and files on this device.':'Working on your project. Your progress is saved.'}</div>
-    :intakeReceipt?<div className={styles.dockBar}><button type="button" className={styles.secondary} onClick={()=>{setIntakeReceipt(null);setConfirmed(false);apply({...draft,step:2});}}>Review saved details</button><a className={styles.secondary} href={`tel:${brand.phone.replace(/[^\d+]/g,'')}`}>Call {brand.phone}</a></div>:stage===3?<div className={styles.dockBar}><a className={styles.primary} href="#p5-project-review" onClick={()=>trackScopeEvent("onsiteRequested",draft.answers.service)}>{estimateDoc?estimateDoc.review.label:'Schedule a consultation'}</a><a className={styles.secondary} href={`tel:${brand.phone.replace(/[^\d+]/g,'').replace(/^(?!\+)(\d{10})$/,'+1$1')}`}>Call {brand.phone}</a></div>
+    :intakeReceipt?<div className={styles.dockBar}><button type="button" className={styles.secondary} onClick={()=>{setIntakeReceipt(null);setConfirmed(false);apply({...draft,step:2});}}>Review saved details</button><a className={styles.secondary} href={phoneHref(brand.phone)}>Call {brand.phone}</a></div>:stage===3?<div className={styles.dockBar}><a className={styles.primary} href="#p5-project-review" onClick={()=>trackScopeEvent("onsiteRequested",draft.answers.service)}>{estimateDoc?estimateDoc.review.label:'Schedule a consultation'}</a><a className={styles.secondary} href={phoneHref(brand.phone)}>Call {brand.phone}</a></div>
     :stage===2?<>{addingDetails&&composer}<div className={styles.dockBar} data-final-action><button type={intakeMode&&(!contactReached||intakeContactIssue)?"button":"submit"} onClick={intakeMode&&(!contactReached||intakeContactIssue)?event=>{event.preventDefault();continueToContact();}:undefined} form={formId} className={styles.primary} disabled={locked} aria-describedby={error?submitErrorId:undefined}>{intakeMode?(busy?'Saving your request…':!contactReached||intakeContactIssue?'Continue to contact details':intakeRouting.handoff?`Continue with ${intakeRouting.teamName}`:INTAKE_COPY.submit):busy?'Preparing your estimate…':'Get my estimate'}</button></div><div className={styles.dockRow}><span className={styles.dockHint}>{intakeMode?'Review your details and choose how the team should contact you.':contactReady?(confirmed?(hasEmail?'Your estimate opens right here and is emailed to you.':'Your estimate opens right here. You can download a PDF when it is ready.'):'Confirm your project details above, then get your estimate.'):'Add your name above. Email is optional; check it or leave it blank.'}</span><button type="button" className={styles.ghost} disabled={locked} onClick={()=>setAddingDetails(v=>!v)} aria-expanded={addingDetails}>{addingDetails?'Cancel editing':'Add or edit details'}</button></div></>
     :stage===1&&active?.handoff?<div className={styles.dockBar}><a className={styles.primary} href={active.handoff.url} onClick={e=>{e.preventDefault();void carryProject(active.handoff!.url);}}>{active.handoff.label}</a></div>
     :canContinueSaved?<>{composer}<div className={styles.dockBar}><button type="button" className={styles.primary} disabled={locked} onClick={continueSaved}>Continue</button></div><p className={styles.dockHint}>Your reviewed project is saved. Edit the description above to update it, or continue where you left off.</p></>

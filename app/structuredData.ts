@@ -1,3 +1,4 @@
+import { officeOpeningHours } from "../lib/businessHours.ts";
 import { ESTIMATOR_BRAND } from "../lib/p5/brand.ts";
 import {
   NICK_PERKINS_ID,
@@ -7,6 +8,7 @@ import {
   SCHEMA_TELEPHONE,
   CONTRACTOR_REGISTRATION,
 } from "./publicIdentity.ts";
+import { SHOW_FOUNDING_YEAR } from "./publicClaims.ts";
 import { citiesServed, companies, faqs, siteUrl } from "./site.ts";
 
 /** Authorized public contact. The phone, email, and street line match the
@@ -33,7 +35,7 @@ export const siteSchema = {
       url: siteUrl,
       description: siteDescription,
       slogan: "One home. Five specialized teams.",
-      foundingDate: "2020",
+      ...(SHOW_FOUNDING_YEAR ? { foundingDate: "2020" } : {}),
       telephone: SCHEMA_TELEPHONE,
       email: ESTIMATOR_BRAND.email,
       image: `${siteUrl}/images/p5-og.jpg`,
@@ -45,6 +47,7 @@ export const siteSchema = {
         jobTitle: "Public representative",
         worksFor: { "@id": `${siteUrl}/#organization` },
       },
+      openingHoursSpecification: officeOpeningHours(),
       contactPoint: {
         "@type": "ContactPoint",
         name: PUBLIC_REPRESENTATIVE,

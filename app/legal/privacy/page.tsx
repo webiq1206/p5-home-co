@@ -170,6 +170,13 @@ export default function PrivacyPage() {
         and you can opt out of Google ads at <a href="https://adssettings.google.com">Google Ads Settings</a>.
       </p>
 
+      <p>
+        Google Analytics 4 records site use. Google Ads conversion tracking receives a conversion event when a quote inquiry is accepted,
+        and a separate conversion event when a project estimate is finished.
+        Those events do not include your name, email, phone number, or project
+        details.
+      </p>
+
       <h2>6. How long we keep it</h2>
       <p>
         Inquiry records are kept while we are in contact and for a reasonable
