@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { BUSINESS_HOURS_LABEL } from "@/lib/businessHours";
 import {
   IDAHO_DOPL_LICENSE_SEARCH,
   PUBLIC_EMAIL,
@@ -60,6 +61,7 @@ export default function PublicIdentity({
           { label: PUBLIC_EMAIL, href: `mailto:${PUBLIC_EMAIL}` },
         ])}
       </p>
+      <p className="public-nap">{BUSINESS_HOURS_LABEL}</p>
       <p className="public-registration">
         {linkRegistration ? (
           <a
