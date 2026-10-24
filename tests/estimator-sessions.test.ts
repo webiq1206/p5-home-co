@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { readFile } from "node:fs/promises";
+import { PGlite } from "@electric-sql/pglite";
 import {
+  PARTIAL_COMPLETION_EMAILS_ENABLED,
   buildAbandonmentMessage,
   buildCallbackMessage,
   isEngaged,
@@ -83,4 +86,65 @@ test("a callback email leads with the number and is labelled identified", () => 
   assert.equal(m.subject, "Callback requested: Test Caller, (208) 555-0100 (quote form)");
   assert.match(m.text, /Phone: \(208\) 555-0100/);
   assert.doesNotMatch(m.text, /No contact information/);
+});
+
+test("partial-completion staff emails stay switched off", () => {
+  assert.equal(PARTIAL_COMPLETION_EMAILS_ENABLED, false);
+});
+
+test("an idle partial session emails nobody, and a callback still does", async () => {
+  const pg = new PGlite();
+  const oldPool = globalThis.__p5Pool;
+  const oldUrl = process.env.DATABASE_URL;
+  process.env.DATABASE_URL = "postgres://synthetic.invalid/partial-emails-off";
+  globalThis.__p5Pool = { query: async (sql: string, values: unknown[] = []) => {
+    if (/FROM app_user/i.test(sql)) return { rows: [{ id: "1", email: "manager@example.invalid", full_name: "Manager" }] };
+    return pg.query(sql, values);
+  } } as never;
+  const svc = await import("../app/lib/leads/estimatorSessions.ts");
+  const sent: Array<{ to: string; subject: string }> = [];
+  svc.installEstimatorSessionsSender(async (to, message) => {
+    sent.push({ to, subject: message.subject });
+  });
+  try {
+    await pg.exec(await readFile(new URL("../migrations/013_estimator_sessions.sql", import.meta.url), "utf8"));
+    const t0 = new Date("2026-09-08T10:00:00Z");
+    const idle = new Date(t0.getTime() + svc.INACTIVITY_MS + 5 * 60_000);
+    const estimate = "bbbbbbbb-0000-4000-8000-0000000000e1";
+    const quote = "bbbbbbbb-0000-4000-8000-0000000000e2";
+    const consultation = "bbbbbbbb-0000-4000-8000-0000000000e3";
+    await svc.recordProgress({ sessionId: estimate, flow: "estimate", currentStep: "contact", currentStepIndex: 2, totalSteps: 3, lastCompletedStep: "details", startedAt: t0.getTime() }, t0);
+    await svc.recordProgress({ sessionId: quote, flow: "quote", currentStep: "filling", currentStepIndex: 1, totalSteps: 2, lastCompletedStep: "form", startedAt: t0.getTime() }, t0);
+    await svc.recordProgress({ sessionId: consultation, flow: "consultation", currentStep: "form", currentStepIndex: 1, totalSteps: 2, lastCompletedStep: "start", startedAt: t0.getTime() }, t0);
+    const swept = await svc.sweepAbandonedSessions({ now: idle });
+    assert.equal(swept.partialEmails, "disabled");
+    assert.equal(swept.sent, 0);
+    assert.equal(swept.failed, 0);
+    assert.deepEqual(sent, []);
+    for (const id of [estimate, quote, consultation]) {
+      const stored = (await pg.query<{ status: string; notify_attempt_count: number }>("SELECT status, notify_attempt_count FROM estimator_sessions WHERE id = $1", [id])).rows[0];
+      assert.equal(stored.status, "active");
+      assert.equal(stored.notify_attempt_count, 0);
+    }
+
+    const callback = await svc.recordCallbackRequest({ sessionId: estimate, flow: "estimate", phone: "(208) 555-0100", name: "Test Caller" }, idle);
+    assert.equal(callback.notified, true);
+    assert.equal(sent.length, 1);
+    assert.equal(sent[0].to, "manager@example.invalid");
+    assert.match(sent[0].subject, /^Callback requested: Test Caller, \(208\) 555-0100/);
+
+    const done = "bbbbbbbb-0000-4000-8000-0000000000e4";
+    await svc.recordProgress({ sessionId: done, flow: "quote", currentStep: "submitted", currentStepIndex: 2, totalSteps: 2, status: "completed", startedAt: t0.getTime() }, t0);
+    const again = await svc.sweepAbandonedSessions({ now: new Date(idle.getTime() + 600_000) });
+    assert.equal(again.sent, 0);
+    assert.equal(sent.filter((message) => message.subject.startsWith("[Partial]")).length, 0);
+    const completed = (await pg.query<{ status: string }>("SELECT status FROM estimator_sessions WHERE id = $1", [done])).rows[0];
+    assert.equal(completed.status, "completed");
+  } finally {
+    svc.installEstimatorSessionsSender(null);
+    globalThis.__p5Pool = oldPool;
+    if (oldUrl === undefined) delete process.env.DATABASE_URL;
+    else process.env.DATABASE_URL = oldUrl;
+    await pg.close();
+  }
 });

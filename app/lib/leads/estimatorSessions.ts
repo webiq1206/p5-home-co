@@ -1,8 +1,10 @@
 /**
- * Partial-completion tracking for the quote form: durable sessions and the
- * inactivity sweep that turns an abandoned one into a single staff email.
- * Policy and data rules are in docs/estimator-recovery.md; the brand sites run
- * the same policy over Drizzle, this is the raw-SQL twin for this codebase.
+ * Partial-completion tracking for quote and estimator flows: durable sessions
+ * and the inactivity sweep. Staff mail for an abandoned session is off
+ * (`PARTIAL_COMPLETION_EMAILS_ENABLED`). Callback requests still email staff.
+ * A completed submission is stored as completed and is not abandonment mail.
+ * Policy: docs/estimator-recovery.md. This panel's sweep covers every site and
+ * flow stored on estimator_sessions.
  */
 import { isDatabaseConfigured, query, queryOne } from "../db.ts";
 import { activeTransport } from "../notifications/transport.ts";
@@ -14,6 +16,13 @@ export const MAX_NOTIFY_ATTEMPTS = 5;
 export const NOTIFY_LOCK_MS = 10 * 60 * 1000;
 export const RETENTION_DAYS = 90;
 export const SWEEP_MIN_INTERVAL_MS = 5 * 60 * 1000;
+/**
+ * Kill switch for staff emails about abandoned or partial estimator sessions
+ * (`[Partial] ... drop-off`). Off for every flow and site this panel records.
+ * Callback requests and completed-form / lead notification mail do not use it.
+ * Set to true only to restore the single summary per idle session.
+ */
+export const PARTIAL_COMPLETION_EMAILS_ENABLED = false;
 export const SESSION_ID_RE = /^[a-f0-9-]{16,64}$/i;
 const STEP_RE = /^[a-z0-9_. -]{1,60}$/i;
 const SELECTION_KEY_RE = /^[a-z][a-z0-9_]{0,39}$/i;
@@ -218,6 +227,9 @@ let senderOverride: Sender | null = null;
 export function installEstimatorSessionsSender(sender: Sender | null): void { senderOverride = sender; }
 
 async function sendToStaff(message: { subject: string; text: string; html: string }): Promise<void> {
+  if (!PARTIAL_COMPLETION_EMAILS_ENABLED && message.subject.startsWith("[Partial]")) {
+    throw new Error("partial completion staff emails are disabled");
+  }
   const people = [...(await peopleWithRole(["manager"])), ...(await peopleWithRole(["administrator"]))];
   const emails = [...new Set(people.map((p) => p.email.toLowerCase()))];
   if (emails.length === 0) throw new Error("no active manager or administrator to notify");
@@ -229,13 +241,26 @@ async function sendToStaff(message: { subject: string; text: string; html: strin
   }
 }
 
-export interface SweepResult { considered: number; sent: number; failed: number; purged: number; skipped: boolean }
+export interface SweepResult {
+  considered: number;
+  sent: number;
+  failed: number;
+  purged: number;
+  skipped: boolean;
+  partialEmails: "enabled" | "disabled";
+}
 let lastSweepAt = 0;
 let sweepInFlight: Promise<SweepResult> | null = null;
 
+function partialEmailMode(): SweepResult["partialEmails"] {
+  return PARTIAL_COMPLETION_EMAILS_ENABLED ? "enabled" : "disabled";
+}
+
 export function sweepIfDue(now = new Date()): Promise<SweepResult> {
   if (sweepInFlight) return sweepInFlight;
-  if (now.getTime() - lastSweepAt < SWEEP_MIN_INTERVAL_MS) return Promise.resolve({ considered: 0, sent: 0, failed: 0, purged: 0, skipped: true });
+  if (now.getTime() - lastSweepAt < SWEEP_MIN_INTERVAL_MS) {
+    return Promise.resolve({ considered: 0, sent: 0, failed: 0, purged: 0, skipped: true, partialEmails: partialEmailMode() });
+  }
   lastSweepAt = now.getTime();
   sweepInFlight = sweepAbandonedSessions({ now, limit: 10 }).finally(() => { sweepInFlight = null; });
   return sweepInFlight;
@@ -244,37 +269,41 @@ export function sweepIfDue(now = new Date()): Promise<SweepResult> {
 export async function sweepAbandonedSessions(opts: { now?: Date; limit?: number } = {}): Promise<SweepResult> {
   const now = opts.now ?? new Date();
   const limit = opts.limit ?? 50;
-  const result: SweepResult = { considered: 0, sent: 0, failed: 0, purged: 0, skipped: false };
+  const result: SweepResult = { considered: 0, sent: 0, failed: 0, purged: 0, skipped: false, partialEmails: partialEmailMode() };
   if (!isDatabaseConfigured()) return { ...result, skipped: true };
   await ensureEstimatorSessionsTable();
   const idleBefore = new Date(now.getTime() - INACTIVITY_MS);
   const lockExpired = new Date(now.getTime() - NOTIFY_LOCK_MS);
-  const candidates = await query<{ id: string }>(
-    `SELECT id FROM estimator_sessions
-      WHERE status = 'active' AND engaged AND NOT requested_callback AND last_activity_at < $1
-        AND notify_attempt_count < $2 AND (notify_locked_at IS NULL OR notify_locked_at < $3)
-      LIMIT $4`,
-    [idleBefore, MAX_NOTIFY_ATTEMPTS, lockExpired, limit],
-  );
-  result.considered = candidates.length;
-  for (const { id } of candidates) {
-    const claimed = await queryOne<SessionRow>(
-      `UPDATE estimator_sessions SET notify_locked_at = $2, notify_attempt_count = notify_attempt_count + 1, updated_at = $2
-        WHERE id = $1 AND status = 'active' AND NOT requested_callback AND last_activity_at < $3
-          AND (notify_locked_at IS NULL OR notify_locked_at < $4)
-        RETURNING *`,
-      [id, now, idleBefore, lockExpired],
+  // Claim-and-send stays in place so the switch can be turned back on.
+  // While it is off, idle sessions are left active and no [Partial] mail goes out.
+  if (PARTIAL_COMPLETION_EMAILS_ENABLED) {
+    const candidates = await query<{ id: string }>(
+      `SELECT id FROM estimator_sessions
+        WHERE status = 'active' AND engaged AND NOT requested_callback AND last_activity_at < $1
+          AND notify_attempt_count < $2 AND (notify_locked_at IS NULL OR notify_locked_at < $3)
+        LIMIT $4`,
+      [idleBefore, MAX_NOTIFY_ATTEMPTS, lockExpired, limit],
     );
-    if (!claimed) continue;
-    try {
-      await sendToStaff(buildAbandonmentMessage(claimed));
-      await query(`UPDATE estimator_sessions SET status = CASE WHEN status = 'active' THEN 'notified' ELSE status END, notified_at = $2, notify_locked_at = NULL, notify_last_error = NULL, updated_at = $2 WHERE id = $1`, [id, now]);
-      result.sent += 1;
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      await query(`UPDATE estimator_sessions SET notify_last_error = $2, notify_locked_at = NULL, updated_at = $3 WHERE id = $1`, [id, message.slice(0, 500), now]);
-      console.error("[estimator-recovery] abandonment email failed", { sessionId: id, message });
-      result.failed += 1;
+    result.considered = candidates.length;
+    for (const { id } of candidates) {
+      const claimed = await queryOne<SessionRow>(
+        `UPDATE estimator_sessions SET notify_locked_at = $2, notify_attempt_count = notify_attempt_count + 1, updated_at = $2
+          WHERE id = $1 AND status = 'active' AND NOT requested_callback AND last_activity_at < $3
+            AND (notify_locked_at IS NULL OR notify_locked_at < $4)
+          RETURNING *`,
+        [id, now, idleBefore, lockExpired],
+      );
+      if (!claimed) continue;
+      try {
+        await sendToStaff(buildAbandonmentMessage(claimed));
+        await query(`UPDATE estimator_sessions SET status = CASE WHEN status = 'active' THEN 'notified' ELSE status END, notified_at = $2, notify_locked_at = NULL, notify_last_error = NULL, updated_at = $2 WHERE id = $1`, [id, now]);
+        result.sent += 1;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        await query(`UPDATE estimator_sessions SET notify_last_error = $2, notify_locked_at = NULL, updated_at = $3 WHERE id = $1`, [id, message.slice(0, 500), now]);
+        console.error("[estimator-recovery] abandonment email failed", { sessionId: id, message });
+        result.failed += 1;
+      }
     }
   }
   const purged = await query<{ id: string }>(`DELETE FROM estimator_sessions WHERE created_at < $1 RETURNING id`, [new Date(now.getTime() - RETENTION_DAYS * 86400 * 1000)]);
