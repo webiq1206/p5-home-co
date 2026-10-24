@@ -391,3 +391,6 @@
   .categorySummary .badge{grid-column:1;grid-row:2;justify-self:start}
   .result .categorySummary .accordionMeta{grid-column:2;grid-row:2;max-width:none}
 }
+
+/* Design audit 2026-10-17: on touch screens the composer icon buttons were 40px, the contact shortcut 36px, and the step pill, brand line and shortcut copy 9 to 11px. */
+@media(pointer:coarse){.root .iconBtn{width:44px;height:44px}.root .contactShortcut button{min-height:44px}.root .contactShortcut{font-size:12px}.root .stepPill{font-size:12px}.root .brandLine{font-size:11px}}

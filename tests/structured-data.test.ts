@@ -64,8 +64,14 @@ test("the business address is the authorized Meridian street, and cities stay se
   assert.equal(organization.contactPoint.areaServed, "US-ID");
   assert.equal(organization.contactPoint.availableLanguage, "English");
   assert.equal("email" in organization.contactPoint, false);
+  assert.equal(organization.hasCredential.credentialCategory, "registration");
   assert.equal(organization.hasCredential.identifier, "8381215");
-  assert.equal(organization.hasCredential.name, "Idaho contractor registration");
+  assert.equal(organization.hasCredential.name, "Idaho Registered Contractor");
+  assert.deepEqual(organization.hasCredential.recognizedBy, {
+    "@type": "GovernmentOrganization",
+    name: "Idaho Division of Occupational and Professional Licenses",
+    url: "https://dopl.idaho.gov/con/",
+  });
   assert.equal(JSON.stringify(organization).includes("Jared"), false);
   assert.equal(siteTitle, "P5 Home Co | Five Home-Service Companies in Boise, ID");
   assert.ok(siteTitle.length <= 60);

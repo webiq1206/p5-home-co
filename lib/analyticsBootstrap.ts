@@ -5,6 +5,8 @@ export function googleTagBootstrap(options: {
   adsId: string;
   phoneConversionLabel?: string;
   phoneNumber?: string;
+  callClickLabel?: string;
+  textClickLabel?: string;
 }): string {
   const config = JSON.stringify(options).replace(/</g, '\\u003c');
   return `(function () {
@@ -22,6 +24,28 @@ export function googleTagBootstrap(options: {
   window.gtag('config', config.adsId);
   if (config.phoneConversionLabel && config.phoneNumber) {
     window.gtag('config', config.adsId + '/' + config.phoneConversionLabel, { phone_conversion_number: config.phoneNumber });
+  }
+  // One delegated listener for call and text clicks. The tag gate above is the
+  // only switch, and the flag stops a second bootstrap from binding twice.
+  if (config.callClickLabel && config.textClickLabel && !window.__p5ClickConversionBound && typeof document.addEventListener === 'function') {
+    window.__p5ClickConversionBound = true;
+    document.addEventListener('click', function (event) {
+      var path = window.location.pathname || '';
+      if (path === '/admin' || path.indexOf('/admin/') === 0 || path === '/portal' || path.indexOf('/portal/') === 0) return;
+      var node = event.target;
+      while (node && node !== document) {
+        if (typeof node.getAttribute === 'function') {
+          var href = String(node.getAttribute('href') || '');
+          var head = href.slice(0, 4).toLowerCase();
+          var label = head === 'tel:' ? config.callClickLabel : head === 'sms:' ? config.textClickLabel : '';
+          if (label) {
+            try { window.gtag('event', 'conversion', { send_to: config.adsId + '/' + label }); } catch (err) {}
+            return;
+          }
+        }
+        node = node.parentNode;
+      }
+    });
   }
   try { if (!sessionStorage.getItem('p5_entry_path')) sessionStorage.setItem('p5_entry_path', window.location.pathname); } catch (e) {}
   // Retain a privacy-bounded first and latest campaign touch for real visitors.
