@@ -7,6 +7,7 @@ import {INTAKE_SITES,INTAKE_RECIPIENTS,routeIntake,type IntakeSite} from '../lib
 import {intakeFileLink,intakeFileHandler,INTAKE_FILE_LINK_DAYS} from '../lib/p5/intakeFileAccess.ts';
 import {intakeDeliveryEnvelope} from '../lib/p5/intakeDeliveryPayload.ts';
 import {prepareIntakeEmail,INTAKE_ATTACHMENT_BYTES} from '../lib/p5/intakeEmailDelivery.ts';
+import {pdfTextLayers} from '../lib/p5/pdfText.ts';
 import {renderIntakeEmail} from '../lib/p5/intakeEmail.ts';
 
 const now=Date.parse('2099-01-02T12:00:00Z'),secret='synthetic-test-secret-only';
@@ -34,8 +35,8 @@ test('every original is byte verified and included as attachment plus recipient-
  const f=fixture();for(const channel of ['customer','team'] as const){
   const result=await prepareIntakeEmail(f.s,intakeDeliveryEnvelope(f.s,channel,'digest'),f.deps);
   assert.equal(result.email!.attachments.length,2);assert.deepEqual(Buffer.from(result.email!.attachments[1].base64,'base64'),f.bytes);
-  const record=JSON.parse(Buffer.from(result.email!.attachments[0].base64,'base64').toString());assert.equal(record.files.length,1);assert.equal(record.files[0].attachedOriginal,true);
-  const response=await intakeFileHandler({...f.deps,site:'p5'})(new Request(record.files[0].privateDownload));assert.equal(response.status,200);assert.deepEqual(Buffer.from(await response.arrayBuffer()),f.bytes);
+  const pdf=Buffer.from(result.email!.attachments[0].base64,'base64');assert.equal(pdf.subarray(0,5).toString(),'%PDF-');assert.equal(result.email!.attachments[0].contentType,'application/pdf');const text=(await pdfTextLayers(pdf)).join('\n');assert.match(text,/plan <one>/);assert.ok(!text.includes('NEVER EXPOSE'));const privateDownload=result.email!.text.match(/Private download: (https:\/\/\S+)/)![1];
+  const response=await intakeFileHandler({...f.deps,site:'p5'})(new Request(privateDownload));assert.equal(response.status,200);assert.deepEqual(Buffer.from(await response.arrayBuffer()),f.bytes);
   assert.match(response.headers.get('cache-control')!,/no-store/);assert.match(response.headers.get('content-disposition')!,/^attachment/);
   assert.ok(result.email!.html!.includes('Original attached'));assert.ok(!result.email!.text.includes('access is pending'));
  }
@@ -43,9 +44,9 @@ test('every original is byte verified and included as attachment plus recipient-
 test('oversize original stays privately downloadable and is never described as attached',async()=>{
  const f=fixture('p5',Buffer.alloc(INTAKE_ATTACHMENT_BYTES+1,65));
  const result=await prepareIntakeEmail(f.s,intakeDeliveryEnvelope(f.s,'customer','digest'),f.deps);
- assert.equal(result.email!.attachments.length,1);const record=JSON.parse(Buffer.from(result.email!.attachments[0].base64,'base64').toString());
- assert.equal(record.files[0].attachedOriginal,false);assert.ok(record.files[0].privateDownload);assert.ok(!result.email!.html!.includes('Original attached'));
- const response=await intakeFileHandler({...f.deps,site:'p5'})(new Request(record.files[0].privateDownload));assert.equal(response.status,200);assert.equal((await response.arrayBuffer()).byteLength,f.bytes.length);
+ assert.equal(result.email!.attachments.length,1);const privateDownload=result.email!.text.match(/Private download: (https:\/\/\S+)/)![1];
+ assert.ok(privateDownload);assert.ok(!result.email!.html!.includes('Original attached'));
+ const response=await intakeFileHandler({...f.deps,site:'p5'})(new Request(privateDownload));assert.equal(response.status,200);assert.equal((await response.arrayBuffer()).byteLength,f.bytes.length);
 });
 test('missing or corrupt original blocks preparation before a send can occur',async()=>{
  const f=fixture(),envelope=intakeDeliveryEnvelope(f.s,'customer','digest');
@@ -73,6 +74,6 @@ test('email uses truthful friendly labels, explicit UTC time and channel-appropr
   for(const team of [true,false]){const email=renderIntakeEmail(f.s,team,[]);for(const content of [email.text,email.html]){
    assert.match(content,/Email or phone/);assert.match(content,/Cabinets, supply only/);assert.match(content,/Mid-range/);assert.match(content,/January 2, 2099/);assert.match(content,/12:00:00\.123 PM UTC/);assert.ok(!content.includes('cabinet-product'));assert.ok(!content.includes(f.s.savedAt));assert.ok(content.includes(team?'Customer: Keep the sink':'You: Keep the sink'));
   }
-  const record=JSON.parse(Buffer.from(intakeDeliveryEnvelope(f.s,team?'team':'customer','digest').email!.attachments[0].base64,'base64').toString());assert.equal(record.answers.service,'cabinet-product');assert.equal(record.savedAt,f.s.savedAt);assert.equal(record.contact.preferredContact,'either');assert.deepEqual(record.conversation,f.s.details.transcript);
+  const record=intakeDeliveryEnvelope(f.s,'crm','digest').request!;assert.equal(record.scope.answers.service,'cabinet-product');assert.equal(record.savedAt,f.s.savedAt);assert.equal(record.contact.preferredContact,'either');assert.deepEqual(record.details.transcript,f.s.details.transcript);assert.equal(intakeDeliveryEnvelope(f.s,team?'team':'customer','digest').email!.attachments.length,0);
  }}
 });

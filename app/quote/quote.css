@@ -56,7 +56,18 @@
   height: 32px;
 }
 
-.quote-header-phone {
+.quote-header-actions {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 14px;
+}
+
+.quote-header-phone,
+.quote-header-text {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
   color: var(--ink);
   font-size: 15px;
   font-weight: 750;
@@ -65,7 +76,9 @@
 }
 
 .quote-header-phone:hover,
-.quote-header-phone:focus-visible {
+.quote-header-phone:focus-visible,
+.quote-header-text:hover,
+.quote-header-text:focus-visible {
   color: var(--bronze-ink);
 }
 
@@ -112,7 +125,7 @@
 .quote-eyebrow {
   margin: 0 0 14px;
   color: #d3ae89;
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 750;
   letter-spacing: 0.16em;
   text-transform: uppercase;
@@ -464,7 +477,7 @@
 }
 
 .quote-step-grid h3 {
-  margin: 0 0 7px;
+  margin: 0 0 10px;
   font-size: 16px;
   font-weight: 750;
 }
@@ -581,6 +594,11 @@
   color: rgba(255, 255, 255, 0.66);
   font-size: 14px;
   line-height: 1.6;
+}
+
+.quote-footer .public-identity p {
+  max-width: none;
+  color: rgba(255, 255, 255, 0.82);
 }
 
 .quote-footer-brand {
@@ -790,4 +808,26 @@
   .quote-faq dd {
     max-width: none;
   }
+}
+
+.quote-thanks .quote-eyebrow { color:#79532f; }
+
+/* Design audit 2026-10-17: header and footer links measured 22 to 32px tall on phones. */
+.quote-wordmark,
+.quote-header-phone,
+.quote-footer-links a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+}
+
+/* Design quality pass 2026-10-18: on a phone the headline explains the page before the estimator asks for anything. */
+@media (max-width: 719px) {
+  .quote-page { display: flex; flex-direction: column; }
+  .quote-page > .quote-header { order: -3; }
+  .quote-page > .quote-hero { order: -2; padding: 26px 0 30px; }
+  .quote-page > #quote-form-heading { order: -1; }
+  .quote-page > .quote-hero .quote-covers,
+  .quote-page > .quote-hero .quote-hero-call { display: none; }
+  .quote-page > .quote-hero .quote-lead { margin-bottom: 0; }
 }

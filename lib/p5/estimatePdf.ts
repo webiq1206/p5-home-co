@@ -176,7 +176,7 @@ export async function renderEstimatePdf(doc:EstimateDocument):Promise<Buffer>{
     const label=`${doc.reference}  |  ${i+1} / ${pages.length}`;p.drawText(label,{x:R-regular.widthOfTextAtSize(label,8.5),y:40,size:8.5,font:regular,color:soft});
   });
   pdf.setTitle(`${doc.brand.name} preliminary online estimate ${doc.reference}`);pdf.setAuthor(doc.brand.name);
-  pdf.setSubject('Preliminary estimate, not a contract');pdf.setKeywords([doc.templateVersion,doc.service,`revision ${doc.revision}`]);
+  pdf.setSubject('Preliminary estimate, not a contract');pdf.setKeywords([doc.templateVersion,doc.service]);
   if(doc.issuedAt&&Number.isFinite(Date.parse(doc.issuedAt))){pdf.setCreationDate(new Date(doc.issuedAt));pdf.setModificationDate(new Date(doc.issuedAt));}
   return Buffer.from(await pdf.save());
 }

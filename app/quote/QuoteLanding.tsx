@@ -7,6 +7,8 @@ import { faqsFor, schemaFor, STEPS } from "./schema";
 import { QUOTE_SERVICES, type QuoteService } from "./services";
 import { serializeJsonLd } from "../structuredData";
 import TrackedPhoneLink from "./TrackedPhoneLink";
+import PublicIdentity from "@/components/PublicIdentity";
+import { PUBLIC_PHONE_DISPLAY, PUBLIC_PHONE_SMS } from "../publicIdentity";
 
 /* eslint-disable @next/next/no-img-element */
 
@@ -22,12 +24,12 @@ import TrackedPhoneLink from "./TrackedPhoneLink";
  * the longer trust and process content sits below it. Nobody should have to
  * scroll past six paragraphs to reach the field they came to fill in.
  */
-export default function QuoteLanding({ service }: { service: QuoteService | null }) {
+export default function QuoteLanding({ service, entryLabel, defaultService }: { service: QuoteService | null;entryLabel?:string;defaultService?:string }) {
   const faqs = faqsFor(service);
   const heroImage = service ? service.image : "/images/p5-hero.webp";
   const heroAlt = service
     ? service.imageAlt
-    : "Contemporary Treasure Valley home exterior.";
+    : "Modern two-story house with dark vertical siding, a flat roof, and warm window light at dusk.";
   const others = QUOTE_SERVICES.filter((s) => !service || s.slug !== service.slug);
 
   return (
@@ -46,16 +48,21 @@ export default function QuoteLanding({ service }: { service: QuoteService | null
           <Link className="quote-wordmark" href="/" aria-label="P5 Home Co, home">
             <img src="/brands/p5-home-co-lockup-dark.svg" alt="P5 Home Co, The Home Company" />
           </Link>
-          <TrackedPhoneLink
-            className="quote-header-phone"
-            location="quote_header"
-            ariaLabel="Call P5 Home Co on 2 0 8, 4 7 7, 1 1 6 9"
-          >
-            (208) 477-1169
-          </TrackedPhoneLink>
+          <div className="quote-header-actions">
+            <TrackedPhoneLink
+              className="quote-header-phone"
+              location="quote_header"
+              ariaLabel="Call P5 Home Co on 2 0 8, 4 7 7, 1 1 6 9"
+            >
+              (208) 477-1169
+            </TrackedPhoneLink>
+            <a className="quote-header-text" href={PUBLIC_PHONE_SMS} aria-label={`Text ${PUBLIC_PHONE_DISPLAY}`}>
+              Text
+            </a>
+          </div>
         </header>
 
-        <section id="quote-form-heading" style={{padding:"12px 16px 36px",scrollMarginTop:100}}><P5Estimator headingAs="h1" layout="embedded" defaultService={({"kitchen-remodel":"kitchen","bathroom-remodel":"bathroom","home-addition":"addition","adu":"adu","custom-home":"new-construction","new-construction":"new-construction","custom-cabinets":"cabinet-install","handyman":"handyman","re-10":"re10"} as Record<string,string>)[service?.slug||""]||""} /></section>
+        <section id="quote-form-heading" style={{padding:"12px 16px 36px",scrollMarginTop:100}}><P5Estimator headingAs={service ? "h1" : "h2"} layout="embedded" entryLabel={entryLabel} defaultService={defaultService??(({"kitchen-remodel":"kitchen","bathroom-remodel":"bathroom","home-addition":"addition","adu":"adu","custom-home":"new-construction","new-construction":"new-construction","custom-cabinets":"cabinet-install","handyman":"handyman","re-10":"re10"} as Record<string,string>)[service?.slug||""]||"")} /></section>
 
         <section className="quote-hero">
           <img
@@ -76,7 +83,7 @@ export default function QuoteLanding({ service }: { service: QuoteService | null
                   ? `${service.label} · Treasure Valley`
                   : "Free quote · Treasure Valley, Idaho"}
               </p>
-              <h2>{service ? service.h1 : "A specialist team for your home project"}</h2>
+              {service ? <h2>{service.h1}</h2> : <h1>A specialist team for your home project</h1>}
               <p className="quote-lead">
                 {service
                   ? service.lead
@@ -210,6 +217,7 @@ export default function QuoteLanding({ service }: { service: QuoteService | null
               <Link href="/">P5 Home Co home</Link>
               <Link href="/legal/privacy">Privacy policy</Link>
             </p>
+            <PublicIdentity />
             <p className="quote-footer-bottom">© 2026 P5 Home Co. All rights reserved.</p>
           </div>
         </footer>

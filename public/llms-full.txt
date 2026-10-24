@@ -1,0 +1,157 @@
+# P5 Home Co
+
+> P5 Home Co is the operating parent company behind five specialized
+> home-service companies serving Boise and the Treasure Valley in Idaho:
+> Boise Construction Co, Boise Remodeling Co, Boise ADU Co, Boise Handyman
+> Co, and Boise Cabinet Co. It is an operating family of companies, not a
+> directory or a referral network.
+
+## What P5 Home Co is
+
+P5 Home Co brings every chapter of homeownership under one family of
+specialized companies. Each company has its own craft, team, and
+expertise. What connects them is a shared operating standard: clear
+written scopes, one accountable team per project, proactive
+communication about decisions and budget impacts, and a connected
+handoff when a project needs more than one specialty.
+
+Established 2020. Bonded and insured. Serving Ada and Canyon counties.
+
+## The five companies
+
+- [Boise Construction Co](https://boiseconstruction.co): New home
+  building. Custom homes, semi-custom homes, building on your own lot,
+  and home design and plans. Design, engineering, permitting, and
+  construction stay with one accountable team.
+- [Boise Remodeling Co](https://boiseremodeling.co): Design-build
+  remodeling. Kitchen remodeling, bathroom remodeling, whole-home
+  remodeling, additions, and ADUs, managed under one roof with a written
+  scope and coordinated permits.
+- Boise ADU Co (boiseadu.co, launching soon): Accessory dwelling units.
+  Detached ADUs, garage conversions, basement and interior units, and
+  feasibility and permitting. The website is not live yet; enquiries go
+  to (208) 477-1169.
+- [Boise Handyman Co](https://boisehandyman.co): Home repair and
+  maintenance. Drywall and trim repair, TV and fixture mounting, deck and
+  exterior repair, and general home maintenance.
+- [Boise Cabinet Co](https://boisecabinet.co): Custom cabinetry. Premium
+  frameless kitchen cabinetry, bathroom vanities, built-ins and storage,
+  and whole-home cabinetry, designed, built, and installed.
+
+## Which company handles which project
+
+- Building a new home, or building on land you already own: Boise
+  Construction Co.
+- Renovating, adding on to, or changing how an existing home works:
+  Boise Remodeling Co.
+- Adding a guest suite, rental unit, or multigenerational living space on
+  land you already own: Boise ADU Co.
+- Repairs, installations, finish work, and smaller home projects: Boise
+  Handyman Co.
+- Cabinetry, vanities, built-ins, and coordinated storage: Boise Cabinet
+  Co.
+
+A single project can involve more than one company. A complete kitchen
+transformation, for example, runs through Boise Remodeling Co for layout,
+permits, demolition, and construction; Boise Cabinet Co for cabinet
+design, fabrication, and installation; and Boise Handyman Co for final
+mounting, finish work, and punch-list items.
+
+## Service area
+
+Boise, Meridian, Eagle, Nampa, Kuna, Star, Middleton, Caldwell, and Garden
+City, across Ada and Canyon counties in Idaho's Treasure Valley.
+
+## Starting a project
+
+The project intake at https://p5homeco.com/estimate lets a homeowner describe
+the whole project, add plans or photos, answer relevant questions, and review
+the details before sending a request to P5. Unknown measurements or selections
+can remain open for the team; more information or a site visit may be needed
+before an estimate is prepared. Submitting the request does not promise an
+instant price or a firm bid.
+
+P5 keeps the request in place with the appropriate discipline recorded:
+new homes and additions with Construction, kitchen or broader renovation work
+with Remodeling, cabinet-only work with Cabinet, and repairs with Handyman.
+Boise ADU Co remains prelaunch and is not a live intake destination.
+
+The request needs a name and a valid email address or phone number, with a
+preferred contact method. A saved receipt confirms the recorded request;
+notification and CRM delivery have separate status. Urgent work should go to
+(208) 477-1169 rather than the form.
+
+## Contact
+
+Public representative: Nick Perkins. Service-area business based at 4031 W
+Wapoot St, Meridian, ID 83646 (not a staffed storefront). Phone (208)
+477-1169. Email hello@p5homeco.com.
+
+## Key pages
+
+- [P5 Home Co](https://p5homeco.com): The parent company, the five
+  companies, the shared operating standard, and the service area.
+- [Start a project](https://p5homeco.com/estimate): Describe construction,
+  remodeling, cabinetry or repair work, share files, and review the scope
+  before sending it to P5.
+- [Legacy quote form](https://p5homeco.com/quote): Existing quote request form.
+- The seven service-specific quote pages (/quote/kitchen-remodel and so on) are
+  paid-search landing variants of the legacy form and are not indexed;
+  their canonical page remains https://p5homeco.com/quote. The main
+  conversational intake is https://p5homeco.com/estimate.
+- [Full text for LLMs](https://p5homeco.com/llms-full.txt): this fact sheet
+  plus the homepage questions and answers.
+
+Last updated: 2026-10-16.
+
+## Homepage questions
+
+The questions and answers below are the visible homepage FAQ. Each answer restates a fact already on https://p5homeco.com or in this fact sheet.
+
+### Is P5 Home Co a contractor or a referral service?
+
+P5 Home Co is an operating family of companies, not a directory or a referral network. Each of the five companies has its own craft and team, and does the work itself, under one shared standard for scopes, communication, and accountability.
+
+### Which P5 company should I start with?
+
+Start with the project rather than the company. New homes go to Boise Construction Co, renovations to Boise Remodeling Co, accessory dwellings to Boise ADU Co, repairs and installations to Boise Handyman Co, and cabinetry to Boise Cabinet Co. The three-step matcher on this page will point you to the right one.
+
+### What if my project needs more than one company?
+
+P5 routes the work between companies without sending you back to the start. A complete kitchen runs through Boise Remodeling Co for layout, permits, demolition, and construction, Boise Cabinet Co for cabinet design and installation, and Boise Handyman Co for final mounting and punch-list items.
+
+### Which areas do the P5 companies serve?
+
+P5 companies serve homeowners across Ada and Canyon counties in Idaho's Treasure Valley, including Boise, Meridian, Eagle, Nampa, Kuna, Star, Middleton, Caldwell, and Garden City.
+
+### What happens before the work begins?
+
+You get planning guidance and written scope details, so you understand the work before it starts. You will know who owns the next step and who to contact, and decisions, schedule changes, and budget impacts are raised early and documented clearly.
+
+### Are the P5 companies bonded and insured?
+
+Yes. The P5 companies are bonded and insured, have worked across the Treasure Valley since 2020, and handle permits in-house where a project requires them.
+
+### Who builds a new home, or builds on land you already own?
+
+Boise Construction Co. That work includes custom homes, semi-custom homes, building on your own lot, and home design and plans. Design, engineering, permitting, and construction stay with one accountable team.
+
+### Who renovates, adds on to, or changes how an existing home works?
+
+Boise Remodeling Co. That work includes kitchen remodeling, bathroom remodeling, whole-home remodeling, additions, and ADUs, managed under one roof with a written scope and coordinated permits.
+
+### Who adds a guest suite, rental unit, or multigenerational living space on land you already own?
+
+Boise ADU Co. That work includes detached ADUs, garage conversions, basement and interior units, and feasibility and permitting. The website is not live yet; enquiries go to (208) 477-1169.
+
+### Who handles repairs, installations, finish work, and smaller home projects?
+
+Boise Handyman Co. That work includes drywall and trim repair, TV and fixture mounting, deck and exterior repair, and general home maintenance.
+
+### Who handles cabinetry, vanities, built-ins, and coordinated storage?
+
+Boise Cabinet Co. That work includes premium frameless kitchen cabinetry, bathroom vanities, built-ins and storage, and whole-home cabinetry, designed, built, and installed.
+
+### Can one project involve more than one company?
+
+Yes. A complete kitchen transformation, for example, runs through Boise Remodeling Co for layout, permits, demolition, and construction; Boise Cabinet Co for cabinet design, fabrication, and installation; and Boise Handyman Co for final mounting, finish work, and punch-list items.

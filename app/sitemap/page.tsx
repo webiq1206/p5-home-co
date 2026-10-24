@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { siteUrl } from "../site.ts";
 import { childSites, legalPages, ownPages } from "../siteUrls.ts";
+import PublicIdentity from "@/components/PublicIdentity";
 
 const DESCRIPTION = "Every page on p5homeco.com, and a direct link to each of the five P5 Home Co companies.";
 
@@ -66,9 +67,12 @@ export default function SitemapPage() {
         </section>
       </main>
       <footer className="site-footer">
-        <div className="content-shell footer-bottom">
-          <span>© {new Date().getFullYear()} P5 Home Co. All rights reserved.</span>
-          <span><Link href="/">Home</Link></span>
+        <div className="content-shell">
+          <PublicIdentity />
+          <div className="footer-bottom">
+            <span>© {new Date().getFullYear()} P5 Home Co. All rights reserved.</span>
+            <span><Link href="/">Home</Link></span>
+          </div>
         </div>
       </footer>
     </>

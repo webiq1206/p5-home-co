@@ -28,6 +28,7 @@ export type DiagnosticProof = {
   nativeAssociationBaseline: Record<string, { ids: string[]; incomplete: boolean }>;
 };
 export type DiagnosticResult = { ok: boolean; code: string; proof?: DiagnosticProof;
+  hubspotRequest?: string;
   diagnosticEmailId?: string; diagnosticRfc?: string; writeVerified?: boolean; customerRecoveries: 0 };
 
 export function authorizeDiagnostic(actor: Actor, origin: string | null) {
@@ -204,7 +205,7 @@ export async function runOwnerDiagnostic(mode: "probe" | "write", context: { act
       // copy before its full read failed. Without a prior create intent,
       // retain a terminal review hold; a later negative search cannot POST.
       else await store.finish(row, attempted ? "uncertain" : "review", new Date(), { error: code });
-      return result(false, code, { ...(id ? { diagnosticEmailId: id } : {}), writeVerified: false });
+      return result(false, code, { ...(error instanceof InboxApiError ? { hubspotRequest: error.request } : {}), ...(id ? { diagnosticEmailId: id } : {}), writeVerified: false });
     }
-  } catch (error) { return result(false, errorCode(error), { writeVerified: false }); }
+  } catch (error) { return result(false, errorCode(error), { ...(error instanceof InboxApiError ? { hubspotRequest: error.request } : {}), writeVerified: false }); }
 }

@@ -2,6 +2,7 @@ import {documentSchemaStatements} from '../services/document-service/src/databas
 // Additive snapshot of runtime estimator DDL. The safety tests enforce coverage.
 // Preserve unused tables: removing application code must never remove stored data.
 export const estimatorSchemaStatements = [
+  "CREATE TABLE IF NOT EXISTS p5_project_references (project_id text PRIMARY KEY, reference text NOT NULL UNIQUE, created_at timestamptz NOT NULL DEFAULT now())",
   "CREATE TABLE IF NOT EXISTS p5_estimator_drafts (id uuid PRIMARY KEY, key_hash text NOT NULL, brand text NOT NULL, revision integer NOT NULL DEFAULT 0, status text NOT NULL DEFAULT 'draft', payload jsonb NOT NULL DEFAULT '{}', internal_estimate jsonb, customer_estimate jsonb, submitted_at timestamptz, updated_at timestamptz NOT NULL DEFAULT now(), created_at timestamptz NOT NULL DEFAULT now())",
   "CREATE TABLE IF NOT EXISTS p5_estimator_files (id uuid PRIMARY KEY, draft_id uuid NOT NULL REFERENCES p5_estimator_drafts(id), name text NOT NULL, mime_type text NOT NULL, size_bytes integer NOT NULL, sha256 text NOT NULL, data_base64 text NOT NULL, created_at timestamptz NOT NULL DEFAULT now(), UNIQUE(draft_id, sha256))",
   "ALTER TABLE p5_estimator_files ADD COLUMN IF NOT EXISTS storage_bucket text",

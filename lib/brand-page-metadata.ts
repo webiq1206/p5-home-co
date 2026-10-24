@@ -1,4 +1,5 @@
 import type {Metadata} from 'next';
+import {selfCanonical} from './canonicalUrl.ts';
 import {ESTIMATOR_BRAND as brand} from './p5/brand.ts';
 
 /** Branded sharing previews are the owner's preference. Product/article schema
@@ -30,7 +31,7 @@ const COPY:Record<string,Record<string,Copy>>={
   '/contact':{title:'Contact Our Boise Cabinet Team',description:'Discuss cabinet layouts, finishes, supply or installation with Boise Cabinet Co. Call our team or request help with your Treasure Valley cabinet project.'},
   '/resources':{title:'Cabinet Planning Worksheets & Guides',description:'Plan your cabinetry with budget worksheets, kitchen and bath checklists, and local permit guidance from Boise Cabinet Co in Idaho’s Treasure Valley.'}},
  p5:{
-  '/':{title:'Boise Home Construction, Remodeling & Repairs',description:'Find the P5 Home Co team for new construction, remodeling, home repairs or cabinets in Boise and the Treasure Valley. Compare services and plan your project.'},
+  '/':{title:'Boise Home Construction, Remodeling & Repairs',description:'Find the P5 Home Co team for new construction, remodeling, home repairs or cabinets in Boise and the Treasure Valley. Compare services and plan a project.'},
   '/quote':{title:'Get a Home Project Estimate in Boise',description:'Describe your remodel, new home, cabinet or repair project and attach plans or a scope. Start your Treasure Valley estimate with the right P5 Home Co team.'},
   '/sitemap':{title:'P5 Home Co Pages & Company Directory',description:'Find P5 Home Co pages, project estimate forms and links to our Boise construction, remodeling, handyman and cabinet companies in Idaho’s Treasure Valley.'}}
 };
@@ -44,7 +45,13 @@ function pagePath(meta:Metadata,hint?:string):string{
  if(value){try{return new URL(value,`https://${brand.domain}`).pathname.replace(/\/$/,'')||'/';}catch{}}
  return hint&&!hint.includes('[')&&hint!=='__layout__'?(hint.replace(/\/$/,'')||'/'):'';
 }
-export function withBrandPageMetadata(meta:Metadata,routeHint?:string):Metadata{
+function withoutCampaignCanonical(meta:Metadata):Metadata{
+ const canonical=meta.alternates?.canonical;
+ if(typeof canonical!=='string'||!/[?&]utm_/i.test(canonical))return meta;
+ return {...meta,alternates:{...meta.alternates,canonical:selfCanonical(canonical)}};
+}
+export function withBrandPageMetadata(input:Metadata,routeHint?:string):Metadata{
+ const meta=withoutCampaignCanonical(input);
  const override=routeHint==='__layout__'?undefined:COPY[brand.id]?.[pagePath(meta,routeHint)];
  const original=titleText(meta);
  const title=override?`${override.title} | ${brand.name}`:original.includes(brand.name)?original:`${original} | ${brand.name}`;

@@ -1,5 +1,5 @@
-import {collectAttribution} from "../../app/lib/leads/attribution.ts";
-import {readQuestionMemory,questionHistoryNotes,reconcileQuestionMemory,questionTopic,type QuestionMemory} from './intakeQuestionMemory.ts';
+import {collectAttribution} from "./leadAttribution.ts";
+import {readQuestionMemory,currentQuestionEntries,questionHistoryNotes,reconcileQuestionMemory,questionTopic,type QuestionMemory} from "./intakeQuestionMemory.ts";
 import {INTAKE_SITES,routeIntake,type IntakeSite,type IntakeRouting,type SupportingService,SUPPORTING_SERVICES} from './intakePolicy.ts';
 import type {ScopeAnswers,ScopeExtraction,ScopeUpload} from './scope.ts';
 import {SCOPE_TEXT_LIMIT} from './scope.ts';
@@ -16,7 +16,7 @@ export interface IntakeContact {name:string;email:string;phone:string;preferredC
 export interface IntakeMessage {id:string;role:'user'|'assistant';text:string;at:number;kind?:string;label?:string;caption?:string;files?:string[]}
 export interface IntakeDetails {attribution?:Record<string,string>;questionMemory?:QuestionMemory;desiredOutcome:string;workContext:string;budget:string;supportingServices:SupportingService[];transcript:IntakeMessage[];reviewedScopeFingerprint?:string}
 export interface IntakeContext extends IntakeDetails {projectId:string;originSite:IntakeSite;currentSite:IntakeSite;version:number;contact:IntakeContact}
-export interface IntakeSnapshot {schema:1;projectId:string;originSite:IntakeSite;currentSite:IntakeSite;draftId:string;revision:number;contextVersion:number;contact:IntakeContact;details:IntakeDetails;scope:{text:string;answers:ScopeAnswers;extraction:ScopeExtraction|null;uploads:ScopeUpload[]};routing:IntakeRouting;unresolved:string[];savedAt:string}
+export interface IntakeSnapshot {schema:1;projectId:string;reference?:string;originSite:IntakeSite;currentSite:IntakeSite;draftId:string;revision:number;contextVersion:number;contact:IntakeContact;details:IntakeDetails;scope:{text:string;answers:ScopeAnswers;extraction:ScopeExtraction|null;uploads:ScopeUpload[]};routing:IntakeRouting;unresolved:string[];savedAt:string}
 export interface IntakeReceipt {accepted:true;projectId:string;reference:string;revision:number;team:IntakeRouting;unresolved:string[];savedAt:string;delivery:{customer:string;team:string;crm:string};deliveryDetails?:{customer:string;team:string;crm:string}}
 export const INTAKE_CONTEXT_KEY='intake-context-v1';
 export const INTAKE_SUBMISSION_KEY='intake-submission-v1';
@@ -69,11 +69,15 @@ export function intakeReviewFingerprint(scope:IntakeScopeReview){
 export function intakeScopeReviewed(scope:IntakeScopeReview){return scope.intake?.reviewedScopeFingerprint===intakeReviewFingerprint(scope);}
 /** Only actual unanswered questions and observed reading gaps become outstanding details. */
 export function intakeUnresolved(scope:{answers:ScopeAnswers;extraction:ScopeExtraction|null;uploads?:ScopeUpload[];analyzedUploads?:Array<{sha256:string;size:number}>;text?:string;transcript?:IntakeMessage[];intake?:Pick<IntakeDetails,'supportingServices'|'questionMemory'>;wizard?:{skipped:Array<keyof ScopeAnswers>;resolutions?:ScopeAnswers}},labels:Record<string,{label:string}>):string[] {
-  const memory=reconcileQuestionMemory(scope);
+  const memory=reconcileQuestionMemory(scope),latest=currentQuestionEntries(memory);
   return [...new Set([
     ...questionHistoryNotes(memory),
     ...(scope.wizard?.skipped||[]).filter(f=>!scope.answers[f]?.trim()).map(f=>`${labels[f]?.label||f}: not known yet.`),
-    ...(scope.extraction?.conflicts||[]).filter(c=>!scope.wizard?.resolutions?.[c.field]||!sameAnswer(c.field,scope.wizard.resolutions[c.field]!,scope.answers[c.field]||'')).map(c=>c.explanation),
+    // A free-form answer supplies context without silently changing the selected trade.
+    // Match the exact competing values; a different conflict still needs review.
+    ...(scope.extraction?.conflicts||[]).filter(c=>!scope.wizard?.resolutions?.[c.field]||!sameAnswer(c.field,scope.wizard.resolutions[c.field]!,scope.answers[c.field]||'')).map(c=>c.field==='service'&&latest.get(`service:conflict:${scopeFingerprint(JSON.stringify([...new Set(c.values)].sort()))}`)?.state==='answered'
+      ? `${labels[c.field]?.label||c.field}: clarification supplied; see the saved answer for team review.`
+      : c.explanation),
     ...(scope.extraction?.reviewNotes||[]),
     ...scopeQuestions(scope.answers,scope.extraction,[],scope.wizard?.skipped||[]).filter(question=>question.instructionId&&!['laborHours','projectMonths'].includes(question.field)).flatMap(question=>{const topic=questionTopic(question,scope.answers);return topic&&memory.entries.some(e=>e.topic===topic)?[]:[topic?`Team to review: ${topic.replaceAll('-', ' ')}.`:'Team to review additional notes in the supplied materials.'];}),
     ...(scope.extraction?.documentCoverage?.pages||[]).filter(page=>!pageCovered(page)).map(page=>`${page.source}, page ${page.page}: ${page.status}; ${page.notes.join(' ')}`),
@@ -81,9 +85,9 @@ export function intakeUnresolved(scope:{answers:ScopeAnswers;extraction:ScopeExt
     ...(scope.answers.exclusions?.trim()&&scope.intake?.supportingServices.length?[`Confirm the selected supporting work (${scope.intake.supportingServices.join(', ')}) against these exclusions: ${scope.answers.exclusions.trim()}`]:[]),
   ])];
 }
-export function intakeReference(projectId:string){return 'P5-'+projectId.split(':').at(-1)!.replace(/-/g,'').slice(0,10).toUpperCase();}
+export function intakeReference(projectId:string,reference?:string){if(reference)return reference;return 'P5-'+projectId.split(':').at(-1)!.replace(/-/g,'').slice(0,10).toUpperCase();}
 export function intakeReceipt(snapshot:IntakeSnapshot,delivery:IntakeReceipt['delivery']):IntakeReceipt {
-  return {accepted:true,projectId:snapshot.projectId,reference:intakeReference(snapshot.projectId),revision:snapshot.revision,team:snapshot.routing,unresolved:snapshot.unresolved,savedAt:snapshot.savedAt,delivery};
+  return {accepted:true,projectId:snapshot.projectId,reference:intakeReference(snapshot.projectId,snapshot.reference),revision:snapshot.revision,team:snapshot.routing,unresolved:snapshot.unresolved,savedAt:snapshot.savedAt,delivery};
 }
 export function requireIntakeReceipt(value:unknown):IntakeReceipt {
   const r=value as IntakeReceipt;

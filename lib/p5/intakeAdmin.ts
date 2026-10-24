@@ -47,7 +47,7 @@ export function intakeAdminHandlers(deps:IntakeAdminDependencies){
   }
   if(params.has('revision'))throw new DraftError('Choose a project before selecting its revision.');
   const cursor=pageCursor(params.get('cursor'));
-  const rows=await deps.query(`SELECT w.draft_id AS "draftId",w.payload->'snapshot'->>'projectId' AS "projectId",
+  const rows=await deps.query(`SELECT w.draft_id AS "draftId",w.payload->'snapshot'->>'projectId' AS "projectId",w.payload->'snapshot'->>'reference' AS reference,
    w.payload->'snapshot'->>'originSite' AS "originSite",w.payload->'snapshot'->>'currentSite' AS "currentSite",
    (w.payload->'snapshot'->>'revision')::integer AS revision,w.payload->'snapshot'->'contact' AS contact,
    w.payload->'snapshot'->'routing' AS routing,w.payload->'snapshot'->>'savedAt' AS "savedAt",

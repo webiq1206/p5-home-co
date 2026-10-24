@@ -29,13 +29,15 @@ export const metadata: Metadata = withBrandPageMetadata(({
     url: "/quote",
     locale: "en_US",
     images: [
-      { url: "/images/p5-og.jpg", width: 1200, height: 630, alt: "P5 Home Co, The Home Company" },
+      { url: "/images/p5-og.jpg", width: 1200, height: 630, alt: "P5 Home Co wordmark on a light background, with the line The Home Company" },
     ],
   },
   twitter: { card: "summary_large_image", title, description, images: ["/images/p5-og.jpg"] },
   robots: { index: true, follow: true },
 }), "/quote");
 
-export default function QuotePage() {
-  return <QuoteLanding service={null} />;
+export default async function QuotePage({searchParams}:{searchParams:Promise<{project?:string|string[]}>}) {
+  const {project}=await searchParams;
+  const selected=project==='whole-home'?{label:'Whole-home remodel',service:'whole-home'}:project==='addition-adu-basement'?{label:'Addition, ADU, or basement',service:''}:null;
+  return <QuoteLanding service={null} entryLabel={selected?.label} defaultService={selected?.service} />;
 }

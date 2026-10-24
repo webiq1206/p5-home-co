@@ -83,7 +83,9 @@ notification and CRM delivery have separate status. Urgent work should go to
 
 ## Contact
 
-Telephone: (208) 477-1169
+Public representative: Nick Perkins. Service-area business based at 4031 W
+Wapoot St, Meridian, ID 83646 (not a staffed storefront). Phone (208)
+477-1169. Email hello@p5homeco.com.
 
 ## Key pages
 
@@ -97,5 +99,7 @@ Telephone: (208) 477-1169
   paid-search landing variants of the legacy form and are not indexed;
   their canonical page remains https://p5homeco.com/quote. The main
   conversational intake is https://p5homeco.com/estimate.
+- [Full text for LLMs](https://p5homeco.com/llms-full.txt): this fact sheet
+  plus the homepage questions and answers.
 
-Last updated: 2026-10-07.
+Last updated: 2026-10-16.

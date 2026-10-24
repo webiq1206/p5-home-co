@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
+import PublicIdentity from "@/components/PublicIdentity";
 import "./legal.css";
 
 /**
@@ -21,6 +22,7 @@ export default function LegalLayout({ children }: { children: ReactNode }) {
         <p>
           <a href="mailto:accounting@p5homeco.com">accounting@p5homeco.com</a>
         </p>
+        <PublicIdentity tone="ink" />
       </div>
     </main>
   );

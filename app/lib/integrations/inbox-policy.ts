@@ -1,4 +1,5 @@
 import { simpleParser } from "mailparser";
+import { GEMINI_VOICE_NOTES_SENDER, parseVoiceNotesMessage } from "./voice-call-notes.ts";
 
 export const MAILBOX = "hello@p5homeco.com";
 export const PORTAL = 247066159;
@@ -111,6 +112,17 @@ export function classify(mail: Mail): Decision {
       ...(external.length === 1 ? { identity: { kind: "email", value: external[0], create: false } as Identity } : {}) };
   }
   if (!receivedByUs(mail)) return { status: "ignored", reason: "not-addressed-to-p5" };
+  if (sender === GEMINI_VOICE_NOTES_SENDER) {
+    if (!authenticated(mail, "google.com")) return { status: "review", reason: "unverified-gemini-call-notes" };
+    const notes = parseVoiceNotesMessage(mail);
+    if (!notes) return { status: "review", reason: "malformed-gemini-call-notes" };
+    if (!notes.usable) return { status: "review", reason: "voice-notes-insufficient" };
+    // Phone-only matching never creates a contact from Google's sender.
+    // This enters the existing deduplicated EMAIL mirror; it is NOT proof that
+    // a HubSpot CALL/NOTE record or approved scope has been generated.
+    return { status: "pending", reason: "gemini-call-notes",
+      identity: { kind: "phone", value: notes.callerPhone, create: false } };
+  }
   if (sender === "voice-noreply@google.com" || /@txt\.voice\.google\.com$/.test(sender)) {
     if (!authenticated(mail, domain)) return { status: "review", reason: "unverified-voice-transport" };
     const relay = sender.match(/^\d+\.(\d+)\.[^@]+@txt\.voice\.google\.com$/)?.[1];

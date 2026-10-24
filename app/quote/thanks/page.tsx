@@ -4,6 +4,7 @@ import Link from "next/link";
 
 import "../quote.css";
 import ThanksMessage from "../ThanksMessage";
+import PublicIdentity from "@/components/PublicIdentity";
 
 /* eslint-disable @next/next/no-img-element */
 
@@ -41,6 +42,7 @@ export default function QuoteThanksPage() {
             <Link href="/">Back to P5 Home Co</Link>
             <Link href="/#companies">Meet the five companies</Link>
           </p>
+          <PublicIdentity tone="ink" />
         </div>
       </section>
     </main>

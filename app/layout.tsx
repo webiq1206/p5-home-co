@@ -4,8 +4,9 @@ import Script from "next/script";
 import { googleTagBootstrap } from "@/lib/analyticsBootstrap";
 import HubSpotScript from "./HubSpotScript";
 import MobileActionBar from "@/components/MobileActionBar";
+import StripUtmLinks from "@/components/StripUtmLinks";
 import "./globals.css";
-import { gaMeasurementId, googleAdsDestinationId, siteUrl } from "./site";
+import { gaMeasurementId, googleAdsCallClickLabel, googleAdsDestinationId, googleAdsPhoneConversionLabel, googleAdsTextClickLabel, siteUrl } from "./site";
 import { serializeJsonLd, siteDescription, siteSchema, siteTitle } from "./structuredData";
 
 const title = siteTitle;
@@ -45,7 +46,7 @@ export const metadata: Metadata = withBrandPageMetadata(({
         url: "/images/p5-og.jpg",
         width: 1200,
         height: 630,
-        alt: "P5 Home Co, The Home Company",
+        alt: "P5 Home Co wordmark on a light background, with the line The Home Company",
       },
     ],
   },
@@ -70,8 +71,10 @@ export const metadata: Metadata = withBrandPageMetadata(({
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <body>
+        <StripUtmLinks />
+        {/* The intentional pre-hydration root class enables progressive reveal effects. */}
         <Script id="p5-js-class" strategy="beforeInteractive">{'document.documentElement.classList.add("js")'}</Script>
         {/* Next preloads the hero and the logo marks on its own, but not the
             fonts, and the hero headline is set in the display serif. */}
@@ -84,7 +87,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         {/* Check the browser hostname too: local QA also runs production builds. */}
         {process.env.NODE_ENV === "production" && (
           <Script id="ga4-init" strategy="afterInteractive">
-            {googleTagBootstrap({ hostname: "p5homeco.com", measurementId: gaMeasurementId, adsId: googleAdsDestinationId })}
+            {googleTagBootstrap({ hostname: "p5homeco.com", measurementId: gaMeasurementId, adsId: googleAdsDestinationId, phoneConversionLabel: googleAdsPhoneConversionLabel, phoneNumber: "(208) 477-1169", callClickLabel: googleAdsCallClickLabel, textClickLabel: googleAdsTextClickLabel })}
           </Script>
         )}
         {process.env.NODE_ENV === "production" && <HubSpotScript />}

@@ -86,6 +86,18 @@ test("CRM source footer preserves original alternatives and exact Gmail identity
   assert.throws(() => emailContent(original, "not-gmail"), /source-id-unverified/);
 });
 
+test("native HubSpot email line wrapping may differ without changing any content", () => {
+  const gmail = "Owner-authorized P5 email sync diagnostic.\n\nDestination: hello@p5homeco.com\nSender: hello@webiq.co\nExisting P5 HubSpot contact: 566594721482";
+  const crm = "Owner-authorized P5 email sync diagnostic.\r\n\r\nDestination: hello@p5homeco.com\r\n\r\nSender: hello@webiq.co\r\nExisting P5 HubSpot contact: 566594721482";
+  assert.equal(sourcePrefix(gmail, crm), true);
+  assert.equal(sourcePrefix(gmail, crm + "\n\nNative HubSpot tracking footer"), true);
+  assert.equal(sourcePrefix(gmail, crm.replace("566594721482", "566594721483")), false);
+  assert.equal(sourcePrefix(gmail, crm.replace("hello@webiq.co", "spoofed@example.invalid")), false);
+  assert.equal(sourcePrefix(gmail, crm.replace("diagnostic.", "diagnostic compromised.")), false);
+  assert.equal(sourcePrefix("Pay $10", "Pay $100"), false);
+  assert.equal(sourcePrefix("A", "AB"), false);
+});
+
 test("HTML readback tolerates formatting sanitization but rejects truncation and replaced links/images", () => {
   const original = '<style>p{color:red}</style><p>Café &amp; customer <b>details</b></p><a href="https://example.invalid/a?x=1&amp;y=2">Open plan</a><img src="cid:plan" alt="Plan">';
   const sanitized = '<div>Café &amp; customer <strong>details</strong></div><a href="https://example.invalid/a?x=1&amp;y=2">Open plan</a><img alt="Plan" src="cid:plan">';

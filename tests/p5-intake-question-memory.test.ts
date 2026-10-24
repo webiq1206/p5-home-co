@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {intakeQuestions} from '../lib/p5/intakeQuestions.ts';
 import {reconcileQuestionMemory,recordQuestion,questionTopic,mergeQuestionMemory,answerState,readQuestionMemory} from '../lib/p5/intakeQuestionMemory.ts';
-import {emptyIntakeDetails,intakeDetails} from '../lib/p5/intakeContract.ts';
+import {emptyIntakeDetails,intakeDetails,intakeUnresolved} from '../lib/p5/intakeContract.ts';
 import {intakeDraftContext} from '../lib/p5/intakeDraft.ts';
 import {emptyInstructions} from '../lib/p5/instructions.ts';
 import type {BrowserDraft} from '../lib/p5/browserDraft.ts';
@@ -86,4 +86,32 @@ test('unchanged facts retain original provenance revision across autosave acknow
 test('explicit manual review remains closed to automated questions after reload and scope edits',()=>{
  let d=remember(draft());d.intake!.questionMemory=recordQuestion(d.intake!.questionMemory!,{field:'otherDetails',label:'Project review',reason:'Review with the details I have',semanticId:'intake-review'},'answered','Continue with saved materials',1);
  d=JSON.parse(JSON.stringify(d));d.text+=' Added fictional work.';assert.deepEqual(intakeQuestions(d),[]);
+});
+
+
+test('answered project-type conflict is not repeated in delivery warnings after reload',()=>{
+ const d=remember({...draft(),text:'Fabricate and install cabinets for an existing residence.',answers:{service:'cabinet-install'}});
+ const conflict={field:'service' as const,values:['new-construction','whole-home'],explanation:'Synthetic project-type conflict: new home or existing house remodel?'};
+ d.extraction={summary:'Synthetic scope',facts:[],conflicts:[conflict],missingInformation:[],reviewNotes:[]};
+ d.conflicts=[conflict];
+ const q=intakeQuestions(d).find(q=>q.conflict&&q.field==='service')!;assert.ok(q);
+ const clarification='This is a remodel of the existing main house. Our requested work is cabinet fabrication and installation.';
+ d.intake!.questionMemory=recordQuestion(d.intake!.questionMemory!,q,'asked','',1);
+ d.intake!.questionMemory=recordQuestion(d.intake!.questionMemory!,q,'answered',clarification,2);
+ d.transcript=[{id:'synthetic-question',role:'assistant',kind:'question',label:q.label,text:q.reason,at:1},{id:'synthetic-answer',role:'user',kind:'answer',text:clarification,at:2}];
+ const restored=JSON.parse(JSON.stringify(d));
+ assert.ok(!intakeQuestions(restored).some(q=>q.conflict&&q.field==='service'));
+ assert.ok(!intakeUnresolved(restored,{}).includes(conflict.explanation));
+ assert.ok(intakeUnresolved(restored,{}).includes('service: clarification supplied; see the saved answer for team review.'));
+ assert.equal(restored.answers.service,'cabinet-install');
+ assert.equal(restored.transcript.at(-1).text,clarification);
+ for(const state of ['unknown','declined','review','asked'] as const){
+  restored.intake.questionMemory=recordQuestion(state==='asked'?{schema:1,entries:[]}:d.intake!.questionMemory!,q,state,'Needs human review',3);
+  assert.ok(intakeUnresolved(restored,{}).includes(conflict.explanation),state);
+ }
+ restored.intake.questionMemory=d.intake!.questionMemory;
+ restored.extraction.conflicts=[{...conflict,values:[...conflict.values].reverse()}];
+ assert.ok(!intakeUnresolved(restored,{}).includes(conflict.explanation));
+ restored.extraction.conflicts=[{...conflict,values:['addition','whole-home'],explanation:'A distinct new contradiction.'}];
+ assert.ok(intakeUnresolved(restored,{}).includes('A distinct new contradiction.'));
 });

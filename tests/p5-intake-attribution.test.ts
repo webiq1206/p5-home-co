@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {collectAttribution,sourceFromAttribution} from '../app/lib/leads/attribution.ts';
+import {collectAttribution,sourceFromAttribution} from '../lib/p5/leadAttribution.ts';
 import {emptyIntakeDetails,intakeDetails,type IntakeSnapshot} from '../lib/p5/intakeContract.ts';
 import {intakeDraftContext} from '../lib/p5/intakeDraft.ts';
 import {intakeLocalCrmRecord,intakeDeliveryEnvelope,intakeLeadKey} from '../lib/p5/intakeDeliveryPayload.ts';
@@ -31,4 +31,10 @@ test('unattributed legacy drafts remain valid and source classification handles 
  assert.equal(sourceFromAttribution(null),'Organic Website');
  for(const key of ['gclid','gbraid','wbraid'])assert.equal(sourceFromAttribution({[key]:'click'}),'Paid Search');
  assert.equal(sourceFromAttribution({utm_medium:'paid_social'}),'Social Media');
+});
+test('shared source classification preserves current-main first-touch and social precedence',()=>{
+ for(const key of ['first_gclid','first_gbraid','first_wbraid'])assert.equal(sourceFromAttribution({[key]:'original-click'}),'Paid Search');
+ for(const medium of ['cpc','ppc','paidsearch','paid_search'])assert.equal(sourceFromAttribution({utm_medium:medium}),'Paid Search');
+ for(const source of ['facebook','fb','instagram','ig','meta','tiktok','linkedin'])assert.equal(sourceFromAttribution({utm_source:source,gclid:'older-google-click'}),'Social Media');
+ assert.equal(sourceFromAttribution({utm_medium:'paid_social',first_gclid:'older-click'}),'Social Media');
 });

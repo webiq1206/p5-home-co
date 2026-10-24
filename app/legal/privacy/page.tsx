@@ -105,8 +105,9 @@ export default function PrivacyPage() {
 
       <h2>4. Who we share it with</h2>
       <p>
-        <strong>We do not sell personal information, and we do not share it for
-        advertising.</strong> We share it only with:
+        <strong>We do not sell personal information. We share limited
+        information with Google to measure our ads, as described in section
+        5.</strong> We share it only with:
       </p>
       <ul>
         <li>
@@ -135,6 +136,32 @@ export default function PrivacyPage() {
         or delete cookies in your browser settings; the site will still work.
         The portals use a strictly necessary cookie to keep you signed in, which
         cannot be turned off without ending your session.
+      </p>
+      <p>
+        We use Google Analytics to understand how visitors use this site and
+        Google Ads to measure which of our ads lead to quote requests, calls
+        and texts. These tools set cookies and receive information about your
+        visit, including your IP address, which Google processes under its own
+        privacy policy (<a href="https://policies.google.com/privacy">https://policies.google.com/privacy</a>).
+        When you tap Call or Text on our site, Google Ads is told that the tap
+        happened, on which page, and the ad click identifier Google&apos;s tag
+        saved if you arrived from one of our ads, so we can count calls and
+        texts that come from our ads. The tap itself doesn&apos;t send Google
+        your name, your own phone number or what you say or write. On some of
+        our Call and Text links, Google Analytics also records which link you
+        used, such as the one in the header or footer.
+      </p>
+      <p>
+        If your call goes through a Google forwarding number, Google connects the
+        call and can see the calling number and call length, but not what&apos;s
+        said.
+      </p>
+      <p>
+        If you arrive from one of our ads or a link with campaign tags, our site
+        saves the ad click identifier from that link (such as gclid, gbraid or
+        wbraid) and the campaign tags in your browser for the rest of that visit.
+        If you then send an inquiry, we keep them with your inquiry in our
+        customer records so we can tell which ad or campaign led to it.
       </p>
 
       <h2>6. How long we keep it</h2>

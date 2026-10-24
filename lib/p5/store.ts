@@ -48,6 +48,9 @@ export function ensureSchema(): Promise<void> {
       `CREATE TABLE IF NOT EXISTS p5_estimator_outbox (id uuid PRIMARY KEY, draft_id uuid NOT NULL REFERENCES p5_estimator_drafts(id), revision integer NOT NULL, destination text NOT NULL, payload jsonb NOT NULL, status text NOT NULL DEFAULT 'pending', attempts integer NOT NULL DEFAULT 0, provider_id text, last_error text, locked_until timestamptz, next_attempt_at timestamptz NOT NULL DEFAULT now(), created_at timestamptz NOT NULL DEFAULT now(), sent_at timestamptz, UNIQUE(draft_id, revision, destination))`,
       `CREATE INDEX IF NOT EXISTS p5_estimator_outbox_due ON p5_estimator_outbox(status,next_attempt_at)`,
       `CREATE TABLE IF NOT EXISTS p5_estimator_work (draft_id uuid NOT NULL REFERENCES p5_estimator_drafts(id), work_key text NOT NULL, payload jsonb NOT NULL DEFAULT '{}', lease_token text, lease_until timestamptz, updated_at timestamptz NOT NULL DEFAULT now(), PRIMARY KEY(draft_id,work_key))`,
+      // Durable customer-facing request references (intakeReferenceStore). Every site reserves one on
+      // submission, and a production database that never ran db:prepare otherwise answers 503 at intake.
+      `CREATE TABLE IF NOT EXISTS p5_project_references (project_id text PRIMARY KEY, reference text NOT NULL UNIQUE, created_at timestamptz NOT NULL DEFAULT now())`,
       // Paid pricing-request ledger: one reservation per fingerprint so a retry never pays twice.
       ...(LEDGER_TABLES?[`CREATE TABLE IF NOT EXISTS p5_pricing_ledger (fingerprint text PRIMARY KEY, provider text NOT NULL, amount numeric(12,6) NOT NULL, state text NOT NULL, provider_id text, last_error text, active_until timestamptz, created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now())`]:[]),
       ...(LEDGER_TABLES?[`ALTER TABLE p5_pricing_ledger ADD COLUMN IF NOT EXISTS active_until timestamptz`]:[]),

@@ -3,6 +3,7 @@ import { getPool, transaction } from "../db.ts";
 import { MAILBOX, PORTAL, MAX_SOURCE_BYTES, VERIFIED_HELLO_ALIASES, email, ourAddress, parseMail, classify, type Mail } from "./inbox-policy.ts";
 import { InboxStore, type Receipt, type Read } from "./inbox-store.ts";
 import { InboxApiError, InboxHubSpot } from "./inbox-hubspot.ts";
+import { processGeminiActivities } from "./voice-activity.ts";
 
 type Environment = Record<string, string | undefined>;
 export function inboxConfiguration(env: Environment) {
@@ -224,6 +225,24 @@ export async function runInboxSync(env: Environment = process.env) {
       if (!row) break;
       await deliverReceipt(store, crm, row);
       processed++;
+    }
+    // Same gated watchdog and source ledger. No second mailbox connection,
+    // scheduler, customer email, or public endpoint. Separate health prevents
+    // call-note provider failures from blocking regular inbox reconciliation.
+    if (Date.now() < deadline - 12_000) {
+      try {
+        const voice = await processGeminiActivities(boundedRead, crm, { limit: 2, deadline });
+        await boundedRead(`INSERT INTO integration_health(name,state,last_attempt_at,last_success_at,records_processed,last_error)
+          VALUES('google-voice-notes',$1,now(),now(),$2,$3) ON CONFLICT(name) DO UPDATE SET
+          state=$1,last_attempt_at=now(),last_success_at=now(),records_processed=$2,last_error=$3,updated_at=now()`,
+          [voice.review ? "degraded" : "connected", voice.completed,
+            voice.review ? voice.review + " call note(s) require administrator review" : null]);
+      } catch(error) {
+        await boundedRead(`INSERT INTO integration_health(name,state,last_attempt_at,last_error)
+          VALUES('google-voice-notes','failed',now(),$1) ON CONFLICT(name) DO UPDATE SET
+          state='failed',last_attempt_at=now(),last_error=$1,updated_at=now()`,
+          [errorCode(error)]).catch(()=>undefined);
+      }
     }
     const [backlog] = await boundedRead(`SELECT count(*)::integer AS unresolved FROM p5_inbox_message WHERE mailbox=$1 AND reason<>'owner-connection-diagnostic' AND status IN ('review','retry','uncertain')`, [MAILBOX]);
     const unresolved = Number(backlog?.unresolved || 0);

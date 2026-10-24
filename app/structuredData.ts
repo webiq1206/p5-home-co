@@ -1,6 +1,22 @@
+import { ESTIMATOR_BRAND } from "../lib/p5/brand.ts";
+import {
+  NICK_PERKINS_ID,
+  PUBLIC_ADDRESS,
+  PUBLIC_REPRESENTATIVE,
+  SCHEMA_LEGAL_NAME,
+  SCHEMA_TELEPHONE,
+  CONTRACTOR_REGISTRATION,
+} from "./publicIdentity.ts";
 import { citiesServed, companies, faqs, siteUrl } from "./site.ts";
 
-export const siteTitle = "P5 Home Co | Five Specialized Home-Service Companies";
+/** Authorized public contact. The phone, email, and street line match the
+ * brand brief, docs/growth/OPERATIONS.md, and the constants already on the
+ * site. The street does not make this a staffed storefront. Schema telephone
+ * is E.164; the visible pages keep the local format. */
+const [streetAddress, addressLocality, regionAndPostal] = PUBLIC_ADDRESS.split(", ");
+const [addressRegion, postalCode] = regionAndPostal.split(" ");
+
+export const siteTitle = "P5 Home Co | Five Home-Service Companies in Boise, ID";
 export const siteDescription =
   "The parent company behind Boise Construction Co, Boise Remodeling Co, Boise ADU Co, Boise Handyman Co, and Boise Cabinet Co in Idaho's Treasure Valley.";
 
@@ -12,18 +28,51 @@ export const siteSchema = {
       "@type": ["Organization", "HomeAndConstructionBusiness"],
       "@id": `${siteUrl}/#organization`,
       name: "P5 Home Co",
+      legalName: SCHEMA_LEGAL_NAME,
       alternateName: "P5 Home Company",
       url: siteUrl,
       description: siteDescription,
       slogan: "One home. Five specialized teams.",
       foundingDate: "2020",
-      telephone: "+1-208-477-1169",
+      telephone: SCHEMA_TELEPHONE,
+      email: ESTIMATOR_BRAND.email,
       image: `${siteUrl}/images/p5-og.jpg`,
       logo: { "@type": "ImageObject", url: `${siteUrl}/android-chrome-512x512.png` },
+      employee: {
+        "@type": "Person",
+        "@id": NICK_PERKINS_ID,
+        name: PUBLIC_REPRESENTATIVE,
+        jobTitle: "Public representative",
+        worksFor: { "@id": `${siteUrl}/#organization` },
+      },
+      contactPoint: {
+        "@type": "ContactPoint",
+        name: PUBLIC_REPRESENTATIVE,
+        contactType: "customer service",
+        telephone: SCHEMA_TELEPHONE,
+        areaServed: "US-ID",
+        availableLanguage: "English",
+      },
+      hasCredential: {
+        "@type": "EducationalOccupationalCredential",
+        credentialCategory: "registration",
+        identifier: CONTRACTOR_REGISTRATION,
+        name: "Idaho Registered Contractor",
+        recognizedBy: {
+          "@type": "GovernmentOrganization",
+          name: "Idaho Division of Occupational and Professional Licenses",
+          url: "https://dopl.idaho.gov/con/",
+        },
+      },
+      // Service-area business. HomeAndConstructionBusiness is the LocalBusiness
+      // subtype. The street is the authorized public address; the cities below
+      // stay areaServed and are not additional locations.
       address: {
         "@type": "PostalAddress",
-        addressLocality: "Boise",
-        addressRegion: "ID",
+        streetAddress,
+        addressLocality,
+        addressRegion,
+        postalCode,
         addressCountry: "US",
       },
       areaServed: [
@@ -32,12 +81,6 @@ export const siteSchema = {
         ...citiesServed.map((name) => ({
           "@type": "City",
           name,
-          address: {
-            "@type": "PostalAddress",
-            addressLocality: name,
-            addressRegion: "ID",
-            addressCountry: "US",
-          },
         })),
       ],
       subOrganization: companies.map((company) => ({

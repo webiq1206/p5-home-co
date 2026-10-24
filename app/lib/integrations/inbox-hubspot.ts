@@ -3,9 +3,30 @@ import { emailContent, htmlMatches, sourcePrefix } from "./inbox-content.ts";
 
 type RecordResult = { id: string; archived?: boolean; properties: Record<string, string | null>; associations?: Record<string, { results: { id: string }[]; paging?: unknown }> };
 type Results = { total: number; results: RecordResult[]; paging?: { next?: { after: string } } };
+// Only constant route templates may leave the server. Never echo a URL,
+// identifier, query, request body, token, or provider response/error text.
+function safeRequest(path: string, method: string): string {
+  const route = path.split("?", 1)[0];
+  if (method === "GET") {
+    if (route === "/account-info/v3/details") return "GET /account-info/v3/details";
+    if (route === "/crm/v4/associations/emails/contacts/labels") return "GET /crm/v4/associations/emails/contacts/labels";
+    if (/^\/crm\/v3\/owners\/[^/]+$/.test(route)) return "GET /crm/v3/owners/{ownerId}";
+  }
+  for (const object of ["emails", "contacts"] as const) {
+    const base = `/crm/v3/objects/${object}`;
+    if (route === base && (method === "GET" || method === "POST")) return `${method} ${base}`;
+    if (route === `${base}/search` && method === "POST") return `POST ${base}/search`;
+    if (method === "GET" && route.startsWith(`${base}/`) && !route.slice(base.length + 1).includes("/")) return `GET ${base}/{recordId}`;
+  }
+  return "unclassified-hubspot-request";
+}
 export class InboxApiError extends Error {
   status: number;
-  constructor(status: number) { super(`hubspot-http-${status || "network"}`); this.status = status; }
+  request: string;
+  constructor(status: number, path = "", method = "GET") {
+    super(`hubspot-http-${status || "network"}`); this.status = status;
+    this.request = safeRequest(path, method);
+  }
 }
 export class InboxHubSpot {
   token: string; request: typeof fetch; deadline: number; lastRequest = 0;
@@ -21,8 +42,8 @@ export class InboxHubSpot {
       response = await this.request(`https://api.hubapi.com${path}`, { method,
         headers: { Authorization: `Bearer ${this.token}`, "Content-Type": "application/json" },
         ...(body ? { body: JSON.stringify(body) } : {}), signal: AbortSignal.timeout(Math.max(1, Math.min(12_000, this.deadline - Date.now()))) });
-    } catch { throw new InboxApiError(0); }
-    if (!response.ok) throw new InboxApiError(response.status);
+    } catch { throw new InboxApiError(0, path, method); }
+    if (!response.ok) throw new InboxApiError(response.status, path, method);
     return await response.json() as T;
   }
   async preflight() {

@@ -3,7 +3,7 @@ import {ESTIMATOR_PROVIDER,ESTIMATOR_MODEL,MODEL_POLICY_VERSION,estimatorModelCo
 import {clarificationTakeoffSchema,clarificationTakeoffUpdates,type TakeoffRevisionContext} from './clarificationTakeoffs.ts';
 import {groundSourceResponsibilities} from './sourceResponsibilities.ts';
 import {openAiReadModel,preferredReadProvider,rateLimitWaitMs,RATE_LIMIT_RETRIES} from './readerRouting.ts';
-import {reasoningFor,rejectsReasoning} from './openaiReasoning.ts';
+import {reasoningFor,mayRetryWithoutReasoning} from './openaiReasoning.ts';
 import {retainExplicitSelections} from './explicitSelections.ts';
 import {retainCompletedCabinetRemoval} from './completedWork.ts';
 import {readTakeoffs,readPageRecords,pageRecordList,pageCovered,bindTypedTakeoffSources,isTypedScopeSource} from './documentLedger.ts';
@@ -280,8 +280,8 @@ async function analyzeWithOpenAI(provider: Provider, text: string, files: Analys
   // The managed connection answers bursts with 429 in a fraction of a second; wait briefly and resend
   // rather than failing the page (live 2026-09-21: parallel reads were refused in bursts).
   for(let attempt=0;response.status===429&&attempt<RATE_LIMIT_RETRIES;attempt++){const wait=rateLimitWaitMs(attempt,response.headers.get('retry-after'));if(timeoutMs-(Date.now()-started)<wait+8000)break;await new Promise(r=>setTimeout(r,wait));response=await sendRead(true);}
-  // A gateway that does not accept the reasoning setting is asked once more without it.
-  if(!response.ok&&Object.keys(reasoningFor(model,'read')).length){const detail=await response.clone().text().catch(()=>'');if(rejectsReasoning(response.status,detail)){console.error('[p5-analysis] OpenAI refused the reasoning setting; retrying without it.');response=await sendRead(false);}}
+  // Only legacy optional effort may be omitted; required none must fail safely.
+  if(!response.ok&&Object.keys(reasoningFor(model,'read')).length){const detail=await response.clone().text().catch(()=>'');if(mayRetryWithoutReasoning(response.status,detail,reasoningFor(model,'read'))){console.error('[p5-analysis] OpenAI refused the reasoning setting; retrying without it.');response=await sendRead(false);}}
   console.error(`[p5-analysis] OpenAI ${model} read replied in ${((Date.now()-started)/1000).toFixed(1)}s (${response.status}).`);
   if (!response.ok) throw await responseError(provider, response);
   let body: any;

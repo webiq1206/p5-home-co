@@ -9,3 +9,7 @@ Callback submissions reuse /api/recovery/callback and estimator_sessions, keyed 
 Qualification uses a loopback server with all APIs mocked plus an isolated PostgreSQL-compatible database and captured mailer. It checks mobile/desktop layouts, keyboard focus, cancellation, repeat exit, reload, selected-file retention and callback failure/retry. No real callback request is needed for live visual verification. Before any future live callback test, agree a controlled recipient/number and tell the receiving staff not to place a real call; any automated call/SMS would require separate explicit authorization. Existing production settings and schema deferrals remain unchanged.
 
 Browser limitations: https://developer.mozilla.org/en-US/docs/Web/API/Window/beforeunload_event and https://developer.mozilla.org/en-US/docs/Web/API/Document/visibilitychange_event
+
+## Explicit contact entry — October 13
+
+A prominent “Just contact me” button opens the same phone-only callback form before any project description or questions. Explicit requests remain available after a previous dismissal and in a collapsed embedded estimator. Opening, canceling and submitting the callback preserve the existing project. The phone field receives focus, Escape restores focus to the shortcut, and uncertain retries reuse the same frozen request. Automatic exit offers retain their once-per-session behavior. No new endpoint, provider, marketing consent or customer call/SMS is introduced.

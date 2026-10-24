@@ -85,6 +85,30 @@ export const faqs = [
     q: "Are the P5 companies bonded and insured?",
     a: "Yes. The P5 companies are bonded and insured, have worked across the Treasure Valley since 2020, and handle permits in-house where a project requires them.",
   },
+  {
+    q: "Who builds a new home, or builds on land you already own?",
+    a: "Boise Construction Co. That work includes custom homes, semi-custom homes, building on your own lot, and home design and plans. Design, engineering, permitting, and construction stay with one accountable team.",
+  },
+  {
+    q: "Who renovates, adds on to, or changes how an existing home works?",
+    a: "Boise Remodeling Co. That work includes kitchen remodeling, bathroom remodeling, whole-home remodeling, additions, and ADUs, managed under one roof with a written scope and coordinated permits.",
+  },
+  {
+    q: "Who adds a guest suite, rental unit, or multigenerational living space on land you already own?",
+    a: "Boise ADU Co. That work includes detached ADUs, garage conversions, basement and interior units, and feasibility and permitting. The website is not live yet; enquiries go to (208) 477-1169.",
+  },
+  {
+    q: "Who handles repairs, installations, finish work, and smaller home projects?",
+    a: "Boise Handyman Co. That work includes drywall and trim repair, TV and fixture mounting, deck and exterior repair, and general home maintenance.",
+  },
+  {
+    q: "Who handles cabinetry, vanities, built-ins, and coordinated storage?",
+    a: "Boise Cabinet Co. That work includes premium frameless kitchen cabinetry, bathroom vanities, built-ins and storage, and whole-home cabinetry, designed, built, and installed.",
+  },
+  {
+    q: "Can one project involve more than one company?",
+    a: "Yes. A complete kitchen transformation, for example, runs through Boise Remodeling Co for layout, permits, demolition, and construction; Boise Cabinet Co for cabinet design, fabrication, and installation; and Boise Handyman Co for final mounting, finish work, and punch-list items.",
+  },
 ] as const;
 
 // GA4 measurement ID for the "P5 Home Co" property (551 / 550935991) in the
@@ -93,6 +117,9 @@ export const faqs = [
 export const gaMeasurementId = "G-K4PK6PMZP9";
 export const googleAdsDestinationId = "AW-18354188204";
 export const googleAdsLeadLabel = "LE2vCPXstO8cEKzf-q9E";
+export const googleAdsCallClickLabel = "ng9fCPiOhaAdEKzf-q9E";
+export const googleAdsTextClickLabel = "lTxsCOqahaAdEKzf-q9E";
+export const googleAdsPhoneConversionLabel = "YHR0CIaPz_ccEKzf-q9E";
 
 // HubSpot portal ID for the "P5 Home Co" account (NA2 region). Portal IDs are
 // public by design, so this is not a secret and does not belong in an env var.
