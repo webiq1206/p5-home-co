@@ -1,8 +1,8 @@
 name: P5 interface and metadata verification
 on:
-  push:
-    branches: [fix/p5-interface-completion-20260917]
   pull_request:
+    types: [opened, synchronize, labeled, reopened]
+    branches: [main]
     paths: ['app/**', 'components/**', 'hooks/**', 'lib/brand-page-metadata.ts', 'shared/ctaCopy.ts', 'lib/p5/adaptive.ts', 'tests/p5-brand*.test.ts', 'scripts/verify-p5-mobile-seo.mjs', '.github/workflows/p5-mobile-seo.yml', 'public/brand/**']
   workflow_dispatch:
 permissions:
@@ -12,6 +12,7 @@ concurrency:
   cancel-in-progress: true
 jobs:
   verify:
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'full-ci')
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:

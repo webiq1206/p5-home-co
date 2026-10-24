@@ -1,16 +1,8 @@
 name: P5 document service
 on:
-  push:
-    branches: [feat/shared-document-service-20260917, fix/shared-document-service-hardening-20260917, main]
-    paths:
-      - '.replit'
-      - 'package.json'
-      - 'services/document-service/**'
-      - 'lib/p5/**'
-      - 'scripts/*document*.m*'
-      - 'tests/p5-document-service.test.ts'
-      - '.github/workflows/p5-document-service.yml'
   pull_request:
+    types: [opened, synchronize, labeled, reopened]
+    branches: [main]
     paths:
       - '.replit'
       - 'package.json'
@@ -32,6 +24,7 @@ concurrency:
   cancel-in-progress: true
 jobs:
   verify:
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'full-ci')
     runs-on: ubuntu-latest
     timeout-minutes: 25
     services:

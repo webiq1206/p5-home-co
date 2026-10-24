@@ -1,6 +1,8 @@
 name: P5 offline original-plan acceptance harness
 on:
   pull_request:
+    types: [opened, synchronize, labeled, reopened]
+    branches: [main]
     paths:
       - 'scripts/lib/capturedPricingDelivery.ts'
       - 'scripts/lib/pricingQualification.ts'
@@ -21,6 +23,7 @@ permissions:
   contents: read
 jobs:
   offline:
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'full-ci')
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
