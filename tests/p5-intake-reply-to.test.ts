@@ -6,6 +6,7 @@ import vm from 'node:vm';
 import ts from 'typescript';
 import {ESTIMATOR_BRAND as brand} from '../lib/p5/brand.ts';
 import {safeEmailReplyTo} from '../lib/p5/emailReplyTo.ts';
+import {collectAttribution,sourceFromAttribution} from '../lib/p5/leadAttribution.ts';
 import {intakeDeliveryEnvelope} from '../lib/p5/intakeDeliveryPayload.ts';
 import {prepareIntakeEmail} from '../lib/p5/intakeEmailDelivery.ts';
 import {emptyIntakeDetails,type IntakeSnapshot} from '../lib/p5/intakeContract.ts';
@@ -16,6 +17,7 @@ function adapter(){
  const calls:any[]=[],exports:any={};const from=`${brand.name} <${mailbox}>`;
  const send=async(body:any,options:any)=>{calls.push({body,options});return {data:{id:'mock-accepted'}};};
  const deps:Record<string,unknown>={
+  './leadAttribution.ts':{collectAttribution,sourceFromAttribution},
   './brand':{ESTIMATOR_BRAND:brand},'./brand.ts':{ESTIMATOR_BRAND:brand},'./emailReplyTo.ts':{safeEmailReplyTo},
   'nodemailer':{createTransport:()=>({sendMail:async(body:any)=>{calls.push({body});return {accepted:[body.to],rejected:[],messageId:body.messageId};}})},
   '../../app/lib/notifications/smtp-config.ts':{getSmtpConfig:()=>({from,replyTo:mailbox,options:{}}),assertSmtpAccepted:(result:any)=>assert.equal(result.accepted.length,1)},
