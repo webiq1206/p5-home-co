@@ -1,3 +1,5 @@
+import { BASEBOARD_TRIM_FIT, FRAMING_FOOTHILLS } from "./imageVariants.ts";
+
 // Single source of truth for the production origin. Used by the metadata,
 // the JSON-LD entity graph, robots.txt, and the sitemap. Change it here
 // only; nothing else should hardcode the domain.
@@ -8,7 +10,7 @@ export const siteUrl = "https://p5homeco.com";
 export const companies = [
   {
     name: "Boise Construction Co",
-    image: "/images/p5-construction-branded.webp",
+    image: FRAMING_FOOTHILLS.src,
     url: "https://boiseconstruction.co",
     description:
       "Custom and semi-custom home building, including design, engineering, permitting, and ground-up construction.",
@@ -29,7 +31,7 @@ export const companies = [
   },
   {
     name: "Boise Handyman Co",
-    image: "/images/p5-handyman-branded.webp",
+    image: BASEBOARD_TRIM_FIT.src,
     url: "https://boisehandyman.co",
     description:
       "Home repair and maintenance, including drywall and trim repair, mounting and installation, and deck and exterior repair.",
