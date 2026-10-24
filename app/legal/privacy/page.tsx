@@ -12,7 +12,7 @@ export default function PrivacyPage() {
   return (
     <>
       <h1>Privacy Policy</h1>
-      <p className="legal-updated">Last updated 23 August 2026</p>
+      <p className="legal-updated">Last updated 17 October 2026</p>
 
       <p className="legal-lead">
         P5 Home Co. LLC operates p5homeco.com and the private finance platform
@@ -162,6 +162,12 @@ export default function PrivacyPage() {
         wbraid) and the campaign tags in your browser for the rest of that visit.
         If you then send an inquiry, we keep them with your inquiry in our
         customer records so we can tell which ad or campaign led to it.
+      </p>
+      <p>
+        We do not currently send your name, email, phone number or project details to Google.{" "}
+        {"Google's tag also adds visitors to remarketing lists, and Google may use this data to show you relevant ads on other websites (remarketing)."}{" "}
+        You can opt out of Google Analytics with the <a href="https://tools.google.com/dlpage/gaoptout">Google Analytics opt-out browser add-on</a>,
+        and you can opt out of Google ads at <a href="https://adssettings.google.com">Google Ads Settings</a>.
       </p>
 
       <h2>6. How long we keep it</h2>
