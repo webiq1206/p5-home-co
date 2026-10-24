@@ -7,7 +7,7 @@ import {
   SCHEMA_TELEPHONE,
   CONTRACTOR_REGISTRATION,
 } from "./publicIdentity.ts";
-import { SHOW_FOUNDING_YEAR } from "./foundingYear.ts";
+import { SHOW_FOUNDING_YEAR } from "./publicClaims.ts";
 import { citiesServed, companies, faqs, siteUrl } from "./site.ts";
 
 /** Authorized public contact. The phone, email, and street line match the

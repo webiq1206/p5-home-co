@@ -3,7 +3,8 @@
  * founding year, so every public use of that year stays in source and is
  * hidden unless this flag is turned on. Do not delete the sentences below.
  */
-export const SHOW_FOUNDING_YEAR = false;
+import { SHOW_FOUNDING_YEAR } from "./publicClaims.ts";
+export { SHOW_FOUNDING_YEAR };
 
 /** Every founding phrase stays here for the guard test. The flag publishes at most one badge. */
 export const FOUNDING_PHRASES = [
