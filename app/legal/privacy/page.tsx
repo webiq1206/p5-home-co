@@ -12,7 +12,7 @@ export default function PrivacyPage() {
   return (
     <>
       <h1>Privacy Policy</h1>
-      <p className="legal-updated">Last updated 23 August 2026</p>
+      <p className="legal-updated">Last updated 17 October 2026</p>
 
       <p className="legal-lead">
         P5 Home Co. LLC operates p5homeco.com and the private finance platform
@@ -131,11 +131,7 @@ export default function PrivacyPage() {
 
       <h2>5. Cookies and analytics</h2>
       <p>
-        The public website uses analytics and marketing cookies to understand
-        how the site is used and which inquiries come from where. You can block
-        or delete cookies in your browser settings; the site will still work.
-        The portals use a strictly necessary cookie to keep you signed in, which
-        cannot be turned off without ending your session.
+        {`Cookies, analytics and advertising. We use Google Analytics 4 (GA4) to understand how visitors use this site, such as pages viewed, referring site, approximate location, browser and device type. We use Google Ads conversion tracking to measure which of our ads lead to calls, form submissions and completed estimates, and Google may use cookies to show our ads to people who have visited this site (remarketing). These tools set cookies and receive information about your visit, including your IP address, which Google processes under its own privacy policy (`}<a href="https://policies.google.com/privacy">https://policies.google.com/privacy</a>{`). We do not currently send your name, email, phone number, address or project description to Google; Google Analytics receives only the type of project you choose (for example, an addition or an ADU) when you use the estimator or send an inquiry. You can opt out of personalized Google ads at `}<a href="https://adssettings.google.com">https://adssettings.google.com</a>{`, use the Google Analytics opt-out add-on at `}<a href="https://tools.google.com/dlpage/gaoptout">https://tools.google.com/dlpage/gaoptout</a>{`, or block or delete cookies in your browser; the site will still work. You can block or delete cookies in your browser settings; the site will still work. The portals use a strictly necessary cookie to keep you signed in, which cannot be turned off without ending your session.`}
       </p>
       <p>
         We use Google Analytics to understand how visitors use this site and
