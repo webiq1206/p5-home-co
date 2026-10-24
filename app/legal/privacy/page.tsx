@@ -12,7 +12,7 @@ export default function PrivacyPage() {
   return (
     <>
       <h1>Privacy Policy</h1>
-      <p className="legal-updated">Last updated 23 August 2026</p>
+      <p className="legal-updated">Last updated 17 October 2026</p>
 
       <p className="legal-lead">
         P5 Home Co. LLC operates p5homeco.com and the private finance platform
@@ -162,6 +162,13 @@ export default function PrivacyPage() {
         wbraid) and the campaign tags in your browser for the rest of that visit.
         If you then send an inquiry, we keep them with your inquiry in our
         customer records so we can tell which ad or campaign led to it.
+      </p>
+
+      <p>
+        Google Analytics 4 records site use. Google Ads conversion tracking receives a conversion event when a quote inquiry is accepted,
+        and a separate conversion event when a project estimate is finished.
+        Those events do not include your name, email, phone number, or project
+        details.
       </p>
 
       <h2>6. How long we keep it</h2>
