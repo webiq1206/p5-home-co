@@ -1,3 +1,4 @@
+import { BASEBOARD_TRIM_FIT, FRAMING_FOOTHILLS } from "./imageVariants.ts";
 /**
  * Unproven public claims stay in source and stay hidden unless a flag is
  * turned on. Nothing here is deleted. Priya can replace CREW_AND_TRADES
@@ -71,9 +72,9 @@ export const BONDED_ANSWER =
   "Yes. The P5 companies are bonded and insured and handle permits in-house where a project requires them.";
 
 export const CONSTRUCTION_STAFF_IMAGE = "/images/p5-construction-branded.webp";
-export const CONSTRUCTION_NEUTRAL_IMAGE = "/images/p5-hero.webp";
+export const CONSTRUCTION_NEUTRAL_IMAGE = FRAMING_FOOTHILLS.src;
 export const HANDYMAN_STAFF_IMAGE = "/images/p5-handyman-branded.webp";
-export const HANDYMAN_NEUTRAL_IMAGE = "/images/p5-closing-v2.webp";
+export const HANDYMAN_NEUTRAL_IMAGE = BASEBOARD_TRIM_FIT.src;
 
 export const constructionImage = SHOW_FAKE_STAFF_IMAGES
   ? CONSTRUCTION_STAFF_IMAGE

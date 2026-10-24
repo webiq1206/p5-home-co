@@ -1,3 +1,4 @@
+import { BASEBOARD_TRIM_FIT, FRAMING_FOOTHILLS } from "../app/imageVariants.ts";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
@@ -49,8 +50,8 @@ test("unproven claims stay in source and are hidden by default", () => {
     "Cabinets sourced and installed by our own crew, with trade partners where needed.",
   );
   assert.equal(SPECIALTY_FAQ.endsWith(CREW_AND_TRADES), true);
-  assert.equal(constructionImage, "/images/p5-hero.webp");
-  assert.equal(handymanImage, "/images/p5-closing-v2.webp");
+  assert.equal(constructionImage, FRAMING_FOOTHILLS.src);
+  assert.equal(handymanImage, BASEBOARD_TRIM_FIT.src);
   assert.match(readFileSync("app/publicClaims.ts", "utf8"), /p5-construction-branded\.webp/);
   assert.match(readFileSync("app/publicClaims.ts", "utf8"), /p5-handyman-branded\.webp/);
 
@@ -70,7 +71,7 @@ test("unproven claims stay in source and are hidden by default", () => {
   const home = readFileSync("app/HomePageClient.tsx", "utf8");
   assert.match(home, /import \{[\s\S]*SHOW_UNPROVEN_SELF_PERFORM[\s\S]*\} from "\.\/publicClaims"/);
   assert.match(home, /100\+ projects/);
-  assert.match(home, /Est\. 2020/);
+  assert.match(home, /visibleFoundingBadges\(\)/);
 
   const claimsSource = readFileSync("app/publicClaims.ts", "utf8");
   assert.match(claimsSource, /TOP_RATED_PHRASE = "top-rated"/);

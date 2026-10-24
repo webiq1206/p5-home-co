@@ -1,3 +1,4 @@
+import { BASEBOARD_TRIM_FIT, FRAMING_FOOTHILLS } from "../imageVariants.ts";
 /**
  * The service variants of the quote page.
  *
@@ -106,10 +107,8 @@ export const QUOTE_SERVICES: readonly QuoteService[] = [
     metaTitle: "Custom Home Building Quote, Treasure Valley | P5 Home Co",
     metaDescription:
       "Free custom home building quotes in Ada and Canyon counties. Land evaluation, plans, engineering, permitting, and construction under one accountable team.",
-    image: SHOW_FAKE_STAFF_IMAGES ? CONSTRUCTION_STAFF_IMAGE : CONSTRUCTION_NEUTRAL_IMAGE,
-    imageAlt: SHOW_FAKE_STAFF_IMAGES
-      ? "Wood-framed house under construction with exposed roof trusses and a Boise Construction Co logo."
-      : "Modern two-story house with dark vertical siding, a flat roof, and warm window light at dusk.",
+    image: FRAMING_FOOTHILLS.src,
+    imageAlt: FRAMING_FOOTHILLS.alt,
     project: "New custom home",
     brand: "Boise Construction Co",
     covers: [
@@ -162,10 +161,8 @@ export const QUOTE_SERVICES: readonly QuoteService[] = [
     metaTitle: "Handyman & Home Repair Quote, Boise | P5 Home Co",
     metaDescription:
       "Free handyman and home repair quotes across the Treasure Valley. Drywall and trim repair, mounting, installation, deck and exterior work.",
-    image: SHOW_FAKE_STAFF_IMAGES ? HANDYMAN_STAFF_IMAGE : HANDYMAN_NEUTRAL_IMAGE,
-    imageAlt: SHOW_FAKE_STAFF_IMAGES
-      ? "White baseboard and door casing being installed, with a Boise Handyman Co logo."
-      : "Modern house with dark vertical siding, a flat roof, and warmly lit windows at blue hour.",
+    image: BASEBOARD_TRIM_FIT.src,
+    imageAlt: BASEBOARD_TRIM_FIT.alt,
     project: "Home repairs or handyman work",
     brand: "Boise Handyman Co",
     covers: [

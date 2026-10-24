@@ -9,6 +9,7 @@ import { QUOTE_SERVICES, type QuoteService } from "./services";
 import { serializeJsonLd } from "../structuredData";
 import TrackedPhoneLink from "./TrackedPhoneLink";
 import PublicIdentity from "@/components/PublicIdentity";
+import { imageVariantFor } from "../imageVariants.ts";
 import { PUBLIC_PHONE_DISPLAY, PUBLIC_PHONE_SMS } from "../publicIdentity";
 
 /* eslint-disable @next/next/no-img-element */
@@ -31,6 +32,7 @@ export default function QuoteLanding({ service, entryLabel, defaultService }: { 
   const heroAlt = service
     ? service.imageAlt
     : "Modern two-story house with dark vertical siding, a flat roof, and warm window light at dusk.";
+  const heroVariant = imageVariantFor(heroImage);
   const others = QUOTE_SERVICES.filter((s) => !service || s.slug !== service.slug);
 
   return (
@@ -70,8 +72,9 @@ export default function QuoteLanding({ service, entryLabel, defaultService }: { 
             className="quote-hero-img"
             src={heroImage}
             alt={heroAlt}
-            width={1600}
-            height={1000}
+            width={heroVariant?.width ?? 1600}
+            height={heroVariant?.height ?? 1000}
+            {...(heroVariant ? { srcSet: heroVariant.srcSet, sizes: "100vw" } : {})}
             fetchPriority="high"
             decoding="async"
           />

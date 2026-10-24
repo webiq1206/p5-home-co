@@ -1,3 +1,5 @@
+import { BASEBOARD_TRIM_FIT, FRAMING_FOOTHILLS } from "./imageVariants.ts";
+
 // Single source of truth for the production origin. Used by the metadata,
 // the JSON-LD entity graph, robots.txt, and the sitemap. Change it here
 // only; nothing else should hardcode the domain.
