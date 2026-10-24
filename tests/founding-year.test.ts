@@ -63,6 +63,6 @@ test("the 2020 founding claim stays in source and is hidden by default", () => {
     assert.equal(existsSync(file), true, file);
   }
   const home = readFileSync("app/HomePageClient.tsx", "utf8");
-  assert.match(home, /p5-construction-branded\.webp/);
-  assert.match(home, /p5-handyman-branded\.webp/);
+  assert.match(home, /image=\{FRAMING_FOOTHILLS.src\}/);
+  assert.match(home, /image=\{BASEBOARD_TRIM_FIT.src\}/);
 });
