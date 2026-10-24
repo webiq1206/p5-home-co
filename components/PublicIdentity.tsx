@@ -1,7 +1,6 @@
 import type { ReactNode } from "react";
-import Arrow from "@/components/Arrow";
 import {
-  IDAHO_DOPL_PUBLIC_SEARCH,
+  IDAHO_DOPL_LICENSE_SEARCH,
   PUBLIC_EMAIL,
   PUBLIC_NAP,
   PUBLIC_PHONE_DISPLAY,
@@ -44,14 +43,14 @@ function withLinks(text: string, labels: readonly { label: string; href: string 
   return nodes;
 }
 
-/** The approved NAP, registration, and sister-company row. Text content matches the audit strings. */
+/** The approved NAP, registration, and sister-company row. Text content matches the audit strings.
+ * Estimator pages pass linkRegistration={false} so the credential stays plain text. */
 export default function PublicIdentity({
   tone = "inherit",
-  showVerifyLink = true,
+  linkRegistration = true,
 }: {
   tone?: "inherit" | "ink";
-  /** When false, the registration number stays and the DOPL link is omitted. */
-  showVerifyLink?: boolean;
+  linkRegistration?: boolean;
 }) {
   return (
     <div className={`public-identity${tone === "ink" ? " public-identity-ink" : ""}`}>
@@ -62,20 +61,18 @@ export default function PublicIdentity({
         ])}
       </p>
       <p className="public-registration">
-        {PUBLIC_REGISTRATION}
-        {showVerifyLink && (
-          <>
-            {" · "}
-            <a
-              href={IDAHO_DOPL_PUBLIC_SEARCH}
-              target="_blank"
-              rel="noopener noreferrer"
-              title="Look up registration 8381215 on Idaho DOPL"
-              aria-label="Verify with Idaho DOPL: look up registration 8381215, opens in a new tab"
-            >
-              Verify with Idaho DOPL <Arrow diagonal />
-            </a>
-          </>
+        {linkRegistration ? (
+          <a
+            href={IDAHO_DOPL_LICENSE_SEARCH}
+            target="_blank"
+            rel="noopener noreferrer"
+            title="Look up registration 8381215 on Idaho DOPL"
+            aria-label="Verify with Idaho DOPL: look up registration 8381215, opens in a new tab"
+          >
+            {PUBLIC_REGISTRATION}
+          </a>
+        ) : (
+          PUBLIC_REGISTRATION
         )}
       </p>
       <p className="sister-sites">{withLinks(SISTER_LINE, SISTER_LINKS)}</p>

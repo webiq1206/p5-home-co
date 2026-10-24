@@ -9,6 +9,7 @@ import { QUOTE_SERVICES, type QuoteService } from "./services";
 import { serializeJsonLd } from "../structuredData";
 import TrackedPhoneLink from "./TrackedPhoneLink";
 import PublicIdentity from "@/components/PublicIdentity";
+import { PUBLIC_PHONE_DISPLAY, PUBLIC_PHONE_SMS } from "../publicIdentity";
 
 /* eslint-disable @next/next/no-img-element */
 
@@ -48,13 +49,18 @@ export default function QuoteLanding({ service, entryLabel, defaultService }: { 
           <Link className="quote-wordmark" href="/" aria-label="P5 Home Co, home">
             <img src="/brands/p5-home-co-lockup-dark.svg" alt="P5 Home Co, The Home Company" />
           </Link>
-          <TrackedPhoneLink
-            className="quote-header-phone"
-            location="quote_header"
-            ariaLabel="Call P5 Home Co on 2 0 8, 4 7 7, 1 1 6 9"
-          >
-            (208) 477-1169
-          </TrackedPhoneLink>
+          <div className="quote-header-actions">
+            <TrackedPhoneLink
+              className="quote-header-phone"
+              location="quote_header"
+              ariaLabel="Call P5 Home Co on 2 0 8, 4 7 7, 1 1 6 9"
+            >
+              (208) 477-1169
+            </TrackedPhoneLink>
+            <a className="quote-header-text" href={PUBLIC_PHONE_SMS} aria-label={`Text ${PUBLIC_PHONE_DISPLAY}`}>
+              Text
+            </a>
+          </div>
         </header>
 
         <section id="quote-form-heading" style={{padding:"12px 16px 36px",scrollMarginTop:100}}><P5Estimator headingAs={service ? "h1" : "h2"} layout="embedded" entryLabel={entryLabel} defaultService={defaultService??(({"kitchen-remodel":"kitchen","bathroom-remodel":"bathroom","home-addition":"addition","adu":"adu","custom-home":"new-construction","new-construction":"new-construction","custom-cabinets":"cabinet-install","handyman":"handyman","re-10":"re10"} as Record<string,string>)[service?.slug||""]||"")} /></section>
@@ -212,7 +218,7 @@ export default function QuoteLanding({ service, entryLabel, defaultService }: { 
               <Link href="/">P5 Home Co home</Link>
               <Link href="/legal/privacy">Privacy policy</Link>
             </p>
-            <PublicIdentity showVerifyLink={false} />
+            <PublicIdentity />
             <p className="quote-footer-bottom">© 2026 P5 Home Co. All rights reserved.</p>
           </div>
         </footer>

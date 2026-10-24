@@ -13,6 +13,8 @@ export const PUBLIC_PHONE_DISPLAY = "(208) 477-1169";
 
 export const PUBLIC_PHONE_TEL = "tel:+12084771169";
 
+export const PUBLIC_PHONE_SMS = "sms:+12084771169";
+
 export const PUBLIC_EMAIL = "hello@p5homeco.com";
 
 export const SCHEMA_TELEPHONE = "+1-208-477-1169";
@@ -30,8 +32,8 @@ export const PUBLIC_NAP =
 
 export const PUBLIC_REGISTRATION = "Idaho Registered Contractor #8381215";
 
-/** Official public search linked from https://dopl.idaho.gov/con/ (Search for a Registration). */
-export const IDAHO_DOPL_PUBLIC_SEARCH = "https://edopl.idaho.gov/OnlineServices/?link=PubSearch";
+/** Idaho DOPL public registration search. Footer links use this. Estimator pages do not. */
+export const IDAHO_DOPL_LICENSE_SEARCH = "https://edopl.idaho.gov/OnlineServices/?link=PubSearch";
 
 export const SISTER_LINE =
   "Part of P5 Home Co: Boise Construction Co · Boise Remodeling Co · Boise Handyman Co · Boise Cabinet Co · Boise ADU Co (launching soon)";
