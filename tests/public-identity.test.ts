@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { readFileSync, readdirSync } from "node:fs";
+import { readFileSync, readdirSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { createRequire } from "node:module";
 import React from "react";
@@ -76,7 +76,9 @@ test("the registration number renders in both modes and estimator pages omit the
     }
     if (!id.startsWith("@/")) return require(id);
     const exported: Record<string, unknown> = {};
-    new Function("require", "exports", "React", compile(new URL(`../${id.slice(2)}.tsx`, import.meta.url)))(load, exported, React);
+    const moduleUrl = [".ts", ".tsx"].map(extension => new URL(`../${id.slice(2)}${extension}`, import.meta.url)).find(url => existsSync(url));
+    assert.ok(moduleUrl, `Missing source module: ${id}`);
+    new Function("require", "exports", "React", compile(moduleUrl))(load, exported, React);
     cache.set(id, exported);
     return exported;
   };
