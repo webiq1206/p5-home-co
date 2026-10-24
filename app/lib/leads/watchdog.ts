@@ -291,10 +291,9 @@ export async function runWatchdog(now: Date = new Date()): Promise<WatchdogSumma
     // engine from doing its job.
     const notified = await dispatchNotifications(now);
 
-    // Abandoned quote-form sessions ride the same five-minute tick, so the
-    // partial-completion summaries need no scheduler of their own. Failures
-    // are recorded on the session row and retried next pass; they never stop
-    // the watchdog.
+    // Abandoned sessions still expire and purge on this tick. Partial-completion
+    // staff mail is off (PARTIAL_COMPLETION_EMAILS_ENABLED). A sweep failure
+    // never stops the watchdog. Callback and completed-lead mail are separate.
     try {
       const swept = await sweepAbandonedSessions({ now, limit: 25 });
       if (swept.sent || swept.failed) console.info("[watchdog] abandonment sweep", swept);
