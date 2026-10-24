@@ -37,7 +37,7 @@ export default function ThanksMessage() {
       <p className="quote-eyebrow">Request received</p>
       <h1>Thank you. Your request is with the right team.</h1>
       <p className="quote-lead">
-        We have your project details. Your request has been routed to the P5 company whose craft
+        We have your project details. Your request has been routed to the P5 company whose specialty
         matches the work, and a specialist will follow up during business hours.
       </p>
       <h2>What happens next</h2>
