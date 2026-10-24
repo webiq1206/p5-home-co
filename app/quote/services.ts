@@ -139,7 +139,7 @@ export const QUOTE_SERVICES: readonly QuoteService[] = [
     covers: [
       "Kitchens, vanities, built-ins, and storage",
       "Built to order for out-of-square walls",
-      "Design, fabrication, and installation",
+      "Design, sourcing, and installation",
     ],
   },
   {

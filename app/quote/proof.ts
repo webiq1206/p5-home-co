@@ -16,20 +16,19 @@
  * adding real, attributable reviews is a data change and nothing else.
  */
 
+import { SHOW_FOUNDING_YEAR, WORKING_HERE_SINCE_2020 } from "../publicClaims.ts";
+
 export interface ProofPoint {
   readonly label: string;
   readonly detail: string;
 }
 
-export const PROOF_POINTS: readonly ProofPoint[] = [
+const PROOF_POINT_LIST: readonly ProofPoint[] = [
   {
     label: "Bonded and insured",
     detail: "Idaho Registered Contractor #8381215, carried across all five companies.",
   },
-  {
-    label: "Working here since 2020",
-    detail: "Building, remodeling, and repairing homes across Ada and Canyon counties.",
-  },
+  WORKING_HERE_SINCE_2020,
   {
     label: "A written scope, before work starts",
     detail: "What is included, what is not, and the price - in writing, so you can compare it.",
@@ -47,6 +46,11 @@ export const PROOF_POINTS: readonly ProofPoint[] = [
     detail: "Quotes and site visits cost nothing and carry no obligation to proceed.",
   },
 ] as const;
+
+/** The 2020 tenure card stays in PROOF_POINT_LIST and is omitted while the flag is off. */
+export const PROOF_POINTS: readonly ProofPoint[] = SHOW_FOUNDING_YEAR
+  ? PROOF_POINT_LIST
+  : PROOF_POINT_LIST.filter((point) => point !== WORKING_HERE_SINCE_2020);
 
 export interface Testimonial {
   /** The customer's own words, quoted exactly. */
