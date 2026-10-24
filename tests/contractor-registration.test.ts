@@ -57,5 +57,5 @@ test("no licensed contractor claim remains", () => {
 test("the published credential is Idaho contractor registration 8381215", () => {
   const text = walk(root).map((file) => readFileSync(file, "utf8")).join("\n");
   assert.match(text, /8381215/);
-  assert.match(text, /Idaho contractor registration|Registered Idaho contractor \(#8381215\)/);
+  assert.match(text, /Idaho Registered Contractor #8381215/);
 });

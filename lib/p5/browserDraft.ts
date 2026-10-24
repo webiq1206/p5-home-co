@@ -14,6 +14,17 @@ export interface BrowserDraftRecovery {
   archivedAt: number;
   draft: BrowserDraft;
 }
+/** True once the visitor has entered something: text, files, contact details, an
+ * answer other than the page's preset project type, or a message. A draft that
+ * holds only the seeded service is not a project; it must not be autosaved,
+ * announced as saved, or offered back as "your saved project". */
+export function draftHasUserContent(d:BrowserDraft|null|undefined):boolean{
+  if(!d)return false;
+  if(d.text.trim()||(d.uploads||[]).length||(d.pendingFiles||[]).length)return true;
+  if(['name','email','phone'].some(k=>String((d.contact as Record<string,string>)[k]||'').trim()))return true;
+  if(Object.entries(d.answers||{}).some(([k,v])=>k!=='service'&&String(v||'').trim()))return true;
+  return (d.transcript||[]).some(e=>e.role==='user');
+}
 export function newBrowserDraft(defaultService:string):BrowserDraft {
   const bytes=new Uint8Array(32);crypto.getRandomValues(bytes);
   const uuidBytes=crypto.getRandomValues(new Uint8Array(16));uuidBytes[6]=(uuidBytes[6]&15)|64;uuidBytes[8]=(uuidBytes[8]&63)|128;
@@ -48,7 +59,10 @@ export function loadBrowserDraft(defaultService:string,namespace?:string):Browse
       ?(!d?.namespace||d.namespace===namespace)&&(!d?.projectSource?.id||d.projectSource.id===namespace)
       :!d?.namespace&&!d?.projectSource?.id;
     if(identityMatches&&d&&typeof d.id==='string'&&/^[a-f0-9-]{36}$/i.test(d.id)&&/^[a-f0-9]{64}$/.test(d.key)&&Number.isInteger(d.revision)&&d.revision>=0&&typeof d.text==='string'&&d.answers&&!Array.isArray(d.answers)&&d.contact&&['name','email','phone'].every(k=>typeof d.contact[k]==='string')&&Object.entries(d.answers).every(([k,v])=>Object.hasOwn(SCOPE_FIELDS,k)&&typeof v==='string')){
-      return {...d,namespace,step:Math.min(2,Math.max(0,Number(d.step)||0)),wizard:d.wizard||{skipped:[],resolutions:{}}};
+      const restored={...d,namespace,step:Math.min(2,Math.max(0,Number(d.step)||0)),wizard:d.wizard||{skipped:[],resolutions:{}}};
+      // An empty draft left by viewing another service page takes this page's service.
+      if(defaultService&&!draftHasUserContent(restored))return {...restored,answers:{...restored.answers,service:defaultService}};
+      return restored;
     }
   }catch{}
   return {...newBrowserDraft(defaultService),namespace};
