@@ -1,3 +1,4 @@
+import {phoneHref} from './phoneHref.ts';
 import {pricingBasisNotes} from './pricingBasis.ts';
 import {customerPresentation} from './customerProjection.ts';
 /**
@@ -220,7 +221,7 @@ export function buildEstimateDocument(input:{id:string;result:unknown;brand:Esti
     ['Timing',[issue.timing?`Requested: ${clean(issue.timing,160)}. Availability is confirmed with your final proposal.`:'Start and completion dates are confirmed with your final proposal.']],
   ] as [string,string[]][]).filter(([,v])=>v.length);
 
-  const tel=brand.phone.replace(/[^\d+]/g,'');const reference=issue.reference||estimateReference(id);
+  const reference=issue.reference||estimateReference(id);
   const subject=encodeURIComponent(`Project review request - estimate ${reference}`);
   return {
     templateVersion:ESTIMATE_TEMPLATE_VERSION,brand:{...brand,endorsed:brand.id!=='p5'},reference,revision:Number(issue.revision)||0,issuedAt,issuedLabel:dateLabel(issuedAt),
@@ -234,7 +235,7 @@ export function buildEstimateDocument(input:{id:string;result:unknown;brand:Esti
     assumptionRows,
     legalLine:clean(input.legalLine,200),
     nextSteps:[['Request a project review','Reply to your estimate email or contact us with your estimate number.'],['Confirm the details',confirmStep(service)],['Receive your final proposal',"You'll receive a written proposal with confirmed scope, pricing and scheduling requirements."]],
-    review:{label:'Request a project review',email:brand.email,phone:brand.phone,mailto:`mailto:${brand.email}?subject=${subject}`,tel:`tel:${tel}`,url:`https://${brand.domain}${brand.consultationPath}`},
+    review:{label:'Request a project review',email:brand.email,phone:brand.phone,mailto:`mailto:${brand.email}?subject=${subject}`,tel:phoneHref(brand.phone),url:`https://${brand.domain}${brand.consultationPath}`},
     notice:PRELIMINARY_NOTICE,
   };
 }
