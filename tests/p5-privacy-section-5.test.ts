@@ -27,3 +27,11 @@ test("the privacy policy date moves with this disclosure", () => {
   assert.match(page, /Last updated 17 October 2026/);
   assert.equal(page.includes("Last updated 23 August 2026"), false);
 });
+
+ test("newer call and attribution disclosures remain alongside remarketing", () => {
+  assert.match(section, /If your call goes through a Google forwarding number/);
+  assert.match(section, /calling number and call length/);
+  assert.match(section, /we keep them with your inquiry in our/);
+  assert.match(section, /On some of/);
+  assert.match(page, /We share limited\s+information with Google to measure our ads, as described in section\s+5/);
+ });

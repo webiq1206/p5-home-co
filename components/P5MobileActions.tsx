@@ -8,8 +8,15 @@ export function useP5MobileActions(pathname:string|null){
     let frame=0;
     const update=()=>{
       frame=0;
-      const hero=document.querySelector('.f-hero,.cabinet-approved .hero,.interior-hero')
-        ||document.querySelector('main h1')?.closest('section');
+      // A marked hero wins. Pages without one (articles, categories, sitemap) fall
+      // back to the H1's section, unless that section wraps the whole article, in
+      // which case the H1 itself is the hero; otherwise the bar stayed hidden for
+      // most of every long post.
+      const marked=document.querySelector('[data-p5-hero],.f-hero,.cabinet-approved .hero,.interior-hero');
+      const h1=marked?null:document.querySelector('main h1');
+      const h1Section=h1?.closest('section')??null;
+      const hero=marked
+        ||(h1Section&&h1Section.getBoundingClientRect().height>window.innerHeight*1.5?h1:h1Section);
       const active=document.activeElement;
       const editing=active instanceof HTMLElement&&active.matches('input,textarea,select,[contenteditable=true]');
       const footerVisible=[...document.querySelectorAll('[data-suppress-sticky-cta]')].some(el=>{

@@ -6,7 +6,7 @@ import HubSpotScript from "./HubSpotScript";
 import MobileActionBar from "@/components/MobileActionBar";
 import StripUtmLinks from "@/components/StripUtmLinks";
 import "./globals.css";
-import { gaMeasurementId, googleAdsDestinationId, siteUrl } from "./site";
+import { gaMeasurementId, googleAdsCallClickLabel, googleAdsDestinationId, googleAdsPhoneConversionLabel, googleAdsTextClickLabel, siteUrl } from "./site";
 import { serializeJsonLd, siteDescription, siteSchema, siteTitle } from "./structuredData";
 
 const title = siteTitle;
@@ -87,7 +87,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         {/* Check the browser hostname too: local QA also runs production builds. */}
         {process.env.NODE_ENV === "production" && (
           <Script id="ga4-init" strategy="afterInteractive">
-            {googleTagBootstrap({ hostname: "p5homeco.com", measurementId: gaMeasurementId, adsId: googleAdsDestinationId })}
+            {googleTagBootstrap({ hostname: "p5homeco.com", measurementId: gaMeasurementId, adsId: googleAdsDestinationId, phoneConversionLabel: googleAdsPhoneConversionLabel, phoneNumber: "(208) 477-1169", callClickLabel: googleAdsCallClickLabel, textClickLabel: googleAdsTextClickLabel })}
           </Script>
         )}
         {process.env.NODE_ENV === "production" && <HubSpotScript />}
