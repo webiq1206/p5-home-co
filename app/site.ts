@@ -1,12 +1,39 @@
+import { BASEBOARD_TRIM_FIT, FRAMING_FOOTHILLS } from "./imageVariants.ts";
+
 // Single source of truth for the production origin. Used by the metadata,
 // the JSON-LD entity graph, robots.txt, and the sitemap. Change it here
 // only; nothing else should hardcode the domain.
+import {
+  BONDED_ANSWER,
+  BONDED_SINCE_2020_ANSWER,
+  FABRICATION_FAQ,
+  SELF_PERFORM_FAQ,
+  SHOW_CABINET_FABRICATION,
+  SHOW_FOUNDING_YEAR,
+  SHOW_UNPROVEN_SELF_PERFORM,
+  SOURCING_FAQ,
+  SPECIALTY_FAQ,
+  constructionImage,
+  handymanImage,
+} from "./publicClaims.ts";
+
 export const siteUrl = "https://p5homeco.com";
+
+export const HOW_P5_WORKS_TITLE = "How P5 works";
+export const HOW_P5_WORKS = [
+  "Own install crew",
+  "Bonded & insured",
+  "Manufacturer warranties passed through",
+  "Install dates confirmed in writing",
+  "Written update every week",
+  "Free in-home consultation, no pressure",
+  "Public representative: Nick Perkins",
+] as const;
 
 export const companies = [
   {
     name: "Boise Construction Co",
-    image: "/images/p5-construction-branded.webp",
+    image: constructionImage,
     url: "https://boiseconstruction.co",
     description:
       "Custom and semi-custom home building, including design, engineering, permitting, and ground-up construction.",
@@ -27,7 +54,7 @@ export const companies = [
   },
   {
     name: "Boise Handyman Co",
-    image: "/images/p5-handyman-branded.webp",
+    image: handymanImage,
     url: "https://boisehandyman.co",
     description:
       "Home repair and maintenance, including drywall and trim repair, mounting and installation, and deck and exterior repair.",
@@ -63,7 +90,7 @@ export const citiesServed = [
 export const faqs = [
   {
     q: "Is P5 Home Co a contractor or a referral service?",
-    a: "P5 Home Co is an operating family of companies, not a directory or a referral network. Each of the five companies has its own craft and team, and does the work itself, under one shared standard for scopes, communication, and accountability.",
+    a: SHOW_UNPROVEN_SELF_PERFORM ? SELF_PERFORM_FAQ : SPECIALTY_FAQ,
   },
   {
     q: "Which P5 company should I start with?",
@@ -83,7 +110,7 @@ export const faqs = [
   },
   {
     q: "Are the P5 companies bonded and insured?",
-    a: "Yes. The P5 companies are bonded and insured, have worked across the Treasure Valley since 2020, and handle permits in-house where a project requires them.",
+    a: SHOW_FOUNDING_YEAR ? BONDED_SINCE_2020_ANSWER : BONDED_ANSWER,
   },
   {
     q: "Who builds a new home, or builds on land you already own?",
@@ -107,7 +134,7 @@ export const faqs = [
   },
   {
     q: "Can one project involve more than one company?",
-    a: "Yes. A complete kitchen transformation, for example, runs through Boise Remodeling Co for layout, permits, demolition, and construction; Boise Cabinet Co for cabinet design, fabrication, and installation; and Boise Handyman Co for final mounting, finish work, and punch-list items.",
+    a: SHOW_CABINET_FABRICATION ? FABRICATION_FAQ : SOURCING_FAQ,
   },
 ] as const;
 
