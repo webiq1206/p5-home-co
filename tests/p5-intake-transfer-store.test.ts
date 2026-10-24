@@ -41,7 +41,7 @@ async function database(){
  CREATE TABLE p5_estimator_work(draft_id uuid REFERENCES p5_estimator_drafts(id),work_key text,payload jsonb,updated_at timestamptz DEFAULT now(),PRIMARY KEY(draft_id,work_key));
  CREATE TABLE p5_estimator_files(id uuid PRIMARY KEY,draft_id uuid REFERENCES p5_estimator_drafts(id),name text,mime_type text,size_bytes integer,sha256 text,created_at timestamptz DEFAULT now(),UNIQUE(draft_id,sha256));`);
  const query=async(s:string,v:unknown[]=[])=> (await db.query<IntakeRow>(s,v)).rows;
- await query("INSERT INTO p5_estimator_drafts VALUES($1,'owner',1,'handyman','draft',$2::jsonb,now())",[source,JSON.stringify({text:'[QA] Fictional kitchen remodel with cabinets.',answers:{service:'kitchen'},contact:{name:'[QA] Fictional',email:'inquiry@example.invalid',phone:''},intake:{projectId:`handyman:${source}`,originSite:'handyman',transcript:[{id:'toy',role:'user',text:'Keep the existing fictional floor.',at:1}],supportingServices:['cabinetry']}})]);
+ await query("INSERT INTO p5_estimator_drafts VALUES($1,'owner',1,'handyman','draft',$2::jsonb,now())",[source,JSON.stringify({text:'[QA] Fictional kitchen remodel with cabinets.',answers:{service:'kitchen'},contact:{name:'[QA] Fictional',email:'inquiry@example.invalid',phone:''},intake:{projectId:`handyman:${source}`,originSite:'handyman',attribution:{gclid:'paid-click',utm_campaign:'repair-search',first_gclid:'first-click'},transcript:[{id:'toy',role:'user',text:'Keep the existing fictional floor.',at:1}],supportingServices:['cabinetry']}})]);
  const store=intakeTransferStore(query,()=>now);
  const seal=async()=>{await store.prepare(binding());return (await store.seal(binding())).bundle!;};
  const addFile=async(id=source,file=fileId)=>query("INSERT INTO p5_estimator_files VALUES($1,$2,'fictional-scope.txt','text/plain',1,$3,now())",[file,id,transferSecretHash('x')]);
@@ -51,7 +51,7 @@ test('prepare freezes before sealing; SQL JSON order preserves verified scope, c
  const x=await database();try{
   await x.addFile();const p=await x.store.prepare(binding());assert.equal(p.state,'freezing');assert.equal(p.bundle,undefined);
   assert.equal((await x.query('SELECT status FROM p5_estimator_drafts WHERE id=$1',[source]))[0].status,'intake-transferring');
-  const sealed=await x.store.seal(binding());const bundle=requireTransferBundle(sealed.bundle!);assert.equal(bundle.files.length,1);
+  const sealed=await x.store.seal(binding());const bundle=requireTransferBundle(sealed.bundle!);assert.equal(bundle.files.length,1);assert.deepEqual((bundle.payload.intake as {attribution:unknown}).attribution,{gclid:'paid-click',utm_campaign:'repair-search',first_gclid:'first-click'});
   assert.equal((bundle.payload.contact as {email:string}).email,'inquiry@example.invalid');assert.equal((bundle.payload.intake as {transcript:Array<{text:string}>}).transcript[0].text,'Keep the existing fictional floor.');
   assert.equal((await x.store.seal(binding())).bundle!.digest,bundle.digest);
  }finally{await x.db.close();}

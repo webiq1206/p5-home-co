@@ -1,3 +1,4 @@
+import {collectAttribution,sourceFromAttribution} from "../../app/lib/leads/attribution.ts";
 import {validateInboundLead} from '../../app/lib/leads/normalize.ts';
 import {intakeLocalCrmRecord} from './intakeDeliveryPayload.ts';
 import type {IntakeDeliveryEnvelope} from './intakeDeliveryPayload.ts';
@@ -8,10 +9,11 @@ export function validateIntakeLocalCrm(envelope:IntakeDeliveryEnvelope):IntakeDe
  try{
   const s=envelope.request;if(!s)return 'payload-review';
   const record=intakeLocalCrmRecord(s),names=s.contact.name.trim().split(/\s+/);
+  const attribution=collectAttribution(record.attribution||{});
   const errors=validateInboundLead({firstName:names.shift()||null,lastName:names.join(' ')||null,email:s.contact.email||null,phone:s.contact.phone||null,
-   brand:record.brand,projectType:s.scope.answers.service||null,source:'Organic Website',sourceDetail:`p5-estimator:${s.draftId}`,
+   brand:record.brand,projectType:s.scope.answers.service||null,source:sourceFromAttribution(attribution),sourceDetail:`p5-estimator:${s.draftId}`,
    propertyAddress:s.scope.answers.address||null,propertyCity:s.scope.answers.location||null,summary:record.customer.summary,externalLeadId:envelope.leadKey,
-   originalForm:'p5-estimator',originalCampaign:null,utm:null,receivedAt:new Date(s.savedAt)});
+   originalForm:'p5-estimator',originalCampaign:attribution?.utm_campaign||null,utm:attribution,receivedAt:new Date(s.savedAt)});
   return errors.length?'contact-review':null;
  }catch{return 'payload-review';}
 }
