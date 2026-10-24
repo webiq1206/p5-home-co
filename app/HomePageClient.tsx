@@ -5,6 +5,7 @@
 import Link from "next/link";
 import Reveal from "@/components/Reveal";
 import { useEffect, useRef, useState } from "react";
+import { visibleFoundingBadges } from "./foundingYear.ts";
 import { citiesServed, faqs } from "./site";
 import { track } from "./analytics";
 import { homePageSchema, serializeJsonLd } from "./structuredData";
@@ -109,7 +110,7 @@ export default function Home() {
         <Link className="scroll-cue" href="/#about" aria-label="Explore P5 Home Co"><span>Explore</span><i /></Link>
       </section>
 
-      <section className="trust-strip" aria-label="P5 Home Co credentials"><div className="content-shell trust-grid"><div><strong>Est. 2020</strong><span>Local experience</span></div><div><strong>100+ projects</strong><span>Across the Treasure Valley</span></div><div><strong>Bonded and insured</strong><span>Professional protection</span></div><div><strong>Ada and Canyon</strong><span>Local permit knowledge</span></div></div></section>
+      <section className="trust-strip" aria-label="P5 Home Co credentials"><div className="content-shell trust-grid">{visibleFoundingBadges().map((badge) => <div key={badge}><strong>{badge}</strong><span>Local experience</span></div>)}<div><strong>100+ projects</strong><span>Across the Treasure Valley</span></div><div><strong>Bonded and insured</strong><span>Professional protection</span></div><div><strong>Ada and Canyon</strong><span>Local permit knowledge</span></div></div></section>
 
       <section id="about" className="manifesto section-pad"><Reveal className="content-shell manifesto-layout"><div className="manifesto-title"><p className="eyebrow">More than a holding company</p><h2>The right specialist.<br />One shared standard.</h2></div><div className="manifesto-copy"><p className="lead-copy">P5 Home Co is the operating family behind five focused home-service companies. It is not a directory or referral network.</p><p>Each company has its own craft, team, and expertise. What connects them is the way the work is handled: clear scopes, accountable communication, local knowledge, and respect for the home.</p><p>You get a specialist for the project in front of you, with an established family of companies ready for whatever your home needs next.</p><button className="text-link" type="button" onClick={openMatcher}>Match me with a company <Arrow /></button></div></Reveal></section>
 

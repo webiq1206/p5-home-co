@@ -21,14 +21,16 @@ export interface ProofPoint {
   readonly detail: string;
 }
 
+/** Kept for the founding-phrase guard. Not a second badge when the flag is on. */
+export const WORKING_HERE_SINCE_2020: ProofPoint = {
+  label: "Working here since 2020",
+  detail: "Building, remodeling, and repairing homes across Ada and Canyon counties.",
+};
+
 export const PROOF_POINTS: readonly ProofPoint[] = [
   {
     label: "Bonded and insured",
     detail: "Idaho Registered Contractor #8381215, carried across all five companies.",
-  },
-  {
-    label: "Working here since 2020",
-    detail: "Building, remodeling, and repairing homes across Ada and Canyon counties.",
   },
   {
     label: "A written scope, before work starts",
