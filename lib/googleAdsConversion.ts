@@ -1,18 +1,7 @@
-/** Google Ads conversions for the shared estimator.
- *
- * Finishing /estimate on p5homeco.com does not create an accepted lead. Public
- * mode is review, so the finish POSTs /api/p5-estimator/intake and stores a
- * project review. It does not call ingestLead or POST /api/leads/intake. The
- * priced path can queue CRM only when P5_CRM_DELIVERY=on, and that flag is off.
- * An intake: or estimator: finish therefore fires only the estimator label.
- *
- * If a finish does create an accepted lead, the form label fires once for that
- * project across both finish paths. The estimator label still fires once per
- * distinct completion key. Any other key is a lead conversion and fires the
- * form label only.
- */
+/** Estimator finishes emit a primary form conversion only for explicit server acceptance.
+ * Session and project identity deduplication protect against repeated finish paths. */
 
-/** False on p5homeco.com: neither finish path creates an accepted lead. */
+/** Missing acceptance never implies an accepted lead. */
 export const ESTIMATOR_FINISH_CREATES_ACCEPTED_LEAD = false;
 
 const ESTIMATOR_SEND_TO = "AW-18354188204/cEzmCPOagKAdEKzf-q9E";
@@ -100,12 +89,12 @@ export function adsConversionsToSend(completionKey: string, createsAcceptedLead:
   return plannedAdsConversions(completionKey, createsAcceptedLead).filter((event) => claim(event.sendTo, event.transactionId));
 }
 
-export function trackGoogleAdsLeadConversion(context: { service?: string } = {}, dedupeKey?: string): boolean {
+export function trackGoogleAdsLeadConversion(context: { service?: string } = {}, dedupeKey?: string, acceptance?: { accepted?: boolean }): boolean {
   void context;
   try {
     if (!dedupeKey || !analyticsAllowed()) return false;
     const createsLead = dedupeKey.startsWith("intake:") || dedupeKey.startsWith("estimator:")
-      ? ESTIMATOR_FINISH_CREATES_ACCEPTED_LEAD
+      ? acceptance?.accepted === true
       : true;
     const pending = adsConversionsToSend(dedupeKey, createsLead);
     if (!pending.length) return false;
@@ -115,3 +104,5 @@ export function trackGoogleAdsLeadConversion(context: { service?: string } = {},
     return false;
   }
 }
+
+export { ESTIMATOR_CONVERSION_SEND_TO } from "./p5/finishConversion.ts";

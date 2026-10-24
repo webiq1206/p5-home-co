@@ -30,6 +30,8 @@ export const BRAND_OWNED=['lib/p5/brand.ts','lib/p5/deliveryAdapter.ts','lib/p5/
 /** Modules that exist only in p5-home-co: its QA continuation service, the document service and
  * the local lead receiver. They are never copied or listed, and no shared file may import them. */
 export const P5_ONLY=[
+  // P5 Ads destination and live-host contract are site-specific.
+  'tests/p5-google-ads-conversion.test.ts',
   // P5 marketing search tests import P5 app identity, quote services and sitemap.
   'tests/p5-search-phase1.test.ts','lib/p5/canonicalReviewHttp.ts','lib/p5/canonicalReviewHubspot.ts','lib/p5/canonicalReviewStore.ts','tests/p5-canonical-receiver.test.ts','lib/p5/qaContinuation.ts','lib/p5/qaContinuationEndpoint.ts','lib/p5/qaOrigin.ts','lib/p5/qaSavedEstimate.ts','lib/p5/qaSavedEstimateEndpoint.ts','lib/p5/qaSavedReadingEndpoint.ts',
   'components/P5QaContinuation.tsx','components/P5QaSavedEstimate.tsx','components/P5QaSavedReading.tsx',

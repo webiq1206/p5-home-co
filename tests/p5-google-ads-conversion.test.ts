@@ -178,3 +178,27 @@ test("a thrown gtag call does not escape the completion", async () => {
     assert.equal(trackGoogleAdsLeadConversion({}, "intake:throws"), false);
   } finally { cleanup(); }
 });
+
+
+test("explicit acceptance emits one primary conversion across finish paths and duplicate clicks", () => {
+  const { calls } = install();
+  try {
+    assert.equal(trackGoogleAdsLeadConversion({}, "intake:p5:accepted-runtime", {accepted: true}), true);
+    assert.equal(trackGoogleAdsLeadConversion({}, "intake:p5:accepted-runtime", {accepted: true}), false);
+    assert.equal(trackGoogleAdsLeadConversion({}, "estimator:accepted-runtime", {accepted: true}), true);
+    assert.deepEqual(calls.filter(call => call[2].send_to === FORM), [
+      ["event", "conversion", {send_to: FORM, transaction_id: "accepted-runtime"}],
+    ]);
+  } finally { cleanup(); }
+});
+
+test("replays, missing acceptance and invalid acceptance never emit primary form conversions", () => {
+  const { calls } = install();
+  try {
+    for (const [index, accepted] of [false, undefined, "true", 1, null].entries()) {
+      trackGoogleAdsLeadConversion({}, `estimator:invalid-runtime-${index}`, {accepted: accepted as boolean});
+    }
+    assert.equal(calls.length, 5);
+    assert.equal(calls.filter(call => call[2].send_to === FORM).length, 0);
+  } finally { cleanup(); }
+});
