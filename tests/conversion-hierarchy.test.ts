@@ -10,11 +10,23 @@ const bar = readFileSync("components/LandingContactBar.tsx", "utf8");
 const mobile = readFileSync("components/MobileActionBar.tsx", "utf8");
 const sessions = readFileSync("app/lib/leads/estimatorSessions.ts", "utf8");
 
-test("hub pages lead with call, chat, and the short request form", () => {
+test("hub pages keep call and chat, with one short request below the hero", () => {
+  const heroStart = home.indexOf('<section className="hero"');
+  const heroEnd = home.indexOf("</section>", heroStart);
+  const hero = home.slice(heroStart, heroEnd);
+  assert.match(hero, /className="hero-image"/);
+  assert.match(hero, /id="hero-heading"/);
+  assert.doesNotMatch(hero, /ShortRequestForm/);
+  assert.equal(home.match(/<ShortRequestForm/g)?.length, 1);
   assert.match(home, /<ShortRequestForm id="request-form"/);
-  assert.match(home, /Call \{PUBLIC_PHONE_DISPLAY\}/);
+  assert.ok(home.indexOf('<ShortRequestForm id="request-form"') > heroEnd);
+  assert.match(home, /className="header-chat"/);
   assert.match(home, /<OpenChatButton/);
-  assert.match(quote, /<ShortRequestForm/);
+  const quoteHeroStart = quote.indexOf('className="quote-hero"');
+  const quoteRequestStart = quote.indexOf('className="quote-request"');
+  assert.ok(quoteHeroStart > -1 && quoteRequestStart > quoteHeroStart);
+  assert.doesNotMatch(quote.slice(quoteHeroStart, quoteRequestStart), /ShortRequestForm/);
+  assert.equal(quote.match(/<ShortRequestForm/g)?.length, 1);
   assert.match(quote, /<h1>A specialist team for your home project<\/h1>/);
   assert.match(quote, /headingAs=\{service \? "h1" : "h2"\}/);
   assert.match(quote, /layout="embedded"/);
@@ -23,6 +35,9 @@ test("hub pages lead with call, chat, and the short request form", () => {
   assert.match(bar, /<OpenChatButton/);
   assert.match(mobile, /href="\/#request-form"/);
   assert.match(mobile, /openSiteChat/);
+  const css = readFileSync("app/globals.css", "utf8");
+  assert.match(css, /\.hero \{[^}]*height: 100svh/);
+  assert.doesNotMatch(css, /\.hero \{ height: auto; min-height: 0/);
 });
 
 test("the short form requires name, phone, email, and a project note, and files stay optional", () => {

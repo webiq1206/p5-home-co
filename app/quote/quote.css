@@ -112,9 +112,9 @@
   z-index: 0;
   background: linear-gradient(
     180deg,
-    rgba(23, 33, 28, 0.42) 0%,
-    rgba(23, 33, 28, 0.28) 48%,
-    rgba(23, 33, 28, 0.5) 100%
+    rgba(23, 33, 28, 0.94) 0%,
+    rgba(23, 33, 28, 0.86) 45%,
+    rgba(23, 33, 28, 0.92) 100%
   );
 }
 
@@ -824,9 +824,21 @@
   min-height: 44px;
 }
 
-/* Design quality pass 2026-10-18: on a phone the headline explains the page before the estimator asks for anything. */
+/* On a phone the photograph and headline fill the first screen. The request form follows. */
 @media (max-width: 719px) {
-  .quote-hero { padding: 8px 0 28px; }
+  .quote-hero { min-height: calc(100svh - 76px); padding: 28px 0 36px; }
+  .quote-page > .quote-hero .quote-covers,
+  .quote-page > .quote-hero .quote-hero-call { display: none; }
+  .quote-page > .quote-hero .quote-lead { margin-bottom: 0; }
+}
+
+.quote-request { padding: 36px 0 12px; background: var(--paper); }
+.quote-request-inner { display: grid; grid-template-columns: minmax(0, 1fr) minmax(280px, 480px); gap: 24px 40px; align-items: start; }
+.quote-request-copy h2 { margin: 0 0 8px; font-family: "P5 Serif", Georgia, serif; font-size: clamp(28px, 4vw, 40px); font-weight: 500; }
+.quote-request-copy p { max-width: 46ch; margin: 0; color: var(--ink-2); font-size: 16px; line-height: 1.5; }
+@media (max-width: 720px) {
+  .quote-request { padding: 28px 0 4px; }
+  .quote-request-inner { grid-template-columns: 1fr; }
 }
 
 .quote-header-actions button {
@@ -841,54 +853,6 @@
   font-weight: 750;
   cursor: pointer;
 }
-
-.quote-contact-card {
-  max-width: 560px;
-  padding: 18px 16px 8px;
-  background: var(--paper);
-  color: var(--ink);
-  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.28);
-}
-
-.quote-contact-card > h1,
-.quote-contact-card > h2 {
-  margin: 0 0 10px;
-  color: var(--ink);
-  font-family: "P5 Serif", Georgia, serif;
-  font-size: clamp(30px, 7vw, 44px);
-  font-weight: 500;
-  line-height: 1.08;
-  letter-spacing: -0.02em;
-}
-
-.quote-contact-note {
-  margin: 0 0 12px;
-  color: var(--ink-2);
-  font-size: 15px;
-  line-height: 1.4;
-}
-
-.quote-contact-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin: 0 0 12px;
-}
-
-.quote-contact-actions .button {
-  flex: 1 1 140px;
-  min-height: 48px;
-  padding: 0 12px;
-  gap: 8px;
-}
-
-.quote-contact-card .quote-eyebrow { color: var(--bronze-ink); }
-.quote-contact-card .quote-lead,
-.quote-contact-card .quote-covers li,
-.quote-contact-card .quote-hero-call { color: var(--ink-2); }
-.quote-contact-card .quote-covers { border-top-color: var(--line, rgba(32, 35, 31, 0.14)); }
-.quote-contact-card .quote-covers li { border-bottom-color: var(--line, rgba(32, 35, 31, 0.14)); }
-.quote-contact-card .quote-hero-call a { color: var(--ink); }
 
 .quote-tool { padding: 28px 0 36px; }
 .quote-tool-intro h2 {
@@ -912,12 +876,6 @@
   .quote-header { padding: 8px 0; }
   .quote-shell,
   .quote-header { width: min(1180px, calc(100% - 48px)); }
-  .quote-contact-card { padding: 12px 14px 4px; }
-  .quote-contact-card > h1,
-  .quote-contact-card > h2 { font-size: 26px; line-height: 1.05; margin-bottom: 6px; }
-  .quote-contact-note { margin-bottom: 8px; font-size: 14px; }
-  .quote-contact-actions { margin-bottom: 8px; }
   .quote-photo-row { grid-template-columns: 1fr; }
   .quote-photo-row img { height: 200px; }
-  .quote-contact-card { max-width: none; }
 }
