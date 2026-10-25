@@ -88,6 +88,78 @@ export function contactProperties(c: ContactSyncInput): Record<string, string> {
   return out;
 }
 
+/**
+ * HubSpot p5_project_type options for portal 247066159.
+ *
+ * The sentence-case labels match tools/hubspot-setup.ts PROJECT_TYPES. The
+ * short slugs were added on the live portal for estimator and legacy forms.
+ * A value outside this set is rejected with 400 INVALID_OPTION, which fails
+ * the deal after the contact has already been upserted.
+ */
+export const HUBSPOT_PROJECT_TYPES = new Set<string>([
+  "Custom home",
+  "Semi-custom home",
+  "Build on land I own",
+  "Home plans or lot evaluation",
+  "Kitchen remodel",
+  "Bathroom remodel",
+  "Whole-home remodel",
+  "Addition, ADU, or basement",
+  "Detached ADU",
+  "Garage conversion",
+  "Basement or interior unit",
+  "Feasibility and permits",
+  "Drywall or trim repair",
+  "Mounting or installation",
+  "Deck or exterior repair",
+  "A multi-item home list",
+  "Kitchen cabinets",
+  "Bathroom vanity",
+  "Built-ins or storage",
+  "Whole-home cabinetry",
+  "handyman",
+  "re10",
+  "cabinet-product",
+  "cabinet-install",
+  "kitchen",
+  "bathroom",
+  "remodel",
+  "whole-home",
+  "addition",
+  "adu",
+  "new-construction",
+  "change-order",
+  "rush",
+]);
+
+/** Quote labels that are not themselves HubSpot enum values. */
+const PROJECT_TYPE_ALIASES: Record<string, string> = {
+  "Home addition": "Addition, ADU, or basement",
+  "Basement finishing": "Basement or interior unit",
+  "New custom home": "Custom home",
+  "Accessory dwelling unit (ADU)": "Detached ADU",
+  "Custom cabinets or built-ins": "Built-ins or storage",
+  "Home repairs or handyman work": "handyman",
+};
+
+/**
+ * Map a visitor-facing project type to a HubSpot p5_project_type option.
+ *
+ * deal.project_type in Postgres stays the visitor's words. Only the HubSpot
+ * property is sanitized. Unknown labels, blanks, and "Something else, or I
+ * am not sure" are omitted so they cannot 400 the deal.
+ */
+export function hubspotProjectType(projectType: string | null | undefined): string | undefined {
+  if (!projectType) return undefined;
+  const trimmed = projectType.trim();
+  if (!trimmed) return undefined;
+  if (trimmed === "Something else, or I am not sure") return undefined;
+  if (HUBSPOT_PROJECT_TYPES.has(trimmed)) return trimmed;
+  const aliased = PROJECT_TYPE_ALIASES[trimmed];
+  if (aliased && HUBSPOT_PROJECT_TYPES.has(aliased)) return aliased;
+  return undefined;
+}
+
 export type DealSyncInput = {
   name: string;
   brand: Brand;
@@ -138,7 +210,7 @@ export function dealProperties(
     p5_brand: d.brand,
     p5_lead_source: d.leadSource,
     p5_lead_source_detail: d.leadSourceDetail ?? undefined,
-    p5_project_type: d.projectType ?? undefined,
+    p5_project_type: hubspotProjectType(d.projectType),
     p5_property_address: d.propertyAddress ?? undefined,
     p5_property_city: d.propertyCity ?? undefined,
     p5_service_area: d.serviceArea ?? undefined,

@@ -7,12 +7,13 @@
  */
 
 import {collectAttribution,sourceFromAttribution} from "../../../lib/leads/attribution.ts";
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 
 import { isDatabaseConfigured } from "../../../lib/db.ts";
 import { ingestLead } from "../../../lib/leads/intake.ts";
 import { loadSettings } from "../../../lib/leads/settings.ts";
 import { BRANDS, LEAD_SOURCES, type Brand, type LeadSource } from "../../../lib/leads/types.ts";
+import { notifyLeadCreated } from "../../../lib/notifications/lead-created.ts";
 import { allowIntakeRequest } from "./abuse.ts";
 
 export const dynamic = "force-dynamic";
@@ -161,6 +162,29 @@ export async function POST(request: Request): Promise<NextResponse> {
 
     if (result.status === "rejected") {
       return NextResponse.json({ ok: false, errors: result.errors }, { status: 422 });
+    }
+
+    // Mail runs after the response is finished, so a send failure cannot
+    // change 201 or 200. Duplicate and rejected leads are not notified.
+    // Synthetic estimator acceptances are skipped inside notifyLeadCreated.
+    if (result.status === "created") {
+      const notice = {
+        dealId: result.dealId,
+        brand,
+        projectType: str(body.projectType ?? body.project_type ?? body.project),
+        firstName,
+        lastName,
+        email: str(body.email),
+        phone: str(body.phone ?? body.telephone),
+        propertyCity: str(body.city ?? body.propertyCity),
+        propertyAddress: str(body.address ?? body.propertyAddress),
+        summary: str(body.summary ?? body.message ?? body.description),
+        source: resolvedSource,
+        originalForm: str(body.form ?? body.originalForm),
+      };
+      after(async () => {
+        await notifyLeadCreated(notice);
+      });
     }
 
     // A duplicate is a success from the visitor's point of view: their enquiry
