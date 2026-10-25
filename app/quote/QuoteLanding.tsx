@@ -93,26 +93,14 @@ export default function QuoteLanding({ service, entryLabel, defaultService }: { 
           />
           <div className="quote-hero-veil" aria-hidden="true" />
 
-          <div className="quote-shell">
-            <div className="quote-contact-card">
+          <div className="quote-shell quote-hero-grid" style={{ gridTemplateColumns: "minmax(0,1fr)" }}>
+            <div className="quote-hero-copy">
               <p className="quote-eyebrow">
                 {service
                   ? `${service.label} · Treasure Valley`
                   : "Free quote · Treasure Valley, Idaho"}
               </p>
               {service ? <h2>{service.h1}</h2> : <h1>A specialist team for your home project</h1>}
-              <p className="quote-contact-note">Add a photo or plan if you have one.</p>
-              <div className="quote-contact-actions">
-                <TrackedPhoneLink className="button button-dark" location="quote_hero">Call (208) 477-1169</TrackedPhoneLink>
-                <OpenChatButton className="button button-dark" location="quote_hero">Chat</OpenChatButton>
-              </div>
-              <ShortRequestForm
-                id="request-form"
-                formName="Quote Landing Page"
-                defaultProject={service?.project}
-                plain
-                compact
-              />
               <p className="quote-lead">
                 {service
                   ? service.lead
@@ -132,6 +120,20 @@ export default function QuoteLanding({ service, entryLabel, defaultService }: { 
                 <TrackedPhoneLink location="quote_hero">Call (208) 477-1169</TrackedPhoneLink>
               </p>
             </div>
+          </div>
+        </section>
+
+        <section className="quote-request" aria-labelledby="quote-request-heading">
+          <div className="quote-shell quote-request-inner">
+            <div className="quote-request-copy">
+              <h2 id="quote-request-heading">Tell us what you need</h2>
+              <p>A name, phone, email, and a note are enough for a person to follow up. Add a photo or plan if you have one.</p>
+            </div>
+            <ShortRequestForm
+              id="request-form"
+              formName="Quote Landing Page"
+              defaultProject={service?.project}
+            />
           </div>
         </section>
 

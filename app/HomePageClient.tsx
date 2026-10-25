@@ -123,22 +123,18 @@ export default function Home() {
 
       <section className="hero" aria-labelledby="hero-heading">
         <img className="hero-image" src="/images/p5-hero.webp" alt="Modern two-story house with dark vertical siding, a flat roof, and warm window light at dusk" fetchPriority="high" decoding="async" /><div className="hero-shade" /><div className="hero-grain" />
-        <div className="hero-content content-shell">
-          <div className="hero-copy">
-            <p className="eyebrow eyebrow-light">The P5 Home Co family of companies</p>
-            <h1 id="hero-heading">{SHOW_UNPROVEN_TRUSTED ? TRUSTED_H1 : PLAIN_H1}</h1>
-            <p className="hero-subhead">Serving Boise, Meridian and the Treasure Valley</p>
-            <div className="hero-actions" data-suppress-mobile-bar="">
-              <a className="button button-light" href={PUBLIC_PHONE_TEL} onClick={() => track("phone_click", { location: "hero" })}>Call {PUBLIC_PHONE_DISPLAY}</a>
-              <OpenChatButton className="button button-light" location="hero">Chat</OpenChatButton>
-            </div>
+        <div className="hero-content content-shell"><div className="hero-copy"><p className="eyebrow eyebrow-light">The P5 Home Co family of companies</p><h1 id="hero-heading">{SHOW_UNPROVEN_TRUSTED ? TRUSTED_H1 : PLAIN_H1}</h1><p className="hero-subhead">Serving Boise, Meridian and the Treasure Valley</p><p className="hero-lede">{SHOW_UNPROVEN_TRUSTED ? TRUSTED_LEDE : PLAIN_LEDE}</p><div className="hero-actions" data-suppress-mobile-bar=""><button className="button button-light" type="button" onClick={openMatcher}>Find the right team <Arrow /></button><Link className="text-link text-link-light" href="/estimate" onClick={() => track("quote_click", { location: "hero" })}>Request a free quote <Arrow /></Link></div></div><div className="hero-side-note"><span>Serving</span><strong>Boise and the<br />Treasure Valley</strong></div></div>
+        <Link className="scroll-cue" href="/#about" aria-label="Explore P5 Home Co"><span>Explore</span><i /></Link>
+      </section>
+
+      <section className="request-band" aria-labelledby="request-band-heading">
+        <div className="content-shell request-band-inner">
+          <div className="request-band-copy">
+            <p className="eyebrow">Send a request</p>
+            <h2 id="request-band-heading">Tell us what you are planning.</h2>
+            <p>A name, phone, email, and a short note are enough. Call, chat, or text from the header if you would rather talk.</p>
           </div>
           <ShortRequestForm id="request-form" formName="Homepage short request" />
-          <p className="hero-lede">{SHOW_UNPROVEN_TRUSTED ? TRUSTED_LEDE : PLAIN_LEDE}</p>
-          <p className="hero-secondary">
-            <button className="text-link text-link-light" type="button" onClick={openMatcher}>Find the right team <Arrow /></button>
-            <Link className="text-link text-link-light" href="/estimate" onClick={() => track("quote_click", { location: "hero" })}>Full project details <Arrow /></Link>
-          </p>
         </div>
       </section>
 
@@ -164,7 +160,7 @@ export default function Home() {
 
       <section id="faq" className="faq section-pad" aria-labelledby="faq-heading"><Reveal className="content-shell faq-layout"><div><p className="eyebrow">Common questions</p><h2 id="faq-heading">Answers before<br />you commit.</h2><p className="faq-intro">If your question is not here, the matcher will still point you to the right company, and that company can answer the specifics of your project.</p></div><div className="faq-list">{faqs.map((item) => <details className="faq-item" key={item.q}><summary>{item.q}</summary><p>{item.a}</p></details>)}</div></Reveal></section>
 
-      <section className="final-cta"><img src="/images/p5-closing-v2.webp" alt="Modern house with dark vertical siding, a flat roof, and warmly lit windows at blue hour" loading="lazy" decoding="async" /><div className="final-cta-shade" /><Reveal className="content-shell final-cta-content"><p className="eyebrow eyebrow-light">Start with the need, not the company</p><h2>Tell us what you are planning.<br />We will point you to the right team.</h2><div className="final-cta-actions" data-suppress-mobile-bar=""><a className="button button-light" href={PUBLIC_PHONE_TEL} onClick={() => track("phone_click", { location: "final_cta" })}>Call {PUBLIC_PHONE_DISPLAY}</a><OpenChatButton className="button button-light" location="final_cta">Chat</OpenChatButton></div><ShortRequestForm id="request-form-close" formName="Homepage short request" /><p className="hero-secondary"><button className="text-link text-link-light" type="button" onClick={openMatcher}>Find the right team <Arrow /></button><Link className="text-link text-link-light" href="/estimate" onClick={() => track("quote_click", { location: "final_cta" })}>Full project details <Arrow /></Link></p></Reveal></section>
+      <section className="final-cta"><img src="/images/p5-closing-v2.webp" alt="Modern house with dark vertical siding, a flat roof, and warmly lit windows at blue hour" loading="lazy" decoding="async" /><div className="final-cta-shade" /><Reveal className="content-shell final-cta-content"><p className="eyebrow eyebrow-light">Start with the need, not the company</p><h2>Tell us what you are planning.<br />We will point you to the right team.</h2><div className="final-cta-actions" data-suppress-mobile-bar=""><button className="button button-light" type="button" onClick={openMatcher}>Find my P5 company <Arrow /></button><Link className="text-link text-link-light" href="/estimate" onClick={() => track("quote_click", { location: "final_cta" })}>Request a quote instead <Arrow /></Link></div></Reveal></section>
 
       <footer className="site-footer"><div className="content-shell"><div className="footer-main"><div className="footer-brand"><FooterWordmark /><p>Five specialized home-service companies. One shared standard for the Treasure Valley.</p><a className="footer-phone" href="tel:+12084771169" onClick={() => track("phone_click", { location: "footer" })}>(208) 477-1169</a><a className="footer-email" href="mailto:hello@p5homeco.com">hello@p5homeco.com</a><a className="footer-save-contact" href="/p5homeco.vcf" aria-label="Save P5 Home Co to your contacts">Save to Contacts</a></div><div className="footer-links"><div><h3>Our companies</h3><External href="https://boiseconstruction.co">Boise Construction Co</External><External href="https://boiseremodeling.co">Boise Remodeling Co</External><span className="footer-soon">Boise ADU Co <small>Launching soon</small></span><External href="https://boisehandyman.co">Boise Handyman Co</External><External href="https://boisecabinet.co">Boise Cabinet Co</External></div><div><h3>Explore</h3><Link href="/#about">About P5 Home Co</Link><Link href="/#p5-standard">The P5 standard</Link><Link href="/#service-area">Service area</Link><Link href="/#faq">Common questions</Link><Link href="/estimate">Request a quote</Link><Link href="/sitemap">Site map</Link><button type="button" onClick={openMatcher}>Find your team</button></div></div></div><PublicIdentity /><div className="footer-bottom"><span>© 2026 P5 Home Co. All rights reserved.</span><span>Boise and the Treasure Valley, Idaho</span></div></div></footer>
       {matcherOpen && <ProjectMatcher onClose={() => setMatcherOpen(false)} />}
