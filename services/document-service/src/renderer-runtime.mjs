@@ -2,6 +2,7 @@ import {spawn,fork} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
 import {ServiceError} from './core.mjs';
 import {existsSync} from 'node:fs';
+import {fatalDiagnostics,numericLimits} from './fatal-diagnostics.mjs';
 const helper=fileURLToPath(new URL('./pdfium-render.py',import.meta.url));
 export const bundledPython=fileURLToPath(new URL(process.platform==='win32'?'../../../.p5-renderer/Scripts/python.exe':'../../../.p5-renderer/bin/python',import.meta.url));
 export const python=()=>process.env.DOCUMENT_PDFIUM_PYTHON||(existsSync(bundledPython)?bundledPython:(process.platform==='win32'?'python':'python3'));
@@ -34,7 +35,10 @@ export async function checkRendererRuntime(){
 function primarySession(processFile=new URL('./parser-process.mjs',import.meta.url)){
   // Avoid V8's multi-GiB Wasm reservation conflicting with RLIMIT_AS. Wasm
   // keeps explicit bounds checks; this does not increase heap or render limits.
-  const child=fork(processFile,[],{env:engineEnv(),execArgv:['--max-old-space-size=128','--disable-wasm-trap-handler'],windowsHide:true,stdio:['ignore','ignore','ignore','ipc']});
+  const diagnosticMode=process.env.DOCUMENT_SYNTHETIC_DIAGNOSTICS==='1';
+  const child=fork(processFile,[],{env:engineEnv(),execArgv:['--max-old-space-size=128','--disable-wasm-trap-handler'],windowsHide:true,stdio:['ignore','ignore',diagnosticMode?'pipe':'ignore','ipc']});
+  const fatal=fatalDiagnostics();
+  child.stderr?.on('data',chunk=>fatal.write(chunk));
   let guard,failure,pending,boot=false,ready=false,closed=false,stopping=false,reap;
   let memory={};
   const reaped=new Promise(resolve=>reap=resolve);
@@ -71,7 +75,7 @@ function primarySession(processFile=new URL('./parser-process.mjs',import.meta.u
    clean();
    // Reap the limiter before releasing shared parser capacity.
    if(guard&&guard.exitCode===null&&guard.signalCode===null)await new Promise(r=>{guard.once('close',r);guard.kill('SIGKILL');});
-   if(pending){const error=failure||new ServiceError('parser-process-failed',503);error.diagnostics={exitCode:code,signal:child.signalCode,phase:pending.phase,memory};pending.reject(error);pending=null;}
+   if(pending){const error=failure||new ServiceError('parser-process-failed',503);error.diagnostics={exitCode:code,signal:child.signalCode,phase:pending.phase,fatalCategory:fatal.result(),...numericLimits(memory.limits),memory};pending.reject(error);pending=null;}
    reap();
   });
   return {
