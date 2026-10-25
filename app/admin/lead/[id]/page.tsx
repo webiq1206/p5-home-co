@@ -68,7 +68,15 @@ type ActivityRow = {
   who: string | null;
 };
 
+type RequestFileRow = { id: string; file_name: string; size_bytes: number | string };
+
 const d = (v: string | null) => (v ? new Date(v) : null);
+
+function fileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
 
 export default async function LeadDetail({ params }: { params: Promise<{ id: string }> }) {
   if (!isDatabaseConfigured()) redirect("/admin");
@@ -126,6 +134,14 @@ export default async function LeadDetail({ params }: { params: Promise<{ id: str
     clientWaitingSince: d(row.client_waiting_since),
   };
   const evaluation = evaluateDeal(snapshot, settings, now);
+
+  const requestFiles = await query<RequestFileRow>(
+    `SELECT id, file_name, size_bytes
+       FROM lead_request_file
+      WHERE deal_id = $1
+      ORDER BY created_at ASC, id ASC`,
+    [dealId],
+  );
 
   const activity = await query<ActivityRow>(
     `SELECT a.id, a.kind, a.outcome, a.body, a.is_human_attempt, a.is_two_way,
@@ -212,6 +228,20 @@ export default async function LeadDetail({ params }: { params: Promise<{ id: str
             <b>What they asked for</b>
             <p>{row.summary}</p>
           </div>
+        )}
+
+        {requestFiles.length > 0 && (
+          <section className="lead-panel">
+            <h2>Photos and plans</h2>
+            <ul>
+              {requestFiles.map((file) => (
+                <li key={file.id} style={{ overflowWrap: "anywhere", padding: "8px 0" }}>
+                  <a href={`/api/admin/lead-files?id=${file.id}`}>{file.file_name}</a>
+                  <span> {fileSize(Number(file.size_bytes))}</span>
+                </li>
+              ))}
+            </ul>
+          </section>
         )}
 
         {estimatorRecords.length > 0 && (

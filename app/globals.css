@@ -470,3 +470,114 @@ body[data-p5-estimator-active="true"] .p5-mobile-actionbar { display: none !impo
    Lining figures everywhere; balanced headings. (P5-21) */
 html { font-variant-numeric:lining-nums; }
 h1, h2, h3 { text-wrap:balance; }
+
+/* Primary lead form and a hero that fits Call, Chat, and Send request on a phone. */
+.hero { height: auto; min-height: 0; max-height: none; overflow: hidden; }
+.hero-content {
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(260px, 400px);
+  grid-template-areas: "intro form" "lede form" "secondary form";
+  align-items: start;
+  height: auto;
+  min-height: 0;
+  gap: 12px 28px;
+  padding: 112px 0 48px;
+}
+.hero-copy { grid-area: intro; max-width: none; }
+.hero .short-request { grid-area: form; }
+.hero-lede { grid-area: lede; margin-top: 8px; }
+.hero-secondary { grid-area: secondary; display: flex; flex-wrap: wrap; gap: 18px 28px; margin: 8px 0 0; }
+.hero h1 { font-size: clamp(40px, 4.6vw, 68px); }
+.hero-actions { margin-top: 16px; gap: 10px; }
+.hero-actions .button { min-height: 48px; padding: 0 16px; gap: 8px; }
+.short-request {
+  position: relative;
+  padding: 14px 14px 12px;
+  border: 1px solid rgba(32, 35, 31, 0.14);
+  background: var(--paper);
+  color: var(--ink);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.28);
+  scroll-margin-top: 88px;
+}
+.short-request-plain { padding: 0; border: 0; background: transparent; box-shadow: none; }
+.short-request h2 { margin: 0 0 6px; color: var(--ink); font-family: "P5 Serif", Georgia, serif; font-size: 22px; font-weight: 500; line-height: 1.15; }
+.short-request-note { margin: 0 0 10px; color: var(--ink-2); font-size: 13px; line-height: 1.4; }
+.short-request label { display: block; margin: 0 0 8px; color: var(--ink); font-size: 12px; font-weight: 750; }
+.short-request input[type="text"],
+.short-request input[type="tel"],
+.short-request input[type="email"],
+.short-request select,
+.short-request textarea {
+  display: block;
+  width: 100%;
+  min-height: 44px;
+  margin-top: 4px;
+  padding: 0 10px;
+  border: 1px solid rgba(32, 35, 31, 0.22);
+  background: #fff;
+  color: var(--ink);
+  font: 16px "P5 Sans", sans-serif;
+}
+.short-request textarea { min-height: 64px; padding: 8px 10px; resize: vertical; }
+.short-request-compact textarea { min-height: 52px; }
+.short-request-file input { display: block; width: 100%; margin-top: 4px; font: 14px "P5 Sans", sans-serif; }
+.short-request-file small { font-weight: 650; color: #5c6560; }
+.short-request-submit { width: 100%; min-height: 48px; }
+.short-request-status { margin: 8px 0 0; font-size: 14px; line-height: 1.4; }
+.short-request-trap, .short-request-sr { position: absolute; left: -10000px; width: 1px; height: 1px; overflow: hidden; }
+.short-request-compact label { margin-bottom: 6px; }
+.header-contact button,
+.estimator-contact button {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 8px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: 750 13px "P5 Sans", sans-serif;
+  cursor: pointer;
+}
+.estimator-contact button { min-height: 36px; font-size: 14px; }
+.how-p5-photos, .manifesto-photos { display: grid; gap: 12px; }
+.how-p5-photos { grid-template-columns: repeat(4, 1fr); margin-top: 28px; }
+.manifesto-photos { grid-template-columns: 1.2fr 0.8fr; margin-top: 36px; padding-bottom: 8px; }
+.how-p5-photos img, .manifesto-photos img { display: block; width: 100%; height: 160px; object-fit: cover; }
+.final-cta { min-height: 0; }
+.final-cta-content { min-height: 0; justify-content: flex-start; padding: 72px 0; }
+.final-cta h2 { font-size: clamp(36px, 5vw, 64px); }
+.final-cta .short-request { align-self: flex-start; width: min(100%, 440px); margin-top: 18px; box-shadow: none; }
+.mobile-menu-inner .button { width: 100%; margin-top: 12px; }
+body[data-p5-chat-open] { overflow: hidden; }
+body[data-p5-chat-open] .p5-mobile-actionbar { display: none !important; }
+.p5-mobile-actionbar button {
+  min-height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 4px;
+  cursor: pointer;
+  font: 600 16px "P5 Sans", sans-serif;
+}
+.p5-mobile-chat { flex: 1; background: transparent; color: #fbfaf6; border: 1px solid #65706a; }
+
+@media (max-width: 820px) {
+  .content-shell, .nav-shell, .mobile-menu-inner { width: calc(100% - 48px); }
+  .hero-content {
+    grid-template-columns: 1fr;
+    grid-template-areas: "intro" "form" "lede" "secondary";
+    padding: 80px 0 28px;
+  }
+  .hero h1 { max-width: 16ch; font-size: clamp(32px, 8.2vw, 40px); line-height: 1; }
+  .hero-subhead { margin-top: 8px; font-size: 14px; }
+  .hero-actions { flex-direction: row; align-items: stretch; gap: 8px; margin-top: 14px; }
+  .hero-actions .button { width: auto; flex: 1; }
+  .how-p5-photos, .manifesto-photos { grid-template-columns: 1fr 1fr; }
+  .manifesto-photos img, .how-p5-photos img { height: 140px; }
+}
+@media (max-width: 560px) {
+  .hero { height: auto; min-height: 0; }
+  .hero-content { height: auto; min-height: 0; padding-top: 80px; padding-bottom: 28px; }
+  .content-shell, .nav-shell, .mobile-menu-inner { width: calc(100% - 48px); }
+}

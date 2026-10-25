@@ -4,6 +4,7 @@ import Script from "next/script";
 import { googleTagBootstrap } from "@/lib/analyticsBootstrap";
 import HubSpotScript from "./HubSpotScript";
 import MobileActionBar from "@/components/MobileActionBar";
+import SiteChat from "@/components/SiteChat";
 import StripUtmLinks from "@/components/StripUtmLinks";
 import "./globals.css";
 import { gaMeasurementId, googleAdsCallClickLabel, googleAdsDestinationId, googleAdsPhoneConversionLabel, googleAdsTextClickLabel, siteUrl } from "./site";
@@ -17,6 +18,7 @@ export const viewport: Viewport = {
     { media: "(prefers-color-scheme: light)", color: "#FBFAF6" },
     { media: "(prefers-color-scheme: dark)", color: "#17211C" },
   ],
+  interactiveWidget: "resizes-content",
 };
 
 export const metadata: Metadata = withBrandPageMetadata(({
@@ -93,6 +95,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         {process.env.NODE_ENV === "production" && <HubSpotScript />}
         {children}
         <MobileActionBar />
+        <SiteChat />
       </body>
     </html>
   );

@@ -9,6 +9,8 @@ import { QUOTE_SERVICES, type QuoteService } from "./services";
 import { serializeJsonLd } from "../structuredData";
 import TrackedPhoneLink from "./TrackedPhoneLink";
 import PublicIdentity from "@/components/PublicIdentity";
+import { ShortRequestForm } from "@/components/ShortRequestForm";
+import { OpenChatButton } from "@/components/SiteChat";
 import { imageVariantFor } from "../imageVariants.ts";
 import { PUBLIC_PHONE_DISPLAY, PUBLIC_PHONE_SMS } from "../publicIdentity";
 
@@ -34,11 +36,23 @@ export default function QuoteLanding({ service, entryLabel, defaultService }: { 
     : "Modern two-story house with dark vertical siding, a flat roof, and warm window light at dusk.";
   const heroVariant = imageVariantFor(heroImage);
   const others = QUOTE_SERVICES.filter((s) => !service || s.slug !== service.slug);
+  const serviceDefaults: Record<string, string> = {
+    "kitchen-remodel": "kitchen",
+    "bathroom-remodel": "bathroom",
+    "home-addition": "addition",
+    adu: "adu",
+    "custom-home": "new-construction",
+    "new-construction": "new-construction",
+    "custom-cabinets": "cabinet-install",
+    handyman: "handyman",
+    "re-10": "re10",
+  };
+  const resolvedService = defaultService ?? serviceDefaults[service?.slug || ""] ?? "";
 
   return (
     <>
-      <a className="quote-skip" href="#quote-form-heading">
-        Skip to the quote form
+      <a className="quote-skip" href="#request-form">
+        Skip to the request form
       </a>
 
       <main className="quote-page" id="top">
@@ -59,13 +73,12 @@ export default function QuoteLanding({ service, entryLabel, defaultService }: { 
             >
               (208) 477-1169
             </TrackedPhoneLink>
+            <OpenChatButton className="quote-header-text" location="quote_header">Chat</OpenChatButton>
             <a className="quote-header-text" href={PUBLIC_PHONE_SMS} aria-label={`Text ${PUBLIC_PHONE_DISPLAY}`}>
               Text
             </a>
           </div>
         </header>
-
-        <section id="quote-form-heading" style={{padding:"12px 16px 36px",scrollMarginTop:100}}><P5Estimator headingAs={service ? "h1" : "h2"} layout="embedded" entryLabel={entryLabel} defaultService={defaultService??(({"kitchen-remodel":"kitchen","bathroom-remodel":"bathroom","home-addition":"addition","adu":"adu","custom-home":"new-construction","new-construction":"new-construction","custom-cabinets":"cabinet-install","handyman":"handyman","re-10":"re10"} as Record<string,string>)[service?.slug||""]||"")} /></section>
 
         <section className="quote-hero">
           <img
@@ -80,14 +93,26 @@ export default function QuoteLanding({ service, entryLabel, defaultService }: { 
           />
           <div className="quote-hero-veil" aria-hidden="true" />
 
-          <div className="quote-shell quote-hero-grid" style={{gridTemplateColumns:"minmax(0,1fr)"}}>
-            <div className="quote-hero-copy">
+          <div className="quote-shell">
+            <div className="quote-contact-card">
               <p className="quote-eyebrow">
                 {service
                   ? `${service.label} · Treasure Valley`
                   : "Free quote · Treasure Valley, Idaho"}
               </p>
               {service ? <h2>{service.h1}</h2> : <h1>A specialist team for your home project</h1>}
+              <p className="quote-contact-note">Add a photo or plan if you have one.</p>
+              <div className="quote-contact-actions">
+                <TrackedPhoneLink className="button button-dark" location="quote_hero">Call (208) 477-1169</TrackedPhoneLink>
+                <OpenChatButton className="button button-dark" location="quote_hero">Chat</OpenChatButton>
+              </div>
+              <ShortRequestForm
+                id="request-form"
+                formName="Quote Landing Page"
+                defaultProject={service?.project}
+                plain
+                compact
+              />
               <p className="quote-lead">
                 {service
                   ? service.lead
@@ -107,8 +132,16 @@ export default function QuoteLanding({ service, entryLabel, defaultService }: { 
                 <TrackedPhoneLink location="quote_hero">Call (208) 477-1169</TrackedPhoneLink>
               </p>
             </div>
+          </div>
+        </section>
 
-
+        <section id="quote-form-heading" className="quote-tool">
+          <div className="quote-shell quote-tool-intro">
+            <h2>Project details, if you want them</h2>
+            <p>This step is optional. A name and phone above are enough for a person to follow up.</p>
+          </div>
+          <div className="quote-tool-frame">
+            <P5Estimator headingAs={service ? "h1" : "h2"} layout="embedded" entryLabel={entryLabel} defaultService={resolvedService} />
           </div>
         </section>
 
@@ -123,6 +156,14 @@ export default function QuoteLanding({ service, entryLabel, defaultService }: { 
                 </li>
               ))}
             </ul>
+          </div>
+        </section>
+
+        <section className="quote-photos" aria-label="Recent home work">
+          <div className="quote-shell quote-photo-row">
+            <img src="/images/p5-bathroom.webp" alt="Bathroom with a glass walk-in shower, a freestanding tub, and a light wood vanity." loading="lazy" decoding="async" />
+            <img src="/images/p5-addition.webp" alt="Living room with a vaulted wood ceiling and a floor-to-ceiling stone fireplace." loading="lazy" decoding="async" />
+            <img src="/images/p5-adu.webp" alt="Small modern building with light board-and-batten siding, a dark metal roof, cedar trim, and a covered entry." loading="lazy" decoding="async" />
           </div>
         </section>
 

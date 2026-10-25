@@ -1,0 +1,56 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import { readFileSync } from "node:fs";
+
+const home = readFileSync("app/HomePageClient.tsx", "utf8");
+const quote = readFileSync("app/quote/QuoteLanding.tsx", "utf8");
+const chat = readFileSync("components/SiteChat.tsx", "utf8");
+const form = readFileSync("components/ShortRequestForm.tsx", "utf8");
+const bar = readFileSync("components/LandingContactBar.tsx", "utf8");
+const mobile = readFileSync("components/MobileActionBar.tsx", "utf8");
+const sessions = readFileSync("app/lib/leads/estimatorSessions.ts", "utf8");
+
+test("hub pages lead with call, chat, and the short request form", () => {
+  assert.match(home, /<ShortRequestForm id="request-form"/);
+  assert.match(home, /Call \{PUBLIC_PHONE_DISPLAY\}/);
+  assert.match(home, /<OpenChatButton/);
+  assert.match(quote, /<ShortRequestForm/);
+  assert.match(quote, /<h1>A specialist team for your home project<\/h1>/);
+  assert.match(quote, /headingAs=\{service \? "h1" : "h2"\}/);
+  assert.match(quote, /layout="embedded"/);
+  assert.match(bar, /PUBLIC_PHONE_TEL/);
+  assert.match(bar, /PUBLIC_PHONE_SMS/);
+  assert.match(bar, /<OpenChatButton/);
+  assert.match(mobile, /href="\/#request-form"/);
+  assert.match(mobile, /openSiteChat/);
+});
+
+test("the short form requires name, phone, email, and a project note, and files stay optional", () => {
+  for (const field of ["name", "phone", "email", "note"]) {
+    assert.match(form, new RegExp(`name="${field}"[^>]*required|required[^>]*name="${field}"`));
+  }
+  assert.match(form, /name="email"/);
+  assert.match(form, /Project note/);
+  assert.match(form, /type="file"/);
+  assert.match(form, /Optional/);
+  assert.doesNotMatch(form, /type="file"[^>]*required/);
+  const route = readFileSync("app/api/leads/short-request/route.ts", "utf8");
+  assert.match(route, /Enter an email address/);
+  assert.match(route, /Add a short note about the project/);
+  assert.doesNotMatch(chat, /type="file"/);
+  assert.match(chat, /visualViewport/);
+  assert.match(chat, /continueAssistantProject/);
+  assert.doesNotMatch(readFileSync("components/P5Estimator.tsx", "utf8"), /short-request/);
+});
+
+test("new lead copy has no em or en dashes, and partial emails stay off", () => {
+  const fresh = [
+    form,
+    chat,
+    readFileSync("app/api/leads/short-request/route.ts", "utf8"),
+    readFileSync("components/SiteChat.module.css", "utf8"),
+  ].join("\n");
+  assert.equal(fresh.includes("\u2014"), false);
+  assert.equal(fresh.includes("\u2013"), false);
+  assert.match(sessions, /PARTIAL_COMPLETION_EMAILS_ENABLED = false/);
+});
