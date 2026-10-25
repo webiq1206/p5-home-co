@@ -42,6 +42,7 @@
 
 .quote-header {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
@@ -58,6 +59,8 @@
 
 .quote-header-actions {
   display: flex;
+  flex-wrap: wrap;
+  max-width: 100%;
   flex-shrink: 0;
   align-items: center;
   gap: 14px;
