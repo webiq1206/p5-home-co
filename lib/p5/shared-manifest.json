@@ -274,7 +274,7 @@
     "scripts/check-p5-scope-extraction.ts": "6c1f6d77d5d769bea9fee4f821d59c552aae9a8a8a68253f4b55fd17a3280fda",
     "scripts/lib/capturedPricingDelivery.ts": "e67829d74ac53586a6b8f4e4e4990e7ac2723c1bcc6bd89e63ffaddbe54c413d",
     "scripts/lib/exactPricingReplay.mjs": "afe928f32fd51c81bc4346ce854e49a5dfc14665953aef19affdec6bf3d244d9",
-    "scripts/lib/navigationEntry.mjs": "6a750d82ecdcdfb357a273a123aaf915c2fb0cc115c61363ce664e9da5ad4e4d",
+    "scripts/lib/navigationEntry.mjs": "570c630761ee2ceb966c3894650ae68b54e2349aeb7f9b47b4aa5fa82b8ece3e",
     "scripts/lib/pricingQualification.ts": "b1b0d40ac12ab74477ecdd97d38bfffec67eb933cd1501fea60cc83160bf5f02",
     "scripts/lib/recoveryEpoch.mjs": "8a77de8a222128143e25dae712a5e82196c58352ed474c9dfee061b6baec0f98",
     "scripts/lib/syntheticPlanSet.ts": "9c60f5f1e8a4744566ca78903acde02e1baa81d6070fee5f088e4fd8073ea7c0",
@@ -448,7 +448,7 @@
     "tests/p5-missing-information.test.ts": "a48c6db9cc1490b3696fa9dc3835356ba056e565cd116a123958e954ea8370eb",
     "tests/p5-mixed-source-routing.test.ts": "5b2d26423a42e9d3b4437f93da2d07968cd6c3708b75e8b5ad11051d98132f57",
     "tests/p5-multipart.test.ts": "d578a55d824a8183de28c4c568a690baab843a33d2e587b0a460729655742207",
-    "tests/p5-navigation-entry.test.mjs": "7084510f8fa3364e84f956126ca7d9a47b506a51195b2d08fe38903b5e97e17f",
+    "tests/p5-navigation-entry.test.mjs": "ed5e8ca0ad9efe4e68bd492a63efcf640c34e47ffa240c4fbc7fee912b1a3cef",
     "tests/p5-navigation.test.ts": "274c35ea17be8fcaea5a0a89f067f62a9f4f792c391a09f8b37023c2d3e443f7",
     "tests/p5-notification-policy.test.ts": "c8d8f98fe2313f53cbfb142591e6fbc028548562f85e5d2679e7394890d545d9",
     "tests/p5-object-storage.test.ts": "a866741ebd3186928594bda8056bf01b3b181369671b175f6412bba748198274",
@@ -523,5 +523,13 @@
     "tests/p5-with-timeout.test.ts": "19144aa63a2d3e7991a67ec19e2f1ae867b40d55a499a3b7ad98e45ce8c3284e",
     "tests/p5-wizard-resume.test.ts": "423176433a701f191c5e88c99924a28748c001da3b4a746b892843cf52319085",
     "tests/p5-work-recovery.test.ts": "ef035f0257de7b9ddb4f8736044a72276a90d5599866587542f229db30debfdb"
+  },
+  "currentIntakeEntryBatch": {
+    "date": "2026-10-26",
+    "scope": [
+      "scripts/lib/navigationEntry.mjs",
+      "tests/p5-navigation-entry.test.mjs"
+    ],
+    "note": "Canonical test entry follows current Handyman homepage link and direct /estimate intake; substantive browser assertions retained."
   }
 }
