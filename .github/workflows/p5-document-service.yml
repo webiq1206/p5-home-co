@@ -9,6 +9,7 @@ on:
       - 'lib/p5/**'
       - 'scripts/*document*.m*'
       - 'tests/p5-document-service.test.ts'
+      - 'tests/contractor-registration.test.ts'
       - '.github/workflows/p5-document-service.yml'
   pull_request:
     paths:
@@ -23,6 +24,7 @@ on:
       - 'tests/p5-pricing-ledger.test.ts'
       - 'tests/p5-scope-pricing.test.ts'
       - 'scripts/test-p5-pricing-recovery.mts'
+      - 'tests/contractor-registration.test.ts'
       - '.github/workflows/p5-document-service.yml'
   workflow_dispatch:
 permissions:
