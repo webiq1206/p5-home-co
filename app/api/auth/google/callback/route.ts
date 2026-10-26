@@ -25,7 +25,7 @@ import {
 } from "../../../../lib/google-auth.ts";
 import { appUrl } from "../../../../lib/public-url.ts";
 import type { Role } from "../../../../lib/leads/types.ts";
-import { OAUTH_NONCE_COOKIE, OAUTH_STATE_COOKIE } from "../route.ts";
+import { OAUTH_NONCE_COOKIE, OAUTH_STATE_COOKIE } from "../../../../lib/google-auth-cookies.ts";
 
 export const dynamic = "force-dynamic";
 
