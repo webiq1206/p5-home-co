@@ -5,7 +5,7 @@
  * same lead record the rest of the site already creates.
  */
 
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 
 import { isDatabaseConfigured, transaction } from "../../../lib/db.ts";
 import { ingestLead } from "../../../lib/leads/intake.ts";
@@ -13,6 +13,7 @@ import { loadSettings } from "../../../lib/leads/settings.ts";
 import { normalizeEmail, normalizePhone } from "../../../lib/leads/normalize.ts";
 import { readShortRequestFiles, ShortRequestFileError } from "../../../lib/leads/shortRequestFiles.ts";
 import { collectAttribution, sourceFromAttribution } from "../../../lib/leads/attribution.ts";
+import { notifyLeadCreated } from "../../../lib/notifications/lead-created.ts";
 import { allowIntakeRequest } from "../intake/abuse.ts";
 import { brandForProject } from "../../../quote/options.ts";
 import { QUOTE_SERVICES } from "../../../quote/services.ts";
@@ -103,6 +104,7 @@ export async function POST(request: Request): Promise<NextResponse> {
   const attributedSource = sourceFromAttribution(attribution);
   const resolvedSource = isQuoteForm || attributedSource !== "Organic Website" ? attributedSource : "Organic Website";
   const service = QUOTE_SERVICES.find((entry) => entry.project === project);
+  const brand = brandForProject(project);
 
   let files;
   try {
@@ -129,7 +131,7 @@ export async function POST(request: Request): Promise<NextResponse> {
         lastName,
         email,
         phone,
-        brand: brandForProject(project),
+        brand,
         projectType: project,
         source: resolvedSource,
         sourceDetail: attribution?.gclid ?? attribution?.gbraid ?? attribution?.wbraid ?? attribution?.first_gclid ?? attribution?.utm_campaign ?? null,
@@ -178,6 +180,28 @@ export async function POST(request: Request): Promise<NextResponse> {
     }
 
     const filesMissing = files.length > 0 && !filesAttached;
+    // Mail runs after the response is finished, so a send failure cannot
+    // change 201. Duplicate and rejected leads are not notified.
+    // Synthetic estimator acceptances are skipped inside notifyLeadCreated.
+    if (created) {
+      const notice = {
+        dealId: result.dealId,
+        brand,
+        projectType: project,
+        firstName,
+        lastName,
+        email,
+        phone,
+        propertyCity: null,
+        propertyAddress: null,
+        summary,
+        source: resolvedSource,
+        originalForm: formName,
+      };
+      after(async () => {
+        await notifyLeadCreated(notice);
+      });
+    }
     return NextResponse.json(
       {
         ok: true,

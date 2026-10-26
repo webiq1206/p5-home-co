@@ -1,9 +1,10 @@
 /**
- * One-shot team notice when public intake creates a lead.
+ * One-shot team notice when a public form creates a lead.
  *
- * This path is independent of P5_LEAD_ALERT_EMAILS_ENABLED. That flag only
- * gates the SLA escalation dispatcher. A send failure is logged and must not
- * change the intake HTTP status.
+ * Intake and the short request both call this after a created deal. The path
+ * is independent of P5_LEAD_ALERT_EMAILS_ENABLED. That flag only gates the
+ * SLA escalation dispatcher. A send failure is logged and must not change
+ * the HTTP status.
  */
 
 import { PUBLIC_EMAIL } from "../../publicIdentity.ts";
