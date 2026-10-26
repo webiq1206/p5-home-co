@@ -103,3 +103,18 @@ test("public intake notifies only after a created lead and ignores the escalatio
   assert.match(source, /after\(async \(\) => \{\s*await notifyLeadCreated\(notice\)/);
   assert.equal(source.includes("P5_LEAD_ALERT_EMAILS_ENABLED"), false);
 });
+
+test("short request notifies only after a created lead and ignores the escalation flag", () => {
+  const source = readFileSync(new URL("../app/api/leads/short-request/route.ts", import.meta.url), "utf8");
+  assert.match(source, /const created = result\.status === "created"/);
+  assert.match(source, /if \(created\) \{/);
+  assert.match(source, /dealId: result\.dealId/);
+  assert.match(source, /projectType: project/);
+  assert.match(source, /propertyCity: null/);
+  assert.match(source, /propertyAddress: null/);
+  assert.match(source, /source: resolvedSource/);
+  assert.match(source, /originalForm: formName/);
+  assert.match(source, /after\(async \(\) => \{\s*await notifyLeadCreated\(notice\)/);
+  assert.equal(source.includes("P5_LEAD_ALERT_EMAILS_ENABLED"), false);
+  assert.equal((source.match(/await notifyLeadCreated\(/g) ?? []).length, 1);
+});
