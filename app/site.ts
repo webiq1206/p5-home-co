@@ -1,4 +1,7 @@
-import { BASEBOARD_TRIM_FIT, FRAMING_FOOTHILLS } from "./imageVariants.ts";
+import {
+  FEATURED_BOISE_ADU,
+  FEATURED_BOISE_KITCHEN,
+} from "./imageVariants.ts";
 
 // Single source of truth for the production origin. Used by the metadata,
 // the JSON-LD entity graph, robots.txt, and the sitemap. Change it here
@@ -33,14 +36,14 @@ export const companies = [
   },
   {
     name: "Boise Remodeling Co",
-    image: "/images/p5-remodel.webp",
+    image: FEATURED_BOISE_KITCHEN.src,
     url: "https://boiseremodeling.co",
     description:
       "Design-build remodeling for kitchens, bathrooms, whole-home renovations, additions, and ADUs.",
   },
   {
     name: "Boise ADU Co",
-    image: "/images/p5-adu.webp",
+    image: FEATURED_BOISE_ADU.src,
     url: "https://boiseadu.co",
     description:
       "Accessory dwelling units, including detached ADUs, garage conversions, basement and interior units, and feasibility and permitting. ADU requests are available through P5 while the standalone website is prelaunch.",

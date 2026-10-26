@@ -11,7 +11,15 @@ import TrackedPhoneLink from "./TrackedPhoneLink";
 import PublicIdentity from "@/components/PublicIdentity";
 import { ShortRequestForm } from "@/components/ShortRequestForm";
 import { OpenChatButton } from "@/components/SiteChat";
-import { imageVariantFor } from "../imageVariants.ts";
+import {
+  imageVariantFor,
+  FEATURED_BOISE_EXTERIOR,
+  FEATURED_BOISE_GREAT_ROOM,
+  FEATURED_BOISE_KITCHEN,
+  FEATURED_BOISE_BATHROOM,
+  FEATURED_BOISE_ADU,
+  TREASURE_VALLEY_FOOTHILLS,
+} from "../imageVariants.ts";
 import { PUBLIC_PHONE_DISPLAY, PUBLIC_PHONE_SMS } from "../publicIdentity";
 
 /* eslint-disable @next/next/no-img-element */
@@ -30,10 +38,8 @@ import { PUBLIC_PHONE_DISPLAY, PUBLIC_PHONE_SMS } from "../publicIdentity";
  */
 export default function QuoteLanding({ service, entryLabel, defaultService }: { service: QuoteService | null;entryLabel?:string;defaultService?:string }) {
   const faqs = faqsFor(service);
-  const heroImage = service ? service.image : "/images/p5-hero.webp";
-  const heroAlt = service
-    ? service.imageAlt
-    : "Modern two-story house with dark vertical siding, a flat roof, and warm window light at dusk.";
+  const heroImage = service ? service.image : FEATURED_BOISE_EXTERIOR.src;
+  const heroAlt = service ? service.imageAlt : FEATURED_BOISE_EXTERIOR.alt;
   const heroVariant = imageVariantFor(heroImage);
   const others = QUOTE_SERVICES.filter((s) => !service || s.slug !== service.slug);
   const serviceDefaults: Record<string, string> = {
@@ -161,11 +167,16 @@ export default function QuoteLanding({ service, entryLabel, defaultService }: { 
           </div>
         </section>
 
-        <section className="quote-photos" aria-label="Recent home work">
-          <div className="quote-shell quote-photo-row">
-            <img src="/images/p5-bathroom.webp" alt="Bathroom with a glass walk-in shower, a freestanding tub, and a light wood vanity." loading="lazy" decoding="async" />
-            <img src="/images/p5-addition.webp" alt="Living room with a vaulted wood ceiling and a floor-to-ceiling stone fireplace." loading="lazy" decoding="async" />
-            <img src="/images/p5-adu.webp" alt="Small modern building with light board-and-batten siding, a dark metal roof, cedar trim, and a covered entry." loading="lazy" decoding="async" />
+        <section className="quote-photos" aria-labelledby="quote-featured-heading">
+          <div className="quote-shell">
+            <h2 id="quote-featured-heading" className="quote-photos-heading">One foothills home, room by room</h2>
+            <p className="quote-photos-lead">A cohesive Boise-area custom home shown room by room, so the kitchen, great room, bath, and ADU read as the same property. Representative design.</p>
+            <div className="quote-photo-row">
+              <img src={FEATURED_BOISE_KITCHEN.src} alt={FEATURED_BOISE_KITCHEN.alt} width={FEATURED_BOISE_KITCHEN.width} height={FEATURED_BOISE_KITCHEN.height} loading="lazy" decoding="async" />
+              <img src={FEATURED_BOISE_GREAT_ROOM.src} alt={FEATURED_BOISE_GREAT_ROOM.alt} width={FEATURED_BOISE_GREAT_ROOM.width} height={FEATURED_BOISE_GREAT_ROOM.height} loading="lazy" decoding="async" />
+              <img src={FEATURED_BOISE_BATHROOM.src} alt={FEATURED_BOISE_BATHROOM.alt} width={FEATURED_BOISE_BATHROOM.width} height={FEATURED_BOISE_BATHROOM.height} loading="lazy" decoding="async" />
+              <img src={FEATURED_BOISE_ADU.src} alt={FEATURED_BOISE_ADU.alt} width={FEATURED_BOISE_ADU.width} height={FEATURED_BOISE_ADU.height} loading="lazy" decoding="async" />
+            </div>
           </div>
         </section>
 
@@ -193,6 +204,10 @@ export default function QuoteLanding({ service, entryLabel, defaultService }: { 
           </section>
         )}
 
+        <section className="quote-scroll-photo" aria-hidden="true">
+          <img src={FEATURED_BOISE_EXTERIOR.src} alt="" width={FEATURED_BOISE_EXTERIOR.width} height={FEATURED_BOISE_EXTERIOR.height} loading="lazy" decoding="async" />
+        </section>
+
         <section className="quote-steps" aria-labelledby="what-happens">
           <div className="quote-shell">
             <h2 id="what-happens">What happens after you send this</h2>
@@ -205,6 +220,12 @@ export default function QuoteLanding({ service, entryLabel, defaultService }: { 
                 </li>
               ))}
             </ol>
+          </div>
+        </section>
+
+        <section className="quote-photos quote-photos-compact" aria-label="Treasure Valley setting">
+          <div className="quote-shell quote-photo-row quote-photo-row-single">
+            <img src={TREASURE_VALLEY_FOOTHILLS.src} alt={TREASURE_VALLEY_FOOTHILLS.alt} width={TREASURE_VALLEY_FOOTHILLS.width} height={TREASURE_VALLEY_FOOTHILLS.height} loading="lazy" decoding="async" />
           </div>
         </section>
 
@@ -238,16 +259,19 @@ export default function QuoteLanding({ service, entryLabel, defaultService }: { 
         </section>
 
         <section className="quote-faq" aria-labelledby="quote-questions">
-          <div className="quote-shell">
-            <h2 id="quote-questions">Questions about getting a quote</h2>
-            <dl>
-              {faqs.map((item) => (
-                <div key={item.q}>
-                  <dt>{item.q}</dt>
-                  <dd>{item.a}</dd>
-                </div>
-              ))}
-            </dl>
+          <div className="quote-shell quote-faq-with-photo">
+            <div>
+              <h2 id="quote-questions">Questions about getting a quote</h2>
+              <dl>
+                {faqs.map((item) => (
+                  <div key={item.q}>
+                    <dt>{item.q}</dt>
+                    <dd>{item.a}</dd>
+                  </div>
+                ))}
+              </dl>
+            </div>
+            <img className="quote-faq-photo" src={FEATURED_BOISE_GREAT_ROOM.src} alt={FEATURED_BOISE_GREAT_ROOM.alt} width={FEATURED_BOISE_GREAT_ROOM.width} height={FEATURED_BOISE_GREAT_ROOM.height} loading="lazy" decoding="async" />
           </div>
         </section>
 
