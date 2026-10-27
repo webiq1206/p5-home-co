@@ -350,7 +350,7 @@ a:hover .arrow-diagonal, a:focus-visible .arrow-diagonal { transform: translate(
   .trust-grid div { min-height:92px; padding:20px 16px; }
   .trust-grid div:first-child { border-left:0; }
   .trust-grid strong { font-size:20px; }
-  .manifesto h2,.companies h2,.standard h2,.handoff h2,.service-area h2,.faq h2,.final-cta h2 { font-size:47px; }
+  .manifesto h2,.companies h2,.standard h2,.handoff h2,.service-area h2,.faq h2,.final-cta h2,.featured-project-intro h2 { font-size:47px; }
   .faq-item summary { font-size:19px; gap:20px; }
   .standard-grid { grid-template-columns:1fr; }
   .area-list { grid-template-columns:1fr 1fr; }
@@ -519,6 +519,22 @@ h1, h2, h3 { text-wrap:balance; }
 .how-p5-photos { grid-template-columns: repeat(4, 1fr); margin-top: 28px; }
 .manifesto-photos { grid-template-columns: 1.2fr 0.8fr; margin-top: 36px; padding-bottom: 8px; }
 .how-p5-photos img, .manifesto-photos img { display: block; width: 100%; height: 160px; object-fit: cover; }
+.featured-project { background: var(--paper); border-bottom: 1px solid var(--line); }
+.featured-project-intro { display: grid; grid-template-columns: 1.2fr .8fr; gap: 8vw; align-items: end; margin-bottom: 36px; }
+.featured-project-intro h2 { margin: 0; font-family: "P5 Serif", Georgia, serif; font-weight: 400; letter-spacing: -.047em; line-height: .98; font-size: clamp(42px,5.2vw,78px); }
+.featured-project-intro > p { margin: 0; max-width: 420px; color: #676d66; font-size: 15px; line-height: 1.8; }
+.featured-project-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+.featured-project-shot { margin: 0; }
+.featured-project-shot img { display: block; width: 100%; height: 200px; object-fit: cover; }
+.featured-project-shot > span { display: block; margin-top: 8px; color: #747a73; font-size: 11px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
+.featured-project-wide { grid-column: 1 / -1; }
+.featured-project-wide img { height: 280px; }
+.standard-photos { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 42px 0 0; }
+.standard-photos img { display: block; width: 100%; height: 160px; object-fit: cover; opacity: .92; }
+.service-area-visual { display: grid; gap: 18px; }
+.service-area-visual > img { display: block; width: 100%; height: 220px; object-fit: cover; }
+.scroll-photo { position: relative; min-height: 42vw; max-height: 520px; overflow: hidden; background: #1a1c19; }
+.scroll-photo img { display: block; width: 100%; height: 100%; min-height: 280px; object-fit: cover; object-position: center 40%; }
 .mobile-menu-inner .button { width: 100%; margin-top: 12px; }
 body[data-p5-chat-open] { overflow: hidden; }
 body[data-p5-chat-open] .p5-mobile-actionbar { display: none !important; }
@@ -539,6 +555,16 @@ body[data-p5-chat-open] .p5-mobile-actionbar { display: none !important; }
   .request-band-inner { grid-template-columns: 1fr; }
   .how-p5-photos, .manifesto-photos { grid-template-columns: 1fr 1fr; }
   .manifesto-photos img, .how-p5-photos img { height: 140px; }
+  .featured-project-intro { grid-template-columns: 1fr; gap: 22px; margin-bottom: 28px; }
+  .featured-project-grid { grid-template-columns: 1fr 1fr; }
+  .featured-project-grid img { height: 150px; }
+  .featured-project-wide { grid-column: 1 / -1; }
+  .featured-project-wide img { height: 200px; }
+  .standard-photos { grid-template-columns: 1fr; gap: 10px; margin-top: 28px; }
+  .standard-photos img { height: 180px; }
+  .service-area-visual > img { height: 180px; }
+  .scroll-photo { min-height: 58vw; max-height: none; }
+  .scroll-photo img { min-height: 220px; }
 }
 
 /* Five visible project routes, without a swipe-only company rail. */

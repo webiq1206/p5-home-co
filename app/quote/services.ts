@@ -1,4 +1,11 @@
-import { BASEBOARD_TRIM_FIT, FRAMING_FOOTHILLS } from "../imageVariants.ts";
+import {
+  BASEBOARD_TRIM_FIT,
+  FRAMING_FOOTHILLS,
+  FEATURED_BOISE_KITCHEN,
+  FEATURED_BOISE_BATHROOM,
+  FEATURED_BOISE_GREAT_ROOM,
+  FEATURED_BOISE_ADU,
+} from "../imageVariants.ts";
 /**
  * The service variants of the quote page.
  *
@@ -53,8 +60,8 @@ export const QUOTE_SERVICES: readonly QuoteService[] = [
     metaTitle: "Kitchen Remodel Quote, Boise & Meridian | P5 Home Co",
     metaDescription:
       "Free kitchen remodeling quotes across Boise, Meridian, Eagle, and the Treasure Valley. One written scope covering layout, cabinetry, and every trade.",
-    image: "/images/p5-remodel.webp",
-    imageAlt: "Kitchen with white flat-panel cabinets, a dark island, wood stools, and a marble backsplash.",
+    image: FEATURED_BOISE_KITCHEN.src,
+    imageAlt: FEATURED_BOISE_KITCHEN.alt,
     project: "Kitchen remodel",
     brand: "Boise Remodeling Co",
     covers: [
@@ -71,8 +78,8 @@ export const QUOTE_SERVICES: readonly QuoteService[] = [
     metaTitle: "Bathroom Remodel Quote, Boise & Meridian | P5 Home Co",
     metaDescription:
       "Free bathroom remodeling quotes across Boise, Meridian, Eagle, and the Treasure Valley. Written scopes covering tile, fixtures, and waterproofing.",
-    image: "/images/p5-bathroom.webp",
-    imageAlt: "Bathroom with a glass walk-in shower, a freestanding tub, and a light wood vanity.",
+    image: FEATURED_BOISE_BATHROOM.src,
+    imageAlt: FEATURED_BOISE_BATHROOM.alt,
     project: "Bathroom remodel",
     brand: "Boise Remodeling Co",
     covers: [
@@ -89,8 +96,8 @@ export const QUOTE_SERVICES: readonly QuoteService[] = [
     metaTitle: "Home Addition Quote, Boise & Meridian | P5 Home Co",
     metaDescription:
       "Free home addition quotes across the Treasure Valley. One written scope covering foundation, framing, roof tie-in, mechanicals, and permits. No obligation.",
-    image: "/images/p5-addition.webp",
-    imageAlt: "Living room with a vaulted wood ceiling and a floor-to-ceiling stone fireplace.",
+    image: FEATURED_BOISE_GREAT_ROOM.src,
+    imageAlt: FEATURED_BOISE_GREAT_ROOM.alt,
     project: "Home addition",
     brand: "Boise Remodeling Co",
     covers: [
@@ -125,8 +132,8 @@ export const QUOTE_SERVICES: readonly QuoteService[] = [
     metaTitle: "ADU & Garage Conversion Quote, Boise | P5 Home Co",
     metaDescription:
       "Free ADU quotes in the Treasure Valley: detached units, garage conversions, and basement conversions, with feasibility and permits handled by one P5 team.",
-    image: "/images/p5-adu.webp",
-    imageAlt: "Small modern building with light board-and-batten siding, a dark metal roof, cedar trim, and a covered entry.",
+    image: FEATURED_BOISE_ADU.src,
+    imageAlt: FEATURED_BOISE_ADU.alt,
     project: "Accessory dwelling unit (ADU)",
     brand: "Boise ADU Co",
     covers: [
