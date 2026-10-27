@@ -19,7 +19,7 @@ export const siteUrl = "https://p5homeco.com";
 export const HOW_P5_WORKS_TITLE = "How P5 works";
 export const HOW_P5_WORKS = [
   { title: "Tell us what you’re planning", detail: "A new home, a remodel, cabinets, repairs or an ADU. Share your project, or choose Just contact me in the P5 form." },
-  { title: "Connect with the right company", detail: "Your project goes to the P5 specialist for that work. You know which company to speak with and who owns the next step." },
+  { title: "Connect with the right company", detail: "Find the P5 company focused on your type of project. Contact that team to discuss the work." },
   { title: "Discuss the next steps", detail: "Review the scope with your specialist. Agree on the work, price and schedule before work begins." },
 ] as const;
 
