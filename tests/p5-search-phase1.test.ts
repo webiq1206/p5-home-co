@@ -75,7 +75,7 @@ test("llms-full.txt is the fact sheet plus the homepage FAQ and nothing invented
   }
   const questions = homePageSchema.mainEntity.map((item) => item.name);
   assert.ok(questions.includes("Who builds a new home, or builds on land you already own?"));
-  assert.ok(questions.includes("Can one project involve more than one company?"));
+  assert.ok(questions.includes("How do I start an ADU project?"));
   assert.equal(full.toLowerCase().includes("facebook.com"), false);
 });
 

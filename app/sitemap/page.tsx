@@ -58,7 +58,7 @@ export default function SitemapPage() {
           <ul className="sitemap-list">
             {childSites.map((c) =>
               c.comingSoon ? (
-                <li key={c.href} className="sitemap-soon">{c.label} <small>(launching soon)</small></li>
+                <li key={c.href} className="sitemap-soon"><Link href="/quote/adu">{c.label}</Link> <small>(ADU requests through P5; standalone website coming soon)</small></li>
               ) : (
                 <li key={c.href}><a href={c.href}>{c.label}</a></li>
               ),

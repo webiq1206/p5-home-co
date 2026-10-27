@@ -32,8 +32,8 @@ export const SPECIALTY_EXPERTISE = "Each company has its own specialty, team, an
 export const QUOTE_SELF_PERFORM = "Each one does its own craft under one shared standard.";
 export const QUOTE_SPECIALTY = "Each one focuses on its own specialty under one shared standard.";
 
-export const OWN_CRAFT_DETAIL = "Each company does its own craft. P5 coordinates the handoff between them.";
-export const OWN_SPECIALTY_DETAIL = "Each company focuses on its own specialty. P5 coordinates the handoff between them.";
+export const OWN_CRAFT_DETAIL = "Start with the company whose craft fits your project. Your specialist explains the next step.";
+export const OWN_SPECIALTY_DETAIL = "Start with the company whose specialty fits your project. Your specialist explains the next step.";
 
 export const FABRICATION_HANDOFF = "Cabinet design, fabrication, and installation";
 export const SOURCING_HANDOFF = "Cabinet design, sourcing, and installation";

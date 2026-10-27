@@ -6,12 +6,9 @@ import { BASEBOARD_TRIM_FIT, FRAMING_FOOTHILLS } from "./imageVariants.ts";
 import {
   BONDED_ANSWER,
   BONDED_SINCE_2020_ANSWER,
-  FABRICATION_FAQ,
   SELF_PERFORM_FAQ,
-  SHOW_CABINET_FABRICATION,
   SHOW_FOUNDING_YEAR,
   SHOW_UNPROVEN_SELF_PERFORM,
-  SOURCING_FAQ,
   SPECIALTY_FAQ,
   constructionImage,
   handymanImage,
@@ -21,13 +18,9 @@ export const siteUrl = "https://p5homeco.com";
 
 export const HOW_P5_WORKS_TITLE = "How P5 works";
 export const HOW_P5_WORKS = [
-  "Own install crew",
-  "Bonded & insured",
-  "Manufacturer warranties passed through",
-  "Install dates confirmed in writing",
-  "Written update every week",
-  "Free in-home consultation, no pressure",
-  "Public representative: Nick Perkins",
+  { title: "Tell us what you’re planning", detail: "A new home, a remodel, cabinets, repairs or an ADU. Share your project, or choose Just contact me in the P5 form." },
+  { title: "Connect with the right company", detail: "Your project goes to the P5 specialist for that work. You know which company to speak with and who owns the next step." },
+  { title: "Discuss the next steps", detail: "Review the scope with your specialist. Agree on the work, price and schedule before work begins." },
 ] as const;
 
 export const companies = [
@@ -50,7 +43,7 @@ export const companies = [
     image: "/images/p5-adu.webp",
     url: "https://boiseadu.co",
     description:
-      "Accessory dwelling units, including detached ADUs, garage conversions, basement and interior units, and feasibility and permitting. Launching soon.",
+      "Accessory dwelling units, including detached ADUs, garage conversions, basement and interior units, and feasibility and permitting. ADU requests are available through P5 while the standalone website is prelaunch.",
   },
   {
     name: "Boise Handyman Co",
@@ -97,8 +90,8 @@ export const faqs = [
     a: "Start with the project rather than the company. New homes go to Boise Construction Co, renovations to Boise Remodeling Co, accessory dwellings to Boise ADU Co, repairs and installations to Boise Handyman Co, and cabinetry to Boise Cabinet Co. The three-step matcher on this page will point you to the right one.",
   },
   {
-    q: "What if my project needs more than one company?",
-    a: "P5 routes the work between companies without sending you back to the start. A complete kitchen runs through Boise Remodeling Co for layout, permits, demolition, and construction, Boise Cabinet Co for cabinet design and installation, and Boise Handyman Co for final mounting and punch-list items.",
+    q: "How do I start an ADU project?",
+    a: "Boise ADU Co is available for ADU projects. Start through the existing P5 ADU request form while the standalone Boise ADU Co website is being prepared.",
   },
   {
     q: "Which areas do the P5 companies serve?",
@@ -122,7 +115,7 @@ export const faqs = [
   },
   {
     q: "Who adds a guest suite, rental unit, or multigenerational living space on land you already own?",
-    a: "Boise ADU Co. That work includes detached ADUs, garage conversions, basement and interior units, and feasibility and permitting. The website is not live yet; enquiries go to (208) 477-1169.",
+    a: "Boise ADU Co. That work includes detached ADUs, garage conversions, basement and interior units, and feasibility and permitting. Start through the P5 ADU request form; only the standalone website is prelaunch.",
   },
   {
     q: "Who handles repairs, installations, finish work, and smaller home projects?",
@@ -133,8 +126,8 @@ export const faqs = [
     a: "Boise Cabinet Co. That work includes premium frameless kitchen cabinetry, bathroom vanities, built-ins and storage, and whole-home cabinetry, designed, sourced, and installed.",
   },
   {
-    q: "Can one project involve more than one company?",
-    a: SHOW_CABINET_FABRICATION ? FABRICATION_FAQ : SOURCING_FAQ,
+    q: "Who handles RE-10 inspection repairs?",
+    a: "Boise Handyman Co handles basic home repairs and RE-10 inspection repairs. Share the repair list so the team can review the scope and next steps.",
   },
 ] as const;
 

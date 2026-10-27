@@ -1,10 +1,10 @@
 # P5 Home Co
 
-> P5 Home Co is the operating parent company behind five specialized
-> home-service companies serving Boise and the Treasure Valley in Idaho:
-> Boise Construction Co, Boise Remodeling Co, Boise ADU Co, Boise Handyman
-> Co, and Boise Cabinet Co. It is an operating family of companies, not a
-> directory or a referral network.
+> P5 Home Co brings together five specialist teams serving Boise and the
+> Treasure Valley: Boise Construction Co, Boise Remodeling Co, Boise Cabinet
+> Co, Boise Handyman Co and Boise ADU Co. All five are available for their
+> project specialties. Only the standalone ADU website is prelaunch; ADU
+> requests start through P5. P5 is not a directory or referral network.
 
 ## What P5 Home Co is
 
@@ -12,12 +12,12 @@ P5 Home Co brings every chapter of homeownership under one family of
 specialized companies. Each company has its own specialty, team, and
 expertise. What connects them is a shared operating standard: clear
 written scopes, one accountable team per project, proactive
-communication about decisions and budget impacts, and a connected
-handoff when a project needs more than one specialty.
+communication about decisions and budget impacts, and a clear next step
+with the specialist for your project.
 
 Bonded and insured. Serving Ada and Canyon counties.
 
-## The five companies
+## Five specialist teams
 
 - [Boise Construction Co](https://boiseconstruction.co): New home
   building. Custom homes, semi-custom homes, building on your own lot,
@@ -27,10 +27,10 @@ Bonded and insured. Serving Ada and Canyon counties.
   remodeling. Kitchen remodeling, bathroom remodeling, whole-home
   remodeling, additions, and ADUs, managed under one roof with a written
   scope and coordinated permits.
-- Boise ADU Co (boiseadu.co, launching soon): Accessory dwelling units.
+- [Boise ADU Co](https://p5homeco.com/quote/adu): Accessory dwelling units.
   Detached ADUs, garage conversions, basement and interior units, and
-  feasibility and permitting. The website is not live yet; enquiries go
-  to (208) 477-1169.
+  feasibility and permitting. ADU requests start through P5 while the
+  standalone website is prelaunch.
 - [Boise Handyman Co](https://boisehandyman.co): Home repair and
   maintenance. Drywall and trim repair, TV and fixture mounting, deck and
   exterior repair, and general home maintenance.
@@ -51,11 +51,10 @@ Bonded and insured. Serving Ada and Canyon counties.
 - Cabinetry, vanities, built-ins, and coordinated storage: Boise Cabinet
   Co.
 
-A single project can involve more than one company. A complete kitchen
-transformation, for example, runs through Boise Remodeling Co for layout,
-permits, demolition, and construction; Boise Cabinet Co for cabinet
-design, sourcing, and installation; and Boise Handyman Co for final
-mounting, finish work, and punch-list items.
+Choose the specialist for the job: remodeling with Boise Remodeling Co,
+cabinetry with Boise Cabinet Co, new homes with Boise Construction Co,
+repairs and RE-10 work with Boise Handyman Co, and ADUs with Boise ADU Co
+through the existing P5 intake.
 
 ## Service area
 
@@ -74,7 +73,8 @@ instant price or a firm bid.
 P5 keeps the request in place with the appropriate discipline recorded:
 new homes and additions with Construction, kitchen or broader renovation work
 with Remodeling, cabinet-only work with Cabinet, and repairs with Handyman.
-Boise ADU Co remains prelaunch and is not a live intake destination.
+ADU requests are available through https://p5homeco.com/quote/adu; only
+the standalone Boise ADU Co website is prelaunch.
 
 The request needs a name and a valid email address or phone number, with a
 preferred contact method. A saved receipt confirms the recorded request;
@@ -90,8 +90,7 @@ AM-4 PM Mountain (Sunday closed).
 
 ## Key pages
 
-- [P5 Home Co](https://p5homeco.com): The parent company, the five
-  companies, the shared operating standard, and the service area.
+- [P5 Home Co](https://p5homeco.com): Five available specialist teams, the shared operating standard, and the service area.
 - [Start a project](https://p5homeco.com/estimate): Describe construction,
   remodeling, cabinetry or repair work, share files, and review the scope
   before sending it to P5.
@@ -103,11 +102,11 @@ AM-4 PM Mountain (Sunday closed).
 - [Full text for LLMs](https://p5homeco.com/llms-full.txt): this fact sheet
   plus the homepage questions and answers.
 
-Last updated: 2026-10-16.
+Last updated: 2026-10-27.
 
 ## Homepage questions
 
-The questions and answers below are the visible homepage FAQ. Each answer restates a fact already on https://p5homeco.com or in this fact sheet.
+The questions and answers below are the visible homepage FAQ.
 
 ### Is P5 Home Co a contractor or a referral service?
 
@@ -117,9 +116,9 @@ P5 Home Co is an operating family of companies, not a directory or a referral ne
 
 Start with the project rather than the company. New homes go to Boise Construction Co, renovations to Boise Remodeling Co, accessory dwellings to Boise ADU Co, repairs and installations to Boise Handyman Co, and cabinetry to Boise Cabinet Co. The three-step matcher on this page will point you to the right one.
 
-### What if my project needs more than one company?
+### How do I start an ADU project?
 
-P5 routes the work between companies without sending you back to the start. A complete kitchen runs through Boise Remodeling Co for layout, permits, demolition, and construction, Boise Cabinet Co for cabinet design and installation, and Boise Handyman Co for final mounting and punch-list items.
+Boise ADU Co is available for ADU projects. Start through the existing P5 ADU request form while the standalone Boise ADU Co website is being prepared.
 
 ### Which areas do the P5 companies serve?
 
@@ -143,7 +142,7 @@ Boise Remodeling Co. That work includes kitchen remodeling, bathroom remodeling,
 
 ### Who adds a guest suite, rental unit, or multigenerational living space on land you already own?
 
-Boise ADU Co. That work includes detached ADUs, garage conversions, basement and interior units, and feasibility and permitting. The website is not live yet; enquiries go to (208) 477-1169.
+Boise ADU Co. That work includes detached ADUs, garage conversions, basement and interior units, and feasibility and permitting. Start through the P5 ADU request form; only the standalone website is prelaunch.
 
 ### Who handles repairs, installations, finish work, and smaller home projects?
 
@@ -153,6 +152,6 @@ Boise Handyman Co. That work includes drywall and trim repair, TV and fixture mo
 
 Boise Cabinet Co. That work includes premium frameless kitchen cabinetry, bathroom vanities, built-ins and storage, and whole-home cabinetry, designed, sourced, and installed.
 
-### Can one project involve more than one company?
+### Who handles RE-10 inspection repairs?
 
-Yes. A complete kitchen transformation, for example, runs through Boise Remodeling Co for layout, permits, demolition, and construction; Boise Cabinet Co for cabinet design, sourcing, and installation; and Boise Handyman Co for final mounting, finish work, and punch-list items.
+Boise Handyman Co handles basic home repairs and RE-10 inspection repairs. Share the repair list so the team can review the scope and next steps.
