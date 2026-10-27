@@ -43,9 +43,17 @@ jobs:
             sleep 1
           done
           node scripts/verify-p5-mobile-seo.mjs
-      - uses: actions/upload-artifact@v4
+      - name: Offline evidence guard regressions
+        run: node --test tests/ci-evidence.test.mjs
+      - name: Package complete evidence within storage limit
+        id: evidence
         if: always()
+        run: node scripts/prepare-ci-evidence.mjs mobile
+      - uses: actions/upload-artifact@v4
+        if: always() && steps.evidence.outputs.archive_ready == 'true'
         with:
           name: p5-interface-verification
-          path: p5-mobile-seo-verification
+          path: ci-evidence-artifacts/mobile.tar.gz
           retention-days: 14
+          compression-level: 0
+          if-no-files-found: error

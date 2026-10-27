@@ -136,3 +136,6 @@ tsconfig.tsbuildinfo
 # Maintained production analytics hostname guard.
 !/lib/analyticsBootstrap.ts
 /.p5-renderer/
+
+# Bounded CI evidence packaging is versioned verification code.
+!/scripts/prepare-ci-evidence.mjs

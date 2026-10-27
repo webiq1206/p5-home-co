@@ -81,15 +81,20 @@ jobs:
           node -e 'const u="http://127.0.0.1:5001/estimate/qa-saved?case=case-1&revision=6";let n=0;const t=setInterval(async()=>{try{const r=await fetch(u);if(r.ok){clearInterval(t)}}catch{}if(++n>90){clearInterval(t);process.exit(1)}},1000)'
           P5_QA_REAL_PAGE=1 node scripts/p5-qa-saved-browser.mjs
           P5_QA_REAL_PAGE=1 P5_TEST_BROWSER=webkit node scripts/p5-qa-saved-browser.mjs
-      - uses: actions/upload-artifact@v4
+      - name: Offline evidence guard regressions
+        run: node --test tests/ci-evidence.test.mjs
+      - name: Package complete evidence within storage limit
+        id: evidence
         if: always()
+        run: node scripts/prepare-ci-evidence.mjs estimator saved-page
+      - uses: actions/upload-artifact@v4
+        if: always() && steps.evidence.outputs.archive_ready == 'true'
         with:
           name: p5-estimator-verification
-          path: |
-            p5-verification
-            /tmp/p5-estimator-server.log
-            /tmp/p5-saved-page-server.log
+          path: ci-evidence-artifacts/estimator.tar.gz
           retention-days: 14
+          compression-level: 0
+          if-no-files-found: error
 
   lead-integrations:
     runs-on: ubuntu-latest
