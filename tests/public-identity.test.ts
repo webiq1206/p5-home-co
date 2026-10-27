@@ -33,7 +33,7 @@ test("the approved NAP and sister row are the audit strings", () => {
   );
   assert.equal(
     SISTER_LINE,
-    "Part of P5 Home Co: Boise Construction Co · Boise Remodeling Co · Boise Handyman Co · Boise Cabinet Co · Boise ADU Co (launching soon)",
+    "Part of P5 Home Co: Boise Construction Co · Boise Remodeling Co · Boise Handyman Co · Boise Cabinet Co · Boise ADU Co (website coming soon; requests through P5)",
   );
   assert.equal(PUBLIC_REGISTRATION, "Idaho Registered Contractor #8381215");
   assert.equal(PUBLIC_REGISTRATION.includes("("), false);
@@ -160,7 +160,7 @@ test("the registration line is linked in the footer and plain text on funnel pag
   }
 });
 
-test("homepage keeps the existing claims and adds the location subhead", () => {
+test("homepage preserves identity and location while explaining the three-step process", () => {
   const home = readFileSync("app/HomePageClient.tsx", "utf8");
   assert.equal(TRUSTED_H1, "Boise’s Trusted Home Specialists");
   assert.match(home, /SHOW_UNPROVEN_TRUSTED \? TRUSTED_H1 : PLAIN_H1/);
@@ -175,13 +175,10 @@ test("homepage keeps the existing claims and adds the location subhead", () => {
   assert.ok(trustAt >= 0 && howAt > trustAt && aboutAt > howAt, "How P5 works sits after the trust strip and before about");
   for (const line of [
     "How P5 works",
-    "Own install crew",
-    "Bonded & insured",
-    "Manufacturer warranties passed through",
-    "Install dates confirmed in writing",
-    "Written update every week",
-    "Free in-home consultation, no pressure",
-    "Public representative: Nick Perkins",
+    "Tell us what you’re planning",
+    "Connect with the right company",
+    "Discuss the next steps",
+    "Agree on the work, price and schedule before work begins.",
   ]) {
     assert.equal(home.includes(line) || readFileSync("app/site.ts", "utf8").includes(line), true, line);
   }
