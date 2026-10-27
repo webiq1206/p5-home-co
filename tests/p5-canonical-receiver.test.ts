@@ -1,5 +1,5 @@
 import {canonicalJson} from '../lib/p5/canonicalJson.ts';
-import test from 'node:test';
+import test,{after} from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {createHash} from 'node:crypto';
@@ -14,15 +14,24 @@ function fixture(site:keyof typeof REVIEW_DOMAINS='p5',qa=false):ProjectReview {
  return {schema:1,requestType:'project_review_v1',source:REVIEW_DOMAINS[site],externalLeadId:(qa?'qa-':'')+'p5-intake-'+createHash('sha256').update(projectId).digest('hex'),snapshotDigest:'a'.repeat(64),deliveryMode:qa?'synthetic_qa':'live',request:{projectId,draftId:id,revision:1,savedAt:'2026-10-14T03:00:00.000Z',originSite:site,currentSite:site,contact:{name:qa?'[QA] Fictional':'Fictional',email:'fictional@example.invalid',phone:'',preferredContact:'email'},scope:{text:'Fictional project',answers:{},uploads:[]},details:{desiredOutcome:'Fictional repair',workContext:'',budget:'',transcript:[]},routing:{primaryTeam:site,supportingServices:[]},unresolved:[]}};
 }
 const proof:ReceiverProof={portalId:247066159,contractEvidence:'offline-test-only',ownerIds:{p5:'1',construction:'2',remodeling:'3',handyman:'4',cabinet:'5'},syntheticIsolation:null};
+// Keep one test-only WASM engine alive for this sequential test file. Repeated
+// engine teardown can hit Node24's upstream V8 wrapper-GC bug (#66366).
+// Every scenario still gets empty SQL tables and a new mocked provider/store.
+let database:Promise<PGlite>|undefined;
+after(async()=>{if(database)await (await database).close();});
 async function setup(){
- const db=new PGlite();await db.exec(readFileSync('migrations/018_canonical_project_reviews.sql','utf8'));
+ const db=await (database??=(async()=>{const db=new PGlite();await db.exec(readFileSync('migrations/018_canonical_project_reviews.sql','utf8'));return db;})());
+ const reset=async()=>{await db.exec('TRUNCATE p5_canonical_review_operations, p5_canonical_review_projects');};
+ await reset();
+ const counts=await db.query<{projects:number;operations:number}>('SELECT (SELECT count(*)::int FROM p5_canonical_review_projects) AS projects, (SELECT count(*)::int FROM p5_canonical_review_operations) AS operations');
+ assert.deepEqual(counts.rows,[{projects:0,operations:0}],'each scenario starts with empty receipt and project ledgers');
  type Query=(sql:string,values?:unknown[])=>Promise<Record<string,any>[]>;
  const q:Query=async(sql,values=[])=>((await db.query(sql,values)).rows as Record<string,any>[]);
  const tx=async<T>(run:(read:Query)=>Promise<T>)=>db.transaction(async client=>run(async(sql,values=[])=>((await client.query(sql,values)).rows as Record<string,any>[])));
  const store=canonicalReviewStore(q,tx);let writes=0;
  const remote=new Map<string,{p:ProjectReview;owner:string;id:string}>();
  const provider:ReviewProvider={portal:async()=>247066159,write:async(p,owner,previous)=>{writes++;const remoteId=previous||String(writes);remote.set(p.externalLeadId,{p:structuredClone(p),owner,id:remoteId});return remoteId;},verify:async(p,owner,remoteId)=>{const saved=remote.get(p.externalLeadId);return saved?.id===remoteId&&saved.owner===owner&&JSON.stringify(saved.p)===JSON.stringify(p);},reconcile:async(p,owner)=>{const saved=remote.get(p.externalLeadId);return saved&&saved.owner===owner&&JSON.stringify(saved.p)===JSON.stringify(p)?saved.id:null;}};
- return {db,store,provider,writes:()=>writes};
+ return {db,reset,store,provider,writes:()=>writes};
 }
 test('five sources retain provenance, immutable receipts and one deal across revisions',async()=>{
  const f=await setup();try{const receiver=canonicalReceiver(f.store,f.provider,proof);
@@ -35,20 +44,20 @@ test('five sources retain provenance, immutable receipts and one deal across rev
    assert.equal((await receiver.receive(later,reviewOperationKey(later),site)).dealId,receipt.dealId);
    const conflict=structuredClone(p);conflict.request.scope.text='changed';await assert.rejects(receiver.receive(conflict,key,site),/snapshot-conflict/);
   }assert.equal(f.writes(),10);
- }finally{await f.db.close();}
+ }finally{await f.reset();}
 });
 test('lost provider response is reconciled by read without duplicate creation',async()=>{
  const f=await setup();try{const p=fixture(),key=reviewOperationKey(p),write=f.provider.write;
   f.provider.write=async(...args)=>{await write(...args);throw new Error('lost response');};
   const receiver=canonicalReceiver(f.store,f.provider,proof);await assert.rejects(receiver.receive(p,key,'p5'),/lost response/);
   assert.equal((await receiver.reconcile(p.source,key))?.dealId,'1');assert.equal(f.writes(),1);
- }finally{await f.db.close();}
+ }finally{await f.reset();}
 });
 test('process death before remote write stays held and cannot trigger another write',async()=>{
  const f=await setup();try{const p=fixture(),key=reviewOperationKey(p);f.provider.write=async()=>{throw new Error('offline');};
   const receiver=canonicalReceiver(f.store,f.provider,proof);await assert.rejects(receiver.receive(p,key,'p5'),/offline/);
   await assert.rejects(receiver.receive(p,key,'p5'),/reconciliation-required/);assert.equal(f.writes(),0);
- }finally{await f.db.close();}
+ }finally{await f.reset();}
 });
 test('portal, source, owner, workflow isolation and synthetic contact guards precede writes',async()=>{
  const f=await setup();try{const p=fixture(),qa=fixture('p5',true),qkey=reviewOperationKey(qa);
@@ -61,7 +70,7 @@ test('portal, source, owner, workflow isolation and synthetic contact guards pre
   qa.request.contact.phone='2085550100';await assert.rejects(canonicalReceiver(f.store,f.provider,isolated).receive(qa,qkey,'p5'),/qa-contact-denied/);
   assert.equal(f.writes(),0);qa.request.contact.phone='';assert.equal((await canonicalReceiver(f.store,f.provider,isolated).receive(qa,qkey,'p5')).deliveryMode,'synthetic_qa');
   p.request.contact.name='[QA] Hidden';assert.throws(()=>validateCanonicalReview(p,reviewOperationKey(p),'p5'),/mode-mismatch/);
- }finally{await f.db.close();}
+ }finally{await f.reset();}
 });
 test('provider holds existing IDs and remote edits instead of overwriting or duplicating',async()=>{
  const p=fixture();let mutations=0;

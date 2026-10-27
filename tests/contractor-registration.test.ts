@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { readdirSync, readFileSync, statSync } from "node:fs";
+import { readdirSync, readFileSync, statSync, mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
+import { tmpdir } from "node:os";
 
 const root = new URL("..", import.meta.url).pathname;
 
@@ -29,12 +30,14 @@ function scrub(text: string): string {
     .replace(/P5 is licensed to do/g, "");
 }
 
-function walk(dir: string, found: string[] = []): string[] {
+function walk(dir: string, found: string[] = [], scanRoot: string = dir): string[] {
   for (const name of readdirSync(dir)) {
+    // Generated root Python dependencies contain software licenses, not site claims.
+    if (dir === scanRoot && name === ".p5-renderer") continue;
     if (["node_modules", ".git", ".next", "scripts", "seo-audit", "docs", "tests", "dist", "services"].includes(name)) continue;
     const path = join(dir, name);
     if (path.endsWith(`${join("lib", "p5")}`) || path.endsWith(join("app", "lib", "contracts")) || path.endsWith(join("app", "legal")) || path.endsWith(join("public", "p5-estimate"))) continue;
-    if (statSync(path).isDirectory()) walk(path, found);
+    if (statSync(path).isDirectory()) walk(path, found, scanRoot);
     else if (/\.(ts|tsx|js|mjs|md|txt|html|json)$/.test(name) && name !== "package-lock.json" && name !== "priceBookData.ts") {
       if (path.includes("local-seo-audit") && name !== "GBP-STEP-BY-STEP-GUIDE.md") continue;
       found.push(path);
@@ -58,4 +61,19 @@ test("the published credential is Idaho contractor registration 8381215", () => 
   const text = walk(root).map((file) => readFileSync(file, "utf8")).join("\n");
   assert.match(text, /8381215/);
   assert.match(text, /Idaho Registered Contractor #8381215/);
+});
+
+
+test("renderer dependency licenses are excluded without hiding public contractor claims", () => {
+  const fixture = mkdtempSync(join(tmpdir(), "p5-claim-scope-"));
+  try {
+    for (const dir of [".p5-renderer/licenses", "public/.p5-renderer", "app"]) mkdirSync(join(fixture, dir), {recursive:true});
+    writeFileSync(join(fixture, ".p5-renderer/licenses/LICENSE.txt"), "This software is licensed under its upstream terms.");
+    const publicClaim = join(fixture, "public/.p5-renderer/page.txt");
+    const appClaim = join(fixture, "app/page.tsx");
+    for (const file of [publicClaim, appClaim]) writeFileSync(file, "We are " + "licensed to build homes.");
+    const files = walk(fixture);
+    assert.deepEqual(files.sort(), [publicClaim, appClaim].sort());
+    for (const file of files) assert.ok(claimPatterns.some(pattern => pattern.test(scrub(readFileSync(file,"utf8")))), "real site claim stays detectable");
+  } finally { rmSync(fixture, {recursive:true,force:true}); }
 });
