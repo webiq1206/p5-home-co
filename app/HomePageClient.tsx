@@ -24,6 +24,7 @@ import { homePageSchema, serializeJsonLd } from "./structuredData";
 import Arrow from "@/components/Arrow";
 import SiteChrome from "@/components/SiteChrome";
 import { ShortRequestForm } from "@/components/ShortRequestForm";
+import CompanyFinder from "@/components/CompanyFinder";
 import {
   imageVariantFor,
   FRAMING_FOOTHILLS,
@@ -142,6 +143,7 @@ export default function Home() {
                     Help me choose a company <Arrow />
                   </button>
                 </div>
+                <p className="hero-reassure">Free quote. We reply within one business day.</p>
                 <a className="hero-phone" href={PUBLIC_PHONE_TEL}>
                   Call {PUBLIC_PHONE_DISPLAY}
                 </a>
@@ -185,6 +187,8 @@ export default function Home() {
             </div>
           </div>
         </section>
+
+        <CompanyFinder />
 
         <section className="how-p5" aria-labelledby="how-p5-heading">
           <div className="content-shell">

@@ -37,8 +37,12 @@ test("hub pages keep call and chat, with one short request below the hero", () =
   assert.match(mobile, /href="\/quote"/);
   assert.match(mobile, /openSiteChat/);
   const css = readFileSync("app/globals.css", "utf8");
-  assert.match(css, /\.hero \{[^}]*height: 100svh/);
-  assert.doesNotMatch(css, /\.hero \{ height: auto; min-height: 0/);
+  assert.match(css, /\.hero \{[\s\S]*?100svh/);
+  assert.match(css, /--color-primary:\s*var\(--bronze\)/);
+  assert.match(home, /CompanyFinder/);
+  assert.match(home, /hero-reassure/);
+  assert.match(form, /quote-wizard/);
+  assert.match(form, /choice-card/);
 });
 
 test("the short form requires name, phone, email, and a project note, and files stay optional", () => {
