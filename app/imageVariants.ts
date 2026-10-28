@@ -41,7 +41,7 @@ export const FEATURED_BOISE_GREAT_ROOM = {
   src: "/images/featured-boise-great-room.webp",
   width: 1280,
   height: 720,
-  alt: "Great room with oak floors, a stone fireplace, and floor-to-ceiling windows overlooking the Idaho foothills",
+  alt: "Great room with oak floors, a stone fireplace, and black-framed windows to the Idaho foothills, matching the charcoal flat-roof exterior",
   srcSet: "/images/featured-boise-great-room.webp 1280w",
   sizes: "(min-width: 1101px) 50vw, 100vw",
 } as const satisfies ServedImage;
@@ -68,7 +68,7 @@ export const FEATURED_BOISE_ADU = {
   src: "/images/featured-boise-adu.webp",
   width: 1280,
   height: 720,
-  alt: "Matching charcoal board-and-batten ADU with a dark metal roof and covered entry in a Boise backyard",
+  alt: "Matching single-story charcoal board-and-batten ADU with a dark metal roof and wood porch in the Boise foothills",
   srcSet: "/images/featured-boise-adu.webp 1280w",
   sizes: "(min-width: 1101px) 50vw, 100vw",
 } as const satisfies ServedImage;

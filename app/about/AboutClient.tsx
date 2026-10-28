@@ -72,10 +72,10 @@ export default function AboutClient({
 
         <figure className="about-family-photo content-shell">
           <img
-            src="/images/about/perkins-family-meridian-idaho.webp"
-            alt="Nick Perkins with his wife and five children at a pumpkin patch"
-            width={2560}
-            height={1920}
+            src="/images/about/perkins-family-meridian-idaho-1x1.webp"
+            alt="Nick Perkins with his wife and five children at a pumpkin patch in Meridian, Idaho"
+            width={2048}
+            height={2048}
             fetchPriority="high"
             decoding="async"
           />
@@ -94,10 +94,10 @@ export default function AboutClient({
           <p>
             Construction has been part of my life for as long as I can remember. I grew up around the industry, and what
             started as something familiar became a career I have spent more than a decade building. I earned a
-            bachelor&apos;s degree in Construction with an emphasis in Project Management at [university], [year], and
-            went on to lead everything from small home renovations to multimillion-dollar custom homes and residential
-            developments. I started P5 Home Co in Colorado in 2020 and moved the family and the company to the Treasure
-            Valley in [year], where we live in Meridian.
+            bachelor&apos;s degree in Construction with an emphasis in Project Management, and went on to lead everything
+            from small home renovations to multimillion-dollar custom homes and residential developments. I started P5
+            Home Co in Colorado in 2020 and moved the family and the company to the Treasure Valley in 2025, where we
+            live in Meridian.
           </p>
         </section>
 
@@ -182,6 +182,7 @@ export default function AboutClient({
                 height={1365}
                 loading="lazy"
                 decoding="async"
+                className="about-people-photo"
               />
               <figcaption>The Perkins family</figcaption>
             </figure>

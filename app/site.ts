@@ -100,7 +100,7 @@ export const faqs = [
   },
   {
     q: "How long has P5 been operating?",
-    a: "P5 Home Co was founded in Colorado in 2020 and moved the family and the company to the Treasure Valley in [year]. We live and work from Meridian, Idaho.",
+    a: "P5 Home Co was founded in Colorado in 2020 and moved the family and the company to the Treasure Valley in 2025. We live and work from Meridian, Idaho.",
   },
   {
     q: "How do I start an ADU project?",

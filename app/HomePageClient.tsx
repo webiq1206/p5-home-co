@@ -254,6 +254,81 @@ export default function Home() {
           </div>
         </section>
 
+        <section id="featured-project" className="featured-project section-pad" aria-labelledby="featured-project-heading">
+          <Reveal className="content-shell featured-project-intro">
+            <div>
+              <p className="eyebrow">Featured design · Boise foothills</p>
+              <h2 id="featured-project-heading">
+                One home.
+                <br />
+                Every room connected.
+              </h2>
+            </div>
+            <p>
+              A modern Treasure Valley custom home shown as one continuous property: the same charcoal exterior, oak
+              floors, and foothills light run from the entry through the kitchen, great room, primary bath, and matching
+              ADU. Representative design.
+            </p>
+          </Reveal>
+          <div className="content-shell featured-project-grid" role="list">
+            <div className="featured-project-shot" role="listitem">
+              <img
+                src={FEATURED_BOISE_EXTERIOR.src}
+                alt={FEATURED_BOISE_EXTERIOR.alt}
+                width={FEATURED_BOISE_EXTERIOR.width}
+                height={FEATURED_BOISE_EXTERIOR.height}
+                loading="lazy"
+                decoding="async"
+              />
+              <span>Exterior</span>
+            </div>
+            <div className="featured-project-shot" role="listitem">
+              <img
+                src={FEATURED_BOISE_GREAT_ROOM.src}
+                alt={FEATURED_BOISE_GREAT_ROOM.alt}
+                width={FEATURED_BOISE_GREAT_ROOM.width}
+                height={FEATURED_BOISE_GREAT_ROOM.height}
+                loading="lazy"
+                decoding="async"
+              />
+              <span>Great room</span>
+            </div>
+            <div className="featured-project-shot" role="listitem">
+              <img
+                src={FEATURED_BOISE_KITCHEN.src}
+                alt={FEATURED_BOISE_KITCHEN.alt}
+                width={FEATURED_BOISE_KITCHEN.width}
+                height={FEATURED_BOISE_KITCHEN.height}
+                loading="lazy"
+                decoding="async"
+              />
+              <span>Kitchen</span>
+            </div>
+            <div className="featured-project-shot" role="listitem">
+              <img
+                src={FEATURED_BOISE_BATHROOM.src}
+                alt={FEATURED_BOISE_BATHROOM.alt}
+                width={FEATURED_BOISE_BATHROOM.width}
+                height={FEATURED_BOISE_BATHROOM.height}
+                loading="lazy"
+                decoding="async"
+              />
+              <span>Primary bath</span>
+            </div>
+            <div className="featured-project-shot featured-project-wide" role="listitem">
+              <img
+                src={FEATURED_BOISE_ADU.src}
+                alt={FEATURED_BOISE_ADU.alt}
+                width={FEATURED_BOISE_ADU.width}
+                height={FEATURED_BOISE_ADU.height}
+                loading="lazy"
+                decoding="async"
+              />
+              <span>Matching ADU</span>
+            </div>
+          </div>
+        </section>
+
         <section id="companies" className="companies section-pad">
           <Reveal className="content-shell">
             <div className="companies-heading">
@@ -457,6 +532,32 @@ export default function Home() {
                 that connect every P5 company.
               </p>
             </div>
+            <div className="standard-photos" aria-hidden="true">
+              <img
+                src={FEATURED_BOISE_GREAT_ROOM.src}
+                alt=""
+                width={FEATURED_BOISE_GREAT_ROOM.width}
+                height={FEATURED_BOISE_GREAT_ROOM.height}
+                loading="lazy"
+                decoding="async"
+              />
+              <img
+                src={FEATURED_BOISE_KITCHEN.src}
+                alt=""
+                width={FEATURED_BOISE_KITCHEN.width}
+                height={FEATURED_BOISE_KITCHEN.height}
+                loading="lazy"
+                decoding="async"
+              />
+              <img
+                src={FEATURED_BOISE_BATHROOM.src}
+                alt=""
+                width={FEATURED_BOISE_BATHROOM.width}
+                height={FEATURED_BOISE_BATHROOM.height}
+                loading="lazy"
+                decoding="async"
+              />
+            </div>
             <div className="standard-grid">
               <Standard number="01" title="Clarity before commitment">
                 Share your plans or choose “Just contact me” in the{" "}
@@ -492,10 +593,10 @@ export default function Home() {
           <Reveal className="content-shell who-hire-grid">
             <img
               className="who-hire-photo"
-              src="/images/about/nick-perkins-portrait-crop.webp"
-              alt="Nick Perkins, founder of P5 Home Co"
-              width={600}
-              height={600}
+              src="/images/about/perkins-family-meridian-idaho-1x1.webp"
+              alt="Nick Perkins with his wife and five children at a pumpkin patch in Meridian, Idaho"
+              width={2048}
+              height={2048}
               loading="lazy"
               decoding="async"
             />
@@ -503,8 +604,9 @@ export default function Home() {
               <p className="eyebrow">Who you are hiring</p>
               <h2 id="who-hire-heading">Nick Perkins, founder</h2>
               <p>
-                Construction project manager, bachelor&apos;s in Construction, more than a decade of custom homes,
-                remodels and developments. Husband, father of five, Meridian.
+                Construction project manager, bachelor&apos;s degree in Construction with an emphasis in Project
+                Management, more than a decade of custom homes, remodels and developments. Husband, father of five,
+                Meridian.
               </p>
               <p className="who-hire-quote">Work hard. Keep your word. Treat people right.</p>
               <Link className="text-link" href="/about">
@@ -547,6 +649,17 @@ export default function Home() {
               </div>
             </div>
           </Reveal>
+        </section>
+
+        <section className="scroll-photo" aria-label="Treasure Valley home photography">
+          <img
+            src={FEATURED_BOISE_EXTERIOR.src}
+            alt={FEATURED_BOISE_EXTERIOR.alt}
+            width={FEATURED_BOISE_EXTERIOR.width}
+            height={FEATURED_BOISE_EXTERIOR.height}
+            loading="lazy"
+            decoding="async"
+          />
         </section>
 
         <section id="faq" className="faq section-pad" aria-labelledby="faq-heading">

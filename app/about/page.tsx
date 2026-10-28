@@ -31,10 +31,10 @@ export const metadata: Metadata = withBrandPageMetadata(
       locale: "en_US",
       images: [
         {
-          url: "/images/about/perkins-family-meridian-idaho.webp",
-          width: 2560,
-          height: 1920,
-          alt: "Nick Perkins with his wife and five children at a pumpkin patch",
+          url: "/images/about/perkins-family-meridian-idaho-1x1.webp",
+          width: 2048,
+          height: 2048,
+          alt: "Nick Perkins with his wife and five children at a pumpkin patch in Meridian, Idaho",
         },
       ],
     },
@@ -42,7 +42,7 @@ export const metadata: Metadata = withBrandPageMetadata(
       card: "summary_large_image",
       title,
       description,
-      images: ["/images/about/perkins-family-meridian-idaho.webp"],
+      images: ["/images/about/perkins-family-meridian-idaho-1x1.webp"],
     },
     robots: { index: true, follow: true },
   },
@@ -86,7 +86,7 @@ const aboutSchema = {
       },
       description:
         "Founder of P5 Home Co. Construction project manager, husband, and father of five in Meridian, Idaho.",
-      image: `${siteUrl}/images/about/nick-perkins-portrait-crop.webp`,
+      image: `${siteUrl}/images/about/perkins-family-meridian-idaho-1x1.webp`,
     },
     {
       "@type": "BreadcrumbList",
