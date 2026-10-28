@@ -124,7 +124,7 @@ export default function AboutClient({
         <section className="about-section content-shell" aria-labelledby="who-you-meet">
           <h2 id="who-you-meet">Who you will work with</h2>
           <p>
-            You meet me at the first visit. [Name, role] runs the schedule on remodels and builds, and the crew on
+            You meet me at the first visit. On remodels and builds, our project team runs the schedule, and the crew on
             repairs is ours, not day labour. Plumbing, electrical and HVAC go to licensed trade partners we schedule and
             stand behind. Every project has one written scope before any price, a weekly written update, and a
             workmanship warranty: one year on repairs and new builds (ten years structural where offered), two years on
