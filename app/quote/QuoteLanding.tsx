@@ -74,44 +74,46 @@ export default function QuoteLanding({ service }: { service: QuoteService | null
         </header>
 
         <section className="quote-hero">
-          <img
-            className="quote-hero-img"
-            src={heroImage}
-            alt={heroAlt}
-            width={heroVariant?.width ?? 1600}
-            height={heroVariant?.height ?? 1000}
-            {...(heroVariant ? { srcSet: heroVariant.srcSet, sizes: "100vw" } : {})}
-            fetchPriority="high"
-            decoding="async"
-          />
-          <div className="quote-hero-veil" aria-hidden="true" />
+          <div className="quote-hero-media">
+            <img
+              className="quote-hero-img"
+              src={heroImage}
+              alt={heroAlt}
+              width={heroVariant?.width ?? 1600}
+              height={heroVariant?.height ?? 1000}
+              {...(heroVariant ? { srcSet: heroVariant.srcSet, sizes: "(max-width: 820px) 100vw, 48vw" } : {})}
+              fetchPriority="high"
+              decoding="async"
+            />
+          </div>
+          <div className="quote-hero-panel">
+            <div className="quote-shell quote-hero-grid" style={{ gridTemplateColumns: "minmax(0,1fr)" }}>
+              <div className="quote-hero-copy">
+                <p className="quote-eyebrow">
+                  {service
+                    ? `${service.label} · Treasure Valley`
+                    : "Free quote · Treasure Valley, Idaho"}
+                </p>
+                {service ? <h2>{service.h1}</h2> : <h1>A specialist team for your home project</h1>}
+                <p className="quote-lead">
+                  {service
+                    ? service.lead
+                    : "Tell us what you want done and P5 Home Co sends it to the right specialist team, whether that is a kitchen remodel, a custom home, an ADU, new cabinetry, or a repair. Quotes are free, carry no obligation, and come with a written scope so you can compare them properly."}
+                </p>
 
-          <div className="quote-shell quote-hero-grid" style={{ gridTemplateColumns: "minmax(0,1fr)" }}>
-            <div className="quote-hero-copy">
-              <p className="quote-eyebrow">
-                {service
-                  ? `${service.label} · Treasure Valley`
-                  : "Free quote · Treasure Valley, Idaho"}
-              </p>
-              {service ? <h2>{service.h1}</h2> : <h1>A specialist team for your home project</h1>}
-              <p className="quote-lead">
-                {service
-                  ? service.lead
-                  : "Tell us what you want done and P5 Home Co sends it to the right specialist team, whether that is a kitchen remodel, a custom home, an ADU, new cabinetry, or a repair. Quotes are free, carry no obligation, and come with a written scope so you can compare them properly."}
-              </p>
+                {service && (
+                  <ul className="quote-covers" aria-label="What this covers">
+                    {service.covers.map((c) => (
+                      <li key={c}>{c}</li>
+                    ))}
+                  </ul>
+                )}
 
-              {service && (
-                <ul className="quote-covers" aria-label="What this covers">
-                  {service.covers.map((c) => (
-                    <li key={c}>{c}</li>
-                  ))}
-                </ul>
-              )}
-
-              <p className="quote-hero-call">
-                Prefer to talk it through?{" "}
-                <TrackedPhoneLink location="quote_hero">Call (208) 477-1169</TrackedPhoneLink>
-              </p>
+                <p className="quote-hero-call">
+                  Prefer to talk it through?{" "}
+                  <TrackedPhoneLink location="quote_hero">Call (208) 477-1169</TrackedPhoneLink>
+                </p>
+              </div>
             </div>
           </div>
         </section>

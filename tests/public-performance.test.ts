@@ -12,9 +12,10 @@ test("HubSpot tracking still loads on the public site, after the page load event
 
 test("the homepage hero is in the server HTML without an entrance fade", () => {
   const page = readFileSync("app/HomePageClient.tsx", "utf8");
-  assert.match(page, /<img className="hero-image"/);
-  assert.match(page, /<h1 id="hero-heading">/);
-  assert.match(page, /100\+ projects/);
+  assert.match(page, /className="hero-image"/);
+  assert.match(page, /id="hero-heading"/);
+  assert.match(page, /hero-panel/);
+  assert.doesNotMatch(page, /hero-shade/);
   const css = readFileSync("app/globals.css", "utf8");
   const heroImage = css.match(/\.hero-image \{[^}]+\}/)?.[0] || "";
   const heroCopy = css.match(/\.hero-copy \{[^}]+\}/)?.[0] || "";
@@ -23,4 +24,7 @@ test("the homepage hero is in the server HTML without an entrance fade", () => {
   assert.equal(heroCopy.includes("animation"), false);
   assert.equal(heroCopy.includes("opacity"), false);
   assert.equal(css.includes("heroReveal"), false);
+  assert.equal(css.includes("hero-shade"), false);
+  assert.match(css, /--color-primary/);
+  assert.match(css, /--section-y/);
 });

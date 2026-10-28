@@ -115,36 +115,38 @@ export default function Home() {
       />
       <SiteChrome onOpenMatcher={openMatcher}>
         <section className="hero" aria-labelledby="hero-heading">
-          <img
-            className="hero-image"
-            src={FEATURED_BOISE_EXTERIOR.src}
-            alt={FEATURED_BOISE_EXTERIOR.alt}
-            width={FEATURED_BOISE_EXTERIOR.width}
-            height={FEATURED_BOISE_EXTERIOR.height}
-            srcSet={FEATURED_BOISE_EXTERIOR.srcSet}
-            sizes="100vw"
-            fetchPriority="high"
-            decoding="async"
-          />
-          <div className="hero-shade" />
-          <div className="hero-grain" />
-          <div className="hero-content content-shell">
-            <div className="hero-copy">
-              <p className="eyebrow eyebrow-light">The P5 Home Co family of companies</p>
-              <h1 id="hero-heading">{SHOW_UNPROVEN_TRUSTED ? TRUSTED_H1 : PLAIN_H1}</h1>
-              <p className="hero-lede">{SHOW_UNPROVEN_TRUSTED ? TRUSTED_LEDE : PLAIN_LEDE}</p>
-              <div className="hero-actions" data-suppress-mobile-bar="">
-                <Link className="button button-light" href="/#request-form" data-cta="primary">
-                  Send a short request <Arrow />
-                </Link>
-                <button className="text-link text-link-light" type="button" onClick={openMatcher}>
-                  Help me choose a company <Arrow />
-                </button>
+          <div className="hero-media">
+            <img
+              className="hero-image"
+              src={FEATURED_BOISE_EXTERIOR.src}
+              alt={FEATURED_BOISE_EXTERIOR.alt}
+              width={FEATURED_BOISE_EXTERIOR.width}
+              height={FEATURED_BOISE_EXTERIOR.height}
+              srcSet={FEATURED_BOISE_EXTERIOR.srcSet}
+              sizes="(max-width: 820px) 100vw, 55vw"
+              fetchPriority="high"
+              decoding="async"
+            />
+          </div>
+          <div className="hero-panel">
+            <div className="hero-content content-shell">
+              <div className="hero-copy">
+                <p className="eyebrow eyebrow-light">The P5 Home Co family of companies</p>
+                <h1 id="hero-heading">{SHOW_UNPROVEN_TRUSTED ? TRUSTED_H1 : PLAIN_H1}</h1>
+                <p className="hero-lede">{SHOW_UNPROVEN_TRUSTED ? TRUSTED_LEDE : PLAIN_LEDE}</p>
+                <div className="hero-actions" data-suppress-mobile-bar="">
+                  <Link className="button button-light" href="/#request-form" data-cta="primary">
+                    Send a short request <Arrow />
+                  </Link>
+                  <button className="text-link text-link-light" type="button" onClick={openMatcher}>
+                    Help me choose a company <Arrow />
+                  </button>
+                </div>
+                <a className="hero-phone" href={PUBLIC_PHONE_TEL}>
+                  Call {PUBLIC_PHONE_DISPLAY}
+                </a>
+                <p className="hero-trust">{PUBLIC_REGISTRATION}</p>
               </div>
-              <a className="hero-phone" href={PUBLIC_PHONE_TEL}>
-                Call {PUBLIC_PHONE_DISPLAY}
-              </a>
-              <p className="hero-trust">{PUBLIC_REGISTRATION}</p>
             </div>
           </div>
         </section>
