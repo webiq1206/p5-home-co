@@ -63,7 +63,7 @@ const aboutSchema = {
       mainEntity: { "@id": NICK_PERKINS_ID },
       speakable: {
         "@type": "SpeakableSpecification",
-        cssSelector: [".about-answer", ".about-why-p5"],
+        cssSelector: [".about-answer", ".about-family-drive"],
       },
     },
     {

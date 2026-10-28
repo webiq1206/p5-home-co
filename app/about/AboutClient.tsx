@@ -81,11 +81,11 @@ export default function AboutClient({
           />
         </figure>
 
-        <section className="about-section content-shell about-why-p5" aria-labelledby="why-p5">
-          <h2 id="why-p5">Why it is called P5</h2>
+        <section className="about-section content-shell about-family-drive" aria-labelledby="family-drive">
+          <h2 id="family-drive">What drives the work</h2>
           <p>
-            The name stands for my five children and the Perkins family name. It is a daily reminder of why I work
-            hard, the values I want to pass down, and the example I hope to set for them.
+            Family is a daily reminder of why I work hard, the values I want to pass down, and the example I hope to
+            set for my kids.
           </p>
         </section>
 
@@ -163,9 +163,8 @@ export default function AboutClient({
             <div>
               <h2 id="closing">Closing</h2>
               <p>
-                The P5 name represents my five kids, but the values behind it are what I hope they carry long after
-                I&apos;m done building homes. Work hard. Keep your word. Treat people right. And always be proud to put
-                your name on what you do.
+                The values behind this company are what I hope my kids carry long after I&apos;m done building homes.
+                Work hard. Keep your word. Treat people right. And always be proud to put your name on what you do.
               </p>
               <div className="about-closing-actions">
                 <SaveContactButton location="about" />
