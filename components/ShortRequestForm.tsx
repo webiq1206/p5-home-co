@@ -15,7 +15,7 @@ const MAX_TOTAL_BYTES = 20 * 1024 * 1024;
 
 const FALLBACK_PROJECT = "Something else, or I am not sure";
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
-const STORAGE_KEY = "p5-quote-wizard-v1";
+const STORAGE_KEY = "p5-quote-wizard-v4";
 
 type CategoryId = "remodel" | "home" | "adu" | "cabinets" | "repairs" | "other";
 
@@ -62,7 +62,10 @@ const CATEGORIES: ReadonlyArray<{
   },
 ];
 
-type Step = "category" | "project" | "match" | "contact" | "review";
+/** Text steps are one field each so every step fits with keyboard open (C10). */
+type Step = "category" | "project" | "match" | "note" | "contact" | "phone" | "email" | "review";
+
+const STEPS: readonly Step[] = ["category", "project", "match", "note", "contact", "phone", "email", "review"];
 
 type WizardState = {
   step: Step;
@@ -83,6 +86,12 @@ const DEFAULT_STATE: WizardState = {
   phone: "",
   email: "",
 };
+
+function normalizeStep(step: unknown): Step | null {
+  if (typeof step !== "string") return null;
+  if ((STEPS as readonly string[]).includes(step)) return step as Step;
+  return null;
+}
 
 function categoryForProject(project: string | undefined): CategoryId | null {
   if (!project) return null;
@@ -113,11 +122,9 @@ function readStored(defaultProject?: string): WizardState {
         parsed.category && CATEGORIES.some((c) => c.id === parsed.category)
           ? parsed.category
           : categoryForProject(project);
-      const step = (["category", "project", "match", "contact", "review"] as Step[]).includes(parsed.step as Step)
-        ? (parsed.step as Step)
-        : project
-          ? "match"
-          : "category";
+      const step =
+        normalizeStep(parsed.step) ??
+        (project ? "match" : "category");
       return {
         step,
         category,
@@ -189,9 +196,10 @@ export function ShortRequestForm({
     if (!hydrated) return;
     const onPop = (event: PopStateEvent) => {
       const draft = (event.state as { quoteWizard?: WizardState } | null)?.quoteWizard;
-      if (draft?.step) {
+      const step = normalizeStep(draft?.step);
+      if (draft && step) {
         setState({
-          step: draft.step,
+          step,
           category: draft.category ?? null,
           project: draft.project ?? "",
           note: draft.note ?? "",
@@ -206,6 +214,14 @@ export function ShortRequestForm({
     window.addEventListener("popstate", onPop);
     return () => window.removeEventListener("popstate", onPop);
   }, [defaultProject, hydrated]);
+
+  useEffect(() => {
+    if (!hydrated || done) return;
+    if (!["match", "note", "contact", "phone", "email"].includes(state.step)) return;
+    const form = document.getElementById(id);
+    if (!form) return;
+    form.scrollIntoView({ block: "start", behavior: "auto" });
+  }, [state.step, hydrated, done, id]);
 
   function pushHistory(next: WizardState) {
     if (typeof window === "undefined") return;
@@ -222,17 +238,8 @@ export function ShortRequestForm({
   );
   const brand = state.project ? brandForProject(state.project) : null;
 
-  const stepIndex =
-    state.step === "category"
-      ? 1
-      : state.step === "project"
-        ? 2
-        : state.step === "match"
-          ? 3
-          : state.step === "contact"
-            ? 4
-            : 5;
-  const stepCount = 5;
+  const stepIndex = STEPS.indexOf(state.step) + 1;
+  const stepCount = STEPS.length;
 
   function go(next: Partial<WizardState>, recordHistory = true) {
     setStatus(null);
@@ -246,14 +253,11 @@ export function ShortRequestForm({
   function canAdvance(): boolean {
     if (state.step === "category") return Boolean(state.category);
     if (state.step === "project") return Boolean(state.project);
-    if (state.step === "match") return state.note.trim().length > 0;
-    if (state.step === "contact") {
-      return (
-        state.name.trim().length > 0 &&
-        state.phone.replace(/\D/g, "").length >= 10 &&
-        EMAIL.test(state.email.trim())
-      );
-    }
+    if (state.step === "match") return Boolean(state.project);
+    if (state.step === "note") return state.note.trim().length > 0;
+    if (state.step === "contact") return state.name.trim().length > 0;
+    if (state.step === "phone") return state.phone.replace(/\D/g, "").length >= 10;
+    if (state.step === "email") return EMAIL.test(state.email.trim());
     return true;
   }
 
@@ -262,21 +266,26 @@ export function ShortRequestForm({
     else if (state.step === "match") {
       if (category && category.projects.length === 1) go({ step: "category" });
       else go({ step: "project" });
-    } else if (state.step === "contact") go({ step: "match" });
-    else if (state.step === "review") go({ step: "contact" });
+    } else if (state.step === "note") go({ step: "match" });
+    else if (state.step === "contact") go({ step: "note" });
+    else if (state.step === "phone") go({ step: "contact" });
+    else if (state.step === "email") go({ step: "phone" });
+    else if (state.step === "review") go({ step: "email" });
   }
 
   function onNext() {
     if (!canAdvance()) {
-      if (state.step === "match" && !state.note.trim()) {
+      if (state.step === "note") {
         setStatus({ tone: "error", text: "Add a short note about the project." });
       } else if (state.step === "contact") {
-        if (!state.name.trim()) setStatus({ tone: "error", text: "Enter a name." });
-        else if (state.phone.replace(/\D/g, "").length < 10) {
-          setStatus({ tone: "error", text: "Enter a phone number we can call." });
-        } else if (!EMAIL.test(state.email.trim())) {
-          setStatus({ tone: "error", text: state.email ? "That email address does not look right." : "Enter an email address." });
-        }
+        setStatus({ tone: "error", text: "Enter a name." });
+      } else if (state.step === "phone") {
+        setStatus({ tone: "error", text: "Enter a phone number we can call." });
+      } else if (state.step === "email") {
+        setStatus({
+          tone: "error",
+          text: state.email.trim() ? "That email address does not look right." : "Enter an email address.",
+        });
       }
       return;
     }
@@ -289,8 +298,11 @@ export function ShortRequestForm({
       return;
     }
     if (state.step === "project") go({ step: "match" });
-    else if (state.step === "match") go({ step: "contact" });
-    else if (state.step === "contact") go({ step: "review" });
+    else if (state.step === "match") go({ step: "note" });
+    else if (state.step === "note") go({ step: "contact" });
+    else if (state.step === "contact") go({ step: "phone" });
+    else if (state.step === "phone") go({ step: "email" });
+    else if (state.step === "email") go({ step: "review" });
   }
 
   async function onSubmit() {
@@ -438,20 +450,26 @@ export function ShortRequestForm({
           )}
 
           {state.step === "match" && (
-            <fieldset className="quote-wizard-step">
+            <fieldset className="quote-wizard-step quote-wizard-step-compact">
               <legend>Your specialist team</legend>
               <p className="quote-wizard-result" role="status">
                 <strong>{brand ?? "P5 Home Co"}</strong>
-                <span> will take this from here. Add a short note so we know what to ask next.</span>
+                <span> will take this from here.</span>
               </p>
+            </fieldset>
+          )}
+
+          {state.step === "note" && (
+            <fieldset className="quote-wizard-step quote-wizard-step-compact">
+              <legend>Project note</legend>
               <label htmlFor={noteId}>
-                Project note
+                What should we know?
                 <textarea
                   id={noteId}
                   name="note"
                   required
                   maxLength={4000}
-                  rows={compact ? 2 : 3}
+                  rows={2}
                   value={state.note}
                   onChange={(event) => go({ note: event.target.value })}
                 />
@@ -460,8 +478,8 @@ export function ShortRequestForm({
           )}
 
           {state.step === "contact" && (
-            <fieldset className="quote-wizard-step">
-              <legend>How can we reach you?</legend>
+            <fieldset className="quote-wizard-step quote-wizard-step-compact">
+              <legend>Your name</legend>
               <label htmlFor={nameId}>
                 Name
                 <input
@@ -475,6 +493,12 @@ export function ShortRequestForm({
                   onChange={(event) => go({ name: event.target.value })}
                 />
               </label>
+            </fieldset>
+          )}
+
+          {state.step === "phone" && (
+            <fieldset className="quote-wizard-step quote-wizard-step-compact">
+              <legend>Phone</legend>
               <label htmlFor={phoneId}>
                 Phone
                 <input
@@ -489,6 +513,12 @@ export function ShortRequestForm({
                   onChange={(event) => go({ phone: event.target.value })}
                 />
               </label>
+            </fieldset>
+          )}
+
+          {state.step === "email" && (
+            <fieldset className="quote-wizard-step quote-wizard-step-compact">
+              <legend>Email</legend>
               <label htmlFor={emailId}>
                 Email
                 <input
@@ -525,7 +555,7 @@ export function ShortRequestForm({
                 <div>
                   <dt>Note</dt>
                   <dd>
-                    <button type="button" className="quote-wizard-edit" onClick={() => go({ step: "match" })}>
+                    <button type="button" className="quote-wizard-edit" onClick={() => go({ step: "note" })}>
                       {state.note}
                     </button>
                   </dd>
@@ -585,7 +615,7 @@ export function ShortRequestForm({
                 type="submit"
                 disabled={!canAdvance()}
               >
-                {state.step === "match" ? "Continue" : "Next"}
+                {state.step === "match" ? "Continue" : state.step === "note" ? "Continue" : "Next"}
               </button>
             )}
           </div>

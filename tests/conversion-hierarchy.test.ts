@@ -35,7 +35,14 @@ test("hub pages keep call and chat, with one short request below the hero", () =
   assert.match(bar, /PUBLIC_PHONE_SMS/);
   assert.match(bar, /<OpenChatButton/);
   assert.match(mobile, /href="\/quote"/);
-  assert.match(mobile, /openSiteChat/);
+  assert.doesNotMatch(mobile, /openSiteChat/);
+  assert.doesNotMatch(mobile, /p5-mobile-chat/);
+  assert.match(chrome, /<OpenChatButton/);
+  assert.match(form, /state\.step === "email"/);
+  assert.match(form, /state\.step === "phone"/);
+  assert.match(form, /state\.step === "note"/);
+  assert.match(form, /Your name/);
+  assert.doesNotMatch(mobile, />\s*Chat\s*</);
   const css = readFileSync("app/globals.css", "utf8");
   assert.match(css, /\.hero \{[\s\S]*?100svh/);
   assert.match(css, /--color-primary:\s*var\(--bronze\)/);
