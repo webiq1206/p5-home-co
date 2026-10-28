@@ -1,0 +1,111 @@
+{
+  "sourceLibraryId": "libfile_4efa3eb963fc81919a6cd4c2c179b0e3",
+  "archiveSha256": "52ba70b766cd32a607675d11a4f1a36eb43697fe49f379b8ce4585c371316b6a",
+  "assets": [
+    {
+      "destination": "public/brands/p5-home-co-lockup-dark.svg",
+      "source": "p5/logos/P5-Home-Co_Logo_On-Light.svg",
+      "sha256": "fe9a6f238b91743718c75760e98dd849f8c4500d7bc55bb3848b08183f8dcb04"
+    },
+    {
+      "destination": "public/brands/p5-home-co-lockup-light.svg",
+      "source": "p5/logos/P5-Home-Co_Logo_On-Dark.svg",
+      "sha256": "6f303300f975e31975550cda71f6d4f1ae73afac079f20db14d4488774cd09c8"
+    },
+    {
+      "destination": "public/brands/p5-home-co-icon-dark.svg",
+      "source": "p5/icons/P5-Home-Co_P5-Icon_On-Light.svg",
+      "sha256": "c6d7c1722989726c49c3daa009e0bc072b11b958b5ccc0a15cb7053d76970577"
+    },
+    {
+      "destination": "public/brands/p5-home-co-icon-light.svg",
+      "source": "p5/icons/P5-Home-Co_P5-Icon_On-Dark.svg",
+      "sha256": "601cd1d34a039ec7d205a5ed76aa68932458dcc5f220ee4949fdb3c65854335e"
+    },
+    {
+      "destination": "public/brands/boise-construction-co-dark.svg",
+      "source": "construction/logos/Boise-Construction-Co_Logo_On-Light.svg",
+      "sha256": "192a33b5568624e6201ca1adf97fea5b54f1ed8a73d0747e5045ed6288c8bd01"
+    },
+    {
+      "destination": "public/brands/boise-construction-co.svg",
+      "source": "construction/logos/Boise-Construction-Co_Logo_On-Dark.svg",
+      "sha256": "6833233a529731ff1fab94935049a96a9135291918eb52fe656835ce8837df3e"
+    },
+    {
+      "destination": "public/brands/boise-remodeling-co-dark.svg",
+      "source": "remodeling/logos/Boise-Remodeling-Co_Logo_On-Light.svg",
+      "sha256": "b30385b73a55b15f84c74672fc130557813ce4bedcfa8722bbd41e7713cf4fb3"
+    },
+    {
+      "destination": "public/brands/boise-remodeling-co.svg",
+      "source": "remodeling/logos/Boise-Remodeling-Co_Logo_On-Dark.svg",
+      "sha256": "28d44af4a6d92f9fe7a922276b93aa04f498bb3cc325f1c902ce7ee31429aa44"
+    },
+    {
+      "destination": "public/brands/boise-cabinet-co-dark.svg",
+      "source": "cabinet/logos/Boise-Cabinet-Co_Logo_On-Light.svg",
+      "sha256": "c427b8281284d96530f19ac7e38cc29163ddeeaa76effd2dc3693f64bdac21ef"
+    },
+    {
+      "destination": "public/brands/boise-cabinet-co.svg",
+      "source": "cabinet/logos/Boise-Cabinet-Co_Logo_On-Dark.svg",
+      "sha256": "70f21a18cbd695c9f4946b047700c6c6f4716bc5393aa3d763b90c763f2adf3e"
+    },
+    {
+      "destination": "public/brands/boise-handyman-co-dark.svg",
+      "source": "handyman/logos/Boise-Handyman-Co_Logo_On-Light.svg",
+      "sha256": "1d708a2077ab9ed06148d54d06ed151c124cbb940be60df57eeef0f7dab14fe7"
+    },
+    {
+      "destination": "public/brands/boise-handyman-co.svg",
+      "source": "handyman/logos/Boise-Handyman-Co_Logo_On-Dark.svg",
+      "sha256": "cd2d2f987f724cd0be368e40405c03a18a173ea10c1d5b54961988898e1acfd8"
+    },
+    {
+      "destination": "public/brands/boise-adu-co-dark.svg",
+      "source": "adu/logos/Boise-ADU-Co_Logo_On-Light.svg",
+      "sha256": "d365ae157bdf9bc3433efb1e37683fc020d85083b740f013c5c95bb5551390dd"
+    },
+    {
+      "destination": "public/brands/boise-adu-co.svg",
+      "source": "adu/logos/Boise-ADU-Co_Logo_On-Dark.svg",
+      "sha256": "6f305aa27a7f376a1c54f7fcf76fff944a6153976b42631f216477e3f99e25c7"
+    },
+    {
+      "destination": "public/favicon-16x16.png",
+      "source": "p5/icons/P5-Home-Co_P5-Icon_On-Light_16px.png",
+      "sha256": "82f1dfbd80eb1a4077276b682d62cf5effe1dbfd74cb708eddb54b6ab7b16ab4"
+    },
+    {
+      "destination": "public/favicon-32x32.png",
+      "source": "p5/icons/P5-Home-Co_P5-Icon_On-Light_32px.png",
+      "sha256": "2d7c09e6ca6e27020785c343dab998bcb74e2422a3264720bec9476c1026f917"
+    },
+    {
+      "destination": "public/apple-touch-icon.png",
+      "source": "p5/icons/P5-Home-Co_P5-Icon_On-Light_180px.png",
+      "sha256": "e099d1ef87ce73470aeba7c241f089f748712af7890a07b119511db2cb53221b"
+    },
+    {
+      "destination": "public/android-chrome-192x192.png",
+      "source": "p5/icons/P5-Home-Co_P5-Icon_On-Light_192px.png",
+      "sha256": "23620aa49cd7b0f97c66a24198a243c61af488b53540ad17efa0191e16d0bd52"
+    },
+    {
+      "destination": "public/android-chrome-512x512.png",
+      "source": "p5/icons/P5-Home-Co_P5-Icon_On-Light_512px.png",
+      "sha256": "0fd073ee11796adc02f886fc19e9bfb8528e0fea8acd2cece18dc7b16eb6c7b7"
+    },
+    {
+      "destination": "public/favicon.ico",
+      "source": "p5/icons/favicon.ico",
+      "sha256": "f9be2d48b4cafe2466d85cb999742e0d6dbf861b83c9eb04f08bff183d24bf7d"
+    },
+    {
+      "destination": "public/safari-pinned-tab.svg",
+      "source": "p5/icons/P5-Home-Co_P5-Icon_On-Light.svg",
+      "sha256": "c6d7c1722989726c49c3daa009e0bc072b11b958b5ccc0a15cb7053d76970577"
+    }
+  ]
+}

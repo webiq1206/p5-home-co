@@ -82,6 +82,7 @@ build/contracts/
 !/lib/googleAdsConversion.ts
 !/scripts/
 /scripts/*
+!/scripts/branding-ci-evidence-bound.mjs
 !/scripts/p5-admin-pricing-browser.mjs
 !/scripts/test-p5-workflow.mts
 !/scripts/p5-runtime-acceptance.mts

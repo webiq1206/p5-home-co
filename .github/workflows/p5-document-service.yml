@@ -139,11 +139,17 @@ jobs:
         if: always()
         run: |
           tar --exclude=node_modules --exclude=verification -czf document-service-verification/service-source.tgz services/document-service lib/p5/documentServiceClient.ts scripts/integrate-document-service.mjs scripts/test-p5-document-adapter.mts tests/p5-document-service.test.ts
-      - uses: actions/upload-artifact@v4
+      - name: Bound complete evidence without truncation
+        id: branding_evidence
         if: always()
+        run: |
+          node --test tests/branding-ci-evidence-bound.test.mjs
+          node scripts/branding-ci-evidence-bound.mjs document-service-verification services/document-service/verification
+      - uses: actions/upload-artifact@v4
+        if: always() && steps.branding_evidence.outputs.ready == 'true'
         with:
           name: document-service-verification
-          path: |
-            document-service-verification
-            services/document-service/verification
+          path: branding-ci-evidence/complete.tar.gz
           retention-days: 14
+          compression-level: 0
+          if-no-files-found: error
