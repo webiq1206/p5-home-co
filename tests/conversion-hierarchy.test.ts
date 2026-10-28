@@ -3,6 +3,7 @@ import test from "node:test";
 import { readFileSync } from "node:fs";
 
 const home = readFileSync("app/HomePageClient.tsx", "utf8");
+const chrome = readFileSync("components/SiteChrome.tsx", "utf8");
 const quote = readFileSync("app/quote/QuoteLanding.tsx", "utf8");
 const chat = readFileSync("components/SiteChat.tsx", "utf8");
 const form = readFileSync("components/ShortRequestForm.tsx", "utf8");
@@ -20,20 +21,20 @@ test("hub pages keep call and chat, with one short request below the hero", () =
   assert.equal(home.match(/<ShortRequestForm/g)?.length, 1);
   assert.match(home, /<ShortRequestForm id="request-form"/);
   assert.ok(home.indexOf('<ShortRequestForm id="request-form"') > heroEnd);
-  assert.match(home, /className="header-chat"/);
-  assert.match(home, /<OpenChatButton/);
+  assert.match(chrome, /className="header-chat"/);
+  assert.match(chrome, /<OpenChatButton/);
+  assert.match(home, /SiteChrome/);
   const quoteHeroStart = quote.indexOf('className="quote-hero"');
   const quoteRequestStart = quote.indexOf('className="quote-request"');
   assert.ok(quoteHeroStart > -1 && quoteRequestStart > quoteHeroStart);
   assert.doesNotMatch(quote.slice(quoteHeroStart, quoteRequestStart), /ShortRequestForm/);
   assert.equal(quote.match(/<ShortRequestForm/g)?.length, 1);
   assert.match(quote, /<h1>A specialist team for your home project<\/h1>/);
-  assert.match(quote, /headingAs=\{service \? "h1" : "h2"\}/);
-  assert.match(quote, /layout="embedded"/);
+  assert.doesNotMatch(quote, /P5Estimator/);
   assert.match(bar, /PUBLIC_PHONE_TEL/);
   assert.match(bar, /PUBLIC_PHONE_SMS/);
   assert.match(bar, /<OpenChatButton/);
-  assert.match(mobile, /href="\/#request-form"/);
+  assert.match(mobile, /href="\/quote"/);
   assert.match(mobile, /openSiteChat/);
   const css = readFileSync("app/globals.css", "utf8");
   assert.match(css, /\.hero \{[^}]*height: 100svh/);
@@ -54,7 +55,8 @@ test("the short form requires name, phone, email, and a project note, and files 
   assert.match(route, /Add a short note about the project/);
   assert.doesNotMatch(chat, /type="file"/);
   assert.match(chat, /visualViewport/);
-  assert.match(chat, /continueAssistantProject/);
+  assert.doesNotMatch(chat, /continueAssistantProject/);
+  assert.match(chat, /Request a quote/);
   assert.doesNotMatch(readFileSync("components/P5Estimator.tsx", "utf8"), /short-request/);
 });
 

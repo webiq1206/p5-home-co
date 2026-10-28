@@ -60,7 +60,7 @@ export const PLAIN_H1 = "Boise’s Home Specialists";
 export const TRUSTED_LEDE =
   "Build it. Remodel it. Expand it. Care for it. Finish it. P5 brings every chapter of homeownership under one trusted family of specialized Treasure Valley companies.";
 export const PLAIN_LEDE =
-  "Build it. Remodel it. Expand it. Care for it. Finish it. P5 brings every chapter of homeownership under one family of specialized Treasure Valley companies.";
+  "P5 Home Co is the parent company behind Boise Construction Co, Boise Remodeling Co, Boise Cabinet Co and Boise Handyman Co. Tell us your project and the right team calls you, under one contractor registration.";
 
 export const ESTABLISHED_2020_LINE =
   "Established 2020. Bonded and insured. Serving Ada and Canyon counties.";

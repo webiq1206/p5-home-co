@@ -1,10 +1,9 @@
 # P5 Home Co
 
-> P5 Home Co brings together five specialist teams serving Boise and the
-> Treasure Valley: Boise Construction Co, Boise Remodeling Co, Boise Cabinet
-> Co, Boise Handyman Co and Boise ADU Co. All five are available for their
-> project specialties. Only the standalone ADU website is prelaunch; ADU
-> requests start through P5. P5 is not a directory or referral network.
+> P5 Home Co is the parent company behind Boise Construction Co, Boise
+> Remodeling Co, Boise Cabinet Co and Boise Handyman Co in the Treasure Valley.
+> Boise ADU Co projects currently run through Boise Construction Co; its site
+> is coming. P5 is not a directory or referral network.
 
 ## What P5 Home Co is
 
@@ -27,10 +26,9 @@ Bonded and insured. Serving Ada and Canyon counties.
   remodeling. Kitchen remodeling, bathroom remodeling, whole-home
   remodeling, additions, and ADUs, managed under one roof with a written
   scope and coordinated permits.
-- [Boise ADU Co](https://p5homeco.com/quote/adu): Accessory dwelling units.
-  Detached ADUs, garage conversions, basement and interior units, and
-  feasibility and permitting. ADU requests start through P5 while the
-  standalone website is prelaunch.
+- [Boise ADU Co](https://boiseconstruction.co): Accessory dwelling units.
+  Boise ADU Co projects currently run through Boise Construction Co; its site
+  is coming.
 - [Boise Handyman Co](https://boisehandyman.co): Home repair and
   maintenance. Drywall and trim repair, TV and fixture mounting, deck and
   exterior repair, and general home maintenance.
@@ -63,18 +61,15 @@ City, across Ada and Canyon counties in Idaho's Treasure Valley.
 
 ## Starting a project
 
-The project intake at https://p5homeco.com/estimate lets a homeowner describe
-the whole project, add plans or photos, answer relevant questions, and review
-the details before sending a request to P5. Unknown measurements or selections
-can remain open for the team; more information or a site visit may be needed
-before an estimate is prepared. Submitting the request does not promise an
-instant price or a firm bid.
+Request a quote at https://p5homeco.com/quote. A name, phone, email, and a
+short note are enough. Optional photos or plans help. We reply within one
+business day with questions or a time to visit. You get a written scope before
+any price.
 
 P5 keeps the request in place with the appropriate discipline recorded:
 new homes and additions with Construction, kitchen or broader renovation work
 with Remodeling, cabinet-only work with Cabinet, and repairs with Handyman.
-ADU requests are available through https://p5homeco.com/quote/adu; only
-the standalone Boise ADU Co website is prelaunch.
+Boise ADU Co projects currently run through Boise Construction Co; its site is coming.
 
 The request needs a name and a valid email address or phone number, with a
 preferred contact method. A saved receipt confirms the recorded request;
@@ -91,15 +86,13 @@ AM-4 PM Mountain (Sunday closed).
 ## Key pages
 
 - [P5 Home Co](https://p5homeco.com): Five available specialist teams, the shared operating standard, and the service area.
-- [Start a project](https://p5homeco.com/estimate): Describe construction,
-  remodeling, cabinetry or repair work, share files, and review the scope
-  before sending it to P5.
-- [Legacy quote form](https://p5homeco.com/quote): Existing quote request form.
-- The seven service-specific quote pages (/quote/kitchen-remodel and so on) are
-  paid-search landing variants of the legacy form and are not indexed;
-  their canonical page remains https://p5homeco.com/quote. The main
-  conversational intake is https://p5homeco.com/estimate.
+- [About](https://p5homeco.com/about): Founder story and family company background.
+- [Request a quote](https://p5homeco.com/quote): Short request form for construction,
+  remodeling, cabinetry, repair or ADU work.
+- The service-specific quote pages (/quote/kitchen-remodel and so on) are
+  paid-search landing variants and are not indexed; their canonical page remains
+  https://p5homeco.com/quote.
 - [Full text for LLMs](https://p5homeco.com/llms-full.txt): this fact sheet
   plus the homepage questions and answers.
 
-Last updated: 2026-10-27.
+Last updated: 2026-10-28.

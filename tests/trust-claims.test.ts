@@ -70,8 +70,8 @@ test("unproven claims stay in source and are hidden by default", () => {
   assert.match(readFileSync("app/structuredData.ts", "utf8"), /foundingDate: "2020"/);
   const home = readFileSync("app/HomePageClient.tsx", "utf8");
   assert.match(home, /import \{[\s\S]*SHOW_UNPROVEN_SELF_PERFORM[\s\S]*\} from "\.\/publicClaims"/);
-  assert.match(home, /100\+ projects/);
-  assert.match(home, /visibleFoundingBadges\(\)/);
+  assert.match(home, /Who you are hiring/);
+  assert.match(home, /PUBLIC_REGISTRATION/);
 
   const claimsSource = readFileSync("app/publicClaims.ts", "utf8");
   assert.match(claimsSource, /TOP_RATED_PHRASE = "top-rated"/);

@@ -27,11 +27,11 @@ export interface SiteUrlEntry {
 
 export const ownPages: SiteUrlEntry[] = [
   { href: "/", label: "Home", changeFrequency: "monthly", priority: 1 },
+  { href: "/about", label: "About P5 Home Co", changeFrequency: "monthly", priority: 0.9 },
   { href: "/quote", label: "Request a quote", changeFrequency: "monthly", priority: 0.9 },
-  { href: "/estimate", label: "Online project estimator", changeFrequency: "monthly", priority: 0.9 },
+  { href: "/estimate", label: "Request a quote", changeFrequency: "monthly", priority: 0.8 },
   { href: "/#companies", label: "Our companies" },
   { href: "/#p5-standard", label: "The P5 standard" },
-  { href: "/#about", label: "About P5 Home Co" },
   { href: "/#service-area", label: "Service area" },
   { href: "/#faq", label: "Common questions" },
   { href: "/sitemap", label: "Site map", changeFrequency: "monthly", priority: 0.3 },

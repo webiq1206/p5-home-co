@@ -21,7 +21,7 @@
 
 .header p {
   margin: 0;
-  font-family: "P5 Serif", Georgia, serif;
+  font-family: var(--font-cormorant), "Cormorant Garamond", Georgia, serif;
   font-size: 20px;
   line-height: 1.2;
 }
@@ -82,7 +82,7 @@
   border: 1px solid rgba(32, 35, 31, 0.22);
   background: #fff;
   color: #20231f;
-  font: 16px "P5 Sans", sans-serif;
+  font: 16px var(--font-manrope), Manrope, system-ui, sans-serif;
 }
 
 .composer textarea {
@@ -111,7 +111,7 @@
   border: 0;
   background: transparent;
   color: #20231f;
-  font: 750 13px "P5 Sans", sans-serif;
+  font: 750 13px var(--font-manrope), Manrope, system-ui, sans-serif;
   text-align: left;
   text-decoration: underline;
   text-underline-offset: 3px;
@@ -150,3 +150,5 @@
     border: 1px solid rgba(32, 35, 31, 0.14);
   }
 }
+
+.sentNote { margin: 0 0 8px; font-size: 14px; line-height: 1.4; color: #343934; }

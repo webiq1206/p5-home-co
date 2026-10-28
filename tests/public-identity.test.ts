@@ -17,7 +17,7 @@ import {
 import { TRUSTED_H1 } from "../app/publicClaims.ts";
 
 const pages = [
-  "app/HomePageClient.tsx",
+  "components/SiteChrome.tsx",
   "app/quote/QuoteLanding.tsx",
   "app/quote/thanks/page.tsx",
   "app/sitemap/page.tsx",
@@ -33,7 +33,7 @@ test("the approved NAP and sister row are the audit strings", () => {
   );
   assert.equal(
     SISTER_LINE,
-    "Part of P5 Home Co: Boise Construction Co · Boise Remodeling Co · Boise Handyman Co · Boise Cabinet Co · Boise ADU Co (website coming soon; requests through P5)",
+    "Part of P5 Home Co: Boise Construction Co · Boise Remodeling Co · Boise Cabinet Co · Boise Handyman Co · Boise ADU Co projects currently run through Boise Construction Co; its site is coming.",
   );
   assert.equal(PUBLIC_REGISTRATION, "Idaho Registered Contractor #8381215");
   assert.equal(PUBLIC_REGISTRATION.includes("("), false);
@@ -137,8 +137,8 @@ test("the registration line is linked in the footer and plain text on funnel pag
   for (const file of plain) {
     assert.match(readFileSync(file, "utf8"), /linkRegistration=\{false\}/, file);
   }
-  assert.match(readFileSync("app/estimate/page.tsx", "utf8"), /from "\.\/p5-preview\/page"/);
-  for (const file of ["app/HomePageClient.tsx", "app/sitemap/page.tsx", "app/legal/layout.tsx", "app/quote/QuoteLanding.tsx", "app/quote/thanks/page.tsx"]) {
+  assert.match(readFileSync("app/estimate/page.tsx", "utf8"), /redirect\("\/quote"\)/);
+  for (const file of ["components/SiteChrome.tsx", "app/sitemap/page.tsx", "app/legal/layout.tsx", "app/quote/QuoteLanding.tsx", "app/quote/thanks/page.tsx"]) {
     const source = readFileSync(file, "utf8");
     assert.match(source, /<PublicIdentity\b/, file);
     assert.equal(source.includes("linkRegistration={false}"), false, file);
@@ -164,15 +164,15 @@ test("homepage preserves identity and location while explaining the three-step p
   const home = readFileSync("app/HomePageClient.tsx", "utf8");
   assert.equal(TRUSTED_H1, "Boise’s Trusted Home Specialists");
   assert.match(home, /SHOW_UNPROVEN_TRUSTED \? TRUSTED_H1 : PLAIN_H1/);
-  assert.match(home, /Serving Boise, Meridian and the Treasure Valley/);
-  assert.match(home, /visibleFoundingBadges\(\)/);
-  assert.match(home, /100\+ projects/);
+  assert.match(home, /PUBLIC_REGISTRATION/);
   assert.match(home, /Bonded and insured/);
+  assert.match(home, /Who you are hiring/);
+  assert.match(home, /href="\/about"/);
   assert.equal(home.includes("Jared"), false);
   const trustAt = home.indexOf('className="trust-strip"');
   const howAt = home.indexOf('className="how-p5"');
-  const aboutAt = home.indexOf('id="about"');
-  assert.ok(trustAt >= 0 && howAt > trustAt && aboutAt > howAt, "How P5 works sits after the trust strip and before about");
+  const companiesAt = home.indexOf('id="companies"');
+  assert.ok(trustAt >= 0 && howAt > trustAt && companiesAt > howAt, "How P5 works sits after the trust strip and before companies");
   for (const line of [
     "How P5 works",
     "Tell us what you’re planning",

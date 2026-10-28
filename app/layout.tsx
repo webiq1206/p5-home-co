@@ -1,5 +1,6 @@
 import {withBrandPageMetadata} from '@/lib/brand-page-metadata';
 import type { Metadata, Viewport } from "next";
+import { Cormorant_Garamond, Manrope } from "next/font/google";
 import Script from "next/script";
 import { googleTagBootstrap } from "@/lib/analyticsBootstrap";
 import HubSpotScript from "./HubSpotScript";
@@ -9,6 +10,19 @@ import StripUtmLinks from "@/components/StripUtmLinks";
 import "./globals.css";
 import { gaMeasurementId, googleAdsCallClickLabel, googleAdsDestinationId, googleAdsPhoneConversionLabel, googleAdsTextClickLabel, siteUrl } from "./site";
 import { serializeJsonLd, siteDescription, siteSchema, siteTitle } from "./structuredData";
+
+const manrope = Manrope({
+  subsets: ["latin"],
+  variable: "--font-manrope",
+  display: "swap",
+});
+
+const cormorant = Cormorant_Garamond({
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+  variable: "--font-cormorant",
+  display: "swap",
+});
 
 const title = siteTitle;
 const description = siteDescription;
@@ -73,15 +87,11 @@ export const metadata: Metadata = withBrandPageMetadata(({
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en" className={`${manrope.variable} ${cormorant.variable}`} suppressHydrationWarning>
       <body>
         <StripUtmLinks />
         {/* The intentional pre-hydration root class enables progressive reveal effects. */}
         <Script id="p5-js-class" strategy="beforeInteractive">{'document.documentElement.classList.add("js")'}</Script>
-        {/* Next preloads the hero and the logo marks on its own, but not the
-            fonts, and the hero headline is set in the display serif. */}
-        <link rel="preload" as="font" type="font/woff2" href="/fonts/p5-serif.woff2" crossOrigin="anonymous" />
-        <link rel="preload" as="font" type="font/woff2" href="/fonts/p5-sans.woff2" crossOrigin="anonymous" />
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: serializeJsonLd(siteSchema) }}

@@ -7,6 +7,7 @@ import { PUBLIC_PHONE_DISPLAY } from "../app/publicIdentity";
 import { isNewAcceptedInquiry } from "../app/quote/conversion.ts";
 import { PROJECT_OPTIONS } from "../app/quote/options.ts";
 import { captureAttribution } from "../lib/p5/browserAttribution.ts";
+import SaveContactButton from "./SaveContactButton";
 
 const MAX_FILES = 4;
 const MAX_FILE_BYTES = 8 * 1024 * 1024;
@@ -110,7 +111,12 @@ export function ShortRequestForm({
       }
       if (isNewAcceptedInquiry(response.status, payload, false)) trackAcceptedInquiry();
       setDone(true);
-      setStatus({ tone: "ok", text: payload.message || "Thanks. Your request is with the team and someone will follow up." });
+      setStatus({
+        tone: "ok",
+        text:
+          payload.message ||
+          "We reply within one business day with questions or a time to visit. You get a written scope before any price.",
+      });
     } catch {
       setStatus({ tone: "error", text: `We could not send that. Call ${PUBLIC_PHONE_DISPLAY}.` });
       setPending(false);
@@ -126,10 +132,14 @@ export function ShortRequestForm({
       onSubmit={onSubmit}
       noValidate
     >
-      <h2 className={compact ? "short-request-sr" : undefined}>Send a short request</h2>
+      <h2 className={compact ? "short-request-sr" : undefined}>Request a quote</h2>
       {compact ? null : <p className="short-request-note">No obligation. Or call {PUBLIC_PHONE_DISPLAY}.</p>}
       {done ? (
-        <p className="short-request-status" role="status">{status?.text}</p>
+        <div className="short-request-thanks">
+          <p className="short-request-status" role="status">{status?.text}</p>
+          <SaveContactButton location="form_thanks" />
+          <p className="short-request-note">Save our contact so you have Nick&apos;s number when we call back.</p>
+        </div>
       ) : (
         <>
           <label htmlFor={nameId}>
@@ -171,7 +181,7 @@ export function ShortRequestForm({
             <input name="website_url" type="text" tabIndex={-1} autoComplete="off" />
           </label>
           <button className="button button-dark short-request-submit" type="submit" disabled={pending} aria-busy={pending}>
-            {pending ? "Sending" : "Send request"}
+            {pending ? "Sending" : "Request a quote"}
           </button>
           {status && <p className="short-request-status" role="alert">{status.text}</p>}
         </>

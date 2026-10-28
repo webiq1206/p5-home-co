@@ -1,7 +1,5 @@
 import Link from "next/link";
 
-import {P5Estimator} from "@/components/P5Estimator";
-
 import { CREW_AND_TRADES, QUOTE_SELF_PERFORM, QUOTE_SPECIALTY, SHOW_UNPROVEN_SELF_PERFORM } from "../publicClaims";
 import { PROOF_POINTS, TESTIMONIALS } from "./proof";
 import { faqsFor, schemaFor, STEPS } from "./schema";
@@ -9,6 +7,7 @@ import { QUOTE_SERVICES, type QuoteService } from "./services";
 import { serializeJsonLd } from "../structuredData";
 import TrackedPhoneLink from "./TrackedPhoneLink";
 import PublicIdentity from "@/components/PublicIdentity";
+import SaveContactButton from "@/components/SaveContactButton";
 import { ShortRequestForm } from "@/components/ShortRequestForm";
 import { OpenChatButton } from "@/components/SiteChat";
 import {
@@ -20,7 +19,7 @@ import {
   FEATURED_BOISE_ADU,
   TREASURE_VALLEY_FOOTHILLS,
 } from "../imageVariants.ts";
-import { PUBLIC_PHONE_DISPLAY, PUBLIC_PHONE_SMS } from "../publicIdentity";
+import { ADU_D3_LINE, PUBLIC_PHONE_DISPLAY, PUBLIC_PHONE_SMS } from "../publicIdentity";
 
 /* eslint-disable @next/next/no-img-element */
 
@@ -36,24 +35,12 @@ import { PUBLIC_PHONE_DISPLAY, PUBLIC_PHONE_SMS } from "../publicIdentity";
  * the longer trust and process content sits below it. Nobody should have to
  * scroll past six paragraphs to reach the field they came to fill in.
  */
-export default function QuoteLanding({ service, entryLabel, defaultService }: { service: QuoteService | null;entryLabel?:string;defaultService?:string }) {
+export default function QuoteLanding({ service }: { service: QuoteService | null;entryLabel?:string;defaultService?:string }) {
   const faqs = faqsFor(service);
   const heroImage = service ? service.image : FEATURED_BOISE_EXTERIOR.src;
   const heroAlt = service ? service.imageAlt : FEATURED_BOISE_EXTERIOR.alt;
   const heroVariant = imageVariantFor(heroImage);
   const others = QUOTE_SERVICES.filter((s) => !service || s.slug !== service.slug);
-  const serviceDefaults: Record<string, string> = {
-    "kitchen-remodel": "kitchen",
-    "bathroom-remodel": "bathroom",
-    "home-addition": "addition",
-    adu: "adu",
-    "custom-home": "new-construction",
-    "new-construction": "new-construction",
-    "custom-cabinets": "cabinet-install",
-    handyman: "handyman",
-    "re-10": "re10",
-  };
-  const resolvedService = defaultService ?? serviceDefaults[service?.slug || ""] ?? "";
 
   return (
     <>
@@ -140,16 +127,6 @@ export default function QuoteLanding({ service, entryLabel, defaultService }: { 
               formName="Quote Landing Page"
               defaultProject={service?.project}
             />
-          </div>
-        </section>
-
-        <section id="quote-form-heading" className="quote-tool">
-          <div className="quote-shell quote-tool-intro">
-            <h2>Project details, if you want them</h2>
-            <p>This step is optional. A name and phone above are enough for a person to follow up.</p>
-          </div>
-          <div className="quote-tool-frame">
-            <P5Estimator headingAs={service ? "h1" : "h2"} layout="embedded" entryLabel={entryLabel} defaultService={resolvedService} />
           </div>
         </section>
 
@@ -243,7 +220,7 @@ export default function QuoteLanding({ service, entryLabel, defaultService }: { 
               ))}
               {!service && (
                 <li key="something-else">
-                  <a href="#quote-form-heading">
+                  <a href="#request-form">
                     <b>Something else</b>
                     <span>Describe it and we route it</span>
                   </a>
@@ -251,8 +228,9 @@ export default function QuoteLanding({ service, entryLabel, defaultService }: { 
               )}
             </ul>
             <p className="quote-section-lead quote-others-note">
-              P5 Home Co is an operating family of five companies, not a directory or a referral
+              P5 Home Co is an operating family of companies, not a directory or a referral
               network. {SHOW_UNPROVEN_SELF_PERFORM ? QUOTE_SELF_PERFORM : `${QUOTE_SPECIALTY} ${CREW_AND_TRADES}`}{" "}
+              {ADU_D3_LINE}{" "}
               <Link href="/#p5-standard">Read the P5 standard</Link>.
             </p>
           </div>
@@ -285,7 +263,9 @@ export default function QuoteLanding({ service, entryLabel, defaultService }: { 
             <p className="quote-footer-links">
               <a href="tel:+12084771169">(208) 477-1169</a>
               <a href="mailto:hello@p5homeco.com">hello@p5homeco.com</a>
+              <SaveContactButton className="quote-save-contact" location="quote_footer" />
               <Link href="/">P5 Home Co home</Link>
+              <Link href="/about">About</Link>
               <Link href="/legal/privacy">Privacy policy</Link>
             </p>
             <PublicIdentity />

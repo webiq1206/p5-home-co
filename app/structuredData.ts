@@ -18,9 +18,9 @@ import { citiesServed, companies, faqs, siteUrl } from "./site.ts";
 const [streetAddress, addressLocality, regionAndPostal] = PUBLIC_ADDRESS.split(", ");
 const [addressRegion, postalCode] = regionAndPostal.split(" ");
 
-export const siteTitle = "P5 Home Co | Five Home-Service Companies in Boise, ID";
+export const siteTitle = "P5 Home Co | Treasure Valley Home-Service Companies";
 export const siteDescription =
-  "The parent company behind Boise Construction Co, Boise Remodeling Co, Boise ADU Co, Boise Handyman Co, and Boise Cabinet Co in Idaho's Treasure Valley.";
+  "Parent company of Boise Construction Co, Boise Remodeling Co, Boise Cabinet Co and Boise Handyman Co in Idaho's Treasure Valley.";
 
 /** Entities that describe the publisher and website on every public page. */
 export const siteSchema = {
