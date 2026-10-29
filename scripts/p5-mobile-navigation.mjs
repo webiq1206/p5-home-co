@@ -22,11 +22,11 @@ try{
   });
   await context.route('**/api/estimator-session',r=>r.fulfill({json:{ok:true}}));
   await context.route('**/api/meta-capi',r=>r.fulfill({json:{ok:true}}));
-  const page=await context.newPage();
   for(const route of parent?['/quote','/estimate/scope']:['/estimate','/','/estimate/scope',...extraRoutes]){
+   const page=await context.newPage();
    await page.goto(`${process.env.P5_TEST_BASE_URL||'http://127.0.0.1:5000'}${route}`,{waitUntil:'load'});
-   if(parent&&route==='/quote'){await verifyQuoteEntry(page,route);await page.screenshot({path:`p5-verification/navigation-${width}-quote.png`});results.push({width,route,passed:true});continue;}
-   if(isConstruction(brand)&&['/','/estimate'].includes(route)){await verifyConstructionEntry(page,route);await page.screenshot({path:`p5-verification/navigation-${width}-construction-${route==='/'?'home':'estimate'}.png`});results.push({width,route,passed:true});continue;}
+   if(parent&&route==='/quote'){await verifyQuoteEntry(page,route);await page.screenshot({path:`p5-verification/navigation-${width}-quote.png`});results.push({width,route,passed:true});await page.close();continue;}
+   if(isConstruction(brand)&&['/','/estimate'].includes(route)){await verifyConstructionEntry(page,route);await page.screenshot({path:`p5-verification/navigation-${width}-construction-${route==='/'?'home':'estimate'}.png`});results.push({width,route,passed:true});await page.close();continue;}
    await enterEstimator(page,{route,brand,parent});
    const estimator=page.locator('[data-p5-estimator]').first();await estimator.waitFor();
    const input=estimator.getByLabel('Tell us about your project',{exact:true});await input.waitFor().catch(async error=>{console.log('Navigation failure',width,route,await page.locator('body').innerText());await page.screenshot({path:'p5-verification/navigation-failure.png',fullPage:true});throw error;});
@@ -37,7 +37,7 @@ try{
    const next=estimator.getByRole('button',{name:'Send message',exact:true});await next.scrollIntoViewIfNeeded();
    assert.ok(await next.evaluate(el=>{const r=el.getBoundingClientRect(),x=r.left+r.width/2,y=r.top+r.height/2;return r.width>0&&r.height>0&&x>=0&&x<innerWidth&&y>=0&&y<innerHeight&&el.contains(document.elementFromPoint(x,y));}),'Estimator action must be visible and unobstructed');
    assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'Horizontal overflow');
-   await page.screenshot({path:`p5-verification/navigation-${width}-${route==='/'?'home':route.replaceAll('/','_')}.png`});results.push({width,route,passed:true});
+   await page.screenshot({path:`p5-verification/navigation-${width}-${route==='/'?'home':route.replaceAll('/','_')}.png`});results.push({width,route,passed:true});await page.close();
   }
   await context.close();
  }
