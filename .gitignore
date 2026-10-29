@@ -142,3 +142,6 @@ tsconfig.tsbuildinfo
 
 # Bounded CI evidence packaging is versioned verification code.
 !/scripts/prepare-ci-evidence.mjs
+
+# Maintained public-route metadata audit helper.
+!/scripts/seo-route-identity.mjs
