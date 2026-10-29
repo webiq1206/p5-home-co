@@ -51,7 +51,7 @@ export const isConstruction = brand => ['construction','boise-construction-co'].
 /** Public Construction wizard, separate from the retained typed estimator. */
 export async function verifyConstructionEntry(page, path) {
   if(path==='/' || path==='/#calculator'){
-    await page.locator('a[href="/estimate"]').first().click();
+    await page.locator('a[href="/estimate"]:visible').first().click();
     await page.waitForURL(url=>url.pathname==='/estimate');
   }
   const form=page.getByTestId('consultation-wizard');
