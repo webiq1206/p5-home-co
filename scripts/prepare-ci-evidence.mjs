@@ -9,7 +9,7 @@ const REQUIRED = {
   mobile: ['p5-mobile-seo-verification/verification.json', 'p5-mobile-seo-verification/tested-commit.txt', 'p5-mobile-seo-verification/server.log'],
   estimator: ['p5-verification/browser-results.json', 'p5-verification/mobile-navigation.json', 'p5-verification/intent/results-chromium.json', 'p5-verification/intent/results-webkit.json', 'p5-verification/exit/results-chromium.json', 'p5-verification/exit/results-webkit.json', 'p5-verification/admin-component-results.json', 'p5-estimator-server.log'],
 };
-const LIMIT = 64 * 1024 * 1024;
+const LIMIT = 60 * 1024 * 1024;
 const GROUPS = {
   document: ['document-adapter-verification'],
   mobile: ['p5-mobile-seo-verification'],
