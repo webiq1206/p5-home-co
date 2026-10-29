@@ -6,7 +6,7 @@ import {execFileSync} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
 const normalized=file=>readFileSync(file,'utf8').replace(/\r\n/g,'\n');
 const hash=file=>createHash('sha256').update(normalized(file)).digest('hex');
-const RUNTIME_ALLOWLIST=new Set(['components/P5MobileActions.tsx','lib/p5/estimatorRoutes.ts','tests/p5-estimator-chrome.test.ts','tests/p5-mobile-action-policy.test.ts']);
+const RUNTIME_ALLOWLIST=new Set(['components/P5MobileActions.tsx','lib/p5/mobileActionPolicy.ts','lib/p5/estimatorRoutes.ts','tests/p5-estimator-chrome.test.ts','tests/p5-mobile-action-policy.test.ts']);
 const allowed=file=>RUNTIME_ALLOWLIST.has(file)||/^(?:scripts\/(?:p5-[\w-]+|lib\/[\w-]+)\.mjs|tests\/p5-[\w-]+\.test\.mjs)$/.test(file);
 function noSymlinks(root,absolute){
  for(let p=absolute;p!==root;p=path.dirname(p)){

@@ -2,10 +2,7 @@
 import {useEffect,useState} from 'react';
 import {ESTIMATOR_BRAND} from '../lib/p5/brand.ts';
 
-/** Cabinet's approved first-screen CTA; other sites retain after-hero actions. */
-export function mobileActionsVisible(brandId:string,pastHero:boolean,editing:boolean,suppressed:boolean){
-  return (brandId==='cabinet'||pastHero)&&!editing&&!suppressed;
-}
+import {mobileActionsVisible} from '../lib/p5/mobileActionPolicy.ts';
 
 /** Keep fixed marketing actions below the hero and away from a focused field. */
 export function useP5MobileActions(pathname:string|null){
