@@ -43,7 +43,6 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-          cache: npm
       - run: npm ci --no-audit --no-fund
       - name: Offline estimator and conversation checks
         run: node --import tsx --test --test-concurrency=1 tests/p5-*.test.ts
