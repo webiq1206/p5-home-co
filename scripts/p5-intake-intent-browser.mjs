@@ -1,3 +1,4 @@
+import {retainedEstimatorPath} from './lib/quoteEntry.mjs';
 import {chromium,webkit} from '@playwright/test';
 import assert from 'node:assert/strict';
 import {mkdir,writeFile} from 'node:fs/promises';
@@ -16,7 +17,7 @@ try{
    const req=route.request();if(req.method()!=='GET'){const input=req.postDataJSON(),intent=applyIntakeIntent(input.text,input.answers,saved?.extraction||null,input.wizard?.resolutions);saved={...input,...intent,id:req.headers()['x-p5-draft-id'],revision:(saved?.revision||0)+1,status:'draft',uploads:[]};}
    await route.fulfill({json:{draft:saved}});
   });
-  await page.goto(base+'/estimate');await page.getByText('Loading your project...', {exact:true}).waitFor({state:'hidden'});
+  await page.goto(base+retainedEstimatorPath(brand.id));await page.getByText('Loading your project...', {exact:true}).waitFor({state:'hidden'});
   await page.locator('[data-p5-estimator] textarea').first().fill(text);
   await page.getByRole('button',{name:'Review with the details I have',exact:true}).click();
   await page.getByRole('heading',{name:'Review your project',exact:true}).waitFor();

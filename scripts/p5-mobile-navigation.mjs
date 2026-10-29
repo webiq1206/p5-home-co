@@ -1,6 +1,7 @@
 import {chromium} from '@playwright/test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
+import {verifyQuoteEntry} from './lib/quoteEntry.mjs';
 import {enterEstimator} from './lib/navigationEntry.mjs';
 const brand=JSON.parse(await fs.readFile('package.json','utf8')).name;
 const parent=process.env.P5_PARENT==='1';const browser=await chromium.launch({
@@ -24,6 +25,7 @@ try{
   const page=await context.newPage();
   for(const route of parent?['/quote','/estimate/scope']:['/estimate','/','/estimate/scope',...extraRoutes]){
    await page.goto(`${process.env.P5_TEST_BASE_URL||'http://127.0.0.1:5000'}${route}`,{waitUntil:'load'});
+   if(parent&&route==='/quote'){await verifyQuoteEntry(page,route);await page.screenshot({path:`p5-verification/navigation-${width}-quote.png`});results.push({width,route,passed:true});continue;}
    await enterEstimator(page,{route,brand,parent});
    const estimator=page.locator('[data-p5-estimator]').first();await estimator.waitFor();
    const input=estimator.getByLabel('Tell us about your project',{exact:true});await input.waitFor().catch(async error=>{console.log('Navigation failure',width,route,await page.locator('body').innerText());await page.screenshot({path:'p5-verification/navigation-failure.png',fullPage:true});throw error;});
