@@ -163,7 +163,8 @@ test("the registration line is linked in the footer and plain text on funnel pag
 test("homepage preserves identity and location while explaining the three-step process", () => {
   const home = readFileSync("app/HomePageClient.tsx", "utf8");
   assert.equal(TRUSTED_H1, "Boise’s Trusted Home Specialists");
-  assert.match(home, /SHOW_UNPROVEN_TRUSTED \? TRUSTED_H1 : PLAIN_H1/);
+  assert.match(home, /<h1 id="hero-heading">Boise’s Home <span>Specialists<\/span><\/h1>/);
+  assert.doesNotMatch(home.slice(home.indexOf('<section className="hero"'), home.indexOf('</section>')), /PUBLIC_REGISTRATION|Trusted Home/);
   assert.match(home, /PUBLIC_REGISTRATION/);
   assert.match(home, /Bonded and insured/);
   assert.match(home, /Who you are hiring/);

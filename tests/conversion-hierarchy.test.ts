@@ -47,7 +47,9 @@ test("hub pages keep call and chat, with one short request below the hero", () =
   assert.match(css, /\.hero \{[\s\S]*?100svh/);
   assert.match(css, /--color-primary:\s*var\(--bronze\)/);
   assert.match(home, /CompanyFinder/);
-  assert.match(home, /hero-reassure/);
+  assert.equal((hero.match(/<Link /g) || []).length, 1);
+  assert.doesNotMatch(hero, /hero-reassure|hero-phone|hero-trust|<button/);
+  assert.match(hero, /Request a quote/);
   assert.match(form, /quote-wizard/);
   assert.match(form, /choice-card/);
 });

@@ -148,3 +148,5 @@ tsconfig.tsbuildinfo
 
 # Narrow canonical verification synchronization.
 !/scripts/p5-sync-selected.mjs
+
+!/scripts/lib/navigationDiagnostics.mjs

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 
-export const retainedEstimatorPath = brand => ['p5','p5-home-co-nextjs','construction','boise-construction-co'].includes(brand) ? '/estimate/scope' : '/estimate';
+export const retainedEstimatorPath = brand => ['p5','p5-home-co-nextjs','construction','boise-construction-co','cabinet','boise-cabinet-co','remodeling','boise-remodeling-co'].includes(brand) ? '/estimate/scope' : '/estimate';
 export const isPublicQuotePath = path => path === '/estimate' || path === '/quote' || path.startsWith('/quote/');
 
 /** Exercise the current public wizard without sending a request. The caller
@@ -51,7 +51,7 @@ export const isConstruction = brand => ['construction','boise-construction-co'].
 /** Public Construction wizard, separate from the retained typed estimator. */
 export async function verifyConstructionEntry(page, path) {
   if(path==='/' || path==='/#calculator'){
-    await page.locator('a[href="/estimate"]').first().click();
+    await page.locator('a[href="/estimate"]:visible').first().click();
     await page.waitForURL(url=>url.pathname==='/estimate');
   }
   const form=page.getByTestId('consultation-wizard');

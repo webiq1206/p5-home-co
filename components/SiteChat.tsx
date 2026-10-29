@@ -58,12 +58,16 @@ export default function SiteChat() {
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
   const dialogRef = useRef<HTMLDivElement>(null);
+  const returnFocusRef = useRef<HTMLElement | null>(null);
   const titleId = useId();
   const trapRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (hidden) return;
-    const onOpen = () => setOpen(true);
+    const onOpen = () => {
+      returnFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+      setOpen(true);
+    };
     window.addEventListener("p5:chat-open", onOpen);
     return () => window.removeEventListener("p5:chat-open", onOpen);
   }, [hidden]);
@@ -94,7 +98,7 @@ export default function SiteChat() {
     pin();
     document.body.dataset.p5ChatOpen = "true";
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setOpen(false);
+      if (event.key === "Escape") close();
     };
     window.addEventListener("keydown", onKey);
     window.visualViewport?.addEventListener("resize", pin);
@@ -110,6 +114,7 @@ export default function SiteChat() {
 
   function close() {
     setOpen(false);
+    if (returnFocusRef.current?.isConnected) returnFocusRef.current.focus();
   }
 
   function userNotes(): { role: string; content: string }[] {

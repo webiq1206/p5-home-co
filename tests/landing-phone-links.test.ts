@@ -10,9 +10,10 @@ test("landing call and text controls use the configured P5 number", () => {
   assert.equal(PUBLIC_PHONE_TEL, "tel:+12084771169");
   assert.equal(PUBLIC_PHONE_SMS, "sms:+12084771169");
   const home = source("app/HomePageClient.tsx");
-  assert.match(home, /PUBLIC_PHONE_TEL/);
+
   assert.match(home, /<SiteChrome\b/);
   const chrome = source("components/SiteChrome.tsx");
+  assert.match(chrome, /href=\{PUBLIC_PHONE_TEL\}/);
   assert.match(chrome, /href=\{PUBLIC_PHONE_SMS\}/);
   const quote = source("app/quote/QuoteLanding.tsx");
   assert.match(quote, /PUBLIC_PHONE_SMS/);
