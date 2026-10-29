@@ -31,7 +31,7 @@ jobs:
           node-version: 24
       - run: npm ci --no-audit --no-fund
       - name: Brand entry-path regressions
-        run: node --test tests/p5-navigation-entry.test.mjs
+        run: node --test tests/p5-navigation-entry.test.mjs tests/p5-selective-verification-sync.test.mjs
       - name: Financial policy regression tests
         run: node --import tsx --test tests/p5-legacy-entrypoints.test.ts tests/p5-repair-regressions.test.ts tests/p5-pricing.test.ts tests/p5-planning-books.test.ts tests/p5-scope-pricing.test.ts tests/p5-presentation.test.ts tests/p5-submit-progress.test.ts tests/p5-document-ledger.test.ts tests/p5-processing-status.test.ts
       - name: Production Haiku policy and error checks

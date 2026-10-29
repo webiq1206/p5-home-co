@@ -31,11 +31,15 @@ test('guided entry waits for navigation completion before reading the URL',async
 
 test('P5 keeps public quote qualification separate from retained estimator coverage',()=>{
   for(const brand of ['p5','p5-home-co-nextjs']) assert.equal(retainedEstimatorPath(brand),'/estimate/scope');
-  for(const brand of ['handyman','boise-handyman-co','cabinet','construction','remodeling']) assert.equal(retainedEstimatorPath(brand),'/estimate');
+  for(const brand of ['handyman','boise-handyman-co','cabinet','remodeling']) assert.equal(retainedEstimatorPath(brand),'/estimate');
   for(const route of ['/estimate','/quote','/quote/adu','/quote/custom-cabinets']) assert.equal(isPublicQuotePath(route),true);
   for(const route of ['/estimate/scope','/estimate/p5-preview','/quote-other']) assert.equal(isPublicQuotePath(route),false);
   if(JSON.parse(readFileSync('package.json','utf8')).name!=='p5-home-co-nextjs')return;
   assert.match(readFileSync('app/estimate/page.tsx','utf8'),/redirect\("\/quote"\)/);
   assert.match(readFileSync('app/estimate/scope/page.tsx','utf8'),/<P5Estimator layout="page"/);
   assert.match(readFileSync('app/quote/QuoteLanding.tsx','utf8'),/<ShortRequestForm/);
+});
+
+test('Construction retains engine coverage separately from its public quote wizard',()=>{
+ for(const brand of ['construction','boise-construction-co'])assert.equal(retainedEstimatorPath(brand),'/estimate/scope');
 });

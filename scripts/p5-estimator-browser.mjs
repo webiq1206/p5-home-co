@@ -1,4 +1,4 @@
-import {retainedEstimatorPath,isPublicQuotePath,verifyQuoteEntry} from './lib/quoteEntry.mjs';
+import {retainedEstimatorPath,isPublicQuotePath,verifyQuoteEntry,isConstruction,verifyConstructionEntry} from './lib/quoteEntry.mjs';
 import {chromium,webkit} from '@playwright/test';
 import {createHash} from 'node:crypto';
 import {mkdir,writeFile,readFile} from 'node:fs/promises';
@@ -103,6 +103,7 @@ async function mock(context,{interruptions=false,scenario='full'}={}){
   if(endpoint==='intake'){
    if(request.method()==='GET')return send({receipt:state.receipt});
    state.intakeRequests++;const body=request.postDataJSON();
+   if(isConstruction(brand.id)){assert.equal(body.attribution?.version,1,'Existing Construction intake carries acquisition metadata');assert.equal(body.attribution?.trust,'browser_reported','Browser acquisition is not verified ad/call origin');}
    if(!state.saved)return send({error:'Save your project before sending it.'},404);
    if(body.revision!==state.saved.revision||body.confirmed!==true)return send({error:'Review and confirm the latest project details before sending.'},409);
    if(!intakeScopeReviewed(state.saved))return send({error:'Confirm the whole project type, supporting work and exclusions against the current description before sending.'},409);
@@ -538,10 +539,10 @@ for(const width of focusOnly?[]:[320,390,1440]){
   await est.getByText('Synthetic planning range.',{exact:true}).waitFor();if(width===390){await est.getByText('Your estimate is saved here. You can download your PDF below.',{exact:true}).waitFor();assert.equal(await est.getByText('Not requested',{exact:true}).count(),1);}results.push({width,scenario:'live-progress',passed:true});
  }catch(error){console.error(error);results.push({width,scenario:'live-progress',passed:false,error:String(error)});await capture(page,`${width}-progress-failure`).catch(()=>{});}await context.close();
 }
-const paths=brand.id==='p5'?['/estimate','/estimate/scope','/quote',...['kitchen-remodel','bathroom-remodel','home-addition','adu','custom-home','custom-cabinets','handyman'].map(s=>'/quote/'+s)]:['/estimate','/estimate/scope','/#calculator',...(brand.services.includes('re10')?['/re-10-repairs-boise']:[]),...(brand.id==='remodeling'?['/remodel-plans-boise']:[])];
+const paths=brand.id==='p5'?['/estimate','/estimate/scope','/quote',...['kitchen-remodel','bathroom-remodel','home-addition','adu','custom-home','custom-cabinets','handyman'].map(s=>'/quote/'+s)]:['/estimate','/estimate/scope',isConstruction(brand.id)?'/':'/#calculator',...(brand.services.includes('re10')?['/re-10-repairs-boise']:[]),...(brand.id==='remodeling'?['/remodel-plans-boise']:[])];
 for(const width of progressOnly||focusOnly?[]:[390,768,1440])for(const path of paths){
  const context=await browser.newContext({viewport:{width,height:900}});await mock(context);const page=await context.newPage();
- try{const response=await page.goto(base+path);assert.ok(response?.ok(),`HTTP ${response?.status()}`);if(brand.id==='p5'&&isPublicQuotePath(path)){await verifyQuoteEntry(page,path);results.push({width,path,passed:true});await context.close();continue;}const est=page.locator('[data-p5-estimator]').first();if(path.includes('#calculator')){await page.locator('#calculator').first().scrollIntoViewIfNeeded();}await est.getByLabel('Tell us about your project',{exact:true}).waitFor();await overflow(page);assert.ok(!/Continue manually|Upload Scope|Manual Estimate/.test(await est.innerText()));results.push({width,path,passed:true});}
+ try{const response=await page.goto(base+path);assert.ok(response?.ok(),`HTTP ${response?.status()}`);if(brand.id==='p5'&&isPublicQuotePath(path)){await verifyQuoteEntry(page,path);results.push({width,path,passed:true});await context.close();continue;}if(isConstruction(brand.id)&&['/','/estimate'].includes(path)){await verifyConstructionEntry(page,path);results.push({width,path,passed:true});await context.close();continue;}const est=page.locator('[data-p5-estimator]').first();if(path.includes('#calculator')){await page.locator('#calculator').first().scrollIntoViewIfNeeded();}await est.getByLabel('Tell us about your project',{exact:true}).waitFor();await overflow(page);assert.ok(!/Continue manually|Upload Scope|Manual Estimate/.test(await est.innerText()));results.push({width,path,passed:true});}
  catch(error){results.push({width,path,passed:false,error:String(error)});await capture(page,`route-${width}-${path.replace(/[^a-z0-9]/gi,'_')}`).catch(()=>{});}await context.close();
 }
 await browser.close();await writeFile(`${output}/browser-results.json`,JSON.stringify({brand:brand.id,externalServices:'simulated',physicalMicrophone:'not tested',results},null,2));console.log(JSON.stringify(results));if(results.some(r=>!r.passed))process.exitCode=1;
