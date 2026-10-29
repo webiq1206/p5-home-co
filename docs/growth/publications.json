@@ -212,6 +212,20 @@
       "published_at": "2026-10-26T14:21:18+0000",
       "verified_at": "2026-10-26",
       "link_attributes": "Facebook platform redirect; public post and tracked destination read back; crawlability and indexing not claimed"
+    },
+    {
+      "platform": "facebook",
+      "brand": "P5 Home Co",
+      "url": "https://p5homeco.com/#company-finder",
+      "utm_content": "company_match_20261029",
+      "id": "1228704823655951_122144514699385974",
+      "status": "published_verified",
+      "permalink_url": "https://www.facebook.com/122135638923385974/posts/122144514699385974",
+      "destination_url": "https://p5homeco.com/?utm_source=facebook&utm_medium=organic_social&utm_campaign=p5_free_growth_2026q4&utm_content=company_match_20261029#company-finder",
+      "created_at": "2026-10-29T14:08:33+0000",
+      "published_at": "2026-10-29T14:08:33+0000",
+      "verified_at": "2026-10-29",
+      "link_attributes": "Facebook platform redirect; public post and tracked destination read back; crawlability and indexing not claimed"
     }
   ],
   "scheduled": [],
