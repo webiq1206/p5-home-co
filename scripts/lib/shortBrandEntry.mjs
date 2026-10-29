@@ -84,3 +84,26 @@ export async function verifyRemodelingRe10Handoff(page) {
  assert.equal(await page.locator('[data-p5-estimator]').count(),0);
  assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));
 }
+
+export const isHandyman = brand => ['handyman','boise-handyman-co'].includes(brand);
+/** Current homepage consultation, independent of the retained /estimate engine. */
+export async function verifyHandymanHomeEntry(page) {
+ await page.locator('main a[href="/contact"]:visible').first().click();
+ await page.waitForURL(url=>url.pathname==='/contact');
+ const form=page.getByTestId('consultation-wizard');
+ const step=value=>page.waitForFunction(value=>document.querySelector('[data-testid="consultation-wizard"]')?.dataset.step===value,value);
+ const next=()=>page.getByTestId('consult-wizard-actions').getByRole('button',{name:'Continue',exact:true}).click();
+ await step('job');await next();await step('job');
+ await page.getByTestId('consult-job-drywall-repair').click();await next();await step('about');
+ await next();await step('about');await page.getByTestId('input-name').fill('Synthetic Navigation Check');
+ await next();await step('prefer');await page.getByTestId('button-preferred-contact-email').click();
+ await next();await step('reach');await page.getByTestId('input-email').fill('invalid');await next();await step('reach');
+ await page.getByTestId('input-email').fill('navigation@example.invalid');await next();await step('address');
+ await next();await step('address');await page.getByTestId('input-address').fill('123 Synthetic Test Street, Boise, ID');
+ await next();await step('review');assert.match(await form.innerText(),/Synthetic Navigation Check/);
+ await page.reload();await step('review');assert.match(await form.innerText(),/Synthetic Navigation Check/);
+ await clearAction(page.getByTestId('consult-wizard-actions').getByRole('button').last());
+ assert.equal(await page.locator('h1').count(),1);
+ assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));
+ // Stop before final Send. All service and external requests are blocked by caller.
+}

@@ -1,4 +1,4 @@
-import {isCabinet,isRemodeling,verifyCabinetEntry,verifyRemodelingEntry,verifyRemodelingRe10Handoff} from './lib/shortBrandEntry.mjs';
+import {isHandyman,verifyHandymanHomeEntry,isCabinet,isRemodeling,verifyCabinetEntry,verifyRemodelingEntry,verifyRemodelingRe10Handoff} from './lib/shortBrandEntry.mjs';
 import {chromium} from '@playwright/test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
@@ -32,6 +32,7 @@ try{
    if(isCabinet(brand)&&['/','/estimate'].includes(route)){await verifyCabinetEntry(page,route);results.push({width,route,passed:true});await page.close();continue;}
    if(isRemodeling(brand)&&['/','/estimate'].includes(route)){await verifyRemodelingEntry(page,route);results.push({width,route,passed:true});await page.close();continue;}
    if(isRemodeling(brand)&&route==='/re-10-repairs-boise'){await verifyRemodelingRe10Handoff(page);results.push({width,route,passed:true});await page.close();continue;}
+   if(isHandyman(brand)&&route==='/'){await verifyHandymanHomeEntry(page);results.push({width,route,passed:true});await page.close();continue;}
    await enterEstimator(page,{route,brand,parent});
    const estimator=page.locator('[data-p5-estimator]').first();await estimator.waitFor();
    const input=estimator.getByLabel('Tell us about your project',{exact:true});await input.waitFor().catch(async error=>{console.log('Navigation failure',width,route,await page.locator('body').innerText());await page.screenshot({path:'p5-verification/navigation-failure.png',fullPage:true});throw error;});
