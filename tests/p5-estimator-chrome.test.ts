@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync,existsSync} from 'node:fs';
+import {ESTIMATOR_BRAND} from '../lib/p5/brand.ts';
 import {isEstimatorPath} from '../lib/p5/estimatorRoutes.ts';
 
 // Owner report 2026-09-23, on a phone: the estimator rendered the marketing header AND a full
@@ -9,7 +10,7 @@ import {isEstimatorPath} from '../lib/p5/estimatorRoutes.ts';
 // not "/estimate/scope", which is the route customers actually use.
 test('every estimator route is recognised, including the one customers use',()=>{
   for(const path of ['/estimate','/estimate/scope','/estimate/p5-preview','/estimate/anything-later'])
-    assert.equal(isEstimatorPath(path),true,path);
+    assert.equal(isEstimatorPath(path),path!=='/estimate'||ESTIMATOR_BRAND.id!=='remodeling',path);
   for(const path of ['/','/services','/contact','/re-10-repairs-boise','/estimates','/estimate-x',null,undefined,''])
     assert.equal(isEstimatorPath(path),false,String(path));
 });
@@ -26,4 +27,12 @@ test('site chrome defers to the shared estimator route list instead of its own c
     assert.doesNotMatch(source,/pathname\s*===\s*["']\/estimate["']/,`${name} keeps no private copy of the estimator paths`);
   }
   assert.ok(checked>0||!existsSync(new URL('../components/Navigation.tsx',import.meta.url)),'nothing to check is only acceptable when this site has no such chrome');
+});
+
+test('only Remodeling short entry retains marketing chrome; all nested engines stay full screen',()=>{
+ for(const id of ['p5','construction','remodeling','cabinet','handyman']){
+  assert.equal(isEstimatorPath('/estimate',id),id!=='remodeling',id);
+  for(const route of ['/estimate/scope','/estimate/p5-preview'])assert.equal(isEstimatorPath(route,id),true,id+route);
+  assert.equal(isEstimatorPath('/estimates',id),false,id);
+ }
 });

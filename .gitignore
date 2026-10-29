@@ -145,3 +145,6 @@ tsconfig.tsbuildinfo
 
 # Maintained public-route metadata audit helper.
 !/scripts/seo-route-identity.mjs
+
+# Narrow canonical verification synchronization.
+!/scripts/p5-sync-selected.mjs

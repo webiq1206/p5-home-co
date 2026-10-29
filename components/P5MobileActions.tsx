@@ -1,9 +1,12 @@
 'use client';
 import {useEffect,useState} from 'react';
+import {ESTIMATOR_BRAND} from '../lib/p5/brand.ts';
+
+import {mobileActionsVisible} from '../lib/p5/mobileActionPolicy.ts';
 
 /** Keep fixed marketing actions below the hero and away from a focused field. */
 export function useP5MobileActions(pathname:string|null){
-  const [state,setState]=useState({path:pathname,visible:false});
+  const [state,setState]=useState({path:pathname,visible:mobileActionsVisible(ESTIMATOR_BRAND.id,false,false,false)});
   useEffect(()=>{
     let frame=0;
     const update=()=>{
@@ -23,7 +26,7 @@ export function useP5MobileActions(pathname:string|null){
         const rect=el.getBoundingClientRect();return rect.bottom>0&&rect.top<window.innerHeight;
       });
       const pastHero=hero?hero.getBoundingClientRect().bottom<=100:window.scrollY>240;
-      setState({path:pathname,visible:pastHero&&!editing&&!footerVisible});
+      setState({path:pathname,visible:mobileActionsVisible(ESTIMATOR_BRAND.id,pastHero,editing,footerVisible)});
     };
     const schedule=()=>{if(!frame)frame=requestAnimationFrame(update);};
     update();
