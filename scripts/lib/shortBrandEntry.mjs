@@ -42,8 +42,16 @@ export async function verifyCabinetEntry(page,path='/estimate') {
 
 export async function verifyRemodelingEntry(page,path) {
  if(path==='/'||path==='/#request') {
-  await page.locator('a[href="/estimate"]:visible').first().click();
-  await page.waitForURL(url=>url.pathname==='/estimate');
+  const link=page.locator('a[href="/#request"]:visible').first();await link.click();
+  const form=page.locator('#request-form form');await form.waitFor({state:'visible'});
+  const send=form.getByRole('button',{name:'Send request',exact:true});await clearAction(send);
+  await send.click();assert.ok(await form.getByRole('alert').isVisible());
+  await form.getByLabel('Name',{exact:true}).fill('Synthetic Navigation Check');
+  await form.getByLabel('Phone',{exact:true}).fill('2025550102');
+  await form.getByLabel('Email',{exact:true}).fill('navigation@example.invalid');
+  await form.getByLabel('What should we look at?',{exact:true}).fill('Synthetic local-only request. '+'LongUnbrokenMaterialSpecification'.repeat(20));
+  await clearAction(send);assert.equal(await page.locator('h1').count(),1);
+  assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));return;
  }
  const wizard=page.getByTestId('estimate-request-wizard');await wizard.waitFor();
  const step=value=>wizard.locator(`[data-step="${value}"]`).waitFor();

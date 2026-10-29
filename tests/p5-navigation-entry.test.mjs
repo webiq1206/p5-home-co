@@ -16,7 +16,7 @@ for (const brand of ['boise-handyman-co','handyman','boise-remodeling-co','remod
       const expected=parent?[]:['boise-handyman-co','handyman'].includes(brand) && ['/', '/estimate'].includes(route)
         ? [...(route==='/' ? [['click','a[href="/estimate"]']] : []), ['wait','[data-p5-estimator]']]
         : ['boise-remodeling-co','remodeling'].includes(brand) && route==='/'
-          ? [['click','a[href="/estimate"]:visible'],['wait','[data-testid="estimate-request-wizard"]']]
+          ? [['click','a[href="/#request"]:visible'],['wait','#request-form form']]
           : route==='/' ? [['scroll','#calculator']] : [];
       assert.deepEqual(actions,expected);
     });
