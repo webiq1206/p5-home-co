@@ -53,7 +53,7 @@ const SUGGESTIONS:Record<string,string[]>={
   handyman:['Estimate my repair list','Review my inspection report and estimate the repairs','Upload a file and build an estimate'],
   cabinet:['Help me price new cabinets','I have drawings I want you to review','Estimate this scope of work'],
   p5:['Estimate my construction project','I have plans I want you to review','Help me price a remodel'],
-  re10:['Estimate the repairs from my RE-10 report','Review my inspection report and estimate the repairs','Upload a file and build an estimate'],
+  re10:['Upload my RE-10 and inspection pages','Review my inspection repair list','Send the RE-10 for a written quote'],
 };
 // The four tiers of the owner's master price book, in its own definitions. The value 'refresh'
 // is what the selector has always stored for the lowest tier; the book calls it Builder Grade.
