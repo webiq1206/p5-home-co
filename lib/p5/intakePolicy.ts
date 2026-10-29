@@ -50,7 +50,7 @@ export function intakeCopyForSite(site:string) {
  return site==='handyman'?{heading:'Send your list and photos',
   introduction:'Share the tasks, add photos or your RE-10, and we will confirm the list with you. Pricing is a human job: you get a written quote before work starts, not an on-screen price.',
   submit:'Send your list and photos',
-  next:'The team will review your list and uploaded files, confirm the items with you, and reply within one business day with questions or a written quote. A site visit may be needed for some items.'}:DEFAULT_INTAKE_COPY;
+  next:'The team will review your list and uploaded files, confirm the items with you, and follow up with questions or a written quote. A site visit may be needed for some items.'}:DEFAULT_INTAKE_COPY;
 }
 export const INTAKE_COPY=intakeCopyForSite(ESTIMATOR_BRAND.id);
 
