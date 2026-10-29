@@ -75,3 +75,18 @@ export async function verifyConstructionEntry(page, path) {
   assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'Quote horizontal overflow');
   // Stop before final Send; caller blocks all external and business requests.
 }
+
+export async function verifyConstructionRe10Handoff(page) {
+  const destination='https://boisehandyman.co/re-10-repairs-boise';
+  assert.equal(await page.getByRole('heading',{level:1}).count(),1);
+  assert.match(await page.getByRole('heading',{level:1}).innerText(),/RE-10 repairs in Boise/i);
+  assert.equal(await page.locator('link[rel=canonical]').getAttribute('href'),destination);
+  const handoff=page.getByRole('link',{name:'Go to Boise Handyman Co',exact:true});
+  assert.equal(await handoff.getAttribute('href'),destination);
+  await handoff.scrollIntoViewIfNeeded();
+  assert.ok(await handoff.evaluate(el=>{const r=el.getBoundingClientRect(),x=r.left+r.width/2,y=r.top+r.height/2;return x>=0&&x<innerWidth&&y>=0&&y<innerHeight&&el.contains(document.elementFromPoint(x,y));}),'RE-10 handoff must be unobstructed');
+  assert.match(await page.locator('body').innerText(),/handled by Boise Handyman Co/);
+  assert.equal(await page.locator('[data-p5-estimator]').count(),0);
+  assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));
+  // Inspect the exact public destination without visiting a live second brand.
+}

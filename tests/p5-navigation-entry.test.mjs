@@ -43,3 +43,10 @@ test('P5 keeps public quote qualification separate from retained estimator cover
 test('Construction retains engine coverage separately from its public quote wizard',()=>{
  for(const brand of ['construction','boise-construction-co'])assert.equal(retainedEstimatorPath(brand),'/estimate/scope');
 });
+
+test('Construction handoff guard retains exact brand and canonical identity',()=>{
+ const helper=readFileSync('scripts/lib/quoteEntry.mjs','utf8');
+ assert.match(helper,/https:\/\/boisehandyman\.co\/re-10-repairs-boise/);
+ assert.match(helper,/link\[rel=canonical\]/);
+ assert.match(helper,/RE-10 handoff must be unobstructed/);
+});
