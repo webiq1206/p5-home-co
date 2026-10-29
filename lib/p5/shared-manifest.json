@@ -254,7 +254,7 @@
     "lib/p5/store.ts": "06c49f4b951e5758cac52fe0663900cfee481acbf3f65dd17725b25375f02fef",
     "lib/p5/submitEndpoint.ts": "b31ebb0613bc8d3e5b0cd11b35b693d86d43ffdc81e0ed833975346c9e26dcc7",
     "lib/p5/submitProgress.ts": "777d5a5d9b5c4045107589654f5215f5b82f73c5fe712918c6ea581d0674b414",
-    "lib/p5/theme.ts": "7690b971134b7a6d1f11f1e0f87d307fc086abf845531055f79b226ca1fefb10",
+    "lib/p5/theme.ts": "e71307c97b61455ae3fbbeb50a0b5513f5c29dca29de7016dd940dce76964cc8",
     "lib/p5/tradeVocabulary.ts": "4598fcd6cc56c781279e45f58dd2c0120d1fce6b2fcc4935f6c1774fce8cbb46",
     "lib/p5/trades.ts": "10fd4d6f56c4881ebe23a481fe4245d6609eda8a041515c66198ee23fd0bcbfb",
     "lib/p5/typedCorrections.ts": "802a89a524402d4592b365ebbd8764f2914781ed30a05af59e835fe24c841597",
