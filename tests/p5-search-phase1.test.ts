@@ -74,15 +74,17 @@ test("llms-full.txt is the fact sheet plus the homepage FAQ and nothing invented
     assert.ok(full.includes(item.a), item.q);
   }
   const questions = homePageSchema.mainEntity.map((item) => item.name);
-  assert.ok(questions.includes("Who builds a new home, or builds on land you already own?"));
+  assert.ok(questions.includes("Which company does what?"));
   assert.ok(questions.includes("How do I start an ADU project?"));
+  assert.ok(questions.includes("Who is my contract with?"));
   assert.equal(full.toLowerCase().includes("facebook.com"), false);
 });
 
-test("/quote has a server-rendered H1 and /estimate renders one before the draft loads", () => {
+test("/quote has a server-rendered H1 and /estimate redirects to the short request form", () => {
   const quote = readFileSync("app/quote/QuoteLanding.tsx", "utf8");
   assert.match(quote, /<h1>A specialist team for your home project<\/h1>/);
-  assert.match(quote, /headingAs=\{service \? "h1" : "h2"\}/);
+  assert.doesNotMatch(quote, /P5Estimator/);
+  assert.match(readFileSync("app/estimate/page.tsx", "utf8"), /redirect\("\/quote"\)/);
   const preview = readFileSync("app/estimate/p5-preview/page.tsx", "utf8");
   assert.match(preview, /<EstimateDocumentTitle \/>/);
   const title = readFileSync("app/estimate/EstimateDocumentTitle.tsx", "utf8");

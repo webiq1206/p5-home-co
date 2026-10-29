@@ -125,6 +125,7 @@ tsconfig.tsbuildinfo
 # Shared estimator qualification helpers are maintained source.
 !/scripts/lib/
 /scripts/lib/*
+!/scripts/lib/quoteEntry.mjs
 !/scripts/lib/capturedPricingDelivery.ts
 !/scripts/lib/pricingQualification.ts
 !/scripts/lib/syntheticPlanSet.ts
@@ -136,7 +137,11 @@ tsconfig.tsbuildinfo
 
 # Maintained production analytics hostname guard.
 !/lib/analyticsBootstrap.ts
+!/lib/vcard.ts
 /.p5-renderer/
 
 # Bounded CI evidence packaging is versioned verification code.
 !/scripts/prepare-ci-evidence.mjs
+
+# Maintained public-route metadata audit helper.
+!/scripts/seo-route-identity.mjs

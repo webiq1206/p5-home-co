@@ -1,4 +1,6 @@
 import test from 'node:test';
+import {readFileSync} from 'node:fs';
+import {retainedEstimatorPath,isPublicQuotePath} from '../scripts/lib/quoteEntry.mjs';
 import assert from 'node:assert/strict';
 import {enterEstimator} from '../scripts/lib/navigationEntry.mjs';
 
@@ -25,4 +27,15 @@ test('guided entry waits for navigation completion before reading the URL',async
  let location='http://fixture.test/',clicked=false,waited=false;
  const page={url:()=>{assert.equal(waited,true);return location;},waitForURL:async predicate=>{assert.equal(clicked,true);await Promise.resolve();location='http://fixture.test/estimate';assert.equal(predicate(new URL(location)),true);waited=true;},locator(){const l={first:()=>l,waitFor:async()=>{},click:async()=>{clicked=true;}};return l;}};
  await enterEstimator(page,{route:'/',brand:'handyman',parent:false});assert.equal(waited,true);
+});
+
+test('P5 keeps public quote qualification separate from retained estimator coverage',()=>{
+  for(const brand of ['p5','p5-home-co-nextjs']) assert.equal(retainedEstimatorPath(brand),'/estimate/scope');
+  for(const brand of ['handyman','boise-handyman-co','cabinet','construction','remodeling']) assert.equal(retainedEstimatorPath(brand),'/estimate');
+  for(const route of ['/estimate','/quote','/quote/adu','/quote/custom-cabinets']) assert.equal(isPublicQuotePath(route),true);
+  for(const route of ['/estimate/scope','/estimate/p5-preview','/quote-other']) assert.equal(isPublicQuotePath(route),false);
+  if(JSON.parse(readFileSync('package.json','utf8')).name!=='p5-home-co-nextjs')return;
+  assert.match(readFileSync('app/estimate/page.tsx','utf8'),/redirect\("\/quote"\)/);
+  assert.match(readFileSync('app/estimate/scope/page.tsx','utf8'),/<P5Estimator layout="page"/);
+  assert.match(readFileSync('app/quote/QuoteLanding.tsx','utf8'),/<ShortRequestForm/);
 });

@@ -1,3 +1,4 @@
+import {retainedEstimatorPath,isPublicQuotePath,verifyQuoteEntry} from './lib/quoteEntry.mjs';
 import {chromium,webkit} from '@playwright/test';
 import {createHash} from 'node:crypto';
 import {mkdir,writeFile,readFile} from 'node:fs/promises';
@@ -164,7 +165,7 @@ for(const width of progressOnly?[]:[320,390,1440]){
   await page.goto(fixture);await page.requestGC();
   assert.equal(await page.evaluate(()=>window.__p5RecoveryFactory===indexedDB&&Object.hasOwn(indexedDB,'open')),true,'The real IndexedDB recovery hook must survive garbage collection');
   await context.unroute(fixture);
-  await page.goto(base+'/estimate');const est=page.locator('[data-p5-estimator]');
+  await page.goto(base+retainedEstimatorPath(brand.id));const est=page.locator('[data-p5-estimator]');
   await est.getByRole('heading',{name:'Preparing your saved project on this device',exact:true}).waitFor();
   assert.equal(await est.getByRole('heading',{name:'Understanding your project',exact:true}).count(),0);
   assert.equal(await est.locator('[data-testid="p5-processing"]').count(),0,'Local recovery is not provider processing');
@@ -540,7 +541,7 @@ for(const width of focusOnly?[]:[320,390,1440]){
 const paths=brand.id==='p5'?['/estimate','/estimate/scope','/quote',...['kitchen-remodel','bathroom-remodel','home-addition','adu','custom-home','custom-cabinets','handyman'].map(s=>'/quote/'+s)]:['/estimate','/estimate/scope','/#calculator',...(brand.services.includes('re10')?['/re-10-repairs-boise']:[]),...(brand.id==='remodeling'?['/remodel-plans-boise']:[])];
 for(const width of progressOnly||focusOnly?[]:[390,768,1440])for(const path of paths){
  const context=await browser.newContext({viewport:{width,height:900}});await mock(context);const page=await context.newPage();
- try{const response=await page.goto(base+path);assert.ok(response?.ok(),`HTTP ${response?.status()}`);const est=page.locator('[data-p5-estimator]').first();if(path.includes('#calculator')){await page.locator('#calculator').first().scrollIntoViewIfNeeded();}await est.getByLabel('Tell us about your project',{exact:true}).waitFor();await overflow(page);assert.ok(!/Continue manually|Upload Scope|Manual Estimate/.test(await est.innerText()));results.push({width,path,passed:true});}
+ try{const response=await page.goto(base+path);assert.ok(response?.ok(),`HTTP ${response?.status()}`);if(brand.id==='p5'&&isPublicQuotePath(path)){await verifyQuoteEntry(page,path);results.push({width,path,passed:true});await context.close();continue;}const est=page.locator('[data-p5-estimator]').first();if(path.includes('#calculator')){await page.locator('#calculator').first().scrollIntoViewIfNeeded();}await est.getByLabel('Tell us about your project',{exact:true}).waitFor();await overflow(page);assert.ok(!/Continue manually|Upload Scope|Manual Estimate/.test(await est.innerText()));results.push({width,path,passed:true});}
  catch(error){results.push({width,path,passed:false,error:String(error)});await capture(page,`route-${width}-${path.replace(/[^a-z0-9]/gi,'_')}`).catch(()=>{});}await context.close();
 }
 await browser.close();await writeFile(`${output}/browser-results.json`,JSON.stringify({brand:brand.id,externalServices:'simulated',physicalMicrophone:'not tested',results},null,2));console.log(JSON.stringify(results));if(results.some(r=>!r.passed))process.exitCode=1;

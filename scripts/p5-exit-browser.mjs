@@ -1,3 +1,6 @@
+import {retainedEstimatorPath} from './lib/quoteEntry.mjs';
+import {readFile} from 'node:fs/promises';
+const sitePackage=JSON.parse(await readFile('package.json','utf8')).name;
 import {chromium,webkit} from '@playwright/test';
 import assert from 'node:assert/strict';
 import {mkdir,writeFile} from 'node:fs/promises';
@@ -26,7 +29,7 @@ async function setup(width,mode='saved') {
   if(mode==='failure'&&requests.length===1)return route.fulfill({status:503,json:{ok:false}});
   return route.fulfill({json:{ok:true,notified:mode!=='pending'}});
  });
- await page.goto(base+'/estimate');
+ await page.goto(base+retainedEstimatorPath(sitePackage));
  await page.getByRole('button',{name:'Close the estimator. Your progress is saved.',exact:true}).waitFor();
  await page.getByText('Loading your project...', {exact:true}).waitFor({state:'hidden'});
  return {context,page,requests,exit:page.getByRole('button',{name:'Close the estimator. Your progress is saved.',exact:true}),offer:page.getByRole('dialog',{name:'Prefer to talk about your project?'})};

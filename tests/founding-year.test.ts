@@ -45,10 +45,12 @@ test("the 2020 founding claim stays in source and is hidden by default", () => {
 
   for (const file of ["public/llms.txt", "public/llms-full.txt"]) {
     const text = readFileSync(file, "utf8");
-    assert.equal(/Established 2020|since 2020|founded in 2020|Est\. 2020/.test(text), false, file);
+    // D7 / Phase 12 allow "founded in Colorado in 2020". Block bare Idaho-since claims.
+    assert.equal(/Established 2020|Working here since 2020|Est\. 2020/.test(text), false, file);
+    assert.equal(/Building in the Treasure Valley since 2020|Serving the valley since 2020/.test(text), false, file);
   }
 
-  assert.match(readFileSync("app/HomePageClient.tsx", "utf8"), /visibleFoundingBadges\(\)/);
+  assert.match(readFileSync("app/foundingYear.ts", "utf8"), /visibleFoundingBadges/);
   assert.match(readFileSync("app/structuredData.ts", "utf8"), /foundingDate: "2020"/);
   assert.match(readFileSync("app/quote/proof.ts", "utf8"), /Working here since 2020/);
   assert.equal(readFileSync("app/quote/proof.ts", "utf8").includes("SHOW_FOUNDING_YEAR"), false);

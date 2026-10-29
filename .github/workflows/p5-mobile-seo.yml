@@ -42,6 +42,7 @@ jobs:
             if curl -fsS http://127.0.0.1:5000/ > /dev/null; then break; fi
             sleep 1
           done
+          node --test tests/seo-route-identity.test.mjs
           node scripts/verify-p5-mobile-seo.mjs
       - name: Offline evidence guard regressions
         run: node --test tests/ci-evidence.test.mjs

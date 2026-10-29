@@ -6,9 +6,9 @@ import { usePathname } from "next/navigation";
 import { track, trackAcceptedInquiry } from "../app/analytics";
 import { PUBLIC_PHONE_DISPLAY } from "../app/publicIdentity";
 import { isNewAcceptedInquiry } from "../app/quote/conversion.ts";
-import { continueAssistantProject } from "../lib/p5/assistantContinuation.ts";
 import { captureAttribution } from "../lib/p5/browserAttribution.ts";
 import styles from "./SiteChat.module.css";
+import SaveContactButton from "./SaveContactButton";
 
 type Line = { role: "user" | "team"; content: string };
 
@@ -114,16 +114,6 @@ export default function SiteChat() {
 
   function userNotes(): { role: string; content: string }[] {
     return lines.filter((line) => line.role === "user");
-  }
-
-  function continueInEstimator() {
-    try {
-      continueAssistantProject(userNotes(), note);
-      window.location.assign("/estimate");
-    } catch (caught) {
-      const message = caught instanceof Error ? caught.message : "The estimator could not open from this chat. Call (208) 477-1169.";
-      setLines((current) => [...current, { role: "team", content: message }]);
-    }
   }
 
   function sendNote(event: React.FormEvent) {
@@ -232,13 +222,19 @@ export default function SiteChat() {
             <button className="button button-dark" type="submit" disabled={pending} aria-busy={pending}>
               {phase === "note" ? "Continue" : pending ? "Sending" : "Send to the team"}
             </button>
-            <button className={styles.continue} type="button" onClick={continueInEstimator}>Continue in the estimator</button>
+            <a className={styles.continue} href="/quote">
+              Prefer a short form? Request a quote
+            </a>
           </div>
         </form>
       )}
       {phase === "sent" && (
         <div className={styles.composer}>
-          <button className={styles.continue} type="button" onClick={continueInEstimator}>Continue in the estimator</button>
+          <p className={styles.sentNote}>We reply within one business day. Save our contact so you have Nick&apos;s number when we call back.</p>
+          <SaveContactButton className={styles.continue} location="chat_thanks" />
+          <a className={styles.continue} href="/quote">
+            Request a quote
+          </a>
         </div>
       )}
     </div>

@@ -1,10 +1,13 @@
 import {chromium} from '@playwright/test';
 import {writeFile,mkdir} from 'node:fs/promises';
 import assert from 'node:assert/strict';
+import {canonicalAuditRoute} from './seo-route-identity.mjs';
 const base=process.env.P5_TEST_ORIGIN||'http://127.0.0.1:5000';const out='p5-mobile-seo-verification';await mkdir(out,{recursive:true});
+if(!['localhost','127.0.0.1'].includes(new URL(base).hostname))throw new Error('Local production audit only');
 const browser=await chromium.launch();const results={pages:[],mobile:[],errors:[],scope:'Built production app in Chromium emulation; not physical devices or a claim of live deployment.'};
 const delay=ms=>new Promise(r=>setTimeout(r,ms));
 const ctx=await browser.newContext({viewport:{width:390,height:844},hasTouch:true});const page=await ctx.newPage();page.setDefaultTimeout(15000);
+await ctx.route('**/*',route=>{const url=new URL(route.request().url());return url.origin!==new URL(base).origin||url.pathname.startsWith('/api/')?route.abort():route.continue();});
 const visible=locator=>locator.evaluateAll(els=>els.some(e=>{const s=getComputedStyle(e),r=e.getBoundingClientRect();return r.width>0&&r.height>0&&s.display!=='none'&&s.visibility!=='hidden'&&s.opacity!=='0';}));
 try{
  for(const width of [320,390,768,1440]){
@@ -28,17 +31,24 @@ try{
  }
  const requested=new Set();async function sitemap(url){if(requested.has(url))return [];requested.add(url);const r=await page.request.get(url);if(!r.ok())return [];const body=await r.text();const urls=[...body.matchAll(/<loc>(.*?)<\/loc>/g)].map(m=>m[1].replaceAll('&amp;','&'));if(body.includes('<sitemapindex'))return (await Promise.all(urls.map(u=>sitemap(base+new URL(u).pathname)))).flat();return urls;}
  const paths=[...new Set(['/',...(await sitemap(base+'/sitemap.xml')).map(u=>new URL(u).pathname)].map(p=>p.replace(/\/$/,'')||'/'))];
+ const auditedRoutes=new Set();
  for(const route of paths){
   const response=await page.request.get(base+route);if(response.status()!==200){results.errors.push({route,status:response.status()});continue;}
+  const resolvedRoute=canonicalAuditRoute(route,response.url(),base);
+  if(resolvedRoute!==route){results.pages.push({route,redirectTo:resolvedRoute,status:response.status()});}
+  if(auditedRoutes.has(resolvedRoute))continue;
+  auditedRoutes.add(resolvedRoute);
   const html=await response.text();
   const meta=await page.evaluate(html=>{const doc=new DOMParser().parseFromString(html,'text/html');return {title:doc.querySelector('title')?.textContent||'',description:doc.querySelector('meta[name=description]')?.getAttribute('content')||'',canonical:doc.querySelector('link[rel=canonical]')?.getAttribute('href'),images:[...doc.querySelectorAll('meta[property="og:image"]')].map(e=>e.getAttribute('content')),twitter:doc.querySelector('meta[name="twitter:image"]')?.getAttribute('content'),robots:doc.querySelector('meta[name=robots]')?.getAttribute('content')||'',icon:doc.querySelector('link[rel=icon]')?.getAttribute('href')};},html);
-  results.pages.push({route,...meta});
+  results.pages.push({route:resolvedRoute,...meta});
+  if(route!==resolvedRoute)assert.equal(new URL(meta.canonical).pathname,resolvedRoute,'Redirect target canonical must match');
   assert.ok(meta.title,`Title missing on ${route}`);assert.ok(meta.description,`Description missing on ${route}`);
   assert.ok(meta.images.some(u=>u?.endsWith('/brand/page-preview.png')),`Approved brand preview missing on ${route}`);
   assert.ok(meta.twitter?.endsWith('/brand/page-preview.png'),`Twitter preview missing on ${route}`);
  }
- for(const field of ['title','description']){const used=new Map();for(const p of results.pages.filter(p=>!p.robots.includes('noindex'))){assert.ok(!used.has(p[field]),`Duplicate ${field}: ${p.route} and ${used.get(p[field])}`);used.set(p[field],p.route);}}
+ for(const field of ['title','description']){const used=new Map();for(const p of results.pages.filter(p=>!p.redirectTo&&!p.robots.includes('noindex'))){assert.ok(!used.has(p[field]),`Duplicate ${field}: ${p.route} and ${used.get(p[field])}`);used.set(p[field],p.route);}}
  for(const asset of ['/brand/page-preview.png','/brand/search-icon-96.png','/brand/search-icon-180.png'])assert.equal((await page.request.get(base+asset)).status(),200,`Missing image: ${asset}`);
+ assert.deepEqual(results.errors,[],'All inventoried public routes must respond successfully');
  results.completed=true;
  console.log(JSON.stringify({pages:results.pages.length,mobile:results.mobile,errors:results.errors}));
 }finally{await writeFile(`${out}/verification.json`,JSON.stringify(results,null,2));await browser.close();}
