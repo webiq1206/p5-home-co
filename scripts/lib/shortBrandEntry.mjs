@@ -9,7 +9,11 @@ async function clearAction(button) {
 }
 
 /** Current public forms; callers block business APIs. Never press final Send. */
-export async function verifyCabinetEntry(page) {
+export async function verifyCabinetEntry(page,path='/estimate') {
+ if(path==='/') {
+  await page.locator('a[href="/estimate"]:visible').first().click();
+  await page.waitForURL(url=>url.pathname==='/estimate');
+ }
  const form=page.locator('[data-c10-estimate-quote]');
  await form.getByLabel('Name',{exact:true}).waitFor();
  const next=page.getByTestId('button-estimate-quote-continue');

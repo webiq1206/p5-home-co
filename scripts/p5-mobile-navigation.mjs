@@ -29,7 +29,7 @@ try{
    if(parent&&route==='/quote'){await verifyQuoteEntry(page,route);await page.screenshot({path:`p5-verification/navigation-${width}-quote.png`});results.push({width,route,passed:true});await page.close();continue;}
    if(isConstruction(brand)&&['/','/estimate'].includes(route)){await verifyConstructionEntry(page,route);await page.screenshot({path:`p5-verification/navigation-${width}-construction-${route==='/'?'home':'estimate'}.png`});results.push({width,route,passed:true});await page.close();continue;}
    if(isConstruction(brand)&&route==='/re-10-repairs-boise'){await verifyConstructionRe10Handoff(page);await page.screenshot({path:`p5-verification/navigation-${width}-construction-re10.png`});results.push({width,route,passed:true});await page.close();continue;}
-   if(isCabinet(brand)&&route==='/estimate'){await verifyCabinetEntry(page);results.push({width,route,passed:true});await page.close();continue;}
+   if(isCabinet(brand)&&['/','/estimate'].includes(route)){await verifyCabinetEntry(page,route);results.push({width,route,passed:true});await page.close();continue;}
    if(isRemodeling(brand)&&['/','/estimate'].includes(route)){await verifyRemodelingEntry(page,route);results.push({width,route,passed:true});await page.close();continue;}
    if(isRemodeling(brand)&&route==='/re-10-repairs-boise'){await verifyRemodelingRe10Handoff(page);results.push({width,route,passed:true});await page.close();continue;}
    await enterEstimator(page,{route,brand,parent});
