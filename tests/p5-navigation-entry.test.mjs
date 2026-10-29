@@ -1,6 +1,6 @@
 import test from 'node:test';
 import {readFileSync} from 'node:fs';
-import {retainedEstimatorPath,isPublicQuotePath} from '../scripts/lib/quoteEntry.mjs';
+import {retainedEstimatorPath,isPublicQuotePath,verifyConstructionRe10Handoff} from '../scripts/lib/quoteEntry.mjs';
 import assert from 'node:assert/strict';
 import {enterEstimator} from '../scripts/lib/navigationEntry.mjs';
 
@@ -44,9 +44,14 @@ test('Construction retains engine coverage separately from its public quote wiza
  for(const brand of ['construction','boise-construction-co'])assert.equal(retainedEstimatorPath(brand),'/estimate/scope');
 });
 
-test('Construction handoff guard retains exact brand and canonical identity',()=>{
- const helper=readFileSync('scripts/lib/quoteEntry.mjs','utf8');
- assert.match(helper,/https:\/\/boisehandyman\.co\/re-10-repairs-boise/);
- assert.match(helper,/link\[rel=canonical\]/);
- assert.match(helper,/RE-10 handoff must be unobstructed/);
+test('Construction handoff rejects the wrong canonical or destination',async()=>{
+ const expected='https://boisehandyman.co/re-10-repairs-boise';
+ const page=(canonical=expected,href=expected)=>({
+  getByRole:role=>role==='heading'?{count:async()=>1,innerText:async()=> 'RE-10 repairs in Boise'}:{getAttribute:async()=>href,scrollIntoViewIfNeeded:async()=>{},evaluate:async()=>true},
+  locator:selector=>selector==='link[rel=canonical]'?{getAttribute:async()=>canonical}:selector==='body'?{innerText:async()=> 'Inspection repairs are handled by Boise Handyman Co'}:{count:async()=>0},
+  evaluate:async()=>true,
+ });
+ await verifyConstructionRe10Handoff(page());
+ await assert.rejects(()=>verifyConstructionRe10Handoff(page('https://wrong.invalid/')));
+ await assert.rejects(()=>verifyConstructionRe10Handoff(page(expected,'https://wrong.invalid/')));
 });
