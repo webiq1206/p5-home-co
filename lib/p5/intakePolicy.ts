@@ -1,4 +1,4 @@
-import {ESTIMATOR_BRAND} from './brand';
+import {ESTIMATOR_BRAND} from './brand.ts';
 /** Public intake policy. Changing automation is a reviewed source change, never a browser option. */
 export const INTAKE_SITES = {
   p5: {name:'P5 Home Co',domain:'p5homeco.com'},
