@@ -125,6 +125,7 @@ tsconfig.tsbuildinfo
 # Shared estimator qualification helpers are maintained source.
 !/scripts/lib/
 /scripts/lib/*
+!/scripts/lib/quoteEntry.mjs
 !/scripts/lib/capturedPricingDelivery.ts
 !/scripts/lib/pricingQualification.ts
 !/scripts/lib/syntheticPlanSet.ts
