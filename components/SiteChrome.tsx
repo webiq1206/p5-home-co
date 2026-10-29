@@ -15,12 +15,18 @@ import {
   PUBLIC_PHONE_TEL,
 } from "@/app/publicIdentity";
 
-const HeaderWordmark = () => (
+const HeaderWordmark = ({ dark = false }: { dark?: boolean }) => (
   <Link className="wordmark" href="/" aria-label="P5 Home Co, home">
-    <img className="p5-header-logo" src="/brands/p5-home-co-lockup-dark.svg" alt="P5 Home Co, The Home Company" />
+    <img className="p5-header-logo" src={dark ? "/brands/p5-home-co-lockup-light.svg" : "/brands/p5-home-co-lockup-dark.svg"} alt="P5 Home Co, The Home Company" />
     <img className="p5-header-icon" src="/brands/p5-home-co-icon-dark.svg" alt="P5 Home Co monogram" />
   </Link>
 );
+
+function ContactIcon({kind}: {kind: "call" | "text" | "chat"}) {
+  return <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    {kind === "call" ? <path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 2 .7 2.9a2 2 0 0 1-.5 2.1L8 10a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.5c.9.3 1.9.6 2.9.7a2 2 0 0 1 1.7 2Z" /> : <><path d="M21 15a3 3 0 0 1-3 3H8l-5 4V5a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3Z" />{kind === "text" ? <path d="M7 7h10M7 11h7" /> : <path d="M7 10h.01M12 10h.01M17 10h.01" />}</>}
+  </svg>;
+}
 
 const FooterWordmark = () => (
   <Link className="wordmark" href="/" aria-label="P5 Home Co, home">
@@ -50,9 +56,11 @@ function External({ href, children }: { href: string; children: React.ReactNode 
 export default function SiteChrome({
   children,
   onOpenMatcher,
+  imageHero = false,
 }: {
   children: React.ReactNode;
   onOpenMatcher?: () => void;
+  imageHero?: boolean;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
@@ -117,9 +125,9 @@ export default function SiteChrome({
 
   return (
     <>
-      <header className={`site-header ${scrolled ? "site-header-scrolled" : ""}`}>
+      <header className={`site-header ${imageHero ? "site-header-image-hero" : ""} ${scrolled ? "site-header-scrolled" : ""}`}>
         <div className="nav-shell">
-          <HeaderWordmark />
+          <HeaderWordmark dark={imageHero} />
           <nav className="desktop-nav" aria-label="Primary navigation">
             <Link href="/#companies">Our companies</Link>
             <Link href="/#p5-standard">The P5 standard</Link>
@@ -130,13 +138,13 @@ export default function SiteChrome({
           <Link className="nav-cta" href="/#request-form" data-cta="primary">
             Request a quote <Arrow />
           </Link>
-          <nav className="header-contact" aria-label="Call or text">
+          <nav className="header-contact" aria-label="Call, text or chat">
             <a href={PUBLIC_PHONE_TEL} aria-label={`Call ${PUBLIC_PHONE_DISPLAY}`}>
-              Call
+              {imageHero ? <><ContactIcon kind="call" /><span className="visually-hidden">Call</span></> : "Call"}
             </a>
-            <OpenChatButton className="header-chat">Chat</OpenChatButton>
+            <OpenChatButton className="header-chat">{imageHero ? <><ContactIcon kind="chat" /><span className="visually-hidden">Chat</span></> : "Chat"}</OpenChatButton>
             <a href={PUBLIC_PHONE_SMS} aria-label={`Text ${PUBLIC_PHONE_DISPLAY}`}>
-              Text
+              {imageHero ? <><ContactIcon kind="text" /><span className="visually-hidden">Text</span></> : "Text"}
             </a>
           </nav>
           <button

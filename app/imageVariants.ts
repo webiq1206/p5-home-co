@@ -83,12 +83,12 @@ export const TREASURE_VALLEY_FOOTHILLS = {
 } as const satisfies ServedImage;
 
 export const CRAFT_TRIM_DETAIL = {
-  src: "/images/craft-trim-detail.webp",
-  width: 1152,
-  height: 864,
-  alt: "White baseboard and door casing fitted along oak flooring with finish carpentry tools nearby",
-  srcSet: "/images/craft-trim-detail.webp 1152w",
-  sizes: "(min-width: 1101px) 50vw, 100vw",
+  src: "/images/handyman-maintenance-detail-1122.webp",
+  width: 1122,
+  height: 1402,
+  alt: "Home maintenance tools beside a white baseboard and oak floor",
+  srcSet: "/images/handyman-maintenance-detail-640.webp 640w, /images/handyman-maintenance-detail-960.webp 960w, /images/handyman-maintenance-detail-1122.webp 1122w",
+  sizes: "(min-width: 1101px) 57vw, 100vw",
 } as const satisfies ServedImage;
 
 export const imageVariants = {

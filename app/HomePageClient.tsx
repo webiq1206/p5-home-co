@@ -8,12 +8,7 @@ import { useEffect, useRef, useState } from "react";
 import {
   SHOW_UNPROVEN_SELF_PERFORM,
   CRAFT_EXPERTISE,
-  PLAIN_H1,
-  PLAIN_LEDE,
   SHOW_FAKE_STAFF_IMAGES,
-  SHOW_UNPROVEN_TRUSTED,
-  TRUSTED_H1,
-  TRUSTED_LEDE,
   cabinetProof,
   constructionImage,
   handymanImage,
@@ -39,8 +34,6 @@ import {
 import {
   ADU_CONSTRUCTION_URL,
   ADU_D3_LINE,
-  PUBLIC_PHONE_DISPLAY,
-  PUBLIC_PHONE_TEL,
   PUBLIC_REGISTRATION,
 } from "./publicIdentity";
 
@@ -114,7 +107,7 @@ export default function Home() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: serializeJsonLd(homePageSchema) }}
       />
-      <SiteChrome onOpenMatcher={openMatcher}>
+      <SiteChrome onOpenMatcher={openMatcher} imageHero>
         <section className="hero" aria-labelledby="hero-heading">
           <div className="hero-media">
             <img
@@ -124,7 +117,7 @@ export default function Home() {
               width={FEATURED_BOISE_EXTERIOR.width}
               height={FEATURED_BOISE_EXTERIOR.height}
               srcSet={FEATURED_BOISE_EXTERIOR.srcSet}
-              sizes="(max-width: 820px) 100vw, 55vw"
+              sizes="100vw"
               fetchPriority="high"
               decoding="async"
             />
@@ -132,22 +125,13 @@ export default function Home() {
           <div className="hero-panel">
             <div className="hero-content content-shell">
               <div className="hero-copy">
-                <p className="eyebrow eyebrow-light">The P5 Home Co family of companies</p>
-                <h1 id="hero-heading">{SHOW_UNPROVEN_TRUSTED ? TRUSTED_H1 : PLAIN_H1}</h1>
-                <p className="hero-lede">{SHOW_UNPROVEN_TRUSTED ? TRUSTED_LEDE : PLAIN_LEDE}</p>
+                <h1 id="hero-heading">Boise’s Home <span>Specialists</span></h1>
+                <p className="hero-lede">New homes, remodeling, cabinets, repairs and ADUs.</p>
                 <div className="hero-actions" data-suppress-mobile-bar="">
                   <Link className="button button-light" href="/#request-form" data-cta="primary">
-                    Send a short request <Arrow />
+                    Request a quote
                   </Link>
-                  <button className="text-link text-link-light" type="button" onClick={openMatcher}>
-                    Help me choose a company <Arrow />
-                  </button>
                 </div>
-                <p className="hero-reassure">Free quote. We reply within one business day.</p>
-                <a className="hero-phone" href={PUBLIC_PHONE_TEL}>
-                  Call {PUBLIC_PHONE_DISPLAY}
-                </a>
-                <p className="hero-trust">{PUBLIC_REGISTRATION}</p>
               </div>
             </div>
           </div>
@@ -263,31 +247,17 @@ export default function Home() {
         <section id="featured-project" className="featured-project section-pad" aria-labelledby="featured-project-heading">
           <Reveal className="content-shell featured-project-intro">
             <div>
-              <p className="eyebrow">Featured design · Boise foothills</p>
+              <p className="eyebrow">Ideas for your home</p>
               <h2 id="featured-project-heading">
-                One home.
-                <br />
-                Every room connected.
+                Spaces for everyday living.
               </h2>
             </div>
             <p>
-              A modern Treasure Valley custom home shown as one continuous property: the same charcoal exterior, oak
-              floors, and foothills light run from the entry through the kitchen, great room, primary bath, and matching
-              ADU. Representative design.
+              Explore layouts, materials and details for your next project, from kitchens and living spaces to bathrooms
+              and ADUs. Your plans start with your home and how you want to use it.
             </p>
           </Reveal>
           <div className="content-shell featured-project-grid" role="list">
-            <div className="featured-project-shot" role="listitem">
-              <img
-                src={FEATURED_BOISE_EXTERIOR.src}
-                alt={FEATURED_BOISE_EXTERIOR.alt}
-                width={FEATURED_BOISE_EXTERIOR.width}
-                height={FEATURED_BOISE_EXTERIOR.height}
-                loading="lazy"
-                decoding="async"
-              />
-              <span>Exterior</span>
-            </div>
             <div className="featured-project-shot" role="listitem">
               <img
                 src={FEATURED_BOISE_GREAT_ROOM.src}
@@ -321,7 +291,7 @@ export default function Home() {
               />
               <span>Primary bath</span>
             </div>
-            <div className="featured-project-shot featured-project-wide" role="listitem">
+            <div className="featured-project-shot" role="listitem">
               <img
                 src={FEATURED_BOISE_ADU.src}
                 alt={FEATURED_BOISE_ADU.alt}
@@ -330,7 +300,7 @@ export default function Home() {
                 loading="lazy"
                 decoding="async"
               />
-              <span>Matching ADU</span>
+              <span>ADU</span>
             </div>
           </div>
         </section>
@@ -657,17 +627,6 @@ export default function Home() {
           </Reveal>
         </section>
 
-        <section className="scroll-photo" aria-label="Treasure Valley home photography">
-          <img
-            src={FEATURED_BOISE_EXTERIOR.src}
-            alt={FEATURED_BOISE_EXTERIOR.alt}
-            width={FEATURED_BOISE_EXTERIOR.width}
-            height={FEATURED_BOISE_EXTERIOR.height}
-            loading="lazy"
-            decoding="async"
-          />
-        </section>
-
         <section id="faq" className="faq section-pad" aria-labelledby="faq-heading">
           <Reveal className="content-shell faq-layout">
             <div>
@@ -694,15 +653,6 @@ export default function Home() {
         </section>
 
         <section className="final-cta">
-          <img
-            src={FEATURED_BOISE_EXTERIOR.src}
-            alt={FEATURED_BOISE_EXTERIOR.alt}
-            width={FEATURED_BOISE_EXTERIOR.width}
-            height={FEATURED_BOISE_EXTERIOR.height}
-            loading="lazy"
-            decoding="async"
-          />
-          <div className="final-cta-shade" />
           <Reveal className="content-shell final-cta-content">
             <p className="eyebrow eyebrow-light">Start with the need, not the company</p>
             <h2>
