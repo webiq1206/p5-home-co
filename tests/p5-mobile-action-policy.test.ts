@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {mobileActionsVisible} from '../components/P5MobileActions';
+import {mobileActionsVisible} from '../components/P5MobileActions.tsx';
 test('Cabinet first-screen actions preserve all editing and suppression guards',()=>{
  for(const id of ['p5','construction','remodeling','cabinet','handyman']){
   assert.equal(mobileActionsVisible(id,false,false,false),id==='cabinet',id);
