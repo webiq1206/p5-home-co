@@ -1,4 +1,4 @@
-// Narrow verification-file synchronization. Never a full engine sync.
+// Narrow reviewed-file synchronization. Never a full engine sync.
 import {readFileSync,writeFileSync,existsSync,mkdirSync,lstatSync,realpathSync} from 'node:fs';
 import path from 'node:path';
 import {createHash} from 'node:crypto';
@@ -6,7 +6,8 @@ import {execFileSync} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
 const normalized=file=>readFileSync(file,'utf8').replace(/\r\n/g,'\n');
 const hash=file=>createHash('sha256').update(normalized(file)).digest('hex');
-const allowed=file=>/^(?:scripts\/(?:p5-[\w-]+|lib\/[\w-]+)\.mjs|tests\/p5-[\w-]+\.test\.mjs)$/.test(file);
+const RUNTIME_ALLOWLIST=new Set(['components/P5MobileActions.tsx','lib/p5/estimatorRoutes.ts','tests/p5-estimator-chrome.test.ts','tests/p5-mobile-action-policy.test.ts']);
+const allowed=file=>RUNTIME_ALLOWLIST.has(file)||/^(?:scripts\/(?:p5-[\w-]+|lib\/[\w-]+)\.mjs|tests\/p5-[\w-]+\.test\.mjs)$/.test(file);
 function noSymlinks(root,absolute){
  for(let p=absolute;p!==root;p=path.dirname(p)){
   let stat;try{stat=lstatSync(p);}catch(error){if(error.code==='ENOENT')continue;throw error;}
@@ -14,7 +15,7 @@ function noSymlinks(root,absolute){
  }
 }
 function safe(root,file){
- if(!allowed(file))throw Error(`Not an allowed verification file: ${file}`);
+ if(!allowed(file))throw Error(`Not an allowed selected file: ${file}`);
  const absolute=path.resolve(root,file);if(!absolute.startsWith(root+path.sep))throw Error('Path escapes repository');
  noSymlinks(root,absolute);
  return absolute;
@@ -54,7 +55,8 @@ export function syncSelected({source,target,files,commit,dry=false}){
   writeFileSync(item.to,crlf?normalized(item.from).replace(/\n/g,'\r\n'):normalized(item.from));
   next.files[item.file]=item.after;
  }
- next.selectiveVerificationBatches=[...(original.selectiveVerificationBatches||[]),{source:'p5-home-co',commit,files:plan.map(({file,before,after})=>({file,before,after})),note:'Only listed verification files synchronized; other files and provenance retained.'}];
+ const key=files.some(file=>RUNTIME_ALLOWLIST.has(file))?'selectiveSourceBatches':'selectiveVerificationBatches';
+ next[key]=[...(original[key]||[]),{source:'p5-home-co',commit,files:plan.map(({file,before,after})=>({file,before,after})),note:'Only explicitly listed files synchronized; other files and provenance retained. Runtime scope is restricted to mobile-action and route-presentation compatibility.'}];
  writeFileSync(manifestPath,JSON.stringify(next,null,2)+'\n');
  return plan.map(({file,before,after})=>({file,before,after}));
 }

@@ -8,3 +8,16 @@ test('dry run changes no files or manifest',t=>{const f=fixture(t),p=path.join(f
 test('unreconciled target edits fail before writing',t=>{const f=fixture(t),p=path.join(f.target,f.files[0]);writeFileSync(p,'new Cursor work');assert.throws(()=>syncSelected(f),/Unreconciled/);assert.equal(readFileSync(p,'utf8'),'new Cursor work');});
 test('source drift, production paths, traversal and duplicates are rejected',t=>{const f=fixture(t);assert.throws(()=>syncSelected({...f,files:['lib/p5/brand.ts']}),/allowed/);assert.throws(()=>syncSelected({...f,files:['../escape.mjs']}),/allowed/);assert.throws(()=>syncSelected({...f,files:[...f.files,...f.files]}),/unique/);writeFileSync(path.join(f.source,f.files[0]),'unmanifested source');assert.throws(()=>syncSelected(f),/manifest-qualified/);});
 test('target symlinks and missing dependencies are rejected before writing',t=>{const f=fixture(t),p=path.join(f.target,f.files[0]);rmSync(p);symlinkSync(path.join(f.target,'keep.txt'),p);assert.throws(()=>syncSelected(f),/Symlink/);rmSync(p);writeFileSync(p,'export const current=false;\n');const source="import './missing.mjs';\n";writeFileSync(path.join(f.source,f.files[0]),source);writeFileSync(path.join(f.source,'lib/p5/shared-manifest.json'),JSON.stringify({files:{[f.files[0]]:digest(source)}}));assert.throws(()=>syncSelected(f),/Missing target dependency/);assert.equal(readFileSync(p,'utf8'),'export const current=false;\n');});
+test('only reviewed presentation modules may be synchronized, preserving unrelated runtime',t=>{
+ const f=fixture(t),file='components/P5MobileActions.tsx';
+ for(const root of [f.source,f.target])mkdirSync(path.join(root,'components'),{recursive:true});
+ const before='export const visible=false;\n',after='export const visible=true;\n';
+ writeFileSync(path.join(f.source,file),after);writeFileSync(path.join(f.target,file),before);
+ for(const [root,value] of [[f.source,after],[f.target,before]]){
+  const p=path.join(root,'lib/p5/shared-manifest.json'),m=JSON.parse(readFileSync(p));m.files[file]=digest(value);writeFileSync(p,JSON.stringify(m));
+ }
+ assert.throws(()=>syncSelected({...f,files:['components/P5Estimator.tsx']}),/allowed/);
+ syncSelected({...f,files:[file]});const m=JSON.parse(readFileSync(path.join(f.target,'lib/p5/shared-manifest.json')));
+ assert.equal(m.selectiveSourceBatches[0].files[0].after,digest(after));
+ assert.equal(m.files['keep.txt'],'preserved-hash');assert.equal(m.files[f.files[0]],digest('export const current=false;\n'));
+});
