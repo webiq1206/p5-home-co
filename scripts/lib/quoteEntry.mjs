@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 
-export const retainedEstimatorPath = brand => ['p5','p5-home-co-nextjs','construction','boise-construction-co'].includes(brand) ? '/estimate/scope' : '/estimate';
+export const retainedEstimatorPath = brand => ['p5','p5-home-co-nextjs','construction','boise-construction-co','cabinet','boise-cabinet-co','remodeling','boise-remodeling-co'].includes(brand) ? '/estimate/scope' : '/estimate';
 export const isPublicQuotePath = path => path === '/estimate' || path === '/quote' || path.startsWith('/quote/');
 
 /** Exercise the current public wizard without sending a request. The caller

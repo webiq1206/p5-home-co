@@ -12,8 +12,9 @@ export async function enterEstimator(page, {route, brand, parent}) {
     }
     await page.locator('[data-p5-estimator]').first().waitFor();
   } else if (['boise-remodeling-co','remodeling'].includes(brand) && route === '/') {
-    await page.locator('a[href="/#calculator"]').first().click();
-    await page.locator('#calculator').first().scrollIntoViewIfNeeded();
+    await page.locator('a[href="/estimate"]:visible').first().click();
+    await page.waitForURL(url=>url.pathname==='/estimate');
+    await page.locator('[data-testid="estimate-request-wizard"]').first().waitFor();
   } else if (route === '/') {
     await page.locator('#calculator').first().scrollIntoViewIfNeeded();
   }

@@ -16,7 +16,7 @@ for (const brand of ['boise-handyman-co','handyman','boise-remodeling-co','remod
       const expected=parent?[]:['boise-handyman-co','handyman'].includes(brand) && ['/', '/estimate'].includes(route)
         ? [...(route==='/' ? [['click','a[href="/estimate"]']] : []), ['wait','[data-p5-estimator]']]
         : ['boise-remodeling-co','remodeling'].includes(brand) && route==='/'
-          ? [['click','a[href="/#calculator"]'],['scroll','#calculator']]
+          ? [['click','a[href="/estimate"]:visible'],['wait','[data-testid="estimate-request-wizard"]']]
           : route==='/' ? [['scroll','#calculator']] : [];
       assert.deepEqual(actions,expected);
     });
@@ -30,8 +30,8 @@ test('guided entry waits for navigation completion before reading the URL',async
 });
 
 test('P5 keeps public quote qualification separate from retained estimator coverage',()=>{
-  for(const brand of ['p5','p5-home-co-nextjs']) assert.equal(retainedEstimatorPath(brand),'/estimate/scope');
-  for(const brand of ['handyman','boise-handyman-co','cabinet','remodeling']) assert.equal(retainedEstimatorPath(brand),'/estimate');
+  for(const brand of ['p5','p5-home-co-nextjs','cabinet','boise-cabinet-co','remodeling','boise-remodeling-co']) assert.equal(retainedEstimatorPath(brand),'/estimate/scope');
+  for(const brand of ['handyman','boise-handyman-co']) assert.equal(retainedEstimatorPath(brand),'/estimate');
   for(const route of ['/estimate','/quote','/quote/adu','/quote/custom-cabinets']) assert.equal(isPublicQuotePath(route),true);
   for(const route of ['/estimate/scope','/estimate/p5-preview','/quote-other']) assert.equal(isPublicQuotePath(route),false);
   if(JSON.parse(readFileSync('package.json','utf8')).name!=='p5-home-co-nextjs')return;
