@@ -1,7 +1,7 @@
 {
   "source": "p5-home-co",
-  "commit": "581d675bf7b45f24e3838b13f936c297e37047ba",
-  "generatedAt": "2026-10-25T06:31:01.844Z",
+  "commit": "248f6cf4f2218503124726b798a1eb2bf999053d",
+  "generatedAt": "2026-10-29T01:02:01.731Z",
   "note": "Shared estimator engine published from p5-home-co. Edit shared files there and run scripts/p5-sync.mjs; hash checks remain mandatory in every brand.",
   "files": {
     "app/admin/p5-estimators/page.tsx": "f9b7f729daa74f542cdece161d2bf158fb784f5a8c55356fe7283e73db2c139d",
@@ -253,7 +253,7 @@
     "lib/p5/store.ts": "06c49f4b951e5758cac52fe0663900cfee481acbf3f65dd17725b25375f02fef",
     "lib/p5/submitEndpoint.ts": "b31ebb0613bc8d3e5b0cd11b35b693d86d43ffdc81e0ed833975346c9e26dcc7",
     "lib/p5/submitProgress.ts": "777d5a5d9b5c4045107589654f5215f5b82f73c5fe712918c6ea581d0674b414",
-    "lib/p5/theme.ts": "0b2cd965c0baf52e46ef6e3a8400c747bf75156f32f5da42a9ad0aca54fb478e",
+    "lib/p5/theme.ts": "7690b971134b7a6d1f11f1e0f87d307fc086abf845531055f79b226ca1fefb10",
     "lib/p5/tradeVocabulary.ts": "4598fcd6cc56c781279e45f58dd2c0120d1fce6b2fcc4935f6c1774fce8cbb46",
     "lib/p5/trades.ts": "10fd4d6f56c4881ebe23a481fe4245d6609eda8a041515c66198ee23fd0bcbfb",
     "lib/p5/typedCorrections.ts": "802a89a524402d4592b365ebbd8764f2914781ed30a05af59e835fe24c841597",
@@ -386,6 +386,7 @@
     "tests/p5-crm-payload.test.ts": "21c31060786e5499f046efa882c3e955d930d782fdd14fbbedf6a81a52e8eb2a",
     "tests/p5-customer-copy.test.ts": "491eae671053ca8df68a4837fdf2af7b2890f09729e48ca47c14542d9cafabe4",
     "tests/p5-customer-privacy.test.ts": "42927e675c6f74d895e19d6d7a53d341f1516fa161dbf4b9e6d8f919c86c7842",
+    "tests/p5-document-brand-asset.test.ts": "77bf18aff0e34096144047d12521d18627b84bba78186195114c00b02043e607",
     "tests/p5-document-ledger.test.ts": "2eb6d1bcedd7537564be7e63faf986656c0b9675f7627e24912ee05937243ff8",
     "tests/p5-document-reading.test.ts": "1f7bda8d565bb248bcd5e62bfee7534e134cb717e69f363e58f6814d8334f2db",
     "tests/p5-document-service.test.ts": "e0a599485440d43d5f05557399ff3c92feb64c66bc02c92d1f37731d9f12231f",
