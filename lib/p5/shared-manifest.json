@@ -289,7 +289,7 @@
     "scripts/p5-cli-acceptance.mts": "ed5b8fc80231c03b3c2b54de486fb6db7f259947e855ecf4985a9caf6f4ea6b8",
     "scripts/p5-component-review.mjs": "7035921690a6dc0648b1c3142b054ad09d67535c706e108817369e9e6de6ab26",
     "scripts/p5-contact-first-browser.mjs": "92f3646a7736ddf0169e8d700134ae1f4789c6eb01f6d28394deebaa792564f2",
-    "scripts/p5-estimator-browser.mjs": "bac491a9cf34bdff15347b310b55c56c192628d02e2c7c44d141c0b76bbc3fef",
+    "scripts/p5-estimator-browser.mjs": "0f4206a44f72ae8236dd0d5146ee870e8d9c0be0ed0bf2f80b4b296bd840c43a",
     "scripts/p5-exit-browser.mjs": "6b0556f4c8b17cd5f314f60d84246363b60e4dc54e191f91010e78374cf44a97",
     "scripts/p5-host-build.mjs": "2ac9f40425e0c279d930a54b56b47dda3b15e3841933a076ddc751e8275c9967",
     "scripts/p5-hub-notification-check.mjs": "e2d4216777feeb2e4099b93986ca257e4760f671312a6b343014ef7677148f06",
@@ -529,7 +529,8 @@
     "tests/p5-upload-transfer.test.ts": "57046bd3c25bb27b905dcca03ac6f41484812501fa4ad719fc2baf99d54e1c1c",
     "tests/p5-with-timeout.test.ts": "19144aa63a2d3e7991a67ec19e2f1ae867b40d55a499a3b7ad98e45ce8c3284e",
     "tests/p5-wizard-resume.test.ts": "423176433a701f191c5e88c99924a28748c001da3b4a746b892843cf52319085",
-    "tests/p5-work-recovery.test.ts": "ef035f0257de7b9ddb4f8736044a72276a90d5599866587542f229db30debfdb"
+    "tests/p5-work-recovery.test.ts": "ef035f0257de7b9ddb4f8736044a72276a90d5599866587542f229db30debfdb",
+    "scripts/lib/navigationDiagnostics.mjs": "1c42cf7c8bdc065709fe59b056ba37f3ad49867abcb73f21ce24dc5becf36aad"
   },
   "currentIntakeEntryBatch": {
     "date": "2026-10-26",
