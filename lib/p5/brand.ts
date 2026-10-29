@@ -25,7 +25,7 @@ export const ESTIMATOR_BRAND = {
   "phone": "(208) 477-1169",
   "ink": "#2C302F",
   "paper": "#FBFAF6",
-  "logo": "/brands/p5-home-co-lockup-light.svg",
+  "logo": "/brands/p5-home-co-lockup-dark.png",
   "font": "/fonts/p5-estimator-sans.ttf",
   "headingFont": "/fonts/p5-estimator-serif.ttf",
   "consultationPath": "/quote",
