@@ -15,7 +15,7 @@ const MAX_TOTAL_BYTES = 20 * 1024 * 1024;
 
 const FALLBACK_PROJECT = "Something else, or I am not sure";
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
-const STORAGE_KEY = "p5-quote-wizard-v4";
+const STORAGE_KEY = "p5-quote-wizard-v5";
 
 type CategoryId = "remodel" | "home" | "adu" | "cabinets" | "repairs" | "other";
 
@@ -62,10 +62,13 @@ const CATEGORIES: ReadonlyArray<{
   },
 ];
 
-/** Text steps are one field each so every step fits with keyboard open (C10). */
-type Step = "category" | "project" | "match" | "note" | "contact" | "phone" | "email" | "review";
+/**
+ * Premium short path: category cards → project cards → one dense details panel
+ * (match + note + contact) → review. No empty single-field grind.
+ */
+type Step = "category" | "project" | "details" | "review";
 
-const STEPS: readonly Step[] = ["category", "project", "match", "note", "contact", "phone", "email", "review"];
+const STEPS: readonly Step[] = ["category", "project", "details", "review"];
 
 type WizardState = {
   step: Step;
@@ -90,6 +93,8 @@ const DEFAULT_STATE: WizardState = {
 function normalizeStep(step: unknown): Step | null {
   if (typeof step !== "string") return null;
   if ((STEPS as readonly string[]).includes(step)) return step as Step;
+  // Migrate older one-field steps into the dense details panel.
+  if (["match", "note", "contact", "phone", "email"].includes(step)) return "details";
   return null;
 }
 
@@ -105,13 +110,13 @@ function readStored(defaultProject?: string): WizardState {
       ...DEFAULT_STATE,
       project: defaultProject && PROJECT_OPTIONS.some((o) => o.value === defaultProject) ? defaultProject : "",
       category: categoryForProject(defaultProject),
-      step: defaultProject && PROJECT_OPTIONS.some((o) => o.value === defaultProject) ? "match" : "category",
+      step: defaultProject && PROJECT_OPTIONS.some((o) => o.value === defaultProject) ? "details" : "category",
     };
   }
   try {
-    const raw = sessionStorage.getItem(STORAGE_KEY);
+    const raw = sessionStorage.getItem(STORAGE_KEY) ?? sessionStorage.getItem("p5-quote-wizard-v4");
     if (raw) {
-      const parsed = JSON.parse(raw) as Partial<WizardState>;
+      const parsed = JSON.parse(raw) as Partial<WizardState> & { step?: unknown };
       const project =
         typeof parsed.project === "string" && PROJECT_OPTIONS.some((o) => o.value === parsed.project)
           ? parsed.project
@@ -122,9 +127,7 @@ function readStored(defaultProject?: string): WizardState {
         parsed.category && CATEGORIES.some((c) => c.id === parsed.category)
           ? parsed.category
           : categoryForProject(project);
-      const step =
-        normalizeStep(parsed.step) ??
-        (project ? "match" : "category");
+      const step = normalizeStep(parsed.step) ?? (project ? "details" : "category");
       return {
         step,
         category,
@@ -143,15 +146,15 @@ function readStored(defaultProject?: string): WizardState {
       ...DEFAULT_STATE,
       project: defaultProject,
       category: categoryForProject(defaultProject),
-      step: "match",
+      step: "details",
     };
   }
   return DEFAULT_STATE;
 }
 
 /**
- * Primary lead form as a D2 wizard so every input step fits with the keyboard open (C10).
- * Category and project use choice cards; company match shows before contact capture.
+ * Primary lead form. Category and project use choice cards; company match and
+ * contact fields share one dense details step so the viewport never looks empty.
  */
 export function ShortRequestForm({
   id,
@@ -215,14 +218,6 @@ export function ShortRequestForm({
     return () => window.removeEventListener("popstate", onPop);
   }, [defaultProject, hydrated]);
 
-  useEffect(() => {
-    if (!hydrated || done) return;
-    if (!["match", "note", "contact", "phone", "email"].includes(state.step)) return;
-    const form = document.getElementById(id);
-    if (!form) return;
-    form.scrollIntoView({ block: "start", behavior: "auto" });
-  }, [state.step, hydrated, done, id]);
-
   function pushHistory(next: WizardState) {
     if (typeof window === "undefined") return;
     try {
@@ -253,56 +248,54 @@ export function ShortRequestForm({
   function canAdvance(): boolean {
     if (state.step === "category") return Boolean(state.category);
     if (state.step === "project") return Boolean(state.project);
-    if (state.step === "match") return Boolean(state.project);
-    if (state.step === "note") return state.note.trim().length > 0;
-    if (state.step === "contact") return state.name.trim().length > 0;
-    if (state.step === "phone") return state.phone.replace(/\D/g, "").length >= 10;
-    if (state.step === "email") return EMAIL.test(state.email.trim());
+    if (state.step === "details") {
+      return (
+        Boolean(state.project) &&
+        state.note.trim().length > 0 &&
+        state.name.trim().length > 0 &&
+        state.phone.replace(/\D/g, "").length >= 10 &&
+        EMAIL.test(state.email.trim())
+      );
+    }
     return true;
   }
 
   function onBack() {
     if (state.step === "project") go({ step: "category", project: "" });
-    else if (state.step === "match") {
+    else if (state.step === "details") {
       if (category && category.projects.length === 1) go({ step: "category" });
       else go({ step: "project" });
-    } else if (state.step === "note") go({ step: "match" });
-    else if (state.step === "contact") go({ step: "note" });
-    else if (state.step === "phone") go({ step: "contact" });
-    else if (state.step === "email") go({ step: "phone" });
-    else if (state.step === "review") go({ step: "email" });
+    } else if (state.step === "review") go({ step: "details" });
   }
 
   function onNext() {
     if (!canAdvance()) {
-      if (state.step === "note") {
-        setStatus({ tone: "error", text: "Add a short note about the project." });
-      } else if (state.step === "contact") {
-        setStatus({ tone: "error", text: "Enter a name." });
-      } else if (state.step === "phone") {
-        setStatus({ tone: "error", text: "Enter a phone number we can call." });
-      } else if (state.step === "email") {
-        setStatus({
-          tone: "error",
-          text: state.email.trim() ? "That email address does not look right." : "Enter an email address.",
-        });
+      if (state.step === "details") {
+        if (!state.note.trim()) {
+          setStatus({ tone: "error", text: "Add a short note about the project." });
+        } else if (!state.name.trim()) {
+          setStatus({ tone: "error", text: "Enter a name." });
+        } else if (state.phone.replace(/\D/g, "").length < 10) {
+          setStatus({ tone: "error", text: "Enter a phone number we can call." });
+        } else if (!EMAIL.test(state.email.trim())) {
+          setStatus({
+            tone: "error",
+            text: state.email.trim() ? "That email address does not look right." : "Enter an email address.",
+          });
+        }
       }
       return;
     }
     if (state.step === "category" && category) {
       if (category.projects.length === 1) {
-        go({ step: "match", project: category.projects[0] });
+        go({ step: "details", project: category.projects[0] });
       } else {
         go({ step: "project" });
       }
       return;
     }
-    if (state.step === "project") go({ step: "match" });
-    else if (state.step === "match") go({ step: "note" });
-    else if (state.step === "note") go({ step: "contact" });
-    else if (state.step === "contact") go({ step: "phone" });
-    else if (state.step === "phone") go({ step: "email" });
-    else if (state.step === "email") go({ step: "review" });
+    if (state.step === "project") go({ step: "details" });
+    else if (state.step === "details") go({ step: "review" });
   }
 
   async function onSubmit() {
@@ -356,6 +349,7 @@ export function ShortRequestForm({
       setDone(true);
       try {
         sessionStorage.removeItem(STORAGE_KEY);
+        sessionStorage.removeItem("p5-quote-wizard-v4");
       } catch {
         /* ignore */
       }
@@ -449,90 +443,71 @@ export function ShortRequestForm({
             </fieldset>
           )}
 
-          {state.step === "match" && (
-            <fieldset className="quote-wizard-step quote-wizard-step-compact">
-              <legend>Your specialist team</legend>
-              <p className="quote-wizard-result" role="status">
-                <strong>{brand ?? "P5 Home Co"}</strong>
-                <span> will take this from here.</span>
-              </p>
-            </fieldset>
-          )}
-
-          {state.step === "note" && (
-            <fieldset className="quote-wizard-step quote-wizard-step-compact">
-              <legend>Project note</legend>
+          {state.step === "details" && (
+            <fieldset className="quote-wizard-step quote-wizard-details">
+              <legend>Project details</legend>
+              {brand ? (
+                <p className="quote-wizard-result" role="status">
+                  <strong>{brand}</strong>
+                  <span> will take this from here.</span>
+                </p>
+              ) : null}
               <label htmlFor={noteId}>
-                What should we know?
+                Project note
                 <textarea
                   id={noteId}
                   name="note"
                   required
                   maxLength={4000}
-                  rows={2}
+                  rows={3}
                   value={state.note}
                   onChange={(event) => go({ note: event.target.value })}
+                  placeholder="What should we know about the work?"
                 />
               </label>
-            </fieldset>
-          )}
-
-          {state.step === "contact" && (
-            <fieldset className="quote-wizard-step quote-wizard-step-compact">
-              <legend>Your name</legend>
-              <label htmlFor={nameId}>
-                Name
-                <input
-                  id={nameId}
-                  name="name"
-                  type="text"
-                  autoComplete="name"
-                  required
-                  maxLength={120}
-                  value={state.name}
-                  onChange={(event) => go({ name: event.target.value })}
-                />
-              </label>
-            </fieldset>
-          )}
-
-          {state.step === "phone" && (
-            <fieldset className="quote-wizard-step quote-wizard-step-compact">
-              <legend>Phone</legend>
-              <label htmlFor={phoneId}>
-                Phone
-                <input
-                  id={phoneId}
-                  name="phone"
-                  type="tel"
-                  autoComplete="tel"
-                  inputMode="tel"
-                  required
-                  maxLength={30}
-                  value={state.phone}
-                  onChange={(event) => go({ phone: event.target.value })}
-                />
-              </label>
-            </fieldset>
-          )}
-
-          {state.step === "email" && (
-            <fieldset className="quote-wizard-step quote-wizard-step-compact">
-              <legend>Email</legend>
-              <label htmlFor={emailId}>
-                Email
-                <input
-                  id={emailId}
-                  name="email"
-                  type="email"
-                  autoComplete="email"
-                  inputMode="email"
-                  required
-                  maxLength={200}
-                  value={state.email}
-                  onChange={(event) => go({ email: event.target.value })}
-                />
-              </label>
+              <div className="quote-wizard-contact-grid">
+                <label htmlFor={nameId}>
+                  Your name
+                  <input
+                    id={nameId}
+                    name="name"
+                    type="text"
+                    autoComplete="name"
+                    required
+                    maxLength={120}
+                    value={state.name}
+                    onChange={(event) => go({ name: event.target.value })}
+                  />
+                </label>
+                <label htmlFor={phoneId}>
+                  Phone
+                  <input
+                    id={phoneId}
+                    name="phone"
+                    type="tel"
+                    autoComplete="tel"
+                    inputMode="tel"
+                    required
+                    maxLength={30}
+                    value={state.phone}
+                    onChange={(event) => go({ phone: event.target.value })}
+                  />
+                </label>
+                <label htmlFor={emailId} className="quote-wizard-contact-email">
+                  Email
+                  <input
+                    id={emailId}
+                    name="email"
+                    type="email"
+                    autoComplete="email"
+                    inputMode="email"
+                    required
+                    maxLength={200}
+                    value={state.email}
+                    onChange={(event) => go({ email: event.target.value })}
+                  />
+                </label>
+              </div>
             </fieldset>
           )}
 
@@ -555,7 +530,7 @@ export function ShortRequestForm({
                 <div>
                   <dt>Note</dt>
                   <dd>
-                    <button type="button" className="quote-wizard-edit" onClick={() => go({ step: "note" })}>
+                    <button type="button" className="quote-wizard-edit" onClick={() => go({ step: "details" })}>
                       {state.note}
                     </button>
                   </dd>
@@ -563,7 +538,7 @@ export function ShortRequestForm({
                 <div>
                   <dt>Contact</dt>
                   <dd>
-                    <button type="button" className="quote-wizard-edit" onClick={() => go({ step: "contact" })}>
+                    <button type="button" className="quote-wizard-edit" onClick={() => go({ step: "details" })}>
                       {state.name} · {state.phone} · {state.email}
                     </button>
                   </dd>
@@ -582,7 +557,6 @@ export function ShortRequestForm({
                   onChange={(event) => setFiles([...(event.target.files ?? [])].filter((file) => file.size > 0))}
                 />
               </label>
-              {/* Keep project in the form DOM for tests and progressive enhancement. */}
               <input type="hidden" name="project" value={state.project || FALLBACK_PROJECT} />
             </fieldset>
           )}
@@ -615,7 +589,7 @@ export function ShortRequestForm({
                 type="submit"
                 disabled={!canAdvance()}
               >
-                {state.step === "match" ? "Continue" : state.step === "note" ? "Continue" : "Next"}
+                {state.step === "details" ? "Review" : "Next"}
               </button>
             )}
           </div>

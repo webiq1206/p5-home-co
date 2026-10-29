@@ -41,45 +41,46 @@ export default function AboutClient({
     <main id="top" className="about-page">
       <SiteChrome>
         <section className="about-hero" aria-labelledby="about-heading">
-          <div className="content-shell about-hero-inner">
-            <nav className="about-breadcrumb" aria-label="Breadcrumb">
-              <ol>
-                <li>
-                  <Link href="/">Home</Link>
-                </li>
-                <li aria-current="page">About</li>
-              </ol>
-            </nav>
-            <p className="eyebrow">Real people. A higher standard.</p>
-            <h1 id="about-heading">About P5 Home Co</h1>
-            <p className="about-answer">
-              P5 Home Co is the family company behind Boise Construction Co, Boise Remodeling Co, Boise Cabinet Co and
-              Boise Handyman Co. I&apos;m Nick Perkins, the founder. I&apos;m a husband, a dad to five kids, and someone
-              who takes a lot of pride in the work that carries my name. Family is the biggest part of my life, and it
-              is the reason P5 exists.
-            </p>
-            <div className="about-hero-actions" data-suppress-mobile-bar="">
-              <Link className="button button-dark" href="/quote" data-cta="primary">
-                Request a quote <Arrow />
-              </Link>
-              <a className="text-link" href="tel:+12084771169">
-                Call (208) 477-1169
-              </a>
+          <div className="content-shell about-hero-layout">
+            <div className="about-hero-inner">
+              <nav className="about-breadcrumb" aria-label="Breadcrumb">
+                <ol>
+                  <li>
+                    <Link href="/">Home</Link>
+                  </li>
+                  <li aria-current="page">About</li>
+                </ol>
+              </nav>
+              <p className="eyebrow">The family behind the companies</p>
+              <h1 id="about-heading">About P5 Home Co</h1>
+              <p className="about-answer">
+                P5 Home Co is the family company behind Boise Construction Co, Boise Remodeling Co, Boise Cabinet Co and
+                Boise Handyman Co. I&apos;m Nick Perkins, the founder. I&apos;m a husband, a dad to five kids, and someone
+                who takes a lot of pride in the work that carries my name. Family is the biggest part of my life, and it
+                is the reason this company exists.
+              </p>
+              <div className="about-hero-actions" data-suppress-mobile-bar="">
+                <Link className="button button-dark" href="/quote" data-cta="primary">
+                  Request a quote <Arrow />
+                </Link>
+                <a className="text-link" href="tel:+12084771169">
+                  Call (208) 477-1169
+                </a>
+              </div>
+              <p className="about-trust-line">P5 Home Co LLC · Idaho Registered Contractor #{registration}</p>
             </div>
-            <p className="about-trust-line">P5 Home Co LLC · Idaho Registered Contractor #{registration}</p>
+            <figure className="about-family-photo">
+              <img
+                src="/images/about/perkins-family-meridian-idaho-1x1.webp"
+                alt="Nick Perkins with his wife and five children at a pumpkin patch in Meridian, Idaho"
+                width={2048}
+                height={2048}
+                fetchPriority="high"
+                decoding="async"
+              />
+            </figure>
           </div>
         </section>
-
-        <figure className="about-family-photo content-shell">
-          <img
-            src="/images/about/perkins-family-meridian-idaho-1x1.webp"
-            alt="Nick Perkins with his wife and five children at a pumpkin patch in Meridian, Idaho"
-            width={2048}
-            height={2048}
-            fetchPriority="high"
-            decoding="async"
-          />
-        </figure>
 
         <section className="about-section content-shell about-family-drive" aria-labelledby="family-drive">
           <h2 id="family-drive">What drives the work</h2>

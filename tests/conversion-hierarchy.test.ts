@@ -38,9 +38,10 @@ test("hub pages keep call and chat, with one short request below the hero", () =
   assert.doesNotMatch(mobile, /openSiteChat/);
   assert.doesNotMatch(mobile, /p5-mobile-chat/);
   assert.match(chrome, /<OpenChatButton/);
-  assert.match(form, /state\.step === "email"/);
-  assert.match(form, /state\.step === "phone"/);
-  assert.match(form, /state\.step === "note"/);
+  assert.match(form, /state\.step === "details"/);
+  assert.match(form, /name="note"/);
+  assert.match(form, /name="phone"/);
+  assert.match(form, /name="email"/);
   assert.match(form, /Your name/);
   assert.doesNotMatch(mobile, />\s*Chat\s*</);
   const css = readFileSync("app/globals.css", "utf8");
@@ -50,8 +51,10 @@ test("hub pages keep call and chat, with one short request below the hero", () =
   assert.equal((hero.match(/<Link /g) || []).length, 1);
   assert.doesNotMatch(hero, /hero-reassure|hero-phone|hero-trust|<button/);
   assert.match(hero, /Request a quote/);
+  assert.match(hero, /P5 Home/);
   assert.match(form, /quote-wizard/);
   assert.match(form, /choice-card/);
+  assert.match(form, /quote-wizard-contact-grid/);
 });
 
 test("the short form requires name, phone, email, and a project note, and files stay optional", () => {

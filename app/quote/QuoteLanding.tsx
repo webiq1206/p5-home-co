@@ -92,13 +92,13 @@ export default function QuoteLanding({ service }: { service: QuoteService | null
                 <p className="quote-eyebrow">
                   {service
                     ? `${service.label} · Treasure Valley`
-                    : "Free quote · Treasure Valley, Idaho"}
+                    : "P5 Home Co · Free quote · Treasure Valley"}
                 </p>
                 {service ? <h2>{service.h1}</h2> : <h1>A specialist team for your home project</h1>}
                 <p className="quote-lead">
                   {service
                     ? service.lead
-                    : "Tell us what you want done and P5 Home Co sends it to the right specialist team, whether that is a kitchen remodel, a custom home, an ADU, new cabinetry, or a repair. Quotes are free, carry no obligation, and come with a written scope so you can compare them properly."}
+                    : "Tell us what you want done and P5 Home Co routes it to the right specialist team: remodel, custom home, ADU, cabinetry, or repair. Quotes are free, carry no obligation, and come with a written scope."}
                 </p>
 
                 {service && (
@@ -122,7 +122,10 @@ export default function QuoteLanding({ service }: { service: QuoteService | null
           <div className="quote-shell quote-request-inner">
             <div className="quote-request-copy">
               <h2 id="quote-request-heading">Tell us what you need</h2>
-              <p>A name, phone, email, and a note are enough for a person to follow up. Add a photo or plan if you have one.</p>
+              <p>
+                Choose your project, leave a short note, and share how to reach you. Add a photo or plan if you have
+                one.
+              </p>
             </div>
             <ShortRequestForm
               id="request-form"

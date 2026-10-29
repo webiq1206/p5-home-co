@@ -125,8 +125,15 @@ export default function Home() {
           <div className="hero-panel">
             <div className="hero-content content-shell">
               <div className="hero-copy">
-                <h1 id="hero-heading">Boise’s Home <span>Specialists</span></h1>
-                <p className="hero-lede">New homes, remodeling, cabinets, repairs and ADUs.</p>
+                <p className="hero-brand">The Home Company</p>
+                <h1 id="hero-heading">
+                  P5 Home <span>Co</span>
+                </h1>
+                <p className="hero-subhead">Treasure Valley home specialists</p>
+                <p className="hero-lede">
+                  New homes, remodeling, cabinets, repairs, and ADUs. One family of companies, the right team for the
+                  work.
+                </p>
                 <div className="hero-actions" data-suppress-mobile-bar="">
                   <Link className="button button-light" href="/#request-form" data-cta="primary">
                     Request a quote
@@ -134,20 +141,6 @@ export default function Home() {
                 </div>
               </div>
             </div>
-          </div>
-        </section>
-
-        <section className="request-band" aria-labelledby="request-band-heading">
-          <div className="content-shell request-band-inner">
-            <div className="request-band-copy">
-              <p className="eyebrow">Send a request</p>
-              <h2 id="request-band-heading">Tell us what you are planning.</h2>
-              <p>
-                A name, phone, email, and a short note are enough. Call, chat, or text from the header if you would
-                rather talk.
-              </p>
-            </div>
-            <ShortRequestForm id="request-form" formName="Homepage short request" />
           </div>
         </section>
 
@@ -244,6 +237,17 @@ export default function Home() {
           </div>
         </section>
 
+        <section className="scroll-photo" aria-hidden="true">
+          <img
+            src={FEATURED_BOISE_EXTERIOR.src}
+            alt=""
+            width={FEATURED_BOISE_EXTERIOR.width}
+            height={FEATURED_BOISE_EXTERIOR.height}
+            loading="lazy"
+            decoding="async"
+          />
+        </section>
+
         <section id="featured-project" className="featured-project section-pad" aria-labelledby="featured-project-heading">
           <Reveal className="content-shell featured-project-intro">
             <div>
@@ -258,6 +262,17 @@ export default function Home() {
             </p>
           </Reveal>
           <div className="content-shell featured-project-grid" role="list">
+            <div className="featured-project-shot featured-project-wide" role="listitem">
+              <img
+                src={FEATURED_BOISE_EXTERIOR.src}
+                alt={FEATURED_BOISE_EXTERIOR.alt}
+                width={FEATURED_BOISE_EXTERIOR.width}
+                height={FEATURED_BOISE_EXTERIOR.height}
+                loading="lazy"
+                decoding="async"
+              />
+              <span>Exterior</span>
+            </div>
             <div className="featured-project-shot" role="listitem">
               <img
                 src={FEATURED_BOISE_GREAT_ROOM.src}
@@ -377,6 +392,31 @@ export default function Home() {
             </ol>
             <p className="kitchen-example-close">One contract, one project manager, one invoice.</p>
           </Reveal>
+        </section>
+
+        <section className="request-band" aria-labelledby="request-band-heading">
+          <div className="content-shell request-band-inner">
+            <div className="request-band-copy">
+              <p className="eyebrow">Send a request</p>
+              <h2 id="request-band-heading">Tell us what you are planning.</h2>
+              <p>
+                Choose your project type, leave a short note, and share how to reach you. Call, chat, or text from the
+                header if you would rather talk.
+              </p>
+            </div>
+            <ShortRequestForm id="request-form" formName="Homepage short request" />
+          </div>
+        </section>
+
+        <section className="scroll-photo scroll-photo-craft" aria-hidden="true">
+          <img
+            src={FEATURED_BOISE_KITCHEN.src}
+            alt=""
+            width={FEATURED_BOISE_KITCHEN.width}
+            height={FEATURED_BOISE_KITCHEN.height}
+            loading="lazy"
+            decoding="async"
+          />
         </section>
 
         <BrandPanel

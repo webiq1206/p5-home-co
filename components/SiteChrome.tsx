@@ -133,7 +133,6 @@ export default function SiteChrome({
             <Link href="/#p5-standard">The P5 standard</Link>
             <Link href="/about">About</Link>
             <Link href="/#service-area">Service area</Link>
-            <Link href="/quote">Request a quote</Link>
           </nav>
           <Link className="nav-cta" href="/#request-form" data-cta="primary">
             Request a quote <Arrow />
