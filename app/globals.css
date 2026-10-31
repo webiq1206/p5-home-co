@@ -447,8 +447,6 @@ a:hover .arrow-diagonal, a:focus-visible .arrow-diagonal { transform: translate(
   .manifesto h2,.companies h2,.standard h2,.handoff h2,.service-area h2,.faq h2,.final-cta h2,.featured-project-intro h2 { font-size:47px; }
   .faq-item summary { font-size:19px; gap:20px; }
   .standard-grid { grid-template-columns:1fr; }
-  .area-list { grid-template-columns:1fr 1fr; }
-  .area-list span:last-child:nth-child(odd) { grid-column:1/-1; }
   .matcher-choices button:last-child:nth-child(odd) { grid-column:auto; }
   .brand-image-wrap { min-height:410px; height:110vw; }
   .brand-content { min-height:0; padding:50px 25px; }
@@ -456,7 +454,7 @@ a:hover .arrow-diagonal, a:focus-visible .arrow-diagonal { transform: translate(
   .brand-logo { height:auto; margin-top:36px; }
   .service-list { grid-template-columns:1fr; }
   .process-proof ul { grid-template-columns:1fr; gap:16px; }
-  .area-list span { padding:14px; font-size:21px; }
+  .area-list span { padding:14px 10px; font-size:19px; line-height:1.2; }
   .final-cta,.final-cta-content { min-height:590px; }
   .final-cta > img { object-position:68% center; }
   .final-cta-shade { background:rgba(18,27,22,.76); }
@@ -1076,6 +1074,30 @@ body[data-p5-chat-open] .p5-mobile-actionbar { display: none !important; }
 .skip-link:focus, .skip-link:focus-visible { transform: translateY(0); outline: 2px solid var(--bronze); outline-offset: 2px; }
 .main-content-target { display: block; height: 0; outline: none; }
 main#main-content:focus { outline: none; }
+
+/* C3: on desktop the hero and the fixed header together fit the small
+   viewport, and the photograph stops before it turns into filler. The crop
+   keeps the roofline in frame at the shorter height. */
+@media (min-width: 1024px) {
+  .hero { min-height: calc(var(--header-height) + min(100svh - var(--header-height), 720px)); }
+  .hero-image { object-position: center 20%; }
+}
+
+/* Two H2s set in the body face; every other H2 on the page is Cormorant. */
+.kitchen-example h2,
+.who-hire h2 { margin: 0; font-family: var(--font-display); font-size: clamp(36px, 4.6vw, 56px); font-weight: 400; letter-spacing: -.03em; line-height: 1.05; }
+.who-hire h2 { margin-bottom: var(--stack-heading); }
+
+/* D1: the FAQ heading holds below the header while the questions scroll, so
+   the left column is not 700px of empty space. Desktop and tall enough only. */
+@media (min-width: 1024px) and (min-height: 700px) {
+  .faq-layout > div:first-child { position: sticky; top: calc(var(--header-height) + 20px); }
+}
+
+/* The closing band uses the primary button (charcoal, paper text, tan bar),
+   with an outline so it reads on the dark band and a hover that stays legible. */
+.final-cta .button-dark { border-color: rgba(251,250,246,.55); }
+.final-cta .button-dark:hover, .final-cta .button-dark:focus-visible { color: var(--paper); background: transparent; border-color: var(--paper); }
 
 /* Phone wizard dock spans the card edge to edge so pinned content never shows
    at its sides. Same geometry pinned or not, so nothing shifts. */
