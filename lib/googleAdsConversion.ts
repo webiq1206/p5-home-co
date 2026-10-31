@@ -67,13 +67,29 @@ function claim(sendTo: string, transactionId: string): boolean {
   return true;
 }
 
-async function fireWhenReady(sendTo: string, transactionId: string) {
+/**
+ * GA4 lead event for an accepted estimator finish ("intake:" or "estimator:"
+ * key). It rides on the accepted-lead Ads conversion, so GA4 and Ads count the
+ * same leads. Quote form inquiries already send generate_lead from the form
+ * (app/analytics.ts), so other keys are skipped to avoid counting a lead twice.
+ */
+export function estimatorLeadGa4Params(context: { service?: string }, completionKey?: string): Record<string, string> | null {
+  if (!completionKey || !/^(?:intake|estimator):/.test(completionKey)) return null;
+  return {
+    lead_source: completionKey.startsWith("intake:") ? "estimator_intake" : "estimator",
+    project_type: context.service || "unknown",
+    event_id: projectIdentity(completionKey),
+  };
+}
+
+async function fireWhenReady(sendTo: string, transactionId: string, ga4Lead: Record<string, string> | null = null) {
   const deadline = Date.now() + WAIT_MS;
   for (;;) {
     try {
       const gtag = window.gtag;
       if (typeof gtag === "function") {
         gtag("event", "conversion", { send_to: sendTo, transaction_id: transactionId });
+        if (ga4Lead) gtag("event", "generate_lead", ga4Lead);
         return;
       }
     } catch {
@@ -90,7 +106,6 @@ export function adsConversionsToSend(completionKey: string, createsAcceptedLead:
 }
 
 export function trackGoogleAdsLeadConversion(context: { service?: string } = {}, dedupeKey?: string, acceptance?: { accepted?: boolean }): boolean {
-  void context;
   try {
     if (!dedupeKey || !analyticsAllowed()) return false;
     const createsLead = dedupeKey.startsWith("intake:") || dedupeKey.startsWith("estimator:")
@@ -98,7 +113,10 @@ export function trackGoogleAdsLeadConversion(context: { service?: string } = {},
       : true;
     const pending = adsConversionsToSend(dedupeKey, createsLead);
     if (!pending.length) return false;
-    for (const event of pending) void fireWhenReady(event.sendTo, event.transactionId);
+    for (const event of pending) {
+      const ga4Lead = event.sendTo === FORM_SEND_TO ? estimatorLeadGa4Params(context, dedupeKey) : null;
+      void fireWhenReady(event.sendTo, event.transactionId, ga4Lead);
+    }
     return true;
   } catch {
     return false;
