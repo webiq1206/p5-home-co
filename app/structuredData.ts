@@ -86,7 +86,11 @@ export const siteSchema = {
           name,
         })),
       ],
-      subOrganization: companies.map((company) => ({
+      // One node per company with its own site. Boise ADU Co has no site yet and
+      // runs through Boise Construction Co, so it would repeat Construction's
+      // url and @id under a different name. It joins the graph, with its own
+      // @id, once its domain is live.
+      subOrganization: companies.filter((company) => company.name !== "Boise ADU Co").map((company) => ({
         "@type": "Organization",
         "@id": `${company.url}/#organization`,
         name: company.name,

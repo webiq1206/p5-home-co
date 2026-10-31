@@ -39,7 +39,7 @@ function External({ href, children }: { href: string; children: React.ReactNode 
     <a
       href={href}
       target="_blank"
-      rel="noreferrer"
+      rel="noopener"
       onClick={() =>
         track("company_click", {
           company: href.replace(/^https:\/\/|\.co$/g, ""),

@@ -752,7 +752,7 @@ function BrandPanel({
           className="brand-link"
           href={url}
           target={external ? "_blank" : undefined}
-          rel={external ? "noreferrer" : undefined}
+          rel={external ? "noopener" : undefined}
           onClick={() =>
             track(external ? "company_click" : url.startsWith("tel:") ? "phone_click" : "quote_click", {
               company: id,
@@ -904,7 +904,7 @@ function ProjectMatcher({ onClose }: { onClose: () => void }) {
                   className="button button-dark"
                   href={detail.url}
                   target={detail.url.startsWith("http") ? "_blank" : undefined}
-                  rel={detail.url.startsWith("http") ? "noreferrer" : undefined}
+                  rel={detail.url.startsWith("http") ? "noopener" : undefined}
                   onClick={() =>
                     track(
                       detail.url.startsWith("http") ? "company_click" : detail.url.startsWith("tel:") ? "phone_click" : "quote_click",
