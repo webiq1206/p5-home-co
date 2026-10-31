@@ -10,6 +10,16 @@ test("HubSpot tracking still loads on the public site, after the page load event
   assert.doesNotMatch(source, /strategy="afterInteractive"/);
 });
 
+test("HubSpot waits for the first interaction, or at least 5 seconds after load", () => {
+  const source = readFileSync("app/HubSpotScript.tsx", "utf8");
+  for (const name of ["pointerdown", "keydown", "scroll", "touchstart"]) {
+    assert.match(source, new RegExp(`"${name}"`));
+  }
+  const fallback = Number(source.match(/IDLE_FALLBACK_MS = (\d+)/)?.[1]);
+  assert.ok(fallback >= 5000, `fallback is ${fallback} ms`);
+  assert.match(source, /if \(!isPublic \|\| !interacted\) return null;/);
+});
+
 test("the homepage hero is in the server HTML without an entrance fade", () => {
   const page = readFileSync("app/HomePageClient.tsx", "utf8");
   assert.match(page, /className="hero-image"/);
