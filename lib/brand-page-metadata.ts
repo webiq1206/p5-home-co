@@ -31,10 +31,10 @@ const COPY:Record<string,Record<string,Copy>>={
   '/contact':{title:'Contact Our Boise Cabinet Team',description:'Discuss cabinet layouts, finishes, supply or installation with Boise Cabinet Co. Call our team or request help with your Treasure Valley cabinet project.'},
   '/resources':{title:'Cabinet Planning Worksheets & Guides',description:'Plan your cabinetry with budget worksheets, kitchen and bath checklists, and local permit guidance from Boise Cabinet Co in Idaho’s Treasure Valley.'}},
  p5:{
-  '/':{title:'Boise Home Construction, Remodeling & Repairs',description:'Find the P5 Home Co team for new construction, remodeling, home repairs or cabinets in Boise and the Treasure Valley. Compare services and plan a project.'},
-  '/about':{title:'About P5 Home Co | Nick Perkins, Founder',description:'About P5 Home Co: founder Nick Perkins, a construction project manager and father of five, and the four Treasure Valley companies that carry his name.'},
+  '/':{title:'Boise Builders, Remodelers, Cabinets & Repairs',description:'P5 Home Co is the parent of Boise Construction, Remodeling, Cabinet and Handyman Co. One quote request reaches the right Treasure Valley team.'},
+  '/about':{title:'About Nick Perkins and the P5 Companies',description:'About P5 Home Co: founder Nick Perkins, a construction project manager and father of five, and the four Treasure Valley companies that carry his name.'},
   '/quote':{title:'Request a Home Project Quote in Boise',description:'Describe your remodel, new home, cabinet or repair project and attach plans or a scope. Request a Treasure Valley quote from the right P5 Home Co team.'},
-  '/sitemap':{title:'P5 Home Co Pages & Company Directory',description:'Find P5 Home Co pages, quote forms and links to our Boise construction, remodeling, handyman and cabinet companies in Idaho’s Treasure Valley.'}}
+  '/sitemap':{title:'Site Map',description:'Find P5 Home Co pages, quote forms and links to our Boise construction, remodeling, handyman and cabinet companies in Idaho’s Treasure Valley.'}}
 };
 function titleText(meta:Metadata):string{
  const value=meta.title;

@@ -73,7 +73,8 @@ test("the business address is the authorized Meridian street, and cities stay se
     url: "https://dopl.idaho.gov/con/",
   });
   assert.equal(JSON.stringify(organization).includes("Jared"), false);
-  assert.equal(siteTitle, "P5 Home Co | Treasure Valley Home-Service Companies");
+  assert.deepEqual(organization.sameAs, ["https://www.facebook.com/1228704823655951"]);
+  assert.equal(siteTitle, "Boise Builders, Remodelers, Cabinets & Repairs | P5 Home Co");
   assert.ok(siteTitle.length <= 60);
 
   const addresses = records(siteSchema).filter((record) => record["@type"] === "PostalAddress");

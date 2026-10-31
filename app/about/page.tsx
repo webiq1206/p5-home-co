@@ -13,7 +13,7 @@ import {
 } from "../publicIdentity";
 import { siteUrl } from "../site";
 
-const title = "About P5 Home Co | Nick Perkins, Founder | Meridian, Idaho";
+const title = "About Nick Perkins and the P5 Companies | P5 Home Co";
 const description =
   "About P5 Home Co: founder Nick Perkins, a construction project manager and father of five, and the four Treasure Valley companies that carry his name.";
 

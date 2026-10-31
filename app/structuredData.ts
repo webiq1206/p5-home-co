@@ -7,6 +7,7 @@ import {
   SCHEMA_LEGAL_NAME,
   SCHEMA_TELEPHONE,
   CONTRACTOR_REGISTRATION,
+  P5_FACEBOOK_URL,
 } from "./publicIdentity.ts";
 import { SHOW_FOUNDING_YEAR } from "./publicClaims.ts";
 import { citiesServed, companies, faqs, siteUrl } from "./site.ts";
@@ -18,7 +19,7 @@ import { citiesServed, companies, faqs, siteUrl } from "./site.ts";
 const [streetAddress, addressLocality, regionAndPostal] = PUBLIC_ADDRESS.split(", ");
 const [addressRegion, postalCode] = regionAndPostal.split(" ");
 
-export const siteTitle = "P5 Home Co | Treasure Valley Home-Service Companies";
+export const siteTitle = "Boise Builders, Remodelers, Cabinets & Repairs | P5 Home Co";
 export const siteDescription =
   "Parent company of Boise Construction Co, Boise Remodeling Co, Boise Cabinet Co and Boise Handyman Co in Idaho's Treasure Valley.";
 
@@ -40,6 +41,8 @@ export const siteSchema = {
       email: ESTIMATOR_BRAND.email,
       image: `${siteUrl}/images/p5-og.jpg`,
       logo: { "@type": "ImageObject", url: `${siteUrl}/android-chrome-512x512.png` },
+      // Confirmed profiles only. Add the Google Business Profile once its URL is confirmed.
+      sameAs: [P5_FACEBOOK_URL],
       employee: {
         "@type": "Person",
         "@id": NICK_PERKINS_ID,

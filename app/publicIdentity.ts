@@ -17,6 +17,9 @@ export const PUBLIC_PHONE_TEL = "tel:+12084771169";
 
 export const PUBLIC_PHONE_SMS = "sms:+12084771169";
 
+/** P5 Home Co's own Facebook page (confirmed by the coordinator via the Facebook API, 31 October). */
+export const P5_FACEBOOK_URL = "https://www.facebook.com/1228704823655951";
+
 export const PUBLIC_EMAIL = "hello@p5homeco.com";
 
 export const SCHEMA_TELEPHONE = "+1-208-477-1169";
