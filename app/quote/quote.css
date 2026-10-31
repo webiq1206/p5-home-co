@@ -28,7 +28,7 @@
   padding: 12px 18px;
   background: var(--ink);
   color: #fff;
-  font-family: "P5 Sans", system-ui, sans-serif;
+  font-family: var(--font-sans);
   font-size: 13px;
   font-weight: 750;
 }
@@ -140,7 +140,7 @@
 
 .quote-page h1 {
   margin: 0 0 16px;
-  font-family: "P5 Serif", Georgia, serif;
+  font-family: var(--font-display);
   font-size: clamp(31px, 5.4vw, 50px);
   font-weight: 500;
   line-height: 1.08;
@@ -210,7 +210,7 @@
 .quote-form-panel h2 {
   margin: 0 0 16px;
   color: var(--ink);
-  font-family: "P5 Serif", Georgia, serif;
+  font-family: var(--font-display);
   font-size: 24px;
   font-weight: 500;
   line-height: 1.2;
@@ -357,7 +357,7 @@
 
 .quote-page h2 {
   margin: 0 0 14px;
-  font-family: "P5 Serif", Georgia, serif;
+  font-family: var(--font-display);
   font-size: clamp(23px, 3.2vw, 32px);
   font-weight: 500;
   line-height: 1.15;
@@ -437,7 +437,7 @@
 
 .quote-voice-grid blockquote {
   margin: 0 0 14px;
-  font-family: "P5 Serif", Georgia, serif;
+  font-family: var(--font-display);
   font-size: 18px;
   line-height: 1.5;
 }
@@ -610,7 +610,7 @@
 
 .quote-footer-brand {
   color: #fff !important;
-  font-family: "P5 Serif", Georgia, serif;
+  font-family: var(--font-display);
   font-size: 22px;
 }
 
@@ -774,7 +774,7 @@
 .recovery { width: min(100% - 32px, 520px); max-height: calc(100svh - 32px); margin: auto; padding: 0; border: 1px solid var(--line); border-radius: 0; color: var(--ink); background: var(--paper); box-shadow: 0 35px 100px rgba(0,0,0,.34); }
 .recovery::backdrop { background: rgba(10,15,12,.72); backdrop-filter: blur(6px); }
 .recovery-panel { padding: 30px 28px 26px; }
-.recovery h2 { margin: 0 0 12px; font-family: "P5 Serif", Georgia, serif; font-size: clamp(26px, 3vw, 34px); font-weight: 400; letter-spacing: -.03em; line-height: 1.05; }
+.recovery h2 { margin: 0 0 12px; font-family: var(--font-display); font-size: clamp(26px, 3vw, 34px); font-weight: 400; letter-spacing: -.03em; line-height: 1.05; }
 .recovery-lede { margin: 0 0 22px; color: var(--ink-2); font-size: 14px; line-height: 1.65; }
 .recovery-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .recovery-actions .button { width: 100%; min-height: 52px; padding: 0 14px; gap: 12px; font-size: 11px; }
@@ -845,7 +845,7 @@
 
 .quote-request { padding: 36px 0 12px; background: var(--paper); }
 .quote-request-inner { display: grid; grid-template-columns: minmax(0, 1fr) minmax(280px, 480px); gap: 24px 40px; align-items: start; }
-.quote-request-copy h2 { margin: 0 0 8px; font-family: "P5 Serif", Georgia, serif; font-size: clamp(28px, 4vw, 40px); font-weight: 500; }
+.quote-request-copy h2 { margin: 0 0 8px; font-family: var(--font-display); font-size: clamp(28px, 4vw, 40px); font-weight: 500; }
 .quote-request-copy p { max-width: 46ch; margin: 0; color: var(--ink-2); font-size: 16px; line-height: 1.5; }
 @media (max-width: 720px) {
   .quote-request { padding: 28px 0 4px; }
@@ -868,7 +868,7 @@
 .quote-tool { padding: 28px 0 36px; }
 .quote-tool-intro h2 {
   margin: 0 0 8px;
-  font-family: "P5 Serif", Georgia, serif;
+  font-family: var(--font-display);
   font-size: clamp(28px, 4vw, 40px);
   font-weight: 500;
 }
@@ -882,7 +882,7 @@
 }
 .quote-photos-heading {
   margin: 0 0 10px;
-  font-family: "P5 Serif", Georgia, serif;
+  font-family: var(--font-display);
   font-size: clamp(28px, 4vw, 40px);
   font-weight: 500;
   letter-spacing: -0.03em;

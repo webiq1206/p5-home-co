@@ -37,7 +37,7 @@
   background: var(--paper); color: inherit;
 }
 .kb-section-card:hover, .kb-section-card:focus-visible { border-left-color: var(--moss); background: var(--bone); }
-.kb-section-card h2 { margin: 0 0 6px; font-family: "P5 Serif", serif; font-size: 19px; font-weight: 500; }
+.kb-section-card h2 { margin: 0 0 6px; font-family: var(--font-display); font-size: 19px; font-weight: 500; }
 .kb-section-card p { margin: 0 0 8px; color: var(--ink-2); font-size: 13px; line-height: 1.45; }
 .kb-section-card small { color: var(--ink-2); font-size: 11px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
 
@@ -58,7 +58,7 @@
 .kb-flagged { margin: 0 0 22px; padding: 14px 16px; border: 1px solid #b4622a; background: #f9e9dc; font-size: 14px; }
 .kb-flagged strong { display: block; margin: 0 0 4px; color: #8a4a1e; }
 
-.kb-h2 { margin: 30px 0 12px; font-family: "P5 Serif", serif; font-size: 23px; font-weight: 500; line-height: 1.2; }
+.kb-h2 { margin: 30px 0 12px; font-family: var(--font-display); font-size: 23px; font-weight: 500; line-height: 1.2; }
 
 .kb-steps { margin: 0 0 18px; padding: 0 0 0 0; counter-reset: kbstep; list-style: none; display: grid; gap: 8px; }
 .kb-steps li { position: relative; padding: 10px 12px 10px 46px; background: var(--paper); border: 1px solid var(--line); }
