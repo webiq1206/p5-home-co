@@ -11,16 +11,26 @@ const bar = readFileSync("components/LandingContactBar.tsx", "utf8");
 const mobile = readFileSync("components/MobileActionBar.tsx", "utf8");
 const sessions = readFileSync("app/lib/leads/estimatorSessions.ts", "utf8");
 
-test("hub pages keep call and chat, with one short request below the hero", () => {
+test("hub pages keep call and chat, with one request entry below the hero", () => {
   const heroStart = home.indexOf('<section className="hero"');
   const heroEnd = home.indexOf("</section>", heroStart);
   const hero = home.slice(heroStart, heroEnd);
   assert.match(hero, /className="hero-image"/);
   assert.match(hero, /id="hero-heading"/);
   assert.doesNotMatch(hero, /ShortRequestForm/);
-  assert.equal(home.match(/<ShortRequestForm/g)?.length, 1);
-  assert.match(home, /<ShortRequestForm id="request-form"/);
-  assert.ok(home.indexOf('<ShortRequestForm id="request-form"') > heroEnd);
+  // Phase 3 plan (owner approved 31 October): credibility before the ask. The
+  // homepage carries a short "Start your request" entry that keeps the
+  // #request-form anchor and links to /quote, where the one working wizard lives.
+  assert.equal(home.match(/<ShortRequestForm/g), null);
+  const entry = home.indexOf('id="request-form"');
+  assert.ok(entry > heroEnd);
+  const entryEnd = home.indexOf("</section>", entry);
+  assert.match(home.slice(entry, entryEnd), /href="\/quote"/);
+  assert.match(home.slice(entry, entryEnd), /Start your request/);
+  for (const before of ['className="stat-row"', 'className="trust-strip"', "<CompanyFinder", 'id="companies"', 'id="adu"']) {
+    const at = home.indexOf(before);
+    assert.ok(at > heroEnd && at < entry, `${before} sits between the hero and the request entry`);
+  }
   assert.match(chrome, /className="header-chat"/);
   assert.match(chrome, /<OpenChatButton/);
   assert.match(home, /SiteChrome/);

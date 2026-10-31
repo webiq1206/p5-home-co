@@ -91,6 +91,25 @@ export const CRAFT_TRIM_DETAIL = {
   sizes: "(min-width: 1101px) 57vw, 100vw",
 } as const satisfies ServedImage;
 
+/** Earlier approved panel renders, used so the homepage shows each image once. */
+export const REMODEL_KITCHEN_LIVING = {
+  src: "/images/p5-remodel.webp",
+  width: 1672,
+  height: 941,
+  alt: "Open kitchen and living room with oak cabinets, an island with upholstered stools, exposed ceiling beams, and a cream sofa",
+  srcSet: "/images/p5-remodel.webp 1672w",
+  sizes: "(min-width: 1101px) 50vw, 100vw",
+} as const satisfies ServedImage;
+
+export const BACKYARD_ADU = {
+  src: "/images/p5-adu.webp",
+  width: 1672,
+  height: 941,
+  alt: "Small single-story backyard building with white lap siding, a dark metal roof, cedar accents, and a covered entry",
+  srcSet: "/images/p5-adu.webp 1672w",
+  sizes: "(min-width: 1101px) 50vw, 100vw",
+} as const satisfies ServedImage;
+
 export const imageVariants = {
   framingFoothills: FRAMING_FOOTHILLS,
   baseboardTrimFit: BASEBOARD_TRIM_FIT,
@@ -101,6 +120,8 @@ export const imageVariants = {
   featuredBoiseAdu: FEATURED_BOISE_ADU,
   treasureValleyFoothills: TREASURE_VALLEY_FOOTHILLS,
   craftTrimDetail: CRAFT_TRIM_DETAIL,
+  remodelKitchenLiving: REMODEL_KITCHEN_LIVING,
+  backyardAdu: BACKYARD_ADU,
 } as const;
 
 const bySrc = new Map<string, ServedImage>(Object.values(imageVariants).map((variant) => [variant.src, variant]));

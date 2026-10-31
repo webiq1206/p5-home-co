@@ -724,6 +724,119 @@
   line-height: 1.6;
 }
 
+.quote-thanks h2 {
+  margin: 0 0 12px;
+  font-family: var(--font-display);
+  font-size: clamp(24px, 3vw, 28px);
+  font-weight: 500;
+  line-height: 1.2;
+}
+
+.quote-thanks-grid {
+  display: grid;
+  gap: 32px;
+  margin: 28px 0 40px;
+}
+
+.quote-thanks-receipt {
+  margin: 0;
+  border-top: 1px solid var(--line);
+}
+
+.quote-thanks-receipt div {
+  display: grid;
+  grid-template-columns: 7rem minmax(0, 1fr);
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+.quote-thanks-receipt dt {
+  color: #646962;
+  font-weight: 650;
+}
+
+.quote-thanks-receipt dd {
+  margin: 0;
+}
+
+.quote-thanks-urgent a {
+  color: var(--ink);
+  font-weight: 650;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.quote-thanks-questions {
+  max-width: 720px;
+  margin: 0 0 40px;
+  padding: var(--card-pad);
+  border: 1px solid var(--line);
+  background: var(--bone);
+}
+
+.quote-thanks-questions fieldset {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.quote-thanks-questions legend {
+  padding: 0;
+}
+
+.quote-thanks-optional {
+  display: block;
+  margin-bottom: 8px;
+  color: #646962;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.quote-thanks-questions h2:focus {
+  outline: none;
+}
+
+.quote-thanks-choices {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin: 8px 0 12px;
+}
+
+.quote-thanks-choices .choice-card {
+  min-height: 56px;
+  cursor: pointer;
+}
+
+.quote-thanks-skip {
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font: 650 15px var(--font-sans);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.quote-thanks-done {
+  margin: 0;
+}
+
+@media (min-width: 900px) {
+  .quote-thanks-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 48px;
+  }
+}
+
 /* --- Wider screens ------------------------------------------------------------ */
 
 @media (min-width: 720px) {
@@ -858,6 +971,14 @@
   .quote-page > .quote-hero .quote-hero-call { display: none; }
   .quote-page > .quote-hero .quote-lead { margin-bottom: 0; }
   .quote-hero-cta { display: inline-flex; width: 100%; margin-top: var(--stack-cta); }
+}
+
+/* Narrow phones (320x568): a shorter photo band keeps the headline and the
+   hero action in the first screen (C3). */
+@media (max-width: 359px) {
+  .quote-hero { grid-template-rows: 88px auto; }
+  .quote-hero-media { min-height: 88px; }
+  .quote-hero-panel { padding-top: 16px; }
 }
 
 /* One header row on phones (64px instead of two rows at 120px): the number

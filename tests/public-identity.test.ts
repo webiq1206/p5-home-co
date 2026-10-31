@@ -177,7 +177,10 @@ test("homepage preserves identity and location while explaining the three-step p
   const trustAt = home.indexOf('className="trust-strip"');
   const howAt = home.indexOf('className="how-p5"');
   const companiesAt = home.indexOf('id="companies"');
-  assert.ok(trustAt >= 0 && howAt > trustAt && companiesAt > howAt, "How P5 works sits after the trust strip and before companies");
+  const entryAt = home.indexOf('id="request-form"');
+  // Phase 3 plan (owner approved 31 October): proof, matcher and the five companies
+  // come before the request entry; How P5 works follows it in its existing order.
+  assert.ok(trustAt >= 0 && companiesAt > trustAt && entryAt > companiesAt && howAt > entryAt, "Trust strip, companies, request entry, then How P5 works");
   for (const line of [
     "How P5 works",
     "Tell us what you’re planning",
