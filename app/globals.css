@@ -645,6 +645,8 @@ h1, h2, h3 { text-wrap:balance; }
 .quote-wizard[data-wizard-step="email"] .short-request-note,
 .quote-wizard[data-wizard-step="note"] .short-request-note,
 .quote-wizard[data-wizard-step="match"] .short-request-note,
+.quote-wizard[data-wizard-step="project"] .short-request-note,
+.quote-wizard[data-wizard-step="project"] > h2,
 .quote-wizard[data-wizard-step="contact"] > h2,
 .quote-wizard[data-wizard-step="phone"] > h2,
 .quote-wizard[data-wizard-step="email"] > h2,
@@ -700,16 +702,28 @@ h1, h2, h3 { text-wrap:balance; }
   text-underline-offset: 3px;
   cursor: pointer;
 }
+/* D2: Back and Next sit in flow at the bottom of the step card, so they can
+   never cover the progress line, the reassurance line or a choice. On phones
+   the dock pins to the viewport bottom only once the step heading has cleared
+   it (data-dock, set by ShortRequestForm), and its own slot in the card is the
+   clearance the pinned bar needs: nothing below the step heading is lost. */
 .quote-wizard-dock {
   z-index: 2;
   display: flex;
   gap: 12px;
   align-items: stretch;
   margin-top: 12px;
-  position: sticky;
-  bottom: 0;
-  padding: 12px 0 calc(12px + env(safe-area-inset-bottom, 0px));
-  background: linear-gradient(180deg, transparent, var(--color-surface) 28%);
+  position: static;
+  padding: 12px 0;
+  background: var(--color-surface);
+}
+@media (max-width: 639px) {
+  .quote-wizard-dock { padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px)); }
+  .quote-wizard[data-dock="pinned"] .quote-wizard-dock {
+    position: sticky;
+    bottom: 0;
+    box-shadow: 0 -1px 0 var(--color-border);
+  }
 }
 .quote-wizard-back,
 .quote-wizard-back-spacer {
@@ -801,8 +815,15 @@ h1, h2, h3 { text-wrap:balance; }
   text-underline-offset: 4px;
   cursor: pointer;
 }
+/* B6: wizard choice cards are 56px. Two columns on phones keep six options in
+   three rows so step 1 fits at 360x640; an odd count stacks in one column so
+   no option is left alone on a row (C8). The company matcher keeps its own
+   chip size. */
+.quote-wizard .choice-card { min-height: 56px; }
 @media (max-width: 639px) {
   .choice-cards { grid-template-columns: 1fr; }
+  .quote-wizard .choice-cards { grid-template-columns: 1fr 1fr; }
+  .quote-wizard .choice-cards:has(> :last-child:nth-child(odd)) { grid-template-columns: 1fr; }
   .company-finder-actions { flex-direction: column; align-items: flex-start; }
   .company-finder-actions .button { width: 100%; }
   .hero-reassure { margin-top: 10px; font-size: 13px; }
@@ -1047,3 +1068,11 @@ body[data-p5-chat-open] .p5-mobile-actionbar { display: none !important; }
 
 .site-header-image-hero .desktop-nav a { font-size: 15px; }
 .site-header-image-hero .desktop-nav { gap: 24px; }
+
+/* Phase 1 fixes, 31 October. */
+
+/* Phone wizard dock spans the card edge to edge so pinned content never shows
+   at its sides. Same geometry pinned or not, so nothing shifts. */
+@media (max-width: 639px) {
+  .short-request:not(.short-request-plain) .quote-wizard-dock { margin-inline: -14px; padding-inline: 14px; }
+}
