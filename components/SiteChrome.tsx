@@ -52,15 +52,23 @@ function External({ href, children }: { href: string; children: React.ReactNode 
   );
 }
 
-/** Shared header, mobile menu, and footer for public marketing pages. */
+/**
+ * Shared header, mobile menu, and footer for public marketing pages.
+ *
+ * With `main`, the page content is wrapped in the page's single <main>, so the
+ * header and footer stay outside it and read as the banner and contentinfo
+ * landmarks. Pages that render their own <main> (the legal layout) omit it.
+ */
 export default function SiteChrome({
   children,
   onOpenMatcher,
   imageHero = false,
+  main = false,
 }: {
   children: React.ReactNode;
   onOpenMatcher?: () => void;
   imageHero?: boolean;
+  main?: boolean;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
@@ -216,8 +224,16 @@ export default function SiteChrome({
       </div>
 
       {/* Skip-link target: the first thing after the header and menu. */}
-      <span id="main-content" className="main-content-target" tabIndex={-1} />
-      {children}
+      {main ? (
+        <main id="main-content" tabIndex={-1}>
+          {children}
+        </main>
+      ) : (
+        <>
+          <span id="main-content" className="main-content-target" tabIndex={-1} />
+          {children}
+        </>
+      )}
 
       <footer className="site-footer">
         <div className="content-shell">

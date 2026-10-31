@@ -47,7 +47,7 @@ export default function QuoteLanding({ service }: { service: QuoteService | null
         Skip to the request form
       </a>
 
-      <main className="quote-page" id="top">
+      <div className="quote-page" id="top">
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: serializeJsonLd(schemaFor(service)) }}
@@ -73,187 +73,189 @@ export default function QuoteLanding({ service }: { service: QuoteService | null
           </div>
         </header>
 
-        <section className="quote-hero">
-          <div className="quote-hero-media">
-            <img
-              className="quote-hero-img"
-              src={heroImage}
-              alt={heroAlt}
-              width={heroVariant?.width ?? 1600}
-              height={heroVariant?.height ?? 1000}
-              {...(heroVariant ? { srcSet: heroVariant.srcSet, sizes: "(max-width: 820px) 100vw, 48vw" } : {})}
-              fetchPriority="high"
-              decoding="async"
-            />
-          </div>
-          <div className="quote-hero-panel">
-            <div className="quote-shell quote-hero-grid" style={{ gridTemplateColumns: "minmax(0,1fr)" }}>
-              <div className="quote-hero-copy">
-                <p className="quote-eyebrow">
-                  {service
-                    ? `${service.label} · Treasure Valley`
-                    : "Free quote · Treasure Valley, Idaho"}
-                </p>
-                {service ? <h2>{service.h1}</h2> : <h1>A specialist team for your home project</h1>}
-                <p className="quote-lead">
-                  {service
-                    ? service.lead
-                    : "Tell us what you want done and P5 Home Co sends it to the right specialist team, whether that is a kitchen remodel, a custom home, an ADU, new cabinetry, or a repair. Quotes are free, carry no obligation, and come with a written scope so you can compare them properly."}
-                </p>
+        <main className="quote-main">
+          <section className="quote-hero">
+            <div className="quote-hero-media">
+              <img
+                className="quote-hero-img"
+                src={heroImage}
+                alt={heroAlt}
+                width={heroVariant?.width ?? 1600}
+                height={heroVariant?.height ?? 1000}
+                {...(heroVariant ? { srcSet: heroVariant.srcSet, sizes: "(max-width: 820px) 100vw, 48vw" } : {})}
+                fetchPriority="high"
+                decoding="async"
+              />
+            </div>
+            <div className="quote-hero-panel">
+              <div className="quote-shell quote-hero-grid" style={{ gridTemplateColumns: "minmax(0,1fr)" }}>
+                <div className="quote-hero-copy">
+                  <p className="quote-eyebrow">
+                    {service
+                      ? `${service.label} · Treasure Valley`
+                      : "Free quote · Treasure Valley, Idaho"}
+                  </p>
+                  {service ? <h2>{service.h1}</h2> : <h1>A specialist team for your home project</h1>}
+                  <p className="quote-lead">
+                    {service
+                      ? service.lead
+                      : "Tell us what you want done and P5 Home Co sends it to the right specialist team, whether that is a kitchen remodel, a custom home, an ADU, new cabinetry, or a repair. Quotes are free, carry no obligation, and come with a written scope so you can compare them properly."}
+                  </p>
 
-                {/* Phones: the form sits below the hero, so the first screen
-                    carries the action that takes the visitor to it. */}
-                <a className="button button-light quote-hero-cta" href="#request-form" data-cta="primary">
-                  Request a quote
-                </a>
+                  {/* Phones: the form sits below the hero, so the first screen
+                      carries the action that takes the visitor to it. */}
+                  <a className="button button-light quote-hero-cta" href="#request-form" data-cta="primary">
+                    Request a quote
+                  </a>
 
-                {service && (
-                  <ul className="quote-covers" aria-label="What this covers">
-                    {service.covers.map((c) => (
-                      <li key={c}>{c}</li>
-                    ))}
-                  </ul>
-                )}
+                  {service && (
+                    <ul className="quote-covers" aria-label="What this covers">
+                      {service.covers.map((c) => (
+                        <li key={c}>{c}</li>
+                      ))}
+                    </ul>
+                  )}
 
-                <p className="quote-hero-call">
-                  Prefer to talk it through?{" "}
-                  <TrackedPhoneLink location="quote_hero">Call (208) 477-1169</TrackedPhoneLink>
-                </p>
+                  <p className="quote-hero-call">
+                    Prefer to talk it through?{" "}
+                    <TrackedPhoneLink location="quote_hero">Call (208) 477-1169</TrackedPhoneLink>
+                  </p>
+                </div>
               </div>
             </div>
-          </div>
-        </section>
+          </section>
 
-        <section className="quote-request" aria-labelledby="quote-request-heading">
-          <div className="quote-shell quote-request-inner">
-            <div className="quote-request-copy">
-              <h2 id="quote-request-heading">Tell us what you need</h2>
-              <p>A name, phone, email, and a note are enough for a person to follow up. Add a photo or plan if you have one.</p>
+          <section className="quote-request" aria-labelledby="quote-request-heading">
+            <div className="quote-shell quote-request-inner">
+              <div className="quote-request-copy">
+                <h2 id="quote-request-heading">Tell us what you need</h2>
+                <p>A name, phone, email, and a note are enough for a person to follow up. Add a photo or plan if you have one.</p>
+              </div>
+              <ShortRequestForm
+                id="request-form"
+                formName="Quote Landing Page"
+                defaultProject={service?.project}
+              />
             </div>
-            <ShortRequestForm
-              id="request-form"
-              formName="Quote Landing Page"
-              defaultProject={service?.project}
-            />
-          </div>
-        </section>
+          </section>
 
-        <section className="quote-proof" aria-labelledby="why-p5">
-          <div className="quote-shell">
-            <h2 id="why-p5">Why homeowners let us price it</h2>
-            <ul className="quote-proof-grid">
-              {PROOF_POINTS.map((point) => (
-                <li key={point.label}>
-                  <b>{point.label}</b>
-                  <span>{point.detail}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        </section>
-
-        <section className="quote-photos" aria-labelledby="quote-featured-heading">
-          <div className="quote-shell">
-            <h2 id="quote-featured-heading" className="quote-photos-heading">One foothills home, room by room</h2>
-            <p className="quote-photos-lead">A cohesive Boise-area custom home shown room by room, so the kitchen, great room, bath, and ADU read as the same property. Representative design.</p>
-            <div className="quote-photo-row">
-              <img src={FEATURED_BOISE_KITCHEN.src} alt={FEATURED_BOISE_KITCHEN.alt} width={FEATURED_BOISE_KITCHEN.width} height={FEATURED_BOISE_KITCHEN.height} loading="lazy" decoding="async" />
-              <img src={FEATURED_BOISE_GREAT_ROOM.src} alt={FEATURED_BOISE_GREAT_ROOM.alt} width={FEATURED_BOISE_GREAT_ROOM.width} height={FEATURED_BOISE_GREAT_ROOM.height} loading="lazy" decoding="async" />
-              <img src={FEATURED_BOISE_BATHROOM.src} alt={FEATURED_BOISE_BATHROOM.alt} width={FEATURED_BOISE_BATHROOM.width} height={FEATURED_BOISE_BATHROOM.height} loading="lazy" decoding="async" />
-              <img src={FEATURED_BOISE_ADU.src} alt={FEATURED_BOISE_ADU.alt} width={FEATURED_BOISE_ADU.width} height={FEATURED_BOISE_ADU.height} loading="lazy" decoding="async" />
-            </div>
-          </div>
-        </section>
-
-        {TESTIMONIALS.length > 0 && (
-          <section className="quote-voices" aria-labelledby="in-their-words">
+          <section className="quote-proof" aria-labelledby="why-p5">
             <div className="quote-shell">
-              <h2 id="in-their-words">In their words</h2>
-              <ul className="quote-voice-grid">
-                {TESTIMONIALS.map((t) => (
-                  <li key={t.quote}>
-                    <blockquote>{t.quote}</blockquote>
-                    <p className="quote-voice-who">
-                      <b>{t.name}</b>
-                      <span>{t.context}</span>
-                      {t.sourceUrl && (
-                        <a href={t.sourceUrl} rel="nofollow noopener" target="_blank">
-                          Verify
-                        </a>
-                      )}
-                    </p>
+              <h2 id="why-p5">Why homeowners let us price it</h2>
+              <ul className="quote-proof-grid">
+                {PROOF_POINTS.map((point) => (
+                  <li key={point.label}>
+                    <b>{point.label}</b>
+                    <span>{point.detail}</span>
                   </li>
                 ))}
               </ul>
             </div>
           </section>
-        )}
 
-        <section className="quote-scroll-photo" aria-hidden="true">
-          <img src={FEATURED_BOISE_EXTERIOR.src} alt="" width={FEATURED_BOISE_EXTERIOR.width} height={FEATURED_BOISE_EXTERIOR.height} loading="lazy" decoding="async" />
-        </section>
-
-        <section className="quote-steps" aria-labelledby="what-happens">
-          <div className="quote-shell">
-            <h2 id="what-happens">What happens after you send this</h2>
-            <ol className="quote-step-grid">
-              {STEPS.map((step) => (
-                <li key={step.n}>
-                  <b aria-hidden="true">{step.n}</b>
-                  <h3>{step.h}</h3>
-                  <p>{step.p}</p>
-                </li>
-              ))}
-            </ol>
-          </div>
-        </section>
-
-        <section className="quote-others" aria-labelledby="other-work">
-          <div className="quote-shell">
-            <h2 id="other-work">{service ? "We also quote" : "Get a quote for"}</h2>
-            <ul className="quote-other-grid">
-              {others.map((s) => (
-                <li key={s.slug}>
-                  <Link href={`/quote/${s.slug}`}>
-                    <b>{s.label}</b>
-                    <span>{s.brand}</span>
-                  </Link>
-                </li>
-              ))}
-              {!service && (
-                <li key="something-else">
-                  <a href="#request-form">
-                    <b>Something else</b>
-                    <span>Describe it and we route it</span>
-                  </a>
-                </li>
-              )}
-            </ul>
-            <p className="quote-section-lead quote-others-note">
-              P5 Home Co is an operating family of companies, not a directory or a referral
-              network. {SHOW_UNPROVEN_SELF_PERFORM ? QUOTE_SELF_PERFORM : `${QUOTE_SPECIALTY} ${CREW_AND_TRADES}`}{" "}
-              {ADU_D3_LINE}{" "}
-              <Link href="/#p5-standard">Read the P5 standard</Link>.
-            </p>
-          </div>
-        </section>
-
-        <section className="quote-faq" aria-labelledby="quote-questions">
-          <div className="quote-shell quote-faq-with-photo">
-            <div>
-              <h2 id="quote-questions">Questions about getting a quote</h2>
-              <dl>
-                {faqs.map((item) => (
-                  <div key={item.q}>
-                    <dt>{item.q}</dt>
-                    <dd>{item.a}</dd>
-                  </div>
-                ))}
-              </dl>
+          <section className="quote-photos" aria-labelledby="quote-featured-heading">
+            <div className="quote-shell">
+              <h2 id="quote-featured-heading" className="quote-photos-heading">One foothills home, room by room</h2>
+              <p className="quote-photos-lead">A cohesive Boise-area custom home shown room by room, so the kitchen, great room, bath, and ADU read as the same property. Representative design.</p>
+              <div className="quote-photo-row">
+                <img src={FEATURED_BOISE_KITCHEN.src} alt={FEATURED_BOISE_KITCHEN.alt} width={FEATURED_BOISE_KITCHEN.width} height={FEATURED_BOISE_KITCHEN.height} loading="lazy" decoding="async" />
+                <img src={FEATURED_BOISE_GREAT_ROOM.src} alt={FEATURED_BOISE_GREAT_ROOM.alt} width={FEATURED_BOISE_GREAT_ROOM.width} height={FEATURED_BOISE_GREAT_ROOM.height} loading="lazy" decoding="async" />
+                <img src={FEATURED_BOISE_BATHROOM.src} alt={FEATURED_BOISE_BATHROOM.alt} width={FEATURED_BOISE_BATHROOM.width} height={FEATURED_BOISE_BATHROOM.height} loading="lazy" decoding="async" />
+                <img src={FEATURED_BOISE_ADU.src} alt={FEATURED_BOISE_ADU.alt} width={FEATURED_BOISE_ADU.width} height={FEATURED_BOISE_ADU.height} loading="lazy" decoding="async" />
+              </div>
             </div>
-            <img className="quote-faq-photo" src={FEATURED_BOISE_GREAT_ROOM.src} alt={FEATURED_BOISE_GREAT_ROOM.alt} width={FEATURED_BOISE_GREAT_ROOM.width} height={FEATURED_BOISE_GREAT_ROOM.height} loading="lazy" decoding="async" />
-          </div>
-        </section>
+          </section>
+
+          {TESTIMONIALS.length > 0 && (
+            <section className="quote-voices" aria-labelledby="in-their-words">
+              <div className="quote-shell">
+                <h2 id="in-their-words">In their words</h2>
+                <ul className="quote-voice-grid">
+                  {TESTIMONIALS.map((t) => (
+                    <li key={t.quote}>
+                      <blockquote>{t.quote}</blockquote>
+                      <p className="quote-voice-who">
+                        <b>{t.name}</b>
+                        <span>{t.context}</span>
+                        {t.sourceUrl && (
+                          <a href={t.sourceUrl} rel="nofollow noopener" target="_blank">
+                            Verify
+                          </a>
+                        )}
+                      </p>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </section>
+          )}
+
+          <section className="quote-scroll-photo" aria-hidden="true">
+            <img src={FEATURED_BOISE_EXTERIOR.src} alt="" width={FEATURED_BOISE_EXTERIOR.width} height={FEATURED_BOISE_EXTERIOR.height} loading="lazy" decoding="async" />
+          </section>
+
+          <section className="quote-steps" aria-labelledby="what-happens">
+            <div className="quote-shell">
+              <h2 id="what-happens">What happens after you send this</h2>
+              <ol className="quote-step-grid">
+                {STEPS.map((step) => (
+                  <li key={step.n}>
+                    <b aria-hidden="true">{step.n}</b>
+                    <h3>{step.h}</h3>
+                    <p>{step.p}</p>
+                  </li>
+                ))}
+              </ol>
+            </div>
+          </section>
+
+          <section className="quote-others" aria-labelledby="other-work">
+            <div className="quote-shell">
+              <h2 id="other-work">{service ? "We also quote" : "Get a quote for"}</h2>
+              <ul className="quote-other-grid">
+                {others.map((s) => (
+                  <li key={s.slug}>
+                    <Link href={`/quote/${s.slug}`}>
+                      <b>{s.label}</b>
+                      <span>{s.brand}</span>
+                    </Link>
+                  </li>
+                ))}
+                {!service && (
+                  <li key="something-else">
+                    <a href="#request-form">
+                      <b>Something else</b>
+                      <span>Describe it and we route it</span>
+                    </a>
+                  </li>
+                )}
+              </ul>
+              <p className="quote-section-lead quote-others-note">
+                P5 Home Co is an operating family of companies, not a directory or a referral
+                network. {SHOW_UNPROVEN_SELF_PERFORM ? QUOTE_SELF_PERFORM : `${QUOTE_SPECIALTY} ${CREW_AND_TRADES}`}{" "}
+                {ADU_D3_LINE}{" "}
+                <Link href="/#p5-standard">Read the P5 standard</Link>.
+              </p>
+            </div>
+          </section>
+
+          <section className="quote-faq" aria-labelledby="quote-questions">
+            <div className="quote-shell quote-faq-with-photo">
+              <div>
+                <h2 id="quote-questions">Questions about getting a quote</h2>
+                <dl>
+                  {faqs.map((item) => (
+                    <div key={item.q}>
+                      <dt>{item.q}</dt>
+                      <dd>{item.a}</dd>
+                    </div>
+                  ))}
+                </dl>
+              </div>
+              <img className="quote-faq-photo" src={FEATURED_BOISE_GREAT_ROOM.src} alt={FEATURED_BOISE_GREAT_ROOM.alt} width={FEATURED_BOISE_GREAT_ROOM.width} height={FEATURED_BOISE_GREAT_ROOM.height} loading="lazy" decoding="async" />
+            </div>
+          </section>
+        </main>
 
         <footer className="quote-footer">
           <div className="quote-shell">
@@ -274,7 +276,7 @@ export default function QuoteLanding({ service }: { service: QuoteService | null
             <p className="quote-footer-bottom">© 2026 P5 Home Co. All rights reserved.</p>
           </div>
         </footer>
-      </main>
+      </div>
 
       
     </>

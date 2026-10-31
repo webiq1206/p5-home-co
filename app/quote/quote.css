@@ -87,7 +87,7 @@
 
 /* --- Hero ------------------------------------------------------------------ */
 
-/* C3/E2: solid text panel beside/below bright photo — no whole-image veil */
+/* C3/E2: solid text panel beside/below bright photo, no whole-image veil */
 .quote-hero {
   /* The text column aligns to the page shell, so it measures against the
      full hero width (cqw) rather than its own half. */
@@ -967,9 +967,9 @@
 }
 
 @media (max-width: 719px) {
-  .quote-page > .quote-hero .quote-covers,
-  .quote-page > .quote-hero .quote-hero-call { display: none; }
-  .quote-page > .quote-hero .quote-lead { margin-bottom: 0; }
+  .quote-main > .quote-hero .quote-covers,
+  .quote-main > .quote-hero .quote-hero-call { display: none; }
+  .quote-main > .quote-hero .quote-lead { margin-bottom: 0; }
   .quote-hero-cta { display: inline-flex; width: 100%; margin-top: var(--stack-cta); }
 }
 

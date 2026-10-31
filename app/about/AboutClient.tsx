@@ -38,8 +38,8 @@ export default function AboutClient({
   registration: string;
 }) {
   return (
-    <main id="top" className="about-page">
-      <SiteChrome>
+    <div id="top" className="about-page">
+      <SiteChrome main>
         <section className="about-hero" aria-labelledby="about-heading">
           <div className="content-shell about-hero-inner">
             <nav className="about-breadcrumb" aria-label="Breadcrumb">
@@ -188,6 +188,6 @@ export default function AboutClient({
           </div>
         </section>
       </SiteChrome>
-    </main>
+    </div>
   );
 }
