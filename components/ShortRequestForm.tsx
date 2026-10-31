@@ -1,11 +1,13 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useEffect, useId, useMemo, useState } from "react";
 
 import { trackAcceptedInquiry } from "../app/analytics";
 import { PUBLIC_PHONE_DISPLAY } from "../app/publicIdentity";
 import { isNewAcceptedInquiry } from "../app/quote/conversion.ts";
 import { PROJECT_OPTIONS, brandForProject } from "../app/quote/options.ts";
+import { saveQuoteReceipt } from "../app/quote/thanksState.ts";
 import { captureAttribution } from "../lib/p5/browserAttribution.ts";
 import SaveContactButton from "./SaveContactButton";
 
@@ -166,6 +168,7 @@ export function ShortRequestForm({
   plain?: boolean;
   compact?: boolean;
 }) {
+  const router = useRouter();
   const nameId = useId();
   const phoneId = useId();
   const emailId = useId();
@@ -387,6 +390,7 @@ export function ShortRequestForm({
       const response = await fetch("/api/leads/short-request", { method: "POST", body });
       const payload = (await response.json().catch(() => ({}))) as {
         accepted?: unknown;
+        filesAttached?: unknown;
         error?: string;
         message?: string;
       };
@@ -408,6 +412,20 @@ export function ShortRequestForm({
           payload.message ||
           "We reply within one business day with questions or a time to visit. You get a written scope before any price.",
       });
+      // The in-place confirmation above stays as the fallback; the visitor
+      // lands on /quote/thanks, which repeats what was received. Conversions
+      // fired above, before the navigation, and never on the thanks URL.
+      saveQuoteReceipt({
+        project: state.project || FALLBACK_PROJECT,
+        team: brand ?? "P5 Home Co",
+        files: files.length,
+        filesAttached: payload.filesAttached === true,
+      });
+      try {
+        router.push("/quote/thanks");
+      } catch {
+        /* the in-place confirmation stays on screen */
+      }
     } catch {
       setStatus({ tone: "error", text: `We could not send that. Call ${PUBLIC_PHONE_DISPLAY}.` });
       setPending(false);
