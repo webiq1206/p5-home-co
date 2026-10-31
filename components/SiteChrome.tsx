@@ -125,6 +125,9 @@ export default function SiteChrome({
 
   return (
     <>
+      <a className="skip-link" href="#main-content">
+        Skip to main content
+      </a>
       <header className={`site-header ${imageHero ? "site-header-image-hero" : ""} ${scrolled ? "site-header-scrolled" : ""}`}>
         <div className="nav-shell">
           <HeaderWordmark dark={imageHero} />
@@ -212,6 +215,8 @@ export default function SiteChrome({
         </div>
       </div>
 
+      {/* Skip-link target: the first thing after the header and menu. */}
+      <span id="main-content" className="main-content-target" tabIndex={-1} />
       {children}
 
       <footer className="site-footer">

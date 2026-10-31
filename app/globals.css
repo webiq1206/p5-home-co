@@ -1071,6 +1071,12 @@ body[data-p5-chat-open] .p5-mobile-actionbar { display: none !important; }
 
 /* Phase 1 fixes, 31 October. */
 
+/* Skip link in the shared chrome: hidden until focused, then the first stop. */
+.skip-link { position: fixed; top: 8px; left: 8px; z-index: 300; padding: 12px 16px; background: var(--ink); color: var(--paper); font-size: 15px; font-weight: 700; transform: translateY(-160%); transition: transform var(--motion-fast) ease; }
+.skip-link:focus, .skip-link:focus-visible { transform: translateY(0); outline: 2px solid var(--bronze); outline-offset: 2px; }
+.main-content-target { display: block; height: 0; outline: none; }
+main#main-content:focus { outline: none; }
+
 /* Phone wizard dock spans the card edge to edge so pinned content never shows
    at its sides. Same geometry pinned or not, so nothing shifts. */
 @media (max-width: 639px) {
