@@ -18,7 +18,6 @@ import { track } from "./analytics";
 import { homePageSchema, serializeJsonLd } from "./structuredData";
 import Arrow from "@/components/Arrow";
 import SiteChrome from "@/components/SiteChrome";
-import { ShortRequestForm } from "@/components/ShortRequestForm";
 import CompanyFinder from "@/components/CompanyFinder";
 import {
   imageVariantFor,
@@ -27,7 +26,8 @@ import {
   FEATURED_BOISE_GREAT_ROOM,
   FEATURED_BOISE_KITCHEN,
   FEATURED_BOISE_BATHROOM,
-  FEATURED_BOISE_ADU,
+  REMODEL_KITCHEN_LIVING,
+  BACKYARD_ADU,
   TREASURE_VALLEY_FOOTHILLS,
   CRAFT_TRIM_DETAIL,
 } from "./imageVariants.ts";
@@ -128,7 +128,11 @@ export default function Home() {
                 <h1 id="hero-heading">Boise’s Home <span>Specialists</span></h1>
                 <p className="hero-lede">New homes, remodeling, cabinets, repairs and ADUs.</p>
                 <div className="hero-actions" data-suppress-mobile-bar="">
-                  <Link className="button button-light" href="/#request-form" data-cta="primary">
+                  <Link className="button button-light"
+                    href="/quote"
+                    data-cta="primary"
+                    onClick={() => track("quote_click", { location: "hero" })}
+                  >
                     Request a quote
                   </Link>
                 </div>
@@ -137,17 +141,29 @@ export default function Home() {
           </div>
         </section>
 
-        <section className="request-band" aria-labelledby="request-band-heading">
-          <div className="content-shell request-band-inner">
-            <div className="request-band-copy">
-              <p className="eyebrow">Send a request</p>
-              <h2 id="request-band-heading">Tell us what you are planning.</h2>
-              <p>
-                A name, phone, email, and a short note are enough. Call, chat, or text from the header if you would
-                rather talk.
-              </p>
-            </div>
-            <ShortRequestForm id="request-form" formName="Homepage short request" />
+        {/*
+          Stat row (C14). Every figure is already published on this site and is the
+          owner's own statement; none is new:
+          - 5: the five companies in the stack below ("One standard across five companies").
+          - citiesServed.length (9): the cities listed in the service-area section and the /quote footer.
+          - 1 business day: the reply promise on the request form, the chat and /estimate.
+          Add a figure here only with the same kind of source. Project counts, years and
+          ratings stay out until the owner documents them (see app/publicClaims.ts).
+        */}
+        <section className="stat-row" aria-label="P5 Home Co at a glance">
+          <div className="content-shell stat-grid">
+            <p>
+              <strong>5</strong>
+              <span>companies</span>
+            </p>
+            <p>
+              <strong>{citiesServed.length}</strong>
+              <span>cities served</span>
+            </p>
+            <p>
+              <strong>1</strong>
+              <span>business day to reply</span>
+            </p>
           </div>
         </section>
 
@@ -173,137 +189,6 @@ export default function Home() {
         </section>
 
         <CompanyFinder />
-
-        <section className="how-p5" aria-labelledby="how-p5-heading">
-          <div className="content-shell">
-            <div className="how-p5-layout">
-              <div className="how-p5-intro">
-                <p className="eyebrow">A clear place to start</p>
-                <h2 id="how-p5-heading">{HOW_P5_WORKS_TITLE}</h2>
-                <p>
-                  Start with your project.
-                  <br />
-                  We will help you find the right team.
-                </p>
-                <Link
-                  className="button button-dark"
-                  href="/quote"
-                  onClick={() => track("quote_click", { location: "how_p5" })}
-                >
-                  Request a quote
-                </Link>
-              </div>
-              <ol className="how-p5-steps">
-                {HOW_P5_WORKS.map((step, index) => (
-                  <li key={step.title}>
-                    <span className="how-p5-number" aria-hidden="true">
-                      0{index + 1}
-                    </span>
-                    <div>
-                      <h3>{step.title}</h3>
-                      <p>{step.detail}</p>
-                    </div>
-                  </li>
-                ))}
-              </ol>
-            </div>
-            <div className="how-p5-photos">
-              <img
-                src={FEATURED_BOISE_BATHROOM.src}
-                alt={FEATURED_BOISE_BATHROOM.alt}
-                width={FEATURED_BOISE_BATHROOM.width}
-                height={FEATURED_BOISE_BATHROOM.height}
-                loading="lazy"
-                decoding="async"
-              />
-              <img
-                src={FEATURED_BOISE_GREAT_ROOM.src}
-                alt={FEATURED_BOISE_GREAT_ROOM.alt}
-                width={FEATURED_BOISE_GREAT_ROOM.width}
-                height={FEATURED_BOISE_GREAT_ROOM.height}
-                loading="lazy"
-                decoding="async"
-              />
-              <img
-                src={FRAMING_FOOTHILLS.src}
-                alt={FRAMING_FOOTHILLS.alt}
-                width={FRAMING_FOOTHILLS.width}
-                height={FRAMING_FOOTHILLS.height}
-                loading="lazy"
-                decoding="async"
-              />
-              <img
-                src={FEATURED_BOISE_KITCHEN.src}
-                alt={FEATURED_BOISE_KITCHEN.alt}
-                width={FEATURED_BOISE_KITCHEN.width}
-                height={FEATURED_BOISE_KITCHEN.height}
-                loading="lazy"
-                decoding="async"
-              />
-            </div>
-          </div>
-        </section>
-
-        <section id="featured-project" className="featured-project section-pad" aria-labelledby="featured-project-heading">
-          <Reveal className="content-shell featured-project-intro">
-            <div>
-              <p className="eyebrow">Ideas for your home</p>
-              <h2 id="featured-project-heading">
-                Spaces for everyday living.
-              </h2>
-            </div>
-            <p>
-              Explore layouts, materials and details for your next project, from kitchens and living spaces to bathrooms
-              and ADUs. Your plans start with your home and how you want to use it.
-            </p>
-          </Reveal>
-          <div className="content-shell featured-project-grid" role="list">
-            <div className="featured-project-shot" role="listitem">
-              <img
-                src={FEATURED_BOISE_GREAT_ROOM.src}
-                alt={FEATURED_BOISE_GREAT_ROOM.alt}
-                width={FEATURED_BOISE_GREAT_ROOM.width}
-                height={FEATURED_BOISE_GREAT_ROOM.height}
-                loading="lazy"
-                decoding="async"
-              />
-              <span>Great room</span>
-            </div>
-            <div className="featured-project-shot" role="listitem">
-              <img
-                src={FEATURED_BOISE_KITCHEN.src}
-                alt={FEATURED_BOISE_KITCHEN.alt}
-                width={FEATURED_BOISE_KITCHEN.width}
-                height={FEATURED_BOISE_KITCHEN.height}
-                loading="lazy"
-                decoding="async"
-              />
-              <span>Kitchen</span>
-            </div>
-            <div className="featured-project-shot" role="listitem">
-              <img
-                src={FEATURED_BOISE_BATHROOM.src}
-                alt={FEATURED_BOISE_BATHROOM.alt}
-                width={FEATURED_BOISE_BATHROOM.width}
-                height={FEATURED_BOISE_BATHROOM.height}
-                loading="lazy"
-                decoding="async"
-              />
-              <span>Primary bath</span>
-            </div>
-            <div className="featured-project-shot" role="listitem">
-              <img
-                src={FEATURED_BOISE_ADU.src}
-                alt={FEATURED_BOISE_ADU.alt}
-                width={FEATURED_BOISE_ADU.width}
-                height={FEATURED_BOISE_ADU.height}
-                loading="lazy"
-                decoding="async"
-              />
-              <span>ADU</span>
-            </div>
-          </div>
-        </section>
 
         <section id="companies" className="companies section-pad">
           <Reveal className="content-shell">
@@ -409,8 +294,8 @@ export default function Home() {
           number="02"
           category="Design-build remodeling"
           logo="/brands/boise-remodeling-co-dark.svg"
-          image={FEATURED_BOISE_KITCHEN.src}
-          alt={FEATURED_BOISE_KITCHEN.alt}
+          image={REMODEL_KITCHEN_LIVING.src}
+          alt={REMODEL_KITCHEN_LIVING.alt}
           headline={
             <>
               Reimagine the
@@ -478,8 +363,8 @@ export default function Home() {
           number="05"
           category="Accessory dwelling units"
           logo="/brands/boise-adu-co-dark.svg"
-          image={FEATURED_BOISE_ADU.src}
-          alt={FEATURED_BOISE_ADU.alt}
+          image={BACKYARD_ADU.src}
+          alt={BACKYARD_ADU.alt}
           headline={
             <>
               More home.
@@ -496,6 +381,123 @@ export default function Home() {
           comingSoon
         />
 
+        <section
+          id="request-form"
+          className="request-entry"
+          aria-labelledby="request-entry-heading"
+          data-suppress-mobile-bar=""
+        >
+          <div className="content-shell">
+            <div className="request-entry-card">
+              <div className="request-entry-copy">
+                <p className="eyebrow">Send a request</p>
+                <h2 id="request-entry-heading">Start your request</h2>
+                <p>
+                  Tell us what you are planning and attach plans or photos if you have them. The right team replies
+                  within one business day.
+                </p>
+              </div>
+              <div className="request-entry-actions">
+                <Link
+                  className="button button-dark"
+                  href="/quote"
+                  data-cta="primary"
+                  onClick={() => track("quote_click", { location: "request_entry" })}
+                >
+                  Request a quote <Arrow />
+                </Link>
+                <p>Call, chat, or text from the header if you would rather talk.</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="how-p5" aria-labelledby="how-p5-heading">
+          <div className="content-shell">
+            <div className="how-p5-layout">
+              <div className="how-p5-intro">
+                <p className="eyebrow">A clear place to start</p>
+                <h2 id="how-p5-heading">{HOW_P5_WORKS_TITLE}</h2>
+                <p>
+                  Start with your project.
+                  <br />
+                  We will help you find the right team.
+                </p>
+                <Link
+                  className="button button-dark"
+                  href="/quote"
+                  onClick={() => track("quote_click", { location: "how_p5" })}
+                >
+                  Request a quote
+                </Link>
+              </div>
+              <ol className="how-p5-steps">
+                {HOW_P5_WORKS.map((step, index) => (
+                  <li key={step.title}>
+                    <span className="how-p5-number" aria-hidden="true">
+                      0{index + 1}
+                    </span>
+                    <div>
+                      <h3>{step.title}</h3>
+                      <p>{step.detail}</p>
+                    </div>
+                  </li>
+                ))}
+              </ol>
+            </div>
+          </div>
+        </section>
+
+        <section id="featured-project" className="featured-project section-pad" aria-labelledby="featured-project-heading">
+          <Reveal className="content-shell featured-project-intro">
+            <div>
+              <p className="eyebrow">Ideas for your home</p>
+              <h2 id="featured-project-heading">
+                Spaces for everyday living.
+              </h2>
+            </div>
+            <p>
+              Explore layouts, materials and details for your next project, from kitchens and living spaces to
+              bathrooms. Your plans start with your home and how you want to use it.
+            </p>
+          </Reveal>
+          <div className="content-shell featured-project-grid featured-project-grid-3" role="list">
+            <div className="featured-project-shot" role="listitem">
+              <img
+                src={FEATURED_BOISE_GREAT_ROOM.src}
+                alt={FEATURED_BOISE_GREAT_ROOM.alt}
+                width={FEATURED_BOISE_GREAT_ROOM.width}
+                height={FEATURED_BOISE_GREAT_ROOM.height}
+                loading="lazy"
+                decoding="async"
+              />
+              <span>Great room · Representative design</span>
+            </div>
+            <div className="featured-project-shot" role="listitem">
+              <img
+                src={FEATURED_BOISE_KITCHEN.src}
+                alt={FEATURED_BOISE_KITCHEN.alt}
+                width={FEATURED_BOISE_KITCHEN.width}
+                height={FEATURED_BOISE_KITCHEN.height}
+                loading="lazy"
+                decoding="async"
+              />
+              <span>Kitchen · Representative design</span>
+            </div>
+            <div className="featured-project-shot" role="listitem">
+              <img
+                src={FEATURED_BOISE_BATHROOM.src}
+                alt={FEATURED_BOISE_BATHROOM.alt}
+                width={FEATURED_BOISE_BATHROOM.width}
+                height={FEATURED_BOISE_BATHROOM.height}
+                loading="lazy"
+                decoding="async"
+              />
+              <span>Primary bath · Representative design</span>
+            </div>
+          </div>
+        </section>
+
         <section id="p5-standard" className="standard section-pad">
           <Reveal className="content-shell">
             <div className="standard-heading">
@@ -507,32 +509,6 @@ export default function Home() {
                 Specialization should create confidence, not more coordination. These are the operating expectations
                 that connect every P5 company.
               </p>
-            </div>
-            <div className="standard-photos" aria-hidden="true">
-              <img
-                src={FEATURED_BOISE_GREAT_ROOM.src}
-                alt=""
-                width={FEATURED_BOISE_GREAT_ROOM.width}
-                height={FEATURED_BOISE_GREAT_ROOM.height}
-                loading="lazy"
-                decoding="async"
-              />
-              <img
-                src={FEATURED_BOISE_KITCHEN.src}
-                alt=""
-                width={FEATURED_BOISE_KITCHEN.width}
-                height={FEATURED_BOISE_KITCHEN.height}
-                loading="lazy"
-                decoding="async"
-              />
-              <img
-                src={FEATURED_BOISE_BATHROOM.src}
-                alt=""
-                width={FEATURED_BOISE_BATHROOM.width}
-                height={FEATURED_BOISE_BATHROOM.height}
-                loading="lazy"
-                decoding="async"
-              />
             </div>
             <div className="standard-grid">
               <Standard number="01" title="Clarity before commitment">
@@ -657,7 +633,12 @@ export default function Home() {
             <p className="eyebrow eyebrow-light">Start with the need, not the company</p>
             <h2>Tell us what you are planning. We will point you to the right team.</h2>
             <div className="final-cta-actions" data-suppress-mobile-bar="">
-              <Link className="button button-dark" href="/#request-form" data-cta="primary">
+              <Link
+                className="button button-dark"
+                href="/quote"
+                data-cta="primary"
+                onClick={() => track("quote_click", { location: "final_cta" })}
+              >
                 Request a quote <Arrow />
               </Link>
               <button className="text-link text-link-light" type="button" onClick={openMatcher}>
