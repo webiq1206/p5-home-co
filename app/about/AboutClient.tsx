@@ -149,7 +149,7 @@ export default function AboutClient({
           <ul className="about-company-list">
             {COMPANIES.map((company) => (
               <li key={company.name}>
-                <a href={company.href} target="_blank" rel="noreferrer">
+                <a href={company.href} target="_blank" rel="noopener">
                   {company.name}
                 </a>{" "}
                 {company.line}

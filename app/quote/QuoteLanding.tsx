@@ -17,7 +17,6 @@ import {
   FEATURED_BOISE_KITCHEN,
   FEATURED_BOISE_BATHROOM,
   FEATURED_BOISE_ADU,
-  TREASURE_VALLEY_FOOTHILLS,
 } from "../imageVariants.ts";
 import { ADU_D3_LINE, PUBLIC_PHONE_DISPLAY, PUBLIC_PHONE_SMS } from "../publicIdentity";
 
@@ -64,7 +63,8 @@ export default function QuoteLanding({ service }: { service: QuoteService | null
               location="quote_header"
               ariaLabel="Call P5 Home Co on 2 0 8, 4 7 7, 1 1 6 9"
             >
-              (208) 477-1169
+              <span className="quote-header-phone-full">(208) 477-1169</span>
+              <span className="quote-header-phone-short" aria-hidden="true">Call</span>
             </TrackedPhoneLink>
             <OpenChatButton className="quote-header-text" location="quote_header">Chat</OpenChatButton>
             <a className="quote-header-text" href={PUBLIC_PHONE_SMS} aria-label={`Text ${PUBLIC_PHONE_DISPLAY}`}>
@@ -100,6 +100,12 @@ export default function QuoteLanding({ service }: { service: QuoteService | null
                     ? service.lead
                     : "Tell us what you want done and P5 Home Co sends it to the right specialist team, whether that is a kitchen remodel, a custom home, an ADU, new cabinetry, or a repair. Quotes are free, carry no obligation, and come with a written scope so you can compare them properly."}
                 </p>
+
+                {/* Phones: the form sits below the hero, so the first screen
+                    carries the action that takes the visitor to it. */}
+                <a className="button button-light quote-hero-cta" href="#request-form" data-cta="primary">
+                  Request a quote
+                </a>
 
                 {service && (
                   <ul className="quote-covers" aria-label="What this covers">
@@ -199,12 +205,6 @@ export default function QuoteLanding({ service }: { service: QuoteService | null
                 </li>
               ))}
             </ol>
-          </div>
-        </section>
-
-        <section className="quote-photos quote-photos-compact" aria-label="Treasure Valley setting">
-          <div className="quote-shell quote-photo-row quote-photo-row-single">
-            <img src={TREASURE_VALLEY_FOOTHILLS.src} alt={TREASURE_VALLEY_FOOTHILLS.alt} width={TREASURE_VALLEY_FOOTHILLS.width} height={TREASURE_VALLEY_FOOTHILLS.height} loading="lazy" decoding="async" />
           </div>
         </section>
 

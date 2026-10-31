@@ -447,8 +447,6 @@ a:hover .arrow-diagonal, a:focus-visible .arrow-diagonal { transform: translate(
   .manifesto h2,.companies h2,.standard h2,.handoff h2,.service-area h2,.faq h2,.final-cta h2,.featured-project-intro h2 { font-size:47px; }
   .faq-item summary { font-size:19px; gap:20px; }
   .standard-grid { grid-template-columns:1fr; }
-  .area-list { grid-template-columns:1fr 1fr; }
-  .area-list span:last-child:nth-child(odd) { grid-column:1/-1; }
   .matcher-choices button:last-child:nth-child(odd) { grid-column:auto; }
   .brand-image-wrap { min-height:410px; height:110vw; }
   .brand-content { min-height:0; padding:50px 25px; }
@@ -456,7 +454,7 @@ a:hover .arrow-diagonal, a:focus-visible .arrow-diagonal { transform: translate(
   .brand-logo { height:auto; margin-top:36px; }
   .service-list { grid-template-columns:1fr; }
   .process-proof ul { grid-template-columns:1fr; gap:16px; }
-  .area-list span { padding:14px; font-size:21px; }
+  .area-list span { padding:14px 10px; font-size:19px; line-height:1.2; }
   .final-cta,.final-cta-content { min-height:590px; }
   .final-cta > img { object-position:68% center; }
   .final-cta-shade { background:rgba(18,27,22,.76); }
@@ -500,7 +498,7 @@ a:hover .arrow-diagonal, a:focus-visible .arrow-diagonal { transform: translate(
 
 .matcher-choices button:hover > span, .matcher-choices button:focus-visible > span { color: #d3ae89; }
 .estimator-contact{position:fixed;z-index:130;top:0;left:0;right:0;display:flex;align-items:center;justify-content:flex-end;gap:8px;height:48px;padding:0 12px;background:#fbfaf6;border-bottom:1px solid rgba(32,35,31,.12)}
-.estimator-contact a{display:inline-flex;align-items:center;min-height:36px;padding:0 10px;color:#20231f;font:750 14px "P5 Sans",sans-serif;text-decoration:none}
+.estimator-contact a{display:inline-flex;align-items:center;min-height:36px;padding:0 10px;color:#20231f;font:750 14px var(--font-sans);text-decoration:none}
 .estimator-contact a:focus-visible{outline:3px solid #20231f;outline-offset:2px}
 .p5-mobile-actionbar{display:none}@media(max-width:1023px){.p5-mobile-actionbar{display:flex;position:fixed;inset:auto 0 0;z-index:100;gap:8px;padding:var(--bottom-bar-pad) var(--bottom-bar-pad) calc(var(--bottom-bar-pad) + env(safe-area-inset-bottom,0px));background:var(--moss);border-top:1px solid #65706a}.p5-mobile-actionbar a,.p5-mobile-actionbar button{min-height:var(--button-height-lg);display:flex;align-items:center;justify-content:center;text-decoration:none;border-radius:4px}.p5-mobile-call{width:56px;flex-shrink:0;border:1px solid #65706a;color:var(--paper)}.p5-mobile-estimate{flex:1;background:var(--color-accent);color:#202820;font:600 16px var(--font-sans),sans-serif}.p5-mobile-actionbar a:focus-visible,.p5-mobile-actionbar button:focus-visible{outline:3px solid white;outline-offset:2px}body:has(.p5-mobile-actionbar){padding-bottom:calc(72px + env(safe-area-inset-bottom,0px))}body:has(.mobile-menu-open) .p5-mobile-actionbar,body:has(.matcher) .p5-mobile-actionbar{display:none}}
 
@@ -645,6 +643,8 @@ h1, h2, h3 { text-wrap:balance; }
 .quote-wizard[data-wizard-step="email"] .short-request-note,
 .quote-wizard[data-wizard-step="note"] .short-request-note,
 .quote-wizard[data-wizard-step="match"] .short-request-note,
+.quote-wizard[data-wizard-step="project"] .short-request-note,
+.quote-wizard[data-wizard-step="project"] > h2,
 .quote-wizard[data-wizard-step="contact"] > h2,
 .quote-wizard[data-wizard-step="phone"] > h2,
 .quote-wizard[data-wizard-step="email"] > h2,
@@ -700,16 +700,28 @@ h1, h2, h3 { text-wrap:balance; }
   text-underline-offset: 3px;
   cursor: pointer;
 }
+/* D2: Back and Next sit in flow at the bottom of the step card, so they can
+   never cover the progress line, the reassurance line or a choice. On phones
+   the dock pins to the viewport bottom only once the step heading has cleared
+   it (data-dock, set by ShortRequestForm), and its own slot in the card is the
+   clearance the pinned bar needs: nothing below the step heading is lost. */
 .quote-wizard-dock {
   z-index: 2;
   display: flex;
   gap: 12px;
   align-items: stretch;
   margin-top: 12px;
-  position: sticky;
-  bottom: 0;
-  padding: 12px 0 calc(12px + env(safe-area-inset-bottom, 0px));
-  background: linear-gradient(180deg, transparent, var(--color-surface) 28%);
+  position: static;
+  padding: 12px 0;
+  background: var(--color-surface);
+}
+@media (max-width: 639px) {
+  .quote-wizard-dock { padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px)); }
+  .quote-wizard[data-dock="pinned"] .quote-wizard-dock {
+    position: sticky;
+    bottom: 0;
+    box-shadow: 0 -1px 0 var(--color-border);
+  }
 }
 .quote-wizard-back,
 .quote-wizard-back-spacer {
@@ -801,8 +813,15 @@ h1, h2, h3 { text-wrap:balance; }
   text-underline-offset: 4px;
   cursor: pointer;
 }
+/* B6: wizard choice cards are 56px. Two columns on phones keep six options in
+   three rows so step 1 fits at 360x640; an odd count stacks in one column so
+   no option is left alone on a row (C8). The company matcher keeps its own
+   chip size. */
+.quote-wizard .choice-card { min-height: 56px; }
 @media (max-width: 639px) {
   .choice-cards { grid-template-columns: 1fr; }
+  .quote-wizard .choice-cards { grid-template-columns: 1fr 1fr; }
+  .quote-wizard .choice-cards:has(> :last-child:nth-child(odd)) { grid-template-columns: 1fr; }
   .company-finder-actions { flex-direction: column; align-items: flex-start; }
   .company-finder-actions .button { width: 100%; }
   .hero-reassure { margin-top: 10px; font-size: 13px; }
@@ -1047,3 +1066,41 @@ body[data-p5-chat-open] .p5-mobile-actionbar { display: none !important; }
 
 .site-header-image-hero .desktop-nav a { font-size: 15px; }
 .site-header-image-hero .desktop-nav { gap: 24px; }
+
+/* Phase 1 fixes, 31 October. */
+
+/* Skip link in the shared chrome: hidden until focused, then the first stop. */
+.skip-link { position: fixed; top: 8px; left: 8px; z-index: 300; padding: 12px 16px; background: var(--ink); color: var(--paper); font-size: 15px; font-weight: 700; transform: translateY(-160%); transition: transform var(--motion-fast) ease; }
+.skip-link:focus, .skip-link:focus-visible { transform: translateY(0); outline: 2px solid var(--bronze); outline-offset: 2px; }
+.main-content-target { display: block; height: 0; outline: none; }
+main#main-content:focus { outline: none; }
+
+/* C3: on desktop the hero and the fixed header together fit the small
+   viewport, and the photograph stops before it turns into filler. The crop
+   keeps the roofline in frame at the shorter height. */
+@media (min-width: 1024px) {
+  .hero { min-height: calc(var(--header-height) + min(100svh - var(--header-height), 720px)); }
+  .hero-image { object-position: center 20%; }
+}
+
+/* Two H2s set in the body face; every other H2 on the page is Cormorant. */
+.kitchen-example h2,
+.who-hire h2 { margin: 0; font-family: var(--font-display); font-size: clamp(36px, 4.6vw, 56px); font-weight: 400; letter-spacing: -.03em; line-height: 1.05; }
+.who-hire h2 { margin-bottom: var(--stack-heading); }
+
+/* D1: the FAQ heading holds below the header while the questions scroll, so
+   the left column is not 700px of empty space. Desktop and tall enough only. */
+@media (min-width: 1024px) and (min-height: 700px) {
+  .faq-layout > div:first-child { position: sticky; top: calc(var(--header-height) + 20px); }
+}
+
+/* The closing band uses the primary button (charcoal, paper text, tan bar),
+   with an outline so it reads on the dark band and a hover that stays legible. */
+.final-cta .button-dark { border-color: rgba(251,250,246,.55); }
+.final-cta .button-dark:hover, .final-cta .button-dark:focus-visible { color: var(--paper); background: transparent; border-color: var(--paper); }
+
+/* Phone wizard dock spans the card edge to edge so pinned content never shows
+   at its sides. Same geometry pinned or not, so nothing shifts. */
+@media (max-width: 639px) {
+  .short-request:not(.short-request-plain) .quote-wizard-dock { margin-inline: -14px; padding-inline: 14px; }
+}

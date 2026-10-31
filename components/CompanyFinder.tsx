@@ -112,7 +112,7 @@ export default function CompanyFinder() {
                 className="button button-dark"
                 href={detail.url}
                 target={detail.url.startsWith("http") ? "_blank" : undefined}
-                rel={detail.url.startsWith("http") ? "noreferrer" : undefined}
+                rel={detail.url.startsWith("http") ? "noopener" : undefined}
                 onClick={() => track("company_click", { company, location: "company_finder" })}
               >
                 {detail.cta} <Arrow diagonal={detail.url.startsWith("http")} />

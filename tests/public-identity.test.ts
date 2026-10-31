@@ -21,7 +21,6 @@ const pages = [
   "app/quote/QuoteLanding.tsx",
   "app/quote/thanks/page.tsx",
   "app/sitemap/page.tsx",
-  "app/legal/layout.tsx",
   "app/estimate/p5-preview/page.tsx",
   "app/estimate/scope/page.tsx",
 ];
@@ -117,6 +116,11 @@ test("every public page renders the shared identity block", () => {
   for (const file of pages) {
     assert.match(readFileSync(file, "utf8"), /<PublicIdentity\b/, file);
   }
+  // The legal pages render inside the shared site chrome, whose footer carries
+  // the identity block, so it is not repeated in the legal contact block.
+  const legal = readFileSync("app/legal/layout.tsx", "utf8");
+  assert.match(legal, /<SiteChrome\b/);
+  assert.equal(legal.includes("<PublicIdentity"), false);
 });
 
 test("the registration line is linked in the footer and plain text on funnel pages", () => {
@@ -138,7 +142,7 @@ test("the registration line is linked in the footer and plain text on funnel pag
     assert.match(readFileSync(file, "utf8"), /linkRegistration=\{false\}/, file);
   }
   assert.match(readFileSync("app/estimate/page.tsx", "utf8"), /redirect\("\/quote"\)/);
-  for (const file of ["components/SiteChrome.tsx", "app/sitemap/page.tsx", "app/legal/layout.tsx", "app/quote/QuoteLanding.tsx", "app/quote/thanks/page.tsx"]) {
+  for (const file of ["components/SiteChrome.tsx", "app/sitemap/page.tsx", "app/quote/QuoteLanding.tsx", "app/quote/thanks/page.tsx"]) {
     const source = readFileSync(file, "utf8");
     assert.match(source, /<PublicIdentity\b/, file);
     assert.equal(source.includes("linkRegistration={false}"), false, file);

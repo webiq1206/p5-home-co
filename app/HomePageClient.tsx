@@ -655,14 +655,10 @@ export default function Home() {
         <section className="final-cta">
           <Reveal className="content-shell final-cta-content">
             <p className="eyebrow eyebrow-light">Start with the need, not the company</p>
-            <h2>
-              Tell us what you are planning.
-              <br />
-              We will point you to the right team.
-            </h2>
+            <h2>Tell us what you are planning. We will point you to the right team.</h2>
             <div className="final-cta-actions" data-suppress-mobile-bar="">
-              <Link className="button button-light" href="/#request-form" data-cta="primary">
-                Send a short request <Arrow />
+              <Link className="button button-dark" href="/#request-form" data-cta="primary">
+                Request a quote <Arrow />
               </Link>
               <button className="text-link text-link-light" type="button" onClick={openMatcher}>
                 Help me choose a company <Arrow />
@@ -756,7 +752,7 @@ function BrandPanel({
           className="brand-link"
           href={url}
           target={external ? "_blank" : undefined}
-          rel={external ? "noreferrer" : undefined}
+          rel={external ? "noopener" : undefined}
           onClick={() =>
             track(external ? "company_click" : url.startsWith("tel:") ? "phone_click" : "quote_click", {
               company: id,
@@ -908,7 +904,7 @@ function ProjectMatcher({ onClose }: { onClose: () => void }) {
                   className="button button-dark"
                   href={detail.url}
                   target={detail.url.startsWith("http") ? "_blank" : undefined}
-                  rel={detail.url.startsWith("http") ? "noreferrer" : undefined}
+                  rel={detail.url.startsWith("http") ? "noopener" : undefined}
                   onClick={() =>
                     track(
                       detail.url.startsWith("http") ? "company_click" : detail.url.startsWith("tel:") ? "phone_click" : "quote_click",

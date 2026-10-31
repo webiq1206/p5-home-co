@@ -15,7 +15,7 @@
 .quote-shell {
   position: relative;
   z-index: 1;
-  width: min(1180px, 100% - 40px);
+  width: min(1180px, 100% - var(--gutter) * 2);
   margin: 0 auto;
 }
 
@@ -28,7 +28,7 @@
   padding: 12px 18px;
   background: var(--ink);
   color: #fff;
-  font-family: "P5 Sans", system-ui, sans-serif;
+  font-family: var(--font-sans);
   font-size: 13px;
   font-weight: 750;
 }
@@ -46,7 +46,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  width: min(1180px, 100% - 40px);
+  width: min(1180px, 100% - var(--gutter) * 2);
   margin: 0 auto;
   padding: 18px 0;
 }
@@ -89,6 +89,9 @@
 
 /* C3/E2: solid text panel beside/below bright photo — no whole-image veil */
 .quote-hero {
+  /* The text column aligns to the page shell, so it measures against the
+     full hero width (cqw) rather than its own half. */
+  container-type: inline-size;
   display: grid;
   grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
   isolation: isolate;
@@ -126,8 +129,21 @@
   grid-template-columns: 1fr;
   gap: 28px;
   align-items: start;
-  width: 100%;
 }
+
+/* The hero copy had no gutter at 768 and up: its column filled the panel and
+   started at x=0. It now starts on the same line as the sections below and
+   keeps a gutter against the photograph. */
+.quote-hero-panel > .quote-shell {
+  width: auto;
+  margin-right: var(--gutter);
+  margin-left: max(var(--gutter), calc((100cqw - 1180px) / 2));
+}
+
+/* Phone-only first-screen action; wider screens show the form beside or
+   just below the hero. */
+.quote-hero-cta { display: none; }
+.quote-header-phone-short { display: none; }
 
 .quote-eyebrow {
   margin: 0 0 14px;
@@ -140,7 +156,7 @@
 
 .quote-page h1 {
   margin: 0 0 16px;
-  font-family: "P5 Serif", Georgia, serif;
+  font-family: var(--font-display);
   font-size: clamp(31px, 5.4vw, 50px);
   font-weight: 500;
   line-height: 1.08;
@@ -210,7 +226,7 @@
 .quote-form-panel h2 {
   margin: 0 0 16px;
   color: var(--ink);
-  font-family: "P5 Serif", Georgia, serif;
+  font-family: var(--font-display);
   font-size: 24px;
   font-weight: 500;
   line-height: 1.2;
@@ -357,7 +373,7 @@
 
 .quote-page h2 {
   margin: 0 0 14px;
-  font-family: "P5 Serif", Georgia, serif;
+  font-family: var(--font-display);
   font-size: clamp(23px, 3.2vw, 32px);
   font-weight: 500;
   line-height: 1.15;
@@ -437,7 +453,7 @@
 
 .quote-voice-grid blockquote {
   margin: 0 0 14px;
-  font-family: "P5 Serif", Georgia, serif;
+  font-family: var(--font-display);
   font-size: 18px;
   line-height: 1.5;
 }
@@ -610,7 +626,7 @@
 
 .quote-footer-brand {
   color: #fff !important;
-  font-family: "P5 Serif", Georgia, serif;
+  font-family: var(--font-display);
   font-size: 22px;
 }
 
@@ -774,7 +790,7 @@
 .recovery { width: min(100% - 32px, 520px); max-height: calc(100svh - 32px); margin: auto; padding: 0; border: 1px solid var(--line); border-radius: 0; color: var(--ink); background: var(--paper); box-shadow: 0 35px 100px rgba(0,0,0,.34); }
 .recovery::backdrop { background: rgba(10,15,12,.72); backdrop-filter: blur(6px); }
 .recovery-panel { padding: 30px 28px 26px; }
-.recovery h2 { margin: 0 0 12px; font-family: "P5 Serif", Georgia, serif; font-size: clamp(26px, 3vw, 34px); font-weight: 400; letter-spacing: -.03em; line-height: 1.05; }
+.recovery h2 { margin: 0 0 12px; font-family: var(--font-display); font-size: clamp(26px, 3vw, 34px); font-weight: 400; letter-spacing: -.03em; line-height: 1.05; }
 .recovery-lede { margin: 0 0 22px; color: var(--ink-2); font-size: 14px; line-height: 1.65; }
 .recovery-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .recovery-actions .button { width: 100%; min-height: 52px; padding: 0 14px; gap: 12px; font-size: 11px; }
@@ -831,9 +847,9 @@
 @media (max-width: 820px) {
   .quote-hero {
     grid-template-columns: 1fr;
-    grid-template-rows: minmax(160px, 28svh) auto;
+    grid-template-rows: minmax(140px, 22svh) auto;
   }
-  .quote-hero-media { order: 1; min-height: 160px; }
+  .quote-hero-media { order: 1; min-height: 140px; }
   .quote-hero-panel { order: 2; padding: 28px 0 36px; }
 }
 
@@ -841,11 +857,21 @@
   .quote-page > .quote-hero .quote-covers,
   .quote-page > .quote-hero .quote-hero-call { display: none; }
   .quote-page > .quote-hero .quote-lead { margin-bottom: 0; }
+  .quote-hero-cta { display: inline-flex; width: 100%; margin-top: var(--stack-cta); }
+}
+
+/* One header row on phones (64px instead of two rows at 120px): the number
+   reads "Call" and keeps its full spoken label for screen readers. */
+@media (max-width: 479px) {
+  .quote-header { min-height: var(--header-height-phone); flex-wrap: nowrap; gap: 8px; }
+  .quote-header-actions { gap: 14px; flex-wrap: nowrap; }
+  .quote-header-phone-full { display: none; }
+  .quote-header-phone-short { display: inline; }
 }
 
 .quote-request { padding: 36px 0 12px; background: var(--paper); }
 .quote-request-inner { display: grid; grid-template-columns: minmax(0, 1fr) minmax(280px, 480px); gap: 24px 40px; align-items: start; }
-.quote-request-copy h2 { margin: 0 0 8px; font-family: "P5 Serif", Georgia, serif; font-size: clamp(28px, 4vw, 40px); font-weight: 500; }
+.quote-request-copy h2 { margin: 0 0 8px; font-family: var(--font-display); font-size: clamp(28px, 4vw, 40px); font-weight: 500; }
 .quote-request-copy p { max-width: 46ch; margin: 0; color: var(--ink-2); font-size: 16px; line-height: 1.5; }
 @media (max-width: 720px) {
   .quote-request { padding: 28px 0 4px; }
@@ -868,7 +894,7 @@
 .quote-tool { padding: 28px 0 36px; }
 .quote-tool-intro h2 {
   margin: 0 0 8px;
-  font-family: "P5 Serif", Georgia, serif;
+  font-family: var(--font-display);
   font-size: clamp(28px, 4vw, 40px);
   font-weight: 500;
 }
@@ -882,7 +908,7 @@
 }
 .quote-photos-heading {
   margin: 0 0 10px;
-  font-family: "P5 Serif", Georgia, serif;
+  font-family: var(--font-display);
   font-size: clamp(28px, 4vw, 40px);
   font-weight: 500;
   letter-spacing: -0.03em;
@@ -902,9 +928,6 @@
   padding: 0 0 28px;
 }
 .quote-photo-row img { display: block; width: 100%; height: 180px; object-fit: cover; }
-.quote-photo-row-single { grid-template-columns: 1fr; }
-.quote-photo-row-single img { height: 220px; }
-.quote-photos-compact { padding-top: 8px; background: var(--bone); }
 .quote-scroll-photo {
   position: relative;
   min-height: 240px;
@@ -939,8 +962,6 @@
 
 @media (max-width: 720px) {
   .quote-header { padding: 8px 0; }
-  .quote-shell,
-  .quote-header { width: min(1180px, calc(100% - 48px)); }
   .quote-photo-row { grid-template-columns: 1fr; }
   .quote-photo-row img { height: 200px; }
   .quote-scroll-photo img { height: 220px; }

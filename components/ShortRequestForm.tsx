@@ -177,8 +177,12 @@ export function ShortRequestForm({
   const [pending, setPending] = useState(false);
   const [done, setDone] = useState(false);
   const [files, setFiles] = useState<File[]>([]);
+  const [docked, setDocked] = useState(false);
 
+  // The saved draft lives in sessionStorage, which only exists after mount;
+  // reading it during render would make the server and client HTML differ.
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time sync from sessionStorage after hydration
     setState(readStored(defaultProject));
     setHydrated(true);
   }, [defaultProject]);
@@ -217,11 +221,50 @@ export function ShortRequestForm({
 
   useEffect(() => {
     if (!hydrated || done) return;
-    if (!["match", "note", "contact", "phone", "email"].includes(state.step)) return;
+    if (!["project", "match", "note", "contact", "phone", "email"].includes(state.step)) return;
     const form = document.getElementById(id);
     if (!form) return;
     form.scrollIntoView({ block: "start", behavior: "auto" });
   }, [state.step, hydrated, done, id]);
+
+  // D2 on phones: Back and Next pin to the viewport bottom only once the
+  // current step's heading sits above the bar, so the pinned bar can never
+  // cover the progress line, the reassurance line or the question. Until then,
+  // and on wider screens, they stay in flow at the bottom of the card.
+  useEffect(() => {
+    if (!hydrated || done) return;
+    const form = document.getElementById(id);
+    if (!form) return;
+    const phone = window.matchMedia("(max-width: 639px)");
+    let frame = 0;
+    const measure = () => {
+      frame = 0;
+      if (!phone.matches) {
+        setDocked(false);
+        return;
+      }
+      const heading = form.querySelector(".quote-wizard-step legend") ?? form.querySelector(".quote-wizard-progress");
+      const dock = form.querySelector(".quote-wizard-dock");
+      if (!heading || !dock) return;
+      const headingBottom = heading.getBoundingClientRect().bottom;
+      const formBottom = form.getBoundingClientRect().bottom;
+      const dockHeight = dock.getBoundingClientRect().height;
+      setDocked(headingBottom <= window.innerHeight - dockHeight && formBottom > 0);
+    };
+    const schedule = () => {
+      if (!frame) frame = window.requestAnimationFrame(measure);
+    };
+    schedule();
+    window.addEventListener("scroll", schedule, { passive: true });
+    window.addEventListener("resize", schedule);
+    phone.addEventListener("change", schedule);
+    return () => {
+      if (frame) window.cancelAnimationFrame(frame);
+      window.removeEventListener("scroll", schedule);
+      window.removeEventListener("resize", schedule);
+      phone.removeEventListener("change", schedule);
+    };
+  }, [hydrated, done, id, state.step]);
 
   function pushHistory(next: WizardState) {
     if (typeof window === "undefined") return;
@@ -378,6 +421,7 @@ export function ShortRequestForm({
       data-suppress-mobile-bar=""
       data-suppress-sticky-cta=""
       data-wizard-step={state.step}
+      data-dock={docked && hydrated && !done ? "pinned" : undefined}
       onSubmit={(event) => {
         event.preventDefault();
         if (state.step === "review") void onSubmit();
