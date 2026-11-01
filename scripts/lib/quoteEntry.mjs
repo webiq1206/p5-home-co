@@ -51,17 +51,23 @@ export async function verifyQuoteEntry(page, path) {
   await page.reload(); await page.locator('form#request-form[data-ready]').waitFor();
   assert.equal(await name.inputValue(),'Synthetic Navigation Check');
   assert.match(await note.inputValue(),/Synthetic navigation check/);
-  // "Have us call you" reduces the form to name and phone, then back.
-  const callback = form.getByRole('switch',{name:'Have us call you'});
-  await callback.check();
+  // "Send a request" | "Have us call you": the callback side reduces the form to name and phone, then back.
+  const request = form.getByRole('button',{name:'Send a request',exact:true});
+  const callback = form.getByRole('button',{name:'Have us call you',exact:true});
+  assert.equal(await request.getAttribute('aria-pressed'),'true');
+  await callback.click();
+  assert.equal(await callback.getAttribute('aria-pressed'),'true');
+  assert.equal(await request.getAttribute('aria-pressed'),'false');
   assert.equal(await note.count(),0);
   assert.equal(await form.getByLabel(/^Best time to call/).count(),1);
   assert.equal(await form.getByRole('button',{name:'Request a call',exact:true}).count(),1);
-  await callback.uncheck();
+  await request.click();
   assert.match(await note.inputValue(),/Synthetic navigation check/);
-  // Call and text stay on the form, above the button.
+  // Call, text and chat stay on the form, each a 48px target.
   assert.equal(await form.locator('a[href^="tel:"]').count(),1);
   assert.equal(await form.locator('a[href^="sms:"]').count(),1);
+  assert.equal(await form.getByRole('button',{name:'Chat',exact:true}).count(),1);
+  for (const height of await form.locator('.quote-form-talk-button, .quote-form-mode').evaluateAll(els=>els.map(el=>el.getBoundingClientRect().height))) assert.ok(height>=47.5,'Contact and mode buttons are 48px tall');
   await send.scrollIntoViewIfNeeded();
   assert.ok(await send.evaluate(el=>{const r=el.getBoundingClientRect(),x=r.left+r.width/2,y=r.top+r.height/2;return r.height>=48&&x>=0&&x<innerWidth&&y>=0&&y<innerHeight&&el.contains(document.elementFromPoint(x,y));}), 'Quote action must be unobstructed');
   assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'Quote horizontal overflow');

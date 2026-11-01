@@ -85,10 +85,15 @@ test("hub pages keep call and chat, with one request entry below the hero", () =
   assert.doesNotMatch(form, /quote-wizard|data-wizard-step|pushState/);
   assert.match(form, /data-suppress-mobile-bar=""/);
   // Call, text, or have us call you, on the form itself.
-  assert.match(form, /Have us call you/);
-  assert.match(form, /role="switch"/);
-  assert.match(form, /<TrackedPhoneLink location="quote_form">/);
-  assert.match(form, /href=\{PUBLIC_PHONE_SMS\} onClick=\{\(\) => track\("text_click", \{ location: "quote_form" \}\)\}/);
+  // Family segmented control under the heading: two native toggle buttons.
+  const modes = form.slice(form.indexOf('className="quote-form-modes"'), form.indexOf('className="quote-form-field"'));
+  assert.match(modes, /aria-pressed=\{!callback\}[\s\S]*Send a request[\s\S]*aria-pressed=\{callback\}[\s\S]*Have us call you/);
+  assert.equal((modes.match(/type="button"/g) ?? []).length, 2);
+  assert.ok(form.indexOf("{done") < form.indexOf('className="quote-form-modes"') && form.indexOf('className="quote-form-modes"') < form.indexOf('name="name"'));
+  // Call full width with the phone icon, then text and chat, all tracked as before.
+  assert.match(form, /<TrackedPhoneLink className="quote-form-talk-button quote-form-talk-call" location="quote_form">\s*<PhoneIcon/);
+  assert.match(form, /href=\{PUBLIC_PHONE_SMS\}\s*onClick=\{\(\) => track\("text_click", \{ location: "quote_form" \}\)\}/);
+  assert.match(form, /<OpenChatButton className="quote-form-talk-button" location="quote_form">/);
   assert.ok(form.indexOf("{talk}") < form.indexOf('type="submit"'), "Call and text sit above the button");
   assert.match(form, /Send my request/);
   assert.match(form, /trackAcceptedInquiry\(\)/);

@@ -17,7 +17,9 @@ import { saveQuoteReceipt } from "../app/quote/thanksState.ts";
 import ThanksQuestions from "../app/quote/ThanksQuestions";
 import TrackedPhoneLink from "../app/quote/TrackedPhoneLink";
 import { captureAttribution } from "../lib/p5/browserAttribution.ts";
+import { PhoneIcon } from "./family/Icons";
 import SaveContactButton from "./SaveContactButton";
+import { OpenChatButton } from "./SiteChat";
 
 const MAX_FILES = 4;
 const MAX_FILE_BYTES = 8 * 1024 * 1024;
@@ -120,9 +122,11 @@ function firstName(name: string): string {
  *
  * Name, phone and what they need, then optional photos, email and how to
  * reach them. Project type sits in "Add more detail (optional)" and still
- * routes the request to the right company when given. "Have us call you"
- * reduces the form to name and phone and sends a callback request through
- * the same route. The call and text links sit directly above the button.
+ * routes the request to the right company when given. "Send a request" |
+ * "Have us call you" sits under the heading; the callback side reduces the
+ * form to name and phone and sends a callback request through the same
+ * route. Call, text and chat sit above the button on phones, beside it on
+ * wider screens.
  */
 export function ShortRequestForm({
   id,
@@ -147,7 +151,6 @@ export function ShortRequestForm({
     files: `${uid}-files`,
     project: `${uid}-project`,
     bestTime: `${uid}-best-time`,
-    switch: `${uid}-callback`,
     next: `${uid}-next`,
   };
   const headingRef = useRef<HTMLHeadingElement>(null);
@@ -363,15 +366,28 @@ export function ShortRequestForm({
     </p>
   );
 
+  // "Prefer to talk?" as the family shows it: call full width, text and chat
+  // half width. Above the send button on phones, beside it on wider screens.
   const talk = (
-    <p className="quote-form-talk">
-      Prefer to talk?{" "}
-      <TrackedPhoneLink location="quote_form">Call {PUBLIC_PHONE_DISPLAY}</TrackedPhoneLink>
-      <span aria-hidden="true"> or </span>
-      <a href={PUBLIC_PHONE_SMS} onClick={() => track("text_click", { location: "quote_form" })}>
-        Text us
-      </a>
-    </p>
+    <div className="quote-form-talk" role="group" aria-labelledby={`${uid}-talk`}>
+      <p id={`${uid}-talk`}>Prefer to talk?</p>
+      <TrackedPhoneLink className="quote-form-talk-button quote-form-talk-call" location="quote_form">
+        <PhoneIcon width={18} height={18} aria-hidden="true" />
+        <span>Call {PUBLIC_PHONE_DISPLAY}</span>
+      </TrackedPhoneLink>
+      <div className="quote-form-talk-row">
+        <a
+          className="quote-form-talk-button"
+          href={PUBLIC_PHONE_SMS}
+          onClick={() => track("text_click", { location: "quote_form" })}
+        >
+          Text us
+        </a>
+        <OpenChatButton className="quote-form-talk-button" location="quote_form">
+          Chat
+        </OpenChatButton>
+      </div>
+    </div>
   );
 
   return (
@@ -428,17 +444,25 @@ export function ShortRequestForm({
         </div>
       ) : (
         <>
-          <label className="quote-form-switch" htmlFor={ids.switch}>
-            <input
-              id={ids.switch}
-              type="checkbox"
-              role="switch"
-              checked={callback}
-              onChange={(event) => update({ mode: event.target.checked ? "callback" : "request" })}
-            />
-            <span className="quote-form-switch-track" aria-hidden="true" />
-            <span>Have us call you</span>
-          </label>
+          {/* Two equal choices, the family's segmented control: the form, or a callback. */}
+          <div className="quote-form-modes" role="group" aria-label="How would you like to start?">
+            <button
+              type="button"
+              className="quote-form-mode"
+              aria-pressed={!callback}
+              onClick={() => update({ mode: "request" })}
+            >
+              Send a request
+            </button>
+            <button
+              type="button"
+              className="quote-form-mode"
+              aria-pressed={callback}
+              onClick={() => update({ mode: "callback" })}
+            >
+              Have us call you
+            </button>
+          </div>
 
           <div className="quote-form-field">
             <label htmlFor={ids.name}>Name</label>
@@ -604,22 +628,25 @@ export function ShortRequestForm({
           <input type="hidden" name="form" value={formName} />
           <input type="hidden" name="request_type" value={callback ? CALLBACK_REQUEST : "request"} />
 
-          {talk}
-
-          <button
-            className="button button-dark short-request-submit"
-            type="submit"
-            disabled={pending}
-            aria-busy={pending}
-            aria-describedby={ids.next}
-          >
-            {pending ? "Sending" : callback ? "Request a call" : "Send my request"}
-          </button>
-          <p id={ids.next} className="quote-form-next">
-            {callback
-              ? "We call you back within one business day."
-              : "We reply within one business day with questions or a time to visit."}
-          </p>
+          <div className="quote-form-actions">
+            {talk}
+            <div className="quote-form-send">
+              <button
+                className="button button-dark short-request-submit"
+                type="submit"
+                disabled={pending}
+                aria-busy={pending}
+                aria-describedby={ids.next}
+              >
+                {pending ? "Sending" : callback ? "Request a call" : "Send my request"}
+              </button>
+              <p id={ids.next} className="quote-form-next">
+                {callback
+                  ? "We call you back within one business day."
+                  : "We reply within one business day with questions or a time to visit."}
+              </p>
+            </div>
+          </div>
           {status && (
             <p className="short-request-status" role="alert">
               {status}

@@ -610,23 +610,14 @@ h1, h2, h3 { text-wrap:balance; }
 .quote-field-error:not(:empty) { margin-top: 6px; }
 .quote-form-hint { margin: 6px 0 0; color: var(--ink-2); font-size: 14px; line-height: 1.4; }
 .quote-form .short-request-file input { min-height: 48px; padding: 10px 0; font-size: 15px; }
-/* "Have us call you": a native checkbox drawn as a switch, the whole row is the target. */
-.quote-form .quote-form-switch {
-  position: relative; display: inline-flex; align-items: center; gap: 12px; min-height: 48px; margin: 0 0 8px;
-  color: var(--ink); font-size: 15px; font-weight: 700; cursor: pointer;
+/* "Send a request" | "Have us call you": two equal native toggle buttons, the active one filled. */
+.quote-form-modes { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 0 0 14px; }
+.quote-form-mode {
+  min-height: 48px; padding: 0 8px; border: 1px solid var(--charcoal); background: transparent; color: var(--charcoal);
+  font: 650 15px/1.2 var(--font-sans); cursor: pointer;
 }
-.quote-form-switch input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
-.quote-form-switch-track {
-  position: relative; flex: 0 0 auto; width: 44px; height: 26px; border: 1px solid rgba(32, 35, 31, 0.4);
-  border-radius: 13px; background: #fff; transition: background var(--motion-fast) ease;
-}
-.quote-form-switch-track::after {
-  position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%;
-  background: var(--ink-2); content: ""; transition: transform var(--motion-fast) ease;
-}
-.quote-form-switch input:checked + .quote-form-switch-track { border-color: var(--charcoal); background: var(--charcoal); }
-.quote-form-switch input:checked + .quote-form-switch-track::after { background: var(--paper); transform: translateX(18px); }
-.quote-form-switch input:focus-visible + .quote-form-switch-track { outline: 2px solid var(--bronze-ink); outline-offset: 3px; }
+.quote-form-mode[aria-pressed="true"] { background: var(--charcoal); color: var(--paper); box-shadow: inset 3px 0 0 var(--bronze); }
+.quote-form-mode:focus-visible { outline: 2px solid var(--bronze-ink); outline-offset: 2px; }
 .quote-form-reach { min-width: 0; margin: 0 0 12px; padding: 0; border: 0; }
 .quote-form-reach legend { margin: 0 0 6px; padding: 0; color: var(--ink); font-size: 15px; font-weight: 700; }
 .quote-form-pills { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
@@ -644,8 +635,22 @@ h1, h2, h3 { text-wrap:balance; }
   cursor: pointer; text-decoration: underline; text-underline-offset: 3px;
 }
 .quote-form-more[open] summary { margin-bottom: 4px; }
-.quote-form-talk { margin: 4px 0 10px; color: var(--ink-2); font-size: 15px; line-height: 1.4; }
-.quote-form-talk a { display: inline-flex; align-items: center; min-height: 48px; color: var(--ink); font-weight: 750; text-underline-offset: 3px; }
+/* Call, text and chat: outlined, call full width, text and chat half width each. */
+.quote-form-actions { display: grid; gap: 14px; margin-top: 4px; }
+.quote-form-talk { display: grid; gap: 8px; align-content: start; }
+.quote-form-talk > p { margin: 0; color: var(--ink); font-size: 15px; font-weight: 700; }
+.quote-form-talk-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.quote-form-talk-button {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 48px; padding: 0 12px;
+  border: 1px solid var(--charcoal); background: transparent; color: var(--charcoal);
+  font: 650 15px/1.2 var(--font-sans); text-decoration: none; cursor: pointer;
+}
+.quote-form-talk-button:hover, .quote-form-talk-button:focus-visible { background: var(--charcoal); color: var(--paper); }
+.quote-form-talk-button:focus-visible { outline: 2px solid var(--bronze-ink); outline-offset: 2px; }
+.quote-form-talk-call { width: 100%; }
+@media (min-width: 768px) {
+  .quote-form-actions { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: end; gap: 16px; }
+}
 .quote-form .short-request-submit { min-height: 56px; height: auto; font-size: 17px; }
 .quote-form-next { margin: 8px 0 0; color: var(--ink-2); font-size: 14px; line-height: 1.45; }
 .quote-form-done { display: grid; gap: 10px; }
