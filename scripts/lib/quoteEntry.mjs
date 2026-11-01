@@ -3,45 +3,67 @@ import assert from 'node:assert/strict';
 export const retainedEstimatorPath = brand => ['p5','p5-home-co-nextjs','construction','boise-construction-co','cabinet','boise-cabinet-co','remodeling','boise-remodeling-co'].includes(brand) ? '/estimate/scope' : '/estimate';
 export const isPublicQuotePath = path => path === '/estimate' || path === '/quote' || path.startsWith('/quote/');
 
-/** Exercise the current public wizard without sending a request. The caller
- * supplies a fresh context with all business/third-party traffic blocked. */
+/** Exercise the current public quote form without sending a request. The caller
+ * supplies a fresh context with all business/third-party traffic blocked.
+ * Owner, 1 November: one short screen that leads the page, with call, text
+ * and "Have us call you" on the form itself. */
 export async function verifyQuoteEntry(page, path) {
   if (path === '/estimate') assert.equal(new URL(page.url()).pathname, '/quote');
   const form = page.locator('form#request-form');
   await form.waitFor();
-  await page.waitForFunction(() => ['category','match'].includes(document.querySelector('form#request-form')?.dataset.wizardStep));
-  const step = async value => page.waitForFunction(value => document.querySelector('form#request-form')?.dataset.wizardStep === value, value);
-  const advance = async value => { await form.getByRole('button', {name:/^(Next|Continue)$/}).click(); await step(value); };
-  if (await form.getAttribute('data-wizard-step') === 'category') {
-    assert.equal(await form.getByRole('button',{name:'Next',exact:true}).isDisabled(),true);
-    await form.getByRole('button',{name:'Repairs or handyman',exact:true}).click();
-    await advance('match');
-    assert.match(await form.getByRole('status').innerText(), /Boise Handyman Co/);
-  } else {
-    assert.ok((await form.getByRole('status').innerText()).includes('Co'));
-  }
-  await advance('note');
-  const note = form.getByLabel('What should we know?',{exact:true});
-  assert.equal(await form.getByRole('button',{name:'Continue',exact:true}).isDisabled(),true);
+  await page.locator('form#request-form[data-ready]').waitFor();
+  const name = form.getByLabel('Name',{exact:true});
+  // The form leads the page: its heading and first field are on the first screen, under the sticky header.
+  assert.ok(await name.evaluate(el=>{const r=el.getBoundingClientRect(),h=document.querySelector('[data-family-header]')?.getBoundingClientRect().bottom??0,t=el.form.querySelector('h2').getBoundingClientRect();return scrollY<=1&&t.top>=h-1&&r.bottom<=innerHeight;}),'Quote heading and first field must be on the first screen');
+  assert.equal(await page.evaluate(()=>document.activeElement?.matches('input,textarea,select')??false),false,'No field takes focus on arrival');
+  const phone = form.getByLabel('Phone',{exact:true});
+  const note = form.getByLabel('What do you need?',{exact:true});
+  const email = form.locator('input[name="email"]');
+  const send = form.getByRole('button',{name:'Send my request',exact:true});
+  // An empty send names each problem in plain words and focuses the first one; nothing is sent.
+  await send.click();
+  await page.waitForFunction(() => document.activeElement?.getAttribute('autocomplete') === 'name');
+  assert.equal(await name.getAttribute('aria-invalid'),'true');
+  const errors = await form.innerText();
+  for (const message of [/Enter your name\./,/Enter a phone number so we can reach you\./,/Tell us a little about what you need\./]) assert.match(errors, message);
+  await name.fill('Synthetic Navigation Check');
+  assert.equal(await name.getAttribute('aria-invalid'),null);
+  await phone.fill('123'); await phone.blur();
+  assert.equal(await phone.getAttribute('aria-invalid'),'true');
+  await phone.fill('2085550102');
+  assert.equal(await phone.getAttribute('aria-invalid'),null);
+  assert.equal(await phone.getAttribute('type'),'tel');
   await note.fill('Synthetic navigation check. '+ 'LongUnbrokenMaterialSpecification'.repeat(20));
-  await advance('contact');
-  assert.equal(await form.getByRole('button',{name:'Next',exact:true}).isDisabled(),true);
-  await form.getByLabel('Name',{exact:true}).fill('Synthetic Navigation Check');
-  await advance('phone');
-  assert.equal(await form.getByRole('button',{name:'Next',exact:true}).isDisabled(),true);
-  await form.getByLabel('Phone',{exact:true}).fill('2085550102');
-  await advance('email');
-  await form.getByLabel('Email',{exact:true}).fill('invalid');
-  assert.equal(await form.getByRole('button',{name:'Next',exact:true}).isDisabled(),true);
-  await form.getByLabel('Email',{exact:true}).fill('navigation@example.invalid');
-  await advance('review');
-  assert.match(await form.innerText(), /Synthetic Navigation Check/);
+  await email.fill('invalid'); await email.blur();
+  assert.match(await form.innerText(), /That email address does not look right\./);
+  await email.fill('navigation@example.invalid');
   assert.equal(await form.locator('input[type=file]').count(),1);
-  await page.reload(); await step('review');
-  assert.match(await form.innerText(), /Synthetic Navigation Check/);
-  const send=form.getByRole('button',{name:'Request a quote',exact:true});
+  for (const label of ['Call me','Text me','Email me']) assert.equal(await form.getByRole('radio',{name:label,exact:true}).count(),1);
+  // The type of work still routes the request to the company that owns it.
+  const project = form.getByLabel('Type of project',{exact:true});
+  if (!(await project.inputValue())) {
+    await form.getByText('Add more detail (optional)',{exact:true}).click();
+    await project.selectOption('Home repairs or handyman work');
+    assert.match(await form.innerText(), /Goes to Boise Handyman Co\./);
+  } else {
+    assert.match(await project.evaluate(el=>el.closest('.quote-form-field').textContent), /Goes to .*Co\./);
+  }
+  await page.reload(); await page.locator('form#request-form[data-ready]').waitFor();
+  assert.equal(await name.inputValue(),'Synthetic Navigation Check');
+  assert.match(await note.inputValue(),/Synthetic navigation check/);
+  // "Have us call you" reduces the form to name and phone, then back.
+  const callback = form.getByRole('switch',{name:'Have us call you'});
+  await callback.check();
+  assert.equal(await note.count(),0);
+  assert.equal(await form.getByLabel(/^Best time to call/).count(),1);
+  assert.equal(await form.getByRole('button',{name:'Request a call',exact:true}).count(),1);
+  await callback.uncheck();
+  assert.match(await note.inputValue(),/Synthetic navigation check/);
+  // Call and text stay on the form, above the button.
+  assert.equal(await form.locator('a[href^="tel:"]').count(),1);
+  assert.equal(await form.locator('a[href^="sms:"]').count(),1);
   await send.scrollIntoViewIfNeeded();
-  assert.ok(await send.evaluate(el=>{const r=el.getBoundingClientRect(),x=r.left+r.width/2,y=r.top+r.height/2;return x>=0&&x<innerWidth&&y>=0&&y<innerHeight&&el.contains(document.elementFromPoint(x,y));}), 'Quote action must be unobstructed');
+  assert.ok(await send.evaluate(el=>{const r=el.getBoundingClientRect(),x=r.left+r.width/2,y=r.top+r.height/2;return r.height>=48&&x>=0&&x<innerWidth&&y>=0&&y<innerHeight&&el.contains(document.elementFromPoint(x,y));}), 'Quote action must be unobstructed');
   assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'Quote horizontal overflow');
   // Deliberately stop before submission: no synthetic contact reaches a server.
 }

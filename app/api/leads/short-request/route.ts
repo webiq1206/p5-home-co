@@ -1,6 +1,11 @@
 /**
  * Short primary lead form, including optional photos and plans.
  *
+ * Two shapes share this route (app/lib/leads/shortRequest.ts): a request
+ * (name, phone, a note; email optional unless the visitor asks to be
+ * emailed) and a callback request from "Have us call you" (name and phone,
+ * with an optional best time to call). Both create the same lead.
+ *
  * The JSON intake route stays small on purpose. Files land here, after the
  * same lead record the rest of the site already creates.
  */
@@ -10,7 +15,7 @@ import { NextResponse, after } from "next/server";
 import { isDatabaseConfigured, transaction } from "../../../lib/db.ts";
 import { ingestLead } from "../../../lib/leads/intake.ts";
 import { loadSettings } from "../../../lib/leads/settings.ts";
-import { normalizeEmail, normalizePhone } from "../../../lib/leads/normalize.ts";
+import { readShortRequest, shortRequestSummary } from "../../../lib/leads/shortRequest.ts";
 import { readShortRequestFiles, ShortRequestFileError } from "../../../lib/leads/shortRequestFiles.ts";
 import { collectAttribution, sourceFromAttribution } from "../../../lib/leads/attribution.ts";
 import { notifyLeadCreated } from "../../../lib/notifications/lead-created.ts";
@@ -70,27 +75,13 @@ export async function POST(request: Request): Promise<NextResponse> {
     return NextResponse.json({ ok: false, error: "We could not safely accept that request just now." }, { status: 503 });
   }
 
-  const wholeName = str(form.get("name"));
-  const phone = str(form.get("phone"));
-  const email = str(form.get("email"));
-  const note = str(form.get("note"));
-  const project = str(form.get("project"));
   const formName = str(form.get("form")) ?? "Short request";
-  if (!wholeName) {
-    return NextResponse.json({ ok: false, error: "Enter a name." }, { status: 422 });
+  const checked = readShortRequest((key) => form.get(key));
+  if (!checked.ok) {
+    return NextResponse.json({ ok: false, error: checked.error, field: checked.field }, { status: 422 });
   }
-  if (!phone || !normalizePhone(phone)) {
-    return NextResponse.json({ ok: false, error: "Enter a phone number so we can respond." }, { status: 422 });
-  }
-  if (!email) {
-    return NextResponse.json({ ok: false, error: "Enter an email address." }, { status: 422 });
-  }
-  if (!normalizeEmail(email)) {
-    return NextResponse.json({ ok: false, error: "That email address does not look right." }, { status: 422 });
-  }
-  if (!note) {
-    return NextResponse.json({ ok: false, error: "Add a short note about the project." }, { status: 422 });
-  }
+  const submitted = checked.value;
+  const { name: wholeName, phone, email, project } = submitted;
 
   const parts = wholeName.split(/\s+/);
   const firstName = parts[0] ?? null;
@@ -117,11 +108,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     return NextResponse.json({ ok: false, error: "We could not read those files. Try again, or call (208) 477-1169." }, { status: 400 });
   }
 
-  const summary = [
-    project ? `Project: ${project}.` : "",
-    note,
-    files.length ? `Files: ${files.map((file) => file.fileName).join(", ")}.` : "",
-  ].filter(Boolean).join(" ");
+  const summary = shortRequestSummary(submitted, files.map((file) => file.fileName));
 
   try {
     const settings = await loadSettings();
@@ -207,6 +194,7 @@ export async function POST(request: Request): Promise<NextResponse> {
         ok: true,
         duplicate: result.status === "duplicate",
         accepted: created,
+        callback: submitted.kind === "callback",
         filesAttached,
         message: filesMissing ? FILE_FAIL_MESSAGE : SAVED_MESSAGE,
       },
