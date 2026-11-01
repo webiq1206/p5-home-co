@@ -39,11 +39,16 @@ import {
   PUBLIC_REGISTRATION,
 } from "./publicIdentity";
 
-/** The hero photograph at its served size; HeroPhoto sizes it through next/image. */
+/**
+ * The hero photograph at its served size. It is already sized WebP (1280x720 at
+ * 114 KB), so HeroPhoto serves it as is: a /_next/image request for a hero can
+ * stall and hold the page's load event open, as it did on Boise Remodeling Co.
+ */
 const HERO_IMAGE = {
   src: FEATURED_BOISE_EXTERIOR.src,
   width: FEATURED_BOISE_EXTERIOR.width,
   height: FEATURED_BOISE_EXTERIOR.height,
+  unoptimized: true,
 };
 
 type CompanyKey = "construction" | "remodeling" | "cabinetry" | "handyman" | "adu";

@@ -24,6 +24,13 @@ export interface HeroPhotoImage {
   height: number;
   /** CSS object-position, for example "60% 40%". */
   position?: string;
+  /**
+   * Serve this already-sized file as is, bypassing the image optimizer
+   * (/_next/image): no responsive srcset, the browser fetches src directly.
+   * For a file already encoded near display size (WebP or JPEG), where a
+   * stalled optimizer request would hold the page's load event open.
+   */
+  unoptimized?: boolean;
 }
 
 export interface HeroPhotoProps {
@@ -45,6 +52,11 @@ export interface HeroPhotoProps {
 const PHONE_QUERY = '(max-width: 1023px)';
 const DESKTOP_QUERY = '(min-width: 1024px)';
 
+/** Preload the optimizer's responsive set, or the plain file when the image is unoptimized. */
+function preloadAttrs(image: { src?: string; srcSet?: string }) {
+  return image.srcSet ? { imageSrcSet: image.srcSet, imageSizes: '100vw' } : { href: image.src };
+}
+
 function wordCount(text: string): number {
   return text.trim().split(/\s+/).filter(Boolean).length;
 }
@@ -54,9 +66,9 @@ export function HeroPhoto({ image, phoneImage, eyebrow, title, titleAccent, supp
     console.warn(`HeroPhoto: support line is ${wordCount(support)} words; the template allows 14.`);
   }
   const common = { alt: image.alt, sizes: '100vw', quality: 75 } as const;
-  const { props: desktop } = getImageProps({ ...common, src: image.src, width: image.width, height: image.height, priority: true });
+  const { props: desktop } = getImageProps({ ...common, src: image.src, width: image.width, height: image.height, unoptimized: image.unoptimized, priority: true });
   const phone = phoneImage
-    ? getImageProps({ ...common, src: phoneImage.src, width: phoneImage.width, height: phoneImage.height, priority: true }).props
+    ? getImageProps({ ...common, src: phoneImage.src, width: phoneImage.width, height: phoneImage.height, unoptimized: phoneImage.unoptimized, priority: true }).props
     : null;
 
   return (
@@ -69,18 +81,17 @@ export function HeroPhoto({ image, phoneImage, eyebrow, title, titleAccent, supp
       aria-labelledby="family-hero-title"
     >
       {phone ? (
-        <link rel="preload" as="image" imageSrcSet={phone.srcSet} imageSizes="100vw" media={PHONE_QUERY} fetchPriority="high" />
+        <link rel="preload" as="image" {...preloadAttrs(phone)} media={PHONE_QUERY} fetchPriority="high" />
       ) : null}
       <link
         rel="preload"
         as="image"
-        imageSrcSet={desktop.srcSet}
-        imageSizes="100vw"
+        {...preloadAttrs(desktop)}
         media={phone ? DESKTOP_QUERY : undefined}
         fetchPriority="high"
       />
       <picture className="fam-hero-media">
-        {phone ? <source media={PHONE_QUERY} srcSet={phone.srcSet} sizes="100vw" width={phone.width} height={phone.height} /> : null}
+        {phone ? <source media={PHONE_QUERY} srcSet={phone.srcSet ?? phone.src} sizes={phone.srcSet ? '100vw' : undefined} width={phone.width} height={phone.height} /> : null}
         <img
           {...desktop}
           alt={image.alt}
