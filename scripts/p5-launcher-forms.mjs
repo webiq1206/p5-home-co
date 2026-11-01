@@ -15,11 +15,19 @@ for(const width of [320,390,430,600,768,1024,1366,1440,1920]){
   await page.goto('http://127.0.0.1:5000/contact',{waitUntil:'load'});
   await page.evaluate(async()=>{await document.fonts.ready;await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));});
   // An actual form interaction confirms hydration without assuming a chat availability API.
-  const addressInfo=page.getByTestId('button-address-info').filter({visible:true}).first();
-  await addressInfo.click();
-  await page.locator('#address-info').waitFor({state:'visible'});
-  await addressInfo.click();
-  await page.locator('#address-info').waitFor({state:'hidden'});
+  // Every brand's v2 /contact form has the same two native radios inside tappable pills: "Have us
+  // call you" reveals "Best time to call", "Send a request" removes it again. Tap the pill, as a
+  // visitor does (the radio itself is visually hidden), then check the radio's state.
+  const callback=page.getByRole('radio',{name:'Have us call you',exact:true}).first();
+  const request=page.getByRole('radio',{name:'Send a request',exact:true}).first();
+  const pill=radio=>page.locator('label').filter({has:radio}).first();
+  const bestTime=page.getByLabel(/^Best time to call/).filter({visible:true}).first();
+  await pill(callback).click();
+  await bestTime.waitFor({state:'visible'});
+  if(!(await callback.isChecked())||await request.isChecked())throw new Error('Call-back mode did not take');
+  await pill(request).click();
+  await bestTime.waitFor({state:'hidden'});
+  if(!(await request.isChecked()))throw new Error('Request mode did not return');
   await page.waitForTimeout(700);
   const launcher=page.locator('[data-testid="button-assistant-open"],[data-testid="assistant-launcher"]');
   await page.locator('footer').scrollIntoViewIfNeeded();

@@ -48,8 +48,8 @@ export async function verifyRemodelingEntry(page,path) {
   await send.click();assert.ok(await form.getByRole('alert').isVisible());
   await form.getByLabel('Name',{exact:true}).fill('Synthetic Navigation Check');
   await form.getByLabel('Phone',{exact:true}).fill('2025550102');
-  await form.getByLabel('Email',{exact:true}).fill('navigation@example.invalid');
-  await form.getByLabel('What should we look at?',{exact:true}).fill('Synthetic local-only request. '+'LongUnbrokenMaterialSpecification'.repeat(20));
+  await form.getByLabel('Email (optional)',{exact:true}).fill('navigation@example.invalid');
+  await form.getByLabel('What can we help with?',{exact:true}).fill('Synthetic local-only request. '+'LongUnbrokenMaterialSpecification'.repeat(20));
   await clearAction(send);assert.equal(await page.locator('h1').count(),1);
   assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));return;
  }
@@ -86,23 +86,51 @@ export async function verifyRemodelingRe10Handoff(page) {
 }
 
 export const isHandyman = brand => ['handyman','boise-handyman-co'].includes(brand);
-/** Current homepage consultation, independent of the retained /estimate engine. */
+/** Current homepage request form (v2, owner 1 November): list first, attachment tile, call-back mode.
+ * Same strength as the old wizard walk: empty-send errors and focus, bad phone, bad email, draft kept
+ * on reload, unobstructed send, one h1, no overflow. Independent of the retained /estimate engine. */
 export async function verifyHandymanHomeEntry(page) {
  await page.locator('main a[href="/contact"]:visible').first().click();
  await page.waitForURL(url=>url.pathname==='/contact');
- const form=page.getByTestId('consultation-wizard');
- const step=value=>page.waitForFunction(value=>document.querySelector('[data-testid="consultation-wizard"]')?.dataset.step===value,value);
- const next=()=>page.getByTestId('consult-wizard-actions').getByRole('button',{name:'Continue',exact:true}).click();
- await step('job');await next();await step('job');
- await page.getByTestId('consult-job-drywall-repair').click();await next();await step('about');
- await next();await step('about');await page.getByTestId('input-name').fill('Synthetic Navigation Check');
- await next();await step('prefer');await page.getByTestId('button-preferred-contact-email').click();
- await next();await step('reach');await page.getByTestId('input-email').fill('invalid');await next();await step('reach');
- await page.getByTestId('input-email').fill('navigation@example.invalid');await next();await step('address');
- await next();await step('address');await page.getByTestId('input-address').fill('123 Synthetic Test Street, Boise, ID');
- await next();await step('review');assert.match(await form.innerText(),/Synthetic Navigation Check/);
- await page.reload();await step('review');assert.match(await form.innerText(),/Synthetic Navigation Check/);
- await clearAction(page.getByTestId('consult-wizard-actions').getByRole('button').last());
+ const form=page.getByTestId('consultation-wizard');await form.waitFor();
+ assert.equal(await form.getAttribute('data-step'),'request');
+ const focused=()=>page.evaluate(()=>document.activeElement?.getAttribute('data-testid'));
+ const send=form.getByTestId('button-consult-submit');
+ assert.equal((await send.innerText()).trim(),'Send my list');
+ // The list is the first field; the attachment tile takes photos and PDFs.
+ assert.equal(await form.locator('textarea, input:not([type=radio]):not([type=hidden]):not(.hm-form-honeypot), select').first().getAttribute('data-testid'),'textarea-message');
+ assert.equal(await form.getByTestId('input-files').getAttribute('accept'),'image/*,application/pdf,.heic,.heif');
+ // Empty send: summary alert, the list focused, the list, name and phone errors shown.
+ await clearAction(send);await send.click();
+ assert.ok(await form.getByRole('alert').isVisible());assert.equal(await focused(),'textarea-message');
+ for(const field of ['message','name','phone'])assert.notEqual((await form.getByTestId(`error-${field}`).innerText()).trim(),'');
+ const note='Synthetic request retained locally only. '+'LongUnbrokenMaterialSpecification'.repeat(20);
+ await form.getByTestId('textarea-message').fill(note);
+ await form.getByTestId('input-name').fill('Synthetic Navigation Check');
+ // Bad phone.
+ await form.getByTestId('input-phone').fill('123');await send.click();
+ assert.equal(await focused(),'input-phone');assert.ok(await form.getByRole('alert').isVisible());
+ await form.getByTestId('input-phone').fill('2025550102');
+ // Email preferred: email becomes required; a bad one is caught.
+ await form.getByTestId('button-preferred-contact-email').check();
+ await form.getByTestId('input-email').fill('invalid');await send.click();
+ assert.equal(await focused(),'input-email');assert.ok(await form.getByRole('alert').isVisible());
+ await form.getByTestId('input-email').fill('navigation@example.invalid');
+ // Draft kept on reload.
+ await page.reload();await form.waitFor();
+ await page.waitForFunction(()=>document.querySelector('[data-testid="input-email"]')?.value==='navigation@example.invalid');
+ assert.equal(await form.getByTestId('textarea-message').inputValue(),note);
+ assert.equal(await form.getByTestId('input-name').inputValue(),'Synthetic Navigation Check');
+ assert.equal(await form.getByTestId('input-phone').inputValue(),'2025550102');
+ assert.equal(await form.getByTestId('button-preferred-contact-email').isChecked(),true);
+ // "Have us call you" reduces the form, and switches back.
+ await form.getByTestId('request-mode-callback').check();
+ await page.waitForFunction(()=>document.querySelector('[data-testid="consultation-wizard"]')?.dataset.step==='callback');
+ assert.equal(await form.getByTestId('textarea-message').count(),0);assert.ok(await form.getByTestId('select-best-time').isVisible());
+ assert.equal((await send.innerText()).trim(),'Request a call');
+ await form.getByTestId('request-mode-request').check();
+ assert.equal(await form.getByTestId('textarea-message').inputValue(),note);
+ await clearAction(send);
  assert.equal(await page.locator('h1').count(),1);
  assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));
  // Stop before final Send. All service and external requests are blocked by caller.
