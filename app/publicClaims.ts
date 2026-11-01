@@ -55,7 +55,7 @@ export const CABINET_FINISH_COUNT = "299 finishes";
 export const CABINET_WARRANTY = "Lifetime workmanship warranty";
 
 export const TRUSTED_H1 = "Boise’s Trusted Home Specialists";
-export const PLAIN_H1 = "Boise’s Home Specialists";
+export const PLAIN_H1 = "Boise’s home specialists";
 
 export const TRUSTED_LEDE =
   "Build it. Remodel it. Expand it. Care for it. Finish it. P5 brings every chapter of homeownership under one trusted family of specialized Treasure Valley companies.";

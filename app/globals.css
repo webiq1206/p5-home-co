@@ -119,6 +119,9 @@ a:hover .arrow-diagonal, a:focus-visible .arrow-diagonal { transform: translate(
 .button-light:hover, .button-light:focus-visible { color: #fff; background: transparent; }
 .button-dark { border-color: var(--charcoal); color: var(--paper); background: var(--charcoal); box-shadow: inset 3px 0 0 var(--bronze); }
 .button-dark:hover, .button-dark:focus-visible { color: var(--charcoal); background: transparent; }
+/* Primary on a dark photo or dark band: the same button with charcoal and paper swapped, tan accent bar kept. */
+.button-on-dark { border-color: var(--paper); color: var(--charcoal); background: var(--paper); box-shadow: inset 3px 0 0 var(--bronze); }
+.button-on-dark:hover, .button-on-dark:focus-visible { color: var(--paper); background: transparent; }
 
 .site-header { position: fixed; z-index: 100; top: 0; left: 0; width: 100%; color: var(--ink); background: rgba(251,250,246,.96); box-shadow: 0 1px 0 rgba(32,35,31,.12); backdrop-filter: blur(15px); transition: color 220ms ease, background 220ms ease, box-shadow 220ms ease; }
 .site-header-scrolled { color: var(--ink); background: rgba(251,250,246,.95); box-shadow: 0 1px 0 var(--line); backdrop-filter: blur(15px); }
@@ -506,7 +509,7 @@ a:hover .arrow-diagonal, a:focus-visible .arrow-diagonal { transform: translate(
 .estimator-contact{position:fixed;z-index:130;top:0;left:0;right:0;display:flex;align-items:center;justify-content:flex-end;gap:8px;height:48px;padding:0 12px;background:#fbfaf6;border-bottom:1px solid rgba(32,35,31,.12)}
 .estimator-contact a{display:inline-flex;align-items:center;min-height:36px;padding:0 10px;color:#20231f;font:750 14px var(--font-sans);text-decoration:none}
 .estimator-contact a:focus-visible{outline:3px solid #20231f;outline-offset:2px}
-.p5-mobile-actionbar{display:none}@media(max-width:1023px){.p5-mobile-actionbar{display:flex;position:fixed;inset:auto 0 0;z-index:100;gap:8px;padding:var(--bottom-bar-pad) var(--bottom-bar-pad) calc(var(--bottom-bar-pad) + env(safe-area-inset-bottom,0px));background:var(--moss);border-top:1px solid #65706a}.p5-mobile-actionbar a,.p5-mobile-actionbar button{min-height:var(--button-height-lg);display:flex;align-items:center;justify-content:center;text-decoration:none;border-radius:4px}.p5-mobile-call{width:56px;flex-shrink:0;border:1px solid #65706a;color:var(--paper)}.p5-mobile-estimate{flex:1;background:var(--color-accent);color:#202820;font:600 16px var(--font-sans),sans-serif}.p5-mobile-actionbar a:focus-visible,.p5-mobile-actionbar button:focus-visible{outline:3px solid white;outline-offset:2px}body:has(.p5-mobile-actionbar){padding-bottom:calc(72px + env(safe-area-inset-bottom,0px))}body:has(.mobile-menu-open) .p5-mobile-actionbar,body:has(.matcher) .p5-mobile-actionbar{display:none}}
+.p5-mobile-actionbar{display:none}@media(max-width:1023px){.p5-mobile-actionbar{display:flex;position:fixed;inset:auto 0 0;z-index:100;gap:8px;padding:var(--bottom-bar-pad) var(--bottom-bar-pad) calc(var(--bottom-bar-pad) + env(safe-area-inset-bottom,0px));background:var(--moss);border-top:1px solid #65706a}.p5-mobile-actionbar a,.p5-mobile-actionbar button{min-height:var(--button-height-lg);display:flex;align-items:center;justify-content:center;text-decoration:none;border-radius:4px}.p5-mobile-call{width:56px;flex-shrink:0;border:1px solid #65706a;color:var(--paper)}.p5-mobile-estimate{flex:1;background:var(--paper);color:var(--charcoal);box-shadow:inset 3px 0 0 var(--bronze);font:600 16px var(--font-sans),sans-serif}.p5-mobile-actionbar a:focus-visible,.p5-mobile-actionbar button:focus-visible{outline:3px solid white;outline-offset:2px}body:has(.p5-mobile-actionbar){padding-bottom:calc(72px + env(safe-area-inset-bottom,0px))}body:has(.mobile-menu-open) .p5-mobile-actionbar,body:has(.matcher) .p5-mobile-actionbar{display:none}}
 
 /* While the conversational estimator owns the screen, the mobile action bar steps aside. */
 body[data-p5-estimator-active="true"] .p5-mobile-actionbar { display: none !important; }
@@ -1060,7 +1063,7 @@ body[data-p5-chat-open] .p5-mobile-actionbar { display: none !important; }
 
 /* Homepage hero and quieter closing section, approved October 29. */
 .hero .hero-lede { color: #fff; max-width: 32ch; font-size: 18px; }
-.hero .hero-actions .button { min-height: 48px; width: fit-content; background: var(--terracotta); color: var(--ink); }
+.hero .hero-actions .button { min-height: 48px; width: fit-content; }
 .final-cta, .final-cta-content { min-height: 0; }
 .final-cta-content { padding-block: var(--section-y); }
 .final-cta h2 { max-width: 20ch; font-size: clamp(36px, 4vw, 52px); line-height: 1.1; }

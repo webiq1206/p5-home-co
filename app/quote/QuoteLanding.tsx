@@ -104,7 +104,7 @@ export default function QuoteLanding({ service }: { service: QuoteService | null
 
                   {/* Phones: the form sits below the hero, so the first screen
                       carries the action that takes the visitor to it. */}
-                  <a className="button button-light quote-hero-cta" href="#request-form" data-cta="primary">
+                  <a className="button button-on-dark quote-hero-cta" href="#request-form" data-cta="primary">
                     Request a quote
                   </a>
 

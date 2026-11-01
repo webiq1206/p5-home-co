@@ -125,10 +125,10 @@ export default function Home() {
           <div className="hero-panel">
             <div className="hero-content content-shell">
               <div className="hero-copy">
-                <h1 id="hero-heading">Boise’s Home <span>Specialists</span></h1>
+                <h1 id="hero-heading">Boise’s home <span>specialists</span></h1>
                 <p className="hero-lede">New homes, remodeling, cabinets, repairs and ADUs.</p>
                 <div className="hero-actions" data-suppress-mobile-bar="">
-                  <Link className="button button-light"
+                  <Link className="button button-on-dark"
                     href="/quote"
                     data-cta="primary"
                     onClick={() => track("quote_click", { location: "hero" })}

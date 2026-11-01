@@ -15,7 +15,7 @@ import { siteUrl } from "../site";
 
 const title = "About Nick Perkins and the P5 Companies | P5 Home Co";
 const description =
-  "About P5 Home Co: founder Nick Perkins, a construction project manager and father of five, and the four Treasure Valley companies that carry his name.";
+  "About P5 Home Co: founder Nick Perkins, a construction project manager and father of five, and the Treasure Valley companies that carry his name.";
 
 export const metadata: Metadata = withBrandPageMetadata(
   {

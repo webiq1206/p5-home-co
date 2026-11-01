@@ -6,6 +6,7 @@ import Link from "next/link";
 import SiteChrome from "@/components/SiteChrome";
 import SaveContactButton from "@/components/SaveContactButton";
 import Arrow from "@/components/Arrow";
+import { ADU_CONSTRUCTION_URL } from "../publicIdentity";
 
 const COMPANIES = [
   {
@@ -27,6 +28,12 @@ const COMPANIES = [
     name: "Boise Handyman Co",
     href: "https://boisehandyman.co",
     line: "handles repairs, installs and maintenance, including RE-10 inspection repair lists, with one written price before work starts.",
+  },
+  // Listed so the count matches the homepage and sitemap: four live sites plus Boise ADU Co, shown as coming.
+  {
+    name: "Boise ADU Co",
+    href: ADU_CONSTRUCTION_URL,
+    line: "projects currently run through Boise Construction Co; its site is coming.",
   },
 ] as const;
 
@@ -144,8 +151,8 @@ export default function AboutClient({
           </p>
         </section>
 
-        <section className="about-section content-shell" aria-labelledby="four-companies">
-          <h2 id="four-companies">The four companies</h2>
+        <section className="about-section content-shell" aria-labelledby="five-companies">
+          <h2 id="five-companies">The five companies</h2>
           <ul className="about-company-list">
             {COMPANIES.map((company) => (
               <li key={company.name}>

@@ -73,7 +73,10 @@ test("the business address is the authorized Meridian street, and cities stay se
     url: "https://dopl.idaho.gov/con/",
   });
   assert.equal(JSON.stringify(organization).includes("Jared"), false);
-  assert.deepEqual(organization.sameAs, ["https://www.facebook.com/1228704823655951"]);
+  assert.deepEqual(organization.sameAs, [
+    "https://www.facebook.com/1228704823655951",
+    "https://www.google.com/search?kgmid=/g/11ntl1t7dc",
+  ]);
   assert.equal(siteTitle, "Boise Builders, Remodelers, Cabinets & Repairs | P5 Home Co");
   assert.ok(siteTitle.length <= 60);
 
