@@ -106,14 +106,34 @@ detail and file ends up on it.
 
 ## Limits
 
-- New requests: 5 per hour per connecting address (unchanged).
-- Step 2 posts count in their own window, 40 per hour per address, so adding
-  details never uses up the allowance for new requests. A Step 2 post that
-  becomes a new lead (no deal yet, with a phone or email) also counts as a new
-  request. A brand server posts
-  every visitor's lead from one address, so a busy hour of new requests can
-  still meet the first limit; it is shared with P5's own form.
-- Honeypots (`website_url`, `company_website`) are refused with 422 as before.
+A brand server forwards every visitor's lead from its own address, so limits
+are keyed on the lead, not only on the connecting address. Real leads are never
+refused for sharing a server with other visitors.
+
+- New requests: 5 per hour per `brand` + person. The person is the phone's
+  digits (formatting and a leading US 1 ignored), else the lowercased email.
+  Repeats beyond that get 429 "We already have several requests from you this
+  hour". A post with neither phone nor email falls back to its address, 5 per
+  hour, as before.
+- Step 2 (`submission_kind: "details"`): 20 per hour per `brand` +
+  `external_id`, counted apart from new requests, so adding details never uses
+  up the allowance for new requests. A Step 2 post that becomes a new lead (no
+  deal yet, with a phone or email) also counts as a new request.
+- Spam backstop: a ceiling per connecting address AND `brand`, 120 new requests
+  and 240 Step 2 posts per hour. Each brand's forwards are counted apart from
+  P5's own browser posts and from the other brands. A refusal is logged as
+  `[intake] rate limited` with the brand, kind, reason and `sourceDetail`
+  (never the person), so a brand meeting its ceiling is visible.
+- Counters are HMAC keys (SESSION_SECRET), so no address, phone or email is
+  stored in the clear. Windows are fixed clock hours.
+- Unchanged: honeypots (`website_url`, `company_website`) are refused with 422;
+  bodies over 32 KB are refused with 413 (now measured on the bytes read, not
+  only on `content-length`); a repeat of the same lead while its deal is open
+  is a 200 duplicate on that deal, not a second deal.
+- P5's own short-request routes (`/api/leads/short-request` and its `details`
+  and `files` routes) are called by the visitor's browser, so their address is
+  the visitor's and they keep their per-address windows (5 new, 40 follow-ups
+  per hour).
 
 ## HubSpot
 

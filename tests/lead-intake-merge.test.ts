@@ -279,12 +279,14 @@ test("Step 2 with a phone before Step 1 becomes the lead, and Step 1 then merges
 });
 
 test("Step 2 has its own rate window, so adding details never competes with new requests", async () => {
+  // New requests are limited per brand + person (tests/lead-intake-rate-limit.test.ts),
+  // so the window is used up by one person, not by five different leads.
   const from = "203.0.113.50";
   for (let i = 0; i < 5; i += 1) {
-    const { status } = await post({ brand: "Boise Construction Co", name: `Rate Test ${i}`, phone: `208555${String(1000 + i)}` }, from);
-    assert.equal(status, 201);
+    const { status } = await post({ brand: "Boise Construction Co", name: "Rate Test", phone: "2085551000", summary: `Attempt ${i}` }, from);
+    assert.ok(status === 201 || status === 200, String(status));
   }
-  assert.equal((await post({ brand: "Boise Construction Co", name: "Rate Test 6", phone: "2085551999" }, from)).status, 429);
+  assert.equal((await post({ brand: "Boise Construction Co", name: "Rate Test", phone: "2085551000", summary: "Attempt 6" }, from)).status, 429);
   const details = await post({ brand: "Boise Handyman Co", submission_kind: "details", external_id: "hm-req-1001", timeline: "3 to 6 months" }, from);
   assert.equal(details.status, 200);
 });

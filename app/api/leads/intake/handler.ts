@@ -32,7 +32,7 @@ import {
 import { loadSettings } from "../../../lib/leads/settings.ts";
 import { BRANDS, LEAD_SOURCES, type Brand, type LeadSource } from "../../../lib/leads/types.ts";
 import { notifyLeadCreated, notifyLeadDetailsAdded } from "../../../lib/notifications/lead-created.ts";
-import { allowIntakeRequest, FOLLOW_UP_SCOPE } from "./abuse.ts";
+import { allowLeadIntake, type IntakeLimitVerdict } from "./abuse.ts";
 
 /** Reject oversized bodies before parsing them. */
 const MAX_BODY_BYTES = 32 * 1024;
@@ -84,6 +84,41 @@ function followUp(after: AfterResponse, merged: MergeResult, subjectPrefix?: str
   });
 }
 
+/**
+ * null when the post may proceed, else the 429 (or 503 when the counter
+ * itself failed). A refusal is logged with the brand and sourceDetail, never
+ * the person, so a brand meeting its address ceiling is visible in the logs.
+ */
+async function checkLimit(
+  request: Request,
+  lead: Parameters<typeof allowLeadIntake>[1],
+  body: Record<string, unknown>,
+): Promise<Response | null> {
+  let verdict: IntakeLimitVerdict;
+  try {
+    verdict = await allowLeadIntake(request, lead);
+  } catch (error) {
+    console.error("[intake] anti-abuse check failed:", (error as Error).message);
+    return Response.json({ ok: false, error: "We could not safely accept that request just now." }, { status: 503 });
+  }
+  if (verdict.ok) return null;
+  console.warn("[intake] rate limited", {
+    brand: lead.brand,
+    kind: lead.kind,
+    reason: verdict.reason,
+    sourceDetail: str(body.sourceDetail ?? body.source_detail),
+  });
+  return Response.json(
+    {
+      ok: false,
+      error: verdict.reason === "identity"
+        ? "We already have several requests from you this hour. Please call (208) 477-1169."
+        : "Too many requests from this connection. Please wait an hour or call (208) 477-1169.",
+    },
+    { status: 429 },
+  );
+}
+
 /** Work that runs after the response is sent (next/server `after` in the route). */
 export type AfterResponse = (task: () => Promise<void>) => void;
 
@@ -107,9 +142,20 @@ export async function handleIntake(request: Request, after: AfterResponse): Prom
     return Response.json({ ok: false, error: "Request too large." }, { status: 413 });
   }
 
+  // content-length can be absent (chunked), so the read body is measured too.
+  let text: string;
+  try {
+    text = await request.text();
+  } catch {
+    return Response.json({ ok: false, error: "Expected a JSON object." }, { status: 400 });
+  }
+  if (new TextEncoder().encode(text).byteLength > MAX_BODY_BYTES) {
+    return Response.json({ ok: false, error: "Request too large." }, { status: 413 });
+  }
+
   let body: Record<string, unknown>;
   try {
-    const parsed: unknown = await request.json();
+    const parsed: unknown = JSON.parse(text);
     if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
       throw new Error("not an object");
     }
@@ -126,19 +172,6 @@ export async function handleIntake(request: Request, after: AfterResponse): Prom
   const extras = readIntakeExtras(body);
   const details = extras.submissionKind === "details";
 
-  try {
-    // Step 2 follows a lead already counted, so it has its own window.
-    if (!(await allowIntakeRequest(request, new Date(), details ? FOLLOW_UP_SCOPE : null))) {
-      return Response.json(
-        { ok: false, error: "Too many requests from this connection. Please wait an hour or call (208) 477-1169." },
-        { status: 429 },
-      );
-    }
-  } catch (error) {
-    console.error("[intake] anti-abuse check failed:", (error as Error).message);
-    return Response.json({ ok: false, error: "We could not safely accept that request just now." }, { status: 503 });
-  }
-
   const brand = pickBrand(body.brand ?? body.company);
   if (!brand) {
     return Response.json(
@@ -147,6 +180,10 @@ export async function handleIntake(request: Request, after: AfterResponse): Prom
     );
   }
 
+  // Limits are keyed on the lead, not only the address: a brand server
+  // forwards every visitor from one address (abuse.ts, INTAKE_LIMITS).
+  const newRequest = { kind: "new" as const, brand, phone: str(body.phone ?? body.telephone), email: str(body.email) };
+
   if (details) {
     if (!extras.externalId) {
       return Response.json(
@@ -154,6 +191,9 @@ export async function handleIntake(request: Request, after: AfterResponse): Prom
         { status: 400 },
       );
     }
+    // Step 2 follows a lead already counted, so it has its own window.
+    const limited = await checkLimit(request, { kind: "details", brand, externalId: extras.externalId }, body);
+    if (limited) return limited;
     try {
       const merged = await mergeLeadDetails({ brand, externalId: extras.externalId }, readLeadDetails(body, extras));
       followUp(after, merged);
@@ -188,19 +228,12 @@ export async function handleIntake(request: Request, after: AfterResponse): Prom
         { status: 500 },
       );
     }
-    // Becoming a new lead counts against the new-request window too.
-    try {
-      if (!(await allowIntakeRequest(request))) {
-        return Response.json(
-          { ok: false, error: "Too many requests from this connection. Please wait an hour or call (208) 477-1169." },
-          { status: 429 },
-        );
-      }
-    } catch (error) {
-      console.error("[intake] anti-abuse check failed:", (error as Error).message);
-      return Response.json({ ok: false, error: "We could not safely accept that request just now." }, { status: 503 });
-    }
   }
+
+  // A new request, or a Step 2 post becoming the lead because Step 1 has not
+  // arrived: both count as a new request.
+  const limited = await checkLimit(request, newRequest, body);
+  if (limited) return limited;
 
   // Accept either split names or a single "name" field.
   let firstName = str(body.firstName ?? body.first_name);
