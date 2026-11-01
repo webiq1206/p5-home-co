@@ -9,8 +9,10 @@
  * ([data-hero-cta="primary"]) has left the viewport. It steps aside while the
  * menu is open, while a text field has focus and while any interface the brand
  * names in bar.yieldToBodyFlags owns the screen. A spacer of the same height
- * keeps the end of the page reachable. Keep the data-mobile-nav-bar attribute:
- * site checks and other components find the bar by it.
+ * keeps the end of the page reachable. With bar.hideInstantly it carries
+ * data-hide="instant" and leaves at once instead of sliding out. Keep the
+ * data-mobile-nav-bar attribute: site checks and other components find the bar
+ * by it.
  */
 import { usePathname } from 'next/navigation';
 import { useEffect, useState, useSyncExternalStore } from 'react';
@@ -95,6 +97,7 @@ export function MobileActionBar() {
         data-mobile-nav-bar=""
         data-family-bar=""
         data-state={visible ? 'visible' : 'hidden'}
+        data-hide={bar.hideInstantly ? 'instant' : undefined}
         data-desktop-from={brand.header.desktopFrom}
         aria-hidden={visible ? undefined : true}
         style={brandStyle()}

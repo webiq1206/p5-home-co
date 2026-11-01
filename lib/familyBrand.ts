@@ -15,6 +15,7 @@ import {
   ADU_CONSTRUCTION_URL,
   IDAHO_DOPL_LICENSE_SEARCH,
   P5_FACEBOOK_URL,
+  P5_GOOGLE_BUSINESS_PROFILE_URL,
   PUBLIC_ADDRESS,
   PUBLIC_EMAIL,
   PUBLIC_PHONE_DISPLAY,
@@ -26,9 +27,6 @@ import {
 
 /** The P5 lockup artwork is 251.24 x 50; the header and footer cap its height. */
 const LOCKUP = { width: 251, height: 50 };
-
-/** P5 Home Co's one Google Business Profile (owner call A, 1 November). Rendered beside Facebook in the footer. */
-export const P5_GOOGLE_PROFILE_URL = 'https://www.google.com/search?kgmid=/g/11ntl1t7dc';
 
 export const FAMILY_BRAND: FamilyBrand = {
   id: 'p5',
@@ -69,6 +67,9 @@ export const FAMILY_BRAND: FamilyBrand = {
     // The quote wizard and the estimators own the bottom of the screen; private areas have no bar.
     hiddenOn: ['/quote/*', '/estimate/*', '/admin/*', '/api/*', '/portal/*', '/login*'],
     yieldToBodyFlags: ['p5EstimatorActive', 'p5ChatOpen', 'p5MatcherOpen'],
+    // The same check requires the bar gone within 150ms of returning to the hero, as the P5 bar
+    // always was: it leaves at once instead of after the 300ms slide-out, and still slides in.
+    hideInstantly: true,
   },
   // The event names P5 already reports for a quote click.
   analytics: { ctaEvent: 'quote_click', barCtaEvent: 'quote_click' },
@@ -133,4 +134,6 @@ export const FAMILY_BRAND: FamilyBrand = {
     rel: 'noopener noreferrer',
   },
   parentFacebook: { href: P5_FACEBOOK_URL, label: 'P5 Home Co on Facebook' },
+  // P5 Home Co's one Google Business Profile (owner call A, 1 November), beside its Facebook page.
+  parentGoogle: { href: P5_GOOGLE_BUSINESS_PROFILE_URL, label: 'P5 Home Co on Google' },
 };

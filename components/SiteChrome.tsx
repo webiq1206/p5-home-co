@@ -2,7 +2,6 @@ import type { ReactNode } from "react";
 import { SiteFooter } from "@/components/family/SiteFooter";
 import { SiteHeader } from "@/components/family/SiteHeader";
 import { SkipLink } from "@/components/family/SkipLink";
-import { P5_GOOGLE_PROFILE_URL } from "@/lib/familyBrand";
 
 /**
  * P5 Home Co pages inside the shared family chrome: skip link, header (with its
@@ -36,18 +35,7 @@ export default function SiteChrome({
           {children}
         </>
       )}
-      <SiteFooter
-        brandExtra={
-          // P5 Home Co's Google Business Profile sits beside its Facebook page (owner call A).
-          <ul className="fam-footer-contact">
-            <li>
-              <a href={P5_GOOGLE_PROFILE_URL} rel="noopener" target="_blank" data-testid="link-footer-google">
-                P5 Home Co on Google
-              </a>
-            </li>
-          </ul>
-        }
-      />
+      <SiteFooter />
     </>
   );
 }

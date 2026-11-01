@@ -68,6 +68,13 @@ export interface FamilyBrand {
     hiddenOn: RoutePattern[];
     /** document.body data flags (camelCase dataset keys) that, when "true", mean an interface needs the space. */
     yieldToBodyFlags: string[];
+    /**
+     * True: the bar is gone the moment it hides (visibility flips at once, no
+     * 300ms slide-out), for sites whose checks require it hidden quickly after
+     * the visitor returns to the hero. It still slides in on show. Absent or
+     * false keeps the slide-out.
+     */
+    hideInstantly?: boolean;
   };
   analytics: {
     /** gtag event for the header and menu primary CTA. */
@@ -98,6 +105,8 @@ export interface FamilyBrand {
   registration: { text: string; href: string; title: string; ariaLabel: string; rel: string };
   /** Parent company Facebook page; an empty href renders nothing. */
   parentFacebook: { href: string; label: string };
+  /** Parent company Google Business Profile, listed right after the Facebook page; absent or an empty href renders nothing. */
+  parentGoogle?: { href: string; label: string };
 }
 
 function normalise(path: string): string {

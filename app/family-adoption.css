@@ -43,13 +43,3 @@
 .final-cta .fam-btn {
   align-self: flex-start;
 }
-
-/* The approved C7 check (scripts/verify-p5-mobile-seo.mjs) requires the bar to be gone
-   150ms after the visitor returns to the hero, as the P5 bar always was. The family bar
-   keeps its slide in; on the way out it hides at once instead of after the 300ms slide.
-   Reported to the family source as a missing bar option; remove this once it exists there. */
-.fam-bar[data-family-bar][data-state='hidden'] {
-  transition:
-    transform var(--motion-base) var(--ease-in-out),
-    visibility 0s linear 0s;
-}
