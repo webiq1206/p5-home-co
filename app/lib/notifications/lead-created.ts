@@ -24,6 +24,8 @@ export type LeadCreatedNotifyInput = {
   summary: string | null;
   source: string | null;
   originalForm: string | null;
+  /** Request kind, contact preference, best time and file links, when sent. */
+  extraLines?: readonly string[];
 };
 
 export type LeadCreatedNotifyOptions = {
@@ -67,6 +69,7 @@ export async function notifyLeadCreated(
       `Address: ${input.propertyAddress ?? ""}`,
       `Source: ${input.source ?? ""}`,
       `Deal id: ${input.dealId}`,
+      ...(input.extraLines ?? []),
       "",
       input.summary ?? "",
       "",
@@ -79,6 +82,53 @@ export async function notifyLeadCreated(
     const result = await transport.send(PUBLIC_EMAIL, { subject, text, html });
     if (!result.ok) {
       console.error(`[intake-notify] send to ${PUBLIC_EMAIL} failed: ${result.error}`);
+    }
+  } catch (error) {
+    console.error("[intake-notify]", (error as Error).message);
+  }
+}
+
+export type LeadFollowUpNotifyInput = {
+  dealId: number;
+  brand: string;
+  firstName: string | null;
+  lastName: string | null;
+  phone: string | null;
+  email: string | null;
+  /** One line per detail or file, already formatted. */
+  lines: readonly string[];
+  reroutedFrom?: string | null;
+};
+
+/**
+ * Short follow-up when a visitor adds details or files to a request already
+ * emailed: "Details added: {name}". Same mailbox, same fail-open rule.
+ */
+export async function notifyLeadDetailsAdded(
+  input: LeadFollowUpNotifyInput,
+  options: LeadCreatedNotifyOptions & { subjectPrefix?: string } = {},
+): Promise<void> {
+  try {
+    const name =
+      oneLine([input.firstName, input.lastName].filter(Boolean).join(" ")) || "Unnamed contact";
+    const subject = `${options.subjectPrefix ?? "Details added"}: ${name} · ${oneLine(input.brand) || "P5 Home Co"}`;
+    const lines = [
+      `Name: ${name}`,
+      `Phone: ${input.phone ?? ""}`,
+      `Email: ${input.email ?? ""}`,
+      input.reroutedFrom ? `Routed from ${input.reroutedFrom} to ${input.brand} by the project type.` : "",
+      `Deal id: ${input.dealId}`,
+      "",
+      ...input.lines,
+      "",
+      adminDealUrl(input.dealId),
+    ].filter((line, index, all) => line !== "" || (index > 0 && all[index - 1] !== ""));
+    const text = lines.join("\n");
+    const html = `<pre style="font-family:system-ui,sans-serif;white-space:pre-wrap">${escapeHtml(text)}</pre>`;
+    const transport = options.transport ?? activeTransport();
+    const result = await transport.send(PUBLIC_EMAIL, { subject, text, html });
+    if (!result.ok) {
+      console.error(`[intake-notify] follow-up to ${PUBLIC_EMAIL} failed: ${result.error}`);
     }
   } catch (error) {
     console.error("[intake-notify]", (error as Error).message);

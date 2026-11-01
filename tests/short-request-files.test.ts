@@ -49,15 +49,18 @@ test("short request file names drop paths and odd characters", () => {
 });
 
 test("short request file limits reject extras before reading them", async () => {
-  assert.equal(MAX_SHORT_REQUEST_FILES, 4);
-  assert.equal(MAX_SHORT_REQUEST_FILE_BYTES, 8 * 1024 * 1024);
+  // Owner, 1 November (form v2): up to 10 files, 20 MB each. The browser sends
+  // them one per request after the lead is saved; the 20 MB total caps a
+  // single request, which only the no-JavaScript form uses for several files.
+  assert.equal(MAX_SHORT_REQUEST_FILES, 10);
+  assert.equal(MAX_SHORT_REQUEST_FILE_BYTES, 20 * 1024 * 1024);
   assert.equal(MAX_SHORT_REQUEST_TOTAL_BYTES, 20 * 1024 * 1024);
 
   const jpeg = bytes([0xff, 0xd8, 0xff, 0x00]);
-  const tooMany = Array.from({ length: 5 }, (_, index) => upload(`photo-${index}.jpg`, jpeg));
+  const tooMany = Array.from({ length: 11 }, (_, index) => upload(`photo-${index}.jpg`, jpeg));
   await assert.rejects(() => readShortRequestFiles(tooMany), (error: unknown) => {
     assert.ok(error instanceof ShortRequestFileError);
-    assert.match(error.message, /4 files/);
+    assert.match(error.message, /10 files/);
     return true;
   });
 
@@ -70,10 +73,10 @@ test("short request file limits reject extras before reading them", async () => 
       return jpeg.buffer;
     },
   };
-  await assert.rejects(() => readShortRequestFiles([huge]), /8 MB/);
+  await assert.rejects(() => readShortRequestFiles([huge]), /20 MB/);
   assert.equal(read, false);
 
-  const heavy: UploadLike = { name: "a.jpg", size: 7_000_000, arrayBuffer: async () => jpeg.buffer };
+  const heavy: UploadLike = { name: "a.jpg", size: 8_000_000, arrayBuffer: async () => jpeg.buffer };
   await assert.rejects(() => readShortRequestFiles([heavy, { ...heavy }, { ...heavy }]), /20 MB/);
 
   const stored = await readShortRequestFiles([upload("folder/plan.pdf", bytes("%PDF-1.4"))]);

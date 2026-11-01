@@ -8,7 +8,12 @@
  * (bar.showOverHero); otherwise it appears once the hero's own primary CTA
  * ([data-hero-cta="primary"]) has left the viewport. It steps aside while the
  * menu is open, while a text field has focus and while any interface the brand
- * names in bar.yieldToBodyFlags owns the screen. A spacer of the same height
+ * names in bar.yieldToBodyFlags owns the screen. It also steps aside while any
+ * element marked [data-family-bar-yield] (a quote form, its success screen or
+ * its Step 2 panel) is in the viewport: the bar would only repeat the form, and
+ * a tap at the bottom edge after leaving a field must reach the form, not the
+ * bar. That uses one IntersectionObserver (no layout reads); marked elements
+ * that mount later are picked up on the next frame. A spacer of the same height
  * keeps the end of the page reachable. With bar.hideInstantly it carries
  * data-hide="instant" and leaves at once instead of sliding out. Keep the
  * data-mobile-nav-bar attribute: site checks and other components find the bar
@@ -43,6 +48,52 @@ function subscribeYield(onChange: () => void): () => void {
   };
 }
 
+const YIELD_TARGET = '[data-family-bar-yield]';
+
+/** True while any [data-family-bar-yield] element intersects the viewport. */
+function useYieldTargetOnScreen(): boolean {
+  const [onScreen, setOnScreen] = useState(false);
+  useEffect(() => {
+    if (typeof IntersectionObserver === 'undefined') return;
+    const showing = new Set<Element>();
+    const watched = new Set<Element>();
+    const publish = () => setOnScreen(showing.size > 0);
+    const io = new IntersectionObserver((entries) => {
+      for (const entry of entries) {
+        if (entry.isIntersecting) showing.add(entry.target);
+        else showing.delete(entry.target);
+      }
+      publish();
+    });
+    let frame = 0;
+    // Forms swap to a success screen and Step 2 mounts later, so re-scan (at
+    // most once a frame) when the page's elements change.
+    const scan = () => {
+      frame = 0;
+      const current = new Set(document.querySelectorAll(YIELD_TARGET));
+      for (const el of current) if (!watched.has(el)) { watched.add(el); io.observe(el); }
+      for (const el of [...watched]) {
+        if (current.has(el)) continue;
+        watched.delete(el);
+        showing.delete(el);
+        io.unobserve(el);
+      }
+      publish();
+    };
+    const mutations = new MutationObserver(() => {
+      if (!frame) frame = window.requestAnimationFrame(scan);
+    });
+    mutations.observe(document.body, { childList: true, subtree: true });
+    scan();
+    return () => {
+      if (frame) window.cancelAnimationFrame(frame);
+      mutations.disconnect();
+      io.disconnect();
+    };
+  }, []);
+  return onScreen;
+}
+
 function yieldSnapshot(flags: string[]): boolean {
   const data = document.body.dataset;
   return data.familyMenuOpen === 'true' || flags.some((flag) => data[flag] === 'true') || typing();
@@ -61,6 +112,7 @@ export function MobileActionBar() {
     () => yieldSnapshot(bar.yieldToBodyFlags),
     () => false,
   );
+  const formOnScreen = useYieldTargetOnScreen();
 
   // Without showOverHero, wait until the hero's own CTA has scrolled out of view.
   useEffect(() => {
@@ -87,7 +139,7 @@ export function MobileActionBar() {
   }, [hiddenHere, bar.showOverHero, pathname]);
 
   if (hiddenHere) return null;
-  const visible = (bar.showOverHero || pastHeroCta) && !yielding;
+  const visible = (bar.showOverHero || pastHeroCta) && !yielding && !formOnScreen;
 
   return (
     <>

@@ -5,9 +5,7 @@ import { PROOF_POINTS, TESTIMONIALS } from "./proof";
 import { faqsFor, schemaFor, STEPS } from "./schema";
 import { QUOTE_SERVICES, type QuoteService } from "./services";
 import { serializeJsonLd } from "../structuredData";
-import TrackedPhoneLink from "./TrackedPhoneLink";
 import SiteChrome from "@/components/SiteChrome";
-import { FamilyButton } from "@/components/family/Button";
 import { ShortRequestForm } from "@/components/ShortRequestForm";
 import {
   imageVariantFor,
@@ -28,10 +26,11 @@ import { ADU_D3_LINE } from "../publicIdentity";
  * in the HTML the server returns, so AI answer engines and crawlers that never
  * run JavaScript still read them. The form is the only client island.
  *
- * Mobile ordering is deliberate. Most local paid-search traffic is on a phone,
- * so the hero carries only the headline and the direct answer before the form;
- * the longer trust and process content sits below it. Nobody should have to
- * scroll past six paragraphs to reach the field they came to fill in.
+ * The form comes first. Most local paid-search traffic is on a phone, and a
+ * visitor who tapped "Request a quote" should see the heading and the first
+ * field without scrolling: the page heading, then the form, then everything
+ * that explains it. Nobody should scroll past a hero to reach the field they
+ * came to fill in.
  */
 export default function QuoteLanding({ service }: { service: QuoteService | null;entryLabel?:string;defaultService?:string }) {
   const faqs = faqsFor(service);
@@ -49,68 +48,43 @@ export default function QuoteLanding({ service }: { service: QuoteService | null
         />
 
         <main className="quote-main">
-          <section className="quote-hero">
-            <div className="quote-hero-media">
-              <img
-                className="quote-hero-img"
-                src={heroImage}
-                alt={heroAlt}
-                width={heroVariant?.width ?? 1600}
-                height={heroVariant?.height ?? 1000}
-                {...(heroVariant ? { srcSet: heroVariant.srcSet, sizes: "(max-width: 820px) 100vw, 48vw" } : {})}
-                fetchPriority="high"
-                decoding="async"
-              />
-            </div>
-            <div className="quote-hero-panel">
-              <div className="quote-shell quote-hero-grid" style={{ gridTemplateColumns: "minmax(0,1fr)" }}>
-                <div className="quote-hero-copy">
-                  <p className="quote-eyebrow">
-                    {service
-                      ? `${service.label} · Treasure Valley`
-                      : "Free quote · Treasure Valley, Idaho"}
-                  </p>
-                  {service ? <h2>{service.h1}</h2> : <h1>A specialist team for your home project</h1>}
-                  <p className="quote-lead">
-                    {service
-                      ? service.lead
-                      : "Tell us what you want done and P5 Home Co sends it to the right specialist team, whether that is a kitchen remodel, a custom home, an ADU, new cabinetry, or a repair. Quotes are free, carry no obligation, and come with a written scope so you can compare them properly."}
-                  </p>
-
-                  {/* Phones: the form sits below the hero, so the first screen
-                      carries the action that takes the visitor to it. */}
-                  <FamilyButton href="#request-form" variant="hero" size="lg" className="quote-hero-cta" data-cta="primary">
-                    Request a quote
-                  </FamilyButton>
-
-                  {service && (
-                    <ul className="quote-covers" aria-label="What this covers">
-                      {service.covers.map((c) => (
-                        <li key={c}>{c}</li>
-                      ))}
-                    </ul>
-                  )}
-
-                  <p className="quote-hero-call">
-                    Prefer to talk it through?{" "}
-                    <TrackedPhoneLink location="quote_hero">Call (208) 477-1169</TrackedPhoneLink>
-                  </p>
-                </div>
-              </div>
-            </div>
-          </section>
-
-          <section className="quote-request" aria-labelledby="quote-request-heading">
+          {/* The form leads (owner, 1 November): every "Request a quote" lands
+              here with the heading and the first field on the first screen, at
+              every width. What the hero used to say sits beside the form on
+              wide screens and below it on phones, never in front of it. */}
+          <section className="quote-request quote-request-first">
             <div className="quote-shell quote-request-inner">
-              <div className="quote-request-copy">
-                <h2 id="quote-request-heading">Tell us what you need</h2>
-                <p>A name, phone, email, and a note are enough for a person to follow up. Add a photo or plan if you have one.</p>
+              <div className="quote-request-main">
+                {service ? <h1>{service.h1}</h1> : <h1>A specialist team for your home project</h1>}
+                <ShortRequestForm
+                  id="request-form"
+                  formName="Quote Landing Page"
+                  defaultProject={service?.project}
+                />
               </div>
-              <ShortRequestForm
-                id="request-form"
-                formName="Quote Landing Page"
-                defaultProject={service?.project}
-              />
+              <aside className="quote-request-aside" aria-label={service ? `About ${service.label.toLowerCase()} quotes` : "About your quote"}>
+                <img
+                  className="quote-request-img"
+                  src={heroImage}
+                  alt={heroAlt}
+                  width={heroVariant?.width ?? 1600}
+                  height={heroVariant?.height ?? 1000}
+                  {...(heroVariant ? { srcSet: heroVariant.srcSet, sizes: "(max-width: 820px) 100vw, 44vw" } : {})}
+                  decoding="async"
+                />
+                <p className="quote-lead">
+                  {service
+                    ? service.lead
+                    : "Tell us what you want done and P5 Home Co sends it to the right specialist team, whether that is a kitchen remodel, a custom home, an ADU, new cabinetry, or a repair. Quotes are free, carry no obligation, and come with a written scope so you can compare them properly."}
+                </p>
+                {service && (
+                  <ul className="quote-covers" aria-label="What this covers">
+                    {service.covers.map((c) => (
+                      <li key={c}>{c}</li>
+                    ))}
+                  </ul>
+                )}
+              </aside>
             </div>
           </section>
 

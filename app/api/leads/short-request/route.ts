@@ -1,17 +1,31 @@
 /**
  * Short primary lead form, including optional photos and plans.
  *
+ * Two shapes share this route (app/lib/leads/shortRequest.ts): a request
+ * (name, phone, a note; email optional unless the visitor asks to be
+ * emailed) and a callback request from "Have us call you" (name and phone,
+ * with an optional best time to call). Both create the same lead.
+ *
  * The JSON intake route stays small on purpose. Files land here, after the
  * same lead record the rest of the site already creates.
+ *
+ * Two-step form (owner, 1 November): the browser sends Step 1 without files,
+ * gets back the request id and a short-lived token (requestToken.ts), then
+ * sends each file to ./files and any Step 2 details to ./details. Files a
+ * no-JavaScript form posts here are still accepted, one verdict per file: a
+ * bad file is named in the answer and never costs the lead.
  */
 
 import { NextResponse, after } from "next/server";
 
-import { isDatabaseConfigured, transaction } from "../../../lib/db.ts";
+import { isDatabaseConfigured } from "../../../lib/db.ts";
 import { ingestLead } from "../../../lib/leads/intake.ts";
 import { loadSettings } from "../../../lib/leads/settings.ts";
-import { normalizeEmail, normalizePhone } from "../../../lib/leads/normalize.ts";
-import { readShortRequestFiles, ShortRequestFileError } from "../../../lib/leads/shortRequestFiles.ts";
+import { readShortRequest, shortRequestSummary } from "../../../lib/leads/shortRequest.ts";
+import { readEachUpload } from "../../../lib/leads/shortRequestFiles.ts";
+import { storeLeadRequestFiles } from "../../../lib/leads/leadRequestFiles.ts";
+import { issueRequestToken, REQUEST_TOKEN_TTL_SECONDS } from "../../../lib/leads/requestToken.ts";
+import { CONTACT_PREFERENCE_LABELS } from "../../../lib/leads/intakeContract.ts";
 import { collectAttribution, sourceFromAttribution } from "../../../lib/leads/attribution.ts";
 import { notifyLeadCreated } from "../../../lib/notifications/lead-created.ts";
 import { allowIntakeRequest } from "../intake/abuse.ts";
@@ -23,7 +37,7 @@ export const runtime = "nodejs";
 
 const MAX_BODY_BYTES = 22 * 1024 * 1024;
 const FILE_FAIL_MESSAGE =
-  "Thanks. Your request is with the team. The files did not attach. Call (208) 477-1169 and we will take them another way.";
+  "Thanks. Your request is with the team. Some files did not attach. Call or text (208) 477-1169 and we will take them another way.";
 const SAVED_MESSAGE = "Thanks. Your request is with the team and someone will follow up.";
 
 function str(value: unknown): string | null {
@@ -70,27 +84,13 @@ export async function POST(request: Request): Promise<NextResponse> {
     return NextResponse.json({ ok: false, error: "We could not safely accept that request just now." }, { status: 503 });
   }
 
-  const wholeName = str(form.get("name"));
-  const phone = str(form.get("phone"));
-  const email = str(form.get("email"));
-  const note = str(form.get("note"));
-  const project = str(form.get("project"));
   const formName = str(form.get("form")) ?? "Short request";
-  if (!wholeName) {
-    return NextResponse.json({ ok: false, error: "Enter a name." }, { status: 422 });
+  const checked = readShortRequest((key) => form.get(key));
+  if (!checked.ok) {
+    return NextResponse.json({ ok: false, error: checked.error, field: checked.field }, { status: 422 });
   }
-  if (!phone || !normalizePhone(phone)) {
-    return NextResponse.json({ ok: false, error: "Enter a phone number so we can respond." }, { status: 422 });
-  }
-  if (!email) {
-    return NextResponse.json({ ok: false, error: "Enter an email address." }, { status: 422 });
-  }
-  if (!normalizeEmail(email)) {
-    return NextResponse.json({ ok: false, error: "That email address does not look right." }, { status: 422 });
-  }
-  if (!note) {
-    return NextResponse.json({ ok: false, error: "Add a short note about the project." }, { status: 422 });
-  }
+  const submitted = checked.value;
+  const { name: wholeName, phone, email, project } = submitted;
 
   const parts = wholeName.split(/\s+/);
   const firstName = parts[0] ?? null;
@@ -106,22 +106,19 @@ export async function POST(request: Request): Promise<NextResponse> {
   const service = QUOTE_SERVICES.find((entry) => entry.project === project);
   const brand = brandForProject(project);
 
-  let files;
+  // Only a form without JavaScript sends files with the lead. Each file gets
+  // its own verdict; none of them can stop the lead being saved.
+  let uploads: Awaited<ReturnType<typeof readEachUpload>> = [];
   try {
-    files = await readShortRequestFiles([...form.getAll("files")].filter(isUpload));
+    uploads = await readEachUpload([...form.getAll("files")].filter(isUpload));
   } catch (error) {
-    if (error instanceof ShortRequestFileError) {
-      return NextResponse.json({ ok: false, error: error.message }, { status: 422 });
-    }
     console.error("[short-request] could not read files:", (error as Error).message);
-    return NextResponse.json({ ok: false, error: "We could not read those files. Try again, or call (208) 477-1169." }, { status: 400 });
   }
+  const files = uploads.flatMap((upload) => (upload.file ? [upload.file] : []));
+  // The browser says how many files it is about to send, for the team email.
+  const filesExpected = Math.min(Math.max(Number(str(form.get("files_expected")) ?? 0) || 0, 0), 10);
 
-  const summary = [
-    project ? `Project: ${project}.` : "",
-    note,
-    files.length ? `Files: ${files.map((file) => file.fileName).join(", ")}.` : "",
-  ].filter(Boolean).join(" ");
+  const summary = shortRequestSummary(submitted, files.map((file) => file.fileName));
 
   try {
     const settings = await loadSettings();
@@ -146,6 +143,9 @@ export async function POST(request: Request): Promise<NextResponse> {
           return Object.keys(values).length ? values : null;
         })(),
         receivedAt: new Date(),
+        requestKind: submitted.kind === "callback" ? "callback" : "quote",
+        contactPreference: submitted.contactPreference,
+        bestTime: submitted.bestTime,
       },
       settings,
     );
@@ -156,30 +156,32 @@ export async function POST(request: Request): Promise<NextResponse> {
     }
 
     const created = result.status === "created";
+    const filesFailed = uploads.filter((upload) => upload.error).map((upload) => ({ name: upload.name, error: upload.error }));
     let filesAttached = false;
     if (files.length && result.dealId > 0) {
       try {
-        await transaction(async (client) => {
-          for (const file of files) {
-            await client.query(
-              `INSERT INTO lead_request_file (deal_id, file_name, mime_type, size_bytes, sha256, data)
-               VALUES ($1, $2, $3, $4, $5, $6)`,
-              [result.dealId, file.fileName, file.mimeType, file.sizeBytes, file.sha256, file.data],
-            );
-          }
-          await client.query(
-            `INSERT INTO activity (deal_id, kind, body, is_human_attempt, is_two_way)
-             VALUES ($1, 'note', $2, FALSE, FALSE)`,
-            [result.dealId, `Short request included ${files.length} file(s): ${files.map((file) => file.fileName).join(", ")}.`],
-          );
-        });
+        for (const outcome of await storeLeadRequestFiles(result.dealId, files)) {
+          if (outcome.status === "rejected") filesFailed.push({ name: outcome.name, error: outcome.error });
+        }
         filesAttached = true;
       } catch (error) {
         console.error("[short-request] lead saved but files did not attach:", (error as Error).message);
+        filesFailed.push(...files.map((file) => ({ name: file.fileName, error: "That file did not attach." })));
       }
     }
 
-    const filesMissing = files.length > 0 && !filesAttached;
+    // Step 2 and the file uploads that follow prove they belong to this
+    // request with this token. A lead without one is still a saved lead.
+    let requestKey: { id: number; token: string; expiresIn: number } | null = null;
+    if (result.dealId > 0) {
+      try {
+        requestKey = { id: result.dealId, token: issueRequestToken(result.dealId), expiresIn: REQUEST_TOKEN_TTL_SECONDS };
+      } catch (error) {
+        console.error("[short-request] could not issue a request token:", (error as Error).message);
+      }
+    }
+
+    const filesMissing = filesFailed.length > 0 || (files.length > 0 && !filesAttached);
     // Mail runs after the response is finished, so a send failure cannot
     // change 201. Duplicate and rejected leads are not notified.
     // Synthetic estimator acceptances are skipped inside notifyLeadCreated.
@@ -197,6 +199,12 @@ export async function POST(request: Request): Promise<NextResponse> {
         summary,
         source: resolvedSource,
         originalForm: formName,
+        extraLines: [
+          submitted.kind === "callback" ? "Request: Callback request" : "Request: Quote request",
+          `Preferred contact: ${CONTACT_PREFERENCE_LABELS[submitted.contactPreference]}`,
+          submitted.bestTime ? `Best time to call: ${submitted.bestTime}` : "",
+          filesExpected > 0 ? `Files: ${filesExpected} on the way. A short "Files added" email follows when they arrive.` : "",
+        ].filter(Boolean),
       };
       after(async () => {
         await notifyLeadCreated(notice);
@@ -207,7 +215,10 @@ export async function POST(request: Request): Promise<NextResponse> {
         ok: true,
         duplicate: result.status === "duplicate",
         accepted: created,
+        callback: submitted.kind === "callback",
         filesAttached,
+        filesFailed,
+        request: requestKey,
         message: filesMissing ? FILE_FAIL_MESSAGE : SAVED_MESSAGE,
       },
       { status: created ? 201 : 200 },

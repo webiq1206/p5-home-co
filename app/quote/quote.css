@@ -1097,3 +1097,45 @@
   font-size: 15px;
   line-height: 1.6;
 }
+
+/* --- Form first (owner, 1 November) -------------------------------------------
+   The page heading and the form open the page at every width: the heading and
+   the first field sit on the first screen, directly under the sticky header.
+   The photograph and the explanation sit beside the form on wide screens and
+   below it on phones. Jumps to the form are instant so a scroll cannot cancel
+   them halfway. */
+html:has(.quote-request-first) { scroll-behavior: auto; }
+.quote-request-first { padding: 20px 0 var(--section-y-compact); border-bottom: 1px solid var(--line); }
+.quote-request-first .quote-request-inner {
+  grid-template-columns: minmax(0, 540px) minmax(0, 1fr);
+  gap: 32px 56px;
+}
+.quote-request-main > h1 {
+  margin: 0 0 14px;
+  font-size: clamp(26px, 4.4vw, 40px);
+  line-height: 1.12;
+}
+.quote-request-first .short-request {
+  padding: 18px 18px 16px;
+  border-color: rgba(32, 35, 31, 0.16);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.1);
+}
+.quote-request-aside { display: grid; gap: 18px; align-content: start; padding-top: 6px; }
+.quote-request-img { display: block; width: 100%; height: auto; aspect-ratio: 16 / 10; object-fit: cover; }
+.quote-request-aside .quote-lead { max-width: 60ch; margin: 0; color: var(--ink-2); }
+.quote-request-aside .quote-covers { margin: 0; border-top-color: var(--line); }
+.quote-request-aside .quote-covers li { border-bottom-color: var(--line); color: var(--ink); }
+@media (min-width: 1020px) {
+  .quote-request-aside .quote-covers { grid-template-columns: 1fr 1fr; column-gap: 26px; }
+  .quote-request-aside .quote-covers li:last-child:nth-child(odd) { grid-column: 1 / -1; }
+}
+@media (max-width: 1019px) {
+  .quote-request-first .quote-request-inner { grid-template-columns: minmax(0, 1fr); }
+  .quote-request-main, .quote-request-aside { width: 100%; max-width: 640px; }
+}
+@media (max-width: 820px) {
+  .quote-request-first { padding-top: 16px; }
+}
+@media (max-width: 639px) {
+  .quote-request-first .short-request { padding: 14px 14px 12px; }
+}

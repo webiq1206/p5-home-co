@@ -472,146 +472,6 @@ h1, h2, h3 { text-wrap:balance; }
   flex: 0 0 auto;
 }
 
-.quote-wizard-progress {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin: 0 0 12px;
-  color: var(--color-text-muted);
-  font-size: 12px;
-  font-weight: 700;
-}
-.quote-wizard-progress i {
-  display: block;
-  flex: 1;
-  height: 2px;
-  background: var(--color-border);
-}
-.quote-wizard-progress b {
-  display: block;
-  height: 2px;
-  background: var(--color-primary);
-  transition: width var(--motion-base) ease;
-}
-.quote-wizard-step {
-  margin: 0;
-  padding: 0;
-  border: 0;
-  min-width: 0;
-}
-.quote-wizard-step legend {
-  margin: 0 0 12px;
-  padding: 0;
-  color: var(--color-text);
-  font-family: var(--font-display);
-  font-size: 20px;
-  font-weight: 500;
-  line-height: 1.2;
-}
-/* C10: compact text steps stay within token scale (not below B6 controls). */
-.quote-wizard-step-compact legend {
-  margin-bottom: 8px;
-}
-.quote-wizard-step-compact label {
-  margin-bottom: 6px;
-}
-.quote-wizard[data-wizard-step="contact"] .short-request-note,
-.quote-wizard[data-wizard-step="phone"] .short-request-note,
-.quote-wizard[data-wizard-step="email"] .short-request-note,
-.quote-wizard[data-wizard-step="note"] .short-request-note,
-.quote-wizard[data-wizard-step="match"] .short-request-note,
-.quote-wizard[data-wizard-step="project"] .short-request-note,
-.quote-wizard[data-wizard-step="project"] > h2,
-.quote-wizard[data-wizard-step="contact"] > h2,
-.quote-wizard[data-wizard-step="phone"] > h2,
-.quote-wizard[data-wizard-step="email"] > h2,
-.quote-wizard[data-wizard-step="note"] > h2,
-.quote-wizard[data-wizard-step="match"] > h2 {
-  display: none;
-}
-.quote-wizard[data-wizard-step="note"] textarea {
-  min-height: var(--input-height);
-  resize: none;
-}
-.quote-wizard-result {
-  margin: 0 0 14px;
-  padding: 14px 16px;
-  border-left: 3px solid var(--color-primary);
-  background: var(--color-bg-alt);
-  color: var(--color-text-muted);
-  font-size: 15px;
-  line-height: 1.5;
-}
-.quote-wizard-result strong {
-  color: var(--color-text);
-  font-weight: 750;
-}
-.quote-wizard-summary {
-  margin: 0 0 14px;
-}
-.quote-wizard-summary > div {
-  display: grid;
-  grid-template-columns: 88px 1fr;
-  gap: 8px;
-  padding: 10px 0;
-  border-bottom: 1px solid var(--color-border);
-}
-.quote-wizard-summary dt {
-  color: var(--color-text-muted);
-  font-size: 12px;
-  font-weight: 750;
-}
-.quote-wizard-summary dd {
-  margin: 0;
-  font-size: 14px;
-  line-height: 1.45;
-  overflow-wrap: anywhere;
-}
-.quote-wizard-edit {
-  padding: 0;
-  border: 0;
-  background: none;
-  color: inherit;
-  text-align: left;
-  text-decoration: underline;
-  text-underline-offset: 3px;
-  cursor: pointer;
-}
-/* D2: Back and Next sit in flow at the bottom of the step card, so they can
-   never cover the progress line, the reassurance line or a choice. On phones
-   the dock pins to the viewport bottom only once the step heading has cleared
-   it (data-dock, set by ShortRequestForm), and its own slot in the card is the
-   clearance the pinned bar needs: nothing below the step heading is lost. */
-.quote-wizard-dock {
-  z-index: 2;
-  display: flex;
-  gap: 12px;
-  align-items: stretch;
-  margin-top: 12px;
-  position: static;
-  padding: 12px 0;
-  background: var(--color-surface);
-}
-@media (max-width: 639px) {
-  .quote-wizard-dock { padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px)); }
-  .quote-wizard[data-dock="pinned"] .quote-wizard-dock {
-    position: sticky;
-    bottom: 0;
-    box-shadow: 0 -1px 0 var(--color-border);
-  }
-}
-.quote-wizard-back,
-.quote-wizard-back-spacer {
-  flex: 0 0 96px;
-  min-height: var(--button-height-lg);
-}
-.quote-wizard-back {
-  border: 1px solid var(--color-border);
-  background: transparent;
-}
-.quote-wizard-dock .short-request-submit {
-  flex: 1;
-}
 .company-finder {
   border-bottom: 1px solid var(--line);
   background: var(--paper);
@@ -690,15 +550,9 @@ h1, h2, h3 { text-wrap:balance; }
   text-underline-offset: 4px;
   cursor: pointer;
 }
-/* B6: wizard choice cards are 56px. Two columns on phones keep six options in
-   three rows so step 1 fits at 360x640; an odd count stacks in one column so
-   no option is left alone on a row (C8). The company matcher keeps its own
-   chip size. */
-.quote-wizard .choice-card { min-height: 56px; }
+/* The company matcher keeps its own chip size; on phones its choices stack. */
 @media (max-width: 639px) {
   .choice-cards { grid-template-columns: 1fr; }
-  .quote-wizard .choice-cards { grid-template-columns: 1fr 1fr; }
-  .quote-wizard .choice-cards:has(> :last-child:nth-child(odd)) { grid-template-columns: 1fr; }
   .company-finder-actions { flex-direction: column; align-items: flex-start; }
   .company-finder-actions .button { width: 100%; }
 }
@@ -739,6 +593,129 @@ h1, h2, h3 { text-wrap:balance; }
 .short-request-status { margin: 8px 0 0; font-size: 14px; line-height: 1.4; }
 .short-request-trap, .short-request-sr { position: absolute; left: -10000px; width: 1px; height: 1px; overflow: hidden; }
 .short-request-compact label { margin-bottom: 6px; }
+
+/* The one-screen quote form (owner, 1 November): visible labels, 48px
+   controls, plain-word errors under each field, call and text right above
+   the button. Lands under the sticky header when linked as #request-form. */
+.quote-form { scroll-margin-top: calc(var(--header-height) + 12px); }
+.quote-form > h2 { margin-bottom: 10px; outline: none; }
+.quote-form > h2:focus-visible { outline: 2px solid var(--bronze-ink); outline-offset: 4px; }
+.quote-form-field { margin: 0 0 12px; }
+.quote-form .quote-form-field > label { margin: 0; font-size: 15px; font-weight: 700; }
+.quote-form-optional { color: var(--ink-2); font-weight: 500; }
+.quote-form textarea { min-height: 96px; padding: 12px 16px; line-height: 1.45; }
+.quote-form input[aria-invalid="true"],
+.quote-form textarea[aria-invalid="true"] { border-color: var(--color-error); box-shadow: inset 3px 0 0 var(--color-error); }
+.quote-field-error { margin: 0; color: var(--color-error); font-size: 14px; font-weight: 650; line-height: 1.4; }
+.quote-field-error:not(:empty) { margin-top: 6px; }
+.quote-form-hint { margin: 6px 0 0; color: var(--ink-2); font-size: 14px; line-height: 1.4; }
+.quote-form .short-request-file input { min-height: 48px; padding: 10px 0; font-size: 15px; }
+/* "Send a request" | "Have us call you": two equal native toggle buttons, the active one filled. */
+.quote-form-modes { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 0 0 14px; }
+.quote-form-mode {
+  min-height: 48px; padding: 0 8px; border: 1px solid var(--charcoal); background: transparent; color: var(--charcoal);
+  font: 650 15px/1.2 var(--font-sans); cursor: pointer;
+}
+.quote-form-mode[aria-pressed="true"] { background: var(--charcoal); color: var(--paper); box-shadow: inset 3px 0 0 var(--bronze); }
+.quote-form-mode:focus-visible { outline: 2px solid var(--bronze-ink); outline-offset: 2px; }
+.quote-form-reach { min-width: 0; margin: 0 0 12px; padding: 0; border: 0; }
+.quote-form-reach legend { margin: 0 0 6px; padding: 0; color: var(--ink); font-size: 15px; font-weight: 700; }
+.quote-form-pills { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.quote-form .quote-form-pill { position: relative; margin: 0; font-size: 15px; font-weight: 650; }
+.quote-form-pill input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
+.quote-form-pill span {
+  display: flex; align-items: center; justify-content: center; min-height: 48px; padding: 0 8px;
+  border: 1px solid rgba(32, 35, 31, 0.22); background: #fff; text-align: center;
+}
+.quote-form-pill input:checked + span { border-color: var(--charcoal); background: var(--charcoal); color: var(--paper); box-shadow: inset 3px 0 0 var(--bronze); }
+.quote-form-pill input:focus-visible + span { outline: 2px solid var(--bronze-ink); outline-offset: 2px; }
+.quote-form-more { margin: 0 0 12px; border-top: 1px solid rgba(32, 35, 31, 0.14); }
+.quote-form-more summary {
+  display: flex; align-items: center; min-height: 48px; color: var(--ink); font-size: 15px; font-weight: 700;
+  cursor: pointer; text-decoration: underline; text-underline-offset: 3px;
+}
+.quote-form-more[open] summary { margin-bottom: 4px; }
+/* Call, text and chat: outlined, call full width, text and chat half width each. */
+.quote-form-actions { display: grid; gap: 14px; margin-top: 4px; }
+.quote-form-talk { display: grid; gap: 8px; align-content: start; }
+.quote-form-talk > p { margin: 0; color: var(--ink); font-size: 15px; font-weight: 700; }
+.quote-form-talk-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.quote-form-talk-button {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 48px; padding: 0 12px;
+  border: 1px solid var(--charcoal); background: transparent; color: var(--charcoal);
+  font: 650 15px/1.2 var(--font-sans); text-decoration: none; cursor: pointer;
+}
+.quote-form-talk-button:hover, .quote-form-talk-button:focus-visible { background: var(--charcoal); color: var(--paper); }
+.quote-form-talk-button:focus-visible { outline: 2px solid var(--bronze-ink); outline-offset: 2px; }
+.quote-form-talk-call { width: 100%; }
+@media (min-width: 768px) {
+  .quote-form-actions { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: end; gap: 16px; }
+}
+.quote-form .short-request-submit { min-height: 56px; height: auto; font-size: 17px; }
+.quote-form-next { margin: 8px 0 0; color: var(--ink-2); font-size: 14px; line-height: 1.45; }
+.quote-form-done { display: grid; gap: 10px; }
+.quote-form-done p { margin: 0; font-size: 16px; line-height: 1.55; }
+.quote-form[data-form-mode="done"] > h2 { font-size: 26px; line-height: 1.2; }
+.quote-form-done a:not(.save-contact-button) { color: var(--ink); font-weight: 750; text-underline-offset: 3px; }
+@media (max-width: 359px) {
+  .quote-form-pills { grid-template-columns: 1fr; }
+}
+.quote-form textarea::placeholder { color: #6b716b; opacity: 1; }
+/* The attachment tile (family pattern): a dashed tile that opens the native
+   picker, chips for chosen files, a plain note for anything left out. */
+.attach { position: relative; }
+.attach-input { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; }
+.quote-form .attach-tile {
+  display: flex; align-items: center; gap: 12px; min-height: 56px; margin: 0; padding: 10px 14px;
+  border: 1.5px dashed rgba(32, 35, 31, 0.4); background: #fff; color: var(--ink); cursor: pointer;
+}
+.attach-tile svg { flex: 0 0 auto; color: var(--charcoal); }
+.attach-tile:hover, .attach[data-dragging] .attach-tile { border-color: var(--charcoal); background: var(--bone); }
+.attach-input:focus-visible + .attach-tile { outline: 2px solid var(--bronze-ink); outline-offset: 2px; }
+.attach-input:disabled + .attach-tile { cursor: default; opacity: .6; }
+.attach-tile-text { display: grid; gap: 2px; min-width: 0; }
+.attach-tile-label { font-size: 15px; font-weight: 700; line-height: 1.3; }
+.attach-tile small { color: var(--ink-2); font-size: 13px; font-weight: 500; line-height: 1.35; }
+.attach-message { margin: 0; color: var(--color-error); font-size: 14px; font-weight: 650; line-height: 1.4; }
+.attach-message:not(:empty) { margin-top: 6px; }
+.attach-chips { display: grid; gap: 6px; margin: 8px 0 0; padding: 0; list-style: none; }
+.attach-chip {
+  display: grid; grid-template-columns: 44px minmax(0, 1fr) 44px; align-items: center; gap: 10px;
+  padding: 4px 0 4px 4px; border: 1px solid rgba(32, 35, 31, 0.18); background: #fff;
+}
+.attach-chip-thumb { display: block; width: 44px; height: 44px; object-fit: cover; }
+.attach-chip-mark { display: grid; place-items: center; align-content: center; width: 44px; height: 44px; background: var(--bone); color: var(--charcoal); }
+.attach-chip-mark b { font-size: 9px; font-weight: 800; letter-spacing: .06em; line-height: 1; }
+.attach-chip-text { display: grid; min-width: 0; }
+.attach-chip-name { overflow: hidden; color: var(--ink); font-size: 14px; font-weight: 650; line-height: 1.3; text-overflow: ellipsis; white-space: nowrap; }
+.attach-chip small { color: var(--ink-2); font-size: 13px; line-height: 1.3; }
+.attach-chip-remove {
+  display: grid; place-items: center; width: 44px; height: 44px; padding: 0; border: 0; background: transparent;
+  color: var(--charcoal); cursor: pointer;
+}
+.attach-chip-remove:hover { background: var(--bone); }
+.attach-chip-remove:focus-visible { outline: 2px solid var(--bronze-ink); outline-offset: -2px; }
+/* Step 2 on the success screen: "Help us prepare (optional)". */
+.quote-form-uploads { display: grid; gap: 4px; }
+.quote-form-link-button {
+  min-height: 48px; padding: 0 4px; border: 0; background: transparent; color: var(--ink);
+  font: 750 16px/1.2 var(--font-sans); text-decoration: underline; text-underline-offset: 3px; cursor: pointer;
+}
+.quote-form-link-button:focus-visible { outline: 2px solid var(--bronze-ink); outline-offset: 2px; }
+.quote-details { display: grid; gap: 0; margin: 6px 0 4px; padding: 16px 0 4px; border-top: 1px solid rgba(32, 35, 31, 0.16); }
+.quote-details h3 { margin: 0 0 4px; color: var(--ink); font-family: var(--font-display); font-size: 21px; font-weight: 500; line-height: 1.2; }
+.quote-details .quote-details-why { margin: 0 0 12px; color: var(--ink-2); font-size: 15px; }
+.quote-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.quote-form .quote-chip span { min-height: 48px; padding: 0 14px; font-size: 15px; }
+.quote-details-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 18px; margin-top: 4px; }
+.quote-details-save { min-height: 52px; padding: 0 24px; }
+@media (max-width: 639px) {
+  .quote-details-save { flex: 1 1 100%; }
+  /* Project chips three across and timing two across, so Step 2 stays short on a phone. */
+  .quote-chips { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+  .quote-chips-timing { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .quote-form .quote-chip span { padding: 4px 6px; font-size: 14px; line-height: 1.2; }
+}
 /* Homepage proof under the hero: stat row, then the trust strip on the same surface. */
 .stat-row { border-bottom: 1px solid var(--line); background: var(--bone); }
 .stat-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
@@ -935,8 +912,3 @@ main#main-content:focus { outline: none; }
 .final-cta .button-dark { border-color: rgba(251,250,246,.55); }
 .final-cta .button-dark:hover, .final-cta .button-dark:focus-visible { color: var(--paper); background: transparent; border-color: var(--paper); }
 
-/* Phone wizard dock spans the card edge to edge so pinned content never shows
-   at its sides. Same geometry pinned or not, so nothing shifts. */
-@media (max-width: 639px) {
-  .short-request:not(.short-request-plain) .quote-wizard-dock { margin-inline: -14px; padding-inline: 14px; }
-}

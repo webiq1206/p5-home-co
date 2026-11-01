@@ -161,6 +161,19 @@ const PROPERTIES: PropDef[] = [
   { name: "p5_referrer", label: "Referrer Origin", type: "string", fieldType: "text", description: "External referrer origin only; no path or query." },
   { name: "p5_service", label: "Normalized Service", type: "string", fieldType: "text", description: "Stable quote landing service slug." },
 
+  // --- Request details from the two-step forms (docs/lead-intake-contract.md) ---
+  // Optional: until these exist on a portal the same facts go in the deal description.
+  { name: "p5_request_kind", label: "Request Kind", type: "string", fieldType: "text",
+    description: "Quote request or Callback request." },
+  { name: "p5_contact_preference", label: "Preferred Contact", type: "string", fieldType: "text",
+    description: "How the visitor asked to be reached: Call, Text or Email." },
+  { name: "p5_best_time", label: "Best Time to Call", type: "string", fieldType: "text",
+    description: "As the visitor wrote it." },
+  { name: "p5_timeline", label: "Project Timing", type: "string", fieldType: "text",
+    description: "Soon, 1 to 3 months, 3 to 6 months or Just planning." },
+  { name: "p5_file_links", label: "File Links", type: "string", fieldType: "textarea",
+    description: "Photos, plans and files the visitor sent, one link per line. P5 links need an admin sign in." },
+
   // --- Integration health ---------------------------------------------------
   { name: "p5_integration_sync_status", label: "Integration Sync Status", type: "enumeration", fieldType: "select",
     options: opts("Pending", "Synced", "Failed", "Not applicable"),
