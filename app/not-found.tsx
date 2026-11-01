@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import PublicIdentity from "@/components/PublicIdentity";
+import SiteChrome from "@/components/SiteChrome";
 
 export const metadata: Metadata = {
   title: "Page not found | P5 Home Co",
@@ -10,21 +10,13 @@ export const metadata: Metadata = {
 /**
  * Missing URLs used to fall through to the framework's bare "404" screen with
  * no header, brand or way back (design audit, 2026-10-17). The root layout
- * renders bare children, so this page carries the same minimal wordmark
- * header and footer the sitemap page uses.
+ * renders bare children, so this page sits inside the shared family header
+ * and footer (components/SiteChrome.tsx) like every other public page.
  */
 export default function NotFound() {
   return (
-    <>
-      <header className="site-header">
-        <div className="content-shell site-header-inner">
-          <Link className="wordmark" href="/" aria-label="P5 Home Co, back to the homepage">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img className="p5-header-logo" src="/brands/p5-home-co-lockup-dark.svg" alt="P5 Home Co, The Home Company" />
-          </Link>
-        </div>
-      </header>
-      <main className="content-shell sitemap-main">
+    <SiteChrome main>
+      <div className="content-shell sitemap-main">
         <p className="eyebrow">Page not found</p>
         <h1 className="sitemap-title">That page is not here.</h1>
         <p className="sitemap-lede">
@@ -41,16 +33,7 @@ export default function NotFound() {
             <li><a href="tel:+12084771169">Call (208) 477-1169</a></li>
           </ul>
         </section>
-      </main>
-      <footer className="site-footer">
-        <div className="content-shell">
-          <PublicIdentity />
-          <div className="footer-bottom">
-            <span>© {new Date().getFullYear()} P5 Home Co. All rights reserved.</span>
-            <span><Link href="/">Home</Link></span>
-          </div>
-        </div>
-      </footer>
-    </>
+      </div>
+    </SiteChrome>
   );
 }

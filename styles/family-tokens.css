@@ -1,0 +1,206 @@
+/*
+  Family design tokens (Website Design Standards v2.3, Parts B2 to B7).
+  SHARED FILE: synced byte-identical to every family site and hash-checked by
+  scripts/verify-family-chrome.mjs. Brand values never live here: each site sets
+  --color-accent and --color-accent-ink from its lib/familyBrand.ts.
+
+  Tiers: phone below 640px, tablet 640 to 1023px, desktop 1024px and up.
+  Media queries cannot read custom properties, so the breakpoint tokens are
+  reference values and the queries below repeat the numbers.
+*/
+:root {
+  --bp-sm: 640px;
+  --bp-md: 1024px;
+  --bp-lg: 1280px;
+
+  /* B2 spacing */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+  --space-20: 80px;
+  --space-24: 96px;
+  --space-32: 128px;
+  --gutter: 20px;
+  --container-max: 1280px;
+  --measure: 65ch;
+  --section-y: 64px;
+  --section-y-compact: 32px;
+  --section-y-feature: 80px;
+  --card-pad: 24px;
+  --grid-gap: 20px;
+  --stack-heading: 16px;
+  --stack-cta: 24px;
+  --button-gap: 12px;
+  --field-gap: 20px;
+  --label-gap: 8px;
+  --icon-gap: 8px;
+  --list-gap: 8px;
+  --inline-gap: 4px;
+
+  /* B6 controls and chrome */
+  --header-height: 64px;
+  --button-height-lg: 48px;
+  --button-height-md: 44px;
+  --button-height-sm: 36px;
+  --input-height: 48px;
+  --choice-card-min: 56px;
+  --touch-min: 44px;
+  --bar-pad: 12px;
+  --bar-height: calc(var(--button-height-lg) + 2 * var(--bar-pad));
+
+  /* B5 shape: square controls and cards, 4px inputs and choice cards */
+  --radius-control: 0px;
+  --radius-card: 0px;
+  --radius-input: 4px;
+  --radius-choice: 4px;
+  --radius-full: 9999px;
+
+  /* B7 motion */
+  --motion-fast: 200ms;
+  --motion-base: 300ms;
+  --ease-out: cubic-bezier(0.2, 0.7, 0.2, 1);
+  --ease-in-out: cubic-bezier(0.45, 0, 0.25, 1);
+
+  /* B4 shared colour roles. Brand accents arrive from the brand config. */
+  --color-paper: #fbfaf6;
+  --color-bone: #f1ede4;
+  --color-ink: #20231f;
+  --color-ink-2: #343934;
+  --color-charcoal: #2c302f;
+  --color-moss: #233029;
+  --color-forest: #17211c;
+  --color-bg: var(--color-paper);
+  --color-bg-alt: var(--color-bone);
+  --color-surface: var(--color-paper);
+  --color-border: rgba(32, 35, 31, 0.15);
+  --color-text: var(--color-ink);
+  --color-text-muted: var(--color-ink-2);
+  --color-primary: var(--color-charcoal);
+  --color-accent: #8c9188;
+  --color-accent-ink: #4f544c;
+  --color-on-dark: var(--color-paper);
+  --color-on-dark-muted: rgba(251, 250, 246, 0.8);
+  --color-border-on-dark: rgba(251, 250, 246, 0.18);
+  --color-scrim-rgb: 13, 24, 18;
+  --color-success: #3f6b4a;
+  --color-warning: #8a6a1f;
+  --color-error: #a33a2c;
+
+  /* B3 type: two families, one scale */
+  --font-display: var(--font-cormorant, 'Cormorant Garamond'), Georgia, 'Times New Roman', serif;
+  --font-sans: var(--font-manrope, 'Manrope'), 'Helvetica Neue', Arial, sans-serif;
+  --fs-display: 36px;
+  --fs-h1: 32px;
+  --fs-h2: 28px;
+  --fs-h3: 22px;
+  --fs-h4: 18px;
+  --fs-body: 17px;
+  --fs-small: 14px;
+  --fs-label: 13px;
+  --fs-nav: 15px;
+  --fs-button: 16px;
+  --lh-display: 1.05;
+  --lh-h1: 1.1;
+  --lh-h2: 1.15;
+  --lh-h3: 1.2;
+  --lh-h4: 1.3;
+  --lh-body: 1.6;
+  --lh-small: 1.5;
+  --lh-label: 1.3;
+  --tracking-display: -0.02em;
+  --tracking-heading: -0.01em;
+  --tracking-label: 0.06em;
+  --weight-display: 400;
+}
+
+@media (max-width: 359px) {
+  :root {
+    --gutter: 16px;
+  }
+}
+
+@media (min-width: 640px) {
+  :root {
+    --gutter: 32px;
+    --section-y: 80px;
+    --section-y-compact: 48px;
+    --section-y-feature: 96px;
+    --grid-gap: 24px;
+    --header-height: 76px;
+    --fs-display: 52px;
+    --fs-h1: 44px;
+    --fs-h2: 36px;
+    --fs-h3: 26px;
+    --fs-h4: 20px;
+    --fs-body: 18px;
+    --fs-small: 15px;
+  }
+}
+
+@media (min-width: 1024px) {
+  :root {
+    --gutter: 48px;
+    --section-y: 96px;
+    --section-y-feature: 128px;
+    --card-pad: 32px;
+    --grid-gap: 32px;
+    --stack-heading: 20px;
+    --stack-cta: 32px;
+    --fs-display: 64px;
+    --fs-h1: 52px;
+    --fs-h2: 40px;
+    --fs-h3: 28px;
+  }
+}
+
+/* Type scale utilities. Use them instead of ad hoc sizes. */
+.fam-type-display {
+  font-family: var(--font-display);
+  font-size: var(--fs-display);
+  font-weight: var(--weight-display);
+  line-height: var(--lh-display);
+  letter-spacing: var(--tracking-display);
+}
+.fam-type-h1 {
+  font-family: var(--font-display);
+  font-size: var(--fs-h1);
+  line-height: var(--lh-h1);
+  letter-spacing: var(--tracking-display);
+}
+.fam-type-h2 {
+  font-family: var(--font-display);
+  font-size: var(--fs-h2);
+  line-height: var(--lh-h2);
+  letter-spacing: var(--tracking-heading);
+}
+.fam-type-h3 {
+  font-family: var(--font-display);
+  font-size: var(--fs-h3);
+  line-height: var(--lh-h3);
+  letter-spacing: var(--tracking-heading);
+}
+.fam-type-body {
+  font-family: var(--font-sans);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+}
+.fam-type-small {
+  font-family: var(--font-sans);
+  font-size: var(--fs-small);
+  line-height: var(--lh-small);
+}
+.fam-type-label {
+  font-family: var(--font-sans);
+  font-size: var(--fs-label);
+  font-weight: 600;
+  line-height: var(--lh-label);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+}

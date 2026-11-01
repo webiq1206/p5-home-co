@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { siteUrl } from "../site.ts";
 import { childSites, legalPages, ownPages } from "../siteUrls.ts";
-import PublicIdentity from "@/components/PublicIdentity";
+import SiteChrome from "@/components/SiteChrome";
 
 const DESCRIPTION = "Every page on p5homeco.com, and a direct link to each of the five P5 Home Co companies.";
 
@@ -15,28 +15,13 @@ export const metadata: Metadata = withBrandPageMetadata(({
 }), "/sitemap");
 
 /**
- * The HTML sitemap: a live, followed crawl path. The root layout renders bare
- * children (the homepage draws its own header and footer), so this page carries
- * a minimal wordmark header and footer in the site's own classes.
+ * The HTML sitemap: a live, followed crawl path, inside the shared family
+ * header and footer (components/SiteChrome.tsx) like every other public page.
  */
 export default function SitemapPage() {
   return (
-    <>
-      <a className="skip-link" href="#main-content">
-        Skip to main content
-      </a>
-      <header className="site-header">
-        <div className="content-shell site-header-inner">
-          <Link className="wordmark" href="/" aria-label="P5 Home Co, back to the homepage">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img className="p5-header-logo" src="/brands/p5-home-co-lockup-dark.svg" alt="P5 Home Co, The Home Company" />
-            {/* Phones swap the lockup for the monogram, as in the shared header. */}
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img className="p5-header-icon" src="/brands/p5-home-co-icon-dark.svg" alt="P5 Home Co monogram" />
-          </Link>
-        </div>
-      </header>
-      <main id="main-content" tabIndex={-1} className="content-shell sitemap-main">
+    <SiteChrome main>
+      <div className="content-shell sitemap-main">
         <p className="eyebrow">Site map</p>
         <h1 className="sitemap-title">Everything on this site, in one place.</h1>
         <p className="sitemap-lede">{DESCRIPTION}</p>
@@ -71,16 +56,7 @@ export default function SitemapPage() {
             )}
           </ul>
         </section>
-      </main>
-      <footer className="site-footer">
-        <div className="content-shell">
-          <PublicIdentity />
-          <div className="footer-bottom">
-            <span>© {new Date().getFullYear()} P5 Home Co. All rights reserved.</span>
-            <span><Link href="/">Home</Link></span>
-          </div>
-        </div>
-      </footer>
-    </>
+      </div>
+    </SiteChrome>
   );
 }

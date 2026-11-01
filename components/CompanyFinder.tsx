@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import Arrow from "@/components/Arrow";
+import { FamilyButton } from "@/components/family/Button";
 import { track } from "@/app/analytics";
 import { ADU_CONSTRUCTION_URL, ADU_D3_LINE } from "@/app/publicIdentity";
 
@@ -108,15 +109,15 @@ export default function CompanyFinder() {
             <h3>{detail.name}</h3>
             <p>{detail.reason}</p>
             <div className="company-finder-actions">
-              <a
-                className="button button-dark"
+              <FamilyButton
+                size="lg"
                 href={detail.url}
                 target={detail.url.startsWith("http") ? "_blank" : undefined}
                 rel={detail.url.startsWith("http") ? "noopener" : undefined}
                 onClick={() => track("company_click", { company, location: "company_finder" })}
               >
                 {detail.cta} <Arrow diagonal={detail.url.startsWith("http")} />
-              </a>
+              </FamilyButton>
               <Link
                 className="text-link"
                 href={quotePath[company]}

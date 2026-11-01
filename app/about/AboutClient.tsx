@@ -4,8 +4,8 @@
 
 import Link from "next/link";
 import SiteChrome from "@/components/SiteChrome";
+import { FamilyButton } from "@/components/family/Button";
 import SaveContactButton from "@/components/SaveContactButton";
-import Arrow from "@/components/Arrow";
 import { ADU_CONSTRUCTION_URL } from "../publicIdentity";
 
 const COMPANIES = [
@@ -65,10 +65,11 @@ export default function AboutClient({
               who takes a lot of pride in the work that carries my name. Family is the biggest part of my life, and it
               is the reason P5 exists.
             </p>
-            <div className="about-hero-actions" data-suppress-mobile-bar="">
-              <Link className="button button-dark" href="/quote" data-cta="primary">
-                Request a quote <Arrow />
-              </Link>
+            <div className="about-hero-actions">
+              {/* data-hero-cta: the family bottom bar waits until this action has scrolled away. */}
+              <FamilyButton href="/quote" size="lg" data-cta="primary" data-hero-cta="primary">
+                Request a quote
+              </FamilyButton>
               <a className="text-link" href="tel:+12084771169">
                 Call (208) 477-1169
               </a>
@@ -175,9 +176,9 @@ export default function AboutClient({
               </p>
               <div className="about-closing-actions">
                 <SaveContactButton location="about" />
-                <Link className="button button-dark" href="/quote">
-                  Request a quote <Arrow />
-                </Link>
+                <FamilyButton href="/quote" size="lg">
+                  Request a quote
+                </FamilyButton>
               </div>
             </div>
             <figure className="about-beach">

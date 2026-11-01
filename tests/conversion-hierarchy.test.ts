@@ -8,15 +8,19 @@ const quote = readFileSync("app/quote/QuoteLanding.tsx", "utf8");
 const chat = readFileSync("components/SiteChat.tsx", "utf8");
 const form = readFileSync("components/ShortRequestForm.tsx", "utf8");
 const bar = readFileSync("components/LandingContactBar.tsx", "utf8");
-const mobile = readFileSync("components/MobileActionBar.tsx", "utf8");
+// The header, menu and bottom bar are the shared family chrome; P5's choices live in lib/familyBrand.ts.
+const mobile = readFileSync("components/family/MobileActionBar.tsx", "utf8");
+const brand = readFileSync("lib/familyBrand.ts", "utf8");
 const sessions = readFileSync("app/lib/leads/estimatorSessions.ts", "utf8");
 
 test("hub pages keep call and chat, with one request entry below the hero", () => {
-  const heroStart = home.indexOf('<section className="hero"');
-  const heroEnd = home.indexOf("</section>", heroStart);
+  // The homepage hero is the family HeroPhoto: photograph, H1, one support line, one action.
+  const heroStart = home.indexOf("<HeroPhoto");
+  const heroEnd = home.indexOf("/>", heroStart);
   const hero = home.slice(heroStart, heroEnd);
-  assert.match(hero, /className="hero-image"/);
-  assert.match(hero, /id="hero-heading"/);
+  assert.ok(heroStart > -1);
+  assert.match(hero, /image=\{\{ \.\.\.HERO_IMAGE/);
+  assert.match(hero, /title=/);
   assert.doesNotMatch(hero, /ShortRequestForm/);
   // Phase 3 plan (owner approved 31 October): credibility before the ask. The
   // homepage carries a short "Start your request" entry that keeps the
@@ -31,8 +35,11 @@ test("hub pages keep call and chat, with one request entry below the hero", () =
     const at = home.indexOf(before);
     assert.ok(at > heroEnd && at < entry, `${before} sits between the hero and the request entry`);
   }
-  assert.match(chrome, /className="header-chat"/);
-  assert.match(chrome, /<OpenChatButton/);
+  // Chat stays in the header and the menu: the family header's compact actions and the menu tiles.
+  assert.match(chrome, /<SiteHeader \/>/);
+  assert.match(brand, /phoneActions: \['call', 'chat', 'text'\]/);
+  assert.match(brand, /chat: \{ enabled: true, label: 'Chat', openEvent: 'p5:chat-open' \}/);
+  assert.match(chat, /addEventListener\("p5:chat-open"/);
   assert.match(home, /SiteChrome/);
   const quoteHeroStart = quote.indexOf('className="quote-hero"');
   const quoteRequestStart = quote.indexOf('className="quote-request"');
@@ -44,21 +51,22 @@ test("hub pages keep call and chat, with one request entry below the hero", () =
   assert.match(bar, /PUBLIC_PHONE_TEL/);
   assert.match(bar, /PUBLIC_PHONE_SMS/);
   assert.match(bar, /<OpenChatButton/);
-  assert.match(mobile, /href="\/quote"/);
-  assert.doesNotMatch(mobile, /openSiteChat/);
-  assert.doesNotMatch(mobile, /p5-mobile-chat/);
-  assert.match(chrome, /<OpenChatButton/);
+  // The bottom bar: Call plus the one primary, "Request a quote" to /quote, never chat.
+  assert.match(brand, /cta: \{ label: 'Request a quote', href: '\/quote' \}/);
+  assert.match(mobile, /href=\{brand\.cta\.href\}/);
+  assert.doesNotMatch(mobile, /openSiteChat|chat/i);
   assert.match(form, /state\.step === "email"/);
   assert.match(form, /state\.step === "phone"/);
   assert.match(form, /state\.step === "note"/);
   assert.match(form, /Your name/);
-  assert.doesNotMatch(mobile, />\s*Chat\s*</);
   const css = readFileSync("app/globals.css", "utf8");
-  assert.match(css, /\.hero \{[\s\S]*?100svh/);
+  // The hero is sized against the small viewport (family-chrome.css), never 100vh under the header.
+  assert.match(readFileSync("styles/family-chrome.css", "utf8"), /--fam-hero-available: calc\(100svh - var\(--header-height\)/);
   assert.match(css, /--color-primary:\s*var\(--bronze\)/);
   assert.match(home, /CompanyFinder/);
-  assert.equal((hero.match(/<Link /g) || []).length, 1);
-  assert.doesNotMatch(hero, /hero-reassure|hero-phone|hero-trust|<button/);
+  // One action in the hero: the primary, with no phone link, microcopy or extra button.
+  assert.equal((hero.match(/primary=\{/g) || []).length, 1);
+  assert.doesNotMatch(hero, /\blink=|microcopy=|tel:|<button/);
   assert.match(hero, /Request a quote/);
   assert.match(form, /quote-wizard/);
   assert.match(form, /choice-card/);

@@ -80,6 +80,9 @@ build/contracts/
 !/lib/businessHours.ts
 !/lib/p5/
 !/lib/googleAdsConversion.ts
+# P5 Home Co family chrome: the shared contract (lib/family/) and this site's brand config.
+!/lib/family/
+!/lib/familyBrand.ts
 !/scripts/
 /scripts/*
 !/scripts/branding-ci-evidence-bound.mjs
@@ -88,6 +91,7 @@ build/contracts/
 !/scripts/p5-runtime-acceptance.mts
 !/scripts/p5-estimator-browser.mjs
 !/scripts/integrate-p5-dynamic-questions.mjs
+!/scripts/verify-family-chrome.mjs
 
 !/scripts/dev.mjs
 !/scripts/test-p5-upload.mts

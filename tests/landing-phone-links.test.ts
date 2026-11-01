@@ -12,11 +12,11 @@ test("landing call and text controls use the configured P5 number", () => {
   const home = source("app/HomePageClient.tsx");
 
   assert.match(home, /<SiteChrome\b/);
-  const chrome = source("components/SiteChrome.tsx");
-  assert.match(chrome, /href=\{PUBLIC_PHONE_TEL\}/);
-  assert.match(chrome, /href=\{PUBLIC_PHONE_SMS\}/);
+  // The family header, menu, bar and footer take their call and text links from the brand config.
+  assert.match(source("components/SiteChrome.tsx"), /<SiteHeader \/>/);
+  assert.match(source("lib/familyBrand.ts"), /telHref: PUBLIC_PHONE_TEL, smsHref: PUBLIC_PHONE_SMS/);
   const quote = source("app/quote/QuoteLanding.tsx");
-  assert.match(quote, /PUBLIC_PHONE_SMS/);
+  assert.match(quote, /<SiteChrome\b/);
   assert.match(source("app/quote/TrackedPhoneLink.tsx"), /href="tel:\+12084771169"/);
   const bar = source("components/LandingContactBar.tsx");
   assert.match(bar, /PUBLIC_PHONE_TEL/);
