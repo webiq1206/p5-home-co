@@ -25,10 +25,22 @@ async function hash(value: string): Promise<string> {
   return Array.from(new Uint8Array(bytes), (byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
+/**
+ * Follow-ups to a lead already captured (Step 2 details, file uploads) count
+ * in their own window, so adding photos never uses up the allowance for new
+ * requests, and new requests never block adding details to one.
+ */
+export const FOLLOW_UP_SCOPE = { name: "follow-up", max: 40 } as const;
+
 /** Database-backed, privacy-preserving fixed-window rate limiter. */
-export async function allowIntakeRequest(request: Request, now = new Date()): Promise<boolean> {
+export async function allowIntakeRequest(
+  request: Request,
+  now = new Date(),
+  scope: { name: string; max: number } | null = null,
+): Promise<boolean> {
   const bucket = Math.floor(now.getTime() / WINDOW_MS);
-  const key = await hash(clientAddress(request));
+  const address = clientAddress(request);
+  const key = await hash(scope ? `${scope.name}:${address}` : address);
   await queryOne("DELETE FROM lead_intake_rate_limit WHERE expires_at < $1 RETURNING TRUE AS accepted", [now]);
   const row = await queryOne<{ accepted: boolean }>(
     `INSERT INTO lead_intake_rate_limit (client_hash, bucket, count, expires_at)
@@ -37,7 +49,7 @@ export async function allowIntakeRequest(request: Request, now = new Date()): Pr
        SET count = lead_intake_rate_limit.count + 1
        WHERE lead_intake_rate_limit.count < $4
      RETURNING TRUE AS accepted`,
-    [key, bucket, new Date((bucket + 2) * WINDOW_MS), MAX_SUBMISSIONS],
+    [key, bucket, new Date((bucket + 2) * WINDOW_MS), scope ? scope.max : MAX_SUBMISSIONS],
   );
   return row?.accepted === true;
 }

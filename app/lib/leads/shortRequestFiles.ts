@@ -1,9 +1,23 @@
 import { createHash } from "node:crypto";
 
-/** A short request can carry a few photos or a plan. It is not a document vault. */
-export const MAX_SHORT_REQUEST_FILES = 4;
-export const MAX_SHORT_REQUEST_FILE_BYTES = 8 * 1024 * 1024;
+/**
+ * A short request can carry photos, plans or inspiration. It is not a document
+ * vault. The browser sends each file in its own request after the lead is
+ * saved, so one file is checked at a time against the per-file limit and the
+ * per-lead count. MAX_SHORT_REQUEST_TOTAL_BYTES caps a single request, which
+ * only matters for the no-JavaScript form that posts files with the lead.
+ */
+export const MAX_SHORT_REQUEST_FILES = 10;
+export const MAX_SHORT_REQUEST_FILE_BYTES = 20 * 1024 * 1024;
 export const MAX_SHORT_REQUEST_TOTAL_BYTES = 20 * 1024 * 1024;
+
+export const SHORT_REQUEST_FILE_ERRORS = {
+  count: `Attach up to ${MAX_SHORT_REQUEST_FILES} files.`,
+  size: "Each file must be 20 MB or smaller.",
+  total: "Those files together are larger than 20 MB.",
+  type: "Use a photo (JPEG, PNG, GIF, WebP, or HEIC) or a PDF.",
+  empty: "That file is empty.",
+} as const;
 
 const HEIC_BRANDS = new Set(["heic", "heif", "mif1", "msf1"]);
 
@@ -59,45 +73,74 @@ export function sanitizeUploadName(name: string): string {
   return cleaned || "upload";
 }
 
+/** Read and check one file. Throws ShortRequestFileError with a plain message. */
+export async function readOneUpload(file: UploadLike): Promise<StoredLeadFile> {
+  // The declared size is checked before reading, so an oversized file is never buffered.
+  if (file.size > MAX_SHORT_REQUEST_FILE_BYTES) throw new ShortRequestFileError(SHORT_REQUEST_FILE_ERRORS.size);
+  const data = Buffer.from(await file.arrayBuffer());
+  if (data.length === 0) throw new ShortRequestFileError(SHORT_REQUEST_FILE_ERRORS.empty);
+  if (data.length > MAX_SHORT_REQUEST_FILE_BYTES) throw new ShortRequestFileError(SHORT_REQUEST_FILE_ERRORS.size);
+  const mimeType = sniffMime(data);
+  if (!mimeType) throw new ShortRequestFileError(SHORT_REQUEST_FILE_ERRORS.type);
+  return {
+    fileName: sanitizeUploadName(file.name || "upload"),
+    mimeType,
+    sizeBytes: data.length,
+    sha256: createHash("sha256").update(data).digest("hex"),
+    data,
+  };
+}
+
+export type UploadOutcome = { name: string; file: StoredLeadFile | null; error: string | null };
+
+/**
+ * Check several files, one verdict each. A bad file never takes the others,
+ * or the lead, down with it: the caller stores what passed and names the rest.
+ */
+export async function readEachUpload(entries: Iterable<UploadLike>): Promise<UploadOutcome[]> {
+  const outcomes: UploadOutcome[] = [];
+  let total = 0;
+  for (const entry of [...entries].filter((file) => file.size > 0)) {
+    const name = sanitizeUploadName(entry.name || "upload");
+    if (outcomes.filter((outcome) => outcome.file).length >= MAX_SHORT_REQUEST_FILES) {
+      outcomes.push({ name, file: null, error: SHORT_REQUEST_FILE_ERRORS.count });
+      continue;
+    }
+    if (total + entry.size > MAX_SHORT_REQUEST_TOTAL_BYTES) {
+      outcomes.push({ name, file: null, error: SHORT_REQUEST_FILE_ERRORS.total });
+      continue;
+    }
+    try {
+      const file = await readOneUpload(entry);
+      total += file.sizeBytes;
+      outcomes.push({ name, file, error: null });
+    } catch (error) {
+      outcomes.push({ name, file: null, error: error instanceof ShortRequestFileError ? error.message : "That file could not be read." });
+    }
+  }
+  return outcomes;
+}
+
+/** All-or-nothing check of a batch, rejecting extras before reading any of them. */
 export async function readShortRequestFiles(entries: Iterable<UploadLike>): Promise<StoredLeadFile[]> {
   const files = [...entries].filter((file) => file.size > 0);
   if (files.length > MAX_SHORT_REQUEST_FILES) {
-    throw new ShortRequestFileError("Attach up to 4 files.");
+    throw new ShortRequestFileError(SHORT_REQUEST_FILE_ERRORS.count);
   }
   let declared = 0;
   for (const file of files) {
     if (file.size > MAX_SHORT_REQUEST_FILE_BYTES) {
-      throw new ShortRequestFileError("Each file must be 8 MB or smaller.");
+      throw new ShortRequestFileError(SHORT_REQUEST_FILE_ERRORS.size);
     }
     declared += file.size;
     if (declared > MAX_SHORT_REQUEST_TOTAL_BYTES) {
-      throw new ShortRequestFileError("Those files together are larger than 20 MB.");
+      throw new ShortRequestFileError(SHORT_REQUEST_FILE_ERRORS.total);
     }
   }
-
   const stored: StoredLeadFile[] = [];
-  let total = 0;
-  for (const file of files) {
-    const data = Buffer.from(await file.arrayBuffer());
-    if (data.length === 0) continue;
-    if (data.length > MAX_SHORT_REQUEST_FILE_BYTES) {
-      throw new ShortRequestFileError("Each file must be 8 MB or smaller.");
-    }
-    total += data.length;
-    if (total > MAX_SHORT_REQUEST_TOTAL_BYTES) {
-      throw new ShortRequestFileError("Those files together are larger than 20 MB.");
-    }
-    const mimeType = sniffMime(data);
-    if (!mimeType) {
-      throw new ShortRequestFileError("Use a photo (JPEG, PNG, GIF, WebP, or HEIC) or a PDF.");
-    }
-    stored.push({
-      fileName: sanitizeUploadName(file.name || "upload"),
-      mimeType,
-      sizeBytes: data.length,
-      sha256: createHash("sha256").update(data).digest("hex"),
-      data,
-    });
+  for (const outcome of await readEachUpload(files)) {
+    if (outcome.error && outcome.error !== SHORT_REQUEST_FILE_ERRORS.empty) throw new ShortRequestFileError(outcome.error);
+    if (outcome.file) stored.push(outcome.file);
   }
   return stored;
 }

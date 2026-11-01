@@ -21,9 +21,12 @@ import { loadSettings } from "../leads/settings.ts";
 import {
   contactProperties,
   dealProperties,
+  detailsNoteBody,
   type ContactSyncInput,
   type DealSyncInput,
 } from "./hubspot-map.ts";
+import { detailLines, type LeadDetails } from "../leads/intakeContract.ts";
+import { leadFileAdminUrl } from "../leads/leadRequestFiles.ts";
 
 const API = "https://api.hubapi.com";
 const HUBSPOT_ATTRIBUTION_FIELDS = [
@@ -251,6 +254,12 @@ type DealRow = {
   closed_lost_reason: string | null;
   utm: Record<string, string> | null;
   hubspot_deal_id: string | null;
+  request_kind: string | null;
+  contact_preference: string | null;
+  best_time: string | null;
+  timeline: string | null;
+  /** updated_at as text, so microseconds survive the round trip. */
+  sync_version: string;
   first_name: string | null;
   last_name: string | null;
   email: string | null;
@@ -262,6 +271,89 @@ type DealRow = {
 };
 
 const d = (v: string | null) => (v ? new Date(v) : null);
+
+/**
+ * Every file on the lead as a link: brand-site links as sent, and P5's own
+ * uploads through the admin-gated download route (sign in required).
+ */
+async function dealFileLinks(dealId: number): Promise<{ name: string; url: string }[]> {
+  const linked = await query<{ file_name: string; url: string }>(
+    "SELECT file_name, url FROM lead_file_link WHERE deal_id = $1 ORDER BY created_at, id",
+    [dealId],
+  ).catch(() => []);
+  const own = await query<{ id: string; file_name: string }>(
+    "SELECT id, file_name FROM lead_request_file WHERE deal_id = $1 ORDER BY created_at, id",
+    [dealId],
+  ).catch(() => []);
+  return [
+    ...linked.map((row) => ({ name: row.file_name, url: row.url })),
+    ...own.map((row) => ({ name: row.file_name, url: leadFileAdminUrl(row.id) })),
+  ];
+}
+
+/** Association type 214: note to deal (HubSpot-defined). */
+const NOTE_TO_DEAL = 214;
+
+/**
+ * One HubSpot note per "Details added" submission, so the timeline shows when
+ * the visitor added what. A token without the notes scope gets 403: the
+ * details are already in the deal description (the summary carries every
+ * "Details added" block), so the event is marked as delivered that way and
+ * never retried. Returns true when a transient failure means the deal should
+ * be synced again.
+ */
+async function syncDetailNotes(dealId: number, hubspotDealId: string): Promise<boolean> {
+  const events = await query<{ fingerprint: string; details: LeadDetails; received_at: string }>(
+    `SELECT fingerprint, details, received_at FROM lead_details_event
+      WHERE deal_id = $1 AND hubspot_note_state = 'pending'
+      ORDER BY received_at`,
+    [dealId],
+  ).catch(() => []);
+  let retry = false;
+  for (const event of events) {
+    const details: LeadDetails = { ...event.details, files: event.details.files ?? [] };
+    try {
+      const note = await call<IdResponse>("/crm/v3/objects/notes", {
+        method: "POST",
+        body: JSON.stringify({
+          properties: {
+            hs_timestamp: String(new Date(event.received_at).getTime()),
+            hs_note_body: detailsNoteBody(detailLines(details)),
+          },
+          associations: [
+            { to: { id: hubspotDealId }, types: [{ associationCategory: "HUBSPOT_DEFINED", associationTypeId: NOTE_TO_DEAL }] },
+          ],
+        }),
+      });
+      await query(
+        "UPDATE lead_details_event SET hubspot_note_state = 'sent', hubspot_note_id = $3 WHERE deal_id = $1 AND fingerprint = $2",
+        [dealId, event.fingerprint, note.id],
+      );
+    } catch (error) {
+      const status = error instanceof HubSpotError ? error.httpStatus : 0;
+      if (status === 401 || status === 403) {
+        await query(
+          "UPDATE lead_details_event SET hubspot_note_state = 'description' WHERE deal_id = $1 AND fingerprint = $2",
+          [dealId, event.fingerprint],
+        );
+        await query(
+          `INSERT INTO audit_log (record_type, record_id, action, new_value, action_source, integration_source, succeeded, error)
+           VALUES ('deal',$1,'hubspot_note_fallback',$2::jsonb,'integration','hubspot',FALSE,$3)`,
+          [String(dealId), JSON.stringify({ fingerprint: event.fingerprint }), "Notes are not available with this token; details are in the deal description."],
+        ).catch(() => undefined);
+      } else if (error instanceof HubSpotError && error.retryable) {
+        retry = true;
+      } else {
+        // A malformed note fails the same way forever. The description has it.
+        await query(
+          "UPDATE lead_details_event SET hubspot_note_state = 'description' WHERE deal_id = $1 AND fingerprint = $2",
+          [dealId, event.fingerprint],
+        );
+      }
+    }
+  }
+  return retry;
+}
 
 /**
  * Sync one P5 deal, and its contact, into HubSpot.
@@ -281,7 +373,7 @@ export async function syncDealToHubSpot(dealId: number): Promise<SyncOutcome> {
   }
 
   const rows = await query<DealRow>(
-    `SELECT d.*, c.first_name, c.last_name, c.email, c.phone,
+    `SELECT d.*, d.updated_at::text AS sync_version, c.first_name, c.last_name, c.email, c.phone,
             c.hubspot_contact_id, u.full_name AS owner_name,
             u.hubspot_owner_id AS owner_hubspot_id
        FROM deal d
@@ -296,6 +388,7 @@ export async function syncDealToHubSpot(dealId: number): Promise<SyncOutcome> {
   // Attribution fields are optional. A token without schema-read permission or
   // a portal where setup has not created them still syncs the operational lead.
   const propertyNames = await fetchDealPropertyNames().catch(() => null);
+  const files = await dealFileLinks(dealId);
 
   try {
     const contactId = await upsertContact(
@@ -337,6 +430,11 @@ export async function syncDealToHubSpot(dealId: number): Promise<SyncOutcome> {
         originalCampaign: row.original_campaign,
         closedLostReason: row.closed_lost_reason,
         attribution: row.utm,
+        requestKind: row.request_kind,
+        contactPreference: row.contact_preference,
+        bestTime: row.best_time,
+        timeline: row.timeline,
+        files,
       },
       row.hubspot_deal_id,
       dealId,
@@ -344,12 +442,17 @@ export async function syncDealToHubSpot(dealId: number): Promise<SyncOutcome> {
     );
 
     await associate(hubspotDealId, contactId);
+    const retryNotes = await syncDetailNotes(dealId, hubspotDealId);
 
+    // A visitor can add details while this sync runs. Only a deal that did
+    // not change underneath it is marked synced; otherwise it stays pending
+    // and the next watchdog tick sends the newer version.
     await query(
-      `UPDATE deal SET hubspot_deal_id = $2, integration_sync_status = 'synced',
+      `UPDATE deal SET hubspot_deal_id = $2,
+              integration_sync_status = CASE WHEN $4::boolean OR updated_at::text IS DISTINCT FROM $3::text THEN 'pending' ELSE 'synced' END,
               last_integration_error = NULL, updated_at = now()
         WHERE id = $1`,
-      [dealId, hubspotDealId],
+      [dealId, hubspotDealId, row.sync_version, retryNotes],
     );
     const attributionUnavailable = !propertyNames ||
       !HUBSPOT_ATTRIBUTION_FIELDS.some((field) => propertyNames.has(field));

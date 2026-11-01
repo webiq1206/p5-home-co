@@ -127,4 +127,32 @@ export type InboundLead = {
   originalCampaign: string | null;
   utm: Record<string, string> | null;
   receivedAt: Date;
+  /**
+   * Optional, from the two-step forms (docs/lead-intake-contract.md). Every
+   * existing caller leaves them out and stores exactly what it stored before.
+   */
+  /** The brand site's own request id, unique per brand. */
+  brandExternalId?: string | null;
+  requestKind?: RequestKind | null;
+  contactPreference?: LeadContactPreference | null;
+  bestTime?: string | null;
+  timeline?: string | null;
+  /** Links to files the brand site stored; P5 keeps the link, not a copy. */
+  files?: readonly LeadFileLink[];
+};
+
+/** A quote request or a "Have us call you" request. */
+export const REQUEST_KINDS = ["quote", "callback"] as const;
+export type RequestKind = (typeof REQUEST_KINDS)[number];
+
+/** How the visitor asked to be reached. */
+export const LEAD_CONTACT_PREFERENCES = ["call", "text", "email"] as const;
+export type LeadContactPreference = (typeof LEAD_CONTACT_PREFERENCES)[number];
+
+/** A file the visitor sent, stored by the site that received it. */
+export type LeadFileLink = {
+  name: string;
+  url: string;
+  contentType: string | null;
+  size: number | null;
 };

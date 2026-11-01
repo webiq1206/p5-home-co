@@ -7,6 +7,7 @@ const chrome = readFileSync("components/SiteChrome.tsx", "utf8");
 const quote = readFileSync("app/quote/QuoteLanding.tsx", "utf8");
 const chat = readFileSync("components/SiteChat.tsx", "utf8");
 const form = readFileSync("components/ShortRequestForm.tsx", "utf8");
+const tile = readFileSync("components/AttachmentTile.tsx", "utf8");
 const bar = readFileSync("components/LandingContactBar.tsx", "utf8");
 // The header, menu and bottom bar are the shared family chrome; P5's choices live in lib/familyBrand.ts.
 const mobile = readFileSync("components/family/MobileActionBar.tsx", "utf8");
@@ -67,12 +68,14 @@ test("hub pages keep call and chat, with one request entry below the hero", () =
   assert.match(brand, /cta: \{ label: 'Request a quote', href: '\/quote' \}/);
   assert.match(mobile, /href=\{brand\.cta\.href\}/);
   assert.doesNotMatch(mobile, /openSiteChat|chat/i);
-  // One short screen: name, phone, then what they need, in that order.
+  // Form v2 (owner, 1 November): one short screen that opens with the easy,
+  // interesting question, then the attachment tile, then name and phone.
+  const noteAt = form.indexOf('name="note"');
+  const tileAt = form.indexOf('<AttachmentTile name="files"');
   const nameAt = form.indexOf('name="name"');
   const phoneAt = form.indexOf('name="phone"');
-  const noteAt = form.indexOf('name="note"');
-  assert.ok(nameAt > -1 && phoneAt > nameAt && noteAt > phoneAt);
-  assert.match(form, /What do you need\?/);
+  assert.ok(noteAt > -1 && tileAt > noteAt && nameAt > tileAt && phoneAt > nameAt);
+  assert.match(form, /What can we help with\?/);
   const css = readFileSync("app/globals.css", "utf8");
   // The hero is sized against the small viewport (family-chrome.css), never 100vh under the header.
   assert.match(readFileSync("styles/family-chrome.css", "utf8"), /--fam-hero-available: calc\(100svh - var\(--header-height\)/);
@@ -86,10 +89,11 @@ test("hub pages keep call and chat, with one request entry below the hero", () =
   assert.match(form, /data-suppress-mobile-bar=""/);
   // Call, text, or have us call you, on the form itself.
   // Family segmented control under the heading: two native toggle buttons.
-  const modes = form.slice(form.indexOf('className="quote-form-modes"'), form.indexOf('className="quote-form-field"'));
+  const modesAt = form.indexOf('className="quote-form-modes"');
+  const modes = form.slice(modesAt, form.indexOf('className="quote-form-field"', modesAt));
   assert.match(modes, /aria-pressed=\{!callback\}[\s\S]*Send a request[\s\S]*aria-pressed=\{callback\}[\s\S]*Have us call you/);
   assert.equal((modes.match(/type="button"/g) ?? []).length, 2);
-  assert.ok(form.indexOf("{done") < form.indexOf('className="quote-form-modes"') && form.indexOf('className="quote-form-modes"') < form.indexOf('name="name"'));
+  assert.ok(form.indexOf("{done") < modesAt && modesAt < form.indexOf('name="note"'));
   // Call full width with the phone icon, then text and chat, all tracked as before.
   assert.match(form, /<TrackedPhoneLink className="quote-form-talk-button quote-form-talk-call" location="quote_form">\s*<PhoneIcon/);
   assert.match(form, /href=\{PUBLIC_PHONE_SMS\}\s*onClick=\{\(\) => track\("text_click", \{ location: "quote_form" \}\)\}/);
@@ -112,11 +116,19 @@ test("the short form requires name, phone and a note; email and photos stay opti
   assert.match(form, /type="tel"\s+inputMode="tel"\s+autoComplete="tel"/);
   assert.match(form, /autoComplete="name"/);
   assert.match(form, /autoComplete="email"/);
-  assert.match(form, /Add photos <span className="quote-form-optional">\(optional\)<\/span>/);
-  assert.match(form, /type="file"/);
-  assert.doesNotMatch(form, /type="file"[^>]*required/);
+  // One attachment tile, the family pattern, instead of the raw file control.
+  assert.match(tile, /label = "Add photos, plans or files"/);
+  assert.match(tile, /\{label\} <span className="quote-form-optional">\(optional\)<\/span>/);
+  assert.match(tile, /Photos, PDFs or drawings\. Up to 10 files, 20 MB each\./);
+  assert.match(tile, /type="file"\s+multiple\s+accept=\{ATTACHMENT_ACCEPT\}/);
+  assert.match(tile, /ATTACHMENT_ACCEPT = "image\/\*,application\/pdf,\.heic,\.heif"/);
+  assert.doesNotMatch(tile, /required/);
   assert.match(form, /name="contact_preference"/);
-  assert.match(form, /Add more detail \(optional\)/);
+  // Project type, address and timing moved to Step 2 on the success screen.
+  assert.match(form, /Help us prepare/);
+  assert.match(form, /A few details help us give you a closer quote on the first call\./);
+  assert.match(form, /track\("lead_details_added"/);
+  assert.equal((form.match(/trackAcceptedInquiry\(\)/g) ?? []).length, 1);
   assert.match(form, /short-request-trap/);
   const route = readFileSync("app/api/leads/short-request/route.ts", "utf8");
   assert.match(route, /readShortRequest\(/);
@@ -137,6 +149,11 @@ test("new lead copy has no em or en dashes, and partial emails stay off", () => 
     readFileSync("app/api/leads/short-request/route.ts", "utf8"),
     readFileSync("app/lib/leads/shortRequest.ts", "utf8"),
     readFileSync("components/SiteChat.module.css", "utf8"),
+    tile,
+    readFileSync("app/api/leads/short-request/details/route.ts", "utf8"),
+    readFileSync("app/api/leads/short-request/files/route.ts", "utf8"),
+    readFileSync("app/lib/leads/intakeContract.ts", "utf8"),
+    readFileSync("docs/lead-intake-contract.md", "utf8"),
   ].join("\n");
   assert.equal(fresh.includes("\u2014"), false);
   assert.equal(fresh.includes("\u2013"), false);

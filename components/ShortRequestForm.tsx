@@ -4,12 +4,7 @@ import { useEffect, useId, useRef, useState, type FocusEvent } from "react";
 
 import { track, trackAcceptedInquiry } from "../app/analytics";
 import { normalizeEmail, normalizePhone } from "../app/lib/leads/normalize.ts";
-import {
-  CALLBACK_REQUEST,
-  CONTACT_PREFERENCES,
-  contactPreferenceFrom,
-  type ContactPreference,
-} from "../app/lib/leads/shortRequest.ts";
+import { CALLBACK_REQUEST, TIMING_OPTIONS, contactPreferenceFrom, type ContactPreference } from "../app/lib/leads/shortRequest.ts";
 import { PUBLIC_PHONE_DISPLAY, PUBLIC_PHONE_SMS } from "../app/publicIdentity";
 import { isNewAcceptedInquiry } from "../app/quote/conversion.ts";
 import { PROJECT_OPTIONS, brandForProject } from "../app/quote/options.ts";
@@ -17,45 +12,60 @@ import { saveQuoteReceipt } from "../app/quote/thanksState.ts";
 import ThanksQuestions from "../app/quote/ThanksQuestions";
 import TrackedPhoneLink from "../app/quote/TrackedPhoneLink";
 import { captureAttribution } from "../lib/p5/browserAttribution.ts";
+import { AttachmentTile, type PickedFile } from "./AttachmentTile";
 import { PhoneIcon } from "./family/Icons";
 import SaveContactButton from "./SaveContactButton";
 import { OpenChatButton } from "./SiteChat";
 
-const MAX_FILES = 4;
-const MAX_FILE_BYTES = 8 * 1024 * 1024;
-const MAX_TOTAL_BYTES = 20 * 1024 * 1024;
-
 const FALLBACK_PROJECT = "Something else, or I am not sure";
-const STORAGE_KEY = "p5-quote-form-v5";
+const STORAGE_KEY = "p5-quote-form-v6";
 
-/** The project list, grouped the way people describe the work. Each value routes to one company. */
-const PROJECT_GROUPS: ReadonlyArray<{ label: string; projects: readonly string[] }> = [
-  {
-    label: "Remodel or addition",
-    projects: ["Kitchen remodel", "Bathroom remodel", "Whole-home remodel", "Home addition", "Basement finishing"],
-  },
-  { label: "New custom home", projects: ["New custom home", "Build on land I own"] },
-  { label: "ADU or conversion", projects: ["Accessory dwelling unit (ADU)", "Garage conversion"] },
-  { label: "Cabinets or built-ins", projects: ["Custom cabinets or built-ins", "Bathroom vanity"] },
-  { label: "Repairs or handyman", projects: ["Home repairs or handyman work"] },
-  { label: "Something else", projects: [FALLBACK_PROJECT] },
+/** "How should we reach you?" P5 has a text line, so Text is the default. */
+const REACH_OPTIONS: ReadonlyArray<{ value: ContactPreference; label: string }> = [
+  { value: "call", label: "Call" },
+  { value: "text", label: "Text" },
+  { value: "email", label: "Email" },
+];
+const DEFAULT_REACH: ContactPreference = "text";
+
+/** "Have us call you": the same choices the family offers. "Any time" sends nothing. */
+const BEST_TIMES = ["Any time", "Morning", "Midday", "Afternoon"] as const;
+
+/** Step 2 project chips: short labels for the same values that route a request to a company. */
+const PROJECT_CHIPS: ReadonlyArray<{ value: string; label: string }> = [
+  { value: "Kitchen remodel", label: "Kitchen" },
+  { value: "Bathroom remodel", label: "Bathroom" },
+  { value: "Whole-home remodel", label: "Whole home" },
+  { value: "Home addition", label: "Addition" },
+  { value: "Basement finishing", label: "Basement" },
+  { value: "New custom home", label: "New home" },
+  { value: "Build on land I own", label: "Build on my land" },
+  { value: "Accessory dwelling unit (ADU)", label: "ADU" },
+  { value: "Garage conversion", label: "Garage conversion" },
+  { value: "Custom cabinets or built-ins", label: "Cabinets or built-ins" },
+  { value: "Bathroom vanity", label: "Vanity" },
+  { value: "Home repairs or handyman work", label: "Repairs" },
 ];
 
 type Mode = "request" | "callback";
-type Field = "name" | "phone" | "note" | "email";
+type Field = "note" | "name" | "phone" | "email";
 
 type Draft = {
   mode: Mode;
+  note: string;
   name: string;
   phone: string;
-  note: string;
   email: string;
   reach: ContactPreference;
   project: string;
   bestTime: string;
 };
 
-const FIELD_ORDER: readonly Field[] = ["name", "phone", "note", "email"];
+/** Top to bottom, the order errors are checked and focused in. */
+const FIELD_ORDER: readonly Field[] = ["note", "name", "phone", "email"];
+
+type RequestKey = { id: number; token: string };
+type UploadState = "sending" | "sent" | "failed";
 
 function knownProject(value: unknown): string {
   return typeof value === "string" && PROJECT_OPTIONS.some((option) => option.value === value) ? value : "";
@@ -64,13 +74,13 @@ function knownProject(value: unknown): string {
 function initialDraft(defaultProject?: string): Draft {
   return {
     mode: "request",
+    note: "",
     name: "",
     phone: "",
-    note: "",
     email: "",
-    reach: "call",
+    reach: DEFAULT_REACH,
     project: knownProject(defaultProject),
-    bestTime: "",
+    bestTime: BEST_TIMES[0],
   };
 }
 
@@ -83,13 +93,13 @@ function readDraft(defaultProject?: string): Draft {
     const str = (value: unknown) => (typeof value === "string" ? value : "");
     return {
       mode: saved.mode === "callback" ? "callback" : "request",
+      note: str(saved.note),
       name: str(saved.name),
       phone: str(saved.phone),
-      note: str(saved.note),
       email: str(saved.email),
-      reach: contactPreferenceFrom(saved.reach),
+      reach: saved.reach ? contactPreferenceFrom(saved.reach) : DEFAULT_REACH,
       project: knownProject(saved.project) || fresh.project,
-      bestTime: str(saved.bestTime),
+      bestTime: (BEST_TIMES as readonly string[]).includes(str(saved.bestTime)) ? str(saved.bestTime) : BEST_TIMES[0],
     };
   } catch {
     return fresh;
@@ -118,15 +128,61 @@ function firstName(name: string): string {
 }
 
 /**
- * The quote form: one short screen.
+ * Send files one at a time to a saved request. The last one asks the server
+ * to email the team the full list. Returns the keys that did not upload.
+ */
+async function uploadFiles(
+  files: readonly PickedFile[],
+  request: RequestKey,
+  onState: (key: string, state: UploadState, error?: string) => void,
+): Promise<string[]> {
+  const failed: string[] = [];
+  for (const [index, { key, file }] of files.entries()) {
+    onState(key, "sending");
+    const body = new FormData();
+    body.set("id", String(request.id));
+    body.set("token", request.token);
+    body.set("file", file);
+    if (index === files.length - 1) body.set("final", "1");
+    try {
+      const response = await fetch("/api/leads/short-request/files", { method: "POST", body });
+      const payload = (await response.json().catch(() => ({}))) as { error?: string };
+      if (response.ok) onState(key, "sent");
+      else {
+        failed.push(key);
+        onState(key, "failed", payload.error);
+      }
+    } catch {
+      failed.push(key);
+      onState(key, "failed");
+    }
+  }
+  return failed;
+}
+
+type Done = {
+  first: string;
+  callback: boolean;
+  team: string;
+  request: RequestKey | null;
+  hadEmail: boolean;
+  projectKnown: boolean;
+};
+
+/**
+ * The quote form, in two steps (owner, 1 November).
  *
- * Name, phone and what they need, then optional photos, email and how to
- * reach them. Project type sits in "Add more detail (optional)" and still
- * routes the request to the right company when given. "Send a request" |
- * "Have us call you" sits under the heading; the callback side reduces the
- * form to name and phone and sends a callback request through the same
- * route. Call, text and chat sit above the button on phones, beside it on
- * wider screens.
+ * Step 1 is one short screen: what we can help with, an optional attachment
+ * tile, name, phone, optional email and how to reach them. "Send a request" |
+ * "Have us call you" sits under the heading; the callback side is name, phone
+ * and an optional best time. The lead is saved first; any files follow one by
+ * one, so an upload can never cost the request.
+ *
+ * Step 2 sits on the success screen: "Help us prepare (optional)". Project
+ * type, address, timing, more files and an email if Step 1 had none. It adds
+ * to the same lead (the server merges, never overwrites) and is always
+ * skippable. Call, text and chat sit beside the send button on wide screens
+ * and above it on phones.
  */
 export function ShortRequestForm({
   id,
@@ -148,10 +204,11 @@ export function ShortRequestForm({
     phone: `${uid}-phone`,
     note: `${uid}-note`,
     email: `${uid}-email`,
-    files: `${uid}-files`,
-    project: `${uid}-project`,
     bestTime: `${uid}-best-time`,
     next: `${uid}-next`,
+    details: `${uid}-details`,
+    address: `${uid}-address`,
+    detailsEmail: `${uid}-details-email`,
   };
   const headingRef = useRef<HTMLHeadingElement>(null);
   const [hydrated, setHydrated] = useState(false);
@@ -159,10 +216,15 @@ export function ShortRequestForm({
   const [errors, setErrors] = useState<Partial<Record<Field, string>>>({});
   const [status, setStatus] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
-  const [files, setFiles] = useState<File[]>([]);
-  const [done, setDone] = useState<{ first: string; callback: boolean; team: string; filesMissing: boolean } | null>(
-    null,
-  );
+  const [files, setFiles] = useState<PickedFile[]>([]);
+  const [uploads, setUploads] = useState<Record<string, { state: UploadState; error?: string }>>({});
+  const [done, setDone] = useState<Done | null>(null);
+
+  // Step 2
+  const [details, setDetails] = useState({ project: "", address: "", timing: "", email: "" });
+  const [moreFiles, setMoreFiles] = useState<PickedFile[]>([]);
+  const [detailsState, setDetailsState] = useState<"open" | "saving" | "saved" | "skipped">("open");
+  const [detailsError, setDetailsError] = useState<{ field: "email" | "details" | null; message: string } | null>(null);
 
   // The saved draft lives in sessionStorage, which only exists after mount;
   // reading it during render would make the server and client HTML differ.
@@ -225,7 +287,6 @@ export function ShortRequestForm({
   }, [done, id]);
 
   const callback = draft.mode === "callback";
-  const team = brandForProject(draft.project || FALLBACK_PROJECT);
 
   function update(next: Partial<Draft>) {
     const merged = { ...draft, ...next };
@@ -261,6 +322,19 @@ export function ShortRequestForm({
     }
   }
 
+  function setUpload(key: string, state: UploadState, error?: string) {
+    setUploads((current) => ({ ...current, [key]: { state, error } }));
+  }
+
+  async function sendFiles(list: readonly PickedFile[], request: RequestKey | null) {
+    if (!list.length) return [];
+    if (!request) {
+      for (const { key } of list) setUpload(key, "failed");
+      return list.map((entry) => entry.key);
+    }
+    return uploadFiles(list, request, setUpload);
+  }
+
   async function onSubmit() {
     if (pending || done) return;
     const found: Partial<Record<Field, string>> = {};
@@ -275,20 +349,8 @@ export function ShortRequestForm({
       focusField(first);
       return;
     }
-    const sending = callback ? [] : files;
-    if (sending.length > MAX_FILES) {
-      setStatus("Attach up to 4 photos or files.");
-      return;
-    }
-    if (sending.some((file) => file.size > MAX_FILE_BYTES)) {
-      setStatus("Each file must be 8 MB or smaller.");
-      return;
-    }
-    if (sending.reduce((sum, file) => sum + file.size, 0) > MAX_TOTAL_BYTES) {
-      setStatus("Those files together are larger than 20 MB.");
-      return;
-    }
 
+    const sending = callback ? [] : files;
     const project = draft.project || FALLBACK_PROJECT;
     const body = new FormData();
     body.set("name", draft.name.trim());
@@ -299,27 +361,28 @@ export function ShortRequestForm({
     if (callback) {
       body.set("request_type", CALLBACK_REQUEST);
       body.set("contact_preference", "call");
-      if (draft.bestTime.trim()) body.set("best_time", draft.bestTime.trim());
+      if (draft.bestTime !== BEST_TIMES[0]) body.set("best_time", draft.bestTime);
     } else {
       body.set("request_type", "request");
       body.set("note", draft.note.trim());
       body.set("email", draft.email.trim());
       body.set("contact_preference", draft.reach);
+      if (sending.length) body.set("files_expected", String(sending.length));
     }
     for (const [key, value] of Object.entries(captureAttribution())) {
       if (value) body.set(key, value);
     }
-    for (const file of sending) body.append("files", file);
 
     setPending(true);
     setStatus(null);
     try {
+      // The request goes first and alone: files follow once it is saved.
       const response = await fetch("/api/leads/short-request", { method: "POST", body });
       const payload = (await response.json().catch(() => ({}))) as {
         accepted?: unknown;
-        filesAttached?: unknown;
         error?: string;
         field?: string;
+        request?: { id?: unknown; token?: unknown } | null;
       };
       if (!response.ok) {
         const field = FIELD_ORDER.find((name) => name === payload.field);
@@ -333,12 +396,12 @@ export function ShortRequestForm({
         return;
       }
       if (isNewAcceptedInquiry(response.status, payload, false)) trackAcceptedInquiry();
-      saveQuoteReceipt({
-        project,
-        team,
-        files: sending.length,
-        filesAttached: payload.filesAttached === true,
-      });
+      const request =
+        payload.request && typeof payload.request.id === "number" && typeof payload.request.token === "string"
+          ? { id: payload.request.id, token: payload.request.token }
+          : null;
+      const team = brandForProject(project);
+      saveQuoteReceipt({ project, team, files: sending.length, filesAttached: false });
       try {
         sessionStorage.removeItem(STORAGE_KEY);
       } catch {
@@ -349,11 +412,74 @@ export function ShortRequestForm({
         first: firstName(draft.name),
         callback,
         team,
-        filesMissing: sending.length > 0 && payload.filesAttached !== true,
+        request,
+        hadEmail: !callback && Boolean(draft.email.trim()),
+        projectKnown: Boolean(draft.project),
       });
+      const failed = await sendFiles(sending, request);
+      saveQuoteReceipt({ project, team, files: sending.length, filesAttached: sending.length > 0 && failed.length === 0 });
     } catch {
       setStatus(`We could not send that. Call ${PUBLIC_PHONE_DISPLAY}.`);
       setPending(false);
+    }
+  }
+
+  async function retryFailed() {
+    if (!done) return;
+    const failed = files.filter(({ key }) => uploads[key]?.state === "failed");
+    await sendFiles(failed, done.request);
+  }
+
+  async function saveDetails() {
+    if (!done || detailsState === "saving") return;
+    const email = details.email.trim();
+    if (email && !normalizeEmail(email)) {
+      setDetailsError({ field: "email", message: "That email address does not look right." });
+      document.getElementById(ids.detailsEmail)?.focus();
+      return;
+    }
+    const fields = {
+      project: details.project,
+      address: details.address.trim(),
+      timing: details.timing,
+      email,
+    };
+    const filled = Object.values(fields).filter(Boolean).length;
+    if (!filled && !moreFiles.length) {
+      setDetailsError({ field: "details", message: "Add a detail, or choose Skip." });
+      return;
+    }
+    if (!done.request) {
+      setDetailsError({ field: null, message: `We could not save that here. Call or text ${PUBLIC_PHONE_DISPLAY} with the details.` });
+      return;
+    }
+    setDetailsError(null);
+    setDetailsState("saving");
+    try {
+      if (filled) {
+        const response = await fetch("/api/leads/short-request/details", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: done.request.id, token: done.request.token, ...fields }),
+        });
+        const payload = (await response.json().catch(() => ({}))) as { error?: string; field?: string; team?: string | null };
+        if (!response.ok) {
+          setDetailsError({
+            field: payload.field === "email" ? "email" : null,
+            message: payload.error || `We could not save that. Call or text ${PUBLIC_PHONE_DISPLAY}.`,
+          });
+          setDetailsState("open");
+          return;
+        }
+        if (payload.team) setDone((current) => (current ? { ...current, team: payload.team ?? current.team } : current));
+      }
+      await sendFiles(moreFiles, done.request);
+      // One analytics event, no personal details, and never a second conversion.
+      track("lead_details_added", { form: "quote_landing_page", fields: filled, files: moreFiles.length });
+      setDetailsState("saved");
+    } catch {
+      setDetailsError({ field: null, message: `We could not save that. Call or text ${PUBLIC_PHONE_DISPLAY}.` });
+      setDetailsState("open");
     }
   }
 
@@ -365,6 +491,14 @@ export function ShortRequestForm({
       {errors[field] ?? ""}
     </p>
   );
+
+  const uploadNote = (key: string): string | null => {
+    const upload = uploads[key];
+    if (!upload) return null;
+    if (upload.state === "sending") return "Sending";
+    if (upload.state === "sent") return "Attached";
+    return upload.error ? `Did not upload. ${upload.error}` : "Did not upload";
+  };
 
   // "Prefer to talk?" as the family shows it: call full width, text and chat
   // half width. Above the send button on phones, beside it on wider screens.
@@ -390,6 +524,10 @@ export function ShortRequestForm({
     </div>
   );
 
+  const failedUploads = done ? files.filter(({ key }) => uploads[key]?.state === "failed") : [];
+  const sendingUploads = done ? files.filter(({ key }) => uploads[key]?.state === "sending") : [];
+  const showDetails = Boolean(done?.request) && detailsState !== "skipped";
+
   return (
     <form
       id={id}
@@ -406,7 +544,10 @@ export function ShortRequestForm({
       encType="multipart/form-data"
       onSubmit={(event) => {
         event.preventDefault();
-        void onSubmit();
+        // Enter in a Step 2 field saves the details; before that it sends the request.
+        if (done) {
+          if (detailsState === "open") void saveDetails();
+        } else void onSubmit();
       }}
       noValidate
     >
@@ -427,9 +568,33 @@ export function ShortRequestForm({
               ? `Someone from ${done.team} calls you back within one business day.`
               : `A specialist from ${done.team} replies within one business day with questions or a time to visit. You get a written scope before any price.`}
           </p>
-          {done.filesMissing && (
-            <p>The photos did not attach. Call or text {PUBLIC_PHONE_DISPLAY} and we will take them another way.</p>
+
+          {files.length > 0 && (
+            <div className="quote-form-uploads" role="status" aria-live="polite">
+              <p>
+                {sendingUploads.length
+                  ? `Sending your files (${files.length - sendingUploads.length - failedUploads.length} of ${files.length} attached).`
+                  : failedUploads.length
+                    ? `${failedUploads.map(({ file }) => file.name).join(", ")} did not upload. Your request is saved.`
+                    : `${files.length === 1 ? "Your file is" : files.length === 2 ? "Both files are" : `All ${files.length} files are`} attached to your request.`}
+              </p>
+              {failedUploads.length > 0 && !sendingUploads.length && (
+                <p className="quote-form-upload-retry">
+                  {done.request ? (
+                    <button type="button" className="quote-form-link-button" onClick={() => void retryFailed()}>
+                      Try again
+                    </button>
+                  ) : null}
+                  {done.request ? <span aria-hidden="true"> or </span> : null}
+                  <a href={PUBLIC_PHONE_SMS} onClick={() => track("text_click", { location: "form_thanks" })}>
+                    {done.request ? "text them to us" : "Text them to us"}
+                  </a>
+                  .
+                </p>
+              )}
+            </div>
           )}
+
           <p>
             Need it sooner?{" "}
             <TrackedPhoneLink location="form_thanks">Call {PUBLIC_PHONE_DISPLAY}</TrackedPhoneLink>
@@ -439,8 +604,127 @@ export function ShortRequestForm({
             </a>
             .
           </p>
+
+          {showDetails && (
+            <section className="quote-details" aria-labelledby={ids.details} data-details-state={detailsState}>
+              <h3 id={ids.details}>
+                {detailsState === "saved" ? "Saved. Thank you." : "Help us prepare"}{" "}
+                {detailsState === "saved" ? null : <span className="quote-form-optional">(optional)</span>}
+              </h3>
+              {detailsState === "saved" ? (
+                <p role="status">The team sees your details with your request.</p>
+              ) : (
+                <>
+                  <p className="quote-details-why">A few details help us give you a closer quote on the first call.</p>
+
+                  {!done.projectKnown && (
+                    <fieldset className="quote-form-reach quote-details-chips">
+                      <legend>Type of project</legend>
+                      <div className="quote-chips">
+                        {PROJECT_CHIPS.map((chip) => (
+                          <label key={chip.value} className="quote-form-pill quote-chip">
+                            <input
+                              type="radio"
+                              name="details_project"
+                              value={chip.value}
+                              checked={details.project === chip.value}
+                              onChange={() => setDetails({ ...details, project: chip.value })}
+                            />
+                            <span>{chip.label}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </fieldset>
+                  )}
+
+                  <div className="quote-form-field">
+                    <label htmlFor={ids.address}>Address or ZIP code</label>
+                    <input
+                      id={ids.address}
+                      name="details_address"
+                      type="text"
+                      autoComplete="street-address"
+                      maxLength={300}
+                      value={details.address}
+                      onChange={(event) => setDetails({ ...details, address: event.target.value })}
+                    />
+                  </div>
+
+                  <fieldset className="quote-form-reach quote-details-chips">
+                    <legend>When would you like to start?</legend>
+                    <div className="quote-chips quote-chips-timing">
+                      {TIMING_OPTIONS.map((timing) => (
+                        <label key={timing} className="quote-form-pill quote-chip">
+                          <input
+                            type="radio"
+                            name="details_timing"
+                            value={timing}
+                            checked={details.timing === timing}
+                            onChange={() => setDetails({ ...details, timing })}
+                          />
+                          <span>{timing}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </fieldset>
+
+                  <div className="quote-form-field">
+                    <AttachmentTile
+                      files={moreFiles}
+                      onChange={setMoreFiles}
+                      label={files.length ? "Add more photos or files" : "Add photos, plans or files"}
+                      disabled={detailsState === "saving"}
+                      status={uploadNote}
+                    />
+                  </div>
+
+                  {!done.hadEmail && (
+                    <div className="quote-form-field">
+                      <label htmlFor={ids.detailsEmail}>
+                        Email <span className="quote-form-optional">(optional)</span>
+                      </label>
+                      <input
+                        id={ids.detailsEmail}
+                        name="details_email"
+                        type="email"
+                        inputMode="email"
+                        autoComplete="email"
+                        maxLength={200}
+                        value={details.email}
+                        aria-invalid={detailsError?.field === "email" ? true : undefined}
+                        aria-describedby={detailsError?.field === "email" ? `${ids.details}-error` : undefined}
+                        onChange={(event) => {
+                          setDetails({ ...details, email: event.target.value });
+                          if (detailsError) setDetailsError(null);
+                        }}
+                      />
+                    </div>
+                  )}
+
+                  <p id={`${ids.details}-error`} className="quote-field-error" aria-live="polite">
+                    {detailsError?.message ?? ""}
+                  </p>
+                  <div className="quote-details-actions">
+                    <button
+                      type="button"
+                      className="button button-dark quote-details-save"
+                      disabled={detailsState === "saving"}
+                      aria-busy={detailsState === "saving"}
+                      onClick={() => void saveDetails()}
+                    >
+                      {detailsState === "saving" ? "Saving" : "Save details"}
+                    </button>
+                    <button type="button" className="quote-form-link-button" onClick={() => setDetailsState("skipped")}>
+                      Skip
+                    </button>
+                  </div>
+                </>
+              )}
+            </section>
+          )}
+
           <SaveContactButton location="form_thanks" />
-          <ThanksQuestions />
+          {!showDetails || detailsState === "saved" ? <ThanksQuestions /> : null}
         </div>
       ) : (
         <>
@@ -463,6 +747,32 @@ export function ShortRequestForm({
               Have us call you
             </button>
           </div>
+
+          {callback ? null : (
+            <>
+              <div className="quote-form-field">
+                <label htmlFor={ids.note}>What can we help with?</label>
+                <textarea
+                  id={ids.note}
+                  name="note"
+                  rows={3}
+                  required
+                  maxLength={4000}
+                  placeholder="For example: remodel the kitchen, finish the basement, or fix a few things around the house."
+                  value={draft.note}
+                  aria-invalid={errors.note ? true : undefined}
+                  aria-describedby={describe("note")}
+                  onChange={(event) => update({ note: event.target.value })}
+                  onBlur={onBlur("note")}
+                />
+                {error("note")}
+              </div>
+
+              <div className="quote-form-field">
+                <AttachmentTile name="files" files={files} onChange={setFiles} disabled={pending} />
+              </div>
+            </>
+          )}
 
           <div className="quote-form-field">
             <label htmlFor={ids.name}>Name</label>
@@ -507,49 +817,21 @@ export function ShortRequestForm({
               <label htmlFor={ids.bestTime}>
                 Best time to call <span className="quote-form-optional">(optional)</span>
               </label>
-              <input
+              <select
                 id={ids.bestTime}
                 name="best_time"
-                type="text"
-                autoComplete="off"
-                maxLength={120}
                 value={draft.bestTime}
                 onChange={(event) => update({ bestTime: event.target.value })}
-              />
+              >
+                {BEST_TIMES.map((time) => (
+                  <option key={time} value={time}>
+                    {time}
+                  </option>
+                ))}
+              </select>
             </div>
           ) : (
             <>
-              <div className="quote-form-field">
-                <label htmlFor={ids.note}>What do you need?</label>
-                <textarea
-                  id={ids.note}
-                  name="note"
-                  rows={3}
-                  required
-                  maxLength={4000}
-                  value={draft.note}
-                  aria-invalid={errors.note ? true : undefined}
-                  aria-describedby={describe("note")}
-                  onChange={(event) => update({ note: event.target.value })}
-                  onBlur={onBlur("note")}
-                />
-                {error("note")}
-              </div>
-
-              <div className="quote-form-field short-request-file">
-                <label htmlFor={ids.files}>
-                  Add photos <span className="quote-form-optional">(optional)</span>
-                </label>
-                <input
-                  id={ids.files}
-                  name="files"
-                  type="file"
-                  multiple
-                  accept="image/jpeg,image/png,image/gif,image/webp,image/heic,image/heif,.heic,.heif,application/pdf"
-                  onChange={(event) => setFiles([...(event.target.files ?? [])].filter((file) => file.size > 0))}
-                />
-              </div>
-
               <div className="quote-form-field">
                 <label htmlFor={ids.email}>
                   Email {draft.reach === "email" ? null : <span className="quote-form-optional">(optional)</span>}
@@ -574,7 +856,7 @@ export function ShortRequestForm({
               <fieldset className="quote-form-reach">
                 <legend>How should we reach you?</legend>
                 <div className="quote-form-pills">
-                  {CONTACT_PREFERENCES.map((option) => (
+                  {REACH_OPTIONS.map((option) => (
                     <label key={option.value} className="quote-form-pill">
                       <input
                         type="radio"
@@ -588,36 +870,6 @@ export function ShortRequestForm({
                   ))}
                 </div>
               </fieldset>
-
-              <details className="quote-form-more">
-                <summary>Add more detail (optional)</summary>
-                <div className="quote-form-field">
-                  <label htmlFor={ids.project}>Type of project</label>
-                  <select
-                    id={ids.project}
-                    name="project"
-                    value={draft.project}
-                    aria-describedby={draft.project ? `${ids.project}-team` : undefined}
-                    onChange={(event) => update({ project: event.target.value })}
-                  >
-                    <option value="">Not sure yet</option>
-                    {PROJECT_GROUPS.map((group) => (
-                      <optgroup key={group.label} label={group.label}>
-                        {group.projects.map((project) => (
-                          <option key={project} value={project}>
-                            {project}
-                          </option>
-                        ))}
-                      </optgroup>
-                    ))}
-                  </select>
-                  {draft.project ? (
-                    <p id={`${ids.project}-team`} className="quote-form-hint">
-                      Goes to {team}.
-                    </p>
-                  ) : null}
-                </div>
-              </details>
             </>
           )}
 
@@ -626,6 +878,7 @@ export function ShortRequestForm({
             <input name="website_url" type="text" tabIndex={-1} autoComplete="off" />
           </label>
           <input type="hidden" name="form" value={formName} />
+          <input type="hidden" name="project" value={draft.project || FALLBACK_PROJECT} />
           <input type="hidden" name="request_type" value={callback ? CALLBACK_REQUEST : "request"} />
 
           <div className="quote-form-actions">

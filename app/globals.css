@@ -660,6 +660,62 @@ h1, h2, h3 { text-wrap:balance; }
 @media (max-width: 359px) {
   .quote-form-pills { grid-template-columns: 1fr; }
 }
+.quote-form textarea::placeholder { color: #6b716b; opacity: 1; }
+/* The attachment tile (family pattern): a dashed tile that opens the native
+   picker, chips for chosen files, a plain note for anything left out. */
+.attach { position: relative; }
+.attach-input { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; }
+.quote-form .attach-tile {
+  display: flex; align-items: center; gap: 12px; min-height: 56px; margin: 0; padding: 10px 14px;
+  border: 1.5px dashed rgba(32, 35, 31, 0.4); background: #fff; color: var(--ink); cursor: pointer;
+}
+.attach-tile svg { flex: 0 0 auto; color: var(--charcoal); }
+.attach-tile:hover, .attach[data-dragging] .attach-tile { border-color: var(--charcoal); background: var(--bone); }
+.attach-input:focus-visible + .attach-tile { outline: 2px solid var(--bronze-ink); outline-offset: 2px; }
+.attach-input:disabled + .attach-tile { cursor: default; opacity: .6; }
+.attach-tile-text { display: grid; gap: 2px; min-width: 0; }
+.attach-tile-label { font-size: 15px; font-weight: 700; line-height: 1.3; }
+.attach-tile small { color: var(--ink-2); font-size: 13px; font-weight: 500; line-height: 1.35; }
+.attach-message { margin: 0; color: var(--color-error); font-size: 14px; font-weight: 650; line-height: 1.4; }
+.attach-message:not(:empty) { margin-top: 6px; }
+.attach-chips { display: grid; gap: 6px; margin: 8px 0 0; padding: 0; list-style: none; }
+.attach-chip {
+  display: grid; grid-template-columns: 44px minmax(0, 1fr) 44px; align-items: center; gap: 10px;
+  padding: 4px 0 4px 4px; border: 1px solid rgba(32, 35, 31, 0.18); background: #fff;
+}
+.attach-chip-thumb { display: block; width: 44px; height: 44px; object-fit: cover; }
+.attach-chip-mark { display: grid; place-items: center; align-content: center; width: 44px; height: 44px; background: var(--bone); color: var(--charcoal); }
+.attach-chip-mark b { font-size: 9px; font-weight: 800; letter-spacing: .06em; line-height: 1; }
+.attach-chip-text { display: grid; min-width: 0; }
+.attach-chip-name { overflow: hidden; color: var(--ink); font-size: 14px; font-weight: 650; line-height: 1.3; text-overflow: ellipsis; white-space: nowrap; }
+.attach-chip small { color: var(--ink-2); font-size: 13px; line-height: 1.3; }
+.attach-chip-remove {
+  display: grid; place-items: center; width: 44px; height: 44px; padding: 0; border: 0; background: transparent;
+  color: var(--charcoal); cursor: pointer;
+}
+.attach-chip-remove:hover { background: var(--bone); }
+.attach-chip-remove:focus-visible { outline: 2px solid var(--bronze-ink); outline-offset: -2px; }
+/* Step 2 on the success screen: "Help us prepare (optional)". */
+.quote-form-uploads { display: grid; gap: 4px; }
+.quote-form-link-button {
+  min-height: 48px; padding: 0 4px; border: 0; background: transparent; color: var(--ink);
+  font: 750 16px/1.2 var(--font-sans); text-decoration: underline; text-underline-offset: 3px; cursor: pointer;
+}
+.quote-form-link-button:focus-visible { outline: 2px solid var(--bronze-ink); outline-offset: 2px; }
+.quote-details { display: grid; gap: 0; margin: 6px 0 4px; padding: 16px 0 4px; border-top: 1px solid rgba(32, 35, 31, 0.16); }
+.quote-details h3 { margin: 0 0 4px; color: var(--ink); font-family: var(--font-display); font-size: 21px; font-weight: 500; line-height: 1.2; }
+.quote-details .quote-details-why { margin: 0 0 12px; color: var(--ink-2); font-size: 15px; }
+.quote-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.quote-form .quote-chip span { min-height: 48px; padding: 0 14px; font-size: 15px; }
+.quote-details-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 18px; margin-top: 4px; }
+.quote-details-save { min-height: 52px; padding: 0 24px; }
+@media (max-width: 639px) {
+  .quote-details-save { flex: 1 1 100%; }
+  /* Project chips three across and timing two across, so Step 2 stays short on a phone. */
+  .quote-chips { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+  .quote-chips-timing { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .quote-form .quote-chip span { padding: 4px 6px; font-size: 14px; line-height: 1.2; }
+}
 /* Homepage proof under the hero: stat row, then the trust strip on the same surface. */
 .stat-row { border-bottom: 1px solid var(--line); background: var(--bone); }
 .stat-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }

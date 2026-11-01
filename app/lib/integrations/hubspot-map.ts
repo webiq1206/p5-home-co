@@ -189,7 +189,84 @@ export type DealSyncInput = {
   closedLostReason: string | null;
   /** Stored campaign context. Sent only to verified P5 properties. */
   attribution?: Record<string, string> | null;
+  /** From the two-step forms (docs/lead-intake-contract.md). All optional. */
+  requestKind?: string | null;
+  contactPreference?: string | null;
+  bestTime?: string | null;
+  timeline?: string | null;
+  /** Every file on the lead, as a link the team can open. */
+  files?: readonly { name: string; url: string }[];
 };
+
+/**
+ * Optional P5 properties for the request details. tools/hubspot-setup.ts
+ * creates them; until it has run on a portal they do not exist, and the same
+ * facts travel in the deal description instead, so nothing is lost and no
+ * sync fails on an unknown property.
+ */
+export const REQUEST_DETAIL_PROPERTIES = {
+  requestKind: "p5_request_kind",
+  contactPreference: "p5_contact_preference",
+  bestTime: "p5_best_time",
+  timeline: "p5_timeline",
+  files: "p5_file_links",
+} as const;
+
+const REQUEST_KIND_LABELS: Record<string, string> = { quote: "Quote request", callback: "Callback request" };
+const CONTACT_PREFERENCE_LABELS: Record<string, string> = { call: "Call", text: "Text", email: "Email" };
+
+/** The request details as label/value pairs, in the order the team reads them. */
+function requestDetailValues(d: DealSyncInput): Record<keyof typeof REQUEST_DETAIL_PROPERTIES, string | undefined> {
+  return {
+    requestKind: d.requestKind ? REQUEST_KIND_LABELS[d.requestKind] ?? d.requestKind : undefined,
+    contactPreference: d.contactPreference ? CONTACT_PREFERENCE_LABELS[d.contactPreference] ?? d.contactPreference : undefined,
+    bestTime: d.bestTime ?? undefined,
+    timeline: d.timeline ?? undefined,
+    files: d.files?.length ? d.files.map((file) => `${file.name}: ${file.url}`).join("\n") : undefined,
+  };
+}
+
+const DETAIL_LABELS: Record<keyof typeof REQUEST_DETAIL_PROPERTIES, string> = {
+  requestKind: "Request",
+  contactPreference: "Preferred contact",
+  bestTime: "Best time to call",
+  timeline: "Timing",
+  files: "Files",
+};
+
+/**
+ * The deal description: the summary, then any request detail that has no
+ * property on this portal. A callback's summary already opens with
+ * "Callback request", so it reads as one in HubSpot either way.
+ */
+export function dealDescription(d: DealSyncInput, availableProperties?: ReadonlySet<string>): string | undefined {
+  const values = requestDetailValues(d);
+  const lines: string[] = [];
+  for (const key of Object.keys(REQUEST_DETAIL_PROPERTIES) as (keyof typeof REQUEST_DETAIL_PROPERTIES)[]) {
+    const value = values[key];
+    if (!value || availableProperties?.has(REQUEST_DETAIL_PROPERTIES[key])) continue;
+    lines.push(key === "files" ? `${DETAIL_LABELS[key]}:\n${value}` : `${DETAIL_LABELS[key]}: ${value}`);
+  }
+  const parts = [d.summary ?? "", lines.join("\n")].filter(Boolean);
+  return parts.length ? parts.join("\n\n") : undefined;
+}
+
+function escapeHtml(value: string): string {
+  return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
+/** HubSpot note body for one "Details added" submission. Links stay clickable. */
+export function detailsNoteBody(lines: readonly string[]): string {
+  const body = lines
+    .map((line) => {
+      const link = /^File: (.*) (https:\/\/\S+)$/.exec(line);
+      return link
+        ? `File: <a href="${escapeHtml(link[2])}">${escapeHtml(link[1])}</a>`
+        : escapeHtml(line);
+    })
+    .join("<br>");
+  return `<p><strong>Details added</strong></p><p>${body}</p>`;
+}
 
 /**
  * Deal properties.
@@ -230,7 +307,7 @@ export function dealProperties(
     p5_original_campaign: d.originalCampaign ?? undefined,
     p5_integration_sync_status: "Synced",
 
-    description: d.summary ?? undefined,
+    description: dealDescription(d, availableProperties),
     amount: d.estimatedValue === null ? undefined : String(d.estimatedValue),
     hubspot_owner_id: d.hubspotOwnerId ?? undefined,
     closed_lost_reason: d.closedLostReason ?? undefined,
@@ -253,6 +330,12 @@ export function dealProperties(
     referrer: "p5_referrer",
     service: "p5_service",
   };
+  const details = requestDetailValues(d);
+  for (const key of Object.keys(REQUEST_DETAIL_PROPERTIES) as (keyof typeof REQUEST_DETAIL_PROPERTIES)[]) {
+    const property = REQUEST_DETAIL_PROPERTIES[key];
+    const value = details[key];
+    if (value && availableProperties?.has(property)) out[property] = value;
+  }
   for (const [key, property] of Object.entries(attributionFields)) {
     const value = d.attribution?.[key];
     // Never guess that a custom field exists: an absent/unwritable property

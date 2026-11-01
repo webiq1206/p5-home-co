@@ -132,3 +132,49 @@ export function shortRequestSummary(value: ShortRequestValues, fileNames: readon
     .filter(Boolean)
     .join(" ");
 }
+
+/** Step 2 timing chips, in the words the visitor picks. */
+export const TIMING_OPTIONS = ["Soon", "1 to 3 months", "3 to 6 months", "Just planning"] as const;
+
+export type ShortRequestDetails = {
+  project: string | null;
+  address: string | null;
+  timing: string | null;
+  bestTime: string | null;
+  email: string | null;
+};
+
+export type ShortRequestDetailsCheck =
+  | { ok: true; value: ShortRequestDetails }
+  | { ok: false; field: "email" | "details"; error: string };
+
+export const SHORT_REQUEST_DETAILS_ERRORS = {
+  empty: "Add at least one detail, or skip this step.",
+  email: SHORT_REQUEST_ERRORS.emailInvalid,
+} as const;
+
+/**
+ * Read Step 2 ("Help us prepare"). Every field is optional and nothing here
+ * can overwrite a Step 1 answer: the merge fills only what is empty. A project
+ * or timing outside the lists is dropped rather than refused.
+ */
+export function readShortRequestDetails(
+  get: (key: string) => unknown,
+  knownProjects: readonly string[],
+): ShortRequestDetailsCheck {
+  const projectRaw = text(get("project"), 120);
+  const timingRaw = text(get("timing"), 40);
+  const email = text(get("email"), 200);
+  const value: ShortRequestDetails = {
+    project: projectRaw && knownProjects.includes(projectRaw) ? projectRaw : null,
+    address: text(get("address"), 300),
+    timing: timingRaw && (TIMING_OPTIONS as readonly string[]).includes(timingRaw) ? timingRaw : null,
+    bestTime: text(get("best_time"), 120),
+    email,
+  };
+  if (email && !normalizeEmail(email)) return { ok: false, field: "email", error: SHORT_REQUEST_DETAILS_ERRORS.email };
+  if (!value.project && !value.address && !value.timing && !value.bestTime && !value.email) {
+    return { ok: false, field: "details", error: SHORT_REQUEST_DETAILS_ERRORS.empty };
+  }
+  return { ok: true, value };
+}
