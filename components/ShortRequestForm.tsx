@@ -534,6 +534,9 @@ export function ShortRequestForm({
       className={`short-request quote-form${plain ? " short-request-plain" : ""}${compact ? " short-request-compact" : ""}`}
       data-suppress-mobile-bar=""
       data-suppress-sticky-cta=""
+      // The family mobile bar steps aside while this form, its success screen or Step 2 is on
+      // screen (components/family/MobileActionBar.tsx).
+      data-family-bar-yield=""
       data-form-mode={done ? "done" : draft.mode}
       data-ready={hydrated ? "" : undefined}
       aria-labelledby={ids.heading}

@@ -1,12 +1,12 @@
 {
   "source": "boise-remodeling-co",
   "note": "P5 Home Co family chrome. Shared files are edited only in the source repository, re-recorded with node scripts/verify-family-chrome.mjs --write, and copied byte-identical to the other family sites. Each site keeps its own lib/familyBrand.ts.",
-  "generatedAt": "2026-11-01T11:15:11.169Z",
+  "generatedAt": "2026-11-01T22:13:54.554Z",
   "files": {
     "components/family/Button.tsx": "b454caf1315b22a29586e0581d75d0080f56540b9950f7d96231868c90414517",
     "components/family/HeroPhoto.tsx": "2ad768fd345a25aba523f4d608f3aa366e4cbecb39319af5f52e426a582780eb",
     "components/family/Icons.tsx": "7ea1013424d2f6786cf95f0de999c19f26ac463e161af1b3da5f4c179010e2a6",
-    "components/family/MobileActionBar.tsx": "639017f49ea99dddce5cf6b6367a17992c1af8793eb39ff4ea2aa4ec7cb25120",
+    "components/family/MobileActionBar.tsx": "9f15654c0025c29addac17b6c12e15d95b34b2db038b716f2aa33d84f66e0df4",
     "components/family/MobileMenu.tsx": "b2bf612a181f3994b0a84276e54c676a48d588b7065395bd0588822b88cbe60c",
     "components/family/ProofStrip.tsx": "373fe4056f68dcc35fe1ce3883ffcac2ffe273444300178e70929cd2710b0650",
     "components/family/SiteFooter.tsx": "5ec4202d9f8c1fa88beb39b57a441f0771bf288583cf100392352c893295dd6b",
