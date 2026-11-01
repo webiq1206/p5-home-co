@@ -119,6 +119,9 @@ a:hover .arrow-diagonal, a:focus-visible .arrow-diagonal { transform: translate(
 .button-light:hover, .button-light:focus-visible { color: #fff; background: transparent; }
 .button-dark { border-color: var(--charcoal); color: var(--paper); background: var(--charcoal); box-shadow: inset 3px 0 0 var(--bronze); }
 .button-dark:hover, .button-dark:focus-visible { color: var(--charcoal); background: transparent; }
+/* Primary on a dark photo or dark band: the same button with charcoal and paper swapped, tan accent bar kept. */
+.button-on-dark { border-color: var(--paper); color: var(--charcoal); background: var(--paper); box-shadow: inset 3px 0 0 var(--bronze); }
+.button-on-dark:hover, .button-on-dark:focus-visible { color: var(--paper); background: transparent; }
 
 .wordmark { display: inline-flex; align-items: center; justify-self: start; line-height: 1; }
 .p5-header-logo { display:block; width:240px; max-width:100%; height:auto; }
