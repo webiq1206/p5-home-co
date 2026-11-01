@@ -8,7 +8,8 @@ import { leadDatabase } from "./fixtures/lead-db.ts";
 // mocked HubSpot API: the brand sites' Step 1 and Step 2 posts, P5's own form,
 // and the HubSpot deal, description and note they produce.
 
-process.env.SESSION_SECRET ??= "synthetic-secret-for-tests";
+// `||=`, not `??=`: CI can export an empty value, which `??=` would keep.
+process.env.SESSION_SECRET ||= "synthetic-secret-for-tests";
 process.env.HUBSPOT_TOKEN = "synthetic-hubspot-token";
 delete process.env.SMTP_HOST;
 

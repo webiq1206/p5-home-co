@@ -23,6 +23,9 @@ export async function leadDatabase(): Promise<IsolatedDatabase & { rows: <T = Ro
     connect: async () => ({ query: run, release: () => undefined }),
     on: () => undefined,
   };
-  process.env.DATABASE_URL ??= "postgres://synthetic.invalid/offline";
+  // Always the synthetic marker, never `??=`: CI exports DATABASE_URL as an
+  // empty string, which `??=` keeps and db.ts then reads as "no database".
+  // The value is never dialled; getPool() returns the PGlite pool above.
+  process.env.DATABASE_URL = "postgres://synthetic.invalid/offline";
   return { ...db, rows: async <T = Row>(sql: string, values: unknown[] = []) => (await db.query(sql, values)).rows as T[] };
 }
