@@ -102,12 +102,12 @@ export default function Home() {
   };
 
   return (
-    <main id="top">
+    <div id="top">
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: serializeJsonLd(homePageSchema) }}
       />
-      <SiteChrome onOpenMatcher={openMatcher} imageHero>
+      <SiteChrome onOpenMatcher={openMatcher} imageHero main>
         <section className="hero" aria-labelledby="hero-heading">
           <div className="hero-media">
             <img
@@ -649,7 +649,7 @@ export default function Home() {
         </section>
       </SiteChrome>
       {matcherOpen && <ProjectMatcher onClose={() => setMatcherOpen(false)} />}
-    </main>
+    </div>
   );
 }
 
