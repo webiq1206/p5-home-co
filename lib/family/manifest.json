@@ -1,22 +1,22 @@
 {
   "source": "boise-remodeling-co",
   "note": "P5 Home Co family chrome. Shared files are edited only in the source repository, re-recorded with node scripts/verify-family-chrome.mjs --write, and copied byte-identical to the other family sites. Each site keeps its own lib/familyBrand.ts.",
-  "generatedAt": "2026-10-31T17:12:18.715Z",
+  "generatedAt": "2026-11-01T06:47:35.028Z",
   "files": {
     "components/family/Button.tsx": "b454caf1315b22a29586e0581d75d0080f56540b9950f7d96231868c90414517",
     "components/family/HeroPhoto.tsx": "7a8a98a90957034aa03e7ab24a0983938ffb4aed5d4922b911c62eb484b388f5",
     "components/family/Icons.tsx": "7ea1013424d2f6786cf95f0de999c19f26ac463e161af1b3da5f4c179010e2a6",
-    "components/family/MobileActionBar.tsx": "87d0f0dde9a4430eeff5c2f6d1fe18043ec35af0a735cf296e3cef98cc2fa5ff",
+    "components/family/MobileActionBar.tsx": "639017f49ea99dddce5cf6b6367a17992c1af8793eb39ff4ea2aa4ec7cb25120",
     "components/family/MobileMenu.tsx": "b2bf612a181f3994b0a84276e54c676a48d588b7065395bd0588822b88cbe60c",
     "components/family/ProofStrip.tsx": "373fe4056f68dcc35fe1ce3883ffcac2ffe273444300178e70929cd2710b0650",
-    "components/family/SiteFooter.tsx": "376a872a04a70297ecf925faf52dff1e8de8e40c06223b86dd7091b53f4b8c4d",
+    "components/family/SiteFooter.tsx": "5ec4202d9f8c1fa88beb39b57a441f0771bf288583cf100392352c893295dd6b",
     "components/family/SiteHeader.tsx": "ec462a98b2f6ba89c4d260629131a17e2f2c1a0413b7520ce952003f17e39542",
     "components/family/SkipLink.tsx": "bbf8cc5869257048678f20dcc7d5d467f0a22fbb291d5698d61886efa7845cb7",
     "components/family/brandStyle.ts": "2d2f9259c64d41d4e335d0fa9100ab2cd23f4333056bd30c3e0a96cb4ed6ce9e",
     "components/family/track.ts": "51c8593830e68af7c1f4224470d10fb5ef37d19538ced0870c7c13c112e9f05b",
-    "lib/family/types.ts": "adf303c4853a9fb58ede53795c267f1de9a44789fb9b10af962bd5421d353836",
+    "lib/family/types.ts": "56993733a433d82b0933d5dd381e9c7a0bccd37699a0ccd326b32cc467dd270f",
     "scripts/verify-family-chrome.mjs": "1c20ec3d7a39dcd11311dc0ee01459c31b9417e7603363c6f2e69e97da33e7fb",
-    "styles/family-chrome.css": "cbeae00ca6a7f391a8e13bc711a000ce714c5e7eb422e7e934f9ad0c033893df",
+    "styles/family-chrome.css": "8f28e3129ceb82de0ea0169922125eadc6e4effde3a0ff5d43bdfcff3fc04b83",
     "styles/family-tokens.css": "b8dc410652890f2860a1c98e3c1447fb90aa64fe3303ca7e974d9a9c77bf247c"
   }
 }

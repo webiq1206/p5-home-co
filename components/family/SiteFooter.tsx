@@ -2,9 +2,10 @@
  * Family site footer. SHARED FILE (lib/family/manifest.json).
  *
  * Brand column (lockup, parent line, one line, phone in the display face, text,
- * email, Save contact), then the brand's link groups, the service-area row, the
- * family row naming every company on every site, and the legal row: NAP with
- * hours, the registration link, copyright, disclosure and legal links. Group
+ * email, Save contact, the parent's Facebook page and Google profile), then
+ * the brand's link groups, the service-area row, the family row naming every
+ * company on every site, and the legal row: NAP with hours, the registration
+ * link, copyright, disclosure and legal links. Group
  * labels are text, not headings, so the footer stays out of the page outline.
  * Family links carry rel="noopener" without noreferrer so referral data reaches
  * the sibling sites.
@@ -94,6 +95,13 @@ export function SiteFooter({ hideRegistration = false, brandExtra }: SiteFooterP
                 <li>
                   <a href={brand.parentFacebook.href} rel="noopener" target="_blank" data-testid="link-footer-facebook">
                     {brand.parentFacebook.label}
+                  </a>
+                </li>
+              ) : null}
+              {brand.parentGoogle?.href ? (
+                <li>
+                  <a href={brand.parentGoogle.href} rel="noopener" target="_blank" data-testid="link-footer-google">
+                    {brand.parentGoogle.label}
                   </a>
                 </li>
               ) : null}

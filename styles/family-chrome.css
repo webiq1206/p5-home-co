@@ -476,6 +476,11 @@ html {
     transform var(--motion-base) var(--ease-in-out),
     visibility 0s linear var(--motion-base);
 }
+/* bar.hideInstantly: gone at once on hide (no slide-out, no delayed visibility); the
+   slide-in on show is the rule above and is unchanged. */
+.fam-bar[data-family-bar][data-hide='instant'][data-state='hidden'] {
+  transition: none;
+}
 .fam-bar[data-family-bar] .fam-bar-inner {
   display: flex;
   gap: var(--space-2);
