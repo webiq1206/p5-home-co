@@ -6,10 +6,9 @@ import { faqsFor, schemaFor, STEPS } from "./schema";
 import { QUOTE_SERVICES, type QuoteService } from "./services";
 import { serializeJsonLd } from "../structuredData";
 import TrackedPhoneLink from "./TrackedPhoneLink";
-import PublicIdentity from "@/components/PublicIdentity";
-import SaveContactButton from "@/components/SaveContactButton";
+import SiteChrome from "@/components/SiteChrome";
+import { FamilyButton } from "@/components/family/Button";
 import { ShortRequestForm } from "@/components/ShortRequestForm";
-import { OpenChatButton } from "@/components/SiteChat";
 import {
   imageVariantFor,
   FEATURED_BOISE_EXTERIOR,
@@ -18,7 +17,7 @@ import {
   FEATURED_BOISE_BATHROOM,
   FEATURED_BOISE_ADU,
 } from "../imageVariants.ts";
-import { ADU_D3_LINE, PUBLIC_PHONE_DISPLAY, PUBLIC_PHONE_SMS } from "../publicIdentity";
+import { ADU_D3_LINE } from "../publicIdentity";
 
 /* eslint-disable @next/next/no-img-element */
 
@@ -42,36 +41,12 @@ export default function QuoteLanding({ service }: { service: QuoteService | null
   const others = QUOTE_SERVICES.filter((s) => !service || s.slug !== service.slug);
 
   return (
-    <>
-      <a className="quote-skip" href="#request-form">
-        Skip to the request form
-      </a>
-
+    <SiteChrome>
       <div className="quote-page" id="top">
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: serializeJsonLd(schemaFor(service)) }}
         />
-
-        <header className="quote-header">
-          <Link className="quote-wordmark" href="/" aria-label="P5 Home Co, home">
-            <img src="/brands/p5-home-co-lockup-dark.svg" alt="P5 Home Co, The Home Company" />
-          </Link>
-          <div className="quote-header-actions">
-            <TrackedPhoneLink
-              className="quote-header-phone"
-              location="quote_header"
-              ariaLabel="Call P5 Home Co on 2 0 8, 4 7 7, 1 1 6 9"
-            >
-              <span className="quote-header-phone-full">(208) 477-1169</span>
-              <span className="quote-header-phone-short" aria-hidden="true">Call</span>
-            </TrackedPhoneLink>
-            <OpenChatButton className="quote-header-text" location="quote_header">Chat</OpenChatButton>
-            <a className="quote-header-text" href={PUBLIC_PHONE_SMS} aria-label={`Text ${PUBLIC_PHONE_DISPLAY}`}>
-              Text
-            </a>
-          </div>
-        </header>
 
         <main className="quote-main">
           <section className="quote-hero">
@@ -104,9 +79,9 @@ export default function QuoteLanding({ service }: { service: QuoteService | null
 
                   {/* Phones: the form sits below the hero, so the first screen
                       carries the action that takes the visitor to it. */}
-                  <a className="button button-light quote-hero-cta" href="#request-form" data-cta="primary">
+                  <FamilyButton href="#request-form" variant="hero" size="lg" className="quote-hero-cta" data-cta="primary">
                     Request a quote
-                  </a>
+                  </FamilyButton>
 
                   {service && (
                     <ul className="quote-covers" aria-label="What this covers">
@@ -255,30 +230,14 @@ export default function QuoteLanding({ service }: { service: QuoteService | null
               <img className="quote-faq-photo" src={FEATURED_BOISE_GREAT_ROOM.src} alt={FEATURED_BOISE_GREAT_ROOM.alt} width={FEATURED_BOISE_GREAT_ROOM.width} height={FEATURED_BOISE_GREAT_ROOM.height} loading="lazy" decoding="async" />
             </div>
           </section>
+
+          {/* The service-area line the old quote footer carried; the family footer is shared by every page. */}
+          <p className="quote-shell quote-area">
+            Serving Boise, Meridian, Eagle, Nampa, Kuna, Star, Middleton, Caldwell, and Garden City across Ada and
+            Canyon counties.
+          </p>
         </main>
-
-        <footer className="quote-footer">
-          <div className="quote-shell">
-            <p className="quote-footer-brand">P5 Home Co</p>
-            <p>
-              Serving Boise, Meridian, Eagle, Nampa, Kuna, Star, Middleton, Caldwell, and Garden
-              City across Ada and Canyon counties.
-            </p>
-            <p className="quote-footer-links">
-              <a href="tel:+12084771169">(208) 477-1169</a>
-              <a href="mailto:hello@p5homeco.com">hello@p5homeco.com</a>
-              <SaveContactButton className="quote-save-contact" location="quote_footer" />
-              <Link href="/">P5 Home Co home</Link>
-              <Link href="/about">About</Link>
-              <Link href="/legal/privacy">Privacy policy</Link>
-            </p>
-            <PublicIdentity />
-            <p className="quote-footer-bottom">© 2026 P5 Home Co. All rights reserved.</p>
-          </div>
-        </footer>
       </div>
-
-      
-    </>
+    </SiteChrome>
   );
 }

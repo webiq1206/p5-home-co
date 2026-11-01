@@ -4,10 +4,18 @@ import { Cormorant_Garamond, Manrope } from "next/font/google";
 import Script from "next/script";
 import { googleTagBootstrap } from "@/lib/analyticsBootstrap";
 import HubSpotScript from "./HubSpotScript";
-import MobileActionBar from "@/components/MobileActionBar";
+import { MobileActionBar } from "@/components/family/MobileActionBar";
+import FamilyChromeAnalytics from "@/components/FamilyChromeAnalytics";
 import SiteChat from "@/components/SiteChat";
 import StripUtmLinks from "@/components/StripUtmLinks";
+// Shared P5 Home Co family tokens and chrome (header, menu, bar, footer, hero), synced
+// byte-identical across the family from boise-remodeling-co; brand values come from
+// lib/familyBrand.ts. The family tokens load before globals.css so the site's own token
+// values stand; the chrome loads after it so no older page rule can restyle it.
+import "@/styles/family-tokens.css";
 import "./globals.css";
+import "@/styles/family-chrome.css";
+import "./family-adoption.css";
 import { gaMeasurementId, googleAdsCallClickLabel, googleAdsDestinationId, googleAdsPhoneConversionLabel, googleAdsTextClickLabel, siteUrl } from "./site";
 import { serializeJsonLd, siteDescription, siteSchema, siteTitle } from "./structuredData";
 
@@ -105,6 +113,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         {process.env.NODE_ENV === "production" && <HubSpotScript />}
         {children}
         <MobileActionBar />
+        <FamilyChromeAnalytics />
         <SiteChat />
       </body>
     </html>

@@ -22,17 +22,18 @@ test("HubSpot waits for the first interaction, or at least 5 seconds after load"
 
 test("the homepage hero is in the server HTML without an entrance fade", () => {
   const page = readFileSync("app/HomePageClient.tsx", "utf8");
-  assert.match(page, /className="hero-image"/);
-  assert.match(page, /id="hero-heading"/);
-  assert.match(page, /hero-panel/);
+  // The family HeroPhoto: no hooks, so its image and H1 are in the server HTML.
+  assert.match(page, /<HeroPhoto\b/);
   assert.doesNotMatch(page, /hero-shade/);
+  const hero = readFileSync("components/family/HeroPhoto.tsx", "utf8");
+  assert.doesNotMatch(hero, /use client|useState|useEffect/);
+  assert.match(hero, /priority: true/);
+  const chrome = readFileSync("styles/family-chrome.css", "utf8");
+  const heroCss = chrome.slice(chrome.indexOf("/* ---------- Photo hero ---------- */"), chrome.indexOf("/* ---------- Proof strip ---------- */"));
+  assert.ok(heroCss.length > 0);
+  assert.equal(heroCss.includes("animation"), false);
+  assert.equal(heroCss.includes("opacity"), false);
   const css = readFileSync("app/globals.css", "utf8");
-  const heroImage = css.match(/\.hero-image \{[^}]+\}/)?.[0] || "";
-  const heroCopy = css.match(/\.hero-copy \{[^}]+\}/)?.[0] || "";
-  assert.equal(heroImage.includes("animation"), false);
-  assert.equal(heroImage.includes("opacity"), false);
-  assert.equal(heroCopy.includes("animation"), false);
-  assert.equal(heroCopy.includes("opacity"), false);
   assert.equal(css.includes("heroReveal"), false);
   assert.equal(css.includes("hero-shade"), false);
   assert.match(css, /--color-primary/);

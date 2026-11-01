@@ -7,7 +7,9 @@ import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import ts from "typescript";
 
+import { BUSINESS_HOURS_LABEL } from "../lib/businessHours.ts";
 import {
+  ADU_D3_LINE,
   IDAHO_DOPL_LICENSE_SEARCH,
   LLMS_CONTACT,
   PUBLIC_NAP,
@@ -16,13 +18,22 @@ import {
 } from "../app/publicIdentity.ts";
 import { TRUSTED_H1 } from "../app/publicClaims.ts";
 
+// Estimator pages carry the identity block themselves.
 const pages = [
-  "components/SiteChrome.tsx",
+  "app/estimate/p5-preview/page.tsx",
+  "app/estimate/scope/page.tsx",
+];
+// Every other public page sits inside components/SiteChrome.tsx, whose family
+// footer (components/family/SiteFooter.tsx, configured by lib/familyBrand.ts)
+// prints the same approved NAP, hours, registration and family row.
+const chromePages = [
+  "app/HomePageClient.tsx",
+  "app/about/AboutClient.tsx",
+  "app/legal/layout.tsx",
   "app/quote/QuoteLanding.tsx",
   "app/quote/thanks/page.tsx",
   "app/sitemap/page.tsx",
-  "app/estimate/p5-preview/page.tsx",
-  "app/estimate/scope/page.tsx",
+  "app/not-found.tsx",
 ];
 
 test("the approved NAP and sister row are the audit strings", () => {
@@ -116,11 +127,60 @@ test("every public page renders the shared identity block", () => {
   for (const file of pages) {
     assert.match(readFileSync(file, "utf8"), /<PublicIdentity\b/, file);
   }
-  // The legal pages render inside the shared site chrome, whose footer carries
-  // the identity block, so it is not repeated in the legal contact block.
-  const legal = readFileSync("app/legal/layout.tsx", "utf8");
-  assert.match(legal, /<SiteChrome\b/);
-  assert.equal(legal.includes("<PublicIdentity"), false);
+  // The other public pages render inside the shared site chrome, whose footer
+  // carries the identity, so it is not repeated on the page.
+  for (const file of chromePages) {
+    const source = readFileSync(file, "utf8");
+    assert.match(source, /<SiteChrome\b/, file);
+    assert.equal(source.includes("<PublicIdentity"), false, file);
+  }
+  assert.match(readFileSync("components/SiteChrome.tsx", "utf8"), /<SiteFooter\b/);
+});
+
+test("the family footer prints the approved NAP, hours, registration and family row", () => {
+  // Render the shared footer with this site's brand config, resolving the
+  // @/ alias and the shared folder's relative imports from source.
+  const require = createRequire(import.meta.url);
+  const compile = (fileUrl: URL) => ts.transpileModule(readFileSync(fileUrl, "utf8"), {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, target: ts.ScriptTarget.ES2022 },
+  }).outputText;
+  const cache = new Map<string, unknown>();
+  const loadFile = (url: URL): unknown => {
+    if (cache.has(url.href)) return cache.get(url.href);
+    const exported: Record<string, unknown> = {};
+    cache.set(url.href, exported);
+    const local = (id: string) => {
+      if (id.startsWith("./")) return loadFile([".ts", ".tsx"].map((ext) => new URL(id + ext, url)).find((u) => existsSync(u))!);
+      if (id.startsWith("@/")) {
+        const target = [".ts", ".tsx"].map((ext) => new URL(`../${id.slice(2)}${ext}`, import.meta.url)).find((u) => existsSync(u));
+        assert.ok(target, `Missing source module: ${id}`);
+        return loadFile(target);
+      }
+      if (id === "next/link") return { __esModule: true, default: (props: Record<string, unknown>) => React.createElement("a", props) };
+      return require(id);
+    };
+    new Function("require", "exports", "React", compile(url))(local, exported, React);
+    return exported;
+  };
+  const footer = loadFile(new URL("../components/family/SiteFooter.tsx", import.meta.url)) as { SiteFooter: React.ComponentType };
+  const html = renderToStaticMarkup(React.createElement(footer.SiteFooter));
+  const text = html.replace(/<[^>]+>/g, "");
+  // PUBLIC_NAP, piece by piece: the footer sets the phone beside the address line.
+  for (const part of PUBLIC_NAP.split(" · ").map((piece) => piece.replace(/\.$/, ""))) {
+    assert.ok(text.includes(part), part);
+  }
+  assert.ok(text.includes(BUSINESS_HOURS_LABEL));
+  assert.match(html, new RegExp(`>${PUBLIC_REGISTRATION}</a>`));
+  assert.ok(html.includes(`href="${IDAHO_DOPL_LICENSE_SEARCH}" target="_blank" rel="noopener noreferrer"`));
+  assert.match(html, /title="Look up registration 8381215 on Idaho DOPL"/);
+  assert.match(html, /aria-label="Verify with Idaho DOPL: look up registration 8381215, opens in a new tab"/);
+  // SISTER_LINE: every sibling linked with rel="noopener" (no noreferrer), and the ADU line.
+  for (const site of ["boiseconstruction.co", "boiseremodeling.co", "boisecabinet.co", "boisehandyman.co"]) {
+    assert.match(html, new RegExp(`<a href="https://${site.replace(".", "\\.")}" rel="noopener">`), site);
+  }
+  assert.ok(text.includes(ADU_D3_LINE), "Boise ADU Co line");
+  assert.ok(html.includes("https://www.facebook.com/1228704823655951"));
+  assert.equal(html.includes("\u2014"), false);
 });
 
 test("the registration line is linked in the footer and plain text on funnel pages", () => {
@@ -142,9 +202,12 @@ test("the registration line is linked in the footer and plain text on funnel pag
     assert.match(readFileSync(file, "utf8"), /linkRegistration=\{false\}/, file);
   }
   assert.match(readFileSync("app/estimate/page.tsx", "utf8"), /redirect\("\/quote"\)/);
+  // The family footer links the registration through the brand config (rendered in the footer test above).
+  const brand = readFileSync("lib/familyBrand.ts", "utf8");
+  assert.match(brand, /text: PUBLIC_REGISTRATION/);
+  assert.match(brand, /href: IDAHO_DOPL_LICENSE_SEARCH/);
   for (const file of ["components/SiteChrome.tsx", "app/sitemap/page.tsx", "app/quote/QuoteLanding.tsx", "app/quote/thanks/page.tsx"]) {
     const source = readFileSync(file, "utf8");
-    assert.match(source, /<PublicIdentity\b/, file);
     assert.equal(source.includes("linkRegistration={false}"), false, file);
     assert.equal(source.includes("edopl.idaho.gov"), false, file);
   }
@@ -167,8 +230,13 @@ test("the registration line is linked in the footer and plain text on funnel pag
 test("homepage preserves identity and location while explaining the three-step process", () => {
   const home = readFileSync("app/HomePageClient.tsx", "utf8");
   assert.equal(TRUSTED_H1, "Boise’s Trusted Home Specialists");
-  assert.match(home, /<h1 id="hero-heading">Boise’s Home <span>Specialists<\/span><\/h1>/);
-  assert.doesNotMatch(home.slice(home.indexOf('<section className="hero"'), home.indexOf('</section>')), /PUBLIC_REGISTRATION|Trusted Home/);
+  // The family HeroPhoto renders the H1 as title plus the accent second line.
+  // Owner call C (1 November): sentence case, same words.
+  const heroStart = home.indexOf("<HeroPhoto");
+  const hero = home.slice(heroStart, home.indexOf("/>", heroStart));
+  assert.match(hero, /title="Boise’s home"/);
+  assert.match(hero, /titleAccent="specialists"/);
+  assert.doesNotMatch(hero, /PUBLIC_REGISTRATION|Trusted Home/);
   assert.match(home, /PUBLIC_REGISTRATION/);
   assert.match(home, /Bonded and insured/);
   assert.match(home, /Who you are hiring/);

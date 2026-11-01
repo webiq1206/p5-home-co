@@ -18,6 +18,8 @@ import { track } from "./analytics";
 import { homePageSchema, serializeJsonLd } from "./structuredData";
 import Arrow from "@/components/Arrow";
 import SiteChrome from "@/components/SiteChrome";
+import { FamilyButton } from "@/components/family/Button";
+import { HeroPhoto } from "@/components/family/HeroPhoto";
 import CompanyFinder from "@/components/CompanyFinder";
 import {
   imageVariantFor,
@@ -36,6 +38,13 @@ import {
   ADU_D3_LINE,
   PUBLIC_REGISTRATION,
 } from "./publicIdentity";
+
+/** The hero photograph at its served size; HeroPhoto sizes it through next/image. */
+const HERO_IMAGE = {
+  src: FEATURED_BOISE_EXTERIOR.src,
+  width: FEATURED_BOISE_EXTERIOR.width,
+  height: FEATURED_BOISE_EXTERIOR.height,
+};
 
 type CompanyKey = "construction" | "remodeling" | "cabinetry" | "handyman" | "adu";
 
@@ -107,39 +116,22 @@ export default function Home() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: serializeJsonLd(homePageSchema) }}
       />
-      <SiteChrome onOpenMatcher={openMatcher} imageHero main>
-        <section className="hero" aria-labelledby="hero-heading">
-          <div className="hero-media">
-            <img
-              className="hero-image"
-              src={FEATURED_BOISE_EXTERIOR.src}
-              alt={FEATURED_BOISE_EXTERIOR.alt}
-              width={FEATURED_BOISE_EXTERIOR.width}
-              height={FEATURED_BOISE_EXTERIOR.height}
-              srcSet={FEATURED_BOISE_EXTERIOR.srcSet}
-              sizes="100vw"
-              fetchPriority="high"
-              decoding="async"
-            />
-          </div>
-          <div className="hero-panel">
-            <div className="hero-content content-shell">
-              <div className="hero-copy">
-                <h1 id="hero-heading">Boise’s Home <span>Specialists</span></h1>
-                <p className="hero-lede">New homes, remodeling, cabinets, repairs and ADUs.</p>
-                <div className="hero-actions" data-suppress-mobile-bar="">
-                  <Link className="button button-light"
-                    href="/quote"
-                    data-cta="primary"
-                    onClick={() => track("quote_click", { location: "hero" })}
-                  >
-                    Request a quote
-                  </Link>
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
+      <SiteChrome main>
+        {/*
+          The family photo hero (components/family/HeroPhoto): the landscape photograph
+          under a directional scrim, the two-line H1 with the tan second line, one line
+          of support copy and one action. No phone, city list or caveat in the hero
+          (copy rules); Call, Chat and Text sit in the header and the bottom bar.
+        */}
+        <HeroPhoto
+          image={{ ...HERO_IMAGE, alt: FEATURED_BOISE_EXTERIOR.alt, position: "50% 20%" }}
+          phoneImage={{ ...HERO_IMAGE, position: "65% 50%" }}
+          eyebrow="The Home Company"
+          title="Boise’s home"
+          titleAccent="specialists"
+          support="New homes, remodeling, cabinets, repairs and ADUs."
+          primary={{ label: "Request a quote", href: "/quote" }}
+        />
 
         {/*
           Stat row (C14). Every figure is already published on this site and is the
@@ -385,7 +377,6 @@ export default function Home() {
           id="request-form"
           className="request-entry"
           aria-labelledby="request-entry-heading"
-          data-suppress-mobile-bar=""
         >
           <div className="content-shell">
             <div className="request-entry-card">
@@ -398,14 +389,14 @@ export default function Home() {
                 </p>
               </div>
               <div className="request-entry-actions">
-                <Link
-                  className="button button-dark"
+                <FamilyButton
                   href="/quote"
+                  size="lg"
                   data-cta="primary"
                   onClick={() => track("quote_click", { location: "request_entry" })}
                 >
-                  Request a quote <Arrow />
-                </Link>
+                  Request a quote
+                </FamilyButton>
                 <p>Call, chat, or text from the header if you would rather talk.</p>
               </div>
             </div>
@@ -423,13 +414,13 @@ export default function Home() {
                   <br />
                   We will help you find the right team.
                 </p>
-                <Link
-                  className="button button-dark"
+                <FamilyButton
                   href="/quote"
+                  size="lg"
                   onClick={() => track("quote_click", { location: "how_p5" })}
                 >
                   Request a quote
-                </Link>
+                </FamilyButton>
               </div>
               <ol className="how-p5-steps">
                 {HOW_P5_WORKS.map((step, index) => (
@@ -632,15 +623,16 @@ export default function Home() {
           <Reveal className="content-shell final-cta-content">
             <p className="eyebrow eyebrow-light">Start with the need, not the company</p>
             <h2>Tell us what you are planning. We will point you to the right team.</h2>
-            <div className="final-cta-actions" data-suppress-mobile-bar="">
-              <Link
-                className="button button-dark"
+            <div className="final-cta-actions">
+              <FamilyButton
                 href="/quote"
+                variant="hero"
+                size="lg"
                 data-cta="primary"
                 onClick={() => track("quote_click", { location: "final_cta" })}
               >
-                Request a quote <Arrow />
-              </Link>
+                Request a quote
+              </FamilyButton>
               <button className="text-link text-link-light" type="button" onClick={openMatcher}>
                 Help me choose a company <Arrow />
               </button>
@@ -794,8 +786,11 @@ function ProjectMatcher({ onClose }: { onClose: () => void }) {
       }
     };
     window.addEventListener("keydown", onKey);
+    // The family bottom bar steps aside while the matcher owns the screen (lib/familyBrand.ts).
+    document.body.dataset.p5MatcherOpen = "true";
     return () => {
       window.removeEventListener("keydown", onKey);
+      delete document.body.dataset.p5MatcherOpen;
       restoreRef.current?.focus?.();
     };
   }, [onClose]);
@@ -881,8 +876,8 @@ function ProjectMatcher({ onClose }: { onClose: () => void }) {
               </h2>
               <p>{detail.reason}</p>
               <div className="result-actions">
-                <a
-                  className="button button-dark"
+                <FamilyButton
+                  size="lg"
                   href={detail.url}
                   target={detail.url.startsWith("http") ? "_blank" : undefined}
                   rel={detail.url.startsWith("http") ? "noopener" : undefined}
@@ -894,7 +889,7 @@ function ProjectMatcher({ onClose }: { onClose: () => void }) {
                   }
                 >
                   {detail.cta} <Arrow diagonal={detail.url.startsWith("http")} />
-                </a>
+                </FamilyButton>
                 <Link
                   className="text-link"
                   href={

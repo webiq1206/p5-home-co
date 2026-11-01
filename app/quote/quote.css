@@ -1087,3 +1087,13 @@
   .quote-photo-row img { height: 200px; }
   .quote-scroll-photo img { height: 220px; }
 }
+
+/* The service-area line, moved out of the old quote footer when the page took the shared family footer. */
+.quote-area {
+  margin-block: 0;
+  padding-block: var(--section-y-compact);
+  border-top: 1px solid var(--line);
+  color: var(--ink-2);
+  font-size: 15px;
+  line-height: 1.6;
+}
