@@ -25,9 +25,9 @@ import {
   imageVariantFor,
   FRAMING_FOOTHILLS,
   FEATURED_BOISE_EXTERIOR,
-  FEATURED_BOISE_GREAT_ROOM,
-  FEATURED_BOISE_KITCHEN,
-  FEATURED_BOISE_BATHROOM,
+  DRIVE_DINING_ROOM,
+  DRIVE_KITCHEN,
+  DRIVE_PRIMARY_BATH,
   REMODEL_KITCHEN_LIVING,
   BACKYARD_ADU,
   TREASURE_VALLEY_FOOTHILLS,
@@ -460,21 +460,22 @@ export default function Home() {
           <div className="content-shell featured-project-grid featured-project-grid-3" role="list">
             <div className="featured-project-shot" role="listitem">
               <img
-                src={FEATURED_BOISE_GREAT_ROOM.src}
-                alt={FEATURED_BOISE_GREAT_ROOM.alt}
-                width={FEATURED_BOISE_GREAT_ROOM.width}
-                height={FEATURED_BOISE_GREAT_ROOM.height}
+                src={DRIVE_DINING_ROOM.src}
+                style={{ objectPosition: "50% 62%" }}
+                alt={DRIVE_DINING_ROOM.alt}
+                width={DRIVE_DINING_ROOM.width}
+                height={DRIVE_DINING_ROOM.height}
                 loading="lazy"
                 decoding="async"
               />
-              <span>Great room · Representative design</span>
+              <span>Dining room · Representative design</span>
             </div>
             <div className="featured-project-shot" role="listitem">
               <img
-                src={FEATURED_BOISE_KITCHEN.src}
-                alt={FEATURED_BOISE_KITCHEN.alt}
-                width={FEATURED_BOISE_KITCHEN.width}
-                height={FEATURED_BOISE_KITCHEN.height}
+                src={DRIVE_KITCHEN.src}
+                alt={DRIVE_KITCHEN.alt}
+                width={DRIVE_KITCHEN.width}
+                height={DRIVE_KITCHEN.height}
                 loading="lazy"
                 decoding="async"
               />
@@ -482,10 +483,10 @@ export default function Home() {
             </div>
             <div className="featured-project-shot" role="listitem">
               <img
-                src={FEATURED_BOISE_BATHROOM.src}
-                alt={FEATURED_BOISE_BATHROOM.alt}
-                width={FEATURED_BOISE_BATHROOM.width}
-                height={FEATURED_BOISE_BATHROOM.height}
+                src={DRIVE_PRIMARY_BATH.src}
+                alt={DRIVE_PRIMARY_BATH.alt}
+                width={DRIVE_PRIMARY_BATH.width}
+                height={DRIVE_PRIMARY_BATH.height}
                 loading="lazy"
                 decoding="async"
               />

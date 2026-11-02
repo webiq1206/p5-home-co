@@ -129,3 +129,31 @@ const bySrc = new Map<string, ServedImage>(Object.values(imageVariants).map((var
 export function imageVariantFor(src: string): ServedImage | undefined {
   return bySrc.get(src);
 }
+
+/** Owner-supplied design imagery (Drive: 03. Ad Campaigns / P5 Home Co). */
+export const DRIVE_DINING_ROOM = {
+  src: "/images/drive/dining-room-with-foothill-view.webp",
+  width: 1200,
+  height: 1200,
+  alt: "Dining room with a white oak table, a linen pendant and floor-to-ceiling black-framed windows to the Idaho foothills",
+  srcSet: "/images/drive/dining-room-with-foothill-view.webp 1200w",
+  sizes: "(min-width: 1101px) 33vw, 100vw",
+} as const satisfies ServedImage;
+
+export const DRIVE_KITCHEN = {
+  src: "/images/drive/white-oak-kitchen-with-rattan-pendants.webp",
+  width: 1200,
+  height: 628,
+  alt: "White oak kitchen island under rattan pendants with cream cabinets and open oak shelves",
+  srcSet: "/images/drive/white-oak-kitchen-with-rattan-pendants.webp 1200w",
+  sizes: "(min-width: 1101px) 33vw, 100vw",
+} as const satisfies ServedImage;
+
+export const DRIVE_PRIMARY_BATH = {
+  src: "/images/drive/glass-walk-in-shower-and-oak-vanity.webp",
+  width: 1200,
+  height: 628,
+  alt: "Glass walk-in shower with marble-look tile beside a floating white oak double vanity",
+  srcSet: "/images/drive/glass-walk-in-shower-and-oak-vanity.webp 1200w",
+  sizes: "(min-width: 1101px) 33vw, 100vw",
+} as const satisfies ServedImage;
