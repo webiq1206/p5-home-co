@@ -20,6 +20,15 @@ const nextConfig: NextConfig = {
         destination: "https://p5homeco.com/:path*",
         permanent: true,
       },
+      // /estimate retired into /quote (app/estimate/page.tsx). Answer with a
+      // real 301 at the edge so crawlers consolidate on /quote; the page-level
+      // redirect stays as the fallback. Only the exact path: /estimate/scope
+      // and the QA routes beneath it are separate pages.
+      {
+        source: "/estimate",
+        destination: "/quote",
+        statusCode: 301,
+      },
     ];
   },
 };

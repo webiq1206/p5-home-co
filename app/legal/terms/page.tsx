@@ -11,7 +11,7 @@ export const metadata: Metadata = withBrandPageMetadata(({
 export default function TermsPage() {
   return (
     <>
-      <h1>Terms of Use</h1>
+      <h1>Terms of use</h1>
       <p className="legal-updated">Last updated 23 August 2026</p>
 
       <p className="legal-lead">

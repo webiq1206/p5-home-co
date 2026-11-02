@@ -1,12 +1,15 @@
+import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  HUBSPOT_PROJECT_TYPES,
   PIPELINE_ID,
   STAGE_BY_ID,
   STAGE_IDS,
   contactProperties,
   dealProperties,
+  hubspotProjectType,
   stageIdFor,
   type DealSyncInput,
 } from "../app/lib/integrations/hubspot-map.ts";
@@ -171,6 +174,129 @@ test("a closed-lost deal carries its reason to HubSpot's own property", () => {
   const p = dealProperties(deal({ stage: "Closed Lost", closedLostReason: "Price" }));
   assert.equal(p.dealstage, "closedlost");
   assert.equal(p.closed_lost_reason, "Price");
+});
+
+test("quote project labels map to HubSpot options, and unsafe labels are omitted", () => {
+  const cases: Array<[string | null | undefined, string | undefined]> = [
+    ["Accessory dwelling unit (ADU)", "Detached ADU"],
+    ["  Accessory dwelling unit (ADU)  ", "Detached ADU"],
+    ["Home addition", "Addition, ADU, or basement"],
+    ["Basement finishing", "Basement or interior unit"],
+    ["New custom home", "Custom home"],
+    ["Custom cabinets or built-ins", "Built-ins or storage"],
+    ["Home repairs or handyman work", "handyman"],
+    ["Something else, or I am not sure", undefined],
+    ["Kitchen remodel", "Kitchen remodel"],
+    ["Bathroom remodel", "Bathroom remodel"],
+    ["Whole-home remodel", "Whole-home remodel"],
+    ["Build on land I own", "Build on land I own"],
+    ["Garage conversion", "Garage conversion"],
+    ["Bathroom vanity", "Bathroom vanity"],
+    ["handyman", "handyman"],
+    ["re10", "re10"],
+    ["cabinet-product", "cabinet-product"],
+    ["cabinet-install", "cabinet-install"],
+    ["kitchen", "kitchen"],
+    ["adu", "adu"],
+    ["new-construction", "new-construction"],
+    ["Not a real project", undefined],
+    ["", undefined],
+    ["   ", undefined],
+    [null, undefined],
+    [undefined, undefined],
+  ];
+  for (const [input, expected] of cases) {
+    assert.equal(hubspotProjectType(input), expected, String(input));
+  }
+});
+
+test("the project type allowlist matches the portal options that do not 400", () => {
+  // Portal 247066159 enumeration, including setup-script labels and later slugs.
+  const portal = [
+    "Custom home",
+    "Semi-custom home",
+    "Build on land I own",
+    "Home plans or lot evaluation",
+    "Kitchen remodel",
+    "Bathroom remodel",
+    "Whole-home remodel",
+    "Addition, ADU, or basement",
+    "Detached ADU",
+    "Garage conversion",
+    "Basement or interior unit",
+    "Feasibility and permits",
+    "Drywall or trim repair",
+    "Mounting or installation",
+    "Deck or exterior repair",
+    "A multi-item home list",
+    "Kitchen cabinets",
+    "Bathroom vanity",
+    "Built-ins or storage",
+    "Whole-home cabinetry",
+    "handyman",
+    "re10",
+    "cabinet-product",
+    "cabinet-install",
+    "kitchen",
+    "bathroom",
+    "remodel",
+    "whole-home",
+    "addition",
+    "adu",
+    "new-construction",
+    "change-order",
+    "rush",
+  ];
+  assert.equal(HUBSPOT_PROJECT_TYPES.size, portal.length);
+  for (const value of portal) {
+    assert.equal(HUBSPOT_PROJECT_TYPES.has(value), true, value);
+  }
+});
+
+test("every public quote option is either a HubSpot value or explicitly omitted", () => {
+  const source = readFileSync(new URL("../app/quote/options.ts", import.meta.url), "utf8");
+  const block = source.slice(source.indexOf("export const PROJECT_OPTIONS"), source.indexOf("] as const;"));
+  const values = [...block.matchAll(/value:\s*"([^"]+)"/g)].map((match) => match[1]);
+  assert.deepEqual(values, [
+    "Kitchen remodel",
+    "Bathroom remodel",
+    "Whole-home remodel",
+    "Home addition",
+    "Basement finishing",
+    "New custom home",
+    "Build on land I own",
+    "Accessory dwelling unit (ADU)",
+    "Garage conversion",
+    "Custom cabinets or built-ins",
+    "Bathroom vanity",
+    "Home repairs or handyman work",
+    "Something else, or I am not sure",
+  ]);
+  for (const value of values) {
+    const mapped = hubspotProjectType(value);
+    if (value === "Something else, or I am not sure") {
+      assert.equal(mapped, undefined);
+    } else {
+      assert.equal(HUBSPOT_PROJECT_TYPES.has(mapped ?? ""), true, value);
+    }
+  }
+});
+
+test("deal sync sends the mapped project type and drops values HubSpot would reject", () => {
+  assert.equal(
+    dealProperties(deal({ projectType: "Accessory dwelling unit (ADU)" })).p5_project_type,
+    "Detached ADU",
+  );
+  assert.equal(
+    dealProperties(deal({ projectType: "Home repairs or handyman work" })).p5_project_type,
+    "handyman",
+  );
+  const unsure = dealProperties(deal({ projectType: "Something else, or I am not sure" }));
+  assert.equal("p5_project_type" in unsure, false);
+  const unknown = dealProperties(deal({ projectType: "Solar panels on the shop" }));
+  assert.equal("p5_project_type" in unknown, false);
+  assert.equal(unknown.p5_brand, "Boise Remodeling Co");
+  assert.equal(unknown.dealstage, "appointmentscheduled");
 });
 
 test("every brand maps through without throwing", () => {

@@ -6,9 +6,9 @@ import { usePathname } from "next/navigation";
 import { track, trackAcceptedInquiry } from "../app/analytics";
 import { PUBLIC_PHONE_DISPLAY } from "../app/publicIdentity";
 import { isNewAcceptedInquiry } from "../app/quote/conversion.ts";
-import { continueAssistantProject } from "../lib/p5/assistantContinuation.ts";
 import { captureAttribution } from "../lib/p5/browserAttribution.ts";
 import styles from "./SiteChat.module.css";
+import SaveContactButton from "./SaveContactButton";
 
 type Line = { role: "user" | "team"; content: string };
 
@@ -58,12 +58,16 @@ export default function SiteChat() {
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
   const dialogRef = useRef<HTMLDivElement>(null);
+  const returnFocusRef = useRef<HTMLElement | null>(null);
   const titleId = useId();
   const trapRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (hidden) return;
-    const onOpen = () => setOpen(true);
+    const onOpen = () => {
+      returnFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+      setOpen(true);
+    };
     window.addEventListener("p5:chat-open", onOpen);
     return () => window.removeEventListener("p5:chat-open", onOpen);
   }, [hidden]);
@@ -94,7 +98,7 @@ export default function SiteChat() {
     pin();
     document.body.dataset.p5ChatOpen = "true";
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setOpen(false);
+      if (event.key === "Escape") close();
     };
     window.addEventListener("keydown", onKey);
     window.visualViewport?.addEventListener("resize", pin);
@@ -110,20 +114,11 @@ export default function SiteChat() {
 
   function close() {
     setOpen(false);
+    if (returnFocusRef.current?.isConnected) returnFocusRef.current.focus();
   }
 
   function userNotes(): { role: string; content: string }[] {
     return lines.filter((line) => line.role === "user");
-  }
-
-  function continueInEstimator() {
-    try {
-      continueAssistantProject(userNotes(), note);
-      window.location.assign("/estimate");
-    } catch (caught) {
-      const message = caught instanceof Error ? caught.message : "The estimator could not open from this chat. Call (208) 477-1169.";
-      setLines((current) => [...current, { role: "team", content: message }]);
-    }
   }
 
   function sendNote(event: React.FormEvent) {
@@ -232,13 +227,19 @@ export default function SiteChat() {
             <button className="button button-dark" type="submit" disabled={pending} aria-busy={pending}>
               {phase === "note" ? "Continue" : pending ? "Sending" : "Send to the team"}
             </button>
-            <button className={styles.continue} type="button" onClick={continueInEstimator}>Continue in the estimator</button>
+            <a className={styles.continue} href="/quote">
+              Prefer a short form? Request a quote
+            </a>
           </div>
         </form>
       )}
       {phase === "sent" && (
         <div className={styles.composer}>
-          <button className={styles.continue} type="button" onClick={continueInEstimator}>Continue in the estimator</button>
+          <p className={styles.sentNote}>We reply within one business day. Save our contact so you have Nick&apos;s number when we call back.</p>
+          <SaveContactButton className={styles.continue} location="chat_thanks" />
+          <a className={styles.continue} href="/quote">
+            Request a quote
+          </a>
         </div>
       )}
     </div>

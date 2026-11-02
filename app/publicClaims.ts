@@ -32,8 +32,8 @@ export const SPECIALTY_EXPERTISE = "Each company has its own specialty, team, an
 export const QUOTE_SELF_PERFORM = "Each one does its own craft under one shared standard.";
 export const QUOTE_SPECIALTY = "Each one focuses on its own specialty under one shared standard.";
 
-export const OWN_CRAFT_DETAIL = "Each company does its own craft. P5 coordinates the handoff between them.";
-export const OWN_SPECIALTY_DETAIL = "Each company focuses on its own specialty. P5 coordinates the handoff between them.";
+export const OWN_CRAFT_DETAIL = "Start with the company whose craft fits your project. Your specialist explains the next step.";
+export const OWN_SPECIALTY_DETAIL = "Start with the company whose specialty fits your project. Your specialist explains the next step.";
 
 export const FABRICATION_HANDOFF = "Cabinet design, fabrication, and installation";
 export const SOURCING_HANDOFF = "Cabinet design, sourcing, and installation";
@@ -55,12 +55,12 @@ export const CABINET_FINISH_COUNT = "299 finishes";
 export const CABINET_WARRANTY = "Lifetime workmanship warranty";
 
 export const TRUSTED_H1 = "Boise’s Trusted Home Specialists";
-export const PLAIN_H1 = "Boise’s Home Specialists";
+export const PLAIN_H1 = "Boise’s home specialists";
 
 export const TRUSTED_LEDE =
   "Build it. Remodel it. Expand it. Care for it. Finish it. P5 brings every chapter of homeownership under one trusted family of specialized Treasure Valley companies.";
 export const PLAIN_LEDE =
-  "Build it. Remodel it. Expand it. Care for it. Finish it. P5 brings every chapter of homeownership under one family of specialized Treasure Valley companies.";
+  "Parent company to Boise Construction, Remodeling, Cabinet, and Handyman Co. Tell us your project and the right team calls you under one contractor registration.";
 
 export const ESTABLISHED_2020_LINE =
   "Established 2020. Bonded and insured. Serving Ada and Canyon counties.";

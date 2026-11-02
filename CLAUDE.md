@@ -4,7 +4,17 @@ This repository contains the approved P5 Home Co website. Treat the current visu
 
 ## Project goals
 
-P5 Home Co must read as the operating parent company behind Boise Construction Co, Boise Remodeling Co, Boise Cabinet Co, and Boise Handyman Co. Each company needs a distinct identity while remaining part of one cohesive home-service family.
+P5 Home Co must read as the operating parent company behind Boise Construction Co, Boise Remodeling Co, Boise Cabinet Co, and Boise Handyman Co. Boise ADU Co projects currently run through Boise Construction Co; its site is coming. Each company needs a distinct identity while remaining part of one cohesive home-service family.
+
+## Copy voice rules (family fix plan)
+
+* Sentence case headings. No "near me" in body copy or headings.
+* Search phrases stay in the title tag and at most one subheading.
+* No phone number, city list or caveat in any hero paragraph (phone may sit under the CTA).
+* No em dashes anywhere on the site.
+* Numbers only where the owner can defend them. Leave square-bracket fact gaps unfilled.
+* "Request a quote" is the primary public CTA; do not promise instant or online estimates.
+* Accents never carry small body text. Primary buttons are charcoal with paper text and a tan accent bar.
 
 ## Preserve unless the user requests a change
 
@@ -14,7 +24,7 @@ P5 Home Co must read as the operating parent company behind Boise Construction C
 * Typography, spacing, imagery, and section transitions
 * Desktop, tablet, and mobile layouts
 * Sticky navigation and mobile menu
-* Three-step project matcher
+* Company matcher
 * External company links and telephone links
 * Accessibility labels and keyboard controls
 

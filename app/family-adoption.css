@@ -1,0 +1,45 @@
+/*
+  P5 Home Co adoption of the shared family chrome (styles/family-*.css).
+
+  SITE-OWNED. The family files are synced byte-identical and never edited here;
+  this file only reconciles P5's older page tokens with the family values the
+  chrome expects, and sizes the family buttons inside P5's own page layouts.
+*/
+
+/* B6 header height: 64 on phones, 76 from 640px. globals.css states 76 for every width
+   (the old fixed header kept its phone height in --header-height-phone). */
+@media (max-width: 639px) {
+  :root {
+    --header-height: 64px;
+  }
+}
+
+/* P5's page tokens keep 4px controls and 48px choice cards for its own forms; the family
+   chrome and buttons use the family shape: square controls and 56px choice tiles. */
+.fam-header,
+.fam-menu-layer,
+.fam-bar,
+.fam-footer,
+.fam-hero,
+.fam-proof,
+.fam-btn {
+  --radius-control: 0px;
+  --radius-card: 0px;
+  --choice-card-min: 56px;
+}
+
+/* Family buttons inside P5 page layouts: full width where the old buttons were on phones. */
+@media (max-width: 560px) {
+  .request-entry-actions .fam-btn,
+  .result-actions .fam-btn,
+  .company-finder-actions .fam-btn,
+  .final-cta-actions .fam-btn {
+    width: 100%;
+  }
+}
+.how-p5-intro .fam-btn {
+  white-space: normal;
+}
+.final-cta .fam-btn {
+  align-self: flex-start;
+}

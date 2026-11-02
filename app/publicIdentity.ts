@@ -17,6 +17,13 @@ export const PUBLIC_PHONE_TEL = "tel:+12084771169";
 
 export const PUBLIC_PHONE_SMS = "sms:+12084771169";
 
+/** P5 Home Co's own Facebook page (confirmed by the coordinator via the Facebook API, 31 October). */
+export const P5_FACEBOOK_URL = "https://www.facebook.com/1228704823655951";
+
+/** P5 Home Co Google Business Profile (category General contractor), knowledge graph id /g/11ntl1t7dc.
+ * The brands have no profiles of their own, so this belongs in P5 sameAs only (owner call A, 1 November). */
+export const P5_GOOGLE_BUSINESS_PROFILE_URL = "https://www.google.com/search?kgmid=/g/11ntl1t7dc";
+
 export const PUBLIC_EMAIL = "hello@p5homeco.com";
 
 export const SCHEMA_TELEPHONE = "+1-208-477-1169";
@@ -38,7 +45,7 @@ export const PUBLIC_REGISTRATION = "Idaho Registered Contractor #8381215";
 export const IDAHO_DOPL_LICENSE_SEARCH = "https://edopl.idaho.gov/OnlineServices/?link=PubSearch";
 
 export const SISTER_LINE =
-  "Part of P5 Home Co: Boise Construction Co · Boise Remodeling Co · Boise Handyman Co · Boise Cabinet Co · Boise ADU Co (launching soon)";
+  "Part of P5 Home Co: Boise Construction Co · Boise Remodeling Co · Boise Cabinet Co · Boise Handyman Co · Boise ADU Co projects currently run through Boise Construction Co; its site is coming.";
 
 export const LLMS_CONTACT =
   `Public representative: Nick Perkins. Service-area business based at 4031 W Wapoot St, Meridian, ID 83646 (not a staffed storefront). Phone (208) 477-1169. Email hello@p5homeco.com. Hours: ${BUSINESS_HOURS_LABEL}.`;
@@ -46,6 +53,13 @@ export const LLMS_CONTACT =
 export const SISTER_LINKS = [
   { label: "Boise Construction Co", href: "https://boiseconstruction.co" },
   { label: "Boise Remodeling Co", href: "https://boiseremodeling.co" },
-  { label: "Boise Handyman Co", href: "https://boisehandyman.co" },
   { label: "Boise Cabinet Co", href: "https://boisecabinet.co" },
+  { label: "Boise Handyman Co", href: "https://boisehandyman.co" },
+  { label: "Boise ADU Co", href: "https://boiseconstruction.co" },
 ] as const;
+
+/** D3 honest line for the ADU card and FAQ. */
+export const ADU_D3_LINE =
+  "Boise ADU Co projects currently run through Boise Construction Co; its site is coming.";
+
+export const ADU_CONSTRUCTION_URL = "https://boiseconstruction.co";

@@ -5,21 +5,10 @@
 import Link from "next/link";
 import Reveal from "@/components/Reveal";
 import { useEffect, useRef, useState } from "react";
-import { visibleFoundingBadges } from "./foundingYear.ts";
 import {
-  PLAIN_H1,
-  PLAIN_LEDE,
-  SHOW_FAKE_STAFF_IMAGES,
-  SHOW_UNPROVEN_PROJECT_COUNT,
   SHOW_UNPROVEN_SELF_PERFORM,
-  SHOW_UNPROVEN_TRUSTED,
-  TRUSTED_H1,
-  TRUSTED_LEDE,
   CRAFT_EXPERTISE,
-  FABRICATION_HANDOFF,
-  SHOW_CABINET_FABRICATION,
-  SOURCING_HANDOFF,
-  SPECIALTY_EXPERTISE,
+  SHOW_FAKE_STAFF_IMAGES,
   cabinetProof,
   constructionImage,
   handymanImage,
@@ -28,159 +17,744 @@ import { citiesServed, faqs, HOW_P5_WORKS, HOW_P5_WORKS_TITLE } from "./site";
 import { track } from "./analytics";
 import { homePageSchema, serializeJsonLd } from "./structuredData";
 import Arrow from "@/components/Arrow";
-import PublicIdentity from "@/components/PublicIdentity";
-import { ShortRequestForm } from "@/components/ShortRequestForm";
-import { OpenChatButton } from "@/components/SiteChat";
-import { imageVariantFor, BASEBOARD_TRIM_FIT, FRAMING_FOOTHILLS } from "./imageVariants.ts";
-import { PUBLIC_PHONE_DISPLAY, PUBLIC_PHONE_SMS, PUBLIC_PHONE_TEL } from "./publicIdentity";
+import SiteChrome from "@/components/SiteChrome";
+import { FamilyButton } from "@/components/family/Button";
+import { HeroPhoto } from "@/components/family/HeroPhoto";
+import CompanyFinder from "@/components/CompanyFinder";
+import {
+  imageVariantFor,
+  FRAMING_FOOTHILLS,
+  FEATURED_BOISE_EXTERIOR,
+  FEATURED_BOISE_GREAT_ROOM,
+  FEATURED_BOISE_KITCHEN,
+  FEATURED_BOISE_BATHROOM,
+  REMODEL_KITCHEN_LIVING,
+  BACKYARD_ADU,
+  TREASURE_VALLEY_FOOTHILLS,
+  CRAFT_TRIM_DETAIL,
+} from "./imageVariants.ts";
+import {
+  ADU_CONSTRUCTION_URL,
+  ADU_D3_LINE,
+  PUBLIC_REGISTRATION,
+} from "./publicIdentity";
 
-type CompanyKey = "construction" | "remodeling" | "adu" | "handyman" | "cabinetry";
-
-/** The quote page that matches each company, so the matcher can end in a request, not only a link out. */
-const quotePath: Record<CompanyKey, string> = { construction: "/quote/custom-home", remodeling: "/quote", adu: "/quote/adu", handyman: "/quote/handyman", cabinetry: "/quote/custom-cabinets" };
-
-const companyDetails: Record<CompanyKey, { name: string; reason: string; url: string; cta: string; label: string; options: string[] }> = {
-  construction: { name: "Boise Construction Co", reason: "The design-build team for new homes, land evaluation, plans, permitting, and construction from the ground up.", url: "https://boiseconstruction.co", cta: "Visit Boise Construction Co", label: "Build a new home", options: ["Custom home", "Semi-custom home", "Build on land I own", "Home plans or lot evaluation"] },
-  remodeling: { name: "Boise Remodeling Co", reason: "The accountable design-build team for major renovations, additions, and projects that change how your existing home works.", url: "https://boiseremodeling.co", cta: "Visit Boise Remodeling Co", label: "Remodel my home", options: ["Kitchen remodel", "Bathroom remodel", "Whole-home remodel", "Addition, ADU, or basement"] },
-  adu: { name: "Boise ADU Co", reason: "The accessory dwelling specialists for guest suites, rental units, and multigenerational living built on the land you already own.", url: "tel:+12084771169", cta: "Call about an ADU", label: "Add an ADU", options: ["Detached ADU", "Garage conversion", "Basement or interior unit", "Feasibility and permits"] },
-  handyman: { name: "Boise Handyman Co", reason: "The skilled home-repair team for finish work, installations, maintenance, and the smaller projects that still deserve professional care.", url: "https://boisehandyman.co", cta: "Visit Boise Handyman Co", label: "Complete repairs", options: ["Drywall or trim repair", "Mounting or installation", "Deck or exterior repair", "A multi-item home list"] },
-  cabinetry: { name: "Boise Cabinet Co", reason: "The cabinetry specialists for made-to-order kitchens, vanities, built-ins, and coordinated storage throughout the home.", url: "https://boisecabinet.co", cta: "Visit Boise Cabinet Co", label: "Plan custom cabinets", options: ["Kitchen cabinets", "Bathroom vanity", "Built-ins or storage", "Whole-home cabinetry"] },
+/**
+ * The hero photograph at its served size. It is already sized WebP (1280x720 at
+ * 114 KB), so HeroPhoto serves it as is: a /_next/image request for a hero can
+ * stall and hold the page's load event open, as it did on Boise Remodeling Co.
+ */
+const HERO_IMAGE = {
+  src: FEATURED_BOISE_EXTERIOR.src,
+  width: FEATURED_BOISE_EXTERIOR.width,
+  height: FEATURED_BOISE_EXTERIOR.height,
+  unoptimized: true,
 };
 
-const HeaderWordmark = () => (
-  <Link className="wordmark" href="/#top" aria-label="P5 Home Co, back to top">
-    <img className="p5-header-logo" src="/brands/p5-home-co-lockup-dark.svg" alt="P5 Home Co, The Home Company" />
-    <img className="p5-header-icon" src="/brands/p5-home-co-icon-dark.svg" alt="P5 Home Co monogram" />
-  </Link>
-);
+type CompanyKey = "construction" | "remodeling" | "cabinetry" | "handyman" | "adu";
 
-const FooterWordmark = () => (
-  <Link className="wordmark" href="/#top" aria-label="P5 Home Co, back to top">
-    <img className="p5-footer-logo" src="/brands/p5-home-co-lockup-light.svg" alt="P5 Home Co, The Home Company" />
-  </Link>
-);
+/** The quote page that matches each company, so the matcher can end in a request, not only a link out. */
+const quotePath: Record<CompanyKey, string> = {
+  construction: "/quote/custom-home",
+  remodeling: "/quote",
+  cabinetry: "/quote/custom-cabinets",
+  handyman: "/quote/handyman",
+  adu: "/quote/adu",
+};
+
+const companyDetails: Record<
+  CompanyKey,
+  { name: string; reason: string; url: string; cta: string; label: string; options: string[] }
+> = {
+  construction: {
+    name: "Boise Construction Co",
+    reason: "The design-build team for new homes, land evaluation, plans, permitting, and construction from the ground up.",
+    url: "https://boiseconstruction.co",
+    cta: "Visit Boise Construction Co",
+    label: "Build a new home",
+    options: ["Custom home", "Semi-custom home", "Build on land I own", "Home plans or lot evaluation"],
+  },
+  remodeling: {
+    name: "Boise Remodeling Co",
+    reason: "The accountable design-build team for major renovations, additions, and projects that change how your existing home works.",
+    url: "https://boiseremodeling.co",
+    cta: "Visit Boise Remodeling Co",
+    label: "Remodel my home",
+    options: ["Kitchen remodel", "Bathroom remodel", "Whole-home remodel", "Addition or basement"],
+  },
+  cabinetry: {
+    name: "Boise Cabinet Co",
+    reason: "The cabinetry specialists for made-to-order kitchens, vanities, built-ins, and coordinated storage throughout the home.",
+    url: "https://boisecabinet.co",
+    cta: "Visit Boise Cabinet Co",
+    label: "Plan custom cabinets",
+    options: ["Kitchen cabinets", "Bathroom vanity", "Built-ins or storage", "Whole-home cabinetry"],
+  },
+  handyman: {
+    name: "Boise Handyman Co",
+    reason: "The skilled home-repair team for finish work, installations, maintenance, and the smaller projects that still deserve professional care.",
+    url: "https://boisehandyman.co",
+    cta: "Visit Boise Handyman Co",
+    label: "Complete repairs",
+    options: ["Drywall or trim repair", "Mounting or installation", "Deck or exterior repair", "A multi-item home list"],
+  },
+  adu: {
+    name: "Boise ADU Co",
+    reason: ADU_D3_LINE,
+    url: ADU_CONSTRUCTION_URL,
+    cta: "Visit Boise Construction Co",
+    label: "Add an ADU",
+    options: ["Detached ADU", "Garage conversion", "Basement or interior unit", "Feasibility and permits"],
+  },
+};
 
 export default function Home() {
-  const [menuOpen, setMenuOpen] = useState(false);
   const [matcherOpen, setMatcherOpen] = useState(false);
-  const [scrolled, setScrolled] = useState(false);
-
-  useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 32);
-    onScroll(); window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
-  useEffect(() => { document.body.style.overflow = menuOpen || matcherOpen ? "hidden" : ""; return () => { document.body.style.overflow = ""; }; }, [menuOpen, matcherOpen]);
-  const menuButtonRef = useRef<HTMLButtonElement>(null);
-  const menuRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!menuOpen) return;
-    const focusable = () =>
-      Array.from(menuRef.current?.querySelectorAll<HTMLElement>("a[href], button") ?? []).filter((el) => el.offsetParent !== null);
-    focusable()[0]?.focus();
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") { setMenuOpen(false); return; }
-      if (event.key !== "Tab") return;
-      const list = [menuButtonRef.current, ...focusable()].filter(Boolean) as HTMLElement[];
-      if (!list.length) return;
-      const first = list[0];
-      const last = list[list.length - 1];
-      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
-      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
-    };
-    const trigger = menuButtonRef.current;
-    window.addEventListener("keydown", onKey);
-    return () => { window.removeEventListener("keydown", onKey); trigger?.focus(); };
-  }, [menuOpen]);
-  useEffect(() => {
-    const desktop = window.matchMedia("(min-width: 821px)");
-    const closeOnDesktop = () => { if (desktop.matches) setMenuOpen(false); };
-    desktop.addEventListener("change", closeOnDesktop);
-    return () => desktop.removeEventListener("change", closeOnDesktop);
-  }, []);
-  const openMatcher = () => { setMenuOpen(false); setMatcherOpen(true); track("matcher_open"); };
+  const openMatcher = () => {
+    setMatcherOpen(true);
+    track("matcher_open");
+  };
 
   return (
-    <main id="top">
+    <div id="top">
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: serializeJsonLd(homePageSchema) }}
       />
-      <header className={`site-header ${scrolled ? "site-header-scrolled" : ""}`}>
-        <div className="nav-shell">
-          <HeaderWordmark />
-          <nav className="desktop-nav" aria-label="Primary navigation"><Link href="/#companies">Our companies</Link><Link href="/#p5-standard">The P5 standard</Link><Link href="/#about">About</Link><Link href="/#service-area">Service area</Link><Link href="/estimate">Request a quote</Link></nav>
-          <Link className="nav-cta" href="/#request-form">Send a request <Arrow /></Link>
-          <nav className="header-contact" aria-label="Call or text">
-            <a href={PUBLIC_PHONE_TEL} aria-label={`Call ${PUBLIC_PHONE_DISPLAY}`}>Call</a>
-            <OpenChatButton className="header-chat">Chat</OpenChatButton>
-            <a href={PUBLIC_PHONE_SMS} aria-label={`Text ${PUBLIC_PHONE_DISPLAY}`}>Text</a>
-          </nav>
-          <button ref={menuButtonRef} className={`menu-button ${menuOpen ? "menu-button-open" : ""}`} type="button" onClick={() => setMenuOpen((value) => !value)} aria-expanded={menuOpen} aria-controls="mobile-menu" aria-label={menuOpen ? "Close menu" : "Open menu"}><span /><span /></button>
-        </div>
-      </header>
-      <div id="mobile-menu" ref={menuRef} className={`mobile-menu ${menuOpen ? "mobile-menu-open" : ""}`} role="dialog" aria-modal={menuOpen || undefined} aria-label="Site menu" aria-hidden={!menuOpen}><div className="mobile-menu-inner"><p>Explore P5 Home Co</p><nav aria-label="Mobile navigation"><Link href="/#request-form" onClick={() => setMenuOpen(false)}>Send a request <Arrow /></Link><Link href="/#companies" onClick={() => setMenuOpen(false)}>Our companies <Arrow /></Link><Link href="/#p5-standard" onClick={() => setMenuOpen(false)}>The P5 standard <Arrow /></Link><Link href="/#about" onClick={() => setMenuOpen(false)}>About P5 <Arrow /></Link><Link href="/#service-area" onClick={() => setMenuOpen(false)}>Service area <Arrow /></Link><Link href="/estimate">Full project details <Arrow /></Link></nav><OpenChatButton className="button button-light" location="mobile_menu" onOpen={() => setMenuOpen(false)}>Chat</OpenChatButton><button className="button button-light" type="button" onClick={openMatcher}>Find your team <Arrow /></button></div></div>
+      <SiteChrome main>
+        {/*
+          The family photo hero (components/family/HeroPhoto): the landscape photograph
+          under a directional scrim, the two-line H1 with the tan second line, one line
+          of support copy and one action. No phone, city list or caveat in the hero
+          (copy rules); Call, Chat and Text sit in the header and the bottom bar.
+        */}
+        <HeroPhoto
+          image={{ ...HERO_IMAGE, alt: FEATURED_BOISE_EXTERIOR.alt, position: "50% 20%" }}
+          phoneImage={{ ...HERO_IMAGE, position: "65% 50%" }}
+          eyebrow="The Home Company"
+          title="Boise’s home"
+          titleAccent="specialists"
+          support="New homes, remodeling, cabinets, repairs and ADUs."
+          primary={{ label: "Request a quote", href: "/quote" }}
+        />
 
-      <section className="hero" aria-labelledby="hero-heading">
-        <img className="hero-image" src="/images/p5-hero.webp" alt="Modern two-story house with dark vertical siding, a flat roof, and warm window light at dusk" fetchPriority="high" decoding="async" /><div className="hero-shade" /><div className="hero-grain" />
-        <div className="hero-content content-shell">
-          <div className="hero-copy">
-            <p className="eyebrow eyebrow-light">The P5 Home Co family of companies</p>
-            <h1 id="hero-heading">{SHOW_UNPROVEN_TRUSTED ? TRUSTED_H1 : PLAIN_H1}</h1>
-            <p className="hero-subhead">Serving Boise, Meridian and the Treasure Valley</p>
-            <div className="hero-actions" data-suppress-mobile-bar="">
-              <a className="button button-light" href={PUBLIC_PHONE_TEL} onClick={() => track("phone_click", { location: "hero" })}>Call {PUBLIC_PHONE_DISPLAY}</a>
-              <OpenChatButton className="button button-light" location="hero">Chat</OpenChatButton>
+        {/*
+          Stat row (C14). Every figure is already published on this site and is the
+          owner's own statement; none is new:
+          - 5: the five companies in the stack below ("One standard across five companies").
+          - citiesServed.length (9): the cities listed in the service-area section and the /quote footer.
+          - 1 business day: the reply promise on the request form, the chat and /estimate.
+          Add a figure here only with the same kind of source. Project counts, years and
+          ratings stay out until the owner documents them (see app/publicClaims.ts).
+        */}
+        <section className="stat-row" aria-label="P5 Home Co at a glance">
+          <div className="content-shell stat-grid">
+            <p>
+              <strong>5</strong>
+              <span>companies</span>
+            </p>
+            <p>
+              <strong>{citiesServed.length}</strong>
+              <span>cities served</span>
+            </p>
+            <p>
+              <strong>1</strong>
+              <span>business day to reply</span>
+            </p>
+          </div>
+        </section>
+
+        <section className="trust-strip" aria-label="P5 Home Co credentials">
+          <div className="content-shell trust-grid trust-grid-compact">
+            <div>
+              <strong>{PUBLIC_REGISTRATION}</strong>
+              <span>Look it up at Idaho DOPL</span>
+            </div>
+            <div>
+              <strong>Bonded and insured</strong>
+              <span>Certificate on request</span>
+            </div>
+            <div>
+              <strong>Written scope first</strong>
+              <span>Price after the scope is clear</span>
+            </div>
+            <div>
+              <strong>Ada and Canyon</strong>
+              <span>Treasure Valley service area</span>
             </div>
           </div>
-          <ShortRequestForm id="request-form" formName="Homepage short request" />
-          <p className="hero-lede">{SHOW_UNPROVEN_TRUSTED ? TRUSTED_LEDE : PLAIN_LEDE}</p>
-          <p className="hero-secondary">
-            <button className="text-link text-link-light" type="button" onClick={openMatcher}>Find the right team <Arrow /></button>
-            <Link className="text-link text-link-light" href="/estimate" onClick={() => track("quote_click", { location: "hero" })}>Full project details <Arrow /></Link>
-          </p>
-        </div>
-      </section>
+        </section>
 
-      <section className="trust-strip" aria-label="P5 Home Co credentials"><div className="content-shell trust-grid">{visibleFoundingBadges().map((badge) => <div key={badge}><strong>{badge}</strong><span>Local experience</span></div>)}{SHOW_UNPROVEN_PROJECT_COUNT ? <div><strong>100+ projects</strong><span>Across the Treasure Valley</span></div> : null}<div><strong>Bonded and insured</strong><span>Professional protection</span></div><div><strong>Ada and Canyon</strong><span>Local permit knowledge</span></div></div></section>
+        <CompanyFinder />
 
-      <section className="how-p5" aria-labelledby="how-p5-heading"><div className="content-shell"><h2 id="how-p5-heading">{HOW_P5_WORKS_TITLE}</h2><ul>{HOW_P5_WORKS.map((line) => <li key={line}>{line}</li>)}</ul><div className="how-p5-photos"><img src="/images/p5-bathroom.webp" alt="Bathroom with a glass walk-in shower, a freestanding tub, and a light wood vanity." loading="lazy" decoding="async" /><img src="/images/p5-addition.webp" alt="Living room with a vaulted wood ceiling and a floor-to-ceiling stone fireplace." loading="lazy" decoding="async" /><img src={FRAMING_FOOTHILLS.src} alt={FRAMING_FOOTHILLS.alt} loading="lazy" decoding="async" /><img src="/images/p5-cabinet.webp" alt="Light wood kitchen cabinets with slim brass bar pulls, a white countertop, and a marble backsplash." loading="lazy" decoding="async" /></div></div></section>
+        <section id="companies" className="companies section-pad">
+          <Reveal className="content-shell">
+            <div className="companies-heading">
+              <div>
+                <p className="eyebrow eyebrow-light">The P5 family</p>
+                <h2>
+                  The right company
+                  <br />
+                  for your project.
+                </h2>
+              </div>
+              <p>Specialist teams, each focused on its own kind of work. Choose the project you have in mind.</p>
+            </div>
+            <nav className="company-index" aria-label="Choose the company for your project">
+              <Link href="/#construction">
+                <span>01</span>
+                <strong>New home construction</strong>
+                <small>Boise Construction Co</small>
+              </Link>
+              <Link href="/#remodeling">
+                <span>02</span>
+                <strong>Remodeling &amp; renovations</strong>
+                <small>Boise Remodeling Co</small>
+              </Link>
+              <Link href="/#cabinetry">
+                <span>03</span>
+                <strong>Cabinets &amp; built-ins</strong>
+                <small>Boise Cabinet Co</small>
+              </Link>
+              <Link href="/#handyman">
+                <span>04</span>
+                <strong>Home repairs &amp; RE-10</strong>
+                <small>Boise Handyman Co</small>
+              </Link>
+              <Link href="/#adu">
+                <span>05</span>
+                <strong>Accessory dwelling units</strong>
+                <small>Boise ADU Co · Through Construction</small>
+              </Link>
+            </nav>
+          </Reveal>
+        </section>
 
-      <section id="about" className="manifesto section-pad"><Reveal className="content-shell manifesto-layout"><div className="manifesto-title"><p className="eyebrow">More than a holding company</p><h2>The right specialist.<br />One shared standard.</h2></div><div className="manifesto-copy"><p className="lead-copy">P5 Home Co is the operating family behind five focused home-service companies. It is not a directory or referral network.</p><p>{SHOW_UNPROVEN_SELF_PERFORM ? CRAFT_EXPERTISE : SPECIALTY_EXPERTISE} What connects them is the way the work is handled: clear scopes, accountable communication, local knowledge, and respect for the home.</p><p>You get a specialist for the project in front of you, with an established family of companies ready for whatever your home needs next.</p><button className="text-link" type="button" onClick={openMatcher}>Match me with a company <Arrow /></button></div></Reveal><div className="content-shell manifesto-photos"><img src="/images/p5-adu.webp" alt="Small modern building with light board-and-batten siding, a dark metal roof, cedar trim, and a covered entry." loading="lazy" decoding="async" /><img src={BASEBOARD_TRIM_FIT.src} alt={BASEBOARD_TRIM_FIT.alt} loading="lazy" decoding="async" /></div></section>
+        <section id="kitchen-example" className="kitchen-example section-pad" aria-labelledby="kitchen-example-heading">
+          <Reveal className="content-shell kitchen-example-inner">
+            <p className="eyebrow">A worked example</p>
+            <h2 id="kitchen-example-heading">A complete kitchen, three specialists.</h2>
+            <ol className="kitchen-example-steps">
+              <li>
+                <span>01</span>
+                <div>
+                  <strong>Boise Remodeling Co</strong>
+                  <p>Layout, permits, demolition and construction.</p>
+                </div>
+              </li>
+              <li>
+                <span>02</span>
+                <div>
+                  <strong>Boise Cabinet Co</strong>
+                  <p>Cabinet design and installation.</p>
+                </div>
+              </li>
+              <li>
+                <span>03</span>
+                <div>
+                  <strong>Boise Handyman Co</strong>
+                  <p>Final mounting and punch list.</p>
+                </div>
+              </li>
+            </ol>
+            <p className="kitchen-example-close">One contract, one project manager, one invoice.</p>
+          </Reveal>
+        </section>
 
-      <section id="companies" className="companies section-pad"><Reveal className="content-shell"><div className="companies-heading"><div><p className="eyebrow eyebrow-light">The P5 family</p><h2>Five disciplines.<br />One complete home company.</h2></div><p>Choose the team built around your scope. If a project crosses specialties, the companies can coordinate the handoff without leaving you to assemble the pieces.</p></div><div className="company-index"><Link href="/#construction"><span>01</span><strong>Build</strong><small>Boise Construction Co</small><Arrow /></Link><Link href="/#remodeling"><span>02</span><strong>Remodel</strong><small>Boise Remodeling Co</small><Arrow /></Link><Link href="/#adu"><span>03</span><strong>Expand</strong><small>Boise ADU Co</small><Arrow /></Link><Link href="/#handyman"><span>04</span><strong>Care</strong><small>Boise Handyman Co</small><Arrow /></Link><Link href="/#cabinetry"><span>05</span><strong>Finish</strong><small>Boise Cabinet Co</small><Arrow /></Link></div></Reveal></section>
+        <BrandPanel
+          id="construction"
+          number="01"
+          category="New home building"
+          logo="/brands/boise-construction-co.svg"
+          image={constructionImage}
+          alt={
+            SHOW_FAKE_STAFF_IMAGES
+              ? "Wood-framed house under construction with exposed roof trusses and a Boise Construction Co logo"
+              : FRAMING_FOOTHILLS.alt
+          }
+          headline={
+            <>
+              From bare lot
+              <br />
+              to the keys.
+            </>
+          }
+          className="brand-construction"
+          description="Custom and semi-custom homes planned around your lot, budget, and the way you want to live. Design, engineering, permitting, and construction stay with one accountable team."
+          services={["Custom home building", "Semi-custom homes", "Build on your lot", "Home design and plans"]}
+          proof="Line-item budget before construction"
+          url="https://boiseconstruction.co"
+          linkLabel="Explore Boise Construction Co"
+        />
+        <BrandPanel
+          id="remodeling"
+          number="02"
+          category="Design-build remodeling"
+          logo="/brands/boise-remodeling-co-dark.svg"
+          image={REMODEL_KITCHEN_LIVING.src}
+          alt={REMODEL_KITCHEN_LIVING.alt}
+          headline={
+            <>
+              Reimagine the
+              <br />
+              home you love.
+            </>
+          }
+          reverse
+          className="brand-remodeling"
+          description="Major renovations managed under one roof, with design direction, a written scope, permits, and construction coordinated by a dedicated project team."
+          services={["Kitchen remodeling", "Bathroom remodeling", "Whole-home remodeling", "Additions"]}
+          proof="Written progress update every Friday"
+          url="https://boiseremodeling.co"
+          linkLabel="Explore Boise Remodeling Co"
+        />
+        <BrandPanel
+          id="cabinetry"
+          number="03"
+          category="Custom cabinetry"
+          logo="/brands/boise-cabinet-co-dark.svg"
+          image="/images/p5-cabinet.webp"
+          alt="Light wood kitchen cabinets with slim brass bar pulls, a white countertop, and a marble backsplash"
+          headline={
+            <>
+              Made to fit.
+              <br />
+              Built to order.
+            </>
+          }
+          className="brand-cabinetry"
+          description="Custom cabinets designed to your measurements, built to order, and installed by our Treasure Valley crew, from the first layout and finish selection through the final walkthrough."
+          services={["Kitchen cabinetry", "Bathroom vanities", "Built-ins and storage", "Whole-home cabinetry"]}
+          proof={cabinetProof || "Built to order · Installed by our crew"}
+          url="https://boisecabinet.co"
+          linkLabel="Explore Boise Cabinet Co"
+        />
+        <BrandPanel
+          id="handyman"
+          number="04"
+          category="Home repair and maintenance"
+          logo="/brands/boise-handyman-co.svg"
+          image={SHOW_FAKE_STAFF_IMAGES ? handymanImage : CRAFT_TRIM_DETAIL.src}
+          alt={
+            SHOW_FAKE_STAFF_IMAGES
+              ? "White baseboard and door casing being installed, with a Boise Handyman Co logo"
+              : CRAFT_TRIM_DETAIL.alt
+          }
+          headline={
+            <>
+              Your list.
+              <br />
+              Handled right.
+            </>
+          }
+          reverse
+          className="brand-handyman"
+          description="Dependable skilled help for repairs, installations, and finishing projects. The same care and accountability, sized for the work that keeps your home working well."
+          services={["Drywall and trim repair", "TV and fixture mounting", "Deck and exterior repair", "Home maintenance and RE-10 repairs"]}
+          proof="One list · One skilled local team"
+          url="https://boisehandyman.co"
+          linkLabel="Explore Boise Handyman Co"
+        />
+        <BrandPanel
+          id="adu"
+          number="05"
+          category="Accessory dwelling units"
+          logo="/brands/boise-adu-co-dark.svg"
+          image={BACKYARD_ADU.src}
+          alt={BACKYARD_ADU.alt}
+          headline={
+            <>
+              More home.
+              <br />
+              Same lot.
+            </>
+          }
+          className="brand-adu"
+          description={ADU_D3_LINE}
+          services={["Detached ADU", "Garage conversion", "Basement or interior unit", "Feasibility and permits"]}
+          proof="Projects run through Boise Construction Co"
+          url={ADU_CONSTRUCTION_URL}
+          linkLabel="Go to Boise Construction Co"
+          comingSoon
+        />
 
-      <BrandPanel id="construction" number="01" category="New home building" logo="/brands/boise-construction-co.svg" image={constructionImage} alt={SHOW_FAKE_STAFF_IMAGES ? "Wood-framed house under construction with exposed roof trusses and a Boise Construction Co logo" : FRAMING_FOOTHILLS.alt} headline={<>From bare lot<br />to the keys.</>} className="brand-construction" description="Custom and semi-custom homes planned around your lot, budget, and the way you want to live. Design, engineering, permitting, and construction stay with one accountable team." services={["Custom home building", "Semi-custom homes", "Build on your lot", "Home design and plans"]} proof="Line-item budget before construction" url="https://boiseconstruction.co" linkLabel="Explore Boise Construction Co" />
-      <BrandPanel id="remodeling" number="02" category="Design-build remodeling" logo="/brands/boise-remodeling-co-dark.svg" image="/images/p5-remodel.webp" alt="Kitchen with white flat-panel cabinets, a dark island, wood stools, and a marble backsplash" headline={<>Reimagine the<br />home you love.</>} reverse className="brand-remodeling" description="Major renovations managed under one roof, with design direction, a written scope, permits, and construction coordinated by a dedicated project team." services={["Kitchen remodeling", "Bathroom remodeling", "Whole-home remodeling", "Additions and ADUs"]} proof="Written progress update every Friday" url="https://boiseremodeling.co" linkLabel="Explore Boise Remodeling Co" />
-      <BrandPanel id="adu" number="03" category="Accessory dwelling units" logo="/brands/boise-adu-co-dark.svg" image="/images/p5-adu.webp" alt="Small modern building with light board-and-batten siding, a dark metal roof, cedar trim, and a covered entry" headline={<>More home.<br />Same lot.</>} className="brand-adu" description="Guest suites, rental units, and multigenerational living planned for the land you already own. We start with what your lot and local code actually allow, so the design follows a real answer." services={["Detached ADU", "Garage conversion", "Basement or interior unit", "Feasibility and permits"]} proof="Feasibility review before design" url="tel:+12084771169" linkLabel="Call about an ADU" comingSoon />
-      <BrandPanel id="handyman" number="04" category="Home repair and maintenance" logo="/brands/boise-handyman-co.svg" image={handymanImage} alt={SHOW_FAKE_STAFF_IMAGES ? "White baseboard and door casing being installed, with a Boise Handyman Co logo" : BASEBOARD_TRIM_FIT.alt} headline={<>Your list.<br />Handled right.</>} reverse className="brand-handyman" description="Dependable skilled help for repairs, installations, and finishing projects. The same care and accountability, sized for the work that keeps your home working well." services={["Drywall and trim repair", "TV and fixture mounting", "Deck and exterior repair", "General home maintenance"]} proof="One list · One skilled local team" url="https://boisehandyman.co" linkLabel="Explore Boise Handyman Co" />
-      <BrandPanel id="cabinetry" number="05" category="Custom cabinetry" logo="/brands/boise-cabinet-co-dark.svg" image="/images/p5-cabinet.webp" alt="Light wood kitchen cabinets with slim brass bar pulls, a white countertop, and a marble backsplash" headline={<>Made to fit.<br />Sourced and installed.</>} className="brand-cabinetry" description="Premium frameless cabinetry designed, sourced, and installed for the way you live, from the first layout and finish selection through the final walkthrough." services={["Kitchen cabinetry", "Bathroom vanities", "Built-ins and storage", "Whole-home cabinetry"]} proof={cabinetProof || "Sourced and installed · Workmanship guarantee"} url="https://boisecabinet.co" linkLabel="Explore Boise Cabinet Co" />
+        <section
+          id="request-form"
+          className="request-entry"
+          aria-labelledby="request-entry-heading"
+        >
+          <div className="content-shell">
+            <div className="request-entry-card">
+              <div className="request-entry-copy">
+                <p className="eyebrow">Send a request</p>
+                <h2 id="request-entry-heading">Start your request</h2>
+                <p>
+                  Tell us what you are planning and attach plans or photos if you have them. The right team replies
+                  within one business day.
+                </p>
+              </div>
+              <div className="request-entry-actions">
+                <FamilyButton
+                  href="/quote"
+                  size="lg"
+                  data-cta="primary"
+                  onClick={() => track("quote_click", { location: "request_entry" })}
+                >
+                  Request a quote
+                </FamilyButton>
+                <p>Call, chat, or text from the header if you would rather talk.</p>
+              </div>
+            </div>
+          </div>
+        </section>
 
-      <section id="p5-standard" className="standard section-pad"><Reveal className="content-shell"><div className="standard-heading"><div><p className="eyebrow eyebrow-light">What P5 adds</p><h2>Five companies should feel like one good experience.</h2></div><p>Specialization should create confidence, not more coordination. These are the operating expectations that connect every P5 company.</p></div><div className="standard-grid"><Standard number="01" title="Clarity before commitment">Planning guidance and written scope details help you understand the work before it begins.</Standard><Standard number="02" title="One accountable team">You know who owns the next step, who to contact, and where the project stands.</Standard><Standard number="03" title="Proactive communication">Decisions, schedule changes, and budget impacts are raised early and documented clearly.</Standard><Standard number="04" title="A connected handoff">When another specialty is needed, P5 can route the project to the right team without sending you back to square one.</Standard></div><div className="process-proof"><span>Built into the process</span><ul><li>Written scopes</li><li>Permits handled in-house where required</li><li>Dedicated project ownership</li><li>Workmanship support</li></ul></div></Reveal></section>
+        <section className="how-p5" aria-labelledby="how-p5-heading">
+          <div className="content-shell">
+            <div className="how-p5-layout">
+              <div className="how-p5-intro">
+                <p className="eyebrow">A clear place to start</p>
+                <h2 id="how-p5-heading">{HOW_P5_WORKS_TITLE}</h2>
+                <p>
+                  Start with your project.
+                  <br />
+                  We will help you find the right team.
+                </p>
+                <FamilyButton
+                  href="/quote"
+                  size="lg"
+                  onClick={() => track("quote_click", { location: "how_p5" })}
+                >
+                  Request a quote
+                </FamilyButton>
+              </div>
+              <ol className="how-p5-steps">
+                {HOW_P5_WORKS.map((step, index) => (
+                  <li key={step.title}>
+                    <span className="how-p5-number" aria-hidden="true">
+                      0{index + 1}
+                    </span>
+                    <div>
+                      <h3>{step.title}</h3>
+                      <p>{step.detail}</p>
+                    </div>
+                  </li>
+                ))}
+              </ol>
+            </div>
+          </div>
+        </section>
 
-      <section className="handoff section-pad"><Reveal className="content-shell handoff-layout"><div><p className="eyebrow">Connected when it matters</p><h2>One project can need more than one expert.</h2></div><div className="handoff-example"><span className="handoff-kicker">Example · A complete kitchen transformation</span><Handoff number="01" company="Boise Remodeling Co">Layout, permits, demolition, and construction</Handoff><Handoff number="02" company="Boise Cabinet Co">{SHOW_CABINET_FABRICATION ? FABRICATION_HANDOFF : SOURCING_HANDOFF}</Handoff><Handoff number="03" company="Boise Handyman Co">Final mounting, finish work, and punch-list items</Handoff></div></Reveal></section>
+        <section id="featured-project" className="featured-project section-pad" aria-labelledby="featured-project-heading">
+          <Reveal className="content-shell featured-project-intro">
+            <div>
+              <p className="eyebrow">Ideas for your home</p>
+              <h2 id="featured-project-heading">
+                Spaces for everyday living.
+              </h2>
+            </div>
+            <p>
+              Explore layouts, materials and details for your next project, from kitchens and living spaces to
+              bathrooms. Your plans start with your home and how you want to use it.
+            </p>
+          </Reveal>
+          <div className="content-shell featured-project-grid featured-project-grid-3" role="list">
+            <div className="featured-project-shot" role="listitem">
+              <img
+                src={FEATURED_BOISE_GREAT_ROOM.src}
+                alt={FEATURED_BOISE_GREAT_ROOM.alt}
+                width={FEATURED_BOISE_GREAT_ROOM.width}
+                height={FEATURED_BOISE_GREAT_ROOM.height}
+                loading="lazy"
+                decoding="async"
+              />
+              <span>Great room · Representative design</span>
+            </div>
+            <div className="featured-project-shot" role="listitem">
+              <img
+                src={FEATURED_BOISE_KITCHEN.src}
+                alt={FEATURED_BOISE_KITCHEN.alt}
+                width={FEATURED_BOISE_KITCHEN.width}
+                height={FEATURED_BOISE_KITCHEN.height}
+                loading="lazy"
+                decoding="async"
+              />
+              <span>Kitchen · Representative design</span>
+            </div>
+            <div className="featured-project-shot" role="listitem">
+              <img
+                src={FEATURED_BOISE_BATHROOM.src}
+                alt={FEATURED_BOISE_BATHROOM.alt}
+                width={FEATURED_BOISE_BATHROOM.width}
+                height={FEATURED_BOISE_BATHROOM.height}
+                loading="lazy"
+                decoding="async"
+              />
+              <span>Primary bath · Representative design</span>
+            </div>
+          </div>
+        </section>
 
-      <section id="service-area" className="service-area section-pad"><Reveal className="content-shell service-area-grid"><div><p className="eyebrow">Our home is the Treasure Valley</p><h2>Local teams.<br />Valley-wide reach.</h2><p className="service-area-copy">P5 companies serve homeowners across Ada and Canyon counties, with practical knowledge of local homes, permitting offices, building conditions, and communities.</p><button className="text-link" type="button" onClick={openMatcher}>Choose your company <Arrow /></button></div><div className="area-list" aria-label="Cities served">{citiesServed.map((city) => <span key={city}>{city}</span>)}</div></Reveal></section>
+        <section id="p5-standard" className="standard section-pad">
+          <Reveal className="content-shell">
+            <div className="standard-heading">
+              <div>
+                <p className="eyebrow eyebrow-light">What P5 adds</p>
+                <h2>One standard across five companies</h2>
+              </div>
+              <p>
+                Specialization should create confidence, not more coordination. These are the operating expectations
+                that connect every P5 company.
+              </p>
+            </div>
+            <div className="standard-grid">
+              <Standard number="01" title="Clarity before commitment">
+                Share your plans or choose “Just contact me” in the{" "}
+                <Link href="/quote" style={{ textDecoration: "underline", textUnderlineOffset: "3px" }}>
+                  request form
+                </Link>
+                . Review the scope with the right specialist. Agree on the work, price and schedule before work begins.
+              </Standard>
+              <Standard number="02" title="One accountable team">
+                You know who owns the next step, who to contact, and where the project stands.
+              </Standard>
+              <Standard number="03" title="Proactive communication">
+                Decisions, schedule changes, and budget impacts are raised early and documented clearly.
+              </Standard>
+              <Standard number="04" title="The right company for the work">
+                Start with your project type. Your P5 specialist reviews the scope and explains who to contact and what
+                happens next.
+              </Standard>
+            </div>
+            <div className="process-proof">
+              <span>Built into the process</span>
+              <ul>
+                <li>Written scopes</li>
+                <li>Permits handled in-house where required</li>
+                <li>Dedicated project ownership</li>
+                <li>Workmanship support</li>
+              </ul>
+            </div>
+          </Reveal>
+        </section>
 
-      <section id="faq" className="faq section-pad" aria-labelledby="faq-heading"><Reveal className="content-shell faq-layout"><div><p className="eyebrow">Common questions</p><h2 id="faq-heading">Answers before<br />you commit.</h2><p className="faq-intro">If your question is not here, the matcher will still point you to the right company, and that company can answer the specifics of your project.</p></div><div className="faq-list">{faqs.map((item) => <details className="faq-item" key={item.q}><summary>{item.q}</summary><p>{item.a}</p></details>)}</div></Reveal></section>
+        <section id="who-you-hire" className="who-hire section-pad" aria-labelledby="who-hire-heading">
+          <Reveal className="content-shell who-hire-grid">
+            <img
+              className="who-hire-photo"
+              src="/images/about/perkins-family-meridian-idaho-1x1.webp"
+              alt="Nick Perkins with his wife and five children at a pumpkin patch in Meridian, Idaho"
+              width={2048}
+              height={2048}
+              loading="lazy"
+              decoding="async"
+            />
+            <div>
+              <p className="eyebrow">Who you are hiring</p>
+              <h2 id="who-hire-heading">Nick Perkins, founder</h2>
+              <p>
+                Construction project manager, bachelor&apos;s degree in Construction with an emphasis in Project
+                Management, more than a decade of custom homes, remodels and developments. Husband, father of five,
+                Meridian.
+              </p>
+              <p className="who-hire-quote">Work hard. Keep your word. Treat people right.</p>
+              <Link className="text-link" href="/about">
+                Read Nick&apos;s story <Arrow />
+              </Link>
+            </div>
+          </Reveal>
+        </section>
 
-      <section className="final-cta"><img src="/images/p5-closing-v2.webp" alt="Modern house with dark vertical siding, a flat roof, and warmly lit windows at blue hour" loading="lazy" decoding="async" /><div className="final-cta-shade" /><Reveal className="content-shell final-cta-content"><p className="eyebrow eyebrow-light">Start with the need, not the company</p><h2>Tell us what you are planning.<br />We will point you to the right team.</h2><div className="final-cta-actions" data-suppress-mobile-bar=""><a className="button button-light" href={PUBLIC_PHONE_TEL} onClick={() => track("phone_click", { location: "final_cta" })}>Call {PUBLIC_PHONE_DISPLAY}</a><OpenChatButton className="button button-light" location="final_cta">Chat</OpenChatButton></div><ShortRequestForm id="request-form-close" formName="Homepage short request" /><p className="hero-secondary"><button className="text-link text-link-light" type="button" onClick={openMatcher}>Find the right team <Arrow /></button><Link className="text-link text-link-light" href="/estimate" onClick={() => track("quote_click", { location: "final_cta" })}>Full project details <Arrow /></Link></p></Reveal></section>
+        <section id="service-area" className="service-area section-pad">
+          <Reveal className="content-shell service-area-grid">
+            <div>
+              <p className="eyebrow">Our home is the Treasure Valley</p>
+              <h2>
+                Local teams.
+                <br />
+                Valley-wide reach.
+              </h2>
+              <p className="service-area-copy">
+                P5 companies serve homeowners across Ada and Canyon counties, with practical knowledge of local homes,
+                permitting offices, building conditions, and communities.
+              </p>
+              <button className="text-link" type="button" onClick={openMatcher}>
+                Choose your company <Arrow />
+              </button>
+            </div>
+            <div className="service-area-visual">
+              <img
+                src={TREASURE_VALLEY_FOOTHILLS.src}
+                alt={TREASURE_VALLEY_FOOTHILLS.alt}
+                width={TREASURE_VALLEY_FOOTHILLS.width}
+                height={TREASURE_VALLEY_FOOTHILLS.height}
+                loading="lazy"
+                decoding="async"
+              />
+              <div className="area-list" aria-label="Cities served">
+                {citiesServed.map((city) => (
+                  <span key={city}>{city}</span>
+                ))}
+              </div>
+            </div>
+          </Reveal>
+        </section>
 
-      <footer className="site-footer"><div className="content-shell"><div className="footer-main"><div className="footer-brand"><FooterWordmark /><p>Five specialized home-service companies. One shared standard for the Treasure Valley.</p><a className="footer-phone" href="tel:+12084771169" onClick={() => track("phone_click", { location: "footer" })}>(208) 477-1169</a><a className="footer-email" href="mailto:hello@p5homeco.com">hello@p5homeco.com</a><a className="footer-save-contact" href="/p5homeco.vcf" aria-label="Save P5 Home Co to your contacts">Save to Contacts</a></div><div className="footer-links"><div><h3>Our companies</h3><External href="https://boiseconstruction.co">Boise Construction Co</External><External href="https://boiseremodeling.co">Boise Remodeling Co</External><span className="footer-soon">Boise ADU Co <small>Launching soon</small></span><External href="https://boisehandyman.co">Boise Handyman Co</External><External href="https://boisecabinet.co">Boise Cabinet Co</External></div><div><h3>Explore</h3><Link href="/#about">About P5 Home Co</Link><Link href="/#p5-standard">The P5 standard</Link><Link href="/#service-area">Service area</Link><Link href="/#faq">Common questions</Link><Link href="/estimate">Request a quote</Link><Link href="/sitemap">Site map</Link><button type="button" onClick={openMatcher}>Find your team</button></div></div></div><PublicIdentity /><div className="footer-bottom"><span>© 2026 P5 Home Co. All rights reserved.</span><span>Boise and the Treasure Valley, Idaho</span></div></div></footer>
+        <section id="faq" className="faq section-pad" aria-labelledby="faq-heading">
+          <Reveal className="content-shell faq-layout">
+            <div>
+              <p className="eyebrow">Common questions</p>
+              <h2 id="faq-heading">
+                Answers before
+                <br />
+                you commit.
+              </h2>
+              <p className="faq-intro">
+                If your question is not here, use the company cards below or send a short request and we will point you
+                to the right team.
+              </p>
+            </div>
+            <div className="faq-list">
+              {faqs.map((item) => (
+                <details className="faq-item" key={item.q}>
+                  <summary>{item.q}</summary>
+                  <p>{item.a}</p>
+                </details>
+              ))}
+            </div>
+          </Reveal>
+        </section>
+
+        <section className="final-cta">
+          <Reveal className="content-shell final-cta-content">
+            <p className="eyebrow eyebrow-light">Start with the need, not the company</p>
+            <h2>Tell us what you are planning. We will point you to the right team.</h2>
+            <div className="final-cta-actions">
+              <FamilyButton
+                href="/quote"
+                variant="hero"
+                size="lg"
+                data-cta="primary"
+                onClick={() => track("quote_click", { location: "final_cta" })}
+              >
+                Request a quote
+              </FamilyButton>
+              <button className="text-link text-link-light" type="button" onClick={openMatcher}>
+                Help me choose a company <Arrow />
+              </button>
+            </div>
+          </Reveal>
+        </section>
+      </SiteChrome>
       {matcherOpen && <ProjectMatcher onClose={() => setMatcherOpen(false)} />}
-    </main>
+    </div>
   );
 }
 
-function BrandPanel({ id, number, category, logo, wordmark, image, alt, headline, className, reverse = false, description, services, proof, url, linkLabel, comingSoon = false }: { id: string; number: string; category: string; logo?: string; wordmark?: string; image: string; alt: string; headline: React.ReactNode; className: string; reverse?: boolean; description: string; services: string[]; proof: string; url: string; linkLabel: string; comingSoon?: boolean }) {
+function BrandPanel({
+  id,
+  number,
+  category,
+  logo,
+  wordmark,
+  image,
+  alt,
+  headline,
+  className,
+  reverse = false,
+  description,
+  services,
+  proof,
+  url,
+  linkLabel,
+  comingSoon = false,
+}: {
+  id: string;
+  number: string;
+  category: string;
+  logo?: string;
+  wordmark?: string;
+  image: string;
+  alt: string;
+  headline: React.ReactNode;
+  className: string;
+  reverse?: boolean;
+  description: string;
+  services: string[];
+  proof: string;
+  url: string;
+  linkLabel: string;
+  comingSoon?: boolean;
+}) {
   const external = url.startsWith("http");
   const served = imageVariantFor(image);
-  return <section id={id} className={`brand-panel ${reverse ? "brand-panel-reverse" : ""} ${className}`}><div className="brand-image-wrap"><img src={image} alt={alt} loading="lazy" decoding="async" {...(served ? { srcSet: served.srcSet, sizes: served.sizes, width: served.width, height: served.height } : {})} /></div><Reveal className="brand-content"><div className="brand-topline"><span>{number}</span><span>{category}</span></div>{logo ? <img className="brand-logo" src={logo} alt="" aria-hidden="true" loading="lazy" decoding="async" /> : <div className="text-wordmark"><span>Boise</span><strong>{wordmark} <b>Co</b></strong></div>}<h3>{headline}</h3><p>{description}</p><ul className="service-list">{services.map((service) => <li key={service}>{service}</li>)}</ul>{proof ? <div className="brand-proof"><span aria-hidden="true">✓</span>{proof}</div> : null}<a className="brand-link" href={url} target={external ? "_blank" : undefined} rel={external ? "noreferrer" : undefined} onClick={() => track(external ? "company_click" : "phone_click", { company: id, location: "panel" })}>{linkLabel} <Arrow diagonal={external} /></a>{comingSoon && <span className="launch-note">Full website launching soon</span>}</Reveal></section>;
+  return (
+    <section id={id} className={`brand-panel ${reverse ? "brand-panel-reverse" : ""} ${className}`}>
+      <div className="brand-image-wrap">
+        <img
+          src={image}
+          alt={alt}
+          loading="lazy"
+          decoding="async"
+          {...(served ? { srcSet: served.srcSet, sizes: served.sizes, width: served.width, height: served.height } : {})}
+        />
+      </div>
+      <Reveal className="brand-content">
+        <div className="brand-topline">
+          <span>{number}</span>
+          <span>{category}</span>
+        </div>
+        {logo ? (
+          <img className="brand-logo" src={logo} alt="" aria-hidden="true" loading="lazy" decoding="async" />
+        ) : (
+          <div className="text-wordmark">
+            <span>Boise</span>
+            <strong>
+              {wordmark} <b>Co</b>
+            </strong>
+          </div>
+        )}
+        <h3>{headline}</h3>
+        <p>{description}</p>
+        <ul className="service-list">
+          {services.map((service) => (
+            <li key={service}>{service}</li>
+          ))}
+        </ul>
+        {proof ? (
+          <div className="brand-proof">
+            <span aria-hidden="true">✓</span>
+            {proof}
+          </div>
+        ) : null}
+        <a
+          className="brand-link"
+          href={url}
+          target={external ? "_blank" : undefined}
+          rel={external ? "noopener" : undefined}
+          onClick={() =>
+            track(external ? "company_click" : url.startsWith("tel:") ? "phone_click" : "quote_click", {
+              company: id,
+              location: "panel",
+            })
+          }
+        >
+          {linkLabel} <Arrow diagonal={external} />
+        </a>
+        {comingSoon && <span className="launch-note">Standalone website coming</span>}
+      </Reveal>
+    </section>
+  );
 }
 
-function Standard({ number, title, children }: { number: string; title: string; children: React.ReactNode }) { return <article><span>{number}</span><h3>{title}</h3><p>{children}</p></article>; }
-function Handoff({ number, company, children }: { number: string; company: string; children: React.ReactNode }) { return <div className="handoff-step"><b>{number}</b><span><strong>{company}</strong><small>{children}</small></span></div>; }
-function External({ href, children }: { href: string; children: React.ReactNode }) { return <a href={href} target="_blank" rel="noreferrer" onClick={() => track("company_click", { company: href.replace(/^https:\/\/|\.co$/g, ""), location: "footer" })}>{children} <Arrow diagonal /></a>; }
+function Standard({ number, title, children }: { number: string; title: string; children: React.ReactNode }) {
+  return (
+    <article>
+      <span>{number}</span>
+      <h3>{title}</h3>
+      <p>{children}</p>
+    </article>
+  );
+}
 
 function ProjectMatcher({ onClose }: { onClose: () => void }) {
   const [company, setCompany] = useState<CompanyKey | null>(null);
@@ -188,29 +762,40 @@ function ProjectMatcher({ onClose }: { onClose: () => void }) {
   const panelRef = useRef<HTMLDivElement>(null);
   const restoreRef = useRef<HTMLElement | null>(null);
 
-  // The dialog declares aria-modal, so the background must genuinely be
-  // unreachable: move focus in, keep Tab inside, and hand focus back on close.
   useEffect(() => {
     restoreRef.current = document.activeElement as HTMLElement | null;
     const focusable = () =>
       Array.from(
-        panelRef.current?.querySelectorAll<HTMLElement>('a[href], button:not([tabindex="-1"]), [tabindex]:not([tabindex="-1"])') ?? []
+        panelRef.current?.querySelectorAll<HTMLElement>(
+          'a[href], button:not([tabindex="-1"]), [tabindex]:not([tabindex="-1"])',
+        ) ?? [],
       ).filter((el) => el.offsetParent !== null);
     focusable()[0]?.focus();
 
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") { onClose(); return; }
+      if (event.key === "Escape") {
+        onClose();
+        return;
+      }
       if (event.key !== "Tab") return;
       const list = focusable();
       if (!list.length) return;
       const first = list[0];
       const last = list[list.length - 1];
-      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
-      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
     };
     window.addEventListener("keydown", onKey);
+    // The family bottom bar steps aside while the matcher owns the screen (lib/familyBrand.ts).
+    document.body.dataset.p5MatcherOpen = "true";
     return () => {
       window.removeEventListener("keydown", onKey);
+      delete document.body.dataset.p5MatcherOpen;
       restoreRef.current?.focus?.();
     };
   }, [onClose]);
@@ -224,9 +809,123 @@ function ProjectMatcher({ onClose }: { onClose: () => void }) {
   useEffect(() => {
     if (company && project) track("matcher_result", { company, project });
   }, [company, project]);
-  return <div className="matcher" role="dialog" aria-modal="true" aria-labelledby="matcher-title"><button className="matcher-backdrop" type="button" tabIndex={-1} aria-label="Close company matcher" onClick={onClose} /><div className="matcher-panel" ref={panelRef}><div className="matcher-header"><HeaderWordmark /><div className="matcher-progress"><span>0{step}</span><i><b style={{ width: `${step * 33.333}%` }} /></i><span>03</span></div><button className="matcher-close" type="button" onClick={onClose} aria-label="Close company matcher">×</button></div><div className="matcher-body">
-    {!company && <><p className="eyebrow">Step 1 · Your goal</p><h2 id="matcher-title" tabIndex={-1}>What does your home need?</h2><p className="matcher-intro">Choose the closest match. We will narrow it down from there.</p><div className="matcher-choices">{(Object.keys(companyDetails) as CompanyKey[]).map((key, index) => <button key={key} type="button" onClick={() => setCompany(key)}><span>0{index + 1}</span><strong>{companyDetails[key].label}</strong><Arrow /></button>)}</div></>}
-    {company && !project && detail && <><button className="matcher-previous" type="button" onClick={() => setCompany(null)}><Arrow reverse /> Back</button><p className="eyebrow">Step 2 · Project type</p><h2 id="matcher-title" tabIndex={-1}>Tell us a little more.</h2><p className="matcher-intro">Which option best describes the work?</p><div className="matcher-choices">{detail.options.map((option, index) => <button key={option} type="button" onClick={() => setProject(option)}><span>0{index + 1}</span><strong>{option}</strong><Arrow /></button>)}</div></>}
-    {company && project && detail && <div className={`matcher-result matcher-result-${company}`}><button className="matcher-previous" type="button" onClick={() => setProject(null)}><Arrow reverse /> Back</button><p className="eyebrow">Your P5 match</p><span className="result-overline">Recommended for · {project}</span><h2 id="matcher-title" tabIndex={-1}>{detail.name}</h2><p>{detail.reason}</p><div className="result-actions"><a className="button button-dark" href={detail.url} target={detail.url.startsWith("http") ? "_blank" : undefined} rel={detail.url.startsWith("http") ? "noreferrer" : undefined} onClick={() => track(detail.url.startsWith("http") ? "company_click" : "phone_click", { company, location: "matcher" })}>{detail.cta} <Arrow diagonal={detail.url.startsWith("http")} /></a><Link className="text-link" href={company==='remodeling'&&project==='Kitchen remodel'?'/quote/kitchen-remodel':company==='remodeling'&&project==='Bathroom remodel'?'/quote/bathroom-remodel':company==='remodeling'?`/quote?project=${project==='Whole-home remodel'?'whole-home':'addition-adu-basement'}`:quotePath[company]} onClick={() => track("quote_click", { company, location: "matcher" })}>Request a quote from P5 <Arrow /></Link></div><button className="matcher-why" type="button" onClick={() => { onClose(); document.getElementById(company)?.scrollIntoView({ behavior: "smooth" }); }}>See why it fits</button><small>No obligation. You are choosing where to continue.</small></div>}
-  </div></div></div>;
+
+  return (
+    <div className="matcher" role="dialog" aria-modal="true" aria-labelledby="matcher-title">
+      <button className="matcher-backdrop" type="button" tabIndex={-1} aria-label="Close company matcher" onClick={onClose} />
+      <div className="matcher-panel" ref={panelRef}>
+        <div className="matcher-header">
+          <Link className="wordmark" href="/" aria-label="P5 Home Co">
+            <img className="p5-header-logo" src="/brands/p5-home-co-lockup-dark.svg" alt="P5 Home Co, The Home Company" />
+          </Link>
+          <div className="matcher-progress">
+            <span>0{step}</span>
+            <i>
+              <b style={{ width: `${step * 33.333}%` }} />
+            </i>
+            <span>03</span>
+          </div>
+          <button className="matcher-close" type="button" onClick={onClose} aria-label="Close company matcher">
+            ×
+          </button>
+        </div>
+        <div className="matcher-body">
+          {!company && (
+            <>
+              <p className="eyebrow">Step 1 · Your goal</p>
+              <h2 id="matcher-title" tabIndex={-1}>
+                What does your home need?
+              </h2>
+              <p className="matcher-intro">Choose the closest match. We will narrow it down from there.</p>
+              <div className="matcher-choices">
+                {(Object.keys(companyDetails) as CompanyKey[]).map((key, index) => (
+                  <button key={key} type="button" onClick={() => setCompany(key)}>
+                    <span>0{index + 1}</span>
+                    <strong>{companyDetails[key].label}</strong>
+                    <Arrow />
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+          {company && !project && detail && (
+            <>
+              <button className="matcher-previous" type="button" onClick={() => setCompany(null)}>
+                <Arrow reverse /> Back
+              </button>
+              <p className="eyebrow">Step 2 · Project type</p>
+              <h2 id="matcher-title" tabIndex={-1}>
+                Tell us a little more.
+              </h2>
+              <p className="matcher-intro">Which option best describes the work?</p>
+              <div className="matcher-choices">
+                {detail.options.map((option, index) => (
+                  <button key={option} type="button" onClick={() => setProject(option)}>
+                    <span>0{index + 1}</span>
+                    <strong>{option}</strong>
+                    <Arrow />
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+          {company && project && detail && (
+            <div className={`matcher-result matcher-result-${company}`}>
+              <button className="matcher-previous" type="button" onClick={() => setProject(null)}>
+                <Arrow reverse /> Back
+              </button>
+              <p className="eyebrow">Your P5 match</p>
+              <span className="result-overline">Recommended for · {project}</span>
+              <h2 id="matcher-title" tabIndex={-1}>
+                {detail.name}
+              </h2>
+              <p>{detail.reason}</p>
+              <div className="result-actions">
+                <FamilyButton
+                  size="lg"
+                  href={detail.url}
+                  target={detail.url.startsWith("http") ? "_blank" : undefined}
+                  rel={detail.url.startsWith("http") ? "noopener" : undefined}
+                  onClick={() =>
+                    track(
+                      detail.url.startsWith("http") ? "company_click" : detail.url.startsWith("tel:") ? "phone_click" : "quote_click",
+                      { company, location: "matcher" },
+                    )
+                  }
+                >
+                  {detail.cta} <Arrow diagonal={detail.url.startsWith("http")} />
+                </FamilyButton>
+                <Link
+                  className="text-link"
+                  href={
+                    company === "remodeling" && project === "Kitchen remodel"
+                      ? "/quote/kitchen-remodel"
+                      : company === "remodeling" && project === "Bathroom remodel"
+                        ? "/quote/bathroom-remodel"
+                        : company === "remodeling"
+                          ? `/quote?project=${project === "Whole-home remodel" ? "whole-home" : "addition-adu-basement"}`
+                          : quotePath[company]
+                  }
+                  onClick={() => track("quote_click", { company, location: "matcher" })}
+                >
+                  Request a quote from P5 <Arrow />
+                </Link>
+              </div>
+              <button
+                className="matcher-why"
+                type="button"
+                onClick={() => {
+                  onClose();
+                  document.getElementById(company)?.scrollIntoView({ behavior: "smooth" });
+                }}
+              >
+                See why it fits
+              </button>
+              <small>No obligation. You are choosing where to continue.</small>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
 }

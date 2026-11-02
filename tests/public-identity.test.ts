@@ -7,7 +7,9 @@ import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import ts from "typescript";
 
+import { BUSINESS_HOURS_LABEL } from "../lib/businessHours.ts";
 import {
+  ADU_D3_LINE,
   IDAHO_DOPL_LICENSE_SEARCH,
   LLMS_CONTACT,
   PUBLIC_NAP,
@@ -16,14 +18,22 @@ import {
 } from "../app/publicIdentity.ts";
 import { TRUSTED_H1 } from "../app/publicClaims.ts";
 
+// Estimator pages carry the identity block themselves.
 const pages = [
+  "app/estimate/p5-preview/page.tsx",
+  "app/estimate/scope/page.tsx",
+];
+// Every other public page sits inside components/SiteChrome.tsx, whose family
+// footer (components/family/SiteFooter.tsx, configured by lib/familyBrand.ts)
+// prints the same approved NAP, hours, registration and family row.
+const chromePages = [
   "app/HomePageClient.tsx",
+  "app/about/AboutClient.tsx",
+  "app/legal/layout.tsx",
   "app/quote/QuoteLanding.tsx",
   "app/quote/thanks/page.tsx",
   "app/sitemap/page.tsx",
-  "app/legal/layout.tsx",
-  "app/estimate/p5-preview/page.tsx",
-  "app/estimate/scope/page.tsx",
+  "app/not-found.tsx",
 ];
 
 test("the approved NAP and sister row are the audit strings", () => {
@@ -33,7 +43,7 @@ test("the approved NAP and sister row are the audit strings", () => {
   );
   assert.equal(
     SISTER_LINE,
-    "Part of P5 Home Co: Boise Construction Co · Boise Remodeling Co · Boise Handyman Co · Boise Cabinet Co · Boise ADU Co (launching soon)",
+    "Part of P5 Home Co: Boise Construction Co · Boise Remodeling Co · Boise Cabinet Co · Boise Handyman Co · Boise ADU Co projects currently run through Boise Construction Co; its site is coming.",
   );
   assert.equal(PUBLIC_REGISTRATION, "Idaho Registered Contractor #8381215");
   assert.equal(PUBLIC_REGISTRATION.includes("("), false);
@@ -117,6 +127,63 @@ test("every public page renders the shared identity block", () => {
   for (const file of pages) {
     assert.match(readFileSync(file, "utf8"), /<PublicIdentity\b/, file);
   }
+  // The other public pages render inside the shared site chrome, whose footer
+  // carries the identity, so it is not repeated on the page.
+  for (const file of chromePages) {
+    const source = readFileSync(file, "utf8");
+    assert.match(source, /<SiteChrome\b/, file);
+    assert.equal(source.includes("<PublicIdentity"), false, file);
+  }
+  assert.match(readFileSync("components/SiteChrome.tsx", "utf8"), /<SiteFooter\b/);
+});
+
+test("the family footer prints the approved NAP, hours, registration and family row", () => {
+  // Render the shared footer with this site's brand config, resolving the
+  // @/ alias and the shared folder's relative imports from source.
+  const require = createRequire(import.meta.url);
+  const compile = (fileUrl: URL) => ts.transpileModule(readFileSync(fileUrl, "utf8"), {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, target: ts.ScriptTarget.ES2022 },
+  }).outputText;
+  const cache = new Map<string, unknown>();
+  const loadFile = (url: URL): unknown => {
+    if (cache.has(url.href)) return cache.get(url.href);
+    const exported: Record<string, unknown> = {};
+    cache.set(url.href, exported);
+    const local = (id: string) => {
+      if (id.startsWith("./")) return loadFile([".ts", ".tsx"].map((ext) => new URL(id + ext, url)).find((u) => existsSync(u))!);
+      if (id.startsWith("@/")) {
+        const target = [".ts", ".tsx"].map((ext) => new URL(`../${id.slice(2)}${ext}`, import.meta.url)).find((u) => existsSync(u));
+        assert.ok(target, `Missing source module: ${id}`);
+        return loadFile(target);
+      }
+      if (id === "next/link") return { __esModule: true, default: (props: Record<string, unknown>) => React.createElement("a", props) };
+      return require(id);
+    };
+    new Function("require", "exports", "React", compile(url))(local, exported, React);
+    return exported;
+  };
+  const footer = loadFile(new URL("../components/family/SiteFooter.tsx", import.meta.url)) as { SiteFooter: React.ComponentType };
+  const html = renderToStaticMarkup(React.createElement(footer.SiteFooter));
+  const text = html.replace(/<[^>]+>/g, "");
+  // PUBLIC_NAP, piece by piece: the footer sets the phone beside the address line.
+  for (const part of PUBLIC_NAP.split(" · ").map((piece) => piece.replace(/\.$/, ""))) {
+    assert.ok(text.includes(part), part);
+  }
+  assert.ok(text.includes(BUSINESS_HOURS_LABEL));
+  assert.match(html, new RegExp(`>${PUBLIC_REGISTRATION}</a>`));
+  assert.ok(html.includes(`href="${IDAHO_DOPL_LICENSE_SEARCH}" target="_blank" rel="noopener noreferrer"`));
+  assert.match(html, /title="Look up registration 8381215 on Idaho DOPL"/);
+  assert.match(html, /aria-label="Verify with Idaho DOPL: look up registration 8381215, opens in a new tab"/);
+  // SISTER_LINE: every sibling linked with rel="noopener" (no noreferrer), and the ADU line.
+  for (const site of ["boiseconstruction.co", "boiseremodeling.co", "boisecabinet.co", "boisehandyman.co"]) {
+    assert.match(html, new RegExp(`<a href="https://${site.replace(".", "\\.")}" rel="noopener">`), site);
+  }
+  assert.ok(text.includes(ADU_D3_LINE), "Boise ADU Co line");
+  assert.ok(html.includes("https://www.facebook.com/1228704823655951"));
+  // Owner call A: P5's Google Business Profile, once, beside the Facebook page.
+  assert.equal((html.match(/data-testid="link-footer-google"/g) ?? []).length, 1);
+  assert.ok(html.includes('<a href="https://www.google.com/search?kgmid=/g/11ntl1t7dc" rel="noopener" target="_blank" data-testid="link-footer-google">P5 Home Co on Google</a>'));
+  assert.equal(html.includes("\u2014"), false);
 });
 
 test("the registration line is linked in the footer and plain text on funnel pages", () => {
@@ -137,10 +204,13 @@ test("the registration line is linked in the footer and plain text on funnel pag
   for (const file of plain) {
     assert.match(readFileSync(file, "utf8"), /linkRegistration=\{false\}/, file);
   }
-  assert.match(readFileSync("app/estimate/page.tsx", "utf8"), /from "\.\/p5-preview\/page"/);
-  for (const file of ["app/HomePageClient.tsx", "app/sitemap/page.tsx", "app/legal/layout.tsx", "app/quote/QuoteLanding.tsx", "app/quote/thanks/page.tsx"]) {
+  assert.match(readFileSync("app/estimate/page.tsx", "utf8"), /redirect\("\/quote"\)/);
+  // The family footer links the registration through the brand config (rendered in the footer test above).
+  const brand = readFileSync("lib/familyBrand.ts", "utf8");
+  assert.match(brand, /text: PUBLIC_REGISTRATION/);
+  assert.match(brand, /href: IDAHO_DOPL_LICENSE_SEARCH/);
+  for (const file of ["components/SiteChrome.tsx", "app/sitemap/page.tsx", "app/quote/QuoteLanding.tsx", "app/quote/thanks/page.tsx"]) {
     const source = readFileSync(file, "utf8");
-    assert.match(source, /<PublicIdentity\b/, file);
     assert.equal(source.includes("linkRegistration={false}"), false, file);
     assert.equal(source.includes("edopl.idaho.gov"), false, file);
   }
@@ -160,28 +230,34 @@ test("the registration line is linked in the footer and plain text on funnel pag
   }
 });
 
-test("homepage keeps the existing claims and adds the location subhead", () => {
+test("homepage preserves identity and location while explaining the three-step process", () => {
   const home = readFileSync("app/HomePageClient.tsx", "utf8");
   assert.equal(TRUSTED_H1, "Boise’s Trusted Home Specialists");
-  assert.match(home, /SHOW_UNPROVEN_TRUSTED \? TRUSTED_H1 : PLAIN_H1/);
-  assert.match(home, /Serving Boise, Meridian and the Treasure Valley/);
-  assert.match(home, /visibleFoundingBadges\(\)/);
-  assert.match(home, /100\+ projects/);
+  // The family HeroPhoto renders the H1 as title plus the accent second line.
+  // Owner call C (1 November): sentence case, same words.
+  const heroStart = home.indexOf("<HeroPhoto");
+  const hero = home.slice(heroStart, home.indexOf("/>", heroStart));
+  assert.match(hero, /title="Boise’s home"/);
+  assert.match(hero, /titleAccent="specialists"/);
+  assert.doesNotMatch(hero, /PUBLIC_REGISTRATION|Trusted Home/);
+  assert.match(home, /PUBLIC_REGISTRATION/);
   assert.match(home, /Bonded and insured/);
+  assert.match(home, /Who you are hiring/);
+  assert.match(home, /href="\/about"/);
   assert.equal(home.includes("Jared"), false);
   const trustAt = home.indexOf('className="trust-strip"');
   const howAt = home.indexOf('className="how-p5"');
-  const aboutAt = home.indexOf('id="about"');
-  assert.ok(trustAt >= 0 && howAt > trustAt && aboutAt > howAt, "How P5 works sits after the trust strip and before about");
+  const companiesAt = home.indexOf('id="companies"');
+  const entryAt = home.indexOf('id="request-form"');
+  // Phase 3 plan (owner approved 31 October): proof, matcher and the five companies
+  // come before the request entry; How P5 works follows it in its existing order.
+  assert.ok(trustAt >= 0 && companiesAt > trustAt && entryAt > companiesAt && howAt > entryAt, "Trust strip, companies, request entry, then How P5 works");
   for (const line of [
     "How P5 works",
-    "Own install crew",
-    "Bonded & insured",
-    "Manufacturer warranties passed through",
-    "Install dates confirmed in writing",
-    "Written update every week",
-    "Free in-home consultation, no pressure",
-    "Public representative: Nick Perkins",
+    "Tell us what you’re planning",
+    "Connect with the right company",
+    "Discuss the next steps",
+    "Agree on the work, price and schedule before work begins.",
   ]) {
     assert.equal(home.includes(line) || readFileSync("app/site.ts", "utf8").includes(line), true, line);
   }

@@ -7,7 +7,7 @@
   },
   "scripts": {
     "dev": "node scripts/dev.mjs",
-    "prebuild": "npm run verify:db-safety && npm test",
+    "prebuild": "npm run verify:db-safety && npm run verify:family-chrome && npm test",
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
@@ -21,6 +21,7 @@
     "start:host": "node services/document-service/src/cohost.mjs",
     "build:host": "node scripts/p5-host-build.mjs",
     "db:prepare": "node --env-file-if-exists=.env.local scripts/p5-prepare-database.mjs",
+    "verify:family-chrome": "node scripts/verify-family-chrome.mjs",
     "verify:db-safety": "node scripts/p5-schema-safety.mjs && node --test tests/p5-database-safety.test.mjs",
     "db:push": "npm run db:prepare",
     "predev": "npm run db:prepare -- --optional"

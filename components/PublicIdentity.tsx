@@ -34,7 +34,7 @@ function withLinks(text: string, labels: readonly { label: string; href: string 
       <a
         key={`${next.label}-${nextAt}`}
         href={next.href}
-        {...(external ? { target: "_blank", rel: "noreferrer" } : {})}
+        {...(external ? { target: "_blank", rel: "noopener" } : {})}
       >
         {next.label}
       </a>,

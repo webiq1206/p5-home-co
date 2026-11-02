@@ -22,13 +22,13 @@
 
 .admin-main { width: min(100% - 32px, 1180px); margin: 0 auto; padding: 24px 0 96px; }
 
-.admin-h1 { margin: 8px 0 4px; font-family: "P5 Serif", serif; font-size: clamp(28px, 6vw, 40px); font-weight: 500; line-height: 1.1; }
+.admin-h1 { margin: 8px 0 4px; font-family: var(--font-display); font-size: clamp(28px, 6vw, 40px); font-weight: 500; line-height: 1.1; }
 .admin-sub { margin: 0 0 24px; color: var(--ink-2); font-size: 14px; }
 
 /* Summary strip ---------------------------------------------------------- */
 .admin-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin: 0 0 28px; }
 .admin-stat { padding: 14px 16px; border: 1px solid var(--line); background: var(--paper); }
-.admin-stat b { display: block; font-family: "P5 Serif", serif; font-size: 30px; font-weight: 500; line-height: 1.1; }
+.admin-stat b { display: block; font-family: var(--font-display); font-size: 30px; font-weight: 500; line-height: 1.1; }
 .admin-stat span { color: var(--ink-2); font-size: 11px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
 .admin-stat-alarm b { color: #9a2f2f; }
 
@@ -48,7 +48,7 @@
 .lead-card-warn { border-left-color: var(--bronze); }
 
 .lead-top { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px; }
-.lead-name { margin: 0; font-family: "P5 Serif", serif; font-size: 21px; font-weight: 500; line-height: 1.2; }
+.lead-name { margin: 0; font-family: var(--font-display); font-size: 21px; font-weight: 500; line-height: 1.2; }
 .lead-age { color: var(--ink-2); font-size: 12px; white-space: nowrap; }
 
 .lead-tags { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 0; }
@@ -77,7 +77,7 @@
 
 /* States ----------------------------------------------------------------- */
 .admin-empty { padding: 48px 24px; border: 1px dashed var(--line); background: var(--paper); text-align: center; }
-.admin-empty h2 { margin: 0 0 6px; font-family: "P5 Serif", serif; font-size: 24px; font-weight: 500; }
+.admin-empty h2 { margin: 0 0 6px; font-family: var(--font-display); font-size: 24px; font-weight: 500; }
 .admin-empty p { margin: 0; color: var(--ink-2); font-size: 14px; }
 
 .admin-notice { margin: 0 0 22px; padding: 14px 16px; border: 1px solid var(--bronze); background: #fdf6ee; font-size: 14px; }
@@ -87,7 +87,7 @@
 /* Sign in ---------------------------------------------------------------- */
 .admin-login { display: grid; place-items: center; min-height: 100dvh; padding: 24px; background: var(--forest); }
 .admin-login-card { width: min(100%, 420px); padding: 34px 30px; background: var(--paper); }
-.admin-login-card h1 { margin: 0 0 6px; font-family: "P5 Serif", serif; font-size: 30px; font-weight: 500; }
+.admin-login-card h1 { margin: 0 0 6px; font-family: var(--font-display); font-size: 30px; font-weight: 500; }
 .admin-login-card p { margin: 0 0 22px; color: var(--ink-2); font-size: 14px; }
 .admin-login-card .lead-action { width: 100%; }
 
@@ -187,7 +187,7 @@
 }
 .dash-tile b {
   display: block;
-  font-family: "P5 Serif", serif; font-size: 28px; font-weight: 500; line-height: 1.1;
+  font-family: var(--font-display); font-size: 28px; font-weight: 500; line-height: 1.1;
   font-variant-numeric: tabular-nums;
 }
 .dash-tile span {
@@ -217,7 +217,7 @@
 }
 .dash-panel-head h3 {
   margin: 0;
-  font-family: "P5 Serif", serif; font-size: 19px; font-weight: 500; line-height: 1.2;
+  font-family: var(--font-display); font-size: 19px; font-weight: 500; line-height: 1.2;
 }
 .dash-panel-link { font-size: 11px; font-weight: 700; letter-spacing: .06em; color: var(--moss); white-space: nowrap; }
 .dash-panel-link:hover, .dash-panel-link:focus-visible { text-decoration: underline; }
@@ -277,7 +277,7 @@
 .dash-menu-group { padding: 18px 20px; border: 1px solid var(--line); background: var(--paper); }
 .dash-menu-group h3 {
   margin: 0 0 4px;
-  font-family: "P5 Serif", serif; font-size: 19px; font-weight: 500;
+  font-family: var(--font-display); font-size: 19px; font-weight: 500;
 }
 .dash-menu-group p { margin: 0 0 12px; color: var(--ink-2); font-size: 13px; line-height: 1.5; }
 .dash-menu-group ul { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none; }

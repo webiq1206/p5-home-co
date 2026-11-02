@@ -30,8 +30,10 @@ test("office hours come from one source", () => {
 });
 
 test("the vCard NOTE and llms.txt use the confirmed hours", () => {
-  const card = readFileSync(join(root, "public/p5homeco.vcf"), "utf8");
-  assert.match(card, new RegExp(`Hours: ${BUSINESS_HOURS_LABEL.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`));
+  const card = readFileSync(join(root, "lib/vcard.ts"), "utf8");
+  assert.match(card, /Meridian, ID 83646/);
+  assert.match(card, /buildBusinessVCard/);
+  assert.match(readFileSync(join(root, "app/contact.vcf/route.ts"), "utf8"), /text\/vcard/);
   const llms = readFileSync(join(root, "public/llms.txt"), "utf8").replace(/\s+/g, " ");
   const full = readFileSync(join(root, "public/llms-full.txt"), "utf8").replace(/\s+/g, " ");
   assert.ok(llms.includes(LLMS_CONTACT));

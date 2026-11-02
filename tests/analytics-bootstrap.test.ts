@@ -139,6 +139,18 @@ test('a tel or sms click fires one matching conversion and a second bind does no
   assert.equal(b.window.dataLayer.some((args) => Array.from(args as ArrayLike<unknown>)[1] === 'phone_click'), false);
 });
 
+test('a tel or sms click also sends one GA4 contact_click with only the method', () => {
+  const b = clickBrowser('example.com');
+  vm.runInContext(googleTagBootstrap(clickOptions), b.context);
+  click(b.listeners[0][1], 'tel:+12084771169', true);
+  click(b.listeners[0][1], 'sms:+12084771169?body=Hello');
+  click(b.listeners[0][1], 'mailto:hello@p5homeco.com');
+  const contacts = b.window.dataLayer
+    .map((args) => Array.from(args as ArrayLike<unknown>))
+    .filter((args) => args[0] === 'event' && args[1] === 'contact_click');
+  assert.deepEqual(JSON.parse(JSON.stringify(contacts.map((args) => args[2]))), [{ method: 'phone' }, { method: 'sms' }]);
+});
+
 test('call and text conversions set no user_data and send no personal data', () => {
   const tapOnly = {
     hostname: 'example.com',

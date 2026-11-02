@@ -1,4 +1,7 @@
-import { BASEBOARD_TRIM_FIT, FRAMING_FOOTHILLS } from "./imageVariants.ts";
+import {
+  FEATURED_BOISE_ADU,
+  FEATURED_BOISE_KITCHEN,
+} from "./imageVariants.ts";
 
 // Single source of truth for the production origin. Used by the metadata,
 // the JSON-LD entity graph, robots.txt, and the sitemap. Change it here
@@ -6,30 +9,25 @@ import { BASEBOARD_TRIM_FIT, FRAMING_FOOTHILLS } from "./imageVariants.ts";
 import {
   BONDED_ANSWER,
   BONDED_SINCE_2020_ANSWER,
-  FABRICATION_FAQ,
   SELF_PERFORM_FAQ,
-  SHOW_CABINET_FABRICATION,
   SHOW_FOUNDING_YEAR,
   SHOW_UNPROVEN_SELF_PERFORM,
-  SOURCING_FAQ,
   SPECIALTY_FAQ,
   constructionImage,
   handymanImage,
 } from "./publicClaims.ts";
+import { ADU_D3_LINE } from "./publicIdentity.ts";
 
 export const siteUrl = "https://p5homeco.com";
 
 export const HOW_P5_WORKS_TITLE = "How P5 works";
 export const HOW_P5_WORKS = [
-  "Own install crew",
-  "Bonded & insured",
-  "Manufacturer warranties passed through",
-  "Install dates confirmed in writing",
-  "Written update every week",
-  "Free in-home consultation, no pressure",
-  "Public representative: Nick Perkins",
+  { title: "Tell us what you’re planning", detail: "A new home, a remodel, cabinets, repairs or an ADU. Share your project, or choose Just contact me in the P5 form." },
+  { title: "Connect with the right company", detail: "Find the P5 company focused on your type of project. Contact that team to discuss the work." },
+  { title: "Discuss the next steps", detail: "Review the scope with your specialist. Agree on the work, price and schedule before work begins." },
 ] as const;
 
+/** Company cards in F7 / D3 order: Construction, Remodeling, Cabinet, Handyman, ADU. */
 export const companies = [
   {
     name: "Boise Construction Co",
@@ -40,17 +38,17 @@ export const companies = [
   },
   {
     name: "Boise Remodeling Co",
-    image: "/images/p5-remodel.webp",
+    image: FEATURED_BOISE_KITCHEN.src,
     url: "https://boiseremodeling.co",
     description:
-      "Design-build remodeling for kitchens, bathrooms, whole-home renovations, additions, and ADUs.",
+      "Design-build remodeling for kitchens, bathrooms, whole-home renovations, and additions.",
   },
   {
-    name: "Boise ADU Co",
-    image: "/images/p5-adu.webp",
-    url: "https://boiseadu.co",
+    name: "Boise Cabinet Co",
+    image: "/images/p5-cabinet.webp",
+    url: "https://boisecabinet.co",
     description:
-      "Accessory dwelling units, including detached ADUs, garage conversions, basement and interior units, and feasibility and permitting. Launching soon.",
+      "Custom cabinets designed to your measurements, built to order, and installed by our Treasure Valley crew.",
   },
   {
     name: "Boise Handyman Co",
@@ -60,18 +58,14 @@ export const companies = [
       "Home repair and maintenance, including drywall and trim repair, mounting and installation, and deck and exterior repair.",
   },
   {
-    name: "Boise Cabinet Co",
-    image: "/images/p5-cabinet.webp",
-    url: "https://boisecabinet.co",
-    description:
-      "Custom frameless cabinetry, including kitchen cabinets, bathroom vanities, built-ins, and whole-home cabinetry.",
+    name: "Boise ADU Co",
+    image: FEATURED_BOISE_ADU.src,
+    url: "https://boiseconstruction.co",
+    description: ADU_D3_LINE,
   },
 ] as const;
 
 // The nine cities P5 takes work in, confirmed by the owner 2026-09-05.
-// The service-area section on the homepage renders from this list rather
-// than repeating it, so the visible page and the structured data cannot
-// drift apart - which is exactly how Garden City went missing before.
 export const citiesServed = [
   "Boise",
   "Meridian",
@@ -93,12 +87,24 @@ export const faqs = [
     a: SHOW_UNPROVEN_SELF_PERFORM ? SELF_PERFORM_FAQ : SPECIALTY_FAQ,
   },
   {
-    q: "Which P5 company should I start with?",
-    a: "Start with the project rather than the company. New homes go to Boise Construction Co, renovations to Boise Remodeling Co, accessory dwellings to Boise ADU Co, repairs and installations to Boise Handyman Co, and cabinetry to Boise Cabinet Co. The three-step matcher on this page will point you to the right one.",
+    q: "Which company does what?",
+    a: "Boise Construction Co builds new homes and ADUs. Boise Remodeling Co handles kitchen, bath and whole-home remodels and additions. Boise Cabinet Co designs custom cabinets to your measurements, built to order and installed by our crew. Boise Handyman Co handles repairs, installs, maintenance and RE-10 lists. Boise ADU Co projects currently run through Boise Construction Co; its site is coming. Use the company cards on this page to start with the right team.",
   },
   {
-    q: "What if my project needs more than one company?",
-    a: "P5 routes the work between companies without sending you back to the start. A complete kitchen runs through Boise Remodeling Co for layout, permits, demolition, and construction, Boise Cabinet Co for cabinet design and installation, and Boise Handyman Co for final mounting and punch-list items.",
+    q: "Who is my contract with?",
+    a: "Your contract is with P5 Home Co LLC, Idaho Registered Contractor #8381215. Boise Construction Co, Boise Remodeling Co, Boise Cabinet Co and Boise Handyman Co are DBAs of P5 Home Co LLC.",
+  },
+  {
+    q: "How is a project that needs two companies coordinated?",
+    a: "One project manager owns the handoffs. A complete kitchen, for example: Boise Remodeling Co for layout, permits, demolition and construction; Boise Cabinet Co for cabinet design and installation; Boise Handyman Co for final mounting and punch list. One contract, one project manager, one invoice.",
+  },
+  {
+    q: "How long has P5 been operating?",
+    a: "P5 Home Co was founded in Colorado in 2020 and moved the family and the company to the Treasure Valley in 2025. We live and work from Meridian, Idaho.",
+  },
+  {
+    q: "How do I start an ADU project?",
+    a: `${ADU_D3_LINE} Start with Boise Construction Co, or send a short request on this site and we will route it.`,
   },
   {
     q: "Which areas do the P5 companies serve?",
@@ -113,28 +119,12 @@ export const faqs = [
     a: SHOW_FOUNDING_YEAR ? BONDED_SINCE_2020_ANSWER : BONDED_ANSWER,
   },
   {
-    q: "Who builds a new home, or builds on land you already own?",
-    a: "Boise Construction Co. That work includes custom homes, semi-custom homes, building on your own lot, and home design and plans. Design, engineering, permitting, and construction stay with one accountable team.",
+    q: "What does \"don't pay for our overhead\" mean?",
+    a: "No showroom, no sales team and no office lease are built into your price. You pay for the people and materials on your job, and the written scope shows every line. It does not mean cheapest. Trade partners, permits, insurance and the warranty are in the price because the job needs them.",
   },
   {
-    q: "Who renovates, adds on to, or changes how an existing home works?",
-    a: "Boise Remodeling Co. That work includes kitchen remodeling, bathroom remodeling, whole-home remodeling, additions, and ADUs, managed under one roof with a written scope and coordinated permits.",
-  },
-  {
-    q: "Who adds a guest suite, rental unit, or multigenerational living space on land you already own?",
-    a: "Boise ADU Co. That work includes detached ADUs, garage conversions, basement and interior units, and feasibility and permitting. The website is not live yet; enquiries go to (208) 477-1169.",
-  },
-  {
-    q: "Who handles repairs, installations, finish work, and smaller home projects?",
-    a: "Boise Handyman Co. That work includes drywall and trim repair, TV and fixture mounting, deck and exterior repair, and general home maintenance.",
-  },
-  {
-    q: "Who handles cabinetry, vanities, built-ins, and coordinated storage?",
-    a: "Boise Cabinet Co. That work includes premium frameless kitchen cabinetry, bathroom vanities, built-ins and storage, and whole-home cabinetry, designed, sourced, and installed.",
-  },
-  {
-    q: "Can one project involve more than one company?",
-    a: SHOW_CABINET_FABRICATION ? FABRICATION_FAQ : SOURCING_FAQ,
+    q: "Who handles RE-10 inspection repairs?",
+    a: "Boise Handyman Co handles basic home repairs and RE-10 inspection repairs. Share the repair list so the team can review the scope and next steps.",
   },
 ] as const;
 

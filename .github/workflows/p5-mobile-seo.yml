@@ -25,7 +25,6 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-          cache: npm
       - run: npm ci --no-audit --no-fund
       - name: Estimator and metadata regressions
         run: node --import tsx --test --test-concurrency=1 tests/p5-*.test.ts
@@ -42,10 +41,19 @@ jobs:
             if curl -fsS http://127.0.0.1:5000/ > /dev/null; then break; fi
             sleep 1
           done
+          node --test tests/seo-route-identity.test.mjs
           node scripts/verify-p5-mobile-seo.mjs
-      - uses: actions/upload-artifact@v4
+      - name: Offline evidence guard regressions
+        run: node --test tests/ci-evidence.test.mjs
+      - name: Package complete evidence within storage limit
+        id: evidence
         if: always()
+        run: node scripts/prepare-ci-evidence.mjs mobile
+      - uses: actions/upload-artifact@v4
+        if: always() && steps.evidence.outputs.archive_ready == 'true'
         with:
           name: p5-interface-verification
-          path: p5-mobile-seo-verification
+          path: ci-evidence-artifacts/mobile.tar.gz
           retention-days: 14
+          compression-level: 0
+          if-no-files-found: error

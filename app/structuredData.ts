@@ -7,6 +7,8 @@ import {
   SCHEMA_LEGAL_NAME,
   SCHEMA_TELEPHONE,
   CONTRACTOR_REGISTRATION,
+  P5_FACEBOOK_URL,
+  P5_GOOGLE_BUSINESS_PROFILE_URL,
 } from "./publicIdentity.ts";
 import { SHOW_FOUNDING_YEAR } from "./publicClaims.ts";
 import { citiesServed, companies, faqs, siteUrl } from "./site.ts";
@@ -18,9 +20,9 @@ import { citiesServed, companies, faqs, siteUrl } from "./site.ts";
 const [streetAddress, addressLocality, regionAndPostal] = PUBLIC_ADDRESS.split(", ");
 const [addressRegion, postalCode] = regionAndPostal.split(" ");
 
-export const siteTitle = "P5 Home Co | Five Home-Service Companies in Boise, ID";
+export const siteTitle = "Boise Builders, Remodelers, Cabinets & Repairs | P5 Home Co";
 export const siteDescription =
-  "The parent company behind Boise Construction Co, Boise Remodeling Co, Boise ADU Co, Boise Handyman Co, and Boise Cabinet Co in Idaho's Treasure Valley.";
+  "Parent company of Boise Construction Co, Boise Remodeling Co, Boise Cabinet Co and Boise Handyman Co in Idaho's Treasure Valley.";
 
 /** Entities that describe the publisher and website on every public page. */
 export const siteSchema = {
@@ -40,6 +42,8 @@ export const siteSchema = {
       email: ESTIMATOR_BRAND.email,
       image: `${siteUrl}/images/p5-og.jpg`,
       logo: { "@type": "ImageObject", url: `${siteUrl}/android-chrome-512x512.png` },
+      // Confirmed profiles only: the P5 Facebook page and the P5 Google Business Profile.
+      sameAs: [P5_FACEBOOK_URL, P5_GOOGLE_BUSINESS_PROFILE_URL],
       employee: {
         "@type": "Person",
         "@id": NICK_PERKINS_ID,
@@ -86,7 +90,11 @@ export const siteSchema = {
           name,
         })),
       ],
-      subOrganization: companies.map((company) => ({
+      // One node per company with its own site. Boise ADU Co has no site yet and
+      // runs through Boise Construction Co, so it would repeat Construction's
+      // url and @id under a different name. It joins the graph, with its own
+      // @id, once its domain is live.
+      subOrganization: companies.filter((company) => company.name !== "Boise ADU Co").map((company) => ({
         "@type": "Organization",
         "@id": `${company.url}/#organization`,
         name: company.name,

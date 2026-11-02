@@ -40,6 +40,9 @@ export function googleTagBootstrap(options: {
           var label = head === 'tel:' ? config.callClickLabel : head === 'sms:' ? config.textClickLabel : '';
           if (label) {
             try { window.gtag('event', 'conversion', { send_to: config.adsId + '/' + label }); } catch (err) {}
+            // Same GA4 event name and method values as the brand sites, so call and
+            // text taps can be marked as one key event across the family.
+            try { window.gtag('event', 'contact_click', { method: head === 'tel:' ? 'phone' : 'sms' }); } catch (err) {}
             return;
           }
         }

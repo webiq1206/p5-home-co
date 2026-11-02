@@ -11,7 +11,7 @@ export const metadata: Metadata = withBrandPageMetadata(({
 export default function PrivacyPage() {
   return (
     <>
-      <h1>Privacy Policy</h1>
+      <h1>Privacy policy</h1>
       <p className="legal-updated">Last updated 17 October 2026</p>
 
       <p className="legal-lead">

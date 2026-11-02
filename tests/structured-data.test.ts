@@ -73,7 +73,11 @@ test("the business address is the authorized Meridian street, and cities stay se
     url: "https://dopl.idaho.gov/con/",
   });
   assert.equal(JSON.stringify(organization).includes("Jared"), false);
-  assert.equal(siteTitle, "P5 Home Co | Five Home-Service Companies in Boise, ID");
+  assert.deepEqual(organization.sameAs, [
+    "https://www.facebook.com/1228704823655951",
+    "https://www.google.com/search?kgmid=/g/11ntl1t7dc",
+  ]);
+  assert.equal(siteTitle, "Boise Builders, Remodelers, Cabinets & Repairs | P5 Home Co");
   assert.ok(siteTitle.length <= 60);
 
   const addresses = records(siteSchema).filter((record) => record["@type"] === "PostalAddress");
@@ -111,4 +115,20 @@ test("each quote route emits exactly its own FAQPage", () => {
 
 test("JSON-LD serialization escapes HTML opening brackets", () => {
   assert.equal(serializeJsonLd({ value: "</script>" }), '{"value":"\\u003c/script>"}');
+});
+
+test("each subOrganization has its own @id and url", () => {
+  // Boise ADU Co runs through Boise Construction Co until its own site exists;
+  // listing it would give two differently named nodes the same @id.
+  const organization = siteSchema["@graph"][0] as unknown as { subOrganization: Array<Record<string, string>> };
+  const ids = organization.subOrganization.map((node) => node["@id"]);
+  const urls = organization.subOrganization.map((node) => node.url);
+  assert.equal(new Set(ids).size, ids.length);
+  assert.equal(new Set(urls).size, urls.length);
+  assert.deepEqual(organization.subOrganization.map((node) => node.name), [
+    "Boise Construction Co",
+    "Boise Remodeling Co",
+    "Boise Cabinet Co",
+    "Boise Handyman Co",
+  ]);
 });
