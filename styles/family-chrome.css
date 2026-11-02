@@ -514,7 +514,7 @@ html {
 /* ---------- Photo hero ---------- */
 .fam-hero[data-family-hero] {
   /* The accent second line sits on the dark scrim: a lighter step of the same hue keeps it AA. */
-  --color-accent-on-dark: color-mix(in srgb, var(--color-accent) 70%, var(--color-paper));
+  --color-accent-on-dark: color-mix(in srgb, var(--color-accent) 62%, var(--color-paper));
   --fam-hero-available: calc(100svh - var(--header-height) - var(--bar-height) - env(safe-area-inset-bottom, 0px));
   position: relative;
   isolation: isolate;
@@ -568,7 +568,7 @@ html {
   max-width: 36rem;
 }
 .fam-hero[data-family-hero] .fam-hero-copy .fam-hero-eyebrow {
-  margin: 0 0 var(--space-3);
+  margin: 0 0 var(--space-4);
   color: var(--color-paper);
   font: 600 var(--fs-label) / var(--lh-label) var(--font-sans);
   letter-spacing: var(--tracking-label);
@@ -578,11 +578,11 @@ html {
   margin: 0;
   color: var(--color-paper);
   font-family: var(--font-display);
-  font-size: var(--fs-display);
+  font-size: var(--fs-hero);
   font-style: normal;
   font-weight: var(--weight-display);
-  line-height: var(--lh-display);
-  letter-spacing: var(--tracking-display);
+  line-height: var(--lh-hero);
+  letter-spacing: var(--tracking-hero);
   text-wrap: balance;
 }
 .fam-hero[data-family-hero] .fam-hero-copy .fam-hero-accent {
@@ -592,17 +592,17 @@ html {
   font: inherit;
 }
 .fam-hero[data-family-hero] .fam-hero-copy .fam-hero-support {
-  max-width: 32em;
-  margin: var(--stack-heading) 0 0;
+  max-width: 30em;
+  margin: var(--space-5) 0 0;
   color: var(--color-paper);
-  font: 400 var(--fs-body) / 1.5 var(--font-sans);
+  font: 400 var(--fs-hero-support) / 1.5 var(--font-sans);
 }
 .fam-hero[data-family-hero] .fam-hero-copy .fam-hero-actions {
   display: flex;
   flex-direction: column;
   align-items: stretch;
   gap: var(--space-1);
-  margin-top: var(--stack-cta);
+  margin-top: var(--space-8);
 }
 .fam-hero[data-family-hero] .fam-hero-copy .fam-hero-link {
   display: inline-flex;
@@ -642,18 +642,18 @@ html {
   .fam-hero[data-family-hero] .fam-hero-scrim {
     background: linear-gradient(
       90deg,
-      rgba(var(--color-scrim-rgb), 0.85) 0%,
-      rgba(var(--color-scrim-rgb), 0.55) 42%,
-      rgba(var(--color-scrim-rgb), 0) 78%
+      rgba(var(--color-scrim-rgb), 0.86) 0%,
+      rgba(var(--color-scrim-rgb), 0.62) 46%,
+      rgba(var(--color-scrim-rgb), 0) 84%
     );
   }
   /* A bright photograph (white cabinetry, daylight) can ask for the strong scrim. */
   .fam-hero[data-family-hero][data-scrim='strong'] .fam-hero-scrim {
     background: linear-gradient(
       90deg,
-      rgba(var(--color-scrim-rgb), 0.9) 0%,
-      rgba(var(--color-scrim-rgb), 0.7) 42%,
-      rgba(var(--color-scrim-rgb), 0) 80%
+      rgba(var(--color-scrim-rgb), 0.92) 0%,
+      rgba(var(--color-scrim-rgb), 0.74) 48%,
+      rgba(var(--color-scrim-rgb), 0) 86%
     );
   }
   .fam-hero[data-family-hero] .fam-hero-inner {
@@ -661,7 +661,8 @@ html {
     background: none;
   }
   .fam-hero[data-family-hero] .fam-hero-copy {
-    max-width: min(34rem, 42%);
+    /* Wide enough for a two-line H1 at the hero scale; the photograph keeps the right 40%. */
+    max-width: min(54rem, 64%);
   }
   .fam-hero[data-family-hero][data-desktop-from='1024'] {
     min-height: min(900px, calc(100svh - var(--header-height)));
