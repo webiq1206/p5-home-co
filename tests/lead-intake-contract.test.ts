@@ -122,6 +122,33 @@ test("details: lines, fingerprint and idempotency identity", () => {
   assert.notEqual(detailsFingerprint(details), detailsFingerprint({ ...details, timeline: "Just planning" }));
 });
 
+// Live form check, 2 November 2026: each brand site sent its own "Details added"
+// block as the Step 2 summary, and it printed as a "Note:" line repeating every
+// detail. These are the four notes exactly as they reached HubSpot.
+test("details: a note that only restates the fields is dropped, the visitor's words are kept", () => {
+  const step2 = {
+    address: "123 Test St, Boise, ID 83702",
+    timeline: "Just planning",
+    submission_kind: "details",
+    external_id: "brand:abc",
+  };
+  const restatements = [
+    "Details added\nDETAILS ADDED (ref 4316f6cea2de)\nAddress: 123 Test St, Boise, ID 83702\nTiming: Just planning",
+    "DETAILS ADDED\nBuild site: 123 Test St, Boise, ID 83702\nTiming: Just planning",
+    "DETAILS ADDED (ref 589ac3302baf, 2026-11-02 04:39 UTC)\nAddress: 123 Test St, Boise, ID 83702\nTiming: Just planning",
+    "Details added\nAddress: 123 Test St, Boise, ID 83702\nTiming: Just planning",
+  ];
+  for (const summary of restatements) {
+    const details = readLeadDetails({ ...step2, summary });
+    assert.equal(details.note, null, summary);
+    assert.deepEqual(detailLines(details), ["Address: 123 Test St, Boise, ID 83702", "Timing: Just planning"]);
+  }
+  const own = readLeadDetails({ ...step2, summary: "Details added\nTiming: Just planning\nGate code is 4411, dog in the yard" });
+  assert.match(own.note ?? "", /Gate code is 4411/);
+  const firstPost = readLeadDetails({ summary: "Island if it fits", projectType: "Kitchen remodel" });
+  assert.equal(firstPost.note, "Island if it fits");
+});
+
 test("request token: issued per lead, verified, rejected when tampered, foreign or expired", () => {
   const previous = process.env.SESSION_SECRET;
   process.env.SESSION_SECRET = "synthetic-secret-for-tests";

@@ -168,7 +168,7 @@ export function composeAddress(address: unknown, zip: unknown): string | null {
 }
 
 export function readLeadDetails(body: Record<string, unknown>, extras: IntakeExtras = readIntakeExtras(body)): LeadDetails {
-  return {
+  const details: LeadDetails = {
     projectType: text(pick(body, ["projectType", "project_type", "project"]), 120),
     propertyAddress: composeAddress(
       pick(body, ["address", "propertyAddress", "street_address"]),
@@ -182,6 +182,43 @@ export function readLeadDetails(body: Record<string, unknown>, extras: IntakeExt
     note: text(pick(body, ["summary", "message", "description", "note"])),
     files: extras.files,
   };
+  if (details.note && noteOnlyRestatesDetails(details.note, details)) details.note = null;
+  return details;
+}
+
+function words(value: string): string[] {
+  return value.toLowerCase().match(/[a-z0-9]+/g) ?? [];
+}
+
+/**
+ * The brand sites send their own "Details added" block as the summary of a
+ * Step 2 post, which only repeats the fields beside it ("DETAILS ADDED (ref
+ * 4316f6cea2de) Address: 123 Main St Timing: Just planning"). Printed as a
+ * "Note:" line it doubled every detail in the deal summary and in HubSpot.
+ * The note is dropped only when nothing in it is the visitor's own words:
+ * after the heading, reference tags and "Label:" prefixes are removed, every
+ * remaining word must appear in a field already listed or in a file link.
+ */
+export function noteOnlyRestatesDetails(note: string, details: LeadDetails): boolean {
+  const known = new Set(
+    [
+      details.projectType,
+      details.propertyAddress,
+      details.propertyCity,
+      details.timeline,
+      details.bestTime,
+      details.contactPreference ? CONTACT_PREFERENCE_LABELS[details.contactPreference] : null,
+      details.contactPreference,
+      details.email,
+      ...details.files.flatMap((file) => [file.name, file.url]),
+    ].flatMap((value) => (value ? words(value) : [])),
+  );
+  const stripped = note
+    .replace(/\((?:ref|reference)\b[^)]*\)/gi, " ")
+    .replace(/details added/gi, " ")
+    .replace(/\b[A-Za-z][A-Za-z /]{0,30}:/g, " ");
+  const left = words(stripped);
+  return left.length === 0 || left.every((word) => known.has(word));
 }
 
 export function hasAnyDetail(details: LeadDetails): boolean {
