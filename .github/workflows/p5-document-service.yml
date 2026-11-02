@@ -52,6 +52,8 @@ jobs:
     env:
       DOCUMENT_TEST_DATABASE_URL: postgres://p5_test:disposable_ci_only@127.0.0.1:5432/p5_documents_test
       NEXT_TELEMETRY_DISABLED: '1'
+      # Synthetic CI documents only; raw stderr is never retained or emitted.
+      DOCUMENT_SYNTHETIC_DIAGNOSTICS: '1'
       # Existing adapter/estimator fixtures use OpenAI identities. This is a
       # test-process selector, matching npm test; production defaults are unchanged.
       P5_ESTIMATOR_PROVIDER: 'openai'
