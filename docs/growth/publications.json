@@ -226,6 +226,20 @@
       "published_at": "2026-10-29T14:08:33+0000",
       "verified_at": "2026-10-29",
       "link_attributes": "Facebook platform redirect; public post and tracked destination read back; crawlability and indexing not claimed"
+    },
+    {
+      "platform": "facebook",
+      "brand": "Boise Remodeling Co",
+      "url": "https://boiseremodeling.co/resources",
+      "utm_content": "remodel_scope_checklist_20261102",
+      "id": "1228704823655951_122145519693385974",
+      "status": "published_verified",
+      "permalink_url": "https://www.facebook.com/122135638923385974/posts/122145519693385974",
+      "destination_url": "https://boiseremodeling.co/resources?utm_source=facebook&utm_medium=organic_social&utm_campaign=p5_free_growth_2026q4&utm_content=remodel_scope_checklist_20261102",
+      "created_at": "2026-11-02T15:34:47+0000",
+      "published_at": "2026-11-02T15:34:47+0000",
+      "verified_at": "2026-11-02",
+      "link_attributes": "Facebook platform redirect; public post and tracked destination read back; crawlability and indexing not claimed"
     }
   ],
   "scheduled": [],
