@@ -59,7 +59,7 @@ if(process.argv.includes('--source-only')){console.log(JSON.stringify({brand,sta
   const page=await context.newPage();await page.setViewportSize({width:w,height:h});await page.goto(`${origin}${brand==='cabinet'?'/estimate':'/'}?fixture=${rec.phase}/${rec.name}`,{waitUntil:'networkidle'});
   const section=brand==='p5'?page.locator('#company-finder'):page.locator('[data-testid="estimate-d2-details"]');const cta=section.getByRole('link',{name:/Request a (?:cabinet )?quote/});
   const count=await cta.count();assert.equal(count,rec.ctaCount);let box=null;
-  if(count){box=await cta.boundingBox();assert.ok(box.width>0&&box.height>0);if(rec.phase==='after'){await cta.focus();await page.keyboard.press('Enter');assert.equal(new URL(page.url()).pathname+new URL(page.url()).hash,rec.href);await page.goBack();}}
+  if(count){box=await cta.boundingBox();assert.ok(box.width>0&&box.height>0);if(rec.phase==='after'){await cta.focus();await Promise.all([page.waitForURL(u=>u.pathname+u.hash===rec.href),page.keyboard.press('Enter')]);assert.equal(new URL(page.url()).pathname+new URL(page.url()).hash,rec.href);await page.goBack();}}
   const overflow=await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1);if(overflow)failures.push(`${w}x${h} ${rec.phase}/${rec.name} overflow`);
   await section.screenshot({path:`${out}/${rec.phase}-${rec.name}-${w}x${h}.png`});measurements.push({...rec,viewport:`${w}x${h}`,box,overflow});await page.close();
  }}finally{await browser.close();await new Promise(r=>server.close(r));}
