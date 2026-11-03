@@ -64,7 +64,7 @@ export function reportSubject(report: DailyReport): string {
 }
 
 const HEALTH_STYLE: Record<ProjectCard["health"], { bg: string; fg: string }> = {
-  "ON TRACK": { bg: "#e7efe3", fg: "#233029" },
+  "ON TRACK": { bg: "#e7efe3", fg: "#383837" },
   WATCH: { bg: "#f9e9dc", fg: "#8a4a1e" },
   "ACTION REQUIRED": { bg: "#f6dede", fg: "#9a2f2f" },
 };
@@ -294,9 +294,9 @@ ${upcomingHtml}
 ${report.limitations.length ? `<p style="${S.section};margin-top:20px">Data notes</p>${report.limitations.map((l) => `<div style="${S.row}">• ${esc(l)}</div>`).join("")}` : ""}
 
 <div style="margin:22px 0 0">
-<a href="${esc(baseUrl)}/admin/finance/daily-report" style="display:inline-block;margin:0 8px 8px 0;padding:10px 16px;background:#233029;color:#fff;text-decoration:none;font-size:13px;font-weight:650">Open in panel</a>
-<a href="${esc(baseUrl)}/admin/finance" style="display:inline-block;margin:0 8px 8px 0;padding:10px 16px;border:1px solid #233029;color:#233029;text-decoration:none;font-size:13px;font-weight:650">Attention queue</a>
-<a href="${QBO_HOME}" style="display:inline-block;margin:0 8px 8px 0;padding:10px 16px;border:1px solid #233029;color:#233029;text-decoration:none;font-size:13px;font-weight:650">QuickBooks</a>
+<a href="${esc(baseUrl)}/admin/finance/daily-report" style="display:inline-block;margin:0 8px 8px 0;padding:10px 16px;background:#383837;color:#fff;text-decoration:none;font-size:13px;font-weight:650">Open in panel</a>
+<a href="${esc(baseUrl)}/admin/finance" style="display:inline-block;margin:0 8px 8px 0;padding:10px 16px;border:1px solid #383837;color:#383837;text-decoration:none;font-size:13px;font-weight:650">Attention queue</a>
+<a href="${QBO_HOME}" style="display:inline-block;margin:0 8px 8px 0;padding:10px 16px;border:1px solid #383837;color:#383837;text-decoration:none;font-size:13px;font-weight:650">QuickBooks</a>
 </div>
 <p style="margin:14px 0 0;font-size:11px;color:#6c756e">${report.lastSyncAt ? `Data last synced ${esc(new Date(report.lastSyncAt).toLocaleString("en-US"))}. ` : ""}Every figure comes from synced QuickBooks data and the P5 project registry; anything that could not be computed is listed under Data notes rather than guessed.</p>
 </div></body></html>`;

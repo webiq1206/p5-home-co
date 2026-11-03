@@ -77,7 +77,7 @@
 .kb-callout b.kb-callout-tag { display: table; margin: 0 0 7px; padding: 2px 8px; font-size: 10px; font-weight: 750; letter-spacing: .12em; text-transform: uppercase; }
 .kb-callout strong.kb-callout-title { display: block; margin: 0 0 4px; }
 .kb-callout-automatic { border-left-color: var(--moss); }
-.kb-callout-automatic .kb-callout-tag { background: #e7efe3; color: #233029; }
+.kb-callout-automatic .kb-callout-tag { background: #e7efe3; color: var(--moss); }
 .kb-callout-action { border-left-color: var(--forest); background: var(--bone); }
 .kb-callout-action .kb-callout-tag { background: var(--forest); color: #fff; }
 .kb-callout-review { border-left-color: var(--bronze); }
@@ -107,7 +107,7 @@
 .kb-flow-review { border-left-color: var(--bronze); }
 .kb-flow-label { display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline; font-size: 14.5px; font-weight: 700; }
 .kb-flow-kind { padding: 2px 7px; font-size: 10px; font-weight: 750; letter-spacing: .1em; text-transform: uppercase; background: var(--cream); color: var(--ink-2); }
-.kb-flow-step.kb-flow-auto .kb-flow-kind { background: #e7efe3; color: #233029; }
+.kb-flow-step.kb-flow-auto .kb-flow-kind { background: #e7efe3; color: var(--moss); }
 .kb-flow-step.kb-flow-review .kb-flow-kind { background: #fdf6ee; color: #8a4a1e; }
 .kb-flow-detail { margin: 5px 0 0; font-size: 13.5px; color: var(--ink-2); line-height: 1.5; }
 

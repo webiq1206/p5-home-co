@@ -3,13 +3,13 @@
   --ink-2: #343934;
   --paper: #fbfaf6;
   --bone: #f1ede4;
-  --moss: #233029;
-  --forest: #17211c;
+  --moss: #383837;
+  --forest: #383837;
   --sage: #7a9184;
   --bronze: #a58c72;
   --bronze-ink: #705a45;
   --terracotta: #ceb391;
-  --charcoal: #2c302f;
+  --charcoal: #383837;
   --line: rgba(32, 35, 31, 0.15);
   --font-sans: var(--font-manrope), "Manrope", system-ui, sans-serif;
   --font-display: var(--font-cormorant), "Cormorant Garamond", Georgia, serif;
@@ -32,7 +32,11 @@
   --stack-cta: 32px;
   --button-gap: 12px;
 
-  /* B4 color roles mapped to existing palette */
+  /* B4 color roles mapped to existing palette.
+     Site values override the hash-locked family charcoal, moss and forest tokens. */
+  --color-charcoal: var(--charcoal);
+  --color-moss: var(--moss);
+  --color-forest: var(--forest);
   --color-bg: var(--paper);
   --color-bg-alt: var(--bone);
   --color-surface: var(--paper);

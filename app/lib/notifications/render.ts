@@ -106,7 +106,7 @@ ${lines
 <div style="font-weight:650;font-size:15px">${escapeHtml(l.title)}</div>
 <div style="margin:6px 0;font-size:14px">${escapeHtml(l.reason)}</div>
 <div style="font-size:12px;color:#343934">Waiting ${escapeHtml(l.waiting)}</div>
-<a href="${escapeHtml(l.link)}" style="display:inline-block;margin-top:10px;padding:9px 16px;background:#233029;color:#fff;text-decoration:none;font-size:13px;font-weight:650">Open this lead</a>
+<a href="${escapeHtml(l.link)}" style="display:inline-block;margin-top:10px;padding:9px 16px;background:#383837;color:#fff;text-decoration:none;font-size:13px;font-weight:650">Open this lead</a>
 </div>`,
   )
   .join("")}
