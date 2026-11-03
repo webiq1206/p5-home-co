@@ -24,14 +24,14 @@
 }
 .root[data-theme=light]{
   --p5-surface:#ffffff;--p5-surface-2:#f6f5f0;--p5-surface-3:#fbfaf6;
-  --p5-ink:#20231f;--p5-ink-muted:#5f6862;--p5-ink-soft:#59645d;
+  --p5-ink:#383837;--p5-ink-muted:#5f6862;--p5-ink-soft:#59645d;
   --p5-line:#e1e5dd;--p5-line-strong:#b7c0b8;
-  --p5-field:#ffffff;--p5-field-ink:#20231f;--p5-field-placeholder:#626b65;
+  --p5-field:#ffffff;--p5-field-ink:#383837;--p5-field-placeholder:#626b65;
   --p5-primary:#383837;--p5-primary-ink:#fbfaf6;--p5-primary-hover:#0f1713;
   --p5-danger-bg:#fff3ee;--p5-danger-ink:#7a2f22;--p5-danger-line:#e6baac;
   --p5-notice-bg:#eef4ec;--p5-notice-ink:#294237;--p5-notice-line:#b7cbb9;
   --p5-success-bg:#e9f3ec;--p5-success-ink:#1f4a33;
-  --p5-user-bubble:#eef1ea;--p5-user-ink:#20231f;
+  --p5-user-bubble:#eef1ea;--p5-user-ink:#383837;
   --p5-shadow:0 14px 40px rgba(23,33,28,.08);--p5-focus:#41694e;
   --p5-badge-included:#e4efe7;--p5-badge-excluded:#f7e5e2;--p5-badge-allowance:#f6efdf;--p5-badge-assumption:#e6eef3;
 }
