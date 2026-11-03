@@ -103,6 +103,14 @@ export default function CompanyFinder() {
           </div>
         )}
 
+        {!company && (
+          <div className="company-finder-actions">
+            <FamilyButton variant="secondary" size="lg" href="/quote" style={{ minHeight: 56 }}>
+              Request a quote from P5 <Arrow />
+            </FamilyButton>
+          </div>
+        )}
+
         {company && detail && (
           <div className="company-finder-result" style={{ ["--choice-accent" as string]: detail.accent }}>
             <p className="company-finder-kicker">Your P5 match</p>

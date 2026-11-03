@@ -1,0 +1,36 @@
+name: p5 public planning contact review
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - components/CompanyFinder.tsx
+      - scripts/verify-planning-contact.cjs
+      - tests/fixtures/planning-contact-before.tsx.txt
+      - .github/workflows/planning-contact.yml
+permissions:
+  contents: read
+jobs:
+  contact:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    container: mcr.microsoft.com/playwright:v1.60.0-noble
+    env:
+      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
+      NEXT_TELEMETRY_DISABLED: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: node scripts/verify-planning-contact.cjs p5
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: p5-planning-contact-${{ github.sha }}
+          path: test-results/planning-contact/
+          retention-days: 14
+          if-no-files-found: error
+
