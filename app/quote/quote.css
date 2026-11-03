@@ -220,7 +220,7 @@
   border: 1px solid rgba(32, 35, 31, 0.14);
   background: var(--paper);
   color: var(--ink);
-  box-shadow: 0 22px 50px rgba(11, 16, 13, 0.32);
+  box-shadow: 0 22px 50px rgba(var(--charcoal-rgb), 0.32);
 }
 
 .quote-form-panel h2 {
@@ -666,7 +666,7 @@
   background: var(--charcoal);
   border-top: 1px solid var(--bronze);
   color: #fff;
-  box-shadow: 0 -6px 22px rgba(11, 16, 13, 0.22);
+  box-shadow: 0 -6px 22px rgba(var(--charcoal-rgb), 0.22);
   font-weight: 750;
   text-align: center;
   text-decoration: none;
@@ -900,8 +900,8 @@
 }
 
 /* ── Leave prompt (docs/estimator-recovery.md) ─────────────────────────── */
-.recovery { width: min(100% - 32px, 520px); max-height: calc(100svh - 32px); margin: auto; padding: 0; border: 1px solid var(--line); border-radius: 0; color: var(--ink); background: var(--paper); box-shadow: 0 35px 100px rgba(0,0,0,.34); }
-.recovery::backdrop { background: rgba(10,15,12,.72); backdrop-filter: blur(6px); }
+.recovery { width: min(100% - 32px, 520px); max-height: calc(100svh - 32px); margin: auto; padding: 0; border: 1px solid var(--charcoal-line); border-radius: 0; color: var(--ink); background: #fff; box-shadow: 0 35px 100px rgba(var(--charcoal-rgb),.34); }
+.recovery::backdrop { background: rgba(var(--charcoal-rgb),.72); backdrop-filter: blur(6px); }
 .recovery-panel { padding: 30px 28px 26px; }
 .recovery h2 { margin: 0 0 12px; font-family: var(--font-display); font-size: clamp(26px, 3vw, 34px); font-weight: 400; letter-spacing: -.03em; line-height: 1.05; }
 .recovery-lede { margin: 0 0 22px; color: var(--ink-2); font-size: 14px; line-height: 1.65; }
@@ -1053,7 +1053,7 @@
   position: relative;
   min-height: 240px;
   overflow: hidden;
-  background: #1a1c19;
+  background: var(--charcoal);
 }
 .quote-scroll-photo img {
   display: block;
@@ -1118,7 +1118,7 @@ html:has(.quote-request-first) { scroll-behavior: auto; }
 .quote-request-first .short-request {
   padding: 18px 18px 16px;
   border-color: rgba(32, 35, 31, 0.16);
-  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 10px 28px rgba(var(--charcoal-rgb), 0.1);
 }
 .quote-request-aside { display: grid; gap: 18px; align-content: start; padding-top: 6px; }
 .quote-request-img { display: block; width: 100%; height: auto; aspect-ratio: 16 / 10; object-fit: cover; }

@@ -5,7 +5,7 @@
   flex-direction: column;
   background: #fbfaf6;
   color: var(--ink);
-  box-shadow: 0 18px 50px rgba(16, 22, 18, 0.28);
+  box-shadow: 0 18px 50px rgba(56, 56, 55, 0.28);
 }
 
 .header {

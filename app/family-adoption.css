@@ -99,14 +99,18 @@
     letter-spacing: 0.04em !important;
   }
 
-  a, button, summary, select, label,
-  .text-link, .brand-link, .company-index a, .faq-item summary, .legal-back {
+  button, summary, select, .text-link, .brand-link, .company-index a,
+  .faq-item summary, .legal-back, .fam-btn, .quote-form-mode, .quote-form-pill span,
+  .fam-header a, .fam-bar a, .fam-bar button, .sitemap-list a {
     min-height: 44px;
   }
-  p a, li a, dd a, .public-identity a, .legal-page a, .fam-footer a {
-    display: inline-flex;
-    align-items: center;
+  .fam-footer a {
     min-height: 44px;
+  }
+  .fam-footer p a, p a, li p a, .public-identity a, .legal-page p a {
+    display: inline;
+    min-height: 0;
+    padding-block: 0;
   }
   input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):not([type="file"]),
   textarea, select {
