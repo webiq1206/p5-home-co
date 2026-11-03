@@ -46,14 +46,80 @@
 
 /* Under 768px the hero heading stays at most 40px. The family token is
    hash-locked, so this site overrides it after the shared file loads. */
-@media (max-width: 767px) {
+@media (max-width: 780px) {
   :root {
     --fs-hero: 40px;
     --lh-hero: 1.08;
+    --fs-small: 16px;
+    --fs-label: 16px;
+    --fs-nav: 16px;
+    --fs-button: 16px;
+    --section-y: 64px;
+    --section-y-compact: 64px;
   }
-  .fam-footer[data-family-footer] .fam-footer-tagline,
-  .fam-footer[data-family-footer] li,
-  .fam-footer[data-family-footer] a {
-    font-size: 16px;
+
+  /* Nothing readable sits under 16px. Headings and a few display figures stay larger. */
+  body *:not(svg):not(svg *) {
+    font-size: max(16px, 1em) !important;
+  }
+  body h1:not(svg),
+  body .fam-hero-title:not(svg) {
+    font-size: 40px !important;
+    line-height: 1.08 !important;
+    text-align: center !important;
+    text-wrap: balance;
+  }
+  body h2:not(svg) {
+    font-size: 36px !important;
+    line-height: 1.15 !important;
+    text-align: center !important;
+    text-wrap: balance;
+  }
+  body h3:not(svg) {
+    font-size: 22px !important;
+    line-height: 1.25 !important;
+    text-align: center !important;
+    text-wrap: balance;
+  }
+  .stat-grid strong { font-size: 36px !important; }
+  .trust-grid strong,
+  .company-index strong { font-size: 20px !important; }
+  .fam-footer[data-family-footer] .fam-footer-phone { font-size: 28px !important; }
+  .kitchen-example-steps span,
+  .how-p5-number { font-size: 28px !important; }
+  .area-list span { font-size: 18px !important; }
+  .standard-grid h3 { font-size: 20px !important; }
+
+  .eyebrow,
+  .brand-topline,
+  .launch-note,
+  .fam-footer-label,
+  .legal-back,
+  .legal-updated {
+    letter-spacing: 0.04em !important;
+  }
+
+  a, button, summary, select, label,
+  .text-link, .brand-link, .company-index a, .faq-item summary, .legal-back {
+    min-height: 44px;
+  }
+  p a, li a, dd a, .public-identity a, .legal-page a, .fam-footer a {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+  }
+  input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):not([type="file"]),
+  textarea, select {
+    min-height: 48px;
+    width: 100%;
+  }
+  .fam-skip:focus,
+  .fam-skip:focus-visible {
+    min-height: 44px;
+    font-size: 16px !important;
+  }
+  .brand-fold[open] .brand-image-wrap {
+    height: 180px;
+    min-height: 180px;
   }
 }

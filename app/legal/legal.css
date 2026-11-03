@@ -11,7 +11,15 @@
 }
 
 @media (max-width: 820px) {
-  .legal-page { padding-top: 32px; }
+  .legal-page { padding-top: 64px; }
+}
+@media (max-width: 780px) {
+  .legal-page h1 {
+    font-size: 28px !important;
+    line-height: 1.15 !important;
+    text-wrap: balance;
+  }
+  .legal-page { padding-bottom: 96px; }
 }
 
 .legal-back {

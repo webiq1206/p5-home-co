@@ -144,8 +144,8 @@ export default function Home() {
           image={{ ...HERO_IMAGE, alt: FEATURED_BOISE_EXTERIOR.alt, position: "50% 20%" }}
           phoneImage={{ ...HERO_IMAGE, position: "65% 50%" }}
           eyebrow="The Home Company"
-          title="Boise’s home"
-          titleAccent="specialists"
+          title="Boise’s"
+          titleAccent="home specialists"
           support="New homes, remodeling, cabinets, repairs and ADUs."
           primary={{ label: "Request a quote", href: "/quote" }}
         />
@@ -520,7 +520,7 @@ export default function Home() {
               </p>
             </div>
             <div className="standard-grid">
-              <Standard number="01" title="Clarity before commitment">
+              <Standard number="01" title={"Clarity before\u00A0commitment"}>
                 Share your plans or choose “Just contact me” in the{" "}
                 <Link href="/quote" style={{ textDecoration: "underline", textUnderlineOffset: "3px" }}>
                   request form
@@ -530,7 +530,7 @@ export default function Home() {
               <Standard number="02" title="One accountable team">
                 You know who owns the next step, who to contact, and where the project stands.
               </Standard>
-              <Standard number="03" title="Proactive communication">
+              <Standard number="03" title={"Proactive\u00A0communication"}>
                 Decisions, schedule changes, and budget impacts are raised early and documented clearly.
               </Standard>
               <Standard number="04" title="The right company for the work">
@@ -702,7 +702,7 @@ function BrandPanel({
   const served = imageVariantFor(image);
   return (
     <section id={id} className={`brand-panel ${reverse ? "brand-panel-reverse" : ""} ${className}`}>
-      <details className="brand-fold" open={number === "01"}>
+      <details className="brand-fold">
         <summary>
           <span>{number}</span>
           <span>{category}</span>
