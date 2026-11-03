@@ -115,6 +115,18 @@ export default function Home() {
     track("matcher_open");
   };
 
+  useEffect(() => {
+    const openFold = () => {
+      const id = window.location.hash.replace(/^#/, "");
+      if (!id) return;
+      const fold = document.getElementById(id)?.querySelector("details.brand-fold");
+      if (fold instanceof HTMLDetailsElement) fold.open = true;
+    };
+    openFold();
+    window.addEventListener("hashchange", openFold);
+    return () => window.removeEventListener("hashchange", openFold);
+  }, []);
+
   return (
     <div id="top">
       <script
@@ -690,6 +702,12 @@ function BrandPanel({
   const served = imageVariantFor(image);
   return (
     <section id={id} className={`brand-panel ${reverse ? "brand-panel-reverse" : ""} ${className}`}>
+      <details className="brand-fold" open={number === "01"}>
+        <summary>
+          <span>{number}</span>
+          <span>{category}</span>
+        </summary>
+        <div className="brand-fold-body">
       <div className="brand-image-wrap">
         <img
           src={image}
@@ -743,6 +761,8 @@ function BrandPanel({
         </a>
         {comingSoon && <span className="launch-note">Standalone website coming</span>}
       </Reveal>
+        </div>
+      </details>
     </section>
   );
 }

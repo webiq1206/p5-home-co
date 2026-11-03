@@ -1,5 +1,5 @@
 :root {
-  --ink: #20231f;
+  --ink: #383837;
   --ink-2: #343934;
   --paper: #fbfaf6;
   --bone: #f1ede4;
@@ -34,6 +34,7 @@
 
   /* B4 color roles mapped to existing palette.
      Site values override the hash-locked family charcoal, moss and forest tokens. */
+  --color-ink: var(--ink);
   --color-charcoal: var(--charcoal);
   --color-moss: var(--moss);
   --color-forest: var(--forest);
@@ -174,8 +175,9 @@ a:hover .arrow-diagonal, a:focus-visible .arrow-diagonal { transform: translate(
 .company-index a:hover small, .company-index a:focus-visible small { color: #4d554d; }
 .company-index a:hover span, .company-index a:focus-visible span { color: var(--bronze-ink); }
 
-.brand-panel { display: grid; grid-template-columns: 57% 43%; min-height: 760px; }
-.brand-panel-reverse { grid-template-columns: 43% 57%; }
+.brand-panel { min-height: 760px; }
+.brand-fold-body { display: grid; grid-template-columns: 57% 43%; min-height: 760px; }
+.brand-panel-reverse .brand-fold-body { grid-template-columns: 43% 57%; }
 .brand-panel-reverse .brand-image-wrap { order: 2; }
 .brand-panel-reverse .brand-content { order: 1; }
 .brand-image-wrap { position: relative; min-height: 650px; overflow: hidden; background: #d8d2c7; }
@@ -307,7 +309,8 @@ a:hover .arrow-diagonal, a:focus-visible .arrow-diagonal { transform: translate(
 @media (max-width:1100px) {
   .content-shell { width:min(100% - (var(--gutter) * 2), var(--container-max)); }
   .manifesto-layout,.companies-heading,.standard-heading { gap:7vw; }
-  .brand-panel,.brand-panel-reverse { grid-template-columns:53% 47%; }
+  .brand-fold-body { grid-template-columns:53% 47%; }
+  .brand-panel-reverse .brand-fold-body { grid-template-columns:47% 53%; }
   .brand-content { padding-right:42px; padding-left:42px; }
   .brand-logo { height:auto; }
 }
@@ -322,7 +325,8 @@ a:hover .arrow-diagonal, a:focus-visible .arrow-diagonal { transform: translate(
   .manifesto-layout,.companies-heading,.standard-heading { gap:42px; }
   .manifesto-copy { max-width:600px; }
   .standard-grid { grid-template-columns:1fr 1fr; }
-  .brand-panel,.brand-panel-reverse { grid-template-columns:1fr; min-height:0; }
+  .brand-panel { min-height:0; }
+  .brand-fold-body,.brand-panel-reverse .brand-fold-body { grid-template-columns:1fr; min-height:0; }
   .brand-panel-reverse .brand-image-wrap,.brand-panel-reverse .brand-content { order:initial; }
   .brand-image-wrap { min-height:540px; height:70vw; }
   .brand-content { min-height:0; padding:60px max(35px,8vw); }
@@ -413,7 +417,7 @@ a:hover .arrow-diagonal, a:focus-visible .arrow-diagonal { transform: translate(
 .matcher-choices button:active { transform: scale(.985); }
 .button[aria-busy="true"] { pointer-events: none; opacity: .72; }
 /* ─── Sticky desktop storytelling: the brand copy holds beside its image as the panel scrolls. */
-@media (min-width: 1101px) { .brand-panel, .brand-panel-reverse { align-items: start; min-height: max(760px, 92vh); } .brand-image-wrap { align-self: stretch; } .brand-image-wrap img { position: absolute; inset: 0; width: 100%; height: 100%; } .brand-content { position: sticky; top: var(--header-height); } }
+@media (min-width: 1101px) { .brand-panel, .brand-fold-body { align-items: start; min-height: max(760px, 92vh); } .brand-image-wrap { align-self: stretch; } .brand-image-wrap img { position: absolute; inset: 0; width: 100%; height: 100%; } .brand-content { position: sticky; top: var(--header-height); } }
 /* ─── Contextual mobile action bar ─── slides away while an on-page call to action is visible. */
 @media (prefers-reduced-motion: reduce) { .js .p5-reveal { opacity: 1; transform: none; transition: none; } .button:active, .matcher-choices button:active { transform: none; } }
 /* ─── Smooth content transitions: an answer rises into place when its question opens. */
@@ -851,7 +855,8 @@ body[data-p5-chat-open] { overflow: hidden; }
 .about-family-photo img { margin-inline: auto; background: var(--bone); }
 .about-section { padding: 36px 0; max-width: 820px; }
 .about-section h2 { margin: 0 0 16px; font-family: var(--font-display); font-size: clamp(28px, 3.5vw, 36px); font-weight: 500; letter-spacing: -.02em; }
-.about-section p, .about-company-list { margin: 0; font-size: 17px; line-height: 1.65; }
+.about-section p, .about-section li, .about-company-list { margin: 0; font-size: 17px; line-height: 1.65; }
+.about-section ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 12px; }
 .about-company-list { list-style: none; padding: 0; display: grid; gap: 14px; }
 .about-company-list a { text-decoration: underline; text-underline-offset: 3px; font-weight: 650; }
 .about-closing { padding: 48px 0 110px; }
@@ -915,4 +920,189 @@ main#main-content:focus { outline: none; }
    with an outline so it reads on the dark band and a hover that stays legible. */
 .final-cta .button-dark { border-color: rgba(251,250,246,.55); }
 .final-cta .button-dark:hover, .final-cta .button-dark:focus-visible { color: var(--paper); background: transparent; border-color: var(--paper); }
+
+/* Phone polish, under 768px. Desktop layout stays as designed. */
+@media (min-width: 768px) {
+  .brand-fold > summary { display: none; }
+  .brand-fold > .brand-fold-body { display: grid; }
+}
+@media (max-width: 767px) {
+  :root {
+    --section-y: 72px;
+    --section-y-compact: 64px;
+  }
+
+  .fam-hero[data-family-hero] .fam-hero-copy {
+    margin-inline: auto;
+    text-align: center;
+  }
+  .fam-hero[data-family-hero] .fam-hero-copy .fam-hero-eyebrow { justify-content: center; }
+  .fam-hero[data-family-hero] .fam-hero-copy .fam-hero-title {
+    font-size: 40px;
+    line-height: 1.08;
+  }
+  .fam-hero[data-family-hero] .fam-hero-copy .fam-hero-support { margin-inline: auto; }
+  .fam-hero[data-family-hero] .fam-hero-copy .fam-hero-actions { align-items: center; }
+  .fam-hero[data-family-hero] .fam-hero-copy .fam-hero-link { align-self: center; justify-content: center; }
+
+  h1,
+  .about-hero h1,
+  .quote-page h1 {
+    font-size: 40px;
+    line-height: 1.08;
+  }
+  h2,
+  .companies h2,
+  .standard h2,
+  .handoff h2,
+  .service-area h2,
+  .faq h2,
+  .final-cta h2,
+  .featured-project-intro h2,
+  .kitchen-example h2,
+  .who-hire h2,
+  .how-p5 h2,
+  .company-finder-intro h2,
+  .about-section h2,
+  .about-closing h2,
+  .quote-page h2 {
+    font-size: 36px;
+    line-height: 1.15;
+  }
+
+  .eyebrow { justify-content: center; }
+  .companies-heading,
+  .standard-heading,
+  .featured-project-intro,
+  .how-p5-intro,
+  .kitchen-example-inner,
+  .request-entry-copy,
+  .who-hire,
+  .service-area-grid > div:first-child,
+  .faq-layout > div:first-child,
+  .final-cta-content,
+  .company-finder-intro,
+  .about-hero-inner,
+  .about-section h2,
+  .about-closing h2,
+  .brand-content h3,
+  .brand-fold > summary {
+    text-align: center;
+  }
+  .final-cta-actions,
+  .request-entry-actions,
+  .about-hero-actions,
+  .about-closing-actions,
+  .company-finder-actions,
+  .how-p5-intro {
+    align-items: center;
+  }
+  .text-link,
+  .brand-link { justify-content: center; }
+  .brand-link { margin-inline: auto; }
+
+  .faq-item p,
+  .brand-content > p,
+  .service-area-copy,
+  .faq-intro,
+  .companies-heading > p,
+  .standard-heading > p,
+  .how-p5-steps p,
+  .how-p5-intro > p,
+  .featured-project-intro > p,
+  .standard-grid p,
+  .kitchen-example-steps p,
+  .service-list li,
+  .process-proof li,
+  .company-finder-intro > p,
+  .company-finder-result > p,
+  .about-section p,
+  .about-trust-line,
+  .quote-lead,
+  .quote-step-grid p,
+  .quote-photos-lead,
+  .quote-faq dd,
+  .request-entry-actions p,
+  .quote-form-talk > p,
+  .quote-form-next,
+  .about-section li {
+    font-size: 16px;
+    line-height: 1.5;
+  }
+
+  .company-index a,
+  .brand-link,
+  .text-link,
+  .faq-item summary,
+  .sitemap-list a,
+  .save-contact-button,
+  .brand-fold > summary,
+  .quote-form-pill span,
+  .quote-form .quote-chip span {
+    min-height: 44px;
+  }
+
+  .how-p5 .content-shell { padding-top: 72px; padding-bottom: 72px; }
+  #top > section + section,
+  .quote-main > section + section {
+    border-top: 1px solid rgba(56, 56, 55, 0.14);
+  }
+  #top > .companies,
+  #top > .standard,
+  #top > .final-cta,
+  #top > .brand-construction,
+  #top > .brand-handyman {
+    border-top-color: rgba(251, 250, 246, 0.22);
+  }
+
+  .brand-fold > summary {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    min-height: 56px;
+    padding: 12px 20px;
+    color: inherit;
+    font: 700 16px/1.3 var(--font-sans);
+    cursor: pointer;
+    list-style: none;
+  }
+  .brand-fold > summary::-webkit-details-marker { display: none; }
+  .brand-fold:not([open]) > .brand-fold-body { display: none; }
+  .brand-fold[open] > .brand-fold-body { display: block; min-height: 0; }
+  .brand-fold[open] .brand-image-wrap { height: 220px; min-height: 220px; }
+
+  .featured-project-grid {
+    display: flex;
+    gap: 12px;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    padding-bottom: 8px;
+  }
+  .featured-project-shot {
+    flex: 0 0 86%;
+    scroll-snap-align: start;
+  }
+  .featured-project-grid img,
+  .featured-project-grid-3 img,
+  .featured-project-wide img,
+  .featured-project-grid-3 > :first-child img {
+    height: 220px;
+  }
+  .featured-project-grid-3 > :first-child { grid-column: auto; }
+
+  .quote-form-pills,
+  .quote-chips,
+  .quote-chips-timing {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+  .quote-form-pill span,
+  .quote-form .quote-chip span {
+    min-height: 56px;
+    padding: 14px 16px;
+    font-size: 16px;
+    line-height: 1.25;
+  }
+}
 

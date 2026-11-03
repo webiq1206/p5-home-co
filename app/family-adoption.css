@@ -43,3 +43,17 @@
 .final-cta .fam-btn {
   align-self: flex-start;
 }
+
+/* Under 768px the hero heading stays at most 40px. The family token is
+   hash-locked, so this site overrides it after the shared file loads. */
+@media (max-width: 767px) {
+  :root {
+    --fs-hero: 40px;
+    --lh-hero: 1.08;
+  }
+  .fam-footer[data-family-footer] .fam-footer-tagline,
+  .fam-footer[data-family-footer] li,
+  .fam-footer[data-family-footer] a {
+    font-size: 16px;
+  }
+}

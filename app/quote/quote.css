@@ -663,7 +663,7 @@
   gap: 2px;
   align-items: center;
   padding: 11px 16px calc(11px + env(safe-area-inset-bottom, 0px));
-  background: #203129;
+  background: var(--charcoal);
   border-top: 1px solid var(--bronze);
   color: #fff;
   box-shadow: 0 -6px 22px rgba(11, 16, 13, 0.22);
@@ -1138,4 +1138,58 @@ html:has(.quote-request-first) { scroll-behavior: auto; }
 }
 @media (max-width: 639px) {
   .quote-request-first .short-request { padding: 14px 14px 12px; }
+}
+@media (max-width: 767px) {
+  .quote-page h1,
+  .quote-request-main > h1 {
+    max-width: 18ch;
+    margin-inline: auto;
+    font-size: 40px;
+    line-height: 1.08;
+    text-align: center;
+  }
+  .quote-page h2,
+  .quote-photos-heading,
+  .quote-others h2,
+  .quote-thanks h2 {
+    font-size: 36px;
+    line-height: 1.15;
+    text-align: center;
+  }
+  .quote-eyebrow,
+  .quote-proof,
+  .quote-photos,
+  .quote-steps,
+  .quote-voices,
+  .quote-others,
+  .quote-faq,
+  .quote-area {
+    text-align: center;
+  }
+  .quote-covers li,
+  .quote-step-grid p,
+  .quote-faq dd,
+  .quote-photos-lead,
+  .quote-hero-call,
+  .quote-others-note,
+  .quote-area,
+  .quote-form-talk > p,
+  .quote-form-next {
+    font-size: 16px;
+    line-height: 1.5;
+  }
+  .quote-proof,
+  .quote-photos,
+  .quote-steps,
+  .quote-voices,
+  .quote-others,
+  .quote-faq {
+    padding-top: 64px;
+    padding-bottom: 64px;
+  }
+  .quote-footer-links a,
+  .quote-other-grid a,
+  .quote-callbar {
+    min-height: 44px;
+  }
 }

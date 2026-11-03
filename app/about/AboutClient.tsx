@@ -99,57 +99,83 @@ export default function AboutClient({
 
         <section className="about-section content-shell" aria-labelledby="background">
           <h2 id="background">Background</h2>
-          <p>
-            Construction has been part of my life for as long as I can remember. I grew up around the industry, and what
-            started as something familiar became a career I have spent more than a decade building. I earned a
-            bachelor&apos;s degree in Construction with an emphasis in Project Management, and went on to lead everything
-            from small home renovations to multimillion-dollar custom homes and residential developments. I started P5
-            Home Co in Colorado in 2020 and moved the family and the company to the Treasure Valley in 2025, where we
-            live in Meridian.
-          </p>
+          <ul>
+            <li>Construction has been part of my life for as long as I can remember.</li>
+            <li>
+              I grew up around the industry, and what started as something familiar became a career I have spent more
+              than a decade building.
+            </li>
+            <li>
+              I earned a bachelor&apos;s degree in Construction with an emphasis in Project Management, and went on to
+              lead everything from small home renovations to multimillion-dollar custom homes and residential
+              developments.
+            </li>
+            <li>
+              I started P5 Home Co in Colorado in 2020 and moved the family and the company to the Treasure Valley in
+              2025, where we live in Meridian.
+            </li>
+          </ul>
         </section>
 
         <section className="about-section content-shell" aria-labelledby="years-taught">
           <h2 id="years-taught">What those years taught me</h2>
-          <p>
-            Being a good contractor is not only about knowing how to build. It is about listening, communicating
-            honestly, following through on commitments, and taking responsibility for the work you put your name on.
-            When I started P5, I wanted a company that reflected those things. Not the biggest construction company in
-            the valley, but the one people feel comfortable calling, trust to do the right thing, and are happy to
-            recommend to their friends and family.
-          </p>
+          <ul>
+            <li>Being a good contractor is not only about knowing how to build.</li>
+            <li>
+              It is about listening, communicating honestly, following through on commitments, and taking responsibility
+              for the work you put your name on.
+            </li>
+            <li>When I started P5, I wanted a company that reflected those things.</li>
+            <li>
+              Not the biggest construction company in the valley, but the one people feel comfortable calling, trust to
+              do the right thing, and are happy to recommend to their friends and family.
+            </li>
+          </ul>
         </section>
 
         <section className="about-section content-shell" aria-labelledby="why-matters">
           <h2 id="why-matters">Why it matters to me</h2>
-          <p>
-            As a father of five, I understand what a home means to a family. Whether we are fixing a door, remodeling a
-            kitchen or building a house from the ground up, someone is trusting us with a place that means a great deal
-            to them, and I never want to lose sight of that.
-          </p>
+          <ul>
+            <li>As a father of five, I understand what a home means to a family.</li>
+            <li>
+              Whether we are fixing a door, remodeling a kitchen or building a house from the ground up, someone is
+              trusting us with a place that means a great deal to them, and I never want to lose sight of that.
+            </li>
+          </ul>
         </section>
 
         <section className="about-section content-shell" aria-labelledby="who-you-meet">
           <h2 id="who-you-meet">Who you will work with</h2>
-          <p>
-            You meet me at the first visit. On remodels and builds, our project team runs the schedule, and the crew on
-            repairs is ours, not day labour. Plumbing, electrical and HVAC go to licensed trade partners we schedule and
-            stand behind. Every project has one written scope before any price, a weekly written update, and a
-            workmanship warranty: one year on repairs and new builds (ten years structural where offered), two years on
-            remodels and cabinet installation.
-          </p>
+          <ul>
+            <li>You meet me at the first visit.</li>
+            <li>
+              On remodels and builds, our project team runs the schedule, and the crew on repairs is ours, not day
+              labour.
+            </li>
+            <li>Plumbing, electrical and HVAC go to licensed trade partners we schedule and stand behind.</li>
+            <li>
+              Every project has one written scope before any price, a weekly written update, and a workmanship warranty:
+              one year on repairs and new builds (ten years structural where offered), two years on remodels and cabinet
+              installation.
+            </li>
+          </ul>
         </section>
 
         <section className="about-section content-shell" aria-labelledby="the-company">
           <h2 id="the-company">The company</h2>
-          <p>
-            P5 Home Co LLC, Meridian, Idaho. Idaho Registered Contractor #{registration} (look it up at the{" "}
-            <a href={doplLookup} target="_blank" rel="noopener noreferrer">
-              Idaho DOPL
-            </a>
-            ). Insured; certificate on request. Boise Construction Co, Boise Remodeling Co, Boise Cabinet Co and Boise
-            Handyman Co are DBAs of P5 Home Co LLC; Boise ADU Co projects currently run through Boise Construction Co.
-          </p>
+          <ul>
+            <li>
+              P5 Home Co LLC, Meridian, Idaho. Idaho Registered Contractor #{registration} (look it up at the{" "}
+              <a href={doplLookup} target="_blank" rel="noopener noreferrer">
+                Idaho DOPL
+              </a>
+              ). Insured; certificate on request.
+            </li>
+            <li>
+              Boise Construction Co, Boise Remodeling Co, Boise Cabinet Co and Boise Handyman Co are DBAs of P5 Home Co
+              LLC; Boise ADU Co projects currently run through Boise Construction Co.
+            </li>
+          </ul>
         </section>
 
         <section className="about-section content-shell" aria-labelledby="five-companies">
