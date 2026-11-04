@@ -33,7 +33,7 @@ export function P5LazyEstimator(props:ComponentProps<typeof P5Estimator>){
     observer.observe(ref.current);
     return ()=>{observer.disconnect();window.removeEventListener('hashchange',loadAnchor);};
   },[]);
-  return <div ref={ref} style={{minHeight:300}}>{ready?<Estimator {...props}/>:<div style={{padding:32,background:'#fff',color:'#20231f',border:'1px solid #d9ded6',borderRadius:20}}>
+  return <div ref={ref} style={{minHeight:300}}>{ready?<Estimator {...props}/>:<div style={{padding:32,background:'#fff',color:'#383837',border:'1px solid #d9ded6',borderRadius:20}}>
     <p>Describe your project, add photos or plans, and review the details before requesting a preliminary estimate.</p>
     <a href="/estimate" onClick={event=>{event.preventDefault();setReady(true);}}>Start my estimate</a>
   </div>}</div>;

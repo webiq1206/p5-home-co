@@ -11,7 +11,7 @@ export function P5PriceReferences({review}:{review?:{reviewId:string;estimate:{l
   const [selected,setSelected]=useState<PriceReference|null>(null),[lineId,setLineId]=useState("");
   const [quantity,setQuantity]=useState(""),[rate,setRate]=useState(""),[rationale,setRationale]=useState("");
   const [confirmed,setConfirmed]=useState(false),[busy,setBusy]=useState(false),[message,setMessage]=useState("");
-  const control={display:"block",width:"100%",maxWidth:"100%",minHeight:44,fontSize:16,padding:10,color:"#17201b",background:"#fff",boxSizing:"border-box" as const,margin:"8px 0 16px"};
+  const control={display:"block",width:"100%",maxWidth:"100%",minHeight:44,fontSize:16,padding:10,color:"#383837",background:"#fff",boxSizing:"border-box" as const,margin:"8px 0 16px"};
   async function request(method="GET",body?:unknown){const r=await fetch("/api/admin/p5-estimators/references",{method,headers:{"Content-Type":"application/json"},...(body?{body:JSON.stringify(body)}:{})});const data=await r.json();if(!r.ok)throw new Error(data.error||"Reference review failed.");return data;}
   async function load(){const data=await request();setRecords(data.records);setVersion(data.version);setOverheadRate(typeof data.overheadRate==="number"?data.overheadRate:null);}
   useEffect(()=>{let active=true;fetch("/api/admin/p5-estimators/references").then(async r=>{const data=await r.json();if(!r.ok)throw new Error(data.error||"Reference review failed.");if(active){setRecords(data.records);setVersion(data.version);setOverheadRate(typeof data.overheadRate==="number"?data.overheadRate:null);}}).catch(e=>{if(active)setMessage(e.message);});return()=>{active=false;};},[]);
