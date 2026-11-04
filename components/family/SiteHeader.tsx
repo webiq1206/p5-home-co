@@ -16,7 +16,8 @@ import { FAMILY_BRAND } from '@/lib/familyBrand';
 import { isActiveHref, matchesRoute } from '@/lib/family/types';
 import { brandStyle } from './brandStyle';
 import { FamilyButton } from './Button';
-import { ChatIcon, MenuIcon, PhoneIcon, TextIcon } from './Icons';
+import { MenuIcon } from './Icons';
+import { ContactActions } from './ContactActions';
 import { MobileMenu } from './MobileMenu';
 import { trackFamilyEvent } from './track';
 
@@ -24,11 +25,27 @@ export function SiteHeader({ tone: toneOverride }: { tone?: 'dark' | 'light' }) 
   const brand = FAMILY_BRAND;
   const pathname = usePathname();
   const tone = toneOverride ?? (matchesRoute(pathname, brand.header.darkOn) ? 'dark' : 'light');
-  const lockup = tone === 'dark' ? brand.lockup.onDark : brand.lockup.onLight;
+  const lockup = brand.lockup.onDark;
   // The menu is open for the page it was opened on, so any route change closes it.
   const [openOn, setOpenOn] = useState<string | null>(null);
   const menuOpen = openOn !== null && openOn === pathname;
   const trigger = useRef<HTMLButtonElement>(null);
+  const headerRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const header = headerRef.current;
+    if (!header || typeof ResizeObserver === 'undefined') return;
+    const update = () => {
+      const inset = parseFloat(getComputedStyle(header).paddingTop) || 0;
+      document.documentElement.style.setProperty('--header-height', `${Math.ceil(header.getBoundingClientRect().height - inset)}px`);
+    };
+    const observer = new ResizeObserver(update);
+    observer.observe(header);
+    update();
+    return () => {
+      observer.disconnect();
+      document.documentElement.style.removeProperty('--header-height');
+    };
+  }, []);
 
   const closeMenu = useCallback((returnFocus: boolean) => {
     setOpenOn(null);
@@ -52,6 +69,7 @@ export function SiteHeader({ tone: toneOverride }: { tone?: 'dark' | 'light' }) 
 
   return (
     <header
+      ref={headerRef}
       className="fam-header"
       data-family-header=""
       data-tone={tone}
@@ -62,6 +80,7 @@ export function SiteHeader({ tone: toneOverride }: { tone?: 'dark' | 'light' }) 
         <Link href="/" className="fam-header-logo" aria-label={`${brand.lockupLabel}, home`}>
           {/* eslint-disable-next-line @next/next/no-img-element -- vector lockup at its own aspect ratio */}
           <img src={lockup.src} width={lockup.width} height={lockup.height} alt="" />
+          <span className="fam-header-narrow-name">{brand.name}</span>
         </Link>
 
         <nav className="fam-header-nav" aria-label="Main">
@@ -82,7 +101,7 @@ export function SiteHeader({ tone: toneOverride }: { tone?: 'dark' | 'light' }) 
         <div className="fam-header-cta">
           <FamilyButton
             href={brand.cta.href}
-            variant={tone === 'dark' ? 'hero' : 'primary'}
+            variant="hero"
             size="md"
             onClick={() => onCta('header')}
             data-testid="button-header-cta"
@@ -91,49 +110,8 @@ export function SiteHeader({ tone: toneOverride }: { tone?: 'dark' | 'light' }) 
           </FamilyButton>
         </div>
 
+        <ContactActions surface="header" />
         <div className="fam-header-compact">
-          {brand.header.phoneActions.map((action) => {
-            if (action === 'call') {
-              return (
-                <a
-                  key="call"
-                  href={brand.phone.telHref}
-                  className="fam-header-call"
-                  aria-label={`Call ${brand.phone.display}`}
-                  data-testid="link-call-mobile-header"
-                >
-                  <PhoneIcon size={18} />
-                  <span>{brand.bar.callLabel}</span>
-                </a>
-              );
-            }
-            if (action === 'text') {
-              return (
-                <a
-                  key="text"
-                  href={brand.phone.smsHref}
-                  className="fam-header-icon fam-header-icon--extra"
-                  aria-label={`Text ${brand.phone.display}`}
-                  data-testid="link-text-mobile-header"
-                >
-                  <TextIcon />
-                </a>
-              );
-            }
-            if (!brand.chat.enabled) return null;
-            return (
-              <button
-                key="chat"
-                type="button"
-                className="fam-header-icon fam-header-icon--extra"
-                aria-label={brand.chat.label}
-                onClick={openChat}
-                data-testid="button-chat-mobile-header"
-              >
-                <ChatIcon />
-              </button>
-            );
-          })}
           <button
             ref={trigger}
             type="button"

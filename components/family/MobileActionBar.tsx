@@ -20,7 +20,7 @@
  * by it.
  */
 import { usePathname } from 'next/navigation';
-import { useEffect, useState, useSyncExternalStore } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { FAMILY_BRAND } from '@/lib/familyBrand';
 import { matchesRoute } from '@/lib/family/types';
 import { brandStyle } from './brandStyle';
@@ -113,6 +113,24 @@ export function MobileActionBar() {
     () => false,
   );
   const formOnScreen = useYieldTargetOnScreen();
+  const barRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const element = barRef.current;
+    if (!element || typeof ResizeObserver === 'undefined') return;
+    const update = () => {
+      const style = getComputedStyle(element);
+      const normalPadding = parseFloat(style.getPropertyValue('--bar-pad')) || 12;
+      const inset = Math.max(0, (parseFloat(style.paddingBottom) || 0) - normalPadding);
+      document.documentElement.style.setProperty('--bar-height', `${Math.ceil(element.getBoundingClientRect().height - inset)}px`);
+    };
+    const observer = new ResizeObserver(update);
+    observer.observe(element);
+    update();
+    return () => {
+      observer.disconnect();
+      document.documentElement.style.removeProperty('--bar-height');
+    };
+  }, [hiddenHere]);
 
   // Without showOverHero, wait until the hero's own CTA has scrolled out of view.
   useEffect(() => {
@@ -145,6 +163,7 @@ export function MobileActionBar() {
     <>
       <div className="fam-bar-spacer" data-desktop-from={brand.header.desktopFrom} aria-hidden="true" />
       <div
+        ref={barRef}
         className="fam-bar"
         data-mobile-nav-bar=""
         data-family-bar=""
