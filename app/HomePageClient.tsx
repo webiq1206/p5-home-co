@@ -136,7 +136,7 @@ export default function Home() {
       <SiteChrome main>
         {/*
           The family photo hero (components/family/HeroPhoto): the landscape photograph
-          under a directional scrim, the two-line H1 with the tan second line, one line
+          under a directional scrim, the two-line H1 with the logo-bronze second line, one line
           of support copy and one action. No phone, city list or caveat in the hero
           (copy rules); Call, Chat and Text sit in the header and the bottom bar.
         */}

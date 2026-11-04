@@ -35,7 +35,7 @@ export const FAMILY_BRAND: FamilyBrand = {
     onDark: { src: '/brands/p5-home-co-lockup-light.svg', ...LOCKUP },
     onLight: { src: '/brands/p5-home-co-lockup-dark.svg', ...LOCKUP },
   },
-  // Tan carries the button bar and the hero's second line; bronze ink is its text-safe step.
+  // Tan retains the existing control details; heading emphasis uses the exact logo bronze role.
   accent: '#ceb391',
   accentInk: '#705a45',
   header: {

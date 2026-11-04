@@ -597,8 +597,8 @@ html {
 
 /* ---------- Photo hero ---------- */
 .fam-hero[data-family-hero] {
-  /* The accent second line sits on the dark scrim: a lighter step of the same hue keeps it AA. */
-  --color-accent-on-dark: color-mix(in srgb, var(--color-accent) 62%, var(--color-paper));
+  /* Heading emphasis preserves the supplied brand hue. Its context supplies contrast. */
+  --color-accent-on-dark: var(--color-heading-accent, var(--color-accent));
   --fam-hero-available: calc(100svh - var(--header-height) - var(--bar-height) - env(safe-area-inset-bottom, 0px));
   position: relative;
   isolation: isolate;
@@ -761,9 +761,11 @@ html {
 /* ---------- Proof strip ---------- */
 .fam-hero[data-family-hero][data-fit='viewport'] {
   min-height: var(--fam-hero-available);
-  align-items: center;
+  align-items: stretch;
 }
 .fam-hero[data-family-hero][data-fit='viewport'] .fam-hero-inner {
+  display: flex;
+  align-items: center;
   padding-block: var(--section-y);
 }
 .fam-hero[data-family-hero][data-fit='viewport'] .fam-hero-copy .fam-hero-actions {

@@ -7,6 +7,8 @@
   --forest: #383837;
   --sage: #7a9184;
   --bronze: #a58c72;
+  /* Heading emphasis matches the approved P5 logo and icon fill. */
+  --color-heading-accent: var(--bronze);
   --bronze-ink: #705a45;
   --terracotta: #ceb391;
   --charcoal: #383837;
