@@ -697,9 +697,42 @@ function BrandPanel({
 }) {
   const external = url.startsWith("http");
   const served = imageVariantFor(image);
+  const foldRef = useRef<HTMLDetailsElement>(null);
+  const mobileOpenRef = useRef(true);
+
+  useEffect(() => {
+    const fold = foldRef.current;
+    if (!fold) return;
+    const desktop = window.matchMedia("(min-width: 768px)");
+    let wasDesktop = desktop.matches;
+
+    // Native closed details hide their body regardless of its CSS display value.
+    // Start visible in SSR; desktop stays open and mobile keeps its native choice.
+    const syncViewport = () => {
+      if (!wasDesktop && desktop.matches) mobileOpenRef.current = fold.open;
+      wasDesktop = desktop.matches;
+      fold.open = desktop.matches || mobileOpenRef.current;
+    };
+    const rememberToggle = () => {
+      if (desktop.matches) {
+        if (!fold.open) fold.open = true;
+      } else {
+        mobileOpenRef.current = fold.open;
+      }
+    };
+
+    syncViewport();
+    fold.addEventListener("toggle", rememberToggle);
+    desktop.addEventListener("change", syncViewport);
+    return () => {
+      fold.removeEventListener("toggle", rememberToggle);
+      desktop.removeEventListener("change", syncViewport);
+    };
+  }, []);
+
   return (
     <section id={id} className={`brand-panel ${reverse ? "brand-panel-reverse" : ""} ${className}`}>
-      <details className="brand-fold">
+      <details ref={foldRef} className="brand-fold" open>
         <summary>
           <span>{number}</span>
           <span>{category}</span>
