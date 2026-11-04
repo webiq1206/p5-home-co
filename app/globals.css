@@ -213,7 +213,7 @@ a:hover .arrow-diagonal, a:focus-visible .arrow-diagonal { transform: translate(
 .standard-grid { display: grid; grid-template-columns: repeat(4,1fr); margin-top: 85px; border-top: 1px solid rgba(255,255,255,.16); border-left: 1px solid rgba(255,255,255,.16); }
 .standard-grid article { min-height: 285px; padding: 27px 25px; border-right: 1px solid rgba(255,255,255,.16); border-bottom: 1px solid rgba(255,255,255,.16); }
 .standard-grid span { color: #c49970; font-size: var(--fs-label); font-weight: 700; line-height: var(--lh-label); letter-spacing: var(--tracking-label); }
-.standard-grid h3 { margin: 66px 0 var(--stack-heading); font-family: var(--font-display); font-size: var(--fs-h3); font-weight: var(--weight-display); line-height: var(--lh-h3); letter-spacing: var(--tracking-heading); }
+.standard-grid h3 { margin: var(--space-16) 0 var(--stack-heading); font-family: var(--font-display); font-size: var(--fs-h3); font-weight: var(--weight-display); line-height: var(--lh-h3); letter-spacing: var(--tracking-heading); }
 .standard-grid p { margin: 0; color: rgba(255,255,255,.52); font-size: var(--fs-body); line-height: var(--lh-body); letter-spacing: 0; }
 .process-proof { display: grid; grid-template-columns: .4fr 1.6fr; gap: 50px; align-items: center; margin-top: 45px; padding-top: 34px; border-top: 1px solid rgba(255,255,255,.16); }
 .process-proof > span { color: #c49970; font-size: var(--fs-label); font-weight: 700; letter-spacing: var(--tracking-label); text-transform: uppercase; line-height: var(--lh-label); }
@@ -390,7 +390,7 @@ a:hover .arrow-diagonal, a:focus-visible .arrow-diagonal { transform: translate(
 .brand-construction, .brand-handyman { --brand-muted: rgba(255,255,255,.78); }
 @media (max-width:560px) {
   .standard-grid article { min-height:0; padding:28px 24px; }
-  .standard-grid h3 { margin-top:32px; font-family: var(--font-display); font-size: var(--fs-h3); font-weight: var(--weight-display); line-height: var(--lh-h3); letter-spacing: var(--tracking-heading); margin: 66px 0 var(--stack-heading); }
+  .standard-grid h3 { font-family: var(--font-display); font-size: var(--fs-h3); font-weight: var(--weight-display); line-height: var(--lh-h3); letter-spacing: var(--tracking-heading); margin: var(--space-8) 0 var(--stack-heading); }
 }
 
 .matcher-choices button:hover > span, .matcher-choices button:focus-visible > span { color: #d3ae89; }
@@ -425,7 +425,7 @@ a:hover .arrow-diagonal, a:focus-visible .arrow-diagonal { transform: translate(
 .handoff-step > b,.handoff-step small,.service-area-grid .eyebrow { color:#596158; }
 /* Design audit 2026-10-17: labels that sat at 7 to 10px were raised to 10 to 12px above, tracking unchanged. */
 /* Phone vertical rhythm 2026-10-18: standard cards keep the number beside the title instead of 32px above it. */
-@media (max-width:560px) { .standard-grid article { display:grid; grid-template-columns:2.25rem minmax(0,1fr); column-gap:6px; align-items:baseline; } .standard-grid span { grid-column:1; font-size: var(--fs-label); line-height: var(--lh-label); letter-spacing: var(--tracking-label); } .standard-grid h3 { grid-column:2; margin-top:0; font-family: var(--font-display); font-size: var(--fs-h3); font-weight: var(--weight-display); line-height: var(--lh-h3); letter-spacing: var(--tracking-heading); margin: 66px 0 var(--stack-heading); } .standard-grid p { grid-column:2; margin-top:8px; font-size: var(--fs-body); line-height: var(--lh-body); letter-spacing: 0; } }
+@media (max-width:560px) { .standard-grid article { display:grid; grid-template-columns:2.25rem minmax(0,1fr); column-gap:6px; align-items:baseline; } .standard-grid span { grid-column:1; font-size: var(--fs-label); line-height: var(--lh-label); letter-spacing: var(--tracking-label); } .standard-grid h3 { grid-column:2; font-family: var(--font-display); font-size: var(--fs-h3); font-weight: var(--weight-display); line-height: var(--lh-h3); letter-spacing: var(--tracking-heading); margin: 0 0 var(--stack-heading); } .standard-grid p { grid-column:2; margin-top:8px; font-size: var(--fs-body); line-height: var(--lh-body); letter-spacing: 0; } }
 /* The display serif sets old-style figures, so "P5" read as "P" and a low 5.
    Lining figures everywhere; balanced headings. (P5-21) */
 html { font-variant-numeric:lining-nums; }

@@ -1,6 +1,6 @@
 # P5 Home Co family integration, November4,2026
 
-Owner scope and standards: current complete website-design-quality2.3 master/implementation, organic-ai-search-visibility1.0.0, authoritative brand-profile.md and the latest six-site instructions. Existing P5 service-area imagery and family-specific content remain. Shared chrome and role mappings preserve each company's actual routing; no standalone ADU domain/project or launch is inferred.
+Owner scope and standards: current complete website-design-quality2.3 master/implementation, organic-ai-search-visibility1.0.2, authoritative brand-profile.md and the latest six-site instructions. Existing P5 service-area imagery and family-specific content remain. Shared chrome and role mappings preserve each company's actual routing; no standalone ADU domain/project or launch is inferred.
 
 The17shared family files are selectively transported byte-for-byte from canonical Remodeling1c8b472cb0bb6571855325a476676e1465d08fcb, with old15hash verification, no engine overlap, full readback and per-target guard. The existing child footer charcoal#1c1f1e supplies the common chrome token. Actual brand phone/text/chat configuration, task-route exclusions, accessible controls/focus and measured persistent-UI clearance are preserved.
 
@@ -10,3 +10,5 @@ Current source and applicable exact-lock/compatibility test receipts are in priv
 
 Recovery main:b6058e9e13a854fa8b3da5ac78bc48990b882228. Jared personally owns Git import/publication. No assistant import or publication occurred; supply final qualified main revision before he pulls. A source commit or merge does not prove deployment.
 
+
+Current-standard refresh: Organic1.0.2 and all six current references were loaded November4. The archived1.0.0 snapshot remains historical evidence, not current guidance. The seven independent typography source findings were corrected with marketing leaf selectors; exact rendered acceptance remains open.

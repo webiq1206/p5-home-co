@@ -1,6 +1,6 @@
 # P5 Home Co brand profile
 
-Profile version: 1.0, source adoption recorded 2026-11-04. Last approved: no separate profile approval date is recorded. Current explicit owner directions govern the changes they cover; this profile records existing source and those directions, without granting a new exception or certifying the implementation. Source of truth: this file for P5 rules, the complete Website Design Quality Version 2.3 master and implementation rules, Organic and AI Search Visibility Version 1.0.0, and the concrete source/assets below.
+Profile version: 1.0, source adoption recorded 2026-11-04. Last approved: no separate profile approval date is recorded. Current explicit owner directions govern the changes they cover; this profile records existing source and those directions, without granting a new exception or certifying the implementation. Source of truth: this file for P5 rules, the complete Website Design Quality Version 2.3 master and implementation rules, Organic and AI Search Visibility Version 1.0.2, and the concrete source/assets below.
 
 ## Identity, audience and purpose
 
