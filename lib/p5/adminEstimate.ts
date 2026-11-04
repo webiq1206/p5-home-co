@@ -3,6 +3,7 @@ import path from 'node:path';
 import {PDFDocument,rgb,type PDFFont,type PDFPage,type RGB} from 'pdf-lib';
 import fontkit from '@pdf-lib/fontkit';
 import {buildEstimateDocument,SERVICE_TITLE,estimateReference,type EstimateBrand,type EstimateDocument,type EstimateIssue} from './estimateDocument.ts';
+import {BRAND_CHARCOAL} from './brand.ts';
 import {ASSETS,clean,hex,mix,wrap} from './estimatePdf.ts';
 import {suppressSyntheticEstimateNotifications} from './estimatorNotifications.ts';
 /**
@@ -96,7 +97,7 @@ export async function renderAdminPdf(s:AdminSummary):Promise<Buffer>{
   const bold=await pdf.embedFont(await asset(`${ASSETS}/estimate-sans-bold.ttf`),{subset:true});
   const logoBytes=await asset(doc.brand.logo.replace(/^\//,''));
   const logo=/\.jpe?g$/i.test(doc.brand.logo)?await pdf.embedJpg(logoBytes):await pdf.embedPng(logoBytes);
-  const ink=hex(doc.brand.ink||'#2C302F'),muted=hex('#565D58'),soft=hex('#6F7671'),rule=hex('#D5DAD5'),accent=hex(doc.brand.accent),tint=mix(doc.brand.accent,.12);
+  const ink=hex(doc.brand.ink||BRAND_CHARCOAL),muted=hex('#565D58'),soft=hex('#6F7671'),rule=hex('#D5DAD5'),accent=hex(doc.brand.accent),tint=mix(doc.brand.accent,.12);
   const alert=rgb(.62,.2,.14),alertTint=rgb(.98,.93,.91);
   let page!:PDFPage;let y=TOP;const pages:PDFPage[]=[];
   const text=(t:string,x:number,yy:number,size:number,font:PDFFont=regular,color:RGB=ink)=>page.drawText(clean(t),{x,y:yy,size,font,color});

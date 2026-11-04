@@ -74,11 +74,11 @@
   --color-bone: #f1ede4;
   --color-ink: #20231f;
   --color-ink-2: #343934;
-  --color-charcoal: #2c302f;
-  /* Current child-site footer charcoal, selected by the owner for family chrome. */
-  --color-chrome: #1c1f1e;
+  --color-charcoal: #383837;
+  /* Owner-approved family charcoal for headers, menus and footers. */
+  --color-chrome: var(--color-charcoal);
   --color-moss: #233029;
-  --color-forest: #17211c;
+  --color-forest: #383837;
   --color-bg: var(--color-paper);
   --color-bg-alt: var(--color-bone);
   --color-surface: var(--color-paper);
@@ -91,7 +91,7 @@
   --color-on-dark: var(--color-paper);
   --color-on-dark-muted: rgba(251, 250, 246, 0.8);
   --color-border-on-dark: rgba(251, 250, 246, 0.18);
-  --color-scrim-rgb: 13, 24, 18;
+  --color-scrim-rgb: 56, 56, 55;
   --color-success: #3f6b4a;
   --color-warning: #8a6a1f;
   --color-error: #a33a2c;

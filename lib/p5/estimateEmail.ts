@@ -35,7 +35,7 @@ function fallbackIssue(id:string,record:any):Partial<EstimateIssue>|null{
 export function customerEstimateDocument(id:string,record:any){
  return buildEstimateDocument({id,result:record.customer||{},brand:brand as unknown as EstimateBrand,issue:record.customer?.issue||fallbackIssue(id,record),submittedAt:record.submittedAt||null,legalLine:legalIdentityLine()});
 }
-const C={ink:'#2C302F',muted:'#565D58',soft:'#6F7671',line:'#E1E5DD',page:'#F4F4F2'} as const;
+const C={ink:brand.ink,muted:'#565D58',soft:'#6F7671',line:'#E1E5DD',page:'#F4F4F2'} as const;
 function customerHtml(doc:EstimateDocument,link=''){
  const tint=tintOf(doc.brand.accent);const accent=doc.brand.accent;
  const kicker=(t:string)=>`<p style="margin:0 0 6px;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:${C.soft}">${escape(t)}</p>`;

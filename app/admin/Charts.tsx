@@ -10,10 +10,10 @@
  * reader gets the same figures as everyone else.
  */
 
-const PALETTE = ["#233029", "#7a9184", "#ac7d55", "#5d7a6b", "#c2a37f", "#3f5347"];
+const PALETTE = ["#383837", "#7a9184", "#ac7d55", "#5d7a6b", "#c2a37f", "#3f5347"];
 
 export const CHART_COLORS = {
-  ink: "#233029",
+  ink: "#383837",
   sage: "#7a9184",
   bronze: "#ac7d55",
   alarm: "#9a2f2f",

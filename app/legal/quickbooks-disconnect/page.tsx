@@ -20,7 +20,7 @@ export default function DisconnectPage() {
         any time, from either side, and takes effect immediately.
       </p>
 
-      <h2>From QuickBooks Online</h2>
+      <h2>{"From QuickBooks\u00A0Online"}</h2>
       <ul>
         <li>Sign in to QuickBooks Online as an administrator.</li>
         <li>

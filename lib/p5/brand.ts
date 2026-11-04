@@ -1,3 +1,6 @@
+/** Shared neutral for presentation; brand facts and accents stay site-owned. */
+export const BRAND_CHARCOAL = "#383837";
+
 export const ESTIMATOR_BRAND = {
   "id": "p5",
   "name": "P5 Home Co",
@@ -23,7 +26,7 @@ export const ESTIMATOR_BRAND = {
   "defaultService": "",
   "email": "hello@p5homeco.com",
   "phone": "(208) 477-1169",
-  "ink": "#2C302F",
+  "ink": BRAND_CHARCOAL,
   "paper": "#FBFAF6",
   "logo": "/brands/p5-home-co-lockup-dark.png",
   "font": "/fonts/p5-estimator-sans.ttf",

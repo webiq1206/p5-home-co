@@ -43,3 +43,16 @@
 .final-cta .fam-btn {
   align-self: flex-start;
 }
+
+/* Charcoal PR phone audit, reconciled with the current family role scale.
+   Keep task typography and the observed header/bar budgets in their owners. */
+@media (max-width: 639px) {
+  .fam-hero[data-family-hero] .fam-hero-copy { margin-inline: auto; text-align: center; }
+  .fam-hero[data-family-hero] .fam-hero-actions { align-items: center; }
+  .fam-hero[data-family-hero] .fam-hero-support { margin-inline: auto; }
+  .about-hero h1, .how-p5 h2, .companies h2, .standard h2,
+  .service-area h2, .faq h2, .final-cta h2 { text-align: center; text-wrap: balance; }
+  .text-link, .brand-link, .company-index a, .faq-item summary,
+  .legal-back, .sitemap-list a { min-height: var(--touch-min); }
+  .brand-fold[open] .brand-image-wrap { height: 180px; min-height: 180px; }
+}

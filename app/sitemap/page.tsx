@@ -45,7 +45,7 @@ export default function SitemapPage() {
         </section>
 
         <section className="sitemap-section" aria-labelledby="sitemap-companies">
-          <h2 id="sitemap-companies" className="eyebrow">Our five companies</h2>
+          <h2 id="sitemap-companies" className="eyebrow">{"Our five\u00A0companies"}</h2>
           <ul className="sitemap-list">
             {childSites.map((c) =>
               c.comingSoon ? (

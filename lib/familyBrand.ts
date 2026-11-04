@@ -35,7 +35,7 @@ export const FAMILY_BRAND: FamilyBrand = {
     onDark: { src: '/brands/p5-home-co-lockup-light.svg', ...LOCKUP },
     onLight: { src: '/brands/p5-home-co-lockup-dark.svg', ...LOCKUP },
   },
-  // Tan carries the button bar and the hero's second line; bronze ink is its text-safe step.
+  // Tan retains the existing control details; heading emphasis uses the exact logo bronze role.
   accent: '#ceb391',
   accentInk: '#705a45',
   header: {
@@ -63,7 +63,7 @@ export const FAMILY_BRAND: FamilyBrand = {
     showOverHero: false,
     callLabel: 'Call',
     // The quote wizard and the estimators own the bottom of the screen; private areas have no bar.
-    hiddenOn: ['/quote/*', '/estimate/*', '/admin/*', '/api/*', '/portal/*', '/login*'],
+    hiddenOn: ['/quote/*', '/estimate/*', '/admin/*', '/api/*', '/portal/*', '/login*', '/sitemap', '/legal/*'],
     yieldToBodyFlags: ['p5EstimatorActive', 'p5ChatOpen', 'p5MatcherOpen'],
     // The same check requires the bar gone within 150ms of returning to the hero, as the P5 bar
     // always was: it leaves at once instead of after the 300ms slide-out, and still slides in.

@@ -238,8 +238,8 @@ test("homepage preserves identity and location while explaining the three-step p
   // Owner call C (1 November): sentence case, same words.
   const heroStart = home.indexOf("<HeroPhoto");
   const hero = home.slice(heroStart, home.indexOf("/>", heroStart));
-  assert.match(hero, /title="Boise’s home"/);
-  assert.match(hero, /titleAccent="specialists"/);
+  assert.match(hero, /title="Boise’s"/);
+  assert.match(hero, /titleAccent="home specialists"/);
   assert.doesNotMatch(hero, /PUBLIC_REGISTRATION|Trusted Home/);
   assert.match(home, /PUBLIC_REGISTRATION/);
   assert.match(home, /Bonded and insured/);

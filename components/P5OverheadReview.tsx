@@ -4,7 +4,7 @@ export function P5OverheadReview({configuration,onChange,onSave,busy,rate,warnin
   let parsed:any;try{parsed=JSON.parse(configuration);}catch{return <p>Correct the detailed configuration below to use the overhead fields.</p>;}
   const finance=parsed.finance;
   const update=(key:string,value:unknown)=>onChange(JSON.stringify({...parsed,finance:{...finance,[key]:value}},null,2));
-  const control={display:"block",width:"100%",maxWidth:"100%",minHeight:44,fontSize:16,color:"#17201b",background:"#fff",padding:12,boxSizing:"border-box" as const,margin:"8px 0 16px"};
+  const control={display:"block",width:"100%",maxWidth:"100%",minHeight:44,fontSize:16,color:"#383837",background:"#fff",padding:12,boxSizing:"border-box" as const,margin:"8px 0 16px"};
   return <section aria-label="Overhead recovery policy"><h2>Overhead recovery</h2>
     <p><strong>Standard rate: 20% of contract revenue.</strong> This one amount covers both owner salaries, employer payroll costs, advertising, social media, insurance, accounting, software and the remaining company overhead. Advertising is counted once.</p>
     <p>Current applied rate: <strong>{(rate*100).toFixed(2)}%</strong>. Overhead and profit are included within each priced item. Project-specific materials, outside trades and field labor remain direct costs. Do not enter overhead-funded owner salaries again as job labor.</p>

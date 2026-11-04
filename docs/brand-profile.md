@@ -35,10 +35,11 @@ These values come from `app/globals.css`, `styles/family-tokens.css` and `lib/fa
 | Muted text / ink-2 | `#343934` |
 | Border | `rgba(32, 35, 31, 0.15)` |
 | Primary page accent / bronze | `#a58c72` |
-| Brand accent / tan | `#ceb391`; parent accent bars and highlighted hero text |
+| Brand accent / tan | `#ceb391`; existing parent control details |
+| Heading accent | `#a58c72`; exact approved logo/icon bronze, through `--color-heading-accent` |
 | Accent ink / secondary accent | `#705a45`; readable bronze ink |
-| Standard header/menu/footer chrome | `#1c1f1e`, selected from the existing child footer charcoal under the latest owner direction |
-| Existing content charcoal / moss / forest | `#2c302f` / `#233029` / `#17211c`; distinct content palette roles remain available |
+| Standard header/menu/footer chrome | `#383837`, selected by the later explicit charcoal PR instruction |
+| Content charcoal / moss / forest fallback | `#383837` / `#233029` / `#383837`; moss retains its existing role |
 | On-dark foreground | `#fbfaf6`; muted `rgba(251, 250, 246, 0.8)`; border `rgba(251, 250, 246, 0.18)` |
 | Success / warning / error | `#2f5d45` / `#8a6a2f` / `#8a3b2f` from P5 globals |
 
@@ -129,3 +130,7 @@ Jared owns Git import and publication. Source work, commit, review, CI, merge, i
 ### November4 narrow-header and menu implementation record
 
 Canonical source `boise-remodeling-co` revision `fa720a579b696af92861fb571fa0aff043e734b0` restores the complete approved SVG below360px in a logo row above the unboxed contact/menu controls. Normal320px prototype height is89px including the border; use the actual measured header/safe-area height, not a fixed clearance. Enlarged text may grow it. Normal360px-and-up header geometry is unchanged. Mobile-menu Call/Text/Chat contact controls are transparent and borderless at rest, retain visible focus and existing destinations/capability, and use the same icons as header/footer. This records the owner-requested consistency repair, not a new identity or approval exception. The independently reviewed prototype is narrower evidence than each final built site; retain exact-head rendering and functional gates.
+
+### November 4 heading accent alignment
+
+The latest explicit owner direction requires heading pop colors to match each site’s supplied logo/icon. P5’s four approved SVG lockups/icons use `#A58C72`, verified against `docs/branding-20261028.json`; heading emphasis therefore uses `--color-heading-accent: var(--bronze)`. The former tan `#CEB391` hero treatment and paper-mixed hero tint are superseded for headings. Existing CTA and normal-text/focus ink roles remain separate. Exact bronze gives 3.049:1 on paper and 3.686:1 on the approved `#383837` charcoal, suitable for large heading text, but 2.726:1 on bone and less than 4.5:1 for ordinary text. Use a qualifying existing neutral context for any affected smaller or bone-ground accent; do not alter the hue or typography to manufacture a pass. Canonical shared hero transport, exact-revision rendering and independent visual/contrast review remain required; source edits are not a rendered acceptance record.

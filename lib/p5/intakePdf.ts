@@ -33,7 +33,7 @@ export async function renderIntakePdf(s:IntakeSnapshot):Promise<Buffer> {
  const pdf=await PDFDocument.create();pdf.registerFontkit(fontkit);
  const regular=await pdf.embedFont(await readFile(path.join(process.cwd(),'public/p5-estimate/estimate-sans-regular.ttf')),{subset:true});
  const bold=await pdf.embedFont(await readFile(path.join(process.cwd(),'public/p5-estimate/estimate-sans-bold.ttf')),{subset:true});
- const ink=hex('#2C302F'),muted=hex('#565D58'),accent=hex(brand.id===s.currentSite?brand.accent:'#D0B496');
+ const ink=hex(brand.ink),muted=hex('#565D58'),accent=hex(brand.id===s.currentSite?brand.accent:'#D0B496');
  const sections=intakePdfSections(s);
  // Never silently replace unsupported names or scope text with missing-glyph boxes.
  // The accepted snapshot remains durable; delivery is held for document review.

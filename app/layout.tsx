@@ -38,7 +38,7 @@ const description = siteDescription;
 export const viewport: Viewport = {
   themeColor: [
     { media: "(prefers-color-scheme: light)", color: "#FBFAF6" },
-    { media: "(prefers-color-scheme: dark)", color: "#17211C" },
+    { media: "(prefers-color-scheme: dark)", color: "#383837" },
   ],
   interactiveWidget: "resizes-content",
 };
