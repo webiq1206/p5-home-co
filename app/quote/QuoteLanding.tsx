@@ -104,8 +104,8 @@ export default function QuoteLanding({ service }: { service: QuoteService | null
 
           <section className="quote-photos" aria-labelledby="quote-featured-heading">
             <div className="quote-shell">
-              <h2 id="quote-featured-heading" className="quote-photos-heading">One foothills home, room by room</h2>
-              <p className="quote-photos-lead">A cohesive Boise-area custom home shown room by room, so the kitchen, great room, bath, and ADU read as the same property. Representative design.</p>
+              <h2 id="quote-featured-heading" className="quote-photos-heading">Kitchens, living spaces, baths and ADUs</h2>
+              <p className="quote-photos-lead">Explore kitchen, great-room, bathroom and ADU layouts, materials and finishes.</p>
               <div className="quote-photo-row">
                 <img src={FEATURED_BOISE_KITCHEN.src} alt={FEATURED_BOISE_KITCHEN.alt} width={FEATURED_BOISE_KITCHEN.width} height={FEATURED_BOISE_KITCHEN.height} loading="lazy" decoding="async" />
                 <img src={FEATURED_BOISE_GREAT_ROOM.src} alt={FEATURED_BOISE_GREAT_ROOM.alt} width={FEATURED_BOISE_GREAT_ROOM.width} height={FEATURED_BOISE_GREAT_ROOM.height} loading="lazy" decoding="async" />

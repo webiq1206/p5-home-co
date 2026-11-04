@@ -2,7 +2,6 @@ import { officeOpeningHours } from "../lib/businessHours.ts";
 import { ESTIMATOR_BRAND } from "../lib/p5/brand.ts";
 import {
   NICK_PERKINS_ID,
-  PUBLIC_ADDRESS,
   PUBLIC_REPRESENTATIVE,
   SCHEMA_LEGAL_NAME,
   SCHEMA_TELEPHONE,
@@ -12,13 +11,6 @@ import {
 } from "./publicIdentity.ts";
 import { SHOW_FOUNDING_YEAR } from "./publicClaims.ts";
 import { citiesServed, companies, faqs, siteUrl } from "./site.ts";
-
-/** Authorized public contact. The phone, email, and street line match the
- * brand brief, docs/growth/OPERATIONS.md, and the constants already on the
- * site. The street does not make this a staffed storefront. Schema telephone
- * is E.164; the visible pages keep the local format. */
-const [streetAddress, addressLocality, regionAndPostal] = PUBLIC_ADDRESS.split(", ");
-const [addressRegion, postalCode] = regionAndPostal.split(" ");
 
 export const siteTitle = "Boise Builders, Remodelers, Cabinets & Repairs | P5 Home Co";
 export const siteDescription =
@@ -48,7 +40,7 @@ export const siteSchema = {
         "@type": "Person",
         "@id": NICK_PERKINS_ID,
         name: PUBLIC_REPRESENTATIVE,
-        jobTitle: "Public representative",
+        jobTitle: "Founder",
         worksFor: { "@id": `${siteUrl}/#organization` },
       },
       openingHoursSpecification: officeOpeningHours(),
@@ -71,15 +63,11 @@ export const siteSchema = {
           url: "https://dopl.idaho.gov/con/",
         },
       },
-      // Service-area business. HomeAndConstructionBusiness is the LocalBusiness
-      // subtype. The street is the authorized public address; the cities below
-      // stay areaServed and are not additional locations.
+      // Publish locality and served areas without exposing a street address.
       address: {
         "@type": "PostalAddress",
-        streetAddress,
-        addressLocality,
-        addressRegion,
-        postalCode,
+        addressLocality: "Meridian",
+        addressRegion: "ID",
         addressCountry: "US",
       },
       areaServed: [

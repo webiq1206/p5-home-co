@@ -39,7 +39,12 @@ test("hub pages keep call and chat, with one request entry below the hero", () =
   // Chat stays in the header and the menu: the family header's compact actions and the menu tiles.
   assert.match(chrome, /<SiteHeader \/>/);
   assert.match(brand, /phoneActions: \['call', 'chat', 'text'\]/);
-  assert.match(brand, /chat: \{ enabled: true, label: 'Chat', openEvent: 'p5:chat-open' \}/);
+  const chatConfig = brand.match(/chat:\s*\{([^}]+)\}/)?.[1];
+  assert.ok(chatConfig, 'The brand config supplies chat capability and policy');
+  assert.match(chatConfig, /enabled:\s*true/);
+  assert.match(chatConfig, /label:\s*'Chat'/);
+  assert.match(chatConfig, /openEvent:\s*'p5:chat-open'/);
+  assert.match(chatConfig, /hiddenOn:\s*\['\/admin\*', '\/portal\*'\]/);
   assert.match(chat, /addEventListener\("p5:chat-open"/);
   assert.match(home, /SiteChrome/);
   // Owner, 1 November: "Request a quote" lands directly on the form. On /quote

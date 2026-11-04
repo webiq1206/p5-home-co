@@ -46,6 +46,7 @@
 
   /* B6 controls and chrome */
   --header-height: 64px;
+  --header-min-height: 64px;
   --button-height-lg: 48px;
   --button-height-md: 44px;
   --button-height-sm: 36px;
@@ -74,6 +75,8 @@
   --color-ink: #20231f;
   --color-ink-2: #343934;
   --color-charcoal: #2c302f;
+  /* Current child-site footer charcoal, selected by the owner for family chrome. */
+  --color-chrome: #1c1f1e;
   --color-moss: #233029;
   --color-forest: #17211c;
   --color-bg: var(--color-paper);
@@ -140,6 +143,7 @@
     --section-y-feature: 96px;
     --grid-gap: 24px;
     --header-height: 76px;
+    --header-min-height: 76px;
     --fs-hero: clamp(56px, 8.5vw, 80px);
     --fs-hero-support: 18px;
     --fs-display: 52px;

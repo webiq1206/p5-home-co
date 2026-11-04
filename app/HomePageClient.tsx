@@ -168,7 +168,6 @@ export default function Home() {
           <div className="content-shell trust-grid trust-grid-compact">
             <div>
               <strong>{PUBLIC_REGISTRATION}</strong>
-              <span>Look it up at Idaho DOPL</span>
             </div>
             <div>
               <strong>Bonded and insured</strong>
@@ -375,7 +374,6 @@ export default function Home() {
           proof="Projects run through Boise Construction Co"
           url={ADU_CONSTRUCTION_URL}
           linkLabel="Go to Boise Construction Co"
-          comingSoon
         />
 
         <section
@@ -468,7 +466,7 @@ export default function Home() {
                 loading="lazy"
                 decoding="async"
               />
-              <span>Dining room · Representative design</span>
+              <span>Dining room</span>
             </div>
             <div className="featured-project-shot" role="listitem">
               <img
@@ -479,7 +477,7 @@ export default function Home() {
                 loading="lazy"
                 decoding="async"
               />
-              <span>Kitchen · Representative design</span>
+              <span>Kitchen</span>
             </div>
             <div className="featured-project-shot" role="listitem">
               <img
@@ -490,7 +488,7 @@ export default function Home() {
                 loading="lazy"
                 decoding="async"
               />
-              <span>Primary bath · Representative design</span>
+              <span>Primary bath</span>
             </div>
           </div>
         </section>
@@ -667,7 +665,6 @@ function BrandPanel({
   proof,
   url,
   linkLabel,
-  comingSoon = false,
 }: {
   id: string;
   number: string;
@@ -684,7 +681,6 @@ function BrandPanel({
   proof: string;
   url: string;
   linkLabel: string;
-  comingSoon?: boolean;
 }) {
   const external = url.startsWith("http");
   const served = imageVariantFor(image);
@@ -741,7 +737,6 @@ function BrandPanel({
         >
           {linkLabel} <Arrow diagonal={external} />
         </a>
-        {comingSoon && <span className="launch-note">Standalone website coming</span>}
       </Reveal>
     </section>
   );

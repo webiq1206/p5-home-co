@@ -36,20 +36,20 @@ const chromePages = [
   "app/not-found.tsx",
 ];
 
-test("the approved NAP and sister row are the audit strings", () => {
+test("public contact copy keeps useful details without street or administrative labels", () => {
   assert.equal(
     PUBLIC_NAP,
-    "Public representative: Nick Perkins · 4031 W Wapoot St, Meridian, ID 83646 · Service-area business, not a staffed storefront. · (208) 477-1169 · hello@p5homeco.com",
+    "Serving Boise and the Treasure Valley · (208) 477-1169 · hello@p5homeco.com",
   );
   assert.equal(
     SISTER_LINE,
-    "Part of P5 Home Co: Boise Construction Co · Boise Remodeling Co · Boise Cabinet Co · Boise Handyman Co · Boise ADU Co projects currently run through Boise Construction Co; its site is coming.",
+    "Part of P5 Home Co: Boise Construction Co · Boise Remodeling Co · Boise Cabinet Co · Boise Handyman Co · Boise ADU Co projects run through Boise Construction Co.",
   );
   assert.equal(PUBLIC_REGISTRATION, "Idaho Registered Contractor #8381215");
   assert.equal(PUBLIC_REGISTRATION.includes("("), false);
   assert.equal(IDAHO_DOPL_LICENSE_SEARCH, "https://edopl.idaho.gov/OnlineServices/?link=PubSearch");
-  assert.match(LLMS_CONTACT, /Nick Perkins/);
-  assert.match(LLMS_CONTACT, /4031 W Wapoot St, Meridian, ID 83646/);
+  assert.match(LLMS_CONTACT, /Serving Boise and the Treasure Valley/);
+  assert.doesNotMatch(PUBLIC_NAP + LLMS_CONTACT, /Wapoot|public representative|staffed storefront/i);
   assert.match(LLMS_CONTACT, /hello@p5homeco\.com/);
   assert.equal(PUBLIC_NAP.includes("Jared") || SISTER_LINE.includes("Jared") || LLMS_CONTACT.includes("Jared"), false);
 });
@@ -100,9 +100,9 @@ test("the registration number renders in both modes and estimator pages omit the
   const registration = linked.slice(linked.indexOf('class="public-registration"'));
   assert.match(registration, new RegExp(`>${PUBLIC_REGISTRATION}</a>`));
   assert.equal(linked.includes(`href="${IDAHO_DOPL_LICENSE_SEARCH}" target="_blank" rel="noopener noreferrer"`), true);
-  assert.match(linked, /title="Look up registration 8381215 on Idaho DOPL"/);
-  assert.match(linked, /aria-label="Verify with Idaho DOPL: look up registration 8381215, opens in a new tab"/);
-  assert.match(linked, /Verify with Idaho DOPL/);
+  assert.match(linked, /title="Idaho contractor registration"/);
+  assert.match(linked, /aria-label="Idaho contractor registration 8381215, opens in a new tab"/);
+  assert.doesNotMatch(linked, /look it up|look up registration|public representative|staffed storefront|Wapoot/i);
   assert.equal(plain.includes(IDAHO_DOPL_LICENSE_SEARCH), false);
   assert.match(plain, new RegExp(`class="public-registration">${PUBLIC_REGISTRATION}</p>`));
 
@@ -165,15 +165,16 @@ test("the family footer prints the approved NAP, hours, registration and family 
   const footer = loadFile(new URL("../components/family/SiteFooter.tsx", import.meta.url)) as { SiteFooter: React.ComponentType };
   const html = renderToStaticMarkup(React.createElement(footer.SiteFooter));
   const text = html.replace(/<[^>]+>/g, "");
-  // PUBLIC_NAP, piece by piece: the footer sets the phone beside the address line.
+  // PUBLIC_NAP, piece by piece: the footer sets contact details beside the service area.
   for (const part of PUBLIC_NAP.split(" · ").map((piece) => piece.replace(/\.$/, ""))) {
     assert.ok(text.includes(part), part);
   }
   assert.ok(text.includes(BUSINESS_HOURS_LABEL));
   assert.match(html, new RegExp(`>${PUBLIC_REGISTRATION}</a>`));
   assert.ok(html.includes(`href="${IDAHO_DOPL_LICENSE_SEARCH}" target="_blank" rel="noopener noreferrer"`));
-  assert.match(html, /title="Look up registration 8381215 on Idaho DOPL"/);
-  assert.match(html, /aria-label="Verify with Idaho DOPL: look up registration 8381215, opens in a new tab"/);
+  assert.match(html, /title="Idaho contractor registration"/);
+  assert.match(html, /aria-label="Idaho contractor registration 8381215, opens in a new tab"/);
+  assert.doesNotMatch(html, /look it up|look up registration|public representative|staffed storefront|Wapoot/i);
   // SISTER_LINE: every sibling linked with rel="noopener" (no noreferrer), and the ADU line.
   for (const site of ["boiseconstruction.co", "boiseremodeling.co", "boisecabinet.co", "boisehandyman.co"]) {
     assert.match(html, new RegExp(`<a href="https://${site.replace(".", "\\.")}" rel="noopener">`), site);
@@ -192,11 +193,11 @@ test("the registration line is linked in the footer and plain text on funnel pag
   assert.match(identity, /href=\{IDAHO_DOPL_LICENSE_SEARCH\}/);
   assert.match(identity, /target="_blank"/);
   assert.match(identity, /rel="noopener noreferrer"/);
-  assert.match(identity, /title="Look up registration 8381215 on Idaho DOPL"/);
-  assert.match(identity, /aria-label="Verify with Idaho DOPL: look up registration 8381215, opens in a new tab"/);
+  assert.match(identity, /title="Idaho contractor registration"/);
+  assert.match(identity, /aria-label="Idaho contractor registration 8381215, opens in a new tab"/);
   assert.equal(identity.includes("process.env"), false);
   assert.match(identity, /\{PUBLIC_REGISTRATION\}/);
-  assert.equal(identity.includes("Idaho contractor registration"), false);
+  assert.equal(identity.includes("Idaho contractor registration"), true);
   const plain = [
     "app/estimate/p5-preview/page.tsx",
     "app/estimate/scope/page.tsx",

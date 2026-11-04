@@ -59,7 +59,7 @@ export interface FamilyBrand {
   nav: FamilyLink[];
   cta: { label: string; href: string };
   phone: { display: string; telHref: string; smsHref: string };
-  chat: { enabled: boolean; label: string; /** window event the site's chat listens for */ openEvent: string };
+  chat: { enabled: boolean; label: string; /** window event the site's chat listens for */ openEvent: string; /** Existing task routes on which this site's chat is unavailable. */ hiddenOn?: RoutePattern[] };
   bar: {
     /** True: the bar shows over the hero from the first screen. False: it waits until the hero's own CTA leaves the viewport. */
     showOverHero: boolean;
@@ -99,7 +99,7 @@ export interface FamilyBrand {
   };
   /** Every family company, in display order. The current brand is shown unlinked. */
   family: { label: string; companies: FamilyCompany[] };
-  /** Name, address and service-area line exactly as the business publishes it. */
+  /** Customer-facing service-area description. Public street addresses are excluded. */
   nap: { line: string };
   hours: string;
   registration: { text: string; href: string; title: string; ariaLabel: string; rel: string };
