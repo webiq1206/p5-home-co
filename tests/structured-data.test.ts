@@ -32,23 +32,21 @@ test("the root schema contains only site-wide entities", () => {
   assert.ok(!serializeJsonLd(siteSchema).includes("FAQPage"));
 });
 
-test("the business address is the authorized Meridian street, and cities stay service areas", () => {
+test("public schema keeps the locality and service areas while street verification stays private", () => {
   const organization = siteSchema["@graph"][0];
   assert.ok(types(organization).includes("HomeAndConstructionBusiness"));
   const address = organization.address;
-  const published = `${address.streetAddress}, ${address.addressLocality}, ${address.addressRegion} ${address.postalCode}`;
+  const verificationAddress = "4031 W Wapoot St, Meridian, ID 83646";
   const operations = readFileSync("docs/growth/OPERATIONS.md", "utf8");
   const legal = readFileSync("app/legal/layout.tsx", "utf8");
-  assert.equal(operations.includes(published), true);
-  assert.equal(legal.includes(published), true);
+  assert.equal(operations.includes(verificationAddress), true);
+  assert.equal(legal.includes(verificationAddress), false);
   assert.equal(ESTIMATOR_BRAND.phone, "(208) 477-1169");
   assert.equal(operations.includes(ESTIMATOR_BRAND.phone), true);
   assert.deepEqual(address, {
     "@type": "PostalAddress",
-    streetAddress: "4031 W Wapoot St",
     addressLocality: "Meridian",
     addressRegion: "ID",
-    postalCode: "83646",
     addressCountry: "US",
   });
   assert.equal(organization.legalName, SCHEMA_LEGAL_NAME);
@@ -56,7 +54,7 @@ test("the business address is the authorized Meridian street, and cities stay se
   assert.equal(organization.email, ESTIMATOR_BRAND.email);
   assert.equal(organization.employee["@id"], NICK_PERKINS_ID);
   assert.equal(organization.employee.name, "Nick Perkins");
-  assert.equal(organization.employee.jobTitle, "Public representative");
+  assert.equal(organization.employee.jobTitle, "Founder");
   assert.equal(organization.employee.worksFor["@id"], "https://p5homeco.com/#organization");
   assert.equal(organization.contactPoint.name, "Nick Perkins");
   assert.equal(organization.contactPoint.contactType, "customer service");
@@ -90,6 +88,8 @@ test("the business address is the authorized Meridian street, and cities stay se
   }
 
   const serialized = serializeJsonLd(siteSchema) + serializeJsonLd(homePageSchema) + serializeJsonLd(schemaFor(null));
+  assert.equal(serialized.includes("streetAddress"), false);
+  assert.equal(serialized.includes("Wapoot"), false);
   assert.equal(serialized.toLowerCase().includes("storefront"), false);
   assert.equal(serialized.includes('"addressLocality":"Boise"'), false);
   assert.equal(serialized.includes('"addressLocality":"Meridian"'), true);
