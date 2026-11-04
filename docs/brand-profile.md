@@ -1,6 +1,6 @@
 # P5 Home Co brand profile
 
-Profile version: 1.0, source adoption recorded 2026-11-04. Last approved: no separate profile approval date is recorded. Current explicit owner directions govern the changes they cover; this profile records existing source and those directions, without granting a new exception or certifying the implementation. Source of truth: this file for P5 rules, the complete Website Design Quality Version 2.3 master and implementation rules, Organic and AI Search Visibility Version 1.0.2, and the concrete source/assets below.
+Profile version: 1.1, source adoption recorded 2026-11-04. Last approved: no separate profile approval date is recorded. Current explicit owner directions govern the changes they cover; this profile records existing source and those directions, without granting a new exception or certifying the implementation. Source of truth: this file for P5 rules, the complete Website Design Quality Version 2.3 master and implementation rules, Organic and AI Search Visibility Version 1.0.2, and the concrete source/assets below.
 
 ## Identity, audience and purpose
 
@@ -124,3 +124,8 @@ Page-specific exceptions: existing quote pages lead with the request form; dedic
 Missing validation remains explicit: final independent rendered review and role equality; all route/query/error/resource and stress states; protected input no-regression and actual OS keyboard/physical-device evidence; authenticated completed-work/review/certificate artifacts; measured response outcomes; exact live integration/delivery and deployment identity; private GBP service-area configuration; separate ADU project/source binding. Mark unperformed or blocked checks honestly rather than infer an aggregate pass.
 
 Jared owns Git import and publication. Source work, commit, review, CI, merge, import/publication and live verification are separate records. No profile adoption, local screenshot or successful merge establishes a public release. Keep the established release owner and recovery path; verify the exact live revision only after the authorized owner acts.
+
+
+### November4 narrow-header and menu implementation record
+
+Canonical source `boise-remodeling-co` revision `fa720a579b696af92861fb571fa0aff043e734b0` restores the complete approved SVG below360px in a logo row above the unboxed contact/menu controls. Normal320px prototype height is89px including the border; use the actual measured header/safe-area height, not a fixed clearance. Enlarged text may grow it. Normal360px-and-up header geometry is unchanged. Mobile-menu Call/Text/Chat contact controls are transparent and borderless at rest, retain visible focus and existing destinations/capability, and use the same icons as header/footer. This records the owner-requested consistency repair, not a new identity or approval exception. The independently reviewed prototype is narrower evidence than each final built site; retain exact-head rendering and functional gates.

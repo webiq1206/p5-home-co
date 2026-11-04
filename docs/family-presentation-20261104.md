@@ -12,3 +12,5 @@ Recovery main:b6058e9e13a854fa8b3da5ac78bc48990b882228. Jared personally owns Gi
 
 
 Current-standard refresh: Organic1.0.2 and all six current references were loaded November4. The archived1.0.0 snapshot remains historical evidence, not current guidance. The seven independent typography source findings were corrected with marketing leaf selectors; exact rendered acceptance remains open.
+
+Final scoped chrome correction: canonical fa720a579b696af92861fb571fa0aff043e734b0 supplies only the reviewed narrow-header/menu stylesheet update plus exact17-file manifest. Other16shared files and all protected engine files remain. Independent prototype review covers nine normal Cabinet sizes plus320x844, five intact SVG fixtures, menu/focus/200% and unchanged360+headers. Profiles describe actual89px narrow header and unboxed menu contacts. Each final brand build/CI/rendering remains a separate gate; the prototype is not full-site or live acceptance.

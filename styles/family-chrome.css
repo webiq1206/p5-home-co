@@ -214,22 +214,31 @@ html {
 .fam-header-narrow-name {
   display: none;
 }
-@media (max-width: 359px) {
-  .fam-header[data-family-header] .fam-header-logo img {
-    display: none;
-  }
-  .fam-header[data-family-header] .fam-header-narrow-name {
-    display: block;
-    color: var(--color-paper);
-    font: 500 var(--fs-nav) / 1.2 var(--font-sans);
-    overflow-wrap: anywhere;
-  }
-}
 .fam-header[data-family-header] .fam-header-compact {
   display: flex;
   flex: none;
   align-items: center;
   gap: var(--space-1);
+}
+@media (max-width: 359px) {
+  /* Give the approved lockup its own touch-height row; keep all four controls
+     evenly spaced below it instead of replacing the artwork with wrapped text. */
+  .fam-header[data-family-header] .fam-header-inner {
+    column-gap: 0;
+    row-gap: 0;
+  }
+  .fam-header[data-family-header] .fam-header-logo {
+    flex-basis: 100%;
+    min-width: 0;
+  }
+  .fam-header[data-family-header] .fam-contact-actions--header {
+    flex: 3 1 0;
+    justify-content: space-around;
+  }
+  .fam-header[data-family-header] .fam-header-compact {
+    flex: 1 1 0;
+    justify-content: center;
+  }
 }
 .fam-header[data-family-header] .fam-header-nav ul {
   display: flex;
@@ -497,7 +506,7 @@ html {
   min-height: var(--choice-card-min);
   margin: 0;
   padding: var(--space-2);
-  border: 1px solid var(--color-border-on-dark);
+  border: 0;
   border-radius: var(--radius-control);
   background: transparent;
   color: inherit;
@@ -506,7 +515,7 @@ html {
   cursor: pointer;
 }
 .fam-menu[role='dialog'] .fam-menu-tile:hover {
-  border-color: var(--color-paper);
+  background: color-mix(in srgb, currentColor 8%, transparent);
 }
 .fam-menu[role='dialog'] .fam-menu-save {
   display: inline-flex;
