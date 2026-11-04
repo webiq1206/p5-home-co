@@ -129,6 +129,7 @@ export default function Home() {
           (copy rules); Call, Chat and Text sit in the header and the bottom bar.
         */}
         <HeroPhoto
+          fit="viewport"
           image={{ ...HERO_IMAGE, alt: FEATURED_BOISE_EXTERIOR.alt, position: "50% 20%" }}
           phoneImage={{ ...HERO_IMAGE, position: "65% 50%" }}
           eyebrow="The Home Company"
