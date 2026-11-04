@@ -11,7 +11,7 @@ import Link from 'next/link';
 import { useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { FAMILY_BRAND } from '@/lib/familyBrand';
-import { isActiveHref } from '@/lib/family/types';
+import { isActiveHref, matchesRoute } from '@/lib/family/types';
 import { brandStyle } from './brandStyle';
 import { FamilyButton } from './Button';
 import { ChatIcon, CloseIcon, ContactCardIcon, PhoneIcon, TextIcon } from './Icons';
@@ -73,8 +73,9 @@ export function MobileMenu({ open, pathname, onClose, onCta, onChat }: MobileMen
   // Open only ever becomes true after a click, so document exists whenever this renders.
   if (!open || typeof document === 'undefined') return null;
 
+  const showChat = brand.chat.enabled && !matchesRoute(pathname, brand.chat.hiddenOn ?? []);
   const tiles = (
-    <div className="fam-menu-tiles" data-count={brand.chat.enabled ? 3 : 2}>
+    <div className="fam-menu-tiles" data-count={showChat ? 3 : 2}>
       <a href={brand.phone.telHref} className="fam-menu-tile" data-testid="link-phone-mobile-menu">
         <PhoneIcon />
         <span>Call</span>
@@ -83,7 +84,7 @@ export function MobileMenu({ open, pathname, onClose, onCta, onChat }: MobileMen
         <TextIcon />
         <span>Text</span>
       </a>
-      {brand.chat.enabled ? (
+      {showChat ? (
         <button
           type="button"
           className="fam-menu-tile"
@@ -114,7 +115,8 @@ export function MobileMenu({ open, pathname, onClose, onCta, onChat }: MobileMen
         <div className="fam-menu-top">
           <Link href="/" className="fam-header-logo" aria-label={`${brand.lockupLabel}, home`} onClick={() => onClose(false)}>
             {/* eslint-disable-next-line @next/next/no-img-element -- vector lockup at its own aspect ratio */}
-            <img src={brand.lockup.onLight.src} width={brand.lockup.onLight.width} height={brand.lockup.onLight.height} alt="" />
+            <img src={brand.lockup.onDark.src} width={brand.lockup.onDark.width} height={brand.lockup.onDark.height} alt="" />
+            <span className="fam-header-narrow-name">{brand.name}</span>
           </Link>
           <button
             ref={closeButton}
@@ -152,7 +154,7 @@ export function MobileMenu({ open, pathname, onClose, onCta, onChat }: MobileMen
           {tiles}
           <FamilyButton
             href={brand.cta.href}
-            variant="primary"
+            variant="hero"
             size="lg"
             block
             onClick={() => {

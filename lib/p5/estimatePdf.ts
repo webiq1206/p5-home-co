@@ -3,6 +3,7 @@ import path from 'node:path';
 import {PDFDocument,PDFName,PDFString,rgb,type PDFFont,type PDFPage,type RGB} from 'pdf-lib';
 import fontkit from '@pdf-lib/fontkit';
 import type {EstimateDocument} from './estimateDocument.ts';
+import {BRAND_CHARCOAL} from './brand.ts';
 /**
  * The approved preliminary online estimate as a US Letter PDF (owner template, 2026-09-21).
  *
@@ -40,7 +41,7 @@ export async function renderEstimatePdf(doc:EstimateDocument):Promise<Buffer>{
   const logoBytes=await asset(doc.brand.logo.replace(/^\//,''));
   const logo=/\.jpe?g$/i.test(doc.brand.logo)?await pdf.embedJpg(logoBytes):await pdf.embedPng(logoBytes);
   const mark=doc.brand.endorsed?await pdf.embedPng(await asset(`${ASSETS}/p5-mark.png`)):null;
-  const ink=hex(doc.brand.ink||'#2C302F'),muted=hex('#565D58'),soft=hex('#6F7671'),rule=hex('#D5DAD5'),accent=hex(doc.brand.accent),tint=mix(doc.brand.accent,.12);
+  const ink=hex(doc.brand.ink||BRAND_CHARCOAL),muted=hex('#565D58'),soft=hex('#6F7671'),rule=hex('#D5DAD5'),accent=hex(doc.brand.accent),tint=mix(doc.brand.accent,.12);
   let page!:PDFPage;let y=TOP;const pages:PDFPage[]=[];
   const link=(p:PDFPage,x:number,yy:number,w:number,h:number,uri:string)=>{
     const annot=pdf.context.obj({Type:'Annot',Subtype:'Link',Rect:[x,yy,x+w,yy+h],Border:[0,0,0],A:{Type:'Action',S:'URI',URI:PDFString.of(uri)}});

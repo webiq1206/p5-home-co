@@ -125,10 +125,13 @@ export async function verifyConstructionRe10Handoff(page) {
   assert.equal(await page.getByRole('heading',{level:1}).count(),1);
   assert.match(await page.getByRole('heading',{level:1}).innerText(),/RE-10 repairs in Boise/i);
   assert.equal(await page.locator('link[rel=canonical]').getAttribute('href'),destination);
-  const handoff=page.getByRole('link',{name:'Go to Boise Handyman Co',exact:true});
-  assert.equal(await handoff.getAttribute('href'),destination);
-  await handoff.scrollIntoViewIfNeeded();
-  assert.ok(await handoff.evaluate(el=>{const r=el.getBoundingClientRect(),x=r.left+r.width/2,y=r.top+r.height/2;return x>=0&&x<innerWidth&&y>=0&&y<innerHeight&&el.contains(document.elementFromPoint(x,y));}),'RE-10 handoff must be unobstructed');
+  const handoffs=page.getByRole('link',{name:'Go to Boise Handyman Co',exact:true});
+  assert.equal(await handoffs.count(),2,'RE-10 hero and sidebar handoffs must both remain available');
+  for (const handoff of await handoffs.all()) {
+    assert.equal(await handoff.getAttribute('href'),destination);
+    await handoff.evaluate(el=>el.scrollIntoView({block:'center',behavior:'instant'}));
+    assert.ok(await handoff.evaluate(el=>{const r=el.getBoundingClientRect(),x=r.left+r.width/2,y=r.top+r.height/2;return x>=0&&x<innerWidth&&y>=0&&y<innerHeight&&el.contains(document.elementFromPoint(x,y));}),'Each RE-10 handoff must be unobstructed');
+  }
   assert.match(await page.locator('body').innerText(),/handled by Boise Handyman Co/);
   assert.equal(await page.locator('[data-p5-estimator]').count(),0);
   assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));

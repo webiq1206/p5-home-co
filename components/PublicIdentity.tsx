@@ -44,7 +44,7 @@ function withLinks(text: string, labels: readonly { label: string; href: string 
   return nodes;
 }
 
-/** The approved NAP, registration, and sister-company row. Text content matches the audit strings.
+/** Service area, contact details, registration and sister-company links.
  * Estimator pages pass linkRegistration={false} so the credential stays plain text. */
 export default function PublicIdentity({
   tone = "inherit",
@@ -68,8 +68,8 @@ export default function PublicIdentity({
             href={IDAHO_DOPL_LICENSE_SEARCH}
             target="_blank"
             rel="noopener noreferrer"
-            title="Look up registration 8381215 on Idaho DOPL"
-            aria-label="Verify with Idaho DOPL: look up registration 8381215, opens in a new tab"
+            title="Idaho contractor registration"
+            aria-label="Idaho contractor registration 8381215, opens in a new tab"
           >
             {PUBLIC_REGISTRATION}
           </a>

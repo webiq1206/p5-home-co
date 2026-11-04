@@ -34,6 +34,8 @@ export interface HeroPhotoImage {
 }
 
 export interface HeroPhotoProps {
+  /** Opt-in composition for a concise hero that fits the available first screen. */
+  fit?: 'viewport';
   image: HeroPhotoImage & { alt: string };
   /** Portrait crop used below 1024px; the subject stays in frame on a phone. */
   phoneImage?: HeroPhotoImage;
@@ -61,7 +63,7 @@ function wordCount(text: string): number {
   return text.trim().split(/\s+/).filter(Boolean).length;
 }
 
-export function HeroPhoto({ image, phoneImage, eyebrow, title, titleAccent, support, primary, link, microcopy, scrim = 'standard' }: HeroPhotoProps) {
+export function HeroPhoto({ image, phoneImage, eyebrow, title, titleAccent, support, primary, link, microcopy, scrim = 'standard', fit }: HeroPhotoProps) {
   if (support && wordCount(support) > 14 && process.env.NODE_ENV !== 'production') {
     console.warn(`HeroPhoto: support line is ${wordCount(support)} words; the template allows 14.`);
   }
@@ -75,6 +77,7 @@ export function HeroPhoto({ image, phoneImage, eyebrow, title, titleAccent, supp
     <section
       className="fam-hero"
       data-family-hero=""
+      data-fit={fit}
       data-desktop-from={FAMILY_BRAND.header.desktopFrom}
       data-scrim={scrim}
       style={brandStyle()}

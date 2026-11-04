@@ -6,8 +6,8 @@
 
 .root{
   --p5-accent:#9AA098;--p5-accent-ink:#B7BDB5;--p5-heading-font:inherit;
-  --p5-surface:#262b29;--p5-surface-2:#1f2422;--p5-surface-3:#2e3431;
-  --p5-ink:#f1ede4;--p5-ink-muted:#b9c1bb;--p5-ink-soft:#9aa39d;
+  --p5-surface:#383837;--p5-surface-2:#4a4a48;--p5-surface-3:#545453;
+  --p5-ink:#f1ede4;--p5-ink-muted:#b9c1bb;--p5-ink-soft:#d0cec6;
   --p5-line:#6e6e6b;--p5-line-strong:#8a8a86;
   --p5-field:#4a4a48;--p5-field-ink:#f1ede4;--p5-field-placeholder:#c8c6c0;
   --p5-primary:#f7f5f3;--p5-primary-ink:#383837;--p5-primary-hover:#ffffff;
@@ -27,7 +27,7 @@
   --p5-ink:#383837;--p5-ink-muted:#5f6862;--p5-ink-soft:#59645d;
   --p5-line:#e1e5dd;--p5-line-strong:#b7c0b8;
   --p5-field:#ffffff;--p5-field-ink:#383837;--p5-field-placeholder:#626b65;
-  --p5-primary:#383837;--p5-primary-ink:#fbfaf6;--p5-primary-hover:#2f2f2e;
+  --p5-primary:#383837;--p5-primary-ink:#fbfaf6;--p5-primary-hover:#4a4a48;
   --p5-danger-bg:#fff3ee;--p5-danger-ink:#7a2f22;--p5-danger-line:#e6baac;
   --p5-notice-bg:#eef4ec;--p5-notice-ink:#294237;--p5-notice-line:#b7cbb9;
   --p5-success-bg:#e9f3ec;--p5-success-ink:#1f4a33;

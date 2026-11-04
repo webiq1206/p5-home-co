@@ -16,13 +16,11 @@ import {
   IDAHO_DOPL_LICENSE_SEARCH,
   P5_FACEBOOK_URL,
   P5_GOOGLE_BUSINESS_PROFILE_URL,
-  PUBLIC_ADDRESS,
   PUBLIC_EMAIL,
   PUBLIC_PHONE_DISPLAY,
   PUBLIC_PHONE_SMS,
   PUBLIC_PHONE_TEL,
   PUBLIC_REGISTRATION,
-  PUBLIC_REPRESENTATIVE,
 } from '@/app/publicIdentity';
 
 /** The P5 lockup artwork is 251.24 x 50; the header and footer cap its height. */
@@ -59,7 +57,7 @@ export const FAMILY_BRAND: FamilyBrand = {
   cta: { label: 'Request a quote', href: '/quote' },
   phone: { display: PUBLIC_PHONE_DISPLAY, telHref: PUBLIC_PHONE_TEL, smsHref: PUBLIC_PHONE_SMS },
   // components/SiteChat.tsx opens on this window event.
-  chat: { enabled: true, label: 'Chat', openEvent: 'p5:chat-open' },
+  chat: { enabled: true, label: 'Chat', openEvent: 'p5:chat-open', hiddenOn: ['/admin*', '/portal*'] },
   bar: {
     // Approved check (scripts/verify-p5-mobile-seo.mjs): hidden over the hero, shown once it has passed.
     showOverHero: false,
@@ -105,10 +103,10 @@ export const FAMILY_BRAND: FamilyBrand = {
     ],
     // The approved Boise ADU Co line (ADU_D3_LINE), with its link to Boise Construction Co.
     disclosure: {
-      before: 'Boise ADU Co projects currently run through ',
+      before: 'Boise ADU Co projects run through ',
       linkLabel: 'Boise Construction Co',
       href: ADU_CONSTRUCTION_URL,
-      after: '; its site is coming.',
+      after: '.',
     },
     copyrightName: 'P5 Home Co',
   },
@@ -123,14 +121,14 @@ export const FAMILY_BRAND: FamilyBrand = {
       { name: 'Boise Cabinet Co', href: 'https://boisecabinet.co' },
     ],
   },
-  // PUBLIC_NAP without the phone and email, which the footer prints beside it.
-  nap: { line: `Public representative: ${PUBLIC_REPRESENTATIVE} · ${PUBLIC_ADDRESS} · Service-area business, not a staffed storefront` },
+  // Contact details and hours are rendered separately by the shared footer.
+  nap: { line: 'Serving Boise and the Treasure Valley' },
   hours: BUSINESS_HOURS_LABEL,
   registration: {
     text: PUBLIC_REGISTRATION,
     href: IDAHO_DOPL_LICENSE_SEARCH,
-    title: 'Look up registration 8381215 on Idaho DOPL',
-    ariaLabel: 'Verify with Idaho DOPL: look up registration 8381215, opens in a new tab',
+    title: 'Idaho contractor registration',
+    ariaLabel: 'Idaho contractor registration 8381215, opens in a new tab',
     rel: 'noopener noreferrer',
   },
   parentFacebook: { href: P5_FACEBOOK_URL, label: 'P5 Home Co on Facebook' },
