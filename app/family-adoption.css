@@ -94,25 +94,6 @@
   pointer-events: none;
 }
 .p5-hero-video[data-ready="true"] { opacity: 1; }
-.p5-hero-playback {
-  position: absolute;
-  right: var(--gutter);
-  bottom: var(--space-6);
-  z-index: 2;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: var(--touch-min);
-  min-height: var(--touch-min);
-  padding: var(--space-3);
-  border: 1px solid var(--color-border-on-dark);
-  border-radius: var(--radius-control);
-  background: var(--color-charcoal);
-  color: var(--color-paper);
-  cursor: pointer;
-}
-.p5-hero-playback:hover { border-color: var(--color-paper); }
-.p5-hero-playback:focus-visible { outline: 2px solid var(--color-paper); outline-offset: 4px; }
 @media (max-width: 1023px) {
   .p5-hero-video { object-position: 60% 50%; }
   /* The action bar is hidden over this hero, so reserve no bottom-bar space.
@@ -121,10 +102,6 @@
     --fam-hero-available: max(0px, calc(var(--p5-hero-viewport-size) - var(--p5-hero-header-size)));
     min-height: var(--fam-hero-available);
   }
-  .p5-hero-playback { top: var(--space-4); bottom: auto; }
-}
-@media (prefers-reduced-motion: reduce) {
-  .p5-hero-video { display: none; }
 }
 
 @media (max-width: 359px) {
