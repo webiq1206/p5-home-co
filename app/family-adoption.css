@@ -52,9 +52,9 @@
   .brand-fold[open] .brand-image-wrap { height: 180px; min-height: 180px; }
 }
 
-/* The approved video and poster cover the complete P5 hero. The owner's latest
-   direction is one uniform #000000 overlay at 40% opacity (60% transparency).
-   No regional scrim, gradient or text-measurement overlay competes with it. */
+/* The approved video and poster cover the complete P5 hero. The owner permits
+   darkening a uniform overlay for readable exact-bronze text. Black at 74%
+   preserves more scene detail than the qualifying charcoal treatment. */
 .p5-home-hero {
   --p5-hero-viewport-size: 100vh;
   --p5-hero-header-size: calc(var(--header-height) + env(safe-area-inset-top, 0px));
@@ -80,7 +80,7 @@
 }
 #top .p5-home-hero .fam-hero-media { height: 100%; bottom: 0; }
 #top .p5-home-hero .fam-hero[data-family-hero] .fam-hero-scrim {
-  background: rgba(0, 0, 0, 0.4);
+  background: rgba(0, 0, 0, 0.74);
 }
 .p5-hero-video {
   position: absolute;

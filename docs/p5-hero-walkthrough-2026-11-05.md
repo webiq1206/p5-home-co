@@ -34,9 +34,10 @@ pauses playback; explicit user pause persists on return. Load failure and blocke
 autoplay retain the poster. A blocked browser can retry through the Play control.
 The owner's latest direction requires full-bleed media across the entire hero on
 all devices, superseding the earlier split composition. The poster and video fill
-the complete hero. The latest owner correction replaces all earlier charcoal
-and text-region gradients with one uniform black overlay at 40% opacity,
-`rgba(0, 0, 0, 0.4)`, meaning 60% transparency. There is no split column, opaque
+the complete hero. The latest owner direction permits darkening for readable text. The final
+treatment replaces all earlier charcoal/text-region gradients and the failed
+40% black trial with uniform black at74% opacity, `rgba(0, 0, 0, 0.74)`,
+meaning26% transparency. There is no split column, opaque
 reading panel or competing overlay. Obsolete text-region measurement is removed.
 
 Phones use the current visible viewport minus the actual header, with no reserve
@@ -46,10 +47,12 @@ once. The hero uses a minimum height so larger text and short landscapes can gro
 naturally without clipped content. No-JavaScript uses the same overlay and CSS
 viewport fallback, including the known two-row narrow header.
 
-Protected copy, typography and exact bronze remain. Scene contrast must be
-reported honestly; this specifically selected overlay must not be darkened or
-replaced merely to force a contrast pass. See brand profile 1.4 and the current
-correction review for any remaining contrast conflict.
+Protected copy, typography and exact bronze remain. Actual-scene tests showed
+black0.72 failed and0.73 barely passed;0.74 provides a modest bright-frame/rounding
+margin while retaining substantially more scene variation than qualifying
+charcoal0.94. Preserve the uniform treatment, full-fold geometry and visibly
+present footage. Exact-final-source independent review and measured contrast
+remain required; see brand profile1.5 and the current final review.
 
 
 ## Release and recovery
