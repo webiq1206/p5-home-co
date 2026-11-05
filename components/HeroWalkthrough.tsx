@@ -31,7 +31,7 @@ export default function HeroWalkthrough({ children }: { children: ReactNode }) {
       frame = requestAnimationFrame(update);
     };
     const observer = new ResizeObserver(schedule);
-    observer.observe(header);
+    observer.observe(header, { box: "border-box" });
     window.addEventListener("resize", schedule);
     viewport?.addEventListener("resize", schedule);
     schedule();
