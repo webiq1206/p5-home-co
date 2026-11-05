@@ -134,11 +134,11 @@ export default function HeroWalkthrough({ children }: { children: ReactNode }) {
           aria-controls="p5-hero-video"
           onClick={() => toggleRef.current()}
         >
-          <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
             {playing ? (
-              <path d="M8 5v14M16 5v14" fill="none" stroke="currentColor" strokeWidth="2" />
+              <path d="M8 5v14M16 5v14" />
             ) : (
-              <path d="m8 5 11 7-11 7Z" fill="currentColor" />
+              <path d="m8 5 11 7-11 7Z" />
             )}
           </svg>
           <span className="visually-hidden">{playing ? "Pause background video" : "Play background video"}</span>
