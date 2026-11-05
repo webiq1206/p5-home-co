@@ -28,10 +28,18 @@ below 1024px and connections reporting 2G/3G select the 3.1 MB 720p MP4. Other
 visitors select the 5.4 MB VP9 WebM where supported, otherwise the 9.8 MB 1080p
 H.264 MP4. Selection occurs once per mount to avoid extra downloads on rotation.
 
-Reduced motion and Save-Data show only the poster. Playback is muted, inline and
-looping, with an accessible Play/Pause control. Scrolling away or hiding the page
-pauses playback; explicit user pause persists on return. Load failure and blocked
-autoplay retain the poster. A blocked browser can retry through the Play control.
+The owner's latest direction removes all visible Play/Pause/Stop and native
+controls, and supersedes the earlier reduced-motion and Save-Data poster modes.
+Default, reduced-motion and Save-Data visitors all receive the selected video and
+an attempt at muted inline autoplay and looping. Scrolling away or hiding the page
+automatically pauses playback, which resumes when visible. No JavaScript, load
+failure and browser-blocked autoplay retain the technical poster fallback; browser
+restrictions cannot be overridden and playback is not guaranteed. There is no
+manual retry control. Unrelated reduced-motion protections remain unchanged.
+
+Known accessibility tradeoff: the moving background has no on-page pause/stop/hide
+mechanism and ignores the device reduced-motion preference. Document this
+user-directed WCAG 2.2.2 limitation; do not claim full accessibility conformance.
 The owner's latest direction requires full-bleed media across the entire hero on
 all devices, superseding the earlier split composition. The poster and video fill
 the complete hero. The latest owner direction permits darkening for readable text. The final
@@ -52,7 +60,7 @@ black 0.72 failed and 0.73 barely passed; 0.74 provides a modest bright-frame/ro
 margin while retaining substantially more scene variation than qualifying
 charcoal 0.94. Preserve the uniform treatment, full-fold geometry and visibly
 present footage. Exact-final-source independent review and measured contrast
-remain required; see brand profile 1.5 and the current final review.
+remain required; see brand profile 1.6 and the current final review.
 
 
 ## Release and recovery
