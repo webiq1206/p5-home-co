@@ -44,28 +44,47 @@
   align-self: flex-start;
 }
 
-/* The exact logo bronze needs a neutral glyph surround over this photograph.
-   Keep the existing translucent scrim, heading fill and type geometry. */
-#top .fam-hero[data-family-hero] .fam-hero-copy .fam-hero-accent {
-  text-shadow:
-    -1px -1px 0 var(--color-charcoal),
-     0 -1px 0 var(--color-charcoal),
-     1px -1px 0 var(--color-charcoal),
-     1px  0 0 var(--color-charcoal),
-     1px  1px 0 var(--color-charcoal),
-     0  1px 0 var(--color-charcoal),
-    -1px  1px 0 var(--color-charcoal),
-    -1px  0 0 var(--color-charcoal);
+/* Keep the approved bronze readable without a glyph shadow. The existing
+   directional photo scrim carries contrast; the house remains clear beside it. */
+@media (max-width: 1023px) {
+  #top .fam-hero[data-family-hero] .fam-hero-media {
+    height: 50%;
+    bottom: auto;
+  }
+  #top .fam-hero[data-family-hero] .fam-hero-copy {
+    position: relative;
+    isolation: isolate;
+  }
+  #top .fam-hero[data-family-hero] .fam-hero-accent {
+    position: relative;
+  }
+  #top .fam-hero[data-family-hero] .fam-hero-accent::before {
+    content: "";
+    position: absolute;
+    z-index: -1;
+    top: 0;
+    bottom: -100svh;
+    left: calc(-1 * var(--gutter));
+    width: 100vw;
+    background: var(--color-charcoal);
+    pointer-events: none;
+  }
+}
+@media (min-width: 1024px) {
+  #top .fam-hero[data-family-hero] .fam-hero-scrim {
+    --p5-hero-glyph-end: calc(max(var(--gutter), (100vw - var(--container-max)) / 2) + var(--fs-hero) * 6);
+    background: linear-gradient(
+      90deg,
+      var(--color-charcoal) 0,
+      var(--color-charcoal) var(--p5-hero-glyph-end),
+      rgba(var(--color-scrim-rgb), 0) calc(var(--p5-hero-glyph-end) + var(--space-20))
+    );
+  }
 }
 
 /* Charcoal PR phone audit, reconciled with the current family role scale.
    Keep task typography and the observed header/bar budgets in their owners. */
 @media (max-width: 639px) {
-  .fam-hero[data-family-hero] .fam-hero-copy { margin-inline: auto; text-align: center; }
-  .fam-hero[data-family-hero] .fam-hero-actions { align-items: center; }
-  .fam-hero[data-family-hero] .fam-hero-support { margin-inline: auto; }
-  .about-hero h1, .how-p5 h2, .companies h2, .standard h2,
-  .service-area h2, .faq h2, .final-cta h2 { text-align: center; text-wrap: balance; }
   .text-link, .brand-link, .company-index a, .faq-item summary,
   .legal-back, .sitemap-list a { min-height: var(--touch-min); }
   .brand-fold[open] .brand-image-wrap { height: 180px; min-height: 180px; }

@@ -1172,10 +1172,8 @@ html:has(.quote-request-first) { scroll-behavior: auto; }
   .quote-page h1,
   .quote-request-main > h1 {
     max-width: 18ch;
-    margin-inline: auto;
-    font-size: var(--fs-h1);
+    font-size: var(--fs-page-title, var(--fs-h1));
     line-height: var(--lh-h1);
-    text-align: center;
   }
   .quote-page h2,
   .quote-photos-heading,
@@ -1183,17 +1181,6 @@ html:has(.quote-request-first) { scroll-behavior: auto; }
   .quote-thanks h2 {
     font-size: var(--fs-h2);
     line-height: var(--lh-h2);
-    text-align: center;
-  }
-  .quote-eyebrow,
-  .quote-proof,
-  .quote-photos,
-  .quote-steps,
-  .quote-voices,
-  .quote-others,
-  .quote-faq,
-  .quote-area {
-    text-align: center;
   }
   .quote-covers li,
   .quote-step-grid p,

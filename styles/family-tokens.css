@@ -101,10 +101,12 @@
   --font-sans: var(--font-manrope, 'Manrope'), 'Helvetica Neue', Arial, sans-serif;
   /* Hero display: the one size that must dominate the page. Fluid so a 390px phone
      and a 1920px display each get the largest heading their width can carry. */
-  --fs-hero: clamp(42px, 11.5vw, 56px);
+  --fs-hero: clamp(44px, 13.333vw, 56px);
   --fs-hero-support: 17px;
   --fs-display: 36px;
   --fs-h1: 32px;
+  /* Page H1s have their own role; feature-panel H3s retain --fs-h1. */
+  --fs-page-title: 40px;
   --fs-h2: 28px;
   --fs-h3: 22px;
   --fs-h4: 18px;
@@ -148,6 +150,7 @@
     --fs-hero-support: 18px;
     --fs-display: 52px;
     --fs-h1: 44px;
+    --fs-page-title: 44px;
     --fs-h2: 36px;
     --fs-h3: 26px;
     --fs-h4: 20px;
@@ -170,6 +173,7 @@
     --lh-hero: 0.98;
     --fs-display: 64px;
     --fs-h1: 52px;
+    --fs-page-title: 52px;
     --fs-h2: 40px;
     --fs-h3: 28px;
   }

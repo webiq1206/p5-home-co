@@ -1,6 +1,6 @@
 # P5 Home Co brand profile
 
-Profile version: 1.1, source adoption recorded 2026-11-04. Last approved: no separate profile approval date is recorded. Current explicit owner directions govern the changes they cover; this profile records existing source and those directions, without granting a new exception or certifying the implementation. Source of truth: this file for P5 rules, the complete Website Design Quality Version 2.3 master and implementation rules, Organic and AI Search Visibility Version 1.0.2, and the concrete source/assets below.
+Profile version: 1.2, source adoption recorded 2026-11-05. Last approved: no separate profile approval date is recorded. Current explicit owner directions govern the changes they cover; this profile records existing source and those directions, without granting a new exception or certifying the implementation. Source of truth: this file for P5 rules, the complete Website Design Quality Version 2.3 master and implementation rules, Organic and AI Search Visibility Version 1.0.2, and the concrete source/assets below.
 
 ## Identity, audience and purpose
 
@@ -53,9 +53,10 @@ The current family role decision uses phone below640px, tablet640–1023px, desk
 
 | Role | Phone / tablet / desktop | Line height; tracking |
 |---|---|---|
-| Hero | `clamp(42px, 11.5vw, 56px)` / `clamp(56px, 8.5vw, 80px)` / `clamp(68px, 7vw, 116px)` | 1.02, desktop0.98; `-0.03em` |
+| Hero | `clamp(44px, 13.333vw, 56px)` / `clamp(56px, 8.5vw, 80px)` / `clamp(68px, 7vw, 116px)` | 1.02, desktop0.98; `-0.03em` |
 | Editorial display | 36 / 52 / 64px | 1.05; `-0.02em` |
-| Ordinary H1 / feature title | 32 / 44 / 52px | 1.1; `-0.02em` |
+| Ordinary H1 `--fs-page-title` | 40 / 44 / 52px | 1.1; `-0.02em` |
+| Feature title `--fs-h1` | 32 / 44 / 52px | 1.1; `-0.02em` |
 | Ordinary H2 | 28 / 36 / 40px | 1.15; `-0.01em` |
 | Content/card H3 | 22 / 26 / 28px | 1.2; `-0.01em` |
 | H4 | 18 / 20 / 20px | 1.3; zero |
@@ -134,3 +135,9 @@ Canonical source `boise-remodeling-co` revision `fa720a579b696af92861fb571fa0aff
 ### November 4 heading accent alignment
 
 The latest explicit owner direction requires heading pop colors to match each site’s supplied logo/icon. P5’s four approved SVG lockups/icons use `#A58C72`, verified against `docs/branding-20261028.json`; heading emphasis therefore uses `--color-heading-accent: var(--bronze)`. The former tan `#CEB391` hero treatment and paper-mixed hero tint are superseded for headings. Existing CTA and normal-text/focus ink roles remain separate. Exact bronze gives 3.049:1 on paper and 3.686:1 on the approved `#383837` charcoal, suitable for large heading text, but 2.726:1 on bone and less than 4.5:1 for ordinary text. Use a qualifying existing neutral context for any affected smaller or bone-ground accent; do not alter the hue or typography to manufacture a pass. Canonical shared hero transport, exact-revision rendering and independent visual/contrast review remain required; source edits are not a rendered acceptance record.
+
+### November 5 heading refinement
+
+The owner requested clean H1s without the November 4 glyph surround, stronger phone H1s, and selective restoration of prior mobile left alignment. The shared phone hero role is now `clamp(44px,13.333vw,56px)`. Ordinary page H1s use the separate `--fs-page-title` role, 40/44/52px; feature H3s retain the former 32/44/52px role. Dedicated task clamps and centered control labels are preserved. Historical comparisons of November 2 `b1627c7` and November 3 `49da6ef` identify the reading blocks restored in globals and quote CSS. The new brand-fold summary has no prior left-aligned baseline and remains centered.
+
+Phones and tablets now pair a clear upper house image with an opaque charcoal lower reading field for exact bronze. Desktop retains the existing directional scrim with sufficient charcoal through the heading. There is no H1 text shadow or stroke and no change to the image asset or copy width. This records the implementation direction, not final built-source review, CI, merge or publication. Jared retains publication ownership.
