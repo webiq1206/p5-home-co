@@ -20,11 +20,11 @@ import Arrow from "@/components/Arrow";
 import SiteChrome from "@/components/SiteChrome";
 import { FamilyButton } from "@/components/family/Button";
 import { HeroPhoto } from "@/components/family/HeroPhoto";
+import HeroWalkthrough from "@/components/HeroWalkthrough";
 import CompanyFinder from "@/components/CompanyFinder";
 import {
   imageVariantFor,
   FRAMING_FOOTHILLS,
-  FEATURED_BOISE_EXTERIOR,
   DRIVE_DINING_ROOM,
   DRIVE_KITCHEN,
   DRIVE_PRIMARY_BATH,
@@ -39,15 +39,11 @@ import {
   PUBLIC_REGISTRATION,
 } from "./publicIdentity";
 
-/**
- * The hero photograph at its served size. It is already sized WebP (1280x720 at
- * 114 KB), so HeroPhoto serves it as is: a /_next/image request for a hero can
- * stall and hold the page's load event open, as it did on Boise Remodeling Co.
- */
+/** The approved walkthrough poster is also the immediate, no-JS fallback. */
 const HERO_IMAGE = {
-  src: FEATURED_BOISE_EXTERIOR.src,
-  width: FEATURED_BOISE_EXTERIOR.width,
-  height: FEATURED_BOISE_EXTERIOR.height,
+  src: "/videos/p5-home-co-poster.jpg",
+  width: 1920,
+  height: 1080,
   unoptimized: true,
 };
 
@@ -134,22 +130,18 @@ export default function Home() {
         dangerouslySetInnerHTML={{ __html: serializeJsonLd(homePageSchema) }}
       />
       <SiteChrome main>
-        {/*
-          The family photo hero (components/family/HeroPhoto): the landscape photograph
-          under a directional scrim, the two-line H1 with the logo-bronze second line, one line
-          of support copy and one action. No phone, city list or caveat in the hero
-          (copy rules); Call, Chat and Text sit in the header and the bottom bar.
-        */}
-        <HeroPhoto
-          fit="viewport"
-          image={{ ...HERO_IMAGE, alt: FEATURED_BOISE_EXTERIOR.alt, position: "50% 20%" }}
-          phoneImage={{ ...HERO_IMAGE, position: "65% 50%" }}
-          eyebrow="The Home Company"
-          title="Boise’s"
-          titleAccent="home specialists"
-          support="New homes, remodeling, cabinets, repairs and ADUs."
-          primary={{ label: "Request a quote", href: "/quote" }}
-        />
+        <HeroWalkthrough>
+          <HeroPhoto
+            fit="viewport"
+            image={{ ...HERO_IMAGE, alt: "Modern home overlooking foothills at sunset", position: "50% 20%" }}
+            phoneImage={{ ...HERO_IMAGE, position: "65% 50%" }}
+            eyebrow="The Home Company"
+            title="Boise’s"
+            titleAccent="home specialists"
+            support="New homes, remodeling, cabinets, repairs and ADUs."
+            primary={{ label: "Request a quote", href: "/quote" }}
+          />
+        </HeroWalkthrough>
 
         {/*
           Stat row (C14). Every figure is already published on this site and is the

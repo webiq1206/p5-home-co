@@ -89,3 +89,53 @@
   .legal-back, .sitemap-list a { min-height: var(--touch-min); }
   .brand-fold[open] .brand-image-wrap { height: 180px; min-height: 180px; }
 }
+
+/* The P5 media wrapper keeps the shared hero's copy, scrim and geometry intact.
+   Its single stacking context places video above the poster and below the scrim. */
+.p5-home-hero {
+  position: relative;
+  isolation: isolate;
+  background: var(--color-charcoal);
+}
+#top .p5-home-hero .fam-hero {
+  isolation: auto;
+  background: transparent;
+}
+#top .p5-home-hero .fam-hero-scrim { z-index: 0; }
+#top .p5-home-hero .fam-hero-inner { position: relative; z-index: 1; }
+.p5-hero-video {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: 50% 20%;
+  opacity: 0;
+  pointer-events: none;
+}
+.p5-hero-video[data-ready="true"] { opacity: 1; }
+.p5-hero-playback {
+  position: absolute;
+  right: var(--gutter);
+  bottom: var(--space-6);
+  z-index: 2;
+  min-height: var(--touch-min);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-border-on-dark);
+  border-radius: var(--radius-control);
+  background: var(--color-charcoal);
+  color: var(--color-paper);
+  font: inherit;
+  font-size: var(--fs-small);
+  cursor: pointer;
+}
+.p5-hero-playback:hover { text-decoration: underline; }
+.p5-hero-playback:focus-visible { outline: 2px solid var(--color-paper); outline-offset: 4px; }
+@media (max-width: 1023px) {
+  .p5-hero-video { height: 50%; object-position: 65% 50%; }
+  .p5-hero-playback { top: var(--space-4); bottom: auto; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .p5-hero-video { display: none; }
+}
