@@ -240,6 +240,20 @@
       "published_at": "2026-11-02T15:34:47+0000",
       "verified_at": "2026-11-02",
       "link_attributes": "Facebook platform redirect; public post and tracked destination read back; crawlability and indexing not claimed"
+    },
+    {
+      "platform": "facebook",
+      "brand": "Boise Handyman Co",
+      "url": "https://boisehandyman.co/guides/first-time-homeowner-repair-handbook",
+      "utm_content": "first_time_homeowner_basics_20261105",
+      "id": "1228704823655951_122146257387385974",
+      "status": "published_verified",
+      "permalink_url": "https://www.facebook.com/122135638923385974/posts/122146257387385974",
+      "destination_url": "https://boisehandyman.co/guides/first-time-homeowner-repair-handbook?utm_source=facebook&utm_medium=organic_social&utm_campaign=p5_free_growth_2026q4&utm_content=first_time_homeowner_basics_20261105",
+      "created_at": "2026-11-05T15:16:18+0000",
+      "published_at": "2026-11-05T15:16:18+0000",
+      "verified_at": "2026-11-05",
+      "link_attributes": "Facebook platform redirect; public post and tracked destination read back; crawlability, indexing and business outcome not claimed"
     }
   ],
   "scheduled": [],
