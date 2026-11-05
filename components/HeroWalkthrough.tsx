@@ -141,7 +141,7 @@ export default function HeroWalkthrough({ children }: { children: ReactNode }) {
               <path d="m8 5 11 7-11 7Z" fill="currentColor" />
             )}
           </svg>
-          <span className="sr-only">{playing ? "Pause background video" : "Play background video"}</span>
+          <span className="visually-hidden">{playing ? "Pause background video" : "Play background video"}</span>
         </button>
       ) : null}
     </div>
