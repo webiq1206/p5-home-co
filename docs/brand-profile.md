@@ -1,6 +1,6 @@
 # P5 Home Co brand profile
 
-Profile version: 1.2, source adoption recorded 2026-11-05. Last approved: no separate profile approval date is recorded. Current explicit owner directions govern the changes they cover; this profile records existing source and those directions, without granting a new exception or certifying the implementation. Source of truth: this file for P5 rules, the complete Website Design Quality Version 2.3 master and implementation rules, Organic and AI Search Visibility Version 1.0.2, and the concrete source/assets below.
+Profile version: 1.3, source adoption recorded 2026-11-05. Last approved: no separate profile approval date is recorded. Current explicit owner directions govern the changes they cover; this profile records existing source and those directions, without granting a new exception or certifying the implementation. Source of truth: this file for P5 rules, the complete Website Design Quality Version 2.3 master and implementation rules, Organic and AI Search Visibility Version 1.0.2, and the concrete source/assets below.
 
 ## Identity, audience and purpose
 
@@ -140,4 +140,10 @@ The latest explicit owner direction requires heading pop colors to match each si
 
 The owner requested clean H1s without the November 4 glyph surround, stronger phone H1s, and selective restoration of prior mobile left alignment. The shared phone hero role is now `clamp(44px,13.333vw,56px)`. Ordinary page H1s use the separate `--fs-page-title` role, 40/44/52px; feature H3s retain the former 32/44/52px role. Dedicated task clamps and centered control labels are preserved. Historical comparisons of November 2 `b1627c7` and November 3 `49da6ef` identify the reading blocks restored in globals and quote CSS. The new brand-fold summary has no prior left-aligned baseline and remains centered.
 
-Phones and tablets now pair a clear upper house image with an opaque charcoal lower reading field for exact bronze. Desktop retains the existing directional scrim with sufficient charcoal through the heading. There is no H1 text shadow or stroke and no change to the image asset or copy width. This records the implementation direction, not final built-source review, CI, merge or publication. Jared retains publication ownership.
+That heading refinement initially paired a clear upper phone/tablet image with an opaque lower reading field and a directional desktop scrim. The later approved walkthrough direction below supersedes that split composition. Keep the clean H1 without text shadow or stroke, the approved typography and copy width. Source, review, CI, merge and publication remain separate; Jared retains publication ownership.
+
+### November 5 approved homepage walkthrough
+
+The owner approved the silent 24-second walkthrough and explicitly requires background video to be full bleed, full width and full height across the entire hero on every device. Do not restore a split image column, half-height mobile video or opaque lower reading panel. Use the existing `#383837` brand charcoal as a translucent overlay or gradient, darker behind text and lighter over the scene. Preserve exact logo bronze and measured contrast through the bright interior scenes, clean H1s, CTA fit and the existing copy and journeys. This explicit direction governs the P5 homepage media change; it does not authorize editing unrelated family consumers.
+
+Approved media identity, local-byte verification and recovery are recorded in `docs/p5-hero-walkthrough-2026-11-05.md`. Use one responsive video variant per visitor, an immediate full-hero poster fallback, muted inline looping playback, reduced-motion and Save-Data handling, an accessible Play/Pause control and hidden/offscreen pause. Preserve neutral architectural descriptions; these generated design scenes are not evidence of completed P5 customer work. Final source still requires independent rendered review, exact-head checks and Jared's Replit import/publication.

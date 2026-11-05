@@ -44,48 +44,84 @@
   align-self: flex-start;
 }
 
-/* Keep the approved bronze readable without a glyph shadow. The existing
-   directional photo scrim carries contrast; the house remains clear beside it. */
-@media (max-width: 1023px) {
-  #top .fam-hero[data-family-hero] .fam-hero-media {
-    height: 50%;
-    bottom: auto;
-  }
-  #top .fam-hero[data-family-hero] .fam-hero-copy {
-    position: relative;
-    isolation: isolate;
-  }
-  #top .fam-hero[data-family-hero] .fam-hero-accent {
-    position: relative;
-  }
-  #top .fam-hero[data-family-hero] .fam-hero-accent::before {
-    content: "";
-    position: absolute;
-    z-index: -1;
-    top: 0;
-    bottom: -100svh;
-    left: calc(-1 * var(--gutter));
-    width: 100vw;
-    background: var(--color-charcoal);
-    pointer-events: none;
-  }
-}
-@media (min-width: 1024px) {
-  #top .fam-hero[data-family-hero] .fam-hero-scrim {
-    --p5-hero-glyph-end: calc(max(var(--gutter), (100vw - var(--container-max)) / 2) + var(--fs-hero) * 6);
-    background: linear-gradient(
-      90deg,
-      var(--color-charcoal) 0,
-      var(--color-charcoal) var(--p5-hero-glyph-end),
-      rgba(var(--color-scrim-rgb), 0) calc(var(--p5-hero-glyph-end) + var(--space-20))
-    );
-  }
-}
-
 /* Charcoal PR phone audit, reconciled with the current family role scale.
    Keep task typography and the observed header/bar budgets in their owners. */
 @media (max-width: 639px) {
   .text-link, .brand-link, .company-index a, .faq-item summary,
   .legal-back, .sitemap-list a { min-height: var(--touch-min); }
   .brand-fold[open] .brand-image-wrap { height: 180px; min-height: 180px; }
+}
+
+/* P5's approved video covers the entire hero. A translucent charcoal gradient
+   preserves exact-bronze contrast without a split image or opaque reading panel.
+   The wrapper places video above the poster and below the shared hero's scrim. */
+.p5-home-hero {
+  position: relative;
+  isolation: isolate;
+  background: var(--color-charcoal);
+}
+#top .p5-home-hero .fam-hero {
+  isolation: auto;
+  background: transparent;
+}
+#top .p5-home-hero .fam-hero-scrim { z-index: 0; }
+#top .p5-home-hero .fam-hero-inner { position: relative; z-index: 1; background: none; }
+#top .p5-home-hero .fam-hero-media { height: 100%; bottom: 0; }
+#top .p5-home-hero .fam-hero[data-family-hero] .fam-hero-scrim {
+  background: rgba(var(--color-scrim-rgb), 0.95);
+}
+#top .p5-home-hero[data-hero-contrast="measured"] .fam-hero[data-family-hero] .fam-hero-scrim {
+  background: linear-gradient(
+    90deg,
+    rgba(var(--color-scrim-rgb), 0.96) 0,
+    rgba(var(--color-scrim-rgb), 0.94) var(--p5-hero-text-right),
+    rgba(var(--color-scrim-rgb), 0.26) max(calc(var(--p5-hero-text-right) + var(--space-20)), 100%)
+  );
+}
+.p5-hero-video {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: 50% 20%;
+  opacity: 0;
+  pointer-events: none;
+}
+.p5-hero-video[data-ready="true"] { opacity: 1; }
+.p5-hero-playback {
+  position: absolute;
+  right: var(--gutter);
+  bottom: var(--space-6);
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--touch-min);
+  min-height: var(--touch-min);
+  padding: var(--space-3);
+  border: 1px solid var(--color-border-on-dark);
+  border-radius: var(--radius-control);
+  background: var(--color-charcoal);
+  color: var(--color-paper);
+  cursor: pointer;
+}
+.p5-hero-playback:hover { border-color: var(--color-paper); }
+.p5-hero-playback:focus-visible { outline: 2px solid var(--color-paper); outline-offset: 4px; }
+@media (max-width: 1023px) {
+  .p5-hero-video { object-position: 60% 50%; }
+  #top .p5-home-hero[data-hero-contrast="measured"] .fam-hero[data-family-hero] .fam-hero-scrim {
+    background: linear-gradient(
+      180deg,
+      rgba(var(--color-scrim-rgb), 0.24) 0%,
+      rgba(var(--color-scrim-rgb), 0.96) var(--p5-hero-text-top),
+      rgba(var(--color-scrim-rgb), 0.96) var(--p5-hero-text-bottom),
+      rgba(var(--color-scrim-rgb), 0.72) 100%
+    );
+  }
+  .p5-hero-playback { top: var(--space-4); bottom: auto; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .p5-hero-video { display: none; }
 }
