@@ -34,12 +34,23 @@ pauses playback; explicit user pause persists on return. Load failure and blocke
 autoplay retain the poster. A blocked browser can retry through the Play control.
 The owner's latest direction requires full-bleed media across the entire hero on
 all devices, superseding the earlier split composition. The poster and video fill
-the complete hero; a translucent brand-charcoal gradient is darker behind text
-and lighter over the architectural scene. There is no opaque lower reading panel
-or separate image column. Exact bronze and the established hero copy remain.
-The darker gradient region follows measured text lines as fonts, viewport or
-accessibility spacing change. Before measurement and without JavaScript, a
-uniform translucent charcoal scrim preserves contrast across the full poster.
+the complete hero. The latest owner correction replaces all earlier charcoal
+and text-region gradients with one uniform black overlay at 40% opacity,
+`rgba(0, 0, 0, 0.4)`, meaning 60% transparency. There is no split column, opaque
+reading panel or competing overlay. Obsolete text-region measurement is removed.
+
+Phones use the current visible viewport minus the actual header, with no reserve
+for the mobile action bar hidden over the hero. CSS dynamic viewport units and a
+local measured VisualViewport/header enhancement count browser UI and safe areas
+once. The hero uses a minimum height so larger text and short landscapes can grow
+naturally without clipped content. No-JavaScript uses the same overlay and CSS
+viewport fallback, including the known two-row narrow header.
+
+Protected copy, typography and exact bronze remain. Scene contrast must be
+reported honestly; this specifically selected overlay must not be darkened or
+replaced merely to force a contrast pass. See brand profile 1.4 and the current
+correction review for any remaining contrast conflict.
+
 
 ## Release and recovery
 
