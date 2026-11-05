@@ -13,6 +13,12 @@
 */
 
 /* ---------- Layout ---------- */
+/* Public page H1s can grow without enlarging feature H3s that retain --fs-h1.
+   Dedicated task headings keep their explicitly owned font-size declarations. */
+.approved-shell main h1 {
+  --fs-h1: var(--fs-page-title);
+}
+
 .fam-container {
   box-sizing: border-box;
   width: 100%;

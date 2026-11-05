@@ -310,7 +310,7 @@ a:hover .arrow-diagonal, a:focus-visible .arrow-diagonal { transform: translate(
 
 /* HTML sitemap page: sits under the fixed header, in the site's own type. */
 .sitemap-main { padding: var(--section-y) 0 96px; }
-.sitemap-title { margin: 0 0 var(--stack-heading); font-family: var(--font-display); font-size: var(--fs-h1); font-weight: var(--weight-display); letter-spacing: var(--tracking-display); line-height: var(--lh-h1); }
+.sitemap-title { margin: 0 0 var(--stack-heading); font-family: var(--font-display); font-size: var(--fs-page-title, var(--fs-h1)); font-weight: var(--weight-display); letter-spacing: var(--tracking-display); line-height: var(--lh-h1); }
 .sitemap-lede { max-width: 620px; margin: 0 0 48px; color: var(--ink-2); }
 .sitemap-section { margin-bottom: 44px; }
 .sitemap-list { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px 36px; margin: 0; padding: 0; list-style: none; }
@@ -853,7 +853,7 @@ body[data-p5-chat-open] { overflow: hidden; }
 .about-breadcrumb ol { display: flex; gap: 10px; list-style: none; margin: 0 0 24px; padding: 0; font-size: var(--fs-small); color: #6c756e; line-height: var(--lh-small); letter-spacing: 0; }
 .about-breadcrumb li:not(:last-child)::after { content: "/"; margin-left: 10px; opacity: .5; }
 .about-breadcrumb a { text-decoration: underline; text-underline-offset: 2px; }
-.about-hero h1 { margin: 0 0 var(--stack-heading); font-family: var(--font-display); font-size: var(--fs-h1); font-weight: var(--weight-display); letter-spacing: var(--tracking-display); line-height: var(--lh-h1); }
+.about-hero h1 { margin: 0 0 var(--stack-heading); font-family: var(--font-display); font-size: var(--fs-page-title, var(--fs-h1)); font-weight: var(--weight-display); letter-spacing: var(--tracking-display); line-height: var(--lh-h1); }
 .about-answer { margin: 0 0 var(--stack-cta); font-size: var(--fs-body); line-height: var(--lh-body); max-width: 42rem; letter-spacing: 0; }
 .about-hero-actions { display: flex; flex-wrap: wrap; gap: 22px; align-items: center; }
 .about-trust-line { margin: 18px 0 0; font-size: var(--fs-small); color: #6c756e; line-height: var(--lh-small); letter-spacing: 0; }
@@ -933,49 +933,15 @@ main#main-content:focus { outline: none; }
 }
 @media (max-width: 767px) {
 
-  .fam-hero[data-family-hero] .fam-hero-copy {
-    margin-inline: auto;
-    text-align: center;
-  }
-  .fam-hero[data-family-hero] .fam-hero-copy .fam-hero-eyebrow { justify-content: center; }
   .fam-hero[data-family-hero] .fam-hero-copy .fam-hero-title {
     font-size: var(--fs-hero);
     line-height: var(--lh-hero);
   }
-  .fam-hero[data-family-hero] .fam-hero-copy .fam-hero-support { margin-inline: auto; }
-  .fam-hero[data-family-hero] .fam-hero-copy .fam-hero-actions { align-items: center; }
-  .fam-hero[data-family-hero] .fam-hero-copy .fam-hero-link { align-self: center; justify-content: center; }
-
-  .eyebrow { justify-content: center; }
-  .companies-heading,
-  .standard-heading,
-  .featured-project-intro,
-  .how-p5-intro,
-  .kitchen-example-inner,
-  .request-entry-copy,
-  .who-hire,
-  .service-area-grid > div:first-child,
-  .faq-layout > div:first-child,
-  .final-cta-content,
-  .company-finder-intro,
-  .about-hero-inner,
-  .about-section h2,
-  .about-closing h2,
-  .brand-content h3,
+  /* Reading blocks retain their pre-November-3 left flow. The new disclosure
+     control, buttons, pills and tabs keep their intentional centered labels. */
   .brand-fold > summary {
     text-align: center;
   }
-  .final-cta-actions,
-  .request-entry-actions,
-  .about-hero-actions,
-  .about-closing-actions,
-  .company-finder-actions,
-  .how-p5-intro {
-    align-items: center;
-  }
-  .text-link,
-  .brand-link { justify-content: center; }
-  .brand-link { margin-inline: auto; }
 
   .company-index a,
   .brand-link,

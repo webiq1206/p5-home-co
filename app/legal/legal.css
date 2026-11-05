@@ -15,7 +15,7 @@
 }
 @media (max-width: 780px) {
   .legal-page h1 {
-    font-size: var(--fs-h1);
+    font-size: var(--fs-page-title, var(--fs-h1));
     line-height: var(--lh-h1);
     text-wrap: balance;
   }
@@ -37,7 +37,7 @@
 .legal-page h1 {
   margin: 0 0 var(--stack-heading);
   font-family: var(--font-display);
-  font-size: var(--fs-h1);
+  font-size: var(--fs-page-title, var(--fs-h1));
   font-weight: var(--weight-display);
   letter-spacing: var(--tracking-display);
   line-height: var(--lh-h1);

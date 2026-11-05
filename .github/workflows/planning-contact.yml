@@ -7,6 +7,7 @@ on:
       - scripts/verify-planning-contact.cjs
       - tests/fixtures/planning-contact-before.tsx.txt
       - .github/workflows/planning-contact.yml
+      - scripts/branding-ci-evidence-bound.mjs
 permissions:
   contents: read
 jobs:
@@ -26,11 +27,16 @@ jobs:
           node-version: 24
       - run: npm ci --ignore-scripts --no-audit --no-fund
       - run: node scripts/verify-planning-contact.cjs p5
-      - uses: actions/upload-artifact@v4
+      - name: Bound complete artifact group 1 to64MiB
+        id: bounded_artifact_01
         if: always()
+        run: node scripts/branding-ci-evidence-bound.mjs --strict-64m 'test-results/planning-contact/'
+      - uses: actions/upload-artifact@v4
+        if: ${{ always() && steps.bounded_artifact_01.outcome == 'success' && steps.bounded_artifact_01.outputs.ready == 'true' }}
         with:
           name: p5-planning-contact-${{ github.sha }}
-          path: test-results/planning-contact/
+          path: branding-ci-evidence/complete.tar.gz
           retention-days: 14
+          compression-level: 0
           if-no-files-found: error
 
