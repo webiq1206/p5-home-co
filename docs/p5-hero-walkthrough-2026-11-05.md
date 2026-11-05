@@ -2,7 +2,7 @@
 
 Focused homepage media replacement under Website Design Quality 2.3 and the
 project-owned `docs/brand-profile.md`. The existing shared family hero, copy,
-charcoal reading field, typography, quote CTA, layout and all other pages remain
+typography, quote CTA, layout and all other pages remain
 owned by their current components. The P5-only wrapper adds decorative playback
 without changing the shared family manifest or creating a cross-site rollout.
 
@@ -32,7 +32,11 @@ Reduced motion and Save-Data show only the poster. Playback is muted, inline and
 looping, with an accessible Play/Pause control. Scrolling away or hiding the page
 pauses playback; explicit user pause persists on return. Load failure and blocked
 autoplay retain the poster. A blocked browser can retry through the Play control.
-The existing charcoal composition protects heading contrast across room changes.
+The owner's latest direction requires full-bleed media across the entire hero on
+all devices, superseding the earlier split composition. The poster and video fill
+the complete hero; a translucent brand-charcoal gradient is darker behind text
+and lighter over the architectural scene. There is no opaque lower reading panel
+or separate image column. Exact bronze and the established hero copy remain.
 
 ## Release and recovery
 

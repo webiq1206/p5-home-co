@@ -44,44 +44,6 @@
   align-self: flex-start;
 }
 
-/* Keep the approved bronze readable without a glyph shadow. The existing
-   directional photo scrim carries contrast; the house remains clear beside it. */
-@media (max-width: 1023px) {
-  #top .fam-hero[data-family-hero] .fam-hero-media {
-    height: 50%;
-    bottom: auto;
-  }
-  #top .fam-hero[data-family-hero] .fam-hero-copy {
-    position: relative;
-    isolation: isolate;
-  }
-  #top .fam-hero[data-family-hero] .fam-hero-accent {
-    position: relative;
-  }
-  #top .fam-hero[data-family-hero] .fam-hero-accent::before {
-    content: "";
-    position: absolute;
-    z-index: -1;
-    top: 0;
-    bottom: -100svh;
-    left: calc(-1 * var(--gutter));
-    width: 100vw;
-    background: var(--color-charcoal);
-    pointer-events: none;
-  }
-}
-@media (min-width: 1024px) {
-  #top .fam-hero[data-family-hero] .fam-hero-scrim {
-    --p5-hero-glyph-end: calc(max(var(--gutter), (100vw - var(--container-max)) / 2) + var(--fs-hero) * 6);
-    background: linear-gradient(
-      90deg,
-      var(--color-charcoal) 0,
-      var(--color-charcoal) var(--p5-hero-glyph-end),
-      rgba(var(--color-scrim-rgb), 0) calc(var(--p5-hero-glyph-end) + var(--space-20))
-    );
-  }
-}
-
 /* Charcoal PR phone audit, reconciled with the current family role scale.
    Keep task typography and the observed header/bar budgets in their owners. */
 @media (max-width: 639px) {
@@ -90,8 +52,9 @@
   .brand-fold[open] .brand-image-wrap { height: 180px; min-height: 180px; }
 }
 
-/* The P5 media wrapper keeps the shared hero's copy, scrim and geometry intact.
-   Its single stacking context places video above the poster and below the scrim. */
+/* P5's approved video covers the entire hero. A translucent charcoal gradient
+   preserves exact-bronze contrast without a split image or opaque reading panel.
+   The wrapper places video above the poster and below the shared hero's scrim. */
 .p5-home-hero {
   position: relative;
   isolation: isolate;
@@ -102,7 +65,17 @@
   background: transparent;
 }
 #top .p5-home-hero .fam-hero-scrim { z-index: 0; }
-#top .p5-home-hero .fam-hero-inner { position: relative; z-index: 1; }
+#top .p5-home-hero .fam-hero-inner { position: relative; z-index: 1; background: none; }
+#top .p5-home-hero .fam-hero-media { height: 100%; bottom: 0; }
+#top .p5-home-hero .fam-hero[data-family-hero] .fam-hero-scrim {
+  --p5-hero-glyph-end: calc(max(var(--gutter), (100vw - var(--container-max)) / 2) + var(--fs-hero) * 6);
+  background: linear-gradient(
+    90deg,
+    rgba(var(--color-scrim-rgb), 0.96) 0,
+    rgba(var(--color-scrim-rgb), 0.94) var(--p5-hero-glyph-end),
+    rgba(var(--color-scrim-rgb), 0.26) 100%
+  );
+}
 .p5-hero-video {
   position: absolute;
   inset: 0;
@@ -135,7 +108,16 @@
 .p5-hero-playback:hover { border-color: var(--color-paper); }
 .p5-hero-playback:focus-visible { outline: 2px solid var(--color-paper); outline-offset: 4px; }
 @media (max-width: 1023px) {
-  .p5-hero-video { height: 50%; object-position: 65% 50%; }
+  .p5-hero-video { object-position: 60% 50%; }
+  #top .p5-home-hero .fam-hero[data-family-hero] .fam-hero-scrim {
+    background: linear-gradient(
+      180deg,
+      rgba(var(--color-scrim-rgb), 0.24) 0%,
+      rgba(var(--color-scrim-rgb), 0.96) 28%,
+      rgba(var(--color-scrim-rgb), 0.96) 78%,
+      rgba(var(--color-scrim-rgb), 0.72) 100%
+    );
+  }
   .p5-hero-playback { top: var(--space-4); bottom: auto; }
 }
 @media (prefers-reduced-motion: reduce) {

@@ -134,7 +134,7 @@ export default function Home() {
           <HeroPhoto
             fit="viewport"
             image={{ ...HERO_IMAGE, alt: "Modern home overlooking foothills at sunset", position: "50% 20%" }}
-            phoneImage={{ ...HERO_IMAGE, position: "65% 50%" }}
+            phoneImage={{ ...HERO_IMAGE, position: "60% 50%" }}
             eyebrow="The Home Company"
             title="Boise’s"
             titleAccent="home specialists"
