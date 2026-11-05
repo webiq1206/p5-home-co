@@ -34,12 +34,26 @@ pauses playback; explicit user pause persists on return. Load failure and blocke
 autoplay retain the poster. A blocked browser can retry through the Play control.
 The owner's latest direction requires full-bleed media across the entire hero on
 all devices, superseding the earlier split composition. The poster and video fill
-the complete hero; a translucent brand-charcoal gradient is darker behind text
-and lighter over the architectural scene. There is no opaque lower reading panel
-or separate image column. Exact bronze and the established hero copy remain.
-The darker gradient region follows measured text lines as fonts, viewport or
-accessibility spacing change. Before measurement and without JavaScript, a
-uniform translucent charcoal scrim preserves contrast across the full poster.
+the complete hero. The latest owner direction permits darkening for readable text. The final
+treatment replaces all earlier charcoal/text-region gradients and the failed
+40% black trial with uniform black at 74% opacity, `rgba(0, 0, 0, 0.74)`,
+meaning 26% transparency. There is no split column, opaque
+reading panel or competing overlay. Obsolete text-region measurement is removed.
+
+Phones use the current visible viewport minus the actual header, with no reserve
+for the mobile action bar hidden over the hero. CSS dynamic viewport units and a
+local measured VisualViewport/header enhancement count browser UI and safe areas
+once. The hero uses a minimum height so larger text and short landscapes can grow
+naturally without clipped content. No-JavaScript uses the same overlay and CSS
+viewport fallback, including the known two-row narrow header.
+
+Protected copy, typography and exact bronze remain. Actual-scene tests showed
+black 0.72 failed and 0.73 barely passed; 0.74 provides a modest bright-frame/rounding
+margin while retaining substantially more scene variation than qualifying
+charcoal 0.94. Preserve the uniform treatment, full-fold geometry and visibly
+present footage. Exact-final-source independent review and measured contrast
+remain required; see brand profile 1.5 and the current final review.
+
 
 ## Release and recovery
 

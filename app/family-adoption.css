@@ -52,13 +52,18 @@
   .brand-fold[open] .brand-image-wrap { height: 180px; min-height: 180px; }
 }
 
-/* P5's approved video covers the entire hero. A translucent charcoal gradient
-   preserves exact-bronze contrast without a split image or opaque reading panel.
-   The wrapper places video above the poster and below the shared hero's scrim. */
+/* The approved video and poster cover the complete P5 hero. The owner permits
+   darkening a uniform overlay for readable exact-bronze text. Black at 74%
+   preserves more scene detail than the qualifying charcoal treatment. */
 .p5-home-hero {
+  --p5-hero-viewport-size: 100vh;
+  --p5-hero-header-size: calc(var(--header-height) + env(safe-area-inset-top, 0px));
   position: relative;
   isolation: isolate;
   background: var(--color-charcoal);
+}
+@supports (height: 100dvh) {
+  .p5-home-hero { --p5-hero-viewport-size: 100dvh; }
 }
 #top .p5-home-hero .fam-hero {
   isolation: auto;
@@ -66,17 +71,16 @@
 }
 #top .p5-home-hero .fam-hero-scrim { z-index: 0; }
 #top .p5-home-hero .fam-hero-inner { position: relative; z-index: 1; background: none; }
+#top .p5-home-hero .fam-hero-copy { min-width: 0; }
+#top .p5-home-hero .fam-hero-title { overflow-wrap: anywhere; }
+#top .p5-home-hero .fam-hero-actions .fam-btn {
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
 #top .p5-home-hero .fam-hero-media { height: 100%; bottom: 0; }
 #top .p5-home-hero .fam-hero[data-family-hero] .fam-hero-scrim {
-  background: rgba(var(--color-scrim-rgb), 0.95);
-}
-#top .p5-home-hero[data-hero-contrast="measured"] .fam-hero[data-family-hero] .fam-hero-scrim {
-  background: linear-gradient(
-    90deg,
-    rgba(var(--color-scrim-rgb), 0.96) 0,
-    rgba(var(--color-scrim-rgb), 0.94) var(--p5-hero-text-right),
-    rgba(var(--color-scrim-rgb), 0.26) max(calc(var(--p5-hero-text-right) + var(--space-20)), 100%)
-  );
+  background: rgba(0, 0, 0, 0.74);
 }
 .p5-hero-video {
   position: absolute;
@@ -111,17 +115,20 @@
 .p5-hero-playback:focus-visible { outline: 2px solid var(--color-paper); outline-offset: 4px; }
 @media (max-width: 1023px) {
   .p5-hero-video { object-position: 60% 50%; }
-  #top .p5-home-hero[data-hero-contrast="measured"] .fam-hero[data-family-hero] .fam-hero-scrim {
-    background: linear-gradient(
-      180deg,
-      rgba(var(--color-scrim-rgb), 0.24) 0%,
-      rgba(var(--color-scrim-rgb), 0.96) var(--p5-hero-text-top),
-      rgba(var(--color-scrim-rgb), 0.96) var(--p5-hero-text-bottom),
-      rgba(var(--color-scrim-rgb), 0.72) 100%
-    );
+  /* The action bar is hidden over this hero, so reserve no bottom-bar space.
+     min-height retains natural page growth for large text and short landscapes. */
+  #top .p5-home-hero .fam-hero[data-family-hero][data-fit="viewport"] {
+    --fam-hero-available: max(0px, calc(var(--p5-hero-viewport-size) - var(--p5-hero-header-size)));
+    min-height: var(--fam-hero-available);
   }
   .p5-hero-playback { top: var(--space-4); bottom: auto; }
 }
 @media (prefers-reduced-motion: reduce) {
   .p5-hero-video { display: none; }
+}
+
+@media (max-width: 359px) {
+  /* No-JS fallback for the shared narrow header: two 44px rows plus its border.
+     The inline measured header value replaces this when JavaScript is active. */
+  .p5-home-hero { --p5-hero-header-size: calc(89px + env(safe-area-inset-top, 0px)); }
 }

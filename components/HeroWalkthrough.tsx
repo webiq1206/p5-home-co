@@ -15,59 +15,31 @@ export default function HeroWalkthrough({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const container = containerRef.current;
-    if (!container) return;
-    const copy = container.querySelector<HTMLElement>(".fam-hero-copy");
-    if (!copy) return;
-    let active = true;
+    const header = document.querySelector<HTMLElement>("[data-family-header]");
+    if (!container || !header) return;
+    const viewport = window.visualViewport;
     let frame = 0;
-    // Measure the actual line boxes, including user text spacing/enlargement.
-    // Before measurement (or without JS), the scrim stays uniformly dark.
-    const measure = () => {
-      if (!active) return;
-      const hero = container.getBoundingClientRect();
-      const lines: DOMRect[] = [];
-      for (const element of copy.querySelectorAll(".fam-hero-eyebrow, .fam-hero-title, .fam-hero-support, .fam-hero-micro")) {
-        const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
-        while (walker.nextNode()) {
-          if (!walker.currentNode.textContent?.trim()) continue;
-          const range = document.createRange();
-          range.selectNodeContents(walker.currentNode);
-          lines.push(...Array.from(range.getClientRects()));
-        }
-      }
-      if (!lines.length) return;
-      const action = copy.querySelector(".fam-hero-actions")?.getBoundingClientRect();
-      const right = Math.max(...lines.map(line => line.right)) - hero.left + 8;
-      const top = Math.max(0, Math.min(...lines.map(line => line.top)) - hero.top - 8);
-      const bottom = Math.max(...lines.map(line => line.bottom), action?.bottom ?? 0) - hero.top + 8;
-      container.style.setProperty("--p5-hero-text-right", `${Math.ceil(Math.min(hero.width, right))}px`);
-      container.style.setProperty("--p5-hero-text-top", `${Math.floor(top)}px`);
-      container.style.setProperty("--p5-hero-text-bottom", `${Math.ceil(Math.min(hero.height, bottom))}px`);
-      container.dataset.heroContrast = "measured";
+    const update = () => {
+      // The measured header includes its border and safe-area padding once.
+      // VisualViewport already excludes browser chrome; do not subtract it again.
+      const height = viewport?.scale === 1 ? viewport.height : window.innerHeight;
+      container.style.setProperty("--p5-hero-viewport-size", `${Math.ceil(height)}px`);
+      container.style.setProperty("--p5-hero-header-size", `${header.getBoundingClientRect().height}px`);
     };
     const schedule = () => {
       cancelAnimationFrame(frame);
-      frame = requestAnimationFrame(measure);
+      frame = requestAnimationFrame(update);
     };
-    const resize = new ResizeObserver(schedule);
-    resize.observe(container);
-    resize.observe(copy);
-    for (const element of copy.children) resize.observe(element);
-    const changes = new MutationObserver(schedule);
-    changes.observe(copy, { attributes: true, childList: true, characterData: true, subtree: true });
-    changes.observe(document.documentElement, { attributes: true });
-    changes.observe(document.head, { attributes: true, childList: true, characterData: true, subtree: true });
+    const observer = new ResizeObserver(schedule);
+    observer.observe(header, { box: "border-box" });
     window.addEventListener("resize", schedule);
-    document.fonts.addEventListener("loadingdone", schedule);
-    void document.fonts.ready.then(() => { if (active) schedule(); });
+    viewport?.addEventListener("resize", schedule);
     schedule();
     return () => {
-      active = false;
       cancelAnimationFrame(frame);
-      resize.disconnect();
-      changes.disconnect();
+      observer.disconnect();
       window.removeEventListener("resize", schedule);
-      document.fonts.removeEventListener("loadingdone", schedule);
+      viewport?.removeEventListener("resize", schedule);
     };
   }, []);
 

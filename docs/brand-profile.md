@@ -1,6 +1,6 @@
 # P5 Home Co brand profile
 
-Profile version: 1.3, source adoption recorded 2026-11-05. Last approved: no separate profile approval date is recorded. Current explicit owner directions govern the changes they cover; this profile records existing source and those directions, without granting a new exception or certifying the implementation. Source of truth: this file for P5 rules, the complete Website Design Quality Version 2.3 master and implementation rules, Organic and AI Search Visibility Version 1.0.2, and the concrete source/assets below.
+Profile version: 1.5, source adoption recorded 2026-11-05. Last approved: no separate profile approval date is recorded. Current explicit owner directions govern the changes they cover; this profile records existing source and those directions, without granting a new exception or certifying the implementation. Source of truth: this file for P5 rules, the complete Website Design Quality Version 2.3 master and implementation rules, Organic and AI Search Visibility Version 1.0.2, and the concrete source/assets below.
 
 ## Identity, audience and purpose
 
@@ -144,6 +144,24 @@ That heading refinement initially paired a clear upper phone/tablet image with a
 
 ### November 5 approved homepage walkthrough
 
-The owner approved the silent 24-second walkthrough and explicitly requires background video to be full bleed, full width and full height across the entire hero on every device. Do not restore a split image column, half-height mobile video or opaque lower reading panel. Use the existing `#383837` brand charcoal as a translucent overlay or gradient, darker behind text and lighter over the scene. Preserve exact logo bronze and measured contrast through the bright interior scenes, clean H1s, CTA fit and the existing copy and journeys. This explicit direction governs the P5 homepage media change; it does not authorize editing unrelated family consumers.
+The owner approved the silent 24-second walkthrough and explicitly requires background video to be full bleed, full width and full height across the entire hero on every device. Do not restore a split image column, half-height mobile video or opaque lower reading panel. The later uniform-black-overlay correction below supersedes the initial charcoal-gradient choice. Preserve exact logo bronze, clean H1s, CTA fit and the existing copy and journeys; report measured contrast conflicts honestly. This explicit direction governs the P5 homepage media change; it does not authorize editing unrelated family consumers.
 
 Approved media identity, local-byte verification and recovery are recorded in `docs/p5-hero-walkthrough-2026-11-05.md`. Use one responsive video variant per visitor, an immediate full-hero poster fallback, muted inline looping playback, reduced-motion and Save-Data handling, an accessible Play/Pause control and hidden/offscreen pause. Preserve neutral architectural descriptions; these generated design scenes are not evidence of completed P5 customer work. Final source still requires independent rendered review, exact-head checks and Jared's Replit import/publication.
+
+
+### November 5 uniform black overlay and mobile fold correction
+
+The owner rejected the regional charcoal overlay and the visible next section on phones. The initial correction specified a uniform `#000000` overlay at 60% transparency, exactly `rgba(0, 0, 0, 0.4)`. The later overlay-judgment direction below supersedes that fixed opacity after actual contrast failures. Keep one overlay over the entire hero, including video and poster fallback; do not restore a regional gradient or dynamic text-region overlay measurement. This is the owner's explicit hero-overlay color direction; standard header/menu/footer charcoal remains unchanged.
+
+On phones the hero fills the remaining current visible viewport below the actual header, reaching the fold without the next section showing initially. The homepage action bar is hidden over the hero, so no space is reserved for it. Account for current browser viewport, actual header and safe-area occupancy once. Keep full-bleed media and natural content growth for enlarged text or short landscape viewports; do not clip or hide text to force a fit. Larger-text reflow findings remain distinct from the ordinary fold requirement.
+
+The initial 40% black overlay failed actual text contrast, including all 60 sampled bronze scene/viewport combinations. That failure and the old draft blocker are historical, not the final approved design. Preserve protected typography/accent and report actual bright/dark-scene contrast honestly. Final independent review, applicable checks and owner-controlled publication remain required.
+
+
+### November 5 final uniform-overlay judgment
+
+The owner subsequently delegated overlay judgment, explicitly permitting darkening as necessary and choosing black or brand charcoal. This supersedes the fixed 40% opacity restriction. Keep the overlay uniform over the entire full-bleed hero; do not restore the rejected regional band, gradient or opaque reading panel. Exact bronze, clean typography and the corrected current-viewport phone fold remain unchanged.
+
+The P5 treatment is `rgba(0, 0, 0, 0.74)`, uniform black at 74% opacity (26% transparency), for video and every poster/preference/failure fallback. Actual-scene sampling placed the governing black threshold near 0.728; 0.72 failed and 0.73 barely passed. 0.74 adds a modest rounding/bright-frame margin. Qualifying charcoal needs about 0.94 opacity and visibly flattens the imagery; black preserves 26% of source variation rather than 6%, retaining recognizable rooms/materials. These design observations do not replace exact-final-source independent rendering and contrast checks. Do not change the protected text/accent to avoid those checks.
+
+Source merge proceeds only after required independent visual/functional review and exact-head CI, using the user's separately recorded P5 source-merge authorization. Preserve concurrent main work and verify terminal post-merge checks. Jared retains Replit import/publication; source merge is not a production release.
