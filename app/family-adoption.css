@@ -68,12 +68,14 @@
 #top .p5-home-hero .fam-hero-inner { position: relative; z-index: 1; background: none; }
 #top .p5-home-hero .fam-hero-media { height: 100%; bottom: 0; }
 #top .p5-home-hero .fam-hero[data-family-hero] .fam-hero-scrim {
-  --p5-hero-glyph-end: calc(max(var(--gutter), (100vw - var(--container-max)) / 2) + var(--fs-hero) * 6);
+  background: rgba(var(--color-scrim-rgb), 0.95);
+}
+#top .p5-home-hero[data-hero-contrast="measured"] .fam-hero[data-family-hero] .fam-hero-scrim {
   background: linear-gradient(
     90deg,
     rgba(var(--color-scrim-rgb), 0.96) 0,
-    rgba(var(--color-scrim-rgb), 0.94) var(--p5-hero-glyph-end),
-    rgba(var(--color-scrim-rgb), 0.26) 100%
+    rgba(var(--color-scrim-rgb), 0.94) var(--p5-hero-text-right),
+    rgba(var(--color-scrim-rgb), 0.26) max(calc(var(--p5-hero-text-right) + var(--space-20)), 100%)
   );
 }
 .p5-hero-video {
@@ -109,12 +111,12 @@
 .p5-hero-playback:focus-visible { outline: 2px solid var(--color-paper); outline-offset: 4px; }
 @media (max-width: 1023px) {
   .p5-hero-video { object-position: 60% 50%; }
-  #top .p5-home-hero .fam-hero[data-family-hero] .fam-hero-scrim {
+  #top .p5-home-hero[data-hero-contrast="measured"] .fam-hero[data-family-hero] .fam-hero-scrim {
     background: linear-gradient(
       180deg,
       rgba(var(--color-scrim-rgb), 0.24) 0%,
-      rgba(var(--color-scrim-rgb), 0.96) 28%,
-      rgba(var(--color-scrim-rgb), 0.96) 78%,
+      rgba(var(--color-scrim-rgb), 0.96) var(--p5-hero-text-top),
+      rgba(var(--color-scrim-rgb), 0.96) var(--p5-hero-text-bottom),
       rgba(var(--color-scrim-rgb), 0.72) 100%
     );
   }

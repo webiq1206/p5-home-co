@@ -37,6 +37,9 @@ all devices, superseding the earlier split composition. The poster and video fil
 the complete hero; a translucent brand-charcoal gradient is darker behind text
 and lighter over the architectural scene. There is no opaque lower reading panel
 or separate image column. Exact bronze and the established hero copy remain.
+The darker gradient region follows measured text lines as fonts, viewport or
+accessibility spacing change. Before measurement and without JavaScript, a
+uniform translucent charcoal scrim preserves contrast across the full poster.
 
 ## Release and recovery
 
