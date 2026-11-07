@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { withBrandPageMetadata } from "@/lib/brand-page-metadata";
 import AboutClient from "./AboutClient";
-import { serializeJsonLd } from "../structuredData";
+import { businessId, serializeJsonLd } from "../structuredData";
 import {
   CONTRACTOR_REGISTRATION,
   IDAHO_DOPL_LICENSE_SEARCH,
@@ -59,7 +59,7 @@ const aboutSchema = {
       name: title,
       description,
       isPartOf: { "@id": `${siteUrl}/#website` },
-      about: { "@id": `${siteUrl}/#organization` },
+      about: { "@id": businessId },
       mainEntity: { "@id": NICK_PERKINS_ID },
       speakable: {
         "@type": "SpeakableSpecification",
