@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
-import { execFileSync } from "node:child_process";
-import { join } from "node:path";
+import { readdirSync, readFileSync, statSync } from "node:fs";
+import { join, relative } from "node:path";
 import test from "node:test";
 
 import { INSURED_ANSWER } from "../app/publicClaims.ts";
@@ -14,18 +14,28 @@ import { siteDescription, siteSchema } from "../app/structuredData.ts";
  */
 const PENDING_FAQ_FILES = new Set(["app/site.ts"]);
 
+const root = join(import.meta.dirname, "..");
+
 function bondedHits(): string[] {
-  try {
-    const stdout = execFileSync("rg", ["-i", "-n", "bonded", "app", "public"], {
-      cwd: join(import.meta.dirname, ".."),
-      encoding: "utf8",
-    });
-    return stdout.split("\n").filter(Boolean);
-  } catch (error) {
-    const failed = error as { status?: number; stdout?: string };
-    if (failed.status === 1) return [];
-    throw error;
+  const hits: string[] = [];
+  for (const dir of ["app", "public"]) {
+    const walk = (current: string) => {
+      for (const name of readdirSync(current)) {
+        const path = join(current, name);
+        if (statSync(path).isDirectory()) {
+          walk(path);
+          continue;
+        }
+        const text = readFileSync(path, "utf8");
+        const lines = text.split("\n");
+        for (let index = 0; index < lines.length; index += 1) {
+          if (/bonded/i.test(lines[index] ?? "")) hits.push(`${relative(root, path)}:${index + 1}:${lines[index]}`);
+        }
+      }
+    };
+    walk(join(root, dir));
   }
+  return hits;
 }
 
 test("bonded stays out of app and public except the registration FAQ PR 203 owns", () => {
