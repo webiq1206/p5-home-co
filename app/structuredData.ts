@@ -26,9 +26,7 @@ export const P5_SAME_AS = [
 ] as const;
 
 /** Brand profiles only. P5's Nextdoor page is not repeated on Boise Remodeling. */
-const BRAND_SAME_AS: Record<string, readonly string[]> = {
-  "Boise Cabinet Co": ["https://www.yelp.com/biz/boise-cabinet-meridian-3"],
-};
+const BRAND_SAME_AS: Record<string, readonly string[]> = {};
 
 const BRAND_ORIGINS = [
   ["Boise Construction Co", "https://boiseconstruction.co"],

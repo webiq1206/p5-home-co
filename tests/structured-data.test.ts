@@ -163,12 +163,9 @@ test("each subOrganization has its own @id and url", () => {
   }
   const cabinet = organization.subOrganization.find((node) => node.name === "Boise Cabinet Co");
   const remodeling = organization.subOrganization.find((node) => node.name === "Boise Remodeling Co");
-  assert.deepEqual(cabinet?.sameAs, ["https://www.yelp.com/biz/boise-cabinet-meridian-3"]);
+  assert.equal("sameAs" in (cabinet ?? {}), false);
   assert.equal("sameAs" in (remodeling ?? {}), false);
-  assert.equal(
-    organization.subOrganization.some((node) => node.name !== "Boise Cabinet Co" && "sameAs" in node),
-    false,
-  );
+  assert.equal(organization.subOrganization.some((node) => "sameAs" in node), false);
   const graphIds = records(siteSchema).flatMap((record) => (
     record["@type"] && record["@id"] ? [String(record["@id"])] : []
   ));
