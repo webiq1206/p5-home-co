@@ -210,11 +210,7 @@ export default function QuoteLanding({ service }: { service: QuoteService | null
           </section>
 
           {/* The service-area line the old quote footer carried; the family footer is shared by every page. */}
-          <p className="quote-shell quote-area">
-            {service?.slug === "adu"
-              ? COVERAGE_LINE
-              : "Serving Boise, Meridian, Eagle, Nampa, Kuna, Star, Middleton, Caldwell, and Garden City across Ada and Canyon counties."}
-          </p>
+          <p className="quote-shell quote-area">{COVERAGE_LINE}</p>
         </main>
       </div>
     </SiteChrome>
