@@ -86,7 +86,8 @@ test("public schema keeps the locality and service areas while street verificati
   assert.notEqual(siteDescription, HOME_DESCRIPTION);
   assert.equal(readFileSync("app/page.tsx", "utf8").includes("description: HOME_DESCRIPTION"), true);
   assert.equal(readFileSync("app/page.tsx", "utf8").includes("description: siteDescription"), false);
-  assert.equal(JSON.stringify(siteSchema).includes("Gem"), false);
+  assert.equal(JSON.stringify(siteSchema).includes("Gem County, Idaho"), true);
+  assert.equal(organization.areaServed.some((entry) => entry["@type"] === "City" && entry.name === "Emmett"), true);
 
   const addresses = records(siteSchema).filter((record) => record["@type"] === "PostalAddress");
   assert.equal(addresses.length, 1);

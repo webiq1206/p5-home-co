@@ -3,16 +3,9 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 import test from "node:test";
 
-import { INSURED_ANSWER } from "../app/publicClaims.ts";
 import { PROOF_POINTS, WORKING_HERE_SINCE_2020 } from "../app/quote/proof.ts";
 import { citiesServed, faqs } from "../app/site.ts";
 import { siteDescription, siteSchema } from "../app/structuredData.ts";
-
-/**
- * PR #203 owns the registration FAQ. Until it lands, these are the only
- * allowed "bonded" hits under app/ and public/.
- */
-const PENDING_FAQ_FILES = new Set(["app/site.ts"]);
 
 const root = join(import.meta.dirname, "..");
 
@@ -38,17 +31,8 @@ function bondedHits(): string[] {
   return hits;
 }
 
-test("bonded stays out of app and public except the registration FAQ PR 203 owns", () => {
-  const unexpected: string[] = [];
-  for (const hit of bondedHits()) {
-    const file = hit.split(":")[0] ?? "";
-    if (PENDING_FAQ_FILES.has(file)) continue;
-    if (file === "public/llms-full.txt" && /are the p5 companies bonded and insured|bonded and insured and handle permits/i.test(hit)) {
-      continue;
-    }
-    unexpected.push(hit);
-  }
-  assert.deepEqual(unexpected, []);
+test("bonded does not appear under app or public", () => {
+  assert.deepEqual(bondedHits(), []);
 });
 
 const COVERAGE = "Insured. Serving Ada, Canyon and Gem counties.";
@@ -70,7 +54,6 @@ test("the insured coverage line and Gem County entries match the copy lead spec"
   assert.match(PROOF_POINTS[0]?.detail ?? "", /#8381215/);
   assert.match(WORKING_HERE_SINCE_2020.detail, /Ada, Canyon and Gem counties/);
   assert.match(PROOF_POINTS.find((point) => point.label === "Permits handled in-house")?.detail ?? "", /Ada, Canyon and Gem counties/);
-  const question = faqs.find((item) => item.q === "Are the P5 companies bonded and insured?");
-  assert.equal(question?.a, INSURED_ANSWER);
-  assert.equal(/bonded/i.test(question?.a ?? ""), false);
+  const question = faqs.find((item) => item.q === "Are the P5 companies registered and insured?");
+  assert.equal(question?.a, "Yes. P5 Home Co LLC, Idaho Registered Contractor #8381215. Insured; certificate on request.");
 });
