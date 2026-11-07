@@ -5,8 +5,8 @@
  *
  * P5 is a single-page site whose real job is to route visitors to five child
  * companies, so its crawl path is short by design: this site's own pages, then
- * a followed link to each child site. Boise ADU Co is listed but not linked -
- * its domain does not resolve yet (see replit.md); link it only once live.
+ * a followed link to each child site. Boise ADU Co links to /quote/adu.
+ * Its own domain is not a public destination.
  */
 import { companies, siteUrl } from "./site.ts";
 import { QUOTE_SERVICES } from "./quote/services.ts";

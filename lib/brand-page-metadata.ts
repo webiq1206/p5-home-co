@@ -1,4 +1,5 @@
 import type {Metadata} from 'next';
+import {HOME_DESCRIPTION,HOME_TITLE} from '../app/visibilityCopy.ts';
 import {selfCanonical} from './canonicalUrl.ts';
 import {ESTIMATOR_BRAND as brand} from './p5/brand.ts';
 
@@ -31,7 +32,7 @@ const COPY:Record<string,Record<string,Copy>>={
   '/contact':{title:'Contact Our Boise Cabinet Team',description:'Discuss cabinet layouts, finishes, supply or installation with Boise Cabinet Co. Call our team or request help with your Treasure Valley cabinet project.'},
   '/resources':{title:'Cabinet Planning Worksheets & Guides',description:'Plan your cabinetry with budget worksheets, kitchen and bath checklists, and local permit guidance from Boise Cabinet Co in Idaho’s Treasure Valley.'}},
  p5:{
-  '/':{title:'Boise Builders, Remodelers, Cabinets & Repairs',description:'P5 Home Co is the parent of Boise Construction, Remodeling, Cabinet and Handyman Co. One quote request reaches the right Treasure Valley team.'},
+  '/':{title:HOME_TITLE,description:HOME_DESCRIPTION},
   '/about':{title:'About Nick Perkins and the P5 Companies',description:'About P5 Home Co: founder Nick Perkins, a construction project manager and father of five, and the four Treasure Valley companies that carry his name.'},
   '/quote':{title:'Request a Home Project Quote in Boise',description:'Describe your remodel, new home, cabinet or repair project and attach plans or a scope. Request a Treasure Valley quote from the right P5 Home Co team.'},
   '/sitemap':{title:'Site Map',description:'Find P5 Home Co pages, quote forms and links to our Boise construction, remodeling, handyman and cabinet companies in Idaho’s Treasure Valley.'}}
@@ -55,7 +56,7 @@ export function withBrandPageMetadata(input:Metadata,routeHint?:string):Metadata
  const meta=withoutCampaignCanonical(input);
  const override=routeHint==='__layout__'?undefined:COPY[brand.id]?.[pagePath(meta,routeHint)];
  const original=titleText(meta);
- const title=override?`${override.title} | ${brand.name}`:original.includes(brand.name)?original:`${original} | ${brand.name}`;
+ const title=override?(override.title.includes(' | ')?override.title:`${override.title} | ${brand.name}`):original.includes(brand.name)?original:`${original} | ${brand.name}`;
  const description=override?.description||meta.description||undefined;
  const image={url:BRAND_PAGE_IMAGE,width:1200,height:630,alt:`${brand.name} brand seal`};
  const icons=routeHint==='__layout__'?{

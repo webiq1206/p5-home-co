@@ -13,7 +13,7 @@
  * Server-renderable: no hooks, so the image and H1 are in the first HTML.
  */
 import { getImageProps } from 'next/image';
-import type { CSSProperties } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
 import { FAMILY_BRAND } from '@/lib/familyBrand';
 import { brandStyle } from './brandStyle';
 import { FamilyButton } from './Button';
@@ -43,6 +43,8 @@ export interface HeroPhotoProps {
   title: string;
   /** Second declarative, set on its own line in the brand accent. */
   titleAccent?: string;
+  /** Plain paragraph under the H1 and above the support line. */
+  answer?: ReactNode;
   support?: string;
   primary: { label: string; href: string };
   link?: { label: string; href: string };
@@ -63,7 +65,7 @@ function wordCount(text: string): number {
   return text.trim().split(/\s+/).filter(Boolean).length;
 }
 
-export function HeroPhoto({ image, phoneImage, eyebrow, title, titleAccent, support, primary, link, microcopy, scrim = 'standard', fit }: HeroPhotoProps) {
+export function HeroPhoto({ image, phoneImage, eyebrow, title, titleAccent, answer, support, primary, link, microcopy, scrim = 'standard', fit }: HeroPhotoProps) {
   if (support && wordCount(support) > 14 && process.env.NODE_ENV !== 'production') {
     console.warn(`HeroPhoto: support line is ${wordCount(support)} words; the template allows 14.`);
   }
@@ -122,6 +124,7 @@ export function HeroPhoto({ image, phoneImage, eyebrow, title, titleAccent, supp
               </>
             ) : null}
           </h1>
+          {answer}
           {support ? <p className="fam-hero-support">{support}</p> : null}
           <div className="fam-hero-actions">
             <FamilyButton href={primary.href} variant="hero" size="lg" data-hero-cta="primary" data-cta="primary">

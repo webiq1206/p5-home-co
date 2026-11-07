@@ -45,12 +45,19 @@ export const SISTER_LINE =
 export const LLMS_CONTACT =
   `Serving Boise and the Treasure Valley. Phone (208) 477-1169. Email hello@p5homeco.com. Hours: ${BUSINESS_HOURS_LABEL}.`;
 
+/** Public ADU destination. boiseadu.co is not a public link. */
+export const ADU_QUOTE_URL = "https://p5homeco.com/quote/adu";
+
+export function leavesThisSite(href: string): boolean {
+  return href.startsWith("http") && !href.startsWith("https://p5homeco.com") && !href.startsWith("http://p5homeco.com");
+}
+
 export const SISTER_LINKS = [
   { label: "Boise Construction Co", href: "https://boiseconstruction.co" },
   { label: "Boise Remodeling Co", href: "https://boiseremodeling.co" },
   { label: "Boise Cabinet Co", href: "https://boisecabinet.co" },
   { label: "Boise Handyman Co", href: "https://boisehandyman.co" },
-  { label: "Boise ADU Co", href: "https://boiseconstruction.co" },
+  { label: "Boise ADU Co", href: ADU_QUOTE_URL },
 ] as const;
 
 /** Project-routing line for the ADU card and FAQ. */

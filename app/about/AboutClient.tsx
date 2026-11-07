@@ -6,7 +6,8 @@ import Link from "next/link";
 import SiteChrome from "@/components/SiteChrome";
 import { FamilyButton } from "@/components/family/Button";
 import SaveContactButton from "@/components/SaveContactButton";
-import { ADU_CONSTRUCTION_URL } from "../publicIdentity";
+import { AduLinkedText } from "@/components/AduLinkedText";
+import { ADU_QUOTE_URL, leavesThisSite } from "../publicIdentity";
 
 const COMPANIES = [
   {
@@ -32,7 +33,7 @@ const COMPANIES = [
   // Listed so the count matches the homepage and sitemap: four live sites plus Boise ADU Co, shown as coming.
   {
     name: "Boise ADU Co",
-    href: ADU_CONSTRUCTION_URL,
+    href: ADU_QUOTE_URL,
     line: "projects run through Boise Construction Co.",
   },
 ] as const;
@@ -165,7 +166,7 @@ export default function AboutClient({
           <h2 id="the-company">The company</h2>
           <ul>
             <li>P5 Home Co LLC, Meridian, Idaho.{" "}<a href={doplLookup} target="_blank" rel="noopener noreferrer">Idaho Registered Contractor #{registration}</a>. Insured; certificate on request.</li>
-            <li>Boise Construction Co, Boise Remodeling Co, Boise Cabinet Co and Boise Handyman Co are DBAs of P5 Home Co LLC; Boise ADU Co projects currently run through Boise Construction Co.</li>
+            <li><AduLinkedText text="Boise Construction Co, Boise Remodeling Co, Boise Cabinet Co and Boise Handyman Co are DBAs of P5 Home Co LLC; Boise ADU Co projects currently run through Boise Construction Co."></AduLinkedText></li>
           </ul>
         </section>
 
@@ -174,7 +175,7 @@ export default function AboutClient({
           <ul className="about-company-list">
             {COMPANIES.map((company) => (
               <li key={company.name}>
-                <a href={company.href} target="_blank" rel="noopener">
+                <a href={company.href} {...(leavesThisSite(company.href) ? { target: "_blank", rel: "noopener" } : undefined)}>
                   {company.name}
                 </a>{" "}
                 {company.line}

@@ -7,16 +7,14 @@ import {
 // the JSON-LD entity graph, robots.txt, and the sitemap. Change it here
 // only; nothing else should hardcode the domain.
 import {
-  BONDED_ANSWER,
-  BONDED_SINCE_2020_ANSWER,
   SELF_PERFORM_FAQ,
-  SHOW_FOUNDING_YEAR,
   SHOW_UNPROVEN_SELF_PERFORM,
   SPECIALTY_FAQ,
   constructionImage,
   handymanImage,
 } from "./publicClaims.ts";
-import { ADU_D3_LINE } from "./publicIdentity.ts";
+import { ADU_D3_LINE, ADU_QUOTE_URL } from "./publicIdentity.ts";
+import { ADDED_FAQS, COVERAGE_LINE } from "./visibilityCopy.ts";
 
 export const siteUrl = "https://p5homeco.com";
 
@@ -60,7 +58,7 @@ export const companies = [
   {
     name: "Boise ADU Co",
     image: FEATURED_BOISE_ADU.src,
-    url: "https://boiseconstruction.co",
+    url: ADU_QUOTE_URL,
     description: ADU_D3_LINE,
   },
 ] as const;
@@ -104,28 +102,21 @@ export const faqs = [
   },
   {
     q: "How do I start an ADU project?",
-    a: `${ADU_D3_LINE} Start with Boise Construction Co, or send a short request on this site and we will route it.`,
+    a: "Start with Boise ADU Co, or send a short request on this site and we will route it.",
   },
   {
     q: "Which areas do the P5 companies serve?",
-    a: "P5 companies serve homeowners across Ada and Canyon counties in Idaho's Treasure Valley, including Boise, Meridian, Eagle, Nampa, Kuna, Star, Middleton, Caldwell, and Garden City.",
+    a: COVERAGE_LINE,
   },
   {
     q: "What happens before the work begins?",
     a: "You get planning guidance and written scope details, so you understand the work before it starts. You will know who owns the next step and who to contact, and decisions, schedule changes, and budget impacts are raised early and documented clearly.",
   },
   {
-    q: "Are the P5 companies bonded and insured?",
-    a: SHOW_FOUNDING_YEAR ? BONDED_SINCE_2020_ANSWER : BONDED_ANSWER,
-  },
-  {
-    q: "What does \"don't pay for our overhead\" mean?",
-    a: "No showroom, no sales team and no office lease are built into your price. You pay for the people and materials on your job, and the written scope shows every line. It does not mean cheapest. Trade partners, permits, insurance and the warranty are in the price because the job needs them.",
-  },
-  {
     q: "Who handles RE-10 inspection repairs?",
     a: "Boise Handyman Co handles basic home repairs and RE-10 inspection repairs. Share the repair list so the team can review the scope and next steps.",
   },
+  ...ADDED_FAQS,
 ] as const;
 
 // GA4 measurement ID for the "P5 Home Co" property (551 / 550935991) in the

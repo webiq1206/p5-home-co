@@ -11,8 +11,9 @@ import {
 } from "./publicIdentity.ts";
 import { SHOW_FOUNDING_YEAR } from "./publicClaims.ts";
 import { citiesServed, companies, faqs, siteUrl } from "./site.ts";
+import { HOME_TITLE } from "./visibilityCopy.ts";
 
-export const siteTitle = "Boise Builders, Remodelers, Cabinets & Repairs | P5 Home Co";
+export const siteTitle = HOME_TITLE;
 export const siteDescription =
   "Parent company of Boise Construction Co, Boise Remodeling Co, Boise Cabinet Co and Boise Handyman Co in Idaho's Treasure Valley.";
 

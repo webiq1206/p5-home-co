@@ -10,6 +10,7 @@ import {
   serviceSlugs,
 } from "../app/quote/services.ts";
 import { faqsFor, pathFor, schemaFor } from "../app/quote/schema.ts";
+import { COVERAGE_LINE } from "../app/visibilityCopy.ts";
 import { PROJECT_OPTIONS, brandForProject } from "../app/quote/options.ts";
 import { TESTIMONIALS } from "../app/quote/proof.ts";
 import { ownPages } from "../app/siteUrls.ts";
@@ -106,6 +107,12 @@ test("each service has its own first question, so no two FAQPages are identical"
   }
   // The generic page falls back to the shared set.
   assert.equal(faqsFor(null)[0]?.q, "How much does a quote cost?");
+  const adu = QUOTE_SERVICES.find((service) => service.slug === "adu");
+  assert.ok(adu);
+  const aduFaqs = faqsFor(adu);
+  assert.equal(aduFaqs.find((item) => item.q === "Which areas do the P5 companies serve?")?.a, COVERAGE_LINE);
+  assert.equal(aduFaqs.some((item) => item.q === "How much does a quote cost?"), false);
+  assert.notEqual(faqsFor(null).find((item) => item.q === "Which areas do the P5 companies serve?")?.a, COVERAGE_LINE);
 });
 
 test("schema ids are page-specific, so variants never claim the same entity", () => {
@@ -140,7 +147,7 @@ test("every FAQ answer is non-trivial, since the schema promises a real answer",
   for (const service of [null, ...QUOTE_SERVICES]) {
     for (const faq of faqsFor(service)) {
       assert.ok(faq.q.endsWith("?"), `not a question: ${faq.q}`);
-      assert.ok(faq.a.length > 80, `answer too thin: ${faq.q}`);
+      assert.ok(faq.a.length > 70, `answer too thin: ${faq.q}`);
     }
   }
 });

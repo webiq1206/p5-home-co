@@ -15,7 +15,9 @@ import {
   FEATURED_BOISE_BATHROOM,
   FEATURED_BOISE_ADU,
 } from "../imageVariants.ts";
+import { AduLinkedText } from "@/components/AduLinkedText";
 import { ADU_D3_LINE } from "../publicIdentity";
+import { COVERAGE_LINE } from "../visibilityCopy";
 
 /* eslint-disable @next/next/no-img-element */
 
@@ -73,9 +75,11 @@ export default function QuoteLanding({ service }: { service: QuoteService | null
                   decoding="async"
                 />
                 <p className="quote-lead">
-                  {service
-                    ? service.lead
-                    : "Tell us what you want done and P5 Home Co sends it to the right specialist team, whether that is a kitchen remodel, a custom home, an ADU, new cabinetry, or a repair. Quotes are free, carry no obligation, and come with a written scope so you can compare them properly."}
+                  <AduLinkedText
+                    text={service
+                      ? service.lead
+                      : "Tell us what you want done and P5 Home Co sends it to the right specialist team, whether that is a kitchen remodel, a custom home, an ADU, new cabinetry, or a repair. Quotes are free, carry no obligation, and come with a written scope so you can compare them properly."}
+                  ></AduLinkedText>
                 </p>
                 {service && (
                   <ul className="quote-covers" aria-label="What this covers">
@@ -181,8 +185,8 @@ export default function QuoteLanding({ service }: { service: QuoteService | null
               </ul>
               <p className="quote-section-lead quote-others-note">
                 P5 Home Co is an operating family of companies, not a directory or a referral
-                network. {SHOW_UNPROVEN_SELF_PERFORM ? QUOTE_SELF_PERFORM : `${QUOTE_SPECIALTY} ${CREW_AND_TRADES}`}{" "}
-                {ADU_D3_LINE}{" "}
+                network.                 {SHOW_UNPROVEN_SELF_PERFORM ? QUOTE_SELF_PERFORM : `${QUOTE_SPECIALTY} ${CREW_AND_TRADES}`}{" "}
+                <AduLinkedText text={ADU_D3_LINE}></AduLinkedText>{" "}
                 <Link href="/#p5-standard">Read the P5 standard</Link>.
               </p>
             </div>
@@ -196,7 +200,7 @@ export default function QuoteLanding({ service }: { service: QuoteService | null
                   {faqs.map((item) => (
                     <div key={item.q}>
                       <dt>{item.q}</dt>
-                      <dd>{item.a}</dd>
+                      <dd><AduLinkedText text={item.a}></AduLinkedText></dd>
                     </div>
                   ))}
                 </dl>
@@ -207,8 +211,9 @@ export default function QuoteLanding({ service }: { service: QuoteService | null
 
           {/* The service-area line the old quote footer carried; the family footer is shared by every page. */}
           <p className="quote-shell quote-area">
-            Serving Boise, Meridian, Eagle, Nampa, Kuna, Star, Middleton, Caldwell, and Garden City across Ada and
-            Canyon counties.
+            {service?.slug === "adu"
+              ? COVERAGE_LINE
+              : "Serving Boise, Meridian, Eagle, Nampa, Kuna, Star, Middleton, Caldwell, and Garden City across Ada and Canyon counties."}
           </p>
         </main>
       </div>

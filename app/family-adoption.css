@@ -73,6 +73,17 @@
 #top .p5-home-hero .fam-hero-inner { position: relative; z-index: 1; background: none; }
 #top .p5-home-hero .fam-hero-copy { min-width: 0; }
 #top .p5-home-hero .fam-hero-title { overflow-wrap: anywhere; }
+#top .p5-home-hero .p5-aeo {
+  max-width: 65ch;
+  margin: var(--space-4) 0 0;
+  color: var(--color-paper);
+  font: 400 var(--fs-body) / var(--lh-body) var(--font-sans);
+}
+#top .p5-home-hero .fam-hero-support { margin-top: var(--space-4); }
+@media (min-width: 1024px) {
+  #top .p5-home-hero .p5-aeo { margin-top: var(--space-5); }
+  #top .p5-home-hero .fam-hero-support { margin-top: var(--space-5); }
+}
 #top .p5-home-hero .fam-hero-actions .fam-btn {
   max-width: 100%;
   white-space: normal;

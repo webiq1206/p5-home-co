@@ -5,7 +5,8 @@ import { readFileSync } from "node:fs";
 import { schemaFor } from "../app/quote/schema.ts";
 import { QUOTE_SERVICES } from "../app/quote/services.ts";
 import { NICK_PERKINS_ID, SCHEMA_LEGAL_NAME, SCHEMA_TELEPHONE } from "../app/publicIdentity.ts";
-import { homePageSchema, serializeJsonLd, siteSchema, siteTitle } from "../app/structuredData.ts";
+import { homePageSchema, serializeJsonLd, siteDescription, siteSchema, siteTitle } from "../app/structuredData.ts";
+import { ADDED_FAQS, COVERAGE_LINE, HOME_DESCRIPTION, HOME_TITLE } from "../app/visibilityCopy.ts";
 import { ESTIMATOR_BRAND } from "../lib/p5/brand.ts";
 
 function types(value: unknown): string[] {
@@ -75,8 +76,17 @@ test("public schema keeps the locality and service areas while street verificati
     "https://www.facebook.com/1228704823655951",
     "https://www.google.com/search?kgmid=/g/11ntl1t7dc",
   ]);
-  assert.equal(siteTitle, "Boise Builders, Remodelers, Cabinets & Repairs | P5 Home Co");
+  assert.equal(siteTitle, HOME_TITLE);
+  assert.equal(siteTitle, "Boise Construction, Remodeling, Cabinet, Handyman, ADU | P5");
   assert.ok(siteTitle.length <= 60);
+  assert.equal(homePageSchema.description, siteDescription);
+  assert.equal(homePageSchema.name, HOME_TITLE);
+  assert.equal(siteSchema["@graph"][0].description, siteDescription);
+  assert.equal(siteSchema["@graph"][1].description, siteDescription);
+  assert.notEqual(siteDescription, HOME_DESCRIPTION);
+  assert.equal(readFileSync("app/page.tsx", "utf8").includes("description: HOME_DESCRIPTION"), true);
+  assert.equal(readFileSync("app/page.tsx", "utf8").includes("description: siteDescription"), false);
+  assert.equal(JSON.stringify(siteSchema).includes("Gem"), false);
 
   const addresses = records(siteSchema).filter((record) => record["@type"] === "PostalAddress");
   assert.equal(addresses.length, 1);
@@ -101,6 +111,16 @@ test("the homepage owns its FAQPage schema", () => {
   assert.ok(types(homePageSchema).includes("FAQPage"));
   assert.equal(homePageSchema.url, "https://p5homeco.com");
   assert.ok(homePageSchema.mainEntity.length > 0);
+  const area = homePageSchema.mainEntity.find((item) => item.name === "Which areas do the P5 companies serve?");
+  assert.equal(area?.acceptedAnswer.text, COVERAGE_LINE);
+  for (const item of ADDED_FAQS) {
+    const found = homePageSchema.mainEntity.find((entry) => entry.name === item.q);
+    assert.equal(found?.acceptedAnswer.text, item.a);
+  }
+  const published = homePageSchema.mainEntity.map((item) => `${item.name} ${item.acceptedAnswer.text}`).join("\n");
+  assert.equal(/bonded/i.test(published), false);
+  assert.equal(/showroom/i.test(published), false);
+  assert.equal(published.includes("boiseadu.co"), false);
 });
 
 test("each quote route emits exactly its own FAQPage", () => {

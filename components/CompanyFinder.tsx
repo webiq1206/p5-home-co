@@ -6,7 +6,8 @@ import { useEffect, useState } from "react";
 import Arrow from "@/components/Arrow";
 import { FamilyButton } from "@/components/family/Button";
 import { track } from "@/app/analytics";
-import { ADU_CONSTRUCTION_URL, ADU_D3_LINE } from "@/app/publicIdentity";
+import { AduLinkedText } from "@/components/AduLinkedText";
+import { ADU_D3_LINE, ADU_QUOTE_URL, leavesThisSite } from "@/app/publicIdentity";
 
 type CompanyKey = "construction" | "remodeling" | "cabinetry" | "handyman" | "adu";
 
@@ -57,8 +58,8 @@ const DETAILS: Record<
   adu: {
     name: "Boise ADU Co",
     reason: ADU_D3_LINE,
-    url: ADU_CONSTRUCTION_URL,
-    cta: "Visit Boise Construction Co",
+    url: ADU_QUOTE_URL,
+    cta: "Start an ADU quote",
     label: "Add an ADU",
     accent: "#c97c99",
   },
@@ -114,17 +115,17 @@ export default function CompanyFinder() {
         {company && detail && (
           <div className="company-finder-result" style={{ ["--choice-accent" as string]: detail.accent }}>
             <p className="company-finder-kicker">Your P5 match</p>
-            <h3>{detail.name}</h3>
-            <p>{detail.reason}</p>
+            <h3><AduLinkedText text={detail.name}></AduLinkedText></h3>
+            <p><AduLinkedText text={detail.reason}></AduLinkedText></p>
             <div className="company-finder-actions">
               <FamilyButton
                 size="lg"
                 href={detail.url}
-                target={detail.url.startsWith("http") ? "_blank" : undefined}
-                rel={detail.url.startsWith("http") ? "noopener" : undefined}
-                onClick={() => track("company_click", { company, location: "company_finder" })}
+                target={leavesThisSite(detail.url) ? "_blank" : undefined}
+                rel={leavesThisSite(detail.url) ? "noopener" : undefined}
+                onClick={() => track(leavesThisSite(detail.url) ? "company_click" : "quote_click", { company, location: "company_finder" })}
               >
-                {detail.cta} <Arrow diagonal={detail.url.startsWith("http")} />
+                {detail.cta} <Arrow diagonal={leavesThisSite(detail.url)} />
               </FamilyButton>
               <Link
                 className="text-link"

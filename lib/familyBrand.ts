@@ -12,7 +12,7 @@
 import type { FamilyBrand } from '@/lib/family/types';
 import { BUSINESS_HOURS_LABEL } from '@/lib/businessHours';
 import {
-  ADU_CONSTRUCTION_URL,
+  ADU_QUOTE_URL,
   IDAHO_DOPL_LICENSE_SEARCH,
   P5_FACEBOOK_URL,
   P5_GOOGLE_BUSINESS_PROFILE_URL,
@@ -101,12 +101,12 @@ export const FAMILY_BRAND: FamilyBrand = {
       { label: 'Privacy policy', href: '/legal/privacy' },
       { label: 'Terms of service', href: '/legal/terms' },
     ],
-    // The approved Boise ADU Co line (ADU_D3_LINE), with its link to Boise Construction Co.
+    // The approved Boise ADU Co line (ADU_D3_LINE). The name links to the P5 quote path.
     disclosure: {
-      before: 'Boise ADU Co projects run through ',
-      linkLabel: 'Boise Construction Co',
-      href: ADU_CONSTRUCTION_URL,
-      after: '.',
+      before: '',
+      linkLabel: 'Boise ADU Co',
+      href: ADU_QUOTE_URL,
+      after: ' projects run through Boise Construction Co.',
     },
     copyrightName: 'P5 Home Co',
   },

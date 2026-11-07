@@ -35,9 +35,9 @@ test("the 2020 founding claim stays in source and is hidden by default", () => {
   assert.match(BONDED_SINCE_2020_ANSWER, /since 2020/);
   assert.equal(WORKING_HERE_SINCE_2020.label, "Working here since 2020");
 
-  const answer = faqs.find((item) => item.q === "Are the P5 companies bonded and insured?")?.a ?? "";
-  assert.equal(answer, BONDED_ANSWER);
-  assert.equal(answer.includes("2020"), false);
+  assert.equal(faqs.some((item) => item.q === "Are the P5 companies bonded and insured?"), false);
+  assert.equal(BONDED_ANSWER.includes("2020"), false);
+  assert.equal(faqs.some((item) => /bonded/i.test(`${item.q} ${item.a}`)), false);
   assert.equal(PROOF_POINTS.some((point) => /2020/.test(`${point.label} ${point.detail}`)), false);
   const schema = JSON.stringify(siteSchema);
   assert.equal(schema.includes("foundingDate"), false);
