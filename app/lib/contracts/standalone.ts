@@ -60,7 +60,6 @@ export const handymanAgreement: DocumentTemplate = {
     { key: "price_or_rate", label: "Price, or hourly rate and material markup", kind: "text", required: true },
     { key: "not_to_exceed", label: "Not-to-exceed amount", kind: "money", required: false, help: "Strongly recommended on time and materials work. Without it the client has no ceiling and no way to plan." },
     { key: "payer", label: "Who pays", kind: "text", required: true, help: "The client, the brokerage, or escrow at closing. On realtor work this is the question that causes trouble later." },
-    { key: "warranty_days", label: "Workmanship warranty, days", kind: "number", required: true },
   ],
   clauses: [
     {
@@ -125,8 +124,8 @@ export const handymanAgreement: DocumentTemplate = {
     {
       heading: "7. Warranty",
       body:
-        "P5 warrants its workmanship for {{warranty_days}} days from completion and will correct defective " +
-        "workmanship at no cost within that period on written notice.\n\n" +
+        "P5 warrants its workmanship and will correct defective " +
+        "workmanship at no cost on written notice.\n\n" +
         "This warranty does not cover materials supplied by Client, pre-existing conditions, normal wear, or " +
         "the continued performance of a system or component that P5 repaired but did not replace.",
       rationale:
@@ -214,7 +213,6 @@ export const cabinetAgreement: DocumentTemplate = {
     { key: "balance_terms", label: "Balance terms", kind: "multiline", required: true },
     { key: "measured_by", label: "Field measurements taken by", kind: "text", required: true, help: "P5, or the client / their contractor. This decides who pays for a misfit." },
     { key: "lead_time_weeks", label: "Estimated lead time, weeks", kind: "number", required: true },
-    { key: "warranty_months", label: "Installation workmanship warranty, months", kind: "number", required: true },
   ],
   clauses: [
     {
@@ -287,8 +285,7 @@ export const cabinetAgreement: DocumentTemplate = {
       body:
         "Product is covered by the manufacturer's warranty, which P5 passes through to Client in full. P5 " +
         "makes no separate warranty of the product itself.\n\n" +
-        "Where P5 installed, P5 warrants its installation workmanship for {{warranty_months}} months from " +
-        "completion.\n\n" +
+        "Where P5 installed, P5 warrants its installation workmanship.\n\n" +
         "Natural variation in wood grain, colour and figure, and normal movement of wood with humidity, are " +
         "characteristics of the material and are not defects.",
       rationale:

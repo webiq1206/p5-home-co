@@ -15,7 +15,7 @@ import { HOME_TITLE } from "./visibilityCopy.ts";
 
 export const siteTitle = HOME_TITLE;
 export const siteDescription =
-  "Parent company of Boise Construction Co, Boise Remodeling Co, Boise Cabinet Co and Boise Handyman Co in Idaho's Treasure Valley.";
+  "Parent company of Boise Construction Co, Boise Remodeling Co, Boise Cabinet Co, Boise Handyman Co and Boise ADU Co in Idaho's Treasure Valley.";
 
 /** Entities that describe the publisher and website on every public page. */
 export const siteSchema = {
@@ -74,10 +74,12 @@ export const siteSchema = {
       areaServed: [
         { "@type": "AdministrativeArea", name: "Ada County, Idaho" },
         { "@type": "AdministrativeArea", name: "Canyon County, Idaho" },
+        { "@type": "AdministrativeArea", name: "Gem County, Idaho" },
         ...citiesServed.map((name) => ({
           "@type": "City",
           name,
         })),
+        { "@type": "City", name: "Emmett" },
       ],
       // One node per company with its own site. Boise ADU Co has no site yet and
       // runs through Boise Construction Co, so it would repeat Construction's

@@ -26,7 +26,7 @@ export interface ProofPoint {
 /** Kept for the founding-phrase guard. Not a second badge when the flag is on. */
 export const WORKING_HERE_SINCE_2020: ProofPoint = {
   label: "Working here since 2020",
-  detail: "Building, remodeling, and repairing homes across Ada and Canyon counties.",
+  detail: "Building, remodeling, and repairing homes across Ada, Canyon and Gem counties.",
 };
 
 const FIVE_SPECIALIST_TEAMS: ProofPoint = {
@@ -41,7 +41,7 @@ const SPECIALIST_TEAMS: ProofPoint = {
 
 export const PROOF_POINTS: readonly ProofPoint[] = [
   {
-    label: "Bonded and insured",
+    label: "Insured. Serving Ada, Canyon and Gem counties.",
     detail: "Idaho Registered Contractor #8381215, carried across all five companies.",
 
   },
@@ -51,7 +51,7 @@ export const PROOF_POINTS: readonly ProofPoint[] = [
   },
   {
     label: "Permits handled in-house",
-    detail: "We deal with Ada and Canyon County permitting where a project requires it.",
+    detail: "We deal with Ada, Canyon and Gem counties permitting where a project requires it.",
   },
   ...(SHOW_UNPROVEN_SELF_PERFORM ? [FIVE_SPECIALIST_TEAMS] : [SPECIALIST_TEAMS]),
   {

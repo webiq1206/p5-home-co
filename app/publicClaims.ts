@@ -52,7 +52,7 @@ export const TOP_RATED_PHRASE = "top-rated";
 export const SATISFACTION_GUARANTEED_PHRASE = "satisfaction guaranteed";
 
 export const CABINET_FINISH_COUNT = "299 finishes";
-export const CABINET_WARRANTY = "Lifetime workmanship warranty";
+export const CABINET_WARRANTY = "written workmanship warranty";
 
 export const TRUSTED_H1 = "Boise’s Trusted Home Specialists";
 export const PLAIN_H1 = "Boise’s home specialists";
@@ -63,13 +63,13 @@ export const PLAIN_LEDE =
   "Parent company to Boise Construction, Remodeling, Cabinet, and Handyman Co. Tell us your project and the right team calls you under one contractor registration.";
 
 export const ESTABLISHED_2020_LINE =
-  "Established 2020. Bonded and insured. Serving Ada and Canyon counties.";
+  "Established 2020. Insured. Serving Ada, Canyon and Gem counties.";
 
-export const BONDED_SINCE_2020_ANSWER =
-  "Yes. The P5 companies are bonded and insured, have worked across the Treasure Valley since 2020, and handle permits in-house where a project requires them.";
+export const INSURED_SINCE_2020_ANSWER =
+  "Yes. The P5 companies are insured, have worked across the Treasure Valley since 2020, and handle permits in-house where a project requires them.";
 
-export const BONDED_ANSWER =
-  "Yes. The P5 companies are bonded and insured and handle permits in-house where a project requires them.";
+export const INSURED_ANSWER =
+  "Yes. The P5 companies are insured and handle permits in-house where a project requires them.";
 
 export const CONSTRUCTION_STAFF_IMAGE = "/images/p5-construction-branded.webp";
 export const CONSTRUCTION_NEUTRAL_IMAGE = FRAMING_FOOTHILLS.src;

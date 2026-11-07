@@ -21,10 +21,10 @@ export function visibleFoundingBadges(): readonly string[] {
 }
 
 export const ESTABLISHED_2020_LINE =
-  "Established 2020. Bonded and insured. Serving Ada and Canyon counties.";
+  "Established 2020. Insured. Serving Ada, Canyon and Gem counties.";
 
-export const BONDED_SINCE_2020_ANSWER =
-  "Yes. The P5 companies are bonded and insured, have worked across the Treasure Valley since 2020, and handle permits in-house where a project requires them.";
+export const INSURED_SINCE_2020_ANSWER =
+  "Yes. The P5 companies are insured, have worked across the Treasure Valley since 2020, and handle permits in-house where a project requires them.";
 
-export const BONDED_ANSWER =
-  "Yes. The P5 companies are bonded and insured and handle permits in-house where a project requires them.";
+export const INSURED_ANSWER =
+  "Yes. The P5 companies are insured and handle permits in-house where a project requires them.";

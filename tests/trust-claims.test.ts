@@ -5,7 +5,7 @@ import test from "node:test";
 
 import { PROOF_POINTS } from "../app/quote/proof.ts";
 import {
-  BONDED_SINCE_2020_ANSWER,
+  INSURED_SINCE_2020_ANSWER,
   CABINET_FINISH_COUNT,
   CABINET_WARRANTY,
   CREW_AND_TRADES,
@@ -39,7 +39,7 @@ test("unproven claims stay in source and are hidden by default", () => {
   assert.equal(SHOW_UNPROVEN_TRUSTED, false);
   assert.equal(SHOW_FAKE_STAFF_IMAGES, false);
   assert.equal(CABINET_FINISH_COUNT, "299 finishes");
-  assert.equal(CABINET_WARRANTY, "Lifetime workmanship warranty");
+  assert.equal(CABINET_WARRANTY, "written workmanship warranty");
   assert.equal(cabinetProof, "");
   assert.equal(ESTABLISHED_2020_LINE.startsWith("Established 2020"), true);
   assert.match(SELF_PERFORM_FAQ, /does the work itself/);
@@ -60,7 +60,7 @@ test("unproven claims stay in source and are hidden by default", () => {
   assert.equal(family.includes("does the work itself"), false);
   assert.equal(faqs.some((item) => /bonded/i.test(`${item.q} ${item.a}`)), false);
   assert.equal(faqs.some((item) => /showroom/i.test(`${item.q} ${item.a}`)), false);
-  assert.match(BONDED_SINCE_2020_ANSWER, /since 2020/);
+  assert.match(INSURED_SINCE_2020_ANSWER, /since 2020/);
   assert.equal(PROOF_POINTS.some((point) => /2020|own craft|Five specialist/.test(`${point.label} ${point.detail}`)), false);
   const schema = JSON.stringify(siteSchema);
   assert.equal(schema.includes("foundingDate"), false);

@@ -155,9 +155,7 @@ export default function AboutClient({
             </li>
             <li>Plumbing, electrical and HVAC go to licensed trade partners we schedule and stand behind.</li>
             <li>
-              Every project has one written scope before any price, a weekly written update, and a workmanship warranty:
-              one year on repairs and new builds (ten years structural where offered), two years on remodels and cabinet
-              installation.
+              Every project has one written scope before any price, a weekly written update, and a written workmanship warranty.
             </li>
           </ul>
         </section>

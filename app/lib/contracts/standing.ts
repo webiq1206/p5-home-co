@@ -19,8 +19,8 @@ export const P5_STANDING = {
   /** Days after approved invoice that P5 pays a subcontractor. */
   subcontractorPaymentDays: 30,
 
-  /** Workmanship warranty on construction work, months. */
-  constructionWarrantyMonths: 12,
+  /** Workmanship warranty length is unset until the terms are confirmed. */
+  constructionWarrantyMonths: null as number | null,
 
   /** Minimum commercial general liability P5 requires of a subcontractor. */
   subcontractorGeneralLiability: null as string | null,

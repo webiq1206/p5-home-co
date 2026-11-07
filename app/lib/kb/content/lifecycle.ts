@@ -536,11 +536,11 @@ export const lifecycle: Article[] = [
           "P5 stores references to documents, not the documents themselves. There is no Google Drive integration, so filing is manual and nothing checks that a closeout pack is complete.",
       },
 
-      { t: "h", text: "31. One-year workmanship warranty" },
+      { t: "h", text: "31. Written workmanship warranty" },
       {
         t: "p",
         text:
-          "The warranty runs for a year from substantial completion. Defects in workmanship are corrected at P5's cost.",
+          "Defects in workmanship are corrected at P5's cost.",
       },
 
       { t: "h", text: "32. Project closed" },
