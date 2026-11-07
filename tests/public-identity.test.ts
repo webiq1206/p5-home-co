@@ -39,7 +39,7 @@ const chromePages = [
 test("public contact copy keeps useful details without street or administrative labels", () => {
   assert.equal(
     PUBLIC_NAP,
-    "Serving Boise, Emmett and nearby communities in Ada, Canyon and Gem counties. · (208) 477-1169 · hello@p5homeco.com",
+    "Serving Boise, Emmett and nearby communities in Ada, Canyon and Gem counties · (208) 477-1169 · hello@p5homeco.com",
   );
   assert.equal(
     SISTER_LINE,

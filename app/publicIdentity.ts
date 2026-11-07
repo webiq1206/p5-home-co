@@ -32,7 +32,7 @@ export const SCHEMA_LEGAL_NAME = "P5 Home Co LLC";
 export const CONTRACTOR_REGISTRATION = "8381215";
 
 export const PUBLIC_NAP =
-  "Serving Boise, Emmett and nearby communities in Ada, Canyon and Gem counties. · (208) 477-1169 · hello@p5homeco.com";
+  "Serving Boise, Emmett and nearby communities in Ada, Canyon and Gem counties · (208) 477-1169 · hello@p5homeco.com";
 
 export const PUBLIC_REGISTRATION = "Idaho Registered Contractor #8381215";
 

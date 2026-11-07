@@ -13,7 +13,7 @@ const COMPANIES = [
   {
     name: "Boise Construction Co",
     href: "https://boiseconstruction.co",
-    line: "builds custom and semi-custom homes and ADUs on your lot or ours.",
+    line: "builds custom and semi-custom homes on your lot or ours.",
   },
   {
     name: "Boise Remodeling Co",
@@ -175,10 +175,16 @@ export default function AboutClient({
           <ul className="about-company-list">
             {COMPANIES.map((company) => (
               <li key={company.name}>
-                <a href={company.href} {...(leavesThisSite(company.href) ? { target: "_blank", rel: "noopener" } : undefined)}>
-                  {company.name}
-                </a>{" "}
-                {company.line}
+                {company.name === "Boise ADU Co" ? (
+                  <AduLinkedText text={company.line}></AduLinkedText>
+                ) : (
+                  <>
+                    <a href={company.href} {...(leavesThisSite(company.href) ? { target: "_blank", rel: "noopener" } : undefined)}>
+                      {company.name}
+                    </a>{" "}
+                    {company.line}
+                  </>
+                )}
               </li>
             ))}
           </ul>
