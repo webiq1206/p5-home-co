@@ -189,7 +189,7 @@ export default function Home() {
               <strong>{PUBLIC_REGISTRATION}</strong>
             </div>
             <div>
-              <strong>Bonded and insured</strong>
+              <strong>Insured</strong>
               <span>Certificate on request</span>
             </div>
             <div>

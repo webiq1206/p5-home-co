@@ -16,7 +16,7 @@ import {
   FEATURED_BOISE_ADU,
 } from "../imageVariants.ts";
 import { AduLinkedText } from "@/components/AduLinkedText";
-import { ADU_D3_LINE, ADU_QUOTE_URL } from "../publicIdentity";
+import { ADU_D3_LINE } from "../publicIdentity";
 import { ADU_DISCLOSURE, COVERAGE_LINE } from "../visibilityCopy";
 
 /* eslint-disable @next/next/no-img-element */
@@ -41,17 +41,8 @@ export default function QuoteLanding({ service }: { service: QuoteService | null
   const heroVariant = imageVariantFor(heroImage);
   const others = QUOTE_SERVICES.filter((s) => !service || s.slug !== service.slug);
 
-  const aduDisclosure = service?.slug === "adu"
-    ? {
-      before: "ADUs are built by sister company ",
-      linkLabel: "Boise ADU Co",
-      href: ADU_QUOTE_URL,
-      after: ", part of P5 Home Co.",
-    }
-    : undefined;
-
   return (
-    <SiteChrome disclosure={aduDisclosure}>
+    <SiteChrome>
       <div className="quote-page" id="top">
         <script
           type="application/ld+json"

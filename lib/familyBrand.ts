@@ -102,12 +102,12 @@ export const FAMILY_BRAND: FamilyBrand = {
       { label: 'Privacy policy', href: '/legal/privacy' },
       { label: 'Terms of service', href: '/legal/terms' },
     ],
-    // The approved Boise ADU Co line (ADU_D3_LINE). The name links to the P5 quote path.
+    // Same disclosure on every P5 page. Boise ADU Co links to the quote path.
     disclosure: {
-      before: '',
+      before: 'ADUs are built by sister company ',
       linkLabel: 'Boise ADU Co',
       href: ADU_QUOTE_URL,
-      after: ' projects run through Boise Construction Co.',
+      after: ', part of P5 Home Co.',
     },
     copyrightName: 'P5 Home Co',
   },
@@ -122,8 +122,8 @@ export const FAMILY_BRAND: FamilyBrand = {
       { name: 'Boise Cabinet Co', href: 'https://boisecabinet.co' },
     ],
   },
-  // Contact details and hours are rendered separately by the shared footer.
-  nap: { line: 'Serving Boise and the Treasure Valley' },
+  // The coverage sentence is the areas row. Repeating it here would show it twice.
+  nap: { line: '' },
   hours: BUSINESS_HOURS_LABEL,
   registration: {
     text: PUBLIC_REGISTRATION,

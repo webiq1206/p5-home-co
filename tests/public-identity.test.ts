@@ -166,9 +166,11 @@ test("the family footer prints the approved NAP, hours, registration and family 
   const html = renderToStaticMarkup(React.createElement(footer.SiteFooter));
   const text = html.replace(/<[^>]+>/g, "");
   // PUBLIC_NAP, piece by piece: the footer sets contact details beside the service area.
-  for (const part of PUBLIC_NAP.split(" · ").map((piece) => piece.replace(/\.$/, ""))) {
+  for (const part of ["(208) 477-1169", "hello@p5homeco.com"]) {
     assert.ok(text.includes(part), part);
   }
+  assert.ok(text.includes("Serving Boise, Emmett and nearby communities in Ada, Canyon and Gem counties."), "coverage line");
+  assert.equal(text.includes("Serving Boise and the Treasure Valley"), false);
   assert.ok(text.includes(BUSINESS_HOURS_LABEL));
   assert.match(html, new RegExp(`>${PUBLIC_REGISTRATION}</a>`));
   assert.ok(html.includes(`href="${IDAHO_DOPL_LICENSE_SEARCH}" target="_blank" rel="noopener noreferrer"`));
@@ -179,7 +181,8 @@ test("the family footer prints the approved NAP, hours, registration and family 
   for (const site of ["boiseconstruction.co", "boiseremodeling.co", "boisecabinet.co", "boisehandyman.co"]) {
     assert.match(html, new RegExp(`<a href="https://${site.replace(".", "\\.")}" rel="noopener">`), site);
   }
-  assert.ok(text.includes(ADU_D3_LINE), "Boise ADU Co line");
+  assert.ok(text.includes("ADUs are built by sister company Boise ADU Co, part of P5 Home Co."), "ADU disclosure");
+  assert.equal(text.includes(ADU_D3_LINE), false);
   assert.ok(html.includes("https://www.facebook.com/1228704823655951"));
   // Owner call A: P5's Google Business Profile, once, beside the Facebook page.
   assert.equal((html.match(/data-testid="link-footer-google"/g) ?? []).length, 1);
@@ -242,7 +245,9 @@ test("homepage preserves identity and location while explaining the three-step p
   assert.match(hero, /titleAccent="home specialists"/);
   assert.doesNotMatch(hero, /PUBLIC_REGISTRATION|Trusted Home/);
   assert.match(home, /PUBLIC_REGISTRATION/);
-  assert.match(home, /Bonded and insured/);
+  assert.match(home, /<strong>Insured<\/strong>/);
+  assert.match(home, /Certificate on request/);
+  assert.equal(home.includes("Bonded and insured"), false);
   assert.match(home, /Who you are hiring/);
   assert.match(home, /href="\/about"/);
   assert.equal(home.includes("Jared"), false);

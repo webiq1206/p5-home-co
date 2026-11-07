@@ -159,7 +159,8 @@ export function SiteFooter({ hideRegistration = false, brandExtra, disclosure }:
 
         <div className="fam-footer-legal">
           <p className="fam-footer-nap">
-            {brand.nap.line}. <a href={brand.phone.telHref}>{brand.phone.display}</a>. {brand.hours}
+            {brand.nap.line ? `${brand.nap.line}. ` : null}
+            <a href={brand.phone.telHref}>{brand.phone.display}</a>. {brand.hours}
           </p>
           {hideRegistration ? null : (
             <p>
