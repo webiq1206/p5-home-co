@@ -16,8 +16,8 @@ import {
   FEATURED_BOISE_ADU,
 } from "../imageVariants.ts";
 import { AduLinkedText } from "@/components/AduLinkedText";
-import { ADU_D3_LINE } from "../publicIdentity";
-import { COVERAGE_LINE } from "../visibilityCopy";
+import { ADU_D3_LINE, ADU_QUOTE_URL } from "../publicIdentity";
+import { ADU_DISCLOSURE, COVERAGE_LINE } from "../visibilityCopy";
 
 /* eslint-disable @next/next/no-img-element */
 
@@ -41,8 +41,17 @@ export default function QuoteLanding({ service }: { service: QuoteService | null
   const heroVariant = imageVariantFor(heroImage);
   const others = QUOTE_SERVICES.filter((s) => !service || s.slug !== service.slug);
 
+  const aduDisclosure = service?.slug === "adu"
+    ? {
+      before: "ADUs are built by sister company ",
+      linkLabel: "Boise ADU Co",
+      href: ADU_QUOTE_URL,
+      after: ", part of P5 Home Co.",
+    }
+    : undefined;
+
   return (
-    <SiteChrome>
+    <SiteChrome disclosure={aduDisclosure}>
       <div className="quote-page" id="top">
         <script
           type="application/ld+json"
@@ -185,8 +194,8 @@ export default function QuoteLanding({ service }: { service: QuoteService | null
               </ul>
               <p className="quote-section-lead quote-others-note">
                 P5 Home Co is an operating family of companies, not a directory or a referral
-                network.                 {SHOW_UNPROVEN_SELF_PERFORM ? QUOTE_SELF_PERFORM : `${QUOTE_SPECIALTY} ${CREW_AND_TRADES}`}{" "}
-                <AduLinkedText text={ADU_D3_LINE}></AduLinkedText>{" "}
+                network. {SHOW_UNPROVEN_SELF_PERFORM ? QUOTE_SELF_PERFORM : `${QUOTE_SPECIALTY} ${CREW_AND_TRADES}`}{" "}
+                <AduLinkedText text={service?.slug === "adu" ? ADU_DISCLOSURE : ADU_D3_LINE}></AduLinkedText>{" "}
                 <Link href="/#p5-standard">Read the P5 standard</Link>.
               </p>
             </div>

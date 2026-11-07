@@ -10,6 +10,7 @@
  * components, so whatever this module imports ships to every page.
  */
 import type { FamilyBrand } from '@/lib/family/types';
+import { COVERAGE_LINE } from '@/app/visibilityCopy';
 import { BUSINESS_HOURS_LABEL } from '@/lib/businessHours';
 import {
   ADU_QUOTE_URL,
@@ -95,7 +96,7 @@ export const FAMILY_BRAND: FamilyBrand = {
         ],
       },
     ],
-    areas: { label: 'Service area: Ada and Canyon counties', href: '/#service-area', links: [] },
+    areas: { label: COVERAGE_LINE, href: '/#service-area', links: [] },
     legal: [
       { label: 'Site map', href: '/sitemap' },
       { label: 'Privacy policy', href: '/legal/privacy' },

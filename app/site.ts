@@ -113,6 +113,10 @@ export const faqs = [
     a: "You get planning guidance and written scope details, so you understand the work before it starts. You will know who owns the next step and who to contact, and decisions, schedule changes, and budget impacts are raised early and documented clearly.",
   },
   {
+    q: "Are the P5 companies registered and insured?",
+    a: "Yes. P5 Home Co LLC, Idaho Registered Contractor #8381215. Insured; certificate on request.",
+  },
+  {
     q: "Who handles RE-10 inspection repairs?",
     a: "Boise Handyman Co handles basic home repairs and RE-10 inspection repairs. Share the repair list so the team can review the scope and next steps.",
   },

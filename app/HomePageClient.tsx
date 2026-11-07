@@ -38,6 +38,8 @@ import {
 import {
   ADU_D3_LINE,
   ADU_QUOTE_URL,
+  PUBLIC_PHONE_SMS,
+  PUBLIC_PHONE_TEL,
   PUBLIC_REGISTRATION,
   leavesThisSite,
 } from "./publicIdentity";
@@ -143,6 +145,14 @@ export default function Home() {
             titleAccent="home specialists"
             answer={<p className="p5-aeo"><AduLinkedText text={AEO_ANSWER}></AduLinkedText></p>}
             support="New homes, remodeling, cabinets, repairs and ADUs."
+            contacts={
+              <p className="p5-hero-talk">
+                <a href={PUBLIC_PHONE_TEL}>Call</a>
+                {" or "}
+                <a href={PUBLIC_PHONE_SMS}>text</a>
+                {" us about your project."}
+              </p>
+            }
             primary={{ label: "Request a quote", href: "/quote" }}
           />
         </HeroWalkthrough>

@@ -46,6 +46,8 @@ export interface HeroPhotoProps {
   /** Plain paragraph under the H1 and above the support line. */
   answer?: ReactNode;
   support?: string;
+  /** Verified call and text actions beside the primary button. */
+  contacts?: ReactNode;
   primary: { label: string; href: string };
   link?: { label: string; href: string };
   microcopy?: string;
@@ -65,7 +67,7 @@ function wordCount(text: string): number {
   return text.trim().split(/\s+/).filter(Boolean).length;
 }
 
-export function HeroPhoto({ image, phoneImage, eyebrow, title, titleAccent, answer, support, primary, link, microcopy, scrim = 'standard', fit }: HeroPhotoProps) {
+export function HeroPhoto({ image, phoneImage, eyebrow, title, titleAccent, answer, support, contacts, primary, link, microcopy, scrim = 'standard', fit }: HeroPhotoProps) {
   if (support && wordCount(support) > 14 && process.env.NODE_ENV !== 'production') {
     console.warn(`HeroPhoto: support line is ${wordCount(support)} words; the template allows 14.`);
   }
@@ -130,6 +132,7 @@ export function HeroPhoto({ image, phoneImage, eyebrow, title, titleAccent, answ
             <FamilyButton href={primary.href} variant="hero" size="lg" data-hero-cta="primary" data-cta="primary">
               {primary.label}
             </FamilyButton>
+            {contacts}
             {link ? (
               <a href={link.href} className="fam-hero-link">
                 {link.label}

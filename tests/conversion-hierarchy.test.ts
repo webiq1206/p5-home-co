@@ -86,10 +86,13 @@ test("hub pages keep call and chat, with one request entry below the hero", () =
   assert.match(readFileSync("styles/family-chrome.css", "utf8"), /--fam-hero-available: calc\(100svh - var\(--header-height\)/);
   assert.match(css, /--color-primary:\s*var\(--bronze\)/);
   assert.match(home, /CompanyFinder/);
-  // One action in the hero: the primary, with no phone link, microcopy or extra button.
+  // Request a quote stays the primary. Call and text use the verified numbers.
   assert.equal((hero.match(/primary=\{/g) || []).length, 1);
-  assert.doesNotMatch(hero, /\blink=|microcopy=|tel:|<button/);
+  assert.doesNotMatch(hero, /\blink=|microcopy=|<button/);
   assert.match(hero, /Request a quote/);
+  assert.match(hero, /PUBLIC_PHONE_TEL/);
+  assert.match(hero, /PUBLIC_PHONE_SMS/);
+  assert.match(hero, /Call<\/a>\s*\{\" or \"\}\s*<a href=\{PUBLIC_PHONE_SMS\}>text<\/a>\s*\{\" us about your project\.\"\}/);
   assert.doesNotMatch(form, /quote-wizard|data-wizard-step|pushState/);
   assert.match(form, /data-suppress-mobile-bar=""/);
   // Call, text, or have us call you, on the form itself.

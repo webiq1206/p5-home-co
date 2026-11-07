@@ -12,6 +12,10 @@ export const AEO_ANSWER =
 export const COVERAGE_LINE =
   "Serving Boise, Emmett and nearby communities in Ada, Canyon and Gem counties.";
 
+/** /quote/adu disclosure. No Construction ownership. */
+export const ADU_DISCLOSURE =
+  "ADUs are built by sister company Boise ADU Co, part of P5 Home Co.";
+
 export const ADDED_FAQS = [
   {
     q: "Which companies make up P5 Home Co?",

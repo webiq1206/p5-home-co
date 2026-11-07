@@ -111,7 +111,10 @@ test("each service has its own first question, so no two FAQPages are identical"
   assert.ok(adu);
   const aduFaqs = faqsFor(adu);
   assert.equal(aduFaqs.find((item) => item.q === "Which areas do the P5 companies serve?")?.a, COVERAGE_LINE);
-  assert.equal(aduFaqs.some((item) => item.q === "How much does a quote cost?"), false);
+  assert.equal(
+    aduFaqs.find((item) => item.q === "How much does a quote cost?")?.a,
+    "Nothing. Quotes from the P5 companies are free, with no obligation to go ahead.",
+  );
   assert.notEqual(faqsFor(null).find((item) => item.q === "Which areas do the P5 companies serve?")?.a, COVERAGE_LINE);
 });
 
@@ -147,7 +150,11 @@ test("every FAQ answer is non-trivial, since the schema promises a real answer",
   for (const service of [null, ...QUOTE_SERVICES]) {
     for (const faq of faqsFor(service)) {
       assert.ok(faq.q.endsWith("?"), `not a question: ${faq.q}`);
-      assert.ok(faq.a.length > 70, `answer too thin: ${faq.q}`);
+      // The coverage sentence is locked at 77 characters. The quote-cost answer
+      // is locked at 79 characters, so neither can be stretched past 80.
+      const lockedShort = faq.a === COVERAGE_LINE
+        || faq.a === "Nothing. Quotes from the P5 companies are free, with no obligation to go ahead.";
+      assert.ok(lockedShort || faq.a.length > 80, `answer too thin: ${faq.q}`);
     }
   }
 });

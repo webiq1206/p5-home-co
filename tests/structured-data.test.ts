@@ -117,6 +117,11 @@ test("the homepage owns its FAQPage schema", () => {
     const found = homePageSchema.mainEntity.find((entry) => entry.name === item.q);
     assert.equal(found?.acceptedAnswer.text, item.a);
   }
+  const registered = homePageSchema.mainEntity.find((item) => item.name === "Are the P5 companies registered and insured?");
+  assert.equal(registered?.acceptedAnswer.text, "Yes. P5 Home Co LLC, Idaho Registered Contractor #8381215. Insured; certificate on request.");
+  const aduStart = homePageSchema.mainEntity.find((item) => item.name === "How do I start an ADU project?");
+  assert.equal(aduStart?.acceptedAnswer.text, "Start with Boise ADU Co, or send a short request on this site and we will route it.");
+  assert.equal(aduStart?.acceptedAnswer.text.includes("http"), false);
   const published = homePageSchema.mainEntity.map((item) => `${item.name} ${item.acceptedAnswer.text}`).join("\n");
   assert.equal(/bonded/i.test(published), false);
   assert.equal(/showroom/i.test(published), false);

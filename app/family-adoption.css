@@ -79,6 +79,21 @@
   color: var(--color-paper);
   font: 400 var(--fs-body) / var(--lh-body) var(--font-sans);
 }
+#top .p5-home-hero .p5-hero-talk {
+  margin: var(--space-3) 0 0;
+  max-width: 65ch;
+  color: var(--color-paper);
+  font: 600 var(--fs-button) / 1.4 var(--font-sans);
+}
+#top .p5-home-hero .p5-hero-talk a {
+  color: inherit;
+  text-decoration-line: underline;
+  text-underline-offset: 0.18em;
+}
+#top .p5-home-hero .p5-hero-talk a:focus-visible {
+  outline: 2px solid var(--color-paper);
+  outline-offset: 3px;
+}
 #top .p5-home-hero .fam-hero-support { margin-top: var(--space-4); }
 @media (min-width: 1024px) {
   #top .p5-home-hero .p5-aeo { margin-top: var(--space-5); }
