@@ -45,6 +45,7 @@ export const masterSubcontractorAgreement: DocumentTemplate = {
     { key: "gl_limit", label: "General liability minimum, each occurrence", kind: "money", required: true },
     { key: "auto_limit", label: "Commercial auto minimum", kind: "money", required: true },
     { key: "wc_note", label: "Workers' compensation requirement", kind: "multiline", required: false },
+    { key: "warranty_months", label: "Warranty period, months", kind: "number", required: true, defaultValue: P5_STANDING.constructionWarrantyMonths, help: "Standing P5 term." },
   ],
   clauses: [
     {
@@ -137,7 +138,8 @@ export const masterSubcontractorAgreement: DocumentTemplate = {
     {
       heading: "8. Warranty",
       body:
-        "Subcontractor warrants its work against defects in workmanship and materials, and will correct defective work at its own " +
+        "Subcontractor warrants its work against defects in workmanship and materials for {{warranty_months}} " +
+        "months from substantial completion of each Work Order, and will correct defective work at its own " +
         "expense within a reasonable time of written notice. This warranty is in addition to, not instead of, " +
         "any warranty implied by law.",
     },
@@ -351,6 +353,7 @@ export const clientConstructionAgreement: DocumentTemplate = {
     { key: "payment_schedule", label: "Payment schedule", kind: "multiline", required: true, help: "Each milestone and the amount due at it." },
     { key: "start_date", label: "Estimated start", kind: "date", required: true },
     { key: "completion_date", label: "Estimated substantial completion", kind: "date", required: true },
+    { key: "warranty_months", label: "Warranty period, months", kind: "number", required: true, defaultValue: P5_STANDING.constructionWarrantyMonths, help: "Standing P5 term." },
     { key: "allowances", label: "Allowances", kind: "multiline", required: false, help: "Budget placeholders for selections not yet made. Overruns are billed as changes." },
   ],
   clauses: [
@@ -420,7 +423,7 @@ export const clientConstructionAgreement: DocumentTemplate = {
     {
       heading: "8. Warranty",
       body:
-        "Contractor warrants workmanship and will " +
+        "Contractor warrants workmanship for {{warranty_months}} months from substantial completion and will " +
         "correct defective work at no cost within a reasonable time of written notice. Manufacturer warranties " +
         "on materials and appliances are passed through to Owner.\n\n" +
         "This warranty does not cover damage from misuse, neglect, alterations by others, normal wear, or " +

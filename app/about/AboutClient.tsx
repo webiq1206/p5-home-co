@@ -155,7 +155,7 @@ export default function AboutClient({
             </li>
             <li>Plumbing, electrical and HVAC go to licensed trade partners we schedule and stand behind.</li>
             <li>
-              Every project has one written scope before any price, a weekly written update, and a written workmanship warranty.
+              Every project has one written scope before any price, written progress updates, and a written workmanship warranty.
             </li>
           </ul>
         </section>
