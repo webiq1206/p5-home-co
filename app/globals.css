@@ -812,6 +812,10 @@ body[data-p5-chat-open] { overflow: hidden; }
 
 /* Phase 8 hero budget helpers */
 .trust-grid-compact { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.trust-grid-compact .trust-coverage { grid-column: 1 / -1; }
+.trust-grid-compact .trust-coverage strong { max-width: 65ch; font-family: var(--font-sans); font-size: var(--fs-body); font-weight: 600; line-height: var(--lh-body); letter-spacing: 0; }
+a.adu-quote-link { color: inherit; text-decoration-line: underline; text-decoration-thickness: 1px; text-underline-offset: 0.18em; }
+a.adu-quote-link:focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }
 
 .save-contact-button {
   display: inline-flex; align-items: center; gap: 10px;

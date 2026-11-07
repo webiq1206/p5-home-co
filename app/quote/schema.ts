@@ -7,6 +7,7 @@
  */
 
 import { siteUrl } from "../site.ts";
+import { COVERAGE_LINE } from "../visibilityCopy.ts";
 import { SERVICE_FAQ, type QuoteService } from "./services.ts";
 
 export interface Faq {
@@ -18,7 +19,7 @@ export interface Faq {
 export const SHARED_FAQ: readonly Faq[] = [
   {
     q: "How much does a quote cost?",
-    a: "Nothing. Quotes and estimates from the P5 companies are free and carry no obligation to proceed. You are not charged for a site visit or for a written scope.",
+    a: "Nothing. Quotes from the P5 companies are free, with no obligation to go ahead.",
   },
   {
     q: "How quickly will someone get back to me?",
@@ -56,10 +57,17 @@ export const GENERIC_TITLE = "Request a Free Home Project Quote | P5 Home Co";
 export const GENERIC_DESCRIPTION =
   "Get a free, no-obligation quote for a remodel, custom home, ADU, cabinetry, or repair anywhere in Idaho's Treasure Valley. One form reaches the right P5 specialist team.";
 
+const AREA_QUESTION = "Which areas do the P5 companies serve?";
+
 /** The service question first, so no two quote pages ship an identical FAQ. */
 export function faqsFor(service: QuoteService | null): readonly Faq[] {
   const specific = service ? SERVICE_FAQ[service.slug] : undefined;
-  return specific ? [specific, ...SHARED_FAQ] : SHARED_FAQ;
+  const shared = service?.slug === "adu"
+    ? SHARED_FAQ.map((item) => (
+      item.q === AREA_QUESTION ? { q: item.q, a: COVERAGE_LINE } : item
+    ))
+    : SHARED_FAQ;
+  return specific ? [specific, ...shared] : shared;
 }
 
 export function pathFor(service: QuoteService | null): string {

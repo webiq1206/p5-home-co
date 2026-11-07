@@ -9,6 +9,7 @@ import {
   PUBLIC_REGISTRATION,
   SISTER_LINE,
   SISTER_LINKS,
+  leavesThisSite,
 } from "@/app/publicIdentity";
 
 function withLinks(text: string, labels: readonly { label: string; href: string }[]): ReactNode[] {
@@ -29,7 +30,7 @@ function withLinks(text: string, labels: readonly { label: string; href: string 
       break;
     }
     if (nextAt > cursor) nodes.push(text.slice(cursor, nextAt));
-    const external = next.href.startsWith("http");
+    const external = leavesThisSite(next.href);
     nodes.push(
       <a
         key={`${next.label}-${nextAt}`}

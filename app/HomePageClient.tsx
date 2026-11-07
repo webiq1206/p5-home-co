@@ -14,6 +14,7 @@ import {
   handymanImage,
 } from "./publicClaims";
 import { citiesServed, faqs, HOW_P5_WORKS, HOW_P5_WORKS_TITLE } from "./site";
+import { AEO_ANSWER, COVERAGE_LINE } from "./visibilityCopy";
 import { track } from "./analytics";
 import { homePageSchema, serializeJsonLd } from "./structuredData";
 import Arrow from "@/components/Arrow";
@@ -22,6 +23,7 @@ import { FamilyButton } from "@/components/family/Button";
 import { HeroPhoto } from "@/components/family/HeroPhoto";
 import HeroWalkthrough from "@/components/HeroWalkthrough";
 import CompanyFinder from "@/components/CompanyFinder";
+import { AduLinkedText } from "@/components/AduLinkedText";
 import {
   imageVariantFor,
   FRAMING_FOOTHILLS,
@@ -34,9 +36,12 @@ import {
   CRAFT_TRIM_DETAIL,
 } from "./imageVariants.ts";
 import {
-  ADU_CONSTRUCTION_URL,
   ADU_D3_LINE,
+  ADU_QUOTE_URL,
+  PUBLIC_PHONE_SMS,
+  PUBLIC_PHONE_TEL,
   PUBLIC_REGISTRATION,
+  leavesThisSite,
 } from "./publicIdentity";
 
 /** The approved walkthrough poster is also the immediate, no-JS fallback. */
@@ -97,8 +102,8 @@ const companyDetails: Record<
   adu: {
     name: "Boise ADU Co",
     reason: ADU_D3_LINE,
-    url: ADU_CONSTRUCTION_URL,
-    cta: "Visit Boise Construction Co",
+    url: ADU_QUOTE_URL,
+    cta: "Start an ADU quote",
     label: "Add an ADU",
     options: ["Detached ADU", "Garage conversion", "Basement or interior unit", "Feasibility and permits"],
   },
@@ -138,7 +143,16 @@ export default function Home() {
             eyebrow="The Home Company"
             title="Boise’s"
             titleAccent="home specialists"
+            answer={<p className="p5-aeo"><AduLinkedText text={AEO_ANSWER}></AduLinkedText></p>}
             support="New homes, remodeling, cabinets, repairs and ADUs."
+            contacts={
+              <p className="p5-hero-talk">
+                <a href={PUBLIC_PHONE_TEL}>Call</a>
+                {" or "}
+                <a href={PUBLIC_PHONE_SMS}>text</a>
+                {" us about your project."}
+              </p>
+            }
             primary={{ label: "Request a quote", href: "/quote" }}
           />
         </HeroWalkthrough>
@@ -175,16 +189,15 @@ export default function Home() {
               <strong>{PUBLIC_REGISTRATION}</strong>
             </div>
             <div>
-              <strong>Bonded and insured</strong>
+              <strong>Insured</strong>
               <span>Certificate on request</span>
             </div>
             <div>
               <strong>Written scope first</strong>
               <span>Price after the scope is clear</span>
             </div>
-            <div>
-              <strong>Ada and Canyon</strong>
-              <span>Treasure Valley service area</span>
+            <div className="trust-coverage">
+              <strong>{COVERAGE_LINE}</strong>
             </div>
           </div>
         </section>
@@ -228,7 +241,7 @@ export default function Home() {
               <Link href="/#adu">
                 <span>05</span>
                 <strong>Accessory dwelling units</strong>
-                <small>Boise ADU Co · Through Construction</small>
+                <small>Boise ADU Co</small>
               </Link>
             </nav>
           </Reveal>
@@ -376,9 +389,9 @@ export default function Home() {
           className="brand-adu"
           description={ADU_D3_LINE}
           services={["Detached ADU", "Garage conversion", "Basement or interior unit", "Feasibility and permits"]}
-          proof="Projects run through Boise Construction Co"
-          url={ADU_CONSTRUCTION_URL}
-          linkLabel="Go to Boise Construction Co"
+          proof=""
+          url={ADU_QUOTE_URL}
+          linkLabel="Start an ADU quote"
         />
 
         <section
@@ -577,10 +590,7 @@ export default function Home() {
                 <br />
                 Valley-wide reach.
               </h2>
-              <p className="service-area-copy">
-                P5 companies serve homeowners across Ada and Canyon counties, with practical knowledge of local homes,
-                permitting offices, building conditions, and communities.
-              </p>
+              <p className="service-area-copy">{COVERAGE_LINE}</p>
               <button className="text-link" type="button" onClick={openMatcher}>
                 Choose your company <Arrow />
               </button>
@@ -621,7 +631,7 @@ export default function Home() {
               {faqs.map((item) => (
                 <details className="faq-item" key={item.q}>
                   <summary>{item.q}</summary>
-                  <p>{item.a}</p>
+                  <p><AduLinkedText text={item.a}></AduLinkedText></p>
                 </details>
               ))}
             </div>
@@ -687,7 +697,7 @@ function BrandPanel({
   url: string;
   linkLabel: string;
 }) {
-  const external = url.startsWith("http");
+  const external = leavesThisSite(url);
   const served = imageVariantFor(image);
   const foldRef = useRef<HTMLDetailsElement>(null);
   const mobileOpenRef = useRef(true);
@@ -755,7 +765,7 @@ function BrandPanel({
           </div>
         )}
         <h3>{headline}</h3>
-        <p>{description}</p>
+        <p><AduLinkedText text={description}></AduLinkedText></p>
         <ul className="service-list">
           {services.map((service) => (
             <li key={service}>{service}</li>
@@ -919,23 +929,23 @@ function ProjectMatcher({ onClose }: { onClose: () => void }) {
               <p className="eyebrow">Your P5 match</p>
               <span className="result-overline">Recommended for · {project}</span>
               <h2 id="matcher-title" tabIndex={-1}>
-                {detail.name}
+                <AduLinkedText text={detail.name}></AduLinkedText>
               </h2>
-              <p>{detail.reason}</p>
+              <p><AduLinkedText text={detail.reason}></AduLinkedText></p>
               <div className="result-actions">
                 <FamilyButton
                   size="lg"
                   href={detail.url}
-                  target={detail.url.startsWith("http") ? "_blank" : undefined}
-                  rel={detail.url.startsWith("http") ? "noopener" : undefined}
+                  target={leavesThisSite(detail.url) ? "_blank" : undefined}
+                  rel={leavesThisSite(detail.url) ? "noopener" : undefined}
                   onClick={() =>
                     track(
-                      detail.url.startsWith("http") ? "company_click" : detail.url.startsWith("tel:") ? "phone_click" : "quote_click",
+                      leavesThisSite(detail.url) ? "company_click" : detail.url.startsWith("tel:") ? "phone_click" : "quote_click",
                       { company, location: "matcher" },
                     )
                   }
                 >
-                  {detail.cta} <Arrow diagonal={detail.url.startsWith("http")} />
+                  {detail.cta} <Arrow diagonal={leavesThisSite(detail.url)} />
                 </FamilyButton>
                 <Link
                   className="text-link"

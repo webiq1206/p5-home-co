@@ -17,9 +17,11 @@ import { SkipLink } from "@/components/family/SkipLink";
 export default function SiteChrome({
   children,
   main = false,
+  disclosure,
 }: {
   children: ReactNode;
   main?: boolean;
+  disclosure?: { before: string; linkLabel: string; href: string; after: string };
 }) {
   return (
     <>
@@ -35,7 +37,7 @@ export default function SiteChrome({
           {children}
         </>
       )}
-      <SiteFooter />
+      <SiteFooter disclosure={disclosure} />
     </>
   );
 }

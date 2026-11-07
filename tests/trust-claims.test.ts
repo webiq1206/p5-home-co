@@ -58,9 +58,8 @@ test("unproven claims stay in source and are hidden by default", () => {
   const family = faqs.find((item) => item.q === "Is P5 Home Co a contractor or a referral service?")?.a ?? "";
   assert.equal(family, SPECIALTY_FAQ);
   assert.equal(family.includes("does the work itself"), false);
-  const bonded = faqs.find((item) => item.q === "Are the P5 companies bonded and insured?")?.a ?? "";
-  assert.equal(bonded, "Yes. The P5 companies are bonded and insured and handle permits in-house where a project requires them.");
-  assert.equal(bonded.includes("2020"), false);
+  assert.equal(faqs.some((item) => /bonded/i.test(`${item.q} ${item.a}`)), false);
+  assert.equal(faqs.some((item) => /showroom/i.test(`${item.q} ${item.a}`)), false);
   assert.match(BONDED_SINCE_2020_ANSWER, /since 2020/);
   assert.equal(PROOF_POINTS.some((point) => /2020|own craft|Five specialist/.test(`${point.label} ${point.detail}`)), false);
   const schema = JSON.stringify(siteSchema);

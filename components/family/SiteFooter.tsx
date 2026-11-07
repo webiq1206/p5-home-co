@@ -53,11 +53,14 @@ export interface SiteFooterProps {
   hideRegistration?: boolean;
   /** Optional extra content for the brand column, rendered after the contact list. */
   brandExtra?: ReactNode;
+  /** Page-specific disclosure. Absent keeps the brand footer disclosure. */
+  disclosure?: { before: string; linkLabel: string; href: string; after: string };
 }
 
-export function SiteFooter({ hideRegistration = false, brandExtra }: SiteFooterProps) {
+export function SiteFooter({ hideRegistration = false, brandExtra, disclosure }: SiteFooterProps) {
   const brand = FAMILY_BRAND;
   const { footer } = brand;
+  const legalDisclosure = disclosure ?? footer.disclosure;
 
   return (
     <footer className="fam-footer" data-family-footer="" style={brandStyle()}>
@@ -156,7 +159,8 @@ export function SiteFooter({ hideRegistration = false, brandExtra }: SiteFooterP
 
         <div className="fam-footer-legal">
           <p className="fam-footer-nap">
-            {brand.nap.line}. <a href={brand.phone.telHref}>{brand.phone.display}</a>. {brand.hours}
+            {brand.nap.line ? `${brand.nap.line}. ` : null}
+            <a href={brand.phone.telHref}>{brand.phone.display}</a>. {brand.hours}
           </p>
           {hideRegistration ? null : (
             <p>
@@ -174,11 +178,11 @@ export function SiteFooter({ hideRegistration = false, brandExtra }: SiteFooterP
           )}
           <div className="fam-footer-legal-bottom">
             <p>
-              &copy; {YEAR} {footer.copyrightName}. All rights reserved. {footer.disclosure.before}
-              <a href={footer.disclosure.href} rel="noopener">
-                {footer.disclosure.linkLabel}
+              &copy; {YEAR} {footer.copyrightName}. All rights reserved. {legalDisclosure.before}
+              <a href={legalDisclosure.href} rel="noopener">
+                {legalDisclosure.linkLabel}
               </a>
-              {footer.disclosure.after}
+              {legalDisclosure.after}
             </p>
             <ul className="fam-footer-legal-links">
               {footer.legal.map((link) => (

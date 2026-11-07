@@ -73,6 +73,44 @@
 #top .p5-home-hero .fam-hero-inner { position: relative; z-index: 1; background: none; }
 #top .p5-home-hero .fam-hero-copy { min-width: 0; }
 #top .p5-home-hero .fam-hero-title { overflow-wrap: anywhere; }
+#top .p5-home-hero .p5-aeo {
+  max-width: 65ch;
+  margin: var(--space-4) 0 0;
+  color: var(--color-paper);
+  font: 400 var(--fs-body) / var(--lh-body) var(--font-sans);
+}
+#top .p5-home-hero .p5-hero-talk {
+  margin: var(--space-3) 0 0;
+  max-width: 65ch;
+  color: var(--color-paper);
+  font: 600 var(--fs-button) / 1.4 var(--font-sans);
+}
+#top .p5-home-hero .p5-hero-talk a {
+  color: inherit;
+  text-decoration-line: underline;
+  text-underline-offset: 0.18em;
+}
+#top .p5-home-hero .p5-hero-talk a:focus-visible {
+  outline: 2px solid var(--color-paper);
+  outline-offset: 3px;
+}
+#top .p5-home-hero .fam-hero-support { margin-top: var(--space-4); }
+@media (min-width: 1024px) {
+  #top .p5-home-hero .p5-aeo { margin-top: var(--space-5); }
+  #top .p5-home-hero .fam-hero-support { margin-top: var(--space-5); }
+}
+.fam-footer[data-family-footer] .fam-footer-areas {
+  align-items: flex-start;
+}
+.fam-footer[data-family-footer] .fam-footer-areas .fam-footer-row-label {
+  flex: 1 1 100%;
+  height: auto;
+  align-items: flex-start;
+  text-transform: none;
+  letter-spacing: 0;
+  font: 600 var(--fs-body) / var(--lh-body) var(--font-sans);
+  white-space: normal;
+}
 #top .p5-home-hero .fam-hero-actions .fam-btn {
   max-width: 100%;
   white-space: normal;
@@ -96,6 +134,14 @@
 .p5-hero-video[data-ready="true"] { opacity: 1; }
 @media (max-width: 1023px) {
   .p5-hero-video { object-position: 60% 50%; }
+  /* Pull the hero copy up so Request a quote can clear a 360x640 first screen. */
+  #top .p5-home-hero .fam-hero[data-family-hero][data-fit="viewport"] .fam-hero-inner {
+    align-items: flex-start;
+    padding-top: var(--space-2);
+  }
+  .fam-footer[data-family-footer] {
+    padding-bottom: calc(var(--bar-height) + env(safe-area-inset-bottom, 0px));
+  }
   /* The action bar is hidden over this hero, so reserve no bottom-bar space.
      min-height retains natural page growth for large text and short landscapes. */
   #top .p5-home-hero .fam-hero[data-family-hero][data-fit="viewport"] {

@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { citiesServed, faqs } from "../app/site.ts";
+import { COVERAGE_LINE } from "../app/visibilityCopy.ts";
 import { QUOTE_CITIES } from "../app/quote/options.ts";
 import robots, { CRAWLER_ALLOWLIST } from "../app/robots.ts";
 
@@ -41,12 +42,9 @@ test("llms.txt names every city the site claims", () => {
   }
 });
 
-test("the service-area FAQ answer names every city", () => {
+test("the homepage service-area FAQ uses the approved coverage line", () => {
   const answer = faqs.find((f) => f.q === "Which areas do the P5 companies serve?")?.a ?? "";
-  assert.ok(answer.length > 0, "the service-area question has gone missing");
-  for (const city of citiesServed) {
-    assert.ok(answer.includes(city), `the FAQ answer omits ${city}`);
-  }
+  assert.equal(answer, COVERAGE_LINE);
 });
 
 test("the quote form offers every city the site serves", () => {

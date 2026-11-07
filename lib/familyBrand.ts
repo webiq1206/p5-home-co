@@ -10,9 +10,10 @@
  * components, so whatever this module imports ships to every page.
  */
 import type { FamilyBrand } from '@/lib/family/types';
+import { COVERAGE_LINE } from '@/app/visibilityCopy';
 import { BUSINESS_HOURS_LABEL } from '@/lib/businessHours';
 import {
-  ADU_CONSTRUCTION_URL,
+  ADU_QUOTE_URL,
   IDAHO_DOPL_LICENSE_SEARCH,
   P5_FACEBOOK_URL,
   P5_GOOGLE_BUSINESS_PROFILE_URL,
@@ -74,7 +75,7 @@ export const FAMILY_BRAND: FamilyBrand = {
   // BUSINESS_VCARD_PATH in lib/vcard.ts (that module pulls in more than the chrome needs).
   saveContactHref: '/contact.vcf',
   email: PUBLIC_EMAIL,
-  tagline: 'The parent company behind Boise Construction Co, Boise Remodeling Co, Boise Cabinet Co and Boise Handyman Co.',
+  tagline: 'The parent company behind Boise Construction Co, Boise Remodeling Co, Boise Cabinet Co, Boise Handyman Co and Boise ADU Co.',
   parentLine: 'Boise and the Treasure Valley, Idaho',
   footer: {
     groups: [
@@ -95,22 +96,22 @@ export const FAMILY_BRAND: FamilyBrand = {
         ],
       },
     ],
-    areas: { label: 'Service area: Ada and Canyon counties', href: '/#service-area', links: [] },
+    areas: { label: COVERAGE_LINE, href: '/#service-area', links: [] },
     legal: [
       { label: 'Site map', href: '/sitemap' },
       { label: 'Privacy policy', href: '/legal/privacy' },
       { label: 'Terms of service', href: '/legal/terms' },
     ],
-    // The approved Boise ADU Co line (ADU_D3_LINE), with its link to Boise Construction Co.
+    // Same disclosure on every P5 page. Boise ADU Co links to the quote path.
     disclosure: {
-      before: 'Boise ADU Co projects run through ',
-      linkLabel: 'Boise Construction Co',
-      href: ADU_CONSTRUCTION_URL,
-      after: '.',
+      before: 'ADUs are built by sister company ',
+      linkLabel: 'Boise ADU Co',
+      href: ADU_QUOTE_URL,
+      after: ', part of P5 Home Co.',
     },
     copyrightName: 'P5 Home Co',
   },
-  // Boise ADU Co is left out until its own site exists; its projects run through Boise Construction Co.
+  // Boise ADU Co is named with the other companies. Its public link is the P5 quote path.
   family: {
     label: 'The P5 Home Co family',
     companies: [
@@ -121,8 +122,8 @@ export const FAMILY_BRAND: FamilyBrand = {
       { name: 'Boise Cabinet Co', href: 'https://boisecabinet.co' },
     ],
   },
-  // Contact details and hours are rendered separately by the shared footer.
-  nap: { line: 'Serving Boise and the Treasure Valley' },
+  // The coverage sentence is the areas row. Repeating it here would show it twice.
+  nap: { line: '' },
   hours: BUSINESS_HOURS_LABEL,
   registration: {
     text: PUBLIC_REGISTRATION,
