@@ -57,9 +57,9 @@ function foldLine(line: string, max = 75): string {
 export function buildBusinessVCard(): string {
   const tel = formatTelE164(PUBLIC_PHONE_DISPLAY);
   const note = [
-    "The parent company behind Boise Construction Co, Boise Remodeling Co, Boise Cabinet Co and Boise Handyman Co.",
+    "The parent company behind Boise Construction Co, Boise Remodeling Co, Boise Cabinet Co, Boise Handyman Co and Boise ADU Co.",
     `A P5 Home Co company (${SCHEMA_LEGAL_NAME}, Idaho Registered Contractor #${CONTRACTOR_REGISTRATION}).`,
-    "Serving Boise and the Treasure Valley. Meridian, ID 83646.",
+    "Serving Boise, Emmett and nearby communities in Ada, Canyon and Gem counties. Meridian, ID 83646.",
   ].join(" ");
 
   const lines = [

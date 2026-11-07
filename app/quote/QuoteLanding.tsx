@@ -17,7 +17,7 @@ import {
 } from "../imageVariants.ts";
 import { AduLinkedText } from "@/components/AduLinkedText";
 import { ADU_D3_LINE } from "../publicIdentity";
-import { ADU_DISCLOSURE, COVERAGE_LINE } from "../visibilityCopy";
+import { COVERAGE_LINE } from "../visibilityCopy";
 
 /* eslint-disable @next/next/no-img-element */
 
@@ -186,7 +186,7 @@ export default function QuoteLanding({ service }: { service: QuoteService | null
               <p className="quote-section-lead quote-others-note">
                 P5 Home Co is an operating family of companies, not a directory or a referral
                 network. {SHOW_UNPROVEN_SELF_PERFORM ? QUOTE_SELF_PERFORM : `${QUOTE_SPECIALTY} ${CREW_AND_TRADES}`}{" "}
-                <AduLinkedText text={service?.slug === "adu" ? ADU_DISCLOSURE : ADU_D3_LINE}></AduLinkedText>{" "}
+                <AduLinkedText text={ADU_D3_LINE}></AduLinkedText>{" "}
                 <Link href="/#p5-standard">Read the P5 standard</Link>.
               </p>
             </div>

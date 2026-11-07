@@ -39,16 +39,16 @@ const chromePages = [
 test("public contact copy keeps useful details without street or administrative labels", () => {
   assert.equal(
     PUBLIC_NAP,
-    "Serving Boise and the Treasure Valley · (208) 477-1169 · hello@p5homeco.com",
+    "Serving Boise, Emmett and nearby communities in Ada, Canyon and Gem counties. · (208) 477-1169 · hello@p5homeco.com",
   );
   assert.equal(
     SISTER_LINE,
-    "Part of P5 Home Co: Boise Construction Co · Boise Remodeling Co · Boise Cabinet Co · Boise Handyman Co · Boise ADU Co projects run through Boise Construction Co.",
+    "Part of P5 Home Co: Boise Construction Co · Boise Remodeling Co · Boise Cabinet Co · Boise Handyman Co · ADUs are built by sister company Boise ADU Co, part of P5 Home Co.",
   );
   assert.equal(PUBLIC_REGISTRATION, "Idaho Registered Contractor #8381215");
   assert.equal(PUBLIC_REGISTRATION.includes("("), false);
   assert.equal(IDAHO_DOPL_LICENSE_SEARCH, "https://edopl.idaho.gov/OnlineServices/?link=PubSearch");
-  assert.match(LLMS_CONTACT, /Serving Boise and the Treasure Valley/);
+  assert.match(LLMS_CONTACT, /Serving Boise, Emmett and nearby communities in Ada, Canyon and Gem counties\./);
   assert.doesNotMatch(PUBLIC_NAP + LLMS_CONTACT, /Wapoot|public representative|staffed storefront/i);
   assert.match(LLMS_CONTACT, /hello@p5homeco\.com/);
   assert.equal(PUBLIC_NAP.includes("Jared") || SISTER_LINE.includes("Jared") || LLMS_CONTACT.includes("Jared"), false);
@@ -181,8 +181,7 @@ test("the family footer prints the approved NAP, hours, registration and family 
   for (const site of ["boiseconstruction.co", "boiseremodeling.co", "boisecabinet.co", "boisehandyman.co"]) {
     assert.match(html, new RegExp(`<a href="https://${site.replace(".", "\\.")}" rel="noopener">`), site);
   }
-  assert.ok(text.includes("ADUs are built by sister company Boise ADU Co, part of P5 Home Co."), "ADU disclosure");
-  assert.equal(text.includes(ADU_D3_LINE), false);
+  assert.ok(text.includes(ADU_D3_LINE), "ADU disclosure");
   assert.ok(html.includes("https://www.facebook.com/1228704823655951"));
   // Owner call A: P5's Google Business Profile, once, beside the Facebook page.
   assert.equal((html.match(/data-testid="link-footer-google"/g) ?? []).length, 1);

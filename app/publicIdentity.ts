@@ -32,7 +32,7 @@ export const SCHEMA_LEGAL_NAME = "P5 Home Co LLC";
 export const CONTRACTOR_REGISTRATION = "8381215";
 
 export const PUBLIC_NAP =
-  "Serving Boise and the Treasure Valley · (208) 477-1169 · hello@p5homeco.com";
+  "Serving Boise, Emmett and nearby communities in Ada, Canyon and Gem counties. · (208) 477-1169 · hello@p5homeco.com";
 
 export const PUBLIC_REGISTRATION = "Idaho Registered Contractor #8381215";
 
@@ -40,10 +40,10 @@ export const PUBLIC_REGISTRATION = "Idaho Registered Contractor #8381215";
 export const IDAHO_DOPL_LICENSE_SEARCH = "https://edopl.idaho.gov/OnlineServices/?link=PubSearch";
 
 export const SISTER_LINE =
-  "Part of P5 Home Co: Boise Construction Co · Boise Remodeling Co · Boise Cabinet Co · Boise Handyman Co · Boise ADU Co projects run through Boise Construction Co.";
+  "Part of P5 Home Co: Boise Construction Co · Boise Remodeling Co · Boise Cabinet Co · Boise Handyman Co · ADUs are built by sister company Boise ADU Co, part of P5 Home Co.";
 
 export const LLMS_CONTACT =
-  `Serving Boise and the Treasure Valley. Phone (208) 477-1169. Email hello@p5homeco.com. Hours: ${BUSINESS_HOURS_LABEL}.`;
+  `Serving Boise, Emmett and nearby communities in Ada, Canyon and Gem counties. Phone (208) 477-1169. Email hello@p5homeco.com. Hours: ${BUSINESS_HOURS_LABEL}.`;
 
 /** Public ADU destination. boiseadu.co is not a public link. */
 export const ADU_QUOTE_URL = "https://p5homeco.com/quote/adu";
@@ -60,8 +60,8 @@ export const SISTER_LINKS = [
   { label: "Boise ADU Co", href: ADU_QUOTE_URL },
 ] as const;
 
-/** Project-routing line for the ADU card and FAQ. */
+/** Public ADU line. Boise ADU Co is a sister company, not a Construction project. */
 export const ADU_D3_LINE =
-  "Boise ADU Co projects run through Boise Construction Co.";
+  "ADUs are built by sister company Boise ADU Co, part of P5 Home Co.";
 
 export const ADU_CONSTRUCTION_URL = "https://boiseconstruction.co";

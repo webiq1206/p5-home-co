@@ -389,7 +389,7 @@ export default function Home() {
           className="brand-adu"
           description={ADU_D3_LINE}
           services={["Detached ADU", "Garage conversion", "Basement or interior unit", "Feasibility and permits"]}
-          proof="Projects run through Boise Construction Co"
+          proof=""
           url={ADU_QUOTE_URL}
           linkLabel="Start an ADU quote"
         />

@@ -34,7 +34,7 @@ const COMPANIES = [
   {
     name: "Boise ADU Co",
     href: ADU_QUOTE_URL,
-    line: "projects run through Boise Construction Co.",
+    line: "ADUs are built by sister company Boise ADU Co, part of P5 Home Co.",
   },
 ] as const;
 
@@ -166,7 +166,7 @@ export default function AboutClient({
           <h2 id="the-company">The company</h2>
           <ul>
             <li>P5 Home Co LLC, Meridian, Idaho.{" "}<a href={doplLookup} target="_blank" rel="noopener noreferrer">Idaho Registered Contractor #{registration}</a>. Insured; certificate on request.</li>
-            <li><AduLinkedText text="Boise Construction Co, Boise Remodeling Co, Boise Cabinet Co and Boise Handyman Co are DBAs of P5 Home Co LLC; Boise ADU Co projects currently run through Boise Construction Co."></AduLinkedText></li>
+            <li><AduLinkedText text="Boise Construction Co, Boise Remodeling Co, Boise Cabinet Co and Boise Handyman Co are DBAs of P5 Home Co LLC. ADUs are built by sister company Boise ADU Co, part of P5 Home Co."></AduLinkedText></li>
           </ul>
         </section>
 

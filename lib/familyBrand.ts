@@ -75,7 +75,7 @@ export const FAMILY_BRAND: FamilyBrand = {
   // BUSINESS_VCARD_PATH in lib/vcard.ts (that module pulls in more than the chrome needs).
   saveContactHref: '/contact.vcf',
   email: PUBLIC_EMAIL,
-  tagline: 'The parent company behind Boise Construction Co, Boise Remodeling Co, Boise Cabinet Co and Boise Handyman Co.',
+  tagline: 'The parent company behind Boise Construction Co, Boise Remodeling Co, Boise Cabinet Co, Boise Handyman Co and Boise ADU Co.',
   parentLine: 'Boise and the Treasure Valley, Idaho',
   footer: {
     groups: [
@@ -111,7 +111,7 @@ export const FAMILY_BRAND: FamilyBrand = {
     },
     copyrightName: 'P5 Home Co',
   },
-  // Boise ADU Co is left out until its own site exists; its projects run through Boise Construction Co.
+  // Boise ADU Co is named with the other companies. Its public link is the P5 quote path.
   family: {
     label: 'The P5 Home Co family',
     companies: [
