@@ -5,7 +5,7 @@ import { readFileSync } from "node:fs";
 import { schemaFor } from "../app/quote/schema.ts";
 import { QUOTE_SERVICES } from "../app/quote/services.ts";
 import { NICK_PERKINS_ID, SCHEMA_LEGAL_NAME, SCHEMA_TELEPHONE } from "../app/publicIdentity.ts";
-import { businessId, homePageSchema, serializeJsonLd, siteSchema, siteTitle } from "../app/structuredData.ts";
+import { businessDescription, businessId, homePageSchema, serializeJsonLd, siteDescription, siteSchema, siteTitle } from "../app/structuredData.ts";
 import { ESTIMATOR_BRAND } from "../lib/p5/brand.ts";
 
 function types(value: unknown): string[] {
@@ -45,6 +45,10 @@ test("public schema keeps the locality and service areas while street verificati
   assert.equal(operations.includes(ESTIMATOR_BRAND.phone), true);
   assert.equal(organization["@id"], businessId);
   assert.equal(organization["@id"], "https://p5homeco.com/#business");
+  assert.equal(organization.description, businessDescription);
+  assert.equal(siteSchema["@graph"][1].description, siteDescription);
+  assert.equal(homePageSchema.description, siteDescription);
+  assert.notEqual(organization.description, siteDescription);
   assert.equal("streetAddress" in address, false);
   assert.equal("postalCode" in address, false);
   assert.deepEqual(address, {
@@ -131,8 +135,7 @@ test("JSON-LD serialization escapes HTML opening brackets", () => {
 });
 
 test("each subOrganization has its own @id and url", () => {
-  // Public pages still route ADU projects through Boise Construction Co.
-  // The schema node uses https://boiseadu.co/#business so the ids stay unique.
+  // boiseadu.co has no DNS record. Boise ADU Co links to /quote/adu.
   const organization = siteSchema["@graph"][0];
   const ids = organization.subOrganization.map((node) => node["@id"]);
   const urls = organization.subOrganization.map((node) => node.url);
@@ -150,8 +153,11 @@ test("each subOrganization has its own @id and url", () => {
     "https://boiseremodeling.co/#business",
     "https://boisecabinet.co/#business",
     "https://boisehandyman.co/#business",
-    "https://boiseadu.co/#business",
+    "https://p5homeco.com/#adu",
   ]);
+  const adu = organization.subOrganization.find((node) => node.name === "Boise ADU Co");
+  assert.equal(adu?.url, "https://p5homeco.com/quote/adu");
+  assert.equal(adu?.["@id"], "https://p5homeco.com/#adu");
   for (const node of organization.subOrganization) {
     assert.equal(node.parentOrganization["@id"], businessId);
   }

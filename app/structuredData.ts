@@ -35,11 +35,10 @@ const BRAND_ORIGINS = [
   ["Boise Remodeling Co", "https://boiseremodeling.co"],
   ["Boise Cabinet Co", "https://boisecabinet.co"],
   ["Boise Handyman Co", "https://boisehandyman.co"],
-  ["Boise ADU Co", "https://boiseadu.co"],
 ] as const;
 
 function brandSubOrganizations() {
-  return BRAND_ORIGINS.map(([name, origin]) => {
+  const brands = BRAND_ORIGINS.map(([name, origin]) => {
     const company = companies.find((entry) => entry.name === name);
     if (!company) throw new Error(`Missing company card for ${name}`);
     const sameAs = BRAND_SAME_AS[name];
@@ -54,11 +53,26 @@ function brandSubOrganizations() {
       parentOrganization: { "@id": businessId },
     };
   });
+  // boiseadu.co has no DNS record. Boise ADU Co links to /quote/adu.
+  return [
+    ...brands,
+    {
+      "@type": "Organization" as const,
+      "@id": `${siteUrl}/#adu`,
+      name: "Boise ADU Co",
+      url: `${siteUrl}/quote/adu`,
+      parentOrganization: { "@id": businessId },
+    },
+  ];
 }
 
 export const siteTitle = "Boise Builders, Remodelers, Cabinets & Repairs | P5 Home Co";
 export const siteDescription =
   "Parent company of Boise Construction Co, Boise Remodeling Co, Boise Cabinet Co and Boise Handyman Co in Idaho's Treasure Valley.";
+
+/** Schema-only. Visible titles, meta descriptions, and page copy keep siteDescription. */
+export const businessDescription =
+  "Parent company of Boise Construction Co, Boise Remodeling Co, Boise Cabinet Co, Boise Handyman Co and Boise ADU Co, five home teams serving Idaho's Treasure Valley.";
 
 /** Entities that describe the publisher and website on every public page. */
 export const siteSchema = {
@@ -71,7 +85,7 @@ export const siteSchema = {
       legalName: SCHEMA_LEGAL_NAME,
       alternateName: "P5 Home Company",
       url: siteUrl,
-      description: siteDescription,
+      description: businessDescription,
       slogan: "One home. Five specialized teams.",
       ...(SHOW_FOUNDING_YEAR ? { foundingDate: "2020" } : {}),
       telephone: SCHEMA_TELEPHONE,
@@ -121,9 +135,7 @@ export const siteSchema = {
           name,
         })),
       ],
-      // One node per brand. Public pages still send ADU projects through
-      // Boise Construction Co. The schema @id is https://boiseadu.co/#business
-      // so that brand does not reuse Construction's id.
+      // Four live brand sites, plus Boise ADU Co. ADU links to /quote/adu.
       subOrganization: brandSubOrganizations(),
       knowsAbout: [
         "Custom home building",
