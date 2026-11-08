@@ -389,7 +389,7 @@ export function buildAbandonmentMessage(s: SessionRow): { subject: string; text:
 export function buildCallbackMessage(s: SessionRow): { subject: string; text: string; html: string } {
   return render(
     `Callback requested: ${s.contact_name ? `${s.contact_name}, ` : ""}${pretty(s.contact_phone)} (quote form)`,
-    `A visitor who was leaving the quote form asked for a call back instead. Call them at the number below; they were told to expect a call within one business day.`,
+    `A visitor who was leaving the quote form asked for a call back instead. Call them at the number below; they were told someone would call to answer their questions (no response time was promised).`,
     s,
   );
 }

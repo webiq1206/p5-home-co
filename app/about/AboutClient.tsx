@@ -154,9 +154,11 @@ export default function AboutClient({
             </li>
             <li>Plumbing, electrical and HVAC go to licensed trade partners we schedule and stand behind.</li>
             <li>
-              Every project has one written scope before any price, a weekly written update, and a workmanship warranty:
-              one year on repairs and new builds (ten years structural where offered), two years on remodels and cabinet
-              installation.
+              Every project has one written scope before any price, a weekly written update, and one year of
+              workmanship coverage from documented Final Completion, covering our people and the subcontractors we
+              hire. Final Completion means the agreed work is done, required inspections have passed, and the
+              walkthrough and handover records are complete. Manufacturer product warranties are separate, and
+              ten-year structural coverage applies only where the signed agreement offers it.
             </li>
           </ul>
         </section>

@@ -86,8 +86,8 @@ export function AbandonmentPrompt({ open, method, leaving, onStay, onContinue }:
         <h2 id="recovery-title">{state === "sent" ? "We will call you back." : "Prefer to talk it through instead?"}</h2>
         <p id="recovery-desc" className="recovery-lede">
           {state === "sent"
-            ? "Thanks. Someone from the team will call within one business day. You can keep going here or close this window."
-            : "A quick call or text answers most questions in a minute. Or leave a number and we will call you back within one business day."}
+            ? "Thanks. We have your number, and someone from the team will call to answer your questions. You can keep going here or close this window."
+            : "Call or text with any questions and we will answer them. Or leave a number and we will call you back."}
         </p>
         {state !== "sent" && (
           <>

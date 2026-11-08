@@ -568,8 +568,8 @@ export function ShortRequestForm({
         <div className="quote-form-done">
           <p>
             {done.callback
-              ? `Someone from ${done.team} calls you back within one business day.`
-              : `A specialist from ${done.team} replies within one business day with questions or a time to visit. You get a written scope before any price.`}
+              ? `Someone from ${done.team} will call you back to answer your questions and help you work out the next step.`
+              : `A specialist from ${done.team} answers your questions and helps you work out the next step, which may be a time to visit. You get a written scope before any price.`}
           </p>
 
           {files.length > 0 && (
@@ -599,7 +599,7 @@ export function ShortRequestForm({
           )}
 
           <p>
-            Need it sooner?{" "}
+            Have a question now?{" "}
             <TrackedPhoneLink location="form_thanks">Call {PUBLIC_PHONE_DISPLAY}</TrackedPhoneLink>
             <span aria-hidden="true"> or </span>
             <a href={PUBLIC_PHONE_SMS} onClick={() => track("text_click", { location: "form_thanks" })}>
@@ -898,8 +898,8 @@ export function ShortRequestForm({
               </button>
               <p id={ids.next} className="quote-form-next">
                 {callback
-                  ? "We call you back within one business day."
-                  : "We reply within one business day with questions or a time to visit."}
+                  ? "We call you back to answer your questions and help you work out the next step."
+                  : "We answer your questions and help you work out the next step, which may be a time to visit."}
               </p>
             </div>
           </div>

@@ -95,14 +95,14 @@ Shared minimum targets are44px, primary controls48px and family choices56px; per
 |---|---|
 | Five company identities | `app/site.ts` and homepage cards; includes ADU routed through Construction. This is a taxonomy count, not five authenticated live websites or completed-work evidence. |
 | Nine cities served | Exact `citiesServed` array in `app/site.ts`; service-area scope, not a count of customers/jobs. |
-| One-business-day reply | Existing homepage/intake promise; no measured response-time dataset was inspected for this profile. |
+| Response wording | Owner instruction (November 2026): say that we answer questions, never a response window. The former response-window promise and homepage reply counter were removed; no measured response-time dataset exists, so no timing replaces it. |
 | Registration8381215, bonded/insured, written scope, permits where required | Source-stated identity/process in `app/publicIdentity.ts`, homepage and `app/quote/proof.ts`. Fresh official registration/certificate/operational evidence was not independently obtained in this documentation task. |
 | Company finder | `components/CompanyFinder.tsx`; a deterministic project-to-company recommendation with no email gate, no financial calculation and no claim of a project outcome. |
 | Reviews/completed-project artifacts | Testimonials are empty and unproven flags remain off. No new authenticated customer case study, outcome dataset or job-photo provenance is supplied by this adoption. |
 
 | Flow | Purpose, source steps and result/destination |
 |---|---|
-| Homepage company finder | Choose one of five goals, immediately show the company/reason, offer the actual child destination or matching P5 quote path, and allow reset. ADU's external destination is Construction. `components/CompanyFinder.tsx`. |
+| Homepage company finder | Choose one of five goals, immediately show the company/reason, offer the actual child destination or matching P5 quote path, and allow reset. ADU's destination is the working P5 ADU entry, `/quote/adu` (BoiseADU.co is not launched). `components/CompanyFinder.tsx`. |
 | Homepage project matcher | Goal/company → project type → recommended company with links and a Back path. `ProjectMatcher` in `app/HomePageClient.tsx` manages dialog focus/Escape/restoration and the mobile-bar yield flag. Recommendation precedes contact; persistence and every fit/state require actual review. |
 | Quote/request and callback | `components/ShortRequestForm.tsx`: request mode takes a note, name, phone, conditional email/contact preference and optional files; callback mode takes name/phone and optional time. It saves the request first, then attaches files. Optional preparation details on the saved-request screen add project, address, timing, files/email to the same request and can be skipped. Draft state uses session storage. API paths under `/api/leads/short-request`, including `/files` and `/details`, are protected writes; no submission is authorized by this profile. |
 | Service quote pages | Seven distinct `/quote/{service}` routes preselect valid project routing from `app/quote/services.ts`/`options.ts`. They are noindex/follow and canonicalize to `/quote`; retain their service content and context. `/quote/thanks` is a separate noindex/follow page. |

@@ -9,7 +9,7 @@ import { withBrandPageMetadata } from "@/lib/brand-page-metadata";
 export const metadata: Metadata = withBrandPageMetadata({
   title: { absolute: "Request a Quote | P5 Home Co" },
   description:
-    "Request a written quote for a Treasure Valley home project. Tell P5 Home Co what you need and the right specialist team follows up within one business day.",
+    "Request a written quote for a Treasure Valley home project. Tell P5 Home Co what you need. We answer your questions and connect you with the right P5 specialist.",
   alternates: { canonical: "https://p5homeco.com/quote" },
   robots: { index: false, follow: true },
 }, "/estimate");
