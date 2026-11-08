@@ -18,13 +18,13 @@ export const SHOW_CABINET_FABRICATION = false;
 export const SHOW_FAKE_STAFF_IMAGES = false;
 
 export const CREW_AND_TRADES =
-  "Cabinets sourced and installed by our own crew, with trade partners where needed.";
+  "Cabinets are installed by our team or a qualified installation partner we manage.";
 
 export const SELF_PERFORM_FAQ =
   "P5 Home Co is an operating family of companies, not a directory or a referral network. Each of the five companies has its own craft and team, and does the work itself, under one shared standard for scopes, communication, and accountability.";
 
 export const SPECIALTY_FAQ =
-  "P5 Home Co is an operating family of companies, not a directory or a referral network. Each company has its own specialty and team, under one shared standard for scopes, communication, and accountability. Cabinets sourced and installed by our own crew, with trade partners where needed.";
+  "P5 Home Co is an operating family of companies, not a directory or a referral network. Each company has its own specialty and team, under one shared standard for scopes, communication, and accountability. Cabinets are installed by our team or a qualified installation partner we manage.";
 
 export const CRAFT_EXPERTISE = "Each company has its own craft, team, and expertise.";
 export const SPECIALTY_EXPERTISE = "Each company has its own specialty, team, and expertise.";

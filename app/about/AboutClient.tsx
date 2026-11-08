@@ -22,7 +22,7 @@ const COMPANIES = [
   {
     name: "Boise Cabinet Co",
     href: "https://boisecabinet.co",
-    line: "designs custom cabinets to your measurements, built to order and installed by our crew.",
+    line: "designs custom cabinets to your measurements, built to order and installed by our team or a qualified installation partner we manage.",
   },
   {
     name: "Boise Handyman Co",

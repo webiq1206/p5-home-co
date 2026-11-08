@@ -89,7 +89,7 @@ export const faqs = [
   },
   {
     q: "Which company does what?",
-    a: "Boise Construction Co builds new homes and ADUs. Boise Remodeling Co handles kitchen, bath and whole-home remodels and additions. Boise Cabinet Co designs custom cabinets to your measurements, built to order and installed by our crew. Boise Handyman Co handles repairs, installs, maintenance and RE-10 lists. Boise ADU Co projects run through Boise Construction Co. Use the company cards on this page to start with the right team.",
+    a: "Boise Construction Co builds new homes and ADUs. Boise Remodeling Co handles kitchen, bath and whole-home remodels and additions. Boise Cabinet Co designs custom cabinets to your measurements, built to order and installed by our team or a qualified installation partner we manage. Boise Handyman Co handles repairs, installs, maintenance and RE-10 lists. Boise ADU Co projects run through Boise Construction Co. Use the company cards on this page to start with the right team.",
   },
   {
     q: "Who is my contract with?",

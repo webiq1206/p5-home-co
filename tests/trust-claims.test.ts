@@ -47,7 +47,7 @@ test("unproven claims stay in source and are hidden by default", () => {
   assert.equal(SHOW_UNPROVEN_SATISFACTION_GUARANTEE, false);
   assert.equal(
     CREW_AND_TRADES,
-    "Cabinets sourced and installed by our own crew, with trade partners where needed.",
+    "Cabinets are installed by our team or a qualified installation partner we manage.",
   );
   assert.equal(SPECIALTY_FAQ.endsWith(CREW_AND_TRADES), true);
   assert.equal(constructionImage, FRAMING_FOOTHILLS.src);

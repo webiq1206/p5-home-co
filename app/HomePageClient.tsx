@@ -327,7 +327,7 @@ export default function Home() {
           className="brand-cabinetry"
           description="Custom cabinets designed to your measurements, built to order, and installed by our Treasure Valley crew, from the first layout and finish selection through the final walkthrough."
           services={["Kitchen cabinetry", "Bathroom vanities", "Built-ins and storage", "Whole-home cabinetry"]}
-          proof={cabinetProof || "Built to order · Installed by our crew"}
+          proof={cabinetProof || "Built to order · Managed installation"}
           url="https://boisecabinet.co"
           linkLabel="Explore Boise Cabinet Co"
         />
