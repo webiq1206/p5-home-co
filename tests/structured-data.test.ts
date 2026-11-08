@@ -5,7 +5,7 @@ import { readFileSync } from "node:fs";
 import { schemaFor } from "../app/quote/schema.ts";
 import { QUOTE_SERVICES } from "../app/quote/services.ts";
 import { NICK_PERKINS_ID, SCHEMA_LEGAL_NAME, SCHEMA_TELEPHONE } from "../app/publicIdentity.ts";
-import { homePageSchema, serializeJsonLd, siteSchema, siteTitle } from "../app/structuredData.ts";
+import { businessDescription, businessId, homePageSchema, serializeJsonLd, siteDescription, siteSchema, siteTitle } from "../app/structuredData.ts";
 import { ESTIMATOR_BRAND } from "../lib/p5/brand.ts";
 
 function types(value: unknown): string[] {
@@ -28,7 +28,7 @@ function records(value: unknown, found: Record<string, unknown>[] = []): Record<
 
 test("the root schema contains only site-wide entities", () => {
   const graph = siteSchema["@graph"];
-  assert.deepEqual(graph.flatMap(types), ["Organization", "HomeAndConstructionBusiness", "WebSite"]);
+  assert.deepEqual(graph.flatMap(types), ["HomeAndConstructionBusiness", "GeneralContractor", "WebSite"]);
   assert.ok(!serializeJsonLd(siteSchema).includes("FAQPage"));
 });
 
@@ -43,6 +43,14 @@ test("public schema keeps the locality and service areas while street verificati
   assert.equal(legal.includes(verificationAddress), false);
   assert.equal(ESTIMATOR_BRAND.phone, "(208) 477-1169");
   assert.equal(operations.includes(ESTIMATOR_BRAND.phone), true);
+  assert.equal(organization["@id"], businessId);
+  assert.equal(organization["@id"], "https://p5homeco.com/#business");
+  assert.equal(organization.description, businessDescription);
+  assert.equal(siteSchema["@graph"][1].description, siteDescription);
+  assert.equal(homePageSchema.description, siteDescription);
+  assert.notEqual(organization.description, siteDescription);
+  assert.equal("streetAddress" in address, false);
+  assert.equal("postalCode" in address, false);
   assert.deepEqual(address, {
     "@type": "PostalAddress",
     addressLocality: "Meridian",
@@ -55,7 +63,7 @@ test("public schema keeps the locality and service areas while street verificati
   assert.equal(organization.employee["@id"], NICK_PERKINS_ID);
   assert.equal(organization.employee.name, "Nick Perkins");
   assert.equal(organization.employee.jobTitle, "Founder");
-  assert.equal(organization.employee.worksFor["@id"], "https://p5homeco.com/#organization");
+  assert.equal(organization.employee.worksFor["@id"], businessId);
   assert.equal(organization.contactPoint.name, "Nick Perkins");
   assert.equal(organization.contactPoint.contactType, "customer service");
   assert.equal(organization.contactPoint.telephone, SCHEMA_TELEPHONE);
@@ -72,9 +80,16 @@ test("public schema keeps the locality and service areas while street verificati
   });
   assert.equal(JSON.stringify(organization).includes("Jared"), false);
   assert.deepEqual(organization.sameAs, [
-    "https://www.facebook.com/1228704823655951",
+    "https://www.facebook.com/p5homeco",
+    "https://nextdoor.com/pages/boise-remodeling-co-meridian-id/",
+    "https://ezlocal.com/id/meridian/home-remodeling/0919899218",
+    "https://www.cylex.us.com/company/p5-home-co--llc-40749871.html",
+    "https://www.google.com/maps?cid=11869148461693849141",
     "https://www.google.com/search?kgmid=/g/11ntl1t7dc",
   ]);
+  assert.equal(organization.sameAs.some((url) => /bbb\.org|houzz\.com|buildzoom\.com|yelp\.com/i.test(url)), false);
+  assert.equal("priceRange" in organization, false);
+  assert.equal(JSON.stringify(organization).includes("aggregateRating"), false);
   assert.equal(siteTitle, "Boise Builders, Remodelers, Cabinets & Repairs | P5 Home Co");
   assert.ok(siteTitle.length <= 60);
 
@@ -93,6 +108,8 @@ test("public schema keeps the locality and service areas while street verificati
   assert.equal(serialized.toLowerCase().includes("storefront"), false);
   assert.equal(serialized.includes('"addressLocality":"Boise"'), false);
   assert.equal(serialized.includes('"addressLocality":"Meridian"'), true);
+  assert.equal(serialized.includes("postalCode"), false);
+  assert.equal(/showroom|shop/i.test(JSON.stringify(organization)), false);
   assert.equal(records(homePageSchema).some((record) => record["@type"] === "PostalAddress"), false);
   assert.equal(records(schemaFor(null)).some((record) => record["@type"] === "PostalAddress"), false);
 });
@@ -118,9 +135,8 @@ test("JSON-LD serialization escapes HTML opening brackets", () => {
 });
 
 test("each subOrganization has its own @id and url", () => {
-  // Boise ADU Co runs through Boise Construction Co until its own site exists;
-  // listing it would give two differently named nodes the same @id.
-  const organization = siteSchema["@graph"][0] as unknown as { subOrganization: Array<Record<string, string>> };
+  // boiseadu.co has no DNS record. Boise ADU Co links to /quote/adu.
+  const organization = siteSchema["@graph"][0];
   const ids = organization.subOrganization.map((node) => node["@id"]);
   const urls = organization.subOrganization.map((node) => node.url);
   assert.equal(new Set(ids).size, ids.length);
@@ -130,5 +146,34 @@ test("each subOrganization has its own @id and url", () => {
     "Boise Remodeling Co",
     "Boise Cabinet Co",
     "Boise Handyman Co",
+    "Boise ADU Co",
   ]);
+  assert.deepEqual(ids, [
+    "https://boiseconstruction.co/#business",
+    "https://boiseremodeling.co/#business",
+    "https://boisecabinet.co/#business",
+    "https://boisehandyman.co/#business",
+    "https://p5homeco.com/#adu",
+  ]);
+  const adu = organization.subOrganization.find((node) => node.name === "Boise ADU Co");
+  assert.equal(adu?.url, "https://p5homeco.com/quote/adu");
+  assert.equal(adu?.["@id"], "https://p5homeco.com/#adu");
+  for (const node of organization.subOrganization) {
+    assert.equal(node.parentOrganization["@id"], businessId);
+  }
+  const cabinet = organization.subOrganization.find((node) => node.name === "Boise Cabinet Co");
+  const remodeling = organization.subOrganization.find((node) => node.name === "Boise Remodeling Co");
+  assert.equal("sameAs" in (cabinet ?? {}), false);
+  assert.equal("sameAs" in (remodeling ?? {}), false);
+  assert.equal(organization.subOrganization.some((node) => "sameAs" in node), false);
+  const graphIds = records(siteSchema).flatMap((record) => (
+    record["@type"] && record["@id"] ? [String(record["@id"])] : []
+  ));
+  assert.equal(new Set(graphIds).size, graphIds.length);
+  const businessNodes = records(siteSchema).filter((record) => {
+    const nodeTypes = types(record);
+    return nodeTypes.includes("HomeAndConstructionBusiness") || nodeTypes.includes("GeneralContractor");
+  });
+  assert.equal(businessNodes.length, 1);
+  assert.equal(businessNodes[0]?.["@id"], businessId);
 });

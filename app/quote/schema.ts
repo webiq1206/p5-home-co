@@ -7,6 +7,7 @@
  */
 
 import { siteUrl } from "../site.ts";
+import { businessId } from "../structuredData.ts";
 import { SERVICE_FAQ, type QuoteService } from "./services.ts";
 
 export interface Faq {
@@ -95,7 +96,7 @@ export function schemaFor(service: QuoteService | null): Record<string, unknown>
         name,
         description,
         isPartOf: { "@id": `${siteUrl}/#website` },
-        about: { "@id": `${siteUrl}/#organization` },
+        about: { "@id": businessId },
         inLanguage: "en-US",
       },
       { "@type": "BreadcrumbList", "@id": `${url}#breadcrumb`, itemListElement },
@@ -107,7 +108,7 @@ export function schemaFor(service: QuoteService | null): Record<string, unknown>
           ? service.label
           : "Residential construction, remodeling, and repair estimates",
         description,
-        provider: { "@id": `${siteUrl}/#organization` },
+        provider: { "@id": businessId },
         areaServed: [
           { "@type": "AdministrativeArea", name: "Ada County, Idaho" },
           { "@type": "AdministrativeArea", name: "Canyon County, Idaho" },

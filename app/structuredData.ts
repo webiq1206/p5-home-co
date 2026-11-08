@@ -6,42 +6,97 @@ import {
   SCHEMA_LEGAL_NAME,
   SCHEMA_TELEPHONE,
   CONTRACTOR_REGISTRATION,
-  P5_FACEBOOK_URL,
   P5_GOOGLE_BUSINESS_PROFILE_URL,
 } from "./publicIdentity.ts";
 import { SHOW_FOUNDING_YEAR } from "./publicClaims.ts";
 import { citiesServed, companies, faqs, siteUrl } from "./site.ts";
 
+/** Stable id for this business. Child sites reference it as parentOrganization. */
+export const businessId = `${siteUrl}/#business`;
+
+// Confirmed public profiles for P5 Home Co LLC.
+// The full sameAs list is coming in a later ticket.
+export const P5_SAME_AS = [
+  "https://www.facebook.com/p5homeco",
+  "https://nextdoor.com/pages/boise-remodeling-co-meridian-id/",
+  "https://ezlocal.com/id/meridian/home-remodeling/0919899218",
+  "https://www.cylex.us.com/company/p5-home-co--llc-40749871.html",
+  "https://www.google.com/maps?cid=11869148461693849141",
+  P5_GOOGLE_BUSINESS_PROFILE_URL,
+] as const;
+
+/** Brand profiles only. P5's Nextdoor page is not repeated on Boise Remodeling. */
+const BRAND_SAME_AS: Record<string, readonly string[]> = {};
+
+const BRAND_ORIGINS = [
+  ["Boise Construction Co", "https://boiseconstruction.co"],
+  ["Boise Remodeling Co", "https://boiseremodeling.co"],
+  ["Boise Cabinet Co", "https://boisecabinet.co"],
+  ["Boise Handyman Co", "https://boisehandyman.co"],
+] as const;
+
+function brandSubOrganizations() {
+  const brands = BRAND_ORIGINS.map(([name, origin]) => {
+    const company = companies.find((entry) => entry.name === name);
+    if (!company) throw new Error(`Missing company card for ${name}`);
+    const sameAs = BRAND_SAME_AS[name];
+    return {
+      "@type": "Organization" as const,
+      "@id": `${origin}/#business`,
+      name,
+      url: origin,
+      description: company.description,
+      image: `${siteUrl}${company.image}`,
+      ...(sameAs ? { sameAs } : {}),
+      parentOrganization: { "@id": businessId },
+    };
+  });
+  // boiseadu.co has no DNS record. Boise ADU Co links to /quote/adu.
+  return [
+    ...brands,
+    {
+      "@type": "Organization" as const,
+      "@id": `${siteUrl}/#adu`,
+      name: "Boise ADU Co",
+      url: `${siteUrl}/quote/adu`,
+      parentOrganization: { "@id": businessId },
+    },
+  ];
+}
+
 export const siteTitle = "Boise Builders, Remodelers, Cabinets & Repairs | P5 Home Co";
 export const siteDescription =
   "Parent company of Boise Construction Co, Boise Remodeling Co, Boise Cabinet Co and Boise Handyman Co in Idaho's Treasure Valley.";
+
+/** Schema-only. Visible titles, meta descriptions, and page copy keep siteDescription. */
+export const businessDescription =
+  "Parent company of Boise Construction Co, Boise Remodeling Co, Boise Cabinet Co, Boise Handyman Co and Boise ADU Co, five home teams serving Idaho's Treasure Valley.";
 
 /** Entities that describe the publisher and website on every public page. */
 export const siteSchema = {
   "@context": "https://schema.org",
   "@graph": [
     {
-      "@type": ["Organization", "HomeAndConstructionBusiness"],
-      "@id": `${siteUrl}/#organization`,
+      "@type": ["HomeAndConstructionBusiness", "GeneralContractor"],
+      "@id": businessId,
       name: "P5 Home Co",
       legalName: SCHEMA_LEGAL_NAME,
       alternateName: "P5 Home Company",
       url: siteUrl,
-      description: siteDescription,
+      description: businessDescription,
       slogan: "One home. Five specialized teams.",
       ...(SHOW_FOUNDING_YEAR ? { foundingDate: "2020" } : {}),
       telephone: SCHEMA_TELEPHONE,
       email: ESTIMATOR_BRAND.email,
       image: `${siteUrl}/images/p5-og.jpg`,
       logo: { "@type": "ImageObject", url: `${siteUrl}/android-chrome-512x512.png` },
-      // Confirmed profiles only: the P5 Facebook page and the P5 Google Business Profile.
-      sameAs: [P5_FACEBOOK_URL, P5_GOOGLE_BUSINESS_PROFILE_URL],
+      sameAs: P5_SAME_AS,
       employee: {
         "@type": "Person",
         "@id": NICK_PERKINS_ID,
         name: PUBLIC_REPRESENTATIVE,
         jobTitle: "Founder",
-        worksFor: { "@id": `${siteUrl}/#organization` },
+        worksFor: { "@id": businessId },
       },
       openingHoursSpecification: officeOpeningHours(),
       contactPoint: {
@@ -63,7 +118,7 @@ export const siteSchema = {
           url: "https://dopl.idaho.gov/con/",
         },
       },
-      // Publish locality and served areas without exposing a street address.
+      // streetAddress pending owner approval
       address: {
         "@type": "PostalAddress",
         addressLocality: "Meridian",
@@ -78,19 +133,8 @@ export const siteSchema = {
           name,
         })),
       ],
-      // One node per company with its own site. Boise ADU Co has no site yet and
-      // runs through Boise Construction Co, so it would repeat Construction's
-      // url and @id under a different name. It joins the graph, with its own
-      // @id, once its domain is live.
-      subOrganization: companies.filter((company) => company.name !== "Boise ADU Co").map((company) => ({
-        "@type": "Organization",
-        "@id": `${company.url}/#organization`,
-        name: company.name,
-        url: company.url,
-        description: company.description,
-        image: `${siteUrl}${company.image}`,
-        parentOrganization: { "@id": `${siteUrl}/#organization` },
-      })),
+      // Four live brand sites, plus Boise ADU Co. ADU links to /quote/adu.
+      subOrganization: brandSubOrganizations(),
       knowsAbout: [
         "Custom home building",
         "Design-build remodeling",
@@ -105,7 +149,7 @@ export const siteSchema = {
       url: siteUrl,
       name: "P5 Home Co",
       description: siteDescription,
-      publisher: { "@id": `${siteUrl}/#organization` },
+      publisher: { "@id": businessId },
       inLanguage: "en-US",
     },
   ],
@@ -120,7 +164,7 @@ export const homePageSchema = {
   name: siteTitle,
   description: siteDescription,
   isPartOf: { "@id": `${siteUrl}/#website` },
-  about: { "@id": `${siteUrl}/#organization` },
+  about: { "@id": businessId },
   primaryImageOfPage: `${siteUrl}/images/p5-og.jpg`,
   inLanguage: "en-US",
   mainEntity: faqs.map((item) => ({
