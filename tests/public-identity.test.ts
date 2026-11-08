@@ -242,7 +242,8 @@ test("homepage preserves identity and location while explaining the three-step p
   assert.match(hero, /titleAccent="home specialists"/);
   assert.doesNotMatch(hero, /PUBLIC_REGISTRATION|Trusted Home/);
   assert.match(home, /PUBLIC_REGISTRATION/);
-  assert.match(home, /Bonded and insured/);
+  assert.match(home, /<strong>Insured<\/strong>/);
+  assert.doesNotMatch(home, /bonded/i);
   assert.match(home, /Who you are hiring/);
   assert.match(home, /href="\/about"/);
   assert.equal(home.includes("Jared"), false);

@@ -18,13 +18,13 @@ export const SHOW_CABINET_FABRICATION = false;
 export const SHOW_FAKE_STAFF_IMAGES = false;
 
 export const CREW_AND_TRADES =
-  "Cabinets sourced and installed by our own crew, with trade partners where needed.";
+  "Cabinets are installed by our team or a qualified installation partner we manage.";
 
 export const SELF_PERFORM_FAQ =
   "P5 Home Co is an operating family of companies, not a directory or a referral network. Each of the five companies has its own craft and team, and does the work itself, under one shared standard for scopes, communication, and accountability.";
 
 export const SPECIALTY_FAQ =
-  "P5 Home Co is an operating family of companies, not a directory or a referral network. Each company has its own specialty and team, under one shared standard for scopes, communication, and accountability. Cabinets sourced and installed by our own crew, with trade partners where needed.";
+  "P5 Home Co is an operating family of companies, not a directory or a referral network. Each company has its own specialty and team, under one shared standard for scopes, communication, and accountability. Cabinets are installed by our team or a qualified installation partner we manage.";
 
 export const CRAFT_EXPERTISE = "Each company has its own craft, team, and expertise.";
 export const SPECIALTY_EXPERTISE = "Each company has its own specialty, team, and expertise.";
@@ -63,13 +63,13 @@ export const PLAIN_LEDE =
   "Parent company to Boise Construction, Remodeling, Cabinet, and Handyman Co. Tell us your project and the right team calls you under one contractor registration.";
 
 export const ESTABLISHED_2020_LINE =
-  "Established 2020. Bonded and insured. Serving Ada and Canyon counties.";
+  "Established 2020. Insured. Serving Ada and Canyon counties.";
 
-export const BONDED_SINCE_2020_ANSWER =
-  "Yes. The P5 companies are bonded and insured, have worked across the Treasure Valley since 2020, and handle permits in-house where a project requires them.";
+export const INSURED_SINCE_2020_ANSWER =
+  "Yes. The P5 companies are insured, with a certificate available on request, have worked across the Treasure Valley since 2020, and handle permits in-house where a project requires them.";
 
-export const BONDED_ANSWER =
-  "Yes. The P5 companies are bonded and insured and handle permits in-house where a project requires them.";
+export const INSURED_ANSWER =
+  "Yes. The P5 companies are insured, with a certificate available on request, and handle permits in-house where a project requires them.";
 
 export const CONSTRUCTION_STAFF_IMAGE = "/images/p5-construction-branded.webp";
 export const CONSTRUCTION_NEUTRAL_IMAGE = FRAMING_FOOTHILLS.src;

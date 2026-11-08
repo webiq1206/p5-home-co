@@ -96,7 +96,7 @@ Shared minimum targets are44px, primary controls48px and family choices56px; per
 | Five company identities | `app/site.ts` and homepage cards; includes ADU routed through Construction. This is a taxonomy count, not five authenticated live websites or completed-work evidence. |
 | Nine cities served | Exact `citiesServed` array in `app/site.ts`; service-area scope, not a count of customers/jobs. |
 | Response wording | Owner instruction (November 2026): say that we answer questions, never a response window. The former response-window promise and homepage reply counter were removed; no measured response-time dataset exists, so no timing replaces it. |
-| Registration8381215, bonded/insured, written scope, permits where required | Source-stated identity/process in `app/publicIdentity.ts`, homepage and `app/quote/proof.ts`. Fresh official registration/certificate/operational evidence was not independently obtained in this documentation task. |
+| Registration8381215, insured (bonded claims removed by owner decision, 8 November 2026), written scope, permits where required | Source-stated identity/process in `app/publicIdentity.ts`, homepage and `app/quote/proof.ts`. Fresh official registration/certificate/operational evidence was not independently obtained in this documentation task. |
 | Company finder | `components/CompanyFinder.tsx`; a deterministic project-to-company recommendation with no email gate, no financial calculation and no claim of a project outcome. |
 | Reviews/completed-project artifacts | Testimonials are empty and unproven flags remain off. No new authenticated customer case study, outcome dataset or job-photo provenance is supplied by this adoption. |
 

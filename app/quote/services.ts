@@ -110,7 +110,7 @@ export const QUOTE_SERVICES: readonly QuoteService[] = [
     slug: "custom-home",
     label: "Custom home",
     h1: "Custom home building quotes in the Treasure Valley",
-    lead: "Whether you have land, plans, or just an idea, Boise Construction Co will price the build and tell you what the site actually allows. Free, no obligation, and honest about feasibility before you spend money on drawings that will not work.",
+    lead: "Whether you have land, plans, or just an idea, Boise Construction Co will price the build and tell you what the site actually allows. The first conversation and project review are free, with no obligation; paid feasibility or planning work starts only after you approve its scope and price in writing.",
     metaTitle: "Custom Home Building Quote, Treasure Valley | P5 Home Co",
     metaDescription:
       "Free custom home building quotes in Ada and Canyon counties. Land evaluation, plans, engineering, permitting, and construction under one accountable team.",
@@ -128,7 +128,7 @@ export const QUOTE_SERVICES: readonly QuoteService[] = [
     slug: "adu",
     label: "ADU",
     h1: "ADU and garage conversion quotes in the Treasure Valley",
-    lead: "Accessory dwelling units turn on what your lot and your city will allow, so Boise ADU Co starts with feasibility and then prices the build. Free, no obligation, covering detached units, garage conversions, and basement or interior conversions.",
+    lead: "Accessory dwelling units turn on what your lot and your city will allow, so Boise ADU Co starts with feasibility and then prices the build, for detached units, garage conversions, and basement or interior conversions. The first conversation and project review are free, with no obligation; paid feasibility work starts only after you approve its scope and price in writing.",
     metaTitle: "ADU & Garage Conversion Quote, Boise | P5 Home Co",
     metaDescription:
       "Free ADU quotes in the Treasure Valley: detached units, garage conversions, and basement conversions, with feasibility and permits handled by one P5 team.",

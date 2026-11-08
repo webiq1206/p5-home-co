@@ -13,7 +13,7 @@ This file records claims already published on p5homeco.com and where the backing
 ## Backing on file in this repository
 
 - Idaho Registered Contractor #8381215 is the existing public registration number; no second number was added.
-- Founding year, bond/insurance evidence, project counts and warranty evidence are not documented here. Leave unsupported GBP/NAP claims blank until documented; preserve existing approved public registration and bonded/insured wording.
+- Founding year, bond/insurance evidence, project counts and warranty evidence are not documented here. Leave unsupported GBP/NAP claims blank until documented; preserve existing approved public registration and insured wording. Do not claim the companies are bonded (owner decision, 8 November 2026).
 
 ## Not added
 

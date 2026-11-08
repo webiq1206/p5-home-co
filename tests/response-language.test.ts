@@ -110,3 +110,55 @@ test("the homepage and request flows say that we answer", () => {
     assert.match(normalize(readFileSync(file, "utf8")), /answers? your questions/, file);
   }
 });
+
+/**
+ * Owner decisions, 8 November 2026 (release 2). Public source must not claim
+ * the companies are bonded (D2), must not promise one contract or one invoice
+ * (D3), and must not promise an instant or same-day estimate or financing
+ * approval (D4). Brand docs are left out: they record the decision itself.
+ */
+const PUBLIC_CLAIM_FILES = files.filter((file) => !/^(?:docs\/|README\.md$)/.test(file));
+// Internal finance and admin code counts real invoices; that is not a customer promise.
+const INTERNAL = [/^app\/lib\/finance\//, /^app\/admin\//, /^app\/api\/admin\//];
+
+const PROHIBITED_CLAIMS: ReadonlyArray<[string, RegExp, boolean]> = [
+  ["bonded", /\bbonded\b/i, false],
+  ["one contract", /\b(?:one|single)\s+contract\b/i, true],
+  ["one invoice", /\b(?:one|single)\s+invoice\b/i, true],
+  ["instant estimate", /\binstant(?:ly)?\s+(?:online\s+)?(?:estimates?|estimator|prices?|pricing|quotes?|ranges?)\b/i, false],
+  ["estimate in minutes", /\b(?:estimates?|prices?|quotes?|ranges?)\b[^.]{0,40}\bin\s+(?:a\s+few\s+|\d+\s+)?minutes\b/i, false],
+  ["same-day financing", /\bsame[\s-]day\s+(?:financing|approval|approvals|credit)\b/i, false],
+];
+
+test("no public source claims bonded, one contract or invoice, or an instant estimate", () => {
+  const hits: string[] = [];
+  for (const file of PUBLIC_CLAIM_FILES) {
+    const text = normalize(readFileSync(file, "utf8"));
+    for (const [label, pattern, publicOnly] of PROHIBITED_CLAIMS) {
+      if (publicOnly && INTERNAL.some((rule) => rule.test(file))) continue;
+      const match = text.match(pattern);
+      if (match) hits.push(`${file}: ${label}: "${match[0]}"`);
+    }
+  }
+  assert.deepEqual(hits, []);
+});
+
+test("the claims guard catches the removed phrases", () => {
+  for (const sample of [
+    "Bonded and insured",
+    "licensed, bonded and insured",
+    "One contract, one project manager, one invoice.",
+    "under one contract",
+    "a single invoice for the whole job",
+    "Get an instant estimate",
+    "Instant price range",
+    "See your estimate in minutes",
+    "Same-day financing approval",
+  ]) {
+    const text = normalize(sample);
+    assert.ok(PROHIBITED_CLAIMS.some(([, pattern]) => pattern.test(text)), sample);
+  }
+  for (const sample of ["Insured; certificate on request.", "One accountable company and one point of contact for your project."]) {
+    assert.equal(PROHIBITED_CLAIMS.some(([, pattern]) => pattern.test(normalize(sample))), false, sample);
+  }
+});

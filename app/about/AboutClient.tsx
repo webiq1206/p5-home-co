@@ -6,7 +6,7 @@ import Link from "next/link";
 import SiteChrome from "@/components/SiteChrome";
 import { FamilyButton } from "@/components/family/Button";
 import SaveContactButton from "@/components/SaveContactButton";
-import { ADU_CONSTRUCTION_URL } from "../publicIdentity";
+import { ADU_REQUEST_PATH } from "../publicIdentity";
 
 const COMPANIES = [
   {
@@ -17,12 +17,12 @@ const COMPANIES = [
   {
     name: "Boise Remodeling Co",
     href: "https://boiseremodeling.co",
-    line: "remodels kitchens, bathrooms and whole homes with design, permits and construction under one contract.",
+    line: "remodels kitchens, bathrooms and whole homes, with design, permits and construction handled by one accountable team.",
   },
   {
     name: "Boise Cabinet Co",
     href: "https://boisecabinet.co",
-    line: "designs custom cabinets to your measurements, built to order and installed by our crew.",
+    line: "designs custom cabinets to your measurements, built to order and installed by our team or a qualified installation partner we manage.",
   },
   {
     name: "Boise Handyman Co",
@@ -32,8 +32,9 @@ const COMPANIES = [
   // Listed so the count matches the homepage and sitemap: four live sites plus Boise ADU Co, shown as coming.
   {
     name: "Boise ADU Co",
-    href: ADU_CONSTRUCTION_URL,
-    line: "projects run through Boise Construction Co.",
+    // No Boise ADU Co site yet: the link opens the P5 ADU request.
+    href: ADU_REQUEST_PATH,
+    line: "projects currently run through Boise Construction Co. Start an ADU request on this site.",
   },
 ] as const;
 
@@ -152,13 +153,19 @@ export default function AboutClient({
               On remodels and builds, our project team runs the schedule, and the crew on repairs is ours, not day
               labour.
             </li>
-            <li>Plumbing, electrical and HVAC go to licensed trade partners we schedule and stand behind.</li>
+            <li>Plumbing, electrical and HVAC go to licensed trade partners we schedule and coordinate.</li>
             <li>
               Every project has one written scope before any price, a weekly written update, and one year of
-              workmanship coverage from documented Final Completion, covering our people and the subcontractors we
-              hire. Final Completion means the agreed work is done, required inspections have passed, and the
-              walkthrough and handover records are complete. Manufacturer product warranties are separate, and
-              ten-year structural coverage applies only where the signed agreement offers it.
+              workmanship coverage from documented Final Completion for work performed by our own team. Final
+              Completion means the agreed work is done, required inspections have passed, and the walkthrough and
+              handover records are complete.
+            </li>
+            <li>
+              Work performed by subcontractors, such as licensed plumbing, electrical or HVAC, is covered by that
+              subcontractor&apos;s own warranty. At the end of every project we provide a complete list of the
+              subcontractors who worked on it, with their contact information. Manufacturer product warranties are
+              separate, and ten-year structural coverage applies only where the signed agreement offers it.{" "}
+              <Link href="/warranty">How warranty coverage and project help work</Link>.
             </li>
           </ul>
         </section>
@@ -176,9 +183,13 @@ export default function AboutClient({
           <ul className="about-company-list">
             {COMPANIES.map((company) => (
               <li key={company.name}>
-                <a href={company.href} target="_blank" rel="noopener">
-                  {company.name}
-                </a>{" "}
+                {company.href.startsWith("http") ? (
+                  <a href={company.href} target="_blank" rel="noopener">
+                    {company.name}
+                  </a>
+                ) : (
+                  <Link href={company.href}>{company.name}</Link>
+                )}{" "}
                 {company.line}
               </li>
             ))}
