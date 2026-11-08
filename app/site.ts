@@ -48,7 +48,7 @@ export const companies = [
     image: "/images/p5-cabinet.webp",
     url: "https://boisecabinet.co",
     description:
-      "Custom cabinets designed to your measurements, built to order, and installed by our Treasure Valley crew.",
+      "Custom cabinets designed to your measurements, built to order, and installed by our team or a managed partner.",
   },
   {
     name: "Boise Handyman Co",
