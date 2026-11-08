@@ -18,11 +18,11 @@ export interface Faq {
 export const SHARED_FAQ: readonly Faq[] = [
   {
     q: "How much does a quote cost?",
-    a: "Nothing. Quotes and estimates from the P5 companies are free and carry no obligation to proceed. You are not charged for a site visit or for a written scope.",
+    a: "Your first conversation and project review are free and carry no obligation to proceed. Paid planning, design or feasibility work is only started after you approve its scope and price in writing.",
   },
   {
-    q: "How quickly will someone get back to me?",
-    a: "Your request is routed to the right company the moment it arrives, and a specialist follows up during business hours. If the work is urgent, call (208) 477-1169 instead of using the form.",
+    q: "What happens after I send a request?",
+    a: "Your request goes to the right P5 specialist, who answers your questions and helps you work out the next step. If the work is urgent, call (208) 477-1169 instead of using the form.",
   },
   {
     q: "Do I need to know my budget before asking?",

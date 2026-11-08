@@ -56,7 +56,7 @@ export const PROOF_POINTS: readonly ProofPoint[] = [
   ...(SHOW_UNPROVEN_SELF_PERFORM ? [FIVE_SPECIALIST_TEAMS] : [SPECIALIST_TEAMS]),
   {
     label: "Free to ask",
-    detail: "Quotes and site visits cost nothing and carry no obligation to proceed.",
+    detail: "Your first conversation and project review are free. Paid planning, design or feasibility work is only started after you approve its scope and price in writing.",
   },
 ] as const;
 

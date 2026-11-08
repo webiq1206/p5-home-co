@@ -83,13 +83,13 @@ export default function ThanksMessage() {
         </section>
 
         <section className="quote-thanks-panel" aria-labelledby="thanks-next">
-          <h2 id="thanks-next">Who replies and when</h2>
+          <h2 id="thanks-next">What happens next</h2>
           <p className="quote-lead">
-            A specialist from {team} replies within one business day with questions or a time to visit. You get a
-            written scope before any price.
+            A specialist from {team} answers your questions and helps you work out the next step, which may be a time
+            to visit. You get a written scope before any price.
           </p>
           <p className="quote-thanks-urgent">
-            Need it sooner, or remembered something?{" "}
+            Have a question now, or remembered something?{" "}
             <TrackedPhoneLink location="quote_thanks_accepted">Call {PUBLIC_PHONE_DISPLAY}</TrackedPhoneLink> or{" "}
             <a href={PUBLIC_PHONE_SMS} onClick={() => track("text_click", { location: "quote_thanks" })}>
               text {PUBLIC_PHONE_DISPLAY}

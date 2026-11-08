@@ -148,7 +148,8 @@ export default function Home() {
           owner's own statement; none is new:
           - 5: the five companies in the stack below ("One standard across five companies").
           - citiesServed.length (9): the cities listed in the service-area section and the /quote footer.
-          - 1 business day: the reply promise on the request form, the chat and /estimate.
+          The former reply-time figure was removed on owner instruction: say that we answer,
+          never a response window.
           Add a figure here only with the same kind of source. Project counts, years and
           ratings stay out until the owner documents them (see app/publicClaims.ts).
         */}
@@ -161,10 +162,6 @@ export default function Home() {
             <p>
               <strong>{citiesServed.length}</strong>
               <span>cities served</span>
-            </p>
-            <p>
-              <strong>1</strong>
-              <span>business day to reply</span>
             </p>
           </div>
         </section>
@@ -392,8 +389,8 @@ export default function Home() {
                 <p className="eyebrow">Send a request</p>
                 <h2 id="request-entry-heading">Start your request</h2>
                 <p>
-                  Tell us what you are planning and attach plans or photos if you have them. The right team replies
-                  within one business day.
+                  Not sure where to start? We answer questions and connect you with the right P5 specialist. Attach plans
+                  or photos if you have them.
                 </p>
               </div>
               <div className="request-entry-actions">

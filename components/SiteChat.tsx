@@ -235,7 +235,7 @@ export default function SiteChat() {
       )}
       {phase === "sent" && (
         <div className={styles.composer}>
-          <p className={styles.sentNote}>We reply within one business day. Save our contact so you have Nick&apos;s number when we call back.</p>
+          <p className={styles.sentNote}>We have your message. We answer your questions and help you work out the next step. Save our contact so you have Nick&apos;s number when we call.</p>
           <SaveContactButton className={styles.continue} location="chat_thanks" />
           <a className={styles.continue} href="/quote">
             Request a quote

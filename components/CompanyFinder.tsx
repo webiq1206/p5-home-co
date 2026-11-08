@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 import Arrow from "@/components/Arrow";
 import { FamilyButton } from "@/components/family/Button";
 import { track } from "@/app/analytics";
-import { ADU_CONSTRUCTION_URL, ADU_D3_LINE } from "@/app/publicIdentity";
+import { ADU_D3_LINE } from "@/app/publicIdentity";
 
 type CompanyKey = "construction" | "remodeling" | "cabinetry" | "handyman" | "adu";
 
@@ -57,8 +57,9 @@ const DETAILS: Record<
   adu: {
     name: "Boise ADU Co",
     reason: ADU_D3_LINE,
-    url: ADU_CONSTRUCTION_URL,
-    cta: "Visit Boise Construction Co",
+    // The working P5 ADU entry. The ADU site is not launched, so do not link it here.
+    url: "/quote/adu",
+    cta: "Request a quote from Boise ADU Co",
     label: "Add an ADU",
     accent: "#c97c99",
   },
@@ -122,17 +123,21 @@ export default function CompanyFinder() {
                 href={detail.url}
                 target={detail.url.startsWith("http") ? "_blank" : undefined}
                 rel={detail.url.startsWith("http") ? "noopener" : undefined}
-                onClick={() => track("company_click", { company, location: "company_finder" })}
+                onClick={() =>
+                  track(detail.url.startsWith("http") ? "company_click" : "quote_click", { company, location: "company_finder" })
+                }
               >
                 {detail.cta} <Arrow diagonal={detail.url.startsWith("http")} />
               </FamilyButton>
-              <Link
-                className="text-link"
-                href={quotePath[company]}
-                onClick={() => track("quote_click", { company, location: "company_finder" })}
-              >
-                Request a quote from P5 <Arrow />
-              </Link>
+              {detail.url !== quotePath[company] && (
+                <Link
+                  className="text-link"
+                  href={quotePath[company]}
+                  onClick={() => track("quote_click", { company, location: "company_finder" })}
+                >
+                  Request a quote from P5 <Arrow />
+                </Link>
+              )}
             </div>
             <button type="button" className="company-finder-reset" onClick={() => setCompany(null)}>
               Try another project
