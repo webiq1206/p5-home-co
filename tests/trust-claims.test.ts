@@ -5,7 +5,7 @@ import test from "node:test";
 
 import { PROOF_POINTS } from "../app/quote/proof.ts";
 import {
-  BONDED_SINCE_2020_ANSWER,
+  INSURED_SINCE_2020_ANSWER,
   CABINET_FINISH_COUNT,
   CABINET_WARRANTY,
   CREW_AND_TRADES,
@@ -58,10 +58,10 @@ test("unproven claims stay in source and are hidden by default", () => {
   const family = faqs.find((item) => item.q === "Is P5 Home Co a contractor or a referral service?")?.a ?? "";
   assert.equal(family, SPECIALTY_FAQ);
   assert.equal(family.includes("does the work itself"), false);
-  const bonded = faqs.find((item) => item.q === "Are the P5 companies bonded and insured?")?.a ?? "";
-  assert.equal(bonded, "Yes. The P5 companies are bonded and insured and handle permits in-house where a project requires them.");
-  assert.equal(bonded.includes("2020"), false);
-  assert.match(BONDED_SINCE_2020_ANSWER, /since 2020/);
+  const insured = faqs.find((item) => item.q === "Are the P5 companies insured?")?.a ?? "";
+  assert.equal(insured, "Yes. The P5 companies are insured, with a certificate available on request, and handle permits in-house where a project requires them.");
+  assert.equal(insured.includes("2020"), false);
+  assert.match(INSURED_SINCE_2020_ANSWER, /since 2020/);
   assert.equal(PROOF_POINTS.some((point) => /2020|own craft|Five specialist/.test(`${point.label} ${point.detail}`)), false);
   const schema = JSON.stringify(siteSchema);
   assert.equal(schema.includes("foundingDate"), false);

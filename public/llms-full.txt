@@ -14,7 +14,7 @@ written scopes, one accountable team per project, proactive
 communication about decisions and budget impacts, and a clear next step
 with the specialist for your project.
 
-Bonded and insured. Serving Ada and Canyon counties.
+Insured. Serving Ada and Canyon counties.
 
 ## Five specialist teams
 
@@ -26,7 +26,7 @@ Bonded and insured. Serving Ada and Canyon counties.
   remodeling. Kitchen remodeling, bathroom remodeling, whole-home
   remodeling, additions, and ADUs, managed under one roof with a written
   scope and coordinated permits.
-- [Boise ADU Co](https://boiseconstruction.co): Accessory dwelling units.
+- [Boise ADU Co](https://p5homeco.com/quote/adu): Accessory dwelling units.
   Boise ADU Co projects currently run through Boise Construction Co; its site
   is coming.
 - [Boise Handyman Co](https://boisehandyman.co): Home repair and
@@ -69,7 +69,8 @@ written scope before any price.
 P5 keeps the request in place with the appropriate discipline recorded:
 new homes and additions with Construction, kitchen or broader renovation work
 with Remodeling, cabinet-only work with Cabinet, and repairs with Handyman.
-Boise ADU Co projects run through Boise Construction Co.
+Boise ADU Co projects run through Boise Construction Co; ADU requests start at
+https://p5homeco.com/quote/adu.
 
 The request needs a name and a valid email address or phone number, with a
 preferred contact method. A saved receipt confirms the recorded request;
@@ -86,13 +87,20 @@ Serving Boise and the Treasure Valley. Phone (208) 477-1169. Email hello@p5homec
 - [About](https://p5homeco.com/about): Founder story and family company background.
 - [Request a quote](https://p5homeco.com/quote): Short request form for construction,
   remodeling, cabinetry, repair or ADU work.
+- [Warranty and project help](https://p5homeco.com/warranty): Work performed by
+  our own team carries one year of workmanship coverage from documented Final
+  Completion. Work performed by subcontractors is covered by that
+  subcontractor's own warranty, and at the end of every project we provide a
+  complete list of the subcontractors who worked on it, with their contact
+  information. Manufacturer warranties are separate. Existing customers can
+  email hello@p5homeco.com or call (208) 477-1169 for help.
 - The service-specific quote pages (/quote/kitchen-remodel and so on) are
   paid-search landing variants and are not indexed; their canonical page remains
   https://p5homeco.com/quote.
 - [Full text for LLMs](https://p5homeco.com/llms-full.txt): this fact sheet
   plus the homepage questions and answers.
 
-Last updated: 2026-10-28.
+Last updated: 2026-11-08.
 
 ## Homepage questions
 
@@ -112,7 +120,7 @@ Your contract is with P5 Home Co LLC, Idaho Registered Contractor #8381215. Bois
 
 ### How is a project that needs two companies coordinated?
 
-One project manager owns the handoffs. A complete kitchen, for example: Boise Remodeling Co for layout, permits, demolition and construction; Boise Cabinet Co for cabinet design and installation; Boise Handyman Co for final mounting and punch list. One contract, one project manager, one invoice.
+One project manager owns the handoffs. A complete kitchen, for example: Boise Remodeling Co for layout, permits, demolition and construction; Boise Cabinet Co for cabinet design and installation; Boise Handyman Co for final mounting and punch list. One accountable company and one point of contact for your project.
 
 ### How long has P5 been operating?
 
@@ -120,7 +128,7 @@ P5 Home Co was founded in Colorado in 2020 and moved the family and the company 
 
 ### How do I start an ADU project?
 
-Boise ADU Co projects run through Boise Construction Co. Start with Boise Construction Co, or send a short request on this site and we will route it.
+Boise ADU Co projects run through Boise Construction Co. Send a short ADU request on this site and we will route it to the right team.
 
 ### Which areas do the P5 companies serve?
 
@@ -130,9 +138,9 @@ P5 companies serve homeowners across Ada and Canyon counties in Idaho's Treasure
 
 You get planning guidance and written scope details, so you understand the work before it starts. You will know who owns the next step and who to contact, and decisions, schedule changes, and budget impacts are raised early and documented clearly.
 
-### Are the P5 companies bonded and insured?
+### Are the P5 companies insured?
 
-Yes. The P5 companies are bonded and insured and handle permits in-house where a project requires them.
+Yes. The P5 companies are insured, with a certificate available on request, and handle permits in-house where a project requires them.
 
 ### What does "don't pay for our overhead" mean?
 

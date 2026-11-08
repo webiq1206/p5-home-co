@@ -3,8 +3,8 @@ import { existsSync, readFileSync } from "node:fs";
 import test from "node:test";
 
 import {
-  BONDED_ANSWER,
-  BONDED_SINCE_2020_ANSWER,
+  INSURED_ANSWER,
+  INSURED_SINCE_2020_ANSWER,
   ESTABLISHED_2020_LINE,
   FOUNDING_PHRASES,
   SHOW_FOUNDING_YEAR,
@@ -30,13 +30,13 @@ test("the 2020 founding claim stays in source and is hidden by default", () => {
   );
   assert.equal(
     ESTABLISHED_2020_LINE,
-    "Established 2020. Bonded and insured. Serving Ada and Canyon counties.",
+    "Established 2020. Insured. Serving Ada and Canyon counties.",
   );
-  assert.match(BONDED_SINCE_2020_ANSWER, /since 2020/);
+  assert.match(INSURED_SINCE_2020_ANSWER, /since 2020/);
   assert.equal(WORKING_HERE_SINCE_2020.label, "Working here since 2020");
 
-  const answer = faqs.find((item) => item.q === "Are the P5 companies bonded and insured?")?.a ?? "";
-  assert.equal(answer, BONDED_ANSWER);
+  const answer = faqs.find((item) => item.q === "Are the P5 companies insured?")?.a ?? "";
+  assert.equal(answer, INSURED_ANSWER);
   assert.equal(answer.includes("2020"), false);
   assert.equal(PROOF_POINTS.some((point) => /2020/.test(`${point.label} ${point.detail}`)), false);
   const schema = JSON.stringify(siteSchema);

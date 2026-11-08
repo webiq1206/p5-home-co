@@ -7,8 +7,8 @@ import {
 // the JSON-LD entity graph, robots.txt, and the sitemap. Change it here
 // only; nothing else should hardcode the domain.
 import {
-  BONDED_ANSWER,
-  BONDED_SINCE_2020_ANSWER,
+  INSURED_ANSWER,
+  INSURED_SINCE_2020_ANSWER,
   SELF_PERFORM_FAQ,
   SHOW_FOUNDING_YEAR,
   SHOW_UNPROVEN_SELF_PERFORM,
@@ -60,7 +60,8 @@ export const companies = [
   {
     name: "Boise ADU Co",
     image: FEATURED_BOISE_ADU.src,
-    url: "https://boiseconstruction.co",
+    // No Boise ADU Co site yet: ADU requests go to the P5 ADU entry.
+    url: "/quote/adu",
     description: ADU_D3_LINE,
   },
 ] as const;
@@ -96,7 +97,7 @@ export const faqs = [
   },
   {
     q: "How is a project that needs two companies coordinated?",
-    a: "One project manager owns the handoffs. A complete kitchen, for example: Boise Remodeling Co for layout, permits, demolition and construction; Boise Cabinet Co for cabinet design and installation; Boise Handyman Co for final mounting and punch list. One contract, one project manager, one invoice.",
+    a: "One project manager owns the handoffs. A complete kitchen, for example: Boise Remodeling Co for layout, permits, demolition and construction; Boise Cabinet Co for cabinet design and installation; Boise Handyman Co for final mounting and punch list. One accountable company and one point of contact for your project.",
   },
   {
     q: "How long has P5 been operating?",
@@ -104,7 +105,7 @@ export const faqs = [
   },
   {
     q: "How do I start an ADU project?",
-    a: `${ADU_D3_LINE} Start with Boise Construction Co, or send a short request on this site and we will route it.`,
+    a: `${ADU_D3_LINE} Send a short ADU request on this site and we will route it to the right team.`,
   },
   {
     q: "Which areas do the P5 companies serve?",
@@ -115,8 +116,8 @@ export const faqs = [
     a: "You get planning guidance and written scope details, so you understand the work before it starts. You will know who owns the next step and who to contact, and decisions, schedule changes, and budget impacts are raised early and documented clearly.",
   },
   {
-    q: "Are the P5 companies bonded and insured?",
-    a: SHOW_FOUNDING_YEAR ? BONDED_SINCE_2020_ANSWER : BONDED_ANSWER,
+    q: "Are the P5 companies insured?",
+    a: SHOW_FOUNDING_YEAR ? INSURED_SINCE_2020_ANSWER : INSURED_ANSWER,
   },
   {
     q: "What does \"don't pay for our overhead\" mean?",

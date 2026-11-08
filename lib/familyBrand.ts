@@ -12,7 +12,7 @@
 import type { FamilyBrand } from '@/lib/family/types';
 import { BUSINESS_HOURS_LABEL } from '@/lib/businessHours';
 import {
-  ADU_CONSTRUCTION_URL,
+  ADU_REQUEST_PATH,
   IDAHO_DOPL_LICENSE_SEARCH,
   P5_FACEBOOK_URL,
   P5_GOOGLE_BUSINESS_PROFILE_URL,
@@ -92,6 +92,7 @@ export const FAMILY_BRAND: FamilyBrand = {
         links: [
           { label: 'Request a quote', href: '/quote' },
           { label: 'Choose a company', href: '/#companies' },
+          { label: 'Existing customer? Get help', href: '/warranty#get-help' },
         ],
       },
     ],
@@ -101,11 +102,12 @@ export const FAMILY_BRAND: FamilyBrand = {
       { label: 'Privacy policy', href: '/legal/privacy' },
       { label: 'Terms of service', href: '/legal/terms' },
     ],
-    // The approved Boise ADU Co line (ADU_D3_LINE), with its link to Boise Construction Co.
+    // The approved Boise ADU Co line (ADU_D3_LINE). Until a Boise ADU Co site exists, the
+    // link opens the P5 ADU request (owner decision, 8 November 2026).
     disclosure: {
-      before: 'Boise ADU Co projects run through ',
-      linkLabel: 'Boise Construction Co',
-      href: ADU_CONSTRUCTION_URL,
+      before: 'Boise ADU Co projects run through Boise Construction Co. ',
+      linkLabel: 'Start an ADU request',
+      href: ADU_REQUEST_PATH,
       after: '.',
     },
     copyrightName: 'P5 Home Co',

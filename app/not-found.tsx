@@ -27,7 +27,6 @@ export default function NotFound() {
           <ul className="sitemap-list">
             <li><Link href="/">Home</Link></li>
             <li><Link href="/quote">Request a quote</Link></li>
-            <li><Link href="/estimate">Online project estimator</Link></li>
             <li><Link href="/#companies">Our companies</Link></li>
             <li><Link href="/sitemap">Site map</Link></li>
             <li><a href="tel:+12084771169">Call (208) 477-1169</a></li>

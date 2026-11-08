@@ -41,7 +41,7 @@ const SPECIALIST_TEAMS: ProofPoint = {
 
 export const PROOF_POINTS: readonly ProofPoint[] = [
   {
-    label: "Bonded and insured",
+    label: "Insured",
     detail: "Idaho Registered Contractor #8381215, carried across all five companies.",
 
   },

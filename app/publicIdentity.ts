@@ -50,7 +50,7 @@ export const SISTER_LINKS = [
   { label: "Boise Remodeling Co", href: "https://boiseremodeling.co" },
   { label: "Boise Cabinet Co", href: "https://boisecabinet.co" },
   { label: "Boise Handyman Co", href: "https://boisehandyman.co" },
-  { label: "Boise ADU Co", href: "https://boiseconstruction.co" },
+  { label: "Boise ADU Co", href: "/quote/adu" },
 ] as const;
 
 /** Project-routing line for the ADU card and FAQ. */
@@ -58,3 +58,7 @@ export const ADU_D3_LINE =
   "Boise ADU Co projects run through Boise Construction Co.";
 
 export const ADU_CONSTRUCTION_URL = "https://boiseconstruction.co";
+
+/** Owner decision, 8 November 2026: until a Boise ADU Co site exists, ADU
+ * requests go to the P5 ADU quote entry. Never link the unlaunched ADU domain. */
+export const ADU_REQUEST_PATH = "/quote/adu";

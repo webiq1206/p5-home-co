@@ -34,8 +34,8 @@ import {
   CRAFT_TRIM_DETAIL,
 } from "./imageVariants.ts";
 import {
-  ADU_CONSTRUCTION_URL,
   ADU_D3_LINE,
+  ADU_REQUEST_PATH,
   PUBLIC_REGISTRATION,
 } from "./publicIdentity";
 
@@ -97,8 +97,9 @@ const companyDetails: Record<
   adu: {
     name: "Boise ADU Co",
     reason: ADU_D3_LINE,
-    url: ADU_CONSTRUCTION_URL,
-    cta: "Visit Boise Construction Co",
+    // No Boise ADU Co site yet: the match ends in the P5 ADU request.
+    url: ADU_REQUEST_PATH,
+    cta: "Request an ADU quote",
     label: "Add an ADU",
     options: ["Detached ADU", "Garage conversion", "Basement or interior unit", "Feasibility and permits"],
   },
@@ -172,7 +173,7 @@ export default function Home() {
               <strong>{PUBLIC_REGISTRATION}</strong>
             </div>
             <div>
-              <strong>Bonded and insured</strong>
+              <strong>Insured</strong>
               <span>Certificate on request</span>
             </div>
             <div>
@@ -258,7 +259,7 @@ export default function Home() {
                 </div>
               </li>
             </ol>
-            <p className="kitchen-example-close">One contract, one project manager, one invoice.</p>
+            <p className="kitchen-example-close">One accountable company and one point of contact for your project.</p>
           </Reveal>
         </section>
 
@@ -374,8 +375,8 @@ export default function Home() {
           description={ADU_D3_LINE}
           services={["Detached ADU", "Garage conversion", "Basement or interior unit", "Feasibility and permits"]}
           proof="Projects run through Boise Construction Co"
-          url={ADU_CONSTRUCTION_URL}
-          linkLabel="Go to Boise Construction Co"
+          url={ADU_REQUEST_PATH}
+          linkLabel="Request an ADU quote"
         />
 
         <section
