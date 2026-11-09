@@ -2,6 +2,7 @@
 import { query, transaction } from "../db.ts";
 import { loadSettings } from "../leads/settings.ts";
 import { actionResolvesIncident, type RemoteDeal } from "../notifications/incidents.ts";
+import { ensureP5HubSpotPortal } from "./hubspot-portal.ts";
 
 class TaskApiError extends Error {
   status: number;
@@ -12,6 +13,12 @@ class TaskApiError extends Error {
 }
 
 export async function requestHubSpotTaskApi<T>(path: string, init: RequestInit = {}): Promise<T> {
+  // Never read or write any portal but P5's (hubspot-portal.ts).
+  try {
+    await ensureP5HubSpotPortal(process.env.HUBSPOT_TOKEN ?? "");
+  } catch {
+    throw new TaskApiError(0);
+  }
   let response: Response;
   try {
     response = await fetch(`https://api.hubapi.com${path}`, {

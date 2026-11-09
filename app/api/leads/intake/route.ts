@@ -8,10 +8,11 @@
 
 import { after } from "next/server";
 
+import { syncDealToHubSpot } from "../../../lib/integrations/hubspot.ts";
 import { handleIntake } from "./handler.ts";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(request: Request): Promise<Response> {
-  return handleIntake(request, after);
+  return handleIntake(request, after, { syncHubSpot: syncDealToHubSpot });
 }

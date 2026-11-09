@@ -29,6 +29,7 @@ import type { LeadManagerSettings } from "./settings.ts";
 import { addBusinessMinutes, isWithinBusinessHours } from "./time.ts";
 import type { Brand, InboundLead, LeadFileLink, RequestKind } from "./types.ts";
 import { detailsBlock, detailsFingerprint, detailLines, hasAnyDetail, isUnsureProject, type LeadDetails } from "./intakeContract.ts";
+import { submittedFieldsFingerprint } from "./submittedFields.ts";
 
 export type IntakeResult =
   | { status: "created"; dealId: number; contactId: number; ownerUserId: number | null; slaDeadline: Date }
@@ -144,6 +145,24 @@ async function recordExternalRef(
   );
 }
 
+/**
+ * Keep every field the submission carried, once per distinct submission.
+ * Returns true when this submission is new (and so needs a HubSpot note).
+ */
+async function recordSubmission(client: PoolClient, dealId: number, lead: InboundLead): Promise<boolean> {
+  const fields = lead.submittedFields ?? [];
+  if (!fields.length) return false;
+  const channel = lead.submissionChannel ?? lead.source;
+  const { rows } = await client.query(
+    `INSERT INTO lead_intake_submission (deal_id, fingerprint, channel, fields, received_at)
+     VALUES ($1, $2, $3, $4::jsonb, $5)
+     ON CONFLICT (deal_id, fingerprint) DO NOTHING
+     RETURNING id`,
+    [dealId, submittedFieldsFingerprint(channel, fields), channel, JSON.stringify(fields), lead.receivedAt],
+  );
+  return rows.length > 0;
+}
+
 /** Keep links to files a brand site stored. Returns how many were new. */
 async function addFileLinks(client: PoolClient, dealId: number, files: readonly LeadFileLink[]): Promise<number> {
   let added = 0;
@@ -238,7 +257,8 @@ export async function ingestLead(
         // A repeat request that attaches to an open deal keeps its own id, so
         // its Step 2 still finds this deal, and its files are kept, never lost.
         if (brandRef) await recordExternalRef(client, brandRef, existing.id);
-        if (await addFileLinks(client, existing.id, lead.files ?? [])) {
+        const newSubmission = await recordSubmission(client, existing.id, lead);
+        if ((await addFileLinks(client, existing.id, lead.files ?? [])) || newSubmission) {
           await client.query(
             "UPDATE deal SET integration_sync_status = 'pending', updated_at = now() WHERE id = $1 AND original_form IS DISTINCT FROM $2",
             [existing.id, SYNTHETIC_ESTIMATOR_FORM],
@@ -318,8 +338,15 @@ export async function ingestLead(
           [dealId, ...requestFacts],
         );
       }
+      // State and ZIP (migration 022). A caller that sends neither runs exactly
+      // the SQL it ran before.
+      const place = [normalizeText(lead.propertyState ?? null), normalizeText(lead.propertyZip ?? null)];
+      if (place.some((value) => value !== null)) {
+        await client.query("UPDATE deal SET property_state = $2, property_zip = $3 WHERE id = $1", [dealId, ...place]);
+      }
       if (brandRef) await recordExternalRef(client, brandRef, dealId);
       await addFileLinks(client, dealId, lead.files ?? []);
+      await recordSubmission(client, dealId, lead);
 
       // The form submission itself is timeline evidence, but it is not a human
       // attempt, so it must not stop the response clock.

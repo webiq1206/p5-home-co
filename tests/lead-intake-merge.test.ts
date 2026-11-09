@@ -356,6 +356,7 @@ function mockHubSpot(options: { properties?: string[]; notes?: "ok" | "forbidden
     const body = init?.body ? (JSON.parse(String(init.body)) as Json) : null;
     calls.push({ method, path: url.pathname, body });
     const json = (value: unknown, status = 200) => new Response(JSON.stringify(value), { status, headers: { "Content-Type": "application/json" } });
+    if (url.pathname === "/account-info/v3/details") return json({ portalId: 247066159 });
     if (url.pathname === "/crm/v3/properties/deals") return json({ results: (options.properties ?? []).map((name) => ({ name })) });
     if (url.pathname.endsWith("/search")) return json({ total: 0, results: [] });
     if (url.pathname === "/crm/v3/objects/contacts") return json({ id: "hs-contact-1" }, 201);
@@ -386,8 +387,19 @@ test("HubSpot: the deal carries the callback, preference, best time, files and d
     assert.match(description, /Request: Callback request\nPreferred contact: Text\nBest time to call: Morning\nTiming: Soon\nFiles:\ngate\.jpg: https:\/\/boisehandyman\.co\/api\/files\/k1\ndoor\.pdf: https:\/\/boisehandyman\.co\/api\/files\/k2\nlatch\.jpg: https:\/\/boisehandyman\.co\/api\/files\/k4$/);
     assert.equal(properties.p5_property_address, "9 W State St, 83702");
     assert.equal("p5_request_kind" in properties, false, "no property is guessed into existence");
-    const notes = hubspot.calls.filter((call) => call.path === "/crm/v3/objects/notes");
+    const allNotes = hubspot.calls.filter((call) => call.path === "/crm/v3/objects/notes");
+    const noteBody = (call: Call) => (call.body as { properties: Record<string, string> }).properties.hs_note_body;
+    const notes = allNotes.filter((call) => noteBody(call).startsWith("<p><strong>Details added"));
     assert.equal(notes.length, 3, "one note per distinct details post");
+    // Every submission (Step 1 and any Step 2 that became the lead) also gets
+    // one note with everything it carried, on the deal AND the contact.
+    const submissionNotes = allNotes.filter((call) => /submission<\/strong>/.test(noteBody(call)));
+    assert.ok(submissionNotes.length >= 1);
+    assert.equal(allNotes.length, notes.length + submissionNotes.length);
+    const submission = submissionNotes[0].body as { properties: Record<string, string>; associations: { to: { id: string }; types: { associationTypeId: number }[] }[] };
+    assert.match(submission.properties.hs_note_body, /Everything submitted/);
+    assert.match(submission.properties.hs_note_body, /Gate latch and a sticking door./);
+    assert.deepEqual(submission.associations.map((a) => [a.to.id, a.types[0].associationTypeId]), [["hs-deal-1", 214], ["hs-contact-1", 202]]);
     const firstNote = notes[0].body as { properties: Record<string, string>; associations: { to: { id: string }; types: { associationTypeId: number }[] }[] };
     assert.match(firstNote.properties.hs_note_body, /^<p><strong>Details added<\/strong><\/p><p>Project: Home repairs or handyman work<br>/);
     assert.match(firstNote.properties.hs_note_body, /File: <a href="https:\/\/boisehandyman\.co\/api\/files\/k4">latch\.jpg<\/a>/);

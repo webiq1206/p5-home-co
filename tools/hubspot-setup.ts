@@ -152,6 +152,8 @@ const PROPERTIES: PropDef[] = [
     description: "Google Ads iOS click identifier captured at form entry." },
   { name: "p5_wbraid", label: "Google Web Braided Click ID", type: "string", fieldType: "text",
     description: "Google Ads web click identifier captured at form entry." },
+  { name: "p5_fbclid", label: "Meta Click ID", type: "string", fieldType: "text",
+    description: "Meta (Facebook or Instagram) click identifier captured at form entry." },
   { name: "p5_utm_source", label: "UTM Source", type: "string", fieldType: "text", description: "Latest meaningful UTM source." },
   { name: "p5_utm_medium", label: "UTM Medium", type: "string", fieldType: "text", description: "Latest meaningful UTM medium." },
   { name: "p5_utm_campaign", label: "UTM Campaign", type: "string", fieldType: "text", description: "Latest meaningful UTM campaign." },
@@ -216,6 +218,15 @@ async function main(): Promise<void> {
       "HUBSPOT_TOKEN is not set.\n" +
         "Put it in .env.local (gitignored) as HUBSPOT_TOKEN=... and re-run.",
     );
+    process.exit(1);
+  }
+
+  // Only ever the P5 portal (247066159, hello@p5homeco.com). The Timber and
+  // Love portal (247282537) shares the login family and must never be changed.
+  const account = await hs("/account-info/v3/details");
+  const portalId = account.ok ? Number(((await account.json()) as { portalId?: number }).portalId) : NaN;
+  if (portalId !== 247066159) {
+    console.error(`Refusing to run: this token is for portal ${Number.isFinite(portalId) ? portalId : "unknown"}, not P5 portal 247066159.`);
     process.exit(1);
   }
 

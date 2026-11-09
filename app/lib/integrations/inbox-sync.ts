@@ -4,6 +4,7 @@ import { MAILBOX, PORTAL, MAX_SOURCE_BYTES, VERIFIED_HELLO_ALIASES, email, ourAd
 import { InboxStore, type Receipt, type Read } from "./inbox-store.ts";
 import { InboxApiError, InboxHubSpot } from "./inbox-hubspot.ts";
 import { processGeminiActivities } from "./voice-activity.ts";
+import { processVoiceMessages } from "./voice-messages.ts";
 
 type Environment = Record<string, string | undefined>;
 export function inboxConfiguration(env: Environment) {
@@ -242,6 +243,23 @@ export async function runInboxSync(env: Environment = process.env) {
           VALUES('google-voice-notes','failed',now(),$1) ON CONFLICT(name) DO UPDATE SET
           state='failed',last_attempt_at=now(),last_error=$1,updated_at=now()`,
           [errorCode(error)]).catch(()=>undefined);
+      }
+    }
+    // Google Voice texts and voicemails as SMS/CALL engagements on the
+    // matched contact (voice-messages.ts). Separate health, same gate.
+    if (Date.now() < deadline - 12_000) {
+      try {
+        const messages = await processVoiceMessages(boundedRead, crm, { limit: 3, deadline });
+        await boundedRead(`INSERT INTO integration_health(name,state,last_attempt_at,last_success_at,records_processed,last_error)
+          VALUES('google-voice-messages',$1,now(),now(),$2,$3) ON CONFLICT(name) DO UPDATE SET
+          state=$1,last_attempt_at=now(),last_success_at=now(),records_processed=$2,last_error=$3,updated_at=now()`,
+          [messages.review ? "degraded" : "connected", messages.completed,
+            messages.review ? messages.review + " Google Voice message(s) require administrator review" : null]);
+      } catch (error) {
+        await boundedRead(`INSERT INTO integration_health(name,state,last_attempt_at,last_error)
+          VALUES('google-voice-messages','failed',now(),$1) ON CONFLICT(name) DO UPDATE SET
+          state='failed',last_attempt_at=now(),last_error=$1,updated_at=now()`,
+          [errorCode(error)]).catch(() => undefined);
       }
     }
     const [backlog] = await boundedRead(`SELECT count(*)::integer AS unresolved FROM p5_inbox_message WHERE mailbox=$1 AND reason<>'owner-connection-diagnostic' AND status IN ('review','retry','uncertain')`, [MAILBOX]);

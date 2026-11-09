@@ -385,7 +385,8 @@ export const hubspot: Article[] = [
           "Open the contact (or deal) in HubSpot.",
           "The middle column is the timeline: every email, logged call, note, and meeting, newest first.",
           "Emails to and from hello@p5homeco.com (and the brand aliases) log automatically because Gmail is connected.",
-          "Calls and texts made from the P5 panel are logged as outcome entries on the deal - the panel's lead page shows the same history.",
+          "Calls, texts and notes logged in the P5 panel are pushed to HubSpot as a call, a text (SMS) or a note on the contact and the deal, and the panel's lead page shows the same history.",
+          "Every form or Meta Instant Form submission adds a note with every field the person sent, plus where the lead came from (source, campaign, click ids, Meta form and ad).",
         ],
       },
       {
@@ -393,6 +394,61 @@ export const hubspot: Article[] = [
         kind: "action",
         text:
           "Anything that happened off-system (a conversation at the supply house, a text from your personal phone) must be logged as a note - the record is only as good as what reaches it.",
+      },
+    ],
+  },
+  {
+    slug: "lead-pipeline-integrations",
+    section: "hubspot",
+    title: "How every lead reaches HubSpot, email and your phone",
+    summary:
+      "Website and Meta Instant Form leads go to HubSpot right away, assigned to hello@p5homeco.com, with an alert email that lets you call in one tap. Calls, texts and Google Voice messages land in HubSpot too.",
+    lastVerified: "2026-11-09",
+    keywords: ["hubspot", "lead alert", "meta", "facebook lead ad", "instant form", "push notification", "google voice", "sms", "portal"],
+    blocks: [
+      {
+        t: "p",
+        text:
+          "Only one HubSpot account is used: hello@p5homeco.com, portal 247066159 (app-na2), owner 97300513. The hub checks the token's portal before it writes anything and refuses any other portal, including Timber and Love (247282537). A refused write waits and is retried by the watchdog once the token is right.",
+      },
+      { t: "h", text: "What happens when a lead arrives" },
+      {
+        t: "steps",
+        items: [
+          "The lead is saved in P5 first, so nothing is lost if HubSpot is slow or down.",
+          "P5 sends it to HubSpot immediately: the contact (matched by email, then phone) with address, city, state and ZIP, and the deal. Empty values never clear what HubSpot already has.",
+          "New contacts and deals are assigned to the lead's owner in P5, or to hello@p5homeco.com when nobody else is mapped, so the free HubSpot mobile app sends an 'assigned to you' push notification.",
+          "A note on the contact and deal lists every field submitted and the attribution (source, UTM tags, gclid, fbclid, landing page, referrer, Meta form, campaign and ad).",
+          "An email titled 'New lead: Brand | Project | Name | City' goes to hello@p5homeco.com with a big Call button, Text and Email buttons, a maps link, every field, and links to the HubSpot contact, the HubSpot deal and the P5 admin.",
+          "If HubSpot did not answer in time, the five-minute watchdog sends whatever is left.",
+        ],
+      },
+      { t: "h", text: "Turn on HubSpot push notifications" },
+      {
+        t: "steps",
+        items: [
+          "Install the free HubSpot app on your phone and sign in as hello@p5homeco.com.",
+          "In the app, open Settings, then Notifications, and turn on push for records assigned to you.",
+          "In HubSpot on the web, open Settings, General, Notifications and make sure 'assigned to you' is on for contacts and deals.",
+        ],
+      },
+      { t: "h", text: "Calls, texts and notes" },
+      {
+        t: "table",
+        headers: ["Logged in", "Shows in HubSpot as"],
+        rows: [
+          ["P5 panel: a call outcome", "A call with the outcome and your note, on the contact and deal"],
+          ["P5 panel: Sent Text", "A text message (SMS) record, or a note headed 'Text message (SMS)' if HubSpot refuses that record type"],
+          ["P5 panel: any other outcome or note", "A note headed with the outcome"],
+          ["Google Voice text (inbox sync on)", "A text message (SMS) record, or a headed note, on the contact matched by phone"],
+          ["Google Voice voicemail (inbox sync on)", "An inbound call with the transcript, on the contact matched by phone"],
+        ],
+      },
+      {
+        t: "callout",
+        kind: "action",
+        text:
+          "Meta Instant Form setup (app, webhook, permissions, Page token) is in docs/meta-leadgen-setup.md. Replit secrets needed: META_APP_SECRET, META_LEADGEN_VERIFY_TOKEN and META_PAGE_ACCESS_TOKEN (or META_PAGE_TOKENS for several Pages).",
       },
     ],
   },

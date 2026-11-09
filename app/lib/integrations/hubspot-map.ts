@@ -75,7 +75,38 @@ export type ContactSyncInput = {
   lastName: string | null;
   email: string | null;
   phone: string | null;
+  /** The property the lead is about, written to the contact's own address fields. */
+  address?: string | null;
+  city?: string | null;
+  state?: string | null;
+  zip?: string | null;
 };
+
+/**
+ * Portal 247066159's HubSpot owner for hello@p5homeco.com, the same owner the
+ * inbox sync verifies before it writes anything (inbox-policy.ts OWNER). The
+ * last fallback for a new record's owner, so a lead with no mapped P5 owner
+ * still lands assigned to someone and the HubSpot app announces it.
+ */
+export const DEFAULT_HUBSPOT_OWNER_ID = "97300513";
+
+/** Owner for a NEW contact or deal: the P5 owner's mapping, else the configured fallback. */
+export function newRecordOwnerId(mappedOwnerId: string | null | undefined, env: Record<string, string | undefined> = process.env): string {
+  const mapped = mappedOwnerId?.trim();
+  if (mapped && /^\d+$/.test(mapped)) return mapped;
+  const configured = env.HUBSPOT_TASK_OWNER_ID?.trim();
+  if (configured && /^\d+$/.test(configured)) return configured;
+  return DEFAULT_HUBSPOT_OWNER_ID;
+}
+
+/** The street as the contact's address: the ZIP the intake appended is its own field. */
+export function streetOnly(address: string | null | undefined, zip: string | null | undefined): string | null {
+  const street = address?.trim();
+  if (!street) return null;
+  const postal = zip?.trim();
+  if (postal && street.endsWith(`, ${postal}`)) return street.slice(0, -(postal.length + 2)).trim() || null;
+  return street;
+}
 
 /** Contact properties. Only non-empty values are sent, so a sync never blanks
  *  a field a human filled in on the HubSpot side. */
@@ -85,6 +116,14 @@ export function contactProperties(c: ContactSyncInput): Record<string, string> {
   if (c.lastName) out.lastname = c.lastName;
   if (c.email) out.email = c.email;
   if (c.phone) out.phone = c.phone;
+  const address = c.address?.trim();
+  const city = c.city?.trim();
+  const state = c.state?.trim();
+  const zip = c.zip?.trim();
+  if (address) out.address = address;
+  if (city) out.city = city;
+  if (state) out.state = state;
+  if (zip) out.zip = zip;
   return out;
 }
 
@@ -268,6 +307,36 @@ export function detailsNoteBody(lines: readonly string[]): string {
   return `<p><strong>Details added</strong></p><p>${body}</p>`;
 }
 
+/** One line of a note: escaped, with any https link kept clickable. */
+function noteLine(label: string, value: string): string {
+  const linked = escapeHtml(value).replace(/https:\/\/[^\s<>"]+/g, (url) => `<a href="${url}">${url}</a>`);
+  return `<strong>${escapeHtml(label)}:</strong> ${linked.replace(/\n/g, "<br>")}`;
+}
+
+/**
+ * HubSpot note body for one submission: every field it carried, then where
+ * the lead came from, so nothing typed into a form is lost in HubSpot even
+ * when it has no property of its own.
+ */
+export function submissionNoteBody(input: {
+  channel: string;
+  receivedAt: Date;
+  fields: readonly { label: string; value: string }[];
+  attribution: readonly { label: string; value: string }[];
+  adminUrl?: string | null;
+}): string {
+  const fields = input.fields.length
+    ? input.fields.map((field) => noteLine(field.label, field.value)).join("<br>")
+    : "(no fields)";
+  const attribution = input.attribution.map((field) => noteLine(field.label, field.value)).join("<br>");
+  return [
+    `<p><strong>${escapeHtml(input.channel)} submission</strong> (${escapeHtml(input.receivedAt.toISOString())})</p>`,
+    `<p><strong>Everything submitted</strong><br>${fields}</p>`,
+    attribution ? `<p><strong>Source and attribution</strong><br>${attribution}</p>` : "",
+    input.adminUrl ? `<p>P5 admin: <a href="${escapeHtml(input.adminUrl)}">${escapeHtml(input.adminUrl)}</a></p>` : "",
+  ].filter(Boolean).join("");
+}
+
 /**
  * Deal properties.
  *
@@ -321,6 +390,7 @@ export function dealProperties(
     gclid: "p5_gclid",
     gbraid: "p5_gbraid",
     wbraid: "p5_wbraid",
+    fbclid: "p5_fbclid",
     utm_source: "p5_utm_source",
     utm_medium: "p5_utm_medium",
     utm_campaign: "p5_utm_campaign",

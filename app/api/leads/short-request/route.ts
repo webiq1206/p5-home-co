@@ -27,7 +27,10 @@ import { storeLeadRequestFiles } from "../../../lib/leads/leadRequestFiles.ts";
 import { issueRequestToken, REQUEST_TOKEN_TTL_SECONDS } from "../../../lib/leads/requestToken.ts";
 import { CONTACT_PREFERENCE_LABELS } from "../../../lib/leads/intakeContract.ts";
 import { collectAttribution, sourceFromAttribution } from "../../../lib/leads/attribution.ts";
-import { notifyLeadCreated } from "../../../lib/notifications/lead-created.ts";
+import { notifyLeadCreated, type LeadCreatedNotifyInput } from "../../../lib/notifications/lead-created.ts";
+import { syncDealToHubSpot } from "../../../lib/integrations/hubspot.ts";
+import { inlineSyncTimeoutMs, loadLeadAlert, startSync, within } from "../../../lib/leads/leadPipeline.ts";
+import { submittedFieldsFromBody } from "../../../lib/leads/submittedFields.ts";
 import { allowIntakeRequest } from "../intake/abuse.ts";
 import { brandForProject } from "../../../quote/options.ts";
 import { QUOTE_SERVICES } from "../../../quote/services.ts";
@@ -146,6 +149,8 @@ export async function POST(request: Request): Promise<NextResponse> {
         requestKind: submitted.kind === "callback" ? "callback" : "quote",
         contactPreference: submitted.contactPreference,
         bestTime: submitted.bestTime,
+        submittedFields: submittedFieldsFromBody(rawBody),
+        submissionChannel: "P5 website form",
       },
       settings,
     );
@@ -181,12 +186,16 @@ export async function POST(request: Request): Promise<NextResponse> {
       }
     }
 
+    // HubSpot right away, bounded; the watchdog retries anything unfinished.
+    const sync = created ? startSync(syncDealToHubSpot, result.dealId) : null;
+    await within(sync, inlineSyncTimeoutMs());
+
     const filesMissing = filesFailed.length > 0 || (files.length > 0 && !filesAttached);
     // Mail runs after the response is finished, so a send failure cannot
     // change 201. Duplicate and rejected leads are not notified.
     // Synthetic estimator acceptances are skipped inside notifyLeadCreated.
     if (created) {
-      const notice = {
+      const notice: LeadCreatedNotifyInput = {
         dealId: result.dealId,
         brand,
         projectType: project,
@@ -205,6 +214,10 @@ export async function POST(request: Request): Promise<NextResponse> {
           submitted.bestTime ? `Best time to call: ${submitted.bestTime}` : "",
           filesExpected > 0 ? `Files: ${filesExpected} on the way. A short "Files added" email follows when they arrive.` : "",
         ].filter(Boolean),
+        prepare: async () => {
+          await within(sync, 10_000);
+          return loadLeadAlert(result.dealId, { ...notice, prepare: undefined });
+        },
       };
       after(async () => {
         await notifyLeadCreated(notice);

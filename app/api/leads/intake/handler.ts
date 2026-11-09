@@ -31,8 +31,10 @@ import {
 } from "../../../lib/leads/intakeContract.ts";
 import { loadSettings } from "../../../lib/leads/settings.ts";
 import { BRANDS, LEAD_SOURCES, type Brand, type LeadSource } from "../../../lib/leads/types.ts";
-import { notifyLeadCreated, notifyLeadDetailsAdded } from "../../../lib/notifications/lead-created.ts";
+import { notifyLeadCreated, notifyLeadDetailsAdded, type LeadCreatedNotifyInput } from "../../../lib/notifications/lead-created.ts";
 import { allowLeadIntake, type IntakeLimitVerdict } from "./abuse.ts";
+import { submittedFieldsFromBody } from "../../../lib/leads/submittedFields.ts";
+import { inlineSyncTimeoutMs, loadLeadAlert, startSync, within, type HubSpotSync } from "../../../lib/leads/leadPipeline.ts";
 
 /** Reject oversized bodies before parsing them. */
 const MAX_BODY_BYTES = 32 * 1024;
@@ -123,10 +125,21 @@ async function checkLimit(
 export type AfterResponse = (task: () => Promise<void>) => void;
 
 /**
+ * Outside effects the route wires in. route.ts passes the real HubSpot sync;
+ * tests pass a mock or nothing, so no test can reach HubSpot.
+ */
+export type IntakeDeps = {
+  /** Immediate HubSpot sync after the lead commits (the watchdog retries). */
+  syncHubSpot?: HubSpotSync;
+  /** Upper bound on how long the response waits for that sync. */
+  inlineSyncTimeoutMs?: number;
+};
+
+/**
  * The whole intake, free of next/server so tests can call it with a
  * constructed Request and a captured `after`. route.ts passes the real one.
  */
-export async function handleIntake(request: Request, after: AfterResponse): Promise<Response> {
+export async function handleIntake(request: Request, after: AfterResponse, deps: IntakeDeps = {}): Promise<Response> {
   if (!isDatabaseConfigured()) {
     // Fail loudly to the operator, softly to the visitor: never imply a lead
     // was captured when there is nowhere to put it.
@@ -259,7 +272,9 @@ export async function handleIntake(request: Request, after: AfterResponse): Prom
     attributedSource !== "Organic Website")) ? attributedSource : declaredSource;
 
   const summary = composeIntakeSummary(str(body.summary ?? body.message ?? body.description), extras);
-  const propertyAddress = composeAddress(body.address ?? body.propertyAddress, body.zip ?? body.postal_code);
+  const propertyAddress = composeAddress(body.address ?? body.propertyAddress ?? body.street_address, body.zip ?? body.postal_code ?? body.postalCode);
+  const propertyZip = str(body.zip ?? body.postal_code ?? body.postalCode)?.slice(0, 20) ?? null;
+  const propertyState = str(body.state ?? body.province)?.slice(0, 60) ?? null;
 
   try {
     const result = await ingestLead(
@@ -273,7 +288,7 @@ export async function handleIntake(request: Request, after: AfterResponse): Prom
          source: resolvedSource,
          sourceDetail: (isQuoteForm || resolvedSource !== declaredSource)
            ? attribution?.gclid ?? attribution?.gbraid ?? attribution?.wbraid ??
-              attribution?.first_gclid ?? attribution?.utm_campaign ?? null
+              attribution?.first_gclid ?? attribution?.utm_campaign ?? attribution?.fbclid ?? null
            : str(body.sourceDetail ?? body.source_detail),
         propertyAddress,
         propertyCity: str(body.city ?? body.propertyCity),
@@ -298,6 +313,10 @@ export async function handleIntake(request: Request, after: AfterResponse): Prom
         bestTime: extras.bestTime,
         timeline: extras.timeline,
         files: extras.files,
+        propertyState,
+        propertyZip,
+        submittedFields: submittedFieldsFromBody(body),
+        submissionChannel: "Website form",
       },
       settings,
     );
@@ -334,11 +353,17 @@ export async function handleIntake(request: Request, after: AfterResponse): Prom
       }
     }
 
+    // HubSpot right away, bounded so the visitor never waits on HubSpot. A
+    // created lead, or a repeat that brought new fields, is pushed now; on a
+    // timeout or failure the deal stays pending and the watchdog sends it.
+    const sync = result.dealId > 0 ? startSync(deps.syncHubSpot, result.dealId) : null;
+    await within(sync, deps.inlineSyncTimeoutMs ?? inlineSyncTimeoutMs());
+
     // Mail runs after the response is finished, so a send failure cannot
     // change 201 or 200. Duplicate and rejected leads are not notified.
     // Synthetic estimator acceptances are skipped inside notifyLeadCreated.
     if (result.status === "created") {
-      const notice = {
+      const notice: LeadCreatedNotifyInput = {
         dealId: result.dealId,
         brand,
         projectType: str(body.projectType ?? body.project_type ?? body.project),
@@ -352,6 +377,15 @@ export async function handleIntake(request: Request, after: AfterResponse): Prom
         source: resolvedSource,
         originalForm: str(body.form ?? body.originalForm),
         extraLines: intakeNoticeLines(extras),
+        propertyState,
+        propertyZip,
+        submittedFields: submittedFieldsFromBody(body),
+        // Wait a little longer for the sync (it may still be running), then
+        // read the saved lead back so the email carries the HubSpot links.
+        prepare: async () => {
+          await within(sync, 10_000);
+          return loadLeadAlert(result.dealId, { ...notice, prepare: undefined });
+        },
       };
       after(async () => {
         await notifyLeadCreated(notice);

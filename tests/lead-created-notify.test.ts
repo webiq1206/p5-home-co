@@ -56,7 +56,7 @@ test("a created quote emails hello@p5homeco.com even when escalation mail is off
   assert.equal(calls.length, 1);
   assert.equal(calls[0].to, PUBLIC_EMAIL);
   assert.equal(PUBLIC_EMAIL, "hello@p5homeco.com");
-  assert.equal(calls[0].message.subject, "New quote enquiry: Ada Lovelace · Boise ADU Co");
+  assert.equal(calls[0].message.subject, "New lead: Boise ADU Co | Accessory dwelling unit (ADU) | Ada Lovelace | Boise");
   assert.match(calls[0].message.text, /Project: Accessory dwelling unit \(ADU\)/);
   assert.match(calls[0].message.text, /City: Boise/);
   assert.match(calls[0].message.text, /Address: 10 Main St/);
