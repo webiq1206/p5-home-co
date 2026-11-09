@@ -172,3 +172,43 @@ migrator (`npm run db:migrate` before `start:host`): deal columns
 `lead_external_ref` (brand + external id to deal), `lead_file_link`,
 `lead_details_event` (fingerprints and HubSpot note state), and
 `lead_pending_details` (Step 2 posts waiting for their Step 1).
+
+## Everything submitted, immediate HubSpot sync, alerts (release 2026-11-09)
+
+Every field of an accepted post is now kept, not only the ones above: the
+whole JSON body (honeypots excluded) is stored as label/value pairs in
+`lead_intake_submission` and sent to HubSpot as one note per distinct
+submission, on the contact and the deal, with the attribution. Unknown keys
+are labelled from their names (`budget_range` reads "Budget range"); nested
+objects read "Answers: Cabinet style"; arrays join with commas.
+
+Fields the brand bridges should send (all optional except `brand` and one of
+`phone`/`email`):
+
+| Field | Type | Notes |
+|---|---|---|
+| `brand` | string | One of the six brand names. |
+| `name` or `firstName` + `lastName` | string | |
+| `phone`, `email` | string | One required. |
+| `address` (or `street_address`) | string | Street only. |
+| `city`, `state`, `zip` | string | `state` and `zip` now reach the HubSpot contact's own fields. |
+| `projectType` | string | Visitor's words; HubSpot gets a sanitized enum. |
+| `summary` | string | The visitor's message. |
+| `timeline`, `best_time`, `contact_preference`, `request_kind` | string | As above. |
+| `budget` | string | Kept verbatim (note and email). |
+| `answers` | object of string, number, boolean or string[] | Every custom question, verbatim. |
+| `files` | array of `{ name, url, contentType, size }` | https links. |
+| `form`, `source`, `sourceDetail`, `campaign`, `service` | string | |
+| `external_id`, `externalLeadId` | string | Idempotency. |
+| `utm_source`, `utm_medium`, `utm_campaign`, `utm_term`, `utm_content` | string | |
+| `gclid`, `gbraid`, `wbraid`, `fbclid` | string | Click ids; `fbclid` is new and alone marks the lead "Social Media". |
+| `landing_page`, `referrer` | string | Path (campaign params only) and origin. |
+| `first_*` variants of the above | string | First touch. |
+
+After the deal commits the hub syncs it to HubSpot inline (bounded, default
+4 s, `HUBSPOT_INLINE_SYNC_TIMEOUT_MS`), with contact address/city/state/zip and
+`hubspot_owner_id` (97300513 unless a mapped P5 owner applies), then emails
+`New lead: <Brand> | <Project> | <Name> | <City>` with call/text/email/maps
+links and the HubSpot contact and deal links. The watchdog stays the retry
+path. Only HubSpot portal 247066159 is ever written. Details:
+docs/meta-leadgen-setup.md.

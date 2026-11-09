@@ -23,6 +23,22 @@ import {
   type OutcomeError,
 } from "../lib/leads/outcomes.ts";
 import { DEAL_STAGES, OUTCOMES, isClosed, type DealStage, type Outcome } from "../lib/leads/types.ts";
+import { pushActivityToHubSpot } from "../lib/integrations/hubspot-activities.ts";
+import { syncDealToHubSpot } from "../lib/integrations/hubspot.ts";
+import { within } from "../lib/leads/leadPipeline.ts";
+
+/**
+ * Send a logged call, text or note to HubSpot now, bounded so the form never
+ * hangs on HubSpot. Whatever does not finish stays pending for the watchdog.
+ */
+async function pushOutcomeNow(dealId: number, activityId: number | null): Promise<void> {
+  if (!activityId) return;
+  const work = (async () => {
+    await syncDealToHubSpot(dealId);
+    await pushActivityToHubSpot(activityId);
+  })().catch((error: Error) => console.error("[admin] HubSpot push deferred to the watchdog:", error.message));
+  await within(work, 6_000);
+}
 
 export type ActionResult =
   | { ok: true; message: string }
@@ -107,7 +123,7 @@ export async function logOutcomeAction(
   const effect = effectOf(outcome);
   const closing = isClosed(stage);
 
-  await transaction(async (client) => {
+  const activityId = await transaction(async (client) => {
     const before = await client.query(
       "SELECT stage, first_attempt_at, first_two_way_at FROM deal WHERE id = $1",
       [dealId],
@@ -117,9 +133,11 @@ export async function logOutcomeAction(
       | undefined;
     if (!prev) throw new Error(`Deal ${dealId} not found`);
 
-    await client.query(
-      `INSERT INTO activity (deal_id, user_id, kind, outcome, body, is_human_attempt, is_two_way, occurred_at)
-       VALUES ($1,$2,$3,$4,$5,TRUE,$6,$7)`,
+    // hubspot_sync_state 'pending' queues the HubSpot call/text/note push
+    // (hubspot-activities.ts, migration 022).
+    const inserted = await client.query(
+      `INSERT INTO activity (deal_id, user_id, kind, outcome, body, is_human_attempt, is_two_way, occurred_at, hubspot_sync_state)
+       VALUES ($1,$2,$3,$4,$5,TRUE,$6,$7,'pending') RETURNING id`,
       [dealId, auth.user.id, effect.activityKind, outcome, submission.note, effect.isTwoWay, now],
     );
 
@@ -173,7 +191,10 @@ export async function logOutcomeAction(
         JSON.stringify({ outcome, stage, nextAction: submission.nextAction, isTwoWay: effect.isTwoWay }),
       ],
     );
+    return Number((inserted.rows[0] as { id: string } | undefined)?.id ?? 0) || null;
   });
+
+  await pushOutcomeNow(dealId, activityId);
 
   revalidatePath("/admin");
   revalidatePath("/admin/lead-manager");

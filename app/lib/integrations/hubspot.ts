@@ -22,15 +22,21 @@ import {
   contactProperties,
   dealProperties,
   detailsNoteBody,
+  newRecordOwnerId,
+  streetOnly,
+  submissionNoteBody,
   type ContactSyncInput,
   type DealSyncInput,
 } from "./hubspot-map.ts";
 import { detailLines, type LeadDetails } from "../leads/intakeContract.ts";
 import { leadFileAdminUrl } from "../leads/leadRequestFiles.ts";
+import { normalizePhone } from "../leads/normalize.ts";
+import { ensureP5HubSpotPortal } from "./hubspot-portal.ts";
+import { attributionFields, type SubmittedField } from "../leads/submittedFields.ts";
 
 const API = "https://api.hubapi.com";
 const HUBSPOT_ATTRIBUTION_FIELDS = [
-  "p5_gclid", "p5_gbraid", "p5_wbraid", "p5_utm_source", "p5_utm_medium",
+  "p5_gclid", "p5_gbraid", "p5_wbraid", "p5_fbclid", "p5_utm_source", "p5_utm_medium",
   "p5_utm_campaign", "p5_utm_term", "p5_utm_content", "p5_landing_page", "p5_referrer", "p5_service",
 ] as const;
 
@@ -77,6 +83,13 @@ function sleep(ms: number): Promise<void> {
 async function call<T>(path: string, init: RequestInit): Promise<T> {
   const auth = token();
   if (!auth) throw new HubSpotError("HUBSPOT_TOKEN is not set.", 0, false);
+  // Never write to any portal but P5's (hubspot-portal.ts). Retryable, so the
+  // watchdog keeps the lead pending until the token is right.
+  try {
+    await ensureP5HubSpotPortal(auth);
+  } catch (error) {
+    throw new HubSpotError((error as Error).message, 0, true);
+  }
 
   let lastError = "";
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
@@ -118,21 +131,55 @@ async function call<T>(path: string, init: RequestInit): Promise<T> {
 }
 
 type IdResponse = { id: string };
-type SearchResponse = { total: number; results: { id: string }[] };
+type SearchResponse = { total: number; results: { id: string; properties?: Record<string, string | null> }[] };
+type FoundContact = { id: string; ownerId: string | null };
 
 /** Find a contact by email, the identifier HubSpot itself deduplicates on. */
-async function findContactByEmail(email: string): Promise<string | null> {
+async function findContactByEmail(email: string): Promise<FoundContact | null> {
   const res = await call<SearchResponse>("/crm/v3/objects/contacts/search", {
     method: "POST",
     body: JSON.stringify({
       filterGroups: [
         { filters: [{ propertyName: "email", operator: "EQ", value: email }] },
       ],
-      properties: ["email"],
+      properties: ["email", "hubspot_owner_id"],
       limit: 1,
     }),
   });
-  return res.results[0]?.id ?? null;
+  const found = res.results[0];
+  return found ? { id: found.id, ownerId: found.properties?.hubspot_owner_id || null } : null;
+}
+
+/**
+ * Find a contact by phone when there is no email match. HubSpot stores phone
+ * numbers as typed, so the search is a text query on the national digits and
+ * the match is decided here on the normalized number. Exactly one match is
+ * adopted; none, or more than one, means a new contact rather than a guess.
+ */
+async function findContactByPhone(phone: string): Promise<FoundContact | null> {
+  const normalized = normalizePhone(phone);
+  if (!normalized) return null;
+  const res = await call<SearchResponse>("/crm/v3/objects/contacts/search", {
+    method: "POST",
+    body: JSON.stringify({
+      query: normalized.startsWith("+1") ? normalized.slice(2) : normalized.slice(1),
+      properties: ["phone", "mobilephone", "hubspot_owner_id"],
+      limit: 20,
+    }),
+  });
+  const exact = (res.results ?? []).filter((row) =>
+    [row.properties?.phone, row.properties?.mobilephone].some((value) => normalizePhone(value ?? null) === normalized));
+  if (exact.length !== 1) return null;
+  return { id: exact[0].id, ownerId: exact[0].properties?.hubspot_owner_id || null };
+}
+
+/** The owner a known contact already has, so a sync never reassigns it. */
+async function contactOwner(id: string): Promise<string | null> {
+  const res = await call<{ properties?: Record<string, string | null> }>(
+    `/crm/v3/objects/contacts/${encodeURIComponent(id)}?properties=hubspot_owner_id`,
+    { method: "GET" },
+  );
+  return res.properties?.hubspot_owner_id || null;
 }
 
 /** Find a deal previously synced from this P5 deal id. */
@@ -154,36 +201,48 @@ async function findDealByExternalId(externalLeadId: string): Promise<string | nu
   return res.results[0]?.id ?? null;
 }
 
+/**
+ * Create or update the contact: by the stored id, else by email, else by
+ * phone, else a new contact. Only non-empty values are written, so a blank
+ * submission never clears a field HubSpot already holds. The owner is set
+ * only where the contact has none, so a reassignment made in HubSpot stands.
+ */
 async function upsertContact(
   input: ContactSyncInput,
   knownId: string | null,
+  ownerId: string | null,
 ): Promise<string> {
   const properties = contactProperties(input);
+  const update = async (found: FoundContact): Promise<string> => {
+    const patch = { ...properties, ...(ownerId && !found.ownerId ? { hubspot_owner_id: ownerId } : {}) };
+    if (Object.keys(patch).length) {
+      await call<IdResponse>(`/crm/v3/objects/contacts/${found.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ properties: patch }),
+      });
+    }
+    return found.id;
+  };
 
   if (knownId) {
-    await call<IdResponse>(`/crm/v3/objects/contacts/${knownId}`, {
-      method: "PATCH",
-      body: JSON.stringify({ properties }),
-    });
-    return knownId;
+    const owner = ownerId ? await contactOwner(knownId).catch(() => "unknown") : null;
+    return update({ id: knownId, ownerId: owner });
   }
 
   // Search before create: HubSpot rejects a duplicate email with 409, and a
   // pre-existing contact should be adopted rather than fought with.
   if (input.email) {
     const found = await findContactByEmail(input.email);
-    if (found) {
-      await call<IdResponse>(`/crm/v3/objects/contacts/${found}`, {
-        method: "PATCH",
-        body: JSON.stringify({ properties }),
-      });
-      return found;
-    }
+    if (found) return update(found);
+  }
+  if (input.phone) {
+    const found = await findContactByPhone(input.phone);
+    if (found) return update(found);
   }
 
   const created = await call<IdResponse>("/crm/v3/objects/contacts", {
     method: "POST",
-    body: JSON.stringify({ properties }),
+    body: JSON.stringify({ properties: { ...properties, ...(ownerId ? { hubspot_owner_id: ownerId } : {}) } }),
   });
   return created.id;
 }
@@ -193,6 +252,7 @@ async function upsertDeal(
   knownId: string | null,
   p5DealId: number,
   availableProperties: ReadonlySet<string> | undefined,
+  newDealOwnerId: string | null = null,
 ): Promise<string> {
   // The P5 deal id is the idempotency key, so a replayed sync updates the
   // same HubSpot deal instead of creating a second one.
@@ -209,11 +269,90 @@ async function upsertDeal(
     return id;
   }
 
+  // A new deal is always assigned, so the owner's HubSpot app announces it.
+  // An existing deal keeps whatever owner HubSpot has unless P5 assigned one.
   const created = await call<IdResponse>("/crm/v3/objects/deals", {
     method: "POST",
-    body: JSON.stringify({ properties }),
+    body: JSON.stringify({
+      properties: (properties as Record<string, string>).hubspot_owner_id || !newDealOwnerId ? properties : { ...properties, hubspot_owner_id: newDealOwnerId },
+    }),
   });
   return created.id;
+}
+
+/** Association types (HubSpot-defined): note to contact 202, note to deal 214. */
+const NOTE_TO_CONTACT = 202;
+
+/**
+ * One HubSpot note per submission (lead_intake_submission), on the contact and
+ * the deal, carrying every field the visitor sent and the attribution. Same
+ * fallback rule as the details notes: a token without the notes scope marks
+ * it delivered by description (the summary is there) and never retries.
+ * Returns true when a transient failure means the deal should sync again.
+ */
+async function syncSubmissionNotes(dealId: number, hubspotDealId: string, contactId: string, row: DealRow): Promise<boolean> {
+  const submissions = await query<{ id: string; channel: string; fields: SubmittedField[]; received_at: string }>(
+    `SELECT id, channel, fields, received_at FROM lead_intake_submission
+      WHERE deal_id = $1 AND hubspot_note_state = 'pending'
+      ORDER BY received_at, id`,
+    [dealId],
+  ).catch(() => []);
+  if (!submissions.length) return false;
+  const attribution = attributionFields({
+    source: row.lead_source,
+    sourceDetail: row.lead_source_detail,
+    originalForm: row.original_form,
+    originalCampaign: row.original_campaign,
+    externalLeadId: row.external_lead_id,
+    facebookLeadId: row.facebook_lead_id,
+    utm: row.utm,
+  });
+  const base = (process.env.APP_BASE_URL ?? "https://p5homeco.com").replace(/\/+$/, "");
+  let retry = false;
+  for (const submission of submissions) {
+    const receivedAt = new Date(submission.received_at);
+    try {
+      const note = await call<IdResponse>("/crm/v3/objects/notes", {
+        method: "POST",
+        body: JSON.stringify({
+          properties: {
+            hs_timestamp: String(receivedAt.getTime()),
+            hs_note_body: submissionNoteBody({
+              channel: submission.channel,
+              receivedAt,
+              fields: submission.fields ?? [],
+              attribution,
+              adminUrl: `${base}/admin/lead/${dealId}`,
+            }),
+            ...(row.owner_hubspot_id ? { hubspot_owner_id: row.owner_hubspot_id } : {}),
+          },
+          associations: [
+            { to: { id: hubspotDealId }, types: [{ associationCategory: "HUBSPOT_DEFINED", associationTypeId: NOTE_TO_DEAL }] },
+            { to: { id: contactId }, types: [{ associationCategory: "HUBSPOT_DEFINED", associationTypeId: NOTE_TO_CONTACT }] },
+          ],
+        }),
+      });
+      await query(
+        "UPDATE lead_intake_submission SET hubspot_note_state = 'sent', hubspot_note_id = $2 WHERE id = $1",
+        [submission.id, note.id],
+      );
+    } catch (error) {
+      if (error instanceof HubSpotError && error.retryable) {
+        retry = true;
+        continue;
+      }
+      // 401/403 (no notes scope) or a malformed note fails the same way
+      // forever. The deal description carries the summary; keep the fields
+      // here and say so in the audit trail.
+      await query("UPDATE lead_intake_submission SET hubspot_note_state = 'description' WHERE id = $1", [submission.id]);
+      await query(
+        `INSERT INTO audit_log (record_type, record_id, action, new_value, action_source, integration_source, succeeded, error)
+         VALUES ('deal',$1,'hubspot_submission_note_fallback',$2::jsonb,'integration','hubspot',FALSE,$3)`,
+        [String(dealId), JSON.stringify({ submissionId: submission.id }), (error as Error).message.slice(0, 300)],
+      ).catch(() => undefined);
+    }
+  }
+  return retry;
 }
 
 /** Associate a deal with its contact. Association type 3 is deal-to-contact. */
@@ -236,6 +375,8 @@ type DealRow = {
   project_type: string | null;
   property_address: string | null;
   property_city: string | null;
+  property_state?: string | null;
+  property_zip?: string | null;
   service_area: string | null;
   summary: string | null;
   estimated_value: string | null;
@@ -385,20 +526,44 @@ export async function syncDealToHubSpot(dealId: number): Promise<SyncOutcome> {
   if (!rows.length) return { status: "failed", error: `Deal ${dealId} not found.` };
   const row = rows[0];
   if(row.original_form==="p5-estimator-synthetic-qa")return {status:"skipped",reason:"Synthetic estimator acceptance has downstream delivery suppressed."};
+  // The inline sync after intake and the watchdog can reach the same deal at
+  // once. A short lease lets exactly one of them push it; the other skips and
+  // the deal stays pending for the next pass. Released when this pass ends.
+  const leased = await query<{ id: string }>(
+    `UPDATE deal SET hubspot_sync_lease_until = now() + interval '2 minutes'
+      WHERE id = $1 AND (hubspot_sync_lease_until IS NULL OR hubspot_sync_lease_until < now())
+      RETURNING id`,
+    [dealId],
+  );
+  if (!leased.length) return { status: "skipped", reason: "A HubSpot sync for this deal is already running." };
+  try {
+    return await syncLeasedDeal(dealId, row);
+  } finally {
+    await query("UPDATE deal SET hubspot_sync_lease_until = NULL WHERE id = $1", [dealId]).catch(() => undefined);
+  }
+}
+
+async function syncLeasedDeal(dealId: number, row: DealRow): Promise<SyncOutcome> {
   // Attribution fields are optional. A token without schema-read permission or
   // a portal where setup has not created them still syncs the operational lead.
   const propertyNames = await fetchDealPropertyNames().catch(() => null);
   const files = await dealFileLinks(dealId);
 
   try {
+    const ownerForNewRecords = newRecordOwnerId(row.owner_hubspot_id);
     const contactId = await upsertContact(
       {
         firstName: row.first_name,
         lastName: row.last_name,
         email: row.email,
         phone: row.phone,
+        address: streetOnly(row.property_address, row.property_zip),
+        city: row.property_city,
+        state: row.property_state ?? null,
+        zip: row.property_zip ?? null,
       },
       row.hubspot_contact_id,
+      ownerForNewRecords,
     );
 
     const hubspotDealId = await upsertDeal(
@@ -439,10 +604,12 @@ export async function syncDealToHubSpot(dealId: number): Promise<SyncOutcome> {
       row.hubspot_deal_id,
       dealId,
       propertyNames ?? undefined,
+      ownerForNewRecords,
     );
 
     await associate(hubspotDealId, contactId);
-    const retryNotes = await syncDetailNotes(dealId, hubspotDealId);
+    const retryDetailNotes = await syncDetailNotes(dealId, hubspotDealId);
+    const retryNotes = (await syncSubmissionNotes(dealId, hubspotDealId, contactId, row)) || retryDetailNotes;
 
     // A visitor can add details while this sync runs. Only a deal that did
     // not change underneath it is marked synced; otherwise it stays pending

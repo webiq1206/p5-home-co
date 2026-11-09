@@ -12,6 +12,8 @@ import { randomUUID } from "node:crypto";
 import { isUniqueViolation, query, transaction } from "../db.ts";
 import { dispatchNotifications } from "../notifications/dispatch.ts";
 import { syncPendingDeals } from "../integrations/hubspot.ts";
+import { syncPendingActivities } from "../integrations/hubspot-activities.ts";
+import { processPendingMetaLeads } from "../integrations/meta-leadgen.ts";
 import { sweepAbandonedSessions } from "./estimatorSessions.ts";
 import { syncHubSpotAlertTasks } from "../integrations/hubspot-tasks.ts";
 import { pullHubSpotLeadActions } from "../integrations/hubspot-operations.ts";
@@ -283,7 +285,21 @@ export async function runWatchdog(now: Date = new Date()): Promise<WatchdogSumma
     // rules pass, so a HubSpot outage can never delay alerting -- and
     // deliberately inside the try, so its failures land in job_run too.
     // syncPendingDeals is a no-op while the flag is off or the token absent.
+    // Meta Instant Form deliveries saved but not yet ingested (Graph or
+    // intake failed after the 200). Before the deal sync, so a lead ingested
+    // here is pushed on this same tick. A failure never stops the watchdog.
+    try {
+      await processPendingMetaLeads();
+    } catch (error) {
+      console.error("[watchdog] Meta lead retry failed", error instanceof Error ? error.message : error);
+    }
     const hubspot = await syncPendingDeals();
+    // Calls, texts and notes logged in the admin, once their deal has ids.
+    try {
+      await syncPendingActivities();
+    } catch (error) {
+      console.error("[watchdog] HubSpot activity push failed", error instanceof Error ? error.message : error);
+    }
     const tasks = await syncHubSpotAlertTasks(now);
 
     // Tell people. Last, because raising the alert correctly matters more

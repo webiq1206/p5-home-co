@@ -32,6 +32,7 @@ describe("HubSpot lead alert task lifecycle", { skip: TEST_DB ? false : "TEST_DA
       const method = init?.method ?? "GET";
       const body = init?.body ? JSON.parse(String(init.body)) : null;
       const json = (value: unknown, status = 200) => new Response(JSON.stringify(value), { status });
+      if (url.includes("/account-info/v3/details")) return json({ portalId: 247066159 });
       if (url.includes("/crm/v3/owners/")) return json({ results: [{ id: "55", email: "hello@p5homeco.com", archived: false }] });
       if (url.includes("/labels")) return json({ results: [{ category: "HUBSPOT_DEFINED", label: null, typeId: url.includes("/deals/") ? 216 : 204 }] });
       if (url.includes("/tasks/search")) {

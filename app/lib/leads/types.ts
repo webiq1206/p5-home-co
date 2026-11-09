@@ -139,6 +139,16 @@ export type InboundLead = {
   timeline?: string | null;
   /** Links to files the brand site stored; P5 keeps the link, not a copy. */
   files?: readonly LeadFileLink[];
+  /** State and ZIP as sent, for the HubSpot contact's own address fields. */
+  propertyState?: string | null;
+  propertyZip?: string | null;
+  /**
+   * Every field the submission carried (submittedFields.ts), kept verbatim and
+   * sent to HubSpot as a note, so nothing without a property is lost.
+   */
+  submittedFields?: readonly { label: string; value: string }[];
+  /** Where the submission came from, e.g. "Website form" or "Facebook Lead Ad". */
+  submissionChannel?: string | null;
 };
 
 /** A quote request or a "Have us call you" request. */

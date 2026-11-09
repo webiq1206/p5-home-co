@@ -55,7 +55,7 @@ export function googleTagBootstrap(options: {
   // This is acquisition metadata only, never a lead or a conversion event.
   try {
     var query = new URLSearchParams(window.location.search || '');
-    var allowed = ['gclid', 'gbraid', 'wbraid', 'utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content'];
+    var allowed = ['gclid', 'gbraid', 'wbraid', 'fbclid', 'utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content'];
     var touch = { landing_page: window.location.pathname || '/' };
     var hasCampaign = false;
     for (var i = 0; i < allowed.length; i++) {
