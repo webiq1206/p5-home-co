@@ -17,6 +17,7 @@
  */
 
 import { query } from "../db.ts";
+import { hubspotRetryDue, recordHubspotFailure, clearHubspotBackoff } from "./hubspot-backoff.ts";
 import { loadSettings } from "../leads/settings.ts";
 import {
   contactProperties,
@@ -537,6 +538,7 @@ export async function syncDealToHubSpot(dealId: number): Promise<SyncOutcome> {
   );
   if (!leased.length) return { status: "skipped", reason: "A HubSpot sync for this deal is already running." };
   try {
+    if (!(await hubspotRetryDue(dealId))) return { status: "skipped", reason: "HubSpot retry backoff is active." };
     return await syncLeasedDeal(dealId, row);
   } finally {
     await query("UPDATE deal SET hubspot_sync_lease_until = NULL WHERE id = $1", [dealId]).catch(() => undefined);
@@ -550,7 +552,29 @@ async function syncLeasedDeal(dealId: number, row: DealRow): Promise<SyncOutcome
   const files = await dealFileLinks(dealId);
 
   try {
-    const ownerForNewRecords = newRecordOwnerId(row.owner_hubspot_id);
+    const isMeta = row.lead_source === "Facebook Lead Ad";
+    const ownerForNewRecords = newRecordOwnerId(isMeta ? null : row.owner_hubspot_id);
+    let summary = row.summary;
+    if (isMeta) {
+      // The operational summary is whitespace-normalized during intake.
+      // Rehydrate exact answers from the durable submission for the CRM,
+      // rather than presenting that lossy summary as the original answers.
+      const submissions = await query<{ fields: SubmittedField[] }>(
+        `SELECT fields FROM lead_intake_submission WHERE deal_id=$1 AND channel='Facebook Lead Ad'
+         ORDER BY received_at,id`, [dealId],
+      );
+      const attribution = attributionFields({
+        source: row.lead_source, sourceDetail: row.lead_source_detail,
+        originalForm: row.original_form, originalCampaign: row.original_campaign,
+        externalLeadId: row.external_lead_id, facebookLeadId: row.facebook_lead_id, utm: row.utm,
+      });
+      if (submissions.length) summary = [
+        "Facebook Lead Ad — original submitted answers",
+        ...submissions.flatMap(s => s.fields.map(f => `${f.label}: ${f.value}`)),
+        "Meta attribution",
+        ...attribution.map(f => `${f.label}: ${f.value}`),
+      ].join("\n");
+    }
     const contactId = await upsertContact(
       {
         firstName: row.first_name,
@@ -568,7 +592,7 @@ async function syncLeasedDeal(dealId: number, row: DealRow): Promise<SyncOutcome
 
     const hubspotDealId = await upsertDeal(
       {
-        name: row.name,
+        name: isMeta ? `${row.brand} lead: ${[row.first_name, row.last_name].filter(Boolean).join(" ") || "New contact"}` : row.name,
         brand: row.brand as DealSyncInput["brand"],
         stage: row.stage as DealSyncInput["stage"],
         leadSource: row.lead_source as DealSyncInput["leadSource"],
@@ -577,7 +601,7 @@ async function syncLeasedDeal(dealId: number, row: DealRow): Promise<SyncOutcome
         propertyAddress: row.property_address,
         propertyCity: row.property_city,
         serviceArea: row.service_area,
-        summary: row.summary,
+        summary,
         estimatedValue: row.estimated_value === null ? null : Number(row.estimated_value),
         assignedTeamMember: row.owner_name,
         hubspotOwnerId: row.owner_hubspot_id,
@@ -640,9 +664,12 @@ async function syncLeasedDeal(dealId: number, row: DealRow): Promise<SyncOutcome
       [String(dealId), JSON.stringify({ hubspotDealId, contactId })],
     );
 
+    if (retryNotes) await recordHubspotFailure(dealId);
+    else await clearHubspotBackoff(dealId);
     return { status: "synced", contactId, dealId: hubspotDealId };
   } catch (error) {
     const message = (error as Error).message;
+    await recordHubspotFailure(dealId);
     await query(
       `UPDATE deal SET integration_sync_status = 'failed',
               last_integration_error = $2, updated_at = now()

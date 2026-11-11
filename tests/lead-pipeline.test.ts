@@ -45,7 +45,7 @@ async function post(body: Json, deps: Parameters<typeof handleIntake>[2] = {}) {
 
 type Call = { method: string; path: string; search: string; body: Json | null };
 
-function mockHubSpot(options: { portal?: number; contacts?: Json[]; dealId?: string } = {}) {
+function mockHubSpot(options: { portal?: number; contacts?: Json[]; dealId?: string; contactId?: string } = {}) {
   const calls: Call[] = [];
   const original = globalThis.fetch;
   resetHubSpotPortalCheck();
@@ -66,7 +66,7 @@ function mockHubSpot(options: { portal?: number; contacts?: Json[]; dealId?: str
       return json({ total: results.length, results });
     }
     if (url.pathname.endsWith("/search")) return json({ total: 0, results: [] });
-    if (url.pathname === "/crm/v3/objects/contacts" && method === "POST") return json({ id: "hs-contact-new" }, 201);
+    if (url.pathname === "/crm/v3/objects/contacts" && method === "POST") return json({ id: options.contactId ?? "hs-contact-new" }, 201);
     if (url.pathname === "/crm/v3/objects/deals" && method === "POST") return json({ id: options.dealId ?? "hs-deal-new" }, 201);
     if (url.pathname.startsWith("/crm/v3/objects/contacts/") && method === "GET") return json({ id: url.pathname.split("/").pop(), properties: { hubspot_owner_id: "" } });
     if (url.pathname.startsWith("/crm/v3/objects/deals/") || url.pathname.startsWith("/crm/v3/objects/contacts/")) return json({ id: url.pathname.split("/").pop() });
@@ -253,4 +253,41 @@ test("the route wires the real sync; tests get none unless they pass one", async
   const route = readFileSync("app/api/leads/intake/route.ts", "utf8");
   assert.match(route, /handleIntake\(request, after, \{ syncHubSpot: syncDealToHubSpot \}\)/);
   assert.ok(afterTasks.length > 0);
+});
+
+test("a synthetic Meta Testing Tool-style lead gets the requested deal title, owner, stage, answers and two-sided note", async () => {
+  const { metaInboundLead, resolveMetaBrand } = await import("../app/lib/integrations/meta-leadgen.ts");
+  const { ingestLead } = await import("../app/lib/leads/intake.ts");
+  const { DEFAULT_SETTINGS } = await import("../app/lib/leads/settings.ts");
+  const graphLead = {
+    id: "synthetic-meta-9009", form_id: "1636211868536619", created_time: "2026-11-11T00:00:00Z",
+    campaign_name: "Synthetic cabinet campaign", adset_name: "Synthetic ad set", ad_name: "Synthetic ad", platform: "fb",
+    field_data: [
+      { name: "full_name", values: ["Synthetic Meta Tester"] },
+      { name: "email", values: ["meta-test@example.com"] },
+      { name: "project", values: ["Custom cabinets"] },
+      { name: "Custom exact question?", values: ["  Original answer\nSecond line  "] },
+    ],
+  };
+  const inbound = metaInboundLead(graphLead, resolveMetaBrand(graphLead, { pageId: "1235083469680398" }));
+  const created = await ingestLead(inbound, DEFAULT_SETTINGS);
+  assert.equal(created.status, "created");
+  if (created.status !== "created") return;
+  const hubspot = mockHubSpot({ contactId: "hs-contact-meta", dealId: "hs-deal-meta" });
+  try {
+    const result = await syncDealToHubSpot(created.dealId);
+    assert.equal(result.status, "synced");
+    const dealWrite = hubspot.calls.find(c => c.path === "/crm/v3/objects/deals" && c.method === "POST")!;
+    const props = dealWrite.body!.properties as Json;
+    assert.equal(props.dealname, "Boise Cabinet Co lead: Synthetic Meta Tester");
+    assert.equal(props.dealstage, "appointmentscheduled");
+    assert.equal(props.hubspot_owner_id, "97300513");
+    assert.equal(props.p5_lead_source, "Facebook Lead Ad");
+    assert.equal(props.p5_facebook_lead_id, graphLead.id);
+    assert.match(String(props.description), /Custom exact question\?:   Original answer\nSecond line  /);
+    assert.match(String(props.description), /Ad set.*Synthetic ad set/i);
+    const note = hubspot.calls.find(c => c.path === "/crm/v3/objects/notes" && c.method === "POST")!;
+    assert.match(String((note.body!.properties as Json).hs_note_body), /Custom exact question/);
+    assert.equal((note.body!.associations as unknown[]).length, 2);
+  } finally { hubspot.restore(); }
 });

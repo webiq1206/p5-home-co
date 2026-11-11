@@ -49,6 +49,13 @@ function schedulingIsPossible(label: string): boolean {
 }
 
 export async function register(): Promise<void> {
+  if (schedulingIsPossible("meta-subscriptions") && process.env.NODE_ENV === "production") {
+    // No provider work during builds or development. Nightly upkeep uses the
+    // existing watchdog; missing owner-supplied token makes this a no-op.
+    void import("./app/lib/integrations/meta-schedule.ts")
+      .then(m => m.maintainMetaSubscriptions("boot"))
+      .catch(() => console.error("[meta-subscriptions] Startup subscription check deferred."));
+  }
   if(process.env.NEXT_RUNTIME==='nodejs'&&process.env.NODE_ENV==='production')void import('./lib/p5/backgroundJobs').then(m=>m.bootEstimatorWorker()).catch(()=>console.error('[p5-worker] Startup deferred; estimator requests can resume saved work.'));
   await startWatchdog();
   await startFinanceDaily();

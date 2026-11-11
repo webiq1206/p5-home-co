@@ -44,6 +44,19 @@ export function handleMetaVerify(request: Request, env: Record<string, string | 
 }
 
 export async function handleMetaWebhook(request: Request, after: AfterResponse, deps: MetaDeps = {}): Promise<Response> {
+  // Never acknowledge an unpersisted delivery. A slow DB/body returns 503
+  // within the acknowledgement budget, letting Meta redeliver safely.
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const deadline = Date.now() + 1750;
+  try {
+    return await Promise.race([
+      acceptMetaWebhook(request, after, deps, deadline),
+      new Promise<Response>(resolve => { timer = setTimeout(() => resolve(new Response("Retry later", { status: 503 })), 1750); }),
+    ]);
+  } finally { if (timer) clearTimeout(timer); }
+}
+
+async function acceptMetaWebhook(request: Request, after: AfterResponse, deps: MetaDeps, deadline: number): Promise<Response> {
   const config = metaConfig(deps.env);
   if (!config.appSecret) {
     console.error(`${LOG} META_APP_SECRET is not set; deliveries cannot be verified and are refused (Meta will retry).`);
@@ -75,12 +88,12 @@ export async function handleMetaWebhook(request: Request, after: AfterResponse, 
   let fresh: string[];
   try {
     fresh = await saveLeadgenEvents(events);
-  } catch (error) {
+  } catch {
     // Not saved means not acknowledged: Meta redelivers.
-    console.error(`${LOG} could not save the delivery; answering 500 so Meta retries:`, (error as Error).message);
+    console.error(`${LOG} could not save the delivery; answering 500 so Meta retries.`);
     return new Response("Not saved", { status: 500 });
   }
-  if (fresh.length) {
+  if (fresh.length && Date.now() < deadline) {
     after(async () => {
       for (const id of fresh) {
         try {
