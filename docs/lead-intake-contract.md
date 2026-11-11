@@ -156,7 +156,8 @@ is on and `HUBSPOT_TOKEN` is set. Sync never blocks intake.
 ## P5's own form
 
 `/quote` uses the same merge internally. Step 1 posts to
-`/api/leads/short-request` and gets back `request: { id, token }`, an
+`/api/leads/short-request` (with an optional `address`, stored as the lead's
+property address) and gets back `request: { id, token }`, an
 HMAC-SHA256 token (keyed by `SESSION_SECRET`, valid 2 hours). Files then go
 one per request to `/api/leads/short-request/files` (`id`, `token`, `file`,
 `final`), and Step 2 to `/api/leads/short-request/details` (JSON `id`,

@@ -3,7 +3,7 @@
 import { useEffect, useId, useRef, useState, type DragEvent } from "react";
 
 /**
- * "Add photos, plans or files (optional)": one friendly tile instead of the
+ * "Add photos, plans or files": one friendly tile instead of the
  * browser's raw "Choose files" control. The family uses the same look and
  * behaviour on every site.
  *
@@ -191,7 +191,7 @@ export function AttachmentTile({
         <PaperclipIcon />
         <span className="attach-tile-text">
           <span className="attach-tile-label">
-            {label} <span className="quote-form-optional">(optional)</span>
+            {label}
           </span>
           <small id={`${uid}-hint`}>Photos, PDFs or drawings. Up to 10 files, 20 MB each.</small>
         </span>

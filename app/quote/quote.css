@@ -1188,9 +1188,7 @@ html:has(.quote-request-first) { scroll-behavior: auto; }
   .quote-photos-lead,
   .quote-hero-call,
   .quote-others-note,
-  .quote-area,
-  .quote-form-talk > p,
-  .quote-form-next {
+  .quote-area {
     font-size: var(--fs-body);
     line-height: var(--lh-body);
   }
