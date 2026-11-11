@@ -250,6 +250,7 @@ export default function MetaPanel({ snapshot }: { snapshot: MetaSnapshot | null 
                 </div>
                 <div className="lead-tags">
                   <span className="lead-tag">Leadgen subscription: {page.subscribed === null ? "Unknown" : page.subscribed ? "Active" : "Inactive"}</span>
+                  <span className="lead-tag">App {page.appId}: {page.appPresent === null ? "Unknown" : page.appPresent ? "Present" : "Not listed"}</span>
                   <span className="lead-tag lead-tag-brand">Mapped brand: {mappings?.pages[page.id] ?? "Unassigned"}</span>
                 </div>
                 {page.error && <p className="lead-error-block" style={{ marginTop: 12 }}>{page.error}</p>}

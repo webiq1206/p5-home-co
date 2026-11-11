@@ -25,8 +25,10 @@ import type { SubmittedField } from "../leads/submittedFields.ts";
 import type { Brand, InboundLead } from "../leads/types.ts";
 import { notifyLeadCreated, type LeadCreatedNotifyInput } from "../notifications/lead-created.ts";
 import { DEFAULT_META_PAGES, loadMetaMappings, type MetaMappings } from "./meta-settings.ts";
+import { resolveMetaPageToken } from "./meta-page-tokens.ts";
+import { GRAPH_VERSION } from "./meta-graph.ts";
 
-export const GRAPH_VERSION = "v21.0";
+export { GRAPH_VERSION } from "./meta-graph.ts";
 const LOG = "[meta-leadgen]";
 
 /** Instant Forms on the P5 Home Co Page (1228704823655951). Add a row per new form. */
@@ -111,7 +113,7 @@ export type MetaConfig = {
   appSecret: string;
   /** page id -> Page access token, from META_PAGE_TOKENS. */
   pageTokens: Record<string, string>;
-  /** META_PAGE_ACCESS_TOKEN, for any page not in the map. */
+  /** System-user token: account discovery only, never used directly for a Page/lead. */
   defaultToken: string;
 };
 
@@ -138,7 +140,7 @@ export function metaConfig(env: Record<string, string | undefined> = process.env
 }
 
 export function pageToken(config: MetaConfig, pageId: string | null | undefined): string {
-  return (pageId && config.pageTokens[pageId]) || config.defaultToken;
+  return (pageId && config.pageTokens[pageId]) || "";
 }
 
 /** Timing-safe X-Hub-Signature-256 check on the raw body. */
@@ -352,7 +354,7 @@ export async function processMetaLeadEvent(leadgenId: string, deps: MetaDeps = {
   const config = metaConfig(deps.env);
   const fetcher = deps.fetch ?? fetch;
   try {
-    const token = pageToken(config, event.page_id);
+    const token = await resolveMetaPageToken(config, event.page_id, { ...process.env, ...deps.env }, fetcher);
     if (!token) {
       // Fail closed, never drop: the delivery waits until a token is set.
       console.error(`${LOG} no Page token for page ${event.page_id ?? "unknown"} (META_PAGE_TOKENS / META_PAGE_ACCESS_TOKEN); lead ${leadgenId} kept pending.`);

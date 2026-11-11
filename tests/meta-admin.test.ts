@@ -7,9 +7,10 @@ const db = await leadDatabase();
 const { metaReadiness, discoverMetaPages, isLeadgenSubscribed, runMetaHandshakeSelfTest, safeMetaError, metaGraph, loadMetaReceipts } = await import("../app/lib/integrations/meta-admin.ts");
 const { mergeMetaMappings, loadMetaMappings, saveMetaMapping } = await import("../app/lib/integrations/meta-settings.ts");
 const { resolveMetaBrand, pageToken, metaConfig } = await import("../app/lib/integrations/meta-leadgen.ts");
-const { metaAutomationEnabled } = await import("../app/lib/integrations/meta-schedule.ts");
+const { metaAutomationEnabled, maintainMetaSubscriptions } = await import("../app/lib/integrations/meta-schedule.ts");
 const { hubspotRetryDue, recordHubspotFailure, clearHubspotBackoff, hubspotRetryDelaySeconds } = await import("../app/lib/integrations/hubspot-backoff.ts");
-const env = { META_APP_ID: "2915975045410175", META_PAGE_ACCESS_TOKEN: "synthetic-token", META_APP_SECRET: "synthetic-secret", META_LEADGEN_VERIFY_TOKEN: "p5-leadgen-verify-2026", META_PAGE_TOKENS: '{"1235083469680398":"synthetic-override"}' };
+const { resolveMetaPageToken, refreshMetaPageTokens } = await import("../app/lib/integrations/meta-page-tokens.ts");
+const env = { SESSION_SECRET: "synthetic-session-key", META_APP_ID: "2915975045410175", META_PAGE_ACCESS_TOKEN: "synthetic-token", META_APP_SECRET: "synthetic-secret", META_LEADGEN_VERIFY_TOKEN: "p5-leadgen-verify-2026", META_PAGE_TOKENS: '{"1235083469680398":"synthetic-override"}' };
 
 test("Page defaults and persisted form overrides respect form > Page > campaign > P5", async () => {
   const base = mergeMetaMappings(null);
@@ -27,9 +28,9 @@ test("Page defaults and persisted form overrides respect form > Page > campaign 
   await assert.rejects(saveMetaMapping("pages", "../token", "P5 Home Co", Number(user[0].id)));
 });
 
-test("token fallback works on arbitrary Pages and per-Page overrides still win", () => {
+test("system-user token is never a Page fallback; per-Page overrides still win", () => {
   const config = metaConfig(env);
-  assert.equal(pageToken(config, "999999999"), "synthetic-token");
+  assert.equal(pageToken(config, "999999999"), "");
   assert.equal(pageToken(config, "1235083469680398"), "synthetic-override");
 });
 
@@ -41,10 +42,11 @@ function mockGraph(options: { refused?: boolean; missingSubscription?: boolean; 
     assert.equal(url.searchParams.has("access_token"), false);
     assert.equal(url.origin, "https://graph.facebook.com");
     calls.push({ path: url.pathname, method: init?.method ?? "GET", auth: new Headers(init?.headers).get("Authorization") ?? "", body: init?.body });
-    if (options.refused && url.pathname.endsWith("/subscribed_apps")) return Response.json({ error: { message: "private synthetic diagnostic" } }, { status: 403 });
+    if (options.refused && url.pathname.endsWith("/subscribed_apps")) return Response.json({ error: { code: 200, message: "Requires pages_manage_metadata; access_token=synthetic-override" } }, { status: 403 });
     if (url.pathname.endsWith("/me/accounts")) {
       if (options.paged && !url.searchParams.has("after")) return Response.json({ data: [], paging: { next: "https://forbidden.invalid/?access_token=do-not-follow", cursors: { after: "cursor-2" } } });
-      return Response.json({ data: [{ id: "1235083469680398", name: "Boise Cabinet Co" }] });
+      assert.equal(url.searchParams.get("fields"), "id,name,access_token,tasks");
+      return Response.json({ data: [{ id: "1235083469680398", name: "Boise Cabinet Co", access_token: "discovered-page-token", tasks: ["MANAGE"] }] });
     }
     if (init?.method === "POST") { subscribed = true; return Response.json({ success: true }); }
     if (url.pathname.endsWith("/subscribed_apps")) return Response.json({ data: options.missingSubscription || !subscribed ? [{ id: env.META_APP_ID, subscribed_fields: ["feed"] }] : [{ id: env.META_APP_ID, subscribed_fields: ["leadgen"] }] });
@@ -73,13 +75,62 @@ test("Subscribe all POSTs only leadgen and confirms the specific app by read-bac
   assert.match(incomplete[0].error!, /not confirmed/);
   assert.equal(isLeadgenSubscribed([{ id: "other-app", subscribed_fields: ["leadgen"] }], env.META_APP_ID), false);
 });
-test("missing credentials and Meta denials never expose raw errors or tokens", async () => {
+test("Meta denials show Graph code and message without credential values or envelopes", async () => {
   await assert.rejects(discoverMetaPages(mergeMetaMappings(null), {}, mockGraph().fetcher), /required/);
   const pages = await discoverMetaPages(mergeMetaMappings(null), env, mockGraph({ refused: true }).fetcher);
-  assert.equal(pages[0].error, "Meta HTTP 403");
-  assert.equal(JSON.stringify(pages).includes("private synthetic diagnostic"), false);
+  assert.match(pages[0].error!, /Meta HTTP 403 \(code 200\).*Requires pages_manage_metadata/);
+  assert.equal(JSON.stringify(pages).includes("synthetic-override"), false);
   await assert.rejects(metaGraph("https://evil.invalid", env.META_PAGE_ACCESS_TOKEN, {}, mockGraph().fetcher), /configuration/);
   assert.equal(safeMetaError("private customer content token here"), "Processing failed; inspect restricted server diagnostics");
+});
+test("discovered Page token handles subscription GET/POST/read-back and forms; no token reaches admin output", async () => {
+  const mock = mockGraph({ initiallyUnsubscribed: true });
+  const pages = await discoverMetaPages(mergeMetaMappings(null), { ...env, META_PAGE_TOKENS: "" }, mock.fetcher, true);
+  assert.equal(pages[0].subscribed, true);
+  assert.equal(pages[0].appPresent, true);
+  assert.equal(mock.calls[0].auth, "Bearer synthetic-token");
+  assert.ok(mock.calls.slice(1).every(c => c.auth === "Bearer discovered-page-token"));
+  assert.equal(JSON.stringify(pages).includes("discovered-page-token"), false);
+  const stored = await db.rows<{ token_ciphertext: string }>("SELECT token_ciphertext FROM meta_page_token");
+  assert.ok(stored.length > 0);
+  assert.ok(stored.every(row => !row.token_ciphertext.includes("discovered-page-token")));
+});
+test("cache miss resolves once, warm cache skips discovery, durable cache survives memory TTL, expiry refreshes", async () => {
+  const isolatedEnv = { ...env, META_PAGE_ACCESS_TOKEN: "cache-test-system", META_PAGE_TOKENS: "" };
+  const config = metaConfig(isolatedEnv);
+  let discoveries = 0, generation = 0;
+  const fetcher = (async () => {
+    discoveries++;
+    return Response.json({ data: [{ id: "777", name: "Synthetic", access_token: `page-token-${++generation}` }] });
+  }) as typeof fetch;
+  assert.equal(await resolveMetaPageToken(config, "777", isolatedEnv, fetcher), "page-token-1");
+  assert.equal(await resolveMetaPageToken(config, "777", isolatedEnv, fetcher), "page-token-1");
+  assert.equal(discoveries, 1);
+  const now = Date.now;
+  try {
+    Date.now = () => now() + 6 * 60 * 1000;
+    assert.equal(await resolveMetaPageToken(config, "777", isolatedEnv, fetcher), "page-token-1", "encrypted durable cache works after memory TTL");
+    assert.equal(discoveries, 1);
+    await db.rows("UPDATE meta_page_token SET expires_at=now()-interval '1 hour' WHERE page_id='777'");
+    Date.now = () => now() + 12 * 60 * 1000;
+    assert.equal(await resolveMetaPageToken(config, "777", isolatedEnv, fetcher), "page-token-2");
+    assert.equal(discoveries, 2);
+  } finally { Date.now = now; }
+  await refreshMetaPageTokens(config, isolatedEnv, fetcher);
+  assert.equal(discoveries, 3, "explicit discovery refreshes a warm cache");
+});
+test("missing Page token never falls back to system token, and concurrent misses share one discovery", async () => {
+  const scoped = { ...env, META_PAGE_ACCESS_TOKEN: "no-pages-system", META_PAGE_TOKENS: "" };
+  let calls = 0;
+  const empty = (async () => { calls++; await new Promise(r => setTimeout(r, 5)); return Response.json({ data: [] }); }) as typeof fetch;
+  const config = metaConfig(scoped);
+  assert.deepEqual(await Promise.all([resolveMetaPageToken(config, "901", scoped, empty), resolveMetaPageToken(config, "902", scoped, empty)]), ["", ""]);
+  assert.equal(calls, 1);
+  const withoutToken = await discoverMetaPages(mergeMetaMappings(null), scoped, (async (url) => {
+    assert.ok(String(url).includes("/me/accounts"), "no Page call when a Page token is absent");
+    return Response.json({ data: [{ id: "901", name: "No token" }] });
+  }) as typeof fetch);
+  assert.match(withoutToken[0].error!, /did not return a Page access token/);
 });
 test("self-test performs only an exact same-origin handshake and does not follow redirects", async () => {
   const calls: string[] = [];
@@ -106,6 +157,30 @@ test("subscription automation is disabled during builds and development, enabled
   assert.equal(metaAutomationEnabled({ ...env, NODE_ENV: "production", NEXT_PHASE: "phase-production-build" }), false);
   assert.equal(metaAutomationEnabled({ ...env, NODE_ENV: "production" }), true);
   assert.equal(metaAutomationEnabled({ META_APP_ID: env.META_APP_ID, NODE_ENV: "production" }), false);
+});
+test("boot and nightly maintenance refresh accounts and use Page tokens for subscriptions and forms", async () => {
+  const mock = mockGraph({ initiallyUnsubscribed: true });
+  const keys = ["NODE_ENV", "NEXT_PHASE", "SESSION_SECRET", "META_APP_ID", "META_PAGE_ACCESS_TOKEN", "META_PAGE_TOKENS"];
+  const saved = Object.fromEntries(keys.map(k => [k, process.env[k]]));
+  const originalFetch = globalThis.fetch;
+  try {
+    Object.assign(process.env, { ...env, META_PAGE_TOKENS: "", NODE_ENV: "production" });
+    delete process.env.NEXT_PHASE;
+    globalThis.fetch = mock.fetcher;
+    await maintainMetaSubscriptions("boot");
+    const nightly = `meta-subscribe:${new Date().toISOString().slice(0, 10)}`;
+    await db.rows("INSERT INTO meta_subscription_run (run_key,state,started_at) VALUES ($1,'failed',now()-interval '2 hours')", [nightly]);
+    await maintainMetaSubscriptions("nightly");
+    const runs = await db.rows<{ state: string; pages_checked: number; pages_subscribed: number }>(
+      "SELECT state,pages_checked,pages_subscribed FROM meta_subscription_run");
+    assert.equal(runs.length, 2);
+    assert.ok(runs.every(r => r.state === "succeeded" && r.pages_checked === 1 && r.pages_subscribed === 1));
+    assert.equal(mock.calls.filter(c => c.path.endsWith("/me/accounts")).length, 2);
+    assert.ok(mock.calls.filter(c => !c.path.endsWith("/me/accounts")).every(c => c.auth === "Bearer discovered-page-token"));
+  } finally {
+    globalThis.fetch = originalFetch;
+    for (const key of keys) { if (saved[key] === undefined) delete process.env[key]; else process.env[key] = saved[key]; }
+  }
 });
 test("retry backoff grows to six hours and persists without altering ordinary deal data", async () => {
   assert.equal(hubspotRetryDelaySeconds(1), 60);

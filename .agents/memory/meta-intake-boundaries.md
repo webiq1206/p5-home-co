@@ -10,3 +10,9 @@ Meta Lead Ads Testing Tool leads intentionally follow ordinary intake, including
 **Why:** The owner explicitly requested unified Page intake and new-lead alerts including Testing Tool submissions.
 
 **How to apply:** Use mocked Meta, HubSpot and SMTP calls for development verification. Treat a real Testing Tool submission or Page subscription as a live external action, not a harmless local test; obtain the relevant authorization before executing it.
+
+Successful system-user account discovery does not prove that credential can perform Page-scoped operations. Use each Page's own credential for subscriptions, forms and lead retrieval; explicit Page overrides take precedence. Never silently substitute the system-user credential when Page resolution fails.
+
+**Why:** The owner observed successful account discovery in production while Page calls failed with HTTP 400, and identified the credential-type mismatch.
+
+**How to apply:** Preserve the distinction between discovery and Page credentials in future client changes and mocked authorization-header tests. Credential caches must remain server-only, encrypted at rest and scoped to the configured app/system credential.

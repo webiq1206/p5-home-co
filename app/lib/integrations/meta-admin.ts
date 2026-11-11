@@ -1,13 +1,16 @@
 /** Bounded Graph control plane. Tokens never occur in URLs, results or errors. */
 import { query } from "../db.ts";
 import { getSmtpConfig } from "../notifications/smtp-config.ts";
-import { metaConfig, pageToken, GRAPH_VERSION, META_LEAD_FORMS, resolveMetaBrand } from "./meta-leadgen.ts";
+import { metaConfig, META_LEAD_FORMS, resolveMetaBrand } from "./meta-leadgen.ts";
 import { loadMetaMappings, validMetaId, type MetaMappings } from "./meta-settings.ts";
+import { graphList, metaGraph, MetaAdminError, type MetaFetch } from "./meta-graph.ts";
+import { refreshMetaPageTokens, resolveMetaPageToken } from "./meta-page-tokens.ts";
+export { metaGraph, MetaAdminError } from "./meta-graph.ts";
+export type { MetaFetch } from "./meta-graph.ts";
 
 type Env = Record<string, string | undefined>;
-export type MetaFetch = typeof fetch;
 export type MetaForm = { id: string; name: string; status: string; questions: { key?: string; label?: string; type?: string }[]; brand: string; resolvedBy: string };
-export type MetaPage = { id: string; name: string; subscribed: boolean | null; error: string | null; forms: MetaForm[] };
+export type MetaPage = { id: string; name: string; appId: string; appPresent: boolean | null; subscribed: boolean | null; error: string | null; forms: MetaForm[] };
 export type MetaReceipt = {
   leadgen_id: string; page_id: string | null; form_id: string | null; state: string;
   attempts: number; last_error: string | null; received_at: string; updated_at: string;
@@ -22,55 +25,6 @@ export function metaReadiness(env: Env = process.env) {
     appId: env.META_APP_ID?.trim() || null, smtpEnabled,
   };
 }
-export class MetaAdminError extends Error {
-  readonly category: string;
-  constructor(category: string) { super(category); this.category = category; }
-}
-function safePath(path: string): boolean {
-  return /^(me\/accounts|\d{1,40}\/(subscribed_apps|leadgen_forms))$/.test(path);
-}
-export async function metaGraph<T>(
-  path: string, token: string, options: { method?: "GET" | "POST"; after?: string } = {},
-  fetcher: MetaFetch = fetch,
-): Promise<T> {
-  if (!safePath(path) || !token) throw new MetaAdminError("Meta configuration missing or invalid");
-  const url = new URL(`https://graph.facebook.com/${GRAPH_VERSION}/${path}`);
-  if (options.method !== "POST") {
-    url.searchParams.set("limit", "100");
-    url.searchParams.set("fields", path === "me/accounts" ? "id,name" : path.endsWith("subscribed_apps") ? "id,name,subscribed_fields" : "id,name,status,questions");
-    if (options.after) url.searchParams.set("after", options.after);
-  }
-  try {
-    const response = await fetcher(url, {
-      method: options.method ?? "GET",
-      headers: { Authorization: `Bearer ${token}`, ...(options.method === "POST" ? { "Content-Type": "application/x-www-form-urlencoded" } : {}) },
-      body: options.method === "POST" ? "subscribed_fields=leadgen" : undefined,
-      signal: AbortSignal.timeout(5000), cache: "no-store", redirect: "error",
-    });
-    if (!response.ok) throw new MetaAdminError(`Meta HTTP ${response.status}`);
-    const result = await response.json();
-    if (result?.error) throw new MetaAdminError("Meta returned an API error");
-    return result as T;
-  } catch (error) {
-    if (error instanceof MetaAdminError) throw error;
-    throw new MetaAdminError("Meta request failed or timed out");
-  }
-}
-async function graphList<T>(path: string, token: string, fetcher: MetaFetch, deadline: number): Promise<T[]> {
-  const entries: T[] = [];
-  let after: string | undefined;
-  for (let n = 0; n < 10; n++) {
-    if (Date.now() >= deadline) throw new MetaAdminError("Meta discovery time limit reached; list incomplete");
-    const result = await metaGraph<{ data: T[]; paging?: { next?: string; cursors?: { after?: string } } }>(path, token, { after }, fetcher);
-    if (!Array.isArray(result.data)) throw new MetaAdminError("Meta returned an invalid list");
-    entries.push(...result.data);
-    if (!result.paging?.next) return entries;
-    // Never follow provider-supplied URLs (they may contain a token).
-    after = result.paging.cursors?.after;
-    if (!after) throw new MetaAdminError("Meta pagination cursor missing; list incomplete");
-  }
-  throw new MetaAdminError("Meta pagination limit reached; list incomplete");
-}
 export function isLeadgenSubscribed(apps: { id: string; subscribed_fields?: string[] }[], appId: string): boolean {
   return apps.some(a => a.id === appId && a.subscribed_fields?.includes("leadgen"));
 }
@@ -80,14 +34,16 @@ export async function discoverMetaPages(
   const config = metaConfig(env);
   if (!config.defaultToken || !/^\d+$/.test(env.META_APP_ID ?? "")) throw new MetaAdminError("META_PAGE_ACCESS_TOKEN and META_APP_ID are required");
   const deadline = Date.now() + 45_000;
-  const pages = await graphList<{ id: string; name: string }>("me/accounts", config.defaultToken, fetcher, deadline);
+  const tokenEnv = { ...env, SESSION_SECRET: env.SESSION_SECRET ?? process.env.SESSION_SECRET };
+  const pages = await refreshMetaPageTokens(config, tokenEnv, fetcher, deadline);
   const output: MetaPage[] = [];
   for (const page of pages) {
     if (!validMetaId(page.id)) throw new MetaAdminError("Meta returned an invalid Page ID");
-    const item: MetaPage = { id: page.id, name: page.name, subscribed: null, forms: [], error: null };
+    const item: MetaPage = { id: page.id, name: page.name, appId: env.META_APP_ID!, appPresent: null, subscribed: null, forms: [], error: null };
     try {
       if (Date.now() >= deadline) throw new MetaAdminError("Meta discovery time limit reached; remaining Pages not checked");
-      const token = pageToken(config, page.id);
+      const token = await resolveMetaPageToken(config, page.id, tokenEnv, fetcher, false);
+      if (!token) throw new MetaAdminError("Meta did not return a Page access token; check Page tasks and permissions");
       let apps = await graphList<{ id: string; subscribed_fields?: string[] }>(`${page.id}/subscribed_apps`, token, fetcher, deadline);
       if (subscribe && !isLeadgenSubscribed(apps, env.META_APP_ID!)) {
         const result = await metaGraph<{ success?: boolean }>(`${page.id}/subscribed_apps`, token, { method: "POST" }, fetcher);
@@ -95,6 +51,7 @@ export async function discoverMetaPages(
         apps = await graphList<{ id: string; subscribed_fields?: string[] }>(`${page.id}/subscribed_apps`, token, fetcher, deadline);
       }
       item.subscribed = isLeadgenSubscribed(apps, env.META_APP_ID!);
+      item.appPresent = apps.some(app => app.id === env.META_APP_ID);
       if (subscribe && !item.subscribed) item.error = "Subscription was not confirmed on read-back";
       const forms = await graphList<{ id: string; name: string; status?: string; questions?: MetaForm["questions"] }>(`${page.id}/leadgen_forms`, token, fetcher, deadline);
       item.forms = forms.map(form => {

@@ -71,10 +71,11 @@ The hub endpoint is `https://p5homeco.com/api/meta/leadgen`.
      non-credential handshake string). Missing:
      the subscription handshake gets 503.
    - `META_PAGE_ACCESS_TOKEN`: the existing P5 Co **system-user token**, with
-     access to all the intended Pages and `leads_retrieval`. It is used for
-     any Page; one token per Page is not required.
+     access to all the intended Pages and `leads_retrieval`. It is used only
+     for `/me/accounts?fields=id,name,access_token,tasks`; the returned Page
+     access token is used for that Page's subscriptions, forms and lead retrieval.
    - `META_PAGE_TOKENS` (optional, for more than one Page): JSON
-     `{"<page id>": "<page token>", ...}`. Wins over `META_PAGE_ACCESS_TOKEN`
+     `{"<page id>": "<page token>", ...}`. Wins over discovered/cached Page tokens
      for the pages it lists.
 3. **Webhook subscription.** In the app, Webhooks, choose **Page**, Subscribe
    to this object: callback URL `https://p5homeco.com/api/meta/leadgen`, verify
@@ -147,6 +148,20 @@ remain active unless a saved override replaces an entry. Seed Page routing:
 viewing the page. Lists paginate by cursor; provider-supplied next URLs are
 never followed because they can contain tokens. Discovery has bounded requests
 and reports incomplete/denied Pages without claiming success.
+
+Page tokens are refreshed on each discovery and production boot/nightly run.
+They stay server-side: five-minute memory TTL and one-hour durable cache TTL in
+`meta_page_token` (additive migration `026_meta_page_tokens.sql`). Durable tokens
+are AES-256-GCM encrypted with a purpose-separated key derived from the existing
+`SESSION_SECRET`, bound to the app/system-token context and Page ID. Changing
+the system token or app ID cannot reuse another context's cache; changing the
+session secret requires rediscovery. Tokens never appear in admin results or URLs.
+A webhook cache miss performs one bounded account discovery before retrieving
+the lead, with concurrent misses sharing the same discovery. No Page token means
+no Page/lead request: the system-user token is never substituted.
+Graph control-plane failures show the bounded, credential-redacted error message
+and numeric Graph code. Each Page reports whether the configured app appears in
+`subscribed_apps` and whether its `leadgen` field is present.
 
 **Subscribe all pages** checks the selected app's `leadgen` subscription,
 POSTs only where missing, then re-reads it. This changes the live Meta account:

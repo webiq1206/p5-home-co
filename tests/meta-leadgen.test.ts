@@ -21,6 +21,7 @@ const env = {
   META_LEADGEN_VERIFY_TOKEN: "verify-me",
   META_APP_SECRET: SECRET,
   META_PAGE_ACCESS_TOKEN: "default-page-token",
+  SESSION_SECRET: "synthetic-secret-for-tests",
   META_PAGE_TOKENS: JSON.stringify({ "222": "page-222-token" }),
 };
 const one = async <T = Record<string, unknown>>(sql: string, values: unknown[] = []) => (await db.rows<T>(sql, values))[0];
@@ -63,6 +64,10 @@ function graph(record: { urls: string[]; auth: string[]; fail?: boolean }) {
     record.auth.push(String((init?.headers as Record<string, string>)?.Authorization));
     assert.equal(url.searchParams.has("access_token"), false, "the token never rides in the URL");
     if (record.fail) return new Response(JSON.stringify({ error: { code: 2 } }), { status: 500 });
+    if (url.pathname.endsWith("/me/accounts")) {
+      assert.equal(url.searchParams.get("fields"), "id,name,access_token,tasks");
+      return Response.json({ data: [{ id: "1228704823655951", name: "Synthetic P5", access_token: "discovered-p5-page-token", tasks: ["MANAGE"] }] });
+    }
     const id = url.pathname.split("/").pop()!;
     if (id === "5550001") return Response.json({ name: "Holiday Specials Form" });
     const lead = graphLeads[id];
@@ -104,7 +109,9 @@ test("a delivery is saved before the 200, then read from Graph, ingested, synced
   for (const task of tasks) await task();
 
   assert.equal(record.auth[0], "Bearer default-page-token");
-  assert.match(record.urls[0], /^\/v21\.0\/9001\?fields=id,created_time,form_id,field_data,ad_id/);
+  assert.match(record.urls[0], /^\/v21\.0\/me\/accounts/);
+  assert.equal(record.auth[1], "Bearer discovered-p5-page-token");
+  assert.match(record.urls[1], /^\/v21\.0\/9001\?fields=id,created_time,form_id,field_data,ad_id/);
   const event = await one<{ state: string; deal_id: number }>("SELECT state, deal_id FROM meta_leadgen_event WHERE leadgen_id = '9001'");
   assert.equal(event.state, "ingested");
   const deal = await one<Record<string, unknown>>(
