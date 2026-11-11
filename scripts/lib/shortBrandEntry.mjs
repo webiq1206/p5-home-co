@@ -22,6 +22,9 @@ export async function verifyCabinetEntry(page,path='/estimate') {
  await form.getByLabel('Name',{exact:true}).fill('Synthetic Navigation Check');await next.click();
  await form.getByLabel('Phone',{exact:true}).fill('123');await next.click();assert.ok(await form.getByRole('alert').isVisible());
  await form.getByLabel('Phone',{exact:true}).fill('2025550102');await next.click();
+ // Email is optional, so it sits in the one closed dropdown until opened.
+ assert.equal(await form.getByLabel('Email',{exact:true}).isVisible(),false);
+ await form.getByTestId('quote-options').locator('summary').click();
  await form.getByLabel('Email',{exact:true}).fill('invalid');await next.click();assert.ok(await form.getByRole('alert').isVisible());
  await form.getByLabel('Email',{exact:true}).fill('navigation@example.invalid');await next.click();
  const note='Synthetic request retained locally only. '+'LongUnbrokenMaterialSpecification'.repeat(20);
@@ -48,6 +51,9 @@ export async function verifyRemodelingEntry(page,path) {
   await send.click();assert.ok(await form.getByRole('alert').isVisible());
   await form.getByLabel('Name',{exact:true}).fill('Synthetic Navigation Check');
   await form.getByLabel('Phone',{exact:true}).fill('2025550102');
+  // Email is optional, so it sits in the one closed dropdown until opened.
+  assert.equal(await form.getByLabel('Email (optional)',{exact:true}).isVisible(),false);
+  await form.getByTestId('quote-options').locator('summary').click();
   await form.getByLabel('Email (optional)',{exact:true}).fill('navigation@example.invalid');
   await form.getByLabel('What can we help with?',{exact:true}).fill('Synthetic local-only request. '+'LongUnbrokenMaterialSpecification'.repeat(20));
   await clearAction(send);assert.equal(await page.locator('h1').count(),1);
@@ -86,7 +92,8 @@ export async function verifyRemodelingRe10Handoff(page) {
 }
 
 export const isHandyman = brand => ['handyman','boise-handyman-co'].includes(brand);
-/** Current homepage request form (v2, owner 1 November): list first, attachment tile, call-back mode.
+/** Current homepage request form (v2, owner 1 November; 11 November: only the list, name and phone show,
+ * every optional field sits in one closed dropdown, files move to Step 2 after sending), call-back mode.
  * Same strength as the old wizard walk: empty-send errors and focus, bad phone, bad email, draft kept
  * on reload, unobstructed send, one h1, no overflow. Independent of the retained /estimate engine. */
 export async function verifyHandymanHomeEntry(page) {
@@ -97,9 +104,16 @@ export async function verifyHandymanHomeEntry(page) {
  const focused=()=>page.evaluate(()=>document.activeElement?.getAttribute('data-testid'));
  const send=form.getByTestId('button-consult-submit');
  assert.equal((await send.innerText()).trim(),'Send my list');
- // The list is the first field; the attachment tile takes photos and PDFs.
+ // The list is the first field. Step 1 shows only the list, name and phone: no file control, and the
+ // optional email and reply choice wait in one closed dropdown under two named steps.
  assert.equal(await form.locator('textarea, input:not([type=radio]):not([type=hidden]):not(.hm-form-honeypot), select').first().getAttribute('data-testid'),'textarea-message');
- assert.equal(await form.getByTestId('input-files').getAttribute('accept'),'image/*,application/pdf,.heic,.heif');
+ assert.equal(await form.locator('input[type=file]').count(),0,'Files are added on Step 2, after the request is sent');
+ assert.deepEqual(await form.locator('textarea, input:not([type=radio]):not([type=hidden]):not(.hm-form-honeypot), select').evaluateAll(els=>els.filter(el=>el.checkVisibility()).map(el=>el.getAttribute('data-testid'))),['textarea-message','input-name','input-phone']);
+ assert.deepEqual(await form.locator('[data-quote-steps] li > span:not([aria-hidden])').evaluateAll(els=>els.map(el=>el.textContent.replace(/\s+/g,' ').trim())),['Step 1: Your request','Step 2: Photos and details (optional)']);
+ const options=form.getByTestId('quote-options');
+ assert.equal(await options.evaluate(el=>el.open),false,'Optional fields start closed');
+ assert.equal((await options.locator('summary').innerText()).replace(/\s+/g,' ').trim(),'Add an email or choose how we reach you (optional)');
+ assert.equal(await form.getByTestId('input-email').isVisible(),false);
  // Empty send: summary alert, the list focused, the list, name and phone errors shown.
  await clearAction(send);await send.click();
  assert.ok(await form.getByRole('alert').isVisible());assert.equal(await focused(),'textarea-message');
@@ -111,8 +125,14 @@ export async function verifyHandymanHomeEntry(page) {
  await form.getByTestId('input-phone').fill('123');await send.click();
  assert.equal(await focused(),'input-phone');assert.ok(await form.getByRole('alert').isVisible());
  await form.getByTestId('input-phone').fill('2025550102');
- // Email preferred: email becomes required; a bad one is caught.
+ // Email preferred (inside the dropdown): email becomes required. Sending without one from the closed
+ // dropdown opens it and focuses the email; a bad one is caught.
+ await options.locator('summary').click();
  await form.getByTestId('button-preferred-contact-email').check();
+ await options.locator('summary').click();assert.equal(await options.evaluate(el=>el.open),false);
+ await send.click();
+ assert.equal(await options.evaluate(el=>el.open),true,'A needed email opens the dropdown');
+ assert.equal(await focused(),'input-email');assert.ok(await form.getByRole('alert').isVisible());
  await form.getByTestId('input-email').fill('invalid');await send.click();
  assert.equal(await focused(),'input-email');assert.ok(await form.getByRole('alert').isVisible());
  await form.getByTestId('input-email').fill('navigation@example.invalid');
@@ -122,6 +142,8 @@ export async function verifyHandymanHomeEntry(page) {
  assert.equal(await form.getByTestId('textarea-message').inputValue(),note);
  assert.equal(await form.getByTestId('input-name').inputValue(),'Synthetic Navigation Check');
  assert.equal(await form.getByTestId('input-phone').inputValue(),'2025550102');
+ // A restored draft with an email or a reply choice shows the dropdown open, never hides what was entered.
+ assert.equal(await options.evaluate(el=>el.open),true);
  assert.equal(await form.getByTestId('button-preferred-contact-email').isChecked(),true);
  // "Have us call you" reduces the form, and switches back.
  await form.getByTestId('request-mode-callback').check();

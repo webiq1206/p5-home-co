@@ -136,7 +136,10 @@ export async function verifyConstructionEntry(page, path) {
   const message=page.getByTestId('textarea-message');
   assert.ok(await message.evaluate(el=>{const r=el.getBoundingClientRect();return r.top>=0&&r.bottom<=innerHeight;}),'First field visible on arrival');
   for(const id of ['input-address','consult-project-looking-for-land']) assert.equal(await page.getByTestId(id).count(),0,id+' belongs to step 2');
-  assert.equal(await page.getByTestId('input-files').getAttribute('accept'),'image/*,application/pdf,.heic,.heif');
+  // Clarity standard (owner, 11 November): files move to Step 2, and the optional fields sit in one closed dropdown.
+  assert.equal(await page.getByTestId('input-files').count(),0,'No attachment tile before the request is sent');
+  const options=page.getByTestId('quote-options');
+  assert.equal(await options.evaluate(el=>el.open),false,'Optional fields are closed on arrival');
   const send=page.getByTestId('button-send-request');
   await page.locator('[data-testid="button-send-request"][data-hydrated="true"]').waitFor();
   await send.click();await focused('textarea-message');
@@ -144,6 +147,7 @@ export async function verifyConstructionEntry(page, path) {
   await message.fill('Synthetic local-only test. '+'LongUnbrokenMaterialSpecification'.repeat(20));
   await page.getByTestId('input-name').fill('Synthetic Navigation Check');
   await page.getByTestId('input-phone').fill('2085550102');
+  await options.locator('summary').click();
   await page.getByTestId('button-preferred-contact-email').click();
   await page.getByTestId('input-email').fill('invalid');
   await send.click();await focused('input-email');
@@ -153,6 +157,7 @@ export async function verifyConstructionEntry(page, path) {
   await page.waitForFunction(()=>document.querySelector('[data-testid="input-name"]')?.value==='Synthetic Navigation Check');
   assert.match(await message.inputValue(),/Synthetic local-only test/);
   assert.equal(await page.getByTestId('input-email').inputValue(),'navigation@example.invalid');
+  assert.equal(await options.evaluate(el=>el.open),true,'A restored email reopens the optional dropdown');
   await send.scrollIntoViewIfNeeded();assert.ok(await send.evaluate(el=>{const r=el.getBoundingClientRect(),x=r.left+r.width/2,y=r.top+r.height/2;return x>=0&&x<innerWidth&&y>=0&&y<innerHeight&&el.contains(document.elementFromPoint(x,y));}),'Quote action must be unobstructed');
   assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'Quote horizontal overflow');
   // Stop before final Send; caller blocks all external and business requests.
