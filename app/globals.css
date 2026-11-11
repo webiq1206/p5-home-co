@@ -626,49 +626,36 @@ h1, h2, h3 { text-wrap:balance; }
 .quote-field-error:not(:empty) { margin-top: 6px; }
 .quote-form-hint { margin: 6px 0 0; color: var(--ink-2); font-size: 14px; line-height: 1.4; }
 .quote-form .short-request-file input { min-height: 48px; padding: 10px 0; font-size: 15px; }
-/* The two steps, always in view: "1 Your request", then "2 Photos and details (optional)".
-   Once sent, step 1 carries a tick and reads "Request sent". */
-.quote-form-steps { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin: 0 0 12px; padding: 0; list-style: none; color: var(--ink-2); font-size: 14px; font-weight: 500; line-height: 1.3; }
-.quote-form-steps li { display: flex; align-items: center; gap: 8px; }
-.quote-form-steps li + li::before { content: ""; width: 20px; height: 1px; background: rgba(32, 35, 31, 0.3); }
-.quote-form-steps li[aria-current="step"], .quote-form-steps li[data-step-state="done"] { color: var(--ink); font-weight: 700; }
-.quote-form-step-badge {
-  display: grid; place-items: center; flex: 0 0 auto; width: 24px; height: 24px;
-  border: 1px solid rgba(32, 35, 31, 0.4); color: var(--ink-2); font-size: 12px; font-weight: 700; line-height: 1;
+/* Name and phone share a row from 640px up. */
+@media (min-width: 640px) {
+  .quote-form-pair { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 0 12px; }
 }
-.quote-form-steps li[aria-current="step"] .quote-form-step-badge { border-color: var(--charcoal); color: var(--ink); }
-.quote-form-steps li[data-step-state="current"]:first-child .quote-form-step-badge,
-.quote-form-steps li[data-step-state="done"] .quote-form-step-badge { border-color: var(--charcoal); background: var(--charcoal); color: var(--paper); }
-@media (max-width: 479px) {
-  /* Phones: one step per line, so the second never wraps under a dangling rule. */
-  .quote-form-steps { flex-direction: column; align-items: flex-start; gap: 6px; }
-  .quote-form-steps li + li::before { content: none; }
+/* A quiet text toggle (native details): one muted line with a small plus, no
+   box. Opened, its fields sit inline in the normal field flow. */
+.quote-form-toggle { margin: 0 0 12px; }
+.quote-form-toggle > summary {
+  display: flex; align-items: center; gap: 8px; min-height: 48px;
+  color: var(--ink-2); font-size: 14px; font-weight: 500; line-height: 1.4; list-style: none; cursor: pointer;
 }
-/* "Send a request" | "Have us call you": two equal native toggle buttons as quiet tabs.
-   An underline marks the active one, so it never looks like a second send button. */
-.quote-form-modes { display: grid; grid-template-columns: 1fr 1fr; gap: 0; margin: 0 0 14px; }
-.quote-form-mode {
-  min-height: 48px; padding: 0 8px; border: 0; border-bottom: 2px solid rgba(32, 35, 31, 0.2); background: transparent; color: var(--ink-2);
-  font: 600 15px/1.2 var(--font-sans); cursor: pointer;
+.quote-form-toggle > summary::-webkit-details-marker { display: none; }
+.quote-form-toggle > summary:hover { color: var(--ink); }
+.quote-form-toggle > summary:focus-visible { outline: 2px solid var(--bronze-ink); outline-offset: 2px; }
+.quote-form-plus { flex: 0 0 auto; }
+.quote-form-toggle[open] > summary .quote-form-plus-bar { display: none; }
+/* The muted lines under the button: call or switch mode, then "No obligation." */
+.quote-form-line { margin: 0; color: var(--ink-2); font-size: 14px; font-weight: 500; line-height: 1.4; }
+.quote-form .quote-form-line a, .quote-form-line-link {
+  /* A 48px tap target that does not stretch the line: the padding is taken back by the margin. */
+  display: inline-block; padding: 14px 0; margin: -14px 0; border: 0; background: transparent; color: inherit;
+  font: inherit; text-decoration: underline; text-underline-offset: 3px; cursor: pointer;
 }
-.quote-form-mode:hover { color: var(--ink); }
-.quote-form-mode[aria-pressed="true"] { border-bottom-color: var(--charcoal); color: var(--ink); font-weight: 700; }
-/* One closed dropdown holds everything optional (Step 1: email and how to reach
-   you; the success screen: photos, plans and project details). */
-.quote-form-disclosure { margin: 0 0 12px; border: 1px solid rgba(32, 35, 31, 0.22); background: #fff; }
-.quote-form-disclosure > summary {
-  display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 48px; padding: 8px 14px;
-  color: var(--ink); font-size: 15px; font-weight: 700; line-height: 1.3; list-style: none; cursor: pointer;
-}
-.quote-form-disclosure > summary::-webkit-details-marker { display: none; }
-.quote-form-disclosure > summary:hover { background: var(--bone); }
-.quote-form-disclosure > summary:focus-visible { outline: 2px solid var(--bronze-ink); outline-offset: 2px; }
-.quote-form-disclosure > summary h3 { margin: 0; color: inherit; font: inherit; }
-.quote-form-chevron { flex: 0 0 auto; color: var(--charcoal); transition: transform 160ms ease; }
-.quote-form-disclosure[open] > summary .quote-form-chevron { transform: rotate(180deg); }
-.quote-form-disclosure-body { padding: 14px 14px 2px; border-top: 1px solid rgba(32, 35, 31, 0.14); }
-@media (prefers-reduced-motion: reduce) { .quote-form-chevron { transition: none; } }
-.quote-form-mode:focus-visible { outline: 2px solid var(--bronze-ink); outline-offset: 2px; }
+.quote-form .quote-form-line a:hover, .quote-form-line-link:hover { color: var(--ink); }
+.quote-form .quote-form-line a:focus-visible, .quote-form-line-link:focus-visible { outline: 2px solid var(--bronze-ink); outline-offset: 2px; }
+.quote-form-talk { margin-top: 14px; }
+.quote-form-legal { margin-top: 10px; }
+.quote-form-done .quote-form-line { margin-top: 6px; }
+/* "Have us call you" reads inside a sentence; its name keeps the capital. */
+.quote-form-mode[aria-pressed="false"]:last-child { text-transform: lowercase; }
 .quote-form-reach { min-width: 0; margin: 0 0 12px; padding: 0; border: 0; }
 .quote-form-reach legend { margin: 0 0 6px; padding: 0; color: var(--ink); font-size: 15px; font-weight: 700; }
 .quote-form-pills { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
@@ -680,32 +667,15 @@ h1, h2, h3 { text-wrap:balance; }
 }
 .quote-form-pill input:checked + span { border-color: var(--charcoal); background: var(--charcoal); color: var(--paper); box-shadow: inset 3px 0 0 var(--bronze); }
 .quote-form-pill input:focus-visible + span { outline: 2px solid var(--bronze-ink); outline-offset: 2px; }
-.quote-form-more { margin: 0 0 12px; border-top: 1px solid rgba(32, 35, 31, 0.14); }
-.quote-form-more summary {
-  display: flex; align-items: center; min-height: 48px; color: var(--ink); font-size: 15px; font-weight: 700;
-  cursor: pointer; text-decoration: underline; text-underline-offset: 3px;
-}
-.quote-form-more[open] summary { margin-bottom: 4px; }
-/* "Prefer to talk?": one quiet line of links under the send button. */
-.quote-form-send { margin-top: 4px; }
-.quote-form-talk { display: flex; flex-wrap: wrap; align-items: center; gap: 0 10px; margin: 6px 0 0; color: var(--ink-2); font-size: 15px; line-height: 1.4; }
-.quote-form-talk-links { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 0 18px; }
-.quote-form-talk-link {
-  display: inline-flex; align-items: center; min-height: 48px; padding: 0; border: 0; background: transparent; color: var(--ink);
-  font: 700 15px/1.2 var(--font-sans); text-decoration: underline; text-underline-offset: 3px; cursor: pointer;
-}
-.quote-form-talk-link:hover { text-decoration: none; }
-.quote-form-talk-link:focus-visible { outline: 2px solid var(--bronze-ink); outline-offset: 2px; }
 .quote-form .short-request-submit { min-height: 56px; height: auto; font-size: 17px; }
-.quote-form-next { margin: 8px 0 0; color: var(--ink-2); font-size: 14px; line-height: 1.45; }
 .quote-form-done { display: grid; gap: 10px; }
 .quote-form-done p { margin: 0; font-size: 16px; line-height: 1.55; }
 .quote-form[data-form-mode="done"] > h2 { display: flex; align-items: flex-start; gap: 12px; font-size: 26px; line-height: 1.2; }
 .quote-form-tick { display: grid; place-items: center; flex: 0 0 auto; width: 28px; height: 28px; margin-top: 2px; background: var(--charcoal); color: var(--paper); }
-.quote-form-done .quote-form-all-set { color: var(--ink); font-weight: 700; }
-.quote-form-done .quote-form-disclosure { margin: 0; }
+.quote-form-done .quote-form-toggle { margin: 0; }
+.quote-form-done .quote-form-line { font-size: 14px; line-height: 1.4; }
 .quote-form-feedback .quote-thanks-questions { margin: 0 0 12px; padding: 0; border: 0; background: transparent; }
-.quote-form-done a:not(.save-contact-button) { color: var(--ink); font-weight: 750; text-underline-offset: 3px; }
+.quote-form-uploads a { color: var(--ink); font-weight: 750; text-underline-offset: 3px; }
 @media (max-width: 359px) {
   .quote-form-pills { grid-template-columns: 1fr; }
 }
@@ -744,16 +714,14 @@ h1, h2, h3 { text-wrap:balance; }
 }
 .attach-chip-remove:hover { background: var(--bone); }
 .attach-chip-remove:focus-visible { outline: 2px solid var(--bronze-ink); outline-offset: -2px; }
-/* Step 2 on the success screen: one closed dropdown, "Add photos, plans or project details (optional)". */
+/* Step 2 on the success screen: the quiet toggle "Add photos, plans or details (optional)". */
 .quote-form-uploads { display: grid; gap: 4px; }
 .quote-form-link-button {
   min-height: 48px; padding: 0 4px; border: 0; background: transparent; color: var(--ink);
   font: 750 16px/1.2 var(--font-sans); text-decoration: underline; text-underline-offset: 3px; cursor: pointer;
 }
 .quote-form-link-button:focus-visible { outline: 2px solid var(--bronze-ink); outline-offset: 2px; }
-.quote-details { display: grid; gap: 0; margin: 6px 0 4px; padding: 16px 0 4px; border-top: 1px solid rgba(32, 35, 31, 0.16); }
-.quote-details > h3 { margin: 0 0 4px; color: var(--ink); font-family: var(--font-display); font-size: 21px; font-weight: 500; line-height: 1.2; }
-.quote-details .quote-details-why { margin: 0 0 12px; color: var(--ink-2); font-size: 15px; }
+.quote-details { display: grid; gap: 0; }
 .quote-chips { display: flex; flex-wrap: wrap; gap: 8px; }
 .quote-form .quote-chip span { min-height: 48px; padding: 0 14px; font-size: 15px; }
 .quote-details-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 18px; margin: 4px 0 12px; }

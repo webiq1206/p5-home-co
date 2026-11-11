@@ -5,6 +5,8 @@ import { useEffect, useId, useRef, useState, type FocusEvent } from "react";
 import { track, trackAcceptedInquiry } from "../app/analytics";
 import { normalizeEmail, normalizePhone } from "../app/lib/leads/normalize.ts";
 import { CALLBACK_REQUEST, TIMING_OPTIONS, contactPreferenceFrom, type ContactPreference } from "../app/lib/leads/shortRequest.ts";
+import Link from "next/link";
+
 import { PUBLIC_PHONE_DISPLAY, PUBLIC_PHONE_SMS } from "../app/publicIdentity";
 import { isNewAcceptedInquiry } from "../app/quote/conversion.ts";
 import { PROJECT_OPTIONS, brandForProject } from "../app/quote/options.ts";
@@ -13,8 +15,6 @@ import ThanksQuestions from "../app/quote/ThanksQuestions";
 import TrackedPhoneLink from "../app/quote/TrackedPhoneLink";
 import { captureAttribution } from "../lib/p5/browserAttribution.ts";
 import { AttachmentTile, type PickedFile } from "./AttachmentTile";
-import SaveContactButton from "./SaveContactButton";
-import { OpenChatButton } from "./SiteChat";
 
 const FALLBACK_PROJECT = "Something else, or I am not sure";
 const STORAGE_KEY = "p5-quote-form-v6";
@@ -55,6 +55,7 @@ type Draft = {
   name: string;
   phone: string;
   email: string;
+  address: string;
   reach: ContactPreference;
   project: string;
   bestTime: string;
@@ -65,52 +66,24 @@ const FIELD_ORDER: readonly Field[] = ["note", "name", "phone", "email"];
 
 type RequestKey = { id: number; token: string };
 
-function ChevronIcon() {
+/** The small plus on a quiet toggle; its upright bar hides when the toggle is open. */
+function PlusIcon() {
   return (
-    <svg className="quote-form-chevron" aria-hidden="true" focusable="false" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-      <path d="m6 9 6 6 6-6" />
+    <svg className="quote-form-plus" aria-hidden="true" focusable="false" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+      <path d="M5 12h14" />
+      <path className="quote-form-plus-bar" d="M12 5v14" />
     </svg>
   );
 }
 
-function TickIcon({ size = 14 }: { size?: number }) {
+function TickIcon() {
   return (
-    <svg aria-hidden="true" focusable="false" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+    <svg aria-hidden="true" focusable="false" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
       <path d="m5 12.5 4.5 4.5L19 7.5" />
     </svg>
   );
 }
 
-/**
- * The two steps, always in view above the form: step 1 is the request itself
- * (the only part anyone has to complete), step 2 is optional photos and
- * details. Once the request is saved, step 1 reads "Request sent" with a tick,
- * so nobody is left wondering whether the extra questions are part of sending.
- */
-function QuoteSteps({ sent }: { sent: boolean }) {
-  return (
-    <ol className="quote-form-steps" data-quote-steps="" data-quote-sent={sent ? "true" : "false"}>
-      <li aria-current={sent ? undefined : "step"} data-step-state={sent ? "done" : "current"}>
-        <span className="quote-form-step-badge" aria-hidden="true">
-          {sent ? <TickIcon /> : "1"}
-        </span>
-        <span>
-          <span className="short-request-sr">Step 1: </span>
-          {sent ? "Request sent" : "Your request"}
-        </span>
-      </li>
-      <li aria-current={sent ? "step" : undefined} data-step-state={sent ? "current" : "next"}>
-        <span className="quote-form-step-badge" aria-hidden="true">
-          2
-        </span>
-        <span>
-          <span className="short-request-sr">Step 2: </span>
-          Photos and details (optional)
-        </span>
-      </li>
-    </ol>
-  );
-}
 type UploadState = "sending" | "sent" | "failed";
 
 function knownProject(value: unknown): string {
@@ -124,6 +97,7 @@ function initialDraft(defaultProject?: string): Draft {
     name: "",
     phone: "",
     email: "",
+    address: "",
     reach: DEFAULT_REACH,
     project: knownProject(defaultProject),
     bestTime: BEST_TIMES[0],
@@ -143,6 +117,7 @@ function readDraft(defaultProject?: string): Draft {
       name: str(saved.name),
       phone: str(saved.phone),
       email: str(saved.email),
+      address: str(saved.address),
       reach: saved.reach ? contactPreferenceFrom(saved.reach) : DEFAULT_REACH,
       project: knownProject(saved.project) || fresh.project,
       bestTime: (BEST_TIMES as readonly string[]).includes(str(saved.bestTime)) ? str(saved.bestTime) : BEST_TIMES[0],
@@ -212,28 +187,30 @@ type Done = {
   team: string;
   request: RequestKey | null;
   hadEmail: boolean;
+  hadAddress: boolean;
   projectKnown: boolean;
 };
 
 /**
- * The quote form, in two steps (owner, 1 November; 11 November, after a client
- * found the family form confusing because "it just kept asking more
- * questions": nothing optional is shown until asked for, and the steps line
- * says plainly where the visitor is).
+ * The quote form, in two steps (owner, 1 November; 11 November: "It cannot
+ * look cluttered. It needs to look very clean."). Nothing sits in the form but
+ * fields, one button and one quiet line.
  *
- * Step 1, "Your request", is only what we need to call back: what we can help
- * with, name and phone. Email and "How should we reach you?" sit in one closed
- * dropdown, "Add an email or choose how we reach you (optional)". "Send a
- * request" | "Have us call you" sits under the heading as two quiet tabs; the
- * callback side is name, phone and a best time. One send button, then one
- * quiet line of call, text and chat links.
+ * Before sending, top to bottom: the heading, "What can we help with?", name
+ * and phone (side by side from 640px), one quiet text toggle ("Add address,
+ * email or contact preference (optional)") that opens the project address, the
+ * email field and "How should we reach you?" inline, the send button, one muted line ("Prefer to talk?
+ * Call ... or have us call you.") and "No obligation." with the privacy link.
+ * "Have us call you" and "Send a request" are the same two toggle buttons as
+ * before; only the one for the other mode shows, as a text link. The callback
+ * side is name, phone and a best time.
  *
- * Step 2 sits on the success screen, after "You are all set. Nothing else is
- * needed.", as one closed dropdown: "Add photos, plans or project details
- * (optional)". Project type, address, timing, files and an email if Step 1
- * had none. It adds to the same lead (the server merges, never overwrites).
- * Leaving it closed is skipping. Files upload one by one after the lead is
- * saved, so an upload can never cost the request.
+ * After sending: a tick and the thanks heading, one sentence ending "Nothing
+ * else is needed.", the quiet toggle "Add photos, plans or details
+ * (optional)" (project type, timing, files, and an address or email only if
+ * Step 1 had none; it adds to the same lead, and leaving it closed is skipping), and
+ * one muted call line. Files upload one by one after the lead is saved, so an
+ * upload can never cost the request.
  */
 export function ShortRequestForm({
   id,
@@ -255,8 +232,8 @@ export function ShortRequestForm({
     phone: `${uid}-phone`,
     note: `${uid}-note`,
     email: `${uid}-email`,
+    projectAddress: `${uid}-project-address`,
     bestTime: `${uid}-best-time`,
-    next: `${uid}-next`,
     details: `${uid}-details`,
     address: `${uid}-address`,
     detailsEmail: `${uid}-details-email`,
@@ -285,7 +262,7 @@ export function ShortRequestForm({
     // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time sync from sessionStorage after hydration
     setDraft(restored);
     // Anything already entered in the optional dropdown is shown, never hidden.
-    if (restored.email.trim() || restored.reach !== DEFAULT_REACH) setOptionsOpen(true);
+    if (restored.address.trim() || restored.email.trim() || restored.reach !== DEFAULT_REACH) setOptionsOpen(true);
     setHydrated(true);
   }, [defaultProject]);
 
@@ -427,6 +404,7 @@ export function ShortRequestForm({
       body.set("request_type", "request");
       body.set("note", draft.note.trim());
       body.set("email", draft.email.trim());
+      body.set("address", draft.address.trim());
       body.set("contact_preference", draft.reach);
     }
     for (const [key, value] of Object.entries(captureAttribution())) {
@@ -475,6 +453,7 @@ export function ShortRequestForm({
         team,
         request,
         hadEmail: !callback && Boolean(draft.email.trim()),
+        hadAddress: !callback && Boolean(draft.address.trim()),
         projectKnown: Boolean(draft.project),
       });
     } catch {
@@ -559,26 +538,40 @@ export function ShortRequestForm({
     return upload.error ? `Did not upload. ${upload.error}` : "Did not upload";
   };
 
-  // "Prefer to talk?": one quiet line of links under the send button, so the
-  // send button is the only button on the screen. Same tracking as before.
+  // One muted line under the button. The two mode buttons keep their names and
+  // aria-pressed; only the one for the other mode shows, as a text link.
+  const modeButton = (mode: Mode, label: string) => {
+    const active = draft.mode === mode;
+    return (
+      <button
+        type="button"
+        className={active ? "quote-form-mode short-request-sr" : "quote-form-mode quote-form-line-link"}
+        aria-pressed={active}
+        tabIndex={active ? -1 : undefined}
+        onClick={() => update({ mode })}
+      >
+        {label}
+      </button>
+    );
+  };
   const talk = (
-    <p className="quote-form-talk">
-      <span id={`${uid}-talk`}>Prefer to talk?</span>{" "}
-      <span className="quote-form-talk-links" role="group" aria-labelledby={`${uid}-talk`}>
-        <TrackedPhoneLink className="quote-form-talk-link" location="quote_form">
-          Call {PUBLIC_PHONE_DISPLAY}
-        </TrackedPhoneLink>
-        <a
-          className="quote-form-talk-link"
-          href={PUBLIC_PHONE_SMS}
-          onClick={() => track("text_click", { location: "quote_form" })}
-        >
-          Text us
-        </a>
-        <OpenChatButton className="quote-form-talk-link" location="quote_form">
-          Chat
-        </OpenChatButton>
+    <p className="quote-form-line quote-form-talk">
+      {callback ? (
+        "Rather write it down? "
+      ) : (
+        <>
+          Prefer to talk?{" "}
+          <TrackedPhoneLink className="quote-form-line-link" location="quote_form">
+            Call {PUBLIC_PHONE_DISPLAY}
+          </TrackedPhoneLink>{" "}
+          or{" "}
+        </>
+      )}
+      <span className="quote-form-modes" role="group" aria-label="How would you like to start?">
+        {modeButton("request", "Send a request")}
+        {modeButton("callback", "Have us call you")}
       </span>
+      {callback ? null : "."}
     </p>
   );
 
@@ -615,7 +608,7 @@ export function ShortRequestForm({
       <h2 id={ids.heading} ref={headingRef} tabIndex={-1} className={compact ? "short-request-sr" : undefined}>
         {done ? (
           <span className="quote-form-tick" aria-hidden="true">
-            <TickIcon size={16} />
+            <TickIcon />
           </span>
         ) : null}
         <span>
@@ -628,28 +621,14 @@ export function ShortRequestForm({
               : "Request a quote"}
         </span>
       </h2>
-      <QuoteSteps sent={Boolean(done)} />
 
       {done ? (
         <div className="quote-form-done">
-          <p>
+          <p data-testid="quote-all-set">
             {done.callback
               ? `Someone from ${done.team} will call you back to answer your questions and help you work out the next step.`
-              : `A specialist from ${done.team} answers your questions and helps you work out the next step, which may be a time to visit. You get a written scope before any price.`}
-          </p>
-
-          <p className="quote-form-all-set" data-testid="quote-all-set">
-            You are all set. Nothing else is needed.
-          </p>
-
-          <p>
-            Have a question now?{" "}
-            <TrackedPhoneLink location="form_thanks">Call {PUBLIC_PHONE_DISPLAY}</TrackedPhoneLink>
-            <span aria-hidden="true"> or </span>
-            <a href={PUBLIC_PHONE_SMS} onClick={() => track("text_click", { location: "form_thanks" })}>
-              text us
-            </a>
-            .
+              : `A specialist from ${done.team} answers your questions and helps you work out the next step, which may be a time to visit.`}{" "}
+            Nothing else is needed.
           </p>
 
           {showDetails && (
@@ -661,8 +640,9 @@ export function ShortRequestForm({
             >
               {detailsState === "saved" ? (
                 <>
-                  <h3 id={ids.details}>Saved. Thank you.</h3>
-                  <p role="status">The team sees your details with your request.</p>
+                  <p id={ids.details} role="status">
+                    Saved. Thank you.
+                  </p>
                   {failedUploads.length > 0 && !sendingUploads.length && (
                     <div className="quote-form-uploads" role="status" aria-live="polite">
                       <p>{`${failedUploads.map(({ file }) => file.name).join(", ")} did not upload. Your request is saved.`}</p>
@@ -680,19 +660,13 @@ export function ShortRequestForm({
                   )}
                 </>
               ) : (
-                // Step 2: one dropdown, closed until the visitor asks for it. Leaving it closed is skipping.
-                <details className="quote-form-disclosure" data-testid="quote-details-disclosure">
+                // Step 2: one quiet toggle, closed until the visitor asks for it. Leaving it closed is skipping.
+                <details className="quote-form-toggle" data-testid="quote-details-disclosure">
                   <summary>
-                    <h3 id={ids.details}>
-                      Add photos, plans or project details <span className="quote-form-optional">(optional)</span>
-                    </h3>
-                    <ChevronIcon />
+                    <PlusIcon />
+                    <span id={ids.details}>Add photos, plans or details (optional)</span>
                   </summary>
-                  <div className="quote-form-disclosure-body">
-                    <p className="quote-details-why">
-                      Answer any of these, or none. Each one helps us give you a closer quote on the first call.
-                    </p>
-
+                  <div className="quote-form-toggle-body">
                     {!done.projectKnown && (
                       <fieldset className="quote-form-reach quote-details-chips">
                         <legend>Type of project</legend>
@@ -713,18 +687,20 @@ export function ShortRequestForm({
                       </fieldset>
                     )}
 
-                    <div className="quote-form-field">
-                      <label htmlFor={ids.address}>Address or ZIP code</label>
-                      <input
-                        id={ids.address}
-                        name="details_address"
-                        type="text"
-                        autoComplete="street-address"
-                        maxLength={300}
-                        value={details.address}
-                        onChange={(event) => setDetails({ ...details, address: event.target.value })}
-                      />
-                    </div>
+                    {!done.hadAddress && (
+                      <div className="quote-form-field">
+                        <label htmlFor={ids.address}>Address or ZIP code</label>
+                        <input
+                          id={ids.address}
+                          name="details_address"
+                          type="text"
+                          autoComplete="street-address"
+                          maxLength={300}
+                          value={details.address}
+                          onChange={(event) => setDetails({ ...details, address: event.target.value })}
+                        />
+                      </div>
+                    )}
 
                     <fieldset className="quote-form-reach quote-details-chips">
                       <legend>When would you like to start?</legend>
@@ -796,46 +772,29 @@ export function ShortRequestForm({
             </section>
           )}
 
-          <SaveContactButton location="form_thanks" />
-          {/* The two feedback questions wait in their own closed dropdown, so the
-              sent screen never opens with another question on it. */}
-          {!showDetails || detailsState === "saved" ? (
-            <details className="quote-form-disclosure quote-form-feedback">
+          {/* The two feedback questions wait behind their own quiet toggle, and only after details are saved. */}
+          {showDetails && detailsState === "saved" ? (
+            <details className="quote-form-toggle quote-form-feedback">
               <summary>
-                <span>
-                  Answer two quick questions for us <span className="quote-form-optional">(optional)</span>
-                </span>
-                <ChevronIcon />
+                <PlusIcon />
+                <span>Answer two quick questions for us (optional)</span>
               </summary>
-              <div className="quote-form-disclosure-body">
+              <div className="quote-form-toggle-body">
                 <ThanksQuestions />
               </div>
             </details>
           ) : null}
+
+          <p className="quote-form-line">
+            Prefer to talk?{" "}
+            <TrackedPhoneLink className="quote-form-line-link" location="form_thanks">
+              Call {PUBLIC_PHONE_DISPLAY}
+            </TrackedPhoneLink>
+            .
+          </p>
         </div>
       ) : (
         <>
-          {/* Two equal choices, the form or a callback, as quiet tabs: an underline marks
-              the active one, so it never reads as a second send button. */}
-          <div className="quote-form-modes" role="group" aria-label="How would you like to start?">
-            <button
-              type="button"
-              className="quote-form-mode"
-              aria-pressed={!callback}
-              onClick={() => update({ mode: "request" })}
-            >
-              Send a request
-            </button>
-            <button
-              type="button"
-              className="quote-form-mode"
-              aria-pressed={callback}
-              onClick={() => update({ mode: "callback" })}
-            >
-              Have us call you
-            </button>
-          </div>
-
           {callback ? null : (
             <>
               <div className="quote-form-field">
@@ -859,6 +818,7 @@ export function ShortRequestForm({
             </>
           )}
 
+          <div className="quote-form-pair">
           <div className="quote-form-field">
             <label htmlFor={ids.name}>Name</label>
             <input
@@ -896,6 +856,7 @@ export function ShortRequestForm({
             />
             {error("phone")}
           </div>
+          </div>
 
           {callback ? (
             <div className="quote-form-field">
@@ -916,20 +877,36 @@ export function ShortRequestForm({
               </select>
             </div>
           ) : (
-            // Everything optional lives in this one closed dropdown.
+            // Everything optional sits behind this one quiet toggle, closed until asked for.
             <details
-              className="quote-form-disclosure"
+              className="quote-form-toggle"
               open={optionsOpen}
               onToggle={(event) => setOptionsOpen(event.currentTarget.open)}
               data-testid="quote-options"
             >
               <summary>
-                <span>
-                  Add an email or choose how we reach you <span className="quote-form-optional">(optional)</span>
-                </span>
-                <ChevronIcon />
+                <PlusIcon />
+                <span>Add address, email or contact preference (optional)</span>
               </summary>
-              <div className="quote-form-disclosure-body">
+              <div className="quote-form-toggle-body">
+                <div className="quote-form-field">
+                  <label htmlFor={ids.projectAddress}>Project address</label>
+                  <input
+                    id={ids.projectAddress}
+                    name="address"
+                    type="text"
+                    autoComplete="street-address"
+                    maxLength={300}
+                    value={draft.address}
+                    aria-describedby={`${ids.projectAddress}-hint`}
+                    onChange={(event) => update({ address: event.target.value })}
+                  />
+                  <p id={`${ids.projectAddress}-hint`} className="quote-form-hint">
+                    Leave blank if you do not have one yet.
+                  </p>
+                </div>
+
+
                 <div className="quote-form-field">
                   <label htmlFor={ids.email}>
                     Email {draft.reach === "email" ? null : <span className="quote-form-optional">(optional)</span>}
@@ -980,23 +957,13 @@ export function ShortRequestForm({
           <input type="hidden" name="project" value={draft.project || FALLBACK_PROJECT} />
           <input type="hidden" name="request_type" value={callback ? CALLBACK_REQUEST : "request"} />
 
-          <div className="quote-form-send">
-            <button
-              className="button button-dark short-request-submit"
-              type="submit"
-              disabled={pending}
-              aria-busy={pending}
-              aria-describedby={ids.next}
-            >
-              {pending ? "Sending" : callback ? "Request a call" : "Send my request"}
-            </button>
-            <p id={ids.next} className="quote-form-next">
-              {callback
-                ? "We call you back during business hours."
-                : "That is all we need. You can add photos or plans after you send."}
-            </p>
-          </div>
+          <button className="button button-dark short-request-submit" type="submit" disabled={pending} aria-busy={pending}>
+            {pending ? "Sending" : callback ? "Request a call" : "Send my request"}
+          </button>
           {talk}
+          <p className="quote-form-line quote-form-legal">
+            No obligation. <Link href="/legal/privacy">Privacy Policy</Link>
+          </p>
           {status && (
             <p className="short-request-status" role="alert">
               {status}

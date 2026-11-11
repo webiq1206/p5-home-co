@@ -5,10 +5,11 @@ export const isPublicQuotePath = path => path === '/estimate' || path === '/quot
 
 /** Exercise the current public quote form without sending a request. The caller
  * supplies a fresh context with all business/third-party traffic blocked.
- * Owner, 1 November (form v2) and 11 November (clarity standard): one short
- * screen that leads the page and shows only what we need to call back: "What
- * can we help with?", name and phone. Email and "How should we reach you?" sit
- * in one closed dropdown; call, text and "Have us call you" stay on the form.
+ * Owner, 1 November (form v2) and 11 November (clean layout): one short screen
+ * that leads the page and shows only what we need to call back: "What can we
+ * help with?", name and phone. Project address, email and "How should we reach you?" sit behind
+ * one quiet text toggle; a call link and "Have us call you" share one muted
+ * line under the send button. No step indicator, tabs or footnote.
  * Files, project type, address and timing are Step 2, after a request is sent. */
 export async function verifyQuoteEntry(page, path) {
   if (path === '/estimate') assert.equal(new URL(page.url()).pathname, '/quote');
@@ -23,18 +24,19 @@ export async function verifyQuoteEntry(page, path) {
   const phone = form.getByLabel('Phone',{exact:true});
   const email = form.locator('input[name="email"]');
   const send = form.getByRole('button',{name:'Send my request',exact:true});
-  // Field order on the one screen: what we can help with, name, phone, then the optional email. No file field on Step 1.
-  assert.deepEqual(await form.evaluate(f=>[...f.querySelectorAll('textarea[name=note],input[type=file],input[name=name],input[name=phone],input[name=email]')].map(el=>el.name||el.type)),['note','name','phone','email']);
+  // The whole empty form, heading through send button, fits the first screen.
+  assert.ok(await send.evaluate(el=>scrollY<=1&&el.getBoundingClientRect().bottom<=innerHeight),'Heading through send button fit the first screen');
+  // Field order on the one screen: what we can help with, name, phone, then the optional address and email. No file field on Step 1.
+  assert.deepEqual(await form.evaluate(f=>[...f.querySelectorAll('textarea[name=note],input[type=file],input[name=name],input[name=phone],input[name=address],input[name=email]')].map(el=>el.name||el.type)),['note','name','phone','address','email']);
   assert.equal(await form.locator('.attach-tile').count(),0,'No attachment tile on Step 1');
-  // The steps line names both steps, with step 1 current.
-  const steps = form.locator('[data-quote-steps]');
-  assert.equal(await steps.getAttribute('data-quote-sent'),'false');
-  assert.deepEqual((await steps.locator('li').allInnerTexts()).map(text=>text.replace(/\s+/g,' ').trim()),['1 Step 1: Your request','2 Step 2: Photos and details (optional)']);
-  assert.equal(await steps.locator('li[aria-current=step]').count(),1);
-  // Everything optional sits in one dropdown, closed on arrival: only the note, name and phone show.
+  // Clean layout: no step indicator, no tabs and no footnote under the button.
+  assert.equal(await form.locator('[data-quote-steps], .quote-form-steps, .quote-form-next, [role=tablist]').count(),0,'No step indicator, tabs or footnote');
+  // Everything optional sits behind one quiet text toggle, closed on arrival: only the note, name and phone show.
   const options = form.getByTestId('quote-options');
   assert.equal(await options.evaluate(el=>el.tagName+':'+el.open),'DETAILS:false');
-  assert.match(await options.locator('summary').innerText(),/^Add an email or choose how we reach you \(optional\)$/);
+  assert.equal(await options.locator('summary').evaluate(el=>el.textContent.replace(/\s+/g,' ').trim()),'Add address, email or contact preference (optional)');
+  // A line of text, not a box: no border, background or shadow on the toggle or its summary.
+  assert.ok(await options.evaluate(el=>[el,el.querySelector('summary')].every(node=>{const c=getComputedStyle(node);return parseFloat(c.borderTopWidth)+parseFloat(c.borderBottomWidth)+parseFloat(c.borderLeftWidth)+parseFloat(c.borderRightWidth)===0&&c.backgroundColor==='rgba(0, 0, 0, 0)'&&c.boxShadow==='none';})),'The optional toggle must not be boxed');
   assert.equal(await email.isVisible(),false,'Email is hidden until the dropdown is opened');
   assert.equal(await form.getByRole('radio',{name:'Text',exact:true}).isVisible(),false,'Reach choices are hidden until the dropdown is opened');
   assert.deepEqual(await form.evaluate(f=>[...f.querySelectorAll('textarea,input:not([type=hidden]):not([tabindex="-1"]),select')].filter(el=>el.checkVisibility()).map(el=>el.name)),['note','name','phone']);
@@ -53,10 +55,18 @@ export async function verifyQuoteEntry(page, path) {
   await phone.fill('2085550102');
   assert.equal(await phone.getAttribute('aria-invalid'),null);
   assert.equal(await phone.getAttribute('type'),'tel');
-  // The dropdown opens from its summary (a 48px target) and shows email and the reach choices.
-  assert.ok((await options.locator('summary').boundingBox()).height>=47.5,'Dropdown summary is 48px tall');
+  // Name and phone share a row from 640px up and stack below it.
+  assert.equal(await form.evaluate(f=>{const n=f.querySelector('input[name=name]').getBoundingClientRect(),p=f.querySelector('input[name=phone]').getBoundingClientRect();return Math.abs(n.top-p.top)<1&&p.left>=n.right;}),await page.evaluate(()=>innerWidth>=640),'Name and phone side by side from 640px');
+  // The toggle opens from its summary (a 48px target) and shows email and the reach choices inline.
+  assert.ok((await options.locator('summary').boundingBox()).height>=47.5,'Toggle summary is 48px tall');
   await options.locator('summary').click();
   assert.equal(await options.evaluate(el=>el.open),true);
+  // The optional project address leads the opened toggle: never required, with a plain hint for new builds.
+  const address = form.getByLabel('Project address',{exact:true});
+  assert.equal(await address.evaluate(el=>[el.name,el.type,el.getAttribute('autocomplete'),el.required,el.maxLength].join('|')),'address|text|street-address|false|300');
+  assert.equal(await address.evaluate(el=>document.getElementById(el.getAttribute('aria-describedby')).textContent.replace(/\s+/g,' ').trim()),'Leave blank if you do not have one yet.');
+  assert.equal(await form.locator('.quote-form-hint').isVisible(),true);
+  assert.ok(await address.evaluate((el,emailEl)=>el.getBoundingClientRect().bottom<=emailEl.getBoundingClientRect().top,await email.elementHandle()),'Address sits above email');
   await email.fill('invalid'); await email.blur();
   assert.match(await form.innerText(), /That email address does not look right\./);
   for (const label of ['Call','Text','Email']) assert.equal(await form.getByRole('radio',{name:label,exact:true}).count(),1);
@@ -77,6 +87,13 @@ export async function verifyQuoteEntry(page, path) {
   assert.equal(await options.evaluate(el=>el.open),true);
   assert.match(await form.innerText(), /Enter an email address so we can reply by email\./);
   await form.locator('label.quote-form-pill').filter({hasText:/^Text$/}).click();
+  // An address alone, with the default reach and no email, also reopens the toggle after a reload.
+  await address.fill('412 N Synthetic St');
+  await page.reload(); await page.locator('form#request-form[data-ready]').waitFor();
+  assert.equal(await options.evaluate(el=>el.open),true,'A draft with an address reopens the toggle');
+  assert.equal(await address.inputValue(),'412 N Synthetic St');
+  assert.equal(await email.inputValue(),'');
+  await address.fill('');
   await email.fill('navigation@example.invalid');
   // Nothing else on Step 1: the project type travels as a hidden value and is refined in Step 2.
   assert.equal(await form.locator('select[name=project], [name=details_project]').count(),0);
@@ -87,13 +104,24 @@ export async function verifyQuoteEntry(page, path) {
   // A restored draft that already has an email shows it: the dropdown comes back open.
   assert.equal(await options.evaluate(el=>el.open),true,'A draft with an email reopens the dropdown');
   assert.equal(await email.inputValue(),'navigation@example.invalid');
-  // "Send a request" | "Have us call you": the callback side reduces the form to name, phone and a best time, then back.
+  // "Send a request" | "Have us call you": the same two toggle buttons, now one muted line under the send
+  // button. Only the one for the other mode shows, as a text link; the active one stays pressed but hidden.
   const request = form.getByRole('button',{name:'Send a request',exact:true});
   const callback = form.getByRole('button',{name:'Have us call you',exact:true});
+  const shown = button => button.evaluate(el=>{const r=el.getBoundingClientRect();return r.width>1&&r.height>1&&r.left>=0;});
+  // The sentence as a sighted visitor reads it: the hidden, pressed button left out.
+  const talkLine = () => form.locator('.quote-form-talk').evaluate(el=>{const copy=el.cloneNode(true);copy.querySelector('[aria-pressed=true]').remove();return copy.textContent.replace(/\s+/g,' ').trim();});
   assert.equal(await request.getAttribute('aria-pressed'),'true');
+  assert.equal(await shown(request),false,'The active mode is not shown as a control');
+  assert.equal(await shown(callback),true);
+  assert.match(await talkLine(),/^Prefer to talk\? Call \(\d{3}\) \d{3}-\d{4} or have us call you\.$/i);
+  assert.ok(await callback.evaluate((el,sendEl)=>{const link=getComputedStyle(el);return link.backgroundColor==='rgba(0, 0, 0, 0)'&&parseFloat(link.borderTopWidth)===0&&link.textDecorationLine.includes('underline')&&el.getBoundingClientRect().top>=sendEl.getBoundingClientRect().bottom;},await send.elementHandle()),'"Have us call you" is a text link under the send button');
   await callback.click();
   assert.equal(await callback.getAttribute('aria-pressed'),'true');
   assert.equal(await request.getAttribute('aria-pressed'),'false');
+  assert.equal(await shown(request),true);
+  assert.equal(await shown(callback),false);
+  assert.match(await talkLine(),/^Rather write it down\? Send a request$/);
   assert.equal(await note.count(),0);
   assert.equal(await form.locator('input[type=file]').count(),0);
   assert.equal(await options.count(),0,'The call-back side has no optional dropdown');
@@ -101,18 +129,15 @@ export async function verifyQuoteEntry(page, path) {
   assert.equal(await form.getByRole('button',{name:'Request a call',exact:true}).count(),1);
   await request.click();
   assert.match(await note.inputValue(),/Synthetic navigation check/);
-  // The active tab is marked by an underline, never filled like the send button.
-  assert.ok(await request.evaluate((el,sendEl)=>{const tab=getComputedStyle(el),button=getComputedStyle(sendEl);return tab.backgroundColor!==button.backgroundColor&&parseFloat(tab.borderBottomWidth)>=2&&tab.borderBottomColor!==getComputedStyle(el.parentElement.querySelector('[aria-pressed=false]')).borderBottomColor;},await send.elementHandle()),'Active tab must not look like the send button');
-  // Call, text and chat stay on the form as one quiet line of links under the send button, each a 48px target.
+  // One call link on the form, and no text or chat link: the header and the bottom bar carry those.
   assert.equal(await form.locator('a[href^="tel:"]').count(),1);
-  assert.equal(await form.locator('a[href^="sms:"]').count(),1);
-  assert.equal(await form.getByRole('button',{name:'Chat',exact:true}).count(),1);
-  const talkLinks = form.locator('.quote-form-talk-link');
-  assert.equal(await talkLinks.count(),3);
-  for (const height of await form.locator('.quote-form-talk-link, .quote-form-mode').evaluateAll(els=>els.map(el=>el.getBoundingClientRect().height))) assert.ok(height>=47.5,'Contact links and mode tabs are 48px tall');
-  assert.ok(await talkLinks.first().evaluate((el,sendEl)=>el.getBoundingClientRect().top>=sendEl.getBoundingClientRect().bottom,await send.elementHandle()),'Call, text and chat sit under the send button');
+  assert.equal(await form.locator('a[href^="sms:"]').count(),0);
+  assert.equal(await form.getByRole('button',{name:'Chat',exact:true}).count(),0);
+  for (const height of await form.locator('a[href^="tel:"], .quote-form-mode[aria-pressed=false], .quote-form-legal a').evaluateAll(els=>els.map(el=>el.getBoundingClientRect().height))) assert.ok(height>=47.5,'Call, mode and privacy links are 48px targets');
   assert.equal(await form.locator('button[type=submit]').count(),1,'One send button');
-  assert.match(await form.locator('.quote-form-next').innerText(),/^That is all we need\. You can add photos or plans after you send\.$/);
+  // After the button: the call line, then "No obligation." with the privacy link, and nothing else.
+  assert.deepEqual(await send.evaluate(el=>{const out=[];for(let n=el.nextElementSibling;n;n=n.nextElementSibling)if(n.checkVisibility())out.push(n.textContent.replace(/\s+/g,' ').trim().replace(/\(\d{3}\) \d{3}-\d{4}/,'PHONE'));return out;}),['Prefer to talk? Call PHONE or Send a requestHave us call you.','No obligation. Privacy Policy']);
+  assert.equal(await form.locator('.quote-form-legal a').getAttribute('href'),'/legal/privacy');
   await send.scrollIntoViewIfNeeded();
   assert.ok(await send.evaluate(el=>{const r=el.getBoundingClientRect(),x=r.left+r.width/2,y=r.top+r.height/2;return r.height>=48&&x>=0&&x<innerWidth&&y>=0&&y<innerHeight&&el.contains(document.elementFromPoint(x,y));}), 'Quote action must be unobstructed');
   assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'Quote horizontal overflow');

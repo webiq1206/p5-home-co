@@ -46,6 +46,26 @@ test("email is checked when given, and required only when the visitor asks to be
   assert.equal(odd.ok && odd.value.contactPreference, "call");
 });
 
+test("a full request may carry an optional project address, and a callback never does", () => {
+  // Owner, 11 November: most requests have an address, a new build may not yet.
+  const base = { name: "Dana", phone: "2085550142", note: "Kitchen" };
+  const withAddress = read({ ...base, address: "  412 N Sample St, Boise  " });
+  assert.equal(withAddress.ok && withAddress.value.address, "412 N Sample St, Boise");
+  // Absent or blank is fine and reads as no address; nothing about it is checked but its length.
+  const absent = read(base);
+  assert.equal(absent.ok && absent.value.address, null);
+  const blank = read({ ...base, address: "   " });
+  assert.equal(blank.ok && blank.value.address, null);
+  const odd = read({ ...base, address: "lot 4, no number yet" });
+  assert.equal(odd.ok && odd.value.address, "lot 4, no number yet");
+  const long = read({ ...base, address: "x".repeat(400) });
+  assert.equal(long.ok && long.value.address?.length, 300);
+  // The address has its own place on the lead; the summary the team reads is unchanged.
+  assert.equal(withAddress.ok && shortRequestSummary(withAddress.value), "Preferred contact: Call me. Kitchen");
+  const callback = read({ request_type: CALLBACK_REQUEST, name: "Sam", phone: "2085550199", address: "412 N Sample St" });
+  assert.equal(callback.ok && callback.value.address, null);
+});
+
 test("a callback request is name and phone, marked as a callback for the team", () => {
   const callback = read({ request_type: CALLBACK_REQUEST, name: "Sam Ortiz", phone: "208-555-0199", best_time: "Weekday mornings", project: "Something else, or I am not sure" });
   assert.equal(callback.ok, true);
@@ -78,5 +98,12 @@ test("the route reads both shapes through the shared checker and reports the fie
     assert.equal((route.match(/await ingestLead\(/g) ?? []).length, 1);
     assert.equal((route.match(/await notifyLeadCreated\(/g) ?? []).length, 1);
     assert.equal(route.includes("/api/leads/callback"), false);
+    // A Step 1 address reaches the stored lead and the team alert the way a Step 2 address does.
+    assert.equal((route.match(/propertyAddress: submitted\.address,/g) ?? []).length, 2);
+    assert.doesNotMatch(route, /propertyAddress: null/);
+    const ingest = route.slice(route.indexOf("await ingestLead("), route.indexOf("settings,", route.indexOf("await ingestLead(")));
+    assert.match(ingest, /propertyAddress: submitted\.address,/);
+    const notice = route.slice(route.indexOf("const notice: LeadCreatedNotifyInput"));
+    assert.match(notice, /propertyAddress: submitted\.address,/);
   });
 });

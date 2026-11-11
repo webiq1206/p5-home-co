@@ -111,7 +111,8 @@ test("short request notifies only after a created lead and ignores the escalatio
   assert.match(source, /dealId: result\.dealId/);
   assert.match(source, /projectType: project/);
   assert.match(source, /propertyCity: null/);
-  assert.match(source, /propertyAddress: null/);
+  // The optional Step 1 project address rides to the alert; a request without one still sends null.
+  assert.match(source.slice(source.indexOf("const notice: LeadCreatedNotifyInput")), /propertyAddress: submitted\.address,/);
   assert.match(source, /source: resolvedSource/);
   assert.match(source, /originalForm: formName/);
   assert.match(source, /after\(async \(\) => \{\s*await notifyLeadCreated\(notice\)/);

@@ -77,6 +77,7 @@ test("hub pages keep call and chat, with one request entry below the hero", () =
   // only what we need to call back: the easy, interesting question, then name
   // and phone. Everything optional sits in one closed dropdown after them, and
   // the attachment tile lives on Step 2 only, inside its own closed dropdown.
+  const css = readFileSync("app/globals.css", "utf8");
   const noteAt = form.indexOf('name="note"');
   const nameAt = form.indexOf('name="name"');
   const phoneAt = form.indexOf('name="phone"');
@@ -89,22 +90,35 @@ test("hub pages keep call and chat, with one request entry below the hero", () =
   const options = form.slice(form.lastIndexOf("<details", optionsAt), form.indexOf("</details>", optionsAt));
   assert.match(options, /open=\{optionsOpen\}/);
   assert.match(form, /const \[optionsOpen, setOptionsOpen\] = useState\(false\)/);
-  assert.match(options, /Add an email or choose how we reach you <span className="quote-form-optional">\(optional\)<\/span>/);
-  assert.match(options, /name="email"[\s\S]*name="contact_preference"/);
+  // A quiet text toggle, not a box: a plus and one muted line, with the fields inline when open.
+  assert.match(options, /className="quote-form-toggle"/);
+  assert.match(options, /<summary>\s*<PlusIcon \/>\s*<span>Add address, email or contact preference \(optional\)<\/span>\s*<\/summary>/);
+  const toggleRules = css.split("\n").filter((line) => /^\.quote-form-toggle\b/.test(line)).join("\n") + css.slice(css.indexOf(".quote-form-toggle > summary {"), css.indexOf("}", css.indexOf(".quote-form-toggle > summary {")));
+  assert.doesNotMatch(toggleRules, /border|background|box-shadow/, "The toggle has no box");
+  // The optional project address is the toggle's first field, above email: never required, never checked.
+  assert.match(options, /<label htmlFor=\{ids\.projectAddress\}>Project address<\/label>\s*<input[^>]*name="address"\s+type="text"\s+autoComplete="street-address"\s+maxLength=\{300\}/);
+  assert.match(options, /Leave blank if you do not have one yet\./);
+  assert.match(options, /name="address"[\s\S]*name="email"[\s\S]*name="contact_preference"/);
+  assert.doesNotMatch(options.slice(options.indexOf('name="address"'), options.indexOf('name="email"')), /required|aria-invalid/);
+  assert.match(form, /body\.set\("email", draft\.email\.trim\(\)\);\s*body\.set\("address", draft\.address\.trim\(\)\);/);
+  // The call-back side sends no address.
+  assert.ok(form.indexOf('body.set("address"') > form.indexOf('body.set("request_type", "request")'));
   // A restored draft with an email or a non-default reach opens it; so does an email error.
-  assert.match(form, /if \(restored\.email\.trim\(\) \|\| restored\.reach !== DEFAULT_REACH\) setOptionsOpen\(true\)/);
+  assert.match(form, /if \(restored\.address\.trim\(\) \|\| restored\.email\.trim\(\) \|\| restored\.reach !== DEFAULT_REACH\) setOptionsOpen\(true\)/);
   assert.match(form, /if \(field === "email" && !optionsOpen\) \{[\s\S]*?setOptionsOpen\(true\);\s*window\.requestAnimationFrame\(focus\)/);
   // No attachment tile and no file field on Step 1.
   assert.equal((form.match(/<AttachmentTile/g) ?? []).length, 1);
   assert.doesNotMatch(form, /<AttachmentTile name="files"|files_expected/);
   const stepTwoAt = form.indexOf('data-testid="quote-details-disclosure"');
   assert.ok(stepTwoAt > -1 && form.indexOf("<AttachmentTile") > stepTwoAt && form.indexOf("<AttachmentTile") < form.indexOf("</details>", stepTwoAt));
-  // The steps line names both steps above the fields and flips to "Request sent".
-  assert.match(form, /\{sent \? "Request sent" : "Your request"\}/);
-  assert.match(form, /Photos and details \(optional\)/);
-  assert.ok(form.indexOf("<QuoteSteps sent={Boolean(done)} />") < form.indexOf('className="quote-form-done"'));
+  // Clean layout (owner, 11 November): no step indicator, tabs, footnote or chevron box, in the form or its styles.
+  assert.doesNotMatch(form, /QuoteSteps|quote-form-steps|quote-form-next|quote-form-disclosure|ChevronIcon|That is all we need/);
+  assert.doesNotMatch(css, /quote-form-steps|quote-form-step-badge|quote-form-next|quote-form-disclosure|quote-form-chevron|quote-form-more|quote-form-talk-link/);
   assert.match(form, /What can we help with\?/);
-  const css = readFileSync("app/globals.css", "utf8");
+  // Name and phone share one row from 640px up.
+  const pairAt = form.indexOf('className="quote-form-pair"');
+  assert.ok(pairAt > noteAt && pairAt < nameAt && phoneAt < optionsAt);
+  assert.match(css, /@media \(min-width: 640px\) \{\s*\.quote-form-pair \{ display: grid; grid-template-columns: minmax\(0, 1fr\) minmax\(0, 1fr\)/);
   // The hero is sized against the small viewport (family-chrome.css), never 100vh under the header.
   assert.match(readFileSync("styles/family-chrome.css", "utf8"), /--fam-hero-available: calc\(100svh - var\(--header-height\)/);
   assert.match(css, /--color-primary:\s*var\(--bronze\)/);
@@ -116,25 +130,25 @@ test("hub pages keep call and chat, with one request entry below the hero", () =
   assert.doesNotMatch(form, /quote-wizard|data-wizard-step|pushState/);
   assert.match(form, /data-suppress-mobile-bar=""/);
   // Call, text, or have us call you, on the form itself.
-  // Under the heading: two native toggle buttons, styled as quiet underline
-  // tabs so the active one cannot be mistaken for the send button.
-  const modesAt = form.indexOf('className="quote-form-modes"');
-  const modes = form.slice(modesAt, form.indexOf('className="quote-form-field"', modesAt));
-  assert.match(modes, /aria-pressed=\{!callback\}[\s\S]*Send a request[\s\S]*aria-pressed=\{callback\}[\s\S]*Have us call you/);
-  assert.equal((modes.match(/type="button"/g) ?? []).length, 2);
-  assert.ok(form.indexOf("{done") < modesAt && modesAt < form.indexOf('name="note"'));
-  const modeRule = css.slice(css.indexOf('.quote-form-mode[aria-pressed="true"]'), css.indexOf("}", css.indexOf('.quote-form-mode[aria-pressed="true"]')));
-  assert.match(modeRule, /border-bottom-color: var\(--charcoal\)/);
-  assert.doesNotMatch(modeRule, /background/, "The active tab is not filled like the send button");
-  // Call, text and chat: one quiet line of links under the one send button, all tracked as before.
-  assert.match(form, /<TrackedPhoneLink className="quote-form-talk-link" location="quote_form">\s*Call \{PUBLIC_PHONE_DISPLAY\}/);
-  assert.match(form, /href=\{PUBLIC_PHONE_SMS\}\s*onClick=\{\(\) => track\("text_click", \{ location: "quote_form" \}\)\}/);
-  assert.match(form, /<OpenChatButton className="quote-form-talk-link" location="quote_form">/);
-  assert.doesNotMatch(form, /quote-form-talk-button/);
-  assert.ok(form.indexOf("{talk}") > form.indexOf('type="submit"'), "Call, text and chat sit under the send button");
+  // One muted line under the one send button: "Prefer to talk? Call ... or have us call you."
+  // The same two native toggle buttons as before, in one group; only the one for the other
+  // mode shows, as a text link, and the active one stays in the DOM, pressed and visually hidden.
+  const talkAt = form.indexOf("const talk = (");
+  const talk = form.slice(talkAt, form.indexOf("</p>", talkAt));
+  assert.match(talk, /Prefer to talk\?\{" "\}\s*<TrackedPhoneLink className="quote-form-line-link" location="quote_form">\s*Call \{PUBLIC_PHONE_DISPLAY\}/);
+  assert.match(talk, /"Rather write it down\? "/);
+  assert.match(talk, /className="quote-form-modes" role="group" aria-label="How would you like to start\?">\s*\{modeButton\("request", "Send a request"\)\}\s*\{modeButton\("callback", "Have us call you"\)\}/);
+  assert.match(form, /className=\{active \? "quote-form-mode short-request-sr" : "quote-form-mode quote-form-line-link"\}\s*aria-pressed=\{active\}/);
+  assert.equal((form.match(/aria-pressed=/g) ?? []).length, 1);
+  // Text and chat left the form; the header and the bottom bar still carry them.
+  assert.doesNotMatch(form, /OpenChatButton|quote-form-talk-button|quote-form-talk-link|SaveContactButton/);
+  assert.doesNotMatch(talk, /PUBLIC_PHONE_SMS|sms:/);
+  const submitTag = form.indexOf('type="submit"');
+  assert.ok(form.indexOf("{talk}") > submitTag, "The call line sits under the send button");
   assert.equal((form.match(/type="submit"/g) ?? []).length, 1);
-  assert.match(form, /That is all we need\. You can add photos or plans after you send\./);
-  assert.match(form, /We call you back during business hours\./);
+  // Then one small line, and nothing else before the status message.
+  const afterSend = form.slice(form.indexOf("{talk}"), form.indexOf("{status && ("));
+  assert.match(afterSend, /^\{talk\}\s*<p className="quote-form-line quote-form-legal">\s*No obligation\. <Link href="\/legal\/privacy">Privacy Policy<\/Link>\s*<\/p>\s*$/);
   assert.match(form, /Send my request/);
   assert.match(form, /trackAcceptedInquiry\(\)/);
   assert.match(form, /captureAttribution\(\)/);
@@ -163,17 +177,31 @@ test("the short form requires name, phone and a note; email and photos stay opti
   // Project type, address, timing and files are Step 2 on the success screen:
   // one closed dropdown under a plain "nothing else is needed", with no Skip
   // button (leaving it closed is skipping).
-  assert.match(form, /You are all set\. Nothing else is needed\./);
+  // One sentence about what happens next, ending "Nothing else is needed.".
+  const allSetAt = form.indexOf('data-testid="quote-all-set"');
+  const allSet = form.slice(allSetAt, form.indexOf("</p>", allSetAt));
+  assert.match(allSet, /answers your questions and helps you work out the next step, which may be a time to visit\.`\}\{" "\}\s*Nothing else is needed\.\s*$/);
+  const doneAt = form.indexOf('className="quote-form-done"');
+  assert.equal(form.slice(doneAt, allSetAt).includes("<p"), true);
+  assert.equal((form.slice(doneAt, allSetAt).match(/<p\b/g) ?? []).length, 1, "The sentence is the first thing on the sent screen");
   const stepTwo = form.slice(form.indexOf('data-testid="quote-details-disclosure"'));
-  assert.match(form, /<details className="quote-form-disclosure" data-testid="quote-details-disclosure">/);
-  assert.match(stepTwo, /Add photos, plans or project details <span className="quote-form-optional">\(optional\)<\/span>/);
+  assert.match(form, /<details className="quote-form-toggle" data-testid="quote-details-disclosure">/);
+  assert.match(stepTwo, /<summary>\s*<PlusIcon \/>\s*<span id=\{ids\.details\}>Add photos, plans or details \(optional\)<\/span>\s*<\/summary>/);
+  // The feedback questions wait behind their own toggle and only after details are saved.
+  assert.match(form, /\{showDetails && detailsState === "saved" \? \(\s*<details className="quote-form-toggle quote-form-feedback">/);
+  // The sent screen ends with one muted call line.
+  assert.match(form.slice(form.indexOf("<ThanksQuestions />")), /Prefer to talk\?\{" "\}\s*<TrackedPhoneLink className="quote-form-line-link" location="form_thanks">/);
+  // Step 2 never re-asks what Step 1 has: its address and email show only when Step 1 had none.
+  assert.match(stepTwo, /\{!done\.hadAddress && \(\s*<div className="quote-form-field">\s*<label htmlFor=\{ids\.address\}>Address or ZIP code<\/label>/);
+  assert.match(stepTwo, /\{!done\.hadEmail && \(/);
+  assert.match(form, /hadAddress: !callback && Boolean\(draft\.address\.trim\(\)\)/);
   for (const field of ["details_project", "details_address", "details_timing", "details_email"]) {
     assert.ok(stepTwo.indexOf(`name="${field}"`) > -1 && stepTwo.indexOf(`name="${field}"`) < stepTwo.indexOf("</details>"), `${field} sits inside the Step 2 dropdown`);
   }
-  assert.match(stepTwo, /Each one helps us give you a closer quote on the first call\./);
   assert.match(stepTwo, /Save details/);
   assert.doesNotMatch(form, /Help us prepare|>\s*Skip\s*<|"skipped"/);
-  assert.ok(form.indexOf("You are all set. Nothing else is needed.") < form.indexOf('data-testid="quote-details-disclosure"'));
+  assert.ok(allSetAt < form.indexOf('data-testid="quote-details-disclosure"'));
+  assert.doesNotMatch(form, /Save our contact|Have a question now|You get a written scope before any price/);
   assert.match(form, /track\("lead_details_added"/);
   assert.equal((form.match(/trackAcceptedInquiry\(\)/g) ?? []).length, 1);
   assert.match(form, /short-request-trap/);
