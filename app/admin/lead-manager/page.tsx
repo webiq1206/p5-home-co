@@ -170,6 +170,11 @@ export default async function LeadManagerBoard() {
             day: "numeric",
           }).format(now)}
         </p>
+        {user.role === "administrator" && (
+          <p style={{ margin: "-10px 0 22px" }}>
+            <Link className="lead-action" href="/admin/lead-manager/meta">Meta intake readiness</Link>
+          </p>
+        )}
 
         {settings.automation.testMode && (
           <div className="admin-notice">

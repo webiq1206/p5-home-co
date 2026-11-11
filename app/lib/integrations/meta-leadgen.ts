@@ -24,6 +24,7 @@ import { loadSettings } from "../leads/settings.ts";
 import type { SubmittedField } from "../leads/submittedFields.ts";
 import type { Brand, InboundLead } from "../leads/types.ts";
 import { notifyLeadCreated, type LeadCreatedNotifyInput } from "../notifications/lead-created.ts";
+import { DEFAULT_META_PAGES, loadMetaMappings, type MetaMappings } from "./meta-settings.ts";
 
 export const GRAPH_VERSION = "v21.0";
 const LOG = "[meta-leadgen]";
@@ -72,7 +73,7 @@ export type GraphLead = {
 
 export type MetaAttribution = {
   brand: Brand;
-  resolvedBy: "form" | "campaign-name" | "none";
+  resolvedBy: "form" | "page" | "campaign-name" | "none";
   service: string | null;
   formId: string;
   formName: string;
@@ -86,13 +87,14 @@ export function brandFromCampaignName(name: string | undefined): Brand | null {
 }
 
 /** Form id, then campaign name, then P5 Home Co with the form name kept. */
-export function resolveMetaBrand(lead: GraphLead, event: { formId?: string | null; pageId?: string | null }, fetchedFormName?: string | null): MetaAttribution {
+export function resolveMetaBrand(lead: GraphLead, event: { formId?: string | null; pageId?: string | null }, fetchedFormName?: string | null, mappings?: MetaMappings): MetaAttribution {
   const formId = lead.form_id || event.formId || "";
-  const known = formId ? META_LEAD_FORMS[formId] : undefined;
-  const byCampaign = known ? null : brandFromCampaignName(lead.campaign_name);
+  const known = formId ? (mappings?.forms[formId] ?? META_LEAD_FORMS[formId]) : undefined;
+  const byPage = event.pageId ? (mappings?.pages ?? DEFAULT_META_PAGES)[event.pageId] : undefined;
+  const byCampaign = known || byPage ? null : brandFromCampaignName(lead.campaign_name);
   return {
-    brand: known?.brand ?? byCampaign ?? "P5 Home Co",
-    resolvedBy: known ? "form" : byCampaign ? "campaign-name" : "none",
+    brand: known?.brand ?? byPage ?? byCampaign ?? "P5 Home Co",
+    resolvedBy: known ? "form" : byPage ? "page" : byCampaign ? "campaign-name" : "none",
     service: known?.service ?? null,
     formId,
     formName: known?.formName ?? fetchedFormName ?? (formId ? `Meta Instant Form ${formId}` : "Meta Instant Form"),
@@ -177,18 +179,16 @@ export function leadgenEvents(body: unknown): LeadgenEvent[] {
 
 /** Save deliveries before Meta gets its 200. Returns the ids that were new. */
 export async function saveLeadgenEvents(events: readonly LeadgenEvent[]): Promise<string[]> {
-  const fresh: string[] = [];
-  for (const event of events) {
-    const rows = await query<{ leadgen_id: string }>(
-      `INSERT INTO meta_leadgen_event (leadgen_id, page_id, form_id, ad_id, payload)
-       VALUES ($1, $2, $3, $4, $5::jsonb)
-       ON CONFLICT (leadgen_id) DO NOTHING
-       RETURNING leadgen_id`,
-      [event.leadgenId, event.pageId, event.formId, event.adId, JSON.stringify(event.change)],
-    );
-    if (rows.length) fresh.push(event.leadgenId);
-  }
-  return fresh;
+  if (!events.length) return [];
+  // One atomic durable insert, even when Meta batches many lead changes.
+  const rows = await query<{ leadgen_id: string }>(
+    `INSERT INTO meta_leadgen_event (leadgen_id,page_id,form_id,ad_id,payload)
+     SELECT leadgen_id,page_id,form_id,ad_id,payload
+     FROM jsonb_to_recordset($1::jsonb) AS x(leadgen_id text,page_id text,form_id text,ad_id text,payload jsonb)
+     ON CONFLICT (leadgen_id) DO NOTHING RETURNING leadgen_id`,
+    [JSON.stringify(events.map(e => ({ leadgen_id: e.leadgenId, page_id: e.pageId, form_id: e.formId, ad_id: e.adId, payload: e.change })))],
+  );
+  return rows.map(row => row.leadgen_id);
 }
 
 // ---------------------------------------------------------------------------
@@ -204,18 +204,11 @@ function fieldValue(data: readonly GraphFieldDatum[], ...names: string[]): strin
   return null;
 }
 
-/** Meta's standard contact fields; every other field is a custom question. */
-const STANDARD_FIELDS = new Set([
-  "first_name", "last_name", "full_name", "email", "phone_number", "phone", "street_address",
-  "city", "state", "province", "zip_code", "zip", "post_code", "postal_code", "country",
-]);
-
 /** Every field_data entry verbatim, question name as Meta sent it. */
 export function metaSubmittedFields(lead: GraphLead, attribution: MetaAttribution): SubmittedField[] {
   const fields: SubmittedField[] = (lead.field_data ?? [])
     .filter((field) => field.name)
-    .map((field) => ({ label: field.name!, value: (field.values ?? []).join(", ").trim() }))
-    .filter((field) => field.value);
+    .map((field) => ({ label: field.name!, value: (field.values ?? []).join(", ") }));
   return [
     ...fields,
     { label: "Meta lead id", value: lead.id },
@@ -235,9 +228,6 @@ export function metaInboundLead(lead: GraphLead, attribution: MetaAttribution, r
     lastName = parts.length > 1 ? parts.slice(1).join(" ") : null;
   }
   const zip = fieldValue(data, "zip_code", "zip", "post_code", "postal_code");
-  const custom = data
-    .filter((field) => field.name && !STANDARD_FIELDS.has(field.name.toLowerCase()) && (field.values ?? []).some(Boolean))
-    .map((field) => `${field.name}: ${(field.values ?? []).join(", ")}`);
   const projectAnswer = fieldValue(data, "project", "project_type", "service", "what_project", "what_service");
   const platform = (lead.platform ?? "").toLowerCase();
   const utm: Record<string, string> = {
@@ -264,7 +254,12 @@ export function metaInboundLead(lead: GraphLead, attribution: MetaAttribution, r
     lead.campaign_name ? `Campaign: ${lead.campaign_name}` : "",
     lead.ad_name ? `Ad: ${lead.ad_name}` : "",
     attribution.resolvedBy === "none" ? "Brand: not mapped to a form or campaign; filed under P5 Home Co." : "",
-    ...custom,
+    `Ad set: ${lead.adset_name ?? ""}`,
+    `Form: ${attribution.formName}`,
+    `Platform: ${lead.platform ?? ""}`,
+    `Lead ID: ${lead.id}`,
+    `Created time: ${lead.created_time ?? ""}`,
+    ...data.filter(field => field.name).map(field => `${field.name}: ${(field.values ?? []).join(", ")}`),
   ].filter(Boolean).join("\n");
 
   return {
@@ -373,7 +368,7 @@ export async function processMetaLeadEvent(leadgenId: string, deps: MetaDeps = {
         .then((form) => form.name?.trim().slice(0, 200) || null)
         .catch(() => null);
     }
-    const attribution = resolveMetaBrand(lead, { formId: event.form_id, pageId: event.page_id }, formName);
+    const attribution = resolveMetaBrand(lead, { formId: event.form_id, pageId: event.page_id }, formName, await loadMetaMappings());
     if (attribution.resolvedBy === "none") console.warn(`${LOG} lead ${leadgenId} form ${attribution.formId || "unknown"} is not mapped; filed under P5 Home Co. Add it to META_LEAD_FORMS.`);
     const inbound = metaInboundLead(lead, attribution);
     const result = await ingestLead(inbound, await loadSettings());

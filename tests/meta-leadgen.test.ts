@@ -179,3 +179,22 @@ test("brand mapping: form id, then campaign name, then P5", () => {
   assert.equal(meta.signatureIsValid("{}", "sha256=" + "0".repeat(64), SECRET), false);
   assert.equal(meta.signatureIsValid("{}", null, SECRET), false);
 });
+
+test("slow receipt storage is not falsely acknowledged and does not trigger provider work after timeout", async () => {
+  const pool = globalThis.__p5Pool!;
+  const original = pool.query;
+  let afterRegistered = false;
+  try {
+    // No real DB/network: emulate one slow atomic receipt insert.
+    pool.query = (async () => {
+      await new Promise(resolve => setTimeout(resolve, 1900));
+      return { rows: [{ leadgen_id: "slow-synthetic" }] };
+    }) as typeof pool.query;
+    const started = Date.now();
+    const response = await handleMetaWebhook(delivery([{ leadgen_id: "9997" }]), () => { afterRegistered = true; }, { env });
+    assert.equal(response.status, 503);
+    assert.ok(Date.now() - started < 2000);
+    await new Promise(resolve => setTimeout(resolve, 250));
+    assert.equal(afterRegistered, false);
+  } finally { pool.query = original; }
+});

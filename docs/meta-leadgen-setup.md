@@ -59,17 +59,20 @@ verified the portal before this change.
 
 The hub endpoint is `https://p5homeco.com/api/meta/leadgen`.
 
-1. **Meta app.** At developers.facebook.com, open (or create) the business app
-   owned by the P5 Business Manager. Add the **Webhooks** product. App type
-   Business. Note the **App Secret** (App settings, Basic).
+1. **Meta app.** Use the existing **P5 Co** business portfolio and app
+   **2915975045410175**. Do not create another app. Add the **Webhooks**
+   product if needed. Note the App Secret in App settings, Basic.
 2. **Replit secrets** (Deployments, Secrets), then Redeploy after a `git pull`:
    - `META_APP_SECRET`: the App Secret. Every POST is checked against
      `X-Hub-Signature-256` with it. Missing: every delivery gets 503 (Meta
      retries), nothing is accepted unverified.
-   - `META_LEADGEN_VERIFY_TOKEN`: any long random string you invent. Missing:
+   - `META_APP_ID`: `2915975045410175` (plain configuration).
+   - `META_LEADGEN_VERIFY_TOKEN`: `p5-leadgen-verify-2026` (the owner's shared,
+     non-credential handshake string). Missing:
      the subscription handshake gets 503.
-   - `META_PAGE_ACCESS_TOKEN`: a long-lived Page access token for the
-     P5 Home Co Page (1228704823655951) with `leads_retrieval`.
+   - `META_PAGE_ACCESS_TOKEN`: the existing P5 Co **system-user token**, with
+     access to all the intended Pages and `leads_retrieval`. It is used for
+     any Page; one token per Page is not required.
    - `META_PAGE_TOKENS` (optional, for more than one Page): JSON
      `{"<page id>": "<page token>", ...}`. Wins over `META_PAGE_ACCESS_TOKEN`
      for the pages it lists.
@@ -85,12 +88,12 @@ The hub endpoint is `https://p5homeco.com/api/meta/leadgen`.
    `POST https://graph.facebook.com/v21.0/1228704823655951/subscribed_apps?subscribed_fields=leadgen`
    with the Page access token. Confirm with
    `GET /v21.0/1228704823655951/subscribed_apps`.
-6. **Page token.** In Graph API Explorer pick the app, request
-   `leads_retrieval, pages_manage_metadata, pages_show_list`, get a User token,
-   exchange it for a long-lived one, then `GET /me/accounts` and copy the P5
-   Home Co Page's `access_token` into `META_PAGE_ACCESS_TOKEN`. Page tokens
-   from a long-lived user token do not expire unless the password or
-   permissions change.
+6. **System-user access.** Assign all intended Page assets to the P5 Co system
+   user, and generate its token for the existing app with the required
+   permissions. The owner supplies the token and App Secret through secure
+   secrets configuration, never through the admin mapping forms.
+   `/me/accounts` must actually expose the assigned Pages; an empty list or
+   denied request is a setup blocker, not proof that no Pages exist.
 7. **Leads Access.** In Meta Business Suite, Settings, Integrations, Leads
    Access, allow the app (CRM access) for the Page.
 8. **Test.** Use the Lead Ads Testing Tool
@@ -110,7 +113,8 @@ The hub endpoint is `https://p5homeco.com/api/meta/leadgen`.
   in the Authorization header (never the URL), with form, ad, ad set,
   campaign and platform fields.
 - Brand: form id (table `META_LEAD_FORMS`, ported from boise-remodeling-co
-  PR #138), else a campaign named `P5 | <Brand> | ...`, else **P5 Home Co**,
+  PR #138, merged with saved overrides), then Page id, then a campaign named
+  `P5 | <Brand> | ...`, else **P5 Home Co**,
   with the form's own name read from Graph and kept as the form.
 - Fields: `full_name` (or `first_name`/`last_name`), `email`, `phone_number`,
   `street_address`, `city`, `state`, `zip_code`; every other question is kept
@@ -121,6 +125,69 @@ The hub endpoint is `https://p5homeco.com/api/meta/leadgen`.
   watchdog retries it (up to 12 attempts, then `failed`). A lead with neither
   email nor phone is `rejected` and its full Graph record is kept on the row.
 - Add a row to `META_LEAD_FORMS` whenever a new brand form is created.
+  Alternatively assign the form from the authenticated Meta admin page.
+
+### Multi-page administration and development review
+
+`/admin/lead-manager/meta` requires the existing **administrator** role.
+It shows credential presence only, SMTP configuration validity, merged routing
+maps and the last 20 operational webhook receipts. It never exposes token
+values, raw webhook payloads or raw Graph errors. Stored error text is reduced
+to safe categories. Map edits are atomic merges in the existing `setting`
+table (`meta_leadgen_routing`), not a new CRM. Existing hard-coded form defaults
+remain active unless a saved override replaces an entry. Seed Page routing:
+
+| Page ID | Brand |
+|---|---|
+| `1228704823655951` | P5 Home Co |
+| `1235083469680398` | Boise Cabinet Co |
+
+**Refresh Pages** reads `/me/accounts`, subscriptions and each Page's forms
+(including questions). Discovery is explicit rather than a side effect of
+viewing the page. Lists paginate by cursor; provider-supplied next URLs are
+never followed because they can contain tokens. Discovery has bounded requests
+and reports incomplete/denied Pages without claiming success.
+
+**Subscribe all pages** checks the selected app's `leadgen` subscription,
+POSTs only where missing, then re-reads it. This changes the live Meta account:
+development tests mock it; do not click it against real credentials until
+owner review is complete. No campaigns, budgets or HubSpot schemas are changed.
+
+**Run self-test** GETs only this request's own origin at `/api/meta/leadgen`
+and verifies the exact echoed challenge. It neither creates a lead nor proves
+Meta asset access. It never falls back to a production base URL.
+
+Subscription upkeep runs once per production process boot when configured,
+and during the UTC midnight hour through the existing five-minute watchdog
+(no new scheduler).
+It is **disabled in development and during builds**. Durable claims prevent
+duplicate successful nightly runs across restarts; failed nightly runs can retry after
+one hour. Missing token/app ID makes it a no-op.
+
+Migration `024_meta_lead_manager.sql` adds only subscription-run history and
+HubSpot backoff side tables. Existing `022`/`023` dependencies must also be
+present. Migration017 remains deferred; no schema push is needed.
+
+Webhook receipt storage is a single atomic insert before acknowledgement;
+Graph retrieval, CRM writes and email happen after the response. The handler
+has a 1.75-second response budget. It returns 200 only after durable storage;
+on storage failure/timeout it returns 500/503 so Meta retries, rather than
+falsely acknowledging and losing leads. A timeout can finish inserting later;
+lead-ID dedupe and the watchdog make redelivery safe. This is not an absolute
+network-latency guarantee.
+
+HubSpot failures use durable exponential backoff (one minute initially,
+capped at six hours), in addition to the existing sync lease and watchdog.
+Existing submissions and note dedupe remain intact. New Meta deals use
+`<Brand> lead: <First Last>`, the existing New Lead stage
+(`appointmentscheduled`), and the configured fallback owner or `97300513`.
+Existing pipeline, property definitions, manual proposal fields and existing
+record assignments are not reset.
+
+Testing Tool leads intentionally use the **real intake path**, including CRM
+creation and alert email when enabled. There is no special dry-run exemption:
+use offline mocks for development tests. Real end-to-end verification is a
+separate owner-reviewed action after credentials and asset access are verified.
 
 ## Calls, texts and notes to HubSpot
 

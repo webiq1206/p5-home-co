@@ -14,6 +14,7 @@ import { dispatchNotifications } from "../notifications/dispatch.ts";
 import { syncPendingDeals } from "../integrations/hubspot.ts";
 import { syncPendingActivities } from "../integrations/hubspot-activities.ts";
 import { processPendingMetaLeads } from "../integrations/meta-leadgen.ts";
+import { maintainMetaSubscriptions } from "../integrations/meta-schedule.ts";
 import { sweepAbandonedSessions } from "./estimatorSessions.ts";
 import { syncHubSpotAlertTasks } from "../integrations/hubspot-tasks.ts";
 import { pullHubSpotLeadActions } from "../integrations/hubspot-operations.ts";
@@ -289,6 +290,7 @@ export async function runWatchdog(now: Date = new Date()): Promise<WatchdogSumma
     // intake failed after the 200). Before the deal sync, so a lead ingested
     // here is pushed on this same tick. A failure never stops the watchdog.
     try {
+      await maintainMetaSubscriptions();
       await processPendingMetaLeads();
     } catch (error) {
       console.error("[watchdog] Meta lead retry failed", error instanceof Error ? error.message : error);

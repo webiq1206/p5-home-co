@@ -36,7 +36,8 @@ export type WriteEntity =
   | "Vendor"
   | "Invoice"
   | "PurchaseOrder"
-  | "Bill";
+  | "Bill"
+  | "Estimate";
 
 export type WriteResult = {
   qboId: string;
