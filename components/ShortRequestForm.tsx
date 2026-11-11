@@ -567,11 +567,14 @@ export function ShortRequestForm({
           or{" "}
         </>
       )}
-      <span className="quote-form-modes" role="group" aria-label="How would you like to start?">
-        {modeButton("request", "Send a request")}
-        {modeButton("callback", "Have us call you")}
+      {/* The last link and its full stop stay together, so the stop never wraps onto a line of its own. */}
+      <span className="quote-form-nowrap">
+        <span className="quote-form-modes" role="group" aria-label="How would you like to start?">
+          {modeButton("request", "Send a request")}
+          {modeButton("callback", "Have us call you")}
+        </span>
+        {callback ? null : "."}
       </span>
-      {callback ? null : "."}
     </p>
   );
 
@@ -732,7 +735,7 @@ export function ShortRequestForm({
                     {!done.hadEmail && (
                       <div className="quote-form-field">
                         <label htmlFor={ids.detailsEmail}>
-                          Email <span className="quote-form-optional">(optional)</span>
+                          Email
                         </label>
                         <input
                           id={ids.detailsEmail}
@@ -787,10 +790,12 @@ export function ShortRequestForm({
 
           <p className="quote-form-line">
             Prefer to talk?{" "}
-            <TrackedPhoneLink className="quote-form-line-link" location="form_thanks">
-              Call {PUBLIC_PHONE_DISPLAY}
-            </TrackedPhoneLink>
-            .
+            <span className="quote-form-nowrap">
+              <TrackedPhoneLink className="quote-form-line-link" location="form_thanks">
+                Call {PUBLIC_PHONE_DISPLAY}
+              </TrackedPhoneLink>
+              .
+            </span>
           </p>
         </div>
       ) : (
@@ -909,7 +914,7 @@ export function ShortRequestForm({
 
                 <div className="quote-form-field">
                   <label htmlFor={ids.email}>
-                    Email {draft.reach === "email" ? null : <span className="quote-form-optional">(optional)</span>}
+                    Email
                   </label>
                   <input
                     id={ids.email}

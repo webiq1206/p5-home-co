@@ -168,7 +168,23 @@ test("the short form requires name, phone and a note; email and photos stay opti
   assert.match(form, /autoComplete="email"/);
   // One attachment tile, the family pattern, instead of the raw file control.
   assert.match(tile, /label = "Add photos, plans or files"/);
-  assert.match(tile, /\{label\} <span className="quote-form-optional">\(optional\)<\/span>/);
+  // The toggle it sits behind already says "(optional)"; the tile does not repeat it.
+  assert.match(tile, /<span className="attach-tile-label">\s*\{label\}\s*<\/span>/);
+  assert.doesNotMatch(tile, /\(optional\)<|Optional\./);
+  // Inside the form "(optional)" marks only the three toggle summaries and the visible "Best time to call".
+  const marked = form.split("\n").filter((line) => /\(optional\)</.test(line)).map((line) => line.trim());
+  assert.deepEqual(marked, [
+    "<span id={ids.details}>Add photos, plans or details (optional)</span>",
+    "<span>Answer two quick questions for us (optional)</span>",
+    'Best time to call <span className="quote-form-optional">(optional)</span>',
+    "<span>Add address, email or contact preference (optional)</span>",
+  ]);
+  assert.match(form, /<label htmlFor=\{ids\.email\}>\s*Email\s*<\/label>/);
+  assert.match(form, /<label htmlFor=\{ids\.detailsEmail\}>\s*Email\s*<\/label>/);
+  // The last link of each muted line keeps its full stop: both sit in one nowrap span.
+  assert.match(form, /<span className="quote-form-nowrap">\s*<span className="quote-form-modes"[\s\S]*?<\/span>\s*\{callback \? null : "\."\}\s*<\/span>/);
+  assert.match(form, /<span className="quote-form-nowrap">\s*<TrackedPhoneLink className="quote-form-line-link" location="form_thanks">[\s\S]*?<\/TrackedPhoneLink>\s*\.\s*<\/span>/);
+  assert.match(readFileSync("app/globals.css", "utf8"), /\.quote-form-nowrap \{ white-space: nowrap; \}/);
   assert.match(tile, /Photos, PDFs or drawings\. Up to 10 files, 20 MB each\./);
   assert.match(tile, /type="file"\s+multiple\s+accept=\{ATTACHMENT_ACCEPT\}/);
   assert.match(tile, /ATTACHMENT_ACCEPT = "image\/\*,application\/pdf,\.heic,\.heif"/);
@@ -190,7 +206,7 @@ test("the short form requires name, phone and a note; email and photos stay opti
   // The feedback questions wait behind their own toggle and only after details are saved.
   assert.match(form, /\{showDetails && detailsState === "saved" \? \(\s*<details className="quote-form-toggle quote-form-feedback">/);
   // The sent screen ends with one muted call line.
-  assert.match(form.slice(form.indexOf("<ThanksQuestions />")), /Prefer to talk\?\{" "\}\s*<TrackedPhoneLink className="quote-form-line-link" location="form_thanks">/);
+  assert.match(form.slice(form.indexOf("<ThanksQuestions />")), /Prefer to talk\?\{" "\}\s*<span className="quote-form-nowrap">\s*<TrackedPhoneLink className="quote-form-line-link" location="form_thanks">/);
   // Step 2 never re-asks what Step 1 has: its address and email show only when Step 1 had none.
   assert.match(stepTwo, /\{!done\.hadAddress && \(\s*<div className="quote-form-field">\s*<label htmlFor=\{ids\.address\}>Address or ZIP code<\/label>/);
   assert.match(stepTwo, /\{!done\.hadEmail && \(/);

@@ -652,6 +652,7 @@ h1, h2, h3 { text-wrap:balance; }
 .quote-form .quote-form-line a:hover, .quote-form-line-link:hover { color: var(--ink); }
 .quote-form .quote-form-line a:focus-visible, .quote-form-line-link:focus-visible { outline: 2px solid var(--bronze-ink); outline-offset: 2px; }
 .quote-form-talk { margin-top: 14px; }
+.quote-form-nowrap { white-space: nowrap; }
 .quote-form-legal { margin-top: 10px; }
 .quote-form-done .quote-form-line { margin-top: 6px; }
 /* "Have us call you" reads inside a sentence; its name keeps the capital. */
