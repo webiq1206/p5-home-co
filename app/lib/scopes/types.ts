@@ -269,6 +269,7 @@ export type ScopeSettings = {
 
 export const DEFAULT_SCOPE_SETTINGS: ScopeSettings = {
   laborRate: 125,
+  handymanTripCharge: 45,
   laborLoadedCost: null,
   productionRates: {},
   taxableItems: [],

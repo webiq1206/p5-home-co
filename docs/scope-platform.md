@@ -99,7 +99,7 @@ price, extended price, internal cost and the source of the rate. Rules:
   their basis visible (production rate, stated, proposed, confirmed).
 - Handyman trip charge: shown on the estimate with an equal credit line, so it
   never adds to the total (owner rule: it is removed when the client moves
-  forward). The amount is set in Pricing setup; a cost book trip charge task
+  forward). The amount is $45 by default and can be changed in Pricing setup; a cost book trip charge task
   (01-01-08) is credited the same way and never charged twice.
 - Written quotes replace the book price and are treated as direct cost.
 - Allowances are labeled and must be approved.

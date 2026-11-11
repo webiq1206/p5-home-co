@@ -172,7 +172,7 @@ test("handyman trip charge is shown and credited, so it never adds to the total"
   assert.equal(both.totals.basePrice, 250);
   assert.equal(both.lines.filter((l) => l.price > 0 && /trip/i.test(l.description)).length, 1);
   // Not set: the cost book trip charge is priced, then credited in full.
-  const book = priceScope(doc([work, trip]), ctx({ service: "handyman" }));
+  const book = priceScope(doc([work, trip]), ctx({ service: "handyman", settings: { ...SETTINGS, handymanTripCharge: null } }));
   const charged = book.lines.find((l) => l.taskId === "trip")!.price;
   assert.ok(charged > 0);
   assert.equal(book.lines.at(-1)!.price, -charged);
@@ -492,4 +492,11 @@ test("editor input is sanitized and cannot overwrite quotes, evidence or edit hi
   // Untouched fields are not marked as edited just because empty values are spelled differently.
   const same = sanitizeTask({ ...before, title: "Renamed" }, before, valid, new Set());
   assert.deepEqual(markEdited(before, same).edited, ["title"]);
+});
+
+test("the default handyman trip charge is $45, shown and credited", () => {
+  const work = task({ costCode: null, performer: "internal", laborHours: { value: 1, basis: "confirmed" } });
+  const r = priceScope(doc([work]), ctx({ service: "handyman" }));
+  assert.deepEqual(r.lines.map((l) => l.price), [125, 45, -45]);
+  assert.equal(r.totals.basePrice, 125);
 });
