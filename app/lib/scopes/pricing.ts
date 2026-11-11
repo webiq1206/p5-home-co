@@ -6,7 +6,7 @@
  *   customer price = direct cost x (1 + contingency) / (1 - overhead - profit)
  * with the 20% unified overhead, the service's profit target and the 10%
  * project reserve. Cost book amounts are direct costs; a written quote is a
- * direct cost; internal labor follows the configured $125/hour treatment.
+ * direct cost. P5 labor is billed at the hourly rate as is, never marked up.
  *
  * Duplicate charges are avoided structurally: a bundled cost book line
  * (installed, labor plus disposal, assemblies) never also gets internal
@@ -41,6 +41,8 @@ import type {
 } from "./types.ts";
 
 export const CONTINGENCY_RATE = 0.1;
+/** Cost book line "Trip / material run charge". */
+export const TRIP_CHARGE_CODE = "01-01-08";
 
 export type PricingContext = {
   service: string;
@@ -133,14 +135,15 @@ export function priceScope(doc: ScopeDoc, ctx: PricingContext): PricingResult {
     if (!issues.some((x) => x.key === i.key)) issues.push(i);
   };
   const percentTasks: { task: ScopeTask; rate: number; source: string; item: ItemKey }[] = [];
+  const tripTaskIds = new Set<string>();
 
   const sell = (unitCost: number) => round2(unitCost * multiplier);
 
   const pushLabor = (task: ScopeTask, hours: number, basisNote: string) => {
-    const rate = settings.laborRate;
-    const billed = settings.laborTreatment !== "direct-cost";
-    const unitPrice = billed ? rate : sell(rate);
-    const unitCost = billed ? settings.laborLoadedCost : rate;
+    // Owner rule: the hourly rate is the customer's price. Overhead, reserve
+    // and profit are never added to it, on any service.
+    const unitPrice = settings.laborRate;
+    const unitCost = settings.laborLoadedCost;
     lines.push({
       id: `${task.id}:labor`,
       taskId: task.id,
@@ -155,23 +158,12 @@ export function priceScope(doc: ScopeDoc, ctx: PricingContext): PricingResult {
       unitPrice,
       price: round2(unitPrice * round2(hours)),
       basis: "internal-labor",
-      source: `Internal labor at $${rate}/hour (${
-        settings.laborTreatment === "direct-cost" ? "direct cost, markup applied" : "billed rate, no markup added"
-      }); hours: ${basisNote}`,
+      source: `P5 labor at $${unitPrice}/hour, billed as is with no markup; hours: ${basisNote}`,
       optional: task.bucket === "optional",
       allowance: false,
       laborHours: round2(hours),
       notes: [],
     });
-    if (settings.laborTreatment === "unconfirmed") {
-      issue({
-        key: "labor-rate",
-        kind: "labor-rate-unconfirmed",
-        blocking: true,
-        message:
-          "Confirm once in Pricing setup whether $125/hour is the customer billed rate or P5's direct cost. Labor is shown as a billed rate until then.",
-      });
-    }
   };
 
   /** Hours for internal labor on a task, with their basis. Null when unknown. */
@@ -322,6 +314,14 @@ export function priceScope(doc: ScopeDoc, ctx: PricingContext): PricingResult {
       continue;
     }
 
+    // Handyman trip charge from the cost book: when a trip charge is set in
+    // Pricing setup, that one is used and this task is not charged a second
+    // time; otherwise it is priced here and credited below.
+    if (ctx.service === "handyman" && entry.code === TRIP_CHARGE_CODE) {
+      if ((settings.handymanTripCharge ?? 0) > 0) continue;
+      tripTaskIds.add(task.id);
+    }
+
     // 5. Cost book line.
     const rate = costBookRate(entry.code, ctx.finishTier, ctx.service)!;
     let qty = taskQuantity(task, doc, rate.unit);
@@ -437,6 +437,49 @@ export function priceScope(doc: ScopeDoc, ctx: PricingContext): PricingResult {
     });
   }
 
+  // Handyman trip charge. Owner rule: the trip charge is shown, then removed
+  // from the total when the client moves forward with the work. The estimate
+  // is the price of moving forward, so every trip charge on it carries an
+  // equal credit and the two net to zero.
+  if (ctx.service === "handyman" && lines.some((l) => !l.optional)) {
+    const configured = settings.handymanTripCharge ?? 0;
+    const tripLine = (id: string, text: string, amount: number, source: string): EstimateLine => ({
+      id,
+      taskId: "trip-charge",
+      phase: "construction",
+      division: "01",
+      item: "Handyman Service Work",
+      description: text,
+      quantity: 1,
+      unit: "EA",
+      unitCost: 0,
+      cost: 0,
+      unitPrice: amount,
+      price: amount,
+      basis: "trip-charge",
+      source,
+      optional: false,
+      allowance: false,
+      notes: [],
+    });
+    if (configured > 0) {
+      lines.push(tripLine("trip-charge:charge", "Trip charge", configured, "Handyman trip charge from Pricing setup, billed as is"));
+    }
+    const charged = round2(
+      lines.filter((l) => !l.optional && (l.id === "trip-charge:charge" || tripTaskIds.has(l.taskId))).reduce((s, l) => s + l.price, 0),
+    );
+    if (charged > 0) {
+      lines.push(
+        tripLine(
+          "trip-charge:credit",
+          "Trip charge credit, applied because you are moving forward with this work",
+          -charged,
+          "Owner rule: the trip charge is removed from the total when the client moves forward",
+        ),
+      );
+    }
+  }
+
   // Cost book age.
   const ageDays = (now.getTime() - Date.parse(COST_BOOK_REVIEWED_AT)) / 86_400_000;
   if (ageDays > settings.priceMaxAgeDays && lines.some((l) => l.basis === "cost-book") && !ctx.acknowledged.has(costBookAgeKey())) {
@@ -468,7 +511,6 @@ export function priceScope(doc: ScopeDoc, ctx: PricingContext): PricingResult {
       profitRate: profit,
       contingencyRate: CONTINGENCY_RATE,
       laborRate: settings.laborRate,
-      laborTreatment: settings.laborTreatment,
       finishTier: ctx.finishTier,
       costBookSource: COST_BOOK_SOURCE,
       costBookVersion: COST_BOOK_VERSION,

@@ -3,7 +3,7 @@
 import { useState } from "react";
 
 import type { Division } from "../../../lib/scopes/divisions.ts";
-import type { ItemKey, LaborTreatment, ScopeSettings } from "../../../lib/scopes/types.ts";
+import type { ItemKey, ScopeSettings } from "../../../lib/scopes/types.ts";
 import { api, when } from "./client.ts";
 
 type Check = {
@@ -22,6 +22,10 @@ export default function SettingsClient({ initial, canManage, divisions }: { init
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  // Edited as text so decimals can be typed; parsed on save.
+  const [rateText, setRateText] = useState(String(initial.laborRate));
+  const [costText, setCostText] = useState(initial.laborLoadedCost === null ? "" : String(initial.laborLoadedCost));
+  const [tripText, setTripText] = useState(initial.handymanTripCharge ? String(initial.handymanTripCharge) : "");
   const [rates, setRates] = useState(
     Object.entries(initial.productionRates)
       .map(([code, r]) => `${code} ${r.hoursPerUnit}${r.note ? ` ${r.note}` : ""}`)
@@ -39,7 +43,20 @@ export default function SettingsClient({ initial, canManage, divisions }: { init
         if (!m) throw new Error(`Production rate line not understood: "${line}". Use: code hours-per-unit note`);
         productionRates[m[1]] = { hoursPerUnit: Number(m[2]), ...(m[3] ? { note: m[3] } : {}) };
       }
-      const { settings } = await api<{ settings: ScopeSettings }>("/api/admin/scopes/settings", { method: "POST", json: { ...s, productionRates } });
+      const laborRate = Number(rateText);
+      if (!Number.isFinite(laborRate) || laborRate <= 0) throw new Error("Enter the hourly rate as a number.");
+      const laborLoadedCost = costText.trim() === "" ? null : Number(costText);
+      if (laborLoadedCost !== null && (!Number.isFinite(laborLoadedCost) || laborLoadedCost < 0)) {
+        throw new Error("Enter P5's cost per hour as a number, or leave it blank.");
+      }
+      const handymanTripCharge = tripText.trim() === "" ? null : Number(tripText);
+      if (handymanTripCharge !== null && (!Number.isFinite(handymanTripCharge) || handymanTripCharge < 0)) {
+        throw new Error("Enter the trip charge as a number, or leave it blank.");
+      }
+      const { settings } = await api<{ settings: ScopeSettings }>("/api/admin/scopes/settings", {
+        method: "POST",
+        json: { ...s, laborRate, laborLoadedCost, handymanTripCharge, productionRates },
+      });
       setS(settings);
       setNotice("Saved. Open projects were re-priced.");
     } catch (e) {
@@ -69,37 +86,28 @@ export default function SettingsClient({ initial, canManage, divisions }: { init
       {!canManage && <p className="sc-alert">Only an administrator can change these settings. They are shown for reference.</p>}
 
       <section className="sc-card">
-        <h2 className="sc-h2">Internal labor</h2>
+        <h2 className="sc-h2">P5 labor</h2>
         <p>
-          The existing pricing system treats every cost book amount as a direct cost and adds overhead, the 10% reserve and profit once. It refuses to add margin to a
-          customer selling price. So $125/hour has to be identified as one or the other before it is used.
+          P5 labor is billed to the customer at this hourly rate exactly as entered. No overhead, reserve or profit is added on top of it. Estimated hours show on
+          every labor line for review.
         </p>
         <label className="sc-field">
-          <span>Rate per hour</span>
-          <input inputMode="decimal" value={s.laborRate} disabled={disabled} onChange={(e) => setS({ ...s, laborRate: Number(e.target.value) || 0 })} />
+          <span>Rate per hour (customer price)</span>
+          <input inputMode="decimal" value={rateText} disabled={disabled} onChange={(e) => setRateText(e.target.value)} />
         </label>
-        <fieldset className="sc-choices" disabled={disabled}>
-          <legend className="sc-h4">What is ${s.laborRate}/hour?</legend>
-          {(
-            [
-              ["billed-rate", `The customer's price. Bill ${s.laborRate}/hour as is; no markup on top.`],
-              ["direct-cost", `P5's loaded cost. Price it like other direct costs (about $${Math.round(s.laborRate * 1.1 / (1 - 0.2 - 0.12))}/hour to a remodel customer).`],
-              ["unconfirmed", "Not decided yet. Estimates cannot be marked ready."],
-            ] as [LaborTreatment, string][]
-          ).map(([v, l]) => (
-            <label key={v} className="sc-choice">
-              <input type="radio" name="treatment" checked={s.laborTreatment === v} onChange={() => setS({ ...s, laborTreatment: v })} />
-              <span>{l}</span>
-            </label>
-          ))}
-        </fieldset>
-        {s.confirmedBy && <p className="sc-small sc-muted">Last set by {s.confirmedBy} on {when(s.confirmedAt)}.</p>}
-        {s.laborTreatment === "billed-rate" && (
-          <label className="sc-field">
-            <span>Loaded internal cost per hour (optional, for margin only)</span>
-            <input inputMode="decimal" value={s.laborLoadedCost ?? ""} disabled={disabled} onChange={(e) => setS({ ...s, laborLoadedCost: e.target.value === "" ? null : Number(e.target.value) })} />
-          </label>
-        )}
+        <label className="sc-field">
+          <span>P5&apos;s own cost per hour (optional, only used to show internal margin)</span>
+          <input inputMode="decimal" value={costText} disabled={disabled} onChange={(e) => setCostText(e.target.value)} />
+        </label>
+        <label className="sc-field">
+          <span>Handyman trip charge (customer price)</span>
+          <input inputMode="decimal" value={tripText} disabled={disabled} onChange={(e) => setTripText(e.target.value)} />
+          <small className="sc-muted">
+            Handyman estimates show this trip charge with an equal credit, because it is removed from the total when the client moves forward. Leave blank to
+            leave it off estimates.
+          </small>
+        </label>
+        {s.confirmedBy && <p className="sc-small sc-muted">Last saved by {s.confirmedBy} on {when(s.confirmedAt)}.</p>}
       </section>
 
       <section className="sc-card">

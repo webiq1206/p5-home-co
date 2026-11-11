@@ -14,7 +14,7 @@ Workflow: **Record, Review scope, Complete details, Review pricing, Create estim
 | --- | --- | --- |
 | Project list | `/admin/scopes` | Search by client, project name or address; filter by scope and estimate status; sort; archive view; new project. Each row shows client, project, address, last updated, scope status, estimate status and project status. |
 | Workspace | `/admin/scopes/[id]` | Tabs: Record, Scope, Details (wizard), Pricing, Estimate, Files (recordings, transcripts, versions, activity, archive). |
-| Pricing setup | `/admin/scopes/settings` | Labor rate treatment, production rates, taxable items, item mapping, live QuickBooks setup check. Changes need `manage_settings`. |
+| Pricing setup | `/admin/scopes/settings` | Hourly labor rate, handyman trip charge, production rates, taxable items, item mapping, live QuickBooks setup check. Changes need `manage_settings`. |
 
 ## What was verified before building
 
@@ -25,7 +25,7 @@ Workflow: **Record, Review scope, Complete details, Review pricing, Create estim
 | Separate phase taxonomy | The finance module has its own job-costing phase registry (01 Plan, 02 Design, 03-01 to 03-24 Build, CAB-*). That is how bills are coded to QuickBooks project phases, not how estimates are divided. Scopes use Phase 1 Pre-Construction and Phase 2 Construction with cost book divisions as requested. | `app/lib/finance/phases.ts` |
 | Pricing source | The cost book is direct cost only. The margin policy in `lib/p5/pricing.ts` is reused, not copied: price = cost x 1.10 reserve / (1 - 20% overhead - service profit target). Kitchen and remodel targets are currently 12%. | `app/lib/scopes/pricing.ts` |
 | QuickBooks items | The Knowledge Center documents P5's 13 items (Direct Labor, Subcontractor Work, Project Materials, and so on). Estimate lines map to these by name; anything missing is listed in the setup check and can be mapped by id. | `itemForEntry()`, `resolveItems()` |
-| $125/hour labor | No $125 rate exists in the current pricing code. The existing system treats every book amount as direct cost and blocks margin on a selling price, so the treatment matters: as a billed rate the customer pays $125/hour; as a direct cost a remodel customer pays about $202/hour (125 x 1.10 / 0.68). **This is one owner decision in Pricing setup.** Until it is made, estimates cannot be marked ready. | `LaborTreatment` |
+| $125/hour labor | Owner rule (2026-11-11): $125/hour is the customer's price for P5 labor. It is billed as is; overhead, reserve and profit are never added to it. There is no setting that marks it up, and a test enforces it. P5's own cost per hour can be entered optionally, only to show internal margin. | `priceScope()` in `app/lib/scopes/pricing.ts` |
 | Tax | The Knowledge Center records Idaho sales tax treatment as an open CPA decision. Lines are sent with tax code `NON` unless an item is marked taxable in Pricing setup. | `taxableItems` |
 | Estimate status available | QuickBooks Online exposes `TxnStatus` (Pending, Accepted, Closed, Rejected), `EmailStatus`, `AcceptedBy`, `AcceptedDate` and linked invoices. Labels use only these. | `app/lib/scopes/estimate.ts` |
 | QuickBooks projects | The accounting API models a project as a sub-customer. The platform links an existing one or asks QuickBooks to create one, then reads back `IsProject` and reports what QuickBooks actually holds. | `createProjectInQbo()` |
@@ -95,8 +95,12 @@ price, extended price, internal cost and the source of the rate. Rules:
   also get internal labor.
 - A labor-only cost book line is replaced by internal labor when P5's crew
   does the work; a material-only line gets internal labor added once.
-- Internal labor is $125/hour with its hours and their basis visible
-  (production rate, stated, proposed, confirmed).
+- P5 labor is $125/hour, billed as is and never marked up, with its hours and
+  their basis visible (production rate, stated, proposed, confirmed).
+- Handyman trip charge: shown on the estimate with an equal credit line, so it
+  never adds to the total (owner rule: it is removed when the client moves
+  forward). The amount is set in Pricing setup; a cost book trip charge task
+  (01-01-08) is credited the same way and never charged twice.
 - Written quotes replace the book price and are treated as direct cost.
 - Allowances are labeled and must be approved.
 - Percentage lines are computed from construction direct cost.
@@ -168,16 +172,17 @@ PDF are served inline; anything else downloads as a plain file.
 ## Before first use
 
 1. `npm run db:migrate` (adds the tables above).
-2. An administrator opens **Pricing setup** and decides the $125/hour treatment.
-3. **Check QuickBooks now** confirms the estimate items exist in P5's company
-   and shows whether QuickBooks holds numbered divisions.
-4. Optional: add approved production rates so labor hours stop being asked.
+2. An administrator opens **Pricing setup**, enters the handyman trip charge,
+   and taps **Check QuickBooks now** to confirm the estimate items exist in
+   P5's company and to see whether QuickBooks holds numbered divisions.
+3. Optional: add approved production rates so labor hours stop being asked.
 
 ## Tests
 
 - `tests/scope-platform.test.ts`: division registry against the cost book,
   margin formula, estimated vs documented quantities, one answer updating
-  several tasks, bundled-labor and labor-only rules, labor treatment, quotes,
+  several tasks, bundled-labor and labor-only rules, labor never marked up, handyman
+  trip charge credit, quotes,
   optional upgrades, suggestions, conflicts, deferral, merge rules, estimate
   payload grouping and totals, status labels, drift detection, normalization.
 - `tests/scope-platform.db.test.ts`: the same workflow against a real

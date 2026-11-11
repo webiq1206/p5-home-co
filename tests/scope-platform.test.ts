@@ -19,7 +19,7 @@ import {
 } from "../app/lib/scopes/types.ts";
 
 const NOW = new Date("2026-11-11T12:00:00Z");
-const SETTINGS: ScopeSettings = { ...DEFAULT_SCOPE_SETTINGS, laborTreatment: "billed-rate" };
+const SETTINGS: ScopeSettings = { ...DEFAULT_SCOPE_SETTINGS };
 const ctx = (over: Partial<Parameters<typeof priceScope>[1]> = {}) => ({
   service: "kitchen",
   finishTier: "mid" as const,
@@ -145,15 +145,41 @@ test("material only plus internal crew adds material and labor once each", () =>
   assert.ok(qs.some((q) => q.key === "hours:t1" && q.suggested === 8), "proposed hours go to review with the proposal pre-filled");
 });
 
-test("direct-cost labor treatment marks labor up; unconfirmed treatment blocks", () => {
+test("P5 labor is never marked up: $125/hour is the customer's price on every service", () => {
   const d = doc([task({ costCode: null, performer: "internal", laborHours: { value: 2, basis: "confirmed" } })]);
-  const direct = priceScope(d, ctx({ settings: { ...SETTINGS, laborTreatment: "direct-cost" } }));
-  const { multiplier } = priceMultiplier("kitchen", NOW);
-  assert.equal(direct.lines[0].unitPrice, round2(125 * multiplier));
-  assert.equal(direct.lines[0].cost, 250);
-  const unconfirmed = priceScope(d, ctx({ settings: DEFAULT_SCOPE_SETTINGS }));
-  assert.ok(unconfirmed.issues.some((i) => i.kind === "labor-rate-unconfirmed" && i.blocking));
-  assert.equal(readiness(d, unconfirmed, []).status, "needs_information");
+  for (const service of ["kitchen", "remodel", "new-construction", "cabinet-install"]) {
+    const r = priceScope(d, ctx({ service }));
+    assert.equal(r.lines[0].unitPrice, 125, service);
+    assert.equal(r.lines[0].price, 250, service);
+    assert.equal(r.issues.length, 0, "nothing to confirm about the rate");
+  }
+  // Knowing P5's own cost changes the margin shown internally, never the price.
+  const withCost = priceScope(d, ctx({ settings: { ...SETTINGS, laborLoadedCost: 80 } }));
+  assert.equal(withCost.lines[0].price, 250);
+  assert.equal(withCost.lines[0].cost, 160);
+  assert.equal(readiness(d, withCost, []).status, "ready");
+});
+
+test("handyman trip charge is shown and credited, so it never adds to the total", () => {
+  const work = task({ costCode: null, performer: "internal", laborHours: { value: 2, basis: "confirmed" } });
+  // Set in Pricing setup: one charge line, one equal credit, net zero.
+  const set = priceScope(doc([work]), ctx({ service: "handyman", settings: { ...SETTINGS, handymanTripCharge: 75 } }));
+  assert.deepEqual(set.lines.map((l) => l.price), [250, 75, -75]);
+  assert.equal(set.totals.basePrice, 250);
+  // A trip charge task from the cost book is not charged twice when one is set.
+  const trip = task({ id: "trip", title: "Trip charge", division: "01", costCode: "01-01-08", quantity: { value: 1, unit: "EA" } });
+  const both = priceScope(doc([work, trip]), ctx({ service: "handyman", settings: { ...SETTINGS, handymanTripCharge: 75 } }));
+  assert.equal(both.totals.basePrice, 250);
+  assert.equal(both.lines.filter((l) => l.price > 0 && /trip/i.test(l.description)).length, 1);
+  // Not set: the cost book trip charge is priced, then credited in full.
+  const book = priceScope(doc([work, trip]), ctx({ service: "handyman" }));
+  const charged = book.lines.find((l) => l.taskId === "trip")!.price;
+  assert.ok(charged > 0);
+  assert.equal(book.lines.at(-1)!.price, -charged);
+  assert.equal(book.totals.basePrice, 250);
+  // Other services are untouched, and a handyman job with nothing priced gets no stray lines.
+  assert.equal(priceScope(doc([work]), ctx({ service: "kitchen", settings: { ...SETTINGS, handymanTripCharge: 75 } })).lines.length, 1);
+  assert.equal(priceScope(doc([]), ctx({ service: "handyman", settings: { ...SETTINGS, handymanTripCharge: 75 } })).lines.length, 0);
 });
 
 test("unmatched work asks for a quote; the answer prices it as a written quote", () => {

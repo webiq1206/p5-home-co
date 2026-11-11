@@ -178,7 +178,8 @@ export type PriceBasis =
   | "written-quote"
   | "internal-labor"
   | "allowance"
-  | "percentage";
+  | "percentage"
+  | "trip-charge";
 
 export type EstimateLine = {
   id: string;
@@ -215,7 +216,6 @@ export type PricingIssue = {
     | "outdated-price"
     | "proposed-hours"
     | "allowance-unapproved"
-    | "labor-rate-unconfirmed"
     | "item-unmapped";
   blocking: boolean;
   message: string;
@@ -236,26 +236,25 @@ export type PricingResult = {
     profitRate: number;
     contingencyRate: number;
     laborRate: number;
-    laborTreatment: LaborTreatment;
     finishTier: string;
     costBookSource: string;
     costBookVersion: string;
   };
 };
 
-/**
- * How the $125/hour internal labor rate is treated.
- *  billed-rate  - $125 is what the customer pays per hour. No markup is added on top.
- *  direct-cost  - $125 is P5's loaded cost per hour. Overhead, contingency and profit are applied.
- *  unconfirmed  - nobody has decided yet; labor is shown but the estimate cannot be marked ready.
- */
-export type LaborTreatment = "billed-rate" | "direct-cost" | "unconfirmed";
-
 export type ScopeSettings = {
+  /**
+   * What the customer pays per hour of P5 labor. Owner rule: this is the
+   * billed rate. Overhead, reserve and profit are never added on top of it.
+   */
   laborRate: number;
-  laborTreatment: LaborTreatment;
-  /** Loaded internal cost per hour, used for margin when the rate is a billed rate. */
+  /** P5's own cost per hour. Optional, used only to show internal margin. */
   laborLoadedCost: number | null;
+  /**
+   * Handyman trip charge, as the customer price. Shown on handyman estimates
+   * with an equal credit, because it is removed when the client moves forward.
+   */
+  handymanTripCharge?: number | null;
   /** Hours per cost-book unit, keyed by cost code. Approved production rates. */
   productionRates: Record<string, { hoursPerUnit: number; note?: string }>;
   /** Cost codes that are taxable on the customer estimate. Empty until the CPA decides. */
@@ -270,7 +269,6 @@ export type ScopeSettings = {
 
 export const DEFAULT_SCOPE_SETTINGS: ScopeSettings = {
   laborRate: 125,
-  laborTreatment: "unconfirmed",
   laborLoadedCost: null,
   productionRates: {},
   taxableItems: [],

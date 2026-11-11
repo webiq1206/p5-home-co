@@ -1,5 +1,5 @@
 /**
- * Pricing setup: the $125/hour labor treatment, loaded labor cost, production
+ * Pricing setup: the hourly labor rate (billed as is, never marked up), production
  * rates, taxable items and item mapping, plus a live check of what the
  * connected QuickBooks company contains. Reading is open to employees;
  * changing requires the manage_settings permission.
@@ -11,7 +11,7 @@ import { P5_ITEMS, setupCheck } from "../../../../lib/scopes/qbo.ts";
 import { loadScopeSettings, saveScopeSettings } from "../../../../lib/scopes/store.ts";
 import { costBookEntry } from "../../../../lib/scopes/costbook.ts";
 import { query } from "../../../../lib/db.ts";
-import type { ItemKey, LaborTreatment, ScopeSettings } from "../../../../lib/scopes/types.ts";
+import type { ItemKey, ScopeSettings } from "../../../../lib/scopes/types.ts";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -25,8 +25,6 @@ export async function GET(request: Request) {
   return ok({ settings, check, canManage: canManagePricing(g.user) });
 }
 
-const TREATMENTS: LaborTreatment[] = ["billed-rate", "direct-cost", "unconfirmed"];
-
 export async function POST(request: Request) {
   const g = await requireEmployee();
   if ("response" in g) return g.response;
@@ -36,8 +34,10 @@ export async function POST(request: Request) {
     const current = await loadScopeSettings();
     const next: ScopeSettings = { ...current };
     if (typeof body.laborRate === "number" && body.laborRate > 0 && body.laborRate < 1000) next.laborRate = body.laborRate;
-    if (body.laborTreatment && TREATMENTS.includes(body.laborTreatment)) next.laborTreatment = body.laborTreatment;
     if (body.laborLoadedCost === null || (typeof body.laborLoadedCost === "number" && body.laborLoadedCost >= 0)) next.laborLoadedCost = body.laborLoadedCost ?? null;
+    if (body.handymanTripCharge === null || (typeof body.handymanTripCharge === "number" && body.handymanTripCharge >= 0 && body.handymanTripCharge < 10_000)) {
+      next.handymanTripCharge = body.handymanTripCharge || null;
+    }
     if (typeof body.priceMaxAgeDays === "number" && body.priceMaxAgeDays >= 30) next.priceMaxAgeDays = Math.round(body.priceMaxAgeDays);
     if (Array.isArray(body.taxableItems)) next.taxableItems = body.taxableItems.filter((i): i is ItemKey => P5_ITEMS.includes(i as ItemKey));
     if (body.itemOverrides && typeof body.itemOverrides === "object") {
@@ -52,10 +52,8 @@ export async function POST(request: Request) {
           .map(([code, r]) => [code, { hoursPerUnit: r.hoursPerUnit, note: r.note?.slice(0, 200) }]),
       );
     }
-    if (next.laborTreatment !== current.laborTreatment) {
-      next.confirmedBy = g.user.fullName;
-      next.confirmedAt = new Date().toISOString();
-    }
+    next.confirmedBy = g.user.fullName;
+    next.confirmedAt = new Date().toISOString();
     await saveScopeSettings(next, g.user.id);
     // Re-price open projects so their status reflects the new setup.
     const open = await query<{ id: string }>("SELECT id FROM scope_project WHERE archived_at IS NULL AND current_version_id IS NOT NULL");

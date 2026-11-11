@@ -7,8 +7,6 @@
  * carries descriptions, quantities and selling prices, never costs.
  */
 
-import Link from "next/link";
-
 import { divisionLabel, groupByPhaseDivision, phaseName } from "../../../lib/scopes/divisions.ts";
 import { money, type Workspace } from "./client.ts";
 
@@ -18,6 +16,7 @@ const BASIS: Record<string, string> = {
   "internal-labor": "P5 labor",
   allowance: "Allowance",
   percentage: "Percentage",
+  "trip-charge": "Trip charge",
 };
 
 export default function PricingView({ ws, onDetails }: { ws: Workspace; onDetails: () => void }) {
@@ -39,18 +38,8 @@ export default function PricingView({ ws, onDetails }: { ws: Workspace; onDetail
           <div><dt>P5 labor hours</dt><dd>{p.totals.laborHours}</dd></div>
         </dl>
         <p className="sc-small sc-muted">
-          Price = direct cost × (1 + {Math.round(p.policy.contingencyRate * 100)}% reserve) ÷ (1 − {Math.round(p.policy.overheadRate * 100)}% overhead − {Math.round(p.policy.profitRate * 100)}% profit). Cost book: {p.policy.costBookSource}, {p.policy.finishTier} tier. Internal labor ${p.policy.laborRate}/hour,{" "}
-          {p.policy.laborTreatment === "billed-rate"
-            ? "treated as the billed rate (no markup added)."
-            : p.policy.laborTreatment === "direct-cost"
-              ? "treated as P5's direct cost (markup applied)."
-              : "treatment not yet confirmed."}
+          Price = direct cost × (1 + {Math.round(p.policy.contingencyRate * 100)}% reserve) ÷ (1 − {Math.round(p.policy.overheadRate * 100)}% overhead − {Math.round(p.policy.profitRate * 100)}% profit). Cost book: {p.policy.costBookSource}, {p.policy.finishTier} tier. P5 labor is billed at ${p.policy.laborRate}/hour as is, with no markup.
         </p>
-        {ws.settings.laborTreatment === "unconfirmed" && (
-          <p className="sc-alert sc-alert-warn">
-            The $125/hour treatment has not been confirmed. <Link href="/admin/scopes/settings">Pricing setup</Link> needs one decision before any estimate can be marked ready.
-          </p>
-        )}
         {blocking.length > 0 && (
           <div className="sc-alert sc-alert-warn">
             <b>{blocking.length} pricing item{blocking.length === 1 ? "" : "s"} still open.</b>{" "}

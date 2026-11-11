@@ -24,7 +24,7 @@ test("scope platform over Postgres", { skip: !url && "TEST_DATABASE_URL not set"
   const user = await db.queryOne<{ id: string }>("SELECT id FROM app_user ORDER BY id LIMIT 1");
   assert.ok(user, "seed an app_user first");
   const uid = Number(user.id);
-  await store.saveScopeSettings({ ...DEFAULT_SCOPE_SETTINGS, laborTreatment: "billed-rate" }, uid);
+  await store.saveScopeSettings({ ...DEFAULT_SCOPE_SETTINGS }, uid);
 
   const id = await store.createProject(uid, { title: "Kitchen refresh", client_last_name: "Testerson", project_address: "123 Test St, Boise", service: "kitchen" });
 

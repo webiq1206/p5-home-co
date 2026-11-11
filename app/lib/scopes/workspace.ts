@@ -75,7 +75,7 @@ export type Workspace = {
     snapshots: { syncToken: string | null; source: string; capturedAt: string; total: number | null }[];
   };
   qbo: { configured: boolean; connected: boolean; lastSuccess: string | null; error: string | null; sandbox: boolean };
-  settings: Pick<ScopeSettings, "laborRate" | "laborTreatment" | "laborLoadedCost">;
+  settings: Pick<ScopeSettings, "laborRate" | "laborLoadedCost">;
   events: { kind: string; detail: unknown; at: string; who: string | null }[];
 };
 
@@ -169,7 +169,7 @@ export async function loadWorkspace(projectId: number): Promise<Workspace | null
         }
       : null,
     qbo: { configured: state.configured, connected: state.connected, lastSuccess: iso(state.lastSuccess), error: state.error, sandbox: isSandbox() },
-    settings: { laborRate: settings.laborRate, laborTreatment: settings.laborTreatment, laborLoadedCost: settings.laborLoadedCost },
+    settings: { laborRate: settings.laborRate, laborLoadedCost: settings.laborLoadedCost },
     events: events.map((e) => ({ kind: e.kind, detail: e.detail, at: iso(e.created_at)!, who: e.actor_name })),
   };
 }
