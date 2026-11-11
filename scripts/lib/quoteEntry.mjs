@@ -173,6 +173,8 @@ export async function verifyConstructionEntry(page, path) {
   await page.getByTestId('input-name').fill('Synthetic Navigation Check');
   await page.getByTestId('input-phone').fill('2085550102');
   await options.locator('summary').click();
+  // The optional project address leads the toggle (owner, 11 November): a new build often has none yet.
+  assert.equal(await options.getByTestId('input-project-address').evaluate(el=>el===el.closest('details').querySelector('input,select,textarea')&&el.getAttribute('aria-required')!=='true'&&!el.required),true,'Optional project address is the first field in the toggle');
   await page.getByTestId('button-preferred-contact-email').click();
   await page.getByTestId('input-email').fill('invalid');
   await send.click();await focused('input-email');
