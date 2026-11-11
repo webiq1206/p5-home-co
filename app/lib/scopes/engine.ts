@@ -9,7 +9,8 @@
  * so the exact state behind any estimate can always be shown again.
  */
 
-import { query } from "../db.ts";
+import { query, queryOne } from "../db.ts";
+import type { FinancePolicy } from "../../../lib/p5/pricing.ts";
 import type { FinishTier } from "../../../lib/p5/priceBook.ts";
 import { extractScope, transcribe, type SourceInput } from "./ai.ts";
 import { supportingSuggestions } from "./checklist.ts";
@@ -17,7 +18,7 @@ import { costBookEntry } from "./costbook.ts";
 import { classify, prepareForModel, readBytes } from "./files.ts";
 import { applyAnswer, deriveQuestions, readiness, reconcileMeasurements, type AnswerState } from "./gaps.ts";
 import { applyChanges, diffScopes, markEdited, type Proposal } from "./merge.ts";
-import { carryForward, normalizeScope } from "./normalize.ts";
+import { carryForward, normalizeScope, sanitizeTask } from "./normalize.ts";
 import { costBookAgeKey, priceScope } from "./pricing.ts";
 import {
   assetStorage,
@@ -39,7 +40,7 @@ import {
   type VersionRow,
 } from "./store.ts";
 import type { Answer, PricingResult, Question, ScopeDoc, ScopeSettings, ScopeTask } from "./types.ts";
-import { emptyScope } from "./types.ts";
+import { canonical, emptyScope } from "./types.ts";
 
 export type Computed = {
   doc: ScopeDoc;
@@ -57,10 +58,20 @@ async function answerState(projectId: number): Promise<{ state: AnswerState; ack
   return { state: new Map(rows.map((r) => [r.question_key, { status: r.status }])), acknowledged };
 }
 
+/** The finance policy the estimator has saved, if any; the approved default otherwise. */
+async function savedFinance(): Promise<FinancePolicy | undefined> {
+  const row = await queryOne<{ finance: FinancePolicy | null }>(
+    "SELECT payload->'finance' AS finance FROM p5_estimator_policy WHERE id = 'current'",
+  ).catch(() => null);
+  const f = row?.finance;
+  return f && typeof f.annualOverhead === "number" ? f : undefined;
+}
+
 export async function compute(project: ProjectRow, doc: ScopeDoc, settings?: ScopeSettings): Promise<Computed> {
   const s = settings ?? (await loadScopeSettings());
   const { state, acknowledged } = await answerState(project.id);
   const pricing = priceScope(doc, {
+    finance: await savedFinance(),
     service: project.service,
     finishTier: (project.finish_tier as FinishTier) || "mid",
     settings: s,
@@ -126,6 +137,7 @@ export async function currentDoc(project: ProjectRow): Promise<{ version: Versio
 // ---------------------------------------------------------------------------
 
 const TEXT_BUDGET = 400_000;
+const MAX_IMAGES = 30;
 
 export async function processProject(projectId: number, userId: number): Promise<{ ok: boolean; message: string }> {
   if (!(await claimProcessing(projectId, "Transcribing recordings"))) {
@@ -136,24 +148,25 @@ export async function processProject(projectId: number, userId: number): Promise
     const assets = await listAssets(projectId);
     const failures: string[] = [];
 
-    // 1. Transcribe audio that has not been transcribed yet.
-    for (const a of assets) {
-      const audio = a.kind === "recording" || (a.kind === "note" && a.mime_type && classify(a.file_name ?? "", a.mime_type) === "audio");
-      if (!audio || a.state === "ready") continue;
+    // 1. Transcribe audio that has not been transcribed yet, three parts at a time.
+    const pendingAudio = assets.filter((a) => {
+      const audio = a.kind === "recording" || (a.kind === "note" && classify(a.file_name ?? "", a.mime_type ?? "") === "audio");
+      return audio && a.state !== "ready";
+    });
+    const transcribeOne = async (a: (typeof assets)[number]) => {
       await updateAsset(a.id, { state: "transcribing", error: null });
       try {
         const store = await assetStorage(projectId, a.id);
         const data = await readBytes(store!);
         const t = await transcribe(data, a.file_name ?? "recording.webm", a.mime_type ?? "audio/webm");
         await updateAsset(a.id, { state: "ready", transcript: t, duration_seconds: t.duration ?? a.duration_seconds });
-        a.state = "ready";
-        a.transcript = t;
       } catch (error) {
         const message = (error as Error).message;
         await updateAsset(a.id, { state: "failed", error: message });
         failures.push(`${a.label || a.file_name}: ${message}`);
       }
-    }
+    };
+    for (let i = 0; i < pendingAudio.length; i += 3) await Promise.all(pendingAudio.slice(i, i + 3).map(transcribeOne));
 
     // 2. Gather every usable source. Files the model has already read are not
     //    sent again (the current scope carries what they said); all text is.
@@ -161,6 +174,7 @@ export async function processProject(projectId: number, userId: number): Promise
     const { version: current, doc: currentScope } = await currentDoc(project);
     const sources: SourceInput[] = [];
     let budget = TEXT_BUDGET;
+    let images = 0;
     for (const a of await listAssets(projectId)) {
       const base = { assetId: a.id, kind: a.kind, label: a.label || a.file_name || a.kind, createdAt: new Date(a.created_at).toISOString() };
       if (a.transcript && a.state === "ready") {
@@ -178,7 +192,13 @@ export async function processProject(projectId: number, userId: number): Promise
         const store = await assetStorage(projectId, a.id);
         try {
           const data = await readBytes(store!);
-          sources.push({ ...base, prepared: await prepareForModel(a.file_name ?? "file", a.mime_type ?? "", data), bodyText: a.body_text });
+          const prepared = await prepareForModel(a.file_name ?? "file", a.mime_type ?? "", data);
+          if (prepared.kind === "image" && ++images > MAX_IMAGES) {
+            failures.push(`${a.label || a.file_name}: more than ${MAX_IMAGES} photos in one update; run Update scope again to read the rest.`);
+            continue;
+          }
+          if (prepared.kind === "none") failures.push(prepared.reason);
+          sources.push({ ...base, prepared, bodyText: a.body_text });
         } catch (error) {
           failures.push(`${a.label || a.file_name}: ${(error as Error).message}`);
         }
@@ -196,7 +216,7 @@ export async function processProject(projectId: number, userId: number): Promise
       [project.client_last_name ?? "", (project.project_address ?? "").split(",")[0].trim()],
     ).catch(() => []);
 
-    const raw = await extractScope({
+    const extractInput = {
       project: {
         title: project.title,
         service: project.service,
@@ -214,33 +234,49 @@ export async function processProject(projectId: number, userId: number): Promise
       sources,
       customerRecords: customerRecords.map((c) => `${c.display_name} ${JSON.stringify({ email: (c.raw as { PrimaryEmailAddr?: { Address?: string } }).PrimaryEmailAddr?.Address, address: (c.raw as { BillAddr?: unknown }).BillAddr })}`),
       productionRateCodes: Object.keys(settings.productionRates),
-    });
+    };
+    let raw: unknown;
+    try {
+      raw = await extractScope(extractInput);
+    } catch (error) {
+      // A PDF the model cannot open (too many pages, scanned at huge size) must
+      // not sink the whole scope: retry once with PDFs as extracted text only.
+      if (!sources.some((x) => x.prepared?.kind === "pdf")) throw error;
+      raw = await extractScope({
+        ...extractInput,
+        sources: sources.map((x) => (x.prepared?.kind === "pdf" ? { ...x, prepared: { kind: "text" as const, text: x.prepared.text || "(no readable text in this PDF)" } } : x)),
+      });
+      failures.push(`PDFs were read as text only (${(error as Error).message.slice(0, 120)})`);
+    }
     const generated = carryForward(
       current ? currentScope : null,
       normalizeScope(raw, { assetIds: assets.map((a) => a.id), validCostCode: (c) => Boolean(costBookEntry(c)) }),
     );
 
     let message: string;
-    let versionId: number;
+    const sourceIds = sources.map((x) => x.assetId);
+    const markUsed = async (versionId: number) => {
+      for (const id of sourceIds) await updateAsset(id, { used_in_version: versionId });
+    };
     if (!current) {
       const { version, computed } = await commitDoc(project, generated, "generated", "First scope from the project material", userId);
-      versionId = version.id;
-      message = computed.questions.some((q) => q.blocking)
-        ? `Scope ready for review. ${computed.questions.filter((q) => q.blocking).length} detail(s) still needed.`
-        : "Scope ready for review. Nothing else is needed.";
+      await markUsed(version.id);
+      const need = computed.questions.filter((q) => q.blocking).length;
+      message = need ? `Scope ready for review. ${need} detail(s) still needed.` : "Scope ready for review. Nothing else is needed.";
     } else {
       const changes = diffScopes(currentScope, generated);
-      versionId = current.id;
-      if (!changes.some((c) => !c.informational)) {
-        await setProjectState(projectId, { pending_proposal: changes.length ? { changes, generated, createdAt: new Date().toISOString() } : null });
-        message = changes.length ? "No changes to apply. Some differences were noted for review." : "The new material did not change the scope.";
+      const applicable = changes.filter((c) => !c.informational).length;
+      if (!changes.length) {
+        await setProjectState(projectId, { pending_proposal: null });
+        await markUsed(current.id);
+        message = "The new material did not change the scope.";
       } else {
-        const proposal: Proposal = { changes, generated, createdAt: new Date().toISOString() };
+        // Files stay "not yet in the scope" until the proposal is accepted or dismissed.
+        const proposal: Proposal = { changes, generated, createdAt: new Date().toISOString(), sourceIds };
         await setProjectState(projectId, { pending_proposal: proposal });
-        message = `${changes.filter((c) => !c.informational).length} proposed change(s) to review.`;
+        message = applicable ? `${applicable} proposed change(s) to review.` : "No changes to apply. Some differences were noted for review.";
       }
     }
-    for (const s of sources) await updateAsset(s.assetId, { used_in_version: versionId });
     await logEvent(projectId, "processed", { sources: sources.length, failures }, userId);
     return { ok: true, message: failures.length ? `${message} Could not read: ${failures.join(" ")}` : message };
   } catch (error) {
@@ -261,11 +297,16 @@ export async function acceptProposal(projectId: number, acceptedIds: string[], u
   const { doc } = await currentDoc(project);
   const next = applyChanges(doc, project.pending_proposal, acceptedIds);
   const { version } = await commitDoc(project, next, "regenerated", `Accepted ${acceptedIds.length} proposed change(s)`, userId, { clearProposal: true });
+  for (const id of project.pending_proposal.sourceIds ?? []) await updateAsset(id, { used_in_version: version.id });
   await logEvent(projectId, "proposal-accepted", { accepted: acceptedIds.length, of: project.pending_proposal.changes.length }, userId);
   return version;
 }
 
 export async function rejectProposal(projectId: number, userId: number): Promise<void> {
+  const project = (await getProject(projectId))!;
+  if (project.pending_proposal && project.current_version_id) {
+    for (const id of project.pending_proposal.sourceIds ?? []) await updateAsset(id, { used_in_version: project.current_version_id });
+  }
   await setProjectState(projectId, { pending_proposal: null });
   await logEvent(projectId, "proposal-rejected", null, userId);
 }
@@ -287,7 +328,8 @@ export async function editScope(projectId: number, ops: EditOp[], userId: number
     switch (o.op) {
       case "task": {
         const before = doc.tasks.find((t) => t.id === o.task.id);
-        const task = markEdited(before, { ...o.task, evidence: o.task.evidence ?? before?.evidence ?? [] });
+        const clean = sanitizeTask(o.task, before, (c) => Boolean(costBookEntry(c)), new Set(doc.measurements.map((m) => m.id)));
+        const task = markEdited(before, clean);
         doc = { ...doc, tasks: before ? doc.tasks.map((t) => (t.id === task.id ? task : t)) : [...doc.tasks, { ...task, origin: "manual" }] };
         break;
       }
@@ -341,9 +383,8 @@ export async function answerQuestion(input: {
   if (!input.answer) throw new Error("Enter an answer, or save it for later.");
   await saveAnswer(input.projectId, input.key, "answered", input.answer, input.assetId, input.userId);
   if (input.key.startsWith("price-age:")) {
-    // A one-time acknowledgement; re-price so status updates.
-    const { doc } = await currentDoc(project);
-    await commitDoc(project, doc, "answer", "Cost book prices confirmed current", input.userId);
+    // A one-time acknowledgement, not a scope change. "Not yet" keeps it open.
+    if ("value" in input.answer && input.answer.value === true) await reprice(input.projectId, input.userId, "Cost book prices confirmed current");
     return;
   }
   const { doc } = await currentDoc(project);
@@ -357,7 +398,7 @@ export async function reprice(projectId: number, userId: number, note: string): 
   const { version, doc } = await currentDoc(project);
   if (!version) return;
   const computed = await compute(project, doc);
-  if (JSON.stringify(computed.pricing) === JSON.stringify(version.pricing)) {
+  if (canonical(computed.pricing) === canonical(version.pricing)) {
     if (computed.readiness.status !== project.scope_status) await setProjectState(projectId, { scope_status: computed.readiness.status });
     return;
   }

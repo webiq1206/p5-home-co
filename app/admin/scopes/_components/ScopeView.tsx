@@ -31,13 +31,19 @@ export default function ScopeView({ ws, onWorkspace, onPlay }: Props) {
   const dismissed = doc.tasks.filter((t) => t.dismissed);
   const byBucket = (b: Bucket) => live.filter((t) => t.bucket === b && t.certainty !== "suggested");
 
-  const run = async (ops: unknown[]) => {
+  const run = async (ops: unknown[]): Promise<boolean> => {
     setError(null);
     try {
       onWorkspace(await edit(ws.project.id, ops));
+      return true;
     } catch (e) {
       setError((e as Error).message);
+      return false;
     }
+  };
+  /** For editors: throws, so the form stays open with its message when a save fails. */
+  const saveTask = async (t: ScopeTask) => {
+    onWorkspace(await edit(ws.project.id, [{ op: "task", task: t }]));
   };
 
   if (!ws.version) {
@@ -46,7 +52,7 @@ export default function ScopeView({ ws, onWorkspace, onPlay }: Props) {
         <h2 className="sc-h2">No scope yet</h2>
         <p>Record the walkthrough or add notes and files, then build the scope. You can also add tasks by hand.</p>
         <button type="button" className="sc-btn" onClick={() => setAdding(true)}>Add a task by hand</button>
-        {adding && <TaskEditor projectId={ws.project.id} onSave={(t) => run([{ op: "task", task: t }]).then(() => setAdding(false))} onCancel={() => setAdding(false)} />}
+        {adding && <TaskEditor projectId={ws.project.id} onSave={(t) => saveTask(t).then(() => setAdding(false))} onCancel={() => setAdding(false)} />}
         {error && <p className="sc-alert sc-alert-bad" role="alert">{error}</p>}
       </section>
     );
@@ -123,7 +129,7 @@ export default function ScopeView({ ws, onWorkspace, onPlay }: Props) {
                   <div key={d.code} className="sc-division">
                     <h4 className="sc-h4">Division {divisionLabel(d.code)}</h4>
                     {d.items.map((t) => (
-                      <TaskCard key={t.id} t={t} ws={ws} onPlay={onPlay} run={run} />
+                      <TaskCard key={t.id} t={t} ws={ws} onPlay={onPlay} run={run} saveTask={saveTask} />
                     ))}
                   </div>
                 ))}
@@ -138,7 +144,7 @@ export default function ScopeView({ ws, onWorkspace, onPlay }: Props) {
           <h2 className="sc-h2">Add work</h2>
           {!adding && <button type="button" className="sc-btn" onClick={() => setAdding(true)}>Add a task</button>}
         </div>
-        {adding && <TaskEditor projectId={ws.project.id} onSave={(t) => run([{ op: "task", task: t }]).then(() => setAdding(false))} onCancel={() => setAdding(false)} />}
+        {adding && <TaskEditor projectId={ws.project.id} onSave={(t) => saveTask(t).then(() => setAdding(false))} onCancel={() => setAdding(false)} />}
       </section>
 
       <section className="sc-card">
@@ -179,7 +185,7 @@ export default function ScopeView({ ws, onWorkspace, onPlay }: Props) {
   );
 }
 
-function TaskCard({ t, ws, onPlay, run }: { t: ScopeTask; ws: Workspace; onPlay: (e: Evidence) => void; run: (ops: unknown[]) => Promise<void> }) {
+function TaskCard({ t, ws, onPlay, run, saveTask }: { t: ScopeTask; ws: Workspace; onPlay: (e: Evidence) => void; run: (ops: unknown[]) => Promise<boolean>; saveTask: (t: ScopeTask) => Promise<void> }) {
   const [editing, setEditing] = useState(false);
   const m = t.quantity?.measurementId ? ws.doc.measurements.find((x) => x.id === t.quantity!.measurementId) : null;
   const qty = m
@@ -194,7 +200,7 @@ function TaskCard({ t, ws, onPlay, run }: { t: ScopeTask; ws: Workspace; onPlay:
   const issues = ws.pricing.issues.filter((i) => i.taskId === t.id);
 
   if (editing) {
-    return <TaskEditor projectId={ws.project.id} initial={t} onSave={(next) => run([{ op: "task", task: next }]).then(() => setEditing(false))} onCancel={() => setEditing(false)} />;
+    return <TaskEditor projectId={ws.project.id} initial={t} onSave={(next) => saveTask(next).then(() => setEditing(false))} onCancel={() => setEditing(false)} />;
   }
   return (
     <article className={`sc-task sc-task-${t.certainty}`}>
@@ -257,16 +263,46 @@ function TaskEditor({ projectId, initial, onSave, onCancel }: { projectId: numbe
     },
   );
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  // Numbers are edited as text so decimals can be typed, and parsed on save.
+  const [qtyText, setQtyText] = useState(t.quantity?.measurementId ? "" : String(t.quantity?.value ?? ""));
+  const [hoursText, setHoursText] = useState(String(t.laborHours?.value ?? ""));
   const set = <K extends keyof ScopeTask>(k: K, v: ScopeTask[K]) => setT((x) => ({ ...x, [k]: v }));
   void projectId;
+
+  function build(): ScopeTask {
+    const next: ScopeTask = { ...t, description: t.description || t.title, materials: (t.materials ?? []).map((m) => m.trim()).filter(Boolean) };
+    const unit = t.quantity?.unit ?? null;
+    if (qtyText.trim() === "") {
+      next.quantity = t.quantity?.measurementId ? t.quantity : unit ? { value: null, unit } : null;
+    } else {
+      const value = Number(qtyText.replace(/,/g, ""));
+      if (!Number.isFinite(value) || value < 0) throw new Error("Quantity must be a number.");
+      next.quantity = { measurementId: null, value, unit: unit ?? "EA", estimated: false };
+    }
+    if (hoursText.trim() === "") {
+      next.laborHours = initial?.laborHours && initial.laborHours.value === null ? initial.laborHours : null;
+    } else {
+      const value = Number(hoursText.replace(/,/g, ""));
+      if (!Number.isFinite(value) || value < 0) throw new Error("Hours must be a number.");
+      next.laborHours = initial?.laborHours?.value === value ? initial.laborHours : { value, basis: "confirmed" };
+    }
+    return next;
+  }
   return (
     <form
       className="sc-editor"
       onSubmit={async (e) => {
         e.preventDefault();
         if (!t.title.trim()) return;
+        setError(null);
         setBusy(true);
-        await onSave({ ...t, description: t.description || t.title }).finally(() => setBusy(false));
+        try {
+          await onSave(build());
+        } catch (err) {
+          setError((err as Error).message);
+          setBusy(false);
+        }
       }}
     >
       <label className="sc-field"><span>Task</span><input value={t.title} onChange={(e) => set("title", e.target.value)} required /></label>
@@ -315,15 +351,15 @@ function TaskEditor({ projectId, initial, onSave, onCancel }: { projectId: numbe
           <span>Quantity</span>
           <input
             inputMode="decimal"
-            value={t.quantity?.measurementId ? "" : (t.quantity?.value ?? "")}
+            value={qtyText}
             placeholder={t.quantity?.measurementId ? "Uses a measurement" : ""}
-            onChange={(e) => set("quantity", { ...(t.quantity ?? {}), measurementId: null, value: e.target.value === "" ? null : Number(e.target.value), estimated: false })}
+            onChange={(e) => setQtyText(e.target.value)}
           />
         </label>
         <label className="sc-field">
           <span>Unit</span>
           <select value={t.quantity?.unit ?? "EA"} onChange={(e) => set("quantity", { ...(t.quantity ?? {}), unit: e.target.value })}>
-            {["EA", "LF", "SF", "SQ", "CY", "HR", "DAY", "MO", "LS"].map((u) => <option key={u} value={u}>{unitLabel(u)}</option>)}
+            {["EA", "LF", "SF", "SQ", "CY", "TON", "HR", "DAY", "MO", "RL", "AC", "W"].map((u) => <option key={u} value={u}>{unitLabel(u)}</option>)}
           </select>
         </label>
       </div>
@@ -336,8 +372,8 @@ function TaskEditor({ projectId, initial, onSave, onCancel }: { projectId: numbe
           <span>P5 crew hours (optional)</span>
           <input
             inputMode="decimal"
-            value={t.laborHours?.value ?? ""}
-            onChange={(e) => set("laborHours", e.target.value === "" ? null : { value: Number(e.target.value), basis: "confirmed" })}
+            value={hoursText}
+            onChange={(e) => setHoursText(e.target.value)}
           />
         </label>
       </div>
@@ -345,6 +381,7 @@ function TaskEditor({ projectId, initial, onSave, onCancel }: { projectId: numbe
         <span>Materials and selections (one per line)</span>
         <textarea rows={2} value={(t.materials ?? []).join("\n")} onChange={(e) => set("materials", e.target.value.split("\n"))} />
       </label>
+      {error && <p className="sc-alert sc-alert-bad" role="alert">{error}</p>}
       <div className="sc-actions">
         <button type="submit" className="sc-btn sc-btn-primary" disabled={busy}>{busy ? "Saving..." : "Save"}</button>
         <button type="button" className="sc-btn" onClick={onCancel} disabled={busy}>Cancel</button>
@@ -353,7 +390,7 @@ function TaskEditor({ projectId, initial, onSave, onCancel }: { projectId: numbe
   );
 }
 
-function MeasureRow({ m, ws, onPlay, run }: { m: Workspace["doc"]["measurements"][number]; ws: Workspace; onPlay: (e: Evidence) => void; run: (ops: unknown[]) => Promise<void> }) {
+function MeasureRow({ m, ws, onPlay, run }: { m: Workspace["doc"]["measurements"][number]; ws: Workspace; onPlay: (e: Evidence) => void; run: (ops: unknown[]) => Promise<boolean> }) {
   const [value, setValue] = useState(m.value === null ? "" : String(m.value));
   const used = ws.doc.tasks.filter((t) => t.quantity?.measurementId === m.id && !t.dismissed).length;
   return (
@@ -382,7 +419,7 @@ function MeasureRow({ m, ws, onPlay, run }: { m: Workspace["doc"]["measurements"
   );
 }
 
-function ListBlock({ title, field, values, run }: { title: string; field: string; values: string[]; run: (ops: unknown[]) => Promise<void> }) {
+function ListBlock({ title, field, values, run }: { title: string; field: string; values: string[]; run: (ops: unknown[]) => Promise<boolean> }) {
   const [editing, setEditing] = useState(false);
   const [text, setText] = useState(values.join("\n"));
   return (
@@ -396,7 +433,7 @@ function ListBlock({ title, field, values, run }: { title: string; field: string
         )}
       </div>
       {editing ? (
-        <form onSubmit={(e) => { e.preventDefault(); void run([{ op: "list", field, values: text.split("\n") }]).then(() => setEditing(false)); }}>
+        <form onSubmit={(e) => { e.preventDefault(); void run([{ op: "list", field, values: text.split("\n") }]).then((ok) => ok && setEditing(false)); }}>
           <label className="sc-visually-hidden" htmlFor={`list-${field}`}>{title}, one per line</label>
           <textarea id={`list-${field}`} rows={4} value={text} onChange={(e) => setText(e.target.value)} />
           <div className="sc-actions">
@@ -413,7 +450,7 @@ function ListBlock({ title, field, values, run }: { title: string; field: string
   );
 }
 
-function EditableText({ value, onSave, multiline }: { value: string; onSave: (v: string) => Promise<void>; multiline?: boolean }) {
+function EditableText({ value, onSave, multiline }: { value: string; onSave: (v: string) => Promise<boolean>; multiline?: boolean }) {
   const [editing, setEditing] = useState(false);
   const [text, setText] = useState(value);
   if (!editing) {
@@ -425,7 +462,7 @@ function EditableText({ value, onSave, multiline }: { value: string; onSave: (v:
     );
   }
   return (
-    <form onSubmit={(e) => { e.preventDefault(); void onSave(text).then(() => setEditing(false)); }}>
+    <form onSubmit={(e) => { e.preventDefault(); void onSave(text).then((ok) => ok && setEditing(false)); }}>
       <label className="sc-visually-hidden" htmlFor="scope-summary">Summary</label>
       {multiline ? <textarea id="scope-summary" rows={4} value={text} onChange={(e) => setText(e.target.value)} /> : <input id="scope-summary" value={text} onChange={(e) => setText(e.target.value)} />}
       <div className="sc-actions">

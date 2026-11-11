@@ -153,13 +153,13 @@ export default function Recorder({
         let todo: SegmentMeta[] = [];
         let fromDisk = true;
         try {
-          todo = (await allSegments()).filter((s) => s.projectId === projectId && s.closed);
+          todo = (await allSegments()).filter((s) => s.projectId === projectId && s.kind === kind && s.closed);
         } catch {
           fromDisk = false;
         }
         const disk = new Set(todo.map((s) => s.key));
         for (const held of memory.current.values()) {
-          if (held.meta.closed && held.meta.projectId === projectId && !disk.has(held.meta.key)) todo.push(held.meta);
+          if (held.meta.closed && !disk.has(held.meta.key)) todo.push(held.meta);
         }
         todo.sort((a, b) => a.startedAt - b.startedAt || a.segment - b.segment);
         setPending(todo.length);
@@ -217,19 +217,23 @@ export default function Recorder({
     } finally {
       uploading.current = false;
     }
-    if (finishing.current && phaseRef.current === "saving") {
+    // Finished only when the last part has closed and uploaded. An earlier
+    // upload pass ending while the final part is still being written must not
+    // start scope generation without it.
+    const stillOpen = [...memory.current.values()].some((h) => !h.meta.closed);
+    if (finishing.current && phaseRef.current === "saving" && !stillOpen && memory.current.size === 0) {
       finishing.current = false;
       setP("idle");
       onFinished?.();
     }
-  }, [projectId, onUploaded, onFinished]);
+  }, [projectId, kind, onUploaded, onFinished]);
 
   // Recover parts left on this device by a crash, a closed tab or a lost connection.
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const leftovers = (await allSegments()).filter((s) => s.projectId === projectId);
+        const leftovers = (await allSegments()).filter((s) => s.projectId === projectId && s.kind === kind && !memory.current.has(s.key));
         if (!leftovers.length || cancelled) return;
         for (const s of leftovers) {
           if (!s.closed) {
@@ -246,7 +250,7 @@ export default function Recorder({
     return () => {
       cancelled = true;
     };
-  }, [projectId, uploadAll]);
+  }, [projectId, kind, uploadAll]);
 
   // ---- timer, wake lock, interruptions ------------------------------------
 
@@ -289,7 +293,12 @@ export default function Recorder({
     try {
       const nav = navigator as Navigator & { wakeLock?: { request: (t: "screen") => Promise<{ release: () => Promise<void> }> } };
       if (nav.wakeLock && !wakeLock.current) {
-        wakeLock.current = await nav.wakeLock.request("screen");
+        const lock = (await nav.wakeLock.request("screen")) as { release: () => Promise<void>; addEventListener?: (t: string, f: () => void) => void };
+        // The phone releases the lock whenever the page is hidden; forget it so it is requested again on return.
+        lock.addEventListener?.("release", () => {
+          if (wakeLock.current === lock) wakeLock.current = null;
+        });
+        wakeLock.current = lock;
       }
     } catch {
       // Not supported or refused; the notice tells the employee to keep the screen on.
@@ -452,11 +461,22 @@ export default function Recorder({
   function stop() {
     finishing.current = true;
     setP("saving");
+    // If the device already ended the recorder without telling us, close what
+    // it left open so the captured audio is uploaded and saving can finish.
+    const closeOrphans = () => {
+      for (const held of memory.current.values()) {
+        if (held.meta.closed) continue;
+        held.meta = { ...held.meta, closed: true, durationSeconds: elapsedRef.current - held.meta.offsetSeconds };
+        const closed = held.meta;
+        writes.current = writes.current.then(() => putSegment(closed)).catch(() => undefined);
+      }
+      void writes.current.then(() => uploadAll());
+    };
     try {
       if (recorder.current && recorder.current.state !== "inactive") recorder.current.stop();
-      else void uploadAll();
+      else closeOrphans();
     } catch {
-      void uploadAll();
+      closeOrphans();
     }
     recorder.current = null;
     stream.current?.getTracks().forEach((t) => t.stop());

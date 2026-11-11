@@ -372,3 +372,98 @@ test("P5 crew labor-only work asks for hours, never a quantity", () => {
   assert.equal(r.lines[0].basis, "internal-labor");
   assert.equal(r.lines[0].price, 1250);
 });
+
+// ---- Review pass: regressions for issues found on re-reading the logic ----
+
+test("a gap that reappears is asked again even though its question was answered before", () => {
+  const d = doc([task({ costCode: "06-20-26", quantity: { measurementId: "m1" } })], {
+    measurements: [{ id: "m1", label: "Baseboard length", value: null, unit: "LF", status: "missing", evidence: [] }],
+  });
+  const answered = new Map([["measure:m1", { status: "answered" as const }]]);
+  const r = priceScope(d, ctx());
+  const qs = deriveQuestions(d, r, answered);
+  assert.deepEqual(qs.map((q) => q.key), ["measure:m1"]);
+  assert.equal(readiness(d, r, qs).status, "needs_information");
+});
+
+test("a quantity in the wrong unit is never priced; it is asked in the cost book's unit", () => {
+  const sfCode = PRICE_BOOK.find((row) => row[4] === "SF" && row[5] === "Labor + Material (Installed)" && !row[6])![0];
+  const d = doc([task({ costCode: sfCode, division: sfCode.slice(0, 2), quantity: { measurementId: "m1" } })], {
+    measurements: [{ id: "m1", label: "Backsplash length", value: 18, unit: "LF", status: "documented", evidence: [] }],
+  });
+  const r = priceScope(d, ctx());
+  assert.equal(r.lines.length, 0);
+  const qs = deriveQuestions(d, r, new Map());
+  assert.equal(qs[0].key, "qty:t1");
+  assert.deepEqual(qs[0].input, { type: "number", unit: "SF" });
+  const fixed = applyAnswer(d, "qty:t1", { value: 27, unit: "SF" });
+  const r2 = priceScope(fixed, ctx());
+  assert.equal(r2.lines[0].quantity, 27);
+  assert.equal(r2.lines[0].unit, "SF");
+  assert.equal(fixed.measurements[0].value, 18, "the measurement itself is untouched");
+});
+
+test("status is never ready while a blocking pricing issue has no question", () => {
+  const d = doc([task({ costCode: "06-20-26", quantity: { measurementId: "ghost" } })]);
+  const r = priceScope(d, ctx());
+  const qs = deriveQuestions(d, r, new Map());
+  assert.equal(qs[0].key, "qty:t1", "a link to a measurement that does not exist falls back to a direct quantity question");
+  assert.equal(readiness(d, r, []).status, "needs_information");
+});
+
+test("work marked conflicting with no open conflict still gets a blocking decision", () => {
+  const d = doc([task({ certainty: "conflict", costCode: "06-20-26", quantity: { value: 5, unit: "LF" } })]);
+  const r = priceScope(d, ctx());
+  assert.equal(r.lines.length, 0);
+  const qs = deriveQuestions(d, r, new Map());
+  assert.equal(qs[0].key, "decide:t1");
+  assert.ok(qs[0].blocking);
+  const decided = applyAnswer(d, "decide:t1", { value: "Include in the estimate" });
+  assert.equal(priceScope(decided, ctx()).lines.length, 1);
+});
+
+test("a quote on P5-crew work keeps asking for missing hours", () => {
+  const d = doc([task({ costCode: null, performer: "internal", laborHours: { value: null, basis: "proposed" }, materials: ["Tile"] })]);
+  const quoted = applyAnswer(d, "price:t1", { amount: 800 });
+  const qs = deriveQuestions(quoted, priceScope(quoted, ctx()), new Map());
+  assert.deepEqual(qs.map((q) => q.key), ["hours:t1"]);
+  assert.throws(() => applyAnswer(d, "hours:t1", { value: 0 }), /greater than zero/);
+  assert.throws(() => applyAnswer(d, "price:t1", { amount: 0 }), /greater than zero/);
+});
+
+test("the saved finance policy drives overhead; an invalid one falls back to the approved default", async () => {
+  const { DEFAULT_FINANCE } = await import("../lib/p5/pricing.ts");
+  const standard = priceMultiplier("kitchen", NOW).overhead;
+  assert.equal(priceMultiplier("kitchen", NOW, { ...DEFAULT_FINANCE, annualRevenue: 1_400_000, forecastSource: "test" }).overhead, 0.3);
+  assert.equal(priceMultiplier("kitchen", NOW, { ...DEFAULT_FINANCE, overheadRate: 0.05 }).overhead, standard);
+});
+
+test("identical line descriptions are compared one to one, and key order never reads as a change", async () => {
+  const { canonical } = await import("../app/lib/scopes/types.ts");
+  assert.equal(canonical({ b: 1, a: { d: [1, { z: 1, y: 2 }], c: undefined } }), canonical({ a: { d: [1, { y: 2, z: 1 }] }, b: 1 }));
+  const line = (a: number) => ({ DetailType: "SalesItemLineDetail", Description: "Labor", Amount: a, SalesItemLineDetail: { Qty: 1, UnitPrice: a } });
+  const sent = { Line: [line(100), line(250)] };
+  assert.equal(compareEstimate(sent, { Line: [line(100), line(250)], TotalAmt: 350 }).changed, false);
+  assert.equal(compareEstimate(sent, { Line: [line(100), line(300)], TotalAmt: 400 }).details.length, 2);
+  assert.equal(estimateStatus({ TxnStatus: "Deleted" }, true), "deleted");
+});
+
+test("editor input is sanitized and cannot overwrite quotes, evidence or edit history", async () => {
+  const { sanitizeTask, unit } = await import("../app/lib/scopes/normalize.ts");
+  const { costBookEntry } = await import("../app/lib/scopes/costbook.ts");
+  const valid = (c: string) => Boolean(costBookEntry(c));
+  const before = task({ quote: { amount: 500 }, evidence: [{ assetId: 1, t: 3 }], edited: ["title"] });
+  const out = sanitizeTask({ ...before, title: " New title ", division: "zz", costCode: "06-20-26", quote: { amount: 1 }, evidence: [], quantity: { value: 4, unit: "ft", measurementId: "nope" }, materials: ["", " Oak "] }, before, valid, new Set());
+  assert.equal(out.title, "New title");
+  assert.equal(out.division, "06");
+  assert.deepEqual(out.quote, { amount: 500 });
+  assert.equal(out.evidence.length, 1);
+  assert.deepEqual(out.quantity, { measurementId: null, value: 4, unit: "LF", factor: null, estimated: false });
+  assert.deepEqual(out.materials, ["Oak"]);
+  assert.throws(() => sanitizeTask({ title: "x", costCode: "99-99-99" }, undefined, valid, new Set()), /not a cost book code/);
+  assert.throws(() => sanitizeTask({ title: "" }, undefined, valid, new Set()), /needs a name/);
+  assert.equal(unit("Sq Ft"), "SF");
+  // Untouched fields are not marked as edited just because empty values are spelled differently.
+  const same = sanitizeTask({ ...before, title: "Renamed" }, before, valid, new Set());
+  assert.deepEqual(markEdited(before, same).edited, ["title"]);
+});

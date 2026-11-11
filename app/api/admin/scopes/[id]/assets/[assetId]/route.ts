@@ -23,13 +23,18 @@ export async function GET(request: Request, { params }: Ctx) {
   } catch (error) {
     return NextResponse.json({ ok: false, error: (error as Error).message }, { status: 500 });
   }
-  const type = row.mime_type || "application/octet-stream";
+  // Only media the browser renders passively is shown inline. Anything that
+  // could run script on this origin (HTML, SVG, XML) downloads as a plain file.
+  const stored = (row.mime_type || "").split(";")[0].trim().toLowerCase();
+  const inline = /^(audio|video)\//.test(stored) || ["image/jpeg", "image/png", "image/webp", "image/gif", "image/heic", "image/heif", "application/pdf"].includes(stored);
+  const type = inline ? row.mime_type! : "application/octet-stream";
   const headers: Record<string, string> = {
     "Content-Type": type,
     "Accept-Ranges": "bytes",
     "Cache-Control": "private, no-store",
-    "Content-Disposition": `inline; filename="${(row.file_name ?? "file").replace(/["\r\n]/g, "")}"`,
+    "Content-Disposition": `${inline ? "inline" : "attachment"}; filename="${(row.file_name ?? "file").replace(/[^\x20-\x7e]|["\\]/g, "_")}"`,
     "X-Content-Type-Options": "nosniff",
+    ...(inline ? {} : { "Content-Security-Policy": "default-src 'none'; sandbox" }),
   };
   const range = /^bytes=(\d*)-(\d*)$/.exec(request.headers.get("range") ?? "");
   if (range) {

@@ -146,6 +146,24 @@ export function deriveQuestions(doc: ScopeDoc, pricing: PricingResult, answers: 
         evidence: t.evidence,
       });
     }
+    // Marked conflicting with no open conflict to resolve it: decide directly,
+    // so the work is never silently left out of the estimate.
+    if (t.certainty === "conflict" && !doc.conflicts.some((c) => !c.resolution && c.taskIds.includes(t.id))) {
+      add({
+        key: `decide:${t.id}`,
+        context: taskContext(t),
+        prompt: `Is "${t.title}" part of the work?`,
+        help: "Sources disagreed about this work. It is left out of the estimate until decided.",
+        input: {
+          type: "choice",
+          options: ["Include in the estimate", "Optional upgrade", "Still considering", "Not included"],
+          allowOther: false,
+        },
+        blocking,
+        taskIds: [t.id],
+        evidence: t.evidence,
+      });
+    }
     // Overlooked supporting work, for confirmation before it is added.
     if (t.certainty === "suggested") {
       add({
@@ -179,8 +197,9 @@ export function deriveQuestions(doc: ScopeDoc, pricing: PricingResult, answers: 
     });
   }
 
+  // Answers are applied to the scope itself, so a question exists exactly
+  // while its gap exists. Nothing is hidden because it was answered before.
   return qs
-    .filter((q) => answers.get(q.key)?.status !== "answered")
     .sort((a, b) => Number(b.blocking) - Number(a.blocking) || Number(a.deferred) - Number(b.deferred) || a.sort - b.sort)
     .map((q) => {
       const out: Question & { sort?: number } = { ...q };
@@ -217,7 +236,7 @@ function issueQuestion(
     };
   }
   if (i.key.startsWith("qty:") && t) {
-    const unit = t.quantity?.unit || costBookEntry(t.costCode)?.uom || "EA";
+    const unit = costBookEntry(t.costCode)?.uom || t.quantity?.unit || "EA";
     return {
       key: i.key,
       context: ctx,
@@ -296,6 +315,12 @@ function mapTask(doc: ScopeDoc, id: string, fn: (t: ScopeTask) => ScopeTask): Sc
   return { ...doc, tasks: doc.tasks.map((t) => (t.id === id ? fn(t) : t)) };
 }
 
+function positive(a: Answer, what: string): number {
+  const n = num(a);
+  if (n <= 0) throw new Error(`Enter ${what} greater than zero, or save it for later.`);
+  return n;
+}
+
 function num(a: Answer): number {
   const v = "amount" in a ? a.amount : "value" in a ? a.value : NaN;
   const n = typeof v === "number" ? v : Number(String(v).replace(/[^0-9.\-]/g, ""));
@@ -324,17 +349,24 @@ export function applyAnswer(doc: ScopeDoc, key: string, answer: Answer): ScopeDo
     case "qty":
       return mapTask(doc, id, (t) => ({
         ...t,
-        quantity: { ...(t.quantity ?? {}), measurementId: null, value: num(answer), estimated: false },
+        quantity: {
+          ...(t.quantity ?? {}),
+          measurementId: null,
+          value: num(answer),
+          unit: ("unit" in answer && answer.unit) || t.quantity?.unit || null,
+          factor: null,
+          estimated: false,
+        },
       }));
     case "price":
       return mapTask(doc, id, (t) => ({
         ...t,
-        quote: { amount: num(answer), assetId: "assetId" in answer ? (answer.assetId ?? null) : null },
+        quote: { amount: positive(answer, "an amount"), assetId: "assetId" in answer ? (answer.assetId ?? null) : null },
       }));
     case "hours":
       return mapTask(doc, id, (t) => ({
         ...t,
-        laborHours: { value: num(answer), basis: "confirmed", note: t.laborHours?.note ?? null },
+        laborHours: { value: positive(answer, "hours"), basis: "confirmed", note: t.laborHours?.note ?? null },
       }));
     case "allowance":
       return mapTask(doc, id, (t) => ({ ...t, allowance: { amount: num(answer), approved: true } }));
@@ -355,7 +387,7 @@ export function applyAnswer(doc: ScopeDoc, key: string, answer: Answer): ScopeDo
       return mapTask(doc, id, (t) => {
         if (v === "Not included") return { ...t, dismissed: true };
         if (v === "Optional upgrade") return { ...t, bucket: "optional", certainty: "confirmed" };
-        if (v === "Still considering") return { ...t, bucket: "considering" };
+        if (v === "Still considering") return { ...t, bucket: "considering", certainty: t.certainty === "conflict" ? "undecided" : t.certainty };
         return { ...t, bucket: "approved", certainty: "confirmed" };
       });
     }
@@ -412,9 +444,12 @@ export function readiness(
   if (!doc || !doc.tasks.some((t) => !t.dismissed && t.bucket === "approved")) {
     return { status: "in_progress", blocking: 0, blockers: ["No approved scope yet."] };
   }
+  // Every blocking pricing issue counts, whether or not a question can resolve
+  // it, so the status can never read "ready" while a line is unpriced.
+  const asked = new Set(questions.map((q) => q.key));
   const blockers = [
     ...questions.filter((q) => q.blocking).map((q) => `${q.context.split(" · ")[0]}: ${q.prompt}`),
-    ...(pricing?.issues ?? []).filter((i) => i.blocking && i.kind === "labor-rate-unconfirmed").map((i) => i.message),
+    ...(pricing?.issues ?? []).filter((i) => i.blocking && !asked.has(i.key)).map((i) => i.message),
     ...extraBlockers,
   ];
   return { status: blockers.length ? "needs_information" : "ready", blocking: blockers.length, blockers };

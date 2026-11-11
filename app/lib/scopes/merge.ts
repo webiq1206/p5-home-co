@@ -30,7 +30,7 @@ export type Change = {
   informational?: boolean;
 };
 
-export type Proposal = { changes: Change[]; generated: ScopeDoc; createdAt: string };
+export type Proposal = { changes: Change[]; generated: ScopeDoc; createdAt: string; sourceIds?: number[] };
 
 const TASK_FIELDS: (keyof ScopeTask)[] = [
   "title",
@@ -62,8 +62,30 @@ const LIST_FIELDS = [
   "openQuestions",
 ] as const;
 
+/** Drop empty values so "absent", null, false, "" and [] all compare equal. */
+function loose(v: unknown): unknown {
+  if (Array.isArray(v)) return v.map(loose);
+  if (v && typeof v === "object") {
+    const out: Record<string, unknown> = {};
+    for (const k of Object.keys(v).sort()) {
+      const x = loose((v as Record<string, unknown>)[k]);
+      if (x === null || x === undefined || x === false || x === "" || (Array.isArray(x) && x.length === 0)) continue;
+      if (x && typeof x === "object" && !Array.isArray(x) && Object.keys(x).length === 0) continue;
+      out[k] = x;
+    }
+    return out;
+  }
+  return v;
+}
+
+function empty(x: unknown): boolean {
+  return x === null || x === undefined || x === false || x === "" || (Array.isArray(x) ? x.length === 0 : typeof x === "object" && Object.keys(x as object).length === 0);
+}
+
 function same(a: unknown, b: unknown): boolean {
-  return JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+  const x = loose(a);
+  const y = loose(b);
+  return (empty(x) && empty(y)) || JSON.stringify(x) === JSON.stringify(y);
 }
 
 /** Selections compare on what matters; evidence differences are not a change. */
@@ -116,7 +138,13 @@ export function diffScopes(current: ScopeDoc, generated: ScopeDoc): Change[] {
       changes.push({ id: `measure:${g.id}`, kind: "update-measurement", after: g, label: `Add measurement "${g.label}"` });
       continue;
     }
-    if (c.value === g.value && c.unit === g.unit) continue;
+    if (c.value === g.value && c.unit === g.unit) {
+      // Same value, now backed by a document: the estimate becomes a firm figure.
+      if (c.status === "estimated" && (g.status === "documented" || g.status === "stated") && g.value !== null) {
+        changes.push({ id: `measure:${g.id}`, kind: "update-measurement", before: c, after: g, label: `${g.label} (${g.value} ${g.unit}) is now ${g.status} in the sources` });
+      }
+      continue;
+    }
     if (FIRM.has(c.status)) {
       if (g.value !== null) {
         changes.push({

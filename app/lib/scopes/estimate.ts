@@ -35,7 +35,7 @@ export type EstimatePayload = {
   ShipAddr?: { Line1: string };
   Id?: string;
   SyncToken?: string;
-  sparse?: false;
+  sparse?: true;
 };
 
 const money = (n: number) => `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -111,6 +111,7 @@ export type EstimateStatusName =
   | "declined"
   | "closed"
   | "converted"
+  | "deleted"
   | "unavailable";
 
 export const ESTIMATE_STATUS_LABEL: Record<EstimateStatusName, string> = {
@@ -121,6 +122,7 @@ export const ESTIMATE_STATUS_LABEL: Record<EstimateStatusName, string> = {
   declined: "Declined",
   closed: "Closed",
   converted: "Invoiced",
+  deleted: "Deleted in QuickBooks",
   unavailable: "Status unavailable",
 };
 
@@ -143,6 +145,8 @@ export function estimateStatus(raw: RawEstimate | null | undefined, exists: bool
       return "declined";
     case "Closed":
       return "closed";
+    case "Deleted":
+      return "deleted";
     case "Pending":
       return raw.EmailStatus === "EmailSent" ? "sent" : "created_unsent";
     default:
@@ -177,17 +181,29 @@ export function compareEstimate(sent: { Line: unknown }, current: { Line?: unkno
   const sentTotal = Math.round(a.reduce((s, l) => s + l.a, 0) * 100) / 100;
   const currentLinesTotal = Math.round(b.reduce((s, l) => s + l.a, 0) * 100) / 100;
   const details: string[] = [];
-  const key = (l: ComparableLine) => l.d.toLowerCase();
-  const inB = new Map(b.map((l) => [key(l), l]));
-  const inA = new Map(a.map((l) => [key(l), l]));
-  for (const l of a) {
-    const m = inB.get(key(l));
+  // Match lines by description and by order within the same description, so
+  // two lines with identical text are compared one to one.
+  const keyed = (lines: ComparableLine[]) => {
+    const seen = new Map<string, number>();
+    return new Map(
+      lines.map((l) => {
+        const d = l.d.toLowerCase();
+        const i = seen.get(d) ?? 0;
+        seen.set(d, i + 1);
+        return [`${d}#${i}`, l] as const;
+      }),
+    );
+  };
+  const inA = keyed(a);
+  const inB = keyed(b);
+  for (const [k, l] of inA) {
+    const m = inB.get(k);
     if (!m) details.push(`Removed or renamed in QuickBooks: "${l.d}" (${money(l.a)})`);
     else if (m.q !== l.q || m.p !== l.p || m.a !== l.a) {
       details.push(`Changed in QuickBooks: "${l.d}" from ${l.q} x ${money(l.p)} = ${money(l.a)} to ${m.q} x ${money(m.p)} = ${money(m.a)}`);
     }
   }
-  for (const l of b) if (!inA.has(key(l))) details.push(`Added in QuickBooks: "${l.d}" (${money(l.a)})`);
+  for (const [k, l] of inB) if (!inA.has(k)) details.push(`Added in QuickBooks: "${l.d}" (${money(l.a)})`);
   if (Math.abs(currentLinesTotal - sentTotal) >= 0.01) {
     details.push(`Line total changed from ${money(sentTotal)} to ${money(currentLinesTotal)}`);
   }

@@ -40,6 +40,19 @@ const strs = (v: unknown): string[] => [...new Set(arr(v).map((x) => s(x, 1000))
 const pick = <T extends string>(v: unknown, allowed: T[], fallback: T): T =>
   allowed.includes(v as T) ? (v as T) : fallback;
 
+const UNIT_ALIASES: Record<string, string> = {
+  FT: "LF", FEET: "LF", "LIN FT": "LF", "LINEAR FEET": "LF", "LINEAR FT": "LF",
+  SQFT: "SF", "SQ FT": "SF", "SQUARE FEET": "SF", "SQ. FT.": "SF",
+  EACH: "EA", HRS: "HR", HOURS: "HR", HOUR: "HR", DAYS: "DAY", MONTHS: "MO", MONTH: "MO",
+  SQUARE: "SQ", SQUARES: "SQ", YD: "CY", "CU YD": "CY", TONS: "TON",
+};
+
+/** Units as the cost book spells them, so a quantity can be matched to a rate. */
+export function unit(v: unknown, fallback = "EA"): string {
+  const u = s(v, 16).toUpperCase().replace(/\.$/, "");
+  return UNIT_ALIASES[u] ?? (u || fallback);
+}
+
 export function slug(v: string): string {
   return v.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 48) || "item";
 }
@@ -87,7 +100,7 @@ export function normalizeScope(
     if (value === null) status = "missing";
     else if (status === "missing") status = "estimated";
     else if ((status === "documented" || status === "stated") && ev.length === 0) status = "estimated";
-    return { id, label, area: sn(m.area, 120), value: value !== null && value >= 0 ? value : null, unit: s(m.unit, 12).toUpperCase() || "EA", status, evidence: ev };
+    return { id, label, area: sn(m.area, 120), value: value !== null && value >= 0 ? value : null, unit: unit(m.unit), status, evidence: ev };
   });
 
   const usedT = new Set<string>();
@@ -135,7 +148,7 @@ export function normalizeScope(
         ? {
             measurementId: mid || null,
             value: n(q.value),
-            unit: sn(q.unit, 12)?.toUpperCase() ?? null,
+            unit: sn(q.unit, 16) ? unit(q.unit) : null,
             factor: n(q.factor),
             estimated: q.estimated === true,
           }
@@ -226,5 +239,72 @@ export function carryForward(current: ScopeDoc | null, generated: ScopeDoc): Sco
     }),
     conflicts: generated.conflicts.map((g) => current.conflicts.find((c) => c.id === g.id)?.resolution ? { ...g, resolution: current.conflicts.find((c) => c.id === g.id)!.resolution } : g),
     client: { ...(generated.client ?? {}) },
+  };
+}
+
+/**
+ * A task as sent by the editor, made safe to store. Unknown codes and
+ * divisions are corrected, numbers must be finite and non-negative, and
+ * everything the editor does not own (quotes, allowances, evidence, edit
+ * markers) is carried from the stored task rather than trusted from the client.
+ */
+export function sanitizeTask(
+  raw: unknown,
+  before: ScopeTask | undefined,
+  validCostCode: (code: string) => boolean,
+  measurementIds: Set<string>,
+): ScopeTask {
+  const t = (raw && typeof raw === "object" ? raw : {}) as Any;
+  const title = s(t.title, 200);
+  if (!title) throw new Error("A task needs a name.");
+  const id = before?.id ?? (slug(s(t.id, 60)) || `manual-${Date.now().toString(36)}`);
+  const code = s(t.costCode, 20).replace(/^PB-/i, "");
+  if (code && !validCostCode(code)) throw new Error(`"${code}" is not a cost book code. Leave it blank to enter a quote or hours.`);
+  let division = s(t.division, 2).padStart(2, "0");
+  if (!isDivision(division)) division = code ? code.slice(0, 2) : (before?.division ?? "01");
+  const q = (t.quantity ?? null) as Any | null;
+  const qValue = q ? n(q.value) : null;
+  if (qValue !== null && qValue < 0) throw new Error("Quantity cannot be negative.");
+  const mid = q ? s(q.measurementId, 80) : "";
+  const lh = (t.laborHours ?? null) as Any | null;
+  const lhValue = lh ? n(lh.value) : null;
+  if (lhValue !== null && lhValue < 0) throw new Error("Hours cannot be negative.");
+  const basis = lh && ["production-rate", "stated", "proposed", "confirmed"].includes(String(lh.basis)) ? (lh.basis as "stated") : "confirmed";
+  const beforeSel = new Map((before?.selections ?? []).map((x) => [x.id, x]));
+  return {
+    id,
+    title,
+    description: s(t.description, 2000) || title,
+    area: sn(t.area, 120),
+    phase: t.phase === "pre-construction" || t.phase === "construction" ? t.phase : defaultPhase(division),
+    division,
+    bucket: pick(t.bucket, BUCKETS, before?.bucket ?? "approved"),
+    certainty: pick(t.certainty, CERTAINTY, before?.certainty ?? "confirmed"),
+    supporting: before?.supporting,
+    costCode: code || null,
+    quantity: q
+      ? {
+          measurementId: mid && measurementIds.has(mid) ? mid : null,
+          value: qValue,
+          unit: sn(q.unit, 16) ? unit(q.unit) : null,
+          factor: n(q.factor),
+          estimated: q.estimated === true,
+        }
+      : null,
+    performer: pick(t.performer, PERFORMERS, before?.performer ?? "subcontractor"),
+    laborHours: lh ? { value: lhValue, basis, note: sn(lh.note, 300) } : null,
+    materials: strs(t.materials).slice(0, 30),
+    selections: arr(t.selections).map((y, i) => {
+      const sel = y as Any;
+      const sid = slug(s(sel.id, 60) || `selection-${i + 1}`);
+      return { id: sid, label: s(sel.label, 200) || "Selection", options: strs(sel.options).slice(0, 12), chosen: sn(sel.chosen, 300), evidence: beforeSel.get(sid)?.evidence ?? [] };
+    }),
+    notes: sn(t.notes, 2000),
+    quote: before?.quote ?? null,
+    allowance: before?.allowance ?? null,
+    dismissed: before ? before.dismissed : false,
+    evidence: before?.evidence ?? [],
+    edited: before?.edited,
+    origin: before?.origin ?? "manual",
   };
 }

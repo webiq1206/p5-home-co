@@ -20,6 +20,7 @@ import {
   refreshEstimate,
 } from "../../../../../lib/scopes/qbo.ts";
 import { getProject, latestEstimate, loadScopeSettings } from "../../../../../lib/scopes/store.ts";
+import { canonical } from "../../../../../lib/scopes/types.ts";
 import { loadWorkspace } from "../../../../../lib/scopes/workspace.ts";
 
 export const dynamic = "force-dynamic";
@@ -61,7 +62,7 @@ export async function POST(request: Request, { params }: Ctx) {
         if (fresh.readiness.status !== "ready") throw new Error(`The estimate is not ready: ${fresh.readiness.blockers.slice(0, 3).join(" ")}`);
         // The estimate must point at an exact saved version: if pricing moved
         // (settings changed since the last save), save it as a version first.
-        if (JSON.stringify(fresh.pricing) !== JSON.stringify(version.pricing)) {
+        if (canonical(fresh.pricing) !== canonical(version.pricing)) {
           ({ version } = await commitDoc(project, doc, "repriced", "Repriced before creating the estimate", g.user.id));
           doc = version.doc;
         }

@@ -103,6 +103,13 @@ price, extended price, internal cost and the source of the rate. Rules:
 - Optional upgrades are priced but kept out of the base total and the
   QuickBooks amount.
 - The cost book is flagged as outdated after 365 days (configurable).
+- Overhead comes from the finance policy saved by the estimator admin
+  (`p5_estimator_policy`), falling back to the approved default.
+- A quantity in a different unit than the cost book rate (linear feet against
+  a per-square-foot rate) is never priced; the wizard asks for it in the
+  rate's unit.
+- The scope cannot read "Ready" while any blocking pricing issue is open,
+  whether or not a wizard question exists for it.
 
 ## QuickBooks
 
@@ -114,14 +121,20 @@ price, extended price, internal cost and the source of the rate. Rules:
   Phase and Division headings with customer-facing descriptions; optional
   upgrades and exclusions go in the customer message. Internal costs never
   leave the platform. `EmailStatus` is `NotSet`; nothing is sent.
+- **Under the project when linked:** if a QuickBooks project is already
+  linked, the estimate is created under it; otherwise under the customer.
 - **Exact version:** the estimate stores the scope version and the exact
   payload sent. If settings changed since the last save, the scope is
   re-priced as a new version first.
 - **Revisions:** an open estimate can be updated to the current version. The
   platform reads QuickBooks first; if someone changed the estimate there, it
   shows the differences and requires explicit confirmation to replace them.
-  Accepted, declined, closed or invoiced estimates are not changed; record
-  changes as a change order in QuickBooks.
+  Updates are sparse: lines are replaced, and the estimate number, dates,
+  customer and sent flag stay as QuickBooks has them. Accepted, declined,
+  closed or invoiced estimates are not changed; record changes as a change
+  order in QuickBooks.
+- **Deleted in QuickBooks:** detected on refresh and shown as "Deleted in
+  QuickBooks" with history kept. Only then can a new estimate be created.
 - **Status:** the existing webhook mirrors every estimate change into
   `qbo_txn`; the workspace folds that in on every view, refreshes from
   QuickBooks automatically when older than 15 minutes, and has a Refresh
@@ -139,7 +152,9 @@ Nothing is deleted by the application; archive is a timestamp.
 
 Files are stored in the p5homeco.com object storage bucket when
 `P5_OBJECT_STORAGE_ENABLED=true`, otherwise in the database row, and every
-read is verified by size and SHA-256.
+read is verified by size and SHA-256. Uploads are limited to 23 MB each (the
+server's request buffer is 24 MiB). Only audio, video, common image types and
+PDF are served inline; anything else downloads as a plain file.
 
 ## Configuration
 

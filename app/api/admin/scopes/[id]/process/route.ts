@@ -17,7 +17,7 @@ type Ctx = { params: Promise<{ id: string }> };
 export async function POST(_request: Request, { params }: Ctx) {
   const g = await requireProject((await params).id);
   if ("response" in g) return g.response;
-  if (!isAiConfigured()) return fail(new Error("OPENAI_API_KEY is not set in Replit Secrets, so recordings cannot be transcribed yet."), 503);
+  if (!isAiConfigured()) return fail(new Error("No OpenAI key was found (OPENAI_API_KEY in Replit Secrets), so recordings cannot be transcribed yet."), 503);
   const result = await processProject(g.project.id, g.user.id);
   return result.ok ? ok({ message: result.message }) : fail(new Error(result.message), 409);
 }

@@ -88,6 +88,18 @@ test("scope platform over Postgres", { skip: !url && "TEST_DATABASE_URL not set"
   assert.equal(base.description, "Install MDF baseboard, painted.");
   assert.equal(after.proposal, null);
 
+  // Re-pricing with nothing changed must not create a version (jsonb reorders keys).
+  const countBefore = after.versions.length;
+  await engine.reprice(id, uid, "no change");
+  assert.equal((await loadWorkspace(id))!.versions.length, countBefore);
+
+  // New material stays "not yet in the scope" until its proposal is accepted or dismissed.
+  const doc2 = await store.insertAsset({ projectId: id, clientKey: "file-proposal-1", kind: "text", label: "Note", bodyText: "x", state: "ready", userId: uid });
+  await store.setProjectState(id, { pending_proposal: { changes: [], generated: current, createdAt: new Date().toISOString(), sourceIds: [doc2.asset.id] } });
+  assert.deepEqual((await loadWorkspace(id))!.proposal!.sourceIds, [doc2.asset.id]);
+  await engine.rejectProposal(id, uid);
+  assert.ok((await store.listAssets(id)).find((a) => a.id === doc2.asset.id)!.used_in_version);
+
   // Restore makes a copy as the newest version; history is kept.
   const versionsBefore = after.versions.length;
   await engine.editScope(id, [{ op: "restore-version", versionId: after.versions.at(-1)!.id }], uid);
@@ -123,4 +135,12 @@ test("scope platform over Postgres", { skip: !url && "TEST_DATABASE_URL not set"
   assert.equal(ws.project.qbo_project_id, null, "accepted does not imply a linked project");
   const listed = (await store.listProjects({ q: "Testerson" })).find((r) => r.id === id)!;
   assert.equal((listed.estimate_raw as { TxnStatus?: string }).TxnStatus, "Accepted");
+
+  // An estimate QuickBooks reports as deleted reads as deleted everywhere, with history kept.
+  await store.markEstimateDeleted(estId);
+  ws = (await loadWorkspace(id))!;
+  assert.equal(ws.estimate!.status, "deleted");
+  assert.equal(ws.estimate!.snapshots.length, 2);
+  const listedAfter = (await store.listProjects({ q: "Testerson" })).find((r) => r.id === id)!;
+  assert.equal((listedAfter.estimate_raw as { TxnStatus?: string }).TxnStatus, "Deleted");
 });

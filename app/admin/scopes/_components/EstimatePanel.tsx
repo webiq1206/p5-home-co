@@ -22,7 +22,9 @@ const CLIENT_FIELDS: [keyof Workspace["project"], string, string][] = [
 
 export default function EstimatePanel({ ws, onWorkspace, onScope }: { ws: Workspace; onWorkspace: (w: Workspace) => void; onScope: () => void }) {
   const p = ws.project;
-  const e = ws.estimate;
+  // An estimate QuickBooks confirms was deleted is history, not the current estimate.
+  const deleted = ws.estimate?.status === "deleted" ? ws.estimate : null;
+  const e = deleted ? null : ws.estimate;
   const [form, setForm] = useState<Record<string, string>>(() =>
     Object.fromEntries([...CLIENT_FIELDS.map(([k]) => [k, String(p[k] ?? "")]), ["billing_address", p.billing_address ?? ""]]),
   );
@@ -73,7 +75,7 @@ export default function EstimatePanel({ ws, onWorkspace, onScope }: { ws: Worksp
         <h2 className="sc-h2">Status</h2>
         <dl className="sc-status-grid">
           <div><dt>Scope</dt><dd className={`sc-pill sc-pill-${ws.readiness.status}`}>{SCOPE_LABEL[ws.readiness.status]}</dd></div>
-          <div><dt>QuickBooks estimate</dt><dd className={`sc-pill sc-pill-est-${e?.status ?? "not_created"}`}>{e?.statusLabel ?? "Not created"}</dd></div>
+          <div><dt>QuickBooks estimate</dt><dd className={`sc-pill sc-pill-est-${ws.estimate?.status ?? "not_created"}`}>{ws.estimate?.statusLabel ?? "Not created"}</dd></div>
           <div>
             <dt>QuickBooks project</dt>
             <dd className={`sc-pill ${p.qbo_project_id ? "sc-pill-ready" : ""}`}>
@@ -221,6 +223,11 @@ export default function EstimatePanel({ ws, onWorkspace, onScope }: { ws: Worksp
           </>
         ) : (
           <>
+            {deleted && (
+              <p className="sc-alert sc-alert-warn">
+                The earlier estimate{deleted.docNumber ? ` #${deleted.docNumber}` : ""} was deleted in QuickBooks. Its history is kept below. You can create a new one.
+              </p>
+            )}
             <p className="sc-muted">
               Creates one estimate in QuickBooks with customer-facing descriptions, grouped by phase and division. Optional upgrades are listed in the message, not in the total. It stays unsent.
             </p>
@@ -286,11 +293,11 @@ export default function EstimatePanel({ ws, onWorkspace, onScope }: { ws: Worksp
       {notice && <p className="sc-alert sc-alert-good" role="status">{notice}</p>}
       {error && <p className="sc-alert sc-alert-bad" role="alert">{error}</p>}
 
-      {e && e.snapshots.length > 0 && (
+      {ws.estimate && ws.estimate.snapshots.length > 0 && (
         <details className="sc-card">
-          <summary className="sc-h2">QuickBooks history ({e.snapshots.length})</summary>
+          <summary className="sc-h2">QuickBooks history ({ws.estimate.snapshots.length})</summary>
           <ul className="sc-plain">
-            {e.snapshots.map((s, i) => (
+            {ws.estimate.snapshots.map((s, i) => (
               <li key={i}>{when(s.capturedAt)}: {s.source}, total {money(s.total)}{s.syncToken ? ` (QuickBooks revision ${s.syncToken})` : ""}</li>
             ))}
           </ul>

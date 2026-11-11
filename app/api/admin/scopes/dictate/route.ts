@@ -10,7 +10,7 @@ export const maxDuration = 120;
 export async function POST(request: Request) {
   const g = await requireEmployee();
   if ("response" in g) return g.response;
-  if (!isAiConfigured()) return fail(new Error("Dictation needs OPENAI_API_KEY in Replit Secrets."), 503);
+  if (!isAiConfigured()) return fail(new Error("Dictation needs an OpenAI key (OPENAI_API_KEY in Replit Secrets)."), 503);
   try {
     const form = await request.formData();
     const file = form.get("file");

@@ -137,7 +137,10 @@ export default async function ScopeList({ searchParams }: { searchParams: Promis
                 </span>
                 <span className="sc-row-meta">
                   <span className={`sc-pill sc-pill-${r.scope_status}`}>Scope: {SCOPE_LABEL[r.scope_status]}</span>
-                  <span className={`sc-pill sc-pill-est-${r.est}`}>Estimate: {ESTIMATE_STATUS_LABEL[r.est]}</span>
+                  <span className={`sc-pill sc-pill-est-${r.estimate_error ? "unavailable" : r.est}`}>
+                    Estimate: {ESTIMATE_STATUS_LABEL[r.est]}
+                    {r.estimate_error ? " (last check failed)" : ""}
+                  </span>
                   <span className={`sc-pill ${r.qbo_project_id ? "sc-pill-ready" : ""}`}>Project: {r.qbo_project_id ? "Linked" : "Not linked"}</span>
                   <span className="sc-muted">Updated {when(new Date(r.updated_at))}</span>
                 </span>

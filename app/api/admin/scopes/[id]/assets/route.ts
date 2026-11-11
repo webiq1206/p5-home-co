@@ -44,7 +44,7 @@ export async function POST(request: Request, { params }: Ctx) {
     if (!KEY.test(clientKey)) throw new Error("Missing upload key.");
     if (!KINDS.has(kind) || kind === "text") throw new Error("Unknown upload type.");
     if (file.size === 0) throw new Error(`${file.name} is empty.`);
-    if (file.size > MAX_UPLOAD_BYTES) throw new Error(`${file.name} is over 40 MB.`);
+    if (file.size > MAX_UPLOAD_BYTES) throw new Error(`${file.name} is over 23 MB. Split or compress it and upload again.`);
     const data = Buffer.from(await file.arrayBuffer());
     const stored = await storeBytes(g.project.id, data);
     const num = (k: string) => {

@@ -155,7 +155,8 @@ export async function listProjects(f: ListFilter): Promise<ListRow[]> {
   return query<ListRow>(
     `SELECT ${PROJECT_COLS.replace(/(^|,\s*)([a-z_]+)/g, "$1p.$2")},
             e.qbo_estimate_id AS estimate_qbo_id,
-            CASE WHEN t.synced_at IS NOT NULL AND (e.last_synced_at IS NULL OR t.synced_at > e.last_synced_at)
+            CASE WHEN e.txn_status IS DISTINCT FROM 'Deleted' AND t.synced_at IS NOT NULL
+                      AND (e.last_synced_at IS NULL OR t.synced_at > e.last_synced_at)
                  THEN t.raw ELSE e.qbo_snapshot END AS estimate_raw,
             e.status_error AS estimate_error,
             e.total::text AS estimate_total
@@ -532,6 +533,17 @@ export async function applyEstimateStatus(
 
 export async function estimateStatusError(estimateId: number, error: string): Promise<void> {
   await query("UPDATE scope_estimate SET status_error = $2, updated_at = now() WHERE id = $1", [estimateId, error.slice(0, 500)]);
+}
+
+/** QuickBooks confirmed the estimate no longer exists. History and snapshots are kept. */
+export async function markEstimateDeleted(estimateId: number): Promise<void> {
+  await query(
+    `UPDATE scope_estimate
+        SET txn_status = 'Deleted', status_error = NULL, last_synced_at = now(), updated_at = now(),
+            qbo_snapshot = coalesce(qbo_snapshot, '{}'::jsonb) || '{"TxnStatus":"Deleted"}'::jsonb
+      WHERE id = $1`,
+    [estimateId],
+  );
 }
 
 export async function estimateSnapshots(estimateId: number): Promise<{ sync_token: string | null; source: string; captured_at: Date; total: number | null }[]> {

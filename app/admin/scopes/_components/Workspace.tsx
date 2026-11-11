@@ -90,19 +90,21 @@ export default function Workspace({ initial, initialTab }: { initial: WS; initia
     setError(null);
     setMessage(null);
     setProcessing(true);
-    const hadScope = Boolean(ws.version);
     try {
       const res = await api<{ message: string }>(`/api/admin/scopes/${id}/process`, { method: "POST" });
       setMessage(res.message);
       await reload();
-      setTab(hadScope ? "scope" : "scope");
+      setTab("scope");
     } catch (e) {
+      // A long recording can outlast the request while the server keeps working.
+      // If it is still running, keep showing progress instead of an error.
+      const latest = await api<{ workspace: WS }>(`/api/admin/scopes/${id}`).catch(() => null);
+      if (latest) setWs(latest.workspace);
+      if (latest?.workspace.project.processing_state === "running") return;
       setError((e as Error).message);
-      await reload();
-    } finally {
       setProcessing(false);
     }
-  }, [id, reload, ws.version]);
+  }, [id, reload]);
 
   const play = (e: Evidence) => {
     const a = ws.assets.find((x) => x.id === e.assetId);
@@ -122,7 +124,17 @@ export default function Workspace({ initial, initialTab }: { initial: WS; initia
     else el.addEventListener("loadedmetadata", start, { once: true });
   }, [player]);
 
-  const fresh = ws.assets.filter((a) => !a.usedInVersion && a.state !== "failed");
+  // New material: not yet read into the scope and not already waiting in a proposal.
+  const proposed = new Set(ws.proposal?.sourceIds ?? []);
+  const fresh = ws.assets.filter((a) => !a.usedInVersion && a.state !== "failed" && !proposed.has(a.id));
+  const patchProject = async (fields: Record<string, string>) => {
+    try {
+      const { workspace } = await api<{ workspace: WS }>(`/api/admin/scopes/${id}`, { method: "PATCH", json: fields });
+      setWs(workspace);
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  };
   const blocking = ws.questions.filter((q) => q.blocking).length;
   const p = ws.project;
   const client = [p.client_first_name, p.client_last_name].filter(Boolean).join(" ");
@@ -139,10 +151,7 @@ export default function Workspace({ initial, initialTab }: { initial: WS; initia
             <span className="sc-visually-hidden">Type of work</span>
             <select
               value={p.service}
-              onChange={async (ev) => {
-                const { workspace } = await api<{ workspace: WS }>(`/api/admin/scopes/${id}`, { method: "PATCH", json: { service: ev.target.value } });
-                setWs(workspace);
-              }}
+              onChange={(ev) => void patchProject({ service: ev.target.value })}
             >
               {SERVICES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
             </select>
@@ -151,10 +160,7 @@ export default function Workspace({ initial, initialTab }: { initial: WS; initia
             <span className="sc-visually-hidden">Finish tier</span>
             <select
               value={p.finish_tier}
-              onChange={async (ev) => {
-                const { workspace } = await api<{ workspace: WS }>(`/api/admin/scopes/${id}`, { method: "PATCH", json: { finish_tier: ev.target.value } });
-                setWs(workspace);
-              }}
+              onChange={(ev) => void patchProject({ finish_tier: ev.target.value })}
             >
               <option value="builder">Builder grade</option>
               <option value="mid">Mid-range</option>

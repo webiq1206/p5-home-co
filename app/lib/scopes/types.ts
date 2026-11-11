@@ -313,3 +313,15 @@ export type Answer =
   | { amount: number; assetId?: number | null };
 
 export type ScopeStatusName = "in_progress" | "needs_information" | "ready";
+
+/**
+ * JSON with sorted keys. Postgres jsonb does not keep key order, so two
+ * equal values must be compared through this, never plain JSON.stringify.
+ */
+export function canonical(value: unknown): string {
+  return JSON.stringify(value, (_k, v) =>
+    v && typeof v === "object" && !Array.isArray(v)
+      ? Object.fromEntries(Object.keys(v).sort().filter((k) => v[k] !== undefined).map((k) => [k, v[k]]))
+      : v,
+  );
+}

@@ -18,6 +18,7 @@ import {
   DEFAULT_FINANCE,
   SERVICE_MATRIX,
   companyAllocation,
+  type FinancePolicy,
 } from "../../../lib/p5/pricing.ts";
 import type { FinishTier } from "../../../lib/p5/priceBook.ts";
 import {
@@ -47,6 +48,8 @@ export type PricingContext = {
   settings: ScopeSettings;
   /** Keys of one-time acknowledgements recorded through the wizard. */
   acknowledged: Set<string>;
+  /** The saved estimator finance policy; the approved default when none is saved. */
+  finance?: FinancePolicy;
   now?: Date;
 };
 
@@ -57,12 +60,18 @@ export function profitRate(service: string): number {
   return (matrix ?? SERVICE_MATRIX.remodel).target;
 }
 
-export function priceMultiplier(service: string, now = new Date()): {
+export function priceMultiplier(service: string, now = new Date(), finance: FinancePolicy = DEFAULT_FINANCE): {
   multiplier: number;
   overhead: number;
   profit: number;
 } {
-  const overhead = companyAllocation(DEFAULT_FINANCE, now).overhead;
+  let overhead: number;
+  try {
+    overhead = companyAllocation(finance, now).overhead;
+  } catch {
+    // A saved policy the estimator itself would reject falls back to the approved default.
+    overhead = companyAllocation(DEFAULT_FINANCE, now).overhead;
+  }
   const profit = profitRate(service);
   return { multiplier: (1 + CONTINGENCY_RATE) / (1 - overhead - profit), overhead, profit };
 }
@@ -116,7 +125,7 @@ function description(task: ScopeTask): string {
 
 export function priceScope(doc: ScopeDoc, ctx: PricingContext): PricingResult {
   const now = ctx.now ?? new Date();
-  const { multiplier, overhead, profit } = priceMultiplier(ctx.service, now);
+  const { multiplier, overhead, profit } = priceMultiplier(ctx.service, now, ctx.finance);
   const settings = ctx.settings;
   const lines: EstimateLine[] = [];
   const issues: PricingIssue[] = [];
@@ -277,9 +286,7 @@ export function priceScope(doc: ScopeDoc, ctx: PricingContext): PricingResult {
         notes: [],
       });
       // A supplier quote is material only; P5's crew may still install it.
-      if (internal || task.performer === "supplier") {
-        if (task.laborHours?.value || settings.productionRates[task.costCode ?? ""]) needLabor(task, null, blocking);
-      }
+      if ((internal || task.performer === "supplier") && task.laborHours) needLabor(task, null, blocking);
       continue;
     }
 
@@ -317,30 +324,39 @@ export function priceScope(doc: ScopeDoc, ctx: PricingContext): PricingResult {
 
     // 5. Cost book line.
     const rate = costBookRate(entry.code, ctx.finishTier, ctx.service)!;
-    const qty = taskQuantity(task, doc, rate.unit);
+    let qty = taskQuantity(task, doc, rate.unit);
     const laborOnlyInternal = internal && entry.costType === "Labor Only";
+    const linked = task.quantity?.measurementId;
+    const measurementKey = linked && doc.measurements.some((m) => m.id === linked) ? `measure:${linked}` : null;
 
     // P5's crew doing labor-only work is priced by hours alone; a quantity is
     // only needed when an approved production rate turns it into hours.
-    if (laborOnlyInternal && (qty.state === "missing" || !settings.productionRates[entry.code])) {
-      needLabor(task, qty.state === "missing" ? null : qty, blocking);
+    if (laborOnlyInternal && !settings.productionRates[entry.code]) {
+      needLabor(task, null, blocking);
       continue;
     }
+    // A quantity in a different unit than the cost book rate cannot be priced
+    // (linear feet against a per-square-foot rate). Ask for it in the right unit.
+    let unitMismatch = false;
+    if (qty.state !== "missing" && qty.unit.toUpperCase() !== rate.unit) {
+      unitMismatch = true;
+      qty = { state: "missing", unit: rate.unit };
+    }
     if (qty.state === "missing") {
-      const m = task.quantity?.measurementId;
       issue({
-        key: m ? `measure:${m}` : `qty:${task.id}`,
+        key: measurementKey && !unitMismatch ? measurementKey : `qty:${task.id}`,
         taskId: task.id,
         kind: "missing-quantity",
         blocking,
-        message: `"${task.title}" needs a quantity (${qty.unit}).`,
+        message: unitMismatch
+          ? `"${task.title}" is priced per ${rate.unit}, but its quantity is in a different unit. Enter it in ${rate.unit}.`
+          : `"${task.title}" needs a quantity (${rate.unit}).`,
       });
       continue;
     }
     if (qty.state === "estimated") {
-      const m = task.quantity?.measurementId;
       issue({
-        key: m ? `measure:${m}` : `qty:${task.id}`,
+        key: measurementKey ?? `qty:${task.id}`,
         taskId: task.id,
         kind: "estimated-quantity",
         blocking,
@@ -444,7 +460,7 @@ export function priceScope(doc: ScopeDoc, ctx: PricingContext): PricingResult {
       baseCost,
       basePrice,
       optionalPrice: round2(lines.filter((l) => l.optional).reduce((s, l) => s + l.price, 0)),
-      margin: baseCost !== null && basePrice > 0 ? round2((basePrice - baseCost) / basePrice) : null,
+      margin: baseCost !== null && basePrice > 0 ? Math.round(((basePrice - baseCost) / basePrice) * 10000) / 10000 : null,
       laborHours: round2(base.reduce((s, l) => s + (l.laborHours ?? 0), 0)),
     },
     policy: {

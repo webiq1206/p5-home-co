@@ -55,7 +55,7 @@ export type Workspace = {
   pricing: PricingResult;
   questions: Question[];
   readiness: { status: string; blocking: number; blockers: string[] };
-  proposal: { changes: Change[]; createdAt: string } | null;
+  proposal: { changes: Change[]; createdAt: string; sourceIds: number[] } | null;
   estimate: null | {
     id: number;
     qboId: string | null;
@@ -147,7 +147,7 @@ export async function loadWorkspace(projectId: number): Promise<Workspace | null
     pricing: computed.pricing,
     questions: computed.questions,
     readiness: computed.readiness,
-    proposal: pending_proposal ? { changes: pending_proposal.changes, createdAt: pending_proposal.createdAt } : null,
+    proposal: pending_proposal ? { changes: pending_proposal.changes, createdAt: pending_proposal.createdAt, sourceIds: pending_proposal.sourceIds ?? [] } : null,
     estimate: estimate
       ? {
           id: estimate.id,
@@ -164,7 +164,7 @@ export async function loadWorkspace(projectId: number): Promise<Workspace | null
           drift: estimate.drift ? { changed: estimate.drift.changed, details: estimate.drift.details } : null,
           lastSyncedAt: iso(estimate.last_synced_at),
           error: estimate.status_error,
-          stale: !estimate.last_synced_at || Date.now() - new Date(estimate.last_synced_at).getTime() > 15 * 60_000,
+          stale: status !== "deleted" && (!estimate.last_synced_at || Date.now() - new Date(estimate.last_synced_at).getTime() > 15 * 60_000),
           snapshots: snapshots.map((s) => ({ syncToken: s.sync_token, source: s.source, capturedAt: iso(s.captured_at)!, total: s.total })),
         }
       : null,

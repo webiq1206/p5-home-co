@@ -15,19 +15,22 @@ import { DIVISIONS } from "./divisions.ts";
 import type { Prepared } from "./files.ts";
 import type { ScopeDoc } from "./types.ts";
 
-function connection(kind: "audio" | "text"): { key: string; endpoint: string } {
+/**
+ * The same two places the existing estimator looks: the OPENAI_API_KEY secret,
+ * or Replit's managed OpenAI integration. The direct key is preferred because
+ * timestamped transcription (whisper-1) is only guaranteed there.
+ */
+function connection(): { key: string; endpoint: string; managed: boolean } {
   const direct = process.env.OPENAI_API_KEY;
-  const endpoint = (process.env.OPENAI_BASE_URL || "https://api.openai.com/v1").replace(/\/+$/, "");
-  if (direct) return { key: direct, endpoint };
-  // The Replit AI integration proxy can serve text calls; transcription needs the direct key.
-  if (kind === "text" && process.env.AI_INTEGRATIONS_OPENAI_API_KEY && process.env.AI_INTEGRATIONS_OPENAI_BASE_URL) {
-    return { key: process.env.AI_INTEGRATIONS_OPENAI_API_KEY, endpoint: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL.replace(/\/+$/, "") };
+  if (direct) return { key: direct, endpoint: (process.env.OPENAI_BASE_URL || "https://api.openai.com/v1").replace(/\/+$/, ""), managed: false };
+  if (process.env.AI_INTEGRATIONS_OPENAI_API_KEY && process.env.AI_INTEGRATIONS_OPENAI_BASE_URL) {
+    return { key: process.env.AI_INTEGRATIONS_OPENAI_API_KEY, endpoint: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL.replace(/\/+$/, ""), managed: true };
   }
-  throw new Error("OPENAI_API_KEY is not set. Add it in Replit Secrets.");
+  throw new Error("No OpenAI key is available. Add OPENAI_API_KEY in Replit Secrets.");
 }
 
 export function isAiConfigured(): boolean {
-  return Boolean(process.env.OPENAI_API_KEY);
+  return Boolean(process.env.OPENAI_API_KEY || (process.env.AI_INTEGRATIONS_OPENAI_API_KEY && process.env.AI_INTEGRATIONS_OPENAI_BASE_URL));
 }
 
 export const SCOPE_MODEL = process.env.SCOPE_MODEL || "gpt-4.1";
@@ -40,7 +43,7 @@ export const TRANSCRIBE_LIMIT = 25 * 1024 * 1024;
 
 export async function transcribe(data: Buffer, fileName: string, mime: string): Promise<Transcript> {
   if (data.length > TRANSCRIBE_LIMIT) throw new Error("This audio file is over 25 MB and cannot be transcribed in one piece.");
-  const { key, endpoint } = connection("audio");
+  const { key, endpoint, managed } = connection();
   const form = new FormData();
   form.append("file", new Blob([new Uint8Array(data)], { type: mime || "audio/webm" }), fileName || "recording.webm");
   form.append("model", TRANSCRIBE_MODEL);
@@ -70,7 +73,12 @@ export async function transcribe(data: Buffer, fileName: string, mime: string): 
       };
     }
     if (res && res.status < 500 && res.status !== 429) {
-      throw new Error(`Transcription failed (${res.status}): ${(await res.text()).slice(0, 300)}`);
+      const detail = (await res.text()).slice(0, 300);
+      throw new Error(
+        managed
+          ? `Transcription failed (${res.status}) through Replit's managed OpenAI connection, which may not offer timestamped transcription. Add OPENAI_API_KEY in Replit Secrets. ${detail}`
+          : `Transcription failed (${res.status}): ${detail}`,
+      );
     }
     if (res) lastError = new Error(`Transcription failed (${res.status}).`);
     await new Promise((r) => setTimeout(r, 1500 * attempt));
@@ -268,7 +276,7 @@ export function buildExtractionContent(input: ExtractInput): Block[] {
 }
 
 export async function extractScope(input: ExtractInput): Promise<unknown> {
-  const { key, endpoint } = connection("text");
+  const { key, endpoint } = connection();
   const body = {
     model: SCOPE_MODEL,
     store: false,

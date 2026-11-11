@@ -82,7 +82,7 @@ details.sc-card > summary { cursor: pointer; }
 .sc-pill { display: inline-block; padding: 3px 9px; border: 1px solid var(--line); background: var(--bone); color: var(--ink); font-size: 12px; font-weight: 650; }
 .sc-pill-ready, .sc-pill-est-accepted, .sc-pill-est-converted { background: #e7f0e4; border-color: #6d8f62; }
 .sc-pill-needs_information, .sc-pill-est-unavailable { background: #fbefd9; border-color: #b8873a; }
-.sc-pill-est-declined { background: #f6dede; border-color: #9a2f2f; }
+.sc-pill-est-declined, .sc-pill-est-deleted { background: #f6dede; border-color: #9a2f2f; }
 .sc-pill-est-sent, .sc-pill-est-created_unsent { background: #eef1f6; border-color: #7b8aa3; }
 .sc-cert-suggested, .sc-cert-assumed { border-style: dashed; }
 .sc-cert-conflict, .sc-cert-undecided { background: #fbefd9; border-color: #b8873a; }

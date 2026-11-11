@@ -24,6 +24,7 @@ import {
   insertEstimate,
   latestEstimate,
   logEvent,
+  markEstimateDeleted,
   mirroredEstimate,
   recordRevision,
   setProjectState,
@@ -228,6 +229,20 @@ export async function findCustomerCandidates(p: ProjectRow): Promise<CustomerCan
   });
 }
 
+/**
+ * QuickBooks requires a display name to be unique across customers, vendors
+ * and employees, and only QuickBooks knows all three. On its duplicate-name
+ * error (6240) the write is retried once with a distinguishing suffix.
+ */
+async function writeNamed(naturalKey: string, payload: Record<string, unknown>, suffix: string, userId: number) {
+  try {
+    return await qboWrite({ entity: "Customer", naturalKey, payload, requestedBy: userId });
+  } catch (error) {
+    if (!/Duplicate Name|6240/i.test((error as Error).message)) throw error;
+    return qboWrite({ entity: "Customer", naturalKey, payload: { ...payload, DisplayName: `${String(payload.DisplayName).slice(0, 80)} (${suffix})` }, requestedBy: userId });
+  }
+}
+
 /** Link an existing customer, or create one. Idempotent per project. */
 export async function ensureCustomer(
   p: ProjectRow,
@@ -258,7 +273,7 @@ export async function ensureCustomer(
     FamilyName: p.client_last_name ?? undefined,
     ...(p.project_address ? { ShipAddr: { Line1: p.project_address } } : {}),
   };
-  const result = await qboWrite({ entity: "Customer", naturalKey: `scope-platform-customer:${p.id}`, payload, requestedBy: userId });
+  const result = await writeNamed(`scope-platform-customer:${p.id}`, payload, street || `P5 ${p.id}`, userId);
   const name = String(result.raw.DisplayName ?? displayName);
   await setProjectState(p.id, { qbo_customer_id: result.qboId, qbo_customer_name: name });
   await logEvent(p.id, "qbo-customer-created", { qboId: result.qboId, reused: result.reused }, userId);
@@ -287,7 +302,9 @@ export async function buildPayloadFor(
   if (missingItems.length || !p.qbo_customer_id) return { payload: null, missingItems };
   return {
     payload: buildEstimatePayload({
-      customerId: p.qbo_customer_id,
+      // Under the QuickBooks project when one is already linked, so project
+      // reporting includes it; otherwise under the customer.
+      customerId: p.qbo_project_id ?? p.qbo_customer_id,
       pricing,
       itemIds: ids as Record<ItemKey, string>,
       taxable: settings.taxableItems,
@@ -315,8 +332,12 @@ export async function createOrReviseEstimate(input: {
 }): Promise<{ estimateId: number; qboId: string; revised: boolean; reused: boolean }> {
   const { project: p, version: v } = input;
   const existing = await latestEstimate(p.id);
-  if (!existing || !existing.qbo_estimate_id) {
-    const result = await qboWrite({ entity: "Estimate", naturalKey: `scope-platform-estimate:${p.id}`, payload: input.payload, requestedBy: input.userId });
+  const replaced = existing?.txn_status === "Deleted";
+  if (!existing || !existing.qbo_estimate_id || replaced) {
+    // One estimate per project. Only when QuickBooks confirms the earlier one
+    // was deleted does a new key (and so a new estimate) become possible.
+    const generation = replaced ? `:after-${existing!.qbo_estimate_id}` : "";
+    const result = await qboWrite({ entity: "Estimate", naturalKey: `scope-platform-estimate:${p.id}${generation}`, payload: input.payload, requestedBy: input.userId });
     const estimateId = await insertEstimate({ projectId: p.id, versionId: v.id, qboId: result.qboId, payload: input.payload, userId: input.userId });
     await applyEstimateStatus(estimateId, { raw: result.raw, source: "create", drift: compareEstimate(input.payload, result.raw as { Line?: unknown; TotalAmt?: number }) });
     await logEvent(p.id, "qbo-estimate-created", { qboId: result.qboId, version: v.version_no, reused: result.reused }, input.userId);
@@ -324,7 +345,10 @@ export async function createOrReviseEstimate(input: {
   }
 
   // Revision: read QuickBooks first so a change made there is never overwritten silently.
-  const live = await fetchEstimate(existing.qbo_estimate_id);
+  const live = await fetchEstimate(existing.qbo_estimate_id).catch(async (error: Error) => {
+    if (isGone(error)) await markEstimateDeleted(existing.id);
+    throw isGone(error) ? new Error("This estimate was deleted in QuickBooks. Refresh, then create a new one.") : error;
+  });
   const status = estimateStatus(live as never, true);
   if (status === "accepted" || status === "converted" || status === "closed" || status === "declined") {
     throw new Error("This estimate is no longer open in QuickBooks. Record further changes as a change order or a new estimate in QuickBooks.");
@@ -334,7 +358,23 @@ export async function createOrReviseEstimate(input: {
     await applyEstimateStatus(existing.id, { raw: live, source: "pre-revision", drift });
     throw new Error("The estimate was changed in QuickBooks since it was sent. Review the differences, then confirm to replace them.");
   }
-  const payload = { ...input.payload, Id: existing.qbo_estimate_id, SyncToken: String(live.SyncToken ?? ""), sparse: false as const };
+  if (existing.version_id === v.id && !drift.changed) {
+    // Same scope version, nothing changed in QuickBooks: a repeat tap, not a revision.
+    await applyEstimateStatus(existing.id, { raw: live, source: "refresh", drift });
+    return { estimateId: existing.id, qboId: existing.qbo_estimate_id, revised: false, reused: true };
+  }
+  // Sparse update: the lines given replace all lines, and every field not sent
+  // (estimate number, dates, terms, anything set in QuickBooks) is left alone.
+  // The customer and the sent / not sent flag stay whatever QuickBooks has.
+  const { EmailStatus: _email, CustomerRef: _customer, ...changes } = input.payload;
+  void _email;
+  const payload = {
+    ...changes,
+    CustomerRef: (live.CustomerRef as { value: string } | undefined) ?? _customer,
+    Id: existing.qbo_estimate_id,
+    SyncToken: String(live.SyncToken ?? ""),
+    sparse: true as const,
+  };
   const result = await qboWrite({
     entity: "Estimate",
     operation: "update",
@@ -354,13 +394,22 @@ async function fetchEstimate(qboId: string): Promise<Record<string, unknown> & {
   return res.Estimate as Record<string, unknown> & { SyncToken?: string };
 }
 
+/** QuickBooks answers a deleted or never-existing object with error 610, "Object Not Found". */
+function isGone(error: Error): boolean {
+  return /QBO 400/.test(error.message) && /Object Not Found|"code":"610"/i.test(error.message);
+}
+
 /** Live refresh from QuickBooks. Failure is recorded and shown, never hidden. */
 export async function refreshEstimate(e: EstimateRow): Promise<void> {
-  if (!e.qbo_estimate_id) return;
+  if (!e.qbo_estimate_id || e.txn_status === "Deleted") return;
   try {
     const raw = await fetchEstimate(e.qbo_estimate_id);
     await applyEstimateStatus(e.id, { raw, source: "refresh", drift: compareEstimate(e.sent_payload as { Line: unknown }, raw) });
   } catch (error) {
+    if (isGone(error as Error)) {
+      await markEstimateDeleted(e.id);
+      return;
+    }
     await estimateStatusError(e.id, (error as Error).message);
     throw error;
   }
@@ -372,7 +421,7 @@ export async function refreshEstimate(e: EstimateRow): Promise<void> {
  * without anyone pressing refresh.
  */
 export async function applyMirroredStatus(e: EstimateRow): Promise<boolean> {
-  if (!e.qbo_estimate_id) return false;
+  if (!e.qbo_estimate_id || e.txn_status === "Deleted") return false;
   const mirror = await mirroredEstimate(e.qbo_estimate_id).catch(() => null);
   if (!mirror) return false;
   const token = String((mirror.raw as { SyncToken?: string }).SyncToken ?? "");
@@ -416,12 +465,12 @@ export async function linkProject(p: ProjectRow, qboId: string, userId: number):
 export async function createProjectInQbo(p: ProjectRow, userId: number): Promise<{ qboId: string; isProject: boolean }> {
   if (!p.qbo_customer_id) throw new Error("Link the QuickBooks customer first.");
   const name = (p.title || p.project_address || `Project ${p.id}`).slice(0, 90);
-  const result = await qboWrite({
-    entity: "Customer",
-    naturalKey: `scope-platform-project:${p.id}`,
-    payload: customerPayload({ displayName: name, parentQboId: p.qbo_customer_id, isProject: true, billingAddress: { line1: p.project_address } }),
-    requestedBy: userId,
-  });
+  const result = await writeNamed(
+    `scope-platform-project:${p.id}`,
+    customerPayload({ displayName: name, parentQboId: p.qbo_customer_id, isProject: true, billingAddress: { line1: p.project_address } }),
+    p.client_last_name || `P5 ${p.id}`,
+    userId,
+  );
   const isProject = result.raw.IsProject === true;
   await setProjectState(p.id, { qbo_project_id: result.qboId, qbo_project_name: String(result.raw.DisplayName ?? name), qbo_project_linked_by: userId });
   await logEvent(p.id, "qbo-project-created", { qboId: result.qboId, isProject }, userId);
