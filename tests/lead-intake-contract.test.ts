@@ -188,7 +188,11 @@ test("Step 1 payload shape: the request needs what it can help with, a name and 
     project: "Something else, or I am not sure",
     contactPreference: "text",
     bestTime: null,
+    address: null,
   });
+  // The optional project address is one more string on the same shape; nothing else moves.
+  const withAddress = readShortRequest((key) => ({ name: "Dana Reyes", phone: "(208) 555-0142", note: "Loose deck boards", address: "412 N Sample St" } as Record<string, string>)[key] ?? null);
+  assert.equal(withAddress.ok && withAddress.value.address, "412 N Sample St");
 });
 
 test("Step 2 reader: all optional, unknown values dropped, a bad email named", () => {

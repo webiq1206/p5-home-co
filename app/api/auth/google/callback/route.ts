@@ -25,19 +25,25 @@ import {
 } from "../../../../lib/google-auth.ts";
 import { appUrl } from "../../../../lib/public-url.ts";
 import type { Role } from "../../../../lib/leads/types.ts";
-import { OAUTH_NONCE_COOKIE, OAUTH_STATE_COOKIE } from "../../../../lib/google-auth-cookies.ts";
+import { AUTH_NEXT_COOKIE, OAUTH_NONCE_COOKIE, OAUTH_STATE_COOKIE } from "../../../../lib/google-auth-cookies.ts";
 
 export const dynamic = "force-dynamic";
+
+/** True when this sign-in started from the scope platform's own login page. */
+function fromScopes(request: Request): boolean {
+  return (request.headers.get("cookie") ?? "").split(";").some((c) => c.trim() === `${AUTH_NEXT_COOKIE}=scopes`);
+}
 
 function back(request: Request, error: string): NextResponse {
   // appUrl, not request.url: behind a proxy the latter is the bind address,
   // so the browser would be sent to https://0.0.0.0:3000 and dead-end.
-  const url = new URL(appUrl(request, "/admin/login"));
+  const url = new URL(appUrl(request, fromScopes(request) ? "/scopes/login" : "/admin/login"));
   url.searchParams.set("error", error);
   const response = NextResponse.redirect(url);
   // Whatever happened, the one-shot cookies are spent.
   response.cookies.delete(OAUTH_STATE_COOKIE);
   response.cookies.delete(OAUTH_NONCE_COOKIE);
+  response.cookies.delete(AUTH_NEXT_COOKIE);
   return response;
 }
 
@@ -95,16 +101,20 @@ export async function GET(request: Request): Promise<NextResponse> {
   const identity = decodeIdToken(identityToken);
   if (isRejection(identity)) return back(request, "identity");
 
-  const problem = checkIdentity(identity);
-  if (problem) return back(request, "domain");
-
   // The allowlist. Matching on the stored email means access is granted by
   // adding someone to app_user, not by them owning a company address.
-  const rows = await query<{ id: string; is_active: boolean; role: Role }>(
-    "SELECT id, is_active, role FROM app_user WHERE lower(email) = $1",
+  const rows = await query<{ id: string; is_active: boolean; role: Role; scopes_only: boolean }>(
+    `SELECT id, is_active, role, COALESCE((to_jsonb(app_user)->>'scopes_only')::boolean, false) AS scopes_only
+       FROM app_user WHERE lower(email) = $1`,
     [identity.email],
   );
   let account = rows[0];
+
+  // Admin access requires a P5 company account. The one exception is a
+  // scopes-only account (a contractor an administrator added by email): it
+  // may use its own verified Google address, and it can reach /scopes only.
+  const problem = checkIdentity(identity);
+  if (problem && !(identity.emailVerified && account?.scopes_only)) return back(request, "domain");
 
   // Bootstrap. The very first administrator cannot be added through a panel
   // nobody can sign into, so one named account may create itself -- but only
@@ -132,7 +142,7 @@ export async function GET(request: Request): Promise<NextResponse> {
           JSON.stringify({ email: identity.email, reason: "no active administrator existed" }),
         ],
       ).catch(() => undefined);
-      account = { id: created[0].id, is_active: true, role: "administrator" };
+      account = { id: created[0].id, is_active: true, role: "administrator", scopes_only: false };
     }
   }
 
@@ -150,7 +160,8 @@ export async function GET(request: Request): Promise<NextResponse> {
     [Number(account.id), String(account.id)],
   ).catch(() => undefined);
 
-  const response = NextResponse.redirect(appUrl(request, "/admin"));
+  const response = NextResponse.redirect(appUrl(request, account.scopes_only || fromScopes(request) ? "/scopes" : "/admin"));
+  response.cookies.delete(AUTH_NEXT_COOKIE);
   response.cookies.set(SESSION_COOKIE, token, {
     httpOnly: true,
     sameSite: "lax",

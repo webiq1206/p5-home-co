@@ -11,7 +11,9 @@ export const dynamic = "force-dynamic";
 
 export async function POST(request: Request): Promise<NextResponse> {
   await destroySession().catch(() => undefined);
-  const response = NextResponse.redirect(appUrl(request, "/admin/login"), 303);
+  // Signing out from the scope platform returns to its own sign-in page.
+  const scopes = new URL(request.url).searchParams.get("next") === "scopes";
+  const response = NextResponse.redirect(appUrl(request, scopes ? "/scopes/login" : "/admin/login"), 303);
   response.cookies.delete(SESSION_COOKIE);
   return response;
 }

@@ -13,9 +13,10 @@
  * `/admin` covers the Knowledge Center and every finance page beneath it.
  * `/portal` is the client and vendor portals - each page addresses a named
  * customer or subcontractor, so indexing one would reveal who P5 works with
- * before a crawler ever reached the login.
+ * before a crawler ever reached the login. `/scopes` is the scope and estimate
+ * platform, which holds client names, addresses and pricing.
  */
-export const PRIVATE_PREFIXES = ["/admin", "/portal", "/api", "/estimate/qa-saved"] as const;
+export const PRIVATE_PREFIXES = ["/admin", "/portal", "/scopes", "/api", "/estimate/qa-saved"] as const;
 
 /**
  * noindex stops it being listed. nofollow stops links inside it being crawled

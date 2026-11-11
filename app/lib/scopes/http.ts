@@ -1,24 +1,28 @@
 /**
- * Request helpers for the scope platform's API routes. Every route requires a
- * signed-in, active employee (the existing Google sign-in and app_user roles).
+ * Request helpers for the scope platform's API routes.
+ *
+ * Every route requires a signed-in, active account: a P5 employee, or a
+ * scopes-only account (a contractor an administrator added). Scopes-only
+ * accounts never see internal cost, margin or setup, and cannot reach the
+ * admin panel at all (see getSessionUser in app/lib/auth.ts).
  */
 
 import { NextResponse } from "next/server";
 
-import { can, getSessionUser, type SessionUser } from "../auth.ts";
+import { can, getScopeUser, type ScopeUser } from "../auth.ts";
 import { isDatabaseConfigured } from "../db.ts";
 import { getProject, type ProjectRow } from "./store.ts";
 
-export type Guarded = { user: SessionUser } | { response: NextResponse };
+export type Guarded = { user: ScopeUser } | { response: NextResponse };
 
 export async function requireEmployee(): Promise<Guarded> {
   if (!isDatabaseConfigured()) return { response: NextResponse.json({ ok: false, error: "The database is not configured." }, { status: 503 }) };
-  const user = await getSessionUser();
+  const user = await getScopeUser();
   if (!user) return { response: NextResponse.json({ ok: false, error: "Sign in required." }, { status: 401 }) };
   return { user };
 }
 
-export async function requireProject(idParam: string): Promise<{ user: SessionUser; project: ProjectRow } | { response: NextResponse }> {
+export async function requireProject(idParam: string): Promise<{ user: ScopeUser; project: ProjectRow } | { response: NextResponse }> {
   const g = await requireEmployee();
   if ("response" in g) return g;
   const id = Number(idParam);
@@ -28,8 +32,18 @@ export async function requireProject(idParam: string): Promise<{ user: SessionUs
   return { user: g.user, project };
 }
 
-export function canManagePricing(user: SessionUser): boolean {
-  return can(user.role, "manage_settings");
+/** Internal cost, margin and markup are for P5 employees only. */
+export function seesInternal(user: ScopeUser): boolean {
+  return !user.scopesOnly;
+}
+
+export function canManagePricing(user: ScopeUser): boolean {
+  return !user.scopesOnly && can(user.role, "manage_settings");
+}
+
+/** Who may add or remove scopes-only accounts. */
+export function canManagePeople(user: ScopeUser): boolean {
+  return !user.scopesOnly && can(user.role, "manage_users");
 }
 
 export function fail(error: unknown, status = 400): NextResponse {

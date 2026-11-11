@@ -52,6 +52,8 @@ export type Workspace = {
   versions: { id: number; versionNo: number; source: string; note: string | null; createdAt: string }[];
   version: { id: number; versionNo: number; createdAt: string } | null;
   doc: ScopeDoc;
+  /** internal is false for scopes-only accounts: cost and margin are withheld. */
+  viewer: { internal: boolean };
   pricing: PricingResult;
   questions: Question[];
   readiness: { status: string; blocking: number; blockers: string[] };
@@ -81,7 +83,8 @@ export type Workspace = {
 
 const iso = (d: Date | string | null | undefined) => (d ? new Date(d).toISOString() : null);
 
-export async function loadWorkspace(projectId: number): Promise<Workspace | null> {
+export async function loadWorkspace(projectId: number, viewer: { scopesOnly: boolean }): Promise<Workspace | null> {
+  const internal = !viewer.scopesOnly;
   let project = await getProject(projectId);
   if (!project) return null;
   const settings = await loadScopeSettings();
@@ -144,7 +147,16 @@ export async function loadWorkspace(projectId: number): Promise<Workspace | null
     versions: versions.map((v) => ({ id: v.id, versionNo: v.version_no, source: v.source, note: v.note, createdAt: iso(v.created_at)! })),
     version: version ? { id: version.id, versionNo: version.version_no, createdAt: iso(version.created_at)! } : null,
     doc: computed.doc,
-    pricing: computed.pricing,
+    viewer: { internal },
+    // Internal cost, margin and markup never leave the server for a scopes-only account.
+    pricing: internal
+      ? computed.pricing
+      : {
+          ...computed.pricing,
+          lines: computed.pricing.lines.map((l) => ({ ...l, unitCost: null, cost: null })),
+          totals: { ...computed.pricing.totals, baseCost: null, margin: null },
+          policy: { ...computed.pricing.policy, overheadRate: 0, profitRate: 0, contingencyRate: 0 },
+        },
     questions: computed.questions,
     readiness: computed.readiness,
     proposal: pending_proposal ? { changes: pending_proposal.changes, createdAt: pending_proposal.createdAt, sourceIds: pending_proposal.sourceIds ?? [] } : null,
@@ -169,7 +181,7 @@ export async function loadWorkspace(projectId: number): Promise<Workspace | null
         }
       : null,
     qbo: { configured: state.configured, connected: state.connected, lastSuccess: iso(state.lastSuccess), error: state.error, sandbox: isSandbox() },
-    settings: { laborRate: settings.laborRate, laborLoadedCost: settings.laborLoadedCost },
+    settings: { laborRate: settings.laborRate, laborLoadedCost: internal ? settings.laborLoadedCost : null },
     events: events.map((e) => ({ kind: e.kind, detail: e.detail, at: iso(e.created_at)!, who: e.actor_name })),
   };
 }

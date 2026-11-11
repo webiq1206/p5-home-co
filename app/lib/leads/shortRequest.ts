@@ -39,6 +39,8 @@ export type ShortRequestValues = {
   project: string | null;
   contactPreference: ContactPreference;
   bestTime: string | null;
+  /** Optional project address from Step 1 of a full request. A callback never carries one. */
+  address: string | null;
 };
 
 export type ShortRequestField = "name" | "phone" | "email" | "note";
@@ -73,7 +75,8 @@ export function contactPreferenceLabel(value: ContactPreference): string {
 /**
  * Read and check a submission. `get` is FormData.get or any lookup with the
  * same field names: name, phone, email, note, project, request_type,
- * contact_preference, best_time.
+ * contact_preference, best_time, address (optional, never checked beyond
+ * its length).
  */
 export function readShortRequest(get: (key: string) => unknown): ShortRequestCheck {
   const kind: ShortRequestKind = text(get("request_type")) === CALLBACK_REQUEST ? "callback" : "request";
@@ -85,6 +88,7 @@ export function readShortRequest(get: (key: string) => unknown): ShortRequestChe
   // A callback is a request to be called, whatever the radio said.
   const contactPreference = kind === "callback" ? "call" : contactPreferenceFrom(text(get("contact_preference")));
   const bestTime = kind === "callback" ? text(get("best_time"), 120) : null;
+  const address = kind === "callback" ? null : text(get("address"), 300);
 
   if (!name) return { ok: false, field: "name", error: SHORT_REQUEST_ERRORS.name };
   if (!phone || !normalizePhone(phone)) return { ok: false, field: "phone", error: SHORT_REQUEST_ERRORS.phone };
@@ -103,6 +107,7 @@ export function readShortRequest(get: (key: string) => unknown): ShortRequestChe
       project,
       contactPreference,
       bestTime,
+      address,
     },
   };
 }

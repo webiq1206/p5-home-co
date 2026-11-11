@@ -5,6 +5,8 @@ import { useEffect, useId, useRef, useState, type FocusEvent } from "react";
 import { track, trackAcceptedInquiry } from "../app/analytics";
 import { normalizeEmail, normalizePhone } from "../app/lib/leads/normalize.ts";
 import { CALLBACK_REQUEST, TIMING_OPTIONS, contactPreferenceFrom, type ContactPreference } from "../app/lib/leads/shortRequest.ts";
+import Link from "next/link";
+
 import { PUBLIC_PHONE_DISPLAY, PUBLIC_PHONE_SMS } from "../app/publicIdentity";
 import { isNewAcceptedInquiry } from "../app/quote/conversion.ts";
 import { PROJECT_OPTIONS, brandForProject } from "../app/quote/options.ts";
@@ -13,9 +15,6 @@ import ThanksQuestions from "../app/quote/ThanksQuestions";
 import TrackedPhoneLink from "../app/quote/TrackedPhoneLink";
 import { captureAttribution } from "../lib/p5/browserAttribution.ts";
 import { AttachmentTile, type PickedFile } from "./AttachmentTile";
-import { PhoneIcon } from "./family/Icons";
-import SaveContactButton from "./SaveContactButton";
-import { OpenChatButton } from "./SiteChat";
 
 const FALLBACK_PROJECT = "Something else, or I am not sure";
 const STORAGE_KEY = "p5-quote-form-v6";
@@ -56,6 +55,7 @@ type Draft = {
   name: string;
   phone: string;
   email: string;
+  address: string;
   reach: ContactPreference;
   project: string;
   bestTime: string;
@@ -65,6 +65,25 @@ type Draft = {
 const FIELD_ORDER: readonly Field[] = ["note", "name", "phone", "email"];
 
 type RequestKey = { id: number; token: string };
+
+/** The small plus on a quiet toggle; its upright bar hides when the toggle is open. */
+function PlusIcon() {
+  return (
+    <svg className="quote-form-plus" aria-hidden="true" focusable="false" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+      <path d="M5 12h14" />
+      <path className="quote-form-plus-bar" d="M12 5v14" />
+    </svg>
+  );
+}
+
+function TickIcon() {
+  return (
+    <svg aria-hidden="true" focusable="false" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="m5 12.5 4.5 4.5L19 7.5" />
+    </svg>
+  );
+}
+
 type UploadState = "sending" | "sent" | "failed";
 
 function knownProject(value: unknown): string {
@@ -78,6 +97,7 @@ function initialDraft(defaultProject?: string): Draft {
     name: "",
     phone: "",
     email: "",
+    address: "",
     reach: DEFAULT_REACH,
     project: knownProject(defaultProject),
     bestTime: BEST_TIMES[0],
@@ -97,6 +117,7 @@ function readDraft(defaultProject?: string): Draft {
       name: str(saved.name),
       phone: str(saved.phone),
       email: str(saved.email),
+      address: str(saved.address),
       reach: saved.reach ? contactPreferenceFrom(saved.reach) : DEFAULT_REACH,
       project: knownProject(saved.project) || fresh.project,
       bestTime: (BEST_TIMES as readonly string[]).includes(str(saved.bestTime)) ? str(saved.bestTime) : BEST_TIMES[0],
@@ -166,23 +187,30 @@ type Done = {
   team: string;
   request: RequestKey | null;
   hadEmail: boolean;
+  hadAddress: boolean;
   projectKnown: boolean;
 };
 
 /**
- * The quote form, in two steps (owner, 1 November).
+ * The quote form, in two steps (owner, 1 November; 11 November: "It cannot
+ * look cluttered. It needs to look very clean."). Nothing sits in the form but
+ * fields, one button and one quiet line.
  *
- * Step 1 is one short screen: what we can help with, an optional attachment
- * tile, name, phone, optional email and how to reach them. "Send a request" |
- * "Have us call you" sits under the heading; the callback side is name, phone
- * and an optional best time. The lead is saved first; any files follow one by
- * one, so an upload can never cost the request.
+ * Before sending, top to bottom: the heading, "What can we help with?", name
+ * and phone (side by side from 640px), one quiet text toggle ("Add address,
+ * email or contact preference (optional)") that opens the project address, the
+ * email field and "How should we reach you?" inline, the send button, one muted line ("Prefer to talk?
+ * Call ... or have us call you.") and "No obligation." with the privacy link.
+ * "Have us call you" and "Send a request" are the same two toggle buttons as
+ * before; only the one for the other mode shows, as a text link. The callback
+ * side is name, phone and a best time.
  *
- * Step 2 sits on the success screen: "Help us prepare (optional)". Project
- * type, address, timing, more files and an email if Step 1 had none. It adds
- * to the same lead (the server merges, never overwrites) and is always
- * skippable. Call, text and chat sit beside the send button on wide screens
- * and above it on phones.
+ * After sending: a tick and the thanks heading, one sentence ending "Nothing
+ * else is needed.", the quiet toggle "Add photos, plans or details
+ * (optional)" (project type, timing, files, and an address or email only if
+ * Step 1 had none; it adds to the same lead, and leaving it closed is skipping), and
+ * one muted call line. Files upload one by one after the lead is saved, so an
+ * upload can never cost the request.
  */
 export function ShortRequestForm({
   id,
@@ -204,8 +232,8 @@ export function ShortRequestForm({
     phone: `${uid}-phone`,
     note: `${uid}-note`,
     email: `${uid}-email`,
+    projectAddress: `${uid}-project-address`,
     bestTime: `${uid}-best-time`,
-    next: `${uid}-next`,
     details: `${uid}-details`,
     address: `${uid}-address`,
     detailsEmail: `${uid}-details-email`,
@@ -219,18 +247,22 @@ export function ShortRequestForm({
   const [files, setFiles] = useState<PickedFile[]>([]);
   const [uploads, setUploads] = useState<Record<string, { state: UploadState; error?: string }>>({});
   const [done, setDone] = useState<Done | null>(null);
+  /** The Step 1 dropdown of optional fields (email, how to reach you); closed until asked for. */
+  const [optionsOpen, setOptionsOpen] = useState(false);
 
   // Step 2
   const [details, setDetails] = useState({ project: "", address: "", timing: "", email: "" });
-  const [moreFiles, setMoreFiles] = useState<PickedFile[]>([]);
-  const [detailsState, setDetailsState] = useState<"open" | "saving" | "saved" | "skipped">("open");
+  const [detailsState, setDetailsState] = useState<"open" | "saving" | "saved">("open");
   const [detailsError, setDetailsError] = useState<{ field: "email" | "details" | null; message: string } | null>(null);
 
   // The saved draft lives in sessionStorage, which only exists after mount;
   // reading it during render would make the server and client HTML differ.
   useEffect(() => {
+    const restored = readDraft(defaultProject);
     // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time sync from sessionStorage after hydration
-    setDraft(readDraft(defaultProject));
+    setDraft(restored);
+    // Anything already entered in the optional dropdown is shown, never hidden.
+    if (restored.address.trim() || restored.email.trim() || restored.reach !== DEFAULT_REACH) setOptionsOpen(true);
     setHydrated(true);
   }, [defaultProject]);
 
@@ -315,11 +347,18 @@ export function ShortRequestForm({
   }
 
   function focusField(field: Field) {
-    const element = document.getElementById(ids[field]);
-    if (element) {
-      element.focus({ preventScroll: true });
-      element.scrollIntoView({ block: "center" });
-    }
+    const focus = () => {
+      const element = document.getElementById(ids[field]);
+      if (element) {
+        element.focus({ preventScroll: true });
+        element.scrollIntoView({ block: "center" });
+      }
+    };
+    if (field === "email" && !optionsOpen) {
+      // The email sits in the optional dropdown: open it, then focus the field.
+      setOptionsOpen(true);
+      window.requestAnimationFrame(focus);
+    } else focus();
   }
 
   function setUpload(key: string, state: UploadState, error?: string) {
@@ -350,7 +389,6 @@ export function ShortRequestForm({
       return;
     }
 
-    const sending = callback ? [] : files;
     const project = draft.project || FALLBACK_PROJECT;
     const body = new FormData();
     body.set("name", draft.name.trim());
@@ -366,8 +404,8 @@ export function ShortRequestForm({
       body.set("request_type", "request");
       body.set("note", draft.note.trim());
       body.set("email", draft.email.trim());
+      body.set("address", draft.address.trim());
       body.set("contact_preference", draft.reach);
-      if (sending.length) body.set("files_expected", String(sending.length));
     }
     for (const [key, value] of Object.entries(captureAttribution())) {
       if (value) body.set(key, value);
@@ -401,7 +439,8 @@ export function ShortRequestForm({
           ? { id: payload.request.id, token: payload.request.token }
           : null;
       const team = brandForProject(project);
-      saveQuoteReceipt({ project, team, files: sending.length, filesAttached: false });
+      // Files are added on Step 2, after the request is saved; Step 1 sends none.
+      saveQuoteReceipt({ project, team, files: 0, filesAttached: false });
       try {
         sessionStorage.removeItem(STORAGE_KEY);
       } catch {
@@ -414,10 +453,9 @@ export function ShortRequestForm({
         team,
         request,
         hadEmail: !callback && Boolean(draft.email.trim()),
+        hadAddress: !callback && Boolean(draft.address.trim()),
         projectKnown: Boolean(draft.project),
       });
-      const failed = await sendFiles(sending, request);
-      saveQuoteReceipt({ project, team, files: sending.length, filesAttached: sending.length > 0 && failed.length === 0 });
     } catch {
       setStatus(`We could not send that. Call ${PUBLIC_PHONE_DISPLAY}.`);
       setPending(false);
@@ -445,8 +483,8 @@ export function ShortRequestForm({
       email,
     };
     const filled = Object.values(fields).filter(Boolean).length;
-    if (!filled && !moreFiles.length) {
-      setDetailsError({ field: "details", message: "Add a detail, or choose Skip." });
+    if (!filled && !files.length) {
+      setDetailsError({ field: "details", message: "Add a detail or a file above. If you have nothing to add, you are already done." });
       return;
     }
     if (!done.request) {
@@ -473,9 +511,9 @@ export function ShortRequestForm({
         }
         if (payload.team) setDone((current) => (current ? { ...current, team: payload.team ?? current.team } : current));
       }
-      await sendFiles(moreFiles, done.request);
+      await sendFiles(files, done.request);
       // One analytics event, no personal details, and never a second conversion.
-      track("lead_details_added", { form: "quote_landing_page", fields: filled, files: moreFiles.length });
+      track("lead_details_added", { form: "quote_landing_page", fields: filled, files: files.length });
       setDetailsState("saved");
     } catch {
       setDetailsError({ field: null, message: `We could not save that. Call or text ${PUBLIC_PHONE_DISPLAY}.` });
@@ -500,33 +538,49 @@ export function ShortRequestForm({
     return upload.error ? `Did not upload. ${upload.error}` : "Did not upload";
   };
 
-  // "Prefer to talk?" as the family shows it: call full width, text and chat
-  // half width. Above the send button on phones, beside it on wider screens.
+  // One muted line under the button. The two mode buttons keep their names and
+  // aria-pressed; only the one for the other mode shows, as a text link.
+  const modeButton = (mode: Mode, label: string) => {
+    const active = draft.mode === mode;
+    return (
+      <button
+        type="button"
+        className={active ? "quote-form-mode short-request-sr" : "quote-form-mode quote-form-line-link"}
+        aria-pressed={active}
+        tabIndex={active ? -1 : undefined}
+        onClick={() => update({ mode })}
+      >
+        {label}
+      </button>
+    );
+  };
   const talk = (
-    <div className="quote-form-talk" role="group" aria-labelledby={`${uid}-talk`}>
-      <p id={`${uid}-talk`}>Prefer to talk?</p>
-      <TrackedPhoneLink className="quote-form-talk-button quote-form-talk-call" location="quote_form">
-        <PhoneIcon width={18} height={18} aria-hidden="true" />
-        <span>Call {PUBLIC_PHONE_DISPLAY}</span>
-      </TrackedPhoneLink>
-      <div className="quote-form-talk-row">
-        <a
-          className="quote-form-talk-button"
-          href={PUBLIC_PHONE_SMS}
-          onClick={() => track("text_click", { location: "quote_form" })}
-        >
-          Text us
-        </a>
-        <OpenChatButton className="quote-form-talk-button" location="quote_form">
-          Chat
-        </OpenChatButton>
-      </div>
-    </div>
+    <p className="quote-form-line quote-form-talk">
+      {callback ? (
+        "Rather write it down? "
+      ) : (
+        <>
+          Prefer to talk?{" "}
+          <TrackedPhoneLink className="quote-form-line-link" location="quote_form">
+            Call {PUBLIC_PHONE_DISPLAY}
+          </TrackedPhoneLink>{" "}
+          or{" "}
+        </>
+      )}
+      {/* The last link and its full stop stay together, so the stop never wraps onto a line of its own. */}
+      <span className="quote-form-nowrap">
+        <span className="quote-form-modes" role="group" aria-label="How would you like to start?">
+          {modeButton("request", "Send a request")}
+          {modeButton("callback", "Have us call you")}
+        </span>
+        {callback ? null : "."}
+      </span>
+    </p>
   );
 
   const failedUploads = done ? files.filter(({ key }) => uploads[key]?.state === "failed") : [];
   const sendingUploads = done ? files.filter(({ key }) => uploads[key]?.state === "sending") : [];
-  const showDetails = Boolean(done?.request) && detailsState !== "skipped";
+  const showDetails = Boolean(done?.request);
 
   return (
     <form
@@ -555,202 +609,197 @@ export function ShortRequestForm({
       noValidate
     >
       <h2 id={ids.heading} ref={headingRef} tabIndex={-1} className={compact ? "short-request-sr" : undefined}>
-        {done
-          ? done.first
-            ? `Thanks, ${done.first}. We have your request.`
-            : "Thanks. We have your request."
-          : callback
-            ? "Request a call"
-            : "Request a quote"}
+        {done ? (
+          <span className="quote-form-tick" aria-hidden="true">
+            <TickIcon />
+          </span>
+        ) : null}
+        <span>
+          {done
+            ? done.first
+              ? `Thanks, ${done.first}. We have your request.`
+              : "Thanks. We have your request."
+            : callback
+              ? "Request a call"
+              : "Request a quote"}
+        </span>
       </h2>
 
       {done ? (
         <div className="quote-form-done">
-          <p>
+          <p data-testid="quote-all-set">
             {done.callback
               ? `Someone from ${done.team} will call you back to answer your questions and help you work out the next step.`
-              : `A specialist from ${done.team} answers your questions and helps you work out the next step, which may be a time to visit. You get a written scope before any price.`}
-          </p>
-
-          {files.length > 0 && (
-            <div className="quote-form-uploads" role="status" aria-live="polite">
-              <p>
-                {sendingUploads.length
-                  ? `Sending your files (${files.length - sendingUploads.length - failedUploads.length} of ${files.length} attached).`
-                  : failedUploads.length
-                    ? `${failedUploads.map(({ file }) => file.name).join(", ")} did not upload. Your request is saved.`
-                    : `${files.length === 1 ? "Your file is" : files.length === 2 ? "Both files are" : `All ${files.length} files are`} attached to your request.`}
-              </p>
-              {failedUploads.length > 0 && !sendingUploads.length && (
-                <p className="quote-form-upload-retry">
-                  {done.request ? (
-                    <button type="button" className="quote-form-link-button" onClick={() => void retryFailed()}>
-                      Try again
-                    </button>
-                  ) : null}
-                  {done.request ? <span aria-hidden="true"> or </span> : null}
-                  <a href={PUBLIC_PHONE_SMS} onClick={() => track("text_click", { location: "form_thanks" })}>
-                    {done.request ? "text them to us" : "Text them to us"}
-                  </a>
-                  .
-                </p>
-              )}
-            </div>
-          )}
-
-          <p>
-            Have a question now?{" "}
-            <TrackedPhoneLink location="form_thanks">Call {PUBLIC_PHONE_DISPLAY}</TrackedPhoneLink>
-            <span aria-hidden="true"> or </span>
-            <a href={PUBLIC_PHONE_SMS} onClick={() => track("text_click", { location: "form_thanks" })}>
-              text us
-            </a>
-            .
+              : `A specialist from ${done.team} answers your questions and helps you work out the next step, which may be a time to visit.`}{" "}
+            Nothing else is needed.
           </p>
 
           {showDetails && (
-            <section className="quote-details" aria-labelledby={ids.details} data-details-state={detailsState}>
-              <h3 id={ids.details}>
-                {detailsState === "saved" ? "Saved. Thank you." : "Help us prepare"}{" "}
-                {detailsState === "saved" ? null : <span className="quote-form-optional">(optional)</span>}
-              </h3>
+            <section
+              className="quote-details"
+              aria-labelledby={ids.details}
+              data-details-state={detailsState}
+              data-testid="quote-details-panel"
+            >
               {detailsState === "saved" ? (
-                <p role="status">The team sees your details with your request.</p>
-              ) : (
                 <>
-                  <p className="quote-details-why">A few details help us give you a closer quote on the first call.</p>
+                  <p id={ids.details} role="status">
+                    Saved. Thank you.
+                  </p>
+                  {failedUploads.length > 0 && !sendingUploads.length && (
+                    <div className="quote-form-uploads" role="status" aria-live="polite">
+                      <p>{`${failedUploads.map(({ file }) => file.name).join(", ")} did not upload. Your request is saved.`}</p>
+                      <p className="quote-form-upload-retry">
+                        <button type="button" className="quote-form-link-button" onClick={() => void retryFailed()}>
+                          Try again
+                        </button>
+                        <span aria-hidden="true"> or </span>
+                        <a href={PUBLIC_PHONE_SMS} onClick={() => track("text_click", { location: "form_thanks" })}>
+                          text them to us
+                        </a>
+                        .
+                      </p>
+                    </div>
+                  )}
+                </>
+              ) : (
+                // Step 2: one quiet toggle, closed until the visitor asks for it. Leaving it closed is skipping.
+                <details className="quote-form-toggle" data-testid="quote-details-disclosure">
+                  <summary>
+                    <PlusIcon />
+                    <span id={ids.details}>Add photos, plans or details (optional)</span>
+                  </summary>
+                  <div className="quote-form-toggle-body">
+                    {!done.projectKnown && (
+                      <fieldset className="quote-form-reach quote-details-chips">
+                        <legend>Type of project</legend>
+                        <div className="quote-chips">
+                          {PROJECT_CHIPS.map((chip) => (
+                            <label key={chip.value} className="quote-form-pill quote-chip">
+                              <input
+                                type="radio"
+                                name="details_project"
+                                value={chip.value}
+                                checked={details.project === chip.value}
+                                onChange={() => setDetails({ ...details, project: chip.value })}
+                              />
+                              <span>{chip.label}</span>
+                            </label>
+                          ))}
+                        </div>
+                      </fieldset>
+                    )}
 
-                  {!done.projectKnown && (
+                    {!done.hadAddress && (
+                      <div className="quote-form-field">
+                        <label htmlFor={ids.address}>Address or ZIP code</label>
+                        <input
+                          id={ids.address}
+                          name="details_address"
+                          type="text"
+                          autoComplete="street-address"
+                          maxLength={300}
+                          value={details.address}
+                          onChange={(event) => setDetails({ ...details, address: event.target.value })}
+                        />
+                      </div>
+                    )}
+
                     <fieldset className="quote-form-reach quote-details-chips">
-                      <legend>Type of project</legend>
-                      <div className="quote-chips">
-                        {PROJECT_CHIPS.map((chip) => (
-                          <label key={chip.value} className="quote-form-pill quote-chip">
+                      <legend>When would you like to start?</legend>
+                      <div className="quote-chips quote-chips-timing">
+                        {TIMING_OPTIONS.map((timing) => (
+                          <label key={timing} className="quote-form-pill quote-chip">
                             <input
                               type="radio"
-                              name="details_project"
-                              value={chip.value}
-                              checked={details.project === chip.value}
-                              onChange={() => setDetails({ ...details, project: chip.value })}
+                              name="details_timing"
+                              value={timing}
+                              checked={details.timing === timing}
+                              onChange={() => setDetails({ ...details, timing })}
                             />
-                            <span>{chip.label}</span>
+                            <span>{timing}</span>
                           </label>
                         ))}
                       </div>
                     </fieldset>
-                  )}
 
-                  <div className="quote-form-field">
-                    <label htmlFor={ids.address}>Address or ZIP code</label>
-                    <input
-                      id={ids.address}
-                      name="details_address"
-                      type="text"
-                      autoComplete="street-address"
-                      maxLength={300}
-                      value={details.address}
-                      onChange={(event) => setDetails({ ...details, address: event.target.value })}
-                    />
-                  </div>
-
-                  <fieldset className="quote-form-reach quote-details-chips">
-                    <legend>When would you like to start?</legend>
-                    <div className="quote-chips quote-chips-timing">
-                      {TIMING_OPTIONS.map((timing) => (
-                        <label key={timing} className="quote-form-pill quote-chip">
-                          <input
-                            type="radio"
-                            name="details_timing"
-                            value={timing}
-                            checked={details.timing === timing}
-                            onChange={() => setDetails({ ...details, timing })}
-                          />
-                          <span>{timing}</span>
-                        </label>
-                      ))}
-                    </div>
-                  </fieldset>
-
-                  <div className="quote-form-field">
-                    <AttachmentTile
-                      files={moreFiles}
-                      onChange={setMoreFiles}
-                      label={files.length ? "Add more photos or files" : "Add photos, plans or files"}
-                      disabled={detailsState === "saving"}
-                      status={uploadNote}
-                    />
-                  </div>
-
-                  {!done.hadEmail && (
                     <div className="quote-form-field">
-                      <label htmlFor={ids.detailsEmail}>
-                        Email <span className="quote-form-optional">(optional)</span>
-                      </label>
-                      <input
-                        id={ids.detailsEmail}
-                        name="details_email"
-                        type="email"
-                        inputMode="email"
-                        autoComplete="email"
-                        maxLength={200}
-                        value={details.email}
-                        aria-invalid={detailsError?.field === "email" ? true : undefined}
-                        aria-describedby={detailsError?.field === "email" ? `${ids.details}-error` : undefined}
-                        onChange={(event) => {
-                          setDetails({ ...details, email: event.target.value });
-                          if (detailsError) setDetailsError(null);
-                        }}
+                      <AttachmentTile
+                        files={files}
+                        onChange={setFiles}
+                        disabled={detailsState === "saving"}
+                        status={uploadNote}
                       />
                     </div>
-                  )}
 
-                  <p id={`${ids.details}-error`} className="quote-field-error" aria-live="polite">
-                    {detailsError?.message ?? ""}
-                  </p>
-                  <div className="quote-details-actions">
-                    <button
-                      type="button"
-                      className="button button-dark quote-details-save"
-                      disabled={detailsState === "saving"}
-                      aria-busy={detailsState === "saving"}
-                      onClick={() => void saveDetails()}
-                    >
-                      {detailsState === "saving" ? "Saving" : "Save details"}
-                    </button>
-                    <button type="button" className="quote-form-link-button" onClick={() => setDetailsState("skipped")}>
-                      Skip
-                    </button>
+                    {!done.hadEmail && (
+                      <div className="quote-form-field">
+                        <label htmlFor={ids.detailsEmail}>
+                          Email
+                        </label>
+                        <input
+                          id={ids.detailsEmail}
+                          name="details_email"
+                          type="email"
+                          inputMode="email"
+                          autoComplete="email"
+                          maxLength={200}
+                          value={details.email}
+                          aria-invalid={detailsError?.field === "email" ? true : undefined}
+                          aria-describedby={detailsError?.field === "email" ? `${ids.details}-error` : undefined}
+                          onChange={(event) => {
+                            setDetails({ ...details, email: event.target.value });
+                            if (detailsError) setDetailsError(null);
+                          }}
+                        />
+                      </div>
+                    )}
+
+                    <p id={`${ids.details}-error`} className="quote-field-error" aria-live="polite">
+                      {detailsError?.message ?? ""}
+                    </p>
+                    <div className="quote-details-actions">
+                      <button
+                        type="button"
+                        className="button button-dark quote-details-save"
+                        disabled={detailsState === "saving"}
+                        aria-busy={detailsState === "saving"}
+                        onClick={() => void saveDetails()}
+                      >
+                        {detailsState === "saving" ? "Saving" : "Save details"}
+                      </button>
+                    </div>
                   </div>
-                </>
+                </details>
               )}
             </section>
           )}
 
-          <SaveContactButton location="form_thanks" />
-          {!showDetails || detailsState === "saved" ? <ThanksQuestions /> : null}
+          {/* The two feedback questions wait behind their own quiet toggle, and only after details are saved. */}
+          {showDetails && detailsState === "saved" ? (
+            <details className="quote-form-toggle quote-form-feedback">
+              <summary>
+                <PlusIcon />
+                <span>Answer two quick questions for us (optional)</span>
+              </summary>
+              <div className="quote-form-toggle-body">
+                <ThanksQuestions />
+              </div>
+            </details>
+          ) : null}
+
+          <p className="quote-form-line">
+            Prefer to talk?{" "}
+            <span className="quote-form-nowrap">
+              <TrackedPhoneLink className="quote-form-line-link" location="form_thanks">
+                Call {PUBLIC_PHONE_DISPLAY}
+              </TrackedPhoneLink>
+              .
+            </span>
+          </p>
         </div>
       ) : (
         <>
-          {/* Two equal choices, the family's segmented control: the form, or a callback. */}
-          <div className="quote-form-modes" role="group" aria-label="How would you like to start?">
-            <button
-              type="button"
-              className="quote-form-mode"
-              aria-pressed={!callback}
-              onClick={() => update({ mode: "request" })}
-            >
-              Send a request
-            </button>
-            <button
-              type="button"
-              className="quote-form-mode"
-              aria-pressed={callback}
-              onClick={() => update({ mode: "callback" })}
-            >
-              Have us call you
-            </button>
-          </div>
-
           {callback ? null : (
             <>
               <div className="quote-form-field">
@@ -771,12 +820,10 @@ export function ShortRequestForm({
                 {error("note")}
               </div>
 
-              <div className="quote-form-field">
-                <AttachmentTile name="files" files={files} onChange={setFiles} disabled={pending} />
-              </div>
             </>
           )}
 
+          <div className="quote-form-pair">
           <div className="quote-form-field">
             <label htmlFor={ids.name}>Name</label>
             <input
@@ -814,6 +861,7 @@ export function ShortRequestForm({
             />
             {error("phone")}
           </div>
+          </div>
 
           {callback ? (
             <div className="quote-form-field">
@@ -834,46 +882,76 @@ export function ShortRequestForm({
               </select>
             </div>
           ) : (
-            <>
-              <div className="quote-form-field">
-                <label htmlFor={ids.email}>
-                  Email {draft.reach === "email" ? null : <span className="quote-form-optional">(optional)</span>}
-                </label>
-                <input
-                  id={ids.email}
-                  name="email"
-                  type="email"
-                  inputMode="email"
-                  autoComplete="email"
-                  maxLength={200}
-                  required={draft.reach === "email"}
-                  value={draft.email}
-                  aria-invalid={errors.email ? true : undefined}
-                  aria-describedby={describe("email")}
-                  onChange={(event) => update({ email: event.target.value })}
-                  onBlur={onBlur("email")}
-                />
-                {error("email")}
-              </div>
-
-              <fieldset className="quote-form-reach">
-                <legend>How should we reach you?</legend>
-                <div className="quote-form-pills">
-                  {REACH_OPTIONS.map((option) => (
-                    <label key={option.value} className="quote-form-pill">
-                      <input
-                        type="radio"
-                        name="contact_preference"
-                        value={option.value}
-                        checked={draft.reach === option.value}
-                        onChange={() => update({ reach: option.value })}
-                      />
-                      <span>{option.label}</span>
-                    </label>
-                  ))}
+            // Everything optional sits behind this one quiet toggle, closed until asked for.
+            <details
+              className="quote-form-toggle"
+              open={optionsOpen}
+              onToggle={(event) => setOptionsOpen(event.currentTarget.open)}
+              data-testid="quote-options"
+            >
+              <summary>
+                <PlusIcon />
+                <span>Add address, email or contact preference (optional)</span>
+              </summary>
+              <div className="quote-form-toggle-body">
+                <div className="quote-form-field">
+                  <label htmlFor={ids.projectAddress}>Project address</label>
+                  <input
+                    id={ids.projectAddress}
+                    name="address"
+                    type="text"
+                    autoComplete="street-address"
+                    maxLength={300}
+                    value={draft.address}
+                    aria-describedby={`${ids.projectAddress}-hint`}
+                    onChange={(event) => update({ address: event.target.value })}
+                  />
+                  <p id={`${ids.projectAddress}-hint`} className="quote-form-hint">
+                    Leave blank if you do not have one yet.
+                  </p>
                 </div>
-              </fieldset>
-            </>
+
+
+                <div className="quote-form-field">
+                  <label htmlFor={ids.email}>
+                    Email
+                  </label>
+                  <input
+                    id={ids.email}
+                    name="email"
+                    type="email"
+                    inputMode="email"
+                    autoComplete="email"
+                    maxLength={200}
+                    required={draft.reach === "email"}
+                    value={draft.email}
+                    aria-invalid={errors.email ? true : undefined}
+                    aria-describedby={describe("email")}
+                    onChange={(event) => update({ email: event.target.value })}
+                    onBlur={onBlur("email")}
+                  />
+                  {error("email")}
+                </div>
+
+                <fieldset className="quote-form-reach">
+                  <legend>How should we reach you?</legend>
+                  <div className="quote-form-pills">
+                    {REACH_OPTIONS.map((option) => (
+                      <label key={option.value} className="quote-form-pill">
+                        <input
+                          type="radio"
+                          name="contact_preference"
+                          value={option.value}
+                          checked={draft.reach === option.value}
+                          onChange={() => update({ reach: option.value })}
+                        />
+                        <span>{option.label}</span>
+                      </label>
+                    ))}
+                  </div>
+                </fieldset>
+              </div>
+            </details>
           )}
 
           <label className="short-request-trap">
@@ -884,25 +962,13 @@ export function ShortRequestForm({
           <input type="hidden" name="project" value={draft.project || FALLBACK_PROJECT} />
           <input type="hidden" name="request_type" value={callback ? CALLBACK_REQUEST : "request"} />
 
-          <div className="quote-form-actions">
-            {talk}
-            <div className="quote-form-send">
-              <button
-                className="button button-dark short-request-submit"
-                type="submit"
-                disabled={pending}
-                aria-busy={pending}
-                aria-describedby={ids.next}
-              >
-                {pending ? "Sending" : callback ? "Request a call" : "Send my request"}
-              </button>
-              <p id={ids.next} className="quote-form-next">
-                {callback
-                  ? "We call you back to answer your questions and help you work out the next step."
-                  : "We answer your questions and help you work out the next step, which may be a time to visit."}
-              </p>
-            </div>
-          </div>
+          <button className="button button-dark short-request-submit" type="submit" disabled={pending} aria-busy={pending}>
+            {pending ? "Sending" : callback ? "Request a call" : "Send my request"}
+          </button>
+          {talk}
+          <p className="quote-form-line quote-form-legal">
+            No obligation. <Link href="/legal/privacy">Privacy Policy</Link>
+          </p>
           {status && (
             <p className="short-request-status" role="alert">
               {status}
