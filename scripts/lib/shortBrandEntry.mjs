@@ -67,14 +67,14 @@ export async function verifyRemodelingEntry(page,path) {
  assert.equal(await form.getByLabel('Phone',{exact:true}).getAttribute('aria-invalid'),'true');
  await form.getByLabel('Phone',{exact:true}).fill('2025550102');
  // Address and email are optional, so they sit behind the one closed toggle until opened.
- assert.equal(await form.getByLabel('Email (optional)',{exact:true}).isVisible(),false);
+ assert.equal(await form.getByLabel('Email',{exact:true}).isVisible(),false);
  assert.equal(await form.getByLabel('Project address',{exact:true}).isVisible(),false);
  await form.getByTestId('quote-options').locator('summary').click();
  await form.getByLabel('Project address',{exact:true}).fill('123 Synthetic St, Boise, ID 83702');
- await form.getByLabel('Email (optional)',{exact:true}).fill('invalid');
+ await form.getByLabel('Email',{exact:true}).fill('invalid');
  await form.getByLabel('What can we help with?',{exact:true}).fill('Synthetic local-only request. '+'LongUnbrokenMaterialSpecification'.repeat(20));
- await send.click();assert.equal(await form.getByLabel('Email (optional)',{exact:true}).getAttribute('aria-invalid'),'true');
- await form.getByLabel('Email (optional)',{exact:true}).fill('navigation@example.invalid');
+ await send.click();assert.equal(await form.getByLabel('Email',{exact:true}).getAttribute('aria-invalid'),'true');
+ await form.getByLabel('Email',{exact:true}).fill('navigation@example.invalid');
  await clearAction(send);assert.equal(await page.locator('h1').count(),1);
  assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));
  // Stop before final Send. All service and external requests are blocked by caller.
