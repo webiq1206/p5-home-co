@@ -24,6 +24,9 @@ const nextConfig: NextConfig = {
       // real 301 at the edge so crawlers consolidate on /quote; the page-level
       // redirect stays as the fallback. Only the exact path: /estimate/scope
       // and the QA routes beneath it are separate pages.
+      // The scope platform moved out of the admin panel to its own address.
+      { source: "/admin/scopes", destination: "/scopes", permanent: false },
+      { source: "/admin/scopes/:path*", destination: "/scopes/:path*", permanent: false },
       {
         source: "/estimate",
         destination: "/quote",

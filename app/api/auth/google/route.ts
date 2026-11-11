@@ -16,7 +16,7 @@ import {
   redirectUriFor,
 } from "../../../lib/google-auth.ts";
 import { appUrl } from "../../../lib/public-url.ts";
-import { OAUTH_NONCE_COOKIE, OAUTH_STATE_COOKIE } from "../../../lib/google-auth-cookies.ts";
+import { AUTH_NEXT_COOKIE, OAUTH_NONCE_COOKIE, OAUTH_STATE_COOKIE } from "../../../lib/google-auth-cookies.ts";
 
 export const dynamic = "force-dynamic";
 
@@ -58,5 +58,8 @@ export async function GET(request: Request): Promise<NextResponse> {
   };
   response.cookies.set(OAUTH_STATE_COOKIE, state, options);
   response.cookies.set(OAUTH_NONCE_COOKIE, nonce, options);
+  // Only a fixed word is stored, never a URL, so this cannot become an open redirect.
+  if (new URL(request.url).searchParams.get("next") === "scopes") response.cookies.set(AUTH_NEXT_COOKIE, "scopes", options);
+  else response.cookies.delete(AUTH_NEXT_COOKIE);
   return response;
 }

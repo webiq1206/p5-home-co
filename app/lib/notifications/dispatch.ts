@@ -51,6 +51,8 @@ export async function peopleWithRole(roles: string[]): Promise<Recipient[]> {
   const rows = await query<{ id: string; email: string; full_name: string }>(
     `SELECT id, email, full_name FROM app_user
       WHERE is_active AND role = ANY($1::text[])
+        -- Scopes-only accounts (contractors) never receive internal notifications.
+        AND NOT COALESCE((to_jsonb(app_user)->>'scopes_only')::boolean, false)
       ORDER BY id`,
     [roles],
   );
