@@ -30,7 +30,7 @@ jobs:
       - name: Estimator and metadata regressions
         run: node --import tsx --test --test-concurrency=1 tests/p5-*.test.ts
       - run: npm run build
-      - run: npx playwright install --with-deps chromium
+      - run: npx playwright install --with-deps chromium || npx playwright install chromium
       - name: Production app responsive and public metadata audit
         run: |
           mkdir -p p5-mobile-seo-verification
