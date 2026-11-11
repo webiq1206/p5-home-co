@@ -500,3 +500,11 @@ test("the default handyman trip charge is $45, shown and credited", () => {
   assert.deepEqual(r.lines.map((l) => l.price), [125, 45, -45]);
   assert.equal(r.totals.basePrice, 125);
 });
+
+test("the scope platform is private at its own address, and the old admin address redirects", async () => {
+  const { isPrivatePath } = await import("../app/lib/privacy.ts");
+  assert.ok(isPrivatePath("/scopes"));
+  assert.ok(isPrivatePath("/scopes/12"));
+  assert.ok(isPrivatePath("/api/scopes/12"));
+  assert.equal(isPrivatePath("/scopes-of-work"), false, "a public page with a similar name stays public");
+});

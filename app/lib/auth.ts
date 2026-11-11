@@ -50,20 +50,29 @@ export async function createSession(
   return { token, expiresAt };
 }
 
-/** Resolve the signed-in user, or null. Expired sessions resolve to null. */
-export async function getSessionUser(): Promise<SessionUser | null> {
+/** A signed-in person as the scope platform sees them. */
+export type ScopeUser = SessionUser & {
+  /** True for accounts limited to /scopes (contractors). Never an admin user. */
+  scopesOnly: boolean;
+};
+
+async function resolveSession(): Promise<ScopeUser | null> {
   const store = await cookies();
   const token = store.get(SESSION_COOKIE)?.value;
   if (!token) return null;
 
+  // scopes_only is read through to_jsonb so a database that has not applied
+  // migration 025 yet still signs people in (the flag simply reads as false).
   const row = await queryOne<{
     id: string;
     email: string;
     full_name: string;
     role: Role;
     is_active: boolean;
+    scopes_only: boolean;
   }>(
-    `SELECT u.id, u.email, u.full_name, u.role, u.is_active
+    `SELECT u.id, u.email, u.full_name, u.role, u.is_active,
+            COALESCE((to_jsonb(u)->>'scopes_only')::boolean, false) AS scopes_only
        FROM user_session s
        JOIN app_user u ON u.id = s.user_id
       WHERE s.id = $1 AND s.expires_at > now()`,
@@ -78,7 +87,27 @@ export async function getSessionUser(): Promise<SessionUser | null> {
     fullName: row.full_name,
     role: row.role,
     isActive: row.is_active,
+    scopesOnly: row.scopes_only,
   };
+}
+
+/**
+ * Resolve the signed-in ADMIN user, or null. Expired sessions resolve to null.
+ *
+ * A scopes-only account (a contractor) resolves to null here, on purpose and
+ * in one place: every admin page and admin API already treats null as "not
+ * signed in", so none of them can be reached by such an account, including
+ * any page added later.
+ */
+export async function getSessionUser(): Promise<SessionUser | null> {
+  const user = await resolveSession();
+  if (!user || user.scopesOnly) return null;
+  return { id: user.id, email: user.email, fullName: user.fullName, role: user.role, isActive: user.isActive };
+}
+
+/** Resolve whoever is signed in for the scope platform: employees and scopes-only accounts. */
+export async function getScopeUser(): Promise<ScopeUser | null> {
+  return resolveSession();
 }
 
 export async function destroySession(): Promise<void> {

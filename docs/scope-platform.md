@@ -1,10 +1,35 @@
 # Scope and estimate platform
 
-Internal tool at `/admin/scopes` that turns recorded client meetings and home
+Internal tool at `/scopes` that turns recorded client meetings and home
 walkthroughs into a scope of work and a priced, unsent QuickBooks estimate.
-Employees only: every page and API route requires the existing Google sign-in
-and an active `app_user`. Pages and API responses carry `noindex` and
-`no-store` through the existing middleware.
+It stands apart from the admin panel on purpose, so contractors can be given
+access to it alone. Pages and API responses carry `noindex` and `no-store`
+through the existing middleware, and `/scopes` is disallowed in robots.txt.
+
+## Who can use it
+
+| Account | Scopes | Admin panel | Internal cost, margin, Pricing setup |
+| --- | --- | --- | --- |
+| P5 employee (any `app_user` role) | Yes | Yes, by role | Yes |
+| Scopes-only (contractor) | Yes | No | No |
+
+- Scopes-only accounts are `app_user` rows with `scopes_only = true`
+  (migration 025). `getSessionUser()` returns null for them, so every admin
+  page and admin API, including ones added later, treats them as signed out.
+  The scope platform uses `getScopeUser()`.
+- Administrators add and remove them at `/scopes/people` by name and email.
+  Removing access also ends their sessions. Employee accounts cannot be
+  changed from that screen.
+- They sign in at `/scopes/login` with the Google account for that email. It
+  does not need to be a P5 company address. Employees still need one.
+- Cost, margin and markup are stripped on the server before the workspace is
+  sent to a scopes-only account, and they never receive internal notifications.
+- `/admin/scopes` redirects to `/scopes`.
+
+**Google setup:** if the Google OAuth consent screen for this app is set to
+"Internal", only P5 Workspace accounts can sign in and contractors with
+outside addresses will be refused by Google. Set it to "External" in Google
+Cloud Console to allow them; access is still limited to emails added in People.
 
 Workflow: **Record, Review scope, Complete details, Review pricing, Create estimate.**
 
@@ -12,9 +37,10 @@ Workflow: **Record, Review scope, Complete details, Review pricing, Create estim
 
 | Screen | Path | What it does |
 | --- | --- | --- |
-| Project list | `/admin/scopes` | Search by client, project name or address; filter by scope and estimate status; sort; archive view; new project. Each row shows client, project, address, last updated, scope status, estimate status and project status. |
-| Workspace | `/admin/scopes/[id]` | Tabs: Record, Scope, Details (wizard), Pricing, Estimate, Files (recordings, transcripts, versions, activity, archive). |
-| Pricing setup | `/admin/scopes/settings` | Hourly labor rate, handyman trip charge, production rates, taxable items, item mapping, live QuickBooks setup check. Changes need `manage_settings`. |
+| Project list | `/scopes` | Search by client, project name or address; filter by scope and estimate status; sort; archive view; new project. Each row shows client, project, address, last updated, scope status, estimate status and project status. |
+| Workspace | `/scopes/[id]` | Tabs: Record, Scope, Details (wizard), Pricing, Estimate, Files (recordings, transcripts, versions, activity, archive). |
+| People | `/scopes/people` | Add or remove scopes-only access. Needs `manage_users`. |
+| Pricing setup | `/scopes/settings` | Hourly labor rate, handyman trip charge, production rates, taxable items, item mapping, live QuickBooks setup check. Changes need `manage_settings`. |
 
 ## What was verified before building
 
@@ -47,7 +73,7 @@ Workflow: **Record, Review scope, Complete details, Review pricing, Create estim
 
 ## Generating the scope
 
-`POST /api/admin/scopes/[id]/process` transcribes new audio, then sends every
+`POST /api/scopes/[id]/process` transcribes new audio, then sends every
 source to the model in one pass: transcripts with timeline markers, typed
 notes, documents (PDF read directly plus its text layer, Word, Excel, text),
 photos, known client details, possible existing QuickBooks customers, the
