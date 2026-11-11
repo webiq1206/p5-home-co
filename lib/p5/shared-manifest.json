@@ -1,7 +1,7 @@
 {
   "source": "p5-home-co",
-  "commit": "386a52afadf495b0c30a83a6976165a73768b98b",
-  "generatedAt": "2026-11-04T18:50:10.622Z",
+  "commit": "c5b50fcaf503f8bf5aabecfcd3fd81987a2b6b48",
+  "generatedAt": "2026-11-11T15:54:59.143Z",
   "note": "Shared estimator engine published from p5-home-co. Edit shared files there and run scripts/p5-sync.mjs; hash checks remain mandatory in every brand.",
   "files": {
     "app/admin/p5-estimators/page.tsx": "489c406a30e5aba809f6c603738d999c2e412f9b67968281a8ea16e748587b62",
@@ -278,9 +278,9 @@
     "scripts/lib/navigationDiagnostics.mjs": "1c42cf7c8bdc065709fe59b056ba37f3ad49867abcb73f21ce24dc5becf36aad",
     "scripts/lib/navigationEntry.mjs": "6f9ae022bb7e6df5d86e848b1e2e0da2a402b59522cdb0c1ce3cda15a86a10b4",
     "scripts/lib/pricingQualification.ts": "b1b0d40ac12ab74477ecdd97d38bfffec67eb933cd1501fea60cc83160bf5f02",
-    "scripts/lib/quoteEntry.mjs": "e3b09167b0570db009488eba1bba81bc55fe307ce18bbc93a2243b475eda2c9f",
+    "scripts/lib/quoteEntry.mjs": "7958bce0f7421dec56ddb39c2b455095f5f5c8a23bf39276b7a01b3500976a91",
     "scripts/lib/recoveryEpoch.mjs": "8a77de8a222128143e25dae712a5e82196c58352ed474c9dfee061b6baec0f98",
-    "scripts/lib/shortBrandEntry.mjs": "25bfe6351aa80da1fdfb833bf1d7bef18d5122b828e801c3b7a8f21d5862e9a5",
+    "scripts/lib/shortBrandEntry.mjs": "35217b333841e87fa5ee2ebea316eccb1a50b05c262efb79dcfaafcec50e1874",
     "scripts/lib/syntheticPlanSet.ts": "9c60f5f1e8a4744566ca78903acde02e1baa81d6070fee5f088e4fd8073ea7c0",
     "scripts/lib/syntheticRe10Pdf.ts": "87722f95a96a789332d3489b0cca9964340ff94f16eb821d5fe436aab5ee7208",
     "scripts/offline-network-guard.cjs": "9b59369f57de777d46c3a53c8a6606026e534faa4667c5e25dcc22e0a85b4c05",
