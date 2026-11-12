@@ -8,5 +8,5 @@ export const metadata: Metadata = {
 };
 
 export default function ScopesLayout({ children }: { children: React.ReactNode }) {
-  return <div className="admin-body">{children}</div>;
+  return <div className="admin-body sc-app">{children}</div>;
 }

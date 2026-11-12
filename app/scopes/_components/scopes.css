@@ -33,7 +33,7 @@ details.sc-card > summary { cursor: pointer; }
   color: var(--ink); font: inherit; font-size: 15px; font-weight: 650; cursor: pointer; text-decoration: none;
 }
 .sc-btn:hover:not(:disabled) { background: var(--bone); }
-.sc-btn:focus-visible, .sc-tab:focus-visible, .sc-link:focus-visible, .sc-ev:focus-visible { outline: 3px solid var(--moss); outline-offset: 2px; }
+.sc-btn:focus-visible, .sc-sec-btn:focus-visible, .sc-tile:focus-visible, .sc-link:focus-visible, .sc-ev:focus-visible { outline: 3px solid var(--moss); outline-offset: 2px; }
 .sc-btn:disabled { opacity: .5; cursor: not-allowed; }
 .sc-btn-primary { background: var(--charcoal); color: var(--paper); border-color: var(--charcoal); box-shadow: inset 0 -3px 0 var(--bronze); }
 .sc-btn-primary:hover:not(:disabled) { background: var(--charcoal-hover, #2b2b2b); }
@@ -97,18 +97,6 @@ details.sc-card > summary { cursor: pointer; }
 .sc-error-inline { margin-left: 8px; color: #7d2626; font-size: 13px; }
 .sc-spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid var(--line); border-top-color: var(--charcoal); border-radius: 50%; animation: sc-spin 1s linear infinite; vertical-align: -2px; }
 @keyframes sc-spin { to { transform: rotate(360deg); } }
-
-/* Workspace -------------------------------------------------------------- */
-.sc-back { font-size: 14px; color: var(--ink-2); }
-.sc-ws-head .admin-h1 { margin-top: 6px; }
-.sc-ws-status { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 12px; }
-.sc-tabs {
-  position: sticky; top: 52px; z-index: 20; display: flex; gap: 2px; margin: 0 -16px 14px; padding: 6px 16px;
-  overflow-x: auto; background: var(--bone); border-bottom: 1px solid var(--line); scrollbar-width: none;
-}
-.sc-tab { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 12px; border: 0; border-bottom: 3px solid transparent; background: none; color: var(--ink-2); font: inherit; font-size: 15px; font-weight: 650; cursor: pointer; }
-.sc-tab-active { color: var(--ink); border-bottom-color: var(--charcoal); }
-.sc-tab-n { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border: 1px solid currentColor; border-radius: 50%; font-size: 11px; }
 
 /* Recorder --------------------------------------------------------------- */
 .sc-rec-start {
@@ -206,11 +194,6 @@ details.sc-card > summary { cursor: pointer; }
 .sc-transcript { margin: 6px 0; padding-left: 0; list-style: none; font-size: 14px; }
 .sc-transcript li { margin: 6px 0; }
 
-.sc-player {
-  position: fixed; left: 0; right: 0; bottom: 0; z-index: 60; display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
-  padding: 8px 16px calc(8px + env(safe-area-inset-bottom)); background: var(--paper); border-top: 1px solid var(--charcoal);
-}
-.sc-player audio { flex: 1; min-width: 200px; }
 .sc-bar-link { font-size: 13px; text-decoration: underline; opacity: .85; }
 
 /* Address suggestions ----------------------------------------------------- */
@@ -245,3 +228,98 @@ details.sc-card > summary { cursor: pointer; }
 .sc-job-meta { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 12px; }
 .sc-name-preview { margin: 0 0 10px; padding: 10px 12px; border-left: 3px solid var(--charcoal); background: var(--bone); font-size: 14px; }
 .sc-name-preview b { display: block; font-size: 16px; overflow-wrap: anywhere; }
+
+/* App feel ----------------------------------------------------------------
+ * The scope platform is used on a phone in the field, so it is styled like an
+ * app: soft corners, one column, big targets, one next action docked at the
+ * bottom. Scoped to .sc-app so the admin panel and public site are untouched.
+ */
+.sc-app { --sc-r: 14px; --sc-r-sm: 10px; -webkit-tap-highlight-color: transparent; }
+.sc-app .admin-main { padding-top: 16px; }
+.sc-app .sc-btn, .sc-app .sc-rec-start, .sc-app .sc-choice, .sc-app .sc-unit-input, .sc-app .sc-search input[type="search"],
+.sc-app .sc-field input, .sc-app .sc-field select, .sc-app .sc-field textarea, .sc-app .sc-small-input, .sc-app .sc-inline input,
+.sc-app .sc-listblock textarea, .sc-app .sc-alert, .sc-app .sc-name-preview, .sc-app .sc-ev, .sc-app .sc-editor, .sc-app .sc-task,
+.sc-app .sc-totals div, .sc-app .sc-revise, .sc-app .sc-address-list { border-radius: var(--sc-r-sm); }
+.sc-app .sc-card, .sc-app .sc-job, .sc-app .sc-rec-indicator { border-radius: var(--sc-r); }
+.sc-app .sc-pill { border-radius: 999px; }
+.sc-app .sc-unit-input { overflow: hidden; }
+.sc-app .sc-job { border-left-width: 1px; box-shadow: 0 1px 2px rgba(0, 0, 0, .04); }
+.sc-app .sc-job:active, .sc-app .sc-btn:active:not(:disabled), .sc-app .sc-tile:active, .sc-app .sc-sec-btn:active { transform: scale(.985); }
+@media (prefers-reduced-motion: reduce) { .sc-app .sc-job:active, .sc-app .sc-btn:active:not(:disabled), .sc-app .sc-tile:active, .sc-app .sc-sec-btn:active { transform: none; } }
+@media (max-width: 560px) { .sc-app .admin-who { display: none; } }
+
+/* Workspace: header, accordion, dock --------------------------------------- */
+.sc-ws { padding-bottom: 96px; }
+.sc-ws-playing { padding-bottom: 190px; }
+.sc-back { display: inline-flex; align-items: center; gap: 4px; min-height: 36px; color: var(--ink-2); font-size: 15px; font-weight: 650; text-decoration: none; }
+.sc-back span { font-size: 22px; line-height: 1; }
+.sc-ws-title { margin: 2px 0 4px; font-family: var(--font-display); font-size: clamp(22px, 5.6vw, 32px); font-weight: 500; line-height: 1.15; overflow-wrap: anywhere; }
+.sc-ws-sub { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0 0 14px; color: var(--ink-2); font-size: 14px; }
+
+.sc-acc { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; }
+.sc-sec { border: 1px solid var(--line); border-radius: var(--sc-r); background: var(--paper); box-shadow: 0 1px 2px rgba(0, 0, 0, .04); scroll-margin-top: 64px; min-width: 0; }
+.sc-sec-open { border-color: var(--charcoal); }
+.sc-sec-h { margin: 0; font: inherit; }
+/* The open section's header stays under the app bar, so it can be closed from anywhere in a long section. */
+.sc-sec-open .sc-sec-h { position: sticky; top: 56px; z-index: 5; border-radius: var(--sc-r) var(--sc-r) 0 0; border-bottom: 1px solid var(--line); background: var(--paper); }
+.sc-sec-btn {
+  display: flex; align-items: center; gap: 12px; width: 100%; min-height: 64px; padding: 10px 14px;
+  border: 0; border-radius: var(--sc-r); background: none; color: var(--ink); font: inherit; text-align: left; cursor: pointer;
+}
+.sc-sec-n {
+  flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px;
+  border: 1.5px solid var(--line); border-radius: 50%; background: var(--bone); font-size: 14px; font-weight: 700;
+}
+.sc-sec-open .sc-sec-n { border-color: var(--charcoal); }
+.sc-sec-done, .sc-sec-open .sc-sec-done { border-color: var(--charcoal); background: var(--charcoal); color: var(--paper); }
+.sc-sec-text { flex: 1; min-width: 0; display: grid; gap: 1px; }
+.sc-sec-title { font-size: 17px; font-weight: 700; line-height: 1.25; }
+.sc-sec-sum { color: var(--ink-2); font-size: 14px; line-height: 1.3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sc-sec-attn { color: #7d4a10; font-weight: 700; }
+.sc-sec-chev { flex: 0 0 auto; width: 10px; height: 10px; margin: 0 6px 4px 0; border-right: 2px solid var(--ink-2); border-bottom: 2px solid var(--ink-2); transform: rotate(45deg); transition: transform .18s ease; }
+.sc-sec-open .sc-sec-chev { margin-bottom: -4px; transform: rotate(225deg); }
+@media (prefers-reduced-motion: reduce) { .sc-sec-chev { transition: none; } }
+.sc-sec-panel { padding: 4px 14px 16px; }
+.sc-sec-panel[hidden] { display: none; }
+
+/* Inside a section the inner cards flatten into plain blocks split by a rule. */
+.sc-sec-panel .sc-card { margin: 0; padding: 14px 0; border: 0; border-top: 1px solid var(--line); border-radius: 0; background: none; }
+.sc-sec-panel > .sc-card:first-child, .sc-sec-panel > div > .sc-card:first-child { border-top: 0; }
+.sc-sec-panel .sc-card:last-child { padding-bottom: 0; }
+.sc-sec-panel .sc-card-warn, .sc-sec-panel .sc-card-suggest { margin: 10px 0; padding: 12px; border: 0; border-left: 3px solid var(--bronze); border-radius: var(--sc-r-sm); background: var(--bone); }
+.sc-sec-panel .sc-card-suggest { border-left-color: var(--moss); }
+.sc-sec-panel .sc-h2 { font-family: inherit; font-size: 17px; font-weight: 700; }
+.sc-sec-panel .sc-recorder { padding-top: 12px; }
+
+/* Record section */
+.sc-app .sc-rec-start { min-height: 76px; border-radius: var(--sc-r); }
+.sc-app .sc-recorder-compact .sc-rec-start { min-height: 52px; border-radius: var(--sc-r-sm); }
+.sc-add { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line); }
+.sc-add-h { margin: 0 0 8px; color: var(--ink-2); font-size: 13px; font-weight: 700; }
+.sc-tiles { scroll-margin-top: 140px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.sc-tile {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; min-height: 76px; padding: 8px 2px;
+  border: 1px solid var(--line); border-radius: var(--sc-r-sm); background: #fff; color: var(--ink);
+  font: inherit; font-size: 13px; font-weight: 650; line-height: 1.15; text-align: center; cursor: pointer;
+}
+.sc-tile:hover { border-color: var(--charcoal); }
+.sc-tile-on { border-color: var(--charcoal); background: var(--bone); box-shadow: inset 0 -3px 0 var(--charcoal); }
+.sc-tile-off { opacity: .5; }
+.sc-tile:has(input:focus-visible) { outline: 3px solid var(--moss); outline-offset: 2px; }
+.sc-add-panel { margin-top: 10px; }
+.sc-add-panel[hidden] { display: none; }
+
+/* Dock: the next action, and the recording player above it when one is open. */
+.sc-dock {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 60; display: grid; gap: 8px;
+  padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+  border-top: 1px solid var(--line); background: color-mix(in srgb, var(--bone) 92%, transparent);
+  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+}
+.sc-dock > * { width: min(100%, 620px); margin: 0 auto; }
+.sc-dock-btn { flex-direction: column; gap: 1px; min-height: 58px; font-size: 17px; line-height: 1.2; }
+.sc-dock-btn small { font-size: 12px; font-weight: 500; opacity: .8; }
+.sc-dock-btn:disabled { flex-direction: row; gap: 8px; opacity: .75; }
+.sc-dock-btn .sc-spinner { border-color: rgba(255, 255, 255, .35); border-top-color: #fff; }
+.sc-player { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.sc-player audio { flex: 1; min-width: 200px; height: 40px; }

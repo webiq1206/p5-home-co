@@ -1,18 +1,20 @@
 "use client";
 
 /**
- * The project workspace. One screen, five steps as tabs:
- *   Record -> Scope -> Details -> Pricing -> Estimate   (+ Files and history)
+ * The project workspace: one page, built like a phone app.
+ *   Record -> Scope -> Details -> Pricing -> Estimate   (+ Project)
+ * Each step is an accordion section with a one-line summary; one is open at a
+ * time. A dock at the bottom always offers the next thing to do.
  * State lives on the server; this component holds a copy and refreshes it
- * after every action, on a timer while open, and when the tab regains focus,
- * so another employee's change or a QuickBooks update appears on its own.
+ * after every action, on a timer while open, and when the page regains focus,
+ * so another person's change or a QuickBooks update appears on its own.
  */
 
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { Evidence } from "../../lib/scopes/types.ts";
-import { api, clock, newKey, SCOPE_LABEL, SERVICES, when, type Workspace as WS } from "./client.ts";
+import { api, clock, money, newKey, SERVICES, when, type Workspace as WS } from "./client.ts";
 import EstimatePanel from "./EstimatePanel.tsx";
 import { assetUrl } from "./EvidenceLinks.tsx";
 import PricingView from "./PricingView.tsx";
@@ -21,36 +23,58 @@ import ScopeView from "./ScopeView.tsx";
 import Wizard from "./Wizard.tsx";
 import Dictate from "./Dictate.tsx";
 
-type Tab = "record" | "scope" | "details" | "pricing" | "estimate" | "files";
-const TABS: [Tab, string][] = [
-  ["record", "Record"],
-  ["scope", "Scope"],
-  ["details", "Details"],
-  ["pricing", "Pricing"],
-  ["estimate", "Estimate"],
-  ["files", "Files"],
-];
+type Step = "record" | "scope" | "details" | "pricing" | "estimate" | "project";
+const STEPS: Step[] = ["record", "scope", "details", "pricing", "estimate", "project"];
+const TITLE: Record<Step, string> = {
+  record: "Record",
+  scope: "Scope",
+  details: "Details",
+  pricing: "Pricing",
+  estimate: "Estimate",
+  project: "Project and files",
+};
+
+const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
 export default function Workspace({ initial, initialTab }: { initial: WS; initialTab?: string }) {
   const [ws, setWs] = useState<WS>(initial);
-  const [tab, setTabState] = useState<Tab>((TABS.find(([t]) => t === initialTab)?.[0] as Tab) ?? (initial.version ? "scope" : "record"));
+  const [open, setOpenState] = useState<Step | null>(() => {
+    const asked = initialTab === "files" ? "project" : initialTab;
+    if (STEPS.includes(asked as Step)) return asked as Step;
+    if (!initial.version) return "record";
+    if (initial.proposal) return "scope";
+    if (initial.questions.some((q) => q.blocking)) return "details";
+    return initial.estimate ? "estimate" : "scope";
+  });
   const [processing, setProcessing] = useState(initial.project.processing_state === "running");
+  const [recording, setRecording] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [player, setPlayer] = useState<{ assetId: number; t: number; label: string } | null>(null);
   const audio = useRef<HTMLAudioElement | null>(null);
   const id = ws.project.id;
 
-  const setTab = (t: Tab) => {
-    setTabState(t);
-    try {
-      const url = new URL(window.location.href);
-      url.searchParams.set("tab", t);
-      window.history.replaceState(null, "", url);
-    } catch {
-      // Cosmetic.
-    }
-  };
+  /** Open one section (or close it when it is already open) and bring its header to the top. */
+  const show = useCallback((step: Step, toggle = false) => {
+    setOpenState((cur) => {
+      const next = toggle && cur === step ? null : step;
+      try {
+        const url = new URL(window.location.href);
+        if (next) url.searchParams.set("tab", next);
+        else url.searchParams.delete("tab");
+        window.history.replaceState(null, "", url);
+      } catch {
+        // Cosmetic.
+      }
+      if (next) {
+        setTimeout(() => {
+          const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+          document.getElementById(`sc-sec-${next}`)?.scrollIntoView({ block: "start", behavior: reduce ? "auto" : "smooth" });
+        }, 30);
+      }
+      return next;
+    });
+  }, []);
 
   const reload = useCallback(
     async (refresh = false) => {
@@ -94,7 +118,7 @@ export default function Workspace({ initial, initialTab }: { initial: WS; initia
       const res = await api<{ message: string }>(`/api/scopes/${id}/process`, { method: "POST" });
       setMessage(res.message);
       await reload();
-      setTab("scope");
+      show("scope");
     } catch (e) {
       // A long recording can outlast the request while the server keeps working.
       // If it is still running, keep showing progress instead of an error.
@@ -104,7 +128,7 @@ export default function Workspace({ initial, initialTab }: { initial: WS; initia
       setError((e as Error).message);
       setProcessing(false);
     }
-  }, [id, reload]);
+  }, [id, reload, show]);
 
   const play = (e: Evidence) => {
     const a = ws.assets.find((x) => x.id === e.assetId);
@@ -127,76 +151,78 @@ export default function Workspace({ initial, initialTab }: { initial: WS; initia
   // New material: not yet read into the scope and not already waiting in a proposal.
   const proposed = new Set(ws.proposal?.sourceIds ?? []);
   const fresh = ws.assets.filter((a) => !a.usedInVersion && a.state !== "failed" && !proposed.has(a.id));
-  const patchProject = async (fields: Record<string, string>) => {
-    try {
-      const { workspace } = await api<{ workspace: WS }>(`/api/scopes/${id}`, { method: "PATCH", json: fields });
-      setWs(workspace);
-    } catch (e) {
-      setError((e as Error).message);
-    }
-  };
   const blocking = ws.questions.filter((q) => q.blocking).length;
   const p = ws.project;
   const client = [p.client_first_name, p.client_last_name].filter(Boolean).join(" ");
+  const tasks = ws.doc.tasks.filter((t) => !t.dismissed).length;
+  const hasEstimate = Boolean(ws.estimate && ws.estimate.status !== "deleted");
+  const estimateBehind = hasEstimate && ws.version !== null && ws.estimate!.versionId !== ws.version.id;
+
+  const summary: Record<Step, string> = {
+    record: ws.assets.length ? `${plural(ws.assets.length, "item")}${fresh.length ? `, ${fresh.length} new` : ""}` : "Nothing yet",
+    scope: !ws.version ? "Not built yet" : ws.proposal ? "Changes to review" : `${plural(tasks, "task")}, version ${ws.version.versionNo}`,
+    details: !ws.version ? "After the scope" : blocking ? `${blocking} needed` : "Complete",
+    pricing: !ws.version ? "After the scope" : `${money(ws.pricing.totals.basePrice)}${blocking ? ", not final" : ""}`,
+    estimate: hasEstimate ? `${ws.estimate!.statusLabel}${estimateBehind ? ", scope changed since" : ""}` : "Not created",
+    project: p.archived ? "Archived" : `${plural(ws.versions.length, "version")}, ${plural(ws.assets.length, "file")}`,
+  };
+  const done: Record<Step, boolean> = {
+    record: ws.assets.length > 0 && fresh.length === 0,
+    scope: Boolean(ws.version) && !ws.proposal,
+    details: Boolean(ws.version) && blocking === 0,
+    pricing: Boolean(ws.version) && ws.readiness.status === "ready",
+    estimate: hasEstimate && !estimateBehind,
+    project: false,
+  };
+  const attention: Partial<Record<Step, boolean>> = {
+    record: fresh.length > 0,
+    scope: Boolean(ws.proposal),
+    details: blocking > 0,
+    estimate: estimateBehind,
+  };
+
+  // The one next thing to do. Hidden when the section it points at is already open.
+  type Next = { label: string; hint?: string; go: () => void; target?: Step };
+  let next: Next | null;
+  if (ws.proposal) next = { label: "Review changes", hint: "New information changed the scope", go: () => show("scope"), target: "scope" };
+  else if (fresh.length) next = { label: ws.version ? "Update scope" : "Build scope", hint: `${plural(fresh.length, "new item")} to read`, go: () => void process() };
+  else if (!ws.version) {
+    next = ws.assets.length
+      ? { label: "Build scope", go: () => void process() }
+      : { label: "Record walkthrough", hint: "Or add notes, photos and files", go: () => show("record"), target: "record" };
+  } else if (blocking) next = { label: `Complete ${plural(blocking, "detail")}`, hint: "Needed before pricing is final", go: () => show("details"), target: "details" };
+  else if (!hasEstimate) {
+    next = open === "pricing" || open === "estimate"
+      ? { label: "Create estimate", hint: money(ws.pricing.totals.basePrice), go: () => show("estimate"), target: "estimate" }
+      : { label: "Review pricing", hint: money(ws.pricing.totals.basePrice), go: () => show("pricing"), target: "pricing" };
+  } else if (estimateBehind) next = { label: "Update estimate", hint: "The scope changed since it was created", go: () => show("estimate"), target: "estimate" };
+  else next = { label: "View estimate", hint: ws.estimate!.statusLabel, go: () => show("estimate"), target: "estimate" };
+  const showNext = !recording && next !== null && (!next.target || next.target !== open);
+
+  const panel: Record<Exclude<Step, "record">, () => React.ReactNode> = {
+    scope: () => <ScopeView ws={ws} onWorkspace={setWs} onPlay={play} />,
+    details: () => <Wizard ws={ws} onWorkspace={setWs} onPlay={play} onDone={() => show("pricing")} />,
+    pricing: () => <PricingView ws={ws} onDetails={() => show("details")} />,
+    estimate: () => <EstimatePanel ws={ws} onWorkspace={setWs} onScope={() => show(blocking ? "details" : "scope")} />,
+    project: () => <FilesAndHistory ws={ws} onWorkspace={setWs} onPlay={play} onError={setError} />,
+  };
 
   return (
-    <div className="sc-ws">
+    <div className={`sc-ws${player ? " sc-ws-playing" : ""}`}>
       <header className="sc-ws-head">
-        <Link href="/scopes" className="sc-back">All projects</Link>
-        <h1 className="admin-h1">{p.title || "New project"}</h1>
-        <p className="admin-sub">
+        <Link href="/scopes" className="sc-back">
+          <span aria-hidden="true">‹</span> Projects
+        </Link>
+        <h1 className="sc-ws-title">{p.title || "New project"}</h1>
+        <p className="sc-ws-sub">
           {[client, p.project_address].filter(Boolean).join(" · ") || "Client and address not set"}
-          {" · "}
-          <label className="sc-inline-select">
-            <span className="sc-visually-hidden">Type of work</span>
-            <select
-              value={p.service}
-              onChange={(ev) => void patchProject({ service: ev.target.value })}
-            >
-              {SERVICES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-            </select>
-          </label>
-          <label className="sc-inline-select">
-            <span className="sc-visually-hidden">Finish tier</span>
-            <select
-              value={p.finish_tier}
-              onChange={(ev) => void patchProject({ finish_tier: ev.target.value })}
-            >
-              <option value="builder">Builder grade</option>
-              <option value="mid">Mid-range</option>
-              <option value="high">High-end</option>
-              <option value="luxury">Luxury</option>
-            </select>
-          </label>
-        </p>
-        <div className="sc-ws-status" aria-label="Project status">
-          <span className={`sc-pill sc-pill-${ws.readiness.status}`}>Scope: {SCOPE_LABEL[ws.readiness.status]}</span>
-          <span className={`sc-pill sc-pill-est-${ws.estimate?.status ?? "not_created"}`}>Estimate: {ws.estimate?.statusLabel ?? "Not created"}</span>
-          <span className={`sc-pill ${p.qbo_project_id ? "sc-pill-ready" : ""}`}>Project: {p.qbo_project_id ? "Linked" : "Not linked"}</span>
           {p.archived && <span className="sc-pill">Archived</span>}
-        </div>
+        </p>
       </header>
-
-      <nav className="sc-tabs" aria-label="Workspace steps">
-        {TABS.map(([t, label], i) => (
-          <button
-            key={t}
-            type="button"
-            className={`sc-tab${tab === t ? " sc-tab-active" : ""}`}
-            aria-current={tab === t ? "step" : undefined}
-            onClick={() => setTab(t)}
-          >
-            {t !== "files" && <span className="sc-tab-n" aria-hidden="true">{i + 1}</span>}
-            {label}
-            {t === "details" && blocking > 0 && <span className="sc-badge" aria-label={`${blocking} required`}>{blocking}</span>}
-            {t === "scope" && ws.proposal && <span className="sc-badge" aria-label="Proposed changes">!</span>}
-          </button>
-        ))}
-      </nav>
 
       {processing && (
         <p className="sc-alert" role="status" aria-live="polite">
-          <span className="sc-spinner" aria-hidden="true" /> {p.processing_note || "Working"}... This can take a few minutes for a long recording. You can leave this page; it keeps going.
+          <span className="sc-spinner" aria-hidden="true" /> {p.processing_note || "Working"}... A long recording can take a few minutes. You can leave this page.
         </p>
       )}
       {message && <p className="sc-alert sc-alert-good" role="status">{message}</p>}
@@ -205,71 +231,113 @@ export default function Workspace({ initial, initialTab }: { initial: WS; initia
           {error} <button type="button" className="sc-link" onClick={() => setError(null)}>Dismiss</button>
         </p>
       )}
-      {fresh.length > 0 && !processing && tab !== "record" && (
-        <p className="sc-alert">
-          {fresh.length} new item{fresh.length === 1 ? "" : "s"} not yet in the scope.{" "}
-          <button type="button" className="sc-link" onClick={process}>Update the scope now</button>
-        </p>
-      )}
 
-      {tab === "record" && (
-        <div className="sc-record">
-          <section className="sc-card">
-            <h2 className="sc-h2">Record the meeting or walkthrough</h2>
-            <Recorder projectId={id} kind="recording" onUploaded={() => void reload()} onFinished={() => void process()} />
-          </section>
-          <AddMaterial ws={ws} onAdded={() => reload()} />
-          <section className="sc-card">
-            <div className="sc-row-between">
-              <div>
-                <h2 className="sc-h2">{ws.version ? "Update the scope" : "Build the scope"}</h2>
-                <p className="sc-muted">
-                  {fresh.length
-                    ? `${fresh.length} item${fresh.length === 1 ? "" : "s"} ready to read.`
-                    : ws.version
-                      ? "Everything added has been read."
-                      : "Add a recording, note or file first."}{" "}
-                  Recordings are transcribed, then every source is reconciled into one scope.
-                </p>
-              </div>
-              <button type="button" className="sc-btn sc-btn-primary" onClick={process} disabled={processing || (!fresh.length && !ws.assets.length)}>
-                {processing ? "Working..." : ws.version ? "Update scope" : "Build scope"}
-              </button>
+      <div className="sc-acc">
+        {STEPS.map((step, i) => {
+          const isOpen = open === step;
+          return (
+            <section key={step} id={`sc-sec-${step}`} className={`sc-sec${isOpen ? " sc-sec-open" : ""}`}>
+              <h2 className="sc-sec-h">
+                <button
+                  type="button"
+                  className="sc-sec-btn"
+                  aria-expanded={isOpen}
+                  aria-controls={`sc-panel-${step}`}
+                  id={`sc-head-${step}`}
+                  onClick={() => show(step, true)}
+                >
+                  <span className={`sc-sec-n${done[step] ? " sc-sec-done" : ""}`} aria-hidden="true">
+                    {step === "project" ? "···" : done[step] ? "✓" : i + 1}
+                  </span>
+                  <span className="sc-sec-text">
+                    <span className="sc-sec-title">{TITLE[step]}</span>
+                    <span className={`sc-sec-sum${attention[step] ? " sc-sec-attn" : ""}`}>{summary[step]}</span>
+                  </span>
+                  <span className="sc-sec-chev" aria-hidden="true" />
+                </button>
+              </h2>
+              {/* The recorder stays mounted while its section is closed, so closing it never stops a recording. */}
+              {step === "record" ? (
+                <div className="sc-sec-panel" id="sc-panel-record" role="region" aria-labelledby="sc-head-record" hidden={!isOpen}>
+                  <Recorder projectId={id} kind="recording" onUploaded={() => void reload()} onFinished={() => void process()} onActive={setRecording} />
+                  <AddMaterial ws={ws} onAdded={() => reload()} />
+                </div>
+              ) : (
+                isOpen && (
+                  <div className="sc-sec-panel" id={`sc-panel-${step}`} role="region" aria-labelledby={`sc-head-${step}`}>
+                    {panel[step]()}
+                  </div>
+                )
+              )}
+            </section>
+          );
+        })}
+      </div>
+
+      {(showNext || processing || player) && (
+        <div className="sc-dock">
+          {player && (
+            <div className="sc-player" role="region" aria-label="Recording playback">
+              <span className="sc-small">{player.label}</span>
+              <audio ref={audio} controls preload="metadata" src={assetUrl(id, player.assetId)} />
+              <button type="button" className="sc-btn sc-btn-small" onClick={() => setPlayer(null)} aria-label="Close player">Close</button>
             </div>
-          </section>
-        </div>
-      )}
-
-      {tab === "scope" && <ScopeView ws={ws} onWorkspace={setWs} onPlay={play} />}
-      {tab === "details" && <Wizard ws={ws} onWorkspace={setWs} onPlay={play} onDone={() => setTab("pricing")} />}
-      {tab === "pricing" && <PricingView ws={ws} onDetails={() => setTab("details")} />}
-      {tab === "estimate" && <EstimatePanel ws={ws} onWorkspace={setWs} onScope={() => setTab(blocking ? "details" : "scope")} />}
-      {tab === "files" && <FilesAndHistory ws={ws} onWorkspace={setWs} onPlay={play} />}
-
-      {player && (
-        <div className="sc-player" role="region" aria-label="Recording playback">
-          <span className="sc-small">{player.label}</span>
-          <audio ref={audio} controls preload="metadata" src={assetUrl(id, player.assetId)} />
-          <button type="button" className="sc-btn sc-btn-small" onClick={() => setPlayer(null)} aria-label="Close player">Close</button>
+          )}
+          {processing ? (
+            <button type="button" className="sc-btn sc-btn-primary sc-dock-btn" disabled>
+              <span className="sc-spinner" aria-hidden="true" /> Working...
+            </button>
+          ) : (
+            showNext && next && (
+              <button type="button" className="sc-btn sc-btn-primary sc-dock-btn" onClick={next.go}>
+                <span>{next.label}</span>
+                {next.hint && <small>{next.hint}</small>}
+              </button>
+            )
+          )}
         </div>
       )}
     </div>
   );
 }
 
+const ICON = {
+  photo: "M4 8h3l2-3h6l2 3h3v11H4zM12 17a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z",
+  file: "M6 3h8l4 4v14H6zM14 3v4h4M9 12h6M9 16h6",
+  voice: "M12 3a3 3 0 0 0-3 3v5a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3zM6 11a6 6 0 0 0 12 0M12 17v4",
+  note: "M4 20h4L19 9l-4-4L4 16zM13 7l4 4",
+};
+function Icon({ name }: { name: keyof typeof ICON }) {
+  return (
+    <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d={ICON[name]} />
+    </svg>
+  );
+}
+
 function AddMaterial({ ws, onAdded }: { ws: WS; onAdded: () => Promise<void> | void }) {
   const [note, setNote] = useState("");
+  const [mode, setModeState] = useState<"voice" | "note" | null>(null);
+  const tiles = useRef<HTMLDivElement | null>(null);
+  // Opening a note panel brings it into view above the dock.
+  const setMode = (m: "voice" | "note" | null) => {
+    setModeState(m);
+    if (m) setTimeout(() => tiles.current?.scrollIntoView({ block: "start", behavior: "smooth" }), 30);
+  };
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const id = ws.project.id;
 
-  async function upload(files: FileList | null, kind?: "photo" | "document") {
-    if (!files?.length) return;
+  async function upload(input: HTMLInputElement, kind?: "photo" | "document") {
+    const files = Array.from(input.files ?? []);
+    // Clearing the input lets the same file be picked again.
+    input.value = "";
+    if (!files.length) return;
     setBusy(true);
     setError(null);
     let done = 0;
-    for (const f of Array.from(files)) {
+    for (const f of files) {
       setStatus(`Uploading ${f.name} (${done + 1} of ${files.length})...`);
       const form = new FormData();
       form.append("file", f);
@@ -291,7 +359,7 @@ function AddMaterial({ ws, onAdded }: { ws: WS; onAdded: () => Promise<void> | v
         }
       }
     }
-    setStatus(`${done} file${done === 1 ? "" : "s"} added.`);
+    setStatus(`${plural(done, "file")} added.`);
     setBusy(false);
     await onAdded();
   }
@@ -303,6 +371,7 @@ function AddMaterial({ ws, onAdded }: { ws: WS; onAdded: () => Promise<void> | v
     try {
       await api(`/api/scopes/${id}/assets`, { method: "POST", json: { clientKey: newKey("text").slice(0, 100), text: note, label: "Typed note" } });
       setNote("");
+      setMode(null);
       setStatus("Note added.");
       await onAdded();
     } catch (e) {
@@ -313,42 +382,62 @@ function AddMaterial({ ws, onAdded }: { ws: WS; onAdded: () => Promise<void> | v
   }
 
   return (
-    <section className="sc-card">
-      <h2 className="sc-h2">Add more information</h2>
-      <p className="sc-muted">Plans, photos, meeting notes, trade quotes, a dictated change or a typed note. New information updates the right phase, division and task; conflicts are flagged.</p>
-      <div className="sc-add-grid">
-        <label className="sc-btn sc-file">
-          Take or add photos
-          <input type="file" accept="image/*" capture="environment" multiple onChange={(e) => void upload(e.target.files, "photo")} disabled={busy} />
+    <div className="sc-add">
+      <h3 className="sc-add-h">Add to this project</h3>
+      <div className="sc-tiles" ref={tiles}>
+        <label className={`sc-tile sc-file${busy ? " sc-tile-off" : ""}`}>
+          <Icon name="photo" />
+          Photos
+          <input type="file" accept="image/*" multiple onChange={(e) => void upload(e.currentTarget, "photo")} disabled={busy} />
         </label>
-        <label className="sc-btn sc-file">
-          Add documents or plans
-          <input type="file" accept=".pdf,.doc,.docx,.xlsx,.txt,.csv,image/*,audio/*" multiple onChange={(e) => void upload(e.target.files)} disabled={busy} />
+        <label className={`sc-tile sc-file${busy ? " sc-tile-off" : ""}`}>
+          <Icon name="file" />
+          Files
+          <input type="file" accept=".pdf,.doc,.docx,.xlsx,.txt,.csv,image/*,audio/*" multiple onChange={(e) => void upload(e.currentTarget)} disabled={busy} />
         </label>
+        <button type="button" className={`sc-tile${mode === "voice" ? " sc-tile-on" : ""}`} aria-expanded={mode === "voice"} onClick={() => setMode(mode === "voice" ? null : "voice")}>
+          <Icon name="voice" />
+          Voice note
+        </button>
+        <button type="button" className={`sc-tile${mode === "note" ? " sc-tile-on" : ""}`} aria-expanded={mode === "note"} onClick={() => setMode(mode === "note" ? null : "note")}>
+          <Icon name="note" />
+          Typed note
+        </button>
       </div>
-      <div className="sc-note-rec">
-        <h3 className="sc-h4">Dictate a note or change</h3>
+      {/* Kept mounted so hiding the tile never stops a note that is being recorded. */}
+      <div className="sc-add-panel" hidden={mode !== "voice"}>
         <Recorder projectId={id} kind="note" compact onUploaded={() => void onAdded()} />
       </div>
-      <form onSubmit={(e) => { e.preventDefault(); void saveNote(); }}>
-        <label className="sc-field">
-          <span>Type a note or change</span>
-          <textarea rows={3} value={note} onChange={(e) => setNote(e.target.value)} placeholder="e.g. Client switched to quartz counters; backsplash goes to the ceiling behind the range." />
-        </label>
-        <div className="sc-actions">
-          <button type="submit" className="sc-btn" disabled={busy || !note.trim()}>Add note</button>
-          <Dictate onText={(t) => setNote((n) => (n ? `${n} ${t}` : t))} />
-        </div>
-      </form>
-      {status && <p className="sc-muted" role="status">{status}</p>}
+      {mode === "note" && (
+        <form className="sc-add-panel" onSubmit={(e) => { e.preventDefault(); void saveNote(); }}>
+          <label className="sc-field">
+            <span>Note or change</span>
+            <textarea rows={3} value={note} onChange={(e) => setNote(e.target.value)} placeholder="e.g. Client switched to quartz counters." />
+          </label>
+          <div className="sc-actions">
+            <button type="submit" className="sc-btn sc-btn-primary" disabled={busy || !note.trim()}>Add note</button>
+            <Dictate onText={(t) => setNote((n) => (n ? `${n} ${t}` : t))} />
+          </div>
+        </form>
+      )}
+      {status && <p className="sc-muted sc-small" role="status">{status}</p>}
       {error && <p className="sc-alert sc-alert-bad" role="alert">{error}</p>}
-    </section>
+    </div>
   );
 }
 
-function FilesAndHistory({ ws, onWorkspace, onPlay }: { ws: WS; onWorkspace: (w: WS) => void; onPlay: (e: Evidence) => void }) {
+function FilesAndHistory({ ws, onWorkspace, onPlay, onError }: { ws: WS; onWorkspace: (w: WS) => void; onPlay: (e: Evidence) => void; onError: (m: string) => void }) {
   const id = ws.project.id;
-  const [error, setError] = useState<string | null>(null);
+  const p = ws.project;
+  const setError = onError;
+  const patch = async (fields: Record<string, string>) => {
+    try {
+      const { workspace } = await api<{ workspace: WS }>(`/api/scopes/${id}`, { method: "PATCH", json: fields });
+      onWorkspace(workspace);
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  };
   const archive = async (archived: boolean) => {
     try {
       const { workspace } = await api<{ workspace: WS }>(`/api/scopes/${id}`, { method: "PATCH", json: { archived } });
@@ -367,7 +456,27 @@ function FilesAndHistory({ ws, onWorkspace, onPlay }: { ws: WS; onWorkspace: (w:
   };
   return (
     <div className="sc-files">
-      {error && <p className="sc-alert sc-alert-bad" role="alert">{error}</p>}
+      <section className="sc-card">
+        <h2 className="sc-h2">Project settings</h2>
+        <div className="sc-two">
+          <label className="sc-field">
+            <span>Type of work</span>
+            <select value={p.service} onChange={(ev) => void patch({ service: ev.target.value })}>
+              {SERVICES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+            </select>
+          </label>
+          <label className="sc-field">
+            <span>Finish tier</span>
+            <select value={p.finish_tier} onChange={(ev) => void patch({ finish_tier: ev.target.value })}>
+              <option value="builder">Builder grade</option>
+              <option value="mid">Mid-range</option>
+              <option value="high">High-end</option>
+              <option value="luxury">Luxury</option>
+            </select>
+          </label>
+        </div>
+        <p className="sc-small sc-muted">Client name and address are edited under Estimate.</p>
+      </section>
       <section className="sc-card">
         <h2 className="sc-h2">Recordings, notes and files ({ws.assets.length})</h2>
         {ws.assets.length === 0 && <p className="sc-muted">Nothing yet.</p>}

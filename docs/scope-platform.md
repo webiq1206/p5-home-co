@@ -37,8 +37,8 @@ Workflow: **Record, Review scope, Complete details, Review pricing, Create estim
 
 | Screen | Path | What it does |
 | --- | --- | --- |
-| Project list | `/scopes` | Search by client, project name or address; filter by scope and estimate status; sort; archive view; new project. Each row shows client, project, address, last updated, scope status, estimate status and project status. |
-| Workspace | `/scopes/[id]` | Tabs: Record, Scope, Details (wizard), Pricing, Estimate, Files (recordings, transcripts, versions, activity, archive). |
+| Project list | `/scopes` | A large New project button, a plain search box (client, project name or address), filter and sort tucked behind "Filter and sort", and one card per job with its name, client, last update and statuses. Archived jobs have their own view. |
+| Workspace | `/scopes/[id]` | One page built like a phone app. Six accordion sections, one open at a time, each with a one-line summary: Record, Scope, Details (wizard), Pricing, Estimate, Project and files (type of work, finish tier, recordings, transcripts, versions, activity, archive). A dock at the bottom always offers the next step (Record walkthrough, Build or Update scope, Review changes, Complete details, Review pricing, Create, Update or View estimate). `?tab=` opens a section directly. |
 | People | `/scopes/people` | Add or remove scopes-only access. Needs `manage_users`. |
 | Pricing setup | `/scopes/settings` | Hourly labor rate, handyman trip charge, production rates, taxable items, item mapping, live QuickBooks setup check. Changes need `manage_settings`. |
 
@@ -56,6 +56,21 @@ Workflow: **Record, Review scope, Complete details, Review pricing, Create estim
 | Estimate status available | QuickBooks Online exposes `TxnStatus` (Pending, Accepted, Closed, Rejected), `EmailStatus`, `AcceptedBy`, `AcceptedDate` and linked invoices. Labels use only these. | `app/lib/scopes/estimate.ts` |
 | QuickBooks projects | The accounting API models a project as a sub-customer. The platform links an existing one or asks QuickBooks to create one, then reads back `IsProject` and reports what QuickBooks actually holds. | `createProjectInQbo()` |
 
+## Project names and addresses
+
+Every project is named the same way, by the system: client last name, then
+street number and street name, then the type of work, for example
+`Sample - 100 Example Ave - Kitchen remodel` (`app/lib/scopes/naming.ts`).
+City, state and zip are left out. The name follows the client, address and
+type of work when they change; it is not typed by hand.
+
+Address fields suggest matches as you type (`app/lib/scopes/address.ts`,
+`/api/scopes/address`), US only and biased toward Boise. Picking one stores
+the full formatted address.
+
+The public site's Call and Request a quote bar and the site chat are hidden on
+every `/scopes` page.
+
 ## Recording
 
 - Large record button, pause, resume, stop, red recording indicator, elapsed
@@ -67,7 +82,8 @@ Workflow: **Record, Review scope, Complete details, Review pricing, Create estim
 - Screen wake lock while recording where supported. A device interruption
   (call, app switch, screen lock on iPhone) is detected; what was captured is
   kept, and Resume continues on the same timeline. The device notes are shown
-  on the Record tab.
+  in the Record section. The recorder stays mounted when its section is
+  closed, so moving around the page never stops a recording.
 - Each part is transcribed with segment timestamps (`whisper-1`,
   `verbose_json`, 25 MB per part; a 10-minute part at 32 kbps is about 2.4 MB).
 
@@ -194,6 +210,7 @@ PDF are served inline; anything else downloads as a plain file.
 | `SCOPE_MODEL` | Optional, default `gpt-4.1`. |
 | `SCOPE_TRANSCRIBE_MODEL` | Optional, default `whisper-1`. |
 | QuickBooks | The existing Finance connection (`QBO_*`). |
+| `GOOGLE_MAPS_API_KEY` | Replit Secrets. Turns on address suggestions (Google "Places API (New)"). Read on the server only; without it the address fields are plain text boxes. |
 
 ## Before first use
 
