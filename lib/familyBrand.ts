@@ -63,7 +63,7 @@ export const FAMILY_BRAND: FamilyBrand = {
     showOverHero: false,
     callLabel: 'Call',
     // The quote wizard and the estimators own the bottom of the screen; private areas have no bar.
-    hiddenOn: ['/quote/*', '/estimate/*', '/admin/*', '/api/*', '/portal/*', '/login*', '/sitemap', '/legal/*'],
+    hiddenOn: ['/quote/*', '/estimate/*', '/admin/*', '/api/*', '/portal/*', '/scopes/*', '/login*', '/sitemap', '/legal/*'],
     yieldToBodyFlags: ['p5EstimatorActive', 'p5ChatOpen', 'p5MatcherOpen'],
     // The same check requires the bar gone within 150ms of returning to the hero, as the P5 bar
     // always was: it leaves at once instead of after the 300ms slide-out, and still slides in.

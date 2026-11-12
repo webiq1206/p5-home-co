@@ -28,6 +28,15 @@ test("scope platform over Postgres", { skip: !url && "TEST_DATABASE_URL not set"
 
   const id = await store.createProject(uid, { title: "Kitchen refresh", client_last_name: "Testerson", project_address: "123 Test St, Boise", service: "kitchen" });
 
+  // The project name is derived, never typed, and follows every change to its parts.
+  assert.equal((await store.getProject(id))!.title, "Testerson - 123 Test St - Kitchen remodel");
+  await store.updateProjectFields(id, { service: "bathroom" });
+  assert.equal((await store.getProject(id))!.title, "Testerson - 123 Test St - Bathroom remodel");
+  await store.updateProjectFields(id, { service: "kitchen" });
+  await db.query("UPDATE scope_project SET title = 'Old free-typed name' WHERE id = $1", [id]);
+  await loadWorkspace(id, { scopesOnly: false });
+  assert.equal((await store.getProject(id))!.title, "Testerson - 123 Test St - Kitchen remodel", "older names are corrected when the project is opened");
+
   // Idempotent upload: the same client key returns the first row.
   const a1 = await store.insertAsset({ projectId: id, clientKey: "rec-abc-0", kind: "recording", label: "Meeting", data: Buffer.from("x"), size: 1, userId: uid });
   const a2 = await store.insertAsset({ projectId: id, clientKey: "rec-abc-0", kind: "recording", label: "Meeting", data: Buffer.from("x"), size: 1, userId: uid });

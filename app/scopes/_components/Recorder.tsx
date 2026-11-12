@@ -101,12 +101,15 @@ export default function Recorder({
   kind,
   onUploaded,
   onFinished,
+  onActive,
   compact,
 }: {
   projectId: number;
   kind: "recording" | "note";
   onUploaded?: () => void;
   onFinished?: () => void;
+  /** Told when a recording starts and when it has finished saving. */
+  onActive?: (active: boolean) => void;
   compact?: boolean;
 }) {
   const [phase, setPhase] = useState<Phase>("idle");
@@ -486,6 +489,10 @@ export default function Recorder({
   }
 
   const active = phase === "recording" || phase === "paused" || phase === "interrupted";
+  const busy = active || phase === "saving";
+  useEffect(() => {
+    onActive?.(busy);
+  }, [busy, onActive]);
 
   return (
     <div className={`sc-recorder${compact ? " sc-recorder-compact" : ""}`}>

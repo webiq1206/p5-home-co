@@ -8,6 +8,7 @@
 
 import { useState } from "react";
 
+import AddressField from "./AddressField.tsx";
 import { api, money, SCOPE_LABEL, when, type Workspace } from "./client.ts";
 
 type Candidate = { qboId: string; displayName: string; email: string | null; phone: string | null; address: string | null; reasons: string[] };
@@ -121,18 +122,16 @@ export default function EstimatePanel({ ws, onWorkspace, onScope }: { ws: Worksp
               </label>
             ))}
           </div>
-          <label className="sc-field">
-            <span>Project address{!p.project_address && <em className="sc-req"> needed</em>}</span>
-            <input value={form.project_address ?? ""} autoComplete="street-address" onChange={(ev) => setForm({ ...form, project_address: ev.target.value })} />
-          </label>
+          <AddressField
+            label={<>Project address{!p.project_address && <em className="sc-req"> needed</em>}</>}
+            value={form.project_address ?? ""}
+            onChange={(v) => setForm((f) => ({ ...f, project_address: v }))}
+          />
           <label className="sc-check">
             <input type="checkbox" checked={billingDifferent} onChange={(ev) => setBillingDifferent(ev.target.checked)} /> Billing address is different
           </label>
           {billingDifferent && (
-            <label className="sc-field">
-              <span>Billing address</span>
-              <input value={form.billing_address ?? ""} onChange={(ev) => setForm({ ...form, billing_address: ev.target.value })} />
-            </label>
+            <AddressField label="Billing address" value={form.billing_address ?? ""} onChange={(v) => setForm((f) => ({ ...f, billing_address: v }))} />
           )}
           <button type="submit" className="sc-btn" disabled={!dirty || !!busy}>{busy === "client" ? "Saving..." : "Save client details"}</button>
         </form>

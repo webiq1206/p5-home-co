@@ -123,7 +123,6 @@ async function prefillProject(p: ProjectRow, doc: ScopeDoc): Promise<void> {
   fill("client_phone", c.phone?.value);
   fill("project_address", c.projectAddress?.value);
   fill("billing_address", c.billingAddress?.value);
-  fill("title", doc.projectName);
   if (Object.keys(fields).length) await updateProjectFields(p.id, fields);
 }
 
@@ -158,7 +157,7 @@ export async function processProject(projectId: number, userId: number): Promise
       try {
         const store = await assetStorage(projectId, a.id);
         const data = await readBytes(store!);
-        const t = await transcribe(data, a.file_name ?? "recording.webm", a.mime_type ?? "audio/webm");
+        const t = await transcribe(data, a.file_name ?? "recording.webm", a.mime_type ?? "audio/webm", a.duration_seconds === null ? null : Number(a.duration_seconds));
         await updateAsset(a.id, { state: "ready", transcript: t, duration_seconds: t.duration ?? a.duration_seconds });
       } catch (error) {
         const message = (error as Error).message;

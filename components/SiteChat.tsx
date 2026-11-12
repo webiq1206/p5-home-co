@@ -48,7 +48,7 @@ export function OpenChatButton({
 
 export default function SiteChat() {
   const path = usePathname() || "";
-  const hidden = path.startsWith("/admin") || path.startsWith("/portal");
+  const hidden = path.startsWith("/admin") || path.startsWith("/portal") || path.startsWith("/scopes");
   const [open, setOpen] = useState(false);
   const [phase, setPhase] = useState<"note" | "contact" | "sent">("note");
   const [lines, setLines] = useState<Line[]>([{ role: "team", content: GREETING }]);

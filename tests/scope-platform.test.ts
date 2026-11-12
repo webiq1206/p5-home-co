@@ -508,3 +508,117 @@ test("the scope platform is private at its own address, and the old admin addres
   assert.ok(isPrivatePath("/api/scopes/12"));
   assert.equal(isPrivatePath("/scopes-of-work"), false, "a public page with a similar name stays public");
 });
+
+test("project names are always last name, street, type of project", async () => {
+  const { projectTitle, streetLine } = await import("../app/lib/scopes/naming.ts");
+  assert.equal(
+    projectTitle({ lastName: "Brost", address: "2283 N Coopers Hawk Ave, Kuna, ID 83634, United States", service: "remodel" }),
+    "Brost - 2283 N Coopers Hawk Ave - Remodel",
+  );
+  assert.equal(projectTitle({ lastName: " Brost ", address: "2283 N Coopers Hawk Ave", service: "kitchen" }), "Brost - 2283 N Coopers Hawk Ave - Kitchen remodel");
+  // Missing parts are left out, never replaced with placeholders.
+  assert.equal(projectTitle({ lastName: null, address: "100 Example Ave, Boise", service: "handyman" }), "100 Example Ave - Handyman");
+  assert.equal(projectTitle({ lastName: "Sample", address: "", service: "adu" }), "Sample - ADU");
+  assert.equal(projectTitle({}), "Project");
+  assert.equal(streetLine("  12   Oak   St ,Boise"), "12 Oak St");
+});
+
+test("address suggestions and full addresses are read from Google's responses", async () => {
+  const { parseSuggestions, formatAddress } = await import("../app/lib/scopes/address.ts");
+  const suggestions = parseSuggestions({
+    suggestions: [
+      { placePrediction: { placeId: "ChIJ_place_one_1234", text: { text: "2283 N Coopers Hawk Ave, Kuna, ID, USA" }, structuredFormat: { mainText: { text: "2283 N Coopers Hawk Ave" }, secondaryText: { text: "Kuna, ID, USA" } } } },
+      { placePrediction: { placeId: "ChIJ_place_two_5678", text: { text: "2283 N Cooper St, Boise, ID, USA" } } },
+      { queryPrediction: { text: { text: "ignored" } } },
+      { placePrediction: { text: { text: "no id" } } },
+    ],
+  });
+  assert.deepEqual(suggestions, [
+    { placeId: "ChIJ_place_one_1234", street: "2283 N Coopers Hawk Ave", rest: "Kuna, ID" },
+    { placeId: "ChIJ_place_two_5678", street: "2283 N Cooper St", rest: "Boise, ID" },
+  ]);
+  assert.deepEqual(parseSuggestions(null), []);
+  const c = (longText: string, shortText: string, type: string) => ({ longText, shortText, types: [type] });
+  const place = {
+    formattedAddress: "2283 N Coopers Hawk Ave, Kuna, ID 83634, USA",
+    addressComponents: [
+      c("2283", "2283", "street_number"),
+      c("North Coopers Hawk Avenue", "N Coopers Hawk Ave", "route"),
+      c("Kuna", "Kuna", "locality"),
+      c("Idaho", "ID", "administrative_area_level_1"),
+      c("United States", "US", "country"),
+      c("83634", "83634", "postal_code"),
+    ],
+  };
+  assert.equal(formatAddress(place), "2283 N Coopers Hawk Ave, Kuna, ID 83634");
+  assert.equal(formatAddress({ ...place, addressComponents: [...place.addressComponents, c("4B", "4B", "subpremise")] }), "2283 N Coopers Hawk Ave #4B, Kuna, ID 83634");
+  // No street parts: fall back to Google's line without the country.
+  assert.equal(formatAddress({ formattedAddress: "Kuna, ID 83634, USA" }), "Kuna, ID 83634");
+  assert.equal(formatAddress({}), null);
+});
+
+// ---------------------------------------------------------------------------
+// OpenAI connections: refusals, fallback and plain-text transcripts
+// ---------------------------------------------------------------------------
+
+test("an out-of-credit refusal is told apart from a rate limit", async () => {
+  const { readRefusal } = await import("../app/lib/scopes/ai.ts");
+  const quota = readRefusal(429, JSON.stringify({ error: { code: "insufficient_quota", message: "You exceeded your current quota, please check your plan and billing details." } }), null);
+  assert.equal(quota.quota, true);
+  const rate = readRefusal(429, JSON.stringify({ error: { code: "rate_limit_exceeded", message: "Rate limit reached" } }), "3");
+  assert.equal(rate.quota, false);
+  assert.equal(rate.retryAfterMs, 3000);
+});
+
+test("plain-text transcripts get timestamps spread across the part", async () => {
+  const { approximateSegments } = await import("../app/lib/scopes/ai.ts");
+  const segs = approximateSegments("We keep the sink. The backsplash goes to the ceiling behind the range.", 60);
+  assert.equal(segs.length, 2);
+  assert.equal(segs[0].start, 0);
+  assert.equal(segs[1].end, 60);
+  assert.ok(segs[1].start > 5 && segs[1].start < 30);
+});
+
+test("transcription falls back to the managed connection when the key is out of credit", async () => {
+  const { transcribe } = await import("../app/lib/scopes/ai.ts");
+  const saved = { fetch: globalThis.fetch, a: process.env.OPENAI_API_KEY, b: process.env.AI_INTEGRATIONS_OPENAI_API_KEY, c: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL };
+  process.env.OPENAI_API_KEY = "direct";
+  process.env.AI_INTEGRATIONS_OPENAI_API_KEY = "managed";
+  process.env.AI_INTEGRATIONS_OPENAI_BASE_URL = "http://localhost:1106/v1";
+  const calls: string[] = [];
+  globalThis.fetch = (async (url: string, init: { body: FormData }) => {
+    const model = String(init.body.get("model"));
+    calls.push(`${url.includes("localhost") ? "managed" : "direct"}:${model}`);
+    if (!url.includes("localhost")) return new Response(JSON.stringify({ error: { code: "insufficient_quota", message: "You exceeded your current quota" } }), { status: 429 });
+    if (model === "whisper-1") return new Response(JSON.stringify({ error: { code: "model_not_found", message: "unsupported model" } }), { status: 400 });
+    return new Response(JSON.stringify({ text: "Replace the vanity. Keep the tub." }), { status: 200 });
+  }) as never;
+  try {
+    const t = await transcribe(Buffer.from("audio"), "a.webm", "audio/webm", 20);
+    assert.deepEqual(calls, ["direct:whisper-1", "managed:whisper-1", "managed:gpt-4o-mini-transcribe"]);
+    assert.equal(t.approximate, true);
+    assert.equal(t.segments.length, 2);
+    assert.equal(t.segments[1].end, 20);
+  } finally {
+    globalThis.fetch = saved.fetch;
+    for (const [k, v] of [["OPENAI_API_KEY", saved.a], ["AI_INTEGRATIONS_OPENAI_API_KEY", saved.b], ["AI_INTEGRATIONS_OPENAI_BASE_URL", saved.c]] as const) {
+      if (v === undefined) delete process.env[k];
+      else process.env[k] = v;
+    }
+  }
+});
+
+test("when every connection refuses, the message says why and that the recording is saved", async () => {
+  const { transcribe } = await import("../app/lib/scopes/ai.ts");
+  const saved = { fetch: globalThis.fetch, a: process.env.OPENAI_API_KEY, b: process.env.AI_INTEGRATIONS_OPENAI_API_KEY };
+  process.env.OPENAI_API_KEY = "direct";
+  delete process.env.AI_INTEGRATIONS_OPENAI_API_KEY;
+  globalThis.fetch = (async () => new Response(JSON.stringify({ error: { code: "insufficient_quota", message: "You exceeded your current quota" } }), { status: 429 })) as never;
+  try {
+    await assert.rejects(transcribe(Buffer.from("audio"), "a.webm", "audio/webm"), /out of credit or over its spending limit.*Billing.*recording is saved/s);
+  } finally {
+    globalThis.fetch = saved.fetch;
+    if (saved.a === undefined) delete process.env.OPENAI_API_KEY; else process.env.OPENAI_API_KEY = saved.a;
+    if (saved.b !== undefined) process.env.AI_INTEGRATIONS_OPENAI_API_KEY = saved.b;
+  }
+});

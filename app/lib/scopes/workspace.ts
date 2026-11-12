@@ -16,6 +16,7 @@ import {
   listVersions,
   loadScopeSettings,
   setProjectState,
+  syncProjectTitle,
   type ProjectRow,
 } from "./store.ts";
 import type { Change } from "./merge.ts";
@@ -36,6 +37,7 @@ export type WorkspaceAsset = {
   error: string | null;
   bodyText: string | null;
   transcript: { start: number; end: number; text: string }[] | null;
+  transcriptApproximate: boolean;
   usedInVersion: number | null;
   createdAt: string;
 };
@@ -85,6 +87,8 @@ const iso = (d: Date | string | null | undefined) => (d ? new Date(d).toISOStrin
 
 export async function loadWorkspace(projectId: number, viewer: { scopesOnly: boolean }): Promise<Workspace | null> {
   const internal = !viewer.scopesOnly;
+  // Projects created before names were standardized pick up the derived name here.
+  await syncProjectTitle(projectId);
   let project = await getProject(projectId);
   if (!project) return null;
   const settings = await loadScopeSettings();
@@ -141,6 +145,7 @@ export async function loadWorkspace(projectId: number, viewer: { scopesOnly: boo
       error: a.error,
       bodyText: a.body_text,
       transcript: a.transcript?.segments ?? null,
+      transcriptApproximate: Boolean(a.transcript?.approximate),
       usedInVersion: a.used_in_version,
       createdAt: iso(a.created_at)!,
     })),

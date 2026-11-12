@@ -16,17 +16,30 @@ import type { Prepared } from "./files.ts";
 import type { ScopeDoc } from "./types.ts";
 
 /**
- * The same two places the existing estimator looks: the OPENAI_API_KEY secret,
- * or Replit's managed OpenAI integration. The direct key is preferred because
- * timestamped transcription (whisper-1) is only guaranteed there.
+ * Where OpenAI can be reached, in the order tried: the OPENAI_API_KEY secret,
+ * then Replit's managed OpenAI integration (the connection the existing
+ * estimator runs on). Every call falls through to the next connection when
+ * one refuses, so an exhausted or revoked key never stops a recording from
+ * being read while the other connection works.
  */
-function connection(): { key: string; endpoint: string; managed: boolean } {
-  const direct = process.env.OPENAI_API_KEY;
-  if (direct) return { key: direct, endpoint: (process.env.OPENAI_BASE_URL || "https://api.openai.com/v1").replace(/\/+$/, ""), managed: false };
-  if (process.env.AI_INTEGRATIONS_OPENAI_API_KEY && process.env.AI_INTEGRATIONS_OPENAI_BASE_URL) {
-    return { key: process.env.AI_INTEGRATIONS_OPENAI_API_KEY, endpoint: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL.replace(/\/+$/, ""), managed: true };
+type Connection = { name: string; key: string; endpoint: string; managed: boolean };
+
+/** A connection that reported "out of credit" is skipped for a while instead of being asked every time. */
+const parkedUntil = new Map<string, number>();
+const PARK_MS = 10 * 60_000;
+
+export function connections(env: Readonly<Record<string, string | undefined>> = process.env, now = Date.now()): Connection[] {
+  const all: Connection[] = [];
+  if (env.OPENAI_API_KEY) {
+    all.push({ name: "the OPENAI_API_KEY account", key: env.OPENAI_API_KEY, endpoint: (env.OPENAI_BASE_URL || "https://api.openai.com/v1").replace(/\/+$/, ""), managed: false });
   }
-  throw new Error("No OpenAI key is available. Add OPENAI_API_KEY in Replit Secrets.");
+  if (env.AI_INTEGRATIONS_OPENAI_API_KEY && env.AI_INTEGRATIONS_OPENAI_BASE_URL) {
+    all.push({ name: "Replit's managed OpenAI connection", key: env.AI_INTEGRATIONS_OPENAI_API_KEY, endpoint: env.AI_INTEGRATIONS_OPENAI_BASE_URL.replace(/\/+$/, ""), managed: true });
+  }
+  if (!all.length) throw new Error("No OpenAI key is available. Add OPENAI_API_KEY in Replit Secrets.");
+  const open = all.filter((c) => (parkedUntil.get(c.name) ?? 0) <= now);
+  // If every connection is parked, try them all again rather than refuse outright.
+  return open.length ? open : all;
 }
 
 export function isAiConfigured(): boolean {
@@ -35,55 +48,137 @@ export function isAiConfigured(): boolean {
 
 export const SCOPE_MODEL = process.env.SCOPE_MODEL || "gpt-4.1";
 const TRANSCRIBE_MODEL = process.env.SCOPE_TRANSCRIBE_MODEL || "whisper-1";
+/** Used when the timestamped model is refused: text only, timestamps are then spread across the part. */
+const TRANSCRIBE_FALLBACK_MODEL = process.env.SCOPE_TRANSCRIBE_FALLBACK_MODEL || "gpt-4o-mini-transcribe";
 
-export type Transcript = { text: string; segments: { start: number; end: number; text: string }[]; duration: number | null };
+export type Transcript = {
+  text: string;
+  segments: { start: number; end: number; text: string }[];
+  duration: number | null;
+  /** True when the model gave no timestamps and they were spread evenly across the part. */
+  approximate?: boolean;
+};
 
 /** OpenAI's transcription limit is 25 MB per file; recordings are segmented well below it. */
 export const TRANSCRIBE_LIMIT = 25 * 1024 * 1024;
 
-export async function transcribe(data: Buffer, fileName: string, mime: string): Promise<Transcript> {
-  if (data.length > TRANSCRIBE_LIMIT) throw new Error("This audio file is over 25 MB and cannot be transcribed in one piece.");
-  const { key, endpoint, managed } = connection();
-  const form = new FormData();
-  form.append("file", new Blob([new Uint8Array(data)], { type: mime || "audio/webm" }), fileName || "recording.webm");
-  form.append("model", TRANSCRIBE_MODEL);
-  form.append("response_format", "verbose_json");
-  form.append("timestamp_granularities[]", "segment");
-  form.append(
-    "prompt",
-    "Residential construction walkthrough with a homeowner. Terms: backsplash, LVP, drywall, soffit, vanity, GFCI, joist, subfloor, linear feet, square feet.",
-  );
-  let lastError: Error | null = null;
-  for (let attempt = 1; attempt <= 3; attempt++) {
-    const res = await fetch(`${endpoint}/audio/transcriptions`, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${key}` },
-      body: form,
-      signal: AbortSignal.timeout(240_000),
-    }).catch((e: Error) => {
-      lastError = e;
-      return null;
-    });
-    if (res?.ok) {
-      const body = (await res.json()) as { text?: string; duration?: number; segments?: { start: number; end: number; text: string }[] };
-      return {
-        text: body.text ?? "",
-        duration: typeof body.duration === "number" ? body.duration : null,
-        segments: (body.segments ?? []).map((s) => ({ start: s.start, end: s.end, text: s.text.trim() })),
-      };
+export type Refusal = { status: number | null; code: string; message: string; quota: boolean; retryAfterMs: number | null };
+
+/** Read why a request was refused. "quota" means the account is out of credit: waiting will not help. */
+export function readRefusal(status: number, bodyText: string, retryAfter: string | null): Refusal {
+  let code = "";
+  let message = bodyText.slice(0, 300);
+  try {
+    const e = (JSON.parse(bodyText) as { error?: { code?: string; type?: string; message?: string } }).error;
+    if (e) {
+      code = String(e.code ?? e.type ?? "");
+      message = String(e.message ?? message).slice(0, 300);
     }
-    if (res && res.status < 500 && res.status !== 429) {
-      const detail = (await res.text()).slice(0, 300);
-      throw new Error(
-        managed
-          ? `Transcription failed (${res.status}) through Replit's managed OpenAI connection, which may not offer timestamped transcription. Add OPENAI_API_KEY in Replit Secrets. ${detail}`
-          : `Transcription failed (${res.status}): ${detail}`,
-      );
-    }
-    if (res) lastError = new Error(`Transcription failed (${res.status}).`);
-    await new Promise((r) => setTimeout(r, 1500 * attempt));
+  } catch {
+    // Not JSON; keep the raw text.
   }
-  throw lastError ?? new Error("Transcription failed.");
+  const quota = /insufficient_quota|billing_hard_limit|billing_not_active/i.test(code) || /exceeded your current quota|billing details|credit balance/i.test(message);
+  const seconds = retryAfter && /^\d+(\.\d+)?$/.test(retryAfter) ? Number(retryAfter) : null;
+  return { status, code, message, quota, retryAfterMs: seconds === null ? null : Math.min(20_000, Math.max(1000, seconds * 1000)) };
+}
+
+const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
+const BACKOFF = [2000, 5000, 10_000];
+
+/** One sentence for the person on site: what refused, and what to do about it. */
+function explain(what: string, failures: { connection: Connection; refusal: Refusal }[]): Error {
+  const quota = failures.filter((f) => f.refusal.quota);
+  const parts = failures.map((f) => {
+    const r = f.refusal;
+    if (r.quota) return `${f.connection.name} is out of credit or over its spending limit`;
+    if (r.status === 429) return `${f.connection.name} is rate limited (429)`;
+    if (r.status === 401) return `${f.connection.name} rejected the key (401)`;
+    return `${f.connection.name}: ${r.status ?? "no response"} ${r.message}`.trim();
+  });
+  const fix = quota.some((f) => !f.connection.managed)
+    ? " Add credit or raise the monthly limit for that OpenAI account (platform.openai.com, Billing), or replace OPENAI_API_KEY in Replit Secrets."
+    : "";
+  return new Error(`${what} could not run: ${[...new Set(parts)].join("; ")}.${fix} Nothing was lost: the recording is saved, and you can try again.`);
+}
+
+/**
+ * Timestamps for a transcript that came back as plain text: sentences are
+ * placed across the part in proportion to their length. Good to within a few
+ * seconds on a short part; flagged as approximate.
+ */
+export function approximateSegments(text: string, duration: number): Transcript["segments"] {
+  const sentences = (text.match(/[^.!?]+[.!?]+["')\]]*|[^.!?]+$/g) ?? []).map((x) => x.trim()).filter(Boolean);
+  if (!sentences.length) return [];
+  const total = sentences.reduce((n, x) => n + x.length, 0);
+  let at = 0;
+  return sentences.map((x) => {
+    const start = at;
+    at += (x.length / total) * duration;
+    return { start: Math.round(start * 10) / 10, end: Math.round(at * 10) / 10, text: x };
+  });
+}
+
+export async function transcribe(data: Buffer, fileName: string, mime: string, durationHint?: number | null): Promise<Transcript> {
+  if (data.length > TRANSCRIBE_LIMIT) throw new Error("This audio file is over 25 MB and cannot be transcribed in one piece.");
+  const failures: { connection: Connection; refusal: Refusal }[] = [];
+  const plans = [
+    { model: TRANSCRIBE_MODEL, timestamps: true },
+    ...(TRANSCRIBE_FALLBACK_MODEL && TRANSCRIBE_FALLBACK_MODEL !== TRANSCRIBE_MODEL ? [{ model: TRANSCRIBE_FALLBACK_MODEL, timestamps: false }] : []),
+  ];
+
+  for (const connection of connections()) {
+    plan: for (const plan of plans) {
+      for (let attempt = 0; ; attempt++) {
+        const form = new FormData();
+        form.append("file", new Blob([new Uint8Array(data)], { type: mime || "audio/webm" }), fileName || "recording.webm");
+        form.append("model", plan.model);
+        form.append("response_format", plan.timestamps ? "verbose_json" : "json");
+        if (plan.timestamps) form.append("timestamp_granularities[]", "segment");
+        form.append(
+          "prompt",
+          "Residential construction walkthrough with a homeowner. Terms: backsplash, LVP, drywall, soffit, vanity, GFCI, joist, subfloor, linear feet, square feet.",
+        );
+        let refusal: Refusal;
+        try {
+          const res = await fetch(`${connection.endpoint}/audio/transcriptions`, {
+            method: "POST",
+            headers: { Authorization: `Bearer ${connection.key}` },
+            body: form,
+            signal: AbortSignal.timeout(240_000),
+          });
+          if (res.ok) {
+            const body = (await res.json()) as { text?: string; duration?: number; segments?: { start: number; end: number; text: string }[] };
+            const text = body.text ?? "";
+            const duration = typeof body.duration === "number" ? body.duration : null;
+            if (body.segments?.length) {
+              return { text, duration, segments: body.segments.map((s) => ({ start: s.start, end: s.end, text: s.text.trim() })) };
+            }
+            // 32 kbps recordings are about 4,000 bytes per second when nothing better is known.
+            const length = duration ?? (durationHint && durationHint > 0 ? durationHint : data.length / 4000);
+            return { text, duration, segments: approximateSegments(text, length), approximate: true };
+          }
+          refusal = readRefusal(res.status, await res.text().catch(() => ""), res.headers.get("retry-after"));
+        } catch (e) {
+          refusal = { status: null, code: "network", message: (e as Error).message.slice(0, 200), quota: false, retryAfterMs: null };
+        }
+        if (refusal.quota || refusal.status === 401) {
+          // The whole connection is unusable: stop asking it and move to the next one.
+          failures.push({ connection, refusal });
+          if (refusal.quota) parkedUntil.set(connection.name, Date.now() + PARK_MS);
+          break plan;
+        }
+        const transient = refusal.status === null || refusal.status === 429 || refusal.status === 408 || refusal.status >= 500;
+        if (transient && attempt < BACKOFF.length) {
+          await wait(refusal.retryAfterMs ?? BACKOFF[attempt]);
+          continue;
+        }
+        // This model is refused here (unsupported, forbidden, bad request): try the next model.
+        failures.push({ connection, refusal });
+        continue plan;
+      }
+    }
+  }
+  throw explain("Transcription", failures);
 }
 
 // ---------------------------------------------------------------------------
@@ -276,7 +371,6 @@ export function buildExtractionContent(input: ExtractInput): Block[] {
 }
 
 export async function extractScope(input: ExtractInput): Promise<unknown> {
-  const { key, endpoint } = connection();
   const body = {
     model: SCOPE_MODEL,
     store: false,
@@ -286,39 +380,57 @@ export async function extractScope(input: ExtractInput): Promise<unknown> {
     ...(/^gpt-4/.test(SCOPE_MODEL) ? { temperature: 0.1 } : {}),
     text: { format: { type: "json_schema", name: "scope", schema: SCHEMA, strict: false } },
   };
-  let lastError: Error | null = null;
-  for (let attempt = 1; attempt <= 2; attempt++) {
-    const res = await fetch(`${endpoint}/responses`, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-      signal: AbortSignal.timeout(270_000),
-    }).catch((e: Error) => {
-      lastError = e;
-      return null;
-    });
-    if (res?.ok) {
-      const json = (await res.json()) as { output_text?: string; output?: { type: string; content?: { type: string; text?: string }[] }[]; status?: string; incomplete_details?: { reason?: string } };
-      if (json.status === "incomplete") throw new Error(`The scope was too long to generate in one pass (${json.incomplete_details?.reason ?? "incomplete"}).`);
-      const text =
-        json.output_text ??
-        (json.output ?? [])
-          .flatMap((o) => o.content ?? [])
-          .filter((c) => c.type === "output_text")
-          .map((c) => c.text ?? "")
-          .join("");
+  const failures: { connection: Connection; refusal: Refusal }[] = [];
+  let unreadable = false;
+  for (const connection of connections()) {
+    for (let attempt = 0; ; attempt++) {
+      let refusal: Refusal;
       try {
-        return JSON.parse(text);
-      } catch {
-        lastError = new Error("The model returned an unreadable scope.");
+        const res = await fetch(`${connection.endpoint}/responses`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${connection.key}`, "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+          signal: AbortSignal.timeout(270_000),
+        });
+        if (res.ok) {
+          const json = (await res.json()) as { output_text?: string; output?: { type: string; content?: { type: string; text?: string }[] }[]; status?: string; incomplete_details?: { reason?: string } };
+          if (json.status === "incomplete") throw new ScopeTooLong(json.incomplete_details?.reason ?? "incomplete");
+          const text =
+            json.output_text ??
+            (json.output ?? [])
+              .flatMap((o) => o.content ?? [])
+              .filter((c) => c.type === "output_text")
+              .map((c) => c.text ?? "")
+              .join("");
+          try {
+            return JSON.parse(text);
+          } catch {
+            unreadable = true;
+            if (attempt < 1) continue;
+            break;
+          }
+        }
+        refusal = readRefusal(res.status, await res.text().catch(() => ""), res.headers.get("retry-after"));
+      } catch (e) {
+        if (e instanceof ScopeTooLong) throw e;
+        refusal = { status: null, code: "network", message: (e as Error).message.slice(0, 200), quota: false, retryAfterMs: null };
+      }
+      if (refusal.quota) parkedUntil.set(connection.name, Date.now() + PARK_MS);
+      const transient = !refusal.quota && (refusal.status === null || refusal.status === 429 || refusal.status === 408 || refusal.status >= 500);
+      if (transient && attempt < BACKOFF.length - 1) {
+        await wait(refusal.retryAfterMs ?? BACKOFF[attempt]);
         continue;
       }
+      failures.push({ connection, refusal });
+      break;
     }
-    if (res && res.status < 500 && res.status !== 429) {
-      throw new Error(`Scope generation failed (${res.status}): ${(await res.text()).slice(0, 300)}`);
-    }
-    if (res) lastError = new Error(`Scope generation failed (${res.status}).`);
-    await new Promise((r) => setTimeout(r, 2000));
   }
-  throw lastError ?? new Error("Scope generation failed.");
+  if (!failures.length && unreadable) throw new Error("The model returned an unreadable scope. Try again.");
+  throw explain("Scope generation", failures);
+}
+
+class ScopeTooLong extends Error {
+  constructor(reason: string) {
+    super(`The scope was too long to generate in one pass (${reason}).`);
+  }
 }
