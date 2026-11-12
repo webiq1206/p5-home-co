@@ -52,7 +52,7 @@ export type AssetRow = {
   offset_seconds: number;
   duration_seconds: number | null;
   body_text: string | null;
-  transcript: { segments: { start: number; end: number; text: string }[]; text: string } | null;
+  transcript: { segments: { start: number; end: number; text: string }[]; text: string; approximate?: boolean } | null;
   state: "stored" | "transcribing" | "ready" | "failed";
   error: string | null;
   used_in_version: number | null;

@@ -34,6 +34,7 @@ const TITLE: Record<Step, string> = {
   project: "Project and files",
 };
 
+const isAudioAsset = (a: WS["assets"][number]) => a.kind === "recording" || (a.mimeType ?? "").startsWith("audio/");
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
 export default function Workspace({ initial, initialTab }: { initial: WS; initialTab?: string }) {
@@ -150,7 +151,9 @@ export default function Workspace({ initial, initialTab }: { initial: WS; initia
 
   // New material: not yet read into the scope and not already waiting in a proposal.
   const proposed = new Set(ws.proposal?.sourceIds ?? []);
-  const fresh = ws.assets.filter((a) => !a.usedInVersion && a.state !== "failed" && !proposed.has(a.id));
+  // A recording that failed to transcribe stays in this list, so the next step always offers to try it again.
+  const fresh = ws.assets.filter((a) => !a.usedInVersion && !proposed.has(a.id) && (a.state !== "failed" || isAudioAsset(a)));
+  const untranscribed = fresh.filter((a) => a.state === "failed").length;
   const blocking = ws.questions.filter((q) => q.blocking).length;
   const p = ws.project;
   const client = [p.client_first_name, p.client_last_name].filter(Boolean).join(" ");
@@ -159,7 +162,9 @@ export default function Workspace({ initial, initialTab }: { initial: WS; initia
   const estimateBehind = hasEstimate && ws.version !== null && ws.estimate!.versionId !== ws.version.id;
 
   const summary: Record<Step, string> = {
-    record: ws.assets.length ? `${plural(ws.assets.length, "item")}${fresh.length ? `, ${fresh.length} new` : ""}` : "Nothing yet",
+    record: untranscribed
+      ? `${plural(untranscribed, "recording part")} not transcribed yet`
+      : ws.assets.length ? `${plural(ws.assets.length, "item")}${fresh.length ? `, ${fresh.length} new` : ""}` : "Nothing yet",
     scope: !ws.version ? "Not built yet" : ws.proposal ? "Changes to review" : `${plural(tasks, "task")}, version ${ws.version.versionNo}`,
     details: !ws.version ? "After the scope" : blocking ? `${blocking} needed` : "Complete",
     pricing: !ws.version ? "After the scope" : `${money(ws.pricing.totals.basePrice)}${blocking ? ", not final" : ""}`,
@@ -185,6 +190,7 @@ export default function Workspace({ initial, initialTab }: { initial: WS; initia
   type Next = { label: string; hint?: string; go: () => void; target?: Step };
   let next: Next | null;
   if (ws.proposal) next = { label: "Review changes", hint: "New information changed the scope", go: () => show("scope"), target: "scope" };
+  else if (untranscribed) next = { label: "Try transcribing again", hint: `${plural(untranscribed, "recording part")} saved, not transcribed yet`, go: () => void process() };
   else if (fresh.length) next = { label: ws.version ? "Update scope" : "Build scope", hint: `${plural(fresh.length, "new item")} to read`, go: () => void process() };
   else if (!ws.version) {
     next = ws.assets.length
@@ -489,7 +495,7 @@ function FilesAndHistory({ ws, onWorkspace, onPlay, onError }: { ws: WS; onWorks
                   <span className="sc-muted sc-small">
                     {a.kind}
                     {a.durationSeconds ? `, ${clock(a.durationSeconds)}` : ""} · {when(a.createdAt)} ·{" "}
-                    {a.state === "failed" ? "could not be read" : a.state === "transcribing" ? "transcribing" : a.usedInVersion ? "in the scope" : "not yet read"}
+                    {a.state === "failed" ? (isAudioAsset(a) ? "saved, not transcribed yet" : "could not be read") : a.state === "transcribing" ? "transcribing" : a.usedInVersion ? "in the scope" : "not yet read"}
                   </span>
                 </span>
                 {a.kind !== "text" && <a className="sc-btn sc-btn-small" href={assetUrl(id, a.id)} target="_blank" rel="noreferrer">Open</a>}
@@ -498,7 +504,7 @@ function FilesAndHistory({ ws, onWorkspace, onPlay, onError }: { ws: WS; onWorks
               {a.bodyText && <p className="sc-small">{a.bodyText}</p>}
               {a.transcript && a.transcript.length > 0 && (
                 <details>
-                  <summary className="sc-small">Transcript</summary>
+                  <summary className="sc-small">Transcript{a.transcriptApproximate ? " (times are approximate)" : ""}</summary>
                   <ol className="sc-transcript">
                     {a.transcript.map((s, i) => (
                       <li key={i}>

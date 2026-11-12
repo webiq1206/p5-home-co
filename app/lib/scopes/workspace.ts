@@ -37,6 +37,7 @@ export type WorkspaceAsset = {
   error: string | null;
   bodyText: string | null;
   transcript: { start: number; end: number; text: string }[] | null;
+  transcriptApproximate: boolean;
   usedInVersion: number | null;
   createdAt: string;
 };
@@ -144,6 +145,7 @@ export async function loadWorkspace(projectId: number, viewer: { scopesOnly: boo
       error: a.error,
       bodyText: a.body_text,
       transcript: a.transcript?.segments ?? null,
+      transcriptApproximate: Boolean(a.transcript?.approximate),
       usedInVersion: a.used_in_version,
       createdAt: iso(a.created_at)!,
     })),

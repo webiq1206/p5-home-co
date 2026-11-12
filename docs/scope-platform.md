@@ -87,6 +87,18 @@ every `/scopes` page.
 - Each part is transcribed with segment timestamps (`whisper-1`,
   `verbose_json`, 25 MB per part; a 10-minute part at 32 kbps is about 2.4 MB).
 
+## When OpenAI refuses a request
+
+Transcription and scope generation try each OpenAI connection in turn: the
+`OPENAI_API_KEY` account first, then Replit's managed connection. A 429 is
+read, not guessed: "out of credit" moves straight to the next connection and
+skips the exhausted one for ten minutes; a real rate limit is retried with
+backoff. If the timestamped model is refused, a text-only model is used and
+sentence times are spread across the part and marked approximate. When every
+route fails, the message names each cause and the fix. A recording that did
+not transcribe is never lost: it stays saved, shows as "not transcribed yet",
+and the next-step button offers to try again.
+
 ## Generating the scope
 
 `POST /api/scopes/[id]/process` transcribes new audio, then sends every
@@ -207,6 +219,8 @@ PDF are served inline; anything else downloads as a plain file.
 | Setting | Where |
 | --- | --- |
 | `OPENAI_API_KEY` | Replit Secrets (already present). Read on the server only. |
+| Replit managed OpenAI (`AI_INTEGRATIONS_OPENAI_*`) | Second connection, tried automatically when the key above is refused (out of credit, revoked, rate limited). |
+| `SCOPE_TRANSCRIBE_FALLBACK_MODEL` | Optional, default `gpt-4o-mini-transcribe`. Used when the timestamped model is refused; timestamps are then approximate. |
 | `SCOPE_MODEL` | Optional, default `gpt-4.1`. |
 | `SCOPE_TRANSCRIBE_MODEL` | Optional, default `whisper-1`. |
 | QuickBooks | The existing Finance connection (`QBO_*`). |
