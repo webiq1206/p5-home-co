@@ -9,6 +9,7 @@ import { query, queryOne, transaction } from "../db.ts";
 import type { PricingResult, ScopeDoc, ScopeSettings, ScopeStatusName } from "./types.ts";
 import { DEFAULT_SCOPE_SETTINGS } from "./types.ts";
 import type { Proposal } from "./merge.ts";
+import { projectTitle } from "./naming.ts";
 
 export type ProjectRow = {
   id: number;
@@ -186,6 +187,7 @@ export async function createProject(userId: number, fields: Partial<ProjectRow>)
     ],
   );
   const id = Number(row!.id);
+  await syncProjectTitle(id);
   await logEvent(id, "created", null, userId);
   return id;
 }
@@ -195,7 +197,6 @@ export async function getProject(id: number): Promise<ProjectRow | null> {
 }
 
 const EDITABLE = [
-  "title",
   "client_first_name",
   "client_last_name",
   "client_email",
@@ -220,6 +221,21 @@ export async function updateProjectFields(
   }
   if (!sets.length) return;
   await query(`UPDATE scope_project SET ${sets.join(", ")}, updated_at = now() WHERE id = $1`, params);
+  await syncProjectTitle(id);
+}
+
+/**
+ * Keep the stored project name equal to the derived one (last name, street,
+ * type of project). Called after anything that can change those facts.
+ */
+export async function syncProjectTitle(id: number): Promise<void> {
+  const p = await queryOne<{ title: string; client_last_name: string | null; project_address: string | null; service: string }>(
+    "SELECT title, client_last_name, project_address, service FROM scope_project WHERE id = $1",
+    [id],
+  );
+  if (!p) return;
+  const title = projectTitle({ lastName: p.client_last_name, address: p.project_address, service: p.service });
+  if (title !== p.title) await query("UPDATE scope_project SET title = $2 WHERE id = $1", [id, title]);
 }
 
 export async function setProjectState(

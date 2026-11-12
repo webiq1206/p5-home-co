@@ -143,9 +143,9 @@ export default function Workspace({ initial, initialTab }: { initial: WS; initia
     <div className="sc-ws">
       <header className="sc-ws-head">
         <Link href="/scopes" className="sc-back">All projects</Link>
-        <h1 className="admin-h1">{client || p.title || "New project"}</h1>
+        <h1 className="admin-h1">{p.title || "New project"}</h1>
         <p className="admin-sub">
-          {[p.title && client ? p.title : null, p.project_address].filter(Boolean).join(" · ") || "Address not set"}
+          {[client, p.project_address].filter(Boolean).join(" · ") || "Client and address not set"}
           {" · "}
           <label className="sc-inline-select">
             <span className="sc-visually-hidden">Type of work</span>

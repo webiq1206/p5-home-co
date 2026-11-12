@@ -23,7 +23,7 @@ export async function GET(request: Request, { params }: Ctx) {
   return ok({ workspace, refreshError });
 }
 
-const FIELDS: EditableField[] = ["title", "client_first_name", "client_last_name", "client_email", "client_phone", "project_address", "billing_address", "service", "finish_tier"];
+const FIELDS: EditableField[] = ["client_first_name", "client_last_name", "client_email", "client_phone", "project_address", "billing_address", "service", "finish_tier"];
 const TIERS = new Set(["builder", "mid", "high", "luxury"]);
 
 export async function PATCH(request: Request, { params }: Ctx) {

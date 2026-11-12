@@ -15,7 +15,6 @@ export async function POST(request: Request) {
     const body = (await request.json().catch(() => ({}))) as Record<string, string>;
     const service = SERVICES.has(body.service) ? body.service : "remodel";
     const id = await createProject(g.user.id, {
-      title: (body.title ?? "").slice(0, 200),
       client_first_name: body.firstName?.slice(0, 100) || null,
       client_last_name: body.lastName?.slice(0, 100) || null,
       project_address: body.address?.slice(0, 300) || null,

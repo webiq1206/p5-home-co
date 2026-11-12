@@ -508,3 +508,51 @@ test("the scope platform is private at its own address, and the old admin addres
   assert.ok(isPrivatePath("/api/scopes/12"));
   assert.equal(isPrivatePath("/scopes-of-work"), false, "a public page with a similar name stays public");
 });
+
+test("project names are always last name, street, type of project", async () => {
+  const { projectTitle, streetLine } = await import("../app/lib/scopes/naming.ts");
+  assert.equal(
+    projectTitle({ lastName: "Brost", address: "2283 N Coopers Hawk Ave, Kuna, ID 83634, United States", service: "remodel" }),
+    "Brost - 2283 N Coopers Hawk Ave - Remodel",
+  );
+  assert.equal(projectTitle({ lastName: " Brost ", address: "2283 N Coopers Hawk Ave", service: "kitchen" }), "Brost - 2283 N Coopers Hawk Ave - Kitchen remodel");
+  // Missing parts are left out, never replaced with placeholders.
+  assert.equal(projectTitle({ lastName: null, address: "100 Example Ave, Boise", service: "handyman" }), "100 Example Ave - Handyman");
+  assert.equal(projectTitle({ lastName: "Sample", address: "", service: "adu" }), "Sample - ADU");
+  assert.equal(projectTitle({}), "Project");
+  assert.equal(streetLine("  12   Oak   St ,Boise"), "12 Oak St");
+});
+
+test("address suggestions and full addresses are read from Google's responses", async () => {
+  const { parseSuggestions, formatAddress } = await import("../app/lib/scopes/address.ts");
+  const suggestions = parseSuggestions({
+    suggestions: [
+      { placePrediction: { placeId: "ChIJ_place_one_1234", text: { text: "2283 N Coopers Hawk Ave, Kuna, ID, USA" }, structuredFormat: { mainText: { text: "2283 N Coopers Hawk Ave" }, secondaryText: { text: "Kuna, ID, USA" } } } },
+      { placePrediction: { placeId: "ChIJ_place_two_5678", text: { text: "2283 N Cooper St, Boise, ID, USA" } } },
+      { queryPrediction: { text: { text: "ignored" } } },
+      { placePrediction: { text: { text: "no id" } } },
+    ],
+  });
+  assert.deepEqual(suggestions, [
+    { placeId: "ChIJ_place_one_1234", street: "2283 N Coopers Hawk Ave", rest: "Kuna, ID" },
+    { placeId: "ChIJ_place_two_5678", street: "2283 N Cooper St", rest: "Boise, ID" },
+  ]);
+  assert.deepEqual(parseSuggestions(null), []);
+  const c = (longText: string, shortText: string, type: string) => ({ longText, shortText, types: [type] });
+  const place = {
+    formattedAddress: "2283 N Coopers Hawk Ave, Kuna, ID 83634, USA",
+    addressComponents: [
+      c("2283", "2283", "street_number"),
+      c("North Coopers Hawk Avenue", "N Coopers Hawk Ave", "route"),
+      c("Kuna", "Kuna", "locality"),
+      c("Idaho", "ID", "administrative_area_level_1"),
+      c("United States", "US", "country"),
+      c("83634", "83634", "postal_code"),
+    ],
+  };
+  assert.equal(formatAddress(place), "2283 N Coopers Hawk Ave, Kuna, ID 83634");
+  assert.equal(formatAddress({ ...place, addressComponents: [...place.addressComponents, c("4B", "4B", "subpremise")] }), "2283 N Coopers Hawk Ave #4B, Kuna, ID 83634");
+  // No street parts: fall back to Google's line without the country.
+  assert.equal(formatAddress({ formattedAddress: "Kuna, ID 83634, USA" }), "Kuna, ID 83634");
+  assert.equal(formatAddress({}), null);
+});

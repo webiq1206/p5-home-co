@@ -123,7 +123,6 @@ async function prefillProject(p: ProjectRow, doc: ScopeDoc): Promise<void> {
   fill("client_phone", c.phone?.value);
   fill("project_address", c.projectAddress?.value);
   fill("billing_address", c.billingAddress?.value);
-  fill("title", doc.projectName);
   if (Object.keys(fields).length) await updateProjectFields(p.id, fields);
 }
 

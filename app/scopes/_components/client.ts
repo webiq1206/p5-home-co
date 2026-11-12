@@ -2,6 +2,7 @@
 
 /** Small browser helpers shared by the scope workspace components. */
 
+import { SERVICE_LABELS } from "../../lib/scopes/naming.ts";
 import type { Workspace } from "../../lib/scopes/workspace.ts";
 
 export type { Workspace };
@@ -74,16 +75,4 @@ export const MEASURE_LABEL: Record<string, string> = {
   missing: "Missing",
 };
 
-export const SERVICES: [string, string][] = [
-  ["kitchen", "Kitchen remodel"],
-  ["bathroom", "Bathroom remodel"],
-  ["remodel", "Remodel"],
-  ["whole-home", "Whole-home remodel"],
-  ["addition", "Addition"],
-  ["adu", "ADU"],
-  ["new-construction", "New construction"],
-  ["handyman", "Handyman"],
-  ["re10", "RE-10 repairs"],
-  ["cabinet-product", "Cabinets, product only"],
-  ["cabinet-install", "Cabinets, installed"],
-];
+export const SERVICES: [string, string][] = Object.entries(SERVICE_LABELS);
