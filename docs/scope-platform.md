@@ -224,7 +224,7 @@ PDF are served inline; anything else downloads as a plain file.
 | `SCOPE_MODEL` | Optional, default `gpt-4.1`. |
 | `SCOPE_TRANSCRIBE_MODEL` | Optional, default `whisper-1`. |
 | QuickBooks | The existing Finance connection (`QBO_*`). |
-| `GOOGLE_MAPS_API_KEY` | Replit Secrets. Turns on address suggestions (Google "Places API (New)"). Read on the server only; without it the address fields are plain text boxes. |
+| `GOOGLE_MAPS_API_KEY` | Replit Secrets. Turns on address suggestions (Google "Places API (New)"). Read on the server only; without it the address fields are plain text boxes. If the key is restricted to websites, `p5homeco.com` must be an allowed site: the server sends that address with each request (`GOOGLE_MAPS_REFERER` overrides it). |
 
 ## Before first use
 
