@@ -74,12 +74,26 @@ export function formatAddress(body: unknown): string | null {
   return [line1, city, [state, zip].filter(Boolean).join(" ")].filter(Boolean).join(", ");
 }
 
+/**
+ * A Google key limited to "Websites" only accepts requests that name an
+ * allowed site. These calls come from the server, which sends no site on its
+ * own, so the site's address is sent with every request.
+ */
+const REFERER = `${(process.env.GOOGLE_MAPS_REFERER || "https://p5homeco.com").replace(/\/+$/, "")}/`;
+
+/** Google's own reason, so a key or billing problem is not hidden behind a bare status. */
+async function explain(res: Response): Promise<string> {
+  const body = (await res.json().catch(() => null)) as { error?: { status?: string; message?: string } } | null;
+  const detail = [body?.error?.status, body?.error?.message].filter(Boolean).join(": ").slice(0, 240);
+  return `Address lookup failed (${res.status})${detail ? `. Google said: ${detail}` : "."}`;
+}
+
 export async function suggest(input: string, sessionToken: string): Promise<AddressSuggestion[]> {
   const text = input.trim().slice(0, 200);
   if (text.length < 3) return [];
   const res = await fetch(AUTOCOMPLETE_URL, {
     method: "POST",
-    headers: { "Content-Type": "application/json", "X-Goog-Api-Key": key() },
+    headers: { "Content-Type": "application/json", "X-Goog-Api-Key": key(), Referer: REFERER },
     body: JSON.stringify({
       input: text,
       includedRegionCodes: ["us"],
@@ -88,7 +102,7 @@ export async function suggest(input: string, sessionToken: string): Promise<Addr
     }),
     signal: AbortSignal.timeout(8000),
   });
-  if (!res.ok) throw new Error(`Address lookup failed (${res.status}).`);
+  if (!res.ok) throw new Error(await explain(res));
   return parseSuggestions(await res.json());
 }
 
@@ -96,9 +110,9 @@ export async function resolve(placeId: string, sessionToken: string): Promise<st
   if (!/^[A-Za-z0-9_-]{10,300}$/.test(placeId)) throw new Error("Unknown address.");
   const url = `${DETAILS_URL}/${encodeURIComponent(placeId)}${TOKEN.test(sessionToken) ? `?sessionToken=${encodeURIComponent(sessionToken)}` : ""}`;
   const res = await fetch(url, {
-    headers: { "X-Goog-Api-Key": key(), "X-Goog-FieldMask": "formattedAddress,addressComponents" },
+    headers: { "X-Goog-Api-Key": key(), "X-Goog-FieldMask": "formattedAddress,addressComponents", Referer: REFERER },
     signal: AbortSignal.timeout(8000),
   });
-  if (!res.ok) throw new Error(`Address lookup failed (${res.status}).`);
+  if (!res.ok) throw new Error(await explain(res));
   return formatAddress(await res.json());
 }
