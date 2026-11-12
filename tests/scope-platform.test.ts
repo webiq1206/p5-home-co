@@ -565,6 +565,9 @@ test("an out-of-credit refusal is told apart from a rate limit", async () => {
   const { readRefusal } = await import("../app/lib/scopes/ai.ts");
   const quota = readRefusal(429, JSON.stringify({ error: { code: "insufficient_quota", message: "You exceeded your current quota, please check your plan and billing details." } }), null);
   assert.equal(quota.quota, true);
+  // The exact refusal the live key returned on 2026-11-12.
+  const live = readRefusal(429, JSON.stringify({ error: { type: "insufficient_quota", code: "credit_balance_exhausted", message: "You have no credits remaining. Add credits to continue using the API." } }), null);
+  assert.equal(live.quota, true);
   const rate = readRefusal(429, JSON.stringify({ error: { code: "rate_limit_exceeded", message: "Rate limit reached" } }), "3");
   assert.equal(rate.quota, false);
   assert.equal(rate.retryAfterMs, 3000);

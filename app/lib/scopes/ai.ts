@@ -71,13 +71,14 @@ export function readRefusal(status: number, bodyText: string, retryAfter: string
   try {
     const e = (JSON.parse(bodyText) as { error?: { code?: string; type?: string; message?: string } }).error;
     if (e) {
-      code = String(e.code ?? e.type ?? "");
+      // OpenAI puts the reason in either field ("insufficient_quota" as type, "credit_balance_exhausted" as code).
+      code = [e.code, e.type].filter(Boolean).join(" ");
       message = String(e.message ?? message).slice(0, 300);
     }
   } catch {
     // Not JSON; keep the raw text.
   }
-  const quota = /insufficient_quota|billing_hard_limit|billing_not_active/i.test(code) || /exceeded your current quota|billing details|credit balance/i.test(message);
+  const quota = /insufficient_quota|credit_balance|billing_hard_limit|billing_not_active/i.test(code) || /exceeded your current quota|billing details|credit balance|no credits? remaining|add credits/i.test(message);
   const seconds = retryAfter && /^\d+(\.\d+)?$/.test(retryAfter) ? Number(retryAfter) : null;
   return { status, code, message, quota, retryAfterMs: seconds === null ? null : Math.min(20_000, Math.max(1000, seconds * 1000)) };
 }
