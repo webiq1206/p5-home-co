@@ -30,6 +30,7 @@ import { addBusinessMinutes, isWithinBusinessHours } from "./time.ts";
 import type { Brand, InboundLead, LeadFileLink, RequestKind } from "./types.ts";
 import { detailsBlock, detailsFingerprint, detailLines, hasAnyDetail, isUnsureProject, type LeadDetails } from "./intakeContract.ts";
 import { submittedFieldsFingerprint } from "./submittedFields.ts";
+import { isMetaLead } from "./meta-contact.ts";
 
 export type IntakeResult =
   | { status: "created"; dealId: number; contactId: number; ownerUserId: number | null; slaDeadline: Date }
@@ -69,8 +70,8 @@ async function upsertContact(
   lead: InboundLead,
   identityKey: string,
 ): Promise<number> {
-  const email = normalizeEmail(lead.email);
-  const phone = normalizePhone(lead.phone);
+  const email = normalizeEmail(lead.email) ?? (isMetaLead(lead) ? lead.email : null);
+  const phone = normalizePhone(lead.phone) ?? (isMetaLead(lead) ? lead.phone : null);
   const firstName = normalizeText(lead.firstName);
   const lastName = normalizeText(lead.lastName);
 
@@ -231,7 +232,10 @@ export async function ingestLead(
   if(synthetic&&(estimatorDeliveryMode([lead.firstName,lead.lastName].filter(Boolean).join(' '),lead.email||'')!=='synthetic_qa'||!lead.externalLeadId?.startsWith('qa-')))
     throw Error('Synthetic estimator intake identity is invalid');
   // A QA contact must never rename or attach to an existing real customer.
-  const identityKey = synthetic?'synthetic:'+lead.externalLeadId:contactIdentityKey(lead);
+  // Never merge unrelated people on malformed contact strings. The durable Meta
+  // lead ID is the fallback identity when neither contact method normalizes.
+  const identityKey = synthetic?'synthetic:'+lead.externalLeadId:
+    contactIdentityKey(lead) ?? (isMetaLead(lead) ? `meta-lead:${lead.externalLeadId}` : null);
   if (!identityKey) {
     return {
       status: "rejected",
@@ -308,7 +312,9 @@ export async function ingestLead(
          ) RETURNING id`,
         [
           contactId,
-          dealName(lead),
+          isMetaLead(lead)
+            ? `${lead.utm?.meta_test_lead === "true" ? "TEST LEAD — " : ""}${lead.brand} lead: ${[lead.firstName, lead.lastName].filter(Boolean).join(" ") || "New contact"}`
+            : dealName(lead),
           lead.brand,
           normalizeText(lead.projectType),
           lead.source,

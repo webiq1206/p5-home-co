@@ -291,3 +291,37 @@ test("a synthetic Meta Testing Tool-style lead gets the requested deal title, ow
     assert.equal((note.body!.associations as unknown[]).length, 2);
   } finally { hubspot.restore(); }
 });
+
+test("Meta malformed contacts reach HubSpot without invalid email properties and retain review evidence", async () => {
+  const { metaInboundLead, resolveMetaBrand } = await import("../app/lib/integrations/meta-leadgen.ts");
+  const { ingestLead } = await import("../app/lib/leads/intake.ts");
+  const { DEFAULT_SETTINGS } = await import("../app/lib/leads/settings.ts");
+  for (const [id, email, phone] of [
+    ["synthetic-meta-review-1", "test@meta.com", "<dummy phone>"],
+    ["synthetic-meta-review-2", "  invalid email  ", "+12085550149"],
+    ["synthetic-meta-review-3", "invalid email only", ""],
+  ]) {
+    const graphLead = { id, form_id: "1152385197288111", field_data: [
+      { name: "email", values: [email] }, { name: "phone_number", values: [phone] },
+    ] };
+    const lead = metaInboundLead(graphLead, resolveMetaBrand(graphLead, {}));
+    const created = await ingestLead(lead, DEFAULT_SETTINGS);
+    assert.equal(created.status, "created");
+    if (created.status !== "created") continue;
+    const mock = mockHubSpot({ contactId: `hs-c-${id}`, dealId: `hs-d-${id}` });
+    try {
+      assert.equal((await syncDealToHubSpot(created.dealId)).status, "synced");
+      const contact = mock.calls.find(c => c.path === "/crm/v3/objects/contacts" && c.method === "POST")!;
+      const props = contact.body!.properties as Json;
+      assert.equal(props.email, email === "test@meta.com" ? email : undefined, "HubSpot must never reject an invalid email property");
+      const deal = mock.calls.find(c => c.path === "/crm/v3/objects/deals" && c.method === "POST")!;
+      const dealProps = deal.body!.properties as Json;
+      assert.match(String(dealProps.description), email === "test@meta.com" ? /Phone needs review/ : /Email needs review/);
+      assert.ok(String(dealProps.description).includes(email), "raw answer remains exact in CRM description");
+      assert.equal(String(dealProps.dealname).startsWith("TEST LEAD"), email === "test@meta.com");
+      const note = mock.calls.find(c => c.path === "/crm/v3/objects/notes" && c.method === "POST")!;
+      assert.ok(note, "the raw-answers note still syncs");
+      assert.equal((note.body!.associations as unknown[]).length, 2);
+    } finally { mock.restore(); }
+  }
+});

@@ -7,12 +7,29 @@ import { discoverMetaPages, MetaAdminError, runMetaHandshakeSelfTest } from "../
 import { loadMetaMappings, saveMetaMapping, validMetaBrand, validMetaId } from "../../../lib/integrations/meta-settings.ts";
 import { BRANDS } from "../../../lib/leads/types.ts";
 import type { MetaPage } from "../../../lib/integrations/meta-admin.ts";
+import { reprocessRejectedMetaLead } from "../../../lib/integrations/meta-leadgen.ts";
+import { syncDealToHubSpot } from "../../../lib/integrations/hubspot.ts";
 
 export type MetaActionResult = { ok: boolean; message: string; pages?: MetaPage[] };
 async function administrator() {
   const user = await getSessionUser();
   if (!user || user.role !== "administrator") throw new Error("Administrator access required");
   return user;
+}
+export async function reprocessMetaReceipt(leadgenId: string): Promise<MetaActionResult> {
+  await administrator();
+  if (!validMetaId(leadgenId)) return { ok: false, message: "Invalid Meta lead ID." };
+  try {
+    const result = await reprocessRejectedMetaLead(leadgenId, { syncHubSpot: syncDealToHubSpot });
+    revalidatePath("/admin/lead-manager/meta");
+    return {
+      ok: result.status === "ingested",
+      message: result.status === "ingested" ? "Receipt accepted. Review CRM delivery status; any sync failure remains in the existing retry queue."
+        : result.status === "skipped" ? result.reason : "Receipt not ingested. Review its updated error and retry state.",
+    };
+  } catch {
+    return { ok: false, message: "Reprocessing could not complete. Refresh the receipt before trying again." };
+  }
 }
 export async function refreshMetaPages(): Promise<MetaActionResult> {
   await administrator();

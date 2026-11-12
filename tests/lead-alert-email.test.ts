@@ -50,6 +50,11 @@ test("subject reads New lead: brand, project, name, city", () => {
   assert.equal(leadAlertSubject(lead({ projectType: null, propertyCity: null })), "New lead: Boise Remodeling Co | Ana Ruiz");
 });
 
+test("Meta Testing Tool alerts are unmistakably labelled without suppressing delivery", () => {
+  assert.match(leadAlertSubject(lead({ testLead: true })), /^TEST LEAD/);
+  assert.match(renderLeadAlert(lead({ testLead: true })).subject, /^TEST LEAD/);
+});
+
 test("the HTML has tap-to-call, text, email, maps, HubSpot and admin links and every field", () => {
   const { html, text } = renderLeadAlert(lead());
   assert.match(html, /href="tel:\+12085550177"[^>]*>Call \(208\) 555-0177</);

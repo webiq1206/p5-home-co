@@ -168,6 +168,14 @@ export type ValidationError = { field: string; message: string };
 export function validateInboundLead(lead: InboundLead): ValidationError[] {
   const errors: ValidationError[] = [];
 
+  // Meta receipts retain the exact answers, including Testing Tool placeholders.
+  // A reachable, normalized identity is not required for manual review.
+  if (lead.source === "Facebook Lead Ad" && lead.externalLeadId) {
+    return lead.email?.trim() || lead.phone?.trim() ? [] : [
+      { field: "contact", message: "Meta lead has no email or phone: both submitted fields are empty." },
+    ];
+  }
+
   const email = normalizeEmail(lead.email);
   const phone = normalizePhone(lead.phone);
 

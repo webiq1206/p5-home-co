@@ -33,6 +33,7 @@ export function hubspotDealUrl(id: string): string {
 type Field = { label: string; value: string };
 
 export type LeadCreatedNotifyInput = {
+  testLead?: boolean;
   dealId: number;
   brand: string;
   projectType: string | null;
@@ -98,7 +99,7 @@ export function mapsUrl(address: string): string {
 export function leadAlertSubject(input: LeadCreatedNotifyInput): string {
   const name = oneLine([input.firstName, input.lastName].filter(Boolean).join(" ")) || "Unnamed contact";
   const parts = [oneLine(input.brand) || "P5 Home Co", oneLine(input.projectType ?? ""), name, oneLine(input.propertyCity ?? "")];
-  return `New lead: ${parts.filter(Boolean).join(" | ")}`.slice(0, 250);
+  return `${input.testLead ? "TEST LEAD — " : ""}New lead: ${parts.filter(Boolean).join(" | ")}`.slice(0, 250);
 }
 
 export type LeadAlertMessage = { subject: string; text: string; html: string };

@@ -31,7 +31,8 @@ import {
 } from "./hubspot-map.ts";
 import { detailLines, type LeadDetails } from "../leads/intakeContract.ts";
 import { leadFileAdminUrl } from "../leads/leadRequestFiles.ts";
-import { normalizePhone } from "../leads/normalize.ts";
+import { normalizeEmail, normalizePhone } from "../leads/normalize.ts";
+import { metaReviewLines } from "../leads/meta-contact.ts";
 import { ensureP5HubSpotPortal } from "./hubspot-portal.ts";
 import { attributionFields, type SubmittedField } from "../leads/submittedFields.ts";
 
@@ -569,6 +570,8 @@ async function syncLeasedDeal(dealId: number, row: DealRow): Promise<SyncOutcome
         externalLeadId: row.external_lead_id, facebookLeadId: row.facebook_lead_id, utm: row.utm,
       });
       if (submissions.length) summary = [
+        ...(row.utm?.meta_test_lead === "true" ? ["TEST LEAD"] : []),
+        ...metaReviewLines(row.email, row.phone),
         "Facebook Lead Ad — original submitted answers",
         ...submissions.flatMap(s => s.fields.map(f => `${f.label}: ${f.value}`)),
         "Meta attribution",
@@ -577,9 +580,11 @@ async function syncLeasedDeal(dealId: number, row: DealRow): Promise<SyncOutcome
     }
     const contactId = await upsertContact(
       {
-        firstName: row.first_name,
+        firstName: isMeta && !row.first_name && !row.last_name ? "Meta lead (contact needs review)" : row.first_name,
         lastName: row.last_name,
-        email: row.email,
+        // HubSpot rejects malformed email properties. Preserve the exact value
+        // in the local contact, deal description and raw-answers note instead.
+        email: isMeta ? normalizeEmail(row.email) : row.email,
         phone: row.phone,
         address: streetOnly(row.property_address, row.property_zip),
         city: row.property_city,
@@ -592,7 +597,7 @@ async function syncLeasedDeal(dealId: number, row: DealRow): Promise<SyncOutcome
 
     const hubspotDealId = await upsertDeal(
       {
-        name: isMeta ? `${row.brand} lead: ${[row.first_name, row.last_name].filter(Boolean).join(" ") || "New contact"}` : row.name,
+        name: isMeta ? `${row.utm?.meta_test_lead === "true" ? "TEST LEAD — " : ""}${row.brand} lead: ${[row.first_name, row.last_name].filter(Boolean).join(" ") || "New contact"}` : row.name,
         brand: row.brand as DealSyncInput["brand"],
         stage: row.stage as DealSyncInput["stage"],
         leadSource: row.lead_source as DealSyncInput["leadSource"],

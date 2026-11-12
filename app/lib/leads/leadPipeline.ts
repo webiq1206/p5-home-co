@@ -99,6 +99,7 @@ export async function loadLeadAlert(
     ).catch(() => []);
     return {
       ...fallback,
+      testLead: row.lead_source === "Facebook Lead Ad" ? row.utm?.meta_test_lead === "true" : fallback.testLead,
       dealId,
       brand: row.brand ?? fallback.brand,
       projectType: row.project_type ?? fallback.projectType,

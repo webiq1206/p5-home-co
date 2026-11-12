@@ -8,6 +8,7 @@ import {
   refreshMetaPages,
   selfTestMetaHandshake,
   subscribeAllMetaPages,
+  reprocessMetaReceipt,
   type MetaActionResult,
 } from "./actions.ts";
 import type { MetaPage } from "../../../lib/integrations/meta-admin.ts";
@@ -323,7 +324,20 @@ export default function MetaPanel({ snapshot }: { snapshot: MetaSnapshot | null 
               ))}</tr></thead>
               <tbody>{receipts.map((receipt) => (
                 <tr key={`${receipt.leadgen_id}-${receipt.received_at}`}>
-                  <td style={cellStyle}><strong>{receipt.state}</strong><br />{receipt.sync_status ?? "—"}</td>
+                  <td style={cellStyle}><strong>{receipt.state}</strong><br />{receipt.sync_status ?? "—"}
+                    {receipt.state === "rejected" && (
+                      <button className="lead-action" type="button" disabled={pending}
+                        onClick={() => {
+                          if (window.confirm("Reprocess this rejected receipt? This may create a HubSpot contact/deal/note and send the new-lead alert email.")) {
+                            runAction("Reprocess", async () => {
+                              const result = await reprocessMetaReceipt(receipt.leadgen_id);
+                              router.refresh();
+                              return result;
+                            });
+                          }
+                        }}>Reprocess</button>
+                    )}
+                  </td>
                   <td style={cellStyle}><code>{receipt.leadgen_id}</code></td>
                   <td style={cellStyle}><code>{receipt.page_id ?? "—"}</code></td>
                   <td style={cellStyle}><code>{receipt.form_id ?? "—"}</code></td>

@@ -81,7 +81,11 @@ test("Meta denials show Graph code and message without credential values or enve
   assert.match(pages[0].error!, /Meta HTTP 403 \(code 200\).*Requires pages_manage_metadata/);
   assert.equal(JSON.stringify(pages).includes("synthetic-override"), false);
   await assert.rejects(metaGraph("https://evil.invalid", env.META_PAGE_ACCESS_TOKEN, {}, mockGraph().fetcher), /configuration/);
-  assert.equal(safeMetaError("private customer content token here"), "Processing failed; inspect restricted server diagnostics");
+  assert.equal(safeMetaError("phone: That phone number does not look right."), "phone: That phone number does not look right.");
+  const { metaDiagnostic } = await import("../app/lib/integrations/meta-diagnostics.ts");
+  assert.equal(metaDiagnostic("HTTP 400: bad input; Bearer synthetic-key access_token=synthetic-page", {}), "HTTP 400: bad input; [redacted] [redacted]");
+  assert.equal(metaDiagnostic("failed synthetic-secret", { META_APP_SECRET: "synthetic-secret" }), "failed [redacted]");
+  assert.equal(metaDiagnostic("failed page-secret", { META_PAGE_TOKENS: '{"123":"page-secret"}' }), "failed [redacted]");
 });
 test("discovered Page token handles subscription GET/POST/read-back and forms; no token reaches admin output", async () => {
   const mock = mockGraph({ initiallyUnsubscribed: true });

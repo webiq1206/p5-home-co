@@ -27,6 +27,9 @@ import { notifyLeadCreated, type LeadCreatedNotifyInput } from "../notifications
 import { DEFAULT_META_PAGES, loadMetaMappings, type MetaMappings } from "./meta-settings.ts";
 import { resolveMetaPageToken } from "./meta-page-tokens.ts";
 import { GRAPH_VERSION } from "./meta-graph.ts";
+import { metaContactReview, metaReviewLines } from "../leads/meta-contact.ts";
+import { normalizeEmail } from "../leads/normalize.ts";
+import { metaDiagnostic } from "./meta-diagnostics.ts";
 
 export { GRAPH_VERSION } from "./meta-graph.ts";
 const LOG = "[meta-leadgen]";
@@ -71,6 +74,8 @@ export type GraphLead = {
   campaign_name?: string;
   platform?: string;
   is_organic?: boolean;
+  is_test?: boolean;
+  is_test_lead?: boolean;
 };
 
 export type MetaAttribution = {
@@ -206,6 +211,15 @@ function fieldValue(data: readonly GraphFieldDatum[], ...names: string[]): strin
   return null;
 }
 
+/** Contact answers retain exact whitespace and spelling; validation is separate. */
+function rawContactValue(data: readonly GraphFieldDatum[], ...names: string[]): string | null {
+  for (const name of names) {
+    const values = data.find(field => field.name?.toLowerCase() === name)?.values;
+    if (values?.some(value => typeof value === "string" && value.trim())) return values.filter(value => typeof value === "string").join(", ");
+  }
+  return null;
+}
+
 /** Every field_data entry verbatim, question name as Meta sent it. */
 export function metaSubmittedFields(lead: GraphLead, attribution: MetaAttribution): SubmittedField[] {
   const fields: SubmittedField[] = (lead.field_data ?? [])
@@ -221,6 +235,10 @@ export function metaSubmittedFields(lead: GraphLead, attribution: MetaAttributio
 
 export function metaInboundLead(lead: GraphLead, attribution: MetaAttribution, receivedAt = new Date()): InboundLead {
   const data = lead.field_data ?? [];
+  const rawEmail = rawContactValue(data, "email");
+  const rawPhone = rawContactValue(data, "phone_number", "phone");
+  const review = metaContactReview(rawEmail, rawPhone);
+  const testLead = normalizeEmail(rawEmail) === "test@meta.com" || lead.is_test === true || lead.is_test_lead === true;
   let firstName = fieldValue(data, "first_name");
   let lastName = fieldValue(data, "last_name");
   const full = fieldValue(data, "full_name");
@@ -236,6 +254,9 @@ export function metaInboundLead(lead: GraphLead, attribution: MetaAttribution, r
     utm_source: platform === "ig" || platform === "instagram" ? "instagram" : "facebook",
     utm_medium: lead.is_organic ? "social" : "paid_social",
   };
+  utm.meta_phone_needs_review = String(review.phoneNeedsReview);
+  utm.meta_email_needs_review = String(review.emailNeedsReview);
+  utm.meta_test_lead = String(testLead);
   const put = (key: string, value: string | null | undefined) => { if (value) utm[key] = String(value).slice(0, 300); };
   put("utm_campaign", lead.campaign_name);
   put("meta_page_id", attribution.pageId);
@@ -252,6 +273,8 @@ export function metaInboundLead(lead: GraphLead, attribution: MetaAttribution, r
   if (attribution.service) utm.service = attribution.service;
 
   const summary = [
+    ...(testLead ? ["TEST LEAD"] : []),
+    ...metaReviewLines(rawEmail, rawPhone),
     `Facebook Lead Ad (Instant Form): ${attribution.formName}`,
     lead.campaign_name ? `Campaign: ${lead.campaign_name}` : "",
     lead.ad_name ? `Ad: ${lead.ad_name}` : "",
@@ -267,8 +290,8 @@ export function metaInboundLead(lead: GraphLead, attribution: MetaAttribution, r
   return {
     firstName,
     lastName,
-    email: fieldValue(data, "email"),
-    phone: fieldValue(data, "phone_number", "phone"),
+    email: rawEmail,
+    phone: rawPhone,
     brand: attribution.brand,
     projectType: projectAnswer ?? (attribution.service ? SERVICE_PROJECT_TYPES[attribution.service] ?? null : null),
     source: "Facebook Lead Ad",
@@ -333,7 +356,7 @@ async function finish(leadgenId: string, state: "pending" | "ingested" | "reject
     `UPDATE meta_leadgen_event SET state = $2, last_error = $3, deal_id = COALESCE($4, deal_id),
             lead = COALESCE($5::jsonb, lead), lease_until = NULL, updated_at = now()
       WHERE leadgen_id = $1`,
-    [leadgenId, state, error, extra.dealId ?? null, extra.lead === undefined ? null : JSON.stringify(extra.lead)],
+    [leadgenId, state, metaDiagnostic(error), extra.dealId ?? null, extra.lead === undefined ? null : JSON.stringify(extra.lead)],
   );
 }
 
@@ -385,6 +408,7 @@ export async function processMetaLeadEvent(leadgenId: string, deps: MetaDeps = {
     await within(sync, deps.inlineSyncTimeoutMs ?? inlineSyncTimeoutMs(deps.env));
     if (result.status === "created") {
       const notice: LeadCreatedNotifyInput = {
+        testLead: inbound.utm?.meta_test_lead === "true",
         dealId: result.dealId,
         brand: inbound.brand,
         projectType: inbound.projectType,
@@ -411,12 +435,26 @@ export async function processMetaLeadEvent(leadgenId: string, deps: MetaDeps = {
     }
     return { status: "ingested", dealId: result.dealId, created: result.status === "created" };
   } catch (error) {
-    const code = error instanceof GraphError ? error.message : "meta-processing-error";
-    if (!(error instanceof GraphError)) console.error(`${LOG} lead ${leadgenId} failed:`, (error as Error).message);
+    const code = metaDiagnostic(error instanceof Error ? error.message : "meta-processing-error") ?? "meta-processing-error";
+    if (!(error instanceof GraphError)) console.error(`${LOG} lead ${leadgenId} failed:`, metaDiagnostic(code));
     const state = event.attempts >= MAX_ATTEMPTS ? "failed" : "pending";
     await finish(leadgenId, state, code).catch(() => undefined);
     return { status: "retry", error: code };
   }
+}
+
+/** Atomic opt-in from the admin action. Concurrent clicks cannot reopen twice. */
+export async function reprocessRejectedMetaLead(leadgenId: string, deps: MetaDeps = {}): Promise<ProcessOutcome> {
+  if (!/^\d{1,40}$/.test(leadgenId)) return { status: "skipped", reason: "Invalid Meta lead ID" };
+  const reopened = await query(
+    `UPDATE meta_leadgen_event SET state='pending', last_error=NULL, updated_at=now()
+     WHERE leadgen_id=$1 AND state='rejected' AND deal_id IS NULL
+       AND (lease_until IS NULL OR lease_until < now()) RETURNING leadgen_id`,
+    [leadgenId],
+  );
+  if (!reopened.length) return { status: "skipped", reason: "Receipt is no longer rejected, has a deal, or is already processing." };
+  // Existing leasing, external-lead dedupe and saved Graph lead are reused.
+  return processMetaLeadEvent(leadgenId, deps);
 }
 
 /** Watchdog retry path: anything saved and still pending. */

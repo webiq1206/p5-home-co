@@ -5,6 +5,7 @@ import { metaConfig, META_LEAD_FORMS, resolveMetaBrand } from "./meta-leadgen.ts
 import { loadMetaMappings, validMetaId, type MetaMappings } from "./meta-settings.ts";
 import { graphList, metaGraph, MetaAdminError, type MetaFetch } from "./meta-graph.ts";
 import { refreshMetaPageTokens, resolveMetaPageToken } from "./meta-page-tokens.ts";
+import { metaDiagnostic } from "./meta-diagnostics.ts";
 export { metaGraph, MetaAdminError } from "./meta-graph.ts";
 export type { MetaFetch } from "./meta-graph.ts";
 
@@ -63,12 +64,9 @@ export async function discoverMetaPages(
   }
   return output;
 }
-/** Allowlisted error category only; stored provider errors can contain private data. */
+/** Detailed errors are administrator-only, credential-redacted and text-rendered. */
 export function safeMetaError(value: string | null): string | null {
-  if (!value) return null;
-  const status = value.match(/\b(?:400|401|403|404|408|409|429|500|502|503|504)\b/);
-  return status ? `HTTP ${status[0]} — review server integration diagnostics` :
-    ["meta-processing-error", "no-contact", "missing-token"].includes(value) ? value : "Processing failed; inspect restricted server diagnostics";
+  return metaDiagnostic(value);
 }
 export async function loadMetaReceipts(): Promise<MetaReceipt[]> {
   const rows = await query<MetaReceipt>(

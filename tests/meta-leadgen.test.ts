@@ -187,6 +187,77 @@ test("brand mapping: form id, then campaign name, then P5", () => {
   assert.equal(meta.signatureIsValid("{}", null, SECRET), false);
 });
 
+test("Meta contact tolerance keeps raw answers, flags malformed values and continues sync plus alerts", async () => {
+  const cases = [
+    { id: "9101", email: "test@meta.com", phone: "  <test lead: dummy data for phone_number>  ", phoneReview: true, emailReview: false, test: true },
+    { id: "9102", email: "<bad email>", phone: "(208) 555-0141", phoneReview: false, emailReview: true, test: false },
+    { id: "9103", email: "", phone: "not a phone", phoneReview: true, emailReview: false, test: false },
+    { id: "9104", email: "not an email", phone: "", phoneReview: false, emailReview: true, test: false },
+    { id: "9105", email: "meta-flag@example.com", phone: "", phoneReview: false, emailReview: false, test: true },
+  ];
+  const alerts: LeadCreatedNotifyInput[] = [];
+  const syncs: number[] = [];
+  for (const entry of cases) {
+    graphLeads[entry.id] = {
+      id: entry.id, form_id: "1152385197288111", is_test: entry.id === "9105",
+      field_data: [{ name: "email", values: [entry.email] }, { name: "phone_number", values: [entry.phone] }],
+    };
+    const tasks: (() => Promise<void>)[] = [];
+    await handleMetaWebhook(delivery([{ leadgen_id: entry.id, page_id: "1228704823655951", form_id: "1152385197288111" }]), t => tasks.push(t), {
+      env, fetch: graph({ urls: [], auth: [] }),
+      syncHubSpot: async id => { syncs.push(id); },
+      notify: async input => { alerts.push(input.prepare ? await input.prepare() : input); },
+    });
+    for (const task of tasks) await task();
+    const row = await one<{ state: string; phone: string | null; email: string | null; name: string; summary: string; utm: Record<string, string> }>(
+      `SELECT e.state,c.phone,c.email,d.name,d.summary,d.utm FROM meta_leadgen_event e
+       JOIN deal d ON d.id=e.deal_id JOIN contact c ON c.id=d.contact_id WHERE e.leadgen_id=$1`, [entry.id],
+    );
+    assert.equal(row.state, "ingested");
+    assert.equal(row.phone, entry.id === "9102" ? "+12085550141" : entry.phone || null);
+    assert.equal(row.email, entry.email || null);
+    assert.equal(row.utm.meta_phone_needs_review, String(entry.phoneReview));
+    assert.equal(row.utm.meta_email_needs_review, String(entry.emailReview));
+    assert.equal(row.utm.meta_test_lead, String(entry.test));
+    assert.equal(row.name.startsWith("TEST LEAD"), entry.test);
+    if (entry.phoneReview) assert.match(row.summary, /Phone needs review/);
+    if (entry.emailReview) assert.match(row.summary, /Email needs review/);
+    const fields = alerts.at(-1)!.submittedFields!;
+    assert.equal(fields.find(f => f.label === "phone_number")!.value, entry.phone);
+    assert.equal(alerts.at(-1)!.testLead, entry.test);
+  }
+  assert.equal(syncs.length, cases.length);
+  assert.equal(alerts.length, cases.length);
+  const { validateInboundLead } = await import("../app/lib/leads/normalize.ts");
+  const inbound = meta.metaInboundLead(graphLeads["9101"] as Parameters<typeof meta.metaInboundLead>[0], meta.resolveMetaBrand({ id: "9101" }, {}));
+  assert.ok(validateInboundLead({ ...inbound, source: "Organic Website" }).some(e => e.field === "phone"), "other sources keep strict validation");
+});
+
+test("empty Meta contacts retain a clear rejected receipt; admin reprocess reuses saved lead and dedupes", async () => {
+  const id = "9190";
+  graphLeads[id] = { id, form_id: "1636211868536619", field_data: [] };
+  const tasks: (() => Promise<void>)[] = [];
+  await handleMetaWebhook(delivery([{ leadgen_id: id, page_id: "1228704823655951", form_id: "1636211868536619" }]), t => tasks.push(t), { env, fetch: graph({ urls: [], auth: [] }) });
+  for (const task of tasks) await task();
+  const rejected = await one<{ state: string; last_error: string }>("SELECT state,last_error FROM meta_leadgen_event WHERE leadgen_id=$1", [id]);
+  assert.equal(rejected.state, "rejected");
+  assert.match(rejected.last_error, /both submitted fields are empty/);
+  // Emulate a receipt rejected by the old validator. No production data is read.
+  await db.rows("UPDATE meta_leadgen_event SET lead=$2::jsonb WHERE leadgen_id=$1", [id, JSON.stringify({
+    id, form_id: "1636211868536619", field_data: [{ name: "email", values: ["test@meta.com"] }, { name: "phone_number", values: ["<dummy phone>"] }],
+  })]);
+  let alerts = 0, syncs = 0;
+  const deps = { env, fetch: (async () => { throw Error("saved lead must not be fetched again"); }) as typeof fetch,
+    syncHubSpot: async () => { syncs++; }, notify: async () => { alerts++; } };
+  const result = await meta.reprocessRejectedMetaLead(id, deps);
+  assert.equal(result.status, "ingested");
+  assert.equal((await meta.reprocessRejectedMetaLead(id, deps)).status, "skipped");
+  assert.equal(alerts, 1);
+  assert.equal(syncs, 1);
+  assert.equal(Number((await one<{ n: number }>("SELECT count(*)::int AS n FROM deal WHERE external_lead_id=$1", [id])).n), 1);
+  assert.equal((await meta.reprocessRejectedMetaLead("invalid", deps)).status, "skipped");
+});
+
 test("slow receipt storage is not falsely acknowledged and does not trigger provider work after timeout", async () => {
   const pool = globalThis.__p5Pool!;
   const original = pool.query;
