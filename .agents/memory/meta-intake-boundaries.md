@@ -16,3 +16,9 @@ Successful system-user account discovery does not prove that credential can perf
 **Why:** The owner observed successful account discovery in production while Page calls failed with HTTP 400, and identified the credential-type mismatch.
 
 **How to apply:** Preserve the distinction between discovery and Page credentials in future client changes and mocked authorization-header tests. Credential caches must remain server-only, encrypted at rest and scoped to the configured app/system credential.
+
+Meta Lead Ads must not be discarded for malformed or placeholder contact values. Accept any nonempty email or phone, preserve original answers, flag invalid values for review, and reject only when both are empty. Testing Tool leads must be visibly labelled TEST LEAD while retaining normal CRM and owner-alert delivery.
+
+**Why:** The owner explicitly required tolerant Meta intake after a genuine Testing Tool delivery was rejected despite having an email.
+
+**How to apply:** Keep other intake validation strict, never use malformed values to merge people, and do not automatically replay rejected production receipts without the owner's action.

@@ -11,6 +11,33 @@ and `023_voice_messages.sql` (additive; applied by the boot migrator,
 
 ## One HubSpot account only
 
+### Contact review and rejected receipts
+
+Only Meta Lead Ads use tolerant contact validation: accept any nonempty email
+or phone, including malformed values and Testing Tool placeholders. Reject only
+when both are empty, keeping the receipt and its specific reason. Other intake
+sources retain their existing validation.
+
+Original contact answers remain verbatim in the saved Graph lead and submission.
+The local contact uses normalized email/E.164 phone when possible and the exact
+raw answer otherwise. The local deal's existing `utm` JSON stores
+`meta_phone_needs_review`, `meta_email_needs_review`, and `meta_test_lead` flags
+as `"true"`/`"false"`; its summary and HubSpot description explain review needs.
+Invalid email is omitted from HubSpot's validated email property, not discarded:
+the description and two-sided raw-answers note retain it. Malformed contact
+strings never become person-matching keys; the Meta lead ID is the fallback.
+
+The email `test@meta.com`, or an explicit retained Meta `is_test`/`is_test_lead`
+flag, labels the local/HubSpot deal and alert subject **TEST LEAD**. Test leads
+still use normal CRM and owner-alert delivery; they are not estimator synthetic QA.
+
+At `/admin/lead-manager/meta`, administrators can read stored errors with
+credentials redacted and choose **Reprocess** on a rejected receipt. The action
+warns that CRM writes and a new-lead email may occur, atomically reopens only a
+rejected receipt without an existing deal, then reuses its saved lead, processing
+lease and existing deduplication. It never reopens an already ingested receipt.
+This release does not automatically reprocess any existing receipt.
+
 Every write goes to the hello@p5homeco.com account: portal **247066159**
 (app-na2), owner **97300513**. Before the first request the hub reads
 `/account-info/v3/details` with `HUBSPOT_TOKEN`, caches the answer, and refuses
