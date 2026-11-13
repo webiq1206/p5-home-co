@@ -49,7 +49,7 @@ export const FLOWS: ProjectFlow[] = [
   // ------------------------------------------------------------------ remodel
   {
     id: "kitchen-remodel",
-    group: "Remodeling",
+    group: "remodel",
     title: "Kitchen remodel",
     blurb: "Cabinets, counters, backsplash, plumbing and lighting",
     image: "project-kitchen",
@@ -128,7 +128,7 @@ export const FLOWS: ProjectFlow[] = [
   },
   {
     id: "bathroom-remodel",
-    group: "Remodeling",
+    group: "remodel",
     title: "Bathroom remodel",
     blurb: "Shower or tub, tile, vanity, fixtures and lighting",
     image: "project-bathroom",
@@ -189,7 +189,7 @@ export const FLOWS: ProjectFlow[] = [
   },
   {
     id: "basement-finish",
-    group: "Remodeling",
+    group: "remodel",
     title: "Basement finishing",
     blurb: "Turn an unfinished basement into living space",
     image: "project-basement",
@@ -232,7 +232,7 @@ export const FLOWS: ProjectFlow[] = [
   },
   {
     id: "whole-home",
-    group: "Remodeling",
+    group: "remodel",
     title: "Whole-home renovation",
     blurb: "Renovate the whole house in one project",
     image: "project-whole-home",
@@ -257,7 +257,7 @@ export const FLOWS: ProjectFlow[] = [
   },
   {
     id: "flooring",
-    group: "Remodeling",
+    group: "remodel",
     title: "New flooring",
     blurb: "Vinyl plank, hardwood, carpet or tile, installed",
     image: "project-flooring",
@@ -317,7 +317,7 @@ export const FLOWS: ProjectFlow[] = [
   },
   {
     id: "interior-paint",
-    group: "Remodeling",
+    group: "remodel",
     title: "Interior painting",
     blurb: "Rooms painted by a professional crew",
     image: "project-paint",
@@ -362,7 +362,7 @@ export const FLOWS: ProjectFlow[] = [
   // ----------------------------------------------------------------- cabinets
   {
     id: "kitchen-cabinets",
-    group: "Cabinets",
+    group: "cabinetry",
     title: "Kitchen cabinets",
     blurb: "New cabinets designed, built and installed",
     image: "project-cabinets",
@@ -428,7 +428,7 @@ export const FLOWS: ProjectFlow[] = [
   },
   {
     id: "bathroom-vanity",
-    group: "Cabinets",
+    group: "cabinetry",
     title: "Bathroom vanity",
     blurb: "A new vanity with top, installed",
     image: "project-vanity",
@@ -485,7 +485,7 @@ export const FLOWS: ProjectFlow[] = [
   },
   {
     id: "cabinet-refresh",
-    group: "Cabinets",
+    group: "cabinetry",
     title: "Cabinet refresh",
     blurb: "Paint, reface or refinish the cabinets you have",
     image: "project-cabinet-refresh",
@@ -529,7 +529,7 @@ export const FLOWS: ProjectFlow[] = [
   },
   {
     id: "built-ins",
-    group: "Cabinets",
+    group: "cabinetry",
     title: "Built-ins and storage",
     blurb: "Mudroom, laundry, closet, office and living room built-ins",
     image: "project-built-ins",
@@ -568,7 +568,7 @@ export const FLOWS: ProjectFlow[] = [
   // ----------------------------------------------------------------- handyman
   {
     id: "handyman",
-    group: "Handyman",
+    group: "handyman",
     title: "Repairs and small jobs",
     blurb: "Tap everything on your list",
     image: "project-handyman",
@@ -580,7 +580,7 @@ export const FLOWS: ProjectFlow[] = [
   // ------------------------------------------------------------- construction
   {
     id: "custom-home",
-    group: "Construction",
+    group: "construction",
     title: "New home",
     blurb: "A custom home on your lot",
     image: "project-custom-home",
@@ -626,7 +626,7 @@ export const FLOWS: ProjectFlow[] = [
   },
   {
     id: "addition",
-    group: "Construction",
+    group: "construction",
     title: "Home addition",
     blurb: "Add rooms, a suite or a second story",
     image: "project-addition",
@@ -664,7 +664,7 @@ export const FLOWS: ProjectFlow[] = [
   },
   {
     id: "garage-shop",
-    group: "Construction",
+    group: "construction",
     title: "Detached garage or shop",
     blurb: "A new garage, shop or outbuilding",
     image: "project-garage",
@@ -688,7 +688,7 @@ export const FLOWS: ProjectFlow[] = [
   },
   {
     id: "adu",
-    group: "Construction",
+    group: "adu",
     title: "Accessory dwelling unit",
     blurb: "A second home on your property",
     image: "project-adu",
@@ -709,6 +709,19 @@ export const FLOWS: ProjectFlow[] = [
       },
     ],
   },
+];
+
+/**
+ * The first question: what kind of project. Each flow's `group` is one of
+ * these ids. A brand shows only the trades it has projects in, and a trade
+ * with a single project goes straight to that project's questions.
+ */
+export const TRADES: { id: string; label: string; hint: string; image: string }[] = [
+  { id: "remodel", label: "Remodel", hint: "Kitchens, baths, basements, floors and paint", image: "cat-remodel" },
+  { id: "construction", label: "New construction", hint: "Homes, additions, garages and shops", image: "cat-construction" },
+  { id: "adu", label: "ADU", hint: "A second home on your property", image: "cat-adu" },
+  { id: "cabinetry", label: "Cabinetry", hint: "Kitchens, vanities and built-ins", image: "cat-cabinetry" },
+  { id: "handyman", label: "Handyman", hint: "Repairs and small jobs", image: "cat-handyman" },
 ];
 
 const BY_ID = new Map(FLOWS.map((f) => [f.id, f]));

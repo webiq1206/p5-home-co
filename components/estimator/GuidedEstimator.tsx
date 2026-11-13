@@ -15,7 +15,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type { BrandConfig } from "@/app/lib/estimator/brands";
-import { FLOWS } from "@/app/lib/estimator/flows";
+import { FLOWS, TRADES } from "@/app/lib/estimator/flows";
 import {
   TIER_LABELS,
   isVisible,
@@ -31,6 +31,7 @@ import EstimateView from "./EstimateView";
 import styles from "./GuidedEstimator.module.css";
 
 type Step =
+  | { kind: "trade" }
   | { kind: "project" }
   | { kind: "address" }
   | { kind: "question"; question: Question }
@@ -83,7 +84,22 @@ function Cards({
   images: Set<string>;
 }) {
   return (
-    <div className={styles.cards} role="radiogroup" aria-label={label} data-count={options.length}>
+    <div
+      className={styles.cards}
+      role="radiogroup"
+      aria-label={label}
+      data-count={options.length}
+      // Up to three options stack as full-width photo tiles, four make a 2 x 2 grid, and five
+      // or more become compact rows with a thumbnail, so every screen fits without scrolling.
+      data-layout={options.length <= 3 ? "stack" : options.length === 4 ? "grid" : "rows"}
+      style={
+        {
+          "--ge-count": options.length,
+          "--ge-rows": options.length === 4 ? 2 : options.length,
+          "--ge-rows-wide": Math.ceil(options.length / 2),
+        } as React.CSSProperties
+      }
+    >
       {options.map((option) => {
         const src = option.image && images.has(option.image) ? `/estimator/img/${option.image}.webp` : null;
         return (
@@ -125,7 +141,10 @@ export default function GuidedEstimator({
 }) {
   const flows = useMemo(() => brand.projects.map((id) => FLOWS.find((f) => f.id === id)).filter((f): f is ProjectFlow => Boolean(f)), [brand.projects]);
   const preset = flows.find((f) => f.id === initialProject) ?? (flows.length === 1 ? flows[0] : null);
+  const trades = useMemo(() => TRADES.filter((t) => flows.some((f) => f.group === t.id)), [flows]);
+  const [trade, setTrade] = useState<string | null>(preset ? preset.group : trades.length === 1 ? trades[0].id : null);
   const [flow, setFlow] = useState<ProjectFlow | null>(preset);
+  const [taskGroup, setTaskGroup] = useState<string | null>(null);
   const [answers, setAnswers] = useState<Answers>({});
   const [tier, setTier] = useState<Tier>("mid");
   const [address, setAddress] = useState("");
@@ -143,6 +162,26 @@ export default function GuidedEstimator({
   const attribution = useRef<Record<string, string>>({});
   const heading = useRef<HTMLHeadingElement>(null);
   const imageSet = useMemo(() => new Set(images), [images]);
+  const shell = useRef<HTMLDivElement>(null);
+
+  // A question screen is exactly as tall as the viewport below wherever the
+  // estimator starts (under the site header, or at the top of an embed), so
+  // nothing for the step is below the fold.
+  useEffect(() => {
+    const fit = () => {
+      const node = shell.current;
+      if (!node) return;
+      const top = Math.max(0, node.getBoundingClientRect().top + window.scrollY);
+      node.style.setProperty("--ge-height", `${Math.max(480, window.innerHeight - top)}px`);
+    };
+    fit();
+    window.addEventListener("resize", fit);
+    window.visualViewport?.addEventListener("resize", fit);
+    return () => {
+      window.removeEventListener("resize", fit);
+      window.visualViewport?.removeEventListener("resize", fit);
+    };
+  }, [estimate]);
 
   const report = useCallback(
     (name: string, extra: { step?: string; project?: string | null } = {}) => {
@@ -179,14 +218,18 @@ export default function GuidedEstimator({
 
   const steps = useMemo<Step[]>(() => {
     const list: Step[] = [];
-    if (!preset) list.push({ kind: "project" });
+    if (!preset) {
+      if (trades.length > 1) list.push({ kind: "trade" });
+      // A trade with one project goes straight to that project's questions.
+      if (trade && flows.filter((f) => f.group === trade).length > 1) list.push({ kind: "project" });
+    }
     if (!flow) return list;
     list.push({ kind: "address" });
     for (const question of flow.questions) if (isVisible(question, resolved)) list.push({ kind: "question", question });
     if (flow.usesFinish) list.push({ kind: "finish" });
     list.push({ kind: "contact" });
     return list;
-  }, [flow, preset, resolved]);
+  }, [flow, flows, preset, resolved, trade, trades.length]);
 
   const step = steps[Math.min(index, steps.length - 1)];
   const stepName = step.kind === "question" ? step.question.id : step.kind;
@@ -213,10 +256,12 @@ export default function GuidedEstimator({
   const forward = () => go(index + 1);
   const back = () => {
     if (index === 0) return;
-    if (steps[index - 1].kind === "project") {
+    const previous = steps[index - 1].kind;
+    if (previous === "project" || previous === "trade") {
       setFlow(null);
       setAnswers({});
     }
+    if (previous === "trade") setTrade(null);
     go(index - 1);
   };
 
@@ -224,9 +269,18 @@ export default function GuidedEstimator({
     touch();
     setFlow(picked);
     setAnswers({});
+    setTaskGroup(null);
     report("project_selected", { project: picked.id });
-    setDirection("forward");
-    setIndex(1);
+    forward();
+  };
+
+  const chooseTrade = (id: string) => {
+    touch();
+    setTrade(id);
+    const inTrade = flows.filter((f) => f.group === id);
+    if (inTrade.length === 1) return chooseProject(inTrade[0]);
+    setFlow(null);
+    forward();
   };
 
   const answer = (id: string, value: Answers[string], advance: boolean) => {
@@ -370,25 +424,19 @@ export default function GuidedEstimator({
   let body: React.ReactNode = null;
   let primary: React.ReactNode = null;
 
-  if (step.kind === "project") {
-    title = brand.heading;
-    help = brand.intro;
-    const groups = [...new Set(flows.map((f) => f.group))];
+  if (step.kind === "trade") {
+    title = "What kind of project?";
+    body = <Cards options={trades} selected={trade ?? undefined} onPick={chooseTrade} label="Kind of project" images={imageSet} />;
+  } else if (step.kind === "project") {
+    title = "Which project?";
     body = (
-      <div>
-        {groups.map((group) => (
-          <section key={group} className={styles.group}>
-            {groups.length > 1 ? <h3 className={styles.groupTitle}>{group}</h3> : null}
-            <Cards
-              options={flows.filter((f) => f.group === group).map((f) => ({ id: f.id, label: f.title, hint: f.blurb, image: f.image }))}
-              selected={flow?.id}
-              onPick={(id) => chooseProject(flows.find((f) => f.id === id)!)}
-              label={group}
-              images={imageSet}
-            />
-          </section>
-        ))}
-      </div>
+      <Cards
+        options={flows.filter((f) => f.group === trade).map((f) => ({ id: f.id, label: f.title, hint: f.blurb, image: f.image }))}
+        selected={flow?.id}
+        onPick={(id) => chooseProject(flows.find((f) => f.id === id)!)}
+        label="Project"
+        images={imageSet}
+      />
     );
   } else if (step.kind === "address") {
     const facts = property
@@ -529,39 +577,45 @@ export default function GuidedEstimator({
         answer(q.id, next, false);
       };
       const groups = [...new Set(q.options.map((o) => o.group))];
+      const open = taskGroup && groups.includes(taskGroup) ? taskGroup : groups[0];
+      const inGroup = (group: string) => q.options.filter((o) => o.group === group).reduce((sum, o) => sum + (counts[o.id] ?? 0), 0);
+      // One group of jobs on screen at a time, so the list never needs scrolling.
       body = (
         <div className={styles.tasks}>
-          {groups.map((group) => (
-            <section key={group} className={styles.group}>
-              <h3 className={styles.groupTitle}>{group}</h3>
-              <ul className={styles.taskList}>
-                {q.options
-                  .filter((o) => o.group === group)
-                  .map((o) => {
-                    const n = counts[o.id] ?? 0;
-                    return (
-                      <li key={o.id} className={styles.task} data-selected={n > 0 || undefined}>
-                        <button type="button" className={styles.taskMain} aria-pressed={n > 0} onClick={() => setCount(o.id, n > 0 ? 0 : 1, o.max)}>
-                          <span className={styles.cardLabel}>{o.label}</span>
-                          {o.hint ? <span className={styles.cardHint}>{o.hint}</span> : null}
+          <div className={styles.tabs} role="tablist" aria-label="Kinds of job">
+            {groups.map((group) => (
+              <button key={group} type="button" role="tab" aria-selected={group === open} className={styles.tab} data-selected={group === open || undefined} onClick={() => setTaskGroup(group)}>
+                {group}
+                {inGroup(group) ? <span className={styles.badge}>{inGroup(group)}</span> : null}
+              </button>
+            ))}
+          </div>
+          <ul className={styles.taskList} role="tabpanel" aria-label={open}>
+            {q.options
+              .filter((o) => o.group === open)
+              .map((o) => {
+                const n = counts[o.id] ?? 0;
+                return (
+                  <li key={o.id} className={styles.task} data-selected={n > 0 || undefined}>
+                    <button type="button" className={styles.taskMain} aria-pressed={n > 0} onClick={() => setCount(o.id, n > 0 ? 0 : 1, o.max)}>
+                      <span className={styles.cardLabel}>{o.label}</span>
+                      {o.hint ? <span className={styles.cardHint}>{o.hint}</span> : null}
+                    </button>
+                    {n > 0 && o.max > 1 ? (
+                      <span className={styles.taskCount}>
+                        <button type="button" className={styles.countButton} aria-label={`One fewer: ${o.label}`} onClick={() => setCount(o.id, n - 1, o.max)}>
+                          &minus;
                         </button>
-                        {n > 0 && o.max > 1 ? (
-                          <span className={styles.taskCount}>
-                            <button type="button" className={styles.countButton} aria-label={`One fewer: ${o.label}`} onClick={() => setCount(o.id, n - 1, o.max)}>
-                              &minus;
-                            </button>
-                            <span aria-live="polite">{n}</span>
-                            <button type="button" className={styles.countButton} aria-label={`One more: ${o.label}`} onClick={() => setCount(o.id, n + 1, o.max)} disabled={n >= o.max}>
-                              +
-                            </button>
-                          </span>
-                        ) : null}
-                      </li>
-                    );
-                  })}
-              </ul>
-            </section>
-          ))}
+                        <span aria-live="polite">{n}</span>
+                        <button type="button" className={styles.countButton} aria-label={`One more: ${o.label}`} onClick={() => setCount(o.id, n + 1, o.max)} disabled={n >= o.max}>
+                          +
+                        </button>
+                      </span>
+                    ) : null}
+                  </li>
+                );
+              })}
+          </ul>
         </div>
       );
       primary = (
@@ -651,7 +705,7 @@ export default function GuidedEstimator({
   }
 
   return (
-    <div className={styles.shell} style={style} data-embedded={embedded || undefined}>
+    <div ref={shell} className={styles.shell} style={style} data-embedded={embedded || undefined} data-fit="true">
       <div className={styles.top}>
         <button type="button" className={styles.back} onClick={back} disabled={index === 0} aria-label="Back to the previous question">
           <span aria-hidden="true">&larr;</span> Back
@@ -660,7 +714,7 @@ export default function GuidedEstimator({
           <span style={{ width: `${progress}%` }} />
         </div>
         <span className={styles.count} aria-hidden="true">
-          {index + 1} of {steps.length}
+          {flow ? `${index + 1} of ${steps.length}` : ""}
         </span>
       </div>
       <div key={`${flow?.id ?? "start"}-${stepName}-${property ? "p" : ""}`} className={styles.screen} data-direction={direction}>

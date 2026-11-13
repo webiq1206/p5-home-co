@@ -3,13 +3,13 @@
  * from a customer. No network, no database.
  */
 import assert from "node:assert/strict";
-import { readFileSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { test } from "node:test";
 
 import { BRAND_CONFIGS } from "../app/lib/estimator/brands.ts";
 import { customerConfirmation, teamReport } from "../app/lib/estimator/emails.ts";
-import { FLOWS, flowById } from "../app/lib/estimator/flows.ts";
+import { FLOWS, TRADES, flowById } from "../app/lib/estimator/flows.ts";
 import {
   CROSS_CHECK_BAND,
   MARGIN_FLOOR,
@@ -449,4 +449,22 @@ test("house style: no em dashes anywhere in the estimator", () => {
     "migrations/027_guided_estimator.sql",
   ];
   for (const file of files) assert.doesNotMatch(readFileSync(path.join(root, file), "utf8"), /—/, `${file} contains an em dash`);
+});
+
+test("every project belongs to a trade, and every brand has at least one trade to show", () => {
+  const trades = new Set(TRADES.map((t) => t.id));
+  for (const flow of FLOWS) assert.ok(trades.has(flow.group), `${flow.id} is in unknown trade ${flow.group}`);
+  for (const trade of TRADES) assert.ok(FLOWS.some((f) => f.group === trade.id), `trade ${trade.id} has no project`);
+  for (const brand of Object.values(BRAND_CONFIGS)) assert.ok(brand.projects.some((id) => trades.has(flowById(id)!.group)));
+});
+
+test("every option card has its image", () => {
+  const names = new Set<string>([...TRADES.map((t) => t.image), "finish-builder", "finish-mid", "finish-high", "finish-luxury"]);
+  for (const flow of FLOWS) {
+    names.add(flow.image);
+    for (const q of flow.questions) if (q.kind === "choice") for (const o of q.options) if (o.image) names.add(o.image);
+  }
+  const dir = path.join(import.meta.dirname, "../public/estimator/img");
+  const missing = [...names].filter((name) => !existsSync(path.join(dir, `${name}.webp`)));
+  assert.deepEqual(missing, [], "option images are missing");
 });

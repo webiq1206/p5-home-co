@@ -6,7 +6,7 @@ import { BRAND_CONFIGS } from "@/app/lib/estimator/brands";
 import { estimatorImages } from "@/app/lib/estimator/images";
 
 export const metadata: Metadata = {
-  title: "Price your project | P5 Home Co",
+  title: { absolute: "Price your project | P5 Home Co" },
   description: "Choose your project, make a few selections and see an itemized price for remodeling, cabinets, repairs and new construction in Boise and the Treasure Valley.",
   alternates: { canonical: "/estimator" },
 };

@@ -62,7 +62,7 @@ export type Answers = Record<string, AnswerValue>;
 
 export type ProjectFlow = {
   id: string;
-  /** Section heading on the project picker. */
+  /** Trade id from TRADES in flows.ts: the first question the customer answers. */
   group: string;
   title: string;
   blurb: string;

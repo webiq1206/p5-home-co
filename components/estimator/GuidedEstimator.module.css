@@ -16,13 +16,19 @@
   font-family: var(--font-sans, "Manrope", system-ui, sans-serif);
   max-width: 760px;
   margin: 0 auto;
-  padding: 12px 16px 120px;
-  min-height: 70vh;
+  padding: 12px 16px 48px;
   box-sizing: border-box;
 }
-.shell[data-embedded] {
-  min-height: 100vh;
-  min-height: 100dvh;
+/* A question screen is exactly as tall as the space below the site header, so
+   everything for the step is in view. The height is set from script
+   (GuidedEstimator) because it depends on where the shell starts. */
+.shell[data-fit] {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: var(--ge-height, 100dvh);
+  padding: 4px 16px calc(12px + env(safe-area-inset-bottom));
+  overflow: hidden;
 }
 .shell *,
 .shell *::before,
@@ -36,11 +42,8 @@
   grid-template-columns: auto 1fr auto;
   align-items: center;
   gap: 12px;
-  position: sticky;
-  top: 0;
-  z-index: 3;
-  background: var(--ge-paper);
-  padding: 8px 0 12px;
+  flex: 0 0 auto;
+  padding: 2px 0 4px;
 }
 .back {
   appearance: none;
@@ -71,6 +74,8 @@
   transition: width 0.3s ease;
 }
 .count {
+  min-width: 44px;
+  text-align: right;
   font-size: 13px;
   color: var(--ge-ink-soft);
   font-variant-numeric: tabular-nums;
@@ -78,6 +83,12 @@
 
 /* ----------------------------------------------------------------- screen */
 .screen {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  /* Only the contact form on a very small phone ever needs this. */
+  overflow-y: auto;
   animation: ge-in 0.26s ease both;
 }
 .screen[data-direction="back"] {
@@ -115,18 +126,20 @@
 .title {
   font-family: var(--font-display, "Cormorant Garamond", Georgia, serif);
   font-weight: 600;
-  font-size: clamp(30px, 7vw, 42px);
+  font-size: clamp(28px, 7vw, 40px);
   line-height: 1.08;
   letter-spacing: -0.01em;
-  margin: 8px 0 8px;
+  margin: 4px 0 10px;
+  flex: 0 0 auto;
   outline: none;
 }
 .help {
   font-size: 16px;
   line-height: 1.5;
   color: var(--ge-ink-soft);
-  margin: 0 0 20px;
+  margin: -4px 0 12px;
   max-width: 52ch;
+  flex: 0 0 auto;
 }
 .kicker {
   font-size: 13px;
@@ -155,38 +168,43 @@
 }
 
 /* ------------------------------------------------------------------ cards */
-.group + .group {
-  margin-top: 24px;
-}
-.groupTitle {
-  font-size: 13px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--ge-ink-soft);
-  margin: 0 0 10px;
-}
+/* Options share the height that is left on screen, so a step never scrolls.
+   --ge-rows is the number of rows the layout uses; each row is capped so the
+   cards do not stretch on a tall screen. */
 .cards {
+  flex: 1 1 auto;
+  min-height: 0;
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-  margin-top: 16px;
+  gap: 10px;
+  margin-top: 4px;
+  grid-template-columns: 1fr;
+  grid-template-rows: repeat(var(--ge-rows, 3), minmax(0, 1fr));
+  max-height: calc(var(--ge-rows, 3) * var(--ge-row-max, 200px));
 }
-.group .cards {
-  margin-top: 0;
+.cards[data-layout="stack"] {
+  --ge-row-max: 210px;
+}
+.cards[data-layout="grid"] {
+  grid-template-columns: 1fr 1fr;
+  --ge-row-max: 250px;
+}
+.cards[data-layout="rows"] {
+  gap: 8px;
+  --ge-row-max: 104px;
 }
 .card {
   appearance: none;
+  position: relative;
   display: flex;
-  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+  padding: 0;
   text-align: left;
   font: inherit;
   color: inherit;
   background: #fff;
   border: 1px solid var(--ge-line);
-  border-radius: 14px;
-  padding: 0;
-  min-height: 76px;
+  border-radius: 16px;
   overflow: hidden;
   cursor: pointer;
   transition:
@@ -194,22 +212,15 @@
     box-shadow 0.12s ease,
     border-color 0.12s ease;
 }
-.card:not([data-photo]) {
-  justify-content: center;
-  border-left: 4px solid var(--ge-accent);
-}
-/* Text-only cards read better full width on a phone. */
-.cards:not(:has([data-photo])) {
-  grid-template-columns: 1fr;
+.card:active {
+  transform: scale(0.985);
 }
 .card:hover {
   border-color: var(--ge-ink);
 }
-.card:active {
-  transform: scale(0.985);
-}
 .card:focus-visible,
 .chip:focus-visible,
+.tab:focus-visible,
 .primary:focus-visible,
 .secondary:focus-visible,
 .back:focus-visible,
@@ -226,25 +237,95 @@
 }
 .cardImage {
   display: block;
-  width: 100%;
-  aspect-ratio: 4 / 3;
   object-fit: cover;
   background: var(--ge-bone);
 }
 .cardText {
   display: flex;
   flex-direction: column;
-  gap: 3px;
-  padding: 12px 14px 14px;
+  justify-content: center;
+  gap: 2px;
+  min-width: 0;
 }
 .cardLabel {
-  font-size: 16px;
+  font-size: 17px;
   font-weight: 700;
-  line-height: 1.25;
+  line-height: 1.2;
 }
 .cardHint {
   font-size: 14px;
-  line-height: 1.4;
+  line-height: 1.35;
+  color: var(--ge-ink-soft);
+}
+
+/* Photo tiles (up to four options): the picture fills the card and the label
+   sits on a dark band at the bottom. */
+.cards:is([data-layout="stack"], [data-layout="grid"]) .card[data-photo] .cardImage {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.cards:is([data-layout="stack"], [data-layout="grid"]) .card[data-photo] .cardText {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  justify-content: flex-end;
+  padding: 44px 14px 12px;
+  color: #fff;
+  background: linear-gradient(to top, rgba(20, 20, 19, 0.88) 0%, rgba(20, 20, 19, 0.62) 52%, rgba(20, 20, 19, 0) 100%);
+}
+.cards:is([data-layout="stack"], [data-layout="grid"]) .card[data-photo] .cardHint {
+  color: rgba(255, 255, 255, 0.92);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.cards[data-layout="grid"] .cardLabel {
+  font-size: 16px;
+}
+.cards[data-layout="grid"] .cardHint {
+  font-size: 13px;
+}
+.cards:is([data-layout="stack"], [data-layout="grid"]) .card:not([data-photo]) {
+  align-items: center;
+  border-left: 4px solid var(--ge-accent);
+}
+.cards:is([data-layout="stack"], [data-layout="grid"]) .card:not([data-photo]) .cardText {
+  padding: 12px 16px;
+}
+
+/* Rows (five or more options): a square thumbnail, then the words. */
+.cards[data-layout="rows"] .card {
+  align-items: stretch;
+}
+.cards[data-layout="rows"] .cardImage {
+  flex: 0 0 auto;
+  height: 100%;
+  width: auto;
+  aspect-ratio: 1 / 1;
+  max-width: 34%;
+}
+.cards[data-layout="rows"] .cardText {
+  flex: 1;
+  padding: 6px 14px;
+}
+.cards[data-layout="rows"] .card:not([data-photo]) {
+  border-left: 4px solid var(--ge-accent);
+}
+.cards[data-layout="rows"] .cardHint {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.cards[data-layout="rows"] .card::after {
+  content: "\203A";
+  align-self: center;
+  padding: 0 14px 2px 0;
+  font-size: 24px;
   color: var(--ge-ink-soft);
 }
 
@@ -332,12 +413,62 @@
 }
 
 /* ------------------------------------------------------------------ tasks */
+.tasks {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+.tab {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  min-height: 40px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid var(--ge-line);
+  background: #fff;
+  color: var(--ge-ink);
+  cursor: pointer;
+}
+.tab[data-selected] {
+  background: var(--ge-ink);
+  border-color: var(--ge-ink);
+  color: var(--ge-paper);
+}
+.badge {
+  display: inline-grid;
+  place-items: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--ge-accent);
+  color: var(--ge-ink);
+  font-size: 12px;
+  font-weight: 800;
+}
 .taskList {
   list-style: none;
   margin: 0;
   padding: 0;
+  flex: 1 1 auto;
+  min-height: 0;
   display: grid;
   gap: 8px;
+  grid-auto-rows: minmax(0, 64px);
+  align-content: start;
 }
 .task {
   display: flex;
@@ -354,6 +485,7 @@
 .taskMain {
   appearance: none;
   flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -364,8 +496,7 @@
   background: none;
   border: 0;
   border-left: 4px solid transparent;
-  min-height: 56px;
-  padding: 8px 12px;
+  padding: 4px 12px;
   cursor: pointer;
 }
 .task[data-selected] .taskMain {
@@ -495,17 +626,8 @@
 
 /* ---------------------------------------------------------------- buttons */
 .dock {
-  position: fixed;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  z-index: 4;
-  padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
-  background: linear-gradient(to top, var(--ge-paper) 72%, rgba(251, 250, 246, 0));
-}
-.dock .primary {
-  max-width: 728px;
-  margin: 0 auto;
+  flex: 0 0 auto;
+  padding-top: 12px;
 }
 .primary,
 .secondary {
@@ -702,23 +824,46 @@
 
 @media (min-width: 720px) {
   .shell {
-    padding: 24px 24px 140px;
+    max-width: 920px;
+    padding-left: 24px;
+    padding-right: 24px;
   }
-  .cards {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 16px;
+  .screen {
+    max-width: 872px;
   }
-  .cards[data-count="2"],
-  .cards[data-count="4"] {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+  /* Side by side on a wide screen. */
+  .cards[data-layout="stack"] {
+    grid-template-columns: repeat(var(--ge-count, 3), minmax(0, 1fr));
+    grid-template-rows: minmax(0, 1fr);
+    max-height: 380px;
   }
-  .cards:not(:has([data-photo])) {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+  .cards[data-layout="grid"] {
+    max-height: 520px;
+  }
+  .cards[data-layout="rows"] {
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: repeat(var(--ge-rows-wide, 3), minmax(0, 1fr));
+    max-height: calc(var(--ge-rows-wide, 3) * 112px);
   }
   .taskList {
     grid-template-columns: 1fr 1fr;
   }
   .row {
     grid-template-columns: 1fr 1fr;
+  }
+  .dock .primary {
+    max-width: 420px;
+  }
+}
+/* A very short screen (a phone on its side) scrolls instead of crushing the cards. */
+@media (max-height: 520px) {
+  .shell[data-fit] {
+    height: auto;
+    overflow: visible;
+  }
+  .cards {
+    grid-template-rows: none;
+    grid-auto-rows: 88px;
+    max-height: none;
   }
 }
