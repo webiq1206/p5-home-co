@@ -4,6 +4,7 @@
  * records one tap away rather than cluttering the active list.
  */
 
+import ProjectActions from "./_components/ProjectActions";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
@@ -147,6 +148,13 @@ export default async function ScopeList({ searchParams }: { searchParams: Promis
                   <span className="sc-muted">Updated {when(new Date(r.updated_at))}</span>
                 </span>
               </Link>
+              <ProjectActions
+                id={r.id}
+                name={projectTitle({ lastName: r.client_last_name, address: r.project_address, service: r.service })}
+                archived={archived}
+                canDelete={!user.scopesOnly}
+                placement="card"
+              />
             </li>
           ))}
         </ul>

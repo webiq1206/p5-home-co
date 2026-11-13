@@ -10,8 +10,8 @@
  * so another person's change or a QuickBooks update appears on its own.
  */
 
+import ProjectActions from "./ProjectActions";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { Evidence } from "../../lib/scopes/types.ts";
@@ -290,6 +290,8 @@ export default function Workspace({ initial, initialTab }: { initial: WS; initia
         })}
       </div>
 
+      <ProjectActions id={id} name={p.title || "this project"} archived={p.archived} canDelete={ws.viewer.internal} placement="page" />
+
       {(showNext || processing || player) && (
         <div className="sc-dock">
           {player && (
@@ -483,8 +485,6 @@ function FilesAndHistory({ ws, onWorkspace, onPlay, onError }: { ws: WS; onWorks
   const p = ws.project;
   const setError = onError;
   const [busy, setBusy] = useState<string | null>(null);
-  const router = useRouter();
-  const [confirmDelete, setConfirmDelete] = useState("");
   const [syncNotes, setSyncNotes] = useState<string[]>([]);
   const act = async (action: string, name: string) => {
     setBusy(name);
@@ -505,27 +505,9 @@ function FilesAndHistory({ ws, onWorkspace, onPlay, onError }: { ws: WS; onWorks
       setBusy(null);
     }
   };
-  const remove = async () => {
-    setBusy("delete");
-    try {
-      await api(`/api/scopes/${id}`, { method: "DELETE", json: { confirm: "DELETE" } });
-      router.push("/scopes");
-    } catch (e) {
-      setError((e as Error).message);
-      setBusy(null);
-    }
-  };
   const patch = async (fields: Record<string, string>) => {
     try {
       const { workspace } = await api<{ workspace: WS }>(`/api/scopes/${id}`, { method: "PATCH", json: fields });
-      onWorkspace(workspace);
-    } catch (e) {
-      setError((e as Error).message);
-    }
-  };
-  const archive = async (archived: boolean) => {
-    try {
-      const { workspace } = await api<{ workspace: WS }>(`/api/scopes/${id}`, { method: "PATCH", json: { archived } });
       onWorkspace(workspace);
     } catch (e) {
       setError((e as Error).message);
@@ -666,26 +648,7 @@ function FilesAndHistory({ ws, onWorkspace, onPlay, onError }: { ws: WS; onWorks
             <li key={i}>{when(e.at)} · {e.kind.replace(/-/g, " ")}{e.who ? ` · ${e.who}` : ""}</li>
           ))}
         </ul>
-        <button type="button" className="sc-btn" onClick={() => archive(!ws.project.archived)}>
-          {ws.project.archived ? "Restore to active projects" : "Archive this project"}
-        </button>
-        <p className="sc-small sc-muted">Archived projects keep every file, version and estimate and stay searchable under Archived.</p>
       </section>
-      {ws.viewer.internal && (
-        <details className="sc-card sc-more">
-          <summary>Delete this project</summary>
-          <p>
-            Deletes the project here and removes what it put in QuickBooks: the estimate, the files attached there, and the QuickBooks project if this platform created it. <b>The customer is never touched.</b> A job that has been invoiced cannot be deleted; archive it instead. This cannot be undone from this screen.
-          </p>
-          <label className="sc-field">
-            <span>Type DELETE to confirm</span>
-            <input value={confirmDelete} onChange={(ev) => setConfirmDelete(ev.target.value)} autoComplete="off" autoCapitalize="characters" />
-          </label>
-          <button type="button" className="sc-btn sc-btn-danger" disabled={confirmDelete.trim() !== "DELETE" || !!busy} onClick={remove}>
-            {busy === "delete" ? "Deleting..." : "Delete project"}
-          </button>
-        </details>
-      )}
     </div>
   );
 }

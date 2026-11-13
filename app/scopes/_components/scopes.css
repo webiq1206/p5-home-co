@@ -429,3 +429,22 @@ details.sc-more[open] { padding-bottom: 16px; }
 .sc-candidates li { align-items: center; padding: 14px 0; }
 .sc-btn-danger { border-color: #9a2f2f; background: #9a2f2f; color: #fff; }
 .sc-btn-danger:hover:not(:disabled) { background: #7d2626; }
+
+/* Archive and delete: two small icons. Quiet until used; 44px touch targets. */
+.sc-cards > li { position: relative; }
+.sc-acts { display: flex; align-items: center; gap: 2px; }
+.sc-acts-card { position: absolute; top: 6px; right: 6px; }
+.sc-acts-page { justify-content: flex-end; flex-wrap: wrap; margin: 8px 0 12px; }
+.sc-act { display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; padding: 0; border: 0; border-radius: 10px; background: none; color: var(--ink-2); cursor: pointer; }
+.sc-act:hover:not(:disabled) { background: rgba(0, 0, 0, 0.06); color: var(--ink); }
+.sc-act-danger:hover:not(:disabled) { color: #9a2f2f; }
+.sc-act:focus-visible { outline: 2px solid var(--ink); outline-offset: 1px; }
+.sc-act:disabled { opacity: 0.5; }
+.sc-act-error { flex-basis: 100%; margin: 4px 0 0; color: #9a2f2f; font-size: 14px; text-align: right; }
+.sc-acts-card .sc-act-error { position: absolute; top: 46px; right: 0; width: 240px; padding: 8px 10px; border-radius: 8px; background: #fff; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.15); text-align: left; z-index: 2; }
+/* Keep the card's title clear of the icons. */
+.sc-cards .sc-job-name { padding-right: 92px; }
+.sc-dialog { width: min(420px, calc(100vw - 32px)); padding: 22px; border: 0; border-radius: 16px; background: #fff; color: var(--ink); box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3); }
+.sc-dialog::backdrop { background: rgba(20, 20, 20, 0.45); }
+.sc-dialog p { margin: 8px 0; }
+.sc-dialog-row { display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px; }
