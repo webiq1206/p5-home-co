@@ -332,3 +332,12 @@ body:has(.sc-app) { overflow-x: clip; }
 .sc-dock-btn .sc-spinner { border-color: rgba(255, 255, 255, .35); border-top-color: #fff; }
 .sc-player { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .sc-player audio { flex: 1; min-width: 200px; height: 40px; }
+
+/* Wizard on a phone: while an answer is being typed the section header stops sticking, and the question is kept compact so it fits above the keyboard. */
+.sc-sec:has(.sc-wizard input:focus, .sc-wizard textarea:focus) .sc-sec-h { position: static; }
+.sc-sec-panel .sc-wizard { padding-top: 12px; scroll-margin-top: 64px; }
+.sc-wizard .sc-context { margin-top: 6px; }
+.sc-wizard .sc-h2 { margin-bottom: 4px; }
+.sc-wizard .sc-wizard-form { margin-top: 8px; }
+.sc-wizard .sc-wizard-nav { margin-top: 10px; margin-bottom: 10px; }
+.sc-wizard .sc-field-big { margin-bottom: 0; }
