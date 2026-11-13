@@ -207,6 +207,8 @@ export type EstimateLine = {
   phase: PhaseId;
   division: string;
   item: ItemKey;
+  /** Short name of the work, shown as the first line of the QuickBooks description. Absent on versions priced before it was added. */
+  title?: string;
   /** Customer-facing text for QuickBooks. */
   description: string;
   quantity: number;

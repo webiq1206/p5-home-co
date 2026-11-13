@@ -68,7 +68,7 @@ export function buildEstimatePayload(input: {
   const memo: string[] = [];
   if (optional.length) {
     memo.push("Optional upgrades, not included in the total:");
-    for (const l of optional) memo.push(`- ${l.description}: ${money(l.price)}`);
+    for (const l of optional) memo.push(`- ${l.title || l.description}: ${money(l.price)}`);
   }
   if (input.exclusions.length) memo.push(`Not included: ${input.exclusions.join("; ")}.`);
   return {
@@ -85,10 +85,28 @@ export function buildEstimatePayload(input: {
   };
 }
 
+/**
+ * What the client reads for a line. QuickBooks titles every line with its
+ * product or service item ("Subcontractor Work"), which says nothing about the
+ * job, so the work's own name leads the description on a line of its own.
+ */
+export function lineText(l: Pick<EstimateLine, "title" | "description">): string {
+  const title = (l.title ?? "").trim();
+  if (!title) return l.description;
+  // Do not repeat a title the description already opens with.
+  const plain = (x: string) => x.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  if (plain(l.description).startsWith(plain(title))) return l.description;
+  // The room is already in the title: do not say it again on the next line.
+  const cut = title.indexOf(": ");
+  const room = cut > 0 ? title.slice(0, cut + 2) : "";
+  const body = room && l.description.toLowerCase().startsWith(room.toLowerCase()) ? l.description.slice(room.length) : l.description;
+  return `${title}\n${body.charAt(0).toUpperCase()}${body.slice(1)}`;
+}
+
 function salesLine(l: EstimateLine, itemIds: Record<ItemKey, string>, taxable: ItemKey[]): QboLine {
   return {
     DetailType: "SalesItemLineDetail",
-    Description: clip(l.description, 4000),
+    Description: clip(lineText(l), 4000),
     Amount: l.price,
     SalesItemLineDetail: {
       ItemRef: { value: itemIds[l.item], name: l.item },

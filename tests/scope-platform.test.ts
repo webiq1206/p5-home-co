@@ -757,3 +757,18 @@ test("an invoiced estimate reads completed only when fully invoiced and nothing 
   assert.equal(estimateStatus({ TxnStatus: "Rejected" }, true), "declined");
   assert.equal(estimateStatus({ TxnStatus: "Pending", EmailStatus: "EmailSent" }, true), "sent");
 });
+
+test("QuickBooks lines lead with the name of the work, not just the item", async () => {
+  const { lineText } = await import("../app/lib/scopes/estimate.ts");
+  const d = doc([
+    task({ id: "c", title: "Final cleaning", area: "Entire house", description: "Perform a thorough cleaning of the house after construction is complete.", quote: { amount: 800, assetId: null } }),
+    task({ id: "l", title: "Project supervision", description: "Schedule and coordinate the trades.", performer: "internal", costCode: null, laborHours: { value: 20, basis: "confirmed", note: null } }),
+  ]);
+  const r = priceScope(d, ctx());
+  const clean = r.lines.find((l) => l.taskId === "c")!;
+  assert.equal(clean.title, "Entire house: Final cleaning");
+  assert.equal(lineText(clean), "Entire house: Final cleaning\nPerform a thorough cleaning of the house after construction is complete.");
+  assert.equal(r.lines.find((l) => l.taskId === "l")!.title, "Project supervision, labor");
+  assert.equal(lineText({ title: "Install baseboard", description: "Install baseboard in the hall." }), "Install baseboard in the hall.", "no repeated title");
+  assert.equal(lineText({ description: "Older line with no title." }), "Older line with no title.");
+});

@@ -121,6 +121,12 @@ function laborItem(task: ScopeTask, service: string): ItemKey {
   return "Direct Labor";
 }
 
+/** The short name of the work, with its room: "Kitchen: Install LVP flooring". */
+function heading(task: ScopeTask): string {
+  const base = task.title.trim();
+  return task.area && !base.toLowerCase().includes(task.area.toLowerCase()) ? `${task.area}: ${base}` : base;
+}
+
 function description(task: ScopeTask): string {
   const base = (task.description || task.title).trim();
   return task.area && !base.toLowerCase().includes(task.area.toLowerCase()) ? `${task.area}: ${base}` : base;
@@ -151,6 +157,7 @@ export function priceScope(doc: ScopeDoc, ctx: PricingContext): PricingResult {
       phase: task.phase,
       division: task.division,
       item: laborItem(task, ctx.service),
+      title: `${heading(task)}, labor`,
       description: `${description(task)} (labor)`,
       quantity: round2(hours),
       unit: "HR",
@@ -230,6 +237,7 @@ export function priceScope(doc: ScopeDoc, ctx: PricingContext): PricingResult {
         phase: task.phase,
         division: task.division,
         item,
+        title: `${heading(task)}, allowance`,
         description: `Allowance: ${description(task)}`,
         quantity: 1,
         unit: "LS",
@@ -265,7 +273,8 @@ export function priceScope(doc: ScopeDoc, ctx: PricingContext): PricingResult {
         phase: task.phase,
         division: task.division,
         item: item === "Direct Labor" ? "Subcontractor Work" : item,
-        description: description(task),
+        title: heading(task),
+      description: description(task),
         quantity: 1,
         unit: "LS",
         unitCost: task.quote.amount,
@@ -384,6 +393,7 @@ export function priceScope(doc: ScopeDoc, ctx: PricingContext): PricingResult {
       phase: task.phase,
       division: task.division,
       item: itemForEntry(entry, ctx.service),
+      title: heading(task),
       description: description(task),
       quantity,
       unit: rate.unit,
@@ -423,6 +433,7 @@ export function priceScope(doc: ScopeDoc, ctx: PricingContext): PricingResult {
       phase: p.task.phase,
       division: p.task.division,
       item: p.item,
+      title: heading(p.task),
       description: description(p.task),
       quantity: 1,
       unit: "LS",
