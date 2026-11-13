@@ -729,3 +729,16 @@ const BY_ID = new Map(FLOWS.map((f) => [f.id, f]));
 export function flowById(id: string | null | undefined): ProjectFlow | null {
   return BY_ID.get(String(id ?? "")) ?? null;
 }
+
+/**
+ * Where a link opens the estimator. `project` opens one project's questions; `trade` opens that
+ * trade's list of projects, or the project itself when the brand offers only one in that trade.
+ * Anything the brand does not offer is ignored, and the visitor starts at the first question.
+ */
+export function estimatorEntry(projects: string[], link: { project?: string | null; trade?: string | null }): { project: string | null; trade: string | null } {
+  const offered = FLOWS.filter((f) => projects.includes(f.id));
+  if (link.project && offered.some((f) => f.id === link.project)) return { project: link.project, trade: null };
+  const inTrade = offered.filter((f) => f.group === link.trade);
+  if (inTrade.length === 1) return { project: inTrade[0].id, trade: null };
+  return { project: null, trade: inTrade.length > 1 ? String(link.trade) : null };
+}

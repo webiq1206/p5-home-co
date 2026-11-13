@@ -24,14 +24,18 @@ test("hub pages keep call and chat, with one request entry below the hero", () =
   assert.match(hero, /title=/);
   assert.doesNotMatch(hero, /ShortRequestForm/);
   // Phase 3 plan (owner approved 31 October): credibility before the ask. The
-  // homepage carries a short "Start your request" entry that keeps the
-  // #request-form anchor and links to /quote, where the one working wizard lives.
+  // homepage carries one short entry that keeps the #request-form anchor.
+  // Owner, 13 November 2026: that entry leads with the estimator, and still
+  // links to /quote, where the one working request form lives.
   assert.equal(home.match(/<ShortRequestForm/g), null);
   const entry = home.indexOf('id="request-form"');
   assert.ok(entry > heroEnd);
   const entryEnd = home.indexOf("</section>", entry);
   assert.match(home.slice(entry, entryEnd), /href="\/quote"/);
-  assert.match(home.slice(entry, entryEnd), /Start your request/);
+  assert.match(home.slice(entry, entryEnd), /href="\/estimator"/);
+  assert.match(home.slice(entry, entryEnd), /Get an instant estimate/);
+  // The estimator button comes before the quote link: it is the first offer.
+  assert.ok(home.indexOf('href="/estimator"', entry) < home.indexOf('href="/quote"', entry));
   for (const before of ['className="stat-row"', 'className="trust-strip"', "<CompanyFinder", 'id="companies"', 'id="adu"']) {
     const at = home.indexOf(before);
     assert.ok(at > heroEnd && at < entry, `${before} sits between the hero and the request entry`);
@@ -58,7 +62,14 @@ test("hub pages keep call and chat, with one request entry below the hero", () =
   const formAt = quote.indexOf("<ShortRequestForm");
   const asideAt = quote.indexOf('className="quote-request-aside"');
   assert.ok(mainStart > -1 && quoteRequestStart > mainStart && formAt > quoteRequestStart && asideAt > formAt);
-  const beforeForm = quote.slice(mainStart, formAt);
+  // Owner, 13 November 2026: one line under the heading offers the estimator. It is the
+  // only thing allowed in front of the form, and it is one line so the first field stays
+  // on the first screen.
+  const offer = quote.slice(mainStart, formAt).match(/<p className="quote-estimate-link">[\s\S]*?<\/p>/g) ?? [];
+  assert.equal(offer.length, 1);
+  assert.match(offer[0], /\/estimator/);
+  assert.match(offer[0], /Get an instant estimate/);
+  const beforeForm = quote.slice(mainStart, formAt).replace(offer[0], "");
   assert.doesNotMatch(beforeForm, /<img|<p\b|<ul\b|quote-eyebrow|quote-lead/);
   assert.match(beforeForm, /<h1>A specialist team for your home project<\/h1>/);
   assert.match(quote.slice(formAt), /id="request-form"/);
@@ -71,8 +82,10 @@ test("hub pages keep call and chat, with one request entry below the hero", () =
   assert.match(bar, /PUBLIC_PHONE_TEL/);
   assert.match(bar, /PUBLIC_PHONE_SMS/);
   assert.match(bar, /<OpenChatButton/);
-  // The bottom bar: Call plus the one primary, "Request a quote" to /quote, never chat.
-  assert.match(brand, /cta: \{ label: 'Request a quote', href: '\/quote' \}/);
+  // The bottom bar: Call plus the one primary, never chat. Owner, 13 November 2026: the
+  // one primary is the estimator. The quote request page stays in the footer.
+  assert.match(brand, /cta: \{ label: 'Instant estimate', href: '\/estimator' \}/);
+  assert.match(brand, /\{ label: 'Request a quote', href: '\/quote' \}/);
   assert.match(mobile, /href=\{brand\.cta\.href\}/);
   assert.doesNotMatch(mobile, /openSiteChat|chat/i);
   // Form v2 (owner, 1 November; clarity standard, 11 November): Step 1 shows
@@ -128,7 +141,8 @@ test("hub pages keep call and chat, with one request entry below the hero", () =
   // One action in the hero: the primary, with no phone link, microcopy or extra button.
   assert.equal((hero.match(/primary=\{/g) || []).length, 1);
   assert.doesNotMatch(hero, /\blink=|microcopy=|tel:|<button/);
-  assert.match(hero, /Request a quote/);
+  assert.match(hero, /Get an instant estimate/);
+  assert.match(hero, /href: "\/estimator"/);
   assert.doesNotMatch(form, /quote-wizard|data-wizard-step|pushState/);
   assert.match(form, /data-suppress-mobile-bar=""/);
   // Call, text, or have us call you, on the form itself.

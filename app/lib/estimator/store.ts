@@ -151,7 +151,7 @@ export async function unfinishedDeliveries(limit = 20): Promise<GuidedRow[]> {
   );
 }
 
-const EVENT_NAMES = new Set(["started", "project_selected", "step_viewed", "address_selected", "property_confirmed", "completed", "contact_submitted", "estimate_viewed", "abandoned"]);
+const EVENT_NAMES = new Set(["started", "project_selected", "step_viewed", "address_selected", "property_confirmed", "completed", "contact_submitted", "estimate_viewed", "consultation_requested", "abandoned"]);
 
 export async function recordEvent(e: { session: string; brand: string; project: string | null; name: string; step: string | null; attribution: Record<string, string> | null }): Promise<boolean> {
   if (!EVENT_NAMES.has(e.name) || !/^[A-Za-z0-9-]{8,64}$/.test(e.session)) return false;

@@ -53,8 +53,11 @@ export const FAMILY_BRAND: FamilyBrand = {
     { label: 'About', href: '/about' },
     { label: 'Service area', href: '/#service-area' },
   ],
-  // One label, one destination: the quote page.
-  cta: { label: 'Request a quote', href: '/quote' },
+  // One label, one destination: the estimator (owner decision, 13 November 2026). The label is
+  // the short form so it fits beside the navigation at 1024; in-page buttons say
+  // "Get an instant estimate". The quote request page stays one tap away in the footer and beside
+  // every in-page button.
+  cta: { label: 'Instant estimate', href: '/estimator' },
   phone: { display: PUBLIC_PHONE_DISPLAY, telHref: PUBLIC_PHONE_TEL, smsHref: PUBLIC_PHONE_SMS },
   // components/SiteChat.tsx opens on this window event.
   chat: { enabled: true, label: 'Chat', openEvent: 'p5:chat-open', hiddenOn: ['/admin*', '/portal*', '/estimator/embed*'] },
@@ -90,6 +93,7 @@ export const FAMILY_BRAND: FamilyBrand = {
       {
         title: 'Start a project',
         links: [
+          { label: 'Get an instant estimate', href: '/estimator' },
           { label: 'Request a quote', href: '/quote' },
           { label: 'Choose a company', href: '/#companies' },
           { label: 'Existing customer? Get help', href: '/warranty#get-help' },

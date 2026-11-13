@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 
 import GuidedEstimator from "@/components/estimator/GuidedEstimator";
 import { brandConfig } from "@/app/lib/estimator/brands";
+import { estimatorEntry } from "@/app/lib/estimator/flows";
 import { estimatorImages } from "@/app/lib/estimator/images";
 import EmbedBridge from "./EmbedBridge";
 
@@ -20,12 +21,12 @@ export default async function EstimatorEmbed({ searchParams }: { searchParams: P
   const brand = brandConfig(typeof params.brand === "string" ? params.brand : null);
   // A brand that is not live yet has no public estimator, framed or not.
   if (!brand || !brand.live) notFound();
-  const project = typeof params.project === "string" ? params.project : null;
   const { id, name, accent, accentInk, phoneDisplay, phoneTel, heading, intro, projects } = brand;
+  const entry = estimatorEntry(projects, { project: typeof params.project === "string" ? params.project : null, trade: typeof params.trade === "string" ? params.trade : null });
   return (
     <main id="main-content">
       <EmbedBridge />
-      <GuidedEstimator brand={{ id, name, accent, accentInk, phoneDisplay, phoneTel, heading, intro, projects }} images={estimatorImages()} initialProject={project} embedded />
+      <GuidedEstimator brand={{ id, name, accent, accentInk, phoneDisplay, phoneTel, heading, intro, projects }} images={estimatorImages()} initialProject={entry.project} initialTrade={entry.trade} embedded />
     </main>
   );
 }

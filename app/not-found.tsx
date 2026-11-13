@@ -26,6 +26,7 @@ export default function NotFound() {
           <h2 id="not-found-links" className="eyebrow">Start here</h2>
           <ul className="sitemap-list">
             <li><Link href="/">Home</Link></li>
+            <li><Link href="/estimator">Get an instant estimate</Link></li>
             <li><Link href="/quote">Request a quote</Link></li>
             <li><Link href="/#companies">Our companies</Link></li>
             <li><Link href="/sitemap">Site map</Link></li>

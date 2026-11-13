@@ -32,6 +32,17 @@ import { ADU_D3_LINE } from "../publicIdentity";
  * that explains it. Nobody should scroll past a hero to reach the field they
  * came to fill in.
  */
+/** The estimator project that prices each quote page's service. A page with none links to the full list. */
+const ESTIMATOR_PROJECT: Record<string, string> = {
+  "kitchen-remodel": "kitchen-remodel",
+  "bathroom-remodel": "bathroom-remodel",
+  "home-addition": "addition",
+  "custom-home": "custom-home",
+  adu: "adu",
+  "custom-cabinets": "kitchen-cabinets",
+  handyman: "handyman",
+};
+
 export default function QuoteLanding({ service }: { service: QuoteService | null;entryLabel?:string;defaultService?:string }) {
   const faqs = faqsFor(service);
   const heroImage = service ? service.image : FEATURED_BOISE_EXTERIOR.src;
@@ -56,6 +67,15 @@ export default function QuoteLanding({ service }: { service: QuoteService | null
             <div className="quote-shell quote-request-inner">
               <div className="quote-request-main">
                 {service ? <h1>{service.h1}</h1> : <h1>A specialist team for your home project</h1>}
+                {/* Owner, 13 November 2026: the estimator is the first offer everywhere. One line, so
+                    the form's first field still sits on the first screen. */}
+                <p className="quote-estimate-link">
+                  Want a number first?{" "}
+                  <a href={service && ESTIMATOR_PROJECT[service.slug] ? `/estimator?project=${ESTIMATOR_PROJECT[service.slug]}` : "/estimator"} data-cta="estimator">
+                    Get an instant estimate
+                  </a>
+                  . Free, on screen, no appointment.
+                </p>
                 <ShortRequestForm
                   id="request-form"
                   formName="Quote Landing Page"
