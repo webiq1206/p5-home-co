@@ -329,7 +329,7 @@ export default function Home() {
           category="Custom cabinetry"
           logo="/brands/boise-cabinet-co-dark.svg"
           image="/images/p5-cabinet.webp"
-          alt="Light wood kitchen cabinets with slim brass bar pulls, a white countertop, and a marble backsplash"
+          alt="White oak cabinet drawers with slim black bar pulls under a white countertop"
           headline={
             <>
               Made to fit.

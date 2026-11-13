@@ -145,14 +145,22 @@ places.
   The Social Assets photo sets are generic stock, which the brand guide
   rules out, and the Cabinet Pics are unstyled job-site documentation.
   Neither is marketing grade.
-- `p5-adu.webp` was supplied separately and is AI generated, per the
-  source filename. It shows no obvious artifacts and no people, so it
-  clears the brand guide's photography bar, but it does not document a
-  real completed project. The alt text describes what is in frame and
-  deliberately does not claim it is a P5 build. Replace it if a real ADU
-  is ever photographed.
-- All five panel photographs are 1672x941 or 1536x1024 WebP, roughly
-  64 to 190 KB. Match that when adding more.
+- Owner imagery direction, 13 November 2026 (see CLAUDE.md): natural
+  daylight, nothing staged, no golden glow, no Craftsman or lodge homes.
+  Under it these files were replaced in place, same names and pixel
+  sizes: `p5-remodel.webp`, `p5-cabinet.webp`, `p5-adu.webp`,
+  `p5-addition.webp`, `handyman-maintenance-detail-*.webp`,
+  `treasure-valley-foothills.webp`, the five `featured-boise-*.webp` and
+  the three files in `images/drive/`. The `drive/` file names are kept
+  from the earlier set, so `white-oak-kitchen-with-rattan-pendants.webp`
+  no longer shows rattan pendants; the alt text in `app/imageVariants.ts`
+  is what describes each photograph.
+- Those replacements are AI generated, as `p5-adu.webp` already was. They
+  show no people and do not document a real completed project. The alt
+  text describes what is in frame and deliberately does not claim a P5
+  build. Replace them when real projects are photographed.
+- The panel photographs are 1672x941, 1536x1024 or 1122x1402 WebP,
+  roughly 95 to 245 KB. Match that when adding more.
 
 ## Publish checklist (database diff)
 
