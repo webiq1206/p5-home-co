@@ -15,6 +15,7 @@ P5 Home Co must read as the operating parent company behind Boise Construction C
 * Numbers only where the owner can defend them. Leave square-bracket fact gaps unfilled.
 * The instant estimate is the primary public CTA on every family site (owner decision, 13 November 2026, replacing the earlier "Request a quote first, never say instant" rule). Buttons read "Get an instant estimate"; the header, menu and sticky bar use the short "Instant estimate". "Request a quote" stays as the second path to a person. Wording must stay accurate: it is an instant PRELIMINARY estimate, a price range shown on screen. Never call it a quote, a bid or a final price, never give a number of minutes, never promise how fast a person replies, and never say no contact details are needed (name, email and phone are asked before the range is shown). `tests/response-language.test.ts` still bans "instant quote".
 * Accents never carry small body text. Primary buttons are charcoal with paper text and a tan accent bar.
+* Imagery (owner, 13 November 2026). Photos must look like real, natural photographs of real work: daylight, true color, nothing staged. No stock-photo props (fruit bowls, bread, flowers, vases, plants, candles, baskets) and no golden glow. Never show a Craftsman-style house (tapered columns, stone column bases, rafter tails, gable brackets) for a remodel, new build or anything else; homes are plain contemporary. The estimator option images in `public/estimator/img` follow this.
 
 ## Preserve unless the user requests a change
 
