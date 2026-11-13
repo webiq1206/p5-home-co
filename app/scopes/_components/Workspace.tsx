@@ -21,7 +21,6 @@ import PricingView from "./PricingView.tsx";
 import Recorder from "./Recorder.tsx";
 import ScopeView from "./ScopeView.tsx";
 import Wizard from "./Wizard.tsx";
-import Dictate from "./Dictate.tsx";
 
 type Step = "record" | "scope" | "details" | "pricing" | "estimate" | "project";
 const STEPS: Step[] = ["record", "scope", "details", "pricing", "estimate", "project"];
@@ -422,7 +421,6 @@ function AddMaterial({ ws, onAdded }: { ws: WS; onAdded: () => Promise<void> | v
           </label>
           <div className="sc-actions">
             <button type="submit" className="sc-btn sc-btn-primary" disabled={busy || !note.trim()}>Add note</button>
-            <Dictate onText={(t) => setNote((n) => (n ? `${n} ${t}` : t))} />
           </div>
         </form>
       )}

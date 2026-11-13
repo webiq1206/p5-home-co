@@ -12,7 +12,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Answer, Evidence, Question } from "../../lib/scopes/types.ts";
 import { unitLabel } from "../../lib/scopes/divisions.ts";
 import { api, newKey, type Workspace } from "./client.ts";
-import Dictate from "./Dictate.tsx";
 import EvidenceLinks from "./EvidenceLinks.tsx";
 
 /** Accept 12.5, 12' 6", 12 ft 6 in, 1,200 and $1,200.50. */
@@ -327,7 +326,6 @@ export default function Wizard({
               <label className="sc-field">
                 <span>Describe it</span>
                 <input value={other} onChange={(e) => setOther(e.target.value)} autoFocus />
-                <Dictate onText={(t) => setOther(t)} />
               </label>
             )}
           </fieldset>
@@ -351,7 +349,6 @@ export default function Wizard({
           <label className="sc-field" htmlFor={id}>
             <span>Answer</span>
             <textarea id={id} rows={4} value={value} onChange={(e) => update(e.target.value)} />
-            <Dictate onText={(t) => update(value ? `${value} ${t}` : t)} />
           </label>
         )}
 
@@ -365,10 +362,6 @@ export default function Wizard({
             {busy ? "Saving..." : "Next"}
           </button>
         </div>
-        {/* Below Back and Next, so Next stays visible above the keyboard. */}
-        {(input.type === "measurement" || input.type === "number" || input.type === "currency") && (
-          <Dictate label="Say the number" onText={(t) => update(t.replace(/[^0-9.,'"\s$ftinches]/gi, "").trim())} />
-        )}
         <div className="sc-wizard-secondary">
           <button type="button" className="sc-link" onClick={() => void submit(true)} disabled={busy}>
             Not known yet, save for later
