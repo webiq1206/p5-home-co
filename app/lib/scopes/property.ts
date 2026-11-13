@@ -1,106 +1,74 @@
 /**
  * The public property record for a project's address. Server only.
  *
- * County parcel layers publish the lot and the zoning but nothing about the
- * building, so building facts come from a property-data service. RentCast's
- * free plan allows a small number of lookups each month, which is enough when
- * each address is looked up once and the answer is kept on the project.
+ * The record comes from the county assessor's own free public data (see
+ * ./county), which the platform keeps a copy of. No paid service and no key.
  *
- * What a public record holds is whole-house: living area, bedrooms, bathrooms,
- * year built, stories, lot, and a few features. It never holds the size of an
- * individual room; no property record does. Every value is unverified and is
- * shown, and given to the scope, as something to confirm.
+ * What a public record holds is whole-house: floor areas by level, bedrooms,
+ * bathrooms, year built, garage, deck, patio, lot. It never holds the size of
+ * an individual room; no property record does. Every value is unverified and
+ * is shown, and given to the scope, as something to confirm.
  */
 
+import { anyCountyLoaded, lookupCountyProperty, refreshStaleCounties } from "./county/index.ts";
 import { setProjectProperty, type ProjectRow, type PropertyRecord } from "./store.ts";
-
-export function isPropertyLookupConfigured(env: Record<string, string | undefined> = process.env): boolean {
-  return Boolean(env.RENTCAST_API_KEY);
-}
-
-const num = (value: unknown, min: number, max: number): number | null => {
-  const n = Number(value);
-  return value !== null && value !== undefined && value !== "" && Number.isFinite(n) && n >= min && n <= max ? n : null;
-};
-const text = (value: unknown): string | null => (typeof value === "string" && value.trim() ? value.trim().slice(0, 80) : null);
-const flag = (value: unknown): boolean | null => (typeof value === "boolean" ? value : null);
-
-/** Read one RentCast property record. Pure, so the mapping is testable. */
-export function fromRentCast(body: unknown, now = new Date()): PropertyRecord | null {
-  const r = (Array.isArray(body) ? body[0] : body) as Record<string, unknown> | undefined;
-  if (!r || typeof r !== "object") return null;
-  const f = (r.features ?? {}) as Record<string, unknown>;
-  const record: PropertyRecord = {
-    source: "county tax records, through RentCast",
-    livingSqft: num(r.squareFootage, 200, 30_000),
-    bedrooms: num(r.bedrooms, 0, 30),
-    bathrooms: num(r.bathrooms, 0, 30),
-    yearBuilt: num(r.yearBuilt, 1800, now.getFullYear() + 1),
-    stories: num(f.floorCount, 1, 6),
-    lotSqft: num(r.lotSize, 300, 50_000_000),
-    garageSpaces: num(f.garageSpaces, 1, 12),
-    propertyType: text(r.propertyType),
-    foundation: text(f.foundationType),
-    roof: text(f.roofType),
-    exterior: text(f.exteriorType),
-    heating: text(f.heatingType),
-    cooling: text(f.coolingType),
-    fireplace: flag(f.fireplace),
-    pool: flag(f.pool),
-    parcel: text(r.assessorID),
-    lookedUpAt: now.toISOString(),
-  };
-  return record.livingSqft || record.bedrooms || record.bathrooms || record.yearBuilt || record.lotSqft ? record : null;
-}
-
-export async function lookupProperty(address: string, env: Record<string, string | undefined> = process.env): Promise<PropertyRecord | null> {
-  const key = env.RENTCAST_API_KEY;
-  const clean = address.trim().slice(0, 200);
-  if (!key || clean.length < 8) return null;
-  const response = await fetch(`https://api.rentcast.io/v1/properties?address=${encodeURIComponent(clean)}&limit=1`, {
-    headers: { "X-Api-Key": key, Accept: "application/json" },
-    signal: AbortSignal.timeout(6000),
-  });
-  // 404 is RentCast's "no record for this address".
-  if (response.status === 404) return null;
-  if (!response.ok) throw new Error(`The property lookup was refused (${response.status}).`);
-  return fromRentCast(await response.json());
-}
 
 const key = (address: string | null) => (address ?? "").toLowerCase().replace(/\s+/g, " ").trim();
 
 /**
- * Look the address up once and keep the answer. A second call for the same
- * address does nothing, so the monthly allowance is spent once per project.
- * A failed lookup is not recorded, so it is tried again next time.
+ * Look the address up and keep the answer on the project. A second call for
+ * the same address does nothing unless forced. With `load`, county records
+ * that are missing or old are fetched first (about a minute the first time).
+ * Nothing is recorded while no county is loaded, so the lookup is tried again.
  */
-export async function ensureProperty(p: ProjectRow, force = false): Promise<boolean> {
+export async function ensureProperty(p: ProjectRow, opts: { force?: boolean; load?: boolean } = {}): Promise<boolean> {
   const address = key(p.project_address);
-  if (!isPropertyLookupConfigured() || address.length < 8) return false;
-  if (!force && p.property_checked_for === address) return false;
-  const record = await lookupProperty(p.project_address!);
+  if (address.length < 8) return false;
+  if (!opts.force && p.property_checked_for === address) return false;
+  if (opts.load) await refreshStaleCounties();
+  if (!(await anyCountyLoaded())) return false;
+  const record = await lookupCountyProperty(p.project_address!);
   await setProjectProperty(p.id, record, address);
   return true;
 }
 
+const sqft = (v: number | null | undefined, note = "") => (v ? `${v.toLocaleString("en-US")} sq ft${note}` : null);
+const count = (v: number | null | undefined) => (v !== null && v !== undefined ? String(v) : null);
+const covered = (v: boolean | null | undefined) => (v === true ? ", covered" : v === false ? ", uncovered" : "");
+
 /** The record as rows for the screen: label, value. Only what was found. */
 export function propertyRows(r: PropertyRecord): [string, string][] {
+  const acres = r.lotSqft ? r.lotSqft / 43_560 : 0;
   const rows: [string, string | null][] = [
-    ["Living area", r.livingSqft ? `${r.livingSqft.toLocaleString("en-US")} sq ft` : null],
-    ["Bedrooms", r.bedrooms !== null && r.bedrooms !== undefined ? String(r.bedrooms) : null],
-    ["Bathrooms", r.bathrooms !== null && r.bathrooms !== undefined ? String(r.bathrooms) : null],
+    ["Finished area", sqft(r.livingSqft)],
+    ["Bedrooms", count(r.bedrooms)],
+    ["Bathrooms", count(r.bathrooms)],
     ["Year built", r.yearBuilt ? String(r.yearBuilt) : null],
-    ["Stories", r.stories ? String(r.stories) : null],
-    ["Lot", r.lotSqft ? `${r.lotSqft.toLocaleString("en-US")} sq ft` : null],
-    ["Garage", r.garageSpaces ? `${r.garageSpaces} spaces` : null],
-    ["Type", r.propertyType ?? null],
-    ["Foundation", r.foundation ?? null],
-    ["Roof", r.roof ?? null],
-    ["Exterior", r.exterior ?? null],
+    ["Remodeled", r.yearRemodeled ? String(r.yearRemodeled) : null],
+    ["Type", [r.propertyType, r.design].filter(Boolean).join(", ") || null],
+    ["Build quality", r.quality ?? null],
+    ["Ground floor", sqft(r.groundFloorSqft)],
+    ["Upper floor", sqft(r.upperFloorSqft)],
+    ["Lower level, finished", sqft(r.lowerFinishedSqft)],
+    ["Lower level, unfinished", sqft(r.lowerUnfinishedSqft)],
+    ["Basement, finished", sqft(r.basementFinishedSqft)],
+    ["Basement, unfinished", sqft(r.basementUnfinishedSqft)],
+    ["Attic, finished", sqft(r.atticFinishedSqft)],
+    ["Attic, unfinished", sqft(r.atticUnfinishedSqft)],
+    ["Garage", sqft(r.garageSqft)],
+    ["Porch", sqft(r.porchSqft)],
+    ["Deck", sqft(r.deckSqft, covered(r.deckCovered))],
+    ["Patio", sqft(r.patioSqft, covered(r.patioCovered))],
+    ["Pool", sqft(r.poolSqft)],
+    ["Outbuilding", sqft(r.outbuildingSqft)],
+    ["Fireplaces", count(r.fireplaces)],
     ["Heating", r.heating ?? null],
-    ["Cooling", r.cooling ?? null],
-    ["Fireplace", r.fireplace === null || r.fireplace === undefined ? null : r.fireplace ? "Yes" : "No"],
-    ["Pool", r.pool === null || r.pool === undefined ? null : r.pool ? "Yes" : "No"],
+    ["Air conditioning", r.cooling ?? null],
+    ["Lot", r.lotSqft ? `${r.lotSqft.toLocaleString("en-US")} sq ft (${acres.toFixed(2)} acres)` : null],
+    ["Zoning", r.zoning ?? null],
+    ["Subdivision", r.subdivision ?? null],
+    ["Parcel", r.parcel ?? null],
+    ["Buildings on the parcel", r.buildings ? `${r.buildings}; figures are for the largest` : null],
   ];
   return rows.filter((x): x is [string, string] => x[1] !== null);
 }

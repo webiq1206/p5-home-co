@@ -294,10 +294,18 @@ is not deleted automatically, because a deleted estimate is often being redone.
 
 ### Property record
 
-When `RENTCAST_API_KEY` is set, the project address is looked up once and the
-public record is kept on the project: living area, bedrooms, bathrooms, year
-built, stories, lot, garage, and construction features where the county holds
-them (`app/lib/scopes/property.ts`). It is shown under Project and files and
+Property data comes from the county assessor's own free public data. No paid
+service and no key. The platform keeps a copy of each county's residential
+records in `county_property` (`app/lib/scopes/county`), loads a county the
+first time it is needed and reloads it when the copy is over twenty days old.
+Ada County publishes two free files, refreshed twice a month, for personal and
+business use (not for resale, redistribution or mailing lists); owner names are
+not in them and are never stored. The project address is matched to its parcel
+by street address, and a doubtful match is treated as no match. The record
+kept on the project holds finished area, floor areas by level, bedrooms,
+bathrooms, year built and remodeled, garage, porch, deck, patio, lot, zoning
+and subdivision, where the county states them (`app/lib/scopes/property.ts`).
+To add a county, add a loader to `COUNTIES` in `county/index.ts`. It is shown under Project and files and
 given to scope building as context. A quantity taken from it is always an
 estimated measurement that is asked for confirmation. No property record holds
 the size of an individual room.
@@ -336,7 +344,6 @@ PDF are served inline; anything else downloads as a plain file.
 | `SCOPE_MODEL` | Optional, default `gpt-4.1`. |
 | `SCOPE_TRANSCRIBE_MODEL` | Optional, default `whisper-1`. |
 | QuickBooks | The existing Finance connection (`QBO_*`). |
-| `RENTCAST_API_KEY` | Replit Secrets. Turns on the property record lookup. RentCast's free plan allows a limited number of lookups a month; each address is looked up once. |
 | `HUBSPOT_TOKEN` | Already used by the lead pipeline. Copying files also needs the Files and CRM notes permissions on that private app. |
 | `GOOGLE_MAPS_API_KEY` | Replit Secrets. Turns on address suggestions (Google "Places API (New)"). Read on the server only; without it the address fields are plain text boxes. If the key is restricted to websites, `p5homeco.com` must be an allowed site: the server sends that address with each request (`GOOGLE_MAPS_REFERER` overrides it). |
 

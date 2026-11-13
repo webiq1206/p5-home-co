@@ -14,22 +14,40 @@ import { projectTitle } from "./naming.ts";
 /** A public property record for the project address. Every value is unverified until someone confirms it. */
 export type PropertyRecord = {
   source: string;
+  /** Finished floor area: ground, upper, and finished lower, basement and attic. */
   livingSqft?: number | null;
   bedrooms?: number | null;
   bathrooms?: number | null;
   yearBuilt?: number | null;
-  stories?: number | null;
-  lotSqft?: number | null;
-  garageSpaces?: number | null;
+  yearRemodeled?: number | null;
   propertyType?: string | null;
-  foundation?: string | null;
-  roof?: string | null;
-  exterior?: string | null;
+  design?: string | null;
+  quality?: string | null;
+  groundFloorSqft?: number | null;
+  upperFloorSqft?: number | null;
+  lowerFinishedSqft?: number | null;
+  lowerUnfinishedSqft?: number | null;
+  basementFinishedSqft?: number | null;
+  basementUnfinishedSqft?: number | null;
+  atticFinishedSqft?: number | null;
+  atticUnfinishedSqft?: number | null;
+  garageSqft?: number | null;
+  porchSqft?: number | null;
+  deckSqft?: number | null;
+  deckCovered?: boolean | null;
+  patioSqft?: number | null;
+  patioCovered?: boolean | null;
+  poolSqft?: number | null;
+  outbuildingSqft?: number | null;
+  fireplaces?: number | null;
   heating?: string | null;
   cooling?: string | null;
-  fireplace?: boolean | null;
-  pool?: boolean | null;
+  lotSqft?: number | null;
+  zoning?: string | null;
+  subdivision?: string | null;
   parcel?: string | null;
+  /** Set when the parcel has more than one building; the figures are for the largest. */
+  buildings?: number | null;
   lookedUpAt: string;
 };
 

@@ -570,17 +570,17 @@ function FilesAndHistory({ ws, onWorkspace, onPlay, onError }: { ws: WS; onWorks
               {ws.property.rows.map(([k, v]) => <div key={k}><dt>{k}</dt><dd>{v}</dd></div>)}
             </dl>
             <p className="sc-small sc-muted">
-              From {ws.property.source}, looked up {when(ws.property.lookedUpAt)}. A public record, not a site measurement: it informs the scope, and any quantity taken from it is asked for confirmation. It does not include the size of individual rooms.
+              From {ws.property.source}, free public data, looked up {when(ws.property.lookedUpAt)}. A public record, not a site measurement: it informs the scope, and any quantity taken from it is asked for confirmation. It does not include the size of individual rooms.
             </p>
           </>
-        ) : !ws.propertyLookup.configured ? (
-          <p className="sc-muted">Property lookup is not set up yet. Once a RentCast key is added, the address pulls in living area, bedrooms, bathrooms, year built and more.</p>
         ) : !p.project_address ? (
-          <p className="sc-muted">Save the project address and the public record is looked up automatically.</p>
+          <p className="sc-muted">Save the project address and the county record is looked up automatically.</p>
+        ) : !ws.propertyLookup.configured ? (
+          <p className="sc-muted">County records have not been loaded yet. The first lookup fetches them from the county, which takes about a minute.</p>
         ) : (
-          <p className="sc-muted">{ws.propertyLookup.checked ? "No public record was found for this address." : "Not looked up yet."}</p>
+          <p className="sc-muted">{ws.propertyLookup.checked ? "No county record was found for this address." : "Not looked up yet."}</p>
         )}
-        {ws.propertyLookup.configured && p.project_address && (
+        {p.project_address && (
           <button type="button" className="sc-btn" disabled={!!busy} onClick={() => act("property", "property")}>
             {busy === "property" ? "Looking up..." : ws.property ? "Look up again" : "Look up the property"}
           </button>

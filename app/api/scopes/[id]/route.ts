@@ -1,5 +1,8 @@
 /** Read the whole workspace; edit project details; archive or restore. */
 
+import { after } from "next/server";
+
+import { refreshStaleCounties } from "../../../lib/scopes/county/index.ts";
 import { fail, ok, requireProject } from "../../../lib/scopes/http.ts";
 import { reprice } from "../../../lib/scopes/engine.ts";
 import { refreshEstimate } from "../../../lib/scopes/qbo.ts";
@@ -21,6 +24,8 @@ export async function GET(request: Request, { params }: Ctx) {
     if (e) await refreshEstimate(e).catch((err: Error) => (refreshError = err.message));
   }
   const workspace = await loadWorkspace(g.project.id, g.user);
+  // Keep the county records fresh without holding the page.
+  after(() => refreshStaleCounties().catch(() => undefined));
   return ok({ workspace, refreshError });
 }
 
@@ -76,10 +81,10 @@ export async function POST(request: Request, { params }: Ctx) {
       const { syncProjectFiles } = await import("../../../lib/scopes/filesync.ts");
       summary = await syncProjectFiles(g.project.id, { deadline: Date.now() + 200_000 });
     } else if (body.action === "property") {
-      const { ensureProperty, isPropertyLookupConfigured } = await import("../../../lib/scopes/property.ts");
-      if (!isPropertyLookupConfigured()) throw new Error("Property lookup is not set up yet. Add RENTCAST_API_KEY in Replit Secrets.");
+      const { ensureProperty } = await import("../../../lib/scopes/property.ts");
       if (!g.project.project_address) throw new Error("Save the project address first.");
-      await ensureProperty(g.project, true);
+      // Fetches the county's records first when they are missing or old.
+      await ensureProperty(g.project, { force: true, load: true });
     } else throw new Error("Unknown action.");
     return ok({ workspace: await loadWorkspace(g.project.id, g.user), summary });
   } catch (error) {

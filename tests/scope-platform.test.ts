@@ -804,20 +804,55 @@ test("a full-size plan sheet is cut into overlapping tiles that cover every pixe
 // Property record, file copies and deleting
 // ---------------------------------------------------------------------------
 
-test("a property record keeps what the source states and nothing it does not", async () => {
-  const { fromRentCast, propertyRows, propertyForPrompt } = await import("../app/lib/scopes/property.ts");
-  const r = fromRentCast([{ squareFootage: 1850, bedrooms: 3, bathrooms: 2.5, yearBuilt: 1998, lotSize: 7405, propertyType: "Single Family", assessorID: "R123", features: { floorCount: 2, garageSpaces: 2, heatingType: "Forced Air", fireplace: true } }], new Date("2026-11-13T00:00:00Z"))!;
-  assert.equal(r.livingSqft, 1850);
+test("a county building row becomes a property record with only what the county states", async () => {
+  const { adaBuilding } = await import("../app/lib/scopes/county/ada.ts");
+  const { propertyRows, propertyForPrompt } = await import("../app/lib/scopes/property.ts");
+  const row: Record<string, string> = { PARCEL: "R1", YEARBUILT: "2018", YEARREM: "0", BEDROOMS: "4", BATHROOMS: "2.5", NOOFDWELLI: "1", RESDESIGN: "2", CONSTCLASS: "4", GRFLSQFT: "1099", UPFLSQFT: "1527", BSMTFLSQFU: "400", CARSTORAGE: "643", PATIOSQFT: "360", PATIOCOVER: "N", FIREPLACE: "0", HEATING: "Y", AC: "Y" };
+  const r = adaBuilding((name) => row[name] ?? "");
+  assert.equal(r.livingSqft, 2626, "finished area is the finished floors, not the unfinished basement");
   assert.equal(r.bathrooms, 2.5);
-  assert.equal(r.stories, 2);
-  assert.equal(r.roof, null, "a field the record does not hold stays empty");
-  const rows = Object.fromEntries(propertyRows(r));
-  assert.equal(rows["Living area"], "1,850 sq ft");
-  assert.equal(rows.Fireplace, "Yes");
-  assert.ok(!("Roof" in rows));
-  assert.match(propertyForPrompt(r), /public record, not verified on site/);
-  assert.equal(fromRentCast([]), null);
-  assert.equal(fromRentCast({ squareFootage: 5, yearBuilt: 12 }), null, "implausible values are not a record");
+  assert.equal(r.basementUnfinishedSqft, 400);
+  assert.ok(!("yearRemodeled" in r) && !("deckSqft" in r), "what the county does not state is left out");
+  const rows = Object.fromEntries(propertyRows({ ...r, lookedUpAt: "2026-11-13T00:00:00Z" }));
+  assert.equal(rows["Finished area"], "2,626 sq ft");
+  assert.equal(rows.Type, "Single family, Two story");
+  assert.equal(rows.Patio, "360 sq ft, uncovered");
+  assert.equal(rows.Fireplaces, "0");
+  assert.ok(!("Deck" in rows));
+  assert.match(propertyForPrompt({ ...r, lookedUpAt: "2026-11-13T00:00:00Z" }), /Ada County Assessor public records; public record, not verified on site/);
+});
+
+test("a typed or autocompleted address matches the county's street line", async () => {
+  const { streetAddress } = await import("../app/lib/scopes/county/address.ts");
+  const { pickByCity } = await import("../app/lib/scopes/county/index.ts");
+  assert.deepEqual(streetAddress("745 West Allspice Street, Kuna, ID 83634, USA"), { key: "745 W ALLSPICE ST", number: "745", name: "ALLSPICE", city: "KUNA" });
+  assert.equal(streetAddress("2298 N. Mountain Ash Avenue Unit 4, Kuna")!.key, "2298 N MOUNTAIN ASH AVE");
+  assert.equal(streetAddress("2801 Northwest 15th St, Meridian, Idaho")!.key, "2801 NW 15TH ST");
+  assert.equal(streetAddress("Allspice Street, Kuna"), null, "no house number, no match");
+  const hits = [{ city: "BOISE", id: 1 }, { city: "EAGLE", id: 2 }];
+  assert.equal(pickByCity(hits, "EAGLE")!.id, 2);
+  assert.equal(pickByCity(hits, ""), null, "two candidates and no city is no match");
+  assert.equal(pickByCity([hits[0]], "")!.id, 1);
+});
+
+test("a county .dbf table is read field by field and skips deleted records", async () => {
+  const { eachDbfRecord, dbfHeader } = await import("../app/lib/scopes/county/dbf.ts");
+  const fields = [["PARCEL", 6], ["BEDROOMS", 3]] as const;
+  const header = Buffer.alloc(32 + fields.length * 32 + 1);
+  const recordLength = 1 + fields.reduce((n, f) => n + f[1], 0);
+  header.writeUInt32LE(3, 4);
+  header.writeUInt16LE(header.length, 8);
+  header.writeUInt16LE(recordLength, 10);
+  fields.forEach(([name, length], i) => {
+    header.write(name, 32 + i * 32, "latin1");
+    header[32 + i * 32 + 16] = length;
+  });
+  header[header.length - 1] = 0x0d;
+  const data = Buffer.concat([header, Buffer.from(" R1      4", "latin1"), Buffer.from("*R2      9", "latin1"), Buffer.from(" R3      2", "latin1")]);
+  assert.equal(dbfHeader(data).fields.length, 2);
+  const seen: string[] = [];
+  assert.equal(eachDbfRecord(data, (get) => seen.push(`${get("parcel")}:${get("BEDROOMS")}:${get("NOPE")}`)), 2);
+  assert.deepEqual(seen, ["R1:4:", "R3:2:"]);
 });
 
 test("plans, documents, photos and quotes are copied elsewhere; recordings and notes are not", async () => {

@@ -25,7 +25,8 @@ import type { ScopeUser } from "../auth.ts";
 import { can } from "../leads/permissions.ts";
 import { isHubSpotConfigured, syncsToOtherSystems } from "./filesync.ts";
 import type { Change } from "./merge.ts";
-import { ensureProperty, isPropertyLookupConfigured, propertyRows } from "./property.ts";
+import { anyCountyLoaded } from "./county/index.ts";
+import { ensureProperty, propertyRows } from "./property.ts";
 import type { PricingResult, Question, ScopeDoc, ScopeSettings } from "./types.ts";
 
 export type WorkspaceAsset = {
@@ -175,7 +176,7 @@ export async function loadWorkspace(projectId: number, viewer: Pick<ScopeUser, "
         : [],
     })),
     property: project.property ? { source: project.property.source, rows: propertyRows(project.property), lookedUpAt: project.property.lookedUpAt } : null,
-    propertyLookup: { configured: isPropertyLookupConfigured(), checked: Boolean(project.property_checked_for) },
+    propertyLookup: { configured: await anyCountyLoaded().catch(() => false), checked: Boolean(project.property_checked_for) },
     hubspot: { configured: isHubSpotConfigured(), contactLinked: Boolean(project.hubspot_contact_id) },
     versions: versions.map((v) => ({ id: v.id, versionNo: v.version_no, source: v.source, note: v.note, createdAt: iso(v.created_at)! })),
     version: version ? { id: version.id, versionNo: version.version_no, createdAt: iso(version.created_at)! } : null,
