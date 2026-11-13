@@ -799,3 +799,105 @@ test("a full-size plan sheet is cut into overlapping tiles that cover every pixe
     assert.ok(covered(x, y), `pixel ${x},${y} is inside a tile`);
   }
 });
+
+// ---------------------------------------------------------------------------
+// Property record, file copies and deleting
+// ---------------------------------------------------------------------------
+
+test("a county building row becomes a property record with only what the county states", async () => {
+  const { adaBuilding } = await import("../app/lib/scopes/county/ada.ts");
+  const { propertyRows, propertyForPrompt } = await import("../app/lib/scopes/property.ts");
+  const row: Record<string, string> = { PARCEL: "R1", YEARBUILT: "2018", YEARREM: "0", BEDROOMS: "4", BATHROOMS: "2.5", NOOFDWELLI: "1", RESDESIGN: "2", CONSTCLASS: "4", GRFLSQFT: "1099", UPFLSQFT: "1527", BSMTFLSQFU: "400", CARSTORAGE: "643", PATIOSQFT: "360", PATIOCOVER: "N", FIREPLACE: "0", HEATING: "Y", AC: "Y" };
+  const r = adaBuilding((name) => row[name] ?? "");
+  assert.equal(r.livingSqft, 2626, "finished area is the finished floors, not the unfinished basement");
+  assert.equal(r.bathrooms, 2.5);
+  assert.equal(r.basementUnfinishedSqft, 400);
+  assert.ok(!("yearRemodeled" in r) && !("deckSqft" in r), "what the county does not state is left out");
+  const rows = Object.fromEntries(propertyRows({ ...r, lookedUpAt: "2026-11-13T00:00:00Z" }));
+  assert.equal(rows["Finished area"], "2,626 sq ft");
+  assert.equal(rows.Type, "Single family, Two story");
+  assert.equal(rows.Patio, "360 sq ft, uncovered");
+  assert.equal(rows.Fireplaces, "0");
+  assert.ok(!("Deck" in rows));
+  assert.match(propertyForPrompt({ ...r, lookedUpAt: "2026-11-13T00:00:00Z" }), /Ada County Assessor public records; public record, not verified on site/);
+});
+
+test("Valley County's fixture counts become bathrooms and its basement splits into finished and unfinished", async () => {
+  const { valleyBuilding } = await import("../app/lib/scopes/county/valley.ts");
+  const r = valleyBuilding({ FinSize: "1539", YrBuilt: "1994", Stories: "2", NumBdRms: "3", Num2Baths: "1", Num3Baths: "2", Num4Baths: "0", Num5Baths: "0", BsmtArea: "996", BsmtFin: "400", BldgType: "Class_6 GOOD TO VERY GOOD", UseDesc: "Single family - Owner", CentrlAC: "N", MasonFP: "Y", DeckSF: "556", AttGarSF: "   ", Foundat: "Full Bsmt " });
+  assert.equal(r.bathrooms, 2.5);
+  assert.equal(r.basementFinishedSqft, 400);
+  assert.equal(r.basementUnfinishedSqft, 596);
+  assert.equal(r.quality, "Good to very good");
+  assert.equal(r.propertyType, "Single family");
+  assert.equal(r.foundation, "Full Bsmt");
+  assert.ok(!("garageSqft" in r), "a blank field is not a zero");
+});
+
+test("the RentCast fallback is off without a key and capped inside the free allowance", async () => {
+  const { fromRentCast, rentCastLimit } = await import("../app/lib/scopes/rentcast.ts");
+  assert.equal(rentCastLimit({}), 0);
+  assert.equal(rentCastLimit({ RENTCAST_API_KEY: "k" }), 45, "under the 50 free requests a month");
+  assert.equal(rentCastLimit({ RENTCAST_API_KEY: "k", RENTCAST_MONTHLY_LIMIT: "10" }), 10);
+  const r = fromRentCast([{ squareFootage: 1850, bedrooms: 3, bathrooms: 2.5, yearBuilt: 1998, lotSize: 7405, propertyType: "Single Family", assessorID: "R123", features: { floorCount: 2, garageSpaces: 2, garageType: "Attached", heatingType: "Forced Air", fireplace: true } }], new Date("2026-11-13T00:00:00Z"))!;
+  assert.equal(r.garage, "2 spaces, attached");
+  assert.equal(r.livingSqft, 1850);
+  assert.equal(r.design, "2 stories");
+  assert.equal(r.fireplaces, 1);
+  assert.equal(r.roof, null, "a field the record does not hold stays empty");
+  assert.equal(fromRentCast([]), null);
+  assert.equal(fromRentCast({ squareFootage: 5, yearBuilt: 12 }), null, "implausible values are not a record");
+});
+
+test("a typed or autocompleted address matches the county's street line", async () => {
+  const { streetAddress } = await import("../app/lib/scopes/county/address.ts");
+  const { pickByCity } = await import("../app/lib/scopes/county/index.ts");
+  assert.deepEqual(streetAddress("745 West Allspice Street, Kuna, ID 83634, USA"), { key: "745 W ALLSPICE ST", number: "745", name: "ALLSPICE", city: "KUNA" });
+  assert.equal(streetAddress("2298 N. Mountain Ash Avenue Unit 4, Kuna")!.key, "2298 N MOUNTAIN ASH AVE");
+  assert.equal(streetAddress("2801 Northwest 15th St, Meridian, Idaho")!.key, "2801 NW 15TH ST");
+  assert.equal(streetAddress("33 SILVER FOX TR, MCCALL")!.key, streetAddress("33 Silver Fox Trail, McCall, ID")!.key);
+  assert.equal(streetAddress("Allspice Street, Kuna"), null, "no house number, no match");
+  const hits = [{ city: "BOISE", id: 1 }, { city: "EAGLE", id: 2 }];
+  assert.equal(pickByCity(hits, "EAGLE")!.id, 2);
+  assert.equal(pickByCity(hits, ""), null, "two candidates and no city is no match");
+  assert.equal(pickByCity([hits[0]], "")!.id, 1);
+});
+
+test("a county .dbf table is read field by field and skips deleted records", async () => {
+  const { eachDbfRecord, dbfHeader } = await import("../app/lib/scopes/county/dbf.ts");
+  const fields = [["PARCEL", 6], ["BEDROOMS", 3]] as const;
+  const header = Buffer.alloc(32 + fields.length * 32 + 1);
+  const recordLength = 1 + fields.reduce((n, f) => n + f[1], 0);
+  header.writeUInt32LE(3, 4);
+  header.writeUInt16LE(header.length, 8);
+  header.writeUInt16LE(recordLength, 10);
+  fields.forEach(([name, length], i) => {
+    header.write(name, 32 + i * 32, "latin1");
+    header[32 + i * 32 + 16] = length;
+  });
+  header[header.length - 1] = 0x0d;
+  const data = Buffer.concat([header, Buffer.from(" R1      4", "latin1"), Buffer.from("*R2      9", "latin1"), Buffer.from(" R3      2", "latin1")]);
+  assert.equal(dbfHeader(data).fields.length, 2);
+  const seen: string[] = [];
+  assert.equal(eachDbfRecord(data, (get) => seen.push(`${get("parcel")}:${get("BEDROOMS")}:${get("NOPE")}`)), 2);
+  assert.deepEqual(seen, ["R1:4:", "R3:2:"]);
+});
+
+test("plans, documents, photos and quotes are copied elsewhere; recordings and notes are not", async () => {
+  const { syncsToOtherSystems, qboParent } = await import("../app/lib/scopes/filesync.ts");
+  assert.equal(syncsToOtherSystems({ kind: "document", file_name: "plans.pdf", mime_type: "application/pdf" }), true);
+  assert.equal(syncsToOtherSystems({ kind: "photo", file_name: "a.jpg", mime_type: "image/jpeg" }), true);
+  assert.equal(syncsToOtherSystems({ kind: "recording", file_name: "r.webm", mime_type: "audio/webm" }), false);
+  assert.equal(syncsToOtherSystems({ kind: "document", file_name: "memo.m4a", mime_type: "audio/mp4" }), false);
+  assert.equal(syncsToOtherSystems({ kind: "text", file_name: null, mime_type: null }), false);
+  assert.deepEqual(qboParent({ qbo_customer_id: "7", qbo_project_id: null }, "55"), { type: "Estimate", value: "55" });
+  assert.deepEqual(qboParent({ qbo_customer_id: "7", qbo_project_id: "9" }, null), { type: "Customer", value: "9" });
+  assert.equal(qboParent({ qbo_customer_id: null, qbo_project_id: null }, null), null);
+});
+
+test("an invoiced job cannot be deleted from QuickBooks", async () => {
+  const { deleteBlocker } = await import("../app/lib/scopes/qbo.ts");
+  assert.match(deleteBlocker("converted")!, /invoiced/);
+  assert.match(deleteBlocker("paid")!, /invoiced/);
+  for (const s of ["created_unsent", "sent", "accepted", "declined", "not_created"]) assert.equal(deleteBlocker(s), null);
+});

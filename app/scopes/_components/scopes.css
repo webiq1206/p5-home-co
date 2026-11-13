@@ -427,3 +427,5 @@ details.sc-more > summary .sc-muted + * { display: none; }
 details.sc-more[open] { padding-bottom: 16px; }
 .sc-sync { color: var(--ink-2); }
 .sc-candidates li { align-items: center; padding: 14px 0; }
+.sc-btn-danger { border-color: #9a2f2f; background: #9a2f2f; color: #fff; }
+.sc-btn-danger:hover:not(:disabled) { background: #7d2626; }

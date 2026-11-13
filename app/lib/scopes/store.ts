@@ -11,6 +11,56 @@ import { DEFAULT_SCOPE_SETTINGS } from "./types.ts";
 import type { Proposal } from "./merge.ts";
 import { projectTitle } from "./naming.ts";
 
+/** A public property record for the project address. Every value is unverified until someone confirms it. */
+export type PropertyRecord = {
+  source: string;
+  /** Finished floor area: ground, upper, and finished lower, basement and attic. */
+  livingSqft?: number | null;
+  bedrooms?: number | null;
+  bathrooms?: number | null;
+  yearBuilt?: number | null;
+  yearRemodeled?: number | null;
+  propertyType?: string | null;
+  design?: string | null;
+  quality?: string | null;
+  condition?: string | null;
+  foundation?: string | null;
+  framing?: string | null;
+  exterior?: string | null;
+  roof?: string | null;
+  rooms?: number | null;
+  carportSqft?: number | null;
+  utilities?: string | null;
+  groundFloorSqft?: number | null;
+  upperFloorSqft?: number | null;
+  lowerFinishedSqft?: number | null;
+  lowerUnfinishedSqft?: number | null;
+  basementFinishedSqft?: number | null;
+  basementUnfinishedSqft?: number | null;
+  atticFinishedSqft?: number | null;
+  atticUnfinishedSqft?: number | null;
+  garageSqft?: number | null;
+  /** Where the source gives a description instead of an area, such as "2 spaces, attached". */
+  garage?: string | null;
+  porchSqft?: number | null;
+  deckSqft?: number | null;
+  deckCovered?: boolean | null;
+  patioSqft?: number | null;
+  patioCovered?: boolean | null;
+  poolSqft?: number | null;
+  outbuildingSqft?: number | null;
+  fireplaces?: number | null;
+  heating?: string | null;
+  cooling?: string | null;
+  lotSqft?: number | null;
+  zoning?: string | null;
+  subdivision?: string | null;
+  parcel?: string | null;
+  /** Set when the parcel has more than one building; the figures are for the largest. */
+  buildings?: number | null;
+  lookedUpAt: string;
+};
+
 export type ProjectRow = {
   id: number;
   title: string;
@@ -34,6 +84,12 @@ export type ProjectRow = {
   qbo_project_name: string | null;
   qbo_project_linked_at: Date | null;
   archived_at: Date | null;
+  deleted_at: Date | null;
+  /** The public record found for the address, or null when none was found. */
+  property: PropertyRecord | null;
+  /** The address the property record was looked up for, so it is looked up once per address. */
+  property_checked_for: string | null;
+  hubspot_contact_id: string | null;
   created_at: Date;
   updated_at: Date;
 };
@@ -96,7 +152,7 @@ export type EstimateRow = {
 const PROJECT_COLS = `id::int, title, client_first_name, client_last_name, client_email, client_phone,
   project_address, billing_address, service, finish_tier, scope_status, current_version_id::int,
   pending_proposal, processing_state, processing_note, processing_started_at, qbo_customer_id,
-  qbo_customer_name, qbo_project_id, qbo_project_name, qbo_project_linked_at, archived_at, created_at, updated_at`;
+  qbo_customer_name, qbo_project_id, qbo_project_name, qbo_project_linked_at, archived_at, deleted_at, property, property_checked_for, hubspot_contact_id, created_at, updated_at`;
 
 // --------------------------------------------------------------------------
 // Settings
@@ -136,7 +192,7 @@ export type ListRow = ProjectRow & {
 };
 
 export async function listProjects(f: ListFilter): Promise<ListRow[]> {
-  const where: string[] = [f.archived ? "p.archived_at IS NOT NULL" : "p.archived_at IS NULL"];
+  const where: string[] = ["p.deleted_at IS NULL", f.archived ? "p.archived_at IS NOT NULL" : "p.archived_at IS NULL"];
   const params: unknown[] = [];
   if (f.q?.trim()) {
     params.push(`%${f.q.trim().replace(/[%_]/g, "")}%`);
@@ -199,8 +255,48 @@ export async function createProject(userId: number, fields: Partial<ProjectRow>)
   return id;
 }
 
-export async function getProject(id: number): Promise<ProjectRow | null> {
-  return queryOne<ProjectRow>(`SELECT ${PROJECT_COLS} FROM scope_project WHERE id = $1`, [id]);
+/** A deleted project is gone for every screen; pass includeDeleted only to finish cleaning one up. */
+export async function getProject(id: number, includeDeleted = false): Promise<ProjectRow | null> {
+  return queryOne<ProjectRow>(`SELECT ${PROJECT_COLS} FROM scope_project WHERE id = $1${includeDeleted ? "" : " AND deleted_at IS NULL"}`, [id]);
+}
+
+export async function markProjectDeleted(id: number, userId: number | null, note: string): Promise<void> {
+  await query("UPDATE scope_project SET deleted_at = now(), deleted_by = $2, delete_note = $3, updated_at = now() WHERE id = $1 AND deleted_at IS NULL", [id, userId, note.slice(0, 500)]);
+}
+
+export async function setProjectProperty(id: number, property: PropertyRecord | null, checkedFor: string): Promise<void> {
+  await query("UPDATE scope_project SET property = $2::jsonb, property_checked_for = $3, updated_at = now() WHERE id = $1", [id, property === null ? null : JSON.stringify(property), checkedFor]);
+}
+
+export async function setHubSpotContact(id: number, contactId: string | null): Promise<void> {
+  await query("UPDATE scope_project SET hubspot_contact_id = $2 WHERE id = $1", [id, contactId]);
+}
+
+// --------------------------------------------------------------------------
+// Files sent to QuickBooks and HubSpot
+// --------------------------------------------------------------------------
+
+export type SyncTarget = "quickbooks" | "hubspot";
+export type AssetSyncRow = { asset_id: number; target: SyncTarget; status: "pending" | "sent" | "failed" | "skipped" | "removed"; remote_id: string | null; parent_id: string | null; error: string | null; attempts: number };
+
+export async function listAssetSync(projectId: number): Promise<AssetSyncRow[]> {
+  return query<AssetSyncRow>(
+    `SELECT s.asset_id::int, s.target, s.status, s.remote_id, s.parent_id, s.error, s.attempts
+       FROM scope_asset_sync s JOIN scope_asset a ON a.id = s.asset_id WHERE a.project_id = $1`,
+    [projectId],
+  );
+}
+
+export async function saveAssetSync(assetId: number, target: SyncTarget, r: { status: AssetSyncRow["status"]; remoteId?: string | null; parentId?: string | null; error?: string | null }): Promise<void> {
+  await query(
+    `INSERT INTO scope_asset_sync (asset_id, target, status, remote_id, parent_id, error, attempts)
+     VALUES ($1,$2,$3,$4,$5,$6,1)
+     ON CONFLICT (asset_id, target) DO UPDATE SET status = EXCLUDED.status,
+       remote_id = coalesce(EXCLUDED.remote_id, scope_asset_sync.remote_id),
+       parent_id = coalesce(EXCLUDED.parent_id, scope_asset_sync.parent_id),
+       error = EXCLUDED.error, attempts = scope_asset_sync.attempts + 1, updated_at = now()`,
+    [assetId, target, r.status, r.remoteId ?? null, r.parentId ?? null, r.error ? r.error.slice(0, 400) : null],
+  );
 }
 
 const EDITABLE = [

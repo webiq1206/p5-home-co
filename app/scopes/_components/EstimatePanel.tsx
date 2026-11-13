@@ -281,7 +281,7 @@ export default function EstimatePanel({ ws, onWorkspace, onScope }: { ws: Worksp
           <>
             {deleted && (
               <p className="sc-alert sc-alert-warn">
-                The earlier estimate{deleted.docNumber ? ` #${deleted.docNumber}` : ""} was deleted in QuickBooks. Its history is kept below. You can create a new one.
+                The earlier estimate{deleted.docNumber ? ` #${deleted.docNumber}` : ""} was deleted in QuickBooks. Its history is kept below. You can create a new one, or delete this project too under Project and files.
               </p>
             )}
             <p className="sc-muted">

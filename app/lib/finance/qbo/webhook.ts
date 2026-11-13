@@ -136,6 +136,16 @@ async function applyEvent(e: {
   if (operation === "Delete" || operation === "Remove") {
     if (TXN_SET.has(name)) {
       await query(`DELETE FROM qbo_txn WHERE txn_type = $1 AND qbo_id = $2`, [name, id]);
+      // The scope platform notes an estimate deleted in QuickBooks. Loaded on
+      // demand, and a failure there never fails the webhook.
+      if (name === "Estimate") {
+        try {
+          const scopes = await import("../../scopes/qbo.ts");
+          await scopes.onEstimateDeleted(id);
+        } catch (error) {
+          console.error("[scopes] estimate deletion was not applied:", (error as Error).message);
+        }
+      }
     } else if (name === "Customer") {
       await query(`DELETE FROM qbo_customer WHERE qbo_id = $1`, [id]);
     } else if (name === "Vendor") {

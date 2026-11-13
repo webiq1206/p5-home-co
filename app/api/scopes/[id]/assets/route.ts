@@ -4,6 +4,9 @@
  * a response, and a repeat returns the row created the first time.
  */
 
+import { after } from "next/server";
+
+import { syncProjectFiles } from "../../../../lib/scopes/filesync.ts";
 import { fail, ok, requireProject } from "../../../../lib/scopes/http.ts";
 import { MAX_UPLOAD_BYTES, storeBytes } from "../../../../lib/scopes/files.ts";
 import { insertAsset, type AssetRow } from "../../../../lib/scopes/store.ts";
@@ -72,6 +75,8 @@ export async function POST(request: Request, { params }: Ctx) {
       state: kind === "recording" || kind === "note" ? "stored" : "ready",
       userId: g.user.id,
     });
+    // Copy the file to QuickBooks and HubSpot after the response; a failure there is recorded, never shown as an upload error.
+    after(() => syncProjectFiles(g.project.id, { deadline: Date.now() + 120_000 }).catch(() => undefined));
     return ok({ asset: summary(asset), duplicate });
   } catch (error) {
     return fail(error);

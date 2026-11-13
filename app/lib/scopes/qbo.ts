@@ -27,6 +27,7 @@ import {
   latestEstimate,
   logEvent,
   markEstimateDeleted,
+  markProjectDeleted,
   mirroredEstimate,
   recordRevision,
   setProjectState,
@@ -461,6 +462,90 @@ export async function settleAccepted(projectId: number): Promise<void> {
   } catch (error) {
     await logEvent(p.id, "qbo-project-auto-failed", { error: (error as Error).message.slice(0, 300) }, null).catch(() => undefined);
   }
+}
+
+/** QuickBooks reported the estimate deleted (webhook). Note it on the project. */
+export async function onEstimateDeleted(qboId: string): Promise<void> {
+  const e = await estimateByQboId(qboId);
+  if (!e || e.txn_status === "Deleted") return;
+  await markEstimateDeleted(e.id);
+  await logEvent(e.project_id, "estimate-deleted-in-quickbooks", { docNumber: e.doc_number }, null);
+}
+
+/** Why a project cannot be deleted from QuickBooks, or null when it can. */
+export function deleteBlocker(status: string): string | null {
+  if (status === "converted" || status === "paid") {
+    return "This job has been invoiced in QuickBooks. Invoices are accounting records and are never deleted from here; archive the project instead.";
+  }
+  return null;
+}
+
+/**
+ * Delete a project and everything it put in QuickBooks except the customer:
+ * the estimate, the files it attached, and the project it created (QuickBooks
+ * cannot delete a project or customer, so it is made inactive). A project that
+ * was linked by hand, rather than created here, is left alone.
+ * Each step is recorded; a step QuickBooks refuses stops the delete so nothing
+ * is left half removed without the reason being shown.
+ */
+export async function deleteProjectEverywhere(p: ProjectRow, userId: number): Promise<{ removed: string[] }> {
+  const removed: string[] = [];
+  const e = await latestEstimate(p.id);
+  const connected = await isQboConnected().catch(() => false);
+  const hasQbo = Boolean((e?.qbo_estimate_id && e.txn_status !== "Deleted") || p.qbo_project_id);
+  if (hasQbo && !connected) throw new Error("QuickBooks is not connected, so the estimate there cannot be removed. Connect QuickBooks and try again.");
+
+  if (e?.qbo_estimate_id && e.txn_status !== "Deleted") {
+    await refreshEstimate(e).catch(() => undefined);
+    const live = (await latestEstimate(p.id)) ?? e;
+    if (live.txn_status !== "Deleted") {
+      const blocker = deleteBlocker(estimateStatus(live.qbo_snapshot as never, true));
+      if (blocker) throw new Error(blocker);
+      try {
+        const current = await fetchEstimate(live.qbo_estimate_id!);
+        await qboRequest("/estimate?operation=delete", { method: "POST", body: JSON.stringify({ Id: live.qbo_estimate_id, SyncToken: current.SyncToken }) });
+      } catch (error) {
+        if (!isGone(error as Error)) throw new Error(`QuickBooks would not delete the estimate: ${(error as Error).message.slice(0, 200)}`);
+      }
+      await markEstimateDeleted(live.id);
+      removed.push(`estimate${live.doc_number ? ` #${live.doc_number}` : ""}`);
+    }
+  }
+
+  // Files this platform attached in QuickBooks.
+  const { listAssetSync, saveAssetSync } = await import("./store.ts");
+  const { qboRemoveAttachment } = await import("./filesync.ts");
+  let files = 0;
+  for (const row of await listAssetSync(p.id)) {
+    if (row.target !== "quickbooks" || row.status !== "sent" || !row.remote_id) continue;
+    await qboRemoveAttachment(row.remote_id).catch(() => undefined);
+    await saveAssetSync(row.asset_id, "quickbooks", { status: "removed" });
+    files++;
+  }
+  if (files) removed.push(`${files} attached file${files === 1 ? "" : "s"}`);
+
+  // The QuickBooks project, only when this platform created it.
+  if (p.qbo_project_id) {
+    const created = await queryOne<{ n: number }>(
+      "SELECT count(*)::int AS n FROM scope_event WHERE project_id = $1 AND kind = 'qbo-project-created' AND detail->>'qboId' = $2",
+      [p.id, p.qbo_project_id],
+    );
+    if (created?.n) {
+      try {
+        const current = await qboRequest<{ Customer?: { Id: string; SyncToken: string } }>(`/customer/${encodeURIComponent(p.qbo_project_id)}`);
+        if (current.Customer) {
+          await qboRequest("/customer", { method: "POST", body: JSON.stringify({ Id: current.Customer.Id, SyncToken: current.Customer.SyncToken, sparse: true, Active: false }) });
+          removed.push("project (made inactive)");
+        }
+      } catch (error) {
+        if (!isGone(error as Error)) throw new Error(`QuickBooks would not remove the project: ${(error as Error).message.slice(0, 200)}`);
+      }
+    }
+  }
+
+  await logEvent(p.id, "project-deleted", { removed }, userId);
+  await markProjectDeleted(p.id, userId, removed.length ? `Removed from QuickBooks: ${removed.join(", ")}` : "Nothing was in QuickBooks");
+  return { removed };
 }
 
 /**

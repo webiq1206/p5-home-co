@@ -4,6 +4,9 @@
  * kept once, and a repeated finish returns the file created the first time.
  */
 
+import { after } from "next/server";
+
+import { syncProjectFiles } from "../../../../../lib/scopes/filesync.ts";
 import { fail, ok, requireProject } from "../../../../../lib/scopes/http.ts";
 import { MAX_FILE_BYTES, UPLOAD_PART_BYTES, storeBytes } from "../../../../../lib/scopes/files.ts";
 import { assetByClientKey, clearUploadParts, insertAsset, readUploadPart, saveUploadPart, uploadPartCount, type AssetRow } from "../../../../../lib/scopes/store.ts";
@@ -76,6 +79,8 @@ export async function POST(request: Request, { params }: Ctx) {
       userId: g.user.id,
     });
     await clearUploadParts(g.project.id, uploadKey);
+    // Copy the file to QuickBooks and HubSpot after the response; a failure there is recorded, never shown as an upload error.
+    after(() => syncProjectFiles(g.project.id, { deadline: Date.now() + 120_000 }).catch(() => undefined));
     return ok({ asset: { id: asset.id, clientKey: asset.client_key, kind: asset.kind, state: asset.state }, duplicate });
   } catch (error) {
     return fail(error);

@@ -293,6 +293,8 @@ export type ExtractInput = {
   sources: SourceInput[];
   customerRecords: string[];
   productionRateCodes: string[];
+  /** The public property record for the address, as text. */
+  property?: string;
 };
 
 const SYSTEM = `You turn a residential contractor's recorded client meetings, home walkthroughs, dictated notes, documents, plans and photos into a detailed scope of work for P5 Home Co (the parent company of Boise Construction Co, Boise Remodeling Co, Boise Cabinet Co and Boise Handyman Co).
@@ -314,6 +316,7 @@ Rules:
 - Use one measurement for one physical quantity and reference it from every task that depends on it. Do not create two measurements for the same thing in different words.
 - A source headed SHEET NOTES is a long PDF (a plan set, specification or existing scope of work) that was read page by page; each block starts with [page N]. Treat its printed dimensions, schedules and notes as documented: measurements taken from them are "documented" with evidence {assetId, page, quote}. Anything it lists under NOT DIMENSIONED becomes a measurement with status "missing", and anything under NOT LEGIBLE becomes an open question naming the page. Never turn a drawing into a number that was not printed.
 - When a source is an existing scope of work, carry over every line of work it describes, with its quantities and prices if stated.
+- A PROPERTY RECORD, when given, is a public record for the address (whole-house living area, bedrooms, bathrooms, year built and so on). Use it to understand the home and to size whole-house work (for example flooring, paint or baseboard through the whole house) when no source gives a measurement: record that as a measurement with status "estimated" and a note that it comes from the public record, so it is confirmed before pricing. It never gives the size of a single room; do not divide it up to invent room sizes. A recording, plan or document always outranks it.
 - Client contact details: fill only what a source states.
 - Descriptions are customer-facing: plain, specific, no internal codes, costs or margins. No em dashes.
 - When a current scope is provided, return the complete updated scope. Keep the same id for the same task, measurement and conflict. Preserve decisions already in the current scope unless a newer source clearly changes them, in which case add a conflict.
@@ -427,6 +430,7 @@ export function buildExtractionContent(input: ExtractInput): Block[] {
     `PROJECT: ${input.project.title || "(untitled)"}`,
     `Service: ${input.project.service}. Finish tier: ${input.project.finishTier}.`,
     `Known client details: ${JSON.stringify(input.project.client)}`,
+    input.property ? `\n${input.property}` : "",
     input.customerRecords.length ? `Possible existing customer records (verify before relying on them):\n${input.customerRecords.join("\n")}` : "",
     `\nDIVISIONS (code name):\n${DIVISIONS.map((d) => `${d.code} ${d.name}`).join("\n")}`,
     input.productionRateCodes.length ? `\nCost codes with approved production rates (do not propose hours): ${input.productionRateCodes.join(", ")}` : "",

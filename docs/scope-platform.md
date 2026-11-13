@@ -276,6 +276,58 @@ has no market price data, so "competitive" is a prompt to check, not a verdict.
   connection, so "completed" means the linked invoices cover the whole
   estimate and nothing is owed.
 
+### Deleting a project
+
+An employee (never a scopes-only account) can delete a project from Project and
+files after typing DELETE. It removes what the platform put in QuickBooks: the
+estimate, the files it attached there, and the QuickBooks project when this
+platform created it (QuickBooks cannot delete a project, so it is made
+inactive). The customer is never touched, and a project linked by hand is left
+alone. A job that has been invoiced cannot be deleted; archive it. If QuickBooks
+refuses a step the delete stops and says why. The project row is kept with
+`deleted_at` set and is hidden from every screen.
+
+An estimate deleted in QuickBooks is noted here as soon as QuickBooks reports
+it (webhook, refresh or page view): the project shows "Estimate: deleted in
+QuickBooks" and offers a new estimate or deleting the project too. The project
+is not deleted automatically, because a deleted estimate is often being redone.
+
+### Property record
+
+Property data comes from the county assessor's own free public data. No paid
+service and no key. The platform keeps a copy of each county's residential
+records in `county_property` (`app/lib/scopes/county`), loads a county the
+first time it is needed and reloads it when the copy is over twenty days old.
+Ada County publishes two free files, refreshed twice a month, for personal and
+business use (not for resale, redistribution or mailing lists). Valley County
+publishes its parcels and improvement records as a free public map service.
+Owner names are never requested or stored. Canyon, Gem and Adams counties do
+not publish building records in a form a program can read without a login or a
+CAPTCHA. For those addresses only, and only when `RENTCAST_API_KEY` is set,
+the address is asked of RentCast (`app/lib/scopes/rentcast.ts`). Each request
+is counted in `property_lookup_log` and lookups stop for the month at
+`RENTCAST_MONTHLY_LIMIT` (default 45, under RentCast's 50 free requests), so
+the fallback cannot produce a charge. County data is always tried first. The project address is matched to its parcel
+by street address, and a doubtful match is treated as no match. The record
+kept on the project holds finished area, floor areas by level, bedrooms,
+bathrooms, year built and remodeled, garage, porch, deck, patio, lot, zoning
+and subdivision, where the county states them (`app/lib/scopes/property.ts`).
+To add a county, add a loader to `COUNTIES` in `county/index.ts`. It is shown under Project and files and
+given to scope building as context. A quantity taken from it is always an
+estimated measurement that is asked for confirmation. No property record holds
+the size of an individual room.
+
+### Files in QuickBooks and HubSpot
+
+Plans, documents, photos and quotes are copied to QuickBooks (attached to the
+estimate once there is one, otherwise to the customer, and linked to the
+estimate when it is created) and to the client's HubSpot contact (a private
+file pinned in a note; the contact is found by email and never created here).
+Recordings and typed notes stay in the platform. Each file is sent once per
+destination (`scope_asset_sync`); a failure is recorded with its reason and
+retried. Copies run after each upload, after the customer is chosen, after the
+estimate is created, and from Send files now.
+
 ## Data
 
 Migration `024_scope_platform.sql` (additive only): `scope_project`,
@@ -299,6 +351,8 @@ PDF are served inline; anything else downloads as a plain file.
 | `SCOPE_MODEL` | Optional, default `gpt-4.1`. |
 | `SCOPE_TRANSCRIBE_MODEL` | Optional, default `whisper-1`. |
 | QuickBooks | The existing Finance connection (`QBO_*`). |
+| `RENTCAST_API_KEY` | Optional. Fallback property lookups for counties with no public building data, capped at `RENTCAST_MONTHLY_LIMIT` a month (default 45, inside the free plan). |
+| `HUBSPOT_TOKEN` | Already used by the lead pipeline. Copying files also needs the Files and CRM notes permissions on that private app. |
 | `GOOGLE_MAPS_API_KEY` | Replit Secrets. Turns on address suggestions (Google "Places API (New)"). Read on the server only; without it the address fields are plain text boxes. If the key is restricted to websites, `p5homeco.com` must be an allowed site: the server sends that address with each request (`GOOGLE_MAPS_REFERER` overrides it). |
 
 ## Before first use
