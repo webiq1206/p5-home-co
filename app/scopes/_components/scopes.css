@@ -429,3 +429,9 @@ details.sc-more[open] { padding-bottom: 16px; }
 .sc-candidates li { align-items: center; padding: 14px 0; }
 .sc-btn-danger { border-color: #9a2f2f; background: #9a2f2f; color: #fff; }
 .sc-btn-danger:hover:not(:disabled) { background: #7d2626; }
+
+/* Project header: back link on the left, archive or delete on the right. */
+.sc-ws-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.sc-manage-link { min-height: 44px; padding: 0 4px; border: 0; background: none; color: var(--ink-2); font: inherit; font-size: 15px; font-weight: 650; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.sc-manage-link:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+#sc-manage { scroll-margin-top: 72px; }

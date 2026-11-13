@@ -226,9 +226,22 @@ export default function Workspace({ initial, initialTab }: { initial: WS; initia
   return (
     <div className="sc-ws">
       <header className="sc-ws-head">
-        <Link href="/scopes" className="sc-back">
-          <span aria-hidden="true">‹</span> Projects
-        </Link>
+        <div className="sc-ws-top">
+          <Link href="/scopes" className="sc-back">
+            <span aria-hidden="true">‹</span> Projects
+          </Link>
+          <button
+            type="button"
+            className="sc-manage-link"
+            onClick={() => {
+              show("project");
+              // After the section opens, bring the archive and delete card into view.
+              setTimeout(() => document.getElementById("sc-manage")?.scrollIntoView({ block: "start" }), 350);
+            }}
+          >
+            {ws.viewer.internal ? "Archive or delete" : "Archive"}
+          </button>
+        </div>
         <h1 className="sc-ws-title">{p.title || "New project"}</h1>
         <p className="sc-ws-sub">
           {[client, p.project_address].filter(Boolean).join(" · ") || "Client and address not set"}
@@ -541,6 +554,28 @@ function FilesAndHistory({ ws, onWorkspace, onPlay, onError }: { ws: WS; onWorks
   };
   return (
     <div className="sc-files">
+      <section className="sc-card" id="sc-manage">
+        <h2 className="sc-h2">{ws.viewer.internal ? "Archive or delete" : "Archive"}</h2>
+        <button type="button" className="sc-btn" onClick={() => archive(!ws.project.archived)}>
+          {ws.project.archived ? "Restore to active projects" : "Archive this project"}
+        </button>
+        <p className="sc-small sc-muted">Archiving hides the project from the list. It keeps every file, version and estimate, changes nothing in QuickBooks, and can be undone under Show archived projects.</p>
+        {ws.viewer.internal && (
+          <details className="sc-more">
+            <summary>Delete this project</summary>
+            <p>
+              Deletes the project here and removes what it put in QuickBooks: the estimate, the files attached there, and the QuickBooks project if this platform created it. <b>The customer is never touched.</b> A job that has been invoiced cannot be deleted; archive it instead. This cannot be undone from this screen.
+            </p>
+            <label className="sc-field">
+              <span>Type DELETE to confirm</span>
+              <input value={confirmDelete} onChange={(ev) => setConfirmDelete(ev.target.value)} autoComplete="off" autoCapitalize="characters" />
+            </label>
+            <button type="button" className="sc-btn sc-btn-danger" disabled={confirmDelete.trim() !== "DELETE" || !!busy} onClick={remove}>
+              {busy === "delete" ? "Deleting..." : "Delete project"}
+            </button>
+          </details>
+        )}
+      </section>
       <section className="sc-card">
         <h2 className="sc-h2">Project settings</h2>
         <div className="sc-two">
@@ -666,26 +701,7 @@ function FilesAndHistory({ ws, onWorkspace, onPlay, onError }: { ws: WS; onWorks
             <li key={i}>{when(e.at)} · {e.kind.replace(/-/g, " ")}{e.who ? ` · ${e.who}` : ""}</li>
           ))}
         </ul>
-        <button type="button" className="sc-btn" onClick={() => archive(!ws.project.archived)}>
-          {ws.project.archived ? "Restore to active projects" : "Archive this project"}
-        </button>
-        <p className="sc-small sc-muted">Archived projects keep every file, version and estimate and stay searchable under Archived.</p>
       </section>
-      {ws.viewer.internal && (
-        <details className="sc-card sc-more">
-          <summary>Delete this project</summary>
-          <p>
-            Deletes the project here and removes what it put in QuickBooks: the estimate, the files attached there, and the QuickBooks project if this platform created it. <b>The customer is never touched.</b> A job that has been invoiced cannot be deleted; archive it instead. This cannot be undone from this screen.
-          </p>
-          <label className="sc-field">
-            <span>Type DELETE to confirm</span>
-            <input value={confirmDelete} onChange={(ev) => setConfirmDelete(ev.target.value)} autoComplete="off" autoCapitalize="characters" />
-          </label>
-          <button type="button" className="sc-btn sc-btn-danger" disabled={confirmDelete.trim() !== "DELETE" || !!busy} onClick={remove}>
-            {busy === "delete" ? "Deleting..." : "Delete project"}
-          </button>
-        </details>
-      )}
     </div>
   );
 }
