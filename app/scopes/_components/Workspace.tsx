@@ -10,8 +10,8 @@
  * so another person's change or a QuickBooks update appears on its own.
  */
 
+import ProjectActions from "./ProjectActions";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { Evidence } from "../../lib/scopes/types.ts";
@@ -226,22 +226,9 @@ export default function Workspace({ initial, initialTab }: { initial: WS; initia
   return (
     <div className="sc-ws">
       <header className="sc-ws-head">
-        <div className="sc-ws-top">
-          <Link href="/scopes" className="sc-back">
-            <span aria-hidden="true">‹</span> Projects
-          </Link>
-          <button
-            type="button"
-            className="sc-manage-link"
-            onClick={() => {
-              show("project");
-              // After the section opens, bring the archive and delete card into view.
-              setTimeout(() => document.getElementById("sc-manage")?.scrollIntoView({ block: "start" }), 350);
-            }}
-          >
-            {ws.viewer.internal ? "Archive or delete" : "Archive"}
-          </button>
-        </div>
+        <Link href="/scopes" className="sc-back">
+          <span aria-hidden="true">‹</span> Projects
+        </Link>
         <h1 className="sc-ws-title">{p.title || "New project"}</h1>
         <p className="sc-ws-sub">
           {[client, p.project_address].filter(Boolean).join(" · ") || "Client and address not set"}
@@ -302,6 +289,8 @@ export default function Workspace({ initial, initialTab }: { initial: WS; initia
           );
         })}
       </div>
+
+      <ProjectActions id={id} name={p.title || "this project"} archived={p.archived} canDelete={ws.viewer.internal} placement="page" />
 
       {(showNext || processing || player) && (
         <div className="sc-dock">
@@ -496,8 +485,6 @@ function FilesAndHistory({ ws, onWorkspace, onPlay, onError }: { ws: WS; onWorks
   const p = ws.project;
   const setError = onError;
   const [busy, setBusy] = useState<string | null>(null);
-  const router = useRouter();
-  const [confirmDelete, setConfirmDelete] = useState("");
   const [syncNotes, setSyncNotes] = useState<string[]>([]);
   const act = async (action: string, name: string) => {
     setBusy(name);
@@ -518,27 +505,9 @@ function FilesAndHistory({ ws, onWorkspace, onPlay, onError }: { ws: WS; onWorks
       setBusy(null);
     }
   };
-  const remove = async () => {
-    setBusy("delete");
-    try {
-      await api(`/api/scopes/${id}`, { method: "DELETE", json: { confirm: "DELETE" } });
-      router.push("/scopes");
-    } catch (e) {
-      setError((e as Error).message);
-      setBusy(null);
-    }
-  };
   const patch = async (fields: Record<string, string>) => {
     try {
       const { workspace } = await api<{ workspace: WS }>(`/api/scopes/${id}`, { method: "PATCH", json: fields });
-      onWorkspace(workspace);
-    } catch (e) {
-      setError((e as Error).message);
-    }
-  };
-  const archive = async (archived: boolean) => {
-    try {
-      const { workspace } = await api<{ workspace: WS }>(`/api/scopes/${id}`, { method: "PATCH", json: { archived } });
       onWorkspace(workspace);
     } catch (e) {
       setError((e as Error).message);
@@ -554,28 +523,6 @@ function FilesAndHistory({ ws, onWorkspace, onPlay, onError }: { ws: WS; onWorks
   };
   return (
     <div className="sc-files">
-      <section className="sc-card" id="sc-manage">
-        <h2 className="sc-h2">{ws.viewer.internal ? "Archive or delete" : "Archive"}</h2>
-        <button type="button" className="sc-btn" onClick={() => archive(!ws.project.archived)}>
-          {ws.project.archived ? "Restore to active projects" : "Archive this project"}
-        </button>
-        <p className="sc-small sc-muted">Archiving hides the project from the list. It keeps every file, version and estimate, changes nothing in QuickBooks, and can be undone under Show archived projects.</p>
-        {ws.viewer.internal && (
-          <details className="sc-more">
-            <summary>Delete this project</summary>
-            <p>
-              Deletes the project here and removes what it put in QuickBooks: the estimate, the files attached there, and the QuickBooks project if this platform created it. <b>The customer is never touched.</b> A job that has been invoiced cannot be deleted; archive it instead. This cannot be undone from this screen.
-            </p>
-            <label className="sc-field">
-              <span>Type DELETE to confirm</span>
-              <input value={confirmDelete} onChange={(ev) => setConfirmDelete(ev.target.value)} autoComplete="off" autoCapitalize="characters" />
-            </label>
-            <button type="button" className="sc-btn sc-btn-danger" disabled={confirmDelete.trim() !== "DELETE" || !!busy} onClick={remove}>
-              {busy === "delete" ? "Deleting..." : "Delete project"}
-            </button>
-          </details>
-        )}
-      </section>
       <section className="sc-card">
         <h2 className="sc-h2">Project settings</h2>
         <div className="sc-two">
