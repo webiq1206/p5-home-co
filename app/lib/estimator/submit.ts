@@ -48,17 +48,22 @@ function readProperty(value: unknown): PropertyFacts | null {
   const v = value as Record<string, unknown>;
   const n = (x: unknown, min: number, max: number) => (typeof x === "number" && Number.isFinite(x) && x >= min && x <= max ? x : null);
   const facts: PropertyFacts = {
-    source: text(v.source, 80) || "public property records",
+    source: text(v.source, 120) || "public property records",
+    county: text(v.county, 20) || null,
     parcel: text(v.parcel, 40) || null,
+    jurisdiction: text(v.jurisdiction, 80) || null,
+    permittingAuthority: text(v.permittingAuthority, 120) || null,
+    zoning: text(v.zoning, 20) || null,
+    subdivision: text(v.subdivision, 80) || null,
+    lotAcres: n(v.lotAcres, 0.01, 2000),
+    buildingSource: text(v.buildingSource, 120) || null,
     livingSqft: n(v.livingSqft, 200, 30_000),
     yearBuilt: n(v.yearBuilt, 1850, 2100),
-    lotAcres: n(v.lotAcres, 0.01, 2000),
     stories: n(v.stories, 1, 6),
     garageSpaces: n(v.garageSpaces, 1, 12),
-    jurisdiction: text(v.jurisdiction, 60) || null,
     confirmed: v.confirmed === true,
   };
-  return facts.livingSqft || facts.yearBuilt || facts.lotAcres ? facts : null;
+  return facts.parcel || facts.livingSqft || facts.yearBuilt || facts.lotAcres ? facts : null;
 }
 
 export type SubmitDeps = {
@@ -104,8 +109,16 @@ export async function handleSubmit(request: Request, deps: SubmitDeps = {}): Pro
   const { contact, errors } = readContact(body);
   if (!contact) return Response.json({ ok: false, errors }, { status: 422 });
 
-  if (deps.allow && !(await deps.allow(request).catch(() => false))) {
-    return Response.json({ ok: false, error: `Too many requests from this connection. Please call ${brand.phoneDisplay}.` }, { status: 429 });
+  if (deps.allow) {
+    let allowed: boolean;
+    try {
+      allowed = await deps.allow(request);
+    } catch (error) {
+      // The limiter itself failed (database down). Say so plainly instead of blaming the visitor.
+      console.error("[estimator] rate limit check failed:", (error as Error).message);
+      return Response.json({ ok: false, error: `We could not prepare your estimate just now. Please call ${brand.phoneDisplay}.` }, { status: 503 });
+    }
+    if (!allowed) return Response.json({ ok: false, error: `Too many requests from this connection. Please call ${brand.phoneDisplay}.` }, { status: 429 });
   }
   if (!deps.store && !isDatabaseConfigured()) {
     console.error("[estimator] DATABASE_URL is not configured; refusing the submission.");

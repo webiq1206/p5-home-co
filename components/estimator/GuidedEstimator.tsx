@@ -236,6 +236,9 @@ export default function GuidedEstimator({
 
   useEffect(() => {
     heading.current?.focus({ preventScroll: true });
+    // A phone scrolls the page when the keyboard opens. Each new step starts back at the top,
+    // so the whole step is in view again.
+    window.scrollTo(0, 0);
     if (embedded) {
       try {
         window.parent.postMessage({ type: "p5-estimator-step" }, "*");
@@ -338,6 +341,19 @@ export default function GuidedEstimator({
     }
   };
 
+  // An address typed by hand still gets its public record, in the background:
+  // the customer is not held up, and the record is attached unconfirmed.
+  const continueWithTypedAddress = () => {
+    const typed = address.trim();
+    if (typed.length >= 8 && !property) {
+      fetch(`/api/estimator/property?address=${encodeURIComponent(typed)}`)
+        .then((r) => r.json())
+        .then((json: { property?: PropertyFacts | null }) => setProperty((current) => current ?? json.property ?? null))
+        .catch(() => undefined);
+    }
+    forward();
+  };
+
   const confirmProperty = (correct: boolean) => {
     if (!property) return forward();
     if (correct) {
@@ -425,10 +441,10 @@ export default function GuidedEstimator({
   let primary: React.ReactNode = null;
 
   if (step.kind === "trade") {
-    title = "What kind of project?";
+    title = "What type of project are you planning?";
     body = <Cards options={trades} selected={trade ?? undefined} onPick={chooseTrade} label="Kind of project" images={imageSet} />;
   } else if (step.kind === "project") {
-    title = "Which project?";
+    title = "Which project are you planning?";
     body = (
       <Cards
         options={flows.filter((f) => f.group === trade).map((f) => ({ id: f.id, label: f.title, hint: f.blurb, image: f.image }))}
@@ -441,14 +457,17 @@ export default function GuidedEstimator({
   } else if (step.kind === "address") {
     const facts = property
       ? [
+          property.county ? `${property.county} County` : null,
+          property.jurisdiction ?? null,
           property.livingSqft ? `about ${property.livingSqft.toLocaleString("en-US")} sq ft` : null,
           property.yearBuilt ? `built in ${property.yearBuilt}` : null,
           property.stories ? `${property.stories} ${property.stories === 1 ? "story" : "stories"}` : null,
+          property.lotAcres ? `a ${property.lotAcres} acre lot` : null,
         ].filter(Boolean)
       : [];
     if (property && facts.length) {
-      title = "We found your home";
-      help = `Public records show ${facts.join(", ")}. Is that right?`;
+      title = "We found your property";
+      help = `Public records show ${facts.join(", ")}. Is this the right property?`;
       body = (
         <div className={styles.confirm}>
           <p className={styles.address}>{address}</p>
@@ -464,8 +483,8 @@ export default function GuidedEstimator({
         </div>
       );
     } else {
-      title = "Where is the project?";
-      help = "Start typing your address.";
+      title = "What is the property address?";
+      help = "Start typing and choose your address from the list.";
       body = (
         <div className={styles.field}>
           <label htmlFor="ge-address" className={styles.label}>
@@ -486,7 +505,7 @@ export default function GuidedEstimator({
             onKeyDown={(e) => {
               if (e.key === "Enter") {
                 e.preventDefault();
-                forward();
+                continueWithTypedAddress();
               }
             }}
           />
@@ -509,7 +528,7 @@ export default function GuidedEstimator({
         </div>
       );
       primary = (
-        <button type="button" className={styles.primary} onClick={forward}>
+        <button type="button" className={styles.primary} onClick={continueWithTypedAddress}>
           {address.trim() ? "Continue" : "Skip for now"}
         </button>
       );
@@ -517,7 +536,8 @@ export default function GuidedEstimator({
   } else if (step.kind === "question") {
     const q = step.question;
     title = q.prompt;
-    help = q.help;
+    // Nobody should have to guess a measurement: a best estimate is enough, and it is confirmed later.
+    help = q.kind === "number" ? [q.help, "Not sure? Your best estimate is fine. We measure before final pricing."].filter(Boolean).join(" ") : q.help;
     if (q.kind === "choice") {
       body = <Cards options={q.options} selected={answers[q.id] as string | undefined} onPick={(id) => answer(q.id, id, true)} label={q.prompt} images={imageSet} />;
     } else if (q.kind === "number") {
@@ -625,7 +645,7 @@ export default function GuidedEstimator({
       );
     }
   } else if (step.kind === "finish") {
-    title = "What level of finish?";
+    title = "Which level of finish would you like?";
     help = "This sets the quality of the materials and fixtures in your estimate.";
     body = (
       <Cards
@@ -718,6 +738,7 @@ export default function GuidedEstimator({
         </span>
       </div>
       <div key={`${flow?.id ?? "start"}-${stepName}-${property ? "p" : ""}`} className={styles.screen} data-direction={direction}>
+        {flow && step.kind !== "trade" && step.kind !== "project" ? <p className={styles.kicker}>{flow.title}</p> : null}
         <h2 ref={heading} tabIndex={-1} className={styles.title}>
           {title}
         </h2>

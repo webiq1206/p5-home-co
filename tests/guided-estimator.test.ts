@@ -20,7 +20,8 @@ import {
   qualify,
   type PricedEstimate,
 } from "../app/lib/estimator/price.ts";
-import { fromRentCast } from "../app/lib/estimator/property.ts";
+import { BANNED_WORDING, narrativeProblems } from "../app/lib/estimator/narrative.ts";
+import { fromCountyProfile, fromRentCast, mergeProperty } from "../app/lib/estimator/property.ts";
 import { buildRecipe, recipeProjects } from "../app/lib/estimator/recipes.ts";
 import type { GuidedRow } from "../app/lib/estimator/store.ts";
 import { handleSubmit } from "../app/lib/estimator/submit.ts";
@@ -105,56 +106,122 @@ test("no work is charged twice in one estimate", () => {
   }
 });
 
-test("phase, division and line totals reconcile to the cent", () => {
+test("division ranges reconcile with the total range and with the priced lines", () => {
   for (const { project, estimate } of ALL) {
     if (priceWithheld(estimate)) continue;
     const view = customerEstimate(estimate, { token: "t".repeat(40), address: null, createdAt: NOW, officialCopy: "after-review" });
-    const total = cents(view.total!);
-    assert.equal(view.phases.reduce((s, p) => s + cents(p.subtotal), 0), total, `${project}: phases do not add up`);
-    for (const phase of view.phases) {
-      assert.equal(phase.divisions.reduce((s, d) => s + cents(d.subtotal), 0), cents(phase.subtotal), `${project}: divisions do not add up`);
-      for (const division of phase.divisions) assert.equal(division.items.reduce((s, i) => s + cents(i.price), 0), cents(division.subtotal), `${project}: items do not add up`);
-    }
+    assert.ok(view.range && view.range.low > 0 && view.range.high > view.range.low, `${project}: not a range`);
+    assert.equal(view.divisions.reduce((s, d) => s + d.low, 0), view.range.low, `${project}: division lows do not add up`);
+    assert.equal(view.divisions.reduce((s, d) => s + d.high, 0), view.range.high, `${project}: division highs do not add up`);
+    // The base price the team sees always sits inside the customer's range.
+    const base = estimate.pricing.totals.basePrice;
+    assert.ok(view.range.low <= base && base <= view.range.high, `${project}: base ${base} outside ${view.range.low} to ${view.range.high}`);
+    // Every priced line is in exactly one division, and nothing else is.
+    const shown = view.divisions.flatMap((d) => d.items).length;
+    const priced = estimate.pricing.lines.filter((l) => !l.optional && l.basis !== "trip-charge").length;
+    assert.equal(shown, priced, `${project}: ${priced - shown} priced line(s) missing from the divisions`);
+    for (const d of view.divisions) assert.match(d.code, /^\d{2}$/);
     const report = internalReport(estimate);
-    assert.equal(cents(report.totalPrice), total);
-    assert.equal(report.groups.reduce((s, g) => s + cents(g.price), 0), total);
-    assert.equal(report.lines.reduce((s, l) => s + cents(l.price), 0), total);
+    assert.equal(report.groups.reduce((s, g) => s + cents(g.price), 0), cents(report.totalPrice));
+    assert.equal(report.lines.reduce((s, l) => s + cents(l.price), 0), cents(report.totalPrice));
   }
 });
 
-test("the QuickBooks estimate is the same lines, descriptions and total the customer saw", () => {
+test("the range width follows the owner's band rule and the project's real risks", () => {
+  const firm = price("handyman", { tasks: { faucet: 2 } });
+  assert.deepEqual(firm.risks, [], "a counted handyman list at a known address carries no risk flag");
+  assert.equal(firm.rangeWidth, 0.05);
+  const bath = price("bathroom-remodel", { bath: "hall", scope: "relocate" });
+  assert.ok(bath.risks.includes("hidden-conditions") && bath.risks.includes("incomplete-plans") && bath.risks.includes("unknown-utilities"));
+  assert.equal(bath.rangeWidth, 0.08, "itemized estimates never exceed the 8% book band");
+  const home = price("custom-home", {}, "mid", "construction");
+  assert.ok(home.rangeWidth >= 0.2 && home.rangeWidth <= 0.5, "a budgetary figure gets the wider band");
+  const unaddressed = priceEstimate({ brand: "p5", project: "handyman", tier: "mid", answers: { tasks: { faucet: 2 } }, address: null, property: null }, { now: NOW });
+  assert.ok(unaddressed.risks.includes("jurisdiction-uncertain"));
+  assert.ok(unaddressed.rangeWidth > firm.rangeWidth, "an unknown address widens the range");
+});
+
+test("the explanation is generated from the priced scope and never contradicts it", () => {
+  for (const { project, estimate } of ALL) {
+    if (priceWithheld(estimate)) continue;
+    const view = customerEstimate(estimate, { token: "t".repeat(40), address: "100 Example Ave, Boise, ID 83702", createdAt: NOW, officialCopy: "after-review" });
+    const priced = new Set(estimate.pricing.lines.map((l) => l.description));
+    for (const group of view.guide.included) {
+      assert.match(group.division, /^Division \d{2}: /);
+      for (const item of group.items) assert.ok(priced.has(item), `${project}: "${item}" is described as included but is not priced`);
+    }
+    const included = new Set(view.guide.included.flatMap((g) => g.items));
+    for (const text of [...view.guide.excluded, ...view.guide.undetermined]) assert.ok(!included.has(text), `${project}: "${text}" is both included and not included`);
+    for (const text of view.guide.excluded) assert.ok(!view.guide.undetermined.includes(text), `${project}: "${text}" is both excluded and undetermined`);
+    assert.ok(view.guide.overview.length >= 3 && view.guide.outcome.length >= 1 && view.guide.verification.length >= 1, `${project}: a guide section is empty`);
+    assert.equal(view.guide.disclaimer.length, 4);
+    assert.ok(view.guide.overview.some((s) => s.includes(`$${view.range!.low.toLocaleString("en-US")}`)), `${project}: the overview does not state the range`);
+    const words = JSON.stringify(view.guide);
+    assert.doesNotMatch(words, BANNED_WORDING, `${project}: unprofessional wording`);
+    assert.doesNotMatch(words, /\u2014/);
+    assert.deepEqual(estimate.review.filter((r) => r.code === "narrative"), []);
+  }
+  // A project never talks about another project's work.
+  const kitchen = customerEstimate(price("kitchen-remodel", { size: "medium", scope: "replace" }), { token: "t".repeat(40), address: null, createdAt: NOW, officialCopy: "after-review" });
+  assert.doesNotMatch(JSON.stringify(kitchen.guide), /basement|bathtub|egress/i);
+  // Plumbing that is not moved is not described as moved.
+  assert.doesNotMatch(JSON.stringify(kitchen.guide.included), /Move the kitchen plumbing/);
+});
+
+test("the narrative check catches a contradiction, a broken range and vague wording", () => {
+  const e = price("bathroom-remodel", { bath: "hall", scope: "full" });
+  const base = e.pricing.lines.filter((l) => !l.optional);
+  assert.deepEqual(narrativeProblems(e.guide, e.divisions, e.range, base), []);
+  const invented = { ...e.guide, included: [{ division: "Division 22: Plumbing", items: ["Re-pipe the whole house"] }] };
+  assert.ok(narrativeProblems(invented, e.divisions, e.range, base).some((p) => /no priced line/.test(p)));
+  assert.ok(narrativeProblems(e.guide, e.divisions, { low: e.range.low + 10, high: e.range.high }, base).some((p) => /do not add up/.test(p)));
+  const contradiction = { ...e.guide, excluded: [...e.guide.excluded, e.guide.included[0].items[0]] };
+  assert.ok(narrativeProblems(contradiction, e.divisions, e.range, base).some((p) => /both included and not included/.test(p)));
+  const vague = { ...e.guide, outcome: ["A new bathroom down there."] };
+  assert.ok(narrativeProblems(vague, e.divisions, e.range, base).some((p) => /wording/.test(p)));
+});
+
+test("every question is specific, and none uses a vague reference", () => {
+  for (const flow of FLOWS) {
+    for (const q of flow.questions) {
+      assert.match(q.prompt, /\?$/, `${flow.id}: "${q.prompt}" is not a question`);
+      assert.ok(q.prompt.split(" ").length >= 4, `${flow.id}: "${q.prompt}" is too terse to be clear`);
+      assert.doesNotMatch(`${q.prompt} ${q.help ?? ""}`, BANNED_WORDING, `${flow.id}: "${q.prompt}"`);
+      assert.doesNotMatch(q.prompt, /\b(too|with that)\?$/i, `${flow.id}: "${q.prompt}" leans on an earlier question`);
+      if (q.kind === "choice") for (const o of q.options) assert.doesNotMatch(`${o.label} ${o.hint ?? ""}`, BANNED_WORDING);
+    }
+  }
+  // Basement questions appear only in the basement project.
+  for (const flow of FLOWS) if (flow.id !== "basement-finish" && flow.id !== "custom-home") assert.doesNotMatch(JSON.stringify(flow.questions), /basement/i, `${flow.id} asks about a basement`);
+});
+
+test("the QuickBooks estimate carries the same lines and descriptions the customer saw", () => {
   const itemIds = Object.fromEntries(P5_ITEMS.map((item, i) => [item, String(100 + i)])) as Record<ItemKey, string>;
   for (const { project, estimate } of ALL) {
     if (priceWithheld(estimate)) continue;
     const view = customerEstimate(estimate, { token: "t".repeat(40), address: null, createdAt: NOW, officialCopy: "after-review" });
     const payload = buildEstimatePayload({ customerId: "1", pricing: estimate.pricing, itemIds, taxable: [], exclusions: estimate.doc.exclusions, privateNote: "test" });
-    const sales = payload.Line.filter((l) => l.DetailType === "SalesItemLineDetail");
-    const shown = view.phases.flatMap((p) => p.divisions.flatMap((d) => d.items));
-    assert.equal(sales.length, shown.length, `${project}: line count differs`);
-    assert.equal(sales.reduce((s, l) => s + cents(l.Amount!), 0), cents(view.total!), `${project}: QuickBooks total differs`);
-    sales.forEach((line, i) => {
-      assert.equal(line.Description, shown[i].text);
-      assert.equal(cents(line.Amount!), cents(shown[i].price));
-      assert.equal(line.SalesItemLineDetail!.Qty, shown[i].quantity);
+    const sales = payload.Line.filter((l) => l.DetailType === "SalesItemLineDetail" && (l.Amount ?? 0) !== 0 && !/^Trip charge/.test(l.Description));
+    const shown = new Set(view.divisions.flatMap((d) => d.items).map((i) => i.text));
+    for (const line of sales) {
+      assert.ok(shown.has(line.Description), `${project}: QuickBooks line "${line.Description}" was not shown to the customer`);
       assert.ok(line.SalesItemLineDetail!.ItemRef.value, `${project}: a line has no QuickBooks item`);
-    });
+    }
+    // The QuickBooks total is the base price, which sits inside the customer's range.
+    const total = payload.Line.reduce((s, l) => s + (l.Amount ?? 0), 0);
+    assert.ok(view.range!.low <= total + 0.01 && total - 0.01 <= view.range!.high, `${project}: QuickBooks total outside the range shown`);
   }
 });
 
 test("the customer's view cannot carry a cost, a margin or a cost code", () => {
-  const forbiddenKeys = /"(unitCost|cost|totalCost|margin|grossMargin|grossProfit|source|basis|code|costCode|item|policy|overheadRate|profitRate|unitPrice|taskId|crossCheck|review)"\s*:/;
+  const forbiddenKeys = /"(unitCost|cost|totalCost|margin|grossMargin|grossProfit|source|basis|costCode|item|policy|overheadRate|profitRate|unitPrice|price|taskId|crossCheck|review|risks|rangeWidth)"\s*:/;
   for (const { project, estimate } of ALL) {
     const view = customerEstimate(estimate, { token: "t".repeat(40), address: "100 Example Ave", createdAt: NOW, officialCopy: "after-review" });
     const json = JSON.stringify(view);
     assert.doesNotMatch(json, forbiddenKeys, `${project}: an internal field reached the customer view`);
     assert.doesNotMatch(json, /\b\d{2}-\d{2}-\d{2}\b|PB-|P5 Cost Database|overhead|markup|gross margin/i, `${project}: internal wording reached the customer view`);
-    if (!priceWithheld(estimate)) {
-      const report = internalReport(estimate);
-      // The internal cost total must not appear as a number anywhere in the view.
-      if (report.totalCost && cents(report.totalCost) !== cents(report.totalPrice)) {
-        assert.ok(!json.includes(`:${report.totalCost}`) && !json.includes(`:${report.totalCost.toFixed(2)}`), `${project}: the internal cost total is in the customer view`);
-      }
-    }
+    // No numeric check against the internal cost: a division bound rounded to $10 can equal
+    // it by coincidence. The guarantee is structural: the view has no cost field to carry one.
   }
 });
 
@@ -163,9 +230,10 @@ test("a withheld estimate shows the customer no figure at all", () => {
   assert.ok(withheld.length > 0, "the matrix should include estimates the cross-check holds back");
   for (const { estimate } of withheld) {
     const view = customerEstimate(estimate, { token: "t".repeat(40), address: null, createdAt: NOW, officialCopy: "after-review" });
-    assert.equal(view.total, null);
-    assert.deepEqual(view.phases, []);
-    assert.doesNotMatch(JSON.stringify(view), /"price":/);
+    assert.equal(view.range, null);
+    assert.deepEqual(view.divisions, []);
+    assert.deepEqual(view.guide.included, []);
+    assert.doesNotMatch(JSON.stringify(view), /"(low|high)":/);
     assert.ok(estimate.review.length > 0);
   }
 });
@@ -286,6 +354,19 @@ test("property records are read defensively and never invented", () => {
   const facts = fromRentCast([{ squareFootage: 2412, yearBuilt: 1998, lotSize: 8712, assessorID: "R1234", city: "Boise", features: { floorCount: 2, garageSpaces: 2 } }])!;
   assert.deepEqual({ sqft: facts.livingSqft, year: facts.yearBuilt, lot: facts.lotAcres, stories: facts.stories }, { sqft: 2412, year: 1998, lot: 0.2, stories: 2 });
   assert.match(facts.source, /records/);
+  // A county profile without a matched parcel is no record at all.
+  assert.equal(fromCountyProfile({ profile: { county: "ada", city: "Boise" } }), null);
+  assert.equal(fromCountyProfile({ profile: { parcelId: "R1", county: "gem" } }), null);
+  const county = fromCountyProfile({ profile: { parcelId: "R1234567890", county: "ada", jurisdiction: "City of Boise", permittingAuthority: "City of Boise Planning and Development Services", zoning: "R-1C", lotSizeAcres: 0.21, squareFootage: 2400, yearBuilt: 1999 } })!;
+  assert.deepEqual({ parcel: county.parcel, county: county.county, zoning: county.zoning, lot: county.lotAcres }, { parcel: "R1234567890", county: "Ada", zoning: "R-1C", lot: 0.21 });
+  // The parcel layer publishes nothing about the building, so nothing about the building is read from it.
+  assert.equal(county.livingSqft, undefined);
+  assert.equal(county.yearBuilt, undefined);
+  const merged = mergeProperty(county, facts)!;
+  assert.equal(merged.livingSqft, 2412);
+  assert.equal(merged.parcel, "R1234567890");
+  assert.match(merged.buildingSource ?? "", /RentCast/);
+  assert.equal(mergeProperty(null, null), null);
 });
 
 // --------------------------------------------------------------- submit route
@@ -345,7 +426,7 @@ test("submit returns only the customer's view, and a retry is the same estimate"
   const options = deps({ store: memory.store, deliver: () => void delivered++ });
   const first = await handleSubmit(submitRequest(VALID), options);
   assert.equal(first.status, 201);
-  const body = (await first.json()) as { ok: boolean; estimate: { token: string; total: number } } & Record<string, unknown>;
+  const body = (await first.json()) as { ok: boolean; estimate: { token: string } } & Record<string, unknown>;
   assert.deepEqual(Object.keys(body).sort(), ["estimate", "ok"]);
   assert.match(body.estimate.token, /^[a-f0-9]{40}$/);
   assert.doesNotMatch(JSON.stringify(body), /unitCost|"cost"|margin|\b\d{2}-\d{2}-\d{2}\b/);
@@ -361,10 +442,11 @@ test("submit returns only the customer's view, and a retry is the same estimate"
 
 test("submit ignores any price, quantity or line the browser sends", async () => {
   const memory = memoryStore();
-  const honest = (await (await handleSubmit(submitRequest(VALID), deps({ store: memoryStore().store }))).json()) as { estimate: { total: number } };
+  type Ranged = { estimate: { range: { low: number; high: number } } };
+  const honest = (await (await handleSubmit(submitRequest(VALID), deps({ store: memoryStore().store }))).json()) as Ranged;
   const forged = { ...VALID, clientKey: "ffffffff0123456789abcdef01234567", total: 1, price: 1, lines: [{ price: 1 }], estimate: { total: 1 }, answers: { ...VALID.answers, total: 1 } };
-  const result = (await (await handleSubmit(submitRequest(forged), deps({ store: memory.store }))).json()) as { estimate: { total: number } };
-  assert.equal(result.estimate.total, honest.estimate.total);
+  const result = (await (await handleSubmit(submitRequest(forged), deps({ store: memory.store }))).json()) as Ranged;
+  assert.deepEqual(result.estimate.range, honest.estimate.range);
 });
 
 test("submit refuses bad contact details, bots, unknown projects and brands that are not live", async () => {

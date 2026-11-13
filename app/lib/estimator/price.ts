@@ -19,11 +19,13 @@
 
 import type { FinancePolicy } from "../../../lib/p5/pricing.ts";
 import { COST_BOOK_SOURCE, COST_BOOK_VERSION, costBookEntry, costBookRate } from "../scopes/costbook.ts";
+import type { RiskFactor } from "../../../lib/p5/pricing.ts";
 import { defaultPhase, divisionName, groupByPhaseDivision, phaseName } from "../scopes/divisions.ts";
 import { priceScope } from "../scopes/pricing.ts";
 import { DEFAULT_SCOPE_SETTINGS, emptyScope, type EstimateLine, type PricingResult, type ScopeDoc, type ScopeSettings, type ScopeTask } from "../scopes/types.ts";
 import { brandConfig } from "./brands.ts";
 import { flowById } from "./flows.ts";
+import { buildGuide, divisionRanges, narrativeProblems, projectRisks, rangeWidth } from "./narrative.ts";
 import { HANDYMAN_MINIMUM_CODE, buildRecipe, type CrossCheck, type Recipe } from "./recipes.ts";
 import {
   CLASS_LABELS,
@@ -32,14 +34,16 @@ import {
   resolveAnswers,
   type Answers,
   type BrandId,
+  type CustomerDivision,
   type CustomerEstimate,
+  type EstimateGuide,
   type EstimateClass,
   type PropertyFacts,
   type Tier,
 } from "./types.ts";
 
 /** Bumped whenever a recipe or a qualification rule changes, and stored with every estimate. */
-export const ESTIMATOR_RULES_VERSION = "2026-11-13.1";
+export const ESTIMATOR_RULES_VERSION = "2026-11-13.2";
 
 /**
  * Gross margin floor. Owner business plan (lib/p5/pricing.ts): 20% overhead
@@ -90,6 +94,13 @@ export type PricedEstimate = {
   pricing: PricingResult;
   recipe: Pick<Recipe, "assumptions" | "exclusions">;
   crossCheck: CrossCheckResult | null;
+  /** The risks this project carries, which set the width of the range. */
+  risks: RiskFactor[];
+  rangeWidth: number;
+  /** The customer's range, its division breakdown and the words that explain it. */
+  range: { low: number; high: number };
+  divisions: CustomerDivision[];
+  guide: EstimateGuide;
   /** Empty when the estimate may go to the customer as an official estimate. */
   review: ReviewReason[];
   versions: { rules: string; costBook: string; costBookSource: string };
@@ -193,6 +204,8 @@ function compileDoc(input: PriceInput, recipe: Recipe, service: string, summary:
       p.stories ? `${p.stories} ${p.stories === 1 ? "story" : "stories"}` : null,
       p.lotAcres ? `${p.lotAcres} acre lot` : null,
       p.jurisdiction ? `jurisdiction ${p.jurisdiction}` : null,
+      p.permittingAuthority ? `permits through ${p.permittingAuthority}` : null,
+      p.zoning ? `zoning ${p.zoning}` : null,
     ].filter(Boolean);
     if (facts.length) {
       doc.siteConditions = [
@@ -280,6 +293,30 @@ export function priceEstimate(input: PriceInput, ctx: PriceContext = {}): Priced
     now: ctx.now,
   });
   const crossCheck = crossCheckResult(recipe.crossCheck, recipe, tier, flow.service);
+  const base = pricing.lines.filter((l) => !l.optional);
+  const narrative = {
+    brand,
+    project: flow.id,
+    projectTitle: flow.title,
+    service: flow.service,
+    estimateClass: flow.estimateClass,
+    answers,
+    summary,
+    tasks: doc.tasks,
+    lines: base,
+    assumptions: recipe.assumptions,
+    exclusions: recipe.exclusions,
+    address: input.address,
+    property: input.property,
+  };
+  const risks = projectRisks(narrative);
+  const width = rangeWidth(flow.estimateClass, risks);
+  const ranged = divisionRanges(base, width);
+  const range = { low: ranged.low, high: ranged.high };
+  const guide = buildGuide(narrative, ranged.divisions, range, risks);
+  const review = qualify(pricing, flow.estimateClass, crossCheck, recipe.lines.length);
+  // The words are checked against the priced scope before anyone sees them.
+  for (const problem of narrativeProblems(guide, ranged.divisions, range, base)) review.push({ code: "narrative", message: problem });
   return {
     brand: input.brand,
     project: flow.id,
@@ -294,13 +331,18 @@ export function priceEstimate(input: PriceInput, ctx: PriceContext = {}): Priced
     pricing,
     recipe: { assumptions: recipe.assumptions, exclusions: recipe.exclusions },
     crossCheck,
-    review: qualify(pricing, flow.estimateClass, crossCheck, recipe.lines.length),
+    risks,
+    rangeWidth: width,
+    range,
+    divisions: ranged.divisions,
+    guide,
+    review,
     versions: { rules: ESTIMATOR_RULES_VERSION, costBook: COST_BOOK_VERSION, costBookSource: COST_BOOK_SOURCE },
   };
 }
 
 /** Review reasons that mean the number itself cannot be trusted, so the customer is not shown one. */
-const WITHHOLD_PRICE = new Set(["missing-quantity", "unmatched-item", "missing-price", "outdated-price", "unpriced-lines", "zero-total", "margin-unknown", "margin-floor", "cross-check", "empty", "proposed-hours"]);
+const WITHHOLD_PRICE = new Set(["missing-quantity", "unmatched-item", "missing-price", "outdated-price", "unpriced-lines", "zero-total", "margin-unknown", "margin-floor", "cross-check", "empty", "proposed-hours", "narrative"]);
 
 export function priceWithheld(estimate: PricedEstimate): boolean {
   return estimate.review.some((r) => WITHHOLD_PRICE.has(r.code));
@@ -321,45 +363,47 @@ export function customerEstimate(
   const brand = brandConfig(estimate.brand)!;
   const withheld = priceWithheld(estimate);
   const klass = CLASS_LABELS[estimate.estimateClass];
-  const phases = withheld
+  const divisions: CustomerDivision[] = withheld
     ? []
-    : groupByPhaseDivision(baseLines(estimate.pricing)).map((group) => {
-        const divisions = group.divisions.map((d) => ({
-          name: divisionName(d.code),
-          subtotal: round2(d.items.reduce((s, l) => s + l.price, 0)),
-          items: d.items.map((l) => ({ text: l.description, quantity: l.quantity, unit: l.unit, price: l.price, allowance: l.allowance })),
-        }));
-        return { name: phaseName(group.phase), subtotal: round2(divisions.reduce((s, d) => s + d.subtotal, 0)), divisions };
-      });
-  const allowanceCount = withheld ? 0 : baseLines(estimate.pricing).filter((l) => l.allowance).length;
-  const assumptions = [...estimate.recipe.assumptions];
-  if (allowanceCount) {
-    assumptions.push(
-      `${allowanceCount} ${allowanceCount === 1 ? "item is an allowance" : "items are allowances"} for products you will choose. If your selections cost more or less, the price moves with them.`,
-    );
-  }
+    : estimate.divisions.map((d) => ({
+        code: d.code,
+        name: d.name,
+        low: d.low,
+        high: d.high,
+        items: d.items.map((i) => ({ text: i.text, quantity: i.quantity, unit: i.unit, allowance: i.allowance })),
+      }));
+  const g = estimate.guide;
+  const guide: EstimateGuide = withheld
+    ? { ...emptyGuide(), overview: ["Our team is reviewing this project so the range we give you is one we can stand behind."], disclaimer: [...g.disclaimer] }
+    : {
+        overview: [...g.overview],
+        included: g.included.map((x) => ({ division: x.division, items: [...x.items] })),
+        outcome: [...g.outcome],
+        assumptions: [...g.assumptions],
+        excluded: [...g.excluded],
+        undetermined: [...g.undetermined],
+        verification: [...g.verification],
+        costDrivers: [...g.costDrivers],
+        disclaimer: [...g.disclaimer],
+      };
   const nextSteps = withheld
-    ? ["Our team is reviewing your project so the number we give you is one we can stand behind.", `We will reach out shortly. You can also call ${brand.phoneDisplay}.`]
-    : estimate.estimateClass === "quote"
+    ? ["Our team reviews your project.", `We contact you with your estimate. You can also call ${brand.phoneDisplay}.`]
+    : estimate.estimateClass === "budgetary"
       ? [
-          meta.officialCopy === "sending" ? "Your official estimate is on its way to your inbox. You can approve it there." : "We will send your official estimate once the team has confirmed it.",
-          "Once you approve, we schedule the work.",
+          "A project lead contacts you to talk through your goals, site and timeline.",
+          "We visit the property and confirm the scope.",
+          "Preconstruction turns this budget into drawings, selections and a detailed proposal.",
           `Questions? Call or text ${brand.phoneDisplay}.`,
         ]
-      : estimate.estimateClass === "preliminary"
-        ? [
-            meta.officialCopy === "sending" ? "Your official estimate is on its way to your inbox." : "We will send your official estimate once the team has confirmed it.",
-            "We visit to confirm measurements, conditions and your selections.",
-            "You receive a fixed price before any work starts.",
-            `Questions? Call or text ${brand.phoneDisplay}.`,
-          ]
-        : [
-            "A project lead will contact you to talk through your goals, site and timeline.",
-            "Preconstruction turns this budget into drawings, selections and a detailed price.",
-            `Questions? Call or text ${brand.phoneDisplay}.`,
-          ];
+      : [
+          "We contact you to talk through the project and answer questions.",
+          "We visit to confirm measurements, existing conditions and your selections.",
+          "You receive a detailed written proposal with a final price before any work starts.",
+          `Questions? Call or text ${brand.phoneDisplay}.`,
+        ];
   return {
     token: meta.token,
+    estimateNumber: `P5-${meta.token.slice(0, 8).toUpperCase()}`,
     brandName: brand.name,
     projectName: estimate.projectTitle,
     address: meta.address,
@@ -367,14 +411,19 @@ export function customerEstimate(
     estimateClass: estimate.estimateClass,
     classLabel: klass.label,
     classStatement: klass.statement,
-    total: withheld ? null : estimate.pricing.totals.basePrice,
-    phases,
-    assumptions,
-    exclusions: estimate.recipe.exclusions,
+    range: withheld ? null : { low: estimate.range.low, high: estimate.range.high },
+    divisions,
+    guide,
+    assumptions: guide.assumptions,
+    exclusions: guide.excluded,
     nextSteps,
     officialCopy: meta.officialCopy,
     createdAt: meta.createdAt.toISOString(),
   };
+}
+
+function emptyGuide(): EstimateGuide {
+  return { overview: [], included: [], outcome: [], assumptions: [], excluded: [], undetermined: [], verification: [], costDrivers: [], disclaimer: [] };
 }
 
 // ---------------------------------------------------------------------------
@@ -396,6 +445,8 @@ export type InternalReport = {
   grossMargin: number | null;
   policy: PricingResult["policy"];
   adjustments: string[];
+  /** What the customer was shown, and why the range is as wide as it is. */
+  range: { low: number; high: number; width: number; risks: string[] };
 };
 
 export function internalReport(estimate: PricedEstimate): InternalReport {
@@ -440,5 +491,6 @@ export function internalReport(estimate: PricedEstimate): InternalReport {
     grossMargin: estimate.pricing.totals.margin,
     policy: estimate.pricing.policy,
     adjustments,
+    range: { low: estimate.range.low, high: estimate.range.high, width: estimate.rangeWidth, risks: estimate.risks },
   };
 }

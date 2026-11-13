@@ -14,7 +14,7 @@ export async function GET(request: Request): Promise<Response> {
   const address = new URL(request.url).searchParams.get("address") ?? "";
   if (!isPropertyLookupConfigured() || address.trim().length < 8) return Response.json({ ok: true, property: null });
   try {
-    if (!(await allowIntakeRequest(request, new Date(), { name: "estimator-property", max: 20 }))) return Response.json({ ok: true, property: null });
+    if (!(await allowIntakeRequest(request, new Date(), { name: "estimator-property", max: 30 }))) return Response.json({ ok: true, property: null });
     return Response.json({ ok: true, property: await lookupProperty(address) });
   } catch {
     return Response.json({ ok: true, property: null });

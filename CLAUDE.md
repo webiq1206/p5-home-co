@@ -41,6 +41,10 @@ One customer estimator for every brand, built on the scope platform. Code: `app/
 * It has no pricing of its own. Selections become a scope document and `priceScope()` prices it from the cost book. Never put a dollar figure in `recipes.ts`; a test fails if one appears.
 * The customer view is built by `customerEstimate()` and must never gain a cost, margin or cost code field.
 * Brand sites frame `/estimator/embed?brand=<id>`; they do not copy the code.
-* Owner switches, all off by default: `ESTIMATOR_QBO` (`create` or `send`) writes customers and estimates to QuickBooks; `ESTIMATOR_ADDRESS_AUTOCOMPLETE=on` enables public address suggestions (paid Google quota); `RENTCAST_API_KEY` enables property records (adapter not yet run against the live service).
+* The customer sees a preliminary range, never one fixed price. The width is the owner's band rule in `lib/p5/pricing.ts` applied to the project's real risks (`narrative.ts`); division ranges always add up to the total.
+* Everything under "Understanding your estimate" is generated in `narrative.ts` from the priced scope and checked against it (`narrativeProblems`). Do not add freehand paragraphs. Work nobody has looked at yet is "not yet determined", not "excluded".
+* Address suggestions use the Google key when one is set. Property lookup: county parcel record through boiseremodeling.co's lookup (parcel, jurisdiction, zoning, lot; nothing about the building), building facts only from `RENTCAST_API_KEY` (adapter not yet run against the live service). `ESTIMATOR_PROPERTY_LOOKUP=off` disables both.
+* `ESTIMATOR_QBO` (`create` or `send`) writes customers and estimates to QuickBooks and is off by default. QuickBooks needs one figure, so it gets the base price the range is built on.
+* Budgetary projects are priced from one whole-project cost book rate, so they show a single division. Splitting them by division needs owner-approved splits or itemized recipes; do not invent the split.
 * Recipes (typical dimensions and inclusions) are estimating rules awaiting owner sign-off. Bump `ESTIMATOR_RULES_VERSION` when one changes.
 * Boise ADU Co stays `live: false` in `brands.ts` until its site exists.
