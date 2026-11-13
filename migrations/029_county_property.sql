@@ -23,3 +23,12 @@ CREATE TABLE IF NOT EXISTS county_property_load (
   loaded_at    TIMESTAMPTZ,
   error        TEXT
 );
+
+-- One row per lookup sent to an outside property service, so the free monthly
+-- allowance is never exceeded.
+CREATE TABLE IF NOT EXISTS property_lookup_log (
+  id            BIGSERIAL PRIMARY KEY,
+  source        TEXT NOT NULL,
+  looked_up_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS property_lookup_log_idx ON property_lookup_log (source, looked_up_at);

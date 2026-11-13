@@ -2,7 +2,9 @@
  * The public property record for a project's address. Server only.
  *
  * The record comes from the county assessor's own free public data (see
- * ./county), which the platform keeps a copy of. No paid service and no key.
+ * ./county), which the platform keeps a copy of: free, unlimited, no key.
+ * Only when the county has nothing, and only if a RentCast key is set, the
+ * address is asked of RentCast within its free monthly allowance.
  *
  * What a public record holds is whole-house: floor areas by level, bedrooms,
  * bathrooms, year built, garage, deck, patio, lot. It never holds the size of
@@ -11,6 +13,7 @@
  */
 
 import { anyCountyLoaded, lookupCountyProperty, refreshStaleCounties } from "./county/index.ts";
+import { lookupRentCast, rentCastLimit } from "./rentcast.ts";
 import { setProjectProperty, type ProjectRow, type PropertyRecord } from "./store.ts";
 
 const key = (address: string | null) => (address ?? "").toLowerCase().replace(/\s+/g, " ").trim();
@@ -26,8 +29,15 @@ export async function ensureProperty(p: ProjectRow, opts: { force?: boolean; loa
   if (address.length < 8) return false;
   if (!opts.force && p.property_checked_for === address) return false;
   if (opts.load) await refreshStaleCounties();
-  if (!(await anyCountyLoaded())) return false;
-  const record = await lookupCountyProperty(p.project_address!);
+  const loaded = await anyCountyLoaded();
+  if (!loaded && !rentCastLimit()) return false;
+  let record = loaded ? await lookupCountyProperty(p.project_address!) : null;
+  if (!record) {
+    const fallback = await lookupRentCast(p.project_address!);
+    record = fallback.record;
+    // Not asked (no key, or this month's free lookups are used) and no county loaded: leave it to be tried again.
+    if (!fallback.asked && !loaded) return false;
+  }
   await setProjectProperty(p.id, record, address);
   return true;
 }

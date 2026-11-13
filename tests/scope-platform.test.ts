@@ -834,6 +834,20 @@ test("Valley County's fixture counts become bathrooms and its basement splits in
   assert.ok(!("garageSqft" in r), "a blank field is not a zero");
 });
 
+test("the RentCast fallback is off without a key and capped inside the free allowance", async () => {
+  const { fromRentCast, rentCastLimit } = await import("../app/lib/scopes/rentcast.ts");
+  assert.equal(rentCastLimit({}), 0);
+  assert.equal(rentCastLimit({ RENTCAST_API_KEY: "k" }), 45, "under the 50 free requests a month");
+  assert.equal(rentCastLimit({ RENTCAST_API_KEY: "k", RENTCAST_MONTHLY_LIMIT: "10" }), 10);
+  const r = fromRentCast([{ squareFootage: 1850, bedrooms: 3, bathrooms: 2.5, yearBuilt: 1998, lotSize: 7405, propertyType: "Single Family", assessorID: "R123", features: { floorCount: 2, heatingType: "Forced Air", fireplace: true } }], new Date("2026-11-13T00:00:00Z"))!;
+  assert.equal(r.livingSqft, 1850);
+  assert.equal(r.design, "2 stories");
+  assert.equal(r.fireplaces, 1);
+  assert.equal(r.roof, null, "a field the record does not hold stays empty");
+  assert.equal(fromRentCast([]), null);
+  assert.equal(fromRentCast({ squareFootage: 5, yearBuilt: 12 }), null, "implausible values are not a record");
+});
+
 test("a typed or autocompleted address matches the county's street line", async () => {
   const { streetAddress } = await import("../app/lib/scopes/county/address.ts");
   const { pickByCity } = await import("../app/lib/scopes/county/index.ts");

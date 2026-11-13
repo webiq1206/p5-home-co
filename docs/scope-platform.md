@@ -303,7 +303,11 @@ business use (not for resale, redistribution or mailing lists). Valley County
 publishes its parcels and improvement records as a free public map service.
 Owner names are never requested or stored. Canyon, Gem and Adams counties do
 not publish building records in a form a program can read without a login or a
-CAPTCHA, so addresses there have no record until the county supplies a file. The project address is matched to its parcel
+CAPTCHA. For those addresses only, and only when `RENTCAST_API_KEY` is set,
+the address is asked of RentCast (`app/lib/scopes/rentcast.ts`). Each request
+is counted in `property_lookup_log` and lookups stop for the month at
+`RENTCAST_MONTHLY_LIMIT` (default 45, under RentCast's 50 free requests), so
+the fallback cannot produce a charge. County data is always tried first. The project address is matched to its parcel
 by street address, and a doubtful match is treated as no match. The record
 kept on the project holds finished area, floor areas by level, bedrooms,
 bathrooms, year built and remodeled, garage, porch, deck, patio, lot, zoning
@@ -347,6 +351,7 @@ PDF are served inline; anything else downloads as a plain file.
 | `SCOPE_MODEL` | Optional, default `gpt-4.1`. |
 | `SCOPE_TRANSCRIBE_MODEL` | Optional, default `whisper-1`. |
 | QuickBooks | The existing Finance connection (`QBO_*`). |
+| `RENTCAST_API_KEY` | Optional. Fallback property lookups for counties with no public building data, capped at `RENTCAST_MONTHLY_LIMIT` a month (default 45, inside the free plan). |
 | `HUBSPOT_TOKEN` | Already used by the lead pipeline. Copying files also needs the Files and CRM notes permissions on that private app. |
 | `GOOGLE_MAPS_API_KEY` | Replit Secrets. Turns on address suggestions (Google "Places API (New)"). Read on the server only; without it the address fields are plain text boxes. If the key is restricted to websites, `p5homeco.com` must be an allowed site: the server sends that address with each request (`GOOGLE_MAPS_REFERER` overrides it). |
 
