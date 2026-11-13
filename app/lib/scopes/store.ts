@@ -23,6 +23,14 @@ export type PropertyRecord = {
   propertyType?: string | null;
   design?: string | null;
   quality?: string | null;
+  condition?: string | null;
+  foundation?: string | null;
+  framing?: string | null;
+  exterior?: string | null;
+  roof?: string | null;
+  rooms?: number | null;
+  carportSqft?: number | null;
+  utilities?: string | null;
   groundFloorSqft?: number | null;
   upperFloorSqft?: number | null;
   lowerFinishedSqft?: number | null;

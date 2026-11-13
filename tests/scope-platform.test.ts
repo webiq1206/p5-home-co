@@ -822,12 +822,25 @@ test("a county building row becomes a property record with only what the county 
   assert.match(propertyForPrompt({ ...r, lookedUpAt: "2026-11-13T00:00:00Z" }), /Ada County Assessor public records; public record, not verified on site/);
 });
 
+test("Valley County's fixture counts become bathrooms and its basement splits into finished and unfinished", async () => {
+  const { valleyBuilding } = await import("../app/lib/scopes/county/valley.ts");
+  const r = valleyBuilding({ FinSize: "1539", YrBuilt: "1994", Stories: "2", NumBdRms: "3", Num2Baths: "1", Num3Baths: "2", Num4Baths: "0", Num5Baths: "0", BsmtArea: "996", BsmtFin: "400", BldgType: "Class_6 GOOD TO VERY GOOD", UseDesc: "Single family - Owner", CentrlAC: "N", MasonFP: "Y", DeckSF: "556", AttGarSF: "   ", Foundat: "Full Bsmt " });
+  assert.equal(r.bathrooms, 2.5);
+  assert.equal(r.basementFinishedSqft, 400);
+  assert.equal(r.basementUnfinishedSqft, 596);
+  assert.equal(r.quality, "Good to very good");
+  assert.equal(r.propertyType, "Single family");
+  assert.equal(r.foundation, "Full Bsmt");
+  assert.ok(!("garageSqft" in r), "a blank field is not a zero");
+});
+
 test("a typed or autocompleted address matches the county's street line", async () => {
   const { streetAddress } = await import("../app/lib/scopes/county/address.ts");
   const { pickByCity } = await import("../app/lib/scopes/county/index.ts");
   assert.deepEqual(streetAddress("745 West Allspice Street, Kuna, ID 83634, USA"), { key: "745 W ALLSPICE ST", number: "745", name: "ALLSPICE", city: "KUNA" });
   assert.equal(streetAddress("2298 N. Mountain Ash Avenue Unit 4, Kuna")!.key, "2298 N MOUNTAIN ASH AVE");
   assert.equal(streetAddress("2801 Northwest 15th St, Meridian, Idaho")!.key, "2801 NW 15TH ST");
+  assert.equal(streetAddress("33 SILVER FOX TR, MCCALL")!.key, streetAddress("33 Silver Fox Trail, McCall, ID")!.key);
   assert.equal(streetAddress("Allspice Street, Kuna"), null, "no house number, no match");
   const hits = [{ city: "BOISE", id: 1 }, { city: "EAGLE", id: 2 }];
   assert.equal(pickByCity(hits, "EAGLE")!.id, 2);

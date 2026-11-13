@@ -11,11 +11,16 @@ import { query, queryOne } from "../../db.ts";
 import type { PropertyRecord } from "../store.ts";
 import { loadAda, type CountyRow } from "./ada.ts";
 import { streetAddress } from "./address.ts";
+import { loadValley } from "./valley.ts";
 
-type County = { id: string; name: string; load: () => Promise<{ rows: CountyRow[]; sourceDate: string | null }> };
+/** `minimum` is the fewest homes a healthy file holds; a smaller load is treated as a broken download. */
+type County = { id: string; name: string; minimum: number; load: () => Promise<{ rows: CountyRow[]; sourceDate: string | null }> };
 
 /** Counties with a free public source of building records. Add a county by adding a loader. */
-export const COUNTIES: County[] = [{ id: "ada", name: "Ada County", load: loadAda }];
+export const COUNTIES: County[] = [
+  { id: "ada", name: "Ada County", load: loadAda, minimum: 50_000 },
+  { id: "valley", name: "Valley County", load: loadValley, minimum: 3_000 },
+];
 
 const STALE_MS = 20 * 24 * 60 * 60 * 1000;
 const LOAD_TIMEOUT_MS = 10 * 60 * 1000;
@@ -55,8 +60,8 @@ export async function storeCounty(county: string, rows: CountyRow[], sourceDate:
       [county, batch.map((r) => r.parcel), batch.map((r) => r.addressKey), batch.map((r) => r.streetNo), batch.map((r) => r.streetName), batch.map((r) => r.city), batch.map((r) => JSON.stringify(r.record)), startedAt],
     );
   }
-  // Only clear old rows after a load that plainly worked, never after an empty or cut-off file.
-  if (rows.length > 1000) await query("DELETE FROM county_property WHERE county = $1 AND loaded_at < $2", [county, startedAt]);
+  // The caller has already refused an empty or cut-off file, so what was not in this load is gone from the county's.
+  await query("DELETE FROM county_property WHERE county = $1 AND loaded_at < $2", [county, startedAt]);
   await query("UPDATE county_property_load SET homes = $2, source_date = $3, loaded_at = now(), error = NULL WHERE county = $1", [county, rows.length, sourceDate]);
   return rows.length;
 }
@@ -79,7 +84,7 @@ export async function refreshCounty(id: string): Promise<boolean> {
   if (!claimed) return false;
   try {
     const { rows, sourceDate } = await county.load();
-    if (rows.length < 1000) throw new Error(`${county.name}'s data file held only ${rows.length} homes, so the existing records were kept.`);
+    if (rows.length < county.minimum) throw new Error(`${county.name}'s data held only ${rows.length} homes, so the existing records were kept.`);
     await storeCounty(id, rows, sourceDate, startedAt);
     return true;
   } catch (error) {

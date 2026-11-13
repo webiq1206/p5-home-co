@@ -299,8 +299,11 @@ service and no key. The platform keeps a copy of each county's residential
 records in `county_property` (`app/lib/scopes/county`), loads a county the
 first time it is needed and reloads it when the copy is over twenty days old.
 Ada County publishes two free files, refreshed twice a month, for personal and
-business use (not for resale, redistribution or mailing lists); owner names are
-not in them and are never stored. The project address is matched to its parcel
+business use (not for resale, redistribution or mailing lists). Valley County
+publishes its parcels and improvement records as a free public map service.
+Owner names are never requested or stored. Canyon, Gem and Adams counties do
+not publish building records in a form a program can read without a login or a
+CAPTCHA, so addresses there have no record until the county supplies a file. The project address is matched to its parcel
 by street address, and a doubtful match is treated as no match. The record
 kept on the project holds finished area, floor areas by level, bedrooms,
 bathrooms, year built and remodeled, garage, porch, deck, patio, lot, zoning
