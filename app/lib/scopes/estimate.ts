@@ -59,9 +59,12 @@ export function buildEstimatePayload(input: {
   const optional = input.pricing.lines.filter((l) => l.optional);
   const Line: QboLine[] = [];
   for (const group of groupByPhaseDivision(base)) {
-    Line.push({ DetailType: "DescriptionOnly", Description: phaseName(group.phase), DescriptionLineDetail: {} });
+    // Headings are capitals so the breaks are easy to scan. QuickBooks stores
+    // plain text only, so bold is not available, and it decides on its own how a
+    // text-only row prints (its current layout shows a quantity and $0.00).
+    Line.push({ DetailType: "DescriptionOnly", Description: phaseName(group.phase).toUpperCase(), DescriptionLineDetail: {} });
     for (const div of group.divisions) {
-      Line.push({ DetailType: "DescriptionOnly", Description: `Division ${divisionLabel(div.code)}`, DescriptionLineDetail: {} });
+      Line.push({ DetailType: "DescriptionOnly", Description: `Division ${divisionLabel(div.code)}`.toUpperCase(), DescriptionLineDetail: {} });
       for (const l of div.items) Line.push(salesLine(l, input.itemIds, input.taxable));
     }
   }

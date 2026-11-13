@@ -317,9 +317,9 @@ test("estimate payload groups by phase and division and excludes optional lines 
     privateNote: "scope 1",
   });
   const descriptions = payload.Line.map((l) => l.Description);
-  assert.equal(descriptions[0], "Phase 1: Pre-Construction");
-  assert.ok(descriptions.includes("Phase 2: Construction"));
-  assert.ok(descriptions.includes("Division 06 Wood & Carpentry"));
+  assert.equal(descriptions[0], "PHASE 1: PRE-CONSTRUCTION");
+  assert.ok(descriptions.includes("PHASE 2: CONSTRUCTION"));
+  assert.ok(descriptions.includes("DIVISION 06 WOOD & CARPENTRY"));
   const sales = payload.Line.filter((l) => l.DetailType === "SalesItemLineDetail");
   assert.equal(sales.length, 2);
   assert.equal(round2(sales.reduce((s, l) => s + (l.Amount ?? 0), 0)), pricing.totals.basePrice);
