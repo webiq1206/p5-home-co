@@ -49,7 +49,7 @@ export const FLOWS: ProjectFlow[] = [
   // ------------------------------------------------------------------ remodel
   {
     id: "kitchen-remodel",
-    group: "Remodeling",
+    group: "remodel",
     title: "Kitchen remodel",
     blurb: "Cabinets, counters, backsplash, plumbing and lighting",
     image: "project-kitchen",
@@ -71,7 +71,7 @@ export const FLOWS: ProjectFlow[] = [
       {
         id: "scope",
         kind: "choice",
-        prompt: "How far are you taking it?",
+        prompt: "What is the scope of your kitchen remodel?",
         default: "replace",
         options: [
           { id: "refresh", label: "Refresh", hint: "Paint the cabinets, new counters, backsplash and hardware", image: "kitchen-refresh" },
@@ -82,7 +82,7 @@ export const FLOWS: ProjectFlow[] = [
       {
         id: "island",
         kind: "choice",
-        prompt: "Adding an island?",
+        prompt: "Will your kitchen remodel include a new island?",
         default: "no",
         showIf: [{ q: "scope", notIn: ["refresh"] }],
         options: [
@@ -93,7 +93,7 @@ export const FLOWS: ProjectFlow[] = [
       {
         id: "counter",
         kind: "choice",
-        prompt: "Which countertop?",
+        prompt: "Which countertop material would you like?",
         default: "quartz",
         options: [
           { id: "quartz", label: "Quartz", hint: "Low maintenance, the most popular choice", image: "counter-quartz" },
@@ -105,7 +105,7 @@ export const FLOWS: ProjectFlow[] = [
       {
         id: "floor",
         kind: "choice",
-        prompt: "New flooring too?",
+        prompt: "Will the project include new kitchen flooring?",
         default: "keep",
         options: [
           { id: "keep", label: "Keep my floor", image: "floor-keep" },
@@ -117,7 +117,7 @@ export const FLOWS: ProjectFlow[] = [
       {
         id: "appliances",
         kind: "choice",
-        prompt: "What about appliances?",
+        prompt: "How should the appliances be handled?",
         default: "own",
         options: [
           { id: "own", label: "Keeping mine or buying my own", hint: "We still disconnect and reinstall them", image: "appliances-own" },
@@ -128,7 +128,7 @@ export const FLOWS: ProjectFlow[] = [
   },
   {
     id: "bathroom-remodel",
-    group: "Remodeling",
+    group: "remodel",
     title: "Bathroom remodel",
     blurb: "Shower or tub, tile, vanity, fixtures and lighting",
     image: "project-bathroom",
@@ -139,7 +139,7 @@ export const FLOWS: ProjectFlow[] = [
       {
         id: "bath",
         kind: "choice",
-        prompt: "Which bathroom?",
+        prompt: "Which bathroom are you remodeling?",
         default: "hall",
         options: [
           { id: "powder", label: "Powder room", hint: "Toilet and sink, about 4 x 5 ft", image: "bath-powder" },
@@ -150,7 +150,7 @@ export const FLOWS: ProjectFlow[] = [
       {
         id: "scope",
         kind: "choice",
-        prompt: "How far are you taking it?",
+        prompt: "What is the scope of your bathroom remodel?",
         default: "full",
         options: [
           { id: "refresh", label: "Refresh", hint: "New vanity, toilet, fixtures, lighting and paint", image: "bath-refresh" },
@@ -161,7 +161,7 @@ export const FLOWS: ProjectFlow[] = [
       {
         id: "bathing",
         kind: "choice",
-        prompt: "Tub or shower?",
+        prompt: "Which tub or shower would you like?",
         default: "combo",
         showIf: [
           { q: "bath", notIn: ["powder"] },
@@ -177,7 +177,7 @@ export const FLOWS: ProjectFlow[] = [
       {
         id: "vanity",
         kind: "choice",
-        prompt: "One sink or two?",
+        prompt: "Should the vanity have one sink or two?",
         default: "single",
         showIf: [{ q: "bath", notIn: ["powder"] }],
         options: [
@@ -189,7 +189,7 @@ export const FLOWS: ProjectFlow[] = [
   },
   {
     id: "basement-finish",
-    group: "Remodeling",
+    group: "remodel",
     title: "Basement finishing",
     blurb: "Turn an unfinished basement into living space",
     image: "project-basement",
@@ -200,7 +200,7 @@ export const FLOWS: ProjectFlow[] = [
       {
         id: "sqft",
         kind: "number",
-        prompt: "How much space are you finishing?",
+        prompt: "How many square feet of basement are you finishing?",
         unit: "sq ft",
         min: 200,
         max: 3000,
@@ -211,17 +211,17 @@ export const FLOWS: ProjectFlow[] = [
       {
         id: "bath",
         kind: "choice",
-        prompt: "Adding a bathroom down there?",
+        prompt: "Will your basement finishing project include a new bathroom?",
         default: "no",
         options: [
           { id: "no", label: "No bathroom", image: "basement-nobath" },
-          { id: "yes", label: "Add a bathroom", hint: "Includes the pump that sends waste up to the sewer line", image: "basement-bath" },
+          { id: "yes", label: "Add a bathroom", hint: "Includes the sewage ejector pump a basement bathroom needs", image: "basement-bath" },
         ],
       },
       {
         id: "bar",
         kind: "choice",
-        prompt: "Adding a bar?",
+        prompt: "Will your basement finishing project include a bar?",
         default: "no",
         options: [
           { id: "no", label: "No bar", image: "basement-nobar" },
@@ -232,7 +232,7 @@ export const FLOWS: ProjectFlow[] = [
   },
   {
     id: "whole-home",
-    group: "Remodeling",
+    group: "remodel",
     title: "Whole-home renovation",
     blurb: "Renovate the whole house in one project",
     image: "project-whole-home",
@@ -243,8 +243,8 @@ export const FLOWS: ProjectFlow[] = [
       {
         id: "sqft",
         kind: "number",
-        prompt: "How big is the home?",
-        help: "Finished living area being renovated.",
+        prompt: "How many square feet of the home are being renovated?",
+        help: "Finished living area included in the renovation.",
         unit: "sq ft",
         min: 600,
         max: 8000,
@@ -257,7 +257,7 @@ export const FLOWS: ProjectFlow[] = [
   },
   {
     id: "flooring",
-    group: "Remodeling",
+    group: "remodel",
     title: "New flooring",
     blurb: "Vinyl plank, hardwood, carpet or tile, installed",
     image: "project-flooring",
@@ -268,7 +268,7 @@ export const FLOWS: ProjectFlow[] = [
       {
         id: "material",
         kind: "choice",
-        prompt: "Which flooring?",
+        prompt: "Which flooring would you like installed?",
         default: "lvp",
         options: [
           { id: "lvp", label: "Luxury vinyl plank", hint: "Waterproof and durable", image: "floor-lvp" },
@@ -281,7 +281,7 @@ export const FLOWS: ProjectFlow[] = [
       {
         id: "sqft",
         kind: "number",
-        prompt: "How much floor?",
+        prompt: "How many square feet of flooring do you need?",
         help: "A bedroom is about 150 sq ft. A main floor is often 800 to 1,200.",
         unit: "sq ft",
         min: 50,
@@ -293,7 +293,7 @@ export const FLOWS: ProjectFlow[] = [
       {
         id: "existing",
         kind: "choice",
-        prompt: "What is on the floor now?",
+        prompt: "What flooring is in place now?",
         default: "carpet",
         options: [
           { id: "carpet", label: "Carpet", image: "existing-carpet" },
@@ -306,7 +306,7 @@ export const FLOWS: ProjectFlow[] = [
       {
         id: "baseboard",
         kind: "choice",
-        prompt: "New baseboards?",
+        prompt: "Should we install new baseboards?",
         default: "keep",
         options: [
           { id: "keep", label: "Keep my baseboards", image: "baseboard-keep" },
@@ -317,7 +317,7 @@ export const FLOWS: ProjectFlow[] = [
   },
   {
     id: "interior-paint",
-    group: "Remodeling",
+    group: "remodel",
     title: "Interior painting",
     blurb: "Rooms painted by a professional crew",
     image: "project-paint",
@@ -328,7 +328,7 @@ export const FLOWS: ProjectFlow[] = [
       {
         id: "rooms",
         kind: "number",
-        prompt: "How many rooms?",
+        prompt: "How many rooms need painting?",
         help: "Count each bedroom, bath, living area and hallway as one room.",
         unit: "rooms",
         min: 1,
@@ -340,7 +340,7 @@ export const FLOWS: ProjectFlow[] = [
       {
         id: "ceilings",
         kind: "choice",
-        prompt: "Ceilings too?",
+        prompt: "Should the ceilings be painted as well?",
         default: "no",
         options: [
           { id: "no", label: "Walls only", image: "paint-walls" },
@@ -350,7 +350,7 @@ export const FLOWS: ProjectFlow[] = [
       {
         id: "trim",
         kind: "choice",
-        prompt: "Trim and baseboards?",
+        prompt: "Should the trim and baseboards be painted?",
         default: "no",
         options: [
           { id: "no", label: "Leave the trim", image: "paint-notrim" },
@@ -362,7 +362,7 @@ export const FLOWS: ProjectFlow[] = [
   // ----------------------------------------------------------------- cabinets
   {
     id: "kitchen-cabinets",
-    group: "Cabinets",
+    group: "cabinetry",
     title: "Kitchen cabinets",
     blurb: "New cabinets designed, built and installed",
     image: "project-cabinets",
@@ -384,7 +384,7 @@ export const FLOWS: ProjectFlow[] = [
       {
         id: "uppers",
         kind: "choice",
-        prompt: "Which upper cabinets?",
+        prompt: "How tall should the upper cabinets be?",
         default: "standard",
         options: [
           { id: "standard", label: "Standard uppers", hint: "30 to 36 inches tall", image: "uppers-standard" },
@@ -394,7 +394,7 @@ export const FLOWS: ProjectFlow[] = [
       {
         id: "island",
         kind: "choice",
-        prompt: "An island?",
+        prompt: "Will the project include island cabinets?",
         default: "no",
         options: [
           { id: "no", label: "No island", image: "island-none" },
@@ -404,7 +404,7 @@ export const FLOWS: ProjectFlow[] = [
       {
         id: "counter",
         kind: "choice",
-        prompt: "Countertops with that?",
+        prompt: "Should the estimate include countertops?",
         default: "none",
         options: [
           { id: "none", label: "Cabinets only", image: "counter-none" },
@@ -417,7 +417,7 @@ export const FLOWS: ProjectFlow[] = [
       {
         id: "removal",
         kind: "choice",
-        prompt: "Should we remove the old cabinets?",
+        prompt: "Should we remove the existing cabinets?",
         default: "yes",
         options: [
           { id: "yes", label: "Yes, remove and haul away", image: "removal-yes" },
@@ -428,7 +428,7 @@ export const FLOWS: ProjectFlow[] = [
   },
   {
     id: "bathroom-vanity",
-    group: "Cabinets",
+    group: "cabinetry",
     title: "Bathroom vanity",
     blurb: "A new vanity with top, installed",
     image: "project-vanity",
@@ -439,7 +439,7 @@ export const FLOWS: ProjectFlow[] = [
       {
         id: "type",
         kind: "choice",
-        prompt: "Which vanity?",
+        prompt: "Which type of vanity would you like?",
         default: "single",
         options: [
           { id: "single", label: "Single vanity", hint: "24 to 36 inches, with top", image: "vanity-single" },
@@ -451,7 +451,7 @@ export const FLOWS: ProjectFlow[] = [
       {
         id: "width",
         kind: "number",
-        prompt: "How wide?",
+        prompt: "How wide should the vanity be?",
         unit: "ft",
         min: 2,
         max: 10,
@@ -463,7 +463,7 @@ export const FLOWS: ProjectFlow[] = [
       {
         id: "removal",
         kind: "choice",
-        prompt: "Should we remove the old vanity?",
+        prompt: "Should we remove the existing vanity?",
         default: "yes",
         options: [
           { id: "yes", label: "Yes, remove and haul away", image: "removal-yes" },
@@ -473,7 +473,7 @@ export const FLOWS: ProjectFlow[] = [
       {
         id: "extras",
         kind: "choice",
-        prompt: "Add storage?",
+        prompt: "Would you like additional bathroom storage?",
         default: "none",
         options: [
           { id: "none", label: "Just the vanity", image: "extras-none" },
@@ -485,7 +485,7 @@ export const FLOWS: ProjectFlow[] = [
   },
   {
     id: "cabinet-refresh",
-    group: "Cabinets",
+    group: "cabinetry",
     title: "Cabinet refresh",
     blurb: "Paint, reface or refinish the cabinets you have",
     image: "project-cabinet-refresh",
@@ -496,7 +496,7 @@ export const FLOWS: ProjectFlow[] = [
       {
         id: "method",
         kind: "choice",
-        prompt: "What would you like done?",
+        prompt: "How would you like your cabinets refreshed?",
         default: "paint",
         options: [
           { id: "paint", label: "Professional painting", hint: "Sprayed finish, your boxes and doors", image: "refresh-paint" },
@@ -507,7 +507,7 @@ export const FLOWS: ProjectFlow[] = [
       {
         id: "size",
         kind: "choice",
-        prompt: "How many cabinets?",
+        prompt: "How large is the kitchen?",
         default: "medium",
         options: [
           { id: "small", label: "Small kitchen", hint: "About 26 ft of cabinets", image: "kitchen-small" },
@@ -518,7 +518,7 @@ export const FLOWS: ProjectFlow[] = [
       {
         id: "hardware",
         kind: "choice",
-        prompt: "New pulls and knobs?",
+        prompt: "Should we install new pulls and knobs?",
         default: "yes",
         options: [
           { id: "yes", label: "Yes, new hardware", image: "hardware-yes" },
@@ -529,7 +529,7 @@ export const FLOWS: ProjectFlow[] = [
   },
   {
     id: "built-ins",
-    group: "Cabinets",
+    group: "cabinetry",
     title: "Built-ins and storage",
     blurb: "Mudroom, laundry, closet, office and living room built-ins",
     image: "project-built-ins",
@@ -540,7 +540,7 @@ export const FLOWS: ProjectFlow[] = [
       {
         id: "type",
         kind: "choice",
-        prompt: "What are we building?",
+        prompt: "Which built-in would you like?",
         default: "mudroom",
         options: [
           { id: "mudroom", label: "Mudroom lockers and bench", image: "builtin-mudroom" },
@@ -554,7 +554,7 @@ export const FLOWS: ProjectFlow[] = [
       {
         id: "width",
         kind: "number",
-        prompt: "How wide is the wall?",
+        prompt: "How wide is the wall for the built-in?",
         unit: "ft",
         min: 3,
         max: 30,
@@ -568,19 +568,19 @@ export const FLOWS: ProjectFlow[] = [
   // ----------------------------------------------------------------- handyman
   {
     id: "handyman",
-    group: "Handyman",
+    group: "handyman",
     title: "Repairs and small jobs",
     blurb: "Tap everything on your list",
     image: "project-handyman",
     service: "handyman",
     estimateClass: "quote",
     usesFinish: false,
-    questions: [{ id: "tasks", kind: "tasks", prompt: "What is on your list?", options: HANDYMAN_TASKS }],
+    questions: [{ id: "tasks", kind: "tasks", prompt: "Which jobs do you need done?", options: HANDYMAN_TASKS }],
   },
   // ------------------------------------------------------------- construction
   {
     id: "custom-home",
-    group: "Construction",
+    group: "construction",
     title: "New home",
     blurb: "A custom home on your lot",
     image: "project-custom-home",
@@ -591,7 +591,7 @@ export const FLOWS: ProjectFlow[] = [
       {
         id: "sqft",
         kind: "number",
-        prompt: "How big is the home?",
+        prompt: "How many square feet of living space will the home have?",
         help: "Heated living area, not counting the garage.",
         unit: "sq ft",
         min: 800,
@@ -603,7 +603,7 @@ export const FLOWS: ProjectFlow[] = [
       {
         id: "garage",
         kind: "choice",
-        prompt: "Garage?",
+        prompt: "Will the home have an attached garage?",
         default: "two",
         options: [
           { id: "none", label: "No garage", image: "garage-none" },
@@ -614,7 +614,7 @@ export const FLOWS: ProjectFlow[] = [
       {
         id: "basement",
         kind: "choice",
-        prompt: "Basement?",
+        prompt: "Will the home have a basement?",
         default: "none",
         options: [
           { id: "none", label: "No basement", image: "basement-none" },
@@ -626,7 +626,7 @@ export const FLOWS: ProjectFlow[] = [
   },
   {
     id: "addition",
-    group: "Construction",
+    group: "construction",
     title: "Home addition",
     blurb: "Add rooms, a suite or a second story",
     image: "project-addition",
@@ -637,7 +637,7 @@ export const FLOWS: ProjectFlow[] = [
       {
         id: "type",
         kind: "choice",
-        prompt: "What are you adding?",
+        prompt: "What type of addition are you planning?",
         default: "room",
         options: [
           { id: "room", label: "Room addition", hint: "Bedroom, family room or office", image: "addition-room" },
@@ -651,7 +651,7 @@ export const FLOWS: ProjectFlow[] = [
       {
         id: "sqft",
         kind: "number",
-        prompt: "About how big?",
+        prompt: "About how many square feet will the addition be?",
         unit: "sq ft",
         min: 100,
         max: 2000,
@@ -664,7 +664,7 @@ export const FLOWS: ProjectFlow[] = [
   },
   {
     id: "garage-shop",
-    group: "Construction",
+    group: "construction",
     title: "Detached garage or shop",
     blurb: "A new garage, shop or outbuilding",
     image: "project-garage",
@@ -675,7 +675,7 @@ export const FLOWS: ProjectFlow[] = [
       {
         id: "sqft",
         kind: "number",
-        prompt: "How big?",
+        prompt: "How many square feet will the garage or shop be?",
         help: "A 2-car garage is about 576 sq ft. A 30 x 40 shop is 1,200.",
         unit: "sq ft",
         min: 200,
@@ -688,7 +688,7 @@ export const FLOWS: ProjectFlow[] = [
   },
   {
     id: "adu",
-    group: "Construction",
+    group: "adu",
     title: "Accessory dwelling unit",
     blurb: "A second home on your property",
     image: "project-adu",
@@ -699,7 +699,7 @@ export const FLOWS: ProjectFlow[] = [
       {
         id: "type",
         kind: "choice",
-        prompt: "Which kind of ADU?",
+        prompt: "Which type of ADU are you planning?",
         default: "detached",
         options: [
           { id: "detached", label: "Detached ADU", hint: "A new, separate building of about 600 sq ft", image: "adu-detached" },
@@ -709,6 +709,19 @@ export const FLOWS: ProjectFlow[] = [
       },
     ],
   },
+];
+
+/**
+ * The first question: what kind of project. Each flow's `group` is one of
+ * these ids. A brand shows only the trades it has projects in, and a trade
+ * with a single project goes straight to that project's questions.
+ */
+export const TRADES: { id: string; label: string; hint: string; image: string }[] = [
+  { id: "remodel", label: "Remodel", hint: "Kitchens, baths, basements, floors and paint", image: "cat-remodel" },
+  { id: "construction", label: "New construction", hint: "Homes, additions, garages and shops", image: "cat-construction" },
+  { id: "adu", label: "ADU", hint: "A second home on your property", image: "cat-adu" },
+  { id: "cabinetry", label: "Cabinetry", hint: "Kitchens, vanities and built-ins", image: "cat-cabinetry" },
+  { id: "handyman", label: "Handyman", hint: "Repairs and small jobs", image: "cat-handyman" },
 ];
 
 const BY_ID = new Map(FLOWS.map((f) => [f.id, f]));

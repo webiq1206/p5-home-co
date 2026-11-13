@@ -63,6 +63,8 @@ export function teamReport(row: GuidedRow, links: TeamReportLinks): Message {
         property.lotAcres ? `Lot: ${property.lotAcres} acres` : null,
         property.parcel ? `Parcel: ${property.parcel}` : null,
         property.jurisdiction ? `Jurisdiction: ${property.jurisdiction}` : null,
+        property.permittingAuthority ? `Permits: ${property.permittingAuthority}` : null,
+        property.zoning ? `Zoning: ${property.zoning}` : null,
         `Source: ${property.source ?? "public record"}${property.confirmed ? ", confirmed by the customer" : ", not confirmed by the customer"}`,
       ].filter(Boolean)
     : ["No property record was used."];
@@ -97,7 +99,8 @@ export function teamReport(row: GuidedRow, links: TeamReportLinks): Message {
   }
   text.push(
     "FINANCIAL SUMMARY",
-    `Customer estimate: ${money(r.totalPrice)}`,
+    r.range ? `Range shown to the customer: ${money(r.range.low)} to ${money(r.range.high)} (${(r.range.width * 100).toFixed(1)}% each way; risks: ${r.range.risks.join(", ") || "none"})` : "",
+    `Base price the range is built on: ${money(r.totalPrice)}`,
     `Internal cost: ${money(r.totalCost)}`,
     `Gross profit: ${money(r.grossProfit)}`,
     `Gross margin: ${pct(r.grossMargin)}`,
@@ -129,6 +132,7 @@ export function teamReport(row: GuidedRow, links: TeamReportLinks): Message {
   const html = `<div style="font-family:Arial,Helvetica,sans-serif;color:#383837;max-width:760px">
 <p style="font-size:18px;margin:0 0 4px"><strong>${esc(name)}</strong> &middot; ${esc(view.projectName)}</p>
 <p style="font-size:26px;margin:0 0 6px"><strong>${esc(money(Number(row.total)))}</strong> <span style="font-size:13px;color:#6b6b69">${esc(view.classLabel)} &middot; ${esc(brand?.name ?? row.brand)}</span></p>
+${r.range ? `<p style="font-size:14px;margin:0 0 4px">Customer was shown <strong>${esc(money(r.range.low))} to ${esc(money(r.range.high))}</strong> (${esc((r.range.width * 100).toFixed(1))}% each way; risks: ${esc(r.range.risks.join(", ") || "none")}). The figure above is the base price.</p>` : ""}
 <p style="font-size:14px;margin:0 0 4px">Internal cost ${esc(money(r.totalCost))} &middot; Gross profit <strong>${esc(money(r.grossProfit))}</strong> &middot; Gross margin <strong>${esc(pct(r.grossMargin))}</strong></p>
 ${needsReview ? `<div style="background:#fbf1e3;border-left:4px solid #c48d3f;padding:10px 12px;margin:14px 0"><strong>Needs review.</strong> ${row.price_withheld ? "The customer was not shown a price." : "The customer was shown this price."}<ul style="margin:6px 0 0;padding-left:18px">${review.map((x) => `<li>${esc(x.message)}</li>`).join("")}</ul></div>` : ""}
 <p ${h2}>Customer</p>

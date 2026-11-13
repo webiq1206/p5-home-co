@@ -62,7 +62,7 @@ export type Answers = Record<string, AnswerValue>;
 
 export type ProjectFlow = {
   id: string;
-  /** Section heading on the project picker. */
+  /** Trade id from TRADES in flows.ts: the first question the customer answers. */
   group: string;
   title: string;
   blurb: string;
@@ -75,17 +75,30 @@ export type ProjectFlow = {
   questions: Question[];
 };
 
-/** Property facts, each labeled with where it came from. Never treated as measured. */
+/**
+ * Property facts, each kept apart by where it came from. A public record is
+ * never treated as a measurement, and nothing here is ever inferred: a field
+ * the source did not publish stays empty.
+ */
 export type PropertyFacts = {
   /** Who supplied the record, in plain words. */
   source: string;
+  county?: string | null;
   parcel?: string | null;
+  jurisdiction?: string | null;
+  permittingAuthority?: string | null;
+  zoning?: string | null;
+  subdivision?: string | null;
+  lotAcres?: number | null;
+  /** Building facts. County parcel layers do not publish these; a property-data service may. */
+  buildingSource?: string | null;
   livingSqft?: number | null;
   yearBuilt?: number | null;
-  lotAcres?: number | null;
   stories?: number | null;
   garageSpaces?: number | null;
-  jurisdiction?: string | null;
+  bedrooms?: number | null;
+  bathrooms?: number | null;
+  hasBasement?: boolean | null;
   /** Set when the customer tapped "That is right" or corrected a value. */
   confirmed?: boolean;
 };
@@ -118,16 +131,38 @@ export type Submission = {
 // estimate; it has no field that can carry a cost, a margin or a cost code.
 // ---------------------------------------------------------------------------
 
-export type CustomerItem = {
-  text: string;
-  quantity: number;
-  unit: string;
-  price: number;
-  allowance: boolean;
+export type CustomerItem = { text: string; quantity: number; unit: string; allowance: boolean };
+
+export type CustomerDivision = {
+  /** Two-digit division number from the cost book, which follows CSI MasterFormat numbering. */
+  code: string;
+  name: string;
+  low: number;
+  high: number;
+  items: CustomerItem[];
+};
+
+/**
+ * "Understanding your estimate". Every entry is produced from the priced
+ * scope (see narrative.ts), never written freehand, so it cannot describe
+ * work the estimate does not contain.
+ */
+export type EstimateGuide = {
+  overview: string[];
+  included: { division: string; items: string[] }[];
+  outcome: string[];
+  assumptions: string[];
+  excluded: string[];
+  undetermined: string[];
+  verification: string[];
+  costDrivers: string[];
+  disclaimer: string[];
 };
 
 export type CustomerEstimate = {
   token: string;
+  /** Short reference the customer and the team can both quote. */
+  estimateNumber: string;
   brandName: string;
   projectName: string;
   address: string | null;
@@ -136,16 +171,15 @@ export type CustomerEstimate = {
   classLabel: string;
   classStatement: string;
   /** Null while the estimate is with the team for review. */
-  total: number | null;
-  phases: {
-    name: string;
-    subtotal: number;
-    divisions: { name: string; subtotal: number; items: CustomerItem[] }[];
-  }[];
+  range: { low: number; high: number } | null;
+  divisions: CustomerDivision[];
+  /** Set when the divisions are indicative shares of a whole-project price. Absent on older estimates. */
+  divisionNote?: string | null;
+  guide: EstimateGuide;
+  /** Kept at the top level for the team report. Same lists as in the guide. */
   assumptions: string[];
   exclusions: string[];
   nextSteps: string[];
-  /** True when the official copy is on its way from QuickBooks. */
   officialCopy: "sending" | "after-review";
   createdAt: string;
 };
@@ -193,18 +227,18 @@ export const TIER_LABELS: Record<Tier, { label: string; hint: string }> = {
 
 export const CLASS_LABELS: Record<EstimateClass, { label: string; statement: string }> = {
   quote: {
-    label: "Fixed price",
+    label: "Preliminary estimate",
     statement:
-      "This is a fixed price for the work listed, assuming standard conditions and access. If we find something different on site we will tell you before any work starts.",
+      "A preliminary range for the work listed, assuming standard conditions and access. We confirm the details before giving you a final price.",
   },
   preliminary: {
     label: "Preliminary estimate",
     statement:
-      "This is a preliminary estimate built from typical dimensions for the project you described. We confirm measurements and selections at a site visit before it becomes a fixed price.",
+      "A preliminary range built from typical dimensions for the project you described. We confirm measurements, conditions and selections at a site visit before giving you a final price.",
   },
   budgetary: {
-    label: "Budgetary estimate",
+    label: "Preliminary budgetary estimate",
     statement:
-      "This is a budgetary estimate for planning. Projects of this size are priced in detail during preconstruction, once drawings, site conditions and selections are known.",
+      "A budgetary range for early planning. Projects of this size are priced in detail during preconstruction, once drawings, site conditions and selections are known.",
   },
 };

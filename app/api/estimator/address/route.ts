@@ -10,11 +10,8 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 export async function GET(request: Request): Promise<Response> {
-  // Suggestions on a public page spend a paid Google quota for anyone who
-  // types, so they are off until the owner turns them on
-  // (ESTIMATOR_ADDRESS_AUTOCOMPLETE=on) with a billing cap in place. Until
-  // then, and whenever no key is set, the field is a plain text box.
-  if (process.env.ESTIMATOR_ADDRESS_AUTOCOMPLETE !== "on" || !isAddressLookupConfigured()) return Response.json({ ok: true, configured: false, suggestions: [] });
+  // Without a Google key the field is a plain text box and the address is typed by hand.
+  if (!isAddressLookupConfigured()) return Response.json({ ok: true, configured: false, suggestions: [] });
   const params = new URL(request.url).searchParams;
   const session = (params.get("session") ?? "").slice(0, 64);
   try {

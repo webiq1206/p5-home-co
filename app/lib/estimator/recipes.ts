@@ -94,10 +94,9 @@ function leadSafe(l: Lines, property: PropertyFacts | null, assumptions: string[
   }
 }
 
-const STANDARD_EXCLUSIONS = [
-  "Repair of hidden conditions found after work starts, such as rot, mold, or outdated wiring and plumbing",
-  "Asbestos or other hazardous material testing and removal",
-];
+// Work that is definitely outside the estimate. Conditions nobody has looked
+// at yet are NOT exclusions: narrative.ts lists those as "not yet determined".
+const STANDARD_EXCLUSIONS = ["Asbestos or other hazardous material testing and removal"];
 
 // ---------------------------------------------------------------------------
 // Kitchen
@@ -424,7 +423,7 @@ const flooring: Builder = ({ answers: a }) => {
   return {
     lines: l.lines,
     assumptions,
-    exclusions: ["Moving furniture and appliances", "Stairs", "Subfloor repair or leveling"],
+    exclusions: ["Moving furniture and appliances", "Stairs"],
     crossCheck: null,
   };
 };
@@ -625,7 +624,7 @@ const handyman: Builder = ({ answers: a }) => {
   return {
     lines: l.lines,
     assumptions: ["Standard conditions and normal access", "Fixtures and products are supplied by you unless the line says otherwise"],
-    exclusions: ["Fixtures, doors and other products you are supplying", "Repairs to hidden damage found once work starts", "Permits, where a job turns out to need one"],
+    exclusions: ["Fixtures, doors and other products you are supplying"],
     crossCheck: null,
   };
 };
