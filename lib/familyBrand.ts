@@ -57,13 +57,13 @@ export const FAMILY_BRAND: FamilyBrand = {
   cta: { label: 'Request a quote', href: '/quote' },
   phone: { display: PUBLIC_PHONE_DISPLAY, telHref: PUBLIC_PHONE_TEL, smsHref: PUBLIC_PHONE_SMS },
   // components/SiteChat.tsx opens on this window event.
-  chat: { enabled: true, label: 'Chat', openEvent: 'p5:chat-open', hiddenOn: ['/admin*', '/portal*'] },
+  chat: { enabled: true, label: 'Chat', openEvent: 'p5:chat-open', hiddenOn: ['/admin*', '/portal*', '/estimator*'] },
   bar: {
     // Approved check (scripts/verify-p5-mobile-seo.mjs): hidden over the hero, shown once it has passed.
     showOverHero: false,
     callLabel: 'Call',
     // The quote wizard and the estimators own the bottom of the screen; private areas have no bar.
-    hiddenOn: ['/quote/*', '/estimate/*', '/admin/*', '/api/*', '/portal/*', '/scopes/*', '/login*', '/sitemap', '/legal/*'],
+    hiddenOn: ['/quote/*', '/estimate/*', '/estimator', '/estimator/*', '/admin/*', '/api/*', '/portal/*', '/scopes/*', '/login*', '/sitemap', '/legal/*'],
     yieldToBodyFlags: ['p5EstimatorActive', 'p5ChatOpen', 'p5MatcherOpen'],
     // The same check requires the bar gone within 150ms of returning to the hero, as the P5 bar
     // always was: it leaves at once instead of after the 300ms slide-out, and still slides in.

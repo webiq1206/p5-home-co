@@ -16,7 +16,7 @@
  * before a crawler ever reached the login. `/scopes` is the scope and estimate
  * platform, which holds client names, addresses and pricing.
  */
-export const PRIVATE_PREFIXES = ["/admin", "/portal", "/scopes", "/api", "/estimate/qa-saved"] as const;
+export const PRIVATE_PREFIXES = ["/admin", "/portal", "/scopes", "/api", "/estimate/qa-saved", "/estimator/e", "/estimator/embed"] as const;
 
 /**
  * noindex stops it being listed. nofollow stops links inside it being crawled
