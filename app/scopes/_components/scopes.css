@@ -80,7 +80,7 @@ details.sc-card > summary { cursor: pointer; }
 
 /* Pills ------------------------------------------------------------------ */
 .sc-pill { display: inline-block; padding: 3px 9px; border: 1px solid var(--line); background: var(--bone); color: var(--ink); font-size: 12px; font-weight: 650; }
-.sc-pill-ready, .sc-pill-est-accepted, .sc-pill-est-converted { background: #e7f0e4; border-color: #6d8f62; }
+.sc-pill-ready, .sc-pill-est-accepted, .sc-pill-est-converted, .sc-pill-est-paid { background: #e7f0e4; border-color: #6d8f62; }
 .sc-pill-needs_information, .sc-pill-est-unavailable { background: #fbefd9; border-color: #b8873a; }
 .sc-pill-est-declined, .sc-pill-est-deleted { background: #f6dede; border-color: #9a2f2f; }
 .sc-pill-est-sent, .sc-pill-est-created_unsent { background: #eef1f6; border-color: #7b8aa3; }
@@ -166,7 +166,6 @@ details.sc-card > summary { cursor: pointer; }
 .sc-choice input { width: 22px; height: 22px; flex: 0 0 auto; }
 .sc-wizard-nav { display: grid; grid-template-columns: 1fr 2fr; gap: 8px; margin-top: 14px; }
 .sc-wizard-secondary { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 10px; }
-.sc-dictate { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 4px 0; }
 
 /* Pricing ---------------------------------------------------------------- */
 .sc-totals { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; margin: 0 0 10px; }
@@ -249,8 +248,11 @@ details.sc-card > summary { cursor: pointer; }
 @media (max-width: 560px) { .sc-app .admin-who { display: none; } }
 
 /* Workspace: header, accordion, dock --------------------------------------- */
-.sc-ws { padding-bottom: 96px; }
-.sc-ws-playing { padding-bottom: 190px; }
+/* The workspace fills the screen so the dock rests at the bottom even on a short page. */
+.sc-ws { display: flex; flex-direction: column; min-height: calc(100dvh - 72px); }
+.sc-app .admin-main:has(.sc-ws) { padding-bottom: 0; }
+/* The site-wide sideways-scroll guard on the page body makes iPhones misplace bottom bars after the keyboard closes. */
+body:has(.sc-app) { overflow-x: clip; }
 .sc-back { display: inline-flex; align-items: center; gap: 4px; min-height: 36px; color: var(--ink-2); font-size: 15px; font-weight: 650; text-decoration: none; }
 .sc-back span { font-size: 22px; line-height: 1; }
 .sc-ws-title { margin: 2px 0 4px; font-family: var(--font-display); font-size: clamp(22px, 5.6vw, 32px); font-weight: 500; line-height: 1.15; overflow-wrap: anywhere; }
@@ -310,9 +312,15 @@ details.sc-card > summary { cursor: pointer; }
 .sc-add-panel[hidden] { display: none; }
 
 /* Dock: the next action, and the recording player above it when one is open. */
+.sc-acc { margin-bottom: 16px; }
+/*
+ * Sticky, not fixed: on iPhones a fixed bar can be left floating mid-screen
+ * after the keyboard closes or the browser toolbar hides. A sticky bar is laid
+ * out with the page and always sits at the bottom edge of what is visible.
+ */
 .sc-dock {
-  position: fixed; left: 0; right: 0; bottom: 0; z-index: 60; display: grid; gap: 8px;
-  padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+  position: sticky; bottom: 0; z-index: 60; display: grid; gap: 8px;
+  margin: auto -16px 0; padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
   border-top: 1px solid var(--line); background: color-mix(in srgb, var(--bone) 92%, transparent);
   -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
 }
@@ -323,3 +331,99 @@ details.sc-card > summary { cursor: pointer; }
 .sc-dock-btn .sc-spinner { border-color: rgba(255, 255, 255, .35); border-top-color: #fff; }
 .sc-player { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .sc-player audio { flex: 1; min-width: 200px; height: 40px; }
+
+/* Wizard on a phone: while an answer is being typed the section header stops sticking, and the question is kept compact so it fits above the keyboard. */
+.sc-sec:has(.sc-wizard input:focus, .sc-wizard textarea:focus) .sc-sec-h { position: static; }
+.sc-sec-panel .sc-wizard { padding-top: 12px; scroll-margin-top: 64px; }
+.sc-wizard .sc-context { margin-top: 6px; }
+.sc-wizard .sc-h2 { margin-bottom: 4px; }
+.sc-wizard .sc-wizard-form { margin-top: 8px; }
+.sc-wizard .sc-wizard-nav { margin-top: 10px; margin-bottom: 10px; }
+.sc-wizard .sc-field-big { margin-bottom: 0; }
+
+/* Profit check ------------------------------------------------------------- */
+.sc-profit { margin: 4px 0 12px; padding: 12px 14px; border: 1px solid var(--line); border-left: 4px solid var(--charcoal); border-radius: var(--sc-r-sm, 0); background: #fff; }
+.sc-profit p { margin: 6px 0; }
+.sc-profit .sc-h4 { margin: 0; font-size: 16px; }
+.sc-profit-good { border-left-color: #6d8f62; }
+.sc-profit-warn { border-left-color: #b8873a; background: #fdf6ea; }
+.sc-profit-bad { border-left-color: #9a2f2f; background: #fbeeee; }
+.sc-ledger { margin: 8px 0; }
+.sc-ledger div { display: flex; justify-content: space-between; gap: 12px; padding: 6px 0; border-top: 1px solid var(--line); font-size: 14px; }
+.sc-ledger dt { color: var(--ink-2); }
+.sc-ledger dd { margin: 0; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.sc-ledger-sum dt, .sc-ledger-sum dd { color: var(--ink); font-weight: 700; }
+.sc-send { margin: 6px 0 10px; }
+
+/* Clarity pass ---------------------------------------------------------------
+ * One idea per row, detail on tap, 44px minimum targets, room to breathe.
+ */
+.sc-app { font-size: 16px; line-height: 1.5; }
+.sc-app .admin-bar { padding: 6px 16px; min-height: 56px; }
+.sc-app .admin-bar a, .sc-app .admin-bar button { display: inline-flex; align-items: center; min-height: 44px; padding: 0 6px; font-size: 14px; }
+.sc-app .admin-bar-right { display: flex; align-items: center; gap: 6px; }
+.sc-app .admin-brand { padding-left: 0; }
+.sc-app .sc-btn-small { min-height: 44px; padding: 0 14px; font-size: 14px; }
+.sc-app .sc-link { display: inline-flex; align-items: center; min-height: 44px; }
+.sc-app .sc-back { min-height: 44px; }
+.sc-app .sc-ev { min-height: 40px; padding: 0 12px; font-size: 13px; }
+.sc-app .sc-check { min-height: 48px; }
+.sc-app .sc-filter-toggle summary { min-height: 44px; }
+.sc-app .sc-switch { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 20px 0; }
+.sc-app .sc-switch a { display: inline-flex; align-items: center; min-height: 44px; }
+.sc-btn-wide { width: 100%; }
+
+.sc-sec-panel { padding: 8px 16px 20px; }
+.sc-sec-panel p { margin: 8px 0; }
+.sc-sec-panel .sc-card { padding: 18px 0; }
+.sc-sec-panel .sc-h2 { margin-bottom: 10px; }
+.sc-sec-panel .sc-h3 { margin: 22px 0 6px; color: var(--ink-2); font-size: 12px; }
+.sc-sec-panel .sc-h4 { margin: 14px 0 4px; font-size: 15px; }
+.sc-sec-panel .sc-division { margin: 0; padding-left: 0; border-left: 0; }
+.sc-sec-panel .sc-field { margin-bottom: 14px; }
+.sc-sec-panel .sc-field > span:first-child { font-size: 14px; }
+.sc-sec-panel .sc-field input, .sc-sec-panel .sc-field select { min-height: 48px; }
+.sc-lead { margin: 12px 0 4px; font-size: 16px; }
+
+/* Project list */
+.sc-app .sc-cards { gap: 12px; }
+.sc-app .sc-job { gap: 6px; padding: 18px; }
+.sc-app .sc-job-name { font-size: 20px; }
+.sc-app .sc-job-meta { gap: 10px; margin-top: 4px; font-size: 13px; }
+.sc-app .sc-pill { padding: 4px 10px; font-size: 13px; }
+
+/* Scope: one row per task, detail on tap */
+details.sc-task, .sc-app details.sc-task { margin: 0; padding: 0; border: 0; border-top: 1px solid var(--line); border-radius: 0; background: none; }
+details.sc-task > summary, .sc-lines summary, details.sc-more > summary { list-style: none; cursor: pointer; }
+details.sc-task > summary::-webkit-details-marker, .sc-lines summary::-webkit-details-marker, details.sc-more > summary::-webkit-details-marker { display: none; }
+details.sc-task > summary, .sc-lines summary { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; min-height: 56px; padding: 12px 0; }
+.sc-task-main, .sc-line-main { display: grid; gap: 2px; min-width: 0; }
+.sc-task-title, .sc-line-name { margin: 0; font-size: 16px; font-weight: 650; line-height: 1.3; overflow-wrap: anywhere; }
+.sc-task-meta, .sc-line-meta { color: var(--ink-2); font-size: 14px; }
+.sc-task-flag { color: #7d4a10; font-size: 14px; font-weight: 700; }
+.sc-task-price, .sc-line-price { flex: 0 0 auto; padding-top: 1px; font-size: 16px; font-weight: 650; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.sc-task-body, .sc-line-body { padding: 0 0 14px; }
+.sc-task-body .sc-actions { margin-top: 12px; }
+details.sc-task[open] > summary .sc-task-title, .sc-lines details[open] .sc-line-name { color: var(--ink); }
+details.sc-task > summary:focus-visible, .sc-lines summary:focus-visible, details.sc-more > summary:focus-visible { outline: 3px solid var(--moss); outline-offset: 2px; }
+.sc-add-task { padding: 16px 0 4px; }
+
+/* Pricing lines */
+.sc-lines { margin: 0; padding: 0; list-style: none; }
+.sc-lines > li { border-top: 1px solid var(--line); }
+.sc-line-name { font-weight: 600; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.sc-lines details[open] .sc-line-name { display: block; }
+.sc-totals { grid-template-columns: 1fr 1fr; gap: 10px; }
+.sc-totals div { padding: 12px; }
+.sc-totals dd { font-size: 20px; overflow-wrap: anywhere; }
+
+/* Secondary material, closed until asked for */
+details.sc-more, .sc-sec-panel details.sc-more { padding: 0; border: 0; border-top: 1px solid var(--line); border-radius: 0; background: none; }
+details.sc-more > summary { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 56px; font-size: 16px; font-weight: 650; }
+details.sc-more > summary .sc-muted { font-size: 13px; font-weight: 500; text-align: right; }
+details.sc-more > summary::after { content: ""; flex: 0 0 auto; width: 9px; height: 9px; margin: 0 6px 4px 0; border-right: 2px solid var(--ink-2); border-bottom: 2px solid var(--ink-2); transform: rotate(45deg); }
+details.sc-more[open] > summary::after { margin-bottom: -4px; transform: rotate(225deg); }
+details.sc-more > summary .sc-muted + * { display: none; }
+details.sc-more[open] { padding-bottom: 16px; }
+.sc-sync { color: var(--ink-2); }
+.sc-candidates li { align-items: center; padding: 14px 0; }

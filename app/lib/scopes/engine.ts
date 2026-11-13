@@ -20,6 +20,7 @@ import { applyAnswer, deriveQuestions, readiness, reconcileMeasurements, type An
 import { applyChanges, diffScopes, markEdited, type Proposal } from "./merge.ts";
 import { carryForward, normalizeScope, sanitizeTask } from "./normalize.ts";
 import { costBookAgeKey, priceScope } from "./pricing.ts";
+import { pdfPageCount, readSheets, readsPageByPage, sheetNotes } from "./sheets.ts";
 import {
   assetStorage,
   claimProcessing,
@@ -138,7 +139,11 @@ export async function currentDoc(project: ProjectRow): Promise<{ version: Versio
 const TEXT_BUDGET = 400_000;
 const MAX_IMAGES = 30;
 
-export async function processProject(projectId: number, userId: number): Promise<{ ok: boolean; message: string }> {
+/** How long one request spends reading pages before handing back so the next request can continue. */
+const SHEET_BUDGET_MS = 200_000;
+
+export async function processProject(projectId: number, userId: number): Promise<{ ok: boolean; message: string; partial?: boolean }> {
+  const started = Date.now();
   if (!(await claimProcessing(projectId, "Transcribing recordings"))) {
     return { ok: false, message: "This project is already being processed. It will update when that finishes." };
   }
@@ -172,6 +177,8 @@ export async function processProject(projectId: number, userId: number): Promise
     await setProjectState(projectId, { processing_state: "running", processing_note: "Building the scope" });
     const { version: current, doc: currentScope } = await currentDoc(project);
     const sources: SourceInput[] = [];
+    const unfinished: string[] = [];
+    let stalled = 0;
     let budget = TEXT_BUDGET;
     let images = 0;
     for (const a of await listAssets(projectId)) {
@@ -191,6 +198,31 @@ export async function processProject(projectId: number, userId: number): Promise
         const store = await assetStorage(projectId, a.id);
         try {
           const data = await readBytes(store!);
+          // A long PDF (a plan set, a specification, a long scope of work) is read page by page.
+          if (classify(a.file_name ?? "", a.mime_type ?? "") === "pdf") {
+            const pages = await pdfPageCount(data).catch(() => 0);
+            if (pages && readsPageByPage(pages, data.length)) {
+              const name = a.label || a.file_name || "document";
+              const progress = await readSheets({
+                assetId: a.id,
+                fileName: name,
+                data,
+                deadline: started + SHEET_BUDGET_MS,
+                onProgress: (p) => setProjectState(projectId, { processing_state: "running", processing_note: `Reading page ${Math.min(p.read + 1, p.total)} of ${p.total} of ${name}` }),
+              });
+              if (!progress.complete) {
+                unfinished.push(
+                  progress.failed && Date.now() <= started + SHEET_BUDGET_MS
+                    ? `${name}: ${progress.failed} of ${progress.total} pages could not be read yet.`
+                    : `${name}: ${progress.read} of ${progress.total} pages read so far.`,
+                );
+                if (progress.failed) stalled += progress.failed;
+                continue;
+              }
+              sources.push({ ...base, prepared: { kind: "text", text: `SHEET NOTES for ${name} (${progress.total} pages, read page by page)\n\n${await sheetNotes(a.id)}` }, bodyText: a.body_text });
+              continue;
+            }
+          }
           const prepared = await prepareForModel(a.file_name ?? "file", a.mime_type ?? "", data);
           if (prepared.kind === "image" && ++images > MAX_IMAGES) {
             failures.push(`${a.label || a.file_name}: more than ${MAX_IMAGES} photos in one update; run Update scope again to read the rest.`);
@@ -202,6 +234,12 @@ export async function processProject(projectId: number, userId: number): Promise
           failures.push(`${a.label || a.file_name}: ${(error as Error).message}`);
         }
       }
+    }
+    // A long document is still being read: stop here and continue on the next
+    // call, so the scope is only built from documents read in full.
+    if (unfinished.length) {
+      const stuck = stalled > 0 && Date.now() <= started + SHEET_BUDGET_MS;
+      return { ok: true, partial: !stuck, message: `${unfinished.join(" ")}${stuck ? " Tap Update scope to try those pages again." : " Still reading."}` };
     }
     if (!sources.length) {
       return { ok: false, message: failures.length ? `Nothing could be read. ${failures.join(" ")}` : "Add a recording, note or file first." };
@@ -387,7 +425,10 @@ export async function answerQuestion(input: {
     return;
   }
   const { doc } = await currentDoc(project);
-  const next = applyAnswer(doc, input.key, input.answer);
+  // One answer can settle the same quantity on several tasks.
+  const also = (await compute(project, doc)).questions.find((q) => q.key === input.key)?.also ?? [];
+  let next = applyAnswer(doc, input.key, input.answer);
+  for (const key of also) next = applyAnswer(next, key, input.answer);
   await commitDoc(project, next, "answer", input.prompt ? `Answered: ${input.prompt}` : `Answered ${input.key}`, input.userId);
 }
 

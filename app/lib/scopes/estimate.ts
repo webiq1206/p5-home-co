@@ -59,16 +59,19 @@ export function buildEstimatePayload(input: {
   const optional = input.pricing.lines.filter((l) => l.optional);
   const Line: QboLine[] = [];
   for (const group of groupByPhaseDivision(base)) {
-    Line.push({ DetailType: "DescriptionOnly", Description: phaseName(group.phase), DescriptionLineDetail: {} });
+    // Headings are capitals so the breaks are easy to scan. QuickBooks stores
+    // plain text only, so bold is not available, and it decides on its own how a
+    // text-only row prints (its current layout shows a quantity and $0.00).
+    Line.push({ DetailType: "DescriptionOnly", Description: phaseName(group.phase).toUpperCase(), DescriptionLineDetail: {} });
     for (const div of group.divisions) {
-      Line.push({ DetailType: "DescriptionOnly", Description: `Division ${divisionLabel(div.code)}`, DescriptionLineDetail: {} });
+      Line.push({ DetailType: "DescriptionOnly", Description: `Division ${divisionLabel(div.code)}`.toUpperCase(), DescriptionLineDetail: {} });
       for (const l of div.items) Line.push(salesLine(l, input.itemIds, input.taxable));
     }
   }
   const memo: string[] = [];
   if (optional.length) {
     memo.push("Optional upgrades, not included in the total:");
-    for (const l of optional) memo.push(`- ${l.description}: ${money(l.price)}`);
+    for (const l of optional) memo.push(`- ${l.title || l.description}: ${money(l.price)}`);
   }
   if (input.exclusions.length) memo.push(`Not included: ${input.exclusions.join("; ")}.`);
   return {
@@ -85,10 +88,28 @@ export function buildEstimatePayload(input: {
   };
 }
 
+/**
+ * What the client reads for a line. QuickBooks titles every line with its
+ * product or service item ("Subcontractor Work"), which says nothing about the
+ * job, so the work's own name leads the description on a line of its own.
+ */
+export function lineText(l: Pick<EstimateLine, "title" | "description">): string {
+  const title = (l.title ?? "").trim();
+  if (!title) return l.description;
+  // Do not repeat a title the description already opens with.
+  const plain = (x: string) => x.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  if (plain(l.description).startsWith(plain(title))) return l.description;
+  // The room is already in the title: do not say it again on the next line.
+  const cut = title.indexOf(": ");
+  const room = cut > 0 ? title.slice(0, cut + 2) : "";
+  const body = room && l.description.toLowerCase().startsWith(room.toLowerCase()) ? l.description.slice(room.length) : l.description;
+  return `${title}\n${body.charAt(0).toUpperCase()}${body.slice(1)}`;
+}
+
 function salesLine(l: EstimateLine, itemIds: Record<ItemKey, string>, taxable: ItemKey[]): QboLine {
   return {
     DetailType: "SalesItemLineDetail",
-    Description: clip(l.description, 4000),
+    Description: clip(lineText(l), 4000),
     Amount: l.price,
     SalesItemLineDetail: {
       ItemRef: { value: itemIds[l.item], name: l.item },
@@ -112,7 +133,8 @@ export type EstimateStatusName =
   | "closed"
   | "converted"
   | "deleted"
-  | "unavailable";
+  | "unavailable"
+  | "paid";
 
 export const ESTIMATE_STATUS_LABEL: Record<EstimateStatusName, string> = {
   not_created: "Not created",
@@ -122,22 +144,37 @@ export const ESTIMATE_STATUS_LABEL: Record<EstimateStatusName, string> = {
   declined: "Declined",
   closed: "Closed",
   converted: "Invoiced",
+  paid: "Completed, paid in full",
   deleted: "Deleted in QuickBooks",
   unavailable: "Status unavailable",
 };
 
 type RawEstimate = {
   TxnStatus?: string;
+  TotalAmt?: number;
   EmailStatus?: string;
   AcceptedBy?: string;
   AcceptedDate?: string;
   LinkedTxn?: { TxnId: string; TxnType: string }[];
 };
 
-export function estimateStatus(raw: RawEstimate | null | undefined, exists: boolean): EstimateStatusName {
+/** Invoices QuickBooks has linked to the estimate, as mirrored: how much was invoiced and how much is still owed. */
+export type InvoiceSummary = { count: number; total: number; balance: number };
+
+/**
+ * The estimate's state as QuickBooks holds it. Once it has been invoiced, the
+ * job counts as completed and paid when the invoices cover the whole estimate
+ * and nothing is owed. (QuickBooks does not share a project's own "completed"
+ * flag through this connection, so full payment is the signal.)
+ */
+export function estimateStatus(raw: RawEstimate | null | undefined, exists: boolean, invoices?: InvoiceSummary | null): EstimateStatusName {
   if (!exists) return "not_created";
   if (!raw || !raw.TxnStatus) return "unavailable";
-  if (raw.LinkedTxn?.some((t) => t.TxnType === "Invoice")) return "converted";
+  if (raw.LinkedTxn?.some((t) => t.TxnType === "Invoice")) {
+    const estimateTotal = Number(raw.TotalAmt ?? 0);
+    if (invoices && invoices.count > 0 && invoices.balance <= 0.005 && invoices.total >= estimateTotal - 0.01) return "paid";
+    return "converted";
+  }
   switch (raw.TxnStatus) {
     case "Accepted":
       return "accepted";

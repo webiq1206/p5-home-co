@@ -177,6 +177,17 @@ export async function upsertTxn(
       JSON.stringify(r),
     ],
   );
+  // The scope platform acts on estimate changes (an acceptance creates the
+  // QuickBooks project). Loaded on demand so finance never depends on it, and
+  // a failure there never fails the sync.
+  if (entity === "Estimate" && r.Id) {
+    try {
+      const scopes = await import("../../scopes/qbo.ts");
+      await scopes.onEstimateChanged(String(r.Id));
+    } catch (error) {
+      console.error("[scopes] estimate change was not applied:", (error as Error).message);
+    }
+  }
 }
 
 async function syncTxnEntity(entity: (typeof TXN_ENTITIES)[number]): Promise<number> {

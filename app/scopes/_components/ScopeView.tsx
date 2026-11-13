@@ -63,15 +63,7 @@ export default function ScopeView({ ws, onWorkspace, onPlay }: Props) {
       {ws.proposal && <ProposalReview ws={ws} onWorkspace={onWorkspace} />}
       {error && <p className="sc-alert sc-alert-bad" role="alert">{error}</p>}
 
-      <section className="sc-card">
-        <h2 className="sc-h2">Summary</h2>
-        <EditableText value={doc.summary} multiline onSave={(v) => run([{ op: "summary", value: v }])} />
-        <div className="sc-lists">
-          <ListBlock title="Client goals" field="goals" values={doc.goals} run={run} />
-          <ListBlock title="Priorities" field="priorities" values={doc.priorities} run={run} />
-          <ListBlock title="Rooms and areas" field="areas" values={doc.areas} run={run} />
-        </div>
-      </section>
+      {doc.summary && <p className="sc-lead">{doc.summary}</p>}
 
       {doc.conflicts.filter((c) => !c.resolution).length > 0 && (
         <section className="sc-card sc-card-warn">
@@ -139,26 +131,34 @@ export default function ScopeView({ ws, onWorkspace, onPlay }: Props) {
         );
       })}
 
-      <section className="sc-card">
-        <div className="sc-row-between">
-          <h2 className="sc-h2">Add work</h2>
-          {!adding && <button type="button" className="sc-btn" onClick={() => setAdding(true)}>Add a task</button>}
-        </div>
-        {adding && <TaskEditor projectId={ws.project.id} onSave={(t) => saveTask(t).then(() => setAdding(false))} onCancel={() => setAdding(false)} />}
-      </section>
+      <div className="sc-add-task">
+        {adding
+          ? <TaskEditor projectId={ws.project.id} onSave={(t) => saveTask(t).then(() => setAdding(false))} onCancel={() => setAdding(false)} />
+          : <button type="button" className="sc-btn sc-btn-wide" onClick={() => setAdding(true)}>Add a task</button>}
+      </div>
 
-      <section className="sc-card">
-        <h2 className="sc-h2">Measurements</h2>
+      <details className="sc-card sc-more">
+        <summary>Summary and goals</summary>
+        <EditableText value={doc.summary} multiline onSave={(v) => run([{ op: "summary", value: v }])} />
+        <div className="sc-lists">
+          <ListBlock title="Client goals" field="goals" values={doc.goals} run={run} />
+          <ListBlock title="Priorities" field="priorities" values={doc.priorities} run={run} />
+          <ListBlock title="Rooms and areas" field="areas" values={doc.areas} run={run} />
+        </div>
+      </details>
+
+      <details className="sc-card sc-more">
+        <summary>Measurements ({doc.measurements.length})</summary>
         {doc.measurements.length === 0 && <p className="sc-muted">None recorded.</p>}
         <ul className="sc-measures">
           {doc.measurements.map((m) => (
             <MeasureRow key={m.id} m={m} ws={ws} onPlay={onPlay} run={run} />
           ))}
         </ul>
-      </section>
+      </details>
 
-      <section className="sc-card">
-        <h2 className="sc-h2">Conditions, terms and open items</h2>
+      <details className="sc-card sc-more">
+        <summary>Conditions, terms and open items</summary>
         <div className="sc-lists">
           <ListBlock title="Site conditions" field="siteConditions" values={doc.siteConditions} run={run} />
           <ListBlock title="Access limitations" field="access" values={doc.access} run={run} />
@@ -168,11 +168,11 @@ export default function ScopeView({ ws, onWorkspace, onPlay }: Props) {
           <ListBlock title="Assumptions" field="assumptions" values={doc.assumptions} run={run} />
           <ListBlock title="Unresolved questions" field="openQuestions" values={doc.openQuestions} run={run} />
         </div>
-      </section>
+      </details>
 
       {dismissed.length > 0 && (
-        <details className="sc-card">
-          <summary className="sc-h2">Removed or declined ({dismissed.length})</summary>
+        <details className="sc-card sc-more">
+          <summary>Removed or declined ({dismissed.length})</summary>
           {dismissed.map((t) => (
             <div key={t.id} className="sc-suggest">
               <span>{t.title} <span className="sc-muted">{divisionLabel(t.division)}</span></span>
@@ -202,48 +202,58 @@ function TaskCard({ t, ws, onPlay, run, saveTask }: { t: ScopeTask; ws: Workspac
   if (editing) {
     return <TaskEditor projectId={ws.project.id} initial={t} onSave={(next) => saveTask(next).then(() => setEditing(false))} onCancel={() => setEditing(false)} />;
   }
+  const price = lines.reduce((sum, l) => sum + l.price, 0);
+  const blocked = issues.some((i) => i.blocking);
+  const who = t.performer === "internal" ? "P5 crew" : t.performer === "supplier" ? "Supplier" : t.performer ? "Trade partner" : "";
+  const meta = [qty ? `${qty}${estimated ? " (estimate)" : ""}` : "", who].filter(Boolean).join(" · ");
+  // One line when closed: what it is, how much, and whether it needs attention. Everything else opens on tap.
   return (
-    <article className={`sc-task sc-task-${t.certainty}`}>
-      <div className="sc-row-between">
-        <h5 className="sc-task-title">
-          {t.area && <span className="sc-muted">{t.area}: </span>}
-          {t.title}
-        </h5>
-        <span className="sc-actions">
-          <button type="button" className="sc-btn sc-btn-small" onClick={() => setEditing(true)} aria-label={`Edit ${t.title}`}>Edit</button>
-          <button type="button" className="sc-btn sc-btn-small" onClick={() => run([{ op: "remove-task", id: t.id }])} aria-label={`Remove ${t.title}`}>Remove</button>
+    <details className={`sc-task sc-task-${t.certainty}`}>
+      <summary>
+        <span className="sc-task-main">
+          <span className="sc-task-title">
+            {t.area && <span className="sc-muted">{t.area}: </span>}
+            {t.title}
+          </span>
+          {meta && <span className="sc-task-meta">{meta}</span>}
+          {(blocked || t.certainty !== "confirmed") && (
+            <span className="sc-task-flag">{blocked ? "Needs a detail" : CERTAINTY_LABEL[t.certainty]}</span>
+          )}
         </span>
-      </div>
-      <p>{t.description}</p>
-      <div className="sc-tags">
-        <span className={`sc-pill sc-cert-${t.certainty}`}>{CERTAINTY_LABEL[t.certainty]}</span>
-        {qty && <span className={`sc-pill${estimated ? " sc-pill-needs_information" : ""}`}>{qty}{estimated ? " (estimate)" : ""}</span>}
-        {t.performer && <span className="sc-pill">{t.performer === "internal" ? "P5 crew" : t.performer === "supplier" ? "Supplier" : "Trade partner"}</span>}
-        {t.laborHours?.value ? <span className="sc-pill">{t.laborHours.value} hr ({t.laborHours.basis})</span> : null}
-        {t.costCode && <span className="sc-pill">Cost book {t.costCode}</span>}
-        {t.quote && <span className="sc-pill">Quote on file</span>}
-        {t.allowance && <span className="sc-pill">Allowance{t.allowance.approved ? " approved" : ""}</span>}
-        {t.edited?.length ? <span className="sc-pill">Edited</span> : null}
-      </div>
-      {!!t.materials?.length && <p className="sc-small"><b>Materials:</b> {t.materials.join(", ")}</p>}
-      {!!t.selections?.length && (
-        <p className="sc-small">
-          {t.selections.map((s) => (
-            <span key={s.id} className="sc-sel">
-              <b>{s.label}:</b> {s.chosen ?? `undecided (${s.options.join(" / ") || "no options yet"})`}
-            </span>
-          ))}
+        <span className="sc-task-price">{lines.length ? price.toLocaleString("en-US", { style: "currency", currency: "USD" }) : ""}</span>
+      </summary>
+      <div className="sc-task-body">
+        <p>{t.description}</p>
+        {!!t.materials?.length && <p className="sc-small"><b>Materials:</b> {t.materials.join(", ")}</p>}
+        {!!t.selections?.length && (
+          <p className="sc-small">
+            {t.selections.map((s) => (
+              <span key={s.id} className="sc-sel">
+                <b>{s.label}:</b> {s.chosen ?? `undecided (${s.options.join(" / ") || "no options yet"})`}
+              </span>
+            ))}
+          </p>
+        )}
+        {t.notes && <p className="sc-small sc-muted">{t.notes}</p>}
+        <p className="sc-small sc-muted">
+          {[
+            t.laborHours?.value ? `${t.laborHours.value} labor hours (${t.laborHours.basis})` : "",
+            t.costCode ? `Cost book ${t.costCode}` : "",
+            t.quote ? "Quote on file" : "",
+            t.allowance ? `Allowance${t.allowance.approved ? " approved" : ""}` : "",
+            t.edited?.length ? "Edited by hand" : "",
+          ].filter(Boolean).join(" · ")}
         </p>
-      )}
-      {t.notes && <p className="sc-small sc-muted">{t.notes}</p>}
-      {lines.length > 0 && (
-        <p className="sc-small sc-muted">Priced: {lines.map((l) => `${l.quantity} ${l.unit} = ${l.price.toLocaleString("en-US", { style: "currency", currency: "USD" })}`).join(" + ")}</p>
-      )}
-      {issues.map((i) => (
-        <p key={i.key} className={`sc-small ${i.blocking ? "sc-text-warn" : "sc-muted"}`}>{i.message}</p>
-      ))}
-      <EvidenceLinks projectId={ws.project.id} evidence={t.evidence} assets={ws.assets} onPlay={onPlay} />
-    </article>
+        {issues.map((i) => (
+          <p key={i.key} className={`sc-small ${i.blocking ? "sc-text-warn" : "sc-muted"}`}>{i.message}</p>
+        ))}
+        <EvidenceLinks projectId={ws.project.id} evidence={t.evidence} assets={ws.assets} onPlay={onPlay} />
+        <div className="sc-actions">
+          <button type="button" className="sc-btn" onClick={() => setEditing(true)} aria-label={`Edit ${t.title}`}>Edit</button>
+          <button type="button" className="sc-btn" onClick={() => run([{ op: "remove-task", id: t.id }])} aria-label={`Remove ${t.title}`}>Remove</button>
+        </div>
+      </div>
+    </details>
   );
 }
 

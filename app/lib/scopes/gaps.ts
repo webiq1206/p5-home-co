@@ -34,8 +34,46 @@ export function textKey(s: string): string {
   return (h >>> 0).toString(36);
 }
 
+const FILLER = new Set(
+  ("a an and are as at be by did do does for from how in is it its many much of on or our per that the their this to up was we what "
+    + "which will with you your total overall exact approximate approx about required needed need new existing old current all entire whole "
+    + "each any some client homeowner customer project work job scope please confirm").split(" "),
+);
+const MEASURE_WORDS = new Set(
+  "length footage foot feet ft linear lineal lf area square sq sf size quantity qty number count amount dimension dimensions measurement measurements run inch inches yard yards".split(" "),
+);
+const ACTION_WORDS = new Set(
+  ("install installation replace replacement remove removal demo demolish demolition supply furnish provide add paint painting prime priming "
+    + "patch patching repair prep prepare preparation haul dispose disposal protect protection clean cleaning finish finishing refinish set hang "
+    + "trim caulk seal sand texture frame build rough connect disconnect relocate move update upgrade apply").split(" "),
+);
+
+/** The meaningful words of a phrase, singular, so "New baseboards" and "baseboard" compare equal. */
+export function words(text: string | null | undefined, drop: Set<string>[] = []): string[] {
+  const out = new Set<string>();
+  for (const raw of norm(text).split(" ")) {
+    if (!raw || /^\d+$/.test(raw)) continue;
+    const w = raw.length > 3 && raw.endsWith("s") && !raw.endsWith("ss") ? raw.slice(0, -1) : raw;
+    if (FILLER.has(raw) || FILLER.has(w) || drop.some((d) => d.has(raw) || d.has(w))) continue;
+    out.add(w);
+  }
+  return [...out].sort();
+}
+
+/** What a task or measurement is about, ignoring the action and the unit: "Install new baseboards" -> "baseboard". */
+export function subject(text: string | null | undefined): string {
+  return words(text, [MEASURE_WORDS, ACTION_WORDS]).join(" ");
+}
+
+function overlap(a: string[], b: string[]): number {
+  if (!a.length || !b.length) return 0;
+  const set = new Set(b);
+  const shared = a.filter((x) => set.has(x)).length;
+  return shared / Math.min(a.length, b.length);
+}
+
 /**
- * Merge duplicate measurements (same label, area and unit) so one fact is
+ * Merge duplicate measurements (same subject, area and unit) so one fact is
  * asked once, preferring the firmest value, and point every task at it.
  */
 export function reconcileMeasurements(doc: ScopeDoc): ScopeDoc {
@@ -44,7 +82,8 @@ export function reconcileMeasurements(doc: ScopeDoc): ScopeDoc {
   const rank = (m: Measurement) =>
     m.value === null ? 0 : m.status === "estimated" ? 1 : m.status === "stated" ? 2 : 3;
   for (const m of doc.measurements) {
-    const k = `${norm(m.label)}|${norm(m.area)}|${m.unit}`;
+    // "Baseboard length" and "Total linear footage of baseboards" are the same fact.
+    const k = `${subject(m.label) || norm(m.label)}|${norm(m.area)}|${m.unit}`;
     const existing = keep.get(k);
     if (!existing) {
       keep.set(k, m);
@@ -72,16 +111,25 @@ function taskContext(t: ScopeTask): string {
   return [t.area, t.title].filter(Boolean).join(": ") + ` · ${divisionLabel(t.division)}`;
 }
 
-function order(doc: ScopeDoc, taskIds: string[]): number {
-  const t = doc.tasks.find((x) => taskIds.includes(x.id));
-  if (!t) return 9999;
-  return (t.phase === "pre-construction" ? 0 : 1000) + divisionOrder(t.division);
+const KIND_RANK: Record<string, number> = { conflict: 0, decide: 1, suggest: 1, choice: 2, measure: 3, qty: 4, hours: 5, price: 6, allowance: 7, open: 8 };
+
+/**
+ * Where a question belongs: by phase and division, then by room, then by the
+ * task's place in the scope, so everything about one item is asked together.
+ */
+type Place = { division: number; area: string; task: number; kind: number };
+function place(doc: ScopeDoc, key: string, taskIds: string[]): Place {
+  const kind = KIND_RANK[key.split(":")[0]] ?? 9;
+  const index = doc.tasks.findIndex((x) => taskIds.includes(x.id));
+  if (index === -1) return { division: 99_999, area: "", task: 99_999, kind };
+  const t = doc.tasks[index];
+  return { division: (t.phase === "pre-construction" ? 0 : 1000) + divisionOrder(t.division), area: norm(t.area), task: index, kind };
 }
 
 export type AnswerState = Map<string, { status: "answered" | "deferred" }>;
 
 export function deriveQuestions(doc: ScopeDoc, pricing: PricingResult, answers: AnswerState): Question[] {
-  const qs: (Question & { sort: number })[] = [];
+  const qs: (Question & { sort: Place })[] = [];
   const add = (q: Question) => {
     if (qs.some((x) => x.key === q.key)) {
       const existing = qs.find((x) => x.key === q.key)!;
@@ -89,7 +137,7 @@ export function deriveQuestions(doc: ScopeDoc, pricing: PricingResult, answers: 
       existing.blocking = existing.blocking || q.blocking;
       return;
     }
-    qs.push({ ...q, deferred: answers.get(q.key)?.status === "deferred", sort: order(doc, q.taskIds) });
+    qs.push({ ...q, deferred: answers.get(q.key)?.status === "deferred", sort: place(doc, q.key, q.taskIds) });
   };
   const task = (id?: string) => doc.tasks.find((t) => t.id === id);
 
@@ -184,28 +232,117 @@ export function deriveQuestions(doc: ScopeDoc, pricing: PricingResult, answers: 
     if (q) add(q);
   }
 
+  mergeSharedQuantities(doc, qs);
+
+  // Free-text clarifications come last, and only when nothing above already
+  // asks for the same thing and the scope does not already hold the answer.
   for (const oq of doc.openQuestions) {
+    if (redundantClarification(oq, doc, qs)) continue;
+    const about = words(oq, [MEASURE_WORDS, ACTION_WORDS]);
+    const related = doc.tasks.filter((t) => !t.dismissed && overlap(subject(t.title).split(" ").filter(Boolean), about) === 1);
     add({
       key: `open:${textKey(oq)}`,
-      context: "Clarification",
+      context: related[0] ? taskContext(related[0]) : "Clarification",
       prompt: oq,
       help: "Answer if known. This does not hold up the estimate.",
       input: { type: "text", multiline: true },
       blocking: false,
-      taskIds: [],
+      taskIds: related.slice(0, 1).map((t) => t.id),
       evidence: [],
     });
   }
 
   // Answers are applied to the scope itself, so a question exists exactly
   // while its gap exists. Nothing is hidden because it was answered before.
+  // Order: the scope's own order (phase, division, room, task), with items
+  // saved for later after everything else.
   return qs
-    .sort((a, b) => Number(b.blocking) - Number(a.blocking) || Number(a.deferred) - Number(b.deferred) || a.sort - b.sort)
+    .sort(
+      (a, b) =>
+        Number(a.deferred) - Number(b.deferred) ||
+        a.sort.division - b.sort.division ||
+        a.sort.area.localeCompare(b.sort.area) ||
+        a.sort.task - b.sort.task ||
+        a.sort.kind - b.sort.kind,
+    )
     .map((q) => {
-      const out: Question & { sort?: number } = { ...q };
+      const out: Question & { sort?: Place } = { ...q };
       delete out.sort;
       return out;
     });
+}
+
+/**
+ * Several tasks often need the same number (remove, install and paint the same
+ * baseboards). When their quantity is missing, in the same unit, for the same
+ * thing in the same room, it is asked once and the answer fills every task.
+ */
+function mergeSharedQuantities(doc: ScopeDoc, qs: (Question & { sort: Place })[]): void {
+  const first = new Map<string, Question>();
+  for (let i = 0; i < qs.length; i++) {
+    const q = qs[i];
+    if (!q.key.startsWith("qty:") || q.input.type !== "number" || q.suggested !== null && q.suggested !== undefined) continue;
+    const t = doc.tasks.find((x) => x.id === q.taskIds[0]);
+    const about = t ? subject(t.title) : "";
+    if (!t || !about) continue;
+    const k = `${q.input.unit}|${norm(t.area)}|${about}`;
+    const keeper = first.get(k);
+    if (!keeper) {
+      first.set(k, q);
+      continue;
+    }
+    keeper.also = [...(keeper.also ?? []), q.key];
+    keeper.taskIds = [...new Set([...keeper.taskIds, ...q.taskIds])];
+    keeper.blocking = keeper.blocking || q.blocking;
+    keeper.evidence = [...keeper.evidence, ...q.evidence];
+    const names = keeper.taskIds.map((id) => doc.tasks.find((x) => x.id === id)?.title).filter(Boolean);
+    keeper.help = `Enter the quantity in ${unitLabel(q.input.unit)}. One answer covers: ${names.join("; ")}.`;
+    qs.splice(i--, 1);
+  }
+}
+
+const ASKS_QUANTITY = /\bhow (many|much|long|big|large|wide|tall)\b|\b(length|footage|square feet|square foot|sq ?ft|linear feet|linear foot|area|size|quantity|number of|count|dimensions?|measurements?)\b/i;
+const ASKS_CHOICE = /\b(which|what (type|kind|style|color|colour|finish|brand|material|model|species|grade|size))\b/i;
+
+/**
+ * A clarification is dropped when the scope already answers it or a structured
+ * question already asks it: a quantity question about something that has a
+ * measurement or quantity (known, or asked above), a "which one" question about
+ * something with a selection, or a rewording of one that was answered earlier.
+ */
+export function redundantClarification(oq: string, doc: ScopeDoc, asked: Question[]): boolean {
+  const all = words(oq);
+  const about = words(oq, [MEASURE_WORDS, ACTION_WORDS]);
+  if (!about.length) return false;
+  const same = (text: string | null | undefined) => {
+    const other = subject(text).split(" ").filter(Boolean);
+    return other.length > 0 && overlap(other, about) === 1;
+  };
+
+  // Answered before: answers are kept as "<question> <answer>" assumptions.
+  for (const a of doc.assumptions) {
+    const cut = a.indexOf("?");
+    if (cut === -1) continue;
+    const prior = words(a.slice(0, cut + 1));
+    const shared = prior.filter((w) => all.includes(w)).length;
+    if (shared / Math.max(prior.length, all.length) >= 0.6) return true;
+  }
+
+  const live = doc.tasks.filter((t) => !t.dismissed);
+  if (ASKS_QUANTITY.test(oq)) {
+    if (doc.measurements.some((m) => same(m.label))) return true;
+    if (live.some((t) => same(t.title) && (t.quantity || costBookEntry(t.costCode)))) return true;
+  }
+  if (ASKS_CHOICE.test(oq)) {
+    if (live.some((t) => (t.selections ?? []).some((s) => same(s.label) || (same(t.title) && overlap(words(s.label), all) > 0)))) return true;
+  }
+  // The same thing asked twice in different words.
+  return asked.some((q) => {
+    if (!q.key.startsWith("open:")) return false;
+    const prior = words(q.prompt);
+    const shared = prior.filter((w) => all.includes(w)).length;
+    return shared / Math.max(prior.length, all.length) >= 0.7;
+  });
 }
 
 function issueQuestion(

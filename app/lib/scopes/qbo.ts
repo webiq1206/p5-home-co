@@ -20,7 +20,9 @@ import { buildEstimatePayload, compareEstimate, estimateStatus, type EstimatePay
 import type { ItemKey, PricingResult, ScopeDoc, ScopeSettings } from "./types.ts";
 import {
   applyEstimateStatus,
+  estimateByQboId,
   estimateStatusError,
+  getProject,
   insertEstimate,
   latestEstimate,
   logEvent,
@@ -234,7 +236,7 @@ export async function findCustomerCandidates(p: ProjectRow): Promise<CustomerCan
  * and employees, and only QuickBooks knows all three. On its duplicate-name
  * error (6240) the write is retried once with a distinguishing suffix.
  */
-async function writeNamed(naturalKey: string, payload: Record<string, unknown>, suffix: string, userId: number) {
+async function writeNamed(naturalKey: string, payload: Record<string, unknown>, suffix: string, userId: number | null) {
   try {
     return await qboWrite({ entity: "Customer", naturalKey, payload, requestedBy: userId });
   } catch (error) {
@@ -405,6 +407,7 @@ export async function refreshEstimate(e: EstimateRow): Promise<void> {
   try {
     const raw = await fetchEstimate(e.qbo_estimate_id);
     await applyEstimateStatus(e.id, { raw, source: "refresh", drift: compareEstimate(e.sent_payload as { Line: unknown }, raw) });
+    await settleAccepted(e.project_id);
   } catch (error) {
     if (isGone(error as Error)) {
       await markEstimateDeleted(e.id);
@@ -428,7 +431,55 @@ export async function applyMirroredStatus(e: EstimateRow): Promise<boolean> {
   if (token && token === e.sync_token) return false;
   if (e.last_synced_at && new Date(mirror.synced_at) <= new Date(e.last_synced_at)) return false;
   await applyEstimateStatus(e.id, { raw: mirror.raw, source: "webhook", drift: compareEstimate(e.sent_payload as { Line: unknown }, mirror.raw) });
+  await settleAccepted(e.project_id);
   return true;
+}
+
+/**
+ * Called when QuickBooks reports a change to an estimate (webhook or daily
+ * sync), so an acceptance is acted on even when nobody has the project open.
+ */
+export async function onEstimateChanged(qboId: string): Promise<void> {
+  const e = await estimateByQboId(qboId);
+  if (e) await applyMirroredStatus(e);
+}
+
+/**
+ * An accepted estimate gets its QuickBooks project without anyone asking.
+ * Safe to call any number of times: it does nothing unless the estimate is
+ * accepted (or already invoiced), a customer is linked and no project is yet.
+ * A failure is recorded on the project and tried again at the next change.
+ */
+export async function settleAccepted(projectId: number): Promise<void> {
+  const [p, e] = await Promise.all([getProject(projectId), latestEstimate(projectId)]);
+  if (!p || !e || p.qbo_project_id || !p.qbo_customer_id) return;
+  const status = estimateStatus(e.qbo_snapshot as never, true);
+  if (status !== "accepted" && status !== "converted") return;
+  try {
+    const made = await createProjectInQbo(p, null);
+    await logEvent(p.id, "qbo-project-auto", { qboId: made.qboId, because: status }, null);
+  } catch (error) {
+    await logEvent(p.id, "qbo-project-auto-failed", { error: (error as Error).message.slice(0, 300) }, null).catch(() => undefined);
+  }
+}
+
+/**
+ * Email the estimate to the client through QuickBooks, exactly as QuickBooks
+ * would from its own Send button. The address must be the one on the project.
+ */
+export async function sendEstimate(p: ProjectRow, e: EstimateRow, userId: number): Promise<string> {
+  if (!e.qbo_estimate_id || e.txn_status === "Deleted") throw new Error("There is no estimate in QuickBooks to send.");
+  const email = (p.client_email ?? "").trim();
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) throw new Error("Save the client's email address first.");
+  const res = await qboRequest<{ Estimate?: Record<string, unknown> }>(
+    `/estimate/${encodeURIComponent(e.qbo_estimate_id)}/send?sendTo=${encodeURIComponent(email)}`,
+    { method: "POST", headers: { "Content-Type": "application/octet-stream" } },
+  );
+  if (res.Estimate) {
+    await applyEstimateStatus(e.id, { raw: res.Estimate, source: "send", drift: compareEstimate(e.sent_payload as { Line: unknown }, res.Estimate) });
+  }
+  await logEvent(p.id, "estimate-sent", { to: email, docNumber: e.doc_number }, userId);
+  return email;
 }
 
 // ---------------------------------------------------------------------------
@@ -462,7 +513,7 @@ export async function linkProject(p: ProjectRow, qboId: string, userId: number):
  * a sub-customer; whether QuickBooks treats it as a Project is read back from
  * its IsProject flag and reported truthfully.
  */
-export async function createProjectInQbo(p: ProjectRow, userId: number): Promise<{ qboId: string; isProject: boolean }> {
+export async function createProjectInQbo(p: ProjectRow, userId: number | null): Promise<{ qboId: string; isProject: boolean }> {
   if (!p.qbo_customer_id) throw new Error("Link the QuickBooks customer first.");
   const name = (p.title || p.project_address || `Project ${p.id}`).slice(0, 90);
   const result = await writeNamed(

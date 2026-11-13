@@ -132,6 +132,7 @@ export type ListRow = ProjectRow & {
   estimate_raw: Record<string, unknown> | null;
   estimate_error: string | null;
   estimate_total: string | null;
+  estimate_invoices: { count: number; total: number; balance: number } | null;
 };
 
 export async function listProjects(f: ListFilter): Promise<ListRow[]> {
@@ -160,7 +161,13 @@ export async function listProjects(f: ListFilter): Promise<ListRow[]> {
                       AND (e.last_synced_at IS NULL OR t.synced_at > e.last_synced_at)
                  THEN t.raw ELSE e.qbo_snapshot END AS estimate_raw,
             e.status_error AS estimate_error,
-            e.total::text AS estimate_total
+            e.total::text AS estimate_total,
+            (SELECT json_build_object('count', count(*)::int, 'total', coalesce(sum(i.total), 0)::float8, 'balance', coalesce(sum(i.balance), 0)::float8)
+               FROM qbo_txn i
+              WHERE i.txn_type = 'Invoice'
+                AND i.qbo_id IN (SELECT x->>'TxnId' FROM jsonb_array_elements(
+                      CASE WHEN jsonb_typeof(e.qbo_snapshot->'LinkedTxn') = 'array' THEN e.qbo_snapshot->'LinkedTxn' ELSE '[]'::jsonb END) x
+                     WHERE x->>'TxnType' = 'Invoice')) AS estimate_invoices
        FROM scope_project p
        LEFT JOIN LATERAL (
          SELECT * FROM scope_estimate se WHERE se.project_id = p.id ORDER BY se.created_at DESC LIMIT 1
@@ -570,9 +577,73 @@ export async function estimateSnapshots(estimateId: number): Promise<{ sync_toke
   );
 }
 
+/** What QuickBooks has invoiced against an estimate and what is still owed, from the mirrored invoices. */
+export async function linkedInvoices(snapshot: unknown): Promise<{ count: number; total: number; balance: number }> {
+  const linked = (snapshot as { LinkedTxn?: { TxnId?: string; TxnType?: string }[] } | null)?.LinkedTxn;
+  const ids = Array.isArray(linked) ? linked.filter((t) => t.TxnType === "Invoice" && t.TxnId).map((t) => String(t.TxnId)) : [];
+  if (!ids.length) return { count: 0, total: 0, balance: 0 };
+  const row = await queryOne<{ count: number; total: number; balance: number }>(
+    `SELECT count(*)::int AS count, coalesce(sum(total), 0)::float8 AS total, coalesce(sum(balance), 0)::float8 AS balance
+       FROM qbo_txn WHERE txn_type = 'Invoice' AND qbo_id = ANY($1::text[])`,
+    [ids],
+  );
+  return row ?? { count: 0, total: 0, balance: 0 };
+}
+
+export async function estimateByQboId(qboId: string): Promise<EstimateRow | null> {
+  return queryOne<EstimateRow>(`SELECT ${ESTIMATE_COLS} FROM scope_estimate WHERE qbo_estimate_id = $1 ORDER BY created_at DESC LIMIT 1`, [qboId]);
+}
+
 /** QuickBooks' own copy of the estimate, as delivered by the webhook or daily sync. */
 export async function mirroredEstimate(qboId: string): Promise<{ raw: Record<string, unknown>; synced_at: Date } | null> {
   return queryOne("SELECT raw, synced_at FROM qbo_txn WHERE txn_type = 'Estimate' AND qbo_id = $1", [qboId]);
+}
+
+// --------------------------------------------------------------------------
+// Large uploads (sent in pieces) and sheet-by-sheet reading
+// --------------------------------------------------------------------------
+
+export async function assetByClientKey(projectId: number, clientKey: string): Promise<AssetRow | null> {
+  return queryOne<AssetRow>(`SELECT ${ASSET_COLS} FROM scope_asset WHERE project_id = $1 AND client_key = $2`, [projectId, clientKey]);
+}
+
+export async function saveUploadPart(projectId: number, uploadKey: string, part: number, data: Buffer): Promise<void> {
+  await query(
+    `INSERT INTO scope_upload_part (project_id, upload_key, part, data) VALUES ($1,$2,$3,$4)
+     ON CONFLICT (project_id, upload_key, part) DO NOTHING`,
+    [projectId, uploadKey, part, data],
+  );
+}
+
+export async function uploadPartCount(projectId: number, uploadKey: string): Promise<number> {
+  const row = await queryOne<{ n: number }>("SELECT count(*)::int AS n FROM scope_upload_part WHERE project_id = $1 AND upload_key = $2", [projectId, uploadKey]);
+  return row?.n ?? 0;
+}
+
+/** The pieces in order. Read one at a time so a large file never needs two copies in memory per piece. */
+export async function readUploadPart(projectId: number, uploadKey: string, part: number): Promise<Buffer | null> {
+  const row = await queryOne<{ data: Buffer }>("SELECT data FROM scope_upload_part WHERE project_id = $1 AND upload_key = $2 AND part = $3", [projectId, uploadKey, part]);
+  return row ? Buffer.from(row.data) : null;
+}
+
+export async function clearUploadParts(projectId: number, uploadKey: string): Promise<void> {
+  await query("DELETE FROM scope_upload_part WHERE project_id = $1 AND upload_key = $2", [projectId, uploadKey]);
+  // Pieces of uploads abandoned more than a day ago.
+  await query("DELETE FROM scope_upload_part WHERE created_at < now() - interval '1 day'").catch(() => undefined);
+}
+
+export type SheetRow = { page: number; notes: string | null; error: string | null };
+
+export async function listSheets(assetId: number): Promise<SheetRow[]> {
+  return query<SheetRow>("SELECT page, notes, error FROM scope_sheet WHERE asset_id = $1 ORDER BY page", [assetId]);
+}
+
+export async function saveSheet(assetId: number, page: number, notes: string | null, error: string | null): Promise<void> {
+  await query(
+    `INSERT INTO scope_sheet (asset_id, page, notes, error) VALUES ($1,$2,$3,$4)
+     ON CONFLICT (asset_id, page) DO UPDATE SET notes = EXCLUDED.notes, error = EXCLUDED.error, read_at = now()`,
+    [assetId, page, notes, error],
+  );
 }
 
 // --------------------------------------------------------------------------
