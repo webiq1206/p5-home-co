@@ -233,6 +233,25 @@ has no market price data, so "competitive" is a prompt to check, not a verdict.
 - **Project:** tracked separately. An accepted estimate never shows a linked
   project until someone links or creates it.
 
+### Sending, acceptance and what happens after
+
+- **Send from the page.** An employee (never a scopes-only account) taps Send
+  estimate to client, confirms the address and amount, and QuickBooks emails
+  the estimate (`POST /estimate/{id}/send`). It refuses when the scope changed
+  after the estimate was created, when the saved email differs from the one on
+  screen, or when the estimate is no longer open in QuickBooks.
+- **Acceptance creates the project.** When QuickBooks reports the estimate
+  Accepted (webhook, daily sync, a refresh or a page view), the QuickBooks
+  project is created under the customer with no one asking. It is idempotent
+  and a failure is logged on the project and retried at the next change.
+  The accepted estimate itself is not edited, so it stays filed under the
+  customer; move it onto the project in QuickBooks if wanted.
+- **Following the job.** Statuses come from QuickBooks: not sent, sent,
+  accepted, declined, closed, invoiced, and completed and paid in full.
+  QuickBooks does not share a project's own Completed flag through this
+  connection, so "completed" means the linked invoices cover the whole
+  estimate and nothing is owed.
+
 ## Data
 
 Migration `024_scope_platform.sql` (additive only): `scope_project`,

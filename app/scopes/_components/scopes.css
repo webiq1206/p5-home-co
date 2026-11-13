@@ -80,7 +80,7 @@ details.sc-card > summary { cursor: pointer; }
 
 /* Pills ------------------------------------------------------------------ */
 .sc-pill { display: inline-block; padding: 3px 9px; border: 1px solid var(--line); background: var(--bone); color: var(--ink); font-size: 12px; font-weight: 650; }
-.sc-pill-ready, .sc-pill-est-accepted, .sc-pill-est-converted { background: #e7f0e4; border-color: #6d8f62; }
+.sc-pill-ready, .sc-pill-est-accepted, .sc-pill-est-converted, .sc-pill-est-paid { background: #e7f0e4; border-color: #6d8f62; }
 .sc-pill-needs_information, .sc-pill-est-unavailable { background: #fbefd9; border-color: #b8873a; }
 .sc-pill-est-declined, .sc-pill-est-deleted { background: #f6dede; border-color: #9a2f2f; }
 .sc-pill-est-sent, .sc-pill-est-created_unsent { background: #eef1f6; border-color: #7b8aa3; }
@@ -353,3 +353,4 @@ body:has(.sc-app) { overflow-x: clip; }
 .sc-ledger dt { color: var(--ink-2); }
 .sc-ledger dd { margin: 0; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .sc-ledger-sum dt, .sc-ledger-sum dd { color: var(--ink); font-weight: 700; }
+.sc-send { margin: 6px 0 10px; }

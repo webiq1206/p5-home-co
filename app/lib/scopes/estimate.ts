@@ -112,7 +112,8 @@ export type EstimateStatusName =
   | "closed"
   | "converted"
   | "deleted"
-  | "unavailable";
+  | "unavailable"
+  | "paid";
 
 export const ESTIMATE_STATUS_LABEL: Record<EstimateStatusName, string> = {
   not_created: "Not created",
@@ -122,22 +123,37 @@ export const ESTIMATE_STATUS_LABEL: Record<EstimateStatusName, string> = {
   declined: "Declined",
   closed: "Closed",
   converted: "Invoiced",
+  paid: "Completed, paid in full",
   deleted: "Deleted in QuickBooks",
   unavailable: "Status unavailable",
 };
 
 type RawEstimate = {
   TxnStatus?: string;
+  TotalAmt?: number;
   EmailStatus?: string;
   AcceptedBy?: string;
   AcceptedDate?: string;
   LinkedTxn?: { TxnId: string; TxnType: string }[];
 };
 
-export function estimateStatus(raw: RawEstimate | null | undefined, exists: boolean): EstimateStatusName {
+/** Invoices QuickBooks has linked to the estimate, as mirrored: how much was invoiced and how much is still owed. */
+export type InvoiceSummary = { count: number; total: number; balance: number };
+
+/**
+ * The estimate's state as QuickBooks holds it. Once it has been invoiced, the
+ * job counts as completed and paid when the invoices cover the whole estimate
+ * and nothing is owed. (QuickBooks does not share a project's own "completed"
+ * flag through this connection, so full payment is the signal.)
+ */
+export function estimateStatus(raw: RawEstimate | null | undefined, exists: boolean, invoices?: InvoiceSummary | null): EstimateStatusName {
   if (!exists) return "not_created";
   if (!raw || !raw.TxnStatus) return "unavailable";
-  if (raw.LinkedTxn?.some((t) => t.TxnType === "Invoice")) return "converted";
+  if (raw.LinkedTxn?.some((t) => t.TxnType === "Invoice")) {
+    const estimateTotal = Number(raw.TotalAmt ?? 0);
+    if (invoices && invoices.count > 0 && invoices.balance <= 0.005 && invoices.total >= estimateTotal - 0.01) return "paid";
+    return "converted";
+  }
   switch (raw.TxnStatus) {
     case "Accepted":
       return "accepted";

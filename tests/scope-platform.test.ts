@@ -747,3 +747,13 @@ test("labor that costs more than it bills is called out and the price needed is 
   assert.ok(p.notes.some((n) => /loses money/.test(n)));
   assert.ok(p.notes.some((n) => /would need to be about/.test(n)));
 });
+
+test("an invoiced estimate reads completed only when fully invoiced and nothing is owed", () => {
+  const raw = { TxnStatus: "Closed", TotalAmt: 1000, LinkedTxn: [{ TxnId: "9", TxnType: "Invoice" }] };
+  assert.equal(estimateStatus(raw, true), "converted");
+  assert.equal(estimateStatus(raw, true, { count: 1, total: 1000, balance: 250 }), "converted", "money still owed");
+  assert.equal(estimateStatus(raw, true, { count: 1, total: 400, balance: 0 }), "converted", "a paid deposit is not the whole job");
+  assert.equal(estimateStatus(raw, true, { count: 2, total: 1000, balance: 0 }), "paid");
+  assert.equal(estimateStatus({ TxnStatus: "Rejected" }, true), "declined");
+  assert.equal(estimateStatus({ TxnStatus: "Pending", EmailStatus: "EmailSent" }, true), "sent");
+});

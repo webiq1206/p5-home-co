@@ -18,6 +18,7 @@ import {
   linkProject,
   qboState,
   refreshEstimate,
+  sendEstimate,
 } from "../../../../lib/scopes/qbo.ts";
 import { getProject, latestEstimate, loadScopeSettings } from "../../../../lib/scopes/store.ts";
 import { canonical } from "../../../../lib/scopes/types.ts";
@@ -40,7 +41,7 @@ const REQUIRED: [string, string][] = [
 export async function POST(request: Request, { params }: Ctx) {
   const g = await requireProject((await params).id);
   if ("response" in g) return g.response;
-  const body = (await request.json().catch(() => ({}))) as { action?: string; qboId?: string; create?: boolean; overwrite?: boolean; refresh?: boolean };
+  const body = (await request.json().catch(() => ({}))) as { action?: string; qboId?: string; create?: boolean; overwrite?: boolean; refresh?: boolean; email?: string };
   try {
     const state = await qboState();
     if (!state.connected) throw new Error(state.configured ? "QuickBooks is not connected. An administrator can connect it from Finance." : "QuickBooks is not configured for this deployment.");
@@ -72,6 +73,23 @@ export async function POST(request: Request, { params }: Ctx) {
         if (missingItems.length) throw new Error(`These QuickBooks items were not found: ${missingItems.join(", ")}. An administrator can map them in Pricing setup.`);
         if (!payload) throw new Error("The estimate could not be prepared.");
         await createOrReviseEstimate({ project: latest, version, payload, userId: g.user.id, overwriteQuickBooksChanges: body.overwrite === true });
+        break;
+      }
+      case "send": {
+        // Emailing a client is an employee's call, never a scopes-only account's.
+        if (g.user.scopesOnly) throw new Error("Only P5 employees can send an estimate to a client.");
+        const e = await latestEstimate(project.id);
+        if (!e) throw new Error("Create the estimate first.");
+        // The screen states the address it is sending to; refuse if that is no longer the saved one.
+        if (String(body.email ?? "").trim().toLowerCase() !== (project.client_email ?? "").trim().toLowerCase()) {
+          throw new Error("The client's email changed. Check it and send again.");
+        }
+        const version = (await currentDoc(project)).version;
+        if (version && e.version_id !== version.id) throw new Error("The scope changed after this estimate was created. Update the estimate before sending it.");
+        await refreshEstimate(e).catch(() => undefined);
+        const live = (await latestEstimate(project.id)) ?? e;
+        if (live.txn_status !== "Pending") throw new Error("This estimate is no longer open in QuickBooks, so it was not sent.");
+        await sendEstimate(project, live, g.user.id);
         break;
       }
       case "refresh": {

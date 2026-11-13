@@ -132,6 +132,7 @@ export type ListRow = ProjectRow & {
   estimate_raw: Record<string, unknown> | null;
   estimate_error: string | null;
   estimate_total: string | null;
+  estimate_invoices: { count: number; total: number; balance: number } | null;
 };
 
 export async function listProjects(f: ListFilter): Promise<ListRow[]> {
@@ -160,7 +161,13 @@ export async function listProjects(f: ListFilter): Promise<ListRow[]> {
                       AND (e.last_synced_at IS NULL OR t.synced_at > e.last_synced_at)
                  THEN t.raw ELSE e.qbo_snapshot END AS estimate_raw,
             e.status_error AS estimate_error,
-            e.total::text AS estimate_total
+            e.total::text AS estimate_total,
+            (SELECT json_build_object('count', count(*)::int, 'total', coalesce(sum(i.total), 0)::float8, 'balance', coalesce(sum(i.balance), 0)::float8)
+               FROM qbo_txn i
+              WHERE i.txn_type = 'Invoice'
+                AND i.qbo_id IN (SELECT x->>'TxnId' FROM jsonb_array_elements(
+                      CASE WHEN jsonb_typeof(e.qbo_snapshot->'LinkedTxn') = 'array' THEN e.qbo_snapshot->'LinkedTxn' ELSE '[]'::jsonb END) x
+                     WHERE x->>'TxnType' = 'Invoice')) AS estimate_invoices
        FROM scope_project p
        LEFT JOIN LATERAL (
          SELECT * FROM scope_estimate se WHERE se.project_id = p.id ORDER BY se.created_at DESC LIMIT 1
@@ -568,6 +575,23 @@ export async function estimateSnapshots(estimateId: number): Promise<{ sync_toke
        FROM scope_estimate_snapshot WHERE estimate_id = $1 ORDER BY captured_at DESC`,
     [estimateId],
   );
+}
+
+/** What QuickBooks has invoiced against an estimate and what is still owed, from the mirrored invoices. */
+export async function linkedInvoices(snapshot: unknown): Promise<{ count: number; total: number; balance: number }> {
+  const linked = (snapshot as { LinkedTxn?: { TxnId?: string; TxnType?: string }[] } | null)?.LinkedTxn;
+  const ids = Array.isArray(linked) ? linked.filter((t) => t.TxnType === "Invoice" && t.TxnId).map((t) => String(t.TxnId)) : [];
+  if (!ids.length) return { count: 0, total: 0, balance: 0 };
+  const row = await queryOne<{ count: number; total: number; balance: number }>(
+    `SELECT count(*)::int AS count, coalesce(sum(total), 0)::float8 AS total, coalesce(sum(balance), 0)::float8 AS balance
+       FROM qbo_txn WHERE txn_type = 'Invoice' AND qbo_id = ANY($1::text[])`,
+    [ids],
+  );
+  return row ?? { count: 0, total: 0, balance: 0 };
+}
+
+export async function estimateByQboId(qboId: string): Promise<EstimateRow | null> {
+  return queryOne<EstimateRow>(`SELECT ${ESTIMATE_COLS} FROM scope_estimate WHERE qbo_estimate_id = $1 ORDER BY created_at DESC LIMIT 1`, [qboId]);
 }
 
 /** QuickBooks' own copy of the estimate, as delivered by the webhook or daily sync. */

@@ -11,6 +11,7 @@ import {
   estimateSnapshots,
   getProject,
   latestEstimate,
+  linkedInvoices,
   listAssets,
   listEvents,
   listVersions,
@@ -73,6 +74,9 @@ export type Workspace = {
     versionNo: number | null;
     acceptedBy: string | null;
     acceptedDate: string | null;
+    /** Sent to this address through QuickBooks, when QuickBooks reports it. */
+    sentTo: string | null;
+    invoiced: { count: number; total: number; balance: number } | null;
     url: string | null;
     drift: { changed: boolean; details: string[] } | null;
     lastSyncedAt: string | null;
@@ -111,7 +115,8 @@ export async function loadWorkspace(projectId: number, viewer: Pick<ScopeUser, "
     projectIsProject(project.qbo_project_id),
   ]);
   project = (await getProject(projectId))!;
-  const status = estimate ? estimateStatus(estimate.qbo_snapshot as never, true) : "not_created";
+  const invoices = estimate ? await linkedInvoices(estimate.qbo_snapshot) : null;
+  const status = estimate ? estimateStatus(estimate.qbo_snapshot as never, true, invoices) : "not_created";
   const {
     pending_proposal,
     processing_started_at,
@@ -179,6 +184,8 @@ export async function loadWorkspace(projectId: number, viewer: Pick<ScopeUser, "
           versionNo: versions.find((v) => v.id === estimate!.version_id)?.version_no ?? null,
           acceptedBy: estimate.accepted_by,
           acceptedDate: estimate.accepted_date,
+          sentTo: estimate.email_status === "EmailSent" ? (((estimate.qbo_snapshot as { BillEmail?: { Address?: string } } | null)?.BillEmail?.Address) ?? null) : null,
+          invoiced: invoices && invoices.count ? invoices : null,
           url: estimate.qbo_estimate_id ? qboWebUrl("estimate", estimate.qbo_estimate_id, isSandbox()) : null,
           drift: estimate.drift ? { changed: estimate.drift.changed, details: estimate.drift.details } : null,
           lastSyncedAt: iso(estimate.last_synced_at),

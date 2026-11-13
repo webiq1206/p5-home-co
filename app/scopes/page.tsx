@@ -57,7 +57,7 @@ export default async function ScopeList({ searchParams }: { searchParams: Promis
   try {
     rows = (await listProjects({ q, scope, archived, sort })).map((r) => ({
       ...r,
-      est: estimateStatus(r.estimate_raw as never, Boolean(r.estimate_qbo_id)),
+      est: estimateStatus(r.estimate_raw as never, Boolean(r.estimate_qbo_id), r.estimate_invoices),
     }));
     if (estimate) rows = rows.filter((r) => r.est === estimate);
   } catch (e) {

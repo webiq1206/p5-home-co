@@ -36,6 +36,7 @@ export default function EstimatePanel({ ws, onWorkspace, onScope }: { ws: Worksp
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [confirmOverwrite, setConfirmOverwrite] = useState(false);
+  const [confirmSend, setConfirmSend] = useState(false);
 
   const missingClient = CLIENT_FIELDS.filter(([k]) => !String(p[k] ?? "").trim()).map(([, l]) => l);
   const dirty = CLIENT_FIELDS.some(([k]) => (form[k] ?? "") !== String(p[k] ?? "")) || (billingDifferent ? form.billing_address : "") !== (p.billing_address ?? "");
@@ -226,11 +227,57 @@ export default function EstimatePanel({ ws, onWorkspace, onScope }: { ws: Worksp
               Estimate {e.docNumber ? `#${e.docNumber}` : ""} for {money(e.total)}, from scope version {e.versionNo ?? "?"}.{" "}
               {e.url && <a href={e.url} target="_blank" rel="noreferrer">Open in QuickBooks</a>}
             </p>
-            {e.status === "created_unsent" && <p className="sc-muted">Not sent. Send it from QuickBooks when you are ready.</p>}
+            {(e.status === "created_unsent" || e.status === "sent") && (
+              <div className="sc-send">
+                <p className={e.status === "sent" ? "" : "sc-muted"}>
+                  {e.status === "sent"
+                    ? <><b>Sent{e.sentTo ? ` to ${e.sentTo}` : ""}.</b> Waiting for the client to accept or decline. This page updates on its own when they do.</>
+                    : "Not sent yet."}
+                </p>
+                {!ws.viewer.internal ? (
+                  <p className="sc-small sc-muted">A P5 employee sends the estimate to the client.</p>
+                ) : behind ? (
+                  <p className="sc-small sc-muted">Update the estimate below before sending it.</p>
+                ) : !p.client_email ? (
+                  <p className="sc-small sc-muted">Save the client&apos;s email above to send it from here.</p>
+                ) : confirmSend ? (
+                  <div className="sc-revise" role="group" aria-label="Confirm sending">
+                    <p>
+                      QuickBooks will email estimate {e.docNumber ? `#${e.docNumber} ` : ""}for <b>{money(e.total)}</b> to <b>{p.client_email}</b> now.
+                    </p>
+                    <div className="sc-actions">
+                      <button type="button" className="sc-btn sc-btn-primary" disabled={!!busy || qboDown} onClick={() => act("send", async () => {
+                        const res = await estimateAction({ action: "send", email: p.client_email });
+                        if (res.workspace) onWorkspace(res.workspace);
+                        setConfirmSend(false);
+                        setNotice(`Estimate sent to ${p.client_email}.`);
+                      })}>{busy === "send" ? "Sending..." : "Send now"}</button>
+                      <button type="button" className="sc-btn" disabled={!!busy} onClick={() => setConfirmSend(false)}>Cancel</button>
+                    </div>
+                  </div>
+                ) : (
+                  <button type="button" className={`sc-btn${e.status === "sent" ? "" : " sc-btn-primary sc-btn-big"}`} disabled={!!busy || qboDown} onClick={() => setConfirmSend(true)}>
+                    {e.status === "sent" ? "Send again" : "Send estimate to client"}
+                  </button>
+                )}
+              </div>
+            )}
             {e.status === "accepted" && (
-              <p className="sc-muted">
-                Accepted{e.acceptedBy ? ` by ${e.acceptedBy}` : ""}{e.acceptedDate ? ` on ${e.acceptedDate}` : ""}. The QuickBooks project is a separate step below.
+              <p>
+                <b>Accepted{e.acceptedBy ? ` by ${e.acceptedBy}` : ""}{e.acceptedDate ? ` on ${e.acceptedDate}` : ""}.</b>{" "}
+                {p.qbo_project_id ? "The QuickBooks project has been created. The job continues in QuickBooks; this page keeps following it." : "The QuickBooks project is being created automatically."}
               </p>
+            )}
+            {e.status === "declined" && <p><b>Declined.</b> The client did not approve this estimate in QuickBooks.</p>}
+            {e.status === "closed" && <p><b>Closed in QuickBooks.</b></p>}
+            {e.status === "converted" && (
+              <p>
+                <b>Invoiced.</b>{" "}
+                {e.invoiced ? `${money(e.invoiced.total)} invoiced so far, ${money(e.invoiced.balance)} still owed.` : "QuickBooks has turned this estimate into an invoice."}
+              </p>
+            )}
+            {e.status === "paid" && (
+              <p><b>Completed.</b> {e.invoiced ? `${money(e.invoiced.total)} invoiced and paid in full.` : "Invoiced and paid in full."}</p>
             )}
             {e.drift?.changed && (
               <div className="sc-alert sc-alert-warn" role="alert">
@@ -268,7 +315,7 @@ export default function EstimatePanel({ ws, onWorkspace, onScope }: { ws: Worksp
               </p>
             )}
             <p className="sc-muted">
-              Creates one estimate in QuickBooks with customer-facing descriptions, grouped by phase and division. Optional upgrades are listed in the message, not in the total. It stays unsent.
+              Creates one estimate in QuickBooks with customer-facing descriptions, grouped by phase and division. Optional upgrades are listed in the message, not in the total. It is not sent until you send it.
             </p>
             <button
               type="button"
@@ -277,7 +324,7 @@ export default function EstimatePanel({ ws, onWorkspace, onScope }: { ws: Worksp
               onClick={() => act("create", async () => {
                 const res = await estimateAction({ action: "create" });
                 if (res.workspace) onWorkspace(res.workspace);
-                setNotice("Estimate created in QuickBooks. It has not been sent.");
+                setNotice("Estimate created in QuickBooks. It has not been sent yet.");
               })}
             >
               {busy === "create" ? "Creating estimate..." : `Create estimate (${money(ws.pricing.totals.basePrice)})`}
@@ -297,9 +344,9 @@ export default function EstimatePanel({ ws, onWorkspace, onScope }: { ws: Worksp
         ) : (
           <>
             <p className="sc-muted">
-              {e?.status === "accepted"
-                ? "The estimate is accepted. Create the project in QuickBooks or link one that already exists."
-                : "Usually done after the estimate is accepted. Project status only shows as linked once this step is done."}
+              {e?.status === "accepted" || e?.status === "converted" || e?.status === "paid"
+                ? "The project is created in QuickBooks automatically once the estimate is accepted. If it has not appeared, create or link it here."
+                : "Nothing to do here. The project is created in QuickBooks automatically when the client accepts the estimate. Use these only to link a project that already exists."}
             </p>
             <div className="sc-actions">
               <button type="button" className="sc-btn" disabled={!p.qbo_customer_id || !!busy || qboDown} onClick={() => act("projects", async () => {
