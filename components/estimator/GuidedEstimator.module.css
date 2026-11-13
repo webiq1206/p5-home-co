@@ -1,0 +1,724 @@
+/* The guided estimator. Mobile first; one decision per screen.
+   Brand accents arrive as --ge-accent and --ge-accent-ink. Accents never
+   carry small body text: text is ink on paper, and the accent is a bar, a
+   ring or a fill behind ink. */
+
+.shell {
+  --ge-ink: #383837;
+  --ge-ink-soft: #5c5c5a;
+  --ge-paper: #fbfaf6;
+  --ge-bone: #f1ede4;
+  --ge-line: rgba(32, 35, 31, 0.16);
+  --ge-accent: #ceb391;
+  --ge-accent-ink: #705a45;
+  color: var(--ge-ink);
+  background: var(--ge-paper);
+  font-family: var(--font-sans, "Manrope", system-ui, sans-serif);
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 12px 16px 120px;
+  min-height: 70vh;
+  box-sizing: border-box;
+}
+.shell[data-embedded] {
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+.shell *,
+.shell *::before,
+.shell *::after {
+  box-sizing: border-box;
+}
+
+/* ---------------------------------------------------------------- top bar */
+.top {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 12px;
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  background: var(--ge-paper);
+  padding: 8px 0 12px;
+}
+.back {
+  appearance: none;
+  border: 0;
+  background: none;
+  color: var(--ge-ink);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  min-height: 44px;
+  padding: 0 8px 0 0;
+  cursor: pointer;
+}
+.back:disabled {
+  visibility: hidden;
+}
+.progress {
+  height: 6px;
+  background: var(--ge-bone);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.progress span {
+  display: block;
+  height: 100%;
+  background: var(--ge-ink);
+  border-radius: 999px;
+  transition: width 0.3s ease;
+}
+.count {
+  font-size: 13px;
+  color: var(--ge-ink-soft);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ----------------------------------------------------------------- screen */
+.screen {
+  animation: ge-in 0.26s ease both;
+}
+.screen[data-direction="back"] {
+  animation-name: ge-in-back;
+}
+@keyframes ge-in {
+  from {
+    opacity: 0;
+    transform: translateX(18px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes ge-in-back {
+  from {
+    opacity: 0;
+    transform: translateX(-18px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .screen {
+    animation: none;
+  }
+  .progress span,
+  .card {
+    transition: none;
+  }
+}
+.title {
+  font-family: var(--font-display, "Cormorant Garamond", Georgia, serif);
+  font-weight: 600;
+  font-size: clamp(30px, 7vw, 42px);
+  line-height: 1.08;
+  letter-spacing: -0.01em;
+  margin: 8px 0 8px;
+  outline: none;
+}
+.help {
+  font-size: 16px;
+  line-height: 1.5;
+  color: var(--ge-ink-soft);
+  margin: 0 0 20px;
+  max-width: 52ch;
+}
+.kicker {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ge-accent-ink);
+  margin: 8px 0 0;
+}
+.fine {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--ge-ink-soft);
+  margin: 12px 0 0;
+}
+.fine a {
+  color: var(--ge-ink);
+}
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* ------------------------------------------------------------------ cards */
+.group + .group {
+  margin-top: 24px;
+}
+.groupTitle {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ge-ink-soft);
+  margin: 0 0 10px;
+}
+.cards {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 16px;
+}
+.group .cards {
+  margin-top: 0;
+}
+.card {
+  appearance: none;
+  display: flex;
+  flex-direction: column;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  background: #fff;
+  border: 1px solid var(--ge-line);
+  border-radius: 14px;
+  padding: 0;
+  min-height: 76px;
+  overflow: hidden;
+  cursor: pointer;
+  transition:
+    transform 0.12s ease,
+    box-shadow 0.12s ease,
+    border-color 0.12s ease;
+}
+.card:not([data-photo]) {
+  justify-content: center;
+  border-left: 4px solid var(--ge-accent);
+}
+/* Text-only cards read better full width on a phone. */
+.cards:not(:has([data-photo])) {
+  grid-template-columns: 1fr;
+}
+.card:hover {
+  border-color: var(--ge-ink);
+}
+.card:active {
+  transform: scale(0.985);
+}
+.card:focus-visible,
+.chip:focus-visible,
+.primary:focus-visible,
+.secondary:focus-visible,
+.back:focus-visible,
+.suggestion:focus-visible,
+.taskMain:focus-visible,
+.countButton:focus-visible,
+.stepButton:focus-visible {
+  outline: 3px solid var(--ge-ink);
+  outline-offset: 2px;
+}
+.card[data-selected] {
+  border-color: var(--ge-ink);
+  box-shadow: 0 0 0 2px var(--ge-ink);
+}
+.cardImage {
+  display: block;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  background: var(--ge-bone);
+}
+.cardText {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 12px 14px 14px;
+}
+.cardLabel {
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.25;
+}
+.cardHint {
+  font-size: 14px;
+  line-height: 1.4;
+  color: var(--ge-ink-soft);
+}
+
+/* ----------------------------------------------------------------- number */
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+.chip {
+  appearance: none;
+  font: inherit;
+  font-size: 16px;
+  font-weight: 600;
+  min-height: 48px;
+  min-width: 72px;
+  padding: 0 16px;
+  border-radius: 999px;
+  border: 1px solid var(--ge-line);
+  background: #fff;
+  color: var(--ge-ink);
+  cursor: pointer;
+}
+.chip[data-selected] {
+  background: var(--ge-ink);
+  border-color: var(--ge-ink);
+  color: var(--ge-paper);
+}
+.stepper {
+  display: grid;
+  grid-template-columns: 60px 1fr 60px;
+  gap: 10px;
+  align-items: center;
+}
+.stepButton,
+.countButton {
+  appearance: none;
+  font: inherit;
+  font-size: 26px;
+  line-height: 1;
+  height: 60px;
+  border-radius: 14px;
+  border: 1px solid var(--ge-line);
+  background: #fff;
+  color: var(--ge-ink);
+  cursor: pointer;
+}
+.stepButton:disabled,
+.countButton:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.stepValue {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 8px;
+  height: 60px;
+  border-radius: 14px;
+  background: var(--ge-bone);
+  padding: 0 12px;
+}
+.stepInput {
+  font: inherit;
+  font-size: 26px;
+  font-weight: 700;
+  width: 5ch;
+  text-align: right;
+  border: 0;
+  background: none;
+  color: var(--ge-ink);
+  align-self: center;
+  -moz-appearance: textfield;
+}
+.stepInput::-webkit-outer-spin-button,
+.stepInput::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.stepUnit {
+  font-size: 15px;
+  color: var(--ge-ink-soft);
+  align-self: center;
+}
+
+/* ------------------------------------------------------------------ tasks */
+.taskList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+.task {
+  display: flex;
+  align-items: stretch;
+  background: #fff;
+  border: 1px solid var(--ge-line);
+  border-radius: 12px;
+  overflow: hidden;
+}
+.task[data-selected] {
+  border-color: var(--ge-ink);
+  box-shadow: 0 0 0 1px var(--ge-ink);
+}
+.taskMain {
+  appearance: none;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  border-left: 4px solid transparent;
+  min-height: 56px;
+  padding: 8px 12px;
+  cursor: pointer;
+}
+.task[data-selected] .taskMain {
+  border-left-color: var(--ge-accent);
+}
+.taskCount {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 8px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.countButton {
+  width: 44px;
+  height: 44px;
+  font-size: 22px;
+  border-radius: 10px;
+}
+
+/* ------------------------------------------------------------------ forms */
+.form {
+  display: grid;
+  gap: 14px;
+}
+.two {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.field {
+  display: grid;
+  gap: 6px;
+  position: relative;
+}
+.label {
+  font-size: 14px;
+  font-weight: 700;
+}
+.input {
+  font: inherit;
+  /* 16px stops iOS from zooming the page on focus. */
+  font-size: 16px;
+  min-height: 54px;
+  padding: 0 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(32, 35, 31, 0.4);
+  background: #fff;
+  color: var(--ge-ink);
+  width: 100%;
+}
+.input:focus {
+  outline: 3px solid var(--ge-ink);
+  outline-offset: 1px;
+}
+.input[aria-invalid="true"] {
+  border-color: #a3301c;
+}
+.error {
+  font-size: 14px;
+  color: #8a2714;
+  margin: 0;
+}
+.hp {
+  position: absolute;
+  left: -9999px;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+}
+.consent {
+  display: grid;
+  grid-template-columns: 24px 1fr;
+  gap: 10px;
+  align-items: start;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--ge-ink-soft);
+}
+.consent input {
+  width: 22px;
+  height: 22px;
+  margin: 0;
+  accent-color: var(--ge-ink);
+}
+.suggestions {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 4px;
+  border: 1px solid var(--ge-line);
+  border-radius: 12px;
+  background: #fff;
+}
+.suggestion {
+  appearance: none;
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  font-size: 15px;
+  color: var(--ge-ink);
+  background: none;
+  border: 0;
+  border-radius: 8px;
+  min-height: 48px;
+  padding: 6px 10px;
+  cursor: pointer;
+}
+.suggestion:hover {
+  background: var(--ge-bone);
+}
+.suggestion span {
+  color: var(--ge-ink-soft);
+}
+.confirm {
+  display: grid;
+  gap: 16px;
+}
+.address {
+  font-size: 16px;
+  font-weight: 600;
+  margin: 0;
+}
+.row {
+  display: grid;
+  gap: 10px;
+}
+
+/* ---------------------------------------------------------------- buttons */
+.dock {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 4;
+  padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+  background: linear-gradient(to top, var(--ge-paper) 72%, rgba(251, 250, 246, 0));
+}
+.dock .primary {
+  max-width: 728px;
+  margin: 0 auto;
+}
+.primary,
+.secondary {
+  appearance: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 56px;
+  padding: 0 20px;
+  font: inherit;
+  font-size: 17px;
+  font-weight: 700;
+  text-decoration: none;
+  border-radius: 12px;
+  cursor: pointer;
+}
+/* Charcoal with paper text and the brand accent bar. */
+.primary {
+  background: var(--ge-ink);
+  color: var(--ge-paper);
+  border: 0;
+  border-bottom: 4px solid var(--ge-accent);
+}
+.primary:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.secondary {
+  background: #fff;
+  color: var(--ge-ink);
+  border: 1px solid rgba(32, 35, 31, 0.4);
+}
+
+/* ----------------------------------------------------------------- result */
+.result {
+  padding-top: 8px;
+}
+.totalCard {
+  background: var(--ge-ink);
+  color: var(--ge-paper);
+  border-radius: 18px;
+  border-bottom: 6px solid var(--ge-accent);
+  padding: 22px 20px 20px;
+  margin: 18px 0 8px;
+}
+.totalCard .fine,
+.totalCard .help {
+  color: rgba(251, 250, 246, 0.86);
+  margin-bottom: 0;
+}
+.totalLabel {
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  margin: 0;
+}
+.total {
+  font-family: var(--font-display, "Cormorant Garamond", Georgia, serif);
+  font-size: clamp(52px, 15vw, 76px);
+  font-weight: 600;
+  line-height: 1;
+  margin: 6px 0 4px;
+  font-variant-numeric: lining-nums;
+}
+.block {
+  margin-top: 28px;
+}
+.blockTitle {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ge-ink-soft);
+  margin: 0 0 12px;
+}
+.tags {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.tags li {
+  font-size: 14px;
+  font-weight: 600;
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: var(--ge-bone);
+}
+.phase + .phase {
+  margin-top: 18px;
+}
+.phaseHead,
+.grand,
+.division summary,
+.items li {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  font-variant-numeric: tabular-nums;
+}
+.phaseHead {
+  font-weight: 700;
+  font-size: 16px;
+  padding: 0 2px 8px;
+  border-bottom: 2px solid var(--ge-ink);
+}
+.division {
+  border-bottom: 1px solid var(--ge-line);
+}
+.division summary {
+  list-style: none;
+  cursor: pointer;
+  min-height: 52px;
+  align-items: center;
+  font-size: 16px;
+  padding: 0 2px;
+}
+.division summary::-webkit-details-marker {
+  display: none;
+}
+.division summary span:first-child::before {
+  content: "+";
+  display: inline-block;
+  width: 20px;
+  font-weight: 700;
+}
+.division[open] summary span:first-child::before {
+  content: "\2212";
+}
+.items {
+  list-style: none;
+  margin: 0;
+  padding: 0 2px 12px 22px;
+  display: grid;
+  gap: 10px;
+}
+.items li {
+  font-size: 15px;
+  line-height: 1.4;
+  color: var(--ge-ink);
+}
+.items li span:last-child {
+  white-space: nowrap;
+}
+.qty {
+  font-style: normal;
+  color: var(--ge-ink-soft);
+}
+.allowance {
+  font-style: normal;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 6px;
+  background: var(--ge-bone);
+  white-space: nowrap;
+}
+.grand {
+  font-size: 19px;
+  font-weight: 800;
+  padding: 16px 2px 0;
+}
+.fold {
+  border-bottom: 1px solid var(--ge-line);
+}
+.block + .fold {
+  margin-top: 24px;
+  border-top: 1px solid var(--ge-line);
+}
+.fold summary {
+  cursor: pointer;
+  min-height: 54px;
+  display: flex;
+  align-items: center;
+  font-size: 16px;
+  font-weight: 700;
+}
+.bullets,
+.steps {
+  margin: 0 0 16px;
+  padding-left: 20px;
+  display: grid;
+  gap: 8px;
+  font-size: 15px;
+  line-height: 1.5;
+}
+.steps {
+  margin-bottom: 20px;
+}
+
+@media (min-width: 720px) {
+  .shell {
+    padding: 24px 24px 140px;
+  }
+  .cards {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 16px;
+  }
+  .cards[data-count="2"],
+  .cards[data-count="4"] {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .cards:not(:has([data-photo])) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .taskList {
+    grid-template-columns: 1fr 1fr;
+  }
+  .row {
+    grid-template-columns: 1fr 1fr;
+  }
+}

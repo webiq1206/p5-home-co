@@ -14,6 +14,10 @@ import { ESTIMATOR_BUCKETS } from "../../../lib/p5/objectStorage.ts";
 
 /** Just under next.config.ts proxyClientMaxBodySize (24 MiB), leaving room for the multipart envelope. */
 export const MAX_UPLOAD_BYTES = 23 * 1024 * 1024;
+/** Larger files are sent in pieces of this size and joined on the server. */
+export const UPLOAD_PART_BYTES = 8 * 1024 * 1024;
+/** The largest single file accepted. It is held in memory once while it is joined and read. */
+export const MAX_FILE_BYTES = 300 * 1024 * 1024;
 const BUCKET = ESTIMATOR_BUCKETS["p5homeco.com"];
 
 export function sha256(data: Buffer): string {

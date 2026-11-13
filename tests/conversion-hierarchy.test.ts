@@ -44,7 +44,9 @@ test("hub pages keep call and chat, with one request entry below the hero", () =
   assert.match(chatConfig, /enabled:\s*true/);
   assert.match(chatConfig, /label:\s*'Chat'/);
   assert.match(chatConfig, /openEvent:\s*'p5:chat-open'/);
-  assert.match(chatConfig, /hiddenOn:\s*\['\/admin\*', '\/portal\*'\]/);
+  // Chat stays on every public P5 page. The one addition is the estimator embed, which the
+  // brand sites frame: the P5 chat launcher does not belong inside another site's page.
+  assert.match(chatConfig, /hiddenOn:\s*\['\/admin\*', '\/portal\*', '\/estimator\/embed\*'\]/);
   assert.match(chat, /addEventListener\("p5:chat-open"/);
   assert.match(home, /SiteChrome/);
   // Owner, 1 November: "Request a quote" lands directly on the form. On /quote

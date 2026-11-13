@@ -7,12 +7,11 @@
  * the list, so an answer that resolves other gaps removes those steps too.
  */
 
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type { Answer, Evidence, Question } from "../../lib/scopes/types.ts";
 import { unitLabel } from "../../lib/scopes/divisions.ts";
 import { api, newKey, type Workspace } from "./client.ts";
-import Dictate from "./Dictate.tsx";
 import EvidenceLinks from "./EvidenceLinks.tsx";
 
 /** Accept 12.5, 12' 6", 12 ft 6 in, 1,200 and $1,200.50. */
@@ -80,6 +79,65 @@ export default function Wizard({
     setFile(null);
     setError(null);
   }
+
+  // Each question is held at the top of the visible screen, above the keyboard,
+  // so the step, the question and the answer box are read without scrolling.
+  const root = useRef<HTMLElement | null>(null);
+  const finished = q === null;
+  const field = useRef<HTMLInputElement | null>(null);
+  const pin = useCallback(() => {
+    const el = root.current;
+    if (!el) return;
+    const vv = window.visualViewport;
+    const bar = document.querySelector(".admin-bar")?.getBoundingClientRect();
+    const head = el.closest(".sc-sec")?.querySelector(".sc-sec-h");
+    // The open section's header sticks under the app bar except while an answer is being typed.
+    const sticky = head instanceof HTMLElement && getComputedStyle(head).position === "sticky" ? head.offsetHeight : 0;
+    // Whatever covers the top of the page: the app bar and section header, or the part scrolled off by the keyboard.
+    const covered = Math.max((bar ? Math.max(0, bar.bottom) : 0) + sticky, vv?.offsetTop ?? 0);
+    const delta = el.getBoundingClientRect().top - covered - 8;
+    if (Math.abs(delta) > 2) window.scrollBy({ top: delta, behavior: "auto" });
+  }, []);
+
+  // A new question: keep typing in the same box (the keyboard stays up) and bring the question to the top.
+  const firstStep = useRef(true);
+  useEffect(() => {
+    if (firstStep.current) {
+      firstStep.current = false;
+      return;
+    }
+    if (!stepKey) return;
+    field.current?.focus({ preventScroll: true });
+    const t = setTimeout(pin, 30);
+    return () => clearTimeout(t);
+  }, [stepKey, pin]);
+
+  // The phone scrolls on its own when a box is tapped and again as the keyboard opens; put the question back each time.
+  useEffect(() => {
+    const el = root.current;
+    if (!el) return;
+    let timers: ReturnType<typeof setTimeout>[] = [];
+    const typing = () => {
+      const a = document.activeElement;
+      return a instanceof HTMLElement && el.contains(a) && (a.tagName === "TEXTAREA" || (a.tagName === "INPUT" && !["radio", "checkbox", "file"].includes((a as HTMLInputElement).type)));
+    };
+    const settle = () => {
+      timers.forEach(clearTimeout);
+      timers = [60, 350, 700].map((ms) => setTimeout(() => typing() && pin(), ms));
+    };
+    const onFocus = () => typing() && settle();
+    const onResize = () => typing() && pin();
+    el.addEventListener("focusin", onFocus);
+    // A tap on a box that already has the cursor still opens the keyboard.
+    el.addEventListener("click", onFocus);
+    window.visualViewport?.addEventListener("resize", onResize);
+    return () => {
+      timers.forEach(clearTimeout);
+      el.removeEventListener("focusin", onFocus);
+      el.removeEventListener("click", onFocus);
+      window.visualViewport?.removeEventListener("resize", onResize);
+    };
+  }, [pin, finished]);
 
   if (!q) {
     return (
@@ -194,7 +252,7 @@ export default function Wizard({
   const id = `wiz-${q.key.replace(/[^a-z0-9]/gi, "-")}`;
 
   return (
-    <section className="sc-card sc-wizard" aria-labelledby={`${id}-prompt`}>
+    <section className="sc-card sc-wizard" aria-labelledby={`${id}-prompt`} ref={root}>
       <div className="sc-progress" role="progressbar" aria-valuemin={0} aria-valuemax={total} aria-valuenow={step - 1} aria-label="Questions answered">
         <span style={{ width: `${total ? ((step - 1) / total) * 100 : 0}%` }} />
       </div>
@@ -217,33 +275,36 @@ export default function Wizard({
           void submit(false);
         }}
       >
-        {(input.type === "measurement" || input.type === "number") && (
+        {/* One answer box shared by every number question, so the keyboard stays open from one question to the next. */}
+        {(input.type === "measurement" || input.type === "number" || input.type === "currency") && (
           <label className="sc-field sc-field-big" htmlFor={id}>
-            <span>{input.type === "measurement" ? "Measurement" : input.unit === "HR" ? "Hours" : "Quantity"}</span>
-            <span className="sc-unit-input">
-              <input id={id} inputMode="decimal" autoFocus value={value} onChange={(e) => update(e.target.value)} aria-describedby={`${id}-unit`} />
-              <span id={`${id}-unit`} className="sc-unit">{unitLabel(input.unit)}</span>
+            <span>
+              {input.type === "currency" ? "Amount (P5's cost)" : input.type === "measurement" ? "Measurement" : input.unit === "HR" ? "Hours" : "Quantity"}
             </span>
-            {input.unit === "LF" && <small className="sc-muted">Feet and inches work too, for example 12&apos; 6&quot;.</small>}
+            <span className="sc-unit-input">
+              {input.type === "currency" && <span key="pre" className="sc-unit">$</span>}
+              <input
+                key="answer"
+                ref={field}
+                id={id}
+                inputMode="decimal"
+                enterKeyHint="next"
+                autoComplete="off"
+                autoFocus
+                value={value}
+                onChange={(e) => update(e.target.value)}
+                aria-describedby={input.type === "currency" ? undefined : `${id}-unit`}
+              />
+              {input.type !== "currency" && <span key="unit" id={`${id}-unit`} className="sc-unit">{unitLabel(input.unit)}</span>}
+            </span>
+            {input.type !== "currency" && input.unit === "LF" && <small className="sc-muted">Feet and inches work too, for example 12&apos; 6&quot;.</small>}
           </label>
         )}
-
-        {input.type === "currency" && (
-          <>
-            <label className="sc-field sc-field-big" htmlFor={id}>
-              <span>Amount (P5&apos;s cost)</span>
-              <span className="sc-unit-input">
-                <span className="sc-unit">$</span>
-                <input id={id} inputMode="decimal" autoFocus value={value} onChange={(e) => update(e.target.value)} />
-              </span>
-            </label>
-            {input.allowAttachment && (
-              <label className="sc-field">
-                <span>Attach the quote (optional)</span>
-                <input type="file" accept="image/*,application/pdf,.doc,.docx" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
-              </label>
-            )}
-          </>
+        {input.type === "currency" && input.allowAttachment && (
+          <label className="sc-field">
+            <span>Attach the quote (optional)</span>
+            <input type="file" accept="image/*,application/pdf,.doc,.docx" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
+          </label>
         )}
 
         {input.type === "choice" && (
@@ -265,7 +326,6 @@ export default function Wizard({
               <label className="sc-field">
                 <span>Describe it</span>
                 <input value={other} onChange={(e) => setOther(e.target.value)} autoFocus />
-                <Dictate onText={(t) => setOther(t)} />
               </label>
             )}
           </fieldset>
@@ -289,12 +349,7 @@ export default function Wizard({
           <label className="sc-field" htmlFor={id}>
             <span>Answer</span>
             <textarea id={id} rows={4} value={value} onChange={(e) => update(e.target.value)} />
-            <Dictate onText={(t) => update(value ? `${value} ${t}` : t)} />
           </label>
-        )}
-
-        {(input.type === "measurement" || input.type === "number" || input.type === "currency") && (
-          <Dictate label="Say the number" onText={(t) => update(t.replace(/[^0-9.,'"\s$ftinches]/gi, "").trim())} />
         )}
 
         {error && <p className="sc-alert sc-alert-bad" role="alert">{error}</p>}

@@ -21,7 +21,6 @@ import PricingView from "./PricingView.tsx";
 import Recorder from "./Recorder.tsx";
 import ScopeView from "./ScopeView.tsx";
 import Wizard from "./Wizard.tsx";
-import Dictate from "./Dictate.tsx";
 
 type Step = "record" | "scope" | "details" | "pricing" | "estimate" | "project";
 const STEPS: Step[] = ["record", "scope", "details", "pricing", "estimate", "project"];
@@ -35,6 +34,10 @@ const TITLE: Record<Step, string> = {
 };
 
 const isAudioAsset = (a: WS["assets"][number]) => a.kind === "recording" || (a.mimeType ?? "").startsWith("audio/");
+// Kept in step with app/lib/scopes/files.ts: larger files go up in pieces.
+const WHOLE_UPLOAD_BYTES = 20 * 1024 * 1024;
+const PART_BYTES = 8 * 1024 * 1024;
+const MAX_FILE_BYTES = 300 * 1024 * 1024;
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
 export default function Workspace({ initial, initialTab }: { initial: WS; initialTab?: string }) {
@@ -116,10 +119,15 @@ export default function Workspace({ initial, initialTab }: { initial: WS; initia
     setMessage(null);
     setProcessing(true);
     try {
-      const res = await api<{ message: string }>(`/api/scopes/${id}/process`, { method: "POST" });
+      // A long plan set is read over several requests; keep going until it is finished.
+      let res = await api<{ message: string; partial?: boolean }>(`/api/scopes/${id}/process`, { method: "POST" });
+      for (let pass = 0; res.partial && pass < 200; pass++) {
+        setMessage(res.message);
+        res = await api<{ message: string; partial?: boolean }>(`/api/scopes/${id}/process`, { method: "POST" });
+      }
       setMessage(res.message);
       await reload();
-      show("scope");
+      if (!/could not be read yet/.test(res.message)) show("scope");
     } catch (e) {
       // A long recording can outlast the request while the server keeps working.
       // If it is still running, keep showing progress instead of an error.
@@ -214,7 +222,7 @@ export default function Workspace({ initial, initialTab }: { initial: WS; initia
   };
 
   return (
-    <div className={`sc-ws${player ? " sc-ws-playing" : ""}`}>
+    <div className="sc-ws">
       <header className="sc-ws-head">
         <Link href="/scopes" className="sc-back">
           <span aria-hidden="true">‹</span> Projects
@@ -335,6 +343,53 @@ function AddMaterial({ ws, onAdded }: { ws: WS; onAdded: () => Promise<void> | v
   const [error, setError] = useState<string | null>(null);
   const id = ws.project.id;
 
+  /** Send one file: whole when small, in pieces when large, retrying each request. */
+  async function sendFile(f: File, kind: string, onProgress: (text: string) => void): Promise<void> {
+    const retry = async <T,>(fn: () => Promise<T>): Promise<T> => {
+      for (let attempt = 1; ; attempt++) {
+        try {
+          return await fn();
+        } catch (e) {
+          if (attempt >= 4) throw e;
+          await new Promise((r) => setTimeout(r, 2000 * attempt));
+        }
+      }
+    };
+    const key = newKey("file").slice(0, 100);
+    if (f.size <= WHOLE_UPLOAD_BYTES) {
+      const form = new FormData();
+      form.append("file", f);
+      form.append("kind", kind);
+      form.append("clientKey", key);
+      form.append("label", f.name);
+      await retry(() => api(`/api/scopes/${id}/assets`, { method: "POST", body: form }));
+      return;
+    }
+    if (f.size > MAX_FILE_BYTES) throw new Error(`Files up to ${Math.round(MAX_FILE_BYTES / 1024 / 1024)} MB can be uploaded.`);
+    const parts = Math.ceil(f.size / PART_BYTES);
+    const fields = (form: FormData) => {
+      form.append("uploadKey", key);
+      form.append("parts", String(parts));
+      form.append("size", String(f.size));
+      return form;
+    };
+    for (let i = 0; i < parts; i++) {
+      onProgress(`${Math.round((i / parts) * 100)}%`);
+      const form = fields(new FormData());
+      form.append("part", String(i));
+      form.append("file", f.slice(i * PART_BYTES, Math.min(f.size, (i + 1) * PART_BYTES)), "part");
+      await retry(() => api(`/api/scopes/${id}/assets/parts`, { method: "POST", body: form }));
+    }
+    onProgress("saving");
+    const done = fields(new FormData());
+    done.append("finish", "1");
+    done.append("kind", kind === "photo" ? "photo" : "document");
+    done.append("name", f.name);
+    done.append("label", f.name);
+    done.append("mime", f.type);
+    await retry(() => api(`/api/scopes/${id}/assets/parts`, { method: "POST", body: done }));
+  }
+
   async function upload(input: HTMLInputElement, kind?: "photo" | "document") {
     const files = Array.from(input.files ?? []);
     // Clearing the input lets the same file be picked again.
@@ -343,28 +398,18 @@ function AddMaterial({ ws, onAdded }: { ws: WS; onAdded: () => Promise<void> | v
     setBusy(true);
     setError(null);
     let done = 0;
+    const problems: string[] = [];
     for (const f of files) {
-      setStatus(`Uploading ${f.name} (${done + 1} of ${files.length})...`);
-      const form = new FormData();
-      form.append("file", f);
-      form.append("kind", kind ?? (f.type.startsWith("image/") ? "photo" : f.type.startsWith("audio/") ? "note" : "document"));
-      form.append("clientKey", newKey("file").slice(0, 100));
-      form.append("label", f.name);
-      let attempt = 0;
-      for (;;) {
-        try {
-          await api(`/api/scopes/${id}/assets`, { method: "POST", body: form });
-          done++;
-          break;
-        } catch (e) {
-          if (++attempt >= 3) {
-            setError(`${f.name}: ${(e as Error).message}`);
-            break;
-          }
-          await new Promise((r) => setTimeout(r, 2000 * attempt));
-        }
+      const label = `Uploading ${f.name} (${done + 1} of ${files.length})`;
+      setStatus(`${label}...`);
+      try {
+        await sendFile(f, kind ?? (f.type.startsWith("image/") ? "photo" : f.type.startsWith("audio/") ? "note" : "document"), (p) => setStatus(`${label}, ${p}...`));
+        done++;
+      } catch (e) {
+        problems.push(`${f.name}: ${(e as Error).message}`);
       }
     }
+    if (problems.length) setError(problems.join(" "));
     setStatus(`${plural(done, "file")} added.`);
     setBusy(false);
     await onAdded();
@@ -398,8 +443,8 @@ function AddMaterial({ ws, onAdded }: { ws: WS; onAdded: () => Promise<void> | v
         </label>
         <label className={`sc-tile sc-file${busy ? " sc-tile-off" : ""}`}>
           <Icon name="file" />
-          Files
-          <input type="file" accept=".pdf,.doc,.docx,.xlsx,.txt,.csv,image/*,audio/*" multiple onChange={(e) => void upload(e.currentTarget)} disabled={busy} />
+          Plans and files
+          <input type="file" multiple onChange={(e) => void upload(e.currentTarget)} disabled={busy} />
         </label>
         <button type="button" className={`sc-tile${mode === "voice" ? " sc-tile-on" : ""}`} aria-expanded={mode === "voice"} onClick={() => setMode(mode === "voice" ? null : "voice")}>
           <Icon name="voice" />
@@ -422,7 +467,6 @@ function AddMaterial({ ws, onAdded }: { ws: WS; onAdded: () => Promise<void> | v
           </label>
           <div className="sc-actions">
             <button type="submit" className="sc-btn sc-btn-primary" disabled={busy || !note.trim()}>Add note</button>
-            <Dictate onText={(t) => setNote((n) => (n ? `${n} ${t}` : t))} />
           </div>
         </form>
       )}

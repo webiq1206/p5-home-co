@@ -317,9 +317,9 @@ test("estimate payload groups by phase and division and excludes optional lines 
     privateNote: "scope 1",
   });
   const descriptions = payload.Line.map((l) => l.Description);
-  assert.equal(descriptions[0], "Phase 1: Pre-Construction");
-  assert.ok(descriptions.includes("Phase 2: Construction"));
-  assert.ok(descriptions.includes("Division 06 Wood & Carpentry"));
+  assert.equal(descriptions[0], "PHASE 1: PRE-CONSTRUCTION");
+  assert.ok(descriptions.includes("PHASE 2: CONSTRUCTION"));
+  assert.ok(descriptions.includes("DIVISION 06 WOOD & CARPENTRY"));
   const sales = payload.Line.filter((l) => l.DetailType === "SalesItemLineDetail");
   assert.equal(sales.length, 2);
   assert.equal(round2(sales.reduce((s, l) => s + (l.Amount ?? 0), 0)), pricing.totals.basePrice);
@@ -623,5 +623,179 @@ test("when every connection refuses, the message says why and that the recording
     globalThis.fetch = saved.fetch;
     if (saved.a === undefined) delete process.env.OPENAI_API_KEY; else process.env.OPENAI_API_KEY = saved.a;
     if (saved.b !== undefined) process.env.AI_INTEGRATIONS_OPENAI_API_KEY = saved.b;
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Questions: asked once, in scope order, like items together
+// ---------------------------------------------------------------------------
+
+test("a clarification that repeats a measurement or quantity question is not asked", () => {
+  const d = doc(
+    [task({ id: "a", costCode: "06-20-26", quantity: { measurementId: "m1" } })],
+    {
+      measurements: [{ id: "m1", label: "Baseboard length", value: null, unit: "LF", status: "missing", evidence: [] }],
+      openQuestions: [
+        "What is the total linear footage required for new baseboards?",
+        "Is there a preferred start date?",
+      ],
+    },
+  );
+  const qs = deriveQuestions(d, priceScope(d, ctx()), new Map());
+  const prompts = qs.map((q) => q.prompt);
+  assert.equal(qs.filter((q) => q.key === "measure:m1").length, 1);
+  assert.ok(!prompts.some((p) => /linear footage/i.test(p)), "the baseboard length is asked once, as a measurement");
+  assert.ok(prompts.includes("Is there a preferred start date?"), "an unrelated clarification is still asked");
+});
+
+test("a clarification answered earlier is not asked again in different words", () => {
+  const d = doc([task({ id: "a", quote: { amount: 500, assetId: null } })], {
+    assumptions: ["Is there a preferred start date? Early March."],
+    openQuestions: ["Does the client have a preferred start date?", "Is there a preferred start date?"],
+  });
+  const qs = deriveQuestions(d, priceScope(d, ctx()), new Map());
+  assert.equal(qs.filter((q) => q.key.startsWith("open:")).length, 0);
+});
+
+test("two measurements for the same thing in different words become one question", () => {
+  const d = reconcileMeasurements(
+    doc(
+      [
+        task({ id: "a", costCode: "06-20-26", quantity: { measurementId: "m1" } }),
+        task({ id: "b", title: "Paint baseboard", costCode: "06-20-26", quantity: { measurementId: "m2" } }),
+      ],
+      {
+        measurements: [
+          { id: "m1", label: "Baseboard length", value: null, unit: "LF", status: "missing", evidence: [] },
+          { id: "m2", label: "Total linear footage of baseboards", value: null, unit: "LF", status: "missing", evidence: [] },
+        ],
+      },
+    ),
+  );
+  assert.equal(d.measurements.length, 1);
+  const qs = deriveQuestions(d, priceScope(d, ctx()), new Map());
+  assert.equal(qs.filter((q) => q.key.startsWith("measure:")).length, 1);
+});
+
+test("the same missing quantity on several tasks is asked once and fills them all", () => {
+  const d = doc([
+    task({ id: "a", title: "Remove existing baseboards", costCode: "06-20-26" }),
+    task({ id: "b", title: "Install new baseboards", costCode: "06-20-26" }),
+    task({ id: "c", title: "Install interior doors", division: "08", costCode: null, quote: { amount: 900, assetId: null } }),
+  ]);
+  const qs = deriveQuestions(d, priceScope(d, ctx()), new Map());
+  const qty = qs.filter((q) => q.key.startsWith("qty:"));
+  assert.equal(qty.length, 1);
+  assert.deepEqual(qty[0].also, ["qty:b"]);
+  assert.deepEqual(qty[0].taskIds.sort(), ["a", "b"]);
+  let next = applyAnswer(d, qty[0].key, { value: 120, unit: "LF" });
+  for (const k of qty[0].also ?? []) next = applyAnswer(next, k, { value: 120, unit: "LF" });
+  assert.equal(deriveQuestions(next, priceScope(next, ctx()), new Map()).filter((q) => q.key.startsWith("qty:")).length, 0);
+});
+
+test("questions follow the scope: division order, then one task at a time", () => {
+  const d = doc(
+    [
+      task({ id: "paint", title: "Paint walls", division: "09", costCode: null }),
+      task({ id: "demo", title: "Remove cabinets", division: "02", costCode: null }),
+      task({ id: "base", title: "Install baseboards", division: "06", costCode: "06-20-26", certainty: "suggested" }),
+    ],
+    { openQuestions: ["Is there a preferred start date?"] },
+  );
+  const qs = deriveQuestions(d, priceScope(d, ctx()), new Map());
+  const firstFor = (id: string) => qs.findIndex((q) => q.taskIds.includes(id));
+  assert.ok(firstFor("demo") < firstFor("base") && firstFor("base") < firstFor("paint"), "division 02, then 06, then 09");
+  const base = qs.map((q, i) => (q.taskIds.includes("base") ? i : -1)).filter((i) => i >= 0);
+  assert.equal(base.at(-1)! - base[0], base.length - 1, "every question about one task is together");
+  assert.equal(qs.at(-1)!.key.startsWith("open:"), true, "clarifications with no task come last");
+});
+
+// ---------------------------------------------------------------------------
+// Profit check
+// ---------------------------------------------------------------------------
+
+test("cost and margin stay unknown, with the reason, until P5's labor cost is set", () => {
+  const d = doc([task({ id: "a", performer: "internal", costCode: null, laborHours: { value: 22, basis: "confirmed", note: null } })]);
+  const r = priceScope(d, ctx());
+  assert.equal(r.totals.baseCost, null);
+  assert.equal(r.totals.profit, null);
+  assert.deepEqual(r.totals.costGaps, { laborHours: 22, lines: 0 });
+});
+
+test("the profit check splits the price into cost, overhead, reserve and profit", () => {
+  const d = doc([
+    task({ id: "q", quote: { amount: 1000, assetId: null } }),
+    task({ id: "l", title: "Install trim", performer: "internal", costCode: null, laborHours: { value: 10, basis: "confirmed", note: null } }),
+  ]);
+  const r = priceScope(d, ctx({ settings: { ...SETTINGS, laborLoadedCost: 60 } }));
+  const p = r.totals.profit!;
+  assert.ok(p, "every cost is known");
+  assert.equal(r.totals.baseCost, 1600);
+  assert.equal(p.grossProfit, round2(r.totals.basePrice - 1600));
+  assert.equal(p.overhead, round2(r.totals.basePrice * r.policy.overheadRate));
+  assert.equal(p.reserve, 100, "10% reserve on the marked-up quote only, never on P5 labor");
+  assert.equal(p.netProfit, round2(p.grossProfit - p.overhead - p.reserve));
+  assert.ok(p.netMargin >= p.targetNetMargin, "standard markup with labor at $60 cost meets the target");
+  assert.ok(p.status === "on-target" || p.status === "high");
+});
+
+test("labor that costs more than it bills is called out and the price needed is given", () => {
+  const d = doc([task({ id: "l", performer: "internal", costCode: null, laborHours: { value: 10, basis: "confirmed", note: null } })]);
+  const r = priceScope(d, ctx({ settings: { ...SETTINGS, laborLoadedCost: 130 } }));
+  const p = r.totals.profit!;
+  assert.equal(p.status, "below");
+  assert.ok(p.notes.some((n) => /loses money/.test(n)));
+  assert.ok(p.notes.some((n) => /would need to be about/.test(n)));
+});
+
+test("an invoiced estimate reads completed only when fully invoiced and nothing is owed", () => {
+  const raw = { TxnStatus: "Closed", TotalAmt: 1000, LinkedTxn: [{ TxnId: "9", TxnType: "Invoice" }] };
+  assert.equal(estimateStatus(raw, true), "converted");
+  assert.equal(estimateStatus(raw, true, { count: 1, total: 1000, balance: 250 }), "converted", "money still owed");
+  assert.equal(estimateStatus(raw, true, { count: 1, total: 400, balance: 0 }), "converted", "a paid deposit is not the whole job");
+  assert.equal(estimateStatus(raw, true, { count: 2, total: 1000, balance: 0 }), "paid");
+  assert.equal(estimateStatus({ TxnStatus: "Rejected" }, true), "declined");
+  assert.equal(estimateStatus({ TxnStatus: "Pending", EmailStatus: "EmailSent" }, true), "sent");
+});
+
+test("QuickBooks lines lead with the name of the work, not just the item", async () => {
+  const { lineText } = await import("../app/lib/scopes/estimate.ts");
+  const d = doc([
+    task({ id: "c", title: "Final cleaning", area: "Entire house", description: "Perform a thorough cleaning of the house after construction is complete.", quote: { amount: 800, assetId: null } }),
+    task({ id: "l", title: "Project supervision", description: "Schedule and coordinate the trades.", performer: "internal", costCode: null, laborHours: { value: 20, basis: "confirmed", note: null } }),
+  ]);
+  const r = priceScope(d, ctx());
+  const clean = r.lines.find((l) => l.taskId === "c")!;
+  assert.equal(clean.title, "Entire house: Final cleaning");
+  assert.equal(lineText(clean), "Entire house: Final cleaning\nPerform a thorough cleaning of the house after construction is complete.");
+  assert.equal(r.lines.find((l) => l.taskId === "l")!.title, "Project supervision, labor");
+  assert.equal(lineText({ title: "Install baseboard", description: "Install baseboard in the hall." }), "Install baseboard in the hall.", "no repeated title");
+  assert.equal(lineText({ description: "Older line with no title." }), "Older line with no title.");
+});
+
+// ---------------------------------------------------------------------------
+// Long PDFs: page-by-page reading
+// ---------------------------------------------------------------------------
+
+test("a long or heavy PDF is read page by page; a short one is read whole", async () => {
+  const { readsPageByPage } = await import("../app/lib/scopes/sheets.ts");
+  assert.equal(readsPageByPage(3, 2_000_000), false);
+  assert.equal(readsPageByPage(40, 2_000_000), true);
+  assert.equal(readsPageByPage(2, 60_000_000), true);
+});
+
+test("a full-size plan sheet is cut into overlapping tiles that cover every pixel, within the tile limit", async () => {
+  const { tileGrid, renderScale } = await import("../app/lib/scopes/sheets.ts");
+  assert.deepEqual(tileGrid(1275, 1650), [], "a letter page is one image");
+  // 36 x 24 inch sheet, in points.
+  const scale = renderScale(2592, 1728);
+  const w = Math.ceil(2592 * scale);
+  const h = Math.ceil(1728 * scale);
+  const tiles = tileGrid(w, h);
+  assert.ok(tiles.length > 1 && tiles.length <= 12);
+  assert.ok(w / 36 >= 100, "at least 100 pixels per inch on a 36 inch sheet");
+  const covered = (x: number, y: number) => tiles.some((t) => x >= t.x && x < t.x + t.w && y >= t.y && y < t.y + t.h);
+  for (const [x, y] of [[0, 0], [w - 1, 0], [0, h - 1], [w - 1, h - 1], [Math.floor(w / 2), Math.floor(h / 2)], [1499, 1499], [1500, 1500]]) {
+    assert.ok(covered(x, y), `pixel ${x},${y} is inside a tile`);
   }
 });

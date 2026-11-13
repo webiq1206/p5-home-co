@@ -1,0 +1,452 @@
+/**
+ * Guided estimator: every guard that keeps a wrong or leaked number away
+ * from a customer. No network, no database.
+ */
+import assert from "node:assert/strict";
+import { readFileSync, readdirSync } from "node:fs";
+import path from "node:path";
+import { test } from "node:test";
+
+import { BRAND_CONFIGS } from "../app/lib/estimator/brands.ts";
+import { customerConfirmation, teamReport } from "../app/lib/estimator/emails.ts";
+import { FLOWS, flowById } from "../app/lib/estimator/flows.ts";
+import {
+  CROSS_CHECK_BAND,
+  MARGIN_FLOOR,
+  customerEstimate,
+  internalReport,
+  priceEstimate,
+  priceWithheld,
+  qualify,
+  type PricedEstimate,
+} from "../app/lib/estimator/price.ts";
+import { fromRentCast } from "../app/lib/estimator/property.ts";
+import { buildRecipe, recipeProjects } from "../app/lib/estimator/recipes.ts";
+import type { GuidedRow } from "../app/lib/estimator/store.ts";
+import { handleSubmit } from "../app/lib/estimator/submit.ts";
+import { resolveAnswers, type Answers, type BrandId, type Tier } from "../app/lib/estimator/types.ts";
+import { costBookEntry } from "../app/lib/scopes/costbook.ts";
+import { buildEstimatePayload } from "../app/lib/scopes/estimate.ts";
+import { P5_ITEMS } from "../app/lib/scopes/qbo.ts";
+import type { ItemKey } from "../app/lib/scopes/types.ts";
+
+const NOW = new Date("2026-11-13T12:00:00Z");
+const TIERS: Tier[] = ["builder", "mid", "high", "luxury"];
+const cents = (n: number) => Math.round(n * 100);
+
+/** Every distinct set of resolved answers for a flow: all choices, numbers at min, default and max. */
+function combinations(projectId: string): Answers[] {
+  const flow = flowById(projectId)!;
+  let list: Answers[] = [{}];
+  for (const q of flow.questions) {
+    const values: Answers[string][] =
+      q.kind === "choice" ? q.options.map((o) => o.id) : q.kind === "number" ? [q.min, q.default, q.max] : [{ [q.options[0].id]: 1 }, Object.fromEntries(q.options.map((o) => [o.id, o.max]))];
+    list = list.flatMap((a) => values.map((v) => ({ ...a, [q.id]: v })));
+  }
+  const seen = new Set<string>();
+  return list.filter((a) => {
+    const key = JSON.stringify(resolveAnswers(flow, a));
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function price(project: string, answers: Answers, tier: Tier = "mid", brand: BrandId = "p5"): PricedEstimate {
+  return priceEstimate({ brand, project, tier, answers, address: "100 Example Ave, Boise, ID 83702", property: null }, { now: NOW });
+}
+
+const ALL: { project: string; tier: Tier; estimate: PricedEstimate }[] = [];
+for (const flow of FLOWS) {
+  for (const tier of flow.usesFinish ? TIERS : (["mid"] as Tier[])) {
+    for (const answers of combinations(flow.id)) ALL.push({ project: flow.id, tier, estimate: price(flow.id, answers, tier) });
+  }
+}
+
+test("every brand offers only projects that exist, and every project has a recipe", () => {
+  const recipes = new Set(recipeProjects());
+  for (const flow of FLOWS) assert.ok(recipes.has(flow.id), `${flow.id} has no recipe`);
+  for (const brand of Object.values(BRAND_CONFIGS)) {
+    assert.ok(brand.projects.length > 0, `${brand.id} has no projects`);
+    for (const id of brand.projects) assert.ok(flowById(id), `${brand.id} lists unknown project ${id}`);
+  }
+  assert.equal(recipes.size, FLOWS.length, "a recipe exists for a project that has no flow");
+});
+
+test("recipes carry cost book codes and quantities, never a dollar figure", () => {
+  const source = readFileSync(path.join(import.meta.dirname, "../app/lib/estimator/recipes.ts"), "utf8");
+  const code = source.replace(/\/\*[\s\S]*?\*\/|\/\/.*$/gm, "");
+  assert.doesNotMatch(code, /\$\s?\d/, "a dollar amount is written into a recipe");
+  assert.doesNotMatch(code, /unitCost|unitPrice|\bprice\s*:/, "a recipe sets a price");
+});
+
+test("every recipe line is a real, priceable cost book line with a positive quantity", () => {
+  assert.ok(ALL.length > 3000, `expected the full matrix, got ${ALL.length}`);
+  for (const { project, tier, estimate } of ALL) {
+    const recipe = buildRecipe(project, { answers: estimate.answers, tier, property: null })!;
+    assert.ok(recipe.lines.length > 0, `${project} ${JSON.stringify(estimate.answers)} produced no work`);
+    for (const line of recipe.lines) {
+      const entry = costBookEntry(line.code);
+      assert.ok(entry, `${project}: ${line.code} is not in the cost book`);
+      assert.equal(entry.percentage, false, `${project}: ${line.code} is a percentage line`);
+      assert.ok(Number.isFinite(line.qty) && line.qty > 0, `${project}: ${line.code} has quantity ${line.qty}`);
+      assert.doesNotMatch(line.text, /\d{2}-\d{2}-\d{2}|—/, `${project}: customer text carries a code or an em dash`);
+    }
+    // Nothing the customer selected may silently vanish between recipe and price.
+    const priced = estimate.pricing.lines.filter((l) => l.basis === "cost-book" && l.taskId !== "gmin").length;
+    assert.equal(priced, recipe.lines.length, `${project} ${JSON.stringify(estimate.answers)}: ${recipe.lines.length - priced} line(s) were not priced`);
+  }
+});
+
+test("no work is charged twice in one estimate", () => {
+  for (const { project, estimate } of ALL) {
+    const codes = estimate.doc.tasks.map((t) => t.costCode);
+    assert.equal(new Set(codes).size, codes.length, `${project} ${JSON.stringify(estimate.answers)} repeats a cost book line`);
+  }
+});
+
+test("phase, division and line totals reconcile to the cent", () => {
+  for (const { project, estimate } of ALL) {
+    if (priceWithheld(estimate)) continue;
+    const view = customerEstimate(estimate, { token: "t".repeat(40), address: null, createdAt: NOW, officialCopy: "after-review" });
+    const total = cents(view.total!);
+    assert.equal(view.phases.reduce((s, p) => s + cents(p.subtotal), 0), total, `${project}: phases do not add up`);
+    for (const phase of view.phases) {
+      assert.equal(phase.divisions.reduce((s, d) => s + cents(d.subtotal), 0), cents(phase.subtotal), `${project}: divisions do not add up`);
+      for (const division of phase.divisions) assert.equal(division.items.reduce((s, i) => s + cents(i.price), 0), cents(division.subtotal), `${project}: items do not add up`);
+    }
+    const report = internalReport(estimate);
+    assert.equal(cents(report.totalPrice), total);
+    assert.equal(report.groups.reduce((s, g) => s + cents(g.price), 0), total);
+    assert.equal(report.lines.reduce((s, l) => s + cents(l.price), 0), total);
+  }
+});
+
+test("the QuickBooks estimate is the same lines, descriptions and total the customer saw", () => {
+  const itemIds = Object.fromEntries(P5_ITEMS.map((item, i) => [item, String(100 + i)])) as Record<ItemKey, string>;
+  for (const { project, estimate } of ALL) {
+    if (priceWithheld(estimate)) continue;
+    const view = customerEstimate(estimate, { token: "t".repeat(40), address: null, createdAt: NOW, officialCopy: "after-review" });
+    const payload = buildEstimatePayload({ customerId: "1", pricing: estimate.pricing, itemIds, taxable: [], exclusions: estimate.doc.exclusions, privateNote: "test" });
+    const sales = payload.Line.filter((l) => l.DetailType === "SalesItemLineDetail");
+    const shown = view.phases.flatMap((p) => p.divisions.flatMap((d) => d.items));
+    assert.equal(sales.length, shown.length, `${project}: line count differs`);
+    assert.equal(sales.reduce((s, l) => s + cents(l.Amount!), 0), cents(view.total!), `${project}: QuickBooks total differs`);
+    sales.forEach((line, i) => {
+      assert.equal(line.Description, shown[i].text);
+      assert.equal(cents(line.Amount!), cents(shown[i].price));
+      assert.equal(line.SalesItemLineDetail!.Qty, shown[i].quantity);
+      assert.ok(line.SalesItemLineDetail!.ItemRef.value, `${project}: a line has no QuickBooks item`);
+    });
+  }
+});
+
+test("the customer's view cannot carry a cost, a margin or a cost code", () => {
+  const forbiddenKeys = /"(unitCost|cost|totalCost|margin|grossMargin|grossProfit|source|basis|code|costCode|item|policy|overheadRate|profitRate|unitPrice|taskId|crossCheck|review)"\s*:/;
+  for (const { project, estimate } of ALL) {
+    const view = customerEstimate(estimate, { token: "t".repeat(40), address: "100 Example Ave", createdAt: NOW, officialCopy: "after-review" });
+    const json = JSON.stringify(view);
+    assert.doesNotMatch(json, forbiddenKeys, `${project}: an internal field reached the customer view`);
+    assert.doesNotMatch(json, /\b\d{2}-\d{2}-\d{2}\b|PB-|P5 Cost Database|overhead|markup|gross margin/i, `${project}: internal wording reached the customer view`);
+    if (!priceWithheld(estimate)) {
+      const report = internalReport(estimate);
+      // The internal cost total must not appear as a number anywhere in the view.
+      if (report.totalCost && cents(report.totalCost) !== cents(report.totalPrice)) {
+        assert.ok(!json.includes(`:${report.totalCost}`) && !json.includes(`:${report.totalCost.toFixed(2)}`), `${project}: the internal cost total is in the customer view`);
+      }
+    }
+  }
+});
+
+test("a withheld estimate shows the customer no figure at all", () => {
+  const withheld = ALL.filter((x) => priceWithheld(x.estimate));
+  assert.ok(withheld.length > 0, "the matrix should include estimates the cross-check holds back");
+  for (const { estimate } of withheld) {
+    const view = customerEstimate(estimate, { token: "t".repeat(40), address: null, createdAt: NOW, officialCopy: "after-review" });
+    assert.equal(view.total, null);
+    assert.deepEqual(view.phases, []);
+    assert.doesNotMatch(JSON.stringify(view), /"price":/);
+    assert.ok(estimate.review.length > 0);
+  }
+});
+
+test("every estimate a customer can see holds the margin floor", () => {
+  for (const { project, estimate } of ALL) {
+    if (priceWithheld(estimate)) continue;
+    assert.ok(estimate.pricing.totals.margin !== null && estimate.pricing.totals.margin >= MARGIN_FLOOR, `${project}: margin ${estimate.pricing.totals.margin}`);
+    assert.ok(estimate.pricing.totals.basePrice > 0);
+  }
+});
+
+test("qualify refuses a margin under the floor, an unknown cost and anything outside the cross-check band", () => {
+  const good = price("bathroom-remodel", { bath: "hall", scope: "full", bathing: "combo" });
+  assert.deepEqual(good.review, []);
+  const thin = { ...good.pricing, totals: { ...good.pricing.totals, margin: MARGIN_FLOOR - 0.001 } };
+  assert.ok(qualify(thin, "preliminary", good.crossCheck, 5).some((r) => r.code === "margin-floor"));
+  const unknown = { ...good.pricing, totals: { ...good.pricing.totals, margin: null } };
+  assert.ok(qualify(unknown, "preliminary", good.crossCheck, 5).some((r) => r.code === "margin-unknown"));
+  const far = { ...good.crossCheck!, within: false };
+  assert.ok(qualify(good.pricing, "preliminary", far, 5).some((r) => r.code === "cross-check"));
+  assert.ok(qualify(good.pricing, "preliminary", good.crossCheck, good.pricing.lines.length + 1).some((r) => r.code === "unpriced-lines"));
+  assert.ok(CROSS_CHECK_BAND.low < 1 && CROSS_CHECK_BAND.high > 1);
+});
+
+test("budgetary projects never qualify as an official estimate without a person", () => {
+  for (const { project, estimate } of ALL) {
+    if (flowById(project)!.estimateClass !== "budgetary") continue;
+    assert.ok(estimate.review.some((r) => r.code === "budgetary"), `${project} would be sent automatically`);
+    // The customer still sees the budget; it is the official copy that waits.
+    assert.equal(priceWithheld(estimate), false);
+  }
+});
+
+test("an out-of-date cost book stops prices instead of quoting stale ones", () => {
+  const stale = priceEstimate({ brand: "p5", project: "flooring", tier: "mid", answers: {}, address: null, property: null }, { now: new Date("2028-06-01T00:00:00Z") });
+  assert.ok(stale.review.some((r) => r.code === "outdated-price"));
+  assert.equal(priceWithheld(stale), true);
+});
+
+test("selections change the scope the way a customer would expect", () => {
+  const same = price("kitchen-remodel", { size: "medium", scope: "replace" });
+  const redesign = price("kitchen-remodel", { size: "medium", scope: "redesign" });
+  const codes = (e: PricedEstimate) => new Set(e.doc.tasks.map((t) => t.costCode));
+  // Keeping the layout leaves relocation work out; a new layout brings it in.
+  assert.ok(!codes(same).has("90-20-05") && !codes(same).has("00-20-02"));
+  assert.ok(codes(redesign).has("90-20-05") && codes(redesign).has("90-20-04") && codes(redesign).has("00-20-02"));
+  assert.ok(redesign.pricing.totals.basePrice > same.pricing.totals.basePrice);
+  // A walk-in shower brings its pan, waterproofing, tile, glass and valve with it.
+  const walkin = codes(price("bathroom-remodel", { bath: "hall", scope: "full", bathing: "walkin" }));
+  for (const code of ["02-41-04", "09-30-05", "09-30-10", "09-30-04", "08-83-01", "22-41-12", "22-42-09"]) assert.ok(walkin.has(code), `walk-in shower is missing ${code}`);
+  assert.ok(!walkin.has("22-41-26"), "a walk-in shower should not include a bathtub");
+  // Finish level moves the price, and every tier is dearer than the one below.
+  const byTier = TIERS.map((t) => price("kitchen-remodel", { size: "medium", scope: "replace" }, t).pricing.totals.basePrice);
+  assert.deepEqual([...byTier].sort((a, b) => a - b), byTier);
+  // Bigger is dearer.
+  assert.ok(price("flooring", { sqft: 1000 }).pricing.totals.basePrice > price("flooring", { sqft: 500 }).pricing.totals.basePrice);
+});
+
+test("an answer to a question that is not shown changes nothing", () => {
+  const plain = price("kitchen-remodel", { size: "medium", scope: "refresh" });
+  const stray = price("kitchen-remodel", { size: "medium", scope: "refresh", island: "yes" });
+  assert.equal(stray.pricing.totals.basePrice, plain.pricing.totals.basePrice);
+  assert.equal("island" in stray.answers, false);
+  const junk = price("bathroom-remodel", { bath: "nope", scope: 7 as unknown as string, extra: "x" });
+  assert.deepEqual(junk.answers, resolveAnswers(flowById("bathroom-remodel")!, {}));
+});
+
+test("pricing is deterministic", () => {
+  const a = price("bathroom-remodel", { bath: "primary", scope: "full", bathing: "both", vanity: "double" }, "high");
+  const b = price("bathroom-remodel", { bath: "primary", scope: "full", bathing: "both", vanity: "double" }, "high");
+  assert.deepEqual(a.pricing, b.pricing);
+  assert.equal(a.versions.costBook, b.versions.costBook);
+  assert.ok(a.versions.rules && a.versions.costBook);
+});
+
+test("handyman: the minimum service charge is enforced and the trip charge nets to zero", () => {
+  const small = price("handyman", { tasks: { "hang-art": 1 } });
+  const minimum = price("handyman", { tasks: { faucet: 1 } });
+  const balance = small.pricing.lines.find((l) => l.taskId === "gmin");
+  assert.ok(balance, "a job under the minimum should carry the balance line");
+  assert.ok(!minimum.pricing.lines.some((l) => l.taskId === "gmin"), "a job over the minimum should not");
+  const trip = small.pricing.lines.filter((l) => l.basis === "trip-charge");
+  assert.equal(trip.reduce((s, l) => s + cents(l.price), 0), 0);
+  // The small job costs the minimum, within a cent of rounding the balance quantity up.
+  const one = price("handyman", { tasks: { "hang-art": 1 } }).pricing.totals.baseCost!;
+  assert.ok(one >= 135 && one < 136.4, `direct cost ${one}`);
+  assert.equal(small.estimateClass, "quote");
+  assert.deepEqual(small.review, []);
+});
+
+test("a brand cannot price a project it does not offer", () => {
+  assert.throws(() => price("custom-home", {}, "mid", "handyman"), /does not offer/);
+  assert.doesNotThrow(() => price("custom-home", {}, "mid", "construction"));
+});
+
+test("Boise ADU Co is configured but not public", () => {
+  assert.equal(BRAND_CONFIGS.adu.live, false);
+  assert.doesNotThrow(() => price("adu", { type: "detached" }, "mid", "adu"));
+});
+
+test("a home built before 1978 adds lead-safe work; an unknown year states the assumption", () => {
+  const input = { brand: "p5" as BrandId, project: "bathroom-remodel", tier: "mid" as Tier, answers: { bath: "hall", scope: "full" }, address: null };
+  const old = priceEstimate({ ...input, property: { source: "county tax records", yearBuilt: 1962 } }, { now: NOW });
+  const recent = priceEstimate({ ...input, property: { source: "county tax records", yearBuilt: 2004 } }, { now: NOW });
+  const unknown = priceEstimate({ ...input, property: null }, { now: NOW });
+  assert.ok(old.doc.tasks.some((t) => t.costCode === "02-82-03"));
+  assert.ok(!recent.doc.tasks.some((t) => t.costCode === "02-82-03"));
+  assert.ok(unknown.recipe.assumptions.some((a) => /1978/.test(a)));
+  assert.ok(!recent.recipe.assumptions.some((a) => /1978/.test(a)));
+  assert.match(old.doc.siteConditions.join(" "), /not a site measurement/i);
+});
+
+test("property records are read defensively and never invented", () => {
+  assert.equal(fromRentCast(null), null);
+  assert.equal(fromRentCast([]), null);
+  assert.equal(fromRentCast([{ squareFootage: 12, yearBuilt: 1200 }]), null);
+  const facts = fromRentCast([{ squareFootage: 2412, yearBuilt: 1998, lotSize: 8712, assessorID: "R1234", city: "Boise", features: { floorCount: 2, garageSpaces: 2 } }])!;
+  assert.deepEqual({ sqft: facts.livingSqft, year: facts.yearBuilt, lot: facts.lotAcres, stories: facts.stories }, { sqft: 2412, year: 1998, lot: 0.2, stories: 2 });
+  assert.match(facts.source, /records/);
+});
+
+// --------------------------------------------------------------- submit route
+
+function submitRequest(body: Record<string, unknown>): Request {
+  return new Request("https://p5homeco.com/api/estimator/submit", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+}
+const VALID = {
+  brand: "remodeling",
+  project: "bathroom-remodel",
+  tier: "mid",
+  answers: { bath: "hall", scope: "full", bathing: "walkin" },
+  address: "100 Example Ave, Boise, ID 83702",
+  contact: { firstName: "Sample", lastName: "Customer", email: "Sample@Example.com", phone: "208-555-0100", marketingConsent: false },
+  clientKey: "abcdef0123456789abcdef0123456789",
+};
+function memoryStore() {
+  const rows = new Map<string, GuidedRow>();
+  const store = async (input: Parameters<NonNullable<Parameters<typeof handleSubmit>[1]>["store"] & object>[0]) => {
+    const key = `${input.submission.brand}:${input.submission.clientKey}`;
+    const existing = rows.get(key);
+    if (existing) return { row: existing, created: false };
+    const row = {
+      id: rows.size + 1,
+      token: input.customerView.token,
+      brand: input.submission.brand,
+      client_key: input.submission.clientKey,
+      project: input.estimate.project,
+      tier: input.estimate.tier,
+      first_name: input.submission.contact.firstName,
+      last_name: input.submission.contact.lastName,
+      email: input.submission.contact.email,
+      phone: input.submission.contact.phone,
+      marketing_consent: input.submission.contact.marketingConsent,
+      address: input.submission.address,
+      property: null,
+      total: String(input.estimate.pricing.totals.basePrice),
+      price_withheld: input.priceWithheld,
+      review: input.estimate.review,
+      customer_view: input.customerView,
+      internal_report: input.internal,
+      rules_version: input.estimate.versions.rules,
+      cost_book_version: input.estimate.versions.costBook,
+      estimate_class: input.estimate.estimateClass,
+      delivery: {},
+    } as unknown as GuidedRow;
+    rows.set(key, row);
+    return { row, created: true };
+  };
+  return { rows, store };
+}
+const deps = (extra: Record<string, unknown> = {}) => ({ loadContext: async () => ({ now: NOW }), ...extra });
+
+test("submit returns only the customer's view, and a retry is the same estimate", async () => {
+  const memory = memoryStore();
+  let delivered = 0;
+  const options = deps({ store: memory.store, deliver: () => void delivered++ });
+  const first = await handleSubmit(submitRequest(VALID), options);
+  assert.equal(first.status, 201);
+  const body = (await first.json()) as { ok: boolean; estimate: { token: string; total: number } } & Record<string, unknown>;
+  assert.deepEqual(Object.keys(body).sort(), ["estimate", "ok"]);
+  assert.match(body.estimate.token, /^[a-f0-9]{40}$/);
+  assert.doesNotMatch(JSON.stringify(body), /unitCost|"cost"|margin|\b\d{2}-\d{2}-\d{2}\b/);
+  const again = await handleSubmit(submitRequest(VALID), options);
+  assert.equal(again.status, 200);
+  assert.equal(((await again.json()) as { estimate: { token: string } }).estimate.token, body.estimate.token);
+  assert.equal(memory.rows.size, 1);
+  assert.equal(delivered, 1, "a retry must not deliver twice");
+  const row = [...memory.rows.values()][0];
+  assert.equal(row.email, "sample@example.com");
+  assert.equal(row.phone, "(208) 555-0100");
+});
+
+test("submit ignores any price, quantity or line the browser sends", async () => {
+  const memory = memoryStore();
+  const honest = (await (await handleSubmit(submitRequest(VALID), deps({ store: memoryStore().store }))).json()) as { estimate: { total: number } };
+  const forged = { ...VALID, clientKey: "ffffffff0123456789abcdef01234567", total: 1, price: 1, lines: [{ price: 1 }], estimate: { total: 1 }, answers: { ...VALID.answers, total: 1 } };
+  const result = (await (await handleSubmit(submitRequest(forged), deps({ store: memory.store }))).json()) as { estimate: { total: number } };
+  assert.equal(result.estimate.total, honest.estimate.total);
+});
+
+test("submit refuses bad contact details, bots, unknown projects and brands that are not live", async () => {
+  const memory = memoryStore();
+  const run = async (body: Record<string, unknown>) => handleSubmit(submitRequest(body), deps({ store: memory.store }));
+  const bad = await run({ ...VALID, contact: { firstName: "", lastName: "X", email: "nope", phone: "12" } });
+  assert.equal(bad.status, 422);
+  assert.deepEqual(((await bad.json()) as { errors: { field: string }[] }).errors.map((e) => e.field), ["firstName", "email", "phone"]);
+  assert.equal((await run({ ...VALID, company_website: "http://spam.example" })).status, 422);
+  assert.equal((await run({ ...VALID, project: "custom-home" })).status, 400, "remodeling does not offer new homes");
+  assert.equal((await run({ ...VALID, brand: "adu", project: "adu" })).status, 403);
+  assert.equal((await run({ ...VALID, clientKey: "short" })).status, 400);
+  assert.equal((await run({ ...VALID, project: "handyman", brand: "handyman", answers: { tasks: {} } })).status, 422);
+  assert.equal((await handleSubmit(submitRequest(VALID), deps({ store: memory.store, allow: async () => false }))).status, 429);
+  assert.equal(memory.rows.size, 0, "a refused request stored an estimate");
+});
+
+// ---------------------------------------------------------------------- email
+
+function rowFor(estimate: PricedEstimate): GuidedRow {
+  const view = customerEstimate(estimate, { token: "a".repeat(40), address: "100 Example Ave, Boise, ID 83702", createdAt: NOW, officialCopy: "after-review" });
+  return {
+    id: 1,
+    token: view.token,
+    brand: estimate.brand,
+    project: estimate.project,
+    tier: estimate.tier,
+    first_name: "Sample",
+    last_name: "Customer",
+    email: "sample@example.com",
+    phone: "(208) 555-0100",
+    marketing_consent: false,
+    address: view.address,
+    property: null,
+    total: String(estimate.pricing.totals.basePrice),
+    price_withheld: priceWithheld(estimate),
+    review: estimate.review,
+    customer_view: view,
+    internal_report: internalReport(estimate),
+    rules_version: estimate.versions.rules,
+    cost_book_version: estimate.versions.costBook,
+    estimate_class: estimate.estimateClass,
+    delivery: {},
+  } as unknown as GuidedRow;
+}
+
+test("the team report carries the full financial picture", () => {
+  const estimate = price("bathroom-remodel", { bath: "hall", scope: "full", bathing: "walkin" }, "mid", "remodeling");
+  const message = teamReport(rowFor(estimate), { scopeUrl: "https://p5homeco.com/scopes/7", qboUrl: null, estimateNumber: null, status: "Waiting for team review", customerViewUrl: "https://p5homeco.com/estimator/e/x" });
+  const report = internalReport(estimate);
+  for (const part of [message.text, message.html]) {
+    assert.match(part, /Gross margin/);
+    assert.match(part, /Gross profit/);
+    assert.ok(part.includes("09-30-05"), "cost book codes are in the report");
+    assert.ok(part.includes("mailto:sample@example.com") || part.includes("sample@example.com"));
+    assert.ok(part.includes("Boise Remodeling Co"));
+  }
+  assert.ok(message.html.includes('href="tel:+12085550100"'));
+  assert.ok(message.text.includes(report.totalCost!.toLocaleString("en-US", { minimumFractionDigits: 2 })));
+  assert.match(message.text, /Division|09 Finishes/);
+});
+
+test("the customer confirmation carries no figure and no internal wording", () => {
+  for (const estimate of [price("bathroom-remodel", { bath: "hall" }, "mid", "remodeling"), price("custom-home", {}, "high", "construction"), price("handyman", { tasks: { faucet: 2 } }, "mid", "handyman")]) {
+    const message = customerConfirmation(rowFor(estimate), "https://p5homeco.com/estimator/e/abc");
+    for (const part of [message.subject, message.text, message.html.replace(/<[^>]+>/g, " ")]) {
+      assert.doesNotMatch(part, /\$\s?\d|\bcost\b|margin|\b\d{2}-\d{2}-\d{2}\b/i);
+    }
+    assert.ok(message.text.includes("https://p5homeco.com/estimator/e/abc"));
+    assert.ok(message.text.includes(BRAND_CONFIGS[estimate.brand].name));
+  }
+});
+
+test("house style: no em dashes anywhere in the estimator", () => {
+  const root = path.join(import.meta.dirname, "..");
+  const files = [
+    ...readdirSync(path.join(root, "app/lib/estimator")).map((f) => `app/lib/estimator/${f}`),
+    ...readdirSync(path.join(root, "components/estimator")).map((f) => `components/estimator/${f}`),
+    "app/estimator/page.tsx",
+    "app/estimator/embed/page.tsx",
+    "app/estimator/e/[token]/page.tsx",
+    "migrations/027_guided_estimator.sql",
+  ];
+  for (const file of files) assert.doesNotMatch(readFileSync(path.join(root, file), "utf8"), /—/, `${file} contains an em dash`);
+});

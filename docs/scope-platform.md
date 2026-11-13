@@ -99,6 +99,30 @@ route fails, the message names each cause and the fix. A recording that did
 not transcribe is never lost: it stays saved, shows as "not transcribed yet",
 and the next-step button offers to try again.
 
+## Files of any kind, plan sets and long documents
+
+- **What can be added.** Any file can be picked. PDFs, Word (.docx), Excel
+  (.xlsx), text, CSV and images are read; anything else is stored and reported
+  as not readable rather than silently ignored.
+- **Size.** Files up to 20 MB go up in one request. Larger files (up to 300 MB)
+  are sent in 8 MB pieces to `/api/scopes/[id]/assets/parts`, joined on the
+  server and verified by size and SHA-256. Each piece is retried on its own and
+  a repeated request never creates a second copy.
+- **Long PDFs are read page by page** (`app/lib/scopes/sheets.ts`): more than 8
+  pages or more than 20 MB. Each page is given to the model as its exact text
+  layer plus an overview image and enlarged overlapping tiles (about 150 DPI,
+  reduced on very large sheets), and what was read is saved per page in
+  `scope_sheet`. Reading stops after about 200 seconds per request and the
+  screen calls again until the set is finished, so length is not a limit and no
+  page is read twice. A page that fails is recorded and retried.
+- **The scope is built only when every page has been read.** Printed
+  dimensions and schedules become documented measurements with page evidence.
+  Things drawn but not dimensioned become missing measurements, asked in the
+  details step. Anything illegible becomes a question naming the page.
+- **Accuracy.** The reader copies what is printed and is told never to scale or
+  calculate from a drawing. It is not a guarantee: a human still confirms
+  measurements and quantities in the details step before pricing is final.
+
 ## Generating the scope
 
 `POST /api/scopes/[id]/process` transcribes new audio, then sends every
@@ -140,6 +164,22 @@ One field per step, Next, Back, progress, typing or dictation, and "save for
 later". Each step says whether it blocks the estimate. Every answer saves a new
 version immediately, so work continues on another device.
 
+### Asked once, in scope order
+
+- Questions follow the scope itself: phase, then division, then room, then one
+  task at a time, so everything about one item is asked together. Items saved
+  for later come after everything else; clarifications tied to no task are last.
+- Two measurements for the same thing in different words are merged into one.
+- A quantity missing on several tasks for the same thing in the same room and
+  unit (remove, install and paint the same baseboards) is asked once and the
+  answer fills every task.
+- A free-text clarification is dropped when a measurement, quantity or selection
+  already covers it, when the scope already holds the answer, or when it repeats
+  one that was answered earlier in different words. The model is also told not
+  to raise such clarifications in the first place.
+- On a phone, the current question is held at the top of the visible screen and
+  number questions share one answer box, so the keyboard stays up between them.
+
 ## Pricing
 
 Each line records phase, division, task, QuickBooks item, quantity, unit, unit
@@ -168,6 +208,22 @@ price, extended price, internal cost and the source of the rate. Rules:
   rate's unit.
 - The scope cannot read "Ready" while any blocking pricing issue is open,
   whether or not a wizard question exists for it.
+
+### Profit check
+
+The Pricing section shows employees (never scopes-only accounts) where the
+money goes on the base estimate: direct cost, gross profit and margin, the
+overhead share at the policy rate, the reserve built into marked-up lines, and
+the expected profit against the profit target. Status is On target, Above
+target (more than double, a prompt to check the price against the market),
+Thin (at least half the target) or Below target, with the price that would
+reach the target. It also calls out labor billed at or below its cost and any
+line priced below cost.
+
+Cost and margin need P5's own cost per labor hour (wages, payroll taxes,
+workers' compensation, benefits), entered once under Pricing setup. Until then
+the panel says exactly what is missing and links to the setting. The system
+has no market price data, so "competitive" is a prompt to check, not a verdict.
 
 ## QuickBooks
 
@@ -200,6 +256,25 @@ price, extended price, internal cost and the source of the rate. Rules:
   Every distinct QuickBooks state is kept as a snapshot.
 - **Project:** tracked separately. An accepted estimate never shows a linked
   project until someone links or creates it.
+
+### Sending, acceptance and what happens after
+
+- **Send from the page.** An employee (never a scopes-only account) taps Send
+  estimate to client, confirms the address and amount, and QuickBooks emails
+  the estimate (`POST /estimate/{id}/send`). It refuses when the scope changed
+  after the estimate was created, when the saved email differs from the one on
+  screen, or when the estimate is no longer open in QuickBooks.
+- **Acceptance creates the project.** When QuickBooks reports the estimate
+  Accepted (webhook, daily sync, a refresh or a page view), the QuickBooks
+  project is created under the customer with no one asking. It is idempotent
+  and a failure is logged on the project and retried at the next change.
+  The accepted estimate itself is not edited, so it stays filed under the
+  customer; move it onto the project in QuickBooks if wanted.
+- **Following the job.** Statuses come from QuickBooks: not sent, sent,
+  accepted, declined, closed, invoiced, and completed and paid in full.
+  QuickBooks does not share a project's own Completed flag through this
+  connection, so "completed" means the linked invoices cover the whole
+  estimate and nothing is owed.
 
 ## Data
 

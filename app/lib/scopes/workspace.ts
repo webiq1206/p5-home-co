@@ -11,6 +11,7 @@ import {
   estimateSnapshots,
   getProject,
   latestEstimate,
+  linkedInvoices,
   listAssets,
   listEvents,
   listVersions,
@@ -19,6 +20,8 @@ import {
   syncProjectTitle,
   type ProjectRow,
 } from "./store.ts";
+import type { ScopeUser } from "../auth.ts";
+import { can } from "../leads/permissions.ts";
 import type { Change } from "./merge.ts";
 import type { PricingResult, Question, ScopeDoc, ScopeSettings } from "./types.ts";
 
@@ -55,7 +58,7 @@ export type Workspace = {
   version: { id: number; versionNo: number; createdAt: string } | null;
   doc: ScopeDoc;
   /** internal is false for scopes-only accounts: cost and margin are withheld. */
-  viewer: { internal: boolean };
+  viewer: { internal: boolean; canManagePricing: boolean };
   pricing: PricingResult;
   questions: Question[];
   readiness: { status: string; blocking: number; blockers: string[] };
@@ -71,6 +74,9 @@ export type Workspace = {
     versionNo: number | null;
     acceptedBy: string | null;
     acceptedDate: string | null;
+    /** Sent to this address through QuickBooks, when QuickBooks reports it. */
+    sentTo: string | null;
+    invoiced: { count: number; total: number; balance: number } | null;
     url: string | null;
     drift: { changed: boolean; details: string[] } | null;
     lastSyncedAt: string | null;
@@ -85,7 +91,7 @@ export type Workspace = {
 
 const iso = (d: Date | string | null | undefined) => (d ? new Date(d).toISOString() : null);
 
-export async function loadWorkspace(projectId: number, viewer: { scopesOnly: boolean }): Promise<Workspace | null> {
+export async function loadWorkspace(projectId: number, viewer: Pick<ScopeUser, "scopesOnly"> & Partial<ScopeUser>): Promise<Workspace | null> {
   const internal = !viewer.scopesOnly;
   // Projects created before names were standardized pick up the derived name here.
   await syncProjectTitle(projectId);
@@ -109,7 +115,8 @@ export async function loadWorkspace(projectId: number, viewer: { scopesOnly: boo
     projectIsProject(project.qbo_project_id),
   ]);
   project = (await getProject(projectId))!;
-  const status = estimate ? estimateStatus(estimate.qbo_snapshot as never, true) : "not_created";
+  const invoices = estimate ? await linkedInvoices(estimate.qbo_snapshot) : null;
+  const status = estimate ? estimateStatus(estimate.qbo_snapshot as never, true, invoices) : "not_created";
   const {
     pending_proposal,
     processing_started_at,
@@ -152,14 +159,14 @@ export async function loadWorkspace(projectId: number, viewer: { scopesOnly: boo
     versions: versions.map((v) => ({ id: v.id, versionNo: v.version_no, source: v.source, note: v.note, createdAt: iso(v.created_at)! })),
     version: version ? { id: version.id, versionNo: version.version_no, createdAt: iso(version.created_at)! } : null,
     doc: computed.doc,
-    viewer: { internal },
+    viewer: { internal, canManagePricing: internal && Boolean(viewer.role) && can(viewer.role!, "manage_settings") },
     // Internal cost, margin and markup never leave the server for a scopes-only account.
     pricing: internal
       ? computed.pricing
       : {
           ...computed.pricing,
           lines: computed.pricing.lines.map((l) => ({ ...l, unitCost: null, cost: null })),
-          totals: { ...computed.pricing.totals, baseCost: null, margin: null },
+          totals: { ...computed.pricing.totals, baseCost: null, margin: null, profit: null, costGaps: undefined },
           policy: { ...computed.pricing.policy, overheadRate: 0, profitRate: 0, contingencyRate: 0 },
         },
     questions: computed.questions,
@@ -177,6 +184,8 @@ export async function loadWorkspace(projectId: number, viewer: { scopesOnly: boo
           versionNo: versions.find((v) => v.id === estimate!.version_id)?.version_no ?? null,
           acceptedBy: estimate.accepted_by,
           acceptedDate: estimate.accepted_date,
+          sentTo: estimate.email_status === "EmailSent" ? (((estimate.qbo_snapshot as { BillEmail?: { Address?: string } } | null)?.BillEmail?.Address) ?? null) : null,
+          invoiced: invoices && invoices.count ? invoices : null,
           url: estimate.qbo_estimate_id ? qboWebUrl("estimate", estimate.qbo_estimate_id, isSandbox()) : null,
           drift: estimate.drift ? { changed: estimate.drift.changed, details: estimate.drift.details } : null,
           lastSyncedAt: iso(estimate.last_synced_at),

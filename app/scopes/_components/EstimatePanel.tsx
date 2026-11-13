@@ -6,10 +6,10 @@
  * separately: scope, QuickBooks estimate, and QuickBooks project.
  */
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import AddressField from "./AddressField.tsx";
-import { api, money, SCOPE_LABEL, when, type Workspace } from "./client.ts";
+import { api, money, when, type Workspace } from "./client.ts";
 
 type Candidate = { qboId: string; displayName: string; email: string | null; phone: string | null; address: string | null; reasons: string[] };
 
@@ -36,6 +36,7 @@ export default function EstimatePanel({ ws, onWorkspace, onScope }: { ws: Worksp
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [confirmOverwrite, setConfirmOverwrite] = useState(false);
+  const [confirmSend, setConfirmSend] = useState(false);
 
   const missingClient = CLIENT_FIELDS.filter(([k]) => !String(p[k] ?? "").trim()).map(([, l]) => l);
   const dirty = CLIENT_FIELDS.some(([k]) => (form[k] ?? "") !== String(p[k] ?? "")) || (billingDifferent ? form.billing_address : "") !== (p.billing_address ?? "");
@@ -70,37 +71,36 @@ export default function EstimatePanel({ ws, onWorkspace, onScope }: { ws: Worksp
 
   const qboDown = !ws.qbo.connected;
 
+  // QuickBooks is checked for this client as soon as the details are saved, with
+  // no button to press. It is checked again whenever the saved details change.
+  const lookupFor = [p.client_first_name, p.client_last_name, p.client_email, p.client_phone, p.project_address].join("|");
+  const lookedUp = useRef<string | null>(null);
+  const [searching, setSearching] = useState(false);
+  const canLookUp = !p.qbo_customer_id && !qboDown && missingClient.length === 0;
+  const findCustomer = async (signature: string) => {
+    lookedUp.current = signature;
+    setSearching(true);
+    setError(null);
+    try {
+      const res = await api<{ candidates?: Candidate[] }>(`/api/scopes/${p.id}/estimate`, { method: "POST", json: { action: "customers" } });
+      // A slower, older search must not replace the result for newer details.
+      if (lookedUp.current === signature) setCandidates(res.candidates ?? []);
+    } catch (err) {
+      if (lookedUp.current === signature) setError((err as Error).message);
+    } finally {
+      if (lookedUp.current === signature) setSearching(false);
+    }
+  };
+  useEffect(() => {
+    if (!canLookUp || lookedUp.current === lookupFor) return;
+    const t = setTimeout(() => void findCustomer(lookupFor), 0);
+    return () => clearTimeout(t);
+    // findCustomer only reads the project id and the signature passed in.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canLookUp, lookupFor, p.id]);
+
   return (
     <div className="sc-estimate">
-      <section className="sc-card">
-        <h2 className="sc-h2">Status</h2>
-        <dl className="sc-status-grid">
-          <div><dt>Scope</dt><dd className={`sc-pill sc-pill-${ws.readiness.status}`}>{SCOPE_LABEL[ws.readiness.status]}</dd></div>
-          <div><dt>QuickBooks estimate</dt><dd className={`sc-pill sc-pill-est-${ws.estimate?.status ?? "not_created"}`}>{ws.estimate?.statusLabel ?? "Not created"}</dd></div>
-          <div>
-            <dt>QuickBooks project</dt>
-            <dd className={`sc-pill ${p.qbo_project_id ? "sc-pill-ready" : ""}`}>
-              {p.qbo_project_id ? `Linked: ${p.qbo_project_name}` : "Not created or linked"}
-            </dd>
-          </div>
-        </dl>
-        <p className="sc-small sc-muted">
-          QuickBooks {ws.qbo.connected ? "connected" : ws.qbo.configured ? "not connected" : "not configured"}
-          {ws.qbo.sandbox ? " (sandbox)" : ""}.{e ? ` Estimate status last refreshed ${when(e.lastSyncedAt)}.` : ""}
-          {ws.qbo.lastSuccess ? ` Last successful QuickBooks sync ${when(ws.qbo.lastSuccess)}.` : ""}
-        </p>
-        {e?.error && <p className="sc-alert sc-alert-bad" role="alert">Status refresh failed: {e.error}. The status shown is from {when(e.lastSyncedAt)}.</p>}
-        {ws.qbo.error && <p className="sc-alert sc-alert-warn">QuickBooks sync reported: {ws.qbo.error}</p>}
-        {e && (
-          <button type="button" className="sc-btn" disabled={!!busy || qboDown} onClick={() => act("refresh", async () => {
-            const res = await estimateAction({ action: "refresh" });
-            if (res.workspace) onWorkspace(res.workspace);
-            setNotice("Status refreshed from QuickBooks.");
-          })}>
-            {busy === "refresh" ? "Refreshing..." : "Refresh from QuickBooks"}
-          </button>
-        )}
-      </section>
 
       {!ready && (
         <section className="sc-card sc-card-warn">
@@ -111,9 +111,8 @@ export default function EstimatePanel({ ws, onWorkspace, onScope }: { ws: Worksp
       )}
 
       <section className="sc-card">
-        <h2 className="sc-h2">1. Confirm the client</h2>
-        <p className="sc-muted">Filled from the recording and project where possible. Only blanks need typing.</p>
-        <form onSubmit={(ev) => { ev.preventDefault(); void saveClient(); }}>
+        <h2 className="sc-h2">1. Client</h2>
+                <form onSubmit={(ev) => { ev.preventDefault(); void saveClient(); }}>
           <div className="sc-two">
             {CLIENT_FIELDS.slice(0, 4).map(([k, label, ac]) => (
               <label key={k} className="sc-field">
@@ -143,36 +142,48 @@ export default function EstimatePanel({ ws, onWorkspace, onScope }: { ws: Worksp
           <p>Using <b>{p.qbo_customer_name}</b>.</p>
         ) : (
           <>
-            <p className="sc-muted">Checks QuickBooks for this client by email, phone, name and address so no duplicate is created.</p>
-            <button type="button" className="sc-btn" disabled={!!busy || qboDown || missingClient.length > 0} onClick={() => act("find", async () => {
-              const res = await estimateAction({ action: "customers" });
-              setCandidates(res.candidates ?? []);
-            })}>
-              {busy === "find" ? "Searching..." : "Find in QuickBooks"}
-            </button>
-            {missingClient.length > 0 && <p className="sc-small sc-muted">Save the client&apos;s {missingClient.join(", ")} first.</p>}
-            {candidates && (
-              <ul className="sc-candidates">
-                {candidates.map((c) => (
-                  <li key={c.qboId}>
-                    <span>
-                      <b>{c.displayName}</b> <span className="sc-muted sc-small">{[c.email, c.phone, c.address].filter(Boolean).join(" · ")}</span>
-                      <span className="sc-small sc-block">Match: {c.reasons.join(", ")}</span>
-                    </span>
-                    <button type="button" className="sc-btn sc-btn-small" disabled={!!busy} onClick={() => act("use", async () => {
-                      const res = await estimateAction({ action: "customer", qboId: c.qboId });
+            {missingClient.length > 0 ? (
+              <p className="sc-muted">Save the client&apos;s {missingClient.join(", ")} above. QuickBooks is then checked for this client automatically.</p>
+            ) : qboDown ? (
+              <p className="sc-muted">QuickBooks is not connected, so the client cannot be looked up yet.</p>
+            ) : searching || candidates === null ? (
+              <p role="status"><span className="sc-spinner" aria-hidden="true" /> Checking QuickBooks for this client...</p>
+            ) : candidates.length === 0 ? (
+              <>
+                <p><b>Not in QuickBooks yet.</b> No customer matches this client&apos;s email, phone, name or address.</p>
+                <button type="button" className="sc-btn sc-btn-primary sc-btn-big" disabled={!!busy} onClick={() => act("create-customer", async () => {
+                  const res = await estimateAction({ action: "customer", create: true });
+                  if (res.workspace) onWorkspace(res.workspace);
+                })}>{busy === "create-customer" ? "Creating..." : `Create ${[p.client_first_name, p.client_last_name].filter(Boolean).join(" ") || "customer"} in QuickBooks`}</button>
+              </>
+            ) : (
+              <>
+                <p><b>{candidates.length === 1 ? "Found a possible match in QuickBooks." : `Found ${candidates.length} possible matches in QuickBooks.`}</b> Use the right one so no duplicate is created.</p>
+                <ul className="sc-candidates">
+                  {candidates.map((c) => (
+                    <li key={c.qboId}>
+                      <span>
+                        <b>{c.displayName}</b> <span className="sc-muted sc-small">{[c.email, c.phone, c.address].filter(Boolean).join(" · ")}</span>
+                        <span className="sc-small sc-block">Match: {c.reasons.join(", ")}</span>
+                      </span>
+                      <button type="button" className={`sc-btn${candidates.length === 1 ? " sc-btn-primary" : " sc-btn-small"}`} disabled={!!busy} onClick={() => act("use", async () => {
+                        const res = await estimateAction({ action: "customer", qboId: c.qboId });
+                        if (res.workspace) onWorkspace(res.workspace);
+                      })}>Use this customer</button>
+                    </li>
+                  ))}
+                  <li>
+                    <span>{candidates.length === 1 ? "Not the same person?" : "None of these is the client?"}</span>
+                    <button type="button" className="sc-btn sc-btn-small" disabled={!!busy} onClick={() => act("create-customer", async () => {
+                      const res = await estimateAction({ action: "customer", create: true });
                       if (res.workspace) onWorkspace(res.workspace);
-                    })}>Use this customer</button>
+                    })}>{busy === "create-customer" ? "Creating..." : "Create new customer"}</button>
                   </li>
-                ))}
-                <li>
-                  <span>{candidates.length ? "None of these is the client." : "No existing customer matches."}</span>
-                  <button type="button" className="sc-btn sc-btn-small" disabled={!!busy} onClick={() => act("create-customer", async () => {
-                    const res = await estimateAction({ action: "customer", create: true });
-                    if (res.workspace) onWorkspace(res.workspace);
-                  })}>{busy === "create-customer" ? "Creating..." : "Create new customer"}</button>
-                </li>
-              </ul>
+                </ul>
+              </>
+            )}
+            {canLookUp && !searching && candidates !== null && (
+              <p><button type="button" className="sc-link sc-small" disabled={!!busy} onClick={() => void findCustomer(lookupFor)}>Check QuickBooks again</button></p>
             )}
           </>
         )}
@@ -186,11 +197,57 @@ export default function EstimatePanel({ ws, onWorkspace, onScope }: { ws: Worksp
               Estimate {e.docNumber ? `#${e.docNumber}` : ""} for {money(e.total)}, from scope version {e.versionNo ?? "?"}.{" "}
               {e.url && <a href={e.url} target="_blank" rel="noreferrer">Open in QuickBooks</a>}
             </p>
-            {e.status === "created_unsent" && <p className="sc-muted">Not sent. Send it from QuickBooks when you are ready.</p>}
+            {(e.status === "created_unsent" || e.status === "sent") && (
+              <div className="sc-send">
+                <p className={e.status === "sent" ? "" : "sc-muted"}>
+                  {e.status === "sent"
+                    ? <><b>Sent{e.sentTo ? ` to ${e.sentTo}` : ""}.</b> Waiting for the client to accept or decline. This page updates on its own when they do.</>
+                    : "Not sent yet."}
+                </p>
+                {!ws.viewer.internal ? (
+                  <p className="sc-small sc-muted">A P5 employee sends the estimate to the client.</p>
+                ) : behind ? (
+                  <p className="sc-small sc-muted">Update the estimate below before sending it.</p>
+                ) : !p.client_email ? (
+                  <p className="sc-small sc-muted">Save the client&apos;s email above to send it from here.</p>
+                ) : confirmSend ? (
+                  <div className="sc-revise" role="group" aria-label="Confirm sending">
+                    <p>
+                      QuickBooks will email estimate {e.docNumber ? `#${e.docNumber} ` : ""}for <b>{money(e.total)}</b> to <b>{p.client_email}</b> now.
+                    </p>
+                    <div className="sc-actions">
+                      <button type="button" className="sc-btn sc-btn-primary" disabled={!!busy || qboDown} onClick={() => act("send", async () => {
+                        const res = await estimateAction({ action: "send", email: p.client_email });
+                        if (res.workspace) onWorkspace(res.workspace);
+                        setConfirmSend(false);
+                        setNotice(`Estimate sent to ${p.client_email}.`);
+                      })}>{busy === "send" ? "Sending..." : "Send now"}</button>
+                      <button type="button" className="sc-btn" disabled={!!busy} onClick={() => setConfirmSend(false)}>Cancel</button>
+                    </div>
+                  </div>
+                ) : (
+                  <button type="button" className={`sc-btn${e.status === "sent" ? "" : " sc-btn-primary sc-btn-big"}`} disabled={!!busy || qboDown} onClick={() => setConfirmSend(true)}>
+                    {e.status === "sent" ? "Send again" : "Send estimate to client"}
+                  </button>
+                )}
+              </div>
+            )}
             {e.status === "accepted" && (
-              <p className="sc-muted">
-                Accepted{e.acceptedBy ? ` by ${e.acceptedBy}` : ""}{e.acceptedDate ? ` on ${e.acceptedDate}` : ""}. The QuickBooks project is a separate step below.
+              <p>
+                <b>Accepted{e.acceptedBy ? ` by ${e.acceptedBy}` : ""}{e.acceptedDate ? ` on ${e.acceptedDate}` : ""}.</b>{" "}
+                {p.qbo_project_id ? "The QuickBooks project has been created. The job continues in QuickBooks; this page keeps following it." : "The QuickBooks project is being created automatically."}
               </p>
+            )}
+            {e.status === "declined" && <p><b>Declined.</b> The client did not approve this estimate in QuickBooks.</p>}
+            {e.status === "closed" && <p><b>Closed in QuickBooks.</b></p>}
+            {e.status === "converted" && (
+              <p>
+                <b>Invoiced.</b>{" "}
+                {e.invoiced ? `${money(e.invoiced.total)} invoiced so far, ${money(e.invoiced.balance)} still owed.` : "QuickBooks has turned this estimate into an invoice."}
+              </p>
+            )}
+            {e.status === "paid" && (
+              <p><b>Completed.</b> {e.invoiced ? `${money(e.invoiced.total)} invoiced and paid in full.` : "Invoiced and paid in full."}</p>
             )}
             {e.drift?.changed && (
               <div className="sc-alert sc-alert-warn" role="alert">
@@ -228,7 +285,7 @@ export default function EstimatePanel({ ws, onWorkspace, onScope }: { ws: Worksp
               </p>
             )}
             <p className="sc-muted">
-              Creates one estimate in QuickBooks with customer-facing descriptions, grouped by phase and division. Optional upgrades are listed in the message, not in the total. It stays unsent.
+              Creates the estimate in QuickBooks. It is not sent until you send it.
             </p>
             <button
               type="button"
@@ -237,7 +294,7 @@ export default function EstimatePanel({ ws, onWorkspace, onScope }: { ws: Worksp
               onClick={() => act("create", async () => {
                 const res = await estimateAction({ action: "create" });
                 if (res.workspace) onWorkspace(res.workspace);
-                setNotice("Estimate created in QuickBooks. It has not been sent.");
+                setNotice("Estimate created in QuickBooks. It has not been sent yet.");
               })}
             >
               {busy === "create" ? "Creating estimate..." : `Create estimate (${money(ws.pricing.totals.basePrice)})`}
@@ -247,8 +304,9 @@ export default function EstimatePanel({ ws, onWorkspace, onScope }: { ws: Worksp
         )}
       </section>
 
-      <section className="sc-card">
-        <h2 className="sc-h2">4. QuickBooks project</h2>
+      {p.qbo_project_id ? (
+        <section className="sc-card">
+          <h2 className="sc-h2">4. QuickBooks project</h2>
         {p.qbo_project_id ? (
           <p>
             Linked to <b>{p.qbo_project_name}</b> on {when(p.qboProjectLinkedAt)}.
@@ -257,9 +315,9 @@ export default function EstimatePanel({ ws, onWorkspace, onScope }: { ws: Worksp
         ) : (
           <>
             <p className="sc-muted">
-              {e?.status === "accepted"
-                ? "The estimate is accepted. Create the project in QuickBooks or link one that already exists."
-                : "Usually done after the estimate is accepted. Project status only shows as linked once this step is done."}
+              {e?.status === "accepted" || e?.status === "converted" || e?.status === "paid"
+                ? "The project is created in QuickBooks automatically once the estimate is accepted. If it has not appeared, create or link it here."
+                : "Nothing to do here. The project is created in QuickBooks automatically when the client accepts the estimate. Use these only to link a project that already exists."}
             </p>
             <div className="sc-actions">
               <button type="button" className="sc-btn" disabled={!p.qbo_customer_id || !!busy || qboDown} onClick={() => act("projects", async () => {
@@ -287,14 +345,76 @@ export default function EstimatePanel({ ws, onWorkspace, onScope }: { ws: Worksp
             )}
           </>
         )}
-      </section>
+        </section>
+      ) : (
+        <details className="sc-card sc-more">
+          <summary>4. QuickBooks project <span className="sc-muted">created automatically on acceptance</span></summary>
+        {p.qbo_project_id ? (
+          <p>
+            Linked to <b>{p.qbo_project_name}</b> on {when(p.qboProjectLinkedAt)}.
+            {p.qboProjectIsProject === false && " QuickBooks holds it as a sub-customer, not a Project; convert it in QuickBooks if needed."}
+          </p>
+        ) : (
+          <>
+            <p className="sc-muted">
+              {e?.status === "accepted" || e?.status === "converted" || e?.status === "paid"
+                ? "The project is created in QuickBooks automatically once the estimate is accepted. If it has not appeared, create or link it here."
+                : "Nothing to do here. The project is created in QuickBooks automatically when the client accepts the estimate. Use these only to link a project that already exists."}
+            </p>
+            <div className="sc-actions">
+              <button type="button" className="sc-btn" disabled={!p.qbo_customer_id || !!busy || qboDown} onClick={() => act("projects", async () => {
+                const res = await estimateAction({ action: "projects", refresh: true });
+                setProjects(res.projects ?? []);
+              })}>{busy === "projects" ? "Checking..." : "Find existing projects"}</button>
+              <button type="button" className="sc-btn" disabled={!p.qbo_customer_id || !!busy || qboDown} onClick={() => act("create-project", async () => {
+                const res = await estimateAction({ action: "create-project" });
+                if (res.workspace) onWorkspace(res.workspace);
+              })}>{busy === "create-project" ? "Creating..." : "Create project in QuickBooks"}</button>
+            </div>
+            {projects && (
+              <ul className="sc-candidates">
+                {projects.length === 0 && <li>No projects under this customer yet.</li>}
+                {projects.map((x) => (
+                  <li key={x.qboId}>
+                    <span>{x.name} <span className="sc-muted sc-small">{x.isProject ? "Project" : "Sub-customer"}</span></span>
+                    <button type="button" className="sc-btn sc-btn-small" disabled={!!busy} onClick={() => act("link", async () => {
+                      const res = await estimateAction({ action: "link-project", qboId: x.qboId });
+                      if (res.workspace) onWorkspace(res.workspace);
+                    })}>Link</button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </>
+        )}
+        </details>
+      )}
 
       {notice && <p className="sc-alert sc-alert-good" role="status">{notice}</p>}
       {error && <p className="sc-alert sc-alert-bad" role="alert">{error}</p>}
 
+      <section className="sc-card sc-sync">
+        <p className="sc-small sc-muted">
+          QuickBooks {ws.qbo.connected ? "connected" : ws.qbo.configured ? "not connected" : "not configured"}
+          {ws.qbo.sandbox ? " (sandbox)" : ""}.{e ? ` Estimate status last refreshed ${when(e.lastSyncedAt)}.` : ""}
+          {ws.qbo.lastSuccess ? ` Last successful QuickBooks sync ${when(ws.qbo.lastSuccess)}.` : ""}
+        </p>
+        {e?.error && <p className="sc-alert sc-alert-bad" role="alert">Status refresh failed: {e.error}. The status shown is from {when(e.lastSyncedAt)}.</p>}
+        {ws.qbo.error && <p className="sc-alert sc-alert-warn">QuickBooks sync reported: {ws.qbo.error}</p>}
+        {e && (
+          <button type="button" className="sc-btn" disabled={!!busy || qboDown} onClick={() => act("refresh", async () => {
+            const res = await estimateAction({ action: "refresh" });
+            if (res.workspace) onWorkspace(res.workspace);
+            setNotice("Status refreshed from QuickBooks.");
+          })}>
+            {busy === "refresh" ? "Refreshing..." : "Refresh from QuickBooks"}
+          </button>
+        )}
+      </section>
+
       {ws.estimate && ws.estimate.snapshots.length > 0 && (
-        <details className="sc-card">
-          <summary className="sc-h2">QuickBooks history ({ws.estimate.snapshots.length})</summary>
+        <details className="sc-card sc-more">
+          <summary>QuickBooks history ({ws.estimate.snapshots.length})</summary>
           <ul className="sc-plain">
             {ws.estimate.snapshots.map((s, i) => (
               <li key={i}>{when(s.capturedAt)}: {s.source}, total {money(s.total)}{s.syncToken ? ` (QuickBooks revision ${s.syncToken})` : ""}</li>
