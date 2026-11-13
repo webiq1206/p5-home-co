@@ -14,7 +14,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import type { BrandConfig } from "@/app/lib/estimator/brands";
+import { trackAcceptedInquiry } from "@/app/analytics";
+import { familyOrigins, type BrandConfig } from "@/app/lib/estimator/brands";
 import { FLOWS, TRADES } from "@/app/lib/estimator/flows";
 import {
   TIER_LABELS,
@@ -27,6 +28,7 @@ import {
   type Question,
   type Tier,
 } from "@/app/lib/estimator/types";
+import { captureAttribution } from "@/lib/p5/browserAttribution";
 import EstimateView from "./EstimateView";
 import styles from "./GuidedEstimator.module.css";
 
@@ -53,7 +55,9 @@ function readAttribution(): Record<string, string> {
   const out: Record<string, string> = {};
   try {
     const params = new URLSearchParams(window.location.search);
-    for (const key of ["utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content", "gclid", "gbraid", "wbraid", "fbclid", "landing_page", "referrer"]) {
+    const keys = ["utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content", "gclid", "gbraid", "wbraid", "fbclid", "landing_page", "referrer"];
+    // A framing site also passes what it remembered from the visitor's first page, as first_<name>.
+    for (const key of [...keys, ...keys.filter((k) => k !== "fbclid").map((k) => `first_${k}`)]) {
       const value = params.get(key);
       if (value) out[key] = value.slice(0, 300);
     }
@@ -131,25 +135,30 @@ export default function GuidedEstimator({
   brand,
   images,
   initialProject,
+  initialTrade,
   embedded = false,
 }: {
   brand: Pick<BrandConfig, "id" | "name" | "accent" | "accentInk" | "phoneDisplay" | "phoneTel" | "heading" | "intro" | "projects">;
   /** Image names that exist under /estimator/img. A card without one is a text card. */
   images: string[];
   initialProject?: string | null;
+  /** Opens on this trade's list of projects, as if the visitor had already answered the first question. */
+  initialTrade?: string | null;
   embedded?: boolean;
 }) {
   const flows = useMemo(() => brand.projects.map((id) => FLOWS.find((f) => f.id === id)).filter((f): f is ProjectFlow => Boolean(f)), [brand.projects]);
   const preset = flows.find((f) => f.id === initialProject) ?? (flows.length === 1 ? flows[0] : null);
   const trades = useMemo(() => TRADES.filter((t) => flows.some((f) => f.group === t.id)), [flows]);
-  const [trade, setTrade] = useState<string | null>(preset ? preset.group : trades.length === 1 ? trades[0].id : null);
+  const startTrade = !preset && trades.length > 1 && flows.filter((f) => f.group === initialTrade).length > 1 ? (initialTrade as string) : null;
+  const [trade, setTrade] = useState<string | null>(preset ? preset.group : startTrade ?? (trades.length === 1 ? trades[0].id : null));
   const [flow, setFlow] = useState<ProjectFlow | null>(preset);
   const [taskGroup, setTaskGroup] = useState<string | null>(null);
   const [answers, setAnswers] = useState<Answers>({});
   const [tier, setTier] = useState<Tier>("mid");
   const [address, setAddress] = useState("");
   const [property, setProperty] = useState<PropertyFacts | null>(null);
-  const [index, setIndex] = useState(0);
+  // A visitor who chose a trade on the page before starts on the second screen; Back still reaches the first.
+  const [index, setIndex] = useState(startTrade ? 1 : 0);
   const [direction, setDirection] = useState<"forward" | "back">("forward");
   const [estimate, setEstimate] = useState<CustomerEstimate | null>(null);
   const [contact, setContact] = useState({ firstName: "", lastName: "", email: "", phone: "", marketingConsent: false, company_website: "" });
@@ -167,21 +176,41 @@ export default function GuidedEstimator({
   // A question screen is exactly as tall as the viewport below wherever the
   // estimator starts (under the site header, or at the top of an embed), so
   // nothing for the step is below the fold.
+  //
+  // Framed in a brand site, the estimator cannot see that page's viewport: its
+  // own window is the frame, which is as tall as we tell the page to make it.
+  // So the framing page says how much room there is (EstimatorFrame on each
+  // site), and a question screen takes exactly that.
+  const room = useRef<number | null>(null);
   useEffect(() => {
     const fit = () => {
       const node = shell.current;
       if (!node) return;
+      if (embedded) {
+        node.style.setProperty("--ge-height", `${room.current ?? 640}px`);
+        return;
+      }
       const top = Math.max(0, node.getBoundingClientRect().top + window.scrollY);
       node.style.setProperty("--ge-height", `${Math.max(480, window.innerHeight - top)}px`);
     };
+    const onMessage = (event: MessageEvent) => {
+      if (!embedded || event.source !== window.parent) return;
+      if (event.origin !== window.location.origin && !familyOrigins().includes(event.origin)) return;
+      const data = event.data as { type?: unknown; height?: unknown } | null;
+      if (!data || data.type !== "p5-estimator-viewport" || typeof data.height !== "number" || !Number.isFinite(data.height)) return;
+      room.current = Math.min(1400, Math.max(480, Math.round(data.height)));
+      fit();
+    };
     fit();
     window.addEventListener("resize", fit);
+    window.addEventListener("message", onMessage);
     window.visualViewport?.addEventListener("resize", fit);
     return () => {
       window.removeEventListener("resize", fit);
+      window.removeEventListener("message", onMessage);
       window.visualViewport?.removeEventListener("resize", fit);
     };
-  }, [estimate]);
+  }, [embedded, estimate]);
 
   const report = useCallback(
     (name: string, extra: { step?: string; project?: string | null } = {}) => {
@@ -208,7 +237,10 @@ export default function GuidedEstimator({
   useEffect(() => {
     session.current = randomKey();
     clientKey.current = randomKey();
-    attribution.current = readAttribution();
+    // On our own site the visitor usually landed on another page first: use what the site
+    // remembered for the visit. Framed in a brand site, that site passes the same in the address.
+    const remembered = embedded ? {} : Object.fromEntries(Object.entries(captureAttribution()).filter((entry): entry is [string, string] => typeof entry[1] === "string" && entry[1].length > 0));
+    attribution.current = { ...remembered, ...readAttribution() };
     report("started");
     // Run once on mount.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -411,6 +443,8 @@ export default function GuidedEstimator({
       if (json.ok && json.estimate) {
         setEstimate(json.estimate);
         report("completed");
+        // One accepted lead, counted once. A framed estimator leaves this to the site that frames it.
+        if (!embedded) trackAcceptedInquiry("instant_estimator");
         window.scrollTo?.({ top: 0 });
       } else if (json.errors?.length) {
         setErrors(Object.fromEntries(json.errors.map((e) => [e.field, e.message])));
@@ -429,7 +463,7 @@ export default function GuidedEstimator({
   if (estimate) {
     return (
       <div className={styles.shell} style={style} data-embedded={embedded || undefined}>
-        <EstimateView estimate={estimate} phoneDisplay={brand.phoneDisplay} phoneTel={brand.phoneTel} fresh />
+        <EstimateView estimate={estimate} phoneDisplay={brand.phoneDisplay} phoneTel={brand.phoneTel} fresh onCall={() => report("consultation_requested")} />
       </div>
     );
   }

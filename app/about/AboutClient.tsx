@@ -68,8 +68,8 @@ export default function AboutClient({
             </p>
             <div className="about-hero-actions">
               {/* data-hero-cta: the family bottom bar waits until this action has scrolled away. */}
-              <FamilyButton href="/quote" size="lg" data-cta="primary" data-hero-cta="primary">
-                Request a quote
+              <FamilyButton href="/estimator" size="lg" data-cta="primary" data-hero-cta="primary">
+                Get an instant estimate
               </FamilyButton>
               <a className="text-link" href="tel:+12084771169">
                 Call (208) 477-1169
@@ -206,8 +206,8 @@ export default function AboutClient({
               </p>
               <div className="about-closing-actions">
                 <SaveContactButton location="about" />
-                <FamilyButton href="/quote" size="lg">
-                  Request a quote
+                <FamilyButton href="/estimator" size="lg">
+                  Get an instant estimate
                 </FamilyButton>
               </div>
             </div>

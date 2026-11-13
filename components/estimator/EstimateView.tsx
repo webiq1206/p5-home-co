@@ -41,12 +41,15 @@ export default function EstimateView({
   phoneDisplay,
   phoneTel,
   fresh = false,
+  onCall,
 }: {
   estimate: CustomerEstimate;
   phoneDisplay: string;
   phoneTel: string;
   /** True right after submitting, false when opened from the saved link. */
   fresh?: boolean;
+  /** Called when the customer taps the call button, so the request to talk is counted. */
+  onCall?: () => void;
 }) {
   const date = new Date(estimate.createdAt).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric", timeZone: "America/Boise" });
   const guide = estimate.guide;
@@ -229,7 +232,7 @@ export default function EstimateView({
             <li key={s}>{s}</li>
           ))}
         </ol>
-        <a className={styles.primary} href={phoneTel}>
+        <a className={styles.primary} href={phoneTel} onClick={onCall}>
           Call {phoneDisplay}
         </a>
         {fresh ? <p className={styles.fine}>We also emailed you a link to this estimate.</p> : null}

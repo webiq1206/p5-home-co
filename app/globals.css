@@ -1005,3 +1005,52 @@ main#main-content:focus { outline: none; }
   .featured-project-grid-3 > :first-child { grid-column: auto; }
 }
 
+
+/* Instant estimate band (owner, 13 November 2026). The homepage's one request entry: the
+   estimator's first question as photo tiles beside the offer, on charcoal so it reads as a
+   feature and not as one more paper section. */
+.estimate-band { padding: var(--section-y) 0; border-bottom: 0; background: var(--charcoal); color: #fff; }
+.estimate-band-grid { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 72px; align-items: center; }
+.estimate-band-copy .eyebrow { margin-bottom: 22px; }
+.estimate-band-copy h2 { max-width: 14ch; margin: 0 0 var(--stack-heading); color: #fff; font-family: var(--font-display); font-size: var(--fs-h2); font-weight: var(--weight-display); letter-spacing: var(--tracking-heading); line-height: var(--lh-h2); }
+.estimate-band-copy p:not(.eyebrow) { max-width: 46ch; margin: 0; color: rgba(255,255,255,.86); font-size: var(--fs-body); line-height: var(--lh-body); letter-spacing: 0; }
+.estimate-band-actions { margin-top: 34px; }
+.estimate-band-tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 0; padding: 0; list-style: none; }
+.estimate-band-tiles a { position: relative; display: block; aspect-ratio: 1 / 1; overflow: hidden; color: #fff; background: var(--charcoal-surface); text-decoration: none; outline-offset: 3px; }
+.estimate-band-tiles img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; transition: transform 500ms ease; }
+.estimate-band-tiles a::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(var(--charcoal-rgb), 0) 38%, rgba(var(--charcoal-rgb), .9) 100%); transition: background 220ms ease; }
+.estimate-band-tile-text { position: absolute; left: 0; right: 0; bottom: 0; z-index: 1; display: grid; gap: 4px; padding: 16px; }
+.estimate-band-tile-label { font-size: 18px; font-weight: 650; line-height: 1.2; letter-spacing: 0; }
+.estimate-band-tile-hint { color: rgba(255,255,255,.86); font-size: 13px; line-height: 1.35; letter-spacing: 0; }
+.estimate-band-tile-all a { display: flex; flex-direction: column; align-items: flex-start; justify-content: flex-end; gap: 10px; padding: 16px; border: 1px solid rgba(255,255,255,.3); background: transparent; transition: background 180ms ease, border-color 180ms ease; }
+.estimate-band-tile-all a::after { content: none; }
+.estimate-band-points { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0 40px; margin: 64px 0 0; padding: 0; list-style: none; border-top: 1px solid rgba(255,255,255,.2); }
+.estimate-band-points li { position: relative; padding: 26px 0 0; color: #fff; font-size: var(--fs-body); line-height: var(--lh-body); letter-spacing: 0; }
+.estimate-band-points li::before { content: ""; position: absolute; left: 0; top: -1px; width: 44px; height: 2px; background: var(--tan, #ceb391); }
+.estimate-band-talk { max-width: 78ch; margin: 34px 0 0; color: rgba(255,255,255,.78); font-size: var(--fs-small); line-height: var(--lh-small); letter-spacing: 0; }
+.estimate-band-talk a { color: #fff; text-decoration: underline; text-underline-offset: 3px; }
+@media (hover: hover) {
+  .estimate-band-tiles a:hover img { transform: scale(1.05); }
+  .estimate-band-tile-all a:hover { border-color: #fff; background: rgba(255,255,255,.06); }
+}
+@media (prefers-reduced-motion: reduce) { .estimate-band-tiles img { transition: none; } }
+@media (max-width: 1023px) {
+  .estimate-band-grid { grid-template-columns: 1fr; gap: 40px; }
+  .estimate-band-copy h2 { max-width: 18ch; }
+}
+@media (max-width: 639px) {
+  .estimate-band { padding: var(--section-y-compact, 64px) 0; }
+  .estimate-band-grid { gap: 30px; }
+  .estimate-band-actions { margin-top: 26px; }
+  .estimate-band-actions .button { width: 100%; }
+  .estimate-band-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .estimate-band-tiles a { aspect-ratio: 5 / 4; }
+  .estimate-band-tile-text { padding: 12px; }
+  .estimate-band-tile-label { font-size: 16px; }
+  .estimate-band-tile-hint { display: none; }
+  .estimate-band-tile-all a { padding: 12px; }
+  .estimate-band-points { grid-template-columns: 1fr; margin-top: 36px; border-top: 0; }
+  .estimate-band-points li { padding: 16px 0 16px 0; border-top: 1px solid rgba(255,255,255,.2); }
+  .estimate-band-points li::before { top: -1px; }
+  .estimate-band-talk { margin-top: 22px; }
+}

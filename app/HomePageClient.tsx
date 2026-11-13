@@ -105,6 +105,19 @@ const companyDetails: Record<
   },
 };
 
+/**
+ * The estimator's first question, shown on the homepage. Same ids, labels and hints as TRADES in
+ * app/lib/estimator/flows.ts (a test keeps them in step); listed here so the homepage does not
+ * load the estimator's question set.
+ */
+const ESTIMATE_TILES = [
+  { id: "remodel", label: "Remodel", hint: "Kitchens, baths, basements, floors and paint", image: "cat-remodel" },
+  { id: "construction", label: "New construction", hint: "Homes, additions, garages and shops", image: "cat-construction" },
+  { id: "adu", label: "ADU", hint: "A second home on your property", image: "cat-adu" },
+  { id: "cabinetry", label: "Cabinetry", hint: "Kitchens, vanities and built-ins", image: "cat-cabinetry" },
+  { id: "handyman", label: "Handyman", hint: "Repairs and small jobs", image: "cat-handyman" },
+] as const;
+
 export default function Home() {
   const [matcherOpen, setMatcherOpen] = useState(false);
   const openMatcher = () => {
@@ -140,7 +153,7 @@ export default function Home() {
             title="Boise’s"
             titleAccent="home specialists"
             support="New homes, remodeling, cabinets, repairs and ADUs."
-            primary={{ label: "Request a quote", href: "/quote" }}
+            primary={{ label: "Get an instant estimate", href: "/estimator" }}
           />
         </HeroWalkthrough>
 
@@ -381,31 +394,63 @@ export default function Home() {
 
         <section
           id="request-form"
-          className="request-entry"
+          className="request-entry estimate-band"
           aria-labelledby="request-entry-heading"
         >
           <div className="content-shell">
-            <div className="request-entry-card">
-              <div className="request-entry-copy">
-                <p className="eyebrow">Send a request</p>
-                <h2 id="request-entry-heading">Start your request</h2>
+            <div className="estimate-band-grid">
+              <div className="estimate-band-copy">
+                <p className="eyebrow eyebrow-light">Instant estimate</p>
+                <h2 id="request-entry-heading">See what your project could cost, in minutes</h2>
                 <p>
-                  Not sure where to start? We answer questions and connect you with the right P5 specialist. Attach plans
-                  or photos if you have them.
+                  Answer a few questions about your project and see a personalized preliminary price range on screen.
+                  It is free, it is open any time, and you do not need an appointment or a callback to get it.
                 </p>
+                <div className="estimate-band-actions">
+                  <FamilyButton
+                    href="/estimator"
+                    variant="hero"
+                    size="lg"
+                    data-cta="primary"
+                    onClick={() => track("estimate_click", { location: "request_entry" })}
+                  >
+                    Get an instant estimate
+                  </FamilyButton>
+                </div>
               </div>
-              <div className="request-entry-actions">
-                <FamilyButton
-                  href="/quote"
-                  size="lg"
-                  data-cta="primary"
-                  onClick={() => track("quote_click", { location: "request_entry" })}
-                >
-                  Request a quote
-                </FamilyButton>
-                <p>Call, chat, or text from the header if you would rather talk.</p>
-              </div>
+              {/* The estimator's own first question, on the homepage: a tap opens it already on that choice. */}
+              <ul className="estimate-band-tiles" aria-label="Start with your project">
+                {ESTIMATE_TILES.map((tile) => (
+                  <li key={tile.id}>
+                    <Link
+                      href={`/estimator?trade=${tile.id}`}
+                      onClick={() => track("estimate_click", { location: "request_entry_tile", project: tile.id })}
+                    >
+                      <img src={`/estimator/img/${tile.image}.webp`} alt="" width={640} height={640} loading="lazy" decoding="async" />
+                      <span className="estimate-band-tile-text">
+                        <span className="estimate-band-tile-label">{tile.label}</span>
+                        <span className="estimate-band-tile-hint">{tile.hint}</span>
+                      </span>
+                    </Link>
+                  </li>
+                ))}
+                <li className="estimate-band-tile-all">
+                  <Link href="/estimator" onClick={() => track("estimate_click", { location: "request_entry_tile", project: "all" })}>
+                    <span className="estimate-band-tile-label">All projects</span>
+                    <Arrow />
+                  </Link>
+                </li>
+              </ul>
             </div>
+            <ul className="estimate-band-points">
+              <li>Free, day or night</li>
+              <li>No appointment needed to see your range</li>
+              <li>A preliminary range now, a firm written proposal after we visit</li>
+            </ul>
+            <p className="estimate-band-talk">
+              Would you rather talk it through? We answer questions and connect you with the right P5 specialist.{" "}
+              <Link href="/quote" onClick={() => track("quote_click", { location: "request_entry" })}>Request a quote</Link>, or call, chat or text from the header.
+            </p>
           </div>
         </section>
 
@@ -421,11 +466,11 @@ export default function Home() {
                   We will help you find the right team.
                 </p>
                 <FamilyButton
-                  href="/quote"
+                  href="/estimator"
                   size="lg"
-                  onClick={() => track("quote_click", { location: "how_p5" })}
+                  onClick={() => track("estimate_click", { location: "how_p5" })}
                 >
-                  Request a quote
+                  Get an instant estimate
                 </FamilyButton>
               </div>
               <ol className="how-p5-steps">
@@ -632,13 +677,13 @@ export default function Home() {
             <h2>Tell us what you are planning. We will point you to the right team.</h2>
             <div className="final-cta-actions">
               <FamilyButton
-                href="/quote"
+                href="/estimator"
                 variant="hero"
                 size="lg"
                 data-cta="primary"
-                onClick={() => track("quote_click", { location: "final_cta" })}
+                onClick={() => track("estimate_click", { location: "final_cta" })}
               >
-                Request a quote
+                Get an instant estimate
               </FamilyButton>
               <button className="text-link text-link-light" type="button" onClick={openMatcher}>
                 Help me choose a company <Arrow />

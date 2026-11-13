@@ -9,7 +9,7 @@ import { test } from "node:test";
 
 import { BRAND_CONFIGS } from "../app/lib/estimator/brands.ts";
 import { customerConfirmation, teamReport } from "../app/lib/estimator/emails.ts";
-import { FLOWS, TRADES, flowById } from "../app/lib/estimator/flows.ts";
+import { FLOWS, TRADES, estimatorEntry, flowById } from "../app/lib/estimator/flows.ts";
 import {
   CROSS_CHECK_BAND,
   MARGIN_FLOOR,
@@ -606,4 +606,58 @@ test("every option card has its image", () => {
   const dir = path.join(import.meta.dirname, "../public/estimator/img");
   const missing = [...names].filter((name) => !existsSync(path.join(dir, `${name}.webp`)));
   assert.deepEqual(missing, [], "option images are missing");
+});
+
+// ------------------------------------------------- one estimator on every site
+
+test("a link opens the estimator on what the visitor chose, and only on what the brand offers", () => {
+  const p5 = BRAND_CONFIGS.p5.projects;
+  assert.deepEqual(estimatorEntry(p5, { project: "kitchen-remodel" }), { project: "kitchen-remodel", trade: null });
+  // A trade with several projects opens that list; a trade with one opens the project.
+  assert.deepEqual(estimatorEntry(p5, { trade: "remodel" }), { project: null, trade: "remodel" });
+  assert.deepEqual(estimatorEntry(p5, { trade: "adu" }), { project: "adu", trade: null });
+  // Unknown values, and projects another brand offers, start at the first question.
+  assert.deepEqual(estimatorEntry(p5, { trade: "nonsense", project: "nonsense" }), { project: null, trade: null });
+  assert.deepEqual(estimatorEntry(BRAND_CONFIGS.cabinet.projects, { project: "custom-home" }), { project: null, trade: null });
+  assert.deepEqual(estimatorEntry(BRAND_CONFIGS.handyman.projects, { trade: "construction" }), { project: null, trade: null });
+  // The homepage tiles are the estimator's own first question.
+  const home = readFileSync(new URL("../app/HomePageClient.tsx", import.meta.url), "utf8");
+  for (const t of TRADES) {
+    assert.match(home, new RegExp(`\\{ id: "${t.id}", label: "${t.label}", hint: "${t.hint}", image: "${t.image}" \\}`), `homepage tile for ${t.id} is out of step with the estimator`);
+    assert.ok(existsSync(new URL(`../public/estimator/img/${t.image}.webp`, import.meta.url)));
+  }
+});
+
+test("each site's project list is its own, and every site uses the same engine", () => {
+  // Changing one brand's list cannot change another's: the lists are separate arrays.
+  const lists = Object.values(BRAND_CONFIGS).map((b) => b.projects);
+  for (const [i, a] of lists.entries()) for (const [j, b] of lists.entries()) if (i !== j) assert.notEqual(a, b);
+  // A site never offers a project outside its trade.
+  assert.deepEqual(BRAND_CONFIGS.construction.projects.filter((id) => flowById(id)!.group !== "construction" && flowById(id)!.group !== "adu"), []);
+  assert.deepEqual(BRAND_CONFIGS.cabinet.projects.filter((id) => flowById(id)!.group !== "cabinetry"), []);
+  assert.deepEqual(BRAND_CONFIGS.adu.projects, ["adu"]);
+  // The same project prices the same on every site that offers it.
+  const a = priceEstimate({ brand: "p5", project: "addition", tier: "mid", answers: {}, address: null, property: null, contact: null as never });
+  const b = priceEstimate({ brand: "remodeling", project: "addition", tier: "mid", answers: {}, address: null, property: null, contact: null as never });
+  const c = priceEstimate({ brand: "construction", project: "addition", tier: "mid", answers: {}, address: null, property: null, contact: null as never });
+  assert.deepEqual([b.range, c.range], [a.range, a.range]);
+  // What it gives is an estimate. No brand's heading calls it a quote, a bid or a final price.
+  for (const brand of Object.values(BRAND_CONFIGS)) assert.doesNotMatch(`${brand.heading} ${brand.intro}`, /quote|\bbid\b|final price|guarantee/i, brand.id);
+});
+
+test("a framed estimator sizes itself from the framing page and reports back", () => {
+  const bridge = readFileSync(new URL("../app/estimator/embed/EmbedBridge.tsx", import.meta.url), "utf8");
+  const estimator = readFileSync(new URL("../components/estimator/GuidedEstimator.tsx", import.meta.url), "utf8");
+  const store = readFileSync(new URL("../app/lib/estimator/store.ts", import.meta.url), "utf8");
+  // The content is measured, not the window: a frame's window can only ever grow.
+  assert.match(bridge, /getElementById\("main-content"\)/);
+  assert.doesNotMatch(bridge, /documentElement\.scrollHeight/);
+  assert.match(bridge, /p5-estimator-ready/);
+  // The room comes from the framing page, and only a family site may say so.
+  assert.match(estimator, /p5-estimator-viewport/);
+  assert.match(estimator, /familyOrigins\(\)\.includes\(event\.origin\)/);
+  // A framed estimator leaves the lead conversion to the site that frames it: counted once.
+  assert.match(estimator, /if \(!embedded\) trackAcceptedInquiry\("instant_estimator"\)/);
+  assert.equal((estimator.match(/trackAcceptedInquiry\(/g) ?? []).length, 1);
+  assert.match(store, /"consultation_requested"/);
 });

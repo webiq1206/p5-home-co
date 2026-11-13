@@ -1207,3 +1207,7 @@ html:has(.quote-request-first) { scroll-behavior: auto; }
     min-height: 44px;
   }
 }
+
+/* The estimator offer under the quote page heading: one line, so the form's first field stays on the first screen. */
+.quote-estimate-link { margin: 0 0 16px; color: var(--ink-2); font-size: var(--fs-body); line-height: var(--lh-body); }
+.quote-estimate-link a { color: var(--ink); font-weight: 650; text-decoration: underline; text-underline-offset: 3px; }

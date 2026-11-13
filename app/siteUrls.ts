@@ -28,6 +28,7 @@ export interface SiteUrlEntry {
 export const ownPages: SiteUrlEntry[] = [
   { href: "/", label: "Home", changeFrequency: "monthly", priority: 1 },
   { href: "/about", label: "About P5 Home Co", changeFrequency: "monthly", priority: 0.9 },
+  { href: "/estimator", label: "Get an instant estimate", changeFrequency: "monthly", priority: 0.9 },
   { href: "/quote", label: "Request a quote", changeFrequency: "monthly", priority: 0.9 },
   { href: "/warranty", label: "Warranty and project help", changeFrequency: "yearly", priority: 0.5 },
   { href: "/#companies", label: "Our companies" },

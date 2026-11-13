@@ -25,7 +25,7 @@ export function track(event: string, params?: GtagParams) {
 }
 
 /** Native Google Ads conversion, called only after the API created a lead. */
-export function trackAcceptedInquiry() {
-  track("generate_lead", { form: "quote_landing_page" });
+export function trackAcceptedInquiry(form: "quote_landing_page" | "instant_estimator" = "quote_landing_page") {
+  track("generate_lead", { form });
   track("conversion", { send_to: `${googleAdsDestinationId}/${googleAdsLeadLabel}` });
 }
