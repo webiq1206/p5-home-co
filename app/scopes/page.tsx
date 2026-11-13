@@ -131,16 +131,21 @@ export default async function ScopeList({ searchParams }: { searchParams: Promis
             <li key={r.id}>
               <Link href={`/scopes/${r.id}`} className="sc-job">
                 <span className="sc-job-name">{projectTitle({ lastName: r.client_last_name, address: r.project_address, service: r.service })}</span>
-                <span className="sc-job-sub">{[clientName(r), r.project_address].filter(Boolean).join(" · ")}</span>
+                {clientName(r) && <span className="sc-job-sub">{clientName(r)}</span>}
                 <span className="sc-job-meta">
-                  <span className={`sc-pill sc-pill-${r.scope_status}`}>Scope: {SCOPE_LABEL[r.scope_status]}</span>
-                  <span className={`sc-pill sc-pill-est-${r.estimate_error ? "unavailable" : r.est}`}>
-                    Estimate: {ESTIMATE_STATUS_LABEL[r.est]}
-                    {r.estimate_error ? " (last check failed)" : ""}
-                  </span>
-                  <span className={`sc-pill ${r.qbo_project_id ? "sc-pill-ready" : ""}`}>Project: {r.qbo_project_id ? "Linked" : "Not linked"}</span>
+                  {/* One status: the furthest point the job has reached. */}
+                  {r.est !== "not_created" && r.est !== "deleted" ? (
+                    <span className={`sc-pill sc-pill-est-${r.estimate_error ? "unavailable" : r.est}`}>
+                      Estimate: {ESTIMATE_STATUS_LABEL[r.est].toLowerCase()}
+                      {r.estimate_error ? " (last check failed)" : ""}
+                    </span>
+                  ) : (
+                    <span className={`sc-pill sc-pill-${r.scope_status}`}>
+                      {r.scope_status === "ready" ? "Ready for an estimate" : r.scope_status === "needs_information" ? "Needs details" : "Scope in progress"}
+                    </span>
+                  )}
+                  <span className="sc-muted">Updated {when(new Date(r.updated_at))}</span>
                 </span>
-                <span className="sc-muted sc-small">Updated {when(new Date(r.updated_at))}</span>
               </Link>
             </li>
           ))}

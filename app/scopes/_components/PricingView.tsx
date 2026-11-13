@@ -59,39 +59,27 @@ export default function PricingView({ ws, onDetails }: { ws: Workspace; onDetail
                 {g.divisions.map((d) => (
                   <div key={d.code} className="sc-division">
                     <h4 className="sc-h4">Division {divisionLabel(d.code)}</h4>
-                    <div className="sc-table-wrap">
-                      <table className="sc-table">
-                        <thead>
-                          <tr>
-                            <th scope="col">Line</th>
-                            <th scope="col">QuickBooks item</th>
-                            <th scope="col" className="sc-num">Qty</th>
-                            <th scope="col" className="sc-num">Rate</th>
-                            <th scope="col" className="sc-num">Price</th>
-                            {internal && <th scope="col" className="sc-num">Cost</th>}
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {d.items.map((l) => (
-                            <tr key={l.id}>
-                              <td>
-                                <b>{l.description}</b>
-                                <span className="sc-small sc-muted sc-block">
-                                  {BASIS[l.basis]}
-                                  {l.allowance ? ", allowance" : ""} · task: {taskTitle(l.taskId)} · {l.source}
-                                </span>
-                                {l.notes.map((n, i) => <span key={i} className="sc-small sc-muted sc-block">{n}</span>)}
-                              </td>
-                              <td>{l.item}</td>
-                              <td className="sc-num">{l.quantity} {l.unit}</td>
-                              <td className="sc-num">{money(l.unitPrice)}</td>
-                              <td className="sc-num">{money(l.price)}</td>
-                              {internal && <td className="sc-num">{l.cost === null ? "Unknown" : money(l.cost)}</td>}
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
+                    <ul className="sc-lines">
+                      {d.items.map((l) => (
+                        <li key={l.id}>
+                          <details>
+                            <summary>
+                              <span className="sc-line-main">
+                                <span className="sc-line-name">{l.description}</span>
+                                <span className="sc-line-meta">{l.quantity} {l.unit} × {money(l.unitPrice)}{l.allowance ? " · allowance" : ""}</span>
+                              </span>
+                              <span className="sc-line-price">{money(l.price)}</span>
+                            </summary>
+                            <div className="sc-line-body">
+                              <p className="sc-small sc-muted">{BASIS[l.basis]} · task: {taskTitle(l.taskId)}</p>
+                              <p className="sc-small sc-muted">{l.source}</p>
+                              {l.notes.map((n, i) => <p key={i} className="sc-small sc-muted">{n}</p>)}
+                              <p className="sc-small sc-muted">QuickBooks item: {l.item}{internal ? ` · P5 cost: ${l.cost === null ? "unknown" : money(l.cost)}` : ""}</p>
+                            </div>
+                          </details>
+                        </li>
+                      ))}
+                    </ul>
                   </div>
                 ))}
               </div>

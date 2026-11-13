@@ -354,3 +354,76 @@ body:has(.sc-app) { overflow-x: clip; }
 .sc-ledger dd { margin: 0; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .sc-ledger-sum dt, .sc-ledger-sum dd { color: var(--ink); font-weight: 700; }
 .sc-send { margin: 6px 0 10px; }
+
+/* Clarity pass ---------------------------------------------------------------
+ * One idea per row, detail on tap, 44px minimum targets, room to breathe.
+ */
+.sc-app { font-size: 16px; line-height: 1.5; }
+.sc-app .admin-bar { padding: 6px 16px; min-height: 56px; }
+.sc-app .admin-bar a, .sc-app .admin-bar button { display: inline-flex; align-items: center; min-height: 44px; padding: 0 6px; font-size: 14px; }
+.sc-app .admin-bar-right { display: flex; align-items: center; gap: 6px; }
+.sc-app .admin-brand { padding-left: 0; }
+.sc-app .sc-btn-small { min-height: 44px; padding: 0 14px; font-size: 14px; }
+.sc-app .sc-link { display: inline-flex; align-items: center; min-height: 44px; }
+.sc-app .sc-back { min-height: 44px; }
+.sc-app .sc-ev { min-height: 40px; padding: 0 12px; font-size: 13px; }
+.sc-app .sc-check { min-height: 48px; }
+.sc-app .sc-filter-toggle summary { min-height: 44px; }
+.sc-app .sc-switch { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 20px 0; }
+.sc-app .sc-switch a { display: inline-flex; align-items: center; min-height: 44px; }
+.sc-btn-wide { width: 100%; }
+
+.sc-sec-panel { padding: 8px 16px 20px; }
+.sc-sec-panel p { margin: 8px 0; }
+.sc-sec-panel .sc-card { padding: 18px 0; }
+.sc-sec-panel .sc-h2 { margin-bottom: 10px; }
+.sc-sec-panel .sc-h3 { margin: 22px 0 6px; color: var(--ink-2); font-size: 12px; }
+.sc-sec-panel .sc-h4 { margin: 14px 0 4px; font-size: 15px; }
+.sc-sec-panel .sc-division { margin: 0; padding-left: 0; border-left: 0; }
+.sc-sec-panel .sc-field { margin-bottom: 14px; }
+.sc-sec-panel .sc-field > span:first-child { font-size: 14px; }
+.sc-sec-panel .sc-field input, .sc-sec-panel .sc-field select { min-height: 48px; }
+.sc-lead { margin: 12px 0 4px; font-size: 16px; }
+
+/* Project list */
+.sc-app .sc-cards { gap: 12px; }
+.sc-app .sc-job { gap: 6px; padding: 18px; }
+.sc-app .sc-job-name { font-size: 20px; }
+.sc-app .sc-job-meta { gap: 10px; margin-top: 4px; font-size: 13px; }
+.sc-app .sc-pill { padding: 4px 10px; font-size: 13px; }
+
+/* Scope: one row per task, detail on tap */
+details.sc-task, .sc-app details.sc-task { margin: 0; padding: 0; border: 0; border-top: 1px solid var(--line); border-radius: 0; background: none; }
+details.sc-task > summary, .sc-lines summary, details.sc-more > summary { list-style: none; cursor: pointer; }
+details.sc-task > summary::-webkit-details-marker, .sc-lines summary::-webkit-details-marker, details.sc-more > summary::-webkit-details-marker { display: none; }
+details.sc-task > summary, .sc-lines summary { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; min-height: 56px; padding: 12px 0; }
+.sc-task-main, .sc-line-main { display: grid; gap: 2px; min-width: 0; }
+.sc-task-title, .sc-line-name { margin: 0; font-size: 16px; font-weight: 650; line-height: 1.3; overflow-wrap: anywhere; }
+.sc-task-meta, .sc-line-meta { color: var(--ink-2); font-size: 14px; }
+.sc-task-flag { color: #7d4a10; font-size: 14px; font-weight: 700; }
+.sc-task-price, .sc-line-price { flex: 0 0 auto; padding-top: 1px; font-size: 16px; font-weight: 650; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.sc-task-body, .sc-line-body { padding: 0 0 14px; }
+.sc-task-body .sc-actions { margin-top: 12px; }
+details.sc-task[open] > summary .sc-task-title, .sc-lines details[open] .sc-line-name { color: var(--ink); }
+details.sc-task > summary:focus-visible, .sc-lines summary:focus-visible, details.sc-more > summary:focus-visible { outline: 3px solid var(--moss); outline-offset: 2px; }
+.sc-add-task { padding: 16px 0 4px; }
+
+/* Pricing lines */
+.sc-lines { margin: 0; padding: 0; list-style: none; }
+.sc-lines > li { border-top: 1px solid var(--line); }
+.sc-line-name { font-weight: 600; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.sc-lines details[open] .sc-line-name { display: block; }
+.sc-totals { grid-template-columns: 1fr 1fr; gap: 10px; }
+.sc-totals div { padding: 12px; }
+.sc-totals dd { font-size: 20px; overflow-wrap: anywhere; }
+
+/* Secondary material, closed until asked for */
+details.sc-more, .sc-sec-panel details.sc-more { padding: 0; border: 0; border-top: 1px solid var(--line); border-radius: 0; background: none; }
+details.sc-more > summary { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 56px; font-size: 16px; font-weight: 650; }
+details.sc-more > summary .sc-muted { font-size: 13px; font-weight: 500; text-align: right; }
+details.sc-more > summary::after { content: ""; flex: 0 0 auto; width: 9px; height: 9px; margin: 0 6px 4px 0; border-right: 2px solid var(--ink-2); border-bottom: 2px solid var(--ink-2); transform: rotate(45deg); }
+details.sc-more[open] > summary::after { margin-bottom: -4px; transform: rotate(225deg); }
+details.sc-more > summary .sc-muted + * { display: none; }
+details.sc-more[open] { padding-bottom: 16px; }
+.sc-sync { color: var(--ink-2); }
+.sc-candidates li { align-items: center; padding: 14px 0; }
