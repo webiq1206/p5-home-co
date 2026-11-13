@@ -839,7 +839,8 @@ test("the RentCast fallback is off without a key and capped inside the free allo
   assert.equal(rentCastLimit({}), 0);
   assert.equal(rentCastLimit({ RENTCAST_API_KEY: "k" }), 45, "under the 50 free requests a month");
   assert.equal(rentCastLimit({ RENTCAST_API_KEY: "k", RENTCAST_MONTHLY_LIMIT: "10" }), 10);
-  const r = fromRentCast([{ squareFootage: 1850, bedrooms: 3, bathrooms: 2.5, yearBuilt: 1998, lotSize: 7405, propertyType: "Single Family", assessorID: "R123", features: { floorCount: 2, heatingType: "Forced Air", fireplace: true } }], new Date("2026-11-13T00:00:00Z"))!;
+  const r = fromRentCast([{ squareFootage: 1850, bedrooms: 3, bathrooms: 2.5, yearBuilt: 1998, lotSize: 7405, propertyType: "Single Family", assessorID: "R123", features: { floorCount: 2, garageSpaces: 2, garageType: "Attached", heatingType: "Forced Air", fireplace: true } }], new Date("2026-11-13T00:00:00Z"))!;
+  assert.equal(r.garage, "2 spaces, attached");
   assert.equal(r.livingSqft, 1850);
   assert.equal(r.design, "2 stories");
   assert.equal(r.fireplaces, 1);

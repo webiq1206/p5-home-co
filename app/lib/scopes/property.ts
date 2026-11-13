@@ -71,7 +71,7 @@ export function propertyRows(r: PropertyRecord): [string, string][] {
     ["Basement, unfinished", sqft(r.basementUnfinishedSqft)],
     ["Attic, finished", sqft(r.atticFinishedSqft)],
     ["Attic, unfinished", sqft(r.atticUnfinishedSqft)],
-    ["Garage", sqft(r.garageSqft)],
+    ["Garage", sqft(r.garageSqft) ?? r.garage ?? null],
     ["Carport", sqft(r.carportSqft)],
     ["Porch", sqft(r.porchSqft)],
     ["Deck", sqft(r.deckSqft, covered(r.deckCovered))],

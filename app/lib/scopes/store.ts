@@ -40,6 +40,8 @@ export type PropertyRecord = {
   atticFinishedSqft?: number | null;
   atticUnfinishedSqft?: number | null;
   garageSqft?: number | null;
+  /** Where the source gives a description instead of an area, such as "2 spaces, attached". */
+  garage?: string | null;
   porchSqft?: number | null;
   deckSqft?: number | null;
   deckCovered?: boolean | null;

@@ -32,6 +32,8 @@ export function fromRentCast(body: unknown, now = new Date()): PropertyRecord | 
   if (!r || typeof r !== "object") return null;
   const f = (r.features ?? {}) as Record<string, unknown>;
   const stories = num(f.floorCount, 1, 6);
+  const spaces = num(f.garageSpaces, 1, 12);
+  const garage = [spaces ? `${spaces} ${spaces === 1 ? "space" : "spaces"}` : null, text(f.garageType)?.toLowerCase()].filter(Boolean).join(", ");
   const record: PropertyRecord = {
     source: RENTCAST_SOURCE,
     livingSqft: num(r.squareFootage, 200, 30_000),
@@ -40,6 +42,7 @@ export function fromRentCast(body: unknown, now = new Date()): PropertyRecord | 
     yearBuilt: num(r.yearBuilt, 1800, now.getFullYear() + 1),
     propertyType: text(r.propertyType),
     design: stories ? `${stories} ${stories === 1 ? "story" : "stories"}` : null,
+    garage: garage || null,
     foundation: text(f.foundationType),
     roof: text(f.roofType),
     exterior: text(f.exteriorType),
