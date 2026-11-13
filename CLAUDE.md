@@ -49,6 +49,7 @@ One customer estimator for every brand, built on the scope platform. Code: `app/
 * Budgetary projects are priced from one whole-project cost book rate, and that rate is the price. `shares.ts` only spreads it across divisions in proportion to cost book component lines (owner left the method to us, 13 November 2026); it cannot change a total, and the estimate says the amounts are indicative shares. The per-square-foot ratios in the profiles await owner review.
 * Recipes (typical dimensions and inclusions) are estimating rules awaiting owner sign-off. Bump `ESTIMATOR_RULES_VERSION` when one changes.
 * Boise ADU Co stays `live: false` in `brands.ts` until its site exists.
+* Meta pixel (owner decision, 13 November 2026): browser pixel only, no Conversions API. The id comes from `NEXT_PUBLIC_META_PIXEL_ID` with no default (read at build time; unset means nothing loads and every helper is a no-op). `app/MetaPixel.tsx` loads it in production, on public paths only (`metaPixelAllowedOn` in `app/lib/metaPixel.ts`: never admin, portal, a private path or `/estimator/embed`) and never before the first interaction. The Meta `Lead` is sent only from `trackAcceptedInquiry` in `app/analytics.ts`, with a category and no contact details; brand sites count leads from the framed estimator themselves. Keep automatic advanced matching off in Meta Events Manager, or `app/legal/privacy/page.tsx` stops being true. Guard: `tests/meta-pixel.test.ts`.
 
 ## Publishing to Replit: never approve a DROP
 

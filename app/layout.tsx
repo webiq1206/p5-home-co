@@ -4,6 +4,7 @@ import { Cormorant_Garamond, Manrope } from "next/font/google";
 import Script from "next/script";
 import { googleTagBootstrap } from "@/lib/analyticsBootstrap";
 import HubSpotScript from "./HubSpotScript";
+import MetaPixel from "./MetaPixel";
 import { MobileActionBar } from "@/components/family/MobileActionBar";
 import FamilyChromeAnalytics from "@/components/FamilyChromeAnalytics";
 import SiteChat from "@/components/SiteChat";
@@ -111,6 +112,8 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
           </Script>
         )}
         {process.env.NODE_ENV === "production" && <HubSpotScript />}
+        {/* Renders nothing until NEXT_PUBLIC_META_PIXEL_ID is set, and nothing before the first interaction. */}
+        {process.env.NODE_ENV === "production" && <MetaPixel />}
         {children}
         <MobileActionBar />
         <FamilyChromeAnalytics />

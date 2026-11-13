@@ -1,7 +1,7 @@
 {
   "source": "p5-home-co",
-  "commit": "e72b4834c256a1ad4394740be408d12ec3f30c34",
-  "generatedAt": "2026-11-11T17:14:14.750Z",
+  "commit": "32c61eea03bfda9f5b43355cb2aac6f9ba018767",
+  "generatedAt": "2026-11-13T20:09:51.461Z",
   "note": "Shared estimator engine published from p5-home-co. Edit shared files there and run scripts/p5-sync.mjs; hash checks remain mandatory in every brand.",
   "files": {
     "app/admin/p5-estimators/page.tsx": "489c406a30e5aba809f6c603738d999c2e412f9b67968281a8ea16e748587b62",
@@ -479,8 +479,8 @@
     "tests/p5-pricing-ledger.test.ts": "8134de19d94dd66974c928626eff3d93b963b2087e1509c4294096681bd837c6",
     "tests/p5-pricing-source-history.test.ts": "7a2696abb429e65555da6b1bb43289e785661a05cdfdc258883ff7bdf8379be0",
     "tests/p5-pricing.test.ts": "463caa4e7397b4e9de94a80183c9ac06a79244a77fa974275753d2e90fa5baa8",
-    "tests/p5-privacy-ads-disclosure.test.ts": "2e11be8dbe2427149ba07cfdaa8ba52aa2557eaceefddd4f457a02747b6aceba",
-    "tests/p5-privacy-section-5.test.ts": "4af2dc7d5c233218b07126f2ea62a0ac28747031e71b0975ed6876a4d5eb77e3",
+    "tests/p5-privacy-ads-disclosure.test.ts": "0499471437e9a28b11f7009ed28fe80eff30b5571ff4b6c87dc7d92e53851812",
+    "tests/p5-privacy-section-5.test.ts": "9984ac44ab8dda41f44544bb31f14fd63441fdb472e14ca850d47cb5ed831701",
     "tests/p5-processing-budget.test.ts": "a74f86228dbfff9579ce58a28973887de8a2d99e530759b32d5eb1e636e71c1c",
     "tests/p5-processing-status.test.ts": "3b29c5e2fba43b1e9b03993ee8386b6f6f568e3f0da5cf92048694e28f180c83",
     "tests/p5-project-diagnostics.test.ts": "05a50933b927c78c5dc7640c866ab8fbea66a28c8e983b63e7d0e663f65ecba4",

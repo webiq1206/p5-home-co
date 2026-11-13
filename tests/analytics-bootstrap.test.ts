@@ -201,7 +201,7 @@ test('staff phone links do not count as ad clicks', () => {
   assert.equal(conversions(b.window.dataLayer).length, 0);
 });
 
-const SHARE_SENTENCE = "We do not sell personal information. We share limited information with Google to measure our ads, as described in section 5.";
+const SHARE_SENTENCE = "We do not sell personal information. We share limited information with Google and Meta to measure our ads, as described in section 5.";
 const GOOGLE_TOOLS_SENTENCE = "We use Google Analytics to understand how visitors use this site and Google Ads to measure which of our ads lead to quote requests, calls and texts. These tools set cookies and receive information about your visit, including your IP address, which Google processes under its own privacy policy (https://policies.google.com/privacy).";
 const TAP_DISCLOSURE = "When you tap Call or Text on our site, Google Ads is told that the tap happened, on which page, and the ad click identifier Google's tag saved if you arrived from one of our ads, so we can count calls and texts that come from our ads. The tap itself doesn't send Google your name, your own phone number or what you say or write.";
 const CALL_AND_TEXT_DISCLOSURE = "On some of our Call and Text links, Google Analytics also records which link you used, such as the one in the header or footer.";
@@ -264,7 +264,8 @@ test('approved privacy sentences name the Google share, the tools, and the tap',
   assert.equal(privacy.includes('90 days'), false);
   assert.equal(privacy.includes(STALE_TAP_SENTENCE), false);
   assert.equal(privacy.includes('Microsoft Clarity'), false);
-  assert.equal(privacy.includes('Meta Pixel'), false);
+  // The Meta pixel is disclosed since 13 November 2026 (tests/p5-privacy-section-5.test.ts pins the wording).
+  assert.equal(privacy.includes('We also use the Meta Pixel'), true);
   assert.match(privacySource(), /href="https:\/\/policies\.google\.com\/privacy"/);
   assert.equal(privacy.includes('we do not share it for advertising'), false);
 });

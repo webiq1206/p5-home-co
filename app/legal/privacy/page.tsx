@@ -12,7 +12,7 @@ export default function PrivacyPage() {
   return (
     <>
       <h1>Privacy policy</h1>
-      <p className="legal-updated">Last updated 17 October 2026</p>
+      <p className="legal-updated">Last updated 13 November 2026</p>
 
       <p className="legal-lead">
         P5 Home Co. LLC operates p5homeco.com and the private finance platform
@@ -106,8 +106,8 @@ export default function PrivacyPage() {
       <h2>4. Who we share it with</h2>
       <p>
         <strong>We do not sell personal information. We share limited
-        information with Google to measure our ads, as described in section
-        5.</strong> We share it only with:
+        information with Google and Meta to measure our ads, as described in
+        section 5.</strong> We share it only with:
       </p>
       <ul>
         <li>
@@ -175,6 +175,22 @@ export default function PrivacyPage() {
         and a separate conversion event when a project estimate is finished.
         Those events do not include your name, email, phone number, or project
         details.
+      </p>
+      <p>
+        We also use the Meta Pixel to measure visits and inquiries that come
+        from our Facebook and Instagram ads. The pixel loads after you first
+        interact with a page, for example by scrolling, tapping or typing, or
+        shortly after the page has finished loading. It sets cookies and sends
+        Meta a page view, which includes the page address, your IP address and
+        your browser details. When we accept an inquiry or an instant estimate
+        request you send from this site, the pixel also sends Meta a Lead
+        event. That event carries a category only, such as the form you used.
+        We do not send Meta your name, email, phone number, address or project
+        details. Meta processes what the pixel collects under its own privacy
+        policy (<a href="https://www.facebook.com/privacy/policy">https://www.facebook.com/privacy/policy</a>)
+        and may use it to show you relevant ads on Facebook and Instagram. You
+        can change how Meta uses this information for ads in your <a href="https://www.facebook.com/adpreferences/ad_settings">Meta ad settings</a>.
+        The pixel does not load on the portals.
       </p>
 
       <h2>6. How long we keep it</h2>

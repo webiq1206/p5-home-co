@@ -12,5 +12,5 @@ test("the privacy page discloses Google Analytics 4 and Google Ads conversion tr
   assert.match(section, /separate conversion event when a project estimate is finished/);
   assert.match(section, /do not include your name, email, phone number, or project details/);
   assert.match(section, /The public website uses analytics and marketing cookies/);
-  assert.match(page, /Last updated 17 October 2026/);
+  assert.match(page, /Last updated 13 November 2026/);
 });
