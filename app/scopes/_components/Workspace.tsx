@@ -11,6 +11,7 @@
  */
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { Evidence } from "../../lib/scopes/types.ts";
@@ -38,6 +39,7 @@ const isAudioAsset = (a: WS["assets"][number]) => a.kind === "recording" || (a.m
 const WHOLE_UPLOAD_BYTES = 20 * 1024 * 1024;
 const PART_BYTES = 8 * 1024 * 1024;
 const MAX_FILE_BYTES = 300 * 1024 * 1024;
+const COPY_LABEL: Record<string, string> = { pending: "waiting", sent: "copied", failed: "not copied", skipped: "too large", removed: "removed" };
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
 export default function Workspace({ initial, initialTab }: { initial: WS; initialTab?: string }) {
@@ -480,6 +482,39 @@ function FilesAndHistory({ ws, onWorkspace, onPlay, onError }: { ws: WS; onWorks
   const id = ws.project.id;
   const p = ws.project;
   const setError = onError;
+  const [busy, setBusy] = useState<string | null>(null);
+  const router = useRouter();
+  const [confirmDelete, setConfirmDelete] = useState("");
+  const [syncNotes, setSyncNotes] = useState<string[]>([]);
+  const act = async (action: string, name: string) => {
+    setBusy(name);
+    try {
+      const res = await api<{ workspace: WS; summary?: { notes?: string[]; quickbooks?: { sent: number; failed: number }; hubspot?: { sent: number; failed: number } } | null }>(`/api/scopes/${id}`, { method: "POST", json: { action } });
+      onWorkspace(res.workspace);
+      if (res.summary) {
+        const q = res.summary.quickbooks;
+        const h = res.summary.hubspot;
+        setSyncNotes([
+          `Sent just now: ${q?.sent ?? 0} to QuickBooks, ${h?.sent ?? 0} to HubSpot.${(q?.failed ?? 0) + (h?.failed ?? 0) ? ` ${(q?.failed ?? 0) + (h?.failed ?? 0)} could not be sent; the reason is shown on each file below.` : ""}`,
+          ...(res.summary.notes ?? []),
+        ]);
+      }
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(null);
+    }
+  };
+  const remove = async () => {
+    setBusy("delete");
+    try {
+      await api(`/api/scopes/${id}`, { method: "DELETE", json: { confirm: "DELETE" } });
+      router.push("/scopes");
+    } catch (e) {
+      setError((e as Error).message);
+      setBusy(null);
+    }
+  };
   const patch = async (fields: Record<string, string>) => {
     try {
       const { workspace } = await api<{ workspace: WS }>(`/api/scopes/${id}`, { method: "PATCH", json: fields });
@@ -528,6 +563,40 @@ function FilesAndHistory({ ws, onWorkspace, onPlay, onError }: { ws: WS; onWorks
         <p className="sc-small sc-muted">Client name and address are edited under Estimate.</p>
       </section>
       <section className="sc-card">
+        <h2 className="sc-h2">Property record</h2>
+        {ws.property ? (
+          <>
+            <dl className="sc-ledger">
+              {ws.property.rows.map(([k, v]) => <div key={k}><dt>{k}</dt><dd>{v}</dd></div>)}
+            </dl>
+            <p className="sc-small sc-muted">
+              From {ws.property.source}, looked up {when(ws.property.lookedUpAt)}. A public record, not a site measurement: it informs the scope, and any quantity taken from it is asked for confirmation. It does not include the size of individual rooms.
+            </p>
+          </>
+        ) : !ws.propertyLookup.configured ? (
+          <p className="sc-muted">Property lookup is not set up yet. Once a RentCast key is added, the address pulls in living area, bedrooms, bathrooms, year built and more.</p>
+        ) : !p.project_address ? (
+          <p className="sc-muted">Save the project address and the public record is looked up automatically.</p>
+        ) : (
+          <p className="sc-muted">{ws.propertyLookup.checked ? "No public record was found for this address." : "Not looked up yet."}</p>
+        )}
+        {ws.propertyLookup.configured && p.project_address && (
+          <button type="button" className="sc-btn" disabled={!!busy} onClick={() => act("property", "property")}>
+            {busy === "property" ? "Looking up..." : ws.property ? "Look up again" : "Look up the property"}
+          </button>
+        )}
+      </section>
+      <section className="sc-card">
+        <h2 className="sc-h2">Copies in QuickBooks and HubSpot</h2>
+        <p className="sc-muted">
+          Plans, documents, photos and quotes are copied to the QuickBooks estimate or customer and to the client&apos;s HubSpot contact. Recordings and notes stay here.
+        </p>
+        {syncNotes.map((n, i) => <p key={i} className="sc-small sc-muted">{n}</p>)}
+        <button type="button" className="sc-btn" disabled={!!busy} onClick={() => act("sync-files", "sync")}>
+          {busy === "sync" ? "Sending files..." : "Send files now"}
+        </button>
+      </section>
+      <section className="sc-card">
         <h2 className="sc-h2">Recordings, notes and files ({ws.assets.length})</h2>
         {ws.assets.length === 0 && <p className="sc-muted">Nothing yet.</p>}
         <ul className="sc-assets">
@@ -544,6 +613,14 @@ function FilesAndHistory({ ws, onWorkspace, onPlay, onError }: { ws: WS; onWorks
                 </span>
                 {a.kind !== "text" && <a className="sc-btn sc-btn-small" href={assetUrl(id, a.id)} target="_blank" rel="noreferrer">Open</a>}
               </div>
+              {a.copies.length > 0 && (
+                <p className="sc-small sc-muted">
+                  {a.copies.map((c) => `${c.target === "quickbooks" ? "QuickBooks" : "HubSpot"}: ${COPY_LABEL[c.status] ?? c.status}`).join(" · ")}
+                </p>
+              )}
+              {a.copies.filter((c) => c.status === "failed" && c.error).map((c) => (
+                <p key={c.target} className="sc-small sc-text-warn">{c.target === "quickbooks" ? "QuickBooks" : "HubSpot"}: {c.error}</p>
+              ))}
               {a.error && <p className="sc-small sc-text-warn">{a.error}</p>}
               {a.bodyText && <p className="sc-small">{a.bodyText}</p>}
               {a.transcript && a.transcript.length > 0 && (
@@ -594,6 +671,21 @@ function FilesAndHistory({ ws, onWorkspace, onPlay, onError }: { ws: WS; onWorks
         </button>
         <p className="sc-small sc-muted">Archived projects keep every file, version and estimate and stay searchable under Archived.</p>
       </section>
+      {ws.viewer.internal && (
+        <details className="sc-card sc-more">
+          <summary>Delete this project</summary>
+          <p>
+            Deletes the project here and removes what it put in QuickBooks: the estimate, the files attached there, and the QuickBooks project if this platform created it. <b>The customer is never touched.</b> A job that has been invoiced cannot be deleted; archive it instead. This cannot be undone from this screen.
+          </p>
+          <label className="sc-field">
+            <span>Type DELETE to confirm</span>
+            <input value={confirmDelete} onChange={(ev) => setConfirmDelete(ev.target.value)} autoComplete="off" autoCapitalize="characters" />
+          </label>
+          <button type="button" className="sc-btn sc-btn-danger" disabled={confirmDelete.trim() !== "DELETE" || !!busy} onClick={remove}>
+            {busy === "delete" ? "Deleting..." : "Delete project"}
+          </button>
+        </details>
+      )}
     </div>
   );
 }

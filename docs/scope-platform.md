@@ -276,6 +276,43 @@ has no market price data, so "competitive" is a prompt to check, not a verdict.
   connection, so "completed" means the linked invoices cover the whole
   estimate and nothing is owed.
 
+### Deleting a project
+
+An employee (never a scopes-only account) can delete a project from Project and
+files after typing DELETE. It removes what the platform put in QuickBooks: the
+estimate, the files it attached there, and the QuickBooks project when this
+platform created it (QuickBooks cannot delete a project, so it is made
+inactive). The customer is never touched, and a project linked by hand is left
+alone. A job that has been invoiced cannot be deleted; archive it. If QuickBooks
+refuses a step the delete stops and says why. The project row is kept with
+`deleted_at` set and is hidden from every screen.
+
+An estimate deleted in QuickBooks is noted here as soon as QuickBooks reports
+it (webhook, refresh or page view): the project shows "Estimate: deleted in
+QuickBooks" and offers a new estimate or deleting the project too. The project
+is not deleted automatically, because a deleted estimate is often being redone.
+
+### Property record
+
+When `RENTCAST_API_KEY` is set, the project address is looked up once and the
+public record is kept on the project: living area, bedrooms, bathrooms, year
+built, stories, lot, garage, and construction features where the county holds
+them (`app/lib/scopes/property.ts`). It is shown under Project and files and
+given to scope building as context. A quantity taken from it is always an
+estimated measurement that is asked for confirmation. No property record holds
+the size of an individual room.
+
+### Files in QuickBooks and HubSpot
+
+Plans, documents, photos and quotes are copied to QuickBooks (attached to the
+estimate once there is one, otherwise to the customer, and linked to the
+estimate when it is created) and to the client's HubSpot contact (a private
+file pinned in a note; the contact is found by email and never created here).
+Recordings and typed notes stay in the platform. Each file is sent once per
+destination (`scope_asset_sync`); a failure is recorded with its reason and
+retried. Copies run after each upload, after the customer is chosen, after the
+estimate is created, and from Send files now.
+
 ## Data
 
 Migration `024_scope_platform.sql` (additive only): `scope_project`,
@@ -299,6 +336,8 @@ PDF are served inline; anything else downloads as a plain file.
 | `SCOPE_MODEL` | Optional, default `gpt-4.1`. |
 | `SCOPE_TRANSCRIBE_MODEL` | Optional, default `whisper-1`. |
 | QuickBooks | The existing Finance connection (`QBO_*`). |
+| `RENTCAST_API_KEY` | Replit Secrets. Turns on the property record lookup. RentCast's free plan allows a limited number of lookups a month; each address is looked up once. |
+| `HUBSPOT_TOKEN` | Already used by the lead pipeline. Copying files also needs the Files and CRM notes permissions on that private app. |
 | `GOOGLE_MAPS_API_KEY` | Replit Secrets. Turns on address suggestions (Google "Places API (New)"). Read on the server only; without it the address fields are plain text boxes. If the key is restricted to websites, `p5homeco.com` must be an allowed site: the server sends that address with each request (`GOOGLE_MAPS_REFERER` overrides it). |
 
 ## Before first use

@@ -20,6 +20,7 @@ import { applyAnswer, deriveQuestions, readiness, reconcileMeasurements, type An
 import { applyChanges, diffScopes, markEdited, type Proposal } from "./merge.ts";
 import { carryForward, normalizeScope, sanitizeTask } from "./normalize.ts";
 import { costBookAgeKey, priceScope } from "./pricing.ts";
+import { propertyForPrompt } from "./property.ts";
 import { pdfPageCount, readSheets, readsPageByPage, sheetNotes } from "./sheets.ts";
 import {
   assetStorage,
@@ -271,6 +272,7 @@ export async function processProject(projectId: number, userId: number): Promise
       sources,
       customerRecords: customerRecords.map((c) => `${c.display_name} ${JSON.stringify({ email: (c.raw as { PrimaryEmailAddr?: { Address?: string } }).PrimaryEmailAddr?.Address, address: (c.raw as { BillAddr?: unknown }).BillAddr })}`),
       productionRateCodes: Object.keys(settings.productionRates),
+      property: propertyForPrompt(project.property),
     };
     let raw: unknown;
     try {

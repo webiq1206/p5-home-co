@@ -799,3 +799,42 @@ test("a full-size plan sheet is cut into overlapping tiles that cover every pixe
     assert.ok(covered(x, y), `pixel ${x},${y} is inside a tile`);
   }
 });
+
+// ---------------------------------------------------------------------------
+// Property record, file copies and deleting
+// ---------------------------------------------------------------------------
+
+test("a property record keeps what the source states and nothing it does not", async () => {
+  const { fromRentCast, propertyRows, propertyForPrompt } = await import("../app/lib/scopes/property.ts");
+  const r = fromRentCast([{ squareFootage: 1850, bedrooms: 3, bathrooms: 2.5, yearBuilt: 1998, lotSize: 7405, propertyType: "Single Family", assessorID: "R123", features: { floorCount: 2, garageSpaces: 2, heatingType: "Forced Air", fireplace: true } }], new Date("2026-11-13T00:00:00Z"))!;
+  assert.equal(r.livingSqft, 1850);
+  assert.equal(r.bathrooms, 2.5);
+  assert.equal(r.stories, 2);
+  assert.equal(r.roof, null, "a field the record does not hold stays empty");
+  const rows = Object.fromEntries(propertyRows(r));
+  assert.equal(rows["Living area"], "1,850 sq ft");
+  assert.equal(rows.Fireplace, "Yes");
+  assert.ok(!("Roof" in rows));
+  assert.match(propertyForPrompt(r), /public record, not verified on site/);
+  assert.equal(fromRentCast([]), null);
+  assert.equal(fromRentCast({ squareFootage: 5, yearBuilt: 12 }), null, "implausible values are not a record");
+});
+
+test("plans, documents, photos and quotes are copied elsewhere; recordings and notes are not", async () => {
+  const { syncsToOtherSystems, qboParent } = await import("../app/lib/scopes/filesync.ts");
+  assert.equal(syncsToOtherSystems({ kind: "document", file_name: "plans.pdf", mime_type: "application/pdf" }), true);
+  assert.equal(syncsToOtherSystems({ kind: "photo", file_name: "a.jpg", mime_type: "image/jpeg" }), true);
+  assert.equal(syncsToOtherSystems({ kind: "recording", file_name: "r.webm", mime_type: "audio/webm" }), false);
+  assert.equal(syncsToOtherSystems({ kind: "document", file_name: "memo.m4a", mime_type: "audio/mp4" }), false);
+  assert.equal(syncsToOtherSystems({ kind: "text", file_name: null, mime_type: null }), false);
+  assert.deepEqual(qboParent({ qbo_customer_id: "7", qbo_project_id: null }, "55"), { type: "Estimate", value: "55" });
+  assert.deepEqual(qboParent({ qbo_customer_id: "7", qbo_project_id: "9" }, null), { type: "Customer", value: "9" });
+  assert.equal(qboParent({ qbo_customer_id: null, qbo_project_id: null }, null), null);
+});
+
+test("an invoiced job cannot be deleted from QuickBooks", async () => {
+  const { deleteBlocker } = await import("../app/lib/scopes/qbo.ts");
+  assert.match(deleteBlocker("converted")!, /invoiced/);
+  assert.match(deleteBlocker("paid")!, /invoiced/);
+  for (const s of ["created_unsent", "sent", "accepted", "declined", "not_created"]) assert.equal(deleteBlocker(s), null);
+});

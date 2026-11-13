@@ -134,7 +134,7 @@ export default async function ScopeList({ searchParams }: { searchParams: Promis
                 {clientName(r) && <span className="sc-job-sub">{clientName(r)}</span>}
                 <span className="sc-job-meta">
                   {/* One status: the furthest point the job has reached. */}
-                  {r.est !== "not_created" && r.est !== "deleted" ? (
+                  {r.est !== "not_created" ? (
                     <span className={`sc-pill sc-pill-est-${r.estimate_error ? "unavailable" : r.est}`}>
                       Estimate: {ESTIMATE_STATUS_LABEL[r.est].toLowerCase()}
                       {r.estimate_error ? " (last check failed)" : ""}

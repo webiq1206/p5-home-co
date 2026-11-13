@@ -12,6 +12,7 @@ import {
   getProject,
   latestEstimate,
   linkedInvoices,
+  listAssetSync,
   listAssets,
   listEvents,
   listVersions,
@@ -22,7 +23,9 @@ import {
 } from "./store.ts";
 import type { ScopeUser } from "../auth.ts";
 import { can } from "../leads/permissions.ts";
+import { isHubSpotConfigured, syncsToOtherSystems } from "./filesync.ts";
 import type { Change } from "./merge.ts";
+import { ensureProperty, isPropertyLookupConfigured, propertyRows } from "./property.ts";
 import type { PricingResult, Question, ScopeDoc, ScopeSettings } from "./types.ts";
 
 export type WorkspaceAsset = {
@@ -43,6 +46,8 @@ export type WorkspaceAsset = {
   transcriptApproximate: boolean;
   usedInVersion: number | null;
   createdAt: string;
+  /** Where this file has been copied to. Empty for recordings and notes, which stay here. */
+  copies: { target: "quickbooks" | "hubspot"; status: string; error: string | null }[];
 };
 
 export type Workspace = {
@@ -54,6 +59,10 @@ export type Workspace = {
     qboProjectIsProject: boolean | null;
   };
   assets: WorkspaceAsset[];
+  /** The public record for the address. Unverified until confirmed on site. */
+  property: { source: string; rows: [string, string][]; lookedUpAt: string } | null;
+  propertyLookup: { configured: boolean; checked: boolean };
+  hubspot: { configured: boolean; contactLinked: boolean };
   versions: { id: number; versionNo: number; source: string; note: string | null; createdAt: string }[];
   version: { id: number; versionNo: number; createdAt: string } | null;
   doc: ScopeDoc;
@@ -97,6 +106,8 @@ export async function loadWorkspace(projectId: number, viewer: Pick<ScopeUser, "
   await syncProjectTitle(projectId);
   let project = await getProject(projectId);
   if (!project) return null;
+  // The address is looked up once; a slow or failed lookup never holds the page.
+  await Promise.race([ensureProperty(project).catch(() => false), new Promise((r) => setTimeout(r, 5000))]);
   const settings = await loadScopeSettings();
   const { version, doc } = await currentDoc(project);
   const computed = await compute(project, doc, settings);
@@ -106,6 +117,7 @@ export async function loadWorkspace(projectId: number, viewer: Pick<ScopeUser, "
 
   let estimate = await latestEstimate(projectId);
   if (estimate && (await applyMirroredStatus(estimate).catch(() => false))) estimate = await latestEstimate(projectId);
+  const sync = await listAssetSync(projectId);
   const [assets, versions, events, state, snapshots, isProject] = await Promise.all([
     listAssets(projectId),
     listVersions(projectId),
@@ -155,7 +167,16 @@ export async function loadWorkspace(projectId: number, viewer: Pick<ScopeUser, "
       transcriptApproximate: Boolean(a.transcript?.approximate),
       usedInVersion: a.used_in_version,
       createdAt: iso(a.created_at)!,
+      copies: syncsToOtherSystems(a)
+        ? (["quickbooks", "hubspot"] as const).map((target) => {
+            const row = sync.find((x) => x.asset_id === a.id && x.target === target);
+            return { target, status: row?.status ?? "pending", error: row?.error ?? null };
+          })
+        : [],
     })),
+    property: project.property ? { source: project.property.source, rows: propertyRows(project.property), lookedUpAt: project.property.lookedUpAt } : null,
+    propertyLookup: { configured: isPropertyLookupConfigured(), checked: Boolean(project.property_checked_for) },
+    hubspot: { configured: isHubSpotConfigured(), contactLinked: Boolean(project.hubspot_contact_id) },
     versions: versions.map((v) => ({ id: v.id, versionNo: v.version_no, source: v.source, note: v.note, createdAt: iso(v.created_at)! })),
     version: version ? { id: version.id, versionNo: version.version_no, createdAt: iso(version.created_at)! } : null,
     doc: computed.doc,

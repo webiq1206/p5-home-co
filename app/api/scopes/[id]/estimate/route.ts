@@ -4,7 +4,9 @@
  * the QuickBooks project once that separate step is confirmed.
  */
 
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
+
+import { syncProjectFiles } from "../../../../lib/scopes/filesync.ts";
 
 import { compute, commitDoc, currentDoc } from "../../../../lib/scopes/engine.ts";
 import { fail, ok, requireProject } from "../../../../lib/scopes/http.ts";
@@ -108,6 +110,10 @@ export async function POST(request: Request, { params }: Ctx) {
         break;
       default:
         throw new Error("Unknown action.");
+    }
+    // A newly chosen customer or a new estimate gives the project's files somewhere to go in QuickBooks.
+    if (body.action === "customer" || body.action === "create") {
+      after(() => syncProjectFiles(project.id, { deadline: Date.now() + 120_000 }).catch(() => undefined));
     }
     return ok({ workspace: await loadWorkspace(project.id, g.user) });
   } catch (error) {
