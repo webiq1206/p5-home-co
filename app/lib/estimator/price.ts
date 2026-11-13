@@ -25,7 +25,8 @@ import { priceScope } from "../scopes/pricing.ts";
 import { DEFAULT_SCOPE_SETTINGS, emptyScope, type EstimateLine, type PricingResult, type ScopeDoc, type ScopeSettings, type ScopeTask } from "../scopes/types.ts";
 import { brandConfig } from "./brands.ts";
 import { flowById } from "./flows.ts";
-import { buildGuide, divisionRanges, narrativeProblems, projectRisks, rangeWidth } from "./narrative.ts";
+import { SHARE_NOTE, buildGuide, divisionRanges, narrativeProblems, projectRisks, rangeWidth } from "./narrative.ts";
+import { splitByDivision } from "./shares.ts";
 import { HANDYMAN_MINIMUM_CODE, buildRecipe, type CrossCheck, type Recipe } from "./recipes.ts";
 import {
   CLASS_LABELS,
@@ -43,7 +44,7 @@ import {
 } from "./types.ts";
 
 /** Bumped whenever a recipe or a qualification rule changes, and stored with every estimate. */
-export const ESTIMATOR_RULES_VERSION = "2026-11-13.2";
+export const ESTIMATOR_RULES_VERSION = "2026-11-13.3";
 
 /**
  * Gross margin floor. Owner business plan (lib/p5/pricing.ts): 20% overhead
@@ -100,6 +101,8 @@ export type PricedEstimate = {
   /** The customer's range, its division breakdown and the words that explain it. */
   range: { low: number; high: number };
   divisions: CustomerDivision[];
+  /** Wording in the divisions that came from spreading a whole-project line, not from a line of its own. */
+  divisionShares: string[];
   guide: EstimateGuide;
   /** Empty when the estimate may go to the customer as an official estimate. */
   review: ReviewReason[];
@@ -311,12 +314,15 @@ export function priceEstimate(input: PriceInput, ctx: PriceContext = {}): Priced
   };
   const risks = projectRisks(narrative);
   const width = rangeWidth(flow.estimateClass, risks);
-  const ranged = divisionRanges(base, width);
+  // A whole-project assembly line is shown across the divisions it is made of.
+  // The pieces add up to the line, so the price itself is untouched.
+  const codeOf = new Map(doc.tasks.map((t) => [t.id, String(t.costCode ?? "")]));
+  const ranged = divisionRanges(base, width, (line) => (line.division === "90" ? splitByDivision(codeOf.get(line.taskId) ?? "", line.price, tier, flow.service) : null));
   const range = { low: ranged.low, high: ranged.high };
-  const guide = buildGuide(narrative, ranged.divisions, range, risks);
+  const guide = buildGuide(narrative, ranged.divisions, range, risks, ranged.shares);
   const review = qualify(pricing, flow.estimateClass, crossCheck, recipe.lines.length);
   // The words are checked against the priced scope before anyone sees them.
-  for (const problem of narrativeProblems(guide, ranged.divisions, range, base)) review.push({ code: "narrative", message: problem });
+  for (const problem of narrativeProblems(guide, ranged.divisions, range, base, ranged.shares)) review.push({ code: "narrative", message: problem });
   return {
     brand: input.brand,
     project: flow.id,
@@ -335,6 +341,7 @@ export function priceEstimate(input: PriceInput, ctx: PriceContext = {}): Priced
     rangeWidth: width,
     range,
     divisions: ranged.divisions,
+    divisionShares: ranged.shares,
     guide,
     review,
     versions: { rules: ESTIMATOR_RULES_VERSION, costBook: COST_BOOK_VERSION, costBookSource: COST_BOOK_SOURCE },
@@ -413,6 +420,7 @@ export function customerEstimate(
     classStatement: klass.statement,
     range: withheld ? null : { low: estimate.range.low, high: estimate.range.high },
     divisions,
+    divisionNote: !withheld && estimate.divisionShares.length ? SHARE_NOTE : null,
     guide,
     assumptions: guide.assumptions,
     exclusions: guide.excluded,

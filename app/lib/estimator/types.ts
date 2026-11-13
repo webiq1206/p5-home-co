@@ -173,6 +173,8 @@ export type CustomerEstimate = {
   /** Null while the estimate is with the team for review. */
   range: { low: number; high: number } | null;
   divisions: CustomerDivision[];
+  /** Set when the divisions are indicative shares of a whole-project price. Absent on older estimates. */
+  divisionNote?: string | null;
   guide: EstimateGuide;
   /** Kept at the top level for the team report. Same lists as in the guide. */
   assumptions: string[];

@@ -123,6 +123,7 @@ export default function EstimateView({
       {!held && estimate.divisions.length ? (
         <section className={styles.block} aria-label="Construction division breakdown">
           <h3 className={styles.blockTitle}>Construction division breakdown</h3>
+          {estimate.divisionNote ? <p className={styles.para}>{estimate.divisionNote}</p> : null}
           {estimate.divisions.map((division) => (
             <details key={division.code} className={styles.division}>
               <summary>

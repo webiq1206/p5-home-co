@@ -18,13 +18,19 @@
  *                 the official estimate right now.
  *
  * ESTIMATOR_QBO controls how far step 3 goes without a person:
- *   off     (default) nothing is written to QuickBooks. The team creates the
- *           estimate from the scope platform.
- *   create  the customer and an unsent estimate are created automatically.
- *   send    the estimate is also emailed to the customer by QuickBooks.
- * It defaults to off on purpose. A public form that writes customers and
- * estimates into the company books should be switched on by the owner, after
- * the recipes have been compared with real estimates, not by a deploy.
+ *   create  (default, owner decision 13 November 2026) every estimate a
+ *           customer was shown a range for becomes a customer and an UNSENT
+ *           estimate in QuickBooks, budgetary ones included. The team
+ *           revises it there, sends it, and converts it to an invoice and
+ *           project once the customer approves.
+ *   send    a line-by-line estimate that needs no review is also emailed to
+ *           the customer by QuickBooks. A budgetary estimate is never sent
+ *           without a person, whatever this says.
+ *   off     nothing is written to QuickBooks.
+ * Only an estimate is ever created here: never an invoice, payment or
+ * project. QuickBooks holds one figure per line, so it gets the base price;
+ * the range the customer saw is written on the estimate's message and in its
+ * private note. An estimate whose price was withheld is not written at all.
  */
 
 import { handleIntake } from "../../api/leads/intake/handler.ts";
@@ -46,7 +52,7 @@ export type QboMode = "off" | "create" | "send";
 
 export function qboMode(env: Record<string, string | undefined> = process.env): QboMode {
   const value = (env.ESTIMATOR_QBO ?? "").trim().toLowerCase();
-  return value === "create" || value === "send" ? value : "off";
+  return value === "off" || value === "send" ? value : "create";
 }
 
 /**
@@ -156,6 +162,24 @@ async function ensureQboCustomer(projectId: number): Promise<string> {
   return linked.qboId;
 }
 
+/** The range the customer saw. QuickBooks totals one figure, so the range travels as words. */
+export function rangeNote(row: Pick<GuidedRow, "customer_view" | "total">): string {
+  const range = row.customer_view.range;
+  if (!range) return "";
+  const money = (n: number) => `$${Math.round(n).toLocaleString("en-US")}`;
+  return `Preliminary range given online: ${money(range.low)} to ${money(range.high)}. The total on this estimate (${money(Number(row.total))}) is the base figure that range is built on.`;
+}
+
+/**
+ * May this estimate be written to QuickBooks without a person? Yes when the
+ * customer was shown a price and nothing is wrong with it. "Budgetary" is not
+ * something wrong: it only means a person sends it.
+ */
+export function qboAction(row: Pick<GuidedRow, "review" | "price_withheld">, mode: QboMode): QboMode {
+  if (mode === "off" || row.price_withheld || row.review.some((r) => r.code !== "budgetary")) return "off";
+  return mode === "send" && row.review.length === 0 ? "send" : "create";
+}
+
 async function qboEstimate(row: GuidedRow, projectId: number, mode: QboMode): Promise<Delivery> {
   const patch: Delivery = {};
   const customerId = await ensureQboCustomer(projectId);
@@ -171,8 +195,9 @@ async function qboEstimate(row: GuidedRow, projectId: number, mode: QboMode): Pr
   if (!built.payload) throw new Error(`QuickBooks is missing these products and services: ${built.missingItems.join(", ")}. Map them in Pricing setup.`);
   // The customer reads what kind of estimate this is on the document itself.
   const klass = CLASS_LABELS[row.estimate_class as EstimateClass];
-  const memo = [klass ? `${klass.label}. ${klass.statement}` : "", built.payload.CustomerMemo?.value ?? ""].filter(Boolean).join("\n");
+  const memo = [klass ? `${klass.label}. ${klass.statement}` : "", rangeNote(row), built.payload.CustomerMemo?.value ?? ""].filter(Boolean).join("\n");
   built.payload.CustomerMemo = { value: memo.slice(0, 1000) };
+  built.payload.PrivateNote = [rangeNote(row), `Online estimate ${row.customer_view.estimateNumber}. Created unsent; review before sending.`, built.payload.PrivateNote].filter(Boolean).join("\n").slice(0, 4000);
   const result = await createOrReviseEstimate({ project, version, payload: built.payload, userId: NO_EMPLOYEE });
   const estimate = await latestEstimate(projectId);
   // The QuickBooks total must equal what the customer was shown, to the cent.
@@ -211,8 +236,8 @@ export async function officialStatus(row: GuidedRow): Promise<{ status: string; 
     };
   }
   if (delivery.qboEstimate && !delivery.qboEstimate.ok) return { status: `QuickBooks estimate failed: ${delivery.qboEstimate.detail ?? "unknown error"}`, qboUrl: null, estimateNumber: null };
-  if (row.review.length) return { status: "Waiting for team review", qboUrl: null, estimateNumber: null };
-  return { status: "Ready. Create the QuickBooks estimate from the scope platform", qboUrl: null, estimateNumber: null };
+  if (row.price_withheld || row.review.some((r) => r.code !== "budgetary")) return { status: "Waiting for team review", qboUrl: null, estimateNumber: null };
+  return { status: "Not in QuickBooks yet. Create the estimate from the scope platform", qboUrl: null, estimateNumber: null };
 }
 
 export async function deliverEstimate(input: DeliverInput): Promise<Delivery> {
@@ -246,10 +271,9 @@ export async function deliverEstimate(input: DeliverInput): Promise<Delivery> {
     }
   }
 
-  // 3. QuickBooks, only for an estimate that qualified.
-  const mode = qboMode();
-  const qualified = row.review.length === 0 && !row.price_withheld;
-  if (scope && qualified && mode !== "off" && !done(row.delivery, "qboSend") && !(mode === "create" && done(row.delivery, "qboEstimate"))) {
+  // 3. QuickBooks: an unsent estimate for every price the customer was shown.
+  const mode = qboAction(row, qboMode());
+  if (scope && mode !== "off" && !done(row.delivery, "qboSend") && !(mode === "create" && done(row.delivery, "qboEstimate"))) {
     try {
       if (!(await isQboConnected())) throw new Error("QuickBooks is not connected.");
       await recordDelivery(row.id, await qboEstimate(row, scope.projectId, mode));

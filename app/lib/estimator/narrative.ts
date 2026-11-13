@@ -76,31 +76,55 @@ const up = (n: number) => Math.ceil(n / 10) * 10;
  * priced lines are widened by the same band and rounded outward to $10, so
  * the breakdown always reconciles with the headline range.
  */
-export function divisionRanges(lines: EstimateLine[], width: number): { divisions: CustomerDivision[]; low: number; high: number } {
-  const order: string[] = [];
-  const byDivision = new Map<string, EstimateLine[]>();
-  for (const line of [...lines].sort((a, b) => a.division.localeCompare(b.division))) {
-    if (!byDivision.has(line.division)) {
-      byDivision.set(line.division, []);
-      order.push(line.division);
-    }
-    byDivision.get(line.division)!.push(line);
-  }
+export type DivisionSplit = (line: EstimateLine) => { division: string; texts: string[]; price: number }[] | null;
+
+/**
+ * `split` spreads a whole-project line across the divisions it is made of
+ * (shares.ts). The pieces add up to the line's price, so the total does not
+ * move. `shares` lists the wording that came from a split, not from a line.
+ */
+export function divisionRanges(lines: EstimateLine[], width: number, split?: DivisionSplit): { divisions: CustomerDivision[]; low: number; high: number; shares: string[] } {
   const allowanceTasks = new Set(lines.filter((l) => l.allowance).map((l) => l.taskId));
-  const divisions = order.map((code) => {
-    const group = byDivision.get(code)!;
-    const subtotal = group.reduce((s, l) => s + l.price, 0);
-    return {
+  const byDivision = new Map<string, { cents: number; items: CustomerDivision["items"] }>();
+  const shares: string[] = [];
+  const at = (code: string) => {
+    if (!byDivision.has(code)) byDivision.set(code, { cents: 0, items: [] });
+    return byDivision.get(code)!;
+  };
+  for (const line of lines) {
+    const pieces = split?.(line) ?? null;
+    if (pieces) {
+      for (const piece of pieces) {
+        const entry = at(piece.division);
+        entry.cents += Math.round(piece.price * 100);
+        for (const text of piece.texts) {
+          if (!entry.items.some((i) => i.text === text)) entry.items.push({ text, quantity: 1, unit: "LS", allowance: false });
+          if (!shares.includes(text)) shares.push(text);
+        }
+      }
+      continue;
+    }
+    const entry = at(line.division);
+    entry.cents += Math.round(line.price * 100);
+    // The handyman trip charge and its equal credit are arithmetic, not scope.
+    if (line.basis !== "trip-charge") entry.items.push({ text: line.description, quantity: line.quantity, unit: line.unit, allowance: allowanceTasks.has(line.taskId) });
+  }
+  const divisions = [...byDivision.entries()]
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([code, entry]) => ({
       code,
       name: divisionName(code),
-      low: Math.max(0, down(subtotal * (1 - width))),
-      high: up(subtotal * (1 + width)),
-      // The handyman trip charge and its equal credit are arithmetic, not scope.
-      items: group.filter((l) => l.basis !== "trip-charge").map((l) => ({ text: l.description, quantity: l.quantity, unit: l.unit, allowance: allowanceTasks.has(l.taskId) })),
-    };
-  }).filter((d) => d.items.length > 0);
-  return { divisions, low: divisions.reduce((s, d) => s + d.low, 0), high: divisions.reduce((s, d) => s + d.high, 0) };
+      low: Math.max(0, down((entry.cents / 100) * (1 - width))),
+      high: up((entry.cents / 100) * (1 + width)),
+      items: entry.items,
+    }))
+    .filter((d) => d.items.length > 0);
+  return { divisions, low: divisions.reduce((s, d) => s + d.low, 0), high: divisions.reduce((s, d) => s + d.high, 0), shares };
 }
+
+/** Shown with a breakdown built from shares, so nobody reads a share as a quote for that trade. */
+export const SHARE_NOTE =
+  "This project is priced as a whole from our cost book. The division amounts show how a budget of this kind is typically spread across the work. They are indicative shares, not separate quotes, and they are replaced by a detailed breakdown once drawings and selections are defined.";
 
 const money = (n: number) => `$${n.toLocaleString("en-US")}`;
 const lower = (s: string) => s.charAt(0).toLowerCase() + s.slice(1);
@@ -228,7 +252,7 @@ const DRIVER: Partial<Record<RiskFactor, string>> = {
   "jurisdiction-uncertain": "Local permit and code requirements, which depend on the property's address.",
 };
 
-export function buildGuide(input: NarrativeInput, divisions: CustomerDivision[], range: { low: number; high: number } | null, risks: RiskFactor[]): EstimateGuide {
+export function buildGuide(input: NarrativeInput, divisions: CustomerDivision[], range: { low: number; high: number } | null, risks: RiskFactor[], shares: string[] = []): EstimateGuide {
   const allowances = input.lines.filter((l) => l.allowance).length;
   const estimated = input.tasks.some((t) => t.quantity?.estimated);
   const basis: string[] = [];
@@ -244,11 +268,18 @@ export function buildGuide(input: NarrativeInput, divisions: CustomerDivision[],
       ? "It is an early budgeting range. It narrows as drawings, site conditions and selections are defined."
       : "It is an initial budgeting range. It narrows once we have measured, seen the existing conditions and confirmed your selections.",
   ];
+  if (shares.length) overview.push(SHARE_NOTE);
   const costDrivers = risks.map((r) => DRIVER[r]).filter((d): d is string => Boolean(d));
   if (allowances) costDrivers.push("The materials and fixtures you choose. Selections above or below the allowance move the price with them.");
   return {
     overview,
-    included: divisions.map((d) => ({ division: `Division ${d.code}: ${d.name}`, items: d.items.map((i) => i.text) })),
+    // A whole-project line is what was priced; its shares only describe where the money goes.
+    included: shares.length
+      ? [
+          { division: "Priced as a whole project", items: input.lines.filter((l) => l.basis !== "trip-charge").map((l) => l.description) },
+          ...divisions.map((d) => ({ division: `Division ${d.code}: ${d.name}`, items: d.items.map((i) => i.text) })),
+        ]
+      : divisions.map((d) => ({ division: `Division ${d.code}: ${d.name}`, items: d.items.map((i) => i.text) })),
     outcome: outcome(input),
     assumptions: input.assumptions,
     excluded: input.exclusions,
@@ -271,9 +302,9 @@ export const BANNED_WORDING = /\b(down there|up there|over here|over there|that 
  * Check the customer's words against the priced scope before they are shown.
  * Returns every problem found; an empty list means the estimate is coherent.
  */
-export function narrativeProblems(guide: EstimateGuide, divisions: CustomerDivision[], range: { low: number; high: number } | null, lines: EstimateLine[]): string[] {
+export function narrativeProblems(guide: EstimateGuide, divisions: CustomerDivision[], range: { low: number; high: number } | null, lines: EstimateLine[], shares: string[] = []): string[] {
   const problems: string[] = [];
-  const priced = new Set(lines.map((l) => l.description));
+  const priced = new Set([...lines.map((l) => l.description), ...shares]);
   for (const group of guide.included) for (const item of group.items) if (!priced.has(item)) problems.push(`"${item}" is described as included but has no priced line.`);
   const includedText = guide.included.flatMap((g) => g.items).map((i) => i.toLowerCase());
   for (const text of [...guide.excluded, ...guide.undetermined]) if (includedText.includes(text.toLowerCase())) problems.push(`"${text}" is listed as both included and not included.`);
