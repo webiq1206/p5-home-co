@@ -111,6 +111,17 @@ test("cache miss resolves once, warm cache skips discovery, durable cache surviv
   assert.equal(await resolveMetaPageToken(config, "777", isolatedEnv, fetcher), "page-token-1");
   assert.equal(discoveries, 1);
   const now = Date.now;
+  // PGlite runs Postgres's interval timer through setTimeout and sizes it from Date.now. A
+  // deadline taken while the clock below is moved forward comes out 12 minutes long once the
+  // clock is put back, and that referenced timer kept this file's process alive for 12 silent
+  // minutes after every test had passed, which ran the CI build step past its limit. Timers
+  // that long are unreferenced from here on, so they can no longer hold the process open.
+  const setTimer = globalThis.setTimeout;
+  globalThis.setTimeout = ((handler: () => void, ms?: number, ...args: unknown[]) => {
+    const timer = setTimer(handler, ms, ...args);
+    if ((ms ?? 0) > 60_000) timer.unref();
+    return timer;
+  }) as typeof setTimeout;
   try {
     Date.now = () => now() + 6 * 60 * 1000;
     assert.equal(await resolveMetaPageToken(config, "777", isolatedEnv, fetcher), "page-token-1", "encrypted durable cache works after memory TTL");
