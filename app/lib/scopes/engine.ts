@@ -60,7 +60,7 @@ async function answerState(projectId: number): Promise<{ state: AnswerState; ack
 }
 
 /** The finance policy the estimator has saved, if any; the approved default otherwise. */
-async function savedFinance(): Promise<FinancePolicy | undefined> {
+export async function savedFinance(): Promise<FinancePolicy | undefined> {
   const row = await queryOne<{ finance: FinancePolicy | null }>(
     "SELECT payload->'finance' AS finance FROM p5_estimator_policy WHERE id = 'current'",
   ).catch(() => null);

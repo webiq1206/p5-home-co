@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 
 import {buildReleaseIdentity} from './scripts/p5-release-identity.mjs';
+import {familyOrigins} from './app/lib/estimator/brands.ts';
 const nextConfig: NextConfig = {
   // Match the scope endpoint's 24 MiB multipart limit. The default 10 MiB
   // proxy buffer truncates valid uploads before its FormData parser runs.
@@ -10,6 +11,10 @@ const nextConfig: NextConfig = {
   serverExternalPackages:['ws','@neondatabase/serverless','bufferutil','utf-8-validate','pdfjs-dist','@napi-rs/canvas'],
   outputFileTracingIncludes: { "/api/p5-estimator/*": ["./node_modules/heic-convert/**/*", "./node_modules/heic-decode/**/*", "./node_modules/libheif-js/**/*", "./node_modules/jpeg-js/**/*", "./node_modules/pngjs/**/*", "./node_modules/pdfjs-dist/**/*", "./node_modules/@napi-rs/canvas*/**/*"] },
   allowedDevOrigins: ["terminal.local", ...(process.env.REPLIT_DEV_DOMAIN ? [process.env.REPLIT_DEV_DOMAIN] : [])],
+  async headers() {
+    // The estimator embed may be framed by the family's own sites and by nobody else.
+    return [{ source: "/estimator/embed", headers: [{ key: "Content-Security-Policy", value: `frame-ancestors 'self' ${familyOrigins().join(" ")}` }] }];
+  },
   async redirects() {
     return [
       // www.p5homeco.com answers 200 with the same content as the apex host.
