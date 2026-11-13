@@ -151,7 +151,7 @@ export const QUOTE_SERVICES: readonly QuoteService[] = [
     metaDescription:
       "Free custom cabinetry quotes across the Treasure Valley. Frameless kitchen cabinets, vanities, and built-ins, designed and built to order. No obligation.",
     image: "/images/p5-cabinet.webp",
-    imageAlt: "Light wood kitchen cabinets with slim brass bar pulls, a white countertop, and a marble backsplash.",
+    imageAlt: "White oak cabinet drawers with slim black bar pulls under a white countertop.",
     project: "Custom cabinets or built-ins",
     brand: "Boise Cabinet Co",
     covers: [

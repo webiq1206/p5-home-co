@@ -17,6 +17,7 @@ import {
   handymanImage,
 } from "./publicClaims.ts";
 import { ADU_D3_LINE } from "./publicIdentity.ts";
+import { readMetaPixelId } from "./lib/metaPixel.ts";
 
 export const siteUrl = "https://p5homeco.com";
 
@@ -142,3 +143,10 @@ export const googleAdsPhoneConversionLabel = "YHR0CIaPz_ccEKzf-q9E";
 // HubSpot portal ID for the "P5 Home Co" account (NA2 region). Portal IDs are
 // public by design, so this is not a secret and does not belong in an env var.
 export const hubspotPortalId = "247066159";
+
+// Meta (Facebook) pixel dataset id (owner decision, 13 November 2026). Unlike
+// the ids above it has no value here: it comes from NEXT_PUBLIC_META_PIXEL_ID,
+// with no default, and is empty until the owner creates the P5 Home Co dataset
+// and sets the variable. Empty means no pixel is loaded and no event is sent.
+// The variable is read when the site is built, so set it before publishing.
+export const metaPixelId = readMetaPixelId(process.env.NEXT_PUBLIC_META_PIXEL_ID);

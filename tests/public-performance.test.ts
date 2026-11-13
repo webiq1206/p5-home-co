@@ -20,6 +20,21 @@ test("HubSpot waits for the first interaction, or at least 5 seconds after load"
   assert.match(source, /if \(!isPublic \|\| !interacted\) return null;/);
 });
 
+// The second third-party script on the public site (13 November 2026). It is
+// held to the same rule as HubSpot; tests/meta-pixel.test.ts covers the rest.
+test("the Meta pixel waits for the first interaction, or at least 5 seconds after load", () => {
+  const source = readFileSync("app/MetaPixel.tsx", "utf8");
+  for (const name of ["pointerdown", "keydown", "scroll", "touchstart"]) {
+    assert.match(source, new RegExp(`"${name}"`));
+  }
+  const fallback = Number(source.match(/IDLE_FALLBACK_MS = (\d+)/)?.[1]);
+  assert.ok(fallback >= 5000, `fallback is ${fallback} ms`);
+  assert.match(source, /if \(!allowed \|\| !interacted\) return null;/);
+  assert.match(source, /strategy="lazyOnload"/);
+  assert.doesNotMatch(source, /strategy="afterInteractive"/);
+  assert.match(readFileSync("app/lib/metaPixel.ts", "utf8"), /isPrivatePath|PRIVATE_PREFIXES/);
+});
+
 test("the homepage hero is in the server HTML without an entrance fade", () => {
   const page = readFileSync("app/HomePageClient.tsx", "utf8");
   // The family HeroPhoto: no hooks, so its image and H1 are in the server HTML.
