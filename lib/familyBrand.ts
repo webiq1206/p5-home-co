@@ -57,7 +57,7 @@ export const FAMILY_BRAND: FamilyBrand = {
   cta: { label: 'Request a quote', href: '/quote' },
   phone: { display: PUBLIC_PHONE_DISPLAY, telHref: PUBLIC_PHONE_TEL, smsHref: PUBLIC_PHONE_SMS },
   // components/SiteChat.tsx opens on this window event.
-  chat: { enabled: true, label: 'Chat', openEvent: 'p5:chat-open', hiddenOn: ['/admin*', '/portal*', '/estimator*'] },
+  chat: { enabled: true, label: 'Chat', openEvent: 'p5:chat-open', hiddenOn: ['/admin*', '/portal*', '/estimator/embed*'] },
   bar: {
     // Approved check (scripts/verify-p5-mobile-seo.mjs): hidden over the hero, shown once it has passed.
     showOverHero: false,
