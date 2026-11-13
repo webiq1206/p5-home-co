@@ -99,6 +99,30 @@ route fails, the message names each cause and the fix. A recording that did
 not transcribe is never lost: it stays saved, shows as "not transcribed yet",
 and the next-step button offers to try again.
 
+## Files of any kind, plan sets and long documents
+
+- **What can be added.** Any file can be picked. PDFs, Word (.docx), Excel
+  (.xlsx), text, CSV and images are read; anything else is stored and reported
+  as not readable rather than silently ignored.
+- **Size.** Files up to 20 MB go up in one request. Larger files (up to 300 MB)
+  are sent in 8 MB pieces to `/api/scopes/[id]/assets/parts`, joined on the
+  server and verified by size and SHA-256. Each piece is retried on its own and
+  a repeated request never creates a second copy.
+- **Long PDFs are read page by page** (`app/lib/scopes/sheets.ts`): more than 8
+  pages or more than 20 MB. Each page is given to the model as its exact text
+  layer plus an overview image and enlarged overlapping tiles (about 150 DPI,
+  reduced on very large sheets), and what was read is saved per page in
+  `scope_sheet`. Reading stops after about 200 seconds per request and the
+  screen calls again until the set is finished, so length is not a limit and no
+  page is read twice. A page that fails is recorded and retried.
+- **The scope is built only when every page has been read.** Printed
+  dimensions and schedules become documented measurements with page evidence.
+  Things drawn but not dimensioned become missing measurements, asked in the
+  details step. Anything illegible becomes a question naming the page.
+- **Accuracy.** The reader copies what is printed and is told never to scale or
+  calculate from a drawing. It is not a guarantee: a human still confirms
+  measurements and quantities in the details step before pricing is final.
+
 ## Generating the scope
 
 `POST /api/scopes/[id]/process` transcribes new audio, then sends every

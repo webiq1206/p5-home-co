@@ -600,6 +600,53 @@ export async function mirroredEstimate(qboId: string): Promise<{ raw: Record<str
 }
 
 // --------------------------------------------------------------------------
+// Large uploads (sent in pieces) and sheet-by-sheet reading
+// --------------------------------------------------------------------------
+
+export async function assetByClientKey(projectId: number, clientKey: string): Promise<AssetRow | null> {
+  return queryOne<AssetRow>(`SELECT ${ASSET_COLS} FROM scope_asset WHERE project_id = $1 AND client_key = $2`, [projectId, clientKey]);
+}
+
+export async function saveUploadPart(projectId: number, uploadKey: string, part: number, data: Buffer): Promise<void> {
+  await query(
+    `INSERT INTO scope_upload_part (project_id, upload_key, part, data) VALUES ($1,$2,$3,$4)
+     ON CONFLICT (project_id, upload_key, part) DO NOTHING`,
+    [projectId, uploadKey, part, data],
+  );
+}
+
+export async function uploadPartCount(projectId: number, uploadKey: string): Promise<number> {
+  const row = await queryOne<{ n: number }>("SELECT count(*)::int AS n FROM scope_upload_part WHERE project_id = $1 AND upload_key = $2", [projectId, uploadKey]);
+  return row?.n ?? 0;
+}
+
+/** The pieces in order. Read one at a time so a large file never needs two copies in memory per piece. */
+export async function readUploadPart(projectId: number, uploadKey: string, part: number): Promise<Buffer | null> {
+  const row = await queryOne<{ data: Buffer }>("SELECT data FROM scope_upload_part WHERE project_id = $1 AND upload_key = $2 AND part = $3", [projectId, uploadKey, part]);
+  return row ? Buffer.from(row.data) : null;
+}
+
+export async function clearUploadParts(projectId: number, uploadKey: string): Promise<void> {
+  await query("DELETE FROM scope_upload_part WHERE project_id = $1 AND upload_key = $2", [projectId, uploadKey]);
+  // Pieces of uploads abandoned more than a day ago.
+  await query("DELETE FROM scope_upload_part WHERE created_at < now() - interval '1 day'").catch(() => undefined);
+}
+
+export type SheetRow = { page: number; notes: string | null; error: string | null };
+
+export async function listSheets(assetId: number): Promise<SheetRow[]> {
+  return query<SheetRow>("SELECT page, notes, error FROM scope_sheet WHERE asset_id = $1 ORDER BY page", [assetId]);
+}
+
+export async function saveSheet(assetId: number, page: number, notes: string | null, error: string | null): Promise<void> {
+  await query(
+    `INSERT INTO scope_sheet (asset_id, page, notes, error) VALUES ($1,$2,$3,$4)
+     ON CONFLICT (asset_id, page) DO UPDATE SET notes = EXCLUDED.notes, error = EXCLUDED.error, read_at = now()`,
+    [assetId, page, notes, error],
+  );
+}
+
+// --------------------------------------------------------------------------
 // Events
 // --------------------------------------------------------------------------
 

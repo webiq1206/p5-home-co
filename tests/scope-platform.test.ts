@@ -772,3 +772,30 @@ test("QuickBooks lines lead with the name of the work, not just the item", async
   assert.equal(lineText({ title: "Install baseboard", description: "Install baseboard in the hall." }), "Install baseboard in the hall.", "no repeated title");
   assert.equal(lineText({ description: "Older line with no title." }), "Older line with no title.");
 });
+
+// ---------------------------------------------------------------------------
+// Long PDFs: page-by-page reading
+// ---------------------------------------------------------------------------
+
+test("a long or heavy PDF is read page by page; a short one is read whole", async () => {
+  const { readsPageByPage } = await import("../app/lib/scopes/sheets.ts");
+  assert.equal(readsPageByPage(3, 2_000_000), false);
+  assert.equal(readsPageByPage(40, 2_000_000), true);
+  assert.equal(readsPageByPage(2, 60_000_000), true);
+});
+
+test("a full-size plan sheet is cut into overlapping tiles that cover every pixel, within the tile limit", async () => {
+  const { tileGrid, renderScale } = await import("../app/lib/scopes/sheets.ts");
+  assert.deepEqual(tileGrid(1275, 1650), [], "a letter page is one image");
+  // 36 x 24 inch sheet, in points.
+  const scale = renderScale(2592, 1728);
+  const w = Math.ceil(2592 * scale);
+  const h = Math.ceil(1728 * scale);
+  const tiles = tileGrid(w, h);
+  assert.ok(tiles.length > 1 && tiles.length <= 12);
+  assert.ok(w / 36 >= 100, "at least 100 pixels per inch on a 36 inch sheet");
+  const covered = (x: number, y: number) => tiles.some((t) => x >= t.x && x < t.x + t.w && y >= t.y && y < t.y + t.h);
+  for (const [x, y] of [[0, 0], [w - 1, 0], [0, h - 1], [w - 1, h - 1], [Math.floor(w / 2), Math.floor(h / 2)], [1499, 1499], [1500, 1500]]) {
+    assert.ok(covered(x, y), `pixel ${x},${y} is inside a tile`);
+  }
+});
