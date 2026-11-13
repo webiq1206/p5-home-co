@@ -8,7 +8,8 @@ import { test } from "node:test";
 import { deflateRawSync } from "node:zlib";
 
 import { ADA_SOURCE_NAME, adaResidenceRow, adaResidences, dbfRecords, fromAdaResidence, importAdaResidences, parcelKey, zipEntry } from "../app/lib/estimator/county-records.ts";
-import { fromCountyProfile, lookupProperty, mergeProperty } from "../app/lib/estimator/property.ts";
+import { RENTCAST_FREE_LIMIT, addressKey, fromCountyProfile, lookupProperty, mergeProperty, rentCastLookup, type LookupLedger } from "../app/lib/estimator/property.ts";
+import type { PropertyFacts } from "../app/lib/estimator/types.ts";
 
 const FIELDS: [string, number][] = [
   ["PARCEL", 11],
@@ -186,5 +187,66 @@ test("an import with no database changes nothing and says so", async () => {
     assert.equal(result.ok, false);
   } finally {
     if (before !== undefined) process.env.DATABASE_URL = before;
+  }
+});
+
+test("the metered service is asked once per address and never past the free allowance", async () => {
+  const stored = new Map<string, PropertyFacts | null>();
+  let used = 0;
+  const ledger: LookupLedger = {
+    cached: async (_p, key) => (stored.has(key) ? stored.get(key)! : undefined),
+    usedThisMonth: async () => used,
+    record: async (_p, key, facts) => {
+      stored.set(key, facts);
+      used += 1;
+    },
+  };
+  let calls = 0;
+  let status = 200;
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = (async () => {
+    calls += 1;
+    return new Response(JSON.stringify(status === 200 ? [{ squareFootage: 1850, yearBuilt: 1994, bedrooms: 3, bathrooms: 2 }] : {}), { status });
+  }) as typeof fetch;
+  const signal = new AbortController().signal;
+  const env = { RENTCAST_API_KEY: "test-key" };
+  try {
+    // No key, or nowhere to count requests: nothing is requested.
+    assert.equal(await rentCastLookup("12 Main St, Nampa, ID", signal, {}, ledger), null);
+    assert.equal(await rentCastLookup("12 Main St, Nampa, ID", signal, env, null), null);
+    assert.equal(calls, 0);
+    const first = await rentCastLookup("12 Main St, Nampa, ID", signal, env, ledger);
+    assert.deepEqual({ sqft: first!.livingSqft, year: first!.yearBuilt, beds: first!.bedrooms, baths: first!.bathrooms }, { sqft: 1850, year: 1994, beds: 3, baths: 2 });
+    // The same address written differently is the same request.
+    await rentCastLookup("12 MAIN ST.,  Nampa ID", signal, env, ledger);
+    assert.equal(calls, 1);
+    assert.equal(addressKey("12 MAIN ST.,  Nampa ID"), addressKey("12 Main St, Nampa, ID"));
+    // "No record" is remembered too, so it is not asked for again.
+    status = 404;
+    assert.equal(await rentCastLookup("99 Nowhere Rd, Emmett, ID", signal, env, ledger), null);
+    assert.equal(await rentCastLookup("99 Nowhere Rd, Emmett, ID", signal, env, ledger), null);
+    assert.equal(calls, 2);
+    // A service error is not remembered and does not count.
+    status = 500;
+    assert.equal(await rentCastLookup("5 Error Ln, McCall, ID", signal, env, ledger), null);
+    assert.equal(used, 2);
+    // At the allowance, nothing more is requested this month.
+    status = 200;
+    used = RENTCAST_FREE_LIMIT;
+    const before = calls;
+    assert.equal(await rentCastLookup("7 New St, Caldwell, ID", signal, env, ledger), null);
+    assert.equal(calls, before);
+    assert.ok(RENTCAST_FREE_LIMIT < 50, "the cap must sit under the free plan's 50 requests");
+    // An Ada home with a county building record never spends a request.
+    used = 0;
+    globalThis.fetch = (async (url: string | URL | Request) => {
+      if (String(url).includes("rentcast")) calls += 1;
+      return new Response(JSON.stringify({ profile: { parcelId: "R0475920460", county: "ada" } }), { status: 200 });
+    }) as typeof fetch;
+    const spent = calls;
+    await lookupProperty("100 Example Ave, Boise, ID 83702", env, async () => ({ source: "county", livingSqft: 2000, yearBuilt: 2001 }));
+    assert.equal(calls, spent);
+  } finally {
+    globalThis.fetch = realFetch;
   }
 });

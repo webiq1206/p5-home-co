@@ -28,6 +28,7 @@
  * customer to confirm, and labeled with its source wherever it travels.
  */
 
+import { isDatabaseConfigured, query, queryOne } from "../db.ts";
 import { residenceFacts } from "./county-records.ts";
 import type { PropertyFacts } from "./types.ts";
 
@@ -54,6 +55,8 @@ export function fromRentCast(body: unknown): PropertyFacts | null {
     lotAcres: lotSqft ? Math.round((lotSqft / 43_560) * 100) / 100 : null,
     stories: positive(features.floorCount, 1, 6),
     garageSpaces: positive(features.garageSpaces, 1, 12),
+    bedrooms: positive(record.bedrooms, 1, 20),
+    bathrooms: positive(record.bathrooms, 0.5, 20),
     jurisdiction: typeof record.city === "string" ? record.city.slice(0, 60) : null,
   };
   return facts.livingSqft || facts.yearBuilt || facts.lotAcres ? facts : null;
@@ -95,12 +98,59 @@ const familyParcelLookup: Provider = async (address, signal) => {
 /** County parcel sources, tried in order. A new county is a new entry here. */
 export const COUNTY_PROVIDERS: { name: string; counties: string[]; lookup: Provider }[] = [{ name: "P5 family parcel lookup", counties: ["Ada", "Canyon"], lookup: familyParcelLookup }];
 
-const rentCast: Provider = async (address, signal, env) => {
-  const key = env.RENTCAST_API_KEY;
-  if (!key) return null;
-  const response = await fetch(`https://api.rentcast.io/v1/properties?address=${encodeURIComponent(address)}&limit=1`, { headers: { "X-Api-Key": key, Accept: "application/json" }, signal });
-  return response.ok ? fromRentCast(await response.json()) : null;
+/**
+ * RentCast's free plan includes 50 requests a month and bills for any beyond
+ * that. We stop short of it, so this can never produce a charge. Raise it
+ * with RENTCAST_MONTHLY_LIMIT only on a paid plan.
+ */
+export const RENTCAST_FREE_LIMIT = 45;
+export const addressKey = (address: string) => address.toLowerCase().replace(/[^a-z0-9]/g, "");
+
+export type LookupLedger = {
+  /** A previous answer for this address: the facts, or null when the service had none. Undefined when never asked. */
+  cached: (provider: string, key: string) => Promise<PropertyFacts | null | undefined>;
+  usedThisMonth: (provider: string) => Promise<number>;
+  record: (provider: string, key: string, facts: PropertyFacts | null) => Promise<void>;
 };
+
+const databaseLedger: LookupLedger = {
+  async cached(provider, key) {
+    // A home's record rarely changes; a year is fresh enough, and each address costs one request.
+    const row = await queryOne<{ facts: PropertyFacts | null }>("SELECT facts FROM property_lookup WHERE provider = $1 AND address_key = $2 AND fetched_at > now() - interval '365 days'", [provider, key]);
+    return row ? row.facts : undefined;
+  },
+  async usedThisMonth(provider) {
+    const row = await queryOne<{ n: number }>("SELECT count(*)::int AS n FROM property_lookup WHERE provider = $1 AND fetched_at >= date_trunc('month', now())", [provider]);
+    return row?.n ?? 0;
+  },
+  async record(provider, key, facts) {
+    await query(
+      `INSERT INTO property_lookup (provider, address_key, facts) VALUES ($1, $2, $3::jsonb)
+       ON CONFLICT (provider, address_key) DO UPDATE SET facts = EXCLUDED.facts, fetched_at = now()`,
+      [provider, key, facts ? JSON.stringify(facts) : null],
+    );
+  },
+};
+
+/**
+ * One request per address, and never past the monthly allowance. Without a
+ * database there is nowhere to count requests, so nothing is requested.
+ */
+export async function rentCastLookup(address: string, signal: AbortSignal, env: Record<string, string | undefined>, ledger: LookupLedger | null = isDatabaseConfigured() ? databaseLedger : null): Promise<PropertyFacts | null> {
+  const key = env.RENTCAST_API_KEY;
+  if (!key || !ledger) return null;
+  const id = addressKey(address);
+  const known = await ledger.cached("rentcast", id);
+  if (known !== undefined) return known;
+  const limit = Number(env.RENTCAST_MONTHLY_LIMIT) > 0 ? Number(env.RENTCAST_MONTHLY_LIMIT) : RENTCAST_FREE_LIMIT;
+  if ((await ledger.usedThisMonth("rentcast")) >= limit) return null;
+  const response = await fetch(`https://api.rentcast.io/v1/properties?address=${encodeURIComponent(address)}&limit=1`, { headers: { "X-Api-Key": key, Accept: "application/json" }, signal });
+  // A request the service answered counts against the allowance whether or not it found the home.
+  if (!response.ok && response.status !== 404) return null;
+  const facts = response.ok ? fromRentCast(await response.json()) : null;
+  await ledger.record("rentcast", id, facts);
+  return facts;
+}
 
 /** County record and building record merged, each field keeping its own source. */
 export function mergeProperty(county: PropertyFacts | null, building: PropertyFacts | null): PropertyFacts | null {
@@ -130,12 +180,11 @@ export async function lookupProperty(address: string, env: Record<string, string
   const timer = setTimeout(() => controller.abort(), 4000);
   const quiet = (p: Promise<PropertyFacts | null>) => p.catch(() => null);
   try {
-    const [county, building] = await Promise.all([
-      quiet((async () => { for (const provider of COUNTY_PROVIDERS) { const found = await provider.lookup(clean, controller.signal, env); if (found) return found; } return null; })()),
-      quiet(rentCast(clean, controller.signal, env)),
-    ]);
-    // The county's own building record, when it publishes one, comes before any third party's.
+    const county = await quiet((async () => { for (const provider of COUNTY_PROVIDERS) { const found = await provider.lookup(clean, controller.signal, env); if (found) return found; } return null; })());
+    // The county's own building record, when it publishes one, comes first and costs nothing.
     const assessor = county?.county && county.parcel ? await quiet(residence(county.county, county.parcel)) : null;
+    // The metered service is asked only when the county gave us no building record.
+    const building = assessor ? null : await quiet(rentCastLookup(clean, controller.signal, env));
     return mergeProperty(county, assessor ?? building);
   } finally {
     clearTimeout(timer);
