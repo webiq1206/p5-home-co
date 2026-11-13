@@ -6,7 +6,7 @@
  * separately: scope, QuickBooks estimate, and QuickBooks project.
  */
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import AddressField from "./AddressField.tsx";
 import { api, money, SCOPE_LABEL, when, type Workspace } from "./client.ts";
@@ -69,6 +69,34 @@ export default function EstimatePanel({ ws, onWorkspace, onScope }: { ws: Worksp
     });
 
   const qboDown = !ws.qbo.connected;
+
+  // QuickBooks is checked for this client as soon as the details are saved, with
+  // no button to press. It is checked again whenever the saved details change.
+  const lookupFor = [p.client_first_name, p.client_last_name, p.client_email, p.client_phone, p.project_address].join("|");
+  const lookedUp = useRef<string | null>(null);
+  const [searching, setSearching] = useState(false);
+  const canLookUp = !p.qbo_customer_id && !qboDown && missingClient.length === 0;
+  const findCustomer = async (signature: string) => {
+    lookedUp.current = signature;
+    setSearching(true);
+    setError(null);
+    try {
+      const res = await api<{ candidates?: Candidate[] }>(`/api/scopes/${p.id}/estimate`, { method: "POST", json: { action: "customers" } });
+      // A slower, older search must not replace the result for newer details.
+      if (lookedUp.current === signature) setCandidates(res.candidates ?? []);
+    } catch (err) {
+      if (lookedUp.current === signature) setError((err as Error).message);
+    } finally {
+      if (lookedUp.current === signature) setSearching(false);
+    }
+  };
+  useEffect(() => {
+    if (!canLookUp || lookedUp.current === lookupFor) return;
+    const t = setTimeout(() => void findCustomer(lookupFor), 0);
+    return () => clearTimeout(t);
+    // findCustomer only reads the project id and the signature passed in.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canLookUp, lookupFor, p.id]);
 
   return (
     <div className="sc-estimate">
@@ -143,36 +171,48 @@ export default function EstimatePanel({ ws, onWorkspace, onScope }: { ws: Worksp
           <p>Using <b>{p.qbo_customer_name}</b>.</p>
         ) : (
           <>
-            <p className="sc-muted">Checks QuickBooks for this client by email, phone, name and address so no duplicate is created.</p>
-            <button type="button" className="sc-btn" disabled={!!busy || qboDown || missingClient.length > 0} onClick={() => act("find", async () => {
-              const res = await estimateAction({ action: "customers" });
-              setCandidates(res.candidates ?? []);
-            })}>
-              {busy === "find" ? "Searching..." : "Find in QuickBooks"}
-            </button>
-            {missingClient.length > 0 && <p className="sc-small sc-muted">Save the client&apos;s {missingClient.join(", ")} first.</p>}
-            {candidates && (
-              <ul className="sc-candidates">
-                {candidates.map((c) => (
-                  <li key={c.qboId}>
-                    <span>
-                      <b>{c.displayName}</b> <span className="sc-muted sc-small">{[c.email, c.phone, c.address].filter(Boolean).join(" · ")}</span>
-                      <span className="sc-small sc-block">Match: {c.reasons.join(", ")}</span>
-                    </span>
-                    <button type="button" className="sc-btn sc-btn-small" disabled={!!busy} onClick={() => act("use", async () => {
-                      const res = await estimateAction({ action: "customer", qboId: c.qboId });
+            {missingClient.length > 0 ? (
+              <p className="sc-muted">Save the client&apos;s {missingClient.join(", ")} above. QuickBooks is then checked for this client automatically.</p>
+            ) : qboDown ? (
+              <p className="sc-muted">QuickBooks is not connected, so the client cannot be looked up yet.</p>
+            ) : searching || candidates === null ? (
+              <p role="status"><span className="sc-spinner" aria-hidden="true" /> Checking QuickBooks for this client...</p>
+            ) : candidates.length === 0 ? (
+              <>
+                <p><b>Not in QuickBooks yet.</b> No customer matches this client&apos;s email, phone, name or address.</p>
+                <button type="button" className="sc-btn sc-btn-primary sc-btn-big" disabled={!!busy} onClick={() => act("create-customer", async () => {
+                  const res = await estimateAction({ action: "customer", create: true });
+                  if (res.workspace) onWorkspace(res.workspace);
+                })}>{busy === "create-customer" ? "Creating..." : `Create ${[p.client_first_name, p.client_last_name].filter(Boolean).join(" ") || "customer"} in QuickBooks`}</button>
+              </>
+            ) : (
+              <>
+                <p><b>{candidates.length === 1 ? "Found a possible match in QuickBooks." : `Found ${candidates.length} possible matches in QuickBooks.`}</b> Use the right one so no duplicate is created.</p>
+                <ul className="sc-candidates">
+                  {candidates.map((c) => (
+                    <li key={c.qboId}>
+                      <span>
+                        <b>{c.displayName}</b> <span className="sc-muted sc-small">{[c.email, c.phone, c.address].filter(Boolean).join(" · ")}</span>
+                        <span className="sc-small sc-block">Match: {c.reasons.join(", ")}</span>
+                      </span>
+                      <button type="button" className={`sc-btn${candidates.length === 1 ? " sc-btn-primary" : " sc-btn-small"}`} disabled={!!busy} onClick={() => act("use", async () => {
+                        const res = await estimateAction({ action: "customer", qboId: c.qboId });
+                        if (res.workspace) onWorkspace(res.workspace);
+                      })}>Use this customer</button>
+                    </li>
+                  ))}
+                  <li>
+                    <span>{candidates.length === 1 ? "Not the same person?" : "None of these is the client?"}</span>
+                    <button type="button" className="sc-btn sc-btn-small" disabled={!!busy} onClick={() => act("create-customer", async () => {
+                      const res = await estimateAction({ action: "customer", create: true });
                       if (res.workspace) onWorkspace(res.workspace);
-                    })}>Use this customer</button>
+                    })}>{busy === "create-customer" ? "Creating..." : "Create new customer"}</button>
                   </li>
-                ))}
-                <li>
-                  <span>{candidates.length ? "None of these is the client." : "No existing customer matches."}</span>
-                  <button type="button" className="sc-btn sc-btn-small" disabled={!!busy} onClick={() => act("create-customer", async () => {
-                    const res = await estimateAction({ action: "customer", create: true });
-                    if (res.workspace) onWorkspace(res.workspace);
-                  })}>{busy === "create-customer" ? "Creating..." : "Create new customer"}</button>
-                </li>
-              </ul>
+                </ul>
+              </>
+            )}
+            {canLookUp && !searching && candidates !== null && (
+              <p><button type="button" className="sc-link sc-small" disabled={!!busy} onClick={() => void findCustomer(lookupFor)}>Check QuickBooks again</button></p>
             )}
           </>
         )}
