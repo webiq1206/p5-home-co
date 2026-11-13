@@ -17,9 +17,10 @@
  *  and basement. In Ada County these come from the Assessor's own free
  *  published file, looked up by the parcel number the county record gave us
  *  (county-records.ts). Elsewhere they come only from a paid property-data
- *  service if the owner ever sets one up: one adapter is written, for
- *  RentCast (RENTCAST_API_KEY), from its published response shape, and it
- *  has NOT been run against the live service. With neither, the customer is
+ *  service: RentCast (RENTCAST_API_KEY), on its free plan. Run against the
+ *  live service on 13 November 2026 with one Canyon and one Valley County
+ *  address: both returned living area, year built, bedrooms, stories and
+ *  the county's own parcel number. With neither source, the customer is
  *  asked.
  *
  * Adding a county means adding a provider to COUNTY_PROVIDERS; nothing else
@@ -56,7 +57,10 @@ export function fromRentCast(body: unknown): PropertyFacts | null {
     stories: positive(features.floorCount, 1, 6),
     garageSpaces: positive(features.garageSpaces, 1, 12),
     bedrooms: positive(record.bedrooms, 1, 20),
-    bathrooms: positive(record.bathrooms, 0.5, 20),
+    // Bathrooms are deliberately not read. On the two live records checked on 13 November 2026
+    // (a 2022 four-bedroom in Middleton, a 2016 home in McCall) the service reported one
+    // bathroom for each, which is not believable. A wrong fact is worse than a question.
+    county: typeof record.county === "string" ? record.county.slice(0, 40) : null,
     jurisdiction: typeof record.city === "string" ? record.city.slice(0, 60) : null,
   };
   return facts.livingSqft || facts.yearBuilt || facts.lotAcres ? facts : null;

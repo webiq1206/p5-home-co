@@ -216,7 +216,7 @@ test("the metered service is asked once per address and never past the free allo
     assert.equal(await rentCastLookup("12 Main St, Nampa, ID", signal, env, null), null);
     assert.equal(calls, 0);
     const first = await rentCastLookup("12 Main St, Nampa, ID", signal, env, ledger);
-    assert.deepEqual({ sqft: first!.livingSqft, year: first!.yearBuilt, beds: first!.bedrooms, baths: first!.bathrooms }, { sqft: 1850, year: 1994, beds: 3, baths: 2 });
+    assert.deepEqual({ sqft: first!.livingSqft, year: first!.yearBuilt, beds: first!.bedrooms, baths: first!.bathrooms }, { sqft: 1850, year: 1994, beds: 3, baths: undefined });
     // The same address written differently is the same request.
     await rentCastLookup("12 MAIN ST.,  Nampa ID", signal, env, ledger);
     assert.equal(calls, 1);
