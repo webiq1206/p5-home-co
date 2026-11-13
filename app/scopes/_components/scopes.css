@@ -249,8 +249,11 @@ details.sc-card > summary { cursor: pointer; }
 @media (max-width: 560px) { .sc-app .admin-who { display: none; } }
 
 /* Workspace: header, accordion, dock --------------------------------------- */
-.sc-ws { padding-bottom: 96px; }
-.sc-ws-playing { padding-bottom: 190px; }
+/* The workspace fills the screen so the dock rests at the bottom even on a short page. */
+.sc-ws { display: flex; flex-direction: column; min-height: calc(100dvh - 72px); }
+.sc-app .admin-main:has(.sc-ws) { padding-bottom: 0; }
+/* The site-wide sideways-scroll guard on the page body makes iPhones misplace bottom bars after the keyboard closes. */
+body:has(.sc-app) { overflow-x: clip; }
 .sc-back { display: inline-flex; align-items: center; gap: 4px; min-height: 36px; color: var(--ink-2); font-size: 15px; font-weight: 650; text-decoration: none; }
 .sc-back span { font-size: 22px; line-height: 1; }
 .sc-ws-title { margin: 2px 0 4px; font-family: var(--font-display); font-size: clamp(22px, 5.6vw, 32px); font-weight: 500; line-height: 1.15; overflow-wrap: anywhere; }
@@ -310,9 +313,15 @@ details.sc-card > summary { cursor: pointer; }
 .sc-add-panel[hidden] { display: none; }
 
 /* Dock: the next action, and the recording player above it when one is open. */
+.sc-acc { margin-bottom: 16px; }
+/*
+ * Sticky, not fixed: on iPhones a fixed bar can be left floating mid-screen
+ * after the keyboard closes or the browser toolbar hides. A sticky bar is laid
+ * out with the page and always sits at the bottom edge of what is visible.
+ */
 .sc-dock {
-  position: fixed; left: 0; right: 0; bottom: 0; z-index: 60; display: grid; gap: 8px;
-  padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+  position: sticky; bottom: 0; z-index: 60; display: grid; gap: 8px;
+  margin: auto -16px 0; padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
   border-top: 1px solid var(--line); background: color-mix(in srgb, var(--bone) 92%, transparent);
   -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
 }

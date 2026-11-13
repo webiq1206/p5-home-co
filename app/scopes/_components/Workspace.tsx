@@ -214,7 +214,7 @@ export default function Workspace({ initial, initialTab }: { initial: WS; initia
   };
 
   return (
-    <div className={`sc-ws${player ? " sc-ws-playing" : ""}`}>
+    <div className="sc-ws">
       <header className="sc-ws-head">
         <Link href="/scopes" className="sc-back">
           <span aria-hidden="true">‹</span> Projects
