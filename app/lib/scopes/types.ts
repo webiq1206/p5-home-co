@@ -173,6 +173,26 @@ export type ItemKey =
   | "Cabinet Installation"
   | "Cabinet Freight and Delivery";
 
+/**
+ * The base estimate split into what it costs, what the business needs to
+ * cover, and what is left. Everything is in dollars except the rates.
+ */
+export type ProfitCheck = {
+  /** Price minus direct cost. */
+  grossProfit: number;
+  /** The share of the price that pays for overhead, at the policy rate. */
+  overhead: number;
+  /** The reserve built into marked-up lines. Kept if nothing goes wrong. */
+  reserve: number;
+  /** Gross profit minus overhead and reserve. */
+  netProfit: number;
+  netMargin: number;
+  targetNetMargin: number;
+  /** on-target: at or above the profit target. thin: at least half of it. below: less. high: more than double it. */
+  status: "on-target" | "thin" | "below" | "high";
+  notes: string[];
+};
+
 export type PriceBasis =
   | "cost-book"
   | "written-quote"
@@ -230,6 +250,10 @@ export type PricingResult = {
     optionalPrice: number;
     margin: number | null;
     laborHours: number;
+    /** What is still missing before cost and margin can be worked out. Absent on versions priced before this was added. */
+    costGaps?: { laborHours: number; lines: number };
+    /** Where the money goes on the base estimate. Null until every cost is known. */
+    profit?: ProfitCheck | null;
   };
   policy: {
     overheadRate: number;

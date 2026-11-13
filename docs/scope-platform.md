@@ -185,6 +185,22 @@ price, extended price, internal cost and the source of the rate. Rules:
 - The scope cannot read "Ready" while any blocking pricing issue is open,
   whether or not a wizard question exists for it.
 
+### Profit check
+
+The Pricing section shows employees (never scopes-only accounts) where the
+money goes on the base estimate: direct cost, gross profit and margin, the
+overhead share at the policy rate, the reserve built into marked-up lines, and
+the expected profit against the profit target. Status is On target, Above
+target (more than double, a prompt to check the price against the market),
+Thin (at least half the target) or Below target, with the price that would
+reach the target. It also calls out labor billed at or below its cost and any
+line priced below cost.
+
+Cost and margin need P5's own cost per labor hour (wages, payroll taxes,
+workers' compensation, benefits), entered once under Pricing setup. Until then
+the panel says exactly what is missing and links to the setting. The system
+has no market price data, so "competitive" is a prompt to check, not a verdict.
+
 ## QuickBooks
 
 - **Customer:** searched by email, phone, name and address; the employee

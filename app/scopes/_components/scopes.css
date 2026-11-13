@@ -340,3 +340,16 @@ body:has(.sc-app) { overflow-x: clip; }
 .sc-wizard .sc-wizard-form { margin-top: 8px; }
 .sc-wizard .sc-wizard-nav { margin-top: 10px; margin-bottom: 10px; }
 .sc-wizard .sc-field-big { margin-bottom: 0; }
+
+/* Profit check ------------------------------------------------------------- */
+.sc-profit { margin: 4px 0 12px; padding: 12px 14px; border: 1px solid var(--line); border-left: 4px solid var(--charcoal); border-radius: var(--sc-r-sm, 0); background: #fff; }
+.sc-profit p { margin: 6px 0; }
+.sc-profit .sc-h4 { margin: 0; font-size: 16px; }
+.sc-profit-good { border-left-color: #6d8f62; }
+.sc-profit-warn { border-left-color: #b8873a; background: #fdf6ea; }
+.sc-profit-bad { border-left-color: #9a2f2f; background: #fbeeee; }
+.sc-ledger { margin: 8px 0; }
+.sc-ledger div { display: flex; justify-content: space-between; gap: 12px; padding: 6px 0; border-top: 1px solid var(--line); font-size: 14px; }
+.sc-ledger dt { color: var(--ink-2); }
+.sc-ledger dd { margin: 0; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.sc-ledger-sum dt, .sc-ledger-sum dd { color: var(--ink); font-weight: 700; }

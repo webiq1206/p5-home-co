@@ -709,3 +709,41 @@ test("questions follow the scope: division order, then one task at a time", () =
   assert.equal(base.at(-1)! - base[0], base.length - 1, "every question about one task is together");
   assert.equal(qs.at(-1)!.key.startsWith("open:"), true, "clarifications with no task come last");
 });
+
+// ---------------------------------------------------------------------------
+// Profit check
+// ---------------------------------------------------------------------------
+
+test("cost and margin stay unknown, with the reason, until P5's labor cost is set", () => {
+  const d = doc([task({ id: "a", performer: "internal", costCode: null, laborHours: { value: 22, basis: "confirmed", note: null } })]);
+  const r = priceScope(d, ctx());
+  assert.equal(r.totals.baseCost, null);
+  assert.equal(r.totals.profit, null);
+  assert.deepEqual(r.totals.costGaps, { laborHours: 22, lines: 0 });
+});
+
+test("the profit check splits the price into cost, overhead, reserve and profit", () => {
+  const d = doc([
+    task({ id: "q", quote: { amount: 1000, assetId: null } }),
+    task({ id: "l", title: "Install trim", performer: "internal", costCode: null, laborHours: { value: 10, basis: "confirmed", note: null } }),
+  ]);
+  const r = priceScope(d, ctx({ settings: { ...SETTINGS, laborLoadedCost: 60 } }));
+  const p = r.totals.profit!;
+  assert.ok(p, "every cost is known");
+  assert.equal(r.totals.baseCost, 1600);
+  assert.equal(p.grossProfit, round2(r.totals.basePrice - 1600));
+  assert.equal(p.overhead, round2(r.totals.basePrice * r.policy.overheadRate));
+  assert.equal(p.reserve, 100, "10% reserve on the marked-up quote only, never on P5 labor");
+  assert.equal(p.netProfit, round2(p.grossProfit - p.overhead - p.reserve));
+  assert.ok(p.netMargin >= p.targetNetMargin, "standard markup with labor at $60 cost meets the target");
+  assert.ok(p.status === "on-target" || p.status === "high");
+});
+
+test("labor that costs more than it bills is called out and the price needed is given", () => {
+  const d = doc([task({ id: "l", performer: "internal", costCode: null, laborHours: { value: 10, basis: "confirmed", note: null } })]);
+  const r = priceScope(d, ctx({ settings: { ...SETTINGS, laborLoadedCost: 130 } }));
+  const p = r.totals.profit!;
+  assert.equal(p.status, "below");
+  assert.ok(p.notes.some((n) => /loses money/.test(n)));
+  assert.ok(p.notes.some((n) => /would need to be about/.test(n)));
+});

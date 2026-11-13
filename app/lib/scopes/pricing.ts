@@ -35,6 +35,7 @@ import type {
   Measurement,
   PricingIssue,
   PricingResult,
+  ProfitCheck,
   ScopeDoc,
   ScopeSettings,
   ScopeTask,
@@ -496,10 +497,47 @@ export function priceScope(doc: ScopeDoc, ctx: PricingContext): PricingResult {
   const basePrice = round2(base.reduce((s, l) => s + l.price, 0));
   const baseCost = baseCostKnown ? round2(base.reduce((s, l) => s + (l.cost ?? 0), 0)) : null;
 
+  // What stops cost and margin from being known, in plain counts.
+  const unknown = base.filter((l) => l.cost === null);
+  const costGaps = {
+    laborHours: round2(unknown.filter((l) => l.basis === "internal-labor").reduce((s, l) => s + (l.laborHours ?? l.quantity), 0)),
+    lines: unknown.filter((l) => l.basis !== "internal-labor").length,
+  };
+
+  // Where the money goes: direct cost, overhead, the reserve, and what is left.
+  let profitCheck: ProfitCheck | null = null;
+  if (baseCost !== null && basePrice > 0) {
+    const grossProfit = round2(basePrice - baseCost);
+    const overheadShare = round2(basePrice * overhead);
+    // Only marked-up lines carry the reserve; P5 labor and the trip charge are billed as is.
+    const reserve = round2(
+      base.filter((l) => l.basis !== "internal-labor" && l.basis !== "trip-charge").reduce((s, l) => s + (l.cost ?? 0) * CONTINGENCY_RATE, 0),
+    );
+    const netProfit = round2(grossProfit - overheadShare - reserve);
+    const netMargin = Math.round((netProfit / basePrice) * 10000) / 10000;
+    const notes: string[] = [];
+    const status: ProfitCheck["status"] =
+      netMargin >= profit * 2 ? "high" : netMargin >= profit ? "on-target" : netMargin >= profit / 2 ? "thin" : "below";
+    if (settings.laborLoadedCost !== null && settings.laborLoadedCost >= settings.laborRate) {
+      notes.push(`P5 labor costs $${settings.laborLoadedCost}/hour and is billed at $${settings.laborRate}/hour, so every labor hour loses money.`);
+    }
+    const underwater = base.filter((l) => l.cost !== null && l.price < (l.cost ?? 0) && l.basis !== "trip-charge");
+    if (underwater.length) notes.push(`${underwater.length} line${underwater.length === 1 ? " is" : "s are"} priced below cost: ${underwater.slice(0, 3).map((l) => l.description).join("; ")}.`);
+    if (status === "below" || status === "thin") {
+      // The price that would return the target profit with the same costs.
+      const needed = round2((baseCost + reserve) / (1 - overhead - profit));
+      if (needed > basePrice) notes.push(`To reach the ${Math.round(profit * 100)}% profit target with these costs the base estimate would need to be about $${needed.toLocaleString("en-US", { maximumFractionDigits: 0 })}.`);
+    }
+    if (status === "high") notes.push("Profit is more than double the target. Check the price against what the market will bear before sending.");
+    profitCheck = { grossProfit, overhead: overheadShare, reserve, netProfit, netMargin, targetNetMargin: profit, status, notes };
+  }
+
   return {
     lines,
     issues,
     totals: {
+      costGaps,
+      profit: profitCheck,
       baseCost,
       basePrice,
       optionalPrice: round2(lines.filter((l) => l.optional).reduce((s, l) => s + l.price, 0)),
