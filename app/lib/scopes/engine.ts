@@ -387,7 +387,10 @@ export async function answerQuestion(input: {
     return;
   }
   const { doc } = await currentDoc(project);
-  const next = applyAnswer(doc, input.key, input.answer);
+  // One answer can settle the same quantity on several tasks.
+  const also = (await compute(project, doc)).questions.find((q) => q.key === input.key)?.also ?? [];
+  let next = applyAnswer(doc, input.key, input.answer);
+  for (const key of also) next = applyAnswer(next, key, input.answer);
   await commitDoc(project, next, "answer", input.prompt ? `Answered: ${input.prompt}` : `Answered ${input.key}`, input.userId);
 }
 

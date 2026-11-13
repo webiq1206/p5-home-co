@@ -303,6 +303,8 @@ export type Question = {
   taskIds: string[];
   evidence: Evidence[];
   deferred?: boolean;
+  /** Other question keys this one answer also settles (the same quantity on several tasks). */
+  also?: string[];
 };
 
 export type Answer =

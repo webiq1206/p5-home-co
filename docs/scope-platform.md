@@ -140,6 +140,22 @@ One field per step, Next, Back, progress, typing or dictation, and "save for
 later". Each step says whether it blocks the estimate. Every answer saves a new
 version immediately, so work continues on another device.
 
+### Asked once, in scope order
+
+- Questions follow the scope itself: phase, then division, then room, then one
+  task at a time, so everything about one item is asked together. Items saved
+  for later come after everything else; clarifications tied to no task are last.
+- Two measurements for the same thing in different words are merged into one.
+- A quantity missing on several tasks for the same thing in the same room and
+  unit (remove, install and paint the same baseboards) is asked once and the
+  answer fills every task.
+- A free-text clarification is dropped when a measurement, quantity or selection
+  already covers it, when the scope already holds the answer, or when it repeats
+  one that was answered earlier in different words. The model is also told not
+  to raise such clarifications in the first place.
+- On a phone, the current question is held at the top of the visible screen and
+  number questions share one answer box, so the keyboard stays up between them.
+
 ## Pricing
 
 Each line records phase, division, task, QuickBooks item, quantity, unit, unit

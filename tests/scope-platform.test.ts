@@ -625,3 +625,87 @@ test("when every connection refuses, the message says why and that the recording
     if (saved.b !== undefined) process.env.AI_INTEGRATIONS_OPENAI_API_KEY = saved.b;
   }
 });
+
+// ---------------------------------------------------------------------------
+// Questions: asked once, in scope order, like items together
+// ---------------------------------------------------------------------------
+
+test("a clarification that repeats a measurement or quantity question is not asked", () => {
+  const d = doc(
+    [task({ id: "a", costCode: "06-20-26", quantity: { measurementId: "m1" } })],
+    {
+      measurements: [{ id: "m1", label: "Baseboard length", value: null, unit: "LF", status: "missing", evidence: [] }],
+      openQuestions: [
+        "What is the total linear footage required for new baseboards?",
+        "Is there a preferred start date?",
+      ],
+    },
+  );
+  const qs = deriveQuestions(d, priceScope(d, ctx()), new Map());
+  const prompts = qs.map((q) => q.prompt);
+  assert.equal(qs.filter((q) => q.key === "measure:m1").length, 1);
+  assert.ok(!prompts.some((p) => /linear footage/i.test(p)), "the baseboard length is asked once, as a measurement");
+  assert.ok(prompts.includes("Is there a preferred start date?"), "an unrelated clarification is still asked");
+});
+
+test("a clarification answered earlier is not asked again in different words", () => {
+  const d = doc([task({ id: "a", quote: { amount: 500, assetId: null } })], {
+    assumptions: ["Is there a preferred start date? Early March."],
+    openQuestions: ["Does the client have a preferred start date?", "Is there a preferred start date?"],
+  });
+  const qs = deriveQuestions(d, priceScope(d, ctx()), new Map());
+  assert.equal(qs.filter((q) => q.key.startsWith("open:")).length, 0);
+});
+
+test("two measurements for the same thing in different words become one question", () => {
+  const d = reconcileMeasurements(
+    doc(
+      [
+        task({ id: "a", costCode: "06-20-26", quantity: { measurementId: "m1" } }),
+        task({ id: "b", title: "Paint baseboard", costCode: "06-20-26", quantity: { measurementId: "m2" } }),
+      ],
+      {
+        measurements: [
+          { id: "m1", label: "Baseboard length", value: null, unit: "LF", status: "missing", evidence: [] },
+          { id: "m2", label: "Total linear footage of baseboards", value: null, unit: "LF", status: "missing", evidence: [] },
+        ],
+      },
+    ),
+  );
+  assert.equal(d.measurements.length, 1);
+  const qs = deriveQuestions(d, priceScope(d, ctx()), new Map());
+  assert.equal(qs.filter((q) => q.key.startsWith("measure:")).length, 1);
+});
+
+test("the same missing quantity on several tasks is asked once and fills them all", () => {
+  const d = doc([
+    task({ id: "a", title: "Remove existing baseboards", costCode: "06-20-26" }),
+    task({ id: "b", title: "Install new baseboards", costCode: "06-20-26" }),
+    task({ id: "c", title: "Install interior doors", division: "08", costCode: null, quote: { amount: 900, assetId: null } }),
+  ]);
+  const qs = deriveQuestions(d, priceScope(d, ctx()), new Map());
+  const qty = qs.filter((q) => q.key.startsWith("qty:"));
+  assert.equal(qty.length, 1);
+  assert.deepEqual(qty[0].also, ["qty:b"]);
+  assert.deepEqual(qty[0].taskIds.sort(), ["a", "b"]);
+  let next = applyAnswer(d, qty[0].key, { value: 120, unit: "LF" });
+  for (const k of qty[0].also ?? []) next = applyAnswer(next, k, { value: 120, unit: "LF" });
+  assert.equal(deriveQuestions(next, priceScope(next, ctx()), new Map()).filter((q) => q.key.startsWith("qty:")).length, 0);
+});
+
+test("questions follow the scope: division order, then one task at a time", () => {
+  const d = doc(
+    [
+      task({ id: "paint", title: "Paint walls", division: "09", costCode: null }),
+      task({ id: "demo", title: "Remove cabinets", division: "02", costCode: null }),
+      task({ id: "base", title: "Install baseboards", division: "06", costCode: "06-20-26", certainty: "suggested" }),
+    ],
+    { openQuestions: ["Is there a preferred start date?"] },
+  );
+  const qs = deriveQuestions(d, priceScope(d, ctx()), new Map());
+  const firstFor = (id: string) => qs.findIndex((q) => q.taskIds.includes(id));
+  assert.ok(firstFor("demo") < firstFor("base") && firstFor("base") < firstFor("paint"), "division 02, then 06, then 09");
+  const base = qs.map((q, i) => (q.taskIds.includes("base") ? i : -1)).filter((i) => i >= 0);
+  assert.equal(base.at(-1)! - base[0], base.length - 1, "every question about one task is together");
+  assert.equal(qs.at(-1)!.key.startsWith("open:"), true, "clarifications with no task come last");
+});

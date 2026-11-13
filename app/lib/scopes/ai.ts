@@ -224,6 +224,8 @@ Rules:
 - selections: when a product, finish or option must be chosen, list the options mentioned and chosen (null if undecided).
 - evidence: cite each fact with {assetId, t (seconds on the recording timeline, from the [t=...] markers), page (for documents), quote (short exact words)}. Use the asset ids given.
 - Separate inclusions, exclusions, assumptions, site conditions, access limitations, schedule requirements, client goals and priorities, affected rooms or areas, and open questions that only the client or an employee can answer.
+- openQuestions is only for things that cannot be recorded any other way. Never put a missing size, length, area, count or quantity there (record it as a measurement with status "missing"), never an undecided product, finish or option (record it as a selection), and never whether a piece of work is included (use certainty "undecided"). Never ask about something a source already answers. Ask each thing once.
+- Use one measurement for one physical quantity and reference it from every task that depends on it. Do not create two measurements for the same thing in different words.
 - Client contact details: fill only what a source states.
 - Descriptions are customer-facing: plain, specific, no internal codes, costs or margins. No em dashes.
 - When a current scope is provided, return the complete updated scope. Keep the same id for the same task, measurement and conflict. Preserve decisions already in the current scope unless a newer source clearly changes them, in which case add a conflict.
