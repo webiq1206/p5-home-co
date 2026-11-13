@@ -208,7 +208,7 @@ export function P5Estimator({defaultService='',entryLabel,headingAs='h1',project
         const next={...newBrowserDraft(defaultService),namespace:current.current.namespace,text:carried.text||'',answers,pendingFiles:carried.requiredFiles||[]};
         if(!persistBrowserDraft(next))throw new Error('This browser could not save the transferred project. Return to the original site and retry.');
         filesRef.current=[];setFiles([]);apply(next);setPreparingFiles(false);setConfirmed(false);
-        setStatus(`Your project details were carried over from ${carried.fromName||'our sister company'}.${next.pendingFiles.length?' Reattach the listed original files before continuing.':''}`);
+        setStatus(`Your project details were carried over from ${carried.fromName||'another P5 company'}.${next.pendingFiles.length?' Reattach the listed original files before continuing.':''}`);
       }).catch(()=>{setError('Your project transfer could not be opened. Return to the original site and retry; your original project remains saved.');});
     }setRecoveries(listBrowserDraftRecoveries(d.namespace));setWarning(d.analysisWarning||d.extraction?.reviewNotes.find(n=>n.startsWith("Your files are saved, but"))||"");
     setSpeechAvailable(Boolean((window as any).SpeechRecognition||(window as any).webkitSpeechRecognition));
