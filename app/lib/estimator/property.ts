@@ -13,12 +13,14 @@
  *  that code is explicit that its building figures are estimates from the
  *  city and street name. Estimates are never used here.
  *
- *  BUILDING RECORD. Living area, year built, stories, bedrooms and bathrooms
- *  come from a property-data service, which is a paid subscription the owner
- *  chooses. One adapter is written, for RentCast (RENTCAST_API_KEY). It was
- *  written from RentCast's published response shape and has NOT been run
- *  against the live service: confirm it with a real address before relying
- *  on it.
+ *  BUILDING RECORD. Living area, year built, stories, bedrooms, bathrooms
+ *  and basement. In Ada County these come from the Assessor's own free
+ *  published file, looked up by the parcel number the county record gave us
+ *  (county-records.ts). Elsewhere they come only from a paid property-data
+ *  service if the owner ever sets one up: one adapter is written, for
+ *  RentCast (RENTCAST_API_KEY), from its published response shape, and it
+ *  has NOT been run against the live service. With neither, the customer is
+ *  asked.
  *
  * Adding a county means adding a provider to COUNTY_PROVIDERS; nothing else
  * changes. A field no source published stays empty. Nothing is inferred, and
@@ -26,6 +28,7 @@
  * customer to confirm, and labeled with its source wherever it travels.
  */
 
+import { residenceFacts } from "./county-records.ts";
 import type { PropertyFacts } from "./types.ts";
 
 export function isPropertyLookupConfigured(env: Record<string, string | undefined> = process.env): boolean {
@@ -103,12 +106,23 @@ const rentCast: Provider = async (address, signal, env) => {
 export function mergeProperty(county: PropertyFacts | null, building: PropertyFacts | null): PropertyFacts | null {
   if (!county && !building) return null;
   if (!building) return county;
-  const facts = { livingSqft: building.livingSqft, yearBuilt: building.yearBuilt, stories: building.stories, garageSpaces: building.garageSpaces, buildingSource: building.source };
+  const facts = {
+    livingSqft: building.livingSqft,
+    yearBuilt: building.yearBuilt,
+    stories: building.stories,
+    garageSpaces: building.garageSpaces,
+    bedrooms: building.bedrooms,
+    bathrooms: building.bathrooms,
+    hasBasement: building.hasBasement,
+    buildingSource: building.source,
+  };
   if (!county) return { ...building, ...facts };
   return { ...county, ...facts, lotAcres: county.lotAcres ?? building.lotAcres, source: `${county.source} and ${building.source}` };
 }
 
-export async function lookupProperty(address: string, env: Record<string, string | undefined> = process.env): Promise<PropertyFacts | null> {
+type Residence = (county: string, parcel: string) => Promise<PropertyFacts | null>;
+
+export async function lookupProperty(address: string, env: Record<string, string | undefined> = process.env, residence: Residence = residenceFacts): Promise<PropertyFacts | null> {
   const clean = address.trim().slice(0, 200);
   if (clean.length < 8) return null;
   const controller = new AbortController();
@@ -120,7 +134,9 @@ export async function lookupProperty(address: string, env: Record<string, string
       quiet((async () => { for (const provider of COUNTY_PROVIDERS) { const found = await provider.lookup(clean, controller.signal, env); if (found) return found; } return null; })()),
       quiet(rentCast(clean, controller.signal, env)),
     ]);
-    return mergeProperty(county, building);
+    // The county's own building record, when it publishes one, comes before any third party's.
+    const assessor = county?.county && county.parcel ? await quiet(residence(county.county, county.parcel)) : null;
+    return mergeProperty(county, assessor ?? building);
   } finally {
     clearTimeout(timer);
   }

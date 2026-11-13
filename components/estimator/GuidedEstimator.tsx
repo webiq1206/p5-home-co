@@ -462,6 +462,9 @@ export default function GuidedEstimator({
           property.livingSqft ? `about ${property.livingSqft.toLocaleString("en-US")} sq ft` : null,
           property.yearBuilt ? `built in ${property.yearBuilt}` : null,
           property.stories ? `${property.stories} ${property.stories === 1 ? "story" : "stories"}` : null,
+          property.bedrooms ? `${property.bedrooms} ${property.bedrooms === 1 ? "bedroom" : "bedrooms"}` : null,
+          property.bathrooms ? `${property.bathrooms} ${property.bathrooms === 1 ? "bathroom" : "bathrooms"}` : null,
+          property.hasBasement === true ? "a basement" : property.hasBasement === false ? "no basement" : null,
           property.lotAcres ? `a ${property.lotAcres} acre lot` : null,
         ].filter(Boolean)
       : [];
