@@ -573,7 +573,10 @@ test("the customer confirmation carries no figure and no internal wording", () =
       assert.doesNotMatch(part, /\$\s?\d|\bcost\b|margin|\b\d{2}-\d{2}-\d{2}\b/i);
     }
     assert.ok(message.text.includes("https://p5homeco.com/estimator/e/abc"));
+    assert.ok(message.text.includes("https://meetings-na2.hubspot.com/client3"));
     assert.ok(message.text.includes(BRAND_CONFIGS[estimate.brand].name));
+    assert.match(message.html, /Schedule now/);
+    assert.ok(message.html.indexOf("Schedule now") < message.html.indexOf("View your estimate"));
   }
 });
 

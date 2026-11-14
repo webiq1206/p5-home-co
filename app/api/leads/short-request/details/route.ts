@@ -19,6 +19,7 @@ import { mergeLeadDetails } from "../../../../lib/leads/intake.ts";
 import { verifyRequestToken } from "../../../../lib/leads/requestToken.ts";
 import { readShortRequestDetails } from "../../../../lib/leads/shortRequest.ts";
 import { notifyLeadDetailsAdded } from "../../../../lib/notifications/lead-created.ts";
+import { sendRequestConfirmation } from "../../../../lib/leads/sendLeadConfirmation.ts";
 import { PROJECT_OPTIONS } from "../../../../quote/options.ts";
 import { allowIntakeRequest, FOLLOW_UP_SCOPE } from "../../intake/abuse.ts";
 
@@ -103,6 +104,19 @@ export async function POST(request: Request): Promise<NextResponse> {
       after(async () => {
         await notifyLeadDetailsAdded(notice);
       });
+      // Step 1 had no address. The confirmation goes out once, when this step
+      // is what first records one.
+      if (result.filled.includes("email") && result.email) {
+        const confirmation = {
+          email: result.email,
+          firstName: result.firstName,
+          brandName: result.brand,
+          intent: result.requestKind === "callback" ? ("consult" as const) : ("walkthrough" as const),
+        };
+        after(async () => {
+          await sendRequestConfirmation(confirmation);
+        });
+      }
     }
     return NextResponse.json({
       ok: true,
