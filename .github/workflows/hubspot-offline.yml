@@ -1,0 +1,42 @@
+name: HubSpot offline integration verification
+on:
+  pull_request:
+    paths:
+      - 'app/lib/integrations/hubspot*.ts'
+      - 'app/admin/finance/health/**'
+      - 'app/admin/lead/**/correct-email/**'
+      - 'app/lib/leads/**'
+      - 'app/lib/notifications/**'
+      - 'tests/hubspot*'
+      - 'tests/intake.integration.test.ts'
+      - 'tests/helpers/hubspot-pglite.mjs'
+      - 'scripts/offline-network-guard.cjs'
+      - 'migrations/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/hubspot-offline.yml'
+permissions:
+  contents: read
+concurrency:
+  group: hubspot-offline-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      NEXT_TELEMETRY_DISABLED: '1'
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Offline diagnostic and mapping regressions
+        run: node --require ./scripts/offline-network-guard.cjs --experimental-strip-types --test tests/hubspot-diagnostics.test.ts tests/hubspot-map.test.ts tests/hubspot-activities.test.ts
+      - name: Isolated in-memory database and intercepted HubSpot lifecycle
+        run: node --experimental-strip-types --import ./tests/helpers/hubspot-pglite.mjs --test tests/hubspot-tasks.integration.test.ts tests/hubspot-email-correction.integration.test.ts tests/intake.integration.test.ts
+      - name: Confirm exact source remains unchanged
+        run: git diff --exit-code

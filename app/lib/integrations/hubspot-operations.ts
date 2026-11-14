@@ -1,8 +1,11 @@
+import { openArchiveReviewCount } from "./hubspot-archive-review.ts";
 /** Read manager actions before evaluating alerts or pushing pending P5 changes. */
 import { query, transaction } from "../db.ts";
 import { loadSettings } from "../leads/settings.ts";
 import { STAGE_BY_ID } from "./hubspot-map.ts";
 import { requestHubSpotTaskApi } from "./hubspot-tasks.ts";
+
+import { HubSpotDiagnosticError, countHubSpotFailure, hubSpotFailureSummary, type HubSpotFailureCode } from "./hubspot-diagnostics.ts";
 
 const PROPERTIES = [
   "dealstage", "hubspot_owner_id", "p5_first_attempt_at", "p5_first_two_way_at",
@@ -12,7 +15,7 @@ const PROPERTIES = [
 function date(value: string | null | undefined): Date | null {
   if (!value) return null;
   const d = new Date(/^\d+$/.test(value) ? Number(value) : value);
-  if (!Number.isFinite(d.getTime())) throw new Error("HubSpot returned an invalid action date.");
+  if (!Number.isFinite(d.getTime())) throw new HubSpotDiagnosticError("invalid_action_date");
   return d;
 }
 
@@ -27,6 +30,7 @@ export async function pullHubSpotLeadActions(now = new Date(), limit = 25): Prom
   );
   let read = 0;
   let failed = 0;
+  const failures = new Map<HubSpotFailureCode, number>();
   for (const row of rows) {
     try {
       // Advance the read cursor even for failures, so one inaccessible record
@@ -36,7 +40,7 @@ export async function pullHubSpotLeadActions(now = new Date(), limit = 25): Prom
         `/crm/v3/objects/deals/${encodeURIComponent(row.hubspot_deal_id)}?properties=${PROPERTIES.join(",")}`,
       );
       const stage = STAGE_BY_ID[p.dealstage ?? ""];
-      if (!stage) throw new Error("HubSpot deal stage is not mapped; no local operational data changed.");
+      if (!stage) throw new HubSpotDiagnosticError("unmapped_stage");
       // Only requested properties actually returned by HubSpot are applied.
       // An omitted/unavailable property must never erase a local value.
       const patch: Record<string, unknown> = { stage };
@@ -50,7 +54,7 @@ export async function pullHubSpotLeadActions(now = new Date(), limit = 25): Prom
         patch[local] = remote.endsWith("_at") ? date(p[remote]) : p[remote]?.trim() || null;
         if (["first_attempt_at", "first_two_way_at"].includes(local) &&
             patch[local] instanceof Date && (patch[local] as Date).getTime() > now.getTime()) {
-          throw new Error("HubSpot contact activity is dated in the future; no local action changed.");
+          throw new HubSpotDiagnosticError("future_action_date");
         }
       }
       if (Object.hasOwn(p, "hubspot_owner_id")) {
@@ -83,18 +87,20 @@ export async function pullHubSpotLeadActions(now = new Date(), limit = 25): Prom
         );
       });
       read++;
-    } catch {
+    } catch (error) {
       failed++;
+      countHubSpotFailure(failures, error);
     }
   }
+  const archiveReviews = await openArchiveReviewCount();
   await query(
     `INSERT INTO integration_health (name,state,last_attempt_at,last_success_at,last_error,records_processed)
      VALUES ('hubspot_actions',$1,$2,$3,$4,$5)
      ON CONFLICT (name) DO UPDATE SET state=EXCLUDED.state,last_attempt_at=EXCLUDED.last_attempt_at,
        last_success_at=COALESCE(EXCLUDED.last_success_at,integration_health.last_success_at),
        last_error=EXCLUDED.last_error,records_processed=EXCLUDED.records_processed,updated_at=now()`,
-    [failed ? "failed" : "connected", now, failed ? null : now,
-      failed ? `${failed} HubSpot action read(s) failed; check API access, dates and stage mapping.` : null, read],
+    [failed || archiveReviews !== 0 ? "failed" : "connected", now, failed || archiveReviews !== 0 ? null : now,
+      failed ? `${failed} HubSpot action read(s) failed; ${hubSpotFailureSummary(failures)}.` : archiveReviews === null ? "Archive review unavailable: apply migration 030; coverage unverified." : archiveReviews ? `${archiveReviews} archived HubSpot reference(s) need review. No automatic restoration or replacement.` : null, read],
   );
   return { read, failed };
 }
