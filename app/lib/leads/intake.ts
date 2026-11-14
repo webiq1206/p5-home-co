@@ -32,6 +32,8 @@ import { detailsBlock, detailsFingerprint, detailLines, hasAnyDetail, isUnsurePr
 import { submittedFieldsFingerprint } from "./submittedFields.ts";
 import { isMetaLead } from "./meta-contact.ts";
 
+class IntakeIdentityReviewError extends Error {}
+
 export type IntakeResult =
   | { status: "created"; dealId: number; contactId: number; ownerUserId: number | null; slaDeadline: Date }
   | { status: "duplicate"; dealId: number; contactId: number; reason: string }
@@ -253,10 +255,49 @@ export async function ingestLead(
 
   try {
     return await transaction(async (client) => {
-      const contactId = await upsertContact(client, lead, identityKey);
-
       const brandRef = lead.brandExternalId ? { brand: lead.brand, externalId: lead.brandExternalId } : null;
-      const existing = await findExistingDeal(client, lead.externalLeadId, dedupKey, brandRef);
+      // Resolve immutable event identity before touching contact data. Replays may
+      // carry the rejected address that an administrator has since corrected.
+      let existing = await findExistingDeal(client, lead.externalLeadId, dedupKey, brandRef);
+      let contactId: number;
+      if (existing) {
+        const { rows } = await client.query<{ contact_id: string; identity_key:string; corrected:boolean }>(
+          `SELECT c.id AS contact_id,c.identity_key,EXISTS (
+            SELECT 1 FROM audit_log a WHERE a.record_type='contact' AND a.record_id=c.id::text
+              AND a.action='rejected_email_corrected') AS corrected
+           FROM deal d JOIN contact c ON c.id=d.contact_id WHERE d.id=$1 FOR UPDATE OF c`, [existing.id]);
+        contactId = Number(rows[0].contact_id);
+        // Keep ordinary same-person refresh behavior. A corrected or mismatched
+        // identity is never overwritten, replaced or relinked by a replay.
+        if (!rows[0].corrected && rows[0].identity_key === identityKey) {
+          const refreshedId = await upsertContact(client, lead, identityKey);
+          if (refreshedId !== contactId) throw new IntakeIdentityReviewError('Contact identity changed during intake. Review the existing lead before resubmitting.');
+        }
+      } else {
+        contactId = await upsertContact(client, lead, identityKey);
+        existing = await findExistingDeal(client, lead.externalLeadId, dedupKey, brandRef);
+        if (existing) {
+          const { rows } = await client.query<{ contact_id:string }>('SELECT contact_id FROM deal WHERE id=$1',[existing.id]);
+          if (Number(rows[0].contact_id) !== contactId) throw new IntakeIdentityReviewError('A matching request changed during intake. Reload and review the existing lead before resubmitting.');
+        }
+        // Only corrected contacts need this fallback. Preserve historical keys,
+        // and match the exact same opportunity using the normal key function.
+        if (!existing && !estimator) {
+          const { rows } = await client.query<{ id: string; brand: Brand; project_type: string | null; property_address: string | null }>(
+            `SELECT d.id,d.brand,d.project_type,d.property_address FROM deal d
+             WHERE d.contact_id=$1 AND d.brand=$2 AND d.stage NOT IN ('Closed Won','Closed Lost')
+               AND d.original_form IS DISTINCT FROM 'p5-estimator'
+               AND d.original_form IS DISTINCT FROM $3
+               AND COALESCE(d.dedup_key,'') NOT LIKE 'p5-estimator:%'
+               AND EXISTS (SELECT 1 FROM audit_log a WHERE a.record_type='contact'
+                 AND a.record_id=$1::text AND a.action='rejected_email_corrected')
+             ORDER BY d.id FOR UPDATE`, [contactId,lead.brand,SYNTHETIC_ESTIMATOR_FORM]);
+          const matches = rows.filter(d => dealIdentityKey({email:lead.email,phone:lead.phone,brand:d.brand,projectType:d.project_type,propertyAddress:d.property_address}) === dedupKey);
+          if (matches.length === 1) existing = {id:Number(matches[0].id),reason:'An open deal already exists for this corrected contact and project.'};
+          // Ambiguous matches require human review, not a third opportunity.
+          if (matches.length > 1) throw new IntakeIdentityReviewError('Multiple open projects match this corrected contact. Review existing leads before resubmitting.');
+        }
+      }
       if (existing) {
         // A repeat request that attaches to an open deal keeps its own id, so
         // its Step 2 still finds this deal, and its files are kept, never lost.
@@ -398,6 +439,7 @@ export async function ingestLead(
       return { status: "created" as const, dealId, contactId, ownerUserId, slaDeadline };
     });
   } catch (error) {
+    if (error instanceof IntakeIdentityReviewError) return {status:'rejected',errors:[{field:'contact',message:error.message}]};
     // Two concurrent submissions of the same lead: the index rejected the
     // second. That is the correct outcome, reported as a duplicate.
     if (isUniqueViolation(error)) {

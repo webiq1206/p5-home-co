@@ -1,23 +1,31 @@
+import { archiveTarget, archiveReviewHeld, confirmArchiveReview, releaseRestoredArchive, openArchiveReviewCount } from "./hubspot-archive-review.ts";
 /** Durable HubSpot action tasks. Never retry an ambiguous task creation. */
-import { query, transaction } from "../db.ts";
+import { query, transaction, isMissingRelation } from "../db.ts";
 import { loadSettings } from "../leads/settings.ts";
 import { actionResolvesIncident, type RemoteDeal } from "../notifications/incidents.ts";
 import { ensureP5HubSpotPortal } from "./hubspot-portal.ts";
 
-class TaskApiError extends Error {
+import { HubSpotDiagnosticError, hubSpotRequestOperation, type HubSpotOperation, countHubSpotFailure, hubSpotFailureSummary, type HubSpotFailureCode } from "./hubspot-diagnostics.ts";
+
+class TaskApiError extends HubSpotDiagnosticError {
   status: number;
-  constructor(status: number) {
-    super(`HubSpot task request failed (HTTP ${status || "network/timeout"}).`);
+  constructor(status: number, operation: HubSpotOperation) {
+    super(status ? `${operation}:http_${status}` : `${operation}:network_or_timeout`);
     this.status = status;
   }
 }
 
 export async function requestHubSpotTaskApi<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const operation = hubSpotRequestOperation(path, init.method ?? "GET");
+  const target = archiveTarget(path, init.method ?? "GET");
+  if (target && await archiveReviewHeld(target)) {
+    throw new HubSpotDiagnosticError(`${operation}:archived_record_review_required`);
+  }
   // Never read or write any portal but P5's (hubspot-portal.ts).
   try {
     await ensureP5HubSpotPortal(process.env.HUBSPOT_TOKEN ?? "");
   } catch {
-    throw new TaskApiError(0);
+    throw new HubSpotDiagnosticError(`${operation}:portal_verification`);
   }
   let response: Response;
   try {
@@ -27,10 +35,52 @@ export async function requestHubSpotTaskApi<T>(path: string, init: RequestInit =
       signal: AbortSignal.timeout(15_000),
     });
   } catch {
-    throw new TaskApiError(0);
+    throw new TaskApiError(0, operation);
   }
-  if (!response.ok) throw new TaskApiError(response.status);
-  return await response.json() as T;
+  if (!response.ok) {
+    // A missing linked object may be deliberately archived. Only an exact-ID,
+    // read-only archived lookup can establish that; never infer a lifecycle
+    // outcome, clear references, restore it or create a replacement.
+    const archivedLookup = /(?:[?&])archived=true(?:&|$)/.test(path);
+    if (response.status === 404 && !archivedLookup &&
+        (operation === "task_read" || operation === "deal_read")) {
+      const archived = await requestHubSpotTaskApi<{ archived?: boolean }>(
+        `${path}${path.includes("?") ? "&" : "?"}archived=true`,
+      );
+      if (archived.archived === true && target) {
+        await confirmArchiveReview(target);
+        throw new HubSpotDiagnosticError(`${operation}:archived_record_review_required`);
+      }
+    }
+    throw new TaskApiError(response.status, operation);
+  }
+  let body: T;
+  try { body = await response.json() as T; }
+  catch { throw new HubSpotDiagnosticError(`${operation}:invalid_response`); }
+  if (target && body && typeof body === "object" && "archived" in body && body.archived === false) {
+    await releaseRestoredArchive(target);
+  }
+  return body;
+}
+
+/** Fair, bounded read-only recovery checks, even if the original lead left the active queue. */
+async function recheckArchivedReferences(): Promise<void> {
+  let due: { object_type: string; remote_id: string }[];
+  try {
+    due = await query(`SELECT object_type,remote_id FROM hubspot_archive_review
+      WHERE restored_at IS NULL AND next_check_at<=now() ORDER BY next_check_at,object_type,remote_id LIMIT 5`);
+  } catch (error) { if (isMissingRelation(error)) return; throw error; }
+  for (const row of due) {
+    try {
+      await requestHubSpotTaskApi(`/crm/v3/objects/${row.object_type}/${encodeURIComponent(row.remote_id)}?properties=hs_object_id`);
+    } catch {
+      // Unknown missing, denied or unavailable is not evidence of restoration.
+      // Retain the explicit review hold and bound further attempts.
+    } finally {
+      await query(`UPDATE hubspot_archive_review SET last_checked_at=now(),next_check_at=now()+interval '24 hours'
+        WHERE object_type=$1 AND remote_id=$2 AND restored_at IS NULL`, [row.object_type,row.remote_id]);
+    }
+  }
 }
 
 const request = requestHubSpotTaskApi;
@@ -79,7 +129,7 @@ async function findTask(subject: string): Promise<Task | null> {
       properties: ["hs_task_status"], limit: 2,
     }),
   });
-  if (found.total > 1) throw new Error("Multiple tasks share the incident key; manager review required.");
+  if (found.total > 1) throw new HubSpotDiagnosticError("duplicate_incident_tasks");
   return found.results[0] ?? null;
 }
 
@@ -93,6 +143,7 @@ export async function syncHubSpotAlertTasks(now = new Date(), limit = 25): Promi
   if (!settings.featureFlags.hubspotIntegrationEnabled || !process.env.HUBSPOT_TOKEN) {
     return { ...summary, skipped: 1 };
   }
+  await recheckArchivedReferences();
   const rows = await query<Incident>(
     `SELECT i.*, d.hubspot_deal_id, d.brand, d.name, c.hubspot_contact_id
      FROM lead_alert_incident i JOIN deal d ON d.id=i.deal_id
@@ -112,7 +163,7 @@ export async function syncHubSpotAlertTasks(now = new Date(), limit = 25): Promi
       `/crm/v4/associations/tasks/${to}/labels`,
     );
     const type = labels.results.find((r) => r.category === "HUBSPOT_DEFINED" && r.label === null);
-    if (!type) throw new Error(`HubSpot task-to-${to} association is unavailable.`);
+    if (!type) throw new HubSpotDiagnosticError("missing_association_type");
     associationTypes.set(to, type.typeId);
     return type.typeId;
   }
@@ -136,16 +187,22 @@ export async function syncHubSpotAlertTasks(now = new Date(), limit = 25): Promi
     const fallback = configured
       ? owners.find((o) => o.id === configured)
       : owners.find((o) => o.email?.toLowerCase() === mailbox);
-    if (!fallback) throw new Error("No active HubSpot manager owner configured for lead tasks.");
+    if (!fallback) throw new HubSpotDiagnosticError("missing_task_owner");
     return fallback.id;
   }
 
+  const failures = new Map<HubSpotFailureCode, number>();
   for (const row of rows) {
     summary.considered++;
     try {
       await query("UPDATE lead_alert_incident SET last_checked_at=$2 WHERE id=$1", [row.id, now]);
       if (!row.hubspot_deal_id || !row.hubspot_contact_id) {
-        throw new Error("Waiting for this lead's HubSpot contact and deal sync.");
+        throw new HubSpotDiagnosticError("waiting_for_lead_sync");
+      }
+      // A confirmed held deal cannot be acted on. Avoid task reads/searches
+      // until the independent read-only rechecker verifies restoration.
+      if (await archiveReviewHeld({ type: "deals", id: row.hubspot_deal_id })) {
+        throw new HubSpotDiagnosticError("deal_read:archived_record_review_required");
       }
       // The subject is immutable and stored before any create attempt. The
       // incident ID is a recovery key when a response is lost after creation.
@@ -181,7 +238,7 @@ export async function syncHubSpotAlertTasks(now = new Date(), limit = 25): Promi
         } else if (row.create_attempted_at) {
           // A lost create response must still be reconciled, even if the lead
           // was handled meanwhile. Never create a replacement to find it.
-          throw new Error("Task creation outcome is uncertain; awaiting recovery by incident key.");
+          throw new HubSpotDiagnosticError("uncertain_task_creation");
         }
         await query("UPDATE lead_alert_incident SET task_completed_at=now(),last_error=NULL WHERE id=$1", [row.id]);
         summary.completed++;
@@ -193,7 +250,7 @@ export async function syncHubSpotAlertTasks(now = new Date(), limit = 25): Promi
         continue;
       }
       if (row.create_attempted_at) {
-        throw new Error("Task creation outcome is uncertain; awaiting recovery by incident key.");
+        throw new HubSpotDiagnosticError("uncertain_task_creation");
       }
       const assignedTo = await ownerId(remote);
       const associations = [
@@ -221,7 +278,7 @@ export async function syncHubSpotAlertTasks(now = new Date(), limit = 25): Promi
             associations,
           }),
         });
-        if (!task.id) throw new Error("HubSpot did not return a task ID; creation outcome is uncertain.");
+        if (!task.id) throw new HubSpotDiagnosticError("uncertain_task_creation");
         await query("UPDATE lead_alert_incident SET hubspot_task_id=$2,last_error=NULL WHERE id=$1", [row.id, task.id]);
         summary.created++;
       } catch (error) {
@@ -234,17 +291,18 @@ export async function syncHubSpotAlertTasks(now = new Date(), limit = 25): Promi
       }
     } catch (error) {
       summary.failed++;
-      await query("UPDATE lead_alert_incident SET last_error=$2 WHERE id=$1", [row.id, (error as Error).message]);
+      await query("UPDATE lead_alert_incident SET last_error=$2 WHERE id=$1", [row.id, countHubSpotFailure(failures, error)]);
     }
   }
+  const archiveReviews = await openArchiveReviewCount();
   await query(
     `INSERT INTO integration_health (name,state,last_attempt_at,last_success_at,last_error,records_processed)
      VALUES ('hubspot_tasks',$1,$2,$3,$4,$5)
      ON CONFLICT (name) DO UPDATE SET state=EXCLUDED.state,last_attempt_at=EXCLUDED.last_attempt_at,
        last_success_at=COALESCE(EXCLUDED.last_success_at,integration_health.last_success_at),
        last_error=EXCLUDED.last_error,records_processed=EXCLUDED.records_processed,updated_at=now()`,
-    [summary.failed ? "failed" : "connected", now, summary.failed ? null : now,
-      summary.failed ? `${summary.failed} lead task(s) could not sync. Check the HubSpot connection. An uncertain task delivery needs review before another task can be created.` : null, summary.considered],
+    [summary.failed || archiveReviews !== 0 ? "failed" : "connected", now, summary.failed || archiveReviews !== 0 ? null : now,
+      summary.failed ? `${summary.failed} lead task(s) could not sync. ${hubSpotFailureSummary(failures)}. Review the listed categories before further task creation.` : archiveReviews === null ? "Archive review unavailable: apply migration 030; coverage unverified." : archiveReviews ? `${archiveReviews} archived HubSpot reference(s) need review. No automatic restoration or replacement.` : null, summary.considered],
   );
   return summary;
 }

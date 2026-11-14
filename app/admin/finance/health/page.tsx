@@ -11,6 +11,8 @@ import { checkDatabase } from "../../../lib/db.ts";
 import { isQboConfigured, isQboConnected } from "../../../lib/finance/qbo/oauth.ts";
 import { syncNow } from "../actions.ts";
 import { healthBoard } from "../queries.ts";
+import HubSpotArchiveReview from "./HubSpotArchiveReview.tsx";
+import HubSpotLeadReview from "./HubSpotLeadReview.tsx";
 import InboxDiagnostics from "./InboxDiagnostics.tsx";
 
 export const dynamic = "force-dynamic";
@@ -41,6 +43,9 @@ export default async function HealthPage() {
       </p>
 
       {user?.role === "administrator" && <InboxDiagnostics />}
+
+      <HubSpotArchiveReview />
+      <HubSpotLeadReview canCorrect={user?.role === "administrator"} />
 
       <section className="fin-section">
         <h2>QuickBooks connection</h2>
