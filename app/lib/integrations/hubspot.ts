@@ -1,3 +1,4 @@
+import { HubSpotLeadReviewError, providerRejectedEmail, holdLeadReview, heldLeadReview, recheckLeadReviews, openLeadReviewCount } from "./hubspot-lead-review.ts";
 /**
  * HubSpot CRM sync.
  *
@@ -116,6 +117,11 @@ async function call<T>(path: string, init: RequestInit): Promise<T> {
 
     const body = await res.text();
     lastError = `HTTP ${res.status}: ${body.slice(0, 300)}`;
+    if (res.status === 400 && /^\/crm\/v3\/objects\/contacts(?:\/[^/]+)?$/.test(path) && ["POST", "PATCH"].includes(init.method ?? "GET")) {
+      let validation: unknown;
+      try { validation = JSON.parse(body); } catch { /* Not a verified validation response. */ }
+      if (providerRejectedEmail(validation)) throw new HubSpotLeadReviewError("invalid_email");
+    }
 
     const retryable = res.status === 429 || res.status >= 500;
     if (!retryable || attempt === MAX_ATTEMPTS) {
@@ -227,7 +233,15 @@ async function upsertContact(
   };
 
   if (knownId) {
-    const owner = ownerId ? await contactOwner(knownId).catch(() => "unknown") : null;
+    let owner: string | null = null;
+    try { owner = await contactOwner(knownId); }
+    catch (error) {
+      if (error instanceof HubSpotError && error.httpStatus === 404) {
+        const archived = await call<{ archived?: boolean }>(`/crm/v3/objects/contacts/${encodeURIComponent(knownId)}?archived=true`, { method: "GET" });
+        if (archived.archived === true) throw new HubSpotLeadReviewError("archived_contact", knownId);
+      }
+      throw error;
+    }
     return update({ id: knownId, ownerId: owner });
   }
 
@@ -528,6 +542,7 @@ export async function syncDealToHubSpot(dealId: number): Promise<SyncOutcome> {
   if (!rows.length) return { status: "failed", error: `Deal ${dealId} not found.` };
   const row = rows[0];
   if(row.original_form==="p5-estimator-synthetic-qa")return {status:"skipped",reason:"Synthetic estimator acceptance has downstream delivery suppressed."};
+  if (await heldLeadReview(dealId, row.lead_source === "Facebook Lead Ad" ? normalizeEmail(row.email) : row.email)) return { status: "skipped", reason: "HubSpot delivery requires review; original lead and references preserved." };
   // The inline sync after intake and the watchdog can reach the same deal at
   // once. A short lease lets exactly one of them push it; the other skips and
   // the deal stays pending for the next pass. Released when this pass ends.
@@ -674,7 +689,8 @@ async function syncLeasedDeal(dealId: number, row: DealRow): Promise<SyncOutcome
     return { status: "synced", contactId, dealId: hubspotDealId };
   } catch (error) {
     const message = (error as Error).message;
-    await recordHubspotFailure(dealId);
+    if (error instanceof HubSpotLeadReviewError) await holdLeadReview(dealId, error, row.lead_source === "Facebook Lead Ad" ? normalizeEmail(row.email) : row.email);
+    else await recordHubspotFailure(dealId);
     await query(
       `UPDATE deal SET integration_sync_status = 'failed',
               last_integration_error = $2, updated_at = now()
@@ -710,10 +726,12 @@ export async function syncPendingDeals(limit = 25): Promise<{
     return { attempted: 0, synced: 0, failed: 0, skipped: 1 };
   }
 
+  await recheckLeadReviews(id => call<{ archived?: boolean }>(`/crm/v3/objects/contacts/${encodeURIComponent(id)}?properties=hs_object_id`, { method: "GET" }));
   const rows = await query<{ id: string }>(
     `SELECT id FROM deal
       WHERE integration_sync_status IN ('pending','failed')
         AND original_form IS DISTINCT FROM 'p5-estimator-synthetic-qa'
+        AND NOT EXISTS (SELECT 1 FROM hubspot_lead_review r WHERE r.deal_id=deal.id AND r.released_at IS NULL)
       ORDER BY received_at ASC
       LIMIT $1`,
     [limit],
@@ -721,13 +739,29 @@ export async function syncPendingDeals(limit = 25): Promise<{
 
   let synced = 0;
   let failed = 0;
+  let skipped = 0;
   for (const row of rows) {
     const result = await syncDealToHubSpot(Number(row.id));
     if (result.status === "synced") synced += 1;
     else if (result.status === "failed") failed += 1;
+    else skipped += 1;
   }
 
-  if (rows.length && !failed) {
+  const reviews = await openLeadReviewCount();
+  const [remaining] = await query<{count:string}>(`SELECT count(*)::text AS count FROM deal
+    WHERE integration_sync_status IN ('pending','failed')
+      AND original_form IS DISTINCT FROM 'p5-estimator-synthetic-qa'
+      AND NOT EXISTS (SELECT 1 FROM hubspot_lead_review r WHERE r.deal_id=deal.id AND r.released_at IS NULL)`);
+  const pendingRemaining=Number(remaining.count);
+  if (reviews) {
+    await query(`INSERT INTO integration_health(name,state,last_attempt_at,last_error,records_processed)
+      VALUES('hubspot','failed',now(),$1,$2) ON CONFLICT(name) DO UPDATE SET state='failed',last_attempt_at=now(),last_error=EXCLUDED.last_error,records_processed=EXCLUDED.records_processed`,
+      [`${reviews} lead delivery record(s) require review. Correct rejected email or verify archived contact restoration; original records preserved. ${failed} additional sync failure(s); ${pendingRemaining} other delivery record(s) remain pending or failed.`,synced]);
+  } else if (pendingRemaining && !failed && !skipped) {
+    await query(`INSERT INTO integration_health(name,state,last_attempt_at,last_error,records_processed)
+      VALUES('hubspot','failed',now(),$1,$2) ON CONFLICT(name) DO UPDATE SET state='failed',last_attempt_at=now(),last_error=EXCLUDED.last_error,records_processed=EXCLUDED.records_processed`,
+      [`${pendingRemaining} delivery record(s) remain pending or failed outside the completed batch.`,synced]);
+  } else if (rows.length && !failed && !skipped && !pendingRemaining) {
     await query(
       `INSERT INTO integration_health (name, state, last_success_at, last_attempt_at, records_processed)
        VALUES ('hubspot','connected',now(),now(),$1)
@@ -738,7 +772,7 @@ export async function syncPendingDeals(limit = 25): Promise<{
     ).catch(() => undefined);
   }
 
-  return { attempted: rows.length, synced, failed, skipped: 0 };
+  return { attempted: rows.length, synced, failed, skipped };
 }
 
 // ---------------------------------------------------------------------------
