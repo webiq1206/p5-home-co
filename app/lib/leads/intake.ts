@@ -470,6 +470,8 @@ export type MergeResult =
       phone: string | null;
       email: string | null;
       projectType: string | null;
+      /** callback, quote, or whatever the deal already stored. */
+      requestKind: string | null;
       lines: string[];
     }
   | { status: "duplicate"; dealId: number }
@@ -649,6 +651,7 @@ export async function mergeLeadDetails(
       phone: row.phone,
       email,
       projectType: next.projectType,
+      requestKind,
       lines: detailLines(details),
     };
   });

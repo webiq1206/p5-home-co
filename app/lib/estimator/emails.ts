@@ -14,6 +14,7 @@
  *                       disagree with it.
  */
 
+import { estimatorConfirmation } from "../leads/scheduleEmail.ts";
 import type { Message } from "../notifications/render.ts";
 import { brandConfig } from "./brands.ts";
 import type { GuidedRow } from "./store.ts";
@@ -173,33 +174,12 @@ ${r.lines.map((l) => `<tr><td ${td}>${esc(l.code ?? "")}</td><td ${td}>${esc(l.d
 export function customerConfirmation(row: GuidedRow, viewUrl: string): Message {
   const brand = brandConfig(row.brand as BrandId);
   const view = row.customer_view;
-  const brandName = brand?.name ?? "P5 Home Co";
-  const project = view.projectName.toLowerCase();
-  const subject = `Your ${project} estimate from ${brandName}`;
-  const next = row.price_withheld
-    ? "Our team is looking over your project so the number we send is one we can stand behind. You will hear from us shortly."
-    : view.estimateClass === "budgetary"
-      ? "A project lead will reach out to talk through your goals, your site and your timeline. That conversation is how a budget becomes a real plan."
-      : "We are confirming the details, and your official estimate will follow by email. You will be able to review and approve it there.";
-  const text = [
-    `Hi ${row.first_name},`,
-    "",
-    `Thanks for thinking of ${brandName} for your ${project}. Your estimate is saved, and you can pull it up any time:`,
+  return estimatorConfirmation({
+    firstName: row.first_name,
+    brandName: brand?.name ?? "P5 Home Co",
+    project: view.projectName,
     viewUrl,
-    "",
-    next,
-    "",
-    `If you have questions, just reply to this email or call ${brand?.phoneDisplay ?? "(208) 477-1169"}.`,
-    "",
-    `The ${brandName} team`,
-  ].join("\n");
-  const html = `<div style="font-family:Arial,Helvetica,sans-serif;color:#383837;max-width:560px;font-size:15px;line-height:1.6">
-<p>Hi ${esc(row.first_name)},</p>
-<p>Thanks for thinking of ${esc(brandName)} for your ${esc(project)}. Your estimate is saved, and you can pull it up any time.</p>
-<p><a href="${esc(viewUrl)}" style="display:inline-block;background:#383837;color:#fbfaf6;text-decoration:none;padding:12px 20px;border-bottom:3px solid ${esc(brand?.accent ?? "#ceb391")}">View your estimate</a></p>
-<p>${esc(next)}</p>
-<p>If you have questions, just reply to this email or call ${esc(brand?.phoneDisplay ?? "(208) 477-1169")}.</p>
-<p>The ${esc(brandName)} team</p>
-</div>`;
-  return { subject, text, html };
+    phone: brand?.phoneDisplay,
+    accent: brand?.accent,
+  });
 }

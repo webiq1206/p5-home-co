@@ -32,6 +32,8 @@ import {
 import { loadSettings } from "../../../lib/leads/settings.ts";
 import { BRANDS, LEAD_SOURCES, type Brand, type LeadSource } from "../../../lib/leads/types.ts";
 import { notifyLeadCreated, notifyLeadDetailsAdded, type LeadCreatedNotifyInput } from "../../../lib/notifications/lead-created.ts";
+import { sendRequestConfirmation } from "../../../lib/leads/sendLeadConfirmation.ts";
+import { scheduleIntentFor } from "../../../lib/leads/scheduleEmail.ts";
 import { allowLeadIntake, type IntakeLimitVerdict } from "./abuse.ts";
 import { submittedFieldsFromBody } from "../../../lib/leads/submittedFields.ts";
 import { inlineSyncTimeoutMs, loadLeadAlert, startSync, within, type HubSpotSync } from "../../../lib/leads/leadPipeline.ts";
@@ -390,6 +392,21 @@ export async function handleIntake(request: Request, after: AfterResponse, deps:
       after(async () => {
         await notifyLeadCreated(notice);
       });
+      // Quote landing is the P5 form that posts here and does not already
+      // email the lead. The guided estimator and the brand sites send their
+      // own customer mail, so they are not confirmed a second time.
+      const quoteEmail = str(body.email);
+      if (isQuoteForm && quoteEmail) {
+        const confirmation = {
+          email: quoteEmail,
+          firstName,
+          brandName: brand,
+          intent: scheduleIntentFor({ requestKind: extras.requestKind, form: "Quote Landing Page" }),
+        };
+        after(async () => {
+          await sendRequestConfirmation(confirmation);
+        });
+      }
     }
 
     // A duplicate is a success from the visitor's point of view: their enquiry

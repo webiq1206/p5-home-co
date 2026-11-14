@@ -28,6 +28,7 @@ import { issueRequestToken, REQUEST_TOKEN_TTL_SECONDS } from "../../../lib/leads
 import { CONTACT_PREFERENCE_LABELS } from "../../../lib/leads/intakeContract.ts";
 import { collectAttribution, sourceFromAttribution } from "../../../lib/leads/attribution.ts";
 import { notifyLeadCreated, type LeadCreatedNotifyInput } from "../../../lib/notifications/lead-created.ts";
+import { sendRequestConfirmation } from "../../../lib/leads/sendLeadConfirmation.ts";
 import { syncDealToHubSpot } from "../../../lib/integrations/hubspot.ts";
 import { inlineSyncTimeoutMs, loadLeadAlert, startSync, within } from "../../../lib/leads/leadPipeline.ts";
 import { submittedFieldsFromBody } from "../../../lib/leads/submittedFields.ts";
@@ -222,6 +223,19 @@ export async function POST(request: Request): Promise<NextResponse> {
       after(async () => {
         await notifyLeadCreated(notice);
       });
+      // The lead hears back only when they left an address. A callback is a
+      // phone consult. A project request is a home walkthrough.
+      if (submitted.email) {
+        const confirmation = {
+          email: submitted.email,
+          firstName,
+          brandName: brand,
+          intent: submitted.kind === "callback" ? ("consult" as const) : ("walkthrough" as const),
+        };
+        after(async () => {
+          await sendRequestConfirmation(confirmation);
+        });
+      }
     }
     return NextResponse.json(
       {
