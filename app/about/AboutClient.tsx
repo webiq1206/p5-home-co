@@ -173,8 +173,8 @@ export default function AboutClient({
         <section className="about-section content-shell" aria-labelledby="the-company">
           <h2 id="the-company">The company</h2>
           <ul>
-            <li>P5 Home Co LLC, Meridian, Idaho.{" "}<a href={doplLookup} target="_blank" rel="noopener noreferrer">Idaho Registered Contractor #{registration}</a>. Insured; certificate on request.</li>
-            <li>Boise Construction Co, Boise Remodeling Co, Boise Cabinet Co and Boise Handyman Co are DBAs of P5 Home Co LLC; Boise ADU Co projects currently run through Boise Construction Co.</li>
+            <li>P5 Home Co, Meridian, Idaho.{" "}<a href={doplLookup} target="_blank" rel="noopener noreferrer">Idaho Registered Contractor #{registration}</a>. Insured; certificate on request.</li>
+            <li>Boise Construction Co, Boise Remodeling Co, Boise Cabinet Co and Boise Handyman Co are DBAs of P5 Home Co; Boise ADU Co projects currently run through Boise Construction Co.</li>
           </ul>
         </section>
 

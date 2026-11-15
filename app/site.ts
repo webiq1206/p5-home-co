@@ -84,7 +84,7 @@ export const faqs = [
   },
   {
     q: "Who is my contract with?",
-    a: "Your contract is with P5 Home Co LLC, Idaho Registered Contractor #8381215. Boise Construction Co, Boise Remodeling Co, Boise Cabinet Co and Boise Handyman Co are DBAs of P5 Home Co LLC.",
+    a: "Your contract is with P5 Home Co LLC, Idaho Registered Contractor #8381215. Boise Construction Co, Boise Remodeling Co, Boise Cabinet Co and Boise Handyman Co are DBAs of P5 Home Co.",
   },
   {
     q: "How is a project that needs two companies coordinated?",

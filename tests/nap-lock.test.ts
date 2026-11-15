@@ -23,12 +23,10 @@ const SCHEMA_PHONE = "+1-208-477-1169";
 const SCHEMA_EMAIL = "hello@p5homeco.com";
 const CITATION_ADDRESS = "4031 W Wapoot St, Meridian, ID 83646";
 const VISIBLE_NAME = "P5 Home Co";
-const CONTRACT_ANSWER = "Your contract is with P5 Home Co LLC, Idaho Registered Contractor #8381215. Boise Construction Co, Boise Remodeling Co, Boise Cabinet Co and Boise Handyman Co are DBAs of P5 Home Co LLC.";
+const CONTRACT_ANSWER = "Your contract is with P5 Home Co LLC, Idaho Registered Contractor #8381215. Boise Construction Co, Boise Remodeling Co, Boise Cabinet Co and Boise Handyman Co are DBAs of P5 Home Co.";
 const REGISTRATION_LLC = [
-  CONTRACT_ANSWER,
+  "P5 Home Co LLC, Idaho Registered Contractor #8381215",
   "P5 Home Co LLC · Idaho Registered Contractor",
-  "P5 Home Co LLC, Meridian, Idaho.",
-  "are DBAs of P5 Home Co LLC",
 ];
 
 const PHONE_FORMS = new Set([
@@ -122,10 +120,14 @@ test("legal, terms and contractor registration lines keep the legal name", () =>
   }
   const about = readFileSync("app/about/AboutClient.tsx", "utf8");
   assert.equal(about.includes("P5 Home Co LLC · Idaho Registered Contractor"), true);
-  assert.equal(about.includes("P5 Home Co LLC, Meridian, Idaho."), true);
-  assert.equal(about.includes("are DBAs of P5 Home Co LLC"), true);
+  assert.equal(about.includes("P5 Home Co, Meridian, Idaho."), true);
+  assert.equal(about.includes("P5 Home Co LLC, Meridian"), false);
+  assert.equal(about.includes("are DBAs of P5 Home Co;"), true);
+  assert.equal(about.includes("are DBAs of P5 Home Co LLC"), false);
   assert.equal(readFileSync("app/site.ts", "utf8").includes(CONTRACT_ANSWER), true);
   assert.equal(readFileSync("public/llms-full.txt", "utf8").includes(CONTRACT_ANSWER), true);
+  assert.equal(readFileSync("app/site.ts", "utf8").includes("are DBAs of P5 Home Co LLC"), false);
+  assert.equal(readFileSync("public/llms-full.txt", "utf8").includes("are DBAs of P5 Home Co LLC"), false);
 });
 
 test("visible pages show the phone as (208) 477-1169 and the name as P5 Home Co", () => {
