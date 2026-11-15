@@ -1,7 +1,7 @@
 {
   "source": "p5-home-co",
-  "commit": "733d8241b9dcf96fcb2f16d48eab1a56b4c78fb4",
-  "generatedAt": "2026-11-15T13:44:43.800Z",
+  "commit": "5bf60e1ed35d174b99fce50baa959203b34d3ec3",
+  "generatedAt": "2026-11-15T14:16:13.467Z",
   "note": "Shared estimator engine published from p5-home-co. Edit shared files there and run scripts/p5-sync.mjs; hash checks remain mandatory in every brand.",
   "files": {
     "app/admin/p5-estimators/page.tsx": "489c406a30e5aba809f6c603738d999c2e412f9b67968281a8ea16e748587b62",
@@ -337,7 +337,7 @@
     "scripts/test-p5-pricing-spend.mts": "b7e1b5a99c4b63edaa7f20c0ac59ce03abc6de231b508bd86f9a53dee86a340f",
     "scripts/test-p5-pricing-work.mts": "9e9ea39ac8d28125edc781f607cb4b2766dbfc14c9a02216fe9583c72eaa2698",
     "scripts/test-p5-provider-budget.mts": "a2d6f3a468171fd0f97a12c05aeda64d05d3a60b72313788e09cfeca79fc29ec",
-    "scripts/test-p5-qa-deterministic.mts": "c546117dd4b39e5780a9094cb486cf431da6150efd513f02c2338c883ff53df7",
+    "scripts/test-p5-qa-deterministic.mts": "8235b109e42d5cb0e5dc13dfbed146b96db911575793ad8752fefdd1e9fbc2c7",
     "scripts/test-p5-receipt.mts": "e2e6b3df95282a88d8b87efd98e788cb0bad6f93d37ec9da0475e23dd477c1bd",
     "scripts/test-p5-recovery-epoch.mjs": "16a01e3e5fa8233db298e2f937bd8bcd592c596658e4e460764e015e6a592e5b",
     "scripts/test-p5-repair-persistence.mts": "cb467b2a2b7162a95aea40af8207e9c0f21216c48260399f68083626bac4b21e",
@@ -347,7 +347,7 @@
     "scripts/test-p5-unit-rate-store.mts": "f9d95d84ec8a785ba1ceb1ede37c1f15311c3fd1c2f460f7c1c0182b6e0b0003",
     "scripts/test-p5-upload-adversarial.mts": "11ffdf2bfd3d606454e6fb3a9c5d337d063435dc7cc4ab44153c4a3d25e9662f",
     "scripts/test-p5-upload.mts": "04c7baca5d2d07bb37e1374d59115f9a1161380e3e585136e868d9e0633d76de",
-    "scripts/test-p5-workflow.mts": "319802183fb499db8f69b245159f2af32c0c86735e922161807d0e34ff82797a",
+    "scripts/test-p5-workflow.mts": "13e2881ffae65012faadd684cd563394c62a7704f2818e03c838c9db4a247cad",
     "tests/fixtures/crmReceiverValidation571c6f6d.ts": "75bb102dcb5d85d929a85014e7574ac22669f34944ac0ff9a200b347bd23bef7",
     "tests/fixtures/p5-final-minor-work-copy.json": "ebb7e43ae2fe687db3d05a7b1b043ad409838cdfdbe3cde18cc42558f7a2e8cc",
     "tests/fixtures/p5-main11-saved-failure.json": "8689566ab270bb3066c581ec8458d1260483a4a8c2cf07c977892ee88da267fb",

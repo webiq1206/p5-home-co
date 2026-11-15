@@ -309,8 +309,10 @@ export async function deliverEstimate(input: DeliverInput): Promise<Delivery> {
   row = (await guidedById(input.id))!;
   const transport = activeTransport();
   const logSend = (stepName: string, to: string, ok: boolean, started: number, msgId: string) => {
+    const current = row;
+    if (!current) return;
     const hashed = createHash("sha256").update(to.trim().toLowerCase()).digest("hex").slice(0, 12);
-    console.log(`[email] step=${stepName} row=${row.id} brand=${row.brand} to=${hashed} ok=${ok} ms=${Date.now() - started} msgId=${msgId}`);
+    console.log(`[email] step=${stepName} row=${current.id} brand=${current.brand} to=${hashed} ok=${ok} ms=${Date.now() - started} msgId=${msgId}`);
   };
   const stamp = (message: Message, key: string): Message => ({
     ...message,
@@ -318,7 +320,7 @@ export async function deliverEstimate(input: DeliverInput): Promise<Delivery> {
     messageId: `<${key}@p5homeco.com>`,
   });
   const freshSending = (key: "teamEmail" | "customerEmail") => {
-    const current = row.delivery?.[key];
+    const current = row?.delivery?.[key];
     if (current?.state !== "sending" || !current.at) return false;
     const at = Date.parse(current.at);
     return Number.isFinite(at) && Date.now() - at < 10 * 60 * 1000;
