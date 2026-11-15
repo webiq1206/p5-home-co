@@ -44,6 +44,14 @@
   align-self: flex-start;
 }
 
+/* The service-area label names every town. Let it wrap instead of overflowing. */
+.fam-footer[data-family-footer] .fam-footer-areas .fam-footer-row-label {
+  max-width: 100%;
+  height: auto;
+  white-space: normal;
+  line-height: 1.45;
+}
+
 /* Charcoal PR phone audit, reconciled with the current family role scale.
    Keep task typography and the observed header/bar budgets in their owners. */
 @media (max-width: 639px) {

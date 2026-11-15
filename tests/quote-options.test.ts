@@ -59,20 +59,17 @@ test("all five operating companies are reachable from the form", () => {
 
 // --- Service area -----------------------------------------------------------
 
-test("the city list covers the nine cities P5 takes work in", () => {
-  for (const city of [
+test("the city list covers the seven towns P5 publishes, in that order", () => {
+  assert.deepEqual([...QUOTE_CITIES], [
     "Boise",
     "Meridian",
-    "Eagle",
     "Nampa",
+    "Eagle",
     "Kuna",
-    "Star",
-    "Middleton",
     "Caldwell",
-    "Garden City",
-  ]) {
-    assert.ok((QUOTE_CITIES as readonly string[]).includes(city), `${city} is missing`);
-  }
+    "Star",
+    "Somewhere else in the Treasure Valley",
+  ]);
 });
 
 test("someone outside the named cities can still ask", () => {

@@ -11,6 +11,7 @@
  */
 import type { FamilyBrand } from '@/lib/family/types';
 import { BUSINESS_HOURS_LABEL } from '@/lib/businessHours';
+import { cityList } from '@/app/serviceArea';
 import {
   ADU_REQUEST_PATH,
   IDAHO_DOPL_LICENSE_SEARCH,
@@ -41,7 +42,7 @@ export const FAMILY_BRAND: FamilyBrand = {
   header: {
     // The homepage opens on the full-bleed landscape photograph; every other page opens on paper.
     darkOn: ['/'],
-    // Four navigation items and the CTA fit beside the lockup at 1024, and the bar retires there,
+    // Navigation and the CTA sit beside the lockup at 1024, and the bar retires there,
     // matching the 1023px limit the P5 bar has always used.
     desktopFrom: 1024,
     // The P5 header has always offered Call, Chat and Text beside the menu on phones.
@@ -52,6 +53,7 @@ export const FAMILY_BRAND: FamilyBrand = {
     { label: 'The P5 standard', href: '/#p5-standard' },
     { label: 'About', href: '/about' },
     { label: 'Service area', href: '/#service-area' },
+    { label: 'Contact', href: '/contact' },
   ],
   // One label, one destination: the estimator (owner decision, 13 November 2026). The label is
   // the short form so it fits beside the navigation at 1024; in-page buttons say
@@ -77,7 +79,7 @@ export const FAMILY_BRAND: FamilyBrand = {
   // BUSINESS_VCARD_PATH in lib/vcard.ts (that module pulls in more than the chrome needs).
   saveContactHref: '/contact.vcf',
   email: PUBLIC_EMAIL,
-  tagline: 'The parent company behind Boise Construction Co, Boise Remodeling Co, Boise Cabinet Co and Boise Handyman Co.',
+  tagline: 'The parent company behind Boise Construction Co, Boise Remodeling Co, Boise Cabinet Co, Boise Handyman Co and Boise ADU Co.',
   parentLine: 'Boise and the Treasure Valley, Idaho',
   footer: {
     groups: [
@@ -85,6 +87,7 @@ export const FAMILY_BRAND: FamilyBrand = {
         title: 'Explore',
         links: [
           { label: 'About P5 Home Co', href: '/about' },
+          { label: 'Contact', href: '/contact' },
           { label: 'The P5 standard', href: '/#p5-standard' },
           { label: 'Service area', href: '/#service-area' },
           { label: 'Common questions', href: '/#faq' },
@@ -100,7 +103,7 @@ export const FAMILY_BRAND: FamilyBrand = {
         ],
       },
     ],
-    areas: { label: 'Service area: Ada and Canyon counties', href: '/#service-area', links: [] },
+    areas: { label: `Service area: ${cityList()}`, href: '/#service-area', links: [] },
     legal: [
       { label: 'Site map', href: '/sitemap' },
       { label: 'Privacy policy', href: '/legal/privacy' },
@@ -116,7 +119,7 @@ export const FAMILY_BRAND: FamilyBrand = {
     },
     copyrightName: 'P5 Home Co',
   },
-  // Boise ADU Co is left out until its own site exists; its projects run through Boise Construction Co.
+  // Boise ADU Co links to the P5 ADU request. Never link the unlaunched ADU domain.
   family: {
     label: 'The P5 Home Co family',
     companies: [
@@ -125,6 +128,7 @@ export const FAMILY_BRAND: FamilyBrand = {
       { name: 'Boise Remodeling Co', href: 'https://boiseremodeling.co' },
       { name: 'Boise Handyman Co', href: 'https://boisehandyman.co' },
       { name: 'Boise Cabinet Co', href: 'https://boisecabinet.co' },
+      { name: 'Boise ADU Co', href: 'https://p5homeco.com/quote/adu' },
     ],
   },
   // Contact details and hours are rendered separately by the shared footer.

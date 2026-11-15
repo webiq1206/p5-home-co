@@ -11,26 +11,21 @@ const root = join(import.meta.dirname, "..");
 const llms = readFileSync(join(root, "public", "llms.txt"), "utf8");
 
 /**
- * Garden City was served but named in only some places, so the homepage
- * claimed eight cities while the quote pages claimed nine. These tests exist
- * so the lists can only ever be wrong together, never separately.
+ * The published town list is the Google Business Profile list, in that order.
+ * Middleton and Garden City pages stay where they already exist. They are not
+ * in this list. The lists can only be wrong together, never separately.
  */
 
-test("all nine cities are named, Garden City included", () => {
-  for (const city of [
+test("the seven service-area towns are named in profile order", () => {
+  assert.deepEqual([...citiesServed], [
     "Boise",
     "Meridian",
-    "Eagle",
     "Nampa",
+    "Eagle",
     "Kuna",
-    "Star",
-    "Middleton",
     "Caldwell",
-    "Garden City",
-  ]) {
-    assert.ok((citiesServed as readonly string[]).includes(city), `${city} is missing`);
-  }
-  assert.equal(citiesServed.length, 9);
+    "Star",
+  ]);
 });
 
 test("llms.txt names every city the site claims", () => {

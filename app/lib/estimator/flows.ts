@@ -718,7 +718,7 @@ export const FLOWS: ProjectFlow[] = [
  */
 export const TRADES: { id: string; label: string; hint: string; image: string }[] = [
   { id: "remodel", label: "Remodel", hint: "Kitchens, baths, basements, floors and paint", image: "cat-remodel" },
-  { id: "construction", label: "New construction", hint: "Homes, additions, garages and shops", image: "cat-construction" },
+  { id: "construction", label: "New construction", hint: "Homes, additions, garages and workspaces", image: "cat-construction" },
   { id: "adu", label: "ADU", hint: "A second home on your property", image: "cat-adu" },
   { id: "cabinetry", label: "Cabinetry", hint: "Kitchens, vanities and built-ins", image: "cat-cabinetry" },
   { id: "handyman", label: "Handyman", hint: "Repairs and small jobs", image: "cat-handyman" },

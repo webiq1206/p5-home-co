@@ -11,6 +11,7 @@
  * nobody has to know the org chart before they can ask for a price.
  */
 
+import { citiesServed } from "../serviceArea.ts";
 import { BRANDS, type Brand } from "../lib/leads/types.ts";
 import { inferLeadSource, type Attribution } from "./attribution.ts";
 import { QUOTE_SERVICES } from "./services.ts";
@@ -48,15 +49,7 @@ export const PROJECT_OPTIONS: readonly ProjectOption[] = [
  * just outside the list should still be able to ask rather than bounce.
  */
 export const QUOTE_CITIES = [
-  "Boise",
-  "Meridian",
-  "Eagle",
-  "Nampa",
-  "Kuna",
-  "Star",
-  "Middleton",
-  "Caldwell",
-  "Garden City",
+  ...citiesServed,
   "Somewhere else in the Treasure Valley",
 ] as const;
 

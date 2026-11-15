@@ -134,7 +134,7 @@ The existing weekday 8 a.m. America/Boise automation was expanded without creati
 
 ## October 1 directory and address follow-up
 
-the user authorizes 4031 W Wapoot St, Meridian, ID 83646 whenever a public street address is needed. Use this exact address for future relevant P5 listings. Preserve service-area treatment where supported and do not imply a staffed walk-in storefront. This supersedes earlier no-public-street instructions; it does not authorize duplicate child profiles.
+The public address is Meridian, ID 83646 only. Do not publish a street. Preserve service-area treatment where supported and do not imply a staffed walk-in storefront. This supersedes earlier instructions that named a street; it does not authorize duplicate child profiles.
 
 Boise Business Directory's free parent-listing submission returned CAPTCHA verification failed. No successful submission, listing or backlink is confirmed. Do not report the attempted form as submitted. EZlocal's free parent listing is prepared with P5's authorized contact details, General Contractor category and service-area address hiding, but is not submitted: explicit Terms of Use/Privacy Policy acceptance and CAPTCHA require action-time confirmation. Promotional SMS remains unchecked. No paid plan or trial was selected. Brownbook and ProMatcher remain unfinished.
 
