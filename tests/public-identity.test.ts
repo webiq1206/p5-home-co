@@ -34,6 +34,7 @@ const chromePages = [
   "app/quote/thanks/page.tsx",
   "app/sitemap/page.tsx",
   "app/not-found.tsx",
+  "app/contact/page.tsx",
 ];
 
 test("public contact copy keeps useful details without street or administrative labels", () => {

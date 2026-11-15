@@ -18,6 +18,9 @@ import {
 } from "./publicClaims.ts";
 import { ADU_D3_LINE } from "./publicIdentity.ts";
 import { readMetaPixelId } from "./lib/metaPixel.ts";
+import { citiesServed, cityList } from "./serviceArea.ts";
+
+export { citiesServed, cityList };
 
 export const siteUrl = "https://p5homeco.com";
 
@@ -67,19 +70,6 @@ export const companies = [
   },
 ] as const;
 
-// The nine cities P5 takes work in, confirmed by the owner 2026-09-05.
-export const citiesServed = [
-  "Boise",
-  "Meridian",
-  "Eagle",
-  "Nampa",
-  "Kuna",
-  "Star",
-  "Middleton",
-  "Caldwell",
-  "Garden City",
-] as const;
-
 // One source of truth for the FAQ. The section and the FAQPage schema both
 // read from here, so the structured data can never claim something the page
 // does not say. Every answer restates a fact already on the page.
@@ -110,7 +100,7 @@ export const faqs = [
   },
   {
     q: "Which areas do the P5 companies serve?",
-    a: "P5 companies serve homeowners across Ada and Canyon counties in Idaho's Treasure Valley, including Boise, Meridian, Eagle, Nampa, Kuna, Star, Middleton, Caldwell, and Garden City.",
+    a: `P5 companies serve homeowners across Ada and Canyon counties in Idaho's Treasure Valley, including ${cityList()}.`,
   },
   {
     q: "What happens before the work begins?",

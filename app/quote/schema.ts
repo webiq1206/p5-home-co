@@ -6,7 +6,7 @@
  * worth asserting has to live outside the component.
  */
 
-import { siteUrl } from "../site.ts";
+import { cityList, citiesServed, siteUrl } from "../site.ts";
 import { SERVICE_FAQ, type QuoteService } from "./services.ts";
 
 export interface Faq {
@@ -30,7 +30,7 @@ export const SHARED_FAQ: readonly Faq[] = [
   },
   {
     q: "Which areas do the P5 companies serve?",
-    a: "Homeowners across Ada and Canyon counties in Idaho's Treasure Valley, including Boise, Meridian, Eagle, Nampa, Kuna, Star, Middleton, Caldwell, and Garden City.",
+    a: `Homeowners across Ada and Canyon counties in Idaho's Treasure Valley, including ${cityList()}.`,
   },
 ] as const;
 
@@ -111,6 +111,7 @@ export function schemaFor(service: QuoteService | null): Record<string, unknown>
         areaServed: [
           { "@type": "AdministrativeArea", name: "Ada County, Idaho" },
           { "@type": "AdministrativeArea", name: "Canyon County, Idaho" },
+          ...citiesServed.map((name) => ({ "@type": "City", name })),
         ],
       },
       {

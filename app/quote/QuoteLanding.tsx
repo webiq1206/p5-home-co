@@ -16,6 +16,7 @@ import {
   FEATURED_BOISE_ADU,
 } from "../imageVariants.ts";
 import { ADU_D3_LINE } from "../publicIdentity";
+import { cityList } from "../serviceArea";
 
 /* eslint-disable @next/next/no-img-element */
 
@@ -227,8 +228,7 @@ export default function QuoteLanding({ service }: { service: QuoteService | null
 
           {/* The service-area line the old quote footer carried; the family footer is shared by every page. */}
           <p className="quote-shell quote-area">
-            Serving Boise, Meridian, Eagle, Nampa, Kuna, Star, Middleton, Caldwell, and Garden City across Ada and
-            Canyon counties.
+            Serving {cityList()} across Ada and Canyon counties.
           </p>
         </main>
       </div>

@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 
 import { schemaFor } from "../app/quote/schema.ts";
 import { QUOTE_SERVICES } from "../app/quote/services.ts";
-import { NICK_PERKINS_ID, SCHEMA_LEGAL_NAME, SCHEMA_TELEPHONE } from "../app/publicIdentity.ts";
+import { NICK_PERKINS_ID, P5_GBP_MAPS_URL, SCHEMA_LEGAL_NAME, SCHEMA_TELEPHONE } from "../app/publicIdentity.ts";
 import { homePageSchema, serializeJsonLd, siteSchema, siteTitle } from "../app/structuredData.ts";
 import { ESTIMATOR_BRAND } from "../lib/p5/brand.ts";
 
@@ -28,13 +28,13 @@ function records(value: unknown, found: Record<string, unknown>[] = []): Record<
 
 test("the root schema contains only site-wide entities", () => {
   const graph = siteSchema["@graph"];
-  assert.deepEqual(graph.flatMap(types), ["Organization", "HomeAndConstructionBusiness", "WebSite"]);
+  assert.deepEqual(graph.flatMap(types), ["Organization", "GeneralContractor", "WebSite"]);
   assert.ok(!serializeJsonLd(siteSchema).includes("FAQPage"));
 });
 
-test("public schema keeps the locality and service areas while street verification stays private", () => {
+test("public schema publishes the citation address, rounded geo and the seven service areas", () => {
   const organization = siteSchema["@graph"][0];
-  assert.ok(types(organization).includes("HomeAndConstructionBusiness"));
+  assert.ok(types(organization).includes("GeneralContractor"));
   const address = organization.address;
   const verificationAddress = "4031 W Wapoot St, Meridian, ID 83646";
   const operations = readFileSync("docs/growth/OPERATIONS.md", "utf8");
@@ -45,9 +45,16 @@ test("public schema keeps the locality and service areas while street verificati
   assert.equal(operations.includes(ESTIMATOR_BRAND.phone), true);
   assert.deepEqual(address, {
     "@type": "PostalAddress",
+    streetAddress: "4031 W Wapoot St",
     addressLocality: "Meridian",
     addressRegion: "ID",
+    postalCode: "83646",
     addressCountry: "US",
+  });
+  assert.deepEqual(organization.geo, {
+    "@type": "GeoCoordinates",
+    latitude: 43.652,
+    longitude: -116.444,
   });
   assert.equal(organization.legalName, SCHEMA_LEGAL_NAME);
   assert.equal(organization.telephone, SCHEMA_TELEPHONE);
@@ -74,25 +81,40 @@ test("public schema keeps the locality and service areas while street verificati
   assert.deepEqual(organization.sameAs, [
     "https://www.facebook.com/1228704823655951",
     "https://www.google.com/search?kgmid=/g/11ntl1t7dc",
+    P5_GBP_MAPS_URL,
   ]);
   assert.equal(siteTitle, "Boise Builders, Remodelers, Cabinets & Repairs | P5 Home Co");
   assert.ok(siteTitle.length <= 60);
 
   const addresses = records(siteSchema).filter((record) => record["@type"] === "PostalAddress");
   assert.equal(addresses.length, 1);
-  for (const city of ["Boise", "Eagle", "Nampa", "Garden City", "Meridian"]) {
+  assert.deepEqual(organization.areaServed.map((entry) => entry.name), [
+    "Ada County, Idaho",
+    "Canyon County, Idaho",
+    "Boise",
+    "Meridian",
+    "Nampa",
+    "Eagle",
+    "Kuna",
+    "Caldwell",
+    "Star",
+  ]);
+  for (const city of ["Boise", "Eagle", "Nampa", "Meridian"]) {
     const area = organization.areaServed.find((entry) => entry.name === city);
     assert.ok(area, `${city} is areaServed`);
     assert.equal(area["@type"], "City");
     assert.equal("address" in area, false);
   }
+  assert.equal(organization.areaServed.some((entry) => entry.name === "Garden City" || entry.name === "Middleton"), false);
 
-  const serialized = serializeJsonLd(siteSchema) + serializeJsonLd(homePageSchema) + serializeJsonLd(schemaFor(null));
-  assert.equal(serialized.includes("streetAddress"), false);
-  assert.equal(serialized.includes("Wapoot"), false);
-  assert.equal(serialized.toLowerCase().includes("storefront"), false);
-  assert.equal(serialized.includes('"addressLocality":"Boise"'), false);
-  assert.equal(serialized.includes('"addressLocality":"Meridian"'), true);
+  const siteJson = serializeJsonLd(siteSchema);
+  const elsewhere = serializeJsonLd(homePageSchema) + serializeJsonLd(schemaFor(null));
+  assert.equal(siteJson.includes('"streetAddress":"4031 W Wapoot St"'), true);
+  assert.equal(elsewhere.includes("streetAddress"), false);
+  assert.equal(elsewhere.includes("Wapoot"), false);
+  assert.equal((siteJson + elsewhere).toLowerCase().includes("storefront"), false);
+  assert.equal((siteJson + elsewhere).includes('"addressLocality":"Boise"'), false);
+  assert.equal(siteJson.includes('"addressLocality":"Meridian"'), true);
   assert.equal(records(homePageSchema).some((record) => record["@type"] === "PostalAddress"), false);
   assert.equal(records(schemaFor(null)).some((record) => record["@type"] === "PostalAddress"), false);
 });
@@ -118,8 +140,8 @@ test("JSON-LD serialization escapes HTML opening brackets", () => {
 });
 
 test("each subOrganization has its own @id and url", () => {
-  // Boise ADU Co runs through Boise Construction Co until its own site exists;
-  // listing it would give two differently named nodes the same @id.
+  // Boise ADU Co has no site yet. Its node uses the P5 ADU request, which is
+  // a different url and @id from Boise Construction Co.
   const organization = siteSchema["@graph"][0] as unknown as { subOrganization: Array<Record<string, string>> };
   const ids = organization.subOrganization.map((node) => node["@id"]);
   const urls = organization.subOrganization.map((node) => node.url);
@@ -130,5 +152,9 @@ test("each subOrganization has its own @id and url", () => {
     "Boise Remodeling Co",
     "Boise Cabinet Co",
     "Boise Handyman Co",
+    "Boise ADU Co",
   ]);
+  const adu = organization.subOrganization.find((node) => node.name === "Boise ADU Co");
+  assert.equal(adu?.url, "https://p5homeco.com/quote/adu");
+  assert.equal(JSON.stringify(organization).includes("boiseadu.co"), false);
 });

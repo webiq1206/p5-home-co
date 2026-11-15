@@ -2,6 +2,7 @@ import {
   PUBLIC_EMAIL,
   PUBLIC_PHONE_DISPLAY,
   PUBLIC_REPRESENTATIVE,
+  PUBLIC_STREET_ADDRESS,
   SCHEMA_LEGAL_NAME,
   CONTRACTOR_REGISTRATION,
 } from "@/app/publicIdentity";
@@ -57,9 +58,9 @@ function foldLine(line: string, max = 75): string {
 export function buildBusinessVCard(): string {
   const tel = formatTelE164(PUBLIC_PHONE_DISPLAY);
   const note = [
-    "The parent company behind Boise Construction Co, Boise Remodeling Co, Boise Cabinet Co and Boise Handyman Co.",
+    "The parent company behind Boise Construction Co, Boise Remodeling Co, Boise Cabinet Co, Boise Handyman Co and Boise ADU Co.",
     `A P5 Home Co company (${SCHEMA_LEGAL_NAME}, Idaho Registered Contractor #${CONTRACTOR_REGISTRATION}).`,
-    "Serving Boise and the Treasure Valley. Meridian, ID 83646.",
+    "Serving Boise and the Treasure Valley. 4031 W Wapoot St, Meridian, ID 83646.",
   ].join(" ");
 
   const lines = [
@@ -72,7 +73,7 @@ export function buildBusinessVCard(): string {
     foldLine(`TEL;TYPE=WORK,VOICE:${tel}`),
     foldLine(`EMAIL;TYPE=WORK:${escapeVCard(PUBLIC_EMAIL)}`),
     foldLine(`URL:https://${ESTIMATOR_BRAND.domain}`),
-    foldLine("ADR;TYPE=WORK:;;;Meridian;ID;83646;USA"),
+    foldLine(`ADR;TYPE=WORK:;;${escapeVCard(PUBLIC_STREET_ADDRESS)};Meridian;ID;83646;USA`),
     foldLine(`NOTE:${escapeVCard(note)}`),
     "END:VCARD",
   ];

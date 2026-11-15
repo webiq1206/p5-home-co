@@ -8,6 +8,11 @@ import {
   CONTRACTOR_REGISTRATION,
   P5_FACEBOOK_URL,
   P5_GOOGLE_BUSINESS_PROFILE_URL,
+  P5_GBP_MAPS_URL,
+  PUBLIC_STREET_ADDRESS,
+  PUBLIC_ADDRESS_LOCALITY,
+  PUBLIC_ADDRESS_REGION,
+  PUBLIC_POSTAL_CODE,
 } from "./publicIdentity.ts";
 import { SHOW_FOUNDING_YEAR } from "./publicClaims.ts";
 import { citiesServed, companies, faqs, siteUrl } from "./site.ts";
@@ -21,7 +26,7 @@ export const siteSchema = {
   "@context": "https://schema.org",
   "@graph": [
     {
-      "@type": ["Organization", "HomeAndConstructionBusiness"],
+      "@type": ["Organization", "GeneralContractor"],
       "@id": `${siteUrl}/#organization`,
       name: "P5 Home Co",
       legalName: SCHEMA_LEGAL_NAME,
@@ -35,7 +40,7 @@ export const siteSchema = {
       image: `${siteUrl}/images/p5-og.jpg`,
       logo: { "@type": "ImageObject", url: `${siteUrl}/android-chrome-512x512.png` },
       // Confirmed profiles only: the P5 Facebook page and the P5 Google Business Profile.
-      sameAs: [P5_FACEBOOK_URL, P5_GOOGLE_BUSINESS_PROFILE_URL],
+      sameAs: [P5_FACEBOOK_URL, P5_GOOGLE_BUSINESS_PROFILE_URL, P5_GBP_MAPS_URL],
       employee: {
         "@type": "Person",
         "@id": NICK_PERKINS_ID,
@@ -63,12 +68,19 @@ export const siteSchema = {
           url: "https://dopl.idaho.gov/con/",
         },
       },
-      // Publish locality and served areas without exposing a street address.
       address: {
         "@type": "PostalAddress",
-        addressLocality: "Meridian",
-        addressRegion: "ID",
+        streetAddress: PUBLIC_STREET_ADDRESS,
+        addressLocality: PUBLIC_ADDRESS_LOCALITY,
+        addressRegion: PUBLIC_ADDRESS_REGION,
+        postalCode: PUBLIC_POSTAL_CODE,
         addressCountry: "US",
+      },
+      // Rounded to 3 decimals so the point names Meridian, not one house.
+      geo: {
+        "@type": "GeoCoordinates",
+        latitude: 43.652,
+        longitude: -116.444,
       },
       areaServed: [
         { "@type": "AdministrativeArea", name: "Ada County, Idaho" },
@@ -78,19 +90,20 @@ export const siteSchema = {
           name,
         })),
       ],
-      // One node per company with its own site. Boise ADU Co has no site yet and
-      // runs through Boise Construction Co, so it would repeat Construction's
-      // url and @id under a different name. It joins the graph, with its own
-      // @id, once its domain is live.
-      subOrganization: companies.filter((company) => company.name !== "Boise ADU Co").map((company) => ({
-        "@type": "Organization",
-        "@id": `${company.url}/#organization`,
-        name: company.name,
-        url: company.url,
-        description: company.description,
-        image: `${siteUrl}${company.image}`,
-        parentOrganization: { "@id": `${siteUrl}/#organization` },
-      })),
+      // One node per company. Boise ADU Co has no site yet, so its url is the
+      // P5 ADU request. That url is its own @id.
+      subOrganization: companies.map((company) => {
+        const url = company.url.startsWith("http") ? company.url : `${siteUrl}${company.url}`;
+        return {
+          "@type": "Organization",
+          "@id": `${url}/#organization`,
+          name: company.name,
+          url,
+          description: company.description,
+          image: `${siteUrl}${company.image}`,
+          parentOrganization: { "@id": `${siteUrl}/#organization` },
+        };
+      }),
       knowsAbout: [
         "Custom home building",
         "Design-build remodeling",
