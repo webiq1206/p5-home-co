@@ -3,6 +3,7 @@ import {readFileSync} from "node:fs";
 import {createRequire} from "node:module";
 import test from "node:test";
 import vm from "node:vm";
+import {restoreSavedCustomerCopy} from "../lib/p5/savedCustomerCopy.ts";
 
 const require = createRequire(import.meta.url);
 const ts = require("typescript");
@@ -35,6 +36,7 @@ function harness({authorized = true, saved = historical, brandId = "remodeling",
   }
   const dependencies = {
     DraftError,
+    restoreSavedCustomerCopy,
     requireEstimatorAdmin: async () => { if (!authorized) throw new DraftError("Unauthorized", 401); },
     ensureReviewSchema: async () => { schemaCalls++; },
     query: async (sql, parameters) => {

@@ -1,7 +1,7 @@
 {
   "source": "p5-home-co",
-  "commit": "b874a444a854e02f48385d2e76e4a9c15e7be04d",
-  "generatedAt": "2026-11-15T20:49:32.867Z",
+  "commit": "42ba8aa18ebdaf46ffb7371b5793101b702e6ab5",
+  "generatedAt": "2026-11-15T21:19:04.193Z",
   "note": "Shared estimator engine published from p5-home-co. Edit shared files there and run scripts/p5-sync.mjs; hash checks remain mandatory in every brand.",
   "files": {
     "app/admin/p5-estimators/page.tsx": "489c406a30e5aba809f6c603738d999c2e412f9b67968281a8ea16e748587b62",
@@ -363,7 +363,7 @@
     "tests/p5-accuracy-integration.test.ts": "3a016240ad9b56dffa162ccf3037d82753ad7e01bb030db91b34b1be1784266c",
     "tests/p5-adaptive.test.ts": "6d3f0ae8484530c7ecc90377bd096c7a96eb45a529727e784921858ff21dfee0",
     "tests/p5-admin-estimate.test.ts": "99226a88c3a8fb0163c217adf6a1c44626fb7ad9170b179658e983584f7dd463",
-    "tests/p5-admin-reference.test.mjs": "dfe002130ec565e144970ae815e024056af8b9b985946e455ff88218e3b4ccb6",
+    "tests/p5-admin-reference.test.mjs": "03782cbdb1a8f47607cc4585f5c8303391917cac281b5772a4d2346737d4e438",
     "tests/p5-advisory-provenance.test.ts": "003e23f0a98f3973579126521934cd62d328ee601f631adaaca2b580fec18804",
     "tests/p5-analysis-reuse.test.ts": "a20cff80a7359237fd255b102cd03f6dafe27598edf9588039cd51be3795802d",
     "tests/p5-answer-parsing.test.ts": "b41ab0f4862b37b9537a0cb5a9e3173ac10a66d633f0360f31a19d33dd35fd63",
