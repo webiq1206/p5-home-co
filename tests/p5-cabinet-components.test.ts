@@ -7,10 +7,10 @@ import {relevantCatalog} from '../lib/p5/catalogSelection.ts';
 test('supply-only cabinet quantities use the master book material share, excluding labor',()=>{
   const rates=priceBookRates({service:'cabinet-product',finish:'mid-range'});
   const base=rates.find(r=>r.code==='PB-12-32-01-M')!,upper=rates.find(r=>r.code==='PB-12-32-02-M')!;
-  assert.equal(base.type,'Material');assert.equal(base.unit,'LF');assert.equal(base.amount,280);
-  assert.equal(upper.type,'Material');assert.equal(upper.amount,200);
-  assert.equal(12*base.amount+8*upper.amount,4960,'direct product cost only, before existing financial policy');
-  assert.match(base.source,/350 × 80% material share/);
+  assert.equal(base.type,'Material');assert.equal(base.unit,'LF');assert.equal(base.amount,276);
+  assert.equal(upper.type,'Material');assert.equal(upper.amount,192);
+  assert.equal(12*base.amount+8*upper.amount,4848,'direct product cost only, before existing financial policy');
+  assert.match(base.source,/345 × 80% material share/);
   const shown=relevantCatalog(rates,[{description:'Supply only 12 linear feet of base cabinets and 8 linear feet of upper cabinets; owner installs'}]);
   assert.ok(shown.some(r=>r.code===base.code));assert.ok(shown.some(r=>r.code===upper.code));
 });

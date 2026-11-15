@@ -311,6 +311,9 @@ const bathroomRemodel: Builder = ({ answers: a, property }) => {
   l.add("00-20-06", 2, "Plumbing and electrical permits", PRE);
   if (scope === "relocate") l.add("00-20-02", 1, "Building permit for the new layout", PRE);
   l.add("01-50-04", 1, "Dust barriers and floor protection for the work area");
+  // v2 cost-book pass (2026-11-15): full bath remodels carry part-time project
+  // supervision, about one site day a week over a 4-week job (0.2 month of 01-31-01).
+  if (type !== "powder") l.add("01-31-01", 0.2, "Project supervision, about one site day a week");
 
   if (type === "powder") {
     l.add("02-41-22", 1, "Remove and haul away the old vanity")

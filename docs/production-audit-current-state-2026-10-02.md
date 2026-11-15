@@ -1,6 +1,6 @@
 # Retained pricing evidence for the .11 synthetic failure
 
-The saved synthetic project `d18a6984-36e9-469d-bbc3-655fdda475da` ended in review with no customer range. Its production export is preserved byte-for-byte in `tests/fixtures/p5-main11-saved-failure.json` (SHA-256 `8689566ab270bb3066c581ec8458d1260483a4a8c2cf07c977892ee88da267fb`; production internal JSON MD5 `cb5b054a3005740b0bcd72151c999c8a`).
+The saved synthetic project `d18a6984-36e9-469d-bbc3-655fdda475da` ended in review with no customer range. Its production export was preserved in `tests/fixtures/p5-main11-saved-failure.json` (original SHA-256 `8689566ab270bb3066c581ec8458d1260483a4a8c2cf07c977892ee88da267fb`; production internal JSON MD5 `cb5b054a3005740b0bcd72151c999c8a`). On 2026-11-15 the stored PB-08-71-01 door hardware rate in that fixture was set to 67. Hank 11/15: 08-71-01 benchmarked at market mid $95/door labor (HomeGuide, Angi), set to 67 per the v2 subbed rule. The provider transcript is otherwise the same export.
 
 The actual ledger has **$210 hardware replacement labor plus one $75 supporting-work allowance, $285 direct cost**. It does not retain the $225 whole-door removal proposal. Deterministic rate admission already rejected that proposal. The canonical hardware rate is explicitly labor-only. The audit nevertheless repeated the rejected removal proposal and the mapper's unsupported consumables-in-labor claim as current facts and blockers. The same mapping prose was also accepted as scope-assumption advisory text.
 
