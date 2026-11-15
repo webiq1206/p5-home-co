@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {isExplicitSaveAttempt} from '../scripts/lib/browserSaveFaults.mjs';
+import {isExplicitSaveAttempt,saveIntentFor} from '../scripts/lib/browserSaveFaults.mjs';
 
 test('background and already-in-flight saves cannot consume a manual-action fault',()=>{
  const intent={sequence:2,at:1000,name:'Send message'};
@@ -8,6 +8,15 @@ test('background and already-in-flight saves cannot consume a manual-action faul
  assert.equal(isExplicitSaveAttempt(1000,null,'Send message'),false);
  assert.equal(isExplicitSaveAttempt(1001,{...intent,name:'Talk instead'},'Send message'),false);
  assert.equal(isExplicitSaveAttempt(1001,intent,'Send message'),true);
+});
+
+test('routed save identity uses the immutable fetch snapshot even before timing is available',()=>{
+ const snapshot={startedAt:1001,intent:{sequence:2,at:1000,name:'Send answer'}};
+ const request={headers:()=>({'x-p5-test-save-action':JSON.stringify(snapshot)}),timing:()=>({startTime:0})};
+ assert.deepEqual(saveIntentFor(request),snapshot);
+ assert.equal(isExplicitSaveAttempt(saveIntentFor(request).startedAt,saveIntentFor(request).intent,'Send answer',1),true);
+ assert.equal(saveIntentFor({headers:()=>({})}),null);
+ assert.equal(saveIntentFor({headers:()=>({'x-p5-test-save-action':'invalid'})}),null);
 });
 
 test('a later answer fault requires the new explicit answer action',()=>{

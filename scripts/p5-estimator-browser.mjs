@@ -78,9 +78,9 @@ async function mock(context,{interruptions=false,scenario='full'}={}){
    // Autosave may run while typing or preparing a file. Keep the fault armed
    // until the explicit action's own save, so every browser exercises the
    // visible unconfirmed-save recovery rather than consuming it in the background.
-   if(state.nullReceipt){if(isExplicitSaveAttempt(request.timing().startTime,await saveIntentFor(request),'Send message'))state.nullReceipt=false;return send({draft:null});}
+   if(state.nullReceipt){const action=saveIntentFor(request);if(isExplicitSaveAttempt(action?.startedAt,action?.intent,'Send message'))state.nullReceipt=false;return send({draft:null});}
    if(state.saved?.status==='submitted'){state.postSubmissionSaves++;return send({error:'Already submitted'},409);}
-   if(state.failNextSave){if(isExplicitSaveAttempt(request.timing().startTime,await saveIntentFor(request),'Send answer',state.failNextSaveAfter))state.failNextSave=false;return send({error:'Temporary answer-save interruption. Please retry.'},503);}
+   if(state.failNextSave){const action=saveIntentFor(request);if(isExplicitSaveAttempt(action?.startedAt,action?.intent,'Send answer',state.failNextSaveAfter))state.failNextSave=false;return send({error:'Temporary answer-save interruption. Please retry.'},503);}
    const input=request.postDataJSON();const old=state.saved;
    if(input.clarification){
     if(state.failClarification){state.failClarification=false;return send({error:'Temporary answer-save interruption. Please retry.'},503);}

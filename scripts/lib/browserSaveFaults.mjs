@@ -14,11 +14,24 @@ export async function installSaveIntentTracking(context) {
       if (name !== 'Send message' && name !== 'Send answer') return;
       window.__p5TestSaveIntent = {sequence: window.__p5TestSaveIntent.sequence + 1, at: Date.now(), name};
     }, true);
+    const originalFetch = window.fetch;
+    window.fetch = function(input, init) {
+      const url = new URL(typeof input === 'string' || input instanceof URL ? input : input.url, location.href);
+      const method = (init?.method || (input instanceof Request ? input.method : 'GET')).toUpperCase();
+      if (url.origin === location.origin && url.pathname === '/api/p5-estimator/draft' && method !== 'GET') {
+        const headers = new Headers(init?.headers || (input instanceof Request ? input.headers : undefined));
+        // Snapshot at fetch invocation: WebKit timing is still zero while routed.
+        // The synthetic route consumes this header; it never reaches a live API.
+        headers.set('x-p5-test-save-action', JSON.stringify({startedAt: Date.now(), intent: {...window.__p5TestSaveIntent}}));
+        return originalFetch.call(this, input, {...init, headers});
+      }
+      return originalFetch.call(this, input, init);
+    };
   });
 }
 
-export async function saveIntentFor(request) {
-  try { return await request.frame().evaluate(() => window.__p5TestSaveIntent); }
+export function saveIntentFor(request) {
+  try { return JSON.parse(request.headers()['x-p5-test-save-action']); }
   catch { return null; }
 }
 
