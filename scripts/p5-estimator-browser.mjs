@@ -1,4 +1,5 @@
 import {startNavigationDiagnostics} from './lib/navigationDiagnostics.mjs';
+import {isExplicitSaveAttempt,installSaveIntentTracking,saveIntentFor,armAnswerSaveFailure} from './lib/browserSaveFaults.mjs';
 import {isHandyman,verifyHandymanHomeEntry,isCabinet,isRemodeling,verifyCabinetEntry,verifyRemodelingEntry,verifyRemodelingRe10Handoff} from './lib/shortBrandEntry.mjs';
 import {retainedEstimatorPath,isPublicQuotePath,verifyQuoteEntry,isConstruction,verifyConstructionEntry,verifyConstructionRe10Handoff} from './lib/quoteEntry.mjs';
 import {chromium,webkit} from '@playwright/test';
@@ -49,6 +50,7 @@ const noPricePromise=text=>assert.ok(!/instant|within \d+ (?:hours|days|minutes)
 const fullAnswers={service,taskList:'Complete the specified work. Repair three interior doors.',...(service.startsWith('cabinet-')?{cabinetRoom:'kitchen',cabinetBaseLf:'20',cabinetUpperLf:'0',finish:'mid-range'}:service==='handyman'?{}:{sqft:'80',materials:'Porcelain tile',demolition:'Remove old finishes',...(service==='new-construction'?{garageIncluded:'no'}:{})})};
 const result={status:'preliminary',range:{low:1000,high:1800},categoryRanges:[{category:'Carpentry',low:1000,high:1800}],lineItems:[{id:'repair',category:'Carpentry',description:'Repair three interior doors',quantity:3,unit:'EA',low:1000,high:1800,unitLow:1000/3,unitHigh:600,pricingStatus:'owner-planning-rate'}],scopeTasks:[{description:'Repair three interior doors',category:'Carpentry'}],summary:'Synthetic fixture scope.',includedCategories:['Carpentry'],allowances:[],assumptions:['Doors are standard interior slabs.'],exclusions:['Painting is excluded.'],factors:[],nextStep:'Schedule a scope review.',message:'Synthetic planning range.',disclaimer:'This is not a bid, quote, offer or guaranteed price.'};
 async function mock(context,{interruptions=false,scenario='full'}={}){
+ await installSaveIntentTracking(context);
  // This qualification harness must never reach real business APIs or analytics.
  // Specific synthetic routes below take precedence over this fail-closed guard.
  await context.route('**/*',route=>{
@@ -59,7 +61,7 @@ async function mock(context,{interruptions=false,scenario='full'}={}){
  // Keep synthetic estimator sessions out of production analytics and isolate third-party network failures.
  await context.route(/^https:\/\/([a-z0-9-]+\.)*clarity\.ms\//, route=>route.fulfill({status:200,contentType:'application/javascript',body:''}));
  await context.route('**/api/estimator-session',route=>route.fulfill({status:200,contentType:'application/json',body:'{}'}));
- const state={saved:null,receipt:null,nullReceipt:interruptions,failUpload:interruptions,failIntake:interruptions,failNextSave:false,submissions:0,intakeRequests:0,postSubmissionSaves:0,scopeCalls:0,pricingPolls:0,readStage:1,finishReading:false,pricingStage:'mapping',failClarification:scenario==='instructions',holdPricing:scenario==='missing',invalidPdf:false,pdfRequests:0};
+ const state={saved:null,receipt:null,nullReceipt:interruptions,failUpload:interruptions,failIntake:interruptions,failNextSave:false,failNextSaveAfter:0,submissions:0,intakeRequests:0,postSubmissionSaves:0,scopeCalls:0,pricingPolls:0,readStage:1,finishReading:false,pricingStage:'mapping',failClarification:scenario==='instructions',holdPricing:scenario==='missing',invalidPdf:false,pdfRequests:0};
  // The server derives intake identity and origin from its own saved state, never from the browser's metadata (lib/p5/intakeDraft.ts).
  const intakeContext=(input,old,draftId)=>({desiredOutcome:'',workContext:'',budget:'',supportingServices:[],transcript:[],...(old?.intake||{}),...(input.intake||{}),projectId:old?.intake?.projectId||`${site}:${draftId}`,originSite:old?.intake?.originSite||site,currentSite:site,version:old?.revision||0,contact:{...input.contact,preferredContact:input.intake?.preferredContact??input.intake?.contact?.preferredContact??old?.intake?.contact?.preferredContact??'either'}});
  await context.addInitScript(()=>{window.SpeechRecognition=class{start(){this.onresult?.({resultIndex:0,results:[Object.assign([{transcript:'Repair three interior doors.'}],{isFinal:true})]});this.onend?.();}stop(){this.onend?.();}};});
@@ -73,9 +75,12 @@ async function mock(context,{interruptions=false,scenario='full'}={}){
   }
   if(endpoint==='draft'){
    if(request.method()==='GET')return send({draft:state.saved});
-   if(state.nullReceipt){state.nullReceipt=false;return send({draft:null});}
+   // Autosave may run while typing or preparing a file. Keep the fault armed
+   // until the explicit action's own save, so every browser exercises the
+   // visible unconfirmed-save recovery rather than consuming it in the background.
+   if(state.nullReceipt){if(isExplicitSaveAttempt(request.timing().startTime,await saveIntentFor(request),'Send message'))state.nullReceipt=false;return send({draft:null});}
    if(state.saved?.status==='submitted'){state.postSubmissionSaves++;return send({error:'Already submitted'},409);}
-   if(state.failNextSave){state.failNextSave=false;return send({error:'Temporary answer-save interruption. Please retry.'},503);}
+   if(state.failNextSave){if(isExplicitSaveAttempt(request.timing().startTime,await saveIntentFor(request),'Send answer',state.failNextSaveAfter))state.failNextSave=false;return send({error:'Temporary answer-save interruption. Please retry.'},503);}
    const input=request.postDataJSON();const old=state.saved;
    if(input.clarification){
     if(state.failClarification){state.failClarification=false;return send({error:'Temporary answer-save interruption. Please retry.'},503);}
@@ -244,7 +249,7 @@ for(const width of progressOnly?[]:[390,1440])for(const scenario of ['fresh','re
    const address=est.getByLabel(ADDRESS_LABEL,{exact:true}),input=est.getByLabel('Your answer',{exact:true});
    await focusedHeading(page,LOCATION_QUESTION);assert.equal(await est.getByText('Labor only or materials only?',{exact:true}).count(),0,'Unclassified clarifications are not asked');
    await typeWithoutRefocusing(page,address,'Boise, Idaho','reply');
-   state.failNextSave=true;await est.getByRole('button',{name:'Send answer',exact:true}).click();
+   await armAnswerSaveFailure(state,page);await est.getByRole('button',{name:'Send answer',exact:true}).click();
    await est.getByRole('alert').filter({hasText:'Temporary answer-save interruption'}).waitFor();await settled(page);
    assert.equal(await address.inputValue(),'Boise, Idaho','Interrupted answer saves retain the composer');
    assert.equal(await page.evaluate(()=>JSON.parse(localStorage.getItem('p5-project-draft-v2')).answers.location),'Boise, Idaho','The answer is kept on this device for the retry');
@@ -381,7 +386,7 @@ for(const width of progressOnly||focusOnly?[]:[390,1440]){
    await question.getByText(LOCATION_QUESTION,{exact:true}).waitFor();
    assert.equal(await est.getByText('Labor only or materials only?',{exact:true}).count(),0,'Unclassified clarifications are not asked');
    const address=est.getByLabel(ADDRESS_LABEL,{exact:true});await address.fill('Boise, Idaho');
-   state.failNextSave=true;await est.getByRole('button',{name:'Send answer',exact:true}).click();
+   await armAnswerSaveFailure(state,page);await est.getByRole('button',{name:'Send answer',exact:true}).click();
    await est.getByRole('alert').filter({hasText:'Temporary answer-save interruption'}).waitFor();assert.equal(await address.inputValue(),'Boise, Idaho');
    await est.getByRole('button',{name:'Send answer',exact:true}).click({timeout:120000});await question.getByText(SCHEDULE_QUESTION,{exact:true}).waitFor();
    assert.equal(await est.getByLabel('Your answer',{exact:true}).inputValue(),'','The next question starts with a fresh answer');
