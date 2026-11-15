@@ -164,6 +164,10 @@ describe("watchdog", { skip: TEST_DB ? false : "TEST_DATABASE_URL not set" }, ()
       `INSERT INTO setting (key,value) VALUES ('lead_manager','{"featureFlags":{"hubspotIntegrationEnabled":false}}'::jsonb)
        ON CONFLICT (key) DO UPDATE SET value=EXCLUDED.value`,
     );
+    // hubspot-tasks.integration.test.ts shares this database and leaves a
+    // HubSpot health row from passes where the flag is on. Drop that leftover
+    // so the count below measures this disabled pass, which must not write one.
+    await query("DELETE FROM integration_health WHERE name = 'hubspot'");
     // The explicit off override must complete normally and report zero, rather
     // than erroring or quietly claiming a sync happened.
     const summary = await runWatchdog(at31());
