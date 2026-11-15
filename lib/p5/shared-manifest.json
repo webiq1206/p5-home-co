@@ -1,7 +1,7 @@
 {
   "source": "p5-home-co",
-  "commit": "5eba855d5b9178861b31c63e440d8aaf24add6b1",
-  "generatedAt": "2026-11-15T19:44:25.050Z",
+  "commit": "0b580ec8f95927ebada5ad3be1249e7ac4e8f1cd",
+  "generatedAt": "2026-11-15T19:47:15.935Z",
   "note": "Shared estimator engine published from p5-home-co. Edit shared files there and run scripts/p5-sync.mjs; hash checks remain mandatory in every brand.",
   "files": {
     "app/admin/p5-estimators/page.tsx": "489c406a30e5aba809f6c603738d999c2e412f9b67968281a8ea16e748587b62",
@@ -347,7 +347,7 @@
     "scripts/test-p5-unit-rate-store.mts": "f9d95d84ec8a785ba1ceb1ede37c1f15311c3fd1c2f460f7c1c0182b6e0b0003",
     "scripts/test-p5-upload-adversarial.mts": "11ffdf2bfd3d606454e6fb3a9c5d337d063435dc7cc4ab44153c4a3d25e9662f",
     "scripts/test-p5-upload.mts": "04c7baca5d2d07bb37e1374d59115f9a1161380e3e585136e868d9e0633d76de",
-    "scripts/test-p5-workflow.mts": "13e2881ffae65012faadd684cd563394c62a7704f2818e03c838c9db4a247cad",
+    "scripts/test-p5-workflow.mts": "7eb01b6edc802a5c599be6fdd9ba8766f45e1ec9d64368eaf5b4adbfd03a29a0",
     "tests/fixtures/crmReceiverValidation571c6f6d.ts": "75bb102dcb5d85d929a85014e7574ac22669f34944ac0ff9a200b347bd23bef7",
     "tests/fixtures/p5-final-minor-work-copy.json": "28bfcb8d9252e7f010aa2b8d96f686fbe326720746f681493889774be6a9356e",
     "tests/fixtures/p5-main11-saved-failure.json": "e363fd7a08d1b0ceb4e4d4b9ccc16df22882911c4bdba80d8a3f8eb547152ec7",

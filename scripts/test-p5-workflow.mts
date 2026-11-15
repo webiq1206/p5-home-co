@@ -117,10 +117,11 @@ try{
  assert.equal(recovered.find((r:any)=>r.destination==='crm').status,'needs-review');
  assert.equal(recovered.find((r:any)=>r.destination==='customer:customer@example.invalid').status,'needs-review');
  assert.equal(recovered.filter((r:any)=>r.destination==='alert:admin@example.invalid').length,1);
+ assert.equal(recovered.filter((r:any)=>r.destination==='alert:hello@p5homeco.com').length,1);
  await outbox.processOutbox({draftId:interruptedId});
- assert.equal(transport.attempts.length,beforeRecovery+1);
+ assert.equal(transport.attempts.length,beforeRecovery+2);
  await outbox.processOutbox({draftId:interruptedId});
- assert.equal(transport.attempts.length,beforeRecovery+1);
+ assert.equal(transport.attempts.length,beforeRecovery+2);
  // The CRM copy is the bounded payload for the exact saved revision, and its
  // customer copy has passed through the customer boundary.
  const crmAttempt=transport.attempts.find((attempt:any)=>attempt.crm&&attempt.payload);
