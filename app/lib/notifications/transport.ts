@@ -11,6 +11,34 @@ import { getSmtpConfig, assertSmtpAccepted } from "./smtp-config.ts";
 
 export type SendResult = { ok: true } | { ok: false; error: string };
 
+/** One retry, and only for a dropped connection or a 4xx mailbox reply. Auth and 5xx stop. */
+export function isTransientSmtpError(error: unknown): boolean {
+  const code = typeof error === "object" && error && "code" in error ? String((error as { code?: unknown }).code ?? "") : "";
+  const message = `${error instanceof Error ? error.message : String(error)} ${code}`;
+  if (/EAUTH|535|534|invalid login|authentication/i.test(message)) return false;
+  if (/\b5\d\d\b/.test(message) && !/\b4\d\d\b/.test(message)) return false;
+  return /ETIMEDOUT|ECONNRESET|ESOCKET|ECONNECTION|timed out|\b4\d\d\b|try again/i.test(message);
+}
+
+export async function sendWithRetry(
+  send: () => Promise<void>,
+  sleep: (ms: number) => Promise<void> = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+): Promise<SendResult> {
+  try {
+    await send();
+    return { ok: true };
+  } catch (error) {
+    if (!isTransientSmtpError(error)) return { ok: false, error: error instanceof Error ? error.message : String(error) };
+    try {
+      await sleep(2_000);
+      await send();
+      return { ok: true };
+    } catch (again) {
+      return { ok: false, error: again instanceof Error ? again.message : String(again) };
+    }
+  }
+}
+
 export type Transport = {
   readonly name: string;
   send(to: string, message: Message): Promise<SendResult>;
@@ -47,10 +75,10 @@ export function smtpTransport(): Transport | null {
   return {
     name: `smtp:${host}`,
     async send(to, message) {
-      try {
-        const { createTransport } = await import("nodemailer");
-        const config = getSmtpConfig();
-        const mailer = createTransport(config.options);
+      const { createTransport } = await import("nodemailer");
+      const config = getSmtpConfig();
+      const mailer = createTransport(config.options);
+      return sendWithRetry(async () => {
         const result = await mailer.sendMail({
           from: config.from,
           replyTo: config.replyTo,
@@ -58,12 +86,10 @@ export function smtpTransport(): Transport | null {
           subject: message.subject,
           text: message.text,
           html: message.html,
+          messageId: message.messageId,
         });
         assertSmtpAccepted(result);
-        return { ok: true };
-      } catch (error) {
-        return { ok: false, error: (error as Error).message };
-      }
+      });
     },
   };
 }

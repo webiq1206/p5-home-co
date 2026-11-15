@@ -354,7 +354,7 @@ export async function ingestLead(
         [
           contactId,
           isMetaLead(lead)
-            ? `${lead.utm?.meta_test_lead === "true" ? "TEST LEAD — " : ""}${lead.brand} lead: ${[lead.firstName, lead.lastName].filter(Boolean).join(" ") || "New contact"}`
+            ? `${lead.utm?.meta_test_lead === "true" ? "TEST LEAD: " : ""}${lead.brand} lead: ${[lead.firstName, lead.lastName].filter(Boolean).join(" ") || "New contact"}`
             : dealName(lead),
           lead.brand,
           normalizeText(lead.projectType),

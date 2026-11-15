@@ -36,7 +36,7 @@ test('real outbox SQL saves synthetic results atomically with a terminal suppres
   const dependencies:Record<string,unknown>={
    'node:crypto':crypto,'./database.ts':{query},'./qaOperationContext.ts':await import('../lib/p5/qaOperationContext.ts'),'./qaOperationFence.ts':await import('../lib/p5/qaOperationFence.ts'),'./store.ts':{ensureSchema:async()=>{}},'./estimatorNotifications.ts':policy,
    './estimateEmail.ts':{estimateEmail:()=>({text:'Isolated fixture'})},'./estimateDocument.ts':{estimateReference:()=> 'P5-FIXTURE'},
-   './savedCustomerCopy.ts':{restoreSavedCustomerCopy:(customer:any)=>customer},'./brand.ts':{ESTIMATOR_BRAND:{name:'Fixture',domain:'fixture.invalid'}},
+   './savedCustomerCopy.ts':{restoreSavedCustomerCopy:(customer:any)=>customer},'./brand.ts':{ESTIMATOR_BRAND:{name:'Fixture',domain:'fixture.invalid'}},'./emailKit.ts':await import('../lib/p5/emailKit.ts'),
    './pdf.ts':{customerPdf:async()=>Buffer.from('fixture'),administrativePdf:async()=>Buffer.from('fixture'),pdfFilename:()=> 'fixture.pdf'},
    './deliveryAdapter.ts':{EMAIL_SUPPORTS_IDEMPOTENCY:false,adminRecipients:async()=>{lookups++;return ['admin@example.invalid'];},sendEmail:async(input:any)=>{attempts.push(input.to);return 'mock-ack';},syncCrm:async()=>{attempts.push('crm');return 'mock-crm-ack';}},
   };

@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
+import {telHref} from '../lib/p5/emailKit.ts';
 import {phoneHref} from '../lib/p5/phoneHref.ts';
 import {buildEstimateDocument, type EstimateBrand} from '../lib/p5/estimateDocument.ts';
 import {estimateEmail} from '../lib/p5/estimateEmail.ts';
@@ -44,7 +45,16 @@ test('rendered estimator phone links include + and keep the visible number', () 
   const customer = estimateEmail('phone-href', record, false);
   const admin = estimateEmail('phone-href', {...record, internal: {directCost: 1}}, true);
   assert.match(customer.html, />\(208\) 477-1169</);
+  assert.match(customer.html, /href="tel:\+12084771169"/);
   assert.match(admin.html, />\(208\) 555-0100</);
+  assert.match(admin.html, /Meridian, ID 83646/);
+  assert.match(admin.html, /href="tel:\+12084771169"/);
+  assert.match(admin.html, /@media \(max-width:640px\)/);
+  assert.match(admin.html, /\.container\{width:100%!important\}/);
+  assert.doesNotMatch(admin.html, /width:600px(?!;max-width:100%)/);
+  assert.match(admin.text, /Meridian, ID 83646/);
+  assert.match(admin.text, new RegExp(ESTIMATOR_BRAND.email.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  assert.doesNotMatch(`${admin.html}\n${admin.text}`, /^\d+\s+\w+\s+(?:St|Street|Ave|Avenue)\b/im);
   assert.doesNotMatch(customer.text, /tel:|sms:/);
   assertDialLinks('customer estimate email', customer.html);
   assertDialLinks('internal estimate email', admin.html);
@@ -56,6 +66,7 @@ test('rendered estimator phone links include + and keep the visible number', () 
     assert.equal(source.includes('sms:'), false, file);
     assert.match(source, /Call \{brand\.phone\}/);
   }
+  assert.equal(telHref(ESTIMATOR_BRAND.phone), 'tel:+12084771169');
   assert.equal(phoneHref(ESTIMATOR_BRAND.phone), 'tel:+12084771169');
   assert.equal(phoneHref(ESTIMATOR_BRAND.phone, 'sms'), 'sms:+12084771169');
 });
